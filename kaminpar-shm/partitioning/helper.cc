@@ -235,13 +235,15 @@ bool coarsen_once(
     Coarsener *coarsener,
     const Graph *graph,
     const Context &input_ctx,
-    PartitionContext &current_p_ctx
+    PartitionContext &current_p_ctx,
+    const bool free_memory_afterwards
 ) {
   SCOPED_TIMER("Coarsening");
 
   const NodeWeight max_cluster_weight =
       compute_max_cluster_weight(input_ctx.coarsening, *graph, input_ctx.partition);
-  const auto [c_graph, shrunk] = coarsener->compute_coarse_graph(max_cluster_weight, 0);
+  const auto [c_graph, shrunk] =
+      coarsener->compute_coarse_graph(max_cluster_weight, 0, free_memory_afterwards);
 
   if (shrunk) {
     current_p_ctx.setup(*c_graph);

@@ -104,6 +104,15 @@ public:
   }
 
   /*!
+   * Frees the memory used by this data structure.
+   */
+  void free() {
+    _size = 0;
+    _byte_capacity = 0;
+    _data.release();
+  }
+
+  /*!
    * Returns the amount of bits that this vector stores.
    *
    * @return The amount of bits that this vector stores.

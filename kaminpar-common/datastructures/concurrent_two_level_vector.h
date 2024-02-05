@@ -73,6 +73,16 @@ public:
   }
 
   /*!
+   * Frees the memory used by this data structure.
+   */
+  void free() {
+    _values.clear();
+    _values.shrink_to_fit();
+
+    _table = ConcurrentHashTable(0);
+  }
+
+  /*!
    * Resets the vector such that new elements can be inserted.
    */
   void reset() {
@@ -232,6 +242,16 @@ public:
    */
   void resize(const Size capacity) {
     _values.resize(capacity);
+  }
+
+  /*!
+   * Frees the memory used by this data structure.
+   */
+  void free() {
+    _values.clear();
+    _values.shrink_to_fit();
+
+    _table.clear();
   }
 
   /*!

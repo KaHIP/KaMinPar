@@ -138,7 +138,9 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
     prev_c_graph_m = c_graph->m();
 
     // Build next coarse graph
-    shrunk = helper::coarsen_once(_coarsener.get(), c_graph, _input_ctx, _current_p_ctx);
+    shrunk = helper::coarsen_once(
+        _coarsener.get(), c_graph, _input_ctx, _current_p_ctx, _coarsener.get()->size() == 0
+    );
     c_graph = _coarsener->coarsest_graph();
 
     // _subgraph_memory stores the block-induced subgraphs of the partitioned graph during recursive

@@ -34,8 +34,9 @@ public:
   ClusteringCoarsener(ClusteringCoarsener &&) = delete;
   ClusteringCoarsener &operator=(ClusteringCoarsener &&) = delete;
 
-  std::pair<const Graph *, bool>
-  compute_coarse_graph(NodeWeight max_cluster_weight, NodeID to_size) final;
+  std::pair<const Graph *, bool> compute_coarse_graph(
+      NodeWeight max_cluster_weight, NodeID to_size, const bool free_memory_afterwards
+  ) final;
   PartitionedGraph uncoarsen(PartitionedGraph &&p_graph) final;
 
   [[nodiscard]] const Graph *coarsest_graph() const final {

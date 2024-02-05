@@ -39,6 +39,7 @@ public:
   // Clustering function
   //
 
-  virtual AtomicClusterArray &compute_clustering(const Graph &graph) = 0;
+  virtual AtomicClusterArray &
+  compute_clustering(const Graph &graph, const bool free_memory_afterwards) = 0;
 };
 } // namespace kaminpar::shm

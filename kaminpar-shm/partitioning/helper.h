@@ -113,7 +113,8 @@ bool coarsen_once(
     Coarsener *coarsener,
     const Graph *graph,
     const Context &input_ctx,
-    PartitionContext &current_p_ctx
+    PartitionContext &current_p_ctx,
+    const bool free_memory_afterwards = false
 );
 
 // compute smallest k_prime such that it is a power of 2 and n / k_prime <= C
