@@ -39,7 +39,7 @@ struct UnorderedRatingMap {
     map.clear();
   }
 
-  std::size_t capacity() const {
+  [[nodiscard]] std::size_t capacity() const {
     return std::numeric_limits<std::size_t>::max();
   }
 
@@ -87,47 +87,44 @@ public:
   }
 
   void initialize(const DistributedGraph &graph) {
+    TIMER_BARRIER(graph.communicator());
+    SCOPED_TIMER("Label propagation");
+
     _graph = &graph;
 
-    mpi::barrier(graph.communicator());
-
-    SCOPED_TIMER("Initialize label propagation clustering");
-
-    START_TIMER("High-degree computation");
+    START_TIMER("Initialize high-degree node info");
     if (_passive_high_degree_threshold > 0) {
       graph.init_high_degree_info(_passive_high_degree_threshold);
     }
     STOP_TIMER();
-
-    mpi::barrier(graph.communicator());
+    TIMER_BARRIER(graph.communicator());
 
     START_TIMER("Allocation");
     allocate(graph);
     STOP_TIMER();
+    TIMER_BARRIER(graph.communicator());
 
-    mpi::barrier(graph.communicator());
-
-    START_TIMER("Datastructures");
-    // Clear hash map
+    START_TIMER("Initialize datastructures");
     _cluster_weights_handles_ets.clear();
     _cluster_weights = ClusterWeightsMap{0};
     std::fill(_local_cluster_weights.begin(), _local_cluster_weights.end(), 0);
 
-    // Initialize data structures
     Base::initialize(&graph, graph.total_n());
     initialize_ghost_node_clusters();
     STOP_TIMER();
+
+    TIMER_BARRIER(graph.communicator());
   }
 
   auto &
   compute_clustering(const DistributedGraph &graph, const GlobalNodeWeight max_cluster_weight) {
+    TIMER_BARRIER(graph.communicator());
+    SCOPED_TIMER("Label propagation");
+
     _max_cluster_weight = max_cluster_weight;
 
-    mpi::barrier(graph.communicator());
-
-    KASSERT(_graph == &graph, "must call initialize() before cluster()", assert::always);
-
-    SCOPED_TIMER("Compute label propagation clustering");
+    // Ensure that the clustering algorithm was properly initialized
+    KASSERT(_graph == &graph, "must call initialize() before compute_clustering()", assert::always);
 
     const int num_chunks = _c_ctx.global_lp.chunks.compute(_ctx.parallel);
 
@@ -330,6 +327,28 @@ public:
   //--------------------------------------------------------------------------------
 
 private:
+  GlobalNodeID process_chunk(const NodeID from, const NodeID to) {
+    TIMER_BARRIER(_graph->communicator());
+    START_TIMER("Chunk iteration");
+    const NodeID local_num_moved_nodes = perform_iteration(from, to);
+    STOP_TIMER();
+
+    const GlobalNodeID global_num_moved_nodes =
+        mpi::allreduce(local_num_moved_nodes, MPI_SUM, _graph->communicator());
+
+    control_cluster_weights(from, to);
+
+    if (global_num_moved_nodes > 0) {
+      synchronize_ghost_node_clusters(from, to);
+    }
+
+    if (_c_ctx.global_lp.merge_singleton_clusters) {
+      cluster_isolated_nodes(from, to);
+    }
+
+    return global_num_moved_nodes;
+  }
+
   void allocate(const DistributedGraph &graph) {
     ensure_cluster_size(graph.total_n());
 
@@ -355,6 +374,7 @@ private:
   }
 
   void control_cluster_weights(const NodeID from, const NodeID to) {
+    TIMER_BARRIER(_graph->communicator());
     SCOPED_TIMER("Synchronize cluster weights");
 
     if (!should_sync_cluster_weights()) {
@@ -369,6 +389,7 @@ private:
     std::vector<parallel::Atomic<std::size_t>> num_messages(size);
     STOP_TIMER();
 
+    TIMER_BARRIER(_graph->communicator());
     START_TIMER("Fill hash table");
     _graph->pfor_nodes(from, to, [&](const NodeID u) {
       if (_changed_label[u] != kInvalidGlobalNodeID) {
@@ -400,20 +421,18 @@ private:
     });
     STOP_TIMER();
 
-    mpi::barrier(_graph->communicator());
-
     struct Message {
       GlobalNodeID cluster;
       GlobalNodeWeight delta;
     };
 
+    TIMER_BARRIER(_graph->communicator());
     START_TIMER("Allocation");
     std::vector<NoinitVector<Message>> out_msgs(size);
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) { out_msgs[pe].resize(num_messages[pe]); });
     STOP_TIMER();
 
-    mpi::barrier(_graph->communicator());
-
+    TIMER_BARRIER(_graph->communicator());
     START_TIMER("Create messages");
     growt::pfor_handles(
         _weight_delta_handles_ets,
@@ -426,14 +445,12 @@ private:
     );
     STOP_TIMER();
 
-    mpi::barrier(_graph->communicator());
-
+    TIMER_BARRIER(_graph->communicator());
     START_TIMER("Exchange messages");
     auto in_msgs = mpi::sparse_alltoall_get<Message>(out_msgs, _graph->communicator());
     STOP_TIMER();
 
-    mpi::barrier(_graph->communicator());
-
+    TIMER_BARRIER(_graph->communicator());
     START_TIMER("Integrate messages");
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
       tbb::parallel_for<std::size_t>(0, in_msgs[pe].size(), [&](const std::size_t i) {
@@ -450,14 +467,12 @@ private:
     });
     STOP_TIMER();
 
-    mpi::barrier(_graph->communicator());
-
+    TIMER_BARRIER(_graph->communicator());
     START_TIMER("Exchange messages");
     auto in_resps = mpi::sparse_alltoall_get<Message>(in_msgs, _graph->communicator());
     STOP_TIMER();
 
-    mpi::barrier(_graph->communicator());
-
+    TIMER_BARRIER(_graph->communicator());
     START_TIMER("Integrate messages");
     parallel::Atomic<std::uint8_t> violation = 0;
     tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
@@ -489,13 +504,17 @@ private:
     });
     STOP_TIMER();
 
-    mpi::barrier(_graph->communicator());
+    TIMER_BARRIER(_graph->communicator());
 
     // If we detected a max cluster weight violation, remove node weight
     // proportional to our chunk of the cluster weight
     if (!should_enforce_cluster_weights() || !violation) {
       return;
     }
+
+    //
+    // VVV possibly diverged code paths, might not be executed on all PEs VVV
+    //
 
     START_TIMER("Enforce cluster weights");
     _graph->pfor_nodes(from, to, [&](const NodeID u) {
@@ -514,32 +533,8 @@ private:
     STOP_TIMER();
   }
 
-  GlobalNodeID process_chunk(const NodeID from, const NodeID to) {
-    START_TIMER("Chunk iteration");
-    const NodeID local_num_moved_nodes = perform_iteration(from, to);
-    STOP_TIMER();
-
-    mpi::barrier(_graph->communicator());
-
-    const GlobalNodeID global_num_moved_nodes =
-        mpi::allreduce(local_num_moved_nodes, MPI_SUM, _graph->communicator());
-
-    control_cluster_weights(from, to);
-
-    if (global_num_moved_nodes > 0) {
-      synchronize_ghost_node_clusters(from, to);
-    }
-
-    if (_c_ctx.global_lp.merge_singleton_clusters) {
-      cluster_isolated_nodes(from, to);
-    }
-
-    return global_num_moved_nodes;
-  }
-
   void synchronize_ghost_node_clusters(const NodeID from, const NodeID to) {
-    mpi::barrier(_graph->communicator());
-
+    TIMER_BARRIER(_graph->communicator());
     SCOPED_TIMER("Synchronize ghost node clusters");
 
     struct ChangedLabelMessage {
@@ -601,6 +596,7 @@ private:
    * @param to One-after the last node to consider.
    */
   void cluster_isolated_nodes(const NodeID from, const NodeID to) {
+    TIMER_BARRIER(_graph->communicator());
     SCOPED_TIMER("Cluster isolated nodes");
 
     tbb::enumerable_thread_specific<GlobalNodeID> isolated_node_ets(kInvalidNodeID);
@@ -631,8 +627,6 @@ private:
 
       isolated_node_ets.local() = current;
     });
-
-    mpi::barrier(_graph->communicator());
   }
 
   [[nodiscard]] bool should_sync_cluster_weights() const {
@@ -686,7 +680,7 @@ private:
 //
 
 GlobalLPClusterer::GlobalLPClusterer(const Context &ctx)
-    : _impl{std::make_unique<GlobalLPClusteringImpl>(ctx)} {}
+    : _impl(std::make_unique<GlobalLPClusteringImpl>(ctx)) {}
 
 GlobalLPClusterer::~GlobalLPClusterer() = default;
 

@@ -161,35 +161,27 @@ void DistributedGraph::init_communication_metrics() {
 }
 
 void print_graph_summary(const DistributedGraph &graph) {
-  const auto global_n = graph.global_n();
-  const auto global_m = graph.global_m();
-  const auto [local_n_min, local_n_avg, local_n_max, local_n_sum] =
-      mpi::gather_statistics(graph.n(), graph.communicator());
-  const double local_n_imbalance = 1.0 * local_n_max / local_n_avg;
-  const auto [local_m_min, local_m_avg, local_m_max, local_m_sum] =
-      mpi::gather_statistics(graph.m(), graph.communicator());
-  const double local_m_imbalance = 1.0 * local_m_max / local_m_avg;
-  const auto [ghost_min, ghost_avg, ghost_max, ghost_sum] =
+  const auto [n_min, n_avg, n_max, n_sum] = mpi::gather_statistics(graph.n(), graph.communicator());
+  const double n_imbalance = 1.0 * n_max / n_avg;
+  const auto [ghost_n_min, ghost_n_avg, ghost_n_max, ghost_n_sum] =
       mpi::gather_statistics(graph.ghost_n(), graph.communicator());
-  const double ghost_imbalance = 1.0 * ghost_max / ghost_avg;
+  const double ghost_n_imbalance = 1.0 * ghost_n_max / ghost_n_avg;
+  const auto [m_min, m_avg, m_max, m_sum] = mpi::gather_statistics(graph.m(), graph.communicator());
+  const double m_imbalance = 1.0 * m_max / m_avg;
+  const auto [max_node_weight_min, max_node_weight_avg, max_node_weight_max, max_node_weight_sum] =
+      mpi::gather_statistics(graph.max_node_weight(), graph.communicator());
 
-  const auto local_width =
-      static_cast<std::streamsize>(std::log10(std::max({local_n_max, local_m_max, ghost_max})) + 1);
-
-  LOG << "  Global number of nodes: " << global_n;
-  LOG << "  Global number of edges: " << global_m;
-  LOG << "  Local number of nodes:  [min=" << std::setw(local_width) << local_n_min
-      << "|avg=" << std::fixed << std::setprecision(1) << std::setw(local_width) << local_n_avg
-      << "|max=" << std::setw(local_width) << local_n_max << "|imbalance=" << std::fixed
-      << std::setprecision(3) << std::setw(local_width) << local_n_imbalance << "]";
-  LOG << "  Local number of edges:  [min=" << std::setw(local_width) << local_m_min
-      << "|avg=" << std::fixed << std::setprecision(1) << std::setw(local_width) << local_m_avg
-      << "|max=" << std::setw(local_width) << local_m_max << "|imbalance=" << std::fixed
-      << std::setprecision(3) << std::setw(local_width) << local_m_imbalance << "]";
-  LOG << "  Number of ghost nodes:  [min=" << std::setw(local_width) << ghost_min
-      << "|avg=" << std::fixed << std::setprecision(1) << std::setw(local_width) << ghost_avg
-      << "|max=" << std::setw(local_width) << ghost_max << "|imbalance=" << std::fixed
-      << std::setprecision(3) << std::setw(local_width) << ghost_imbalance << "]";
+  LOG << "  Number of nodes: " << graph.global_n() << " | Number of edges: " << graph.global_m();
+  LOG << "  Number of local nodes: [Min=" << n_min << " | Mean=" << static_cast<NodeID>(n_avg)
+      << " | Max=" << n_max << " | Imbalance=" << n_imbalance << "]";
+  LOG << "  Number of ghost nodes: [Min=" << ghost_n_min
+      << " | Mean=" << static_cast<NodeID>(ghost_n_avg) << " | Max=" << ghost_n_max
+      << " | Imbalance=" << ghost_n_imbalance << "]";
+  LOG << "  Number of edges:       [Min=" << m_min << " | Mean=" << static_cast<EdgeID>(m_avg)
+      << " | Max=" << m_max << " | Imbalance=" << m_imbalance << "]";
+  LOG << "  Maximum node weight:   [Min=" << max_node_weight_min
+      << " | Mean=" << static_cast<NodeWeight>(max_node_weight_avg)
+      << " | Max=" << max_node_weight_max << "]";
 }
 
 namespace debug {

@@ -232,6 +232,7 @@ AlignedTable align_statistics(const std::vector<NodeStatistics> &statistics) {
   for (auto &entry : statistics) {
     table.update_next_column(entry.min_pe);
     table.update_next_column(entry.min);
+    table.update_next_column(entry.mean);
     table.update_next_column(entry.max_pe);
     table.update_next_column(entry.max);
     // table.update_next_column(entry.sd);
@@ -251,8 +252,9 @@ void annotate_timer_tree(
   std::stringstream ss;
   if (entry.min >= 0) {
     ss << "[" << table.to_str_padded(entry.min_pe, false) << " : " << table.to_str_padded(entry.min)
-       << "s | " << table.to_str_padded(entry.max_pe, false) << " : "
-       << table.to_str_padded(entry.max) << "s]";
+       << "s | " << table.to_str_padded(entry.mean) << "s | "
+       << table.to_str_padded(entry.max_pe, false) << " : " << table.to_str_padded(entry.max)
+       << "s]";
   } else {
     ss << "N/A ";
   }
@@ -282,6 +284,7 @@ void finalize_distributed_timer(Timer &timer, MPI_Comm comm) {
     AlignedTable table = align_statistics(statistics);
     table.update_next_column("PE");
     table.update_next_column("min");
+    table.update_next_column("avg");
     table.update_next_column("PE");
     table.update_next_column("max");
     table.next_row();
@@ -289,7 +292,8 @@ void finalize_distributed_timer(Timer &timer, MPI_Comm comm) {
     // add captions
     std::stringstream ss;
     ss << " " << table.to_str_padded("PE", false) << " : " << table.to_str_padded("min") << "    "
-       << table.to_str_padded("PE", false) << " : " << table.to_str_padded("max") << "  ";
+       << table.to_str_padded("avg") << "    " << table.to_str_padded("PE", false) << " : "
+       << table.to_str_padded("max") << "  ";
     timer.annotate(ss.str());
 
     std::size_t pos = 0;

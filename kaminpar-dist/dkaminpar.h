@@ -80,14 +80,12 @@ enum class InitialPartitioningAlgorithm {
 
 enum class RefinementAlgorithm {
   NOOP,
-  BATCHED_LP,
-  COLORED_LP,
-  GLOBAL_FM,
+  BATCHED_LP_REFINER,
+  COLORED_LP_REFINER,
   JET_REFINER,
-  JET_BALANCER,
-  GREEDY_NODE_BALANCER,
-  GREEDY_CLUSTER_BALANCER,
-  MTKAHYPAR,
+  HYBRID_NODE_BALANCER,
+  HYBRID_CLUSTER_BALANCER,
+  MTKAHYPAR_REFINER,
 };
 
 enum class LabelPropagationMoveExecutionStrategy {
@@ -188,33 +186,6 @@ struct LabelPropagationRefinementContext {
   bool ignore_probabilities;
 };
 
-struct FMRefinementContext {
-  double alpha;
-
-  bool use_independent_seeds;
-  bool use_bfs_seeds_as_fm_seeds;
-
-  bool chunk_local_rounds;
-  ChunksContext chunks;
-
-  int max_hops;
-  int max_radius;
-
-  int num_global_iterations;
-  int num_local_iterations;
-
-  bool revert_local_moves_after_batch;
-
-  bool rebalance_after_each_global_iteration;
-  bool rebalance_after_refinement;
-  RefinementAlgorithm balancing_algorithm;
-
-  bool rollback_deterioration;
-
-  bool use_abortion_threshold;
-  double abortion_threshold;
-};
-
 struct MtKaHyParRefinementContext {
   std::string config_filename;
   std::string fine_config_filename;
@@ -300,11 +271,6 @@ struct ClusterBalancerContext {
   bool switch_to_singleton_after_stallmate;
 };
 
-struct JetBalancerContext {
-  int num_weak_iterations;
-  int num_strong_iterations;
-};
-
 struct JetRefinementContext {
   int num_coarse_rounds;
   int num_fine_rounds;
@@ -330,12 +296,10 @@ struct RefinementContext {
 
   LabelPropagationRefinementContext lp;
   ColoredLabelPropagationRefinementContext colored_lp;
-  FMRefinementContext fm;
   NodeBalancerContext node_balancer;
   ClusterBalancerContext cluster_balancer;
 
   JetRefinementContext jet;
-  JetBalancerContext jet_balancer;
 
   MtKaHyParRefinementContext mtkahypar;
 

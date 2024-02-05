@@ -883,6 +883,7 @@ ContractionResult contract_clustering(
     const bool migrate_cnode_prefix,
     const bool force_perfect_cnode_balance
 ) {
+  TIMER_BARRIER(graph.communicator());
   START_TIMER("Contract clustering");
 
   KASSERT(
@@ -972,9 +973,9 @@ ContractionResult contract_clustering(
   auto nonlocal_edges = find_nonlocal_edges(graph, lnode_to_gcluster);
 
   IF_STATS {
-    const GlobalEdgeID total_num_nonlocal_edges =
+    const auto total_num_nonlocal_edges =
         mpi::allreduce<GlobalEdgeID>(nonlocal_edges.size(), MPI_SUM, graph.communicator());
-    const GlobalEdgeID max_num_nonlocal_edges =
+    const auto max_num_nonlocal_edges =
         mpi::allreduce<GlobalEdgeID>(nonlocal_edges.size(), MPI_MAX, graph.communicator());
     STATS << "Total number of nonlocal edges before deduplication: " << total_num_nonlocal_edges
           << "; max: " << max_num_nonlocal_edges
@@ -984,9 +985,9 @@ ContractionResult contract_clustering(
   deduplicate_edge_list(nonlocal_edges);
 
   IF_STATS {
-    const GlobalEdgeID total_num_nonlocal_edges =
+    const auto total_num_nonlocal_edges =
         mpi::allreduce<GlobalEdgeID>(nonlocal_edges.size(), MPI_SUM, graph.communicator());
-    const GlobalEdgeID max_num_nonlocal_edges =
+    const auto max_num_nonlocal_edges =
         mpi::allreduce<GlobalEdgeID>(nonlocal_edges.size(), MPI_MAX, graph.communicator());
     STATS << "Total number of nonlocal edges after deduplication: " << total_num_nonlocal_edges
           << "; max: " << max_num_nonlocal_edges
@@ -1078,7 +1079,7 @@ ContractionResult contract_clustering(
       const GlobalNodeID global = their_mapping_requests[pe][i];
       KASSERT(global != kInvalidGlobalNodeID);
       KASSERT(global >= graph.offset_n(), V(rank));
-      const NodeID local = static_cast<NodeID>(global - graph.offset_n());
+      const auto local = static_cast<NodeID>(global - graph.offset_n());
       KASSERT(local < lcluster_to_lcnode.size());
       const NodeID coarse_local = lcluster_to_lcnode[local];
       KASSERT(static_cast<std::size_t>(rank) < c_node_distribution.size());
@@ -1207,8 +1208,8 @@ ContractionResult contract_clustering(
 
           auto handle_edge_to_gcluster = [&](const EdgeWeight weight, const GlobalNodeID gcluster) {
             if (graph.is_owned_global_node(gcluster)) {
-              const NodeID lcluster = static_cast<NodeID>(gcluster - graph.offset_n());
-              const NodeID lcnode = lcluster_to_lcnode[lcluster];
+              const auto lcluster = static_cast<NodeID>(gcluster - graph.offset_n());
+              const auto lcnode = lcluster_to_lcnode[lcluster];
               if (lcnode != lcu) {
                 map[lcnode] += weight;
               }
@@ -1237,7 +1238,7 @@ ContractionResult contract_clustering(
                   (gcnode >= c_node_distribution[rank] && gcnode < c_node_distribution[rank + 1]);
 
               if (is_local_gcnode) {
-                const NodeID lcnode = static_cast<NodeID>(gcnode - c_node_distribution[rank]);
+                const auto lcnode = static_cast<NodeID>(gcnode - c_node_distribution[rank]);
                 if (lcu != lcnode) {
                   map[lcnode] += weight;
                 }

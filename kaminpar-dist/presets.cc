@@ -17,16 +17,14 @@ namespace kaminpar::dist {
 Context create_context_by_preset_name(const std::string &name) {
   if (name == "default" || name == "fast") {
     return create_default_context();
-  } else if (name == "strong") {
+  } else if (name == "strong" || name == "4xjet") {
     return create_strong_context();
+  } else if (name == "jet") {
+    return create_jet_context();
   } else if (name == "europar23-fast") {
     return create_europar23_fast_context();
   } else if (name == "europar23-strong") {
     return create_europar23_strong_context();
-  } else if (name == "jet") {
-    return create_jet_context();
-  } else if (name == "fm") {
-    return create_fm_context();
   }
 
   throw std::runtime_error("invalid preset name");
@@ -38,8 +36,6 @@ std::unordered_set<std::string> get_preset_names() {
       "strong",
       "europar23-fast",
       "europar23-strong",
-      "jet",
-      "fm",
   };
 }
 
@@ -125,9 +121,9 @@ Context create_default_context() {
       .refinement =
           {
               .algorithms =
-                  {RefinementAlgorithm::GREEDY_NODE_BALANCER,
-                   RefinementAlgorithm::BATCHED_LP,
-                   RefinementAlgorithm::GREEDY_NODE_BALANCER},
+                  {RefinementAlgorithm::HYBRID_NODE_BALANCER,
+                   RefinementAlgorithm::BATCHED_LP_REFINER,
+                   RefinementAlgorithm::HYBRID_NODE_BALANCER},
               .refine_coarsest_level = false,
               .lp =
                   {
@@ -161,38 +157,6 @@ Context create_default_context() {
                       .track_local_block_weights = true,
                       .use_active_set = false,
                       .move_execution_strategy = LabelPropagationMoveExecutionStrategy::BEST_MOVES,
-                  },
-              .fm =
-                  {
-                      .alpha = 1.0,
-
-                      .use_independent_seeds = false,
-                      .use_bfs_seeds_as_fm_seeds = true,
-
-                      .chunk_local_rounds = false,
-                      .chunks =
-                          {
-                              .total_num_chunks = 128,
-                              .fixed_num_chunks = 0,
-                              .min_num_chunks = 8,
-                              .scale_chunks_with_threads = false,
-                          },
-
-                      .max_hops = 1,
-                      .max_radius = 1,
-
-                      .num_global_iterations = 10,
-                      .num_local_iterations = 1,
-
-                      .revert_local_moves_after_batch = true,
-                      .rebalance_after_each_global_iteration = true,
-                      .rebalance_after_refinement = false,
-                      .balancing_algorithm = RefinementAlgorithm::GREEDY_NODE_BALANCER,
-
-                      .rollback_deterioration = true,
-
-                      .use_abortion_threshold = true,
-                      .abortion_threshold = 0.999,
                   },
               .node_balancer =
                   {
@@ -244,12 +208,7 @@ Context create_default_context() {
                       .fine_negative_gain_factor = 0.25,
                       .initial_negative_gain_factor = 0.75,
                       .final_negative_gain_factor = 0.25,
-                      .balancing_algorithm = RefinementAlgorithm::GREEDY_NODE_BALANCER,
-                  },
-              .jet_balancer =
-                  {
-                      .num_weak_iterations = 2,
-                      .num_strong_iterations = 1,
+                      .balancing_algorithm = RefinementAlgorithm::HYBRID_NODE_BALANCER,
                   },
               .mtkahypar =
                   {
@@ -267,12 +226,21 @@ Context create_default_context() {
 
 Context create_strong_context() {
   Context ctx = create_default_context();
-  ctx.initial_partitioning.kaminpar = shm::create_strong_context();
-  ctx.coarsening.global_lp.num_iterations = 5;
+  ctx.refinement.jet.dynamic_negative_gain_factor = true;
+  ctx.refinement.jet.num_coarse_rounds = 4;
+  ctx.refinement.jet.num_fine_rounds = 4;
   ctx.refinement.algorithms = {
-      RefinementAlgorithm::GREEDY_NODE_BALANCER,
-      RefinementAlgorithm::BATCHED_LP,
-      RefinementAlgorithm::JET_REFINER};
+      RefinementAlgorithm::HYBRID_NODE_BALANCER, RefinementAlgorithm::JET_REFINER};
+  return ctx;
+}
+
+Context create_jet_context() {
+  Context ctx = create_default_context();
+  ctx.refinement.jet.dynamic_negative_gain_factor = false;
+  ctx.refinement.jet.num_coarse_rounds = 1;
+  ctx.refinement.jet.num_fine_rounds = 1;
+  ctx.refinement.algorithms = {
+      RefinementAlgorithm::HYBRID_NODE_BALANCER, RefinementAlgorithm::JET_REFINER};
   return ctx;
 }
 
@@ -286,23 +254,6 @@ Context create_europar23_strong_context() {
   Context ctx = create_europar23_fast_context();
   ctx.initial_partitioning.algorithm = InitialPartitioningAlgorithm::MTKAHYPAR;
   ctx.coarsening.global_lp.num_iterations = 5;
-  return ctx;
-}
-
-Context create_jet_context() {
-  Context ctx = create_default_context();
-  ctx.refinement.algorithms = {
-      RefinementAlgorithm::GREEDY_NODE_BALANCER, RefinementAlgorithm::JET_REFINER};
-  return ctx;
-}
-
-Context create_fm_context() {
-  Context ctx = create_default_context();
-  ctx.refinement.algorithms = {
-      RefinementAlgorithm::GREEDY_NODE_BALANCER,
-      RefinementAlgorithm::BATCHED_LP,
-      RefinementAlgorithm::GLOBAL_FM,
-      RefinementAlgorithm::GREEDY_NODE_BALANCER};
   return ctx;
 }
 } // namespace kaminpar::dist

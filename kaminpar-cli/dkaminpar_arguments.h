@@ -24,8 +24,6 @@ CLI::Option_group *create_initial_partitioning_options(CLI::App *app, Context &c
 
 CLI::Option_group *create_refinement_options(CLI::App *app, Context &ctx);
 
-CLI::Option_group *create_fm_refinement_options(CLI::App *app, Context &ctx);
-
 CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx);
 
 CLI::Option_group *create_colored_lp_refinement_options(CLI::App *app, Context &ctx);

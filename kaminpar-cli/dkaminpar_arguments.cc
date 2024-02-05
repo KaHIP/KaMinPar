@@ -142,7 +142,6 @@ CLI::Option_group *create_refinement_options(CLI::App *app, Context &ctx) {
       )
       ->capture_default_str();
 
-  create_fm_refinement_options(app, ctx);
   create_lp_refinement_options(app, ctx);
   create_colored_lp_refinement_options(app, ctx);
   create_jet_refinement_options(app, ctx);
@@ -151,62 +150,6 @@ CLI::Option_group *create_refinement_options(CLI::App *app, Context &ctx) {
   create_cluster_balancer_options(app, ctx);
 
   return refinement;
-}
-
-CLI::Option_group *create_fm_refinement_options(CLI::App *app, Context &ctx) {
-  auto *fm = app->add_option_group("Refinement -> FM");
-
-  fm->add_option(
-        "--r-fm-alpha", ctx.refinement.fm.alpha, "Alpha parameter for the adaptive stopping rule."
-  )
-      ->capture_default_str();
-
-  fm->add_flag("--r-fm-independent-seeds", ctx.refinement.fm.use_independent_seeds)
-      ->capture_default_str();
-  fm->add_flag("--r-fm-bfs-seeds-as-fm-seeds", ctx.refinement.fm.use_bfs_seeds_as_fm_seeds)
-      ->capture_default_str();
-
-  fm->add_option("--r-fm-max-hops", ctx.refinement.fm.max_hops)->capture_default_str();
-  fm->add_option("--r-fm-max-radius", ctx.refinement.fm.max_radius)->capture_default_str();
-  fm->add_option("--r-fm-num-global-iterations", ctx.refinement.fm.num_global_iterations)
-      ->capture_default_str();
-  fm->add_option("--r-fm-num-local-iterations", ctx.refinement.fm.num_local_iterations)
-      ->capture_default_str();
-  fm->add_flag(
-        "--r-fm-revert-local-moves-after-batch", ctx.refinement.fm.revert_local_moves_after_batch
-  )
-      ->capture_default_str();
-  fm->add_flag(
-        "--r-fm-rebalance-after-each-global-iteration",
-        ctx.refinement.fm.rebalance_after_each_global_iteration
-  )
-      ->capture_default_str();
-  fm->add_flag("--r-fm-rebalance-after-refinement", ctx.refinement.fm.rebalance_after_refinement)
-      ->capture_default_str();
-  fm->add_option("--r-fm-balancing-algorithm", ctx.refinement.fm.balancing_algorithm)
-      ->transform(CLI::CheckedTransformer(get_balancing_algorithms()).description(""))
-      ->description(
-          std::string("Balancing algorithm(s). Possible options are:\n") +
-          get_balancing_algorithms_description()
-      )
-      ->capture_default_str();
-  fm->add_flag("--r-fm-rollback", ctx.refinement.fm.rollback_deterioration)->capture_default_str();
-
-  fm->add_flag("--r-fm-use-abortion-threshold", ctx.refinement.fm.use_abortion_threshold)
-      ->capture_default_str();
-  fm->add_option("--r-fm-abortion-threshold", ctx.refinement.fm.abortion_threshold)
-      ->capture_default_str();
-
-  fm->add_flag(
-        "--r-fm-chunk-local-rounds",
-        ctx.refinement.fm.chunk_local_rounds,
-        "If enabled, divide local rounds into chunks and synchronize the partition state after "
-        "each chunk."
-  )
-      ->capture_default_str();
-  create_chunks_options(fm, "--r-fm", ctx.refinement.fm.chunks);
-
-  return fm;
 }
 
 CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx) {

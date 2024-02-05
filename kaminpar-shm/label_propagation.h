@@ -1242,15 +1242,13 @@ protected:
   NodeID
   perform_iteration(const NodeID from = 0, const NodeID to = std::numeric_limits<NodeID>::max()) {
     START_HEAP_PROFILER("Buckets");
-    TIMED_SCOPE("Buckets") {
-      if (from != 0 || to != std::numeric_limits<NodeID>::max()) {
-        _chunks.clear();
-      }
-      if (_chunks.empty()) {
-        init_chunks(from, to);
-      }
-      shuffle_chunks();
-    };
+    if (from != 0 || to != std::numeric_limits<NodeID>::max()) {
+      _chunks.clear();
+    }
+    if (_chunks.empty()) {
+      init_chunks(from, to);
+    }
+    shuffle_chunks();
     STOP_HEAP_PROFILER();
 
     tbb::enumerable_thread_specific<NodeID> num_first_phase_nodes_ets;
