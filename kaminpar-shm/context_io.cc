@@ -170,7 +170,7 @@ std::ostream &operator<<(std::ostream &out, const InitialPartitioningMode mode) 
 
 std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies() {
   return {
-      {"dense", GainCacheStrategy::DENSE},
+      {"sparse", GainCacheStrategy::SPARSE},
       {"on-the-fly", GainCacheStrategy::ON_THE_FLY},
       {"hybrid", GainCacheStrategy::HYBRID},
   };
@@ -178,8 +178,8 @@ std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies() {
 
 std::ostream &operator<<(std::ostream &out, const GainCacheStrategy strategy) {
   switch (strategy) {
-  case GainCacheStrategy::DENSE:
-    return out << "dense";
+  case GainCacheStrategy::SPARSE:
+    return out << "sparse";
   case GainCacheStrategy::ON_THE_FLY:
     return out << "on-the-fly";
   case GainCacheStrategy::HYBRID:

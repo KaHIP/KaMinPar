@@ -2,7 +2,7 @@
  * Gain cache that caches one gain for each node and block, using a total of
  * O(|V| * k) memory.
  *
- * @file:   dense_gain_cache.h
+ * @file:   sparse_gain_cache.h
  * @author: Daniel Seemaier
  * @date:   15.03.2023
  ******************************************************************************/
@@ -24,15 +24,15 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
-template <typename DeltaPartitionedGraph, typename GainCache> class DenseDeltaGainCache;
+template <typename DeltaPartitionedGraph, typename GainCache> class SparseDeltaGainCache;
 
-template <bool iterate_exact_gains = false> class DenseGainCache {
-  using Self = DenseGainCache<iterate_exact_gains>;
-  template <typename, typename> friend class DenseDeltaGainCache;
+template <bool iterate_exact_gains = false> class SparseGainCache {
+  using Self = SparseGainCache<iterate_exact_gains>;
+  template <typename, typename> friend class SparseDeltaGainCache;
 
 public:
   template <typename DeltaPartitionedGraph>
-  using DeltaCache = DenseDeltaGainCache<DeltaPartitionedGraph, Self>;
+  using DeltaCache = SparseDeltaGainCache<DeltaPartitionedGraph, Self>;
 
   // gains() will iterate over all blocks, including those not adjacent to the node.
   constexpr static bool kIteratesNonadjacentBlocks = true;
@@ -42,7 +42,7 @@ public:
   // (more expensive, but safes a call to gain() if the exact gain for the best block is needed).
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
-  DenseGainCache(const Context & /* ctx */, const NodeID max_n, const BlockID max_k)
+  SparseGainCache(const Context & /* ctx */, const NodeID max_n, const BlockID max_k)
       : _max_n(max_n),
         _max_k(max_k),
         _gain_cache(
@@ -160,7 +160,8 @@ private:
     }
   }
 
-  bool check_cached_gain_for_node(const PartitionedGraph &p_graph, const NodeID u) const {
+  [[nodiscard]] bool
+  check_cached_gain_for_node(const PartitionedGraph &p_graph, const NodeID u) const {
     const BlockID block_u = p_graph.block(u);
     std::vector<EdgeWeight> actual_external_degrees(_k, 0);
     EdgeWeight actual_weighted_degree = 0;
@@ -200,19 +201,19 @@ private:
   StaticArray<EdgeWeight> _weighted_degrees;
 };
 
-template <typename DeltaPartitionedGraph, typename GainCache> class DenseDeltaGainCache {
+template <typename DeltaPartitionedGraph, typename GainCache> class SparseDeltaGainCache {
 public:
   constexpr static bool kIteratesNonadjacentBlocks = GainCache::kIteratesNonadjacentBlocks;
   constexpr static bool kIteratesExactGains = GainCache::kIteratesExactGains;
 
-  DenseDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph & /* d_graph */)
+  SparseDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph & /* d_graph */)
       : _gain_cache(gain_cache) {}
 
-  EdgeWeight conn(const NodeID node, const BlockID block) const {
+  [[nodiscard]] EdgeWeight conn(const NodeID node, const BlockID block) const {
     return _gain_cache.conn(node, block) + conn_delta(node, block);
   }
 
-  EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
+  [[nodiscard]] EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
     return _gain_cache.gain(node, from, to) + conn_delta(node, to) - conn_delta(node, from);
   }
 
@@ -248,7 +249,7 @@ public:
   }
 
 private:
-  EdgeWeight conn_delta(const NodeID node, const BlockID block) const {
+  [[nodiscard]] EdgeWeight conn_delta(const NodeID node, const BlockID block) const {
     const auto it = _gain_cache_delta.get_if_contained(_gain_cache.index(node, block));
     return it != _gain_cache_delta.end() ? *it : 0;
   }

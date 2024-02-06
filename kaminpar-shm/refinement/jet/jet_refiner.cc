@@ -12,7 +12,7 @@
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/refinement/balancer/greedy_balancer.h"
-#include "kaminpar-shm/refinement/gains/dense_gain_cache.h"
+#include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
 
 #include "kaminpar-common/datastructures/noinit_vector.h"
 #include "kaminpar-common/degree_buckets.h"
@@ -39,7 +39,7 @@ bool JetRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx
   SCOPED_TIMER("Jet Refiner");
 
   START_TIMER("Allocation");
-  DenseGainCache gain_cache(_ctx, p_graph.n(), p_graph.k());
+  SparseGainCache gain_cache(_ctx, p_graph.n(), p_graph.k());
   gain_cache.initialize(p_graph);
 
   NoinitVector<BlockID> next_partition(p_graph.n());
@@ -165,7 +165,7 @@ bool JetRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx
     TIMED_SCOPE("Update best partition") {
       if (final_cut <= best_cut) {
         p_graph.pfor_nodes([&](const NodeID u) { best_partition[u] = p_graph.block(u); });
-        last_iteration_is_best = true; 
+        last_iteration_is_best = true;
       } else {
         last_iteration_is_best = false;
       }
