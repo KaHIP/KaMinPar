@@ -32,7 +32,7 @@ public:
   constexpr static bool kIteratesNonadjacentBlocks = false;
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
-  OnTheFlyGainCache(const Context & /* ctx */, NodeID /* max_n */, BlockID max_k)
+  OnTheFlyGainCache(const Context & /* ctx */, NodeID /* max_n */, const BlockID max_k)
       : _rating_map_ets([max_k] {
           return RatingMap<EdgeWeight, BlockID, SparseMap<BlockID, EdgeWeight>>(max_k);
         }) {}
@@ -45,16 +45,16 @@ public:
     // nothing to do
   }
 
-  EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
+  [[nodiscard]] EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
     return gain_impl(*_p_graph, node, from, to);
   }
 
-  std::pair<EdgeWeight, EdgeWeight>
+  [[nodiscard]] std::pair<EdgeWeight, EdgeWeight>
   gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) const {
     return gain_impl(*_p_graph, node, b_node, targets);
   }
 
-  EdgeWeight conn(const NodeID node, const BlockID block) const {
+  [[nodiscard]] EdgeWeight conn(const NodeID node, const BlockID block) const {
     return conn_impl(*_p_graph, node, block);
   }
 
@@ -67,11 +67,11 @@ public:
     // nothing to do
   }
 
-  bool is_border_node(const NodeID node, const BlockID block) const {
+  [[nodiscard]] bool is_border_node(const NodeID node, const BlockID block) const {
     return is_border_node_impl(*_p_graph, node, block);
   }
 
-  bool validate(const PartitionedGraph & /* p_graph */) const {
+  [[nodiscard]] bool validate(const PartitionedGraph & /* p_graph */) const {
     // nothing to do
     return true;
   }
@@ -83,7 +83,7 @@ public:
 
 private:
   template <typename PartitionedGraphType>
-  EdgeWeight gain_impl(
+  [[nodiscard]] EdgeWeight gain_impl(
       const PartitionedGraphType &p_graph, const NodeID node, const BlockID from, const BlockID to
   ) const {
     EdgeWeight conn_from = 0;
@@ -101,7 +101,7 @@ private:
   }
 
   template <typename PartitionedGraphType>
-  std::pair<EdgeWeight, EdgeWeight> gain_impl(
+  [[nodiscard]] std::pair<EdgeWeight, EdgeWeight> gain_impl(
       const PartitionedGraphType &p_graph,
       const NodeID node,
       const BlockID b_node,
@@ -126,7 +126,7 @@ private:
   }
 
   template <typename PartitionedGraphType>
-  EdgeWeight
+  [[nodiscard]] EdgeWeight
   conn_impl(const PartitionedGraphType &p_graph, const NodeID node, const BlockID block) const {
     EdgeWeight conn = 0;
 
@@ -140,7 +140,7 @@ private:
   }
 
   template <typename PartitionedGraphType>
-  bool is_border_node_impl(
+  [[nodiscard]] bool is_border_node_impl(
       const PartitionedGraphType &p_graph, const NodeID node, const BlockID block
   ) const {
     for (const auto [e, v] : p_graph.neighbors(node)) {
@@ -216,11 +216,12 @@ public:
     // nothing to do
   }
 
-  void clear() {}
+  void clear() {
+    // nothing to do
+  }
 
 private:
   const GainCache &_gain_cache;
   const DeltaPartitionedGraph *_d_graph;
 };
-
 } // namespace kaminpar::shm

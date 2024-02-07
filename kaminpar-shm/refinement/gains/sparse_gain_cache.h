@@ -38,8 +38,7 @@ public:
   constexpr static bool kIteratesNonadjacentBlocks = true;
 
   // If set to true, gains() will call the gain consumer with exact gains; otherwise, it will call
-  // the gain consumer with the total edge weight between the node and nodes in the specific block
-  // (more expensive, but safes a call to gain() if the exact gain for the best block is needed).
+  // the gain consumer with the total edge weight between the node and nodes in the specific block.
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
   SparseGainCache(const Context & /* ctx */, const NodeID max_n, const BlockID max_k)
@@ -58,28 +57,25 @@ public:
     _n = p_graph.n();
     _k = p_graph.k();
 
-    START_TIMER("Reset");
     reset();
-    STOP_TIMER();
-    START_TIMER("Recompute");
     recompute_all(p_graph);
-    STOP_TIMER();
   }
 
   void free() {
     tbb::parallel_invoke([&] { _gain_cache.free(); }, [&] { _weighted_degrees.free(); });
   }
 
-  EdgeWeight gain(const NodeID node, const BlockID block_from, const BlockID block_to) const {
+  [[nodiscard]] EdgeWeight
+  gain(const NodeID node, const BlockID block_from, const BlockID block_to) const {
     return weighted_degree_to(node, block_to) - weighted_degree_to(node, block_from);
   }
 
-  std::pair<EdgeWeight, EdgeWeight>
+  [[nodiscard]] std::pair<EdgeWeight, EdgeWeight>
   gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) {
     return {gain(node, b_node, targets.first), gain(node, b_node, targets.second)};
   }
 
-  EdgeWeight conn(const NodeID node, const BlockID block) const {
+  [[nodiscard]] EdgeWeight conn(const NodeID node, const BlockID block) const {
     return weighted_degree_to(node, block);
   }
 
@@ -107,12 +103,12 @@ public:
     }
   }
 
-  bool is_border_node(const NodeID node, const BlockID block) const {
+  [[nodiscard]] bool is_border_node(const NodeID node, const BlockID block) const {
     KASSERT(node < _weighted_degrees.size());
     return _weighted_degrees[node] != weighted_degree_to(node, block);
   }
 
-  bool validate(const PartitionedGraph &p_graph) const {
+  [[nodiscard]] bool validate(const PartitionedGraph &p_graph) const {
     bool valid = true;
     p_graph.pfor_nodes([&](const NodeID u) {
       if (!check_cached_gain_for_node(p_graph, u)) {
@@ -124,12 +120,12 @@ public:
   }
 
 private:
-  EdgeWeight weighted_degree_to(const NodeID node, const BlockID block) const {
+  [[nodiscard]] EdgeWeight weighted_degree_to(const NodeID node, const BlockID block) const {
     KASSERT(index(node, block) < _gain_cache.size());
     return __atomic_load_n(&_gain_cache[index(node, block)], __ATOMIC_RELAXED);
   }
 
-  std::size_t index(const NodeID node, const BlockID block) const {
+  [[nodiscard]] std::size_t index(const NodeID node, const BlockID block) const {
     const std::size_t idx = static_cast<std::size_t>(node) * static_cast<std::size_t>(_k) +
                             static_cast<std::size_t>(block);
     KASSERT(idx < _gain_cache.size());
@@ -137,10 +133,12 @@ private:
   }
 
   void reset() {
+    SCOPED_TIMER("Reset gain cache");
     tbb::parallel_for<std::size_t>(0, _n * _k, [&](const std::size_t i) { _gain_cache[i] = 0; });
   }
 
   void recompute_all(const PartitionedGraph &p_graph) {
+    SCOPED_TIMER("Recompute recompute gain cache");
     p_graph.pfor_nodes([&](const NodeID u) { recompute_node(p_graph, u); });
   }
 
@@ -217,7 +215,7 @@ public:
     return _gain_cache.gain(node, from, to) + conn_delta(node, to) - conn_delta(node, from);
   }
 
-  std::pair<EdgeWeight, EdgeWeight>
+  [[nodiscard]] std::pair<EdgeWeight, EdgeWeight>
   gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) {
     return {gain(node, b_node, targets.first), gain(node, b_node, targets.second)};
   }

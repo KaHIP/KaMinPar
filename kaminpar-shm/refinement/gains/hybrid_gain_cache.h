@@ -41,8 +41,7 @@ public:
   constexpr static bool kIteratesNonadjacentBlocks = true;
 
   // If set to true, gains() will call the gain consumer with exact gains; otherwise, it will call
-  // the gain consumer with the total edge weight between the node and nodes in the specific block
-  // (more expensive, but safes a call to gain() if the exact gain for the best block is needed).
+  // the gain consumer with the total edge weight between the node and nodes in the specific block.
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
   HybridGainCache(const Context &ctx, const NodeID max_n, const BlockID max_k)
@@ -108,12 +107,8 @@ public:
       _gain_cache.resize(static_array::noinit, gc_size);
     }
 
-    START_TIMER("Reset");
     reset();
-    STOP_TIMER();
-    START_TIMER("Recompute");
     recompute_all(p_graph);
-    STOP_TIMER();
 
     _on_the_fly_gain_cache.initialize(p_graph);
   }
@@ -230,10 +225,12 @@ private:
   }
 
   void reset() {
+    SCOPED_TIMER("Reset gain cache");
     tbb::parallel_for<std::size_t>(0, _n * _k, [&](const std::size_t i) { _gain_cache[i] = 0; });
   }
 
   void recompute_all(const PartitionedGraph &p_graph) {
+    SCOPED_TIMER("Recompute gain cache");
     tbb::parallel_for<NodeID>(_high_degree_threshold, p_graph.n(), [&](const NodeID u) {
       recompute_node(p_graph, u);
     });
