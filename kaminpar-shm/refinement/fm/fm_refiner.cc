@@ -302,7 +302,9 @@ std::vector<fm::BatchStats> FMRefiner<DeltaPartitionedGraph, GainCache>::dbg_com
   }
 
   // If everything went right, we should now have the same partition as next_partition
-  KASSERT(metrics::edge_cut_seq(prev_p_graph) == metrics::edge_cut(next_p_graph), "", assert::always);
+  KASSERT(
+      metrics::edge_cut_seq(prev_p_graph) == metrics::edge_cut(next_p_graph), "", assert::always
+  );
   KASSERT(metrics::imbalance(prev_p_graph) == metrics::imbalance(next_p_graph), "", assert::always);
 
   return batch_stats;
@@ -777,6 +779,7 @@ std::pair<BlockID, EdgeWeight> LocalizedFMRefiner<DeltaPartitionedGraph, GainCac
 
 namespace fm {
 template class SharedData<SparseGainCache>;
+template class SharedData<DenseGainCache>;
 template class SharedData<HighDegreeGainCache>;
 template class SharedData<OnTheFlyGainCache>;
 } // namespace fm
@@ -786,6 +789,9 @@ template class LocalizedFMRefiner<fm::DefaultDeltaPartitionedGraph, fm::OnTheFly
 
 template class FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::SparseGainCache>;
 template class LocalizedFMRefiner<fm::DefaultDeltaPartitionedGraph, fm::SparseGainCache>;
+
+template class FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::DenseGainCache>;
+template class LocalizedFMRefiner<fm::DefaultDeltaPartitionedGraph, fm::DenseGainCache>;
 
 template class FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::HighDegreeGainCache>;
 template class LocalizedFMRefiner<fm::DefaultDeltaPartitionedGraph, fm::HighDegreeGainCache>;

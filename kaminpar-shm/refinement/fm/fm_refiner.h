@@ -16,6 +16,7 @@
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/refinement/fm/stopping_policies.h"
+#include "kaminpar-shm/refinement/gains/dense_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/hybrid_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/on_the_fly_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
@@ -28,6 +29,7 @@ namespace kaminpar::shm {
 namespace fm {
 using DefaultDeltaPartitionedGraph = GenericDeltaPartitionedGraph<>;
 using SparseGainCache = SparseGainCache<>;
+using DenseGainCache = DenseGainCache<>;
 using OnTheFlyGainCache = OnTheFlyGainCache<>;
 using HighDegreeGainCache = HybridGainCache<>;
 
