@@ -387,13 +387,13 @@ void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
   out << "  High degree threshold:      " << lp_ctx.large_degree_threshold << "\n";
   out << "  Max degree:                 " << lp_ctx.max_num_neighbors << "\n";
   out << "  Two-level weight vector:    "
-      << (lp_ctx.use_two_phases ?
+      << (lp_ctx.use_two_level_cluster_weight_vector ?
 #ifdef KAMINPAR_USES_GROWT
-                                "yes (growt)"
+                                                     "yes (growt)"
 #else
-                                "yes (tbb)"
+                                                     "yes (tbb)"
 #endif
-                                : "no")
+                                                     : "no")
       << "\n";
   out << "  Uses two phases: " << (lp_ctx.use_two_phases ? "yes" : "no") << "\n";
   if (lp_ctx.use_two_phases) {
