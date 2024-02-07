@@ -15,7 +15,7 @@
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/metrics.h"
-#include "kaminpar-shm/refinement/gains/dense_gain_cache.h"
+#include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
 #include "kaminpar-shm/refinement/refiner.h"
 
 #include "kaminpar-common/datastructures/binary_heap.h"
@@ -99,7 +99,7 @@ public:
   void initialize(const PartitionedGraph &p_graph) final;
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
-  void track_moves(DenseGainCache<> *gain_cache) {
+  void track_moves(SparseGainCache<> *gain_cache) {
     _gain_cache = gain_cache;
   }
 
@@ -153,6 +153,6 @@ private:
 
   Statistics _stats;
 
-  DenseGainCache<> *_gain_cache = nullptr;
+  SparseGainCache<> *_gain_cache = nullptr;
 };
 } // namespace kaminpar::shm

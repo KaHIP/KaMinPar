@@ -170,7 +170,7 @@ enum class FMStoppingRule {
 };
 
 enum class GainCacheStrategy {
-  DENSE,
+  SPARSE,
   ON_THE_FLY,
   HYBRID,
 };

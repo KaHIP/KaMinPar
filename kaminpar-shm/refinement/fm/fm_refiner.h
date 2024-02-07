@@ -16,9 +16,9 @@
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/refinement/fm/stopping_policies.h"
-#include "kaminpar-shm/refinement/gains/dense_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/hybrid_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/on_the_fly_gain_cache.h"
+#include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
 #include "kaminpar-shm/refinement/refiner.h"
 
 #include "kaminpar-common/datastructures/binary_heap.h"
@@ -27,7 +27,7 @@
 namespace kaminpar::shm {
 namespace fm {
 using DefaultDeltaPartitionedGraph = GenericDeltaPartitionedGraph<>;
-using DenseGainCache = DenseGainCache<>;
+using SparseGainCache = SparseGainCache<>;
 using OnTheFlyGainCache = OnTheFlyGainCache<>;
 using HighDegreeGainCache = HybridGainCache<>;
 
@@ -88,7 +88,7 @@ public:
     );
   }
 
-  int owner(const NodeID u) const {
+  [[nodiscard]] int owner(const NodeID u) const {
     return __atomic_load_n(&_state[u], __ATOMIC_RELAXED);
   }
 
@@ -158,7 +158,7 @@ public:
     return polled;
   }
 
-  NodeID get() const {
+  [[nodiscard]] NodeID get() const {
     return has_more() ? _border_nodes[_next_border_node] : kInvalidNodeID;
   }
 
@@ -182,7 +182,7 @@ private:
   tbb::concurrent_vector<NodeID> _border_nodes;
 };
 
-template <typename GainCache = fm::DenseGainCache> struct SharedData {
+template <typename GainCache = fm::SparseGainCache> struct SharedData {
   SharedData(const Context &ctx, const NodeID max_n, const BlockID max_k)
       : node_tracker(max_n),
         gain_cache(ctx, max_n, max_k),
@@ -228,11 +228,11 @@ struct AppliedMove {
 
 template <
     typename DeltaPartitionedGraph = fm::DefaultDeltaPartitionedGraph,
-    typename GainCache = fm::DenseGainCache>
+    typename GainCache = fm::SparseGainCache>
 class FMRefiner : public Refiner {
 public:
   FMRefiner(const Context &ctx);
-  ~FMRefiner(); // Required for the std::unique_ptr<> member.
+  ~FMRefiner() override; // Required for the std::unique_ptr<> member.
 
   FMRefiner(const FMRefiner &) = delete;
   FMRefiner &operator=(const FMRefiner &) = delete;
@@ -249,20 +249,20 @@ private:
   using MovesVec = std::vector<fm::AppliedMove>;
   using Batches = tbb::concurrent_vector<std::pair<SeedNodesVec, MovesVec>>;
 
-  std::vector<fm::BatchStats>
+  [[nodiscard]] std::vector<fm::BatchStats>
   dbg_compute_batch_stats(const PartitionedGraph &graph, Batches next_batches) const;
 
-  std::pair<PartitionedGraph, Batches>
+  [[nodiscard]] std::pair<PartitionedGraph, Batches>
   dbg_build_prev_p_graph(const PartitionedGraph &p_graph, Batches next_batches) const;
 
-  fm::BatchStats dbg_compute_single_batch_stats_in_sequence(
+  [[nodiscard]] fm::BatchStats dbg_compute_single_batch_stats_in_sequence(
       PartitionedGraph &p_graph,
       const std::vector<NodeID> &seeds,
       const std::vector<fm::AppliedMove> &moves,
       const std::vector<NodeID> &distances
   ) const;
 
-  std::vector<NodeID> dbg_compute_batch_distances(
+  [[nodiscard]] std::vector<NodeID> dbg_compute_batch_distances(
       const Graph &graph,
       const std::vector<NodeID> &seeds,
       const std::vector<fm::AppliedMove> &moves
@@ -276,7 +276,7 @@ private:
 
 template <
     typename DeltaPartitionedGraph = fm::DefaultDeltaPartitionedGraph,
-    typename GainCache = fm::DenseGainCache>
+    typename GainCache = fm::SparseGainCache>
 class LocalizedFMRefiner {
 public:
   LocalizedFMRefiner(
@@ -313,23 +313,34 @@ private:
   const PartitionContext &_p_ctx;
   const KwayFMRefinementContext &_fm_ctx;
 
-  // Graph to work on
+  // Shared: Graph to work on
   PartitionedGraph &_p_graph;
 
-  // Data shared among all workers
+  // Shared: Data shared among all workers
   fm::SharedData<GainCache> &_shared;
 
-  // Data local to this worker
-  DeltaPartitionedGraph _d_graph;                                               // O(|Delta|) space
-  typename GainCache::template DeltaCache<DeltaPartitionedGraph> _d_gain_cache; // O(|Delta|) space
-  BinaryMaxHeap<EdgeWeight> _block_pq;                                          // O(k) space
-  std::vector<SharedBinaryMaxHeap<EdgeWeight>> _node_pqs; // O(k + |Touched|) space
+  // Thread-local: O(|Delta|) space
+  DeltaPartitionedGraph _d_graph;
+
+  // Thread local: O(|Delta|) sparse
+  using DeltaGainCache = typename GainCache::template DeltaCache<DeltaPartitionedGraph>;
+  DeltaGainCache _d_gain_cache;
+
+  // Thread local: O(k) space
+  BinaryMaxHeap<EdgeWeight> _block_pq;
+
+  // Thread local: O(k + |Touched|) space
+  std::vector<SharedBinaryMaxHeap<EdgeWeight>> _node_pqs;
 
   AdaptiveStoppingPolicy _stopping_policy;
 
+  // Thread local: O(|Touched|) space
   std::vector<NodeID> _touched_nodes;
+
+  // Thread local: O(1) space
   std::vector<NodeID> _seed_nodes;
 
+  // Thread local: O(|Touched|) space if move recording is enabled
   std::vector<fm::AppliedMove> _applied_moves;
   bool _record_applied_moves = false;
 };
