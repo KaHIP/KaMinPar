@@ -148,7 +148,7 @@ void HeapProfiler::print_heap_profile(std::ostream &out) {
   stats.allocs = std::max(kAllocsTitle.length(), std::to_string(stats.allocs).length());
   stats.frees = std::max(kFreesTitle.length(), std::to_string(stats.frees).length());
 
-  out << std::string(stats.len + kNameDel.length() + kPercentageLength, kHeadingPadding) << ' ';
+  out << std::string(stats.len + kNameDel.length() + kPercentageLength - 1, kHeadingPadding) << ' ';
   out << kMaxAllocTitle << std::string(stats.max_alloc_size - kMaxAllocTitle.length() + 1, ' ');
   out << kAllocTitle << std::string(stats.alloc_size - kAllocTitle.length() + 1, ' ');
   out << kFreeTitle << std::string(stats.free_size - kFreeTitle.length() + 1, ' ');
@@ -205,7 +205,10 @@ void HeapProfiler::print_heap_tree_node(
     out << '(' << node.description << ')';
   }
 
-  out << kNameDel << std::string(padding_length, kPadding) << ' ';
+  out << kNameDel;
+  if (padding_length > 0) {
+    out << std::string(padding_length - 1, kPadding) << ' ';
+  }
 
   print_statistics(out, node, stats);
   if (print_data_structs) {

@@ -258,20 +258,20 @@ class ScopedHeapProfiler;
  */
 class HeapProfiler {
 private:
-  static constexpr std::string_view kMaxAllocTitle = "Max Alloc (mb)";
-  static constexpr std::string_view kAllocTitle = "Alloc (mb)";
-  static constexpr std::string_view kFreeTitle = "Free (mb)";
+  static constexpr std::string_view kMaxAllocTitle = "Peak Memory (mb)";
+  static constexpr std::string_view kAllocTitle = "Total Alloc (mb)";
+  static constexpr std::string_view kFreeTitle = "Total Free (mb)";
   static constexpr std::string_view kAllocsTitle = "Allocs";
   static constexpr std::string_view kFreesTitle = "Frees";
 
-  static constexpr std::string_view kBranch = "|-- ";
-  static constexpr std::string_view kTailBranch = "`-- ";
+  static constexpr std::string_view kBranch = "|- ";
+  static constexpr std::string_view kTailBranch = "`- ";
   static constexpr std::string_view kTailEdge = "    ";
   static constexpr std::string_view kNameDel = ": ";
   static constexpr char kHeadingPadding = '-';
   static constexpr char kPadding = '.';
 
-  static constexpr std::size_t kBranchLength = 4;
+  static constexpr std::size_t kBranchLength = 3;
   static constexpr std::size_t kPercentageLength = 10;
   static constexpr std::size_t kDataStructSizeThreshold = 1024;
 
