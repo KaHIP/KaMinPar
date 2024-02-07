@@ -26,12 +26,12 @@ namespace kaminpar::math {
  * @param y The divisor.
  * @return The ceiling of x divided by y.
  */
-template <typename Int> constexpr std::make_unsigned_t<Int> abs(Int value) {
+template <typename Int> constexpr std::size_t abs(Int value) {
   if (value < 0) {
     value *= -1;
   }
 
-  return static_cast<std::make_unsigned_t<Int>>(value);
+  return static_cast<std::size_t>(value);
 }
 
 /*!

@@ -1627,7 +1627,7 @@ private:
 
 template <typename ClusterID, typename ClusterWeight> class OwnedRelaxedClusterWeightVector {
   using FirstLevelClusterWeight = typename std::
-      conditional_t<std::is_same_v<ClusterWeight, std::uint32_t>, std::uint16_t, std::uint32_t>;
+      conditional_t<std::is_same_v<ClusterWeight, std::int32_t>, std::int16_t, std::int32_t>;
 
   using ClusterWeightsVec = scalable_vector<parallel::Atomic<ClusterWeight>>;
   using ClusterWeightsTwoLevelVec =
