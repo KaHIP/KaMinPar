@@ -27,6 +27,8 @@ namespace kaminpar::shm {
 template <typename DeltaPartitionedGraph, typename GainCache> class SparseDeltaGainCache;
 
 template <bool iterate_exact_gains = false> class SparseGainCache {
+  SET_DEBUG(true);
+
   using Self = SparseGainCache<iterate_exact_gains>;
   template <typename, typename> friend class SparseDeltaGainCache;
 
@@ -41,21 +43,26 @@ public:
   // the gain consumer with the total edge weight between the node and nodes in the specific block.
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
-  SparseGainCache(const Context & /* ctx */, const NodeID max_n, const BlockID max_k)
-      : _max_n(max_n),
-        _max_k(max_k),
-        _gain_cache(
-            static_array::noinit,
-            static_cast<std::size_t>(_max_n) * static_cast<std::size_t>(_max_k)
-        ),
-        _weighted_degrees(static_array::noinit, _max_n) {}
+  SparseGainCache(
+      const Context & /* ctx */, const NodeID preallocate_for_n, const BlockID preallocate_for_k
+  )
+      : _gain_cache(static_array::noinit, 1ul * preallocate_for_n * preallocate_for_k),
+        _weighted_degrees(static_array::noinit, preallocate_for_n) {}
 
   void initialize(const PartitionedGraph &p_graph) {
-    KASSERT(p_graph.n() <= _max_n, "gain cache is too small");
-    KASSERT(p_graph.k() <= _max_k, "gain cache is too small");
-
     _n = p_graph.n();
     _k = p_graph.k();
+
+    if (_gain_cache.size() < _n * _k) {
+      SCOPED_TIMER("Allocation");
+      DBG << "Resizing sparse gain cache for " << _n << " nodes and " << _k << " blocks";
+      _gain_cache.resize(static_array::noinit, _n * _k);
+    }
+    if (_weighted_degrees.size() < _n) {
+      SCOPED_TIMER("Allocation");
+      DBG << "Resizing weighted degrees for " << _n << " nodes";
+      _weighted_degrees.resize(static_array::noinit, _n);
+    }
 
     reset();
     recompute_all(p_graph);
@@ -188,9 +195,6 @@ private:
 
     return true;
   }
-
-  NodeID _max_n;
-  BlockID _max_k;
 
   NodeID _n;
   BlockID _k;

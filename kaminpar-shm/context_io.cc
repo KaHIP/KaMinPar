@@ -293,7 +293,6 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
           << "\n";
       out << "    constant:                 " << r_ctx.kway_fm.constant_high_degree_threshold
           << "\n";
-      out << "  Preallocate gain cache:     " << r_ctx.kway_fm.preallocate_gain_cache << "\n";
     }
   }
   if (r_ctx.includes_algorithm(RefinementAlgorithm::JET)) {

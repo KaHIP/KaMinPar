@@ -44,18 +44,13 @@ public:
   // the gain consumer with the total edge weight between the node and nodes in the specific block.
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
-  HybridGainCache(const Context &ctx, const NodeID max_n, const BlockID max_k)
+  HybridGainCache(
+      const Context &ctx, const NodeID preallocate_for_n, const BlockID preallocate_for_k
+  )
       : _ctx(ctx),
-        _on_the_fly_gain_cache(ctx, max_n, max_k),
-        _gain_cache(
-            static_array::noinit,
-            ctx.refinement.kway_fm.preallocate_gain_cache
-                ? static_cast<std::size_t>(max_n) * static_cast<std::size_t>(max_k)
-                : 0
-        ),
-        _weighted_degrees(
-            static_array::noinit, ctx.refinement.kway_fm.preallocate_gain_cache ? max_n : 0
-        ) {}
+        _on_the_fly_gain_cache(ctx, preallocate_for_n, preallocate_for_k),
+        _gain_cache(static_array::noinit, 1ul * preallocate_for_n * preallocate_for_k),
+        _weighted_degrees(static_array::noinit, preallocate_for_n) {}
 
   void initialize(const PartitionedGraph &p_graph) {
     DBG << "[FM] Initialize high-degree gain cache for a graph with n=" << p_graph.n()
@@ -101,9 +96,11 @@ public:
         << " blocks == " << gc_size << " slots";
 
     if (_weighted_degrees.size() < _n) {
+      SCOPED_TIMER("Allocation");
       _weighted_degrees.resize(static_array::noinit, _n);
     }
     if (_gain_cache.size() < gc_size) {
+      SCOPED_TIMER("Allocation");
       _gain_cache.resize(static_array::noinit, gc_size);
     }
 

@@ -129,7 +129,6 @@ Context create_default_context() {
                       .gain_cache_strategy = GainCacheStrategy::SPARSE,
                       .constant_high_degree_threshold = 0,
                       .k_based_high_degree_threshold = 0.0,
-                      .preallocate_gain_cache = false,
                       .dbg_compute_batch_size_statistics = false,
                   },
               .balancer = {},

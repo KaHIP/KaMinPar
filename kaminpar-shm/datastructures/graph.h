@@ -255,7 +255,7 @@ public:
   // Degree buckets
   //
 
-  [[nodiscard]] inline std::size_t bucket_size(const std::size_t bucket) const {
+  [[nodiscard]] inline NodeID bucket_size(const std::size_t bucket) const {
     KASSERT(bucket + 1 < _buckets.size());
     return _buckets[bucket + 1] - _buckets[bucket];
   }

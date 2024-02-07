@@ -42,9 +42,13 @@ using EdgeID = std::uint32_t;
 #ifdef KAMINPAR_64BIT_WEIGHTS
 using NodeWeight = std::int64_t;
 using EdgeWeight = std::int64_t;
+using UnsignedEdgeWeight = std::uint64_t;
+using UnsignedNodeWeight = std::uint64_t;
 #else  // KAMINPAR_64BIT_WEIGHTS
 using NodeWeight = std::int32_t;
 using EdgeWeight = std::int32_t;
+using UnsignedEdgeWeight = std::uint32_t;
+using UnsignedNodeWeight = std::uint32_t;
 #endif // KAMINPAR_64BIT_WEIGHTS
 
 using BlockID = std::uint32_t;
@@ -165,7 +169,6 @@ struct KwayFMRefinementContext {
   // gain_cache_strategy == HybridGainCache
   EdgeID constant_high_degree_threshold;
   double k_based_high_degree_threshold;
-  bool preallocate_gain_cache;
 
   bool dbg_compute_batch_size_statistics;
 };
