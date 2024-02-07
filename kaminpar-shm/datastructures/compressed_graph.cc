@@ -465,9 +465,9 @@ void CompressedGraphBuilder::add_edges(
     }
   }
 
-  // Store the remaining adjacent nodes using gap encoding. That is instead of storing the nodes
-  // v_1, v_2, ..., v_{k - 1}, v_k directly, store the gaps v_1 - u, v_2 - v_1, ..., v_k - v_{k -
-  // 1} between the nodes, where u is the source node. Note that all gaps except the first one
+  // Store the remaining adjacent nodes using gap encoding. That is instead of directly storing the
+  // nodes v_1, v_2, ..., v_{k - 1}, v_k, store the gaps v_1 - u, v_2 - v_1 - 1, ..., v_k - v_{k -
+  // 1} - 1 between the nodes, where u is the source node. Note that all gaps except the first one
   // have to be positive as we sorted the nodes in ascending order. Thus, only for the first gap
   // the sign is additionally stored.
   auto iter = neighbourhood.begin();
@@ -495,7 +495,7 @@ void CompressedGraphBuilder::add_edges(
       continue;
     }
 
-    const NodeID gap = adjacent_node - prev_adjacent_node;
+    const NodeID gap = adjacent_node - prev_adjacent_node - 1;
     if constexpr (CompressedGraph::kRunLengthEncoding) {
       _cur_compressed_edges += rl_encoder.add(gap);
     } else if constexpr (CompressedGraph::kStreamEncoding) {

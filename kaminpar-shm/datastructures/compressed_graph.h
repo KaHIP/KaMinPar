@@ -680,7 +680,7 @@ private:
     }
 
     const auto handle_gap = [&](const NodeID gap) {
-      const NodeID adjacent_node = gap + prev_adjacent_node;
+      const NodeID adjacent_node = gap + prev_adjacent_node + 1;
       prev_adjacent_node = adjacent_node;
 
       if constexpr (non_stoppable) {
@@ -701,7 +701,7 @@ private:
         const auto [gap, gap_len] = varint_decode<NodeID>(data);
         data += gap_len;
 
-        const NodeID adjacent_node = gap + prev_adjacent_node;
+        const NodeID adjacent_node = gap + prev_adjacent_node + 1;
         prev_adjacent_node = adjacent_node;
 
         if constexpr (non_stoppable) {
