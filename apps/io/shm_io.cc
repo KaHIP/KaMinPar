@@ -238,8 +238,15 @@ compress_read(const std::string &filename, const bool sorted, const bool may_dis
       [&](const auto &format) {
         check_format<checked>(format);
 
+        const std::size_t max_size = CompressedGraphBuilder::compressed_edge_array_max_size(
+            format.number_of_nodes, format.number_of_edges
+        );
+        const std::size_t node_array_diff =
+            (sizeof(EdgeID) - math::byte_width(max_size)) * (format.number_of_nodes + 1);
+
         number_of_nodes = format.number_of_nodes + 1;
-        uncompressed_edge_array_size = format.number_of_edges * sizeof(NodeID) * 2;
+        uncompressed_edge_array_size =
+            format.number_of_edges * sizeof(NodeID) * 2 + node_array_diff;
         store_node_weights = format.has_node_weights;
         store_edge_weights = format.has_edge_weights;
 

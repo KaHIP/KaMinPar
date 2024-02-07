@@ -722,6 +722,20 @@ private:
  * memory for the compressed edge array.
  */
 class CompressedGraphBuilder {
+public:
+  using NodeID = CompressedGraph::NodeID;
+  using NodeWeight = CompressedGraph::NodeWeight;
+  using EdgeID = CompressedGraph::EdgeID;
+  using EdgeWeight = CompressedGraph::EdgeWeight;
+  using SignedID = CompressedGraph::SignedID;
+
+  /*!
+   * Gives an upper limit for the size of the compressed edge array in bytes.
+   *
+   * @param node_count The number of nodes in the graph.
+   * @param edge_count The number of edges in the graph.
+   * @return The max size in bytes of the compressed edge array.
+   */
   [[nodiscard]] static constexpr std::size_t
   compressed_edge_array_max_size(const NodeID node_count, const EdgeID edge_count) {
     std::size_t max_size =
@@ -740,13 +754,6 @@ class CompressedGraphBuilder {
 
     return max_size;
   }
-
-public:
-  using NodeID = CompressedGraph::NodeID;
-  using NodeWeight = CompressedGraph::NodeWeight;
-  using EdgeID = CompressedGraph::EdgeID;
-  using EdgeWeight = CompressedGraph::EdgeWeight;
-  using SignedID = CompressedGraph::SignedID;
 
   /*!
    * Compresses a graph in compressed sparse row format.
