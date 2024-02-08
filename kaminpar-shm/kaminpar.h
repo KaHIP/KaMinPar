@@ -86,8 +86,7 @@ enum class ClusterWeightLimit {
 
 enum class SecondPhaseSelectMode {
   HIGH_DEGREE,
-  FULL_RATING_MAP,
-  HYBRID
+  FULL_RATING_MAP
 };
 
 enum class SecondPhaseAggregationMode {

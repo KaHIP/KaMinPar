@@ -76,7 +76,7 @@ Context create_default_context() {
                       .max_num_neighbors = 200000,
                       .use_two_level_cluster_weight_vector = false,
                       .use_two_phases = false,
-                      .second_phase_select_mode = SecondPhaseSelectMode::HYBRID,
+                      .second_phase_select_mode = SecondPhaseSelectMode::FULL_RATING_MAP,
                       .second_phase_aggregation_mode = SecondPhaseAggregationMode::BUFFERED,
                       .two_hop_strategy = TwoHopStrategy::MATCH_THREADWISE,
                       .two_hop_threshold = 0.5,

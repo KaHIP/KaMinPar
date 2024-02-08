@@ -201,7 +201,6 @@ CLI::Option_group *create_lp_coarsening_options(CLI::App *app, Context &ctx) {
 Options are:
   - high-degree:     Select nodes with high degree
   - full-rating-map: Select nodes which have a full rating map in the first phase
-  - hybrid:          Select nodes which have a full rating map in the first phase or have severe high degree
   )"
       )
       ->capture_default_str();
