@@ -15,6 +15,8 @@ SET_DEBUG(false);
 void GreedyBalancer::initialize(const PartitionedGraph &) {}
 
 bool GreedyBalancer::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
+  SCOPED_TIMER("Greedy Balancer");
+
   _p_graph = &p_graph;
   _p_ctx = &p_ctx;
 
@@ -31,6 +33,8 @@ bool GreedyBalancer::refine(PartitionedGraph &p_graph, const PartitionContext &p
   // Lazy initialize the balancer
   {
     SCOPED_HEAP_PROFILER("Greedy Balancer Allocation");
+    SCOPED_TIMER("Greedy Balancer Allocation");
+
     _marker.resize(p_ctx.n);
     _pq.init(p_ctx.n, p_ctx.k);
     _pq_weight.resize(p_ctx.k);
