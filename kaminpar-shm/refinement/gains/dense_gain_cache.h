@@ -1,5 +1,19 @@
 /*******************************************************************************
- * Gain cache that uses at most O(m) memory.
+ * Dense gain cache with O(m) memory -- *ONLY* for graphs that have been
+ * rearranged by degree buckets. Fallbacks to the sparse gain cache with small
+ * overheads otherwise.
+ *
+ * Gains for low-degree vertices (degree < k) are stored in a hash map using
+ * linear probing. Modifying operations lock the hash-table, whereas read-only
+ * operations are subject to race conditions.
+ *
+ * @ToDo: the hash tables store the target blocks + gain in the same 32 bit entry
+ * (or 64 bit, when built with 64 bit edge weights). This is not ideal, especially
+ * since the implementation exhibits undefined behaviour if this assumption does
+ * not work out ...
+ *
+ * Gains for high-degree vertices (degree >= k) are stored in a sparse array,
+ * i.e., with k entries per vertex.
  *
  * @file:   dense_gain_cache.h
  * @author: Daniel Seemaier
@@ -34,6 +48,7 @@ template <bool iterate_exact_gains = false> class DenseGainCache {
   using Self = DenseGainCache<iterate_exact_gains>;
   template <typename, typename> friend class DenseDeltaGainCache;
 
+  // Abuse MSB bit in the _weighted_degrees[] array for locking
   constexpr static UnsignedEdgeWeight kWeightedDegreeLock =
       (static_cast<UnsignedEdgeWeight>(1) << (std::numeric_limits<UnsignedEdgeWeight>::digits - 1));
   constexpr static UnsignedEdgeWeight kWeightedDegreeMask = ~kWeightedDegreeLock;
@@ -50,21 +65,41 @@ public:
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
   DenseGainCache(
-      const Context &ctx, const NodeID preallocate_for_n, const BlockID preallocate_for_m
+      const Context &ctx, const NodeID preallocate_for_n, BlockID /* preallocate_for_k */
   )
       : _ctx(ctx),
+        // Since we do not know the size of the gain cache in advance (depends on vertex degrees),
+        // we cannot preallocate it
         _gain_cache(static_array::noinit, 0),
         _weighted_degrees(static_array::noinit, preallocate_for_n) {}
 
   void initialize(const PartitionedGraph &p_graph) {
     _n = p_graph.n();
     _k = p_graph.k();
+
+    // This is the first vertex for which the sparse gain cache is used
     _node_threshold = 0;
+
+    // This is the first degree-bucket s.t. all vertices in this and subsequent buckets use the
+    // sparse gain cache
     _bucket_threshold = 0;
+
+    // For vertices with the dense gain cache (i.e., hash table), we use the MSB bits to store the
+    // target blocks and the LSB bits to store the gain values: compute bit masks and shifts for
+    // both values
+    // Note: these masks are only used for vertices < _node_threshold
+    _bits_for_gain = sizeof(UnsignedEdgeWeight) * 8 - math::ceil_log2(_k);
+    _gain_mask = (1ul << _bits_for_gain) - 1;
+    _block_mask = ~_gain_mask;
+    DBG << "[DenseGainCache] Reserve " << _bits_for_gain << " of " << sizeof(UnsignedEdgeWeight) * 8
+        << " bits for gain values, " << math::ceil_log2(_k) << " bits for block IDs";
 
     std::size_t gc_size = 0;
 
     if (p_graph.sorted()) {
+      DBG << "[DenseGainCache] Graph was rearranged by degree buckets: using the mixed "
+             "dense-sparse strategy";
+
       const EdgeID degree_threshold = std::max<EdgeID>(
           _k * _ctx.refinement.kway_fm.k_based_high_degree_threshold,
           _ctx.refinement.kway_fm.constant_high_degree_threshold
@@ -86,23 +121,22 @@ public:
       );
       gc_size += (p_graph.n() - _node_threshold) * _k;
 
-      DBG << "[FM] Graph was rearranged: using the dense strategy for nodes with degree < "
-          << degree_threshold << " (= " << _node_threshold
-          << " nodes), using the sparse strategy for the rest (= " << p_graph.n() - _node_threshold
-          << " nodes)";
+      DBG << "[DenseGainCache] Initialized with degree threshold: " << degree_threshold
+          << ", node threshold: " << _node_threshold << ", bucket threshold: " << _bucket_threshold;
     } else {
+      DBG << "[DenseGainCache] Graph was *not* rearranged by degree buckets: using the sparse "
+             "strategy only";
       gc_size = 1ul * _n * _k;
-      DBG << "[FM] Graph was not rearrange: using the sparse strategy for all nodes";
     }
+    DBG << "[DenseGainCache] Computed gain cache size: " << gc_size << " entries, allocate "
+        << (gc_size * sizeof(UnsignedEdgeWeight) / 1024 / 1024) << " Mib)";
 
     if (_gain_cache.size() < gc_size) {
       SCOPED_TIMER("Allocation");
-      DBG << "[FM] Resizing dense gain cache to " << gc_size << " slots";
       _gain_cache.resize(static_array::noinit, gc_size);
     }
     if (_weighted_degrees.size() < _n) {
       SCOPED_TIMER("Allocation");
-      DBG << "[FM] Resizing weighted degrees for " << _n << " nodes";
       _weighted_degrees.resize(static_array::noinit, _n);
     }
   }
@@ -155,7 +189,23 @@ public:
         __atomic_fetch_add(&_gain_cache[index(v, block_to)], weight, __ATOMIC_RELAXED);
       } else {
         lock(v);
-        // @todo
+        // Decrease from weight
+        const std::size_t idx_from = index(v, block_from);
+        KASSERT(decode_entry_block(_gain_cache[idx_from]) == block_from);
+        if (decode_entry_gain(__atomic_sub_fetch(&_gain_cache[idx_from], weight, __ATOMIC_RELAXED)
+            ) == 0) {
+          // erase
+        }
+
+        // Increase to weight
+        const std::size_t idx_to = index(v, block_to);
+        if (decode_entry_block(_gain_cache[idx_to]) != block_to) {
+          KASSERT(decode_entry_block(_gain_cache[idx_to]) == 0);
+          __atomic_fetch_store_n(
+              &_gain_cache[idx_to], encode_cache_entry(block_to, 0), __ATOMIC_RELAXED
+          );
+        }
+        __atomic_fetch_add(&_gain_cache[idx_to], weight, __ATOMIC_RELAXED);
         unlock(v);
       }
     }
@@ -177,6 +227,37 @@ public:
   }
 
 private:
+  void init_buckets(const Graph &graph) {
+    _buckets.front() = 0;
+    for (int bucket = 0; bucket < graph.number_of_buckets(); ++bucket) {
+      _buckets[bucket + 1] = _buckets[bucket] + graph.bucket_size(bucket);
+    }
+    std::fill(_buckets.begin() + graph.number_of_buckets(), _buckets.end(), graph.n());
+  }
+
+  [[nodiscard]] int find_bucket(const NodeID node) const {
+    int bucket = 0;
+    while (node >= _buckets[bucket]) {
+      for (int i = 0; i < 8; ++i) {
+        bucket += (node >= _buckets[bucket]);
+      }
+    }
+    return bucket;
+  }
+
+  BlockID decode_entry_block(const UnsignedEdgeWeight entry) {
+    return static_cast<BlockID>((entry & _block_mask) >> _bits_for_gain);
+  }
+
+  EdgeWeight decode_entry_gain(const UnsignedEdgeWeight entry) {
+    return static_cast<EdgeWeight>(entry & _gain_mask);
+  }
+
+  UnsignedEdgeWeight encode_cache_entry(const BlockID block, const EdgeWeight gain) {
+    return (static_cast<UnsignedEdgeWeight>(block) << _bits_for_gain) |
+           static_cast<UnsignedEdgeWeight>(gain);
+  }
+
   void lock(const NodeID node) {
     UnsignedEdgeWeight state = __atomic_load_n(&_weighted_degrees[node], __ATOMIC_RELAXED);
     do {
@@ -199,11 +280,6 @@ private:
     );
   }
 
-  [[nodiscard]] std::size_t hash(const NodeID node, const BlockID block) const {
-    // @todo
-    return 0;
-  }
-
   [[nodiscard]] EdgeWeight weighted_degree(const NodeID node) const {
     KASSERT(node < _weighted_degrees[node]);
     return static_cast<EdgeWeight>(_weighted_degrees[node] & kWeightedDegreeMask);
@@ -211,9 +287,16 @@ private:
 
   [[nodiscard]] EdgeWeight weighted_degree_to(const NodeID node, const BlockID block) const {
     KASSERT(index(node, block) < _gain_cache.size());
-    return static_cast<EdgeWeight>(
-        __atomic_load_n(&_gain_cache[index(node, block)], __ATOMIC_RELAXED)
-    );
+
+    if (node > _node_threshold) {
+      return static_cast<EdgeWeight>(
+          __atomic_load_n(&_gain_cache[index(node, block)], __ATOMIC_RELAXED)
+      );
+    } else {
+      return static_cast<EdgeWeight>(
+          decode_entry_gain(__atomic_load_n(&_gain_cache[index(node, block)], __ATOMIC_RELAXED))
+      );
+    }
   }
 
   [[nodiscard]] std::size_t index(const NodeID node, const BlockID block) const {
@@ -224,7 +307,22 @@ private:
             (static_cast<std::size_t>(node - _node_threshold) * static_cast<std::size_t>(_k) +
              static_cast<std::size_t>(block));
     } else {
-      // @todo
+      const auto bucket = find_bucket(node);
+      const auto size = lowest_degree_in_bucket<NodeID>(bucket + 1);
+      const auto mask = size - 1;
+
+      const std::size_t offset = _cache_offsets[bucket] + (node - _buckets[bucket]) * size;
+      std::size_t ht_pos = block;
+
+      BlockID cur_block;
+      do {
+        ht_pos &= mask;
+        cur_block = decode_entry_block(_gain_cache[offset + ht_pos]);
+        ++ht_pos;
+      } while (cur_block != block && cur_block != 0);
+      --ht_pos;
+
+      idx = offset + ht_pos;
     }
 
     KASSERT(idx < _gain_cache.size());
@@ -252,7 +350,12 @@ private:
       const BlockID block_v = p_graph.block(v);
       const EdgeWeight weight = p_graph.edge_weight(e);
 
-      _gain_cache[index(u, block_v)] += static_cast<UnsignedEdgeWeight>(weight);
+      const std::size_t idx = index(u, block_v);
+      if (u <= _node_threshold && decode_entry_block(_gain_cache[idx]) != block_v) {
+        KASSERT(decode_entry_block(_gain_cache[idx]) == 0);
+        _gain_cache[idx] = encode_cache_entry(block_v, 0);
+      }
+      _gain_cache[idx] += static_cast<UnsignedEdgeWeight>(weight);
       _weighted_degrees[u] += static_cast<UnsignedEdgeWeight>(weight);
     }
   }
@@ -295,8 +398,13 @@ private:
 
   NodeID _node_threshold = kInvalidNodeID;
   int _bucket_threshold = -1;
+  std::array<NodeID, kNumberOfDegreeBuckets<NodeID>> _buckets;
   std::array<std::size_t, kNumberOfDegreeBuckets<NodeID>> _cache_offsets;
   std::array<NodeID, kNumberOfDegreeBuckets<NodeID>> _bucket_offsets;
+
+  UnsignedEdgeWeight _gain_mask = 0;
+  UnsignedEdgeWeight _block_mask = 0;
+  int _bits_for_gain = 0;
 
   StaticArray<UnsignedEdgeWeight> _gain_cache;
   StaticArray<UnsignedEdgeWeight> _weighted_degrees;
