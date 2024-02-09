@@ -20,7 +20,9 @@ public:
   }
 
   std::pair<const Graph *, bool> compute_coarse_graph(
-      const NodeWeight /* max_cluster_weight */, const NodeID /* to_size */
+      const NodeWeight /* max_cluster_weight */,
+      const NodeID /* to_size */,
+      const bool /* free_memory_afterwards */
   ) final {
     return {coarsest_graph(), false};
   }

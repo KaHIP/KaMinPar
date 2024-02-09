@@ -155,10 +155,9 @@ protected:
    *
    * @param num_nodes Number of nodes in the graph.
    * @param num_clusters The number of clusters.
-   * @param resize Whether to actually allocate the data structures.
    */
-  void allocate(const NodeID num_nodes, const ClusterID num_clusters, bool resize = true) {
-    allocate(num_nodes, num_nodes, num_clusters, resize);
+  void allocate(const NodeID num_nodes, const ClusterID num_clusters) {
+    allocate(num_nodes, num_nodes, num_clusters);
   }
 
   /*!
@@ -171,41 +170,35 @@ protected:
    * less than this.
    * @param num_active_nodes Number of nodes for which a cluster label is computed.
    * @param num_clusters The number of clusters.
-   * @param resize Whether to actually allocate the data structures.
    */
-  void allocate(
-      const NodeID num_nodes,
-      NodeID num_active_nodes,
-      const ClusterID num_clusters,
-      bool resize = true
-  ) {
-    _num_nodes = num_nodes;
-    _num_active_nodes = num_active_nodes;
-    _num_clusters = num_clusters;
-
+  void allocate(const NodeID num_nodes, NodeID num_active_nodes, const ClusterID num_clusters) {
     if constexpr (Config::kUseLocalActiveSetStrategy) {
-      if (resize && _active.capacity() < num_nodes) {
+      if (_active.capacity() < num_nodes) {
         _active.resize(num_nodes);
       }
     }
 
     if constexpr (Config::kUseActiveSetStrategy) {
-      if (resize && _active.capacity() < num_active_nodes) {
+      if (_active.capacity() < num_active_nodes) {
         _active.resize(num_active_nodes);
       }
     }
 
     if constexpr (Config::kUseTwoHopClustering) {
-      if (resize && _favored_clusters.capacity() < num_active_nodes) {
+      if (_favored_clusters.capacity() < num_active_nodes) {
         _favored_clusters.resize(num_active_nodes);
       }
     }
 
-    if (resize) {
+    if (_num_clusters < num_clusters) {
       _rating_map_ets = tbb::enumerable_thread_specific<RatingMap>([num_clusters] {
         return RatingMap(num_clusters);
       });
     }
+
+    _num_nodes = num_nodes;
+    _num_active_nodes = num_active_nodes;
+    _num_clusters = num_clusters;
   }
 
   /*!
@@ -226,6 +219,21 @@ protected:
     _initial_num_clusters = num_clusters;
     _current_num_clusters = num_clusters;
     reset_state();
+  }
+
+  void free() {
+    // No shrink-to-fit call is needed (and provided by the ets-interface) since the clear already
+    // frees the memory.
+    _rating_map_ets.clear();
+
+    _active.clear();
+    _active.shrink_to_fit();
+
+    _favored_clusters.clear();
+    _favored_clusters.shrink_to_fit();
+
+    _second_phase_nodes.clear();
+    _second_phase_nodes.shrink_to_fit();
   }
 
   /*!
@@ -1213,6 +1221,18 @@ protected:
     _buckets.clear();
   }
 
+  void free() {
+    Base::free();
+
+    _chunks.clear();
+    _chunks.shrink_to_fit();
+
+    _buckets.clear();
+    _buckets.shrink_to_fit();
+
+    _concurrent_rating_map.free();
+  }
+
   /**
    * Performs label propagation on local nodes in range [from, to) in
    * chunk-randomized order.
@@ -1514,7 +1534,7 @@ protected:
   std::vector<Chunk> _chunks;
   std::vector<Bucket> _buckets;
 
-  ConcurrentFastResetArray<EdgeWeight, ClusterID> _concurrent_rating_map{};
+  ConcurrentFastResetArray<EdgeWeight, ClusterID> _concurrent_rating_map;
 };
 
 template <typename NodeID, typename ClusterID> class NonatomicOwnedClusterVector {
@@ -1638,7 +1658,18 @@ public:
           }
       )
 
-      _cluster_weights_vec.resize(max_num_clusters);
+      if (_cluster_weights_vec.capacity() < max_num_clusters) {
+        _cluster_weights_vec.resize(max_num_clusters);
+      }
+    }
+  }
+
+  void free() {
+    if (_use_two_level_vector) {
+      _cluster_weights_tlvec.free();
+    } else {
+      _cluster_weights_vec.clear();
+      _cluster_weights_vec.shrink_to_fit();
     }
   }
 

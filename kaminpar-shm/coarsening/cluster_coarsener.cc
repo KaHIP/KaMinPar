@@ -13,7 +13,7 @@
 
 namespace kaminpar::shm {
 std::pair<const Graph *, bool> ClusteringCoarsener::compute_coarse_graph(
-    const NodeWeight max_cluster_weight, const NodeID to_size
+    const NodeWeight max_cluster_weight, const NodeID to_size, const bool free_memory_afterwards
 ) {
   SCOPED_HEAP_PROFILER("Level", std::to_string(_hierarchy.size()));
   SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
@@ -23,7 +23,8 @@ std::pair<const Graph *, bool> ClusteringCoarsener::compute_coarse_graph(
 
   START_HEAP_PROFILER("Label Propagation");
   START_TIMER("Label Propagation");
-  auto &clustering = _clustering_algorithm->compute_clustering(*_current_graph);
+  auto &clustering =
+      _clustering_algorithm->compute_clustering(*_current_graph, free_memory_afterwards);
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 
@@ -41,6 +42,17 @@ std::pair<const Graph *, bool> ClusteringCoarsener::compute_coarse_graph(
   _hierarchy.push_back(std::move(c_graph));
   _mapping.push_back(std::move(c_mapping));
   _current_graph = &_hierarchy.back();
+
+  if (free_memory_afterwards) {
+    _contraction_m_ctx.buckets.clear();
+    _contraction_m_ctx.buckets.shrink_to_fit();
+
+    _contraction_m_ctx.buckets_index.clear();
+    _contraction_m_ctx.buckets_index.shrink_to_fit();
+
+    _contraction_m_ctx.all_buffered_nodes.clear();
+    _contraction_m_ctx.all_buffered_nodes.shrink_to_fit();
+  }
 
   return {_current_graph, !converged};
 }

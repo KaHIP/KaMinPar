@@ -45,7 +45,6 @@ public:
       : _r_ctx{ctx.refinement},
         _n(ctx.partition.n),
         _k(ctx.partition.k) {
-    Base::allocate(ctx.partition.n, ctx.partition.n, ctx.partition.k, false);
     this->set_max_degree(_r_ctx.lp.large_degree_threshold);
     this->set_max_num_neighbors(_r_ctx.lp.max_num_neighbors);
   }
@@ -56,7 +55,7 @@ public:
 
   void allocate() {
     SCOPED_HEAP_PROFILER("Label Propagation Allocation");
-    Base::allocate(_n, _n, _k, true);
+    Base::allocate(_n, _n, _k);
   }
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {

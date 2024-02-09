@@ -45,7 +45,6 @@ public:
         ClusterBase{max_n},
         _c_ctx{c_ctx},
         _max_n{max_n} {
-    Base::allocate(max_n, max_n, false);
     this->set_max_degree(c_ctx.lp.large_degree_threshold);
     this->set_max_num_neighbors(c_ctx.lp.max_num_neighbors);
     this->set_use_two_phases(c_ctx.lp.use_two_phases);
@@ -58,11 +57,20 @@ public:
   }
 
   void allocate() {
-    SCOPED_HEAP_PROFILER("Label Propagation Allocation");
+    SCOPED_HEAP_PROFILER("Allocation");
+    SCOPED_TIMER("Allocation");
 
-    Base::allocate(_max_n, _max_n, true);
+    Base::allocate(_max_n, _max_n);
     this->allocate_clusters();
     this->allocate_cluster_weights(_max_n);
+  }
+
+  void free() {
+    SCOPED_HEAP_PROFILER("Free");
+    SCOPED_TIMER("Free");
+
+    Base::free();
+    ClusterWeightBase::free();
   }
 
   const AtomicClusterArray &compute_clustering(const Graph &graph) {
@@ -245,7 +253,8 @@ public:
   void set_max_cluster_weight(NodeWeight max_cluster_weight) final;
   void set_desired_cluster_count(NodeID count) final;
 
-  AtomicClusterArray &compute_clustering(const Graph &graph) final;
+  AtomicClusterArray &
+  compute_clustering(const Graph &graph, const bool free_memory_afterwards) final;
 
 private:
   std::unique_ptr<LPClusteringImpl<CSRGraph>> _csr_core;
@@ -254,7 +263,7 @@ private:
 
   // The data structures which are used by the LP clustering and are shared between the
   // different graph implementations.
-  bool _allocated = false;
+  bool _freed = true;
   LPClusteringImpl<Graph>::DataStructures _structs;
   LPClusteringImpl<Graph>::Clusters _clusters;
   LPClusteringImpl<Graph>::ClusterWeights _cluster_weights;

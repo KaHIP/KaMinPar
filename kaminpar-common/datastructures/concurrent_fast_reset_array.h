@@ -69,6 +69,18 @@ public:
   void resize(const size_type capacity) {
     IF_HEAP_PROFILING(_struct->size = std::max(_struct->size, capacity * sizeof(value_type)));
     _data.resize(capacity);
+    _used_entries_tls.resize(tbb::this_task_arena::max_concurrency());
+  }
+
+  /*!
+   * Frees the memory used by this data structure.
+   */
+  void free() {
+    _data.clear();
+    _data.shrink_to_fit();
+
+    _used_entries_tls.clear();
+    _used_entries_tls.shrink_to_fit();
   }
 
   /*!

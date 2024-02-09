@@ -30,12 +30,13 @@ void LPClustering::set_desired_cluster_count(const NodeID count) {
   _compressed_core->set_desired_num_clusters(count);
 }
 
-Clusterer::AtomicClusterArray &LPClustering::compute_clustering(const Graph &graph) {
+Clusterer::AtomicClusterArray &
+LPClustering::compute_clustering(const Graph &graph, const bool free_memory_afterwards) {
   // Compute a clustering and setup/release the data structures used by the core, so that they can
   // be shared by all graph implementations.
   const auto compute = [&](auto &core, auto &graph) {
-    if (!_allocated) {
-      _allocated = true;
+    if (_freed) {
+      _freed = false;
       core.allocate();
     } else {
       core.setup(std::move(_structs));
@@ -43,11 +44,16 @@ Clusterer::AtomicClusterArray &LPClustering::compute_clustering(const Graph &gra
       core.setup_cluster_weights(std::move(_cluster_weights));
     }
 
-    core.compute_clustering(graph);
+    _clusters = core.compute_clustering(graph);
 
-    _structs = core.release();
-    _clusters = core.take_clusters();
-    _cluster_weights = core.take_cluster_weights();
+    if (free_memory_afterwards) {
+      _freed = true;
+      core.free();
+    } else {
+      _structs = core.release();
+      _clusters = core.take_clusters();
+      _cluster_weights = core.take_cluster_weights();
+    }
   };
 
   if (auto *csr_graph = dynamic_cast<CSRGraph *>(graph.underlying_graph()); csr_graph != nullptr) {

@@ -74,7 +74,9 @@ const Graph *KWayMultilevelPartitioner::coarsen() {
     debug::dump_graph_hierarchy(*c_graph, _coarsener->size(), _input_ctx);
 
     // Build next coarse graph
-    shrunk = helper::coarsen_once(_coarsener.get(), c_graph, _input_ctx, _current_p_ctx);
+    shrunk = helper::coarsen_once(
+        _coarsener.get(), c_graph, _input_ctx, _current_p_ctx, _coarsener.get()->size() == 0
+    );
     c_graph = _coarsener->coarsest_graph();
 
     // Print some metrics for the coarse graphs

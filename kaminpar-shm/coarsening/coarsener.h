@@ -37,10 +37,13 @@ public:
    *
    * @param max_cluster_weight Maximum node weight of the coarse graph.
    * @param to_size Desired size of the coarse graph.
+   * @param free_memory_afterwards Whether the memory allocated by the coarsening should be freed
+   * afterwards.
    * @return New coarsest graph and whether coarsening has not converged.
    */
-  virtual std::pair<const Graph *, bool>
-  compute_coarse_graph(NodeWeight max_cluster_weight, NodeID to_size) = 0;
+  virtual std::pair<const Graph *, bool> compute_coarse_graph(
+      NodeWeight max_cluster_weight, NodeID to_size, const bool free_memory_afterwards
+  ) = 0;
 
   /** @return The currently coarsest graph, or the input graph, if no coarse
    * graphs have been computed so far. */
