@@ -50,7 +50,7 @@ NodeWeight compute_max_cluster_weight(
   return static_cast<NodeWeight>(max_cluster_weight * c_ctx.cluster_weight_multiplier);
 }
 
-template <typename CoarseningContext>
+template <typename CoarseningContext, typename Graph>
 NodeWeight compute_max_cluster_weight(
     const CoarseningContext &c_ctx, const Graph &graph, const PartitionContext &p_ctx
 ) {

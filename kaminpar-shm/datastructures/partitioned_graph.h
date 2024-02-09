@@ -10,6 +10,9 @@
 #include <utility>
 #include <vector>
 
+#include <tbb/enumerable_thread_specific.h>
+#include <tbb/parallel_for.h>
+
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/graph_delegate.h"
 
@@ -27,12 +30,12 @@ namespace kaminpar::shm {
  * If an object of this class is constructed without partition, all nodes are
  * marked unassigned, i.e., are placed in block `kInvalidBlockID`.
  */
-class PartitionedGraph : public GraphDelegate {
+template <typename Graph> class GenericPartitionedGraph : public GraphDelegate<Graph> {
 public:
-  using NodeID = Graph::NodeID;
-  using NodeWeight = Graph::NodeWeight;
-  using EdgeID = Graph::EdgeID;
-  using EdgeWeight = Graph::EdgeWeight;
+  using NodeID = typename Graph::NodeID;
+  using NodeWeight = typename Graph::NodeWeight;
+  using EdgeID = typename Graph::EdgeID;
+  using EdgeWeight = typename Graph::EdgeWeight;
   using BlockID = ::kaminpar::shm::BlockID;
   using BlockWeight = ::kaminpar::shm::BlockWeight;
 
@@ -40,20 +43,44 @@ public:
   struct seq {};
 
   // Parallel ctor: use parallel loops to compute block weights.
-  PartitionedGraph(const Graph &graph, BlockID k, StaticArray<BlockID> partition = {});
+  GenericPartitionedGraph(const Graph &graph, BlockID k, StaticArray<BlockID> partition = {})
+      : GraphDelegate<Graph>(&graph),
+        _k(k),
+        _partition(std::move(partition)),
+        _block_weights(k) {
+    if (graph.n() > 0 && _partition.empty()) {
+      _partition.resize(graph.n(), kInvalidBlockID);
+    }
+
+    KASSERT(_partition.size() == graph.n());
+
+    init_block_weights_par();
+  }
 
   // Sequential ctor: use sequential loops to compute block weights.
-  PartitionedGraph(seq, const Graph &graph, BlockID k, StaticArray<BlockID> partition = {});
+  GenericPartitionedGraph(seq, const Graph &graph, BlockID k, StaticArray<BlockID> partition = {})
+      : GraphDelegate<Graph>(&graph),
+        _k(k),
+        _partition(std::move(partition)),
+        _block_weights(k) {
+    if (graph.n() > 0 && _partition.empty()) {
+      _partition.resize(graph.n(), kInvalidBlockID);
+    }
+
+    KASSERT(_partition.size() == graph.n());
+
+    init_block_weights_seq();
+  }
 
   // Dummy ctor to make the class default-constructible for convenience.
   // @todo Should we get rid of this ctor?
-  PartitionedGraph() : GraphDelegate(nullptr) {}
+  GenericPartitionedGraph() : GraphDelegate<Graph>(nullptr) {}
 
-  PartitionedGraph(const PartitionedGraph &) = delete;
-  PartitionedGraph &operator=(const PartitionedGraph &) = delete;
+  GenericPartitionedGraph(const GenericPartitionedGraph &) = delete;
+  GenericPartitionedGraph &operator=(const GenericPartitionedGraph &) = delete;
 
-  PartitionedGraph(PartitionedGraph &&) noexcept = default;
-  PartitionedGraph &operator=(PartitionedGraph &&other) noexcept = default;
+  GenericPartitionedGraph(GenericPartitionedGraph &&) noexcept = default;
+  GenericPartitionedGraph &operator=(GenericPartitionedGraph &&other) noexcept = default;
 
   /**
    * Attempts to move node `u` from block `from` to block `to` while preserving the balance
@@ -70,13 +97,13 @@ public:
    */
   [[nodiscard]] bool
   move(const NodeID u, const BlockID from, const BlockID to, const BlockWeight max_to_weight) {
-    KASSERT(u < n());
+    KASSERT(u < this->n());
     KASSERT(from < k());
     KASSERT(to < k());
     KASSERT(block(u) == from);
     KASSERT(from != to);
 
-    if (move_block_weight(from, to, node_weight(u), max_to_weight)) {
+    if (move_block_weight(from, to, this->node_weight(u), max_to_weight)) {
       set_block<false>(u, to);
       return true;
     }
@@ -98,11 +125,11 @@ public:
    * @param new_b Block the node is moved to.
    */
   template <bool update_block_weights = true> void set_block(const NodeID u, const BlockID to) {
-    KASSERT(u < n(), "invalid node id " << u);
+    KASSERT(u < this->n(), "invalid node id " << u);
     KASSERT(to < k(), "invalid block id " << to << " for node " << u);
 
     if constexpr (update_block_weights) {
-      const NodeWeight weight = node_weight(u);
+      const NodeWeight weight = this->node_weight(u);
       if (const BlockID from = block(u); from != kInvalidBlockID) {
         decrease_block_weight(from, weight);
       }
@@ -213,16 +240,50 @@ public:
   }
 
   [[nodiscard]] inline BlockID block(const NodeID u) const {
-    KASSERT(u < n());
+    KASSERT(u < this->n());
     return __atomic_load_n(&_partition[u], __ATOMIC_RELAXED);
   }
 
 private:
-  void init_block_weights_par();
-  void init_block_weights_seq();
+  void init_block_weights_par() {
+    tbb::enumerable_thread_specific<StaticArray<BlockWeight>> block_weights_ets([&] {
+      return StaticArray<BlockWeight>(k());
+    });
+
+    tbb::parallel_for(
+        tbb::blocked_range<NodeID>(0, this->n()),
+        [&](const tbb::blocked_range<NodeID> &r) {
+          auto &block_weights = block_weights_ets.local();
+          for (NodeID u = r.begin(); u != r.end(); ++u) {
+            if (const BlockID b = block(u); b != kInvalidBlockID) {
+              block_weights[b] += this->node_weight(u);
+            }
+          }
+        }
+    );
+
+    tbb::parallel_for<BlockID>(0, k(), [&](const BlockID b) {
+      BlockWeight sum = 0;
+      for (const StaticArray<BlockWeight> &block_weights : block_weights_ets) {
+        sum += block_weights[b];
+      }
+      _block_weights[b] = sum;
+    });
+  }
+
+  void init_block_weights_seq() {
+    for (const NodeID u : this->nodes()) {
+      if (const BlockID b = block(u); b != kInvalidBlockID) {
+        _block_weights[b] += this->node_weight(u);
+      }
+    }
+  }
 
   BlockID _k = 0;
   StaticArray<BlockID> _partition;
   StaticArray<BlockWeight> _block_weights;
 };
+
+using PartitionedGraph = GenericPartitionedGraph<Graph>;
+
 } // namespace kaminpar::shm

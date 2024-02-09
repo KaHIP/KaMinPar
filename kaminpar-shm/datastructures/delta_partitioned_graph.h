@@ -25,7 +25,7 @@ template <
     // If false, store the block weight changes in a vector of size k, otherwise
     // use a hash map.
     bool compact_block_weight_delta = false>
-class GenericDeltaPartitionedGraph : public GraphDelegate {
+class GenericDeltaPartitionedGraph : public GraphDelegate<Graph> {
   struct DeltaEntry {
     NodeID node;
     BlockID block;
@@ -35,7 +35,7 @@ public:
   constexpr static bool kAllowsReadAfterMove = allow_read_after_move;
 
   GenericDeltaPartitionedGraph(const PartitionedGraph *p_graph)
-      : GraphDelegate(&p_graph->graph()),
+      : GraphDelegate<Graph>(&p_graph->graph()),
         _p_graph(p_graph) {
     if constexpr (compact_block_weight_delta) {
       _block_weights_delta.set_empty_key(kInvalidBlockID);

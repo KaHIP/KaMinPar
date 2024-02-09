@@ -17,7 +17,9 @@
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm::ip {
-class Bipartitioner {
+template <class Graph> class Bipartitioner {
+  using PartitionedGraph = GenericPartitionedGraph<Graph>;
+
 public:
   using BlockWeights = std::array<BlockWeight, 2>;
 
@@ -30,7 +32,7 @@ public:
   //! Compute bipartition and return as partitioned graph.
   virtual PartitionedGraph bipartition(StaticArray<BlockID> &&partition = {}) {
     return PartitionedGraph(
-        PartitionedGraph::seq{}, _graph, 2, bipartition_raw(std::move(partition))
+        typename PartitionedGraph::seq{}, _graph, 2, bipartition_raw(std::move(partition))
     );
   }
 

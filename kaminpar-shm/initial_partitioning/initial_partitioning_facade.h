@@ -14,38 +14,47 @@
 #include "kaminpar-shm/partition_utils.h"
 
 namespace kaminpar::shm {
-class InitialPartitioner {
+
+struct InitialPartitionerMemoryContext {
+  InitialPartitionerMemoryContext() = default;
+
+  InitialPartitionerMemoryContext(const InitialPartitionerMemoryContext &) = delete;
+  InitialPartitionerMemoryContext &operator=(const InitialPartitionerMemoryContext &) = delete;
+
+  InitialPartitionerMemoryContext(InitialPartitionerMemoryContext &&) noexcept = default;
+  InitialPartitionerMemoryContext &operator=(InitialPartitionerMemoryContext &&) noexcept = default;
+
+  ip::InitialCoarseningMemoryContext coarsener_m_ctx;
+  ip::InitialRefinementMemoryContext refiner_m_ctx;
+  ip::InitialPartitioningMemoryContext pool_m_ctx;
+
+  [[nodiscard]] std::size_t memory_in_kb() const {
+    return coarsener_m_ctx.memory_in_kb() + refiner_m_ctx.memory_in_kb() +
+           pool_m_ctx.memory_in_kb();
+  }
+};
+
+template <typename Graph> class InitialPartitioner {
   SET_DEBUG(false);
 
+  using WrapperGraph = shm::Graph;
+  using PartitionedGraph = GenericPartitionedGraph<Graph>;
+
 public:
-  struct MemoryContext {
-    MemoryContext() = default;
-
-    MemoryContext(const MemoryContext &) = delete;
-    MemoryContext &operator=(const MemoryContext &) = delete;
-
-    MemoryContext(MemoryContext &&) noexcept = default;
-    MemoryContext &operator=(MemoryContext &&) noexcept = default;
-
-    ip::InitialCoarsener::MemoryContext coarsener_m_ctx;
-    ip::InitialRefiner::MemoryContext refiner_m_ctx;
-    ip::PoolBipartitioner::MemoryContext pool_m_ctx;
-
-    [[nodiscard]] std::size_t memory_in_kb() const {
-      return coarsener_m_ctx.memory_in_kb() + refiner_m_ctx.memory_in_kb() +
-             pool_m_ctx.memory_in_kb();
-    }
-  };
-
   InitialPartitioner(
-      const Graph &graph, const Context &ctx, const BlockID final_k, MemoryContext m_ctx = {}
+      const WrapperGraph &wrappger_graph,
+      const Graph &graph,
+      const Context &ctx,
+      const BlockID final_k,
+      InitialPartitionerMemoryContext m_ctx = {}
   )
       : _m_ctx(std::move(m_ctx)),
+        _wrapper_graph(wrappger_graph),
         _graph(graph),
         _i_ctx(ctx.initial_partitioning),
         _coarsener(&_graph, _i_ctx.coarsening, std::move(_m_ctx.coarsener_m_ctx)) {
     const auto [final_k1, final_k2] = math::split_integral(final_k);
-    _p_ctx = create_bipartition_context(_graph, final_k1, final_k2, ctx.partition);
+    _p_ctx = create_bipartition_context(_wrapper_graph, final_k1, final_k2, ctx.partition);
     DBG << " -> created _p_ctx with max weights: " << _p_ctx.block_weights.max(0) << " + "
         << _p_ctx.block_weights.max(1);
 
@@ -57,29 +66,30 @@ public:
         std::ceil(_i_ctx.repetition_multiplier * final_k / math::ceil_log2(ctx.partition.k));
   }
 
-  MemoryContext free() {
+  InitialPartitionerMemoryContext free() {
     _m_ctx.refiner_m_ctx = _refiner->free();
     _m_ctx.coarsener_m_ctx = _coarsener.free();
     return std::move(_m_ctx);
   }
 
-  PartitionedGraph partition() {
+  shm::PartitionedGraph partition() {
     const Graph *c_graph = coarsen();
 
     DBG << "Calling bipartitioner on coarsest graph with n=" << c_graph->n()
         << " m=" << c_graph->m();
-    ip::PoolBipartitionerFactory factory;
+    ip::PoolBipartitionerFactory<Graph> factory;
     auto bipartitioner = factory.create(*c_graph, _p_ctx, _i_ctx, std::move(_m_ctx.pool_m_ctx));
     bipartitioner->set_num_repetitions(_num_bipartition_repetitions);
     PartitionedGraph p_graph = bipartitioner->bipartition();
     _m_ctx.pool_m_ctx = bipartitioner->free();
 
-    DBG << "Bipartitioner result: "                              //
-        << "cut=" << metrics::edge_cut_seq(p_graph) << " " //
-        << "imbalance=" << metrics::imbalance(p_graph) << " "    //
-        << "feasible=" << metrics::is_feasible(p_graph, _p_ctx); //
+    DBG << "Bipartitioner result: "                                  //
+        << "cut=" << metrics::edge_cut_seq(p_graph, *c_graph) << " " //
+        << "imbalance=" << metrics::imbalance(p_graph) << " "        //
+        << "feasible=" << metrics::is_feasible(p_graph, _p_ctx);     //
 
-    return uncoarsen(std::move(p_graph));
+    PartitionedGraph final_p_graph = uncoarsen(std::move(p_graph));
+    return {_wrapper_graph, final_p_graph.k(), final_p_graph.take_raw_partition()};
   }
 
 private:
@@ -121,7 +131,7 @@ private:
       DBG << "-> "                                                 //
           << "n=" << p_graph.n() << " "                            //
           << "m=" << p_graph.m() << " "                            //
-          << "cut=" << metrics::edge_cut_seq(p_graph) << " " //
+          << "cut=" << metrics::edge_cut_seq(p_graph) << " "       //
           << "imbalance=" << metrics::imbalance(p_graph) << " "    //
           << "feasible=" << metrics::is_feasible(p_graph, _p_ctx); //
     }
@@ -129,12 +139,13 @@ private:
     return p_graph;
   }
 
-  MemoryContext _m_ctx;
+  InitialPartitionerMemoryContext _m_ctx;
+  const WrapperGraph &_wrapper_graph;
   const Graph &_graph;
   const InitialPartitioningContext &_i_ctx;
   PartitionContext _p_ctx;
-  ip::InitialCoarsener _coarsener;
-  std::unique_ptr<ip::InitialRefiner> _refiner;
+  ip::InitialCoarsener<Graph> _coarsener;
+  std::unique_ptr<ip::InitialRefiner<Graph>> _refiner;
 
   std::size_t _num_bipartition_repetitions;
 };

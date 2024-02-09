@@ -16,7 +16,7 @@
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm {
-class GraphDelegate {
+template <class Graph> class GraphDelegate {
 public:
   GraphDelegate(const Graph *graph) : _graph(graph) {}
 

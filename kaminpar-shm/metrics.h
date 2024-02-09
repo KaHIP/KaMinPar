@@ -69,6 +69,28 @@ EdgeWeight edge_cut_seq(const PartitionedGraphType &p_graph) {
   return static_cast<EdgeWeight>(cut);
 }
 
+template <typename PartitionedGraphType, typename Graph>
+EdgeWeight edge_cut_seq(const PartitionedGraphType &p_graph, const Graph &graph) {
+  std::int64_t cut = 0;
+
+  for (const NodeID u : graph.nodes()) {
+    graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
+      cut += (p_graph.block(u) != p_graph.block(v)) ? graph.edge_weight(e) : 0;
+    });
+  }
+
+  KASSERT(cut % 2 == 0u);
+  cut /= 2;
+
+  KASSERT(
+      0 <= cut && cut <= std::numeric_limits<EdgeWeight>::max(),
+      "edge cut overflows: " << cut,
+      assert::always
+  );
+
+  return static_cast<EdgeWeight>(cut);
+}
+
 template <typename PartitionedGraphType> double imbalance(const PartitionedGraphType &p_graph) {
   const double perfect_block_weight = std::ceil(1.0 * p_graph.total_node_weight() / p_graph.k());
 
