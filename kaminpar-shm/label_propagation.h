@@ -1633,10 +1633,8 @@ public:
           if (_struct == nullptr) {
             RECORD_DATA_STRUCT(max_num_clusters * sizeof(parallel::Atomic<ClusterWeight>), _struct);
           } else {
-              _struct->size = std::max(
-                  _struct->size, max_num_clusters * sizeof(parallel::Atomic<ClusterWeight>)
-              )
-
+            _struct->size =
+                std::max(_struct->size, max_num_clusters * sizeof(parallel::Atomic<ClusterWeight>));
           }
       )
 
