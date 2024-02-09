@@ -1629,14 +1629,16 @@ public:
     if (_use_two_level_vector) {
       _cluster_weights_tlvec.resize(max_num_clusters);
     } else {
-      if (_struct == nullptr) {
-        RECORD_DATA_STRUCT(max_num_clusters * sizeof(parallel::Atomic<ClusterWeight>), _struct);
-      } else {
-        IF_HEAP_PROFILING(
-            _struct->size =
-                std::max(_struct->size, max_num_clusters * sizeof(parallel::Atomic<ClusterWeight>))
-        );
-      }
+      IF_HEAP_PROFILING( //
+          if (_struct == nullptr) {
+            RECORD_DATA_STRUCT(max_num_clusters * sizeof(parallel::Atomic<ClusterWeight>), _struct);
+          } else {
+              _struct->size = std::max(
+                  _struct->size, max_num_clusters * sizeof(parallel::Atomic<ClusterWeight>)
+              )
+
+          }
+      )
 
       _cluster_weights_vec.resize(max_num_clusters);
     }
