@@ -75,7 +75,11 @@ const Graph *KWayMultilevelPartitioner::coarsen() {
 
     // Build next coarse graph
     shrunk = helper::coarsen_once(
-        _coarsener.get(), c_graph, _input_ctx, _current_p_ctx, _coarsener.get()->size() == 0
+        _coarsener.get(),
+        c_graph,
+        _input_ctx,
+        _current_p_ctx,
+        _coarsener.get()->size() < _input_ctx.partitioning.max_mem_free_coarsening_level
     );
     c_graph = _coarsener->coarsest_graph();
 

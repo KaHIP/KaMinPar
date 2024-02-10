@@ -62,6 +62,15 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
   partitioning
       ->add_option(
+          "--p-max-memory-free-coarsening-level",
+          ctx.partitioning.max_mem_free_coarsening_level,
+          "Maximum coarsening level for which the corresponding memory should be released "
+          "afterwards"
+      )
+      ->capture_default_str();
+  ;
+  partitioning
+      ->add_option(
           "--p-deep-initial-partitioning-mode", ctx.partitioning.deep_initial_partitioning_mode
       )
       ->transform(CLI::CheckedTransformer(get_initial_partitioning_modes()).description(""))

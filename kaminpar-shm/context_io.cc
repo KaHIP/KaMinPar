@@ -319,10 +319,14 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
       out << "VarInt Encoding\n";
     }
     out << "  High Degree Encoding:       " << (c_ctx.high_degree_encoding ? "yes" : "no") << "\n";
-    out << "  High Degree Threshold:      " << c_ctx.high_degree_threshold << "\n";
-    out << "  High Degree Part Length:    " << c_ctx.high_degree_part_length << "\n";
+    if (c_ctx.high_degree_encoding) {
+      out << "    Threshold:                " << c_ctx.high_degree_threshold << "\n";
+      out << "    Part Length:              " << c_ctx.high_degree_part_length << "\n";
+    }
     out << "  Interval Encoding:          " << (c_ctx.interval_encoding ? "yes" : "no") << "\n";
-    out << "  Interval Length Threshold:  " << c_ctx.interval_length_treshold << "\n";
+    if (c_ctx.interval_encoding) {
+      out << "    Length Threshold:         " << c_ctx.interval_length_treshold << "\n";
+    }
     out << "  Isolated Nodes Separation:  " << (c_ctx.isolated_nodes_separation ? "yes" : "no")
         << "\n";
 
@@ -470,6 +474,7 @@ void print(const PartitioningContext &p_ctx, std::ostream &out) {
     out << "  Deep initial part. mode:    " << p_ctx.deep_initial_partitioning_mode << "\n";
     out << "  Deep initial part. load:    " << p_ctx.deep_initial_partitioning_load << "\n";
   }
+  out << "Max coarsening mem-free level:" << p_ctx.max_mem_free_coarsening_level << "\n";
 }
 
 void print(const Context &ctx, std::ostream &out) {

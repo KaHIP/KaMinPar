@@ -333,6 +333,7 @@ enum class PartitioningMode {
 
 struct PartitioningContext {
   PartitioningMode mode;
+  int max_mem_free_coarsening_level;
 
   InitialPartitioningMode deep_initial_partitioning_mode;
   double deep_initial_partitioning_load;
