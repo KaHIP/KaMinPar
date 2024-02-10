@@ -300,19 +300,12 @@ void remove_isolated_nodes_generic_graph(Graph &graph, PartitionContext &p_ctx) 
   p_ctx.n = new_n;
   p_ctx.total_node_weight = new_weight;
 
-  nodes.restrict(new_n + 1);
-  if (!node_weights.empty()) {
-    node_weights.restrict(new_n);
-  }
-
-  graph.update_total_node_weight();
-  graph.update_degree_buckets();
+  graph.remove_isolated_nodes(isolated_nodes);
 }
 
 void remove_isolated_nodes(Graph &graph, PartitionContext &p_ctx) {
   if (auto *csr_graph = dynamic_cast<CSRGraph *>(graph.underlying_graph()); csr_graph != nullptr) {
     remove_isolated_nodes_generic_graph(*csr_graph, p_ctx);
-
   } else if (auto *compressed_graph = dynamic_cast<CompressedGraph *>(graph.underlying_graph());
              compressed_graph != nullptr) {
     remove_isolated_nodes_generic_graph(*compressed_graph, p_ctx);
@@ -323,11 +316,7 @@ template <typename Graph>
 NodeID integrate_isolated_nodes_generic_graph(Graph &graph, const double epsilon, Context &ctx) {
   const NodeID num_nonisolated_nodes = graph.n(); // this becomes the first isolated node
 
-  graph.raw_nodes().unrestrict();
-  graph.raw_node_weights().unrestrict();
-
-  graph.update_total_node_weight();
-  graph.update_degree_buckets();
+  graph.integrate_isolated_nodes();
 
   const NodeID num_isolated_nodes = graph.n() - num_nonisolated_nodes;
 

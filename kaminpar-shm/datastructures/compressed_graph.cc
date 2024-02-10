@@ -87,9 +87,51 @@ void CompressedGraph::update_total_node_weight() {
   }
 }
 
-void CompressedGraph::update_degree_buckets() {
-  std::fill(_buckets.begin(), _buckets.end(), 0);
-  init_degree_buckets();
+void CompressedGraph::remove_isolated_nodes(const NodeID isolated_nodes) {
+  KASSERT(sorted());
+
+  if (isolated_nodes == 0) {
+    return;
+  }
+
+  const NodeID new_n = n() - isolated_nodes;
+  _nodes.restrict(new_n + 1);
+  if (!_node_weights.empty()) {
+    _node_weights.restrict(new_n);
+  }
+
+  update_total_node_weight();
+
+  // Update degree buckets
+  for (std::size_t i = 0; i < _buckets.size(); ++i) {
+    _buckets[1 + i] -= isolated_nodes;
+  }
+
+  // If the graph has only isolated nodes then there are no buckets afterwards
+  if (_number_of_buckets == 1) {
+    _number_of_buckets = 0;
+  }
+}
+
+void CompressedGraph::integrate_isolated_nodes() {
+  KASSERT(sorted());
+
+  const NodeID nonisolated_nodes = n();
+  _nodes.unrestrict();
+  _node_weights.unrestrict();
+
+  const NodeID isolated_nodes = n() - nonisolated_nodes;
+  update_total_node_weight();
+
+  // Update degree buckets
+  for (std::size_t i = 0; i < _buckets.size(); ++i) {
+    _buckets[1 + i] += isolated_nodes;
+  }
+
+  // If the graph has only isolated nodes then there is one afterwards
+  if (_number_of_buckets == 0) {
+    _number_of_buckets = 1;
+  }
 }
 
 CompressedGraph CompressedGraphBuilder::compress(const CSRGraph &graph) {

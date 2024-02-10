@@ -343,7 +343,9 @@ public:
 
   void update_total_node_weight() final;
 
-  void update_degree_buckets() final;
+  void remove_isolated_nodes(const NodeID isolated_nodes);
+
+  void integrate_isolated_nodes();
 
   // Compressions statistics
 
