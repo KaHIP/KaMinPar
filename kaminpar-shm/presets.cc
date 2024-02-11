@@ -55,7 +55,7 @@ Context create_default_context() {
       .partitioning =
           {
               .mode = PartitioningMode::DEEP,
-              .max_mem_free_coarsening_level = 0,
+              .max_mem_free_coarsening_level = 100,
               .deep_initial_partitioning_mode = InitialPartitioningMode::ASYNCHRONOUS_PARALLEL,
               .deep_initial_partitioning_load = 1.0,
           },

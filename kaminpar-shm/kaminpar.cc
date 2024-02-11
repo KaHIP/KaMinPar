@@ -197,6 +197,7 @@ EdgeWeight KaMinPar::compute_partition(const BlockID k, BlockID *partition) {
 
   if (!_was_rearranged) {
     if (_ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
+      SCOPED_TIMER("Rearrange by degree-buckets");
       CSRGraph &csr_graph = *dynamic_cast<CSRGraph *>(_graph_ptr->underlying_graph());
       _graph_ptr = std::make_unique<Graph>(graph::rearrange_by_degree_buckets(csr_graph));
     }
