@@ -122,7 +122,7 @@ void HeapProfiler::record_free(const void *ptr) {
 void HeapProfiler::set_detailed_summary_options() {
   set_max_depth(std::numeric_limits<std::size_t>::max());
   set_print_data_structs(true);
-  set_min_data_struct_size(0);
+  set_min_data_struct_size(1);
 }
 
 void HeapProfiler::set_max_depth(std::size_t max_depth) {
