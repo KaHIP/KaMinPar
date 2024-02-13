@@ -738,24 +738,8 @@ public:
    * @param edge_count The number of edges in the graph.
    * @return The max size in bytes of the compressed edge array.
    */
-  [[nodiscard]] static constexpr std::size_t
-  compressed_edge_array_max_size(const NodeID node_count, const EdgeID edge_count) {
-    std::size_t max_size =
-        node_count * varint_max_length<EdgeID>() + edge_count * varint_max_length<NodeID>();
-
-    if constexpr (CompressedGraph::kHighDegreeEncoding) {
-      if constexpr (CompressedGraph::kIntervalEncoding) {
-        max_size += 2 * node_count * varint_max_length<NodeID>();
-      } else {
-        max_size += node_count * varint_max_length<NodeID>();
-      }
-
-      max_size +=
-          (edge_count / CompressedGraph::kHighDegreePartLength) * varint_max_length<NodeID>();
-    }
-
-    return max_size;
-  }
+  [[nodiscard]] static std::size_t
+  compressed_edge_array_max_size(const NodeID node_count, const EdgeID edge_count);
 
   /*!
    * Compresses a graph in compressed sparse row format.

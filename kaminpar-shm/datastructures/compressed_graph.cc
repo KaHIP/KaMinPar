@@ -134,6 +134,25 @@ void CompressedGraph::integrate_isolated_nodes() {
   }
 }
 
+std::size_t CompressedGraphBuilder::compressed_edge_array_max_size(
+    const NodeID node_count, const EdgeID edge_count
+) {
+  std::size_t max_size =
+      node_count * varint_max_length<EdgeID>() + 2 * edge_count * varint_max_length<NodeID>();
+
+  if constexpr (CompressedGraph::kHighDegreeEncoding) {
+    if constexpr (CompressedGraph::kIntervalEncoding) {
+      max_size += 2 * node_count * varint_max_length<NodeID>();
+    } else {
+      max_size += node_count * varint_max_length<NodeID>();
+    }
+
+    max_size += (edge_count / CompressedGraph::kHighDegreePartLength) * varint_max_length<NodeID>();
+  }
+
+  return max_size;
+}
+
 CompressedGraph CompressedGraphBuilder::compress(const CSRGraph &graph) {
   const bool store_node_weights = graph.node_weighted();
   const bool store_edge_weights = graph.edge_weighted();
