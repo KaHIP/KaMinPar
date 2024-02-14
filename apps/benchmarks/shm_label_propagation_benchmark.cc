@@ -63,6 +63,7 @@ int main(int argc, char *argv[]) {
   );
   ctx.setup(graph);
 
+  const double original_epsilon = ctx.partition.epsilon;
   if (ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
     CSRGraph &csr_graph = *dynamic_cast<CSRGraph *>(graph.underlying_graph());
     graph = graph::rearrange_by_degree_buckets(csr_graph);
@@ -84,12 +85,16 @@ int main(int argc, char *argv[]) {
   ENABLE_HEAP_PROFILER();
   START_HEAP_PROFILER("Label Propagation");
   TIMED_SCOPE("Label Propagation") {
-    lp_clustering.compute_clustering(graph);
+    lp_clustering.compute_clustering(graph, false);
   };
   STOP_HEAP_PROFILER();
   DISABLE_HEAP_PROFILER();
 
   STOP_TIMER();
+
+  if (graph.sorted()) {
+    graph::integrate_isolated_nodes(graph, original_epsilon, ctx);
+  }
 
   cio::print_delimiter("Input Summary", '#');
   std::cout << "Execution mode:               " << ctx.parallel.num_threads << "\n";
@@ -102,6 +107,7 @@ int main(int argc, char *argv[]) {
   cio::print_delimiter("Result Summary");
   Timer::global().print_human_readable(std::cout);
   LOG;
+  heap_profiler::HeapProfiler::global().set_detailed_summary_options();
   PRINT_HEAP_PROFILE(std::cout);
 
   return 0;
