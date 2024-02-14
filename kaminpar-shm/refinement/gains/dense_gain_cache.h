@@ -189,21 +189,34 @@ public:
         __atomic_fetch_add(&_gain_cache[index(v, block_to)], weight, __ATOMIC_RELAXED);
       } else {
         lock(v);
+
         // Decrease from weight
         const std::size_t idx_from = index(v, block_from);
         KASSERT(decode_entry_block(_gain_cache[idx_from]) == block_from);
         if (decode_entry_gain(__atomic_sub_fetch(&_gain_cache[idx_from], weight, __ATOMIC_RELAXED)
             ) == 0) {
-          // erase
+          const auto bucket = find_bucket(node);
+          const auto size = lowest_degree_in_bucket<NodeID>(bucket + 1);
+          const auto mask = size - 1;
+          const std::size_t offset = _cache_offsets[bucket] + (node - _buckets[bucket]) * size;
+
+          std::size_t cur_idx = idx_from;
+          BlockID cur_block;
+          do {
+            ++cur_idx;
+            const std::size_t cur_pos = (cur_idx - offset) & mask;
+            cur_block = decode_entry_block(_gain_cache[offset + cur_pos]);
+          } while ((cur_block & mask) == (block_from & mask));
+
+          std::swap(_gain_cache[idx_from], _gain_cache[cur_idx - 1]);
+          _gain_cache[cur_idx - 1] = 0;
         }
 
         // Increase to weight
         const std::size_t idx_to = index(v, block_to);
         if (decode_entry_block(_gain_cache[idx_to]) != block_to) {
           KASSERT(decode_entry_block(_gain_cache[idx_to]) == 0);
-          __atomic_fetch_store_n(
-              &_gain_cache[idx_to], encode_cache_entry(block_to, 0), __ATOMIC_RELAXED
-          );
+          __atomic_store_n(&_gain_cache[idx_to], encode_cache_entry(block_to, 0), __ATOMIC_RELAXED);
         }
         __atomic_fetch_add(&_gain_cache[idx_to], weight, __ATOMIC_RELAXED);
         unlock(v);
@@ -245,15 +258,16 @@ private:
     return bucket;
   }
 
-  BlockID decode_entry_block(const UnsignedEdgeWeight entry) {
+  [[nodiscard]] BlockID decode_entry_block(const UnsignedEdgeWeight entry) const {
     return static_cast<BlockID>((entry & _block_mask) >> _bits_for_gain);
   }
 
-  EdgeWeight decode_entry_gain(const UnsignedEdgeWeight entry) {
+  [[nodiscard]] EdgeWeight decode_entry_gain(const UnsignedEdgeWeight entry) const {
     return static_cast<EdgeWeight>(entry & _gain_mask);
   }
 
-  UnsignedEdgeWeight encode_cache_entry(const BlockID block, const EdgeWeight gain) {
+  [[nodiscard]] UnsignedEdgeWeight
+  encode_cache_entry(const BlockID block, const EdgeWeight gain) const {
     return (static_cast<UnsignedEdgeWeight>(block) << _bits_for_gain) |
            static_cast<UnsignedEdgeWeight>(gain);
   }
