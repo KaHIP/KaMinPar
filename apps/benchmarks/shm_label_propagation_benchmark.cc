@@ -56,6 +56,7 @@ int main(int argc, char *argv[]) {
 
   Graph graph = io::read(
       graph_filename,
+      io::GraphFileFormat::METIS,
       ctx.compression.enabled,
       ctx.compression.may_dismiss,
       ctx.node_ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS,

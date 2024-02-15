@@ -53,9 +53,25 @@ void write(const std::string &filename, const Graph &graph);
 } // namespace metis
 
 /*!
+ * All graph file formats that can be parsed.
+ */
+enum class GraphFileFormat {
+  METIS,
+  PARHIP
+};
+
+/*!
+ * Returns a table which maps identifiers to their corresponding graph file format.
+ *
+ * @return A table which maps identifiers to their corresponding graph file format.
+ */
+std::unordered_map<std::string, GraphFileFormat> get_graph_file_formats();
+
+/*!
  * Reads a graph that is either stored in METIS or compressed format.
  *
  * @param filename The name of the file to read.
+ * @param file_format The format of the file used to store the graph.
  * @param compress Whether to compress the graph.
  * @param may_dismiss Whether the compressed graph is only returned when it uses less memory than
  * the uncompressed graph.
@@ -65,6 +81,7 @@ void write(const std::string &filename, const Graph &graph);
  */
 Graph read(
     const std::string &filename,
+    const GraphFileFormat file_format,
     const bool compress,
     const bool may_dismiss,
     const bool sorted,

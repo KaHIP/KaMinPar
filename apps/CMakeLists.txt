@@ -1,10 +1,12 @@
-set(KAMINPAR_IO_SOURCE_FILES 
-    io/shm_io.h 
-    io/shm_io.cc 
-    io/shm_input_validator.h 
-    io/shm_input_validator.cc 
-    io/shm_compressed_graph_binary.h 
-    io/shm_compressed_graph_binary.cc)
+set(KAMINPAR_IO_SOURCE_FILES
+    io/parhip_parser.h
+    io/parhip_parser.cc
+    io/shm_compressed_graph_binary.h
+    io/shm_compressed_graph_binary.cc
+    io/shm_input_validator.h
+    io/shm_input_validator.cc
+    io/shm_io.h
+    io/shm_io.cc)
 
 add_library(kaminpar_io ${KAMINPAR_IO_SOURCE_FILES})
 target_include_directories(kaminpar_io PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/io/../")

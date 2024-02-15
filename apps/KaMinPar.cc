@@ -52,6 +52,7 @@ struct ApplicationContext {
 
   std::string graph_filename = "";
   std::string partition_filename = "";
+  io::GraphFileFormat graph_file_format = io::GraphFileFormat::METIS;
 };
 
 void setup_context(CLI::App &cli, ApplicationContext &app, Context &ctx) {
@@ -99,6 +100,12 @@ The output should be stored in a file and can be used by the -C,--config option.
   cli.add_flag_function("-T,--all-timers", [&](auto) {
     app.max_timer_depth = std::numeric_limits<int>::max();
   });
+  cli.add_option("-f,--graph-file-format", app.graph_file_format)
+      ->transform(CLI::CheckedTransformer(io::get_graph_file_formats()).description(""))
+      ->description(R"(Graph file formats:
+  - metis
+  - parhip)")
+      ->capture_default_str();
 
   if constexpr (kHeapProfiling) {
     auto *hp_group = cli.add_option_group("Heap Profiler");
@@ -185,6 +192,7 @@ int main(int argc, char *argv[]) {
   START_HEAP_PROFILER("Input Graph Allocation");
   Graph graph = io::read(
       app.graph_filename,
+      app.graph_file_format,
       ctx.compression.enabled,
       ctx.compression.may_dismiss,
       ctx.node_ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS,

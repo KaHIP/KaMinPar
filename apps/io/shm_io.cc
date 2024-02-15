@@ -16,6 +16,7 @@
 #include "kaminpar-common/logger.h"
 
 #include "apps/io/metis_parser.h"
+#include "apps/io/parhip_parser.h"
 #include "apps/io/shm_compressed_graph_binary.h"
 #include "apps/io/shm_input_validator.h"
 
@@ -338,8 +339,16 @@ void write(const std::string &filename, const Graph &graph) {
 
 } // namespace metis
 
+std::unordered_map<std::string, GraphFileFormat> get_graph_file_formats() {
+  return {
+      {"metis", GraphFileFormat::METIS},
+      {"parhip", GraphFileFormat::PARHIP},
+  };
+}
+
 Graph read(
     const std::string &filename,
+    const GraphFileFormat file_format,
     const bool compress,
     const bool may_dismiss,
     const bool sorted,
@@ -381,7 +390,12 @@ Graph read(
 
     return Graph(std::make_unique<CSRGraph>(std::move(csr_graph)));
   } else {
-    return Graph(std::make_unique<CSRGraph>(metis::csr_read<false>(filename, sorted)));
+    switch (file_format) {
+    case GraphFileFormat::METIS:
+      return Graph(std::make_unique<CSRGraph>(metis::csr_read<false>(filename, sorted)));
+    case GraphFileFormat::PARHIP:
+      return Graph(std::make_unique<CSRGraph>(parhip::csr_read(filename, sorted)));
+    }
   }
 }
 
