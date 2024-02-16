@@ -129,13 +129,14 @@ public:
       gc_size = 1ul * _n * _k;
     }
     DBG << "Computed gain cache size: " << gc_size << " entries, allocate "
-        << (gc_size * sizeof(UnsignedEdgeWeight) / 1024 / 1024) << " MiB";
+        << (gc_size * sizeof(UnsignedEdgeWeight) / 1024.0) << " KiB";
 
     TIMED_SCOPE("Allocation") {
       _gain_cache.resize(static_array::noinit, gc_size);
       _weighted_degrees.resize(static_array::noinit, _n);
     };
 
+    init_buckets(p_graph.graph());
     reset();
     recompute_all(p_graph);
   }
@@ -249,13 +250,15 @@ private:
       _buckets[bucket + 1] = _buckets[bucket] + graph.bucket_size(bucket);
     }
     std::fill(_buckets.begin() + graph.number_of_buckets(), _buckets.end(), graph.n());
+
+    DBG << "Initialized buckets: " << _buckets;
   }
 
   [[nodiscard]] int find_bucket(const NodeID node) const {
     int bucket = 0;
-    while (node >= _buckets[bucket]) {
+    while (node >= _buckets[bucket + 1]) {
       for (int i = 0; i < 8; ++i) {
-        bucket += (node >= _buckets[bucket]);
+        bucket += (node >= _buckets[bucket + 1]);
       }
     }
     return bucket;
@@ -330,6 +333,8 @@ private:
 
       const std::size_t offset = _cache_offsets[bucket] + (node - _buckets[bucket]) * size;
       std::size_t ht_pos = block;
+
+      DBG << V(node) << V(bucket) << V(size) << V(mask) << V(offset) << V(ht_pos);
 
       BlockID cur_block;
       do {
