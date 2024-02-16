@@ -26,10 +26,11 @@
 namespace kaminpar::shm {
 template <typename DeltaPartitionedGraph, typename GainCache> class SparseDeltaGainCache;
 
-template <bool iterate_exact_gains = false> class SparseGainCache {
+template <bool iterate_nonadjacent_blocks = true, bool iterate_exact_gains = false>
+class SparseGainCache {
   SET_DEBUG(true);
 
-  using Self = SparseGainCache<iterate_exact_gains>;
+  using Self = SparseGainCache<iterate_nonadjacent_blocks, iterate_exact_gains>;
   template <typename, typename> friend class SparseDeltaGainCache;
 
 public:
@@ -37,7 +38,7 @@ public:
   using DeltaCache = SparseDeltaGainCache<DeltaPartitionedGraph, Self>;
 
   // gains() will iterate over all blocks, including those not adjacent to the node.
-  constexpr static bool kIteratesNonadjacentBlocks = true;
+  constexpr static bool kIteratesNonadjacentBlocks = iterate_nonadjacent_blocks;
 
   // If set to true, gains() will call the gain consumer with exact gains; otherwise, it will call
   // the gain consumer with the total edge weight between the node and nodes in the specific block.
@@ -90,9 +91,20 @@ public:
   void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
     const EdgeWeight conn_from = kIteratesExactGains ? conn(node, from) : 0;
 
-    for (BlockID to = 0; to < _k; ++to) {
-      if (from != to) {
-        lambda(to, [&] { return conn(node, to) - conn_from; });
+    if constexpr (kIteratesNonadjacentBlocks) {
+      for (BlockID to = 0; to < _k; ++to) {
+        if (from != to) {
+          lambda(to, [&] { return conn(node, to) - conn_from; });
+        }
+      }
+    } else {
+      for (BlockID to = 0; to < _k; ++to) {
+        if (from != to) {
+          const EdgeWeight conn_to = conn(node, to);
+          if (conn_to > 0) {
+            lambda(to, [&] { return conn_to - conn_from; });
+          }
+        }
       }
     }
   }

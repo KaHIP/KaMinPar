@@ -42,10 +42,11 @@
 namespace kaminpar::shm {
 template <typename DeltaPartitionedGraph, typename GainCache> class DenseDeltaGainCache;
 
-template <bool iterate_exact_gains = false> class DenseGainCache {
+template <bool iterate_nonadjacent_blocks = true, bool iterate_exact_gains = false>
+class DenseGainCache {
   SET_DEBUG(true);
 
-  using Self = DenseGainCache<iterate_exact_gains>;
+  using Self = DenseGainCache<iterate_nonadjacent_blocks, iterate_exact_gains>;
   template <typename, typename> friend class DenseDeltaGainCache;
 
   // Abuse MSB bit in the _weighted_degrees[] array for locking
@@ -58,7 +59,7 @@ public:
   using DeltaCache = DenseDeltaGainCache<DeltaPartitionedGraph, Self>;
 
   // gains() will iterate over all blocks, including those not adjacent to the node.
-  constexpr static bool kIteratesNonadjacentBlocks = false;
+  constexpr static bool kIteratesNonadjacentBlocks = iterate_nonadjacent_blocks;
 
   // If set to true, gains() will call the gain consumer with exact gains; otherwise, it will call
   // the gain consumer with the total edge weight between the node and nodes in the specific block.
@@ -91,14 +92,13 @@ public:
     _bits_for_gain = sizeof(UnsignedEdgeWeight) * 8 - math::ceil_log2(_k);
     _gain_mask = (1ul << _bits_for_gain) - 1;
     _block_mask = ~_gain_mask;
-    DBG << "[DenseGainCache] Reserve " << _bits_for_gain << " of " << sizeof(UnsignedEdgeWeight) * 8
+    DBG << "Reserve " << _bits_for_gain << " of " << sizeof(UnsignedEdgeWeight) * 8
         << " bits for gain values, " << math::ceil_log2(_k) << " bits for block IDs";
 
     std::size_t gc_size = 0;
 
     if (p_graph.sorted()) {
-      DBG << "[DenseGainCache] Graph was rearranged by degree buckets: using the mixed "
-             "dense-sparse strategy";
+      DBG << "Graph was rearranged by degree buckets: using the mixed dense-sparse strategy";
 
       const EdgeID degree_threshold = std::max<EdgeID>(
           _k * _ctx.refinement.kway_fm.k_based_high_degree_threshold,
@@ -121,24 +121,24 @@ public:
       );
       gc_size += (p_graph.n() - _node_threshold) * _k;
 
-      DBG << "[DenseGainCache] Initialized with degree threshold: " << degree_threshold
+      DBG << "Initialized with degree threshold: " << degree_threshold
           << ", node threshold: " << _node_threshold << ", bucket threshold: " << _bucket_threshold;
+      DBG << "Bucket offsets: " << _bucket_offsets;
+      DBG << "Cache offsets: " << _cache_offsets;
     } else {
-      DBG << "[DenseGainCache] Graph was *not* rearranged by degree buckets: using the sparse "
-             "strategy only";
+      DBG << "Graph was *not* rearranged by degree buckets: using the sparse strategy only";
       gc_size = 1ul * _n * _k;
     }
-    DBG << "[DenseGainCache] Computed gain cache size: " << gc_size << " entries, allocate "
-        << (gc_size * sizeof(UnsignedEdgeWeight) / 1024 / 1024) << " Mib)";
+    DBG << "Computed gain cache size: " << gc_size << " entries, allocate "
+        << (gc_size * sizeof(UnsignedEdgeWeight) / 1024 / 1024) << " MiB";
 
-    if (_gain_cache.size() < gc_size) {
-      SCOPED_TIMER("Allocation");
+    TIMED_SCOPE("Allocation") {
       _gain_cache.resize(static_array::noinit, gc_size);
-    }
-    if (_weighted_degrees.size() < _n) {
-      SCOPED_TIMER("Allocation");
       _weighted_degrees.resize(static_array::noinit, _n);
-    }
+    };
+
+    reset();
+    recompute_all(p_graph);
   }
 
   void free() {
@@ -169,9 +169,9 @@ public:
       }
 
       const EdgeWeight conn_to = conn(node, to);
-      if (conn_to > 0) {
-        lambda(to, [&] { return conn(node, to) - conn_from; });
-      }
+      // if (conn_to > 0) {
+      lambda(to, [&] { return conn(node, to) - conn_from; });
+      //}
     }
   }
 
@@ -184,7 +184,7 @@ public:
     for (const auto &[e, v] : p_graph.neighbors(node)) {
       const EdgeWeight weight = p_graph.edge_weight(e);
 
-      if (v > _node_threshold) {
+      if (v >= _node_threshold) {
         __atomic_fetch_sub(&_gain_cache[index(v, block_from)], weight, __ATOMIC_RELAXED);
         __atomic_fetch_add(&_gain_cache[index(v, block_to)], weight, __ATOMIC_RELAXED);
       } else {
@@ -295,14 +295,14 @@ private:
   }
 
   [[nodiscard]] EdgeWeight weighted_degree(const NodeID node) const {
-    KASSERT(node < _weighted_degrees[node]);
+    KASSERT(node < _weighted_degrees.size());
     return static_cast<EdgeWeight>(_weighted_degrees[node] & kWeightedDegreeMask);
   }
 
   [[nodiscard]] EdgeWeight weighted_degree_to(const NodeID node, const BlockID block) const {
     KASSERT(index(node, block) < _gain_cache.size());
 
-    if (node > _node_threshold) {
+    if (node >= _node_threshold) {
       return static_cast<EdgeWeight>(
           __atomic_load_n(&_gain_cache[index(node, block)], __ATOMIC_RELAXED)
       );
@@ -316,7 +316,7 @@ private:
   [[nodiscard]] std::size_t index(const NodeID node, const BlockID block) const {
     std::size_t idx;
 
-    if (node > _node_threshold) {
+    if (node >= _node_threshold) {
       idx = _bucket_offsets[_bucket_threshold] +
             (static_cast<std::size_t>(node - _node_threshold) * static_cast<std::size_t>(_k) +
              static_cast<std::size_t>(block));
@@ -351,6 +351,9 @@ private:
 
   void recompute_all(const PartitionedGraph &p_graph) {
     p_graph.pfor_nodes([&](const NodeID u) { recompute_node(p_graph, u); });
+    KASSERT(
+        validate(p_graph), "dense gain cache verification failed after recomputation", assert::heavy
+    );
   }
 
   void recompute_node(const PartitionedGraph &p_graph, const NodeID u) {
@@ -365,7 +368,7 @@ private:
       const EdgeWeight weight = p_graph.edge_weight(e);
 
       const std::size_t idx = index(u, block_v);
-      if (u <= _node_threshold && decode_entry_block(_gain_cache[idx]) != block_v) {
+      if (u < _node_threshold && decode_entry_block(_gain_cache[idx]) != block_v) {
         KASSERT(decode_entry_block(_gain_cache[idx]) == 0);
         _gain_cache[idx] = encode_cache_entry(block_v, 0);
       }

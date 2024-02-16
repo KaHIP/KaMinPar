@@ -128,7 +128,8 @@ Context create_default_context() {
                       .abortion_threshold = 0.999,
                       .gain_cache_strategy = GainCacheStrategy::SPARSE,
                       .constant_high_degree_threshold = 0,
-                      .k_based_high_degree_threshold = 0.0,
+                      .k_based_high_degree_threshold = 1.0,
+
                       .dbg_compute_batch_size_statistics = false,
                   },
               .balancer = {},

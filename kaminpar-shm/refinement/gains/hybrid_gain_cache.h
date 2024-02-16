@@ -27,10 +27,11 @@
 namespace kaminpar::shm {
 template <typename DeltaPartitionedGraph, typename GainCache> class HybridDeltaGainCache;
 
-template <bool iterate_exact_gains = true> class HybridGainCache {
+template <bool iterate_nonadjacent_blocks = true, bool iterate_exact_gains = true>
+class HybridGainCache {
   SET_DEBUG(true);
 
-  using Self = HybridGainCache<iterate_exact_gains>;
+  using Self = HybridGainCache<iterate_nonadjacent_blocks, iterate_exact_gains>;
   template <typename, typename> friend class HybridDeltaGainCache;
 
 public:
@@ -38,7 +39,7 @@ public:
   using DeltaCache = HybridDeltaGainCache<DeltaPartitionedGraph, Self>;
 
   // gains() will iterate over all blocks, including those not adjacent to the node.
-  constexpr static bool kIteratesNonadjacentBlocks = true;
+  constexpr static bool kIteratesNonadjacentBlocks = iterate_nonadjacent_blocks;
 
   // If set to true, gains() will call the gain consumer with exact gains; otherwise, it will call
   // the gain consumer with the total edge weight between the node and nodes in the specific block.
@@ -53,7 +54,7 @@ public:
         _weighted_degrees(static_array::noinit, preallocate_for_n) {}
 
   void initialize(const PartitionedGraph &p_graph) {
-    DBG << "[FM] Initialize high-degree gain cache for a graph with n=" << p_graph.n()
+    DBG << "Initialize high-degree gain cache for a graph with n=" << p_graph.n()
         << ", k=" << p_graph.k();
 
     _n = p_graph.n();
@@ -74,40 +75,38 @@ public:
 
       _n = p_graph.n() - _high_degree_threshold;
 
-      DBG << "[FM] Graph was rearranged: using the on-the-fly strategy for nodes with degree < "
-          << _k << ": for all nodes up to " << _high_degree_threshold << ", i.e., we will keep "
-          << _n << " nodes in the gain cache";
+      DBG << "Graph was rearranged: using the on-the-fly strategy for nodes with degree < " << _k
+          << ": for all nodes up to " << _high_degree_threshold << ", i.e., we will keep " << _n
+          << " nodes in the gain cache";
       if (_high_degree_threshold > 0) {
-        DBG << "[FM] Last node not in the gain cache: " << _high_degree_threshold - 1
-            << " with degree " << p_graph.degree(_high_degree_threshold - 1);
+        DBG << "Last node not in the gain cache: " << _high_degree_threshold - 1 << " with degree "
+            << p_graph.degree(_high_degree_threshold - 1);
       }
       if (_high_degree_threshold < p_graph.n()) {
-        DBG << "[FM] First node in the gain cache: " << _high_degree_threshold << " with degree "
+        DBG << "First node in the gain cache: " << _high_degree_threshold << " with degree "
             << p_graph.degree(_high_degree_threshold);
       }
     } else {
-      DBG << "[FM] Nodes are not sorted by degree buckets: using dense gain cache for all nodes";
+      DBG << "Nodes are not sorted by degree buckets: using dense gain cache for all nodes";
     }
 
     // Mind the potential overflow without explicit cast
     const std::size_t gc_size = static_cast<std::size_t>(_n) * static_cast<std::size_t>(_k);
 
-    DBG << "[FM] Allocating gain cache for n=" << _n << " nodes with k=" << _k
+    DBG << "Allocating gain cache for n=" << _n << " nodes with k=" << _k
         << " blocks == " << gc_size << " slots";
 
-    if (_weighted_degrees.size() < _n) {
-      SCOPED_TIMER("Allocation");
+    TIMED_SCOPE("Allocation") {
       _weighted_degrees.resize(static_array::noinit, _n);
-    }
-    if (_gain_cache.size() < gc_size) {
-      SCOPED_TIMER("Allocation");
       _gain_cache.resize(static_array::noinit, gc_size);
-    }
+    };
+
+    // Must initialize the on-the-fly gain cache before initializing the sparse part (i.e., calling
+    // recompute_all()), otherwise the validation (only with heavy assertions) will not work
+    _on_the_fly_gain_cache.initialize(p_graph);
 
     reset();
     recompute_all(p_graph);
-
-    _on_the_fly_gain_cache.initialize(p_graph);
   }
 
   void free() {
@@ -144,9 +143,20 @@ public:
     if (is_high_degree_node(node)) {
       const EdgeWeight conn_from = kIteratesExactGains ? conn(node, from) : 0;
 
-      for (BlockID to = 0; to < _k; ++to) {
-        if (from != to) {
-          lambda(to, [&] { return conn(node, to) - conn_from; });
+      if constexpr (kIteratesNonadjacentBlocks) {
+        for (BlockID to = 0; to < _k; ++to) {
+          if (from != to) {
+            lambda(to, [&] { return conn(node, to) - conn_from; });
+          }
+        }
+      } else {
+        for (BlockID to = 0; to < _k; ++to) {
+          if (from != to) {
+            const EdgeWeight conn_to = conn(node, to);
+            if (conn_to > 0) {
+              lambda(to, [&] { return conn_to - conn_from; });
+            }
+          }
         }
       }
     } else {
@@ -176,8 +186,9 @@ public:
   [[nodiscard]] bool validate(const PartitionedGraph &p_graph) const {
     bool valid = true;
     p_graph.pfor_nodes([&](const NodeID u) {
-      if (!check_cached_gain_for_node(p_graph, u)) {
+      if (!dbg_check_cached_gain_for_node(p_graph, u)) {
         LOG_WARNING << "gain cache invalid for node " << u;
+        std::exit(1); // @todo
         valid = false;
       }
     });
@@ -223,7 +234,9 @@ private:
 
   void reset() {
     SCOPED_TIMER("Reset gain cache");
-    tbb::parallel_for<std::size_t>(0, _n * _k, [&](const std::size_t i) { _gain_cache[i] = 0; });
+    tbb::parallel_for<std::size_t>(0, _gain_cache.size(), [&](const std::size_t i) {
+      _gain_cache[i] = 0;
+    });
   }
 
   void recompute_all(const PartitionedGraph &p_graph) {
@@ -231,6 +244,9 @@ private:
     tbb::parallel_for<NodeID>(_high_degree_threshold, p_graph.n(), [&](const NodeID u) {
       recompute_node(p_graph, u);
     });
+    KASSERT(
+        validate(p_graph), "hybrid gain cache validation failed after recomputation", assert::heavy
+    );
   }
 
   void recompute_node(const PartitionedGraph &p_graph, const NodeID u) {
@@ -249,12 +265,9 @@ private:
   }
 
   [[nodiscard]] bool
-  check_cached_gain_for_node(const PartitionedGraph &p_graph, const NodeID u) const {
-    if (!is_high_degree_node(u)) {
-      return true;
-    }
-
+  dbg_check_cached_gain_for_node(const PartitionedGraph &p_graph, const NodeID u) const {
     const BlockID block_u = p_graph.block(u);
+
     std::vector<EdgeWeight> actual_external_degrees(_k, 0);
     EdgeWeight actual_weighted_degree = 0;
 
@@ -267,16 +280,18 @@ private:
     }
 
     for (BlockID b = 0; b < _k; ++b) {
-      if (actual_external_degrees[b] != weighted_degree_to(u, b)) {
-        LOG_WARNING << "For node " << u << ": cached weighted degree to block " << b << " is "
-                    << weighted_degree_to(u, b) << " but should be " << actual_external_degrees[b];
+      if (actual_external_degrees[b] != conn(u, b)) {
+        LOG_WARNING << "For " << (is_high_degree_node(u) ? "high-degree" : "low-degree") << " node "
+                    << u << ": cached weighted degree to block " << b << " is " << conn(u, b)
+                    << " but should be " << actual_external_degrees[b];
         return false;
       }
     }
 
-    if (actual_weighted_degree != _weighted_degrees[u]) {
-      LOG_WARNING << "For node " << u << ": cached weighted degree is " << _weighted_degrees[u]
-                  << " but should be " << actual_weighted_degree;
+    // There is no way to check this for nodes for which we use the on-the-fly gain cache
+    if (is_high_degree_node(u) && actual_weighted_degree != wd(u)) {
+      LOG_WARNING << "For high-degree node " << u << ": cached weighted degree is "
+                  << wd(u) << " but should be " << actual_weighted_degree;
       return false;
     }
 
@@ -296,7 +311,7 @@ private:
   StaticArray<EdgeWeight> _gain_cache;
   StaticArray<EdgeWeight> _weighted_degrees;
 
-  OnTheFlyGainCache<kIteratesExactGains> _on_the_fly_gain_cache;
+  OnTheFlyGainCache<kIteratesNonadjacentBlocks, kIteratesExactGains> _on_the_fly_gain_cache;
 };
 
 template <typename DeltaPartitionedGraph, typename GainCache> class HybridDeltaGainCache {
@@ -375,7 +390,9 @@ private:
   const GainCache &_gain_cache;
   DynamicFlatMap<std::size_t, EdgeWeight> _gain_cache_delta;
 
-  OnTheFlyDeltaGainCache<DeltaPartitionedGraph, OnTheFlyGainCache<GainCache::kIteratesExactGains>>
+  OnTheFlyDeltaGainCache<
+      DeltaPartitionedGraph,
+      OnTheFlyGainCache<GainCache::kIteratesNonadjacentBlocks, GainCache::kIteratesExactGains>>
       _on_the_fly_delta_gain_cache;
 };
 } // namespace kaminpar::shm

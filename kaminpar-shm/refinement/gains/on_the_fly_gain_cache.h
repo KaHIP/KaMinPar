@@ -21,15 +21,16 @@
 namespace kaminpar::shm {
 template <typename DeltaPartitionedGraph, typename GainCache> class OnTheFlyDeltaGainCache;
 
-template <bool iterate_exact_gains = true> class OnTheFlyGainCache {
-  using Self = OnTheFlyGainCache<iterate_exact_gains>;
+template <bool iterate_nonadjacent_blocks = true, bool iterate_exact_gains = true>
+class OnTheFlyGainCache {
+  using Self = OnTheFlyGainCache<iterate_nonadjacent_blocks, iterate_exact_gains>;
   template <typename, typename> friend class OnTheFlyDeltaGainCache;
 
 public:
   template <typename DeltaPartitionedGraph>
   using DeltaCache = OnTheFlyDeltaGainCache<DeltaPartitionedGraph, Self>;
 
-  constexpr static bool kIteratesNonadjacentBlocks = false;
+  constexpr static bool kIteratesNonadjacentBlocks = iterate_nonadjacent_blocks;
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
   OnTheFlyGainCache(const Context & /* ctx */, NodeID /* max_n */, const BlockID max_k)
@@ -162,10 +163,17 @@ private:
       }
       const EdgeWeight conn_from = kIteratesExactGains ? map[from] : 0;
 
-      for (const auto [to, conn_to] : map.entries()) {
-        if (to != from) {
-          const EdgeWeight gain = conn_to - conn_from;
-          lambda(to, [&] { return gain; });
+      if constexpr (kIteratesNonadjacentBlocks) {
+        for (const BlockID to : p_graph.blocks()) {
+          if (to != from) {
+            lambda(to, [&] { return map[to] - conn_from; });
+          }
+        }
+      } else {
+        for (const auto [to, conn_to] : map.entries()) {
+          if (to != from) {
+            lambda(to, [&, conn_to = conn_to] { return conn_to - conn_from; });
+          }
         }
       }
 
