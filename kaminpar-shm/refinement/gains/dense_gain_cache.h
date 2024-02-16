@@ -42,8 +42,7 @@
 namespace kaminpar::shm {
 template <typename DeltaPartitionedGraph, typename GainCache> class DenseDeltaGainCache;
 
-template <bool iterate_nonadjacent_blocks = true, bool iterate_exact_gains = false>
-class DenseGainCache {
+template <bool iterate_nonadjacent_blocks, bool iterate_exact_gains = false> class DenseGainCache {
   SET_DEBUG(true);
 
   using Self = DenseGainCache<iterate_nonadjacent_blocks, iterate_exact_gains>;

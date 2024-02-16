@@ -27,8 +27,7 @@
 namespace kaminpar::shm {
 template <typename DeltaPartitionedGraph, typename GainCache> class HybridDeltaGainCache;
 
-template <bool iterate_nonadjacent_blocks = true, bool iterate_exact_gains = true>
-class HybridGainCache {
+template <bool iterate_nonadjacent_blocks, bool iterate_exact_gains = true> class HybridGainCache {
   SET_DEBUG(true);
 
   using Self = HybridGainCache<iterate_nonadjacent_blocks, iterate_exact_gains>;

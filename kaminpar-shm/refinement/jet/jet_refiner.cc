@@ -39,7 +39,7 @@ bool JetRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx
   SCOPED_TIMER("Jet Refiner");
 
   START_TIMER("Allocation");
-  SparseGainCache gain_cache(_ctx, p_graph.n(), p_graph.k());
+  SparseGainCache<true> gain_cache(_ctx, p_graph.n(), p_graph.k());
   gain_cache.initialize(p_graph);
 
   NoinitVector<BlockID> next_partition(p_graph.n());

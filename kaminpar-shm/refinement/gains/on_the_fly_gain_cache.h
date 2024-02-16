@@ -20,7 +20,7 @@
 namespace kaminpar::shm {
 template <typename DeltaPartitionedGraph, typename GainCache> class OnTheFlyDeltaGainCache;
 
-template <bool iterate_nonadjacent_blocks = true, bool iterate_exact_gains = true>
+template <bool iterate_nonadjacent_blocks, bool iterate_exact_gains = true>
 class OnTheFlyGainCache {
   using Self = OnTheFlyGainCache<iterate_nonadjacent_blocks, iterate_exact_gains>;
   template <typename, typename> friend class OnTheFlyDeltaGainCache;
