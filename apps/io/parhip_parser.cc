@@ -11,6 +11,9 @@
 #include <cstdint>
 #include <fstream>
 
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
 #include <tbb/parallel_for.h>
 
 #include "kaminpar-common/logger.h"
@@ -30,10 +33,7 @@ struct ParhipHeader {
   std::uint64_t num_edges;
 };
 
-ParhipHeader read_header(std::ifstream &in) {
-  std::array<std::uint64_t, 3> header;
-  in.read(reinterpret_cast<char *>(header.data()), kParhipHeaderSize);
-
+ParhipHeader parse_header(std::array<std::uint64_t, 3> header) {
   const std::uint64_t version = header[0];
   return {
       (version & 1) == 0,
@@ -144,7 +144,10 @@ CSRGraph csr_read(const std::string &filename, const bool sorted) {
     std::exit(1);
   }
 
-  ParhipHeader header = read_header(in);
+  std::array<std::uint64_t, 3> raw_header;
+  in.read(reinterpret_cast<char *>(raw_header.data()), kParhipHeaderSize);
+
+  ParhipHeader header = parse_header(raw_header);
   validate_ids(header);
 
   return read_graph(
@@ -155,6 +158,82 @@ CSRGraph csr_read(const std::string &filename, const bool sorted) {
       header.has_edge_weights,
       sorted
   );
+}
+
+CompressedGraph compressed_read(const std::string &filename, const bool sorted) {
+  const int file = open(filename.c_str(), O_RDONLY);
+  if (file < 0) {
+    LOG_ERROR << "Cannot read graph stored at " << filename << ".";
+    std::exit(1);
+  }
+
+  struct stat file_info {};
+  if (fstat(file, &file_info) < 0) {
+    LOG_ERROR << "Cannot read graph stored at " << filename << ".";
+    close(file);
+    std::exit(1);
+  }
+
+  const std::size_t length = static_cast<std::size_t>(file_info.st_size);
+
+  std::uint8_t *data =
+      static_cast<std::uint8_t *>(mmap(nullptr, length, PROT_READ, MAP_PRIVATE, file, 0));
+  if (data == MAP_FAILED) {
+    LOG_ERROR << "Cannot read graph stored at " << filename << ".";
+    close(file);
+    std::exit(1);
+  }
+
+  std::array<std::uint64_t, 3> raw_header;
+  std::memcpy(raw_header.data(), data, kParhipHeaderSize);
+  data += kParhipHeaderSize;
+
+  const ParhipHeader header = parse_header(raw_header);
+  validate_ids(header);
+
+  CompressedGraphBuilder builder;
+  builder.init(
+      header.num_nodes, header.num_edges, header.has_node_weights, header.has_edge_weights, sorted
+  );
+
+  const EdgeID *nodes = reinterpret_cast<const EdgeID *>(data);
+  data += (header.num_nodes + 1) * sizeof(EdgeID);
+
+  const NodeID *edges = reinterpret_cast<const NodeID *>(data);
+  data += header.num_edges + sizeof(NodeID);
+
+  const NodeWeight *node_weights = reinterpret_cast<const NodeWeight *>(data);
+  data += header.num_nodes + sizeof(NodeWeight);
+
+  const EdgeWeight *edge_weights = reinterpret_cast<const EdgeWeight *>(data);
+
+  const NodeID nodes_offset = kParhipHeaderSize + (header.num_nodes + 1) * sizeof(EdgeID);
+  std::vector<std::pair<NodeID, EdgeWeight>> neighbourhood;
+  for (NodeID u = 0; u < header.num_nodes; ++u) {
+    const EdgeID offset = (nodes[u] - nodes_offset) / sizeof(NodeID);
+    const EdgeID next_offset = (nodes[u + 1] - nodes_offset) / sizeof(NodeID);
+
+    const NodeID degree = static_cast<NodeID>(next_offset - offset);
+    for (NodeID i = 0; i < degree; ++i) {
+      const EdgeID e = offset + i;
+
+      const NodeID adjacent_node = edges[e];
+      const EdgeWeight edge_weight = header.has_edge_weights ? edge_weights[e] : 1;
+
+      neighbourhood.push_back(std::make_pair(adjacent_node, edge_weight));
+    }
+
+    builder.add_node(u, neighbourhood);
+    if (header.has_node_weights) {
+      builder.set_node_weight(u, node_weights[u]);
+    }
+
+    neighbourhood.clear();
+  }
+
+  munmap(data, length);
+  close(file);
+  return builder.build();
 }
 
 } // namespace kaminpar::shm::io::parhip

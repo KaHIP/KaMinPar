@@ -369,7 +369,12 @@ Graph read(
       if (validate) {
         return metis::compress_read<true>(filename, sorted, may_dismiss);
       } else {
-        return metis::compress_read<false>(filename, sorted, may_dismiss);
+        switch (file_format) {
+        case GraphFileFormat::METIS:
+          return metis::compress_read<false>(filename, sorted, may_dismiss);
+        case GraphFileFormat::PARHIP:
+          return std::optional(parhip::compressed_read(filename, sorted));
+        }
       }
     }();
 

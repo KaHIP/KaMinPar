@@ -9,10 +9,13 @@
 
 #include <string>
 
+#include "kaminpar-shm/datastructures/compressed_graph.h"
 #include "kaminpar-shm/datastructures/csr_graph.h"
 
 namespace kaminpar::shm::io::parhip {
 
 CSRGraph csr_read(const std::string &filename, const bool sorted);
+
+CompressedGraph compressed_read(const std::string &filename, const bool sorted);
 
 } // namespace kaminpar::shm::io::parhip
