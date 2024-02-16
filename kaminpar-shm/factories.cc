@@ -30,12 +30,6 @@
 #include "kaminpar-shm/refinement/lp/lp_refiner.h"
 #include "kaminpar-shm/refinement/multi_refiner.h"
 
-// Gain cache strategies for the FM algorithm
-#include "kaminpar-shm/refinement/gains/dense_gain_cache.h"
-#include "kaminpar-shm/refinement/gains/hybrid_gain_cache.h"
-#include "kaminpar-shm/refinement/gains/on_the_fly_gain_cache.h"
-#include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
-
 namespace kaminpar::shm::factory {
 std::unique_ptr<Partitioner> create_partitioner(const Graph &graph, const Context &ctx) {
   switch (ctx.partitioning.mode) {
@@ -81,21 +75,7 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
     return std::make_unique<GreedyBalancer>(ctx);
 
   case RefinementAlgorithm::KWAY_FM:
-    switch (ctx.refinement.kway_fm.gain_cache_strategy) {
-    case GainCacheStrategy::SPARSE:
-      using SparseFM = FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::SparseGainCache>;
-      return std::make_unique<SparseFM>(ctx);
-    case GainCacheStrategy::DENSE:
-      using DenseFM = FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::DenseGainCache>;
-      return std::make_unique<DenseFM>(ctx);
-    case GainCacheStrategy::ON_THE_FLY:
-      using OnTheFlyFM = FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::OnTheFlyGainCache>;
-      return std::make_unique<OnTheFlyFM>(ctx);
-    case GainCacheStrategy::HYBRID:
-      using HybridFM = FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::HighDegreeGainCache>;
-      return std::make_unique<HybridFM>(ctx);
-    }
-    __builtin_unreachable();
+    return create_fm_refiner(ctx);
 
   case RefinementAlgorithm::JET:
     return std::make_unique<JetRefiner>(ctx);

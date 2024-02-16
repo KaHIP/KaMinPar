@@ -127,10 +127,11 @@ Context create_default_context() {
                       .use_exact_abortion_threshold = false,
                       .abortion_threshold = 0.999,
                       .gain_cache_strategy = GainCacheStrategy::SPARSE,
+                      .consider_nonadjacent_blocks = true,
                       .constant_high_degree_threshold = 0,
                       .k_based_high_degree_threshold = 1.0,
 
-                      .dbg_compute_batch_size_statistics = false,
+                      .compute_batch_size_statistics = false,
                   },
               .balancer = {},
               .jet =

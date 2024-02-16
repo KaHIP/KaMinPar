@@ -26,13 +26,9 @@
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::shm {
-namespace fm {
-using DefaultDeltaPartitionedGraph = GenericDeltaPartitionedGraph<>;
-using SparseGainCache = SparseGainCache<>;
-using DenseGainCache = DenseGainCache<>;
-using OnTheFlyGainCache = OnTheFlyGainCache<>;
-using HighDegreeGainCache = HybridGainCache<>;
+std::unique_ptr<Refiner> create_fm_refiner(const Context &ctx);
 
+namespace fm {
 struct Stats {
   parallel::Atomic<NodeID> num_touched_nodes = 0;
   parallel::Atomic<NodeID> num_committed_moves = 0;
@@ -184,7 +180,7 @@ private:
   tbb::concurrent_vector<NodeID> _border_nodes;
 };
 
-template <typename GainCache = fm::SparseGainCache> struct SharedData {
+template <typename GainCache> struct SharedData {
   SharedData(const Context &ctx, const NodeID max_n, const BlockID max_k)
       : node_tracker(max_n),
         gain_cache(ctx, max_n, max_k),
@@ -228,9 +224,7 @@ struct AppliedMove {
 };
 } // namespace fm
 
-template <
-    typename DeltaPartitionedGraph = fm::DefaultDeltaPartitionedGraph,
-    typename GainCache = fm::SparseGainCache>
+template <typename GainCache, typename DeltaPartitionedGraph = GenericDeltaPartitionedGraph<>>
 class FMRefiner : public Refiner {
 public:
   FMRefiner(const Context &ctx);
@@ -276,9 +270,7 @@ private:
   std::unique_ptr<fm::SharedData<GainCache>> _shared;
 };
 
-template <
-    typename DeltaPartitionedGraph = fm::DefaultDeltaPartitionedGraph,
-    typename GainCache = fm::SparseGainCache>
+template <typename GainCache, typename DeltaPartitionedGraph = GenericDeltaPartitionedGraph<>>
 class LocalizedFMRefiner {
 public:
   LocalizedFMRefiner(
@@ -296,14 +288,14 @@ public:
   const std::vector<NodeID> &last_batch_seed_nodes();
 
 private:
-  template <typename PartitionedGraphType, typename GainCacheType>
+  template <typename GainCacheType, typename PartitionedGraphType>
   void insert_into_node_pq(
       const PartitionedGraphType &p_graph, const GainCacheType &gain_cache, NodeID u
   );
 
   void update_after_move(NodeID node, NodeID moved_node, BlockID moved_from, BlockID moved_to);
 
-  template <typename PartitionedGraphType, typename GainCacheType>
+  template <typename GainCacheType, typename PartitionedGraphType>
   std::pair<BlockID, EdgeWeight>
   best_gain(const PartitionedGraphType &p_graph, const GainCacheType &gain_cache, NodeID u);
 

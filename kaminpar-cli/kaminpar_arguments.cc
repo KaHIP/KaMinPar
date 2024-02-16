@@ -145,9 +145,7 @@ CLI::Option_group *create_lp_coarsening_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
 
   lp->add_option("--c-lp-two-hop-strategy", ctx.coarsening.lp.two_hop_strategy)
-      ->transform(
-          CLI::CheckedTransformer(get_two_hop_strategies()).description("")
-      )
+      ->transform(CLI::CheckedTransformer(get_two_hop_strategies()).description(""))
       ->description(R"(Determines the strategy for handling singleton clusters during coarsening.
 Options are:
   - disable: Do not merge two-hop singleton clusters
@@ -265,9 +263,14 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
         "iteration falls below this threshold (lower = weaker, but faster)."
   )
       ->capture_default_str();
+
+  // Experimental flags
   fm->add_option("--r-fm-gain-cache", ctx.refinement.kway_fm.gain_cache_strategy)
       ->transform(CLI::CheckedTransformer(get_gain_cache_strategies()).description(""))
       ->capture_default_str();
+  fm->add_flag(
+      "--r-fm-consider-nonadjacent-blocks", ctx.refinement.kway_fm.consider_nonadjacent_blocks
+  );
   fm->add_option(
         "--r-fm-constant-high-degree-threshold",
         ctx.refinement.kway_fm.constant_high_degree_threshold
@@ -278,7 +281,7 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
   )
       ->capture_default_str();
   fm->add_flag(
-        "--r-fm-dbg-batch-size-stats", ctx.refinement.kway_fm.dbg_compute_batch_size_statistics
+        "--r-fm-compute-batch-size-stats", ctx.refinement.kway_fm.compute_batch_size_statistics
   )
       ->capture_default_str();
 

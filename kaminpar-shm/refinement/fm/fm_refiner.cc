@@ -28,6 +28,49 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
+std::unique_ptr<Refiner> create_fm_refiner(const Context &ctx) {
+  switch (ctx.refinement.kway_fm.gain_cache_strategy) {
+  case GainCacheStrategy::SPARSE:
+    if (ctx.refinement.kway_fm.consider_nonadjacent_blocks) {
+      return std::make_unique<FMRefiner<SparseGainCache<true>>>(ctx);
+    }
+#ifdef KAMINPAR_EXPERIMENTAL
+    else {
+      return std::make_unique<FMRefiner<SparseGainCache<false>>>(ctx);
+    }
+#endif
+
+#ifdef KAMINPAR_EXPERIMENTAL
+  case GainCacheStrategy::DENSE:
+    if (ctx.refinement.kway_fm.consider_nonadjacent_blocks) {
+      return std::make_unique<FMRefiner<DenseGainCache<true>>>(ctx);
+    } else {
+      return std::make_unique<FMRefiner<DenseGainCache<false>>>(ctx);
+    }
+
+  case GainCacheStrategy::ON_THE_FLY:
+    if (ctx.refinement.kway_fm.consider_nonadjacent_blocks) {
+      return std::make_unique<FMRefiner<OnTheFlyGainCache<true>>>(ctx);
+    } else {
+      return std::make_unique<FMRefiner<OnTheFlyGainCache<false>>>(ctx);
+    }
+
+  case GainCacheStrategy::HYBRID:
+    if (ctx.refinement.kway_fm.consider_nonadjacent_blocks) {
+      return std::make_unique<FMRefiner<HybridGainCache<true>>>(ctx);
+    } else {
+      return std::make_unique<FMRefiner<HybridGainCache<false>>>(ctx);
+    }
+#endif
+
+  default:
+    LOG_ERROR << "invalid gain cache strategy: requires build with experimental features enabled";
+    std::exit(1);
+  }
+
+  __builtin_unreachable();
+}
+
 namespace {
 SET_DEBUG(false);
 SET_STATISTICS(true);
@@ -137,19 +180,19 @@ void GlobalBatchStats::summarize_iteration(
 }
 } // namespace fm
 
-template <typename DeltaPartitionedGraph, typename GainCache>
-FMRefiner<DeltaPartitionedGraph, GainCache>::FMRefiner(const Context &input_ctx)
+template <typename GainCache, typename DeltaPartitionedGraph>
+FMRefiner<GainCache, DeltaPartitionedGraph>::FMRefiner(const Context &input_ctx)
     : _ctx(input_ctx),
       _fm_ctx(input_ctx.refinement.kway_fm),
       _shared(std::make_unique<fm::SharedData<GainCache>>(
           input_ctx, input_ctx.partition.n, input_ctx.partition.k
       )) {}
 
-template <typename DeltaPartitionedGraph, typename GainCache>
-FMRefiner<DeltaPartitionedGraph, GainCache>::~FMRefiner() = default;
+template <typename GainCache, typename DeltaPartitionedGraph>
+FMRefiner<GainCache, DeltaPartitionedGraph>::~FMRefiner() = default;
 
-template <typename DeltaPartitionedGraph, typename GainCache>
-bool FMRefiner<DeltaPartitionedGraph, GainCache>::refine(
+template <typename GainCache, typename DeltaPartitionedGraph>
+bool FMRefiner<GainCache, DeltaPartitionedGraph>::refine(
     PartitionedGraph &p_graph, const PartitionContext &p_ctx
 ) {
   SCOPED_TIMER("FM");
@@ -164,17 +207,17 @@ bool FMRefiner<DeltaPartitionedGraph, GainCache>::refine(
 
   // Create thread-local workers numbered 1..P
   std::atomic<int> next_id = 0;
-  tbb::enumerable_thread_specific<LocalizedFMRefiner<DeltaPartitionedGraph, GainCache>>
+  tbb::enumerable_thread_specific<LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>>
       localized_fm_refiner_ets([&] {
         // It is important that worker IDs start at 1, otherwise the node
         // tracker won't work
-        LocalizedFMRefiner<DeltaPartitionedGraph, GainCache> localized_refiner(
+        LocalizedFMRefiner<GainCache, DeltaPartitionedGraph> localized_refiner(
             ++next_id, p_ctx, _fm_ctx, p_graph, *_shared
         );
 
         // If we want to evaluate the successful batches, record moves that are applied to the
         // global graph
-        IF_STATSC(_fm_ctx.dbg_compute_batch_size_statistics) {
+        IF_STATSC(_fm_ctx.compute_batch_size_statistics) {
           localized_refiner.enable_move_recording();
         }
 
@@ -208,7 +251,7 @@ bool FMRefiner<DeltaPartitionedGraph, GainCache>::refine(
     START_TIMER("Localized searches");
     tbb::parallel_for<int>(0, _ctx.parallel.num_threads, [&](int) {
       EdgeWeight &expected_gain = expected_gain_ets.local();
-      LocalizedFMRefiner<DeltaPartitionedGraph, GainCache> &localized_refiner =
+      LocalizedFMRefiner<GainCache, DeltaPartitionedGraph> &localized_refiner =
           localized_fm_refiner_ets.local();
 
       // The workers attempt to extract seed nodes from the border nodes
@@ -217,7 +260,7 @@ bool FMRefiner<DeltaPartitionedGraph, GainCache>::refine(
       while (_shared->border_nodes.has_more()) {
         const auto expected_batch_gain = localized_refiner.run_batch();
         expected_gain += expected_batch_gain;
-        IF_STATSC(_fm_ctx.dbg_compute_batch_size_statistics && expected_batch_gain > 0) {
+        IF_STATSC(_fm_ctx.compute_batch_size_statistics && expected_batch_gain > 0) {
           SeedNodesVec seed_nodes_cpy(localized_refiner.last_batch_seed_nodes());
           MovesVec moves_cpy(localized_refiner.last_batch_moves());
           dbg_changelog.emplace_back(std::move(seed_nodes_cpy), std::move(moves_cpy));
@@ -226,7 +269,7 @@ bool FMRefiner<DeltaPartitionedGraph, GainCache>::refine(
     });
     STOP_TIMER();
 
-    IF_STATSC(_fm_ctx.dbg_compute_batch_size_statistics) {
+    IF_STATSC(_fm_ctx.compute_batch_size_statistics) {
       std::vector<fm::BatchStats> batch_stats =
           dbg_compute_batch_stats(p_graph, std::move(dbg_changelog));
       _shared->batch_stats.next_iteration(std::move(batch_stats));
@@ -257,7 +300,7 @@ bool FMRefiner<DeltaPartitionedGraph, GainCache>::refine(
     _shared->stats.summarize();
     _shared->stats.reset();
   }
-  IF_STATSC(_fm_ctx.dbg_compute_batch_size_statistics) {
+  IF_STATSC(_fm_ctx.compute_batch_size_statistics) {
     _shared->batch_stats.summarize();
     _shared->batch_stats.reset();
   }
@@ -265,8 +308,8 @@ bool FMRefiner<DeltaPartitionedGraph, GainCache>::refine(
   return false;
 }
 
-template <typename DeltaPartitionedGraph, typename GainCache>
-std::vector<fm::BatchStats> FMRefiner<DeltaPartitionedGraph, GainCache>::dbg_compute_batch_stats(
+template <typename GainCache, typename DeltaPartitionedGraph>
+std::vector<fm::BatchStats> FMRefiner<GainCache, DeltaPartitionedGraph>::dbg_compute_batch_stats(
     const PartitionedGraph &next_p_graph, Batches next_batches
 ) const {
   // Rollback the partition to *before* any moves of the batch were applied
@@ -312,8 +355,8 @@ std::vector<fm::BatchStats> FMRefiner<DeltaPartitionedGraph, GainCache>::dbg_com
 
 // Computes the partition *before* any moves of the given batches where applied to it
 // Changes the batches to store the blocks to which the nodes where moved to
-template <typename DeltaPartitionedGraph, typename GainCache>
-auto FMRefiner<DeltaPartitionedGraph, GainCache>::dbg_build_prev_p_graph(
+template <typename GainCache, typename DeltaPartitionedGraph>
+auto FMRefiner<GainCache, DeltaPartitionedGraph>::dbg_build_prev_p_graph(
     const PartitionedGraph &p_graph, Batches batches
 ) const -> std::pair<PartitionedGraph, FMRefiner::Batches> {
   StaticArray<BlockID> prev_partition(p_graph.n());
@@ -338,9 +381,9 @@ auto FMRefiner<DeltaPartitionedGraph, GainCache>::dbg_build_prev_p_graph(
 // The given partition should reflect all batches that came before this one, but none of the ones
 // that will come afterwards
 // This function also applies the moves of the current batch to the given partition
-template <typename DeltaPartitionedGraph, typename GainCache>
+template <typename GainCache, typename DeltaPartitionedGraph>
 fm::BatchStats
-FMRefiner<DeltaPartitionedGraph, GainCache>::dbg_compute_single_batch_stats_in_sequence(
+FMRefiner<GainCache, DeltaPartitionedGraph>::dbg_compute_single_batch_stats_in_sequence(
     PartitionedGraph &p_graph,
     const std::vector<NodeID> &seeds,
     const std::vector<fm::AppliedMove> &moves,
@@ -393,8 +436,8 @@ FMRefiner<DeltaPartitionedGraph, GainCache>::dbg_compute_single_batch_stats_in_s
   return stats;
 }
 
-template <typename DeltaPartitionedGraph, typename GainCache>
-std::vector<NodeID> FMRefiner<DeltaPartitionedGraph, GainCache>::dbg_compute_batch_distances(
+template <typename GainCache, typename DeltaPartitionedGraph>
+std::vector<NodeID> FMRefiner<GainCache, DeltaPartitionedGraph>::dbg_compute_batch_distances(
     const Graph &graph, const std::vector<NodeID> &seeds, const std::vector<fm::AppliedMove> &moves
 ) const {
   // Keeps track of moved nodes that we yet have to discover
@@ -447,8 +490,8 @@ std::vector<NodeID> FMRefiner<DeltaPartitionedGraph, GainCache>::dbg_compute_bat
   return distances;
 }
 
-template <typename DeltaPartitionedGraph, typename GainCache>
-LocalizedFMRefiner<DeltaPartitionedGraph, GainCache>::LocalizedFMRefiner(
+template <typename GainCache, typename DeltaPartitionedGraph>
+LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::LocalizedFMRefiner(
     const int id,
     const PartitionContext &p_ctx,
     const KwayFMRefinementContext &fm_ctx,
@@ -470,25 +513,25 @@ LocalizedFMRefiner<DeltaPartitionedGraph, GainCache>::LocalizedFMRefiner(
   }
 }
 
-template <typename DeltaPartitionedGraph, typename GainCache>
-void LocalizedFMRefiner<DeltaPartitionedGraph, GainCache>::enable_move_recording() {
+template <typename GainCache, typename DeltaPartitionedGraph>
+void LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::enable_move_recording() {
   _record_applied_moves = true;
 }
 
-template <typename DeltaPartitionedGraph, typename GainCache>
+template <typename GainCache, typename DeltaPartitionedGraph>
 const std::vector<fm::AppliedMove> &
-LocalizedFMRefiner<DeltaPartitionedGraph, GainCache>::last_batch_moves() {
+LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::last_batch_moves() {
   return _applied_moves;
 }
 
-template <typename DeltaPartitionedGraph, typename GainCache>
+template <typename GainCache, typename DeltaPartitionedGraph>
 const std::vector<NodeID> &
-LocalizedFMRefiner<DeltaPartitionedGraph, GainCache>::last_batch_seed_nodes() {
+LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::last_batch_seed_nodes() {
   return _seed_nodes;
 }
 
-template <typename DeltaPartitionedGraph, typename GainCache>
-EdgeWeight LocalizedFMRefiner<DeltaPartitionedGraph, GainCache>::run_batch() {
+template <typename GainCache, typename DeltaPartitionedGraph>
+EdgeWeight LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::run_batch() {
   using fm::NodeTracker;
 
   _seed_nodes.clear();
@@ -653,8 +696,8 @@ EdgeWeight LocalizedFMRefiner<DeltaPartitionedGraph, GainCache>::run_batch() {
   return best_total_gain;
 }
 
-template <typename DeltaPartitionedGraph, typename GainCache>
-void LocalizedFMRefiner<DeltaPartitionedGraph, GainCache>::update_after_move(
+template <typename GainCache, typename DeltaPartitionedGraph>
+void LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::update_after_move(
     const NodeID node, const NodeID moved_node, const BlockID moved_from, const BlockID moved_to
 ) {
   const BlockID old_block = _p_graph.block(node);
@@ -701,8 +744,8 @@ void LocalizedFMRefiner<DeltaPartitionedGraph, GainCache>::update_after_move(
   }
 }
 
-template <typename DeltaPartitionedGraph, typename GainCache>
-bool LocalizedFMRefiner<DeltaPartitionedGraph, GainCache>::update_block_pq() {
+template <typename GainCache, typename DeltaPartitionedGraph>
+bool LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::update_block_pq() {
   bool have_more_nodes = false;
   for (const BlockID block : _p_graph.blocks()) {
     if (!_node_pqs[block].empty()) {
@@ -716,9 +759,9 @@ bool LocalizedFMRefiner<DeltaPartitionedGraph, GainCache>::update_block_pq() {
   return have_more_nodes;
 }
 
-template <typename DeltaPartitionedGraph, typename GainCache>
-template <typename PartitionedGraphType, typename GainCacheType>
-void LocalizedFMRefiner<DeltaPartitionedGraph, GainCache>::insert_into_node_pq(
+template <typename GainCache, typename DeltaPartitionedGraph>
+template <typename GainCacheType, typename PartitionedGraphType>
+void LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::insert_into_node_pq(
     const PartitionedGraphType &p_graph, const GainCacheType &gain_cache, const NodeID u
 ) {
   const BlockID block_u = p_graph.block(u);
@@ -729,9 +772,9 @@ void LocalizedFMRefiner<DeltaPartitionedGraph, GainCache>::insert_into_node_pq(
   _node_pqs[block_u].push(u, gain);
 }
 
-template <typename DeltaPartitionedGraph, typename GainCache>
-template <typename PartitionedGraphType, typename GainCacheType>
-std::pair<BlockID, EdgeWeight> LocalizedFMRefiner<DeltaPartitionedGraph, GainCache>::best_gain(
+template <typename GainCache, typename DeltaPartitionedGraph>
+template <typename GainCacheType, typename PartitionedGraphType>
+std::pair<BlockID, EdgeWeight> LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::best_gain(
     const PartitionedGraphType &p_graph, const GainCacheType &gain_cache, const NodeID u
 ) {
   const BlockID from = p_graph.block(u);
@@ -774,25 +817,4 @@ std::pair<BlockID, EdgeWeight> LocalizedFMRefiner<DeltaPartitionedGraph, GainCac
 
   return {best_target_block, actual_best_gain};
 }
-
-// Instantiate variants that are actually configurable
-
-namespace fm {
-template class SharedData<SparseGainCache>;
-template class SharedData<DenseGainCache>;
-template class SharedData<HighDegreeGainCache>;
-template class SharedData<OnTheFlyGainCache>;
-} // namespace fm
-
-template class FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::OnTheFlyGainCache>;
-template class LocalizedFMRefiner<fm::DefaultDeltaPartitionedGraph, fm::OnTheFlyGainCache>;
-
-template class FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::SparseGainCache>;
-template class LocalizedFMRefiner<fm::DefaultDeltaPartitionedGraph, fm::SparseGainCache>;
-
-template class FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::DenseGainCache>;
-template class LocalizedFMRefiner<fm::DefaultDeltaPartitionedGraph, fm::DenseGainCache>;
-
-template class FMRefiner<fm::DefaultDeltaPartitionedGraph, fm::HighDegreeGainCache>;
-template class LocalizedFMRefiner<fm::DefaultDeltaPartitionedGraph, fm::HighDegreeGainCache>;
 } // namespace kaminpar::shm

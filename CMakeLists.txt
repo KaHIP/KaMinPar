@@ -23,6 +23,8 @@ option(KAMINPAR_BUILD_DISTRIBUTED "Build distributed partitioner." OFF)
 option(KAMINPAR_BUILD_APPS "Build binaries." ON)
 option(KAMINPAR_BUILD_BENCHMARKS "Build benchmark binaries." OFF)
 
+option(KAMINPAR_BUILD_EXPERIMENTAL_FEATURES "Include experimental features in the build. This might increase compile times drastically." OFF)
+
 # Control how to build
 ######################
 option(KAMINPAR_ENABLE_STATISTICS "Generate and output detailed statistics." ON)
@@ -94,6 +96,11 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
         "-Woverloaded-virtual"
         "-Wredundant-decls"
         )
+endif ()
+
+# Build experimental features that increase compile times
+if (KAMINPAR_BUILD_EXPERIMENTAL_FEATURES)
+    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_EXPERIMENTAL")
 endif ()
 
 # Always enable Debug symbols (including in Release mode)

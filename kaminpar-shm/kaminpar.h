@@ -165,12 +165,11 @@ struct KwayFMRefinementContext {
   double abortion_threshold;
 
   GainCacheStrategy gain_cache_strategy;
-
-  // gain_cache_strategy == HybridGainCache
+  bool consider_nonadjacent_blocks;
   EdgeID constant_high_degree_threshold;
   double k_based_high_degree_threshold;
 
-  bool dbg_compute_batch_size_statistics;
+  bool compute_batch_size_statistics;
 };
 
 struct JetRefinementContext {
