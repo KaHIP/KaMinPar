@@ -12,11 +12,11 @@
 #include <string>
 
 #include <fcntl.h>
-#include <kassert/kassert.hpp>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/logger.h"
 
 namespace kaminpar::io {

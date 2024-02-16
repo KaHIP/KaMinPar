@@ -16,7 +16,7 @@
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/partition_utils.h"
 
-#include "kaminpar-common/assertion_levels.h"
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/math.h"

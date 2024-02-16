@@ -10,9 +10,9 @@
 #include <utility>
 #include <vector>
 
-#include <kassert/kassert.hpp>
 #include <tbb/parallel_for.h>
 
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/noinit_vector.h"
 #include "kaminpar-common/datastructures/preallocated_vector.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"

@@ -10,14 +10,13 @@
 #include <functional>
 #include <utility>
 
-#include <kassert/kassert.hpp>
-
 #include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/definitions.h"
 #include "kaminpar-shm/initial_partitioning/sequential_graph_hierarchy.h"
 
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/fast_reset_array.h"
 #include "kaminpar-common/random.h"
 

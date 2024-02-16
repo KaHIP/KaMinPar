@@ -24,7 +24,6 @@
 #include <limits>
 #include <type_traits>
 
-#include <kassert/kassert.hpp>
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
@@ -33,6 +32,7 @@
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
 
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/datastructures/noinit_vector.h"
 #include "kaminpar-common/degree_buckets.h"

@@ -7,7 +7,7 @@
  ******************************************************************************/
 #include "kaminpar-shm/initial_partitioning/initial_coarsener.h"
 
-#include "kaminpar-common/assertion_levels.h"
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 

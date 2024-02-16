@@ -11,7 +11,7 @@
 #include <limits>
 #include <type_traits>
 
-#include "kaminpar-common/assertion_levels.h"
+#include "kaminpar-common/assert.h"
 
 namespace kaminpar {
 template <typename To, typename From> constexpr bool in_range(const From value) noexcept {

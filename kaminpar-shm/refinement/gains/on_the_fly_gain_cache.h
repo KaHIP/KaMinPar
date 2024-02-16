@@ -9,12 +9,11 @@
 
 #include <type_traits>
 
-#include <kassert/kassert.hpp>
-
 #include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/delta_partitioned_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/datastructures/sparse_map.h"
 

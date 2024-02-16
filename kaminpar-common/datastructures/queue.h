@@ -8,7 +8,7 @@
 
 #include <vector>
 
-#include <kassert/kassert.hpp>
+#include "kaminpar-common/assert.h"
 
 namespace kaminpar {
 /*!

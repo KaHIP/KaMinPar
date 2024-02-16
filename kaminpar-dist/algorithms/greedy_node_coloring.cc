@@ -7,14 +7,12 @@
  ******************************************************************************/
 #include "kaminpar-dist/algorithms/greedy_node_coloring.h"
 
-#include <kassert/kassert.hpp>
-
 #include "kaminpar-mpi/wrapper.h"
 
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/graphutils/communication.h"
 
-#include "kaminpar-common/assertion_levels.h"
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/math.h"
 #include "kaminpar-common/parallel/algorithm.h"

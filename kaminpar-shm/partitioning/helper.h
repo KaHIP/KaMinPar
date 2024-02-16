@@ -7,7 +7,6 @@
  ******************************************************************************/
 #pragma once
 
-#include <kassert/kassert.hpp>
 #include <tbb/concurrent_vector.h>
 
 #include "kaminpar-shm/coarsening/coarsener.h"
@@ -15,6 +14,8 @@
 #include "kaminpar-shm/definitions.h"
 #include "kaminpar-shm/graphutils/subgraph_extractor.h"
 #include "kaminpar-shm/initial_partitioning/initial_partitioning_facade.h"
+
+#include "kaminpar-common/assert.h"
 
 namespace kaminpar::shm::partitioning {
 struct InitialPartitionerMemoryPool {

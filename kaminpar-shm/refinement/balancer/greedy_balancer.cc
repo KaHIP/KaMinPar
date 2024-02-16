@@ -7,7 +7,7 @@
  ******************************************************************************/
 #include "kaminpar-shm/refinement/balancer/greedy_balancer.h"
 
-#include <kassert/kassert.hpp>
+#include "kaminpar-common/assert.h"
 
 namespace kaminpar::shm {
 SET_DEBUG(false);

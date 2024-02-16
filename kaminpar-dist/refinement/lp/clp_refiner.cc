@@ -11,7 +11,6 @@
 #include <algorithm>
 #include <unordered_map>
 
-#include <kassert/kassert.hpp>
 #include <mpi.h>
 #include <tbb/enumerable_thread_specific.h>
 
@@ -24,6 +23,7 @@
 #include "kaminpar-dist/graphutils/communication.h"
 #include "kaminpar-dist/metrics.h"
 
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/parallel/vector_ets.h"

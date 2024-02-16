@@ -13,7 +13,7 @@
 
 #include <tbb/parallel_for.h>
 
-#include "kaminpar-common/assertion_levels.h"
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/parallel/atomic.h"
 #include "kaminpar-common/parallel/tbb_malloc.h"
 

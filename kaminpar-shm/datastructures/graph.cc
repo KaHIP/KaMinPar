@@ -7,10 +7,9 @@
  ******************************************************************************/
 #include "kaminpar-shm/datastructures/graph.h"
 
-#include <kassert/kassert.hpp>
-
 #include "kaminpar-shm/definitions.h"
 
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/math.h"
 #include "kaminpar-common/parallel/algorithm.h"

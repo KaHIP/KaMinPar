@@ -6,7 +6,7 @@
  ******************************************************************************/
 #include "kaminpar-shm/initial_partitioning/greedy_graph_growing_bipartitioner.h"
 
-#include <kassert/kassert.hpp>
+#include "kaminpar-common/assert.h"
 
 namespace kaminpar::shm::ip {
 void GreedyGraphGrowingBipartitioner::bipartition_impl() {

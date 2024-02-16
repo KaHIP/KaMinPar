@@ -10,13 +10,13 @@
 #include <algorithm>
 #include <utility>
 
-#include <kassert/kassert.hpp>
 #include <mpi.h>
 #include <tbb/parallel_for.h>
 
 #include "kaminpar-mpi/definitions.h"
 #include "kaminpar-mpi/wrapper.h"
 
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/noinit_vector.h"
 #include "kaminpar-common/math.h"
 

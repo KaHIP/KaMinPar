@@ -7,7 +7,6 @@
  ******************************************************************************/
 #pragma once
 
-#include <kassert/kassert.hpp>
 #include <tbb/concurrent_hash_map.h>
 
 #include "kaminpar-mpi/wrapper.h"
@@ -16,6 +15,7 @@
 #include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/logger.h"
 
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::dist::graph {

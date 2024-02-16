@@ -10,8 +10,7 @@
 #include <utility>
 #include <vector>
 
-#include <kassert/kassert.hpp>
-
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/ranges.h"
 
 namespace kaminpar {

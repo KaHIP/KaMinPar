@@ -9,8 +9,6 @@
 
 #include <algorithm>
 
-#include <kassert/kassert.hpp>
-
 #include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
@@ -18,7 +16,7 @@
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/refinement/refiner.h"
 
-#include "kaminpar-common/assertion_levels.h"
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/binary_heap.h"
 #include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/logger.h"

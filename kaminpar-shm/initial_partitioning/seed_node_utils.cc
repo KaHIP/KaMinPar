@@ -8,10 +8,9 @@
  ******************************************************************************/
 #include "kaminpar-shm/initial_partitioning/seed_node_utils.h"
 
-#include <kassert/kassert.hpp>
-
 #include "kaminpar-shm/definitions.h"
 
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::shm::ip {

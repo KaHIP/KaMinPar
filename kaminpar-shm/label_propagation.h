@@ -18,7 +18,7 @@
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/definitions.h"
 
-#include "kaminpar-common/assertion_levels.h"
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"

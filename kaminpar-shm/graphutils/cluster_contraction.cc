@@ -7,10 +7,10 @@
  ******************************************************************************/
 #include "kaminpar-shm/graphutils/cluster_contraction.h"
 
-#include <kassert/kassert.hpp>
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/datastructures/ts_navigable_linked_list.h"
 #include "kaminpar-common/parallel/algorithm.h"

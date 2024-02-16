@@ -12,13 +12,11 @@
 #include <filesystem>
 #include <fstream>
 
-#include <kassert/kassert.hpp>
-
 #ifdef KAMINPAR_HAVE_MTKAHYPAR_LIB
 #include <libmtkahypar.h>
 #endif // KAMINPAR_HAVE_MTKAHYPAR_LIB
 
-#include "kaminpar-common/assertion_levels.h"
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/noinit_vector.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/parallel/algorithm.h"

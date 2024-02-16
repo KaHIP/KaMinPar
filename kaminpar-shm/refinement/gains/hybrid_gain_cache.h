@@ -10,7 +10,6 @@
 
 #include <type_traits>
 
-#include <kassert/kassert.hpp>
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
@@ -19,6 +18,7 @@
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/refinement/gains/on_the_fly_gain_cache.h"
 
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/datastructures/noinit_vector.h"
 #include "kaminpar-common/logger.h"
@@ -290,8 +290,8 @@ private:
 
     // There is no way to check this for nodes for which we use the on-the-fly gain cache
     if (is_high_degree_node(u) && actual_weighted_degree != wd(u)) {
-      LOG_WARNING << "For high-degree node " << u << ": cached weighted degree is "
-                  << wd(u) << " but should be " << actual_weighted_degree;
+      LOG_WARNING << "For high-degree node " << u << ": cached weighted degree is " << wd(u)
+                  << " but should be " << actual_weighted_degree;
       return false;
     }
 

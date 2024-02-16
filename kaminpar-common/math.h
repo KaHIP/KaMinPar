@@ -15,7 +15,7 @@
 #include <utility>
 #include <vector>
 
-#include <kassert/kassert.hpp>
+#include "kaminpar-common/assert.h"
 
 namespace kaminpar::math {
 template <typename Int> bool is_square(const Int value) {

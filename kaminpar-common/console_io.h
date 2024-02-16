@@ -10,9 +10,6 @@
 #include <ostream>
 #include <string>
 
-#include <kassert/kassert.hpp>
-
-#include "kaminpar-common/assertion_levels.h"
 #include "kaminpar-common/environment.h"
 #include "kaminpar-common/logger.h"
 

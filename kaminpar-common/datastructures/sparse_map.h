@@ -30,7 +30,7 @@
 #include <cstdlib>
 #include <memory>
 
-#include <kassert/kassert.hpp>
+#include "kaminpar-common/assert.h"
 
 namespace kaminpar {
 template <typename Key, typename Value> class SparseMap {

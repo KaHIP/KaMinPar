@@ -11,7 +11,6 @@
 #include <utility>
 #include <vector>
 
-#include <kassert/kassert.hpp>
 #include <tbb/blocked_range.h>
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
@@ -19,6 +18,7 @@
 
 #include "kaminpar-shm/definitions.h"
 
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/degree_buckets.h"
 #include "kaminpar-common/ranges.h"

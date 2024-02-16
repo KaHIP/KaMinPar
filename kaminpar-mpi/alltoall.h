@@ -9,13 +9,13 @@
 
 #include <type_traits>
 
-#include <kassert/kassert.hpp>
 #include <mpi.h>
 #include <tbb/parallel_for.h>
 
 #include "kaminpar-mpi/definitions.h"
 #include "kaminpar-mpi/wrapper.h"
 
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/noinit_vector.h"
 #include "kaminpar-common/timer.h"
 
@@ -64,7 +64,7 @@ void sparse_alltoall_alltoallv(SendBuffers &&send_buffers, Receiver &&receiver, 
 
   const auto [size, rank] = mpi::get_comm_info(comm);
 
-  //START_TIMER("Alltoall construction");
+  // START_TIMER("Alltoall construction");
 
   std::vector<int> send_counts(size);
   std::vector<int> recv_counts(size);
@@ -96,8 +96,8 @@ void sparse_alltoall_alltoallv(SendBuffers &&send_buffers, Receiver &&receiver, 
   // Exchange data
   Buffer common_recv_buffer(recv_displs.back() + recv_counts.back());
 
-  //STOP_TIMER();
-  //START_TIMER("Alltoall MPI");
+  // STOP_TIMER();
+  // START_TIMER("Alltoall MPI");
 
   mpi::alltoallv(
       common_send_buffer.data(),
@@ -109,8 +109,8 @@ void sparse_alltoall_alltoallv(SendBuffers &&send_buffers, Receiver &&receiver, 
       comm
   );
 
-  //STOP_TIMER();
-  //START_TIMER("Alltoall construction");
+  // STOP_TIMER();
+  // START_TIMER("Alltoall construction");
 
   // Call receiver
   std::vector<Buffer> recv_buffers(size);
@@ -121,14 +121,14 @@ void sparse_alltoall_alltoallv(SendBuffers &&send_buffers, Receiver &&receiver, 
     });
   });
 
-  //STOP_TIMER();
-  //START_TIMER("Alltoall processing");
+  // STOP_TIMER();
+  // START_TIMER("Alltoall processing");
 
   for (PEID pe = 0; pe < size; ++pe) {
     invoke_receiver(std::move(recv_buffers[pe]), pe, receiver);
   }
 
-  //STOP_TIMER();
+  // STOP_TIMER();
 }
 
 template <typename Message, typename Buffer, typename SendBuffers, typename Receiver>
@@ -136,7 +136,7 @@ void sparse_alltoall_complete(SendBuffers &&send_buffers, Receiver &&receiver, M
   const auto [size, rank] = mpi::get_comm_info(comm);
   using namespace internal;
 
-  //START_TIMER("Alltoall construction");
+  // START_TIMER("Alltoall construction");
 
   std::vector<MPI_Request> requests(size - 1);
   std::size_t next_req_index = 0;
@@ -149,8 +149,8 @@ void sparse_alltoall_complete(SendBuffers &&send_buffers, Receiver &&receiver, M
   }
   KASSERT(next_req_index == requests.size());
 
-  //STOP_TIMER();
-  //START_TIMER("Alltoall MPI + processing");
+  // STOP_TIMER();
+  // START_TIMER("Alltoall MPI + processing");
 
   for (PEID pe = 0; pe < size; ++pe) {
     if (pe == rank) {
@@ -165,6 +165,6 @@ void sparse_alltoall_complete(SendBuffers &&send_buffers, Receiver &&receiver, M
     mpi::waitall(requests);
   }
 
-  //STOP_TIMER();
+  // STOP_TIMER();
 }
 } // namespace kaminpar::mpi

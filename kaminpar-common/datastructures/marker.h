@@ -12,7 +12,7 @@
 #include <limits>
 #include <type_traits>
 
-#include <kassert/kassert.hpp>
+#include "kaminpar-common/assert.h"
 
 namespace kaminpar {
 template <std::size_t num_concurrent_markers = 1, typename element_type = std::size_t>
