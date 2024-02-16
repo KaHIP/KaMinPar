@@ -167,10 +167,14 @@ public:
         continue;
       }
 
-      const EdgeWeight conn_to = conn(node, to);
-      // if (conn_to > 0) {
-      lambda(to, [&] { return conn(node, to) - conn_from; });
-      //}
+      if constexpr (kIteratesNonadjacentBlocks) {
+        lambda(to, [&] { return conn(node, to) - conn_from; });
+      } else {
+        const EdgeWeight conn_to = conn(node, to);
+        if (conn_to > 0) {
+          lambda(to, [&] { return conn_to - conn_from; });
+        }
+      }
     }
   }
 
