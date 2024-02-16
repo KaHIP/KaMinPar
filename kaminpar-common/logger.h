@@ -35,9 +35,10 @@
 // IFDBG(expr) evaluates the expression and returns its result iff kDebug is set
 // to true, otherwise returns the default value for its result data type
 #define FILENAME (std::strrchr(__FILE__, '/') ? std::strrchr(__FILE__, '/') + 1 : __FILE__)
-#define POSITION "[" << FILENAME << ":" << __LINE__ << "][" << __func__ << "]"
+#define POSITION FILENAME << ":" << __LINE__ << "(" << __func__ << ")"
 #ifdef HAS_SCHED_GETCPU
-#define CPU "[CPU" << sched_getcpu() << "]"
+//#define CPU "[CPU" << sched_getcpu() << "]"
+#define CPU ""
 #else // HAS_SCHED_GETCPU
 #define CPU ""
 #endif // HAS_SCHED_GETCPU
