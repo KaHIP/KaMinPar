@@ -43,10 +43,10 @@ option(KAMINPAR_BUILD_WITH_PG "Build with the -pg option for profiling." OFF)
 # Control graph compression options
 ###################################
 option(KAMINPAR_COMPRESSION_HIGH_DEGREE_ENCODING "Use high-degree encoding for the compressed graph." OFF)
-option(KAMINPAR_COMPRESSION_INTERVAL_ENCODING "Use interval encoding for the compressed graph." ON)
-option(KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING "Use run-length encoding for the compressed graph." ON)
+option(KAMINPAR_COMPRESSION_INTERVAL_ENCODING "Use interval encoding for the compressed graph." OFF)
+option(KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING "Use run-length encoding for the compressed graph." OFF)
 option(KAMINPAR_COMPRESSION_STREAM_ENCODING "Use stream encoding for the compressed graph." OFF)
-option(KAMINPAR_COMPRESSION_FAST_DECODING "Use fast decoding for the compressed graph." ON)
+option(KAMINPAR_COMPRESSION_FAST_DECODING "Use fast decoding for the compressed graph." OFF)
 option(KAMINPAR_COMPRESSION_ISOLATED_NODES_SEPARATION "Whether all isolated nodes are the last nodes of the input graph" OFF)
 
 if (KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING AND KAMINPAR_COMPRESSION_STREAM_ENCODING)
