@@ -381,7 +381,7 @@ public:
     update_total_node_weight();
 
     // Update degree buckets
-    for (std::size_t i = 0; i < _buckets.size(); ++i) {
+    for (std::size_t i = 0; i < _buckets.size() - 1; ++i) {
       _buckets[1 + i] -= isolated_nodes;
     }
 
@@ -402,7 +402,7 @@ public:
     update_total_node_weight();
 
     // Update degree buckets
-    for (std::size_t i = 0; i < _buckets.size(); ++i) {
+    for (std::size_t i = 0; i < _buckets.size() - 1; ++i) {
       _buckets[1 + i] += isolated_nodes;
     }
 

@@ -103,7 +103,7 @@ void CompressedGraph::remove_isolated_nodes(const NodeID isolated_nodes) {
   update_total_node_weight();
 
   // Update degree buckets
-  for (std::size_t i = 0; i < _buckets.size(); ++i) {
+  for (std::size_t i = 0; i < _buckets.size() - 1; ++i) {
     _buckets[1 + i] -= isolated_nodes;
   }
 
@@ -124,7 +124,7 @@ void CompressedGraph::integrate_isolated_nodes() {
   update_total_node_weight();
 
   // Update degree buckets
-  for (std::size_t i = 0; i < _buckets.size(); ++i) {
+  for (std::size_t i = 0; i < _buckets.size() - 1; ++i) {
     _buckets[1 + i] += isolated_nodes;
   }
 
