@@ -88,7 +88,7 @@ public:
     // target blocks and the LSB bits to store the gain values: compute bit masks and shifts for
     // both values
     // Note: these masks are only used for vertices < _node_threshold
-    _bits_for_gain = sizeof(UnsignedEdgeWeight) * 8 - math::ceil_log2(_k);
+    _bits_for_gain = (sizeof(UnsignedEdgeWeight) * 8 - math::ceil_log2(_k)) - 1;
     _gain_mask = (1ul << _bits_for_gain) - 1;
     _block_mask = ~_gain_mask;
     DBG << "Reserve " << _bits_for_gain << " of " << sizeof(UnsignedEdgeWeight) * 8
@@ -111,7 +111,7 @@ public:
         _bucket_offsets[_bucket_threshold] = _node_threshold;
 
         gc_size += p_graph.bucket_size(_bucket_threshold) *
-                   (lowest_degree_in_bucket<NodeID>(_bucket_threshold + 1) - 1);
+                   (lowest_degree_in_bucket<NodeID>(_bucket_threshold + 1));
         _node_threshold += p_graph.bucket_size(_bucket_threshold);
       }
       std::fill(_cache_offsets.begin() + _bucket_threshold, _cache_offsets.end(), gc_size);
@@ -185,6 +185,8 @@ public:
       const BlockID block_from,
       const BlockID block_to
   ) {
+    DBG << "move(" << node << ": " << block_from << " --> " << block_to << ")";
+
     for (const auto &[e, v] : p_graph.neighbors(node)) {
       const EdgeWeight weight = p_graph.edge_weight(e);
 
@@ -196,33 +198,50 @@ public:
 
         // Decrease from weight
         const std::size_t idx_from = index(v, block_from);
-        KASSERT(decode_entry_block(_gain_cache[idx_from]) == block_from);
+        KASSERT(decode_entry_block(_gain_cache[idx_from]) == block_from + 1);
         if (decode_entry_gain(__atomic_sub_fetch(&_gain_cache[idx_from], weight, __ATOMIC_RELAXED)
             ) == 0) {
-          const auto bucket = find_bucket(node);
-          const auto size = lowest_degree_in_bucket<NodeID>(bucket + 1);
+          DBG << "clear: v(" << v << ") block(" << block_from << ")";
+
+          const auto [offset, size] = bucket_start_size(v);
           const auto mask = size - 1;
-          const std::size_t offset = _cache_offsets[bucket] + (node - _buckets[bucket]) * size;
 
           std::size_t cur_idx = idx_from;
+          const std::size_t start_idx = cur_idx;
           BlockID cur_block;
-          do {
-            ++cur_idx;
-            const std::size_t cur_pos = (cur_idx - offset) & mask;
-            cur_block = decode_entry_block(_gain_cache[offset + cur_pos]);
-          } while ((cur_block & mask) == (block_from & mask));
+          std::size_t cur_pos;
 
-          std::swap(_gain_cache[idx_from], _gain_cache[cur_idx - 1]);
-          _gain_cache[cur_idx - 1] = 0;
+          do {
+            cur_pos = ((cur_idx++) - offset) & mask;
+            KASSERT(
+                ((start_idx - offset) & mask) != ((cur_idx - offset) & mask),
+                "could not find end of chain of hash collisions for block_from("
+                    << block_from << "), v(" << v << ")"
+            );
+            KASSERT(
+                offset + cur_pos < _gain_cache.size(),
+                "out of bounds: v(" << v << "), idx_from(" << idx_from << "), cur_idx(" << cur_idx
+                                    << "), cur_pos(" << cur_pos << "), offset(" << offset
+                                    << "), size(" << size << "), mask(" << mask << ")"
+            );
+            cur_block = decode_entry_block(_gain_cache[offset + cur_pos]);
+          } while ((cur_block & mask) == ((block_from & mask) + 1));
+          cur_idx = offset + cur_pos - 1;
+
+          std::swap(_gain_cache[idx_from], _gain_cache[cur_idx]);
+          _gain_cache[cur_idx] = 0;
         }
 
         // Increase to weight
         const std::size_t idx_to = index(v, block_to);
-        if (decode_entry_block(_gain_cache[idx_to]) != block_to) {
+        if (decode_entry_block(_gain_cache[idx_to]) != block_to + 1) {
           KASSERT(decode_entry_block(_gain_cache[idx_to]) == 0);
-          __atomic_store_n(&_gain_cache[idx_to], encode_cache_entry(block_to, 0), __ATOMIC_RELAXED);
+          __atomic_store_n(
+              &_gain_cache[idx_to], encode_cache_entry(block_to + 1, 0), __ATOMIC_RELAXED
+          );
         }
         __atomic_fetch_add(&_gain_cache[idx_to], weight, __ATOMIC_RELAXED);
+
         unlock(v);
       }
     }
@@ -237,6 +256,7 @@ public:
     p_graph.pfor_nodes([&](const NodeID u) {
       if (!check_cached_gain_for_node(p_graph, u)) {
         LOG_WARNING << "gain cache invalid for node " << u;
+        std::exit(1); // @todo
         valid = false;
       }
     });
@@ -313,9 +333,27 @@ private:
           __atomic_load_n(&_gain_cache[index(node, block)], __ATOMIC_RELAXED)
       );
     } else {
-      return static_cast<EdgeWeight>(
+      auto v = static_cast<EdgeWeight>(
           decode_entry_gain(__atomic_load_n(&_gain_cache[index(node, block)], __ATOMIC_RELAXED))
       );
+      DBGC(node == 62) << "Access " << index(node, block) << " for node " << node << " block "
+                       << block << " -> " << v;
+      return v;
+    }
+  }
+
+  [[nodiscard]] std::pair<std::size_t, std::size_t> bucket_start_size(const NodeID node) const {
+    if (node >= _node_threshold) {
+      return std::make_pair(
+          _cache_offsets[_bucket_threshold] +
+              static_cast<std::size_t>(node - _node_threshold) * static_cast<std::size_t>(_k),
+          _k
+      );
+    } else {
+      const int bucket = find_bucket(node);
+      const std::size_t size = lowest_degree_in_bucket<NodeID>(bucket + 1);
+      KASSERT(math::is_power_of_2(size));
+      return std::make_pair(_cache_offsets[bucket] + (node - _buckets[bucket]) * size, size);
     }
   }
 
@@ -323,28 +361,26 @@ private:
     std::size_t idx;
 
     if (node >= _node_threshold) {
-      idx = _bucket_offsets[_bucket_threshold] +
-            (static_cast<std::size_t>(node - _node_threshold) * static_cast<std::size_t>(_k) +
-             static_cast<std::size_t>(block));
+      idx = bucket_start_size(node).first + static_cast<std::size_t>(block);
     } else {
-      const auto bucket = find_bucket(node);
-      const auto size = lowest_degree_in_bucket<NodeID>(bucket + 1);
+      const auto [offset, size] = bucket_start_size(node);
       const auto mask = size - 1;
 
-      const std::size_t offset = _cache_offsets[bucket] + (node - _buckets[bucket]) * size;
-      std::size_t ht_pos = block;
-
-      DBG << V(node) << V(bucket) << V(size) << V(mask) << V(offset) << V(ht_pos);
-
+      BlockID ht_pos = block + 1;
       BlockID cur_block;
+
       do {
         ht_pos &= mask;
         cur_block = decode_entry_block(_gain_cache[offset + ht_pos]);
         ++ht_pos;
-      } while (cur_block != block && cur_block != 0);
+      } while (cur_block != (block + 1) && cur_block != 0);
       --ht_pos;
 
       idx = offset + ht_pos;
+
+      DBGC(false) << "node(" << node << ") block(" << block << ") size(" << size << ") mask("
+                  << mask << ") offset(" << offset << ") ht_pos(" << ht_pos << ") --> idx(" << idx
+                  << ")";
     }
 
     KASSERT(idx < _gain_cache.size());
@@ -353,15 +389,18 @@ private:
 
   void reset() {
     tbb::parallel_for<std::size_t>(0, _gain_cache.size(), [&](const std::size_t i) {
+      DBGC(i == 124) << "Reset " << i;
       _gain_cache[i] = 0;
     });
   }
 
   void recompute_all(const PartitionedGraph &p_graph) {
     p_graph.pfor_nodes([&](const NodeID u) { recompute_node(p_graph, u); });
+    DBG << "Chk";
     KASSERT(
         validate(p_graph), "dense gain cache verification failed after recomputation", assert::heavy
     );
+    DBG << "OK";
   }
 
   void recompute_node(const PartitionedGraph &p_graph, const NodeID u) {
@@ -376,12 +415,19 @@ private:
       const EdgeWeight weight = p_graph.edge_weight(e);
 
       const std::size_t idx = index(u, block_v);
-      if (u < _node_threshold && decode_entry_block(_gain_cache[idx]) != block_v) {
+
+      DBGC(idx == 124) << "u(" << u << ") _node_threshold(" << _node_threshold << ") deb("
+                       << decode_entry_block(_gain_cache[idx]) << ")";
+
+      if (u < _node_threshold && decode_entry_block(_gain_cache[idx]) != block_v + 1) {
         KASSERT(decode_entry_block(_gain_cache[idx]) == 0);
-        _gain_cache[idx] = encode_cache_entry(block_v, 0);
+        _gain_cache[idx] = encode_cache_entry(block_v + 1, 0);
       }
       _gain_cache[idx] += static_cast<UnsignedEdgeWeight>(weight);
       _weighted_degrees[u] += static_cast<UnsignedEdgeWeight>(weight);
+
+      DBGC(idx == 124) << "idx(" << idx << ") e(" << u << " --> " << v << ") b_v(" << block_v
+                       << ") w_e(" << weight << ") -> gain_cache(" << _gain_cache[idx] << ")";
     }
   }
 

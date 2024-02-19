@@ -28,6 +28,11 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
+namespace {
+SET_DEBUG(false);
+SET_STATISTICS_FROM_GLOBAL();
+} // namespace
+
 std::unique_ptr<Refiner> create_fm_refiner(const Context &ctx) {
   switch (ctx.refinement.kway_fm.gain_cache_strategy) {
   case GainCacheStrategy::SPARSE:
@@ -70,11 +75,6 @@ std::unique_ptr<Refiner> create_fm_refiner(const Context &ctx) {
 
   __builtin_unreachable();
 }
-
-namespace {
-SET_DEBUG(false);
-SET_STATISTICS(true);
-} // namespace
 
 namespace fm {
 Stats &Stats::operator+=(const Stats &other) {
