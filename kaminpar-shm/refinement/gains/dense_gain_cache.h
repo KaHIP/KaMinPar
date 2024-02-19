@@ -88,7 +88,7 @@ public:
     // target blocks and the LSB bits to store the gain values: compute bit masks and shifts for
     // both values
     // Note: these masks are only used for vertices < _node_threshold
-    _bits_for_gain = (sizeof(UnsignedEdgeWeight) * 8 - math::ceil_log2(_k)) - 1;
+    _bits_for_gain = (sizeof(UnsignedEdgeWeight) * 8 - math::ceil_log2(_k));
     _gain_mask = (1ul << _bits_for_gain) - 1;
     _block_mask = ~_gain_mask;
     DBG << "Reserve " << _bits_for_gain << " of " << sizeof(UnsignedEdgeWeight) * 8
@@ -198,7 +198,9 @@ public:
 
         // Decrease from weight
         const std::size_t idx_from = index(v, block_from);
-        KASSERT(decode_entry_block(_gain_cache[idx_from]) == block_from + 1);
+        KASSERT(decode_entry_block(_gain_cache[idx_from]) == block_from);
+        DBGC(v == 24 || v == 25) << "dec: v(" << v << ") block(" << block_from << ") idx("
+                                 << index(v, block_from) << ")";
         if (decode_entry_gain(__atomic_sub_fetch(&_gain_cache[idx_from], weight, __ATOMIC_RELAXED)
             ) == 0) {
           DBG << "clear: v(" << v << ") block(" << block_from << ")";
@@ -208,43 +210,61 @@ public:
 
           std::size_t cur_idx = idx_from;
           const std::size_t start_idx = cur_idx;
-          BlockID cur_block;
-          std::size_t cur_pos;
+          std::size_t cur_pos = (cur_idx - offset) & mask;
+          std::size_t cur_pos_before;
 
           do {
+            cur_pos_before = cur_pos;
             cur_pos = ((cur_idx++) - offset) & mask;
-            KASSERT(
-                ((start_idx - offset) & mask) != ((cur_idx - offset) & mask),
-                "could not find end of chain of hash collisions for block_from("
-                    << block_from << "), v(" << v << ")"
-            );
+            if (((start_idx - offset) & mask) == ((cur_idx - offset) & mask)) {
+              cur_pos_before = cur_pos;
+              break;
+            }
+
             KASSERT(
                 offset + cur_pos < _gain_cache.size(),
                 "out of bounds: v(" << v << "), idx_from(" << idx_from << "), cur_idx(" << cur_idx
                                     << "), cur_pos(" << cur_pos << "), offset(" << offset
                                     << "), size(" << size << "), mask(" << mask << ")"
             );
-            cur_block = decode_entry_block(_gain_cache[offset + cur_pos]);
-          } while ((cur_block & mask) == ((block_from & mask) + 1));
-          cur_idx = offset + cur_pos - 1;
+          } while (_gain_cache[offset + cur_pos] != 0 &&
+                   (decode_entry_block(_gain_cache[offset + cur_pos]) & mask) == (block_from & mask)
+          );
+
+          cur_idx = offset + cur_pos_before;
 
           std::swap(_gain_cache[idx_from], _gain_cache[cur_idx]);
           _gain_cache[cur_idx] = 0;
+
+          DBGC(cur_idx == 49) << "cur_idx(" << cur_idx << ") idx_from(" << idx_from << ")";
+          KASSERT(
+              offset <= cur_idx && cur_idx < offset + size,
+              "out of bounds while deleting table entry: v("
+                  << v << ")"
+                  << " idx_from(" << idx_from << ") cur_idx(" << cur_idx << ") offset(" << offset
+                  << ") size(" << size << ") mask(" << mask << ")"
+          );
         }
 
         // Increase to weight
         const std::size_t idx_to = index(v, block_to);
-        if (decode_entry_block(_gain_cache[idx_to]) != block_to + 1) {
+        if (is_empty_cell(idx_to)) {
           KASSERT(decode_entry_block(_gain_cache[idx_to]) == 0);
-          __atomic_store_n(
-              &_gain_cache[idx_to], encode_cache_entry(block_to + 1, 0), __ATOMIC_RELAXED
-          );
+          __atomic_store_n(&_gain_cache[idx_to], encode_cache_entry(block_to, 0), __ATOMIC_RELAXED);
         }
         __atomic_fetch_add(&_gain_cache[idx_to], weight, __ATOMIC_RELAXED);
 
         unlock(v);
       }
     }
+  }
+
+  [[nodiscard]] bool is_entry_for_block(const std::size_t idx, const BlockID block) const {
+    return _gain_cache[idx] != 0 && decode_entry_block(_gain_cache[idx]) == block;
+  }
+
+  [[nodiscard]] bool is_empty_cell(const std::size_t idx) const {
+    return _gain_cache[idx] == 0;
   }
 
   [[nodiscard]] bool is_border_node(const NodeID node, const BlockID block_of_node) const {
@@ -336,8 +356,9 @@ private:
       auto v = static_cast<EdgeWeight>(
           decode_entry_gain(__atomic_load_n(&_gain_cache[index(node, block)], __ATOMIC_RELAXED))
       );
-      DBGC(node == 62) << "Access " << index(node, block) << " for node " << node << " block "
+      DBGC(node == 24) << "Access " << index(node, block) << " for node " << node << " block "
                        << block << " -> " << v;
+      // @todo check block
       return v;
     }
   }
@@ -366,21 +387,21 @@ private:
       const auto [offset, size] = bucket_start_size(node);
       const auto mask = size - 1;
 
-      BlockID ht_pos = block + 1;
+      BlockID ht_pos = block;
       BlockID cur_block;
 
       do {
         ht_pos &= mask;
         cur_block = decode_entry_block(_gain_cache[offset + ht_pos]);
         ++ht_pos;
-      } while (cur_block != (block + 1) && cur_block != 0);
+      } while (_gain_cache[offset + ht_pos - 1] != 0 && cur_block != block);
       --ht_pos;
 
       idx = offset + ht_pos;
 
-      DBGC(false) << "node(" << node << ") block(" << block << ") size(" << size << ") mask("
-                  << mask << ") offset(" << offset << ") ht_pos(" << ht_pos << ") --> idx(" << idx
-                  << ")";
+      DBGC(node == 24) << "node(" << node << ") block(" << block << ") size(" << size << ") mask("
+                       << mask << ") offset(" << offset << ") ht_pos(" << ht_pos << ") --> idx("
+                       << idx << ")";
     }
 
     KASSERT(idx < _gain_cache.size());
@@ -419,9 +440,9 @@ private:
       DBGC(idx == 124) << "u(" << u << ") _node_threshold(" << _node_threshold << ") deb("
                        << decode_entry_block(_gain_cache[idx]) << ")";
 
-      if (u < _node_threshold && decode_entry_block(_gain_cache[idx]) != block_v + 1) {
+      if (u < _node_threshold && decode_entry_block(_gain_cache[idx]) != block_v) {
         KASSERT(decode_entry_block(_gain_cache[idx]) == 0);
-        _gain_cache[idx] = encode_cache_entry(block_v + 1, 0);
+        _gain_cache[idx] = encode_cache_entry(block_v, 0);
       }
       _gain_cache[idx] += static_cast<UnsignedEdgeWeight>(weight);
       _weighted_degrees[u] += static_cast<UnsignedEdgeWeight>(weight);
