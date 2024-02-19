@@ -56,7 +56,7 @@ public:
   /*!
    * The length of a part when splitting the neighbourhood of a high degree node.
    */
-  static constexpr NodeID kHighDegreePartLength = 500;
+  static constexpr NodeID kHighDegreePartLength = 1000;
 
 #ifdef KAMINPAR_COMPRESSION_INTERVAL_ENCODING
   /*!
