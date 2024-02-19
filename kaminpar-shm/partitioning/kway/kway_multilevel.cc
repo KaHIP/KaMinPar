@@ -42,6 +42,8 @@ void KWayMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
 }
 
 PartitionedGraph KWayMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) {
+  refine(p_graph);
+
   while (!_coarsener->empty()) {
     LOG;
     LOG << "Uncoarsening -> Level " << _coarsener.get()->size();
