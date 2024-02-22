@@ -20,12 +20,13 @@
 
 namespace kaminpar {
 template <typename Type> class CompactHashMap {
+  using MutType = std::remove_const_t<Type>;
   static_assert(std::is_unsigned_v<Type>);
 
   SET_DEBUG(true);
 
 public:
-  [[nodiscard]] static int compute_key_bits(const Type max_key) {
+  [[nodiscard]] static int compute_key_bits(const MutType max_key) {
     return math::ceil_log2(max_key);
   }
 
@@ -36,10 +37,10 @@ public:
     KASSERT(math::is_power_of_2(size));
   }
 
-  void decrease_by(const Type key, const Type value) {
+  void decrease_by(const MutType key, const MutType value) {
     // Assertion: hash-table is locked for other modiyfing operations
     const auto [start_pos, start_entry] = find(key);
-    const Type start_value = decode_value(start_entry);
+    const MutType start_value = decode_value(start_entry);
 
     KASSERT(decode_key(start_entry) == key);
     KASSERT(start_value > 0);
@@ -56,7 +57,7 @@ public:
     std::size_t hole_pos = hash(key);
     std::size_t cur_pos = hash(key);
 
-    Type cur_entry;
+    MutType cur_entry;
 
     do {
       cur_pos = hash(cur_pos + 1);
@@ -79,21 +80,21 @@ public:
     write_pos(hole_pos, 0);
   }
 
-  void increase_by(const Type key, const Type value) {
+  void increase_by(const MutType key, const MutType value) {
     // Assertion: hash-table is locked for other modifying operations
     const auto [pos, entry] = find(key);
     write_pos(pos, encode_key_value(key, decode_value(entry) + value));
   }
 
-  [[nodiscard]] Type get(const Type key) const {
+  [[nodiscard]] MutType get(const MutType key) const {
     const auto [pos, entry] = find(key);
     return decode_value(entry);
   }
 
 private:
-  [[nodiscard]] std::pair<std::size_t, Type> find(const Type key) const {
+  [[nodiscard]] std::pair<std::size_t, MutType> find(const MutType key) const {
     std::size_t pos = key - 1;
-    Type entry;
+    MutType entry;
 
     do {
       pos = hash(pos + 1);
@@ -103,27 +104,27 @@ private:
     return {pos, entry};
   }
 
-  [[nodiscard]] Type hash(const Type key) const {
+  [[nodiscard]] MutType hash(const MutType key) const {
     return key & _value_mask;
   }
 
-  [[nodiscard]] Type read_pos(const std::size_t pos) const {
+  [[nodiscard]] MutType read_pos(const std::size_t pos) const {
     return __atomic_load_n(&_data[pos], __ATOMIC_RELAXED);
   }
 
-  void write_pos(const std::size_t pos, const Type value) const {
+  void write_pos(const std::size_t pos, const MutType value) const {
     __atomic_store_n(&_data[pos], value, __ATOMIC_RELAXED);
   }
 
-  [[nodiscard]] Type decode_key(const Type entry) const {
+  [[nodiscard]] MutType decode_key(const MutType entry) const {
     return entry >> value_bits();
   }
 
-  [[nodiscard]] Type decode_value(const Type entry) const {
+  [[nodiscard]] MutType decode_value(const MutType entry) const {
     return (entry << key_bits()) >> key_bits();
   }
 
-  Type encode_key_value(const Type key, const Type value) {
+  MutType encode_key_value(const MutType key, const MutType value) {
     KASSERT(key == 0 || math::ceil_log2(key) <= _key_bits, "key too large");
     return (key << value_bits()) | value;
   }
@@ -133,11 +134,11 @@ private:
   }
 
   [[nodiscard]] int value_bits() const {
-    return std::numeric_limits<Type>::digits - _key_bits;
+    return std::numeric_limits<MutType>::digits - _key_bits;
   }
 
   Type *_data;
-  Type _value_mask;
+  MutType _value_mask;
   int _key_bits;
 };
 } // namespace kaminpar

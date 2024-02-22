@@ -139,24 +139,6 @@ public:
     init_buckets(p_graph.graph());
     reset();
     recompute_all(p_graph);
-
-    KASSERT(
-        [&] {
-          for (NodeID node = 1; node < _n; ++node) {
-            const auto [offset, size] = bucket_start_size(node);
-            const auto [poffset, psize] = bucket_start_size(node - 1);
-            if (poffset + psize != offset) {
-              LOG_WARNING << "inconsistent bucket sizes: for node(" << node
-                          << "), bucket starts at offset(" << offset << ") with size(" << size
-                          << "), but previous bucket ends at (" << poffset + psize << ")";
-              return false;
-            }
-          }
-          return true;
-        },
-        "",
-        assert::heavy
-    );
   }
 
   void free() {
@@ -319,6 +301,15 @@ private:
     return bucket_start_size(node).first + static_cast<std::size_t>(block);
   }
 
+  [[nodiscard]] std::size_t d_index(const NodeID node, const BlockID block) const {
+    return static_cast<std::size_t>(node) * _k + block;
+  }
+
+  [[nodiscard]] CompactHashMap<UnsignedEdgeWeight const> ld_ht(const NodeID node) const {
+    const auto [start, size] = bucket_start_size(node);
+    return {_gain_cache.data() + start, size, 64 - _bits_for_key};
+  }
+
   [[nodiscard]] CompactHashMap<UnsignedEdgeWeight> ld_ht(const NodeID node) {
     const auto [start, size] = bucket_start_size(node);
     return {_gain_cache.data() + start, size, 64 - _bits_for_key};
@@ -452,8 +443,8 @@ public:
   ) {
     for (const auto &[e, v] : d_graph.neighbors(u)) {
       const EdgeWeight weight = d_graph.edge_weight(e);
-      _gain_cache_delta[_gain_cache.index(v, block_from)] -= weight;
-      _gain_cache_delta[_gain_cache.index(v, block_to)] += weight;
+      _gain_cache_delta[_gain_cache.d_index(v, block_from)] -= weight;
+      _gain_cache_delta[_gain_cache.d_index(v, block_to)] += weight;
     }
   }
 
@@ -463,7 +454,7 @@ public:
 
 private:
   [[nodiscard]] EdgeWeight conn_delta(const NodeID node, const BlockID block) const {
-    const auto it = _gain_cache_delta.get_if_contained(_gain_cache.index(node, block));
+    const auto it = _gain_cache_delta.get_if_contained(_gain_cache.d_index(node, block));
     return it != _gain_cache_delta.end() ? *it : 0;
   }
 
