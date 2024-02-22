@@ -7,12 +7,10 @@
  ******************************************************************************/
 #pragma once
 
-#include <algorithm>
 #include <atomic>
 #include <cerrno>
-#include <cmath>
-#include <csignal>
 #include <cstdint>
+#include <cstring>
 #include <iostream>
 #include <memory>
 #include <sstream>
@@ -37,7 +35,7 @@
 #define FILENAME (std::strrchr(__FILE__, '/') ? std::strrchr(__FILE__, '/') + 1 : __FILE__)
 #define POSITION FILENAME << ":" << __LINE__ << "(" << __func__ << ")"
 #ifdef HAS_SCHED_GETCPU
-//#define CPU "[CPU" << sched_getcpu() << "]"
+// #define CPU "[CPU" << sched_getcpu() << "]"
 #define CPU ""
 #else // HAS_SCHED_GETCPU
 #define CPU ""

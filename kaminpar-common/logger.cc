@@ -7,6 +7,8 @@
  ******************************************************************************/
 #include "kaminpar-common/logger.h"
 
+#include <cmath>
+
 namespace kaminpar {
 namespace logger {
 void CompactContainerFormatter::print(const std::vector<std::string> &container, std::ostream &out)
