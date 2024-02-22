@@ -24,7 +24,7 @@ template <typename Type> class CompactHashMap {
   static_assert(std::is_unsigned_v<Type>);
 
   SET_DEBUG(true);
-  constexpr static MutType kKeyToDebug = 16;
+  constexpr static MutType kKeyToDebug = 15;
 
 public:
   [[nodiscard]] static int compute_key_bits(const MutType max_key) {
@@ -73,14 +73,45 @@ public:
       const std::size_t cur_key = decode_key(cur_entry);
       const std::size_t cur_key_hash = hash(cur_key);
       if (cur_key_hash <= hole_pos || cur_pos < cur_key_hash) {
+        DBGC(key == kKeyToDebug) << "move hole to pos = " << cur_pos << ", entry = " << cur_entry
+                                 << " = " << decode_key(cur_entry) << ":" << decode_value(cur_entry)
+                                 << " --> entry moved to " << hole_pos;
         write_pos(hole_pos, cur_entry);
-        hole_pos = cur_key_hash;
+        hole_pos = cur_pos;
       } else {
+        DBGC(key == kKeyToDebug) << "skipping pos = " << cur_pos << ", entry = " << cur_entry
+                                 << " = " << decode_key(cur_entry) << ":"
+                                 << decode_value(cur_entry);
         // skip element
       }
     } while (true);
 
     write_pos(hole_pos, 0);
+
+    KASSERT(
+        [&] {
+          for (std::size_t pos = 0; pos < _value_mask + 1; ++pos) {
+            if (read_pos(pos) == 0) {
+              continue;
+            }
+
+            const MutType key = decode_key(read_pos(pos));
+            for (std::size_t pos2 = hash(key); pos2 < _value_mask + 1 + pos; ++pos2) {
+              if (read_pos(hash(pos2)) == 0) {
+                LOG_WARNING << "key = " << key << " at position = " << pos
+                            << ": hash(key) = " << hash(key)
+                            << ", but empty slot at position = " << hash(pos2);
+                return false;
+              } else if (decode_key(read_pos(hash(pos2))) == key) {
+                break;
+              }
+            }
+          }
+          return true;
+        }(),
+        "bad hash table state after erasing key = " << key,
+        assert::heavy
+    );
   }
 
   void increase_by(const MutType key, const MutType value) {
