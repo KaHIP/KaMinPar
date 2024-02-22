@@ -23,7 +23,7 @@ template <typename Type> class CompactHashMap {
   using MutType = std::remove_const_t<Type>;
   static_assert(std::is_unsigned_v<Type>);
 
-  SET_DEBUG(true);
+  SET_DEBUG(false);
   constexpr static MutType kKeyToDebug = 15;
 
 public:
@@ -72,7 +72,7 @@ public:
 
       const std::size_t cur_key = decode_key(cur_entry);
       const std::size_t cur_key_hash = hash(cur_key);
-      if (cur_key_hash <= hole_pos || cur_pos < cur_key_hash) {
+      if ((cur_key_hash <= hole_pos && cur_pos > hole_pos) || cur_pos < cur_key_hash) {
         DBGC(key == kKeyToDebug) << "move hole to pos = " << cur_pos << ", entry = " << cur_entry
                                  << " = " << decode_key(cur_entry) << ":" << decode_value(cur_entry)
                                  << " --> entry moved to " << hole_pos;

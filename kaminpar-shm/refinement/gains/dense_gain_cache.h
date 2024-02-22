@@ -37,8 +37,6 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
-namespace dense_gain_cache {}
-
 template <typename DeltaPartitionedGraph, typename GainCache> class DenseDeltaGainCache;
 
 template <bool iterate_nonadjacent_blocks, bool iterate_exact_gains = false> class DenseGainCache {
@@ -139,6 +137,8 @@ public:
     init_buckets(p_graph.graph());
     reset();
     recompute_all(p_graph);
+
+    DBG << "Initialized buckets: " << _buckets;
   }
 
   void free() {
@@ -225,8 +225,6 @@ private:
       _buckets[bucket + 1] = _buckets[bucket] + graph.bucket_size(bucket);
     }
     std::fill(_buckets.begin() + graph.number_of_buckets(), _buckets.end(), graph.n());
-
-    DBG << "Initialized buckets: " << _buckets;
   }
 
   [[nodiscard]] int find_bucket(const NodeID node) const {
