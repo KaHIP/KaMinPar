@@ -24,6 +24,7 @@ template <typename Type> class CompactHashMap {
   static_assert(std::is_unsigned_v<Type>);
 
   SET_DEBUG(true);
+  constexpr static MutType kKeyToDebug = 16;
 
 public:
   [[nodiscard]] static int compute_key_bits(const MutType max_key) {
@@ -38,6 +39,8 @@ public:
   }
 
   void decrease_by(const MutType key, const MutType value) {
+    DBGC(key == kKeyToDebug) << "decrease_by(" << key << ", " << value << ")";
+
     // Assertion: hash-table is locked for other modiyfing operations
     const auto [start_pos, start_entry] = find(key);
     const MutType start_value = decode_value(start_entry);
@@ -81,6 +84,8 @@ public:
   }
 
   void increase_by(const MutType key, const MutType value) {
+    DBGC(key == kKeyToDebug) << "increase_by(key = " << key << ", value = " << value << ")";
+
     // Assertion: hash-table is locked for other modifying operations
     const auto [pos, entry] = find(key);
     write_pos(pos, encode_key_value(key, decode_value(entry) + value));
@@ -99,7 +104,13 @@ private:
     do {
       pos = hash(pos + 1);
       entry = read_pos(pos);
+      DBGC(key == kKeyToDebug) << "do-while: {pos = " << pos << ", entry = " << entry << " = "
+                               << decode_key(entry) << ":" << decode_value(entry) << "}";
     } while (entry != 0 && decode_key(entry) != key);
+
+    DBGC(key == kKeyToDebug) << "find(key = " << key << ") --> {pos = " << pos
+                             << ", entry = " << entry << " = " << decode_key(entry) << ":"
+                             << decode_value(entry) << "}";
 
     return {pos, entry};
   }

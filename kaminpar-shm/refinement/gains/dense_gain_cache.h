@@ -185,8 +185,6 @@ public:
       const BlockID block_from,
       const BlockID block_to
   ) {
-    DBGC(false) << "move(" << node << ": " << block_from << " --> " << block_to << ")";
-
     for (const auto &[e, v] : p_graph.neighbors(node)) {
       const EdgeWeight weight = p_graph.edge_weight(e);
 
@@ -252,8 +250,8 @@ private:
         &state,
         state | kWeightedDegreeLock,
         false,
-        __ATOMIC_RELAXED,
-        __ATOMIC_RELAXED
+        __ATOMIC_SEQ_CST,
+        __ATOMIC_SEQ_CST
     ));
   }
 
@@ -307,12 +305,12 @@ private:
 
   [[nodiscard]] CompactHashMap<UnsignedEdgeWeight const> ld_ht(const NodeID node) const {
     const auto [start, size] = bucket_start_size(node);
-    return {_gain_cache.data() + start, size, 64 - _bits_for_key};
+    return {_gain_cache.data() + start, size, _bits_for_key};
   }
 
   [[nodiscard]] CompactHashMap<UnsignedEdgeWeight> ld_ht(const NodeID node) {
     const auto [start, size] = bucket_start_size(node);
-    return {_gain_cache.data() + start, size, 64 - _bits_for_key};
+    return {_gain_cache.data() + start, size, _bits_for_key};
   }
 
   void reset() {
@@ -323,11 +321,9 @@ private:
 
   void recompute_all(const PartitionedGraph &p_graph) {
     p_graph.pfor_nodes([&](const NodeID u) { recompute_node(p_graph, u); });
-    DBG << "Chk";
     KASSERT(
         validate(p_graph), "dense gain cache verification failed after recomputation", assert::heavy
     );
-    DBG << "OK";
   }
 
   void recompute_node(const PartitionedGraph &p_graph, const NodeID u) {
