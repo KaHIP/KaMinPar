@@ -74,12 +74,10 @@ public:
     _n = p_graph.n();
     _k = p_graph.k();
 
-    // This is the first vertex for which the sparse gain cache is used
     _node_threshold = 0;
-
-    // This is the first degree-bucket s.t. all vertices in this and subsequent buckets use the
-    // sparse gain cache
     _bucket_threshold = 0;
+    _cache_offsets[0] = 0;
+    _bucket_offsets[0] = 0;
 
     // For vertices with the dense gain cache (i.e., hash table), we use the MSB bits to store the
     // target blocks and the LSB bits to store the gain values: compute bit masks and shifts for
@@ -137,8 +135,6 @@ public:
     init_buckets(p_graph.graph());
     reset();
     recompute_all(p_graph);
-
-    DBG << "Initialized buckets: " << _buckets;
   }
 
   void free() {
@@ -225,6 +221,8 @@ private:
       _buckets[bucket + 1] = _buckets[bucket] + graph.bucket_size(bucket);
     }
     std::fill(_buckets.begin() + graph.number_of_buckets(), _buckets.end(), graph.n());
+
+    DBG << "Initialized buckets: " << _buckets;
   }
 
   [[nodiscard]] int find_bucket(const NodeID node) const {
