@@ -301,12 +301,12 @@ private:
 
   [[nodiscard]] CompactHashMap<UnsignedEdgeWeight const> ld_ht(const NodeID node) const {
     const auto [start, size] = bucket_start_size(node);
-    return {_gain_cache.data() + start, size, _bits_for_key};
+    return {_gain_cache.data() + start, size, _bits_for_key, node};
   }
 
   [[nodiscard]] CompactHashMap<UnsignedEdgeWeight> ld_ht(const NodeID node) {
     const auto [start, size] = bucket_start_size(node);
-    return {_gain_cache.data() + start, size, _bits_for_key};
+    return {_gain_cache.data() + start, size, _bits_for_key, node};
   }
 
   void reset() {
