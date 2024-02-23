@@ -2,14 +2,14 @@
  * Hash map with linear probing that stores keys and values in the same 32/64
  * bit array entry.
  *
- * The hash map can only store positive, non-zero values. 
- * The key of a value that is decreased to 0 is automatically erased from the 
- * hash table. 
- * New keys are automatically inserted when increasing their value, i.e., there 
+ * The hash map can only store positive, non-zero values.
+ * The key of a value that is decreased to 0 is automatically erased from the
+ * hash table.
+ * New keys are automatically inserted when increasing their value, i.e., there
  * is no explicit insert operation.
  * Exceeding the hash table's capacity is undefined behaviour.
  *
- * Reads are always allowed, but locking is required before calling any 
+ * Reads are always allowed, but locking is required before calling any
  * modifying operatios.
  *
  * @file:   compact_hash_map.h
@@ -42,22 +42,49 @@ public:
     KASSERT(math::is_power_of_2(size));
   }
 
+  // May not be called concurrently
   void decrease_by(const MutType key, const MutType value) {
-    // Assertion: hash-table is locked for other modiyfing operations
     const auto [start_pos, start_entry] = find(key);
     const MutType start_value = decode_value(start_entry);
 
-    // Simple case: just decrease, but do not erase
     if (start_value > value) {
+      // Simple case: just decrease, but do not erase
       write_pos(start_pos, start_entry - value);
-      return;
+    } else {
+      // Harder case: erase element
+      std::size_t hole_pos = start_pos;
+      std::size_t cur_pos = start_pos;
+      MutType cur_entry;
+
+      do {
+        cur_pos = hash(cur_pos + 1);
+        cur_entry = read_pos(cur_pos);
+
+        if (cur_entry == 0 || movable(decode_key(cur_entry), cur_pos, hole_pos)) {
+          write_pos(hole_pos, cur_entry);
+          hole_pos = cur_pos;
+        }
+      } while (cur_entry != 0);
     }
+  }
 
-    // Harder case: erase element
+  // May not be called concurrently
+  void increase_by(const MutType key, const MutType value) {
+    const auto [pos, entry] = find(key);
+    write_pos(pos, encode_key_value(key, decode_value(entry) + value));
+  }
 
-    // Decide whether we are allowed to move an element with the given hash from some position to
-    // another
-    //
+  [[nodiscard]] MutType get(const MutType key) const {
+    return decode_value(find(key).second);
+  }
+
+private:
+  // Decide whether we are allowed to move an element with the given hash from some position to
+  // another
+  [[nodiscard]] bool
+  movable(const MutType key, const std::size_t from, const std::size_t to) const {
+    const MutType h_key = hash(key);
+
     // Case 1:
     //       |from  |hash  |to
     // ------|------|------|------
@@ -69,43 +96,11 @@ public:
     // Case 3:
     //       |to    |from  |hash
     // ------|------|------|------
-    //
-    auto movable = [](const std::size_t hash, const std::size_t from, const std::size_t to) {
-      return (from < hash) + (hash <= to) + (from > to) >= 2;
-    };
-
-    std::size_t hole_pos = start_pos;
-    std::size_t cur_pos = start_pos;
-
-    do {
-      cur_pos = hash(cur_pos + 1);
-      const MutType cur_entry = read_pos(cur_pos);
-      if (cur_entry == 0) {
-        break;
-      }
-
-      const std::size_t cur_key = decode_key(cur_entry);
-      const std::size_t cur_hash = hash(cur_key);
-
-      if (movable(cur_hash, cur_pos, hole_pos)) {
-        write_pos(hole_pos, cur_entry);
-        hole_pos = cur_pos;
-      }
-    } while (true);
-    write_pos(hole_pos, 0);
+    return (from < h_key) + (h_key <= to) + (from > to) >= 2;
   }
 
-  void increase_by(const MutType key, const MutType value) {
-    // Assertion: hash-table is locked for other modifying operations
-    const auto [pos, entry] = find(key);
-    write_pos(pos, encode_key_value(key, decode_value(entry) + value));
-  }
-
-  [[nodiscard]] MutType get(const MutType key) const {
-    return decode_value(find(key).second);
-  }
-
-private:
+  // Find the right cell or point to the first empty cell if the key is not yet contained in the
+  // hash table
   [[nodiscard]] std::pair<std::size_t, MutType> find(const MutType key) const {
     std::size_t pos = key - 1;
     MutType entry;
