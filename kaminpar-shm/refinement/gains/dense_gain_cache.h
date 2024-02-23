@@ -23,6 +23,7 @@
 
 #include <limits>
 
+#include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
@@ -52,24 +53,32 @@ template <bool iterate_nonadjacent_blocks, bool iterate_exact_gains = false> cla
   constexpr static UnsignedEdgeWeight kWeightedDegreeMask = ~kWeightedDegreeLock;
 
   struct Statistics {
-    parallel::Atomic<std::size_t> num_hd_queries = 0;
-    parallel::Atomic<std::size_t> num_hd_updates = 0;
-
-    parallel::Atomic<std::size_t> num_ld_queries = 0;
-    parallel::Atomic<std::size_t> num_ld_updates = 0;
-    parallel::Atomic<std::size_t> num_ld_insertions = 0;
-    parallel::Atomic<std::size_t> num_ld_deletions = 0;
-
-    parallel::Atomic<std::size_t> num_moves = 0;
-
-    void print() const {
-      STATS << "[Statistics] DenseGainCache:";
-      STATS << "[Statistics]   * Moves: " << num_moves;
-      STATS << "[Statistics]   * Queries: " << num_ld_queries << " LD, " << num_hd_queries << " HD";
-      STATS << "[Statistics]   * Updates: " << num_ld_updates << " LD, " << num_hd_updates << " HD";
-      STATS << "[Statistics]     + LD Insertions: " << num_ld_insertions;
-      STATS << "[Statistics]     + LD Deletions: " << num_ld_deletions;
+    Statistics operator+(const Statistics &other) const {
+      return {
+          num_hd_queries + other.num_hd_queries,
+          num_hd_updates + other.num_hd_updates,
+          num_ld_queries + other.num_ld_queries,
+          num_ld_updates + other.num_ld_updates,
+          num_ld_insertions + other.num_ld_insertions,
+          num_ld_deletions + other.num_ld_deletions,
+          total_ld_fill_degree + other.total_ld_fill_degree,
+          ld_fill_degree_count + other.ld_fill_degree_count,
+          num_moves + other.num_moves,
+      };
     }
+
+    std::size_t num_hd_queries = 0;
+    std::size_t num_hd_updates = 0;
+
+    std::size_t num_ld_queries = 0;
+    std::size_t num_ld_updates = 0;
+    std::size_t num_ld_insertions = 0;
+    std::size_t num_ld_deletions = 0;
+
+    double total_ld_fill_degree = 0;
+    std::size_t ld_fill_degree_count = 0;
+
+    std::size_t num_moves = 0;
   };
 
 public:
@@ -203,7 +212,7 @@ public:
       const BlockID block_from,
       const BlockID block_to
   ) {
-    IFSTATS(++_stats.num_moves);
+    IFSTATS(++_stats_ets.local().num_moves);
 
     for (const auto &[e, v] : p_graph.neighbors(node)) {
       const EdgeWeight weight = p_graph.edge_weight(e);
@@ -212,7 +221,7 @@ public:
         __atomic_fetch_sub(&_gain_cache[hd_index(v, block_from)], weight, __ATOMIC_RELAXED);
         __atomic_fetch_add(&_gain_cache[hd_index(v, block_to)], weight, __ATOMIC_RELAXED);
 
-        IFSTATS(++_stats.num_hd_updates);
+        IFSTATS(++_stats_ets.local().num_hd_updates);
       } else {
         auto ht = ld_ht(v);
 
@@ -221,9 +230,9 @@ public:
         [[maybe_unused]] bool was_inserted = ht.increase_by(block_to, weight);
         unlock(v);
 
-        IFSTATS(++_stats.num_ld_updates);
-        IFSTATS(_stats.num_ld_deletions += (was_deleted ? 1 : 0));
-        IFSTATS(_stats.num_ld_insertions += (was_inserted ? 1 : 0));
+        IFSTATS(++_stats_ets.local().num_ld_updates);
+        IFSTATS(_stats_ets.local().num_ld_deletions += (was_deleted ? 1 : 0));
+        IFSTATS(_stats_ets.local().num_ld_insertions += (was_inserted ? 1 : 0));
       }
     }
   }
@@ -244,7 +253,19 @@ public:
   }
 
   void summarize() const {
-    _stats.print();
+    IF_STATS {
+      Statistics stats = _stats_ets.combine(std::plus{});
+      STATS << "[Statistics] DenseGainCache:";
+      STATS << "[Statistics]   * Moves: " << stats.num_moves;
+      STATS << "[Statistics]   * Queries: " << stats.num_ld_queries << " LD, "
+            << stats.num_hd_queries << " HD";
+      STATS << "[Statistics]     + Average initial LD fill degree: "
+            << 100.0 * stats.total_ld_fill_degree / stats.ld_fill_degree_count << "%";
+      STATS << "[Statistics]   * Updates: " << stats.num_ld_updates << " LD, "
+            << stats.num_hd_updates << " HD";
+      STATS << "[Statistics]     + LD Insertions: " << stats.num_ld_insertions;
+      STATS << "[Statistics]     + LD Deletions: " << stats.num_ld_deletions;
+    }
   }
 
 private:
@@ -296,12 +317,12 @@ private:
 
   [[nodiscard]] EdgeWeight weighted_degree_to(const NodeID node, const BlockID block) const {
     if (is_hd_node(node)) {
-      IFSTATS(++_stats.num_hd_queries);
+      IFSTATS(++_stats_ets.local().num_hd_queries);
       return static_cast<EdgeWeight>(
           __atomic_load_n(&_gain_cache[hd_index(node, block)], __ATOMIC_RELAXED)
       );
     } else {
-      IFSTATS(++_stats.num_ld_queries);
+      IFSTATS(++_stats_ets.local().num_ld_queries);
       return ld_ht(node).get(block);
     }
   }
@@ -344,7 +365,7 @@ private:
   }
 
   void reset() {
-    IFSTATS(_stats = Statistics{});
+    IFSTATS(_stats_ets.clear());
 
     tbb::parallel_for<std::size_t>(0, _gain_cache.size(), [&](const std::size_t i) {
       _gain_cache[i] = 0;
@@ -356,6 +377,16 @@ private:
     KASSERT(
         validate(p_graph), "dense gain cache verification failed after recomputation", assert::heavy
     );
+    IF_STATS {
+      auto &stats = _stats_ets.local();
+      p_graph.pfor_nodes([&](const NodeID u) {
+        if (!is_hd_node(u)) {
+          auto map = ld_ht(u);
+          stats.total_ld_fill_degree = 1.0 * map.count() / map.capacity();
+          ++stats.ld_fill_degree_count;
+        }
+      });
+    }
   }
 
   void recompute_node(const PartitionedGraph &p_graph, const NodeID u) {
@@ -432,7 +463,7 @@ private:
   StaticArray<UnsignedEdgeWeight> _gain_cache;
   StaticArray<UnsignedEdgeWeight> _weighted_degrees;
 
-  mutable Statistics _stats;
+  mutable tbb::enumerable_thread_specific<Statistics> _stats_ets;
 };
 
 template <typename DeltaPartitionedGraph, typename GainCache> class DenseDeltaGainCache {

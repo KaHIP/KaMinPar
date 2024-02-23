@@ -81,6 +81,20 @@ public:
     return decode_value(find(key).second);
   }
 
+  [[nodiscard]] std::size_t count() const {
+    std::size_t num_nz = 0;
+    for (std::size_t i = 0; i < _value_mask + 1; ++i) {
+      if (read_pos(i) != 0) {
+        ++num_nz;
+      }
+    }
+    return num_nz;
+  }
+
+  [[nodiscard]] std::size_t capacity() const {
+    return _value_mask + 1;
+  }
+
 private:
   // Decide whether we are allowed to move an element with the given hash from some position to
   // another
