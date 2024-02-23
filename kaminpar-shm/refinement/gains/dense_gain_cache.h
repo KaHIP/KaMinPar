@@ -41,6 +41,7 @@ template <typename DeltaPartitionedGraph, typename GainCache> class DenseDeltaGa
 
 template <bool iterate_nonadjacent_blocks, bool iterate_exact_gains = false> class DenseGainCache {
   SET_DEBUG(true);
+  SET_STATISTICS(true);
 
   using Self = DenseGainCache<iterate_nonadjacent_blocks, iterate_exact_gains>;
   template <typename, typename> friend class DenseDeltaGainCache;
@@ -49,6 +50,27 @@ template <bool iterate_nonadjacent_blocks, bool iterate_exact_gains = false> cla
   constexpr static UnsignedEdgeWeight kWeightedDegreeLock =
       (static_cast<UnsignedEdgeWeight>(1) << (std::numeric_limits<UnsignedEdgeWeight>::digits - 1));
   constexpr static UnsignedEdgeWeight kWeightedDegreeMask = ~kWeightedDegreeLock;
+
+  struct Statistics {
+    parallel::Atomic<std::size_t> num_hd_queries = 0;
+    parallel::Atomic<std::size_t> num_hd_updates = 0;
+
+    parallel::Atomic<std::size_t> num_ld_queries = 0;
+    parallel::Atomic<std::size_t> num_ld_updates = 0;
+    parallel::Atomic<std::size_t> num_ld_insertions = 0;
+    parallel::Atomic<std::size_t> num_ld_deletions = 0;
+
+    parallel::Atomic<std::size_t> num_moves = 0;
+
+    void print() const {
+      STATS << "[Statistics] DenseGainCache:";
+      STATS << "[Statistics]   * Moves: " << num_moves;
+      STATS << "[Statistics]   * Queries: " << num_ld_queries << " LD, " << num_hd_queries << " HD";
+      STATS << "[Statistics]   * Updates: " << num_ld_updates << " LD, " << num_hd_updates << " HD";
+      STATS << "[Statistics]     + LD Insertions: " << num_ld_insertions;
+      STATS << "[Statistics]     + LD Deletions: " << num_ld_deletions;
+    }
+  };
 
 public:
   template <typename DeltaPartitionedGraph>
@@ -181,19 +203,27 @@ public:
       const BlockID block_from,
       const BlockID block_to
   ) {
+    IFSTATS(++_stats.num_moves);
+
     for (const auto &[e, v] : p_graph.neighbors(node)) {
       const EdgeWeight weight = p_graph.edge_weight(e);
 
       if (is_hd_node(v)) {
         __atomic_fetch_sub(&_gain_cache[hd_index(v, block_from)], weight, __ATOMIC_RELAXED);
         __atomic_fetch_add(&_gain_cache[hd_index(v, block_to)], weight, __ATOMIC_RELAXED);
+
+        IFSTATS(++_stats.num_hd_updates);
       } else {
         auto ht = ld_ht(v);
 
         lock(v);
-        ht.decrease_by(block_from, weight);
-        ht.increase_by(block_to, weight);
+        [[maybe_unused]] bool was_deleted = ht.decrease_by(block_from, weight);
+        [[maybe_unused]] bool was_inserted = ht.increase_by(block_to, weight);
         unlock(v);
+
+        IFSTATS(++_stats.num_ld_updates);
+        IFSTATS(_stats.num_ld_deletions += (was_deleted ? 1 : 0));
+        IFSTATS(_stats.num_ld_insertions += (was_inserted ? 1 : 0));
       }
     }
   }
@@ -207,11 +237,14 @@ public:
     p_graph.pfor_nodes([&](const NodeID u) {
       if (!check_cached_gain_for_node(p_graph, u)) {
         LOG_WARNING << "gain cache invalid for node " << u;
-        std::exit(1); // @todo
         valid = false;
       }
     });
     return valid;
+  }
+
+  void summarize() const {
+    _stats.print();
   }
 
 private:
@@ -221,7 +254,6 @@ private:
       _buckets[bucket + 1] = _buckets[bucket] + graph.bucket_size(bucket);
     }
     std::fill(_buckets.begin() + graph.number_of_buckets(), _buckets.end(), graph.n());
-
     DBG << "Initialized buckets: " << _buckets;
   }
 
@@ -264,10 +296,12 @@ private:
 
   [[nodiscard]] EdgeWeight weighted_degree_to(const NodeID node, const BlockID block) const {
     if (is_hd_node(node)) {
+      IFSTATS(++_stats.num_hd_queries);
       return static_cast<EdgeWeight>(
           __atomic_load_n(&_gain_cache[hd_index(node, block)], __ATOMIC_RELAXED)
       );
     } else {
+      IFSTATS(++_stats.num_ld_queries);
       return ld_ht(node).get(block);
     }
   }
@@ -310,6 +344,8 @@ private:
   }
 
   void reset() {
+    IFSTATS(_stats = Statistics{});
+
     tbb::parallel_for<std::size_t>(0, _gain_cache.size(), [&](const std::size_t i) {
       _gain_cache[i] = 0;
     });
@@ -395,6 +431,8 @@ private:
 
   StaticArray<UnsignedEdgeWeight> _gain_cache;
   StaticArray<UnsignedEdgeWeight> _weighted_degrees;
+
+  mutable Statistics _stats;
 };
 
 template <typename DeltaPartitionedGraph, typename GainCache> class DenseDeltaGainCache {

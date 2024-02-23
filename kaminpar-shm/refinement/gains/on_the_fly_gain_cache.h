@@ -81,6 +81,10 @@ public:
     gains_impl<PartitionedGraph>(*_p_graph, node, from, std::forward<Lambda>(lambda));
   }
 
+  void summarize() const {
+    // print statistics
+  }
+
 private:
   template <typename PartitionedGraphType>
   [[nodiscard]] EdgeWeight gain_impl(

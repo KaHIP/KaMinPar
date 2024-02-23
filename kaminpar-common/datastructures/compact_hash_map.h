@@ -43,35 +43,38 @@ public:
   }
 
   // May not be called concurrently
-  void decrease_by(const MutType key, const MutType value) {
+  bool decrease_by(const MutType key, const MutType value) {
     const auto [start_pos, start_entry] = find(key);
     const MutType start_value = decode_value(start_entry);
 
     if (start_value > value) {
       // Simple case: just decrease, but do not erase
       write_pos(start_pos, start_entry - value);
-    } else {
-      // Harder case: erase element
-      std::size_t hole_pos = start_pos;
-      std::size_t cur_pos = start_pos;
-      MutType cur_entry;
-
-      do {
-        cur_pos = hash(cur_pos + 1);
-        cur_entry = read_pos(cur_pos);
-
-        if (cur_entry == 0 || movable(decode_key(cur_entry), cur_pos, hole_pos)) {
-          write_pos(hole_pos, cur_entry);
-          hole_pos = cur_pos;
-        }
-      } while (cur_entry != 0);
+      return false;
     }
+
+    // Harder case: erase element
+    std::size_t hole_pos = start_pos;
+    std::size_t cur_pos = start_pos;
+    MutType cur_entry;
+
+    do {
+      cur_pos = hash(cur_pos + 1);
+      cur_entry = read_pos(cur_pos);
+
+      if (cur_entry == 0 || movable(decode_key(cur_entry), cur_pos, hole_pos)) {
+        write_pos(hole_pos, cur_entry);
+        hole_pos = cur_pos;
+      }
+    } while (cur_entry != 0);
+    return true;
   }
 
   // May not be called concurrently
-  void increase_by(const MutType key, const MutType value) {
+  bool increase_by(const MutType key, const MutType value) {
     const auto [pos, entry] = find(key);
     write_pos(pos, encode_key_value(key, decode_value(entry) + value));
+    return entry == 0;
   }
 
   [[nodiscard]] MutType get(const MutType key) const {

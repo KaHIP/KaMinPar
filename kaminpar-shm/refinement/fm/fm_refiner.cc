@@ -299,6 +299,7 @@ bool FMRefiner<GainCache, DeltaPartitionedGraph>::refine(
   IF_STATS {
     _shared->stats.summarize();
     _shared->stats.reset();
+    _shared->gain_cache.summarize();
   }
   IF_STATSC(_fm_ctx.compute_batch_size_statistics) {
     _shared->batch_stats.summarize();
@@ -596,6 +597,7 @@ EdgeWeight LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::run_batch() {
         _p_graph.set_block(node, block_to);
         _shared.gain_cache.move(_p_graph, node, block_from, block_to);
         _shared.node_tracker.set(node, NodeTracker::MOVED_GLOBALLY);
+        IFSTATS(++stats.num_committed_moves);
 
         for (const auto &[moved_node, moved_to] : _d_graph.delta()) {
           const BlockID moved_from = _p_graph.block(moved_node);
@@ -615,7 +617,6 @@ EdgeWeight LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::run_batch() {
           _shared.gain_cache.move(_p_graph, moved_node, moved_from, moved_to);
           _shared.node_tracker.set(moved_node, NodeTracker::MOVED_GLOBALLY);
           _p_graph.set_block(moved_node, moved_to);
-
           IFSTATS(++stats.num_committed_moves);
         }
 

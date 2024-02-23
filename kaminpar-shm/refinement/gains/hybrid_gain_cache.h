@@ -194,6 +194,10 @@ public:
     return valid;
   }
 
+  void summarize() const {
+    // print statistics
+  }
+
 private:
   [[nodiscard]] EdgeWeight weighted_degree_to(const NodeID node, const BlockID block) const {
     return __atomic_load_n(&gc(node, block), __ATOMIC_RELAXED);
