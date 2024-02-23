@@ -23,7 +23,7 @@ template <typename Type> class CompactHashMap {
   using MutType = std::remove_const_t<Type>;
   static_assert(std::is_unsigned_v<Type>);
 
-  SET_DEBUG(true);
+  SET_DEBUG(false);
   constexpr static MutType kKeyToDebug = 14;
   constexpr static std::uint64_t kFlagToDebug = 0;
 
@@ -67,7 +67,7 @@ public:
                                   << decode_value(start_entry - value);
       write_pos(start_pos, start_entry - value);
 
-      DBGC(_flag == kFlagToDebug) << "RESULT: " << dbg_stringify();
+      DBGC(_flag == kFlagToDebug) << "  -> RESULT: " << dbg_stringify();
       return;
     }
 
@@ -110,7 +110,7 @@ public:
 
     write_pos(hole_pos, 0);
 
-    DBGC(_flag == kFlagToDebug) << "RESULT: " << dbg_stringify();
+    DBGC(_flag == kFlagToDebug) << "  -> RESULT: " << dbg_stringify();
 
     KASSERT(
         [&] {
@@ -134,7 +134,7 @@ public:
           return true;
         }(),
         _flag << "/bad hash table state after erasing key = " << key,
-        assert::normal
+        assert::heavy
     );
   }
 
@@ -145,7 +145,7 @@ public:
     const auto [pos, entry] = find(key);
     write_pos(pos, encode_key_value(key, decode_value(entry) + value));
 
-    DBGC(_flag == kFlagToDebug) << "RESULT: " << dbg_stringify();
+    DBGC(_flag == kFlagToDebug) << "  -> RESULT: " << dbg_stringify();
   }
 
   [[nodiscard]] MutType get(const MutType key) const {
