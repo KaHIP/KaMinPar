@@ -7,11 +7,12 @@
  ******************************************************************************/
 #include "kaminpar-shm/refinement/balancer/greedy_balancer.h"
 
+#include "kaminpar-shm/metrics.h"
+
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/random.h"
 
 namespace kaminpar::shm {
-SET_DEBUG(false);
-
 void GreedyBalancer::initialize(const PartitionedGraph &) {}
 
 bool GreedyBalancer::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
@@ -35,18 +36,14 @@ bool GreedyBalancer::refine(PartitionedGraph &p_graph, const PartitionContext &p
   const NodeWeight new_overload = initial_overload - delta;
 
   DBG << "-> Balancer: cut=" << C(initial_cut, metrics::edge_cut(*_p_graph));
-  if (kStatistics) {
-    _stats.print();
-  }
+  IFSTATS(_stats.print());
 
   return new_overload == 0;
 }
 
 BlockWeight GreedyBalancer::perform_round() {
-  if (kStatistics) {
-    _stats.initial_cut = metrics::edge_cut(*_p_graph);
-    _stats.initial_overload = metrics::total_overload(*_p_graph, *_p_ctx);
-  }
+  IFSTATS(_stats.initial_cut = metrics::edge_cut(*_p_graph));
+  IFSTATS(_stats.initial_overload = metrics::total_overload(*_p_graph, *_p_ctx));
 
   // reset feasible target blocks
   for (auto &blocks : _feasible_target_blocks) {
@@ -85,26 +82,20 @@ BlockWeight GreedyBalancer::perform_round() {
 
         if (to == from) { // internal node --> move to random underloaded block
           moved_node = move_to_random_block(u);
-          if (kStatistics) {
-            _stats.num_successful_random_moves += moved_node;
-            _stats.num_unsuccessful_random_moves += (1 - moved_node);
-            ++_stats.num_moved_internal_nodes;
-          }
+          IFSTATS(_stats.num_successful_random_moves += moved_node);
+          IFSTATS(_stats.num_unsuccessful_random_moves += (1 - moved_node));
+          IFSTATS(++_stats.num_moved_internal_nodes);
 
           // border node -> move to promising block
         } else if (move_node_if_possible(u, from, to)) {
           moved_node = true;
-          if (kStatistics) {
-            ++_stats.num_moved_border_nodes;
-            ++_stats.num_successful_adjacent_moves;
-          }
+          IFSTATS(++_stats.num_moved_border_nodes);
+          IFSTATS(++_stats.num_successful_adjacent_moves);
 
           // border node could not be moved -> try again
         } else {
-          if (kStatistics) {
-            ++_stats.num_pq_reinserts;
-            ++_stats.num_unsuccessful_adjacent_moves;
-          }
+          IFSTATS(++_stats.num_pq_reinserts);
+          IFSTATS(++_stats.num_unsuccessful_adjacent_moves);
         }
 
         if (moved_node) { // update overload if node was moved
@@ -124,9 +115,7 @@ BlockWeight GreedyBalancer::perform_round() {
         }
       } else { // gain changed after insertion --> try again with new gain
         add_to_pq(from, u, _p_graph->node_weight(u), actual_relative_gain);
-        if (kStatistics) {
-          ++_stats.num_pq_reinserts;
-        }
+        IFSTATS(++_stats.num_pq_reinserts);
       }
     }
 
@@ -137,10 +126,8 @@ BlockWeight GreedyBalancer::perform_round() {
   });
   STOP_TIMER();
 
-  if (kStatistics) {
-    _stats.final_cut = metrics::edge_cut(*_p_graph);
-    _stats.final_overload = metrics::total_overload(*_p_graph, *_p_ctx);
-  }
+  IFSTATS(_stats.final_cut = metrics::edge_cut(*_p_graph));
+  IFSTATS(_stats.final_overload = metrics::total_overload(*_p_graph, *_p_ctx));
 
   const BlockWeight global_overload_delta = overload_delta.combine(std::plus{});
   return global_overload_delta;
@@ -226,9 +213,8 @@ void GreedyBalancer::init_pq() {
 
   START_TIMER("Merge thread-local PQs");
   tbb::parallel_for(static_cast<BlockID>(0), k, [&](const BlockID b) {
-    if (kStatistics && block_overload(b) > 0) {
-      ++_stats.num_overloaded_blocks;
-    }
+    IFSTATS(_stats.num_overloaded_blocks += block_overload(b) > 0 ? 1 : 0);
+
     _pq_weight[b] = 0;
 
     for (auto &pq : local_pq) {
@@ -326,9 +312,7 @@ bool GreedyBalancer::move_to_random_block(const NodeID u) {
 }
 
 void GreedyBalancer::init_feasible_target_blocks() {
-  if (kStatistics) {
-    ++_stats.num_feasible_target_block_inits;
-  }
+  IFSTATS(++_stats.num_feasible_target_block_inits);
 
   auto &blocks = _feasible_target_blocks.local();
   blocks.clear();

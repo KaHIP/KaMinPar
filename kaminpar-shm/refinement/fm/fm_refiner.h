@@ -7,19 +7,12 @@
  ******************************************************************************/
 #pragma once
 
-#include <cmath>
-
 #include <tbb/parallel_invoke.h>
 
-#include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/delta_partitioned_graph.h"
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/refinement/fm/stopping_policies.h"
-#include "kaminpar-shm/refinement/gains/dense_gain_cache.h"
-#include "kaminpar-shm/refinement/gains/hybrid_gain_cache.h"
-#include "kaminpar-shm/refinement/gains/on_the_fly_gain_cache.h"
-#include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
 #include "kaminpar-shm/refinement/refiner.h"
 
 #include "kaminpar-common/datastructures/binary_heap.h"

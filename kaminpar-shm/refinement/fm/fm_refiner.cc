@@ -7,7 +7,6 @@
  ******************************************************************************/
 #include "kaminpar-shm/refinement/fm/fm_refiner.h"
 
-#include <cmath>
 #include <queue>
 #include <set>
 #include <unordered_map>
@@ -15,22 +14,26 @@
 #include <tbb/concurrent_vector.h>
 #include <tbb/task_arena.h>
 
-#include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
-#include "kaminpar-shm/definitions.h"
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/refinement/fm/stopping_policies.h"
+#include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
 
-#include "kaminpar-common/datastructures/marker.h"
+#ifdef KAMINPAR_EXPERIMENTAL
+#include "kaminpar-shm/refinement/gains/dense_gain_cache.h"
+#include "kaminpar-shm/refinement/gains/hybrid_gain_cache.h"
+#include "kaminpar-shm/refinement/gains/on_the_fly_gain_cache.h"
+#endif // KAMINPAR_EXPERIMENTAL
+
+#include "kaminpar-common/logger.h"
 #include "kaminpar-common/parallel/atomic.h"
-#include "kaminpar-common/random.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
 namespace {
 SET_DEBUG(false);
-SET_STATISTICS_FROM_GLOBAL();
+SET_STATISTICS(false);
 } // namespace
 
 std::unique_ptr<Refiner> create_fm_refiner(const Context &ctx) {
@@ -107,25 +110,25 @@ void GlobalStats::reset() {
 }
 
 void GlobalStats::summarize() {
-  LOG_STATS << "FM Refinement:";
+  STATS << "FM Refiner:";
   for (std::size_t i = 0; i < iteration_stats.size(); ++i) {
     const Stats &stats = iteration_stats[i];
     if (stats.num_batches == 0) {
       continue;
     }
 
-    LOG_STATS << "  * Iteration " << (i + 1) << ":";
-    LOG_STATS << "    + Number of batches: " << stats.num_batches;
-    LOG_STATS << "    + Number of touched nodes: " << stats.num_touched_nodes << " in total, "
-              << 1.0 * stats.num_touched_nodes / stats.num_batches << " per batch";
-    LOG_STATS << "    + Number of moves: " << stats.num_committed_moves << " committed, "
-              << stats.num_discarded_moves << " discarded (= "
-              << 100.0 * stats.num_discarded_moves /
-                     (stats.num_committed_moves + stats.num_discarded_moves)
-              << "%)";
-    LOG_STATS << "    + Number of recomputed gains: " << stats.num_recomputed_gains;
-    LOG_STATS << "    + Number of PQ operations: " << stats.num_pq_inserts << " inserts, "
-              << stats.num_pq_updates << " updates, " << stats.num_pq_pops << " pops";
+    STATS << "  * Iteration " << (i + 1) << ":";
+    STATS << "    + # of batches: " << stats.num_batches;
+    STATS << "    + # of touched nodes: " << stats.num_touched_nodes << " in total, "
+          << 1.0 * stats.num_touched_nodes / stats.num_batches << " per batch";
+    STATS << "    + # of moves: " << stats.num_committed_moves << " committed, "
+          << stats.num_discarded_moves << " discarded (= "
+          << 100.0 * stats.num_discarded_moves /
+                 (stats.num_committed_moves + stats.num_discarded_moves)
+          << "%)";
+    STATS << "    + # of recomputed gains: " << stats.num_recomputed_gains;
+    STATS << "    + # of PQ operations: " << stats.num_pq_inserts << " inserts, "
+          << stats.num_pq_updates << " updates, " << stats.num_pq_pops << " pops";
   }
 }
 void GlobalBatchStats::next_iteration(std::vector<BatchStats> stats) {
@@ -137,10 +140,10 @@ void GlobalBatchStats::reset() {
 }
 
 void GlobalBatchStats::summarize() {
-  LOG_STATS << "Batches: [STATS:FM:BATCHES]";
+  STATS << "Batches: [STATS:FM:BATCHES]";
   for (std::size_t i = 0; i < iteration_stats.size(); ++i) {
     if (!iteration_stats[i].empty()) {
-      LOG_STATS << "  * Iteration " << (i + 1) << ":";
+      STATS << "  * Iteration " << (i + 1) << ":";
       summarize_iteration(i, iteration_stats[i]);
     }
   }
@@ -166,7 +169,7 @@ void GlobalBatchStats::summarize_iteration(
     }
   }
 
-  LOG_STATS << "    - Max distance: " << max_distance << " [STATS:FM:BATCHES:" << iteration << "]";
+  STATS << "    - Max distance: " << max_distance << " [STATS:FM:BATCHES:" << iteration << "]";
   std::stringstream size_ss, gain_ss;
   size_ss << "      + Size by distance: " << total_size_by_distance[0];
   gain_ss << "      + Gain by distance: " << total_gain_by_distance[0];
@@ -175,8 +178,8 @@ void GlobalBatchStats::summarize_iteration(
     size_ss << "," << total_size_by_distance[distance];
     gain_ss << "," << total_gain_by_distance[distance];
   }
-  LOG_STATS << size_ss.str() << " [STATS:FM:BATCHES:" << iteration << "]";
-  LOG_STATS << gain_ss.str() << " [STATS:FM:BATCHES:" << iteration << "]";
+  STATS << size_ss.str() << " [STATS:FM:BATCHES:" << iteration << "]";
+  STATS << gain_ss.str() << " [STATS:FM:BATCHES:" << iteration << "]";
 }
 } // namespace fm
 

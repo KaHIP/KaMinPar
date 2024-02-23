@@ -255,19 +255,19 @@ public:
   void summarize() const {
     IF_STATS {
       Statistics stats = _stats_ets.combine(std::plus{});
-      STATS << "[Statistics] DenseGainCache:";
-      STATS << "[Statistics]   * Moves: " << stats.num_moves;
-      STATS << "[Statistics]   * Queries: " << stats.num_ld_queries << " LD, "
+      STATS << "Dense Gain Cache:";
+      STATS << "  * # of moves: " << stats.num_moves;
+      STATS << "  * # of queries: " << stats.num_ld_queries << " LD, "
             << stats.num_hd_queries << " HD";
-      STATS << "[Statistics]     + Average initial LD fill degree: "
+      STATS << "    + Average initial LD fill degree: "
             << (stats.ld_fill_degree_count > 0
                     ? 100.0 * stats.total_ld_fill_degree / stats.ld_fill_degree_count
                     : 0)
             << "%";
-      STATS << "[Statistics]   * Updates: " << stats.num_ld_updates << " LD, "
+      STATS << "  * # of updates: " << stats.num_ld_updates << " LD, "
             << stats.num_hd_updates << " HD";
-      STATS << "[Statistics]     + LD Insertions: " << stats.num_ld_insertions;
-      STATS << "[Statistics]     + LD Deletions: " << stats.num_ld_deletions;
+      STATS << "    + # of LD Insertions: " << stats.num_ld_insertions;
+      STATS << "    + # of LD Deletions: " << stats.num_ld_deletions;
     }
   }
 

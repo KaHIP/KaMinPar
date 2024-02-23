@@ -78,9 +78,6 @@
   (kaminpar::DisposableLogger<true>(std::cout, std::string(": ") + std::strerror(errno) + "\n")    \
    << kaminpar::logger::RED << "[Fatal] ")
 
-#define LOG_STATS (kaminpar::Logger(std::cout) << kaminpar::logger::CYAN << "[Statistics] ")
-#define LOG_LSTATS (kaminpar::Logger(std::cout, "") << kaminpar::logger::CYAN)
-
 // V(x) prints x<space><value of x><space>, e.g., use LOG << V(a) << V(b) <<
 // V(c); to quickly print the values of variables a, b, c C(x, y) prints [<value
 // of x> --> <value of y>]
@@ -98,7 +95,7 @@
 #define IFSTATS(expr) (kStatistics ? (expr) : std::decay_t<decltype(expr)>())
 #define IF_STATS if constexpr (kStatistics)
 #define IF_STATSC(cond) if (kStatistics && (cond))
-#define STATS kStatistics &&kaminpar::DisposableLogger<false>(std::cout) << kaminpar::logger::CYAN
+#define STATS kStatistics &&kaminpar::DisposableLogger<false>(std::cout) << kaminpar::logger::CYAN << "[Statistics] "
 
 #ifdef KAMINPAR_ENABLE_STATISTICS
 #define SET_STATISTICS_FROM_GLOBAL() SET_STATISTICS(true)
