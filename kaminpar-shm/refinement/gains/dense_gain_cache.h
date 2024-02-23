@@ -260,7 +260,10 @@ public:
       STATS << "[Statistics]   * Queries: " << stats.num_ld_queries << " LD, "
             << stats.num_hd_queries << " HD";
       STATS << "[Statistics]     + Average initial LD fill degree: "
-            << 100.0 * stats.total_ld_fill_degree / stats.ld_fill_degree_count << "%";
+            << (stats.ld_fill_degree_count > 0
+                    ? 100.0 * stats.total_ld_fill_degree / stats.ld_fill_degree_count
+                    : 0)
+            << "%";
       STATS << "[Statistics]   * Updates: " << stats.num_ld_updates << " LD, "
             << stats.num_hd_updates << " HD";
       STATS << "[Statistics]     + LD Insertions: " << stats.num_ld_insertions;
@@ -378,11 +381,12 @@ private:
         validate(p_graph), "dense gain cache verification failed after recomputation", assert::heavy
     );
     IF_STATS {
-      auto &stats = _stats_ets.local();
       p_graph.pfor_nodes([&](const NodeID u) {
         if (!is_hd_node(u)) {
           auto map = ld_ht(u);
-          stats.total_ld_fill_degree = 1.0 * map.count() / map.capacity();
+
+          auto &stats = _stats_ets.local();
+          stats.total_ld_fill_degree += 1.0 * map.count() / map.capacity();
           ++stats.ld_fill_degree_count;
         }
       });
