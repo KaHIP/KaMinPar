@@ -263,19 +263,20 @@ Options are:
 CLI::Option_group *create_contraction_coarsening_options(CLI::App *app, Context &ctx) {
   auto *contraction = app->add_option_group("Coarsening -> Contraction");
 
+  contraction->add_option("--c-con-mode", ctx.coarsening.contraction.mode)
+      ->transform(CLI::CheckedTransformer(get_contraction_modes()).description(""))
+      ->description(R"(The mode useed for contraction.
+Options are:
+  - edge-buffer:            Use an edge buffer to store edges temporarily
+  - no-edge-buffer-naive:   Use no edge buffer by computing the neighborhood of each coarse node twice
+  - no-edge-buffer-remap:   Use no edge buffer by remapping the coarse nodes afterwards
+  )")
+      ->capture_default_str();
   contraction
       ->add_option(
           "--c-con-edge-buffer-fill-fraction",
           ctx.coarsening.contraction.edge_buffer_fill_fraction,
           "The fraction of the total edges with which to fill the edge buffer"
-      )
-      ->capture_default_str();
-  contraction
-      ->add_option(
-          "--c-con-compact-ids",
-          ctx.coarsening.contraction.use_compact_ids,
-          "Whether to build a contracted graph which uses node IDs and edge weights with minimal "
-          "byte width"
       )
       ->capture_default_str();
 

@@ -367,6 +367,27 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
   }
 }
 
+std::ostream &operator<<(std::ostream &out, const ContractionMode mode) {
+  switch (mode) {
+  case ContractionMode::EDGE_BUFFER:
+    return out << "edge-buffer";
+  case ContractionMode::NO_EDGE_BUFFER_NAIVE:
+    return out << "no-edge-buffer-naive";
+  case ContractionMode::NO_EDGE_BUFFER_REMAP:
+    return out << "no-edge-buffer-remap";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, ContractionMode> get_contraction_modes() {
+  return {
+      {"edge-buffer", ContractionMode::EDGE_BUFFER},
+      {"no-edge-buffer-naive", ContractionMode::NO_EDGE_BUFFER_NAIVE},
+      {"no-edge-buffer-remap", ContractionMode::NO_EDGE_BUFFER_REMAP},
+  };
+}
+
 void print(const CoarseningContext &c_ctx, std::ostream &out) {
   out << "Contraction limit:            " << c_ctx.contraction_limit << "\n";
   out << "Cluster weight limit:         " << c_ctx.cluster_weight_limit << " x "
@@ -375,11 +396,10 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
   if (c_ctx.algorithm == ClusteringAlgorithm::LABEL_PROPAGATION) {
     print(c_ctx.lp, out);
   }
-  out << "Contraction:                  ";
-  if (c_ctx.contraction.use_compact_ids) {
-    out << "No edge buffer + compact IDs\n";
-  } else {
-    out << "Edge buffer [fill fraction: " << c_ctx.contraction.edge_buffer_fill_fraction << "]\n";
+
+  out << "Contraction mode:             " << c_ctx.contraction.mode << '\n';
+  if (c_ctx.contraction.mode == ContractionMode::EDGE_BUFFER) {
+    out << "  Edge buffer fill fraction:  " << c_ctx.contraction.edge_buffer_fill_fraction << "\n";
   }
 }
 

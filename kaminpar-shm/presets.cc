@@ -84,7 +84,11 @@ Context create_default_context() {
                       .isolated_nodes_strategy =
                           IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP,
                   },
-              .contraction = {.edge_buffer_fill_fraction = 1, .use_compact_ids = false},
+              .contraction =
+                  {
+                      .mode = ContractionMode::EDGE_BUFFER,
+                      .edge_buffer_fill_fraction = 1,
+                  },
               .contraction_limit = 2000,
               .enforce_contraction_limit = false,
               .convergence_threshold = 0.05,
@@ -188,7 +192,7 @@ Context create_memory_context() {
   ctx.compression.may_dismiss = true;
   ctx.coarsening.lp.use_two_phases = true;
   ctx.coarsening.lp.use_two_level_cluster_weight_vector = true;
-  ctx.coarsening.contraction.use_compact_ids = true;
+  ctx.coarsening.contraction.mode = ContractionMode::NO_EDGE_BUFFER_REMAP;
   return ctx;
 }
 

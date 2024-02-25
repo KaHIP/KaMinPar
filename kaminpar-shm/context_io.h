@@ -66,6 +66,10 @@ std::ostream &operator<<(std::ostream &out, IsolatedNodesClusteringStrategy stra
 std::unordered_map<std::string, IsolatedNodesClusteringStrategy>
 get_isolated_nodes_clustering_strategies();
 
+std::ostream &operator<<(std::ostream &out, const ContractionMode mode);
+
+std::unordered_map<std::string, ContractionMode> get_contraction_modes();
+
 void print(const Context &ctx, std::ostream &out);
 void print(const GraphCompressionContext &c_ctx, std::ostream &out);
 void print(const PartitioningContext &p_ctx, std::ostream &out);

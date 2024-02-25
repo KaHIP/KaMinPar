@@ -129,9 +129,15 @@ struct LabelPropagationCoarseningContext {
   IsolatedNodesClusteringStrategy isolated_nodes_strategy;
 };
 
+enum class ContractionMode {
+  EDGE_BUFFER,
+  NO_EDGE_BUFFER_NAIVE,
+  NO_EDGE_BUFFER_REMAP
+};
+
 struct ContractionCoarseningContext {
+  ContractionMode mode;
   double edge_buffer_fill_fraction;
-  bool use_compact_ids;
 };
 
 struct CoarseningContext {
