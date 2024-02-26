@@ -32,6 +32,7 @@ option(KAMINPAR_ENABLE_TIMERS "Measure running times. Must be set to 'OFF' if th
 option(KAMINPAR_ENABLE_TIMER_BARRIERS "Add additional MPI_Barrier() instructions for more accurate time measurements." ON)
 
 option(KAMINPAR_BUILD_WITH_ASAN "Enable address sanitizer." OFF)
+option(KAMINPAR_BUILD_WITH_UBSAN "Enable undefined behaviour sanitizer." OFF)
 option(KAMINPAR_BUILD_WITH_MTUNE_NATIVE "Build with -mtune=native." ON)
 option(KAMINPAR_BUILD_WITH_CCACHE "Use ccache to build." ON)
 option(KAMINPAR_BUILD_WITH_DEBUG_SYMBOLS "Always build with debug symbols, even in Release mode." ON)
@@ -116,6 +117,11 @@ endif ()
 if (KAMINPAR_BUILD_WITH_ASAN) 
     add_compile_options(-fsanitize=address)
     add_link_options(-fsanitize=address)
+endif ()
+
+if (KAMINPAR_BUILD_WITH_UBSAN) 
+    add_compile_options(-fsanitize=undefined)
+    add_link_options(-fsanitize=undefined)
 endif ()
 
 if (KAMINPAR_BUILD_WITH_PG)
