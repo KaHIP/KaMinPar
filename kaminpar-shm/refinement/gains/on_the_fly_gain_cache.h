@@ -7,13 +7,9 @@
  ******************************************************************************/
 #pragma once
 
-#include <type_traits>
-
-#include "kaminpar-shm/context.h"
-#include "kaminpar-shm/datastructures/delta_partitioned_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
+#include "kaminpar-shm/kaminpar.h"
 
-#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/datastructures/sparse_map.h"
 
@@ -183,7 +179,11 @@ private:
       map.clear();
     };
 
-    _rating_map_ets.local().execute(std::min<BlockID>(p_graph.degree(node), p_graph.k()), action);
+    if constexpr (kIteratesNonadjacentBlocks) {
+      _rating_map_ets.local().execute(p_graph.k(), action);
+    } else {
+      _rating_map_ets.local().execute(std::min<BlockID>(p_graph.degree(node), p_graph.k()), action);
+    }
   }
 
   const PartitionedGraph *_p_graph = nullptr;
@@ -200,31 +200,33 @@ public:
 
   OnTheFlyDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph &d_graph)
       : _gain_cache(gain_cache),
-        _d_graph(&d_graph) {}
+        _d_graph(d_graph) {
+  }
 
   [[nodiscard]] EdgeWeight conn(const NodeID node, const BlockID block) const {
-    return _gain_cache.conn_impl(*_d_graph, node, block);
+    return _gain_cache.conn_impl(_d_graph, node, block);
   }
 
   [[nodiscard]] EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
-    return _gain_cache.gain_impl(*_d_graph, node, from, to);
+    return _gain_cache.gain_impl(_d_graph, node, from, to);
   }
 
   [[nodiscard]] std::pair<EdgeWeight, EdgeWeight>
   gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) const {
-    return _gain_cache.gain_impl(*_d_graph, node, b_node, targets);
+    return _gain_cache.gain_impl(_d_graph, node, b_node, targets);
   }
 
   template <typename Lambda>
   void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
     static_assert(DeltaPartitionedGraph::kAllowsReadAfterMove, "illegal configuration");
-    _gain_cache.gains_impl(*_d_graph, node, from, std::forward<Lambda>(lambda));
+    _gain_cache.gains_impl(_d_graph, node, from, std::forward<Lambda>(lambda));
   }
 
   void move(
       const DeltaPartitionedGraph &d_graph, NodeID /* node */, BlockID /* from */, BlockID /* to */
   ) {
     // nothing to do
+    KASSERT(&_d_graph == &d_graph, "move() called with bad delta graph");
   }
 
   void clear() {
@@ -233,6 +235,6 @@ public:
 
 private:
   const GainCache &_gain_cache;
-  const DeltaPartitionedGraph *_d_graph;
+  const DeltaPartitionedGraph &_d_graph;
 };
 } // namespace kaminpar::shm

@@ -41,22 +41,26 @@ public:
   SparseGainCache(
       const Context & /* ctx */, const NodeID preallocate_for_n, const BlockID preallocate_for_k
   )
-      : _gain_cache(static_array::noinit, 1ul * preallocate_for_n * preallocate_for_k),
+      : _gain_cache(static_array::noinit, 1ull * preallocate_for_n * preallocate_for_k),
         _weighted_degrees(static_array::noinit, preallocate_for_n) {}
 
   void initialize(const PartitionedGraph &p_graph) {
     _n = p_graph.n();
     _k = p_graph.k();
 
-    const std::size_t gc_size = static_cast<std::size_t>(_n) * static_cast<std::size_t>(_k);
+    const std::size_t gc_size = 1ull * _n * _k;
 
-    TIMED_SCOPE("Allocation") {
+    if (_gain_cache.size() < gc_size) {
+      SCOPED_TIMER("Allocation");
       DBG << "Resizing sparse gain cache for " << _n << " nodes and " << _k << " blocks: allocate "
           << gc_size / sizeof(EdgeWeight) / 1024 << " KiB";
-
       _gain_cache.resize(static_array::noinit, gc_size);
+    }
+
+    if (_weighted_degrees.size() < _n) {
+      SCOPED_TIMER("Allocation");
       _weighted_degrees.resize(static_array::noinit, _n);
-    };
+    }
 
     reset();
     recompute_all(p_graph);
@@ -150,7 +154,7 @@ private:
 
   void reset() {
     SCOPED_TIMER("Reset gain cache");
-    tbb::parallel_for<std::size_t>(0, _gain_cache.size(), [&](const std::size_t i) {
+    tbb::parallel_for<std::size_t>(0, 1ull * _n * _k, [&](const std::size_t i) {
       _gain_cache[i] = 0;
     });
   }

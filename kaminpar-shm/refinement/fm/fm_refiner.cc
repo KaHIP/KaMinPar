@@ -209,23 +209,22 @@ bool FMRefiner<GainCache, DeltaPartitionedGraph>::refine(
   EdgeWeight total_expected_gain = 0;
 
   // Create thread-local workers numbered 1..P
+  using Worker = LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>;
   std::atomic<int> next_id = 0;
-  tbb::enumerable_thread_specific<LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>>
-      localized_fm_refiner_ets([&] {
-        // It is important that worker IDs start at 1, otherwise the node
-        // tracker won't work
-        LocalizedFMRefiner<GainCache, DeltaPartitionedGraph> localized_refiner(
-            ++next_id, p_ctx, _fm_ctx, p_graph, *_shared
-        );
+  tbb::enumerable_thread_specific<std::unique_ptr<Worker>> localized_fm_refiner_ets([&] {
+    // It is important that worker IDs start at 1, otherwise the node
+    // tracker won't work
+    std::unique_ptr<Worker> localized_refiner =
+        std::make_unique<Worker>(++next_id, p_ctx, _fm_ctx, p_graph, *_shared);
 
-        // If we want to evaluate the successful batches, record moves that are applied to the
-        // global graph
-        IF_STATSC(_fm_ctx.compute_batch_size_statistics) {
-          localized_refiner.enable_move_recording();
-        }
+    // If we want to evaluate the successful batches, record moves that are applied to the
+    // global graph
+    IF_STATSC(_fm_ctx.compute_batch_size_statistics) {
+      localized_refiner->enable_move_recording();
+    }
 
-        return localized_refiner;
-      });
+    return localized_refiner;
+  });
 
   for (int iteration = 0; iteration < _fm_ctx.num_iterations; ++iteration) {
     // Gains of the current iterations
@@ -255,7 +254,7 @@ bool FMRefiner<GainCache, DeltaPartitionedGraph>::refine(
     tbb::parallel_for<int>(0, _ctx.parallel.num_threads, [&](int) {
       EdgeWeight &expected_gain = expected_gain_ets.local();
       LocalizedFMRefiner<GainCache, DeltaPartitionedGraph> &localized_refiner =
-          localized_fm_refiner_ets.local();
+          *localized_fm_refiner_ets.local();
 
       // The workers attempt to extract seed nodes from the border nodes
       // that are still available, continuing this process until there are

@@ -13,7 +13,7 @@
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/graph_delegate.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
-#include "kaminpar-shm/definitions.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/ranges.h"
