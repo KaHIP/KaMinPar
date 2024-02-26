@@ -8,18 +8,13 @@
  ******************************************************************************/
 #pragma once
 
-#include <type_traits>
-
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
-#include "kaminpar-shm/context.h"
-#include "kaminpar-shm/datastructures/delta_partitioned_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
+#include "kaminpar-shm/kaminpar.h"
 
-#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/dynamic_map.h"
-#include "kaminpar-common/datastructures/noinit_vector.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 
@@ -53,16 +48,15 @@ public:
     _n = p_graph.n();
     _k = p_graph.k();
 
-    if (_gain_cache.size() < _n * _k) {
-      SCOPED_TIMER("Allocation");
-      DBG << "Resizing sparse gain cache for " << _n << " nodes and " << _k << " blocks";
-      _gain_cache.resize(static_array::noinit, _n * _k);
-    }
-    if (_weighted_degrees.size() < _n) {
-      SCOPED_TIMER("Allocation");
-      DBG << "Resizing weighted degrees for " << _n << " nodes";
+    const std::size_t gc_size = static_cast<std::size_t>(_n) * static_cast<std::size_t>(_k);
+
+    TIMED_SCOPE("Allocation") {
+      DBG << "Resizing sparse gain cache for " << _n << " nodes and " << _k << " blocks: allocate "
+          << gc_size / sizeof(EdgeWeight) / 1024 << " KiB";
+
+      _gain_cache.resize(static_array::noinit, gc_size);
       _weighted_degrees.resize(static_array::noinit, _n);
-    }
+    };
 
     reset();
     recompute_all(p_graph);
@@ -156,11 +150,13 @@ private:
 
   void reset() {
     SCOPED_TIMER("Reset gain cache");
-    tbb::parallel_for<std::size_t>(0, _n * _k, [&](const std::size_t i) { _gain_cache[i] = 0; });
+    tbb::parallel_for<std::size_t>(0, _gain_cache.size(), [&](const std::size_t i) {
+      _gain_cache[i] = 0;
+    });
   }
 
   void recompute_all(const PartitionedGraph &p_graph) {
-    SCOPED_TIMER("Recompute recompute gain cache");
+    SCOPED_TIMER("Recompute gain cache");
     p_graph.pfor_nodes([&](const NodeID u) { recompute_node(p_graph, u); });
   }
 
