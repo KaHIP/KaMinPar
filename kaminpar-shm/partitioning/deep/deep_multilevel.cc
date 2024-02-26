@@ -11,6 +11,8 @@
 #include "kaminpar-shm/partitioning/deep/async_initial_partitioning.h"
 #include "kaminpar-shm/partitioning/deep/sync_initial_partitioning.h"
 
+#include "kaminpar-common/console_io.h"
+
 namespace kaminpar::shm {
 namespace {
 SET_DEBUG(false);

@@ -93,13 +93,13 @@ public:
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
   DenseGainCache(
-      const Context &ctx, const NodeID preallocate_for_n, BlockID /* preallocate_for_k */
+      const Context &ctx, const NodeID preallocate_n, BlockID /* preallocate_k */
   )
       : _ctx(ctx),
         // Since we do not know the size of the gain cache in advance (depends on vertex degrees),
         // we cannot preallocate it
         _gain_cache(static_array::noinit, 0),
-        _weighted_degrees(static_array::noinit, preallocate_for_n) {}
+        _weighted_degrees(static_array::noinit, preallocate_n) {}
 
   void initialize(const PartitionedGraph &p_graph) {
     _n = p_graph.n();

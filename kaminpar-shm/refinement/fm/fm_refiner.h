@@ -174,12 +174,12 @@ private:
 };
 
 template <typename GainCache> struct SharedData {
-  SharedData(const Context &ctx, const NodeID max_n, const BlockID max_k)
-      : node_tracker(max_n),
-        gain_cache(ctx, max_n, max_k),
+  SharedData(const Context &ctx, const NodeID preallocate_n, const BlockID preallocate_k)
+      : node_tracker(preallocate_n),
+        gain_cache(ctx, preallocate_n, preallocate_k),
         border_nodes(ctx, gain_cache, node_tracker),
-        shared_pq_handles(max_n, SharedBinaryMaxHeap<EdgeWeight>::kInvalidID),
-        target_blocks(static_array::noinit, max_n) {}
+        shared_pq_handles(preallocate_n, SharedBinaryMaxHeap<EdgeWeight>::kInvalidID),
+        target_blocks(static_array::noinit, preallocate_n) {}
 
   SharedData(const SharedData &) = delete;
   SharedData &operator=(const SharedData &) = delete;

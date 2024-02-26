@@ -39,10 +39,14 @@ public:
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
   SparseGainCache(
-      const Context & /* ctx */, const NodeID preallocate_for_n, const BlockID preallocate_for_k
+      const Context & /* ctx */, const NodeID preallocate_n, const BlockID preallocate_k
   )
-      : _gain_cache(static_array::noinit, 1ull * preallocate_for_n * preallocate_for_k),
-        _weighted_degrees(static_array::noinit, preallocate_for_n) {}
+      : _gain_cache(static_array::noinit, 1ull * preallocate_n * preallocate_k),
+        _weighted_degrees(static_array::noinit, preallocate_n) {
+    DBG << "Pre-allocating sparse gain cache: " << preallocate_n << " nodes, " << preallocate_k
+        << " blocks -> allocate " << preallocate_n * preallocate_k * sizeof(EdgeWeight) / 1024
+        << " KiB";
+  }
 
   void initialize(const PartitionedGraph &p_graph) {
     _n = p_graph.n();
@@ -52,11 +56,10 @@ public:
 
     if (_gain_cache.size() < gc_size) {
       SCOPED_TIMER("Allocation");
-      DBG << "Resizing sparse gain cache for " << _n << " nodes and " << _k << " blocks: allocate "
-          << gc_size / sizeof(EdgeWeight) / 1024 << " KiB";
+      DBG << "Re-allocating sparse gain cache: " << _n << " nodes, " << _k << " blocks -> allocate "
+          << gc_size * sizeof(EdgeWeight) / 1024 << " KiB";
       _gain_cache.resize(static_array::noinit, gc_size);
     }
-
     if (_weighted_degrees.size() < _n) {
       SCOPED_TIMER("Allocation");
       _weighted_degrees.resize(static_array::noinit, _n);
@@ -146,15 +149,14 @@ private:
   }
 
   [[nodiscard]] std::size_t index(const NodeID node, const BlockID block) const {
-    const std::size_t idx = static_cast<std::size_t>(node) * static_cast<std::size_t>(_k) +
-                            static_cast<std::size_t>(block);
+    const std::size_t idx = 1ull * node * _k + block;
     KASSERT(idx < _gain_cache.size());
     return idx;
   }
 
   void reset() {
     SCOPED_TIMER("Reset gain cache");
-    tbb::parallel_for<std::size_t>(0, 1ull * _n * _k, [&](const std::size_t i) {
+    tbb::parallel_for<std::size_t>(0, 1ull * _n * _k, [this](const std::size_t i) {
       _gain_cache[i] = 0;
     });
   }

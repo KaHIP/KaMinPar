@@ -9,17 +9,11 @@
 
 #include <tbb/enumerable_thread_specific.h>
 
-#include "kaminpar-shm/coarsening/lp_clustering.h"
-#include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/graph.h"
-#include "kaminpar-shm/factories.h"
 #include "kaminpar-shm/graphutils/subgraph_extractor.h"
-#include "kaminpar-shm/initial_partitioning/initial_partitioning_facade.h"
-#include "kaminpar-shm/initial_partitioning/pool_bipartitioner.h"
+#include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/partitioning/helper.h"
 #include "kaminpar-shm/partitioning/partitioner.h"
-
-#include "kaminpar-common/console_io.h"
 
 namespace kaminpar::shm {
 class DeepMultilevelPartitioner : public Partitioner {

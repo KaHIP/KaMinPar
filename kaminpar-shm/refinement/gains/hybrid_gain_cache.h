@@ -8,19 +8,15 @@
  ******************************************************************************/
 #pragma once
 
-#include <type_traits>
-
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
-#include "kaminpar-shm/context.h"
-#include "kaminpar-shm/datastructures/delta_partitioned_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
+#include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/refinement/gains/on_the_fly_gain_cache.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/dynamic_map.h"
-#include "kaminpar-common/datastructures/noinit_vector.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 
@@ -44,13 +40,11 @@ public:
   // the gain consumer with the total edge weight between the node and nodes in the specific block.
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
-  HybridGainCache(
-      const Context &ctx, const NodeID preallocate_for_n, const BlockID preallocate_for_k
-  )
+  HybridGainCache(const Context &ctx, const NodeID preallocate_n, const BlockID preallocate_k)
       : _ctx(ctx),
-        _on_the_fly_gain_cache(ctx, preallocate_for_n, preallocate_for_k),
-        _gain_cache(static_array::noinit, 1ul * preallocate_for_n * preallocate_for_k),
-        _weighted_degrees(static_array::noinit, preallocate_for_n) {}
+        _on_the_fly_gain_cache(ctx, preallocate_n, preallocate_k),
+        _gain_cache(static_array::noinit, 1ul * preallocate_n * preallocate_k),
+        _weighted_degrees(static_array::noinit, preallocate_n) {}
 
   void initialize(const PartitionedGraph &p_graph) {
     DBG << "Initialize high-degree gain cache for a graph with n=" << p_graph.n()
