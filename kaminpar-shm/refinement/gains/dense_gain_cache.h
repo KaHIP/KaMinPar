@@ -91,9 +91,7 @@ public:
   // the gain consumer with the total edge weight between the node and nodes in the specific block.
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
-  DenseGainCache(
-      const Context &ctx, const NodeID preallocate_n, BlockID /* preallocate_k */
-  )
+  DenseGainCache(const Context &ctx, const NodeID preallocate_n, BlockID preallocate_k)
       : _ctx(ctx),
         // Since we do not know the size of the gain cache in advance (depends on vertex degrees),
         // we cannot preallocate it
@@ -122,19 +120,20 @@ public:
     if (p_graph.sorted()) {
       DBG << "Graph was rearranged by degree buckets: using the mixed dense-sparse strategy";
 
+      // Compute the degree that we use to decide between low- and high-degree nodes
       const EdgeID degree_threshold = std::max<EdgeID>(
           _k * _ctx.refinement.kway_fm.k_based_high_degree_threshold,
           _ctx.refinement.kway_fm.constant_high_degree_threshold
       );
 
+      // Based on this degree, look for the first bucket whose nodes we assign to the sparse part
       for (_bucket_threshold = 0;
            _node_threshold < p_graph.n() && p_graph.degree(_node_threshold) < degree_threshold;
            ++_bucket_threshold) {
         _cache_offsets[_bucket_threshold] = gc_size;
-
+        _node_threshold += p_graph.bucket_size(_bucket_threshold);
         gc_size += p_graph.bucket_size(_bucket_threshold) *
                    (lowest_degree_in_bucket<NodeID>(_bucket_threshold + 1));
-        _node_threshold += p_graph.bucket_size(_bucket_threshold);
       }
       std::fill(_cache_offsets.begin() + _bucket_threshold, _cache_offsets.end(), gc_size);
       gc_size += static_cast<std::size_t>(p_graph.n() - _node_threshold) * _k;
@@ -143,16 +142,30 @@ public:
           << ", node threshold: " << _node_threshold << ", bucket threshold: " << _bucket_threshold;
       DBG << "Cache offsets: " << _cache_offsets;
     } else {
-      DBG << "Graph was *not* rearranged by degree buckets: using the sparse strategy only";
       gc_size = 1ul * _n * _k;
-    }
-    DBG << "Computed gain cache size: " << gc_size << " entries, allocate "
-        << (gc_size * sizeof(UnsignedEdgeWeight) / 1024.0) << " KiB";
 
-    TIMED_SCOPE("Allocation") {
-      _gain_cache.resize(static_array::noinit, gc_size);
-      _weighted_degrees.resize(static_array::noinit, _n);
-    };
+      DBG << "Graph was *not* rearranged by degree buckets: using the sparse strategy only (i.e., "
+             "using node threshold: "
+          << _node_threshold << ", bucket threshold: " << _bucket_threshold << ")";
+      DBG << "Cache offsets: " << _cache_offsets;
+    }
+
+    _sparse_offset = _cache_offsets[_bucket_threshold];
+
+    DBG << "Computed gain cache size: " << gc_size << " entries, consumes "
+        << (gc_size * sizeof(UnsignedEdgeWeight) / 1024.0) << " KiB memory";
+
+    if (_gain_cache.size() < gc_size) {
+      DBG << "Re-allocating dense gain cache to " << gc_size * sizeof(EdgeWeight) / 1024 << " KiB";
+
+      SCOPED_TIMER("Allocation");
+      _gain_cache.resize(gc_size);
+    }
+
+    if (_weighted_degrees.size() < _n) {
+      SCOPED_TIMER("Allocation");
+      _weighted_degrees.resize(_n);
+    }
 
     init_buckets(p_graph.graph());
     reset();
@@ -163,41 +176,80 @@ public:
     tbb::parallel_invoke([&] { _gain_cache.free(); }, [&] { _weighted_degrees.free(); });
   }
 
-  [[nodiscard]] EdgeWeight
+  [[nodiscard]] inline __attribute__((always_inline)) EdgeWeight
   gain(const NodeID node, const BlockID block_from, const BlockID block_to) const {
     return weighted_degree_to(node, block_to) - weighted_degree_to(node, block_from);
   }
 
-  [[nodiscard]] std::pair<EdgeWeight, EdgeWeight>
+  [[nodiscard]] inline __attribute__((always_inline)) std::pair<EdgeWeight, EdgeWeight>
   gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) {
     return {gain(node, b_node, targets.first), gain(node, b_node, targets.second)};
   }
 
-  [[nodiscard]] EdgeWeight conn(const NodeID node, const BlockID block) const {
+  [[nodiscard]] inline __attribute__((always_inline)) EdgeWeight
+  conn(const NodeID node, const BlockID block) const {
     return weighted_degree_to(node, block);
   }
 
+  [[nodiscard]] inline __attribute__((always_inline)) EdgeWeight conn_hd(
+      const NodeID node,
+      const BlockID block,
+      const std::size_t cache_offset,
+      const NodeID node_offset
+  ) const {
+    return weighted_degree_to_hd(node, block, cache_offset, node_offset);
+  }
+
+  [[nodiscard]] inline __attribute__((always_inline)) EdgeWeight
+  conn_ld(const NodeID node, const BlockID block) const {
+    return weighted_degree_to_ld(node, block);
+  }
+
   template <typename Lambda>
-  void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
-    const EdgeWeight conn_from = kIteratesExactGains ? conn(node, from) : 0;
+  inline __attribute__((always_inline)) void
+  gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
+    if (is_hd_node(node)) {
+      const std::size_t cache_offset = _sparse_offset;
+      const NodeID node_offset = _node_threshold;
 
-    for (BlockID to = 0; to < _k; ++to) {
-      if (from == to) {
-        continue;
+      const EdgeWeight conn_from =
+          kIteratesExactGains ? conn_hd(node, from, cache_offset, node_offset) : 0;
+
+      for (BlockID to = 0; to < _k; ++to) {
+        if (from == to) {
+          continue;
+        }
+
+        if constexpr (kIteratesNonadjacentBlocks) {
+          lambda(to, [&] { return conn_hd(node, to, cache_offset, node_offset) - conn_from; });
+        } else {
+          const EdgeWeight conn_to = conn_hd(node, to, cache_offset, node_offset);
+          if (conn_to > 0) {
+            lambda(to, [&] { return conn_to - conn_from; });
+          }
+        }
       }
+    } else {
+      const EdgeWeight conn_from = kIteratesExactGains ? conn_ld(node, from) : 0;
 
-      if constexpr (kIteratesNonadjacentBlocks) {
-        lambda(to, [&] { return conn(node, to) - conn_from; });
-      } else {
-        const EdgeWeight conn_to = conn(node, to);
-        if (conn_to > 0) {
-          lambda(to, [&] { return conn_to - conn_from; });
+      for (BlockID to = 0; to < _k; ++to) {
+        if (from == to) {
+          continue;
+        }
+
+        if constexpr (kIteratesNonadjacentBlocks) {
+          lambda(to, [&] { return conn_ld(node, to) - conn_from; });
+        } else {
+          const EdgeWeight conn_to = conn_ld(node, to);
+          if (conn_to > 0) {
+            lambda(to, [&] { return conn_to - conn_from; });
+          }
         }
       }
     }
   }
 
-  void move(
+  inline __attribute__((always_inline)) void move(
       const PartitionedGraph &p_graph,
       const NodeID node,
       const BlockID block_from,
@@ -228,14 +280,15 @@ public:
     }
   }
 
-  [[nodiscard]] bool is_border_node(const NodeID node, const BlockID block_of_node) const {
+  [[nodiscard]] inline __attribute__((always_inline)) bool
+  is_border_node(const NodeID node, const BlockID block_of_node) const {
     return weighted_degree(node) != weighted_degree_to(node, block_of_node);
   }
 
   [[nodiscard]] bool validate(const PartitionedGraph &p_graph) const {
     bool valid = true;
     p_graph.pfor_nodes([&](const NodeID u) {
-      if (!check_cached_gain_for_node(p_graph, u)) {
+      if (!dbg_check_cached_gain_for_node(p_graph, u)) {
         LOG_WARNING << "gain cache invalid for node " << u;
         valid = false;
       }
@@ -244,21 +297,23 @@ public:
   }
 
   void print_statistics() const {
+    DBG << cnt;
+
     Statistics stats = _stats_ets.combine(std::plus{});
 
-    STATS << "Dense Gain Cache:";
-    STATS << "  * # of moves: " << stats.num_moves;
-    STATS << "  * # of queries: " << stats.num_ld_queries << " LD, " << stats.num_hd_queries
-          << " HD";
-    STATS << "    + Average initial LD fill degree: "
-          << (stats.ld_fill_degree_count > 0
-                  ? 100.0 * stats.total_ld_fill_degree / stats.ld_fill_degree_count
-                  : 0)
-          << "%";
-    STATS << "  * # of updates: " << stats.num_ld_updates << " LD, " << stats.num_hd_updates
-          << " HD";
-    STATS << "    + # of LD Insertions: " << stats.num_ld_insertions;
-    STATS << "    + # of LD Deletions: " << stats.num_ld_deletions;
+    LOG_STATS << "Dense Gain Cache:";
+    LOG_STATS << "  * # of moves: " << stats.num_moves;
+    LOG_STATS << "  * # of queries: " << stats.num_ld_queries << " LD, " << stats.num_hd_queries
+              << " HD";
+    LOG_STATS << "    + Average initial LD fill degree: "
+              << (stats.ld_fill_degree_count > 0
+                      ? 100.0 * stats.total_ld_fill_degree / stats.ld_fill_degree_count
+                      : 0)
+              << "%";
+    LOG_STATS << "  * # of updates: " << stats.num_ld_updates << " LD, " << stats.num_hd_updates
+              << " HD";
+    LOG_STATS << "    + # of LD Insertions: " << stats.num_ld_insertions;
+    LOG_STATS << "    + # of LD Deletions: " << stats.num_ld_deletions;
   }
 
 private:
@@ -268,7 +323,6 @@ private:
       _buckets[bucket + 1] = _buckets[bucket] + graph.bucket_size(bucket);
     }
     std::fill(_buckets.begin() + graph.number_of_buckets(), _buckets.end(), graph.n());
-    DBG << "Initialized buckets: " << _buckets;
   }
 
   [[nodiscard]] int find_bucket(const NodeID node) const {
@@ -303,21 +357,43 @@ private:
     );
   }
 
-  [[nodiscard]] EdgeWeight weighted_degree(const NodeID node) const {
+  [[nodiscard]] inline __attribute__((always_inline)) EdgeWeight weighted_degree(const NodeID node
+  ) const {
     KASSERT(node < _weighted_degrees.size());
     return static_cast<EdgeWeight>(_weighted_degrees[node] & kWeightedDegreeMask);
   }
 
-  [[nodiscard]] EdgeWeight weighted_degree_to(const NodeID node, const BlockID block) const {
+  [[nodiscard]] inline __attribute__((always_inline)) EdgeWeight
+  weighted_degree_to(const NodeID node, const BlockID block) const {
+    IFSTATS(_stats_ets.local().num_hd_queries += is_hd_node(node));
+    IFSTATS(_stats_ets.local().num_ld_queries += !is_hd_node(node));
+
+    // @TODO THIS MAKES IT SLOW
     if (is_hd_node(node)) {
-      IFSTATS(++_stats_ets.local().num_hd_queries);
-      return static_cast<EdgeWeight>(
-          __atomic_load_n(&_gain_cache[hd_index(node, block)], __ATOMIC_RELAXED)
-      );
+      const std::size_t idx = hd_index(node, block);
+      return static_cast<EdgeWeight>(__atomic_load_n(&_gain_cache[idx], __ATOMIC_RELAXED));
     } else {
-      IFSTATS(++_stats_ets.local().num_ld_queries);
-      return ld_ht(node).get(block);
+      // return 0;
+      return static_cast<EdgeWeight>(ld_ht(node).get(block));
     }
+  }
+
+  [[nodiscard]] inline __attribute__((always_inline)) EdgeWeight weighted_degree_to_hd(
+      const NodeID node,
+      const BlockID block,
+      const std::size_t cache_offset,
+      const NodeID node_offset
+  ) const {
+    IFSTATS(++_stats_ets.local().num_hd_queries);
+    return static_cast<EdgeWeight>(__atomic_load_n(
+        &_gain_cache[hd_index_loc(node, block, cache_offset, node_offset)], __ATOMIC_RELAXED
+    ));
+  }
+
+  [[nodiscard]] inline __attribute__((always_inline)) EdgeWeight
+  weighted_degree_to_ld(const NodeID node, const BlockID block) const {
+    IFSTATS(++_stats_ets.local().num_ld_queries);
+    return static_cast<EdgeWeight>(ld_ht(node).get(block));
   }
 
   [[nodiscard]] std::pair<std::size_t, std::size_t> bucket_start_size(const NodeID node) const {
@@ -333,15 +409,31 @@ private:
     }
   }
 
-  [[nodiscard]] bool is_hd_node(const NodeID node) const {
+  mutable std::size_t cnt = 0;
+  [[nodiscard]] inline __attribute__((always_inline)) bool is_hd_node(const NodeID node) const {
+    // return true;
     return node >= _node_threshold;
   }
 
-  [[nodiscard]] std::size_t hd_index(const NodeID node, const BlockID block) const {
-    return bucket_start_size(node).first + static_cast<std::size_t>(block);
+  [[nodiscard]] inline __attribute__((always_inline)) std::size_t hd_index_loc(
+      const NodeID node,
+      const BlockID block,
+      const std::size_t cache_offset, //  == 0, member variable
+      const NodeID node_offset // == 0, member variable
+  ) const {
+    return cache_offset + 1ull * (node - node_offset) * _k + block;
+    //return 0 + 1ull * (node - 0) * _k + block;
   }
 
-  [[nodiscard]] std::size_t d_index(const NodeID node, const BlockID block) const {
+  [[nodiscard]] inline __attribute__((always_inline)) std::size_t
+  hd_index(const NodeID node, const BlockID block) const {
+    //return _sparse_offset + 1ull * (node - _node_threshold) * _k + block;
+    return 0 + 1ull * (node - 0) * _k + block;
+    // return bucket_start_size(node).first + static_cast<std::size_t>(block);
+  }
+
+  [[nodiscard]] inline __attribute__((always_inline)) std::size_t
+  d_index(const NodeID node, const BlockID block) const {
     return 1ull * node * _k + block;
   }
 
@@ -371,6 +463,7 @@ private:
     KASSERT(
         validate(p_graph), "dense gain cache verification failed after recomputation", assert::heavy
     );
+
     IF_STATS {
       p_graph.pfor_nodes([&](const NodeID u) {
         if (!is_hd_node(u)) {
@@ -409,7 +502,7 @@ private:
   }
 
   [[nodiscard]] bool
-  check_cached_gain_for_node(const PartitionedGraph &p_graph, const NodeID u) const {
+  dbg_check_cached_gain_for_node(const PartitionedGraph &p_graph, const NodeID u) const {
     const BlockID block_u = p_graph.block(u);
     std::vector<EdgeWeight> actual_external_degrees(_k, 0);
     EdgeWeight actual_weighted_degree = 0;
@@ -455,6 +548,8 @@ private:
   // Number of bits reserved in hash table cells to store the key (i.e., block ID) of the entry
   int _bits_for_key = 0;
 
+  std::size_t _sparse_offset = 0;
+
   StaticArray<UnsignedEdgeWeight> _gain_cache;
   StaticArray<UnsignedEdgeWeight> _weighted_degrees;
 
@@ -472,21 +567,34 @@ public:
   DenseDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph & /* d_graph */)
       : _gain_cache(gain_cache) {}
 
-  [[nodiscard]] EdgeWeight conn(const NodeID node, const BlockID block) const {
+  [[nodiscard]] inline __attribute__((always_inline)) EdgeWeight
+  conn(const NodeID node, const BlockID block) const {
     return _gain_cache.conn(node, block) + conn_delta(node, block);
   }
 
-  [[nodiscard]] EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
+  [[nodiscard]] inline __attribute__((always_inline)) EdgeWeight
+  conn_hd(const NodeID node, const BlockID block, const std::size_t cache_offset, const NodeID node_offset) const {
+    return _gain_cache.conn_hd(node, block, cache_offset, node_offset) + conn_delta(node, block);
+  }
+
+  [[nodiscard]] inline __attribute__((always_inline)) EdgeWeight
+  conn_ld(const NodeID node, const BlockID block) const {
+    return _gain_cache.conn_ld(node, block) + conn_delta(node, block);
+  }
+
+  [[nodiscard]] inline __attribute__((always_inline)) EdgeWeight
+  gain(const NodeID node, const BlockID from, const BlockID to) const {
     return _gain_cache.gain(node, from, to) + conn_delta(node, to) - conn_delta(node, from);
   }
 
-  [[nodiscard]] std::pair<EdgeWeight, EdgeWeight>
+  [[nodiscard]] inline __attribute__((always_inline)) std::pair<EdgeWeight, EdgeWeight>
   gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) {
     return {gain(node, b_node, targets.first), gain(node, b_node, targets.second)};
   }
 
   template <typename Lambda>
-  void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
+  inline __attribute__((always_inline)) void
+  gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
     const EdgeWeight conn_from_delta = kIteratesExactGains ? conn_delta(node, from) : 0;
 
     _gain_cache.gains(node, from, [&](const BlockID to, auto &&gain) {
@@ -494,7 +602,7 @@ public:
     });
   }
 
-  void move(
+  inline __attribute__((always_inline)) void move(
       const DeltaPartitionedGraph &d_graph,
       const NodeID u,
       const BlockID block_from,
@@ -507,12 +615,13 @@ public:
     }
   }
 
-  void clear() {
+  inline __attribute__((always_inline)) void clear() {
     _gain_cache_delta.clear();
   }
 
 private:
-  [[nodiscard]] EdgeWeight conn_delta(const NodeID node, const BlockID block) const {
+  [[nodiscard]] inline __attribute__((always_inline)) EdgeWeight
+  conn_delta(const NodeID node, const BlockID block) const {
     const auto it = _gain_cache_delta.get_if_contained(_gain_cache.d_index(node, block));
     return it != _gain_cache_delta.end() ? *it : 0;
   }

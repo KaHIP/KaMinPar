@@ -30,18 +30,18 @@
 namespace kaminpar::shm {
 namespace {
 SET_DEBUG(false);
-SET_STATISTICS(false);
+SET_STATISTICS(true);
 } // namespace
 
 std::unique_ptr<Refiner> create_fm_refiner(const Context &ctx) {
   switch (ctx.refinement.kway_fm.gain_cache_strategy) {
   case GainCacheStrategy::SPARSE:
     if (ctx.refinement.kway_fm.consider_nonadjacent_blocks) {
-      return std::make_unique<FMRefiner<SparseGainCache<true>>>(ctx);
+      //return std::make_unique<FMRefiner<SparseGainCache<true>>>(ctx);
     }
 #ifdef KAMINPAR_EXPERIMENTAL
     else {
-      return std::make_unique<FMRefiner<SparseGainCache<false>>>(ctx);
+      //return std::make_unique<FMRefiner<SparseGainCache<false>>>(ctx);
     }
 #endif
 
@@ -50,28 +50,28 @@ std::unique_ptr<Refiner> create_fm_refiner(const Context &ctx) {
     if (ctx.refinement.kway_fm.consider_nonadjacent_blocks) {
       return std::make_unique<FMRefiner<DenseGainCache<true>>>(ctx);
     } else {
-      return std::make_unique<FMRefiner<DenseGainCache<false>>>(ctx);
+      //return std::make_unique<FMRefiner<DenseGainCache<false>>>(ctx);
     }
 
   case GainCacheStrategy::ON_THE_FLY:
     if (ctx.refinement.kway_fm.consider_nonadjacent_blocks) {
-      return std::make_unique<FMRefiner<OnTheFlyGainCache<true>>>(ctx);
+      //return std::make_unique<FMRefiner<OnTheFlyGainCache<true>>>(ctx);
     } else {
-      return std::make_unique<FMRefiner<OnTheFlyGainCache<false>>>(ctx);
+      //return std::make_unique<FMRefiner<OnTheFlyGainCache<false>>>(ctx);
     }
 
   case GainCacheStrategy::HYBRID:
     if (ctx.refinement.kway_fm.consider_nonadjacent_blocks) {
-      return std::make_unique<FMRefiner<HybridGainCache<true>>>(ctx);
+      //return std::make_unique<FMRefiner<HybridGainCache<true>>>(ctx);
     } else {
-      return std::make_unique<FMRefiner<HybridGainCache<false>>>(ctx);
+      //return std::make_unique<FMRefiner<HybridGainCache<false>>>(ctx);
     }
 
   case GainCacheStrategy::TRACING:
     if (ctx.refinement.kway_fm.consider_nonadjacent_blocks) {
-      return std::make_unique<FMRefiner<TracingGainCache<SparseGainCache<true>>>>(ctx);
+      //return std::make_unique<FMRefiner<TracingGainCache<SparseGainCache<true>>>>(ctx);
     } else {
-      return std::make_unique<FMRefiner<TracingGainCache<SparseGainCache<false>>>>(ctx);
+      //return std::make_unique<FMRefiner<TracingGainCache<SparseGainCache<false>>>>(ctx);
     }
 #endif
 
@@ -203,7 +203,11 @@ bool FMRefiner<GainCache, DeltaPartitionedGraph>::refine(
         << " border nodes and " << _ctx.parallel.num_threads << " worker threads";
 
     // Start one worker per thread
-    START_TIMER("Localized searches");
+    if (p_graph.n() == _ctx.partition.n) {
+      START_TIMER("Localized searches, fine level");
+    } else {
+      START_TIMER("Localized searches, coarse level");
+    }
     tbb::parallel_for<int>(0, _ctx.parallel.num_threads, [&](int) {
       EdgeWeight &expected_gain = expected_gain_ets.local();
       LocalizedFMRefiner<GainCache, DeltaPartitionedGraph> &localized_refiner =
@@ -301,6 +305,8 @@ LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::last_batch_seed_nodes() {
 
 template <typename GainCache, typename DeltaPartitionedGraph>
 EdgeWeight LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::run_batch() {
+  SCOPED_TIMER("Run batch");
+
   using fm::NodeTracker;
 
   _seed_nodes.clear();
@@ -471,7 +477,8 @@ EdgeWeight LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::run_batch() {
 }
 
 template <typename GainCache, typename DeltaPartitionedGraph>
-void LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::update_after_move(
+inline __attribute__((always_inline)) void
+LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::update_after_move(
     const NodeID node, const NodeID moved_node, const BlockID moved_from, const BlockID moved_to
 ) {
   const BlockID old_block = _p_graph.block(node);
@@ -519,7 +526,8 @@ void LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::update_after_move(
 }
 
 template <typename GainCache, typename DeltaPartitionedGraph>
-bool LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::update_block_pq() {
+inline __attribute__((always_inline)) bool
+LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::update_block_pq() {
   bool have_more_nodes = false;
   for (const BlockID block : _p_graph.blocks()) {
     if (!_node_pqs[block].empty()) {
@@ -535,7 +543,8 @@ bool LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::update_block_pq() {
 
 template <typename GainCache, typename DeltaPartitionedGraph>
 template <typename GainCacheType, typename PartitionedGraphType>
-void LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::insert_into_node_pq(
+inline __attribute__((always_inline)) void
+LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::insert_into_node_pq(
     const PartitionedGraphType &p_graph, const GainCacheType &gain_cache, const NodeID u
 ) {
   const BlockID block_u = p_graph.block(u);
@@ -548,7 +557,8 @@ void LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::insert_into_node_pq(
 
 template <typename GainCache, typename DeltaPartitionedGraph>
 template <typename GainCacheType, typename PartitionedGraphType>
-std::pair<BlockID, EdgeWeight> LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::best_gain(
+inline __attribute__((always_inline)) std::pair<BlockID, EdgeWeight>
+LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::best_gain(
     const PartitionedGraphType &p_graph, const GainCacheType &gain_cache, const NodeID u
 ) {
   const BlockID from = p_graph.block(u);
@@ -566,12 +576,12 @@ std::pair<BlockID, EdgeWeight> LocalizedFMRefiner<GainCache, DeltaPartitionedGra
     const NodeWeight block_weight_gap = max_block_weight - target_block_weight;
     if (block_weight_gap < std::min<EdgeWeight>(best_target_block_weight_gap, 0)) {
       return;
-    }
+    } // loop could not be vectorized
 
     const EdgeWeight gain = compute_gain();
     if (gain > best_gain ||
         (gain == best_gain && block_weight_gap > best_target_block_weight_gap)) {
-      best_gain = gain;
+      best_gain = gain; // SLOW: hoisting getelementptr
       best_target_block = to;
       best_target_block_weight_gap = block_weight_gap;
     }
