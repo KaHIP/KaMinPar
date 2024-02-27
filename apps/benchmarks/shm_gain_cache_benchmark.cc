@@ -50,7 +50,7 @@ int main(int argc, char *argv[]) {
       ->required();
   app.add_option("-t,--threads", num_threads, "Number of threads");
 
-  app.add_flag("--deg-sorted-input", is_sorted)->capture_default_str();
+  app.add_flag("-S,--sorted", is_sorted)->capture_default_str();
   create_refinement_options(&app, ctx);
   CLI11_PARSE(app, argc, argv);
 
