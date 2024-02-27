@@ -1,5 +1,6 @@
 /*******************************************************************************
- * Gain cache wrapper that traces all operations and can dump them to disk.
+ * Gain cache wrapper that traces all operations and can dump them to disk /
+ * load them from disk and replay them to some gain cache.
  *
  * @file:   tracing_gain_cache.h
  * @author: Daniel Seemaier
@@ -32,17 +33,12 @@ enum OperationType : std::uint8_t {
   MOVE,
   IS_BORDER,
   CLEAR,
-};
-
-struct NonconstOperation {
-  void *actor;
-  OperationType type;
-  std::array<std::uint64_t, 4> data;
+  NUM_OPS,
 };
 
 struct Operation {
-  const void *actor;
-  OperationType type;
+  void *actor;
+  OperationType op;
   std::array<std::uint64_t, 4> data;
 };
 
@@ -51,15 +47,16 @@ std::vector<std::uint64_t>
 replay(const std::string &filename, const Context &ctx, PartitionedGraph &p_graph) {
   using DeltaGainCache = typename GainCache::template DeltaCache<DeltaPartitionedGraph>;
   GainCache gain_cache(ctx, p_graph.n(), p_graph.k());
+  gain_cache.initialize(p_graph);
 
-  std::vector<NonconstOperation> queries;
+  std::vector<Operation> queries;
   std::vector<std::uint64_t> ans;
 
   TIMED_SCOPE("Reading trace") {
     std::ifstream in(filename, std::ios_base::binary);
 
     std::uint64_t size;
-    in.read(reinterpret_cast<char *>(size), sizeof(std::uint64_t));
+    in.read(reinterpret_cast<char *>(&size), sizeof(std::uint64_t));
 
     queries.resize(size);
     ans.resize(size);
@@ -72,8 +69,12 @@ replay(const std::string &filename, const Context &ctx, PartitionedGraph &p_grap
       std::pair<std::unique_ptr<DeltaPartitionedGraph>, std::unique_ptr<DeltaGainCache>>;
   std::unordered_map<void *, DeltaPair> delta_mapping;
 
+  std::vector<std::size_t> counts(OperationType::NUM_OPS);
+
   START_TIMER("Preparing delta pairs");
   for (auto &query : queries) {
+    ++counts[query.op];
+
     if (query.actor == nullptr) {
       continue;
     }
@@ -89,14 +90,24 @@ replay(const std::string &filename, const Context &ctx, PartitionedGraph &p_grap
   }
   STOP_TIMER();
 
+  LOG << "Operations: " << queries.size();
+  LOG << "  - GAIN_SINGLE: " << counts[OperationType::GAIN_SINGLE];
+  LOG << "  - GAIN_DOUBLE: " << counts[OperationType::GAIN_DOUBLE];
+  LOG << "  - CONN: " << counts[OperationType::CONN];
+  LOG << "  - GAINS: " << counts[OperationType::GAINS];
+  LOG << "  - MOVE: " << counts[OperationType::MOVE];
+  LOG << "  - IS_BORDER: " << counts[OperationType::IS_BORDER];
+  LOG << "  - CLEAR: " << counts[OperationType::CLEAR];
+  LOG << "Delta gain caches: " << delta_mapping.size();
+
   START_TIMER("Replaying recorded trace");
   for (std::size_t i = 0; i < queries.size(); ++i) {
     const auto &query = queries[i];
-    const OperationType op = query.type;
+    const OperationType op = query.op;
     const auto &[a, b, c, d] = query.data;
 
     if (query.actor == nullptr) {
-      switch (query.type) {
+      switch (query.op) {
       case GAIN_SINGLE:
         ans[i] = gain_cache.gain(a, b, c);
         break;
@@ -122,14 +133,19 @@ replay(const std::string &filename, const Context &ctx, PartitionedGraph &p_grap
       case IS_BORDER:
         ans[i] = gain_cache.is_border_node(a, b);
         break;
+
       case CLEAR:
+        // do nothing
+        break;
+
+      case NUM_OPS:
         // do nothing
         break;
       }
     } else {
       const auto &[d_graph, d_gain_cache] = *reinterpret_cast<DeltaPair *>(query.actor);
 
-      switch (query.type) {
+      switch (query.op) {
       case GAIN_SINGLE:
         ans[i] = d_gain_cache->gain(a, b, c);
         break;
@@ -158,6 +174,10 @@ replay(const std::string &filename, const Context &ctx, PartitionedGraph &p_grap
 
       case CLEAR:
         d_gain_cache->clear();
+        break;
+
+      case NUM_OPS:
+        // do nothing
         break;
       }
     }
@@ -230,7 +250,7 @@ private:
   ) {
     std::scoped_lock<std::mutex> lk(_trace_mutex);
     _trace.push_back(Operation{
-        actor,
+        const_cast<void *>(actor),
         type,
         {a, b, c, d},
     });

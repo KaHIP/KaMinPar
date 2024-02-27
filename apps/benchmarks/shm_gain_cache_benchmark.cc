@@ -44,8 +44,8 @@ int main(int argc, char *argv[]) {
   CLI::App app("Shared-memory FM benchmark");
   app.add_option("-G,--graph", graph_filename, "Graph file")->required();
   app.add_option("-P,--partition", partition_filename, "Partition file")->required();
-  app.add_option("--trace", trace_filename, "Operation trace")->required();
-  app.add_option("--gc", gain_cache_strategy)
+  app.add_option("-T,--trace", trace_filename, "Operation trace")->required();
+  app.add_option("-C,--gc", gain_cache_strategy)
       ->transform(CLI::CheckedTransformer(get_gain_cache_strategies()).description(""))
       ->required();
   app.add_option("-t,--threads", num_threads, "Number of threads");
