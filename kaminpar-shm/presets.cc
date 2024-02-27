@@ -131,7 +131,7 @@ Context create_default_context() {
                       .constant_high_degree_threshold = 0,
                       .k_based_high_degree_threshold = 1.0,
 
-                      .compute_batch_stats = false,
+                      .dbg_compute_batch_stats = false,
                   },
               .balancer = {},
               .jet =

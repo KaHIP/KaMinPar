@@ -264,24 +264,39 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
   )
       ->capture_default_str();
 
-  // Experimental flags
-  fm->add_option("--r-fm-gain-cache", ctx.refinement.kway_fm.gain_cache_strategy)
+  // Flags for gain caches
+  fm->add_option("--r-fm-gc", ctx.refinement.kway_fm.gain_cache_strategy)
       ->transform(CLI::CheckedTransformer(get_gain_cache_strategies()).description(""))
       ->capture_default_str();
   fm->add_flag(
-      "--r-fm-consider-nonadjacent-blocks", ctx.refinement.kway_fm.consider_nonadjacent_blocks
-  );
-  fm->add_option(
-        "--r-fm-constant-high-degree-threshold",
-        ctx.refinement.kway_fm.constant_high_degree_threshold
+        "--r-fm-gc-nonconnected",
+        ctx.refinement.kway_fm.consider_nonadjacent_blocks,
+        "If set, also consider non-adjacent blocks as valid move targets for vertices. This could "
+        "make blocks non-connected, even if initial partitioning only produced connected blocks."
   )
       ->capture_default_str();
   fm->add_option(
-        "--r-fm-k-based-high-degree-threshold", ctx.refinement.kway_fm.k_based_high_degree_threshold
+        "--r-fm-gc-hd-threshold",
+        ctx.refinement.kway_fm.constant_high_degree_threshold,
+        "If the selected gain cache strategy distinguishes between low- and high-degree nodes: use "
+        "this as a constant threshold for high-degree nodes."
+  )
+      ->capture_default_str();
+  fm->add_option(
+        "--r-fm-gc-k-based-hd-threshold",
+        ctx.refinement.kway_fm.k_based_high_degree_threshold,
+        "If the selected gain cache strategy distinguishes between low- and high-degree nodes: use "
+        "this multiplier times -k as a threshold for high-degree nodes."
   )
       ->capture_default_str();
 
-  fm->add_flag("--r-fm-compute-batch-stats", ctx.refinement.kway_fm.compute_batch_stats)
+  // Flags for debugging / analysis
+  fm->add_flag(
+        "--r-fm-dbg-batch-stats",
+        ctx.refinement.kway_fm.dbg_compute_batch_stats,
+        "If set, compute and output detailed statistics about FM batches (can be expensive to "
+        "compute on some irregular graphs)."
+  )
       ->capture_default_str();
 
   return fm;

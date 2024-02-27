@@ -165,7 +165,7 @@ bool FMRefiner<GainCache, DeltaPartitionedGraph>::refine(
 
     // If we want to evaluate the successful batches, record moves that are applied to the
     // global graph
-    IF_STATSC(_fm_ctx.compute_batch_stats) {
+    IF_STATSC(_fm_ctx.dbg_compute_batch_stats) {
       localized_refiner->enable_move_recording();
     }
 
@@ -211,7 +211,7 @@ bool FMRefiner<GainCache, DeltaPartitionedGraph>::refine(
         // Copies of the seed nodes and the moves are intentional: postpone actual stats computation
         // until after the FM iteration has finished
         IFSTATSC(
-            _fm_ctx.compute_batch_stats && expected_batch_gain > 0,
+            _fm_ctx.dbg_compute_batch_stats && expected_batch_gain > 0,
             batch_stats.track(
                 localized_refiner.last_batch_seed_nodes(), localized_refiner.last_batch_moves()
             )
@@ -220,7 +220,7 @@ bool FMRefiner<GainCache, DeltaPartitionedGraph>::refine(
     });
     STOP_TIMER();
 
-    IFSTATSC(_fm_ctx.compute_batch_stats, batch_stats.next_iteration());
+    IFSTATSC(_fm_ctx.dbg_compute_batch_stats, batch_stats.next_iteration());
 
     const EdgeWeight expected_gain_of_this_iteration = expected_gain_ets.combine(std::plus{});
     total_expected_gain += expected_gain_of_this_iteration;
@@ -246,7 +246,7 @@ bool FMRefiner<GainCache, DeltaPartitionedGraph>::refine(
   IFSTATS(_shared->stats.print());
   IFSTATS(_shared->stats.reset());
   IFSTATS(_shared->gain_cache.print_statistics());
-  IFSTATSC(_fm_ctx.compute_batch_stats, batch_stats.print());
+  IFSTATSC(_fm_ctx.dbg_compute_batch_stats, batch_stats.print());
 
   return false;
 }
