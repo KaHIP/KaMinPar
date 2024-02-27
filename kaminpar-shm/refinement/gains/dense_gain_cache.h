@@ -107,7 +107,6 @@ public:
     _node_threshold = 0;
     _bucket_threshold = 0;
     _cache_offsets[0] = 0;
-    _bucket_offsets[0] = 0;
 
     // For vertices with the dense gain cache (i.e., hash table), we use the MSB bits to store the
     // target blocks and the LSB bits to store the gain values: compute bit masks and shifts for
@@ -115,8 +114,6 @@ public:
     // Note: these masks are only used for vertices < _node_threshold
     const int bits_for_gain = (sizeof(UnsignedEdgeWeight) * 8 - math::ceil_log2(_k));
     _bits_for_key = math::ceil_log2(_k);
-    _gain_mask = (1ul << bits_for_gain) - 1;
-    _block_mask = ~_gain_mask;
     DBG << "Reserve " << bits_for_gain << " of " << sizeof(UnsignedEdgeWeight) * 8
         << " bits for gain values, " << _bits_for_key << " bits for block IDs";
 
@@ -134,21 +131,16 @@ public:
            _node_threshold < p_graph.n() && p_graph.degree(_node_threshold) < degree_threshold;
            ++_bucket_threshold) {
         _cache_offsets[_bucket_threshold] = gc_size;
-        _bucket_offsets[_bucket_threshold] = _node_threshold;
 
         gc_size += p_graph.bucket_size(_bucket_threshold) *
                    (lowest_degree_in_bucket<NodeID>(_bucket_threshold + 1));
         _node_threshold += p_graph.bucket_size(_bucket_threshold);
       }
       std::fill(_cache_offsets.begin() + _bucket_threshold, _cache_offsets.end(), gc_size);
-      std::fill(
-          _bucket_offsets.begin() + _bucket_threshold, _bucket_offsets.end(), _node_threshold
-      );
       gc_size += static_cast<std::size_t>(p_graph.n() - _node_threshold) * _k;
 
       DBG << "Initialized with degree threshold: " << degree_threshold
           << ", node threshold: " << _node_threshold << ", bucket threshold: " << _bucket_threshold;
-      DBG << "Bucket offsets: " << _bucket_offsets;
       DBG << "Cache offsets: " << _cache_offsets;
     } else {
       DBG << "Graph was *not* rearranged by degree buckets: using the sparse strategy only";
@@ -331,9 +323,7 @@ private:
   [[nodiscard]] std::pair<std::size_t, std::size_t> bucket_start_size(const NodeID node) const {
     if (is_hd_node(node)) {
       return std::make_pair(
-          _cache_offsets[_bucket_threshold] +
-              static_cast<std::size_t>(node - _node_threshold) * static_cast<std::size_t>(_k),
-          _k
+          _cache_offsets[_bucket_threshold] + 1ull * (node - _node_threshold) * _k, _k
       );
     } else {
       const int bucket = find_bucket(node);
@@ -352,7 +342,7 @@ private:
   }
 
   [[nodiscard]] std::size_t d_index(const NodeID node, const BlockID block) const {
-    return static_cast<std::size_t>(node) * _k + block;
+    return 1ull * node * _k + block;
   }
 
   [[nodiscard]] CompactHashMap<UnsignedEdgeWeight const> ld_ht(const NodeID node) const {
@@ -409,7 +399,6 @@ private:
       }
     } else {
       auto ht = ld_ht(u);
-
       for (const auto &[e, v] : p_graph.neighbors(u)) {
         const BlockID block_v = p_graph.block(v);
         const EdgeWeight weight = p_graph.edge_weight(e);
@@ -455,14 +444,15 @@ private:
   NodeID _n = kInvalidNodeID;
   BlockID _k = kInvalidBlockID;
 
+  // First node ID assigned to the sparse part of the gain cache
   NodeID _node_threshold = kInvalidNodeID;
+  // First degree bucket assigned to the sparse part of the gain cache
   int _bucket_threshold = -1;
+  // Copy of the degree buckets
   std::array<NodeID, kNumberOfDegreeBuckets<NodeID>> _buckets;
+  // For each degree bucket, the offset for vertices in that bucket in the gain cache
   std::array<std::size_t, kNumberOfDegreeBuckets<NodeID>> _cache_offsets;
-  std::array<NodeID, kNumberOfDegreeBuckets<NodeID>> _bucket_offsets;
-
-  UnsignedEdgeWeight _gain_mask = 0;
-  UnsignedEdgeWeight _block_mask = 0;
+  // Number of bits reserved in hash table cells to store the key (i.e., block ID) of the entry
   int _bits_for_key = 0;
 
   StaticArray<UnsignedEdgeWeight> _gain_cache;
