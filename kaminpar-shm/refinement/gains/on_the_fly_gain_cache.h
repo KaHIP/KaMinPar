@@ -77,7 +77,7 @@ public:
     gains_impl<PartitionedGraph>(*_p_graph, node, from, std::forward<Lambda>(lambda));
   }
 
-  void summarize() const {
+  void print_statistics() const {
     // print statistics
   }
 

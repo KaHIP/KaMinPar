@@ -6,14 +6,13 @@
  * Gains for low-degree vertices (degree < k) are stored in a hash map using
  * linear probing. Modifying operations lock the hash-table, whereas read-only
  * operations are subject to race conditions.
+ * Gains for high-degree vertices (degree >= k) are stored in the sparse part
+ * of the array, i.e., with k entries per vertex.
  *
  * @ToDo: the hash tables store the target blocks + gain in the same 32 bit entry
  * (or 64 bit, when built with 64 bit edge weights). This is not ideal, especially
  * since the implementation exhibits undefined behaviour if this assumption does
  * not work out ...
- *
- * Gains for high-degree vertices (degree >= k) are stored in a sparse array,
- * i.e., with k entries per vertex.
  *
  * @file:   dense_gain_cache.h
  * @author: Daniel Seemaier
@@ -252,23 +251,22 @@ public:
     return valid;
   }
 
-  void summarize() const {
-    IF_STATS {
-      Statistics stats = _stats_ets.combine(std::plus{});
-      STATS << "Dense Gain Cache:";
-      STATS << "  * # of moves: " << stats.num_moves;
-      STATS << "  * # of queries: " << stats.num_ld_queries << " LD, " << stats.num_hd_queries
-            << " HD";
-      STATS << "    + Average initial LD fill degree: "
-            << (stats.ld_fill_degree_count > 0
-                    ? 100.0 * stats.total_ld_fill_degree / stats.ld_fill_degree_count
-                    : 0)
-            << "%";
-      STATS << "  * # of updates: " << stats.num_ld_updates << " LD, " << stats.num_hd_updates
-            << " HD";
-      STATS << "    + # of LD Insertions: " << stats.num_ld_insertions;
-      STATS << "    + # of LD Deletions: " << stats.num_ld_deletions;
-    }
+  void print_statistics() const {
+    Statistics stats = _stats_ets.combine(std::plus{});
+
+    STATS << "Dense Gain Cache:";
+    STATS << "  * # of moves: " << stats.num_moves;
+    STATS << "  * # of queries: " << stats.num_ld_queries << " LD, " << stats.num_hd_queries
+          << " HD";
+    STATS << "    + Average initial LD fill degree: "
+          << (stats.ld_fill_degree_count > 0
+                  ? 100.0 * stats.total_ld_fill_degree / stats.ld_fill_degree_count
+                  : 0)
+          << "%";
+    STATS << "  * # of updates: " << stats.num_ld_updates << " LD, " << stats.num_hd_updates
+          << " HD";
+    STATS << "    + # of LD Insertions: " << stats.num_ld_insertions;
+    STATS << "    + # of LD Deletions: " << stats.num_ld_deletions;
   }
 
 private:

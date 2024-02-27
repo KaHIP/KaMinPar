@@ -188,7 +188,7 @@ public:
     return valid;
   }
 
-  void summarize() const {
+  void print_statistics() const {
     // print statistics
   }
 

@@ -43,7 +43,7 @@ struct GlobalStats {
   void add(const Stats &stats);
   void next_iteration();
   void reset();
-  void summarize();
+  void print();
 };
 
 struct BatchStats {
@@ -58,10 +58,10 @@ struct GlobalBatchStats {
 
   void next_iteration(std::vector<BatchStats> stats);
   void reset();
-  void summarize();
+  void print();
 
 private:
-  void summarize_iteration(const std::size_t iteration, const std::vector<BatchStats> &stats);
+  void print_iteration(const std::size_t iteration, const std::vector<BatchStats> &stats);
 };
 
 class NodeTracker {

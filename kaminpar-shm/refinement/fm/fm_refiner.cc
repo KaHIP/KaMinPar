@@ -109,7 +109,7 @@ void GlobalStats::reset() {
   next_iteration();
 }
 
-void GlobalStats::summarize() {
+void GlobalStats::print() {
   STATS << "FM Refiner:";
   for (std::size_t i = 0; i < iteration_stats.size(); ++i) {
     const Stats &stats = iteration_stats[i];
@@ -131,6 +131,7 @@ void GlobalStats::summarize() {
           << stats.num_pq_updates << " updates, " << stats.num_pq_pops << " pops";
   }
 }
+
 void GlobalBatchStats::next_iteration(std::vector<BatchStats> stats) {
   iteration_stats.push_back(std::move(stats));
 }
@@ -139,17 +140,17 @@ void GlobalBatchStats::reset() {
   iteration_stats.clear();
 }
 
-void GlobalBatchStats::summarize() {
+void GlobalBatchStats::print() {
   STATS << "Batches: [STATS:FM:BATCHES]";
   for (std::size_t i = 0; i < iteration_stats.size(); ++i) {
     if (!iteration_stats[i].empty()) {
       STATS << "  * Iteration " << (i + 1) << ":";
-      summarize_iteration(i, iteration_stats[i]);
+      print_iteration(i, iteration_stats[i]);
     }
   }
 }
 
-void GlobalBatchStats::summarize_iteration(
+void GlobalBatchStats::print_iteration(
     const std::size_t iteration, const std::vector<BatchStats> &stats
 ) {
   const NodeID max_distance =
@@ -299,12 +300,12 @@ bool FMRefiner<GainCache, DeltaPartitionedGraph>::refine(
   }
 
   IF_STATS {
-    _shared->stats.summarize();
+    _shared->stats.print();
     _shared->stats.reset();
-    _shared->gain_cache.summarize();
+    _shared->gain_cache.print_statistics();
   }
   IF_STATSC(_fm_ctx.compute_batch_size_statistics) {
-    _shared->batch_stats.summarize();
+    _shared->batch_stats.print();
     _shared->batch_stats.reset();
   }
 
