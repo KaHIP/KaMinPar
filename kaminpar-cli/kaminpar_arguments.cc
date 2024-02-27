@@ -9,8 +9,8 @@
 
 #include "kaminpar-cli/CLI11.h"
 
-#include "kaminpar-shm/context.h"
 #include "kaminpar-shm/context_io.h"
+#include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
 void create_all_options(CLI::App *app, Context &ctx) {
@@ -280,9 +280,8 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
         "--r-fm-k-based-high-degree-threshold", ctx.refinement.kway_fm.k_based_high_degree_threshold
   )
       ->capture_default_str();
-  fm->add_flag(
-        "--r-fm-compute-batch-size-stats", ctx.refinement.kway_fm.compute_batch_size_statistics
-  )
+
+  fm->add_flag("--r-fm-compute-batch-stats", ctx.refinement.kway_fm.compute_batch_stats)
       ->capture_default_str();
 
   return fm;

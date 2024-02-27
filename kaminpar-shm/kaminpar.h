@@ -169,7 +169,7 @@ struct KwayFMRefinementContext {
   EdgeID constant_high_degree_threshold;
   double k_based_high_degree_threshold;
 
-  bool compute_batch_size_statistics;
+  bool compute_batch_stats;
 };
 
 struct JetRefinementContext {

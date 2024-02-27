@@ -10,8 +10,8 @@
 #include <tbb/parallel_invoke.h>
 
 #include "kaminpar-shm/datastructures/delta_partitioned_graph.h"
-#include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
+#include "kaminpar-shm/refinement/fm/fm_definitions.h"
 #include "kaminpar-shm/refinement/fm/stopping_policies.h"
 #include "kaminpar-shm/refinement/refiner.h"
 
@@ -46,24 +46,6 @@ struct GlobalStats {
   void print();
 };
 
-struct BatchStats {
-  NodeID size;
-  NodeID max_distance;
-  std::vector<NodeID> size_by_distance;
-  std::vector<EdgeWeight> gain_by_distance;
-};
-
-struct GlobalBatchStats {
-  std::vector<std::vector<BatchStats>> iteration_stats;
-
-  void next_iteration(std::vector<BatchStats> stats);
-  void reset();
-  void print();
-
-private:
-  void print_iteration(const std::size_t iteration, const std::vector<BatchStats> &stats);
-};
-
 class NodeTracker {
 public:
   static constexpr int UNLOCKED = 0;
@@ -83,7 +65,6 @@ public:
     return __atomic_load_n(&_state[u], __ATOMIC_RELAXED);
   }
 
-  // @todo Build a better interface once the details are settled.
   void set(const NodeID node, const int value) {
     __atomic_store_n(&_state[node], value, __ATOMIC_RELAXED);
   }
@@ -202,18 +183,6 @@ template <typename GainCache> struct SharedData {
   StaticArray<std::size_t> shared_pq_handles;
   StaticArray<BlockID> target_blocks;
   GlobalStats stats;
-  GlobalBatchStats batch_stats;
-};
-
-struct Move {
-  NodeID node;
-  BlockID from;
-};
-
-struct AppliedMove {
-  NodeID node;
-  BlockID from;
-  bool improvement;
 };
 } // namespace fm
 
@@ -234,29 +203,6 @@ public:
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
 private:
-  using SeedNodesVec = std::vector<NodeID>;
-  using MovesVec = std::vector<fm::AppliedMove>;
-  using Batches = tbb::concurrent_vector<std::pair<SeedNodesVec, MovesVec>>;
-
-  [[nodiscard]] std::vector<fm::BatchStats>
-  dbg_compute_batch_stats(const PartitionedGraph &graph, Batches next_batches) const;
-
-  [[nodiscard]] std::pair<PartitionedGraph, Batches>
-  dbg_build_prev_p_graph(const PartitionedGraph &p_graph, Batches next_batches) const;
-
-  [[nodiscard]] fm::BatchStats dbg_compute_single_batch_stats_in_sequence(
-      PartitionedGraph &p_graph,
-      const std::vector<NodeID> &seeds,
-      const std::vector<fm::AppliedMove> &moves,
-      const std::vector<NodeID> &distances
-  ) const;
-
-  [[nodiscard]] std::vector<NodeID> dbg_compute_batch_distances(
-      const Graph &graph,
-      const std::vector<NodeID> &seeds,
-      const std::vector<fm::AppliedMove> &moves
-  ) const;
-
   const Context &_ctx;
   const KwayFMRefinementContext &_fm_ctx;
 
