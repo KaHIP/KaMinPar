@@ -17,24 +17,157 @@
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
+#include "kaminpar-common/logger.h"
+#include "kaminpar-common/timer.h"
+
 namespace kaminpar::shm {
-namespace tracing {
+namespace tracing_gain_cache {
+SET_DEBUG(true);
+
+enum OperationType : std::uint8_t {
+  GAIN_SINGLE,
+  GAIN_DOUBLE,
+  CONN,
+  GAINS,
+  MOVE,
+  IS_BORDER,
+  CLEAR,
+};
+
+struct NonconstOperation {
+  void *actor;
+  OperationType type;
+  std::array<std::uint64_t, 4> data;
+};
+
+struct Operation {
+  const void *actor;
+  OperationType type;
+  std::array<std::uint64_t, 4> data;
+};
+
+template <typename GainCache, typename DeltaPartitionedGraph>
+std::vector<std::uint64_t>
+replay(const std::string &filename, const Context &ctx, PartitionedGraph &p_graph) {
+  using DeltaGainCache = typename GainCache::template DeltaCache<DeltaPartitionedGraph>;
+  GainCache gain_cache(ctx, p_graph.n(), p_graph.k());
+
+  std::vector<NonconstOperation> queries;
+  std::vector<std::uint64_t> ans;
+
+  TIMED_SCOPE("Reading trace") {
+    std::ifstream in(filename, std::ios_base::binary);
+
+    std::uint64_t size;
+    in.read(reinterpret_cast<char *>(size), sizeof(std::uint64_t));
+
+    queries.resize(size);
+    ans.resize(size);
+
+    in.read(reinterpret_cast<char *>(queries.data()), size * sizeof(Operation));
+  };
+
+  // Create delta gain caches
+  using DeltaPair =
+      std::pair<std::unique_ptr<DeltaPartitionedGraph>, std::unique_ptr<DeltaGainCache>>;
+  std::unordered_map<void *, DeltaPair> delta_mapping;
+
+  START_TIMER("Preparing delta pairs");
+  for (auto &query : queries) {
+    if (query.actor == nullptr) {
+      continue;
+    }
+
+    if (delta_mapping.find(query.actor) == delta_mapping.end()) {
+      auto d_graph = std::make_unique<DeltaPartitionedGraph>(&p_graph);
+      auto d_gain_cache = std::make_unique<DeltaGainCache>(gain_cache, *d_graph);
+      delta_mapping.emplace(
+          query.actor, std::make_pair(std::move(d_graph), std::move(d_gain_cache))
+      );
+    }
+    query.actor = reinterpret_cast<void *>(&delta_mapping[query.actor]);
+  }
+  STOP_TIMER();
+
+  START_TIMER("Replaying recorded trace");
+  for (std::size_t i = 0; i < queries.size(); ++i) {
+    const auto &query = queries[i];
+    const OperationType op = query.type;
+    const auto &[a, b, c, d] = query.data;
+
+    if (query.actor == nullptr) {
+      switch (query.type) {
+      case GAIN_SINGLE:
+        ans[i] = gain_cache.gain(a, b, c);
+        break;
+
+      case GAIN_DOUBLE: {
+        const auto &[gain_c, gain_d] = gain_cache.gain(a, b, {c, d});
+        ans[i] = gain_c + gain_d;
+        break;
+      }
+
+      case CONN:
+        ans[i] = gain_cache.conn(a, b);
+        break;
+
+      case GAINS:
+        // do nothing
+        break;
+
+      case MOVE:
+        gain_cache.move(p_graph, a, b, c);
+        break;
+
+      case IS_BORDER:
+        ans[i] = gain_cache.is_border_node(a, b);
+        break;
+      case CLEAR:
+        // do nothing
+        break;
+      }
+    } else {
+      const auto &[d_graph, d_gain_cache] = *reinterpret_cast<DeltaPair *>(query.actor);
+
+      switch (query.type) {
+      case GAIN_SINGLE:
+        ans[i] = d_gain_cache->gain(a, b, c);
+        break;
+
+      case GAIN_DOUBLE: {
+        const auto &[ans_c, ans_d] = d_gain_cache->gain(a, b, {c, d});
+        ans[i] = ans_c + ans_d;
+        break;
+      }
+
+      case CONN:
+        ans[i] = d_gain_cache->conn(a, b);
+        break;
+
+      case GAINS:
+        // do nothing
+        break;
+
+      case MOVE:
+        d_gain_cache->move(*d_graph, a, b, c);
+        break;
+
+      case IS_BORDER:
+        // do nothing
+        break;
+
+      case CLEAR:
+        d_gain_cache->clear();
+        break;
+      }
+    }
+  }
+  STOP_TIMER();
+
+  return ans;
+}
+
 class Tracer {
-  enum OperationType : std::uint8_t {
-    GAIN_SINGLE,
-    GAIN_DOUBLE,
-    CONN,
-    GAINS,
-    MOVE,
-    IS_BORDER,
-  };
-
-  struct Operation {
-    const void *actor;
-    OperationType type;
-    std::array<std::uint64_t, 4> data;
-  };
-
 public:
   void trace_gain(const void *cache, const NodeID node, const BlockID from, const BlockID to) {
     trace(cache, GAIN_SINGLE, node, from, to);
@@ -65,9 +198,17 @@ public:
     trace(cache, IS_BORDER, node, block);
   }
 
+  void trace_clear(const void *cache) {
+    trace(cache, CLEAR);
+  }
+
   void dump(const std::string &filename) {
+    DBG << "Dumping " << _trace.size() << " operations to " << filename;
+
     std::ofstream out(filename, std::ios_base::trunc | std::ios_base::binary);
-    out.write(reinterpret_cast<char *>(_trace.data()), sizeof(Operation) * _trace.size());
+    std::uint64_t size = _trace.size();
+    out.write(reinterpret_cast<const char *>(&size), sizeof(std::uint64_t));
+    out.write(reinterpret_cast<const char *>(_trace.data()), sizeof(Operation) * _trace.size());
   }
 
   void clear() {
@@ -98,7 +239,7 @@ private:
   std::vector<Operation> _trace;
   std::mutex _trace_mutex;
 };
-} // namespace tracing
+} // namespace tracing_gain_cache
 
 template <typename ActualDeltaGainCache, typename GainCache> class TracingDeltaGainCache;
 
@@ -186,7 +327,7 @@ public:
   }
 
   ActualGainCache _gain_cache;
-  mutable tracing::Tracer _tracer;
+  mutable tracing_gain_cache::Tracer _tracer;
   std::string _filename;
 };
 
@@ -232,6 +373,7 @@ public:
   }
 
   void clear() {
+    _gain_cache._tracer.trace_clear(this);
     _d_gain_cache.clear();
   }
 

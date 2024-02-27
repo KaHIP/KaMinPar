@@ -327,7 +327,7 @@ public:
     if (_gain_cache.is_high_degree_node(node)) {
       return _gain_cache.conn(node, block) + conn_delta(node, block);
     } else {
-      return _on_the_fly_delta_gain_cache(node, block);
+      return _on_the_fly_delta_gain_cache.conn(node, block);
     }
   }
 
