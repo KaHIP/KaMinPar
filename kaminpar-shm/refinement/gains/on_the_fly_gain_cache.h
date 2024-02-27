@@ -193,8 +193,11 @@ private:
       _rating_map_ets;
 };
 
-template <typename DeltaPartitionedGraph, typename GainCache> class OnTheFlyDeltaGainCache {
+template <typename _DeltaPartitionedGraph, typename _GainCache> class OnTheFlyDeltaGainCache {
 public:
+  using DeltaPartitionedGraph = _DeltaPartitionedGraph;
+  using GainCache = _GainCache;
+
   constexpr static bool kIteratesNonadjacentBlocks = GainCache::kIteratesNonadjacentBlocks;
   constexpr static bool kIteratesExactGains = GainCache::kIteratesExactGains;
 

@@ -461,8 +461,11 @@ private:
   mutable tbb::enumerable_thread_specific<Statistics> _stats_ets;
 };
 
-template <typename DeltaPartitionedGraph, typename GainCache> class DenseDeltaGainCache {
+template <typename _DeltaPartitionedGraph, typename _GainCache> class DenseDeltaGainCache {
 public:
+  using DeltaPartitionedGraph = _DeltaPartitionedGraph;
+  using GainCache = _GainCache;
+
   constexpr static bool kIteratesNonadjacentBlocks = GainCache::kIteratesNonadjacentBlocks;
   constexpr static bool kIteratesExactGains = GainCache::kIteratesExactGains;
 

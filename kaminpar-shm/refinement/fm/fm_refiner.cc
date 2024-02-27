@@ -20,6 +20,7 @@
 #include "kaminpar-shm/refinement/gains/dense_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/hybrid_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/on_the_fly_gain_cache.h"
+#include "kaminpar-shm/refinement/gains/tracing_gain_cache.h"
 #endif // KAMINPAR_EXPERIMENTAL
 
 #include "kaminpar-common/logger.h"
@@ -64,6 +65,13 @@ std::unique_ptr<Refiner> create_fm_refiner(const Context &ctx) {
       return std::make_unique<FMRefiner<HybridGainCache<true>>>(ctx);
     } else {
       return std::make_unique<FMRefiner<HybridGainCache<false>>>(ctx);
+    }
+
+  case GainCacheStrategy::TRACING:
+    if (ctx.refinement.kway_fm.consider_nonadjacent_blocks) {
+      return std::make_unique<FMRefiner<TracingGainCache<SparseGainCache<true>>>>(ctx);
+    } else {
+      return std::make_unique<FMRefiner<TracingGainCache<SparseGainCache<false>>>>(ctx);
     }
 #endif
 

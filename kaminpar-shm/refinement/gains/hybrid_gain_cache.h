@@ -311,8 +311,11 @@ private:
   OnTheFlyGainCache<kIteratesNonadjacentBlocks, kIteratesExactGains> _on_the_fly_gain_cache;
 };
 
-template <typename DeltaPartitionedGraph, typename GainCache> class HybridDeltaGainCache {
+template <typename _DeltaPartitionedGraph, typename _GainCache> class HybridDeltaGainCache {
 public:
+  using DeltaPartitionedGraph = _DeltaPartitionedGraph;
+  using GainCache = _GainCache;
+
   constexpr static bool kIteratesNonadjacentBlocks = GainCache::kIteratesNonadjacentBlocks;
   constexpr static bool kIteratesExactGains = GainCache::kIteratesExactGains;
 

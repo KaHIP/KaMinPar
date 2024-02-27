@@ -220,8 +220,11 @@ private:
   StaticArray<EdgeWeight> _weighted_degrees;
 };
 
-template <typename DeltaPartitionedGraph, typename GainCache> class SparseDeltaGainCache {
+template <typename _DeltaPartitionedGraph, typename _GainCache> class SparseDeltaGainCache {
 public:
+  using DeltaPartitionedGraph = _DeltaPartitionedGraph;
+  using GainCache = _GainCache;
+
   constexpr static bool kIteratesNonadjacentBlocks = GainCache::kIteratesNonadjacentBlocks;
   constexpr static bool kIteratesExactGains = GainCache::kIteratesExactGains;
 

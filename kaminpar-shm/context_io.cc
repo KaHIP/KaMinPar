@@ -174,6 +174,7 @@ std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies() {
       {"dense", GainCacheStrategy::DENSE},
       {"on-the-fly", GainCacheStrategy::ON_THE_FLY},
       {"hybrid", GainCacheStrategy::HYBRID},
+      {"tracing", GainCacheStrategy::TRACING},
   };
 }
 
@@ -187,6 +188,8 @@ std::ostream &operator<<(std::ostream &out, const GainCacheStrategy strategy) {
     return out << "on-the-fly";
   case GainCacheStrategy::HYBRID:
     return out << "hybrid";
+  case GainCacheStrategy::TRACING:
+    return out << "tracing";
   }
 
   return out << "<invalid>";
