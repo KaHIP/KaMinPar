@@ -41,7 +41,7 @@ template <typename DeltaPartitionedGraph, typename GainCache> class DenseDeltaGa
 
 template <bool iterate_nonadjacent_blocks, bool iterate_exact_gains = false> class DenseGainCache {
   SET_DEBUG(true);
-  SET_STATISTICS(true);
+  SET_STATISTICS(false);
 
   using Self = DenseGainCache<iterate_nonadjacent_blocks, iterate_exact_gains>;
   template <typename, typename> friend class DenseDeltaGainCache;
@@ -366,6 +366,7 @@ private:
   }
 
   void reset() {
+    SCOPED_TIMER("Reset gain cache");
     IFSTATS(_stats_ets.clear());
 
     tbb::parallel_for<std::size_t>(0, _gain_cache.size(), [&](const std::size_t i) {
@@ -374,6 +375,8 @@ private:
   }
 
   void recompute_all(const PartitionedGraph &p_graph) {
+    SCOPED_TIMER("Recompute gain cache");
+
     p_graph.pfor_nodes([&](const NodeID u) { recompute_node(p_graph, u); });
     KASSERT(
         validate(p_graph), "dense gain cache verification failed after recomputation", assert::heavy
