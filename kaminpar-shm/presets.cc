@@ -123,6 +123,7 @@ Context create_default_context() {
                       .num_seed_nodes = 10,
                       .alpha = 1.0,
                       .num_iterations = 10,
+                      .unlock_locally_moved_nodes = true,
                       .unlock_seed_nodes = true,
                       .use_exact_abortion_threshold = false,
                       .abortion_threshold = 0.999,

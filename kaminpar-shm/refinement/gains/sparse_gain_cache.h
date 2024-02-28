@@ -22,7 +22,7 @@ namespace kaminpar::shm {
 template <typename DeltaPartitionedGraph, typename GainCache> class SparseDeltaGainCache;
 
 template <bool iterate_nonadjacent_blocks, bool iterate_exact_gains = false> class SparseGainCache {
-  SET_DEBUG(true);
+  SET_DEBUG(false);
 
   using Self = SparseGainCache<iterate_nonadjacent_blocks, iterate_exact_gains>;
   template <typename, typename> friend class SparseDeltaGainCache;

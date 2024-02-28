@@ -431,17 +431,25 @@ EdgeWeight LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::run_batch() {
     node_pq.clear();
   }
 
-  // If we do not wish to unlock seed nodes, mark them as globally moved == locked for good
-  if (!_fm_ctx.unlock_seed_nodes) {
-    for (const NodeID &seed_node : _seed_nodes) {
-      _shared.node_tracker.set(seed_node, NodeTracker::MOVED_GLOBALLY);
-    }
-  } else {
-    for (const NodeID seed_node : _seed_nodes) {
-      const int owner = _shared.node_tracker.owner(seed_node);
-      if (owner == _id || owner == NodeTracker::MOVED_LOCALLY) {
-        _shared.node_tracker.set(seed_node, NodeTracker::UNLOCKED);
+  auto unlock_touched_node = [&](const NodeID node) {
+    const int owner = _shared.node_tracker.owner(node);
+    if (owner == NodeTracker::MOVED_LOCALLY) {
+      if (_fm_ctx.unlock_locally_moved_nodes) {
+        _shared.node_tracker.set(node, NodeTracker::UNLOCKED);
+      } else {
+        _shared.node_tracker.set(node, NodeTracker::MOVED_GLOBALLY);
       }
+    } else if (owner == _id) {
+      _shared.node_tracker.set(node, NodeTracker::UNLOCKED);
+    }
+  };
+
+  // If we do not wish to unlock seed nodes, mark them as globally moved == locked for good
+  for (const NodeID &seed_node : _seed_nodes) {
+    if (!_fm_ctx.unlock_seed_nodes) {
+      _shared.node_tracker.set(seed_node, NodeTracker::MOVED_GLOBALLY);
+    } else {
+      unlock_touched_node(seed_node);
     }
   }
 
@@ -449,10 +457,7 @@ EdgeWeight LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::run_batch() {
   // thread-local delta graph
   IFSTATS(stats.num_discarded_moves += _d_graph.delta().size());
   for (const NodeID touched_node : _touched_nodes) {
-    const int owner = _shared.node_tracker.owner(touched_node);
-    if (owner == _id || owner == NodeTracker::MOVED_LOCALLY) {
-      _shared.node_tracker.set(touched_node, NodeTracker::UNLOCKED);
-    }
+    unlock_touched_node(touched_node);
   }
 
   _block_pq.clear();

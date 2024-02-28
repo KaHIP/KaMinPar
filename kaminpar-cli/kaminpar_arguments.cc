@@ -264,6 +264,19 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
   )
       ->capture_default_str();
 
+  fm->add_flag(
+      "--r-fm-lock-locally-moved-nodes{false},--r-fm-unlock-locally-moved-nodes",
+      ctx.refinement.kway_fm.unlock_locally_moved_nodes,
+      "If set, unlock all nodes after a batch that were only moved thread-locally, but not "
+      "globally."
+  );
+  fm->add_flag(
+      "--r-fm-lock-seed-nodes{false},--r-fm-unlock-seed-nodes",
+      ctx.refinement.kway_fm.unlock_seed_nodes,
+      "If set, keep seed nodes locked even if they were never moved. If this flag is not set, they "
+      "are treated the same way as touched nodes."
+  );
+
   // Flags for gain caches
   fm->add_option("--r-fm-gc", ctx.refinement.kway_fm.gain_cache_strategy)
       ->transform(CLI::CheckedTransformer(get_gain_cache_strategies()).description(""))

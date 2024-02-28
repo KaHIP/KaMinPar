@@ -289,6 +289,10 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
         << " [or improvement drops below < " << 100.0 * (1.0 - r_ctx.kway_fm.abortion_threshold)
         << "%]\n";
     out << "  Number of seed nodes:       " << r_ctx.kway_fm.num_seed_nodes << "\n";
+    out << "  Locking strategies:         "
+        << (r_ctx.kway_fm.unlock_seed_nodes ? "unlock seed nodes" : "lock seed nodes") << " "
+        << (r_ctx.kway_fm.unlock_locally_moved_nodes ? "unlock locally moved nodes"
+                                                     : "lock locally moved nodes");
     out << "  Gain cache:                 " << r_ctx.kway_fm.gain_cache_strategy << "\n";
     if (r_ctx.kway_fm.gain_cache_strategy == GainCacheStrategy::HYBRID) {
       out << "  High-degree threshold:\n";

@@ -161,6 +161,7 @@ struct KwayFMRefinementContext {
   NodeID num_seed_nodes;
   double alpha;
   int num_iterations;
+  bool unlock_locally_moved_nodes;
   bool unlock_seed_nodes;
   bool use_exact_abortion_threshold;
   double abortion_threshold;
