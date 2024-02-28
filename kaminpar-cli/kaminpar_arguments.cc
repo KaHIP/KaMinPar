@@ -52,13 +52,16 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
   - async-parallel: diversify initial partitioning by replicating coarse graphs each branch of the replication tree asynchronously
   - sync-parallel:  same as async-parallel, but process branches synchronously)")
       ->capture_default_str();
-  partitioning->add_option(
-      "--p-deep-initial-partitioning-load",
-      ctx.partitioning.deep_initial_partitioning_load,
-      "Fraction of cores that should be used for the coarse graph replication phase of deep MGP. A "
-      "value of '1' will replicate the graph once for every PE, whereas smaller values lead to "
-      "fewer replications."
-  );
+  partitioning
+      ->add_option(
+          "--p-deep-initial-partitioning-load",
+          ctx.partitioning.deep_initial_partitioning_load,
+          "Fraction of cores that should be used for the coarse graph replication phase of deep "
+          "MGP. A "
+          "value of '1' will replicate the graph once for every PE, whereas smaller values lead to "
+          "fewer replications."
+      )
+      ->capture_default_str();
   partitioning->add_option("--rearrange-by", ctx.rearrange_by)
       ->transform(CLI::CheckedTransformer(get_graph_orderings()).description(""))
       ->description(R"(Criteria by which the graph is sorted and rearrange:
@@ -282,14 +285,14 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
       ->transform(CLI::CheckedTransformer(get_gain_cache_strategies()).description(""))
       ->capture_default_str();
   fm->add_flag(
-        "--r-fm-gc-nonconnected",
+        "--r-fm-gc-consider-nonadjacent-blocks",
         ctx.refinement.kway_fm.consider_nonadjacent_blocks,
         "If set, also consider non-adjacent blocks as valid move targets for vertices. This could "
         "make blocks non-connected, even if initial partitioning only produced connected blocks."
   )
       ->capture_default_str();
   fm->add_option(
-        "--r-fm-gc-hd-threshold",
+        "--r-fm-gc-const-hd-threshold",
         ctx.refinement.kway_fm.constant_high_degree_threshold,
         "If the selected gain cache strategy distinguishes between low- and high-degree nodes: use "
         "this as a constant threshold for high-degree nodes."
