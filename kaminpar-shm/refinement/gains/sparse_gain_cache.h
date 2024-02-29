@@ -15,6 +15,7 @@
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/dynamic_map.h"
+#include "kaminpar-common/inline.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 
@@ -88,7 +89,7 @@ public:
   }
 
   template <typename Lambda>
-  void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
+  KAMINPAR_INLINE void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
     const EdgeWeight conn_from = kIteratesExactGains ? conn(node, from) : 0;
 
     if constexpr (kIteratesNonadjacentBlocks) {
