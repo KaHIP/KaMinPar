@@ -33,6 +33,7 @@
 #include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/degree_buckets.h"
+#include "kaminpar-common/inline.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 
@@ -179,24 +180,23 @@ public:
     tbb::parallel_invoke([&] { _gain_cache.free(); }, [&] { _weighted_degrees.free(); });
   }
 
-  [[nodiscard]] inline __attribute__((always_inline)) EdgeWeight
+  [[nodiscard]] KAMINPAR_INLINE EdgeWeight
   gain(const NodeID node, const BlockID block_from, const BlockID block_to) const {
     return weighted_degree_to(node, block_to) - weighted_degree_to(node, block_from);
   }
 
-  [[nodiscard]] inline __attribute__((always_inline)) std::pair<EdgeWeight, EdgeWeight>
+  [[nodiscard]] KAMINPAR_INLINE std::pair<EdgeWeight, EdgeWeight>
   gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) {
     return {gain(node, b_node, targets.first), gain(node, b_node, targets.second)};
   }
 
-  [[nodiscard]] inline __attribute__((always_inline)) EdgeWeight
-  conn(const NodeID node, const BlockID block) const {
+  [[nodiscard]] KAMINPAR_INLINE EdgeWeight conn(const NodeID node, const BlockID block) const {
     return weighted_degree_to(node, block);
   }
 
+  // Forcing inlining here seems to be very important
   template <typename Lambda>
-  inline __attribute__((always_inline)) void
-  gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
+  KAMINPAR_INLINE void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
     if (in_sparse_part(node)) {
       const EdgeWeight conn_from = kIteratesExactGains ? conn_sparse(node, from) : 0;
 
@@ -234,7 +234,7 @@ public:
     }
   }
 
-  inline __attribute__((always_inline)) void move(
+  KAMINPAR_INLINE void move(
       const PartitionedGraph &p_graph,
       const NodeID node,
       const BlockID block_from,
@@ -265,7 +265,7 @@ public:
     }
   }
 
-  [[nodiscard]] inline __attribute__((always_inline)) bool
+  [[nodiscard]] KAMINPAR_INLINE bool
   is_border_node(const NodeID node, const BlockID block_of_node) const {
     return weighted_degree(node) != weighted_degree_to(node, block_of_node);
   }
@@ -356,13 +356,12 @@ private:
   // Lookups (mixed)
   //
 
-  [[nodiscard]] inline __attribute__((always_inline)) EdgeWeight weighted_degree(const NodeID node
-  ) const {
+  [[nodiscard]] KAMINPAR_INLINE EdgeWeight weighted_degree(const NodeID node) const {
     KASSERT(node < _weighted_degrees.size());
     return static_cast<EdgeWeight>(_weighted_degrees[node] & kWeightedDegreeMask);
   }
 
-  [[nodiscard]] inline __attribute__((always_inline)) EdgeWeight
+  [[nodiscard]] KAMINPAR_INLINE EdgeWeight
   weighted_degree_to(const NodeID node, const BlockID block) const {
     IFSTATS(_stats_ets.local().num_hd_queries += in_sparse_part(node));
     IFSTATS(_stats_ets.local().num_ld_queries += !in_sparse_part(node));
@@ -379,32 +378,32 @@ private:
   // Lookups (dense part)
   //
 
-  [[nodiscard]] inline __attribute__((always_inline)) EdgeWeight
+  [[nodiscard]] KAMINPAR_INLINE EdgeWeight
   conn_dense(const NodeID node, const BlockID block) const {
     return weighted_degree_to_dense(node, block);
   }
 
-  [[nodiscard]] inline __attribute__((always_inline)) EdgeWeight
+  [[nodiscard]] KAMINPAR_INLINE EdgeWeight
   weighted_degree_to_dense(const NodeID node, const BlockID block) const {
     IFSTATS(++_stats_ets.local().num_ld_queries);
     return static_cast<EdgeWeight>(create_dense_wrapper(node).get(block));
   }
 
-  [[nodiscard]] inline __attribute__((always_inline)) std::pair<std::size_t, std::size_t>
-  index_dense(const NodeID node) const {
+  [[nodiscard]] KAMINPAR_INLINE std::pair<std::size_t, std::size_t> index_dense(const NodeID node
+  ) const {
     const int bucket = find_bucket(node);
     const std::size_t size = lowest_degree_in_bucket<NodeID>(bucket + 1);
     KASSERT(math::is_power_of_2(size));
     return std::make_pair(_cache_offsets[bucket] + (node - _buckets[bucket]) * size, size);
   }
 
-  [[nodiscard]] inline __attribute__((always_inline)) CompactHashMap<UnsignedEdgeWeight const>
+  [[nodiscard]] KAMINPAR_INLINE CompactHashMap<UnsignedEdgeWeight const>
   create_dense_wrapper(const NodeID node) const {
     const auto [start, size] = index_dense(node);
     return {_gain_cache.data() + start, size, _bits_for_key};
   }
 
-  [[nodiscard]] inline __attribute__((always_inline)) CompactHashMap<UnsignedEdgeWeight>
+  [[nodiscard]] KAMINPAR_INLINE CompactHashMap<UnsignedEdgeWeight>
   create_dense_wrapper(const NodeID node) {
     const auto [start, size] = index_dense(node);
     return {_gain_cache.data() + start, size, _bits_for_key};
@@ -414,17 +413,17 @@ private:
   // Lookups (sparse part)
   //
 
-  [[nodiscard]] inline __attribute__((always_inline)) std::size_t
+  [[nodiscard]] KAMINPAR_INLINE std::size_t
   index_sparse(const NodeID node, const BlockID block) const {
     return _sparse_offset + 1ull * (node - _node_threshold) * _k + block;
   }
 
-  [[nodiscard]] inline __attribute__((always_inline)) EdgeWeight
+  [[nodiscard]] KAMINPAR_INLINE EdgeWeight
   conn_sparse(const NodeID node, const BlockID block) const {
     return weighted_degree_to_sparse(node, block);
   }
 
-  [[nodiscard]] inline __attribute__((always_inline)) EdgeWeight
+  [[nodiscard]] KAMINPAR_INLINE EdgeWeight
   weighted_degree_to_sparse(const NodeID node, const BlockID block) const {
     IFSTATS(++_stats_ets.local().num_hd_queries);
     return static_cast<EdgeWeight>(
@@ -432,7 +431,7 @@ private:
     );
   }
 
-  [[nodiscard]] inline __attribute__((always_inline)) bool in_sparse_part(const NodeID node) const {
+  [[nodiscard]] KAMINPAR_INLINE bool in_sparse_part(const NodeID node) const {
     return node >= _node_threshold;
   }
 
@@ -557,24 +556,22 @@ public:
       : _k(d_graph.k()),
         _gain_cache(gain_cache) {}
 
-  [[nodiscard]] inline __attribute__((always_inline)) EdgeWeight
-  conn(const NodeID node, const BlockID block) const {
+  [[nodiscard]] KAMINPAR_INLINE EdgeWeight conn(const NodeID node, const BlockID block) const {
     return _gain_cache.conn(node, block) + conn_delta(node, block);
   }
 
-  [[nodiscard]] inline __attribute__((always_inline)) EdgeWeight
+  [[nodiscard]] KAMINPAR_INLINE EdgeWeight
   gain(const NodeID node, const BlockID from, const BlockID to) const {
     return _gain_cache.gain(node, from, to) + conn_delta(node, to) - conn_delta(node, from);
   }
 
-  [[nodiscard]] inline __attribute__((always_inline)) std::pair<EdgeWeight, EdgeWeight>
+  [[nodiscard]] KAMINPAR_INLINE std::pair<EdgeWeight, EdgeWeight>
   gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) {
     return {gain(node, b_node, targets.first), gain(node, b_node, targets.second)};
   }
 
   template <typename Lambda>
-  inline __attribute__((always_inline)) void
-  gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
+  KAMINPAR_INLINE void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
     const EdgeWeight conn_from_delta = kIteratesExactGains ? conn_delta(node, from) : 0;
 
     _gain_cache.gains(node, from, [&](const BlockID to, auto &&gain) {
@@ -582,7 +579,7 @@ public:
     });
   }
 
-  inline __attribute__((always_inline)) void move(
+  KAMINPAR_INLINE void move(
       const DeltaPartitionedGraph &d_graph,
       const NodeID u,
       const BlockID block_from,
@@ -595,20 +592,19 @@ public:
     }
   }
 
-  inline __attribute__((always_inline)) void clear() {
+  KAMINPAR_INLINE void clear() {
     _gain_cache_delta.clear();
   }
 
 private:
-  [[nodiscard]] inline __attribute__((always_inline)) std::size_t
-  index(const NodeID node, const BlockID block) const {
+  [[nodiscard]] KAMINPAR_INLINE std::size_t index(const NodeID node, const BlockID block) const {
     // Note: this increases running times substantially due to the shifts
     // return index_sparse(node, block);
 
     return 1ull * node * _k + block;
   }
 
-  [[nodiscard]] inline __attribute__((always_inline)) EdgeWeight
+  [[nodiscard]] KAMINPAR_INLINE EdgeWeight
   conn_delta(const NodeID node, const BlockID block) const {
     const auto it = _gain_cache_delta.get_if_contained(index(node, block));
     return it != _gain_cache_delta.end() ? *it : 0;
