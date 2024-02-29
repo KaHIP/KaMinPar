@@ -109,18 +109,8 @@ void BlockWeightsContext::setup(const PartitionContext &p_ctx, const BlockID inp
   });
 }
 
-[[nodiscard]] BlockWeight BlockWeightsContext::max(const BlockID b) const {
-  KASSERT(b < _max_block_weights.size());
-  return _max_block_weights[b];
-}
-
 [[nodiscard]] const std::vector<BlockWeight> &BlockWeightsContext::all_max() const {
   return _max_block_weights;
-}
-
-[[nodiscard]] BlockWeight BlockWeightsContext::perfectly_balanced(const BlockID b) const {
-  KASSERT(b < _perfectly_balanced_block_weights.size());
-  return _perfectly_balanced_block_weights[b];
 }
 
 [[nodiscard]] const std::vector<BlockWeight> &BlockWeightsContext::all_perfectly_balanced() const {
