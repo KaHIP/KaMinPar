@@ -37,11 +37,11 @@ std::unique_ptr<Refiner> create_fm_refiner(const Context &ctx) {
   switch (ctx.refinement.kway_fm.gain_cache_strategy) {
   case GainCacheStrategy::SPARSE:
     if (ctx.refinement.kway_fm.consider_nonadjacent_blocks) {
-      //return std::make_unique<FMRefiner<SparseGainCache<true>>>(ctx);
+      return std::make_unique<FMRefiner<SparseGainCache<true>>>(ctx);
     }
 #ifdef KAMINPAR_EXPERIMENTAL
     else {
-      //return std::make_unique<FMRefiner<SparseGainCache<false>>>(ctx);
+      return std::make_unique<FMRefiner<SparseGainCache<false>>>(ctx);
     }
 #endif
 
@@ -50,28 +50,28 @@ std::unique_ptr<Refiner> create_fm_refiner(const Context &ctx) {
     if (ctx.refinement.kway_fm.consider_nonadjacent_blocks) {
       return std::make_unique<FMRefiner<DenseGainCache<true>>>(ctx);
     } else {
-      //return std::make_unique<FMRefiner<DenseGainCache<false>>>(ctx);
+      return std::make_unique<FMRefiner<DenseGainCache<false>>>(ctx);
     }
 
   case GainCacheStrategy::ON_THE_FLY:
     if (ctx.refinement.kway_fm.consider_nonadjacent_blocks) {
-      //return std::make_unique<FMRefiner<OnTheFlyGainCache<true>>>(ctx);
+      return std::make_unique<FMRefiner<OnTheFlyGainCache<true>>>(ctx);
     } else {
-      //return std::make_unique<FMRefiner<OnTheFlyGainCache<false>>>(ctx);
+      return std::make_unique<FMRefiner<OnTheFlyGainCache<false>>>(ctx);
     }
 
   case GainCacheStrategy::HYBRID:
     if (ctx.refinement.kway_fm.consider_nonadjacent_blocks) {
-      //return std::make_unique<FMRefiner<HybridGainCache<true>>>(ctx);
+      return std::make_unique<FMRefiner<HybridGainCache<true>>>(ctx);
     } else {
-      //return std::make_unique<FMRefiner<HybridGainCache<false>>>(ctx);
+      return std::make_unique<FMRefiner<HybridGainCache<false>>>(ctx);
     }
 
   case GainCacheStrategy::TRACING:
     if (ctx.refinement.kway_fm.consider_nonadjacent_blocks) {
-      //return std::make_unique<FMRefiner<TracingGainCache<SparseGainCache<true>>>>(ctx);
+      return std::make_unique<FMRefiner<TracingGainCache<SparseGainCache<true>>>>(ctx);
     } else {
-      //return std::make_unique<FMRefiner<TracingGainCache<SparseGainCache<false>>>>(ctx);
+      return std::make_unique<FMRefiner<TracingGainCache<SparseGainCache<false>>>>(ctx);
     }
 #endif
 
@@ -186,7 +186,7 @@ bool FMRefiner<GainCache, DeltaPartitionedGraph>::refine(
     // Gains of the current iterations
     tbb::enumerable_thread_specific<EdgeWeight> expected_gain_ets;
 
-    // Make sure that we work with correct gains
+    // Make sure that we work with correct gains // == 0, member variable
     KASSERT(
         _shared->gain_cache.validate(p_graph),
         "gain cache invalid before iteration " << iteration,
@@ -477,8 +477,7 @@ EdgeWeight LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::run_batch() {
 }
 
 template <typename GainCache, typename DeltaPartitionedGraph>
-inline __attribute__((always_inline)) void
-LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::update_after_move(
+inline void LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::update_after_move(
     const NodeID node, const NodeID moved_node, const BlockID moved_from, const BlockID moved_to
 ) {
   const BlockID old_block = _p_graph.block(node);
@@ -526,8 +525,7 @@ LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::update_after_move(
 }
 
 template <typename GainCache, typename DeltaPartitionedGraph>
-inline __attribute__((always_inline)) bool
-LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::update_block_pq() {
+inline bool LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::update_block_pq() {
   bool have_more_nodes = false;
   for (const BlockID block : _p_graph.blocks()) {
     if (!_node_pqs[block].empty()) {
@@ -543,8 +541,7 @@ LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::update_block_pq() {
 
 template <typename GainCache, typename DeltaPartitionedGraph>
 template <typename GainCacheType, typename PartitionedGraphType>
-inline __attribute__((always_inline)) void
-LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::insert_into_node_pq(
+inline void LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::insert_into_node_pq(
     const PartitionedGraphType &p_graph, const GainCacheType &gain_cache, const NodeID u
 ) {
   const BlockID block_u = p_graph.block(u);
@@ -557,7 +554,7 @@ LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::insert_into_node_pq(
 
 template <typename GainCache, typename DeltaPartitionedGraph>
 template <typename GainCacheType, typename PartitionedGraphType>
-inline __attribute__((always_inline)) std::pair<BlockID, EdgeWeight>
+inline std::pair<BlockID, EdgeWeight>
 LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::best_gain(
     const PartitionedGraphType &p_graph, const GainCacheType &gain_cache, const NodeID u
 ) {

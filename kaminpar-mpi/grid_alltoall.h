@@ -7,6 +7,7 @@
  ******************************************************************************/
 #pragma once
 
+#include <algorithm>
 #include <type_traits>
 #include <unordered_map>
 
