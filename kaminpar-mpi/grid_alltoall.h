@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <type_traits>
 #include <unordered_map>
+#include <numeric>
 
 #include <mpi.h>
 #include <tbb/parallel_for.h>
