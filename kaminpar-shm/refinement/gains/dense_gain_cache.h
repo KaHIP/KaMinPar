@@ -233,7 +233,7 @@ public:
 
           for (BlockID to = 0; to < _k; ++to) {
             if (from != to) {
-              lambda(to, [&] { return (cache.exists(to) ? cache.get(to) : 0) - conn_from; });
+              lambda(to, [&] { return cache.get(to) - conn_from; });
             }
           }
 
