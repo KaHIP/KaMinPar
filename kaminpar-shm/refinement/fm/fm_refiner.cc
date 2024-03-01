@@ -305,8 +305,6 @@ LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::last_batch_seed_nodes() {
 
 template <typename GainCache, typename DeltaPartitionedGraph>
 EdgeWeight LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::run_batch() {
-  SCOPED_TIMER("Run batch");
-
   using fm::NodeTracker;
 
   _seed_nodes.clear();
