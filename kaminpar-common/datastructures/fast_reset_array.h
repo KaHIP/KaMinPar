@@ -47,7 +47,7 @@ public:
   }
 
   [[nodiscard]] bool exists(const size_type pos) const {
-    return _data[pos] == Value();
+    return _data[pos] != Value();
   }
 
   [[nodiscard]] std::vector<size_type> &used_entry_ids() {
