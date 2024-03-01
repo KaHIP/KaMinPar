@@ -215,21 +215,30 @@ public:
         }
       }
     } else {
-      const EdgeWeight conn_from = kIteratesExactGains ? conn_dense(node, from) : 0;
+      const auto table = create_dense_wrapper(node);
+      const EdgeWeight conn_from = kIteratesExactGains ? table.get(from) : 0;
 
-      for (BlockID to = 0; to < _k; ++to) {
-        if (from == to) {
-          continue;
-        }
+      if constexpr (kIteratesNonadjacentBlocks) {
+        // @todo This is way more expensive than only iterating over adjacent blocks
+        // @todo If we want to keep it: copy hash table to small thread-local buffer of size O(k)?
+        for (BlockID to = 0; to < _k; ++to) {
+          if (from == to) {
+            continue;
+          }
 
-        if constexpr (kIteratesNonadjacentBlocks) {
-          lambda(to, [&] { return conn_dense(node, to) - conn_from; });
-        } else {
-          const EdgeWeight conn_to = conn_dense(node, to);
-          if (conn_to > 0) {
-            lambda(to, [&] { return conn_to - conn_from; });
+          if constexpr (kIteratesNonadjacentBlocks) {
+            lambda(to, [&] { return table.get(to) - conn_from; });
+          } else {
+            const EdgeWeight conn_to = table.get(to);
+            if (conn_to > 0) {
+              lambda(to, [&] { return conn_to - conn_from; });
+            }
           }
         }
+      } else {
+        table.for_each([&](const BlockID to, const EdgeWeight conn_to) {
+          lambda(to, [&] { return conn_to - conn_from; });
+        });
       }
     }
   }
@@ -251,11 +260,11 @@ public:
 
         IFSTATS(++_stats_ets.local().num_hd_updates);
       } else {
-        auto ht = create_dense_wrapper(v);
+        auto table = create_dense_wrapper(v);
 
         lock(v);
-        [[maybe_unused]] bool was_deleted = ht.decrease_by(block_from, weight);
-        [[maybe_unused]] bool was_inserted = ht.increase_by(block_to, weight);
+        [[maybe_unused]] bool was_deleted = table.decrease_by(block_from, weight);
+        [[maybe_unused]] bool was_inserted = table.increase_by(block_to, weight);
         unlock(v);
 
         IFSTATS(++_stats_ets.local().num_ld_updates);

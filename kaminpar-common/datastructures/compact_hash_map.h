@@ -95,6 +95,15 @@ public:
     return _value_mask + 1;
   }
 
+  template <typename Lambda> void for_each(Lambda &&lambda) const {
+    for (std::size_t i = 0; i < capacity(); ++i) {
+      const auto entry = read_pos(i);
+      if (entry != 0) {
+        lambda(decode_key(entry), decode_value(entry));
+      }
+    }
+  }
+
 private:
   // Decide whether we are allowed to move an element with the given hash from some position to
   // another
