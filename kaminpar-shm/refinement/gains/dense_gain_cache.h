@@ -31,6 +31,7 @@
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/compact_hash_map.h"
 #include "kaminpar-common/datastructures/dynamic_map.h"
+#include "kaminpar-common/datastructures/fast_reset_array.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/degree_buckets.h"
 #include "kaminpar-common/inline.h"
@@ -40,11 +41,16 @@
 namespace kaminpar::shm {
 template <typename DeltaPartitionedGraph, typename GainCache> class DenseDeltaGainCache;
 
-template <bool iterate_nonadjacent_blocks, bool iterate_exact_gains = false> class DenseGainCache {
+template <
+    bool iterate_nonadjacent_blocks,
+    bool cached_dense_iteration = false,
+    bool iterate_exact_gains = false>
+class DenseGainCache {
   SET_DEBUG(true);
   SET_STATISTICS(false);
 
-  using Self = DenseGainCache<iterate_nonadjacent_blocks, iterate_exact_gains>;
+  using Self =
+      DenseGainCache<iterate_nonadjacent_blocks, cached_dense_iteration, iterate_exact_gains>;
   template <typename, typename> friend class DenseDeltaGainCache;
 
   // Abuse MSB bit in the _weighted_degrees[] array for locking
@@ -218,19 +224,24 @@ public:
       const EdgeWeight conn_from = kIteratesExactGains ? conn_dense(node, from) : 0;
 
       if constexpr (kIteratesNonadjacentBlocks) {
-        // @todo This is way more expensive than only iterating over adjacent blocks
-        // @todo If we want to keep it: copy hash table to small thread-local buffer of size O(k)?
-        for (BlockID to = 0; to < _k; ++to) {
-          if (from == to) {
-            continue;
+        if constexpr (cached_dense_iteration) {
+          auto &cache = _dense_cache_ets.local();
+
+          create_dense_wrapper(node).for_each([&](const BlockID to, const EdgeWeight conn_to) {
+            cache.set(to, conn_to);
+          });
+
+          for (BlockID to = 0; to < _k; ++to) {
+            if (from != to) {
+              lambda(to, [&] { return (cache.exists(to) ? cache.get(to) : 0) - conn_from; });
+            }
           }
 
-          if constexpr (kIteratesNonadjacentBlocks) {
-            lambda(to, [&] { return conn_dense(node, to) - conn_from; });
-          } else {
-            const EdgeWeight conn_to = conn_dense(node, to);
-            if (conn_to > 0) {
-              lambda(to, [&] { return conn_to - conn_from; });
+          cache.clear();
+        } else {
+          for (BlockID to = 0; to < _k; ++to) {
+            if (from != to) {
+              lambda(to, [&] { return conn_dense(node, to) - conn_from; });
             }
           }
         }
@@ -452,6 +463,7 @@ private:
     tbb::parallel_for<std::size_t>(0, _gain_cache.size(), [&](const std::size_t i) {
       _gain_cache[i] = 0;
     });
+    _dense_cache_ets.clear();
   }
 
   void recompute_all(const PartitionedGraph &p_graph) {
@@ -552,6 +564,9 @@ private:
   StaticArray<UnsignedEdgeWeight> _weighted_degrees;
 
   mutable tbb::enumerable_thread_specific<Statistics> _stats_ets;
+  mutable tbb::enumerable_thread_specific<FastResetArray<EdgeWeight>> _dense_cache_ets{[&] {
+    return FastResetArray<EdgeWeight>(_k);
+  }};
 };
 
 template <typename _DeltaPartitionedGraph, typename _GainCache> class DenseDeltaGainCache {
