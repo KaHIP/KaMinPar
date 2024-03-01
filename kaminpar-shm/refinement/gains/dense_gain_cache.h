@@ -215,8 +215,7 @@ public:
         }
       }
     } else {
-      const auto table = create_dense_wrapper(node);
-      const EdgeWeight conn_from = kIteratesExactGains ? table.get(from) : 0;
+      const EdgeWeight conn_from = kIteratesExactGains ? conn_dense(node, from) : 0;
 
       if constexpr (kIteratesNonadjacentBlocks) {
         // @todo This is way more expensive than only iterating over adjacent blocks
@@ -227,17 +226,19 @@ public:
           }
 
           if constexpr (kIteratesNonadjacentBlocks) {
-            lambda(to, [&] { return table.get(to) - conn_from; });
+            lambda(to, [&] { return conn_dense(node, to) - conn_from; });
           } else {
-            const EdgeWeight conn_to = table.get(to);
+            const EdgeWeight conn_to = conn_dense(node, to);
             if (conn_to > 0) {
               lambda(to, [&] { return conn_to - conn_from; });
             }
           }
         }
       } else {
-        table.for_each([&](const BlockID to, const EdgeWeight conn_to) {
-          lambda(to, [&] { return conn_to - conn_from; });
+        create_dense_wrapper(node).for_each([&](const BlockID to, const EdgeWeight conn_to) {
+          if (to != from) {
+            lambda(to, [&] { return conn_to - conn_from; });
+          }
         });
       }
     }
