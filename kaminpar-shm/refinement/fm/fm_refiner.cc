@@ -53,13 +53,6 @@ std::unique_ptr<Refiner> create_fm_refiner(const Context &ctx) {
       return std::make_unique<FMRefiner<DenseGainCache<false>>>(ctx);
     }
 
-  case GainCacheStrategy::CACHED_DENSE:
-    if (ctx.refinement.kway_fm.consider_nonadjacent_blocks) {
-      return std::make_unique<FMRefiner<DenseGainCache<true, true>>>(ctx);
-    } else {
-      return std::make_unique<FMRefiner<DenseGainCache<false, true>>>(ctx);
-    }
-
   case GainCacheStrategy::ON_THE_FLY:
     if (ctx.refinement.kway_fm.consider_nonadjacent_blocks) {
       return std::make_unique<FMRefiner<OnTheFlyGainCache<true>>>(ctx);

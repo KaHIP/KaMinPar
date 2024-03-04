@@ -41,16 +41,11 @@
 namespace kaminpar::shm {
 template <typename DeltaPartitionedGraph, typename GainCache> class DenseDeltaGainCache;
 
-template <
-    bool iterate_nonadjacent_blocks,
-    bool cached_dense_iteration = false,
-    bool iterate_exact_gains = false>
-class DenseGainCache {
+template <bool iterate_nonadjacent_blocks, bool iterate_exact_gains = false> class DenseGainCache {
   SET_DEBUG(true);
   SET_STATISTICS(false);
 
-  using Self =
-      DenseGainCache<iterate_nonadjacent_blocks, cached_dense_iteration, iterate_exact_gains>;
+  using Self = DenseGainCache<iterate_nonadjacent_blocks, iterate_exact_gains>;
   template <typename, typename> friend class DenseDeltaGainCache;
 
   // Abuse MSB bit in the _weighted_degrees[] array for locking
@@ -224,27 +219,19 @@ public:
       const EdgeWeight conn_from = kIteratesExactGains ? conn_dense(node, from) : 0;
 
       if constexpr (kIteratesNonadjacentBlocks) {
-        if constexpr (cached_dense_iteration) {
-          auto &cache = _dense_cache_ets.local();
+        auto &cache = _dense_cache_ets.local();
 
-          create_dense_wrapper(node).for_each([&](const BlockID to, const EdgeWeight conn_to) {
-            cache.set(to, conn_to);
-          });
+        create_dense_wrapper(node).for_each([&](const BlockID to, const EdgeWeight conn_to) {
+          cache.set(to, conn_to);
+        });
 
-          for (BlockID to = 0; to < _k; ++to) {
-            if (from != to) {
-              lambda(to, [&] { return cache.get(to) - conn_from; });
-            }
-          }
-
-          cache.clear();
-        } else {
-          for (BlockID to = 0; to < _k; ++to) {
-            if (from != to) {
-              lambda(to, [&] { return conn_dense(node, to) - conn_from; });
-            }
+        for (BlockID to = 0; to < _k; ++to) {
+          if (from != to) {
+            lambda(to, [&] { return cache.get(to) - conn_from; });
           }
         }
+
+        cache.clear();
       } else {
         create_dense_wrapper(node).for_each([&](const BlockID to, const EdgeWeight conn_to) {
           if (to != from) {

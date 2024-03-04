@@ -146,7 +146,6 @@ enum class FMStoppingRule {
 enum class GainCacheStrategy {
   SPARSE,
   DENSE,
-  CACHED_DENSE,
   ON_THE_FLY,
   HYBRID,
   TRACING,
