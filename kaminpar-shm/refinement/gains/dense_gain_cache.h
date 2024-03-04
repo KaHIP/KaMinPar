@@ -57,28 +57,28 @@ class DenseGainCache {
   struct Statistics {
     Statistics operator+(const Statistics &other) const {
       return {
-          num_hd_queries + other.num_hd_queries,
-          num_hd_updates + other.num_hd_updates,
-          num_ld_queries + other.num_ld_queries,
-          num_ld_updates + other.num_ld_updates,
-          num_ld_insertions + other.num_ld_insertions,
-          num_ld_deletions + other.num_ld_deletions,
-          total_ld_fill_degree + other.total_ld_fill_degree,
-          ld_fill_degree_count + other.ld_fill_degree_count,
+          num_sparse_queries + other.num_sparse_queries,
+          num_sparse_updates + other.num_sparse_updates,
+          num_dense_queries + other.num_dense_queries,
+          num_dense_updates + other.num_dense_updates,
+          num_dense_insertions + other.num_dense_insertions,
+          num_dense_deletions + other.num_dense_deletions,
+          total_dense_fill_degree + other.total_dense_fill_degree,
+          dense_fill_degree_count + other.dense_fill_degree_count,
           num_moves + other.num_moves,
       };
     }
 
-    std::size_t num_hd_queries = 0;
-    std::size_t num_hd_updates = 0;
+    std::size_t num_sparse_queries = 0;
+    std::size_t num_sparse_updates = 0;
 
-    std::size_t num_ld_queries = 0;
-    std::size_t num_ld_updates = 0;
-    std::size_t num_ld_insertions = 0;
-    std::size_t num_ld_deletions = 0;
+    std::size_t num_dense_queries = 0;
+    std::size_t num_dense_updates = 0;
+    std::size_t num_dense_insertions = 0;
+    std::size_t num_dense_deletions = 0;
 
-    double total_ld_fill_degree = 0;
-    std::size_t ld_fill_degree_count = 0;
+    double total_dense_fill_degree = 0;
+    std::size_t dense_fill_degree_count = 0;
 
     std::size_t num_moves = 0;
   };
@@ -261,7 +261,7 @@ public:
         __atomic_fetch_sub(&_gain_cache[index_sparse(v, block_from)], weight, __ATOMIC_RELAXED);
         __atomic_fetch_add(&_gain_cache[index_sparse(v, block_to)], weight, __ATOMIC_RELAXED);
 
-        IFSTATS(++_stats_ets.local().num_hd_updates);
+        IFSTATS(++_stats_ets.local().num_sparse_updates);
       } else {
         auto table = create_dense_wrapper(v);
 
@@ -270,9 +270,9 @@ public:
         [[maybe_unused]] bool was_inserted = table.increase_by(block_to, weight);
         unlock(v);
 
-        IFSTATS(++_stats_ets.local().num_ld_updates);
-        IFSTATS(_stats_ets.local().num_ld_deletions += (was_deleted ? 1 : 0));
-        IFSTATS(_stats_ets.local().num_ld_insertions += (was_inserted ? 1 : 0));
+        IFSTATS(++_stats_ets.local().num_dense_updates);
+        IFSTATS(_stats_ets.local().num_dense_deletions += (was_deleted ? 1 : 0));
+        IFSTATS(_stats_ets.local().num_dense_insertions += (was_inserted ? 1 : 0));
       }
     }
   }
@@ -298,17 +298,17 @@ public:
 
     LOG_STATS << "Dense Gain Cache:";
     LOG_STATS << "  * # of moves: " << stats.num_moves;
-    LOG_STATS << "  * # of queries: " << stats.num_ld_queries << " LD, " << stats.num_hd_queries
-              << " HD";
+    LOG_STATS << "  * # of queries: " << stats.num_dense_queries << " LD, "
+              << stats.num_sparse_queries << " HD";
     LOG_STATS << "    + Average initial LD fill degree: "
-              << (stats.ld_fill_degree_count > 0
-                      ? 100.0 * stats.total_ld_fill_degree / stats.ld_fill_degree_count
+              << (stats.dense_fill_degree_count > 0
+                      ? 100.0 * stats.total_dense_fill_degree / stats.dense_fill_degree_count
                       : 0)
               << "%";
-    LOG_STATS << "  * # of updates: " << stats.num_ld_updates << " LD, " << stats.num_hd_updates
-              << " HD";
-    LOG_STATS << "    + # of LD Insertions: " << stats.num_ld_insertions;
-    LOG_STATS << "    + # of LD Deletions: " << stats.num_ld_deletions;
+    LOG_STATS << "  * # of updates: " << stats.num_dense_updates << " LD, "
+              << stats.num_sparse_updates << " HD";
+    LOG_STATS << "    + # of LD Insertions: " << stats.num_dense_insertions;
+    LOG_STATS << "    + # of LD Deletions: " << stats.num_dense_deletions;
   }
 
 private:
@@ -375,8 +375,8 @@ private:
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight
   weighted_degree_to(const NodeID node, const BlockID block) const {
-    IFSTATS(_stats_ets.local().num_hd_queries += in_sparse_part(node));
-    IFSTATS(_stats_ets.local().num_ld_queries += !in_sparse_part(node));
+    IFSTATS(_stats_ets.local().num_sparse_queries += in_sparse_part(node));
+    IFSTATS(_stats_ets.local().num_dense_queries += !in_sparse_part(node));
 
     if (in_sparse_part(node)) {
       const std::size_t idx = index_sparse(node, block);
@@ -397,7 +397,7 @@ private:
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight
   weighted_degree_to_dense(const NodeID node, const BlockID block) const {
-    IFSTATS(++_stats_ets.local().num_ld_queries);
+    IFSTATS(++_stats_ets.local().num_dense_queries);
     return static_cast<EdgeWeight>(create_dense_wrapper(node).get(block));
   }
 
@@ -437,7 +437,7 @@ private:
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight
   weighted_degree_to_sparse(const NodeID node, const BlockID block) const {
-    IFSTATS(++_stats_ets.local().num_hd_queries);
+    IFSTATS(++_stats_ets.local().num_sparse_queries);
     return static_cast<EdgeWeight>(
         __atomic_load_n(&_gain_cache[index_sparse(node, block)], __ATOMIC_RELAXED)
     );
@@ -471,8 +471,8 @@ private:
           auto map = create_dense_wrapper(u);
 
           auto &stats = _stats_ets.local();
-          stats.total_ld_fill_degree += 1.0 * map.count() / map.capacity();
-          ++stats.ld_fill_degree_count;
+          stats.total_dense_fill_degree += 1.0 * map.count() / map.capacity();
+          ++stats.dense_fill_degree_count;
         }
       });
     }
