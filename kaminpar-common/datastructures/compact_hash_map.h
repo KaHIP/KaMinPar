@@ -7,10 +7,10 @@
  * hash table.
  * New keys are automatically inserted when increasing their value, i.e., there
  * is no explicit insert operation.
- * Exceeding the hash table's capacity is undefined behaviour.
+ * Exceeding the hash table's capacity causes undefined behaviour.
  *
- * Reads are always allowed, but locking is required before calling any
- * modifying operatios.
+ * Reads are always allowed, but locking is required before calling any of the
+ * modifying operations.
  *
  * @file:   compact_hash_map.h
  * @author: Daniel Seemaier
@@ -81,18 +81,18 @@ public:
     return decode_value(find(key).second);
   }
 
+  [[nodiscard]] std::size_t capacity() const {
+    return _value_mask + 1;
+  }
+
   [[nodiscard]] std::size_t count() const {
     std::size_t num_nz = 0;
-    for (std::size_t i = 0; i < _value_mask + 1; ++i) {
+    for (std::size_t i = 0; i < capacity(); ++i) {
       if (read_pos(i) != 0) {
         ++num_nz;
       }
     }
     return num_nz;
-  }
-
-  [[nodiscard]] std::size_t capacity() const {
-    return _value_mask + 1;
   }
 
   template <typename Lambda> void for_each(Lambda &&lambda) const {

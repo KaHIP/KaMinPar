@@ -129,10 +129,11 @@ public:
       // up to the one determined by this degree are assigned to the dense part, the other ones to
       // the sparse part.
       const EdgeID degree_threshold = std::max<EdgeID>(
-          _k * _ctx.refinement.kway_fm.k_based_high_degree_threshold,
-          _ctx.refinement.kway_fm.constant_high_degree_threshold
+          _k * _ctx.refinement.kway_fm.k_based_high_degree_threshold, // usually k * 1
+          _ctx.refinement.kway_fm.constant_high_degree_threshold      // usually 0
       );
 
+      // (i) compute size of the dense part (== hash tables) ...
       for (_bucket_threshold = 0;
            _node_threshold < p_graph.n() && p_graph.degree(_node_threshold) < degree_threshold;
            ++_bucket_threshold) {
@@ -142,6 +143,8 @@ public:
                    (lowest_degree_in_bucket<NodeID>(_bucket_threshold + 1));
       }
       std::fill(_cache_offsets.begin() + _bucket_threshold, _cache_offsets.end(), gc_size);
+
+      // + ... (ii) size of the sparse part (table with k entries per node)
       gc_size += static_cast<std::size_t>(p_graph.n() - _node_threshold) * _k;
 
       DBG << "Initialized with degree threshold: " << degree_threshold
