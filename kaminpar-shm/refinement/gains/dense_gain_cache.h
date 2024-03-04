@@ -41,7 +41,8 @@
 namespace kaminpar::shm {
 template <typename DeltaPartitionedGraph, typename GainCache> class DenseDeltaGainCache;
 
-template <bool iterate_nonadjacent_blocks = true, bool iterate_exact_gains = false> class DenseGainCache {
+template <bool iterate_nonadjacent_blocks = true, bool iterate_exact_gains = false>
+class DenseGainCache {
   SET_DEBUG(true);
   SET_STATISTICS(false);
 
@@ -349,8 +350,8 @@ private:
         &state,
         state | kWeightedDegreeLock,
         false,
-        __ATOMIC_SEQ_CST,
-        __ATOMIC_SEQ_CST
+        __ATOMIC_ACQUIRE,
+        __ATOMIC_RELAXED
     ));
   }
 
