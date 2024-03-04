@@ -284,13 +284,6 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
   fm->add_option("--r-fm-gc", ctx.refinement.kway_fm.gain_cache_strategy)
       ->transform(CLI::CheckedTransformer(get_gain_cache_strategies()).description(""))
       ->capture_default_str();
-  fm->add_flag(
-        "--r-fm-gc-consider-nonadjacent-blocks",
-        ctx.refinement.kway_fm.consider_nonadjacent_blocks,
-        "If set, also consider non-adjacent blocks as valid move targets for vertices. This could "
-        "make blocks non-connected, even if initial partitioning only produced connected blocks."
-  )
-      ->capture_default_str();
   fm->add_option(
         "--r-fm-gc-const-hd-threshold",
         ctx.refinement.kway_fm.constant_high_degree_threshold,

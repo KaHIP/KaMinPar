@@ -36,43 +36,20 @@ SET_STATISTICS(true);
 std::unique_ptr<Refiner> create_fm_refiner(const Context &ctx) {
   switch (ctx.refinement.kway_fm.gain_cache_strategy) {
   case GainCacheStrategy::SPARSE:
-    if (ctx.refinement.kway_fm.consider_nonadjacent_blocks) {
-      return std::make_unique<FMRefiner<SparseGainCache<true>>>(ctx);
-    }
-#ifdef KAMINPAR_EXPERIMENTAL
-    else {
-      return std::make_unique<FMRefiner<SparseGainCache<false>>>(ctx);
-    }
-#endif
+    return std::make_unique<FMRefiner<SparseGainCache<true>>>(ctx);
 
 #ifdef KAMINPAR_EXPERIMENTAL
   case GainCacheStrategy::DENSE:
-    if (ctx.refinement.kway_fm.consider_nonadjacent_blocks) {
-      return std::make_unique<FMRefiner<DenseGainCache<true>>>(ctx);
-    } else {
-      return std::make_unique<FMRefiner<DenseGainCache<false>>>(ctx);
-    }
+    return std::make_unique<FMRefiner<DenseGainCache<true>>>(ctx);
 
   case GainCacheStrategy::ON_THE_FLY:
-    if (ctx.refinement.kway_fm.consider_nonadjacent_blocks) {
-      return std::make_unique<FMRefiner<OnTheFlyGainCache<true>>>(ctx);
-    } else {
-      return std::make_unique<FMRefiner<OnTheFlyGainCache<false>>>(ctx);
-    }
+    return std::make_unique<FMRefiner<OnTheFlyGainCache<true>>>(ctx);
 
   case GainCacheStrategy::HYBRID:
-    if (ctx.refinement.kway_fm.consider_nonadjacent_blocks) {
-      return std::make_unique<FMRefiner<HybridGainCache<true>>>(ctx);
-    } else {
-      return std::make_unique<FMRefiner<HybridGainCache<false>>>(ctx);
-    }
+    return std::make_unique<FMRefiner<HybridGainCache<true>>>(ctx);
 
   case GainCacheStrategy::TRACING:
-    if (ctx.refinement.kway_fm.consider_nonadjacent_blocks) {
-      return std::make_unique<FMRefiner<TracingGainCache<SparseGainCache<true>>>>(ctx);
-    } else {
-      return std::make_unique<FMRefiner<TracingGainCache<SparseGainCache<false>>>>(ctx);
-    }
+    return std::make_unique<FMRefiner<TracingGainCache<SparseGainCache<true>>>>(ctx);
 #endif
 
   default:

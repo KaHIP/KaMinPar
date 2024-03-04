@@ -167,7 +167,6 @@ struct KwayFMRefinementContext {
   double abortion_threshold;
 
   GainCacheStrategy gain_cache_strategy;
-  bool consider_nonadjacent_blocks;
   EdgeID constant_high_degree_threshold;
   double k_based_high_degree_threshold;
 

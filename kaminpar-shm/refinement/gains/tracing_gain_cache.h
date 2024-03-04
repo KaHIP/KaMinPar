@@ -356,8 +356,6 @@ public:
   using DeltaPartitionedGraph = typename ActualDeltaGainCache::DeltaPartitionedGraph;
   using GainCache = _TracingGainCache;
 
-  constexpr static bool kIteratesNonadjacentBlocks =
-      ActualDeltaGainCache::kIteratesNonadjacentBlocks;
   constexpr static bool kIteratesExactGains = ActualDeltaGainCache::kIteratesExactGains;
 
   TracingDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph &d_graph)

@@ -22,7 +22,8 @@
 namespace kaminpar::shm {
 template <typename DeltaPartitionedGraph, typename GainCache> class SparseDeltaGainCache;
 
-template <bool iterate_nonadjacent_blocks, bool iterate_exact_gains = false> class SparseGainCache {
+template <bool iterate_nonadjacent_blocks = true, bool iterate_exact_gains = false>
+class SparseGainCache {
   SET_DEBUG(true);
 
   using Self = SparseGainCache<iterate_nonadjacent_blocks, iterate_exact_gains>;
@@ -226,7 +227,9 @@ public:
   using DeltaPartitionedGraph = _DeltaPartitionedGraph;
   using GainCache = _GainCache;
 
-  constexpr static bool kIteratesNonadjacentBlocks = GainCache::kIteratesNonadjacentBlocks;
+  // Delta gain caches can only be used with GainCaches that iterate over all blocks, since there
+  // might be new connections to non-adjacent blocks in the delta graph.
+  static_assert(GainCache::kIteratesNonadjacentBlocks);
   constexpr static bool kIteratesExactGains = GainCache::kIteratesExactGains;
 
   SparseDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph & /* d_graph */)
