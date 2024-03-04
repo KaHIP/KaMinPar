@@ -219,19 +219,19 @@ public:
       const EdgeWeight conn_from = kIteratesExactGains ? conn_dense(node, from) : 0;
 
       if constexpr (kIteratesNonadjacentBlocks) {
-        auto &cache = _dense_cache_ets.local();
+        auto &buffer = _dense_buffer_ets.local();
 
         create_dense_wrapper(node).for_each([&](const BlockID to, const EdgeWeight conn_to) {
-          cache.set(to, conn_to);
+          buffer.set(to, conn_to);
         });
 
         for (BlockID to = 0; to < _k; ++to) {
           if (from != to) {
-            lambda(to, [&] { return cache.get(to) - conn_from; });
+            lambda(to, [&] { return buffer.get(to) - conn_from; });
           }
         }
 
-        cache.clear();
+        buffer.clear();
       } else {
         create_dense_wrapper(node).for_each([&](const BlockID to, const EdgeWeight conn_to) {
           if (to != from) {
@@ -450,7 +450,7 @@ private:
     tbb::parallel_for<std::size_t>(0, _gain_cache.size(), [&](const std::size_t i) {
       _gain_cache[i] = 0;
     });
-    _dense_cache_ets.clear();
+    _dense_buffer_ets.clear();
   }
 
   void recompute_all(const PartitionedGraph &p_graph) {
@@ -551,7 +551,7 @@ private:
   StaticArray<UnsignedEdgeWeight> _weighted_degrees;
 
   mutable tbb::enumerable_thread_specific<Statistics> _stats_ets;
-  mutable tbb::enumerable_thread_specific<FastResetArray<EdgeWeight>> _dense_cache_ets{[&] {
+  mutable tbb::enumerable_thread_specific<FastResetArray<EdgeWeight>> _dense_buffer_ets{[&] {
     return FastResetArray<EdgeWeight>(_k);
   }};
 };
