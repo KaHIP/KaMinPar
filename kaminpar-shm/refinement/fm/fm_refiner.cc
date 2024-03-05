@@ -14,12 +14,12 @@
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/refinement/fm/fm_batch_stats.h"
 #include "kaminpar-shm/refinement/fm/stopping_policies.h"
-#include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
+#include "kaminpar-shm/refinement/gains/dense_gain_cache.h"
 
 #ifdef KAMINPAR_EXPERIMENTAL
-#include "kaminpar-shm/refinement/gains/dense_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/hybrid_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/on_the_fly_gain_cache.h"
+#include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/tracing_gain_cache.h"
 #endif // KAMINPAR_EXPERIMENTAL
 
@@ -35,12 +35,12 @@ SET_STATISTICS(true);
 
 std::unique_ptr<Refiner> create_fm_refiner(const Context &ctx) {
   switch (ctx.refinement.kway_fm.gain_cache_strategy) {
-  case GainCacheStrategy::SPARSE:
-    return std::make_unique<FMRefiner<SparseGainCache<true>>>(ctx);
-
-#ifdef KAMINPAR_EXPERIMENTAL
   case GainCacheStrategy::DENSE:
     return std::make_unique<FMRefiner<DenseGainCache<true>>>(ctx);
+
+#ifdef KAMINPAR_EXPERIMENTAL
+  case GainCacheStrategy::SPARSE:
+    return std::make_unique<FMRefiner<SparseGainCache<true>>>(ctx);
 
   case GainCacheStrategy::ON_THE_FLY:
     return std::make_unique<FMRefiner<OnTheFlyGainCache<true>>>(ctx);

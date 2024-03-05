@@ -127,7 +127,7 @@ Context create_default_context() {
                       .unlock_seed_nodes = true,
                       .use_exact_abortion_threshold = false,
                       .abortion_threshold = 0.999,
-                      .gain_cache_strategy = GainCacheStrategy::SPARSE,
+                      .gain_cache_strategy = GainCacheStrategy::DENSE,
                       .constant_high_degree_threshold = 0,
                       .k_based_high_degree_threshold = 1.0,
 
