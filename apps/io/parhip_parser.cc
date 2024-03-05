@@ -108,7 +108,7 @@ CSRGraph read_graph(
   StaticArray<EdgeID> nodes(n + 1);
   in.read(reinterpret_cast<char *>(nodes.data()), (n + 1) * sizeof(EdgeID));
 
-  const NodeID nodes_offset = kParhipHeaderSize + (n + 1) * sizeof(EdgeID);
+  const EdgeID nodes_offset = kParhipHeaderSize + (n + 1) * sizeof(EdgeID);
   tbb::parallel_for(tbb::blocked_range<NodeID>(0, n + 1), [&](const auto &r) {
     for (NodeID u = r.begin(); u != r.end(); ++u) {
       nodes[u] = (nodes[u] - nodes_offset) / sizeof(NodeID);
@@ -207,7 +207,7 @@ CompressedGraph compressed_read(const std::string &filename, const bool sorted) 
 
   const EdgeWeight *edge_weights = reinterpret_cast<const EdgeWeight *>(data);
 
-  const NodeID nodes_offset = kParhipHeaderSize + (header.num_nodes + 1) * sizeof(EdgeID);
+  const EdgeID nodes_offset = kParhipHeaderSize + (header.num_nodes + 1) * sizeof(EdgeID);
   std::vector<std::pair<NodeID, EdgeWeight>> neighbourhood;
   for (NodeID u = 0; u < header.num_nodes; ++u) {
     const EdgeID offset = (nodes[u] - nodes_offset) / sizeof(NodeID);

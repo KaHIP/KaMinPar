@@ -374,6 +374,8 @@ Graph read(
           return metis::compress_read<false>(filename, sorted, may_dismiss);
         case GraphFileFormat::PARHIP:
           return std::optional(parhip::compressed_read(filename, sorted));
+        default:
+          throw std::runtime_error("unexpected graph file format");
         }
       }
     }();
@@ -400,6 +402,8 @@ Graph read(
       return Graph(std::make_unique<CSRGraph>(metis::csr_read<false>(filename, sorted)));
     case GraphFileFormat::PARHIP:
       return Graph(std::make_unique<CSRGraph>(parhip::csr_read(filename, sorted)));
+    default:
+      throw std::runtime_error("unexpected graph file format");
     }
   }
 }
