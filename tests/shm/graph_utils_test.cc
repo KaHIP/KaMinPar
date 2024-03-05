@@ -16,6 +16,7 @@ using ::testing::Lt;
 using ::testing::UnorderedElementsAre;
 
 namespace kaminpar::shm::testing {
+
 TEST(ParallelContractionTest, ContractingToSingleNodeWorks) {
   static constexpr auto GRID_LENGTH{2};
   Graph graph{graphs::grid(GRID_LENGTH, GRID_LENGTH)};
@@ -23,7 +24,7 @@ TEST(ParallelContractionTest, ContractingToSingleNodeWorks) {
   for (const NodeID cluster : {0, 1, 2, 3}) {
     auto clustering = scalable_vector<NodeID>{cluster, cluster, cluster, cluster};
     auto [c_graph, c_mapping, m_ctx] = graph::contract(
-        graph, {.edge_buffer_fill_fraction = 0.1, .use_compact_ids = false}, clustering
+        graph, {.mode = ContractionMode::EDGE_BUFFER, .edge_buffer_fill_fraction = 1}, clustering
     );
     EXPECT_THAT(c_graph.n(), 1);
     EXPECT_THAT(c_graph.m(), 0);
@@ -42,7 +43,7 @@ TEST(ParallelContractionTest, ContractingToSingletonsWorks) {
 
   auto clustering = scalable_vector<NodeID>{0, 1, 2, 3};
   auto [c_graph, c_mapping, m_ctx] = graph::contract(
-      graph, {.edge_buffer_fill_fraction = 0.1, .use_compact_ids = false}, clustering
+      graph, {.mode = ContractionMode::EDGE_BUFFER, .edge_buffer_fill_fraction = 1}, clustering
   );
   EXPECT_THAT(c_graph.n(), graph.n());
   EXPECT_THAT(c_graph.m(), graph.m());
@@ -64,7 +65,7 @@ TEST(ParallelContractionTest, ContractingAllNodesButOneWorks) {
   // 2--3
   auto clustering = scalable_vector<NodeID>{0, 1, 1, 1};
   auto [c_graph, c_mapping, m_ctx] = graph::contract(
-      graph, {.edge_buffer_fill_fraction = 0.1, .use_compact_ids = false}, clustering
+      graph, {.mode = ContractionMode::EDGE_BUFFER, .edge_buffer_fill_fraction = 1}, clustering
   );
   EXPECT_THAT(c_graph.n(), 2);
   EXPECT_THAT(c_graph.m(), 2); // one undirected edge
@@ -87,7 +88,7 @@ TEST(ParallelContractionTest, ContractingGridHorizontallyWorks) {
 
   auto clustering = scalable_vector<NodeID>{0, 1, 2, 3, 0, 1, 2, 3};
   auto [c_graph, c_mapping, m_ctx] = graph::contract(
-      graph, {.edge_buffer_fill_fraction = 0.1, .use_compact_ids = false}, clustering
+      graph, {.mode = ContractionMode::EDGE_BUFFER, .edge_buffer_fill_fraction = 1}, clustering
   );
   auto &raw_c_graph = *dynamic_cast<CSRGraph *>(c_graph.underlying_graph());
   EXPECT_THAT(c_graph.n(), 4);
@@ -114,7 +115,7 @@ TEST(ParallelContractionTest, ContractingGridVerticallyWorks) {
 
   auto clustering = scalable_vector<NodeID>{0, 0, 2, 2, 4, 4, 6, 6};
   auto [c_graph, c_mapping, m_ctx] = graph::contract(
-      graph, {.edge_buffer_fill_fraction = 0.1, .use_compact_ids = false}, clustering
+      graph, {.mode = ContractionMode::EDGE_BUFFER, .edge_buffer_fill_fraction = 1}, clustering
   );
   auto &raw_c_graph = *dynamic_cast<CSRGraph *>(c_graph.underlying_graph());
   EXPECT_THAT(c_graph.n(), 4);
