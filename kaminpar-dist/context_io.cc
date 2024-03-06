@@ -71,6 +71,8 @@ std::ostream &operator<<(std::ostream &out, const GlobalClusteringAlgorithm algo
     return out << "hem";
   case GlobalClusteringAlgorithm::HEM_LP:
     return out << "hem-lp";
+  case GlobalClusteringAlgorithm::EXTERNAL:
+    return out << "external";
   }
 
   return out << "<invalid>";
@@ -89,6 +91,8 @@ std::ostream &operator<<(std::ostream &out, const LocalClusteringAlgorithm algor
     return out << "noop";
   case LocalClusteringAlgorithm::LP:
     return out << "lp";
+  case LocalClusteringAlgorithm::EXTERNAL:
+    return out << "external";
   }
 
   return out << "<invalid>";
@@ -450,7 +454,8 @@ void print(const RefinementContext &ctx, const ParallelContext &parallel, std::o
         LabelPropagationMoveExecutionStrategy::PROBABILISTIC) {
       out << "    Number of attempts:       " << ctx.colored_lp.num_probabilistic_move_attempts
           << "\n";
-    } else if (ctx.colored_lp.move_execution_strategy == LabelPropagationMoveExecutionStrategy::BEST_MOVES) {
+    } else if (ctx.colored_lp.move_execution_strategy ==
+               LabelPropagationMoveExecutionStrategy::BEST_MOVES) {
       out << "    Sort by:                  "
           << (ctx.colored_lp.sort_by_rel_gain ? "relative gain" : "absolute gain") << "\n";
     }

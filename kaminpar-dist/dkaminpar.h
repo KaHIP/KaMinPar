@@ -65,11 +65,13 @@ enum class GlobalClusteringAlgorithm {
   LP,
   HEM,
   HEM_LP,
+  EXTERNAL,
 };
 
 enum class LocalClusteringAlgorithm {
   NOOP,
   LP,
+  EXTERNAL,
 };
 
 enum class InitialPartitioningAlgorithm {
@@ -113,6 +115,11 @@ enum class ClusterStrategy {
   LP,
   GREEDY_BATCH_PREFIX,
 };
+
+// Forward-declarations for external components
+template <typename ClusterID> class Clusterer;
+class LocalClusterer;
+struct Context;
 
 struct ParallelContext {
   std::size_t num_threads;
@@ -214,6 +221,13 @@ struct CoarseningContext {
   double max_cnode_imbalance;
   bool migrate_cnode_prefix;
   bool force_perfect_cnode_balance;
+
+  // External clustering algorithms
+  using ExternalGlobalClusteringFunc = std::unique_ptr<Clusterer<GlobalNodeID>>(const Context &ctx);
+  ExternalGlobalClusteringFunc *external_global_clustering_algorithm;
+
+  using ExternalLocalClusteringFunc = std::unique_ptr<LocalClusterer>(const Context &ctx);
+  ExternalLocalClusteringFunc *external_local_clustering_algorithm;
 
   void setup(const ParallelContext &parallel);
 };
@@ -341,6 +355,8 @@ struct Context {
   InitialPartitioningContext initial_partitioning;
   RefinementContext refinement;
   DebugContext debug;
+
+  void *external_user_data;
 };
 
 Context create_context_by_preset_name(const std::string &name);

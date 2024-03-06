@@ -112,6 +112,8 @@ Context create_default_context() {
               .max_cnode_imbalance = 1.1,
               .migrate_cnode_prefix = true,
               .force_perfect_cnode_balance = false,
+              .external_global_clustering_algorithm = nullptr,
+              .external_local_clustering_algorithm = nullptr,
           },
       .initial_partitioning =
           {
@@ -218,10 +220,13 @@ Context create_default_context() {
                       .only_run_on_root = true,
                   },
           },
-      .debug = {
-          .save_coarsest_graph = false,
-          .save_coarsest_partition = false,
-      }};
+      .debug =
+          {
+              .save_coarsest_graph = false,
+              .save_coarsest_partition = false,
+          },
+      .external_user_data = nullptr,
+  };
 }
 
 Context create_strong_context() {
@@ -230,7 +235,8 @@ Context create_strong_context() {
   ctx.refinement.jet.num_coarse_rounds = 4;
   ctx.refinement.jet.num_fine_rounds = 4;
   ctx.refinement.algorithms = {
-      RefinementAlgorithm::HYBRID_NODE_BALANCER, RefinementAlgorithm::JET_REFINER};
+      RefinementAlgorithm::HYBRID_NODE_BALANCER, RefinementAlgorithm::JET_REFINER
+  };
   return ctx;
 }
 
@@ -240,7 +246,8 @@ Context create_jet_context() {
   ctx.refinement.jet.num_coarse_rounds = 1;
   ctx.refinement.jet.num_fine_rounds = 1;
   ctx.refinement.algorithms = {
-      RefinementAlgorithm::HYBRID_NODE_BALANCER, RefinementAlgorithm::JET_REFINER};
+      RefinementAlgorithm::HYBRID_NODE_BALANCER, RefinementAlgorithm::JET_REFINER
+  };
   return ctx;
 }
 

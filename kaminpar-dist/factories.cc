@@ -135,6 +135,9 @@ create_global_clusterer(const Context &ctx, const GlobalClusteringAlgorithm algo
 
   case GlobalClusteringAlgorithm::HEM_LP:
     return std::make_unique<HEMLPClusterer>(ctx);
+
+  case GlobalClusteringAlgorithm::EXTERNAL:
+    return ctx.coarsening.external_global_clustering_algorithm(ctx);
   }
 
   __builtin_unreachable();
@@ -152,6 +155,9 @@ create_local_clusterer(const Context &ctx, const LocalClusteringAlgorithm algori
 
   case LocalClusteringAlgorithm::LP:
     return std::make_unique<LocalLPClusterer>(ctx);
+
+  case LocalClusteringAlgorithm::EXTERNAL:
+    return ctx.coarsening.external_local_clustering_algorithm(ctx);
   }
 
   __builtin_unreachable();
