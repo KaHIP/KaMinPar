@@ -1195,14 +1195,17 @@ public:
       tbb::enumerable_thread_specific<RatingMap>,
       scalable_vector<parallel::Atomic<uint8_t>>,
       scalable_vector<parallel::Atomic<ClusterID>>,
-      tbb::concurrent_vector<NodeID>>;
+      tbb::concurrent_vector<NodeID>,
+      ConcurrentFastResetArray<EdgeWeight, ClusterID>>;
 
   void setup(DataStructures structs) {
-    auto [rating_map_ets, active, favored_clusters, second_phase_nodes] = std::move(structs);
+    auto [rating_map_ets, active, favored_clusters, second_phase_nodes, concurrent_rating_map] =
+        std::move(structs);
     Base::_rating_map_ets = std::move(rating_map_ets);
     Base::_active = std::move(active);
     Base::_favored_clusters = std::move(favored_clusters);
     Base::_second_phase_nodes = std::move(second_phase_nodes);
+    _concurrent_rating_map = std::move(concurrent_rating_map);
   }
 
   DataStructures release() {
@@ -1210,7 +1213,8 @@ public:
         std::move(_rating_map_ets),
         std::move(Base::_active),
         std::move(Base::_favored_clusters),
-        std::move(Base::_second_phase_nodes)
+        std::move(Base::_second_phase_nodes),
+        std::move(_concurrent_rating_map)
     );
   }
 
