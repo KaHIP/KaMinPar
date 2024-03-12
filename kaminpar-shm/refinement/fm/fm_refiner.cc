@@ -348,7 +348,7 @@ EdgeWeight LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::run_batch() {
         _shared.node_tracker.set(node, NodeTracker::MOVED_GLOBALLY);
         IFSTATS(++stats.num_committed_moves);
 
-        for (const auto &[moved_node, moved_to] : _d_graph.delta()) {
+        _d_graph.for_each([&](const NodeID moved_node, const BlockID moved_to) {
           const BlockID moved_from = _p_graph.block(moved_node);
 
           // The order of the moves in the delta graph is not necessarily correct (depending on
@@ -367,7 +367,7 @@ EdgeWeight LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::run_batch() {
           _shared.node_tracker.set(moved_node, NodeTracker::MOVED_GLOBALLY);
           _p_graph.set_block(moved_node, moved_to);
           IFSTATS(++stats.num_committed_moves);
-        }
+        });
 
         if (_record_applied_moves) {
           _applied_moves.push_back(fm::AppliedMove{
@@ -436,7 +436,7 @@ EdgeWeight LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::run_batch() {
 
   // Unlock all nodes that were touched but not moved, or nodes that were only moved in the
   // thread-local delta graph
-  IFSTATS(stats.num_discarded_moves += _d_graph.delta().size());
+  IFSTATS(stats.num_discarded_moves += _d_graph.size());
   for (const NodeID touched_node : _touched_nodes) {
     unlock_touched_node(touched_node);
   }
