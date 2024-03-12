@@ -149,7 +149,7 @@ private:
   // Depending on the configuration, use a hash map to be memory efficient,
   // otherwise store the block weight deltas in vector (i.e., O(P * k) memory).
   std::conditional_t<
-      compact_block_weight_delta, // false
+      compact_block_weight_delta,
       DynamicFlatMap<BlockID, BlockWeight>,
       scalable_vector<BlockWeight>>
       _block_weights_delta;
@@ -157,9 +157,9 @@ private:
   // If we need random access to the partition delta, use a hash map. Otherwise,
   // we can just store the moves in a vector.
   std::conditional_t<
-      allow_read_after_move, // true
+      allow_read_after_move,
       DynamicFlatMap<NodeID, BlockID>,
-      std::vector<DeltaEntry>>
+      scalable_vector<DeltaEntry>>
       _partition_delta;
 };
 } // namespace kaminpar::shm
