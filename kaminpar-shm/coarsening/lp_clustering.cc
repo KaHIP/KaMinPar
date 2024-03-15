@@ -37,13 +37,13 @@ LPClustering::compute_clustering(const Graph &graph, const bool free_memory_afte
   const auto compute = [&](auto &core, auto &graph) {
     if (_freed) {
       _freed = false;
-      core.allocate();
     } else {
       core.setup(std::move(_structs));
       core.setup_clusters(std::move(_clusters));
       core.setup_cluster_weights(std::move(_cluster_weights));
     }
 
+    core.allocate();
     _clusters = core.compute_clustering(graph);
 
     if (free_memory_afterwards) {

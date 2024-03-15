@@ -1598,10 +1598,6 @@ public:
 
   void setup_clusters(Clusters clusters) {
     _clusters = std::move(clusters);
-
-    if (_clusters.size() < _max_num_nodes) {
-      _clusters.resize(_max_num_nodes);
-    }
   }
 
   [[nodiscard]] auto &&take_clusters() {
