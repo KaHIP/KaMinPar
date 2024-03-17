@@ -156,8 +156,8 @@ protected:
    * @param num_nodes Number of nodes in the graph.
    * @param num_clusters The number of clusters.
    */
-  void allocate(const NodeID num_nodes, const ClusterID num_clusters) {
-    allocate(num_nodes, num_nodes, num_clusters);
+  void allocate(const NodeID num_nodes, const ClusterID num_clusters, bool resize = true) {
+    allocate(num_nodes, num_nodes, num_clusters, resize);
   }
 
   /*!
@@ -171,29 +171,38 @@ protected:
    * @param num_active_nodes Number of nodes for which a cluster label is computed.
    * @param num_clusters The number of clusters.
    */
-  void allocate(const NodeID num_nodes, NodeID num_active_nodes, const ClusterID num_clusters) {
+  void allocate(
+      const NodeID num_nodes,
+      NodeID num_active_nodes,
+      const ClusterID num_clusters,
+      bool resize = true
+  ) {
     if constexpr (Config::kUseLocalActiveSetStrategy) {
-      if (_active.capacity() < num_nodes) {
+      if (resize && _active.capacity() < num_nodes) {
         _active.resize(num_nodes);
       }
     }
 
     if constexpr (Config::kUseActiveSetStrategy) {
-      if (_active.capacity() < num_active_nodes) {
+      if (resize && _active.capacity() < num_active_nodes) {
         _active.resize(num_active_nodes);
       }
     }
 
     if constexpr (Config::kUseTwoHopClustering) {
-      if (_favored_clusters.capacity() < num_active_nodes) {
+      if (resize && _favored_clusters.capacity() < num_active_nodes) {
         _favored_clusters.resize(num_active_nodes);
       }
     }
 
-    if (_num_clusters < num_clusters) {
+    if (resize && _num_clusters < num_clusters) {
       _rating_map_ets = tbb::enumerable_thread_specific<RatingMap>([num_clusters] {
         return RatingMap(num_clusters);
       });
+    } else {
+      for (auto &rating_map : _rating_map_ets) {
+        rating_map.change_max_size(num_clusters);
+      }
     }
 
     _num_nodes = num_nodes;

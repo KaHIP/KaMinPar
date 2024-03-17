@@ -56,11 +56,11 @@ public:
     _max_cluster_weight = max_cluster_weight;
   }
 
-  void allocate() {
+  void allocate(NodeID num_nodes, bool resize) {
     SCOPED_HEAP_PROFILER("Allocation");
     SCOPED_TIMER("Allocation");
 
-    Base::allocate(_max_n, _max_n);
+    Base::allocate(num_nodes, num_nodes, resize);
     this->allocate_clusters();
     this->allocate_cluster_weights(_max_n);
   }
