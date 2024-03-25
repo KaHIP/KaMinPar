@@ -37,6 +37,7 @@
 #include "kaminpar-dist/coarsening/clustering/hem/hem_clusterer.h"
 #include "kaminpar-dist/coarsening/clustering/hem/hem_lp_clusterer.h"
 #include "kaminpar-dist/coarsening/clustering/lp/global_lp_clusterer.h"
+#include "kaminpar-dist/coarsening/clustering/lp/global_inorder_lp_clusterer.h"
 #include "kaminpar-dist/coarsening/clustering/lp/local_lp_clusterer.h"
 #include "kaminpar-dist/coarsening/clustering/noop_clusterer.h"
 
@@ -129,6 +130,9 @@ create_global_clusterer(const Context &ctx, const GlobalClusteringAlgorithm algo
 
   case GlobalClusteringAlgorithm::LP:
     return std::make_unique<GlobalLPClusterer>(ctx);
+
+  case GlobalClusteringAlgorithm::INORDER_LP:
+    return std::make_unique<GlobalInOrderLPClusterer>(ctx);
 
   case GlobalClusteringAlgorithm::HEM:
     return std::make_unique<HEMClusterer>(ctx);

@@ -263,4 +263,10 @@ Context create_europar23_strong_context() {
   ctx.coarsening.global_lp.num_iterations = 5;
   return ctx;
 }
+
+Context create_inorder_lp_context() {
+  Context ctx = create_default_context();
+  ctx.coarsening.global_clustering_algorithm = GlobalClusteringAlgorithm::INORDER_LP;
+  return ctx;
+}
 } // namespace kaminpar::dist
