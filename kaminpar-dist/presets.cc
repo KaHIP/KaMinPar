@@ -17,6 +17,8 @@ namespace kaminpar::dist {
 Context create_context_by_preset_name(const std::string &name) {
   if (name == "default" || name == "fast") {
     return create_default_context();
+  } else if (name == "inorder-default") {
+    return create_inorder_lp_context();
   } else if (name == "strong" || name == "4xjet") {
     return create_strong_context();
   } else if (name == "jet") {
@@ -33,6 +35,7 @@ Context create_context_by_preset_name(const std::string &name) {
 std::unordered_set<std::string> get_preset_names() {
   return {
       "default",
+      "inorder-default",
       "strong",
       "europar23-fast",
       "europar23-strong",
