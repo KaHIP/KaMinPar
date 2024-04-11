@@ -21,11 +21,6 @@ bool GreedyBalancer::refine(PartitionedGraph &p_graph, const PartitionContext &p
   _p_graph = &p_graph;
   _p_ctx = &p_ctx;
 
-  KASSERT(_marker.capacity() >= _p_graph->n());
-
-  _marker.reset();
-  _stats.reset();
-
   const NodeWeight initial_overload = metrics::total_overload(*_p_graph, *_p_ctx);
   if (initial_overload == 0) {
     return true;
@@ -36,13 +31,15 @@ bool GreedyBalancer::refine(PartitionedGraph &p_graph, const PartitionContext &p
     SCOPED_HEAP_PROFILER("Greedy Balancer Allocation");
     SCOPED_TIMER("Greedy Balancer Allocation");
 
-    _marker.resize(p_ctx.n);
-    _pq.init(p_ctx.n, p_ctx.k);
-    _pq_weight.resize(p_ctx.k);
+    _marker.resize(_p_graph->n());
+    _pq.init(_p_graph->n(), _p_graph->k());
+    _pq_weight.resize(_p_graph->k());
   }
 
-  const EdgeWeight initial_cut = IFDBG(metrics::edge_cut(*_p_graph));
+  _marker.reset();
+  _stats.reset();
 
+  const EdgeWeight initial_cut = IFDBG(metrics::edge_cut(*_p_graph));
   init_pq();
   const BlockWeight delta = perform_round();
   const NodeWeight new_overload = initial_overload - delta;

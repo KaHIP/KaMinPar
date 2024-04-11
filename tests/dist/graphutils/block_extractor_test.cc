@@ -411,7 +411,7 @@ TEST(GlobalGraphExtractionTest, extract_local_edge_weights_in_circle_clique_grap
   // create clique/circle graph with rank as node weight
   auto graph = make_circle_clique_graph(2);
 
-  std::vector<std::tuple<EdgeID, EdgeID, EdgeWeight>> edge_weights;
+  std::vector<std::tuple<NodeID, NodeID, EdgeWeight>> edge_weights;
   edge_weights.emplace_back(0, 1, rank);
   edge_weights.emplace_back(1, 0, rank);
 

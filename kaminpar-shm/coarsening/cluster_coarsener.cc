@@ -64,12 +64,14 @@ PartitionedGraph ClusteringCoarsener::uncoarsen(PartitionedGraph &&p_graph) {
   SCOPED_HEAP_PROFILER("Level", std::to_string(_hierarchy.size()));
   SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
 
+  const BlockID p_graph_k = p_graph.k();
+  const auto p_graph_partition = p_graph.take_raw_partition();
+
   START_HEAP_PROFILER("Allocation");
   START_TIMER("Allocation");
-  auto mapping{std::move(_mapping.back())};
+  auto mapping = std::move(_mapping.back());
   _mapping.pop_back();
-  _hierarchy.pop_back(); // destroys the graph wrapped in p_graph, but partition
-                         // access is still ok
+  _hierarchy.pop_back(); // Destroys the graph wrapped in p_graph -- do no longer use the object!
   _current_graph = empty() ? &_input_graph : &_hierarchy.back();
   KASSERT(mapping.size() == _current_graph->n(), V(mapping.size()) << V(_current_graph->n()));
 
@@ -78,13 +80,13 @@ PartitionedGraph ClusteringCoarsener::uncoarsen(PartitionedGraph &&p_graph) {
   STOP_HEAP_PROFILER();
 
   START_TIMER("Copy partition");
-  tbb::parallel_for(static_cast<NodeID>(0), _current_graph->n(), [&](const NodeID u) {
-    partition[u] = p_graph.block(mapping[u]);
+  tbb::parallel_for<NodeID>(0, _current_graph->n(), [&](const NodeID u) {
+    partition[u] = p_graph_partition[mapping[u]];
   });
   STOP_TIMER();
 
   SCOPED_HEAP_PROFILER("Create graph");
   SCOPED_TIMER("Create graph");
-  return {*_current_graph, p_graph.k(), std::move(partition)};
+  return {*_current_graph, p_graph_k, std::move(partition)};
 }
 } // namespace kaminpar::shm

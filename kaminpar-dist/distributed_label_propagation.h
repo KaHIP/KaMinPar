@@ -31,7 +31,7 @@ struct LabelPropagationConfig {
   using Graph = DistributedGraph;
 
   // Data structure used to accumulate edge weights for gain value calculation
-  using RatingMap = RatingMap<EdgeWeight, NodeID, FastResetArray<EdgeWeight>>;
+  using RatingMap = ::kaminpar::RatingMap<EdgeWeight, NodeID, FastResetArray<EdgeWeight>>;
 
   // Data type for cluster IDs and weights
   using ClusterID = tag::Mandatory;
