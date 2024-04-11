@@ -27,7 +27,6 @@
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/datastructures/static_array.h"
-#include "kaminpar-common/random.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::dist::graph {
@@ -222,7 +221,8 @@ auto BfsExtractor::exchange_explored_subgraphs(
         std::move(node_weights_recvbufs[pe]),
         std::move(edge_weights_recvbufs[pe]),
         std::move(node_mapping_recvbufs[pe]),
-        std::move(partition_recvbufs[pe])};
+        std::move(partition_recvbufs[pe])
+    };
   });
 
   return fragments;
@@ -552,9 +552,9 @@ auto BfsExtractor::combine_fragments(tbb::concurrent_vector<GraphFragment> &frag
   });
 
   // Construct shared-memory graph
-  auto graph = std::make_unique<shm::Graph>(
+  auto graph = std::make_unique<shm::Graph>(std::make_unique<shm::CSRGraph>(
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights)
-  );
+  ));
   auto p_graph =
       std::make_unique<shm::PartitionedGraph>(*graph, _p_graph->k(), std::move(partition));
 

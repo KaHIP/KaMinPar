@@ -541,13 +541,13 @@ std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>> construct_s
     }
     subgraphs_offsets[b].push_back(pos_n);
 
-    subgraphs[b] = shm::Graph(
+    subgraphs[b] = shm::Graph(std::make_unique<shm::CSRGraph>(
         std::move(subgraph_nodes),
         std::move(subgraph_edges),
         std::move(subgraph_node_weights),
         std::move(subgraph_edge_weights),
         false
-    );
+    ));
   });
 
   return {std::move(subgraphs), std::move(subgraphs_offsets)};
@@ -607,7 +607,8 @@ extract_and_scatter_block_induced_subgraphs(const DistributedPartitionedGraph &p
   return {
       std::move(gathered_subgraphs),
       std::move(offsets),
-      std::move(extracted_local_subgraphs.mapping)};
+      std::move(extracted_local_subgraphs.mapping)
+  };
 }
 
 DistributedPartitionedGraph copy_subgraph_partitions(
@@ -687,9 +688,7 @@ DistributedPartitionedGraph copy_subgraph_partitions(
   synchronize_ghost_node_block_ids(new_p_graph);
 
   KASSERT(
-      debug::validate_partition(new_p_graph),
-      "graph partition in inconsistent state",
-      assert::heavy
+      debug::validate_partition(new_p_graph), "graph partition in inconsistent state", assert::heavy
   );
   return new_p_graph;
 }
@@ -788,9 +787,7 @@ DistributedPartitionedGraph copy_duplicated_subgraph_partitions(
   synchronize_ghost_node_block_ids(new_p_graph);
 
   KASSERT(
-      debug::validate_partition(new_p_graph),
-      "graph partition in inconsistent state",
-      assert::heavy
+      debug::validate_partition(new_p_graph), "graph partition in inconsistent state", assert::heavy
   );
   return new_p_graph;
 }

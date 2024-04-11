@@ -9,14 +9,13 @@
 
 #include <google/dense_hash_map>
 
+#include "kaminpar-mpi/sparse_alltoall.h"
+
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/growt.h"
+#include "kaminpar-dist/distributed_label_propagation.h"
 #include "kaminpar-dist/graphutils/communication.h"
-
-#include "kaminpar-shm/label_propagation.h"
-
-#include "kaminpar-common/datastructures/fast_reset_array.h"
-#include "kaminpar-common/math.h"
+#include "kaminpar-dist/timer.h"
 
 namespace kaminpar::dist {
 namespace {
@@ -48,8 +47,9 @@ struct UnorderedRatingMap {
   google::dense_hash_map<GlobalNodeID, EdgeWeight> map{};
 };
 
-template <typename TGraph> struct GlobalLPClusteringConfig : public LabelPropagationConfig<TGraph> {
+struct GlobalLPClusteringConfig : public LabelPropagationConfig {
   using RatingMap = ::kaminpar::RatingMap<EdgeWeight, GlobalNodeID, UnorderedRatingMap>;
+
   using ClusterID = GlobalNodeID;
   using ClusterWeight = GlobalNodeWeight;
 
@@ -60,21 +60,14 @@ template <typename TGraph> struct GlobalLPClusteringConfig : public LabelPropaga
 };
 } // namespace
 
-class GlobalLPClusteringImpl final : public ChunkRandomdLabelPropagation<
-                                         GlobalLPClusteringImpl,
-                                         GlobalLPClusteringConfig,
-                                         DistributedGraph>,
-                                     public NonatomicOwnedClusterVector<NodeID, GlobalNodeID> {
+class GlobalLPClusteringImpl final
+    : public ChunkRandomdLabelPropagation<GlobalLPClusteringImpl, GlobalLPClusteringConfig>,
+      public NonatomicOwnedClusterVector<NodeID, GlobalNodeID> {
   SET_DEBUG(false);
 
-  using Base = ChunkRandomdLabelPropagation<
-      GlobalLPClusteringImpl,
-      GlobalLPClusteringConfig,
-      DistributedGraph>;
+  using Base = ChunkRandomdLabelPropagation<GlobalLPClusteringImpl, GlobalLPClusteringConfig>;
   using ClusterBase = NonatomicOwnedClusterVector<NodeID, GlobalNodeID>;
   using WeightDeltaMap = growt::GlobalNodeIDMap<GlobalNodeWeight>;
-
-  struct Statistics {};
 
 public:
   explicit GlobalLPClusteringImpl(const Context &ctx)

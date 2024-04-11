@@ -202,11 +202,14 @@ TEST(GlobalGraphExtractionTest, extract_local_edges) {
   ASSERT_EQ(subgraph.n(), 20);
   EXPECT_EQ(subgraph.m(), 20);
 
+  auto csr_subgraph = dynamic_cast<const shm::CSRGraph *>(subgraph.underlying_graph());
+  ASSERT_NE(csr_subgraph, nullptr);
+
   for (const NodeID u : subgraph.nodes()) {
     EXPECT_EQ(subgraph.degree(u), 1);
-    const NodeID neighbor = subgraph.edge_target(subgraph.first_edge(u));
+    const NodeID neighbor = csr_subgraph->edge_target(csr_subgraph->first_edge(u));
     EXPECT_EQ(subgraph.degree(neighbor), 1);
-    const NodeID neighbor_neighbor = subgraph.edge_target(subgraph.first_edge(neighbor));
+    const NodeID neighbor_neighbor = csr_subgraph->edge_target(csr_subgraph->first_edge(neighbor));
     EXPECT_EQ(neighbor_neighbor, u);
   }
 }
@@ -249,25 +252,29 @@ TEST(GlobalGraphExtractionTest, extract_distributed_isolated_nodes) {
 }
 
 void expect_circle(const shm::Graph &graph) {
+  auto csr_graph = dynamic_cast<const shm::CSRGraph *>(graph.underlying_graph());
+  EXPECT_NE(csr_graph, nullptr);
+
   // Catch special case with just 2 nodes: expect a single edge between the two nodes
   if (graph.n() == 2) {
     EXPECT_EQ(graph.degree(0), 1);
     EXPECT_EQ(graph.degree(1), 1);
-    EXPECT_EQ(graph.edge_target(graph.first_edge(0)), 1);
-    EXPECT_EQ(graph.edge_target(graph.first_edge(1)), 0);
+    EXPECT_EQ(csr_graph->edge_target(csr_graph->first_edge(0)), 1);
+    EXPECT_EQ(csr_graph->edge_target(csr_graph->first_edge(1)), 0);
     return;
   }
 
   NodeID num_nodes_in_circle = 1;
   NodeID start = 0;
   NodeID prev = start;
-  NodeID cur = graph.degree(start) > 0 ? graph.edge_target(graph.first_edge(start)) : start;
+  NodeID cur =
+      graph.degree(start) > 0 ? csr_graph->edge_target(csr_graph->first_edge(start)) : start;
 
   while (cur != start) {
     EXPECT_EQ(graph.degree(cur), 2);
 
-    const NodeID neighbor1 = graph.edge_target(graph.first_edge(cur));
-    const NodeID neighbor2 = graph.edge_target(graph.first_edge(cur) + 1);
+    const NodeID neighbor1 = csr_graph->edge_target(csr_graph->first_edge(cur));
+    const NodeID neighbor2 = csr_graph->edge_target(csr_graph->first_edge(cur) + 1);
     EXPECT_TRUE(neighbor1 == prev || neighbor2 == prev);
 
     // move to next node

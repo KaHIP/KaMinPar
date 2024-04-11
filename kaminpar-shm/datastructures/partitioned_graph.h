@@ -8,7 +8,6 @@
 #pragma once
 
 #include <utility>
-#include <vector>
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
@@ -17,7 +16,6 @@
 #include "kaminpar-shm/datastructures/graph_delegate.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
-#include "kaminpar-common/parallel/atomic.h"
 
 namespace kaminpar::shm {
 /*!
@@ -285,5 +283,4 @@ private:
 };
 
 using PartitionedGraph = GenericPartitionedGraph<Graph>;
-
 } // namespace kaminpar::shm

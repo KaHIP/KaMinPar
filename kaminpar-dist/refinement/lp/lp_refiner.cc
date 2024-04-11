@@ -14,12 +14,10 @@
 
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
+#include "kaminpar-dist/distributed_label_propagation.h"
 #include "kaminpar-dist/graphutils/communication.h"
 #include "kaminpar-dist/metrics.h"
 
-#include "kaminpar-shm/label_propagation.h"
-
-#include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/math.h"
 #include "kaminpar-common/parallel/vector_ets.h"

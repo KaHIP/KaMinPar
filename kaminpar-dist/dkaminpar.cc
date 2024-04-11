@@ -99,12 +99,9 @@ void print_input_summary(
   if (root && parseable) {
     LOG << "EXECUTION_MODE num_mpis=" << ctx.parallel.num_mpis
         << " num_threads=" << ctx.parallel.num_threads;
-    LOG << "INPUT_GRAPH "
-        << "global_n=" << graph.global_n() << " "
-        << "global_m=" << graph.global_m() << " "
-        << "n=[" << n_str << "] "
-        << "m=[" << m_str << "] "
-        << "ghost_n=[" << ghost_n_str << "]";
+    LOG << "INPUT_GRAPH " << "global_n=" << graph.global_n() << " "
+        << "global_m=" << graph.global_m() << " " << "n=[" << n_str << "] " << "m=[" << m_str
+        << "] " << "ghost_n=[" << ghost_n_str << "]";
   }
 
   // Output
@@ -269,7 +266,9 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const BlockID k, BlockID *partitio
   // level?
   // The binary interface already implements graph validation via KaGen, which can be enabled as a
   // CLI flag. There is no such option when using the library interface.
-  KASSERT(debug::validate_graph(graph), "input graph failed graph verification", assert::heavy);
+  KASSERT(
+      dist::debug::validate_graph(graph), "input graph failed graph verification", assert::heavy
+  );
 
   // Setup the remaining context options that are passed in via the constructor
   _ctx.parallel.num_mpis = size;
@@ -293,7 +292,7 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const BlockID k, BlockID *partitio
   STOP_TIMER();
 
   KASSERT(
-      debug::validate_partition(p_graph),
+      dist::debug::validate_partition(p_graph),
       "graph partition verification failed after partitioning",
       assert::heavy
   );

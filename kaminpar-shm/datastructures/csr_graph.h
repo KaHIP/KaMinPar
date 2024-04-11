@@ -210,6 +210,21 @@ public:
     return static_cast<NodeID>(_nodes[u + 1] - _nodes[u]);
   }
 
+  // This function is not part of the Graph interface:
+  [[nodiscard]] EdgeID first_edge(const NodeID u) const {
+    return _nodes[u];
+  }
+
+  // This function is not part of the Graph interface:
+  [[nodiscard]] EdgeID first_invalid_edge(const NodeID u) const {
+    return _nodes[u + 1];
+  }
+
+  // This function is not part of the Graph interface:
+  [[nodiscard]] NodeID edge_target(const EdgeID e) const {
+    return _edges[e];
+  }
+
   // Iterators for nodes / edges
   [[nodiscard]] inline IotaRange<NodeID> nodes() const final {
     return {static_cast<NodeID>(0), n()};

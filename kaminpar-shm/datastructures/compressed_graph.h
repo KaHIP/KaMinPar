@@ -518,7 +518,7 @@ private:
     const EdgeID max_edge = first_edge + max_neighbor_count;
     invoke_maybe_indirect<std::is_invocable_v<Lambda, EdgeID, NodeID>>(
         std::forward<Lambda>(l),
-        [&](auto &&l2) {
+        [&, first_edge = first_edge, degree = degree, uses_intervals = uses_intervals](auto &&l2) {
           iterate_edges<max_edges>(
               node_data,
               node,

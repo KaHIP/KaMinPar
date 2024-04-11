@@ -8,13 +8,13 @@
  ******************************************************************************/
 #include "kaminpar-dist/coarsening/clustering/lp/local_lp_clusterer.h"
 
-#include "kaminpar-shm/label_propagation.h"
+#include "kaminpar-dist/distributed_label_propagation.h"
 
 namespace kaminpar::dist {
 struct LocalLPClusteringConfig : public LabelPropagationConfig {
-  using Graph = DistributedGraph;
   using ClusterID = NodeID;
   using ClusterWeight = NodeWeight;
+
   static constexpr bool kTrackClusterCount = false;
   static constexpr bool kUseTwoHopClustering = true;
 };
