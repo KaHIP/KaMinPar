@@ -77,6 +77,11 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
     set(KAMINPAR_64BIT_WEIGHTS ON)
 endif ()
 
+# 04/11/2024: required to make the Github CI pass
+if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
+endif ()
+
 ################################################################################
 ## Declare dependencies                                                       ##
 ################################################################################
