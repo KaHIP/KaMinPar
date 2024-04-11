@@ -10,7 +10,7 @@ project(KaMinPar
 
 set(PROJECT_VENDOR "Daniel Seemaier")
 set(PROJECT_CONTACT "daniel.seemaier@kit.edu")
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
 ################################################################################
 ## Options                                                                    ##
