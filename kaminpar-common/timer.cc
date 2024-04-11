@@ -94,7 +94,7 @@ void Timer::print_node_mr(
 
   // Print this node
   const std::string display_name = prefix + node->build_display_name_mr();
-  out << display_name << "=" << node->seconds() << " ";
+  out << display_name << "=" << std::setprecision(3) << node->seconds() << " ";
 
   // Print children
   const std::string child_prefix = display_name + ".";
