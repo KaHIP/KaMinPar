@@ -436,10 +436,10 @@ private:
   StaticArray<NodeWeight> _node_weights;
   StaticArray<EdgeWeight> _edge_weights;
 
-  const EdgeID _edge_count;
-  const NodeID _max_degree;
+  EdgeID _edge_count;
+  NodeID _max_degree;
 
-  const bool _sorted;
+  bool _sorted;
 
   NodeWeight _total_node_weight = kInvalidNodeWeight;
   EdgeWeight _total_edge_weight = kInvalidEdgeWeight;
@@ -450,9 +450,9 @@ private:
   std::vector<NodeID> _buckets = std::vector<NodeID>(kNumberOfDegreeBuckets<NodeID> + 1);
   std::size_t _number_of_buckets = 0;
 
-  const std::size_t _high_degree_count;
-  const std::size_t _part_count;
-  const std::size_t _interval_count;
+  std::size_t _high_degree_count;
+  std::size_t _part_count;
+  std::size_t _interval_count;
 
   void init_degree_buckets();
 

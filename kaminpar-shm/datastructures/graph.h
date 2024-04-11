@@ -293,7 +293,7 @@ public:
     return _underlying_graph->map_original_node(u);
   }
 
-  [[nodiscard]] inline StaticArray<NodeID> &&take_raw_permutation() {
+  [[nodiscard]] inline StaticArray<NodeID> &&take_raw_permutation() final {
     return _underlying_graph->take_raw_permutation();
   }
 

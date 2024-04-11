@@ -1,5 +1,6 @@
 /*******************************************************************************
- * A static array which stores integers with only as many bytes as the largest integer requires.
+ * A static array which stores integers with only as many bytes as the largest
+ * integer requires.
  *
  * @file:   compact_static_array.h
  * @author: Daniel Salwasser
@@ -167,7 +168,7 @@ public:
         _size(actual_size),
         _values(std::move(data)),
         _mask(
-            (byte_width == 8) ? std::numeric_limits<std::uint64_t>::max()
+            (byte_width == 8) ? std::numeric_limits<Int>::max()
                               : (static_cast<std::uint64_t>(1) << (byte_width * 8)) - 1
         ) {
     KASSERT(byte_width <= 8);
@@ -195,7 +196,7 @@ public:
     _size = byte_width * size + sizeof(Int) - byte_width;
     _unrestricted_size = _size;
     _values = std::make_unique<std::uint8_t[]>(_size);
-    _mask = (byte_width == 8) ? std::numeric_limits<std::uint64_t>::max()
+    _mask = (byte_width == 8) ? std::numeric_limits<Int>::max()
                               : (static_cast<std::uint64_t>(1) << (byte_width * 8)) - 1;
   }
 

@@ -403,7 +403,8 @@ Result contract_generic_graph(
           if (degree >= kBufferSize) {
             auto [new_c_u, edge] = atomic_fetch_next_coarse_node_info(1, degree);
             write_neighbourhood(c_u, new_c_u, edge, c_u_weight, map);
-          } else if (num_buffered_nodes >= kBufferSize - 1 || num_buffered_edges + degree >= kBufferSize) {
+          } else if (num_buffered_nodes >= kBufferSize - 1 ||
+                     num_buffered_edges + degree >= kBufferSize) {
             const auto [new_c_u, edge] = atomic_fetch_next_coarse_node_info(
                 num_buffered_nodes + 1, num_buffered_edges + degree
             );

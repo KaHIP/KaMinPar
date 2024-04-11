@@ -139,7 +139,7 @@ public:
   void atomic_add(const Size pos, const Value delta) {
     KASSERT(pos < _values.size());
 
-    Value value = _values[pos];
+    FirstValue value = _values[pos];
     bool success;
     do {
       if (value == kMaxFirstValue) {
@@ -149,7 +149,7 @@ public:
         break;
       }
 
-      const Value new_value = value + delta;
+      const Value new_value = static_cast<Value>(value) + delta;
       if (new_value < kMaxFirstValue) {
         success = __atomic_compare_exchange_n(
             &_values[pos], &value, new_value, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED
@@ -179,7 +179,7 @@ public:
   void atomic_sub(const Size pos, const Value delta) {
     KASSERT(pos < _values.size());
 
-    Value value = _values[pos];
+    FirstValue value = _values[pos];
     bool success;
     do {
       if (value == kMaxFirstValue) {

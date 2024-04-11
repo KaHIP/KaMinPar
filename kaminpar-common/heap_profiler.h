@@ -64,7 +64,11 @@ template <typename T> std::string type_name() {
 
 // A macro to get the path of a source file in the project directory
 // (https://stackoverflow.com/a/40947954)
-#define __FILENAME__ (__FILE__ + SOURCE_PATH_SIZE)
+#ifndef SOURCE_PATH_SIZE
+#define SOURCE_PATH_SIZE 0
+#endif
+
+#define __FILENAME__ ((__FILE__) + (SOURCE_PATH_SIZE))
 #define GET_MACRO(X, Y, Z, FUNC, ...) FUNC
 
 #define START_HEAP_PROFILER_2(name, desc)                                                          \

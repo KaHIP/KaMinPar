@@ -329,7 +329,7 @@ public:
     return _permutation[u];
   }
 
-  [[nodiscard]] inline StaticArray<NodeID> &&take_raw_permutation() {
+  [[nodiscard]] inline StaticArray<NodeID> &&take_raw_permutation() final {
     return std::move(_permutation);
   }
 
