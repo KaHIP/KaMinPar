@@ -7,12 +7,10 @@
  ******************************************************************************/
 #pragma once
 
-#include <algorithm>
 #include <atomic>
 #include <cerrno>
-#include <cmath>
-#include <csignal>
 #include <cstdint>
+#include <cstring>
 #include <iostream>
 #include <memory>
 #include <sstream>
@@ -35,9 +33,10 @@
 // IFDBG(expr) evaluates the expression and returns its result iff kDebug is set
 // to true, otherwise returns the default value for its result data type
 #define FILENAME (std::strrchr(__FILE__, '/') ? std::strrchr(__FILE__, '/') + 1 : __FILE__)
-#define POSITION "[" << FILENAME << ":" << __LINE__ << "][" << __func__ << "]"
+#define POSITION FILENAME << ":" << __LINE__ << "(" << __func__ << ")"
 #ifdef HAS_SCHED_GETCPU
-#define CPU "[CPU" << sched_getcpu() << "]"
+// #define CPU "[CPU" << sched_getcpu() << "]"
+#define CPU ""
 #else // HAS_SCHED_GETCPU
 #define CPU ""
 #endif // HAS_SCHED_GETCPU
@@ -79,9 +78,6 @@
   (kaminpar::DisposableLogger<true>(std::cout, std::string(": ") + std::strerror(errno) + "\n")    \
    << kaminpar::logger::RED << "[Fatal] ")
 
-#define LOG_STATS (kaminpar::Logger(std::cout) << kaminpar::logger::CYAN << "[Statistics] ")
-#define LOG_LSTATS (kaminpar::Logger(std::cout, "") << kaminpar::logger::CYAN)
-
 // V(x) prints x<space><value of x><space>, e.g., use LOG << V(a) << V(b) <<
 // V(c); to quickly print the values of variables a, b, c C(x, y) prints [<value
 // of x> --> <value of y>]
@@ -96,10 +92,14 @@
 // expression if statistics are enabled STATS: LOG for statistics output: only
 // evaluate and output if statistics are enabled
 #define SET_STATISTICS(value) [[maybe_unused]] constexpr static bool kStatistics = value
-#define IFSTATS(expr) (kStatistics ? (expr) : std::decay_t<decltype(expr)>())
+#define IFSTATSC(cond, expr) ((cond) ? (expr) : std::decay_t<decltype(expr)>())
+#define IFSTATS(expr) IFSTATSC(kStatistics, expr)
+#define IF_STATSC(cond) if ((cond))
 #define IF_STATS if constexpr (kStatistics)
-#define IF_STATSC(cond) if (kStatistics && (cond))
-#define STATS kStatistics &&kaminpar::DisposableLogger<false>(std::cout) << kaminpar::logger::CYAN
+#define LOG_STATS                                                                                  \
+  kaminpar::DisposableLogger<false>(std::cout) << kaminpar::logger::CYAN << "[Statistics] "
+#define STATSC(cond) ((cond)) && LOG_STATS
+#define STATS STATSC(kStatistics)
 
 #ifdef KAMINPAR_ENABLE_STATISTICS
 #define SET_STATISTICS_FROM_GLOBAL() SET_STATISTICS(true)

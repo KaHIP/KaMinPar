@@ -4,7 +4,6 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
 #include <limits>
 #include <memory>
 
@@ -146,6 +145,14 @@ public:
   DynamicFlatMap &operator=(DynamicFlatMap &&other) = default;
 
   ~DynamicFlatMap() = default;
+
+  template <typename Lambda> void for_each(Lambda &&lambda) {
+    for (std::size_t i = 0; i < _capacity; ++i) {
+      if (_elements[i].timestamp == _timestamp) {
+        lambda(_elements[i].key, _elements[i].value);
+      }
+    }
+  }
 
 private:
   [[nodiscard]] std::size_t size_in_bytes_impl() const {

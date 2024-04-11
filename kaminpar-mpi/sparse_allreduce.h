@@ -10,13 +10,13 @@
 #include <algorithm>
 #include <utility>
 
-#include <kassert/kassert.hpp>
 #include <mpi.h>
 #include <tbb/parallel_for.h>
 
 #include "kaminpar-mpi/definitions.h"
 #include "kaminpar-mpi/wrapper.h"
 
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/noinit_vector.h"
 #include "kaminpar-common/math.h"
 
@@ -29,7 +29,7 @@ constexpr static mpi_allreduce_tag mpi_allreduce;
 constexpr static doubling_allreduce_tag doubling_allreduce;
 
 // Used if no other implementation has priority
-constexpr static auto default_sparse_allreduce = doubling_allreduce;
+constexpr static auto default_sparse_allreduce = mpi_allreduce; //doubling_allreduce;
 } // namespace tag
 
 template <typename Buffer>

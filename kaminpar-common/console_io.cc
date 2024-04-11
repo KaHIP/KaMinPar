@@ -7,9 +7,7 @@
  ******************************************************************************/
 #include "kaminpar-common/console_io.h"
 
-#include <kassert/kassert.hpp>
-
-#include "kaminpar-common/assertion_levels.h"
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/logger.h"
 
 namespace kaminpar::cio {

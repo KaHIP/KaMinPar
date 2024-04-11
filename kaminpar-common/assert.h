@@ -1,13 +1,13 @@
 /*******************************************************************************
  * Assertion levels to be used with KASSERT().
  *
- * @file:   assertion_levels.h
+ * @file:   assert.h
  * @author: Daniel Seemaier
  * @date:   14.06.2022
  ******************************************************************************/
 #pragma once
 
-#include <kassert/kassert.hpp>
+#include <kassert/kassert.hpp> // IWYU pragma: export
 
 namespace kaminpar::assert {
 #define ASSERTION_LEVEL_ALWAYS 0

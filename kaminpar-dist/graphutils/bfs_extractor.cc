@@ -13,7 +13,6 @@
 #include <random>
 #include <vector>
 
-#include <kassert/kassert.hpp>
 #include <tbb/parallel_for.h>
 
 #include "kaminpar-mpi/sparse_alltoall.h"
@@ -25,6 +24,7 @@
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/random.h"

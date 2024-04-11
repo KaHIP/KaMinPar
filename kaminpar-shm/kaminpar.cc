@@ -7,17 +7,13 @@
  ******************************************************************************/
 #include "kaminpar-shm/kaminpar.h"
 
-#include "kaminpar-shm/context.h"
 #include "kaminpar-shm/context_io.h"
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
-#include "kaminpar-shm/definitions.h"
 #include "kaminpar-shm/factories.h"
 #include "kaminpar-shm/graphutils/permutator.h"
 #include "kaminpar-shm/metrics.h"
-#include "kaminpar-shm/presets.h"
 
-#include "kaminpar-common/assertion_levels.h"
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/logger.h"

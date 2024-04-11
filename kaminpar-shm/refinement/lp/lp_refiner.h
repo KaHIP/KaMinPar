@@ -8,9 +8,8 @@
 #pragma once
 
 #include "kaminpar-shm/context.h"
-#include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
-#include "kaminpar-shm/definitions.h"
+#include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/label_propagation.h"
 #include "kaminpar-shm/refinement/refiner.h"
 

@@ -9,8 +9,8 @@
 
 #include "kaminpar-cli/CLI11.h"
 
-#include "kaminpar-shm/context.h"
 #include "kaminpar-shm/context_io.h"
+#include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
 void create_all_options(CLI::App *app, Context &ctx) {
@@ -367,22 +367,45 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
         "iteration falls below this threshold (lower = weaker, but faster)."
   )
       ->capture_default_str();
-  fm->add_option("--r-fm-gain-cache", ctx.refinement.kway_fm.gain_cache_strategy)
+
+  fm->add_flag(
+      "--r-fm-lock-locally-moved-nodes{false},--r-fm-unlock-locally-moved-nodes",
+      ctx.refinement.kway_fm.unlock_locally_moved_nodes,
+      "If set, unlock all nodes after a batch that were only moved thread-locally, but not "
+      "globally."
+  );
+  fm->add_flag(
+      "--r-fm-lock-seed-nodes{false},--r-fm-unlock-seed-nodes",
+      ctx.refinement.kway_fm.unlock_seed_nodes,
+      "If set, keep seed nodes locked even if they were never moved. If this flag is not set, they "
+      "are treated the same way as touched nodes."
+  );
+
+  // Flags for gain caches
+  fm->add_option("--r-fm-gc", ctx.refinement.kway_fm.gain_cache_strategy)
       ->transform(CLI::CheckedTransformer(get_gain_cache_strategies()).description(""))
       ->capture_default_str();
   fm->add_option(
-        "--r-fm-constant-high-degree-threshold",
-        ctx.refinement.kway_fm.constant_high_degree_threshold
+        "--r-fm-gc-const-hd-threshold",
+        ctx.refinement.kway_fm.constant_high_degree_threshold,
+        "If the selected gain cache strategy distinguishes between low- and high-degree nodes: use "
+        "this as a constant threshold for high-degree nodes."
   )
       ->capture_default_str();
   fm->add_option(
-        "--r-fm-k-based-high-degree-threshold", ctx.refinement.kway_fm.k_based_high_degree_threshold
+        "--r-fm-gc-k-based-hd-threshold",
+        ctx.refinement.kway_fm.k_based_high_degree_threshold,
+        "If the selected gain cache strategy distinguishes between low- and high-degree nodes: use "
+        "this multiplier times -k as a threshold for high-degree nodes."
   )
       ->capture_default_str();
-  fm->add_flag("--r-fm-preallocate-gain-cache", ctx.refinement.kway_fm.preallocate_gain_cache)
-      ->capture_default_str();
+
+  // Flags for debugging / analysis
   fm->add_flag(
-        "--r-fm-dbg-batch-size-stats", ctx.refinement.kway_fm.dbg_compute_batch_size_statistics
+        "--r-fm-dbg-batch-stats",
+        ctx.refinement.kway_fm.dbg_compute_batch_stats,
+        "If set, compute and output detailed statistics about FM batches (can be expensive to "
+        "compute on some irregular graphs)."
   )
       ->capture_default_str();
 

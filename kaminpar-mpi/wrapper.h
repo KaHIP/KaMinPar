@@ -9,13 +9,13 @@
 
 #include <utility>
 
-#include <kassert/kassert.hpp>
 #include <mpi.h>
 
 #include "kaminpar-mpi/datatype.h"
 #include "kaminpar-mpi/definitions.h"
 #include "kaminpar-mpi/utils.h"
 
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/asserting_cast.h"
 #include "kaminpar-common/datastructures/noinit_vector.h"
 #include "kaminpar-common/parallel/algorithm.h"

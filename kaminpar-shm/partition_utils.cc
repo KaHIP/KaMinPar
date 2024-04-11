@@ -10,7 +10,7 @@
 #include <array>
 
 #include "kaminpar-shm/context.h"
-#include "kaminpar-shm/definitions.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/math.h"
 

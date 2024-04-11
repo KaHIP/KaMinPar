@@ -5,6 +5,7 @@
  * @author: Daniel Seemaier
  * @date:   06.10.023
  ******************************************************************************/
+#include <numeric>
 #include <vector>
 
 #include <gmock/gmock.h>

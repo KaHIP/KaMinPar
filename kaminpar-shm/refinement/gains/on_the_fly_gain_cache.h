@@ -7,13 +7,8 @@
  ******************************************************************************/
 #pragma once
 
-#include <type_traits>
-
-#include <kassert/kassert.hpp>
-
-#include "kaminpar-shm/context.h"
-#include "kaminpar-shm/datastructures/delta_partitioned_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/datastructures/sparse_map.h"
@@ -21,20 +16,21 @@
 namespace kaminpar::shm {
 template <typename DeltaPartitionedGraph, typename GainCache> class OnTheFlyDeltaGainCache;
 
-template <bool iterate_exact_gains = true> class OnTheFlyGainCache {
-  using Self = OnTheFlyGainCache<iterate_exact_gains>;
+template <bool iterate_nonadjacent_blocks = true, bool iterate_exact_gains = true>
+class OnTheFlyGainCache {
+  using Self = OnTheFlyGainCache<iterate_nonadjacent_blocks, iterate_exact_gains>;
   template <typename, typename> friend class OnTheFlyDeltaGainCache;
 
 public:
   template <typename DeltaPartitionedGraph>
   using DeltaCache = OnTheFlyDeltaGainCache<DeltaPartitionedGraph, Self>;
 
-  constexpr static bool kIteratesNonadjacentBlocks = false;
+  constexpr static bool kIteratesNonadjacentBlocks = iterate_nonadjacent_blocks;
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
-  OnTheFlyGainCache(const Context & /* ctx */, NodeID /* max_n */, BlockID max_k)
-      : _rating_map_ets([max_k] {
-          return RatingMap<EdgeWeight, BlockID, SparseMap<BlockID, EdgeWeight>>(max_k);
+  OnTheFlyGainCache(const Context & /* ctx */, NodeID /* max_n */, const BlockID preallocate_k)
+      : _rating_map_ets([preallocate_k] {
+          return RatingMap<EdgeWeight, BlockID, SparseMap<BlockID, EdgeWeight>>(preallocate_k);
         }) {}
 
   void initialize(const PartitionedGraph &p_graph) {
@@ -45,16 +41,16 @@ public:
     // nothing to do
   }
 
-  EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
+  [[nodiscard]] EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
     return gain_impl(*_p_graph, node, from, to);
   }
 
-  std::pair<EdgeWeight, EdgeWeight>
+  [[nodiscard]] std::pair<EdgeWeight, EdgeWeight>
   gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) const {
     return gain_impl(*_p_graph, node, b_node, targets);
   }
 
-  EdgeWeight conn(const NodeID node, const BlockID block) const {
+  [[nodiscard]] EdgeWeight conn(const NodeID node, const BlockID block) const {
     return conn_impl(*_p_graph, node, block);
   }
 
@@ -67,11 +63,11 @@ public:
     // nothing to do
   }
 
-  bool is_border_node(const NodeID node, const BlockID block) const {
+  [[nodiscard]] bool is_border_node(const NodeID node, const BlockID block) const {
     return is_border_node_impl(*_p_graph, node, block);
   }
 
-  bool validate(const PartitionedGraph & /* p_graph */) const {
+  [[nodiscard]] bool validate(const PartitionedGraph & /* p_graph */) const {
     // nothing to do
     return true;
   }
@@ -81,9 +77,13 @@ public:
     gains_impl<PartitionedGraph>(*_p_graph, node, from, std::forward<Lambda>(lambda));
   }
 
+  void print_statistics() const {
+    // print statistics
+  }
+
 private:
   template <typename PartitionedGraphType>
-  EdgeWeight gain_impl(
+  [[nodiscard]] EdgeWeight gain_impl(
       const PartitionedGraphType &p_graph, const NodeID node, const BlockID from, const BlockID to
   ) const {
     EdgeWeight conn_from = 0;
@@ -101,7 +101,7 @@ private:
   }
 
   template <typename PartitionedGraphType>
-  std::pair<EdgeWeight, EdgeWeight> gain_impl(
+  [[nodiscard]] std::pair<EdgeWeight, EdgeWeight> gain_impl(
       const PartitionedGraphType &p_graph,
       const NodeID node,
       const BlockID b_node,
@@ -126,7 +126,7 @@ private:
   }
 
   template <typename PartitionedGraphType>
-  EdgeWeight
+  [[nodiscard]] EdgeWeight
   conn_impl(const PartitionedGraphType &p_graph, const NodeID node, const BlockID block) const {
     EdgeWeight conn = 0;
 
@@ -140,7 +140,7 @@ private:
   }
 
   template <typename PartitionedGraphType>
-  bool is_border_node_impl(
+  [[nodiscard]] bool is_border_node_impl(
       const PartitionedGraphType &p_graph, const NodeID node, const BlockID block
   ) const {
     for (const auto [e, v] : p_graph.neighbors(node)) {
@@ -162,17 +162,28 @@ private:
       }
       const EdgeWeight conn_from = kIteratesExactGains ? map[from] : 0;
 
-      for (const auto [to, conn_to] : map.entries()) {
-        if (to != from) {
-          const EdgeWeight gain = conn_to - conn_from;
-          lambda(to, [&] { return gain; });
+      if constexpr (kIteratesNonadjacentBlocks) {
+        for (const BlockID to : p_graph.blocks()) {
+          if (to != from) {
+            lambda(to, [&] { return map[to] - conn_from; });
+          }
+        }
+      } else {
+        for (const auto [to, conn_to] : map.entries()) {
+          if (to != from) {
+            lambda(to, [&, conn_to = conn_to] { return conn_to - conn_from; });
+          }
         }
       }
 
       map.clear();
     };
 
-    _rating_map_ets.local().execute(std::min<BlockID>(p_graph.degree(node), p_graph.k()), action);
+    if constexpr (kIteratesNonadjacentBlocks) {
+      _rating_map_ets.local().execute(p_graph.k(), action);
+    } else {
+      _rating_map_ets.local().execute(std::min<BlockID>(p_graph.degree(node), p_graph.k()), action);
+    }
   }
 
   const PartitionedGraph *_p_graph = nullptr;
@@ -182,45 +193,52 @@ private:
       _rating_map_ets;
 };
 
-template <typename DeltaPartitionedGraph, typename GainCache> class OnTheFlyDeltaGainCache {
+template <typename _DeltaPartitionedGraph, typename _GainCache> class OnTheFlyDeltaGainCache {
 public:
-  constexpr static bool kIteratesNonadjacentBlocks = GainCache::kIteratesNonadjacentBlocks;
+  using DeltaPartitionedGraph = _DeltaPartitionedGraph;
+  using GainCache = _GainCache;
+
+  // Delta gain caches can only be used with GainCaches that iterate over all blocks, since there
+  // might be new connections to non-adjacent blocks in the delta graph.
+  static_assert(GainCache::kIteratesNonadjacentBlocks);
   constexpr static bool kIteratesExactGains = GainCache::kIteratesExactGains;
 
   OnTheFlyDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph &d_graph)
       : _gain_cache(gain_cache),
-        _d_graph(&d_graph) {}
+        _d_graph(d_graph) {}
 
   [[nodiscard]] EdgeWeight conn(const NodeID node, const BlockID block) const {
-    return _gain_cache.conn_impl(*_d_graph, node, block);
+    return _gain_cache.conn_impl(_d_graph, node, block);
   }
 
   [[nodiscard]] EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
-    return _gain_cache.gain_impl(*_d_graph, node, from, to);
+    return _gain_cache.gain_impl(_d_graph, node, from, to);
   }
 
   [[nodiscard]] std::pair<EdgeWeight, EdgeWeight>
   gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) const {
-    return _gain_cache.gain_impl(*_d_graph, node, b_node, targets);
+    return _gain_cache.gain_impl(_d_graph, node, b_node, targets);
   }
 
   template <typename Lambda>
   void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
     static_assert(DeltaPartitionedGraph::kAllowsReadAfterMove, "illegal configuration");
-    _gain_cache.gains_impl(*_d_graph, node, from, std::forward<Lambda>(lambda));
+    _gain_cache.gains_impl(_d_graph, node, from, std::forward<Lambda>(lambda));
   }
 
   void move(
       const DeltaPartitionedGraph &d_graph, NodeID /* node */, BlockID /* from */, BlockID /* to */
   ) {
     // nothing to do
+    KASSERT(&_d_graph == &d_graph, "move() called with bad delta graph");
   }
 
-  void clear() {}
+  void clear() {
+    // nothing to do
+  }
 
 private:
   const GainCache &_gain_cache;
-  const DeltaPartitionedGraph *_d_graph;
+  const DeltaPartitionedGraph &_d_graph;
 };
-
 } // namespace kaminpar::shm

@@ -10,7 +10,9 @@
 #include "kaminpar-shm/partitioning/debug.h"
 #include "kaminpar-shm/partitioning/deep/async_initial_partitioning.h"
 #include "kaminpar-shm/partitioning/deep/sync_initial_partitioning.h"
+#include "kaminpar-shm/partitioning/helper.h"
 
+#include "kaminpar-common/console_io.h"
 #include "kaminpar-common/heap_profiler.h"
 
 namespace kaminpar::shm {

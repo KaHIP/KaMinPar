@@ -9,7 +9,7 @@
 
 #include <cmath>
 
-#include "kaminpar-shm/definitions.h"
+#include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
 struct AdaptiveStoppingPolicy {

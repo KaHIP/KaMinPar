@@ -7,10 +7,9 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar-shm/definitions.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
-#include "kaminpar-common/degree_buckets.h"
 #include "kaminpar-common/ranges.h"
 
 namespace kaminpar::shm {

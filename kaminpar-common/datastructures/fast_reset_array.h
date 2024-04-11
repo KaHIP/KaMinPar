@@ -10,8 +10,7 @@
 #include <utility>
 #include <vector>
 
-#include <kassert/kassert.hpp>
-
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/ranges.h"
 
@@ -60,7 +59,7 @@ public:
   }
 
   [[nodiscard]] bool exists(const size_type pos) const {
-    return _data[pos] == Value();
+    return _data[pos] != Value();
   }
 
   [[nodiscard]] std::vector<size_type> &used_entry_ids() {

@@ -18,7 +18,7 @@
 #include <tbb/parallel_reduce.h>
 
 #include "kaminpar-shm/datastructures/abstract_graph.h"
-#include "kaminpar-shm/definitions.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/constexpr_utils.h"
 #include "kaminpar-common/datastructures/compact_static_array.h"
@@ -26,7 +26,6 @@
 #include "kaminpar-common/degree_buckets.h"
 #include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/ranges.h"
-#include "kaminpar-common/tags.h"
 
 namespace kaminpar::shm {
 

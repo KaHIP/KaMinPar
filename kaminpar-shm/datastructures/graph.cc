@@ -11,6 +11,8 @@
  ******************************************************************************/
 #include "kaminpar-shm/datastructures/graph.h"
 
+#include "kaminpar-shm/kaminpar.h"
+
 #include "kaminpar-common/logger.h"
 
 namespace kaminpar::shm {

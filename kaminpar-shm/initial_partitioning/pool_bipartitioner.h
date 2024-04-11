@@ -11,14 +11,14 @@
 
 #include <memory>
 
-#include <kassert/kassert.hpp>
-
 #include "kaminpar-shm/factories.h"
 #include "kaminpar-shm/initial_partitioning/bfs_bipartitioner.h"
 #include "kaminpar-shm/initial_partitioning/bipartitioner.h"
 #include "kaminpar-shm/initial_partitioning/greedy_graph_growing_bipartitioner.h"
 #include "kaminpar-shm/initial_partitioning/initial_refiner.h"
 #include "kaminpar-shm/initial_partitioning/random_bipartitioner.h"
+
+#include "kaminpar-common/assert.h"
 
 namespace kaminpar::shm::ip {
 struct InitialPartitioningMemoryContext {

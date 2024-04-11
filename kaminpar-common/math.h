@@ -10,12 +10,11 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include <numeric>
 #include <tuple>
 #include <utility>
 #include <vector>
 
-#include <kassert/kassert.hpp>
+#include "kaminpar-common/assert.h"
 
 namespace kaminpar::math {
 
@@ -228,5 +227,9 @@ template <typename Container>
 auto find_min_mean_max(const Container &container)
     -> std::tuple<typename Container::value_type, double, typename Container::value_type> {
   return std::make_tuple(find_min(container), find_mean(container), find_max(container));
+}
+
+template <typename Int> Int create_mask(const int num_bits) {
+  return (1 << num_bits) - 1;
 }
 } // namespace kaminpar::math

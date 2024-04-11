@@ -9,7 +9,6 @@
 
 #include <vector>
 
-#include <kassert/kassert.hpp>
 #include <mpi.h>
 
 #include "kaminpar-mpi/definitions.h"

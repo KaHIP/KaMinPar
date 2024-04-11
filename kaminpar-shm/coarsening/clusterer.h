@@ -8,7 +8,7 @@
 #pragma once
 
 #include "kaminpar-shm/datastructures/graph.h"
-#include "kaminpar-shm/definitions.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/parallel/atomic.h"

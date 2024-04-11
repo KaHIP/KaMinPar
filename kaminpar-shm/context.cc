@@ -10,11 +10,10 @@
 #include <iomanip>
 #include <unordered_map>
 
-#include <kassert/kassert.hpp>
-
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/partition_utils.h"
 
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/asserting_cast.h"
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/math.h"
@@ -136,18 +135,8 @@ void BlockWeightsContext::setup(const PartitionContext &p_ctx, const BlockID inp
   });
 }
 
-[[nodiscard]] BlockWeight BlockWeightsContext::max(const BlockID b) const {
-  KASSERT(b < _max_block_weights.size());
-  return _max_block_weights[b];
-}
-
 [[nodiscard]] const std::vector<BlockWeight> &BlockWeightsContext::all_max() const {
   return _max_block_weights;
-}
-
-[[nodiscard]] BlockWeight BlockWeightsContext::perfectly_balanced(const BlockID b) const {
-  KASSERT(b < _perfectly_balanced_block_weights.size());
-  return _perfectly_balanced_block_weights[b];
 }
 
 [[nodiscard]] const std::vector<BlockWeight> &BlockWeightsContext::all_perfectly_balanced() const {

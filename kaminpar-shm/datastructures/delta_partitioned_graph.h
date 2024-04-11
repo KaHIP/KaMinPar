@@ -7,14 +7,11 @@
  ******************************************************************************/
 #pragma once
 
-#include <google/dense_hash_map>
-#include <type_traits>
-
-#include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/graph_delegate.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
-#include "kaminpar-shm/definitions.h"
+#include "kaminpar-shm/kaminpar.h"
 
+#include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/ranges.h"
 
@@ -37,13 +34,8 @@ public:
   GenericDeltaPartitionedGraph(const PartitionedGraph *p_graph)
       : GraphDelegate<Graph>(&p_graph->graph()),
         _p_graph(p_graph) {
-    if constexpr (compact_block_weight_delta) {
-      _block_weights_delta.set_empty_key(kInvalidBlockID);
-    } else {
+    if constexpr (!compact_block_weight_delta) {
       _block_weights_delta.resize(_p_graph->k());
-    }
-    if constexpr (allow_read_after_move) {
-      _partition_delta.set_empty_key(kInvalidNodeID);
     }
   }
 
@@ -65,12 +57,8 @@ public:
 
   [[nodiscard]] inline BlockID block(const NodeID node) const {
     if constexpr (allow_read_after_move) {
-      const auto it = _partition_delta.find(node);
-      if (it != _partition_delta.end()) {
-        return it->second;
-      }
-
-      return _p_graph->block(node);
+      const auto *it = _partition_delta.get_if_contained(node);
+      return (it != _partition_delta.end()) ? *it : _p_graph->block(node);
     } else {
       KASSERT(
           std::find_if(
@@ -120,9 +108,9 @@ public:
     BlockWeight delta = 0;
 
     if constexpr (compact_block_weight_delta) {
-      const auto it = _block_weights_delta.find(block);
+      const auto *it = _block_weights_delta.get_if_contained(block);
       if (it != _block_weights_delta.end()) {
-        delta = it->second;
+        delta = *it;
       }
     } else {
       delta = _block_weights_delta[block];
@@ -131,8 +119,18 @@ public:
     return _p_graph->block_weight(block) + delta;
   }
 
-  const auto &delta() const {
-    return _partition_delta;
+  template <typename Lambda> void for_each(Lambda &&lambda) {
+    if constexpr (allow_read_after_move) {
+      _partition_delta.for_each(std::forward<Lambda>(lambda));
+    } else {
+      for (const auto &[moved_node, moved_to] : _partition_delta) {
+        lambda(moved_node, moved_to);
+      }
+    }
+  }
+
+  std::size_t size() const {
+    return _partition_delta.size();
   }
 
   void clear() {
@@ -152,7 +150,7 @@ private:
   // otherwise store the block weight deltas in vector (i.e., O(P * k) memory).
   std::conditional_t<
       compact_block_weight_delta,
-      google::dense_hash_map<BlockID, BlockWeight>,
+      DynamicFlatMap<BlockID, BlockWeight>,
       scalable_vector<BlockWeight>>
       _block_weights_delta;
 
@@ -160,8 +158,8 @@ private:
   // we can just store the moves in a vector.
   std::conditional_t<
       allow_read_after_move,
-      google::dense_hash_map<NodeID, BlockID>,
-      std::vector<DeltaEntry>>
+      DynamicFlatMap<NodeID, BlockID>,
+      scalable_vector<DeltaEntry>>
       _partition_delta;
 };
 } // namespace kaminpar::shm

@@ -28,7 +28,7 @@
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/metrics.h"
 
-#include "kaminpar-common/assertion_levels.h"
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/math.h"
 #include "kaminpar-common/timer.h"

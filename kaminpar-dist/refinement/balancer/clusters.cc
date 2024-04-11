@@ -8,6 +8,7 @@
 #include "kaminpar-dist/refinement/balancer/clusters.h"
 
 #include <csignal>
+#include <numeric>
 
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
@@ -18,12 +19,10 @@
 
 #include "kaminpar-shm/refinement/fm/stopping_policies.h"
 
-#include "kaminpar-common/assertion_levels.h"
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/binary_heap.h"
 #include "kaminpar-common/datastructures/fast_reset_array.h"
-#include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/datastructures/noinit_vector.h"
-#include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/timer.h"
 
 #define HEAVY assert::heavy

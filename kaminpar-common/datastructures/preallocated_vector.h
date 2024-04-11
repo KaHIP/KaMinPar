@@ -11,9 +11,7 @@
 #include <memory>
 #include <vector>
 
-#include <kassert/kassert.hpp>
-
-#include "kaminpar-common/assertion_levels.h"
+#include "kaminpar-common/assert.h"
 
 namespace kaminpar {
 template <typename T> class PreallocatedAllocator {

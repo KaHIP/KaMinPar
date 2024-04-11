@@ -8,7 +8,7 @@
 
 #include <vector>
 
-#include <kassert/kassert.hpp>
+#include "kaminpar-common/assert.h"
 
 #include "kaminpar-common/heap_profiler.h"
 

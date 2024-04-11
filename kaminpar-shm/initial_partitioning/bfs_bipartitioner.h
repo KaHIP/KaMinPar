@@ -14,7 +14,6 @@
 
 #include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/datastructures/queue.h"
-#include "kaminpar-common/random.h"
 
 namespace kaminpar::shm::ip {
 namespace bfs {

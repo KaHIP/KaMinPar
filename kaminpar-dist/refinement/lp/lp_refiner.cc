@@ -257,7 +257,7 @@ private:
   ) {
     mpi::barrier(_graph->communicator());
 #if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
-    KASSERT(graph::debug::validate_partition(*_p_graph), "", assert::heavy);
+    KASSERT(debug::validate_partition(*_p_graph), "", assert::heavy);
 #endif
 
     struct Move {

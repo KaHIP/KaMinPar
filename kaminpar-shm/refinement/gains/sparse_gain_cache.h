@@ -8,26 +8,25 @@
  ******************************************************************************/
 #pragma once
 
-#include <type_traits>
-
-#include <kassert/kassert.hpp>
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
-#include "kaminpar-shm/context.h"
-#include "kaminpar-shm/datastructures/delta_partitioned_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/dynamic_map.h"
-#include "kaminpar-common/datastructures/noinit_vector.h"
+#include "kaminpar-common/inline.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
 template <typename DeltaPartitionedGraph, typename GainCache> class SparseDeltaGainCache;
 
-template <bool iterate_exact_gains = false> class SparseGainCache {
-  using Self = SparseGainCache<iterate_exact_gains>;
+template <bool iterate_nonadjacent_blocks = true, bool iterate_exact_gains = false>
+class SparseGainCache {
+  SET_DEBUG(true);
+
+  using Self = SparseGainCache<iterate_nonadjacent_blocks, iterate_exact_gains>;
   template <typename, typename> friend class SparseDeltaGainCache;
 
 public:
@@ -35,61 +34,79 @@ public:
   using DeltaCache = SparseDeltaGainCache<DeltaPartitionedGraph, Self>;
 
   // gains() will iterate over all blocks, including those not adjacent to the node.
-  constexpr static bool kIteratesNonadjacentBlocks = true;
+  constexpr static bool kIteratesNonadjacentBlocks = iterate_nonadjacent_blocks;
 
   // If set to true, gains() will call the gain consumer with exact gains; otherwise, it will call
-  // the gain consumer with the total edge weight between the node and nodes in the specific block
-  // (more expensive, but safes a call to gain() if the exact gain for the best block is needed).
+  // the gain consumer with the total edge weight between the node and nodes in the specific block.
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
-  SparseGainCache(const Context & /* ctx */, const NodeID max_n, const BlockID max_k)
-      : _max_n(max_n),
-        _max_k(max_k),
-        _gain_cache(
-            static_array::noinit,
-            static_cast<std::size_t>(_max_n) * static_cast<std::size_t>(_max_k)
-        ),
-        _weighted_degrees(static_array::noinit, _max_n) {}
+  SparseGainCache(
+      const Context & /* ctx */, const NodeID preallocate_n, const BlockID preallocate_k
+  )
+      : _gain_cache(static_array::noinit, 1ull * preallocate_n * preallocate_k),
+        _weighted_degrees(static_array::noinit, preallocate_n) {
+    DBG << "Pre-allocating sparse gain cache: " << preallocate_n << " nodes, " << preallocate_k
+        << " blocks -> allocate " << preallocate_n * preallocate_k * sizeof(EdgeWeight) / 1024
+        << " KiB";
+  }
 
   void initialize(const PartitionedGraph &p_graph) {
-    KASSERT(p_graph.n() <= _max_n, "gain cache is too small");
-    KASSERT(p_graph.k() <= _max_k, "gain cache is too small");
-
     _n = p_graph.n();
     _k = p_graph.k();
 
-    START_TIMER("Reset");
+    const std::size_t gc_size = 1ull * _n * _k;
+
+    if (_gain_cache.size() < gc_size) {
+      SCOPED_TIMER("Allocation");
+      DBG << "Re-allocating sparse gain cache: " << _n << " nodes, " << _k << " blocks -> allocate "
+          << gc_size * sizeof(EdgeWeight) / 1024 << " KiB";
+      _gain_cache.resize(static_array::noinit, gc_size);
+    }
+    if (_weighted_degrees.size() < _n) {
+      SCOPED_TIMER("Allocation");
+      _weighted_degrees.resize(static_array::noinit, _n);
+    }
+
     reset();
-    STOP_TIMER();
-    START_TIMER("Recompute");
     recompute_all(p_graph);
-    STOP_TIMER();
   }
 
   void free() {
     tbb::parallel_invoke([&] { _gain_cache.free(); }, [&] { _weighted_degrees.free(); });
   }
 
-  EdgeWeight gain(const NodeID node, const BlockID block_from, const BlockID block_to) const {
+  [[nodiscard]] EdgeWeight
+  gain(const NodeID node, const BlockID block_from, const BlockID block_to) const {
     return weighted_degree_to(node, block_to) - weighted_degree_to(node, block_from);
   }
 
-  std::pair<EdgeWeight, EdgeWeight>
+  [[nodiscard]] std::pair<EdgeWeight, EdgeWeight>
   gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) {
     return {gain(node, b_node, targets.first), gain(node, b_node, targets.second)};
   }
 
-  EdgeWeight conn(const NodeID node, const BlockID block) const {
+  [[nodiscard]] EdgeWeight conn(const NodeID node, const BlockID block) const {
     return weighted_degree_to(node, block);
   }
 
   template <typename Lambda>
-  void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
+  KAMINPAR_INLINE void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
     const EdgeWeight conn_from = kIteratesExactGains ? conn(node, from) : 0;
 
-    for (BlockID to = 0; to < _k; ++to) {
-      if (from != to) {
-        lambda(to, [&] { return conn(node, to) - conn_from; });
+    if constexpr (kIteratesNonadjacentBlocks) {
+      for (BlockID to = 0; to < _k; ++to) {
+        if (from != to) {
+          lambda(to, [&] { return conn(node, to) - conn_from; });
+        }
+      }
+    } else {
+      for (BlockID to = 0; to < _k; ++to) {
+        if (from != to) {
+          const EdgeWeight conn_to = conn(node, to);
+          if (conn_to > 0) {
+            lambda(to, [&] { return conn_to - conn_from; });
+          }
+        }
       }
     }
   }
@@ -107,12 +124,12 @@ public:
     }
   }
 
-  bool is_border_node(const NodeID node, const BlockID block) const {
+  [[nodiscard]] bool is_border_node(const NodeID node, const BlockID block) const {
     KASSERT(node < _weighted_degrees.size());
     return _weighted_degrees[node] != weighted_degree_to(node, block);
   }
 
-  bool validate(const PartitionedGraph &p_graph) const {
+  [[nodiscard]] bool validate(const PartitionedGraph &p_graph) const {
     bool valid = true;
     p_graph.pfor_nodes([&](const NodeID u) {
       if (!check_cached_gain_for_node(p_graph, u)) {
@@ -123,24 +140,31 @@ public:
     return valid;
   }
 
+  void print_statistics() const {
+    // print statistics
+  }
+
 private:
-  EdgeWeight weighted_degree_to(const NodeID node, const BlockID block) const {
+  [[nodiscard]] EdgeWeight weighted_degree_to(const NodeID node, const BlockID block) const {
     KASSERT(index(node, block) < _gain_cache.size());
     return __atomic_load_n(&_gain_cache[index(node, block)], __ATOMIC_RELAXED);
   }
 
-  std::size_t index(const NodeID node, const BlockID block) const {
-    const std::size_t idx = static_cast<std::size_t>(node) * static_cast<std::size_t>(_k) +
-                            static_cast<std::size_t>(block);
+  [[nodiscard]] std::size_t index(const NodeID node, const BlockID block) const {
+    const std::size_t idx = 1ull * node * _k + block;
     KASSERT(idx < _gain_cache.size());
     return idx;
   }
 
   void reset() {
-    tbb::parallel_for<std::size_t>(0, _n * _k, [&](const std::size_t i) { _gain_cache[i] = 0; });
+    SCOPED_TIMER("Reset gain cache");
+    tbb::parallel_for<std::size_t>(0, 1ull * _n * _k, [this](const std::size_t i) {
+      _gain_cache[i] = 0;
+    });
   }
 
   void recompute_all(const PartitionedGraph &p_graph) {
+    SCOPED_TIMER("Recompute gain cache");
     p_graph.pfor_nodes([&](const NodeID u) { recompute_node(p_graph, u); });
   }
 
@@ -191,9 +215,6 @@ private:
     return true;
   }
 
-  NodeID _max_n;
-  BlockID _max_k;
-
   NodeID _n;
   BlockID _k;
 
@@ -201,9 +222,14 @@ private:
   StaticArray<EdgeWeight> _weighted_degrees;
 };
 
-template <typename DeltaPartitionedGraph, typename GainCache> class SparseDeltaGainCache {
+template <typename _DeltaPartitionedGraph, typename _GainCache> class SparseDeltaGainCache {
 public:
-  constexpr static bool kIteratesNonadjacentBlocks = GainCache::kIteratesNonadjacentBlocks;
+  using DeltaPartitionedGraph = _DeltaPartitionedGraph;
+  using GainCache = _GainCache;
+
+  // Delta gain caches can only be used with GainCaches that iterate over all blocks, since there
+  // might be new connections to non-adjacent blocks in the delta graph.
+  static_assert(GainCache::kIteratesNonadjacentBlocks);
   constexpr static bool kIteratesExactGains = GainCache::kIteratesExactGains;
 
   SparseDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph & /* d_graph */)
@@ -217,7 +243,7 @@ public:
     return _gain_cache.gain(node, from, to) + conn_delta(node, to) - conn_delta(node, from);
   }
 
-  std::pair<EdgeWeight, EdgeWeight>
+  [[nodiscard]] std::pair<EdgeWeight, EdgeWeight>
   gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) {
     return {gain(node, b_node, targets.first), gain(node, b_node, targets.second)};
   }

@@ -138,14 +138,15 @@ Context create_default_context() {
                       .num_seed_nodes = 10,
                       .alpha = 1.0,
                       .num_iterations = 10,
+                      .unlock_locally_moved_nodes = true,
                       .unlock_seed_nodes = true,
                       .use_exact_abortion_threshold = false,
                       .abortion_threshold = 0.999,
-                      .gain_cache_strategy = GainCacheStrategy::SPARSE,
+                      .gain_cache_strategy = GainCacheStrategy::DENSE,
                       .constant_high_degree_threshold = 0,
-                      .k_based_high_degree_threshold = 0.0,
-                      .preallocate_gain_cache = false,
-                      .dbg_compute_batch_size_statistics = false,
+                      .k_based_high_degree_threshold = 1.0,
+
+                      .dbg_compute_batch_stats = false,
                   },
               .balancer = {},
               .jet =
@@ -173,8 +174,8 @@ Context create_default_context() {
           {
               .graph_name = "",
 
-              .dump_graph_filename = "graph_n%n_m%m_k%k_seed%seed.graph",
-              .dump_partition_filename = "part_n%n_m%m_k%k_seed%seed.graph",
+              .dump_graph_filename = "n%n_m%m_k%k_seed%seed.metis",
+              .dump_partition_filename = "n%n_m%m_k%k_seed%seed.part",
 
               .dump_toplevel_graph = false,
               .dump_toplevel_partition = false,

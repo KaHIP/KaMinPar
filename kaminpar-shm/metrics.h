@@ -8,14 +8,14 @@
 #pragma once
 
 #include <cmath>
-#include <numeric>
+#include <cstdint>
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
 
-#include "kaminpar-shm/context.h"
-#include "kaminpar-shm/datastructures/graph.h"
-#include "kaminpar-shm/definitions.h"
+#include "kaminpar-shm/kaminpar.h"
+
+#include "kaminpar-common/assert.h"
 
 namespace kaminpar::shm::metrics {
 template <typename PartitionedGraphType> EdgeWeight edge_cut(const PartitionedGraphType &p_graph) {

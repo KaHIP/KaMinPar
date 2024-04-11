@@ -42,9 +42,13 @@ using EdgeID = std::uint32_t;
 #ifdef KAMINPAR_64BIT_WEIGHTS
 using NodeWeight = std::int64_t;
 using EdgeWeight = std::int64_t;
+using UnsignedEdgeWeight = std::uint64_t;
+using UnsignedNodeWeight = std::uint64_t;
 #else  // KAMINPAR_64BIT_WEIGHTS
 using NodeWeight = std::int32_t;
 using EdgeWeight = std::int32_t;
+using UnsignedEdgeWeight = std::uint32_t;
+using UnsignedNodeWeight = std::uint32_t;
 #endif // KAMINPAR_64BIT_WEIGHTS
 
 using BlockID = std::uint32_t;
@@ -176,8 +180,10 @@ enum class FMStoppingRule {
 
 enum class GainCacheStrategy {
   SPARSE,
+  DENSE,
   ON_THE_FLY,
   HYBRID,
+  TRACING,
 };
 
 struct LabelPropagationRefinementContext {
@@ -190,18 +196,16 @@ struct KwayFMRefinementContext {
   NodeID num_seed_nodes;
   double alpha;
   int num_iterations;
+  bool unlock_locally_moved_nodes;
   bool unlock_seed_nodes;
   bool use_exact_abortion_threshold;
   double abortion_threshold;
 
   GainCacheStrategy gain_cache_strategy;
-
-  // gain_cache_strategy == HybridGainCache
   EdgeID constant_high_degree_threshold;
   double k_based_high_degree_threshold;
-  bool preallocate_gain_cache;
 
-  bool dbg_compute_batch_size_statistics;
+  bool dbg_compute_batch_stats;
 };
 
 struct JetRefinementContext {
@@ -287,9 +291,16 @@ struct BlockWeightsContext {
   void setup(const PartitionContext &ctx);
   void setup(const PartitionContext &ctx, BlockID input_k);
 
-  [[nodiscard]] BlockWeight max(BlockID b) const;
+  [[nodiscard]] BlockWeight max(BlockID b) const { 
+      return _max_block_weights[b]; 
+  }
+
   [[nodiscard]] const std::vector<BlockWeight> &all_max() const;
-  [[nodiscard]] BlockWeight perfectly_balanced(BlockID b) const;
+
+  [[nodiscard]] BlockWeight perfectly_balanced(BlockID b) const {
+      return _perfectly_balanced_block_weights[b];
+  }
+
   [[nodiscard]] const std::vector<BlockWeight> &all_perfectly_balanced() const;
 
 private:

@@ -16,10 +16,7 @@
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
-#include "kaminpar-shm/datastructures/graph.h"
-#include "kaminpar-shm/definitions.h"
-
-#include "kaminpar-common/assertion_levels.h"
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/concurrent_fast_reset_array.h"
 #include "kaminpar-common/datastructures/concurrent_two_level_vector.h"
 #include "kaminpar-common/datastructures/dynamic_map.h"
@@ -37,20 +34,22 @@ template <typename TGraph> struct LabelPropagationConfig {
   using Graph = TGraph;
 
   // Data structure used to accumulate edge weights for gain value calculation
-  using RatingMap =
-      ::kaminpar::RatingMap<shm::EdgeWeight, shm::NodeID, FastResetArray<shm::EdgeWeight>>;
+  using RatingMap = ::kaminpar::RatingMap<
+      typename Graph::EdgeWeight,
+      typename Graph::NodeID,
+      FastResetArray<typename Graph::EdgeWeight>>;
 
   // Data type for cluster IDs and weights
   using ClusterID = tag::Mandatory;
   using ClusterWeight = tag::Mandatory;
 
   // Approx. number of edges per work unit
-  static constexpr shm::NodeID kMinChunkSize = 1024;
+  static constexpr Graph::NodeID kMinChunkSize = 1024;
 
   // Nodes per permutation unit: when iterating over nodes in a chunk, we divide
   // them into permutation units, iterate over permutation orders in random
   // order, and iterate over nodes inside a permutation unit in random order.
-  static constexpr shm::NodeID kPermutationSize = 64;
+  static constexpr Graph::NodeID kPermutationSize = 64;
 
   // When randomizing the node order inside a permutation unit, we pick a random
   // permutation from a pool of permutations. This constant determines the pool

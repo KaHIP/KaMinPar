@@ -10,19 +10,16 @@
 #include <functional>
 #include <utility>
 
-#include <kassert/kassert.hpp>
-
 #include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/initial_partitioning/sequential_graph_hierarchy.h"
 #include "kaminpar-shm/kaminpar.h"
 
-#include "kaminpar-common/assertion_levels.h"
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/fast_reset_array.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/random.h"
-#include "kaminpar-common/timer.h"
 
 #define STATIC_MAX_CLUSTER_WEIGHT(x)                                                               \
   [&](const NodeID) {                                                                              \

@@ -194,8 +194,10 @@ std::ostream &operator<<(std::ostream &out, const InitialPartitioningMode mode) 
 std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies() {
   return {
       {"sparse", GainCacheStrategy::SPARSE},
+      {"dense", GainCacheStrategy::DENSE},
       {"on-the-fly", GainCacheStrategy::ON_THE_FLY},
       {"hybrid", GainCacheStrategy::HYBRID},
+      {"tracing", GainCacheStrategy::TRACING},
   };
 }
 
@@ -203,10 +205,14 @@ std::ostream &operator<<(std::ostream &out, const GainCacheStrategy strategy) {
   switch (strategy) {
   case GainCacheStrategy::SPARSE:
     return out << "sparse";
+  case GainCacheStrategy::DENSE:
+    return out << "dense";
   case GainCacheStrategy::ON_THE_FLY:
     return out << "on-the-fly";
   case GainCacheStrategy::HYBRID:
     return out << "hybrid";
+  case GainCacheStrategy::TRACING:
+    return out << "tracing";
   }
 
   return out << "<invalid>";
@@ -443,6 +449,9 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
         << " [or improvement drops below < " << 100.0 * (1.0 - r_ctx.kway_fm.abortion_threshold)
         << "%]\n";
     out << "  Number of seed nodes:       " << r_ctx.kway_fm.num_seed_nodes << "\n";
+    out << "  Locking strategies:         seed nodes: "
+        << (r_ctx.kway_fm.unlock_seed_nodes ? "unlock" : "lock") << ", locally moved nodes:"
+        << (r_ctx.kway_fm.unlock_locally_moved_nodes ? "unlock" : "lock") << "\n";
     out << "  Gain cache:                 " << r_ctx.kway_fm.gain_cache_strategy << "\n";
     if (r_ctx.kway_fm.gain_cache_strategy == GainCacheStrategy::HYBRID) {
       out << "  High-degree threshold:\n";
@@ -450,7 +459,6 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
           << "\n";
       out << "    constant:                 " << r_ctx.kway_fm.constant_high_degree_threshold
           << "\n";
-      out << "  Preallocate gain cache:     " << r_ctx.kway_fm.preallocate_gain_cache << "\n";
     }
   }
   if (r_ctx.includes_algorithm(RefinementAlgorithm::JET)) {

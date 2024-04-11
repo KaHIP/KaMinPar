@@ -11,24 +11,22 @@
  ******************************************************************************/
 #pragma once
 
-#include <numeric>
 #include <utility>
-#include <vector>
 
-#include <kassert/kassert.hpp>
+#include <tbb/blocked_range.h>
+#include <tbb/enumerable_thread_specific.h>
+#include <tbb/parallel_for.h>
+#include <tbb/parallel_reduce.h>
 
 #include "kaminpar-shm/datastructures/abstract_graph.h"
 #include "kaminpar-shm/datastructures/compressed_graph.h"
 #include "kaminpar-shm/datastructures/csr_graph.h"
-#include "kaminpar-shm/definitions.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
-#include "kaminpar-common/degree_buckets.h"
-#include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/ranges.h"
 
 namespace kaminpar::shm {
-
 class Graph : public AbstractGraph {
 public:
   // Data types used by this graph

@@ -7,7 +7,7 @@
 #include "kaminpar-dist/graphutils/replicator.h"
 #include "kaminpar-dist/metrics.h"
 
-#include "kaminpar-common/assertion_levels.h"
+#include "kaminpar-common/assert.h"
 
 namespace kaminpar::dist {
 using namespace kaminpar::dist::testing;
@@ -52,7 +52,7 @@ TEST(GraphReplicationTest, isolated_graph_P_div_2) {
 
 TEST(GraphReplicationTest, triangle_cycle_graph_1) {
   const auto graph = make_circle_clique_graph(3); // triangle on each PE
-  const auto rep = replicate_graph(graph, 1);    // replicate 1 == nothing changes
+  const auto rep = replicate_graph(graph, 1);     // replicate 1 == nothing changes
   ASSERT_TRUE(debug::validate_graph(rep));
 
   EXPECT_EQ(rep.n(), graph.n());

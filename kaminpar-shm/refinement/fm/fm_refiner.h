@@ -7,30 +7,21 @@
  ******************************************************************************/
 #pragma once
 
-#include <cmath>
-
 #include <tbb/parallel_invoke.h>
 
-#include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/delta_partitioned_graph.h"
-#include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
+#include "kaminpar-shm/refinement/fm/fm_definitions.h"
 #include "kaminpar-shm/refinement/fm/stopping_policies.h"
-#include "kaminpar-shm/refinement/gains/hybrid_gain_cache.h"
-#include "kaminpar-shm/refinement/gains/on_the_fly_gain_cache.h"
-#include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
 #include "kaminpar-shm/refinement/refiner.h"
 
 #include "kaminpar-common/datastructures/binary_heap.h"
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::shm {
-namespace fm {
-using DefaultDeltaPartitionedGraph = GenericDeltaPartitionedGraph<>;
-using SparseGainCache = SparseGainCache<>;
-using OnTheFlyGainCache = OnTheFlyGainCache<>;
-using HighDegreeGainCache = HybridGainCache<>;
+std::unique_ptr<Refiner> create_fm_refiner(const Context &ctx);
 
+namespace fm {
 struct Stats {
   parallel::Atomic<NodeID> num_touched_nodes = 0;
   parallel::Atomic<NodeID> num_committed_moves = 0;
@@ -52,25 +43,7 @@ struct GlobalStats {
   void add(const Stats &stats);
   void next_iteration();
   void reset();
-  void summarize();
-};
-
-struct BatchStats {
-  NodeID size;
-  NodeID max_distance;
-  std::vector<NodeID> size_by_distance;
-  std::vector<EdgeWeight> gain_by_distance;
-};
-
-struct GlobalBatchStats {
-  std::vector<std::vector<BatchStats>> iteration_stats;
-
-  void next_iteration(std::vector<BatchStats> stats);
-  void reset();
-  void summarize();
-
-private:
-  void summarize_iteration(const std::size_t iteration, const std::vector<BatchStats> &stats);
+  void print();
 };
 
 class NodeTracker {
@@ -92,7 +65,6 @@ public:
     return __atomic_load_n(&_state[u], __ATOMIC_RELAXED);
   }
 
-  // @todo Build a better interface once the details are settled.
   void set(const NodeID node, const int value) {
     __atomic_store_n(&_state[node], value, __ATOMIC_RELAXED);
   }
@@ -182,13 +154,13 @@ private:
   tbb::concurrent_vector<NodeID> _border_nodes;
 };
 
-template <typename GainCache = fm::SparseGainCache> struct SharedData {
-  SharedData(const Context &ctx, const NodeID max_n, const BlockID max_k)
-      : node_tracker(max_n),
-        gain_cache(ctx, max_n, max_k),
+template <typename GainCache> struct SharedData {
+  SharedData(const Context &ctx, const NodeID preallocate_n, const BlockID preallocate_k)
+      : node_tracker(preallocate_n),
+        gain_cache(ctx, preallocate_n, preallocate_k),
         border_nodes(ctx, gain_cache, node_tracker),
-        shared_pq_handles(max_n, SharedBinaryMaxHeap<EdgeWeight>::kInvalidID),
-        target_blocks(static_array::noinit, max_n) {}
+        shared_pq_handles(preallocate_n, SharedBinaryMaxHeap<EdgeWeight>::kInvalidID),
+        target_blocks(static_array::noinit, preallocate_n) {}
 
   SharedData(const SharedData &) = delete;
   SharedData &operator=(const SharedData &) = delete;
@@ -211,24 +183,10 @@ template <typename GainCache = fm::SparseGainCache> struct SharedData {
   StaticArray<std::size_t> shared_pq_handles;
   StaticArray<BlockID> target_blocks;
   GlobalStats stats;
-  GlobalBatchStats batch_stats;
-};
-
-struct Move {
-  NodeID node;
-  BlockID from;
-};
-
-struct AppliedMove {
-  NodeID node;
-  BlockID from;
-  bool improvement;
 };
 } // namespace fm
 
-template <
-    typename DeltaPartitionedGraph = fm::DefaultDeltaPartitionedGraph,
-    typename GainCache = fm::SparseGainCache>
+template <typename GainCache, typename DeltaPartitionedGraph = GenericDeltaPartitionedGraph<>>
 class FMRefiner : public Refiner {
 public:
   FMRefiner(const Context &ctx);
@@ -245,38 +203,13 @@ public:
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
 private:
-  using SeedNodesVec = std::vector<NodeID>;
-  using MovesVec = std::vector<fm::AppliedMove>;
-  using Batches = tbb::concurrent_vector<std::pair<SeedNodesVec, MovesVec>>;
-
-  [[nodiscard]] std::vector<fm::BatchStats>
-  dbg_compute_batch_stats(const PartitionedGraph &graph, Batches next_batches) const;
-
-  [[nodiscard]] std::pair<PartitionedGraph, Batches>
-  dbg_build_prev_p_graph(const PartitionedGraph &p_graph, Batches next_batches) const;
-
-  [[nodiscard]] fm::BatchStats dbg_compute_single_batch_stats_in_sequence(
-      PartitionedGraph &p_graph,
-      const std::vector<NodeID> &seeds,
-      const std::vector<fm::AppliedMove> &moves,
-      const std::vector<NodeID> &distances
-  ) const;
-
-  [[nodiscard]] std::vector<NodeID> dbg_compute_batch_distances(
-      const Graph &graph,
-      const std::vector<NodeID> &seeds,
-      const std::vector<fm::AppliedMove> &moves
-  ) const;
-
   const Context &_ctx;
   const KwayFMRefinementContext &_fm_ctx;
 
   std::unique_ptr<fm::SharedData<GainCache>> _shared;
 };
 
-template <
-    typename DeltaPartitionedGraph = fm::DefaultDeltaPartitionedGraph,
-    typename GainCache = fm::SparseGainCache>
+template <typename GainCache, typename DeltaPartitionedGraph = GenericDeltaPartitionedGraph<>>
 class LocalizedFMRefiner {
 public:
   LocalizedFMRefiner(
@@ -294,14 +227,14 @@ public:
   const std::vector<NodeID> &last_batch_seed_nodes();
 
 private:
-  template <typename PartitionedGraphType, typename GainCacheType>
+  template <typename GainCacheType, typename PartitionedGraphType>
   void insert_into_node_pq(
       const PartitionedGraphType &p_graph, const GainCacheType &gain_cache, NodeID u
   );
 
   void update_after_move(NodeID node, NodeID moved_node, BlockID moved_from, BlockID moved_to);
 
-  template <typename PartitionedGraphType, typename GainCacheType>
+  template <typename GainCacheType, typename PartitionedGraphType>
   std::pair<BlockID, EdgeWeight>
   best_gain(const PartitionedGraphType &p_graph, const GainCacheType &gain_cache, NodeID u);
 

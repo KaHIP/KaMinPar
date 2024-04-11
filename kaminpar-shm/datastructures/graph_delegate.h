@@ -11,9 +11,7 @@
 #include <utility>
 
 #include "kaminpar-shm/datastructures/graph.h"
-#include "kaminpar-shm/definitions.h"
-
-#include "kaminpar-common/datastructures/static_array.h"
+#include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
 template <class Graph> class GraphDelegate {

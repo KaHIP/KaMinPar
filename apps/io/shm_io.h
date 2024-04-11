@@ -11,8 +11,11 @@
 #include <string>
 #include <vector>
 
-#include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/datastructures/compressed_graph.h"
+#include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/kaminpar.h"
+
+#include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm::io {
 namespace metis {
