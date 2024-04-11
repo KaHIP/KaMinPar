@@ -12,16 +12,14 @@
 #include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
-#include "kaminpar-shm/definitions.h"
+#include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/metrics.h"
-#include "kaminpar-shm/refinement/refiner.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/binary_heap.h"
 #include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/random.h"
-#include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::ip {
 using Queues = std::array<BinaryMinHeap<EdgeWeight>, 2>;
@@ -303,7 +301,8 @@ public:
     return {
         .queues = std::move(_queues),
         .marker = std::move(_marker),
-        .weighted_degrees = std::move(_weighted_degrees)};
+        .weighted_degrees = std::move(_weighted_degrees)
+    };
   }
 
 private:

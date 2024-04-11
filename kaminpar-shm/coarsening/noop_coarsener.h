@@ -10,7 +10,7 @@
 #include "kaminpar-shm/coarsening/coarsener.h"
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
-#include "kaminpar-shm/definitions.h"
+#include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
 class NoopCoarsener : public Coarsener {

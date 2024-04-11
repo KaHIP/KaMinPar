@@ -7,14 +7,13 @@
  ******************************************************************************/
 #include "kaminpar-shm/datastructures/graph.h"
 
-#include "kaminpar-shm/definitions.h"
+#include <numeric>
+
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/logger.h"
-#include "kaminpar-common/math.h"
 #include "kaminpar-common/parallel/algorithm.h"
-#include "kaminpar-common/strutils.h"
-#include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
 Graph::Graph(

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <numeric>
+
 #include "kaminpar-shm/datastructures/graph.h"
 
 namespace kaminpar::shm::testing {

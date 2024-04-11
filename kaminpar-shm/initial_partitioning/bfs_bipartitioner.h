@@ -8,13 +8,12 @@
 
 #include <array>
 
-#include "kaminpar-shm/definitions.h"
 #include "kaminpar-shm/initial_partitioning/bipartitioner.h"
 #include "kaminpar-shm/initial_partitioning/seed_node_utils.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/datastructures/queue.h"
-#include "kaminpar-common/random.h"
 
 namespace kaminpar::shm::ip {
 namespace bfs {

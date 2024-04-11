@@ -7,7 +7,6 @@
  ******************************************************************************/
 #pragma once
 
-#include <numeric>
 #include <utility>
 #include <vector>
 
@@ -16,13 +15,12 @@
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_reduce.h>
 
-#include "kaminpar-shm/definitions.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/degree_buckets.h"
 #include "kaminpar-common/ranges.h"
-#include "kaminpar-common/tags.h"
 
 namespace kaminpar::shm {
 class Graph {

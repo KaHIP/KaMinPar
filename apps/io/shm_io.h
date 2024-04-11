@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-#include "kaminpar-shm/definitions.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
 

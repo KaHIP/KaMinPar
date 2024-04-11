@@ -13,8 +13,8 @@
 #include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
-#include "kaminpar-shm/definitions.h"
 #include "kaminpar-shm/initial_partitioning/sequential_graph_hierarchy.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/fast_reset_array.h"
@@ -141,7 +141,8 @@ private:
   inline void interleaved_handle_node(const NodeID c_u, const NodeWeight c_u_weight) {
     if (!_interleaved_locked) {
       const NodeID best_cluster{
-          pick_cluster_from_rating_map(c_u, c_u_weight, _interleaved_max_cluster_weight)};
+          pick_cluster_from_rating_map(c_u, c_u_weight, _interleaved_max_cluster_weight)
+      };
       const bool changed_cluster{best_cluster != c_u};
 
       if (changed_cluster) {

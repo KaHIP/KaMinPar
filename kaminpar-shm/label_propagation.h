@@ -16,7 +16,6 @@
 #include <tbb/scalable_allocator.h>
 
 #include "kaminpar-shm/datastructures/graph.h"
-#include "kaminpar-shm/definitions.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/dynamic_map.h"
@@ -26,7 +25,6 @@
 #include "kaminpar-common/parallel/atomic.h"
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/tags.h"
-#include "kaminpar-common/timer.h"
 
 namespace kaminpar {
 struct LabelPropagationConfig {

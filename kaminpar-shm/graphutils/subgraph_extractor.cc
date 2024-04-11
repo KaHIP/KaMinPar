@@ -12,14 +12,13 @@
 #include <tbb/parallel_for.h>
 
 #include "kaminpar-shm/datastructures/graph.h"
-#include "kaminpar-shm/definitions.h"
+#include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/partition_utils.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/logger.h"
-#include "kaminpar-common/math.h"
 #include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/parallel/atomic.h"
 #include "kaminpar-common/timer.h"
@@ -154,7 +153,8 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential(
   };
 
   std::array<Graph, 2> subgraphs{
-      create_graph(0, s_n[0], 0, s_m[0]), create_graph(n1, s_n[1], m1, s_m[1])};
+      create_graph(0, s_n[0], 0, s_m[0]), create_graph(n1, s_n[1], m1, s_m[1])
+  };
 
   return {std::move(subgraphs), std::move(subgraph_positions)};
 }

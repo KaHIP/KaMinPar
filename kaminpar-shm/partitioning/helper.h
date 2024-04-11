@@ -11,9 +11,9 @@
 
 #include "kaminpar-shm/coarsening/coarsener.h"
 #include "kaminpar-shm/datastructures/graph.h"
-#include "kaminpar-shm/definitions.h"
 #include "kaminpar-shm/graphutils/subgraph_extractor.h"
 #include "kaminpar-shm/initial_partitioning/initial_partitioning_facade.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/assert.h"
 
