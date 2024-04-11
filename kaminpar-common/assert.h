@@ -7,7 +7,7 @@
  ******************************************************************************/
 #pragma once
 
-#include <kassert/kassert.hpp>
+#include <kassert/kassert.hpp> // IWYU pragma: export
 
 namespace kaminpar::assert {
 #define ASSERTION_LEVEL_ALWAYS 0
