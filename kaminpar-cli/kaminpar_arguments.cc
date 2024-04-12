@@ -279,6 +279,9 @@ Options are:
           "The fraction of the total edges with which to fill the edge buffer"
       )
       ->capture_default_str();
+  contraction->add_flag(
+      "--c-con-use-compact-mapping", ctx.coarsening.contraction.use_compact_mapping
+  );
 
   return contraction;
 }

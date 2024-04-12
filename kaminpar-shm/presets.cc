@@ -88,6 +88,7 @@ Context create_default_context() {
                   {
                       .mode = ContractionMode::EDGE_BUFFER,
                       .edge_buffer_fill_fraction = 1,
+                      .use_compact_mapping = false,
                   },
               .contraction_limit = 2000,
               .enforce_contraction_limit = false,
@@ -195,6 +196,7 @@ Context create_memory_context() {
   ctx.coarsening.lp.use_two_phases = true;
   ctx.coarsening.lp.use_two_level_cluster_weight_vector = true;
   ctx.coarsening.contraction.mode = ContractionMode::NO_EDGE_BUFFER_REMAP;
+  ctx.coarsening.contraction.use_compact_mapping = true;
   return ctx;
 }
 

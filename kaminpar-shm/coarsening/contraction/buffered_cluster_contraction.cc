@@ -281,9 +281,16 @@ std::unique_ptr<CoarseGraph> contract_with_edgebuffer(
     const ContractionCoarseningContext &con_ctx,
     MemoryContext &m_ctx
 ) {
-  auto [c_n, mapping] = preprocess<CompactStaticArray>(graph, clustering, m_ctx);
-  return graph.reified([&](auto &graph) {
-    return contract_with_edgebuffer(graph, c_n, std::move(mapping), con_ctx, m_ctx);
-  });
+  if (con_ctx.use_compact_mapping) {
+    auto [c_n, mapping] = preprocess<CompactStaticArray>(graph, clustering, m_ctx);
+    return graph.reified([&](auto &graph) {
+      return contract_with_edgebuffer(graph, c_n, std::move(mapping), con_ctx, m_ctx);
+    });
+  } else {
+    auto [c_n, mapping] = preprocess<StaticArray>(graph, clustering, m_ctx);
+    return graph.reified([&](auto &graph) {
+      return contract_with_edgebuffer(graph, c_n, std::move(mapping), con_ctx, m_ctx);
+    });
+  }
 }
 } // namespace kaminpar::shm::contraction

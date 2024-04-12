@@ -295,6 +295,12 @@ std::unique_ptr<CoarseGraph> contract_without_edgebuffer_remap(
     const ContractionCoarseningContext &con_ctx,
     MemoryContext &m_ctx
 ) {
+  KASSERT(
+      con_ctx.use_compact_mapping,
+      "must be used with the compact mapping data structure",
+      assert::always
+  );
+
   auto [c_n, mapping] = preprocess<CompactStaticArray>(graph, clustering, m_ctx);
   return graph.reified([&](auto &graph) {
     return contract_without_edgebuffer_remap(graph, c_n, std::move(mapping), con_ctx, m_ctx);
