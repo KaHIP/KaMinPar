@@ -11,7 +11,7 @@
 #include <memory>
 
 #include "kaminpar-shm/coarsening/contraction/buffered_cluster_contraction.h"
-#include "kaminpar-shm/coarsening/contraction/legacy_cluster_contraction.h"
+#include "kaminpar-shm/coarsening/contraction/legacy_buffered_cluster_contraction.h"
 #include "kaminpar-shm/coarsening/contraction/naive_unbuffered_cluster_contraction.h"
 #include "kaminpar-shm/coarsening/contraction/unbuffered_cluster_contraction.h"
 #include "kaminpar-shm/datastructures/graph.h"
@@ -42,6 +42,8 @@ std::unique_ptr<CoarseGraph> contract(
     return contract_without_edgebuffer_naive(graph, clustering, con_ctx, m_ctx);
   } else if (con_ctx.mode == ContractionMode::NO_EDGE_BUFFER_REMAP) {
     return contract_without_edgebuffer_remap(graph, clustering, con_ctx, m_ctx);
+  } else if (con_ctx.mode == ContractionMode::EDGE_BUFFER_LEGACY) {
+    return contract_with_edgebuffer_legacy(graph, clustering, con_ctx, m_ctx);
   } else {
     return contract_with_edgebuffer(graph, clustering, con_ctx, m_ctx);
   }

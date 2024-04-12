@@ -315,8 +315,7 @@ get_isolated_nodes_clustering_strategies() {
 void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
   out << "Enabled:                      " << (c_ctx.enabled ? "yes" : "no") << "\n";
   if (c_ctx.enabled) {
-    out << "Compression Scheme:           "
-        << "Gap Encoding + ";
+    out << "Compression Scheme:           " << "Gap Encoding + ";
     if (c_ctx.run_length_encoding) {
       out << "VarInt Run-Length Encoding\n";
     } else if (c_ctx.stream_encoding) {
@@ -377,6 +376,8 @@ std::ostream &operator<<(std::ostream &out, const ContractionMode mode) {
   switch (mode) {
   case ContractionMode::EDGE_BUFFER:
     return out << "edge-buffer";
+  case ContractionMode::EDGE_BUFFER_LEGACY:
+    return out << "edge-buffer-legacy";
   case ContractionMode::NO_EDGE_BUFFER_NAIVE:
     return out << "no-edge-buffer-naive";
   case ContractionMode::NO_EDGE_BUFFER_REMAP:
@@ -389,6 +390,7 @@ std::ostream &operator<<(std::ostream &out, const ContractionMode mode) {
 std::unordered_map<std::string, ContractionMode> get_contraction_modes() {
   return {
       {"edge-buffer", ContractionMode::EDGE_BUFFER},
+      {"edge-buffer-legacy", ContractionMode::EDGE_BUFFER_LEGACY},
       {"no-edge-buffer-naive", ContractionMode::NO_EDGE_BUFFER_NAIVE},
       {"no-edge-buffer-remap", ContractionMode::NO_EDGE_BUFFER_REMAP},
   };
@@ -509,8 +511,8 @@ void print(const Context &ctx, std::ostream &out) {
   out << "Execution mode:               " << ctx.parallel.num_threads << "\n";
   out << "Seed:                         " << Random::get_seed() << "\n";
   out << "Graph:                        " << ctx.debug.graph_name
-      << " [node ordering: " << ctx.node_ordering << "]"
-      << " [edge ordering: " << ctx.edge_ordering << "]\n";
+      << " [node ordering: " << ctx.node_ordering << "]" << " [edge ordering: " << ctx.edge_ordering
+      << "]\n";
   print(ctx.partition, out);
   cio::print_delimiter("Graph Compression", '-');
   print(ctx.compression, out);
