@@ -1,0 +1,60 @@
+{
+    "version": 6,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 21,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "default",
+            "displayName": "Default Config",
+            "cacheVariables": {
+                "KAMINPAR_64BIT_IDS": "OFF",
+                "KAMINPAR_64BIT_EDGE_IDS": "OFF",
+                "KAMINPAR_64BIT_NODE_IDS": "OFF",
+                "KAMINPAR_64BIT_WEIGHTS": "OFF"
+            }
+        },
+        {
+            "name": "distributed",
+            "displayName": "Default Config for dKaMinPar",
+            "cacheVariables": {
+                "KAMINPAR_BUILD_DISTRIBUTED": "ON",
+                "KAMINPAR_64BIT_IDS": "OFF",
+                "KAMINPAR_64BIT_EDGE_IDS": "OFF",
+                "KAMINPAR_64BIT_NODE_IDS": "OFF",
+                "KAMINPAR_64BIT_WEIGHTS": "ON"
+            }
+        },
+        {
+            "name": "compressed",
+            "displayName": "Default Config for KaMinPar with Memory Optimizations",
+            "cacheVariables": {
+                "KAMINPAR_64BIT_EDGE_IDS": "ON",
+                "KAMINPAR_64BIT_WEIGHTS": "ON"
+            }
+        },
+        {
+            "name": "stats",
+            "displayName": "Default Config for KaMinPar with Statistics",
+            "cacheVariables": {
+                "KAMINPAR_ENABLE_STATISTICS": "ON",
+                "KAMINPAR_ENABLE_HEAP_PROFILING": "ON"
+            }
+        },
+
+        {
+            "name": "default-stats",
+            "inherits": ["default", "stats"]
+        },
+        {
+            "name": "compressed-stats",
+            "inherits": ["compressed", "stats"]
+        },
+        {
+            "name": "distributed-stats",
+            "inherits": ["distributed", "stats"]
+        }
+    ]
+}

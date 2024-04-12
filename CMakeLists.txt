@@ -28,9 +28,9 @@ option(KAMINPAR_BUILD_EXPERIMENTAL_FEATURES "Include experimental features in th
 
 # Control how to build
 ######################
-option(KAMINPAR_ENABLE_HEAP_PROFILING "Profile and output heap memory usage." ON)
+option(KAMINPAR_ENABLE_HEAP_PROFILING "Profile and output heap memory usage." OFF)
 option(KAMINPAR_ENABLE_PAGE_PROFILING "Profile pages allocated via mmap." OFF)
-option(KAMINPAR_ENABLE_STATISTICS "Generate and output detailed statistics." ON)
+option(KAMINPAR_ENABLE_STATISTICS "Generate and output detailed statistics." OFF)
 option(KAMINPAR_ENABLE_TIMERS "Measure running times. Must be set to 'OFF' if the library interface is used from multiple threads simulatinously." ON)
 option(KAMINPAR_ENABLE_TIMER_BARRIERS "Add additional MPI_Barrier() instructions for more accurate time measurements." ON)
 
@@ -61,11 +61,11 @@ endif ()
 
 # These IDs refer to the shared-memory partitioner + local IDs of the distributed partitioner
 option(KAMINPAR_64BIT_IDS "Use 64 bits for node and edge IDs." OFF)
-option(KAMINPAR_64BIT_EDGE_IDS "Use 64 bits for edge IDs." ON)
+option(KAMINPAR_64BIT_EDGE_IDS "Use 64 bits for edge IDs." OFF)
 option(KAMINPAR_64BIT_NODE_IDS "Use 64 bits for node IDs." OFF)
 
 # Node and edge weights for the shared-memory partitioner (+ used as initial partitioner of the distributed partitioner)
-option(KAMINPAR_64BIT_WEIGHTS "Use 64 bit for node and edge weights." ON)
+option(KAMINPAR_64BIT_WEIGHTS "Use 64 bit for node and edge weights." OFF)
 
 # Local node and edge weights for the distributed partitioner; should be 64 bit when using DMGP
 option(KAMINPAR_64BIT_LOCAL_WEIGHTS "Use 64 bit for local node and edge weights." OFF)
