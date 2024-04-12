@@ -9,10 +9,9 @@
 
 #include "kaminpar-shm/coarsening/clusterer.h"
 #include "kaminpar-shm/coarsening/coarsener.h"
-#include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
-#include "kaminpar-shm/graphutils/cluster_contraction.h"
+#include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
@@ -57,11 +56,11 @@ private:
   const Graph &_input_graph;
   const Graph *_current_graph;
 
-  std::vector<std::unique_ptr<graph::CoarseGraph>> _hierarchy;
+  std::vector<std::unique_ptr<CoarseGraph>> _hierarchy;
 
   std::unique_ptr<Clusterer> _clustering_algorithm;
 
   const CoarseningContext &_c_ctx;
-  graph::contraction::MemoryContext _contraction_m_ctx{};
+  contraction::MemoryContext _contraction_m_ctx{};
 };
 } // namespace kaminpar::shm

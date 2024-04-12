@@ -3,6 +3,7 @@
  *
  * @file:   cluster_contraction.h
  * @author: Daniel Seemaier
+ * @author: Daniel Salwasser
  * @date:   21.09.2021
  ******************************************************************************/
 #pragma once
@@ -14,7 +15,7 @@
 #include "kaminpar-common/datastructures/ts_navigable_linked_list.h"
 #include "kaminpar-common/parallel/atomic.h"
 
-namespace kaminpar::shm::graph {
+namespace kaminpar::shm {
 class CoarseGraph {
 public:
   virtual ~CoarseGraph() = default;
@@ -41,8 +42,14 @@ struct MemoryContext {
 
 std::unique_ptr<CoarseGraph> contract(
     const Graph &graph,
-    const ContractionCoarseningContext con_ctx,
+    const ContractionCoarseningContext &con_ctx,
+    scalable_vector<parallel::Atomic<NodeID>> &clustering
+);
+
+std::unique_ptr<CoarseGraph> contract(
+    const Graph &graph,
+    const ContractionCoarseningContext &con_ctx,
     scalable_vector<parallel::Atomic<NodeID>> &clustering,
     contraction::MemoryContext &m_ctx
 );
-} // namespace kaminpar::shm::graph
+} // namespace kaminpar::shm

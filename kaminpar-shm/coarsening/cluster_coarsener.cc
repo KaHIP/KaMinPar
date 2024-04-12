@@ -7,6 +7,8 @@
  ******************************************************************************/
 #include "kaminpar-shm/coarsening/cluster_coarsener.h"
 
+#include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"
+
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
@@ -30,7 +32,7 @@ std::pair<const Graph *, bool> ClusteringCoarsener::compute_coarse_graph(
 
   START_HEAP_PROFILER("Contract graph");
   auto coarsened = TIMED_SCOPE("Contract graph") {
-    return graph::contract(*_current_graph, _c_ctx.contraction, clustering, _contraction_m_ctx);
+    return contract(*_current_graph, _c_ctx.contraction, clustering, _contraction_m_ctx);
   };
   STOP_HEAP_PROFILER();
 
