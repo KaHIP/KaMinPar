@@ -106,7 +106,7 @@ Please take a look at `apps/KaMinPar.cc` and `apps/dKaMinPar.cc` for a full exam
 
 KaMinPar is free software provided under the MIT License.
 
-If you publish results using our shared-memory partitioner, please acknowledge our work by citing the following [paper](https://doi.org/10.4230/LIPIcs.ESA.2021.48) ([preprint](https://arxiv.org/abs/2105.02022), [resources](https://algo2.iti.kit.edu/seemaier/deep_mgp/)):
+If you publish results using our shared-memory partitioner, please acknowledge our work by citing the following [paper](https://doi.org/10.4230/LIPIcs.ESA.2021.48) ([preprint](https://arxiv.org/abs/2105.02022), [resources](https://ae.iti.kit.edu/documents/research/deep_mgp/)):
 
 ```
 @InProceedings{DeepMultilevelGraphPartitioning,
@@ -127,7 +127,7 @@ If you publish results using our shared-memory partitioner, please acknowledge o
 }
 ```
 
-If you publish results using out distributed-memory partitioner, please cite the following [paper](https://link.springer.com/chapter/10.1007/978-3-031-39698-4_30) ([preprint](https://arxiv.org/abs/2303.01417), [resources](https://algo2.iti.kit.edu/seemaier/ddeep_mgp/)):
+If you publish results using out distributed-memory partitioner, please cite the following [paper](https://link.springer.com/chapter/10.1007/978-3-031-39698-4_30) ([preprint](https://arxiv.org/abs/2303.01417), [resources](https://ae.iti.kit.edu/documents/research/distributed_deep_mgp/)):
 
 ```
 @InProceedings{DistributedDeepMultilevelGraphPartitioning,
