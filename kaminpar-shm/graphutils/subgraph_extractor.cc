@@ -168,25 +168,11 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential(
     SubgraphMemory &subgraph_memory,
     TemporarySubgraphMemory &tmp_subgraph_memory
 ) {
-  const Graph &graph = p_graph.graph();
-
-  if (auto *csr_graph = dynamic_cast<CSRGraph *>(graph.underlying_graph()); csr_graph != nullptr) {
+  return p_graph.graph().reified([&](const auto &concrete_graph) {
     return extract_subgraphs_sequential_generic_graph(
-        p_graph, *csr_graph, final_ks, memory_position, subgraph_memory, tmp_subgraph_memory
+        p_graph, concrete_graph, final_ks, memory_position, subgraph_memory, tmp_subgraph_memory
     );
-  } else if (auto *compact_csr_graph = dynamic_cast<CompactCSRGraph *>(graph.underlying_graph());
-             compact_csr_graph != nullptr) {
-    return extract_subgraphs_sequential_generic_graph(
-        p_graph, *compact_csr_graph, final_ks, memory_position, subgraph_memory, tmp_subgraph_memory
-    );
-  } else if (auto *compressed_graph = dynamic_cast<CompressedGraph *>(graph.underlying_graph());
-             compressed_graph != nullptr) {
-    return extract_subgraphs_sequential_generic_graph(
-        p_graph, *compressed_graph, final_ks, memory_position, subgraph_memory, tmp_subgraph_memory
-    );
-  }
-
-  __builtin_unreachable();
+  });
 }
 
 /*
@@ -343,19 +329,9 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
 SubgraphExtractionResult extract_subgraphs(
     const PartitionedGraph &p_graph, const BlockID input_k, SubgraphMemory &subgraph_memory
 ) {
-  const Graph &graph = p_graph.graph();
-
-  if (auto *csr_graph = dynamic_cast<CSRGraph *>(graph.underlying_graph()); csr_graph != nullptr) {
-    return extract_subgraphs_generic_graph(p_graph, *csr_graph, input_k, subgraph_memory);
-  } else if (auto *compact_csr_graph = dynamic_cast<CompactCSRGraph *>(graph.underlying_graph());
-             compact_csr_graph != nullptr) {
-    return extract_subgraphs_generic_graph(p_graph, *compact_csr_graph, input_k, subgraph_memory);
-  } else if (auto *compressed_graph = dynamic_cast<CompressedGraph *>(graph.underlying_graph());
-             compressed_graph != nullptr) {
-    return extract_subgraphs_generic_graph(p_graph, *compressed_graph, input_k, subgraph_memory);
-  }
-
-  __builtin_unreachable();
+  return p_graph.graph().reified([&](const auto &concrete_graph) {
+    return extract_subgraphs_generic_graph(p_graph, concrete_graph, input_k, subgraph_memory);
+  });
 }
 
 PartitionedGraph copy_subgraph_partitions(

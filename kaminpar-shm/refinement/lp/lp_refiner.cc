@@ -18,12 +18,15 @@ LabelPropagationRefiner::~LabelPropagationRefiner() = default;
 void LabelPropagationRefiner::initialize(const PartitionedGraph &p_graph) {
   const Graph &graph = p_graph.graph();
 
-  if (auto *csr_graph = dynamic_cast<CSRGraph *>(graph.underlying_graph()); csr_graph != nullptr) {
+  if (auto *csr_graph = dynamic_cast<const CSRGraph *>(graph.underlying_graph());
+      csr_graph != nullptr) {
     _csr_impl->initialize(csr_graph);
-  } else if (auto *compact_csr_graph = dynamic_cast<CompactCSRGraph *>(graph.underlying_graph());
+  } else if (auto *compact_csr_graph =
+                 dynamic_cast<const CompactCSRGraph *>(graph.underlying_graph());
              compact_csr_graph != nullptr) {
     _compact_csr_impl->initialize(compact_csr_graph);
-  } else if (auto *compressed_graph = dynamic_cast<CompressedGraph *>(graph.underlying_graph());
+  } else if (auto *compressed_graph =
+                 dynamic_cast<const CompressedGraph *>(graph.underlying_graph());
              compressed_graph != nullptr) {
     _compressed_impl->initialize(compressed_graph);
   }
@@ -46,16 +49,17 @@ bool LabelPropagationRefiner::refine(PartitionedGraph &p_graph, const PartitionC
 
   const Graph &graph = p_graph.graph();
 
-  if (auto *csr_graph = dynamic_cast<CSRGraph *>(graph.underlying_graph()); csr_graph != nullptr) {
+  if (auto *csr_graph = dynamic_cast<const CSRGraph *>(graph.underlying_graph());
+      csr_graph != nullptr) {
     return refine_specific_impl(_csr_impl.get());
   }
 
-  if (auto *compact_csr_graph = dynamic_cast<CompactCSRGraph *>(graph.underlying_graph());
+  if (auto *compact_csr_graph = dynamic_cast<const CompactCSRGraph *>(graph.underlying_graph());
       compact_csr_graph != nullptr) {
     return refine_specific_impl(_compact_csr_impl.get());
   }
 
-  if (auto *compressed_graph = dynamic_cast<CompressedGraph *>(graph.underlying_graph());
+  if (auto *compressed_graph = dynamic_cast<const CompressedGraph *>(graph.underlying_graph());
       compressed_graph != nullptr) {
     return refine_specific_impl(_compressed_impl.get());
   }

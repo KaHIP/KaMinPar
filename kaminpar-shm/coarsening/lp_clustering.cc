@@ -57,12 +57,15 @@ LPClustering::compute_clustering(const Graph &graph, const bool free_memory_afte
     }
   };
 
-  if (auto *csr_graph = dynamic_cast<CSRGraph *>(graph.underlying_graph()); csr_graph != nullptr) {
+  if (auto *csr_graph = dynamic_cast<const CSRGraph *>(graph.underlying_graph());
+      csr_graph != nullptr) {
     compute(*_csr_core, *csr_graph);
-  } else if (auto *compact_csr_graph = dynamic_cast<CompactCSRGraph *>(graph.underlying_graph());
+  } else if (auto *compact_csr_graph =
+                 dynamic_cast<const CompactCSRGraph *>(graph.underlying_graph());
              compact_csr_graph != nullptr) {
     compute(*_compact_csr_core, *compact_csr_graph);
-  } else if (auto *compressed_graph = dynamic_cast<CompressedGraph *>(graph.underlying_graph());
+  } else if (auto *compressed_graph =
+                 dynamic_cast<const CompressedGraph *>(graph.underlying_graph());
              compressed_graph != nullptr) {
     compute(*_compressed_core, *compressed_graph);
   }

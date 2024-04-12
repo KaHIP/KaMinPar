@@ -69,7 +69,8 @@ PartitionedGraph bipartition(
     const Context &input_ctx,
     GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool
 ) {
-  if (auto *csr_graph = dynamic_cast<CSRGraph *>(graph->underlying_graph()); csr_graph != nullptr) {
+  if (const auto *csr_graph = dynamic_cast<const CSRGraph *>(graph->underlying_graph());
+      csr_graph != nullptr) {
     return bipartition_generic_graph(graph, csr_graph, final_k, input_ctx, ip_m_ctx_pool);
   }
 

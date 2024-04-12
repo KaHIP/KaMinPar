@@ -47,6 +47,29 @@ public:
 
   ~Graph() override = default;
 
+  // Access to the wrapped graph
+  [[nodiscard]] const AbstractGraph *underlying_graph() const {
+    return _underlying_graph.get();
+  }
+
+  [[nodiscard]] AbstractGraph *underlying_graph() {
+    return _underlying_graph.get();
+  }
+
+  template <typename Lambda> decltype(auto) reified(Lambda &&l) const {
+    if (const auto *graph = dynamic_cast<const CSRGraph *>(underlying_graph()); graph != nullptr) {
+      return l(*graph);
+    } else if (auto *graph = dynamic_cast<const CompactCSRGraph *>(underlying_graph());
+               graph != nullptr) {
+      return l(*graph);
+    } else if (auto *graph = dynamic_cast<const CompressedGraph *>(underlying_graph());
+               graph != nullptr) {
+      return l(*graph);
+    }
+
+    __builtin_unreachable();
+  }
+
   // Size of the graph
   [[nodiscard]] inline NodeID n() const final {
     return _underlying_graph->n();
@@ -105,67 +128,16 @@ public:
 
   // Parallel iteration
   template <typename Lambda> inline void pfor_nodes(Lambda &&l) const {
-    if (const auto *graph = dynamic_cast<const CSRGraph *>(_underlying_graph.get());
-        graph != nullptr) {
-      graph->pfor_nodes(std::forward<Lambda>(l));
-      return;
-    }
-
-    if (const auto *graph = dynamic_cast<const CompactCSRGraph *>(_underlying_graph.get());
-        graph != nullptr) {
-      graph->pfor_nodes(std::forward<Lambda>(l));
-      return;
-    }
-
-    if (const auto *graph = dynamic_cast<const CompressedGraph *>(_underlying_graph.get());
-        graph != nullptr) {
-      graph->pfor_nodes(std::forward<Lambda>(l));
-      return;
-    }
-
-    __builtin_unreachable();
+    reified([&](auto &graph) { graph.pfor_nodes(std::forward<Lambda>(l)); });
   }
 
   template <typename Lambda> inline void pfor_edges(Lambda &&l) const {
-    if (const auto *graph = dynamic_cast<const CSRGraph *>(_underlying_graph.get());
-        graph != nullptr) {
-      graph->pfor_edges(std::forward<Lambda>(l));
-      return;
-    }
-
-    if (const auto *graph = dynamic_cast<const CompactCSRGraph *>(_underlying_graph.get());
-        graph != nullptr) {
-      graph->pfor_edges(std::forward<Lambda>(l));
-      return;
-    }
-
-    if (const auto *graph = dynamic_cast<const CompressedGraph *>(_underlying_graph.get());
-        graph != nullptr) {
-      graph->pfor_edges(std::forward<Lambda>(l));
-      return;
-    }
-
-    __builtin_unreachable();
+    reified([&](auto &graph) { graph.pfor_edges(std::forward<Lambda>(l)); });
   }
 
   // Graph operations
   [[nodiscard]] inline decltype(auto) incident_edges(const NodeID u) const {
-    if (const auto *graph = dynamic_cast<const CSRGraph *>(_underlying_graph.get());
-        graph != nullptr) {
-      return graph->incident_edges(u);
-    }
-
-    if (const auto *graph = dynamic_cast<const CompactCSRGraph *>(_underlying_graph.get());
-        graph != nullptr) {
-      return graph->incident_edges(u);
-    }
-
-    if (const auto *graph = dynamic_cast<const CompressedGraph *>(_underlying_graph.get());
-        graph != nullptr) {
-      return graph->incident_edges(u);
-    }
-
-    __builtin_unreachable();
+    return reified([&](auto &graph) { return graph.incident_edges(u); });
   }
 
   [[nodiscard]] inline decltype(auto) adjacent_nodes(const NodeID u) const {
@@ -178,25 +150,7 @@ public:
   }
 
   template <typename Lambda> inline void adjacent_nodes(const NodeID u, Lambda &&l) const {
-    if (const auto *graph = dynamic_cast<const CSRGraph *>(_underlying_graph.get());
-        graph != nullptr) {
-      graph->adjacent_nodes(u, std::forward<Lambda>(l));
-      return;
-    }
-
-    if (const auto *graph = dynamic_cast<const CompactCSRGraph *>(_underlying_graph.get());
-        graph != nullptr) {
-      graph->adjacent_nodes(u, std::forward<Lambda>(l));
-      return;
-    }
-
-    if (const auto *graph = dynamic_cast<const CompressedGraph *>(_underlying_graph.get());
-        graph != nullptr) {
-      graph->adjacent_nodes(u, std::forward<Lambda>(l));
-      return;
-    }
-
-    __builtin_unreachable();
+    reified([&](auto &graph) { graph.adjacent_nodes(u, std::forward<Lambda>(l)); });
   }
 
   [[nodiscard]] inline decltype(auto) neighbors(const NodeID u) const {
@@ -209,73 +163,21 @@ public:
   }
 
   template <typename Lambda> inline void neighbors(const NodeID u, Lambda &&l) const {
-    if (const auto *graph = dynamic_cast<const CSRGraph *>(_underlying_graph.get());
-        graph != nullptr) {
-      graph->neighbors(u, std::forward<Lambda>(l));
-      return;
-    }
-
-    if (const auto *graph = dynamic_cast<const CompactCSRGraph *>(_underlying_graph.get());
-        graph != nullptr) {
-      graph->neighbors(u, std::forward<Lambda>(l));
-      return;
-    }
-
-    if (const auto *graph = dynamic_cast<const CompressedGraph *>(_underlying_graph.get());
-        graph != nullptr) {
-      graph->neighbors(u, std::forward<Lambda>(l));
-      return;
-    }
-
-    __builtin_unreachable();
+    reified([&](auto &graph) { graph.neighbors(u, std::forward<Lambda>(l)); });
   }
 
   template <typename Lambda>
   inline void neighbors(const NodeID u, const NodeID max_neighbor_count, Lambda &&l) const {
-    if (const auto *graph = dynamic_cast<const CSRGraph *>(_underlying_graph.get());
-        graph != nullptr) {
-      graph->neighbors(u, max_neighbor_count, std::forward<Lambda>(l));
-      return;
-    }
-
-    if (const auto *graph = dynamic_cast<const CompactCSRGraph *>(_underlying_graph.get());
-        graph != nullptr) {
-      graph->neighbors(u, max_neighbor_count, std::forward<Lambda>(l));
-      return;
-    }
-
-    if (const auto *graph = dynamic_cast<const CompressedGraph *>(_underlying_graph.get());
-        graph != nullptr) {
-      graph->neighbors(u, max_neighbor_count, std::forward<Lambda>(l));
-      return;
-    }
-
-    __builtin_unreachable();
+    reified([&](auto &graph) { graph.neighbors(u, max_neighbor_count, std::forward<Lambda>(l)); });
   }
 
   template <typename Lambda>
   inline void pfor_neighbors(
       const NodeID u, const NodeID max_neighbor_count, const NodeID grainsize, Lambda &&l
   ) const {
-    if (const auto *graph = dynamic_cast<const CSRGraph *>(_underlying_graph.get());
-        graph != nullptr) {
-      graph->pfor_neighbors(u, max_neighbor_count, grainsize, std::forward<Lambda>(l));
-      return;
-    }
-
-    if (const auto *graph = dynamic_cast<const CompactCSRGraph *>(_underlying_graph.get());
-        graph != nullptr) {
-      graph->pfor_neighbors(u, max_neighbor_count, grainsize, std::forward<Lambda>(l));
-      return;
-    }
-
-    if (const auto *graph = dynamic_cast<const CompressedGraph *>(_underlying_graph.get());
-        graph != nullptr) {
-      graph->pfor_neighbors(u, max_neighbor_count, grainsize, std::forward<Lambda>(l));
-      return;
-    }
-
-    __builtin_unreachable();
+    reified([&](auto &graph) {
+      graph.pfor_neighbors(u, max_neighbor_count, grainsize, std::forward<Lambda>(l));
+    });
   }
 
   // Graph permutation
@@ -318,10 +220,6 @@ public:
 
   inline void update_total_node_weight() final {
     _underlying_graph->update_total_node_weight();
-  }
-
-  [[nodiscard]] AbstractGraph *underlying_graph() const {
-    return _underlying_graph.get();
   }
 
 private:

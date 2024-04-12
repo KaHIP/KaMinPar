@@ -766,21 +766,9 @@ Result contract(
     Clustering &clustering,
     MemoryContext m_ctx
 ) {
-  if (auto *csr_graph = dynamic_cast<CSRGraph *>(graph.underlying_graph()); csr_graph != nullptr) {
-    return contract_generic_graph(*csr_graph, con_ctx, clustering, std::move(m_ctx));
-  }
-
-  if (auto *compact_csr_graph = dynamic_cast<CompactCSRGraph *>(graph.underlying_graph());
-      compact_csr_graph != nullptr) {
-    return contract_generic_graph(*compact_csr_graph, con_ctx, clustering, std::move(m_ctx));
-  }
-
-  if (auto *compressed_graph = dynamic_cast<CompressedGraph *>(graph.underlying_graph());
-      compressed_graph != nullptr) {
-    return contract_generic_graph(*compressed_graph, con_ctx, clustering, std::move(m_ctx));
-  }
-
-  __builtin_unreachable();
+  return graph.reified([&](const auto &concrete_graph) {
+    return contract_generic_graph(concrete_graph, con_ctx, clustering, std::move(m_ctx));
+  });
 }
 
 template Result contract<scalable_vector<NodeID>>(
