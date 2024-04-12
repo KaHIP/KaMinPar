@@ -245,7 +245,7 @@ std::unique_ptr<CoarseGraph> contract_with_edgebuffer(
     });
 
     edge_buffer_ets.clear();
-    all_buffered_nodes.clear();
+    all_buffered_nodes.free();
   }
 
   STOP_TIMER();

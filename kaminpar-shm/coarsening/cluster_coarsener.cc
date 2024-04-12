@@ -43,14 +43,9 @@ std::pair<const Graph *, bool> ClusteringCoarsener::compute_coarse_graph(
   _current_graph = &_hierarchy.back()->get();
 
   if (free_memory_afterwards) {
-    _contraction_m_ctx.buckets.clear();
-    _contraction_m_ctx.buckets.shrink_to_fit();
-
-    _contraction_m_ctx.buckets_index.clear();
-    _contraction_m_ctx.buckets_index.shrink_to_fit();
-
-    _contraction_m_ctx.all_buffered_nodes.clear();
-    _contraction_m_ctx.all_buffered_nodes.shrink_to_fit();
+    _contraction_m_ctx.buckets.free();
+    _contraction_m_ctx.buckets_index.free();
+    _contraction_m_ctx.all_buffered_nodes.free();
   }
 
   return {_current_graph, !converged};

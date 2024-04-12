@@ -21,9 +21,7 @@ namespace kaminpar::shm::contraction {
 namespace {
 template <typename Graph, typename Clustering>
 void fill_leader_mapping(
-    const Graph &graph,
-    const Clustering &clustering,
-    scalable_vector<parallel::Atomic<NodeID>> &leader_mapping
+    const Graph &graph, const Clustering &clustering, StaticArray<NodeID> &leader_mapping
 ) {
   START_TIMER("Allocation");
   if (leader_mapping.size() < graph.n()) {
@@ -32,15 +30,12 @@ void fill_leader_mapping(
   STOP_TIMER();
 
   RECORD("leader_mapping");
-  RECORD_LOCAL_DATA_STRUCT(
-      "scalable_vector<parallel::Atomic<NodeID>>",
-      leader_mapping.capacity() * sizeof(parallel::Atomic<NodeID>)
-  );
+  RECORD_LOCAL_DATA_STRUCT("StaticArray<NodeID>", leader_mapping.size() * sizeof(NodeID));
 
   START_TIMER("Preprocessing");
   graph.pfor_nodes([&](const NodeID u) { leader_mapping[u] = 0; });
   graph.pfor_nodes([&](const NodeID u) {
-    leader_mapping[clustering[u]].store(1, std::memory_order_relaxed);
+    __atomic_store_n(&leader_mapping[clustering[u]], 1, __ATOMIC_RELAXED);
   });
   parallel::prefix_sum(
       leader_mapping.begin(), leader_mapping.begin() + graph.n(), leader_mapping.begin()
@@ -50,16 +45,16 @@ void fill_leader_mapping(
 
 template <typename Graph, typename Clustering>
 StaticArray<NodeID> compute_mapping(
-    const Graph &graph,
-    const Clustering &clustering,
-    const scalable_vector<parallel::Atomic<NodeID>> &leader_mapping
+    const Graph &graph, const Clustering &clustering, const StaticArray<NodeID> &leader_mapping
 ) {
   START_TIMER("Allocation");
   RECORD("mapping") StaticArray<NodeID> mapping(graph.n());
   STOP_TIMER();
 
   START_TIMER("Preprocessing");
-  graph.pfor_nodes([&](const NodeID u) { mapping[u] = leader_mapping[clustering[u]] - 1; });
+  graph.pfor_nodes([&](const NodeID u) {
+    mapping[u] = __atomic_load_n(&leader_mapping[clustering[u]], __ATOMIC_RELAXED) - 1;
+  });
   STOP_TIMER();
 
   return mapping;
@@ -67,9 +62,7 @@ StaticArray<NodeID> compute_mapping(
 
 template <typename Graph, typename Clustering>
 CompactStaticArray<NodeID> compute_compact_mapping(
-    const Graph &graph,
-    const Clustering &clustering,
-    const scalable_vector<parallel::Atomic<NodeID>> &leader_mapping
+    const Graph &graph, const Clustering &clustering, const StaticArray<NodeID> &leader_mapping
 ) {
   const NodeID c_n = leader_mapping[graph.n() - 1];
 
@@ -78,7 +71,9 @@ CompactStaticArray<NodeID> compute_compact_mapping(
   STOP_TIMER();
 
   START_TIMER("Preprocessing");
-  graph.pfor_nodes([&](const NodeID u) { mapping.write(u, leader_mapping[clustering[u]] - 1); });
+  graph.pfor_nodes([&](const NodeID u) {
+    mapping.write(u, __atomic_load_n(&leader_mapping[clustering[u]], __ATOMIC_RELAXED) - 1);
+  });
   STOP_TIMER();
 
   return mapping;
@@ -89,38 +84,42 @@ void fill_cluster_buckets(
     const NodeID c_n,
     const Graph &graph,
     const Mapping &mapping,
-    scalable_vector<parallel::Atomic<NodeID>> &buckets_index,
-    scalable_vector<NodeID> &buckets
+    StaticArray<NodeID> &buckets_index,
+    StaticArray<NodeID> &buckets
 ) {
   START_TIMER("Allocation");
   if (buckets.size() < graph.n()) {
     buckets.resize(graph.n());
   }
-  buckets_index.clear();
-  buckets_index.resize(c_n + 1);
+  if (buckets_index.size() < c_n + 1) {
+    buckets_index.resize(c_n + 1);
+  }
   STOP_TIMER();
 
   RECORD("buckets");
-  RECORD_LOCAL_DATA_STRUCT("scalable_vector<NodeID>", buckets.capacity() * sizeof(NodeID));
+  RECORD_LOCAL_DATA_STRUCT("StaticArray<NodeID>", buckets.size() * sizeof(NodeID));
 
   RECORD("buckets_index");
-  RECORD_LOCAL_DATA_STRUCT(
-      "scalable_vector<parallel::Atomic<NodeID>>",
-      buckets_index.capacity() * sizeof(parallel::Atomic<NodeID>)
-  );
+  RECORD_LOCAL_DATA_STRUCT("StaticArray<NodeID>", buckets_index.size() * sizeof(NodeID));
 
   START_TIMER("Preprocessing");
-  graph.pfor_nodes([&](const NodeID u) {
-    buckets_index[mapping[u]].fetch_add(1, std::memory_order_relaxed);
+  tbb::parallel_for<std::size_t>(0, buckets_index.size(), [&](const std::size_t i) {
+    buckets_index[i] = 0;
   });
 
-  parallel::prefix_sum(buckets_index.begin(), buckets_index.end(), buckets_index.begin());
+  graph.pfor_nodes([&](const NodeID u) {
+    __atomic_fetch_add(&buckets_index[mapping[u]], 1, __ATOMIC_RELAXED);
+  });
+
+  parallel::prefix_sum(
+      buckets_index.begin(), buckets_index.begin() + c_n + 1, buckets_index.begin()
+  );
   KASSERT(buckets_index.back() <= graph.n());
 
-  tbb::parallel_for(static_cast<NodeID>(0), graph.n(), [&](const NodeID u) {
-    const std::size_t pos = buckets_index[mapping[u]].fetch_sub(1, std::memory_order_relaxed) - 1;
-    buckets[pos] = u;
+  graph.pfor_nodes([&](const NodeID u) {
+    buckets[__atomic_sub_fetch(&buckets_index[mapping[u]], 1, __ATOMIC_RELAXED)] = u;
   });
+
   STOP_TIMER();
 }
 
@@ -143,8 +142,7 @@ generic_preprocess(const Graph &graph, Clustering &clustering, MemoryContext &m_
   const NodeID c_n = leader_mapping[graph.n() - 1];
 
   TIMED_SCOPE("Allocation") {
-    leader_mapping.clear();
-    leader_mapping.shrink_to_fit();
+    leader_mapping.free();
     clustering.clear();
     clustering.shrink_to_fit();
   };

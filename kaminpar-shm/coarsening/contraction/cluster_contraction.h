@@ -12,8 +12,8 @@
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/scalable_vector.h"
+#include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/datastructures/ts_navigable_linked_list.h"
-#include "kaminpar-common/parallel/atomic.h"
 
 namespace kaminpar::shm {
 class CoarseGraph {
@@ -33,10 +33,10 @@ struct Edge {
 };
 
 struct MemoryContext {
-  scalable_vector<NodeID> buckets;
-  scalable_vector<parallel::Atomic<NodeID>> buckets_index;
-  scalable_vector<parallel::Atomic<NodeID>> leader_mapping;
-  scalable_vector<NavigationMarker<NodeID, Edge, scalable_vector>> all_buffered_nodes;
+  StaticArray<NodeID> buckets;
+  StaticArray<NodeID> buckets_index;
+  StaticArray<NodeID> leader_mapping;
+  StaticArray<NavigationMarker<NodeID, Edge, scalable_vector>> all_buffered_nodes;
 };
 } // namespace contraction
 
