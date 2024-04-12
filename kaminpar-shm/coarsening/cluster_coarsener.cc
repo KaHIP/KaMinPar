@@ -29,19 +29,16 @@ std::pair<const Graph *, bool> ClusteringCoarsener::compute_coarse_graph(
   STOP_HEAP_PROFILER();
 
   START_HEAP_PROFILER("Contract graph");
-  auto [c_graph, c_mapping, m_ctx] = TIMED_SCOPE("Contract graph") {
-    return graph::contract(
-        *_current_graph, _c_ctx.contraction, clustering, std::move(_contraction_m_ctx)
-    );
+  auto coarsened = TIMED_SCOPE("Contract graph") {
+    return graph::contract(*_current_graph, _c_ctx.contraction, clustering, _contraction_m_ctx);
   };
   STOP_HEAP_PROFILER();
-  _contraction_m_ctx = std::move(m_ctx);
 
-  const bool converged = _c_ctx.coarsening_should_converge(_current_graph->n(), c_graph.n());
+  const bool converged =
+      _c_ctx.coarsening_should_converge(_current_graph->n(), coarsened->get().n());
 
-  _hierarchy.push_back(std::move(c_graph));
-  _mapping.push_back(std::move(c_mapping));
-  _current_graph = &_hierarchy.back();
+  _hierarchy.push_back(std::move(coarsened));
+  _current_graph = &_hierarchy.back()->get();
 
   if (free_memory_afterwards) {
     _contraction_m_ctx.buckets.clear();
@@ -67,22 +64,18 @@ PartitionedGraph ClusteringCoarsener::uncoarsen(PartitionedGraph &&p_graph) {
   const BlockID p_graph_k = p_graph.k();
   const auto p_graph_partition = p_graph.take_raw_partition();
 
+  auto coarsened = std::move(_hierarchy.back());
+  _hierarchy.pop_back();
+  _current_graph = empty() ? &_input_graph : &_hierarchy.back()->get();
+
   START_HEAP_PROFILER("Allocation");
   START_TIMER("Allocation");
-  auto mapping = std::move(_mapping.back());
-  _mapping.pop_back();
-  _hierarchy.pop_back(); // Destroys the graph wrapped in p_graph -- do no longer use the object!
-  _current_graph = empty() ? &_input_graph : &_hierarchy.back();
-  KASSERT(mapping.size() == _current_graph->n(), V(mapping.size()) << V(_current_graph->n()));
-
   RECORD("partition") StaticArray<BlockID> partition(_current_graph->n());
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 
-  START_TIMER("Copy partition");
-  tbb::parallel_for<NodeID>(0, _current_graph->n(), [&](const NodeID u) {
-    partition[u] = p_graph_partition[mapping[u]];
-  });
+  START_TIMER("Project partition");
+  coarsened->project(p_graph_partition, partition);
   STOP_TIMER();
 
   SCOPED_HEAP_PROFILER("Create graph");

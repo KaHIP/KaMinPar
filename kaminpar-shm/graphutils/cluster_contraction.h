@@ -15,6 +15,16 @@
 #include "kaminpar-common/parallel/atomic.h"
 
 namespace kaminpar::shm::graph {
+class CoarseGraph {
+public:
+  virtual ~CoarseGraph() = default;
+
+  virtual const Graph &get() const = 0;
+  virtual Graph &get() = 0;
+
+  virtual void project(const StaticArray<BlockID> &array, StaticArray<BlockID> &onto) = 0;
+};
+
 namespace contraction {
 struct Edge {
   NodeID target;
@@ -27,19 +37,12 @@ struct MemoryContext {
   scalable_vector<parallel::Atomic<NodeID>> leader_mapping;
   scalable_vector<NavigationMarker<NodeID, Edge, scalable_vector>> all_buffered_nodes;
 };
-
-struct Result {
-  Graph graph;
-  CompactStaticArray<NodeID> mapping;
-  MemoryContext m_ctx;
-};
 } // namespace contraction
 
-template <typename Clustering>
-contraction::Result contract(
+std::unique_ptr<CoarseGraph> contract(
     const Graph &graph,
     const ContractionCoarseningContext con_ctx,
-    Clustering &clustering,
-    contraction::MemoryContext m_ctx = {}
+    scalable_vector<parallel::Atomic<NodeID>> &clustering,
+    contraction::MemoryContext &m_ctx
 );
 } // namespace kaminpar::shm::graph
