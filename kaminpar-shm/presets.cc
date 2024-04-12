@@ -55,7 +55,7 @@ Context create_default_context() {
       .partitioning =
           {
               .mode = PartitioningMode::DEEP,
-              .max_mem_free_coarsening_level = 100,
+              .max_mem_free_coarsening_level = 0,
               .deep_initial_partitioning_mode = InitialPartitioningMode::ASYNCHRONOUS_PARALLEL,
               .deep_initial_partitioning_load = 1.0,
           },
@@ -191,6 +191,7 @@ Context create_memory_context() {
   Context ctx = create_default_context();
   ctx.compression.enabled = true;
   ctx.compression.may_dismiss = true;
+  ctx.partitioning.max_mem_free_coarsening_level = 100;
   ctx.coarsening.lp.use_two_phases = true;
   ctx.coarsening.lp.use_two_level_cluster_weight_vector = true;
   ctx.coarsening.contraction.mode = ContractionMode::NO_EDGE_BUFFER_REMAP;
