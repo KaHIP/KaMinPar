@@ -1,13 +1,15 @@
 /*******************************************************************************
+ * Initial partitioner based on breath-first searches.
+ *
  * @file:   bfs_bipartitioner.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Initial partitioner based on breath-first searches.
  ******************************************************************************/
 #pragma once
 
 #include <array>
 
+#include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/initial_partitioning/bipartitioner.h"
 #include "kaminpar-shm/initial_partitioning/seed_node_utils.h"
 #include "kaminpar-shm/kaminpar.h"
@@ -17,13 +19,12 @@
 
 namespace kaminpar::shm::ip {
 namespace bfs {
-using BlockWeights = std::array<BlockWeight, 2>;
 using Queues = std::array<Queue<NodeID>, 2>;
 
 /*! Always selects the inactive block, i.e., switches blocks after each step. */
 struct alternating {
   BlockID
-  operator()(const BlockID active_block, const BlockWeights &, const PartitionContext &, const Queues &) {
+  operator()(const BlockID active_block, const Bipartitioner::BlockWeights &, const PartitionContext &, const Queues &) {
     return 1 - active_block;
   }
 };
@@ -31,7 +32,7 @@ struct alternating {
 /*! Always selects the block with the smaller weight. */
 struct lighter {
   BlockID
-  operator()(const BlockID, const BlockWeights &block_weights, const PartitionContext &, const Queues &) {
+  operator()(const BlockID, const Bipartitioner::BlockWeights &block_weights, const PartitionContext &, const Queues &) {
     return (block_weights[0] < block_weights[1]) ? 0 : 1;
   }
 };
@@ -39,42 +40,50 @@ struct lighter {
 /*! Selects the first block until it has more than half weight. */
 struct sequential {
   BlockID
-  operator()(const BlockID, const BlockWeights &block_weights, const PartitionContext &context, const Queues &) {
+  operator()(const BlockID, const Bipartitioner::BlockWeights &block_weights, const PartitionContext &context, const Queues &) {
     return (block_weights[0] < context.block_weights.perfectly_balanced(0)) ? 0 : 1;
   }
 };
 
 /*! Always selects the block with the longer queue. */
 struct longer_queue {
-  BlockID
-  operator()(const BlockID, const BlockWeights &, const PartitionContext &, const Queues &queues) {
+  BlockID operator()(
+      const BlockID,
+      const Bipartitioner::BlockWeights &,
+      const PartitionContext &,
+      const Queues &queues
+  ) {
     return (queues[0].size() < queues[1].size()) ? 1 : 0;
   }
 };
 
 /*! Always selects the block with the shorter queue. */
 struct shorter_queue {
-  BlockID
-  operator()(const BlockID, const BlockWeights &, const PartitionContext &, const Queues &queues) {
+  BlockID operator()(
+      const BlockID,
+      const Bipartitioner::BlockWeights &,
+      const PartitionContext &,
+      const Queues &queues
+  ) {
     return (queues[0].size() < queues[1].size()) ? 0 : 1;
   }
 };
 
-struct BfsBipartitionerMemoryContext {
-  std::array<Queue<NodeID>, 2> queues{Queue<NodeID>(0), Queue<NodeID>(0)};
-  Marker<3> marker{0};
-
-  [[nodiscard]] std::size_t memory_in_kb() const {
-    return queues[0].memory_in_kb() + queues[1].memory_in_kb() + marker.memory_in_kb();
-  }
-};
-
-template <typename Graph> class BfsBipartitionerBase : public Bipartitioner<Graph> {
+class BfsBipartitionerBase : public Bipartitioner {
 public:
+  struct MemoryContext {
+    std::array<Queue<NodeID>, 2> queues{Queue<NodeID>(0), Queue<NodeID>(0)};
+    Marker<3> marker{0};
+
+    [[nodiscard]] std::size_t memory_in_kb() const {
+      return queues[0].memory_in_kb() + queues[1].memory_in_kb() + marker.memory_in_kb();
+    }
+  };
+
   BfsBipartitionerBase(
-      const Graph &graph, const PartitionContext &p_ctx, const InitialPartitioningContext &i_ctx
+      const CSRGraph &graph, const PartitionContext &p_ctx, const InitialPartitioningContext &i_ctx
   )
-      : Bipartitioner<Graph>(graph, p_ctx, i_ctx) {}
+      : Bipartitioner(graph, p_ctx, i_ctx) {}
 };
 
 /*!
@@ -89,27 +98,21 @@ public:
  * @tparam seed_node If specified, a fixed seed node from the search for pseudo
  * peripheral nodes is started. If not specified, a random node is used instead.
  */
-template <typename Graph, typename block_selection_strategy, NodeID seed_node = kInvalidNodeID>
-class BfsBipartitioner : public BfsBipartitionerBase<Graph> {
-  using MemoryContext = BfsBipartitionerMemoryContext;
-  using Base = typename BfsBipartitionerBase<Graph>::Bipartitioner;
-  using Base::_block_weights;
-  using Base::_graph;
-  using Base::_p_ctx;
-  using Base::set_block;
-
+template <typename block_selection_strategy, NodeID seed_node = kInvalidNodeID>
+class BfsBipartitioner : public BfsBipartitionerBase {
   static constexpr std::size_t kMarkAssigned = 2;
+  using MemoryContext = BfsBipartitionerBase::MemoryContext;
 
 public:
   BfsBipartitioner(
-      const Graph &graph,
+      const CSRGraph &graph,
       const PartitionContext &p_ctx,
       const InitialPartitioningContext &i_ctx,
       MemoryContext &m_ctx
   )
-      : BfsBipartitionerBase<Graph>(graph, p_ctx, i_ctx),
-        _queues{m_ctx.queues},
-        _marker{m_ctx.marker},
+      : BfsBipartitionerBase(graph, p_ctx, i_ctx),
+        _queues(m_ctx.queues),
+        _marker(m_ctx.marker),
         _num_seed_iterations(i_ctx.num_seed_iterations) {
     if (_marker.capacity() < _graph.n()) {
       _marker.resize(_graph.n());
@@ -171,13 +174,13 @@ protected:
         set_block(u, active);
         _marker.set<true>(u, kMarkAssigned);
 
-        _graph.adjacent_nodes(u, [&](const NodeID v) {
+        for (const NodeID v : _graph.adjacent_nodes(u)) {
           if (_marker.get(v, kMarkAssigned) || _marker.get(v, active)) {
-            return;
+            continue;
           }
           _queues[active].push_tail(v);
           _marker.set(v, active);
-        });
+        }
       }
 
       active = _block_selection_strategy(active, _block_weights, _p_ctx, _queues);
@@ -196,19 +199,15 @@ private:
 };
 } // namespace bfs
 
-template <typename Graph>
-using AlternatingBfsBipartitioner = bfs::BfsBipartitioner<Graph, bfs::alternating>;
+extern template class bfs::BfsBipartitioner<bfs::alternating>;
+extern template class bfs::BfsBipartitioner<bfs::lighter>;
+extern template class bfs::BfsBipartitioner<bfs::sequential>;
+extern template class bfs::BfsBipartitioner<bfs::longer_queue>;
+extern template class bfs::BfsBipartitioner<bfs::shorter_queue>;
 
-template <typename Graph>
-
-using LighterBlockBfsBipartitioner = bfs::BfsBipartitioner<Graph, bfs::lighter>;
-template <typename Graph>
-
-using SequentialBfsBipartitioner = bfs::BfsBipartitioner<Graph, bfs::sequential>;
-template <typename Graph>
-
-using LongerQueueBfsBipartitioner = bfs::BfsBipartitioner<Graph, bfs::longer_queue>;
-
-template <typename Graph>
-using ShorterQueueBfsBipartitioner = bfs::BfsBipartitioner<Graph, bfs::shorter_queue>;
+using AlternatingBfsBipartitioner = bfs::BfsBipartitioner<bfs::alternating>;
+using LighterBlockBfsBipartitioner = bfs::BfsBipartitioner<bfs::lighter>;
+using SequentialBfsBipartitioner = bfs::BfsBipartitioner<bfs::sequential>;
+using LongerQueueBfsBipartitioner = bfs::BfsBipartitioner<bfs::longer_queue>;
+using ShorterQueueBfsBipartitioner = bfs::BfsBipartitioner<bfs::shorter_queue>;
 } // namespace kaminpar::shm::ip

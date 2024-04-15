@@ -8,6 +8,8 @@
  ******************************************************************************/
 #include "kaminpar-shm/partitioning/deep/sync_initial_partitioning.h"
 
+#include "kaminpar-shm/factories.h"
+
 namespace kaminpar::shm::partitioning {
 SyncInitialPartitioner::SyncInitialPartitioner(
     const Context &input_ctx,

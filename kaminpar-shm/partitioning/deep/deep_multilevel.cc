@@ -7,6 +7,7 @@
  ******************************************************************************/
 #include "kaminpar-shm/partitioning/deep/deep_multilevel.h"
 
+#include "kaminpar-shm/factories.h"
 #include "kaminpar-shm/partitioning/debug.h"
 #include "kaminpar-shm/partitioning/deep/async_initial_partitioning.h"
 #include "kaminpar-shm/partitioning/deep/sync_initial_partitioning.h"

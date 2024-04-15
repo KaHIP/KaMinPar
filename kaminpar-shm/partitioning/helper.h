@@ -14,14 +14,15 @@
 #include "kaminpar-shm/graphutils/subgraph_extractor.h"
 #include "kaminpar-shm/initial_partitioning/initial_partitioning_facade.h"
 #include "kaminpar-shm/kaminpar.h"
+#include "kaminpar-shm/refinement/refiner.h"
 
 #include "kaminpar-common/assert.h"
 
 namespace kaminpar::shm::partitioning {
 struct InitialPartitionerMemoryPool {
-  std::vector<InitialPartitionerMemoryContext> pool;
+  std::vector<InitialPartitioner::MemoryContext> pool;
 
-  InitialPartitionerMemoryContext get() {
+  InitialPartitioner::MemoryContext get() {
     if (!pool.empty()) {
       auto m_ctx = std::move(pool.back());
       pool.pop_back();
@@ -39,7 +40,7 @@ struct InitialPartitionerMemoryPool {
     return memory;
   }
 
-  void put(InitialPartitionerMemoryContext m_ctx) {
+  void put(InitialPartitioner::MemoryContext m_ctx) {
     pool.push_back(std::move(m_ctx));
   }
 };

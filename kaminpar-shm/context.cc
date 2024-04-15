@@ -39,11 +39,12 @@ void GraphCompressionContext::setup(const Graph &graph) {
     }
   }
 }
+
 //
 // PartitionContext
 //
 
-void PartitionContext::setup(const Graph &graph) {
+void PartitionContext::setup(const AbstractGraph &graph) {
   n = graph.n();
   m = graph.m();
   total_node_weight = graph.total_node_weight();

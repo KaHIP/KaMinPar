@@ -7,10 +7,42 @@
  ******************************************************************************/
 #include "kaminpar-shm/datastructures/csr_graph.h"
 
+#include "kaminpar-shm/datastructures/graph.h"
+
 #include "kaminpar-common/logger.h"
 
-namespace kaminpar::shm::debug {
+namespace kaminpar::shm {
+template <template <typename> typename Container, template <typename> typename CompactContainer>
+AbstractCSRGraph<Container, CompactContainer>::AbstractCSRGraph(const Graph &graph)
+    : _nodes(graph.n() + 1),
+      _edges(graph.m()),
+      _node_weights(graph.n()),
+      _edge_weights(graph.m()) {
+  graph.reified([&](const auto &graph) {
+    _nodes.front() = 0;
+    graph.pfor_nodes([&](const NodeID u) {
+      _nodes[u + 1] = graph.degree(u);
+      _node_weights[u] = graph.node_weight(u);
+    });
+    parallel::prefix_sum(_nodes.begin(), _nodes.end(), _nodes.begin());
 
+    graph.pfor_nodes([&](const NodeID u) {
+      graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
+        _edges[e] = v;
+        _edge_weights[e] = graph.edge_weight(e);
+      });
+    });
+
+    _total_node_weight = graph.total_node_weight();
+    _total_edge_weight = graph.total_edge_weight();
+    _max_degree = graph.max_degree();
+    init_degree_buckets();
+  });
+}
+
+template AbstractCSRGraph<StaticArray, StaticArray>::AbstractCSRGraph(const Graph &graph);
+
+namespace debug {
 bool validate_graph(
     const CSRGraph &graph, const bool check_undirected, const NodeID num_pseudo_nodes
 ) {
@@ -106,5 +138,5 @@ CSRGraph sort_neighbors(CSRGraph graph) {
 
   return sorted_graph;
 }
-
-} // namespace kaminpar::shm::debug
+} // namespace debug
+} // namespace kaminpar::shm

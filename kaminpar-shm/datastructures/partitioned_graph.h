@@ -283,4 +283,5 @@ private:
 };
 
 using PartitionedGraph = GenericPartitionedGraph<Graph>;
+using PartitionedCSRGraph = GenericPartitionedGraph<CSRGraph>;
 } // namespace kaminpar::shm

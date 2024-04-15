@@ -47,22 +47,6 @@ void refine(Refiner *refiner, PartitionedGraph &p_graph, const PartitionContext 
   refiner->refine(p_graph, current_p_ctx);
 }
 
-template <typename Graph>
-PartitionedGraph bipartition_generic_graph(
-    const shm::Graph *wrapper_graph,
-    const Graph *graph,
-    const BlockID final_k,
-    const Context &input_ctx,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool
-) {
-  InitialPartitioner<Graph> partitioner(
-      *wrapper_graph, *graph, input_ctx, final_k, ip_m_ctx_pool.local().get()
-  );
-  PartitionedGraph p_graph = partitioner.partition();
-  ip_m_ctx_pool.local().put(partitioner.free());
-  return p_graph;
-}
-
 PartitionedGraph bipartition(
     const Graph *graph,
     const BlockID final_k,
@@ -71,10 +55,17 @@ PartitionedGraph bipartition(
 ) {
   if (const auto *csr_graph = dynamic_cast<const CSRGraph *>(graph->underlying_graph());
       csr_graph != nullptr) {
-    return bipartition_generic_graph(graph, csr_graph, final_k, input_ctx, ip_m_ctx_pool);
+    InitialPartitioner partitioner(*csr_graph, input_ctx, final_k, ip_m_ctx_pool.local().get());
+    PartitionedCSRGraph p_graph = partitioner.partition();
+    ip_m_ctx_pool.local().put(partitioner.free());
+    return PartitionedGraph{PartitionedGraph::seq{}, *graph, final_k, p_graph.take_raw_partition()};
+  } else {
+    CSRGraph csr_graph_cpy(*graph);
+    InitialPartitioner partitioner(csr_graph_cpy, input_ctx, final_k, ip_m_ctx_pool.local().get());
+    PartitionedCSRGraph p_graph = partitioner.partition();
+    ip_m_ctx_pool.local().put(partitioner.free());
+    return PartitionedGraph{PartitionedGraph::seq{}, *graph, final_k, p_graph.take_raw_partition()};
   }
-
-  return bipartition_generic_graph(graph, graph, final_k, input_ctx, ip_m_ctx_pool);
 }
 
 void extend_partition_recursive(

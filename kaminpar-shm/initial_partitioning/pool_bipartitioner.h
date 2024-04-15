@@ -11,7 +11,7 @@
 
 #include <memory>
 
-#include "kaminpar-shm/factories.h"
+#include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/initial_partitioning/bfs_bipartitioner.h"
 #include "kaminpar-shm/initial_partitioning/bipartitioner.h"
 #include "kaminpar-shm/initial_partitioning/greedy_graph_growing_bipartitioner.h"
@@ -21,24 +21,10 @@
 #include "kaminpar-common/assert.h"
 
 namespace kaminpar::shm::ip {
-struct InitialPartitioningMemoryContext {
-  GreedyGraphGrowingBipartitionerMemoryContext ggg_m_ctx;
-  bfs::BfsBipartitionerMemoryContext bfs_m_ctx;
-  RandomBipartitionerMemoryContext rand_m_ctx;
-  InitialRefinementMemoryContext ref_m_ctx;
-
-  std::size_t memory_in_kb() const {
-    return ggg_m_ctx.memory_in_kb() + bfs_m_ctx.memory_in_kb() + rand_m_ctx.memory_in_kb() +
-           ref_m_ctx.memory_in_kb();
-  }
-};
-
-template <typename Graph> class PoolBipartitioner {
+class PoolBipartitioner {
   SET_DEBUG(false);
 
-  using PartitionedGraph = GenericPartitionedGraph<Graph>;
-
-  template <typename FriendGraph> friend class PoolBipartitionerFactory;
+  friend class PoolBipartitionerFactory;
 
   // https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm
   struct RunningVariance {
@@ -72,6 +58,18 @@ template <typename Graph> class PoolBipartitioner {
   };
 
 public:
+  struct MemoryContext {
+    GreedyGraphGrowingBipartitioner::MemoryContext ggg_m_ctx;
+    bfs::BfsBipartitionerBase::MemoryContext bfs_m_ctx;
+    RandomBipartitioner::MemoryContext rand_m_ctx;
+    InitialRefiner::MemoryContext ref_m_ctx;
+
+    std::size_t memory_in_kb() const {
+      return ggg_m_ctx.memory_in_kb() + bfs_m_ctx.memory_in_kb() + rand_m_ctx.memory_in_kb() +
+             ref_m_ctx.memory_in_kb();
+    }
+  };
+
   struct BipartitionerStatistics {
     std::vector<EdgeWeight> cuts;
     double cut_mean;
@@ -91,10 +89,10 @@ public:
   };
 
   PoolBipartitioner(
-      const Graph &graph,
+      const CSRGraph &graph,
       const PartitionContext &p_ctx,
       const InitialPartitioningContext &i_ctx,
-      InitialPartitioningMemoryContext m_ctx = {}
+      MemoryContext m_ctx = {}
   )
       : _graph(graph),
         _p_ctx(p_ctx),
@@ -142,7 +140,7 @@ public:
     _best_partition = StaticArray<BlockID>(_graph.n());
   }
 
-  PartitionedGraph bipartition() {
+  PartitionedCSRGraph bipartition() {
     KASSERT(_current_partition.size() >= _graph.n());
     KASSERT(_best_partition.size() >= _graph.n());
 
@@ -167,7 +165,7 @@ public:
     return {_graph, 2, std::move(_best_partition)};
   }
 
-  InitialPartitioningMemoryContext free() {
+  MemoryContext free() {
     _m_ctx.ref_m_ctx = _refiner->free();
     return std::move(_m_ctx);
   }
@@ -223,7 +221,7 @@ private:
   void run_bipartitioner(const std::size_t i) {
     DBG << "Running bipartitioner " << _bipartitioner_names[i] << " on graph with n=" << _graph.n()
         << " m=" << _graph.m();
-    PartitionedGraph p_graph = _bipartitioners[i]->bipartition(std::move(_current_partition));
+    PartitionedCSRGraph p_graph = _bipartitioners[i]->bipartition(std::move(_current_partition));
     DBG << " -> running refiner ...";
     _refiner->refine(p_graph, _p_ctx);
     DBG << " -> cut=" << metrics::edge_cut(p_graph) << " imbalance=" << metrics::imbalance(p_graph);
@@ -254,7 +252,7 @@ private:
     }
   }
 
-  const Graph &_graph;
+  const CSRGraph &_graph;
   const PartitionContext &_p_ctx;
   const InitialPartitioningContext &_i_ctx;
   std::size_t _min_num_repetitions;
@@ -262,18 +260,18 @@ private:
   std::size_t _num_repetitions;
   std::size_t _max_num_repetitions;
 
-  InitialPartitioningMemoryContext _m_ctx{};
+  MemoryContext _m_ctx{};
 
-  StaticArray<BlockID> _best_partition{_graph.n()};
-  EdgeWeight _best_cut{std::numeric_limits<EdgeWeight>::max()};
-  bool _best_feasible{false};
-  double _best_imbalance{0.0};
-  std::size_t _best_bipartitioner{0};
+  StaticArray<BlockID> _best_partition = _graph.n();
+  EdgeWeight _best_cut = std::numeric_limits<EdgeWeight>::max();
+  bool _best_feasible = false;
+  double _best_imbalance = 0.0;
+  std::size_t _best_bipartitioner = 0;
   StaticArray<BlockID> _current_partition{_graph.n()};
 
   std::vector<std::string> _bipartitioner_names{};
-  std::vector<std::unique_ptr<Bipartitioner<Graph>>> _bipartitioners{};
-  std::unique_ptr<InitialRefiner<Graph>> _refiner;
+  std::vector<std::unique_ptr<Bipartitioner>> _bipartitioners{};
+  std::unique_ptr<InitialRefiner> _refiner;
 
   std::vector<RunningVariance> _running_statistics{};
   Statistics _statistics{};
@@ -285,36 +283,34 @@ private:
  * Create frees the previously created bipartitioner instance.
  * Hence, there can only be one PoolBipartitioner per factory at a time.
  */
-template <typename Graph> class PoolBipartitionerFactory {
+class PoolBipartitionerFactory {
 public:
-  std::unique_ptr<PoolBipartitioner<Graph>> create(
-      const Graph &graph,
+  std::unique_ptr<PoolBipartitioner> create(
+      const CSRGraph &graph,
       const PartitionContext &p_ctx,
       const InitialPartitioningContext &i_ctx,
-      InitialPartitioningMemoryContext m_ctx = {}
+      PoolBipartitioner::MemoryContext m_ctx = {}
   ) {
-    auto pool = std::make_unique<PoolBipartitioner<Graph>>(graph, p_ctx, i_ctx, std::move(m_ctx));
-    pool->template register_bipartitioner<GreedyGraphGrowingBipartitioner<Graph>>(
+    auto pool = std::make_unique<PoolBipartitioner>(graph, p_ctx, i_ctx, std::move(m_ctx));
+    pool->register_bipartitioner<GreedyGraphGrowingBipartitioner>(
         "greedy_graph_growing", pool->_m_ctx.ggg_m_ctx
     );
-    pool->template register_bipartitioner<AlternatingBfsBipartitioner<Graph>>(
+    pool->register_bipartitioner<AlternatingBfsBipartitioner>(
         "bfs_alternating", pool->_m_ctx.bfs_m_ctx
     );
-    pool->template register_bipartitioner<LighterBlockBfsBipartitioner<Graph>>(
+    pool->register_bipartitioner<LighterBlockBfsBipartitioner>(
         "bfs_lighter_block", pool->_m_ctx.bfs_m_ctx
     );
-    pool->template register_bipartitioner<LongerQueueBfsBipartitioner<Graph>>(
+    pool->register_bipartitioner<LongerQueueBfsBipartitioner>(
         "bfs_longer_queue", pool->_m_ctx.bfs_m_ctx
     );
-    pool->template register_bipartitioner<ShorterQueueBfsBipartitioner<Graph>>(
+    pool->register_bipartitioner<ShorterQueueBfsBipartitioner>(
         "bfs_shorter_queue", pool->_m_ctx.bfs_m_ctx
     );
-    pool->template register_bipartitioner<SequentialBfsBipartitioner<Graph>>(
+    pool->register_bipartitioner<SequentialBfsBipartitioner>(
         "bfs_sequential", pool->_m_ctx.bfs_m_ctx
     );
-    pool->template register_bipartitioner<RandomBipartitioner<Graph>>(
-        "random", pool->_m_ctx.rand_m_ctx
-    );
+    pool->register_bipartitioner<RandomBipartitioner>("random", pool->_m_ctx.rand_m_ctx);
     return pool;
   }
 };

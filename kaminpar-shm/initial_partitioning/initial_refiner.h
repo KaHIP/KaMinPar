@@ -9,8 +9,7 @@
 
 #include <algorithm>
 
-#include "kaminpar-shm/context.h"
-#include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/metrics.h"
@@ -24,69 +23,64 @@
 namespace kaminpar::shm::ip {
 using Queues = std::array<BinaryMinHeap<EdgeWeight>, 2>;
 
-struct InitialRefinementMemoryContext {
-  Queues queues{BinaryMinHeap<EdgeWeight>{0}, BinaryMinHeap<EdgeWeight>{0}};
-  Marker<> marker{0};
-  std::vector<EdgeWeight> weighted_degrees;
-
-  void resize(const NodeID n) {
-    if (queues[0].capacity() < n) {
-      queues[0].resize(n);
-    }
-    if (queues[1].capacity() < n) {
-      queues[1].resize(n);
-    }
-    if (marker.size() < n) {
-      marker.resize(n);
-    }
-    if (weighted_degrees.size() < n) {
-      weighted_degrees.resize(n);
-    }
-  }
-
-  [[nodiscard]] std::size_t memory_in_kb() const {
-    return marker.memory_in_kb() +                               //
-           weighted_degrees.size() * sizeof(EdgeWeight) / 1000 + //
-           queues[0].memory_in_kb() + queues[1].memory_in_kb();  //
-  }
-};
-
-template <typename Graph> class InitialRefiner {
-  using PartitionedGraph = GenericPartitionedGraph<Graph>;
-
+class InitialRefiner {
 public:
+  struct MemoryContext {
+    Queues queues{BinaryMinHeap<EdgeWeight>{0}, BinaryMinHeap<EdgeWeight>{0}};
+    Marker<> marker{0};
+    std::vector<EdgeWeight> weighted_degrees;
+
+    void resize(const NodeID n) {
+      if (queues[0].capacity() < n) {
+        queues[0].resize(n);
+      }
+      if (queues[1].capacity() < n) {
+        queues[1].resize(n);
+      }
+      if (marker.size() < n) {
+        marker.resize(n);
+      }
+      if (weighted_degrees.size() < n) {
+        weighted_degrees.resize(n);
+      }
+    }
+
+    [[nodiscard]] std::size_t memory_in_kb() const {
+      return marker.memory_in_kb() +                               //
+             weighted_degrees.size() * sizeof(EdgeWeight) / 1000 + //
+             queues[0].memory_in_kb() + queues[1].memory_in_kb();  //
+    }
+  };
+
   virtual ~InitialRefiner() = default;
 
-  virtual void initialize(const Graph &graph) = 0;
+  virtual void initialize(const CSRGraph &graph) = 0;
+  virtual bool refine(PartitionedCSRGraph &p_graph, const PartitionContext &p_ctx) = 0;
 
-  virtual bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) = 0;
-
-  virtual InitialRefinementMemoryContext free() = 0;
+  virtual MemoryContext free() = 0;
 };
 
-template <typename Graph> class InitialNoopRefiner : public InitialRefiner<Graph> {
-  using PartitionedGraph = GenericPartitionedGraph<Graph>;
-
+class InitialNoopRefiner : public InitialRefiner {
 public:
-  explicit InitialNoopRefiner(InitialRefinementMemoryContext m_ctx) : _m_ctx{std::move(m_ctx)} {}
+  explicit InitialNoopRefiner(MemoryContext m_ctx) : _m_ctx{std::move(m_ctx)} {}
 
-  void initialize(const Graph &) final {}
+  void initialize(const CSRGraph &) final {}
 
-  bool refine(PartitionedGraph &, const PartitionContext &) final {
+  bool refine(PartitionedCSRGraph &, const PartitionContext &) final {
     return false;
   }
 
-  InitialRefinementMemoryContext free() override {
+  MemoryContext free() override {
     return std::move(_m_ctx);
   }
 
 private:
-  InitialRefinementMemoryContext _m_ctx;
+  MemoryContext _m_ctx;
 };
 
 namespace fm {
 struct SimpleStoppingPolicy {
-  void init(const NodeID n) const {}
+  void init(const CSRGraph *) const {}
   [[nodiscard]] bool should_stop(const InitialRefinementContext &fm_ctx) const {
     return _num_steps > fm_ctx.num_fruitless_moves;
   }
@@ -98,15 +92,15 @@ struct SimpleStoppingPolicy {
   }
 
 private:
-  std::size_t _num_steps{0};
+  std::size_t _num_steps = 0;
 };
 
 // "Adaptive" random walk stopping policy
 // Implementation copied from: KaHyPar -> AdvancedRandomWalkModelStopsSearch,
 // Copyright (C) Sebastian Schlag
 struct AdaptiveStoppingPolicy {
-  void init(const NodeID n) {
-    _beta = std::sqrt(n);
+  void init(const CSRGraph *graph) {
+    _beta = std::sqrt(graph->n());
   }
 
   [[nodiscard]] bool should_stop(const InitialRefinementContext &fm_ctx) const {
@@ -140,23 +134,23 @@ struct AdaptiveStoppingPolicy {
   }
 
 private:
-  double _beta{};
-  std::size_t _num_steps{0};
-  double _variance{0.0};
-  double _Mk{0.0};
-  double _MkMinus1{0.0};
-  double _Sk{0.0};
-  double _SkMinus1{0.0};
+  double _beta = 0.0;
+  std::size_t _num_steps = 0;
+  double _variance = 0.0;
+  double _Mk = 0.0;
+  double _MkMinus1 = 0.0;
+  double _Sk = 0.0;
+  double _SkMinus1 = 0.0;
 };
 
 //! Always move the next node from the heavier block. This should improve
 //! balance.
-template <typename Graph> class MaxWeightSelectionPolicy {
-  using PartitionedGraph = GenericPartitionedGraph<Graph>;
-
-public:
+struct MaxWeightSelectionPolicy {
   std::size_t operator()(
-      const PartitionedGraph &p_graph, const PartitionContext &context, const Queues &, Random &rand
+      const PartitionedCSRGraph &p_graph,
+      const PartitionContext &context,
+      const Queues &,
+      Random &rand
   ) {
     const auto weight0 = p_graph.block_weight(0) - context.block_weights.perfectly_balanced(0);
     const auto weight1 = p_graph.block_weight(1) - context.block_weights.perfectly_balanced(1);
@@ -165,13 +159,9 @@ public:
 };
 
 //! Always select the node with the highest gain / lowest loss.
-
-template <typename Graph> class MaxGainSelectionPolicy {
-  using PartitionedGraph = GenericPartitionedGraph<Graph>;
-
-public:
+struct MaxGainSelectionPolicy {
   std::size_t operator()(
-      const PartitionedGraph &p_graph,
+      const PartitionedCSRGraph &p_graph,
       const PartitionContext &context,
       const Queues &queues,
       Random &rand
@@ -181,18 +171,15 @@ public:
     const auto loss1 =
         queues[1].empty() ? std::numeric_limits<EdgeWeight>::max() : queues[1].peek_key();
     if (loss0 == loss1) {
-      return MaxWeightSelectionPolicy<Graph>()(p_graph, context, queues, rand);
+      return MaxWeightSelectionPolicy()(p_graph, context, queues, rand);
     }
     return loss1 < loss0;
   }
 };
 
-template <typename Graph> class MaxOverloadSelectionPolicy {
-  using PartitionedGraph = GenericPartitionedGraph<Graph>;
-
-public:
+struct MaxOverloadSelectionPolicy {
   std::size_t operator()(
-      const PartitionedGraph &p_graph,
+      const PartitionedCSRGraph &p_graph,
       const PartitionContext &context,
       const Queues &queues,
       Random &rand
@@ -202,7 +189,7 @@ public:
     const NodeWeight overload1 =
         std::max<NodeWeight>(0, p_graph.block_weight(1) - context.block_weights.max(1));
     if (overload0 == 0 && overload1 == 0) {
-      return MaxGainSelectionPolicy<Graph>()(p_graph, context, queues, rand);
+      return MaxGainSelectionPolicy()(p_graph, context, queues, rand);
     }
     return overload1 > overload0 || (overload1 == overload0 && rand.random_bool());
   }
@@ -210,12 +197,9 @@ public:
 
 //! Accept better cuts, or the first cut that is balanced in case the initial
 //! cut is not balanced.
-template <typename Graph> class BalancedMinCutAcceptancePolicy {
-  using PartitionedGraph = GenericPartitionedGraph<Graph>;
-
-public:
+struct BalancedMinCutAcceptancePolicy {
   bool operator()(
-      const PartitionedGraph &,
+      const PartitionedCSRGraph &,
       const PartitionContext &,
       const EdgeWeight accepted_overload,
       const EdgeWeight current_overload,
@@ -237,14 +221,8 @@ public:
  * node.
  * @tparam CutAcceptancePolicy Decides whether we accept the current cut.
  */
-template <
-    typename Graph,
-    typename QueueSelectionPolicy,
-    typename CutAcceptancePolicy,
-    typename StoppingPolicy>
-class InitialTwoWayFMRefiner : public InitialRefiner<Graph> {
-  using PartitionedGraph = GenericPartitionedGraph<Graph>;
-
+template <typename QueueSelectionPolicy, typename CutAcceptancePolicy, typename StoppingPolicy>
+class InitialTwoWayFMRefiner : public InitialRefiner {
   static constexpr NodeID kChunkSize = 64;
   static constexpr std::size_t kNumberOfNodePermutations = 32;
 
@@ -255,11 +233,11 @@ public:
       const NodeID n,
       const PartitionContext &p_ctx,
       const InitialRefinementContext &r_ctx,
-      InitialRefinementMemoryContext m_ctx = {}
+      MemoryContext m_ctx = {}
   )
       : _p_ctx(p_ctx),
         _r_ctx(r_ctx),
-        _queues(std::move(m_ctx.queues)), //
+        _queues(std::move(m_ctx.queues)),
         _marker(std::move(m_ctx.marker)),
         _weighted_degrees(std::move(m_ctx.weighted_degrees)) {
     KASSERT(
@@ -281,19 +259,19 @@ public:
     }
   }
 
-  void initialize(const Graph &graph) final {
+  void initialize(const CSRGraph &graph) final {
     KASSERT(_queues[0].capacity() >= graph.n());
     KASSERT(_queues[1].capacity() >= graph.n());
     KASSERT(_marker.capacity() >= graph.n());
     KASSERT(_weighted_degrees.capacity() >= graph.n());
 
     _graph = &graph;
-    _stopping_policy.init(_graph->n());
+    _stopping_policy.init(_graph);
 
     init_weighted_degrees();
   }
 
-  bool refine(PartitionedGraph &p_graph, const PartitionContext &) final {
+  bool refine(PartitionedCSRGraph &p_graph, const PartitionContext &) final {
     KASSERT(&p_graph.graph() == _graph, "must be initialized with the same graph", assert::light);
     KASSERT(
         p_graph.k() == 2u,
@@ -320,7 +298,7 @@ public:
     return cur_edge_cut < initial_edge_cut;
   }
 
-  InitialRefinementMemoryContext free() final {
+  MemoryContext free() final {
     return {
         .queues = std::move(_queues),
         .marker = std::move(_marker),
@@ -341,7 +319,7 @@ private:
    * @param p_graph Partition of #_graph.
    * @return Whether we were able to improve the cut.
    */
-  EdgeWeight round(PartitionedGraph &p_graph) {
+  EdgeWeight round(PartitionedCSRGraph &p_graph) {
     KASSERT(p_graph.k() == 2u, "2-way FM with " << p_graph.k() << "-way partition", assert::light);
     DBG << "Initial refiner initialized with n=" << p_graph.n() << " m=" << p_graph.m();
 
@@ -399,9 +377,9 @@ private:
       current_overload = metrics::total_overload(p_graph, _p_ctx);
 
       // update gain of neighboring nodes
-      _graph->neighbors(u, [&](const EdgeID e, const NodeID v) {
+      for (const auto [e, v] : _graph->neighbors(u)) {
         if (_marker.get(v)) {
-          return;
+          continue;
         }
 
         const EdgeWeight e_weight = _graph->edge_weight(e);
@@ -423,7 +401,7 @@ private:
           KASSERT(is_boundary_node(p_graph, v), "", assert::heavy);
           _queues[v_block].push(v, _weighted_degrees[v] + loss_delta);
         }
-      });
+      }
 
       // accept move if it improves the best edge cut found so far
       if (_cut_acceptance_policy(
@@ -458,7 +436,7 @@ private:
     return accepted_delta;
   }
 
-  void init_pq(const PartitionedGraph &p_graph) {
+  void init_pq(const PartitionedCSRGraph &p_graph) {
     KASSERT(_queues[0].empty());
     KASSERT(_queues[1].empty());
 
@@ -486,7 +464,7 @@ private:
 #endif
   }
 
-  void insert_node(const PartitionedGraph &p_graph, const NodeID u) {
+  void insert_node(const PartitionedCSRGraph &p_graph, const NodeID u) {
     const EdgeWeight gain = compute_gain_from_scratch(p_graph, u);
     const BlockID u_block = p_graph.block(u);
     if (_weighted_degrees[u] != gain) {
@@ -494,12 +472,12 @@ private:
     }
   }
 
-  EdgeWeight compute_gain_from_scratch(const PartitionedGraph &p_graph, const NodeID u) {
+  EdgeWeight compute_gain_from_scratch(const PartitionedCSRGraph &p_graph, const NodeID u) {
     const BlockID u_block = p_graph.block(u);
     EdgeWeight weighted_external_degree = 0;
-    p_graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
+    for (const auto [e, v] : p_graph.neighbors(u)) {
       weighted_external_degree += (p_graph.block(v) != u_block) * p_graph.edge_weight(e);
-    });
+    }
     const EdgeWeight weighted_internal_degree = _weighted_degrees[u] - weighted_external_degree;
     return weighted_internal_degree - weighted_external_degree;
   }
@@ -514,7 +492,7 @@ private:
     }
   }
 
-  bool is_boundary_node(const PartitionedGraph &p_graph, const NodeID u) {
+  bool is_boundary_node(const PartitionedCSRGraph &p_graph, const NodeID u) {
     for (const NodeID v : p_graph.adjacent_nodes(u)) {
       if (p_graph.block(u) != p_graph.block(v)) {
         return true;
@@ -523,7 +501,7 @@ private:
     return false;
   }
 
-  void validate_pqs(const PartitionedGraph &p_graph) {
+  void validate_pqs(const PartitionedCSRGraph &p_graph) {
     for (const NodeID u : p_graph.nodes()) {
       if (is_boundary_node(p_graph, u)) {
         if (_marker.get(u)) {
@@ -541,8 +519,7 @@ private:
     }
   }
 
-  const Graph *_graph; //! Graph for refinement, partition to refine is passed
-                       //! to #refine().
+  const CSRGraph *_graph;
   const PartitionContext &_p_ctx;
   const InitialRefinementContext &_r_ctx;
   Queues _queues{BinaryMinHeap<EdgeWeight>{0}, BinaryMinHeap<EdgeWeight>{0}};
@@ -551,45 +528,44 @@ private:
   QueueSelectionPolicy _queue_selection_policy{};
   CutAcceptancePolicy _cut_acceptance_policy{};
   StoppingPolicy _stopping_policy{};
-  Random &_rand{Random::instance()};
+  Random &_rand = Random::instance();
   RandomPermutations<NodeID, kChunkSize, kNumberOfNodePermutations> _permutations;
 };
 
-template <typename Graph>
-using InitialSimple2WayFM = InitialTwoWayFMRefiner<
-    Graph,
-    fm::MaxOverloadSelectionPolicy<Graph>,
-    fm::BalancedMinCutAcceptancePolicy<Graph>,
+extern template class InitialTwoWayFMRefiner<
+    fm::MaxOverloadSelectionPolicy,
+    fm::BalancedMinCutAcceptancePolicy,
     fm::SimpleStoppingPolicy>;
-
-template <typename Graph>
-using InitialAdaptive2WayFM = InitialTwoWayFMRefiner<
-    Graph,
-    fm::MaxOverloadSelectionPolicy<Graph>,
-    fm::BalancedMinCutAcceptancePolicy<Graph>,
+extern template class InitialTwoWayFMRefiner<
+    fm::MaxOverloadSelectionPolicy,
+    fm::BalancedMinCutAcceptancePolicy,
     fm::AdaptiveStoppingPolicy>;
 
-template <typename Graph>
-[[nodiscard]] std::unique_ptr<InitialRefiner<Graph>> create_initial_refiner(
-    const Graph &graph,
+using InitialSimple2WayFM = InitialTwoWayFMRefiner<
+    fm::MaxOverloadSelectionPolicy,
+    fm::BalancedMinCutAcceptancePolicy,
+    fm::SimpleStoppingPolicy>;
+using InitialAdaptive2WayFM = InitialTwoWayFMRefiner<
+    fm::MaxOverloadSelectionPolicy,
+    fm::BalancedMinCutAcceptancePolicy,
+    fm::AdaptiveStoppingPolicy>;
+
+inline std::unique_ptr<InitialRefiner> create_initial_refiner(
+    const CSRGraph &graph,
     const PartitionContext &p_ctx,
     const InitialRefinementContext &r_ctx,
-    InitialRefinementMemoryContext m_ctx
+    InitialRefiner::MemoryContext m_ctx
 ) {
   if (!r_ctx.disabled) {
     switch (r_ctx.stopping_rule) {
     case FMStoppingRule::ADAPTIVE:
-      return std::make_unique<InitialSimple2WayFM<Graph>>(
-          graph.n(), p_ctx, r_ctx, std::move(m_ctx)
-      );
+      return std::make_unique<InitialSimple2WayFM>(graph.n(), p_ctx, r_ctx, std::move(m_ctx));
 
     case FMStoppingRule::SIMPLE:
-      return std::make_unique<InitialAdaptive2WayFM<Graph>>(
-          graph.n(), p_ctx, r_ctx, std::move(m_ctx)
-      );
+      return std::make_unique<InitialAdaptive2WayFM>(graph.n(), p_ctx, r_ctx, std::move(m_ctx));
     }
   }
 
-  return std::make_unique<InitialNoopRefiner<Graph>>(std::move(m_ctx));
+  return std::make_unique<InitialNoopRefiner>(std::move(m_ctx));
 }
 } // namespace kaminpar::shm::ip

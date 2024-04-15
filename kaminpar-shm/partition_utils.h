@@ -62,7 +62,7 @@ double compute_2way_adaptive_epsilon(
 );
 
 PartitionContext create_bipartition_context(
-    const Graph &subgraph, BlockID k1, BlockID k2, const PartitionContext &kway_p_ctx
+    const AbstractGraph &subgraph, BlockID k1, BlockID k2, const PartitionContext &kway_p_ctx
 );
 
 /**

@@ -28,7 +28,6 @@
 #include "kaminpar-common/ranges.h"
 
 namespace kaminpar::shm {
-
 template <template <typename> typename Container, template <typename> typename CompactContainer>
 class AbstractCSRGraph : public AbstractGraph {
 public:
@@ -40,6 +39,8 @@ public:
 
   // Tag for the sequential ctor.
   struct seq {};
+
+  explicit AbstractCSRGraph(const class Graph &graph);
 
   AbstractCSRGraph(
       Container<EdgeID> nodes,
@@ -482,10 +483,7 @@ using CSRGraph = AbstractCSRGraph<StaticArray, StaticArray>;
 using CompactCSRGraph = AbstractCSRGraph<StaticArray, CompactStaticArray>;
 
 namespace debug {
-
 bool validate_graph(const CSRGraph &graph, bool undirected = true, NodeID num_pseudo_nodes = 0);
 CSRGraph sort_neighbors(CSRGraph graph);
-
 } // namespace debug
-
 } // namespace kaminpar::shm

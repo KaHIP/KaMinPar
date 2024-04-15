@@ -287,6 +287,7 @@ struct InitialPartitioningContext {
 // Application level
 //
 
+class AbstractGraph;
 class Graph;
 struct PartitionContext;
 
@@ -324,7 +325,7 @@ struct PartitionContext {
   EdgeWeight total_edge_weight = kInvalidEdgeWeight;
   NodeWeight max_node_weight = kInvalidNodeWeight;
 
-  void setup(const Graph &graph);
+  void setup(const AbstractGraph &graph);
 };
 
 struct ParallelContext {

@@ -9,7 +9,6 @@
 
 #include <array>
 
-#include "kaminpar-shm/context.h"
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/math.h"
@@ -27,7 +26,10 @@ double compute_2way_adaptive_epsilon(
 }
 
 PartitionContext create_bipartition_context(
-    const Graph &subgraph, const BlockID k1, const BlockID k2, const PartitionContext &kway_p_ctx
+    const AbstractGraph &subgraph,
+    const BlockID k1,
+    const BlockID k2,
+    const PartitionContext &kway_p_ctx
 ) {
   PartitionContext twoway_p_ctx;
   twoway_p_ctx.k = 2;
