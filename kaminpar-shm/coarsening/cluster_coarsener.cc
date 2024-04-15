@@ -8,44 +8,46 @@
 #include "kaminpar-shm/coarsening/cluster_coarsener.h"
 
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"
+#include "kaminpar-shm/kaminpar.h"
 
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/heap_profiler.h"
-#include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
-std::pair<const Graph *, bool> ClusteringCoarsener::compute_coarse_graph(
+void ClusteringCoarsener::initialize(const Graph *graph) {
+  _hierarchy.clear();
+  _input_graph = graph;
+}
+
+bool ClusteringCoarsener::coarsen(
     const NodeWeight max_cluster_weight, const NodeID to_size, const bool free_memory_afterwards
 ) {
   SCOPED_HEAP_PROFILER("Level", std::to_string(_hierarchy.size()));
   SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
 
-  if (_clustering.size() < _current_graph->n()) {
+  if (_clustering.size() < current().n()) {
     SCOPED_TIMER("Allocation");
-    _clustering.resize(_current_graph->n());
+    _clustering.resize(current().n());
   }
 
   START_HEAP_PROFILER("Label Propagation");
   START_TIMER("Label Propagation");
   _clustering_algorithm->set_max_cluster_weight(max_cluster_weight);
   _clustering_algorithm->set_desired_cluster_count(to_size);
-  _clustering_algorithm->compute_clustering(_clustering, *_current_graph, free_memory_afterwards);
+  _clustering_algorithm->compute_clustering(_clustering, current(), free_memory_afterwards);
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 
   START_HEAP_PROFILER("Contract graph");
   auto coarsened = TIMED_SCOPE("Contract graph") {
-    return contract_clustering(
-        *_current_graph, _clustering, _c_ctx.contraction, _contraction_m_ctx
-    );
+    return contract_clustering(current(), _clustering, _c_ctx.contraction, _contraction_m_ctx);
   };
   STOP_HEAP_PROFILER();
 
-  const bool converged =
-      _c_ctx.coarsening_should_converge(_current_graph->n(), coarsened->get().n());
+  const bool converged = _c_ctx.coarsening_should_converge(current().n(), coarsened->get().n());
 
   _hierarchy.push_back(std::move(coarsened));
-  _current_graph = &_hierarchy.back()->get();
 
   if (free_memory_afterwards) {
     _contraction_m_ctx.buckets.free();
@@ -53,12 +55,12 @@ std::pair<const Graph *, bool> ClusteringCoarsener::compute_coarse_graph(
     _contraction_m_ctx.all_buffered_nodes.free();
   }
 
-  return {_current_graph, !converged};
+  return !converged;
 }
 
 PartitionedGraph ClusteringCoarsener::uncoarsen(PartitionedGraph &&p_graph) {
-  KASSERT(&p_graph.graph() == _current_graph);
-  KASSERT(!empty(), V(size()));
+  KASSERT(&p_graph.graph() == &current());
+  KASSERT(!empty(), "cannot call uncoarsen() on an empty graph hierarchy");
 
   SCOPED_HEAP_PROFILER("Level", std::to_string(_hierarchy.size()));
   SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
@@ -68,11 +70,10 @@ PartitionedGraph ClusteringCoarsener::uncoarsen(PartitionedGraph &&p_graph) {
 
   auto coarsened = std::move(_hierarchy.back());
   _hierarchy.pop_back();
-  _current_graph = empty() ? &_input_graph : &_hierarchy.back()->get();
 
   START_HEAP_PROFILER("Allocation");
   START_TIMER("Allocation");
-  RECORD("partition") StaticArray<BlockID> partition(_current_graph->n());
+  RECORD("partition") StaticArray<BlockID> partition(current().n());
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 
@@ -82,6 +83,6 @@ PartitionedGraph ClusteringCoarsener::uncoarsen(PartitionedGraph &&p_graph) {
 
   SCOPED_HEAP_PROFILER("Create graph");
   SCOPED_TIMER("Create graph");
-  return {*_current_graph, p_graph_k, std::move(partition)};
+  return {current(), p_graph_k, std::move(partition)};
 }
 } // namespace kaminpar::shm

@@ -49,26 +49,29 @@ std::unique_ptr<Partitioner> create_partitioner(const Graph &graph, const Contex
   __builtin_unreachable();
 }
 
-std::unique_ptr<Coarsener> create_coarsener(const Graph &graph, const CoarseningContext &c_ctx) {
-  SCOPED_HEAP_PROFILER("Coarsener allocation");
-  SCOPED_TIMER("Allocation");
-
+namespace {
+std::unique_ptr<Coarsener> create_coarsener(const NodeID n, const CoarseningContext &c_ctx) {
   switch (c_ctx.algorithm) {
   case ClusteringAlgorithm::NOOP:
     return std::make_unique<NoopCoarsener>();
 
   case ClusteringAlgorithm::LABEL_PROPAGATION:
-    return std::make_unique<ClusteringCoarsener>(
-        std::make_unique<LPClustering>(graph.n(), c_ctx), graph, c_ctx
-    );
+    return std::make_unique<ClusteringCoarsener>(std::make_unique<LPClustering>(n, c_ctx), c_ctx);
 
   case ClusteringAlgorithm::LEGACY_LABEL_PROPAGATION:
     return std::make_unique<ClusteringCoarsener>(
-        std::make_unique<LegacyLPClustering>(graph.n(), c_ctx), graph, c_ctx
+        std::make_unique<LegacyLPClustering>(n, c_ctx), c_ctx
     );
   }
 
   __builtin_unreachable();
+}
+} // namespace
+
+std::unique_ptr<Coarsener> create_coarsener(const Graph &graph, const CoarseningContext &c_ctx) {
+  auto coarsener = create_coarsener(graph.n(), c_ctx);
+  coarsener->initialize(&graph);
+  return coarsener;
 }
 
 namespace {

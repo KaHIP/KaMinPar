@@ -7,16 +7,10 @@
  ******************************************************************************/
 #include "kaminpar-shm/context.h"
 
-#include <iomanip>
-#include <unordered_map>
-
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/partition_utils.h"
 
 #include "kaminpar-common/assert.h"
-#include "kaminpar-common/asserting_cast.h"
-#include "kaminpar-common/console_io.h"
-#include "kaminpar-common/math.h"
 
 namespace kaminpar::shm {
 

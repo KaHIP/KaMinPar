@@ -83,7 +83,7 @@ public:
     bool shrunk = true;
     while (shrunk && c_graph->n() > 2 * _input_ctx.coarsening.contraction_limit) {
       shrunk = helper::coarsen_once(coarsener.get(), c_graph, pseudo_input_ctx, p_ctx);
-      c_graph = coarsener->coarsest_graph();
+      c_graph = &coarsener->current();
     }
 
     // initial bipartitioning

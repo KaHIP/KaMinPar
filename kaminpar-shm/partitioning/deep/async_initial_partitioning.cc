@@ -27,7 +27,7 @@ AsyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCo
 PartitionedGraph AsyncInitialPartitioner::partition_recursive(
     const Coarsener *parent_coarsener, PartitionContext &p_ctx, const std::size_t num_threads
 ) {
-  const Graph *graph = parent_coarsener->coarsest_graph();
+  const Graph *graph = &parent_coarsener->current();
 
   // Base case: only one thread left <=> compute bipartition
   if (num_threads == 1) {
@@ -65,7 +65,7 @@ PartitionedGraph AsyncInitialPartitioner::split_and_join(
     const bool converged,
     const std::size_t num_threads
 ) {
-  const Graph *graph = coarsener->coarsest_graph();
+  const Graph *graph = &coarsener->current();
   const std::size_t num_copies =
       helper::compute_num_copies(_input_ctx, graph->n(), converged, num_threads);
   const std::size_t threads_per_copy = num_threads / num_copies;

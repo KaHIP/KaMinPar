@@ -70,7 +70,7 @@ void DeepMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
   SCOPED_HEAP_PROFILER("Refinement");
 
   // If requested, dump the current partition to disk before refinement ...
-  debug::dump_partition_hierarchy(p_graph, _coarsener->size(), "pre-refinement", _input_ctx);
+  debug::dump_partition_hierarchy(p_graph, _coarsener->level(), "pre-refinement", _input_ctx);
 
   LOG << "  Running refinement on " << p_graph.k() << " blocks";
   helper::refine(_refiner.get(), p_graph, _current_p_ctx);
@@ -79,7 +79,7 @@ void DeepMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
   LOG << "    Feasible:  " << metrics::is_feasible(p_graph, _current_p_ctx);
 
   // ... and dump it after refinement.
-  debug::dump_partition_hierarchy(p_graph, _coarsener->size(), "post-refinement", _input_ctx);
+  debug::dump_partition_hierarchy(p_graph, _coarsener->level(), "post-refinement", _input_ctx);
 }
 
 void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, const BlockID k_prime) {
@@ -103,7 +103,7 @@ PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph, 
 
   while (!_coarsener->empty()) {
     LOG;
-    LOG << "Uncoarsening -> Level " << _coarsener.get()->size();
+    LOG << "Uncoarsening -> Level " << _coarsener->level();
 
     p_graph = uncoarsen_once(std::move(p_graph));
     refine(p_graph);
@@ -132,7 +132,7 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
     // converged. This way, we also have a dump of the (reordered) input graph,
     // which makes it easier to use the final partition (before reordering it).
     // We dump the coarsest graph in ::initial_partitioning().
-    debug::dump_graph_hierarchy(*c_graph, _coarsener->size(), _input_ctx);
+    debug::dump_graph_hierarchy(*c_graph, _coarsener->level(), _input_ctx);
 
     // Store the size of the previous coarse graph, so that we can pre-allocate _subgraph_memory
     // if we need it for this graph (see below)
@@ -145,9 +145,9 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
         c_graph,
         _input_ctx,
         _current_p_ctx,
-        _coarsener.get()->size() < _input_ctx.partitioning.max_mem_free_coarsening_level
+        _coarsener->level() < _input_ctx.partitioning.max_mem_free_coarsening_level
     );
-    c_graph = _coarsener->coarsest_graph();
+    c_graph = &_coarsener->current();
 
     // _subgraph_memory stores the block-induced subgraphs of the partitioned graph during recursive
     // bipartitioning
@@ -161,7 +161,7 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
     // Print some metrics for the coarse graphs
     const NodeWeight max_cluster_weight =
         compute_max_cluster_weight(_input_ctx.coarsening, *c_graph, _input_ctx.partition);
-    LOG << "Coarsening -> Level " << _coarsener.get()->size();
+    LOG << "Coarsening -> Level " << _coarsener->level();
     if (const auto *graph = dynamic_cast<const CompactCSRGraph *>(c_graph->underlying_graph());
         graph != nullptr) {
       LOG << "  Compact Node IDs: " << graph->node_id_byte_width()
@@ -207,7 +207,7 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
   // Disable worker splitting with --p-deep-initial-partitioning-mode=sequential to obtain coarser
   // graphs.
   debug::dump_coarsest_graph(*graph, _input_ctx);
-  debug::dump_graph_hierarchy(*graph, _coarsener->size(), _input_ctx);
+  debug::dump_graph_hierarchy(*graph, _coarsener->level(), _input_ctx);
 
   // Since timers are not multi-threaded, we disable them during (parallel)
   // initial partitioning.
@@ -240,7 +240,7 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
   // If requested, dump the coarsest partition -- as noted above, this is not
   // actually the coarsest partition when using deep multilevel.
   debug::dump_coarsest_partition(p_graph, _input_ctx);
-  debug::dump_partition_hierarchy(p_graph, _coarsener->size(), "post-refinement", _input_ctx);
+  debug::dump_partition_hierarchy(p_graph, _coarsener->level(), "post-refinement", _input_ctx);
 
   return p_graph;
 }
