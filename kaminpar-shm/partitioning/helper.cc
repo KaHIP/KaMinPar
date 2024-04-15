@@ -53,23 +53,23 @@ PartitionedGraph bipartition(
     const Context &input_ctx,
     GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool
 ) {
-  if (const auto *csr_graph = dynamic_cast<const CSRGraph *>(graph->underlying_graph());
-      csr_graph != nullptr) {
-    InitialPartitioner partitioner(*csr_graph, input_ctx, final_k, ip_m_ctx_pool.local().get());
-    PartitionedCSRGraph p_graph = partitioner.partition();
-    ip_m_ctx_pool.local().put(partitioner.free());
-    return PartitionedGraph{
-        PartitionedGraph::seq{}, *graph, p_graph.k(), p_graph.take_raw_partition()
-    };
-  } else {
-    CSRGraph csr_graph_cpy(*graph);
-    InitialPartitioner partitioner(csr_graph_cpy, input_ctx, final_k, ip_m_ctx_pool.local().get());
-    PartitionedCSRGraph p_graph = partitioner.partition();
-    ip_m_ctx_pool.local().put(partitioner.free());
-    return PartitionedGraph{
-        PartitionedGraph::seq{}, *graph, p_graph.k(), p_graph.take_raw_partition()
-    };
+  const auto *csr = dynamic_cast<const CSRGraph *>(graph->underlying_graph());
+
+  // If we work with something other than a CSRGraph, construct a CSR copy to call the initial
+  // partitioning code
+  // This should only be necessary if the graph is too small for coarsening *and* we are using the
+  // compressed mode
+  std::unique_ptr<CSRGraph> csr_cpy;
+  if (csr == nullptr) {
+    csr_cpy = std::make_unique<CSRGraph>(*graph);
+    csr = csr_cpy.get();
   }
+
+  InitialPartitioner partitioner(*csr, input_ctx, final_k, ip_m_ctx_pool.local().get());
+  auto bipart = partitioner.partition().take_raw_partition();
+  ip_m_ctx_pool.local().put(partitioner.free());
+
+  return PartitionedGraph{PartitionedGraph::seq{}, *graph, 2, std::move(bipart)};
 }
 
 void extend_partition_recursive(
