@@ -58,13 +58,17 @@ PartitionedGraph bipartition(
     InitialPartitioner partitioner(*csr_graph, input_ctx, final_k, ip_m_ctx_pool.local().get());
     PartitionedCSRGraph p_graph = partitioner.partition();
     ip_m_ctx_pool.local().put(partitioner.free());
-    return PartitionedGraph{PartitionedGraph::seq{}, *graph, final_k, p_graph.take_raw_partition()};
+    return PartitionedGraph{
+        PartitionedGraph::seq{}, *graph, p_graph.k(), p_graph.take_raw_partition()
+    };
   } else {
     CSRGraph csr_graph_cpy(*graph);
     InitialPartitioner partitioner(csr_graph_cpy, input_ctx, final_k, ip_m_ctx_pool.local().get());
     PartitionedCSRGraph p_graph = partitioner.partition();
     ip_m_ctx_pool.local().put(partitioner.free());
-    return PartitionedGraph{PartitionedGraph::seq{}, *graph, final_k, p_graph.take_raw_partition()};
+    return PartitionedGraph{
+        PartitionedGraph::seq{}, *graph, p_graph.k(), p_graph.take_raw_partition()
+    };
   }
 }
 
