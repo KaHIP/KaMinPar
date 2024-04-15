@@ -39,7 +39,27 @@ private:
   Mapping<NodeID> _mapping;
 };
 
+void fill_leader_mapping(
+    const Graph &graph, const StaticArray<NodeID> &clustering, StaticArray<NodeID> &leader_mapping
+);
+
+template <template <typename> typename Mapping>
+Mapping<NodeID> compute_mapping(
+    const Graph &graph,
+    const StaticArray<NodeID> &clustering,
+    const StaticArray<NodeID> &leader_mapping
+);
+
 template <template <typename> typename Mapping>
 std::pair<NodeID, Mapping<NodeID>>
-preprocess(const Graph &graph, StaticArray<NodeID> &clustering, MemoryContext &m_ctx);
+compute_mapping(const Graph &graph, StaticArray<NodeID> &clustering, MemoryContext &m_ctx);
+
+template <typename Mapping>
+void fill_cluster_buckets(
+    const NodeID c_n,
+    const Graph &graph,
+    const Mapping &mapping,
+    StaticArray<NodeID> &buckets_index,
+    StaticArray<NodeID> &buckets
+);
 } // namespace kaminpar::shm::contraction

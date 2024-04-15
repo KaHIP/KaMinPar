@@ -18,8 +18,6 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::contraction {
-namespace {
-template <typename Graph>
 void fill_leader_mapping(
     const Graph &graph, const StaticArray<NodeID> &clustering, StaticArray<NodeID> &leader_mapping
 ) {
@@ -43,9 +41,11 @@ void fill_leader_mapping(
   STOP_TIMER();
 }
 
-template <typename Graph>
+template <>
 StaticArray<NodeID> compute_mapping(
-    const Graph &graph, const StaticArray<NodeID> &clustering, const StaticArray<NodeID> &leader_mapping
+    const Graph &graph,
+    const StaticArray<NodeID> &clustering,
+    const StaticArray<NodeID> &leader_mapping
 ) {
   START_TIMER("Allocation");
   RECORD("mapping") StaticArray<NodeID> mapping(graph.n());
@@ -60,9 +60,11 @@ StaticArray<NodeID> compute_mapping(
   return mapping;
 }
 
-template <typename Graph>
-CompactStaticArray<NodeID> compute_compact_mapping(
-    const Graph &graph, const StaticArray<NodeID> &clustering, const StaticArray<NodeID> &leader_mapping
+template <>
+CompactStaticArray<NodeID> compute_mapping(
+    const Graph &graph,
+    const StaticArray<NodeID> &clustering,
+    const StaticArray<NodeID> &leader_mapping
 ) {
   const NodeID c_n = leader_mapping[graph.n() - 1];
 
@@ -79,7 +81,30 @@ CompactStaticArray<NodeID> compute_compact_mapping(
   return mapping;
 }
 
-template <typename Graph, typename Mapping>
+template <template <typename> typename Mapping>
+std::pair<NodeID, Mapping<NodeID>>
+compute_mapping(const Graph &graph, StaticArray<NodeID> &clustering, MemoryContext &m_ctx) {
+  fill_leader_mapping(graph, clustering, m_ctx.leader_mapping);
+  Mapping<NodeID> mapping = compute_mapping<Mapping>(graph, clustering, m_ctx.leader_mapping);
+  const NodeID c_n = m_ctx.leader_mapping[graph.n() - 1];
+
+  TIMED_SCOPE("Allocation") {
+    m_ctx.leader_mapping.free();
+    clustering.free();
+  };
+
+  return {c_n, std::move(mapping)};
+}
+
+template std::pair<NodeID, StaticArray<NodeID>> compute_mapping<StaticArray>(
+    const Graph &graph, StaticArray<NodeID> &clustering, MemoryContext &m_ctx
+);
+
+template std::pair<NodeID, CompactStaticArray<NodeID>> compute_mapping<CompactStaticArray>(
+    const Graph &graph, StaticArray<NodeID> &clustering, MemoryContext &m_ctx
+);
+
+template <typename Mapping>
 void fill_cluster_buckets(
     const NodeID c_n,
     const Graph &graph,
@@ -103,67 +128,32 @@ void fill_cluster_buckets(
   RECORD_LOCAL_DATA_STRUCT("StaticArray<NodeID>", buckets_index.size() * sizeof(NodeID));
 
   START_TIMER("Preprocessing");
-  tbb::parallel_for<std::size_t>(0, buckets_index.size(), [&](const std::size_t i) {
-    buckets_index[i] = 0;
-  });
-
+  tbb::parallel_for<NodeID>(0, c_n + 1, [&](const NodeID i) { buckets_index[i] = 0; });
   graph.pfor_nodes([&](const NodeID u) {
     __atomic_fetch_add(&buckets_index[mapping[u]], 1, __ATOMIC_RELAXED);
   });
-
   parallel::prefix_sum(
       buckets_index.begin(), buckets_index.begin() + c_n + 1, buckets_index.begin()
   );
-  KASSERT(buckets_index.back() <= graph.n());
-
   graph.pfor_nodes([&](const NodeID u) {
     buckets[__atomic_sub_fetch(&buckets_index[mapping[u]], 1, __ATOMIC_RELAXED)] = u;
   });
-
   STOP_TIMER();
 }
 
-template <template <typename> typename Mapping, typename Graph>
-std::pair<NodeID, Mapping<NodeID>>
-generic_preprocess(const Graph &graph, StaticArray<NodeID> &clustering, MemoryContext &m_ctx) {
-  auto &buckets_index = m_ctx.buckets_index;
-  auto &buckets = m_ctx.buckets;
-  auto &leader_mapping = m_ctx.leader_mapping;
-  auto &all_buffered_nodes = m_ctx.all_buffered_nodes;
+template void fill_cluster_buckets(
+    NodeID c_n,
+    const Graph &graph,
+    const StaticArray<NodeID> &mapping,
+    StaticArray<NodeID> &buckets_index,
+    StaticArray<NodeID> &buckets
+);
 
-  fill_leader_mapping(graph, clustering, leader_mapping);
-  Mapping<NodeID> mapping;
-  if constexpr (std::is_same_v<Mapping<NodeID>, StaticArray<NodeID>>) {
-    mapping = compute_mapping(graph, clustering, leader_mapping);
-  } else {
-    mapping = compute_compact_mapping(graph, clustering, leader_mapping);
-  }
-
-  const NodeID c_n = leader_mapping[graph.n() - 1];
-
-  TIMED_SCOPE("Allocation") {
-    leader_mapping.free();
-    clustering.free();
-  };
-
-  fill_cluster_buckets(c_n, graph, mapping, buckets_index, buckets);
-
-  return {c_n, std::move(mapping)};
-}
-} // namespace
-
-template <template <typename> typename Mapping>
-std::pair<NodeID, Mapping<NodeID>>
-preprocess(const Graph &graph, StaticArray<NodeID> &clustering, MemoryContext &m_ctx) {
-  return graph.reified([&](auto &graph) {
-    return generic_preprocess<Mapping>(graph, clustering, m_ctx);
-  });
-}
-
-template std::pair<NodeID, StaticArray<NodeID>>
-preprocess<StaticArray>(const Graph &graph, StaticArray<NodeID> &clustering, MemoryContext &m_ctx);
-
-template std::pair<NodeID, CompactStaticArray<NodeID>> preprocess<CompactStaticArray>(
-    const Graph &graph, StaticArray<NodeID> &clustering, MemoryContext &m_ctx
+template void fill_cluster_buckets(
+    NodeID c_n,
+    const Graph &graph,
+    const CompactStaticArray<NodeID> &mapping,
+    StaticArray<NodeID> &buckets_index,
+    StaticArray<NodeID> &buckets
 );
 } // namespace kaminpar::shm::contraction

@@ -167,7 +167,11 @@ private:
         // cluster we have
         NodeID expected_value = favored_leader;
         if (__atomic_compare_exchange_n(
-                &_favored_clusters[favored_leader], &expected_value, u, false, __ATOMIC_SEQ_CST,
+                &_favored_clusters[favored_leader],
+                &expected_value,
+                u,
+                false,
+                __ATOMIC_SEQ_CST,
                 __ATOMIC_SEQ_CST
             )) {
           break;
@@ -177,8 +181,12 @@ private:
         // Try to join the cluster of that node
         const NodeID partner = expected_value;
         if (__atomic_compare_exchange_n(
-                &_favored_clusters[favored_leader], &expected_value, favored_leader, false,
-                __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST
+                &_favored_clusters[favored_leader],
+                &expected_value,
+                favored_leader,
+                false,
+                __ATOMIC_SEQ_CST,
+                __ATOMIC_SEQ_CST
             )) {
           if (move_cluster_weight(u, partner, cluster_weight(u), max_cluster_weight(partner))) {
             move_node(u, partner);
@@ -224,7 +232,7 @@ public:
 //
 
 LegacyLPClustering::LegacyLPClustering(const NodeID max_n, const CoarseningContext &c_ctx)
-    : _core{std::make_unique<LegacyLPClusteringImpl>(max_n, c_ctx)} {}
+    : _core(std::make_unique<LegacyLPClusteringImpl>(max_n, c_ctx)) {}
 
 // we must declare the destructor explicitly here, otherwise, it is implicitly
 // generated before LegacyLabelPropagationClusterCore is complete

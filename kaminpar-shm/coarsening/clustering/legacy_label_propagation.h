@@ -806,7 +806,7 @@ protected: // Default implementations
 protected: // Members
   //! CSRGraph we operate on, or \c nullptr if \c initialize has not been called
   //! yet.
-  const CSRGraph *_graph{nullptr};
+  const CSRGraph *_graph = nullptr;
 
   //! The number of non-empty clusters before we ran the first iteration of
   //! label propagation.

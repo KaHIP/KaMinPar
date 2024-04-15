@@ -185,12 +185,14 @@ std::unique_ptr<CoarseGraph> contract_without_edgebuffer_naive(
     MemoryContext &m_ctx
 ) {
   if (con_ctx.use_compact_mapping) {
-    auto [c_n, mapping] = preprocess<CompactStaticArray>(graph, clustering, m_ctx);
+    auto [c_n, mapping] = compute_mapping<CompactStaticArray>(graph, clustering, m_ctx);
+    fill_cluster_buckets(c_n, graph, mapping, m_ctx.buckets_index, m_ctx.buckets);
     return graph.reified([&](auto &graph) {
       return contract_without_edgebuffer_naive(graph, c_n, std::move(mapping), con_ctx, m_ctx);
     });
   } else {
-    auto [c_n, mapping] = preprocess<StaticArray>(graph, clustering, m_ctx);
+    auto [c_n, mapping] = compute_mapping<StaticArray>(graph, clustering, m_ctx);
+    fill_cluster_buckets(c_n, graph, mapping, m_ctx.buckets_index, m_ctx.buckets);
     return graph.reified([&](auto &graph) {
       return contract_without_edgebuffer_naive(graph, c_n, std::move(mapping), con_ctx, m_ctx);
     });
