@@ -30,17 +30,16 @@ struct LegacyLPClusteringConfig : public LegacyLabelPropagationConfig {
 class LegacyLPClusteringImpl final
     : public ChunkRandomdLegacyLabelPropagation<LegacyLPClusteringImpl, LegacyLPClusteringConfig>,
       public LegacyOwnedRelaxedClusterWeightVector<NodeID, NodeWeight>,
-      public LegacyOwnedClusterVector<NodeID, NodeID> {
+      public LegacyNonatomicClusterVectorRef<NodeID, NodeID> {
   SET_DEBUG(false);
 
   using Base = ChunkRandomdLegacyLabelPropagation<LegacyLPClusteringImpl, LegacyLPClusteringConfig>;
   using ClusterWeightBase = LegacyOwnedRelaxedClusterWeightVector<NodeID, NodeWeight>;
-  using ClusterBase = LegacyOwnedClusterVector<NodeID, NodeID>;
+  using ClusterBase = LegacyNonatomicClusterVectorRef<NodeID, NodeID>;
 
 public:
   LegacyLPClusteringImpl(const NodeID max_n, const CoarseningContext &c_ctx)
       : ClusterWeightBase(max_n),
-        ClusterBase(max_n),
         _c_ctx(c_ctx) {
     allocate(max_n, max_n);
     set_max_degree(c_ctx.lp.large_degree_threshold);
@@ -51,9 +50,8 @@ public:
     _max_cluster_weight = max_cluster_weight;
   }
 
-  Clusterer::AtomicClusterArray &compute_clustering(const CSRGraph &graph, bool) {
-    ensure_cluster_size(graph.n());
-
+  void compute_clustering(StaticArray<NodeID> &clustering, const CSRGraph &graph, bool) {
+    init_clusters_ref(clustering);
     initialize(&graph, graph.n());
 
     for (int iteration = 0; iteration < _c_ctx.lp.num_iterations; ++iteration) {
@@ -65,8 +63,6 @@ public:
 
     cluster_isolated_nodes();
     cluster_two_hop_nodes();
-
-    return clusters();
   }
 
 private:
@@ -239,10 +235,13 @@ void LegacyLPClustering::set_desired_cluster_count(const NodeID count) {
   _core->set_desired_num_clusters(count);
 }
 
-Clusterer::AtomicClusterArray &LegacyLPClustering::compute_clustering(const Graph &graph, bool) {
+void LegacyLPClustering::compute_clustering(
+    StaticArray<NodeID> &clustering, const Graph &graph, bool
+) {
   if (auto *csr_graph = dynamic_cast<const CSRGraph *>(graph.underlying_graph());
       csr_graph != nullptr) {
-    return _core->compute_clustering(*csr_graph, false);
+    _core->compute_clustering(clustering, *csr_graph, false);
+    return;
   }
 
   __builtin_unreachable();

@@ -22,6 +22,7 @@
 #include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
+#include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/parallel/atomic.h"
@@ -1549,18 +1550,14 @@ protected:
   ConcurrentFastResetArray<EdgeWeight, ClusterID> _concurrent_rating_map;
 };
 
-template <typename NodeID, typename ClusterID> class NonatomicOwnedClusterVector {
+template <typename NodeID, typename ClusterID> class NonatomicClusterVectorRef {
 public:
-  explicit NonatomicOwnedClusterVector(const NodeID max_num_nodes) : _clusters(max_num_nodes) {
-    tbb::parallel_for<NodeID>(0, max_num_nodes, [&](const NodeID u) { _clusters[u] = 0; });
+  void init_clusters_ref(StaticArray<NodeID> &clustering) {
+    _clusters = &clustering;
   }
 
   [[nodiscard]] auto &&take_clusters() {
     return std::move(_clusters);
-  }
-
-  [[nodiscard]] auto &clusters() {
-    return _clusters;
   }
 
   void init_cluster(const NodeID node, const ClusterID cluster) {
@@ -1568,23 +1565,17 @@ public:
   }
 
   [[nodiscard]] ClusterID cluster(const NodeID node) {
-    KASSERT(node < _clusters.size());
-    return __atomic_load_n(&_clusters[node], __ATOMIC_RELAXED);
+    KASSERT(node < _clusters->size());
+    return __atomic_load_n(&_clusters->at(node), __ATOMIC_RELAXED);
   }
 
   void move_node(const NodeID node, const ClusterID cluster) {
-    KASSERT(node < _clusters.size());
-    __atomic_store_n(&_clusters[node], cluster, __ATOMIC_RELAXED);
-  }
-
-  void ensure_cluster_size(const NodeID max_num_nodes) {
-    if (_clusters.size() < max_num_nodes) {
-      _clusters.resize(max_num_nodes);
-    }
+    KASSERT(node < _clusters->size());
+    __atomic_store_n(&_clusters->at(node), cluster, __ATOMIC_RELAXED);
   }
 
 private:
-  NoinitVector<ClusterID> _clusters;
+  StaticArray<ClusterID> *_clusters;
 };
 
 template <typename NodeID, typename ClusterID> class OwnedClusterVector {

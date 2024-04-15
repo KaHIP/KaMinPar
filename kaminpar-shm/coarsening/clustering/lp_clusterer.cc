@@ -30,8 +30,9 @@ void LPClustering::set_desired_cluster_count(const NodeID count) {
   _compressed_core->set_desired_num_clusters(count);
 }
 
-Clusterer::AtomicClusterArray &
-LPClustering::compute_clustering(const Graph &graph, const bool free_memory_afterwards) {
+void LPClustering::compute_clustering(
+    StaticArray<NodeID> &clustering, const Graph &graph, const bool free_memory_afterwards
+) {
   // Compute a clustering and setup/release the data structures used by the core, so that they can
   // be shared by all graph implementations.
   const auto compute = [&](auto &core, auto &graph) {
@@ -40,19 +41,17 @@ LPClustering::compute_clustering(const Graph &graph, const bool free_memory_afte
       core.allocate(graph.n(), true);
     } else {
       core.setup(std::move(_structs));
-      core.setup_clusters(std::move(_clusters));
       core.setup_cluster_weights(std::move(_cluster_weights));
       core.allocate(graph.n(), false);
     }
 
-    _clusters = core.compute_clustering(graph);
+    core.compute_clustering(clustering, graph);
 
     if (free_memory_afterwards) {
       _freed = true;
       core.free();
     } else {
       _structs = core.release();
-      _clusters = core.take_clusters();
       _cluster_weights = core.take_cluster_weights();
     }
   };
@@ -69,8 +68,5 @@ LPClustering::compute_clustering(const Graph &graph, const bool free_memory_afte
              compressed_graph != nullptr) {
     compute(*_compressed_core, *compressed_graph);
   }
-
-  return _clusters;
 }
-
 } // namespace kaminpar::shm

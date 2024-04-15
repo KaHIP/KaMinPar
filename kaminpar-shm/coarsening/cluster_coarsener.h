@@ -56,6 +56,8 @@ private:
   const Graph &_input_graph;
   const Graph *_current_graph;
 
+  StaticArray<NodeID> _clustering{};
+
   std::vector<std::unique_ptr<CoarseGraph>> _hierarchy;
 
   std::unique_ptr<Clusterer> _clustering_algorithm;

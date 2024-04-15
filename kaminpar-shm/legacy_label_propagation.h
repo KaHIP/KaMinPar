@@ -1200,81 +1200,6 @@ protected:
   std::vector<Bucket> _buckets;
 };
 
-template <typename NodeID, typename ClusterID> class LegacyNonatomicLegacyOwnedClusterVector {
-public:
-  explicit LegacyNonatomicLegacyOwnedClusterVector(const NodeID max_num_nodes)
-      : _clusters(max_num_nodes) {
-    tbb::parallel_for<NodeID>(0, max_num_nodes, [&](const NodeID u) { _clusters[u] = 0; });
-  }
-
-  [[nodiscard]] auto &&take_clusters() {
-    return std::move(_clusters);
-  }
-
-  [[nodiscard]] auto &clusters() {
-    return _clusters;
-  }
-
-  void init_cluster(const NodeID node, const ClusterID cluster) {
-    move_node(node, cluster);
-  }
-
-  [[nodiscard]] ClusterID cluster(const NodeID node) {
-    KASSERT(node < _clusters.size());
-    return __atomic_load_n(&_clusters[node], __ATOMIC_RELAXED);
-  }
-
-  void move_node(const NodeID node, const ClusterID cluster) {
-    KASSERT(node < _clusters.size());
-    __atomic_store_n(&_clusters[node], cluster, __ATOMIC_RELAXED);
-  }
-
-  void ensure_cluster_size(const NodeID max_num_nodes) {
-    if (_clusters.size() < max_num_nodes) {
-      _clusters.resize(max_num_nodes);
-    }
-  }
-
-private:
-  NoinitVector<ClusterID> _clusters;
-};
-
-template <typename NodeID, typename ClusterID> class LegacyOwnedClusterVector {
-public:
-  explicit LegacyOwnedClusterVector(const NodeID max_num_nodes) : _clusters(max_num_nodes) {}
-
-  [[nodiscard]] auto &&take_clusters() {
-    return std::move(_clusters);
-  }
-
-  [[nodiscard]] auto &clusters() {
-    return _clusters;
-  }
-
-  void init_cluster(const NodeID node, const ClusterID cluster) {
-    _clusters[node] = cluster;
-  }
-
-  [[nodiscard]] ClusterID cluster(const NodeID node) {
-    KASSERT(node < _clusters.size());
-    return _clusters[node];
-  }
-
-  void move_node(const NodeID node, const ClusterID cluster) {
-    KASSERT(node < _clusters.size());
-    _clusters[node] = cluster;
-  }
-
-  void ensure_cluster_size(const NodeID max_num_nodes) {
-    if (_clusters.size() < max_num_nodes) {
-      _clusters.resize(max_num_nodes);
-    }
-  }
-
-private:
-  scalable_vector<parallel::Atomic<ClusterID>> _clusters;
-};
-
 template <typename ClusterID, typename ClusterWeight> class LegacyOwnedRelaxedClusterWeightVector {
 public:
   explicit LegacyOwnedRelaxedClusterWeightVector(const ClusterID max_num_clusters)
@@ -1308,5 +1233,33 @@ public:
 
 private:
   scalable_vector<parallel::Atomic<ClusterWeight>> _cluster_weights;
+};
+
+template <typename NodeID, typename ClusterID> class LegacyNonatomicClusterVectorRef {
+public:
+  void init_clusters_ref(StaticArray<NodeID> &clustering) {
+    _clusters = &clustering;
+  }
+
+  [[nodiscard]] auto &&take_clusters() {
+    return std::move(_clusters);
+  }
+
+  void init_cluster(const NodeID node, const ClusterID cluster) {
+    move_node(node, cluster);
+  }
+
+  [[nodiscard]] ClusterID cluster(const NodeID node) {
+    KASSERT(node < _clusters->size());
+    return __atomic_load_n(&_clusters->at(node), __ATOMIC_RELAXED);
+  }
+
+  void move_node(const NodeID node, const ClusterID cluster) {
+    KASSERT(node < _clusters->size());
+    __atomic_store_n(&_clusters->at(node), cluster, __ATOMIC_RELAXED);
+  }
+
+private:
+  StaticArray<ClusterID> *_clusters = nullptr;
 };
 } // namespace kaminpar

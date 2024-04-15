@@ -10,14 +10,11 @@
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
-#include "kaminpar-common/datastructures/scalable_vector.h"
-#include "kaminpar-common/parallel/atomic.h"
+#include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm {
 class Clusterer {
 public:
-  using AtomicClusterArray = scalable_vector<parallel::Atomic<NodeID>>;
-
   Clusterer() = default;
 
   Clusterer(const Clusterer &) = delete;
@@ -39,7 +36,8 @@ public:
   // Clustering function
   //
 
-  virtual AtomicClusterArray &
-  compute_clustering(const Graph &graph, const bool free_memory_afterwards) = 0;
+  virtual void compute_clustering(
+      StaticArray<NodeID> &clustering, const Graph &graph, bool free_memory_afterwards
+  ) = 0;
 };
 } // namespace kaminpar::shm

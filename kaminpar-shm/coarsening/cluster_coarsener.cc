@@ -20,15 +20,22 @@ std::pair<const Graph *, bool> ClusteringCoarsener::compute_coarse_graph(
   SCOPED_HEAP_PROFILER("Level", std::to_string(_hierarchy.size()));
   SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
 
-  _clustering_algorithm->set_max_cluster_weight(max_cluster_weight);
-  _clustering_algorithm->set_desired_cluster_count(to_size);
+  if (_clustering.size() < _current_graph->n()) {
+    SCOPED_TIMER("Allocation");
+    _clustering.resize(_current_graph->n());
+  }
 
   START_HEAP_PROFILER("Label Propagation");
   START_TIMER("Label Propagation");
-  auto &clustering =
-      _clustering_algorithm->compute_clustering(*_current_graph, free_memory_afterwards);
+  _clustering_algorithm->set_max_cluster_weight(max_cluster_weight);
+  _clustering_algorithm->set_desired_cluster_count(to_size);
+  _clustering_algorithm->compute_clustering(_clustering, *_current_graph, free_memory_afterwards);
   STOP_TIMER();
   STOP_HEAP_PROFILER();
+
+  // @todo update contraction interface to avoid this copy
+  scalable_vector<parallel::Atomic<NodeID>> clustering(_current_graph->n());
+  std::copy(_clustering.begin(), _clustering.begin() + _current_graph->n(), clustering.begin());
 
   START_HEAP_PROFILER("Contract graph");
   auto coarsened = TIMED_SCOPE("Contract graph") {

@@ -182,6 +182,14 @@ public:
   // Data access members
   //
 
+  reference at(const size_type pos) {
+    return _data[pos];
+  }
+
+  const_reference at(const size_type pos) const {
+    return _data[pos];
+  }
+
   reference operator[](const size_type pos) {
     KASSERT(pos < _size);
     return _data[pos];

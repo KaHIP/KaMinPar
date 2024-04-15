@@ -30,19 +30,16 @@ template <typename Graph>
 class LPClusteringImpl final
     : public ChunkRandomdLabelPropagation<LPClusteringImpl<Graph>, LPClusteringConfig, Graph>,
       public OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>,
-      public OwnedClusterVector<NodeID, NodeID> {
+      public NonatomicClusterVectorRef<NodeID, NodeID> {
   SET_DEBUG(false);
 
   using Base = ChunkRandomdLabelPropagation<LPClusteringImpl<Graph>, LPClusteringConfig, Graph>;
   using ClusterWeightBase = OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>;
-  using ClusterBase = OwnedClusterVector<NodeID, NodeID>;
-
-  using AtomicClusterArray = Clusterer::AtomicClusterArray;
+  using ClusterBase = NonatomicClusterVectorRef<NodeID, NodeID>;
 
 public:
   LPClusteringImpl(const NodeID max_n, const CoarseningContext &c_ctx)
       : ClusterWeightBase{c_ctx.lp.use_two_level_cluster_weight_vector},
-        ClusterBase{max_n},
         _c_ctx{c_ctx},
         _max_n{max_n} {
     this->set_max_degree(c_ctx.lp.large_degree_threshold);
@@ -61,7 +58,6 @@ public:
     SCOPED_TIMER("Allocation");
 
     Base::allocate(num_nodes, num_nodes, resize);
-    this->allocate_clusters();
     this->allocate_cluster_weights(_max_n);
   }
 
@@ -73,7 +69,9 @@ public:
     ClusterWeightBase::free();
   }
 
-  const AtomicClusterArray &compute_clustering(const Graph &graph) {
+  void compute_clustering(StaticArray<NodeID> &clustering, const Graph &graph) {
+    init_clusters_ref(clustering);
+
     START_HEAP_PROFILER("Initialization");
     this->reset_cluster_weights();
     this->initialize(&graph, graph.n());
@@ -89,8 +87,6 @@ public:
 
     cluster_isolated_nodes();
     cluster_two_hop_nodes();
-
-    return this->clusters();
   }
 
 private:
@@ -253,8 +249,9 @@ public:
   void set_max_cluster_weight(NodeWeight max_cluster_weight) final;
   void set_desired_cluster_count(NodeID count) final;
 
-  AtomicClusterArray &
-  compute_clustering(const Graph &graph, const bool free_memory_afterwards) final;
+  void compute_clustering(
+      StaticArray<NodeID> &clustering, const Graph &graph, const bool free_memory_afterwards
+  ) final;
 
 private:
   std::unique_ptr<LPClusteringImpl<CSRGraph>> _csr_core;
@@ -265,7 +262,6 @@ private:
   // different graph implementations.
   bool _freed = true;
   LPClusteringImpl<Graph>::DataStructures _structs;
-  LPClusteringImpl<Graph>::Clusters _clusters;
   LPClusteringImpl<Graph>::ClusterWeights _cluster_weights;
 };
 

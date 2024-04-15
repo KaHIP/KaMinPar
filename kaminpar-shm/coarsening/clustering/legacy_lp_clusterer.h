@@ -26,7 +26,9 @@ public:
   void set_max_cluster_weight(NodeWeight max_cluster_weight) final;
   void set_desired_cluster_count(NodeID count) final;
 
-  AtomicClusterArray &compute_clustering(const Graph &graph, bool free_memory_afterwards) final;
+  void compute_clustering(
+      StaticArray<NodeID> &clustering, const Graph &graph, bool free_memory_afterwards
+  ) final;
 
 private:
   std::unique_ptr<class LegacyLPClusteringImpl> _core;
