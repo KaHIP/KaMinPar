@@ -10,14 +10,16 @@
 
 #include <memory>
 
+#include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/kaminpar.h"
+
+#include "kaminpar-common/datastructures/static_array.h"
+
+// ... configurable contraction algorithms:
 #include "kaminpar-shm/coarsening/contraction/buffered_cluster_contraction.h"
 #include "kaminpar-shm/coarsening/contraction/legacy_buffered_cluster_contraction.h"
 #include "kaminpar-shm/coarsening/contraction/naive_unbuffered_cluster_contraction.h"
 #include "kaminpar-shm/coarsening/contraction/unbuffered_cluster_contraction.h"
-#include "kaminpar-shm/datastructures/graph.h"
-#include "kaminpar-shm/kaminpar.h"
-
-#include "kaminpar-common/datastructures/scalable_vector.h"
 
 namespace kaminpar::shm {
 using namespace contraction;

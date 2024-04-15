@@ -7,6 +7,7 @@
 
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"
 #include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
 
