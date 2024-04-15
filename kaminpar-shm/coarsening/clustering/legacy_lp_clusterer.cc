@@ -1,11 +1,11 @@
 /******************************************************************************
  * Label propagation for graph coarsening / clustering.
  *
- * @file:   lp_clustering.cc
+ * @file:   legacy_lp_clusterer.cc
  * @author: Daniel Seemaier
  * @date:   29.09.2021
  ******************************************************************************/
-#include "kaminpar-shm/coarsening/legacy_lp_clustering.h"
+#include "kaminpar-shm/coarsening/clustering/legacy_lp_clusterer.h"
 
 #include <memory>
 

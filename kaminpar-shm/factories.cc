@@ -17,8 +17,8 @@
 
 // Clusterings
 #include "kaminpar-shm/coarsening/cluster_coarsener.h"
-#include "kaminpar-shm/coarsening/legacy_lp_clustering.h"
-#include "kaminpar-shm/coarsening/lp_clustering.h"
+#include "kaminpar-shm/coarsening/clustering/legacy_lp_clusterer.h"
+#include "kaminpar-shm/coarsening/clustering/lp_clusterer.h"
 
 // Coarsening
 #include "kaminpar-shm/coarsening/noop_coarsener.h"

@@ -1,7 +1,7 @@
 /******************************************************************************
  * Label propagation for graph coarsening / clustering.
  *
- * @file:   lp_clustering.h
+ * @file:   lp_clusterer.h
  * @author: Daniel Seemaier
  * @date:   29.09.2021
  ******************************************************************************/
