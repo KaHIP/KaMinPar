@@ -179,36 +179,32 @@ void extend_partition(
 
   START_HEAP_PROFILER("Bipartitioning");
   START_TIMER("Bipartitioning");
-  tbb::parallel_for(
-      static_cast<BlockID>(0),
-      static_cast<BlockID>(subgraphs.size()),
-      [&](const BlockID b) {
-        const auto &subgraph = subgraphs[b];
-        const BlockID final_kb = compute_final_k(b, p_graph.k(), input_ctx.partition.k);
+  tbb::parallel_for<BlockID>(0, subgraphs.size(), [&](const BlockID b) {
+    const auto &subgraph = subgraphs[b];
+    const BlockID final_kb = compute_final_k(b, p_graph.k(), input_ctx.partition.k);
 
-        const BlockID subgraph_k =
-            (k_prime == input_ctx.partition.k) ? final_kb : k_prime / p_graph.k();
+    const BlockID subgraph_k =
+        (k_prime == input_ctx.partition.k) ? final_kb : k_prime / p_graph.k();
 
-        if (subgraph_k > 1) {
-          DBG << "initial extend_partition_recursive() for block " << b << ", final k " << final_kb
-              << ", subgraph k " << subgraph_k << ", weight " << p_graph.block_weight(b) << " /// "
-              << subgraph.total_node_weight();
+    if (subgraph_k > 1) {
+      DBG << "initial extend_partition_recursive() for block " << b << ", final k " << final_kb
+          << ", subgraph k " << subgraph_k << ", weight " << p_graph.block_weight(b) << " /// "
+          << subgraph.total_node_weight();
 
-          extend_partition_recursive(
-              subgraph,
-              subgraph_partitions[b],
-              0,
-              subgraph_k,
-              final_kb,
-              input_ctx,
-              subgraph_memory,
-              positions[b],
-              extraction_pool,
-              ip_m_ctx_pool
-          );
-        }
-      }
-  );
+      extend_partition_recursive(
+          subgraph,
+          subgraph_partitions[b],
+          0,
+          subgraph_k,
+          final_kb,
+          input_ctx,
+          subgraph_memory,
+          positions[b],
+          extraction_pool,
+          ip_m_ctx_pool
+      );
+    }
+  });
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 
@@ -260,8 +256,7 @@ bool coarsen_once(
 
   const NodeWeight max_cluster_weight =
       compute_max_cluster_weight(input_ctx.coarsening, *graph, input_ctx.partition);
-  const auto shrunk =
-      coarsener->coarsen(max_cluster_weight, 0, free_memory_afterwards);
+  const auto shrunk = coarsener->coarsen(max_cluster_weight, 0, free_memory_afterwards);
   const auto &c_graph = coarsener->current();
 
   // @todo always do this?

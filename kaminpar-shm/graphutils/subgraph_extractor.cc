@@ -168,9 +168,9 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential(
     SubgraphMemory &subgraph_memory,
     TemporarySubgraphMemory &tmp_subgraph_memory
 ) {
-  return p_graph.graph().reified([&](const auto &concrete_graph) {
+  return p_graph.reified([&](const auto &graph) {
     return extract_subgraphs_sequential_generic_graph(
-        p_graph, concrete_graph, final_ks, memory_position, subgraph_memory, tmp_subgraph_memory
+        p_graph, graph, final_ks, memory_position, subgraph_memory, tmp_subgraph_memory
     );
   });
 }

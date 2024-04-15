@@ -84,7 +84,7 @@ PartitionContext create_bipartition_context(
  * @param block The block $B$ / the position of a node within its level.
  * @param current_k The number of blocks $k'$ in the intermediate partition / the size of the node's
  * level.
- * @param inpuot_k The number of blocks $k$ in the final partition / the label of the root node.
+ * @param input_k The number of blocks $k$ in the final partition / the label of the root node.
  *
  * @return The number of blocks into which $B$ will be split for the final partition.
  */

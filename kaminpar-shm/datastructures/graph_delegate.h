@@ -10,8 +10,9 @@
 #include <cstddef>
 #include <utility>
 
-#include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/kaminpar.h"
+
+#include "kaminpar-common/ranges.h"
 
 namespace kaminpar::shm {
 template <class Graph> class GraphDelegate {
@@ -24,6 +25,10 @@ public:
 
   [[nodiscard]] inline const Graph &graph() const {
     return *_graph;
+  }
+
+  template <typename Lambda> decltype(auto) reified(Lambda &&l) const {
+    return _graph->reified(std::forward<Lambda>(l));
   }
 
   //
