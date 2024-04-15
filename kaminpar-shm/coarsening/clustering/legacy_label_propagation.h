@@ -1214,7 +1214,7 @@ public:
   }
 
   ClusterWeight cluster_weight(const ClusterID cluster) {
-    return _cluster_weights[cluster];
+    return __atomic_load_n(&_cluster_weights[cluster], __ATOMIC_RELAXED);
   }
 
   bool move_cluster_weight(
@@ -1224,15 +1224,15 @@ public:
       const ClusterWeight max_weight
   ) {
     if (_cluster_weights[new_cluster] + delta <= max_weight) {
-      _cluster_weights[new_cluster].fetch_add(delta, std::memory_order_relaxed);
-      _cluster_weights[old_cluster].fetch_sub(delta, std::memory_order_relaxed);
+      __atomic_fetch_add(&_cluster_weights[new_cluster], delta, __ATOMIC_RELAXED);
+      __atomic_fetch_sub(&_cluster_weights[old_cluster], delta, __ATOMIC_RELAXED);
       return true;
     }
     return false;
   }
 
 private:
-  scalable_vector<parallel::Atomic<ClusterWeight>> _cluster_weights;
+  StaticArray<ClusterWeight> _cluster_weights;
 };
 
 template <typename NodeID, typename ClusterID> class LegacyNonatomicClusterVectorRef {
