@@ -303,11 +303,11 @@ protected:
 
       if constexpr (Config::kUseLocalActiveSetStrategy) {
         if (!is_interface_node) {
-          _active[u] = 0;
+          __atomic_store_n(&_active[u], 0, __ATOMIC_RELAXED);
         }
       }
       if constexpr (Config::kUseActiveSetStrategy) {
-        _active[u] = 0;
+        __atomic_store_n(&_active[u], 0, __ATOMIC_RELAXED);
       }
 
       // After LP, we might want to use 2-hop clustering to merge nodes that
@@ -368,7 +368,7 @@ protected:
       // should remove it if it does not side effects
       if (derived_activate_neighbor(v)) {
         if constexpr (Config::kUseActiveSetStrategy || Config::kUseLocalActiveSetStrategy) {
-          _active[v].store(1, std::memory_order_relaxed);
+          __atomic_store_n(&_active[v], 1, __ATOMIC_RELAXED);
         }
       }
     }
@@ -613,14 +613,16 @@ protected:
       // Conclusion:
       // We can use _favored_clusters[u] to build the two-hop clusters.
 
-      const NodeID C = _favored_clusters[u];
+      const NodeID C = __atomic_load_n(&_favored_clusters[u], __ATOMIC_RELAXED);
       auto &sync = _favored_clusters[C];
 
       do {
         NodeID cluster = sync;
 
         if (cluster == C) {
-          if (sync.compare_exchange_strong(cluster, u)) {
+          if (__atomic_compare_exchange_n(
+                  &sync, &cluster, u, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST
+              )) {
             // We are done: other nodes will join our cluster
             break;
           }
@@ -631,14 +633,16 @@ protected:
 
         // Invariant: cluster is a node with favored cluster C
         KASSERT(
-            _favored_clusters[cluster] == C,
+            __atomic_load_n(&_favored_clusters[cluster], __ATOMIC_RELAXED) == C,
             "invariant violated by: " << V(u) << V(cluster) << V(C) << V(_favored_clusters[C])
         );
 
         // Try to join the cluster:
         if constexpr (match) {
           // Matching mode: try to build a cluster only containing nodes "cluster" and "u"
-          if (sync.compare_exchange_strong(cluster, C)) {
+          if (__atomic_compare_exchange_n(
+                  &sync, &cluster, C, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST
+              )) {
             [[maybe_unused]] const bool success = derived_move_cluster_weight(
                 u, cluster, derived_cluster_weight(u), derived_max_cluster_weight(cluster)
             );
@@ -664,8 +668,10 @@ protected:
 
             // We are done: joined cluster "cluster"
             break;
-          } else if (sync.compare_exchange_strong(cluster, u)) {
-            // We are done: other nodes will join our cluster
+          } else if (__atomic_compare_exchange_n(
+                         &sync, &cluster, C, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST
+                     )) {
+            // We are done: start a new cluster
             break;
           }
         }
@@ -832,12 +838,12 @@ protected: // Members
   //! Flags nodes with at least one node in its neighborhood that changed
   //! clusters during the last iteration. Nodes without this flag set must not
   //! be considered in the next iteration.
-  scalable_vector<parallel::Atomic<uint8_t>> _active;
+  StaticArray<std::uint8_t> _active;
 
   //! If a node cannot join any cluster during an iteration, this vector stores
   //! the node's highest rated cluster independent of the maximum cluster
   //! weight. This information is used during 2-hop clustering.
-  scalable_vector<parallel::Atomic<ClusterID>> _favored_clusters;
+  StaticArray<ClusterID> _favored_clusters;
 
   //! If statistics are enabled, this is the sum of the gain of all moves that
   //! were performed. If executed single-thread, this should be equal to the
@@ -897,7 +903,7 @@ protected:
             }
 
             if constexpr (Config::kUseActiveSetStrategy || Config::kUseLocalActiveSetStrategy) {
-              if (!_active[u].load(std::memory_order_relaxed)) {
+              if (!__atomic_load_n(&_active[u], __ATOMIC_RELAXED)) {
                 continue;
               }
             }
@@ -1029,7 +1035,7 @@ protected:
                            permutation[i % Config::kPermutationSize];
           if (u < chunk.end && _graph->degree(u) < _max_degree &&
               ((!Config::kUseActiveSetStrategy && !Config::kUseLocalActiveSetStrategy) ||
-               _active[u].load(std::memory_order_relaxed))) {
+               __atomic_load_n(&_active[u], __ATOMIC_RELAXED))) {
             const auto [moved_node, emptied_cluster] = handle_node(u, local_rand, local_rating_map);
             if (moved_node) {
               ++local_num_moved_nodes;

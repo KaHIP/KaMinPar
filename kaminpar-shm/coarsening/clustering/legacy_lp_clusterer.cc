@@ -166,15 +166,19 @@ private:
         // If this works, we set ourself as clustering partners for nodes that have the same favored
         // cluster we have
         NodeID expected_value = favored_leader;
-        if (_favored_clusters[favored_leader].compare_exchange_strong(expected_value, u)) {
+        if (__atomic_compare_exchange_n(
+                &_favored_clusters[favored_leader], &expected_value, u, false, __ATOMIC_SEQ_CST,
+                __ATOMIC_SEQ_CST
+            )) {
           break;
         }
 
         // If this did not work, there is another node that has the same favored cluster
         // Try to join the cluster of that node
         const NodeID partner = expected_value;
-        if (_favored_clusters[favored_leader].compare_exchange_strong(
-                expected_value, favored_leader
+        if (__atomic_compare_exchange_n(
+                &_favored_clusters[favored_leader], &expected_value, favored_leader, false,
+                __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST
             )) {
           if (move_cluster_weight(u, partner, cluster_weight(u), max_cluster_weight(partner))) {
             move_node(u, partner);
