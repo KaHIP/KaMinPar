@@ -26,7 +26,6 @@
 namespace kaminpar::shm::graph {
 namespace {
 SET_DEBUG(false);
-}
 
 template <typename Graph>
 SequentialSubgraphExtractionResult extract_subgraphs_sequential_generic_graph(
@@ -160,6 +159,7 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential_generic_graph(
 
   return {std::move(subgraphs), std::move(subgraph_positions)};
 }
+} // namespace
 
 SequentialSubgraphExtractionResult extract_subgraphs_sequential(
     const PartitionedGraph &p_graph,
@@ -175,6 +175,7 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential(
   });
 }
 
+namespace {
 /*
  * Builds a block-induced subgraph for each block of a partitioned graph. Return
  * type contains a mapping that maps nodes from p_graph to nodes in the
@@ -221,7 +222,7 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
   STOP_TIMER();
 
   START_TIMER("Merge block sizes");
-  tbb::parallel_for(static_cast<BlockID>(0), p_graph.k(), [&](const BlockID b) {
+  tbb::parallel_for<BlockID>(0, p_graph.k(), [&](const BlockID b) {
     NodeID num_nodes =
         compute_final_k(b, p_graph.k(), input_k); // padding for sequential subgraph extraction
     EdgeID num_edges = 0;
@@ -239,7 +240,7 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
 
   // build temporary bucket array in nodes array
   START_TIMER("Build bucket array");
-  tbb::parallel_for(static_cast<NodeID>(0), p_graph.n(), [&](const NodeID u) {
+  tbb::parallel_for<NodeID>(0, p_graph.n(), [&](const NodeID u) {
     const BlockID b = p_graph.block(u);
     const NodeID pos_in_subgraph = bucket_index[b]++;
     const NodeID pos = start_positions[b].nodes_start_pos + pos_in_subgraph;
@@ -253,7 +254,7 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
 
   // build graph
   START_TIMER("Construct subgraphs");
-  tbb::parallel_for(static_cast<BlockID>(0), p_graph.k(), [&](const BlockID b) {
+  tbb::parallel_for<BlockID>(0, p_graph.k(), [&](const BlockID b) {
     const NodeID nodes_start_pos = start_positions[b].nodes_start_pos;
     EdgeID e = 0;                                  // edge = in subgraph
     for (NodeID u = 0; u < bucket_index[b]; ++u) { // u = in subgraph
@@ -285,7 +286,7 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
   STOP_TIMER();
 
   START_TIMER("Create graph objects");
-  tbb::parallel_for(static_cast<BlockID>(0), p_graph.k(), [&](const BlockID b) {
+  tbb::parallel_for<BlockID>(0, p_graph.k(), [&](const BlockID b) {
     const NodeID n0 = start_positions[b].nodes_start_pos;
     const EdgeID m0 = start_positions[b].edges_start_pos;
 
@@ -325,11 +326,12 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
 
   return {std::move(subgraphs), std::move(mapping), std::move(start_positions)};
 }
+} // namespace
 
 SubgraphExtractionResult extract_subgraphs(
     const PartitionedGraph &p_graph, const BlockID input_k, SubgraphMemory &subgraph_memory
 ) {
-  return p_graph.graph().reified([&](const auto &concrete_graph) {
+  return p_graph.reified([&](const auto &concrete_graph) {
     return extract_subgraphs_generic_graph(p_graph, concrete_graph, input_k, subgraph_memory);
   });
 }
@@ -358,12 +360,12 @@ PartitionedGraph copy_subgraph_partitions(
   k0.front() = 0;
   parallel::prefix_sum(k0.begin(), k0.end(), k0.begin());
 
-  DBG << "Copying resulting partition after recursive bipartitioning: extended " << p_graph.k()
-      << "-way partition to " << k_prime << "-way, goal: " << input_k;
-  DBG << "Block offsets: " << k0;
+  DBG << "Copying partition after recursive bipartitioning: extended " << p_graph.k()
+      << "-way partition to " << k_prime << "-way, goal: " << input_k
+      << " with block offsets: " << k0;
 
   StaticArray<BlockID> partition = p_graph.take_raw_partition();
-  tbb::parallel_for<NodeID>(0, p_graph.n(), [&](const NodeID u) {
+  p_graph.pfor_nodes([&](const NodeID u) {
     const BlockID b = partition[u];
     const NodeID s_u = mapping[u];
     partition[u] = k0[b] + p_subgraph_partitions[b][s_u];
