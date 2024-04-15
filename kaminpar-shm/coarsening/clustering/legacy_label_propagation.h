@@ -13,14 +13,12 @@
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
-#include <tbb/scalable_allocator.h>
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/datastructures/rating_map.h"
-#include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/parallel/atomic.h"
 #include "kaminpar-common/random.h"

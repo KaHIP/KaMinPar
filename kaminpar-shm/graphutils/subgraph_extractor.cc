@@ -190,9 +190,9 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
     SubgraphMemory &subgraph_memory
 ) {
   START_TIMER("Allocation");
-  scalable_vector<NodeID> mapping(p_graph.n());
-  scalable_vector<SubgraphMemoryStartPosition> start_positions(p_graph.k() + 1);
-  std::vector<parallel::Atomic<NodeID>> bucket_index(p_graph.k());
+  StaticArray<NodeID> mapping(p_graph.n());
+  StaticArray<SubgraphMemoryStartPosition> start_positions(p_graph.k() + 1);
+  StaticArray<NodeID> bucket_index(p_graph.k());
   scalable_vector<shm::Graph> subgraphs(p_graph.k());
   STOP_TIMER();
 
@@ -242,7 +242,7 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
   START_TIMER("Build bucket array");
   tbb::parallel_for<NodeID>(0, p_graph.n(), [&](const NodeID u) {
     const BlockID b = p_graph.block(u);
-    const NodeID pos_in_subgraph = bucket_index[b]++;
+    const NodeID pos_in_subgraph = __atomic_fetch_add(&bucket_index[b], 1, __ATOMIC_RELAXED);
     const NodeID pos = start_positions[b].nodes_start_pos + pos_in_subgraph;
     subgraph_memory.nodes[pos] = u;
     mapping[u] = pos_in_subgraph; // concurrent random access write
@@ -341,7 +341,7 @@ PartitionedGraph copy_subgraph_partitions(
     const scalable_vector<StaticArray<BlockID>> &p_subgraph_partitions,
     const BlockID k_prime,
     const BlockID input_k,
-    const scalable_vector<NodeID> &mapping
+    const StaticArray<NodeID> &mapping
 ) {
   // The offset calculation works as follows:
   //

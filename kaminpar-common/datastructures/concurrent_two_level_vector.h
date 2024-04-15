@@ -20,7 +20,7 @@
 #include <tbb/concurrent_hash_map.h>
 #endif
 
-#include "kaminpar-common/datastructures/scalable_vector.h"
+#include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar {
 
@@ -76,9 +76,7 @@ public:
    * Frees the memory used by this data structure.
    */
   void free() {
-    _values.clear();
-    _values.shrink_to_fit();
-
+    _values.free();
     _table = ConcurrentHashTable(0);
   }
 
@@ -196,7 +194,7 @@ public:
   }
 
 private:
-  scalable_vector<FirstValue> _values;
+  StaticArray<FirstValue> _values;
   ConcurrentHashTable _table;
 };
 #else
@@ -248,9 +246,7 @@ public:
    * Frees the memory used by this data structure.
    */
   void free() {
-    _values.clear();
-    _values.shrink_to_fit();
-
+    _values.free();
     _table.clear();
   }
 
@@ -382,7 +378,7 @@ public:
   }
 
 private:
-  scalable_vector<FirstValue> _values;
+  StaticArray<FirstValue> _values;
   ConcurrentHashTable _table;
 };
 #endif

@@ -104,8 +104,8 @@ struct SubgraphMemory {
 
 struct SubgraphExtractionResult {
   scalable_vector<Graph> subgraphs;
-  scalable_vector<NodeID> node_mapping;
-  scalable_vector<SubgraphMemoryStartPosition> positions;
+  StaticArray<NodeID> node_mapping;
+  StaticArray<SubgraphMemoryStartPosition> positions;
 };
 
 struct SequentialSubgraphExtractionResult {
@@ -174,6 +174,6 @@ PartitionedGraph copy_subgraph_partitions(
     const scalable_vector<StaticArray<BlockID>> &p_subgraph_partitions,
     BlockID k_prime,
     BlockID input_k,
-    const scalable_vector<NodeID> &mapping
+    const StaticArray<NodeID> &mapping
 );
 } // namespace kaminpar::shm::graph
