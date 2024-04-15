@@ -40,11 +40,11 @@ struct MemoryContext {
 };
 } // namespace contraction
 
-std::unique_ptr<CoarseGraph> contract(
+std::unique_ptr<CoarseGraph> contract_clustering(
     const Graph &graph, StaticArray<NodeID> &clustering, const ContractionCoarseningContext &con_ctx
 );
 
-std::unique_ptr<CoarseGraph> contract(
+std::unique_ptr<CoarseGraph> contract_clustering(
     const Graph &graph,
     StaticArray<NodeID> &clustering,
     const ContractionCoarseningContext &con_ctx,

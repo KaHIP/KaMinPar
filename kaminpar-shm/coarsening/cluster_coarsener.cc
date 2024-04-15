@@ -35,7 +35,9 @@ std::pair<const Graph *, bool> ClusteringCoarsener::compute_coarse_graph(
 
   START_HEAP_PROFILER("Contract graph");
   auto coarsened = TIMED_SCOPE("Contract graph") {
-    return contract(*_current_graph, _clustering, _c_ctx.contraction, _contraction_m_ctx);
+    return contract_clustering(
+        *_current_graph, _clustering, _c_ctx.contraction, _contraction_m_ctx
+    );
   };
   STOP_HEAP_PROFILER();
 
