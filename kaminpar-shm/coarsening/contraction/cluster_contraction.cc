@@ -18,15 +18,12 @@
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/scalable_vector.h"
-#include "kaminpar-common/parallel/atomic.h"
 
 namespace kaminpar::shm {
 using namespace contraction;
 
 std::unique_ptr<CoarseGraph> contract(
-    const Graph &graph,
-    const ContractionCoarseningContext &con_ctx,
-    scalable_vector<parallel::Atomic<NodeID>> &clustering
+    const Graph &graph, const ContractionCoarseningContext &con_ctx, StaticArray<NodeID> &clustering
 ) {
   MemoryContext m_ctx;
   return contract(graph, con_ctx, clustering, m_ctx);
@@ -35,7 +32,7 @@ std::unique_ptr<CoarseGraph> contract(
 std::unique_ptr<CoarseGraph> contract(
     const Graph &graph,
     const ContractionCoarseningContext &con_ctx,
-    scalable_vector<parallel::Atomic<NodeID>> &clustering,
+    StaticArray<NodeID> &clustering,
     MemoryContext &m_ctx
 ) {
   if (con_ctx.mode == ContractionMode::NO_EDGE_BUFFER_NAIVE) {

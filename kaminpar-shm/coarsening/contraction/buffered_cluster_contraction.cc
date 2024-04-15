@@ -277,7 +277,7 @@ std::unique_ptr<CoarseGraph> contract_with_edgebuffer(
 
 std::unique_ptr<CoarseGraph> contract_with_edgebuffer(
     const Graph &graph,
-    scalable_vector<parallel::Atomic<NodeID>> &clustering,
+    StaticArray<NodeID> &clustering,
     const ContractionCoarseningContext &con_ctx,
     MemoryContext &m_ctx
 ) {

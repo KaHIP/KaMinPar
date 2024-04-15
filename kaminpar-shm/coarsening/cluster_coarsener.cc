@@ -33,13 +33,9 @@ std::pair<const Graph *, bool> ClusteringCoarsener::compute_coarse_graph(
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 
-  // @todo update contraction interface to avoid this copy
-  scalable_vector<parallel::Atomic<NodeID>> clustering(_current_graph->n());
-  std::copy(_clustering.begin(), _clustering.begin() + _current_graph->n(), clustering.begin());
-
   START_HEAP_PROFILER("Contract graph");
   auto coarsened = TIMED_SCOPE("Contract graph") {
-    return contract(*_current_graph, _c_ctx.contraction, clustering, _contraction_m_ctx);
+    return contract(*_current_graph, _c_ctx.contraction, _clustering, _contraction_m_ctx);
   };
   STOP_HEAP_PROFILER();
 

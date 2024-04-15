@@ -11,8 +11,7 @@
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"
 #include "kaminpar-shm/datastructures/graph.h"
 
-#include "kaminpar-common/datastructures/scalable_vector.h"
-#include "kaminpar-common/parallel/atomic.h"
+#include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm::contraction {
 template <template <typename> typename Mapping> class CoarseGraphImpl : public CoarseGraph {
@@ -41,7 +40,6 @@ private:
 };
 
 template <template <typename> typename Mapping>
-std::pair<NodeID, Mapping<NodeID>> preprocess(
-    const Graph &graph, scalable_vector<parallel::Atomic<NodeID>> &clustering, MemoryContext &m_ctx
-);
+std::pair<NodeID, Mapping<NodeID>>
+preprocess(const Graph &graph, StaticArray<NodeID> &clustering, MemoryContext &m_ctx);
 } // namespace kaminpar::shm::contraction

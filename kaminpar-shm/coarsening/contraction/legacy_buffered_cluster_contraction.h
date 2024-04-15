@@ -11,13 +11,12 @@
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"
 #include "kaminpar-shm/datastructures/graph.h"
 
-#include "kaminpar-common/datastructures/scalable_vector.h"
-#include "kaminpar-common/parallel/atomic.h"
+#include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm::contraction {
 std::unique_ptr<CoarseGraph> contract_with_edgebuffer_legacy(
     const Graph &graph,
-    scalable_vector<parallel::Atomic<NodeID>> &clustering,
+    StaticArray<NodeID> &clustering,
     const ContractionCoarseningContext &con_ctx,
     MemoryContext &m_ctx
 );

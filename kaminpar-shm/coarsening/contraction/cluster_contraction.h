@@ -43,13 +43,13 @@ struct MemoryContext {
 std::unique_ptr<CoarseGraph> contract(
     const Graph &graph,
     const ContractionCoarseningContext &con_ctx,
-    scalable_vector<parallel::Atomic<NodeID>> &clustering
+    StaticArray<NodeID> &clustering
 );
 
 std::unique_ptr<CoarseGraph> contract(
     const Graph &graph,
     const ContractionCoarseningContext &con_ctx,
-    scalable_vector<parallel::Atomic<NodeID>> &clustering,
+    StaticArray<NodeID> &clustering,
     contraction::MemoryContext &m_ctx
 );
 } // namespace kaminpar::shm
