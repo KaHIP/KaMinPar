@@ -41,15 +41,13 @@ struct MemoryContext {
 } // namespace contraction
 
 std::unique_ptr<CoarseGraph> contract(
-    const Graph &graph,
-    const ContractionCoarseningContext &con_ctx,
-    StaticArray<NodeID> &clustering
+    const Graph &graph, StaticArray<NodeID> &clustering, const ContractionCoarseningContext &con_ctx
 );
 
 std::unique_ptr<CoarseGraph> contract(
     const Graph &graph,
-    const ContractionCoarseningContext &con_ctx,
     StaticArray<NodeID> &clustering,
+    const ContractionCoarseningContext &con_ctx,
     contraction::MemoryContext &m_ctx
 );
 } // namespace kaminpar::shm

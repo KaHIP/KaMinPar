@@ -23,16 +23,16 @@ namespace kaminpar::shm {
 using namespace contraction;
 
 std::unique_ptr<CoarseGraph> contract(
-    const Graph &graph, const ContractionCoarseningContext &con_ctx, StaticArray<NodeID> &clustering
+    const Graph &graph, StaticArray<NodeID> &clustering, const ContractionCoarseningContext &con_ctx
 ) {
   MemoryContext m_ctx;
-  return contract(graph, con_ctx, clustering, m_ctx);
+  return contract(graph, clustering, con_ctx, m_ctx);
 }
 
 std::unique_ptr<CoarseGraph> contract(
     const Graph &graph,
-    const ContractionCoarseningContext &con_ctx,
     StaticArray<NodeID> &clustering,
+    const ContractionCoarseningContext &con_ctx,
     MemoryContext &m_ctx
 ) {
   switch (con_ctx.mode) {
