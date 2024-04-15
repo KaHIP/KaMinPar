@@ -79,6 +79,7 @@ enum class EdgeOrdering {
 enum class ClusteringAlgorithm {
   NOOP,
   LABEL_PROPAGATION,
+  LEGACY_LABEL_PROPAGATION,
 };
 
 enum class ClusterWeightLimit {
@@ -293,14 +294,14 @@ struct BlockWeightsContext {
   void setup(const PartitionContext &ctx);
   void setup(const PartitionContext &ctx, BlockID input_k);
 
-  [[nodiscard]] BlockWeight max(BlockID b) const { 
-      return _max_block_weights[b]; 
+  [[nodiscard]] BlockWeight max(BlockID b) const {
+    return _max_block_weights[b];
   }
 
   [[nodiscard]] const std::vector<BlockWeight> &all_max() const;
 
   [[nodiscard]] BlockWeight perfectly_balanced(BlockID b) const {
-      return _perfectly_balanced_block_weights[b];
+    return _perfectly_balanced_block_weights[b];
   }
 
   [[nodiscard]] const std::vector<BlockWeight> &all_perfectly_balanced() const;

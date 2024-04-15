@@ -65,6 +65,7 @@ std::unordered_map<std::string, ClusteringAlgorithm> get_clustering_algorithms()
   return {
       {"noop", ClusteringAlgorithm::NOOP},
       {"lp", ClusteringAlgorithm::LABEL_PROPAGATION},
+      {"legacy-lp", ClusteringAlgorithm::LEGACY_LABEL_PROPAGATION},
   };
 }
 
@@ -74,7 +75,10 @@ std::ostream &operator<<(std::ostream &out, const ClusteringAlgorithm algorithm)
     return out << "noop";
   case ClusteringAlgorithm::LABEL_PROPAGATION:
     return out << "lp";
+  case ClusteringAlgorithm::LEGACY_LABEL_PROPAGATION:
+    return out << "legacy-lp";
   }
+
   return out << "<invalid>";
 }
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Contraction implementation that uses an edge buffer to store edges before 
+ * Contraction implementation that uses an edge buffer to store edges before
  * building the final graph.
  *
  * @file:   buffered_cluster_contraction.h

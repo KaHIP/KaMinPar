@@ -17,6 +17,7 @@
 
 // Clusterings
 #include "kaminpar-shm/coarsening/cluster_coarsener.h"
+#include "kaminpar-shm/coarsening/legacy_lp_clustering.h"
 #include "kaminpar-shm/coarsening/lp_clustering.h"
 
 // Coarsening
@@ -59,6 +60,11 @@ std::unique_ptr<Coarsener> create_coarsener(const Graph &graph, const Coarsening
   case ClusteringAlgorithm::LABEL_PROPAGATION:
     return std::make_unique<ClusteringCoarsener>(
         std::make_unique<LPClustering>(graph.n(), c_ctx), graph, c_ctx
+    );
+
+  case ClusteringAlgorithm::LEGACY_LABEL_PROPAGATION:
+    return std::make_unique<ClusteringCoarsener>(
+        std::make_unique<LegacyLPClustering>(graph.n(), c_ctx), graph, c_ctx
     );
   }
 
