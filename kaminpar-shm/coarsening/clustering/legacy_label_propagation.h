@@ -1241,10 +1241,6 @@ public:
     _clusters = &clustering;
   }
 
-  [[nodiscard]] auto &&take_clusters() {
-    return std::move(_clusters);
-  }
-
   void init_cluster(const NodeID node, const ClusterID cluster) {
     move_node(node, cluster);
   }
