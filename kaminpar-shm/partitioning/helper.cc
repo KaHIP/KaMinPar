@@ -61,6 +61,7 @@ PartitionedGraph bipartition(
   // compressed mode
   std::unique_ptr<CSRGraph> csr_cpy;
   if (csr == nullptr) {
+    LOG << "creating a copy";
     csr_cpy = std::make_unique<CSRGraph>(*graph);
     csr = csr_cpy.get();
   }

@@ -132,11 +132,7 @@ template <typename Iterator>
 std::size_t select_best(
     const Iterator p_graphs_begin, const Iterator p_graphs_end, const PartitionContext &p_ctx
 ) {
-  SET_DEBUG(false);
-
-  KASSERT(p_graphs_begin < p_graphs_end, "cannot select best result from an empty range");
-  DBG << "Select best result from " << std::distance(p_graphs_begin, p_graphs_end) << " "
-      << (*p_graphs_begin).k() << "-way partitions";
+  KASSERT(p_graphs_begin < p_graphs_end, "cannot select the best partition from an empty range");
 
   std::size_t best_index = 0;
   std::size_t current_index = 0;
@@ -146,7 +142,7 @@ std::size_t select_best(
   for (auto it = p_graphs_begin; it != p_graphs_end; ++it) {
     const auto &result = *it;
     const bool current_feasible = metrics::is_feasible(result, p_ctx);
-    const EdgeWeight current_cut = metrics::edge_cut_seq(result);
+    const EdgeWeight current_cut = metrics::edge_cut(result);
 
     if ((current_feasible == best_feasible && current_cut < best_cut) ||
         current_feasible > best_feasible) {

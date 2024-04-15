@@ -11,6 +11,10 @@
 #include "kaminpar-shm/factories.h"
 
 namespace kaminpar::shm::partitioning {
+namespace {
+SET_DEBUG(true);
+}
+
 AsyncInitialPartitioner::AsyncInitialPartitioner(
     const Context &input_ctx,
     GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
@@ -72,6 +76,8 @@ PartitionedGraph AsyncInitialPartitioner::split_and_join(
   const std::size_t num_copies =
       helper::compute_num_copies(_input_ctx, graph->n(), converged, num_threads);
   const std::size_t threads_per_copy = num_threads / num_copies;
+
+  DBG << "Num copies: " << num_copies << ", threads per copy: " << threads_per_copy;
 
   // parallel recursion
   tbb::task_group tg;

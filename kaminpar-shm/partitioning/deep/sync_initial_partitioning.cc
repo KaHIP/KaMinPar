@@ -122,7 +122,7 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
     std::vector<PartitionContext> next_p_ctxs(num_current_copies);
     std::vector<PartitionedGraph> next_p_graphs(num_current_copies);
 
-    tbb::parallel_for(static_cast<std::size_t>(0), num_current_copies, [&](const std::size_t i) {
+    tbb::parallel_for<std::size_t>(0, num_current_copies, [&](const std::size_t i) {
       // Join
       const std::size_t start_pos = i * num_local_copies;
       PartitionContext &p_ctx = current_p_ctxs[start_pos];
