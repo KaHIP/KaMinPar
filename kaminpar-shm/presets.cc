@@ -68,7 +68,7 @@ Context create_default_context() {
       .coarsening =
           {
               // Context -> Coarsening
-              .algorithm = ClusteringAlgorithm::LABEL_PROPAGATION,
+              .algorithm = ClusteringAlgorithm::LEGACY_LABEL_PROPAGATION,
               .lp =
                   {
                       // Context -> Coarsening -> Label Propagation
@@ -193,6 +193,7 @@ Context create_memory_context() {
   ctx.compression.enabled = true;
   ctx.compression.may_dismiss = true;
   ctx.partitioning.max_mem_free_coarsening_level = 100;
+  ctx.coarsening.algorithm = ClusteringAlgorithm::LABEL_PROPAGATION;
   ctx.coarsening.lp.use_two_phases = true;
   ctx.coarsening.lp.use_two_level_cluster_weight_vector = true;
   ctx.coarsening.contraction.mode = ContractionMode::NO_EDGE_BUFFER_REMAP;
