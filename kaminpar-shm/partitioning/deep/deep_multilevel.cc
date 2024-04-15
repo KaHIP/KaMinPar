@@ -212,7 +212,7 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
 
   // Since timers are not multi-threaded, we disable them during (parallel)
   // initial partitioning.
-  //DISABLE_TIMERS();
+  DISABLE_TIMERS();
   PartitionedGraph p_graph = [&] {
     switch (_input_ctx.partitioning.deep_initial_partitioning_mode) {
     case InitialPartitioningMode::SEQUENTIAL:
@@ -229,7 +229,7 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
 
     __builtin_unreachable();
   }();
-  //ENABLE_TIMERS();
+  ENABLE_TIMERS();
   helper::update_partition_context(_current_p_ctx, p_graph, _input_ctx.partition.k);
 
   // Print some metrics for the initial partition.

@@ -77,8 +77,6 @@ PartitionedGraph AsyncInitialPartitioner::split_and_join(
       helper::compute_num_copies(_input_ctx, graph->n(), converged, num_threads);
   const std::size_t threads_per_copy = num_threads / num_copies;
 
-  DBG << "Num copies: " << num_copies << ", threads per copy: " << threads_per_copy;
-
   // parallel recursion
   tbb::task_group tg;
   scalable_vector<PartitionedGraph> p_graphs(num_copies);
