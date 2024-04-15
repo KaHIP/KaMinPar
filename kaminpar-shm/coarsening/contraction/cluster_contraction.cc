@@ -35,14 +35,17 @@ std::unique_ptr<CoarseGraph> contract(
     StaticArray<NodeID> &clustering,
     MemoryContext &m_ctx
 ) {
-  if (con_ctx.mode == ContractionMode::NO_EDGE_BUFFER_NAIVE) {
-    return contract_without_edgebuffer_naive(graph, clustering, con_ctx, m_ctx);
-  } else if (con_ctx.mode == ContractionMode::NO_EDGE_BUFFER_REMAP) {
-    return contract_without_edgebuffer_remap(graph, clustering, con_ctx, m_ctx);
-  } else if (con_ctx.mode == ContractionMode::EDGE_BUFFER_LEGACY) {
-    return contract_with_edgebuffer_legacy(graph, clustering, con_ctx, m_ctx);
-  } else {
-    return contract_with_edgebuffer(graph, clustering, con_ctx, m_ctx);
+  switch (con_ctx.mode) {
+  case ContractionMode::BUFFERED:
+    return contract_clustering_buffered(graph, clustering, con_ctx, m_ctx);
+  case ContractionMode::BUFFERED_LEGACY:
+    return contract_clustering_buffered_legacy(graph, clustering, con_ctx, m_ctx);
+  case ContractionMode::UNBUFFERED:
+    return contract_clustering_unbuffered(graph, clustering, con_ctx, m_ctx);
+  case ContractionMode::UNBUFFERED_NAIVE:
+    return contract_clustering_unbuffered_naive(graph, clustering, con_ctx, m_ctx);
   }
+
+  __builtin_unreachable();
 }
 } // namespace kaminpar::shm

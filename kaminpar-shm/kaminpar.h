@@ -135,10 +135,10 @@ struct LabelPropagationCoarseningContext {
 };
 
 enum class ContractionMode {
-  EDGE_BUFFER,
-  EDGE_BUFFER_LEGACY,
-  NO_EDGE_BUFFER_NAIVE,
-  NO_EDGE_BUFFER_REMAP
+  BUFFERED,
+  BUFFERED_LEGACY,
+  UNBUFFERED,
+  UNBUFFERED_NAIVE,
 };
 
 struct ContractionCoarseningContext {

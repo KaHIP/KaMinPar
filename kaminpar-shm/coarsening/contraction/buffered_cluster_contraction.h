@@ -15,7 +15,7 @@
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm::contraction {
-std::unique_ptr<CoarseGraph> contract_with_edgebuffer(
+std::unique_ptr<CoarseGraph> contract_clustering_buffered(
     const Graph &graph,
     StaticArray<NodeID> &clustering,
     const ContractionCoarseningContext &con_ctx,

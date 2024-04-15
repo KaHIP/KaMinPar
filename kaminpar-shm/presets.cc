@@ -86,7 +86,7 @@ Context create_default_context() {
                   },
               .contraction =
                   {
-                      .mode = ContractionMode::EDGE_BUFFER,
+                      .mode = ContractionMode::BUFFERED,
                       .edge_buffer_fill_fraction = 1,
                       .use_compact_mapping = false,
                   },
@@ -196,7 +196,7 @@ Context create_memory_context() {
   ctx.coarsening.algorithm = ClusteringAlgorithm::LABEL_PROPAGATION;
   ctx.coarsening.lp.use_two_phases = true;
   ctx.coarsening.lp.use_two_level_cluster_weight_vector = true;
-  ctx.coarsening.contraction.mode = ContractionMode::NO_EDGE_BUFFER_REMAP;
+  ctx.coarsening.contraction.mode = ContractionMode::UNBUFFERED;
   ctx.coarsening.contraction.use_compact_mapping = true;
   return ctx;
 }

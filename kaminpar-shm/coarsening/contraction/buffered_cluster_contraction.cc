@@ -23,7 +23,7 @@
 namespace kaminpar::shm::contraction {
 namespace {
 template <template <typename> typename Mapping, typename Graph>
-std::unique_ptr<CoarseGraph> contract_with_edgebuffer(
+std::unique_ptr<CoarseGraph> contract_clustering_buffered(
     const Graph &graph,
     const NodeID c_n,
     Mapping<NodeID> mapping,
@@ -275,7 +275,7 @@ std::unique_ptr<CoarseGraph> contract_with_edgebuffer(
 }
 } // namespace
 
-std::unique_ptr<CoarseGraph> contract_with_edgebuffer(
+std::unique_ptr<CoarseGraph> contract_clustering_buffered(
     const Graph &graph,
     StaticArray<NodeID> &clustering,
     const ContractionCoarseningContext &con_ctx,
@@ -285,13 +285,13 @@ std::unique_ptr<CoarseGraph> contract_with_edgebuffer(
     auto [c_n, mapping] = compute_mapping<CompactStaticArray>(graph, clustering, m_ctx);
     fill_cluster_buckets(c_n, graph, mapping, m_ctx.buckets_index, m_ctx.buckets);
     return graph.reified([&](auto &graph) {
-      return contract_with_edgebuffer(graph, c_n, std::move(mapping), con_ctx, m_ctx);
+      return contract_clustering_buffered(graph, c_n, std::move(mapping), con_ctx, m_ctx);
     });
   } else {
     auto [c_n, mapping] = compute_mapping<StaticArray>(graph, clustering, m_ctx);
     fill_cluster_buckets(c_n, graph, mapping, m_ctx.buckets_index, m_ctx.buckets);
     return graph.reified([&](auto &graph) {
-      return contract_with_edgebuffer(graph, c_n, std::move(mapping), con_ctx, m_ctx);
+      return contract_clustering_buffered(graph, c_n, std::move(mapping), con_ctx, m_ctx);
     });
   }
 }

@@ -378,14 +378,14 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
 
 std::ostream &operator<<(std::ostream &out, const ContractionMode mode) {
   switch (mode) {
-  case ContractionMode::EDGE_BUFFER:
-    return out << "edge-buffer";
-  case ContractionMode::EDGE_BUFFER_LEGACY:
-    return out << "edge-buffer-legacy";
-  case ContractionMode::NO_EDGE_BUFFER_NAIVE:
-    return out << "no-edge-buffer-naive";
-  case ContractionMode::NO_EDGE_BUFFER_REMAP:
-    return out << "no-edge-buffer-remap";
+  case ContractionMode::BUFFERED:
+    return out << "buffered";
+  case ContractionMode::BUFFERED_LEGACY:
+    return out << "buffered-legacy";
+  case ContractionMode::UNBUFFERED:
+    return out << "unbuffered";
+  case ContractionMode::UNBUFFERED_NAIVE:
+    return out << "unbuffered-naive";
   }
 
   return out << "<invalid>";
@@ -393,10 +393,10 @@ std::ostream &operator<<(std::ostream &out, const ContractionMode mode) {
 
 std::unordered_map<std::string, ContractionMode> get_contraction_modes() {
   return {
-      {"edge-buffer", ContractionMode::EDGE_BUFFER},
-      {"edge-buffer-legacy", ContractionMode::EDGE_BUFFER_LEGACY},
-      {"no-edge-buffer-naive", ContractionMode::NO_EDGE_BUFFER_NAIVE},
-      {"no-edge-buffer-remap", ContractionMode::NO_EDGE_BUFFER_REMAP},
+      {"buffered", ContractionMode::BUFFERED},
+      {"buffered-legacy", ContractionMode::BUFFERED_LEGACY},
+      {"unbuffered", ContractionMode::UNBUFFERED},
+      {"unbuffered-naive", ContractionMode::UNBUFFERED_NAIVE},
   };
 }
 
@@ -405,14 +405,15 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
   out << "Cluster weight limit:         " << c_ctx.cluster_weight_limit << " x "
       << c_ctx.cluster_weight_multiplier << "\n";
   out << "Clustering algorithm:         " << c_ctx.algorithm << "\n";
-  if (c_ctx.algorithm == ClusteringAlgorithm::LABEL_PROPAGATION) {
+  if (c_ctx.algorithm == ClusteringAlgorithm::LABEL_PROPAGATION ||
+      c_ctx.algorithm == ClusteringAlgorithm::LEGACY_LABEL_PROPAGATION) {
     print(c_ctx.lp, out);
   }
 
   out << "Contraction mode:             " << c_ctx.contraction.mode << '\n';
   out << "  Mapping type:               "
       << (c_ctx.contraction.use_compact_mapping ? "compact" : "normal") << '\n';
-  if (c_ctx.contraction.mode == ContractionMode::EDGE_BUFFER) {
+  if (c_ctx.contraction.mode == ContractionMode::BUFFERED) {
     out << "  Edge buffer fill fraction:  " << c_ctx.contraction.edge_buffer_fill_fraction << "\n";
   }
 }
