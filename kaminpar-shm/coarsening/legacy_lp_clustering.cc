@@ -52,6 +52,8 @@ public:
   }
 
   Clusterer::AtomicClusterArray &compute_clustering(const CSRGraph &graph, bool) {
+    ensure_cluster_size(graph.n());
+
     initialize(&graph, graph.n());
 
     for (int iteration = 0; iteration < _c_ctx.lp.num_iterations; ++iteration) {

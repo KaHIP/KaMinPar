@@ -1202,7 +1202,8 @@ protected:
 
 template <typename NodeID, typename ClusterID> class LegacyNonatomicLegacyOwnedClusterVector {
 public:
-  explicit LegacyNonatomicLegacyOwnedClusterVector(const NodeID max_num_nodes) : _clusters(max_num_nodes) {
+  explicit LegacyNonatomicLegacyOwnedClusterVector(const NodeID max_num_nodes)
+      : _clusters(max_num_nodes) {
     tbb::parallel_for<NodeID>(0, max_num_nodes, [&](const NodeID u) { _clusters[u] = 0; });
   }
 
