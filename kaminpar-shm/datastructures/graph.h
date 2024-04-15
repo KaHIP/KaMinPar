@@ -27,6 +27,22 @@
 #include "kaminpar-common/ranges.h"
 
 namespace kaminpar::shm {
+namespace graph {
+template <typename Lambda> decltype(auto) reified(const AbstractGraph *abstract_graph, Lambda &&l) {
+  if (const auto *graph = dynamic_cast<const CSRGraph *>(abstract_graph); graph != nullptr) {
+    return l(*graph);
+  } else if (auto *graph = dynamic_cast<const CompactCSRGraph *>(abstract_graph);
+             graph != nullptr) {
+    return l(*graph);
+  } else if (auto *graph = dynamic_cast<const CompressedGraph *>(abstract_graph);
+             graph != nullptr) {
+    return l(*graph);
+  }
+
+  __builtin_unreachable();
+}
+} // namespace graph
+
 class Graph : public AbstractGraph {
 public:
   // Data types used by this graph
@@ -57,17 +73,7 @@ public:
   }
 
   template <typename Lambda> decltype(auto) reified(Lambda &&l) const {
-    if (const auto *graph = dynamic_cast<const CSRGraph *>(underlying_graph()); graph != nullptr) {
-      return l(*graph);
-    } else if (auto *graph = dynamic_cast<const CompactCSRGraph *>(underlying_graph());
-               graph != nullptr) {
-      return l(*graph);
-    } else if (auto *graph = dynamic_cast<const CompressedGraph *>(underlying_graph());
-               graph != nullptr) {
-      return l(*graph);
-    }
-
-    __builtin_unreachable();
+    return graph::reified(underlying_graph(), std::forward<Lambda>(l));
   }
 
   // Size of the graph
