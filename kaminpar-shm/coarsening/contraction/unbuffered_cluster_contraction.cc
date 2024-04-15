@@ -18,6 +18,16 @@
 
 namespace kaminpar::shm::contraction {
 namespace {
+template <template <typename> typename Mapping> Mapping<NodeID> alloc_remapping(NodeID c_n);
+
+template <> CompactStaticArray<NodeID> alloc_remapping(const NodeID c_n) {
+  return {static_cast<std::uint8_t>(math::byte_width(c_n)), c_n};
+}
+
+template <> StaticArray<NodeID> alloc_remapping(const NodeID c_n) {
+  return {c_n};
+}
+
 template <template <typename> typename Mapping, typename Graph>
 std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
     const Graph &graph,
@@ -58,7 +68,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
   tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> collector{[&] {
     return RatingMap<EdgeWeight, NodeID>(c_n);
   }};
-  CompactStaticArray<NodeID> remapping(math::byte_width(c_n), c_n);
+  Mapping<NodeID> remapping = alloc_remapping<Mapping>(c_n);
 
   const auto write_neighbourhood = [&](const NodeID c_u,
                                        const NodeID new_c_u,
@@ -295,16 +305,18 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
     const ContractionCoarseningContext &con_ctx,
     MemoryContext &m_ctx
 ) {
-  KASSERT(
-      con_ctx.use_compact_mapping,
-      "must be used with the compact mapping data structure",
-      assert::always
-  );
-
-  auto [c_n, mapping] = compute_mapping<CompactStaticArray>(graph, clustering, m_ctx);
-  fill_cluster_buckets(c_n, graph, mapping, m_ctx.buckets_index, m_ctx.buckets);
-  return graph.reified([&](auto &graph) {
-    return contract_clustering_unbuffered(graph, c_n, std::move(mapping), con_ctx, m_ctx);
-  });
+  if (con_ctx.use_compact_mapping) {
+    auto [c_n, mapping] = compute_mapping<CompactStaticArray>(graph, clustering, m_ctx);
+    fill_cluster_buckets(c_n, graph, mapping, m_ctx.buckets_index, m_ctx.buckets);
+    return graph.reified([&](auto &graph) {
+      return contract_clustering_unbuffered(graph, c_n, std::move(mapping), con_ctx, m_ctx);
+    });
+  } else {
+    auto [c_n, mapping] = compute_mapping<StaticArray>(graph, clustering, m_ctx);
+    fill_cluster_buckets(c_n, graph, mapping, m_ctx.buckets_index, m_ctx.buckets);
+    return graph.reified([&](auto &graph) {
+      return contract_clustering_unbuffered(graph, c_n, std::move(mapping), con_ctx, m_ctx);
+    });
+  }
 }
 } // namespace kaminpar::shm::contraction

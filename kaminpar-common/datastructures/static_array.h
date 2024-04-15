@@ -182,6 +182,10 @@ public:
   // Data access members
   //
 
+  void write(const size_type pos, const_reference value) {
+      at(pos) = value;
+  }
+
   reference at(const size_type pos) {
     return _data[pos];
   }
