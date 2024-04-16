@@ -16,11 +16,12 @@
 #include "kaminpar-shm/partitioning/rb/rb_multilevel.h"
 
 // Clusterings
-#include "kaminpar-shm/coarsening/cluster_coarsener.h"
 #include "kaminpar-shm/coarsening/clustering/legacy_lp_clusterer.h"
 #include "kaminpar-shm/coarsening/clustering/lp_clusterer.h"
+#include "kaminpar-shm/coarsening/clustering/noop_clusterer.h"
 
 // Coarsening
+#include "kaminpar-shm/coarsening/cluster_coarsener.h"
 #include "kaminpar-shm/coarsening/noop_coarsener.h"
 
 // Refinement
@@ -52,7 +53,7 @@ std::unique_ptr<Partitioner> create_partitioner(const Graph &graph, const Contex
 std::unique_ptr<Clusterer> create_clusterer(const Context &ctx) {
   switch (ctx.coarsening.clustering.algorithm) {
   case ClusteringAlgorithm::NOOP:
-    return nullptr;
+    return std::make_unique<NoopClusterer>();
 
   case ClusteringAlgorithm::LABEL_PROPAGATION:
     return std::make_unique<LPClustering>(ctx.partition.n, ctx.coarsening);

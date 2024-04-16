@@ -87,7 +87,6 @@ Context create_default_context() {
                               .isolated_nodes_strategy =
                                   IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP,
                           },
-                      .convergence_threshold = 0.05,
                       .cluster_weight_limit = ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
                       .cluster_weight_multiplier = 1.0,
                       .max_mem_free_coarsening_level = 0,
@@ -100,6 +99,7 @@ Context create_default_context() {
                       .use_compact_mapping = false,
                   },
               .contraction_limit = 2000,
+              .convergence_threshold = 0.05,
           },
       .initial_partitioning =
           {

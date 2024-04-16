@@ -107,6 +107,14 @@ CLI::Option_group *create_partitioning_rearrangement_options(CLI::App *app, Cont
 CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
   auto *coarsening = app->add_option_group("Coarsening");
 
+  // Coarsening options:
+  coarsening->add_option("--c-algorithm", ctx.coarsening.algorithm)
+      ->transform(CLI::CheckedTransformer(get_coarsening_algorithms()).description(""))
+      ->description(R"(One of the following options:
+  - noop:       disable coarsening
+  - clustering: coarsening by clustering and contracting)")
+      ->capture_default_str();
+
   coarsening
       ->add_option(
           "--c-contraction-limit",
@@ -115,6 +123,16 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
       )
       ->capture_default_str();
 
+  coarsening
+      ->add_option(
+          "--c-convergence-threshold",
+          ctx.coarsening.convergence_threshold,
+          "Coarsening converges once the size of the graph shrinks by "
+          "less than this factor."
+      )
+      ->capture_default_str();
+
+  // Clustering options:
   coarsening->add_option("--c-clustering-algorithm", ctx.coarsening.algorithm)
       ->transform(CLI::CheckedTransformer(get_clustering_algorithms()).description(""))
       ->description(R"(One of the following options:
@@ -143,14 +161,6 @@ Options are:
       )
       ->capture_default_str();
 
-  coarsening
-      ->add_option(
-          "--c-coarsening-convergence-threshold",
-          ctx.coarsening.clustering.convergence_threshold,
-          "Coarsening converges once the size of the graph shrinks by "
-          "less than this factor."
-      )
-      ->capture_default_str();
   coarsening
       ->add_option(
           "--c-max-memory-free-coarsening-level",

@@ -256,11 +256,13 @@ bool coarsen_once(Coarsener *coarsener, const Graph *graph, PartitionContext &cu
 }
 
 BlockID compute_k_for_n(const NodeID n, const Context &input_ctx) {
+  // Catch special case where log is negative:
   if (n < 2 * input_ctx.coarsening.contraction_limit) {
     return 2;
-  } // catch special case where log is negative
+  }
+
   const BlockID k_prime = 1 << math::ceil_log2(n / input_ctx.coarsening.contraction_limit);
-  return std::clamp(k_prime, static_cast<BlockID>(2), input_ctx.partition.k);
+  return std::clamp<BlockID>(k_prime, 2, input_ctx.partition.k);
 }
 
 std::size_t compute_num_copies(
@@ -268,21 +270,21 @@ std::size_t compute_num_copies(
 ) {
   KASSERT(num_threads > 0u);
 
-  // sequential base case?
+  // Sequential base case;
   const NodeID C = input_ctx.coarsening.contraction_limit;
   if (converged || n <= 2 * C) {
     return num_threads;
   }
 
-  // parallel case
+  // Parallel case:
   const std::size_t f = 1 << static_cast<std::size_t>(std::ceil(std::log2(1.0 * n / C)));
 
-  // continue with coarsening if the graph is still too large
+  // Continue with coarsening if the graph is still too large ...
   if (f > num_threads) {
     return 1;
   }
 
-  // split into groups
+  // ... otherwise, split into groups:
   return num_threads / f;
 }
 

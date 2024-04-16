@@ -58,7 +58,7 @@ bool ClusteringCoarsener::coarsen() {
   STOP_HEAP_PROFILER();
 
   const NodeID next_n = current().n();
-  const bool converged = (1.0 - 1.0 * next_n / prev_n) <= _c_ctx.clustering.convergence_threshold;
+  const bool converged = (1.0 - 1.0 * next_n / prev_n) <= _c_ctx.convergence_threshold;
 
   if (free_allocated_memory) {
     _contraction_m_ctx.buckets.free();

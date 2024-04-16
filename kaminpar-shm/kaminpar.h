@@ -156,8 +156,6 @@ struct ClusterCoarseningContext {
   ClusteringAlgorithm algorithm;
   LabelPropagationCoarseningContext lp;
 
-  double convergence_threshold;
-
   ClusterWeightLimit cluster_weight_limit;
   double cluster_weight_multiplier;
 
@@ -171,6 +169,8 @@ struct CoarseningContext {
   ContractionCoarseningContext contraction;
 
   NodeID contraction_limit;
+
+  double convergence_threshold;
 };
 
 //
