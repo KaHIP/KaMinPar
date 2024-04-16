@@ -17,11 +17,7 @@
 namespace kaminpar::shm {
 class ClusteringCoarsener : public Coarsener {
 public:
-  ClusteringCoarsener(
-      std::unique_ptr<Clusterer> clustering_algorithm, const CoarseningContext &c_ctx
-  )
-      : _clustering_algorithm(std::move(clustering_algorithm)),
-        _c_ctx(c_ctx) {}
+  ClusteringCoarsener(const Context &ctx, const PartitionContext &p_ctx);
 
   ClusteringCoarsener(const ClusteringCoarsener &) = delete;
   ClusteringCoarsener &operator=(const ClusteringCoarsener) = delete;
@@ -31,9 +27,7 @@ public:
 
   void initialize(const Graph *graph) final;
 
-  bool
-  coarsen(NodeWeight max_cluster_weight, NodeID to_size, const bool free_memory_afterwards) final;
-
+  bool coarsen() final;
   PartitionedGraph uncoarsen(PartitionedGraph &&p_graph) final;
 
   [[nodiscard]] const Graph &current() const final {
@@ -45,7 +39,12 @@ public:
   }
 
 private:
+  std::unique_ptr<CoarseGraph> pop_hierarchy(PartitionedGraph &&p_graph);
+
+  [[nodiscard]] bool keep_allocated_memory() const;
+
   const CoarseningContext &_c_ctx;
+  const PartitionContext &_input_p_ctx;
 
   const Graph *_input_graph;
   std::vector<std::unique_ptr<CoarseGraph>> _hierarchy;

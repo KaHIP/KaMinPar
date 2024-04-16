@@ -241,18 +241,10 @@ void extend_partition(
   );
 }
 
-bool coarsen_once(
-    Coarsener *coarsener,
-    const Graph *graph,
-    const Context &input_ctx,
-    PartitionContext &current_p_ctx,
-    const bool free_memory_afterwards
-) {
+bool coarsen_once(Coarsener *coarsener, const Graph *graph, PartitionContext &current_p_ctx) {
   SCOPED_TIMER("Coarsening");
 
-  const NodeWeight max_cluster_weight =
-      compute_max_cluster_weight(input_ctx.coarsening, *graph, input_ctx.partition);
-  const auto shrunk = coarsener->coarsen(max_cluster_weight, 0, free_memory_afterwards);
+  const auto shrunk = coarsener->coarsen();
   const auto &c_graph = coarsener->current();
 
   // @todo always do this?

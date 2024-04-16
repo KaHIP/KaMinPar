@@ -37,12 +37,12 @@ class LegacyLPClusteringImpl final
   using ClusterBase = LegacyNonatomicClusterVectorRef<NodeID, NodeID>;
 
 public:
-  LegacyLPClusteringImpl(const NodeID max_n, const CoarseningContext &c_ctx)
-      : ClusterWeightBase(max_n),
-        _c_ctx(c_ctx) {
-    allocate(max_n, max_n);
-    set_max_degree(c_ctx.lp.large_degree_threshold);
-    set_max_num_neighbors(c_ctx.lp.max_num_neighbors);
+  LegacyLPClusteringImpl(const NodeID preallocate_n, const CoarseningContext &c_ctx)
+      : ClusterWeightBase(preallocate_n),
+        _lp_ctx(c_ctx.clustering.lp) {
+    allocate(preallocate_n, preallocate_n);
+    set_max_degree(_lp_ctx.large_degree_threshold);
+    set_max_num_neighbors(_lp_ctx.max_num_neighbors);
   }
 
   void set_max_cluster_weight(const NodeWeight max_cluster_weight) {
@@ -53,7 +53,7 @@ public:
     init_clusters_ref(clustering);
     initialize(&graph, graph.n());
 
-    for (int iteration = 0; iteration < _c_ctx.lp.num_iterations; ++iteration) {
+    for (int iteration = 0; iteration < _lp_ctx.num_iterations; ++iteration) {
       SCOPED_TIMER("Iteration", std::to_string(iteration));
       if (perform_iteration() == 0) {
         break;
@@ -72,7 +72,7 @@ private:
       return;
     }
 
-    switch (_c_ctx.lp.two_hop_strategy) {
+    switch (_lp_ctx.two_hop_strategy) {
     case TwoHopStrategy::MATCH:
       match_two_hop_nodes();
       break;
@@ -101,7 +101,7 @@ private:
   void cluster_isolated_nodes() {
     SCOPED_TIMER("Handle isolated nodes");
 
-    switch (_c_ctx.lp.isolated_nodes_strategy) {
+    switch (_lp_ctx.isolated_nodes_strategy) {
     case IsolatedNodesClusteringStrategy::MATCH:
       match_isolated_nodes();
       break;
@@ -128,7 +128,7 @@ private:
   }
 
   [[nodiscard]] bool should_handle_two_hop_nodes() const {
-    return (1.0 - 1.0 * _current_num_clusters / _graph->n()) <= _c_ctx.lp.two_hop_threshold;
+    return (1.0 - 1.0 * _current_num_clusters / _graph->n()) <= _lp_ctx.two_hop_threshold;
   }
 
   // @todo: old implementation that should no longer be used
@@ -223,7 +223,7 @@ public:
   using Base::_current_num_clusters;
   using Base::_graph;
 
-  const CoarseningContext &_c_ctx;
+  const LabelPropagationCoarseningContext &_lp_ctx;
   NodeWeight _max_cluster_weight = kInvalidBlockWeight;
 };
 

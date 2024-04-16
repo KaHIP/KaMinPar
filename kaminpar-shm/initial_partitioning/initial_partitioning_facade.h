@@ -8,6 +8,7 @@
 
 #include <memory>
 
+#include "kaminpar-shm/coarsening/max_cluster_weights.h"
 #include "kaminpar-shm/initial_partitioning/initial_coarsener.h"
 #include "kaminpar-shm/initial_partitioning/initial_refiner.h"
 #include "kaminpar-shm/initial_partitioning/pool_bipartitioner.h"
@@ -85,8 +86,9 @@ public:
 private:
   const CSRGraph *coarsen() {
     const InitialCoarseningContext &c_ctx = _i_ctx.coarsening;
-    const NodeWeight max_cluster_weight =
-        compute_max_cluster_weight(_i_ctx.coarsening, _graph, _p_ctx);
+    const NodeWeight max_cluster_weight = compute_max_cluster_weight<NodeWeight>(
+        _i_ctx.coarsening, _p_ctx, _graph.n(), _graph.total_node_weight()
+    );
 
     const CSRGraph *c_graph = &_graph;
     bool shrunk = true;

@@ -55,7 +55,6 @@ Context create_default_context() {
       .partitioning =
           {
               .mode = PartitioningMode::DEEP,
-              .max_mem_free_coarsening_level = 0,
               .deep_initial_partitioning_mode = InitialPartitioningMode::ASYNCHRONOUS_PARALLEL,
               .deep_initial_partitioning_load = 1.0,
           },
@@ -68,33 +67,39 @@ Context create_default_context() {
       .coarsening =
           {
               // Context -> Coarsening
-              .algorithm = ClusteringAlgorithm::LEGACY_LABEL_PROPAGATION,
-              .lp =
+              .algorithm = CoarseningAlgorithm::CLUSTERING,
+              .clustering =
                   {
-                      // Context -> Coarsening -> Label Propagation
-                      .num_iterations = 5,
-                      .large_degree_threshold = 1000000,
-                      .max_num_neighbors = 200000,
-                      .use_two_level_cluster_weight_vector = false,
-                      .use_two_phases = false,
-                      .second_phase_select_mode = SecondPhaseSelectMode::FULL_RATING_MAP,
-                      .second_phase_aggregation_mode = SecondPhaseAggregationMode::BUFFERED,
-                      .two_hop_strategy = TwoHopStrategy::MATCH_THREADWISE,
-                      .two_hop_threshold = 0.5,
-                      .isolated_nodes_strategy =
-                          IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP,
+                      // Context -> Coarsening -> Clustering
+                      .algorithm = ClusteringAlgorithm::LEGACY_LABEL_PROPAGATION,
+                      .lp =
+                          {
+                              // Context -> Coarsening -> Clustering -> Label Propagation
+                              .num_iterations = 5,
+                              .large_degree_threshold = 1000000,
+                              .max_num_neighbors = 200000,
+                              .use_two_level_cluster_weight_vector = false,
+                              .use_two_phases = false,
+                              .second_phase_select_mode = SecondPhaseSelectMode::FULL_RATING_MAP,
+                              .second_phase_aggregation_mode = SecondPhaseAggregationMode::BUFFERED,
+                              .two_hop_strategy = TwoHopStrategy::MATCH_THREADWISE,
+                              .two_hop_threshold = 0.5,
+                              .isolated_nodes_strategy =
+                                  IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP,
+                          },
+                      .convergence_threshold = 0.05,
+                      .cluster_weight_limit = ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
+                      .cluster_weight_multiplier = 1.0,
+                      .max_mem_free_coarsening_level = 0,
                   },
               .contraction =
                   {
+                      // Context -> Coarsening -> Contraction
                       .mode = ContractionMode::BUFFERED,
                       .edge_buffer_fill_fraction = 1,
                       .use_compact_mapping = false,
                   },
               .contraction_limit = 2000,
-              .enforce_contraction_limit = false,
-              .convergence_threshold = 0.05,
-              .cluster_weight_limit = ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
-              .cluster_weight_multiplier = 1.0,
           },
       .initial_partitioning =
           {
@@ -192,10 +197,10 @@ Context create_memory_context() {
   Context ctx = create_default_context();
   ctx.compression.enabled = true;
   ctx.compression.may_dismiss = true;
-  ctx.partitioning.max_mem_free_coarsening_level = 100;
-  ctx.coarsening.algorithm = ClusteringAlgorithm::LABEL_PROPAGATION;
-  ctx.coarsening.lp.use_two_phases = true;
-  ctx.coarsening.lp.use_two_level_cluster_weight_vector = true;
+  ctx.coarsening.clustering.algorithm = ClusteringAlgorithm::LABEL_PROPAGATION;
+  ctx.coarsening.clustering.lp.use_two_phases = true;
+  ctx.coarsening.clustering.lp.use_two_level_cluster_weight_vector = true;
+  ctx.coarsening.clustering.max_mem_free_coarsening_level = 100;
   ctx.coarsening.contraction.mode = ContractionMode::UNBUFFERED;
   ctx.coarsening.contraction.use_compact_mapping = true;
   return ctx;
@@ -205,7 +210,7 @@ Context create_fast_context() {
   Context ctx = create_default_context();
   ctx.partitioning.deep_initial_partitioning_mode = InitialPartitioningMode::ASYNCHRONOUS_PARALLEL;
   ctx.partitioning.deep_initial_partitioning_load = 0.5;
-  ctx.coarsening.lp.num_iterations = 1;
+  ctx.coarsening.clustering.lp.num_iterations = 1;
   ctx.initial_partitioning.min_num_repetitions = 1;
   ctx.initial_partitioning.min_num_non_adaptive_repetitions = 1;
   ctx.initial_partitioning.max_num_repetitions = 1;

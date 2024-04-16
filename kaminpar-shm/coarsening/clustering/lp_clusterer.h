@@ -39,14 +39,14 @@ class LPClusteringImpl final
 
 public:
   LPClusteringImpl(const NodeID max_n, const CoarseningContext &c_ctx)
-      : ClusterWeightBase{c_ctx.lp.use_two_level_cluster_weight_vector},
-        _c_ctx{c_ctx},
-        _max_n{max_n} {
-    this->set_max_degree(c_ctx.lp.large_degree_threshold);
-    this->set_max_num_neighbors(c_ctx.lp.max_num_neighbors);
-    this->set_use_two_phases(c_ctx.lp.use_two_phases);
-    this->set_second_phase_select_mode(c_ctx.lp.second_phase_select_mode);
-    this->set_second_phase_aggregation_mode(c_ctx.lp.second_phase_aggregation_mode);
+      : ClusterWeightBase(c_ctx.clustering.lp.use_two_level_cluster_weight_vector),
+        _lp_ctx(c_ctx.clustering.lp),
+        _max_n(max_n) {
+    this->set_max_degree(_lp_ctx.large_degree_threshold);
+    this->set_max_num_neighbors(_lp_ctx.max_num_neighbors);
+    this->set_use_two_phases(_lp_ctx.use_two_phases);
+    this->set_second_phase_select_mode(_lp_ctx.second_phase_select_mode);
+    this->set_second_phase_aggregation_mode(_lp_ctx.second_phase_aggregation_mode);
   }
 
   void set_max_cluster_weight(const NodeWeight max_cluster_weight) {
@@ -81,7 +81,7 @@ public:
     this->initialize(&graph, graph.n());
     STOP_HEAP_PROFILER();
 
-    for (std::size_t iteration = 0; iteration < _c_ctx.lp.num_iterations; ++iteration) {
+    for (std::size_t iteration = 0; iteration < _lp_ctx.num_iterations; ++iteration) {
       SCOPED_HEAP_PROFILER("Iteration", std::to_string(iteration));
       SCOPED_TIMER("Iteration", std::to_string(iteration));
       if (this->perform_iteration() == 0) {
@@ -102,7 +102,7 @@ private:
       return;
     }
 
-    switch (_c_ctx.lp.two_hop_strategy) {
+    switch (_lp_ctx.two_hop_strategy) {
     case TwoHopStrategy::MATCH:
       this->match_two_hop_nodes();
       break;
@@ -127,7 +127,7 @@ private:
     SCOPED_HEAP_PROFILER("Handle isolated nodes");
     SCOPED_TIMER("Handle isolated nodes");
 
-    switch (_c_ctx.lp.isolated_nodes_strategy) {
+    switch (_lp_ctx.isolated_nodes_strategy) {
     case IsolatedNodesClusteringStrategy::MATCH:
       this->match_isolated_nodes();
       break;
@@ -150,7 +150,7 @@ private:
   }
 
   [[nodiscard]] bool should_handle_two_hop_nodes() const {
-    return (1.0 - 1.0 * _current_num_clusters / _graph->n()) <= _c_ctx.lp.two_hop_threshold;
+    return (1.0 - 1.0 * _current_num_clusters / _graph->n()) <= _lp_ctx.two_hop_threshold;
   }
 
   // @todo: old implementation that should no longer be used
@@ -233,14 +233,14 @@ public:
   using Base::_current_num_clusters;
   using Base::_graph;
 
-  const CoarseningContext &_c_ctx;
+  const LabelPropagationCoarseningContext &_lp_ctx;
   const NodeID _max_n;
   NodeWeight _max_cluster_weight = kInvalidBlockWeight;
 };
 
 class LPClustering : public Clusterer {
 public:
-  LPClustering(NodeID max_n, const CoarseningContext &c_ctx);
+  LPClustering(NodeID preallocate_n, const CoarseningContext &c_ctx);
 
   LPClustering(const LPClustering &) = delete;
   LPClustering &operator=(const LPClustering &) = delete;

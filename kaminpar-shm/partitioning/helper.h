@@ -111,13 +111,7 @@ void extend_partition(
     GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool
 );
 
-bool coarsen_once(
-    Coarsener *coarsener,
-    const Graph *graph,
-    const Context &input_ctx,
-    PartitionContext &current_p_ctx,
-    const bool free_memory_afterwards = false
-);
+bool coarsen_once(Coarsener *coarsener, const Graph *graph, PartitionContext &current_p_ctx);
 
 // compute smallest k_prime such that it is a power of 2 and n / k_prime <= C
 BlockID compute_k_for_n(NodeID n, const Context &input_ctx);

@@ -76,6 +76,11 @@ enum class EdgeOrdering {
 // Coarsening
 //
 
+enum class CoarseningAlgorithm {
+  NOOP,
+  CLUSTERING,
+};
+
 enum class ClusteringAlgorithm {
   NOOP,
   LABEL_PROPAGATION,
@@ -116,6 +121,13 @@ enum class IsolatedNodesClusteringStrategy {
   CLUSTER_DURING_TWO_HOP,
 };
 
+enum class ContractionMode {
+  BUFFERED,
+  BUFFERED_LEGACY,
+  UNBUFFERED,
+  UNBUFFERED_NAIVE,
+};
+
 struct LabelPropagationCoarseningContext {
   int num_iterations;
   NodeID large_degree_threshold;
@@ -134,28 +146,31 @@ struct LabelPropagationCoarseningContext {
   IsolatedNodesClusteringStrategy isolated_nodes_strategy;
 };
 
-enum class ContractionMode {
-  BUFFERED,
-  BUFFERED_LEGACY,
-  UNBUFFERED,
-  UNBUFFERED_NAIVE,
-};
-
 struct ContractionCoarseningContext {
   ContractionMode mode;
   double edge_buffer_fill_fraction;
   bool use_compact_mapping;
 };
 
-struct CoarseningContext {
+struct ClusterCoarseningContext {
   ClusteringAlgorithm algorithm;
   LabelPropagationCoarseningContext lp;
-  ContractionCoarseningContext contraction;
-  NodeID contraction_limit;
-  bool enforce_contraction_limit;
+
   double convergence_threshold;
+
   ClusterWeightLimit cluster_weight_limit;
   double cluster_weight_multiplier;
+
+  int max_mem_free_coarsening_level;
+};
+
+struct CoarseningContext {
+  CoarseningAlgorithm algorithm;
+
+  ClusterCoarseningContext clustering;
+  ContractionCoarseningContext contraction;
+
+  NodeID contraction_limit;
 };
 
 //
@@ -349,7 +364,6 @@ enum class PartitioningMode {
 
 struct PartitioningContext {
   PartitioningMode mode;
-  int max_mem_free_coarsening_level;
 
   InitialPartitioningMode deep_initial_partitioning_mode;
   double deep_initial_partitioning_load;
