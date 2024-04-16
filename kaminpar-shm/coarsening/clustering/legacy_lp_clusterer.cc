@@ -9,8 +9,8 @@
 
 #include <memory>
 
-#include "kaminpar-shm/coarsening/clustering/legacy_label_propagation.h"
 #include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/legacy_label_propagation.h"
 
 #include "kaminpar-common/timer.h"
 

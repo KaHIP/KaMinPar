@@ -131,7 +131,8 @@ Context create_default_context() {
           {
               // Context -> Refinement
               .algorithms =
-                  {RefinementAlgorithm::GREEDY_BALANCER, RefinementAlgorithm::LABEL_PROPAGATION},
+                  {RefinementAlgorithm::GREEDY_BALANCER,
+                   RefinementAlgorithm::LEGACY_LABEL_PROPAGATION},
               .lp =
                   {
                       // Context -> Refinement -> Label Propagation
