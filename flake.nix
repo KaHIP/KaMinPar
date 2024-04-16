@@ -10,13 +10,23 @@
     let
       pkgs = import nixpkgs { inherit system; };
       inputs = builtins.attrValues {
-        inherit (pkgs) cmake ninja python312 gcc13 tbb_2021_8 sparsehash mpi;
+        inherit (pkgs) cmake ninja python312 gcc13 tbb_2021_11 sparsehash mpi;
       };
     in
     {
       devShells.default = pkgs.mkShell {
         packages = inputs ++ builtins.attrValues {
-          inherit (pkgs) fish ccache gdb valgrind massif-visualizer;
+          inherit (pkgs) fish ccache gdb;
+        };
+
+        shellHook = ''
+          exec fish
+        '';
+      };
+
+      devShells.clang = (pkgs.mkShell.override { stdenv = pkgs.llvmPackages_18.stdenv; }) {
+        packages = (pkgs.lib.lists.remove pkgs.gcc13 inputs) ++ builtins.attrValues {
+          inherit (pkgs) fish ccache gdb;
         };
 
         shellHook = ''
