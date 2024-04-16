@@ -1,6 +1,6 @@
 /*******************************************************************************
- * This file overwrites memory allocation operations to invoke the heap
- * profiler.
+ * This file overwrites the memory allocation operations of libc with operations that additionally
+ * invoke the heap profiler.
  *
  * @file:   libc_memory_override.h
  * @author: Daniel Salwasser
@@ -13,7 +13,7 @@
 namespace kaminpar::heap_profiler {
 
 /*!
- * Allocates size bytes of uninitialized storage. The allocation request is directly forwarded to
+ * Allocates size bytes of uninitialized memory. The allocation request is directly forwarded to
  * malloc and thus not captured by the heap profiler.
  *
  * @param size The number of bytes to allocate.
@@ -24,9 +24,9 @@ namespace kaminpar::heap_profiler {
 void *std_malloc(std::size_t size);
 
 /*!
- * Deallocates the space previously allocated by std_malloc.
+ * Deallocates the memory previously allocated by std_malloc.
  *
- * @param ptr The pointer to the memory to deallocate.
+ * @param ptr The pointer to the memory to be deallocated.
  */
 void std_free(void *ptr);
 

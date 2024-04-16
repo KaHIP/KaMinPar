@@ -291,6 +291,10 @@ void HeapProfiler::print_data_structures(
       [&](auto *data_structure) { return data_structure->size >= min_data_struct_size; }
   );
 
+  if (filtered_data_structures.empty()) {
+    return;
+  }
+
   std::sort(
       filtered_data_structures.begin(),
       filtered_data_structures.end(),

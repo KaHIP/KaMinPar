@@ -1,6 +1,6 @@
 /*******************************************************************************
- * This file overwrites memory allocation operations to invoke the heap
- * profiler.
+ * This file overwrites the memory allocation operations of libc with operations that additionally
+ * invoke the heap profiler.
  *
  * @file:   libc_memory_override.cc
  * @author: Daniel Salwasser
@@ -13,7 +13,7 @@
 #include "kaminpar-common/heap_profiler.h"
 
 #ifdef KAMINPAR_ENABLE_HEAP_PROFILING
-#ifdef __GNUC__
+#ifdef __GLIBC__
 extern "C" {
 
 using kaminpar::heap_profiler::HeapProfiler;
@@ -101,7 +101,7 @@ int munmap(void *addr, size_t len) {
 #endif
 }
 #else
-#error Heap profiling is only supported for gcc
+#error Heap profiling is only supported for systems that are using glibc.
 #endif
 #endif
 
