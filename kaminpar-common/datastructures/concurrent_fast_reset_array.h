@@ -41,6 +41,15 @@ public:
   }
 
   /*!
+   * Returns the capacity of this array.
+   *
+   * @return The capacity of this array.
+   */
+  std::size_t capacity() const {
+    return _data.capacity();
+  }
+
+  /*!
    * Returns the thread-local vector of used entries.
    *
    * @return The thread-local vector of used entries.

@@ -151,67 +151,69 @@ public:
 
 protected:
   /*!
-   * (Re)allocates memory to run label propagation on a graph with \c num_nodes nodes.
+   * Selects the number of nodes \c num_nodes of the graph for which a clustering is to be
+   * computed and the number of clusters \c num_clusters.
    *
    * @param num_nodes Number of nodes in the graph.
    * @param num_clusters The number of clusters.
    */
-  void allocate(const NodeID num_nodes, const ClusterID num_clusters, bool resize = true) {
-    allocate(num_nodes, num_nodes, num_clusters, resize);
+  void preinitialize(const NodeID num_nodes, const ClusterID num_clusters) {
+    preinitialize(num_nodes, num_nodes, num_clusters);
   }
 
   /*!
-   * (Re)allocates memory to run label propagation on a graph with \c num_nodes nodes in total, but
-   * a clustering is only computed for the first \c num_active_nodes nodes.
+   * Selects the number of nodes \c num_nodes of the graph for which a clustering is to be
+   * computed, but a clustering is only computed for the first \c num_active_nodes nodes, and the
+   * number of clusters \c num_clusters.
    *
    * This is mostly useful for distributed graphs where ghost nodes are always inactive.
    *
-   * @param num_nodes Total number of nodes in the graph, i.e. neighbors of active nodes have an ID
-   * less than this.
+   * @param num_nodes Number of nodes in the graph.
    * @param num_active_nodes Number of nodes for which a cluster label is computed.
    * @param num_clusters The number of clusters.
    */
-  void allocate(
-      const NodeID num_nodes,
-      NodeID num_active_nodes,
-      const ClusterID num_clusters,
-      bool resize = true
+  void preinitialize(
+      const NodeID num_nodes, const NodeID num_active_nodes, const ClusterID num_clusters
   ) {
-    if constexpr (Config::kUseLocalActiveSetStrategy) {
-      if (resize && _active.capacity() < num_nodes) {
-        _active.resize(num_nodes);
-      }
-    }
-
-    if constexpr (Config::kUseActiveSetStrategy) {
-      if (resize && _active.capacity() < num_active_nodes) {
-        _active.resize(num_active_nodes);
-      }
-    }
-
-    if constexpr (Config::kUseTwoHopClustering) {
-      if (resize && _favored_clusters.capacity() < num_active_nodes) {
-        _favored_clusters.resize(num_active_nodes);
-      }
-    }
-
-    if (resize && _num_clusters < num_clusters) {
-      _rating_map_ets = tbb::enumerable_thread_specific<RatingMap>([num_clusters] {
-        return RatingMap(num_clusters);
-      });
-    } else {
-      for (auto &rating_map : _rating_map_ets) {
-        rating_map.change_max_size(num_clusters);
-      }
-    }
-
     _num_nodes = num_nodes;
     _num_active_nodes = num_active_nodes;
+    _prev_num_clusters = _num_clusters;
     _num_clusters = num_clusters;
   }
 
   /*!
+   * (Re)allocates memory to run label propagation on. Must be called after \c preinitialize().
+   */
+  void allocate() {
+    if constexpr (Config::kUseLocalActiveSetStrategy) {
+      if (_active.capacity() < _num_nodes) {
+        _active.resize(_num_nodes);
+      }
+    }
+
+    if constexpr (Config::kUseActiveSetStrategy) {
+      if (_active.capacity() < _num_active_nodes) {
+        _active.resize(_num_active_nodes);
+      }
+    }
+
+    if constexpr (Config::kUseTwoHopClustering) {
+      if (_favored_clusters.capacity() < _num_active_nodes) {
+        _favored_clusters.resize(_num_active_nodes);
+      }
+    }
+
+    if (_rating_map_ets.empty() || _prev_num_clusters < _num_clusters) {
+      _rating_map_ets =
+          tbb::enumerable_thread_specific<RatingMap>([&_num_clusters = _num_clusters] {
+            return RatingMap(_num_clusters);
+          });
+    }
+  }
+
+  /*!
    * Initialize label propagation. Must be called after \c allocate().
+
    * @param graph Graph for label propagation.
    * @param num_clusters Number of different clusters the nodes are placed in
    * initially. When using label propagation as refinement graphutils, this is
@@ -234,6 +236,7 @@ protected:
     // No shrink-to-fit call is needed (and provided by the ets-interface) since the clear already
     // frees the memory.
     _rating_map_ets.clear();
+    _prev_num_clusters = 0;
 
     _active.clear();
     _active.shrink_to_fit();
@@ -1083,6 +1086,7 @@ private:
   NodeID _num_nodes = 0;
   NodeID _num_active_nodes = 0;
   ClusterID _num_clusters = 0;
+  ClusterID _prev_num_clusters = 0;
 };
 
 /*!
@@ -1219,7 +1223,7 @@ public:
 
   DataStructures release() {
     return std::make_tuple(
-        std::move(_rating_map_ets),
+        std::move(Base::_rating_map_ets),
         std::move(Base::_active),
         std::move(Base::_favored_clusters),
         std::move(Base::_second_phase_nodes),
@@ -1360,7 +1364,9 @@ protected:
       auto &num_moved_nodes = num_moved_nodes_ets.local();
       auto &rand = Random::instance();
 
-      _concurrent_rating_map.resize(Base::_initial_num_clusters);
+      if (_concurrent_rating_map.capacity() < Base::_initial_num_clusters) {
+        _concurrent_rating_map.resize(Base::_initial_num_clusters);
+      }
 
       for (const NodeID u : _second_phase_nodes) {
         const auto [moved_node, emptied_cluster] =
@@ -1644,7 +1650,7 @@ public:
     IF_HEAP_PROFILING(_struct = nullptr);
   }
 
-  void allocate_cluster_weights(const ClusterID max_num_clusters) {
+  void allocate(const ClusterID max_num_clusters) {
     if (_use_two_level_vector) {
       _cluster_weights_tlvec.resize(max_num_clusters);
     } else {

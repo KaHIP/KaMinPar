@@ -53,12 +53,16 @@ public:
     _max_cluster_weight = max_cluster_weight;
   }
 
-  void allocate(NodeID num_nodes, bool resize) {
+  void preinitialize(const NodeID num_nodes) {
+    Base::preinitialize(num_nodes, num_nodes);
+  }
+
+  void allocate() {
     SCOPED_HEAP_PROFILER("Allocation");
     SCOPED_TIMER("Allocation");
 
-    Base::allocate(num_nodes, num_nodes, resize);
-    this->allocate_cluster_weights(_max_n);
+    Base::allocate();
+    ClusterWeightBase::allocate(_max_n);
   }
 
   void free() {
@@ -258,8 +262,8 @@ private:
   std::unique_ptr<LPClusteringImpl<CompactCSRGraph>> _compact_csr_core;
   std::unique_ptr<LPClusteringImpl<CompressedGraph>> _compressed_core;
 
-  // The data structures which are used by the LP clustering and are shared between the
-  // different graph implementations.
+  // The data structures which are used by the LP clusterer and are shared between the
+  // different implementations.
   bool _freed = true;
   LPClusteringImpl<Graph>::DataStructures _structs;
   LPClusteringImpl<Graph>::ClusterWeights _cluster_weights;

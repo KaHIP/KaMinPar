@@ -10,9 +10,9 @@
 namespace kaminpar::shm {
 
 LPClustering::LPClustering(const NodeID max_n, const CoarseningContext &c_ctx)
-    : _csr_core{std::make_unique<LPClusteringImpl<CSRGraph>>(max_n, c_ctx)},
-      _compact_csr_core{std::make_unique<LPClusteringImpl<CompactCSRGraph>>(max_n, c_ctx)},
-      _compressed_core{std::make_unique<LPClusteringImpl<CompressedGraph>>(max_n, c_ctx)} {}
+    : _csr_core(std::make_unique<LPClusteringImpl<CSRGraph>>(max_n, c_ctx)),
+      _compact_csr_core(std::make_unique<LPClusteringImpl<CompactCSRGraph>>(max_n, c_ctx)),
+      _compressed_core(std::make_unique<LPClusteringImpl<CompressedGraph>>(max_n, c_ctx)) {}
 
 // We must declare the destructor explicitly here, otherwise, it is implicitly generated before
 // LabelPropagationClusterCore is complete.
@@ -34,15 +34,14 @@ void LPClustering::compute_clustering(
     StaticArray<NodeID> &clustering, const Graph &graph, const bool free_memory_afterwards
 ) {
   // Compute a clustering and setup/release the data structures used by the core, so that they can
-  // be shared by all graph implementations.
+  // be shared by all implementations.
   const auto compute = [&](auto &core, auto &graph) {
     if (_freed) {
       _freed = false;
-      core.allocate(graph.n(), true);
+      core.allocate();
     } else {
       core.setup(std::move(_structs));
       core.setup_cluster_weights(std::move(_cluster_weights));
-      core.allocate(graph.n(), false);
     }
 
     core.compute_clustering(clustering, graph);
@@ -55,6 +54,11 @@ void LPClustering::compute_clustering(
       _cluster_weights = core.take_cluster_weights();
     }
   };
+
+  const NodeID num_nodes = graph.n();
+  _csr_core->preinitialize(num_nodes);
+  _compact_csr_core->preinitialize(num_nodes);
+  _compressed_core->preinitialize(num_nodes);
 
   if (auto *csr_graph = dynamic_cast<const CSRGraph *>(graph.underlying_graph());
       csr_graph != nullptr) {

@@ -40,10 +40,8 @@ class LabelPropagationRefinerImpl final : public ChunkRandomdLabelPropagation<
   static constexpr std::size_t kInfiniteIterations = std::numeric_limits<std::size_t>::max();
 
 public:
-  LabelPropagationRefinerImpl(const Context &ctx)
-      : _r_ctx{ctx.refinement},
-        _n(ctx.partition.n),
-        _k(ctx.partition.k) {
+  LabelPropagationRefinerImpl(const Context &ctx) : _r_ctx{ctx.refinement} {
+    Base::preinitialize(ctx.partition.n, ctx.partition.k);
     this->set_max_degree(_r_ctx.lp.large_degree_threshold);
     this->set_max_num_neighbors(_r_ctx.lp.max_num_neighbors);
   }
@@ -53,8 +51,10 @@ public:
   }
 
   void allocate() {
-    SCOPED_HEAP_PROFILER("Label Propagation Allocation");
-    Base::allocate(_n, _n, _k);
+    SCOPED_HEAP_PROFILER("Allocation");
+    SCOPED_TIMER("Allocation");
+
+    Base::allocate();
   }
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
@@ -64,7 +64,6 @@ public:
     _p_ctx = &p_ctx;
     Base::initialize(_graph, _p_ctx->k);
 
-    SCOPED_TIMER("Label Propagation");
     const std::size_t max_iterations =
         _r_ctx.lp.num_iterations == 0 ? kInfiniteIterations : _r_ctx.lp.num_iterations;
     for (std::size_t iteration = 0; iteration < max_iterations; ++iteration) {
@@ -136,8 +135,6 @@ public:
             current_overload < initial_overload || state.current_cluster == state.initial_cluster);
   }
 
-  const NodeID _n;
-  const NodeID _k;
   const Graph *_graph{nullptr};
   PartitionedGraph *_p_graph{nullptr};
   const PartitionContext *_p_ctx;
@@ -159,9 +156,9 @@ private:
   std::unique_ptr<LabelPropagationRefinerImpl<CompactCSRGraph>> _compact_csr_impl;
   std::unique_ptr<LabelPropagationRefinerImpl<CompressedGraph>> _compressed_impl;
 
-  // The data structures which are used by the LP clustering and are shared between the
-  // different graph implementations.
-  bool _allocated = false;
+  // The data structures which are used by the LP refiner and are shared between the
+  // different implementations.
+  bool _freed = true;
   LabelPropagationRefinerImpl<Graph>::DataStructures _structs;
 };
 } // namespace kaminpar::shm
