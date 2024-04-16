@@ -45,7 +45,9 @@ bool ClusteringCoarsener::coarsen(
   };
   STOP_HEAP_PROFILER();
 
-  const bool converged = _c_ctx.coarsening_should_converge(current().n(), coarsened->get().n());
+  const NodeID prev_n = current().n();
+  const NodeID next_n = coarsened->get().n();
+  const bool converged = (1.0 - 1.0 * next_n / prev_n) <= _c_ctx.convergence_threshold;
 
   _hierarchy.push_back(std::move(coarsened));
 

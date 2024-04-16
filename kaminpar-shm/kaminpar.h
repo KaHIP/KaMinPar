@@ -156,11 +156,6 @@ struct CoarseningContext {
   double convergence_threshold;
   ClusterWeightLimit cluster_weight_limit;
   double cluster_weight_multiplier;
-
-  [[nodiscard]] inline bool
-  coarsening_should_converge(const NodeID old_n, const NodeID new_n) const {
-    return (1.0 - 1.0 * new_n / old_n) <= convergence_threshold;
-  }
 };
 
 //
