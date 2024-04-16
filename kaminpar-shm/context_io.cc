@@ -427,7 +427,7 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
         << c_ctx.clustering.cluster_weight_multiplier << "\n";
     out << "  Max mem-free level:         " << c_ctx.clustering.max_mem_free_coarsening_level
         << "\n";
-    out << "  Clustering algorithm:       " << c_ctx.algorithm << "\n";
+    out << "  Clustering algorithm:       " << c_ctx.clustering.algorithm << "\n";
     if (c_ctx.clustering.algorithm == ClusteringAlgorithm::LABEL_PROPAGATION ||
         c_ctx.clustering.algorithm == ClusteringAlgorithm::LEGACY_LABEL_PROPAGATION) {
       print(c_ctx.clustering.lp, out);
