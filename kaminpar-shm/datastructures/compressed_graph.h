@@ -156,6 +156,10 @@ public:
   CompressedGraph(CompressedGraph &&) noexcept = default;
   CompressedGraph &operator=(CompressedGraph &&) noexcept = default;
 
+  template <typename Lambda> decltype(auto) reified(Lambda &&l) const {
+    return l(*this);
+  }
+
   // Direct member access -- used for some "low level" operations
   [[nodiscard]] inline CompactStaticArray<EdgeID> &raw_nodes() {
     return _nodes;
