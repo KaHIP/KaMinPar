@@ -338,7 +338,7 @@ protected:
    * Computes the best feasible cluster for a node.
    *
    * @tparam parallel Whether the best cluster for the node should be computed in parallel.
-   * @tparam RatingMap The rating map used for computing the best cluster for the node.
+   * @tparam RatingMap The rating map used for computing the best cluster.
    *
    * @param u The node for which the cluster is computed.
    * @param u_weight The weight of the node.
@@ -346,7 +346,9 @@ protected:
    * @param rand (Thread-local) \c Random object.
    * @param map (Thread-local) rating map to compute gain values.
    *
-   * @return Pair with: new cluster of the node, gain value for the move to the new cluster.
+   * @return (Optional) Pair with: new cluster of the node, gain value for the move to the new
+   * cluster. The optional that is returned can be empty when two-phase is used with full-rating-map
+   * as the strategy.
    */
   template <bool parallel = false, typename RatingMap>
   std::optional<std::pair<ClusterID, EdgeWeight>> find_best_cluster(
@@ -434,12 +436,16 @@ protected:
         });
         break;
       }
+      case SecondPhaseAggregationMode::NONE:
+        __builtin_unreachable();
       }
     } else {
-      const bool use_frm_two_phases =
+      const bool use_two_phase_with_frm =
           _use_two_phases && _second_phase_select_mode == SecondPhaseSelectMode::FULL_RATING_MAP;
-      bool second_phase_node = false;
+      const bool aggregate_during_second_phase =
+          _second_phase_aggregation_mode != SecondPhaseAggregationMode::NONE;
 
+      bool second_phase_node = false;
       _graph->neighbors(u, _max_num_neighbors, [&](const EdgeID e, const NodeID v) {
         if (derived_accept_neighbor(u, v)) {
           const ClusterID v_cluster = derived_cluster(v);
@@ -447,10 +453,12 @@ protected:
 
           map[v_cluster] += rating;
 
-          if (use_frm_two_phases && map.size() >= Config::kRatingMapThreshold) {
-            _second_phase_nodes.push_back(u);
-            map.clear();
+          if (use_two_phase_with_frm && map.size() >= Config::kRatingMapThreshold) {
+            if (aggregate_during_second_phase) {
+              _second_phase_nodes.push_back(u);
+            }
 
+            map.clear();
             second_phase_node = true;
             return true;
           }
@@ -1291,6 +1299,8 @@ protected:
     const bool use_high_degree_selection =
         Base::_use_two_phases && Base::_initial_num_clusters >= Config::kRatingMapThreshold &&
         Base::_second_phase_select_mode == Base::SecondPhaseSelectMode::HIGH_DEGREE;
+    const bool aggregate_during_second_phase =
+        Base::_second_phase_aggregation_mode != Base::SecondPhaseAggregationMode::NONE;
 
     START_HEAP_PROFILER("First phase");
     START_TIMER("First phase");
@@ -1333,7 +1343,10 @@ protected:
           const NodeID degree = _graph->degree(u);
           if (degree < _max_degree) {
             if (use_high_degree_selection && degree >= Config::kRatingMapThreshold) {
-              _second_phase_nodes.push_back(u);
+              if (aggregate_during_second_phase) {
+                _second_phase_nodes.push_back(u);
+              }
+
               continue;
             }
 
@@ -1357,7 +1370,7 @@ protected:
     STOP_HEAP_PROFILER();
 
     const NodeID num_second_phase_nodes = _second_phase_nodes.size();
-    if (num_second_phase_nodes > 0) {
+    if (aggregate_during_second_phase && num_second_phase_nodes > 0) {
       SCOPED_HEAP_PROFILER("Second phase");
       SCOPED_TIMER("Second phase");
 
@@ -1386,7 +1399,7 @@ protected:
 
     if constexpr (kDebug) {
       NodeID num_first_phase_nodes = 0;
-      for (NodeID local_num_first_phase_nodes : num_first_phase_nodes_ets) {
+      for (const NodeID local_num_first_phase_nodes : num_first_phase_nodes_ets) {
         num_first_phase_nodes += local_num_first_phase_nodes;
       }
 

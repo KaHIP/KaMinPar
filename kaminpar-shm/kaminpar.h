@@ -95,6 +95,7 @@ enum class SecondPhaseSelectMode {
 };
 
 enum class SecondPhaseAggregationMode {
+  NONE,
   DIRECT,
   BUFFERED
 };

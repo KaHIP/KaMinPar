@@ -220,6 +220,7 @@ Options are:
       ->description(
           R"(Determines the mode for aggregating ratings in the second phase of label propagation.
 Options are:
+  - none:     Skip the second phase
   - direct:   Write the ratings directly into the global vector (shared between threads)
   - buffered: Write the ratings into a thread-local buffer and then copy them into the global vector when the buffer is full
   )"

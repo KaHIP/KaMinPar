@@ -289,6 +289,8 @@ std::unordered_map<std::string, SecondPhaseSelectMode> get_second_phase_select_m
 
 std::ostream &operator<<(std::ostream &out, SecondPhaseAggregationMode strategy) {
   switch (strategy) {
+  case SecondPhaseAggregationMode::NONE:
+    return out << "none";
   case SecondPhaseAggregationMode::DIRECT:
     return out << "direct";
   case SecondPhaseAggregationMode::BUFFERED:
@@ -300,6 +302,7 @@ std::ostream &operator<<(std::ostream &out, SecondPhaseAggregationMode strategy)
 
 std::unordered_map<std::string, SecondPhaseAggregationMode> get_second_phase_aggregation_modes() {
   return {
+      {"none", SecondPhaseAggregationMode::NONE},
       {"direct", SecondPhaseAggregationMode::DIRECT},
       {"buffered", SecondPhaseAggregationMode::BUFFERED}
   };
