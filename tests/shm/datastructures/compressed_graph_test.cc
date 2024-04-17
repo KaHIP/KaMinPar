@@ -4,31 +4,30 @@
 #include <gmock/gmock.h>
 
 #include "tests/shm/graph_factories.h"
-#include "tests/shm/graph_helpers.h"
 
 #include "kaminpar-shm/datastructures/compressed_graph.h"
 #include "kaminpar-shm/graphutils/permutator.h"
 
 #define HIGH_DEGREE_NUM (CompressedGraph::kHighDegreeThreshold * 5)
 #define TEST_ON_ALL_GRAPHS(test_function)                                                          \
-  test_function(graphs::empty(0));                                                                 \
-  test_function(graphs::empty(100));                                                               \
-  test_function(graphs::path(100));                                                                \
-  test_function(graphs::star(100));                                                                \
-  test_function(graphs::grid(100, 100));                                                           \
-  test_function(graphs::complete_bipartite(100, 100));                                             \
-  test_function(graphs::complete(100));                                                            \
-  test_function(graphs::matching(100));                                                            \
-  test_function(graphs::star(HIGH_DEGREE_NUM));
+  test_function(make_empty_graph(0));                                                              \
+  test_function(make_empty_graph(100));                                                            \
+  test_function(make_path_graph(100));                                                             \
+  test_function(make_star_graph(100));                                                             \
+  test_function(make_grid_graph(100, 100));                                                        \
+  test_function(make_complete_bipartite_graph(100, 100));                                          \
+  test_function(make_complete_graph(100));                                                         \
+  test_function(make_matching_graph(100));                                                         \
+  test_function(make_star_graph(HIGH_DEGREE_NUM));
 
 #define TEST_ON_WEIGHTED_GRAPHS(test_function)                                                     \
-  test_function(graphs::complete(100, [](const NodeID u, const NodeID v) {                         \
+  test_function(make_complete_graph(100, [](const NodeID u, const NodeID v) {                      \
     return static_cast<EdgeWeight>(u + v);                                                         \
   }));                                                                                             \
-  test_function(graphs::complete_bipartite(100, 100, [](const NodeID u, const NodeID v) {          \
+  test_function(make_complete_bipartite_graph(100, 100, [](const NodeID u, const NodeID v) {       \
     return static_cast<EdgeWeight>(u + v);                                                         \
   }));                                                                                             \
-  test_function(graphs::star(HIGH_DEGREE_NUM, [](const NodeID u, const NodeID v) {                 \
+  test_function(make_star_graph(HIGH_DEGREE_NUM, [](const NodeID u, const NodeID v) {              \
     return static_cast<EdgeWeight>(u + v);                                                         \
   }));
 

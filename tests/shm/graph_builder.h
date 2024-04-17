@@ -1,8 +1,10 @@
 #pragma once
 
-#include <numeric>
+#include <vector>
 
+#include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm::testing {
 class GraphBuilder {
@@ -54,62 +56,9 @@ public:
   }
 
 private:
-  std::vector<EdgeID> _nodes{};
-  std::vector<NodeID> _edges{};
-  std::vector<NodeWeight> _node_weights{};
-  std::vector<EdgeWeight> _edge_weights{};
+  std::vector<EdgeID> _nodes;
+  std::vector<NodeID> _edges;
+  std::vector<NodeWeight> _node_weights;
+  std::vector<EdgeWeight> _edge_weights;
 };
-
-/*!
- * Builds a single graph that contains all graphs as induced subgraphs.
- *
- * @param graphs A list of graphs that should be copied.
- * @param connect_graphs If true, the first node of each graph is connected to a
- * clique with edges of weight 1. Otherwise, the induced subgraphs are
- * disconnected.
- * @return A single graph containing all other graphs.
- */
-inline Graph
-merge_graphs(std::initializer_list<Graph *> graphs, const bool connect_graphs = false) {
-  const NodeID n =
-      std::accumulate(graphs.begin(), graphs.end(), 0, [&](const NodeID acc, const Graph *graph) {
-        return acc + graph->n();
-      });
-  const EdgeID m =
-      std::accumulate(graphs.begin(), graphs.end(), 0, [&](const EdgeID acc, const Graph *graph) {
-        return acc + graph->m();
-      });
-  GraphBuilder builder(n, m);
-
-  NodeID offset = 0;
-  for (const Graph *graph : graphs) {
-    KASSERT(graph->n() > 0u);
-    builder.new_node(graph->node_weight(0));
-
-    if (connect_graphs) {
-      NodeID first_node_in_other_graph = 0;
-      for (const Graph *other_graph : graphs) {
-        if (other_graph == graph) {
-          continue;
-        }
-        KASSERT(other_graph->n() > 0u);
-        builder.new_edge(first_node_in_other_graph);
-        first_node_in_other_graph += other_graph->n();
-      }
-    }
-
-    for (const NodeID u : graph->nodes()) {
-      if (u > 0) {
-        builder.new_node(graph->node_weight(u));
-      }
-      for (const auto [e, v] : graph->neighbors(u)) {
-        builder.new_edge(offset + v, graph->edge_weight(e));
-      }
-    }
-
-    offset += graph->n();
-  }
-
-  return builder.build();
-}
 } // namespace kaminpar::shm::testing

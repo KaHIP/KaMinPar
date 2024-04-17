@@ -4,14 +4,16 @@
 
 #include "tests/shm/graph_builder.h"
 
-namespace kaminpar::shm::testing::graphs {
+#include "kaminpar-shm/kaminpar.h"
+
+namespace kaminpar::shm::testing {
 /*!
  * Builds a graph with `n` nodes and zero edges.
  *
  * @param n Number of nodes in the graph.
  * @return Graph on `n` nodes and zero edges.
  */
-template <typename... GraphArgs> Graph empty(const NodeID n, GraphArgs &&...graph_args) {
+template <typename... GraphArgs> Graph make_empty_graph(const NodeID n, GraphArgs &&...graph_args) {
   GraphBuilder builder(n, 0);
   for (NodeID u = 0; u < n; ++u) {
     builder.new_node();
@@ -39,11 +41,7 @@ template <typename... GraphArgs> Graph empty(const NodeID n, GraphArgs &&...grap
  * @return Grid graph on `u * v` nodes.
  */
 template <typename... GraphArgs>
-Graph grid(
-    const NodeID u,
-    const NodeID v,
-    GraphArgs &&...graph_args
-) { // u x v grid
+Graph make_grid_graph(const NodeID u, const NodeID v, GraphArgs &&...graph_args) {
   GraphBuilder builder;
   for (NodeID i = 0; i < u; ++i) {
     const bool first_row = (i == 0);
@@ -76,8 +74,9 @@ Graph grid(
  * @param length Length of the path.
  * @return Path on `length` nodes.
  */
-template <typename... GraphArgs> Graph path(const NodeID length, GraphArgs &&...graph_args) {
-  return grid(length, 1, std::forward<GraphArgs...>(graph_args)...);
+template <typename... GraphArgs>
+Graph make_path_graph(const NodeID length, GraphArgs &&...graph_args) {
+  return make_grid_graph(length, 1, std::forward<GraphArgs...>(graph_args)...);
 }
 
 /*!
@@ -89,7 +88,7 @@ template <typename... GraphArgs> Graph path(const NodeID length, GraphArgs &&...
  * edges.
  */
 template <typename... GraphArgs>
-Graph complete_bipartite(const NodeID n, const NodeID m, GraphArgs &&...graph_args) {
+Graph make_complete_bipartite_graph(const NodeID n, const NodeID m, GraphArgs &&...graph_args) {
   GraphBuilder builder;
   for (NodeID u = 0; u < n; ++u) { // set A
     builder.new_node();
@@ -107,7 +106,9 @@ Graph complete_bipartite(const NodeID n, const NodeID m, GraphArgs &&...graph_ar
 }
 
 template <typename Lambda, typename... GraphArgs>
-Graph complete_bipartite(const NodeID n, const NodeID m, Lambda &&l, GraphArgs &&...graph_args) {
+Graph make_complete_bipartite_graph(
+    const NodeID n, const NodeID m, Lambda &&l, GraphArgs &&...graph_args
+) {
   GraphBuilder builder;
   for (NodeID u = 0; u < n; ++u) { // set A
     builder.new_node();
@@ -131,7 +132,8 @@ Graph complete_bipartite(const NodeID n, const NodeID m, Lambda &&l, GraphArgs &
  * @param edge_weight Weight used for all edges.
  * @return Complete graph with `n` nodes and `n * (n - 1)` undirected edges.
  */
-template <typename... GraphArgs> Graph complete(const NodeID n, GraphArgs &&...graph_args) {
+template <typename... GraphArgs>
+Graph make_complete_graph(const NodeID n, GraphArgs &&...graph_args) {
   GraphBuilder builder;
   for (NodeID u = 0; u < n; ++u) {
     builder.new_node();
@@ -145,7 +147,7 @@ template <typename... GraphArgs> Graph complete(const NodeID n, GraphArgs &&...g
 }
 
 template <typename Lambda, typename... GraphArgs>
-Graph complete(const NodeID n, Lambda &&l, GraphArgs &&...graph_args) {
+Graph make_complete_graph(const NodeID n, Lambda &&l, GraphArgs &&...graph_args) {
   GraphBuilder builder;
   for (NodeID u = 0; u < n; ++u) {
     builder.new_node();
@@ -166,18 +168,19 @@ Graph complete(const NodeID n, Lambda &&l, GraphArgs &&...graph_args) {
  * @param n Number of leaves.
  * @return Star graph with `n` leaves and one center.
  */
-template <typename... GraphArgs> Graph star(const NodeID n, GraphArgs &&...graph_args) {
-  return complete_bipartite(1, n, std::forward<GraphArgs...>(graph_args)...);
+template <typename... GraphArgs> Graph make_star_graph(const NodeID n, GraphArgs &&...graph_args) {
+  return make_complete_bipartite_graph(1, n, std::forward<GraphArgs...>(graph_args)...);
 }
 
 template <typename Lambda, typename... GraphArgs>
-Graph star(const NodeID n, Lambda &&l, GraphArgs &&...graph_args) {
-  return complete_bipartite(
+Graph make_star_graph(const NodeID n, Lambda &&l, GraphArgs &&...graph_args) {
+  return make_complete_bipartite_graph(
       1, n, std::forward<Lambda>(l), std::forward<GraphArgs...>(graph_args)...
   );
 }
 
-template <typename... GraphArgs> Graph matching(const NodeID m, GraphArgs &&...graph_args) {
+template <typename... GraphArgs>
+Graph make_matching_graph(const NodeID m, GraphArgs &&...graph_args) {
   GraphBuilder builder;
   for (NodeID u = 0; u < 2 * m; u += 2) {
     builder.new_node();
@@ -187,4 +190,4 @@ template <typename... GraphArgs> Graph matching(const NodeID m, GraphArgs &&...g
   }
   return builder.build(std::forward<GraphArgs...>(graph_args)...);
 }
-} // namespace kaminpar::shm::testing::graphs
+} // namespace kaminpar::shm::testing

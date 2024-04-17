@@ -35,6 +35,7 @@ public:
       : GraphDelegate<Graph>(&p_graph->graph()),
         _p_graph(p_graph) {
     if constexpr (!compact_block_weight_delta) {
+        std::cout << "resize to " << _p_graph->k() << std::endl;
       _block_weights_delta.resize(_p_graph->k());
     }
   }
@@ -83,7 +84,8 @@ public:
       const BlockID old_block = block(node);
       KASSERT(old_block < k());
 
-      _block_weights_delta[old_block] -= node_weight(node);
+      const NodeWeight w = node_weight(node);
+      _block_weights_delta[old_block] -= w;
       _block_weights_delta[new_block] += node_weight(node);
     }
 

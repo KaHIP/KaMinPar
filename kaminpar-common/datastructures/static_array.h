@@ -27,8 +27,17 @@ constexpr struct noinit_t {
 
 template <typename T> class StaticArray {
 public:
-  static StaticArray<T> create(std::initializer_list<T> list) {
+  static StaticArray<T> create(const std::initializer_list<T> list) {
     return {list.begin(), list.end()};
+  }
+
+  static StaticArray<T> create(const std::vector<T> &container) {
+    return {container.begin(), container.end()};
+  }
+
+  template <template <typename> typename Container>
+  static StaticArray<T> create(const Container<T> &container) {
+    return {container.begin(), container.end()};
   }
 
   class StaticArrayIterator {

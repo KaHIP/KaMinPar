@@ -19,7 +19,7 @@ namespace kaminpar::shm::testing {
 
 TEST(ParallelContractionTest, ContractingToSingleNodeWorks) {
   static constexpr auto GRID_LENGTH{2};
-  Graph graph{graphs::grid(GRID_LENGTH, GRID_LENGTH)};
+  Graph graph = make_grid_graph(GRID_LENGTH, GRID_LENGTH);
 
   for (const NodeID cluster : {0, 1, 2, 3}) {
     StaticArray<NodeID> clustering =
@@ -37,7 +37,7 @@ TEST(ParallelContractionTest, ContractingToSingleNodeWorks) {
 
 TEST(ParallelContractionTest, ContractingToSingletonsWorks) {
   static constexpr auto GRID_LENGTH{2};
-  Graph graph{graphs::grid(GRID_LENGTH, GRID_LENGTH)};
+  Graph graph = make_grid_graph(GRID_LENGTH, GRID_LENGTH);
   change_node_weight(graph, 0, 1);
   change_node_weight(graph, 1, 2);
   change_node_weight(graph, 2, 3);
@@ -63,7 +63,7 @@ TEST(ParallelContractionTest, ContractingToSingletonsWorks) {
 
 TEST(ParallelContractionTest, ContractingAllNodesButOneWorks) {
   static constexpr auto GRID_LENGTH = 2;
-  Graph graph = graphs::grid(GRID_LENGTH, GRID_LENGTH);
+  Graph graph = make_grid_graph(GRID_LENGTH, GRID_LENGTH);
 
   // 0--1
   // |  |
@@ -82,7 +82,7 @@ TEST(ParallelContractionTest, ContractingAllNodesButOneWorks) {
 }
 
 TEST(ParallelContractionTest, ContractingGridHorizontallyWorks) {
-  Graph graph = graphs::grid(2, 4); // two rows, 4 columns, organized row by row
+  Graph graph = make_grid_graph(2, 4); // two rows, 4 columns, organized row by row
   change_node_weight(graph, 0, 1);
   change_node_weight(graph, 1, 2);
   change_node_weight(graph, 2, 3);
@@ -111,7 +111,7 @@ TEST(ParallelContractionTest, ContractingGridHorizontallyWorks) {
 }
 
 TEST(ParallelContractionTest, ContractingGridVerticallyWorks) {
-  Graph graph = graphs::grid(4, 2); // four columns, two rows, organized row by row
+  Graph graph = make_grid_graph(4, 2); // four columns, two rows, organized row by row
   change_node_weight(graph, 0, 1);
   change_node_weight(graph, 1, 10);
   change_node_weight(graph, 2, 2);
@@ -196,7 +196,7 @@ TEST(
    * 7--8  9        *--*--*
    * 10    11
    */
-  Graph graph = create_graph({0, 0, 1, 3, 4, 5, 5, 5, 7, 8, 8, 8, 8}, {2, 1, 3, 2, 7, 4, 8, 7});
+  Graph graph = make_graph({0, 0, 1, 3, 4, 5, 5, 5, 7, 8, 8, 8, 8}, {2, 1, 3, 2, 7, 4, 8, 7});
 
   PartitionContext p_ctx;
   p_ctx.k = 2;
@@ -223,8 +223,8 @@ TEST(SequentialGraphExtraction, SimpleSequentialBipartitionExtractionWorks) {
   // 0--1--2     block 0
   //-|--|--
   // 3--4--5     block 1
-  Graph graph = create_graph({0, 2, 5, 6, 8, 11, 12}, {1, 3, 0, 4, 2, 1, 0, 4, 3, 1, 5, 4});
-  PartitionedGraph p_graph = create_p_graph(graph, 2, {0, 0, 0, 1, 1, 1});
+  const Graph graph = make_graph({0, 2, 5, 6, 8, 11, 12}, {1, 3, 0, 4, 2, 1, 0, 4, 3, 1, 5, 4});
+  PartitionedGraph p_graph = make_p_graph(graph, 2, {0, 0, 0, 1, 1, 1});
 
   graph::SubgraphMemory memory(p_graph);
   graph::SubgraphMemoryStartPosition position(0, 0);

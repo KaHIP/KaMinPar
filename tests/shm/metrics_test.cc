@@ -8,16 +8,13 @@
 namespace kaminpar::shm::testing {
 class MetricsTestFixture : public ::testing::Test {
 public:
-  MetricsTestFixture()
-      : graph(create_graph(
-            {0, 4, 5, 6, 7, 8}, {1, 2, 3, 4, 0, 0, 0, 0}, {4, 1, 1, 1, 1}, {3, 3, 3, 3, 3, 3, 3, 3}
-        )) {}
-
-  Graph graph;
+  Graph graph = make_graph(
+      {0, 4, 5, 6, 7, 8}, {1, 2, 3, 4, 0, 0, 0, 0}, {4, 1, 1, 1, 1}, {3, 3, 3, 3, 3, 3, 3, 3}
+  );
 };
 
 TEST_F(MetricsTestFixture, parallel_bipartition_edge_cut) {
-  PartitionedGraph p_graph{create_p_graph(graph, 2, {0, 1, 1, 1, 1})};
+  PartitionedGraph p_graph = make_p_graph(graph, 2, {0, 1, 1, 1, 1});
   EXPECT_EQ(metrics::edge_cut(p_graph), 4 * 3);
 
   // star center to other block, should reduce the edge cut to 0
@@ -32,7 +29,7 @@ TEST_F(MetricsTestFixture, parallel_bipartition_edge_cut) {
 }
 
 TEST_F(MetricsTestFixture, sequential_bipartition_edge_cut) {
-  PartitionedGraph p_graph{create_p_graph(graph, 2, {0, 1, 1, 1, 1})};
+  PartitionedGraph p_graph = make_p_graph(graph, 2, {0, 1, 1, 1, 1});
   EXPECT_EQ(metrics::edge_cut_seq(p_graph), 4 * 3);
 
   // star center to other block, should reduce the edge cut to 0
@@ -47,22 +44,22 @@ TEST_F(MetricsTestFixture, sequential_bipartition_edge_cut) {
 }
 
 TEST_F(MetricsTestFixture, parallel_singleton_blocks_edge_cut) {
-  PartitionedGraph p_graph{create_p_graph(graph, 5, {0, 1, 2, 3, 4})};
+  const PartitionedGraph p_graph = make_p_graph(graph, 5, {0, 1, 2, 3, 4});
   EXPECT_EQ(metrics::edge_cut(p_graph), 4 * 3);
 }
 
 TEST_F(MetricsTestFixture, sequential_singleton_blocks_edge_cut) {
-  PartitionedGraph p_graph{create_p_graph(graph, 5, {0, 1, 2, 3, 4})};
+  const PartitionedGraph p_graph = make_p_graph(graph, 5, {0, 1, 2, 3, 4});
   EXPECT_EQ(metrics::edge_cut_seq(p_graph), 4 * 3);
 }
 
 TEST_F(MetricsTestFixture, perfectly_balanced_bipartition_balance) {
-  PartitionedGraph p_graph{create_p_graph(graph, 2, {0, 1, 1, 1, 1})};
+  const PartitionedGraph p_graph = make_p_graph(graph, 2, {0, 1, 1, 1, 1});
   EXPECT_DOUBLE_EQ(metrics::imbalance(p_graph), 0.0);
 }
 
 TEST_F(MetricsTestFixture, imbalanced_bipartition_balance) {
-  PartitionedGraph p_graph{create_p_graph(graph, 2, {0, 0, 0, 1, 1})};
+  const PartitionedGraph p_graph = make_p_graph(graph, 2, {0, 0, 0, 1, 1});
   // block weights:
   // weight(0) = 6
   // weight(1) = 2
@@ -81,16 +78,16 @@ create_testing_context(const Graph &graph, const BlockID k = 2, const double eps
 }
 
 TEST(MetricsTest, is_feasible_with_single_node) {
-  Graph graph{create_graph({0, 0}, {}, {1000}, {})};
-  const PartitionedGraph p_graph{create_p_graph(graph, 1, {0})};
+  const Graph graph = make_graph({0, 0}, {}, {1000}, {});
+  const PartitionedGraph p_graph = make_p_graph(graph, 1, {0});
   Context ctx = create_testing_context(graph, 1, 0.03);
 
   EXPECT_TRUE(metrics::is_feasible(p_graph, ctx.partition));
 }
 
 TEST(MetricsTest, is_feasible_with_multiple_nodes) {
-  Graph graph{create_graph({0, 0, 0, 0, 0}, {}, {200, 100, 100, 100}, {})};
-  PartitionedGraph p_graph{create_p_graph(graph, 4, {0, 1, 2, 3})};
+  const Graph graph = make_graph({0, 0, 0, 0, 0}, {}, {200, 100, 100, 100}, {});
+  PartitionedGraph p_graph = make_p_graph(graph, 4, {0, 1, 2, 3});
   Context ctx = create_testing_context(graph, 4, 0);
 
   EXPECT_TRUE(metrics::is_feasible(p_graph, ctx.partition));

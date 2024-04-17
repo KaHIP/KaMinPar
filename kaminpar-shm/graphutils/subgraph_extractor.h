@@ -158,7 +158,7 @@ struct TemporarySubgraphMemory {
 };
 
 SubgraphExtractionResult extract_subgraphs(
-    const PartitionedGraph &p_graph, const BlockID input_k, SubgraphMemory &subgraph_memory
+    const PartitionedGraph &p_graph, BlockID input_k, SubgraphMemory &subgraph_memory
 );
 
 SequentialSubgraphExtractionResult extract_subgraphs_sequential(
