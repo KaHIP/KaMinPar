@@ -44,7 +44,7 @@ private:
   [[nodiscard]] bool keep_allocated_memory() const;
 
   const CoarseningContext &_c_ctx;
-  const PartitionContext &_input_p_ctx;
+  const PartitionContext &_p_ctx;
 
   const Graph *_input_graph;
   std::vector<std::unique_ptr<CoarseGraph>> _hierarchy;

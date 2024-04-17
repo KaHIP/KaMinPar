@@ -20,7 +20,7 @@ namespace kaminpar::shm {
 ClusteringCoarsener::ClusteringCoarsener(const Context &ctx, const PartitionContext &p_ctx)
     : _clustering_algorithm(factory::create_clusterer(ctx)),
       _c_ctx(ctx.coarsening),
-      _input_p_ctx(ctx.partition) {}
+      _p_ctx(p_ctx) {}
 
 void ClusteringCoarsener::initialize(const Graph *graph) {
   _hierarchy.clear();
@@ -43,7 +43,7 @@ bool ClusteringCoarsener::coarsen() {
   START_HEAP_PROFILER("Label Propagation");
   START_TIMER("Label Propagation");
   _clustering_algorithm->set_max_cluster_weight(
-      compute_max_cluster_weight<NodeWeight>(_c_ctx, _input_p_ctx, prev_n, total_node_weight)
+      compute_max_cluster_weight<NodeWeight>(_c_ctx, _p_ctx, prev_n, total_node_weight)
   );
   _clustering_algorithm->set_desired_cluster_count(0);
   _clustering_algorithm->compute_clustering(_clustering, current(), free_allocated_memory);
