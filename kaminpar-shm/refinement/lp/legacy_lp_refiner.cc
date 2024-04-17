@@ -38,8 +38,7 @@ class LegacyLabelPropagationRefinerImpl final : public ChunkRandomdLegacyLabelPr
   static constexpr std::size_t kInfiniteIterations = std::numeric_limits<std::size_t>::max();
 
 public:
-  LegacyLabelPropagationRefinerImpl(const Context &ctx) : _r_ctx{ctx.refinement} {
-    allocate(ctx.partition.n, ctx.partition.n, ctx.partition.k);
+  LegacyLabelPropagationRefinerImpl(const Context &ctx) : _r_ctx(ctx.refinement) {
     set_max_degree(_r_ctx.lp.large_degree_threshold);
     set_max_num_neighbors(_r_ctx.lp.max_num_neighbors);
   }
@@ -47,6 +46,8 @@ public:
   void initialize(const PartitionedGraph &p_graph) {
     _graph = dynamic_cast<const CSRGraph *>(p_graph.graph().underlying_graph());
     KASSERT(_graph != nullptr, "Graph must be a CSRGraph", assert::always);
+
+    allocate(p_graph.n(), p_graph.n(), p_graph.k());
   }
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {

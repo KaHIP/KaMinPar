@@ -37,10 +37,7 @@ class LegacyLPClusteringImpl final
   using ClusterBase = LegacyNonatomicClusterVectorRef<NodeID, NodeID>;
 
 public:
-  LegacyLPClusteringImpl(const NodeID preallocate_n, const CoarseningContext &c_ctx)
-      : ClusterWeightBase(preallocate_n),
-        _lp_ctx(c_ctx.clustering.lp) {
-    allocate(preallocate_n, preallocate_n);
+  LegacyLPClusteringImpl(const CoarseningContext &c_ctx) : _lp_ctx(c_ctx.clustering.lp) {
     set_max_degree(_lp_ctx.large_degree_threshold);
     set_max_num_neighbors(_lp_ctx.max_num_neighbors);
   }
@@ -50,6 +47,9 @@ public:
   }
 
   void compute_clustering(StaticArray<NodeID> &clustering, const CSRGraph &graph, bool) {
+    allocate(graph.n(), graph.n());
+    allocate_cluster_weights(graph.n());
+
     init_clusters_ref(clustering);
     initialize(&graph, graph.n());
 
@@ -231,8 +231,8 @@ public:
 // Exposed wrapper
 //
 
-LegacyLPClustering::LegacyLPClustering(const NodeID max_n, const CoarseningContext &c_ctx)
-    : _core(std::make_unique<LegacyLPClusteringImpl>(max_n, c_ctx)) {}
+LegacyLPClustering::LegacyLPClustering(const CoarseningContext &c_ctx)
+    : _core(std::make_unique<LegacyLPClusteringImpl>(c_ctx)) {}
 
 // we must declare the destructor explicitly here, otherwise, it is implicitly
 // generated before LegacyLabelPropagationClusterCore is complete

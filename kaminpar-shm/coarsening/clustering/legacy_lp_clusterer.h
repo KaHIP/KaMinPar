@@ -13,7 +13,7 @@
 namespace kaminpar::shm {
 class LegacyLPClustering : public Clusterer {
 public:
-  LegacyLPClustering(NodeID preallocate_n, const CoarseningContext &c_ctx);
+  LegacyLPClustering(const CoarseningContext &c_ctx);
 
   LegacyLPClustering(const LegacyLPClustering &) = delete;
   LegacyLPClustering &operator=(const LegacyLPClustering &) = delete;

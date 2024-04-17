@@ -1206,8 +1206,11 @@ protected:
 
 template <typename ClusterID, typename ClusterWeight> class LegacyOwnedRelaxedClusterWeightVector {
 public:
-  explicit LegacyOwnedRelaxedClusterWeightVector(const ClusterID max_num_clusters)
-      : _cluster_weights(max_num_clusters) {}
+  void allocate_cluster_weights(const ClusterID num_clusters) {
+    if (_cluster_weights.size() < num_clusters) {
+      _cluster_weights.resize(num_clusters);
+    }
+  }
 
   auto &&take_cluster_weights() {
     return std::move(_cluster_weights);
