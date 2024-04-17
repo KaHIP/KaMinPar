@@ -6,8 +6,6 @@
  ******************************************************************************/
 #include "kaminpar-shm/graphutils/subgraph_extractor.h"
 
-#include <mutex>
-
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
 
@@ -20,7 +18,6 @@
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/parallel/algorithm.h"
-#include "kaminpar-common/parallel/atomic.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::graph {
