@@ -131,8 +131,10 @@ Context create_default_context() {
           {
               // Context -> Refinement
               .algorithms =
-                  {RefinementAlgorithm::GREEDY_BALANCER,
-                   RefinementAlgorithm::LEGACY_LABEL_PROPAGATION},
+                  {
+                      RefinementAlgorithm::GREEDY_BALANCER,
+                      RefinementAlgorithm::LEGACY_LABEL_PROPAGATION,
+                  },
               .lp =
                   {
                       // Context -> Refinement -> Label Propagation
@@ -180,7 +182,6 @@ Context create_default_context() {
       .debug =
           {
               .graph_name = "",
-
               .dump_graph_filename = "n%n_m%m_k%k_seed%seed.metis",
               .dump_partition_filename = "n%n_m%m_k%k_seed%seed.part",
 
@@ -209,7 +210,6 @@ Context create_memory_context() {
 
 Context create_fast_context() {
   Context ctx = create_default_context();
-  ctx.partitioning.deep_initial_partitioning_mode = InitialPartitioningMode::ASYNCHRONOUS_PARALLEL;
   ctx.partitioning.deep_initial_partitioning_load = 0.5;
   ctx.coarsening.clustering.lp.num_iterations = 1;
   ctx.initial_partitioning.min_num_repetitions = 1;
@@ -233,7 +233,7 @@ Context create_strong_context() {
 
   ctx.refinement.algorithms = {
       RefinementAlgorithm::GREEDY_BALANCER,
-      RefinementAlgorithm::LABEL_PROPAGATION,
+      RefinementAlgorithm::LEGACY_LABEL_PROPAGATION,
       RefinementAlgorithm::KWAY_FM,
       RefinementAlgorithm::GREEDY_BALANCER,
   };
