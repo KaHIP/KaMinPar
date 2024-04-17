@@ -63,6 +63,8 @@ NodePermutations<StaticArray> rearrange_graph(
 }
 
 Graph rearrange_by_degree_buckets(CSRGraph &old_graph) {
+  SCOPED_TIMER("Rearrange by degree-buckets");
+
   auto nodes = old_graph.take_raw_nodes();
   auto edges = old_graph.take_raw_edges();
   auto node_weights = old_graph.take_raw_node_weights();
@@ -304,6 +306,8 @@ void remove_isolated_nodes_generic_graph(Graph &graph, PartitionContext &p_ctx) 
 }
 
 void remove_isolated_nodes(Graph &graph, PartitionContext &p_ctx) {
+  SCOPED_TIMER("Remove isolated nodes");
+
   if (auto *csr_graph = dynamic_cast<CSRGraph *>(graph.underlying_graph()); csr_graph != nullptr) {
     remove_isolated_nodes_generic_graph(*csr_graph, p_ctx);
   } else if (auto *compressed_graph = dynamic_cast<CompressedGraph *>(graph.underlying_graph());
