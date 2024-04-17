@@ -9,13 +9,11 @@
 
 #include "kaminpar-dist/coarsening/contraction/cluster_contraction.h"
 #include "kaminpar-dist/coarsening/contraction/local_cluster_contraction.h"
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/factories.h"
 
-#include "kaminpar-shm/context.h"
-#include "kaminpar-shm/partition_utils.h"
+#include "kaminpar-shm/coarsening/max_cluster_weights.h"
 
 namespace kaminpar::dist {
 SET_DEBUG(false);
@@ -194,11 +192,11 @@ const DistributedGraph *Coarsener::nth_coarsest(const std::size_t n) const {
 GlobalNodeWeight Coarsener::max_cluster_weight() const {
   const auto *graph = coarsest();
 
-  return shm::compute_max_cluster_weight(
+  return shm::compute_max_cluster_weight<GlobalNodeWeight>(
       _input_ctx.coarsening,
+      _input_ctx.partition,
       graph->global_n(),
-      graph->global_total_node_weight(),
-      _input_ctx.partition
+      graph->global_total_node_weight()
   );
 }
 } // namespace kaminpar::dist

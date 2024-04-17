@@ -383,7 +383,7 @@ endif ()
 
 # Unit tests
 if (KAMINPAR_BUILD_TESTS)
-    add_subdirectory(external/googletest EXCLUDE_FROM_ALL)
+    add_subdirectory(external/googletest EXCLUDE_FROM_ALL SYSTEM)
 
     enable_testing()
     add_subdirectory(tests)
