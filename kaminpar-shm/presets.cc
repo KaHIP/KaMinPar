@@ -134,6 +134,10 @@ Context create_default_context() {
                       .num_iterations = 5,
                       .large_degree_threshold = 1000000,
                       .max_num_neighbors = std::numeric_limits<NodeID>::max(),
+                      .use_two_phases = false,
+                      .second_phase_select_mode = SecondPhaseSelectMode::FULL_RATING_MAP,
+                      .second_phase_aggregation_mode = SecondPhaseAggregationMode::BUFFERED,
+                      .relabel_before_second_phase = false,
                   },
               .kway_fm =
                   {

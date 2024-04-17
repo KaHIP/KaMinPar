@@ -194,6 +194,11 @@ struct LabelPropagationRefinementContext {
   std::size_t num_iterations;
   NodeID large_degree_threshold;
   NodeID max_num_neighbors;
+
+  bool use_two_phases;
+  SecondPhaseSelectMode second_phase_select_mode;
+  SecondPhaseAggregationMode second_phase_aggregation_mode;
+  bool relabel_before_second_phase;
 };
 
 struct KwayFMRefinementContext {

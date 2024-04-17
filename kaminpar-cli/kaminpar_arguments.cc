@@ -351,6 +351,35 @@ CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx) {
   )
       ->capture_default_str();
 
+  lp->add_option("--r-lp-second-phase-select-mode", ctx.refinement.lp.second_phase_select_mode)
+      ->transform(CLI::CheckedTransformer(get_second_phase_select_modes()).description(""))
+      ->description(
+          R"(Determines the mode for selecting nodes for the second phase of label propagation.
+Options are:
+  - high-degree:     Select nodes with high degree
+  - full-rating-map: Select nodes which have a full rating map in the first phase
+  )"
+      )
+      ->capture_default_str();
+  lp->add_option(
+        "--r-lp-second-phase-aggregation-mode", ctx.refinement.lp.second_phase_aggregation_mode
+  )
+      ->transform(CLI::CheckedTransformer(get_second_phase_aggregation_modes()).description(""))
+      ->description(
+          R"(Determines the mode for aggregating ratings in the second phase of label propagation.
+Options are:
+  - none:     Skip the second phase
+  - direct:   Write the ratings directly into the global vector (shared between threads)
+  - buffered: Write the ratings into a thread-local buffer and then copy them into the global vector when the buffer is full
+  )"
+      );
+  lp->add_option(
+        "--r-lp-second-phase-relabel",
+        ctx.refinement.lp.relabel_before_second_phase,
+        "Relabel the clusters before running the second phase"
+  )
+      ->capture_default_str();
+
   return lp;
 }
 

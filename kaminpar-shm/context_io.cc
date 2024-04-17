@@ -456,6 +456,13 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
   if (r_ctx.includes_algorithm(RefinementAlgorithm::LABEL_PROPAGATION)) {
     out << "Label propagation:\n";
     out << "  Number of iterations:       " << r_ctx.lp.num_iterations << "\n";
+    out << "  Uses two phases: " << (r_ctx.lp.use_two_phases ? "yes" : "no") << "\n";
+    if (r_ctx.lp.use_two_phases) {
+      out << "    Select mode:              " << r_ctx.lp.second_phase_select_mode << '\n';
+      out << "    Aggregation mode:         " << r_ctx.lp.second_phase_aggregation_mode << '\n';
+      out << "    Relabel:                  "
+          << (r_ctx.lp.relabel_before_second_phase ? "yes" : "no") << '\n';
+    }
   }
   if (r_ctx.includes_algorithm(RefinementAlgorithm::KWAY_FM)) {
     out << "k-way FM:\n";
