@@ -17,7 +17,7 @@ using ::testing::UnorderedElementsAre;
 
 namespace kaminpar::shm::testing {
 
-TEST(ParallelContractionTest, ContractingToSingleNodeWorks) {
+TEST(ClusterContractionTest, ContractingToSingleNodeWorks) {
   static constexpr auto GRID_LENGTH{2};
   Graph graph = make_grid_graph(GRID_LENGTH, GRID_LENGTH);
 
@@ -35,7 +35,7 @@ TEST(ParallelContractionTest, ContractingToSingleNodeWorks) {
   }
 }
 
-TEST(ParallelContractionTest, ContractingToSingletonsWorks) {
+TEST(ClusterContractionTest, ContractingToSingletonsWorks) {
   static constexpr auto GRID_LENGTH{2};
   Graph graph = make_grid_graph(GRID_LENGTH, GRID_LENGTH);
   change_node_weight(graph, 0, 1);
@@ -61,7 +61,7 @@ TEST(ParallelContractionTest, ContractingToSingletonsWorks) {
   EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(3, 4));
 }
 
-TEST(ParallelContractionTest, ContractingAllNodesButOneWorks) {
+TEST(ClusterContractionTest, ContractingAllNodesButOneWorks) {
   static constexpr auto GRID_LENGTH = 2;
   Graph graph = make_grid_graph(GRID_LENGTH, GRID_LENGTH);
 
@@ -81,7 +81,7 @@ TEST(ParallelContractionTest, ContractingAllNodesButOneWorks) {
   EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(1, 3));
 }
 
-TEST(ParallelContractionTest, ContractingGridHorizontallyWorks) {
+TEST(ClusterContractionTest, ContractingGridHorizontallyWorks) {
   Graph graph = make_grid_graph(2, 4); // two rows, 4 columns, organized row by row
   change_node_weight(graph, 0, 1);
   change_node_weight(graph, 1, 2);
@@ -110,7 +110,7 @@ TEST(ParallelContractionTest, ContractingGridHorizontallyWorks) {
   EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(33, 44));
 }
 
-TEST(ParallelContractionTest, ContractingGridVerticallyWorks) {
+TEST(ClusterContractionTest, ContractingGridVerticallyWorks) {
   Graph graph = make_grid_graph(4, 2); // four columns, two rows, organized row by row
   change_node_weight(graph, 0, 1);
   change_node_weight(graph, 1, 10);

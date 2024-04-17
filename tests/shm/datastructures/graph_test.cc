@@ -1,8 +1,8 @@
 #include "tests/shm/graph_factories.h"
 #include "tests/shm/graph_helpers.h"
-#include "tests/shm/matchers.h"
 
-#include "kaminpar-shm/graphutils/subgraph_extractor.h"
+#include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/datastructures/partitioned_graph.h"
 
 namespace kaminpar::shm::testing {
 class AWeightedGridGraph : public ::testing::Test {
