@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cstring>
+#include <initializer_list>
 #include <iterator>
 #include <thread>
 #include <vector>
@@ -26,6 +27,10 @@ constexpr struct noinit_t {
 
 template <typename T> class StaticArray {
 public:
+  static StaticArray<T> create(std::initializer_list<T> list) {
+    return {list.begin(), list.end()};
+  }
+
   class StaticArrayIterator {
   public:
     using iterator_category = std::random_access_iterator_tag;
@@ -183,7 +188,7 @@ public:
   //
 
   void write(const size_type pos, const_reference value) {
-      at(pos) = value;
+    at(pos) = value;
   }
 
   reference at(const size_type pos) {
@@ -352,6 +357,10 @@ private:
 };
 
 namespace static_array {
+template <typename T> StaticArray<T> create(std::initializer_list<T> list) {
+  return {list.begin(), list.end()};
+}
+
 template <typename T> StaticArray<T> copy(const StaticArray<T> &arr) {
   StaticArray<T> cpy(arr.size());
   tbb::parallel_for<std::size_t>(0, arr.size(), [&](const std::size_t i) { cpy[i] = arr[i]; });

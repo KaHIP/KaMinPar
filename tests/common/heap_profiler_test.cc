@@ -22,10 +22,12 @@ TEST(HeapProfilerTest, NewArrayOperator) {
 
   HeapProfiler::global().disable();
 
+#ifdef KAMINPAR_ENABLE_HEAP_PROFILING
   EXPECT_EQ(size, HeapProfiler::global().get_alloc());
   EXPECT_EQ(size, HeapProfiler::global().get_max_alloc());
   EXPECT_EQ(1, HeapProfiler::global().get_allocs());
   EXPECT_EQ(1, HeapProfiler::global().get_frees());
+#endif // KAMINPAR_ENABLE_HEAP_PROFILING
 }
 
 TEST(HeapProfilerTest, MaxAllocTest) {
@@ -33,17 +35,26 @@ TEST(HeapProfilerTest, MaxAllocTest) {
 
   ALLOC_ARR(array1, 1024);
   delete[] array1;
+
+#ifdef KAMINPAR_ENABLE_HEAP_PROFILING
   EXPECT_EQ(1024, HeapProfiler::global().get_max_alloc());
+#endif // KAMINPAR_ENABLE_HEAP_PROFILING
 
   ALLOC_ARR(array2, 2048);
   delete[] array2;
+#ifdef KAMINPAR_ENABLE_HEAP_PROFILING
   EXPECT_EQ(2048, HeapProfiler::global().get_max_alloc());
+#endif // KAMINPAR_ENABLE_HEAP_PROFILING
 
   ALLOC_ARR(array3, 128);
+#ifdef KAMINPAR_ENABLE_HEAP_PROFILING
   EXPECT_EQ(2048, HeapProfiler::global().get_max_alloc());
+#endif // KAMINPAR_ENABLE_HEAP_PROFILING
 
   ALLOC_ARR(array4, 4096);
+#ifdef KAMINPAR_ENABLE_HEAP_PROFILING
   EXPECT_EQ(4224, HeapProfiler::global().get_max_alloc());
+#endif // KAMINPAR_ENABLE_HEAP_PROFILING
   delete[] array3;
   delete[] array4;
 

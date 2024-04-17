@@ -3,12 +3,13 @@
 #include "tests/shm/matchers.h"
 #include "tests/shm/test_helpers.h"
 
-#include "kaminpar-shm/graphutils/cluster_contraction.h"
+#include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"
 #include "kaminpar-shm/graphutils/permutator.h"
 #include "kaminpar-shm/graphutils/subgraph_extractor.h"
 
+#include "kaminpar-common/datastructures/static_array.h"
+
 using ::testing::AllOf;
-using ::testing::AnyOf;
 using ::testing::Ge;
 using ::testing::Gt;
 using ::testing::Le;
@@ -22,10 +23,13 @@ TEST(ParallelContractionTest, ContractingToSingleNodeWorks) {
   Graph graph{graphs::grid(GRID_LENGTH, GRID_LENGTH)};
 
   for (const NodeID cluster : {0, 1, 2, 3}) {
-    auto clustering = scalable_vector<NodeID>{cluster, cluster, cluster, cluster};
-    auto [c_graph, c_mapping, m_ctx] = graph::contract(
-        graph, {.mode = ContractionMode::EDGE_BUFFER, .edge_buffer_fill_fraction = 1}, clustering
+    StaticArray<NodeID> clustering =
+        StaticArray<NodeID>::create({cluster, cluster, cluster, cluster});
+    auto coarsened = contract_clustering(
+        graph, clustering, {.mode = ContractionMode::BUFFERED, .edge_buffer_fill_fraction = 1}
     );
+
+    const auto &c_graph = coarsened->get();
     EXPECT_THAT(c_graph.n(), 1);
     EXPECT_THAT(c_graph.m(), 0);
     EXPECT_THAT(c_graph.node_weight(0), graph.total_node_weight());
@@ -41,10 +45,12 @@ TEST(ParallelContractionTest, ContractingToSingletonsWorks) {
   change_node_weight(graph, 3, 4);
   graph.update_total_node_weight();
 
-  auto clustering = scalable_vector<NodeID>{0, 1, 2, 3};
-  auto [c_graph, c_mapping, m_ctx] = graph::contract(
-      graph, {.mode = ContractionMode::EDGE_BUFFER, .edge_buffer_fill_fraction = 1}, clustering
+  StaticArray<NodeID> clustering = StaticArray<NodeID>::create({0, 1, 2, 3});
+  auto coarsened = contract_clustering(
+      graph, clustering, {.mode = ContractionMode::BUFFERED, .edge_buffer_fill_fraction = 1}
   );
+
+  const auto &c_graph = coarsened->get();
   EXPECT_THAT(c_graph.n(), graph.n());
   EXPECT_THAT(c_graph.m(), graph.m());
   EXPECT_THAT(c_graph.total_node_weight(), graph.total_node_weight());
@@ -57,16 +63,18 @@ TEST(ParallelContractionTest, ContractingToSingletonsWorks) {
 }
 
 TEST(ParallelContractionTest, ContractingAllNodesButOneWorks) {
-  static constexpr auto GRID_LENGTH{2};
-  Graph graph{graphs::grid(GRID_LENGTH, GRID_LENGTH)};
+  static constexpr auto GRID_LENGTH = 2;
+  Graph graph = graphs::grid(GRID_LENGTH, GRID_LENGTH);
 
   // 0--1
   // |  |
   // 2--3
-  auto clustering = scalable_vector<NodeID>{0, 1, 1, 1};
-  auto [c_graph, c_mapping, m_ctx] = graph::contract(
-      graph, {.mode = ContractionMode::EDGE_BUFFER, .edge_buffer_fill_fraction = 1}, clustering
+  StaticArray<NodeID> clustering = StaticArray<NodeID>::create({0, 1, 1, 1});
+  auto coarsened = contract_clustering(
+      graph, clustering, {.mode = ContractionMode::BUFFERED, .edge_buffer_fill_fraction = 1}
   );
+
+  const auto &c_graph = coarsened->get();
   EXPECT_THAT(c_graph.n(), 2);
   EXPECT_THAT(c_graph.m(), 2); // one undirected edge
   EXPECT_THAT(c_graph.total_node_weight(), graph.total_node_weight());
@@ -75,7 +83,7 @@ TEST(ParallelContractionTest, ContractingAllNodesButOneWorks) {
 }
 
 TEST(ParallelContractionTest, ContractingGridHorizontallyWorks) {
-  Graph graph{graphs::grid(2, 4)}; // two rows, 4 columns, organized row by row
+  Graph graph = graphs::grid(2, 4); // two rows, 4 columns, organized row by row
   change_node_weight(graph, 0, 1);
   change_node_weight(graph, 1, 2);
   change_node_weight(graph, 2, 3);
@@ -86,23 +94,25 @@ TEST(ParallelContractionTest, ContractingGridHorizontallyWorks) {
   change_node_weight(graph, 7, 40);
   graph.update_total_node_weight();
 
-  auto clustering = scalable_vector<NodeID>{0, 1, 2, 3, 0, 1, 2, 3};
-  auto [c_graph, c_mapping, m_ctx] = graph::contract(
-      graph, {.mode = ContractionMode::EDGE_BUFFER, .edge_buffer_fill_fraction = 1}, clustering
+  StaticArray<NodeID> clustering = StaticArray<NodeID>::create({0, 1, 2, 3, 0, 1, 2, 3});
+  auto coarsened = contract_clustering(
+      graph, clustering, {.mode = ContractionMode::BUFFERED, .edge_buffer_fill_fraction = 1}
   );
-  auto &raw_c_graph = *dynamic_cast<CSRGraph *>(c_graph.underlying_graph());
-  EXPECT_THAT(c_graph.n(), 4);
-  EXPECT_THAT(c_graph.m(), 2 * 3);
+
+  const auto &c_graph = coarsened->get();
+  const auto &raw_c_graph = *dynamic_cast<const CSRGraph *>(c_graph.underlying_graph());
+  EXPECT_THAT(raw_c_graph.n(), 4);
+  EXPECT_THAT(raw_c_graph.m(), 2 * 3);
   EXPECT_THAT(raw_c_graph.raw_node_weights(), UnorderedElementsAre(11, 22, 33, 44));
-  EXPECT_THAT(c_graph.total_node_weight(), graph.total_node_weight());
-  EXPECT_THAT(c_graph.total_edge_weight(), 4 * 3);
+  EXPECT_THAT(raw_c_graph.total_node_weight(), graph.total_node_weight());
+  EXPECT_THAT(raw_c_graph.total_edge_weight(), 4 * 3);
   EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(11, 22));
   EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(22, 33));
   EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(33, 44));
 }
 
 TEST(ParallelContractionTest, ContractingGridVerticallyWorks) {
-  Graph graph{graphs::grid(4, 2)}; // four columns, two rows, organized row by row
+  Graph graph = graphs::grid(4, 2); // four columns, two rows, organized row by row
   change_node_weight(graph, 0, 1);
   change_node_weight(graph, 1, 10);
   change_node_weight(graph, 2, 2);
@@ -113,16 +123,18 @@ TEST(ParallelContractionTest, ContractingGridVerticallyWorks) {
   change_node_weight(graph, 7, 40);
   graph.update_total_node_weight();
 
-  auto clustering = scalable_vector<NodeID>{0, 0, 2, 2, 4, 4, 6, 6};
-  auto [c_graph, c_mapping, m_ctx] = graph::contract(
-      graph, {.mode = ContractionMode::EDGE_BUFFER, .edge_buffer_fill_fraction = 1}, clustering
+  StaticArray<NodeID> clustering = StaticArray<NodeID>::create({0, 0, 2, 2, 4, 4, 6, 6});
+  auto coarsened = contract_clustering(
+      graph, clustering, {.mode = ContractionMode::BUFFERED, .edge_buffer_fill_fraction = 1}
   );
-  auto &raw_c_graph = *dynamic_cast<CSRGraph *>(c_graph.underlying_graph());
-  EXPECT_THAT(c_graph.n(), 4);
-  EXPECT_THAT(c_graph.m(), 2 * 3);
+
+  const auto &c_graph = coarsened->get();
+  const auto &raw_c_graph = *dynamic_cast<const CSRGraph *>(c_graph.underlying_graph());
+  EXPECT_THAT(raw_c_graph.n(), 4);
+  EXPECT_THAT(raw_c_graph.m(), 2 * 3);
   EXPECT_THAT(raw_c_graph.raw_node_weights(), UnorderedElementsAre(11, 22, 33, 44));
-  EXPECT_THAT(c_graph.total_node_weight(), graph.total_node_weight());
-  EXPECT_THAT(c_graph.total_edge_weight(), 4 * 3);
+  EXPECT_THAT(raw_c_graph.total_node_weight(), graph.total_node_weight());
+  EXPECT_THAT(raw_c_graph.total_edge_weight(), 4 * 3);
   EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(11, 22));
   EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(22, 33));
   EXPECT_THAT(c_graph, HasEdgeWithWeightedEndpoints(33, 44));
@@ -138,7 +150,7 @@ TEST(GraphPermutationTest, PermutationByNodeDegreeIsCorrect) {
   // 1-2-0
   //   |/
   //   4
-  const StaticArray<EdgeID> nodes = create_static_array<EdgeID>({0, 2, 3, 7, 8, 10, 10});
+  const StaticArray<EdgeID> nodes = StaticArray<EdgeID>::create({0, 2, 3, 7, 8, 10, 10});
 
   const auto permutations = graph::sort_by_degree_buckets(nodes);
   const auto &permutation = permutations.old_to_new;
@@ -154,7 +166,7 @@ TEST(GraphPermutationTest, MovingIsolatedNodesToBackWorks) {
   // node 0 1 2 3 4 5 6 7 8 9 10
   // deg  0 0 1 1 1 0 0 1 1 0 0
   const StaticArray<EdgeID> nodes =
-      create_static_array<EdgeID>({0, 0, 0, 1, 2, 3, 3, 3, 4, 5, 5, 5});
+      StaticArray<NodeID>::create({0, 0, 0, 1, 2, 3, 3, 3, 4, 5, 5, 5});
   const auto permutations = graph::sort_by_degree_buckets(nodes);
   const auto &permutation = permutations.old_to_new;
 
@@ -185,7 +197,7 @@ TEST(
    * 7--8  9        *--*--*
    * 10    11
    */
-  Graph graph{create_graph({0, 0, 1, 3, 4, 5, 5, 5, 7, 8, 8, 8, 8}, {2, 1, 3, 2, 7, 4, 8, 7})};
+  Graph graph = create_graph({0, 0, 1, 3, 4, 5, 5, 5, 7, 8, 8, 8, 8}, {2, 1, 3, 2, 7, 4, 8, 7});
 
   PartitionContext p_ctx;
   p_ctx.k = 2;
@@ -212,12 +224,12 @@ TEST(SequentialGraphExtraction, SimpleSequentialBipartitionExtractionWorks) {
   // 0--1--2     block 0
   //-|--|--
   // 3--4--5     block 1
-  Graph graph{create_graph({0, 2, 5, 6, 8, 11, 12}, {1, 3, 0, 4, 2, 1, 0, 4, 3, 1, 5, 4})};
-  PartitionedGraph p_graph{create_p_graph(graph, 2, {0, 0, 0, 1, 1, 1})};
+  Graph graph = create_graph({0, 2, 5, 6, 8, 11, 12}, {1, 3, 0, 4, 2, 1, 0, 4, 3, 1, 5, 4});
+  PartitionedGraph p_graph = create_p_graph(graph, 2, {0, 0, 0, 1, 1, 1});
 
-  graph::SubgraphMemory memory{p_graph};
-  graph::SubgraphMemoryStartPosition position{0, 0};
-  graph::TemporarySubgraphMemory buffer{};
+  graph::SubgraphMemory memory(p_graph);
+  graph::SubgraphMemoryStartPosition position(0, 0);
+  graph::TemporarySubgraphMemory buffer;
   const auto [subgraphs, positions] =
       graph::extract_subgraphs_sequential(p_graph, {1, 1}, position, memory, buffer);
 
