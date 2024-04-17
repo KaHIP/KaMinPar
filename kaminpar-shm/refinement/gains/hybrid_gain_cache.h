@@ -44,8 +44,8 @@ public:
   HybridGainCache(const Context &ctx, const NodeID preallocate_n, const BlockID preallocate_k)
       : _ctx(ctx),
         _on_the_fly_gain_cache(ctx, preallocate_n, preallocate_k),
-        _gain_cache(static_array::noinit, 1ul * preallocate_n * preallocate_k),
-        _weighted_degrees(static_array::noinit, preallocate_n) {}
+        _gain_cache(1ul * preallocate_n * preallocate_k, static_array::noinit),
+        _weighted_degrees(preallocate_n, static_array::noinit) {}
 
   void initialize(const PartitionedGraph &p_graph) {
     DBG << "Initialize high-degree gain cache for a graph with n=" << p_graph.n()
@@ -91,8 +91,8 @@ public:
         << " blocks == " << gc_size << " slots";
 
     TIMED_SCOPE("Allocation") {
-      _weighted_degrees.resize(static_array::noinit, _n);
-      _gain_cache.resize(static_array::noinit, gc_size);
+      _weighted_degrees.resize(_n, static_array::noinit);
+      _gain_cache.resize(gc_size, static_array::noinit);
     };
 
     // Must initialize the on-the-fly gain cache before initializing the sparse part (i.e., calling

@@ -9,14 +9,13 @@
 
 #include <tbb/concurrent_hash_map.h>
 
-#include "kaminpar-mpi/wrapper.h"
-
 #include "kaminpar-dist/datastructures/growt.h"
 #include "kaminpar-dist/dkaminpar.h"
-#include "kaminpar-dist/logger.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/static_array.h"
+#include "kaminpar-common/logger.h"
+#include "kaminpar-common/parallel/atomic.h"
 
 namespace kaminpar::dist::graph {
 class GhostNodeMapper {
@@ -87,7 +86,8 @@ public:
     return {
         .global_to_ghost = std::move(global_to_ghost),
         .ghost_to_global = std::move(ghost_to_global),
-        .ghost_owner = std::move(ghost_owner)};
+        .ghost_owner = std::move(ghost_owner)
+    };
   }
 
 private:

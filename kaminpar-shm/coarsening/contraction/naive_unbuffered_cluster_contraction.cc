@@ -117,9 +117,9 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered_naive(
 
   START_HEAP_PROFILER("Coarse graph edges allocation");
   START_TIMER("Allocation");
-  RECORD("c_edges") StaticArray<NodeID> c_edges(c_m, StaticArray<NodeID>::no_init{});
+  RECORD("c_edges") StaticArray<NodeID> c_edges(c_m, static_array::noinit);
   RECORD("c_edge_weights")
-  StaticArray<EdgeWeight> c_edge_weights(c_m, StaticArray<EdgeWeight>::no_init{});
+  StaticArray<EdgeWeight> c_edge_weights(c_m, static_array::noinit);
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 

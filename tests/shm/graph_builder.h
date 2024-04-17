@@ -47,10 +47,10 @@ public:
   template <typename... Args> Graph build(Args &&...args) {
     _nodes.push_back(_edges.size());
     return Graph(std::make_unique<CSRGraph>(
-        static_array::create_from(_nodes),
-        static_array::create_from(_edges),
-        static_array::create_from(_node_weights),
-        static_array::create_from(_edge_weights),
+        static_array::create(_nodes),
+        static_array::create(_edges),
+        static_array::create(_node_weights),
+        static_array::create(_edge_weights),
         std::forward<Args>(args)...
     ));
   }

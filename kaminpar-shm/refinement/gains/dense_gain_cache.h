@@ -98,8 +98,8 @@ public:
       : _ctx(ctx),
         // Since we do not know the size of the gain cache in advance (depends on vertex degrees),
         // we cannot preallocate it
-        _gain_cache(static_array::noinit, 0),
-        _weighted_degrees(static_array::noinit, preallocate_n) {}
+        _gain_cache(0, static_array::noinit),
+        _weighted_degrees(preallocate_n, static_array::noinit) {}
 
   void initialize(const PartitionedGraph &p_graph) {
     _n = p_graph.n();

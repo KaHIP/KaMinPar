@@ -23,7 +23,7 @@ TEST(ClusterContractionTest, ContractingToSingleNodeWorks) {
 
   for (const NodeID cluster : {0, 1, 2, 3}) {
     StaticArray<NodeID> clustering =
-        StaticArray<NodeID>::create({cluster, cluster, cluster, cluster});
+        static_array::create<NodeID>({cluster, cluster, cluster, cluster});
     auto coarsened = contract_clustering(
         graph, clustering, {.mode = ContractionMode::BUFFERED, .edge_buffer_fill_fraction = 1}
     );
@@ -44,7 +44,7 @@ TEST(ClusterContractionTest, ContractingToSingletonsWorks) {
   change_node_weight(graph, 3, 4);
   graph.update_total_node_weight();
 
-  StaticArray<NodeID> clustering = StaticArray<NodeID>::create({0, 1, 2, 3});
+  StaticArray<NodeID> clustering = static_array::create<NodeID>({0, 1, 2, 3});
   auto coarsened = contract_clustering(
       graph, clustering, {.mode = ContractionMode::BUFFERED, .edge_buffer_fill_fraction = 1}
   );
@@ -68,7 +68,7 @@ TEST(ClusterContractionTest, ContractingAllNodesButOneWorks) {
   // 0--1
   // |  |
   // 2--3
-  StaticArray<NodeID> clustering = StaticArray<NodeID>::create({0, 1, 1, 1});
+  StaticArray<NodeID> clustering = static_array::create<NodeID>({0, 1, 1, 1});
   auto coarsened = contract_clustering(
       graph, clustering, {.mode = ContractionMode::BUFFERED, .edge_buffer_fill_fraction = 1}
   );
@@ -93,7 +93,7 @@ TEST(ClusterContractionTest, ContractingGridHorizontallyWorks) {
   change_node_weight(graph, 7, 40);
   graph.update_total_node_weight();
 
-  StaticArray<NodeID> clustering = StaticArray<NodeID>::create({0, 1, 2, 3, 0, 1, 2, 3});
+  StaticArray<NodeID> clustering = static_array::create<NodeID>({0, 1, 2, 3, 0, 1, 2, 3});
   auto coarsened = contract_clustering(
       graph, clustering, {.mode = ContractionMode::BUFFERED, .edge_buffer_fill_fraction = 1}
   );
@@ -122,7 +122,7 @@ TEST(ClusterContractionTest, ContractingGridVerticallyWorks) {
   change_node_weight(graph, 7, 40);
   graph.update_total_node_weight();
 
-  StaticArray<NodeID> clustering = StaticArray<NodeID>::create({0, 0, 2, 2, 4, 4, 6, 6});
+  StaticArray<NodeID> clustering = static_array::create<NodeID>({0, 0, 2, 2, 4, 4, 6, 6});
   auto coarsened = contract_clustering(
       graph, clustering, {.mode = ContractionMode::BUFFERED, .edge_buffer_fill_fraction = 1}
   );
@@ -149,7 +149,7 @@ TEST(GraphPermutationTest, PermutationByNodeDegreeIsCorrect) {
   // 1-2-0
   //   |/
   //   4
-  const StaticArray<EdgeID> nodes = StaticArray<EdgeID>::create({0, 2, 3, 7, 8, 10, 10});
+  const StaticArray<EdgeID> nodes = static_array::create<NodeID>({0, 2, 3, 7, 8, 10, 10});
 
   const auto permutations = graph::sort_by_degree_buckets(nodes);
   const auto &permutation = permutations.old_to_new;
@@ -165,7 +165,7 @@ TEST(GraphPermutationTest, MovingIsolatedNodesToBackWorks) {
   // node 0 1 2 3 4 5 6 7 8 9 10
   // deg  0 0 1 1 1 0 0 1 1 0 0
   const StaticArray<EdgeID> nodes =
-      StaticArray<NodeID>::create({0, 0, 0, 1, 2, 3, 3, 3, 4, 5, 5, 5});
+      static_array::create<EdgeID>({0, 0, 0, 1, 2, 3, 3, 3, 4, 5, 5, 5});
   const auto permutations = graph::sort_by_degree_buckets(nodes);
   const auto &permutation = permutations.old_to_new;
 

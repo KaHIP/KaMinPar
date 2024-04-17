@@ -20,8 +20,8 @@ inline Graph make_graph(
     const std::vector<EdgeID> &nodes, const std::vector<NodeID> &edges, const bool sorted = false
 ) {
   return Graph(std::make_unique<CSRGraph>(
-      static_array::create_from(nodes),
-      static_array::create_from(edges),
+      static_array::create(nodes),
+      static_array::create(edges),
       StaticArray<NodeWeight>(),
       StaticArray<EdgeWeight>(),
       sorted
@@ -36,17 +36,17 @@ inline Graph make_graph(
     const bool sorted = false
 ) {
   return Graph(std::make_unique<CSRGraph>(
-      static_array::create_from(nodes),
-      static_array::create_from(edges),
-      static_array::create_from(node_weights),
-      static_array::create_from(edge_weights),
+      static_array::create(nodes),
+      static_array::create(edges),
+      static_array::create(node_weights),
+      static_array::create(edge_weights),
       sorted
   ));
 }
 
 inline PartitionedGraph
 make_p_graph(const Graph &graph, const BlockID k, const std::vector<BlockID> &partition) {
-  return PartitionedGraph(graph, k, StaticArray<BlockID>::create(partition));
+  return PartitionedGraph(graph, k, static_array::create<BlockID>(partition));
 }
 
 inline PartitionedGraph make_p_graph(const Graph &graph, const BlockID k) {

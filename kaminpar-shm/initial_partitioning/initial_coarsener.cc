@@ -184,8 +184,8 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
   node_mapping.resize(_current_graph->n());
   c_nodes.resize(c_n + 1);
   c_node_weights.resize(c_n);
-  c_edges.resize(_current_graph->m(), StaticArray<NodeID>::no_init{});            // overestimate
-  c_edge_weights.resize(_current_graph->m(), StaticArray<EdgeWeight>::no_init{}); // overestimate
+  c_edges.resize(_current_graph->m(), static_array::noinit);        // overestimate
+  c_edge_weights.resize(_current_graph->m(), static_array::noinit); // overestimate
 
   std::fill(_cluster_sizes.begin(), _cluster_sizes.end(), 0);
   std::fill(_leader_node_mapping.begin(), _leader_node_mapping.end(), 0);
