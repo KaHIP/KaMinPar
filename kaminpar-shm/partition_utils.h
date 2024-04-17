@@ -7,10 +7,8 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/datastructures/abstract_graph.h"
 #include "kaminpar-shm/kaminpar.h"
-
-#include "kaminpar-common/math.h"
 
 namespace kaminpar::shm {
 double compute_2way_adaptive_epsilon(

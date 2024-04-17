@@ -61,7 +61,12 @@ PartitionedGraph bipartition(
   // compressed mode
   std::unique_ptr<CSRGraph> csr_cpy;
   if (csr == nullptr) {
-    LOG << "creating a copy";
+    DBG << "Bipartitioning a non-CSR graph is not supported by the initial partitioning code: "
+           "constructing a CSR-graph copy of the given graph with n="
+        << graph->n() << ", m=" << graph->m();
+    DBG << "Note: this should only happen when partitioning a very small graph using the "
+           "compressed mode";
+
     csr_cpy = std::make_unique<CSRGraph>(*graph);
     csr = csr_cpy.get();
   }
