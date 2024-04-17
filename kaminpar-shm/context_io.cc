@@ -438,6 +438,8 @@ void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
   if (lp_ctx.use_two_phases) {
     out << "    Select mode:              " << lp_ctx.second_phase_select_mode << '\n';
     out << "    Aggregation mode:         " << lp_ctx.second_phase_aggregation_mode << '\n';
+    out << "    Relabel:                  " << (lp_ctx.relabel_before_second_phase ? "yes" : "no")
+        << '\n';
   }
   out << "  2-hop clustering:           " << lp_ctx.two_hop_strategy << ", if |Vcoarse| > "
       << std::setw(2) << std::fixed << lp_ctx.two_hop_threshold << " * |V|\n";

@@ -79,6 +79,7 @@ Context create_default_context() {
                       .use_two_phases = false,
                       .second_phase_select_mode = SecondPhaseSelectMode::FULL_RATING_MAP,
                       .second_phase_aggregation_mode = SecondPhaseAggregationMode::BUFFERED,
+                      .relabel_before_second_phase = false,
                       .two_hop_strategy = TwoHopStrategy::MATCH_THREADWISE,
                       .two_hop_threshold = 0.5,
                       .isolated_nodes_strategy =

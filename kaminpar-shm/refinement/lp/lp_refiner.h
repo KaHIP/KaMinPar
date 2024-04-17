@@ -44,6 +44,10 @@ public:
     Base::preinitialize(ctx.partition.n, ctx.partition.k);
     this->set_max_degree(_r_ctx.lp.large_degree_threshold);
     this->set_max_num_neighbors(_r_ctx.lp.max_num_neighbors);
+    Base::set_use_two_phases(ctx.coarsening.lp.use_two_phases);
+    Base::set_second_phase_select_mode(ctx.coarsening.lp.second_phase_select_mode);
+    Base::set_second_phase_aggregation_mode(ctx.coarsening.lp.second_phase_aggregation_mode);
+    Base::set_relabel_before_second_phase(ctx.coarsening.lp.relabel_before_second_phase);
   }
 
   void initialize(const Graph *graph) {
@@ -99,6 +103,10 @@ public:
   ) {
     return _p_graph->move_block_weight(old_block, new_block, delta, max_weight);
   }
+
+  void reassign_cluster_weights(
+      const StaticArray<BlockID> & /*mapping*/, const BlockID /* num_new_clusters */
+  ) {}
 
   void init_cluster(const NodeID /* u */, const BlockID /* b */) {}
 

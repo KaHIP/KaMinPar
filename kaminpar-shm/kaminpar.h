@@ -127,7 +127,7 @@ struct LabelPropagationCoarseningContext {
   bool use_two_phases;
   SecondPhaseSelectMode second_phase_select_mode;
   SecondPhaseAggregationMode second_phase_aggregation_mode;
-  bool use_second_phase_filter;
+  bool relabel_before_second_phase;
 
   TwoHopStrategy two_hop_strategy;
   double two_hop_threshold;

@@ -138,6 +138,13 @@ public:
     return _second_phase_aggregation_mode;
   }
 
+  void set_relabel_before_second_phase(const bool option) {
+    _relabel_before_second_phase = option;
+  }
+  [[nodiscard]] bool relabel_before_second_phase() const {
+    return _relabel_before_second_phase;
+  }
+
   void set_desired_num_clusters(const ClusterID desired_num_clusters) {
     _desired_num_clusters = desired_num_clusters;
   }
@@ -608,6 +615,47 @@ protected:
     });
   }
 
+  /*!
+   * Relabel the clusters such that afterwards the cluster IDs are consecutive in the range of [0,
+   * num_actual_clusters]. num_actual_clusters is thereby the number of clusters that have at least
+   * one member.
+   */
+  void relabel_clusters() {
+    SCOPED_HEAP_PROFILER("Relabel");
+    SCOPED_TIMER("Relabel");
+
+    // Compute a mapping from old cluster IDs to new cluster IDs.
+    StaticArray<ClusterID> mapping(_graph->n());
+    tbb::parallel_for(tbb::blocked_range<NodeID>(0, _graph->n()), [&](const auto &r) {
+      for (NodeID u = r.begin(); u != r.end(); ++u) {
+        __atomic_store_n(&mapping[derived_cluster(u)], 1, __ATOMIC_RELAXED);
+      }
+    });
+    parallel::prefix_sum(mapping.begin(), mapping.end(), mapping.begin());
+    ClusterID num_actual_clusters = mapping[_graph->n() - 1];
+
+    // Update initial num clusters since the maximum cluster ID is now different.
+    _initial_num_clusters = num_actual_clusters;
+    KASSERT(_initial_num_clusters == _current_num_clusters);
+
+    // Relabel the cluster stored for each node.
+    tbb::parallel_for(tbb::blocked_range<NodeID>(0, mapping.size()), [&](const auto &r) {
+      for (NodeID u = r.begin(); u != r.end(); ++u) {
+        derived_move_node(u, __atomic_load_n(&mapping[derived_cluster(u)], __ATOMIC_RELAXED) - 1);
+      }
+    });
+
+    // Relabel the clusters stored in the favored clusters vector.
+    tbb::parallel_for(tbb::blocked_range<NodeID>(0, _graph->n()), [&](const auto &r) {
+      for (NodeID u = r.begin(); u != r.end(); ++u) {
+        _favored_clusters[u] = mapping[_favored_clusters[u]];
+      }
+    });
+
+    // Reassign the clusters weights such that they match the new cluster IDs.
+    static_cast<Derived *>(this)->reassign_cluster_weights(mapping, num_actual_clusters);
+  }
+
   void match_isolated_nodes(
       const NodeID from = 0, const NodeID to = std::numeric_limits<ClusterID>::max()
   ) {
@@ -1069,6 +1117,9 @@ protected: // Members
   //! The mode by which the ratings for nodes in the second phase are aggregated.
   SecondPhaseAggregationMode _second_phase_aggregation_mode;
 
+  //! Whether to relabel the clusters before the second phase.
+  bool _relabel_before_second_phase;
+
   //! Thread-local map to compute gain values.
   tbb::enumerable_thread_specific<RatingMap> _rating_map_ets;
 
@@ -1369,16 +1420,22 @@ protected:
     STOP_TIMER();
     STOP_HEAP_PROFILER();
 
+    const std::size_t num_clusters_before_relabeling = Base::_initial_num_clusters;
     const NodeID num_second_phase_nodes = _second_phase_nodes.size();
     if (aggregate_during_second_phase && num_second_phase_nodes > 0) {
+      if (Base::_relabel_before_second_phase) {
+        Base::relabel_clusters();
+      }
+
       SCOPED_HEAP_PROFILER("Second phase");
       SCOPED_TIMER("Second phase");
 
       auto &num_moved_nodes = num_moved_nodes_ets.local();
       auto &rand = Random::instance();
 
-      if (_concurrent_rating_map.capacity() < Base::_initial_num_clusters) {
-        _concurrent_rating_map.resize(Base::_initial_num_clusters);
+      const std::size_t num_clusters = Base::_initial_num_clusters;
+      if (_concurrent_rating_map.capacity() < num_clusters) {
+        _concurrent_rating_map.resize(num_clusters);
       }
 
       for (const NodeID u : _second_phase_nodes) {
@@ -1404,8 +1461,11 @@ protected:
       }
 
       LOG << "Label Propagation";
-      LOG << " Initial clusters: " << Base::_initial_num_clusters;
+      LOG << " Initial clusters: " << num_clusters_before_relabeling << " clusters";
       LOG << " First Phase: " << num_first_phase_nodes << " nodes";
+      if (Base::_relabel_before_second_phase) {
+        LOG << " Clusters after relabeling: " << Base::_initial_num_clusters << " clusters";
+      }
       LOG << " Second Phase: " << num_second_phase_nodes << " nodes";
       LOG;
     }
@@ -1744,6 +1804,30 @@ public:
     }
 
     return false;
+  }
+
+  void reassign_cluster_weights(
+      const StaticArray<ClusterID> &mapping, const ClusterID num_new_clusters
+  ) {
+    if (_use_two_level_vector) {
+      _cluster_weights_tlvec.reassign(mapping, num_new_clusters);
+    } else {
+      ClusterWeightsVec new_cluster_weights_vec(num_new_clusters);
+
+      tbb::parallel_for(
+          tbb::blocked_range<ClusterID>(0, _cluster_weights_vec.size()),
+          [&](const auto &r) {
+            for (ClusterID u = r.begin(); u != r.end(); ++u) {
+              if (_cluster_weights_vec[u] != 0) {
+                ClusterID new_cluster_id = __atomic_load_n(&mapping[u], __ATOMIC_RELAXED) - 1;
+                new_cluster_weights_vec[new_cluster_id] = _cluster_weights_vec[u];
+              }
+            }
+          }
+      );
+
+      _cluster_weights_vec = std::move(new_cluster_weights_vec);
+    }
   }
 
 private:

@@ -47,6 +47,7 @@ public:
     this->set_use_two_phases(c_ctx.lp.use_two_phases);
     this->set_second_phase_select_mode(c_ctx.lp.second_phase_select_mode);
     this->set_second_phase_aggregation_mode(c_ctx.lp.second_phase_aggregation_mode);
+    this->set_relabel_before_second_phase(c_ctx.lp.relabel_before_second_phase);
   }
 
   void set_max_cluster_weight(const NodeWeight max_cluster_weight) {
@@ -86,6 +87,10 @@ public:
       SCOPED_TIMER("Iteration", std::to_string(iteration));
       if (this->perform_iteration() == 0) {
         break;
+      }
+
+      if (iteration == 0) {
+        this->set_relabel_before_second_phase(false);
       }
     }
 

@@ -225,6 +225,12 @@ Options are:
   - buffered: Write the ratings into a thread-local buffer and then copy them into the global vector when the buffer is full
   )"
       );
+  lp->add_option(
+        "--c-lp-second-phase-relabel",
+        ctx.coarsening.lp.relabel_before_second_phase,
+        "Relabel the clusters before running the second phase"
+  )
+      ->capture_default_str();
 
   lp->add_option("--c-lp-two-hop-strategy", ctx.coarsening.lp.two_hop_strategy)
       ->transform(CLI::CheckedTransformer(get_two_hop_strategies()).description(""))
