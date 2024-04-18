@@ -44,7 +44,7 @@ template <typename DeltaPartitionedGraph, typename GainCache> class DenseDeltaGa
 template <bool iterate_nonadjacent_blocks = true, bool iterate_exact_gains = false>
 class DenseGainCache {
   SET_DEBUG(false);
-  SET_STATISTICS(false);
+  SET_STATISTICS_FROM_GLOBAL();
 
   using Self = DenseGainCache<iterate_nonadjacent_blocks, iterate_exact_gains>;
   template <typename, typename> friend class DenseDeltaGainCache;

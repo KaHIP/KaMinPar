@@ -7,6 +7,7 @@
  ******************************************************************************/
 #include "kaminpar-shm/partitioning/kway/kway_multilevel.h"
 
+#include "kaminpar-shm/factories.h"
 #include "kaminpar-shm/partitioning/debug.h"
 
 #include "kaminpar-common/console_io.h"
@@ -38,9 +39,12 @@ void KWayMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
   debug::dump_partition_hierarchy(p_graph, _coarsener->level(), "pre-refinement", _input_ctx);
 
   helper::refine(_refiner.get(), p_graph, _current_p_ctx);
-  LOG << "  Cut:       " << metrics::edge_cut(p_graph);
-  LOG << "  Imbalance: " << metrics::imbalance(p_graph);
-  LOG << "  Feasible:  " << metrics::is_feasible(p_graph, _current_p_ctx);
+  if (_print_metrics) {
+    SCOPED_TIMER("Partition metrics");
+    LOG << "  Cut:       " << metrics::edge_cut(p_graph);
+    LOG << "  Imbalance: " << metrics::imbalance(p_graph);
+    LOG << "  Feasible:  " << metrics::is_feasible(p_graph, _current_p_ctx);
+  }
 
   // ... and dump it after refinement.
   debug::dump_partition_hierarchy(p_graph, _coarsener->level(), "post-refinement", _input_ctx);
@@ -155,9 +159,12 @@ PartitionedGraph KWayMultilevelPartitioner::initial_partition(const Graph *graph
   ENABLE_TIMERS();
 
   // Print some metrics for the initial partition.
-  LOG << "  Cut:              " << metrics::edge_cut(p_graph);
-  LOG << "  Imbalance:        " << metrics::imbalance(p_graph);
-  LOG << "  Feasible:         " << (metrics::is_feasible(p_graph, _current_p_ctx) ? "yes" : "no");
+  if (_print_metrics) {
+    SCOPED_TIMER("Partition metrics");
+    LOG << "  Cut:              " << metrics::edge_cut(p_graph);
+    LOG << "  Imbalance:        " << metrics::imbalance(p_graph);
+    LOG << "  Feasible:         " << (metrics::is_feasible(p_graph, _current_p_ctx) ? "yes" : "no");
+  }
 
   // If requested, dump the coarsest partition -- as noted above, this is not
   // actually the coarsest partition when using deep multilevel.

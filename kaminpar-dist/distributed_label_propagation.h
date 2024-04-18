@@ -73,7 +73,7 @@ template <typename Derived, typename Config> class LabelPropagation {
   static_assert(std::is_base_of_v<LabelPropagationConfig, Config>);
 
   SET_DEBUG(false);
-  SET_STATISTICS(false);
+  SET_STATISTICS_FROM_GLOBAL();
 
 protected:
   using RatingMap = typename Config::RatingMap;

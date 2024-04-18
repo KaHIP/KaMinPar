@@ -86,7 +86,7 @@ class LabelPropagation {
   static_assert(std::is_base_of_v<LabelPropagationConfig<TGraph>, TConfig<TGraph>>);
 
   SET_DEBUG(false);
-  SET_STATISTICS(false);
+  SET_STATISTICS_FROM_GLOBAL();
 
 protected:
   using Config = TConfig<TGraph>;

@@ -24,7 +24,7 @@
 namespace kaminpar::shm {
 class GreedyBalancer : public Refiner {
   SET_DEBUG(false);
-  SET_STATISTICS(false);
+  SET_STATISTICS_FROM_GLOBAL();
 
 public:
   struct Statistics {

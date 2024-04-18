@@ -72,7 +72,7 @@ template <typename Derived, typename Config> class LegacyLabelPropagation {
   static_assert(std::is_base_of_v<LegacyLabelPropagationConfig, Config>);
 
   SET_DEBUG(false);
-  SET_STATISTICS(false);
+  SET_STATISTICS_FROM_GLOBAL();
 
 protected:
   using RatingMap = typename Config::RatingMap;
