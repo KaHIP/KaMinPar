@@ -7,6 +7,7 @@
  ******************************************************************************/
 #include "kaminpar-shm/partitioning/kway/kway_multilevel.h"
 
+#include "kaminpar-shm/factories.h"
 #include "kaminpar-shm/partitioning/debug.h"
 
 #include "kaminpar-common/console_io.h"
@@ -21,8 +22,10 @@ KWayMultilevelPartitioner::KWayMultilevelPartitioner(
     : _input_graph(input_graph),
       _input_ctx(input_ctx),
       _current_p_ctx(input_ctx.partition),
-      _coarsener(factory::create_coarsener(input_graph, input_ctx.coarsening)),
-      _refiner(factory::create_refiner(input_ctx)) {}
+      _coarsener(factory::create_coarsener(input_ctx)),
+      _refiner(factory::create_refiner(input_ctx)) {
+  _coarsener->initialize(&_input_graph);
+}
 
 PartitionedGraph KWayMultilevelPartitioner::partition() {
   cio::print_delimiter("Partitioning");
@@ -36,9 +39,12 @@ void KWayMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
   debug::dump_partition_hierarchy(p_graph, _coarsener->level(), "pre-refinement", _input_ctx);
 
   helper::refine(_refiner.get(), p_graph, _current_p_ctx);
-  LOG << "  Cut:       " << metrics::edge_cut(p_graph);
-  LOG << "  Imbalance: " << metrics::imbalance(p_graph);
-  LOG << "  Feasible:  " << metrics::is_feasible(p_graph, _current_p_ctx);
+  if (_print_metrics) {
+    SCOPED_TIMER("Partition metrics");
+    LOG << "  Cut:       " << metrics::edge_cut(p_graph);
+    LOG << "  Imbalance: " << metrics::imbalance(p_graph);
+    LOG << "  Feasible:  " << metrics::is_feasible(p_graph, _current_p_ctx);
+  }
 
   // ... and dump it after refinement.
   debug::dump_partition_hierarchy(p_graph, _coarsener->level(), "post-refinement", _input_ctx);
@@ -76,18 +82,10 @@ const Graph *KWayMultilevelPartitioner::coarsen() {
     debug::dump_graph_hierarchy(*c_graph, _coarsener->level(), _input_ctx);
 
     // Build next coarse graph
-    shrunk = helper::coarsen_once(
-        _coarsener.get(),
-        c_graph,
-        _input_ctx,
-        _current_p_ctx,
-        _coarsener->level() < _input_ctx.partitioning.max_mem_free_coarsening_level
-    );
+    shrunk = helper::coarsen_once(_coarsener.get(), c_graph, _current_p_ctx);
     c_graph = &_coarsener->current();
 
     // Print some metrics for the coarse graphs
-    const NodeWeight max_cluster_weight =
-        compute_max_cluster_weight(_input_ctx.coarsening, *c_graph, _input_ctx.partition);
     LOG << "Coarsening -> Level " << _coarsener->level();
     if (const auto *graph = dynamic_cast<const CompactCSRGraph *>(c_graph->underlying_graph());
         graph != nullptr) {
@@ -95,7 +93,15 @@ const Graph *KWayMultilevelPartitioner::coarsen() {
           << " bytes | Compact edge weights: " << graph->edge_weight_byte_width() << " bytes";
     }
     LOG << "  Number of nodes: " << c_graph->n() << " | Number of edges: " << c_graph->m();
-    LOG << "  Maximum node weight: " << c_graph->max_node_weight() << " <= " << max_cluster_weight;
+    LLOG << "  Maximum node weight: " << c_graph->max_node_weight() << " ";
+    LLOG << "<= "
+         << compute_max_cluster_weight<NodeWeight>(
+                _input_ctx.coarsening,
+                _input_ctx.partition,
+                c_graph->n(),
+                c_graph->total_node_weight()
+            );
+    LOG;
     LOG;
   }
 
@@ -145,16 +151,20 @@ PartitionedGraph KWayMultilevelPartitioner::initial_partition(const Graph *graph
       _current_p_ctx,
       subgraph_memory,
       ip_extraction_pool,
-      _ip_m_ctx_pool
+      _ip_m_ctx_pool,
+      _input_ctx.parallel.num_threads
   );
 
   helper::update_partition_context(_current_p_ctx, p_graph, _input_ctx.partition.k);
   ENABLE_TIMERS();
 
   // Print some metrics for the initial partition.
-  LOG << "  Cut:              " << metrics::edge_cut(p_graph);
-  LOG << "  Imbalance:        " << metrics::imbalance(p_graph);
-  LOG << "  Feasible:         " << (metrics::is_feasible(p_graph, _current_p_ctx) ? "yes" : "no");
+  if (_print_metrics) {
+    SCOPED_TIMER("Partition metrics");
+    LOG << "  Cut:              " << metrics::edge_cut(p_graph);
+    LOG << "  Imbalance:        " << metrics::imbalance(p_graph);
+    LOG << "  Feasible:         " << (metrics::is_feasible(p_graph, _current_p_ctx) ? "yes" : "no");
+  }
 
   // If requested, dump the coarsest partition -- as noted above, this is not
   // actually the coarsest partition when using deep multilevel.

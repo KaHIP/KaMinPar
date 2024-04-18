@@ -62,15 +62,6 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
   partitioning
       ->add_option(
-          "--p-max-memory-free-coarsening-level",
-          ctx.partitioning.max_mem_free_coarsening_level,
-          "Maximum coarsening level for which the corresponding memory should be released "
-          "afterwards"
-      )
-      ->capture_default_str();
-  ;
-  partitioning
-      ->add_option(
           "--p-deep-initial-partitioning-mode", ctx.partitioning.deep_initial_partitioning_mode
       )
       ->transform(CLI::CheckedTransformer(get_initial_partitioning_modes()).description(""))
@@ -86,6 +77,13 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
       "value of '1' will replicate the graph once for every PE, whereas smaller values lead to "
       "fewer replications."
   );
+  partitioning
+      ->add_option(
+          "--p-min-consecutive-seq-bipartitioning-levels",
+          ctx.partitioning.min_consecutive_seq_bipartitioning_levels,
+          "(set to '0' for the old behaviour)"
+      )
+      ->capture_default_str();
 
   create_partitioning_rearrangement_options(app, ctx);
 
@@ -116,6 +114,14 @@ CLI::Option_group *create_partitioning_rearrangement_options(CLI::App *app, Cont
 CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
   auto *coarsening = app->add_option_group("Coarsening");
 
+  // Coarsening options:
+  coarsening->add_option("--c-algorithm", ctx.coarsening.algorithm)
+      ->transform(CLI::CheckedTransformer(get_coarsening_algorithms()).description(""))
+      ->description(R"(One of the following options:
+  - noop:       disable coarsening
+  - clustering: coarsening by clustering and contracting)")
+      ->capture_default_str();
+
   coarsening
       ->add_option(
           "--c-contraction-limit",
@@ -124,6 +130,16 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
       )
       ->capture_default_str();
 
+  coarsening
+      ->add_option(
+          "--c-convergence-threshold",
+          ctx.coarsening.convergence_threshold,
+          "Coarsening converges once the size of the graph shrinks by "
+          "less than this factor."
+      )
+      ->capture_default_str();
+
+  // Clustering options:
   coarsening->add_option("--c-clustering-algorithm", ctx.coarsening.algorithm)
       ->transform(CLI::CheckedTransformer(get_clustering_algorithms()).description(""))
       ->description(R"(One of the following options:
@@ -131,7 +147,7 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
   - lp:   size-constrained label propagation)")
       ->capture_default_str();
 
-  coarsening->add_option("--c-cluster-weight-limit", ctx.coarsening.cluster_weight_limit)
+  coarsening->add_option("--c-cluster-weight-limit", ctx.coarsening.clustering.cluster_weight_limit)
       ->transform(CLI::CheckedTransformer(get_cluster_weight_limits()).description(""))
       ->description(
           R"(This option selects the formula used to compute the weight limit for nodes in coarse graphs. 
@@ -147,17 +163,17 @@ Options are:
   coarsening
       ->add_option(
           "--c-cluster-weight-multiplier",
-          ctx.coarsening.cluster_weight_multiplier,
+          ctx.coarsening.clustering.cluster_weight_multiplier,
           "Multiplicator of the maximum cluster weight base value."
       )
       ->capture_default_str();
 
   coarsening
       ->add_option(
-          "--c-coarsening-convergence-threshold",
-          ctx.coarsening.convergence_threshold,
-          "Coarsening converges once the size of the graph shrinks by "
-          "less than this factor."
+          "--c-max-memory-free-coarsening-level",
+          ctx.coarsening.clustering.max_mem_free_coarsening_level,
+          "Maximum coarsening level for which the corresponding memory should be released "
+          "afterwards"
       )
       ->capture_default_str();
 
@@ -172,38 +188,40 @@ CLI::Option_group *create_lp_coarsening_options(CLI::App *app, Context &ctx) {
 
   lp->add_option(
         "--c-lp-num-iterations",
-        ctx.coarsening.lp.num_iterations,
+        ctx.coarsening.clustering.lp.num_iterations,
         "Maximum number of label propagation iterations"
   )
       ->capture_default_str();
   lp->add_option(
         "--c-lp-active-large-degree-threshold",
-        ctx.coarsening.lp.large_degree_threshold,
+        ctx.coarsening.clustering.lp.large_degree_threshold,
         "Threshold for ignoring nodes with large degree"
   )
       ->capture_default_str();
   lp->add_option(
         "--c-lp-max-num-neighbors",
-        ctx.coarsening.lp.max_num_neighbors,
+        ctx.coarsening.clustering.lp.max_num_neighbors,
         "Limit the neighborhood to this many nodes"
   )
       ->capture_default_str();
 
   lp->add_option(
         "--c-lp-use-two-level-cluster-weight-vector",
-        ctx.coarsening.lp.use_two_level_cluster_weight_vector,
+        ctx.coarsening.clustering.lp.use_two_level_cluster_weight_vector,
         "Whether to use the two level cluster weight vector"
   )
       ->capture_default_str();
 
   lp->add_option(
         "--c-lp-two-phases",
-        ctx.coarsening.lp.use_two_phases,
+        ctx.coarsening.clustering.lp.use_two_phases,
         "Uses two phases in each iteration, where in the second phase the high-degree nodes are "
         "treated separately"
   )
       ->capture_default_str();
-  lp->add_option("--c-lp-second-phase-select-mode", ctx.coarsening.lp.second_phase_select_mode)
+  lp->add_option(
+        "--c-lp-second-phase-select-mode", ctx.coarsening.clustering.lp.second_phase_select_mode
+  )
       ->transform(CLI::CheckedTransformer(get_second_phase_select_modes()).description(""))
       ->description(
           R"(Determines the mode for selecting nodes for the second phase of label propagation.
@@ -214,7 +232,8 @@ Options are:
       )
       ->capture_default_str();
   lp->add_option(
-        "--c-lp-second-phase-aggregation-mode", ctx.coarsening.lp.second_phase_aggregation_mode
+        "--c-lp-second-phase-aggregation-mode",
+        ctx.coarsening.clustering.lp.second_phase_aggregation_mode
   )
       ->transform(CLI::CheckedTransformer(get_second_phase_aggregation_modes()).description(""))
       ->description(
@@ -227,12 +246,12 @@ Options are:
       );
   lp->add_option(
         "--c-lp-second-phase-relabel",
-        ctx.coarsening.lp.relabel_before_second_phase,
+        ctx.coarsening.clustering.lp.relabel_before_second_phase,
         "Relabel the clusters before running the second phase"
   )
       ->capture_default_str();
 
-  lp->add_option("--c-lp-two-hop-strategy", ctx.coarsening.lp.two_hop_strategy)
+  lp->add_option("--c-lp-two-hop-strategy", ctx.coarsening.clustering.lp.two_hop_strategy)
       ->transform(CLI::CheckedTransformer(get_two_hop_strategies()).description(""))
       ->description(R"(Determines the strategy for handling singleton clusters during coarsening.
 Options are:
@@ -244,13 +263,15 @@ Options are:
       ->capture_default_str();
   lp->add_option(
         "--c-lp-two-hop-threshold",
-        ctx.coarsening.lp.two_hop_threshold,
+        ctx.coarsening.clustering.lp.two_hop_threshold,
         "Enable two-hop clustering if plain label propagation shrunk "
         "the graph by less than this factor"
   )
       ->capture_default_str();
 
-  lp->add_option("--c-lp-isolated-nodes-strategy", ctx.coarsening.lp.isolated_nodes_strategy)
+  lp->add_option(
+        "--c-lp-isolated-nodes-strategy", ctx.coarsening.clustering.lp.isolated_nodes_strategy
+  )
       ->transform(
           CLI::CheckedTransformer(get_isolated_nodes_clustering_strategies()).description("")
       )

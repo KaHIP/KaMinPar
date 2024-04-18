@@ -27,6 +27,7 @@
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/math.h"
 #include "kaminpar-common/parallel/algorithm.h"
+#include "kaminpar-common/parallel/atomic.h"
 #include "kaminpar-common/parallel/vector_ets.h"
 
 namespace kaminpar::dist::graph {

@@ -61,7 +61,12 @@ PartitionedGraph bipartition(
   // compressed mode
   std::unique_ptr<CSRGraph> csr_cpy;
   if (csr == nullptr) {
-    LOG << "creating a copy";
+    DBG << "Bipartitioning a non-CSR graph is not supported by the initial partitioning code: "
+           "constructing a CSR-graph copy of the given graph with n="
+        << graph->n() << ", m=" << graph->m();
+    DBG << "Note: this should only happen when partitioning a very small graph using the "
+           "compressed mode";
+
     csr_cpy = std::make_unique<CSRGraph>(*graph);
     csr = csr_cpy.get();
   }
@@ -151,8 +156,34 @@ void extend_partition(
     PartitionContext &current_p_ctx,
     graph::SubgraphMemory &subgraph_memory,
     TemporaryGraphExtractionBufferPool &extraction_pool,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool
+    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
+    const int num_active_threads
 ) {
+  if (input_ctx.partitioning.min_consecutive_seq_bipartitioning_levels > 0) {
+    // Depending on the coarsening level and the deep multilevel implementation, it can occur that
+    // this function is called with more threads than blocks in the graph partition. To avoid
+    // wasting threads, we only extend the partition a little at first, and then recurse until all
+    // threads can work on independent blocks.
+    // "min_consecutive_seq_bipartitioning_levels" parameterizes the term "a little": when set to 1,
+    // we have the most amount of parallelization, but waste time by re-extracting the block-induced
+    // subgraphs from the partitioned graph; larger values do this less often at the cost of wasting
+    // more parallel compute resources.
+    // @todo change async_initial_partitioning.{cc, h} to make this obsolete ...
+    const int factor = 2 << (input_ctx.partitioning.min_consecutive_seq_bipartitioning_levels - 1);
+    while (k_prime > factor * p_graph.k() && num_active_threads > p_graph.k()) {
+      extend_partition(
+          p_graph,
+          factor * p_graph.k(),
+          input_ctx,
+          current_p_ctx,
+          subgraph_memory,
+          extraction_pool,
+          ip_m_ctx_pool,
+          num_active_threads
+      );
+    }
+  }
+
   SCOPED_TIMER("Initial partitioning");
 
   START_HEAP_PROFILER("Extract subgraphs");
@@ -224,7 +255,8 @@ void extend_partition(
     const Context &input_ctx,
     PartitionContext &current_p_ctx,
     TemporaryGraphExtractionBufferPool &extraction_pool,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool
+    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
+    const int num_active_threads
 ) {
   graph::SubgraphMemory memory;
 
@@ -237,22 +269,21 @@ void extend_partition(
   );
 
   extend_partition(
-      p_graph, k_prime, input_ctx, current_p_ctx, memory, extraction_pool, ip_m_ctx_pool
+      p_graph,
+      k_prime,
+      input_ctx,
+      current_p_ctx,
+      memory,
+      extraction_pool,
+      ip_m_ctx_pool,
+      num_active_threads
   );
 }
 
-bool coarsen_once(
-    Coarsener *coarsener,
-    const Graph *graph,
-    const Context &input_ctx,
-    PartitionContext &current_p_ctx,
-    const bool free_memory_afterwards
-) {
+bool coarsen_once(Coarsener *coarsener, const Graph *graph, PartitionContext &current_p_ctx) {
   SCOPED_TIMER("Coarsening");
 
-  const NodeWeight max_cluster_weight =
-      compute_max_cluster_weight(input_ctx.coarsening, *graph, input_ctx.partition);
-  const auto shrunk = coarsener->coarsen(max_cluster_weight, 0, free_memory_afterwards);
+  const auto shrunk = coarsener->coarsen();
   const auto &c_graph = coarsener->current();
 
   // @todo always do this?
@@ -264,11 +295,13 @@ bool coarsen_once(
 }
 
 BlockID compute_k_for_n(const NodeID n, const Context &input_ctx) {
+  // Catch special case where log is negative:
   if (n < 2 * input_ctx.coarsening.contraction_limit) {
     return 2;
-  } // catch special case where log is negative
+  }
+
   const BlockID k_prime = 1 << math::ceil_log2(n / input_ctx.coarsening.contraction_limit);
-  return std::clamp(k_prime, static_cast<BlockID>(2), input_ctx.partition.k);
+  return std::clamp<BlockID>(k_prime, 2, input_ctx.partition.k);
 }
 
 std::size_t compute_num_copies(
@@ -276,21 +309,21 @@ std::size_t compute_num_copies(
 ) {
   KASSERT(num_threads > 0u);
 
-  // sequential base case?
+  // Sequential base case;
   const NodeID C = input_ctx.coarsening.contraction_limit;
   if (converged || n <= 2 * C) {
     return num_threads;
   }
 
-  // parallel case
+  // Parallel case:
   const std::size_t f = 1 << static_cast<std::size_t>(std::ceil(std::log2(1.0 * n / C)));
 
-  // continue with coarsening if the graph is still too large
+  // Continue with coarsening if the graph is still too large ...
   if (f > num_threads) {
     return 1;
   }
 
-  // split into groups
+  // ... otherwise, split into groups:
   return num_threads / f;
 }
 

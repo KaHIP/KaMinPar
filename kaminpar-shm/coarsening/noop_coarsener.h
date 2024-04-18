@@ -19,11 +19,7 @@ public:
     _graph = graph;
   }
 
-  bool coarsen(
-      const NodeWeight /* max_cluster_weight */,
-      const NodeID /* to_size */,
-      const bool /* free_memory_afterwards */
-  ) final {
+  bool coarsen() final {
     return false;
   }
 

@@ -104,7 +104,8 @@ find_nonlocal_nodes(const DistributedGraph &graph, const GlobalClustering &lnode
     const GlobalNodeID gcluster = lnode_to_gcluster[lnode];
     if (!graph.is_owned_global_node(gcluster)) {
       nonlocal_nodes[node_position_buffer[lnode]] = {
-          .u = gcluster, .weight = graph.node_weight(lnode)};
+          .u = gcluster, .weight = graph.node_weight(lnode)
+      };
     }
   });
 
@@ -224,9 +225,7 @@ void update_ghost_node_weights(DistributedGraph &graph) {
 
   mpi::graph::sparse_alltoall_interface_to_pe<Message>(
       graph,
-      [&](const NodeID u) -> Message {
-        return {u, graph.node_weight(u)};
-      },
+      [&](const NodeID u) -> Message { return {u, graph.node_weight(u)}; },
       [&](const auto buffer, const PEID pe) {
         tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
           const auto &[local_node_on_other_pe, weight] = buffer[i];
@@ -424,7 +423,8 @@ MigrationResult<Element> migrate_elements(
       .sendcounts = std::move(sendcounts),
       .sdispls = std::move(sdispls),
       .recvcounts = std::move(recvcounts),
-      .rdispls = std::move(rdispls)};
+      .rdispls = std::move(rdispls)
+  };
 }
 
 MigrationResult<GlobalNode>
@@ -816,9 +816,7 @@ void rebalance_cluster_placement(
   };
   mpi::graph::sparse_alltoall_interface_to_pe<Message>(
       graph,
-      [&](const NodeID lnode) -> Message {
-        return {lnode, lnode_to_gcluster[lnode]};
-      },
+      [&](const NodeID lnode) -> Message { return {lnode, lnode_to_gcluster[lnode]}; },
       [&](const auto buffer, const PEID pe) {
         tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
           const auto &[their_lnode, new_gcluster] = buffer[i];
@@ -862,8 +860,8 @@ bool validate_clustering(const DistributedGraph &graph, const GlobalClustering &
           const NodeID lnode = graph.global_to_local_node(gnode);
           if (lnode_to_gcluster[lnode] != gcluster) {
             LOG_WARNING << "Inconsistent cluster for local node " << lnode
-                        << " (ghost node, global node ID " << gnode << "): "
-                        << "the node is owned by PE " << pe
+                        << " (ghost node, global node ID " << gnode
+                        << "): " << "the node is owned by PE " << pe
                         << ", which assigned the node to cluster " << gcluster
                         << ", but our ghost node is assigned to cluster "
                         << lnode_to_gcluster[lnode] << "; aborting";
@@ -1322,7 +1320,9 @@ ContractionResult contract_clustering(
   // Finally, build coarse graph
   START_TIMER("Construct coarse graph");
   auto all_buffered_nodes =
-      ts_navigable_list::combine<NodeID, LocalEdge, scalable_vector>(edge_buffer_ets);
+      ts_navigable_list::combine<NodeID, LocalEdge, scalable_vector, scalable_vector>(
+          edge_buffer_ets
+      );
 
   tbb::parallel_for<NodeID>(0, c_n, [&](const NodeID i) {
     const auto &marker = all_buffered_nodes[i];
@@ -1456,9 +1456,7 @@ DistributedPartitionedGraph project_partition(
 
   mpi::graph::sparse_alltoall_interface_to_pe<GhostNodeLabel>(
       graph,
-      [&](const NodeID lnode) -> GhostNodeLabel {
-        return {lnode, partition[lnode]};
-      },
+      [&](const NodeID lnode) -> GhostNodeLabel { return {lnode, partition[lnode]}; },
       [&](const auto buffer, const PEID pe) {
         tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
           const auto &[sender_lnode, block] = buffer[i];

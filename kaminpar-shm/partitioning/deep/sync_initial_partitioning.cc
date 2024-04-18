@@ -66,7 +66,7 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
     converged = true;
     tbb::parallel_for(static_cast<std::size_t>(0), num_current_copies, [&](const std::size_t i) {
       const bool shrunk = helper::coarsen_once(
-          next_coarseners[i].get(), &next_coarseners[i]->current(), _input_ctx, current_p_ctxs[i]
+          next_coarseners[i].get(), &next_coarseners[i]->current(), current_p_ctxs[i]
       );
       if (shrunk) {
         converged = false;
@@ -111,7 +111,7 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
       const BlockID k_prime = helper::compute_k_for_n(p_graph.n(), _input_ctx);
       if (p_graph.k() < k_prime) {
         helper::extend_partition(
-            p_graph, k_prime, _input_ctx, p_ctx, _ip_extraction_pool, _ip_m_ctx_pool
+            p_graph, k_prime, _input_ctx, p_ctx, _ip_extraction_pool, _ip_m_ctx_pool, num_threads
         );
       }
     });
@@ -149,6 +149,8 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
 }
 
 std::unique_ptr<Coarsener> SyncInitialPartitioner::duplicate_coarsener(const Coarsener *coarsener) {
-  return factory::create_coarsener(coarsener->current(), _input_ctx.coarsening);
+  auto duplication = factory::create_coarsener(_input_ctx);
+  duplication->initialize(&coarsener->current());
+  return duplication;
 }
 } // namespace kaminpar::shm::partitioning

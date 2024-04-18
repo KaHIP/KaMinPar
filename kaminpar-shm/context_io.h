@@ -21,6 +21,10 @@ std::ostream &operator<<(std::ostream &out, EdgeOrdering ordering);
 
 std::unordered_map<std::string, EdgeOrdering> get_edge_orderings();
 
+std::ostream &operator<<(std::ostream &out, CoarseningAlgorithm algorithm);
+
+std::unordered_map<std::string, CoarseningAlgorithm> get_coarsening_algorithms();
+
 std::ostream &operator<<(std::ostream &out, ClusteringAlgorithm algorithm);
 
 std::unordered_map<std::string, ClusteringAlgorithm> get_clustering_algorithms();

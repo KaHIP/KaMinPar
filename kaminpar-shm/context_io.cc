@@ -61,6 +61,24 @@ std::ostream &operator<<(std::ostream &out, const EdgeOrdering ordering) {
   return out << "<invalid>";
 }
 
+std::unordered_map<std::string, CoarseningAlgorithm> get_coarsening_algorithms() {
+  return {
+      {"noop", CoarseningAlgorithm::NOOP},
+      {"clustering", CoarseningAlgorithm::CLUSTERING},
+  };
+}
+
+std::ostream &operator<<(std::ostream &out, const CoarseningAlgorithm algorithm) {
+  switch (algorithm) {
+  case CoarseningAlgorithm::NOOP:
+    return out << "noop";
+  case CoarseningAlgorithm::CLUSTERING:
+    return out << "clustering";
+  }
+
+  return out << "<invalid>";
+}
+
 std::unordered_map<std::string, ClusteringAlgorithm> get_clustering_algorithms() {
   return {
       {"noop", ClusteringAlgorithm::NOOP},
@@ -109,6 +127,7 @@ std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorit
   return {
       {"noop", RefinementAlgorithm::NOOP},
       {"lp", RefinementAlgorithm::LABEL_PROPAGATION},
+      {"legacy-lp", RefinementAlgorithm::LEGACY_LABEL_PROPAGATION},
       {"fm", RefinementAlgorithm::KWAY_FM},
       {"jet", RefinementAlgorithm::JET},
       {"greedy-balancer", RefinementAlgorithm::GREEDY_BALANCER},
@@ -124,6 +143,8 @@ std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm)
     return out << "fm";
   case RefinementAlgorithm::LABEL_PROPAGATION:
     return out << "lp";
+  case RefinementAlgorithm::LEGACY_LABEL_PROPAGATION:
+    return out << "legacy-lp";
   case RefinementAlgorithm::GREEDY_BALANCER:
     return out << "greedy-balancer";
   case RefinementAlgorithm::JET:
@@ -405,12 +426,18 @@ std::unordered_map<std::string, ContractionMode> get_contraction_modes() {
 
 void print(const CoarseningContext &c_ctx, std::ostream &out) {
   out << "Contraction limit:            " << c_ctx.contraction_limit << "\n";
-  out << "Cluster weight limit:         " << c_ctx.cluster_weight_limit << " x "
-      << c_ctx.cluster_weight_multiplier << "\n";
-  out << "Clustering algorithm:         " << c_ctx.algorithm << "\n";
-  if (c_ctx.algorithm == ClusteringAlgorithm::LABEL_PROPAGATION ||
-      c_ctx.algorithm == ClusteringAlgorithm::LEGACY_LABEL_PROPAGATION) {
-    print(c_ctx.lp, out);
+  out << "Coarsening algorithm:         " << c_ctx.algorithm << "\n";
+
+  if (c_ctx.algorithm == CoarseningAlgorithm::CLUSTERING) {
+    out << "  Cluster weight limit:       " << c_ctx.clustering.cluster_weight_limit << " x "
+        << c_ctx.clustering.cluster_weight_multiplier << "\n";
+    out << "  Max mem-free level:         " << c_ctx.clustering.max_mem_free_coarsening_level
+        << "\n";
+    out << "  Clustering algorithm:       " << c_ctx.clustering.algorithm << "\n";
+    if (c_ctx.clustering.algorithm == ClusteringAlgorithm::LABEL_PROPAGATION ||
+        c_ctx.clustering.algorithm == ClusteringAlgorithm::LEGACY_LABEL_PROPAGATION) {
+      print(c_ctx.clustering.lp, out);
+    }
   }
 
   out << "Contraction mode:             " << c_ctx.contraction.mode << '\n';
@@ -422,10 +449,10 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
 }
 
 void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
-  out << "  Number of iterations:       " << lp_ctx.num_iterations << "\n";
-  out << "  High degree threshold:      " << lp_ctx.large_degree_threshold << "\n";
-  out << "  Max degree:                 " << lp_ctx.max_num_neighbors << "\n";
-  out << "  Two-level weight vector:    "
+  out << "    Number of iterations:     " << lp_ctx.num_iterations << "\n";
+  out << "    High degree threshold:    " << lp_ctx.large_degree_threshold << "\n";
+  out << "    Max degree:               " << lp_ctx.max_num_neighbors << "\n";
+  out << "    Two-level weight vector:  "
       << (lp_ctx.use_two_level_cluster_weight_vector ?
 #ifdef KAMINPAR_USES_GROWT
                                                      "yes (growt)"
@@ -434,16 +461,16 @@ void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
 #endif
                                                      : "no")
       << "\n";
-  out << "  Uses two phases: " << (lp_ctx.use_two_phases ? "yes" : "no") << "\n";
+  out << "    Uses two phases:          " << (lp_ctx.use_two_phases ? "yes" : "no") << "\n";
   if (lp_ctx.use_two_phases) {
-    out << "    Select mode:              " << lp_ctx.second_phase_select_mode << '\n';
-    out << "    Aggregation mode:         " << lp_ctx.second_phase_aggregation_mode << '\n';
-    out << "    Relabel:                  " << (lp_ctx.relabel_before_second_phase ? "yes" : "no")
+    out << "      Select mode:            " << lp_ctx.second_phase_select_mode << '\n';
+    out << "      Aggregation mode:       " << lp_ctx.second_phase_aggregation_mode << '\n';
+    out << "      Relabel:                " << (lp_ctx.relabel_before_second_phase ? "yes" : "no")
         << '\n';
   }
-  out << "  2-hop clustering:           " << lp_ctx.two_hop_strategy << ", if |Vcoarse| > "
+  out << "    2-hop clustering:         " << lp_ctx.two_hop_strategy << ", if |Vcoarse| > "
       << std::setw(2) << std::fixed << lp_ctx.two_hop_threshold << " * |V|\n";
-  out << "  Isolated nodes:             " << lp_ctx.isolated_nodes_strategy << "\n";
+  out << "    Isolated nodes:           " << lp_ctx.isolated_nodes_strategy << "\n";
 }
 
 void print(const InitialPartitioningContext &i_ctx, std::ostream &out) {
@@ -523,7 +550,6 @@ void print(const PartitioningContext &p_ctx, std::ostream &out) {
     out << "  Deep initial part. mode:    " << p_ctx.deep_initial_partitioning_mode << "\n";
     out << "  Deep initial part. load:    " << p_ctx.deep_initial_partitioning_load << "\n";
   }
-  out << "Max coarsening mem-free level:" << p_ctx.max_mem_free_coarsening_level << "\n";
 }
 
 void print(const Context &ctx, std::ostream &out) {

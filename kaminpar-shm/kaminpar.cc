@@ -193,7 +193,6 @@ EdgeWeight KaMinPar::compute_partition(const BlockID k, BlockID *partition) {
 
   if (!_was_rearranged) {
     if (_ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
-      SCOPED_TIMER("Rearrange by degree-buckets");
       CSRGraph &csr_graph = *dynamic_cast<CSRGraph *>(_graph_ptr->underlying_graph());
       _graph_ptr = std::make_unique<Graph>(graph::rearrange_by_degree_buckets(csr_graph));
     }
@@ -209,13 +208,23 @@ EdgeWeight KaMinPar::compute_partition(const BlockID k, BlockID *partition) {
   // Cut off isolated nodes if the graph has been rearranged such that the isolated nodes are placed
   // at the end.
   if (_graph_ptr->sorted()) {
-    SCOPED_TIMER("Remove isolated nodes");
-
     graph::remove_isolated_nodes(*_graph_ptr, _ctx.partition);
   }
 
   // Perform actual partitioning
-  PartitionedGraph p_graph = factory::create_partitioner(*_graph_ptr, _ctx)->partition();
+  PartitionedGraph p_graph = [&] {
+    auto partitioner = factory::create_partitioner(*_graph_ptr, _ctx);
+    if (_output_level >= OutputLevel::DEBUG) {
+      partitioner->enable_metrics_output();
+    }
+    PartitionedGraph p_graph = partitioner->partition();
+
+    START_TIMER("Deallocation");
+    delete partitioner.release();
+    STOP_TIMER();
+
+    return p_graph;
+  }();
 
   // Re-integrate isolated nodes that were cut off during preprocessing
   if (_graph_ptr->sorted()) {
@@ -226,6 +235,7 @@ EdgeWeight KaMinPar::compute_partition(const BlockID k, BlockID *partition) {
         graph::integrate_isolated_nodes(*_graph_ptr, original_epsilon, _ctx);
     p_graph = graph::assign_isolated_nodes(std::move(p_graph), num_isolated_nodes, _ctx.partition);
   }
+
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 
@@ -244,7 +254,7 @@ EdgeWeight KaMinPar::compute_partition(const BlockID k, BlockID *partition) {
   // Print some statistics
   STOP_TIMER(); // stop root timer
   if (_output_level >= OutputLevel::APPLICATION) {
-    print_statistics(_ctx, p_graph, _max_timer_depth, _output_level == OutputLevel::EXPERIMENT);
+    print_statistics(_ctx, p_graph, _max_timer_depth, _output_level >= OutputLevel::EXPERIMENT);
   }
 
   const EdgeWeight final_cut = metrics::edge_cut(p_graph);

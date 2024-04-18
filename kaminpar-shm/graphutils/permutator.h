@@ -9,7 +9,6 @@
 #include <array>
 #include <utility>
 
-#include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
@@ -90,7 +89,7 @@ NodePermutations<StaticArray> sort_by_degree_buckets(const StaticArray<EdgeID> &
   });
 
   // Compute inverse permutation
-  tbb::parallel_for(static_cast<std::size_t>(1), nodes.size(), [&](const NodeID u_plus_one) {
+  tbb::parallel_for<std::size_t>(1, nodes.size(), [&](const NodeID u_plus_one) {
     const NodeID u = u_plus_one - 1;
     inverse_permutation[permutation[u]] = u;
   });
@@ -153,7 +152,7 @@ void build_permuted_graph(
   parallel::prefix_sum(new_nodes.begin(), new_nodes.end(), new_nodes.begin());
 
   // Build p_edges, p_edge_weights
-  tbb::parallel_for(static_cast<GraphNodeID>(0), n, [&](const GraphNodeID u) {
+  tbb::parallel_for<GraphNodeID>(0, n, [&](const GraphNodeID u) {
     const NodeID old_u = permutations.new_to_old[u];
 
     for (auto e = old_nodes[old_u]; e < old_nodes[old_u + 1]; ++e) {

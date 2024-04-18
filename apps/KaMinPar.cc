@@ -49,6 +49,7 @@ struct ApplicationContext {
   bool quiet = false;
   bool experiment = false;
   bool validate = false;
+  bool debug = false;
 
   std::string graph_filename = "";
   std::string partition_filename = "";
@@ -94,6 +95,12 @@ The output should be stored in a file and can be used by the -C,--config option.
       ->check(CLI::NonNegativeNumber)
       ->default_val(app.num_threads);
   cli.add_flag("-E,--experiment", app.experiment, "Use an output format that is easier to parse.");
+  cli.add_flag(
+      "-D,--debug",
+      app.debug,
+      "Same as -E, but print additional debug information (that might impose a running time "
+      "penalty)."
+  );
   cli.add_option(
       "--max-timer-depth", app.max_timer_depth, "Set maximum timer depth shown in result summary."
   );
@@ -208,6 +215,8 @@ int main(int argc, char *argv[]) {
 
   if (app.quiet) {
     partitioner.set_output_level(OutputLevel::QUIET);
+  } else if (app.debug) {
+    partitioner.set_output_level(OutputLevel::DEBUG);
   } else if (app.experiment) {
     partitioner.set_output_level(OutputLevel::EXPERIMENT);
   }

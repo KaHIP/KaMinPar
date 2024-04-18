@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cstring>
+#include <initializer_list>
 #include <iterator>
 #include <thread>
 #include <vector>
@@ -15,7 +16,6 @@
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/heap_profiler.h"
-#include "kaminpar-common/parallel/atomic.h"
 #include "kaminpar-common/parallel/tbb_malloc.h"
 
 namespace kaminpar {
@@ -128,8 +128,6 @@ public:
   using iterator = StaticArrayIterator;
   using const_iterator = const StaticArrayIterator;
 
-  struct no_init {};
-
   StaticArray(T *storage, const std::size_t size) : _size(size), _data(storage) {
     RECORD_DATA_STRUCT(size * sizeof(T), _struct);
   }
@@ -148,14 +146,9 @@ public:
     resize(size, init_value);
   }
 
-  StaticArray(const std::size_t size, no_init) {
+  StaticArray(const std::size_t size, static_array::noinit_t) {
     RECORD_DATA_STRUCT(0, _struct);
-    resize(size, no_init{});
-  }
-
-  StaticArray(static_array::noinit_t, const std::size_t size) {
-    RECORD_DATA_STRUCT(0, _struct);
-    resize(size, no_init{});
+    resize(size, static_array::noinit);
   }
 
   template <typename Iterator>
@@ -183,7 +176,7 @@ public:
   //
 
   void write(const size_type pos, const_reference value) {
-      at(pos) = value;
+    at(pos) = value;
   }
 
   reference at(const size_type pos) {
@@ -290,12 +283,7 @@ public:
     return _size;
   }
 
-  void resize(static_array::noinit_t, const std::size_t size) {
-    KASSERT(_data == _owned_data.get(), "cannot resize span", assert::always);
-    allocate_data(size);
-  }
-
-  void resize(const std::size_t size, no_init) {
+  void resize(const std::size_t size, static_array::noinit_t) {
     KASSERT(_data == _owned_data.get(), "cannot resize span", assert::always);
     allocate_data(size);
   }
@@ -305,7 +293,7 @@ public:
       const value_type init_value = value_type(),
       const bool assign_parallel = true
   ) {
-    resize(size, no_init{});
+    resize(size, static_array::noinit);
     assign(size, init_value, assign_parallel);
   }
 
@@ -352,40 +340,12 @@ private:
 };
 
 namespace static_array {
-template <typename T> StaticArray<T> copy(const StaticArray<T> &arr) {
-  StaticArray<T> cpy(arr.size());
-  tbb::parallel_for<std::size_t>(0, arr.size(), [&](const std::size_t i) { cpy[i] = arr[i]; });
-  return cpy;
+template <typename T> StaticArray<T> create(std::initializer_list<T> list) {
+  return {list.begin(), list.end()};
 }
 
-template <typename T> StaticArray<T> create_from(const std::vector<T> &vec) {
-  StaticArray<T> arr(vec.size());
-  std::copy(vec.begin(), vec.end(), arr.begin());
-  return arr;
-}
-
-template <typename T>
-StaticArray<parallel::Atomic<T>> create_atomic_from(const std::vector<T> &vec) {
-  StaticArray<parallel::Atomic<T>> arr(vec.size());
-  for (std::size_t i = 0; i < vec.size(); ++i) {
-    arr[i].store(vec[i]);
-  }
-  return arr;
-}
-
-template <typename T> std::vector<T> release(const StaticArray<T> &arr) {
-  std::vector<T> vec(arr.size());
-  std::copy(arr.begin(), arr.end(), vec.begin());
-  return vec;
-}
-
-template <typename T>
-std::vector<T> release_nonatomic(const StaticArray<parallel::Atomic<T>> &arr) {
-  std::vector<T> vec(arr.size());
-  for (std::size_t i = 0; i < arr.size(); ++i) {
-    vec[i] = arr[i].load();
-  }
-  return vec;
+template <typename T> StaticArray<T> create(const std::vector<T> &vec) {
+  return {vec.begin(), vec.end()};
 }
 } // namespace static_array
 } // namespace kaminpar

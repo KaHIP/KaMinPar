@@ -7,6 +7,7 @@
  ******************************************************************************/
 #include "kaminpar-shm/partitioning/deep/deep_multilevel.h"
 
+#include "kaminpar-shm/coarsening/max_cluster_weights.h"
 #include "kaminpar-shm/factories.h"
 #include "kaminpar-shm/partitioning/debug.h"
 #include "kaminpar-shm/partitioning/deep/async_initial_partitioning.h"
@@ -19,7 +20,7 @@
 namespace kaminpar::shm {
 namespace {
 SET_DEBUG(false);
-SET_STATISTICS(false);
+SET_STATISTICS_FROM_GLOBAL();
 } // namespace
 
 using namespace partitioning;
@@ -30,8 +31,10 @@ DeepMultilevelPartitioner::DeepMultilevelPartitioner(
     : _input_graph(input_graph),
       _input_ctx(input_ctx),
       _current_p_ctx(input_ctx.partition),
-      _coarsener(factory::create_coarsener(input_graph, input_ctx.coarsening)),
-      _refiner(factory::create_refiner(input_ctx)) {}
+      _coarsener(factory::create_coarsener(input_ctx)),
+      _refiner(factory::create_refiner(input_ctx)) {
+  _coarsener->initialize(&_input_graph);
+}
 
 PartitionedGraph DeepMultilevelPartitioner::partition() {
   cio::print_delimiter("Partitioning");
@@ -44,6 +47,7 @@ PartitionedGraph DeepMultilevelPartitioner::partition() {
   if (!refined || p_graph.k() < _input_ctx.partition.k) {
     LOG;
     LOG << "Toplevel:";
+    LOG << "  Number of nodes: " << p_graph.n() << " | Number of edges: " << p_graph.m();
 
     if (!refined) {
       refine(p_graph);
@@ -75,9 +79,13 @@ void DeepMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
 
   LOG << "  Running refinement on " << p_graph.k() << " blocks";
   helper::refine(_refiner.get(), p_graph, _current_p_ctx);
-  LOG << "    Cut:       " << metrics::edge_cut(p_graph);
-  LOG << "    Imbalance: " << metrics::imbalance(p_graph);
-  LOG << "    Feasible:  " << metrics::is_feasible(p_graph, _current_p_ctx);
+
+  if (_print_metrics) {
+    SCOPED_TIMER("Partition metrics");
+    LOG << "    Cut:       " << metrics::edge_cut(p_graph);
+    LOG << "    Imbalance: " << metrics::imbalance(p_graph);
+    LOG << "    Feasible:  " << metrics::is_feasible(p_graph, _current_p_ctx);
+  }
 
   // ... and dump it after refinement.
   debug::dump_partition_hierarchy(p_graph, _coarsener->level(), "post-refinement", _input_ctx);
@@ -93,10 +101,15 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
       _current_p_ctx,
       _subgraph_memory,
       _ip_extraction_pool,
-      _ip_m_ctx_pool
+      _ip_m_ctx_pool,
+      _input_ctx.parallel.num_threads
   );
-  LOG << "    Cut:       " << metrics::edge_cut(p_graph);
-  LOG << "    Imbalance: " << metrics::imbalance(p_graph);
+
+  if (_print_metrics) {
+    SCOPED_TIMER("Partition metrics");
+    LOG << "    Cut:       " << metrics::edge_cut(p_graph);
+    LOG << "    Imbalance: " << metrics::imbalance(p_graph);
+  }
 }
 
 PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph, bool &refined) {
@@ -104,9 +117,12 @@ PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph, 
 
   while (!_coarsener->empty()) {
     LOG;
-    LOG << "Uncoarsening -> Level " << _coarsener->level();
+    LOG << "Uncoarsening -> Level " << (_coarsener->level() - 1);
 
     p_graph = uncoarsen_once(std::move(p_graph));
+
+    LOG << "  Number of nodes: " << p_graph.n() << " | Number of edges: " << p_graph.m();
+
     refine(p_graph);
     refined = true;
 
@@ -141,13 +157,7 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
     prev_c_graph_m = c_graph->m();
 
     // Build next coarse graph
-    shrunk = helper::coarsen_once(
-        _coarsener.get(),
-        c_graph,
-        _input_ctx,
-        _current_p_ctx,
-        _coarsener->level() < _input_ctx.partitioning.max_mem_free_coarsening_level
-    );
+    shrunk = helper::coarsen_once(_coarsener.get(), c_graph, _current_p_ctx);
     c_graph = &_coarsener->current();
 
     // _subgraph_memory stores the block-induced subgraphs of the partitioned graph during recursive
@@ -160,8 +170,6 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
     }
 
     // Print some metrics for the coarse graphs
-    const NodeWeight max_cluster_weight =
-        compute_max_cluster_weight(_input_ctx.coarsening, *c_graph, _input_ctx.partition);
     LOG << "Coarsening -> Level " << _coarsener->level();
     if (const auto *graph = dynamic_cast<const CompactCSRGraph *>(c_graph->underlying_graph());
         graph != nullptr) {
@@ -169,7 +177,15 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
           << " bytes | Compact edge weights: " << graph->edge_weight_byte_width() << " bytes";
     }
     LOG << "  Number of nodes: " << c_graph->n() << " | Number of edges: " << c_graph->m();
-    LOG << "  Maximum node weight: " << c_graph->max_node_weight() << " <= " << max_cluster_weight;
+    LLOG << "  Maximum node weight: " << c_graph->max_node_weight() << " ";
+    LLOG << "<= "
+         << compute_max_cluster_weight<NodeWeight>(
+                _input_ctx.coarsening,
+                _input_ctx.partition,
+                c_graph->n(),
+                c_graph->total_node_weight()
+            );
+    LOG;
     LOG;
   }
 
@@ -234,9 +250,12 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
 
   // Print some metrics for the initial partition.
   LOG << "  Number of blocks: " << p_graph.k();
-  LOG << "  Cut:              " << metrics::edge_cut(p_graph);
-  LOG << "  Imbalance:        " << metrics::imbalance(p_graph);
-  LOG << "  Feasible:         " << (metrics::is_feasible(p_graph, _current_p_ctx) ? "yes" : "no");
+  if (_print_metrics) {
+    SCOPED_TIMER("Partition metrics");
+    LOG << "  Cut:              " << metrics::edge_cut(p_graph);
+    LOG << "  Imbalance:        " << metrics::imbalance(p_graph);
+    LOG << "  Feasible:         " << (metrics::is_feasible(p_graph, _current_p_ctx) ? "yes" : "no");
+  }
 
   // If requested, dump the coarsest partition -- as noted above, this is not
   // actually the coarsest partition when using deep multilevel.

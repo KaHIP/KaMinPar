@@ -35,15 +35,9 @@ public:
   /**
    * Computes the next level of the graph hierarchy.
    *
-   * @param max_cluster_weight Maximum node weight of the coarse graph.
-   * @param to_size Desired size of the coarse graph.
-   * @param free_memory_afterwards Whether the memory allocated by the coarsening should be freed
-   * afterwards.
-   *
    * @return whether coarsening has *not* yet converged.
    */
-  virtual bool
-  coarsen(NodeWeight max_cluster_weight, NodeID to_size, const bool free_memory_afterwards) = 0;
+  virtual bool coarsen() = 0;
 
   /**
    * @return the coarsest graph in the hierarchy.

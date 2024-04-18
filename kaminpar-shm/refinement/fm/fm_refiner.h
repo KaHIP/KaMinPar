@@ -16,6 +16,7 @@
 #include "kaminpar-shm/refinement/refiner.h"
 
 #include "kaminpar-common/datastructures/binary_heap.h"
+#include "kaminpar-common/parallel/atomic.h"
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::shm {
@@ -160,7 +161,7 @@ template <typename GainCache> struct SharedData {
         gain_cache(ctx, preallocate_n, preallocate_k),
         border_nodes(ctx, gain_cache, node_tracker),
         shared_pq_handles(preallocate_n, SharedBinaryMaxHeap<EdgeWeight>::kInvalidID),
-        target_blocks(static_array::noinit, preallocate_n) {}
+        target_blocks(preallocate_n, static_array::noinit) {}
 
   SharedData(const SharedData &) = delete;
   SharedData &operator=(const SharedData &) = delete;

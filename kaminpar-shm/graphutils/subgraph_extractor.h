@@ -19,8 +19,8 @@
 
 namespace kaminpar::shm::graph {
 struct SubgraphMemoryStartPosition {
-  std::size_t nodes_start_pos{0};
-  std::size_t edges_start_pos{0};
+  std::size_t nodes_start_pos = 0;
+  std::size_t edges_start_pos = 0;
 
   // operator overloads for parallel::prefix_sum()
   SubgraphMemoryStartPosition operator+(const SubgraphMemoryStartPosition &other) const {
@@ -158,7 +158,7 @@ struct TemporarySubgraphMemory {
 };
 
 SubgraphExtractionResult extract_subgraphs(
-    const PartitionedGraph &p_graph, const BlockID input_k, SubgraphMemory &subgraph_memory
+    const PartitionedGraph &p_graph, BlockID input_k, SubgraphMemory &subgraph_memory
 );
 
 SequentialSubgraphExtractionResult extract_subgraphs_sequential(

@@ -23,6 +23,7 @@ enum class OutputLevel : std::uint8_t {
   PROGRESS,    //! Continuously output progress information while partitioning.
   APPLICATION, //! Also output the application banner and context summary.
   EXPERIMENT,  //! Also output information only relevant for benchmarking.
+  DEBUG,       //! Also output (a sane amount) of debug information.
 };
 } // namespace kaminpar
 
@@ -76,6 +77,11 @@ enum class EdgeOrdering {
 // Coarsening
 //
 
+enum class CoarseningAlgorithm {
+  NOOP,
+  CLUSTERING,
+};
+
 enum class ClusteringAlgorithm {
   NOOP,
   LABEL_PROPAGATION,
@@ -117,6 +123,13 @@ enum class IsolatedNodesClusteringStrategy {
   CLUSTER_DURING_TWO_HOP,
 };
 
+enum class ContractionMode {
+  BUFFERED,
+  BUFFERED_LEGACY,
+  UNBUFFERED,
+  UNBUFFERED_NAIVE,
+};
+
 struct LabelPropagationCoarseningContext {
   int num_iterations;
   NodeID large_degree_threshold;
@@ -135,33 +148,31 @@ struct LabelPropagationCoarseningContext {
   IsolatedNodesClusteringStrategy isolated_nodes_strategy;
 };
 
-enum class ContractionMode {
-  BUFFERED,
-  BUFFERED_LEGACY,
-  UNBUFFERED,
-  UNBUFFERED_NAIVE,
-};
-
 struct ContractionCoarseningContext {
   ContractionMode mode;
   double edge_buffer_fill_fraction;
   bool use_compact_mapping;
 };
 
-struct CoarseningContext {
+struct ClusterCoarseningContext {
   ClusteringAlgorithm algorithm;
   LabelPropagationCoarseningContext lp;
-  ContractionCoarseningContext contraction;
-  NodeID contraction_limit;
-  bool enforce_contraction_limit;
-  double convergence_threshold;
+
   ClusterWeightLimit cluster_weight_limit;
   double cluster_weight_multiplier;
 
-  [[nodiscard]] inline bool
-  coarsening_should_converge(const NodeID old_n, const NodeID new_n) const {
-    return (1.0 - 1.0 * new_n / old_n) <= convergence_threshold;
-  }
+  int max_mem_free_coarsening_level;
+};
+
+struct CoarseningContext {
+  CoarseningAlgorithm algorithm;
+
+  ClusterCoarseningContext clustering;
+  ContractionCoarseningContext contraction;
+
+  NodeID contraction_limit;
+
+  double convergence_threshold;
 };
 
 //
@@ -170,6 +181,7 @@ struct CoarseningContext {
 
 enum class RefinementAlgorithm {
   LABEL_PROPAGATION,
+  LEGACY_LABEL_PROPAGATION,
   KWAY_FM,
   GREEDY_BALANCER,
   JET,
@@ -360,10 +372,10 @@ enum class PartitioningMode {
 
 struct PartitioningContext {
   PartitioningMode mode;
-  int max_mem_free_coarsening_level;
 
   InitialPartitioningMode deep_initial_partitioning_mode;
   double deep_initial_partitioning_load;
+  int min_consecutive_seq_bipartitioning_levels;
 };
 
 struct GraphCompressionContext {

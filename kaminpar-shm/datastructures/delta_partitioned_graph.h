@@ -83,7 +83,8 @@ public:
       const BlockID old_block = block(node);
       KASSERT(old_block < k());
 
-      _block_weights_delta[old_block] -= node_weight(node);
+      const NodeWeight w = node_weight(node);
+      _block_weights_delta[old_block] -= w;
       _block_weights_delta[new_block] += node_weight(node);
     }
 

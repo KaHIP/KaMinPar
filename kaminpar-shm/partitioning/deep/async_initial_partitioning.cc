@@ -41,8 +41,10 @@ PartitionedGraph AsyncInitialPartitioner::partition_recursive(
   }
 
   // Otherwise, coarsen further and proceed recursively
-  auto coarsener = factory::create_coarsener(*graph, _input_ctx.coarsening);
-  const bool shrunk = helper::coarsen_once(coarsener.get(), graph, _input_ctx, p_ctx);
+  auto coarsener = factory::create_coarsener(_input_ctx);
+  coarsener->initialize(graph);
+
+  const bool shrunk = helper::coarsen_once(coarsener.get(), graph, p_ctx);
   PartitionedGraph p_graph = split_and_join(coarsener.get(), p_ctx, !shrunk, num_threads);
   p_graph =
       helper::uncoarsen_once(coarsener.get(), std::move(p_graph), p_ctx, _input_ctx.partition);
@@ -59,7 +61,7 @@ PartitionedGraph AsyncInitialPartitioner::partition_recursive(
   const BlockID k_prime = helper::compute_k_for_n(p_graph.n(), _input_ctx);
   if (p_graph.k() < k_prime) {
     helper::extend_partition(
-        p_graph, k_prime, _input_ctx, p_ctx, _ip_extraction_pool, _ip_m_ctx_pool
+        p_graph, k_prime, _input_ctx, p_ctx, _ip_extraction_pool, _ip_m_ctx_pool, num_threads
     );
   }
 

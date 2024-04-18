@@ -9,10 +9,9 @@
 
 #include <tbb/parallel_invoke.h>
 
-#include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/factories.h"
 #include "kaminpar-shm/graphutils/subgraph_extractor.h"
-#include "kaminpar-shm/initial_partitioning/initial_partitioning_facade.h"
 #include "kaminpar-shm/partition_utils.h"
 #include "kaminpar-shm/partitioning/helper.h"
 #include "kaminpar-shm/partitioning/partitioner.h"
@@ -69,11 +68,11 @@ public:
   PartitionedGraph bipartition(const Graph &graph, const BlockID final_k) {
     using namespace partitioning;
 
-    auto coarsener = factory::create_coarsener(graph, _input_ctx.coarsening);
-
     // set k to 2 for max cluster weight computation
-    Context pseudo_input_ctx = _input_ctx;
-    pseudo_input_ctx.partition.k = 2;
+    PartitionContext bipart_ctx = _input_ctx.partition;
+    bipart_ctx.k = 2;
+    auto coarsener = factory::create_coarsener(_input_ctx, bipart_ctx);
+    coarsener->initialize(&graph);
 
     const Graph *c_graph = &graph;
 
@@ -82,7 +81,7 @@ public:
         create_bipartition_context(graph, final_k / 2, final_k / 2, _input_ctx.partition);
     bool shrunk = true;
     while (shrunk && c_graph->n() > 2 * _input_ctx.coarsening.contraction_limit) {
-      shrunk = helper::coarsen_once(coarsener.get(), c_graph, pseudo_input_ctx, p_ctx);
+      shrunk = helper::coarsen_once(coarsener.get(), c_graph, p_ctx);
       c_graph = &coarsener->current();
     }
 

@@ -27,11 +27,13 @@ NodePermutations<StaticArray> rearrange_graph(
     StaticArray<EdgeWeight> &edge_weights
 ) {
   START_HEAP_PROFILER("Temporal nodes and edges allocation");
-  START_TIMER("Allocation");
-  RECORD("tmp_nodes") StaticArray<EdgeID> tmp_nodes(nodes.size());
-  RECORD("tmp_edges") StaticArray<NodeID> tmp_edges(edges.size());
-  RECORD("tmp_node_weights") StaticArray<NodeWeight> tmp_node_weights(node_weights.size());
-  RECORD("tmp_edge_weights") StaticArray<EdgeWeight> tmp_edge_weights(edge_weights.size());
+  START_TIMER("Allocation (noinit)");
+  RECORD("tmp_nodes") StaticArray<EdgeID> tmp_nodes(nodes.size(), static_array::noinit);
+  RECORD("tmp_edges") StaticArray<NodeID> tmp_edges(edges.size(), static_array::noinit);
+  RECORD("tmp_node_weights")
+  StaticArray<NodeWeight> tmp_node_weights(node_weights.size(), static_array::noinit);
+  RECORD("tmp_edge_weights")
+  StaticArray<EdgeWeight> tmp_edge_weights(edge_weights.size(), static_array::noinit);
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 
@@ -39,8 +41,10 @@ NodePermutations<StaticArray> rearrange_graph(
   // the graph data structure this way, we can just cut them off without doing
   // further work
   START_HEAP_PROFILER("Rearrange input graph");
-  START_TIMER("Rearrange input graph");
+  START_TIMER("Sort nodes by degree bucket");
   NodePermutations<StaticArray> permutations = sort_by_degree_buckets<>(nodes);
+  STOP_TIMER();
+  START_TIMER("Rearrange input graph");
   build_permuted_graph(
       nodes,
       edges,
@@ -59,10 +63,19 @@ NodePermutations<StaticArray> rearrange_graph(
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 
+  START_TIMER("Deallocation");
+  tmp_nodes.free();
+  tmp_edges.free();
+  tmp_node_weights.free();
+  tmp_edge_weights.free();
+  STOP_TIMER();
+
   return permutations;
 }
 
 Graph rearrange_by_degree_buckets(CSRGraph &old_graph) {
+  SCOPED_TIMER("Rearrange by degree-buckets");
+
   auto nodes = old_graph.take_raw_nodes();
   auto edges = old_graph.take_raw_edges();
   auto node_weights = old_graph.take_raw_node_weights();
@@ -103,21 +116,20 @@ Graph rearrange_by_degree_buckets(CSRGraph &old_graph) {
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), true
   ));
   new_graph.set_permutation(std::move(node_permutations.old_to_new));
+
   return new_graph;
 }
 
 // See https://devblogs.microsoft.com/oldnewthing/20170102-00/?p=95095
 template <typename S, typename T, typename U, typename V>
 static void apply_permutation(S *u, T *v, U &indices, V size) {
-  using std::swap;
-
   for (V i = 0; i < size; ++i) {
     V current = i;
 
     while (i != indices[current]) {
       V next = indices[current];
-      swap(u[current], u[next]);
-      swap(v[current], v[next]);
+      std::swap(u[current], u[next]);
+      std::swap(v[current], v[next]);
       indices[current] = current;
       current = next;
     }
@@ -304,6 +316,8 @@ void remove_isolated_nodes_generic_graph(Graph &graph, PartitionContext &p_ctx) 
 }
 
 void remove_isolated_nodes(Graph &graph, PartitionContext &p_ctx) {
+  SCOPED_TIMER("Remove isolated nodes");
+
   if (auto *csr_graph = dynamic_cast<CSRGraph *>(graph.underlying_graph()); csr_graph != nullptr) {
     remove_isolated_nodes_generic_graph(*csr_graph, p_ctx);
   } else if (auto *compressed_graph = dynamic_cast<CompressedGraph *>(graph.underlying_graph());
@@ -349,11 +363,9 @@ PartitionedGraph assign_isolated_nodes(
   // The following call graph.n() should include isolated nodes now
   RECORD("partition") StaticArray<BlockID> partition(graph.n());
   // copy partition of non-isolated nodes
-  tbb::parallel_for(
-      static_cast<NodeID>(0),
-      static_cast<NodeID>(num_nonisolated_nodes),
-      [&](const NodeID u) { partition[u] = p_graph.block(u); }
-  );
+  tbb::parallel_for<NodeID>(0, num_nonisolated_nodes, [&](const NodeID u) {
+    partition[u] = p_graph.block(u);
+  });
 
   // now append the isolated ones
   const BlockID k = p_graph.k();
