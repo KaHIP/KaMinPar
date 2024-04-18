@@ -113,6 +113,7 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
 
 std::unique_ptr<Refiner> create_refiner(const Context &ctx) {
   SCOPED_HEAP_PROFILER("Refiner Allocation");
+  SCOPED_TIMER("Refinement");
   SCOPED_TIMER("Allocation");
 
   if (ctx.refinement.algorithms.empty()) {
