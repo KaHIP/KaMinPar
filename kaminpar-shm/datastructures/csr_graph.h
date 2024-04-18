@@ -451,10 +451,46 @@ private:
   void init_degree_buckets() {
     KASSERT(std::all_of(_buckets.begin(), _buckets.end(), [](const auto n) { return n == 0; }));
 
+    constexpr std::size_t kNumBuckets = kNumberOfDegreeBuckets<NodeID> + 1;
+
     if (_sorted) {
-      for (const NodeID u : nodes()) {
-        ++_buckets[degree_bucket(degree(u)) + 1];
+      tbb::enumerable_thread_specific<std::array<NodeID, kNumBuckets>> buckets_ets([&] {
+        return std::array<NodeID, kNumBuckets>{};
+      });
+
+      tbb::parallel_for(
+          tbb::blocked_range<NodeID>(0, n()),
+          [&](const tbb::blocked_range<NodeID> r) {
+            auto &buckets = buckets_ets.local();
+            for (NodeID u = r.begin(); u != r.end(); ++u) {
+              ++buckets[degree_bucket(degree(u)) + 1];
+            }
+          }
+      );
+
+      std::fill(_buckets.begin(), _buckets.end(), 0);
+      for (auto &local_buckets : buckets_ets) {
+        for (std::size_t i = 0; i < kNumBuckets; ++i) {
+          _buckets[i] += local_buckets[i];
+        }
       }
+
+      KASSERT(
+          [&] {
+            std::vector<NodeID> buckets2(_buckets.size());
+            for (const NodeID u : nodes()) {
+              ++buckets2[degree_bucket(degree(u)) + 1];
+            }
+            for (std::size_t i = 0; i < _buckets.size(); ++i) {
+              if (_buckets[i] != buckets2[i]) {
+                return false;
+              }
+            }
+            return true;
+          }(),
+          "",
+          assert::heavy
+      );
       auto last_nonempty_bucket =
           std::find_if(_buckets.rbegin(), _buckets.rend(), [](const auto n) { return n > 0; });
       _number_of_buckets = std::distance(_buckets.begin(), (last_nonempty_bucket + 1).base());

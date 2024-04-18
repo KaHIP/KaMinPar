@@ -27,11 +27,13 @@ NodePermutations<StaticArray> rearrange_graph(
     StaticArray<EdgeWeight> &edge_weights
 ) {
   START_HEAP_PROFILER("Temporal nodes and edges allocation");
-  START_TIMER("Allocation");
+  START_TIMER("Allocation (noinit)");
   RECORD("tmp_nodes") StaticArray<EdgeID> tmp_nodes(nodes.size(), static_array::noinit);
   RECORD("tmp_edges") StaticArray<NodeID> tmp_edges(edges.size(), static_array::noinit);
-  RECORD("tmp_node_weights") StaticArray<NodeWeight> tmp_node_weights(node_weights.size(), static_array::noinit);
-  RECORD("tmp_edge_weights") StaticArray<EdgeWeight> tmp_edge_weights(edge_weights.size(), static_array::noinit);
+  RECORD("tmp_node_weights")
+  StaticArray<NodeWeight> tmp_node_weights(node_weights.size(), static_array::noinit);
+  RECORD("tmp_edge_weights")
+  StaticArray<EdgeWeight> tmp_edge_weights(edge_weights.size(), static_array::noinit);
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 
@@ -39,8 +41,10 @@ NodePermutations<StaticArray> rearrange_graph(
   // the graph data structure this way, we can just cut them off without doing
   // further work
   START_HEAP_PROFILER("Rearrange input graph");
-  START_TIMER("Rearrange input graph");
+  START_TIMER("Sort nodes by degree bucket");
   NodePermutations<StaticArray> permutations = sort_by_degree_buckets<>(nodes);
+  STOP_TIMER();
+  START_TIMER("Rearrange input graph");
   build_permuted_graph(
       nodes,
       edges,
@@ -58,6 +62,13 @@ NodePermutations<StaticArray> rearrange_graph(
   std::swap(edge_weights, tmp_edge_weights);
   STOP_TIMER();
   STOP_HEAP_PROFILER();
+
+  START_TIMER("Deallocation");
+  tmp_nodes.free();
+  tmp_edges.free();
+  tmp_node_weights.free();
+  tmp_edge_weights.free();
+  STOP_TIMER();
 
   return permutations;
 }
@@ -105,6 +116,7 @@ Graph rearrange_by_degree_buckets(CSRGraph &old_graph) {
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), true
   ));
   new_graph.set_permutation(std::move(node_permutations.old_to_new));
+
   return new_graph;
 }
 
