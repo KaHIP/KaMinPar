@@ -61,7 +61,7 @@ PartitionedGraph AsyncInitialPartitioner::partition_recursive(
   const BlockID k_prime = helper::compute_k_for_n(p_graph.n(), _input_ctx);
   if (p_graph.k() < k_prime) {
     helper::extend_partition(
-        p_graph, k_prime, _input_ctx, p_ctx, _ip_extraction_pool, _ip_m_ctx_pool
+        p_graph, k_prime, _input_ctx, p_ctx, _ip_extraction_pool, _ip_m_ctx_pool, num_threads
     );
   }
 

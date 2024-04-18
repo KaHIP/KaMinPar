@@ -147,7 +147,8 @@ PartitionedGraph KWayMultilevelPartitioner::initial_partition(const Graph *graph
       _current_p_ctx,
       subgraph_memory,
       ip_extraction_pool,
-      _ip_m_ctx_pool
+      _ip_m_ctx_pool,
+      _input_ctx.parallel.num_threads
   );
 
   helper::update_partition_context(_current_p_ctx, p_graph, _input_ctx.partition.k);

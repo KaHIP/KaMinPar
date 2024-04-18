@@ -156,8 +156,22 @@ void extend_partition(
     PartitionContext &current_p_ctx,
     graph::SubgraphMemory &subgraph_memory,
     TemporaryGraphExtractionBufferPool &extraction_pool,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool
+    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
+    const int num_active_threads
 ) {
+  while (k_prime > 2 * p_graph.k() && num_active_threads > p_graph.k()) {
+    extend_partition(
+        p_graph,
+        2 * p_graph.k(),
+        input_ctx,
+        current_p_ctx,
+        subgraph_memory,
+        extraction_pool,
+        ip_m_ctx_pool,
+        num_active_threads
+    );
+  }
+
   SCOPED_TIMER("Initial partitioning");
 
   START_HEAP_PROFILER("Extract subgraphs");
@@ -229,7 +243,8 @@ void extend_partition(
     const Context &input_ctx,
     PartitionContext &current_p_ctx,
     TemporaryGraphExtractionBufferPool &extraction_pool,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool
+    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
+    const int num_active_threads
 ) {
   graph::SubgraphMemory memory;
 
@@ -242,7 +257,14 @@ void extend_partition(
   );
 
   extend_partition(
-      p_graph, k_prime, input_ctx, current_p_ctx, memory, extraction_pool, ip_m_ctx_pool
+      p_graph,
+      k_prime,
+      input_ctx,
+      current_p_ctx,
+      memory,
+      extraction_pool,
+      ip_m_ctx_pool,
+      num_active_threads
   );
 }
 

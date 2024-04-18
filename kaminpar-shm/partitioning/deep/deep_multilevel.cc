@@ -101,7 +101,8 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
       _current_p_ctx,
       _subgraph_memory,
       _ip_extraction_pool,
-      _ip_m_ctx_pool
+      _ip_m_ctx_pool,
+      _input_ctx.parallel.num_threads
   );
 
   if (_print_metrics) {

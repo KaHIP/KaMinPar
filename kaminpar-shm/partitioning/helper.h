@@ -99,7 +99,8 @@ void extend_partition(
     PartitionContext &current_p_ctx,
     graph::SubgraphMemory &subgraph_memory,
     TemporaryGraphExtractionBufferPool &extraction_pool,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool
+    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
+    int num_active_threads
 );
 
 void extend_partition(
@@ -108,7 +109,8 @@ void extend_partition(
     const Context &input_ctx,
     PartitionContext &current_p_ctx,
     TemporaryGraphExtractionBufferPool &extraction_pool,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool
+    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
+    int num_active_threads
 );
 
 bool coarsen_once(Coarsener *coarsener, const Graph *graph, PartitionContext &current_p_ctx);
