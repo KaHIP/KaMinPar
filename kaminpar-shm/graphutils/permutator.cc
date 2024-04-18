@@ -28,10 +28,10 @@ NodePermutations<StaticArray> rearrange_graph(
 ) {
   START_HEAP_PROFILER("Temporal nodes and edges allocation");
   START_TIMER("Allocation");
-  RECORD("tmp_nodes") StaticArray<EdgeID> tmp_nodes(nodes.size());
-  RECORD("tmp_edges") StaticArray<NodeID> tmp_edges(edges.size());
-  RECORD("tmp_node_weights") StaticArray<NodeWeight> tmp_node_weights(node_weights.size());
-  RECORD("tmp_edge_weights") StaticArray<EdgeWeight> tmp_edge_weights(edge_weights.size());
+  RECORD("tmp_nodes") StaticArray<EdgeID> tmp_nodes(nodes.size(), static_array::noinit);
+  RECORD("tmp_edges") StaticArray<NodeID> tmp_edges(edges.size(), static_array::noinit);
+  RECORD("tmp_node_weights") StaticArray<NodeWeight> tmp_node_weights(node_weights.size(), static_array::noinit);
+  RECORD("tmp_edge_weights") StaticArray<EdgeWeight> tmp_edge_weights(edge_weights.size(), static_array::noinit);
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 
@@ -111,15 +111,13 @@ Graph rearrange_by_degree_buckets(CSRGraph &old_graph) {
 // See https://devblogs.microsoft.com/oldnewthing/20170102-00/?p=95095
 template <typename S, typename T, typename U, typename V>
 static void apply_permutation(S *u, T *v, U &indices, V size) {
-  using std::swap;
-
   for (V i = 0; i < size; ++i) {
     V current = i;
 
     while (i != indices[current]) {
       V next = indices[current];
-      swap(u[current], u[next]);
-      swap(v[current], v[next]);
+      std::swap(u[current], u[next]);
+      std::swap(v[current], v[next]);
       indices[current] = current;
       current = next;
     }
@@ -353,11 +351,9 @@ PartitionedGraph assign_isolated_nodes(
   // The following call graph.n() should include isolated nodes now
   RECORD("partition") StaticArray<BlockID> partition(graph.n());
   // copy partition of non-isolated nodes
-  tbb::parallel_for(
-      static_cast<NodeID>(0),
-      static_cast<NodeID>(num_nonisolated_nodes),
-      [&](const NodeID u) { partition[u] = p_graph.block(u); }
-  );
+  tbb::parallel_for<NodeID>(0, num_nonisolated_nodes, [&](const NodeID u) {
+    partition[u] = p_graph.block(u);
+  });
 
   // now append the isolated ones
   const BlockID k = p_graph.k();
