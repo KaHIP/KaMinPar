@@ -35,7 +35,6 @@ public:
       : GraphDelegate<Graph>(&p_graph->graph()),
         _p_graph(p_graph) {
     if constexpr (!compact_block_weight_delta) {
-        std::cout << "resize to " << _p_graph->k() << std::endl;
       _block_weights_delta.resize(_p_graph->k());
     }
   }
