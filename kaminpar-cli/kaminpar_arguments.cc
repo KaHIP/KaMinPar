@@ -77,6 +77,13 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
       "value of '1' will replicate the graph once for every PE, whereas smaller values lead to "
       "fewer replications."
   );
+  partitioning
+      ->add_option(
+          "--p-min-consecutive-seq-bipartitioning-levels",
+          ctx.partitioning.min_consecutive_seq_bipartitioning_levels,
+          "(set to '0' for the old behaviour)"
+      )
+      ->capture_default_str();
 
   create_partitioning_rearrangement_options(app, ctx);
 

@@ -159,17 +159,29 @@ void extend_partition(
     GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
     const int num_active_threads
 ) {
-  while (k_prime > 2 * p_graph.k() && num_active_threads > p_graph.k()) {
-    extend_partition(
-        p_graph,
-        2 * p_graph.k(),
-        input_ctx,
-        current_p_ctx,
-        subgraph_memory,
-        extraction_pool,
-        ip_m_ctx_pool,
-        num_active_threads
-    );
+  if (input_ctx.partitioning.min_consecutive_seq_bipartitioning_levels > 0) {
+    // Depending on the coarsening level and the deep multilevel implementation, it can occur that
+    // this function is called with more threads than blocks in the graph partition. To avoid
+    // wasting threads, we only extend the partition a little at first, and then recurse until all
+    // threads can work on independent blocks.
+    // "min_consecutive_seq_bipartitioning_levels" parameterizes the term "a little": when set to 1,
+    // we have the most amount of parallelization, but waste time by re-extracting the block-induced
+    // subgraphs from the partitioned graph; larger values do this less often at the cost of wasting
+    // more parallel compute resources.
+    // @todo change async_initial_partitioning.{cc, h} to make this obsolete ...
+    const int factor = 2 << (input_ctx.partitioning.min_consecutive_seq_bipartitioning_levels - 1);
+    while (k_prime > factor * p_graph.k() && num_active_threads > p_graph.k()) {
+      extend_partition(
+          p_graph,
+          factor * p_graph.k(),
+          input_ctx,
+          current_p_ctx,
+          subgraph_memory,
+          extraction_pool,
+          ip_m_ctx_pool,
+          num_active_threads
+      );
+    }
   }
 
   SCOPED_TIMER("Initial partitioning");

@@ -57,6 +57,7 @@ Context create_default_context() {
               .mode = PartitioningMode::DEEP,
               .deep_initial_partitioning_mode = InitialPartitioningMode::ASYNCHRONOUS_PARALLEL,
               .deep_initial_partitioning_load = 1.0,
+              .min_consecutive_seq_bipartitioning_levels = 1,
           },
       .partition =
           {
