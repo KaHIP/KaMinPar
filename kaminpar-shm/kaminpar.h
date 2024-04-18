@@ -23,6 +23,7 @@ enum class OutputLevel : std::uint8_t {
   PROGRESS,    //! Continuously output progress information while partitioning.
   APPLICATION, //! Also output the application banner and context summary.
   EXPERIMENT,  //! Also output information only relevant for benchmarking.
+  DEBUG,       //! Also output (a sane amount) of debug information.
 };
 } // namespace kaminpar
 

@@ -214,6 +214,9 @@ EdgeWeight KaMinPar::compute_partition(const BlockID k, BlockID *partition) {
   // Perform actual partitioning
   PartitionedGraph p_graph = [&] {
     auto partitioner = factory::create_partitioner(*_graph_ptr, _ctx);
+    if (_output_level >= OutputLevel::DEBUG) {
+      partitioner->enable_metrics_output();
+    }
     PartitionedGraph p_graph = partitioner->partition();
 
     START_TIMER("Deallocation");
@@ -251,7 +254,7 @@ EdgeWeight KaMinPar::compute_partition(const BlockID k, BlockID *partition) {
   // Print some statistics
   STOP_TIMER(); // stop root timer
   if (_output_level >= OutputLevel::APPLICATION) {
-    print_statistics(_ctx, p_graph, _max_timer_depth, _output_level == OutputLevel::EXPERIMENT);
+    print_statistics(_ctx, p_graph, _max_timer_depth, _output_level >= OutputLevel::EXPERIMENT);
   }
 
   const EdgeWeight final_cut = metrics::edge_cut(p_graph);
