@@ -210,7 +210,6 @@ struct LabelPropagationRefinementContext {
   bool use_two_phases;
   SecondPhaseSelectMode second_phase_select_mode;
   SecondPhaseAggregationMode second_phase_aggregation_mode;
-  bool relabel_before_second_phase;
 };
 
 struct KwayFMRefinementContext {
