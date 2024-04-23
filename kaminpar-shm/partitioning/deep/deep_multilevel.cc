@@ -144,6 +144,10 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
   EdgeID prev_c_graph_m = c_graph->m();
   bool shrunk = true;
 
+  bool search_subgraph_memory_size = true;
+  NodeID subgraph_memory_n;
+  EdgeID subgraph_memory_m;
+
   while (shrunk && c_graph->n() > initial_partitioning_threshold()) {
     // If requested, dump graph before each coarsening step + after coarsening
     // converged. This way, we also have a dump of the (reordered) input graph,
@@ -164,9 +168,11 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
     // bipartitioning
     // To avoid repeated allocation, we pre-allocate the memory during coarsening for the largest
     // coarse graph for which we still need recursive bipartitioning
-    if (_subgraph_memory.empty() &&
+    if (search_subgraph_memory_size &&
         helper::compute_k_for_n(c_graph->n(), _input_ctx) < _input_ctx.partition.k) {
-      _subgraph_memory.resize(prev_c_graph_n, _input_ctx.partition.k, prev_c_graph_m, true, true);
+      search_subgraph_memory_size = false;
+      subgraph_memory_n = prev_c_graph_n;
+      subgraph_memory_m = prev_c_graph_m;
     }
 
     // Print some metrics for the coarse graphs
@@ -189,9 +195,11 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
     LOG;
   }
 
-  if (_subgraph_memory.empty()) {
-    _subgraph_memory.resize(prev_c_graph_n, _input_ctx.partition.k, prev_c_graph_m, true, true);
+  if (search_subgraph_memory_size) {
+    subgraph_memory_n = prev_c_graph_n;
+    subgraph_memory_m = prev_c_graph_m;
   }
+  _subgraph_memory.resize(subgraph_memory_n, _input_ctx.partition.k, subgraph_memory_m, true, true);
 
   if (shrunk) {
     LOG << "==> Coarsening terminated with less than " << initial_partitioning_threshold()
