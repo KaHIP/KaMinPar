@@ -1275,6 +1275,16 @@ protected:
   using Base::_rating_map_ets;
 };
 
+template <typename NodeID> struct AbstractChunk {
+  NodeID start;
+  NodeID end;
+};
+
+struct Bucket {
+  std::size_t start;
+  std::size_t end;
+};
+
 /*!
  * Parallel label propagation template that iterates over nodes in chunk random
  * order.
@@ -1308,14 +1318,18 @@ protected:
 
   using Permutations =
       RandomPermutations<NodeID, Config::kPermutationSize, Config::kNumberOfNodePermutations>;
+  using Chunk = AbstractChunk<NodeID>;
 
 public:
   //! The data strucutres that are stored on the heap and used by label propagation.
   using DataStructures = std::tuple<
       tbb::enumerable_thread_specific<RatingMap>,
       StaticArray<uint8_t>,
+      StaticArray<uint8_t>,
       StaticArray<ClusterID>,
       tbb::concurrent_vector<NodeID>,
+      std::vector<Chunk>,
+      std::vector<Bucket>,
       ConcurrentFastResetArray<EdgeWeight, ClusterID>>;
 
   /*!
@@ -1325,12 +1339,22 @@ public:
    * @param structs The data structures to use.
    */
   void setup(DataStructures structs) {
-    auto [rating_map_ets, active, favored_clusters, second_phase_nodes, concurrent_rating_map] =
-        std::move(structs);
+    auto
+        [rating_map_ets,
+         active,
+         moved,
+         favored_clusters,
+         second_phase_nodes,
+         chunks,
+         buckets,
+         concurrent_rating_map] = std::move(structs);
     Base::_rating_map_ets = std::move(rating_map_ets);
     Base::_active = std::move(active);
+    Base::_moved = std::move(moved);
     Base::_favored_clusters = std::move(favored_clusters);
     Base::_second_phase_nodes = std::move(second_phase_nodes);
+    _chunks = std::move(chunks);
+    _buckets = std::move(buckets);
     _concurrent_rating_map = std::move(concurrent_rating_map);
   }
 
@@ -1343,8 +1367,11 @@ public:
     return std::make_tuple(
         std::move(Base::_rating_map_ets),
         std::move(Base::_active),
+        std::move(Base::_moved),
         std::move(Base::_favored_clusters),
         std::move(Base::_second_phase_nodes),
+        std::move(_chunks),
+        std::move(_buckets),
         std::move(_concurrent_rating_map)
     );
   }
@@ -1436,16 +1463,6 @@ protected:
   }
 
 private:
-  struct Chunk {
-    NodeID start;
-    NodeID end;
-  };
-
-  struct Bucket {
-    std::size_t start;
-    std::size_t end;
-  };
-
   void init_chunks(const NodeID from, NodeID to) {
     _chunks.clear();
     _buckets.clear();
