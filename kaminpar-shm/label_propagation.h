@@ -221,6 +221,7 @@ protected:
 
     _active.free();
     _favored_clusters.free();
+    _moved.free();
 
     _second_phase_nodes.clear();
     _second_phase_nodes.shrink_to_fit();
@@ -271,33 +272,55 @@ protected:
     ClusterID num_actual_clusters = _current_num_clusters;
     _initial_num_clusters = num_actual_clusters;
 
+    // Store for each node whether it joined another cluster as this information gets lost. This
+    // information is needed only by 2-hop clustering.
+    if constexpr (Config::kUseTwoHopClustering) {
+      if (_moved.size() < _graph->n()) {
+        _moved.resize(_graph->n());
+      }
+    }
+
     // Compute a mapping from old cluster IDs to new cluster IDs.
-    StaticArray<ClusterID> mapping(_graph->n());
+    RECORD("mapping") StaticArray<ClusterID> mapping(_graph->n());
     tbb::parallel_for(tbb::blocked_range<NodeID>(0, _graph->n()), [&](const auto &r) {
       for (NodeID u = r.begin(); u != r.end(); ++u) {
-        __atomic_store_n(&mapping[derived_cluster(u)], 1, __ATOMIC_RELAXED);
+        const ClusterID c_u = derived_cluster(u);
+        __atomic_store_n(&mapping[c_u], 1, __ATOMIC_RELAXED);
+
+        if constexpr (Config::kUseTwoHopClustering) {
+          if (u != c_u) {
+            _moved[u] = 1;
+          }
+        }
       }
     });
 
     parallel::prefix_sum(mapping.begin(), mapping.end(), mapping.begin());
     KASSERT(num_actual_clusters == mapping[_graph->n() - 1]);
 
-    // Relabel the cluster stored for each node.
-    tbb::parallel_for(tbb::blocked_range<NodeID>(0, _graph->n()), [&](const auto &r) {
-      for (NodeID u = r.begin(); u != r.end(); ++u) {
-        derived_move_node(u, mapping[derived_cluster(u)] - 1);
-      }
-    });
-
-    // Relabel the clusters stored in the favored clusters vector.
-    tbb::parallel_for(tbb::blocked_range<NodeID>(0, _graph->n()), [&](const auto &r) {
-      for (NodeID u = r.begin(); u != r.end(); ++u) {
-        _favored_clusters[u] = mapping[_favored_clusters[u]] - 1;
-      }
-    });
-
-    // Reassign the clusters weights such that they match the new cluster IDs.
-    static_cast<Derived *>(this)->reassign_cluster_weights(mapping, num_actual_clusters);
+    tbb::parallel_invoke(
+        // Relabel the cluster stored for each node.
+        [&] {
+          tbb::parallel_for(tbb::blocked_range<NodeID>(0, _graph->n()), [&](const auto &r) {
+            for (NodeID u = r.begin(); u != r.end(); ++u) {
+              derived_move_node(u, mapping[derived_cluster(u)] - 1);
+            }
+          });
+        },
+        // Relabel the clusters stored in the favored clusters vector.
+        [&] {
+          tbb::parallel_for(tbb::blocked_range<NodeID>(0, _graph->n()), [&](const auto &r) {
+            for (NodeID u = r.begin(); u != r.end(); ++u) {
+              _favored_clusters[u] = mapping[_favored_clusters[u]] - 1;
+            }
+          });
+        },
+        // Reassign the clusters weights such that they match the new cluster IDs.
+        [&] {
+          static_cast<Derived *>(this)->reassign_cluster_weights(mapping, num_actual_clusters);
+        }
+    );
+    _relabeled = true;
   }
 
   /*!
@@ -714,37 +737,54 @@ protected:
     tbb::enumerable_thread_specific<DynamicFlatMap<ClusterID, NodeID>> matching_map_ets;
 
     auto is_considered_for_two_hop_clustering = [&](const NodeID u) {
-      // Skip nodes not considered for two-hop clustering
+      // Not considered: isolated node
       if (_graph->degree(u) == 0) {
-        // Not considered: isolated node
         return false;
-      } else if (u != derived_cluster(u)) {
-        // Not considered: joined another cluster
-        return false;
-      } else {
-        // If u did not join another cluster, there could still be other nodes that joined this
-        // node's cluster: find out by checking the cluster weight
-        const ClusterWeight current_weight = derived_cluster_weight(u);
-        if (current_weight > derived_max_cluster_weight(u) / 2 ||
-            current_weight != derived_initial_cluster_weight(u)) {
+      }
+
+      // If u did not join another cluster, there could still be other nodes that joined this
+      // node's cluster: find out by checking the cluster weight
+      auto check_cluster_weight = [&](const NodeID c_u) {
+        const ClusterWeight current_weight = derived_cluster_weight(c_u);
+
+        if (current_weight > derived_max_cluster_weight(c_u) / 2 ||
+            current_weight != derived_initial_cluster_weight(c_u)) {
           // Not considered: not a singleton cluster; or its weight is too heavy
           return false;
         }
-      }
 
-      return true;
+        return true;
+      };
+
+      // Not considered: joined another cluster
+      if (_relabeled) {
+        if (_moved[u]) {
+          return false;
+        }
+
+        const ClusterID c_u = derived_cluster(u);
+        return check_cluster_weight(c_u);
+      } else {
+        if (u != derived_cluster(u)) {
+          return false;
+        }
+
+        // In this case c_u == u holds.
+        return check_cluster_weight(u);
+      }
     };
 
     auto handle_node = [&](DynamicFlatMap<ClusterID, NodeID> &matching_map, const NodeID u) {
+      const ClusterID c_u = derived_cluster(u);
       ClusterID &rep_key = matching_map[_favored_clusters[u]];
 
       if (rep_key == 0) {
-        rep_key = u + 1;
+        rep_key = c_u + 1;
       } else {
         const ClusterID rep = rep_key - 1;
 
         const bool could_move_u_to_rep = derived_move_cluster_weight(
-            u, rep, derived_cluster_weight(u), derived_max_cluster_weight(rep)
+            c_u, rep, derived_cluster_weight(c_u), derived_max_cluster_weight(rep)
         );
 
         if constexpr (match) {
@@ -755,7 +795,7 @@ protected:
           if (could_move_u_to_rep) {
             derived_move_node(u, rep);
           } else {
-            rep_key = u + 1;
+            rep_key = c_u + 1;
           }
         }
       }
@@ -977,6 +1017,7 @@ private:
     );
     IFSTATS(_expected_total_gain = 0);
     _current_num_clusters = _initial_num_clusters;
+    _relabeled = false;
   }
 
 private: // CRTP calls
@@ -1122,6 +1163,14 @@ protected: // Members
   //! clusters during the last iteration. Nodes without this flag set must not
   //! be considered in the next iteration.
   StaticArray<std::uint8_t> _active;
+
+  //! Flags nodes that joined another cluster. This information is used during 2-hop clustering when
+  //! we relabel the clusters.
+  StaticArray<std::uint8_t> _moved;
+
+  //! Store whether we relabeled the clusters and thus have to use the information of the _moved
+  //! array for 2-hop clustering.
+  bool _relabeled;
 
   //! If a node cannot join any cluster during an iteration, this vector stores
   //! the node's highest rated cluster independent of the maximum cluster
@@ -1353,8 +1402,11 @@ protected:
     }
     shuffle_chunks();
 
-    perform_first_phase();
-    if (!_second_phase_nodes.empty()) {
+    const NodeID initial_num_clusters = _initial_num_clusters;
+    const auto [num_processed_nodes, num_moved_nodes_first_phase] = perform_first_phase();
+
+    const NodeID num_second_phase_nodes = _second_phase_nodes.size();
+    if (num_second_phase_nodes > 0) {
       if (_relabel_before_second_phase) {
         relabel_clusters();
       }
@@ -1363,6 +1415,22 @@ protected:
     }
 
     const NodeID num_moved_nodes = _num_moved_nodes_ets.combine(std::plus{});
+    if constexpr (kDebug) {
+      LOG << "Label Propagation";
+      LOG << " Initial clusters: " << initial_num_clusters << " clusters";
+      LOG << " First Phase:";
+      LOG << "  Processed: " << (num_processed_nodes - num_second_phase_nodes) << " nodes";
+      LOG << "  Moved: " << num_moved_nodes_first_phase << " nodes";
+      if (_relabel_before_second_phase) {
+        LOG << " Clusters after relabeling: " << _initial_num_clusters << " clusters";
+      }
+      LOG << " Second Phase:";
+      LOG << "  Processed: " << num_second_phase_nodes << " nodes";
+      LOG << "  Moved: " << (num_moved_nodes - num_moved_nodes_first_phase) << " nodes";
+      LOG;
+    }
+
+    _num_processed_nodes_ets.clear();
     _num_moved_nodes_ets.clear();
     return num_moved_nodes;
   }
@@ -1507,7 +1575,7 @@ private:
     });
   }
 
-  void perform_first_phase() {
+  std::pair<std::size_t, std::size_t> perform_first_phase() {
     SCOPED_HEAP_PROFILER("First phase");
     SCOPED_TIMER("First phase");
 
@@ -1523,6 +1591,7 @@ private:
         return;
       }
 
+      auto &local_num_processed_nodes = _num_processed_nodes_ets.local();
       auto &local_num_moved_nodes = _num_moved_nodes_ets.local();
       auto &local_rand = Random::instance();
       auto &local_rating_map = _rating_map_ets.local();
@@ -1555,6 +1624,8 @@ private:
 
           const NodeID degree = _graph->degree(u);
           if (degree < _max_degree) {
+            ++local_num_processed_nodes;
+
             if (use_high_degree_selection && degree >= Config::kRatingMapThreshold) {
               if (aggregate_during_second_phase) {
                 _second_phase_nodes.push_back(u);
@@ -1566,6 +1637,10 @@ private:
             const auto [moved_node, emptied_cluster] = handle_node(u, local_rand, local_rating_map);
             if (moved_node) {
               ++local_num_moved_nodes;
+
+              if (_relabeled) {
+                _moved[u] = 1;
+              }
             }
             if (emptied_cluster) {
               ++num_removed_clusters;
@@ -1576,6 +1651,10 @@ private:
 
       _current_num_clusters -= num_removed_clusters;
     });
+
+    return std::make_pair(
+        _num_processed_nodes_ets.combine(std::plus{}), _num_moved_nodes_ets.combine(std::plus{})
+    );
   }
 
   void perform_second_phase() {
@@ -1595,6 +1674,10 @@ private:
 
       if (moved_node) {
         ++num_moved_nodes;
+
+        if (_relabeled) {
+          _moved[u] = 1;
+        }
       }
 
       if (emptied_cluster) {
@@ -1611,8 +1694,10 @@ protected:
   using Base::_graph;
   using Base::_initial_num_clusters;
   using Base::_max_degree;
+  using Base::_moved;
   using Base::_rating_map_ets;
   using Base::_relabel_before_second_phase;
+  using Base::_relabeled;
   using Base::_second_phase_aggregation_mode;
   using Base::_second_phase_nodes;
   using Base::_second_phase_select_mode;
@@ -1621,6 +1706,7 @@ protected:
   Permutations &_random_permutations;
   std::vector<Chunk> _chunks;
   std::vector<Bucket> _buckets;
+  tbb::enumerable_thread_specific<NodeID> _num_processed_nodes_ets;
   tbb::enumerable_thread_specific<NodeID> _num_moved_nodes_ets;
   ConcurrentFastResetArray<EdgeWeight, ClusterID> _concurrent_rating_map;
 };
@@ -1720,7 +1806,7 @@ public:
     if (_use_two_level_vector) {
       _two_level_cluster_weights.reassign(mapping, num_new_clusters);
     } else {
-      ClusterWeightVec new_cluster_weights(num_new_clusters);
+      RECORD("new_cluster_weights") ClusterWeightVec new_cluster_weights(num_new_clusters);
 
       tbb::parallel_for(
           tbb::blocked_range<ClusterID>(0, _cluster_weights.size()),

@@ -86,6 +86,8 @@ public:
         break;
       }
 
+      // Only relabel during the first iteration because afterwards the memory for the second phase
+      // is already allocated.
       if (iteration == 0) {
         Base::set_relabel_before_second_phase(false);
       }
