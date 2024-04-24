@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/ranges.h"
 
@@ -116,7 +117,7 @@ public:
   }
 
 private:
-  std::vector<value_type> _data;
+  scalable_vector<value_type> _data;
   std::vector<size_type> _used_entries{};
 
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
