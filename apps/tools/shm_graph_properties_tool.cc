@@ -76,17 +76,30 @@ void print_graph_properties(const Graph &graph, const Context ctx, std::ostream 
 int main(int argc, char *argv[]) {
   Context ctx = create_default_context();
   std::string graph_filename;
+  io::GraphFileFormat graph_file_format = io::GraphFileFormat::METIS;
 
   CLI::App app("Shared-memory graph properties tool");
   app.add_option("-G,--graph", graph_filename, "Input graph in METIS format")->required();
   app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads");
+  app.add_option("-f,--graph-file-format", graph_file_format)
+      ->transform(CLI::CheckedTransformer(io::get_graph_file_formats()).description(""))
+      ->description(R"(Graph file formats:
+  - metis
+  - parhip)")
+      ->capture_default_str();
   create_graph_compression_options(&app, ctx);
   CLI11_PARSE(app, argc, argv);
 
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, ctx.parallel.num_threads);
 
-  Graph graph =
-      io::read(graph_filename, ctx.compression.enabled, ctx.compression.may_dismiss, false, false);
+  Graph graph = io::read(
+      graph_filename,
+      graph_file_format,
+      ctx.compression.enabled,
+      ctx.compression.may_dismiss,
+      false,
+      false
+  );
 
   ctx.debug.graph_name = str::extract_basename(graph_filename);
   ctx.compression.setup(graph);

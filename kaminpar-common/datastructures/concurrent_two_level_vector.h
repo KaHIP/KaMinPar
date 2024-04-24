@@ -55,7 +55,10 @@ public:
    *
    * @param capacity The capacity of the vector.
    */
-  ConcurrentTwoLevelVector(const Size capacity = 0) : _values(capacity), _table(0) {}
+  ConcurrentTwoLevelVector(const Size capacity = 0)
+      : _capacity(capacity),
+        _values(capacity),
+        _table(0) {}
 
   ConcurrentTwoLevelVector(const ConcurrentTwoLevelVector &) = delete;
   ConcurrentTwoLevelVector &operator=(const ConcurrentTwoLevelVector &) = delete;
@@ -64,12 +67,22 @@ public:
   ConcurrentTwoLevelVector &operator=(ConcurrentTwoLevelVector &&) noexcept = default;
 
   /*!
+   * Returns the number of elements that this vector can hold.
+   *
+   * @return The number of elements that this vector can hold.
+   */
+  [[nodiscard]] Size capacity() const {
+    return _capacity;
+  }
+
+  /*!
    * Resizes the vector.
    *
    * @param capacity The capacity to resize to.
    */
   void resize(const Size capacity) {
     _values.resize(capacity);
+    _capacity = capacity;
   }
 
   /*!
@@ -78,14 +91,47 @@ public:
   void free() {
     _values.free();
     _table = ConcurrentHashTable(0);
+    _capacity = 0;
   }
 
   /*!
    * Resets the vector such that new elements can be inserted.
    */
   void reset() {
-    // As Growt does not provide a clear function, just create a new hash table.
+    // As growt does not provide a clear function, just create a new hash table.
     _table = ConcurrentHashTable(0);
+  }
+
+  /**
+   * Reassigns stored values according to a provided mapping.
+   *
+   * @param mapping The mapping according to which the values are reassigned.
+   * @param new_size The new size of the vector.
+   */
+  void reassign(const StaticArray<Size> &mapping, const Size new_size) {
+    StaticArray<FirstValue> new_values(new_size);
+    ConcurrentHashTable new_table(0);
+
+    tbb::parallel_for(tbb::blocked_range<Size>(0, _values.size()), [&](const auto &r) {
+      for (Size pos = r.begin(); pos != r.end(); ++pos) {
+        const Value value = _values[pos];
+
+        if (value == kMaxFirstValue) {
+          Size new_pos = mapping[pos] - 1;
+          new_values[new_pos] = kMaxFirstValue;
+
+          const Value actual_value = (*_table.get_handle().find(pos)).second;
+          new_table.get_handle().insert(new_pos, value);
+        } else if (value != 0) {
+          Size new_pos = mapping[pos] - 1;
+          new_values[new_pos] = value;
+        }
+      }
+    });
+
+    _values = std::move(new_values);
+    _table = std::move(new_table);
+    _capacity = new_size;
   }
 
   /*!
@@ -194,6 +240,7 @@ public:
   }
 
 private:
+  Size _capacity;
   StaticArray<FirstValue> _values;
   ConcurrentHashTable _table;
 };
@@ -225,7 +272,7 @@ public:
    *
    * @param capacity The capacity of the vector.
    */
-  ConcurrentTwoLevelVector(const Size capacity = 0) : _values(capacity) {}
+  ConcurrentTwoLevelVector(const Size capacity = 0) : _capacity(capacity), _values(capacity) {}
 
   ConcurrentTwoLevelVector(const ConcurrentTwoLevelVector &) = delete;
   ConcurrentTwoLevelVector &operator=(const ConcurrentTwoLevelVector &) = delete;
@@ -234,12 +281,22 @@ public:
   ConcurrentTwoLevelVector &operator=(ConcurrentTwoLevelVector &&) noexcept = default;
 
   /*!
+   * Returns the number of elements that this vector can hold.
+   *
+   * @return The number of elements that this vector can hold.
+   */
+  [[nodiscard]] Size capacity() const {
+    return _capacity;
+  }
+
+  /*!
    * Resizes the vector.
    *
    * @param capacity The capacity to resize to.
    */
   void resize(const Size capacity) {
     _values.resize(capacity);
+    _capacity = capacity;
   }
 
   /*!
@@ -248,6 +305,7 @@ public:
   void free() {
     _values.free();
     _table.clear();
+    _capacity = 0;
   }
 
   /*!
@@ -255,6 +313,45 @@ public:
    */
   void reset() {
     _table.clear();
+  }
+
+  /**
+   * Reassigns stored values according to a provided mapping.
+   *
+   * @param mapping The mapping according to which the values are reassigned.
+   * @param new_size The new size of the vector.
+   */
+  void reassign(const StaticArray<Size> &mapping, const Size new_size) {
+    StaticArray<FirstValue> new_values(new_size);
+    ConcurrentHashTable new_table;
+
+    tbb::parallel_for(tbb::blocked_range<Size>(0, _values.size()), [&](const auto &r) {
+      for (Size pos = r.begin(); pos != r.end(); ++pos) {
+        const Value value = _values[pos];
+
+        if (value == kMaxFirstValue) {
+          Size new_pos = mapping[pos] - 1;
+          new_values[new_pos] = kMaxFirstValue;
+
+          const Value actual_value = [&] {
+            typename ConcurrentHashTable::const_accessor entry;
+            _table.find(entry, pos);
+            return entry->second;
+          }();
+
+          typename ConcurrentHashTable::accessor entry;
+          new_table.insert(entry, new_pos);
+          entry->second = actual_value;
+        } else if (value != 0) {
+          Size new_pos = mapping[pos] - 1;
+          new_values[new_pos] = value;
+        }
+      }
+    });
+
+    _values = std::move(new_values);
+    _table = std::move(new_table);
+    _capacity = new_size;
   }
 
   /*!
@@ -309,7 +406,7 @@ public:
   void atomic_add(const Size pos, const Value delta) {
     KASSERT(pos < _values.size());
 
-    Value value = _values[pos];
+    FirstValue value = _values[pos];
     bool success;
     do {
       if (value == kMaxFirstValue) {
@@ -323,7 +420,7 @@ public:
         break;
       }
 
-      const Value new_value = value + delta;
+      const Value new_value = static_cast<Value>(value) + delta;
       if (new_value < kMaxFirstValue) {
         success = __atomic_compare_exchange_n(
             &_values[pos], &value, new_value, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED
@@ -357,7 +454,7 @@ public:
   void atomic_sub(const Size pos, const Value delta) {
     KASSERT(pos < _values.size());
 
-    Value value = _values[pos];
+    FirstValue value = _values[pos];
     bool success;
     do {
       if (value == kMaxFirstValue) {
@@ -378,6 +475,7 @@ public:
   }
 
 private:
+  Size _capacity;
   StaticArray<FirstValue> _values;
   ConcurrentHashTable _table;
 };

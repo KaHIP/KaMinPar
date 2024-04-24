@@ -32,6 +32,7 @@ bool ClusteringCoarsener::coarsen() {
   SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
 
   if (_clustering.size() < current().n()) {
+    SCOPED_HEAP_PROFILER("Allocation");
     SCOPED_TIMER("Allocation");
     _clustering.resize(current().n());
   }

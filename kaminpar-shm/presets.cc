@@ -83,6 +83,7 @@ Context create_default_context() {
                               .use_two_phases = false,
                               .second_phase_select_mode = SecondPhaseSelectMode::FULL_RATING_MAP,
                               .second_phase_aggregation_mode = SecondPhaseAggregationMode::BUFFERED,
+                              .relabel_before_second_phase = false,
                               .two_hop_strategy = TwoHopStrategy::MATCH_THREADWISE,
                               .two_hop_threshold = 0.5,
                               .isolated_nodes_strategy =
@@ -142,6 +143,9 @@ Context create_default_context() {
                       .num_iterations = 5,
                       .large_degree_threshold = 1000000,
                       .max_num_neighbors = std::numeric_limits<NodeID>::max(),
+                      .use_two_phases = false,
+                      .second_phase_select_mode = SecondPhaseSelectMode::FULL_RATING_MAP,
+                      .second_phase_aggregation_mode = SecondPhaseAggregationMode::BUFFERED,
                   },
               .kway_fm =
                   {
@@ -203,7 +207,7 @@ Context create_memory_context() {
   ctx.coarsening.clustering.algorithm = ClusteringAlgorithm::LABEL_PROPAGATION;
   ctx.coarsening.clustering.lp.use_two_phases = true;
   ctx.coarsening.clustering.lp.use_two_level_cluster_weight_vector = true;
-  ctx.coarsening.clustering.max_mem_free_coarsening_level = 100;
+  ctx.coarsening.clustering.max_mem_free_coarsening_level = 1;
   ctx.coarsening.contraction.mode = ContractionMode::UNBUFFERED;
   ctx.coarsening.contraction.use_compact_mapping = true;
   return ctx;

@@ -310,6 +310,8 @@ std::unordered_map<std::string, SecondPhaseSelectMode> get_second_phase_select_m
 
 std::ostream &operator<<(std::ostream &out, SecondPhaseAggregationMode strategy) {
   switch (strategy) {
+  case SecondPhaseAggregationMode::NONE:
+    return out << "none";
   case SecondPhaseAggregationMode::DIRECT:
     return out << "direct";
   case SecondPhaseAggregationMode::BUFFERED:
@@ -321,6 +323,7 @@ std::ostream &operator<<(std::ostream &out, SecondPhaseAggregationMode strategy)
 
 std::unordered_map<std::string, SecondPhaseAggregationMode> get_second_phase_aggregation_modes() {
   return {
+      {"none", SecondPhaseAggregationMode::NONE},
       {"direct", SecondPhaseAggregationMode::DIRECT},
       {"buffered", SecondPhaseAggregationMode::BUFFERED}
   };
@@ -462,6 +465,8 @@ void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
   if (lp_ctx.use_two_phases) {
     out << "      Select mode:            " << lp_ctx.second_phase_select_mode << '\n';
     out << "      Aggregation mode:       " << lp_ctx.second_phase_aggregation_mode << '\n';
+    out << "      Relabel:                " << (lp_ctx.relabel_before_second_phase ? "yes" : "no")
+        << '\n';
   }
   out << "    2-hop clustering:         " << lp_ctx.two_hop_strategy << ", if |Vcoarse| > "
       << std::setw(2) << std::fixed << lp_ctx.two_hop_threshold << " * |V|\n";
@@ -478,6 +483,11 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
   if (r_ctx.includes_algorithm(RefinementAlgorithm::LABEL_PROPAGATION)) {
     out << "Label propagation:\n";
     out << "  Number of iterations:       " << r_ctx.lp.num_iterations << "\n";
+    out << "  Uses two phases: " << (r_ctx.lp.use_two_phases ? "yes" : "no") << "\n";
+    if (r_ctx.lp.use_two_phases) {
+      out << "    Select mode:              " << r_ctx.lp.second_phase_select_mode << '\n';
+      out << "    Aggregation mode:         " << r_ctx.lp.second_phase_aggregation_mode << '\n';
+    }
   }
   if (r_ctx.includes_algorithm(RefinementAlgorithm::KWAY_FM)) {
     out << "k-way FM:\n";

@@ -140,7 +140,7 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
 
   // Clustering options:
-  coarsening->add_option("--c-clustering-algorithm", ctx.coarsening.algorithm)
+  coarsening->add_option("--c-clustering-algorithm", ctx.coarsening.clustering.algorithm)
       ->transform(CLI::CheckedTransformer(get_clustering_algorithms()).description(""))
       ->description(R"(One of the following options:
   - noop: disable coarsening
@@ -239,10 +239,17 @@ Options are:
       ->description(
           R"(Determines the mode for aggregating ratings in the second phase of label propagation.
 Options are:
+  - none:     Skip the second phase
   - direct:   Write the ratings directly into the global vector (shared between threads)
   - buffered: Write the ratings into a thread-local buffer and then copy them into the global vector when the buffer is full
   )"
       );
+  lp->add_option(
+        "--c-lp-second-phase-relabel",
+        ctx.coarsening.clustering.lp.relabel_before_second_phase,
+        "Relabel the clusters before running the second phase"
+  )
+      ->capture_default_str();
 
   lp->add_option("--c-lp-two-hop-strategy", ctx.coarsening.clustering.lp.two_hop_strategy)
       ->transform(CLI::CheckedTransformer(get_two_hop_strategies()).description(""))
@@ -364,6 +371,36 @@ CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx) {
         "Maximum number of neighbors to consider for each node"
   )
       ->capture_default_str();
+
+  lp->add_option(
+        "--r-lp-two-phases",
+        ctx.refinement.lp.use_two_phases,
+        "Uses two phases in each iteration, where in the second phase the high-degree nodes are "
+        "treated separately"
+  )
+      ->capture_default_str();
+  lp->add_option("--r-lp-second-phase-select-mode", ctx.refinement.lp.second_phase_select_mode)
+      ->transform(CLI::CheckedTransformer(get_second_phase_select_modes()).description(""))
+      ->description(
+          R"(Determines the mode for selecting nodes for the second phase of label propagation.
+Options are:
+  - high-degree:     Select nodes with high degree
+  - full-rating-map: Select nodes which have a full rating map in the first phase
+  )"
+      )
+      ->capture_default_str();
+  lp->add_option(
+        "--r-lp-second-phase-aggregation-mode", ctx.refinement.lp.second_phase_aggregation_mode
+  )
+      ->transform(CLI::CheckedTransformer(get_second_phase_aggregation_modes()).description(""))
+      ->description(
+          R"(Determines the mode for aggregating ratings in the second phase of label propagation.
+Options are:
+  - none:     Skip the second phase
+  - direct:   Write the ratings directly into the global vector (shared between threads)
+  - buffered: Write the ratings into a thread-local buffer and then copy them into the global vector when the buffer is full
+  )"
+      );
 
   return lp;
 }
