@@ -21,7 +21,7 @@ Moreover, for large values of k, it is an order of magnitude faster than competi
 Build KaMinPar following the standard CMake steps:
 
 ```shell
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DKAMINPAR_BUILD_DISTRIBUTED=On
+cmake -B build -DCMAKE_BUILD_TYPE=Release --preset=<default|distributed>
 cmake --build build --parallel
 ```
 
@@ -43,7 +43,7 @@ Presets can be viewed by using the `--dump-config` flag; to use a custom preset,
 
 ```shell
 # Write the default preset to a file
-./KaMinPar [-P default|strong|largek] --dump-config > my_preset.ini
+./KaMinPar -P default --dump-config > my_preset.ini
 
 # ... modify the configuration by editing my_preset.ini ...
 
