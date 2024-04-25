@@ -474,6 +474,8 @@ public:
     Key key;
   };
 
+  explicit DynamicBinaryForest() {}
+
   explicit DynamicBinaryForest(const std::size_t capacity, const std::size_t heaps)
       : _id_pos(capacity, kInvalidID),
         _heaps(heaps) {}
@@ -481,6 +483,11 @@ public:
   DynamicBinaryForest(DynamicBinaryForest &&) noexcept = default;
   DynamicBinaryForest &operator=(const DynamicBinaryForest &) = delete;
   DynamicBinaryForest &operator=(DynamicBinaryForest &&) noexcept = default;
+
+  void init(const std::size_t capacity, const std::size_t heaps) {
+    _id_pos.resize(capacity, kInvalidID);
+    _heaps.resize(heaps);
+  }
 
   std::size_t capacity() const {
     return _id_pos.size();
@@ -654,6 +661,8 @@ using DynamicBinaryMinForest = DynamicBinaryForest<ID, Key, binary_heap::min_hea
 
 template <typename ID, typename Key> class DynamicBinaryMinMaxForest {
 public:
+  DynamicBinaryMinMaxForest() {}
+
   DynamicBinaryMinMaxForest(const std::size_t capacity, const std::size_t heaps)
       : _max_forest(capacity, heaps),
         _min_forest(capacity, heaps) {}
@@ -663,6 +672,11 @@ public:
 
   DynamicBinaryMinMaxForest(DynamicBinaryMinMaxForest &&) noexcept = default;
   DynamicBinaryMinMaxForest &operator=(DynamicBinaryMinMaxForest &&) noexcept = default;
+
+  void init(const std::size_t capacity, const std::size_t heaps) {
+    _max_forest.init(capacity, heaps);
+    _min_forest.init(capacity, heaps);
+  }
 
   [[nodiscard]] inline std::size_t capacity() const {
     return _max_forest.capacity();

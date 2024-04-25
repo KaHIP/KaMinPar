@@ -94,18 +94,18 @@ public:
     const EdgeID m = _edges.size();
     auto edge_distribution = mpi::build_distribution_from_local_count<GlobalEdgeID, vec>(m, _comm);
 
-    DistributedGraph graph{
-        static_array::create_from(_node_distribution),
-        static_array::create_from(edge_distribution),
-        static_array::create_from(_nodes),
-        static_array::create_from(_edges),
-        static_array::create_from(_node_weights),
-        static_array::create_from(_edge_weights),
-        static_array::create_from(_ghost_owner),
-        static_array::create_from(_ghost_to_global),
+    DistributedGraph graph(
+        static_array::create(_node_distribution),
+        static_array::create(edge_distribution),
+        static_array::create(_nodes),
+        static_array::create(_edges),
+        static_array::create(_node_weights),
+        static_array::create(_edge_weights),
+        static_array::create(_ghost_owner),
+        static_array::create(_ghost_to_global),
         build_static_ghost_node_mapping(_global_to_ghost),
         false,
-        _comm};
+        _comm);
 
     // If the graph does not have unit node weights, exchange ghost node weights
     // now

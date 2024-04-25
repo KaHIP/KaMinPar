@@ -30,6 +30,7 @@
 #include <memory>
 
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/math.h"
 
 namespace kaminpar {
@@ -72,6 +73,7 @@ public:
         _timestamp(1),
         _sparse(nullptr),
         _dense(nullptr) {
+    RECORD_DATA_STRUCT(0, _struct);
     allocate(MAP_SIZE);
   }
 
@@ -83,6 +85,7 @@ public:
         _timestamp(1),
         _sparse(nullptr),
         _dense(nullptr) {
+    RECORD_DATA_STRUCT(0, _struct);
     allocate(max_size);
   }
 
@@ -188,6 +191,12 @@ private:
       _sparse = reinterpret_cast<SparseElement *>(_data.get());
       _dense = reinterpret_cast<Element *>(_data.get() + +sizeof(SparseElement) * _map_size);
       std::memset(_data.get(), 0, _map_size * (sizeof(Element) + sizeof(SparseElement)));
+
+      IF_HEAP_PROFILING(
+          _struct->size = std::max(
+              _struct->size, _map_size * sizeof(Element) + _map_size * sizeof(SparseElement)
+          )
+      );
     }
   }
 
@@ -203,5 +212,7 @@ private:
   std::size_t _timestamp;
   SparseElement *_sparse;
   Element *_dense;
+
+  IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };
 } // namespace kaminpar

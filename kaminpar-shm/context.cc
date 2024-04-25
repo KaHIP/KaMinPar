@@ -7,23 +7,44 @@
  ******************************************************************************/
 #include "kaminpar-shm/context.h"
 
-#include <iomanip>
-#include <unordered_map>
-
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/partition_utils.h"
 
 #include "kaminpar-common/assert.h"
-#include "kaminpar-common/asserting_cast.h"
-#include "kaminpar-common/console_io.h"
-#include "kaminpar-common/math.h"
 
 namespace kaminpar::shm {
+
+void GraphCompressionContext::setup(const Graph &graph) {
+  high_degree_encoding = CompressedGraph::kHighDegreeEncoding;
+  high_degree_threshold = CompressedGraph::kHighDegreeThreshold;
+  high_degree_part_length = CompressedGraph::kHighDegreePartLength;
+  interval_encoding = CompressedGraph::kIntervalEncoding;
+  interval_length_treshold = CompressedGraph::kIntervalLengthTreshold;
+  run_length_encoding = CompressedGraph::kRunLengthEncoding;
+  stream_encoding = CompressedGraph::kStreamEncoding;
+  isolated_nodes_separation = CompressedGraph::kIsolatedNodesSeparation;
+
+  if (enabled) {
+    if (const auto *compressed_graph =
+            dynamic_cast<const CompressedGraph *>(graph.underlying_graph());
+        compressed_graph != nullptr) {
+      dismissed = false;
+      compression_ratio = compressed_graph->compression_ratio();
+      size_reduction = compressed_graph->size_reduction();
+      high_degree_count = compressed_graph->high_degree_count();
+      part_count = compressed_graph->part_count();
+      interval_count = compressed_graph->interval_count();
+    } else {
+      dismissed = true;
+    }
+  }
+}
+
 //
 // PartitionContext
 //
 
-void PartitionContext::setup(const Graph &graph) {
+void PartitionContext::setup(const AbstractGraph &graph) {
   n = graph.n();
   m = graph.m();
   total_node_weight = graph.total_node_weight();
@@ -118,6 +139,7 @@ void BlockWeightsContext::setup(const PartitionContext &p_ctx, const BlockID inp
 }
 
 void Context::setup(const Graph &graph) {
+  compression.setup(graph);
   partition.setup(graph);
 }
 } // namespace kaminpar::shm

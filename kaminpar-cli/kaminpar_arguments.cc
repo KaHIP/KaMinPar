@@ -14,11 +14,29 @@
 
 namespace kaminpar::shm {
 void create_all_options(CLI::App *app, Context &ctx) {
+  create_graph_compression_options(app, ctx);
   create_partitioning_options(app, ctx);
   create_debug_options(app, ctx);
   create_coarsening_options(app, ctx);
   create_initial_partitioning_options(app, ctx);
   create_refinement_options(app, ctx);
+}
+
+CLI::Option_group *create_graph_compression_options(CLI::App *app, Context &ctx) {
+  auto *compression = app->add_option_group("Graph Compression");
+
+  compression->add_flag("-c,--compress", ctx.compression.enabled, "Enable graph compression")
+      ->default_val(false);
+  compression
+      ->add_flag(
+          "--may-dismiss",
+          ctx.compression.may_dismiss,
+          "Whether the compressed graph is only used if it uses less memory than the uncompressed "
+          "graph."
+      )
+      ->default_val(false);
+
+  return compression;
 }
 
 CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
@@ -52,28 +70,57 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
   - async-parallel: diversify initial partitioning by replicating coarse graphs each branch of the replication tree asynchronously
   - sync-parallel:  same as async-parallel, but process branches synchronously)")
       ->capture_default_str();
+  partitioning->add_option(
+      "--p-deep-initial-partitioning-load",
+      ctx.partitioning.deep_initial_partitioning_load,
+      "Fraction of cores that should be used for the coarse graph replication phase of deep MGP. A "
+      "value of '1' will replicate the graph once for every PE, whereas smaller values lead to "
+      "fewer replications."
+  );
   partitioning
       ->add_option(
-          "--p-deep-initial-partitioning-load",
-          ctx.partitioning.deep_initial_partitioning_load,
-          "Fraction of cores that should be used for the coarse graph replication phase of deep "
-          "MGP. A "
-          "value of '1' will replicate the graph once for every PE, whereas smaller values lead to "
-          "fewer replications."
+          "--p-min-consecutive-seq-bipartitioning-levels",
+          ctx.partitioning.min_consecutive_seq_bipartitioning_levels,
+          "(set to '0' for the old behaviour)"
       )
       ->capture_default_str();
-  partitioning->add_option("--rearrange-by", ctx.rearrange_by)
-      ->transform(CLI::CheckedTransformer(get_graph_orderings()).description(""))
-      ->description(R"(Criteria by which the graph is sorted and rearrange:
-  - natural:     keep order of the graph (do not rearrange)
-  - deg-buckets: sort nodes by degree bucket and rearrange accordingly)")
-      ->capture_default_str();
+
+  create_partitioning_rearrangement_options(app, ctx);
 
   return partitioning;
 }
 
+CLI::Option_group *create_partitioning_rearrangement_options(CLI::App *app, Context &ctx) {
+  auto *rearrangement = app->add_option_group("Partitioning -> Rearrangement");
+
+  rearrangement->add_option("--node-order", ctx.node_ordering)
+      ->transform(CLI::CheckedTransformer(get_node_orderings()).description(""))
+      ->description(R"(Criteria by which the nodes of the graph are sorted and rearranged:
+  - natural:     keep node order of the graph (do not rearrange)
+  - deg-buckets: sort nodes by degree bucket and rearrange accordingly
+  - implicit-deg-buckets: nodes of the input graph are sorted by deg-buckets order)")
+      ->capture_default_str();
+  rearrangement->add_option("--edge-order", ctx.edge_ordering)
+      ->transform(CLI::CheckedTransformer(get_edge_orderings()).description(""))
+      ->description(R"(Criteria by which the edges of the graph are sorted and rearranged:
+  - natural:     keep edge order of the graph (do not rearrange)
+  - compression: sort the edges of each neighbourhood with the ordering of the corresponding compressed graph)"
+      )
+      ->capture_default_str();
+
+  return rearrangement;
+}
+
 CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
   auto *coarsening = app->add_option_group("Coarsening");
+
+  // Coarsening options:
+  coarsening->add_option("--c-algorithm", ctx.coarsening.algorithm)
+      ->transform(CLI::CheckedTransformer(get_coarsening_algorithms()).description(""))
+      ->description(R"(One of the following options:
+  - noop:       disable coarsening
+  - clustering: coarsening by clustering and contracting)")
+      ->capture_default_str();
 
   coarsening
       ->add_option(
@@ -83,14 +130,24 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
       )
       ->capture_default_str();
 
-  coarsening->add_option("--c-clustering-algorithm", ctx.coarsening.algorithm)
+  coarsening
+      ->add_option(
+          "--c-convergence-threshold",
+          ctx.coarsening.convergence_threshold,
+          "Coarsening converges once the size of the graph shrinks by "
+          "less than this factor."
+      )
+      ->capture_default_str();
+
+  // Clustering options:
+  coarsening->add_option("--c-clustering-algorithm", ctx.coarsening.clustering.algorithm)
       ->transform(CLI::CheckedTransformer(get_clustering_algorithms()).description(""))
       ->description(R"(One of the following options:
   - noop: disable coarsening
   - lp:   size-constrained label propagation)")
       ->capture_default_str();
 
-  coarsening->add_option("--c-cluster-weight-limit", ctx.coarsening.cluster_weight_limit)
+  coarsening->add_option("--c-cluster-weight-limit", ctx.coarsening.clustering.cluster_weight_limit)
       ->transform(CLI::CheckedTransformer(get_cluster_weight_limits()).description(""))
       ->description(
           R"(This option selects the formula used to compute the weight limit for nodes in coarse graphs. 
@@ -106,21 +163,22 @@ Options are:
   coarsening
       ->add_option(
           "--c-cluster-weight-multiplier",
-          ctx.coarsening.cluster_weight_multiplier,
+          ctx.coarsening.clustering.cluster_weight_multiplier,
           "Multiplicator of the maximum cluster weight base value."
       )
       ->capture_default_str();
 
   coarsening
       ->add_option(
-          "--c-coarsening-convergence-threshold",
-          ctx.coarsening.convergence_threshold,
-          "Coarsening converges once the size of the graph shrinks by "
-          "less than this factor."
+          "--c-max-memory-free-coarsening-level",
+          ctx.coarsening.clustering.max_mem_free_coarsening_level,
+          "Maximum coarsening level for which the corresponding memory should be released "
+          "afterwards"
       )
       ->capture_default_str();
 
   create_lp_coarsening_options(app, ctx);
+  create_contraction_coarsening_options(app, ctx);
 
   return coarsening;
 }
@@ -130,24 +188,70 @@ CLI::Option_group *create_lp_coarsening_options(CLI::App *app, Context &ctx) {
 
   lp->add_option(
         "--c-lp-num-iterations",
-        ctx.coarsening.lp.num_iterations,
+        ctx.coarsening.clustering.lp.num_iterations,
         "Maximum number of label propagation iterations"
   )
       ->capture_default_str();
   lp->add_option(
         "--c-lp-active-large-degree-threshold",
-        ctx.coarsening.lp.large_degree_threshold,
+        ctx.coarsening.clustering.lp.large_degree_threshold,
         "Threshold for ignoring nodes with large degree"
   )
       ->capture_default_str();
   lp->add_option(
         "--c-lp-max-num-neighbors",
-        ctx.coarsening.lp.max_num_neighbors,
+        ctx.coarsening.clustering.lp.max_num_neighbors,
         "Limit the neighborhood to this many nodes"
   )
       ->capture_default_str();
 
-  lp->add_option("--c-lp-two-hop-strategy", ctx.coarsening.lp.two_hop_strategy)
+  lp->add_option(
+        "--c-lp-use-two-level-cluster-weight-vector",
+        ctx.coarsening.clustering.lp.use_two_level_cluster_weight_vector,
+        "Whether to use the two level cluster weight vector"
+  )
+      ->capture_default_str();
+
+  lp->add_option(
+        "--c-lp-two-phases",
+        ctx.coarsening.clustering.lp.use_two_phases,
+        "Uses two phases in each iteration, where in the second phase the high-degree nodes are "
+        "treated separately"
+  )
+      ->capture_default_str();
+  lp->add_option(
+        "--c-lp-second-phase-select-mode", ctx.coarsening.clustering.lp.second_phase_select_mode
+  )
+      ->transform(CLI::CheckedTransformer(get_second_phase_select_modes()).description(""))
+      ->description(
+          R"(Determines the mode for selecting nodes for the second phase of label propagation.
+Options are:
+  - high-degree:     Select nodes with high degree
+  - full-rating-map: Select nodes which have a full rating map in the first phase
+  )"
+      )
+      ->capture_default_str();
+  lp->add_option(
+        "--c-lp-second-phase-aggregation-mode",
+        ctx.coarsening.clustering.lp.second_phase_aggregation_mode
+  )
+      ->transform(CLI::CheckedTransformer(get_second_phase_aggregation_modes()).description(""))
+      ->description(
+          R"(Determines the mode for aggregating ratings in the second phase of label propagation.
+Options are:
+  - none:     Skip the second phase
+  - direct:   Write the ratings directly into the global vector (shared between threads)
+  - buffered: Write the ratings into a thread-local buffer and then copy them into the global vector when the buffer is full
+  )"
+      );
+  lp->add_option(
+        "--c-lp-second-phase-relabel",
+        ctx.coarsening.clustering.lp.relabel_before_second_phase,
+        "Relabel the clusters before running the second phase"
+  )
+      ->capture_default_str();
+
+  lp->add_option("--c-lp-two-hop-strategy", ctx.coarsening.clustering.lp.two_hop_strategy)
       ->transform(CLI::CheckedTransformer(get_two_hop_strategies()).description(""))
       ->description(R"(Determines the strategy for handling singleton clusters during coarsening.
 Options are:
@@ -159,13 +263,15 @@ Options are:
       ->capture_default_str();
   lp->add_option(
         "--c-lp-two-hop-threshold",
-        ctx.coarsening.lp.two_hop_threshold,
+        ctx.coarsening.clustering.lp.two_hop_threshold,
         "Enable two-hop clustering if plain label propagation shrunk "
         "the graph by less than this factor"
   )
       ->capture_default_str();
 
-  lp->add_option("--c-lp-isolated-nodes-strategy", ctx.coarsening.lp.isolated_nodes_strategy)
+  lp->add_option(
+        "--c-lp-isolated-nodes-strategy", ctx.coarsening.clustering.lp.isolated_nodes_strategy
+  )
       ->transform(
           CLI::CheckedTransformer(get_isolated_nodes_clustering_strategies()).description("")
       )
@@ -180,6 +286,32 @@ Options are:
       ->capture_default_str();
 
   return lp;
+}
+
+CLI::Option_group *create_contraction_coarsening_options(CLI::App *app, Context &ctx) {
+  auto *contraction = app->add_option_group("Coarsening -> Contraction");
+
+  contraction->add_option("--c-con-mode", ctx.coarsening.contraction.mode)
+      ->transform(CLI::CheckedTransformer(get_contraction_modes()).description(""))
+      ->description(R"(The mode useed for contraction.
+Options are:
+  - edge-buffer:            Use an edge buffer to store edges temporarily
+  - no-edge-buffer-naive:   Use no edge buffer by computing the neighborhood of each coarse node twice
+  - no-edge-buffer-remap:   Use no edge buffer by remapping the coarse nodes afterwards
+  )")
+      ->capture_default_str();
+  contraction
+      ->add_option(
+          "--c-con-edge-buffer-fill-fraction",
+          ctx.coarsening.contraction.edge_buffer_fill_fraction,
+          "The fraction of the total edges with which to fill the edge buffer"
+      )
+      ->capture_default_str();
+  contraction->add_flag(
+      "--c-con-use-compact-mapping", ctx.coarsening.contraction.use_compact_mapping
+  );
+
+  return contraction;
 }
 
 CLI::Option_group *create_initial_partitioning_options(CLI::App *app, Context &ctx) {
@@ -239,6 +371,36 @@ CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx) {
         "Maximum number of neighbors to consider for each node"
   )
       ->capture_default_str();
+
+  lp->add_option(
+        "--r-lp-two-phases",
+        ctx.refinement.lp.use_two_phases,
+        "Uses two phases in each iteration, where in the second phase the high-degree nodes are "
+        "treated separately"
+  )
+      ->capture_default_str();
+  lp->add_option("--r-lp-second-phase-select-mode", ctx.refinement.lp.second_phase_select_mode)
+      ->transform(CLI::CheckedTransformer(get_second_phase_select_modes()).description(""))
+      ->description(
+          R"(Determines the mode for selecting nodes for the second phase of label propagation.
+Options are:
+  - high-degree:     Select nodes with high degree
+  - full-rating-map: Select nodes which have a full rating map in the first phase
+  )"
+      )
+      ->capture_default_str();
+  lp->add_option(
+        "--r-lp-second-phase-aggregation-mode", ctx.refinement.lp.second_phase_aggregation_mode
+  )
+      ->transform(CLI::CheckedTransformer(get_second_phase_aggregation_modes()).description(""))
+      ->description(
+          R"(Determines the mode for aggregating ratings in the second phase of label propagation.
+Options are:
+  - none:     Skip the second phase
+  - direct:   Write the ratings directly into the global vector (shared between threads)
+  - buffered: Write the ratings into a thread-local buffer and then copy them into the global vector when the buffer is full
+  )"
+      );
 
   return lp;
 }

@@ -230,7 +230,7 @@ void print_local_graph_stats(const DistributedGraph &graph) {
   std::fill(buckets.begin(), buckets.end(), 0);
 
   EdgeID local_m = 0, nonlocal_m = 0;
-  EdgeID min_deg = std::numeric_limits<EdgeID>::max(), max_deg = 0;
+  NodeID min_deg = std::numeric_limits<NodeID>::max(), max_deg = 0;
   for (NodeID u = 0; u < graph.n(); ++u) {
     for (const auto [e, v] : graph.neighbors(u)) {
       if (graph.is_owned_node(v)) {

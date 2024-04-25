@@ -7,6 +7,7 @@
  ******************************************************************************/
 #pragma once
 
+#include <functional>
 #include <iterator>
 #include <type_traits>
 

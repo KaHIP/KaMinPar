@@ -14,5 +14,12 @@ class Partitioner {
 public:
   virtual ~Partitioner() = default;
   virtual PartitionedGraph partition() = 0;
+
+  void enable_metrics_output() {
+    _print_metrics = true;
+  }
+
+protected:
+  bool _print_metrics = false;
 };
 } // namespace kaminpar::shm

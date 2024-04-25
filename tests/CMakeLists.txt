@@ -38,19 +38,26 @@ kaminpar_add_common_test(test_common_compact_hash_map common/datastructures/comp
 kaminpar_add_common_test(test_common_math common/math_test.cc)
 kaminpar_add_common_test(test_common_string common/strutils_test.cc)
 kaminpar_add_common_test(test_common_parallel_algorithm common/parallel/algorithm_test.cc)
+kaminpar_add_common_test(test_common_heap_profiler common/heap_profiler_test.cc)
+kaminpar_add_common_test(test_common_varint_codec_test common/varint_codec_test.cc)
+kaminpar_add_common_test(test_common_varint_run_length_codec_test common/varint_run_length_codec_test.cc)
+kaminpar_add_common_test(test_common_varint_stream_codec_test common/varint_stream_codec_test.cc)
 
 # KaMinPar -> End-to-end
 kaminpar_add_shm_test(test_shm_endtoend endtoend/shm_endtoend_test.cc)
 
 # KaMinPar -> Utils
 kaminpar_add_shm_test(test_shm_metrics shm/metrics_test.cc)
-kaminpar_add_shm_test(test_shm_subgraph_extraction shm/subgraph_extraction_test.cc)
-kaminpar_add_shm_test(test_shm_graph_utils shm/graph_utils_test.cc)
-kaminpar_add_shm_test(test_shm_partition_utils shm/partition_utils_test.cc)
+kaminpar_add_shm_test(test_shm_subgraph_extraction shm/graphutils/subgraph_extraction_test.cc)
+kaminpar_add_shm_test(test_shm_partition_utils shm/graphutils/partition_utils_test.cc)
+
+# KaMinPar -> Coarsening
+kaminpar_add_shm_test(test_shm_graph_utils shm/coarsening/cluster_contraction_test.cc)
 
 # KaMinPar -> Data structures
-kaminpar_add_shm_test(test_shm_graph shm/graph_test.cc)
+kaminpar_add_shm_test(test_shm_graph shm/datastructures/graph_test.cc)
 kaminpar_add_shm_test(test_shm_delta_partitioned_graph shm/datastructures/delta_partitioned_graph_test.cc)
+kaminpar_add_shm_test(test_shm_compressed_graph shm/datastructures/compressed_graph_test.cc)
 
 if (KAMINPAR_BUILD_DISTRIBUTED)
     include(cmake/KaTestrophe.cmake)

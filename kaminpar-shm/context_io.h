@@ -13,9 +13,17 @@
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
-std::ostream &operator<<(std::ostream &out, GraphOrdering ordering);
+std::ostream &operator<<(std::ostream &out, NodeOrdering ordering);
 
-std::unordered_map<std::string, GraphOrdering> get_graph_orderings();
+std::unordered_map<std::string, NodeOrdering> get_node_orderings();
+
+std::ostream &operator<<(std::ostream &out, EdgeOrdering ordering);
+
+std::unordered_map<std::string, EdgeOrdering> get_edge_orderings();
+
+std::ostream &operator<<(std::ostream &out, CoarseningAlgorithm algorithm);
+
+std::unordered_map<std::string, CoarseningAlgorithm> get_coarsening_algorithms();
 
 std::ostream &operator<<(std::ostream &out, ClusteringAlgorithm algorithm);
 
@@ -43,6 +51,14 @@ std::unordered_map<std::string, InitialPartitioningMode> get_initial_partitionin
 
 std::ostream &operator<<(std::ostream &out, GainCacheStrategy strategy);
 
+std::ostream &operator<<(std::ostream &out, SecondPhaseSelectMode strategy);
+
+std::unordered_map<std::string, SecondPhaseSelectMode> get_second_phase_select_modes();
+
+std::ostream &operator<<(std::ostream &out, SecondPhaseAggregationMode strategy);
+
+std::unordered_map<std::string, SecondPhaseAggregationMode> get_second_phase_aggregation_modes();
+
 std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies();
 
 std::ostream &operator<<(std::ostream &out, TwoHopStrategy strategy);
@@ -51,9 +67,15 @@ std::unordered_map<std::string, TwoHopStrategy> get_two_hop_strategies();
 
 std::ostream &operator<<(std::ostream &out, IsolatedNodesClusteringStrategy strategy);
 
-std::unordered_map<std::string, IsolatedNodesClusteringStrategy> get_isolated_nodes_clustering_strategies();
+std::unordered_map<std::string, IsolatedNodesClusteringStrategy>
+get_isolated_nodes_clustering_strategies();
+
+std::ostream &operator<<(std::ostream &out, const ContractionMode mode);
+
+std::unordered_map<std::string, ContractionMode> get_contraction_modes();
 
 void print(const Context &ctx, std::ostream &out);
+void print(const GraphCompressionContext &c_ctx, std::ostream &out);
 void print(const PartitioningContext &p_ctx, std::ostream &out);
 void print(const PartitionContext &p_ctx, std::ostream &out);
 void print(const RefinementContext &r_ctx, std::ostream &out);

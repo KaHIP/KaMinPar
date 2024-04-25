@@ -19,11 +19,12 @@
 #include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/logger.h"
+#include "kaminpar-common/parallel/atomic.h"
 
 namespace kaminpar::shm {
 class GreedyBalancer : public Refiner {
   SET_DEBUG(false);
-  SET_STATISTICS(false);
+  SET_STATISTICS_FROM_GLOBAL();
 
 public:
   struct Statistics {
@@ -80,11 +81,7 @@ public:
     }
   };
 
-  GreedyBalancer(const Context &ctx)
-      : _max_k(ctx.partition.k),
-        _pq(ctx.partition.n, ctx.partition.k),
-        _marker(ctx.partition.n),
-        _pq_weight(ctx.partition.k) {}
+  GreedyBalancer(const Context &ctx) : _max_k(ctx.partition.k) {}
 
   GreedyBalancer &operator=(const GreedyBalancer &) = delete;
   GreedyBalancer(const PartitionedGraph &) = delete;

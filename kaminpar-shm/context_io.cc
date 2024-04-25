@@ -15,24 +15,65 @@
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/strutils.h"
+#include "kaminpar-common/varint_codec.h"
 
 namespace kaminpar::shm {
 using namespace std::string_literals;
 
-std::unordered_map<std::string, GraphOrdering> get_graph_orderings() {
+std::unordered_map<std::string, NodeOrdering> get_node_orderings() {
   return {
-      {"natural", GraphOrdering::NATURAL},
-      {"deg-buckets", GraphOrdering::DEGREE_BUCKETS},
-      {"degree-buckets", GraphOrdering::DEGREE_BUCKETS},
+      {"natural", NodeOrdering::NATURAL},
+      {"deg-buckets", NodeOrdering::DEGREE_BUCKETS},
+      {"degree-buckets", NodeOrdering::DEGREE_BUCKETS},
+      {"implicit-deg-buckets", NodeOrdering::IMPLICIT_DEGREE_BUCKETS},
+      {"implicit-degree-buckets", NodeOrdering::IMPLICIT_DEGREE_BUCKETS},
   };
 }
 
-std::ostream &operator<<(std::ostream &out, const GraphOrdering ordering) {
+std::ostream &operator<<(std::ostream &out, const NodeOrdering ordering) {
   switch (ordering) {
-  case GraphOrdering::NATURAL:
+  case NodeOrdering::NATURAL:
     return out << "natural";
-  case GraphOrdering::DEGREE_BUCKETS:
+  case NodeOrdering::DEGREE_BUCKETS:
     return out << "deg-buckets";
+  case NodeOrdering::IMPLICIT_DEGREE_BUCKETS:
+    return out << "implicit-deg-buckets";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, EdgeOrdering> get_edge_orderings() {
+  return {
+      {"natural", EdgeOrdering::NATURAL},
+      {"compression", EdgeOrdering::COMPRESSION},
+  };
+}
+
+std::ostream &operator<<(std::ostream &out, const EdgeOrdering ordering) {
+  switch (ordering) {
+  case EdgeOrdering::NATURAL:
+    return out << "natural";
+  case EdgeOrdering::COMPRESSION:
+    return out << "compression";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, CoarseningAlgorithm> get_coarsening_algorithms() {
+  return {
+      {"noop", CoarseningAlgorithm::NOOP},
+      {"clustering", CoarseningAlgorithm::CLUSTERING},
+  };
+}
+
+std::ostream &operator<<(std::ostream &out, const CoarseningAlgorithm algorithm) {
+  switch (algorithm) {
+  case CoarseningAlgorithm::NOOP:
+    return out << "noop";
+  case CoarseningAlgorithm::CLUSTERING:
+    return out << "clustering";
   }
 
   return out << "<invalid>";
@@ -42,6 +83,7 @@ std::unordered_map<std::string, ClusteringAlgorithm> get_clustering_algorithms()
   return {
       {"noop", ClusteringAlgorithm::NOOP},
       {"lp", ClusteringAlgorithm::LABEL_PROPAGATION},
+      {"legacy-lp", ClusteringAlgorithm::LEGACY_LABEL_PROPAGATION},
   };
 }
 
@@ -51,7 +93,10 @@ std::ostream &operator<<(std::ostream &out, const ClusteringAlgorithm algorithm)
     return out << "noop";
   case ClusteringAlgorithm::LABEL_PROPAGATION:
     return out << "lp";
+  case ClusteringAlgorithm::LEGACY_LABEL_PROPAGATION:
+    return out << "legacy-lp";
   }
+
   return out << "<invalid>";
 }
 
@@ -82,6 +127,7 @@ std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorit
   return {
       {"noop", RefinementAlgorithm::NOOP},
       {"lp", RefinementAlgorithm::LABEL_PROPAGATION},
+      {"legacy-lp", RefinementAlgorithm::LEGACY_LABEL_PROPAGATION},
       {"fm", RefinementAlgorithm::KWAY_FM},
       {"jet", RefinementAlgorithm::JET},
       {"greedy-balancer", RefinementAlgorithm::GREEDY_BALANCER},
@@ -97,6 +143,8 @@ std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm)
     return out << "fm";
   case RefinementAlgorithm::LABEL_PROPAGATION:
     return out << "lp";
+  case RefinementAlgorithm::LEGACY_LABEL_PROPAGATION:
+    return out << "legacy-lp";
   case RefinementAlgorithm::GREEDY_BALANCER:
     return out << "greedy-balancer";
   case RefinementAlgorithm::JET:
@@ -242,6 +290,45 @@ std::ostream &operator<<(std::ostream &out, IsolatedNodesClusteringStrategy stra
   return out << "<invalid>";
 }
 
+std::ostream &operator<<(std::ostream &out, SecondPhaseSelectMode strategy) {
+  switch (strategy) {
+  case SecondPhaseSelectMode::HIGH_DEGREE:
+    return out << "high-degree";
+  case SecondPhaseSelectMode::FULL_RATING_MAP:
+    return out << "full-rating-map";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, SecondPhaseSelectMode> get_second_phase_select_modes() {
+  return {
+      {"high-degree", SecondPhaseSelectMode::HIGH_DEGREE},
+      {"full-rating-map", SecondPhaseSelectMode::FULL_RATING_MAP}
+  };
+}
+
+std::ostream &operator<<(std::ostream &out, SecondPhaseAggregationMode strategy) {
+  switch (strategy) {
+  case SecondPhaseAggregationMode::NONE:
+    return out << "none";
+  case SecondPhaseAggregationMode::DIRECT:
+    return out << "direct";
+  case SecondPhaseAggregationMode::BUFFERED:
+    return out << "buffered";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, SecondPhaseAggregationMode> get_second_phase_aggregation_modes() {
+  return {
+      {"none", SecondPhaseAggregationMode::NONE},
+      {"direct", SecondPhaseAggregationMode::DIRECT},
+      {"buffered", SecondPhaseAggregationMode::BUFFERED}
+  };
+}
+
 std::unordered_map<std::string, IsolatedNodesClusteringStrategy>
 get_isolated_nodes_clustering_strategies() {
   return {
@@ -253,23 +340,137 @@ get_isolated_nodes_clustering_strategies() {
   };
 }
 
+void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
+  out << "Enabled:                      " << (c_ctx.enabled ? "yes" : "no") << "\n";
+  if (c_ctx.enabled) {
+    out << "Compression Scheme:           " << "Gap Encoding + ";
+    if (c_ctx.run_length_encoding) {
+      out << "VarInt Run-Length Encoding\n";
+    } else if (c_ctx.stream_encoding) {
+      out << "VarInt Stream Encoding\n";
+    } else {
+      out << "VarInt Encoding\n";
+    }
+    out << "  High Degree Encoding:       " << (c_ctx.high_degree_encoding ? "yes" : "no") << "\n";
+    if (c_ctx.high_degree_encoding) {
+      out << "    Threshold:                " << c_ctx.high_degree_threshold << "\n";
+      out << "    Part Length:              " << c_ctx.high_degree_part_length << "\n";
+    }
+    out << "  Interval Encoding:          " << (c_ctx.interval_encoding ? "yes" : "no") << "\n";
+    if (c_ctx.interval_encoding) {
+      out << "    Length Threshold:         " << c_ctx.interval_length_treshold << "\n";
+    }
+    out << "  Isolated Nodes Separation:  " << (c_ctx.isolated_nodes_separation ? "yes" : "no")
+        << "\n";
+
+    out << "Compresion Ratio:             ";
+    if (c_ctx.dismissed) {
+      out << "<1 (dismissed)\n";
+    } else {
+      out << c_ctx.compression_ratio
+          << " [size reduction: " << (c_ctx.size_reduction / (float)(1024 * 1024)) << " mb]"
+          << "\n";
+      out << "  High Degree Count:          " << c_ctx.high_degree_count << "\n";
+      out << "  Part Count:                 " << c_ctx.part_count << "\n";
+      out << "  Interval Count:             " << c_ctx.interval_count << "\n";
+
+      if (debug::kTrackVarintStats) {
+        const auto &stats = debug::varint_stats_global();
+
+        const float avg_varint_len =
+            (stats.varint_count == 0) ? 0 : (stats.varint_bytes / (float)stats.varint_count);
+        out << "Average Varint Length:        " << avg_varint_len
+            << " [count: " << stats.varint_count << "]\n";
+
+        const float avg_signed_varint_len =
+            (stats.signed_varint_count == 0)
+                ? 0
+                : (stats.signed_varint_bytes / (float)stats.signed_varint_count);
+        out << "Average Signed Varint Length: " << avg_signed_varint_len
+            << " [count: " << stats.signed_varint_count << "]\n";
+
+        const float avg_marked_varint_len =
+            (stats.marked_varint_count == 0)
+                ? 0
+                : (stats.marked_varint_bytes / (float)stats.marked_varint_count);
+        out << "Average Marked Varint Length: " << avg_marked_varint_len
+            << " [count: " << stats.marked_varint_count << "]\n";
+      }
+    }
+  }
+}
+
+std::ostream &operator<<(std::ostream &out, const ContractionMode mode) {
+  switch (mode) {
+  case ContractionMode::BUFFERED:
+    return out << "buffered";
+  case ContractionMode::BUFFERED_LEGACY:
+    return out << "buffered-legacy";
+  case ContractionMode::UNBUFFERED:
+    return out << "unbuffered";
+  case ContractionMode::UNBUFFERED_NAIVE:
+    return out << "unbuffered-naive";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, ContractionMode> get_contraction_modes() {
+  return {
+      {"buffered", ContractionMode::BUFFERED},
+      {"buffered-legacy", ContractionMode::BUFFERED_LEGACY},
+      {"unbuffered", ContractionMode::UNBUFFERED},
+      {"unbuffered-naive", ContractionMode::UNBUFFERED_NAIVE},
+  };
+}
+
 void print(const CoarseningContext &c_ctx, std::ostream &out) {
   out << "Contraction limit:            " << c_ctx.contraction_limit << "\n";
-  out << "Cluster weight limit:         " << c_ctx.cluster_weight_limit << " x "
-      << c_ctx.cluster_weight_multiplier << "\n";
-  out << "Clustering algorithm:         " << c_ctx.algorithm << "\n";
-  if (c_ctx.algorithm == ClusteringAlgorithm::LABEL_PROPAGATION) {
-    print(c_ctx.lp, out);
+  out << "Coarsening algorithm:         " << c_ctx.algorithm << "\n";
+
+  if (c_ctx.algorithm == CoarseningAlgorithm::CLUSTERING) {
+    out << "  Cluster weight limit:       " << c_ctx.clustering.cluster_weight_limit << " x "
+        << c_ctx.clustering.cluster_weight_multiplier << "\n";
+    out << "  Max mem-free level:         " << c_ctx.clustering.max_mem_free_coarsening_level
+        << "\n";
+    out << "  Clustering algorithm:       " << c_ctx.clustering.algorithm << "\n";
+    if (c_ctx.clustering.algorithm == ClusteringAlgorithm::LABEL_PROPAGATION ||
+        c_ctx.clustering.algorithm == ClusteringAlgorithm::LEGACY_LABEL_PROPAGATION) {
+      print(c_ctx.clustering.lp, out);
+    }
+  }
+
+  out << "Contraction mode:             " << c_ctx.contraction.mode << '\n';
+  out << "  Mapping type:               "
+      << (c_ctx.contraction.use_compact_mapping ? "compact" : "normal") << '\n';
+  if (c_ctx.contraction.mode == ContractionMode::BUFFERED) {
+    out << "  Edge buffer fill fraction:  " << c_ctx.contraction.edge_buffer_fill_fraction << "\n";
   }
 }
 
 void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
-  out << "  Number of iterations:       " << lp_ctx.num_iterations << "\n";
-  out << "  High degree threshold:      " << lp_ctx.large_degree_threshold << "\n";
-  out << "  Max degree:                 " << lp_ctx.max_num_neighbors << "\n";
-  out << "  2-hop clustering:           " << lp_ctx.two_hop_strategy << ", if |Vcoarse| > "
+  out << "    Number of iterations:     " << lp_ctx.num_iterations << "\n";
+  out << "    High degree threshold:    " << lp_ctx.large_degree_threshold << "\n";
+  out << "    Max degree:               " << lp_ctx.max_num_neighbors << "\n";
+  out << "    Two-level weight vector:  "
+      << (lp_ctx.use_two_level_cluster_weight_vector ?
+#ifdef KAMINPAR_USES_GROWT
+                                                     "yes (growt)"
+#else
+                                                     "yes (tbb)"
+#endif
+                                                     : "no")
+      << "\n";
+  out << "    Uses two phases:          " << (lp_ctx.use_two_phases ? "yes" : "no") << "\n";
+  if (lp_ctx.use_two_phases) {
+    out << "      Select mode:            " << lp_ctx.second_phase_select_mode << '\n';
+    out << "      Aggregation mode:       " << lp_ctx.second_phase_aggregation_mode << '\n';
+    out << "      Relabel:                " << (lp_ctx.relabel_before_second_phase ? "yes" : "no")
+        << '\n';
+  }
+  out << "    2-hop clustering:         " << lp_ctx.two_hop_strategy << ", if |Vcoarse| > "
       << std::setw(2) << std::fixed << lp_ctx.two_hop_threshold << " * |V|\n";
-  out << "  Isolated nodes:             " << lp_ctx.isolated_nodes_strategy << "\n";
+  out << "    Isolated nodes:           " << lp_ctx.isolated_nodes_strategy << "\n";
 }
 
 void print(const InitialPartitioningContext &i_ctx, std::ostream &out) {
@@ -282,6 +483,11 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
   if (r_ctx.includes_algorithm(RefinementAlgorithm::LABEL_PROPAGATION)) {
     out << "Label propagation:\n";
     out << "  Number of iterations:       " << r_ctx.lp.num_iterations << "\n";
+    out << "  Uses two phases: " << (r_ctx.lp.use_two_phases ? "yes" : "no") << "\n";
+    if (r_ctx.lp.use_two_phases) {
+      out << "    Select mode:              " << r_ctx.lp.second_phase_select_mode << '\n';
+      out << "    Aggregation mode:         " << r_ctx.lp.second_phase_aggregation_mode << '\n';
+    }
   }
   if (r_ctx.includes_algorithm(RefinementAlgorithm::KWAY_FM)) {
     out << "k-way FM:\n";
@@ -348,8 +554,11 @@ void print(const Context &ctx, std::ostream &out) {
   out << "Execution mode:               " << ctx.parallel.num_threads << "\n";
   out << "Seed:                         " << Random::get_seed() << "\n";
   out << "Graph:                        " << ctx.debug.graph_name
-      << " [ordering: " << ctx.rearrange_by << "]\n";
+      << " [node ordering: " << ctx.node_ordering << "]" << " [edge ordering: " << ctx.edge_ordering
+      << "]\n";
   print(ctx.partition, out);
+  cio::print_delimiter("Graph Compression", '-');
+  print(ctx.compression, out);
   cio::print_delimiter("Partitioning Scheme", '-');
   print(ctx.partitioning, out);
   cio::print_delimiter("Coarsening", '-');

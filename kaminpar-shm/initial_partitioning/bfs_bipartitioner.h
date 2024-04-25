@@ -1,13 +1,15 @@
 /*******************************************************************************
+ * Initial partitioner based on breath-first searches.
+ *
  * @file:   bfs_bipartitioner.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Initial partitioner based on breath-first searches.
  ******************************************************************************/
 #pragma once
 
 #include <array>
 
+#include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/initial_partitioning/bipartitioner.h"
 #include "kaminpar-shm/initial_partitioning/seed_node_utils.h"
 #include "kaminpar-shm/kaminpar.h"
@@ -79,7 +81,7 @@ public:
   };
 
   BfsBipartitionerBase(
-      const Graph &graph, const PartitionContext &p_ctx, const InitialPartitioningContext &i_ctx
+      const CSRGraph &graph, const PartitionContext &p_ctx, const InitialPartitioningContext &i_ctx
   )
       : Bipartitioner(graph, p_ctx, i_ctx) {}
 };
@@ -103,14 +105,14 @@ class BfsBipartitioner : public BfsBipartitionerBase {
 
 public:
   BfsBipartitioner(
-      const Graph &graph,
+      const CSRGraph &graph,
       const PartitionContext &p_ctx,
       const InitialPartitioningContext &i_ctx,
       MemoryContext &m_ctx
   )
       : BfsBipartitionerBase(graph, p_ctx, i_ctx),
-        _queues{m_ctx.queues},
-        _marker{m_ctx.marker},
+        _queues(m_ctx.queues),
+        _marker(m_ctx.marker),
         _num_seed_iterations(i_ctx.num_seed_iterations) {
     if (_marker.capacity() < _graph.n()) {
       _marker.resize(_graph.n());

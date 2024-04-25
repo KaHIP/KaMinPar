@@ -8,6 +8,7 @@
 
 #include <memory>
 
+#include "kaminpar-shm/coarsening/max_cluster_weights.h"
 #include "kaminpar-shm/initial_partitioning/initial_coarsener.h"
 #include "kaminpar-shm/initial_partitioning/initial_refiner.h"
 #include "kaminpar-shm/initial_partitioning/pool_bipartitioner.h"
@@ -38,7 +39,7 @@ public:
   };
 
   InitialPartitioner(
-      const Graph &graph, const Context &ctx, const BlockID final_k, MemoryContext m_ctx = {}
+      const CSRGraph &graph, const Context &ctx, const BlockID final_k, MemoryContext m_ctx = {}
   )
       : _m_ctx(std::move(m_ctx)),
         _graph(graph),
@@ -63,19 +64,19 @@ public:
     return std::move(_m_ctx);
   }
 
-  PartitionedGraph partition() {
-    const Graph *c_graph = coarsen();
+  PartitionedCSRGraph partition() {
+    const CSRGraph *c_graph = coarsen();
 
     DBG << "Calling bipartitioner on coarsest graph with n=" << c_graph->n()
         << " m=" << c_graph->m();
     ip::PoolBipartitionerFactory factory;
     auto bipartitioner = factory.create(*c_graph, _p_ctx, _i_ctx, std::move(_m_ctx.pool_m_ctx));
     bipartitioner->set_num_repetitions(_num_bipartition_repetitions);
-    PartitionedGraph p_graph = bipartitioner->bipartition();
+    PartitionedCSRGraph p_graph = bipartitioner->bipartition();
     _m_ctx.pool_m_ctx = bipartitioner->free();
 
     DBG << "Bipartitioner result: "                              //
-        << "cut=" << metrics::edge_cut_seq(p_graph) << " " //
+        << "cut=" << metrics::edge_cut_seq(p_graph) << " "       //
         << "imbalance=" << metrics::imbalance(p_graph) << " "    //
         << "feasible=" << metrics::is_feasible(p_graph, _p_ctx); //
 
@@ -83,12 +84,13 @@ public:
   }
 
 private:
-  const Graph *coarsen() {
+  const CSRGraph *coarsen() {
     const InitialCoarseningContext &c_ctx = _i_ctx.coarsening;
-    const NodeWeight max_cluster_weight =
-        compute_max_cluster_weight(_i_ctx.coarsening, _graph, _p_ctx);
+    const NodeWeight max_cluster_weight = compute_max_cluster_weight<NodeWeight>(
+        _i_ctx.coarsening, _p_ctx, _graph.n(), _graph.total_node_weight()
+    );
 
-    const Graph *c_graph = &_graph;
+    const CSRGraph *c_graph = &_graph;
     bool shrunk = true;
     DBG << "Coarsen: n=" << c_graph->n() << " m=" << c_graph->m();
 
@@ -110,7 +112,7 @@ private:
     return c_graph;
   }
 
-  PartitionedGraph uncoarsen(PartitionedGraph p_graph) {
+  PartitionedCSRGraph uncoarsen(PartitionedCSRGraph p_graph) {
     DBG << "Uncoarsen: n=" << p_graph.n() << " m=" << p_graph.m();
 
     while (!_coarsener.empty()) {
@@ -121,7 +123,7 @@ private:
       DBG << "-> "                                                 //
           << "n=" << p_graph.n() << " "                            //
           << "m=" << p_graph.m() << " "                            //
-          << "cut=" << metrics::edge_cut_seq(p_graph) << " " //
+          << "cut=" << metrics::edge_cut_seq(p_graph) << " "       //
           << "imbalance=" << metrics::imbalance(p_graph) << " "    //
           << "feasible=" << metrics::is_feasible(p_graph, _p_ctx); //
     }
@@ -130,7 +132,7 @@ private:
   }
 
   MemoryContext _m_ctx;
-  const Graph &_graph;
+  const CSRGraph &_graph;
   const InitialPartitioningContext &_i_ctx;
   PartitionContext _p_ctx;
   ip::InitialCoarsener _coarsener;

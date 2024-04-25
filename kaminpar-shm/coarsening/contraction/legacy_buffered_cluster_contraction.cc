@@ -1,99 +1,36 @@
 /*******************************************************************************
- * Contracts clusterings and constructs the coarse graph.
+ * Contraction implementation that uses an edge buffer to store edges before
+ * building the final graph.
  *
- * @file:   cluster_contraction.cc
+ * @file:   legacy_buffered_cluster_contraction.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  ******************************************************************************/
-#include "kaminpar-shm/graphutils/cluster_contraction.h"
+#include "kaminpar-shm/coarsening/contraction/legacy_buffered_cluster_contraction.h"
 
-#include <tbb/parallel_for.h>
-#include <tbb/parallel_invoke.h>
+#include <memory>
 
-#include "kaminpar-common/assert.h"
+#include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"
+#include "kaminpar-shm/coarsening/contraction/cluster_contraction_preprocessing.h"
+
+#include "kaminpar-common/datastructures/compact_static_array.h"
 #include "kaminpar-common/datastructures/rating_map.h"
-#include "kaminpar-common/datastructures/ts_navigable_linked_list.h"
-#include "kaminpar-common/parallel/algorithm.h"
+#include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/timer.h"
 
-namespace kaminpar::shm::graph {
-using namespace contraction;
-
+namespace kaminpar::shm::contraction {
 namespace {
-template <typename Clustering>
-Result
-contract_generic_clustering(const Graph &graph, const Clustering &clustering, MemoryContext m_ctx) {
+template <template <typename> typename Mapping, typename Graph>
+std::unique_ptr<CoarseGraph> contract_clustering_buffered_legacy(
+    const Graph &graph,
+    const NodeID c_n,
+    Mapping<NodeID> mapping,
+    const ContractionCoarseningContext &con_ctx,
+    MemoryContext &m_ctx
+) {
   auto &buckets_index = m_ctx.buckets_index;
   auto &buckets = m_ctx.buckets;
-  auto &leader_mapping = m_ctx.leader_mapping;
   auto &all_buffered_nodes = m_ctx.all_buffered_nodes;
-
-  START_TIMER("Allocation");
-  scalable_vector<NodeID> mapping(graph.n());
-  if (leader_mapping.size() < graph.n()) {
-    leader_mapping.resize(graph.n());
-  }
-  if (buckets.size() < graph.n()) {
-    buckets.resize(graph.n());
-  }
-  STOP_TIMER();
-
-  START_TIMER("Preprocessing");
-
-  //
-  // Compute a mapping from the nodes of the current graph to the nodes of the
-  // coarse graph I.e., node_mapping[node u] = coarse node c_u
-  //
-  // Note that clustering satisfies this invariant (I): if clustering[x] = y for
-  // some node x, then clustering[y] = y
-  //
-
-  // Set node_mapping[x] = 1 iff. there is a cluster with leader x
-  graph.pfor_nodes([&](const NodeID u) { leader_mapping[u] = 0; });
-  graph.pfor_nodes([&](const NodeID u) {
-    leader_mapping[clustering[u]].store(1, std::memory_order_relaxed);
-  });
-
-  // Compute prefix sum to get coarse node IDs (starting at 1!)
-  parallel::prefix_sum(
-      leader_mapping.begin(), leader_mapping.begin() + graph.n(), leader_mapping.begin()
-  );
-  const NodeID c_n = leader_mapping[graph.n() - 1]; // number of nodes in the coarse graph
-
-  // Assign coarse node ID to all nodes; this works due to (I)
-  graph.pfor_nodes([&](const NodeID u) { mapping[u] = leader_mapping[clustering[u]]; });
-  graph.pfor_nodes([&](const NodeID u) { --mapping[u]; });
-
-  STOP_TIMER();
-
-  TIMED_SCOPE("Allocation") {
-    buckets_index.clear();
-    buckets_index.resize(c_n + 1);
-  };
-
-  START_TIMER("Preprocessing");
-
-  //
-  // Sort nodes into buckets: place all nodes belonging to coarse node i into
-  // the i-th bucket
-  //
-  // Count the number of nodes in each bucket, then compute the position of the
-  // bucket in the global buckets array using a prefix sum, roughly 2/5-th of
-  // time on europe.osm with 2/3-th to 1/3-tel for loop to prefix sum
-  graph.pfor_nodes([&](const NodeID u) {
-    buckets_index[mapping[u]].fetch_add(1, std::memory_order_relaxed);
-  });
-
-  parallel::prefix_sum(buckets_index.begin(), buckets_index.end(), buckets_index.begin());
-  KASSERT(buckets_index.back() <= graph.n());
-
-  // Sort nodes into   buckets, roughly 3/5-th of time on europe.osm
-  tbb::parallel_for(static_cast<NodeID>(0), graph.n(), [&](const NodeID u) {
-    const std::size_t pos = buckets_index[mapping[u]].fetch_sub(1, std::memory_order_relaxed) - 1;
-    buckets[pos] = u;
-  });
-
-  STOP_TIMER(); // Preprocessing
 
   //
   // Build nodes array of the coarse graph
@@ -146,12 +83,12 @@ contract_generic_clustering(const Graph &graph, const Clustering &clustering, Me
           c_u_weight += graph.node_weight(u); // coarse node weight
 
           // collect coarse edges
-          for (const auto [e, v] : graph.neighbors(u)) {
+          graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
             const NodeID c_v = mapping[v];
             if (c_u != c_v) {
               map[c_v] += graph.edge_weight(e);
             }
-          }
+          });
         }
 
         c_node_weights[c_u] = c_u_weight; // coarse node weights are done now
@@ -193,13 +130,13 @@ contract_generic_clustering(const Graph &graph, const Clustering &clustering, Me
   );
 
   START_TIMER("Allocation");
-  StaticArray<NodeID> c_edges{c_m};
-  StaticArray<EdgeWeight> c_edge_weights{c_m};
+  StaticArray<NodeID> c_edges(c_m);
+  StaticArray<EdgeWeight> c_edge_weights(c_m);
   STOP_TIMER();
 
   // build coarse graph
   START_TIMER("Construct coarse graph");
-  tbb::parallel_for(static_cast<NodeID>(0), c_n, [&](const NodeID i) {
+  tbb::parallel_for<NodeID>(0, c_n, [&](const NodeID i) {
     const auto &marker = all_buffered_nodes[i];
     const auto *list = marker.local_list;
     const NodeID c_u = marker.key;
@@ -217,27 +154,37 @@ contract_generic_clustering(const Graph &graph, const Clustering &clustering, Me
   });
   STOP_TIMER();
 
-  return {
-      Graph{
+  return std::make_unique<CoarseGraphImpl<Mapping>>(
+      shm::Graph(std::make_unique<CSRGraph>(
           std::move(c_nodes),
           std::move(c_edges),
           std::move(c_node_weights),
-          std::move(c_edge_weights)},
-      std::move(mapping),
-      std::move(m_ctx)};
+          std::move(c_edge_weights)
+      )),
+      std::move(mapping)
+  );
 }
 } // namespace
 
-Result
-contract(const Graph &graph, const scalable_vector<NodeID> &clustering, MemoryContext m_ctx) {
-  return contract_generic_clustering(graph, clustering, std::move(m_ctx));
-}
-
-Result contract(
+std::unique_ptr<CoarseGraph> contract_clustering_buffered_legacy(
     const Graph &graph,
-    const scalable_vector<parallel::Atomic<NodeID>> &clustering,
-    MemoryContext m_ctx
+    StaticArray<NodeID> &clustering,
+    const ContractionCoarseningContext &con_ctx,
+    MemoryContext &m_ctx
 ) {
-  return contract_generic_clustering(graph, clustering, std::move(m_ctx));
+  if (con_ctx.use_compact_mapping) {
+    auto [c_n, mapping] = compute_mapping<CompactStaticArray>(graph, clustering, m_ctx);
+    fill_cluster_buckets(c_n, graph, mapping, m_ctx.buckets_index, m_ctx.buckets);
+    return graph.reified([&](auto &graph) {
+      return contract_clustering_buffered_legacy(graph, c_n, std::move(mapping), con_ctx, m_ctx);
+    });
+  } else {
+    auto [c_n, mapping] = compute_mapping<StaticArray>(graph, clustering, m_ctx);
+    fill_cluster_buckets(c_n, graph, mapping, m_ctx.buckets_index, m_ctx.buckets);
+    return graph.reified([&](auto &graph) {
+      return contract_clustering_buffered_legacy(graph, c_n, std::move(mapping), con_ctx, m_ctx);
+    });
+  }
 }
-} // namespace kaminpar::shm::graph
+} // namespace kaminpar::shm::contraction
+

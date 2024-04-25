@@ -14,6 +14,7 @@
 #include "kaminpar-shm/graphutils/subgraph_extractor.h"
 #include "kaminpar-shm/initial_partitioning/initial_partitioning_facade.h"
 #include "kaminpar-shm/kaminpar.h"
+#include "kaminpar-shm/refinement/refiner.h"
 
 #include "kaminpar-common/assert.h"
 
@@ -98,7 +99,8 @@ void extend_partition(
     PartitionContext &current_p_ctx,
     graph::SubgraphMemory &subgraph_memory,
     TemporaryGraphExtractionBufferPool &extraction_pool,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool
+    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
+    int num_active_threads
 );
 
 void extend_partition(
@@ -107,15 +109,11 @@ void extend_partition(
     const Context &input_ctx,
     PartitionContext &current_p_ctx,
     TemporaryGraphExtractionBufferPool &extraction_pool,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool
+    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
+    int num_active_threads
 );
 
-bool coarsen_once(
-    Coarsener *coarsener,
-    const Graph *graph,
-    const Context &input_ctx,
-    PartitionContext &current_p_ctx
-);
+bool coarsen_once(Coarsener *coarsener, const Graph *graph, PartitionContext &current_p_ctx);
 
 // compute smallest k_prime such that it is a power of 2 and n / k_prime <= C
 BlockID compute_k_for_n(NodeID n, const Context &input_ctx);
@@ -130,11 +128,7 @@ template <typename Iterator>
 std::size_t select_best(
     const Iterator p_graphs_begin, const Iterator p_graphs_end, const PartitionContext &p_ctx
 ) {
-  SET_DEBUG(false);
-
-  KASSERT(p_graphs_begin < p_graphs_end, "cannot select best result from an empty range");
-  DBG << "Select best result from " << std::distance(p_graphs_begin, p_graphs_end) << " "
-      << (*p_graphs_begin).k() << "-way partitions";
+  KASSERT(p_graphs_begin < p_graphs_end, "cannot select the best partition from an empty range");
 
   std::size_t best_index = 0;
   std::size_t current_index = 0;
@@ -144,7 +138,7 @@ std::size_t select_best(
   for (auto it = p_graphs_begin; it != p_graphs_end; ++it) {
     const auto &result = *it;
     const bool current_feasible = metrics::is_feasible(result, p_ctx);
-    const EdgeWeight current_cut = metrics::edge_cut_seq(result);
+    const EdgeWeight current_cut = metrics::edge_cut(result);
 
     if ((current_feasible == best_feasible && current_cut < best_cut) ||
         current_feasible > best_feasible) {

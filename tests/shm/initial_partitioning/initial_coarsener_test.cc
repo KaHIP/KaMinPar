@@ -35,10 +35,10 @@ TEST(InitialCoarsenerTest, ContractingToSingleNodeWorks) {
 TEST(InitialCoarsenerTest, ContractingToSingletonsWorks) {
   static constexpr auto GRID_LENGTH{2};
   Graph graph{graphs::grid(GRID_LENGTH, GRID_LENGTH)};
-  graph = change_node_weight(std::move(graph), 0, 1);
-  graph = change_node_weight(std::move(graph), 1, 2);
-  graph = change_node_weight(std::move(graph), 2, 3);
-  graph = change_node_weight(std::move(graph), 3, 4);
+  change_node_weight(graph, 0, 1);
+  change_node_weight(graph, 1, 2);
+  change_node_weight(graph, 2, 3);
+  change_node_weight(graph, 3, 4);
 
   InitialCoarsener coarsener{&graph, create_default_context().coarsening};
   coarsener.TEST_mock_clustering({0, 1, 2, 3});
@@ -76,14 +76,14 @@ TEST(InitialCoarsenerTest, ContractingAllNodesButOneWorks) {
 
 TEST(InitialCoarsenerTest, ContractingGridHorizontallyWorks) {
   Graph graph{graphs::grid(2, 4)}; // two rows, 4 columns, organized row by row
-  graph = change_node_weight(std::move(graph), 0, 1);
-  graph = change_node_weight(std::move(graph), 1, 2);
-  graph = change_node_weight(std::move(graph), 2, 3);
-  graph = change_node_weight(std::move(graph), 3, 4);
-  graph = change_node_weight(std::move(graph), 4, 10);
-  graph = change_node_weight(std::move(graph), 5, 20);
-  graph = change_node_weight(std::move(graph), 6, 30);
-  graph = change_node_weight(std::move(graph), 7, 40);
+  change_node_weight(graph, 0, 1);
+  change_node_weight(graph, 1, 2);
+  change_node_weight(graph, 2, 3);
+  change_node_weight(graph, 3, 4);
+  change_node_weight(graph, 4, 10);
+  change_node_weight(graph, 5, 20);
+  change_node_weight(graph, 6, 30);
+  change_node_weight(graph, 7, 40);
 
   InitialCoarsener coarsener{&graph, create_default_context().coarsening};
   coarsener.TEST_mock_clustering({0, 1, 2, 3, 0, 1, 2, 3});
@@ -101,14 +101,14 @@ TEST(InitialCoarsenerTest, ContractingGridHorizontallyWorks) {
 
 TEST(InitialCoarsenerTest, ContractingGridVerticallyWorks) {
   Graph graph{graphs::grid(4, 2)}; // four columns, two rows, organized row by row
-  graph = change_node_weight(std::move(graph), 0, 1);
-  graph = change_node_weight(std::move(graph), 1, 10);
-  graph = change_node_weight(std::move(graph), 2, 2);
-  graph = change_node_weight(std::move(graph), 3, 20);
-  graph = change_node_weight(std::move(graph), 4, 3);
-  graph = change_node_weight(std::move(graph), 5, 30);
-  graph = change_node_weight(std::move(graph), 6, 4);
-  graph = change_node_weight(std::move(graph), 7, 40);
+  change_node_weight(graph, 0, 1);
+  change_node_weight(graph, 1, 10);
+  change_node_weight(graph, 2, 2);
+  change_node_weight(graph, 3, 20);
+  change_node_weight(graph, 4, 3);
+  change_node_weight(graph, 5, 30);
+  change_node_weight(graph, 6, 4);
+  change_node_weight(graph, 7, 40);
 
   InitialCoarsener coarsener{&graph, create_default_context().coarsening};
   coarsener.TEST_mock_clustering({0, 0, 2, 2, 4, 4, 6, 6});

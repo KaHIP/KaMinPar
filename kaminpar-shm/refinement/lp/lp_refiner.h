@@ -7,22 +7,32 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar-shm/context.h"
+#include <memory>
+
+#include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
-#include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/refinement/refiner.h"
 
 namespace kaminpar::shm {
+
 class LabelPropagationRefiner : public Refiner {
 public:
   LabelPropagationRefiner(const Context &ctx);
-  ~LabelPropagationRefiner();
+
+  LabelPropagationRefiner(const LabelPropagationRefiner &) = delete;
+  LabelPropagationRefiner &operator=(const LabelPropagationRefiner &) = delete;
+
+  LabelPropagationRefiner(LabelPropagationRefiner &&) noexcept = default;
+  LabelPropagationRefiner &operator=(LabelPropagationRefiner &&) noexcept = default;
+
+  ~LabelPropagationRefiner() override;
 
   void initialize(const PartitionedGraph &p_graph) override;
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) override;
 
 private:
-  class LabelPropagationRefinerImpl *_impl;
+  std::unique_ptr<class LPRefinerImplWrapper> _impl_wrapper;
 };
+
 } // namespace kaminpar::shm

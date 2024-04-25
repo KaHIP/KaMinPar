@@ -43,8 +43,8 @@ template <typename DeltaPartitionedGraph, typename GainCache> class DenseDeltaGa
 
 template <bool iterate_nonadjacent_blocks = true, bool iterate_exact_gains = false>
 class DenseGainCache {
-  SET_DEBUG(true);
-  SET_STATISTICS(false);
+  SET_DEBUG(false);
+  SET_STATISTICS_FROM_GLOBAL();
 
   using Self = DenseGainCache<iterate_nonadjacent_blocks, iterate_exact_gains>;
   template <typename, typename> friend class DenseDeltaGainCache;
@@ -98,8 +98,8 @@ public:
       : _ctx(ctx),
         // Since we do not know the size of the gain cache in advance (depends on vertex degrees),
         // we cannot preallocate it
-        _gain_cache(static_array::noinit, 0),
-        _weighted_degrees(static_array::noinit, preallocate_n) {}
+        _gain_cache(0, static_array::noinit),
+        _weighted_degrees(preallocate_n, static_array::noinit) {}
 
   void initialize(const PartitionedGraph &p_graph) {
     _n = p_graph.n();

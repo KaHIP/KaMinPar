@@ -91,10 +91,16 @@ template <typename Key, typename Element, template <typename> typename Container
 using NavigationMarker = typename LocalNavigableLinkedList<Key, Element, Container>::Marker;
 
 namespace ts_navigable_list {
-template <typename Key, typename Element, template <typename> typename Container>
-Container<NavigationMarker<Key, Element, Container>> combine(
+template <
+    typename Key,
+    typename Element,
+    template <typename>
+    typename Container,
+    template <typename>
+    typename GlobalContainer>
+GlobalContainer<NavigationMarker<Key, Element, Container>> combine(
     NavigableLinkedList<Key, Element, Container> &list,
-    Container<NavigationMarker<Key, Element, Container>> global_markers = {}
+    GlobalContainer<NavigationMarker<Key, Element, Container>> global_markers = {}
 ) {
   parallel::Atomic<std::size_t> global_pos = 0;
   std::size_t num_markers = 0;

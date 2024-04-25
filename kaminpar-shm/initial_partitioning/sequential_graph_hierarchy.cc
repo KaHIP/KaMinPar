@@ -10,20 +10,23 @@
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 
 namespace kaminpar::shm::ip {
-SequentialGraphHierarchy::SequentialGraphHierarchy(const Graph *finest_graph)
+SequentialGraphHierarchy::SequentialGraphHierarchy(const CSRGraph *finest_graph)
     : _finest_graph(finest_graph) {}
 
-void SequentialGraphHierarchy::take_coarse_graph(Graph &&c_graph, std::vector<NodeID> &&c_mapping) {
+void SequentialGraphHierarchy::take_coarse_graph(
+    CSRGraph &&c_graph, std::vector<NodeID> &&c_mapping
+) {
   KASSERT(coarsest_graph().n() == c_mapping.size());
   _coarse_mappings.push_back(std::move(c_mapping));
   _coarse_graphs.push_back(std::move(c_graph));
 }
 
-[[nodiscard]] const Graph &SequentialGraphHierarchy::coarsest_graph() const {
+[[nodiscard]] const CSRGraph &SequentialGraphHierarchy::coarsest_graph() const {
   return _coarse_graphs.empty() ? *_finest_graph : _coarse_graphs.back();
 }
 
-PartitionedGraph SequentialGraphHierarchy::pop_and_project(PartitionedGraph &&coarse_p_graph) {
+PartitionedCSRGraph SequentialGraphHierarchy::pop_and_project(PartitionedCSRGraph &&coarse_p_graph
+) {
   KASSERT(!_coarse_graphs.empty());
   KASSERT(&_coarse_graphs.back() == &coarse_p_graph.graph());
 
@@ -31,7 +34,7 @@ PartitionedGraph SequentialGraphHierarchy::pop_and_project(PartitionedGraph &&co
   std::vector<NodeID> c_mapping{std::move(_coarse_mappings.back())};
   _coarse_mappings.pop_back();
 
-  const Graph &graph{get_second_coarsest_graph()};
+  const CSRGraph &graph{get_second_coarsest_graph()};
   KASSERT(graph.n() == c_mapping.size());
 
   StaticArray<BlockID> partition{graph.n()};
@@ -42,10 +45,10 @@ PartitionedGraph SequentialGraphHierarchy::pop_and_project(PartitionedGraph &&co
   // This destroys underlying Graph wrapped in p_graph
   _coarse_graphs.pop_back();
 
-  return {PartitionedGraph::seq{}, graph, coarse_p_graph.k(), std::move(partition)};
+  return {PartitionedCSRGraph::seq{}, graph, coarse_p_graph.k(), std::move(partition)};
 }
 
-const Graph &SequentialGraphHierarchy::get_second_coarsest_graph() const {
+const CSRGraph &SequentialGraphHierarchy::get_second_coarsest_graph() const {
   KASSERT(!_coarse_graphs.empty());
   return (_coarse_graphs.size() > 1) ? _coarse_graphs[_coarse_graphs.size() - 2] : *_finest_graph;
 }

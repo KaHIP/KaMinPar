@@ -9,8 +9,7 @@
 
 #include <algorithm>
 
-#include "kaminpar-shm/context.h"
-#include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/metrics.h"
@@ -55,9 +54,8 @@ public:
 
   virtual ~InitialRefiner() = default;
 
-  virtual void initialize(const Graph &graph) = 0;
-
-  virtual bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) = 0;
+  virtual void initialize(const CSRGraph &graph) = 0;
+  virtual bool refine(PartitionedCSRGraph &p_graph, const PartitionContext &p_ctx) = 0;
 
   virtual MemoryContext free() = 0;
 };
@@ -66,9 +64,9 @@ class InitialNoopRefiner : public InitialRefiner {
 public:
   explicit InitialNoopRefiner(MemoryContext m_ctx) : _m_ctx{std::move(m_ctx)} {}
 
-  void initialize(const Graph &) final {}
+  void initialize(const CSRGraph &) final {}
 
-  bool refine(PartitionedGraph &, const PartitionContext &) final {
+  bool refine(PartitionedCSRGraph &, const PartitionContext &) final {
     return false;
   }
 
@@ -82,7 +80,7 @@ private:
 
 namespace fm {
 struct SimpleStoppingPolicy {
-  void init(const Graph *) const {}
+  void init(const CSRGraph *) const {}
   [[nodiscard]] bool should_stop(const InitialRefinementContext &fm_ctx) const {
     return _num_steps > fm_ctx.num_fruitless_moves;
   }
@@ -94,14 +92,14 @@ struct SimpleStoppingPolicy {
   }
 
 private:
-  std::size_t _num_steps{0};
+  std::size_t _num_steps = 0;
 };
 
 // "Adaptive" random walk stopping policy
 // Implementation copied from: KaHyPar -> AdvancedRandomWalkModelStopsSearch,
 // Copyright (C) Sebastian Schlag
 struct AdaptiveStoppingPolicy {
-  void init(const Graph *graph) {
+  void init(const CSRGraph *graph) {
     _beta = std::sqrt(graph->n());
   }
 
@@ -136,20 +134,23 @@ struct AdaptiveStoppingPolicy {
   }
 
 private:
-  double _beta{};
-  std::size_t _num_steps{0};
-  double _variance{0.0};
-  double _Mk{0.0};
-  double _MkMinus1{0.0};
-  double _Sk{0.0};
-  double _SkMinus1{0.0};
+  double _beta = 0.0;
+  std::size_t _num_steps = 0;
+  double _variance = 0.0;
+  double _Mk = 0.0;
+  double _MkMinus1 = 0.0;
+  double _Sk = 0.0;
+  double _SkMinus1 = 0.0;
 };
 
 //! Always move the next node from the heavier block. This should improve
 //! balance.
 struct MaxWeightSelectionPolicy {
   std::size_t operator()(
-      const PartitionedGraph &p_graph, const PartitionContext &context, const Queues &, Random &rand
+      const PartitionedCSRGraph &p_graph,
+      const PartitionContext &context,
+      const Queues &,
+      Random &rand
   ) {
     const auto weight0 = p_graph.block_weight(0) - context.block_weights.perfectly_balanced(0);
     const auto weight1 = p_graph.block_weight(1) - context.block_weights.perfectly_balanced(1);
@@ -160,7 +161,7 @@ struct MaxWeightSelectionPolicy {
 //! Always select the node with the highest gain / lowest loss.
 struct MaxGainSelectionPolicy {
   std::size_t operator()(
-      const PartitionedGraph &p_graph,
+      const PartitionedCSRGraph &p_graph,
       const PartitionContext &context,
       const Queues &queues,
       Random &rand
@@ -178,7 +179,7 @@ struct MaxGainSelectionPolicy {
 
 struct MaxOverloadSelectionPolicy {
   std::size_t operator()(
-      const PartitionedGraph &p_graph,
+      const PartitionedCSRGraph &p_graph,
       const PartitionContext &context,
       const Queues &queues,
       Random &rand
@@ -198,7 +199,7 @@ struct MaxOverloadSelectionPolicy {
 //! cut is not balanced.
 struct BalancedMinCutAcceptancePolicy {
   bool operator()(
-      const PartitionedGraph &,
+      const PartitionedCSRGraph &,
       const PartitionContext &,
       const EdgeWeight accepted_overload,
       const EdgeWeight current_overload,
@@ -236,7 +237,7 @@ public:
   )
       : _p_ctx(p_ctx),
         _r_ctx(r_ctx),
-        _queues(std::move(m_ctx.queues)), //
+        _queues(std::move(m_ctx.queues)),
         _marker(std::move(m_ctx.marker)),
         _weighted_degrees(std::move(m_ctx.weighted_degrees)) {
     KASSERT(
@@ -258,7 +259,7 @@ public:
     }
   }
 
-  void initialize(const Graph &graph) final {
+  void initialize(const CSRGraph &graph) final {
     KASSERT(_queues[0].capacity() >= graph.n());
     KASSERT(_queues[1].capacity() >= graph.n());
     KASSERT(_marker.capacity() >= graph.n());
@@ -270,7 +271,7 @@ public:
     init_weighted_degrees();
   }
 
-  bool refine(PartitionedGraph &p_graph, const PartitionContext &) final {
+  bool refine(PartitionedCSRGraph &p_graph, const PartitionContext &) final {
     KASSERT(&p_graph.graph() == _graph, "must be initialized with the same graph", assert::light);
     KASSERT(
         p_graph.k() == 2u,
@@ -318,7 +319,7 @@ private:
    * @param p_graph Partition of #_graph.
    * @return Whether we were able to improve the cut.
    */
-  EdgeWeight round(PartitionedGraph &p_graph) {
+  EdgeWeight round(PartitionedCSRGraph &p_graph) {
     KASSERT(p_graph.k() == 2u, "2-way FM with " << p_graph.k() << "-way partition", assert::light);
     DBG << "Initial refiner initialized with n=" << p_graph.n() << " m=" << p_graph.m();
 
@@ -435,7 +436,7 @@ private:
     return accepted_delta;
   }
 
-  void init_pq(const PartitionedGraph &p_graph) {
+  void init_pq(const PartitionedCSRGraph &p_graph) {
     KASSERT(_queues[0].empty());
     KASSERT(_queues[1].empty());
 
@@ -463,7 +464,7 @@ private:
 #endif
   }
 
-  void insert_node(const PartitionedGraph &p_graph, const NodeID u) {
+  void insert_node(const PartitionedCSRGraph &p_graph, const NodeID u) {
     const EdgeWeight gain = compute_gain_from_scratch(p_graph, u);
     const BlockID u_block = p_graph.block(u);
     if (_weighted_degrees[u] != gain) {
@@ -471,7 +472,7 @@ private:
     }
   }
 
-  EdgeWeight compute_gain_from_scratch(const PartitionedGraph &p_graph, const NodeID u) {
+  EdgeWeight compute_gain_from_scratch(const PartitionedCSRGraph &p_graph, const NodeID u) {
     const BlockID u_block = p_graph.block(u);
     EdgeWeight weighted_external_degree = 0;
     for (const auto [e, v] : p_graph.neighbors(u)) {
@@ -491,7 +492,7 @@ private:
     }
   }
 
-  bool is_boundary_node(const PartitionedGraph &p_graph, const NodeID u) {
+  bool is_boundary_node(const PartitionedCSRGraph &p_graph, const NodeID u) {
     for (const NodeID v : p_graph.adjacent_nodes(u)) {
       if (p_graph.block(u) != p_graph.block(v)) {
         return true;
@@ -500,7 +501,7 @@ private:
     return false;
   }
 
-  void validate_pqs(const PartitionedGraph &p_graph) {
+  void validate_pqs(const PartitionedCSRGraph &p_graph) {
     for (const NodeID u : p_graph.nodes()) {
       if (is_boundary_node(p_graph, u)) {
         if (_marker.get(u)) {
@@ -518,8 +519,7 @@ private:
     }
   }
 
-  const Graph *_graph; //! Graph for refinement, partition to refine is passed
-                       //! to #refine().
+  const CSRGraph *_graph;
   const PartitionContext &_p_ctx;
   const InitialRefinementContext &_r_ctx;
   Queues _queues{BinaryMinHeap<EdgeWeight>{0}, BinaryMinHeap<EdgeWeight>{0}};
@@ -528,7 +528,7 @@ private:
   QueueSelectionPolicy _queue_selection_policy{};
   CutAcceptancePolicy _cut_acceptance_policy{};
   StoppingPolicy _stopping_policy{};
-  Random &_rand{Random::instance()};
+  Random &_rand = Random::instance();
   RandomPermutations<NodeID, kChunkSize, kNumberOfNodePermutations> _permutations;
 };
 
@@ -551,7 +551,7 @@ using InitialAdaptive2WayFM = InitialTwoWayFMRefiner<
     fm::AdaptiveStoppingPolicy>;
 
 inline std::unique_ptr<InitialRefiner> create_initial_refiner(
-    const Graph &graph,
+    const CSRGraph &graph,
     const PartitionContext &p_ctx,
     const InitialRefinementContext &r_ctx,
     InitialRefiner::MemoryContext m_ctx

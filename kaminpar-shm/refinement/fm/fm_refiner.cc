@@ -30,7 +30,7 @@
 namespace kaminpar::shm {
 namespace {
 SET_DEBUG(false);
-SET_STATISTICS(true);
+SET_STATISTICS_FROM_GLOBAL();
 } // namespace
 
 std::unique_ptr<Refiner> create_fm_refiner(const Context &ctx) {

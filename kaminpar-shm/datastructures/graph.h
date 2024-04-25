@@ -1,57 +1,59 @@
 /*******************************************************************************
- * Static graph with CSR representation.
+ * Wrapper class that delegates all function calls to a concrete graph object.
+ *
+ * Most function calls are resolved via dynamic binding. Thus, they should not
+ * be used when performance is critical. Instead, use an downcast and templatize
+ * tight loops.
  *
  * @file:   graph.h
  * @author: Daniel Seemaier
- * @date:   21.09.2021
+ * @date:   17.11.2023
  ******************************************************************************/
 #pragma once
 
 #include <utility>
-#include <vector>
 
 #include <tbb/blocked_range.h>
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_reduce.h>
 
+#include "kaminpar-shm/datastructures/abstract_graph.h"
+#include "kaminpar-shm/datastructures/compressed_graph.h"
+#include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
-#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/static_array.h"
-#include "kaminpar-common/degree_buckets.h"
 #include "kaminpar-common/ranges.h"
 
 namespace kaminpar::shm {
-class Graph {
+namespace graph {
+template <typename Lambda> decltype(auto) reified(const AbstractGraph *abstract_graph, Lambda &&l) {
+  if (const auto *graph = dynamic_cast<const CSRGraph *>(abstract_graph); graph != nullptr) {
+    return l(*graph);
+  } else if (auto *graph = dynamic_cast<const CompactCSRGraph *>(abstract_graph);
+             graph != nullptr) {
+    return l(*graph);
+  } else if (auto *graph = dynamic_cast<const CompressedGraph *>(abstract_graph);
+             graph != nullptr) {
+    return l(*graph);
+  }
+
+  __builtin_unreachable();
+}
+} // namespace graph
+
+class Graph : public AbstractGraph {
 public:
   // Data types used by this graph
-  using NodeID = ::kaminpar::shm::NodeID;
-  using NodeWeight = ::kaminpar::shm::NodeWeight;
-  using EdgeID = ::kaminpar::shm::EdgeID;
-  using EdgeWeight = ::kaminpar::shm::EdgeWeight;
-
-  // Tag for the sequential ctor.
-  struct seq {};
+  using AbstractGraph::EdgeID;
+  using AbstractGraph::EdgeWeight;
+  using AbstractGraph::NodeID;
+  using AbstractGraph::NodeWeight;
 
   Graph() = default;
 
-  Graph(
-      StaticArray<EdgeID> nodes,
-      StaticArray<NodeID> edges,
-      StaticArray<NodeWeight> node_weights = {},
-      StaticArray<EdgeWeight> edge_weights = {},
-      bool sorted = false
-  );
-
-  Graph(
-      seq,
-      StaticArray<EdgeID> nodes,
-      StaticArray<NodeID> edges,
-      StaticArray<NodeWeight> node_weights = {},
-      StaticArray<EdgeWeight> edge_weights = {},
-      bool sorted = false
-  );
+  Graph(std::unique_ptr<AbstractGraph> graph);
 
   Graph(const Graph &) = delete;
   Graph &operator=(const Graph &) = delete;
@@ -59,244 +61,179 @@ public:
   Graph(Graph &&) noexcept = default;
   Graph &operator=(Graph &&) noexcept = default;
 
-  //
-  // Access to raw data members
-  //
+  ~Graph() override = default;
 
-  [[nodiscard]] inline StaticArray<EdgeID> &raw_nodes() {
-    return _nodes;
+  // Access to the wrapped graph
+  [[nodiscard]] const AbstractGraph *underlying_graph() const {
+    return _underlying_graph.get();
   }
 
-  [[nodiscard]] inline const StaticArray<EdgeID> &raw_nodes() const {
-    return _nodes;
+  [[nodiscard]] AbstractGraph *underlying_graph() {
+    return _underlying_graph.get();
   }
 
-  [[nodiscard]] inline StaticArray<NodeID> &raw_edges() {
-    return _edges;
+  template <typename Lambda> decltype(auto) reified(Lambda &&l) const {
+    return graph::reified(underlying_graph(), std::forward<Lambda>(l));
   }
 
-  [[nodiscard]] inline const StaticArray<NodeID> &raw_edges() const {
-    return _edges;
+  // Size of the graph
+  [[nodiscard]] inline NodeID n() const final {
+    return _underlying_graph->n();
   }
 
-  [[nodiscard]] inline StaticArray<NodeWeight> &raw_node_weights() {
-    return _node_weights;
+  [[nodiscard]] inline EdgeID m() const final {
+    return _underlying_graph->m();
   }
 
-  [[nodiscard]] inline const StaticArray<NodeWeight> &raw_node_weights() const {
-    return _node_weights;
+  // Node and edge weights
+  [[nodiscard]] inline bool node_weighted() const final {
+    return _underlying_graph->node_weighted();
   }
 
-  [[nodiscard]] inline StaticArray<EdgeWeight> &raw_edge_weights() {
-    return _edge_weights;
+  [[nodiscard]] inline NodeWeight node_weight(const NodeID u) const final {
+    return _underlying_graph->node_weight(u);
   }
 
-  [[nodiscard]] inline const StaticArray<EdgeWeight> &raw_edge_weights() const {
-    return _edge_weights;
+  [[nodiscard]] inline NodeWeight max_node_weight() const final {
+    return _underlying_graph->max_node_weight();
   }
 
-  [[nodiscard]] inline StaticArray<EdgeID> &&take_raw_nodes() {
-    return std::move(_nodes);
+  [[nodiscard]] inline NodeWeight total_node_weight() const final {
+    return _underlying_graph->total_node_weight();
   }
 
-  [[nodiscard]] inline StaticArray<NodeID> &&take_raw_edges() {
-    return std::move(_edges);
+  [[nodiscard]] inline bool edge_weighted() const final {
+    return _underlying_graph->edge_weighted();
   }
 
-  [[nodiscard]] inline StaticArray<NodeWeight> &&take_raw_node_weights() {
-    return std::move(_node_weights);
+  [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const final {
+    return _underlying_graph->edge_weight(e);
   }
 
-  [[nodiscard]] inline StaticArray<EdgeWeight> &&take_raw_edge_weights() {
-    return std::move(_edge_weights);
+  [[nodiscard]] inline EdgeWeight total_edge_weight() const final {
+    return _underlying_graph->total_edge_weight();
   }
 
-  //
-  // Node weights
-  //
-
-  [[nodiscard]] inline bool node_weighted() const {
-    return static_cast<NodeWeight>(n()) != total_node_weight();
+  // Low-level access to the graph structure
+  [[nodiscard]] inline NodeID max_degree() const final {
+    return _underlying_graph->max_degree();
   }
 
-  [[nodiscard]] inline NodeWeight total_node_weight() const {
-    return _total_node_weight;
+  [[nodiscard]] inline NodeID degree(const NodeID u) const final {
+    return _underlying_graph->degree(u);
   }
 
-  [[nodiscard]] inline NodeWeight max_node_weight() const {
-    return _max_node_weight;
+  // Iterators for nodes / edges
+  [[nodiscard]] inline IotaRange<NodeID> nodes() const final {
+    return _underlying_graph->nodes();
   }
 
-  [[nodiscard]] inline NodeWeight node_weight(const NodeID u) const {
-    KASSERT(!node_weighted() || u < _node_weights.size());
-    return node_weighted() ? _node_weights[u] : 1;
+  [[nodiscard]] inline IotaRange<EdgeID> edges() const final {
+    return _underlying_graph->edges();
   }
 
-  //
-  // Edge weights
-  //
-
-  [[nodiscard]] inline bool edge_weighted() const {
-    return static_cast<EdgeWeight>(m()) != total_edge_weight();
-  }
-
-  [[nodiscard]] inline EdgeWeight total_edge_weight() const {
-    return _total_edge_weight;
-  }
-
-  [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const {
-    KASSERT(!edge_weighted() || e < _edge_weights.size());
-    return edge_weighted() ? _edge_weights[e] : 1;
-  }
-
-  //
-  // Graph properties
-  //
-
-  [[nodiscard]] inline NodeID n() const {
-    return static_cast<NodeID>(_nodes.size() - 1);
-  }
-
-  [[nodiscard]] inline EdgeID m() const {
-    return static_cast<EdgeID>(_edges.size());
-  }
-
-  //
-  // Low-level graph structure
-  //
-
-  [[nodiscard]] inline NodeID edge_target(const EdgeID e) const {
-    KASSERT(e < _edges.size());
-    return _edges[e];
-  }
-
-  [[nodiscard]] inline NodeID degree(const NodeID u) const {
-    KASSERT(u + 1 < _nodes.size());
-    return static_cast<NodeID>(_nodes[u + 1] - _nodes[u]);
-  }
-
-  [[nodiscard]] inline EdgeID first_edge(const NodeID u) const {
-    KASSERT(u + 1 < _nodes.size());
-    return _nodes[u];
-  }
-
-  [[nodiscard]] inline EdgeID first_invalid_edge(const NodeID u) const {
-    KASSERT(u + 1 < _nodes.size());
-    return _nodes[u + 1];
-  }
-
-  //
   // Parallel iteration
-  //
-
   template <typename Lambda> inline void pfor_nodes(Lambda &&l) const {
-    tbb::parallel_for(static_cast<NodeID>(0), n(), std::forward<Lambda>(l));
+    reified([&](auto &graph) { graph.pfor_nodes(std::forward<Lambda>(l)); });
   }
 
   template <typename Lambda> inline void pfor_edges(Lambda &&l) const {
-    tbb::parallel_for(static_cast<EdgeID>(0), m(), std::forward<Lambda>(l));
+    reified([&](auto &graph) { graph.pfor_edges(std::forward<Lambda>(l)); });
   }
 
-  //
-  // Sequential iteration
-  //
-
-  [[nodiscard]] inline IotaRange<NodeID> nodes() const {
-    return {static_cast<NodeID>(0), n()};
+  // Graph operations
+  [[nodiscard]] inline decltype(auto) incident_edges(const NodeID u) const {
+    return reified([&](auto &graph) { return graph.incident_edges(u); });
   }
 
-  [[nodiscard]] inline IotaRange<EdgeID> edges() const {
-    return {static_cast<EdgeID>(0), m()};
+  [[nodiscard]] inline decltype(auto) adjacent_nodes(const NodeID u) const {
+    if (const auto *graph = dynamic_cast<const CSRGraph *>(_underlying_graph.get());
+        graph != nullptr) {
+      return graph->adjacent_nodes(u);
+    }
+
+    throw std::runtime_error("This operation is only available for csr graphs.");
   }
 
-  [[nodiscard]] inline IotaRange<EdgeID> incident_edges(const NodeID u) const {
-    KASSERT(u + 1 < _nodes.size());
-    return {_nodes[u], _nodes[u + 1]};
+  template <typename Lambda> inline void adjacent_nodes(const NodeID u, Lambda &&l) const {
+    reified([&](auto &graph) { graph.adjacent_nodes(u, std::forward<Lambda>(l)); });
   }
 
-  [[nodiscard]] inline auto adjacent_nodes(const NodeID u) const {
-    KASSERT(u + 1 < _nodes.size());
-    return TransformedIotaRange(_nodes[u], _nodes[u + 1], [this](const EdgeID e) {
-      return this->edge_target(e);
+  [[nodiscard]] inline decltype(auto) neighbors(const NodeID u) const {
+    if (const auto *graph = dynamic_cast<const CSRGraph *>(_underlying_graph.get());
+        graph != nullptr) {
+      return graph->neighbors(u);
+    }
+
+    throw std::runtime_error("This operation is only available for csr graphs.");
+  }
+
+  template <typename Lambda> inline void neighbors(const NodeID u, Lambda &&l) const {
+    reified([&](auto &graph) { graph.neighbors(u, std::forward<Lambda>(l)); });
+  }
+
+  template <typename Lambda>
+  inline void neighbors(const NodeID u, const NodeID max_neighbor_count, Lambda &&l) const {
+    reified([&](auto &graph) { graph.neighbors(u, max_neighbor_count, std::forward<Lambda>(l)); });
+  }
+
+  template <typename Lambda>
+  inline void pfor_neighbors(
+      const NodeID u, const NodeID max_neighbor_count, const NodeID grainsize, Lambda &&l
+  ) const {
+    reified([&](auto &graph) {
+      graph.pfor_neighbors(u, max_neighbor_count, grainsize, std::forward<Lambda>(l));
     });
   }
 
-  [[nodiscard]] inline auto neighbors(const NodeID u) const {
-    KASSERT(u + 1 < _nodes.size());
-    return TransformedIotaRange(_nodes[u], _nodes[u + 1], [this](const EdgeID e) {
-      return std::make_pair(e, this->edge_target(e));
-    });
-  }
-
-  //
   // Graph permutation
-  //
-
-  inline void set_permutation(StaticArray<NodeID> permutation) {
-    _permutation = std::move(permutation);
+  inline void set_permutation(StaticArray<NodeID> permutation) final {
+    _underlying_graph->set_permutation(std::move(permutation));
   }
 
-  [[nodiscard]] inline bool permuted() const {
-    return !_permutation.empty();
+  [[nodiscard]] inline bool permuted() const final {
+    return _underlying_graph->permuted();
   }
 
-  [[nodiscard]] inline NodeID map_original_node(const NodeID u) const {
-    KASSERT(u < _permutation.size());
-    return _permutation[u];
+  [[nodiscard]] inline NodeID map_original_node(const NodeID u) const final {
+    return _underlying_graph->map_original_node(u);
   }
 
-  inline StaticArray<NodeID> &&take_raw_permutation() {
-    return std::move(_permutation);
+  [[nodiscard]] inline StaticArray<NodeID> &&take_raw_permutation() final {
+    return _underlying_graph->take_raw_permutation();
   }
 
-  //
   // Degree buckets
-  //
-
-  [[nodiscard]] inline NodeID bucket_size(const std::size_t bucket) const {
-    KASSERT(bucket + 1 < _buckets.size());
-    return _buckets[bucket + 1] - _buckets[bucket];
+  [[nodiscard]] inline std::size_t bucket_size(const std::size_t bucket) const final {
+    return _underlying_graph->bucket_size(bucket);
   }
 
-  [[nodiscard]] inline NodeID first_node_in_bucket(const std::size_t bucket) const {
-    return _buckets[bucket];
+  [[nodiscard]] inline NodeID first_node_in_bucket(const std::size_t bucket) const final {
+    return _underlying_graph->first_node_in_bucket(bucket);
   }
 
-  [[nodiscard]] inline NodeID first_invalid_node_in_bucket(const std::size_t bucket) const {
-    return first_node_in_bucket(bucket + 1);
+  [[nodiscard]] inline NodeID first_invalid_node_in_bucket(const std::size_t bucket) const final {
+    return _underlying_graph->first_invalid_node_in_bucket(bucket);
   }
 
-  [[nodiscard]] inline std::size_t number_of_buckets() const {
-    return _number_of_buckets;
+  [[nodiscard]] inline std::size_t number_of_buckets() const final {
+    return _underlying_graph->number_of_buckets();
   }
 
-  [[nodiscard]] inline bool sorted() const {
-    return _sorted;
+  [[nodiscard]] inline bool sorted() const final {
+    return _underlying_graph->sorted();
   }
 
-  void update_total_node_weight();
+  inline void update_total_node_weight() final {
+    _underlying_graph->update_total_node_weight();
+  }
 
 private:
-  void init_degree_buckets();
-
-  StaticArray<EdgeID> _nodes;
-  StaticArray<NodeID> _edges;
-  StaticArray<NodeWeight> _node_weights;
-  StaticArray<EdgeWeight> _edge_weights;
-
-  NodeWeight _total_node_weight = kInvalidNodeWeight;
-  EdgeWeight _total_edge_weight = kInvalidEdgeWeight;
-  NodeWeight _max_node_weight = kInvalidNodeWeight;
-
-  StaticArray<NodeID> _permutation;
-  bool _sorted;
-  std::vector<NodeID> _buckets = std::vector<NodeID>(kNumberOfDegreeBuckets<NodeID> + 1);
-  std::size_t _number_of_buckets = 0;
+  std::unique_ptr<AbstractGraph> _underlying_graph;
 };
 
 namespace debug {
-bool validate_graph(const Graph &graph, bool undirected = true, NodeID num_pseudo_nodes = 0);
 void print_graph(const Graph &graph);
-Graph sort_neighbors(Graph graph);
 } // namespace debug
+
 } // namespace kaminpar::shm

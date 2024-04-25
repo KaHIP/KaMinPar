@@ -23,6 +23,7 @@ enum class OutputLevel : std::uint8_t {
   PROGRESS,    //! Continuously output progress information while partitioning.
   APPLICATION, //! Also output the application banner and context summary.
   EXPERIMENT,  //! Also output information only relevant for benchmarking.
+  DEBUG,       //! Also output (a sane amount) of debug information.
 };
 } // namespace kaminpar
 
@@ -61,18 +62,30 @@ constexpr NodeWeight kInvalidNodeWeight = std::numeric_limits<NodeWeight>::max()
 constexpr EdgeWeight kInvalidEdgeWeight = std::numeric_limits<EdgeWeight>::max();
 constexpr BlockWeight kInvalidBlockWeight = std::numeric_limits<BlockWeight>::max();
 
-enum class GraphOrdering {
+enum class NodeOrdering {
   NATURAL,
   DEGREE_BUCKETS,
+  IMPLICIT_DEGREE_BUCKETS
+};
+
+enum class EdgeOrdering {
+  NATURAL,
+  COMPRESSION
 };
 
 //
 // Coarsening
 //
 
+enum class CoarseningAlgorithm {
+  NOOP,
+  CLUSTERING,
+};
+
 enum class ClusteringAlgorithm {
   NOOP,
   LABEL_PROPAGATION,
+  LEGACY_LABEL_PROPAGATION,
 };
 
 enum class ClusterWeightLimit {
@@ -80,6 +93,17 @@ enum class ClusterWeightLimit {
   BLOCK_WEIGHT,
   ONE,
   ZERO,
+};
+
+enum class SecondPhaseSelectMode {
+  HIGH_DEGREE,
+  FULL_RATING_MAP
+};
+
+enum class SecondPhaseAggregationMode {
+  NONE,
+  DIRECT,
+  BUFFERED
 };
 
 enum class TwoHopStrategy {
@@ -99,10 +123,24 @@ enum class IsolatedNodesClusteringStrategy {
   CLUSTER_DURING_TWO_HOP,
 };
 
+enum class ContractionMode {
+  BUFFERED,
+  BUFFERED_LEGACY,
+  UNBUFFERED,
+  UNBUFFERED_NAIVE,
+};
+
 struct LabelPropagationCoarseningContext {
   int num_iterations;
   NodeID large_degree_threshold;
   NodeID max_num_neighbors;
+
+  bool use_two_level_cluster_weight_vector;
+
+  bool use_two_phases;
+  SecondPhaseSelectMode second_phase_select_mode;
+  SecondPhaseAggregationMode second_phase_aggregation_mode;
+  bool relabel_before_second_phase;
 
   TwoHopStrategy two_hop_strategy;
   double two_hop_threshold;
@@ -110,19 +148,31 @@ struct LabelPropagationCoarseningContext {
   IsolatedNodesClusteringStrategy isolated_nodes_strategy;
 };
 
-struct CoarseningContext {
+struct ContractionCoarseningContext {
+  ContractionMode mode;
+  double edge_buffer_fill_fraction;
+  bool use_compact_mapping;
+};
+
+struct ClusterCoarseningContext {
   ClusteringAlgorithm algorithm;
   LabelPropagationCoarseningContext lp;
-  NodeID contraction_limit;
-  bool enforce_contraction_limit;
-  double convergence_threshold;
+
   ClusterWeightLimit cluster_weight_limit;
   double cluster_weight_multiplier;
 
-  [[nodiscard]] inline bool
-  coarsening_should_converge(const NodeID old_n, const NodeID new_n) const {
-    return (1.0 - 1.0 * new_n / old_n) <= convergence_threshold;
-  }
+  int max_mem_free_coarsening_level;
+};
+
+struct CoarseningContext {
+  CoarseningAlgorithm algorithm;
+
+  ClusterCoarseningContext clustering;
+  ContractionCoarseningContext contraction;
+
+  NodeID contraction_limit;
+
+  double convergence_threshold;
 };
 
 //
@@ -131,6 +181,7 @@ struct CoarseningContext {
 
 enum class RefinementAlgorithm {
   LABEL_PROPAGATION,
+  LEGACY_LABEL_PROPAGATION,
   KWAY_FM,
   GREEDY_BALANCER,
   JET,
@@ -155,6 +206,10 @@ struct LabelPropagationRefinementContext {
   std::size_t num_iterations;
   NodeID large_degree_threshold;
   NodeID max_num_neighbors;
+
+  bool use_two_phases;
+  SecondPhaseSelectMode second_phase_select_mode;
+  SecondPhaseAggregationMode second_phase_aggregation_mode;
 };
 
 struct KwayFMRefinementContext {
@@ -249,6 +304,7 @@ struct InitialPartitioningContext {
 // Application level
 //
 
+class AbstractGraph;
 class Graph;
 struct PartitionContext;
 
@@ -256,14 +312,14 @@ struct BlockWeightsContext {
   void setup(const PartitionContext &ctx);
   void setup(const PartitionContext &ctx, BlockID input_k);
 
-  [[nodiscard]] BlockWeight max(BlockID b) const { 
-      return _max_block_weights[b]; 
+  [[nodiscard]] BlockWeight max(BlockID b) const {
+    return _max_block_weights[b];
   }
 
   [[nodiscard]] const std::vector<BlockWeight> &all_max() const;
 
   [[nodiscard]] BlockWeight perfectly_balanced(BlockID b) const {
-      return _perfectly_balanced_block_weights[b];
+    return _perfectly_balanced_block_weights[b];
   }
 
   [[nodiscard]] const std::vector<BlockWeight> &all_perfectly_balanced() const;
@@ -286,7 +342,7 @@ struct PartitionContext {
   EdgeWeight total_edge_weight = kInvalidEdgeWeight;
   NodeWeight max_node_weight = kInvalidNodeWeight;
 
-  void setup(const Graph &graph);
+  void setup(const AbstractGraph &graph);
 };
 
 struct ParallelContext {
@@ -318,10 +374,36 @@ struct PartitioningContext {
 
   InitialPartitioningMode deep_initial_partitioning_mode;
   double deep_initial_partitioning_load;
+  int min_consecutive_seq_bipartitioning_levels;
+};
+
+struct GraphCompressionContext {
+  bool enabled;
+  bool may_dismiss;
+
+  bool high_degree_encoding;
+  NodeID high_degree_threshold;
+  NodeID high_degree_part_length;
+  bool interval_encoding;
+  NodeID interval_length_treshold;
+  bool run_length_encoding;
+  bool stream_encoding;
+  bool isolated_nodes_separation;
+
+  bool dismissed;
+  double compression_ratio;
+  std::int64_t size_reduction;
+  std::size_t high_degree_count;
+  std::size_t part_count;
+  std::size_t interval_count;
+
+  void setup(const Graph &graph);
 };
 
 struct Context {
-  GraphOrdering rearrange_by;
+  GraphCompressionContext compression;
+  NodeOrdering node_ordering;
+  EdgeOrdering edge_ordering;
 
   PartitioningContext partitioning;
   PartitionContext partition;
@@ -342,8 +424,9 @@ struct Context {
 namespace kaminpar::shm {
 std::unordered_set<std::string> get_preset_names();
 Context create_context_by_preset_name(const std::string &name);
-Context create_fast_context();
 Context create_default_context();
+Context create_memory_context();
+Context create_fast_context();
 Context create_largek_context();
 Context create_strong_context();
 Context create_jet_context();
@@ -440,6 +523,13 @@ public:
       shm::NodeWeight *const vwgt,
       shm::EdgeWeight *const adjwgt
   );
+
+  /*!
+   * Sets the graph to be partitioned.
+   *
+   * @param graph The graph to be partitioned.
+   */
+  void set_graph(shm::Graph graph);
 
   /*!
    * Partitions the graph set by `take_graph()` or `copy_graph()` into `k` blocks.

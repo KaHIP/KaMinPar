@@ -9,11 +9,13 @@
 
 #include <tbb/enumerable_thread_specific.h>
 
+#include "kaminpar-shm/coarsening/coarsener.h"
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/graphutils/subgraph_extractor.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/partitioning/helper.h"
 #include "kaminpar-shm/partitioning/partitioner.h"
+#include "kaminpar-shm/refinement/refiner.h"
 
 namespace kaminpar::shm {
 class DeepMultilevelPartitioner : public Partitioner {

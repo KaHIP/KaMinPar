@@ -14,14 +14,22 @@
 
 #include "kaminpar-common/assert.h"
 
+#include "kaminpar-common/heap_profiler.h"
+
 namespace kaminpar {
 template <std::size_t num_concurrent_markers = 1, typename element_type = std::size_t>
 class Marker {
 public:
+  explicit Marker() : _marker_id(0), _first_unmarked_element{0} {
+    RECORD_DATA_STRUCT(0, _struct);
+  }
+
   explicit Marker(const std::size_t capacity)
       : _data(capacity),
         _marker_id(0),
-        _first_unmarked_element{0} {}
+        _first_unmarked_element{0} {
+    RECORD_DATA_STRUCT(capacity * sizeof(element_type), _struct);
+  }
 
   Marker(const Marker &) = delete;
   Marker &operator=(const Marker &) = delete;
@@ -79,6 +87,7 @@ public:
   }
 
   void resize(const std::size_t capacity) {
+    IF_HEAP_PROFILING(_struct->size = std::max(_struct->size, capacity * sizeof(element_type)));
     _data.resize(capacity);
   }
 
@@ -90,5 +99,7 @@ private:
   std::vector<element_type> _data;
   element_type _marker_id;
   std::array<std::size_t, num_concurrent_markers> _first_unmarked_element;
+
+  IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };
 } // namespace kaminpar

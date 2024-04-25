@@ -11,16 +11,22 @@
 #include "kaminpar-cli/CLI11.h"
 // clang-format on
 
-#include "kaminpar-shm/context.h"
+#include <kaminpar-shm/kaminpar.h>
 
 namespace kaminpar::shm {
 void create_all_options(CLI::App *app, Context &ctx);
 
+CLI::Option_group *create_graph_compression_options(CLI::App *app, Context &ctx);
+
 CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx);
+
+CLI::Option_group *create_partitioning_rearrangement_options(CLI::App *app, Context &ctx);
 
 CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx);
 
 CLI::Option_group *create_lp_coarsening_options(CLI::App *app, Context &ctx);
+
+CLI::Option_group *create_contraction_coarsening_options(CLI::App *app, Context &ctx);
 
 CLI::Option_group *create_initial_partitioning_options(CLI::App *app, Context &ctx);
 

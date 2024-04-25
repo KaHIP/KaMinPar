@@ -8,7 +8,13 @@
  ******************************************************************************/
 #include "kaminpar-shm/partitioning/deep/async_initial_partitioning.h"
 
+#include "kaminpar-shm/factories.h"
+
 namespace kaminpar::shm::partitioning {
+namespace {
+SET_DEBUG(true);
+}
+
 AsyncInitialPartitioner::AsyncInitialPartitioner(
     const Context &input_ctx,
     GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
@@ -27,7 +33,7 @@ AsyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCo
 PartitionedGraph AsyncInitialPartitioner::partition_recursive(
     const Coarsener *parent_coarsener, PartitionContext &p_ctx, const std::size_t num_threads
 ) {
-  const Graph *graph = parent_coarsener->coarsest_graph();
+  const Graph *graph = &parent_coarsener->current();
 
   // Base case: only one thread left <=> compute bipartition
   if (num_threads == 1) {
@@ -35,10 +41,13 @@ PartitionedGraph AsyncInitialPartitioner::partition_recursive(
   }
 
   // Otherwise, coarsen further and proceed recursively
-  auto coarsener = factory::create_coarsener(*graph, _input_ctx.coarsening);
-  const bool shrunk = helper::coarsen_once(coarsener.get(), graph, _input_ctx, p_ctx);
+  auto coarsener = factory::create_coarsener(_input_ctx);
+  coarsener->initialize(graph);
+
+  const bool shrunk = helper::coarsen_once(coarsener.get(), graph, p_ctx);
   PartitionedGraph p_graph = split_and_join(coarsener.get(), p_ctx, !shrunk, num_threads);
-  p_graph = helper::uncoarsen_once(coarsener.get(), std::move(p_graph), p_ctx, _input_ctx.partition);
+  p_graph =
+      helper::uncoarsen_once(coarsener.get(), std::move(p_graph), p_ctx, _input_ctx.partition);
 
   // The Context object is used to pre-allocate memory for the finest graph of the input hierarchy
   // Since this refiner is never used for the finest graph, we need to adjust the context to
@@ -52,7 +61,7 @@ PartitionedGraph AsyncInitialPartitioner::partition_recursive(
   const BlockID k_prime = helper::compute_k_for_n(p_graph.n(), _input_ctx);
   if (p_graph.k() < k_prime) {
     helper::extend_partition(
-        p_graph, k_prime, _input_ctx, p_ctx, _ip_extraction_pool, _ip_m_ctx_pool
+        p_graph, k_prime, _input_ctx, p_ctx, _ip_extraction_pool, _ip_m_ctx_pool, num_threads
     );
   }
 
@@ -65,7 +74,7 @@ PartitionedGraph AsyncInitialPartitioner::split_and_join(
     const bool converged,
     const std::size_t num_threads
 ) {
-  const Graph *graph = coarsener->coarsest_graph();
+  const Graph *graph = &coarsener->current();
   const std::size_t num_copies =
       helper::compute_num_copies(_input_ctx, graph->n(), converged, num_threads);
   const std::size_t threads_per_copy = num_threads / num_copies;

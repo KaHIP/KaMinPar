@@ -1,9 +1,8 @@
 #include "tests/shm/graph_factories.h"
 #include "tests/shm/graph_helpers.h"
-#include "tests/shm/matchers.h"
-#include "tests/shm/test_helpers.h"
 
-#include "kaminpar-shm/graphutils/subgraph_extractor.h"
+#include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/datastructures/partitioned_graph.h"
 
 namespace kaminpar::shm::testing {
 class AWeightedGridGraph : public ::testing::Test {
@@ -11,53 +10,13 @@ public:
   // 0|1--- 1|2--- 2|4--- 3|8
   // |    / |    / |    / |
   // 4|16---5|32---6|64---7|128
-  AWeightedGridGraph()
-      : graph{create_graph(
-            {0, 2, 6, 10, 13, 16, 20, 24, 26},
-            {1, 4, 0, 4, 5, 2, 1, 5, 6, 3, 2, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3},
-            {1, 2, 4, 8, 16, 32, 64, 128},
-            {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
-        )} {}
-
-  Graph graph;
+  Graph graph = make_graph(
+      {0, 2, 6, 10, 13, 16, 20, 24, 26},
+      {1, 4, 0, 4, 5, 2, 1, 5, 6, 3, 2, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3},
+      {1, 2, 4, 8, 16, 32, 64, 128},
+      {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
+  );
 };
-
-//
-// Extracting block induced subgraphs from a partitioned graph
-//
-
-TEST_F(AWeightedGridGraph, ExtractingBlockInducedSubgraphsWorkHorizontally) {
-  PartitionedGraph p_graph{create_p_graph(graph, 2, {0, 0, 0, 0, 1, 1, 1, 1})};
-  graph::SubgraphMemory memory{p_graph};
-  const auto [subgraphs, node_mapping, positions] = extract_subgraphs(p_graph, 2, memory);
-  const auto &s_graph0 = subgraphs[0];
-  const auto &s_graph1 = subgraphs[1];
-
-  EXPECT_EQ(s_graph0.n(), 4);
-  EXPECT_EQ(s_graph0.m(), 6);
-  EXPECT_EQ(s_graph1.n(), 4);
-  EXPECT_EQ(s_graph1.m(), 6);
-
-  EXPECT_THAT(s_graph0, HasEdgeWithWeightedEndpoints(1, 2));
-  EXPECT_THAT(s_graph0, HasEdgeWithWeightedEndpoints(2, 4));
-  EXPECT_THAT(s_graph0, HasEdgeWithWeightedEndpoints(4, 8));
-  EXPECT_THAT(s_graph1, HasEdgeWithWeightedEndpoints(16, 32));
-  EXPECT_THAT(s_graph1, HasEdgeWithWeightedEndpoints(32, 64));
-  EXPECT_THAT(s_graph1, HasEdgeWithWeightedEndpoints(64, 128));
-}
-
-TEST_F(AWeightedGridGraph, ExtractingEmptyBlockInducedSubgraphWorks) {
-  PartitionedGraph p_graph{create_p_graph(graph, 2, {0, 0, 0, 0, 0, 0, 0, 0})};
-  graph::SubgraphMemory memory{p_graph};
-  const auto [subgraphs, node_mapping, positions] = extract_subgraphs(p_graph, 2, memory);
-  const auto &s_graph0 = subgraphs[0];
-  const auto &s_graph1 = subgraphs[1];
-
-  EXPECT_EQ(s_graph0.n(), graph.n());
-  EXPECT_EQ(s_graph0.m(), graph.m());
-  EXPECT_EQ(s_graph1.n(), 0);
-  EXPECT_EQ(s_graph1.m(), 0);
-}
 
 //
 // Node and edge weights
@@ -76,13 +35,11 @@ TEST_F(AWeightedGridGraph, InitialEdgeWeightingWorks) {
 }
 
 TEST_F(AWeightedGridGraph, InitialTotalNodeWeightWorks) {
-  EXPECT_EQ(graph.total_node_weight(),
-            (1 << graph.n()) - 1); // graph has node weights 1, 2, 4, ...
+  EXPECT_EQ(graph.total_node_weight(), (1 << graph.n()) - 1);
 }
 
 TEST_F(AWeightedGridGraph, InitialTotalEdgeWeightWorks) {
-  EXPECT_EQ(graph.total_edge_weight(),
-            graph.m()); // graph has edge weights 1, 1, 1, ...
+  EXPECT_EQ(graph.total_edge_weight(), graph.m());
 }
 
 //
@@ -97,13 +54,13 @@ TEST_F(AWeightedGridGraph, DegreeWorks) {
 }
 
 TEST(GraphTest, DegreeWorksForLeaves) {
-  const Graph graph{create_graph({0, 1, 2}, {1, 0})};
+  const Graph graph = make_graph({0, 1, 2}, {1, 0});
   EXPECT_EQ(graph.degree(0), 1);
   EXPECT_EQ(graph.degree(1), 1);
 }
 
 TEST(GraphTest, DegreeWorksForGraphWithIsolatedNodes) {
-  const Graph graph{create_graph({0, 1, 1, 1, 2}, {3, 0})};
+  const Graph graph = make_graph({0, 1, 1, 1, 2}, {3, 0});
   EXPECT_EQ(graph.degree(0), 1);
   EXPECT_EQ(graph.degree(1), 0);
   EXPECT_EQ(graph.degree(2), 0);
@@ -115,7 +72,8 @@ TEST(GraphTest, DegreeWorksForGraphWithIsolatedNodes) {
 //
 
 TEST_F(AWeightedGridGraph, InitialBlockWeightsAreCorrect) {
-  PartitionedGraph p_graph{create_p_graph(graph, 4, {0, 0, 1, 1, 2, 2, 3, 3})};
+  PartitionedGraph p_graph = make_p_graph(graph, 4, {0, 0, 1, 1, 2, 2, 3, 3});
+
   EXPECT_EQ(p_graph.block_weight(0), 3);
   EXPECT_EQ(p_graph.block_weight(1), 12);
   EXPECT_EQ(p_graph.block_weight(2), 48);
@@ -123,7 +81,8 @@ TEST_F(AWeightedGridGraph, InitialBlockWeightsAreCorrect) {
 }
 
 TEST_F(AWeightedGridGraph, BlockWeightsAreUpdatedOnNodeMove) {
-  PartitionedGraph p_graph{create_p_graph(graph, 4, {0, 0, 1, 1, 2, 2, 3, 3})};
+  PartitionedGraph p_graph = make_p_graph(graph, 4, {0, 0, 1, 1, 2, 2, 3, 3});
+
   p_graph.set_block(0, 1);
   EXPECT_EQ(p_graph.block_weight(0), 2);
   EXPECT_EQ(p_graph.block_weight(1), 13);
@@ -134,22 +93,25 @@ TEST_F(AWeightedGridGraph, BlockWeightsAreUpdatedOnNodeMove) {
 //
 
 TEST(GraphTest, PartitionedGraphReturnsCorrectNumberOfBlocks) {
-  Graph graph{create_graph({0}, {})};
-  const PartitionedGraph p_graph{create_p_graph(&graph, 4)};
+  const Graph graph = make_graph({0}, {});
+  const PartitionedGraph p_graph = make_p_graph(graph, 4);
+
   EXPECT_EQ(p_graph.k(), 4);
 }
 
 TEST(GraphTest, InitialBlocksAreCorrect) {
-  Graph graph{create_graph({0, 0, 0, 0, 0}, {})};
-  const PartitionedGraph p_graph{create_p_graph(&graph, 4, {0, 1, 2, 3})};
+  const Graph graph = make_graph({0, 0, 0, 0, 0}, {});
+  const PartitionedGraph p_graph = make_p_graph(graph, 4, {0, 1, 2, 3});
+
   for (const NodeID u : {0, 1, 2, 3}) {
     EXPECT_EQ(p_graph.block(u), u);
   }
 }
 
 TEST(GraphTest, ChangingBlocksWorks) {
-  Graph graph{create_graph({0, 0, 0, 0, 0}, {})};
-  PartitionedGraph p_graph{create_p_graph(&graph, 4, {0, 1, 2, 3})};
+  const Graph graph = make_graph({0, 0, 0, 0, 0}, {});
+  PartitionedGraph p_graph = make_p_graph(graph, 4, {0, 1, 2, 3});
+
   p_graph.set_block(0, 1);
   EXPECT_EQ(p_graph.block(0), 1);
 }
@@ -159,17 +121,19 @@ TEST(GraphTest, ChangingBlocksWorks) {
 //
 
 TEST(GraphTest, IfBucketsAreDisabledNodesAreInFirstBucket) {
-  Graph graph{graphs::grid(4, 4)};
+  const Graph graph = make_grid_graph(4, 4);
+
   EXPECT_EQ(16, graph.bucket_size(0));
-  for (std::size_t bucket = 1; bucket < graph.number_of_buckets(); ++bucket) {
+  for (int bucket = 1; bucket < graph.number_of_buckets(); ++bucket) {
     EXPECT_EQ(0, graph.bucket_size(bucket));
   }
 }
 
 TEST(GraphTest, PutsIsolatedNodesInCorrectBucket) {
-  Graph graph{graphs::empty(10, true)};
+  Graph graph = make_empty_graph(10, true);
+
   EXPECT_EQ(10, graph.bucket_size(0));
-  for (std::size_t bucket = 1; bucket < graph.number_of_buckets(); ++bucket) {
+  for (int bucket = 1; bucket < graph.number_of_buckets(); ++bucket) {
     EXPECT_EQ(0, graph.bucket_size(bucket));
   }
   EXPECT_EQ(0, graph.first_node_in_bucket(0));
@@ -177,10 +141,11 @@ TEST(GraphTest, PutsIsolatedNodesInCorrectBucket) {
 }
 
 TEST(GraphTest, PutsMatchingInCorrectBucket) {
-  Graph graph{graphs::matching(10, true)};
+  Graph graph = make_matching_graph(10, true);
+
   EXPECT_EQ(0, graph.bucket_size(0));
   EXPECT_EQ(20, graph.bucket_size(1));
-  for (std::size_t bucket = 2; bucket < graph.number_of_buckets(); ++bucket) {
+  for (int bucket = 2; bucket < graph.number_of_buckets(); ++bucket) {
     EXPECT_EQ(0, graph.bucket_size(bucket));
   }
   EXPECT_EQ(0, graph.first_node_in_bucket(0));
@@ -197,7 +162,8 @@ TEST(GraphTest, PutsAxeInCorrectBuckets) {
    *     \ /
    *      x
    */
-  Graph graph{create_graph({0, 0, 1, 3, 5, 8, 12}, {5, 4, 5, 4, 5, 2, 3, 5, 1, 2, 3, 4}, true)};
+  Graph graph = make_graph({0, 0, 1, 3, 5, 8, 12}, {5, 4, 5, 4, 5, 2, 3, 5, 1, 2, 3, 4}, true);
+
   EXPECT_EQ(1, graph.bucket_size(0)); // deg 0
   EXPECT_EQ(1, graph.bucket_size(1)); // deg 1
   EXPECT_EQ(3, graph.bucket_size(2)); // deg 2, 3

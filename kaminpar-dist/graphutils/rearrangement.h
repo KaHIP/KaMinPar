@@ -7,10 +7,10 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
+#include "kaminpar-dist/dkaminpar.h"
 
-#include "kaminpar-common/datastructures/scalable_vector.h"
+#include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::dist::graph {
 DistributedGraph rearrange(DistributedGraph graph, const Context &ctx);

@@ -53,7 +53,7 @@ class ColoredLPRefiner : public GlobalRefiner {
   public:
     void initialize(ColorID num_colors);
     void record_gain(EdgeWeight gain, ColorID c);
-    void summarize_by_size(const NoinitVector<NodeID> &color_sizes, MPI_Comm comm) const;
+    void summarize_by_size(const NoinitVector<ColorID> &color_sizes, MPI_Comm comm) const;
 
   private:
     std::vector<EdgeWeight> _gain_per_color;

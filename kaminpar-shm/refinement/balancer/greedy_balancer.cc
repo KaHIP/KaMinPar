@@ -16,21 +16,30 @@ namespace kaminpar::shm {
 void GreedyBalancer::initialize(const PartitionedGraph &) {}
 
 bool GreedyBalancer::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
+  SCOPED_TIMER("Greedy Balancer");
+
   _p_graph = &p_graph;
   _p_ctx = &p_ctx;
-
-  KASSERT(_marker.capacity() >= _p_graph->n());
-
-  _marker.reset();
-  _stats.reset();
 
   const NodeWeight initial_overload = metrics::total_overload(*_p_graph, *_p_ctx);
   if (initial_overload == 0) {
     return true;
   }
 
-  const EdgeWeight initial_cut = IFDBG(metrics::edge_cut(*_p_graph));
+  // Lazy initialize the balancer
+  {
+    SCOPED_HEAP_PROFILER("Greedy Balancer Allocation");
+    SCOPED_TIMER("Greedy Balancer Allocation");
 
+    _marker.resize(_p_graph->n());
+    _pq.init(_p_graph->n(), _p_graph->k());
+    _pq_weight.resize(_p_graph->k());
+  }
+
+  _marker.reset();
+  _stats.reset();
+
+  const EdgeWeight initial_cut = IFDBG(metrics::edge_cut(*_p_graph));
   init_pq();
   const BlockWeight delta = perform_round();
   const NodeWeight new_overload = initial_overload - delta;
@@ -104,12 +113,12 @@ BlockWeight GreedyBalancer::perform_round() {
           overload_delta.local() += delta;
 
           // try to add neighbors of moved node to PQ
-          for (const NodeID v : _p_graph->adjacent_nodes(u)) {
+          _p_graph->adjacent_nodes(u, [&](const NodeID v) {
             if (!_marker.get(v) && _p_graph->block(v) == from) {
               add_to_pq(from, v);
             }
             _marker.set(v);
-          }
+          });
         } else {
           add_to_pq(from, u, u_weight, actual_relative_gain);
         }
@@ -245,7 +254,7 @@ GreedyBalancer::compute_gain(const NodeID u, const BlockID u_block) const {
   auto action = [&](auto &map) {
     // compute external degree to each adjacent block that can take u without
     // becoming overloaded
-    for (const auto [e, v] : _p_graph->neighbors(u)) {
+    _p_graph->neighbors(u, [&](const EdgeID e, const NodeID v) {
       const BlockID v_block = _p_graph->block(v);
       if (u_block != v_block &&
           _p_graph->block_weight(v_block) + u_weight <= _p_ctx->block_weights.max(v_block)) {
@@ -253,7 +262,7 @@ GreedyBalancer::compute_gain(const NodeID u, const BlockID u_block) const {
       } else if (u_block == v_block) {
         internal_degree += _p_graph->edge_weight(e);
       }
-    }
+    });
 
     // select neighbor that maximizes gain
     Random &rand = Random::instance();

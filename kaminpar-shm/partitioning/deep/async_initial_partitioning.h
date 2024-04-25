@@ -14,13 +14,11 @@
 #include <tbb/task_group.h>
 #include <tbb/task_scheduler_observer.h>
 
-#include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/partitioning/helper.h"
 
 namespace kaminpar::shm::partitioning {
 class AsyncInitialPartitioner {
-  static constexpr bool kDebug = false;
-
 public:
   AsyncInitialPartitioner(
       const Context &input_ctx,

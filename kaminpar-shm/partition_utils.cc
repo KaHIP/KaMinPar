@@ -8,8 +8,8 @@
 #include "kaminpar-shm/partition_utils.h"
 
 #include <array>
+#include <cmath>
 
-#include "kaminpar-shm/context.h"
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/math.h"
@@ -27,7 +27,10 @@ double compute_2way_adaptive_epsilon(
 }
 
 PartitionContext create_bipartition_context(
-    const Graph &subgraph, const BlockID k1, const BlockID k2, const PartitionContext &kway_p_ctx
+    const AbstractGraph &subgraph,
+    const BlockID k1,
+    const BlockID k2,
+    const PartitionContext &kway_p_ctx
 ) {
   PartitionContext twoway_p_ctx;
   twoway_p_ctx.k = 2;
@@ -45,10 +48,12 @@ BlockID compute_final_k(const BlockID block, const BlockID current_k, const Bloc
 
   // The level of the current block in the binary tree == log2(current_k)
   const BlockID level = math::floor_log2(current_k);
+
   // Within a level, each pair of labels l1, l2 satisfy |l1 - l2| <= 1, i.e., they differ by at most
   // one.
   // This is the smaller label of the level, i.e., the label is either base or base + 1.
   const BlockID base = input_k >> level;
+
   // This is the number of base + 1 labels of the level, all other have value base:
   const BlockID num_plus_one_blocks = input_k & ((1 << level) - 1);
 

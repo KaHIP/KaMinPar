@@ -10,8 +10,7 @@
 #include <functional>
 #include <utility>
 
-#include "kaminpar-shm/context.h"
-#include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/initial_partitioning/sequential_graph_hierarchy.h"
 #include "kaminpar-shm/kaminpar.h"
@@ -30,7 +29,7 @@ class InitialCoarsener {
   static constexpr auto kChunkSize = 256;
   static constexpr auto kNumberOfNodePermutations = 16;
 
-  using ContractionResult = std::pair<Graph, std::vector<NodeID>>;
+  using ContractionResult = std::pair<CSRGraph, std::vector<NodeID>>;
 
 public:
   struct Cluster {
@@ -62,10 +61,10 @@ public:
   };
 
   InitialCoarsener(
-      const Graph *graph, const InitialCoarseningContext &c_ctx, MemoryContext &&m_ctx
+      const CSRGraph *graph, const InitialCoarseningContext &c_ctx, MemoryContext &&m_ctx
   );
 
-  InitialCoarsener(const Graph *graph, const InitialCoarseningContext &c_ctx);
+  InitialCoarsener(const CSRGraph *graph, const InitialCoarseningContext &c_ctx);
 
   InitialCoarsener(const InitialCoarsener &) = delete;
   InitialCoarsener &operator=(const InitialCoarsener &) = delete;
@@ -81,13 +80,13 @@ public:
     return size() == 0;
   }
 
-  [[nodiscard]] inline const Graph *coarsest_graph() const {
+  [[nodiscard]] inline const CSRGraph *coarsest_graph() const {
     return &_hierarchy.coarsest_graph();
   }
 
-  const Graph *coarsen(const std::function<NodeWeight(NodeID)> &cb_max_cluster_weight);
+  const CSRGraph *coarsen(const std::function<NodeWeight(NodeID)> &cb_max_cluster_weight);
 
-  PartitionedGraph uncoarsen(PartitionedGraph &&c_p_graph);
+  PartitionedCSRGraph uncoarsen(PartitionedCSRGraph &&c_p_graph);
 
   MemoryContext free();
 
@@ -162,8 +161,8 @@ private:
     }
   }
 
-  const Graph *_input_graph;
-  const Graph *_current_graph;
+  const CSRGraph *_input_graph;
+  const CSRGraph *_current_graph;
   SequentialGraphHierarchy _hierarchy;
 
   const InitialCoarseningContext &_c_ctx;

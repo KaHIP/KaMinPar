@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Initial partitioner based on breath-first searches.
+ *
  * @file:   bfs_bipartitioner.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Initial partitioner based on breath-first searches.
  ******************************************************************************/
 #include "kaminpar-shm/initial_partitioning/bfs_bipartitioner.h"
 

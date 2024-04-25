@@ -17,6 +17,44 @@
 #include "kaminpar-common/assert.h"
 
 namespace kaminpar::math {
+
+/*!
+ * Divides two integers with ceil rounding.
+ *
+ * @param x The dividend which has to be non-zero.
+ * @param y The divisor.
+ * @return The ceiling of x divided by y.
+ */
+template <typename Int> constexpr std::size_t abs(Int value) {
+  if (value < 0) {
+    value *= -1;
+  }
+
+  return static_cast<std::size_t>(value);
+}
+
+/*!
+ * Returns the absolute difference between two (possibly unsigned) integers.
+ *
+ * @param x The first integer.
+ * @param y The second integer.
+ * @return The absolute difference of x and y.
+ */
+template <typename Int1, typename Int2> constexpr std::size_t abs_diff(const Int1 x, const Int2 y) {
+  return x > y ? x - y : y - x;
+}
+
+/*!
+ * Divides two integers with ceil rounding.
+ *
+ * @param x The dividend which has to be non-zero.
+ * @param y The divisor.
+ * @return The ceiling of x divided by y.
+ */
+template <typename Int1, typename Int2> constexpr Int1 div_ceil(const Int1 x, const Int2 y) {
+  return 1 + ((x - 1) / y);
+}
+
 template <typename Int> bool is_square(const Int value) {
   const Int sqrt = std::sqrt(value);
   return sqrt * sqrt == value;
@@ -58,6 +96,15 @@ template <typename T> T ceil2(const T arg) {
   return 1 << ceil_log2(arg);
 }
 
+template <typename Int> constexpr Int byte_width(const Int i) {
+  if (i == 0) {
+    return 1;
+  }
+
+  const Int bit_width = 1 + floor_log2(i);
+  return div_ceil<Int>(bit_width, 8);
+}
+
 template <typename E>
 double percentile(const std::vector<E> &sorted_sequence, const double percentile) {
   KASSERT([&] {
@@ -75,7 +122,8 @@ double percentile(const std::vector<E> &sorted_sequence, const double percentile
 
 template <typename T> auto split_integral(const T value, const double ratio = 0.5) {
   return std::pair{
-      static_cast<T>(std::ceil(value * ratio)), static_cast<T>(std::floor(value * (1.0 - ratio)))};
+      static_cast<T>(std::ceil(value * ratio)), static_cast<T>(std::floor(value * (1.0 - ratio)))
+  };
 }
 
 /**

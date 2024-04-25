@@ -21,11 +21,11 @@
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/graphutils/communication.h"
-#include "kaminpar-dist/metrics.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/parallel/algorithm.h"
+#include "kaminpar-common/parallel/atomic.h"
 #include "kaminpar-common/parallel/vector_ets.h"
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/timer.h"
@@ -382,8 +382,8 @@ NodeID ColoredLPRefiner::perform_best_moves(const ColorID c) {
   return num_local_moved_nodes;
 }
 
-auto ColoredLPRefiner::reduce_move_candidates(std::vector<MoveCandidate> &&candidates)
-    -> std::vector<MoveCandidate> {
+auto ColoredLPRefiner::reduce_move_candidates(std::vector<MoveCandidate> &&candidates
+) -> std::vector<MoveCandidate> {
   const int size = mpi::get_comm_size(_p_graph.communicator());
   const int rank = mpi::get_comm_rank(_p_graph.communicator());
   KASSERT(math::is_power_of_2(size), "#PE must be a power of two", assert::always);
@@ -891,7 +891,7 @@ void ColoredLPRefiner::GainStatistics::record_gain(const EdgeWeight gain, const 
 }
 
 void ColoredLPRefiner::GainStatistics::summarize_by_size(
-    const NoinitVector<NodeID> &color_sizes, MPI_Comm comm
+    const NoinitVector<ColorID> &color_sizes, MPI_Comm comm
 ) const {
   KASSERT(!_gain_per_color.empty(), "must call initialize() first");
   KASSERT(_gain_per_color.size() <= color_sizes.size());

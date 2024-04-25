@@ -3,12 +3,16 @@ function(add_shm_benchmark target)
     target_link_libraries(${target} PRIVATE 
         KaMinPar::KaMinPar 
         KaMinPar::KaMinParCLI11 
+        KaMinPar::KaMinParIO 
         KaGen::KaGen)
     message(STATUS "Enabled benchmark: ${target}")
 endfunction()
 
 # Shared-memory benchmarks
+add_shm_benchmark(shm_compressed_graph_benchmark shm_compressed_graph_benchmark.cc)
+add_shm_benchmark(shm_label_propagation_benchmark shm_label_propagation_benchmark.cc)
 add_shm_benchmark(shm_refinement_benchmark shm_refinement_benchmark.cc)
+add_shm_benchmark(shm_variable_length_codec_benchmark shm_variable_length_codec_benchmark.cc)
 add_shm_benchmark(shm_gain_cache_benchmark shm_gain_cache_benchmark.cc)
 
 if (KAMINPAR_BUILD_DISTRIBUTED)

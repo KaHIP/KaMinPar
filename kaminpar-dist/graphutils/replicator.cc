@@ -24,7 +24,6 @@
 #include "kaminpar-shm/metrics.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
-#include "kaminpar-common/parallel/atomic.h"
 
 namespace kaminpar::dist {
 SET_DEBUG(false);
@@ -188,7 +187,9 @@ shm::Graph replicate_graph_everywhere(const DistributedGraph &graph) {
     }
   });
 
-  return {std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights)};
+  return {std::make_unique<shm::CSRGraph>(
+      std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights)
+  )};
 }
 
 DistributedGraph replicate_graph(const DistributedGraph &graph, const int num_replications) {

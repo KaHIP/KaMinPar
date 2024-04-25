@@ -11,7 +11,7 @@
 
 #include <memory>
 
-#include "kaminpar-shm/factories.h"
+#include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/initial_partitioning/bfs_bipartitioner.h"
 #include "kaminpar-shm/initial_partitioning/bipartitioner.h"
 #include "kaminpar-shm/initial_partitioning/greedy_graph_growing_bipartitioner.h"
@@ -89,7 +89,7 @@ public:
   };
 
   PoolBipartitioner(
-      const Graph &graph,
+      const CSRGraph &graph,
       const PartitionContext &p_ctx,
       const InitialPartitioningContext &i_ctx,
       MemoryContext m_ctx = {}
@@ -140,7 +140,7 @@ public:
     _best_partition = StaticArray<BlockID>(_graph.n());
   }
 
-  PartitionedGraph bipartition() {
+  PartitionedCSRGraph bipartition() {
     KASSERT(_current_partition.size() >= _graph.n());
     KASSERT(_best_partition.size() >= _graph.n());
 
@@ -221,7 +221,7 @@ private:
   void run_bipartitioner(const std::size_t i) {
     DBG << "Running bipartitioner " << _bipartitioner_names[i] << " on graph with n=" << _graph.n()
         << " m=" << _graph.m();
-    PartitionedGraph p_graph = _bipartitioners[i]->bipartition(std::move(_current_partition));
+    PartitionedCSRGraph p_graph = _bipartitioners[i]->bipartition(std::move(_current_partition));
     DBG << " -> running refiner ...";
     _refiner->refine(p_graph, _p_ctx);
     DBG << " -> cut=" << metrics::edge_cut(p_graph) << " imbalance=" << metrics::imbalance(p_graph);
@@ -252,7 +252,7 @@ private:
     }
   }
 
-  const Graph &_graph;
+  const CSRGraph &_graph;
   const PartitionContext &_p_ctx;
   const InitialPartitioningContext &_i_ctx;
   std::size_t _min_num_repetitions;
@@ -262,11 +262,11 @@ private:
 
   MemoryContext _m_ctx{};
 
-  StaticArray<BlockID> _best_partition{_graph.n()};
-  EdgeWeight _best_cut{std::numeric_limits<EdgeWeight>::max()};
-  bool _best_feasible{false};
-  double _best_imbalance{0.0};
-  std::size_t _best_bipartitioner{0};
+  StaticArray<BlockID> _best_partition = _graph.n();
+  EdgeWeight _best_cut = std::numeric_limits<EdgeWeight>::max();
+  bool _best_feasible = false;
+  double _best_imbalance = 0.0;
+  std::size_t _best_bipartitioner = 0;
   StaticArray<BlockID> _current_partition{_graph.n()};
 
   std::vector<std::string> _bipartitioner_names{};
@@ -286,7 +286,7 @@ private:
 class PoolBipartitionerFactory {
 public:
   std::unique_ptr<PoolBipartitioner> create(
-      const Graph &graph,
+      const CSRGraph &graph,
       const PartitionContext &p_ctx,
       const InitialPartitioningContext &i_ctx,
       PoolBipartitioner::MemoryContext m_ctx = {}

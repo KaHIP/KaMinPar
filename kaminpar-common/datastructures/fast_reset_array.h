@@ -11,6 +11,8 @@
 #include <vector>
 
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/datastructures/scalable_vector.h"
+#include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/ranges.h"
 
 namespace kaminpar {
@@ -21,7 +23,9 @@ public:
   using const_reference = const Value &;
   using size_type = Size;
 
-  explicit FastResetArray(const std::size_t capacity = 0) : _data(capacity) {}
+  explicit FastResetArray(const std::size_t capacity = 0) : _data(capacity) {
+    RECORD_DATA_STRUCT(capacity * sizeof(value_type), _struct);
+  }
 
   FastResetArray(const FastResetArray &) = delete;
   FastResetArray &operator=(const FastResetArray &) = delete;
@@ -30,9 +34,18 @@ public:
 
   reference operator[](const size_type pos) {
     KASSERT(pos < _data.size());
+
     if (_data[pos] == Value()) {
       _used_entries.push_back(pos);
+
+      IF_HEAP_PROFILING(
+          _struct->size = std::max(
+              _struct->size,
+              _data.capacity() * sizeof(value_type) + _used_entries.capacity() * sizeof(size_type)
+          )
+      );
     }
+
     return _data[pos];
   }
   const_reference operator[](const size_type pos) const {
@@ -90,6 +103,13 @@ public:
   }
   void resize(const std::size_t capacity) {
     _data.resize(capacity);
+
+    IF_HEAP_PROFILING(
+        _struct->size = std::max(
+            _struct->size,
+            _data.capacity() * sizeof(value_type) + _used_entries.capacity() * sizeof(size_type)
+        )
+    );
   }
 
   [[nodiscard]] std::size_t memory_in_kb() const {
@@ -97,7 +117,9 @@ public:
   }
 
 private:
-  std::vector<value_type> _data;
+  scalable_vector<value_type> _data;
   std::vector<size_type> _used_entries{};
+
+  IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };
 } // namespace kaminpar

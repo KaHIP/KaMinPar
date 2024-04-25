@@ -272,7 +272,8 @@ Result contract_local_clustering(
       std::move(c_ghost_to_global),
       std::move(c_global_to_ghost),
       false,
-      graph.communicator()};
+      graph.communicator()
+  };
 
   return {std::move(c_graph), std::move(mapping), std::move(m_ctx)};
 }

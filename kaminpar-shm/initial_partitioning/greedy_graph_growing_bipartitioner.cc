@@ -6,7 +6,10 @@
  ******************************************************************************/
 #include "kaminpar-shm/initial_partitioning/greedy_graph_growing_bipartitioner.h"
 
+#include <algorithm>
+
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/random.h"
 
 namespace kaminpar::shm::ip {
 void GreedyGraphGrowingBipartitioner::bipartition_impl() {

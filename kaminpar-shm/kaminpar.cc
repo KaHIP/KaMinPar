@@ -15,6 +15,7 @@
 #include "kaminpar-shm/metrics.h"
 
 #include "kaminpar-common/console_io.h"
+#include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/timer.h"
@@ -53,6 +54,7 @@ void print_statistics(
   LOG << "Global Timers: disabled";
 #endif // KAMINPAR_ENABLE_TIMERS
   LOG;
+  PRINT_HEAP_PROFILE(std::cout);
   LOG << "Partition summary:";
   if (p_graph.k() != ctx.partition.k) {
     LOG << logger::RED << "  Number of blocks: " << p_graph.k();
@@ -102,35 +104,40 @@ void KaMinPar::take_graph(
 void KaMinPar::borrow_and_mutate_graph(
     const NodeID n, EdgeID *xadj, NodeID *adjncy, NodeWeight *vwgt, EdgeWeight *adjwgt
 ) {
+  SCOPED_HEAP_PROFILER("Borrow and mutate graph");
   SCOPED_TIMER("IO");
 
   const EdgeID m = xadj[n];
 
-  StaticArray<EdgeID> nodes(xadj, n + 1);
-  StaticArray<NodeID> edges(adjncy, m);
+  RECORD("nodes") StaticArray<EdgeID> nodes(xadj, n + 1);
+  RECORD("edges") StaticArray<NodeID> edges(adjncy, m);
+  RECORD("node_weights")
   StaticArray<NodeWeight> node_weights =
       (vwgt == nullptr) ? StaticArray<NodeWeight>(0) : StaticArray<NodeWeight>(vwgt, n);
+  RECORD("edge_weights")
   StaticArray<EdgeWeight> edge_weights =
       (adjwgt == nullptr) ? StaticArray<EdgeWeight>(0) : StaticArray<EdgeWeight>(adjwgt, m);
 
-  _graph_ptr = std::make_unique<Graph>(
+  _was_rearranged = false;
+  _graph_ptr = std::make_unique<Graph>(std::make_unique<CSRGraph>(
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), false
-  );
+  ));
 }
 
 void KaMinPar::copy_graph(
     const NodeID n, EdgeID *xadj, NodeID *adjncy, NodeWeight *vwgt, EdgeWeight *adjwgt
 ) {
+  SCOPED_HEAP_PROFILER("Copy graph");
   SCOPED_TIMER("IO");
 
   const EdgeID m = xadj[n];
   const bool has_node_weights = vwgt != nullptr;
   const bool has_edge_weights = adjwgt != nullptr;
 
-  StaticArray<EdgeID> nodes(n + 1);
-  StaticArray<NodeID> edges(m);
-  StaticArray<NodeWeight> node_weights(has_node_weights ? n : 0);
-  StaticArray<EdgeWeight> edge_weights(has_edge_weights ? m : 0);
+  RECORD("nodes") StaticArray<EdgeID> nodes(n + 1);
+  RECORD("edges") StaticArray<NodeID> edges(m);
+  RECORD("node_weights") StaticArray<NodeWeight> node_weights(has_node_weights ? n : 0);
+  RECORD("edge_weights") StaticArray<EdgeWeight> edge_weights(has_edge_weights ? m : 0);
 
   nodes[n] = xadj[n];
   tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
@@ -146,9 +153,15 @@ void KaMinPar::copy_graph(
     }
   });
 
-  _graph_ptr = std::make_unique<Graph>(
+  _was_rearranged = false;
+  _graph_ptr = std::make_unique<Graph>(std::make_unique<CSRGraph>(
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), false
-  );
+  ));
+}
+
+void KaMinPar::set_graph(Graph graph) {
+  _was_rearranged = false;
+  _graph_ptr = std::make_unique<Graph>(std::move(graph));
 }
 
 void KaMinPar::reseed(int seed) {
@@ -175,23 +188,56 @@ EdgeWeight KaMinPar::compute_partition(const BlockID k, BlockID *partition) {
     print(_ctx, std::cout);
   }
 
+  START_HEAP_PROFILER("Partitioning");
   START_TIMER("Partitioning");
-  if (_ctx.rearrange_by == GraphOrdering::DEGREE_BUCKETS && !_was_rearranged) {
-    _graph_ptr =
-        std::make_unique<Graph>(graph::rearrange_by_degree_buckets(_ctx, std::move(*_graph_ptr)));
+
+  if (!_was_rearranged) {
+    if (_ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
+      CSRGraph &csr_graph = *dynamic_cast<CSRGraph *>(_graph_ptr->underlying_graph());
+      _graph_ptr = std::make_unique<Graph>(graph::rearrange_by_degree_buckets(csr_graph));
+    }
+
+    if (_ctx.edge_ordering == EdgeOrdering::COMPRESSION && !_ctx.compression.enabled) {
+      CSRGraph &csr_graph = *dynamic_cast<CSRGraph *>(_graph_ptr->underlying_graph());
+      graph::reorder_edges_by_compression(csr_graph);
+    }
+
     _was_rearranged = true;
   }
 
+  // Cut off isolated nodes if the graph has been rearranged such that the isolated nodes are placed
+  // at the end.
+  if (_graph_ptr->sorted()) {
+    graph::remove_isolated_nodes(*_graph_ptr, _ctx.partition);
+  }
+
   // Perform actual partitioning
-  PartitionedGraph p_graph = factory::create_partitioner(*_graph_ptr, _ctx)->partition();
+  PartitionedGraph p_graph = [&] {
+    auto partitioner = factory::create_partitioner(*_graph_ptr, _ctx);
+    if (_output_level >= OutputLevel::DEBUG) {
+      partitioner->enable_metrics_output();
+    }
+    PartitionedGraph p_graph = partitioner->partition();
+
+    START_TIMER("Deallocation");
+    delete partitioner.release();
+    STOP_TIMER();
+
+    return p_graph;
+  }();
 
   // Re-integrate isolated nodes that were cut off during preprocessing
-  if (_graph_ptr->permuted()) {
+  if (_graph_ptr->sorted()) {
+    SCOPED_HEAP_PROFILER("Re-integrate isolated nodes");
+    SCOPED_TIMER("Re-integrate isolated nodes");
+
     const NodeID num_isolated_nodes =
         graph::integrate_isolated_nodes(*_graph_ptr, original_epsilon, _ctx);
     p_graph = graph::assign_isolated_nodes(std::move(p_graph), num_isolated_nodes, _ctx.partition);
   }
+
   STOP_TIMER();
+  STOP_HEAP_PROFILER();
 
   START_TIMER("IO");
   if (_graph_ptr->permuted()) {
@@ -208,7 +254,7 @@ EdgeWeight KaMinPar::compute_partition(const BlockID k, BlockID *partition) {
   // Print some statistics
   STOP_TIMER(); // stop root timer
   if (_output_level >= OutputLevel::APPLICATION) {
-    print_statistics(_ctx, p_graph, _max_timer_depth, _output_level == OutputLevel::EXPERIMENT);
+    print_statistics(_ctx, p_graph, _max_timer_depth, _output_level >= OutputLevel::EXPERIMENT);
   }
 
   const EdgeWeight final_cut = metrics::edge_cut(p_graph);

@@ -9,9 +9,8 @@
 #pragma once
 
 #include <utility>
-#include <vector>
 
-#include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/datastructures/csr_graph.h"
 
 #include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/datastructures/queue.h"
@@ -30,9 +29,10 @@ namespace kaminpar::shm::ip {
  * finding a pair of nodes with even larger distance.
  * @return Pair of nodes with large distance between them.
  */
-std::pair<NodeID, NodeID> find_far_away_nodes(const Graph &graph, std::size_t num_iterations = 1);
+std::pair<NodeID, NodeID>
+find_far_away_nodes(const CSRGraph &graph, std::size_t num_iterations = 1);
 
 std::pair<NodeID, NodeID> find_furthest_away_node(
-    const Graph &graph, NodeID start_node, Queue<NodeID> &queue, Marker<> &marker
+    const CSRGraph &graph, NodeID start_node, Queue<NodeID> &queue, Marker<> &marker
 );
 } // namespace kaminpar::shm::ip

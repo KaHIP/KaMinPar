@@ -9,11 +9,10 @@
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/logger.h"
-#include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::ip {
 InitialCoarsener::InitialCoarsener(
-    const Graph *graph, const InitialCoarseningContext &c_ctx, MemoryContext &&m_ctx
+    const CSRGraph *graph, const InitialCoarseningContext &c_ctx, MemoryContext &&m_ctx
 )
     : _input_graph(graph),
       _current_graph(graph),
@@ -45,10 +44,10 @@ InitialCoarsener::InitialCoarsener(
   }
 }
 
-InitialCoarsener::InitialCoarsener(const Graph *graph, const InitialCoarseningContext &c_ctx)
+InitialCoarsener::InitialCoarsener(const CSRGraph *graph, const InitialCoarseningContext &c_ctx)
     : InitialCoarsener(graph, c_ctx, MemoryContext{}) {}
 
-const Graph *
+const CSRGraph *
 InitialCoarsener::coarsen(const std::function<NodeWeight(NodeID)> &cb_max_cluster_weight) {
   const NodeWeight max_cluster_weight = cb_max_cluster_weight(_current_graph->n());
   if (!_precomputed_clustering) {
@@ -68,8 +67,8 @@ InitialCoarsener::coarsen(const std::function<NodeWeight(NodeID)> &cb_max_cluste
   return _current_graph;
 }
 
-PartitionedGraph InitialCoarsener::uncoarsen(PartitionedGraph &&c_p_graph) {
-  PartitionedGraph p_graph = _hierarchy.pop_and_project(std::move(c_p_graph));
+PartitionedCSRGraph InitialCoarsener::uncoarsen(PartitionedCSRGraph &&c_p_graph) {
+  PartitionedCSRGraph p_graph = _hierarchy.pop_and_project(std::move(c_p_graph));
   _current_graph = &_hierarchy.coarsest_graph();
   return p_graph;
 }
@@ -185,8 +184,8 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
   node_mapping.resize(_current_graph->n());
   c_nodes.resize(c_n + 1);
   c_node_weights.resize(c_n);
-  c_edges.resize(_current_graph->m(), StaticArray<NodeID>::no_init{});            // overestimate
-  c_edge_weights.resize(_current_graph->m(), StaticArray<EdgeWeight>::no_init{}); // overestimate
+  c_edges.resize(_current_graph->m(), static_array::noinit);        // overestimate
+  c_edge_weights.resize(_current_graph->m(), static_array::noinit); // overestimate
 
   std::fill(_cluster_sizes.begin(), _cluster_sizes.end(), 0);
   std::fill(_leader_node_mapping.begin(), _leader_node_mapping.end(), 0);
@@ -303,8 +302,8 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
     c_edge_weights.restrict(c_m);
   }
 
-  Graph coarse_graph(
-      Graph::seq{},
+  CSRGraph coarse_graph(
+      CSRGraph::seq{},
       std::move(c_nodes),
       std::move(c_edges),
       std::move(c_node_weights),

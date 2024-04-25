@@ -9,14 +9,13 @@
 
 #include <google/dense_hash_map>
 
+#include "kaminpar-mpi/sparse_alltoall.h"
+
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/growt.h"
+#include "kaminpar-dist/distributed_label_propagation.h"
 #include "kaminpar-dist/graphutils/communication.h"
-
-#include "kaminpar-shm/label_propagation.h"
-
-#include "kaminpar-common/datastructures/fast_reset_array.h"
-#include "kaminpar-common/math.h"
+#include "kaminpar-dist/timer.h"
 
 namespace kaminpar::dist {
 namespace {
@@ -49,8 +48,8 @@ struct UnorderedRatingMap {
 };
 
 struct GlobalLPClusteringConfig : public LabelPropagationConfig {
-  using Graph = DistributedGraph;
   using RatingMap = ::kaminpar::RatingMap<EdgeWeight, GlobalNodeID, UnorderedRatingMap>;
+
   using ClusterID = GlobalNodeID;
   using ClusterWeight = GlobalNodeWeight;
 
@@ -69,8 +68,6 @@ class GlobalLPClusteringImpl final
   using Base = ChunkRandomdLabelPropagation<GlobalLPClusteringImpl, GlobalLPClusteringConfig>;
   using ClusterBase = NonatomicOwnedClusterVector<NodeID, GlobalNodeID>;
   using WeightDeltaMap = growt::GlobalNodeIDMap<GlobalNodeWeight>;
-
-  struct Statistics {};
 
 public:
   explicit GlobalLPClusteringImpl(const Context &ctx)
@@ -547,9 +544,7 @@ private:
         from,
         to,
         [&](const NodeID lnode) { return _changed_label[lnode] != kInvalidGlobalNodeID; },
-        [&](const NodeID lnode) -> ChangedLabelMessage {
-          return {lnode, cluster(lnode)};
-        },
+        [&](const NodeID lnode) -> ChangedLabelMessage { return {lnode, cluster(lnode)}; },
         [&](const auto &buffer, const PEID owner) {
           tbb::parallel_for(tbb::blocked_range<std::size_t>(0, buffer.size()), [&](const auto &r) {
             auto &weight_delta_handle = _weight_delta_handles_ets.local();

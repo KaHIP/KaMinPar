@@ -10,11 +10,12 @@
 #include <cstddef>
 #include <utility>
 
-#include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
+#include "kaminpar-common/ranges.h"
+
 namespace kaminpar::shm {
-class GraphDelegate {
+template <class Graph> class GraphDelegate {
 public:
   GraphDelegate(const Graph *graph) : _graph(graph) {}
 
@@ -24,6 +25,10 @@ public:
 
   [[nodiscard]] inline const Graph &graph() const {
     return *_graph;
+  }
+
+  template <typename Lambda> decltype(auto) reified(Lambda &&l) const {
+    return _graph->reified(std::forward<Lambda>(l));
   }
 
   //
@@ -78,20 +83,8 @@ public:
   // Low-level graph structure
   //
 
-  [[nodiscard]] inline NodeID edge_target(const EdgeID e) const {
-    return _graph->edge_target(e);
-  }
-
   [[nodiscard]] inline NodeID degree(const NodeID u) const {
     return _graph->degree(u);
-  }
-
-  [[nodiscard]] inline EdgeID first_edge(const NodeID u) const {
-    return _graph->first_edge(u);
-  }
-
-  [[nodiscard]] inline EdgeID first_invalid_edge(const NodeID u) const {
-    return _graph->first_invalid_edge(u);
   }
 
   //
@@ -126,8 +119,21 @@ public:
     return _graph->adjacent_nodes(u);
   }
 
+  template <typename Lambda> inline auto adjacent_nodes(const NodeID u, Lambda &&l) const {
+    return _graph->adjacent_nodes(u, std::forward<Lambda>(l));
+  }
+
   [[nodiscard]] inline auto neighbors(const NodeID u) const {
     return _graph->neighbors(u);
+  }
+
+  template <typename Lambda> inline auto neighbors(const NodeID u, Lambda &&l) const {
+    return _graph->neighbors(u, std::numeric_limits<NodeID>::max(), std::forward<Lambda>(l));
+  }
+
+  template <typename Lambda>
+  inline auto neighbors(const NodeID u, const NodeID max_neighbor_count, Lambda &&l) const {
+    return _graph->neighbors(u, max_neighbor_count, std::forward<Lambda>(l));
   }
 
   //
