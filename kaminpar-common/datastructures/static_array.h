@@ -16,13 +16,9 @@
 
 #include <tbb/parallel_for.h>
 
-#ifdef KAMINPAR_ENABLE_HUGE_PAGES
-#include "stdlib.h"
-#include "sys/mman.h"
-#endif // KAMINPAR_ENABLE_HUGE_PAGES
-
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/heap_profiler.h"
+#include "kaminpar-common/parallel/tbb_malloc.h"
 
 namespace kaminpar {
 namespace static_array {
@@ -295,16 +291,16 @@ public:
   void resize(const std::size_t size, const value_type init_value, Tags &&...tags) {
     KASSERT(_data == _owned_data.get(), "cannot resize span", assert::always);
     if (size > 0 && (std::is_same_v<static_array::huge_t, Tags> || ...)) {
-      allocate_huge_data(size);
+      allocate_data(size, true);
     } else {
-      allocate_data(size);
+      allocate_data(size, false);
     }
 
     if constexpr (!(std::is_same_v<static_array::noinit_t, Tags> || ...)) {
       if constexpr ((std::is_same_v<static_array::seq_t, Tags> || ...)) {
         assign(size, init_value, false);
       } else {
-        assign(size, init_value);
+        assign(size, init_value, true);
       }
     }
   }
@@ -313,8 +309,8 @@ public:
     KASSERT(_data);
 
     if (assign_parallel) {
-      const std::size_t step{std::max(count / std::thread::hardware_concurrency(), 1UL)};
-      tbb::parallel_for(0UL, count, step, [&](const size_type i) {
+      const std::size_t step = std::max(count / std::thread::hardware_concurrency(), 1UL);
+      tbb::parallel_for<std::size_t>(0, count, step, [&](const size_type i) {
         for (size_type j = i; j < std::min(i + step, count); ++j) {
           _data[j] = value;
         }
@@ -326,7 +322,7 @@ public:
     }
   }
 
-  std::unique_ptr<value_type[]> free() {
+  parallel::tbb_unique_ptr<value_type> free() {
     _size = 0;
     _unrestricted_size = 0;
     _data = nullptr;
@@ -334,24 +330,8 @@ public:
   }
 
 private:
-  void allocate_huge_data(const std::size_t size) {
-#ifdef KAMINPAR_ENABLE_HUGE_PAGES
-    _data = nullptr;
-    posix_memalign(reinterpret_cast<void **>(&_data), 1 << 21, size * sizeof(value_type));
-    madvise(_data, size * sizeof(value_type), MADV_HUGEPAGE);
-
-    _owned_data.reset(_data);
-    _size = size;
-    _unrestricted_size = _size;
-
-    IF_HEAP_PROFILING(_struct->size = std::max(_struct->size, size * sizeof(value_type)));
-#else  // KAMINPAR_ENABLE_HUGE_PAGES
-    allocate_data(size);
-#endif // KAMINPAR_ENABLE_HUGE_PAGES
-  }
-
-  void allocate_data(const std::size_t size) {
-    _owned_data = std::make_unique<value_type[]>(size);
+  void allocate_data(const std::size_t size, const bool huge = false) {
+    _owned_data = parallel::make_unique<value_type>(size, huge);
     _data = _owned_data.get();
     _size = size;
     _unrestricted_size = _size;
@@ -361,7 +341,7 @@ private:
 
   size_type _size = 0;
   size_type _unrestricted_size = 0;
-  std::unique_ptr<value_type[]> _owned_data = nullptr;
+  parallel::tbb_unique_ptr<value_type> _owned_data = nullptr;
   value_type *_data = nullptr;
 
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);

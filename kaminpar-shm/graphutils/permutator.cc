@@ -10,6 +10,7 @@
 #include <cmath>
 
 #include <tbb/enumerable_thread_specific.h>
+#include <tbb/parallel_invoke.h>
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/heap_profiler.h"
@@ -27,7 +28,6 @@ NodePermutations<StaticArray> rearrange_graph(
     StaticArray<EdgeWeight> &edge_weights
 ) {
   START_HEAP_PROFILER("Temporal nodes and edges allocation");
-  START_TIMER("Allocation (noinit)");
   RECORD("tmp_nodes")
   StaticArray<EdgeID> tmp_nodes(nodes.size(), static_array::huge, static_array::noinit);
   RECORD("tmp_edges")
@@ -40,7 +40,6 @@ NodePermutations<StaticArray> rearrange_graph(
   StaticArray<EdgeWeight> tmp_edge_weights(
       edge_weights.size(), static_array::huge, static_array::noinit
   );
-  STOP_TIMER();
   STOP_HEAP_PROFILER();
 
   // if we are about to remove all isolated nodes, we place them to the end of
@@ -70,10 +69,12 @@ NodePermutations<StaticArray> rearrange_graph(
   STOP_HEAP_PROFILER();
 
   START_TIMER("Deallocation");
-  tmp_nodes.free();
-  tmp_edges.free();
-  tmp_node_weights.free();
-  tmp_edge_weights.free();
+  tbb::parallel_invoke(
+      [&] { tmp_nodes.free(); },
+      [&] { tmp_edges.free(); },
+      [&] { tmp_node_weights.free(); },
+      [&] { tmp_edge_weights.free(); }
+  );
   STOP_TIMER();
 
   return permutations;
