@@ -16,6 +16,8 @@
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
+#include "kaminpar-shm/kaminpar.h"
+
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/concurrent_fast_reset_array.h"
 #include "kaminpar-common/datastructures/concurrent_two_level_vector.h"
@@ -23,6 +25,7 @@
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/logger.h"
+#include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/parallel/atomic.h"
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/tags.h"
@@ -281,7 +284,7 @@ protected:
     }
 
     // Compute a mapping from old cluster IDs to new cluster IDs.
-    RECORD("mapping") StaticArray<ClusterID> mapping(_graph->n());
+    RECORD("mapping") StaticArray<ClusterID> mapping(_graph->n(), static_array::huge);
     tbb::parallel_for(tbb::blocked_range<NodeID>(0, _graph->n()), [&](const auto &r) {
       for (NodeID u = r.begin(); u != r.end(); ++u) {
         const ClusterID c_u = derived_cluster(u);

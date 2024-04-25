@@ -93,7 +93,7 @@ template <typename T>
 static StaticArray<T> read_static_array(std::ifstream &in, const std::size_t size) {
   T *ptr = static_cast<T *>(std::malloc(sizeof(T) * size));
   in.read(reinterpret_cast<char *>(ptr), sizeof(T) * size);
-  return StaticArray<T>(ptr, size);
+  return StaticArray<T>(size, ptr);
 }
 
 CompressedGraph read(const std::string &filename) {

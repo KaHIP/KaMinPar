@@ -28,12 +28,18 @@ NodePermutations<StaticArray> rearrange_graph(
 ) {
   START_HEAP_PROFILER("Temporal nodes and edges allocation");
   START_TIMER("Allocation (noinit)");
-  RECORD("tmp_nodes") StaticArray<EdgeID> tmp_nodes(nodes.size(), static_array::noinit);
-  RECORD("tmp_edges") StaticArray<NodeID> tmp_edges(edges.size(), static_array::noinit);
+  RECORD("tmp_nodes")
+  StaticArray<EdgeID> tmp_nodes(nodes.size(), static_array::huge, static_array::noinit);
+  RECORD("tmp_edges")
+  StaticArray<NodeID> tmp_edges(edges.size(), static_array::huge, static_array::noinit);
   RECORD("tmp_node_weights")
-  StaticArray<NodeWeight> tmp_node_weights(node_weights.size(), static_array::noinit);
+  StaticArray<NodeWeight> tmp_node_weights(
+      node_weights.size(), static_array::huge, static_array::noinit
+  );
   RECORD("tmp_edge_weights")
-  StaticArray<EdgeWeight> tmp_edge_weights(edge_weights.size(), static_array::noinit);
+  StaticArray<EdgeWeight> tmp_edge_weights(
+      edge_weights.size(), static_array::huge, static_array::noinit
+  );
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 
@@ -361,7 +367,9 @@ PartitionedGraph assign_isolated_nodes(
   const NodeID num_nonisolated_nodes = graph.n() - num_isolated_nodes;
 
   // The following call graph.n() should include isolated nodes now
-  RECORD("partition") StaticArray<BlockID> partition(graph.n());
+  RECORD("partition")
+  StaticArray<BlockID> partition(graph.n(), static_array::huge, static_array::noinit);
+
   // copy partition of non-isolated nodes
   tbb::parallel_for<NodeID>(0, num_nonisolated_nodes, [&](const NodeID u) {
     partition[u] = p_graph.block(u);
@@ -383,5 +391,4 @@ PartitionedGraph assign_isolated_nodes(
 
   return {graph, k, std::move(partition)};
 }
-
 } // namespace kaminpar::shm::graph

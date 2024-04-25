@@ -109,14 +109,14 @@ void KaMinPar::borrow_and_mutate_graph(
 
   const EdgeID m = xadj[n];
 
-  RECORD("nodes") StaticArray<EdgeID> nodes(xadj, n + 1);
-  RECORD("edges") StaticArray<NodeID> edges(adjncy, m);
+  RECORD("nodes") StaticArray<EdgeID> nodes(n + 1, xadj);
+  RECORD("edges") StaticArray<NodeID> edges(m, adjncy);
   RECORD("node_weights")
   StaticArray<NodeWeight> node_weights =
-      (vwgt == nullptr) ? StaticArray<NodeWeight>(0) : StaticArray<NodeWeight>(vwgt, n);
+      (vwgt == nullptr) ? StaticArray<NodeWeight>(0) : StaticArray<NodeWeight>(n, vwgt);
   RECORD("edge_weights")
   StaticArray<EdgeWeight> edge_weights =
-      (adjwgt == nullptr) ? StaticArray<EdgeWeight>(0) : StaticArray<EdgeWeight>(adjwgt, m);
+      (adjwgt == nullptr) ? StaticArray<EdgeWeight>(0) : StaticArray<EdgeWeight>(m, adjwgt);
 
   _was_rearranged = false;
   _graph_ptr = std::make_unique<Graph>(std::make_unique<CSRGraph>(
@@ -134,10 +134,10 @@ void KaMinPar::copy_graph(
   const bool has_node_weights = vwgt != nullptr;
   const bool has_edge_weights = adjwgt != nullptr;
 
-  RECORD("nodes") StaticArray<EdgeID> nodes(n + 1);
-  RECORD("edges") StaticArray<NodeID> edges(m);
-  RECORD("node_weights") StaticArray<NodeWeight> node_weights(has_node_weights ? n : 0);
-  RECORD("edge_weights") StaticArray<EdgeWeight> edge_weights(has_edge_weights ? m : 0);
+  RECORD("nodes") StaticArray<EdgeID> nodes(n + 1, static_array::huge);
+  RECORD("edges") StaticArray<NodeID> edges(m, static_array::huge);
+  RECORD("node_weights") StaticArray<NodeWeight> node_weights(has_node_weights ? n : 0, static_array::huge);
+  RECORD("edge_weights") StaticArray<EdgeWeight> edge_weights(has_edge_weights ? m : 0, static_array::huge);
 
   nodes[n] = xadj[n];
   tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {

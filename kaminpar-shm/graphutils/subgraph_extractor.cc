@@ -129,17 +129,21 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential_generic_graph(
   subgraph_positions[1].edges_start_pos = memory_position.edges_start_pos + m1;
 
   auto create_graph = [&](const NodeID n0, const NodeID n, const EdgeID m0, const EdgeID m) {
-    StaticArray<EdgeID> s_nodes(memory_position.nodes_start_pos + n0, n + 1, subgraph_memory.nodes);
-    StaticArray<NodeID> s_edges(memory_position.edges_start_pos + m0, m, subgraph_memory.edges);
+    StaticArray<EdgeID> s_nodes(
+        n + 1, subgraph_memory.nodes.data() + memory_position.nodes_start_pos + n0
+    );
+    StaticArray<NodeID> s_edges(
+        m, subgraph_memory.edges.data() + memory_position.edges_start_pos + m0
+    );
     StaticArray<NodeWeight> s_node_weights(
-        is_node_weighted * (memory_position.nodes_start_pos + n0),
         is_node_weighted * n,
-        subgraph_memory.node_weights
+        subgraph_memory.node_weights.data() +
+            is_node_weighted * (memory_position.nodes_start_pos + n0)
     );
     StaticArray<EdgeWeight> s_edge_weights(
-        is_edge_weighted * (memory_position.edges_start_pos + m0),
         is_edge_weighted * m,
-        subgraph_memory.edge_weights
+        subgraph_memory.edge_weights.data() +
+            is_edge_weighted * (memory_position.edges_start_pos + m0)
     );
     return shm::Graph(std::make_unique<CSRGraph>(
         CSRGraph::seq{},
@@ -291,13 +295,13 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
         start_positions[b + 1].nodes_start_pos - n0 - compute_final_k(b, p_graph.k(), input_k);
     const EdgeID m = start_positions[b + 1].edges_start_pos - m0;
 
-    StaticArray<EdgeID> nodes(n0, n + 1, subgraph_memory.nodes);
-    StaticArray<NodeID> edges(m0, m, subgraph_memory.edges);
+    StaticArray<EdgeID> nodes(n + 1, subgraph_memory.nodes.data() + n0);
+    StaticArray<NodeID> edges(m, subgraph_memory.edges.data() + m0);
     StaticArray<NodeWeight> node_weights(
-        is_node_weighted * n0, is_node_weighted * n, subgraph_memory.node_weights
+        is_node_weighted * n, subgraph_memory.node_weights.data() + is_node_weighted * n0
     );
     StaticArray<EdgeWeight> edge_weights(
-        is_edge_weighted * m0, is_edge_weighted * m, subgraph_memory.edge_weights
+        is_edge_weighted * m, subgraph_memory.edge_weights.data() + is_edge_weighted * m0
     );
     subgraphs[b] = shm::Graph(std::make_unique<CSRGraph>(
         std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights)

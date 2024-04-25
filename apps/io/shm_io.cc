@@ -158,15 +158,15 @@ template <bool checked> CSRGraph csr_read(const std::string &filename, const boo
         store_node_weights = format.has_node_weights;
         store_edge_weights = format.has_edge_weights;
 
-        nodes.resize(format.number_of_nodes + 1);
-        edges.resize(format.number_of_edges * 2);
+        nodes.resize(format.number_of_nodes + 1, static_array::huge, static_array::noinit);
+        edges.resize(format.number_of_edges * 2, static_array::huge, static_array::noinit);
 
         if (store_node_weights) {
-          node_weights.resize(format.number_of_nodes);
+          node_weights.resize(format.number_of_nodes, static_array::huge, static_array::noinit);
         }
 
         if (store_edge_weights) {
-          edge_weights.resize(format.number_of_edges * 2);
+          edge_weights.resize(format.number_of_edges * 2, static_array::huge, static_array::noinit);
         }
       },
       [&](const std::uint64_t weight) {

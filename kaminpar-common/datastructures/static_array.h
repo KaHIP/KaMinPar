@@ -6,22 +6,34 @@
  ******************************************************************************/
 #pragma once
 
+#include <cstdlib>
 #include <cstring>
 #include <initializer_list>
 #include <iterator>
 #include <thread>
+#include <type_traits>
 #include <vector>
 
 #include <tbb/parallel_for.h>
 
+#ifdef KAMINPAR_ENABLE_HUGE_PAGES
+#include "stdlib.h"
+#include "sys/mman.h"
+#endif // KAMINPAR_ENABLE_HUGE_PAGES
+
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/heap_profiler.h"
-#include "kaminpar-common/parallel/tbb_malloc.h"
 
 namespace kaminpar {
 namespace static_array {
 constexpr struct noinit_t {
 } noinit;
+
+constexpr struct huge_t {
+} huge;
+
+constexpr struct seq_t {
+} seq;
 } // namespace static_array
 
 template <typename T> class StaticArray {
@@ -128,27 +140,19 @@ public:
   using iterator = StaticArrayIterator;
   using const_iterator = const StaticArrayIterator;
 
-  StaticArray(T *storage, const std::size_t size) : _size(size), _data(storage) {
-    RECORD_DATA_STRUCT(size * sizeof(T), _struct);
-  }
-
-  StaticArray(const std::size_t start, const std::size_t size, StaticArray &data)
-      : StaticArray(size, data._data + start) {
-    KASSERT(start + size <= data.size());
-  }
-
   StaticArray(const std::size_t size, value_type *data) : _size(size), _data(data) {
     RECORD_DATA_STRUCT(size * sizeof(T), _struct);
   }
 
-  StaticArray(const std::size_t size, const value_type init_value = value_type()) {
+  template <typename... Tags>
+  StaticArray(const std::size_t size, const value_type init_value, Tags... tags) {
     RECORD_DATA_STRUCT(0, _struct);
-    resize(size, init_value);
+    resize(size, init_value, std::forward<Tags>(tags)...);
   }
 
-  StaticArray(const std::size_t size, static_array::noinit_t) {
+  template <typename... Tags> StaticArray(const std::size_t size, Tags... tags) {
     RECORD_DATA_STRUCT(0, _struct);
-    resize(size, static_array::noinit);
+    resize(size, value_type(), std::forward<Tags>(tags)...);
   }
 
   template <typename Iterator>
@@ -283,18 +287,26 @@ public:
     return _size;
   }
 
-  void resize(const std::size_t size, static_array::noinit_t) {
-    KASSERT(_data == _owned_data.get(), "cannot resize span", assert::always);
-    allocate_data(size);
+  template <typename... Tags> void resize(const std::size_t size, Tags &&...tags) {
+    resize(size, value_type(), std::forward<Tags>(tags)...);
   }
 
-  void resize(
-      const size_type size,
-      const value_type init_value = value_type(),
-      const bool assign_parallel = true
-  ) {
-    resize(size, static_array::noinit);
-    assign(size, init_value, assign_parallel);
+  template <typename... Tags>
+  void resize(const std::size_t size, const value_type init_value, Tags &&...tags) {
+    KASSERT(_data == _owned_data.get(), "cannot resize span", assert::always);
+    if (size > 0 && (std::is_same_v<static_array::huge_t, Tags> || ...)) {
+      allocate_huge_data(size);
+    } else {
+      allocate_data(size);
+    }
+
+    if constexpr (!(std::is_same_v<static_array::noinit_t, Tags> || ...)) {
+      if constexpr ((std::is_same_v<static_array::seq_t, Tags> || ...)) {
+        assign(size, init_value, false);
+      } else {
+        assign(size, init_value);
+      }
+    }
   }
 
   void assign(const size_type count, const value_type value, const bool assign_parallel = true) {
@@ -314,7 +326,7 @@ public:
     }
   }
 
-  parallel::tbb_unique_ptr<value_type> free() {
+  std::unique_ptr<value_type[]> free() {
     _size = 0;
     _unrestricted_size = 0;
     _data = nullptr;
@@ -322,8 +334,24 @@ public:
   }
 
 private:
+  void allocate_huge_data(const std::size_t size) {
+#ifdef KAMINPAR_ENABLE_HUGE_PAGES
+    _data = nullptr;
+    posix_memalign(reinterpret_cast<void **>(&_data), 1 << 21, size * sizeof(value_type));
+    madvise(_data, size * sizeof(value_type), MADV_HUGEPAGE);
+
+    _owned_data.reset(_data);
+    _size = size;
+    _unrestricted_size = _size;
+
+    IF_HEAP_PROFILING(_struct->size = std::max(_struct->size, size * sizeof(value_type)));
+#else  // KAMINPAR_ENABLE_HUGE_PAGES
+    allocate_data(size);
+#endif // KAMINPAR_ENABLE_HUGE_PAGES
+  }
+
   void allocate_data(const std::size_t size) {
-    _owned_data = parallel::make_unique<value_type>(size);
+    _owned_data = std::make_unique<value_type[]>(size);
     _data = _owned_data.get();
     _size = size;
     _unrestricted_size = _size;
@@ -333,7 +361,7 @@ private:
 
   size_type _size = 0;
   size_type _unrestricted_size = 0;
-  parallel::tbb_unique_ptr<value_type> _owned_data = nullptr;
+  std::unique_ptr<value_type[]> _owned_data = nullptr;
   value_type *_data = nullptr;
 
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
