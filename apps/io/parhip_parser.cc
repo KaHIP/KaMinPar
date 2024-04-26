@@ -15,6 +15,7 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <tbb/parallel_for.h>
+#include <unistd.h>
 
 #include "kaminpar-common/logger.h"
 
