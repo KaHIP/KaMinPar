@@ -227,24 +227,26 @@ Options are:
   )
       ->capture_default_str();
   lp->add_option(
-        "--c-lp-second-phase-select-mode", ctx.coarsening.clustering.lp.second_phase_select_mode
+        "--c-lp-second-phase-selection-strategy",
+        ctx.coarsening.clustering.lp.second_phase_selection_strategy
   )
-      ->transform(CLI::CheckedTransformer(get_second_phase_select_modes()).description(""))
+      ->transform(CLI::CheckedTransformer(get_second_phase_selection_strategies()).description(""))
       ->description(
-          R"(Determines the mode for selecting nodes for the second phase of label propagation.
+          R"(Determines the strategy for selecting nodes for the second phase of label propagation.
 Options are:
   - high-degree:     Select nodes with high degree
-  - full-rating-map: Select nodes which have a full rating map in the first phase
+  - full-rating-map: Select nodes that have a full rating map in the first phase
   )"
       )
       ->capture_default_str();
   lp->add_option(
-        "--c-lp-second-phase-aggregation-mode",
-        ctx.coarsening.clustering.lp.second_phase_aggregation_mode
+        "--c-lp-second-phase-aggregation-strategy",
+        ctx.coarsening.clustering.lp.second_phase_aggregation_strategy
   )
-      ->transform(CLI::CheckedTransformer(get_second_phase_aggregation_modes()).description(""))
+      ->transform(CLI::CheckedTransformer(get_second_phase_aggregation_strategies()).description("")
+      )
       ->description(
-          R"(Determines the mode for aggregating ratings in the second phase of label propagation.
+          R"(Determines the strategy for aggregating ratings in the second phase of label propagation.
 Options are:
   - none:     Skip the second phase
   - direct:   Write the ratings directly into the global vector (shared between threads)
@@ -302,9 +304,10 @@ CLI::Option_group *create_contraction_coarsening_options(CLI::App *app, Context 
       ->transform(CLI::CheckedTransformer(get_contraction_modes()).description(""))
       ->description(R"(The mode useed for contraction.
 Options are:
-  - edge-buffer:            Use an edge buffer to store edges temporarily
-  - no-edge-buffer-naive:   Use no edge buffer by computing the neighborhood of each coarse node twice
-  - no-edge-buffer-remap:   Use no edge buffer by remapping the coarse nodes afterwards
+  - buffered:         Use an edge buffer that is partially filled
+  - buffered-legacy:  Use an edge buffer
+  - unbuffered:       Use no edge buffer by remapping the coarse nodes
+  - unbuffered-naive: Use no edge buffer by computing twice
   )")
       ->capture_default_str();
   contraction
@@ -386,22 +389,26 @@ CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx) {
         "treated separately"
   )
       ->capture_default_str();
-  lp->add_option("--r-lp-second-phase-select-mode", ctx.refinement.lp.second_phase_select_mode)
-      ->transform(CLI::CheckedTransformer(get_second_phase_select_modes()).description(""))
+  lp->add_option(
+        "--r-lp-second-phase-selection-strategy", ctx.refinement.lp.second_phase_selection_strategy
+  )
+      ->transform(CLI::CheckedTransformer(get_second_phase_selection_strategies()).description(""))
       ->description(
-          R"(Determines the mode for selecting nodes for the second phase of label propagation.
+          R"(Determines the strategy for selecting nodes for the second phase of label propagation.
 Options are:
   - high-degree:     Select nodes with high degree
-  - full-rating-map: Select nodes which have a full rating map in the first phase
+  - full-rating-map: Select nodes that have a full rating map in the first phase
   )"
       )
       ->capture_default_str();
   lp->add_option(
-        "--r-lp-second-phase-aggregation-mode", ctx.refinement.lp.second_phase_aggregation_mode
+        "--r-lp-second-phase-aggregation-strategy",
+        ctx.refinement.lp.second_phase_aggregation_strategy
   )
-      ->transform(CLI::CheckedTransformer(get_second_phase_aggregation_modes()).description(""))
+      ->transform(CLI::CheckedTransformer(get_second_phase_aggregation_strategies()).description("")
+      )
       ->description(
-          R"(Determines the mode for aggregating ratings in the second phase of label propagation.
+          R"(Determines the strategy for aggregating ratings in the second phase of label propagation.
 Options are:
   - none:     Skip the second phase
   - direct:   Write the ratings directly into the global vector (shared between threads)

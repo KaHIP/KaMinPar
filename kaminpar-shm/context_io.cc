@@ -310,42 +310,44 @@ std::ostream &operator<<(std::ostream &out, IsolatedNodesClusteringStrategy stra
   return out << "<invalid>";
 }
 
-std::ostream &operator<<(std::ostream &out, SecondPhaseSelectMode strategy) {
+std::ostream &operator<<(std::ostream &out, SecondPhaseSelectionStrategy strategy) {
   switch (strategy) {
-  case SecondPhaseSelectMode::HIGH_DEGREE:
+  case SecondPhaseSelectionStrategy::HIGH_DEGREE:
     return out << "high-degree";
-  case SecondPhaseSelectMode::FULL_RATING_MAP:
+  case SecondPhaseSelectionStrategy::FULL_RATING_MAP:
     return out << "full-rating-map";
   }
 
   return out << "<invalid>";
 }
 
-std::unordered_map<std::string, SecondPhaseSelectMode> get_second_phase_select_modes() {
+std::unordered_map<std::string, SecondPhaseSelectionStrategy>
+get_second_phase_selection_strategies() {
   return {
-      {"high-degree", SecondPhaseSelectMode::HIGH_DEGREE},
-      {"full-rating-map", SecondPhaseSelectMode::FULL_RATING_MAP},
+      {"high-degree", SecondPhaseSelectionStrategy::HIGH_DEGREE},
+      {"full-rating-map", SecondPhaseSelectionStrategy::FULL_RATING_MAP},
   };
 }
 
-std::ostream &operator<<(std::ostream &out, SecondPhaseAggregationMode strategy) {
+std::ostream &operator<<(std::ostream &out, SecondPhaseAggregationStrategy strategy) {
   switch (strategy) {
-  case SecondPhaseAggregationMode::NONE:
+  case SecondPhaseAggregationStrategy::NONE:
     return out << "none";
-  case SecondPhaseAggregationMode::DIRECT:
+  case SecondPhaseAggregationStrategy::DIRECT:
     return out << "direct";
-  case SecondPhaseAggregationMode::BUFFERED:
+  case SecondPhaseAggregationStrategy::BUFFERED:
     return out << "buffered";
   }
 
   return out << "<invalid>";
 }
 
-std::unordered_map<std::string, SecondPhaseAggregationMode> get_second_phase_aggregation_modes() {
+std::unordered_map<std::string, SecondPhaseAggregationStrategy>
+get_second_phase_aggregation_strategies() {
   return {
-      {"none", SecondPhaseAggregationMode::NONE},
-      {"direct", SecondPhaseAggregationMode::DIRECT},
-      {"buffered", SecondPhaseAggregationMode::BUFFERED},
+      {"none", SecondPhaseAggregationStrategy::NONE},
+      {"direct", SecondPhaseAggregationStrategy::DIRECT},
+      {"buffered", SecondPhaseAggregationStrategy::BUFFERED},
   };
 }
 
@@ -475,8 +477,8 @@ void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
   out << "    Cluster weights struct:   " << lp_ctx.cluster_weights_structure << "\n";
   out << "    Use two phases:           " << (lp_ctx.use_two_phases ? "yes" : "no") << "\n";
   if (lp_ctx.use_two_phases) {
-    out << "      Select mode:            " << lp_ctx.second_phase_select_mode << '\n';
-    out << "      Aggregation mode:       " << lp_ctx.second_phase_aggregation_mode << '\n';
+    out << "      Selection strategy:   " << lp_ctx.second_phase_selection_strategy << '\n';
+    out << "      Aggregation strategy: " << lp_ctx.second_phase_aggregation_strategy << '\n';
     out << "      Relabel:                " << (lp_ctx.relabel_before_second_phase ? "yes" : "no")
         << '\n';
   }
@@ -497,8 +499,8 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
     out << "  Number of iterations:       " << r_ctx.lp.num_iterations << "\n";
     out << "  Uses two phases: " << (r_ctx.lp.use_two_phases ? "yes" : "no") << "\n";
     if (r_ctx.lp.use_two_phases) {
-      out << "    Select mode:              " << r_ctx.lp.second_phase_select_mode << '\n';
-      out << "    Aggregation mode:         " << r_ctx.lp.second_phase_aggregation_mode << '\n';
+      out << "    Selection strategy:     " << r_ctx.lp.second_phase_selection_strategy << '\n';
+      out << "    Aggregation strategy:   " << r_ctx.lp.second_phase_aggregation_strategy << '\n';
     }
   }
   if (r_ctx.includes_algorithm(RefinementAlgorithm::KWAY_FM)) {

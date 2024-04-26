@@ -46,8 +46,8 @@ public:
     Base::set_max_degree(_lp_ctx.large_degree_threshold);
     Base::set_max_num_neighbors(_lp_ctx.max_num_neighbors);
     Base::set_use_two_phases(_lp_ctx.use_two_phases);
-    Base::set_second_phase_select_mode(_lp_ctx.second_phase_select_mode);
-    Base::set_second_phase_aggregation_mode(_lp_ctx.second_phase_aggregation_mode);
+    Base::set_second_phase_selection_strategy(_lp_ctx.second_phase_selection_strategy);
+    Base::set_second_phase_aggregation_strategy(_lp_ctx.second_phase_aggregation_strategy);
     Base::set_relabel_before_second_phase(_lp_ctx.relabel_before_second_phase);
   }
 

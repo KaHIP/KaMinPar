@@ -101,12 +101,12 @@ enum class ClusterWeightsStructure {
   INITIALLY_SMALL_VEC
 };
 
-enum class SecondPhaseSelectMode {
+enum class SecondPhaseSelectionStrategy {
   HIGH_DEGREE,
   FULL_RATING_MAP
 };
 
-enum class SecondPhaseAggregationMode {
+enum class SecondPhaseAggregationStrategy {
   NONE,
   DIRECT,
   BUFFERED
@@ -144,8 +144,8 @@ struct LabelPropagationCoarseningContext {
   ClusterWeightsStructure cluster_weights_structure;
 
   bool use_two_phases;
-  SecondPhaseSelectMode second_phase_select_mode;
-  SecondPhaseAggregationMode second_phase_aggregation_mode;
+  SecondPhaseSelectionStrategy second_phase_selection_strategy;
+  SecondPhaseAggregationStrategy second_phase_aggregation_strategy;
   bool relabel_before_second_phase;
 
   TwoHopStrategy two_hop_strategy;
@@ -214,8 +214,8 @@ struct LabelPropagationRefinementContext {
   NodeID max_num_neighbors;
 
   bool use_two_phases;
-  SecondPhaseSelectMode second_phase_select_mode;
-  SecondPhaseAggregationMode second_phase_aggregation_mode;
+  SecondPhaseSelectionStrategy second_phase_selection_strategy;
+  SecondPhaseAggregationStrategy second_phase_aggregation_strategy;
 };
 
 struct KwayFMRefinementContext {

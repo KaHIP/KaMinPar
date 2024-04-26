@@ -81,8 +81,10 @@ Context create_default_context() {
                               .max_num_neighbors = 200000,
                               .cluster_weights_structure = ClusterWeightsStructure::VEC,
                               .use_two_phases = false,
-                              .second_phase_select_mode = SecondPhaseSelectMode::FULL_RATING_MAP,
-                              .second_phase_aggregation_mode = SecondPhaseAggregationMode::BUFFERED,
+                              .second_phase_selection_strategy =
+                                  SecondPhaseSelectionStrategy::FULL_RATING_MAP,
+                              .second_phase_aggregation_strategy =
+                                  SecondPhaseAggregationStrategy::BUFFERED,
                               .relabel_before_second_phase = false,
                               .two_hop_strategy = TwoHopStrategy::MATCH_THREADWISE,
                               .two_hop_threshold = 0.5,
@@ -144,8 +146,9 @@ Context create_default_context() {
                       .large_degree_threshold = 1000000,
                       .max_num_neighbors = std::numeric_limits<NodeID>::max(),
                       .use_two_phases = false,
-                      .second_phase_select_mode = SecondPhaseSelectMode::FULL_RATING_MAP,
-                      .second_phase_aggregation_mode = SecondPhaseAggregationMode::BUFFERED,
+                      .second_phase_selection_strategy =
+                          SecondPhaseSelectionStrategy::FULL_RATING_MAP,
+                      .second_phase_aggregation_strategy = SecondPhaseAggregationStrategy::BUFFERED,
                   },
               .kway_fm =
                   {
