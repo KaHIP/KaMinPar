@@ -180,18 +180,18 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered_naive(
 
 std::unique_ptr<CoarseGraph> contract_clustering_unbuffered_naive(
     const Graph &graph,
-    StaticArray<NodeID> &clustering,
+    StaticArray<NodeID> clustering,
     const ContractionCoarseningContext &con_ctx,
     MemoryContext &m_ctx
 ) {
   if (con_ctx.use_compact_mapping) {
-    auto [c_n, mapping] = compute_mapping<CompactStaticArray>(graph, clustering, m_ctx);
+    auto [c_n, mapping] = compute_mapping<CompactStaticArray>(graph, std::move(clustering), m_ctx);
     fill_cluster_buckets(c_n, graph, mapping, m_ctx.buckets_index, m_ctx.buckets);
     return graph.reified([&](auto &graph) {
       return contract_clustering_unbuffered_naive(graph, c_n, std::move(mapping), con_ctx, m_ctx);
     });
   } else {
-    auto [c_n, mapping] = compute_mapping<StaticArray>(graph, clustering, m_ctx);
+    auto [c_n, mapping] = compute_mapping<StaticArray>(graph, std::move(clustering), m_ctx);
     fill_cluster_buckets(c_n, graph, mapping, m_ctx.buckets_index, m_ctx.buckets);
     return graph.reified([&](auto &graph) {
       return contract_clustering_unbuffered_naive(graph, c_n, std::move(mapping), con_ctx, m_ctx);

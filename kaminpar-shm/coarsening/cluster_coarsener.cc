@@ -31,11 +31,9 @@ bool ClusteringCoarsener::coarsen() {
   SCOPED_HEAP_PROFILER("Level", std::to_string(_hierarchy.size()));
   SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
 
-  if (_clustering.size() < current().n()) {
-    SCOPED_HEAP_PROFILER("Allocation");
-    SCOPED_TIMER("Allocation");
-    _clustering.resize(current().n());
-  }
+  START_HEAP_PROFILER("Allocation");
+  RECORD("clustering") StaticArray<NodeID> clustering(current().n(), static_array::noinit);
+  STOP_HEAP_PROFILER();
 
   const bool free_allocated_memory = !keep_allocated_memory();
   const NodeWeight total_node_weight = current().total_node_weight();
@@ -47,13 +45,15 @@ bool ClusteringCoarsener::coarsen() {
       compute_max_cluster_weight<NodeWeight>(_c_ctx, _p_ctx, prev_n, total_node_weight)
   );
   _clustering_algorithm->set_desired_cluster_count(0);
-  _clustering_algorithm->compute_clustering(_clustering, current(), free_allocated_memory);
+  _clustering_algorithm->compute_clustering(clustering, current(), free_allocated_memory);
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 
   START_HEAP_PROFILER("Contract graph");
   auto coarsened = TIMED_SCOPE("Contract graph") {
-    return contract_clustering(current(), _clustering, _c_ctx.contraction, _contraction_m_ctx);
+    return contract_clustering(
+        current(), std::move(clustering), _c_ctx.contraction, _contraction_m_ctx
+    );
   };
   _hierarchy.push_back(std::move(coarsened));
   STOP_HEAP_PROFILER();

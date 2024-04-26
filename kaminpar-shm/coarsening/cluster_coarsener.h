@@ -49,7 +49,6 @@ private:
   const Graph *_input_graph;
   std::vector<std::unique_ptr<CoarseGraph>> _hierarchy;
 
-  StaticArray<NodeID> _clustering{};
   std::unique_ptr<Clusterer> _clustering_algorithm;
 
   contraction::MemoryContext _contraction_m_ctx{};
