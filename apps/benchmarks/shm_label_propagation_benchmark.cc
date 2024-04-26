@@ -11,10 +11,10 @@
 
 #include <tbb/global_control.h>
 
-#include "kaminpar-shm/coarsening/lp_clustering.h"
+#include "kaminpar-shm/coarsening/clustering/lp_clusterer.h"
+#include "kaminpar-shm/coarsening/max_cluster_weights.h"
 #include "kaminpar-shm/context_io.h"
 #include "kaminpar-shm/graphutils/permutator.h"
-#include "kaminpar-shm/partition_utils.h"
 
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/logger.h"
@@ -74,19 +74,21 @@ int main(int argc, char *argv[]) {
     graph::remove_isolated_nodes(graph, ctx.partition);
   }
 
-  const NodeWeight max_cluster_weight =
-      compute_max_cluster_weight(ctx.coarsening, graph, ctx.partition);
-
-  LPClustering lp_clustering(graph.n(), ctx.coarsening);
-  lp_clustering.set_max_cluster_weight(max_cluster_weight);
+  LPClustering lp_clustering(ctx.coarsening);
+  lp_clustering.set_max_cluster_weight(compute_max_cluster_weight<NodeWeight>(
+      ctx.coarsening, ctx.partition, graph.n(), graph.total_node_weight()
+  ));
   lp_clustering.set_desired_cluster_count(0);
 
   GLOBAL_TIMER.reset();
 
   ENABLE_HEAP_PROFILER();
+  START_HEAP_PROFILER("Allocation");
+  StaticArray<NodeID> clustering(graph.n());
+  STOP_HEAP_PROFILER();
   START_HEAP_PROFILER("Label Propagation");
   TIMED_SCOPE("Label Propagation") {
-    lp_clustering.compute_clustering(graph, false);
+    lp_clustering.compute_clustering(clustering, graph, false);
   };
   STOP_HEAP_PROFILER();
   DISABLE_HEAP_PROFILER();

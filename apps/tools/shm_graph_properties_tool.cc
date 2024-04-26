@@ -85,8 +85,7 @@ int main(int argc, char *argv[]) {
       ->transform(CLI::CheckedTransformer(io::get_graph_file_formats()).description(""))
       ->description(R"(Graph file formats:
   - metis
-  - parhip)")
-      ->capture_default_str();
+  - parhip)");
   create_graph_compression_options(&app, ctx);
   CLI11_PARSE(app, argc, argv);
 
