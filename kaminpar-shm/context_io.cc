@@ -123,6 +123,26 @@ std::ostream &operator<<(std::ostream &out, const ClusterWeightLimit limit) {
   return out << "<invalid>";
 }
 
+std::unordered_map<std::string, ClusterWeightsStructure> get_cluster_weight_structures() {
+  return {
+      {"vec", ClusterWeightsStructure::VEC},
+      {"two-level-vec", ClusterWeightsStructure::TWO_LEVEL_VEC},
+      {"initially-small-vec", ClusterWeightsStructure::INITIALLY_SMALL_VEC},
+  };
+}
+
+std::ostream &operator<<(std::ostream &out, const ClusterWeightsStructure structure) {
+  switch (structure) {
+  case ClusterWeightsStructure::VEC:
+    return out << "vector";
+  case ClusterWeightsStructure::TWO_LEVEL_VEC:
+    return out << "two-level vector";
+  case ClusterWeightsStructure::INITIALLY_SMALL_VEC:
+    return out << "initially small vector";
+  }
+  return out << "<invalid>";
+}
+
 std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorithms() {
   return {
       {"noop", RefinementAlgorithm::NOOP},
@@ -304,7 +324,7 @@ std::ostream &operator<<(std::ostream &out, SecondPhaseSelectMode strategy) {
 std::unordered_map<std::string, SecondPhaseSelectMode> get_second_phase_select_modes() {
   return {
       {"high-degree", SecondPhaseSelectMode::HIGH_DEGREE},
-      {"full-rating-map", SecondPhaseSelectMode::FULL_RATING_MAP}
+      {"full-rating-map", SecondPhaseSelectMode::FULL_RATING_MAP},
   };
 }
 
@@ -325,7 +345,7 @@ std::unordered_map<std::string, SecondPhaseAggregationMode> get_second_phase_agg
   return {
       {"none", SecondPhaseAggregationMode::NONE},
       {"direct", SecondPhaseAggregationMode::DIRECT},
-      {"buffered", SecondPhaseAggregationMode::BUFFERED}
+      {"buffered", SecondPhaseAggregationMode::BUFFERED},
   };
 }
 
@@ -343,7 +363,7 @@ get_isolated_nodes_clustering_strategies() {
 void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
   out << "Enabled:                      " << (c_ctx.enabled ? "yes" : "no") << "\n";
   if (c_ctx.enabled) {
-    out << "Compression Scheme:           " << "Gap Encoding + ";
+    out << "Compression Scheme:           Gap Encoding + ";
     if (c_ctx.run_length_encoding) {
       out << "VarInt Run-Length Encoding\n";
     } else if (c_ctx.stream_encoding) {
@@ -452,16 +472,8 @@ void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
   out << "    Number of iterations:     " << lp_ctx.num_iterations << "\n";
   out << "    High degree threshold:    " << lp_ctx.large_degree_threshold << "\n";
   out << "    Max degree:               " << lp_ctx.max_num_neighbors << "\n";
-  out << "    Two-level weight vector:  "
-      << (lp_ctx.use_two_level_cluster_weight_vector ?
-#ifdef KAMINPAR_USES_GROWT
-                                                     "yes (growt)"
-#else
-                                                     "yes (tbb)"
-#endif
-                                                     : "no")
-      << "\n";
-  out << "    Uses two phases:          " << (lp_ctx.use_two_phases ? "yes" : "no") << "\n";
+  out << "    Cluster weights struct:   " << lp_ctx.cluster_weights_structure << "\n";
+  out << "    Use two phases:           " << (lp_ctx.use_two_phases ? "yes" : "no") << "\n";
   if (lp_ctx.use_two_phases) {
     out << "      Select mode:            " << lp_ctx.second_phase_select_mode << '\n';
     out << "      Aggregation mode:       " << lp_ctx.second_phase_aggregation_mode << '\n';
@@ -554,8 +566,8 @@ void print(const Context &ctx, std::ostream &out) {
   out << "Execution mode:               " << ctx.parallel.num_threads << "\n";
   out << "Seed:                         " << Random::get_seed() << "\n";
   out << "Graph:                        " << ctx.debug.graph_name
-      << " [node ordering: " << ctx.node_ordering << "]" << " [edge ordering: " << ctx.edge_ordering
-      << "]\n";
+      << " [node ordering: " << ctx.node_ordering << "]"
+      << " [edge ordering: " << ctx.edge_ordering << "]\n";
   print(ctx.partition, out);
   cio::print_delimiter("Graph Compression", '-');
   print(ctx.compression, out);

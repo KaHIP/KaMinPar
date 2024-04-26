@@ -95,6 +95,12 @@ enum class ClusterWeightLimit {
   ZERO,
 };
 
+enum class ClusterWeightsStructure {
+  VEC,
+  TWO_LEVEL_VEC,
+  INITIALLY_SMALL_VEC
+};
+
 enum class SecondPhaseSelectMode {
   HIGH_DEGREE,
   FULL_RATING_MAP
@@ -135,7 +141,7 @@ struct LabelPropagationCoarseningContext {
   NodeID large_degree_threshold;
   NodeID max_num_neighbors;
 
-  bool use_two_level_cluster_weight_vector;
+  ClusterWeightsStructure cluster_weights_structure;
 
   bool use_two_phases;
   SecondPhaseSelectMode second_phase_select_mode;

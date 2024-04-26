@@ -206,10 +206,17 @@ CLI::Option_group *create_lp_coarsening_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
 
   lp->add_option(
-        "--c-lp-use-two-level-cluster-weight-vector",
-        ctx.coarsening.clustering.lp.use_two_level_cluster_weight_vector,
-        "Whether to use the two level cluster weight vector"
+        "--c-lp-cluster-weights-struct", ctx.coarsening.clustering.lp.cluster_weights_structure
   )
+      ->transform(CLI::CheckedTransformer(get_cluster_weight_structures()).description(""))
+      ->description(
+          R"(Determines the data structure for storing the cluster weights.
+Options are:
+  - vec:                 Uses a fixed-width vector
+  - two-level-vec:       Uses a two-level vector
+  - initially-small-vec: Uses a small fixed-width vector initially and switches to a bigger fixed-width vector after relabeling (Requires two-phase lp with relabeling)
+  )"
+      )
       ->capture_default_str();
 
   lp->add_option(
