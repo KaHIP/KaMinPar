@@ -478,8 +478,8 @@ void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
   out << "    Cluster weights struct:   " << lp_ctx.cluster_weights_structure << "\n";
   out << "    Use two phases:           " << (lp_ctx.use_two_phases ? "yes" : "no") << "\n";
   if (lp_ctx.use_two_phases) {
-    out << "      Selection strategy:   " << lp_ctx.second_phase_selection_strategy << '\n';
-    out << "      Aggregation strategy: " << lp_ctx.second_phase_aggregation_strategy << '\n';
+    out << "      Selection strategy:     " << lp_ctx.second_phase_selection_strategy << '\n';
+    out << "      Aggregation strategy:   " << lp_ctx.second_phase_aggregation_strategy << '\n';
     out << "      Relabel:                " << (lp_ctx.relabel_before_second_phase ? "yes" : "no")
         << '\n';
   }
@@ -500,8 +500,8 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
     out << "  Number of iterations:       " << r_ctx.lp.num_iterations << "\n";
     out << "  Uses two phases: " << (r_ctx.lp.use_two_phases ? "yes" : "no") << "\n";
     if (r_ctx.lp.use_two_phases) {
-      out << "    Selection strategy:     " << r_ctx.lp.second_phase_selection_strategy << '\n';
-      out << "    Aggregation strategy:   " << r_ctx.lp.second_phase_aggregation_strategy << '\n';
+      out << "    Selection strategy:       " << r_ctx.lp.second_phase_selection_strategy << '\n';
+      out << "    Aggregation strategy:     " << r_ctx.lp.second_phase_aggregation_strategy << '\n';
     }
   }
   if (r_ctx.includes_algorithm(RefinementAlgorithm::KWAY_FM)) {

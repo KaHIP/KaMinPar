@@ -1742,7 +1742,7 @@ template <typename ClusterID, typename ClusterWeight> class OwnedRelaxedClusterW
   using SmallClusterWeightVec = StaticArray<SmallClusterWeight>;
 
   using FirstLevelClusterWeight = typename std::
-      conditional_t<std::is_same_v<ClusterWeight, std::int32_t>, std::int16_t, std::int32_t>;
+      conditional_t<std::is_same_v<ClusterWeight, std::int32_t>, std::uint16_t, std::uint32_t>;
   using ClusterWeightTwoLevelVec =
       ConcurrentTwoLevelVector<ClusterWeight, ClusterID, FirstLevelClusterWeight>;
 
