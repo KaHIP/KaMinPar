@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Compressed static graph representations.
+ * Compressed static graph representation.
  *
  * @file:   compressed_graph.h
  * @author: Daniel Salwasser
@@ -132,10 +132,12 @@ public:
    * @param edge_count The number of edges stored in the compressed edge array.
    * @param max_degree The maximum degree of the graph.
    * @param sorted Whether the nodes are stored by deg-buckets order.
-   * @param high_degree_count The number of nodes which have high degree.
-   * @param part_count The number of parts that result from splitting the neighbourhood of high
-   * degree nodes.
-   * @param interval_count The number of nodes/parts which use interval encoding.
+   * @param num_high_degree_nodes The number of nodes that have high degree.
+   * @param num_high_degree_parts The total number of parts that result from splitting high degree
+   * neighborhoods.
+   * @param num_interval_nodes The number of nodes that have at least one interval in its
+   * neighborhood.
+   * @param num_intervals The total number of intervals.
    */
   explicit CompressedGraph(
       CompactStaticArray<EdgeID> nodes,
@@ -145,9 +147,10 @@ public:
       EdgeID edge_count,
       NodeID max_degree,
       bool sorted,
-      std::size_t high_degree_count,
-      std::size_t part_count,
-      std::size_t interval_count
+      std::size_t num_high_degree_nodes,
+      std::size_t num_high_degree_parts,
+      std::size_t num_interval_nodes,
+      std::size_t num_intervals
   );
 
   CompressedGraph(const CompressedGraph &) = delete;
@@ -253,11 +256,11 @@ public:
 
   // Iterators for nodes / edges
   [[nodiscard]] IotaRange<NodeID> nodes() const final {
-    return IotaRange(static_cast<NodeID>(0), n());
+    return {static_cast<NodeID>(0), n()};
   }
 
   [[nodiscard]] inline IotaRange<EdgeID> edges() const final {
-    return IotaRange(static_cast<EdgeID>(0), m());
+    return {static_cast<EdgeID>(0), m()};
   }
 
   // Parallel iteration
@@ -278,33 +281,33 @@ public:
 
     const bool is_isolated_node = node_data == next_node_data;
     if (is_isolated_node) {
-      return IotaRange<EdgeID>(0, 0);
+      return {0, 0};
     }
 
     const auto [first_edge, degree, _, __] = decode_header(node, node_data, next_node_data);
-    return IotaRange<EdgeID>(first_edge, first_edge + degree);
+    return {first_edge, first_edge + degree};
   }
 
-  template <typename Lambda> inline void adjacent_nodes(const NodeID node, Lambda &&l) const {
-    iterate_neighborhood(node, [&](const EdgeID incident_edge, const NodeID adjacent_node) {
+  template <typename Lambda> void adjacent_nodes(const NodeID node, Lambda &&l) const {
+    decode_neighborhood(node, [&](const EdgeID incident_edge, const NodeID adjacent_node) {
       l(adjacent_node);
     });
   }
 
-  template <typename Lambda> inline void neighbors(const NodeID node, Lambda &&l) const {
-    iterate_neighborhood(node, std::forward<Lambda>(l));
+  template <typename Lambda> void neighbors(const NodeID node, Lambda &&l) const {
+    decode_neighborhood(node, std::forward<Lambda>(l));
   }
 
   template <typename Lambda>
-  inline void neighbors(const NodeID node, const NodeID max_neighbor_count, Lambda &&l) const {
-    iterate_neighborhood<true>(node, std::forward<Lambda>(l), max_neighbor_count);
+  void neighbors(const NodeID node, const NodeID max_neighbor_count, Lambda &&l) const {
+    decode_neighborhood(node, std::forward<Lambda>(l));
   }
 
   template <typename Lambda>
-  inline void pfor_neighbors(
+  void pfor_neighbors(
       const NodeID node, const NodeID max_neighbor_count, const NodeID grainsize, Lambda &&l
   ) const {
-    iterate_neighborhood<true, true>(node, std::forward<Lambda>(l), max_neighbor_count);
+    decode_neighborhood<true>(node, std::forward<Lambda>(l));
   }
 
   // Graph permutation
@@ -320,7 +323,7 @@ public:
     return _permutation[node];
   }
 
-  [[nodiscard]] inline StaticArray<NodeID> &&take_raw_permutation() {
+  [[nodiscard]] inline StaticArray<NodeID> &&take_raw_permutation() final {
     return std::move(_permutation);
   }
 
@@ -354,30 +357,39 @@ public:
   // Compressions statistics
 
   /*!
-   * Returns the number of nodes which have high degree.
+   * Returns the number of nodes that have high degree.
    *
-   * @returns The number of nodes which have high degree.
+   * @returns The number of nodes that have high degree.
    */
-  [[nodiscard]] std::size_t high_degree_count() const {
-    return _high_degree_count;
+  [[nodiscard]] std::size_t num_high_degree_nodes() const {
+    return _num_high_degree_nodes;
   }
 
   /*!
-   * Returns the number of parts that result from splitting the neighborhood of high degree nodes.
+   * Returns the total number of parts that result from splitting high degree neighborhoods.
    *
-   * @returns The number of parts that result from splitting the neighborhood of high degree nodes.
+   * @returns The total number of parts that result from splitting high degree neighborhoods.
    */
-  [[nodiscard]] std::size_t part_count() const {
-    return _part_count;
+  [[nodiscard]] std::size_t num_high_degree_parts() const {
+    return _num_high_degree_parts;
   }
 
   /*!
-   * Returns the number of nodes/parts which use interval encoding.
+   * Returns the number of nodes that have at least one interval.
    *
-   * @returns The number of nodes/parts which use interval encoding.
+   * @returns The number of nodes that have at least one interval.
    */
-  [[nodiscard]] std::size_t interval_count() const {
-    return _interval_count;
+  [[nodiscard]] std::size_t num_interval_nodes() const {
+    return _num_interval_nodes;
+  }
+
+  /*!
+   * Returns the total number of intervals.
+   *
+   * @returns The total number of intervals.
+   */
+  [[nodiscard]] std::size_t num_intervals() const {
+    return _num_intervals;
   }
 
   /*!
@@ -399,7 +411,7 @@ public:
       compressed_size += m() * sizeof(EdgeWeight);
     }
 
-    return uncompressed_size / (double)compressed_size;
+    return uncompressed_size / static_cast<double>(compressed_size);
   }
 
   /**
@@ -442,7 +454,6 @@ private:
 
   EdgeID _edge_count;
   NodeID _max_degree;
-
   bool _sorted;
 
   NodeWeight _total_node_weight = kInvalidNodeWeight;
@@ -454,9 +465,10 @@ private:
   std::vector<NodeID> _buckets = std::vector<NodeID>(kNumberOfDegreeBuckets<NodeID> + 1);
   std::size_t _number_of_buckets = 0;
 
-  std::size_t _high_degree_count;
-  std::size_t _part_count;
-  std::size_t _interval_count;
+  std::size_t _num_high_degree_nodes;
+  std::size_t _num_high_degree_parts;
+  std::size_t _num_interval_nodes;
+  std::size_t _num_intervals;
 
   void init_degree_buckets();
 
@@ -465,11 +477,10 @@ private:
   ) const {
     const auto [first_edge, next_first_edge, uses_intervals, len] = [&] {
       if constexpr (CompressedGraph::kIntervalEncoding) {
-        auto [first_edge, marker_set, len] = marked_varint_decode<EdgeID>(node_data);
+        auto [first_edge, uses_intervals, len] = marked_varint_decode<EdgeID>(node_data);
         auto [next_first_edge, _, __] = marked_varint_decode<EdgeID>(next_node_data);
 
-        return std::make_tuple(first_edge, next_first_edge, marker_set, len);
-
+        return std::make_tuple(first_edge, next_first_edge, uses_intervals, len);
       } else {
         auto [first_edge, len] = varint_decode<EdgeID>(node_data);
         auto [next_first_edge, _] = varint_decode<EdgeID>(next_node_data);
@@ -488,10 +499,8 @@ private:
     }
   }
 
-  template <bool max_edges = false, bool parallel = false, typename Lambda>
-  inline void iterate_neighborhood(
-      const NodeID node, Lambda &&l, NodeID max_neighbor_count = std::numeric_limits<NodeID>::max()
-  ) const {
+  template <bool parallel = false, typename Lambda>
+  void decode_neighborhood(const NodeID node, Lambda &&l) const {
     const std::uint8_t *data = _compressed_edges.data();
 
     const std::uint8_t *node_data = data + _nodes[node];
@@ -502,173 +511,137 @@ private:
       return;
     }
 
-    const auto [first_edge, degree, uses_intervals, len] =
-        decode_header(node, node_data, next_node_data);
+    const auto [edge, degree, uses_intervals, len] = decode_header(node, node_data, next_node_data);
     node_data += len;
 
-    max_neighbor_count = std::min(max_neighbor_count, degree);
-
     if constexpr (kHighDegreeEncoding) {
-      const bool split_neighbourhood = degree >= kHighDegreeThreshold;
-
-      if (split_neighbourhood) {
-        iterate_high_degree_neighborhood<max_edges, parallel>(
-            node_data, node, first_edge, degree, max_neighbor_count, std::forward<Lambda>(l)
-        );
+      if (degree >= kHighDegreeThreshold) {
+        decode_parts<parallel>(node_data, node, edge, degree, std::forward<Lambda>(l));
         return;
       }
     }
 
-    const EdgeID max_edge = first_edge + max_neighbor_count;
-    invoke_maybe_indirect<std::is_invocable_v<Lambda, EdgeID, NodeID>>(
+    invoke_indirect<std::is_invocable_v<Lambda, EdgeID, NodeID>>(
         std::forward<Lambda>(l),
-        [&, first_edge = first_edge, degree = degree, uses_intervals = uses_intervals](auto &&l2) {
-          iterate_edges<max_edges>(
-              node_data,
-              node,
-              degree,
-              first_edge,
-              max_edge,
-              uses_intervals,
-              std::forward<decltype(l2)>(l2)
+        [&](auto &&l2) {
+          decode_edges(
+              node_data, node, edge, degree, uses_intervals, std::forward<decltype(l2)>(l2)
           );
         }
     );
   }
 
-  template <bool max_edges, bool parallel, typename Lambda>
-  inline void iterate_high_degree_neighborhood(
+  template <bool parallel, typename Lambda>
+  void decode_parts(
       const std::uint8_t *data,
       const NodeID node,
-      const NodeID first_edge,
+      const EdgeID edge,
       const NodeID degree,
-      const NodeID max_neighbor_count,
       Lambda &&l
   ) const {
     const NodeID part_count = math::div_ceil(degree, kHighDegreePartLength);
-    const NodeID max_part_count =
-        std::min(part_count, math::div_ceil(max_neighbor_count, kHighDegreePartLength));
-    const NodeID max_neighbor_rem = ((max_neighbor_count % kHighDegreePartLength) == 0)
-                                        ? kHighDegreePartLength
-                                        : (max_neighbor_count % kHighDegreePartLength);
 
     const auto iterate_part = [&](const NodeID part) {
-      const std::uint8_t *part_data = data + *((NodeID *)(data + sizeof(NodeID) * part));
-      const EdgeID part_first_edge = first_edge + kHighDegreePartLength * part;
+      const NodeID part_offset = *((NodeID *)(data + sizeof(NodeID) * part));
+      const std::uint8_t *part_data = data + part_offset;
 
-      const bool last_part = part + 1 == max_part_count;
+      const NodeID part_count_m1 = part_count - 1;
+      const bool last_part = part == part_count_m1;
 
-      if (last_part) {
-        const NodeID part_degree = (part == part_count - 1)
-                                       ? (degree - kHighDegreePartLength * (part_count - 1))
-                                       : kHighDegreePartLength;
-        const EdgeID part_max_edge = part_first_edge + max_neighbor_rem;
+      const EdgeID part_edge = edge + kHighDegreePartLength * part;
+      const NodeID part_degree =
+          last_part ? (degree - kHighDegreePartLength * part_count_m1) : kHighDegreePartLength;
 
-        invoke_maybe_indirect<std::is_invocable_v<Lambda, EdgeID, NodeID>>(
-            std::forward<Lambda>(l),
-            [&](auto &&l2) {
-              iterate_edges<max_edges>(
-                  part_data,
-                  node,
-                  part_degree,
-                  part_first_edge,
-                  part_max_edge,
-                  true,
-                  std::forward<decltype(l2)>(l2)
-              );
-            }
-        );
-      } else {
-        const NodeID part_degree = kHighDegreePartLength;
-        const EdgeID part_max_edge = part_first_edge + part_degree;
-
-        invoke_maybe_indirect<std::is_invocable_v<Lambda, EdgeID, NodeID>>(
-            std::forward<Lambda>(l),
-            [&](auto &&l2) {
-              iterate_edges<false>(
-                  part_data,
-                  node,
-                  part_degree,
-                  part_first_edge,
-                  part_max_edge,
-                  true,
-                  std::forward<decltype(l2)>(l2)
-              );
-            }
-        );
-      }
+      return invoke_indirect2<std::is_invocable_v<Lambda, EdgeID, NodeID>, bool>(
+          std::forward<Lambda>(l),
+          [&](auto &&l2) {
+            return decode_edges(
+                part_data, node, part_edge, part_degree, true, std::forward<decltype(l2)>(l2)
+            );
+          }
+      );
     };
 
     if constexpr (parallel) {
-      tbb::parallel_for<NodeID>(
-          0, max_part_count, std::forward<decltype(iterate_part)>(iterate_part)
-      );
+      tbb::parallel_for<NodeID>(0, part_count, std::forward<decltype(iterate_part)>(iterate_part));
     } else {
-      for (NodeID part = 0; part < max_part_count; ++part) {
-        iterate_part(part);
+      for (NodeID part = 0; part < part_count; ++part) {
+        const bool stop = iterate_part(part);
+        if (stop) {
+          return;
+        }
       }
     }
   }
 
-  template <bool max_edges, typename Lambda>
-  inline void iterate_edges(
+  template <typename Lambda>
+  bool decode_edges(
       const std::uint8_t *data,
       const NodeID node,
+      EdgeID edge,
       const NodeID degree,
-      const EdgeID first_edge,
-      const EdgeID max_edge,
-      const bool uses_intervals,
+      bool uses_intervals,
       Lambda &&l
   ) const {
-    constexpr bool non_stoppable =
-        std::is_void<std::invoke_result_t<Lambda, EdgeID, NodeID>>::value;
-
-    EdgeID edge = first_edge;
-    EdgeID gap_edges = degree - 1;
+    const EdgeID max_edge = edge + degree;
 
     if constexpr (kIntervalEncoding) {
       if (uses_intervals) {
-        const NodeID interval_count = *((NodeID *)data);
-        data += sizeof(NodeID);
+        const bool stop = decode_intervals(data, edge, std::forward<Lambda>(l));
+        if (stop) {
+          return true;
+        }
 
-        NodeID previous_right_extreme = 2;
-        for (NodeID i = 0; i < interval_count; ++i) {
-          const auto [left_extreme_gap, left_extreme_gap_len] = varint_decode<NodeID>(data);
-          data += left_extreme_gap_len;
-
-          const auto [interval_length_gap, interval_length_gap_len] = varint_decode<NodeID>(data);
-          data += interval_length_gap_len;
-
-          const NodeID cur_left_extreme = left_extreme_gap + previous_right_extreme - 2;
-          const NodeID cur_interval_len = interval_length_gap + kIntervalLengthTreshold;
-          previous_right_extreme = cur_left_extreme + cur_interval_len - 1;
-
-          const NodeID max_interval_len = [&] {
-            if constexpr (max_edges) {
-              return std::min(cur_interval_len, static_cast<NodeID>(max_edge - edge));
-            } else {
-              return cur_interval_len;
-            }
-          }();
-          gap_edges -= cur_interval_len;
-
-          for (NodeID j = 0; j < max_interval_len; ++j) {
-            if constexpr (non_stoppable) {
-              l(edge++, cur_left_extreme + j);
-            } else {
-              const bool stop = l(edge++, cur_left_extreme + j);
-              if (stop) {
-                return;
-              }
-            }
-          }
+        if (edge == max_edge) {
+          return false;
         }
       }
     }
 
-    if (edge == max_edge) {
-      return;
+    return decode_gaps(data, node, edge, max_edge, std::forward<Lambda>(l));
+  }
+
+  template <typename Lambda>
+  bool decode_intervals(const std::uint8_t *&data, EdgeID &edge, Lambda &&l) const {
+    constexpr bool non_stoppable = std::is_void_v<std::invoke_result_t<Lambda, EdgeID, NodeID>>;
+
+    const NodeID interval_count = *((NodeID *)data);
+    data += sizeof(NodeID);
+
+    NodeID previous_right_extreme = 2;
+    for (NodeID i = 0; i < interval_count; ++i) {
+      const auto [left_extreme_gap, left_extreme_gap_len] = varint_decode<NodeID>(data);
+      data += left_extreme_gap_len;
+
+      const auto [interval_length_gap, interval_length_gap_len] = varint_decode<NodeID>(data);
+      data += interval_length_gap_len;
+
+      const NodeID cur_left_extreme = left_extreme_gap + previous_right_extreme - 2;
+      const NodeID cur_interval_len = interval_length_gap + kIntervalLengthTreshold;
+      previous_right_extreme = cur_left_extreme + cur_interval_len - 1;
+
+      for (NodeID j = 0; j < cur_interval_len; ++j) {
+        if constexpr (non_stoppable) {
+          l(edge, cur_left_extreme + j);
+        } else {
+          const bool stop = l(edge, cur_left_extreme + j);
+          if (stop) {
+            return true;
+          }
+        }
+
+        edge += 1;
+      }
     }
+
+    return false;
+  }
+
+  template <typename Lambda>
+  bool decode_gaps(
+      const std::uint8_t *data, NodeID node, EdgeID &edge, const EdgeID max_edge, Lambda &&l
+  ) const {
+    constexpr bool non_stoppable = std::is_void_v<std::invoke_result_t<Lambda, EdgeID, NodeID>>;
 
     const auto [first_gap, first_gap_len] = signed_varint_decode<SignedID>(data);
     data += first_gap_len;
@@ -677,13 +650,14 @@ private:
     NodeID prev_adjacent_node = first_adjacent_node;
 
     if constexpr (non_stoppable) {
-      l(edge++, first_adjacent_node);
+      l(edge, first_adjacent_node);
     } else {
-      const bool stop = l(edge++, first_adjacent_node);
+      const bool stop = l(edge, first_adjacent_node);
       if (stop) {
-        return;
+        return true;
       }
     }
+    edge += 1;
 
     const auto handle_gap = [&](const NodeID gap) {
       const NodeID adjacent_node = gap + prev_adjacent_node + 1;
@@ -697,11 +671,11 @@ private:
     };
 
     if constexpr (kRunLengthEncoding) {
-      VarIntRunLengthDecoder<NodeID> rl_decoder(data);
-      rl_decoder.decode(max_edge - edge, std::forward<decltype(handle_gap)>(handle_gap));
+      VarIntRunLengthDecoder<NodeID> rl_decoder(data, max_edge - edge);
+      rl_decoder.decode(std::forward<decltype(handle_gap)>(handle_gap));
     } else if constexpr (kStreamEncoding) {
-      VarIntStreamDecoder<NodeID> sv_encoder(data, gap_edges);
-      sv_encoder.decode(max_edge - edge, std::forward<decltype(handle_gap)>(handle_gap));
+      VarIntStreamDecoder<NodeID> sv_encoder(data, max_edge - edge);
+      sv_encoder.decode(std::forward<decltype(handle_gap)>(handle_gap));
     } else {
       while (edge != max_edge) {
         const auto [gap, gap_len] = varint_decode<NodeID>(data);
@@ -711,21 +685,25 @@ private:
         prev_adjacent_node = adjacent_node;
 
         if constexpr (non_stoppable) {
-          l(edge++, adjacent_node);
+          l(edge, adjacent_node);
         } else {
-          const bool stop = l(edge++, adjacent_node);
+          const bool stop = l(edge, adjacent_node);
           if (stop) {
-            return;
+            return true;
           }
         }
+
+        edge += 1;
       }
     }
+
+    return false;
   }
 };
 
 /*!
- * A builder that constructs compressed graphs in a single read pass. It does this by overcommiting
- * memory for the compressed edge array.
+ * A builder that constructs compressed graphs in a single read pass. It does this by
+ * overcommiting memory for the compressed edge array.
  */
 class CompressedGraphBuilder {
 public:
@@ -760,7 +738,7 @@ public:
    * @param edge_count The number of edges of the graph to compress.
    * @param store_node_weights Whether node weights are stored.
    * @param store_edge_weights Whether edge weights are stored.
-   * @param sorted Whether the nodes to add are stored by deg-buckets order.
+   * @param sorted Whether the nodes to add are stored in degree-bucket order.
    */
   void init(
       const NodeID node_count,
@@ -774,8 +752,8 @@ public:
    * Adds a node to the compressed graph, modifying the neighbourhood vector.
    *
    * @param node The node to add.
-   * @param neighbourhood The neighbourhood of the node to add, i.e. the adjacent nodes and the edge
-   * weight.
+   * @param neighbourhood The neighbourhood of the node to add, which consits of the adjacent
+   * nodes and the corresponding edge weights.
    */
   void add_node(const NodeID node, std::vector<std::pair<NodeID, EdgeWeight>> &neighbourhood);
 
@@ -800,21 +778,21 @@ public:
    *
    * @return The used memory of the compressed edge array.
    */
-  std::size_t edge_array_size() const;
+  [[nodiscard]] std::size_t edge_array_size() const;
 
   /*!
    * Returns the total weight of the nodes that have been added.
    *
    * @return The total weight of the nodes that have been added.
    */
-  std::int64_t total_node_weight() const;
+  [[nodiscard]] std::int64_t total_node_weight() const;
 
   /*!
    * Returns the total weight of the edges that have been added.
    *
    * @return The total weight of the edges that have been added.
    */
-  std::int64_t total_edge_weight() const;
+  [[nodiscard]] std::int64_t total_edge_weight() const;
 
 private:
   CompactStaticArray<EdgeID> _nodes;
@@ -835,11 +813,12 @@ private:
   NodeID _max_degree;
 
   bool _first_isolated_node;
-  EdgeID _last_real_edge;
+  EdgeID _effective_last_edge_offset;
 
-  std::size_t _high_degree_count;
-  std::size_t _part_count;
-  std::size_t _interval_count;
+  std::size_t _num_high_degree_nodes;
+  std::size_t _num_high_degree_parts;
+  std::size_t _num_interval_nodes;
+  std::size_t _num_intervals;
 
   void add_edges(
       const NodeID node,

@@ -399,9 +399,10 @@ struct GraphCompressionContext {
   bool dismissed;
   double compression_ratio;
   std::int64_t size_reduction;
-  std::size_t high_degree_count;
-  std::size_t part_count;
-  std::size_t interval_count;
+  std::size_t num_high_degree_nodes;
+  std::size_t num_high_degree_parts;
+  std::size_t num_interval_nodes;
+  std::size_t num_intervals;
 
   void setup(const Graph &graph);
 };

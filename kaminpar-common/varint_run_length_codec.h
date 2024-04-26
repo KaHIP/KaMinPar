@@ -114,31 +114,30 @@ public:
    * Constructs a new VarIntRunLengthDecoder.
    *
    * @param ptr The pointer to the memory location where the encoded integers are stored.
+   * @param count The number of integers that are encoded.
    */
-  VarIntRunLengthDecoder(const std::uint8_t *ptr) : _ptr(ptr) {}
+  VarIntRunLengthDecoder(const std::uint8_t *ptr, const std::size_t count)
+      : _ptr(ptr),
+        _count(count) {}
 
   /*!
    * Decodes the encoded integers.
    *
-   * @param max_decoded The amount of integers to decode.
    * @param l The function to be called with the decoded integers, i.e. the function has one
    * parameter of type Int.
    */
-  template <typename Lambda> void decode(const std::size_t max_decoded, Lambda &&l) {
-    constexpr bool non_stoppable = std::is_void<std::invoke_result_t<Lambda, std::uint32_t>>::value;
+  template <typename Lambda> void decode(Lambda &&l) {
+    constexpr bool non_stoppable = std::is_void_v<std::invoke_result_t<Lambda, std::uint32_t>>;
 
     std::size_t decoded = 0;
-    while (decoded < max_decoded) {
+    while (decoded < _count) {
       const std::uint8_t run_header = *_ptr++;
 
       if constexpr (sizeof(Int) == 4) {
-        std::uint8_t run_length = (run_header >> 2) + 1;
+        const std::uint8_t run_length = (run_header >> 2) + 1;
         const std::uint8_t run_size = (run_header & 0b00000011) + 1;
 
         decoded += run_length;
-        if (decoded > max_decoded) {
-          run_length -= decoded - max_decoded;
-        }
 
         if constexpr (non_stoppable) {
           decode32(run_length, run_size, std::forward<Lambda>(l));
@@ -149,13 +148,10 @@ public:
           }
         }
       } else if constexpr (sizeof(Int) == 8) {
-        std::uint8_t run_length = (run_header >> 3) + 1;
+        const std::uint8_t run_length = (run_header >> 3) + 1;
         const std::uint8_t run_size = (run_header & 0b00000111) + 1;
 
         decoded += run_length;
-        if (decoded > max_decoded) {
-          run_length -= decoded - max_decoded;
-        }
 
         if constexpr (non_stoppable) {
           decode64(run_length, run_size, std::forward<Lambda>(l));
@@ -171,10 +167,11 @@ public:
 
 private:
   const std::uint8_t *_ptr;
+  const std::size_t _count;
 
   template <typename Lambda>
   bool decode32(const std::uint8_t run_length, const std::uint8_t run_size, Lambda &&l) {
-    constexpr bool non_stoppable = std::is_void<std::invoke_result_t<Lambda, std::uint32_t>>::value;
+    constexpr bool non_stoppable = std::is_void_v<std::invoke_result_t<Lambda, std::uint32_t>>;
 
     switch (run_size) {
     case 1:
@@ -246,7 +243,7 @@ private:
 
   template <typename Lambda>
   bool decode64(const std::uint8_t run_length, const std::uint8_t run_size, Lambda &&l) {
-    constexpr bool non_stoppable = std::is_void<std::invoke_result_t<Lambda, std::uint64_t>>::value;
+    constexpr bool non_stoppable = std::is_void_v<std::invoke_result_t<Lambda, std::uint64_t>>;
 
     switch (run_size) {
     case 1:

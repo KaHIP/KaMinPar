@@ -392,9 +392,10 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
       out << c_ctx.compression_ratio
           << " [size reduction: " << (c_ctx.size_reduction / (float)(1024 * 1024)) << " mb]"
           << "\n";
-      out << "  High Degree Count:          " << c_ctx.high_degree_count << "\n";
-      out << "  Part Count:                 " << c_ctx.part_count << "\n";
-      out << "  Interval Count:             " << c_ctx.interval_count << "\n";
+      out << "  High Degree Node Count:     " << c_ctx.num_high_degree_nodes << "\n";
+      out << "  High Degree Part Count:     " << c_ctx.num_high_degree_parts << "\n";
+      out << "  Interval Node Count:        " << c_ctx.num_interval_nodes << "\n";
+      out << "  Interval Count:             " << c_ctx.num_intervals << "\n";
 
       if (debug::kTrackVarintStats) {
         const auto &stats = debug::varint_stats_global();

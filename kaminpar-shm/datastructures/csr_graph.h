@@ -322,7 +322,7 @@ public:
         [&](const tbb::blocked_range<EdgeID> range) {
           const auto end = range.end();
 
-          invoke_maybe_indirect<std::is_invocable_v<Lambda, EdgeID, NodeID>>(
+          invoke_indirect<std::is_invocable_v<Lambda, EdgeID, NodeID>>(
               std::forward<Lambda>(l),
               [&](auto &&l2) {
                 for (EdgeID e = range.begin(); e < end; ++e) {

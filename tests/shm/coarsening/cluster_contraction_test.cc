@@ -149,7 +149,7 @@ TEST(GraphPermutationTest, PermutationByNodeDegreeIsCorrect) {
   // 1-2-0
   //   |/
   //   4
-  const StaticArray<EdgeID> nodes = static_array::create<NodeID>({0, 2, 3, 7, 8, 10, 10});
+  const StaticArray<EdgeID> nodes = static_array::create<EdgeID>({0, 2, 3, 7, 8, 10, 10});
 
   const auto permutations = graph::sort_by_degree_buckets(nodes);
   const auto &permutation = permutations.old_to_new;

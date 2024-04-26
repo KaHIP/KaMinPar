@@ -31,9 +31,10 @@ void GraphCompressionContext::setup(const Graph &graph) {
       dismissed = false;
       compression_ratio = compressed_graph->compression_ratio();
       size_reduction = compressed_graph->size_reduction();
-      high_degree_count = compressed_graph->high_degree_count();
-      part_count = compressed_graph->part_count();
-      interval_count = compressed_graph->interval_count();
+      num_high_degree_nodes = compressed_graph->num_high_degree_nodes();
+      num_high_degree_parts = compressed_graph->num_high_degree_parts();
+      num_interval_nodes = compressed_graph->num_interval_nodes();
+      num_intervals = compressed_graph->num_intervals();
     } else {
       dismissed = true;
     }

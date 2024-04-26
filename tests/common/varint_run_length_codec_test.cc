@@ -28,9 +28,9 @@ template <typename Int> void test_run_length_codec() {
   }
   rl_encoder.flush();
 
-  VarIntRunLengthDecoder<Int> rl_decoder(ptr.get());
+  VarIntRunLengthDecoder<Int> rl_decoder(ptr.get(), values.size());
   std::size_t i = 0;
-  rl_decoder.decode(values.size(), [&](const Int value) { EXPECT_EQ(values[i++], value); });
+  rl_decoder.decode([&](const Int value) { EXPECT_EQ(values[i++], value); });
   EXPECT_EQ(i, values.size());
 }
 
