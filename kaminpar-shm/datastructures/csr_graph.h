@@ -524,6 +524,17 @@ using CompactCSRGraph = AbstractCSRGraph<StaticArray, CompactStaticArray>;
 
 namespace debug {
 bool validate_graph(const CSRGraph &graph, bool undirected = true, NodeID num_pseudo_nodes = 0);
+
+bool validate_graph(
+    const NodeID n,
+    const StaticArray<EdgeID> &xadj,
+    const StaticArray<NodeID> &adjncy,
+    const StaticArray<NodeWeight> &vwgt,
+    const StaticArray<EdgeWeight> &adjwgt,
+    bool undirected = true,
+    NodeID num_pseudo_nodes = 0
+);
+
 CSRGraph sort_neighbors(CSRGraph graph);
 } // namespace debug
 } // namespace kaminpar::shm

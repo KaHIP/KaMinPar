@@ -19,6 +19,7 @@
 namespace kaminpar::shm::graph {
 /*!
  * Bidirectional node permutation.
+ *
  * @tparam Container
  */
 template <template <typename> typename Container> struct NodePermutations {
@@ -99,6 +100,7 @@ NodePermutations<StaticArray> sort_by_degree_buckets(const StaticArray<EdgeID> &
 
 /*!
  * Creates a permuted copy of a graph.
+ *
  * @tparam Container
  * @tparam has_ghost_nodes If true, edge targets may not exist. These are not
  * permuted.

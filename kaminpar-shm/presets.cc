@@ -11,8 +11,6 @@
 #include <string>
 #include <unordered_set>
 
-#include "kaminpar-shm/context.h"
-
 namespace kaminpar::shm {
 Context create_context_by_preset_name(const std::string &name) {
   if (name == "default") {
