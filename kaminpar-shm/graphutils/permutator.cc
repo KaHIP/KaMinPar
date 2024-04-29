@@ -10,6 +10,7 @@
 #include <cmath>
 
 #include <tbb/enumerable_thread_specific.h>
+#include <tbb/parallel_invoke.h>
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/heap_profiler.h"
@@ -27,14 +28,14 @@ NodePermutations<StaticArray> rearrange_graph(
     StaticArray<EdgeWeight> &edge_weights
 ) {
   START_HEAP_PROFILER("Temporal nodes and edges allocation");
-  START_TIMER("Allocation (noinit)");
-  RECORD("tmp_nodes") StaticArray<EdgeID> tmp_nodes(nodes.size(), static_array::noinit);
-  RECORD("tmp_edges") StaticArray<NodeID> tmp_edges(edges.size(), static_array::noinit);
+  RECORD("tmp_nodes")
+  StaticArray<EdgeID> tmp_nodes(nodes.size(), static_array::noinit);
+  RECORD("tmp_edges")
+  StaticArray<NodeID> tmp_edges(edges.size(), static_array::noinit);
   RECORD("tmp_node_weights")
   StaticArray<NodeWeight> tmp_node_weights(node_weights.size(), static_array::noinit);
   RECORD("tmp_edge_weights")
   StaticArray<EdgeWeight> tmp_edge_weights(edge_weights.size(), static_array::noinit);
-  STOP_TIMER();
   STOP_HEAP_PROFILER();
 
   // if we are about to remove all isolated nodes, we place them to the end of
@@ -64,10 +65,12 @@ NodePermutations<StaticArray> rearrange_graph(
   STOP_HEAP_PROFILER();
 
   START_TIMER("Deallocation");
-  tmp_nodes.free();
-  tmp_edges.free();
-  tmp_node_weights.free();
-  tmp_edge_weights.free();
+  tbb::parallel_invoke(
+      [&] { tmp_nodes.free(); },
+      [&] { tmp_edges.free(); },
+      [&] { tmp_node_weights.free(); },
+      [&] { tmp_edge_weights.free(); }
+  );
   STOP_TIMER();
 
   return permutations;
@@ -361,7 +364,9 @@ PartitionedGraph assign_isolated_nodes(
   const NodeID num_nonisolated_nodes = graph.n() - num_isolated_nodes;
 
   // The following call graph.n() should include isolated nodes now
-  RECORD("partition") StaticArray<BlockID> partition(graph.n());
+  RECORD("partition")
+  StaticArray<BlockID> partition(graph.n(), static_array::noinit);
+
   // copy partition of non-isolated nodes
   tbb::parallel_for<NodeID>(0, num_nonisolated_nodes, [&](const NodeID u) {
     partition[u] = p_graph.block(u);
@@ -383,5 +388,4 @@ PartitionedGraph assign_isolated_nodes(
 
   return {graph, k, std::move(partition)};
 }
-
 } // namespace kaminpar::shm::graph

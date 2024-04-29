@@ -383,7 +383,7 @@ CompressedGraph CompressedGraphBuilder::build() {
   const std::size_t stored_bytes =
       static_cast<std::size_t>(_cur_compressed_edges - _compressed_edges);
   RECORD("compressed_edges")
-  StaticArray<std::uint8_t> compressed_edges(_compressed_edges, stored_bytes);
+  StaticArray<std::uint8_t> compressed_edges(stored_bytes, _compressed_edges);
 
   if constexpr (kHeapProfiling) {
     heap_profiler::HeapProfiler::global().record_alloc(_compressed_edges, stored_bytes);

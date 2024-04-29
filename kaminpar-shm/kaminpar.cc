@@ -109,14 +109,14 @@ void KaMinPar::borrow_and_mutate_graph(
 
   const EdgeID m = xadj[n];
 
-  RECORD("nodes") StaticArray<EdgeID> nodes(xadj, n + 1);
-  RECORD("edges") StaticArray<NodeID> edges(adjncy, m);
+  RECORD("nodes") StaticArray<EdgeID> nodes(n + 1, xadj);
+  RECORD("edges") StaticArray<NodeID> edges(m, adjncy);
   RECORD("node_weights")
   StaticArray<NodeWeight> node_weights =
-      (vwgt == nullptr) ? StaticArray<NodeWeight>(0) : StaticArray<NodeWeight>(vwgt, n);
+      (vwgt == nullptr) ? StaticArray<NodeWeight>(0) : StaticArray<NodeWeight>(n, vwgt);
   RECORD("edge_weights")
   StaticArray<EdgeWeight> edge_weights =
-      (adjwgt == nullptr) ? StaticArray<EdgeWeight>(0) : StaticArray<EdgeWeight>(adjwgt, m);
+      (adjwgt == nullptr) ? StaticArray<EdgeWeight>(0) : StaticArray<EdgeWeight>(m, adjwgt);
 
   _was_rearranged = false;
   _graph_ptr = std::make_unique<Graph>(std::make_unique<CSRGraph>(
