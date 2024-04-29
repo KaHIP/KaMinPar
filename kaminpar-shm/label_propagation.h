@@ -28,7 +28,6 @@
 #include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/parallel/atomic.h"
 #include "kaminpar-common/random.h"
-#include "kaminpar-common/tags.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar {
@@ -38,8 +37,8 @@ struct LabelPropagationConfig {
       ::kaminpar::RatingMap<shm::EdgeWeight, shm::NodeID, FastResetArray<shm::EdgeWeight>>;
 
   // Data type for cluster IDs and weights
-  using ClusterID = tag::Mandatory;
-  using ClusterWeight = tag::Mandatory;
+  using ClusterID = void;
+  using ClusterWeight = void;
 
   // Approx. number of edges per work unit
   static constexpr shm::NodeID kMinChunkSize = 1024;
