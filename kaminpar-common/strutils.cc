@@ -7,6 +7,7 @@
  ******************************************************************************/
 #include "kaminpar-common/strutils.h"
 
+#include <algorithm>
 #include <sstream>
 
 namespace kaminpar::str {
@@ -58,8 +59,9 @@ std::string &replace_all(std::string &str, const std::string &replace, const std
   return str;
 }
 
-std::string &
-replace_all(std::string &str, const std::vector<std::pair<std::string, std::string>> &replacements) {
+std::string &replace_all(
+    std::string &str, const std::vector<std::pair<std::string, std::string>> &replacements
+) {
   for (auto &replacement : replacements) {
     replace_all(str, replacement.first, replacement.second);
   }
