@@ -14,7 +14,6 @@
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/heap_profiler.h"
-#include "kaminpar-common/logger.h"
 #include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/parallel/aligned_element.h"
 #include "kaminpar-common/timer.h"

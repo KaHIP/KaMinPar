@@ -118,9 +118,10 @@ struct is_iterable<
     : std::true_type {};
 
 template <typename T>
-constexpr bool is_container_v = !std::is_same_v<std::decay_t<T>, std::string> &&  //
-                                !std::is_same_v<std::decay_t<T>, char *> &&       //
-                                !std::is_same_v<std::decay_t<T>, const char *> && //
+constexpr bool is_container_v = !std::is_same_v<std::decay_t<T>, std::string> &&      //
+                                !std::is_same_v<std::decay_t<T>, std::string_view> && //
+                                !std::is_same_v<std::decay_t<T>, char *> &&           //
+                                !std::is_same_v<std::decay_t<T>, const char *> &&     //
                                 is_iterable<T>::value;
 
 class ContainerFormatter {
