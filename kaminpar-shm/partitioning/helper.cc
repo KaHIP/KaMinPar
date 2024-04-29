@@ -332,7 +332,7 @@ select_best(const ScalableVector<PartitionedGraph> &p_graphs, const PartitionCon
   return select_best(p_graphs.begin(), p_graphs.end(), p_ctx);
 }
 
-std::size_t compute_num_threads_for_parallel_ip(const Context &input_ctx) {
+int compute_num_threads_for_parallel_ip(const Context &input_ctx) {
   return math::floor2(static_cast<unsigned int>(
       1.0 * input_ctx.parallel.num_threads * input_ctx.partitioning.deep_initial_partitioning_load
   ));

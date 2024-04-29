@@ -153,7 +153,7 @@ std::size_t select_best(
   return best_index;
 }
 
-std::size_t compute_num_threads_for_parallel_ip(const Context &input_ctx);
+int compute_num_threads_for_parallel_ip(const Context &input_ctx);
 
 inline bool parallel_ip_mode(const InitialPartitioningMode &mode) {
   return mode == InitialPartitioningMode::ASYNCHRONOUS_PARALLEL ||

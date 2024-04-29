@@ -58,7 +58,11 @@ PartitionedGraph AsyncInitialPartitioner::partition_recursive(
   auto refiner = factory::create_refiner(small_ctx);
   helper::refine(refiner.get(), p_graph, p_ctx);
 
-  const BlockID k_prime = helper::compute_k_for_n(p_graph.n(), _input_ctx);
+  const BlockID k_prime = std::min(
+      _input_ctx.partition.k,
+      std::max<BlockID>(helper::compute_k_for_n(p_graph.n(), _input_ctx), num_threads)
+  );
+
   if (p_graph.k() < k_prime) {
     helper::extend_partition(
         p_graph, k_prime, _input_ctx, p_ctx, _ip_extraction_pool, _ip_m_ctx_pool, num_threads
