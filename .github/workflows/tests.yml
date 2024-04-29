@@ -15,9 +15,6 @@ jobs:
     steps:
       - name: Install dependencies 
         run: sudo apt-get install -y libtbb-dev libhwloc-dev mpi libopenmpi-dev libomp-dev libsparsehash-dev 
-      - uses: mjp41/workaround8649@c8550b715ccdc17f89c8d5c28d7a48eeff9c94a8
-        with:
-          os: ${{ matrix.os }}
       - name: Checkout HEAD
         uses: actions/checkout@v2
         with:
