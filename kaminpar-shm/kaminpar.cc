@@ -134,10 +134,10 @@ void KaMinPar::copy_graph(
   const bool has_node_weights = vwgt != nullptr;
   const bool has_edge_weights = adjwgt != nullptr;
 
-  RECORD("nodes") StaticArray<EdgeID> nodes(n + 1, static_array::huge);
-  RECORD("edges") StaticArray<NodeID> edges(m, static_array::huge);
-  RECORD("node_weights") StaticArray<NodeWeight> node_weights(has_node_weights ? n : 0, static_array::huge);
-  RECORD("edge_weights") StaticArray<EdgeWeight> edge_weights(has_edge_weights ? m : 0, static_array::huge);
+  RECORD("nodes") StaticArray<EdgeID> nodes(n + 1);
+  RECORD("edges") StaticArray<NodeID> edges(m);
+  RECORD("node_weights") StaticArray<NodeWeight> node_weights(has_node_weights ? n : 0);
+  RECORD("edge_weights") StaticArray<EdgeWeight> edge_weights(has_edge_weights ? m : 0);
 
   nodes[n] = xadj[n];
   tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {

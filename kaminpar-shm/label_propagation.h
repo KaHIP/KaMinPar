@@ -284,7 +284,7 @@ protected:
     }
 
     // Compute a mapping from old cluster IDs to new cluster IDs.
-    RECORD("mapping") StaticArray<ClusterID> mapping(_graph->n(), static_array::huge);
+    RECORD("mapping") StaticArray<ClusterID> mapping(_graph->n());
     tbb::parallel_for(tbb::blocked_range<NodeID>(0, _graph->n()), [&](const auto &r) {
       for (NodeID u = r.begin(); u != r.end(); ++u) {
         const ClusterID c_u = derived_cluster(u);

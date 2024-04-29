@@ -20,14 +20,21 @@
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/parallel/tbb_malloc.h"
 
+#define KAMINPAR_THP_THRESHOLD 1024 * 1024 * 64
+
 namespace kaminpar {
 namespace static_array {
+//! Tag for allocating memory, but not touching it. Without this tag, memory is initialized to the
+//! default value for the given type.
 constexpr struct noinit_t {
 } noinit;
 
-constexpr struct huge_t {
-} huge;
+//! Tag for small memory allocations that should never be backed by a transparent huge page.
+constexpr struct small_t {
+} small;
 
+//! Tag for initializing memory sequentially. Without this tag, memory will be initialized by a
+//! parallel loop. Has no effect if noinit is also passed.
 constexpr struct seq_t {
 } seq;
 } // namespace static_array
@@ -290,11 +297,9 @@ public:
   template <typename... Tags>
   void resize(const std::size_t size, const value_type init_value, Tags &&...tags) {
     KASSERT(_data == _owned_data.get(), "cannot resize span", assert::always);
-    if (size > 0 && (std::is_same_v<static_array::huge_t, Tags> || ...)) {
-      allocate_data(size, true);
-    } else {
-      allocate_data(size, false);
-    }
+    const bool use_thp =
+        (size >= KAMINPAR_THP_THRESHOLD && !(std::is_same_v<static_array::small_t, Tags> || ...));
+    allocate_data(size, use_thp);
 
     if constexpr (!(std::is_same_v<static_array::noinit_t, Tags> || ...)) {
       if constexpr ((std::is_same_v<static_array::seq_t, Tags> || ...)) {
@@ -330,8 +335,8 @@ public:
   }
 
 private:
-  void allocate_data(const std::size_t size, const bool huge = false) {
-    _owned_data = parallel::make_unique<value_type>(size, huge);
+  void allocate_data(const std::size_t size, const bool thp) {
+    _owned_data = parallel::make_unique<value_type>(size, thp);
     _data = _owned_data.get();
     _size = size;
     _unrestricted_size = _size;

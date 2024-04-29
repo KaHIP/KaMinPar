@@ -29,17 +29,13 @@ NodePermutations<StaticArray> rearrange_graph(
 ) {
   START_HEAP_PROFILER("Temporal nodes and edges allocation");
   RECORD("tmp_nodes")
-  StaticArray<EdgeID> tmp_nodes(nodes.size(), static_array::huge, static_array::noinit);
+  StaticArray<EdgeID> tmp_nodes(nodes.size(), static_array::noinit);
   RECORD("tmp_edges")
-  StaticArray<NodeID> tmp_edges(edges.size(), static_array::huge, static_array::noinit);
+  StaticArray<NodeID> tmp_edges(edges.size(), static_array::noinit);
   RECORD("tmp_node_weights")
-  StaticArray<NodeWeight> tmp_node_weights(
-      node_weights.size(), static_array::huge, static_array::noinit
-  );
+  StaticArray<NodeWeight> tmp_node_weights(node_weights.size(), static_array::noinit);
   RECORD("tmp_edge_weights")
-  StaticArray<EdgeWeight> tmp_edge_weights(
-      edge_weights.size(), static_array::huge, static_array::noinit
-  );
+  StaticArray<EdgeWeight> tmp_edge_weights(edge_weights.size(), static_array::noinit);
   STOP_HEAP_PROFILER();
 
   // if we are about to remove all isolated nodes, we place them to the end of
@@ -369,7 +365,7 @@ PartitionedGraph assign_isolated_nodes(
 
   // The following call graph.n() should include isolated nodes now
   RECORD("partition")
-  StaticArray<BlockID> partition(graph.n(), static_array::huge, static_array::noinit);
+  StaticArray<BlockID> partition(graph.n(), static_array::noinit);
 
   // copy partition of non-isolated nodes
   tbb::parallel_for<NodeID>(0, num_nonisolated_nodes, [&](const NodeID u) {
