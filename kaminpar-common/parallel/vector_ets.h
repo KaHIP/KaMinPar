@@ -17,7 +17,7 @@ public:
   using Container = std::vector<T, tbb::cache_aligned_allocator<T>>;
 
   explicit vector_ets(const std::size_t size)
-      : _size{size},
+      : _size(size),
         _ets{[size] {
           return Container(size);
         }} {}

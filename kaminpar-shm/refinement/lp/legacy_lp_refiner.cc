@@ -7,11 +7,11 @@
  ******************************************************************************/
 #include "kaminpar-shm/refinement/lp/legacy_lp_refiner.h"
 
-#include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/legacy_label_propagation.h"
 
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/datastructures/sparse_map.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {

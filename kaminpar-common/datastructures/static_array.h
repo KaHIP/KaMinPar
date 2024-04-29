@@ -11,7 +11,6 @@
 #include <initializer_list>
 #include <iterator>
 #include <thread>
-#include <type_traits>
 #include <vector>
 
 #include <tbb/parallel_for.h>

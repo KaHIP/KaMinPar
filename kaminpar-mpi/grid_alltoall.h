@@ -8,8 +8,6 @@
 #pragma once
 
 #include <algorithm>
-#include <type_traits>
-#include <unordered_map>
 #include <numeric>
 
 #include <mpi.h>
@@ -21,11 +19,7 @@
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/noinit_vector.h"
-#include "kaminpar-common/datastructures/preallocated_vector.h"
-#include "kaminpar-common/logger.h"
-#include "kaminpar-common/math.h"
 #include "kaminpar-common/parallel/algorithm.h"
-#include "kaminpar-common/timer.h"
 
 namespace kaminpar::mpi {
 template <

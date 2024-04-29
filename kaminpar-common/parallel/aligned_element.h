@@ -6,7 +6,7 @@
  ******************************************************************************/
 #pragma once
 
-#include <type_traits>
+#include <cstdlib>
 
 namespace kaminpar::parallel {
 

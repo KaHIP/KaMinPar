@@ -9,6 +9,7 @@
 
 #include "kaminpar-shm/label_propagation.h"
 
+#include "kaminpar-common/datastructures/sparse_map.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/timer.h"
 

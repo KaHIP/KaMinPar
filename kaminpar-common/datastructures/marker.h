@@ -8,12 +8,9 @@
 #pragma once
 
 #include <array>
-#include <bitset>
 #include <limits>
-#include <type_traits>
 
 #include "kaminpar-common/assert.h"
-
 #include "kaminpar-common/heap_profiler.h"
 
 namespace kaminpar {

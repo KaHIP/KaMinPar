@@ -9,7 +9,6 @@
 
 #include "kaminpar-common/datastructures/fast_reset_array.h"
 #include "kaminpar-common/datastructures/fixed_size_sparse_map.h"
-#include "kaminpar-common/datastructures/sparse_map.h"
 
 namespace kaminpar {
 template <typename Value, typename Key, std::size_t kSuperSmallVectorSize = 128>
