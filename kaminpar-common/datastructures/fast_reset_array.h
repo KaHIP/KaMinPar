@@ -62,7 +62,7 @@ public:
     return _data[pos] != Value();
   }
 
-  [[nodiscard]] scalable_vector<size_type> &used_entry_ids() {
+  [[nodiscard]] ScalableVector<size_type> &used_entry_ids() {
     return _used_entries;
   }
 
@@ -116,8 +116,8 @@ public:
   }
 
 private:
-  scalable_vector<value_type> _data;
-  scalable_vector<size_type> _used_entries{};
+  ScalableVector<value_type> _data;
+  ScalableVector<size_type> _used_entries{};
 
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };

@@ -21,22 +21,22 @@ struct Edge {
 };
 
 struct MemoryContext {
-  scalable_vector<NodeID> buckets;
-  scalable_vector<parallel::Atomic<NodeID>> buckets_index;
-  scalable_vector<parallel::Atomic<NodeID>> leader_mapping;
-  StaticArray<NavigationMarker<NodeID, Edge, scalable_vector>> all_buffered_nodes;
+  ScalableVector<NodeID> buckets;
+  ScalableVector<parallel::Atomic<NodeID>> buckets_index;
+  ScalableVector<parallel::Atomic<NodeID>> leader_mapping;
+  StaticArray<NavigationMarker<NodeID, Edge, ScalableVector>> all_buffered_nodes;
 };
 
 struct Result {
   DistributedGraph graph;
-  scalable_vector<NodeID> mapping;
+  ScalableVector<NodeID> mapping;
   MemoryContext m_ctx;
 };
 } // namespace contraction
 
 contraction::Result contract_local_clustering(
     const DistributedGraph &graph,
-    const scalable_vector<parallel::Atomic<NodeID>> &clustering,
+    const ScalableVector<parallel::Atomic<NodeID>> &clustering,
     contraction::MemoryContext m_ctx = {}
 );
 } // namespace kaminpar::dist

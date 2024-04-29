@@ -103,7 +103,7 @@ struct SubgraphMemory {
 };
 
 struct SubgraphExtractionResult {
-  scalable_vector<Graph> subgraphs;
+  ScalableVector<Graph> subgraphs;
   StaticArray<NodeID> node_mapping;
   StaticArray<SubgraphMemoryStartPosition> positions;
 };
@@ -171,7 +171,7 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential(
 
 PartitionedGraph copy_subgraph_partitions(
     PartitionedGraph p_graph,
-    const scalable_vector<StaticArray<BlockID>> &p_subgraph_partitions,
+    const ScalableVector<StaticArray<BlockID>> &p_subgraph_partitions,
     BlockID k_prime,
     BlockID input_k,
     const StaticArray<NodeID> &mapping

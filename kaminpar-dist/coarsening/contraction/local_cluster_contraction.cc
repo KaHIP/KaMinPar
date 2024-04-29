@@ -27,7 +27,7 @@ SET_DEBUG(false);
 
 Result contract_local_clustering(
     const DistributedGraph &graph,
-    const scalable_vector<parallel::Atomic<NodeID>> &clustering,
+    const ScalableVector<parallel::Atomic<NodeID>> &clustering,
     MemoryContext m_ctx
 ) {
   KASSERT(clustering.size() >= graph.n());
@@ -40,7 +40,7 @@ Result contract_local_clustering(
   auto &leader_mapping = m_ctx.leader_mapping;
   auto &all_buffered_nodes = m_ctx.all_buffered_nodes;
 
-  scalable_vector<NodeID> mapping(graph.total_n());
+  ScalableVector<NodeID> mapping(graph.total_n());
   if (leader_mapping.size() < graph.n()) {
     leader_mapping.resize(graph.n());
   }
@@ -170,7 +170,7 @@ Result contract_local_clustering(
   tbb::enumerable_thread_specific<Map> collector_ets{[&] {
     return Map(ghost_mapper.next_ghost_node());
   }};
-  NavigableLinkedList<NodeID, Edge, scalable_vector> edge_buffer_ets;
+  NavigableLinkedList<NodeID, Edge, ScalableVector> edge_buffer_ets;
 
   tbb::parallel_for(tbb::blocked_range<NodeID>(0, c_n), [&](const auto &r) {
     auto &local_collector = collector_ets.local();
@@ -228,7 +228,7 @@ Result contract_local_clustering(
   //
   // Construct rest of the coarse graph: edges, edge weights
   //
-  all_buffered_nodes = ts_navigable_list::combine<NodeID, Edge, scalable_vector>(
+  all_buffered_nodes = ts_navigable_list::combine<NodeID, Edge, ScalableVector>(
       edge_buffer_ets, std::move(all_buffered_nodes)
   );
 

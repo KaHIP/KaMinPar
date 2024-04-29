@@ -81,8 +81,8 @@ PartitionedGraph AsyncInitialPartitioner::split_and_join(
 
   // parallel recursion
   tbb::task_group tg;
-  scalable_vector<PartitionedGraph> p_graphs(num_copies);
-  scalable_vector<PartitionContext> p_ctx_copies(num_copies, p_ctx);
+  ScalableVector<PartitionedGraph> p_graphs(num_copies);
+  ScalableVector<PartitionContext> p_ctx_copies(num_copies, p_ctx);
 
   for (std::size_t copy = 0; copy < num_copies; ++copy) {
     tg.run([this,

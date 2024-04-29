@@ -152,7 +152,7 @@ private:
   std::conditional_t<
       compact_block_weight_delta,
       DynamicFlatMap<BlockID, BlockWeight>,
-      scalable_vector<BlockWeight>>
+      ScalableVector<BlockWeight>>
       _block_weights_delta;
 
   // If we need random access to the partition delta, use a hash map. Otherwise,
@@ -160,7 +160,7 @@ private:
   std::conditional_t<
       allow_read_after_move,
       DynamicFlatMap<NodeID, BlockID>,
-      scalable_vector<DeltaEntry>>
+      ScalableVector<DeltaEntry>>
       _partition_delta;
 };
 } // namespace kaminpar::shm

@@ -197,7 +197,7 @@ void extend_partition(
 
   START_HEAP_PROFILER("Allocation");
   START_TIMER("Allocation");
-  scalable_vector<StaticArray<BlockID>> subgraph_partitions;
+  ScalableVector<StaticArray<BlockID>> subgraph_partitions;
   for (const auto &subgraph : subgraphs) {
     subgraph_partitions.emplace_back(subgraph.n());
   }
@@ -328,7 +328,7 @@ std::size_t compute_num_copies(
 }
 
 std::size_t
-select_best(const scalable_vector<PartitionedGraph> &p_graphs, const PartitionContext &p_ctx) {
+select_best(const ScalableVector<PartitionedGraph> &p_graphs, const PartitionContext &p_ctx) {
   return select_best(p_graphs.begin(), p_graphs.end(), p_ctx);
 }
 

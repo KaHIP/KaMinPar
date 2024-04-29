@@ -36,7 +36,7 @@ struct MemoryContext {
   StaticArray<NodeID> buckets;
   StaticArray<NodeID> buckets_index;
   StaticArray<NodeID> leader_mapping;
-  StaticArray<NavigationMarker<NodeID, Edge, scalable_vector>> all_buffered_nodes;
+  StaticArray<NavigationMarker<NodeID, Edge, ScalableVector>> all_buffered_nodes;
 };
 } // namespace contraction
 

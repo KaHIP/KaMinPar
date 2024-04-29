@@ -194,16 +194,16 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
   StaticArray<NodeID> mapping(p_graph.n());
   StaticArray<SubgraphMemoryStartPosition> start_positions(p_graph.k() + 1);
   StaticArray<NodeID> bucket_index(p_graph.k());
-  scalable_vector<shm::Graph> subgraphs(p_graph.k());
+  ScalableVector<shm::Graph> subgraphs(p_graph.k());
   STOP_TIMER();
 
   // count number of nodes and edges in each block
   START_TIMER("Count block size");
-  tbb::enumerable_thread_specific<scalable_vector<NodeID>> tl_num_nodes_in_block{[&] {
-    return scalable_vector<NodeID>(p_graph.k());
+  tbb::enumerable_thread_specific<ScalableVector<NodeID>> tl_num_nodes_in_block{[&] {
+    return ScalableVector<NodeID>(p_graph.k());
   }};
-  tbb::enumerable_thread_specific<scalable_vector<EdgeID>> tl_num_edges_in_block{[&] {
-    return scalable_vector<EdgeID>(p_graph.k());
+  tbb::enumerable_thread_specific<ScalableVector<EdgeID>> tl_num_edges_in_block{[&] {
+    return ScalableVector<EdgeID>(p_graph.k());
   }};
 
   tbb::parallel_for(tbb::blocked_range<NodeID>(0, graph.n()), [&](auto &r) {
@@ -339,7 +339,7 @@ SubgraphExtractionResult extract_subgraphs(
 
 PartitionedGraph copy_subgraph_partitions(
     PartitionedGraph p_graph,
-    const scalable_vector<StaticArray<BlockID>> &p_subgraph_partitions,
+    const ScalableVector<StaticArray<BlockID>> &p_subgraph_partitions,
     const BlockID k_prime,
     const BlockID input_k,
     const StaticArray<NodeID> &mapping

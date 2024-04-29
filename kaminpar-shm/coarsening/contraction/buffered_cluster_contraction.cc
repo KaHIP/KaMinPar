@@ -129,7 +129,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_buffered(
   tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> collector{[&] {
     return RatingMap<EdgeWeight, NodeID>(c_n);
   }};
-  NavigableLinkedList<NodeID, Edge, scalable_vector> edge_buffer_ets;
+  NavigableLinkedList<NodeID, Edge, ScalableVector> edge_buffer_ets;
 
   for (const auto [cluster_start, cluster_end] : cluster_chunks) {
     tbb::parallel_for(tbb::blocked_range<NodeID>(cluster_start, cluster_end), [&](const auto &r) {

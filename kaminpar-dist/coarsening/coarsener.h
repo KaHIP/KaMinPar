@@ -53,7 +53,7 @@ private:
   std::vector<DistributedGraph> _graph_hierarchy;
   std::vector<GlobalMapping> _global_mapping_hierarchy; //< produced by global clustering algorithm
   std::vector<MigratedNodes> _node_migration_history;
-  std::vector<scalable_vector<NodeID>>
+  std::vector<ScalableVector<NodeID>>
       _local_mapping_hierarchy; //< produced by local clustering_algorithm
 
   bool _local_clustering_converged = false;

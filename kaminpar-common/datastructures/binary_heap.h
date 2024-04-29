@@ -233,7 +233,7 @@ private:
   }
 
   ID _capacity;
-  scalable_vector<HeapElement> _heap;
+  ScalableVector<HeapElement> _heap;
   std::size_t *_id_pos;
   Comparator<Key> _comparator{};
 };
