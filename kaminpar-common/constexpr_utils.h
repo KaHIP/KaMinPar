@@ -13,7 +13,7 @@
 namespace kaminpar {
 
 /*!
- * Invokes a function either directly or indirectly depending on a lambda.
+ * Invokes a function either directly or indirectly.
  *
  * @tparam direct Whether to call the function directly.
  * @tparam Lambda The type of the lambda to pass to the function.
@@ -22,11 +22,32 @@ namespace kaminpar {
  * @param fun The function to invoke.
  */
 template <bool direct, typename Lambda, typename Function>
-constexpr void invoke_maybe_indirect(Lambda &&l, Function &&fun) {
+constexpr void invoke_indirect(Lambda &&l, Function &&fun) {
   if constexpr (direct) {
-    fun(std::forward<Lambda>(l));
+    return fun(std::forward<Lambda>(l));
   } else {
     l([&](auto &&l2) { fun(std::forward<decltype(l2)>(l2)); });
+  }
+}
+
+/*!
+ * Invokes a function either directly or indirectly and returns its return value.
+ *
+ * @tparam direct Whether to call the function directly.
+ * @tparam Value The type of the return value of the function.
+ * @tparam Lambda The type of the lambda to pass to the function.
+ * @tparam Function The type of the function to invoke.
+ * @param l The lambda to pass to the function.
+ * @param fun The function to invoke.
+ */
+template <bool direct, typename Value, typename Lambda, typename Function>
+constexpr Value invoke_indirect2(Lambda &&l, Function &&fun) {
+  if constexpr (direct) {
+    return fun(std::forward<Lambda>(l));
+  } else {
+    Value val;
+    l([&](auto &&l2) { val = fun(std::forward<decltype(l2)>(l2)); });
+    return val;
   }
 }
 

@@ -229,8 +229,8 @@ template <typename Int>
 void benchmark_rle(std::string_view name, const std::size_t count, const std::uint8_t *values_ptr) {
   SCOPED_TIMER(name);
 
-  VarIntRunLengthDecoder<Int> decoder(values_ptr);
-  decoder.decode(count, [](const Int value) { do_not_optimize(value); });
+  VarIntRunLengthDecoder<Int> decoder(values_ptr, count);
+  decoder.decode([](const Int value) { do_not_optimize(value); });
 }
 
 template <typename Int>
@@ -238,7 +238,7 @@ void benchmark_sve(std::string_view name, const std::size_t count, const std::ui
   SCOPED_TIMER(name);
 
   VarIntStreamDecoder<Int> decoder(values_ptr, count);
-  decoder.decode(count, [](const Int value) { do_not_optimize(value); });
+  decoder.decode([](const Int value) { do_not_optimize(value); });
 }
 
 template <typename Lambda>

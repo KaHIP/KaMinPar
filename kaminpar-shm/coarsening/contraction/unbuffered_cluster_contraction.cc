@@ -179,8 +179,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
         if (degree >= kBufferSize) {
           auto [new_c_u, edge] = atomic_fetch_next_coarse_node_info(1, degree);
           write_neighbourhood(c_u, new_c_u, edge, c_u_weight, map);
-        } else if (num_buffered_nodes >= kBufferSize - 1 ||
-                   num_buffered_edges + degree >= kBufferSize) {
+        } else if (num_buffered_nodes >= kBufferSize - 1 || num_buffered_edges + degree >= kBufferSize) {
           const auto [new_c_u, edge] = atomic_fetch_next_coarse_node_info(
               num_buffered_nodes + 1, num_buffered_edges + degree
           );
@@ -301,18 +300,18 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
 
 std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
     const Graph &graph,
-    StaticArray<NodeID> &clustering,
+    StaticArray<NodeID> clustering,
     const ContractionCoarseningContext &con_ctx,
     MemoryContext &m_ctx
 ) {
   if (con_ctx.use_compact_mapping) {
-    auto [c_n, mapping] = compute_mapping<CompactStaticArray>(graph, clustering, m_ctx);
+    auto [c_n, mapping] = compute_mapping<CompactStaticArray>(graph, std::move(clustering), m_ctx);
     fill_cluster_buckets(c_n, graph, mapping, m_ctx.buckets_index, m_ctx.buckets);
     return graph.reified([&](auto &graph) {
       return contract_clustering_unbuffered(graph, c_n, std::move(mapping), con_ctx, m_ctx);
     });
   } else {
-    auto [c_n, mapping] = compute_mapping<StaticArray>(graph, clustering, m_ctx);
+    auto [c_n, mapping] = compute_mapping<StaticArray>(graph, std::move(clustering), m_ctx);
     fill_cluster_buckets(c_n, graph, mapping, m_ctx.buckets_index, m_ctx.buckets);
     return graph.reified([&](auto &graph) {
       return contract_clustering_unbuffered(graph, c_n, std::move(mapping), con_ctx, m_ctx);

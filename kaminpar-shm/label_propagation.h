@@ -92,8 +92,8 @@ protected:
   using ClusterWeight = typename Config::ClusterWeight;
   using RatingMap = typename Config::RatingMap;
 
-  using SecondPhaseSelectMode = shm::SecondPhaseSelectMode;
-  using SecondPhaseAggregationMode = shm::SecondPhaseAggregationMode;
+  using SecondPhaseSelectionStrategy = shm::SecondPhaseSelectionStrategy;
+  using SecondPhaseAggregationStrategy = shm::SecondPhaseAggregationStrategy;
 
 public:
   void set_max_degree(const NodeID max_degree) {
@@ -124,18 +124,18 @@ public:
     return _use_two_phases;
   }
 
-  void set_second_phase_select_mode(const SecondPhaseSelectMode mode) {
-    _second_phase_select_mode = mode;
+  void set_second_phase_selection_strategy(const SecondPhaseSelectionStrategy strategy) {
+    _second_phase_selection_strategy = strategy;
   }
-  [[nodiscard]] SecondPhaseSelectMode second_phase_select_mode() const {
-    return _second_phase_select_mode;
+  [[nodiscard]] SecondPhaseSelectionStrategy second_phase_selection_strategy() const {
+    return _second_phase_selection_strategy;
   }
 
-  void set_second_phase_aggregation_mode(const SecondPhaseAggregationMode mode) {
-    _second_phase_aggregation_mode = mode;
+  void set_second_phase_aggregation_strategy(const SecondPhaseAggregationStrategy strategy) {
+    _second_phase_aggregation_strategy = strategy;
   }
-  [[nodiscard]] SecondPhaseAggregationMode second_phase_aggregation_mode() const {
-    return _second_phase_aggregation_mode;
+  [[nodiscard]] SecondPhaseAggregationStrategy second_phase_aggregation_strategy() const {
+    return _second_phase_aggregation_strategy;
   }
 
   void set_relabel_before_second_phase(const bool relabel) {
@@ -368,7 +368,8 @@ protected:
 
     if constexpr (first_phase) {
       std::size_t upper_bound_size = std::min<ClusterID>(_graph->degree(u), _initial_num_clusters);
-      if (_use_two_phases && _second_phase_select_mode == SecondPhaseSelectMode::FULL_RATING_MAP) {
+      if (_use_two_phases &&
+          _second_phase_selection_strategy == SecondPhaseSelectionStrategy::FULL_RATING_MAP) {
         upper_bound_size = std::min(upper_bound_size, Config::kRatingMapThreshold);
       }
 
@@ -441,9 +442,10 @@ protected:
 
     if constexpr (first_phase) {
       const bool use_frm_selection =
-          _use_two_phases && _second_phase_select_mode == SecondPhaseSelectMode::FULL_RATING_MAP;
+          _use_two_phases &&
+          _second_phase_selection_strategy == SecondPhaseSelectionStrategy::FULL_RATING_MAP;
       const bool aggregate_during_second_phase =
-          _second_phase_aggregation_mode != SecondPhaseAggregationMode::NONE;
+          _second_phase_aggregation_strategy != SecondPhaseAggregationStrategy::NONE;
 
       bool second_phase_node = false;
       _graph->neighbors(u, _max_num_neighbors, [&](const EdgeID e, const NodeID v) {
@@ -475,8 +477,8 @@ protected:
         return std::nullopt;
       }
     } else {
-      switch (_second_phase_aggregation_mode) {
-      case SecondPhaseAggregationMode::DIRECT: {
+      switch (_second_phase_aggregation_strategy) {
+      case SecondPhaseAggregationStrategy::DIRECT: {
         _graph->pfor_neighbors(u, _max_num_neighbors, 2000, [&](const EdgeID e, const NodeID v) {
           if (derived_accept_neighbor(u, v)) {
             const ClusterID v_cluster = derived_cluster(v);
@@ -496,7 +498,7 @@ protected:
         });
         break;
       }
-      case SecondPhaseAggregationMode::BUFFERED: {
+      case SecondPhaseAggregationStrategy::BUFFERED: {
         const auto flush_local_rating_map = [&](auto &local_rating_map) {
           for (const auto [cluster, rating] : local_rating_map.entries()) {
             const EdgeWeight prev_rating =
@@ -535,7 +537,7 @@ protected:
         });
         break;
       }
-      case SecondPhaseAggregationMode::NONE:
+      case SecondPhaseAggregationStrategy::NONE:
         __builtin_unreachable();
       }
     }
@@ -1149,11 +1151,11 @@ protected: // Members
   //! parallel over their neighbors.
   bool _use_two_phases{false};
 
-  //! The mode by which the nodes for the second phase are selected.
-  SecondPhaseSelectMode _second_phase_select_mode;
+  //! The strategy by which the nodes for the second phase are selected.
+  SecondPhaseSelectionStrategy _second_phase_selection_strategy;
 
-  //! The mode by which the ratings for nodes in the second phase are aggregated.
-  SecondPhaseAggregationMode _second_phase_aggregation_mode;
+  //! The strategy by which the ratings for nodes in the second phase are aggregated.
+  SecondPhaseAggregationStrategy _second_phase_aggregation_strategy;
 
   //! Whether to relabel the clusters before the second phase.
   bool _relabel_before_second_phase;
@@ -1309,8 +1311,8 @@ protected:
   using ClusterWeight = typename Base::ClusterWeight;
   using RatingMap = typename Base::RatingMap;
 
-  using SecondPhaseSelectMode = Base::SecondPhaseSelectMode;
-  using SecondPhaseAggregationMode = Base::SecondPhaseAggregationMode;
+  using SecondPhaseSelectionStrategy = Base::SecondPhaseSelectionStrategy;
+  using SecondPhaseAggregationStrategy = Base::SecondPhaseAggregationStrategy;
 
   using Base::handle_node;
   using Base::relabel_clusters;
@@ -1600,9 +1602,9 @@ private:
 
     const bool use_high_degree_selection =
         _use_two_phases && _initial_num_clusters >= Config::kRatingMapThreshold &&
-        _second_phase_select_mode == SecondPhaseSelectMode::HIGH_DEGREE;
+        _second_phase_selection_strategy == SecondPhaseSelectionStrategy::HIGH_DEGREE;
     const bool aggregate_during_second_phase =
-        _second_phase_aggregation_mode != SecondPhaseAggregationMode::NONE;
+        _second_phase_aggregation_strategy != SecondPhaseAggregationStrategy::NONE;
 
     parallel::Atomic<std::size_t> next_chunk = 0;
     tbb::parallel_for(static_cast<std::size_t>(0), _chunks.size(), [&](const std::size_t) {
@@ -1717,9 +1719,9 @@ protected:
   using Base::_rating_map_ets;
   using Base::_relabel_before_second_phase;
   using Base::_relabeled;
-  using Base::_second_phase_aggregation_mode;
+  using Base::_second_phase_aggregation_strategy;
   using Base::_second_phase_nodes;
-  using Base::_second_phase_select_mode;
+  using Base::_second_phase_selection_strategy;
   using Base::_use_two_phases;
 
   Permutations &_random_permutations;
@@ -1731,23 +1733,37 @@ protected:
 };
 
 template <typename ClusterID, typename ClusterWeight> class OwnedRelaxedClusterWeightVector {
-  using FirstLevelClusterWeight = typename std::
-      conditional_t<std::is_same_v<ClusterWeight, std::int32_t>, std::int16_t, std::int32_t>;
+  using Structure = shm::ClusterWeightsStructure;
 
   using ClusterWeightVec = StaticArray<ClusterWeight>;
+
+  using SmallClusterWeight = std::uint8_t;
+  using SmallClusterWeightVec = StaticArray<SmallClusterWeight>;
+
+  using FirstLevelClusterWeight = typename std::
+      conditional_t<std::is_same_v<ClusterWeight, std::int32_t>, std::uint16_t, std::uint32_t>;
   using ClusterWeightTwoLevelVec =
       ConcurrentTwoLevelVector<ClusterWeight, ClusterID, FirstLevelClusterWeight>;
 
 public:
   using ClusterWeights = std::pair<ClusterWeightVec, ClusterWeightTwoLevelVec>;
 
-  OwnedRelaxedClusterWeightVector(const bool use_two_level_vector)
-      : _use_two_level_vector(use_two_level_vector) {}
+  OwnedRelaxedClusterWeightVector(const Structure structure)
+      : _use_two_level_vector(structure == Structure::TWO_LEVEL_VEC),
+        _use_small_vector_initially(structure == Structure::INITIALLY_SMALL_VEC) {}
+
+  void set_use_small_vector_initially(const bool use_small_vector_initially) {
+    _use_small_vector_initially = use_small_vector_initially;
+  }
 
   void allocate_cluster_weights(const ClusterID num_clusters) {
     if (_use_two_level_vector) {
       if (_two_level_cluster_weights.capacity() < num_clusters) {
         _two_level_cluster_weights.resize(num_clusters);
+      }
+    } else if (_use_small_vector_initially) {
+      if (_small_cluster_weights.size() < num_clusters) {
+        _small_cluster_weights.resize(num_clusters);
       }
     } else {
       if (_cluster_weights.size() < num_clusters) {
@@ -1759,6 +1775,8 @@ public:
   void free() {
     if (_use_two_level_vector) {
       _two_level_cluster_weights.free();
+    } else if (_use_small_vector_initially) {
+      _small_cluster_weights.free();
     } else {
       _cluster_weights.free();
     }
@@ -1783,6 +1801,11 @@ public:
   void init_cluster_weight(const ClusterID cluster, const ClusterWeight weight) {
     if (_use_two_level_vector) {
       _two_level_cluster_weights.insert(cluster, weight);
+    } else if (_use_small_vector_initially) {
+      // Can cause problems for graphs with node weights.
+      KASSERT(weight <= std::numeric_limits<SmallClusterWeight>::max());
+
+      _small_cluster_weights[cluster] = static_cast<SmallClusterWeight>(weight);
     } else {
       _cluster_weights[cluster] = weight;
     }
@@ -1791,6 +1814,10 @@ public:
   ClusterWeight cluster_weight(const ClusterID cluster) {
     if (_use_two_level_vector) {
       return _two_level_cluster_weights[cluster];
+    } else if (_use_small_vector_initially) {
+      return static_cast<ClusterWeight>(
+          __atomic_load_n(&_small_cluster_weights[cluster], __ATOMIC_RELAXED)
+      );
     } else {
       return __atomic_load_n(&_cluster_weights[cluster], __ATOMIC_RELAXED);
     }
@@ -1806,6 +1833,17 @@ public:
       if (_two_level_cluster_weights[new_cluster] + delta <= max_weight) {
         _two_level_cluster_weights.atomic_add(new_cluster, delta);
         _two_level_cluster_weights.atomic_sub(old_cluster, delta);
+        return true;
+      }
+    } else if (_use_small_vector_initially) {
+      const ClusterWeight actual_max_weight = std::min(
+          max_weight, static_cast<ClusterWeight>(std::numeric_limits<SmallClusterWeight>::max())
+      );
+
+      if (static_cast<ClusterWeight>(_small_cluster_weights[new_cluster]) + delta <=
+          actual_max_weight) {
+        __atomic_fetch_add(&_small_cluster_weights[new_cluster], delta, __ATOMIC_RELAXED);
+        __atomic_fetch_sub(&_small_cluster_weights[old_cluster], delta, __ATOMIC_RELAXED);
         return true;
       }
     } else {
@@ -1824,14 +1862,17 @@ public:
   ) {
     if (_use_two_level_vector) {
       _two_level_cluster_weights.reassign(mapping, num_new_clusters);
-    } else {
+      return;
+    }
+
+    const auto reassign = [&](const auto &old_cluster_weights) {
       RECORD("new_cluster_weights") ClusterWeightVec new_cluster_weights(num_new_clusters);
 
       tbb::parallel_for(
-          tbb::blocked_range<ClusterID>(0, _cluster_weights.size()),
+          tbb::blocked_range<ClusterID>(0, old_cluster_weights.size()),
           [&](const auto &r) {
             for (ClusterID u = r.begin(); u != r.end(); ++u) {
-              ClusterWeight weight = _cluster_weights[u];
+              ClusterWeight weight = old_cluster_weights[u];
 
               if (weight != 0) {
                 ClusterID new_cluster_id = mapping[u] - 1;
@@ -1842,13 +1883,25 @@ public:
       );
 
       _cluster_weights = std::move(new_cluster_weights);
+    };
+
+    if (_use_small_vector_initially) {
+      reassign(_small_cluster_weights);
+      _small_cluster_weights.free();
+      _use_small_vector_initially = false;
+    } else {
+      reassign(_cluster_weights);
     }
   }
 
 private:
-  const bool _use_two_level_vector;
   ClusterWeightVec _cluster_weights;
+
+  const bool _use_two_level_vector;
   ClusterWeightTwoLevelVec _two_level_cluster_weights;
+
+  bool _use_small_vector_initially;
+  SmallClusterWeightVec _small_cluster_weights;
 };
 
 template <typename NodeID, typename ClusterID> class NonatomicClusterVectorRef {

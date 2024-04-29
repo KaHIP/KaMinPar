@@ -35,6 +35,10 @@ std::unordered_map<std::string, ClusterWeightLimit> get_cluster_weight_limits();
 
 std::ostream &operator<<(std::ostream &out, RefinementAlgorithm algorithm);
 
+std::unordered_map<std::string, ClusterWeightsStructure> get_cluster_weight_structures();
+
+std::ostream &operator<<(std::ostream &out, const ClusterWeightsStructure structure);
+
 std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorithms();
 
 std::ostream &operator<<(std::ostream &out, FMStoppingRule rule);
@@ -51,13 +55,15 @@ std::unordered_map<std::string, InitialPartitioningMode> get_initial_partitionin
 
 std::ostream &operator<<(std::ostream &out, GainCacheStrategy strategy);
 
-std::ostream &operator<<(std::ostream &out, SecondPhaseSelectMode strategy);
+std::ostream &operator<<(std::ostream &out, SecondPhaseSelectionStrategy strategy);
 
-std::unordered_map<std::string, SecondPhaseSelectMode> get_second_phase_select_modes();
+std::unordered_map<std::string, SecondPhaseSelectionStrategy>
+get_second_phase_selection_strategies();
 
-std::ostream &operator<<(std::ostream &out, SecondPhaseAggregationMode strategy);
+std::ostream &operator<<(std::ostream &out, SecondPhaseAggregationStrategy strategy);
 
-std::unordered_map<std::string, SecondPhaseAggregationMode> get_second_phase_aggregation_modes();
+std::unordered_map<std::string, SecondPhaseAggregationStrategy>
+get_second_phase_aggregation_strategies();
 
 std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies();
 

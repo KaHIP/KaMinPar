@@ -15,7 +15,7 @@ template <typename Int> void test_varint_stream(const std::vector<Int> &values) 
 
   VarIntStreamDecoder<Int> decoder(ptr.get(), values.size());
   std::size_t i = 0;
-  decoder.decode(values.size(), [&](const Int value) { EXPECT_EQ(values[i++], value); });
+  decoder.decode([&](const Int value) { EXPECT_EQ(values[i++], value); });
   EXPECT_EQ(i, values.size());
 }
 

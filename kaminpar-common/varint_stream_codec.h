@@ -164,9 +164,9 @@ template <typename Int> class VarIntStreamDecoder {
     return shuffle_table;
   }
 
-  static const constexpr std::array<std::uint8_t, 256> kLengthTable = create_length_table();
+  static constexpr const std::array<std::uint8_t, 256> kLengthTable = create_length_table();
 
-  static const constexpr std::array<std::array<std::uint8_t, 16>, 256> kShuffleTable =
+  static constexpr const std::array<std::array<std::uint8_t, 16>, 256> kShuffleTable =
       create_shuffle_table();
 
 public:
@@ -185,18 +185,13 @@ public:
   /*!
    * Decodes the encoded integers.
    *
-   * @param max_count The amount of integers to decode, it has to be less then the amount of
-   * integers stored that are stored.
    * @param l The function to be called with the decoded integers, i.e. the function has one
    * parameter of type Int.
    */
-  template <typename Lambda> void decode(const std::size_t max_count, Lambda &&l) {
-    constexpr bool non_stoppable = std::is_void<std::invoke_result_t<Lambda, std::uint32_t>>::value;
+  template <typename Lambda> void decode(Lambda &&l) {
+    constexpr bool non_stoppable = std::is_void_v<std::invoke_result_t<Lambda, std::uint32_t>>;
 
-    // max_count = std::min(max_count, _count);
-
-    const std::size_t control_bytes = max_count / 4;
-    for (std::size_t i = 0; i < control_bytes; ++i) {
+    for (std::size_t i = 0; i < _control_bytes; ++i) {
       const std::uint8_t control_byte = _control_bytes_ptr[i];
       const std::uint8_t length = kLengthTable[control_byte];
 
@@ -230,9 +225,9 @@ public:
       }
     }
 
-    switch (max_count % 4) {
+    switch (_count % 4) {
     case 1: {
-      const std::uint8_t control_byte = _control_bytes_ptr[control_bytes];
+      const std::uint8_t control_byte = _control_bytes_ptr[_control_bytes];
       const std::uint8_t *shuffle_mask = kShuffleTable[control_byte].data();
 
       __m128i data = _mm_loadu_si128((const __m128i *)_data_ptr);
@@ -248,7 +243,7 @@ public:
       break;
     }
     case 2: {
-      const std::uint8_t control_byte = _control_bytes_ptr[control_bytes];
+      const std::uint8_t control_byte = _control_bytes_ptr[_control_bytes];
       const std::uint8_t *shuffle_mask = kShuffleTable[control_byte].data();
 
       __m128i data = _mm_loadu_si128((const __m128i *)_data_ptr);
@@ -269,7 +264,7 @@ public:
       break;
     }
     case 3: {
-      const std::uint8_t control_byte = _control_bytes_ptr[control_bytes];
+      const std::uint8_t control_byte = _control_bytes_ptr[_control_bytes];
       const std::uint8_t *shuffle_mask = kShuffleTable[control_byte].data();
 
       __m128i data = _mm_loadu_si128((const __m128i *)_data_ptr);

@@ -41,13 +41,13 @@ public:
 
   LPClusteringImpl(const CoarseningContext &c_ctx, Permutations &permutations)
       : Base(permutations),
-        ClusterWeightBase(c_ctx.clustering.lp.use_two_level_cluster_weight_vector),
+        ClusterWeightBase(c_ctx.clustering.lp.cluster_weights_structure),
         _lp_ctx(c_ctx.clustering.lp) {
     Base::set_max_degree(_lp_ctx.large_degree_threshold);
     Base::set_max_num_neighbors(_lp_ctx.max_num_neighbors);
     Base::set_use_two_phases(_lp_ctx.use_two_phases);
-    Base::set_second_phase_select_mode(_lp_ctx.second_phase_select_mode);
-    Base::set_second_phase_aggregation_mode(_lp_ctx.second_phase_aggregation_mode);
+    Base::set_second_phase_selection_strategy(_lp_ctx.second_phase_selection_strategy);
+    Base::set_second_phase_aggregation_strategy(_lp_ctx.second_phase_aggregation_strategy);
     Base::set_relabel_before_second_phase(_lp_ctx.relabel_before_second_phase);
   }
 
@@ -323,6 +323,11 @@ public:
     _csr_core->set_relabel_before_second_phase(false);
     _compact_csr_core->set_relabel_before_second_phase(false);
     _compressed_core->set_relabel_before_second_phase(false);
+
+    // Only use the initially small cluster weight vector for the first lp implementation
+    _csr_core->set_use_small_vector_initially(false);
+    _compact_csr_core->set_use_small_vector_initially(false);
+    _compressed_core->set_use_small_vector_initially(false);
   }
 
 private:

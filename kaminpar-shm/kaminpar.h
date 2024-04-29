@@ -95,12 +95,18 @@ enum class ClusterWeightLimit {
   ZERO,
 };
 
-enum class SecondPhaseSelectMode {
+enum class ClusterWeightsStructure {
+  VEC,
+  TWO_LEVEL_VEC,
+  INITIALLY_SMALL_VEC
+};
+
+enum class SecondPhaseSelectionStrategy {
   HIGH_DEGREE,
   FULL_RATING_MAP
 };
 
-enum class SecondPhaseAggregationMode {
+enum class SecondPhaseAggregationStrategy {
   NONE,
   DIRECT,
   BUFFERED
@@ -135,11 +141,11 @@ struct LabelPropagationCoarseningContext {
   NodeID large_degree_threshold;
   NodeID max_num_neighbors;
 
-  bool use_two_level_cluster_weight_vector;
+  ClusterWeightsStructure cluster_weights_structure;
 
   bool use_two_phases;
-  SecondPhaseSelectMode second_phase_select_mode;
-  SecondPhaseAggregationMode second_phase_aggregation_mode;
+  SecondPhaseSelectionStrategy second_phase_selection_strategy;
+  SecondPhaseAggregationStrategy second_phase_aggregation_strategy;
   bool relabel_before_second_phase;
 
   TwoHopStrategy two_hop_strategy;
@@ -208,8 +214,8 @@ struct LabelPropagationRefinementContext {
   NodeID max_num_neighbors;
 
   bool use_two_phases;
-  SecondPhaseSelectMode second_phase_select_mode;
-  SecondPhaseAggregationMode second_phase_aggregation_mode;
+  SecondPhaseSelectionStrategy second_phase_selection_strategy;
+  SecondPhaseAggregationStrategy second_phase_aggregation_strategy;
 };
 
 struct KwayFMRefinementContext {
@@ -393,9 +399,10 @@ struct GraphCompressionContext {
   bool dismissed;
   double compression_ratio;
   std::int64_t size_reduction;
-  std::size_t high_degree_count;
-  std::size_t part_count;
-  std::size_t interval_count;
+  std::size_t num_high_degree_nodes;
+  std::size_t num_high_degree_parts;
+  std::size_t num_interval_nodes;
+  std::size_t num_intervals;
 
   void setup(const Graph &graph);
 };

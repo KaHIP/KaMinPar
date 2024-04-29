@@ -114,7 +114,7 @@ public:
 
     tbb::parallel_for(tbb::blocked_range<Size>(0, _values.size()), [&](const auto &r) {
       for (Size pos = r.begin(); pos != r.end(); ++pos) {
-        const Value value = _values[pos];
+        const auto value = static_cast<Value>(_values[pos]);
 
         if (value == kMaxFirstValue) {
           Size new_pos = mapping[pos] - 1;
@@ -143,7 +143,7 @@ public:
   [[nodiscard]] Value operator[](const Size pos) {
     KASSERT(pos < _values.size());
 
-    const Value value = _values[pos];
+    const auto value = static_cast<Value>(_values[pos]);
     if (value < kMaxFirstValue) {
       return value;
     }
@@ -167,7 +167,7 @@ public:
     KASSERT(pos < _values.size());
 
     if (value < kMaxFirstValue) {
-      _values[pos] = value;
+      _values[pos] = static_cast<FirstValue>(value);
     } else {
       _values[pos] = kMaxFirstValue;
       _table.get_handle().insert(pos, value);
@@ -196,7 +196,12 @@ public:
       const Value new_value = static_cast<Value>(value) + delta;
       if (new_value < kMaxFirstValue) {
         success = __atomic_compare_exchange_n(
-            &_values[pos], &value, new_value, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED
+            &_values[pos],
+            &value,
+            static_cast<FirstValue>(new_value),
+            false,
+            __ATOMIC_RELAXED,
+            __ATOMIC_RELAXED
         );
       } else {
         success = __atomic_compare_exchange_n(
@@ -234,7 +239,12 @@ public:
       }
 
       success = __atomic_compare_exchange_n(
-          &_values[pos], &value, value - delta, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED
+          &_values[pos],
+          &value,
+          static_cast<FirstValue>(value - delta),
+          false,
+          __ATOMIC_RELAXED,
+          __ATOMIC_RELAXED
       );
     } while (!success);
   }
@@ -327,7 +337,7 @@ public:
 
     tbb::parallel_for(tbb::blocked_range<Size>(0, _values.size()), [&](const auto &r) {
       for (Size pos = r.begin(); pos != r.end(); ++pos) {
-        const Value value = _values[pos];
+        const auto value = static_cast<Value>(_values[pos]);
 
         if (value == kMaxFirstValue) {
           Size new_pos = mapping[pos] - 1;
@@ -363,7 +373,7 @@ public:
   [[nodiscard]] Value operator[](const Size pos) {
     KASSERT(pos < _values.size());
 
-    const Value value = _values[pos];
+    const auto value = static_cast<Value>(_values[pos]);
     if (value < kMaxFirstValue) {
       return value;
     }
@@ -387,7 +397,7 @@ public:
     KASSERT(pos < _values.size());
 
     if (value < kMaxFirstValue) {
-      _values[pos] = value;
+      _values[pos] = static_cast<FirstValue>(value);
     } else {
       _values[pos] = kMaxFirstValue;
 
@@ -423,7 +433,12 @@ public:
       const Value new_value = static_cast<Value>(value) + delta;
       if (new_value < kMaxFirstValue) {
         success = __atomic_compare_exchange_n(
-            &_values[pos], &value, new_value, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED
+            &_values[pos],
+            &value,
+            static_cast<FirstValue>(new_value),
+            false,
+            __ATOMIC_RELAXED,
+            __ATOMIC_RELAXED
         );
       } else {
         success = __atomic_compare_exchange_n(
@@ -469,7 +484,12 @@ public:
       }
 
       success = __atomic_compare_exchange_n(
-          &_values[pos], &value, value - delta, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED
+          &_values[pos],
+          &value,
+          static_cast<FirstValue>(value - delta),
+          false,
+          __ATOMIC_RELAXED,
+          __ATOMIC_RELAXED
       );
     } while (!success);
   }
