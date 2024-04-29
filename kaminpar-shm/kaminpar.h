@@ -502,15 +502,6 @@ public:
       shm::EdgeWeight *adjwgt
   );
 
-  /*! @deprecated in favor of borrow_and_mutate_graph() */
-  void take_graph(
-      shm::NodeID n,
-      shm::EdgeID *xadj,
-      shm::NodeID *adjncy,
-      shm::NodeWeight *vwgt,
-      shm::EdgeWeight *adjwgt
-  );
-
   /*!
    * Sets the graph to be partitioned by copying the data pointed to by the given pointers.
    *
@@ -539,7 +530,7 @@ public:
   void set_graph(shm::Graph graph);
 
   /*!
-   * Partitions the graph set by `take_graph()` or `copy_graph()` into `k` blocks.
+   * Partitions the graph set by `borrow_and_mutate_graph()` or `copy_graph()` into `k` blocks.
    *
    * @param k The number of blocks to partition the graph into.
    * @param partition Array of length `n` for storing the partition. The caller is reponsible for
