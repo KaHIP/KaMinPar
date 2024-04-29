@@ -12,9 +12,9 @@
 
 #include <kagen.h>
 #include <mpi.h>
+#include <tbb/scalable_allocator.h>
 
 #include "kaminpar-common/environment.h"
-#include "kaminpar-common/strutils.h"
 
 #include "apps/io/dist_io.h"
 
@@ -42,6 +42,8 @@ struct ApplicationContext {
 
   std::string graph_filename = "";
   std::string partition_filename = "";
+
+  bool no_huge_pages = false;
 };
 
 void setup_context(CLI::App &cli, ApplicationContext &app, Context &ctx) {
@@ -91,9 +93,11 @@ The output should be stored in a file and can be used by the -C,--config option.
       ->default_val(app.num_threads);
   cli.add_option("--io-format", app.io_format)
       ->transform(CLI::CheckedTransformer(kagen::GetInputFormatMap()).description(""))
-      ->description(R"(Graph input format. By default, guess the file format from the file extension. Explicit options are:
+      ->description(
+          R"(Graph input format. By default, guess the file format from the file extension. Explicit options are:
   - metis:  text format used by the Metis family
-  - parhip: binary format used by ParHiP (+ extensions))")
+  - parhip: binary format used by ParHiP (+ extensions))"
+      )
       ->capture_default_str();
   cli.add_option("--io-distribution", app.io_distribution)
       ->transform(CLI::CheckedTransformer(kagen::GetGraphDistributionMap()).description(""))
@@ -111,6 +115,8 @@ The output should be stored in a file and can be used by the -C,--config option.
   cli.add_option("-o,--output", app.partition_filename, "Output filename for the graph partition.")
       ->capture_default_str();
   cli.add_flag("--check-input-graph", app.check_input_graph, "Check input graph for errors.");
+
+  cli.add_flag("--no-huge-pages", app.no_huge_pages, "Do not use huge pages via TBBmalloc.");
 
   // Algorithmic options
   create_all_options(&cli, ctx);
@@ -171,8 +177,9 @@ NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
 } // namespace
 
 int main(int argc, char *argv[]) {
-  int provided;
+  int provided, rank;
   MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
   CLI::App cli("dKaMinPar: (Somewhat) Minimal Distributed Deep Multilevel "
                "Graph Partitioner");
@@ -181,17 +188,20 @@ int main(int argc, char *argv[]) {
   setup_context(cli, app, ctx);
   CLI11_PARSE(cli, argc, argv);
 
-  if (app.dump_config) {
+  if (rank == 0 && app.dump_config) {
     CLI::App dump;
     create_all_options(&dump, ctx);
     std::cout << dump.config_to_str(true, true);
     std::exit(1);
   }
 
-  if (app.show_version) {
-    LOG << Environment::GIT_SHA1;
+  if (rank == 0 && app.show_version) {
+    std::cout << Environment::GIT_SHA1 << std::endl;
     std::exit(0);
   }
+
+  // If available, use huge pages for large allocations
+  scalable_allocation_mode(TBBMALLOC_USE_HUGE_PAGES, !app.no_huge_pages);
 
   dKaMinPar partitioner(MPI_COMM_WORLD, app.num_threads, ctx);
   dKaMinPar::reseed(app.seed);
