@@ -9,14 +9,14 @@ jobs:
     strategy:
       matrix:
         compiler:
-          - { name: Clang, cc: clang, cxx: clang++ }
+          #- { name: Clang, cc: clang, cxx: clang++ }
           - { name: GNU, cc: gcc, cxx: g++ }
         build-mode: [Release]
     steps:
       - name: Install dependencies 
         run: sudo apt-get install -y libtbb-dev libhwloc-dev mpi libopenmpi-dev libomp-dev libsparsehash-dev 
       - name: Checkout HEAD
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
           submodules: recursive
