@@ -5,7 +5,7 @@
  * @author: Daniel Seemaier
  * @date:   13.03.2023
  ******************************************************************************/
-#include "kaminpar-shm/partition_utils.h"
+#include "kaminpar-shm/partitioning/partition_utils.h"
 
 #include <array>
 #include <cmath>

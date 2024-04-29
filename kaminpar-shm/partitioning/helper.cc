@@ -7,7 +7,7 @@
  ******************************************************************************/
 #include "kaminpar-shm/partitioning/helper.h"
 
-#include "kaminpar-shm/partition_utils.h"
+#include "kaminpar-shm/partitioning/partition_utils.h"
 
 #include "kaminpar-common/math.h"
 

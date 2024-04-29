@@ -9,6 +9,9 @@
 
 #include <algorithm>
 #include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace kaminpar::str {
 std::string extract_basename(const std::string &path, const bool keep_extension) {
