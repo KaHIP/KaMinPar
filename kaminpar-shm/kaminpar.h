@@ -525,10 +525,10 @@ public:
    */
   void copy_graph(
       shm::NodeID n,
-      shm::EdgeID *const xadj,
-      shm::NodeID *const adjncy,
-      shm::NodeWeight *const vwgt,
-      shm::EdgeWeight *const adjwgt
+      const shm::EdgeID *const xadj,
+      const shm::NodeID *const adjncy,
+      const shm::NodeWeight *const vwgt,
+      const shm::EdgeWeight *const adjwgt
   );
 
   /*!

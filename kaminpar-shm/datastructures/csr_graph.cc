@@ -54,19 +54,34 @@ bool validate_graph(
   }
 
   for (const NodeID u : graph.nodes()) {
-    for (const auto [e, v] : graph.neighbors(u)) {
+    for (EdgeID e = graph.first_edge(u); e < graph.first_invalid_edge(u); ++e) {
+      if (e >= graph.m()) {
+        LOG_WARNING << "Edge " << e << " of " << u << " is out-of-graph";
+        return false;
+      }
+
+      const NodeID v = graph.edge_target(e);
+
       if (v >= graph.n()) {
         LOG_WARNING << "Neighbor " << v << " of " << u << " is out-of-graph";
         return false;
       }
 
       if (u == v) {
-        LOG_WARNING << "Self-loop at " << u;
+        LOG_WARNING << "Self-loop at " << u << ": " << e << " --> " << v;
         return false;
       }
 
       bool found_reverse = false;
-      for (const auto [e_prime, u_prime] : graph.neighbors(v)) {
+      for (EdgeID e_prime = graph.first_edge(v); e_prime < graph.first_invalid_edge(v); ++e_prime) {
+        if (e_prime >= graph.m()) {
+          LOG_WARNING << "Edge " << e_prime << " of " << v << " is out-of-graph";
+          std::exit(1);
+          return false;
+        }
+
+        const NodeID u_prime = graph.edge_target(e_prime);
+
         if (u_prime >= graph.n()) {
           LOG_WARNING << "Neighbor " << u_prime << " of neighbor " << v << " of " << u
                       << " is out-of-graph";
@@ -78,9 +93,9 @@ bool validate_graph(
         }
 
         if (graph.edge_weight(e) != graph.edge_weight(e_prime)) {
-          LOG_WARNING << "Weight of edge " << e << " (" << graph.edge_weight(e)
-                      << ") differs from the weight of its reverse edge " << e_prime << " ("
-                      << graph.edge_weight(e_prime) << ")";
+          LOG_WARNING << "Weight of edge " << e << " (" << graph.edge_weight(e) << ") "   //
+                      << "differs from the weight of its reverse edge " << e_prime << " " //
+                      << "(" << graph.edge_weight(e_prime) << ")";                        //
           return false;
         }
 

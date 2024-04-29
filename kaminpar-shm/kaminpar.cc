@@ -125,14 +125,19 @@ void KaMinPar::borrow_and_mutate_graph(
   StaticArray<EdgeWeight> edge_weights =
       (adjwgt == nullptr) ? StaticArray<EdgeWeight>(0) : StaticArray<EdgeWeight>(m, adjwgt);
 
-  _was_rearranged = false;
-  _graph_ptr = std::make_unique<Graph>(std::make_unique<CSRGraph>(
+  auto csr_graph = std::make_unique<CSRGraph>(
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), false
-  ));
+  );
+  KASSERT(shm::debug::validate_graph(*csr_graph), "invalid input graph", assert::heavy);
+  set_graph(Graph(std::move(csr_graph)));
 }
 
 void KaMinPar::copy_graph(
-    const NodeID n, EdgeID *xadj, NodeID *adjncy, NodeWeight *vwgt, EdgeWeight *adjwgt
+    const NodeID n,
+    const EdgeID *const xadj,
+    const NodeID *const adjncy,
+    const NodeWeight *const vwgt,
+    const EdgeWeight *const adjwgt
 ) {
   SCOPED_HEAP_PROFILER("Copy graph");
   SCOPED_TIMER("IO");
@@ -160,10 +165,11 @@ void KaMinPar::copy_graph(
     }
   });
 
-  _was_rearranged = false;
-  _graph_ptr = std::make_unique<Graph>(std::make_unique<CSRGraph>(
+  auto csr_graph = std::make_unique<CSRGraph>(
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), false
-  ));
+  );
+  KASSERT(shm::debug::validate_graph(*csr_graph), "invalid input graph", assert::heavy);
+  set_graph(Graph(std::move(csr_graph)));
 }
 
 void KaMinPar::set_graph(Graph graph) {
@@ -176,8 +182,6 @@ void KaMinPar::reseed(int seed) {
 }
 
 EdgeWeight KaMinPar::compute_partition(const BlockID k, BlockID *partition) {
-  Logger::set_quiet_mode(_output_level == OutputLevel::QUIET);
-
   cio::print_kaminpar_banner();
   cio::print_build_identifier();
   cio::print_build_datatypes<NodeID, EdgeID, NodeWeight, EdgeWeight>();

@@ -119,7 +119,6 @@ Graph rearrange_by_degree_buckets(CSRGraph &old_graph) {
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), true
   ));
   new_graph.set_permutation(std::move(node_permutations.old_to_new));
-
   return new_graph;
 }
 
