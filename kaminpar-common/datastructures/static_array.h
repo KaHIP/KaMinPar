@@ -17,6 +17,7 @@
 #include <tbb/parallel_for.h>
 
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/constexpr_utils.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/parallel/tbb_malloc.h"
 
@@ -298,11 +299,11 @@ public:
   void resize(const std::size_t size, const value_type init_value, Tags &&...tags) {
     KASSERT(_data == _owned_data.get(), "cannot resize span", assert::always);
     const bool use_thp =
-        (size >= KAMINPAR_THP_THRESHOLD && !(std::is_same_v<static_array::small_t, Tags> || ...));
+        (size >= KAMINPAR_THP_THRESHOLD && !contains_tag_v<static_array::small_t, Tags...>);
     allocate_data(size, use_thp);
 
-    if constexpr (!(std::is_same_v<static_array::noinit_t, Tags> || ...)) {
-      if constexpr ((std::is_same_v<static_array::seq_t, Tags> || ...)) {
+    if constexpr (!contains_tag_v<static_array::noinit_t, Tags...>) {
+      if constexpr (contains_tag_v<static_array::seq_t, Tags...>) {
         assign(size, init_value, false);
       } else {
         assign(size, init_value, true);

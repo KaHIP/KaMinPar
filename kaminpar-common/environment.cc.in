@@ -1,7 +1,9 @@
+#include <string_view>
+
 #include "kaminpar-common/environment.h"
 
 namespace kaminpar {
-const std::string Environment::GIT_SHA1 = "@GIT_SHA1@";
-const std::string Environment::GIT_MODIFIED_FILES = "@GIT_MODIFIED_FILES@";
-const std::string Environment::HOSTNAME = "@HOSTNAME@";
+const std::string_view Environment::GIT_SHA1 = "@GIT_SHA1@";
+const std::string_view Environment::GIT_MODIFIED_FILES = "@GIT_MODIFIED_FILES@";
+const std::string_view Environment::HOSTNAME = "@HOSTNAME@";
 } // namespace kaminpar

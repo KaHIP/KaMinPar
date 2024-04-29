@@ -7,13 +7,11 @@
  ******************************************************************************/
 #pragma once
 
-#include <array>
 #include <chrono>
 #include <iostream>
 #include <map>
 #include <mutex>
 #include <string_view>
-#include <unordered_map>
 #include <vector>
 
 #include <tbb/enumerable_thread_specific.h>

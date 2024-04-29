@@ -8,6 +8,7 @@
 #include "kaminpar-common/console_io.h"
 
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/environment.h"
 #include "kaminpar-common/logger.h"
 
 namespace kaminpar::cio {
