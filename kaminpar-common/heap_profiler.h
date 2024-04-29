@@ -35,8 +35,7 @@ template <typename T> std::string type_name() {
   int status = 0;
 
   std::unique_ptr<char, void (*)(void *)> demangled_result{
-      abi::__cxa_demangle(mangeled_name, NULL, NULL, &status), std::free
-  };
+      abi::__cxa_demangle(mangeled_name, NULL, NULL, &status), std::free};
 
   // Strip the trailing brackets from the constructed function type.
   std::string name((status == 0) ? demangled_result.get() : mangeled_name);
@@ -58,6 +57,21 @@ template <typename T> std::string type_name() {
   return name;
 }
 
+/*!
+ * Allocates memory that is not tracked but the heap profiler. This method is useful for correctly
+ * tracking overcomitted memory.
+ *
+ * @tparam T The type of data to allocate.
+ * @param size The number of data copies to allocate.
+ * @return A pointer to the allocated memory.
+ */
+template <typename T> T *overcommit_memory(std::size_t size) {
+#ifdef KAMINPAR_ENABLE_HEAP_PROFILING
+  return (T *)heap_profiler::std_malloc(size * sizeof(T));
+#else
+  return (T *)std::malloc(size * sizeof(T));
+#endif
+}
 }; // namespace kaminpar::heap_profiler
 
 #ifdef KAMINPAR_ENABLE_HEAP_PROFILING
@@ -158,7 +172,7 @@ namespace kaminpar::heap_profiler {
 template <typename T> struct NoProfilAllocator {
   using value_type = T;
 
-  NoProfilAllocator() noexcept {}
+  NoProfilAllocator() noexcept = default;
   template <typename U> NoProfilAllocator(const NoProfilAllocator<U> &) noexcept {}
 
   template <typename U> bool operator==(const NoProfilAllocator<U> &) const noexcept {

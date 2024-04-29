@@ -464,8 +464,6 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
   }
 
   out << "Contraction mode:             " << c_ctx.contraction.mode << '\n';
-  out << "  Mapping type:               "
-      << (c_ctx.contraction.use_compact_mapping ? "compact" : "normal") << '\n';
   if (c_ctx.contraction.mode == ContractionMode::BUFFERED) {
     out << "  Edge buffer fill fraction:  " << c_ctx.contraction.edge_buffer_fill_fraction << "\n";
   }

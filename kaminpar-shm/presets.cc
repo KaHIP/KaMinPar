@@ -100,7 +100,6 @@ Context create_default_context() {
                       // Context -> Coarsening -> Contraction
                       .mode = ContractionMode::BUFFERED,
                       .edge_buffer_fill_fraction = 1,
-                      .use_compact_mapping = false,
                   },
               .contraction_limit = 2000,
               .convergence_threshold = 0.05,
@@ -211,7 +210,6 @@ Context create_memory_context() {
   ctx.coarsening.clustering.lp.use_two_phases = true;
   ctx.coarsening.clustering.max_mem_free_coarsening_level = 1;
   ctx.coarsening.contraction.mode = ContractionMode::UNBUFFERED;
-  ctx.coarsening.contraction.use_compact_mapping = true;
   return ctx;
 }
 

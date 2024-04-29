@@ -302,7 +302,7 @@ CLI::Option_group *create_contraction_coarsening_options(CLI::App *app, Context 
 
   contraction->add_option("--c-con-mode", ctx.coarsening.contraction.mode)
       ->transform(CLI::CheckedTransformer(get_contraction_modes()).description(""))
-      ->description(R"(The mode useed for contraction.
+      ->description(R"(The mode used for contraction.
 Options are:
   - buffered:         Use an edge buffer that is partially filled
   - buffered-legacy:  Use an edge buffer
@@ -317,9 +317,6 @@ Options are:
           "The fraction of the total edges with which to fill the edge buffer"
       )
       ->capture_default_str();
-  contraction->add_flag(
-      "--c-con-use-compact-mapping", ctx.coarsening.contraction.use_compact_mapping
-  );
 
   return contraction;
 }

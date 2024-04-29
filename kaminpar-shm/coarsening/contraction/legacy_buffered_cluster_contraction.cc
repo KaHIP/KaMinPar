@@ -20,11 +20,11 @@
 
 namespace kaminpar::shm::contraction {
 namespace {
-template <template <typename> typename Mapping, typename Graph>
+template <typename Graph>
 std::unique_ptr<CoarseGraph> contract_clustering_buffered_legacy(
     const Graph &graph,
     const NodeID c_n,
-    Mapping<NodeID> mapping,
+    StaticArray<NodeID> mapping,
     const ContractionCoarseningContext &con_ctx,
     MemoryContext &m_ctx
 ) {
@@ -154,7 +154,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_buffered_legacy(
   });
   STOP_TIMER();
 
-  return std::make_unique<CoarseGraphImpl<Mapping>>(
+  return std::make_unique<CoarseGraphImpl>(
       shm::Graph(std::make_unique<CSRGraph>(
           std::move(c_nodes),
           std::move(c_edges),
@@ -172,18 +172,10 @@ std::unique_ptr<CoarseGraph> contract_clustering_buffered_legacy(
     const ContractionCoarseningContext &con_ctx,
     MemoryContext &m_ctx
 ) {
-  if (con_ctx.use_compact_mapping) {
-    auto [c_n, mapping] = compute_mapping<CompactStaticArray>(graph, std::move(clustering), m_ctx);
-    fill_cluster_buckets(c_n, graph, mapping, m_ctx.buckets_index, m_ctx.buckets);
-    return graph.reified([&](auto &graph) {
-      return contract_clustering_buffered_legacy(graph, c_n, std::move(mapping), con_ctx, m_ctx);
-    });
-  } else {
-    auto [c_n, mapping] = compute_mapping<StaticArray>(graph, std::move(clustering), m_ctx);
-    fill_cluster_buckets(c_n, graph, mapping, m_ctx.buckets_index, m_ctx.buckets);
-    return graph.reified([&](auto &graph) {
-      return contract_clustering_buffered_legacy(graph, c_n, std::move(mapping), con_ctx, m_ctx);
-    });
-  }
+  auto [c_n, mapping] = compute_mapping(graph, std::move(clustering), m_ctx);
+  fill_cluster_buckets(c_n, graph, mapping, m_ctx.buckets_index, m_ctx.buckets);
+  return graph.reified([&](auto &graph) {
+    return contract_clustering_buffered_legacy(graph, c_n, std::move(mapping), con_ctx, m_ctx);
+  });
 }
 } // namespace kaminpar::shm::contraction
