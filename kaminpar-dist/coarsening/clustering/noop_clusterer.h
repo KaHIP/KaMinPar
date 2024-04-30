@@ -7,43 +7,16 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar-dist/coarsening/clustering/clusterer.h"
+#include "kaminpar-dist/coarsening/clusterer.h"
 #include "kaminpar-dist/context.h"
+#include "kaminpar-dist/datastructures/distributed_graph.h"
+
+#include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::dist {
-class GlobalNoopClustering : public Clusterer<GlobalNodeID> {
-  using ClusterArray = typename Clusterer<GlobalNodeID>::ClusterArray;
-
+class NoopClustering : public Clusterer {
 public:
-  explicit GlobalNoopClustering(const Context &) {}
-
-  void initialize(const DistributedGraph &) final {}
-
-  ClusterArray &cluster(const DistributedGraph &, GlobalNodeWeight) final {
-    return _empty_clustering;
-  }
-
-protected:
-  ClusterArray _empty_clustering;
-};
-
-class LocalNoopClustering : public LocalClusterer {
-  using ClusterArray = typename Clusterer<NodeID>::ClusterArray;
-
-public:
-  explicit LocalNoopClustering(const Context &) {}
-
-  void initialize(const DistributedGraph &) final {}
-
-  ClusterArray &cluster(const DistributedGraph &, GlobalNodeWeight) final {
-    return _empty_clustering;
-  }
-
-  ClusterArray &cluster(const DistributedPartitionedGraph &, GlobalNodeWeight) final {
-    return _empty_clustering;
-  }
-
-private:
-  ClusterArray _empty_clustering;
+  void cluster(StaticArray<GlobalNodeID> & /* clustering */, const DistributedGraph & /* graph */)
+      final {}
 };
 } // namespace kaminpar::dist

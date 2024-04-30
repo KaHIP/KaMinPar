@@ -21,20 +21,19 @@ struct LocalLPClusteringConfig : public LabelPropagationConfig {
 
 class LocalLPClusteringImpl final
     : public ChunkRandomdLabelPropagation<LocalLPClusteringImpl, LocalLPClusteringConfig>,
-      public NonatomicOwnedClusterVector<NodeID, NodeID>,
+      public NonatomicClusterVectorRef<NodeID, NodeID>,
       public OwnedRelaxedClusterWeightVector<NodeID, NodeWeight> {
   SET_DEBUG(false);
 
   using Base = ChunkRandomdLabelPropagation<LocalLPClusteringImpl, LocalLPClusteringConfig>;
-  using ClusterBase = NonatomicOwnedClusterVector<NodeID, NodeID>;
+  using ClusterBase = NonatomicClusterVectorRef<NodeID, NodeID>;
   using ClusterWeightBase = OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>;
 
 public:
   LocalLPClusteringImpl(const NodeID max_n, const CoarseningContext &c_ctx)
-      : ClusterBase(max_n),
-        ClusterWeightBase{max_n},
-        _ignore_ghost_nodes(c_ctx.local_lp.ignore_ghost_nodes),
+      : _ignore_ghost_nodes(c_ctx.local_lp.ignore_ghost_nodes),
         _keep_ghost_clusters(c_ctx.local_lp.keep_ghost_clusters) {
+    allocate_cluster_weights(max_n);
     allocate(max_n, max_n);
     set_max_num_iterations(c_ctx.local_lp.num_iterations);
     set_max_degree(c_ctx.local_lp.active_high_degree_threshold);
@@ -45,9 +44,13 @@ public:
     Base::initialize(&graph, graph.n());
   }
 
-  auto &
-  compute_clustering(const DistributedGraph &graph, const GlobalNodeWeight max_cluster_weight) {
+  void set_max_cluster_weight(const GlobalNodeWeight max_cluster_weight) {
     _max_cluster_weight = max_cluster_weight;
+  }
+
+  void compute_clustering(StaticArray<NodeID> &clustering, const DistributedGraph &graph) {
+    init_clusters_ref(clustering);
+    initialize(graph);
 
     // initialize ghost nodes
     if (!_ignore_ghost_nodes) {
@@ -89,15 +92,6 @@ public:
         });
       }
     }
-
-    return clusters();
-  }
-
-  auto &compute_clustering(
-      const DistributedPartitionedGraph &p_graph, const GlobalNodeWeight max_cluster_weight
-  ) {
-    _partition = p_graph.partition().data();
-    return compute_clustering(p_graph.graph(), max_cluster_weight);
   }
 
   void set_max_num_iterations(const std::size_t max_num_iterations) {
@@ -147,7 +141,7 @@ public:
   }
 
   using Base::_graph;
-  NodeWeight _max_cluster_weight;
+  NodeWeight _max_cluster_weight = std::numeric_limits<NodeWeight>::max();
   std::size_t _max_num_iterations;
   bool _ignore_ghost_nodes;
   bool _keep_ghost_clusters;
@@ -160,27 +154,36 @@ public:
 //
 
 LocalLPClusterer::LocalLPClusterer(const Context &ctx)
-    : _impl{std::make_unique<LocalLPClusteringImpl>(
+    : _impl(std::make_unique<LocalLPClusteringImpl>(
           ctx.coarsening.local_lp.ignore_ghost_nodes ? ctx.partition.graph->n
                                                      : ctx.partition.graph->total_n,
           ctx.coarsening
-      )} {}
+      )) {}
 
 LocalLPClusterer::~LocalLPClusterer() = default;
 
-void LocalLPClusterer::initialize(const DistributedGraph &graph) {
-  _impl->initialize(graph);
+void LocalLPClusterer::set_communities(const StaticArray<BlockID> &communities) {
+  _impl->_partition = communities.data();
 }
 
-LocalLPClusterer::ClusterArray &LocalLPClusterer::cluster(
-    const DistributedGraph &graph, const GlobalNodeWeight max_cluster_weight
-) {
-  return _impl->compute_clustering(graph, max_cluster_weight);
+void LocalLPClusterer::clear_communities() {
+  _impl->_partition = nullptr;
 }
 
-LocalLPClusterer::ClusterArray &LocalLPClusterer::cluster(
-    const DistributedPartitionedGraph &p_graph, const GlobalNodeWeight max_cluster_weight
+void LocalLPClusterer::set_max_cluster_weight(GlobalNodeWeight weight) {
+  _impl->set_max_cluster_weight(weight);
+}
+
+void LocalLPClusterer::cluster(
+    StaticArray<GlobalNodeID> &global_clustering, const DistributedGraph &p_graph
 ) {
-  return _impl->compute_clustering(p_graph, max_cluster_weight);
+  static_assert(sizeof(GlobalNodeID) % sizeof(NodeID) == 0, "Size mismatch");
+  GlobalNodeID *raw_global_clustering = global_clustering.data();
+  NodeID *raw_local_clustering = reinterpret_cast<NodeID *>(raw_global_clustering);
+  StaticArray<NodeID> local_clustering(
+      sizeof(GlobalNodeID) / sizeof(NodeID) * global_clustering.size(), raw_local_clustering
+  );
+
+  return _impl->compute_clustering(local_clustering, p_graph);
 }
 } // namespace kaminpar::dist
