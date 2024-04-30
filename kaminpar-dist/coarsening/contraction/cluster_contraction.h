@@ -12,16 +12,11 @@
 
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
+#include "kaminpar-dist/dkaminpar.h"
 
-#include "kaminpar-common/datastructures/noinit_vector.h"
+#include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::dist {
-/// Data type to map node IDs of the fine graph to node IDs in the coarse graph.
-using GlobalMapping = NoinitVector<GlobalNodeID>;
-
-/// Data type for clusterings, i.e., a mapping from node IDs in the graph to cluster IDs.
-using GlobalClustering = NoinitVector<GlobalNodeID>;
-
 namespace debug {
 /**
  * Validates the given clustering, i.e., whether it is a valid input to the `contract_clustering()`
@@ -33,7 +28,9 @@ namespace debug {
  * @return `true` if the clustering is valid, `false` otherwise. If `false` is returned, calling
  * `contract_clustering()` with the same clustering is undefined behavior.
  */
-bool validate_clustering(const DistributedGraph &graph, const GlobalClustering &lnode_to_gcluster);
+bool validate_clustering(
+    const DistributedGraph &graph, const StaticArray<GlobalNodeID> &lnode_to_gcluster
+);
 } // namespace debug
 
 /**
@@ -41,7 +38,7 @@ bool validate_clustering(const DistributedGraph &graph, const GlobalClustering &
  * Part of the contraction result and should not be used outside the `project_partition()` function.
  */
 struct MigratedNodes {
-  NoinitVector<NodeID> nodes;
+  StaticArray<NodeID> nodes;
 
   std::vector<int> sendcounts;
   std::vector<int> sdispls;
@@ -55,7 +52,7 @@ struct MigratedNodes {
  */
 struct ContractionResult {
   DistributedGraph graph;
-  NoinitVector<GlobalNodeID> mapping;
+  StaticArray<GlobalNodeID> mapping;
   MigratedNodes migration;
 };
 
@@ -74,7 +71,9 @@ struct ContractionResult {
  * the fine graph.
  */
 ContractionResult contract_clustering(
-    const DistributedGraph &graph, GlobalClustering &clustering, const CoarseningContext &c_ctx
+    const DistributedGraph &graph,
+    StaticArray<GlobalNodeID> &clustering,
+    const CoarseningContext &c_ctx
 );
 
 /**
@@ -99,7 +98,7 @@ ContractionResult contract_clustering(
  */
 ContractionResult contract_clustering(
     const DistributedGraph &graph,
-    GlobalClustering &clustering,
+    StaticArray<GlobalNodeID> &clustering,
     double max_cnode_imbalance = std::numeric_limits<double>::max(),
     bool migrate_cnode_prefix = false,
     bool force_perfect_cnode_balance = true
@@ -118,7 +117,7 @@ ContractionResult contract_clustering(
 DistributedPartitionedGraph project_partition(
     const DistributedGraph &graph,
     DistributedPartitionedGraph p_c_graph,
-    const NoinitVector<GlobalNodeID> &c_mapping,
+    const StaticArray<GlobalNodeID> &c_mapping,
     const MigratedNodes &migration
 );
 } // namespace kaminpar::dist

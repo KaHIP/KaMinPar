@@ -1,7 +1,7 @@
 /*******************************************************************************
- * Builds and manages a hierarchy of coarse graphs.
+ * Graph coarsener based on global clusterings.
  *
- * @file:   coarsener.h
+ * @file:   global_cluster_coarsener.h
  * @author: Daniel Seemaier
  * @date:   28.04.2022
  ******************************************************************************/
@@ -9,54 +9,42 @@
 
 #include <vector>
 
-#include "kaminpar-dist/coarsening/clustering/clusterer.h"
+#include "kaminpar-dist/coarsening/clusterer.h"
+#include "kaminpar-dist/coarsening/coarsener.h"
 #include "kaminpar-dist/coarsening/contraction/cluster_contraction.h"
 #include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
 
-#include "kaminpar-common/datastructures/scalable_vector.h"
-
 namespace kaminpar::dist {
-class Coarsener {
+class GlobalClusterCoarsener : public Coarsener {
 public:
-  Coarsener(const DistributedGraph &input_graph, const Context &input_ctx);
+  GlobalClusterCoarsener(const Context &input_ctx);
 
-  const DistributedGraph *coarsen_once();
+  void initialize(const DistributedGraph *graph) final;
 
-  const DistributedGraph *coarsen_once(GlobalNodeWeight max_cluster_weight);
+  bool coarsen() final;
 
-  DistributedPartitionedGraph uncoarsen_once(DistributedPartitionedGraph &&p_graph);
+  [[nodiscard]] virtual std::size_t level() const final;
 
-  GlobalNodeWeight max_cluster_weight() const;
-  const DistributedGraph *coarsest() const;
-  std::size_t level() const;
+  [[nodiscard]] virtual const DistributedGraph &current() const final;
+
+  DistributedPartitionedGraph uncoarsen(DistributedPartitionedGraph &&p_graph) final;
 
 private:
-  const DistributedGraph *coarsen_once_local(GlobalNodeWeight max_cluster_weight);
-  const DistributedGraph *coarsen_once_global(GlobalNodeWeight max_cluster_weight);
-
-  DistributedPartitionedGraph uncoarsen_once_local(DistributedPartitionedGraph &&p_graph);
-  DistributedPartitionedGraph uncoarsen_once_global(DistributedPartitionedGraph &&p_graph);
-
-  const DistributedGraph *nth_coarsest(std::size_t n) const;
-
   bool has_converged(const DistributedGraph &before, const DistributedGraph &after) const;
+  GlobalNodeWeight max_cluster_weight() const;
 
-  const DistributedGraph &_input_graph;
   const Context &_input_ctx;
 
-  std::unique_ptr<GlobalClusterer> _global_clusterer;
-  std::unique_ptr<LocalClusterer> _local_clusterer;
+  const DistributedGraph *_input_graph = nullptr;
+
+  std::unique_ptr<Clusterer> _clusterer;
 
   std::vector<DistributedGraph> _graph_hierarchy;
-  std::vector<GlobalMapping> _global_mapping_hierarchy; //< produced by global clustering algorithm
+  std::vector<GlobalMapping> _global_mapping_hierarchy;
   std::vector<MigratedNodes> _node_migration_history;
-  std::vector<ScalableVector<NodeID>>
-      _local_mapping_hierarchy; //< produced by local clustering_algorithm
-
-  bool _local_clustering_converged = false;
 };
 } // namespace kaminpar::dist
 
