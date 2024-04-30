@@ -22,6 +22,7 @@
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/graphutils/communication.h"
 #include "kaminpar-dist/logger.h"
+#include "kaminpar-dist/timer.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/rating_map.h"
@@ -29,7 +30,10 @@
 #include "kaminpar-common/parallel/atomic.h"
 #include "kaminpar-common/parallel/vector_ets.h"
 #include "kaminpar-common/random.h"
-#include "kaminpar-common/timer.h"
+
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
+#include "kaminpar-dist/metrics.h"
+#endif
 
 namespace kaminpar::dist {
 namespace {
