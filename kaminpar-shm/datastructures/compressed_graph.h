@@ -206,12 +206,12 @@ public:
   }
 
   // Node and edge weights
-  [[nodiscard]] inline bool node_weighted() const final {
+  [[nodiscard]] inline bool is_node_weighted() const final {
     return static_cast<NodeWeight>(n()) != total_node_weight();
   }
 
   [[nodiscard]] inline NodeWeight node_weight(const NodeID u) const final {
-    return node_weighted() ? _node_weights[u] : 1;
+    return is_node_weighted() ? _node_weights[u] : 1;
   }
 
   [[nodiscard]] inline NodeWeight max_node_weight() const final {
@@ -222,12 +222,12 @@ public:
     return _total_node_weight;
   }
 
-  [[nodiscard]] inline bool edge_weighted() const final {
+  [[nodiscard]] inline bool is_edge_weighted() const final {
     return static_cast<EdgeWeight>(m()) != total_edge_weight();
   }
 
   [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const final {
-    return edge_weighted() ? _edge_weights[e] : 1;
+    return is_edge_weighted() ? _edge_weights[e] : 1;
   }
 
   [[nodiscard]] inline EdgeWeight total_edge_weight() const final {
@@ -401,12 +401,12 @@ public:
     std::size_t uncompressed_size = (n() + 1) * sizeof(EdgeID) + m() * sizeof(NodeID);
     std::size_t compressed_size = _nodes.allocated_size() + _compressed_edges.size();
 
-    if (node_weighted()) {
+    if (is_node_weighted()) {
       uncompressed_size += n() * sizeof(NodeWeight);
       compressed_size += n() * sizeof(NodeWeight);
     }
 
-    if (edge_weighted()) {
+    if (is_edge_weighted()) {
       uncompressed_size += m() * sizeof(EdgeWeight);
       compressed_size += m() * sizeof(EdgeWeight);
     }
@@ -423,12 +423,12 @@ public:
     std::size_t uncompressed_size = (n() + 1) * sizeof(EdgeID) + m() * sizeof(NodeID);
     std::size_t compressed_size = _nodes.allocated_size() + _compressed_edges.size();
 
-    if (node_weighted()) {
+    if (is_node_weighted()) {
       uncompressed_size += n() * sizeof(NodeWeight);
       compressed_size += n() * sizeof(NodeWeight);
     }
 
-    if (edge_weighted()) {
+    if (is_edge_weighted()) {
       uncompressed_size += m() * sizeof(EdgeWeight);
       compressed_size += m() * sizeof(EdgeWeight);
     }

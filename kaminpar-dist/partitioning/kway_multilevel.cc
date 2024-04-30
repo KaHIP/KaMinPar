@@ -7,22 +7,23 @@
  ******************************************************************************/
 #include "kaminpar-dist/partitioning/kway_multilevel.h"
 
+#include "kaminpar-mpi/wrapper.h"
+
 #include "kaminpar-dist/coarsening/coarsener.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/factories.h"
 #include "kaminpar-dist/graphutils/replicator.h"
+#include "kaminpar-dist/logger.h"
 #include "kaminpar-dist/metrics.h"
+#include "kaminpar-dist/timer.h"
 
-#include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/metrics.h"
 
-#include "kaminpar-common/console_io.h"
-#include "kaminpar-common/strutils.h"
-#include "kaminpar-common/timer.h"
-
 namespace kaminpar::dist {
+namespace {
 SET_DEBUG(false);
+}
 
 KWayMultilevelPartitioner::KWayMultilevelPartitioner(
     const DistributedGraph &graph, const Context &ctx
@@ -62,14 +63,10 @@ DistributedPartitionedGraph KWayMultilevelPartitioner::partition() {
         );
 
         // Machine readable
-        LOG << "=> level=" << coarsener.level() << " "
-            << "global_n=" << c_graph->global_n() << " "
-            << "global_m=" << c_graph->global_m() << " "
-            << "n=[" << n_str << "] "
-            << "ghost_n=[" << ghost_n_str << "] "
-            << "m=[" << m_str << "] "
-            << "max_node_weight=[" << max_node_weight_str << "] "
-            << "max_cluster_weight=" << max_cluster_weight;
+        LOG << "=> level=" << coarsener.level() << " " << "global_n=" << c_graph->global_n() << " "
+            << "global_m=" << c_graph->global_m() << " " << "n=[" << n_str << "] " << "ghost_n=["
+            << ghost_n_str << "] " << "m=[" << m_str << "] " << "max_node_weight=["
+            << max_node_weight_str << "] " << "max_cluster_weight=" << max_cluster_weight;
 
         // Human readable
         LOG << "Level " << coarsener.level() << ":";

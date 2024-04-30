@@ -5,9 +5,11 @@
  * @author: Daniel Seemaier
  * @date:   17.10.2023
  ******************************************************************************/
-#pragma once 
+#pragma once
 
-#include "kaminpar-dist/refinement/refiner.h" 
+#include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
+#include "kaminpar-dist/dkaminpar.h"
+#include "kaminpar-dist/refinement/refiner.h"
 
 namespace kaminpar::dist {
 class MtKaHyParRefinerFactory : public GlobalRefinerFactory {
@@ -28,9 +30,6 @@ private:
 };
 
 class MtKaHyParRefiner : public GlobalRefiner {
-  SET_STATISTICS_FROM_GLOBAL();
-  SET_DEBUG(true);
-
 public:
   MtKaHyParRefiner(
       const Context &ctx, DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
@@ -50,4 +49,4 @@ private:
   DistributedPartitionedGraph &_p_graph;
   const PartitionContext &_p_ctx;
 };
-}
+} // namespace kaminpar::dist

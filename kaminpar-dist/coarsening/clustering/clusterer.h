@@ -11,7 +11,7 @@
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
 
-#include "kaminpar-common/parallel/atomic.h"
+#include "kaminpar-common/datastructures/noinit_vector.h"
 
 namespace kaminpar::dist {
 template <typename ClusterID> class Clusterer {

@@ -11,7 +11,6 @@
 #include <tbb/concurrent_vector.h>
 
 #include "kaminpar-dist/context.h"
-#include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/refinement/gain_calculator.h"
 #include "kaminpar-dist/refinement/refiner.h"

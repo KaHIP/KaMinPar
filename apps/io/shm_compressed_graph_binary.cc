@@ -48,8 +48,8 @@ struct CompressedBinaryHeader {
 
 CompressedBinaryHeader create_header(const CompressedGraph &graph) {
   return {
-      graph.node_weighted(),
-      graph.edge_weighted(),
+      graph.is_node_weighted(),
+      graph.is_edge_weighted(),
 
       sizeof(CompressedGraph::NodeID) == 8,
       sizeof(CompressedGraph::EdgeID) == 8,
@@ -131,11 +131,11 @@ void write(const std::string &filename, const CompressedGraph &graph) {
   write_compact_static_array(out, graph.raw_nodes());
   write_static_array(out, graph.raw_compressed_edges());
 
-  if (graph.node_weighted()) {
+  if (graph.is_node_weighted()) {
     write_static_array(out, graph.raw_node_weights());
   }
 
-  if (graph.edge_weighted()) {
+  if (graph.is_edge_weighted()) {
     write_static_array(out, graph.raw_edge_weights());
   }
 }

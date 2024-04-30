@@ -12,29 +12,27 @@
 
 #include <tbb/parallel_for.h>
 
-#include "kaminpar-mpi/wrapper.h"
+#include "kaminpar-mpi/utils.h"
 
 #include "kaminpar-dist/datastructures/growt.h"
 #include "kaminpar-dist/dkaminpar.h"
-#include "kaminpar-dist/logger.h"
 
-#include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/degree_buckets.h"
-#include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/ranges.h"
 
 namespace kaminpar::dist {
 class DistributedGraph {
 public:
-  using NodeID = ::kaminpar::dist::NodeID;
-  using GlobalNodeID = ::kaminpar::dist::GlobalNodeID;
-  using NodeWeight = ::kaminpar::dist::NodeWeight;
-  using GlobalNodeWeight = ::kaminpar::dist::GlobalNodeWeight;
-  using EdgeID = ::kaminpar::dist::EdgeID;
-  using GlobalEdgeID = ::kaminpar::dist::GlobalEdgeID;
-  using EdgeWeight = ::kaminpar::dist::EdgeWeight;
-  using GlobalEdgeWeight = ::kaminpar::dist::GlobalEdgeWeight;
+  // Data types used for this graph
+  using NodeID = dist::NodeID;
+  using EdgeID = dist::EdgeID;
+  using GlobalNodeID = dist::GlobalNodeID;
+  using GlobalEdgeID = dist::GlobalEdgeID;
+  using NodeWeight = dist::NodeWeight;
+  using EdgeWeight = dist::EdgeWeight;
+  using GlobalNodeWeight = dist::GlobalNodeWeight;
+  using GlobalEdgeWeight = dist::GlobalEdgeWeight;
 
   DistributedGraph() = default;
 
@@ -87,8 +85,7 @@ public:
         _global_to_ghost(std::move(global_to_ghost)),
         _sorted(sorted),
         _communicator(comm) {
-    PEID rank;
-    MPI_Comm_rank(communicator(), &rank);
+    const PEID rank = mpi::get_comm_rank(communicator());
 
     _n = _nodes.size() - 1;
     _m = _edges.size();
@@ -109,10 +106,11 @@ public:
   DistributedGraph(DistributedGraph &&) noexcept = default;
   DistributedGraph &operator=(DistributedGraph &&) noexcept = default;
 
-  // Graph size
+  // Size of the graph
   [[nodiscard]] inline GlobalNodeID global_n() const {
     return _global_n;
   }
+
   [[nodiscard]] inline GlobalEdgeID global_m() const {
     return _global_m;
   }
@@ -120,13 +118,16 @@ public:
   [[nodiscard]] inline NodeID n() const {
     return _n;
   }
+
   [[nodiscard]] inline NodeID n(const PEID pe) const {
     KASSERT(pe < static_cast<PEID>(_node_distribution.size()));
     return _node_distribution[pe + 1] - _node_distribution[pe];
   }
+
   [[nodiscard]] inline NodeID ghost_n() const {
     return _ghost_n;
   }
+
   [[nodiscard]] inline NodeID total_n() const {
     return ghost_n() + n();
   }
@@ -134,6 +135,7 @@ public:
   [[nodiscard]] inline EdgeID m() const {
     return _m;
   }
+
   [[nodiscard]] inline EdgeID m(const PEID pe) const {
     KASSERT(pe < static_cast<PEID>(_edge_distribution.size()));
     return _edge_distribution[pe + 1] - _edge_distribution[pe];
@@ -142,50 +144,68 @@ public:
   [[nodiscard]] inline GlobalNodeID offset_n() const {
     return _offset_n;
   }
+
   [[nodiscard]] inline GlobalNodeID offset_n(const PEID pe) const {
     return _node_distribution[pe];
   }
+
   [[nodiscard]] inline GlobalEdgeID offset_m() const {
     return _offset_m;
   }
+
   [[nodiscard]] inline GlobalEdgeID offset_m(const PEID pe) const {
     return _edge_distribution[pe];
   }
 
+  // Node and edge weights
   [[nodiscard]] inline bool is_node_weighted() const {
     return !_node_weights.empty();
   }
-  [[nodiscard]] inline bool is_edge_weighted() const {
-    return !_edge_weights.empty();
+
+  [[nodiscard]] inline NodeWeight node_weight(const NodeID u) const {
+    return is_node_weighted() ? _node_weights[u] : 1;
+  }
+
+  [[nodiscard]] inline NodeWeight max_node_weight() const {
+    return _max_node_weight;
+  }
+
+  [[nodiscard]] inline NodeWeight global_max_node_weight() const {
+    return _global_max_node_weight;
   }
 
   [[nodiscard]] inline NodeWeight total_node_weight() const {
     return _total_node_weight;
   }
+
   [[nodiscard]] inline GlobalNodeWeight global_total_node_weight() const {
     return _global_total_node_weight;
   }
-  [[nodiscard]] inline NodeWeight max_node_weight() const {
-    return _max_node_weight;
+
+  [[nodiscard]] inline bool is_edge_weighted() const {
+    return !_edge_weights.empty();
   }
-  [[nodiscard]] inline NodeWeight global_max_node_weight() const {
-    return _global_max_node_weight;
+
+  [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const {
+    return is_edge_weighted() ? _edge_weights[e] : 1;
   }
 
   [[nodiscard]] inline EdgeWeight total_edge_weight() const {
     return _total_edge_weight;
   }
+
   [[nodiscard]] inline GlobalEdgeWeight global_total_edge_weight() const {
     return _global_total_edge_weight;
   }
 
+  // Node ownership
   [[nodiscard]] inline bool is_owned_global_node(const GlobalNodeID global_u) const {
     return (offset_n() <= global_u && global_u < offset_n() + n());
   }
 
   [[nodiscard]] inline bool contains_global_node(const GlobalNodeID global_u) const {
-    return is_owned_global_node(global_u)                                      // owned node
-           || (_global_to_ghost.find(global_u + 1) != _global_to_ghost.end()); // ghost node
+    return is_owned_global_node(global_u) ||
+           (_global_to_ghost.find(global_u + 1) != _global_to_ghost.end());
   }
 
   [[nodiscard]] inline bool contains_local_node(const NodeID local_u) const {
@@ -197,12 +217,12 @@ public:
     KASSERT(u < total_n());
     return u >= n();
   }
+
   [[nodiscard]] inline bool is_owned_node(const NodeID u) const {
     KASSERT(u < total_n());
     return u < n();
   }
 
-  // Distributed info
   [[nodiscard]] inline PEID ghost_owner(const NodeID u) const {
     KASSERT(is_ghost_node(u));
     KASSERT(u - n() < _ghost_owner.size());
@@ -211,7 +231,7 @@ public:
     return _ghost_owner[u - n()];
   }
 
-  [[nodiscard]] inline NodeID map_foreign_node(const NodeID their_lnode, const PEID owner) const {
+  [[nodiscard]] inline NodeID map_remote_node(const NodeID their_lnode, const PEID owner) const {
     const GlobalNodeID gnode = static_cast<GlobalNodeID>(their_lnode + offset_n(owner));
     return global_to_local_node(gnode);
   }
@@ -222,7 +242,7 @@ public:
   }
 
   [[nodiscard]] inline NodeID global_to_local_node(const GlobalNodeID global_u) const {
-    KASSERT(contains_global_node(global_u), V(global_u));
+    KASSERT(contains_global_node(global_u));
 
     if (offset_n() <= global_u && global_u < offset_n() + n()) {
       return global_u - offset_n();
@@ -232,21 +252,7 @@ public:
     }
   }
 
-  [[nodiscard]] inline NodeID
-  remote_to_local_node(const NodeID remote_node, const PEID owner) const {
-    KASSERT(remote_node < offset_n(owner + 1) - offset_n(owner));
-    const NodeID local_node = global_to_local_node(offset_n(owner) + remote_node);
-    KASSERT(local_node >= n()); // must be a ghost node
-    return local_node;
-  }
-
   // Access methods
-  [[nodiscard]] inline NodeWeight node_weight(const NodeID u) const {
-    KASSERT(u < total_n());
-    KASSERT(!is_node_weighted() || u < _node_weights.size());
-    return is_node_weighted() ? _node_weights[u] : 1;
-  }
-
   [[nodiscard]] inline const auto &node_weights() const {
     return _node_weights;
   }
@@ -258,17 +264,11 @@ public:
     _node_weights[ghost_node] = weight;
   }
 
-  [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const {
-    KASSERT(e < m());
-    KASSERT(!is_edge_weighted() || e < _edge_weights.size());
-    return is_edge_weighted() ? _edge_weights[e] : 1;
-  }
-
   [[nodiscard]] inline const auto &edge_weights() const {
     return _edge_weights;
   }
 
-  // Graph structure
+  // Low-level access to the graph structure
   [[nodiscard]] inline EdgeID first_edge(const NodeID u) const {
     KASSERT(u < n());
     return _nodes[u];

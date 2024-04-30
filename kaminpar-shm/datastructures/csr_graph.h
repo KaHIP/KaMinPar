@@ -176,13 +176,13 @@ public:
   }
 
   // Node and edge weights
-  [[nodiscard]] inline bool node_weighted() const final {
+  [[nodiscard]] inline bool is_node_weighted() const final {
     return static_cast<NodeWeight>(n()) != total_node_weight();
   }
 
   [[nodiscard]] inline NodeWeight node_weight(const NodeID u) const final {
-    KASSERT(!node_weighted() || u < _node_weights.size());
-    return node_weighted() ? _node_weights[u] : 1;
+    KASSERT(!is_node_weighted() || u < _node_weights.size());
+    return is_node_weighted() ? _node_weights[u] : 1;
   }
 
   [[nodiscard]] inline NodeWeight max_node_weight() const final {
@@ -193,13 +193,13 @@ public:
     return _total_node_weight;
   }
 
-  [[nodiscard]] inline bool edge_weighted() const final {
+  [[nodiscard]] inline bool is_edge_weighted() const final {
     return static_cast<EdgeWeight>(m()) != total_edge_weight();
   }
 
   [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const final {
-    KASSERT(!edge_weighted() || e < _edge_weights.size());
-    return edge_weighted() ? _edge_weights[e] : 1;
+    KASSERT(!is_edge_weighted() || e < _edge_weights.size());
+    return is_edge_weighted() ? _edge_weights[e] : 1;
   }
 
   [[nodiscard]] inline EdgeWeight total_edge_weight() const final {

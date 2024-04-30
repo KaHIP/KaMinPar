@@ -235,7 +235,7 @@ void reorder_edges_by_compression(CSRGraph &graph) {
     NodeID *edges_begin = raw_edges.data() + raw_nodes[node];
     NodeID *edges_end = raw_edges.data() + raw_nodes[node + 1];
 
-    const bool store_edge_weights = graph.edge_weighted();
+    const bool store_edge_weights = graph.is_edge_weighted();
     EdgeWeight *edge_weights =
         store_edge_weights ? (raw_edge_weights.data() + raw_nodes[node]) : nullptr;
 

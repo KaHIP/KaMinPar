@@ -16,6 +16,8 @@
 #include "kaminpar-dist/coarsening/clustering/clusterer.h"
 #include "kaminpar-dist/context.h"
 #include "kaminpar-dist/factories.h"
+#include "kaminpar-dist/logger.h"
+#include "kaminpar-dist/timer.h"
 
 #include "kaminpar-shm/refinement/fm/stopping_policies.h"
 
@@ -23,12 +25,13 @@
 #include "kaminpar-common/datastructures/binary_heap.h"
 #include "kaminpar-common/datastructures/fast_reset_array.h"
 #include "kaminpar-common/datastructures/noinit_vector.h"
-#include "kaminpar-common/timer.h"
 
 #define HEAVY assert::heavy
 
 namespace kaminpar::dist {
+namespace {
 SET_DEBUG(false);
+}
 
 Clusters::Clusters(
     const DistributedPartitionedGraph &p_graph,

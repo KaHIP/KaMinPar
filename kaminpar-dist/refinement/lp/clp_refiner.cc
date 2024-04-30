@@ -21,7 +21,7 @@
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/graphutils/communication.h"
-#include "kaminpar-dist/metrics.h"
+#include "kaminpar-dist/logger.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/rating_map.h"
@@ -32,6 +32,11 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::dist {
+namespace {
+SET_STATISTICS_FROM_GLOBAL();
+SET_DEBUG(false);
+} // namespace
+
 ColoredLPRefinerFactory::ColoredLPRefinerFactory(const Context &ctx) : _ctx(ctx) {}
 
 std::unique_ptr<GlobalRefiner> ColoredLPRefinerFactory::create(

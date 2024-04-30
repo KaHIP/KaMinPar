@@ -35,8 +35,8 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential_generic_graph(
 ) {
   KASSERT(p_graph.k() == 2u, "Only suitable for bipartitions!", assert::light);
 
-  const bool is_node_weighted = graph.node_weighted();
-  const bool is_edge_weighted = graph.edge_weighted();
+  const bool is_node_weighted = graph.is_node_weighted();
+  const bool is_edge_weighted = graph.is_edge_weighted();
 
   const BlockID final_k = final_ks[0] + final_ks[1];
   tmp_subgraph_memory.ensure_size_nodes(graph.n() + final_k, is_node_weighted);
@@ -250,8 +250,8 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
   });
   STOP_TIMER();
 
-  const bool is_node_weighted = p_graph.graph().node_weighted();
-  const bool is_edge_weighted = p_graph.graph().edge_weighted();
+  const bool is_node_weighted = p_graph.graph().is_node_weighted();
+  const bool is_edge_weighted = p_graph.graph().is_edge_weighted();
 
   // build graph
   START_TIMER("Construct subgraphs");

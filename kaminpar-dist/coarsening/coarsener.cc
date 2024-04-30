@@ -15,6 +15,8 @@
 
 #include "kaminpar-shm/coarsening/max_cluster_weights.h"
 
+#include "kaminpar-common/logger.h"
+
 namespace kaminpar::dist {
 SET_DEBUG(false);
 

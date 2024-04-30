@@ -39,8 +39,8 @@ public:
           p_graph.n(),
           k,
           p_graph.m(),
-          p_graph.graph().node_weighted(),
-          p_graph.graph().edge_weighted()
+          p_graph.graph().is_node_weighted(),
+          p_graph.graph().is_edge_weighted()
       );
 
       const auto extraction = extract_subgraphs(p_graph, _input_ctx.partition.k, memory);

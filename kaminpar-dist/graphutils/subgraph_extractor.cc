@@ -20,6 +20,7 @@
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/graphutils/communication.h"
 #include "kaminpar-dist/graphutils/synchronization.h"
+#include "kaminpar-dist/logger.h"
 
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/metrics.h"
