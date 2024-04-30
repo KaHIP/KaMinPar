@@ -157,7 +157,6 @@ struct LabelPropagationCoarseningContext {
 struct ContractionCoarseningContext {
   ContractionMode mode;
   double edge_buffer_fill_fraction;
-  bool use_compact_mapping;
 };
 
 struct ClusterCoarseningContext {

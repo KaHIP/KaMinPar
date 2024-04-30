@@ -318,9 +318,7 @@ protected:
           });
         },
         // Reassign the clusters weights such that they match the new cluster IDs.
-        [&] {
-          static_cast<Derived *>(this)->reassign_cluster_weights(mapping, num_actual_clusters);
-        }
+        [&] { derived_reassign_cluster_weights(mapping, num_actual_clusters); }
     );
     _relabeled = true;
   }
@@ -1063,6 +1061,13 @@ private: // CRTP calls
     );
   }
 
+  //! Reassigns the cluster weights, which is required for relabeling the clusters.
+  void derived_reassign_cluster_weights(
+      const StaticArray<ClusterID> &mapping, const ClusterID num_new_clusters
+  ) {
+    static_cast<Derived *>(this)->reassign_cluster_weights(mapping, num_new_clusters);
+  }
+
   //! Return the maximum weight of cluster \c cluster.
   [[nodiscard]] ClusterWeight derived_max_cluster_weight(const ClusterID cluster) {
     return static_cast<Derived *>(this)->max_cluster_weight(cluster);
@@ -1443,6 +1448,8 @@ protected:
       }
 
       perform_second_phase();
+    } else if (cluster_weights_requires_reassignment()) {
+      relabel_clusters();
     }
 
     const NodeID num_moved_nodes = _num_moved_nodes_ets.combine(std::plus{});
@@ -1709,6 +1716,10 @@ private:
     _second_phase_nodes.clear();
   }
 
+  [[nodiscard]] inline bool cluster_weights_requires_reassignment() const {
+    return static_cast<const Derived *>(this)->requires_reassignment();
+  }
+
 protected:
   using Base::_active;
   using Base::_current_num_clusters;
@@ -1892,6 +1903,10 @@ public:
     } else {
       reassign(_cluster_weights);
     }
+  }
+
+  [[nodiscard]] bool requires_reassignment() const {
+    return _use_small_vector_initially;
   }
 
 private:
