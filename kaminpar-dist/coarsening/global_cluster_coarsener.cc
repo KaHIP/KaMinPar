@@ -7,7 +7,7 @@
  ******************************************************************************/
 #include "kaminpar-dist/coarsening/global_cluster_coarsener.h"
 
-#include "kaminpar-dist/coarsening/contraction/cluster_contraction.h"
+#include "kaminpar-dist/coarsening/contraction/global_cluster_contraction.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/factories.h"
@@ -35,59 +35,51 @@ bool GlobalClusterCoarsener::coarsen() {
   const DistributedGraph &graph = current();
 
   StaticArray<GlobalNodeID> clustering(graph.total_n(), static_array::noinit);
-
   _clusterer->set_max_cluster_weight(max_cluster_weight());
   _clusterer->cluster(clustering, graph);
 
-  auto result = contract_clustering(graph, clustering, _input_ctx.coarsening);
-
+  auto coarse_graph = contract_clustering(graph, clustering, _input_ctx.coarsening);
   KASSERT(
-      debug::validate_graph(result.graph),
+      debug::validate_graph(coarse_graph->get()),
       "invalid graph after global cluster contraction",
       assert::heavy
   );
-  DBG << "Reduced number of nodes from " << graph.global_n() << " to " << result.graph.global_n();
 
-  if (!has_converged(graph, result.graph)) {
-    DBG << "... success";
+  if (!has_converged(graph, coarse_graph->get())) {
+    DBG << "... accepted coarsened graph";
 
-    _graph_hierarchy.push_back(std::move(result.graph));
-    _global_mapping_hierarchy.push_back(std::move(result.mapping));
-    _node_migration_history.push_back(std::move(result.migration));
-
+    _graph_hierarchy.push_back(std::move(coarse_graph));
     return true;
   }
 
-  DBG << "... converged due to insufficient shrinkage";
+  DBG << "... converged due to insufficient shrinkage, discarding last coarsening step";
   return false;
 }
 
-DistributedPartitionedGraph GlobalClusterCoarsener::uncoarsen(DistributedPartitionedGraph &&p_graph
-) {
-  const DistributedGraph *new_coarsest = nth_coarsest(1);
-
-  p_graph = project_partition(
-      *new_coarsest,
-      std::move(p_graph),
-      _global_mapping_hierarchy.back(),
-      _node_migration_history.back()
+DistributedPartitionedGraph
+GlobalClusterCoarsener::uncoarsen(DistributedPartitionedGraph &&p_c_graph) {
+  std::unique_ptr<CoarseGraph> c_graph = std::move(_graph_hierarchy.back());
+  KASSERT(
+      &c_graph->get() == &p_c_graph.graph(),
+      "given graph partition does not belong to the coarse graph"
   );
 
+  _graph_hierarchy.pop_back();
+  const DistributedGraph &f_graph = current();
+
+  StaticArray<BlockID> f_partition(f_graph.total_n(), static_array::noinit);
+  c_graph->project(p_c_graph.partition(), f_partition);
+
+  DistributedPartitionedGraph p_f_graph(
+      &f_graph, p_c_graph.k(), std::move(f_partition), p_c_graph.take_block_weights()
+  );
   KASSERT(
-      debug::validate_partition(p_graph),
+      debug::validate_partition(p_f_graph),
       "invalid partition after projection to finer graph",
       assert::heavy
   );
 
-  _graph_hierarchy.pop_back();
-  _global_mapping_hierarchy.pop_back();
-  _node_migration_history.pop_back();
-
-  // if pop_back() on _graph_hierarchy caused a reallocation, the graph pointer
-  // in p_graph dangles
-  p_graph.UNSAFE_set_graph(coarsest());
-
-  return std::move(p_graph);
+  return p_f_graph;
 }
 
 bool GlobalClusterCoarsener::has_converged(
@@ -97,7 +89,7 @@ bool GlobalClusterCoarsener::has_converged(
 }
 
 const DistributedGraph &GlobalClusterCoarsener::current() const {
-  return _graph_hierarchy.empty() ? *_input_graph : _graph_hierarchy.back();
+  return _graph_hierarchy.empty() ? *_input_graph : _graph_hierarchy.back()->get();
 }
 
 std::size_t GlobalClusterCoarsener::level() const {

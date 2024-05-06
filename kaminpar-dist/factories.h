@@ -9,9 +9,8 @@
 
 #include <memory>
 
-#include "kaminpar-dist/coarsening/clustering/clusterer.h"
+#include "kaminpar-dist/coarsening/clusterer.h"
 #include "kaminpar-dist/context.h"
-#include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/initial_partitioning/initial_partitioner.h"
 #include "kaminpar-dist/partitioning/partitioner.h"
 #include "kaminpar-dist/refinement/refiner.h"
@@ -32,13 +31,7 @@ create_refiner(const Context &ctx, RefinementAlgorithm algorithm);
 
 std::unique_ptr<GlobalRefinerFactory> create_refiner(const Context &ctx);
 
-std::unique_ptr<GlobalClusterer>
-create_global_clusterer(const Context &ctx, GlobalClusteringAlgorithm algorithm);
+std::unique_ptr<Clusterer> create_clusterer(const Context &ctx, ClusteringAlgorithm algorithm);
 
-std::unique_ptr<GlobalClusterer> create_global_clusterer(const Context &ctx);
-
-std::unique_ptr<LocalClusterer>
-create_local_clusterer(const Context &ctx, LocalClusteringAlgorithm algorithm);
-
-std::unique_ptr<LocalClusterer> create_local_clusterer(const Context &ctx);
+std::unique_ptr<Clusterer> create_clusterer(const Context &ctx);
 } // namespace kaminpar::dist::factory

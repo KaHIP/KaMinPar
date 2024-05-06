@@ -39,9 +39,7 @@ private:
   const Context &_input_ctx;
 
   const DistributedGraph *_input_graph = nullptr;
-
   std::unique_ptr<Clusterer> _clusterer;
-
   std::vector<std::unique_ptr<CoarseGraph>> _graph_hierarchy;
 };
 } // namespace kaminpar::dist

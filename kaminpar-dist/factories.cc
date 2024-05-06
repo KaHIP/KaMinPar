@@ -121,43 +121,29 @@ std::unique_ptr<GlobalRefinerFactory> create_refiner(const Context &ctx) {
   return std::make_unique<MultiRefinerFactory>(std::move(factories), ctx.refinement.algorithms);
 }
 
-std::unique_ptr<GlobalClusterer>
-create_global_clusterer(const Context &ctx, const GlobalClusteringAlgorithm algorithm) {
+std::unique_ptr<Clusterer>
+create_clusterer(const Context &ctx, const ClusteringAlgorithm algorithm) {
   switch (algorithm) {
-  case GlobalClusteringAlgorithm::NOOP:
-    return std::make_unique<GlobalNoopClustering>(ctx);
+  case ClusteringAlgorithm::NOOP:
+    return std::make_unique<NoopClustering>(ctx);
 
-  case GlobalClusteringAlgorithm::LP:
+  case ClusteringAlgorithm::GLOBAL_LP:
     return std::make_unique<GlobalLPClusterer>(ctx);
 
-  case GlobalClusteringAlgorithm::HEM:
+  case ClusteringAlgorithm::GLOBAL_HEM:
     return std::make_unique<HEMClusterer>(ctx);
 
-  case GlobalClusteringAlgorithm::HEM_LP:
+  case ClusteringAlgorithm::GLOBAL_HEM_LP:
     return std::make_unique<HEMLPClusterer>(ctx);
-  }
 
-  __builtin_unreachable();
-}
-
-std::unique_ptr<GlobalClusterer> create_global_clusterer(const Context &ctx) {
-  return create_global_clusterer(ctx, ctx.coarsening.global_clustering_algorithm);
-}
-
-std::unique_ptr<LocalClusterer>
-create_local_clusterer(const Context &ctx, const LocalClusteringAlgorithm algorithm) {
-  switch (algorithm) {
-  case LocalClusteringAlgorithm::NOOP:
-    return std::make_unique<LocalNoopClustering>(ctx);
-
-  case LocalClusteringAlgorithm::LP:
+  case ClusteringAlgorithm::LOCAL_LP:
     return std::make_unique<LocalLPClusterer>(ctx);
   }
 
   __builtin_unreachable();
 }
 
-std::unique_ptr<LocalClusterer> create_local_clusterer(const Context &ctx) {
-  return create_local_clusterer(ctx, ctx.coarsening.local_clustering_algorithm);
+std::unique_ptr<Clusterer> create_clusterer(const Context &ctx) {
+  return create_clusterer(ctx, ctx.coarsening.global_clustering_algorithm);
 }
 } // namespace kaminpar::dist::factory

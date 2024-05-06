@@ -20,24 +20,22 @@ SET_DEBUG(true);
 
 HEMClusterer::HEMClusterer(const Context &ctx) : _input_ctx(ctx), _ctx(ctx.coarsening.hem) {}
 
-void HEMClusterer::initialize(const DistributedGraph &graph) {
-  mpi::barrier(graph.communicator());
-  _graph = &graph;
+void HEMClusterer::initialize_coloring() {
   SCOPED_TIMER("Initialize HEM clustering");
 
   const auto coloring = [&] {
     // Graph is already sorted by a coloring -> reconstruct this coloring
     // @todo if we always want to do this, optimize this refiner
-    if (graph.color_sorted()) {
+    if (_graph->color_sorted()) {
       LOG << "Graph sorted by colors: using precomputed coloring";
 
-      NoinitVector<ColorID> coloring(graph.n()
-      ); // We do not actually need the colors for ghost nodes
+      // We do not actually need the colors for ghost nodes
+      NoinitVector<ColorID> coloring(_graph->n());
 
       // @todo parallelize
       NodeID pos = 0;
-      for (ColorID c = 0; c < graph.number_of_colors(); ++c) {
-        const std::size_t size = graph.color_size(c);
+      for (ColorID c = 0; c < _graph->number_of_colors(); ++c) {
+        const std::size_t size = _graph->color_size(c);
         std::fill(coloring.begin() + pos, coloring.begin() + pos + size, c);
         pos += size;
       }
@@ -47,14 +45,14 @@ void HEMClusterer::initialize(const DistributedGraph &graph) {
 
     // Otherwise, compute a coloring now
     LOG << "Computing new coloring";
-    return compute_node_coloring_sequentially(graph, _ctx.chunks.compute(_input_ctx.parallel));
+    return compute_node_coloring_sequentially(*_graph, _ctx.chunks.compute(_input_ctx.parallel));
   }();
 
   const ColorID num_local_colors = *std::max_element(coloring.begin(), coloring.end()) + 1;
-  const ColorID num_colors = mpi::allreduce(num_local_colors, MPI_MAX, graph.communicator());
+  const ColorID num_colors = mpi::allreduce(num_local_colors, MPI_MAX, _graph->communicator());
 
   TIMED_SCOPE("Allocation") {
-    _color_sorted_nodes.resize(graph.n());
+    _color_sorted_nodes.resize(_graph->n());
     _color_sizes.resize(num_colors + 1);
     _color_blacklist.resize(num_colors);
     tbb::parallel_for<std::size_t>(0, _color_sorted_nodes.size(), [&](const std::size_t i) {
@@ -69,11 +67,11 @@ void HEMClusterer::initialize(const DistributedGraph &graph) {
   };
 
   TIMED_SCOPE("Count color sizes") {
-    if (graph.color_sorted()) {
-      const auto &color_sizes = graph.get_color_sizes();
+    if (_graph->color_sorted()) {
+      const auto &color_sizes = _graph->get_color_sizes();
       _color_sizes.assign(color_sizes.begin(), color_sizes.end());
     } else {
-      graph.pfor_nodes([&](const NodeID u) {
+      _graph->pfor_nodes([&](const NodeID u) {
         const ColorID c = coloring[u];
         KASSERT(c < num_colors);
         __atomic_fetch_add(&_color_sizes[c], 1, __ATOMIC_RELAXED);
@@ -83,11 +81,11 @@ void HEMClusterer::initialize(const DistributedGraph &graph) {
   };
 
   TIMED_SCOPE("Sort nodes") {
-    if (graph.color_sorted()) {
+    if (_graph->color_sorted()) {
       // @todo parallelize
       std::iota(_color_sorted_nodes.begin(), _color_sorted_nodes.end(), 0);
     } else {
-      graph.pfor_nodes([&](const NodeID u) {
+      _graph->pfor_nodes([&](const NodeID u) {
         const ColorID c = coloring[u];
         const std::size_t i = __atomic_sub_fetch(&_color_sizes[c], 1, __ATOMIC_SEQ_CST);
         KASSERT(i < _color_sorted_nodes.size());
@@ -98,8 +96,8 @@ void HEMClusterer::initialize(const DistributedGraph &graph) {
 
   TIMED_SCOPE("Compute color blacklist") {
     if (_ctx.small_color_blacklist == 0 ||
-        (_ctx.only_blacklist_input_level && graph.global_n() != _input_ctx.partition.graph->global_n
-        )) {
+        (_ctx.only_blacklist_input_level &&
+         _graph->global_n() != _input_ctx.partition.graph->global_n)) {
       return;
     }
 
@@ -113,7 +111,7 @@ void HEMClusterer::initialize(const DistributedGraph &graph) {
         asserting_cast<int>(num_colors),
         mpi::type::get<GlobalNodeID>(),
         MPI_SUM,
-        graph.communicator()
+        _graph->communicator()
     );
 
     // @todo parallelize the rest of this section
@@ -130,7 +128,7 @@ void HEMClusterer::initialize(const DistributedGraph &graph) {
     GlobalNodeID excluded_so_far = 0;
     for (const ColorID c : sorted_by_size) {
       excluded_so_far += global_color_sizes[c];
-      const double percentage = 1.0 * excluded_so_far / graph.global_n();
+      const double percentage = 1.0 * excluded_so_far / _graph->global_n();
       if (percentage <= _ctx.small_color_blacklist) {
         _color_blacklist[c] = 1;
       } else {
@@ -140,38 +138,39 @@ void HEMClusterer::initialize(const DistributedGraph &graph) {
   };
 
   KASSERT(_color_sizes.front() == 0u);
-  KASSERT(_color_sizes.back() == graph.n());
-
-  TIMED_SCOPE("Allocation") {
-    _matching.clear();
-    _matching.resize(graph.total_n());
-    tbb::parallel_for<NodeID>(0, graph.total_n(), [&](const NodeID u) {
-      _matching[u] = kInvalidGlobalNodeID;
-    });
-  };
+  KASSERT(_color_sizes.back() == _graph->n());
 }
 
-HEMClusterer::ClusterArray &
-HEMClusterer::cluster(const DistributedGraph &graph, GlobalNodeWeight max_cluster_weight) {
-  KASSERT(_graph == &graph, "must call initialize() before cluster()", assert::always);
+void HEMClusterer::set_max_cluster_weight(const GlobalNodeWeight max_cluster_weight) {
+  _max_cluster_weight = max_cluster_weight;
+}
+
+void HEMClusterer::cluster(StaticArray<GlobalNodeID> &matching, const DistributedGraph &graph) {
+  _matching = std::move(matching);
+  _graph = &graph;
+
+  initialize_coloring();
+
   SCOPED_TIMER("Compute HEM clustering");
 
+  tbb::parallel_for<NodeID>(0, graph.total_n(), [&](const NodeID u) {
+    matching[u] = kInvalidGlobalNodeID;
+  });
+
   for (ColorID c = 0; c + 1 < _color_sizes.size(); ++c) {
-    compute_local_matching(c, max_cluster_weight);
+    compute_local_matching(c, _max_cluster_weight);
     resolve_global_conflicts(c);
   }
 
-  // Unmatched nodes become singleton clusters
   _graph->pfor_all_nodes([&](const NodeID u) {
-    if (_matching[u] == kInvalidGlobalNodeID) {
-      _matching[u] = _graph->local_to_global_node(u);
+    if (matching[u] == kInvalidGlobalNodeID) {
+      matching[u] = _graph->local_to_global_node(u);
     }
   });
 
-  // Validate our matching
   KASSERT(validate_matching(), "matching in inconsistent state", assert::always);
 
-  return _matching;
+  matching = std::move(_matching);
 }
 
 bool HEMClusterer::validate_matching() {

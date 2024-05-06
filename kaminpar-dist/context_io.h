@@ -15,8 +15,7 @@
 
 namespace kaminpar::dist {
 std::ostream &operator<<(std::ostream &out, PartitioningMode mode);
-std::ostream &operator<<(std::ostream &out, GlobalClusteringAlgorithm algorithm);
-std::ostream &operator<<(std::ostream &out, LocalClusteringAlgorithm algorithm);
+std::ostream &operator<<(std::ostream &out, ClusteringAlgorithm algorithm);
 std::ostream &operator<<(std::ostream &out, InitialPartitioningAlgorithm algorithm);
 std::ostream &operator<<(std::ostream &out, RefinementAlgorithm algorithm);
 std::ostream &operator<<(std::ostream &out, LabelPropagationMoveExecutionStrategy strategy);
@@ -25,8 +24,7 @@ std::ostream &operator<<(std::ostream &out, ClusterSizeStrategy strategy);
 std::ostream &operator<<(std::ostream &out, ClusterStrategy strategy);
 
 std::unordered_map<std::string, PartitioningMode> get_partitioning_modes();
-std::unordered_map<std::string, GlobalClusteringAlgorithm> get_global_clustering_algorithms();
-std::unordered_map<std::string, LocalClusteringAlgorithm> get_local_clustering_algorithms();
+std::unordered_map<std::string, ClusteringAlgorithm> get_clustering_algorithms();
 std::unordered_map<std::string, InitialPartitioningAlgorithm> get_initial_partitioning_algorithms();
 std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorithms();
 std::unordered_map<std::string, RefinementAlgorithm> get_balancing_algorithms();
