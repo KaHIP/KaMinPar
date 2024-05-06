@@ -10,6 +10,7 @@
 #include <memory>
 
 #include "kaminpar-dist/coarsening/clusterer.h"
+#include "kaminpar-dist/coarsening/coarsener.h"
 #include "kaminpar-dist/context.h"
 #include "kaminpar-dist/initial_partitioning/initial_partitioner.h"
 #include "kaminpar-dist/partitioning/partitioner.h"
@@ -30,6 +31,8 @@ std::unique_ptr<GlobalRefinerFactory>
 create_refiner(const Context &ctx, RefinementAlgorithm algorithm);
 
 std::unique_ptr<GlobalRefinerFactory> create_refiner(const Context &ctx);
+
+std::unique_ptr<Coarsener> create_coarsener(const Context &ctx);
 
 std::unique_ptr<Clusterer> create_clusterer(const Context &ctx, ClusteringAlgorithm algorithm);
 

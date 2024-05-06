@@ -177,13 +177,9 @@ void LocalLPClusterer::set_max_cluster_weight(GlobalNodeWeight weight) {
 void LocalLPClusterer::cluster(
     StaticArray<GlobalNodeID> &global_clustering, const DistributedGraph &p_graph
 ) {
-  static_assert(sizeof(GlobalNodeID) % sizeof(NodeID) == 0, "Size mismatch");
-  GlobalNodeID *raw_global_clustering = global_clustering.data();
-  NodeID *raw_local_clustering = reinterpret_cast<NodeID *>(raw_global_clustering);
   StaticArray<NodeID> local_clustering(
-      sizeof(GlobalNodeID) / sizeof(NodeID) * global_clustering.size(), raw_local_clustering
+      p_graph.n(), reinterpret_cast<NodeID *>(global_clustering.data())
   );
-
   return _impl->compute_clustering(local_clustering, p_graph);
 }
 } // namespace kaminpar::dist

@@ -12,8 +12,6 @@
 
 #include <mpi.h>
 
-#include "kaminpar-mpi/wrapper.h"
-
 #include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
@@ -21,6 +19,7 @@
 #include "kaminpar-dist/factories.h"
 #include "kaminpar-dist/graphutils/replicator.h"
 #include "kaminpar-dist/graphutils/subgraph_extractor.h"
+#include "kaminpar-dist/logger.h"
 #include "kaminpar-dist/metrics.h"
 #include "kaminpar-dist/partitioning/utilities.h"
 #include "kaminpar-dist/timer.h"
@@ -29,9 +28,7 @@
 #include "kaminpar-shm/metrics.h"
 
 #include "kaminpar-common/assert.h"
-#include "kaminpar-common/console_io.h"
 #include "kaminpar-common/math.h"
-#include "kaminpar-common/timer.h"
 
 namespace kaminpar::dist {
 SET_DEBUG(false);
@@ -41,7 +38,8 @@ DeepMultilevelPartitioner::DeepMultilevelPartitioner(
 )
     : _input_graph(input_graph),
       _input_ctx(input_ctx) {
-  _coarseners.emplace(_input_graph, _input_ctx);
+  _coarseners.emplace(factory::create_coarsener(_input_ctx));
+  _coarseners.top()->initialize(&_input_graph);
 }
 
 DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
@@ -79,7 +77,8 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
           << "): duplicating the graph " << num_replications << " times";
 
       _replicated_graphs.push_back(replicate_graph(*graph, num_replications));
-      _coarseners.emplace(_replicated_graphs.back(), _input_ctx);
+      _coarseners.emplace(factory::create_coarsener(_input_ctx));
+      _coarseners.top()->initialize(&_replicated_graphs.back());
 
       graph = &_replicated_graphs.back();
       coarsener = get_current_coarsener();
@@ -88,12 +87,12 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     }
 
     // Coarsen graph
-    const GlobalNodeWeight max_cluster_weight = coarsener->max_cluster_weight();
-    const DistributedGraph *c_graph = coarsener->coarsen_once();
-    converged = (graph == c_graph);
+    const GlobalNodeWeight max_cluster_weight = 0; // coarsener->max_cluster_weight();
+    const bool converged = coarsener->coarsen();
+    const DistributedGraph *c_graph = &coarsener->current();
 
     if (!converged) {
-      print_coarsened_graph(*coarsener->coarsest(), coarsener->level(), max_cluster_weight);
+      print_coarsened_graph(coarsener->current(), coarsener->level(), max_cluster_weight);
       if (c_graph->global_n() <= desired_num_nodes) {
         print_coarsening_terminated(desired_num_nodes);
       }
@@ -278,7 +277,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
       _coarseners.pop();
       coarsener = get_current_coarsener();
 
-      const DistributedGraph *new_graph = coarsener->coarsest();
+      const DistributedGraph *new_graph = &coarsener->current();
       dist_p_graph = distribute_best_partition(*new_graph, std::move(dist_p_graph));
 
       _replicated_graphs.pop_back();
@@ -287,7 +286,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     // Uncoarsen graph
     // If we replicated early, we might already be on the finest level
     if (coarsener->level() > 0) {
-      dist_p_graph = coarsener->uncoarsen_once(std::move(dist_p_graph));
+      dist_p_graph = coarsener->uncoarsen(std::move(dist_p_graph));
     }
 
     // Extend partition
@@ -348,11 +347,11 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
 
 Coarsener *DeepMultilevelPartitioner::get_current_coarsener() {
   KASSERT(!_coarseners.empty());
-  return &_coarseners.top();
+  return _coarseners.top().get();
 }
 
 const Coarsener *DeepMultilevelPartitioner::get_current_coarsener() const {
   KASSERT(!_coarseners.empty());
-  return &_coarseners.top();
+  return _coarseners.top().get();
 }
 } // namespace kaminpar::dist

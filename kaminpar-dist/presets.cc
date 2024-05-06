@@ -95,7 +95,7 @@ Context create_default_context() {
                       .ignore_weight_limit = false,
                   },
               .max_local_clustering_levels = 0,
-              .local_clustering_algorithm = ClusteringAlgorithm::NOOP,
+              .local_clustering_algorithm = ClusteringAlgorithm::LOCAL_NOOP,
               .local_lp =
                   {
                       .num_iterations = 5,

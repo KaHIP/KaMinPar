@@ -56,27 +56,31 @@ std::ostream &operator<<(std::ostream &out, const PartitioningMode mode) {
 
 std::unordered_map<std::string, ClusteringAlgorithm> get_clustering_algorithms() {
   return {
-      {"noop", ClusteringAlgorithm::NOOP},
+      {"noop", ClusteringAlgorithm::GLOBAL_NOOP},
+      {"global-noop", ClusteringAlgorithm::GLOBAL_NOOP},
       {"lp", ClusteringAlgorithm::GLOBAL_LP},
       {"global-lp", ClusteringAlgorithm::GLOBAL_LP},
       {"hem", ClusteringAlgorithm::GLOBAL_HEM},
       {"global-hem", ClusteringAlgorithm::GLOBAL_HEM},
       {"hem-lp", ClusteringAlgorithm::GLOBAL_HEM_LP},
       {"global-hem-lp", ClusteringAlgorithm::GLOBAL_HEM_LP},
+      {"local-noop", ClusteringAlgorithm::LOCAL_NOOP},
       {"local-lp", ClusteringAlgorithm::LOCAL_LP},
   };
 }
 
 std::ostream &operator<<(std::ostream &out, const ClusteringAlgorithm algorithm) {
   switch (algorithm) {
-  case ClusteringAlgorithm::NOOP:
-    return out << "noop";
+  case ClusteringAlgorithm::GLOBAL_NOOP:
+    return out << "global-noop";
   case ClusteringAlgorithm::GLOBAL_LP:
     return out << "global-lp";
   case ClusteringAlgorithm::GLOBAL_HEM:
     return out << "global-hem";
   case ClusteringAlgorithm::GLOBAL_HEM_LP:
     return out << "global-hem-lp";
+  case ClusteringAlgorithm::LOCAL_NOOP:
+    return out << "local-noop";
   case ClusteringAlgorithm::LOCAL_LP:
     return out << "local-lp";
   }

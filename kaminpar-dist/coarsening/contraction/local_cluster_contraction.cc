@@ -64,12 +64,15 @@ private:
 
 std::unique_ptr<CoarseGraph>
 contract_local_clustering(const DistributedGraph &graph, const StaticArray<NodeID> &clustering) {
-  KASSERT(clustering.size() >= graph.n());
+  KASSERT(
+      clustering.size() >= graph.n(),
+      "clustering array is too small for the given graph",
+      assert::always
+  );
 
   MPI_Comm comm = graph.communicator();
-  const auto [size, rank] = mpi::get_comm_info(comm);
-
-  StaticArray<NavigationMarker<NodeID, Edge, ScalableVector>> all_buffered_nodes;
+  const PEID size = mpi::get_comm_size(comm);
+  const PEID rank = mpi::get_comm_rank(comm);
 
   //
   // Compute cluster buckets
@@ -232,6 +235,7 @@ contract_local_clustering(const DistributedGraph &graph, const StaticArray<NodeI
   //
   // Construct rest of the coarse graph: edges, edge weights
   //
+  StaticArray<NavigationMarker<NodeID, Edge, ScalableVector>> all_buffered_nodes;
   all_buffered_nodes = ts_navigable_list::combine<NodeID, Edge, ScalableVector>(
       edge_buffer_ets, std::move(all_buffered_nodes)
   );

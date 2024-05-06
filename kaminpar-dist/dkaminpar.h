@@ -61,10 +61,12 @@ enum class PartitioningMode {
 };
 
 enum class ClusteringAlgorithm {
-  NOOP,
+  GLOBAL_NOOP,
   GLOBAL_LP,
   GLOBAL_HEM,
   GLOBAL_HEM_LP,
+
+  LOCAL_NOOP,
   LOCAL_LP,
 };
 

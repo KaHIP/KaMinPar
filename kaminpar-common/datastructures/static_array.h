@@ -95,8 +95,12 @@ public:
       return _ptr -= n, *this;
     }
 
-    reference operator[](const difference_type &n) const {
-      return *_ptr[n];
+    reference operator[](const difference_type &n) {
+      return *(_ptr + n);
+    }
+
+    const T &operator[](const difference_type &n) const {
+      return *(_ptr + n);
     }
 
     bool operator==(const StaticArrayIterator &other) const {
@@ -123,11 +127,11 @@ public:
       return _ptr >= other._ptr;
     }
 
-    difference_type operator+(const StaticArrayIterator &other) {
+    difference_type operator+(const StaticArrayIterator &other) const {
       return _ptr + other._ptr;
     }
 
-    difference_type operator-(const StaticArrayIterator &other) {
+    difference_type operator-(const StaticArrayIterator &other) const {
       return _ptr - other._ptr;
     }
 

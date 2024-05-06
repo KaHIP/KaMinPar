@@ -13,7 +13,7 @@
 #include "kaminpar-mpi/utils.h"
 
 // Implementation file to be tested
-#include "kaminpar-dist/coarsening/contraction/cluster_contraction.cc"
+#include "kaminpar-dist/coarsening/contraction/global_cluster_contraction.cc"
 
 namespace kaminpar::dist {
 using namespace kaminpar::dist::testing;

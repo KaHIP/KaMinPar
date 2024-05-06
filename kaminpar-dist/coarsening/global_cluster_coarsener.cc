@@ -22,7 +22,7 @@ SET_DEBUG(false);
 
 GlobalClusterCoarsener::GlobalClusterCoarsener(const Context &input_ctx)
     : _input_ctx(input_ctx),
-      _clusterer(factory::create_global_clusterer(_input_ctx)) {}
+      _clusterer(factory::create_clusterer(_input_ctx)) {}
 
 void GlobalClusterCoarsener::initialize(const DistributedGraph *graph) {
   _input_graph = graph;

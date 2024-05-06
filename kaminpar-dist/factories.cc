@@ -11,7 +11,6 @@
 
 #include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
-#include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
 
 // Partitioning schemes
@@ -32,6 +31,9 @@
 #include "kaminpar-dist/refinement/lp/lp_refiner.h"
 #include "kaminpar-dist/refinement/multi_refiner.h"
 #include "kaminpar-dist/refinement/noop_refiner.h"
+
+// Coarsening
+#include "kaminpar-dist/coarsening/global_cluster_coarsener.h"
 
 // Clustering
 #include "kaminpar-dist/coarsening/clustering/hem/hem_clusterer.h"
@@ -121,11 +123,15 @@ std::unique_ptr<GlobalRefinerFactory> create_refiner(const Context &ctx) {
   return std::make_unique<MultiRefinerFactory>(std::move(factories), ctx.refinement.algorithms);
 }
 
+std::unique_ptr<Coarsener> create_coarsener(const Context &ctx) {
+  return std::make_unique<GlobalClusterCoarsener>(ctx);
+}
+
 std::unique_ptr<Clusterer>
 create_clusterer(const Context &ctx, const ClusteringAlgorithm algorithm) {
   switch (algorithm) {
-  case ClusteringAlgorithm::NOOP:
-    return std::make_unique<NoopClustering>(ctx);
+  case ClusteringAlgorithm::GLOBAL_NOOP:
+    return std::make_unique<NoopClustering>(false);
 
   case ClusteringAlgorithm::GLOBAL_LP:
     return std::make_unique<GlobalLPClusterer>(ctx);
@@ -135,6 +141,9 @@ create_clusterer(const Context &ctx, const ClusteringAlgorithm algorithm) {
 
   case ClusteringAlgorithm::GLOBAL_HEM_LP:
     return std::make_unique<HEMLPClusterer>(ctx);
+
+  case ClusteringAlgorithm::LOCAL_NOOP:
+    return std::make_unique<NoopClustering>(true);
 
   case ClusteringAlgorithm::LOCAL_LP:
     return std::make_unique<LocalLPClusterer>(ctx);
