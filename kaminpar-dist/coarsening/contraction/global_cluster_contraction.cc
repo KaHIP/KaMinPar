@@ -7,12 +7,12 @@
  *         ^ ID in [c]oarse graph or in fine graph
  *            ^ node or cluster ID
  *
- * @file:   cluster_contraction.cc
+ * @file:   global_cluster_contraction.cc
  * @author: Daniel Seemaier
  * @date:   06.02.2023
  * @brief:  Graph contraction for arbitrary clusterings.
  ******************************************************************************/
-#include "kaminpar-dist/coarsening/contraction/cluster_contraction.h"
+#include "kaminpar-dist/coarsening/contraction/global_cluster_contraction.h"
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/global_control.h>
@@ -20,10 +20,10 @@
 #include <tbb/parallel_invoke.h>
 #include <tbb/parallel_sort.h>
 
+#include "kaminpar-dist/coarsening/contraction.h"
 #include "kaminpar-dist/graphutils/communication.h"
 
 #include "kaminpar-common/datastructures/binary_heap.h"
-#include "kaminpar-common/datastructures/noinit_vector.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/datastructures/ts_navigable_linked_list.h"
@@ -38,7 +38,7 @@ SET_STATISTICS_FROM_GLOBAL();
 SET_DEBUG(false);
 } // namespace
 
-ContractionResult contract_clustering(
+std::unique_ptr<CoarseGraph> contract_clustering(
     const DistributedGraph &graph,
     StaticArray<GlobalNodeID> &clustering,
     const CoarseningContext &c_ctx
@@ -51,6 +51,133 @@ ContractionResult contract_clustering(
       c_ctx.force_perfect_cnode_balance
   );
 }
+
+namespace {
+// Stores technical mappings necessary to project a partition of the coarse graph to the fine graph.
+// Part of the contraction result and should not be used outside the `project_partition()` function.
+struct MigratedNodes {
+  StaticArray<NodeID> nodes;
+
+  std::vector<int> sendcounts;
+  std::vector<int> sdispls;
+  std::vector<int> recvcounts;
+  std::vector<int> rdispls;
+};
+
+class GlobalCoarseGraphImpl : public CoarseGraph {
+public:
+  GlobalCoarseGraphImpl(
+      const DistributedGraph &f_graph,
+      DistributedGraph c_graph,
+      StaticArray<GlobalNodeID> mapping,
+      MigratedNodes migration
+  )
+      : _f_graph(f_graph),
+        _c_graph(std::move(c_graph)),
+        _mapping(std::move(mapping)),
+        _migration(std::move(migration)) {}
+
+  const DistributedGraph &get() const final {
+    return _c_graph;
+  }
+
+  DistributedGraph &get() final {
+    return _c_graph;
+  }
+
+  void project(const StaticArray<BlockID> &c_partition, StaticArray<BlockID> &f_partition) final {
+    SCOPED_TIMER("Project partition");
+
+    struct MigratedNodeBlock {
+      GlobalNodeID gcnode;
+      BlockID block;
+    };
+    StaticArray<MigratedNodeBlock> migrated_nodes_sendbuf(
+        _migration.sdispls.back() + _migration.sendcounts.back()
+    );
+    StaticArray<MigratedNodeBlock> migrated_nodes_recvbuf(
+        _migration.rdispls.back() + _migration.recvcounts.back()
+    );
+
+    TIMED_SCOPE("Exchange migrated node blocks") {
+      tbb::parallel_for<std::size_t>(0, migrated_nodes_sendbuf.size(), [&](const std::size_t i) {
+        const NodeID lcnode = _migration.nodes[i];
+        const BlockID block = c_partition[lcnode];
+        const GlobalNodeID gcnode = _c_graph.local_to_global_node(lcnode);
+        migrated_nodes_sendbuf[i] = {.gcnode = gcnode, .block = block};
+      });
+
+      MPI_Alltoallv(
+          migrated_nodes_sendbuf.data(),
+          _migration.sendcounts.data(),
+          _migration.sdispls.data(),
+          mpi::type::get<MigratedNodeBlock>(),
+          migrated_nodes_recvbuf.data(),
+          _migration.recvcounts.data(),
+          _migration.rdispls.data(),
+          mpi::type::get<MigratedNodeBlock>(),
+          _f_graph.communicator()
+      );
+    };
+
+    TIMED_SCOPE("Building projected partition array") {
+      growt::GlobalNodeIDMap<GlobalNodeID> gcnode_to_block(0);
+      tbb::enumerable_thread_specific<growt::GlobalNodeIDMap<GlobalNodeID>::handle_type>
+          gcnode_to_block_handle_ets([&] { return gcnode_to_block.get_handle(); });
+      tbb::parallel_for(
+          tbb::blocked_range<std::size_t>(0, migrated_nodes_recvbuf.size()),
+          [&](const auto &r) {
+            auto &gcnode_to_block_handle = gcnode_to_block_handle_ets.local();
+            for (std::size_t i = r.begin(); i != r.end(); ++i) {
+              const auto &migrated_node = migrated_nodes_recvbuf[i];
+              gcnode_to_block_handle.insert(migrated_node.gcnode + 1, migrated_node.block);
+            }
+          }
+      );
+
+      _f_graph.pfor_nodes_range([&](const auto &r) {
+        auto &gcnode_to_block_handle = gcnode_to_block_handle_ets.local();
+
+        for (NodeID u = r.begin(); u != r.end(); ++u) {
+          const GlobalNodeID gcnode = _mapping[u];
+          if (_c_graph.is_owned_global_node(gcnode)) {
+            const NodeID lcnode = _c_graph.global_to_local_node(gcnode);
+            f_partition[u] = c_partition[lcnode];
+          } else {
+            auto it = gcnode_to_block_handle.find(gcnode + 1);
+            KASSERT(it != gcnode_to_block_handle.end(), V(gcnode));
+            f_partition[u] = (*it).second;
+          }
+        }
+      });
+    };
+
+    struct GhostNodeLabel {
+      NodeID local_node_on_sender;
+      BlockID block;
+    };
+
+    mpi::graph::sparse_alltoall_interface_to_pe<GhostNodeLabel>(
+        _f_graph,
+        [&](const NodeID lnode) -> GhostNodeLabel { return {lnode, f_partition[lnode]}; },
+        [&](const auto buffer, const PEID pe) {
+          tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
+            const auto &[sender_lnode, block] = buffer[i];
+            const GlobalNodeID gnode = _f_graph.offset_n(pe) + sender_lnode;
+            const NodeID lnode = _f_graph.global_to_local_node(gnode);
+            f_partition[lnode] = block;
+          });
+        }
+    );
+  }
+
+private:
+  const DistributedGraph &_f_graph;
+  DistributedGraph _c_graph;
+  StaticArray<GlobalNodeID> _mapping;
+  MigratedNodes _migration;
+};
+} // namespace
 
 namespace {
 struct AssignmentShifts {
@@ -879,7 +1006,7 @@ bool validate_clustering(
 }
 } // namespace debug
 
-ContractionResult contract_clustering(
+std::unique_ptr<CoarseGraph> contract_clustering(
     const DistributedGraph &graph,
     StaticArray<GlobalNodeID> &lnode_to_gcluster,
     const double max_cnode_imbalance,
@@ -1364,113 +1491,17 @@ ContractionResult contract_clustering(
 
   STOP_TIMER(); // Contract clustering timer
 
-  return {
+  return std::make_unique<GlobalCoarseGraphImpl>(
+      graph,
       std::move(c_graph),
       std::move(lnode_to_gcnode),
-      {
+      MigratedNodes{
           .nodes = std::move(their_req_to_lcnode),
           .sendcounts = std::move(migration_result_nodes.recvcounts),
           .sdispls = std::move(migration_result_nodes.rdispls),
           .recvcounts = std::move(migration_result_nodes.sendcounts),
           .rdispls = std::move(migration_result_nodes.sdispls),
-      },
-  };
-}
-
-DistributedPartitionedGraph project_partition(
-    const DistributedGraph &graph,
-    DistributedPartitionedGraph p_c_graph,
-    const StaticArray<GlobalNodeID> &c_mapping,
-    const MigratedNodes &migration
-) {
-  SCOPED_TIMER("Project partition");
-
-  struct MigratedNodeBlock {
-    GlobalNodeID gcnode;
-    BlockID block;
-  };
-  StaticArray<MigratedNodeBlock> migrated_nodes_sendbuf(
-      migration.sdispls.back() + migration.sendcounts.back()
-  );
-  StaticArray<MigratedNodeBlock> migrated_nodes_recvbuf(
-      migration.rdispls.back() + migration.recvcounts.back()
-  );
-
-  TIMED_SCOPE("Exchange migrated node blocks") {
-    tbb::parallel_for<std::size_t>(0, migrated_nodes_sendbuf.size(), [&](const std::size_t i) {
-      const NodeID lcnode = migration.nodes[i];
-      const BlockID block = p_c_graph.block(lcnode);
-      const GlobalNodeID gcnode = p_c_graph.local_to_global_node(lcnode);
-      migrated_nodes_sendbuf[i] = {.gcnode = gcnode, .block = block};
-    });
-
-    MPI_Alltoallv(
-        migrated_nodes_sendbuf.data(),
-        migration.sendcounts.data(),
-        migration.sdispls.data(),
-        mpi::type::get<MigratedNodeBlock>(),
-        migrated_nodes_recvbuf.data(),
-        migration.recvcounts.data(),
-        migration.rdispls.data(),
-        mpi::type::get<MigratedNodeBlock>(),
-        graph.communicator()
-    );
-  };
-
-  START_TIMER("Allocation");
-  StaticArray<BlockID> partition(graph.total_n());
-  STOP_TIMER();
-
-  TIMED_SCOPE("Building projected partition array") {
-    growt::GlobalNodeIDMap<GlobalNodeID> gcnode_to_block(0);
-    tbb::enumerable_thread_specific<growt::GlobalNodeIDMap<GlobalNodeID>::handle_type>
-        gcnode_to_block_handle_ets([&] { return gcnode_to_block.get_handle(); });
-    tbb::parallel_for(
-        tbb::blocked_range<std::size_t>(0, migrated_nodes_recvbuf.size()),
-        [&](const auto &r) {
-          auto &gcnode_to_block_handle = gcnode_to_block_handle_ets.local();
-          for (std::size_t i = r.begin(); i != r.end(); ++i) {
-            const auto &migrated_node = migrated_nodes_recvbuf[i];
-            gcnode_to_block_handle.insert(migrated_node.gcnode + 1, migrated_node.block);
-          }
-        }
-    );
-
-    graph.pfor_nodes_range([&](const auto &r) {
-      auto &gcnode_to_block_handle = gcnode_to_block_handle_ets.local();
-
-      for (NodeID u = r.begin(); u != r.end(); ++u) {
-        const GlobalNodeID gcnode = c_mapping[u];
-        if (p_c_graph.is_owned_global_node(gcnode)) {
-          const NodeID lcnode = p_c_graph.global_to_local_node(gcnode);
-          partition[u] = p_c_graph.block(lcnode);
-        } else {
-          auto it = gcnode_to_block_handle.find(gcnode + 1);
-          KASSERT(it != gcnode_to_block_handle.end(), V(gcnode));
-          partition[u] = (*it).second;
-        }
-      }
-    });
-  };
-
-  struct GhostNodeLabel {
-    NodeID local_node_on_sender;
-    BlockID block;
-  };
-
-  mpi::graph::sparse_alltoall_interface_to_pe<GhostNodeLabel>(
-      graph,
-      [&](const NodeID lnode) -> GhostNodeLabel { return {lnode, partition[lnode]}; },
-      [&](const auto buffer, const PEID pe) {
-        tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
-          const auto &[sender_lnode, block] = buffer[i];
-          const GlobalNodeID gnode = graph.offset_n(pe) + sender_lnode;
-          const NodeID lnode = graph.global_to_local_node(gnode);
-          partition[lnode] = block;
-        });
       }
   );
-
-  return {&graph, p_c_graph.k(), std::move(partition), p_c_graph.take_block_weights()};
 }
 } // namespace kaminpar::dist

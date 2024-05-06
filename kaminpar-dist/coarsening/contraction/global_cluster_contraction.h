@@ -1,17 +1,16 @@
 /*******************************************************************************
  * Graph contraction for arbitrary clusterings.
  *
- * @file:   cluster_contraction.h
+ * @file:   global_cluster_contraction.h
  * @author: Daniel Seemaier
  * @date:   06.02.2023
  ******************************************************************************/
 #pragma once
 
 #include <limits>
-#include <vector>
 
+#include "kaminpar-dist/coarsening/contraction.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
-#include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
@@ -34,29 +33,6 @@ bool validate_clustering(
 } // namespace debug
 
 /**
- * Stores technical mappings necessary to project a partition of the coarse graph to the fine graph.
- * Part of the contraction result and should not be used outside the `project_partition()` function.
- */
-struct MigratedNodes {
-  StaticArray<NodeID> nodes;
-
-  std::vector<int> sendcounts;
-  std::vector<int> sdispls;
-  std::vector<int> recvcounts;
-  std::vector<int> rdispls;
-};
-
-/**
- * Stores the contracted graph along with information necessary to project a partition of the coarse
- * graph to the fine graph.
- */
-struct ContractionResult {
-  DistributedGraph graph;
-  StaticArray<GlobalNodeID> mapping;
-  MigratedNodes migration;
-};
-
-/**
  * Constructs the coarse graph given a clustering of the fine graph.
  *
  * @param graph The fine graph.
@@ -70,7 +46,7 @@ struct ContractionResult {
  * @return The coarse graph along with information necessary to project a partition of the coarse to
  * the fine graph.
  */
-ContractionResult contract_clustering(
+std::unique_ptr<CoarseGraph> contract_clustering(
     const DistributedGraph &graph,
     StaticArray<GlobalNodeID> &clustering,
     const CoarseningContext &c_ctx
@@ -96,28 +72,11 @@ ContractionResult contract_clustering(
  * @return The coarse graph along with information necessary to project a partition of the coarse to
  * the fine graph.
  */
-ContractionResult contract_clustering(
+std::unique_ptr<CoarseGraph> contract_clustering(
     const DistributedGraph &graph,
     StaticArray<GlobalNodeID> &clustering,
     double max_cnode_imbalance = std::numeric_limits<double>::max(),
     bool migrate_cnode_prefix = false,
     bool force_perfect_cnode_balance = true
-);
-
-/**
- * Projects the partition of a coarse graph back onto the fine graph.
- *
- * @param graph The fine graph.
- * @param p_c_graph The partition of the coarse graph.
- * @param c_mapping The mapping from coarse nodes to fine nodes (part of `ContractionResult`).
- * @param migration The migration information for coarse nodes (part of `ContractionResult`).
- *
- * @return The partition of the fine graph.
- */
-DistributedPartitionedGraph project_partition(
-    const DistributedGraph &graph,
-    DistributedPartitionedGraph p_c_graph,
-    const StaticArray<GlobalNodeID> &c_mapping,
-    const MigratedNodes &migration
 );
 } // namespace kaminpar::dist

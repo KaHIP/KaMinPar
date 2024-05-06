@@ -11,7 +11,7 @@
 
 #include "kaminpar-dist/coarsening/clusterer.h"
 #include "kaminpar-dist/coarsening/coarsener.h"
-#include "kaminpar-dist/coarsening/contraction/cluster_contraction.h"
+#include "kaminpar-dist/coarsening/contraction.h"
 #include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
@@ -42,9 +42,7 @@ private:
 
   std::unique_ptr<Clusterer> _clusterer;
 
-  std::vector<DistributedGraph> _graph_hierarchy;
-  std::vector<GlobalMapping> _global_mapping_hierarchy;
-  std::vector<MigratedNodes> _node_migration_history;
+  std::vector<std::unique_ptr<CoarseGraph>> _graph_hierarchy;
 };
 } // namespace kaminpar::dist
 
