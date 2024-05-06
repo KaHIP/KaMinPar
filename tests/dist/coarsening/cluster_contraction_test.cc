@@ -39,7 +39,8 @@ TEST(ClusterContractionTest, contract_local_edge) {
   const auto graph = make_isolated_edges_graph(1);
   const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
 
-  StaticArray<GlobalNodeID> clustering({graph.offset_n(), graph.offset_n()});
+  StaticArray<GlobalNodeID> clustering =
+      static_array::create<GlobalNodeID>({graph.offset_n(), graph.offset_n()});
   const auto wrapped = contract_clustering(graph, clustering);
   const auto &c_graph = wrapped->get();
 
