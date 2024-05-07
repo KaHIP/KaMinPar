@@ -509,7 +509,7 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
         << "%]\n";
     out << "  Number of seed nodes:       " << r_ctx.kway_fm.num_seed_nodes << "\n";
     out << "  Locking strategies:         seed nodes: "
-        << (r_ctx.kway_fm.unlock_seed_nodes ? "unlock" : "lock") << ", locally moved nodes:"
+        << (r_ctx.kway_fm.unlock_seed_nodes ? "unlock" : "lock") << ", locally moved nodes: "
         << (r_ctx.kway_fm.unlock_locally_moved_nodes ? "unlock" : "lock") << "\n";
     out << "  Gain cache:                 " << r_ctx.kway_fm.gain_cache_strategy << "\n";
     if (r_ctx.kway_fm.gain_cache_strategy == GainCacheStrategy::HYBRID) {
