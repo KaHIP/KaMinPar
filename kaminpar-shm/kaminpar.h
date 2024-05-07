@@ -202,6 +202,7 @@ enum class FMStoppingRule {
 enum class GainCacheStrategy {
   SPARSE,
   DENSE,
+  LARGE_K,
   ON_THE_FLY,
   HYBRID,
   TRACING,
@@ -434,6 +435,7 @@ Context create_default_context();
 Context create_memory_context();
 Context create_fast_context();
 Context create_largek_context();
+Context create_largek_fm_context();
 Context create_strong_context();
 Context create_jet_context();
 Context create_noref_context();

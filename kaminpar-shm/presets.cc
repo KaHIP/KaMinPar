@@ -23,6 +23,8 @@ Context create_context_by_preset_name(const std::string &name) {
     return create_fast_context();
   } else if (name == "largek") {
     return create_largek_context();
+  } else if (name == "largek-fm") {
+    return create_largek_fm_context();
   } else if (name == "strong" || name == "fm") {
     return create_strong_context();
   } else if (name == "jet") {
@@ -229,6 +231,21 @@ Context create_largek_context() {
   ctx.initial_partitioning.min_num_repetitions = 4;
   ctx.initial_partitioning.min_num_non_adaptive_repetitions = 2;
   ctx.initial_partitioning.max_num_repetitions = 4;
+
+  return ctx;
+}
+
+Context create_largek_fm_context() {
+  Context ctx = create_largek_context();
+
+  ctx.refinement.algorithms = {
+      RefinementAlgorithm::GREEDY_BALANCER,
+      RefinementAlgorithm::LEGACY_LABEL_PROPAGATION,
+      RefinementAlgorithm::KWAY_FM,
+      RefinementAlgorithm::GREEDY_BALANCER,
+  };
+
+  ctx.refinement.kway_fm.gain_cache_strategy = GainCacheStrategy::LARGE_K;
 
   return ctx;
 }
