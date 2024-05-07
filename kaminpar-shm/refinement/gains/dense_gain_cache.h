@@ -22,6 +22,7 @@
 
 #include <google/dense_hash_map>
 #include <limits>
+#include <set>
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
@@ -701,11 +702,7 @@ public:
       _gain_cache_delta[index(v, block_from)] -= weight;
 
       if (_gain_cache.conn(v, block_to) == 0 && conn_delta(v, block_to) == 0) {
-        auto &additional_blocks = _adjacent_blocks_delta[v];
-        if (std::find(additional_blocks.begin(), additional_blocks.end(), block_to) ==
-            additional_blocks.end()) {
-          additional_blocks.push_back(block_to);
-        }
+        _adjacent_blocks_delta[v].insert(block_to);
       }
 
       _gain_cache_delta[index(v, block_to)] += weight;
@@ -734,6 +731,6 @@ private:
   BlockID _k;
   const GainCache &_gain_cache;
   DynamicFlatMap<std::size_t, EdgeWeight> _gain_cache_delta;
-  google::dense_hash_map<NodeID, std::vector<BlockID>> _adjacent_blocks_delta;
+  google::dense_hash_map<NodeID, std::set<BlockID>> _adjacent_blocks_delta;
 };
 } // namespace kaminpar::shm
