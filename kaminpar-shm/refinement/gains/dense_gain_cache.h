@@ -565,10 +565,14 @@ public:
   using DeltaPartitionedGraph = _DeltaPartitionedGraph;
   using GainCache = _GainCache;
 
-  // Delta gain caches can only be used with GainCaches that iterate over all blocks, since there
-  // might be new connections to non-adjacent blocks in the delta graph.
-  static_assert(GainCache::kIteratesNonadjacentBlocks);
+  // Delta gain caches should only be used with GainCaches that iterate over all blocks, since there
+  // might be new connections to non-adjacent blocks in the delta graph. These connections might be
+  // missed if the gain cache does not iterate over all blocks.
   constexpr static bool kIteratesExactGains = GainCache::kIteratesExactGains;
+
+  // We do not strictly enforce this to offer an easy large k FM variation.
+  // @todo can we implement a correct delta gain cache that dos not iterate over all blocks?
+  // static_assert(GainCache::kIteratesNonadjacentBlocks);
 
   DenseDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph &d_graph)
       : _k(d_graph.k()),

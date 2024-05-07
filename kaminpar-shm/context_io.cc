@@ -240,6 +240,7 @@ std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies() {
   return {
       {"sparse", GainCacheStrategy::SPARSE},
       {"dense", GainCacheStrategy::DENSE},
+      {"largek", GainCacheStrategy::LARGE_K},
       {"on-the-fly", GainCacheStrategy::ON_THE_FLY},
       {"hybrid", GainCacheStrategy::HYBRID},
       {"tracing", GainCacheStrategy::TRACING},
@@ -252,6 +253,8 @@ std::ostream &operator<<(std::ostream &out, const GainCacheStrategy strategy) {
     return out << "sparse";
   case GainCacheStrategy::DENSE:
     return out << "dense";
+  case GainCacheStrategy::LARGE_K:
+    return out << "largek";
   case GainCacheStrategy::ON_THE_FLY:
     return out << "on-the-fly";
   case GainCacheStrategy::HYBRID:
@@ -567,8 +570,8 @@ void print(const Context &ctx, std::ostream &out) {
   out << "Execution mode:               " << ctx.parallel.num_threads << "\n";
   out << "Seed:                         " << Random::get_seed() << "\n";
   out << "Graph:                        " << ctx.debug.graph_name
-      << " [node ordering: " << ctx.node_ordering << "]"
-      << " [edge ordering: " << ctx.edge_ordering << "]\n";
+      << " [node ordering: " << ctx.node_ordering << "]" << " [edge ordering: " << ctx.edge_ordering
+      << "]\n";
   print(ctx.partition, out);
   cio::print_delimiter("Graph Compression", '-');
   print(ctx.compression, out);
