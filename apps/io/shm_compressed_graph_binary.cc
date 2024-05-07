@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <fstream>
 
+#include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/logger.h"
 
 namespace kaminpar::shm::io::compressed_binary {
@@ -298,9 +299,9 @@ template <typename T> static CompactStaticArray<T> read_compact_static_array(std
 
 template <typename T> static StaticArray<T> read_static_array(std::ifstream &in) {
   const auto size = read_int<std::size_t>(in);
-  T *ptr = static_cast<T *>(std::malloc(sizeof(T) * size));
-  in.read(reinterpret_cast<char *>(ptr), sizeof(T) * size);
-  return StaticArray<T>(ptr, size);
+  StaticArray<T> array(size, static_array::noinit);
+  in.read(reinterpret_cast<char *>(array.data()), sizeof(T) * size);
+  return std::move(array);
 }
 
 CompressedGraph read(const std::string &filename) {

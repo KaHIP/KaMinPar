@@ -124,8 +124,8 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
   // Overcomit memory for the edge and edge weight array as we only know the amount of edges of
   // the coarse graph afterwards.
   const EdgeID edge_count = graph.m();
-  auto *c_edges = heap_profiler::overcommit_memory<NodeID>(edge_count);
-  auto *c_edge_weights = heap_profiler::overcommit_memory<EdgeWeight>(edge_count);
+  auto c_edges = heap_profiler::overcommit_memory<NodeID>(edge_count);
+  auto c_edge_weights = heap_profiler::overcommit_memory<EdgeWeight>(edge_count);
 
   START_HEAP_PROFILER("Construct coarse graph");
   START_TIMER("Construct coarse graph");
@@ -138,7 +138,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
 
   tbb::enumerable_thread_specific<ConstantSizeNeighborhoodsBuffer> neighborhoods_buffer_ets{[&] {
     return ConstantSizeNeighborhoodsBuffer(
-        c_nodes.data(), c_edges, c_node_weights.data(), c_edge_weights, remapping
+        c_nodes.data(), c_edges.get(), c_node_weights.data(), c_edge_weights.get(), remapping
     );
   }};
 
@@ -153,8 +153,8 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
     c_node_weights[new_c_u] = c_u_weight;
 
     for (const auto [c_v, weight] : map.entries()) {
-      c_edges[edge] = c_v;
-      c_edge_weights[edge] = weight;
+      c_edges.get()[edge] = c_v;
+      c_edge_weights.get()[edge] = weight;
       edge += 1;
     }
   };
@@ -260,7 +260,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
 
   tbb::parallel_for(tbb::blocked_range<EdgeID>(0, c_m), [&](const auto &r) {
     for (EdgeID e = r.begin(); e != r.end(); ++e) {
-      c_edges[e] = remapping[c_edges[e]];
+      c_edges.get()[e] = remapping[c_edges.get()[e]];
     }
   });
 
@@ -274,11 +274,14 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
   STOP_HEAP_PROFILER();
 
   START_HEAP_PROFILER("Coarse graph edges allocation");
-  RECORD("c_edges") StaticArray<NodeID> finalized_c_edges(c_m, c_edges);
-  RECORD("c_edge_weights") StaticArray<EdgeWeight> finalized_c_edge_weights(c_m, c_edge_weights);
+  RECORD("c_edges") StaticArray<NodeID> finalized_c_edges(std::move(c_edges), c_m);
+  RECORD("c_edge_weights")
+  StaticArray<EdgeWeight> finalized_c_edge_weights(std::move(c_edge_weights), c_m);
   if constexpr (kHeapProfiling) {
-    heap_profiler::HeapProfiler::global().record_alloc(c_edges, c_m * sizeof(NodeID));
-    heap_profiler::HeapProfiler::global().record_alloc(c_edge_weights, c_m * sizeof(EdgeWeight));
+    heap_profiler::HeapProfiler::global().record_alloc(c_edges.get(), c_m * sizeof(NodeID));
+    heap_profiler::HeapProfiler::global().record_alloc(
+        c_edge_weights.get(), c_m * sizeof(EdgeWeight)
+    );
   }
   STOP_HEAP_PROFILER();
 

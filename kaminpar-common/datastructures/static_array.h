@@ -132,6 +132,13 @@ public:
     RECORD_DATA_STRUCT(size * sizeof(T), _struct);
   }
 
+  StaticArray(heap_profiler::unique_ptr<T> storage, const std::size_t size)
+      : _overcommited_data(std::move(storage)),
+        _data(_overcommited_data.get()),
+        _size(size) {
+    RECORD_DATA_STRUCT(size * sizeof(T), _struct);
+  }
+
   StaticArray(const std::size_t start, const std::size_t size, StaticArray &data)
       : StaticArray(size, data._data + start) {
     KASSERT(start + size <= data.size());
@@ -334,6 +341,7 @@ private:
   size_type _size = 0;
   size_type _unrestricted_size = 0;
   parallel::tbb_unique_ptr<value_type> _owned_data = nullptr;
+  heap_profiler::unique_ptr<value_type> _overcommited_data = nullptr;
   value_type *_data = nullptr;
 
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);

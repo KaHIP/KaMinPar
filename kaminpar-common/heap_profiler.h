@@ -57,19 +57,31 @@ template <typename T> std::string type_name() {
   return name;
 }
 
+template <typename T> struct HeapProfiledMemoryDeleter {
+  void operator()(T *ptr) {
+#ifdef KAMINPAR_ENABLE_HEAP_PROFILING
+    heap_profiler::std_free(ptr);
+#else
+    std::free(ptr);
+#endif
+  }
+};
+
+template <typename T> using unique_ptr = std::unique_ptr<T, HeapProfiledMemoryDeleter<T>>;
+
 /*!
- * Allocates memory that is not tracked but the heap profiler. This method is useful for correctly
+ * Allocates memory that is not tracked by the heap profiler. This method is useful for correctly
  * tracking overcomitted memory.
  *
  * @tparam T The type of data to allocate.
  * @param size The number of data copies to allocate.
  * @return A pointer to the allocated memory.
  */
-template <typename T> T *overcommit_memory(std::size_t size) {
+template <typename T> unique_ptr<T> overcommit_memory(std::size_t size) {
 #ifdef KAMINPAR_ENABLE_HEAP_PROFILING
-  return (T *)heap_profiler::std_malloc(size * sizeof(T));
+  return unique_ptr<T>(static_cast<T *>(heap_profiler::std_malloc(size * sizeof(T))));
 #else
-  return (T *)std::malloc(size * sizeof(T));
+  return unique_ptr<T>(static_cast<T *>(std::malloc(size * sizeof(T))));
 #endif
 }
 }; // namespace kaminpar::heap_profiler
