@@ -25,7 +25,9 @@ TEST(ClusterContractionTest, ContractingToSingleNodeWorks) {
     StaticArray<NodeID> clustering =
         static_array::create<NodeID>({cluster, cluster, cluster, cluster});
     auto coarsened = contract_clustering(
-        graph, clustering, {.mode = ContractionMode::BUFFERED, .edge_buffer_fill_fraction = 1}
+        graph,
+        std::move(clustering),
+        {.mode = ContractionMode::BUFFERED, .edge_buffer_fill_fraction = 1}
     );
 
     const auto &c_graph = coarsened->get();
@@ -46,7 +48,9 @@ TEST(ClusterContractionTest, ContractingToSingletonsWorks) {
 
   StaticArray<NodeID> clustering = static_array::create<NodeID>({0, 1, 2, 3});
   auto coarsened = contract_clustering(
-      graph, clustering, {.mode = ContractionMode::BUFFERED, .edge_buffer_fill_fraction = 1}
+      graph,
+      std::move(clustering),
+      {.mode = ContractionMode::BUFFERED, .edge_buffer_fill_fraction = 1}
   );
 
   const auto &c_graph = coarsened->get();
@@ -70,7 +74,9 @@ TEST(ClusterContractionTest, ContractingAllNodesButOneWorks) {
   // 2--3
   StaticArray<NodeID> clustering = static_array::create<NodeID>({0, 1, 1, 1});
   auto coarsened = contract_clustering(
-      graph, clustering, {.mode = ContractionMode::BUFFERED, .edge_buffer_fill_fraction = 1}
+      graph,
+      std::move(clustering),
+      {.mode = ContractionMode::BUFFERED, .edge_buffer_fill_fraction = 1}
   );
 
   const auto &c_graph = coarsened->get();
@@ -95,7 +101,9 @@ TEST(ClusterContractionTest, ContractingGridHorizontallyWorks) {
 
   StaticArray<NodeID> clustering = static_array::create<NodeID>({0, 1, 2, 3, 0, 1, 2, 3});
   auto coarsened = contract_clustering(
-      graph, clustering, {.mode = ContractionMode::BUFFERED, .edge_buffer_fill_fraction = 1}
+      graph,
+      std::move(clustering),
+      {.mode = ContractionMode::BUFFERED, .edge_buffer_fill_fraction = 1}
   );
 
   const auto &c_graph = coarsened->get();
@@ -124,7 +132,9 @@ TEST(ClusterContractionTest, ContractingGridVerticallyWorks) {
 
   StaticArray<NodeID> clustering = static_array::create<NodeID>({0, 0, 2, 2, 4, 4, 6, 6});
   auto coarsened = contract_clustering(
-      graph, clustering, {.mode = ContractionMode::BUFFERED, .edge_buffer_fill_fraction = 1}
+      graph,
+      std::move(clustering),
+      {.mode = ContractionMode::BUFFERED, .edge_buffer_fill_fraction = 1}
   );
 
   const auto &c_graph = coarsened->get();
@@ -227,7 +237,7 @@ TEST(SequentialGraphExtraction, SimpleSequentialBipartitionExtractionWorks) {
   PartitionedGraph p_graph = make_p_graph(graph, 2, {0, 0, 0, 1, 1, 1});
 
   graph::SubgraphMemory memory(p_graph);
-  graph::SubgraphMemoryStartPosition position(0, 0);
+  graph::SubgraphMemoryStartPosition position;
   graph::TemporarySubgraphMemory buffer;
   const auto [subgraphs, positions] =
       graph::extract_subgraphs_sequential(p_graph, {1, 1}, position, memory, buffer);
