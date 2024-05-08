@@ -29,6 +29,10 @@ public:
     return _graph;
   }
 
+  Mapping<NodeID> &get_mapping() {
+    return _mapping;
+  }
+
   void project(const StaticArray<BlockID> &array, StaticArray<BlockID> &onto) final {
     tbb::parallel_for<std::size_t>(0, onto.size(), [&](const std::size_t i) {
       onto[i] = array[_mapping[i]];

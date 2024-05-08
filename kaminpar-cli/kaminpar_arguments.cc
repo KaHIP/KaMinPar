@@ -119,7 +119,8 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
       ->transform(CLI::CheckedTransformer(get_coarsening_algorithms()).description(""))
       ->description(R"(One of the following options:
   - noop:       disable coarsening
-  - clustering: coarsening by clustering and contracting)")
+  - clustering: coarsening by clustering and contracting
+  - sparsifying-clustering: like clustering with additionale edge sparsification)")
       ->capture_default_str();
 
   coarsening

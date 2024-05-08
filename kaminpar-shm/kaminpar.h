@@ -80,6 +80,11 @@ enum class EdgeOrdering {
 enum class CoarseningAlgorithm {
   NOOP,
   CLUSTERING,
+  SPARSIFYING_COARSENER,
+};
+
+enum class SparsificationAlgorithm {
+  UniformRandomSampling
 };
 
 enum class ClusteringAlgorithm {
@@ -179,6 +184,8 @@ struct CoarseningContext {
   NodeID contraction_limit;
 
   double convergence_threshold;
+
+  SparsificationAlgorithm sparsification_algorithm;
 };
 
 //

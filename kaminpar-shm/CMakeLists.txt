@@ -1,7 +1,11 @@
 file(GLOB_RECURSE KAMINPAR_SHM_SOURCE_FILES CONFIGURE_DEPENDS
 	*.cc *.h)
 
-add_library(kaminpar_shm ${KAMINPAR_SHM_SOURCE_FILES})
+add_library(kaminpar_shm ${KAMINPAR_SHM_SOURCE_FILES}
+        coarsening/sparsification/Sampler.h
+        coarsening/sparsification/UniformRandomSampler.cpp
+        coarsening/sparsification/UniformRandomSampler.h
+        coarsening/sparsifing_cluster_coarsener.h)
 target_include_directories(kaminpar_shm PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../")
 target_link_libraries(kaminpar_shm PUBLIC kaminpar_common)
 

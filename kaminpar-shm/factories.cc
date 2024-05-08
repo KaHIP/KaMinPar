@@ -25,6 +25,8 @@
 #include "kaminpar-shm/coarsening/noop_coarsener.h"
 
 // Refinement
+#include "coarsening/sparsifing_cluster_coarsener.h"
+
 #include "kaminpar-shm/refinement/adapters/mtkahypar_refiner.h"
 #include "kaminpar-shm/refinement/balancer/greedy_balancer.h"
 #include "kaminpar-shm/refinement/fm/fm_refiner.h"
@@ -77,6 +79,9 @@ std::unique_ptr<Coarsener> create_coarsener(const Context &ctx, const PartitionC
 
   case CoarseningAlgorithm::CLUSTERING:
     return std::make_unique<ClusteringCoarsener>(ctx, p_ctx);
+
+  case CoarseningAlgorithm::SPARSIFYING_COARSENER:
+    return std::make_unique<SparsifingClusteringCoarsener>(ctx, p_ctx);
   }
 
   __builtin_unreachable();
