@@ -7,3 +7,6 @@
 [submodule "external/KaGen"]
 	path = external/KaGen
 	url = https://github.com/KarlsruheGraphGeneration/KaGen.git
+[submodule "networkit"]
+	path = networkit
+	url = https://github.com/networkit/networkit

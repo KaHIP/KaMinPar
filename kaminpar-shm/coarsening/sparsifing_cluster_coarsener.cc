@@ -8,6 +8,7 @@
 #include "kaminpar-shm/coarsening/sparsifing_cluster_coarsener.h"
 
 #include "contraction/cluster_contraction_preprocessing.h"
+#include "sparsification/ForestFireSampler.h"
 #include "sparsification/UniformRandomSampler.h"
 
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"
@@ -26,8 +27,8 @@ SparsifingClusteringCoarsener::SparsifingClusteringCoarsener(
     const Context &ctx, const PartitionContext &p_ctx
 )
     : _clustering_algorithm(factory::create_clusterer(ctx)),
-      _sampling_algorithm(std::make_unique<sparsification::UniformRandomSampler>(
-          sparsification::UniformRandomSampler(0.3)
+      _sampling_algorithm(std::make_unique<sparsification::ForestFireSampler>(
+          sparsification::ForestFireSampler(0.3, 0.9, 0.01)
       )),
       _c_ctx(ctx.coarsening),
       _p_ctx(p_ctx) {}

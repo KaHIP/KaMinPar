@@ -5,9 +5,13 @@ add_library(kaminpar_shm ${KAMINPAR_SHM_SOURCE_FILES}
         coarsening/sparsification/Sampler.h
         coarsening/sparsification/UniformRandomSampler.cpp
         coarsening/sparsification/UniformRandomSampler.h
-        coarsening/sparsifing_cluster_coarsener.h)
+        coarsening/sparsifing_cluster_coarsener.h
+        coarsening/sparsification/ForestFireSampler.cpp
+        coarsening/sparsification/ForestFireSampler.h
+        coarsening/sparsification/networkit_utils.cpp
+        coarsening/sparsification/networkit_utils.h)
 target_include_directories(kaminpar_shm PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../")
-target_link_libraries(kaminpar_shm PUBLIC kaminpar_common)
+target_link_libraries(kaminpar_shm PUBLIC kaminpar_common networkit)
 
 # If we can find Mt-KaHyPar, make it available as an option for refinement
 if (KAMINPAR_BUILD_WITH_MTKAHYPAR)

@@ -373,6 +373,10 @@ endif ()
 # Start include paths on project root
 include_directories(${PROJECT_SOURCE_DIR})
 
+include_directories(${PROJECT_SOURCE_DIR}/networkit/include ${PROJECT_SOURCE_DIR}/networkit/extlibs/tlx ${PROJECT_SOURCE_DIR}/networkit/extlibs/ttmath)
+add_subdirectory(networkit)
+
+
 # Shared memory components
 add_subdirectory(kaminpar-common)
 add_subdirectory(kaminpar-shm)
@@ -410,3 +414,10 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
     add_library(KaMinPar::dKaMinParCLI11 ALIAS kaminpar_dist_cli) # deprecated
 endif ()
 
+
+# DEBUG
+message("DEEEEBUUUUG")
+get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
+foreach(dir ${dirs})
+  message(STATUS "dir='${dir}'")
+endforeach()
