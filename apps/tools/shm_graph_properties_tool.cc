@@ -92,12 +92,7 @@ int main(int argc, char *argv[]) {
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, ctx.parallel.num_threads);
 
   Graph graph = io::read(
-      graph_filename,
-      graph_file_format,
-      ctx.compression.enabled,
-      ctx.compression.may_dismiss,
-      false,
-      false
+      graph_filename, graph_file_format, ctx.compression.enabled, ctx.compression.may_dismiss, false
   );
 
   ctx.debug.graph_name = str::extract_basename(graph_filename);
