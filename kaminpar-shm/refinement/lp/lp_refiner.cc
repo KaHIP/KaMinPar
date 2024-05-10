@@ -109,7 +109,7 @@ public:
       const StaticArray<BlockID> & /* mapping */, const BlockID /* num_new_clusters */
   ) {}
 
-  [[nodiscard]] bool requires_reassignment() const {
+  [[nodiscard]] bool cluster_weights_require_reassignment() const {
     return false;
   }
 

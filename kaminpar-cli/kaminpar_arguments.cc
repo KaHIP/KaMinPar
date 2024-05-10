@@ -252,7 +252,8 @@ Options are:
   - direct:   Write the ratings directly into the global vector (shared between threads)
   - buffered: Write the ratings into a thread-local buffer and then copy them into the global vector when the buffer is full
   )"
-      );
+      )
+      ->capture_default_str();
   lp->add_option(
         "--c-lp-second-phase-relabel",
         ctx.coarsening.clustering.lp.relabel_before_second_phase,

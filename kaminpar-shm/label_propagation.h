@@ -274,6 +274,7 @@ protected:
     // Update initial num clusters since the maximum cluster ID is now different.
     ClusterID num_actual_clusters = _current_num_clusters;
     _initial_num_clusters = num_actual_clusters;
+    _relabeled = true;
 
     // Store for each node whether it joined another cluster as this information gets lost. This
     // information is needed only by 2-hop clustering.
@@ -301,27 +302,18 @@ protected:
     parallel::prefix_sum(mapping.begin(), mapping.end(), mapping.begin());
     KASSERT(num_actual_clusters == mapping[_graph->n() - 1]);
 
-    tbb::parallel_invoke(
+    tbb::parallel_for(tbb::blocked_range<NodeID>(0, _graph->n()), [&](const auto &r) {
+      for (NodeID u = r.begin(); u != r.end(); ++u) {
         // Relabel the cluster stored for each node.
-        [&] {
-          tbb::parallel_for(tbb::blocked_range<NodeID>(0, _graph->n()), [&](const auto &r) {
-            for (NodeID u = r.begin(); u != r.end(); ++u) {
-              derived_move_node(u, mapping[derived_cluster(u)] - 1);
-            }
-          });
-        },
+        derived_move_node(u, mapping[derived_cluster(u)] - 1);
+
         // Relabel the clusters stored in the favored clusters vector.
-        [&] {
-          tbb::parallel_for(tbb::blocked_range<NodeID>(0, _graph->n()), [&](const auto &r) {
-            for (NodeID u = r.begin(); u != r.end(); ++u) {
-              _favored_clusters[u] = mapping[_favored_clusters[u]] - 1;
-            }
-          });
-        },
-        // Reassign the clusters weights such that they match the new cluster IDs.
-        [&] { derived_reassign_cluster_weights(mapping, num_actual_clusters); }
-    );
-    _relabeled = true;
+        _favored_clusters[u] = mapping[_favored_clusters[u]] - 1;
+      }
+    });
+
+    // Reassign the clusters weights such that they match the new cluster IDs.
+    derived_reassign_cluster_weights(mapping, num_actual_clusters);
   }
 
   /*!
@@ -358,6 +350,14 @@ protected:
           // do not update _current_num_clusters here to avoid fetch_add()
           return {true, decrement_cluster_count}; // did move, did reduce nonempty
                                                   // cluster count?
+        } else {
+          if constexpr (Config::kUseActiveSetStrategy || Config::kUseLocalActiveSetStrategy) {
+            // Activate the node when a move failed due to cluster weight restrictions and when the
+            // cluster weights are readjusted in the next iteration.
+            if (derived_cluster_weights_require_reassignment()) {
+              __atomic_store_n(&_active[u], 1, __ATOMIC_RELAXED);
+            }
+          }
         }
       }
 
@@ -1023,6 +1023,11 @@ private:
     _relabeled = false;
   }
 
+protected:
+  [[nodiscard]] inline bool derived_cluster_weights_require_reassignment() const {
+    return static_cast<const Derived *>(this)->cluster_weights_require_reassignment();
+  }
+
 private: // CRTP calls
   //! Return current cluster ID of  node \c u.
   [[nodiscard]] ClusterID derived_cluster(const NodeID u) {
@@ -1320,6 +1325,7 @@ protected:
   using SecondPhaseSelectionStrategy = Base::SecondPhaseSelectionStrategy;
   using SecondPhaseAggregationStrategy = Base::SecondPhaseAggregationStrategy;
 
+  using Base::derived_cluster_weights_require_reassignment;
   using Base::handle_node;
   using Base::relabel_clusters;
   using Base::set_max_degree;
@@ -1449,7 +1455,7 @@ protected:
       }
 
       perform_second_phase();
-    } else if (cluster_weights_requires_reassignment()) {
+    } else if (derived_cluster_weights_require_reassignment()) {
       relabel_clusters();
     }
 
@@ -1717,10 +1723,6 @@ private:
     _second_phase_nodes.clear();
   }
 
-  [[nodiscard]] inline bool cluster_weights_requires_reassignment() const {
-    return static_cast<const Derived *>(this)->requires_reassignment();
-  }
-
 protected:
   using Base::_active;
   using Base::_current_num_clusters;
@@ -1906,7 +1908,7 @@ public:
     }
   }
 
-  [[nodiscard]] bool requires_reassignment() const {
+  [[nodiscard]] bool cluster_weights_require_reassignment() const {
     return _use_small_vector_initially;
   }
 
