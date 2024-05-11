@@ -199,7 +199,7 @@ public:
   FMRefiner(FMRefiner &&) noexcept = default;
   FMRefiner &operator=(FMRefiner &&) = delete;
 
-  void initialize(const PartitionedGraph &) final {}
+  void initialize(const PartitionedGraph &) final;
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
@@ -207,6 +207,7 @@ private:
   const Context &_ctx;
   const KwayFMRefinementContext &_fm_ctx;
 
+  bool _uninitialized;
   std::unique_ptr<fm::SharedData<GainCache>> _shared;
 };
 
