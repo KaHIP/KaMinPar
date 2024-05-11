@@ -24,7 +24,6 @@
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/parallel/atomic.h"
 #include "kaminpar-common/random.h"
-#include "kaminpar-common/tags.h"
 
 namespace kaminpar::dist {
 struct LabelPropagationConfig {
@@ -34,8 +33,8 @@ struct LabelPropagationConfig {
   using RatingMap = ::kaminpar::RatingMap<EdgeWeight, NodeID, FastResetArray<EdgeWeight>>;
 
   // Data type for cluster IDs and weights
-  using ClusterID = tag::Mandatory;
-  using ClusterWeight = tag::Mandatory;
+  using ClusterID = void;
+  using ClusterWeight = void;
 
   // Approx. number of edges per work unit
   static constexpr shm::NodeID kMinChunkSize = 1024;
@@ -831,12 +830,12 @@ protected: // Members
   //! Flags nodes with at least one node in its neighborhood that changed
   //! clusters during the last iteration. Nodes without this flag set must not
   //! be considered in the next iteration.
-  scalable_vector<parallel::Atomic<uint8_t>> _active;
+  ScalableVector<parallel::Atomic<uint8_t>> _active;
 
   //! If a node cannot join any cluster during an iteration, this vector stores
   //! the node's highest rated cluster independent of the maximum cluster
   //! weight. This information is used during 2-hop clustering.
-  scalable_vector<parallel::Atomic<ClusterID>> _favored_clusters;
+  ScalableVector<parallel::Atomic<ClusterID>> _favored_clusters;
 
   //! If statistics are enabled, this is the sum of the gain of all moves that
   //! were performed. If executed single-thread, this should be equal to the
@@ -1270,7 +1269,7 @@ public:
   }
 
 private:
-  scalable_vector<parallel::Atomic<ClusterID>> _clusters;
+  ScalableVector<parallel::Atomic<ClusterID>> _clusters;
 };
 
 template <typename ClusterID, typename ClusterWeight> class OwnedRelaxedClusterWeightVector {
@@ -1305,6 +1304,6 @@ public:
   }
 
 private:
-  scalable_vector<parallel::Atomic<ClusterWeight>> _cluster_weights;
+  ScalableVector<parallel::Atomic<ClusterWeight>> _cluster_weights;
 };
 } // namespace kaminpar::dist

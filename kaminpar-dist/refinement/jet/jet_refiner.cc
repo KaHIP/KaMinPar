@@ -11,22 +11,22 @@
 #include <tbb/parallel_invoke.h>
 
 #include "kaminpar-dist/context.h"
-#include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/factories.h"
-#include "kaminpar-dist/graphutils/synchronization.h"
+#include "kaminpar-dist/graphutils/communication.h"
+#include "kaminpar-dist/logger.h"
 #include "kaminpar-dist/metrics.h"
 #include "kaminpar-dist/refinement/gain_calculator.h"
 #include "kaminpar-dist/refinement/snapshooter.h"
 #include "kaminpar-dist/timer.h"
 
-#include "kaminpar-common/random.h"
-
-#define HEAVY assert::normal
+#define HEAVY assert::heavy
 
 namespace kaminpar::dist {
+namespace {
 SET_STATISTICS_FROM_GLOBAL();
 SET_DEBUG(false);
+} // namespace
 
 JetRefinerFactory::JetRefinerFactory(const Context &ctx) : _ctx(ctx) {}
 
@@ -283,7 +283,7 @@ void JetRefiner::synchronize_ghost_node_move_candidates() {
       [&](const auto &recv_buffer, const PEID pe) {
         tbb::parallel_for<std::size_t>(0, recv_buffer.size(), [&](const std::size_t i) {
           const auto [their_lnode, gain, target] = recv_buffer[i];
-          const NodeID lnode = _p_graph.map_foreign_node(their_lnode, pe);
+          const NodeID lnode = _p_graph.map_remote_node(their_lnode, pe);
           _gains_and_targets[lnode] = {gain, target};
         });
       }
@@ -370,7 +370,7 @@ void JetRefiner::synchronize_ghost_node_labels() {
       [&](const auto &recv_buffer, const PEID pe) {
         tbb::parallel_for<std::size_t>(0, recv_buffer.size(), [&](const std::size_t i) {
           const auto [their_lnode, block] = recv_buffer[i];
-          const NodeID lnode = _p_graph.map_foreign_node(their_lnode, pe);
+          const NodeID lnode = _p_graph.map_remote_node(their_lnode, pe);
           _p_graph.set_block<false>(lnode, block);
         });
       }

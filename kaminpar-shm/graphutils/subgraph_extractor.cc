@@ -12,7 +12,7 @@
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/metrics.h"
-#include "kaminpar-shm/partition_utils.h"
+#include "kaminpar-shm/partitioning/partition_utils.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/static_array.h"
@@ -35,8 +35,8 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential_generic_graph(
 ) {
   KASSERT(p_graph.k() == 2u, "Only suitable for bipartitions!", assert::light);
 
-  const bool is_node_weighted = graph.node_weighted();
-  const bool is_edge_weighted = graph.edge_weighted();
+  const bool is_node_weighted = graph.is_node_weighted();
+  const bool is_edge_weighted = graph.is_edge_weighted();
 
   const BlockID final_k = final_ks[0] + final_ks[1];
   tmp_subgraph_memory.ensure_size_nodes(graph.n() + final_k, is_node_weighted);
@@ -129,17 +129,21 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential_generic_graph(
   subgraph_positions[1].edges_start_pos = memory_position.edges_start_pos + m1;
 
   auto create_graph = [&](const NodeID n0, const NodeID n, const EdgeID m0, const EdgeID m) {
-    StaticArray<EdgeID> s_nodes(memory_position.nodes_start_pos + n0, n + 1, subgraph_memory.nodes);
-    StaticArray<NodeID> s_edges(memory_position.edges_start_pos + m0, m, subgraph_memory.edges);
+    StaticArray<EdgeID> s_nodes(
+        n + 1, subgraph_memory.nodes.data() + memory_position.nodes_start_pos + n0
+    );
+    StaticArray<NodeID> s_edges(
+        m, subgraph_memory.edges.data() + memory_position.edges_start_pos + m0
+    );
     StaticArray<NodeWeight> s_node_weights(
-        is_node_weighted * (memory_position.nodes_start_pos + n0),
         is_node_weighted * n,
-        subgraph_memory.node_weights
+        subgraph_memory.node_weights.data() +
+            is_node_weighted * (memory_position.nodes_start_pos + n0)
     );
     StaticArray<EdgeWeight> s_edge_weights(
-        is_edge_weighted * (memory_position.edges_start_pos + m0),
         is_edge_weighted * m,
-        subgraph_memory.edge_weights
+        subgraph_memory.edge_weights.data() +
+            is_edge_weighted * (memory_position.edges_start_pos + m0)
     );
     return shm::Graph(std::make_unique<CSRGraph>(
         CSRGraph::seq{},
@@ -190,16 +194,16 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
   StaticArray<NodeID> mapping(p_graph.n());
   StaticArray<SubgraphMemoryStartPosition> start_positions(p_graph.k() + 1);
   StaticArray<NodeID> bucket_index(p_graph.k());
-  scalable_vector<shm::Graph> subgraphs(p_graph.k());
+  ScalableVector<shm::Graph> subgraphs(p_graph.k());
   STOP_TIMER();
 
   // count number of nodes and edges in each block
   START_TIMER("Count block size");
-  tbb::enumerable_thread_specific<scalable_vector<NodeID>> tl_num_nodes_in_block{[&] {
-    return scalable_vector<NodeID>(p_graph.k());
+  tbb::enumerable_thread_specific<ScalableVector<NodeID>> tl_num_nodes_in_block{[&] {
+    return ScalableVector<NodeID>(p_graph.k());
   }};
-  tbb::enumerable_thread_specific<scalable_vector<EdgeID>> tl_num_edges_in_block{[&] {
-    return scalable_vector<EdgeID>(p_graph.k());
+  tbb::enumerable_thread_specific<ScalableVector<EdgeID>> tl_num_edges_in_block{[&] {
+    return ScalableVector<EdgeID>(p_graph.k());
   }};
 
   tbb::parallel_for(tbb::blocked_range<NodeID>(0, graph.n()), [&](auto &r) {
@@ -246,8 +250,8 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
   });
   STOP_TIMER();
 
-  const bool is_node_weighted = p_graph.graph().node_weighted();
-  const bool is_edge_weighted = p_graph.graph().edge_weighted();
+  const bool is_node_weighted = p_graph.graph().is_node_weighted();
+  const bool is_edge_weighted = p_graph.graph().is_edge_weighted();
 
   // build graph
   START_TIMER("Construct subgraphs");
@@ -291,13 +295,13 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
         start_positions[b + 1].nodes_start_pos - n0 - compute_final_k(b, p_graph.k(), input_k);
     const EdgeID m = start_positions[b + 1].edges_start_pos - m0;
 
-    StaticArray<EdgeID> nodes(n0, n + 1, subgraph_memory.nodes);
-    StaticArray<NodeID> edges(m0, m, subgraph_memory.edges);
+    StaticArray<EdgeID> nodes(n + 1, subgraph_memory.nodes.data() + n0);
+    StaticArray<NodeID> edges(m, subgraph_memory.edges.data() + m0);
     StaticArray<NodeWeight> node_weights(
-        is_node_weighted * n0, is_node_weighted * n, subgraph_memory.node_weights
+        is_node_weighted * n, subgraph_memory.node_weights.data() + is_node_weighted * n0
     );
     StaticArray<EdgeWeight> edge_weights(
-        is_edge_weighted * m0, is_edge_weighted * m, subgraph_memory.edge_weights
+        is_edge_weighted * m, subgraph_memory.edge_weights.data() + is_edge_weighted * m0
     );
     subgraphs[b] = shm::Graph(std::make_unique<CSRGraph>(
         std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights)
@@ -335,7 +339,7 @@ SubgraphExtractionResult extract_subgraphs(
 
 PartitionedGraph copy_subgraph_partitions(
     PartitionedGraph p_graph,
-    const scalable_vector<StaticArray<BlockID>> &p_subgraph_partitions,
+    const ScalableVector<StaticArray<BlockID>> &p_subgraph_partitions,
     const BlockID k_prime,
     const BlockID input_k,
     const StaticArray<NodeID> &mapping

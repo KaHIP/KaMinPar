@@ -10,10 +10,10 @@
 #include <cmath>
 
 #include <tbb/enumerable_thread_specific.h>
+#include <tbb/parallel_invoke.h>
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/heap_profiler.h"
-#include "kaminpar-common/logger.h"
 #include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/parallel/aligned_element.h"
 #include "kaminpar-common/timer.h"
@@ -27,14 +27,14 @@ NodePermutations<StaticArray> rearrange_graph(
     StaticArray<EdgeWeight> &edge_weights
 ) {
   START_HEAP_PROFILER("Temporal nodes and edges allocation");
-  START_TIMER("Allocation (noinit)");
-  RECORD("tmp_nodes") StaticArray<EdgeID> tmp_nodes(nodes.size(), static_array::noinit);
-  RECORD("tmp_edges") StaticArray<NodeID> tmp_edges(edges.size(), static_array::noinit);
+  RECORD("tmp_nodes")
+  StaticArray<EdgeID> tmp_nodes(nodes.size(), static_array::noinit);
+  RECORD("tmp_edges")
+  StaticArray<NodeID> tmp_edges(edges.size(), static_array::noinit);
   RECORD("tmp_node_weights")
   StaticArray<NodeWeight> tmp_node_weights(node_weights.size(), static_array::noinit);
   RECORD("tmp_edge_weights")
   StaticArray<EdgeWeight> tmp_edge_weights(edge_weights.size(), static_array::noinit);
-  STOP_TIMER();
   STOP_HEAP_PROFILER();
 
   // if we are about to remove all isolated nodes, we place them to the end of
@@ -64,10 +64,12 @@ NodePermutations<StaticArray> rearrange_graph(
   STOP_HEAP_PROFILER();
 
   START_TIMER("Deallocation");
-  tmp_nodes.free();
-  tmp_edges.free();
-  tmp_node_weights.free();
-  tmp_edge_weights.free();
+  tbb::parallel_invoke(
+      [&] { tmp_nodes.free(); },
+      [&] { tmp_edges.free(); },
+      [&] { tmp_node_weights.free(); },
+      [&] { tmp_edge_weights.free(); }
+  );
   STOP_TIMER();
 
   return permutations;
@@ -76,6 +78,7 @@ NodePermutations<StaticArray> rearrange_graph(
 Graph rearrange_by_degree_buckets(CSRGraph &old_graph) {
   SCOPED_TIMER("Rearrange by degree-buckets");
 
+  [[maybe_unused]] const NodeID n = old_graph.n();
   auto nodes = old_graph.take_raw_nodes();
   auto edges = old_graph.take_raw_edges();
   auto node_weights = old_graph.take_raw_node_weights();
@@ -84,31 +87,8 @@ Graph rearrange_by_degree_buckets(CSRGraph &old_graph) {
   auto node_permutations = graph::rearrange_graph(nodes, edges, node_weights, edge_weights);
 
   KASSERT(
-      [&] {
-        if (!node_weights.empty() && node_weights.size() + 1 < nodes.size()) {
-          LOG_WARNING << "node weights array is not empty, but smaller than the number of nodes";
-          return false;
-        }
-        if (!edge_weights.empty() && edge_weights.size() < edges.size()) {
-          LOG_WARNING << "edge weights array is not empty, but smaller than the number of edges";
-          return false;
-        }
-        for (NodeID u = 0; u + 1 < nodes.size(); ++u) {
-          if (nodes[u] > nodes[u + 1] || nodes[u + 1] > edges.size()) {
-            LOG_WARNING << "invalid nodes[] entry for node " << u;
-            return false;
-          }
-          for (EdgeID e = nodes[u]; e < nodes[u + 1]; ++e) {
-            const NodeID v = edges[e];
-            if (v + 1 > nodes.size()) {
-              LOG_WARNING << "neighbor " << v << " of node " << u << " is out of range";
-              return false;
-            }
-          }
-        }
-        return true;
-      }(),
-      "graph permutation produced invalid CSR graph",
+      debug::validate_graph(n, nodes, edges, node_weights, edge_weights),
+      "graph permutation produced an invalid CSR graph",
       assert::heavy
   );
 
@@ -116,7 +96,6 @@ Graph rearrange_by_degree_buckets(CSRGraph &old_graph) {
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), true
   ));
   new_graph.set_permutation(std::move(node_permutations.old_to_new));
-
   return new_graph;
 }
 
@@ -256,7 +235,7 @@ void reorder_edges_by_compression(CSRGraph &graph) {
     NodeID *edges_begin = raw_edges.data() + raw_nodes[node];
     NodeID *edges_end = raw_edges.data() + raw_nodes[node + 1];
 
-    const bool store_edge_weights = graph.edge_weighted();
+    const bool store_edge_weights = graph.is_edge_weighted();
     EdgeWeight *edge_weights =
         store_edge_weights ? (raw_edge_weights.data() + raw_nodes[node]) : nullptr;
 
@@ -361,7 +340,9 @@ PartitionedGraph assign_isolated_nodes(
   const NodeID num_nonisolated_nodes = graph.n() - num_isolated_nodes;
 
   // The following call graph.n() should include isolated nodes now
-  RECORD("partition") StaticArray<BlockID> partition(graph.n());
+  RECORD("partition")
+  StaticArray<BlockID> partition(graph.n(), static_array::noinit);
+
   // copy partition of non-isolated nodes
   tbb::parallel_for<NodeID>(0, num_nonisolated_nodes, [&](const NodeID u) {
     partition[u] = p_graph.block(u);
@@ -383,5 +364,4 @@ PartitionedGraph assign_isolated_nodes(
 
   return {graph, k, std::move(partition)};
 }
-
 } // namespace kaminpar::shm::graph

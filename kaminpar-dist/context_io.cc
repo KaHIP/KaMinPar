@@ -12,6 +12,8 @@
 #include <ostream>
 #include <unordered_map>
 
+#include "kaminpar-mpi/wrapper.h"
+
 #include "kaminpar-dist/context.h"
 
 #include "kaminpar-common/console_io.h"
@@ -450,7 +452,8 @@ void print(const RefinementContext &ctx, const ParallelContext &parallel, std::o
         LabelPropagationMoveExecutionStrategy::PROBABILISTIC) {
       out << "    Number of attempts:       " << ctx.colored_lp.num_probabilistic_move_attempts
           << "\n";
-    } else if (ctx.colored_lp.move_execution_strategy == LabelPropagationMoveExecutionStrategy::BEST_MOVES) {
+    } else if (ctx.colored_lp.move_execution_strategy ==
+               LabelPropagationMoveExecutionStrategy::BEST_MOVES) {
       out << "    Sort by:                  "
           << (ctx.colored_lp.sort_by_rel_gain ? "relative gain" : "absolute gain") << "\n";
     }

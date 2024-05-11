@@ -166,8 +166,8 @@ int main(int argc, char *argv[]) {
 
   LOG << "Input graph has " << graph.n() << " vertices and " << graph.m()
       << " edges. Its density is " << ((graph.m()) / (float)(graph.n() * (graph.n() - 1))) << ".";
-  LOG << "Node weights: " << (graph.node_weighted() ? "yes" : "no")
-      << ", edge weights: " << (graph.edge_weighted() ? "yes" : "no");
+  LOG << "Node weights: " << (graph.is_node_weighted() ? "yes" : "no")
+      << ", edge weights: " << (graph.is_edge_weighted() ? "yes" : "no");
   LOG;
 
   Timer::global().print_human_readable(std::cout);

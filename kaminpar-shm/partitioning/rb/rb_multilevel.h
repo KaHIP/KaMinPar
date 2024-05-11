@@ -12,8 +12,8 @@
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/factories.h"
 #include "kaminpar-shm/graphutils/subgraph_extractor.h"
-#include "kaminpar-shm/partition_utils.h"
 #include "kaminpar-shm/partitioning/helper.h"
+#include "kaminpar-shm/partitioning/partition_utils.h"
 #include "kaminpar-shm/partitioning/partitioner.h"
 
 namespace kaminpar::shm {
@@ -39,8 +39,8 @@ public:
           p_graph.n(),
           k,
           p_graph.m(),
-          p_graph.graph().node_weighted(),
-          p_graph.graph().edge_weighted()
+          p_graph.graph().is_node_weighted(),
+          p_graph.graph().is_edge_weighted()
       );
 
       const auto extraction = extract_subgraphs(p_graph, _input_ctx.partition.k, memory);
@@ -53,7 +53,7 @@ public:
           [&] { p_graph1 = partition_recursive(subgraphs[0], k / 2); },
           [&] { p_graph2 = partition_recursive(subgraphs[1], k / 2); }
       );
-      scalable_vector<StaticArray<BlockID>> subgraph_partitions(2);
+      ScalableVector<StaticArray<BlockID>> subgraph_partitions(2);
       subgraph_partitions[0] = p_graph1.take_raw_partition();
       subgraph_partitions[1] = p_graph2.take_raw_partition();
 

@@ -7,10 +7,8 @@
  ******************************************************************************/
 #pragma once
 
-#include <ostream>
 #include <string>
 
-#include "kaminpar-common/environment.h"
 #include "kaminpar-common/logger.h"
 
 namespace kaminpar::cio {

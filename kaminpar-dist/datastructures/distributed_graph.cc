@@ -13,13 +13,13 @@
 #include "kaminpar-mpi/wrapper.h"
 
 #include "kaminpar-dist/graphutils/communication.h"
+#include "kaminpar-dist/logger.h"
 
 #include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/math.h"
 #include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/parallel/vector_ets.h"
-#include "kaminpar-common/timer.h"
 
 namespace kaminpar::dist {
 void DistributedGraph::init_high_degree_info(const EdgeID high_degree_threshold) const {
@@ -43,7 +43,7 @@ void DistributedGraph::init_high_degree_info(const EdgeID high_degree_threshold)
       [&](const auto &recv_buffer, const PEID pe) {
         tbb::parallel_for<std::size_t>(0, recv_buffer.size(), [&](const std::size_t i) {
           const auto &[remote_node, high_degree] = recv_buffer[i];
-          const NodeID local_node = remote_to_local_node(remote_node, pe);
+          const NodeID local_node = map_remote_node(remote_node, pe);
           _high_degree_ghost_node[local_node - n()] = high_degree;
         });
       }

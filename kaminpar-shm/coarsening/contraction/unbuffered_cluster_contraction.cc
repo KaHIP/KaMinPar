@@ -274,9 +274,9 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
   STOP_HEAP_PROFILER();
 
   START_HEAP_PROFILER("Coarse graph edges allocation");
-  RECORD("c_edges") StaticArray<NodeID> finalized_c_edges(std::move(c_edges), c_m);
+  RECORD("c_edges") StaticArray<NodeID> finalized_c_edges(c_m, std::move(c_edges));
   RECORD("c_edge_weights")
-  StaticArray<EdgeWeight> finalized_c_edge_weights(std::move(c_edge_weights), c_m);
+  StaticArray<EdgeWeight> finalized_c_edge_weights(c_m, std::move(c_edge_weights));
   if constexpr (kHeapProfiling) {
     heap_profiler::HeapProfiler::global().record_alloc(c_edges.get(), c_m * sizeof(NodeID));
     heap_profiler::HeapProfiler::global().record_alloc(

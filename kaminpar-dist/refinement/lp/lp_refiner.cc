@@ -502,9 +502,9 @@ private:
   DistributedPartitionedGraph *_p_graph = nullptr;
   const PartitionContext *_p_ctx = nullptr;
 
-  scalable_vector<BlockID> _next_partition;
-  scalable_vector<EdgeWeight> _gains;
-  scalable_vector<parallel::Atomic<BlockWeight>> _block_weights;
+  ScalableVector<BlockID> _next_partition;
+  ScalableVector<EdgeWeight> _gains;
+  ScalableVector<parallel::Atomic<BlockWeight>> _block_weights;
 
   Statistics _statistics;
 };

@@ -8,7 +8,6 @@
 #pragma once
 
 #include <limits>
-#include <type_traits>
 
 #include <tbb/concurrent_vector.h>
 #include <tbb/enumerable_thread_specific.h>
@@ -23,7 +22,6 @@
 #include "kaminpar-common/datastructures/fast_reset_array.h"
 #include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/datastructures/noinit_vector.h"
-#include "kaminpar-common/datastructures/preallocated_vector.h"
 
 namespace kaminpar::dist::graph {
 class BfsExtractor {
@@ -96,7 +94,8 @@ private:
           std::move(node_weights),
           std::move(edge_weights),
           std::move(node_mapping),
-          std::move(partition)};
+          std::move(partition)
+      };
     }
   };
 
@@ -137,8 +136,8 @@ private:
 
   NoinitVector<EdgeWeight> _external_degrees;
 
-  Marker<> _finished_pe_search{
-      static_cast<std::size_t>(mpi::get_comm_size(_graph->communicator()))};
+  Marker<> _finished_pe_search{static_cast<std::size_t>(mpi::get_comm_size(_graph->communicator()))
+  };
 
   tbb::enumerable_thread_specific<Marker<>> _taken_ets{[&] {
     return Marker<>(_graph->total_n());

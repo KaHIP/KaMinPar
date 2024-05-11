@@ -15,6 +15,10 @@
 
 #include "kaminpar-mpi/wrapper.h"
 
+#include "kaminpar-dist/dkaminpar.h"
+
+#include "kaminpar-common/assert.h"
+
 namespace kaminpar::dist {
 namespace {
 class AlignedTable {

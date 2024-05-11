@@ -19,6 +19,7 @@
 namespace kaminpar::shm::graph {
 /*!
  * Bidirectional node permutation.
+ *
  * @tparam Container
  */
 template <template <typename> typename Container> struct NodePermutations {
@@ -99,6 +100,7 @@ NodePermutations<StaticArray> sort_by_degree_buckets(const StaticArray<EdgeID> &
 
 /*!
  * Creates a permuted copy of a graph.
+ *
  * @tparam Container
  * @tparam has_ghost_nodes If true, edge targets may not exist. These are not
  * permuted.
@@ -149,7 +151,9 @@ void build_permuted_graph(
       new_node_weights[u] = old_node_weights[old_u];
     }
   });
+
   parallel::prefix_sum(new_nodes.begin(), new_nodes.end(), new_nodes.begin());
+  new_nodes.back() = n > 0 ? new_nodes[n - 1] : 0;
 
   // Build p_edges, p_edge_weights
   tbb::parallel_for<GraphNodeID>(0, n, [&](const GraphNodeID u) {

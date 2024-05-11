@@ -26,7 +26,6 @@ function(kaminpar_add_common_test target)
 endfunction()
 
 # Common -> Datastructures
-kaminpar_add_common_test(test_common_preallocated_vector common/datastructures/preallocated_vector_test.cc)
 kaminpar_add_common_test(test_common_binary_heap common/datastructures/binary_heap_test.cc)
 kaminpar_add_common_test(test_common_fast_reset_array common/datastructures/fast_reset_array_test.cc)
 kaminpar_add_common_test(test_common_marker common/datastructures/marker_test.cc)

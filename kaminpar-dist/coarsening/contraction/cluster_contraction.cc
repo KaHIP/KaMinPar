@@ -1044,7 +1044,7 @@ ContractionResult contract_clustering(
   );
 
   // @bug not all entries are used, why?
-  std::vector<scalable_vector<GlobalNodeID>> my_mapping_requests(size);
+  std::vector<ScalableVector<GlobalNodeID>> my_mapping_requests(size);
   tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
     my_mapping_requests[pe].resize(next_index_for_pe[pe].value, kInvalidGlobalNodeID);
   });
@@ -1067,7 +1067,7 @@ ContractionResult contract_clustering(
   auto their_mapping_requests =
       mpi::sparse_alltoall_get<GlobalNodeID>(my_mapping_requests, graph.communicator());
 
-  std::vector<scalable_vector<GlobalNodeID>> my_mapping_responses(size);
+  std::vector<ScalableVector<GlobalNodeID>> my_mapping_responses(size);
   tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
     my_mapping_responses[pe].resize(their_mapping_requests[pe].size());
 
@@ -1185,7 +1185,7 @@ ContractionResult contract_clustering(
     EdgeWeight weight;
   };
 
-  NavigableLinkedList<NodeID, LocalEdge, scalable_vector> edge_buffer_ets;
+  NavigableLinkedList<NodeID, LocalEdge, ScalableVector> edge_buffer_ets;
 
   START_TIMER("Construct edges");
   tbb::parallel_for(tbb::blocked_range<NodeID>(0, c_n), [&](const auto &r) {
@@ -1320,8 +1320,7 @@ ContractionResult contract_clustering(
   // Finally, build coarse graph
   START_TIMER("Construct coarse graph");
   auto all_buffered_nodes =
-      ts_navigable_list::combine<NodeID, LocalEdge, scalable_vector, scalable_vector>(
-          edge_buffer_ets
+      ts_navigable_list::combine<NodeID, LocalEdge, ScalableVector, ScalableVector>(edge_buffer_ets
       );
 
   tbb::parallel_for<NodeID>(0, c_n, [&](const NodeID i) {

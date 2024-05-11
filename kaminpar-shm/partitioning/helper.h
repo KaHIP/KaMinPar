@@ -122,7 +122,7 @@ std::size_t
 compute_num_copies(const Context &input_ctx, NodeID n, bool converged, std::size_t num_threads);
 
 std::size_t
-select_best(const scalable_vector<PartitionedGraph> &p_graphs, const PartitionContext &p_ctx);
+select_best(const ScalableVector<PartitionedGraph> &p_graphs, const PartitionContext &p_ctx);
 
 template <typename Iterator>
 std::size_t select_best(
@@ -153,7 +153,7 @@ std::size_t select_best(
   return best_index;
 }
 
-std::size_t compute_num_threads_for_parallel_ip(const Context &input_ctx);
+int compute_num_threads_for_parallel_ip(const Context &input_ctx);
 
 inline bool parallel_ip_mode(const InitialPartitioningMode &mode) {
   return mode == InitialPartitioningMode::ASYNCHRONOUS_PARALLEL ||

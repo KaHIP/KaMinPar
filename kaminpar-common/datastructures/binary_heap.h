@@ -13,8 +13,6 @@
 #include <tbb/parallel_for.h>
 
 #include "kaminpar-common/assert.h"
-#include "kaminpar-common/datastructures/noinit_vector.h"
-#include "kaminpar-common/datastructures/preallocated_vector.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
 
 namespace kaminpar {
@@ -235,7 +233,7 @@ private:
   }
 
   ID _capacity;
-  scalable_vector<HeapElement> _heap;
+  ScalableVector<HeapElement> _heap;
   std::size_t *_id_pos;
   Comparator<Key> _comparator{};
 };

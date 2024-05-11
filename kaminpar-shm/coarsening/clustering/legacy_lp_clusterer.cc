@@ -47,11 +47,12 @@ public:
   }
 
   void compute_clustering(StaticArray<NodeID> &clustering, const CSRGraph &graph, bool) {
-    allocate(graph.n(), graph.n());
-    allocate_cluster_weights(graph.n());
+    KASSERT(clustering.size() >= graph.n(), "preallocated clustering array is too small");
 
-    init_clusters_ref(clustering);
-    initialize(&graph, graph.n());
+    Base::allocate(graph.n(), graph.n());
+    LegacyOwnedRelaxedClusterWeightVector::allocate_cluster_weights(graph.n());
+    LegacyNonatomicClusterVectorRef::init_clusters_ref(clustering);
+    Base::initialize(&graph, graph.n());
 
     for (int iteration = 0; iteration < _lp_ctx.num_iterations; ++iteration) {
       SCOPED_TIMER("Iteration", std::to_string(iteration));

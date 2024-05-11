@@ -7,7 +7,11 @@
  ******************************************************************************/
 #include "kaminpar-common/strutils.h"
 
+#include <algorithm>
 #include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace kaminpar::str {
 std::string extract_basename(const std::string &path, const bool keep_extension) {
@@ -58,8 +62,9 @@ std::string &replace_all(std::string &str, const std::string &replace, const std
   return str;
 }
 
-std::string &
-replace_all(std::string &str, const std::vector<std::pair<std::string, std::string>> &replacements) {
+std::string &replace_all(
+    std::string &str, const std::vector<std::pair<std::string, std::string>> &replacements
+) {
   for (auto &replacement : replacements) {
     replace_all(str, replacement.first, replacement.second);
   }

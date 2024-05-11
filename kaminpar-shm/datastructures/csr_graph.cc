@@ -46,28 +46,80 @@ namespace debug {
 bool validate_graph(
     const CSRGraph &graph, const bool check_undirected, const NodeID num_pseudo_nodes
 ) {
-  for (NodeID u = 0; u < graph.n(); ++u) {
-    if (graph.raw_nodes()[u] > graph.raw_nodes()[u + 1]) {
+  return validate_graph(
+      graph.n(),
+      graph.raw_nodes(),
+      graph.raw_edges(),
+      graph.raw_node_weights(),
+      graph.raw_edge_weights(),
+      check_undirected,
+      num_pseudo_nodes
+  );
+}
+
+bool validate_graph(
+    const NodeID n,
+    const StaticArray<EdgeID> &xadj,
+    const StaticArray<NodeID> &adjncy,
+    const StaticArray<NodeWeight> &vwgt,
+    const StaticArray<EdgeWeight> &adjwgt,
+    const bool check_undirected,
+    const NodeID num_pseudo_nodes
+) {
+  if (xadj.size() < n + 1) {
+    LOG_WARNING << "xadj is not large enough: " << xadj.size() << " < " << n + 1;
+    return false;
+  }
+
+  if (!vwgt.empty() && vwgt.size() < n) {
+    LOG_WARNING << "vwgt is not large enough: " << vwgt.size() << " < " << n;
+    return false;
+  }
+
+  const EdgeID m = xadj[n];
+
+  if (!adjwgt.empty() && adjwgt.size() < m) {
+    LOG_WARNING << "adjwgt is not large enough: " << adjwgt.size() << " < " << xadj[n];
+    return false;
+  }
+
+  for (NodeID u = 0; u < n; ++u) {
+    if (xadj[u] > xadj[u + 1]) {
       LOG_WARNING << "Bad node array at position " << u;
       return false;
     }
   }
 
-  for (const NodeID u : graph.nodes()) {
-    for (const auto [e, v] : graph.neighbors(u)) {
-      if (v >= graph.n()) {
+  for (NodeID u = 0; u < n; ++u) {
+    for (EdgeID e = xadj[u]; e < xadj[u + 1]; ++e) {
+      if (e >= m) {
+        LOG_WARNING << "Edge " << e << " of " << u << " is out-of-graph";
+        return false;
+      }
+
+      const NodeID v = adjncy[e];
+
+      if (v >= n) {
         LOG_WARNING << "Neighbor " << v << " of " << u << " is out-of-graph";
         return false;
       }
 
       if (u == v) {
-        LOG_WARNING << "Self-loop at " << u;
+        LOG_WARNING << "Self-loop at " << u << ": " << e << " --> " << v;
         return false;
       }
 
       bool found_reverse = false;
-      for (const auto [e_prime, u_prime] : graph.neighbors(v)) {
-        if (u_prime >= graph.n()) {
+      for (EdgeID e_prime = xadj[v]; e_prime < xadj[v + 1]; ++e_prime) {
+        if (e_prime >= m) {
+          LOG_WARNING << "Edge " << e_prime << " of " << v << " is out-of-graph";
+          std::exit(1);
+          return false;
+        }
+
+        const NodeID u_prime = adjncy[e_prime];
+
+        if (u_prime >= n) {
           LOG_WARNING << "Neighbor " << u_prime << " of neighbor " << v << " of " << u
                       << " is out-of-graph";
           return false;
@@ -77,10 +129,10 @@ bool validate_graph(
           continue;
         }
 
-        if (graph.edge_weight(e) != graph.edge_weight(e_prime)) {
-          LOG_WARNING << "Weight of edge " << e << " (" << graph.edge_weight(e)
-                      << ") differs from the weight of its reverse edge " << e_prime << " ("
-                      << graph.edge_weight(e_prime) << ")";
+        if (!adjwgt.empty() && adjwgt[e] != adjwgt[e_prime]) {
+          LOG_WARNING << "Weight of edge " << e << " (" << adjwgt[e] << ") "              //
+                      << "differs from the weight of its reverse edge " << e_prime << " " //
+                      << "(" << adjwgt[e_prime] << ")";                                   //
           return false;
         }
 
@@ -88,7 +140,7 @@ bool validate_graph(
         break;
       }
 
-      if (check_undirected && v < graph.n() - num_pseudo_nodes && !found_reverse) {
+      if (check_undirected && v < n - num_pseudo_nodes && !found_reverse) {
         LOG_WARNING << "Edge " << u << " --> " << v << " exists with edge " << e
                     << ", but the reverse edges does not exist";
         return false;
@@ -101,7 +153,7 @@ bool validate_graph(
 
 CSRGraph sort_neighbors(CSRGraph graph) {
   const bool sorted = graph.sorted();
-  const bool edge_weighted = graph.edge_weighted();
+  const bool edge_weighted = graph.is_edge_weighted();
 
   StaticArray<EdgeID> nodes = graph.take_raw_nodes();
   StaticArray<NodeID> edges = graph.take_raw_edges();

@@ -7,7 +7,6 @@
  ******************************************************************************/
 #pragma once
 
-#include <cstdint>
 #include <utility>
 
 namespace kaminpar {
@@ -72,4 +71,13 @@ template <std::size_t N, typename Lambda> constexpr void constexpr_for(Lambda &&
   constexpr_for(std::forward<Lambda>(l), std::make_index_sequence<N>());
 }
 
+/*!
+ * Checks if a list of tags contains a specific tag.
+ *
+ * @tparam Tag The tag to check for.
+ * @tparam Ts The list of tags to check.
+ * @return True if the tag is in the list, false otherwise.
+ */
+template <typename Tag, typename... Ts>
+constexpr bool contains_tag_v = (std::is_same_v<Tag, Ts> || ...);
 } // namespace kaminpar

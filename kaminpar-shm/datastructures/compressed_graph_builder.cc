@@ -344,8 +344,8 @@ void CompressedEdgesBuilder::add_edges(
 }
 
 CompressedGraph CompressedGraphBuilder::compress(const CSRGraph &graph) {
-  const bool store_node_weights = graph.node_weighted();
-  const bool store_edge_weights = graph.edge_weighted();
+  const bool store_node_weights = graph.is_node_weighted();
+  const bool store_edge_weights = graph.is_edge_weighted();
 
   CompressedGraphBuilder builder(
       graph.n(), graph.m(), store_node_weights, store_edge_weights, graph.sorted()
@@ -449,7 +449,7 @@ CompressedGraph CompressedGraphBuilder::build() {
 
   RECORD("compressed_edges")
   StaticArray<std::uint8_t> compressed_edges(
-      std::move(wrapped_compressed_edges), compressed_edges_size
+      compressed_edges_size, std::move(wrapped_compressed_edges)
   );
 
   const bool unit_node_weights = static_cast<NodeID>(_total_node_weight + 1) == _nodes.size();
@@ -492,8 +492,8 @@ std::int64_t CompressedGraphBuilder::total_edge_weight() const {
 }
 
 CompressedGraph ParallelCompressedGraphBuilder::compress(const CSRGraph &graph) {
-  const bool has_node_weights = graph.node_weighted();
-  const bool has_edge_weights = graph.edge_weighted();
+  const bool has_node_weights = graph.is_node_weighted();
+  const bool has_edge_weights = graph.is_edge_weighted();
 
   ParallelCompressedGraphBuilder builder(
       graph.n(), graph.m(), has_node_weights, has_edge_weights, graph.sorted()
@@ -688,7 +688,7 @@ CompressedGraph ParallelCompressedGraphBuilder::build() {
   }
 
   RECORD("compressed_edges")
-  StaticArray<std::uint8_t> compressed_edges(std::move(_compressed_edges), _compressed_edges_size);
+  StaticArray<std::uint8_t> compressed_edges(_compressed_edges_size, std::move(_compressed_edges));
 
   const bool unit_node_weights = static_cast<NodeID>(_total_node_weight + 1) == _nodes.size();
   if (unit_node_weights) {

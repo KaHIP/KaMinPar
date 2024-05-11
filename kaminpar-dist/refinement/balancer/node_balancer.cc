@@ -7,25 +7,24 @@
  ******************************************************************************/
 #include "kaminpar-dist/refinement/balancer/node_balancer.h"
 
-#include "kaminpar-mpi/binary_reduction_tree.h"
 #include "kaminpar-mpi/wrapper.h"
 
-#include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/graphutils/communication.h"
-#include "kaminpar-dist/graphutils/synchronization.h"
+#include "kaminpar-dist/logger.h"
 #include "kaminpar-dist/metrics.h"
 #include "kaminpar-dist/refinement/balancer/reductions.h"
 #include "kaminpar-dist/timer.h"
 
-#include "kaminpar-common/math.h"
 #include "kaminpar-common/random.h"
 
 #define HEAVY assert::heavy
 
 namespace kaminpar::dist {
+namespace {
 SET_STATISTICS_FROM_GLOBAL();
 SET_DEBUG(false);
+} // namespace
 
 NodeBalancerFactory::NodeBalancerFactory(const Context &ctx) : _ctx(ctx) {}
 
@@ -82,7 +81,8 @@ void NodeBalancer::reinit() {
   tbb::enumerable_thread_specific<std::vector<DynamicBinaryMinHeap<NodeID, double>>> local_pq_ets{
       [&] {
         return std::vector<DynamicBinaryMinHeap<NodeID, double>>(_p_graph.k());
-      }};
+      }
+  };
   tbb::enumerable_thread_specific<std::vector<NodeWeight>> local_pq_weight_ets{[&] {
     return std::vector<NodeWeight>(_p_graph.k());
   }};
@@ -377,7 +377,8 @@ std::vector<NodeBalancer::Candidate> NodeBalancer::pick_sequential_candidates() 
 
       if (relative_gain == actual_relative_gain) {
         Candidate candidate{
-            _p_graph.local_to_global_node(u), from, to, u_weight, actual_relative_gain};
+            _p_graph.local_to_global_node(u), from, to, u_weight, actual_relative_gain
+        };
         candidates.push_back(candidate);
       } else {
         try_pq_insertion(from, u, u_weight, actual_relative_gain);
@@ -572,9 +573,8 @@ bool NodeBalancer::perform_parallel_round(const int round) {
               reassigned,
               "could not find a feasible target block for node "
                   << candidate.id << ", weight " << candidate.weight << ", deltas: ["
-                  << block_weight_deltas_to << "]"
-                  << ", max block weights: " << _p_ctx.graph->max_block_weights
-                  << ", block weights: "
+                  << block_weight_deltas_to << "]" << ", max block weights: "
+                  << _p_ctx.graph->max_block_weights << ", block weights: "
                   << std::vector<BlockWeight>(
                          _p_graph.block_weights().begin(), _p_graph.block_weights().end()
                      )
@@ -683,7 +683,7 @@ bool NodeBalancer::perform_parallel_round(const int round) {
           [&](const auto &recv_buffer, const PEID pe) {
             tbb::parallel_for<std::size_t>(0, recv_buffer.size(), [&](const std::size_t i) {
               const auto [their_lnode, to] = recv_buffer[i];
-              const NodeID lnode = _p_graph.map_foreign_node(their_lnode, pe);
+              const NodeID lnode = _p_graph.map_remote_node(their_lnode, pe);
               _p_graph.set_block<false>(lnode, to);
             });
           }

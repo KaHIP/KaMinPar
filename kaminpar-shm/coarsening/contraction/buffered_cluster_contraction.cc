@@ -120,7 +120,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_buffered(
   tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> collector{[&] {
     return RatingMap<EdgeWeight, NodeID>(c_n);
   }};
-  NavigableLinkedList<NodeID, Edge, scalable_vector> edge_buffer_ets;
+  NavigableLinkedList<NodeID, Edge, ScalableVector> edge_buffer_ets;
 
   for (const auto [cluster_start, cluster_end] : cluster_chunks) {
     tbb::parallel_for(tbb::blocked_range<NodeID>(cluster_start, cluster_end), [&](const auto &r) {
@@ -246,9 +246,9 @@ std::unique_ptr<CoarseGraph> contract_clustering_buffered(
   const EdgeID c_m = c_nodes.back();
 
   START_HEAP_PROFILER("Coarse graph edges allocation");
-  RECORD("c_edges") StaticArray<NodeID> finalized_c_edges(std::move(c_edges), c_m);
+  RECORD("c_edges") StaticArray<NodeID> finalized_c_edges(c_m, std::move(c_edges));
   RECORD("c_edge_weights")
-  StaticArray<EdgeWeight> finalized_c_edge_weights(std::move(c_edge_weights), c_m);
+  StaticArray<EdgeWeight> finalized_c_edge_weights(c_m, std::move(c_edge_weights));
   if constexpr (kHeapProfiling) {
     heap_profiler::HeapProfiler::global().record_alloc(c_edges.get(), c_m * sizeof(NodeID));
     heap_profiler::HeapProfiler::global().record_alloc(

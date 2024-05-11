@@ -262,6 +262,7 @@ std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies() {
   return {
       {"sparse", GainCacheStrategy::SPARSE},
       {"dense", GainCacheStrategy::DENSE},
+      {"largek", GainCacheStrategy::LARGE_K},
       {"on-the-fly", GainCacheStrategy::ON_THE_FLY},
       {"hybrid", GainCacheStrategy::HYBRID},
       {"tracing", GainCacheStrategy::TRACING},
@@ -274,6 +275,8 @@ std::ostream &operator<<(std::ostream &out, const GainCacheStrategy strategy) {
     return out << "sparse";
   case GainCacheStrategy::DENSE:
     return out << "dense";
+  case GainCacheStrategy::LARGE_K:
+    return out << "largek";
   case GainCacheStrategy::ON_THE_FLY:
     return out << "on-the-fly";
   case GainCacheStrategy::HYBRID:
@@ -531,7 +534,7 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
         << "%]\n";
     out << "  Number of seed nodes:       " << r_ctx.kway_fm.num_seed_nodes << "\n";
     out << "  Locking strategies:         seed nodes: "
-        << (r_ctx.kway_fm.unlock_seed_nodes ? "unlock" : "lock") << ", locally moved nodes:"
+        << (r_ctx.kway_fm.unlock_seed_nodes ? "unlock" : "lock") << ", locally moved nodes: "
         << (r_ctx.kway_fm.unlock_locally_moved_nodes ? "unlock" : "lock") << "\n";
     out << "  Gain cache:                 " << r_ctx.kway_fm.gain_cache_strategy << "\n";
     if (r_ctx.kway_fm.gain_cache_strategy == GainCacheStrategy::HYBRID) {
@@ -589,8 +592,8 @@ void print(const Context &ctx, std::ostream &out) {
   out << "Execution mode:               " << ctx.parallel.num_threads << "\n";
   out << "Seed:                         " << Random::get_seed() << "\n";
   out << "Graph:                        " << ctx.debug.graph_name
-      << " [node ordering: " << ctx.node_ordering << "]"
-      << " [edge ordering: " << ctx.edge_ordering << "]\n";
+      << " [node ordering: " << ctx.node_ordering << "]" << " [edge ordering: " << ctx.edge_ordering
+      << "]\n";
   print(ctx.partition, out);
   cio::print_delimiter("Graph Compression", '-');
   print(ctx.compression, out);

@@ -9,6 +9,8 @@
 
 #include <tbb/parallel_for.h>
 
+#include "kaminpar-mpi/wrapper.h"
+
 #include "kaminpar-dist/logger.h"
 
 #include "kaminpar-common/datastructures/scalable_vector.h"
@@ -26,7 +28,7 @@ void DistributedPartitionedGraph::init_block_weights() {
   });
   auto local_block_weights = local_block_weights_ets.combine(std::plus{});
 
-  scalable_vector<BlockWeight> global_block_weights_nonatomic(k());
+  ScalableVector<BlockWeight> global_block_weights_nonatomic(k());
   mpi::allreduce(
       local_block_weights.data(),
       global_block_weights_nonatomic.data(),

@@ -36,12 +36,12 @@ public:
   [[nodiscard]] virtual EdgeID m() const = 0;
 
   // Node and edge weights
-  [[nodiscard]] virtual bool node_weighted() const = 0;
+  [[nodiscard]] virtual bool is_node_weighted() const = 0;
   [[nodiscard]] virtual NodeWeight node_weight(NodeID u) const = 0;
   [[nodiscard]] virtual NodeWeight max_node_weight() const = 0;
   [[nodiscard]] virtual NodeWeight total_node_weight() const = 0;
 
-  [[nodiscard]] virtual bool edge_weighted() const = 0;
+  [[nodiscard]] virtual bool is_edge_weighted() const = 0;
   [[nodiscard]] virtual EdgeWeight edge_weight(EdgeID e) const = 0;
   [[nodiscard]] virtual EdgeWeight total_edge_weight() const = 0;
 

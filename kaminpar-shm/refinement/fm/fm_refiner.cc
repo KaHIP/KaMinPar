@@ -36,7 +36,10 @@ SET_STATISTICS_FROM_GLOBAL();
 std::unique_ptr<Refiner> create_fm_refiner(const Context &ctx) {
   switch (ctx.refinement.kway_fm.gain_cache_strategy) {
   case GainCacheStrategy::DENSE:
-    return std::make_unique<FMRefiner<DenseGainCache<true>>>(ctx);
+    return std::make_unique<FMRefiner<DenseGainCache<true, DenseDeltaGainCache>>>(ctx);
+
+  case GainCacheStrategy::LARGE_K:
+    return std::make_unique<FMRefiner<DenseGainCache<false, LargeKDenseDeltaGainCache>>>(ctx);
 
 #ifdef KAMINPAR_EXPERIMENTAL
   case GainCacheStrategy::SPARSE:

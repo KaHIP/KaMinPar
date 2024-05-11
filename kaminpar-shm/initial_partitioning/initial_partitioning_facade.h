@@ -12,7 +12,7 @@
 #include "kaminpar-shm/initial_partitioning/initial_coarsener.h"
 #include "kaminpar-shm/initial_partitioning/initial_refiner.h"
 #include "kaminpar-shm/initial_partitioning/pool_bipartitioner.h"
-#include "kaminpar-shm/partition_utils.h"
+#include "kaminpar-shm/partitioning/partition_utils.h"
 
 namespace kaminpar::shm {
 class InitialPartitioner {

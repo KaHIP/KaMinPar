@@ -15,6 +15,8 @@
 
 #include "kaminpar-shm/coarsening/max_cluster_weights.h"
 
+#include "kaminpar-common/logger.h"
+
 namespace kaminpar::dist {
 SET_DEBUG(false);
 
@@ -39,7 +41,7 @@ const DistributedGraph *Coarsener::coarsen_once_local(const GlobalNodeWeight max
     return graph;
   }
 
-  scalable_vector<parallel::Atomic<NodeID>> legacy_clustering(clustering.begin(), clustering.end());
+  ScalableVector<parallel::Atomic<NodeID>> legacy_clustering(clustering.begin(), clustering.end());
   auto [c_graph, mapping, m_ctx] = contract_local_clustering(*graph, legacy_clustering);
   KASSERT(debug::validate_graph(c_graph), "", assert::heavy);
   DBG << "Reduced number of nodes from " << graph->global_n() << " to " << c_graph.global_n();

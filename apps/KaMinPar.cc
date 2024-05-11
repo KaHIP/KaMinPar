@@ -12,7 +12,7 @@
 
 #include <iostream>
 
-#include <tbb/global_control.h>
+#include <tbb/scalable_allocator.h>
 
 #if __has_include(<numa.h>)
 #include <numa.h>
@@ -56,6 +56,8 @@ struct ApplicationContext {
   std::string graph_filename = "";
   std::string partition_filename = "";
   io::GraphFileFormat graph_file_format = io::GraphFileFormat::METIS;
+
+  bool no_huge_pages = false;
 };
 
 void setup_context(CLI::App &cli, ApplicationContext &app, Context &ctx) {
@@ -158,6 +160,7 @@ The output should be stored in a file and can be used by the -C,--config option.
       "Validate input parameters before partitioning (currently only "
       "checks the graph format)."
   );
+  cli.add_flag("--no-huge-pages", app.no_huge_pages, "Do not use huge pages via TBBmalloc.");
 
   // Algorithmic options
   create_all_options(&cli, ctx);
@@ -194,6 +197,9 @@ int main(int argc, char *argv[]) {
               << std::endl;
     std::exit(0);
   }
+
+  // If available, use huge pages for large allocations
+  scalable_allocation_mode(TBBMALLOC_USE_HUGE_PAGES, !app.no_huge_pages);
 
   ENABLE_HEAP_PROFILER();
 

@@ -60,7 +60,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_buffered_legacy(
   // node degrees (3) We copy coarse edges and coarse edge weights from the
   // auxiliary arrays to c_edges and c_edge_weights
   //
-  NavigableLinkedList<NodeID, Edge, scalable_vector> edge_buffer_ets;
+  NavigableLinkedList<NodeID, Edge, ScalableVector> edge_buffer_ets;
 
   START_TIMER("Construct coarse edges");
   tbb::parallel_for(tbb::blocked_range<NodeID>(0, c_n), [&](const auto &r) {
@@ -125,7 +125,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_buffered_legacy(
   // Construct rest of the coarse graph: edges, edge weights
   //
 
-  all_buffered_nodes = ts_navigable_list::combine<NodeID, Edge, scalable_vector>(
+  all_buffered_nodes = ts_navigable_list::combine<NodeID, Edge, ScalableVector>(
       edge_buffer_ets, std::move(all_buffered_nodes)
   );
 

@@ -8,9 +8,9 @@
 #pragma once
 
 #include <utility>
-#include <vector>
 
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/ranges.h"
 
@@ -62,7 +62,7 @@ public:
     return _data[pos] != Value();
   }
 
-  [[nodiscard]] std::vector<size_type> &used_entry_ids() {
+  [[nodiscard]] ScalableVector<size_type> &used_entry_ids() {
     return _used_entries;
   }
 
@@ -116,8 +116,8 @@ public:
   }
 
 private:
-  std::vector<value_type> _data;
-  std::vector<size_type> _used_entries{};
+  ScalableVector<value_type> _data;
+  ScalableVector<size_type> _used_entries{};
 
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };

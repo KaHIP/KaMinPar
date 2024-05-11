@@ -34,6 +34,8 @@ option(KAMINPAR_ENABLE_STATISTICS "Generate and output detailed statistics." OFF
 option(KAMINPAR_ENABLE_TIMERS "Measure running times. Must be set to 'OFF' if the library interface is used from multiple threads simulatinously." ON)
 option(KAMINPAR_ENABLE_TIMER_BARRIERS "Add additional MPI_Barrier() instructions for more accurate time measurements." ON)
 
+option(KAMINPAR_ENABLE_THP "Use transparent huge pages for large memory allocations." ON)
+
 option(KAMINPAR_BUILD_WITH_ASAN "Enable address sanitizer." OFF)
 option(KAMINPAR_BUILD_WITH_UBSAN "Enable undefined behaviour sanitizer." OFF)
 option(KAMINPAR_BUILD_WITH_MTUNE_NATIVE "Build with -mtune=native." ON)
@@ -203,6 +205,13 @@ else ()
     message(STATUS "Timer barriers: disabled")
 endif ()
 
+if (KAMINPAR_ENABLE_THP)
+    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_ENABLE_THP")
+    message(STATUS "Huge pages: enabled")
+else ()
+    message(STATUS "Huge pages: disabled")
+endif ()
+
 message(STATUS "Graph compression summary:")
 
 if (KAMINPAR_COMPRESSION_HIGH_DEGREE_ENCODING)
@@ -294,6 +303,9 @@ message("  dist::BlockWeight      =  std::int64_t")
 ## Search and fetch dependencies                                              ##
 ################################################################################
 
+# Google Sparsehash 
+find_package(Sparsehash REQUIRED)
+
 if (KAMINPAR_BUILD_WITH_CCACHE)
     find_program(CCACHE_PROGRAM ccache)
     if (CCACHE_PROGRAM)
@@ -317,9 +329,6 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
         message(WARNING "MPI not available: cannot build the distributed partitioner")
         set(KAMINPAR_BUILD_DISTRIBUTED OFF)
     endif ()
-
-    # Google Sparsehash 
-    find_package(Sparsehash REQUIRED)
 endif ()
 
 if (KAMINPAR_ASSERTION_LEVEL STREQUAL "none")

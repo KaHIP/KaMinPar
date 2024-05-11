@@ -7,7 +7,7 @@
  ******************************************************************************/
 #include "kaminpar-shm/partitioning/helper.h"
 
-#include "kaminpar-shm/partition_utils.h"
+#include "kaminpar-shm/partitioning/partition_utils.h"
 
 #include "kaminpar-common/math.h"
 
@@ -197,7 +197,7 @@ void extend_partition(
 
   START_HEAP_PROFILER("Allocation");
   START_TIMER("Allocation");
-  scalable_vector<StaticArray<BlockID>> subgraph_partitions;
+  ScalableVector<StaticArray<BlockID>> subgraph_partitions;
   for (const auto &subgraph : subgraphs) {
     subgraph_partitions.emplace_back(subgraph.n());
   }
@@ -264,8 +264,8 @@ void extend_partition(
       p_graph.n(),
       input_ctx.partition.k,
       p_graph.m(),
-      p_graph.graph().node_weighted(),
-      p_graph.graph().edge_weighted()
+      p_graph.graph().is_node_weighted(),
+      p_graph.graph().is_edge_weighted()
   );
 
   extend_partition(
@@ -328,11 +328,11 @@ std::size_t compute_num_copies(
 }
 
 std::size_t
-select_best(const scalable_vector<PartitionedGraph> &p_graphs, const PartitionContext &p_ctx) {
+select_best(const ScalableVector<PartitionedGraph> &p_graphs, const PartitionContext &p_ctx) {
   return select_best(p_graphs.begin(), p_graphs.end(), p_ctx);
 }
 
-std::size_t compute_num_threads_for_parallel_ip(const Context &input_ctx) {
+int compute_num_threads_for_parallel_ip(const Context &input_ctx) {
   return math::floor2(static_cast<unsigned int>(
       1.0 * input_ctx.parallel.num_threads * input_ctx.partitioning.deep_initial_partitioning_load
   ));

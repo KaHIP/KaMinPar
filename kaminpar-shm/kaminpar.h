@@ -208,6 +208,7 @@ enum class FMStoppingRule {
 enum class GainCacheStrategy {
   SPARSE,
   DENSE,
+  LARGE_K,
   ON_THE_FLY,
   HYBRID,
   TRACING,
@@ -441,6 +442,7 @@ Context create_default_context();
 Context create_memory_context();
 Context create_fast_context();
 Context create_largek_context();
+Context create_largek_fm_context();
 Context create_strong_context();
 Context create_jet_context();
 Context create_noref_context();
@@ -508,15 +510,6 @@ public:
       shm::EdgeWeight *adjwgt
   );
 
-  /*! @deprecated in favor of borrow_and_mutate_graph() */
-  void take_graph(
-      shm::NodeID n,
-      shm::EdgeID *xadj,
-      shm::NodeID *adjncy,
-      shm::NodeWeight *vwgt,
-      shm::EdgeWeight *adjwgt
-  );
-
   /*!
    * Sets the graph to be partitioned by copying the data pointed to by the given pointers.
    *
@@ -531,10 +524,10 @@ public:
    */
   void copy_graph(
       shm::NodeID n,
-      shm::EdgeID *const xadj,
-      shm::NodeID *const adjncy,
-      shm::NodeWeight *const vwgt,
-      shm::EdgeWeight *const adjwgt
+      const shm::EdgeID *const xadj,
+      const shm::NodeID *const adjncy,
+      const shm::NodeWeight *const vwgt,
+      const shm::EdgeWeight *const adjwgt
   );
 
   /*!
@@ -545,7 +538,7 @@ public:
   void set_graph(shm::Graph graph);
 
   /*!
-   * Partitions the graph set by `take_graph()` or `copy_graph()` into `k` blocks.
+   * Partitions the graph set by `borrow_and_mutate_graph()` or `copy_graph()` into `k` blocks.
    *
    * @param k The number of blocks to partition the graph into.
    * @param partition Array of length `n` for storing the partition. The caller is reponsible for

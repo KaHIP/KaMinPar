@@ -20,7 +20,9 @@
  ******************************************************************************/
 #pragma once
 
+#include <google/dense_hash_map>
 #include <limits>
+#include <set>
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
@@ -40,14 +42,17 @@
 
 namespace kaminpar::shm {
 template <typename DeltaPartitionedGraph, typename GainCache> class DenseDeltaGainCache;
+template <typename DeltaPartitionedGraph, typename GainCache> class LargeKDenseDeltaGainCache;
 
-template <bool iterate_nonadjacent_blocks = true, bool iterate_exact_gains = false>
+template <
+    bool iterate_nonadjacent_blocks = true,
+    template <typename, typename> typename DeltaGainCache = DenseDeltaGainCache,
+    bool iterate_exact_gains = false>
 class DenseGainCache {
   SET_DEBUG(false);
   SET_STATISTICS_FROM_GLOBAL();
 
-  using Self = DenseGainCache<iterate_nonadjacent_blocks, iterate_exact_gains>;
-  template <typename, typename> friend class DenseDeltaGainCache;
+  using Self = DenseGainCache<iterate_nonadjacent_blocks, DeltaGainCache, iterate_exact_gains>;
 
   // Abuse MSB bit in the _weighted_degrees[] array for locking
   constexpr static UnsignedEdgeWeight kWeightedDegreeLock =
@@ -85,7 +90,7 @@ class DenseGainCache {
 
 public:
   template <typename DeltaPartitionedGraph>
-  using DeltaCache = DenseDeltaGainCache<DeltaPartitionedGraph, Self>;
+  using DeltaCache = DeltaGainCache<DeltaPartitionedGraph, Self>;
 
   // gains() will iterate over all blocks, including those not adjacent to the node.
   constexpr static bool kIteratesNonadjacentBlocks = iterate_nonadjacent_blocks;
@@ -565,10 +570,11 @@ public:
   using DeltaPartitionedGraph = _DeltaPartitionedGraph;
   using GainCache = _GainCache;
 
-  // Delta gain caches can only be used with GainCaches that iterate over all blocks, since there
-  // might be new connections to non-adjacent blocks in the delta graph.
-  static_assert(GainCache::kIteratesNonadjacentBlocks);
+  // Delta gain caches should only be used with GainCaches that iterate over all blocks, since there
+  // might be new connections to non-adjacent blocks in the delta graph. These connections might be
+  // missed if the gain cache does not iterate over all blocks.
   constexpr static bool kIteratesExactGains = GainCache::kIteratesExactGains;
+  static_assert(GainCache::kIteratesNonadjacentBlocks);
 
   DenseDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph &d_graph)
       : _k(d_graph.k()),
@@ -631,5 +637,100 @@ private:
   BlockID _k;
   const GainCache &_gain_cache;
   DynamicFlatMap<std::size_t, EdgeWeight> _gain_cache_delta;
+};
+
+template <typename _DeltaPartitionedGraph, typename _GainCache> class LargeKDenseDeltaGainCache {
+public:
+  using DeltaPartitionedGraph = _DeltaPartitionedGraph;
+  using GainCache = _GainCache;
+
+  constexpr static bool kIteratesExactGains = GainCache::kIteratesExactGains;
+
+  // If k is large, iterating over all blocks becomes very expensive -- this delta gain cache should
+  // only be used when iterating over adjacent blocks only.
+  static_assert(!GainCache::kIteratesNonadjacentBlocks);
+
+  LargeKDenseDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph &d_graph)
+      : _k(d_graph.k()),
+        _gain_cache(gain_cache) {
+    _adjacent_blocks_delta.set_empty_key(kInvalidNodeID);
+    _adjacent_blocks_delta.set_deleted_key(kInvalidNodeID - 1);
+  }
+
+  [[nodiscard]] KAMINPAR_INLINE EdgeWeight conn(const NodeID node, const BlockID block) const {
+    return _gain_cache.conn(node, block) + conn_delta(node, block);
+  }
+
+  [[nodiscard]] KAMINPAR_INLINE EdgeWeight
+  gain(const NodeID node, const BlockID from, const BlockID to) const {
+    return _gain_cache.gain(node, from, to) + conn_delta(node, to) - conn_delta(node, from);
+  }
+
+  [[nodiscard]] KAMINPAR_INLINE std::pair<EdgeWeight, EdgeWeight>
+  gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) {
+    return {gain(node, b_node, targets.first), gain(node, b_node, targets.second)};
+  }
+
+  template <typename Lambda>
+  KAMINPAR_INLINE void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
+    const EdgeWeight conn_from_delta = kIteratesExactGains ? conn_delta(node, from) : 0;
+
+    _gain_cache.gains(node, from, [&](const BlockID to, auto &&gain) {
+      lambda(to, [&] { return gain() + conn_delta(node, to) - conn_from_delta; });
+    });
+
+    const auto it = _adjacent_blocks_delta.find(node);
+    if (it != _adjacent_blocks_delta.end()) {
+      for (const BlockID to : it->second) {
+        if (to != from) {
+          lambda(to, [&] {
+            return _gain_cache.gain(node, from, to) + conn_delta(node, to) - conn_from_delta;
+          });
+        }
+      }
+    }
+  }
+
+  KAMINPAR_INLINE void move(
+      const DeltaPartitionedGraph &d_graph,
+      const NodeID u,
+      const BlockID block_from,
+      const BlockID block_to
+  ) {
+    for (const auto &[e, v] : d_graph.neighbors(u)) {
+      const EdgeWeight weight = d_graph.edge_weight(e);
+      _gain_cache_delta[index(v, block_from)] -= weight;
+
+      if (_gain_cache.conn(v, block_to) == 0 && conn_delta(v, block_to) == 0) {
+        _adjacent_blocks_delta[v].insert(block_to);
+      }
+
+      _gain_cache_delta[index(v, block_to)] += weight;
+    }
+  }
+
+  KAMINPAR_INLINE void clear() {
+    _gain_cache_delta.clear();
+    _adjacent_blocks_delta.clear();
+  }
+
+private:
+  [[nodiscard]] KAMINPAR_INLINE std::size_t index(const NodeID node, const BlockID block) const {
+    // Note: this increases running times substantially due to the shifts
+    // return index_sparse(node, block);
+
+    return 1ull * node * _k + block;
+  }
+
+  [[nodiscard]] KAMINPAR_INLINE EdgeWeight
+  conn_delta(const NodeID node, const BlockID block) const {
+    const auto it = _gain_cache_delta.get_if_contained(index(node, block));
+    return it != _gain_cache_delta.end() ? *it : 0;
+  }
+
+  BlockID _k;
+  const GainCache &_gain_cache;
+  DynamicFlatMap<std::size_t, EdgeWeight> _gain_cache_delta;
+  google::dense_hash_map<NodeID, std::set<BlockID>> _adjacent_blocks_delta;
 };
 } // namespace kaminpar::shm

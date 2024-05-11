@@ -14,13 +14,13 @@
 
 namespace kaminpar {
 template <typename NodeID>
-static constexpr std::size_t kNumberOfDegreeBuckets = std::numeric_limits<NodeID>::digits + 1;
+static constexpr int kNumberOfDegreeBuckets = std::numeric_limits<NodeID>::digits + 1;
 
-template <typename NodeID> inline NodeID lowest_degree_in_bucket(const std::size_t bucket) {
+template <typename NodeID> inline NodeID lowest_degree_in_bucket(const int bucket) {
   return (1u << bucket) >> 1u;
 }
 
-template <typename NodeID> inline NodeID degree_bucket(const NodeID degree) {
+template <typename NodeID> inline int degree_bucket(const NodeID degree) {
   return (degree == 0) ? 0 : math::floor_log2(degree) + 1;
 }
 } // namespace kaminpar

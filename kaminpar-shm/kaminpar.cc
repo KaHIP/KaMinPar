@@ -94,13 +94,6 @@ Context &KaMinPar::context() {
   return _ctx;
 }
 
-// @deprecated in favor of borrow_and_mutate_graph()
-void KaMinPar::take_graph(
-    const NodeID n, EdgeID *xadj, NodeID *adjncy, NodeWeight *vwgt, EdgeWeight *adjwgt
-) {
-  borrow_and_mutate_graph(n, xadj, adjncy, vwgt, adjwgt);
-}
-
 void KaMinPar::borrow_and_mutate_graph(
     const NodeID n, EdgeID *xadj, NodeID *adjncy, NodeWeight *vwgt, EdgeWeight *adjwgt
 ) {
@@ -109,23 +102,28 @@ void KaMinPar::borrow_and_mutate_graph(
 
   const EdgeID m = xadj[n];
 
-  RECORD("nodes") StaticArray<EdgeID> nodes(xadj, n + 1);
-  RECORD("edges") StaticArray<NodeID> edges(adjncy, m);
+  RECORD("nodes") StaticArray<EdgeID> nodes(n + 1, xadj);
+  RECORD("edges") StaticArray<NodeID> edges(m, adjncy);
   RECORD("node_weights")
   StaticArray<NodeWeight> node_weights =
-      (vwgt == nullptr) ? StaticArray<NodeWeight>(0) : StaticArray<NodeWeight>(vwgt, n);
+      (vwgt == nullptr) ? StaticArray<NodeWeight>(0) : StaticArray<NodeWeight>(n, vwgt);
   RECORD("edge_weights")
   StaticArray<EdgeWeight> edge_weights =
-      (adjwgt == nullptr) ? StaticArray<EdgeWeight>(0) : StaticArray<EdgeWeight>(adjwgt, m);
+      (adjwgt == nullptr) ? StaticArray<EdgeWeight>(0) : StaticArray<EdgeWeight>(m, adjwgt);
 
-  _was_rearranged = false;
-  _graph_ptr = std::make_unique<Graph>(std::make_unique<CSRGraph>(
+  auto csr_graph = std::make_unique<CSRGraph>(
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), false
-  ));
+  );
+  KASSERT(shm::debug::validate_graph(*csr_graph), "invalid input graph", assert::heavy);
+  set_graph(Graph(std::move(csr_graph)));
 }
 
 void KaMinPar::copy_graph(
-    const NodeID n, EdgeID *xadj, NodeID *adjncy, NodeWeight *vwgt, EdgeWeight *adjwgt
+    const NodeID n,
+    const EdgeID *const xadj,
+    const NodeID *const adjncy,
+    const NodeWeight *const vwgt,
+    const EdgeWeight *const adjwgt
 ) {
   SCOPED_HEAP_PROFILER("Copy graph");
   SCOPED_TIMER("IO");
@@ -153,10 +151,11 @@ void KaMinPar::copy_graph(
     }
   });
 
-  _was_rearranged = false;
-  _graph_ptr = std::make_unique<Graph>(std::make_unique<CSRGraph>(
+  auto csr_graph = std::make_unique<CSRGraph>(
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), false
-  ));
+  );
+  KASSERT(shm::debug::validate_graph(*csr_graph), "invalid input graph", assert::heavy);
+  set_graph(Graph(std::move(csr_graph)));
 }
 
 void KaMinPar::set_graph(Graph graph) {
@@ -169,8 +168,6 @@ void KaMinPar::reseed(int seed) {
 }
 
 EdgeWeight KaMinPar::compute_partition(const BlockID k, BlockID *partition) {
-  Logger::set_quiet_mode(_output_level == OutputLevel::QUIET);
-
   cio::print_kaminpar_banner();
   cio::print_build_identifier();
   cio::print_build_datatypes<NodeID, EdgeID, NodeWeight, EdgeWeight>();

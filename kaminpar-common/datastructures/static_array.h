@@ -6,6 +6,7 @@
  ******************************************************************************/
 #pragma once
 
+#include <cstdlib>
 #include <cstring>
 #include <initializer_list>
 #include <iterator>
@@ -15,13 +16,27 @@
 #include <tbb/parallel_for.h>
 
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/constexpr_utils.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/parallel/tbb_malloc.h"
 
+#define KAMINPAR_THP_THRESHOLD 1024 * 1024 * 64
+
 namespace kaminpar {
 namespace static_array {
+//! Tag for allocating memory, but not touching it. Without this tag, memory is initialized to the
+//! default value for the given type.
 constexpr struct noinit_t {
 } noinit;
+
+//! Tag for small memory allocations that should never be backed by a transparent huge page.
+constexpr struct small_t {
+} small;
+
+//! Tag for initializing memory sequentially. Without this tag, memory will be initialized by a
+//! parallel loop. Has no effect if noinit is also passed.
+constexpr struct seq_t {
+} seq;
 } // namespace static_array
 
 template <typename T> class StaticArray {
@@ -128,34 +143,26 @@ public:
   using iterator = StaticArrayIterator;
   using const_iterator = const StaticArrayIterator;
 
-  StaticArray(T *storage, const std::size_t size) : _size(size), _data(storage) {
-    RECORD_DATA_STRUCT(size * sizeof(T), _struct);
-  }
-
-  StaticArray(heap_profiler::unique_ptr<T> storage, const std::size_t size)
-      : _overcommited_data(std::move(storage)),
-        _data(_overcommited_data.get()),
-        _size(size) {
-    RECORD_DATA_STRUCT(size * sizeof(T), _struct);
-  }
-
-  StaticArray(const std::size_t start, const std::size_t size, StaticArray &data)
-      : StaticArray(size, data._data + start) {
-    KASSERT(start + size <= data.size());
-  }
-
   StaticArray(const std::size_t size, value_type *data) : _size(size), _data(data) {
     RECORD_DATA_STRUCT(size * sizeof(T), _struct);
   }
 
-  StaticArray(const std::size_t size, const value_type init_value = value_type()) {
-    RECORD_DATA_STRUCT(0, _struct);
-    resize(size, init_value);
+  StaticArray(const std::size_t size, heap_profiler::unique_ptr<T> storage)
+      : _size(size),
+        _overcommited_data(std::move(storage)),
+        _data(_overcommited_data.get()) {
+    RECORD_DATA_STRUCT(size * sizeof(T), _struct);
   }
 
-  StaticArray(const std::size_t size, static_array::noinit_t) {
+  template <typename... Tags>
+  StaticArray(const std::size_t size, const value_type init_value, Tags... tags) {
     RECORD_DATA_STRUCT(0, _struct);
-    resize(size, static_array::noinit);
+    resize(size, init_value, std::forward<Tags>(tags)...);
+  }
+
+  template <typename... Tags> StaticArray(const std::size_t size, Tags... tags) {
+    RECORD_DATA_STRUCT(0, _struct);
+    resize(size, value_type(), std::forward<Tags>(tags)...);
   }
 
   template <typename Iterator>
@@ -290,26 +297,32 @@ public:
     return _size;
   }
 
-  void resize(const std::size_t size, static_array::noinit_t) {
-    KASSERT(_data == _owned_data.get(), "cannot resize span", assert::always);
-    allocate_data(size);
+  template <typename... Tags> void resize(const std::size_t size, Tags &&...tags) {
+    resize(size, value_type(), std::forward<Tags>(tags)...);
   }
 
-  void resize(
-      const size_type size,
-      const value_type init_value = value_type(),
-      const bool assign_parallel = true
-  ) {
-    resize(size, static_array::noinit);
-    assign(size, init_value, assign_parallel);
+  template <typename... Tags>
+  void resize(const std::size_t size, const value_type init_value, Tags &&...tags) {
+    KASSERT(_data == _owned_data.get(), "cannot resize span", assert::always);
+    const bool use_thp =
+        (size >= KAMINPAR_THP_THRESHOLD && !contains_tag_v<static_array::small_t, Tags...>);
+    allocate_data(size, use_thp);
+
+    if constexpr (!contains_tag_v<static_array::noinit_t, Tags...>) {
+      if constexpr (contains_tag_v<static_array::seq_t, Tags...>) {
+        assign(size, init_value, false);
+      } else {
+        assign(size, init_value, true);
+      }
+    }
   }
 
   void assign(const size_type count, const value_type value, const bool assign_parallel = true) {
     KASSERT(_data);
 
     if (assign_parallel) {
-      const std::size_t step{std::max(count / std::thread::hardware_concurrency(), 1UL)};
-      tbb::parallel_for(0UL, count, step, [&](const size_type i) {
+      const std::size_t step = std::max(count / std::thread::hardware_concurrency(), 1UL);
+      tbb::parallel_for<std::size_t>(0, count, step, [&](const size_type i) {
         for (size_type j = i; j < std::min(i + step, count); ++j) {
           _data[j] = value;
         }
@@ -329,8 +342,8 @@ public:
   }
 
 private:
-  void allocate_data(const std::size_t size) {
-    _owned_data = parallel::make_unique<value_type>(size);
+  void allocate_data(const std::size_t size, const bool thp) {
+    _owned_data = parallel::make_unique<value_type>(size, thp);
     _data = _owned_data.get();
     _size = size;
     _unrestricted_size = _size;

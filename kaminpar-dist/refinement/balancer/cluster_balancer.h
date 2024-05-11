@@ -15,9 +15,7 @@
 
 #include "kaminpar-common/datastructures/binary_heap.h"
 #include "kaminpar-common/datastructures/marker.h"
-#include "kaminpar-common/logger.h"
 #include "kaminpar-common/random.h"
-#include "kaminpar-common/timer.h"
 
 namespace kaminpar::dist {
 struct ClusterBalancerMemoryContext;

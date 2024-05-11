@@ -8,7 +8,7 @@
 #include "kaminpar-shm/context.h"
 
 #include "kaminpar-shm/datastructures/graph.h"
-#include "kaminpar-shm/partition_utils.h"
+#include "kaminpar-shm/partitioning/partition_utils.h"
 
 #include "kaminpar-common/assert.h"
 

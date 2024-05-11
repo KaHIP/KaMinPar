@@ -9,17 +9,24 @@
 
 #ifdef KAMINPAR_HAVE_MTKAHYPAR_LIB
 #include <libmtkahypar.h>
-#endif // KAMINPAR_HAVE_MTKAHYPAR_LIB
 
 #include "kaminpar-dist/graphutils/replicator.h"
 #include "kaminpar-dist/metrics.h"
 
 #include "kaminpar-shm/metrics.h"
 
-#include "kaminpar-common/logger.h"
+#include "kaminpar-common/asserting_cast.h"
 #include "kaminpar-common/random.h"
+#endif // KAMINPAR_HAVE_MTKAHYPAR_LIB
+
+#include "kaminpar-dist/logger.h"
 
 namespace kaminpar::dist {
+namespace {
+SET_STATISTICS_FROM_GLOBAL();
+SET_DEBUG(true);
+} // namespace
+
 MtKaHyParRefinerFactory::MtKaHyParRefinerFactory(const Context &ctx) : _ctx(ctx) {}
 
 std::unique_ptr<GlobalRefiner> MtKaHyParRefinerFactory::create(
