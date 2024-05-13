@@ -353,7 +353,7 @@ private:
       while (state & kWeightedDegreeLock) {
         state = __atomic_load_n(&_weighted_degrees[node], __ATOMIC_RELAXED);
       }
-    } while (__atomic_compare_exchange_n(
+    } while (!__atomic_compare_exchange_n(
         &_weighted_degrees[node],
         &state,
         state | kWeightedDegreeLock,
