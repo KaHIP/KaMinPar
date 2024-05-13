@@ -525,11 +525,15 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
   }
   if (r_ctx.includes_algorithm(RefinementAlgorithm::JET)) {
     out << "Jet refinement:               " << RefinementAlgorithm::JET << "\n";
+    out << "  Number of rounds:           coarse " << r_ctx.jet.num_rounds_on_coarse_level
+        << ", fine " << r_ctx.jet.num_rounds_on_fine_level << "\n";
     out << "  Number of iterations:       max " << r_ctx.jet.num_iterations << ", or "
         << r_ctx.jet.num_fruitless_iterations << " fruitless (improvement < "
         << 100.0 * (1 - r_ctx.jet.fruitless_threshold) << "%)\n";
-    out << "  Penalty factors:            coarse " << r_ctx.jet.coarse_negative_gain_factor
-        << ", fine " << r_ctx.jet.fine_negative_gain_factor << "\n";
+    out << "  Gain temperature:           coarse [" << r_ctx.jet.initial_gain_temp_on_coarse_level
+        << ", " << r_ctx.jet.final_gain_temp_on_coarse_level << "], " << "fine ["
+        << r_ctx.jet.initial_gain_temp_on_fine_level << ", " << r_ctx.jet.final_gain_temp_on_fine_level
+        << "]\n";
     out << "  Balancing algorithm:        " << r_ctx.jet.balancing_algorithm << "\n";
   }
 }
