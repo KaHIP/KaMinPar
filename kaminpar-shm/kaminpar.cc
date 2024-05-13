@@ -217,7 +217,7 @@ EdgeWeight KaMinPar::compute_partition(const BlockID k, BlockID *partition) {
     PartitionedGraph p_graph = partitioner->partition();
 
     START_TIMER("Deallocation");
-    delete partitioner.release();
+    partitioner.reset();
     STOP_TIMER();
 
     return p_graph;

@@ -306,6 +306,10 @@ public:
     KASSERT(_data == _owned_data.get(), "cannot resize span", assert::always);
     const bool use_thp =
         (size >= KAMINPAR_THP_THRESHOLD && !contains_tag_v<static_array::small_t, Tags...>);
+
+    // Before allocating the new memory, free the old memory to prevent both from being held in
+    // memory at the same time
+    _owned_data.reset();
     allocate_data(size, use_thp);
 
     if constexpr (!contains_tag_v<static_array::noinit_t, Tags...>) {
