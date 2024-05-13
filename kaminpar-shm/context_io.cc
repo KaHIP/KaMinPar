@@ -65,7 +65,7 @@ std::unordered_map<std::string, CoarseningAlgorithm> get_coarsening_algorithms()
   return {
       {"noop", CoarseningAlgorithm::NOOP},
       {"clustering", CoarseningAlgorithm::CLUSTERING},
-      {"sparsifying-clustering", CoarseningAlgorithm::SPARSIFYING_COARSENER}
+      {"sparsifying-clustering", CoarseningAlgorithm::SPARSIFYING_CLUSTERING}
   };
 }
 

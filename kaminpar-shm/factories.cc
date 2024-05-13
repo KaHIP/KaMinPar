@@ -82,7 +82,7 @@ std::unique_ptr<Coarsener> create_coarsener(const Context &ctx, const PartitionC
   case CoarseningAlgorithm::CLUSTERING:
     return std::make_unique<ClusteringCoarsener>(ctx, p_ctx);
 
-  case CoarseningAlgorithm::SPARSIFYING_COARSENER:
+  case CoarseningAlgorithm::SPARSIFYING_CLUSTERING:
     return std::make_unique<SparsifingClusteringCoarsener>(ctx, p_ctx);
   }
 

@@ -123,7 +123,7 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
   - sparsifying-clustering: like clustering with additionale edge sparsification)")
       ->capture_default_str();
 
-  coarsening->add_option("--c-sparsification", ctx.coarsening.algorithm)
+  coarsening->add_option("--c-sparsification", ctx.coarsening.sparsification_algorithm)
       ->transform(CLI::CheckedTransformer(get_sparsification_algorithms()).description(""))
       ->description(R"(One of the following options:
   - random: unform random sampling

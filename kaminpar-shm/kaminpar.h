@@ -80,7 +80,7 @@ enum class EdgeOrdering {
 enum class CoarseningAlgorithm {
   NOOP,
   CLUSTERING,
-  SPARSIFYING_COARSENER,
+  SPARSIFYING_CLUSTERING,
 };
 
 enum class SparsificationAlgorithm {
