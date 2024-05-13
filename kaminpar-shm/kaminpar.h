@@ -84,7 +84,8 @@ enum class CoarseningAlgorithm {
 };
 
 enum class SparsificationAlgorithm {
-  UniformRandomSampling
+  UNIFORM_RANDOM_SAMPLING,
+  FOREST_FIRE
 };
 
 enum class ClusteringAlgorithm {

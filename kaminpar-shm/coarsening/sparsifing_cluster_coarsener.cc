@@ -27,9 +27,7 @@ SparsifingClusteringCoarsener::SparsifingClusteringCoarsener(
     const Context &ctx, const PartitionContext &p_ctx
 )
     : _clustering_algorithm(factory::create_clusterer(ctx)),
-      _sampling_algorithm(std::make_unique<sparsification::ForestFireSampler>(
-          sparsification::ForestFireSampler(0.3, 0.9, 0.01)
-      )),
+      _sampling_algorithm(factory::create_sampler(ctx)),
       _c_ctx(ctx.coarsening),
       _p_ctx(p_ctx) {}
 

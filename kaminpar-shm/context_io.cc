@@ -69,6 +69,13 @@ std::unordered_map<std::string, CoarseningAlgorithm> get_coarsening_algorithms()
   };
 }
 
+std::unordered_map<std::string, SparsificationAlgorithm> get_sparsification_algorithms() {
+  return {
+      {"forest-fire", SparsificationAlgorithm::FOREST_FIRE},
+      {"random", SparsificationAlgorithm::UNIFORM_RANDOM_SAMPLING}
+  };
+}
+
 std::ostream &operator<<(std::ostream &out, const CoarseningAlgorithm algorithm) {
   switch (algorithm) {
   case CoarseningAlgorithm::NOOP:

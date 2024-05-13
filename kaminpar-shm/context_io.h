@@ -25,6 +25,8 @@ std::ostream &operator<<(std::ostream &out, CoarseningAlgorithm algorithm);
 
 std::unordered_map<std::string, CoarseningAlgorithm> get_coarsening_algorithms();
 
+std::unordered_map<std::string, SparsificationAlgorithm> get_sparsification_algorithms();
+
 std::ostream &operator<<(std::ostream &out, ClusteringAlgorithm algorithm);
 
 std::unordered_map<std::string, ClusteringAlgorithm> get_clustering_algorithms();

@@ -25,6 +25,8 @@
 #include "kaminpar-shm/coarsening/noop_coarsener.h"
 
 // Refinement
+#include "coarsening/sparsification/ForestFireSampler.h"
+#include "coarsening/sparsification/UniformRandomSampler.h"
 #include "coarsening/sparsifing_cluster_coarsener.h"
 
 #include "kaminpar-shm/refinement/adapters/mtkahypar_refiner.h"
@@ -82,6 +84,17 @@ std::unique_ptr<Coarsener> create_coarsener(const Context &ctx, const PartitionC
 
   case CoarseningAlgorithm::SPARSIFYING_COARSENER:
     return std::make_unique<SparsifingClusteringCoarsener>(ctx, p_ctx);
+  }
+
+  __builtin_unreachable();
+}
+
+std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
+  switch (ctx.coarsening.sparsification_algorithm) {
+  case SparsificationAlgorithm::FOREST_FIRE:
+    return std::make_unique<sparsification::ForestFireSampler>(0.3, 0.9, 0.01);
+  case SparsificationAlgorithm::UNIFORM_RANDOM_SAMPLING:
+    return std::make_unique<sparsification::UniformRandomSampler>(0.5);
   }
 
   __builtin_unreachable();

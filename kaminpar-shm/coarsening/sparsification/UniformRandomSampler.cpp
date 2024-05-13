@@ -9,8 +9,6 @@
 namespace kaminpar::shm::sparsification {
 
 StaticArray<EdgeWeight> UniformRandomSampler::sample(const CSRGraph &g) {
-  unsigned int backedges_deleted = 0;
-  unsigned int backedges = 0;
   unsigned int frontedges = 0;
   StaticArray<EdgeWeight> sample = StaticArray<EdgeWeight>(g.m());
   unsigned int edges_deleted = 0;
