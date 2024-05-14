@@ -296,10 +296,10 @@ private:
 
     for (std::size_t i = 0; i < old_size; ++i) {
       const std::size_t pos = _positions[i];
-      const std::size_t new_pos = find_impl(elements[i].key) & ~INVALID_POS_MASK;
+      const std::size_t new_pos = find_impl(elements[pos].key) & ~INVALID_POS_MASK;
 
       _positions[i] = new_pos;
-      add_element_impl(elements[i].key, elements[i].value, new_pos);
+      add_element_impl(elements[pos].key, elements[pos].value, new_pos);
     }
   }
 
