@@ -8,9 +8,14 @@
  ******************************************************************************/
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <limits>
 #include <memory>
+
+#include "kaminpar-common/assert.h"
+#include "kaminpar-common/heap_profiler.h"
 
 namespace kaminpar {
 

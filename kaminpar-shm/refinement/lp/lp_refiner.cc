@@ -44,7 +44,7 @@ public:
     Base::preinitialize(ctx.partition.n, ctx.partition.k);
     Base::set_max_degree(_r_ctx.lp.large_degree_threshold);
     Base::set_max_num_neighbors(_r_ctx.lp.max_num_neighbors);
-    Base::set_use_two_phases(_r_ctx.lp.use_two_phases);
+    Base::set_implementation(_r_ctx.lp.impl);
     Base::set_second_phase_selection_strategy(_r_ctx.lp.second_phase_selection_strategy);
     Base::set_second_phase_aggregation_strategy(_r_ctx.lp.second_phase_aggregation_strategy);
     Base::set_relabel_before_second_phase(false);
@@ -64,6 +64,8 @@ public:
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
     KASSERT(_graph == p_graph.graph().underlying_graph());
     KASSERT(p_graph.k() <= p_ctx.k);
+    SCOPED_HEAP_PROFILER("Label Propagation");
+
     _p_graph = &p_graph;
     _p_ctx = &p_ctx;
 
@@ -110,7 +112,7 @@ public:
       const StaticArray<BlockID> & /* mapping */, const BlockID /* num_new_clusters */
   ) {}
 
-  [[nodiscard]] bool requires_reassignment() const {
+  [[nodiscard]] bool cluster_weights_require_reassignment() const {
     return false;
   }
 

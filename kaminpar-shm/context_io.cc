@@ -11,6 +11,8 @@
 #include <cmath>
 #include <iomanip>
 
+#include "kaminpar-shm/kaminpar.h"
+
 #include "kaminpar-common/asserting_cast.h"
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/random.h"
@@ -139,6 +141,26 @@ std::ostream &operator<<(std::ostream &out, const ClusterWeightsStructure struct
     return out << "two-level vector";
   case ClusterWeightsStructure::INITIALLY_SMALL_VEC:
     return out << "initially small vector";
+  }
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, LabelPropagationImplementation> get_lp_implementations() {
+  return {
+      {"single-phase", LabelPropagationImplementation::SINGLE_PHASE},
+      {"two-phase", LabelPropagationImplementation::TWO_PHASE},
+      {"growing-hash-tables", LabelPropagationImplementation::GROWING_HASH_TABLES},
+  };
+}
+
+std::ostream &operator<<(std::ostream &out, const LabelPropagationImplementation impl) {
+  switch (impl) {
+  case LabelPropagationImplementation::SINGLE_PHASE:
+    return out << "single-phase";
+  case LabelPropagationImplementation::TWO_PHASE:
+    return out << "two-phase";
+  case LabelPropagationImplementation::GROWING_HASH_TABLES:
+    return out << "growing-hash-tables";
   }
   return out << "<invalid>";
 }
@@ -477,8 +499,8 @@ void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
   out << "    High degree threshold:    " << lp_ctx.large_degree_threshold << "\n";
   out << "    Max degree:               " << lp_ctx.max_num_neighbors << "\n";
   out << "    Cluster weights struct:   " << lp_ctx.cluster_weights_structure << "\n";
-  out << "    Use two phases:           " << (lp_ctx.use_two_phases ? "yes" : "no") << "\n";
-  if (lp_ctx.use_two_phases) {
+  out << "    Implementation:           " << lp_ctx.impl << "\n";
+  if (lp_ctx.impl == LabelPropagationImplementation::TWO_PHASE) {
     out << "      Selection strategy:     " << lp_ctx.second_phase_selection_strategy << '\n';
     out << "      Aggregation strategy:   " << lp_ctx.second_phase_aggregation_strategy << '\n';
     out << "      Relabel:                " << (lp_ctx.relabel_before_second_phase ? "yes" : "no")
@@ -499,8 +521,8 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
   if (r_ctx.includes_algorithm(RefinementAlgorithm::LABEL_PROPAGATION)) {
     out << "Label propagation:\n";
     out << "  Number of iterations:       " << r_ctx.lp.num_iterations << "\n";
-    out << "  Uses two phases: " << (r_ctx.lp.use_two_phases ? "yes" : "no") << "\n";
-    if (r_ctx.lp.use_two_phases) {
+    out << "  Implementation:             " << r_ctx.lp.impl << "\n";
+    if (r_ctx.lp.impl == LabelPropagationImplementation::TWO_PHASE) {
       out << "    Selection strategy:       " << r_ctx.lp.second_phase_selection_strategy << '\n';
       out << "    Aggregation strategy:     " << r_ctx.lp.second_phase_aggregation_strategy << '\n';
     }

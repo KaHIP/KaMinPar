@@ -101,6 +101,12 @@ enum class ClusterWeightsStructure {
   INITIALLY_SMALL_VEC
 };
 
+enum class LabelPropagationImplementation {
+  SINGLE_PHASE,
+  TWO_PHASE,
+  GROWING_HASH_TABLES
+};
+
 enum class SecondPhaseSelectionStrategy {
   HIGH_DEGREE,
   FULL_RATING_MAP
@@ -142,8 +148,8 @@ struct LabelPropagationCoarseningContext {
   NodeID max_num_neighbors;
 
   ClusterWeightsStructure cluster_weights_structure;
+  LabelPropagationImplementation impl;
 
-  bool use_two_phases;
   SecondPhaseSelectionStrategy second_phase_selection_strategy;
   SecondPhaseAggregationStrategy second_phase_aggregation_strategy;
   bool relabel_before_second_phase;
@@ -213,7 +219,8 @@ struct LabelPropagationRefinementContext {
   NodeID large_degree_threshold;
   NodeID max_num_neighbors;
 
-  bool use_two_phases;
+  LabelPropagationImplementation impl;
+
   SecondPhaseSelectionStrategy second_phase_selection_strategy;
   SecondPhaseAggregationStrategy second_phase_aggregation_strategy;
 };
