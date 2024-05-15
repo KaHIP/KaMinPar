@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Fixed-size array backed by its own memory or a provided memory region.
+ *
  * @file:   static_array.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Combination of owning static array and a span.
  ******************************************************************************/
 #pragma once
 
@@ -20,6 +21,8 @@
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/parallel/tbb_malloc.h"
 
+// Threshold for using transparent huge pages for large memory allocations (unit: number of
+// elements, *not* number of bytes -- @todo change this?)
 #define KAMINPAR_THP_THRESHOLD 1024 * 1024 * 64
 
 namespace kaminpar {
@@ -29,28 +32,28 @@ namespace static_array {
 constexpr struct noinit_t {
 } noinit;
 
-//! Tag for small memory allocations that should never be backed by a transparent huge page.
+//! Tag for small memory allocations that should never be backed by transparent huge pages.
 constexpr struct small_t {
 } small;
 
 //! Tag for initializing memory sequentially. Without this tag, memory will be initialized by a
-//! parallel loop. Has no effect if noinit is also passed.
+//! parallel loop. Has no effect in the presence of the noinit tag.
 constexpr struct seq_t {
 } seq;
 } // namespace static_array
 
 template <typename T> class StaticArray {
 public:
-  class StaticArrayIterator {
+  template <bool is_const> class StaticArrayIterator {
   public:
     using iterator_category = std::contiguous_iterator_tag;
     using value_type = T;
-    using reference = T &;
-    using pointer = T *;
+    using reference = std::conditional_t<is_const, const T &, T &>;
+    using pointer = std::conditional_t<is_const, const T *, T *>;
     using difference_type = std::ptrdiff_t;
 
     StaticArrayIterator() : _ptr(nullptr) {}
-    StaticArrayIterator(T *ptr) : _ptr(ptr) {}
+    StaticArrayIterator(pointer ptr) : _ptr(ptr) {}
 
     StaticArrayIterator(const StaticArrayIterator &other) = default;
     StaticArrayIterator &operator=(const StaticArrayIterator &other) = default;
@@ -64,7 +67,7 @@ public:
     }
 
     reference operator[](const difference_type &n) const {
-      return *_ptr[n];
+      return _ptr[n];
     }
 
     StaticArrayIterator &operator++() {
@@ -121,19 +124,19 @@ public:
     }
 
     friend StaticArrayIterator operator+(const StaticArrayIterator &it, const difference_type n) {
-      return StaticArrayIterator{it._ptr + n};
+      return {it._ptr + n};
     }
 
     friend StaticArrayIterator operator-(const StaticArrayIterator &it, const difference_type n) {
-      return StaticArrayIterator{it._ptr - n};
+      return {it._ptr - n};
     }
 
     friend StaticArrayIterator operator+(const difference_type n, const StaticArrayIterator &it) {
-      return StaticArrayIterator{it._ptr + n};
+      return {it._ptr + n};
     }
 
   private:
-    T *_ptr;
+    pointer _ptr;
   };
 
 public:
@@ -141,8 +144,8 @@ public:
   using size_type = std::size_t;
   using reference = T &;
   using const_reference = const T &;
-  using iterator = StaticArrayIterator;
-  using const_iterator = const StaticArrayIterator;
+  using iterator = StaticArrayIterator<false>;
+  using const_iterator = StaticArrayIterator<true>;
 
   StaticArray(const std::size_t size, value_type *data) : _size(size), _data(data) {
     RECORD_DATA_STRUCT(size * sizeof(T), _struct);
@@ -212,26 +215,22 @@ public:
   }
 
   reference back() {
-    KASSERT(_data);
-    KASSERT(_size > 0u);
+    KASSERT(_data && _size > 0u);
     return _data[_size - 1];
   }
 
   const_reference back() const {
-    KASSERT(_data);
-    KASSERT(_size > 0u);
+    KASSERT(_data && _size > 0u);
     return _data[_size - 1];
   }
 
   reference front() {
-    KASSERT(_data);
-    KASSERT(_size > 0u);
+    KASSERT(_data && _size > 0u);
     return _data[0];
   }
 
   const_reference front() const {
-    KASSERT(_data);
-    KASSERT(_size > 0u);
+    KASSERT(_data && _size > 0u);
     return _data[0];
   }
 
@@ -254,24 +253,27 @@ public:
     return iterator(_data);
   }
 
-  const_iterator cbegin() const {
+  const_iterator begin() const {
     KASSERT(_data);
     return const_iterator(_data);
   }
 
+  const_iterator cbegin() const {
+    return begin();
+  }
+
   iterator end() {
-    return iterator{_data + _size};
+    KASSERT(_data);
+    return iterator(_data + _size);
+  }
+
+  const_iterator end() const {
+    KASSERT(_data);
+    return const_iterator(_data + _size);
   }
 
   const_iterator cend() const {
-    return const_iterator{_data + _size};
-  }
-
-  const_iterator begin() const {
-    return cbegin();
-  }
-  iterator end() const {
-    return cend();
+    return end();
   }
 
   void restrict(const std::size_t new_size) {
@@ -279,6 +281,7 @@ public:
         new_size <= _size,
         "restricted size " << new_size << " must be smaller than the unrestricted size " << _size
     );
+
     _unrestricted_size = _size;
     _size = new_size;
   }
@@ -294,6 +297,7 @@ public:
   [[nodiscard]] bool empty() const {
     return _size == 0;
   }
+
   [[nodiscard]] size_type size() const {
     return _size;
   }
