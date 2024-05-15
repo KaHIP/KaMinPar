@@ -43,7 +43,7 @@ template <typename T> class StaticArray {
 public:
   class StaticArrayIterator {
   public:
-    using iterator_category = std::random_access_iterator_tag;
+    using iterator_category = std::contiguous_iterator_tag;
     using value_type = T;
     using reference = T &;
     using pointer = T *;
@@ -63,6 +63,10 @@ public:
       return _ptr;
     }
 
+    reference operator[](const difference_type &n) const {
+      return *_ptr[n];
+    }
+
     StaticArrayIterator &operator++() {
       return ++_ptr, *this;
     }
@@ -79,60 +83,53 @@ public:
       return {_ptr--};
     }
 
-    StaticArrayIterator operator+(const difference_type &n) const {
-      return StaticArrayIterator{_ptr + n};
-    }
-
     StaticArrayIterator &operator+=(const difference_type &n) {
       return _ptr += n, *this;
-    }
-
-    StaticArrayIterator operator-(const difference_type &n) const {
-      return StaticArrayIterator{_ptr - n};
     }
 
     StaticArrayIterator &operator-=(const difference_type &n) {
       return _ptr -= n, *this;
     }
 
-    reference operator[](const difference_type &n) {
-      return *(_ptr + n);
+    friend bool operator==(const StaticArrayIterator &lhs, const StaticArrayIterator &rhs) {
+      return lhs._ptr == rhs._ptr;
     }
 
-    const T &operator[](const difference_type &n) const {
-      return *(_ptr + n);
+    friend bool operator!=(const StaticArrayIterator &lhs, const StaticArrayIterator &rhs) {
+      return lhs._ptr != rhs._ptr;
     }
 
-    bool operator==(const StaticArrayIterator &other) const {
-      return _ptr == other._ptr;
+    friend bool operator>(const StaticArrayIterator &lhs, const StaticArrayIterator &rhs) {
+      return lhs._ptr > rhs._ptr;
     }
 
-    bool operator!=(const StaticArrayIterator &other) const {
-      return _ptr != other._ptr;
+    friend bool operator<(const StaticArrayIterator &lhs, const StaticArrayIterator &rhs) {
+      return lhs._ptr < rhs._ptr;
     }
 
-    bool operator>(const StaticArrayIterator &other) const {
-      return _ptr > other._ptr;
+    friend bool operator<=(const StaticArrayIterator &lhs, const StaticArrayIterator &rhs) {
+      return lhs._ptr <= rhs._ptr;
     }
 
-    bool operator<(const StaticArrayIterator &other) const {
-      return _ptr < other._ptr;
+    friend bool operator>=(const StaticArrayIterator &lhs, const StaticArrayIterator &rhs) {
+      return lhs._ptr >= rhs._ptr;
     }
 
-    bool operator<=(const StaticArrayIterator &other) const {
-      return _ptr <= other._ptr;
+    friend difference_type
+    operator-(const StaticArrayIterator &lhs, const StaticArrayIterator &rhs) {
+      return lhs._ptr - rhs._ptr;
     }
 
-    bool operator>=(const StaticArrayIterator &other) const {
-      return _ptr >= other._ptr;
+    friend StaticArrayIterator operator+(const StaticArrayIterator &it, const difference_type n) {
+      return StaticArrayIterator{it._ptr + n};
     }
 
-    difference_type operator+(const StaticArrayIterator &other) const {
-      return _ptr + other._ptr;
+    friend StaticArrayIterator operator-(const StaticArrayIterator &it, const difference_type n) {
+      return StaticArrayIterator{it._ptr - n};
     }
 
-    difference_type operator-(const StaticArrayIterator &other) const {
-      return _ptr - other._ptr;
+    friend StaticArrayIterator operator+(const difference_type n, const StaticArrayIterator &it) {
+      return StaticArrayIterator{it._ptr + n};
     }
 
   private:
