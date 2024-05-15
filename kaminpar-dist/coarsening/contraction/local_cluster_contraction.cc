@@ -173,7 +173,7 @@ contract_local_clustering(const DistributedGraph &graph, const StaticArray<NodeI
   // node degrees (3) We copy coarse edges and coarse edge weights from the
   // auxiliary arrays to c_edges and c_edge_weights
   //
-  using Map = RatingMap<EdgeWeight, NodeID, FastResetArray<EdgeWeight, NodeID>>;
+  using Map = RatingMap<EdgeWeight, NodeID>;
   tbb::enumerable_thread_specific<Map> collector_ets{[&] {
     return Map(ghost_mapper.next_ghost_node());
   }};

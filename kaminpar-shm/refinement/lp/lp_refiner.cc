@@ -9,7 +9,7 @@
 
 #include "kaminpar-shm/label_propagation.h"
 
-#include "kaminpar-common/datastructures/sparse_map.h"
+#include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/timer.h"
 
@@ -22,7 +22,7 @@ namespace kaminpar::shm {
 struct LPRefinerConfig : public LabelPropagationConfig {
   using ClusterID = BlockID;
   using ClusterWeight = BlockWeight;
-  using RatingMap = ::kaminpar::RatingMap<EdgeWeight, NodeID, SparseMap<NodeID, EdgeWeight>>;
+  using RatingMap = ::kaminpar::RatingMap<EdgeWeight, NodeID, rm_backyard::SparseMap>;
   static constexpr bool kUseHardWeightConstraint = true;
   static constexpr bool kReportEmptyClusters = false;
 };

@@ -17,38 +17,12 @@
 #include "kaminpar-dist/graphutils/communication.h"
 #include "kaminpar-dist/timer.h"
 
+#include "kaminpar-common/datastructures/rating_map.h"
+
 namespace kaminpar::dist {
 namespace {
-// Wrapper to make google::dense_hash_map<> compatible with
-// kaminpar::RatingMap<>.
-struct UnorderedRatingMap {
-  UnorderedRatingMap() {
-    map.set_empty_key(kInvalidGlobalNodeID);
-  }
-
-  EdgeWeight &operator[](const GlobalNodeID key) {
-    return map[key];
-  }
-
-  [[nodiscard]] auto &entries() {
-    return map;
-  }
-
-  void clear() {
-    map.clear();
-  }
-
-  [[nodiscard]] std::size_t capacity() const {
-    return std::numeric_limits<std::size_t>::max();
-  }
-
-  void resize(std::size_t /* capacity */) {}
-
-  google::dense_hash_map<GlobalNodeID, EdgeWeight> map{};
-};
-
 struct GlobalLPClusteringConfig : public LabelPropagationConfig {
-  using RatingMap = ::kaminpar::RatingMap<EdgeWeight, GlobalNodeID, UnorderedRatingMap>;
+  using RatingMap = ::kaminpar::RatingMap<EdgeWeight, GlobalNodeID, rm_backyard::Sparsehash>;
 
   using ClusterID = GlobalNodeID;
   using ClusterWeight = GlobalNodeWeight;
