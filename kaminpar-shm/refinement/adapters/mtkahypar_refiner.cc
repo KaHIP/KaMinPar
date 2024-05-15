@@ -9,15 +9,17 @@
 
 #include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
-#include "kaminpar-shm/metrics.h"
 
-#include "kaminpar-common/datastructures/noinit_vector.h"
 #include "kaminpar-common/logger.h"
-#include "kaminpar-common/parallel/algorithm.h"
-#include "kaminpar-common/random.h"
 
 #ifdef KAMINPAR_HAVE_MTKAHYPAR_LIB
 #include <libmtkahypar.h>
+
+#include "kaminpar-shm/metrics.h"
+
+#include "kaminpar-common/datastructures/static_array.h"
+#include "kaminpar-common/parallel/algorithm.h"
+#include "kaminpar-common/random.h"
 #endif // KAMINPAR_HAVE_MTKAHYPAR_LIB
 
 namespace kaminpar::shm {
@@ -57,7 +59,7 @@ bool MtKaHyParRefiner::refine(
       Random::get_seed()
   );
 
-  NoinitVector<mt_kahypar_hypernode_weight_t> block_weights(p_ctx.k);
+  StaticArray<mt_kahypar_hypernode_weight_t> block_weights(p_ctx.k);
   p_graph.pfor_blocks([&](const BlockID b) { block_weights[b] = p_ctx.block_weights.max(b); });
   mt_kahypar_set_individual_target_block_weights(
       mt_kahypar_ctx, static_cast<mt_kahypar_partition_id_t>(p_ctx.k), block_weights.data()
@@ -69,7 +71,7 @@ bool MtKaHyParRefiner::refine(
   const mt_kahypar_hypernode_id_t num_vertices = p_graph.n();
   const mt_kahypar_hyperedge_id_t num_edges = p_graph.m() / 2; // Only need one direction
 
-  NoinitVector<EdgeID> edge_position(2 * num_edges);
+  StaticArray<EdgeID> edge_position(2 * num_edges);
   p_graph.pfor_nodes([&](const NodeID u) {
     for (const auto [e, v] : p_graph.neighbors(u)) {
       edge_position[e] = u < v;
@@ -77,9 +79,9 @@ bool MtKaHyParRefiner::refine(
   });
   parallel::prefix_sum(edge_position.begin(), edge_position.end(), edge_position.begin());
 
-  NoinitVector<mt_kahypar_hypernode_id_t> edges(2 * num_edges);
-  NoinitVector<mt_kahypar_hypernode_weight_t> edge_weights(num_edges);
-  NoinitVector<mt_kahypar_hypernode_weight_t> vertex_weights(num_vertices);
+  StaticArray<mt_kahypar_hypernode_id_t> edges(2 * num_edges);
+  StaticArray<mt_kahypar_hypernode_weight_t> edge_weights(num_edges);
+  StaticArray<mt_kahypar_hypernode_weight_t> vertex_weights(num_vertices);
   edges.reserve(2 * num_edges);
   edge_weights.reserve(num_edges);
 
@@ -105,7 +107,7 @@ bool MtKaHyParRefiner::refine(
   DBG << "Partition metrics before Mt-KaHyPar refinement: cut=" << metrics::edge_cut(p_graph)
       << " imbalance=" << metrics::imbalance(p_graph);
 
-  NoinitVector<mt_kahypar_partition_id_t> partition(num_vertices);
+  StaticArray<mt_kahypar_partition_id_t> partition(num_vertices);
   p_graph.pfor_nodes([&](const NodeID u) { partition[u] = p_graph.block(u); });
 
   mt_kahypar_partitioned_hypergraph_t mt_kahypar_partitioned_graph =
@@ -120,7 +122,7 @@ bool MtKaHyParRefiner::refine(
   mt_kahypar_improve_partition(mt_kahypar_partitioned_graph, mt_kahypar_ctx, 1);
 
   // Copy partition back to our graph
-  NoinitVector<mt_kahypar_partition_id_t> improved_partition(num_vertices);
+  StaticArray<mt_kahypar_partition_id_t> improved_partition(num_vertices);
   mt_kahypar_get_partition(mt_kahypar_partitioned_graph, improved_partition.data());
   p_graph.pfor_nodes([&](const NodeID u) { p_graph.set_block(u, improved_partition[u]); });
 
