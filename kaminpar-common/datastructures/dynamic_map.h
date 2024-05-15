@@ -6,6 +6,7 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <vector>
 
 namespace kaminpar {
 template <typename Key, typename Value, typename Derived> class DynamicMapBase {
@@ -213,5 +214,109 @@ private:
 
   MapElement *_elements = nullptr;
 };
-} // namespace kaminpar
 
+template <typename Key, typename Value>
+class DynamicRememberingFlatMap final
+    : public DynamicMapBase<Key, Value, DynamicRememberingFlatMap<Key, Value>> {
+  using Base = DynamicMapBase<Key, Value, DynamicRememberingFlatMap<Key, Value>>;
+  using Base::INVALID_POS_MASK;
+
+  friend Base;
+
+  struct MapElement {
+    Key key;
+    Value value;
+    std::size_t timestamp;
+  };
+
+public:
+  DynamicRememberingFlatMap() {
+    initialize_impl();
+  }
+
+  DynamicRememberingFlatMap(const DynamicRememberingFlatMap &) = delete;
+  DynamicRememberingFlatMap &operator=(const DynamicRememberingFlatMap &other) = delete;
+
+  DynamicRememberingFlatMap(DynamicRememberingFlatMap &&other) = default;
+  DynamicRememberingFlatMap &operator=(DynamicRememberingFlatMap &&other) = default;
+
+  ~DynamicRememberingFlatMap() = default;
+
+  template <typename Lambda> void for_each(Lambda &&lambda) {
+    for (const std::size_t pos : _positions) {
+      lambda(_elements[pos].key, _elements[pos].value);
+    }
+  }
+
+  [[nodiscard]] auto entries() {
+    return TransformedIotaRange(static_cast<std::size_t>(0), _size, [this](const std::size_t i) {
+      const std::size_t pos = _positions[i];
+      return std::make_pair(_elements[pos].key, _elements[pos].value);
+    });
+  }
+
+private:
+  [[nodiscard]] std::size_t size_in_bytes_impl() const {
+    return _capacity * sizeof(MapElement);
+  }
+
+  std::size_t find_impl(const Key key) const {
+    std::size_t hash = key & (_capacity - 1);
+    while (_elements[hash].timestamp == _timestamp) {
+      if (_elements[hash].key == key) {
+        return hash;
+      }
+      hash = (hash + 1) & (_capacity - 1);
+    }
+    return hash | INVALID_POS_MASK;
+  }
+
+  Value &value_at_pos_impl(const std::size_t pos) const {
+    return _elements[pos].value;
+  }
+
+  Value &add_element_impl(Key key, Value value, const std::size_t pos) {
+    _size++;
+    _positions.push_back(pos);
+
+    _elements[pos] = MapElement{key, value, _timestamp};
+    return _elements[pos].value;
+  }
+
+  void initialize_impl() {
+    _elements = reinterpret_cast<MapElement *>(_data.get());
+    _old_timestamp = _timestamp;
+    _timestamp = 1;
+  }
+
+  void rehash_impl(
+      const std::uint8_t *old_data_begin, const std::size_t old_size, const std::size_t old_capacity
+  ) {
+    const auto *elements = reinterpret_cast<const MapElement *>(old_data_begin);
+
+    for (std::size_t i = 0; i < old_size; ++i) {
+      const std::size_t pos = _positions[i];
+      const std::size_t new_pos = find_impl(elements[pos].key) & ~INVALID_POS_MASK;
+
+      _positions[i] = new_pos;
+      add_element_impl(elements[pos].key, elements[pos].value, new_pos);
+    }
+  }
+
+  void clear_impl() {
+    ++_timestamp;
+    _positions.clear();
+  }
+
+  using Base::_capacity;
+  using Base::_data;
+  using Base::_size;
+
+  std::size_t _old_timestamp = 0;
+  std::size_t _timestamp = 1;
+
+  MapElement *_elements = nullptr;
+  std::vector<std::size_t> _positions;
+};
+
+} // namespace kaminpar

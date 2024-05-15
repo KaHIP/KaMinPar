@@ -13,17 +13,20 @@
 
 #include "kaminpar-common/logger.h"
 
+#include "apps/io/metis_parser.h"
+#include "apps/io/parhip_parser.h"
 #include "apps/io/shm_compressed_graph_binary.h"
 #include "apps/io/shm_io.h"
 
 using namespace kaminpar;
 using namespace kaminpar::shm;
+using namespace kaminpar::shm::io;
 
 int main(int argc, char *argv[]) {
   // Parse CLI arguments
   std::string graph_filename;
   std::string compressed_graph_filename;
-  io::GraphFileFormat graph_file_format = io::GraphFileFormat::METIS;
+  GraphFileFormat graph_file_format = io::GraphFileFormat::METIS;
   int num_threads = 1;
 
   CLI::App app("Shared-memory graph compression tool");
@@ -41,7 +44,17 @@ int main(int argc, char *argv[]) {
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, num_threads);
 
   LOG << "Reading input graph...";
-  CompressedGraph graph = *io::metis::compress_read<false>(graph_filename);
+
+  CompressedGraph graph = [&] {
+    switch (graph_file_format) {
+    case GraphFileFormat::METIS:
+      return *metis::compress_read(graph_filename, false, false);
+    case GraphFileFormat::PARHIP:
+      return parhip::compressed_read(graph_filename, false);
+    default:
+      __builtin_unreachable();
+    }
+  }();
 
   LOG << "Writing compressed graph...";
   io::compressed_binary::write(compressed_graph_filename, graph);

@@ -218,14 +218,18 @@ Options are:
   )"
       )
       ->capture_default_str();
-
-  lp->add_option(
-        "--c-lp-two-phases",
-        ctx.coarsening.clustering.lp.use_two_phases,
-        "Uses two phases in each iteration, where in the second phase the high-degree nodes are "
-        "treated separately"
-  )
+  lp->add_option("--c-lp-impl", ctx.coarsening.clustering.lp.impl)
+      ->transform(CLI::CheckedTransformer(get_lp_implementations()).description(""))
+      ->description(
+          R"(Determines the label propagation implementation.
+Options are:
+  - single-phase:        Uses single-phase label propagation
+  - two-phase:           Uses two-phase label propagation
+  - growing-hash-tables: Uses single-phase label propagation with growing hash tables
+  )"
+      )
       ->capture_default_str();
+
   lp->add_option(
         "--c-lp-second-phase-selection-strategy",
         ctx.coarsening.clustering.lp.second_phase_selection_strategy
@@ -252,7 +256,8 @@ Options are:
   - direct:   Write the ratings directly into the global vector (shared between threads)
   - buffered: Write the ratings into a thread-local buffer and then copy them into the global vector when the buffer is full
   )"
-      );
+      )
+      ->capture_default_str();
   lp->add_option(
         "--c-lp-second-phase-relabel",
         ctx.coarsening.clustering.lp.relabel_before_second_phase,
@@ -379,13 +384,18 @@ CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx) {
   )
       ->capture_default_str();
 
-  lp->add_option(
-        "--r-lp-two-phases",
-        ctx.refinement.lp.use_two_phases,
-        "Uses two phases in each iteration, where in the second phase the high-degree nodes are "
-        "treated separately"
-  )
+  lp->add_option("--r-lp-impl", ctx.refinement.lp.impl)
+      ->transform(CLI::CheckedTransformer(get_lp_implementations()).description(""))
+      ->description(
+          R"(Determines the label propagation implementation.
+Options are:
+  - single-phase:        Uses single-phase label propagation
+  - two-phase:           Uses two-phase label propagation
+  - growing-hash-tables: Uses single-phase label propagation with growing hash tables
+  )"
+      )
       ->capture_default_str();
+
   lp->add_option(
         "--r-lp-second-phase-selection-strategy", ctx.refinement.lp.second_phase_selection_strategy
   )

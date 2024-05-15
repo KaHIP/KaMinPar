@@ -5,6 +5,7 @@
 #include "tests/shm/graph_factories.h"
 
 #include "kaminpar-shm/datastructures/compressed_graph.h"
+#include "kaminpar-shm/datastructures/compressed_graph_builder.h"
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/graphutils/permutator.h"
 

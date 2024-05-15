@@ -79,7 +79,7 @@ bool JetRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx
     int cur_iteration = 0;
 
     const double gain_temp = compute_gain_temp(round);
-    LOG << "Round " << (round + 1) << " of " << _num_rounds << ": use gain temperature "
+    DBG << "Round " << (round + 1) << " of " << _num_rounds << ": use gain temperature "
         << gain_temp;
 
     do {

@@ -39,6 +39,10 @@ std::unordered_map<std::string, ClusterWeightsStructure> get_cluster_weight_stru
 
 std::ostream &operator<<(std::ostream &out, const ClusterWeightsStructure structure);
 
+std::unordered_map<std::string, LabelPropagationImplementation> get_lp_implementations();
+
+std::ostream &operator<<(std::ostream &out, const LabelPropagationImplementation impl);
+
 std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorithms();
 
 std::ostream &operator<<(std::ostream &out, FMStoppingRule rule);

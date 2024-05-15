@@ -85,7 +85,7 @@ Context create_default_context() {
                               .large_degree_threshold = 1000000,
                               .max_num_neighbors = 200000,
                               .cluster_weights_structure = ClusterWeightsStructure::VEC,
-                              .use_two_phases = false,
+                              .impl = LabelPropagationImplementation::SINGLE_PHASE,
                               .second_phase_selection_strategy =
                                   SecondPhaseSelectionStrategy::FULL_RATING_MAP,
                               .second_phase_aggregation_strategy =
@@ -149,7 +149,7 @@ Context create_default_context() {
                       .num_iterations = 5,
                       .large_degree_threshold = 1000000,
                       .max_num_neighbors = std::numeric_limits<NodeID>::max(),
-                      .use_two_phases = false,
+                      .impl = LabelPropagationImplementation::SINGLE_PHASE,
                       .second_phase_selection_strategy =
                           SecondPhaseSelectionStrategy::FULL_RATING_MAP,
                       .second_phase_aggregation_strategy = SecondPhaseAggregationStrategy::BUFFERED,
@@ -216,7 +216,7 @@ Context create_memory_context() {
   ctx.compression.enabled = true;
   ctx.compression.may_dismiss = true;
   ctx.coarsening.clustering.algorithm = ClusteringAlgorithm::LABEL_PROPAGATION;
-  ctx.coarsening.clustering.lp.use_two_phases = true;
+  ctx.coarsening.clustering.lp.impl = LabelPropagationImplementation::TWO_PHASE;
   ctx.coarsening.clustering.max_mem_free_coarsening_level = 1;
   ctx.coarsening.contraction.mode = ContractionMode::UNBUFFERED;
   return ctx;

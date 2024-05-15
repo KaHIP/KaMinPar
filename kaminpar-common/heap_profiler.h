@@ -7,6 +7,7 @@
  ******************************************************************************/
 #pragma once
 
+#include <cstdlib>
 #include <iomanip>
 #include <memory>
 #include <mutex>
@@ -19,6 +20,7 @@
 #include <cxxabi.h>
 
 #include "kaminpar-common/libc_memory_override.h"
+#include "kaminpar-common/logger.h"
 
 namespace kaminpar::heap_profiler {
 
@@ -57,20 +59,41 @@ template <typename T> std::string type_name() {
   return name;
 }
 
+template <typename T> struct HeapProfiledMemoryDeleter {
+  void operator()(T *ptr) {
+#ifdef KAMINPAR_ENABLE_HEAP_PROFILING
+    heap_profiler::std_free(ptr);
+#else
+    std::free(ptr);
+#endif
+  }
+};
+
+template <typename T> using unique_ptr = std::unique_ptr<T, HeapProfiledMemoryDeleter<T>>;
+
 /*!
- * Allocates memory that is not tracked but the heap profiler. This method is useful for correctly
+ * Allocates memory that is not tracked by the heap profiler. This method is useful for correctly
  * tracking overcomitted memory.
  *
  * @tparam T The type of data to allocate.
  * @param size The number of data copies to allocate.
  * @return A pointer to the allocated memory.
  */
-template <typename T> T *overcommit_memory(std::size_t size) {
+template <typename T> unique_ptr<T> overcommit_memory(const std::size_t size) {
+  T *ptr =
 #ifdef KAMINPAR_ENABLE_HEAP_PROFILING
-  return (T *)heap_profiler::std_malloc(size * sizeof(T));
+      ptr = static_cast<T *>(heap_profiler::std_malloc(size * sizeof(T)));
 #else
-  return (T *)std::malloc(size * sizeof(T));
+      ptr = static_cast<T *>(std::malloc(size * sizeof(T)));
 #endif
+
+  if (ptr == NULL) {
+    LOG_ERROR << "The overcommitment of memory failed. Ensure that memory overcommitment is"
+                 " enabled on this system!";
+    std::exit(0);
+  }
+
+  return unique_ptr<T>(ptr);
 }
 }; // namespace kaminpar::heap_profiler
 

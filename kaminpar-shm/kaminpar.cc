@@ -75,13 +75,6 @@ KaMinPar::KaMinPar(const int num_threads, Context ctx)
     : _num_threads(num_threads),
       _ctx(std::move(ctx)),
       _gc(tbb::global_control::max_allowed_parallelism, num_threads) {
-  // The use of the initially small vector requires two-phase lp with relabeling
-  auto &lp_ctx = _ctx.coarsening.clustering.lp;
-  if ((!lp_ctx.use_two_phases || !lp_ctx.relabel_before_second_phase) &&
-      (lp_ctx.cluster_weights_structure == ClusterWeightsStructure::INITIALLY_SMALL_VEC)) {
-    lp_ctx.cluster_weights_structure = ClusterWeightsStructure::VEC;
-  }
-
 #ifdef KAMINPAR_ENABLE_TIMERS
   GLOBAL_TIMER.reset();
 #endif // KAMINPAR_ENABLE_TIMERS
@@ -224,7 +217,7 @@ EdgeWeight KaMinPar::compute_partition(const BlockID k, BlockID *partition) {
     PartitionedGraph p_graph = partitioner->partition();
 
     START_TIMER("Deallocation");
-    delete partitioner.release();
+    partitioner.reset();
     STOP_TIMER();
 
     return p_graph;
