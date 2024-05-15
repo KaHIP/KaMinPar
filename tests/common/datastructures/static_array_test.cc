@@ -1,8 +1,16 @@
+#include <iterator>
+
 #include <gmock/gmock.h>
 
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar {
+#if __cplusplus >= 202002L
+using StaticIntArray = StaticArray<int>;
+static_assert(std::random_access_iterator<StaticIntArray::iterator>);
+static_assert(std::contiguous_iterator<StaticIntArray::iterator>);
+#endif
+
 TEST(StaticArrayTest, SimpleStorageTest) {
   StaticArray<int> array(10);
   for (std::size_t i = 0; i < 10; ++i) {
