@@ -50,7 +50,7 @@ DistributedPartitionedGraph KWayMultilevelPartitioner::partition() {
       SCOPED_TIMER("Coarsening", std::string("Level ") + std::to_string(coarsener->level()));
       const GlobalNodeWeight max_cluster_weight = 0; // coarsener->max_cluster_weight();
 
-      const bool converged = coarsener->coarsen();
+      const bool converged = !coarsener->coarsen();
 
       if (!converged) {
         const DistributedGraph &c_graph = coarsener->current();
