@@ -60,16 +60,14 @@ enum class PartitioningMode {
   DEEP,
 };
 
-enum class GlobalClusteringAlgorithm {
-  NOOP,
-  LP,
-  HEM,
-  HEM_LP,
-};
+enum class ClusteringAlgorithm {
+  GLOBAL_NOOP,
+  GLOBAL_LP,
+  GLOBAL_HEM,
+  GLOBAL_HEM_LP,
 
-enum class LocalClusteringAlgorithm {
-  NOOP,
-  LP,
+  LOCAL_NOOP,
+  LOCAL_LP,
 };
 
 enum class InitialPartitioningAlgorithm {
@@ -196,13 +194,13 @@ struct MtKaHyParRefinementContext {
 struct CoarseningContext {
   // Global clustering
   std::size_t max_global_clustering_levels;
-  GlobalClusteringAlgorithm global_clustering_algorithm;
+  ClusteringAlgorithm global_clustering_algorithm;
   LabelPropagationCoarseningContext global_lp;
   HEMCoarseningContext hem;
 
   // Local clustering
   std::size_t max_local_clustering_levels;
-  LocalClusteringAlgorithm local_clustering_algorithm;
+  ClusteringAlgorithm local_clustering_algorithm;
   LabelPropagationCoarseningContext local_lp;
 
   // Cluster weight limit

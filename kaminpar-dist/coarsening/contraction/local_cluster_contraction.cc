@@ -17,56 +17,76 @@
 #include "kaminpar-dist/graphutils/communication.h"
 
 #include "kaminpar-common/datastructures/rating_map.h"
-#include "kaminpar-common/datastructures/scalable_vector.h"
+#include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/datastructures/ts_navigable_linked_list.h"
-#include "kaminpar-common/parallel/atomic.h"
 
 namespace kaminpar::dist {
-using namespace contraction;
+namespace {
 SET_DEBUG(false);
+}
 
-Result contract_local_clustering(
-    const DistributedGraph &graph,
-    const ScalableVector<parallel::Atomic<NodeID>> &clustering,
-    MemoryContext m_ctx
-) {
-  KASSERT(clustering.size() >= graph.n());
+namespace {
+struct Edge {
+  NodeID target;
+  EdgeWeight weight;
+};
+
+class LocalCoarseGraphImpl : public CoarseGraph {
+public:
+  LocalCoarseGraphImpl(
+      const DistributedGraph &f_graph, DistributedGraph c_graph, StaticArray<NodeID> mapping
+  )
+      : _f_graph(f_graph),
+        _c_graph(std::move(c_graph)),
+        _mapping(std::move(mapping)) {}
+
+  const DistributedGraph &get() const final {
+    return _c_graph;
+  }
+
+  DistributedGraph &get() final {
+    return _c_graph;
+  }
+
+  void project(const StaticArray<BlockID> &c_partition, StaticArray<BlockID> &f_partition) final {
+    TIMED_SCOPE("Project partition") {
+      _f_graph.pfor_all_nodes([&](const NodeID u) { f_partition[u] = c_partition[_mapping[u]]; });
+    };
+    TIMER_BARRIER(_f_graph.communicator());
+  }
+
+private:
+  const DistributedGraph &_f_graph;
+  DistributedGraph _c_graph;
+  StaticArray<NodeID> _mapping;
+};
+} // namespace
+
+std::unique_ptr<CoarseGraph>
+contract_local_clustering(const DistributedGraph &graph, const StaticArray<NodeID> &clustering) {
+  KASSERT(
+      clustering.size() >= graph.n(),
+      "clustering array is too small for the given graph",
+      assert::always
+  );
 
   MPI_Comm comm = graph.communicator();
-  const auto [size, rank] = mpi::get_comm_info(comm);
-
-  auto &buckets_index = m_ctx.buckets_index;
-  auto &buckets = m_ctx.buckets;
-  auto &leader_mapping = m_ctx.leader_mapping;
-  auto &all_buffered_nodes = m_ctx.all_buffered_nodes;
-
-  ScalableVector<NodeID> mapping(graph.total_n());
-  if (leader_mapping.size() < graph.n()) {
-    leader_mapping.resize(graph.n());
-  }
-  if (buckets.size() < graph.n()) {
-    buckets.resize(graph.n());
-  }
+  const PEID size = mpi::get_comm_size(comm);
+  const PEID rank = mpi::get_comm_rank(comm);
 
   //
-  // Compute a mapping from the nodes of the current graph to the nodes of the
-  // coarse graph I.e., node_mapping[node u] = coarse node c_u
+  // Compute cluster buckets
   //
 
-  // Set node_mapping[x] = 1 iff. there is a cluster with leader x
-  graph.pfor_nodes([&](const NodeID u) { leader_mapping[u] = 0; });
+  StaticArray<NodeID> leader_mapping(graph.n());
   graph.pfor_nodes([&](const NodeID u) {
-    KASSERT(clustering[u] < leader_mapping.size());
-    leader_mapping[clustering[u]].store(1, std::memory_order_relaxed);
+    __atomic_store_n(&leader_mapping[clustering[u]], 1, __ATOMIC_RELAXED);
   });
-
-  // Compute prefix sum to get coarse node IDs (starting at 1!)
   parallel::prefix_sum(
       leader_mapping.begin(), leader_mapping.begin() + graph.n(), leader_mapping.begin()
   );
-  const NodeID c_n = leader_mapping[graph.n() - 1]; // number of nodes in the coarse graph
 
-  // Compute new node distribution, total number of coarse nodes
+  const NodeID c_n = leader_mapping.back();
   const GlobalNodeID last_node = mpi::scan(static_cast<GlobalNodeID>(c_n), MPI_SUM, comm);
   const GlobalNodeID first_node = last_node - c_n;
 
@@ -74,31 +94,18 @@ Result contract_local_clustering(
   c_node_distribution[rank + 1] = last_node;
   mpi::allgather(&c_node_distribution[rank + 1], 1, c_node_distribution.data() + 1, 1, comm);
 
-  // Assign coarse node ID to all nodes
-  graph.pfor_nodes([&](const NodeID u) { mapping[u] = leader_mapping[clustering[u]]; });
-  graph.pfor_nodes([&](const NodeID u) { --mapping[u]; });
+  StaticArray<NodeID> mapping(graph.total_n());
+  graph.pfor_nodes([&](const NodeID u) { mapping[u] = leader_mapping[clustering[u]] - 1; });
 
-  buckets_index.clear();
-  buckets_index.resize(c_n + 1);
-
-  //
-  // Sort nodes into buckets: place all nodes belonging to coarse node i into
-  // the i-th bucket
-  //
-  // Count the number of nodes in each bucket, then compute the position of the
-  // bucket in the global buckets array using a prefix sum, roughly 2/5-th of
-  // time on europe.osm with 2/3-th to 1/3-tel for loop to prefix sum
+  StaticArray<NodeID> buckets_index(c_n + 1);
   graph.pfor_nodes([&](const NodeID u) {
-    buckets_index[mapping[u]].fetch_add(1, std::memory_order_relaxed);
+    __atomic_fetch_add(&buckets_index[mapping[u]], 1, __ATOMIC_RELAXED);
   });
-
   parallel::prefix_sum(buckets_index.begin(), buckets_index.end(), buckets_index.begin());
-  KASSERT(buckets_index.back() <= graph.n());
 
-  // Sort nodes into   buckets, roughly 3/5-th of time on europe.osm
+  StaticArray<NodeID> buckets(graph.n());
   graph.pfor_nodes([&](const NodeID u) {
-    const std::size_t pos = buckets_index[mapping[u]].fetch_sub(1, std::memory_order_relaxed) - 1;
-    buckets[pos] = u;
+    buckets[__atomic_sub_fetch(&buckets_index[mapping[u]], 1, __ATOMIC_RELAXED)] = u;
   });
 
   //
@@ -228,6 +235,7 @@ Result contract_local_clustering(
   //
   // Construct rest of the coarse graph: edges, edge weights
   //
+  StaticArray<NavigationMarker<NodeID, Edge, ScalableVector>> all_buffered_nodes;
   all_buffered_nodes = ts_navigable_list::combine<NodeID, Edge, ScalableVector>(
       edge_buffer_ets, std::move(all_buffered_nodes)
   );
@@ -236,7 +244,7 @@ Result contract_local_clustering(
   StaticArray<EdgeWeight> c_edge_weights(c_m);
 
   // build coarse graph
-  tbb::parallel_for(static_cast<NodeID>(0), c_n, [&](const NodeID i) {
+  tbb::parallel_for<NodeID>(0, c_n, [&](const NodeID i) {
     const auto &marker = all_buffered_nodes[i];
     const auto *list = marker.local_list;
     const NodeID c_u = marker.key;
@@ -275,6 +283,6 @@ Result contract_local_clustering(
       graph.communicator()
   };
 
-  return {std::move(c_graph), std::move(mapping), std::move(m_ctx)};
+  return std::make_unique<LocalCoarseGraphImpl>(graph, std::move(c_graph), std::move(mapping));
 }
 } // namespace kaminpar::dist

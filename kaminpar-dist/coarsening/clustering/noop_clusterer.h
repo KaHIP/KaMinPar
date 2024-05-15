@@ -7,43 +7,31 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar-dist/coarsening/clustering/clusterer.h"
+#include "kaminpar-dist/coarsening/clusterer.h"
 #include "kaminpar-dist/context.h"
+#include "kaminpar-dist/datastructures/distributed_graph.h"
+
+#include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::dist {
-class GlobalNoopClustering : public Clusterer<GlobalNodeID> {
-  using ClusterArray = typename Clusterer<GlobalNodeID>::ClusterArray;
-
+class NoopClustering : public Clusterer {
 public:
-  explicit GlobalNoopClustering(const Context &) {}
+  NoopClustering(const bool local_clusterer) : _local_clusterer(local_clusterer) {}
 
-  void initialize(const DistributedGraph &) final {}
-
-  ClusterArray &cluster(const DistributedGraph &, GlobalNodeWeight) final {
-    return _empty_clustering;
-  }
-
-protected:
-  ClusterArray _empty_clustering;
-};
-
-class LocalNoopClustering : public LocalClusterer {
-  using ClusterArray = typename Clusterer<NodeID>::ClusterArray;
-
-public:
-  explicit LocalNoopClustering(const Context &) {}
-
-  void initialize(const DistributedGraph &) final {}
-
-  ClusterArray &cluster(const DistributedGraph &, GlobalNodeWeight) final {
-    return _empty_clustering;
-  }
-
-  ClusterArray &cluster(const DistributedPartitionedGraph &, GlobalNodeWeight) final {
-    return _empty_clustering;
+  void cluster(StaticArray<GlobalNodeID> &clustering, const DistributedGraph &graph) final {
+    if (_local_clusterer) {
+      StaticArray<NodeID> local_clustering(
+          graph.n(), reinterpret_cast<NodeID *>(clustering.data())
+      );
+      graph.pfor_nodes([&](const NodeID node) { local_clustering[node] = node; });
+    } else {
+      graph.pfor_all_nodes([&](const NodeID node) {
+        clustering[node] = graph.local_to_global_node(node);
+      });
+    }
   }
 
 private:
-  ClusterArray _empty_clustering;
+  bool _local_clusterer = false;
 };
 } // namespace kaminpar::dist
