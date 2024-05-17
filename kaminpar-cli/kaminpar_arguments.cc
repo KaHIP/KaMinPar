@@ -124,11 +124,27 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
 
   coarsening->add_option("--c-sparsification", ctx.coarsening.sparsification_algorithm)
-      ->transform(CLI::CheckedTransformer(get_sparsification_algorithms()).description(""))
+      ->transform(CLI::CheckedTransformer(get_sparsification_algorithms()))
       ->description(R"(One of the following options:
   - random: unform random sampling
   - forest-fire: sampling by forest fire scores)")
       ->capture_default_str();
+
+  coarsening->add_option("--s-target", ctx.coarsening.sparsification_target)
+      ->transform(CLI::CheckedTransformer(get_sparsification_target_selection(), CLI::ignore_case)
+                      .description(""))
+      ->description(
+          R"(The target of the sparsification in every coarsening Step. The factor c is supplied with --s-factor.
+  One of the following options:
+  - density: the density should increase by at most a factor of c
+  - edge-reduction c: the amount of edges should be reduced by at least a factor of c)"
+      )
+      ->capture_default_str();
+
+  coarsening->add_option("--s-factor", ctx.coarsening.sparsification_factor)
+      ->check(CLI::PositiveNumber)
+      ->description(R"(The factor c for the sparsification target, supplied with --s-target.)")
+      ->default_val(1);
 
   coarsening
       ->add_option(

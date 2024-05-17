@@ -8,12 +8,8 @@
 
 namespace kaminpar::shm::sparsification {
 class UniformRandomSampler : public Sampler {
-private:
-  float _probability;
-
 public:
-  UniformRandomSampler(float probability) : _probability(probability) {}
-  StaticArray<EdgeWeight> sample(const CSRGraph &g) override;
+  StaticArray<EdgeWeight> sample(const CSRGraph &g, EdgeID target_edge_amount) override;
 };
 } // namespace kaminpar::shm::sparsification
 

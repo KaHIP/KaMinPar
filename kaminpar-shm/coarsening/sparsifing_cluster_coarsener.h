@@ -8,6 +8,7 @@
 #pragma once
 
 #include "sparsification/Sampler.h"
+#include "sparsification/SparsificationTarget.h"
 
 #include "kaminpar-shm/coarsening/clusterer.h"
 #include "kaminpar-shm/coarsening/coarsener.h"
@@ -17,15 +18,15 @@
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
-class SparsifingClusteringCoarsener : public Coarsener {
+class SparsifyingClusteringCoarsener : public Coarsener {
 public:
-  SparsifingClusteringCoarsener(const Context &ctx, const PartitionContext &p_ctx);
+  SparsifyingClusteringCoarsener(const Context &ctx, const PartitionContext &p_ctx);
 
-  SparsifingClusteringCoarsener(const SparsifingClusteringCoarsener &) = delete;
-  SparsifingClusteringCoarsener &operator=(const SparsifingClusteringCoarsener) = delete;
+  SparsifyingClusteringCoarsener(const SparsifyingClusteringCoarsener &) = delete;
+  SparsifyingClusteringCoarsener &operator=(const SparsifyingClusteringCoarsener) = delete;
 
-  SparsifingClusteringCoarsener(SparsifingClusteringCoarsener &&) = delete;
-  SparsifingClusteringCoarsener &operator=(SparsifingClusteringCoarsener &&) = delete;
+  SparsifyingClusteringCoarsener(SparsifyingClusteringCoarsener &&) = delete;
+  SparsifyingClusteringCoarsener &operator=(SparsifyingClusteringCoarsener &&) = delete;
 
   void initialize(const Graph *graph) final;
 
@@ -55,6 +56,7 @@ private:
 
   std::unique_ptr<Clusterer> _clustering_algorithm;
   std::unique_ptr<sparsification::Sampler> _sampling_algorithm;
+  std::unique_ptr<sparsification::SparsificationTarget> _sparsification_target;
 
   contraction::MemoryContext _contraction_m_ctx{};
 };

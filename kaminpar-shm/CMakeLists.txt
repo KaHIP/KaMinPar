@@ -9,7 +9,10 @@ add_library(kaminpar_shm ${KAMINPAR_SHM_SOURCE_FILES}
         coarsening/sparsification/ForestFireSampler.cpp
         coarsening/sparsification/ForestFireSampler.h
         coarsening/sparsification/networkit_utils.cpp
-        coarsening/sparsification/networkit_utils.h)
+        coarsening/sparsification/networkit_utils.h
+        coarsening/sparsification/SparsificationTarget.h
+        coarsening/sparsification/DensitySparsificationTarget.h
+        coarsening/sparsification/EdgeReductionSparsificationTarget.h)
 target_include_directories(kaminpar_shm PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../")
 target_link_libraries(kaminpar_shm PUBLIC kaminpar_common networkit)
 

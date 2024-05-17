@@ -11,6 +11,8 @@
 #include <cmath>
 #include <iomanip>
 
+#include "kaminpar-cli/CLI11.h"
+
 #include "kaminpar-common/asserting_cast.h"
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/random.h"
@@ -73,6 +75,14 @@ std::unordered_map<std::string, SparsificationAlgorithm> get_sparsification_algo
   return {
       {"forest-fire", SparsificationAlgorithm::FOREST_FIRE},
       {"random", SparsificationAlgorithm::UNIFORM_RANDOM_SAMPLING}
+  };
+}
+
+std::unordered_map<std::string, SparsificationTargetSelection>
+get_sparsification_target_selection() {
+  return {
+      {"density", SparsificationTargetSelection::DENSITY},
+      {"edge-reduction", SparsificationTargetSelection::EDGE_REDUCTION}
   };
 }
 

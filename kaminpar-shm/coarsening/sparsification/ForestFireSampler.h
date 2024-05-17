@@ -14,10 +14,9 @@ class ForestFireSampler : public Sampler{
 private:
   float _pf;
   float _targetBurntRatio;
-  float _threshold;
 public:
-  ForestFireSampler(float pf, float targetBurntRatio, float threshold): _pf(pf), _targetBurntRatio(targetBurntRatio), _threshold(threshold){}
-  StaticArray<EdgeWeight> sample(const CSRGraph &g) override;
+  ForestFireSampler(float pf, float targetBurntRatio): _pf(pf), _targetBurntRatio(targetBurntRatio){}
+  StaticArray<EdgeWeight> sample(const CSRGraph &g, EdgeID target_edge_amount) override;
 };
 
 } // sparsification

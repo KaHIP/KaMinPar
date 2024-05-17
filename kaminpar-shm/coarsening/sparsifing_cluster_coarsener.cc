@@ -8,6 +8,7 @@
 #include "kaminpar-shm/coarsening/sparsifing_cluster_coarsener.h"
 
 #include "contraction/cluster_contraction_preprocessing.h"
+#include "sparsification/DensitySparsificationTarget.h"
 #include "sparsification/ForestFireSampler.h"
 #include "sparsification/UniformRandomSampler.h"
 
@@ -23,15 +24,16 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
-SparsifingClusteringCoarsener::SparsifingClusteringCoarsener(
+SparsifyingClusteringCoarsener::SparsifyingClusteringCoarsener(
     const Context &ctx, const PartitionContext &p_ctx
 )
     : _clustering_algorithm(factory::create_clusterer(ctx)),
       _sampling_algorithm(factory::create_sampler(ctx)),
+      _sparsification_target(factory::create_sparsification_target(ctx)),
       _c_ctx(ctx.coarsening),
       _p_ctx(p_ctx) {}
 
-void SparsifingClusteringCoarsener::initialize(const Graph *graph) {
+void SparsifyingClusteringCoarsener::initialize(const Graph *graph) {
   _hierarchy.clear();
   _input_graph = graph;
 }
@@ -44,7 +46,7 @@ void SparsifingClusteringCoarsener::initialize(const Graph *graph) {
  * @param edges_kept how many edges are samples, i.e., how many entries in sample are not 0
  */
 CSRGraph
-SparsifingClusteringCoarsener::sparsify(const CSRGraph *g, StaticArray<EdgeWeight> sample) {
+SparsifyingClusteringCoarsener::sparsify(const CSRGraph *g, StaticArray<EdgeWeight> sample) {
   auto nodes = StaticArray<EdgeID>(g->n() + 1);
   for (NodeID v : g->nodes()) {
     for (EdgeID e : g->incident_edges(v)) {
@@ -84,7 +86,7 @@ SparsifingClusteringCoarsener::sparsify(const CSRGraph *g, StaticArray<EdgeWeigh
   );
 }
 
-bool SparsifingClusteringCoarsener::coarsen() {
+bool SparsifyingClusteringCoarsener::coarsen() {
   SCOPED_HEAP_PROFILER("Level", std::to_string(_hierarchy.size()));
   SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
 
@@ -113,19 +115,31 @@ bool SparsifingClusteringCoarsener::coarsen() {
     );
   };
 
-  KASSERT(coarsened->get().m() % 2 == 0, "graph should be undirected", assert::always);
-  const CSRGraph *csr = dynamic_cast<const CSRGraph *>(coarsened->get().underlying_graph());
-  KASSERT(csr != nullptr, "can only be used with a CSRGraph", assert::always);
+  auto target_edge_amount = _sparsification_target->computeTarget(
+      _hierarchy.empty() ? *_input_graph : _hierarchy.back()->get(), coarsened->get().n()
+  );
+  if (coarsened->get().m() > target_edge_amount) { // sparsify
+    KASSERT(coarsened->get().m() % 2 == 0, "graph should be undirected", assert::always);
+    const CSRGraph *csr = dynamic_cast<const CSRGraph *>(coarsened->get().underlying_graph());
+    KASSERT(csr != nullptr, "can only be used with a CSRGraph", assert::always);
 
-  auto sample = _sampling_algorithm->sample(*csr);
-  CSRGraph sparsified = sparsify(csr, std::move(sample));
+    auto sample = _sampling_algorithm->sample(*csr, target_edge_amount);
+    CSRGraph sparsified = sparsify(csr, std::move(sample));
 
-  _hierarchy.push_back(std::make_unique<contraction::CoarseGraphImpl<StaticArray>>(
-      Graph(std::make_unique<CSRGraph>(std::move(sparsified))),
-      std::move(
-          dynamic_cast<contraction::CoarseGraphImpl<StaticArray> *>(coarsened.get())->get_mapping()
-      )
-  ));
+    _hierarchy.push_back(std::make_unique<contraction::CoarseGraphImpl<StaticArray>>(
+        Graph(std::make_unique<CSRGraph>(std::move(sparsified))),
+        std::move(dynamic_cast<contraction::CoarseGraphImpl<StaticArray> *>(coarsened.get())
+                      ->get_mapping())
+    ));
+    printf(
+        "Sparsifying from %d to %d edges (target: %d)\n",
+        coarsened->get().m(),
+        sparsified.m(),
+        target_edge_amount
+    );
+  } else { // don't sparsify
+    _hierarchy.push_back(std::move(coarsened));
+  }
   STOP_HEAP_PROFILER();
 
   const NodeID next_n = current().n();
@@ -140,7 +154,7 @@ bool SparsifingClusteringCoarsener::coarsen() {
   return !converged;
 }
 
-PartitionedGraph SparsifingClusteringCoarsener::uncoarsen(PartitionedGraph &&p_graph) {
+PartitionedGraph SparsifyingClusteringCoarsener::uncoarsen(PartitionedGraph &&p_graph) {
   SCOPED_HEAP_PROFILER("Level", std::to_string(_hierarchy.size()));
   SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
 
@@ -165,8 +179,8 @@ PartitionedGraph SparsifingClusteringCoarsener::uncoarsen(PartitionedGraph &&p_g
   return {current(), p_graph_k, std::move(partition)};
 }
 
-std::unique_ptr<CoarseGraph> SparsifingClusteringCoarsener::pop_hierarchy(PartitionedGraph &&p_graph
-) {
+std::unique_ptr<CoarseGraph>
+SparsifyingClusteringCoarsener::pop_hierarchy(PartitionedGraph &&p_graph) {
   KASSERT(!empty(), "cannot pop from an empty graph hierarchy", assert::light);
 
   auto coarsened = std::move(_hierarchy.back());
@@ -183,7 +197,7 @@ std::unique_ptr<CoarseGraph> SparsifingClusteringCoarsener::pop_hierarchy(Partit
   return coarsened;
 }
 
-bool SparsifingClusteringCoarsener::keep_allocated_memory() const {
+bool SparsifyingClusteringCoarsener::keep_allocated_memory() const {
   return level() >= _c_ctx.clustering.max_mem_free_coarsening_level;
 }
 } // namespace kaminpar::shm

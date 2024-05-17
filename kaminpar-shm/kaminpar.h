@@ -88,6 +88,11 @@ enum class SparsificationAlgorithm {
   FOREST_FIRE
 };
 
+enum class SparsificationTargetSelection {
+  DENSITY,
+  EDGE_REDUCTION
+};
+
 enum class ClusteringAlgorithm {
   NOOP,
   LABEL_PROPAGATION,
@@ -187,6 +192,8 @@ struct CoarseningContext {
   double convergence_threshold;
 
   SparsificationAlgorithm sparsification_algorithm;
+  SparsificationTargetSelection sparsification_target;
+  float sparsification_factor;
 };
 
 //

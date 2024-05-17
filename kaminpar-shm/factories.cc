@@ -25,6 +25,8 @@
 #include "kaminpar-shm/coarsening/noop_coarsener.h"
 
 // Refinement
+#include "coarsening/sparsification/DensitySparsificationTarget.h"
+#include "coarsening/sparsification/EdgeReductionSparsificationTarget.h"
 #include "coarsening/sparsification/ForestFireSampler.h"
 #include "coarsening/sparsification/UniformRandomSampler.h"
 #include "coarsening/sparsifing_cluster_coarsener.h"
@@ -83,7 +85,7 @@ std::unique_ptr<Coarsener> create_coarsener(const Context &ctx, const PartitionC
     return std::make_unique<ClusteringCoarsener>(ctx, p_ctx);
 
   case CoarseningAlgorithm::SPARSIFYING_CLUSTERING:
-    return std::make_unique<SparsifingClusteringCoarsener>(ctx, p_ctx);
+    return std::make_unique<SparsifyingClusteringCoarsener>(ctx, p_ctx);
   }
 
   __builtin_unreachable();
@@ -92,9 +94,24 @@ std::unique_ptr<Coarsener> create_coarsener(const Context &ctx, const PartitionC
 std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
   switch (ctx.coarsening.sparsification_algorithm) {
   case SparsificationAlgorithm::FOREST_FIRE:
-    return std::make_unique<sparsification::ForestFireSampler>(0.3, 0.9, 0.01);
+    return std::make_unique<sparsification::ForestFireSampler>(0.3, 0.9);
   case SparsificationAlgorithm::UNIFORM_RANDOM_SAMPLING:
-    return std::make_unique<sparsification::UniformRandomSampler>(0.5);
+    return std::make_unique<sparsification::UniformRandomSampler>();
+  }
+
+  __builtin_unreachable();
+}
+std::unique_ptr<sparsification::SparsificationTarget>
+create_sparsification_target(const Context &ctx) {
+  switch (ctx.coarsening.sparsification_target) {
+  case SparsificationTargetSelection::DENSITY:
+    return std::make_unique<sparsification::DensitySparsificationTarget>(
+        ctx.coarsening.sparsification_factor
+    );
+  case SparsificationTargetSelection::EDGE_REDUCTION:
+    return std::make_unique<sparsification::EdgeReductionSparsificationTarget>(
+        ctx.coarsening.sparsification_factor
+    );
   }
 
   __builtin_unreachable();
