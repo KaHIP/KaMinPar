@@ -513,6 +513,7 @@ protected:
     };
 
     const bool use_frm_selection =
+        _impl == LabelPropagationImplementation::TWO_PHASE &&
         _second_phase_selection_strategy == SecondPhaseSelectionStrategy::FULL_RATING_MAP;
     const bool aggregate_during_second_phase =
         _second_phase_aggregation_strategy != SecondPhaseAggregationStrategy::NONE;
