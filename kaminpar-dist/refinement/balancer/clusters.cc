@@ -13,7 +13,7 @@
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
-#include "kaminpar-dist/coarsening/clustering/clusterer.h"
+#include "kaminpar-dist/coarsening/clusterer.h"
 #include "kaminpar-dist/context.h"
 #include "kaminpar-dist/factories.h"
 #include "kaminpar-dist/logger.h"
@@ -516,11 +516,14 @@ Clusters build_local_clusters(
     const DistributedPartitionedGraph &p_graph,
     const PartitionContext &p_ctx,
     const NodeWeight max_weight,
-    std::unique_ptr<LocalClusterer> clusterer,
+    std::unique_ptr<Clusterer> clusterer,
     ClustersMemoryContext m_ctx
 ) {
-  clusterer->initialize(p_graph.graph());
-  auto &clustering = clusterer->cluster(p_graph, max_weight);
+  clusterer->set_max_cluster_weight(max_weight);
+
+  StaticArray<NodeID> clustering(p_graph.total_n());
+  StaticArray<GlobalNodeID> casted(std::ceil(1.0 * p_graph.total_n() / 2), clustering.data());
+  clusterer->cluster(casted, p_graph.graph());
 
   std::vector<NodeID> cluster_to_move_set(p_graph.n());
   std::vector<NodeID> cluster_sizes(p_graph.n());
@@ -605,7 +608,7 @@ Clusters build_clusters(
         p_graph,
         p_ctx,
         max_move_set_weight,
-        factory::create_local_clusterer(ctx, LocalClusteringAlgorithm::LP),
+        factory::create_clusterer(ctx, ClusteringAlgorithm::LOCAL_LP),
         std::move(m_ctx)
     );
 

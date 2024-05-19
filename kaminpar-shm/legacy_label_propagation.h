@@ -28,8 +28,7 @@ struct LegacyLabelPropagationConfig {
   using CSRGraph = ::kaminpar::shm::CSRGraph;
 
   // Data structure used to accumulate edge weights for gain value calculation
-  using RatingMap =
-      ::kaminpar::RatingMap<shm::EdgeWeight, shm::NodeID, FastResetArray<shm::EdgeWeight>>;
+  using RatingMap = ::kaminpar::RatingMap<shm::EdgeWeight, shm::NodeID>;
 
   // Data type for cluster IDs and weights
   using ClusterID = void;

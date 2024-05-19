@@ -33,8 +33,7 @@
 namespace kaminpar {
 struct LabelPropagationConfig {
   // Data structures used to accumulate edge weights for gain value calculation
-  using RatingMap =
-      ::kaminpar::RatingMap<shm::EdgeWeight, shm::NodeID, FastResetArray<shm::EdgeWeight>>;
+  using RatingMap = ::kaminpar::RatingMap<shm::EdgeWeight, shm::NodeID>;
   using ConcurrentRatingMap = ConcurrentFastResetArray<shm::EdgeWeight, shm::NodeID>;
   using GrowingRatingMap = DynamicRememberingFlatMap<shm::NodeID, shm::EdgeWeight>;
 

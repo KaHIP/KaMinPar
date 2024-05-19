@@ -35,6 +35,6 @@ private:
   const Context &_input_ctx;
 
   std::list<DistributedGraph> _replicated_graphs;
-  std::stack<Coarsener> _coarseners;
+  std::stack<std::unique_ptr<Coarsener>> _coarseners;
 };
 } // namespace kaminpar::dist

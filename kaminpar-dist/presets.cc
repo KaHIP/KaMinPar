@@ -59,7 +59,7 @@ Context create_default_context() {
       .coarsening =
           {
               .max_global_clustering_levels = std::numeric_limits<std::size_t>::max(),
-              .global_clustering_algorithm = GlobalClusteringAlgorithm::LP,
+              .global_clustering_algorithm = ClusteringAlgorithm::GLOBAL_LP,
               .global_lp =
                   {
                       .num_iterations = 3,
@@ -95,7 +95,7 @@ Context create_default_context() {
                       .ignore_weight_limit = false,
                   },
               .max_local_clustering_levels = 0,
-              .local_clustering_algorithm = LocalClusteringAlgorithm::NOOP,
+              .local_clustering_algorithm = ClusteringAlgorithm::LOCAL_NOOP,
               .local_lp =
                   {
                       .num_iterations = 5,

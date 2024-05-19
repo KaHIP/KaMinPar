@@ -245,8 +245,12 @@ struct JetRefinementContext {
   int num_iterations;
   int num_fruitless_iterations;
   double fruitless_threshold;
-  double fine_negative_gain_factor;
-  double coarse_negative_gain_factor;
+  int num_rounds_on_fine_level;
+  int num_rounds_on_coarse_level;
+  double initial_gain_temp_on_fine_level;
+  double final_gain_temp_on_fine_level;
+  double initial_gain_temp_on_coarse_level;
+  double final_gain_temp_on_coarse_level;
   RefinementAlgorithm balancing_algorithm;
 };
 
@@ -444,7 +448,7 @@ Context create_fast_context();
 Context create_largek_context();
 Context create_largek_fm_context();
 Context create_strong_context();
-Context create_jet_context();
+Context create_jet_context(int rounds = 1);
 Context create_noref_context();
 } // namespace kaminpar::shm
 

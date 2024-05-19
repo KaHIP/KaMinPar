@@ -188,8 +188,7 @@ private:
 
   const PartitionedGraph *_p_graph = nullptr;
 
-  mutable tbb::enumerable_thread_specific<
-      RatingMap<EdgeWeight, BlockID, SparseMap<BlockID, EdgeWeight>>>
+  mutable tbb::enumerable_thread_specific<RatingMap<EdgeWeight, BlockID, rm_backyard::SparseMap>>
       _rating_map_ets;
 };
 

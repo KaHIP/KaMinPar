@@ -54,43 +54,35 @@ std::ostream &operator<<(std::ostream &out, const PartitioningMode mode) {
   return out << "<invalid>";
 }
 
-std::unordered_map<std::string, GlobalClusteringAlgorithm> get_global_clustering_algorithms() {
+std::unordered_map<std::string, ClusteringAlgorithm> get_clustering_algorithms() {
   return {
-      {"noop", GlobalClusteringAlgorithm::NOOP},
-      {"lp", GlobalClusteringAlgorithm::LP},
-      {"hem", GlobalClusteringAlgorithm::HEM},
-      {"hem-lp", GlobalClusteringAlgorithm::HEM_LP},
+      {"noop", ClusteringAlgorithm::GLOBAL_NOOP},
+      {"global-noop", ClusteringAlgorithm::GLOBAL_NOOP},
+      {"lp", ClusteringAlgorithm::GLOBAL_LP},
+      {"global-lp", ClusteringAlgorithm::GLOBAL_LP},
+      {"hem", ClusteringAlgorithm::GLOBAL_HEM},
+      {"global-hem", ClusteringAlgorithm::GLOBAL_HEM},
+      {"hem-lp", ClusteringAlgorithm::GLOBAL_HEM_LP},
+      {"global-hem-lp", ClusteringAlgorithm::GLOBAL_HEM_LP},
+      {"local-noop", ClusteringAlgorithm::LOCAL_NOOP},
+      {"local-lp", ClusteringAlgorithm::LOCAL_LP},
   };
 }
 
-std::ostream &operator<<(std::ostream &out, const GlobalClusteringAlgorithm algorithm) {
+std::ostream &operator<<(std::ostream &out, const ClusteringAlgorithm algorithm) {
   switch (algorithm) {
-  case GlobalClusteringAlgorithm::NOOP:
-    return out << "noop";
-  case GlobalClusteringAlgorithm::LP:
-    return out << "lp";
-  case GlobalClusteringAlgorithm::HEM:
-    return out << "hem";
-  case GlobalClusteringAlgorithm::HEM_LP:
-    return out << "hem-lp";
-  }
-
-  return out << "<invalid>";
-}
-
-std::unordered_map<std::string, LocalClusteringAlgorithm> get_local_clustering_algorithms() {
-  return {
-      {"noop", LocalClusteringAlgorithm::NOOP},
-      {"lp", LocalClusteringAlgorithm::LP},
-  };
-}
-
-std::ostream &operator<<(std::ostream &out, const LocalClusteringAlgorithm algorithm) {
-  switch (algorithm) {
-  case LocalClusteringAlgorithm::NOOP:
-    return out << "noop";
-  case LocalClusteringAlgorithm::LP:
-    return out << "lp";
+  case ClusteringAlgorithm::GLOBAL_NOOP:
+    return out << "global-noop";
+  case ClusteringAlgorithm::GLOBAL_LP:
+    return out << "global-lp";
+  case ClusteringAlgorithm::GLOBAL_HEM:
+    return out << "global-hem";
+  case ClusteringAlgorithm::GLOBAL_HEM_LP:
+    return out << "global-hem-lp";
+  case ClusteringAlgorithm::LOCAL_NOOP:
+    return out << "local-noop";
+  case ClusteringAlgorithm::LOCAL_LP:
+    return out << "local-lp";
   }
 
   return out << "<invalid>";
@@ -401,15 +393,15 @@ void print(const CoarseningContext &ctx, const ParallelContext &parallel, std::o
     }
     out << "\n";
 
-    if (ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::LP ||
-        ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::HEM_LP) {
+    if (ctx.global_clustering_algorithm == ClusteringAlgorithm::GLOBAL_LP ||
+        ctx.global_clustering_algorithm == ClusteringAlgorithm::GLOBAL_HEM_LP) {
       out << "  Number of iterations:       " << ctx.global_lp.num_iterations << "\n";
       out << "  High degree threshold:      " << ctx.global_lp.passive_high_degree_threshold
           << " (passive), " << ctx.global_lp.active_high_degree_threshold << " (active)\n";
       out << "  Max degree:                 " << ctx.global_lp.max_num_neighbors << "\n";
       print(ctx.global_lp.chunks, parallel, out);
       out << "  Active set:                 "
-          << (ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::LP ? "no" : "yes")
+          << (ctx.global_clustering_algorithm == ClusteringAlgorithm::GLOBAL_LP ? "no" : "yes")
           << "\n";
       out << "  Cluster weights:            "
           << (ctx.global_lp.sync_cluster_weights ? "sync" : "no-sync") << "+"
@@ -417,8 +409,8 @@ void print(const CoarseningContext &ctx, const ParallelContext &parallel, std::o
           << (ctx.global_lp.cheap_toplevel ? "(on level > 1)" : "(always)") << "\n";
     }
 
-    if (ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::HEM ||
-        ctx.global_clustering_algorithm == GlobalClusteringAlgorithm::HEM_LP) {
+    if (ctx.global_clustering_algorithm == ClusteringAlgorithm::GLOBAL_HEM ||
+        ctx.global_clustering_algorithm == ClusteringAlgorithm::GLOBAL_HEM_LP) {
       print(ctx.hem.chunks, parallel, out);
       out << "  Small color blacklist:      " << 100 * ctx.hem.small_color_blacklist << "%"
           << (ctx.hem.only_blacklist_input_level ? " (input level only)" : "") << "\n";

@@ -434,19 +434,17 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
   coarsening
       ->add_option("--c-local-clustering-algorithm", ctx.coarsening.local_clustering_algorithm)
-      ->transform(CLI::CheckedTransformer(get_local_clustering_algorithms()).description(""))
+      ->transform(CLI::CheckedTransformer(get_clustering_algorithms()).description(""))
       ->description(R"(Local clustering algorithm, options are:
-  - noop: disable local clustering
-  - lp:   parallel label propagation)")
+  - local-noop: disable local clustering
+  - local-lp:   parallel label propagation)")
       ->capture_default_str();
   coarsening
       ->add_option("--c-global-clustering-algorithm", ctx.coarsening.global_clustering_algorithm)
-      ->transform(CLI::CheckedTransformer(get_global_clustering_algorithms()).description(""))
+      ->transform(CLI::CheckedTransformer(get_clustering_algorithms()).description(""))
       ->description(R"(Global clustering algorithm, options are:
   - noop:           disable global clustering
   - lp:             parallel label propagation without active set strategy
-  - active-set-lp:  parallel label propagation with active set strategy
-  - locking-lp:     parallel label propagation with cluster-join requests
   - hem:            heavy edge matching
   - hem-lp:         heavy edge matching + label propagation)")
 

@@ -25,7 +25,7 @@
 
 namespace kaminpar::dist {
 struct LPRefinerConfig : public LabelPropagationConfig {
-  using RatingMap = ::kaminpar::RatingMap<EdgeWeight, BlockID, FastResetArray<EdgeWeight>>;
+  using RatingMap = ::kaminpar::RatingMap<EdgeWeight, BlockID>;
   using Graph = DistributedGraph;
   using ClusterID = BlockID;
   using ClusterWeight = BlockWeight;

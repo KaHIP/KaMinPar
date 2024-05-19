@@ -126,8 +126,8 @@ void parse_graph(
         KASSERT(edge_weight > 0u, "zero edge weights are not supported");
       }
 
-      KASSERT(v + 1 < header.num_nodes, "neighbor out of bounds");
-      KASSERT(u != v + 1, "detected illegal self-loop");
+      KASSERT(v < header.num_nodes, "neighbor out of bounds");
+      KASSERT(u != v, "detected illegal self-loop");
 
       next_edge_cb(edge_weight, v);
     }

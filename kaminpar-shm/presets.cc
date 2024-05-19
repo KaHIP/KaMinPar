@@ -28,7 +28,9 @@ Context create_context_by_preset_name(const std::string &name) {
   } else if (name == "strong" || name == "fm") {
     return create_strong_context();
   } else if (name == "jet") {
-    return create_jet_context();
+    return create_jet_context(1);
+  } else if (name == "4xjet") {
+    return create_jet_context(4);
   } else if (name == "noref") {
     return create_noref_context();
   }
@@ -45,6 +47,7 @@ std::unordered_set<std::string> get_preset_names() {
       "strong",
       "fm",
       "jet",
+      "4xjet",
       "noref",
   };
 }
@@ -172,8 +175,12 @@ Context create_default_context() {
                       .num_iterations = 0,
                       .num_fruitless_iterations = 12,
                       .fruitless_threshold = 0.999,
-                      .fine_negative_gain_factor = 0.25,
-                      .coarse_negative_gain_factor = 0.75,
+                      .num_rounds_on_fine_level = 1,
+                      .num_rounds_on_coarse_level = 1,
+                      .initial_gain_temp_on_fine_level = 0.25,
+                      .final_gain_temp_on_fine_level = 0.25,
+                      .initial_gain_temp_on_coarse_level = 0.75,
+                      .final_gain_temp_on_coarse_level = 0.75,
                       .balancing_algorithm = RefinementAlgorithm::GREEDY_BALANCER,
                   },
               .mtkahypar =
@@ -263,12 +270,22 @@ Context create_strong_context() {
   return ctx;
 }
 
-Context create_jet_context() {
+Context create_jet_context(const int rounds) {
   Context ctx = create_default_context();
   ctx.refinement.algorithms = {
       RefinementAlgorithm::GREEDY_BALANCER,
       RefinementAlgorithm::JET,
   };
+
+  if (rounds > 1) {
+    ctx.refinement.jet.num_rounds_on_coarse_level = rounds;
+    ctx.refinement.jet.num_rounds_on_fine_level = rounds;
+    ctx.refinement.jet.initial_gain_temp_on_coarse_level = 0.75;
+    ctx.refinement.jet.initial_gain_temp_on_fine_level = 0.75;
+    ctx.refinement.jet.final_gain_temp_on_coarse_level = 0.25;
+    ctx.refinement.jet.final_gain_temp_on_fine_level = 0.25;
+  }
+
   return ctx;
 }
 

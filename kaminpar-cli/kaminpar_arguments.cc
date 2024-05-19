@@ -503,11 +503,30 @@ CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
   jet->add_option("--r-jet-fruitless-threshold", ctx.refinement.jet.fruitless_threshold)
       ->capture_default_str();
+  jet->add_option("--r-jet-num-rounds-on-fine-level", ctx.refinement.jet.num_rounds_on_fine_level)
+      ->capture_default_str();
   jet->add_option(
-         "--r-jet-coarse-negative-gain-factor", ctx.refinement.jet.coarse_negative_gain_factor
+         "--r-jet-num-rounds-on-coarse-level", ctx.refinement.jet.num_rounds_on_coarse_level
   )
       ->capture_default_str();
-  jet->add_option("--r-jet-fine-negative-gain-factor", ctx.refinement.jet.fine_negative_gain_factor)
+  jet->add_option(
+         "--r-jet-initial-gain-temp-on-fine-level",
+         ctx.refinement.jet.initial_gain_temp_on_fine_level
+  )
+      ->capture_default_str();
+  jet->add_option(
+         "--r-jet-final-gain-temp-on-fine-level", ctx.refinement.jet.final_gain_temp_on_fine_level
+  )
+      ->capture_default_str();
+  jet->add_option(
+         "--r-jet-initial-gain-temp-on-coarse-level",
+         ctx.refinement.jet.initial_gain_temp_on_coarse_level
+  )
+      ->capture_default_str();
+  jet->add_option(
+         "--r-jet-final-gain-temp-on-coarse-level",
+         ctx.refinement.jet.final_gain_temp_on_coarse_level
+  )
       ->capture_default_str();
 
   return jet;

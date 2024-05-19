@@ -1,19 +1,25 @@
 /*******************************************************************************
- * Graph contraction for local clusterings.
+ * Common code for graph contraction algorithms.
  *
- * @file:   local_cluster_contraction.h
+ * @file:   contraction.h
  * @author: Daniel Seemaier
- * @date:   27.10.2021
+ * @date:   06.05.2024
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar-dist/coarsening/contraction.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::dist {
-std::unique_ptr<CoarseGraph>
-contract_local_clustering(const DistributedGraph &graph, const StaticArray<NodeID> &clustering);
+class CoarseGraph {
+public:
+  virtual ~CoarseGraph() = default;
+
+  [[nodiscard]] virtual const DistributedGraph &get() const = 0;
+  [[nodiscard]] virtual DistributedGraph &get() = 0;
+
+  virtual void project(const StaticArray<BlockID> &partition, StaticArray<BlockID> &onto) = 0;
+};
 } // namespace kaminpar::dist
