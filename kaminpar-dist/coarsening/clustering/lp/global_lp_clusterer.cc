@@ -30,7 +30,7 @@ struct GlobalLPClusteringConfig : public LabelPropagationConfig {
   static constexpr bool kTrackClusterCount = false;         // NOLINT
   static constexpr bool kUseTwoHopClustering = false;       // NOLINT
   static constexpr bool kUseActiveSetStrategy = false;      // NOLINT
-  static constexpr bool kUseLocalActiveSetStrategy = false; // NOLINT
+  static constexpr bool kUseLocalActiveSetStrategy = true; // NOLINT
 };
 } // namespace
 
@@ -57,23 +57,21 @@ public:
   }
 
   void initialize(const DistributedGraph &graph) {
-    TIMER_BARRIER(graph.communicator());
-    SCOPED_TIMER("Label propagation");
-
     _graph = &graph;
 
+    TIMER_BARRIER(graph.communicator());
     START_TIMER("Initialize high-degree node info");
     if (_passive_high_degree_threshold > 0) {
       graph.init_high_degree_info(_passive_high_degree_threshold);
     }
     STOP_TIMER();
-    TIMER_BARRIER(graph.communicator());
 
+    TIMER_BARRIER(graph.communicator());
     START_TIMER("Allocation");
     allocate(graph);
     STOP_TIMER();
-    TIMER_BARRIER(graph.communicator());
 
+    TIMER_BARRIER(graph.communicator());
     START_TIMER("Initialize datastructures");
     _cluster_weights_handles_ets.clear();
     _cluster_weights = ClusterWeightsMap{0};
@@ -82,8 +80,6 @@ public:
     Base::initialize(&graph, graph.total_n());
     initialize_ghost_node_clusters();
     STOP_TIMER();
-
-    TIMER_BARRIER(graph.communicator());
   }
 
   void set_max_cluster_weight(const GlobalNodeWeight weight) {
@@ -100,11 +96,21 @@ public:
     const int num_chunks = _c_ctx.global_lp.chunks.compute(_ctx.parallel);
 
     for (int iteration = 0; iteration < _max_num_iterations; ++iteration) {
+      TIMER_BARRIER(graph.communicator());
+      if (iteration == 0) {
+      START_TIMER("Iteration (0)");
+      } else {
+      START_TIMER("Iteration (1+)");
+      }
+
       GlobalNodeID global_num_moved_nodes = 0;
       for (int chunk = 0; chunk < num_chunks; ++chunk) {
         const auto [from, to] = math::compute_local_range<NodeID>(_graph->n(), num_chunks, chunk);
         global_num_moved_nodes += process_chunk(from, to);
       }
+
+      STOP_TIMER();
+
       if (global_num_moved_nodes == 0) {
         break;
       }
@@ -470,8 +476,6 @@ private:
       });
     });
     STOP_TIMER();
-
-    TIMER_BARRIER(_graph->communicator());
 
     // If we detected a max cluster weight violation, remove node weight
     // proportional to our chunk of the cluster weight

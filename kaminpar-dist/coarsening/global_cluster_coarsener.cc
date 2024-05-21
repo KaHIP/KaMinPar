@@ -12,6 +12,7 @@
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/factories.h"
 #include "kaminpar-dist/logger.h"
+#include "kaminpar-dist/timer.h"
 
 #include "kaminpar-shm/coarsening/max_cluster_weights.h"
 
@@ -30,7 +31,14 @@ void GlobalClusterCoarsener::initialize(const DistributedGraph *graph) {
 }
 
 bool GlobalClusterCoarsener::coarsen() {
-  DBG << "Coarsen graph using global clustering algorithm ...";
+  DBG << "Coarsening graph using a global clustering algorithms";
+
+  TIMER_BARRIER(_input_graph->communicator());
+  if (level() == 0) {
+    START_TIMER("Level (0)");
+  } else {
+    START_TIMER("Level (1+)");
+  }
 
   const DistributedGraph &graph = current();
 
@@ -45,19 +53,27 @@ bool GlobalClusterCoarsener::coarsen() {
       assert::heavy
   );
 
-  if (!has_converged(graph, coarse_graph->get())) {
-    DBG << "... accepted coarsened graph";
-
+  const bool keep_graph = !has_converged(graph, coarse_graph->get());
+  if (keep_graph) {
+    DBG << "Accepted coarsened graph";
     _graph_hierarchy.push_back(std::move(coarse_graph));
-    return true;
+  } else {
+    DBG << "Converged due to insufficient shrinkage; discarding coarsened graph";
   }
 
-  DBG << "... converged due to insufficient shrinkage, discarding last coarsening step";
-  return false;
+  STOP_TIMER();
+  return keep_graph;
 }
 
 DistributedPartitionedGraph
 GlobalClusterCoarsener::uncoarsen(DistributedPartitionedGraph &&p_c_graph) {
+  TIMER_BARRIER(_input_graph->communicator());
+  if (level() == 1) {
+    START_TIMER("Level (1)");
+  } else {
+    START_TIMER("Level (2+)");
+  }
+
   std::unique_ptr<CoarseGraph> c_graph = std::move(_graph_hierarchy.back());
   KASSERT(
       &c_graph->get() == &p_c_graph.graph(),
@@ -79,6 +95,7 @@ GlobalClusterCoarsener::uncoarsen(DistributedPartitionedGraph &&p_c_graph) {
       assert::heavy
   );
 
+  STOP_TIMER();
   return p_f_graph;
 }
 

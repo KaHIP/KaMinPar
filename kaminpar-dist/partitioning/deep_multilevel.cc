@@ -60,9 +60,10 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   const PEID initial_size = mpi::get_comm_size(_input_graph.communicator());
   PEID current_num_pes = initial_size;
 
-  while (!converged && graph->global_n() > desired_num_nodes) {
-    SCOPED_TIMER("Coarsening");
+  TIMER_BARRIER(_input_graph.communicator());
+  START_TIMER("Coarsening");
 
+  while (!converged && graph->global_n() > desired_num_nodes) {
     // Replicate graph and split PEs when the graph becomes too small
     const BlockID num_blocks_on_this_level =
         math::ceil2(graph->global_n() / _input_ctx.coarsening.contraction_limit);
@@ -102,11 +103,13 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
 
     graph = c_graph;
   }
-  TIMER_BARRIER(_input_graph.communicator());
+
+  STOP_TIMER();
 
   /*
    * Initial Partitioning
    */
+  TIMER_BARRIER(_input_graph.communicator());
   START_TIMER("Initial partitioning");
   auto initial_partitioner = TIMED_SCOPE("Allocation") {
     return factory::create_initial_partitioner(_input_ctx);
@@ -145,7 +148,6 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   );
   print_initial_partitioning_result(dist_p_graph, ip_p_ctx);
   STOP_TIMER();
-  TIMER_BARRIER(_input_graph.communicator());
 
   // Only store coarsest graph + partition of PE group 0
   if (initial_rank < current_num_pes) {
@@ -156,7 +158,6 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   /*
    * Uncoarsening and Refinement
    */
-  START_TIMER("Uncoarsening");
   auto refiner_factory = TIMED_SCOPE("Allocation") {
     return factory::create_refiner(_input_ctx);
   };
@@ -265,6 +266,9 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   ref_p_ctx.graph = std::make_unique<GraphContext>(dist_p_graph.graph(), ref_p_ctx);
 
   // Uncoarsen, partition blocks and refine
+  TIMER_BARRIER(_input_graph.communicator());
+  START_TIMER("Uncoarsening");
+
   while (_coarseners.size() > 1 || coarsener->level() > 0) {
     LOG;
     LOG << "Uncoarsening -> Level " << _coarseners.size() << "," << coarsener->level() << ":";
