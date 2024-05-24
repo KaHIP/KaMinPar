@@ -11,8 +11,17 @@
 namespace kaminpar::shm::sparsification {
 
 StaticArray<EdgeWeight> kNeighbourSampler::sample(const CSRGraph &g, EdgeID target_edge_amount) {
-  int k = target_edge_amount / g.n();
+  int k = compute_k(g, target_edge_amount);
+  StaticArray<EdgeWeight> sample = sample_directed(g, k);
+  make_sample_symmetric(g, sample);
+  return sample;
+}
 
+EdgeID kNeighbourSampler::compute_k(const CSRGraph &g, EdgeID target_edge_amount) {
+  return target_edge_amount / g.n();
+}
+
+StaticArray<EdgeWeight> kNeighbourSampler::sample_directed(const CSRGraph &g, EdgeID k) {
   StaticArray<EdgeWeight> sample = StaticArray<EdgeWeight>(g.m(), 0);
   StaticArray<double> choices = StaticArray<double>(k);
   StaticArray<EdgeWeight> weights_prefix_sum = StaticArray<EdgeWeight>(g.max_degree());
@@ -46,7 +55,9 @@ StaticArray<EdgeWeight> kNeighbourSampler::sample(const CSRGraph &g, EdgeID targ
       }
     }
   }
+}
 
+void kNeighbourSampler::make_sample_symmetric(const CSRGraph &g, StaticArray<EdgeWeight> &sample) {
   // Then combine the sample of each edge at both endpoints
   StaticArray<EdgeID> sorted_by_target_permutation = StaticArray<EdgeID>(g.m());
   for (auto e : g.edges())
@@ -66,13 +77,13 @@ StaticArray<EdgeWeight> kNeighbourSampler::sample(const CSRGraph &g, EdgeID targ
       if (u < v) {
         EdgeID counter_edge = sorted_by_target_permutation[g.raw_nodes()[v] + edges_done[v]];
         KASSERT(g.edge_target(counter_edge) == u, "Graph was not sorted", assert::always);
-        sample[e] = (sample[e] + sample[counter_edge]) / 2;
+        EdgeWeight combined_sample = (sample[e] + sample[counter_edge]) / 2;
+        sample[e] = combined_sample;
+        sample[counter_edge] = combined_sample;
         edges_done[v]++;
       }
     }
   }
-
-  return sample;
 }
 
 } // namespace kaminpar::shm::sparsification
