@@ -35,12 +35,10 @@ EffectiveResistanceSampler::sample(const CSRGraph &g, EdgeID target_edge_amount)
   jl_array_t *jl_J = jl_ptr_to_array_1d(array_type, J, g.m(), 1);
   jl_array_t *jl_V = jl_ptr_to_array_1d(array_type, V, g.m(), 1);
 
-  jl_eval_string("cd(\"/home/badger/Uni/S6/BA/KaMinPar/Laplacians.jl/src/\");include(\"Laplacians.jl\")");
 
 
+  jl_eval_string("using Laplacians");
   jl_module_t *laplacian = (jl_module_t *)jl_eval_string("Main.Laplacians");
-  if (jl_exception_occurred())
-    printf("%s: %s \n", jl_typeof_str(jl_exception_occurred()), jl_typeof_str(jl_current_exception()));
   KASSERT(laplacian != nullptr, "Could not find module Laplacian in Julia.", assert::always);
 
 
