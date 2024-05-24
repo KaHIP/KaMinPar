@@ -46,11 +46,11 @@ void SparsifyingClusteringCoarsener::initialize(const Graph *graph) {
  * @param edges_kept how many edges are samples, i.e., how many entries in sample are not 0
  */
 CSRGraph
-SparsifyingClusteringCoarsener::sparsify(const CSRGraph *g, StaticArray<EdgeWeight> sample) {
-  auto nodes = StaticArray<EdgeID>(g->n() + 1);
-  for (NodeID v : g->nodes()) {
-    for (EdgeID e : g->incident_edges(v)) {
-      NodeID u = g->edge_target(e);
+SparsifyingClusteringCoarsener::sparsify(const CSRGraph &g, StaticArray<EdgeWeight> sample) {
+  auto nodes = StaticArray<EdgeID>(g.n() + 1);
+  for (NodeID v : g.nodes()) {
+    for (EdgeID e : g.incident_edges(v)) {
+      NodeID u = g.edge_target(e);
       if (v < u && sample[e]) {
         nodes[v + 1]++;
         nodes[u + 1]++;
@@ -59,13 +59,13 @@ SparsifyingClusteringCoarsener::sparsify(const CSRGraph *g, StaticArray<EdgeWeig
   }
   parallel::prefix_sum(nodes.begin(), nodes.end(), nodes.begin());
 
-  auto edges_added = StaticArray<EdgeID>(g->n(), 0);
-  auto edges = StaticArray<NodeID>(nodes[g->n()]);
-  auto edge_weights = StaticArray<EdgeWeight>(nodes[g->n()]);
+  auto edges_added = StaticArray<EdgeID>(g.n(), 0);
+  auto edges = StaticArray<NodeID>(nodes[g.n()]);
+  auto edge_weights = StaticArray<EdgeWeight>(nodes[g.n()]);
 
-  for (NodeID v : g->nodes()) {
-    for (EdgeID e : g->incident_edges(v)) {
-      NodeID u = g->edge_target(e);
+  for (NodeID v : g.nodes()) {
+    for (EdgeID e : g.incident_edges(v)) {
+      NodeID u = g.edge_target(e);
       if (v < u && sample[e]) {
         edges[nodes[v] + edges_added[v]] = u;
         edges[nodes[u] + edges_added[u]] = v;
@@ -80,9 +80,9 @@ SparsifyingClusteringCoarsener::sparsify(const CSRGraph *g, StaticArray<EdgeWeig
   return CSRGraph(
       std::move(nodes),
       std::move(edges),
-      std::move(StaticArray<NodeWeight>(g->raw_node_weights().begin(), g->raw_node_weights().end())
-      ),
-      std::move(edge_weights)
+      std::move(StaticArray<NodeWeight>(g.raw_node_weights().begin(), g.raw_node_weights().end())),
+      std::move(edge_weights),
+      g.sorted()
   );
 }
 
@@ -120,11 +120,12 @@ bool SparsifyingClusteringCoarsener::coarsen() {
   );
   if (coarsened->get().m() > target_edge_amount) { // sparsify
     KASSERT(coarsened->get().m() % 2 == 0, "graph should be undirected", assert::always);
+
     const CSRGraph *csr = dynamic_cast<const CSRGraph *>(coarsened->get().underlying_graph());
     KASSERT(csr != nullptr, "can only be used with a CSRGraph", assert::always);
 
     auto sample = _sampling_algorithm->sample(*csr, target_edge_amount);
-    CSRGraph sparsified = sparsify(csr, std::move(sample));
+    CSRGraph sparsified = sparsify(*csr, std::move(sample));
 
     _hierarchy.push_back(std::make_unique<contraction::CoarseGraphImpl<StaticArray>>(
         Graph(std::make_unique<CSRGraph>(std::move(sparsified))),

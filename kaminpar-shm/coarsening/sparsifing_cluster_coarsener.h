@@ -30,7 +30,7 @@ public:
 
   void initialize(const Graph *graph) final;
 
-  CSRGraph sparsify(const CSRGraph *csr, StaticArray<EdgeWeight> sample);
+  CSRGraph sparsify(const CSRGraph &csr, StaticArray<EdgeWeight> sample);
 
   bool coarsen() final;
   PartitionedGraph uncoarsen(PartitionedGraph &&p_graph) final;

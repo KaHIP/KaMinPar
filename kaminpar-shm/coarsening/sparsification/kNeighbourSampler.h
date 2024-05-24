@@ -7,7 +7,7 @@
 #include "Sampler.h"
 
 namespace kaminpar::shm::sparsification {
-class kNeighbourSampler : public Sampler{
+class kNeighbourSampler : public Sampler {
   StaticArray<EdgeWeight> sample(const CSRGraph &g, EdgeID target_edge_amount) override;
 };
 }

@@ -29,6 +29,7 @@
 #include "coarsening/sparsification/EdgeReductionSparsificationTarget.h"
 #include "coarsening/sparsification/ForestFireSampler.h"
 #include "coarsening/sparsification/UniformRandomSampler.h"
+#include "coarsening/sparsification/kNeighbourSampler.h"
 #include "coarsening/sparsifing_cluster_coarsener.h"
 
 #include "kaminpar-shm/refinement/adapters/mtkahypar_refiner.h"
@@ -97,6 +98,8 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
     return std::make_unique<sparsification::ForestFireSampler>(0.3, 0.9);
   case SparsificationAlgorithm::UNIFORM_RANDOM_SAMPLING:
     return std::make_unique<sparsification::UniformRandomSampler>();
+  case SparsificationAlgorithm::K_NEIGHBOUR:
+    return std::make_unique<sparsification::kNeighbourSampler>();
   }
 
   __builtin_unreachable();

@@ -17,30 +17,29 @@ StaticArray<EdgeWeight> kNeighbourSampler::sample(const CSRGraph &g, EdgeID targ
   StaticArray<double> choices = StaticArray<double>(k);
   StaticArray<EdgeWeight> weights_prefix_sum = StaticArray<EdgeWeight>(g.max_degree());
 
+  // First choose locally at evey node how much of each incident edge to sample
   for (NodeID u : g.nodes()) {
-    if (g.degree(u) <= k) {
+    if (g.degree(u) <= k) { // sample all edges
       for (EdgeID e : g.incident_edges(u)) {
         sample[e] = g.edge_weight(e);
       }
-    } else {
+    } else { // sample k incicdent edges randomly, with probailties proportional to edge weights
       EdgeID first_incident_edge = g.raw_nodes()[u];
-
-      for (int i = 0; i < k; ++i) {
-        choices[i] = Aux::Random::real(1.0);
-      }
-      std::sort(choices.begin(), choices.end());
-
       weights_prefix_sum[0] = g.edge_weight(first_incident_edge);
       for (int offset = 1; offset < g.degree(u); ++offset) {
         weights_prefix_sum[offset] =
             weights_prefix_sum[offset - 1] + g.edge_weight(first_incident_edge + offset);
       }
-
       EdgeWeight total_weight = weights_prefix_sum[g.degree(u) - 1];
-      EdgeID incident_edge_offset = 0;
 
       for (int i = 0; i < k; ++i) {
-        while (weights_prefix_sum[incident_edge_offset] < choices[i] * total_weight) {
+        choices[i] = Aux::Random::real(total_weight);
+      }
+      std::sort(choices.begin(), choices.end());
+
+      EdgeID incident_edge_offset = 0;
+      for (int i = 0; i < k; ++i) {
+        while (weights_prefix_sum[incident_edge_offset] < choices[i]) {
           incident_edge_offset++;
         }
         sample[first_incident_edge + incident_edge_offset] += total_weight / k;
@@ -48,19 +47,32 @@ StaticArray<EdgeWeight> kNeighbourSampler::sample(const CSRGraph &g, EdgeID targ
     }
   }
 
-  // TODO: Make more efficent than O(m * n)
+  // Then combine the sample of each edge at both endpoints
+  StaticArray<EdgeID> sorted_by_target_permutation = StaticArray<EdgeID>(g.m());
+  for (auto e : g.edges())
+    sorted_by_target_permutation[e] = e;
+  for (NodeID u : g.nodes()) {
+    std::sort(
+        sorted_by_target_permutation.begin() + g.raw_nodes()[u],
+        sorted_by_target_permutation.begin() + g.raw_nodes()[u + 1],
+        [&](const auto e1, const auto e2) { return g.edge_target(e1) <= g.edge_target(e2); }
+    );
+  }
+
+  auto edges_done = StaticArray<EdgeID>(g.n(), 0);
   for (NodeID u : g.nodes()) {
     for (EdgeID e : g.incident_edges(u)) {
       NodeID v = g.edge_target(e);
       if (u < v) {
-        for (EdgeID f : g.incident_edges(v)) {
-          if (g.edge_target(f) == u) {
-            sample[e] = (sample[e] + sample[f]) / 2;
-          }
-        }
+        EdgeID counter_edge = sorted_by_target_permutation[g.raw_nodes()[v] + edges_done[v]];
+        KASSERT(g.edge_target(counter_edge) == u, "Graph was not sorted", assert::always);
+        sample[e] = (sample[e] + sample[counter_edge]) / 2;
+        edges_done[v]++;
       }
     }
   }
+
+  return sample;
 }
 
 } // namespace kaminpar::shm::sparsification
