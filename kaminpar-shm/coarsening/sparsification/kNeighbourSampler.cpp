@@ -17,8 +17,23 @@ StaticArray<EdgeWeight> kNeighbourSampler::sample(const CSRGraph &g, EdgeID targ
   return sample;
 }
 
+/*
+ * compute max k s.t. the number of sampled edges is at most target_edge_amount
+ */
 EdgeID kNeighbourSampler::compute_k(const CSRGraph &g, EdgeID target_edge_amount) {
-  return target_edge_amount / g.n();
+  auto nodes_of_degree = StaticArray<EdgeID>(g.max_degree());
+  for (NodeID u : g.nodes()) {
+    nodes_of_degree[g.degree(u)]++;
+  }
+
+  EdgeID k = 0, incidence_with_degree_lt_k = 0;
+  NodeID nodes_with_degree_gt_k = g.n();
+  while (target_edge_amount <= incidence_with_degree_lt_k + k * nodes_with_degree_gt_k) {
+    incidence_with_degree_lt_k += k * nodes_of_degree[k];
+    nodes_with_degree_gt_k -= nodes_of_degree[k];
+    k++;
+  }
+  return k - 1;
 }
 
 StaticArray<EdgeWeight> kNeighbourSampler::sample_directed(const CSRGraph &g, EdgeID k) {
