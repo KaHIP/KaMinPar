@@ -27,8 +27,8 @@ EdgeID kNeighbourSampler::compute_k(const CSRGraph &g, EdgeID target_edge_amount
   }
 
   EdgeID k = 0, incidence_with_degree_lt_k = 0;
-  NodeID nodes_with_degree_gt_k = g.n();
-  while (target_edge_amount <= incidence_with_degree_lt_k + k * nodes_with_degree_gt_k) {
+  NodeID nodes_with_degree_gt_k = g.n() - nodes_of_degree[0];
+  while (incidence_with_degree_lt_k + k * nodes_with_degree_gt_k <= target_edge_amount) {
     incidence_with_degree_lt_k += k * nodes_of_degree[k];
     nodes_with_degree_gt_k -= nodes_of_degree[k];
     k++;
@@ -70,6 +70,7 @@ StaticArray<EdgeWeight> kNeighbourSampler::sample_directed(const CSRGraph &g, Ed
       }
     }
   }
+  return sample;
 }
 
 void kNeighbourSampler::make_sample_symmetric(const CSRGraph &g, StaticArray<EdgeWeight> &sample) {
