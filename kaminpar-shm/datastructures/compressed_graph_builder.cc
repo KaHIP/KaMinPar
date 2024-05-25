@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <bitset>
 #include <cstdint>
+#include <span>
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
@@ -26,8 +27,14 @@ namespace {
 
 [[nodiscard]] std::size_t
 compressed_edge_array_max_size(const NodeID num_nodes, const EdgeID num_edges) {
-  std::size_t max_size =
-      num_nodes * varint_max_length<EdgeID>() + num_edges * varint_max_length<NodeID>();
+  std::size_t edge_id_width;
+  if constexpr (CompressedGraph::kIntervalEncoding) {
+    edge_id_width = marked_varint_length(num_edges);
+  } else {
+    edge_id_width = varint_length(num_edges);
+  }
+
+  std::size_t max_size = num_nodes * edge_id_width + num_edges * varint_length(num_nodes);
 
   if constexpr (CompressedGraph::kHighDegreeEncoding) {
     if constexpr (CompressedGraph::kIntervalEncoding) {
@@ -136,7 +143,7 @@ EdgeID CompressedEdgesBuilder::add(
         std::uint8_t *cur_part_ptr = part_ptr + sizeof(NodeID) * i;
         *((NodeID *)cur_part_ptr) = static_cast<NodeID>(_compressed_data - part_ptr);
 
-        std::vector<std::pair<NodeID, EdgeWeight>> part_neighbourhood(part_begin, part_end);
+        std::span<std::pair<NodeID, EdgeWeight>> part_neighbourhood(part_begin, part_end);
         add_edges(node, nullptr, part_neighbourhood);
       }
 
@@ -146,7 +153,7 @@ EdgeID CompressedEdgesBuilder::add(
     }
   }
 
-  add_edges(node, marked_byte, neighbourhood);
+  add_edges(node, marked_byte, std::forward<decltype(neighbourhood)>(neighbourhood));
   return offset;
 }
 
@@ -186,10 +193,9 @@ std::size_t CompressedEdgesBuilder::num_intervals() const {
   return _num_intervals;
 }
 
+template <typename Container>
 void CompressedEdgesBuilder::add_edges(
-    const NodeID node,
-    std::uint8_t *marked_byte,
-    std::vector<std::pair<NodeID, EdgeWeight>> &neighbourhood
+    const NodeID node, std::uint8_t *marked_byte, Container &&neighbourhood
 ) {
   const auto store_edge_weight = [&](const EdgeWeight edge_weight) {
     _edge_weights[_edge++] = edge_weight;
@@ -296,8 +302,10 @@ void CompressedEdgesBuilder::add_edges(
   auto iter = neighbourhood.begin();
 
   // Go to the first adjacent node that has not been encoded through an interval.
-  while ((*iter).first == std::numeric_limits<NodeID>::max()) {
-    ++iter;
+  if constexpr (CompressedGraph::kIntervalEncoding) {
+    while ((*iter).first == std::numeric_limits<NodeID>::max()) {
+      ++iter;
+    }
   }
 
   const auto [first_adjacent_node, first_edge_weight] = *iter++;
@@ -316,8 +324,10 @@ void CompressedEdgesBuilder::add_edges(
     const auto [adjacent_node, edge_weight] = *iter++;
 
     // Skip the adjacent node since it has been encoded through an interval.
-    if (adjacent_node == std::numeric_limits<NodeID>::max()) {
-      continue;
+    if constexpr (CompressedGraph::kIntervalEncoding) {
+      if (adjacent_node == std::numeric_limits<NodeID>::max()) {
+        continue;
+      }
     }
 
     const NodeID gap = adjacent_node - prev_adjacent_node - 1;

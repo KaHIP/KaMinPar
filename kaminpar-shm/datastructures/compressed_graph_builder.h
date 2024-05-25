@@ -101,11 +101,8 @@ private:
   std::size_t _num_interval_nodes;
   std::size_t _num_intervals;
 
-  void add_edges(
-      const NodeID node,
-      std::uint8_t *marked_byte,
-      std::vector<std::pair<NodeID, EdgeWeight>> &neighbourhood
-  );
+  template <typename Container>
+  void add_edges(const NodeID node, std::uint8_t *marked_byte, Container &&neighbourhood);
 };
 
 /*!
