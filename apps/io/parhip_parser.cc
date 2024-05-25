@@ -23,6 +23,7 @@
 
 #include "kaminpar-common/datastructures/concurrent_circular_vector.h"
 #include "kaminpar-common/logger.h"
+#include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::io::parhip {
 
@@ -328,28 +329,50 @@ CompressedGraph compressed_read_parallel(const std::string &filename, const bool
       );
     });
 
-    ConcurrentCircularVector<NodeID, EdgeID> buffer(tbb::this_task_arena::max_concurrency());
+    const std::size_t num_threads = tbb::this_task_arena::max_concurrency();
+    ConcurrentCircularVectorSpinlock<NodeID, EdgeID> buffer(num_threads);
 
     // To compress the graph in parallel the nodes are split into chunks. Each parallel task fetches
     // a chunk and compresses the neighbourhoods of the corresponding nodes. The compressed
-    // neighborhoods are thereby temporarily stored in a buffer. They are moved into the compressed
-    // edge array when the (total) length of the compressed neighborhoods of the previous chunks is
-    // determined.
-    constexpr NodeID chunk_size = 4096;
-    const NodeID num_chunks = math::div_ceil(num_nodes, chunk_size);
-    const NodeID last_chunk_size =
-        ((num_nodes % chunk_size) != 0) ? (num_nodes % chunk_size) : chunk_size;
+    // neighborhoods are meanwhile temporarily stored in a buffer. They are moved into the
+    // compressed edge array when the (total) length of the compressed neighborhoods of the previous
+    // chunks is determined.
+    constexpr std::size_t kNumChunks = 5000;
+    const EdgeID max_chunk_size = num_edges / kNumChunks;
+    std::vector<std::pair<NodeID, NodeID>> chunks;
 
-    tbb::parallel_for<NodeID>(0, num_chunks, [&](const auto) {
+    TIMED_SCOPE("Compute chunks") {
+      NodeID cur_chunk_start = 0;
+      EdgeID cur_chunk_size = 0;
+      for (NodeID node = 0; node < num_nodes; ++node) {
+        const auto degree = static_cast<NodeID>((nodes[node + 1] - nodes[node]) / sizeof(NodeID));
+        cur_chunk_size += degree;
+
+        if (cur_chunk_size >= max_chunk_size) {
+          if (cur_chunk_start == node) {
+            chunks.emplace_back(node, node + 1);
+            cur_chunk_start = node + 1;
+          } else {
+            chunks.emplace_back(cur_chunk_start, node);
+            cur_chunk_start = node;
+          }
+
+          cur_chunk_size = 0;
+        }
+      }
+
+      if (cur_chunk_start != num_nodes) {
+        chunks.emplace_back(cur_chunk_start, num_nodes);
+      }
+    };
+
+    tbb::parallel_for<NodeID>(0, chunks.size(), [&](const auto) {
       std::vector<EdgeID> &offsets = offsets_ets.local();
       std::vector<std::pair<NodeID, EdgeWeight>> &neighbourhood = neighbourhood_ets.local();
       CompressedEdgesBuilder &neighbourhood_builder = neighbourhood_builder_ets.local();
 
       const NodeID chunk = buffer.next();
-      const NodeID start_node = chunk * chunk_size;
-
-      const NodeID chunk_length = (chunk + 1 == num_chunks) ? last_chunk_size : chunk_size;
-      const NodeID end_node = start_node + chunk_length;
+      const auto [start_node, end_node] = chunks[chunk];
 
       EdgeID edge = map_edge_offset(start_node);
       neighbourhood_builder.init(edge);

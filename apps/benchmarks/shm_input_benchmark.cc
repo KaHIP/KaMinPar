@@ -33,15 +33,17 @@ int main(int argc, char *argv[]) {
   io::GraphFileFormat graph_file_format = io::GraphFileFormat::METIS;
   int seed = 0;
 
-  CLI::App app("Shared-memory LP benchmark");
+  CLI::App app("Shared-memory input benchmark");
   app.add_option("-G,--graph", graph_filename, "Graph file")->required();
   app.add_option("-f,--graph-file-format", graph_file_format)
       ->transform(CLI::CheckedTransformer(io::get_graph_file_formats()).description(""))
       ->description(R"(Graph file formats:
   - metis
-  - parhip)");
-  app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads");
-  app.add_option("-s,--seed", seed, "Seed for random number generation.")->default_val(seed);
+  - parhip)")
+      ->capture_default_str();
+  app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads")
+      ->capture_default_str();
+  app.add_option("-s,--seed", seed, "Seed for random number generation.")->capture_default_str();
   create_graph_compression_options(&app, ctx);
   CLI11_PARSE(app, argc, argv);
 

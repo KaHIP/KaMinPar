@@ -515,7 +515,7 @@ CompressedGraph ParallelCompressedGraphBuilder::compress(const CSRGraph &graph) 
     return CompressedEdgesBuilder(graph.n(), graph.m(), has_edge_weights, builder.edge_weights());
   });
 
-  ConcurrentCircularVector<NodeID, EdgeID> buffer(tbb::this_task_arena::max_concurrency());
+  ConcurrentCircularVectorSpinlock<NodeID, EdgeID> buffer(tbb::this_task_arena::max_concurrency());
 
   constexpr NodeID chunk_size = 4096;
   const NodeID num_chunks = math::div_ceil(graph.n(), chunk_size);
