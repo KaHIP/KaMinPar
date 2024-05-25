@@ -30,7 +30,7 @@ public:
 
   OnTheFlyGainCache(const Context & /* ctx */, NodeID /* max_n */, const BlockID preallocate_k)
       : _rating_map_ets([preallocate_k] {
-          return RatingMap<EdgeWeight, BlockID, SparseMap<BlockID, EdgeWeight>>(preallocate_k);
+          return RatingMap<EdgeWeight, BlockID, SparseMap>(preallocate_k);
         }) {}
 
   void initialize(const PartitionedGraph &p_graph) {
