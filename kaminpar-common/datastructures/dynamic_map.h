@@ -147,7 +147,7 @@ public:
 
   ~DynamicFlatMap() = default;
 
-  template <typename Lambda> void for_each(Lambda &&lambda) {
+  template <typename Lambda> void for_each(Lambda &&lambda) const {
     for (std::size_t i = 0; i < _capacity; ++i) {
       if (_elements[i].timestamp == _timestamp) {
         lambda(_elements[i].key, _elements[i].value);
@@ -242,13 +242,13 @@ public:
 
   ~DynamicRememberingFlatMap() = default;
 
-  template <typename Lambda> void for_each(Lambda &&lambda) {
+  template <typename Lambda> void for_each(Lambda &&lambda) const {
     for (const std::size_t pos : _positions) {
       lambda(_elements[pos].key, _elements[pos].value);
     }
   }
 
-  [[nodiscard]] auto entries() {
+  [[nodiscard]] auto entries() const {
     return TransformedIotaRange(static_cast<std::size_t>(0), _size, [this](const std::size_t i) {
       const std::size_t pos = _positions[i];
       return std::make_pair(_elements[pos].key, _elements[pos].value);
@@ -292,14 +292,16 @@ private:
   void rehash_impl(
       const std::uint8_t *old_data_begin, const std::size_t old_size, const std::size_t old_capacity
   ) {
-    const auto *elements = reinterpret_cast<const MapElement *>(old_data_begin);
+    _size = old_size;
 
+    const auto *elements = reinterpret_cast<const MapElement *>(old_data_begin);
     for (std::size_t i = 0; i < old_size; ++i) {
       const std::size_t pos = _positions[i];
-      const std::size_t new_pos = find_impl(elements[pos].key) & ~INVALID_POS_MASK;
+      const Key key = elements[pos].key;
+      const std::size_t new_pos = find_impl(key) & ~INVALID_POS_MASK;
 
       _positions[i] = new_pos;
-      add_element_impl(elements[pos].key, elements[pos].value, new_pos);
+      _elements[new_pos] = MapElement{key, elements[pos].value, _timestamp};
     }
   }
 
