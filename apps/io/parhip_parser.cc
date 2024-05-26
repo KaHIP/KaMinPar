@@ -26,6 +26,7 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::io::parhip {
+SET_DEBUG(false);
 
 namespace {
 
@@ -282,6 +283,82 @@ CompressedGraph compressed_read(const std::string &filename, const bool sorted) 
   }
 }
 
+namespace {
+namespace debug {
+using Duration = std::chrono::high_resolution_clock::duration;
+
+struct Stats {
+  Duration compression_time{0};
+  Duration sync_time{0};
+  Duration copy_time{0};
+
+  std::size_t num_chunks{0};
+  std::size_t num_edges{0};
+};
+
+template <typename Lambda> decltype(auto) scoped_time(auto &elapsed, Lambda &&l) {
+  constexpr bool kNonReturning = std::is_void_v<std::invoke_result_t<Lambda>>;
+
+  if constexpr (kDebug) {
+    if constexpr (kNonReturning) {
+      auto start = std::chrono::high_resolution_clock::now();
+      l();
+      auto end = std::chrono::high_resolution_clock::now();
+      elapsed += end - start;
+    } else {
+      auto start = std::chrono::high_resolution_clock::now();
+      decltype(auto) val = l();
+      auto end = std::chrono::high_resolution_clock::now();
+      elapsed += end - start;
+      return val;
+    }
+  } else {
+    return l();
+  }
+}
+
+void print_stats(const auto &stats_ets) {
+  DBG << "Chunk distribution:";
+
+  std::size_t cur_thread = 0;
+  for (const auto &stats : stats_ets) {
+    DBG << "t" << ++cur_thread << ": " << stats.num_chunks;
+  }
+
+  DBG << "Edge distribution:";
+
+  cur_thread = 0;
+  for (const auto &stats : stats_ets) {
+    DBG << "t" << ++cur_thread << ": " << stats.num_edges;
+  }
+
+  DBG << "Time distribution: (compression, sync, copy) [s]";
+
+  const auto to_sec = [&](auto elapsed) {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() / 1000.0;
+  };
+
+  Duration total_time_compression(0);
+  Duration total_time_sync(0);
+  Duration total_time_copy(0);
+
+  cur_thread = 0;
+  for (const auto &stats : stats_ets) {
+    total_time_compression += stats.compression_time;
+    total_time_sync += stats.sync_time;
+    total_time_copy += stats.copy_time;
+
+    DBG << "t" << ++cur_thread << ": " << to_sec(stats.compression_time) << ' '
+        << to_sec(stats.sync_time) << ' ' << to_sec(stats.copy_time);
+  }
+
+  DBG << "sum: " << to_sec(total_time_compression) << ' ' << to_sec(total_time_sync) << ' '
+      << to_sec(total_time_copy);
+}
+
+} // namespace debug
+} // namespace
+
 CompressedGraph compressed_read_parallel(const std::string &filename, const bool sorted) {
   try {
     BinaryReader reader(filename);
@@ -366,7 +443,11 @@ CompressedGraph compressed_read_parallel(const std::string &filename, const bool
       }
     };
 
+    tbb::enumerable_thread_specific<debug::Stats> dbg_ets;
     tbb::parallel_for<NodeID>(0, chunks.size(), [&](const auto) {
+      auto &dbg = dbg_ets.local();
+      IF_DBG dbg.num_chunks++;
+
       std::vector<EdgeID> &offsets = offsets_ets.local();
       std::vector<std::pair<NodeID, EdgeWeight>> &neighbourhood = neighbourhood_ets.local();
       CompressedEdgesBuilder &neighbourhood_builder = neighbourhood_builder_ets.local();
@@ -380,58 +461,67 @@ CompressedGraph compressed_read_parallel(const std::string &filename, const bool
       NodeWeight local_node_weight = 0;
 
       // Compress the neighborhoods of the nodes in the fetched chunk.
-      for (NodeID node = start_node; node < end_node; ++node) {
-        const auto degree = static_cast<NodeID>((nodes[node + 1] - nodes[node]) / sizeof(NodeID));
+      debug::scoped_time(dbg.compression_time, [&] {
+        for (NodeID node = start_node; node < end_node; ++node) {
+          const auto degree = static_cast<NodeID>((nodes[node + 1] - nodes[node]) / sizeof(NodeID));
+          IF_DBG dbg.num_edges += degree;
 
-        for (NodeID i = 0; i < degree; ++i) {
-          const NodeID adjacent_node = edges[edge];
-          const EdgeWeight edge_weight = header.has_edge_weights ? edge_weights[edge] : 1;
+          for (NodeID i = 0; i < degree; ++i) {
+            const NodeID adjacent_node = edges[edge];
+            const EdgeWeight edge_weight = header.has_edge_weights ? edge_weights[edge] : 1;
 
-          neighbourhood.emplace_back(adjacent_node, edge_weight);
-          edge += 1;
+            neighbourhood.emplace_back(adjacent_node, edge_weight);
+            edge += 1;
+          }
+
+          const EdgeID local_offset = neighbourhood_builder.add(node, neighbourhood);
+          offsets.push_back(local_offset);
+
+          neighbourhood.clear();
         }
-
-        const EdgeID local_offset = neighbourhood_builder.add(node, neighbourhood);
-        offsets.push_back(local_offset);
-
-        neighbourhood.clear();
-      }
+      });
 
       // Wait for the parallel tasks that process the previous chunks to finish.
-      const EdgeID compressed_neighborhoods_size = neighbourhood_builder.size();
-      const EdgeID offset = buffer.fetch_and_update(chunk, compressed_neighborhoods_size);
+      const EdgeID offset = debug::scoped_time(dbg.sync_time, [&] {
+        const EdgeID compressed_neighborhoods_size = neighbourhood_builder.size();
+        return buffer.fetch_and_update(chunk, compressed_neighborhoods_size);
+      });
 
       // Store the edge offset and node weight for each node in the chunk and copy the compressed
       // neighborhoods into the actual compressed edge array.
-      NodeID node = start_node;
-      for (EdgeID local_offset : offsets) {
-        builder.add_node(node, offset + local_offset);
+      debug::scoped_time(dbg.copy_time, [&] {
+        NodeID node = start_node;
+        for (EdgeID local_offset : offsets) {
+          builder.add_node(node, offset + local_offset);
 
-        if (header.has_node_weights) {
-          const NodeWeight node_weight = node_weights[node];
-          local_node_weight += node_weight;
+          if (header.has_node_weights) {
+            const NodeWeight node_weight = node_weights[node];
+            local_node_weight += node_weight;
 
-          builder.add_node_weight(node, node_weight);
+            builder.add_node_weight(node, node_weight);
+          }
+
+          node += 1;
         }
+        offsets.clear();
 
-        node += 1;
-      }
-      offsets.clear();
+        builder.add_compressed_edges(
+            offset, neighbourhood_builder.size(), neighbourhood_builder.compressed_data()
+        );
 
-      builder.add_compressed_edges(
-          offset, compressed_neighborhoods_size, neighbourhood_builder.compressed_data()
-      );
-
-      builder.record_local_statistics(
-          neighbourhood_builder.max_degree(),
-          local_node_weight,
-          neighbourhood_builder.total_edge_weight(),
-          neighbourhood_builder.num_high_degree_nodes(),
-          neighbourhood_builder.num_high_degree_parts(),
-          neighbourhood_builder.num_interval_nodes(),
-          neighbourhood_builder.num_intervals()
-      );
+        builder.record_local_statistics(
+            neighbourhood_builder.max_degree(),
+            local_node_weight,
+            neighbourhood_builder.total_edge_weight(),
+            neighbourhood_builder.num_high_degree_nodes(),
+            neighbourhood_builder.num_high_degree_parts(),
+            neighbourhood_builder.num_interval_nodes(),
+            neighbourhood_builder.num_intervals()
+        );
+      });
     });
+
+    IF_DBG debug::print_stats(dbg_ets);
 
     return builder.build();
   } catch (const BinaryReaderException &e) {
