@@ -3,9 +3,7 @@
 //
 
 #include "kNeighbourSampler.h"
-
 #include <networkit/auxiliary/Random.hpp>
-
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::shm::sparsification {
@@ -92,7 +90,7 @@ void kNeighbourSampler::make_sample_symmetric(const CSRGraph &g, StaticArray<Edg
       NodeID v = g.edge_target(e);
       if (u < v) {
         EdgeID counter_edge = sorted_by_target_permutation[g.raw_nodes()[v] + edges_done[v]];
-        KASSERT(g.edge_target(counter_edge) == u, "Graph was not sorted", assert::always);
+        KASSERT(g.edge_target(counter_edge) == u, "incorrect counter_edge", assert::always);
         EdgeWeight combined_sample = (sample[e] + sample[counter_edge]) / 2;
         sample[e] = combined_sample;
         sample[counter_edge] = combined_sample;
