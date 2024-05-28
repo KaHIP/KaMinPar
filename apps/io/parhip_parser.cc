@@ -407,7 +407,7 @@ CompressedGraph compressed_read_parallel(const std::string &filename, const bool
     });
 
     const std::size_t num_threads = tbb::this_task_arena::max_concurrency();
-    ConcurrentCircularVectorSpinlock<NodeID, EdgeID> buffer(num_threads);
+    ConcurrentCircularVectorMutex<NodeID, EdgeID> buffer(num_threads);
 
     // To compress the graph in parallel the nodes are split into chunks. Each parallel task fetches
     // a chunk and compresses the neighbourhoods of the corresponding nodes. The compressed

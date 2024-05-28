@@ -73,7 +73,7 @@ private:
 template <typename Size, typename Value> class ConcurrentCircularVectorMutex {
 public:
   /**
-   * Constructs a ConcurrentCircularVector.
+   * Constructs a ConcurrentCircularVectorMutex.
    *
    * @param size The size of the vector. Note that this value has to be at least as large as the
    * number of parallel tasks that synchronize.
@@ -93,7 +93,7 @@ public:
     const Size _value = _counter++;
 
     const Size pos = _value % _buffer.size();
-    const bool success = _buffer_mutexes[pos].try_lock();
+    const bool success = _buffer_mutexes[pos].value.try_lock();
     KASSERT(success);
 
     return _value;
@@ -113,12 +113,12 @@ public:
 
     Value value;
     {
-      const std::unique_lock lock(_buffer_mutexes[prev_pos]);
+      const std::unique_lock lock(_buffer_mutexes[prev_pos].value);
       value = _buffer[prev_pos].value;
     }
 
     _buffer[pos] = value + delta;
-    _buffer_mutexes[pos].unlock();
+    _buffer_mutexes[pos].value.unlock();
 
     return value;
   }
@@ -128,7 +128,7 @@ private:
   std::vector<parallel::Aligned<Value>> _buffer;
 
   std::mutex _next_mutex;
-  std::vector<std::mutex> _buffer_mutexes;
+  std::vector<parallel::Aligned<std::mutex>> _buffer_mutexes;
 };
 
 } // namespace kaminpar
