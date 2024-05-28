@@ -302,12 +302,12 @@ public:
     return _size;
   }
 
-  template <typename... Tags> void resize(const std::size_t size, Tags &&...tags) {
+  template <typename... Tags> void resize(const std::size_t size, Tags... tags) {
     resize(size, value_type(), std::forward<Tags>(tags)...);
   }
 
   template <typename... Tags>
-  void resize(const std::size_t size, const value_type init_value, Tags &&...tags) {
+  void resize(const std::size_t size, const value_type init_value, Tags... tags) {
     KASSERT(_data == _owned_data.get(), "cannot resize span", assert::always);
     const bool use_thp =
         (size >= KAMINPAR_THP_THRESHOLD && !contains_tag_v<static_array::small_t, Tags...>);
