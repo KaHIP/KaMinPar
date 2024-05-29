@@ -25,13 +25,18 @@ namespace kaminpar::shm {
 
 namespace {
 
+template <bool kActualNumEdges = true>
 [[nodiscard]] std::size_t
 compressed_edge_array_max_size(const NodeID num_nodes, const EdgeID num_edges) {
   std::size_t edge_id_width;
-  if constexpr (CompressedGraph::kIntervalEncoding) {
-    edge_id_width = marked_varint_length(num_edges);
+  if constexpr (kActualNumEdges) {
+    if constexpr (CompressedGraph::kIntervalEncoding) {
+      edge_id_width = marked_varint_length(num_edges);
+    } else {
+      edge_id_width = varint_length(num_edges);
+    }
   } else {
-    edge_id_width = varint_length(num_edges);
+    edge_id_width = varint_max_length<EdgeID>();
   }
 
   std::size_t max_size = num_nodes * edge_id_width + num_edges * varint_length(num_nodes);
@@ -60,6 +65,19 @@ CompressedEdgesBuilder::CompressedEdgesBuilder(
     : _has_edge_weights(has_edge_weights),
       _edge_weights(edge_weights) {
   const std::size_t max_size = compressed_edge_array_max_size(num_nodes, num_edges);
+  _compressed_data_start = heap_profiler::overcommit_memory<std::uint8_t>(max_size);
+}
+
+CompressedEdgesBuilder::CompressedEdgesBuilder(
+    const NodeID num_nodes,
+    const EdgeID num_edges,
+    const NodeID max_degree,
+    bool has_edge_weights,
+    StaticArray<EdgeWeight> &edge_weights
+)
+    : _has_edge_weights(has_edge_weights),
+      _edge_weights(edge_weights) {
+  const std::size_t max_size = compressed_edge_array_max_size<false>(num_nodes, max_degree);
   _compressed_data_start = heap_profiler::overcommit_memory<std::uint8_t>(max_size);
 }
 
