@@ -34,6 +34,25 @@ public:
       StaticArray<EdgeWeight> &edge_weights
   );
 
+  /*!
+   * Constructs a new CompressedEdgesBuilder where the maxmimum degree specifies the number of edges
+   * that are compressed at once.
+   *
+   * @param num_nodes The number of nodes of the graph to compress.
+   * @param num_edges The number of edges of the graph to compress.
+   * @param max_degree The maximum degree of the graph to compress.
+   * @param has_edge_weights Whether the graph to compress has edge weights.
+   * @param edge_weights A reference to the edge weights of the compressed graph.
+   * @param edge_weights A reference to the edge weights of the compressed graph.
+   */
+  CompressedEdgesBuilder(
+      const NodeID num_nodes,
+      const EdgeID num_edges,
+      const NodeID max_degree,
+      bool has_edge_weights,
+      StaticArray<EdgeWeight> &edge_weights
+  );
+
   CompressedEdgesBuilder(const CompressedEdgesBuilder &) = delete;
   CompressedEdgesBuilder &operator=(const CompressedEdgesBuilder &) = delete;
 

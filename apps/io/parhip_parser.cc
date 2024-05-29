@@ -393,22 +393,6 @@ CompressedGraph compressed_read_parallel(const std::string &filename, const bool
       return (nodes[node] - nodes_offset_base) / sizeof(NodeID);
     };
 
-    // Initializes the data structures used to build the compressed graph in parallel.
-    ParallelCompressedGraphBuilder builder(
-        header.num_nodes, header.num_edges, header.has_node_weights, header.has_edge_weights, sorted
-    );
-
-    tbb::enumerable_thread_specific<std::vector<EdgeID>> offsets_ets;
-    tbb::enumerable_thread_specific<std::vector<std::pair<NodeID, EdgeWeight>>> neighbourhood_ets;
-    tbb::enumerable_thread_specific<CompressedEdgesBuilder> neighbourhood_builder_ets([&] {
-      return CompressedEdgesBuilder(
-          num_nodes, num_edges, header.has_edge_weights, builder.edge_weights()
-      );
-    });
-
-    const std::size_t num_threads = tbb::this_task_arena::max_concurrency();
-    ConcurrentCircularVectorMutex<NodeID, EdgeID> buffer(num_threads);
-
     // To compress the graph in parallel the nodes are split into chunks. Each parallel task fetches
     // a chunk and compresses the neighbourhoods of the corresponding nodes. The compressed
     // neighborhoods are meanwhile temporarily stored in a buffer. They are moved into the
@@ -418,13 +402,17 @@ CompressedGraph compressed_read_parallel(const std::string &filename, const bool
     const EdgeID max_chunk_size = num_edges / kNumChunks;
     std::vector<std::pair<NodeID, NodeID>> chunks;
 
+    NodeID max_degree = 0;
     TIMED_SCOPE("Compute chunks") {
       NodeID cur_chunk_start = 0;
       EdgeID cur_chunk_size = 0;
       for (NodeID node = 0; node < num_nodes; ++node) {
         const auto degree = static_cast<NodeID>((nodes[node + 1] - nodes[node]) / sizeof(NodeID));
-        cur_chunk_size += degree;
+        if (degree > max_degree) {
+          max_degree = degree;
+        }
 
+        cur_chunk_size += degree;
         if (cur_chunk_size >= max_chunk_size) {
           if (cur_chunk_start == node) {
             chunks.emplace_back(node, node + 1);
@@ -442,6 +430,22 @@ CompressedGraph compressed_read_parallel(const std::string &filename, const bool
         chunks.emplace_back(cur_chunk_start, num_nodes);
       }
     };
+
+    // Initializes the data structures used to build the compressed graph in parallel.
+    ParallelCompressedGraphBuilder builder(
+        header.num_nodes, header.num_edges, header.has_node_weights, header.has_edge_weights, sorted
+    );
+
+    tbb::enumerable_thread_specific<std::vector<EdgeID>> offsets_ets;
+    tbb::enumerable_thread_specific<std::vector<std::pair<NodeID, EdgeWeight>>> neighbourhood_ets;
+    tbb::enumerable_thread_specific<CompressedEdgesBuilder> neighbourhood_builder_ets([&] {
+      return CompressedEdgesBuilder(
+          num_nodes, num_edges, max_degree, header.has_edge_weights, builder.edge_weights()
+      );
+    });
+
+    const std::size_t num_threads = tbb::this_task_arena::max_concurrency();
+    ConcurrentCircularVectorMutex<NodeID, EdgeID> buffer(num_threads);
 
     tbb::enumerable_thread_specific<debug::Stats> dbg_ets;
     tbb::parallel_for<NodeID>(0, chunks.size(), [&](const auto) {
