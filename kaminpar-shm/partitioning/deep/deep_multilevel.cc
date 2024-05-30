@@ -32,7 +32,7 @@ DeepMultilevelPartitioner::DeepMultilevelPartitioner(
       _current_p_ctx(input_ctx.partition),
       _coarsener(factory::create_coarsener(input_ctx)),
       _refiner(factory::create_refiner(input_ctx)),
-      _bipartitioner_pool([this] { return InitialPartitioner(this->_input_ctx); }) {
+      _bipartitioner_pool_ets([this] { return InitialBipartitionerPool(this->_input_ctx); }) {
   _coarsener->initialize(&_input_graph);
 }
 
@@ -96,8 +96,8 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
       _input_ctx,
       _current_p_ctx,
       _subgraph_memory,
-      _tmp_extraction_mem_pool,
-      _bipartitioner_pool,
+      _tmp_extraction_mem_pool_ets,
+      _bipartitioner_pool_ets,
       _input_ctx.parallel.num_threads
   );
 
@@ -236,14 +236,20 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
   PartitionedGraph p_graph = [&] {
     switch (_input_ctx.partitioning.deep_initial_partitioning_mode) {
     case InitialPartitioningMode::SEQUENTIAL:
-      return helper::bipartition(graph, _input_ctx.partition.k, _input_ctx, _bipartitioner_pool);
+      return helper::bipartition(
+          graph, _input_ctx.partition.k, _input_ctx, _bipartitioner_pool_ets
+      );
 
     case InitialPartitioningMode::SYNCHRONOUS_PARALLEL:
-      return SyncInitialPartitioner(_input_ctx, _bipartitioner_pool, _tmp_extraction_mem_pool)
+      return SyncInitialPartitioner(
+                 _input_ctx, _bipartitioner_pool_ets, _tmp_extraction_mem_pool_ets
+      )
           .partition(_coarsener.get(), _current_p_ctx);
 
     case InitialPartitioningMode::ASYNCHRONOUS_PARALLEL:
-      return AsyncInitialPartitioner(_input_ctx, _bipartitioner_pool, _tmp_extraction_mem_pool)
+      return AsyncInitialPartitioner(
+                 _input_ctx, _bipartitioner_pool_ets, _tmp_extraction_mem_pool_ets
+      )
           .partition(_coarsener.get(), _current_p_ctx);
     }
 

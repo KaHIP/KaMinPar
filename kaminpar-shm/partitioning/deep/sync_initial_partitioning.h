@@ -21,8 +21,8 @@ class SyncInitialPartitioner {
 public:
   SyncInitialPartitioner(
       const Context &input_ctx,
-      InitialBipartitionerPool &bipartitioner_pool,
-      InitialTemporaryExtractionMemoryPool &tmp_extraction_mem_pool
+      InitialBipartitionerPoolEts &bipartitioner_pool_ets,
+      TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets
   );
 
   PartitionedGraph partition(const Coarsener *coarsener, const PartitionContext &p_ctx);
@@ -31,7 +31,7 @@ private:
   std::unique_ptr<Coarsener> duplicate_coarsener(const Coarsener *coarsener);
 
   const Context &_input_ctx;
-  InitialBipartitionerPool &_bipartitioner_pool;
-  InitialTemporaryExtractionMemoryPool &_tmp_extraction_mem_pool;
+  InitialBipartitionerPoolEts &_bipartitioner_pool_ets;
+  TemporarySubgraphMemoryEts &_tmp_extraction_mem_pool_ets;
 };
 } // namespace kaminpar::shm::partitioning

@@ -28,7 +28,8 @@ KWayMultilevelPartitioner::KWayMultilevelPartitioner(
       _input_ctx(input_ctx),
       _current_p_ctx(input_ctx.partition),
       _coarsener(factory::create_coarsener(input_ctx)),
-      _refiner(factory::create_refiner(input_ctx)) {
+      _refiner(factory::create_refiner(input_ctx)),
+      _bipartitioner_pool_ets([this] { return InitialBipartitionerPool(this->_input_ctx); }) {
   _coarsener->initialize(&_input_graph);
 }
 
@@ -143,11 +144,11 @@ PartitionedGraph KWayMultilevelPartitioner::initial_partition(const Graph *graph
   // initial partitioning.
   DISABLE_TIMERS();
   PartitionedGraph p_graph =
-      helper::bipartition(graph, _input_ctx.partition.k, _input_ctx, _ip_m_ctx_pool);
+      helper::bipartition(graph, _input_ctx.partition.k, _input_ctx, _bipartitioner_pool_ets);
   helper::update_partition_context(_current_p_ctx, p_graph, _input_ctx.partition.k);
 
   graph::SubgraphMemory subgraph_memory(p_graph.n(), _input_ctx.partition.k, p_graph.m());
-  partitioning::TemporaryGraphExtractionBufferPool ip_extraction_pool;
+  partitioning::TemporarySubgraphMemoryEts ip_extraction_pool_ets;
 
   helper::extend_partition(
       p_graph,
@@ -155,8 +156,8 @@ PartitionedGraph KWayMultilevelPartitioner::initial_partition(const Graph *graph
       _input_ctx,
       _current_p_ctx,
       subgraph_memory,
-      ip_extraction_pool,
-      _ip_m_ctx_pool,
+      ip_extraction_pool_ets,
+      _bipartitioner_pool_ets,
       _input_ctx.parallel.num_threads
   );
 

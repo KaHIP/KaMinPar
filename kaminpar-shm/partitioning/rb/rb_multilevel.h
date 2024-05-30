@@ -21,7 +21,10 @@ class RBMultilevelPartitioner : public Partitioner {
 public:
   RBMultilevelPartitioner(const Graph &input_graph, const Context &input_ctx)
       : _input_graph(input_graph),
-        _input_ctx(input_ctx) {}
+        _input_ctx(input_ctx),
+        _bipartitioner_pool_ets([this] {
+          return partitioning::InitialBipartitionerPool(this->_input_ctx);
+        }) {}
 
   PartitionedGraph partition() final {
     DISABLE_TIMERS();
@@ -86,7 +89,8 @@ public:
     }
 
     // initial bipartitioning
-    PartitionedGraph p_graph = helper::bipartition(c_graph, final_k, _input_ctx, ip_m_ctx_pool);
+    PartitionedGraph p_graph =
+        helper::bipartition(c_graph, final_k, _input_ctx, _bipartitioner_pool_ets);
     helper::update_partition_context(p_ctx, p_graph, _input_ctx.partition.k);
 
     // refine
@@ -106,6 +110,6 @@ private:
   const Graph &_input_graph;
   const Context &_input_ctx;
 
-  partitioning::GlobalInitialPartitionerMemoryPool ip_m_ctx_pool;
+  partitioning::InitialBipartitionerPoolEts _bipartitioner_pool_ets;
 };
 } // namespace kaminpar::shm

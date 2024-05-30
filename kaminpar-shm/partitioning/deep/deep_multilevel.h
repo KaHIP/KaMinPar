@@ -56,7 +56,7 @@ private:
 
   graph::SubgraphMemory _subgraph_memory;
 
-  partitioning::InitialTemporaryExtractionMemoryPool _tmp_extraction_mem_pool;
-  partitioning::InitialBipartitionerPool _bipartitioner_pool;
+  partitioning::TemporarySubgraphMemoryEts _tmp_extraction_mem_pool_ets;
+  partitioning::InitialBipartitionerPoolEts _bipartitioner_pool_ets;
 };
 } // namespace kaminpar::shm

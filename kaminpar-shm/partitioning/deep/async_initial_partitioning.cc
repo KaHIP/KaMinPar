@@ -17,12 +17,12 @@ SET_DEBUG(true);
 
 AsyncInitialPartitioner::AsyncInitialPartitioner(
     const Context &input_ctx,
-    InitialBipartitionerPool &bipartitioner_pool,
-    InitialTemporaryExtractionMemoryPool &tmp_extraction_mem_pool
+    InitialBipartitionerPoolEts &bipartitioner_pool_ets,
+    TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets
 )
     : _input_ctx(input_ctx),
-      _bipartitioner_pool(bipartitioner_pool),
-      _tmp_extraction_mem_pool(tmp_extraction_mem_pool) {}
+      _bipartitioner_pool_ets(bipartitioner_pool_ets),
+      _tmp_extraction_mem_pool_ets(tmp_extraction_mem_pool_ets) {}
 
 PartitionedGraph
 AsyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionContext &p_ctx) {
@@ -37,7 +37,7 @@ PartitionedGraph AsyncInitialPartitioner::partition_recursive(
 
   // Base case: only one thread left <=> compute bipartition
   if (num_threads == 1) {
-    return helper::bipartition(graph, _input_ctx.partition.k, _input_ctx, _bipartitioner_pool);
+    return helper::bipartition(graph, _input_ctx.partition.k, _input_ctx, _bipartitioner_pool_ets);
   }
 
   // Otherwise, coarsen further and proceed recursively
@@ -69,8 +69,8 @@ PartitionedGraph AsyncInitialPartitioner::partition_recursive(
         k_prime,
         _input_ctx,
         p_ctx,
-        _tmp_extraction_mem_pool,
-        _bipartitioner_pool,
+        _tmp_extraction_mem_pool_ets,
+        _bipartitioner_pool_ets,
         num_threads
     );
   }

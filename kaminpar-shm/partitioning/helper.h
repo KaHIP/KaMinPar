@@ -7,6 +7,8 @@
  ******************************************************************************/
 #pragma once
 
+#include <vector>
+
 #include <tbb/concurrent_vector.h>
 
 #include "kaminpar-shm/coarsening/coarsener.h"
@@ -19,35 +21,32 @@
 #include "kaminpar-common/assert.h"
 
 namespace kaminpar::shm::partitioning {
-struct InitialPartitionerMemoryPool {
-  std::vector<InitialPartitioner::MemoryContext> pool;
+class InitialBipartitionerPool {
+public:
+  explicit InitialBipartitionerPool(const Context &ctx) : _ctx(ctx) {}
 
-  InitialPartitioner::MemoryContext get() {
-    if (!pool.empty()) {
-      auto m_ctx = std::move(pool.back());
-      pool.pop_back();
-      return m_ctx;
+  InitialPartitioner get() {
+    if (!_pool.empty()) {
+      auto initial_partitioner = std::move(_pool.back());
+      _pool.pop_back();
+      return initial_partitioner;
     }
 
-    return {};
+    return InitialPartitioner(_ctx);
   }
 
-  [[nodiscard]] std::size_t memory_in_kb() const {
-    std::size_t memory = 0;
-    for (const auto &obj : pool) {
-      memory += obj.memory_in_kb();
-    }
-    return memory;
+  void put(InitialPartitioner initial_partitioner) {
+    _pool.push_back(std::move(initial_partitioner));
   }
 
-  void put(InitialPartitioner::MemoryContext m_ctx) {
-    pool.push_back(std::move(m_ctx));
-  }
+private:
+  const Context &_ctx;
+
+  std::vector<InitialPartitioner> _pool;
 };
 
-using InitialBipartitionerPool = tbb::enumerable_thread_specific<InitialPartitioner>;
-using InitialTemporaryExtractionMemoryPool =
-    tbb::enumerable_thread_specific<graph::TemporarySubgraphMemory>;
+using InitialBipartitionerPoolEts = tbb::enumerable_thread_specific<InitialBipartitionerPool>;
+using TemporarySubgraphMemoryEts = tbb::enumerable_thread_specific<graph::TemporarySubgraphMemory>;
 
 namespace helper {
 void update_partition_context(
@@ -86,7 +85,7 @@ PartitionedGraph bipartition(
     const Graph *graph,
     BlockID final_k,
     const Context &input_ctx,
-    InitialBipartitionerPool &bipartitioner_pool,
+    InitialBipartitionerPoolEts &bipartitioner_pool_ets,
     BipartitionTimingInfo *timing_info = nullptr
 );
 
@@ -101,8 +100,8 @@ void extend_partition_recursive(
     const Context &input_ctx,
     graph::SubgraphMemory &subgraph_memory,
     graph::SubgraphMemoryStartPosition position,
-    InitialTemporaryExtractionMemoryPool &tmp_extraction_mem_pool,
-    InitialBipartitionerPool &bipartitioner_pool,
+    TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
+    InitialBipartitionerPoolEts &bipartitioner_pool_ets,
     BipartitionTimingInfo *timings = nullptr
 );
 
@@ -111,7 +110,7 @@ void extend_partition(
     BlockID k_prime,
     const Context &input_ctx,
     PartitionContext &current_p_ctx,
-    InitialBipartitionerPool &bipartitioner_pool
+    InitialBipartitionerPoolEts &bipartitioner_pool_ets
 );
 
 void extend_partition(
@@ -120,8 +119,8 @@ void extend_partition(
     const Context &input_ctx,
     PartitionContext &current_p_ctx,
     graph::SubgraphMemory &subgraph_memory,
-    InitialTemporaryExtractionMemoryPool &tmp_extraction_mem_pool,
-    InitialBipartitionerPool &bipartitioner_pool,
+    TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
+    InitialBipartitionerPoolEts &bipartitioner_pool_ets,
     int num_active_threads
 );
 
@@ -130,8 +129,8 @@ void extend_partition(
     BlockID k_prime,
     const Context &input_ctx,
     PartitionContext &current_p_ctx,
-    InitialTemporaryExtractionMemoryPool &tmp_extraction_mem_pool,
-    InitialBipartitionerPool &bipartitioner_pool,
+    TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
+    InitialBipartitionerPoolEts &bipartitioner_pool_ets,
     int num_active_threads
 );
 

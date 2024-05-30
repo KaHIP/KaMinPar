@@ -17,12 +17,12 @@ SET_DEBUG(false);
 
 SyncInitialPartitioner::SyncInitialPartitioner(
     const Context &input_ctx,
-    InitialBipartitionerPool &bipartitioner_pool,
-    InitialTemporaryExtractionMemoryPool &tmp_extraction_mem_pool
+    InitialBipartitionerPoolEts &bipartitioner_pool_ets,
+    TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets
 )
     : _input_ctx(input_ctx),
-      _bipartitioner_pool(bipartitioner_pool),
-      _tmp_extraction_mem_pool(tmp_extraction_mem_pool) {}
+      _bipartitioner_pool_ets(bipartitioner_pool_ets),
+      _tmp_extraction_mem_pool_ets(tmp_extraction_mem_pool_ets) {}
 
 PartitionedGraph
 SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionContext &p_ctx) {
@@ -84,7 +84,7 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
     auto &current_coarseners = coarseners.back();
     const Graph *graph = &current_coarseners[i]->current();
     current_p_graphs[i] =
-        helper::bipartition(graph, _input_ctx.partition.k, _input_ctx, _bipartitioner_pool);
+        helper::bipartition(graph, _input_ctx.partition.k, _input_ctx, _bipartitioner_pool_ets);
   });
 
   // Uncoarsen and join graphs
@@ -119,8 +119,8 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
             k_prime,
             _input_ctx,
             p_ctx,
-            _tmp_extraction_mem_pool,
-            _bipartitioner_pool,
+            _tmp_extraction_mem_pool_ets,
+            _bipartitioner_pool_ets,
             num_threads
         );
       }
