@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Initial partitioner based on breath-first searches.
+ * BFS based initial bipartitioner.
  *
  * @file:   bfs_bipartitioner.h
  * @author: Daniel Seemaier
@@ -69,20 +69,6 @@ struct shorter_queue {
   }
 };
 
-class BfsBipartitionerBase : public Bipartitioner {
-public:
-  struct MemoryContext {
-    std::array<Queue<NodeID>, 2> queues{Queue<NodeID>(0), Queue<NodeID>(0)};
-    Marker<3> marker{0};
-
-    [[nodiscard]] std::size_t memory_in_kb() const {
-      return queues[0].memory_in_kb() + queues[1].memory_in_kb() + marker.memory_in_kb();
-    }
-  };
-
-  BfsBipartitionerBase(const InitialPartitioningContext &i_ctx) : Bipartitioner(i_ctx) {}
-};
-
 /*!
  * Grows two blocks starting from pseudo peripheral nodes using a breath first
  * search.
@@ -96,19 +82,17 @@ public:
  * peripheral nodes is started. If not specified, a random node is used instead.
  */
 template <typename block_selection_strategy, NodeID seed_node = kInvalidNodeID>
-class BfsBipartitioner : public BfsBipartitionerBase {
+class BfsBipartitioner : public Bipartitioner {
   static constexpr std::size_t kMarkAssigned = 2;
-  using MemoryContext = BfsBipartitionerBase::MemoryContext;
 
 public:
-  BfsBipartitioner(const InitialPartitioningContext &i_ctx, MemoryContext &m_ctx)
-      : BfsBipartitionerBase(i_ctx),
-        _queues(m_ctx.queues),
-        _marker(m_ctx.marker),
+  BfsBipartitioner(const InitialPartitioningContext &i_ctx)
+      : Bipartitioner(i_ctx),
         _num_seed_iterations(i_ctx.num_seed_iterations) {}
 
   void init(const CSRGraph &graph, const PartitionContext &p_ctx) override {
     Bipartitioner::init(graph, p_ctx);
+
     if (_marker.capacity() < _graph->n()) {
       _marker.resize(_graph->n());
     }
@@ -118,13 +102,16 @@ public:
     if (_queues[1].capacity() < _graph->n()) {
       _queues[1].resize(_graph->n());
     }
-
-    _block_weights.fill(0);
   }
 
 protected:
   void bipartition_impl() override {
     const auto [start_a, start_b] = ip::find_far_away_nodes(*_graph, _num_seed_iterations);
+
+    _marker.reset();
+    for (const auto i : {0, 1}) {
+      _queues[i].clear();
+    }
 
     _queues[0].push_tail(start_a);
     _queues[1].push_tail(start_b);
@@ -149,20 +136,22 @@ protected:
       const NodeID u = _queues[active].head();
       _queues[active].pop_head();
 
-      // node could have been assigned between the time it was put into the
+      // The node could have been assigned between the time it was put into the
       // queue and now, hence we must check this here
       if (__builtin_expect(!_marker.get(u, kMarkAssigned), 1)) {
-        // if the balance constraint does not allow us to put this node into the
+        // If the balance constraint does not allow us to put this node into the
         // active block, we switch to the lighter block instead
         // --------------------------------------------------
-        // this version seems to perform worse in terms of balance
+        // This version seems to perform worse in terms of balance
+        //
         //        const bool balanced = (_block_weights[active] +
         //        _graph.node_weight(u) <= _p_ctx.max_block_weight(active)); if
         //        (!balanced) {
         //          active = _block_weights[1 - active] < _block_weights[active]
         //          ? 1 - active : active;
         //        }
-        // than this version
+        //
+        // than this version:
         const NodeWeight weight = _block_weights[active];
         const bool assignment_allowed =
             (weight + _graph->node_weight(u) <= _p_ctx->block_weights.max(active));
@@ -182,16 +171,14 @@ protected:
 
       active = _block_selection_strategy(active, _block_weights, *_p_ctx, _queues);
     }
-
-    _marker.reset();
-    for (const auto i : {0, 1})
-      _queues[i].clear();
   }
 
 private:
-  std::array<Queue<NodeID>, 2> &_queues;
-  Marker<3> &_marker;
+  std::array<Queue<NodeID>, 2> _queues{};
+  Marker<3> _marker{};
+
   const std::size_t _num_seed_iterations;
+
   block_selection_strategy _block_selection_strategy{};
 };
 } // namespace bfs

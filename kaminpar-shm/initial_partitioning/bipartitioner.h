@@ -66,7 +66,6 @@ protected:
 
   Bipartitioner(const InitialPartitioningContext &i_ctx) : _i_ctx(i_ctx) {}
 
-  // must be implemented by the base class -- compute bipartition
   virtual void bipartition_impl() = 0;
 
   //

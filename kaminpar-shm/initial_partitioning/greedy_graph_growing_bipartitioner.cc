@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Initial bipartitioner based on greedy graph growing.
+ *
  * @file:   greedy_graph_growing_bipartitioner.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Initial partitioner using greedy graph growing.
  ******************************************************************************/
 #include "kaminpar-shm/initial_partitioning/greedy_graph_growing_bipartitioner.h"
 

@@ -75,7 +75,7 @@ public:
     }
 
     timer.reset();
-    _bipartitioner->init(*c_graph, _p_ctx);
+    _bipartitioner->init(*c_graph, _p_ctx, _refiner.get());
     PartitionedCSRGraph p_graph = _bipartitioner->bipartition();
     if (timings) {
       timings->bipartitioning_ms += timer.elapsed();

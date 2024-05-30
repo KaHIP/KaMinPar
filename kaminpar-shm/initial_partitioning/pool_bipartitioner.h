@@ -1,11 +1,12 @@
 /*******************************************************************************
+ * Initial partitioner that uses a portfolio of initial partitioning algorithms.
+ * Each graphutils is repeated multiple times. Algorithms that are unlikely to
+ * beat the best partition found so far are executed less often than promising
+ * candidates.
+ *
  * @file:   pool_bipartitioner.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Initial partitioner that uses a portfolio of initial partitioning
- * algorithms. Each graphutils is repeated multiple times. Algorithms that are
- * unlikely to beat the best partition found so far are executed less often
- * than promising candidates.
  ******************************************************************************/
 #pragma once
 
@@ -80,27 +81,20 @@ public:
       : _i_ctx(i_ctx),
         _min_num_repetitions(i_ctx.min_num_repetitions),
         _min_num_non_adaptive_repetitions(i_ctx.min_num_non_adaptive_repetitions),
-        _max_num_repetitions(i_ctx.max_num_repetitions),
-        // @todo re-use bipartitioner from InitialPartitioner
-        _refiner(create_initial_refiner(_i_ctx.refinement)) {
-    using namespace std::string_view_literals;
-
-    register_bipartitioner<GreedyGraphGrowingBipartitioner>(
-        "greedy_graph_growing", _m_ctx.ggg_m_ctx
-    );
-
-    register_bipartitioner<AlternatingBfsBipartitioner>("bfs_alternating", _m_ctx.bfs_m_ctx);
-    register_bipartitioner<LighterBlockBfsBipartitioner>("bfs_lighter_block", _m_ctx.bfs_m_ctx);
-    register_bipartitioner<LongerQueueBfsBipartitioner>("bfs_longer_queue", _m_ctx.bfs_m_ctx);
-    register_bipartitioner<ShorterQueueBfsBipartitioner>("bfs_shorter_queue", _m_ctx.bfs_m_ctx);
-    register_bipartitioner<SequentialBfsBipartitioner>("bfs_sequential"sv, _m_ctx.bfs_m_ctx);
-
-    register_bipartitioner<RandomBipartitioner>("random"sv, _m_ctx.rand_m_ctx);
+        _max_num_repetitions(i_ctx.max_num_repetitions) {
+    register_bipartitioner<GreedyGraphGrowingBipartitioner>("greedy_graph_growing");
+    register_bipartitioner<AlternatingBfsBipartitioner>("bfs_alternating");
+    register_bipartitioner<LighterBlockBfsBipartitioner>("bfs_lighter_block");
+    register_bipartitioner<LongerQueueBfsBipartitioner>("bfs_longer_queue");
+    register_bipartitioner<ShorterQueueBfsBipartitioner>("bfs_shorter_queue");
+    register_bipartitioner<SequentialBfsBipartitioner>("bfs_sequential");
+    register_bipartitioner<RandomBipartitioner>("random");
   }
 
-  void init(const CSRGraph &graph, const PartitionContext &p_ctx) {
+  void init(const CSRGraph &graph, const PartitionContext &p_ctx, InitialRefiner *refiner) {
     _graph = &graph;
     _p_ctx = &p_ctx;
+    _refiner = refiner;
 
     _refiner->init(*_graph);
     for (auto &bipartitioner : _bipartitioners) {
@@ -117,15 +111,13 @@ public:
     reset();
   }
 
-  template <typename BipartitionerType, typename BipartitionerArgs>
-  void register_bipartitioner(const std::string_view name, BipartitionerArgs &args) {
+  template <typename BipartitionerType> void register_bipartitioner(const std::string_view name) {
     KASSERT(
         std::find(_bipartitioner_names.begin(), _bipartitioner_names.end(), name) ==
         _bipartitioner_names.end()
     );
-    std::unique_ptr<BipartitionerType> instance = std::make_unique<BipartitionerType>(_i_ctx, args);
 
-    _bipartitioners.push_back(std::move(instance));
+    _bipartitioners.push_back(std::make_unique<BipartitionerType>(_i_ctx));
     _bipartitioner_names.push_back(name);
     _running_statistics.emplace_back();
     _statistics.per_bipartitioner.emplace_back();
@@ -171,7 +163,12 @@ public:
       print_statistics();
     }
 
-    return {*_graph, 2, std::move(_best_partition)};
+    // To avoid copying the partition, just create a non-owning StaticArray view
+    // for the current _best_partition
+    // This only works because the InitialPartitioner will not call the bipartitioner
+    // again until the current _graph / this partitioned graph is no longer of interest
+    StaticArray<BlockID> best_partition_view(_graph->n(), _best_partition.data());
+    return {*_graph, 2, std::move(best_partition_view)};
   }
 
   void set_num_repetitions(const std::size_t num_repetitions) {
@@ -223,19 +220,16 @@ private:
   }
 
   void run_bipartitioner(const std::size_t i) {
-    DBG << "Running bipartitioner " << _bipartitioner_names[i] << " on graph with n=" << _graph->n()
-        << " m=" << _graph->m();
     PartitionedCSRGraph p_graph = _bipartitioners[i]->bipartition(std::move(_current_partition));
-    DBG << " -> running refiner ...";
     _refiner->refine(p_graph, *_p_ctx);
-    DBG << " -> cut=" << metrics::edge_cut(p_graph) << " imbalance=" << metrics::imbalance(p_graph);
 
     const EdgeWeight current_cut = metrics::edge_cut_seq(p_graph);
     const double current_imbalance = metrics::imbalance(p_graph);
     const bool current_feasible = metrics::is_feasible(p_graph, *_p_ctx);
+
     _current_partition = p_graph.take_raw_partition();
 
-    // record statistics if the bipartition is feasible
+    // If the bipartition is feasible, track its stats
     if (current_feasible) {
       _statistics.per_bipartitioner[i].cuts.push_back(current_cut);
       ++_statistics.per_bipartitioner[i].num_feasible_partitions;
@@ -244,7 +238,7 @@ private:
       ++_statistics.per_bipartitioner[i].num_infeasible_partitions;
     };
 
-    // consider as best if it is feasible or the best partition is infeasible
+    // Consider as best if it is feasible or the best partition is infeasible
     if (_best_feasible <= current_feasible &&
         (_best_feasible < current_feasible || current_cut < _best_cut ||
          (current_cut == _best_cut && current_imbalance < _best_imbalance))) {
@@ -275,7 +269,8 @@ private:
 
   std::vector<std::string_view> _bipartitioner_names{};
   std::vector<std::unique_ptr<Bipartitioner>> _bipartitioners{};
-  std::unique_ptr<InitialRefiner> _refiner;
+
+  InitialRefiner *_refiner;
 
   std::vector<RunningVariance> _running_statistics{};
   Statistics _statistics{};

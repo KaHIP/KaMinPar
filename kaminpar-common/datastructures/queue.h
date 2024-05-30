@@ -9,7 +9,6 @@
 #include <vector>
 
 #include "kaminpar-common/assert.h"
-
 #include "kaminpar-common/heap_profiler.h"
 
 namespace kaminpar {
@@ -29,6 +28,8 @@ public:
   using const_reference = const T &;
   using iterator = typename std::vector<T>::iterator;
   using const_iterator = typename std::vector<T>::const_iterator;
+
+  Queue() : Queue(0) {}
 
   explicit Queue(const std::size_t capacity) : _data(capacity) {
     RECORD_DATA_STRUCT(capacity * sizeof(T), _struct);
