@@ -62,11 +62,33 @@ PartitionedGraph uncoarsen_once(
     const PartitionContext &input_p_ctx
 );
 
+struct BipartitionTimingInfo {
+  std::uint64_t bipartitioner_init_ms = 0;
+  std::uint64_t bipartitioner_ms = 0;
+  std::uint64_t graph_init_ms = 0;
+  std::uint64_t extract_ms = 0;
+  std::uint64_t copy_ms = 0;
+  std::uint64_t misc_ms = 0;
+  InitialPartitionerTimings ip_timings{};
+
+  BipartitionTimingInfo &operator+=(const BipartitionTimingInfo &other) {
+    bipartitioner_init_ms += other.bipartitioner_init_ms;
+    bipartitioner_ms += other.bipartitioner_ms;
+    graph_init_ms += other.graph_init_ms;
+    extract_ms += other.extract_ms;
+    copy_ms += other.copy_ms;
+    misc_ms += other.misc_ms;
+    ip_timings += other.ip_timings;
+    return *this;
+  }
+};
+
 PartitionedGraph bipartition(
     const Graph *graph,
     BlockID final_k,
     const Context &input_ctx,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool
+    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
+    BipartitionTimingInfo *timing_info = nullptr
 );
 
 void refine(Refiner *refiner, PartitionedGraph &p_graph, const PartitionContext &current_p_ctx);
@@ -81,7 +103,8 @@ void extend_partition_recursive(
     graph::SubgraphMemory &subgraph_memory,
     graph::SubgraphMemoryStartPosition position,
     TemporaryGraphExtractionBufferPool &extraction_pool,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool
+    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
+    BipartitionTimingInfo *timings = nullptr
 );
 
 void extend_partition(

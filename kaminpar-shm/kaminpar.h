@@ -446,6 +446,7 @@ Context create_default_context();
 Context create_memory_context();
 Context create_fast_context();
 Context create_largek_context();
+Context create_largek2_context();
 Context create_largek_fm_context();
 Context create_strong_context();
 Context create_jet_context(int rounds = 1);

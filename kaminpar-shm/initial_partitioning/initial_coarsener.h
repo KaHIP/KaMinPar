@@ -25,6 +25,25 @@
   }
 
 namespace kaminpar::shm::ip {
+struct InitialCoarsenerTimings {
+  std::uint64_t contract_ms = 0;
+  std::uint64_t alloc_ms = 0;
+  std::uint64_t interleaved1_ms = 0;
+  std::uint64_t interleaved2_ms = 0;
+  std::uint64_t lp_ms = 0;
+  std::uint64_t total_ms = 0;
+
+  InitialCoarsenerTimings &operator+=(const InitialCoarsenerTimings &other) {
+    contract_ms += other.contract_ms;
+    alloc_ms += other.alloc_ms;
+    interleaved1_ms += other.interleaved1_ms;
+    interleaved2_ms += other.interleaved2_ms;
+    lp_ms += other.lp_ms;
+    total_ms += other.total_ms;
+    return *this;
+  }
+};
+
 class InitialCoarsener {
   static constexpr auto kChunkSize = 256;
   static constexpr auto kNumberOfNodePermutations = 16;
@@ -128,6 +147,12 @@ public:
   NodeID pick_cluster(NodeID u, NodeWeight u_weight, NodeWeight max_cluster_weight);
   NodeID pick_cluster_from_rating_map(NodeID u, NodeWeight u_weight, NodeWeight max_cluster_weight);
 
+  InitialCoarsenerTimings timings() {
+    auto timings = _timings;
+    _timings = InitialCoarsenerTimings{};
+    return timings;
+  }
+
 private:
   ContractionResult contract_current_clustering();
 
@@ -181,5 +206,7 @@ private:
 
   Random &_rand = Random::instance();
   RandomPermutations<NodeID, kChunkSize, kNumberOfNodePermutations> _random_permutations{_rand};
+
+  InitialCoarsenerTimings _timings{};
 };
 } // namespace kaminpar::shm::ip

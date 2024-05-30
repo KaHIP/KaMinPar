@@ -9,6 +9,7 @@
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/logger.h"
+#include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::ip {
 InitialCoarsener::InitialCoarsener(
@@ -49,10 +50,14 @@ InitialCoarsener::InitialCoarsener(const CSRGraph *graph, const InitialCoarsenin
 
 const CSRGraph *
 InitialCoarsener::coarsen(const std::function<NodeWeight(NodeID)> &cb_max_cluster_weight) {
+  timer::LocalTimer timer;
   const NodeWeight max_cluster_weight = cb_max_cluster_weight(_current_graph->n());
+
+  timer.reset();
   if (!_precomputed_clustering) {
     perform_label_propagation(max_cluster_weight);
   }
+  _timings.lp_ms += timer.elapsed();
 
   const NodeID c_n = _current_graph->n() - _current_num_moves;
   const bool converged = (1.0 - 1.0 * c_n / _current_graph->n()) <= _c_ctx.convergence_threshold;
@@ -64,6 +69,7 @@ InitialCoarsener::coarsen(const std::function<NodeWeight(NodeID)> &cb_max_cluste
     _current_graph = &_hierarchy.coarsest_graph();
   }
 
+  _timings.total_ms += timer.elapsed();
   return _current_graph;
 }
 
@@ -121,6 +127,7 @@ NodeID InitialCoarsener::pick_cluster_from_rating_map(
 void InitialCoarsener::perform_label_propagation(const NodeWeight max_cluster_weight) {
   reset_current_clustering();
 
+  /*
   const auto max_bucket = math::floor_log2(_c_ctx.large_degree_threshold);
   for (std::size_t bucket = 0;
        bucket < std::min<std::size_t>(max_bucket, _current_graph->number_of_buckets());
@@ -153,6 +160,11 @@ void InitialCoarsener::perform_label_propagation(const NodeWeight max_cluster_we
       handle_node(last_start + local_u, max_cluster_weight);
     }
   }
+  */
+
+  for (NodeID u : _current_graph->nodes()) {
+    handle_node(u, max_cluster_weight);
+  }
 
   _precomputed_clustering = true;
 }
@@ -172,29 +184,36 @@ void InitialCoarsener::handle_node(const NodeID u, const NodeWeight max_cluster_
 }
 
 InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clustering() {
-  StaticArray<EdgeID> c_nodes{};
-  StaticArray<NodeID> c_edges{};
-  StaticArray<NodeWeight> c_node_weights{};
-  StaticArray<EdgeWeight> c_edge_weights{};
-  std::vector<NodeID> node_mapping{};
+  timer::LocalTimer timer;
 
+  timer.reset();
   const NodeID n = _current_graph->n();
   NodeID c_n = n - _current_num_moves;
 
-  node_mapping.resize(_current_graph->n());
-  c_nodes.resize(c_n + 1);
-  c_node_weights.resize(c_n);
-  c_edges.resize(_current_graph->m(), static_array::noinit);        // overestimate
-  c_edge_weights.resize(_current_graph->m(), static_array::noinit); // overestimate
+  std::vector<NodeID> node_mapping(_current_graph->n());
+  StaticArray<EdgeID> c_nodes(c_n + 1, static_array::small, static_array::seq);
+  StaticArray<NodeWeight> c_node_weights(c_n, static_array::small, static_array::seq);
 
+  // Overerstimate edges for now:
+  StaticArray<NodeID> c_edges(
+      _current_graph->m(), static_array::small, static_array::seq, static_array::noinit
+  );
+  StaticArray<EdgeWeight> c_edge_weights(
+      _current_graph->m(), static_array::small, static_array::seq, static_array::noinit
+  );
+  _timings.alloc_ms += timer.elapsed();
+
+  timer.reset();
   std::fill(_cluster_sizes.begin(), _cluster_sizes.end(), 0);
   std::fill(_leader_node_mapping.begin(), _leader_node_mapping.end(), 0);
   // _clustering does not need to be cleared
+  _timings.contract_ms += timer.elapsed();
 
   KASSERT(_current_graph->n() <= _cluster_sizes.size());
   KASSERT(_current_graph->n() <= _leader_node_mapping.size());
   KASSERT(_current_graph->n() <= _cluster_nodes.size());
 
+  timer.reset();
   {
     NodeID current_node = 0;
 
@@ -235,6 +254,7 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
     // coarse graph (interleaved clustering computation)
     reset_current_clustering(c_n, c_node_weights);
   }
+  _timings.interleaved1_ms += timer.elapsed();
 
   // Here, we have the following arrays, with n -- number of nodes in current
   // graph, c_n -- number of nodes in coarse
@@ -251,6 +271,7 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
   //   1 is
   //   `_cluster_sizes[1] - _cluster_sizes[0]` and so on
 
+  timer.reset();
   {
     // note: c_node_weights is already set
     NodeID c_u = 0;
@@ -301,7 +322,9 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
     c_edges.restrict(c_m);
     c_edge_weights.restrict(c_m);
   }
+  _timings.interleaved2_ms += timer.elapsed();
 
+  timer.reset();
   CSRGraph coarse_graph(
       CSRGraph::seq{},
       std::move(c_nodes),
@@ -309,6 +332,7 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
       std::move(c_node_weights),
       std::move(c_edge_weights)
   );
+  _timings.alloc_ms += timer.elapsed();
 
   return {std::move(coarse_graph), std::move(node_mapping)};
 }

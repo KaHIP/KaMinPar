@@ -107,23 +107,21 @@ public:
     _refiner->initialize(_graph);
   }
 
-  template <typename BipartitionerType, typename... BipartitionerArgs>
-  void register_bipartitioner(const std::string &name, BipartitionerArgs &&...args) {
+  template <typename BipartitionerType, typename BipartitionerArgs>
+  void register_bipartitioner(const std::string_view name, BipartitionerArgs &args) {
     KASSERT(
         std::find(_bipartitioner_names.begin(), _bipartitioner_names.end(), name) ==
         _bipartitioner_names.end()
     );
-    auto *instance =
-        new BipartitionerType(_graph, _p_ctx, _i_ctx, std::forward<BipartitionerArgs>(args)...);
-    _bipartitioners.push_back(std::unique_ptr<BipartitionerType>(instance));
+    std::unique_ptr<BipartitionerType> instance =
+        std::make_unique<BipartitionerType>(_graph, _p_ctx, _i_ctx, args);
+
+    _bipartitioners.push_back(std::move(instance));
     _bipartitioner_names.push_back(name);
     _running_statistics.emplace_back();
     _statistics.per_bipartitioner.emplace_back();
   }
 
-  const std::string &bipartitioner_name(const std::size_t i) {
-    return _bipartitioner_names[i];
-  }
   const Statistics &statistics() {
     return _statistics;
   }
@@ -269,7 +267,7 @@ private:
   std::size_t _best_bipartitioner = 0;
   StaticArray<BlockID> _current_partition{_graph.n()};
 
-  std::vector<std::string> _bipartitioner_names{};
+  std::vector<std::string_view> _bipartitioner_names{};
   std::vector<std::unique_ptr<Bipartitioner>> _bipartitioners{};
   std::unique_ptr<InitialRefiner> _refiner;
 
@@ -291,6 +289,8 @@ public:
       const InitialPartitioningContext &i_ctx,
       PoolBipartitioner::MemoryContext m_ctx = {}
   ) {
+    using namespace std::string_view_literals;
+
     auto pool = std::make_unique<PoolBipartitioner>(graph, p_ctx, i_ctx, std::move(m_ctx));
     pool->register_bipartitioner<GreedyGraphGrowingBipartitioner>(
         "greedy_graph_growing", pool->_m_ctx.ggg_m_ctx
@@ -308,9 +308,9 @@ public:
         "bfs_shorter_queue", pool->_m_ctx.bfs_m_ctx
     );
     pool->register_bipartitioner<SequentialBfsBipartitioner>(
-        "bfs_sequential", pool->_m_ctx.bfs_m_ctx
+        "bfs_sequential"sv, pool->_m_ctx.bfs_m_ctx
     );
-    pool->register_bipartitioner<RandomBipartitioner>("random", pool->_m_ctx.rand_m_ctx);
+    pool->register_bipartitioner<RandomBipartitioner>("random"sv, pool->_m_ctx.rand_m_ctx);
     return pool;
   }
 };

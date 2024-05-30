@@ -23,6 +23,8 @@ Context create_context_by_preset_name(const std::string &name) {
     return create_fast_context();
   } else if (name == "largek") {
     return create_largek_context();
+  } else if (name == "largek2") {
+    return create_largek2_context();
   } else if (name == "largek-fm") {
     return create_largek_fm_context();
   } else if (name == "strong" || name == "fm") {
@@ -44,6 +46,7 @@ std::unordered_set<std::string> get_preset_names() {
       "memory",
       "fast",
       "largek",
+      "largek2",
       "strong",
       "fm",
       "jet",
@@ -238,6 +241,17 @@ Context create_largek_context() {
   ctx.initial_partitioning.min_num_repetitions = 4;
   ctx.initial_partitioning.min_num_non_adaptive_repetitions = 2;
   ctx.initial_partitioning.max_num_repetitions = 4;
+
+  return ctx;
+}
+
+Context create_largek2_context() {
+  Context ctx = create_default_context();
+
+  // ctx.initial_partitioning.refinement.disabled = true;
+  ctx.initial_partitioning.min_num_repetitions = 1;
+  ctx.initial_partitioning.min_num_non_adaptive_repetitions = 1;
+  ctx.initial_partitioning.max_num_repetitions = 1;
 
   return ctx;
 }
