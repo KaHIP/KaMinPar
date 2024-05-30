@@ -6,12 +6,13 @@
  ******************************************************************************/
 #include "kaminpar-shm/initial_partitioning/sequential_graph_hierarchy.h"
 
-#include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 
 namespace kaminpar::shm::ip {
-SequentialGraphHierarchy::SequentialGraphHierarchy(const CSRGraph *finest_graph)
-    : _finest_graph(finest_graph) {}
+void SequentialGraphHierarchy::init(const CSRGraph &graph) {
+  _finest_graph = &graph;
+}
 
 void SequentialGraphHierarchy::take_coarse_graph(
     CSRGraph &&c_graph, std::vector<NodeID> &&c_mapping

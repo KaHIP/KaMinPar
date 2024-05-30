@@ -20,15 +20,15 @@ public:
     }
   };
 
-  RandomBipartitioner(const CSRGraph &graph, const PartitionContext &p_ctx, const InitialPartitioningContext &i_ctx, MemoryContext &)
-      : Bipartitioner(graph, p_ctx, i_ctx) {}
+  RandomBipartitioner(const InitialPartitioningContext &i_ctx, MemoryContext &)
+      : Bipartitioner(i_ctx) {}
 
 protected:
   void bipartition_impl() override {
-    for (const NodeID u : _graph.nodes()) {
+    for (const NodeID u : _graph->nodes()) {
       const auto block = _rand.random_index(0, 2);
-      if (_block_weights[block] + _graph.node_weight(u) <
-          _p_ctx.block_weights.perfectly_balanced(block)) {
+      if (_block_weights[block] + _graph->node_weight(u) <
+          _p_ctx->block_weights.perfectly_balanced(block)) {
         set_block(u, block);
       } else {
         add_to_smaller_block(u);

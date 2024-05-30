@@ -75,7 +75,9 @@ PartitionedGraph bipartition(
   timer::LocalTimer timer;
 
   timer.reset();
-  InitialPartitioner partitioner(*csr, input_ctx, final_k, ip_m_ctx_pool.local().get());
+  InitialPartitioner partitioner(input_ctx, ip_m_ctx_pool.local().get());
+  partitioner.init(*csr, final_k);
+
   if (timings != nullptr)
     timings->bipartitioner_init_ms += timer.elapsed();
 

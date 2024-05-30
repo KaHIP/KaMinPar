@@ -63,68 +63,59 @@ public:
     }
   };
 
-  InitialPartitioner(
-      const CSRGraph &graph, const Context &ctx, const BlockID final_k, MemoryContext m_ctx = {}
-  )
+  InitialPartitioner(const Context &ctx, MemoryContext m_ctx = {})
       : _m_ctx(std::move(m_ctx)),
-        _graph(graph),
+        _ctx(ctx),
         _i_ctx(ctx.initial_partitioning),
-        _coarsener(&_graph, _i_ctx.coarsening, std::move(_m_ctx.coarsener_m_ctx)) {
+        _coarsener(std::make_unique<ip::InitialCoarsener>(
+            _i_ctx.coarsening, std::move(_m_ctx.coarsener_m_ctx)
+        )),
+        _bipartitioner(std::make_unique<ip::PoolBipartitioner>(_i_ctx, std::move(_m_ctx.pool_m_ctx))
+        ),
+        _refiner(create_initial_refiner(_i_ctx.refinement, std::move(_m_ctx.refiner_m_ctx))) {}
+
+  void init(const CSRGraph &graph, const BlockID final_k) {
     const auto [final_k1, final_k2] = math::split_integral(final_k);
-    _p_ctx = create_bipartition_context(_graph, final_k1, final_k2, ctx.partition);
-    DBG << " -> created _p_ctx with max weights: " << _p_ctx.block_weights.max(0) << " + "
-        << _p_ctx.block_weights.max(1);
 
-    _refiner =
-        create_initial_refiner(_graph, _p_ctx, _i_ctx.refinement, std::move(_m_ctx.refiner_m_ctx));
+    _p_ctx = create_bipartition_context(*_graph, final_k1, final_k2, _ctx.partition);
+    _graph = &graph;
 
-    // O(R * k) initial bisections -> O(n + R * C * k) for the whole graphutils
-    _num_bipartition_repetitions =
-        std::ceil(_i_ctx.repetition_multiplier * final_k / math::ceil_log2(ctx.partition.k));
+    _coarsener->init(graph);
+    _refiner->init(graph);
+
+    const std::size_t num_bipartition_repetitions =
+        std::ceil(_i_ctx.repetition_multiplier * final_k / math::ceil_log2(_ctx.partition.k));
+    _bipartitioner->set_num_repetitions(num_bipartition_repetitions);
   }
 
   MemoryContext free() {
     _m_ctx.refiner_m_ctx = _refiner->free();
-    _m_ctx.coarsener_m_ctx = _coarsener.free();
+    _m_ctx.pool_m_ctx = _bipartitioner->free();
+    _m_ctx.coarsener_m_ctx = _coarsener->free();
+
     return std::move(_m_ctx);
   }
 
   PartitionedCSRGraph partition(InitialPartitionerTimings *timings = nullptr) {
-    timer::LocalTimer timer_total;
-    timer::LocalTimer timer_section;
+    timer::LocalTimer timer;
 
-    timer_total.reset();
-    timer_section.reset();
+    timer.reset();
     const CSRGraph *c_graph = coarsen(timings);
     if (timings) {
-      timings->coarsening_ms += timer_section.elapsed();
+      timings->coarsening_ms += timer.elapsed();
     }
 
-    timer_section.reset();
-    ip::PoolBipartitionerFactory factory;
-    auto bipartitioner = factory.create(*c_graph, _p_ctx, _i_ctx, std::move(_m_ctx.pool_m_ctx));
-    bipartitioner->set_num_repetitions(_num_bipartition_repetitions);
+    timer.reset();
+    _bipartitioner->init(*c_graph, _p_ctx);
+    PartitionedCSRGraph p_graph = _bipartitioner->bipartition();
     if (timings) {
-      timings->misc_ms += timer_section.elapsed();
+      timings->bipartitioning_ms += timer.elapsed();
     }
 
-    timer_section.reset();
-    PartitionedCSRGraph p_graph = bipartitioner->bipartition();
-    if (timings) {
-      timings->bipartitioning_ms += timer_section.elapsed();
-    }
-
-    timer_section.reset();
-    _m_ctx.pool_m_ctx = bipartitioner->free();
-    if (timings) {
-      //timings->misc_ms += timer_section.elapsed();
-    }
-
-    timer_section.reset();
+    timer.reset();
     p_graph = uncoarsen(std::move(p_graph));
     if (timings) {
-      timings->uncoarsening_ms += timer_section.elapsed();
-      timings->total_ms += timer_total.elapsed();
+      timings->uncoarsening_ms += timer.elapsed();
     }
 
     return p_graph;
@@ -137,10 +128,11 @@ private:
     timer.reset();
     const InitialCoarseningContext &c_ctx = _i_ctx.coarsening;
     const NodeWeight max_cluster_weight = compute_max_cluster_weight<NodeWeight>(
-        _i_ctx.coarsening, _p_ctx, _graph.n(), _graph.total_node_weight()
+        _i_ctx.coarsening, _p_ctx, _graph->n(), _graph->total_node_weight()
     );
 
-    const CSRGraph *c_graph = &_graph;
+    const CSRGraph *c_graph = _graph;
+
     bool shrunk = true;
     DBG << "Coarsen: n=" << c_graph->n() << " m=" << c_graph->m();
     if (timings) {
@@ -149,7 +141,7 @@ private:
 
     while (shrunk && c_graph->n() > c_ctx.contraction_limit) {
       timer.reset();
-      auto new_c_graph = _coarsener.coarsen(STATIC_MAX_CLUSTER_WEIGHT(max_cluster_weight));
+      auto new_c_graph = _coarsener->coarsen(STATIC_MAX_CLUSTER_WEIGHT(max_cluster_weight));
       if (timings) {
         timings->coarsening_call_ms += timer.elapsed();
       }
@@ -168,7 +160,7 @@ private:
     }
 
     if (timings) {
-      timings->coarsening += _coarsener.timings();
+      timings->coarsening += _coarsener->timings();
     }
 
     return c_graph;
@@ -177,9 +169,10 @@ private:
   PartitionedCSRGraph uncoarsen(PartitionedCSRGraph p_graph) {
     DBG << "Uncoarsen: n=" << p_graph.n() << " m=" << p_graph.m();
 
-    while (!_coarsener.empty()) {
-      p_graph = _coarsener.uncoarsen(std::move(p_graph));
-      _refiner->initialize(p_graph.graph());
+    while (!_coarsener->empty()) {
+      p_graph = _coarsener->uncoarsen(std::move(p_graph));
+
+      _refiner->init(p_graph.graph());
       _refiner->refine(p_graph, _p_ctx);
 
       DBG << "-> "                                                 //
@@ -194,10 +187,15 @@ private:
   }
 
   MemoryContext _m_ctx;
-  const CSRGraph &_graph;
-  const InitialPartitioningContext &_i_ctx;
+
+  const CSRGraph *_graph;
   PartitionContext _p_ctx;
-  ip::InitialCoarsener _coarsener;
+
+  const Context &_ctx;
+  const InitialPartitioningContext &_i_ctx;
+
+  std::unique_ptr<ip::InitialCoarsener> _coarsener;
+  std::unique_ptr<ip::PoolBipartitioner> _bipartitioner;
   std::unique_ptr<ip::InitialRefiner> _refiner;
 
   std::size_t _num_bipartition_repetitions;

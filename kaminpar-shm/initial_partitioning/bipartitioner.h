@@ -28,20 +28,27 @@ public:
 
   virtual ~Bipartitioner() = default;
 
+  virtual void init(const CSRGraph &graph, const PartitionContext &p_ctx) {
+    _graph = &graph;
+    _p_ctx = &p_ctx;
+
+    KASSERT(_p_ctx->k == 2u, "not a bipartition context", assert::light);
+  }
+
   //! Compute bipartition and return as partitioned graph.
   virtual PartitionedCSRGraph bipartition(StaticArray<BlockID> partition = {}) {
-    return {PartitionedCSRGraph::seq{}, _graph, 2, bipartition_raw(std::move(partition))};
+    return {PartitionedCSRGraph::seq{}, *_graph, 2, bipartition_raw(std::move(partition))};
   }
 
   //! Compute bipartition and return as array.
   StaticArray<BlockID> bipartition_raw(StaticArray<BlockID> partition = {}) {
-    if (_graph.n() == 0) {
+    if (_graph->n() == 0) {
       return {};
     }
 
     _partition = std::move(partition);
-    if (_partition.size() < _graph.n()) {
-      _partition.resize(_graph.n());
+    if (_partition.size() < _graph->n()) {
+      _partition.resize(_graph->n());
     }
 #if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
     std::fill(_partition.begin(), _partition.end(), kInvalidBlockID);
@@ -57,14 +64,7 @@ protected:
   static constexpr BlockID V1 = 0;
   static constexpr BlockID V2 = 1;
 
-  Bipartitioner(
-      const CSRGraph &graph, const PartitionContext &p_ctx, const InitialPartitioningContext &i_ctx
-  )
-      : _graph(graph),
-        _p_ctx(p_ctx),
-        _i_ctx(i_ctx) {
-    KASSERT(_p_ctx.k == 2u, "not a bipartition context", assert::light);
-  }
+  Bipartitioner(const InitialPartitioningContext &i_ctx) : _i_ctx(i_ctx) {}
 
   // must be implemented by the base class -- compute bipartition
   virtual void bipartition_impl() = 0;
@@ -74,8 +74,8 @@ protected:
   //
 
   inline void add_to_smaller_block(const NodeID u) {
-    const NodeWeight delta1 = _block_weights[0] - _p_ctx.block_weights.perfectly_balanced(0);
-    const NodeWeight delta2 = _block_weights[1] - _p_ctx.block_weights.perfectly_balanced(1);
+    const NodeWeight delta1 = _block_weights[0] - _p_ctx->block_weights.perfectly_balanced(0);
+    const NodeWeight delta2 = _block_weights[1] - _p_ctx->block_weights.perfectly_balanced(1);
     const BlockID block = delta1 < delta2 ? V1 : V2;
     set_block(u, block);
   }
@@ -83,14 +83,14 @@ protected:
   inline void set_block(const NodeID u, const BlockID b) {
     KASSERT(_partition[u] == kInvalidBlockID, "use update_block() instead");
     _partition[u] = b;
-    _block_weights[b] += _graph.node_weight(u);
+    _block_weights[b] += _graph->node_weight(u);
   }
 
   inline void change_block(const NodeID u, const BlockID b) {
     KASSERT(_partition[u] != kInvalidBlockID, "only use set_block() instead");
     _partition[u] = b;
 
-    const NodeWeight u_weight = _graph.node_weight(u);
+    const NodeWeight u_weight = _graph->node_weight(u);
     _block_weights[b] += u_weight;
     _block_weights[other_block(b)] -= u_weight;
   }
@@ -99,8 +99,8 @@ protected:
     return 1 - b;
   }
 
-  const CSRGraph &_graph;
-  const PartitionContext &_p_ctx;
+  const CSRGraph *_graph;
+  const PartitionContext *_p_ctx;
   const InitialPartitioningContext &_i_ctx;
 
   StaticArray<BlockID> _partition;

@@ -24,20 +24,19 @@ public:
     }
   };
 
-  GreedyGraphGrowingBipartitioner(
-      const CSRGraph &graph,
-      const PartitionContext &p_ctx,
-      const InitialPartitioningContext &i_ctx,
-      MemoryContext &m_ctx
-  )
-      : Bipartitioner(graph, p_ctx, i_ctx),
+  GreedyGraphGrowingBipartitioner(const InitialPartitioningContext &i_ctx, MemoryContext &m_ctx)
+      : Bipartitioner(i_ctx),
         _queue(m_ctx.queue),
-        _marker(m_ctx.marker) {
-    if (_queue.capacity() < _graph.n()) {
-      _queue.resize(_graph.n());
+        _marker(m_ctx.marker) {}
+
+  void init(const CSRGraph &graph, const PartitionContext &p_ctx) override {
+    Bipartitioner::init(graph, p_ctx);
+
+    if (_queue.capacity() < _graph->n()) {
+      _queue.resize(_graph->n());
     }
-    if (_marker.size() < _graph.n()) {
-      _marker.resize(_graph.n());
+    if (_marker.size() < _graph->n()) {
+      _marker.resize(_graph->n());
     }
   }
 

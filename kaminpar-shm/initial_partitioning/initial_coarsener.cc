@@ -12,19 +12,20 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::ip {
-InitialCoarsener::InitialCoarsener(
-    const CSRGraph *graph, const InitialCoarseningContext &c_ctx, MemoryContext &&m_ctx
-)
-    : _input_graph(graph),
-      _current_graph(graph),
-      _hierarchy(graph),
-      _c_ctx(c_ctx),
+InitialCoarsener::InitialCoarsener(const InitialCoarseningContext &c_ctx, MemoryContext &&m_ctx)
+    : _c_ctx(c_ctx),
       _clustering(std::move(m_ctx.clustering)),
       _rating_map(std::move(m_ctx.rating_map)),
       _cluster_sizes(std::move(m_ctx.cluster_sizes)),
       _leader_node_mapping(std::move(m_ctx.leader_node_mapping)),
       _edge_weight_collector(std::move(m_ctx.edge_weight_collector)),
-      _cluster_nodes(std::move(m_ctx.cluster_nodes)) {
+      _cluster_nodes(std::move(m_ctx.cluster_nodes)) {}
+
+void InitialCoarsener::init(const CSRGraph &graph) {
+  _input_graph = &graph;
+  _current_graph = &graph;
+  _hierarchy.init(graph);
+
   if (_clustering.size() < _input_graph->n() + 1) {
     _clustering.resize(_input_graph->n() + 1);
   }
@@ -44,9 +45,6 @@ InitialCoarsener::InitialCoarsener(
     _cluster_nodes.resize(_input_graph->n());
   }
 }
-
-InitialCoarsener::InitialCoarsener(const CSRGraph *graph, const InitialCoarseningContext &c_ctx)
-    : InitialCoarsener(graph, c_ctx, MemoryContext{}) {}
 
 const CSRGraph *
 InitialCoarsener::coarsen(const std::function<NodeWeight(NodeID)> &cb_max_cluster_weight) {

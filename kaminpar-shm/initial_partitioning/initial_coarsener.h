@@ -79,11 +79,7 @@ public:
     }
   };
 
-  InitialCoarsener(
-      const CSRGraph *graph, const InitialCoarseningContext &c_ctx, MemoryContext &&m_ctx
-  );
-
-  InitialCoarsener(const CSRGraph *graph, const InitialCoarseningContext &c_ctx);
+  InitialCoarsener(const InitialCoarseningContext &c_ctx, MemoryContext &&m_ctx);
 
   InitialCoarsener(const InitialCoarsener &) = delete;
   InitialCoarsener &operator=(const InitialCoarsener &) = delete;
@@ -103,8 +99,9 @@ public:
     return &_hierarchy.coarsest_graph();
   }
 
-  const CSRGraph *coarsen(const std::function<NodeWeight(NodeID)> &cb_max_cluster_weight);
+  void init(const CSRGraph &graph);
 
+  const CSRGraph *coarsen(const std::function<NodeWeight(NodeID)> &cb_max_cluster_weight);
   PartitionedCSRGraph uncoarsen(PartitionedCSRGraph &&c_p_graph);
 
   MemoryContext free();

@@ -12,13 +12,15 @@
 namespace kaminpar::shm::ip {
 class SequentialGraphHierarchy {
 public:
-  explicit SequentialGraphHierarchy(const CSRGraph *finest_graph);
+  SequentialGraphHierarchy() = default;
 
   SequentialGraphHierarchy(const SequentialGraphHierarchy &) = delete;
   SequentialGraphHierarchy &operator=(const SequentialGraphHierarchy &) = delete;
 
   SequentialGraphHierarchy(SequentialGraphHierarchy &&) noexcept = default;
   SequentialGraphHierarchy &operator=(SequentialGraphHierarchy &&) noexcept = default;
+
+  void init(const CSRGraph &graph);
 
   void take_coarse_graph(CSRGraph &&c_graph, std::vector<NodeID> &&c_mapping);
 

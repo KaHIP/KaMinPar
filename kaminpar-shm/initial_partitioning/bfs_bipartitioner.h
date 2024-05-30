@@ -80,10 +80,7 @@ public:
     }
   };
 
-  BfsBipartitionerBase(
-      const CSRGraph &graph, const PartitionContext &p_ctx, const InitialPartitioningContext &i_ctx
-  )
-      : Bipartitioner(graph, p_ctx, i_ctx) {}
+  BfsBipartitionerBase(const InitialPartitioningContext &i_ctx) : Bipartitioner(i_ctx) {}
 };
 
 /*!
@@ -104,30 +101,30 @@ class BfsBipartitioner : public BfsBipartitionerBase {
   using MemoryContext = BfsBipartitionerBase::MemoryContext;
 
 public:
-  BfsBipartitioner(
-      const CSRGraph &graph,
-      const PartitionContext &p_ctx,
-      const InitialPartitioningContext &i_ctx,
-      MemoryContext &m_ctx
-  )
-      : BfsBipartitionerBase(graph, p_ctx, i_ctx),
+  BfsBipartitioner(const InitialPartitioningContext &i_ctx, MemoryContext &m_ctx)
+      : BfsBipartitionerBase(i_ctx),
         _queues(m_ctx.queues),
         _marker(m_ctx.marker),
-        _num_seed_iterations(i_ctx.num_seed_iterations) {
-    if (_marker.capacity() < _graph.n()) {
-      _marker.resize(_graph.n());
+        _num_seed_iterations(i_ctx.num_seed_iterations) {}
+
+  void init(const CSRGraph &graph, const PartitionContext &p_ctx) override {
+    Bipartitioner::init(graph, p_ctx);
+    if (_marker.capacity() < _graph->n()) {
+      _marker.resize(_graph->n());
     }
-    if (_queues[0].capacity() < _graph.n()) {
-      _queues[0].resize(_graph.n());
+    if (_queues[0].capacity() < _graph->n()) {
+      _queues[0].resize(_graph->n());
     }
-    if (_queues[1].capacity() < _graph.n()) {
-      _queues[1].resize(_graph.n());
+    if (_queues[1].capacity() < _graph->n()) {
+      _queues[1].resize(_graph->n());
     }
+
+    _block_weights.fill(0);
   }
 
 protected:
   void bipartition_impl() override {
-    const auto [start_a, start_b] = ip::find_far_away_nodes(_graph, _num_seed_iterations);
+    const auto [start_a, start_b] = ip::find_far_away_nodes(*_graph, _num_seed_iterations);
 
     _queues[0].push_tail(start_a);
     _queues[1].push_tail(start_b);
@@ -136,7 +133,7 @@ protected:
 
     BlockID active = 0;
 
-    while (_marker.first_unmarked_element(kMarkAssigned) < _graph.n()) {
+    while (_marker.first_unmarked_element(kMarkAssigned) < _graph->n()) {
       if (__builtin_expect(_queues[active].empty(), 0)) {
         const auto first_unassigned_node =
             static_cast<NodeID>(_marker.first_unmarked_element(kMarkAssigned));
@@ -168,13 +165,13 @@ protected:
         // than this version
         const NodeWeight weight = _block_weights[active];
         const bool assignment_allowed =
-            (weight + _graph.node_weight(u) <= _p_ctx.block_weights.max(active));
+            (weight + _graph->node_weight(u) <= _p_ctx->block_weights.max(active));
         active = assignment_allowed * active + (1 - assignment_allowed) * (1 - active);
 
         set_block(u, active);
         _marker.set<true>(u, kMarkAssigned);
 
-        for (const NodeID v : _graph.adjacent_nodes(u)) {
+        for (const NodeID v : _graph->adjacent_nodes(u)) {
           if (_marker.get(v, kMarkAssigned) || _marker.get(v, active)) {
             continue;
           }
@@ -183,7 +180,7 @@ protected:
         }
       }
 
-      active = _block_selection_strategy(active, _block_weights, _p_ctx, _queues);
+      active = _block_selection_strategy(active, _block_weights, *_p_ctx, _queues);
     }
 
     _marker.reset();

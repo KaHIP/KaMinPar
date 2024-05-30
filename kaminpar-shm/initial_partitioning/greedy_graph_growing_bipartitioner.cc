@@ -13,10 +13,13 @@
 
 namespace kaminpar::shm::ip {
 void GreedyGraphGrowingBipartitioner::bipartition_impl() {
-  KASSERT(_graph.n() > 0u);
+  KASSERT(_graph->n() > 0u);
+
+  _marker.reset();
+  _queue.clear();
 
   std::fill(_partition.begin(), _partition.end(), V1);
-  _block_weights[V1] = _graph.total_node_weight();
+  _block_weights[V1] = _graph->total_node_weight();
 
   Random &rand = Random::instance();
 
@@ -26,7 +29,7 @@ void GreedyGraphGrowingBipartitioner::bipartition_impl() {
     NodeID start_node = 0;
     std::size_t counter = 0;
     do {
-      start_node = rand.random_index(0, _graph.n());
+      start_node = rand.random_index(0, _graph->n());
       counter++;
     } while (_marker.get(start_node) && counter < 5);
     if (_marker.get(start_node)) {
@@ -42,19 +45,19 @@ void GreedyGraphGrowingBipartitioner::bipartition_impl() {
       KASSERT(_queue.peek_key() == compute_negative_gain(u));
       _queue.pop();
       change_block(u, V2);
-      if (_block_weights[V2] >= _p_ctx.block_weights.perfectly_balanced(V2)) {
+      if (_block_weights[V2] >= _p_ctx->block_weights.perfectly_balanced(V2)) {
         break;
       }
 
       // queue unmarked neighbors / update gains
-      for (const auto [e, v] : _graph.neighbors(u)) {
+      for (const auto [e, v] : _graph->neighbors(u)) {
         if (_partition[u] == V2)
           continue; // v already in V2: won't touch this node anymore
         KASSERT(_partition[v] == V1);
 
         if (_marker.get(v)) {
           KASSERT(_queue.contains(v)); // marked and not in V2: must already be queued
-          _queue.decrease_priority_by(v, 2 * _graph.edge_weight(e));
+          _queue.decrease_priority_by(v, 2 * _graph->edge_weight(e));
           KASSERT(_queue.key(v) == compute_negative_gain(v));
         } else {
           KASSERT(!_queue.contains(v));
@@ -63,17 +66,14 @@ void GreedyGraphGrowingBipartitioner::bipartition_impl() {
         }
       }
     }
-  } while (_block_weights[V2] < _p_ctx.block_weights.perfectly_balanced(V2));
-
-  _marker.reset();
-  _queue.clear();
+  } while (_block_weights[V2] < _p_ctx->block_weights.perfectly_balanced(V2));
 }
 
 [[nodiscard]] EdgeWeight GreedyGraphGrowingBipartitioner::compute_negative_gain(const NodeID u
 ) const {
   EdgeWeight gain = 0;
-  for (const auto [e, v] : _graph.neighbors(u)) {
-    gain += (_partition[u] == _partition[v]) ? _graph.edge_weight(e) : -_graph.edge_weight(e);
+  for (const auto [e, v] : _graph->neighbors(u)) {
+    gain += (_partition[u] == _partition[v]) ? _graph->edge_weight(e) : -_graph->edge_weight(e);
   }
   return gain;
 }

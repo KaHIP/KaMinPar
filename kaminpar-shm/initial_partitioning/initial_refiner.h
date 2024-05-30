@@ -54,7 +54,7 @@ public:
 
   virtual ~InitialRefiner() = default;
 
-  virtual void initialize(const CSRGraph &graph) = 0;
+  virtual void init(const CSRGraph &graph) = 0;
   virtual bool refine(PartitionedCSRGraph &p_graph, const PartitionContext &p_ctx) = 0;
 
   virtual MemoryContext free() = 0;
@@ -64,7 +64,7 @@ class InitialNoopRefiner : public InitialRefiner {
 public:
   explicit InitialNoopRefiner(MemoryContext m_ctx) : _m_ctx{std::move(m_ctx)} {}
 
-  void initialize(const CSRGraph &) final {}
+  void init(const CSRGraph &) final {}
 
   bool refine(PartitionedCSRGraph &, const PartitionContext &) final {
     return false;
@@ -229,37 +229,13 @@ class InitialTwoWayFMRefiner : public InitialRefiner {
   static constexpr bool kDebug = false;
 
 public:
-  InitialTwoWayFMRefiner(
-      const NodeID n,
-      const PartitionContext &p_ctx,
-      const InitialRefinementContext &r_ctx,
-      MemoryContext m_ctx = {}
-  )
-      : _p_ctx(p_ctx),
-        _r_ctx(r_ctx),
+  InitialTwoWayFMRefiner(const InitialRefinementContext &r_ctx, MemoryContext m_ctx = {})
+      : _r_ctx(r_ctx),
         _queues(std::move(m_ctx.queues)),
         _marker(std::move(m_ctx.marker)),
-        _weighted_degrees(std::move(m_ctx.weighted_degrees)) {
-    KASSERT(
-        p_ctx.k == 2u,
-        "2-way refiner cannot be used on a " << p_ctx.k << "-way partition" << assert::light
-    );
+        _weighted_degrees(std::move(m_ctx.weighted_degrees)) {}
 
-    if (_queues[0].capacity() < n) {
-      _queues[0].resize(n);
-    }
-    if (_queues[1].capacity() < n) {
-      _queues[1].resize(n);
-    }
-    if (_marker.capacity() < n) {
-      _marker.resize(n);
-    }
-    if (_weighted_degrees.size() < n) {
-      _weighted_degrees.resize(n);
-    }
-  }
-
-  void initialize(const CSRGraph &graph) final {
+  void init(const CSRGraph &graph) final {
     KASSERT(_queues[0].capacity() >= graph.n());
     KASSERT(_queues[1].capacity() >= graph.n());
     KASSERT(_marker.capacity() >= graph.n());
@@ -268,16 +244,28 @@ public:
     _graph = &graph;
     _stopping_policy.init(_graph);
 
+    if (_queues[0].capacity() < _graph->n()) {
+      _queues[0].resize(_graph->n());
+    }
+    if (_queues[1].capacity() < _graph->n()) {
+      _queues[1].resize(_graph->n());
+    }
+    if (_marker.capacity() < _graph->n()) {
+      _marker.resize(_graph->n());
+    }
+    if (_weighted_degrees.size() < _graph->n()) {
+      _weighted_degrees.resize(_graph->n());
+    }
+
     init_weighted_degrees();
   }
 
-  bool refine(PartitionedCSRGraph &p_graph, const PartitionContext &) final {
-    KASSERT(&p_graph.graph() == _graph, "must be initialized with the same graph", assert::light);
-    KASSERT(
-        p_graph.k() == 2u,
-        "2-way refiner cannot be used on a " << p_graph.k() << "-way partition",
-        assert::light
-    );
+  bool refine(PartitionedCSRGraph &p_graph, const PartitionContext &p_ctx) final {
+    _p_ctx = &p_ctx;
+
+    KASSERT(&p_graph.graph() == _graph);
+    KASSERT(p_graph.k() == 2u);
+    KASSERT(_p_ctx->k == 2u);
 
     const EdgeWeight initial_edge_cut = metrics::edge_cut_seq(p_graph);
     if (initial_edge_cut == 0) {
@@ -324,7 +312,7 @@ private:
     DBG << "Initial refiner initialized with n=" << p_graph.n() << " m=" << p_graph.m();
 
 #if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
-    const bool initially_feasible = metrics::is_feasible(p_graph, _p_ctx);
+    const bool initially_feasible = metrics::is_feasible(p_graph, *_p_ctx);
 #endif
 
     _stopping_policy.reset();
@@ -334,7 +322,7 @@ private:
     std::vector<NodeID> moves; // moves since last accepted cut
     std::size_t active = 0;    // block from which we select a node for movement
 
-    EdgeWeight current_overload = metrics::total_overload(p_graph, _p_ctx);
+    EdgeWeight current_overload = metrics::total_overload(p_graph, *_p_ctx);
     EdgeWeight accepted_overload = current_overload;
 
     EdgeWeight current_delta = 0;
@@ -351,7 +339,7 @@ private:
       validate_pqs(p_graph);
 #endif
 
-      active = _queue_selection_policy(p_graph, _p_ctx, _queues, _rand);
+      active = _queue_selection_policy(p_graph, *_p_ctx, _queues, _rand);
       if (_queues[active].empty()) {
         active = 1 - active;
       }
@@ -374,7 +362,7 @@ private:
       KASSERT(initial_edge_cut + current_delta == metrics::edge_cut(p_graph), "", assert::heavy);
 #endif
       _stopping_policy.update(-delta); // assumes gain, not loss
-      current_overload = metrics::total_overload(p_graph, _p_ctx);
+      current_overload = metrics::total_overload(p_graph, *_p_ctx);
 
       // update gain of neighboring nodes
       for (const auto [e, v] : _graph->neighbors(u)) {
@@ -405,7 +393,7 @@ private:
 
       // accept move if it improves the best edge cut found so far
       if (_cut_acceptance_policy(
-              p_graph, _p_ctx, accepted_overload, current_overload, accepted_delta, current_delta
+              p_graph, *_p_ctx, accepted_overload, current_overload, accepted_delta, current_delta
           )) {
         DBG << "Accepted new bipartition: delta=" << current_delta
             << " cut=" << metrics::edge_cut_seq(p_graph);
@@ -520,7 +508,7 @@ private:
   }
 
   const CSRGraph *_graph;
-  const PartitionContext &_p_ctx;
+  const PartitionContext *_p_ctx;
   const InitialRefinementContext &_r_ctx;
   Queues _queues{BinaryMinHeap<EdgeWeight>{0}, BinaryMinHeap<EdgeWeight>{0}};
   Marker<> _marker{0};
@@ -550,19 +538,15 @@ using InitialAdaptive2WayFM = InitialTwoWayFMRefiner<
     fm::BalancedMinCutAcceptancePolicy,
     fm::AdaptiveStoppingPolicy>;
 
-inline std::unique_ptr<InitialRefiner> create_initial_refiner(
-    const CSRGraph &graph,
-    const PartitionContext &p_ctx,
-    const InitialRefinementContext &r_ctx,
-    InitialRefiner::MemoryContext m_ctx
-) {
+inline std::unique_ptr<InitialRefiner>
+create_initial_refiner(const InitialRefinementContext &r_ctx, InitialRefiner::MemoryContext m_ctx) {
   if (!r_ctx.disabled) {
     switch (r_ctx.stopping_rule) {
     case FMStoppingRule::ADAPTIVE:
-      return std::make_unique<InitialSimple2WayFM>(graph.n(), p_ctx, r_ctx, std::move(m_ctx));
+      return std::make_unique<InitialSimple2WayFM>(r_ctx, std::move(m_ctx));
 
     case FMStoppingRule::SIMPLE:
-      return std::make_unique<InitialAdaptive2WayFM>(graph.n(), p_ctx, r_ctx, std::move(m_ctx));
+      return std::make_unique<InitialAdaptive2WayFM>(r_ctx, std::move(m_ctx));
     }
   }
 
