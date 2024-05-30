@@ -51,17 +51,12 @@ private:
   const Context &_input_ctx;
   PartitionContext _current_p_ctx;
 
-  // Coarsening
   std::unique_ptr<Coarsener> _coarsener;
-
-  // Refinement
   std::unique_ptr<Refiner> _refiner;
 
-  // Initial partitioning -> subgraph extraction
   graph::SubgraphMemory _subgraph_memory;
-  partitioning::TemporaryGraphExtractionBufferPool _ip_extraction_pool;
 
-  // Initial partitioning
-  partitioning::GlobalInitialPartitionerMemoryPool _ip_m_ctx_pool;
+  partitioning::InitialTemporaryExtractionMemoryPool _tmp_extraction_mem_pool;
+  partitioning::InitialBipartitionerPool _bipartitioner_pool;
 };
 } // namespace kaminpar::shm

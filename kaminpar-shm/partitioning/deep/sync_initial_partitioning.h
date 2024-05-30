@@ -14,18 +14,15 @@
 #include <tbb/task_group.h>
 #include <tbb/task_scheduler_observer.h>
 
-#include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/partitioning/helper.h"
 
 namespace kaminpar::shm::partitioning {
 class SyncInitialPartitioner {
-  SET_DEBUG(false);
-
 public:
   SyncInitialPartitioner(
       const Context &input_ctx,
-      GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
-      TemporaryGraphExtractionBufferPool &ip_extraction_pool
+      InitialBipartitionerPool &bipartitioner_pool,
+      InitialTemporaryExtractionMemoryPool &tmp_extraction_mem_pool
   );
 
   PartitionedGraph partition(const Coarsener *coarsener, const PartitionContext &p_ctx);
@@ -34,7 +31,7 @@ private:
   std::unique_ptr<Coarsener> duplicate_coarsener(const Coarsener *coarsener);
 
   const Context &_input_ctx;
-  GlobalInitialPartitionerMemoryPool &_ip_m_ctx_pool;
-  TemporaryGraphExtractionBufferPool &_ip_extraction_pool;
+  InitialBipartitionerPool &_bipartitioner_pool;
+  InitialTemporaryExtractionMemoryPool &_tmp_extraction_mem_pool;
 };
 } // namespace kaminpar::shm::partitioning

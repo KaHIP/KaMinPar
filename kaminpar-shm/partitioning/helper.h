@@ -45,9 +45,8 @@ struct InitialPartitionerMemoryPool {
   }
 };
 
-using GlobalInitialPartitionerMemoryPool =
-    tbb::enumerable_thread_specific<InitialPartitionerMemoryPool>;
-using TemporaryGraphExtractionBufferPool =
+using InitialBipartitionerPool = tbb::enumerable_thread_specific<InitialPartitioner>;
+using InitialTemporaryExtractionMemoryPool =
     tbb::enumerable_thread_specific<graph::TemporarySubgraphMemory>;
 
 namespace helper {
@@ -87,7 +86,7 @@ PartitionedGraph bipartition(
     const Graph *graph,
     BlockID final_k,
     const Context &input_ctx,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
+    InitialBipartitionerPool &bipartitioner_pool,
     BipartitionTimingInfo *timing_info = nullptr
 );
 
@@ -102,8 +101,8 @@ void extend_partition_recursive(
     const Context &input_ctx,
     graph::SubgraphMemory &subgraph_memory,
     graph::SubgraphMemoryStartPosition position,
-    TemporaryGraphExtractionBufferPool &extraction_pool,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
+    InitialTemporaryExtractionMemoryPool &tmp_extraction_mem_pool,
+    InitialBipartitionerPool &bipartitioner_pool,
     BipartitionTimingInfo *timings = nullptr
 );
 
@@ -112,7 +111,7 @@ void extend_partition(
     BlockID k_prime,
     const Context &input_ctx,
     PartitionContext &current_p_ctx,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool
+    InitialBipartitionerPool &bipartitioner_pool
 );
 
 void extend_partition(
@@ -121,8 +120,8 @@ void extend_partition(
     const Context &input_ctx,
     PartitionContext &current_p_ctx,
     graph::SubgraphMemory &subgraph_memory,
-    TemporaryGraphExtractionBufferPool &extraction_pool,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
+    InitialTemporaryExtractionMemoryPool &tmp_extraction_mem_pool,
+    InitialBipartitionerPool &bipartitioner_pool,
     int num_active_threads
 );
 
@@ -131,8 +130,8 @@ void extend_partition(
     BlockID k_prime,
     const Context &input_ctx,
     PartitionContext &current_p_ctx,
-    TemporaryGraphExtractionBufferPool &extraction_pool,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
+    InitialTemporaryExtractionMemoryPool &tmp_extraction_mem_pool,
+    InitialBipartitionerPool &bipartitioner_pool,
     int num_active_threads
 );
 

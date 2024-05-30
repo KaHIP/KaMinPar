@@ -1,9 +1,9 @@
 /*******************************************************************************
+ * Sequential 2-way FM refinement used during initial bipartitioning.
+ *
  * @file:   initial_refiner.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Sequential local improvement graphutils used to improve an initial
- * partition.
  ******************************************************************************/
 #pragma once
 
@@ -25,68 +25,33 @@ using Queues = std::array<BinaryMinHeap<EdgeWeight>, 2>;
 
 class InitialRefiner {
 public:
-  struct MemoryContext {
-    Queues queues{BinaryMinHeap<EdgeWeight>{0}, BinaryMinHeap<EdgeWeight>{0}};
-    Marker<> marker{0};
-    std::vector<EdgeWeight> weighted_degrees;
-
-    void resize(const NodeID n) {
-      if (queues[0].capacity() < n) {
-        queues[0].resize(n);
-      }
-      if (queues[1].capacity() < n) {
-        queues[1].resize(n);
-      }
-      if (marker.size() < n) {
-        marker.resize(n);
-      }
-      if (weighted_degrees.size() < n) {
-        weighted_degrees.resize(n);
-      }
-    }
-
-    [[nodiscard]] std::size_t memory_in_kb() const {
-      return marker.memory_in_kb() +                               //
-             weighted_degrees.size() * sizeof(EdgeWeight) / 1000 + //
-             queues[0].memory_in_kb() + queues[1].memory_in_kb();  //
-    }
-  };
-
   virtual ~InitialRefiner() = default;
 
   virtual void init(const CSRGraph &graph) = 0;
   virtual bool refine(PartitionedCSRGraph &p_graph, const PartitionContext &p_ctx) = 0;
-
-  virtual MemoryContext free() = 0;
 };
 
 class InitialNoopRefiner : public InitialRefiner {
 public:
-  explicit InitialNoopRefiner(MemoryContext m_ctx) : _m_ctx{std::move(m_ctx)} {}
-
   void init(const CSRGraph &) final {}
 
   bool refine(PartitionedCSRGraph &, const PartitionContext &) final {
     return false;
   }
-
-  MemoryContext free() override {
-    return std::move(_m_ctx);
-  }
-
-private:
-  MemoryContext _m_ctx;
 };
 
 namespace fm {
 struct SimpleStoppingPolicy {
   void init(const CSRGraph *) const {}
+
   [[nodiscard]] bool should_stop(const InitialRefinementContext &fm_ctx) const {
     return _num_steps > fm_ctx.num_fruitless_moves;
   }
+
   void reset() {
     _num_steps = 0;
   }
+
   void update(const EdgeWeight) {
     ++_num_steps;
   }
@@ -116,6 +81,7 @@ struct AdaptiveStoppingPolicy {
 
   void update(const EdgeWeight gain) {
     ++_num_steps;
+
     // See Knuth TAOCP vol 2, 3rd edition, page 232 or
     // https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
     if (_num_steps == 1) {
@@ -127,7 +93,7 @@ struct AdaptiveStoppingPolicy {
       _Sk = _SkMinus1 + (gain - _MkMinus1) * (gain - _Mk);
       _variance = _Sk / (_num_steps - 1.0);
 
-      // prepare for next iteration:
+      // Prepare for next iteration:
       _MkMinus1 = _Mk;
       _SkMinus1 = _Sk;
     }
@@ -170,9 +136,11 @@ struct MaxGainSelectionPolicy {
         queues[0].empty() ? std::numeric_limits<EdgeWeight>::max() : queues[0].peek_key();
     const auto loss1 =
         queues[1].empty() ? std::numeric_limits<EdgeWeight>::max() : queues[1].peek_key();
+
     if (loss0 == loss1) {
       return MaxWeightSelectionPolicy()(p_graph, context, queues, rand);
     }
+
     return loss1 < loss0;
   }
 };
@@ -188,9 +156,11 @@ struct MaxOverloadSelectionPolicy {
         std::max<NodeWeight>(0, p_graph.block_weight(0) - context.block_weights.max(0));
     const NodeWeight overload1 =
         std::max<NodeWeight>(0, p_graph.block_weight(1) - context.block_weights.max(1));
+
     if (overload0 == 0 && overload1 == 0) {
       return MaxGainSelectionPolicy()(p_graph, context, queues, rand);
     }
+
     return overload1 > overload0 || (overload1 == overload0 && rand.random_bool());
   }
 };
@@ -226,14 +196,10 @@ class InitialTwoWayFMRefiner : public InitialRefiner {
   static constexpr NodeID kChunkSize = 64;
   static constexpr std::size_t kNumberOfNodePermutations = 32;
 
-  static constexpr bool kDebug = false;
+  SET_DEBUG(false);
 
 public:
-  InitialTwoWayFMRefiner(const InitialRefinementContext &r_ctx, MemoryContext m_ctx = {})
-      : _r_ctx(r_ctx),
-        _queues(std::move(m_ctx.queues)),
-        _marker(std::move(m_ctx.marker)),
-        _weighted_degrees(std::move(m_ctx.weighted_degrees)) {}
+  explicit InitialTwoWayFMRefiner(const InitialRefinementContext &r_ctx) : _r_ctx(r_ctx) {}
 
   void init(const CSRGraph &graph) final {
     KASSERT(_queues[0].capacity() >= graph.n());
@@ -284,14 +250,6 @@ public:
     }
 
     return cur_edge_cut < initial_edge_cut;
-  }
-
-  MemoryContext free() final {
-    return {
-        .queues = std::move(_queues),
-        .marker = std::move(_marker),
-        .weighted_degrees = std::move(_weighted_degrees)
-    };
   }
 
 private:
@@ -510,12 +468,15 @@ private:
   const CSRGraph *_graph;
   const PartitionContext *_p_ctx;
   const InitialRefinementContext &_r_ctx;
+
   Queues _queues{BinaryMinHeap<EdgeWeight>{0}, BinaryMinHeap<EdgeWeight>{0}};
   Marker<> _marker{0};
-  std::vector<EdgeWeight> _weighted_degrees{};
+  ScalableVector<EdgeWeight> _weighted_degrees{};
+
   QueueSelectionPolicy _queue_selection_policy{};
   CutAcceptancePolicy _cut_acceptance_policy{};
   StoppingPolicy _stopping_policy{};
+
   Random &_rand = Random::instance();
   RandomPermutations<NodeID, kChunkSize, kNumberOfNodePermutations> _permutations;
 };
@@ -538,18 +499,20 @@ using InitialAdaptive2WayFM = InitialTwoWayFMRefiner<
     fm::BalancedMinCutAcceptancePolicy,
     fm::AdaptiveStoppingPolicy>;
 
-inline std::unique_ptr<InitialRefiner>
-create_initial_refiner(const InitialRefinementContext &r_ctx, InitialRefiner::MemoryContext m_ctx) {
-  if (!r_ctx.disabled) {
-    switch (r_ctx.stopping_rule) {
-    case FMStoppingRule::ADAPTIVE:
-      return std::make_unique<InitialSimple2WayFM>(r_ctx, std::move(m_ctx));
-
-    case FMStoppingRule::SIMPLE:
-      return std::make_unique<InitialAdaptive2WayFM>(r_ctx, std::move(m_ctx));
-    }
+inline std::unique_ptr<InitialRefiner> create_initial_refiner(const InitialRefinementContext &r_ctx
+) {
+  if (r_ctx.disabled) {
+    return std::make_unique<InitialNoopRefiner>();
   }
 
-  return std::make_unique<InitialNoopRefiner>(std::move(m_ctx));
+  switch (r_ctx.stopping_rule) {
+  case FMStoppingRule::ADAPTIVE:
+    return std::make_unique<InitialSimple2WayFM>(r_ctx);
+
+  case FMStoppingRule::SIMPLE:
+    return std::make_unique<InitialAdaptive2WayFM>(r_ctx);
+  }
+
+  __builtin_unreachable();
 }
 } // namespace kaminpar::shm::ip

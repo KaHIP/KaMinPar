@@ -44,35 +44,12 @@ class InitialPartitioner {
   SET_DEBUG(false);
 
 public:
-  struct MemoryContext {
-    MemoryContext() = default;
-
-    MemoryContext(const MemoryContext &) = delete;
-    MemoryContext &operator=(const MemoryContext &) = delete;
-
-    MemoryContext(MemoryContext &&) noexcept = default;
-    MemoryContext &operator=(MemoryContext &&) noexcept = default;
-
-    ip::InitialCoarsener::MemoryContext coarsener_m_ctx;
-    ip::InitialRefiner::MemoryContext refiner_m_ctx;
-    ip::PoolBipartitioner::MemoryContext pool_m_ctx;
-
-    [[nodiscard]] std::size_t memory_in_kb() const {
-      return coarsener_m_ctx.memory_in_kb() + refiner_m_ctx.memory_in_kb() +
-             pool_m_ctx.memory_in_kb();
-    }
-  };
-
-  InitialPartitioner(const Context &ctx, MemoryContext m_ctx = {})
-      : _m_ctx(std::move(m_ctx)),
-        _ctx(ctx),
+  InitialPartitioner(const Context &ctx)
+      : _ctx(ctx),
         _i_ctx(ctx.initial_partitioning),
-        _coarsener(std::make_unique<ip::InitialCoarsener>(
-            _i_ctx.coarsening, std::move(_m_ctx.coarsener_m_ctx)
-        )),
-        _bipartitioner(std::make_unique<ip::PoolBipartitioner>(_i_ctx, std::move(_m_ctx.pool_m_ctx))
-        ),
-        _refiner(create_initial_refiner(_i_ctx.refinement, std::move(_m_ctx.refiner_m_ctx))) {}
+        _coarsener(std::make_unique<ip::InitialCoarsener>(_i_ctx.coarsening)),
+        _bipartitioner(std::make_unique<ip::PoolBipartitioner>(_i_ctx)),
+        _refiner(ip::create_initial_refiner(_i_ctx.refinement)) {}
 
   void init(const CSRGraph &graph, const BlockID final_k) {
     const auto [final_k1, final_k2] = math::split_integral(final_k);
@@ -86,14 +63,6 @@ public:
     const std::size_t num_bipartition_repetitions =
         std::ceil(_i_ctx.repetition_multiplier * final_k / math::ceil_log2(_ctx.partition.k));
     _bipartitioner->set_num_repetitions(num_bipartition_repetitions);
-  }
-
-  MemoryContext free() {
-    _m_ctx.refiner_m_ctx = _refiner->free();
-    _m_ctx.pool_m_ctx = _bipartitioner->free();
-    _m_ctx.coarsener_m_ctx = _coarsener->free();
-
-    return std::move(_m_ctx);
   }
 
   PartitionedCSRGraph partition(InitialPartitionerTimings *timings = nullptr) {
@@ -141,7 +110,7 @@ private:
 
     while (shrunk && c_graph->n() > c_ctx.contraction_limit) {
       timer.reset();
-      auto new_c_graph = _coarsener->coarsen(STATIC_MAX_CLUSTER_WEIGHT(max_cluster_weight));
+      auto new_c_graph = _coarsener->coarsen(max_cluster_weight);
       if (timings) {
         timings->coarsening_call_ms += timer.elapsed();
       }
@@ -186,8 +155,6 @@ private:
     return p_graph;
   }
 
-  MemoryContext _m_ctx;
-
   const CSRGraph *_graph;
   PartitionContext _p_ctx;
 
@@ -197,7 +164,5 @@ private:
   std::unique_ptr<ip::InitialCoarsener> _coarsener;
   std::unique_ptr<ip::PoolBipartitioner> _bipartitioner;
   std::unique_ptr<ip::InitialRefiner> _refiner;
-
-  std::size_t _num_bipartition_repetitions;
 };
 } // namespace kaminpar::shm

@@ -1,10 +1,9 @@
 /*******************************************************************************
- * @file:   seed_node_utils.h
+ * Utility functions to find far-away nodes for BFS initialization.
  *
+ * @file:   seed_node_utils.h
  * @author: Daniel Seemaier
  * @date:   21.09.21
- * @brief:  Algorithms to find seed nodes for initial partitioner based on
- * graph growing.
  ******************************************************************************/
 #pragma once
 

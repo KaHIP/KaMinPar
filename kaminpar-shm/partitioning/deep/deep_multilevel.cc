@@ -20,7 +20,6 @@
 namespace kaminpar::shm {
 namespace {
 SET_DEBUG(false);
-SET_STATISTICS_FROM_GLOBAL();
 } // namespace
 
 using namespace partitioning;
@@ -32,7 +31,8 @@ DeepMultilevelPartitioner::DeepMultilevelPartitioner(
       _input_ctx(input_ctx),
       _current_p_ctx(input_ctx.partition),
       _coarsener(factory::create_coarsener(input_ctx)),
-      _refiner(factory::create_refiner(input_ctx)) {
+      _refiner(factory::create_refiner(input_ctx)),
+      _bipartitioner_pool([this] { return InitialPartitioner(this->_input_ctx); }) {
   _coarsener->initialize(&_input_graph);
 }
 
@@ -56,10 +56,6 @@ PartitionedGraph DeepMultilevelPartitioner::partition() {
       extend_partition(p_graph, _input_ctx.partition.k);
       refine(p_graph);
     }
-  }
-
-  IF_STATS {
-    print_statistics();
   }
 
   return p_graph;
@@ -100,8 +96,8 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
       _input_ctx,
       _current_p_ctx,
       _subgraph_memory,
-      _ip_extraction_pool,
-      _ip_m_ctx_pool,
+      _tmp_extraction_mem_pool,
+      _bipartitioner_pool,
       _input_ctx.parallel.num_threads
   );
 
@@ -240,14 +236,14 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
   PartitionedGraph p_graph = [&] {
     switch (_input_ctx.partitioning.deep_initial_partitioning_mode) {
     case InitialPartitioningMode::SEQUENTIAL:
-      return helper::bipartition(graph, _input_ctx.partition.k, _input_ctx, _ip_m_ctx_pool);
+      return helper::bipartition(graph, _input_ctx.partition.k, _input_ctx, _bipartitioner_pool);
 
     case InitialPartitioningMode::SYNCHRONOUS_PARALLEL:
-      return SyncInitialPartitioner(_input_ctx, _ip_m_ctx_pool, _ip_extraction_pool)
+      return SyncInitialPartitioner(_input_ctx, _bipartitioner_pool, _tmp_extraction_mem_pool)
           .partition(_coarsener.get(), _current_p_ctx);
 
     case InitialPartitioningMode::ASYNCHRONOUS_PARALLEL:
-      return AsyncInitialPartitioner(_input_ctx, _ip_m_ctx_pool, _ip_extraction_pool)
+      return AsyncInitialPartitioner(_input_ctx, _bipartitioner_pool, _tmp_extraction_mem_pool)
           .partition(_coarsener.get(), _current_p_ctx);
     }
 
@@ -271,38 +267,5 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
   debug::dump_partition_hierarchy(p_graph, _coarsener->level(), "post-refinement", _input_ctx);
 
   return p_graph;
-}
-
-void DeepMultilevelPartitioner::print_statistics() {
-  std::size_t num_ip_m_ctx_objects = 0;
-  std::size_t max_ip_m_ctx_objects = 0;
-  std::size_t min_ip_m_ctx_objects = std::numeric_limits<std::size_t>::max();
-  std::size_t ip_m_ctx_memory_in_kb = 0;
-  for (const auto &pool : _ip_m_ctx_pool) {
-    num_ip_m_ctx_objects += pool.pool.size();
-    max_ip_m_ctx_objects = std::max(max_ip_m_ctx_objects, pool.pool.size());
-    min_ip_m_ctx_objects = std::min(min_ip_m_ctx_objects, pool.pool.size());
-    ip_m_ctx_memory_in_kb += pool.memory_in_kb();
-  }
-
-  STATS << "Initial partitioning: Memory pool";
-  STATS << " * # of pool objects: " << min_ip_m_ctx_objects
-        << " <= " << 1.0 * num_ip_m_ctx_objects / _input_ctx.parallel.num_threads
-        << " <= " << max_ip_m_ctx_objects;
-  STATS << " * total memory: " << ip_m_ctx_memory_in_kb / 1000 << " Mb";
-
-  std::size_t extraction_nodes_reallocs = 0;
-  std::size_t extraction_edges_reallocs = 0;
-  std::size_t extraction_memory_in_kb = 0;
-  for (const auto &buffer : _ip_extraction_pool) {
-    extraction_nodes_reallocs += buffer.num_node_reallocs;
-    extraction_edges_reallocs += buffer.num_edge_reallocs;
-    extraction_memory_in_kb += buffer.memory_in_kb();
-  }
-
-  STATS << "Extraction buffer pool:";
-  STATS << " * # of node buffer reallocs: " << extraction_nodes_reallocs
-        << ", # of edge buffer reallocs: " << extraction_edges_reallocs;
-  STATS << " * total memory: " << extraction_memory_in_kb / 1000 << " Mb";
 }
 } // namespace kaminpar::shm

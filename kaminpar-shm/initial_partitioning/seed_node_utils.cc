@@ -1,10 +1,9 @@
 /*******************************************************************************
- * @file:   seed_node_utils.cc
+ * Utility functions to find far-away nodes for BFS initialization.
  *
+ * @file:   seed_node_utils.cc
  * @author: Daniel Seemaier
  * @date:   21.09.21
- * @brief:  Algorithms to find seed nodes for initial partitioner based on
- * graph growing.
  ******************************************************************************/
 #include "kaminpar-shm/initial_partitioning/seed_node_utils.h"
 

@@ -51,7 +51,7 @@ PartitionedGraph bipartition(
     const Graph *graph,
     const BlockID final_k,
     const Context &input_ctx,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
+    InitialBipartitionerPool &bipartitioner_pool,
     BipartitionTimingInfo *timings
 ) {
   const auto *csr = dynamic_cast<const CSRGraph *>(graph->underlying_graph());
@@ -74,20 +74,15 @@ PartitionedGraph bipartition(
 
   timer::LocalTimer timer;
 
-  timer.reset();
-  InitialPartitioner partitioner(input_ctx, ip_m_ctx_pool.local().get());
-  partitioner.init(*csr, final_k);
-
   if (timings != nullptr)
     timings->bipartitioner_init_ms += timer.elapsed();
 
   timer.reset();
-  auto bipart =
-      partitioner.partition(timings ? &(timings->ip_timings) : nullptr).take_raw_partition();
+  auto bipart = bipartitioner_pool.local()
+                    .partition(timings ? &(timings->ip_timings) : nullptr)
+                    .take_raw_partition();
   if (timings != nullptr)
     timings->bipartitioner_ms += timer.elapsed();
-
-  ip_m_ctx_pool.local().put(partitioner.free());
 
   timer.reset();
   PartitionedGraph p_graph(PartitionedGraph::seq{}, *graph, 2, std::move(bipart));
@@ -106,13 +101,13 @@ void extend_partition_recursive(
     const Context &input_ctx,
     graph::SubgraphMemory &subgraph_memory,
     const graph::SubgraphMemoryStartPosition position,
-    TemporaryGraphExtractionBufferPool &extraction_pool,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
+    InitialTemporaryExtractionMemoryPool &tmp_extraction_mem_pool,
+    InitialBipartitionerPool &bipartitioner_pool,
     BipartitionTimingInfo *timings
 ) {
   KASSERT(k > 1u);
 
-  PartitionedGraph p_graph = bipartition(&graph, final_k, input_ctx, ip_m_ctx_pool, timings);
+  PartitionedGraph p_graph = bipartition(&graph, final_k, input_ctx, bipartitioner_pool, timings);
 
   timer::LocalTimer timer;
 
@@ -152,7 +147,7 @@ void extend_partition_recursive(
   if (k > 2) {
     timer.reset();
     auto extraction = extract_subgraphs_sequential(
-        p_graph, final_ks, position, subgraph_memory, extraction_pool.local()
+        p_graph, final_ks, position, subgraph_memory, tmp_extraction_mem_pool.local()
     );
     const auto &subgraphs = extraction.subgraphs;
     const auto &positions = extraction.positions;
@@ -160,23 +155,23 @@ void extend_partition_recursive(
       timings->extract_ms += timer.elapsed();
 
     for (const std::size_t i : {0, 1}) {
-      if (ks[i] > 1) {
-        DBG << "... recursive";
-        extend_partition_recursive(
-            subgraphs[i],
-            partition,
-            b[i],
-            ks[i],
-            final_ks[i],
-            input_ctx,
-            subgraph_memory,
-            positions[i],
-            extraction_pool,
-            ip_m_ctx_pool,
-            timings
-        );
-        DBG << "--> done";
+      if (ks[i] <= 1) {
+        continue;
       }
+
+      extend_partition_recursive(
+          subgraphs[i],
+          partition,
+          b[i],
+          ks[i],
+          final_ks[i],
+          input_ctx,
+          subgraph_memory,
+          positions[i],
+          tmp_extraction_mem_pool,
+          bipartitioner_pool,
+          timings
+      );
     }
   }
 }
@@ -187,8 +182,8 @@ void extend_partition(
     const Context &input_ctx,  // stores input k
     PartitionContext &current_p_ctx,
     graph::SubgraphMemory &subgraph_memory,
-    TemporaryGraphExtractionBufferPool &extraction_pool,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
+    InitialTemporaryExtractionMemoryPool &tmp_extraction_mem_pool,
+    InitialBipartitionerPool &bipartitioner_pool,
     const int num_active_threads
 ) {
   if (input_ctx.partitioning.min_consecutive_seq_bipartitioning_levels > 0) {
@@ -203,15 +198,14 @@ void extend_partition(
     // @todo change async_initial_partitioning.{cc, h} to make this obsolete ...
     const int factor = 2 << (input_ctx.partitioning.min_consecutive_seq_bipartitioning_levels - 1);
     while (k_prime > factor * p_graph.k() && num_active_threads > p_graph.k()) {
-      LOG << "DBG: Synchronized extend_partition";
       extend_partition(
           p_graph,
           factor * p_graph.k(),
           input_ctx,
           current_p_ctx,
           subgraph_memory,
-          extraction_pool,
-          ip_m_ctx_pool,
+          tmp_extraction_mem_pool,
+          bipartitioner_pool,
           num_active_threads
       );
     }
@@ -264,8 +258,8 @@ void extend_partition(
           input_ctx,
           subgraph_memory,
           positions[b],
-          extraction_pool,
-          ip_m_ctx_pool,
+          tmp_extraction_mem_pool,
+          bipartitioner_pool,
           &timing
       );
     }
@@ -326,8 +320,8 @@ void extend_partition(
     const BlockID k_prime,
     const Context &input_ctx,
     PartitionContext &current_p_ctx,
-    TemporaryGraphExtractionBufferPool &extraction_pool,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
+    InitialTemporaryExtractionMemoryPool &tmp_extraction_mem_pool,
+    InitialBipartitionerPool &bipartitioner_pool,
     const int num_active_threads
 ) {
   graph::SubgraphMemory memory;
@@ -346,8 +340,8 @@ void extend_partition(
       input_ctx,
       current_p_ctx,
       memory,
-      extraction_pool,
-      ip_m_ctx_pool,
+      tmp_extraction_mem_pool,
+      bipartitioner_pool,
       num_active_threads
   );
 }

@@ -58,18 +58,6 @@ class PoolBipartitioner {
   };
 
 public:
-  struct MemoryContext {
-    GreedyGraphGrowingBipartitioner::MemoryContext ggg_m_ctx;
-    bfs::BfsBipartitionerBase::MemoryContext bfs_m_ctx;
-    RandomBipartitioner::MemoryContext rand_m_ctx;
-    InitialRefiner::MemoryContext ref_m_ctx;
-
-    std::size_t memory_in_kb() const {
-      return ggg_m_ctx.memory_in_kb() + bfs_m_ctx.memory_in_kb() + rand_m_ctx.memory_in_kb() +
-             ref_m_ctx.memory_in_kb();
-    }
-  };
-
   struct BipartitionerStatistics {
     std::vector<EdgeWeight> cuts;
     double cut_mean;
@@ -88,13 +76,13 @@ public:
     std::size_t num_imbalanced_partitions;
   };
 
-  PoolBipartitioner(const InitialPartitioningContext &i_ctx, MemoryContext m_ctx = {})
+  PoolBipartitioner(const InitialPartitioningContext &i_ctx)
       : _i_ctx(i_ctx),
         _min_num_repetitions(i_ctx.min_num_repetitions),
         _min_num_non_adaptive_repetitions(i_ctx.min_num_non_adaptive_repetitions),
         _max_num_repetitions(i_ctx.max_num_repetitions),
-        _m_ctx(std::move(m_ctx)),
-        _refiner(create_initial_refiner(_i_ctx.refinement, std::move(_m_ctx.ref_m_ctx))) {
+        // @todo re-use bipartitioner from InitialPartitioner
+        _refiner(create_initial_refiner(_i_ctx.refinement)) {
     using namespace std::string_view_literals;
 
     register_bipartitioner<GreedyGraphGrowingBipartitioner>(
@@ -184,11 +172,6 @@ public:
     }
 
     return {*_graph, 2, std::move(_best_partition)};
-  }
-
-  MemoryContext free() {
-    _m_ctx.ref_m_ctx = _refiner->free();
-    return std::move(_m_ctx);
   }
 
   void set_num_repetitions(const std::size_t num_repetitions) {
@@ -281,8 +264,6 @@ private:
   std::size_t _min_num_non_adaptive_repetitions;
   std::size_t _num_repetitions;
   std::size_t _max_num_repetitions;
-
-  MemoryContext _m_ctx{};
 
   StaticArray<BlockID> _best_partition{0, static_array::small, static_array::seq};
   StaticArray<BlockID> _current_partition{0, static_array::small, static_array::seq};
