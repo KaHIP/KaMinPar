@@ -13,7 +13,7 @@
 
 namespace kaminpar::shm::ip {
 namespace {
-constexpr static bool kRandomizeNodeOrder = false;
+constexpr static bool kRandomizeNodeOrder = true;
 }
 
 InitialCoarsener::InitialCoarsener(const InitialCoarseningContext &c_ctx) : _c_ctx(c_ctx) {}
@@ -41,6 +41,8 @@ void InitialCoarsener::init(const CSRGraph &graph) {
   if (_cluster_nodes.size() < _input_graph->n()) {
     _cluster_nodes.resize(_input_graph->n());
   }
+
+  _precomputed_clustering = false;
 }
 
 const CSRGraph *InitialCoarsener::coarsen(const NodeWeight max_cluster_weight) {
