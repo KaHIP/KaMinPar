@@ -4,7 +4,7 @@
 
 #include "EffectiveResistanceSampler.h"
 JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a shared library) if you
-    // want fast code.
+                      // want fast code.
 
     namespace kaminpar::shm::sparsification {
   EffectiveResistanceSampler::EffectiveResistanceSampler() {
@@ -31,9 +31,9 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
     jl_exception_clear();
     JL_GC_POP();
   }
-  EffectiveResistanceSampler::IJV EffectiveResistanceSampler::encode_as_ijv(const CSRGraph &g) {
+  EffectiveResistanceSampler::IJVMatrix EffectiveResistanceSampler::encode_as_ijv(const CSRGraph &g) {
     // Encode ajacency matrix in csc fromat: A[I[n],J[n]] = V[n] and all other entries are zero
-    IJV a = alloc_ijv(g.m());
+    IJVMatrix a = alloc_ijv(g.m());
     for (NodeID source : g.nodes()) {
       for (EdgeID edge : g.incident_edges(source)) {
         NodeID target = g.edge_target(edge);
@@ -48,13 +48,15 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
   }
 
   StaticArray<EdgeWeight> EffectiveResistanceSampler::extract_sample(
-      const CSRGraph &g, IJV &sparsifyer
+      const CSRGraph &g, IJVMatrix &sparsifyer
   ) {
     auto sampled_edges = StaticArray<std::tuple<NodeID, NodeID, EdgeWeight>>(sparsifyer.m);
     for (size_t k = 0; k < sparsifyer.m; k++) {
       sampled_edges[k] = std::make_tuple(
           // Back to 0-based indexing
-          sparsifyer.i[k] - 1, sparsifyer.j[k] - 1, static_cast<EdgeWeight>(sparsifyer.v[k])
+          sparsifyer.i[k] - 1,
+          sparsifyer.j[k] - 1,
+          static_cast<EdgeWeight>(sparsifyer.v[k])
       );
     }
     std::sort(sampled_edges.begin(), sampled_edges.end(), [&](const auto &a, const auto &b) {
@@ -90,7 +92,7 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
     KASSERT(k == sparsifyer.m, "Not alle sampled edges were added to sample!", assert::always);
     return sample;
   }
-  EffectiveResistanceSampler::IJV EffectiveResistanceSampler::sparsify_in_julia(IJV & a) {
+  EffectiveResistanceSampler::IJVMatrix EffectiveResistanceSampler::sparsify_in_julia(IJVMatrix & a) {
     jl_eval_string(JL_LAPLACIANS_ADAPTER_CODE);
 
     jl_array_t *jl_I = nullptr;
@@ -118,7 +120,7 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
 
     KASSERT(jl_sparsifyer != nullptr, "sparsify_adapter failed!", assert::always);
 
-    IJV sparsifyer(
+    IJVMatrix sparsifyer(
         (int64_t *)jl_array_data(jl_call1(jl_get_function(adapter, "get_i"), jl_sparsifyer)),
         (int64_t *)jl_array_data(jl_call1(jl_get_function(adapter, "get_j"), jl_sparsifyer)),
         (double *)jl_array_data(jl_call1(jl_get_function(adapter, "get_v"), jl_sparsifyer)),
@@ -134,23 +136,23 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
   StaticArray<EdgeWeight> EffectiveResistanceSampler::sample(
       const CSRGraph &g, EdgeID target_edge_amount
   ) {
-    IJV a = encode_as_ijv(g);
-    IJV sparsifyer = sparsify_in_julia(a);
+    IJVMatrix a = encode_as_ijv(g);
+    IJVMatrix sparsifyer = sparsify_in_julia(a);
     free_ijv(a);
     auto sample = extract_sample(g, sparsifyer);
     // The sample is freed by the julia garbage collector (hopefully)
     return sample;
   }
 
-  EffectiveResistanceSampler::IJV EffectiveResistanceSampler::alloc_ijv(EdgeID m) {
-    return IJV(
+  EffectiveResistanceSampler::IJVMatrix EffectiveResistanceSampler::alloc_ijv(EdgeID m) {
+    return IJVMatrix(
         (int64_t *)malloc(sizeof(int64_t) * m),
         (int64_t *)malloc(sizeof(int64_t) * m),
         (double *)malloc(sizeof(double) * m),
         m
     );
   }
-  void EffectiveResistanceSampler::free_ijv(IJV & a) {
+  void EffectiveResistanceSampler::free_ijv(IJVMatrix & a) {
     free(a.i);
     free(a.j);
     free(a.v);

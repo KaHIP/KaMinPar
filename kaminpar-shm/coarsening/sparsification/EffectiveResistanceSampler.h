@@ -19,18 +19,18 @@ public:
   StaticArray<EdgeWeight> sample(const CSRGraph &g, EdgeID target_edge_amount) override;
 
 private:
-  struct IJV {
+  struct IJVMatrix {
     int64_t *i;
     int64_t *j;
     double *v;
     EdgeID m;
   };
-  IJV alloc_ijv(EdgeID m);
-  void free_ijv(IJV &a);
+  IJVMatrix alloc_ijv(EdgeID m);
+  void free_ijv(IJVMatrix &a);
   void print_jl_exception();
-  IJV encode_as_ijv(const CSRGraph &g);
-  StaticArray<EdgeWeight> extract_sample(const CSRGraph &g, IJV &sparsifyer);
-  IJV sparsify_in_julia(IJV &a);
+  IJVMatrix encode_as_ijv(const CSRGraph &g);
+  StaticArray<EdgeWeight> extract_sample(const CSRGraph &g, IJVMatrix &sparsifyer);
+  IJVMatrix sparsify_in_julia(IJVMatrix &a);
 
   inline static const char *JL_LAPLACIANS_ADAPTER_CODE = R"(
   module LapaciansAdapter
