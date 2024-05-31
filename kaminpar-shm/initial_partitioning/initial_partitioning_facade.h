@@ -1,8 +1,25 @@
 /*******************************************************************************
+ * Simple interface for the initial (bi)partitioning code.
+ *
+ * Initial bipartitioning uses a sequential multilevel to compute high-quality
+ * bipartitions.
+ *
+ * For coarsening, the code uses sequential label propagation, which is
+ * interleaved with the construction of the next coarse graph. Bipartitioning
+ * is done by a pool of simple algorithms (BFS, greedy graph growing, random).
+ * Refinement is done by a 2-way sequential FM algorithm.
+ *
+ * Constructing an object of InitialPartitioner is relatively expensive;
+ * especially if one wants to compute *many* bipartitions (i.e., if k is large).
+ * Thus, objects should be kept in (thread-local!) memory and be re-used to
+ * compute multiple bipartitions (call init() for each new graph).
+ *
+ * Data structures are re-allocated to a larger size whenever necessary and never
+ * shrink.
+ *
  * @file:   initial_partitioning_facade.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Facade for sequential initial partitioning.
  ******************************************************************************/
 #pragma once
 
