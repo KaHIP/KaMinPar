@@ -15,7 +15,8 @@
 namespace kaminpar::shm::ip {
 class RandomBipartitioner : public Bipartitioner {
 public:
-  explicit RandomBipartitioner(const InitialPartitioningContext &i_ctx) : Bipartitioner(i_ctx) {}
+  explicit RandomBipartitioner(const InitialPoolPartitionerContext &pool_ctx)
+      : Bipartitioner(pool_ctx) {}
 
 protected:
   void fill_bipartition() final {

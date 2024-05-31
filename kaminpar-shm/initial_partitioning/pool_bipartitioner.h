@@ -53,9 +53,9 @@ class PoolBipartitioner {
       _M2 += delta * delta2;
     }
 
-    std::size_t _count{0};
-    double _mean{0.0};
-    double _M2{0.0};
+    std::size_t _count = 0;
+    double _mean = 0.0;
+    double _M2 = 0.0;
   };
 
 public:
@@ -77,24 +77,27 @@ public:
     std::size_t num_imbalanced_partitions;
   };
 
-  PoolBipartitioner(const InitialPartitioningContext &i_ctx)
-      : _i_ctx(i_ctx),
-        _min_num_repetitions(i_ctx.min_num_repetitions),
-        _min_num_non_adaptive_repetitions(i_ctx.min_num_non_adaptive_repetitions),
-        _max_num_repetitions(i_ctx.max_num_repetitions) {
-    register_bipartitioner<GreedyGraphGrowingBipartitioner>("greedy_graph_growing");
-    register_bipartitioner<AlternatingBfsBipartitioner>("bfs_alternating");
-    register_bipartitioner<LighterBlockBfsBipartitioner>("bfs_lighter_block");
-    register_bipartitioner<LongerQueueBfsBipartitioner>("bfs_longer_queue");
-    register_bipartitioner<ShorterQueueBfsBipartitioner>("bfs_shorter_queue");
-    register_bipartitioner<SequentialBfsBipartitioner>("bfs_sequential");
-    register_bipartitioner<RandomBipartitioner>("random");
+  PoolBipartitioner(const InitialPoolPartitionerContext &pool_ctx)
+      : _pool_ctx(pool_ctx),
+        _refiner(create_initial_refiner(pool_ctx.refinement)) {
+    if (pool_ctx.enable_bfs_bipartitioner) {
+      register_bipartitioner<AlternatingBfsBipartitioner>("bfs_alternating");
+      register_bipartitioner<LighterBlockBfsBipartitioner>("bfs_lighter_block");
+      register_bipartitioner<LongerQueueBfsBipartitioner>("bfs_longer_queue");
+      register_bipartitioner<ShorterQueueBfsBipartitioner>("bfs_shorter_queue");
+      register_bipartitioner<SequentialBfsBipartitioner>("bfs_sequential");
+    }
+    if (pool_ctx.enable_ggg_bipartitioner) {
+      register_bipartitioner<GreedyGraphGrowingBipartitioner>("greedy_graph_growing");
+    }
+    if (pool_ctx.enable_random_bipartitioner) {
+      register_bipartitioner<RandomBipartitioner>("random");
+    }
   }
 
   void init(const CSRGraph &graph, const PartitionContext &p_ctx, InitialRefiner *refiner) {
     _graph = &graph;
     _p_ctx = &p_ctx;
-    _refiner = refiner;
 
     _refiner->init(*_graph);
     for (auto &bipartitioner : _bipartitioners) {
@@ -117,7 +120,7 @@ public:
         _bipartitioner_names.end()
     );
 
-    _bipartitioners.push_back(std::make_unique<BipartitionerType>(_i_ctx));
+    _bipartitioners.push_back(std::make_unique<BipartitionerType>(_pool_ctx));
     _bipartitioner_names.push_back(name);
     _running_statistics.emplace_back();
     _statistics.per_bipartitioner.emplace_back();
@@ -145,14 +148,16 @@ public:
     KASSERT(_current_partition.size() >= _graph->n());
     KASSERT(_best_partition.size() >= _graph->n());
 
-    // only perform more repetitions with bipartitioners that are somewhat
-    // likely to find a better partition than the current one
-    const auto repetitions =
-        std::clamp(_num_repetitions, _min_num_repetitions, _max_num_repetitions);
-    for (std::size_t rep = 0; rep < repetitions; ++rep) {
+    // Only perform more repetitions with bipartitioners that are somewhat
+    // likely to find a better partition than the current one ...
+
+    const int num_repetitions =
+        std::clamp(_num_repetitions, _pool_ctx.min_num_repetitions, _pool_ctx.max_num_repetitions);
+
+    for (int repetition = 0; repetition < num_repetitions; ++repetition) {
       for (std::size_t i = 0; i < _bipartitioners.size(); ++i) {
-        if (rep < _min_num_non_adaptive_repetitions ||
-            !_i_ctx.use_adaptive_bipartitioner_selection || likely_to_improve(i)) {
+        if (repetition < _pool_ctx.min_num_non_adaptive_repetitions ||
+            !_pool_ctx.use_adaptive_bipartitioner_selection || likely_to_improve(i)) {
           run_bipartitioner(i);
         }
       }
@@ -177,7 +182,7 @@ public:
     return {*_graph, 2, std::move(best_partition_view), std::move(best_block_weights_view)};
   }
 
-  void set_num_repetitions(const std::size_t num_repetitions) {
+  void set_num_repetitions(const int num_repetitions) {
     _num_repetitions = num_repetitions;
   }
 
@@ -222,7 +227,9 @@ private:
         << " feasible=" << _best_feasible;
     LOG << logger::CYAN << "# of runs: " << num_runs_total << " of "
         << _bipartitioners.size() *
-               std::clamp(_num_repetitions, _min_num_repetitions, _max_num_repetitions);
+               std::clamp(
+                   _num_repetitions, _pool_ctx.min_num_repetitions, _pool_ctx.max_num_repetitions
+               );
   }
 
   void run_bipartitioner(const std::size_t i) {
@@ -247,7 +254,7 @@ private:
       ++_statistics.per_bipartitioner[i].num_infeasible_partitions;
     };
 
-    // Consider as best if it is feasible or the best partition is infeasible
+    // Consider best if it is feasible or the best partition is infeasible
     if (_best_feasible <= current_feasible &&
         (_best_feasible < current_feasible || current_cut < _best_cut ||
          (current_cut == _best_cut && current_imbalance < _best_imbalance))) {
@@ -255,7 +262,7 @@ private:
       _best_imbalance = current_imbalance;
       _best_feasible = current_feasible;
 
-      // other _statistics.best_* are set during finalization
+      // ... the other _statistics.best_* are set during finalization
       _best_bipartitioner = i;
 
       std::swap(_current_partition, _best_partition);
@@ -266,11 +273,8 @@ private:
   const CSRGraph *_graph;
   const PartitionContext *_p_ctx;
 
-  const InitialPartitioningContext &_i_ctx;
-  std::size_t _min_num_repetitions;
-  std::size_t _min_num_non_adaptive_repetitions;
-  std::size_t _num_repetitions;
-  std::size_t _max_num_repetitions;
+  const InitialPoolPartitionerContext &_pool_ctx;
+  int _num_repetitions;
 
   StaticArray<BlockID> _best_partition{0, static_array::small, static_array::seq};
   StaticArray<BlockID> _current_partition{0, static_array::small, static_array::seq};
@@ -286,7 +290,7 @@ private:
   std::vector<std::string_view> _bipartitioner_names{};
   std::vector<std::unique_ptr<Bipartitioner>> _bipartitioners{};
 
-  InitialRefiner *_refiner;
+  std::unique_ptr<InitialRefiner> _refiner;
 
   std::vector<RunningVariance> _running_statistics{};
   Statistics _statistics{};

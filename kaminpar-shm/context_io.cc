@@ -513,7 +513,7 @@ void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
 
 void print(const InitialPartitioningContext &i_ctx, std::ostream &out) {
   out << "Adaptive algorithm selection: "
-      << (i_ctx.use_adaptive_bipartitioner_selection ? "yes" : "no") << "\n";
+      << (i_ctx.pool.use_adaptive_bipartitioner_selection ? "yes" : "no") << "\n";
 }
 
 void print(const RefinementContext &r_ctx, std::ostream &out) {
@@ -554,8 +554,8 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
         << 100.0 * (1 - r_ctx.jet.fruitless_threshold) << "%)\n";
     out << "  Gain temperature:           coarse [" << r_ctx.jet.initial_gain_temp_on_coarse_level
         << ", " << r_ctx.jet.final_gain_temp_on_coarse_level << "], " << "fine ["
-        << r_ctx.jet.initial_gain_temp_on_fine_level << ", " << r_ctx.jet.final_gain_temp_on_fine_level
-        << "]\n";
+        << r_ctx.jet.initial_gain_temp_on_fine_level << ", "
+        << r_ctx.jet.final_gain_temp_on_fine_level << "]\n";
     out << "  Balancing algorithm:        " << r_ctx.jet.balancing_algorithm << "\n";
   }
 }

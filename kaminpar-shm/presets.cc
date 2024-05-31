@@ -23,8 +23,10 @@ Context create_context_by_preset_name(const std::string &name) {
     return create_fast_context();
   } else if (name == "largek") {
     return create_largek_context();
-  } else if (name == "largek2") {
-    return create_largek2_context();
+  } else if (name == "largek-fast") {
+    return create_largek_fast_context();
+  } else if (name == "largek-ultrafast") {
+    return create_largek_ultrafast_context();
   } else if (name == "largek-fm") {
     return create_largek_fm_context();
   } else if (name == "strong" || name == "fm") {
@@ -46,7 +48,8 @@ std::unordered_set<std::string> get_preset_names() {
       "memory",
       "fast",
       "largek",
-      "largek2",
+      "largek-fast",
+      "largek-ultrafast",
       "strong",
       "fm",
       "jet",
@@ -122,6 +125,27 @@ Context create_default_context() {
                       .cluster_weight_limit = ClusterWeightLimit::BLOCK_WEIGHT,
                       .cluster_weight_multiplier = 1.0 / 12.0,
                   },
+              .pool =
+                  {
+                      .refinement =
+                          {
+                              .disabled = false,
+                              .stopping_rule = FMStoppingRule::SIMPLE,
+                              .num_fruitless_moves = 100,
+                              .alpha = 1.0,
+                              .num_iterations = 5,
+                              .improvement_abortion_threshold = 0.0001,
+                          },
+                      .repetition_multiplier = 1.0,
+                      .min_num_repetitions = 10,
+                      .min_num_non_adaptive_repetitions = 5,
+                      .max_num_repetitions = 50,
+                      .num_seed_iterations = 1,
+                      .use_adaptive_bipartitioner_selection = true,
+                      .enable_bfs_bipartitioner = true,
+                      .enable_ggg_bipartitioner = true,
+                      .enable_random_bipartitioner = true,
+                  },
               .refinement =
                   {
                       .disabled = false,
@@ -131,12 +155,6 @@ Context create_default_context() {
                       .num_iterations = 5,
                       .improvement_abortion_threshold = 0.0001,
                   },
-              .repetition_multiplier = 1.0,
-              .min_num_repetitions = 10,
-              .min_num_non_adaptive_repetitions = 5,
-              .max_num_repetitions = 50,
-              .num_seed_iterations = 1,
-              .use_adaptive_bipartitioner_selection = true,
           },
       .refinement =
           {
@@ -229,29 +247,47 @@ Context create_fast_context() {
   Context ctx = create_default_context();
   ctx.partitioning.deep_initial_partitioning_load = 0.5;
   ctx.coarsening.clustering.lp.num_iterations = 1;
-  ctx.initial_partitioning.min_num_repetitions = 1;
-  ctx.initial_partitioning.min_num_non_adaptive_repetitions = 1;
-  ctx.initial_partitioning.max_num_repetitions = 1;
+  ctx.initial_partitioning.pool.min_num_repetitions = 1;
+  ctx.initial_partitioning.pool.min_num_non_adaptive_repetitions = 1;
+  ctx.initial_partitioning.pool.max_num_repetitions = 1;
   return ctx;
 }
 
 Context create_largek_context() {
   Context ctx = create_default_context();
 
-  ctx.initial_partitioning.min_num_repetitions = 4;
-  ctx.initial_partitioning.min_num_non_adaptive_repetitions = 2;
-  ctx.initial_partitioning.max_num_repetitions = 4;
+  ctx.initial_partitioning.pool.min_num_repetitions = 4;
+  ctx.initial_partitioning.pool.min_num_non_adaptive_repetitions = 2;
+  ctx.initial_partitioning.pool.max_num_repetitions = 4;
 
   return ctx;
 }
 
-Context create_largek2_context() {
+Context create_largek_fast_context() {
   Context ctx = create_default_context();
 
-  // ctx.initial_partitioning.refinement.disabled = true;
-  ctx.initial_partitioning.min_num_repetitions = 1;
-  ctx.initial_partitioning.min_num_non_adaptive_repetitions = 1;
-  ctx.initial_partitioning.max_num_repetitions = 1;
+  ctx.initial_partitioning.pool.min_num_repetitions = 2;
+  ctx.initial_partitioning.pool.min_num_non_adaptive_repetitions = 1;
+  ctx.initial_partitioning.pool.max_num_repetitions = 2;
+  ctx.initial_partitioning.pool.enable_bfs_bipartitioner = true;
+  ctx.initial_partitioning.pool.enable_ggg_bipartitioner = false;
+  ctx.initial_partitioning.pool.enable_random_bipartitioner = true;
+  ctx.initial_partitioning.pool.refinement.disabled = true;
+
+  return ctx;
+}
+
+Context create_largek_ultrafast_context() {
+  Context ctx = create_default_context();
+
+  ctx.initial_partitioning.pool.min_num_repetitions = 1;
+  ctx.initial_partitioning.pool.min_num_non_adaptive_repetitions = 1;
+  ctx.initial_partitioning.pool.max_num_repetitions = 1;
+  ctx.initial_partitioning.pool.refinement.disabled = true;
+  ctx.initial_partitioning.pool.enable_bfs_bipartitioner = true;
+  ctx.initial_partitioning.pool.enable_ggg_bipartitioner = false;
+  ctx.initial_partitioning.pool.enable_random_bipartitioner = false;
+  ctx.initial_partitioning.refinement.disabled = true;
 
   return ctx;
 }

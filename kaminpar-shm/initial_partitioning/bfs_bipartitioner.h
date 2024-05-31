@@ -86,9 +86,9 @@ class BfsBipartitioner : public Bipartitioner {
   static constexpr std::size_t kMarkAssigned = 2;
 
 public:
-  BfsBipartitioner(const InitialPartitioningContext &i_ctx)
-      : Bipartitioner(i_ctx),
-        _num_seed_iterations(i_ctx.num_seed_iterations) {}
+  BfsBipartitioner(const InitialPoolPartitionerContext &pool_ctx)
+      : Bipartitioner(pool_ctx),
+        _num_seed_iterations(pool_ctx.num_seed_iterations) {}
 
   void init(const CSRGraph &graph, const PartitionContext &p_ctx) override {
     Bipartitioner::init(graph, p_ctx);

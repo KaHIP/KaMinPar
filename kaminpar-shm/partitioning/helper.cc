@@ -285,7 +285,6 @@ void extend_partition(
     return a += b;
   });
 
-  /*
   LOG << "bipartitioner_init_ms: "
       << static_cast<std::uint64_t>(timings.bipartitioner_init_ms / 1e6);
   LOG << "bipartitioner_ms:      " << static_cast<std::uint64_t>(timings.bipartitioner_ms / 1e6);
@@ -315,7 +314,6 @@ void extend_partition(
   LOG << "extract_ms:            " << static_cast<std::uint64_t>(timings.extract_ms / 1e6);
   LOG << "copy_ms:               " << static_cast<std::uint64_t>(timings.copy_ms / 1e6);
   LOG << "misc_ms:               " << static_cast<std::uint64_t>(timings.misc_ms / 1e6);
-  */
 
   update_partition_context(current_p_ctx, p_graph, input_ctx.partition.k);
 

@@ -65,7 +65,7 @@ public:
       : _ctx(ctx),
         _i_ctx(ctx.initial_partitioning),
         _coarsener(std::make_unique<ip::InitialCoarsener>(_i_ctx.coarsening)),
-        _bipartitioner(std::make_unique<ip::PoolBipartitioner>(_i_ctx)),
+        _bipartitioner(std::make_unique<ip::PoolBipartitioner>(_i_ctx.pool)),
         _refiner(ip::create_initial_refiner(_i_ctx.refinement)) {}
 
   void init(const CSRGraph &graph, const BlockID final_k) {
@@ -78,7 +78,7 @@ public:
     _refiner->init(graph);
 
     const std::size_t num_bipartition_repetitions =
-        std::ceil(_i_ctx.repetition_multiplier * final_k / math::ceil_log2(_ctx.partition.k));
+        std::ceil(_i_ctx.pool.repetition_multiplier * final_k / math::ceil_log2(_ctx.partition.k));
     _bipartitioner->set_num_repetitions(num_bipartition_repetitions);
   }
 

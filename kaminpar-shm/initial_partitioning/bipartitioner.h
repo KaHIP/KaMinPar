@@ -71,7 +71,7 @@ protected:
   static constexpr BlockID V1 = 0;
   static constexpr BlockID V2 = 1;
 
-  Bipartitioner(const InitialPartitioningContext &i_ctx) : _i_ctx(i_ctx) {}
+  Bipartitioner(const InitialPoolPartitionerContext &pool_ctx) : _pool_ctx(pool_ctx) {}
 
   virtual void fill_bipartition() = 0;
 
@@ -109,7 +109,7 @@ protected:
 
   const CSRGraph *_graph;
   const PartitionContext *_p_ctx;
-  const InitialPartitioningContext &_i_ctx;
+  const InitialPoolPartitionerContext &_pool_ctx;
 
   std::array<BlockWeight, 2> _block_weights;
 

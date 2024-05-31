@@ -16,8 +16,8 @@
 namespace kaminpar::shm::ip {
 class GreedyGraphGrowingBipartitioner : public Bipartitioner {
 public:
-  explicit GreedyGraphGrowingBipartitioner(const InitialPartitioningContext &i_ctx)
-      : Bipartitioner(i_ctx) {}
+  explicit GreedyGraphGrowingBipartitioner(const InitialPoolPartitionerContext &pool_ctx)
+      : Bipartitioner(pool_ctx) {}
 
   void init(const CSRGraph &graph, const PartitionContext &p_ctx) final;
 

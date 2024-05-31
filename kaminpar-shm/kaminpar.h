@@ -301,20 +301,31 @@ struct InitialRefinementContext {
   NodeID num_fruitless_moves;
   double alpha;
 
-  std::size_t num_iterations;
+  int num_iterations;
   double improvement_abortion_threshold;
+};
+
+struct InitialPoolPartitionerContext {
+  InitialRefinementContext refinement;
+
+  double repetition_multiplier;
+
+  int min_num_repetitions;
+  int min_num_non_adaptive_repetitions;
+  int max_num_repetitions;
+  int num_seed_iterations;
+
+  bool use_adaptive_bipartitioner_selection;
+
+  bool enable_bfs_bipartitioner;
+  bool enable_ggg_bipartitioner;
+  bool enable_random_bipartitioner;
 };
 
 struct InitialPartitioningContext {
   InitialCoarseningContext coarsening;
+  InitialPoolPartitionerContext pool;
   InitialRefinementContext refinement;
-
-  double repetition_multiplier;
-  std::size_t min_num_repetitions;
-  std::size_t min_num_non_adaptive_repetitions;
-  std::size_t max_num_repetitions;
-  std::size_t num_seed_iterations;
-  bool use_adaptive_bipartitioner_selection;
 };
 
 //
@@ -446,7 +457,8 @@ Context create_default_context();
 Context create_memory_context();
 Context create_fast_context();
 Context create_largek_context();
-Context create_largek2_context();
+Context create_largek_fast_context();
+Context create_largek_ultrafast_context();
 Context create_largek_fm_context();
 Context create_strong_context();
 Context create_jet_context(int rounds = 1);
