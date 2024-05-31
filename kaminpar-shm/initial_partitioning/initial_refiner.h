@@ -231,10 +231,18 @@ public:
     KASSERT(p_graph.k() == 2u);
     KASSERT(_p_ctx->k == 2u);
 
+    // Avoid edge cut computation if we only want to do one iteration anyways
+    if (_r_ctx.num_iterations == 1) {
+      round(p_graph);
+      return false;
+    }
+
     const EdgeWeight initial_edge_cut = metrics::edge_cut_seq(p_graph);
+
+    // If there is no improvement possible, abort early
     if (initial_edge_cut == 0) {
       return false;
-    } // no improvement possible
+    }
 
     EdgeWeight prev_edge_cut = initial_edge_cut;
     EdgeWeight cur_edge_cut = prev_edge_cut;

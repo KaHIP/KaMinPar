@@ -155,6 +155,7 @@ Context create_default_context() {
                       .num_iterations = 5,
                       .improvement_abortion_threshold = 0.0001,
                   },
+              .refine_pool_partition = false,
           },
       .refinement =
           {
@@ -264,7 +265,7 @@ Context create_largek_context() {
 }
 
 Context create_largek_fast_context() {
-  Context ctx = create_default_context();
+  Context ctx = create_largek_context();
 
   ctx.initial_partitioning.pool.min_num_repetitions = 2;
   ctx.initial_partitioning.pool.min_num_non_adaptive_repetitions = 1;
@@ -272,7 +273,11 @@ Context create_largek_fast_context() {
   ctx.initial_partitioning.pool.enable_bfs_bipartitioner = true;
   ctx.initial_partitioning.pool.enable_ggg_bipartitioner = false;
   ctx.initial_partitioning.pool.enable_random_bipartitioner = true;
+
   ctx.initial_partitioning.pool.refinement.disabled = true;
+  ctx.initial_partitioning.pool.refinement.num_iterations = 1;
+
+  ctx.initial_partitioning.refine_pool_partition = true;
 
   return ctx;
 }
@@ -287,6 +292,7 @@ Context create_largek_ultrafast_context() {
   ctx.initial_partitioning.pool.enable_bfs_bipartitioner = true;
   ctx.initial_partitioning.pool.enable_ggg_bipartitioner = false;
   ctx.initial_partitioning.pool.enable_random_bipartitioner = false;
+  ctx.initial_partitioning.refine_pool_partition = false;
   ctx.initial_partitioning.refinement.disabled = true;
 
   return ctx;

@@ -326,6 +326,8 @@ struct InitialPartitioningContext {
   InitialCoarseningContext coarsening;
   InitialPoolPartitionerContext pool;
   InitialRefinementContext refinement;
+
+  bool refine_pool_partition;
 };
 
 //
