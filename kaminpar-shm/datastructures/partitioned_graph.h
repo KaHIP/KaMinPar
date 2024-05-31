@@ -46,11 +46,11 @@ public:
         _k(k),
         _partition(std::move(partition)),
         _block_weights(k) {
+    KASSERT(_partition.empty() || _partition.size() >= graph.n());
+
     if (graph.n() > 0 && _partition.empty()) {
       _partition.resize(graph.n(), kInvalidBlockID);
     }
-
-    KASSERT(_partition.size() == graph.n());
 
     init_block_weights_par();
   }
@@ -60,14 +60,28 @@ public:
       : GraphDelegate<Graph>(&graph),
         _k(k),
         _partition(std::move(partition)),
-        _block_weights(k) {
+        _block_weights(k, static_array::seq) {
+    KASSERT(_partition.empty() || _partition.size() >= graph.n());
+
     if (graph.n() > 0 && _partition.empty()) {
-      _partition.resize(graph.n(), kInvalidBlockID);
+      _partition.resize(graph.n(), kInvalidBlockID, static_array::seq);
     }
 
-    KASSERT(_partition.size() == graph.n());
-
     init_block_weights_seq();
+  }
+
+  // Parallel + sequential ctor: take all data as input, do not initialize anything ourself.
+  GenericPartitionedGraph(
+      const Graph &graph,
+      BlockID k,
+      StaticArray<BlockID> partition,
+      StaticArray<BlockWeight> block_weights
+  )
+      : GraphDelegate<Graph>(&graph),
+        _k(k),
+        _partition(std::move(partition)),
+        _block_weights(std::move(block_weights)) {
+    KASSERT(_partition.size() >= graph.n());
   }
 
   // Dummy ctor to make the class default-constructible for convenience.

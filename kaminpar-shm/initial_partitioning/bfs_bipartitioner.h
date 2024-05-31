@@ -24,7 +24,7 @@ using Queues = std::array<Queue<NodeID>, 2>;
 /*! Always selects the inactive block, i.e., switches blocks after each step. */
 struct alternating {
   BlockID
-  operator()(const BlockID active_block, const Bipartitioner::BlockWeights &, const PartitionContext &, const Queues &) {
+  operator()(const BlockID active_block, const std::array<BlockWeight, 2> &, const PartitionContext &, const Queues &) {
     return 1 - active_block;
   }
 };
@@ -32,7 +32,7 @@ struct alternating {
 /*! Always selects the block with the smaller weight. */
 struct lighter {
   BlockID
-  operator()(const BlockID, const Bipartitioner::BlockWeights &block_weights, const PartitionContext &, const Queues &) {
+  operator()(const BlockID, const std::array<BlockWeight, 2> &block_weights, const PartitionContext &, const Queues &) {
     return (block_weights[0] < block_weights[1]) ? 0 : 1;
   }
 };
@@ -40,7 +40,7 @@ struct lighter {
 /*! Selects the first block until it has more than half weight. */
 struct sequential {
   BlockID
-  operator()(const BlockID, const Bipartitioner::BlockWeights &block_weights, const PartitionContext &context, const Queues &) {
+  operator()(const BlockID, const std::array<BlockWeight, 2> &block_weights, const PartitionContext &context, const Queues &) {
     return (block_weights[0] < context.block_weights.perfectly_balanced(0)) ? 0 : 1;
   }
 };
@@ -49,7 +49,7 @@ struct sequential {
 struct longer_queue {
   BlockID operator()(
       const BlockID,
-      const Bipartitioner::BlockWeights &,
+      const std::array<BlockWeight, 2> &,
       const PartitionContext &,
       const Queues &queues
   ) {
@@ -61,7 +61,7 @@ struct longer_queue {
 struct shorter_queue {
   BlockID operator()(
       const BlockID,
-      const Bipartitioner::BlockWeights &,
+      const std::array<BlockWeight, 2> &,
       const PartitionContext &,
       const Queues &queues
   ) {
@@ -105,7 +105,7 @@ public:
   }
 
 protected:
-  void bipartition_impl() override {
+  void fill_bipartition() override {
     const auto [start_a, start_b] = ip::find_far_away_nodes(*_graph, _num_seed_iterations);
 
     _marker.reset();

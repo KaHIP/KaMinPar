@@ -18,7 +18,7 @@ public:
   explicit RandomBipartitioner(const InitialPartitioningContext &i_ctx) : Bipartitioner(i_ctx) {}
 
 protected:
-  void bipartition_impl() override {
+  void fill_bipartition() final {
     for (const NodeID u : _graph->nodes()) {
       const std::size_t block = _rand.random_index(0, 2);
 

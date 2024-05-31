@@ -52,10 +52,10 @@ public:
         _refiner(ip::create_initial_refiner(_i_ctx.refinement)) {}
 
   void init(const CSRGraph &graph, const BlockID final_k) {
-    const auto [final_k1, final_k2] = math::split_integral(final_k);
-
-    _p_ctx = create_bipartition_context(*_graph, final_k1, final_k2, _ctx.partition);
     _graph = &graph;
+
+    const auto [final_k1, final_k2] = math::split_integral(final_k);
+    _p_ctx = create_bipartition_context(graph, final_k1, final_k2, _ctx.partition);
 
     _coarsener->init(graph);
     _refiner->init(graph);

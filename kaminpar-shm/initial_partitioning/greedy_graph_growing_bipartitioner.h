@@ -19,23 +19,13 @@ public:
   explicit GreedyGraphGrowingBipartitioner(const InitialPartitioningContext &i_ctx)
       : Bipartitioner(i_ctx) {}
 
-  void init(const CSRGraph &graph, const PartitionContext &p_ctx) override {
-    Bipartitioner::init(graph, p_ctx);
-
-    if (_queue.capacity() < _graph->n()) {
-      _queue.resize(_graph->n());
-    }
-
-    if (_marker.size() < _graph->n()) {
-      _marker.resize(_graph->n());
-    }
-  }
+  void init(const CSRGraph &graph, const PartitionContext &p_ctx) final;
 
 protected:
-  void bipartition_impl() override;
+  void fill_bipartition() final;
 
 private:
-  [[nodiscard]] EdgeWeight compute_negative_gain(NodeID u) const;
+  [[nodiscard]] EdgeWeight compute_gain(NodeID u) const;
 
   BinaryMinHeap<EdgeWeight> _queue{0};
   Marker<> _marker{0};

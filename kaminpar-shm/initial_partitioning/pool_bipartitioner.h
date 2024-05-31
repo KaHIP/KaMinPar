@@ -129,16 +129,26 @@ public:
 
   void reset() {
     const std::size_t n = _bipartitioners.size();
+
     _running_statistics.clear();
     _running_statistics.resize(n);
+
     _statistics.per_bipartitioner.clear();
     _statistics.per_bipartitioner.resize(n);
+
     _best_feasible = false;
     _best_cut = std::numeric_limits<EdgeWeight>::max();
     _best_imbalance = 0.0;
 
-    std::fill(_current_partition.begin(), _current_partition.end(), 0);
-    std::fill(_best_partition.begin(), _best_partition.end(), 0);
+    // @todo this should not be necessary:
+    //
+    // std::fill(_current_partition.begin(), _current_partition.end(), 0);
+    // std::fill(_best_partition.begin(), _best_partition.end(), 0);
+    //
+    // _best_block_weights[0] = 0;
+    // _best_block_weights[1] = 0;
+    // _current_block_weights[0] = 0;
+    // _current_block_weights[1] = 0;
   }
 
   PartitionedCSRGraph bipartition() {
@@ -163,12 +173,18 @@ public:
       print_statistics();
     }
 
-    // To avoid copying the partition, just create a non-owning StaticArray view
-    // for the current _best_partition
-    // This only works because the InitialPartitioner will not call the bipartitioner
-    // again until the current _graph / this partitioned graph is no longer of interest
+    // To avoid copying the partition / block weights, we create non-owning views of
+    // our cached data structures; this assumes a lot about the calling code and is
+    // a bit dangerous, but yolo.
+    //
+    // (a) the lifespan of this object must be exceed the lifespan of the partitioned
+    // graph
+    // (b) this partitioner may not be used until the partitioned graph is destroyed
+    //
+    // @todo un-yolo-fy this
     StaticArray<BlockID> best_partition_view(_graph->n(), _best_partition.data());
-    return {*_graph, 2, std::move(best_partition_view)};
+    StaticArray<BlockWeight> best_block_weights_view(2, _best_block_weights.data());
+    return {*_graph, 2, std::move(best_partition_view), std::move(best_block_weights_view)};
   }
 
   void set_num_repetitions(const std::size_t num_repetitions) {
@@ -220,7 +236,9 @@ private:
   }
 
   void run_bipartitioner(const std::size_t i) {
-    PartitionedCSRGraph p_graph = _bipartitioners[i]->bipartition(std::move(_current_partition));
+    PartitionedCSRGraph p_graph = _bipartitioners[i]->bipartition(
+        std::move(_current_partition), std::move(_current_block_weights)
+    );
     _refiner->refine(p_graph, *_p_ctx);
 
     const EdgeWeight current_cut = metrics::edge_cut_seq(p_graph);
@@ -228,6 +246,7 @@ private:
     const bool current_feasible = metrics::is_feasible(p_graph, *_p_ctx);
 
     _current_partition = p_graph.take_raw_partition();
+    _current_block_weights = p_graph.take_raw_block_weights();
 
     // If the bipartition is feasible, track its stats
     if (current_feasible) {
@@ -245,8 +264,12 @@ private:
       _best_cut = current_cut;
       _best_imbalance = current_imbalance;
       _best_feasible = current_feasible;
-      _best_bipartitioner = i; // other _statistics.best_* are set during finalization
+
+      // other _statistics.best_* are set during finalization
+      _best_bipartitioner = i;
+
       std::swap(_current_partition, _best_partition);
+      std::swap(_current_block_weights, _best_block_weights);
     }
   }
 
@@ -261,6 +284,9 @@ private:
 
   StaticArray<BlockID> _best_partition{0, static_array::small, static_array::seq};
   StaticArray<BlockID> _current_partition{0, static_array::small, static_array::seq};
+
+  StaticArray<BlockWeight> _best_block_weights{2, 0, static_array::small, static_array::seq};
+  StaticArray<BlockWeight> _current_block_weights{2, 0, static_array::small, static_array::seq};
 
   EdgeWeight _best_cut = std::numeric_limits<EdgeWeight>::max();
   bool _best_feasible = false;

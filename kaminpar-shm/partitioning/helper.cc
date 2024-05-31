@@ -78,6 +78,7 @@ PartitionedGraph bipartition(
   auto bipartition = [&] {
     InitialBipartitionerPool &bipartitioner_pool = bipartitioner_pool_ets.local();
     InitialPartitioner bipartitioner = bipartitioner_pool.get();
+    bipartitioner.init(*csr, final_k);
     auto bipartition =
         bipartitioner.partition(timings ? &(timings->ip_timings) : nullptr).take_raw_partition();
     bipartitioner_pool.put(std::move(bipartitioner));

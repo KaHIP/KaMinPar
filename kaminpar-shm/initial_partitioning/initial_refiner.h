@@ -42,7 +42,9 @@ public:
 
 namespace fm {
 struct SimpleStoppingPolicy {
-  void init(const CSRGraph *) const {}
+  void init(const CSRGraph *) {
+    reset();
+  }
 
   [[nodiscard]] bool should_stop(const InitialRefinementContext &fm_ctx) const {
     return _num_steps > fm_ctx.num_fruitless_moves;
@@ -66,6 +68,7 @@ private:
 struct AdaptiveStoppingPolicy {
   void init(const CSRGraph *graph) {
     _beta = std::sqrt(graph->n());
+    reset();
   }
 
   [[nodiscard]] bool should_stop(const InitialRefinementContext &fm_ctx) const {
@@ -202,25 +205,20 @@ public:
   explicit InitialTwoWayFMRefiner(const InitialRefinementContext &r_ctx) : _r_ctx(r_ctx) {}
 
   void init(const CSRGraph &graph) final {
-    KASSERT(_queues[0].capacity() >= graph.n());
-    KASSERT(_queues[1].capacity() >= graph.n());
-    KASSERT(_marker.capacity() >= graph.n());
-    KASSERT(_weighted_degrees.capacity() >= graph.n());
-
     _graph = &graph;
-    _stopping_policy.init(_graph);
+    _stopping_policy.init(&graph);
 
-    if (_queues[0].capacity() < _graph->n()) {
-      _queues[0].resize(_graph->n());
+    if (_queues[0].capacity() < graph.n()) {
+      _queues[0].resize(graph.n());
     }
-    if (_queues[1].capacity() < _graph->n()) {
-      _queues[1].resize(_graph->n());
+    if (_queues[1].capacity() < graph.n()) {
+      _queues[1].resize(graph.n());
     }
-    if (_marker.capacity() < _graph->n()) {
-      _marker.resize(_graph->n());
+    if (_marker.capacity() < graph.n()) {
+      _marker.resize(graph.n());
     }
-    if (_weighted_degrees.size() < _graph->n()) {
-      _weighted_degrees.resize(_graph->n());
+    if (_weighted_degrees.size() < graph.n()) {
+      _weighted_degrees.resize(graph.n());
     }
 
     init_weighted_degrees();
