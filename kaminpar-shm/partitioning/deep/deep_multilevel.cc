@@ -237,7 +237,7 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
     switch (_input_ctx.partitioning.deep_initial_partitioning_mode) {
     case InitialPartitioningMode::SEQUENTIAL:
       return helper::bipartition(
-          graph, _input_ctx.partition.k, _input_ctx, _bipartitioner_pool_ets
+          graph, _input_ctx.partition.k, _input_ctx, _bipartitioner_pool_ets, true
       );
 
     case InitialPartitioningMode::SYNCHRONOUS_PARALLEL:

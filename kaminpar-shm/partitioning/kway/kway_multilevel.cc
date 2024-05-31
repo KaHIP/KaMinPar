@@ -144,7 +144,7 @@ PartitionedGraph KWayMultilevelPartitioner::initial_partition(const Graph *graph
   // initial partitioning.
   DISABLE_TIMERS();
   PartitionedGraph p_graph =
-      helper::bipartition(graph, _input_ctx.partition.k, _input_ctx, _bipartitioner_pool_ets);
+      helper::bipartition(graph, _input_ctx.partition.k, _input_ctx, _bipartitioner_pool_ets, true);
   helper::update_partition_context(_current_p_ctx, p_graph, _input_ctx.partition.k);
 
   graph::SubgraphMemory subgraph_memory(p_graph.n(), _input_ctx.partition.k, p_graph.m());

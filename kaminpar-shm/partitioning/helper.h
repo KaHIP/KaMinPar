@@ -86,6 +86,7 @@ PartitionedGraph bipartition(
     BlockID final_k,
     const Context &input_ctx,
     InitialBipartitionerPoolEts &bipartitioner_pool_ets,
+    bool partition_lifespan,
     BipartitionTimingInfo *timing_info = nullptr
 );
 

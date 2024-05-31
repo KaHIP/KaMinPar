@@ -52,6 +52,7 @@ PartitionedGraph bipartition(
     const BlockID final_k,
     const Context &input_ctx,
     InitialBipartitionerPoolEts &bipartitioner_pool_ets,
+    const bool partition_lifespan,
     BipartitionTimingInfo *timings
 ) {
   timer::LocalTimer timer;
@@ -81,8 +82,18 @@ PartitionedGraph bipartition(
     bipartitioner.init(*csr, final_k);
     auto bipartition =
         bipartitioner.partition(timings ? &(timings->ip_timings) : nullptr).take_raw_partition();
-    bipartitioner_pool.put(std::move(bipartitioner));
-    return bipartition;
+
+    if (partition_lifespan) {
+      StaticArray<BlockID> owned_bipartition(bipartition.size());
+      std::copy(bipartition.begin(), bipartition.end(), owned_bipartition.begin());
+
+      bipartitioner_pool.put(std::move(bipartitioner));
+
+      return owned_bipartition;
+    } else {
+      bipartitioner_pool.put(std::move(bipartitioner));
+      return bipartition;
+    }
   }();
   if (timings != nullptr) {
     timings->bipartitioner_ms += timer.elapsed();
@@ -113,7 +124,7 @@ void extend_partition_recursive(
   KASSERT(k > 1u);
 
   PartitionedGraph p_graph =
-      bipartition(&graph, final_k, input_ctx, bipartitioner_pool_ets, timings);
+      bipartition(&graph, final_k, input_ctx, bipartitioner_pool_ets, false, timings);
 
   timer::LocalTimer timer;
 
@@ -285,35 +296,40 @@ void extend_partition(
     return a += b;
   });
 
-  LOG << "bipartitioner_init_ms: "
-      << static_cast<std::uint64_t>(timings.bipartitioner_init_ms / 1e6);
-  LOG << "bipartitioner_ms:      " << static_cast<std::uint64_t>(timings.bipartitioner_ms / 1e6);
-  LOG << "  total_ms:            " << static_cast<std::uint64_t>(timings.ip_timings.total_ms / 1e6);
-  LOG << "  misc_ms:             " << static_cast<std::uint64_t>(timings.ip_timings.misc_ms / 1e6);
-  LOG << "  coarsening_ms:       "
-      << static_cast<std::uint64_t>(timings.ip_timings.coarsening_ms / 1e6);
-  LOG << "    misc_ms:           "
-      << static_cast<std::uint64_t>(timings.ip_timings.coarsening_misc_ms / 1e6);
-  LOG << "    call_ms:           "
-      << static_cast<std::uint64_t>(timings.ip_timings.coarsening_call_ms / 1e6);
-  LOG << "      alloc_ms:        "
-      << static_cast<std::uint64_t>(timings.ip_timings.coarsening.alloc_ms / 1e6);
-  LOG << "      contract_ms:     "
-      << static_cast<std::uint64_t>(timings.ip_timings.coarsening.contract_ms / 1e6);
-  LOG << "      lp_ms:           "
-      << static_cast<std::uint64_t>(timings.ip_timings.coarsening.lp_ms / 1e6);
-  LOG << "      interleaved1:    "
-      << static_cast<std::uint64_t>(timings.ip_timings.coarsening.interleaved1_ms / 1e6);
-  LOG << "      interleaved2:    "
-      << static_cast<std::uint64_t>(timings.ip_timings.coarsening.interleaved2_ms / 1e6);
-  LOG << "  bipartitioning_ms:   "
-      << static_cast<std::uint64_t>(timings.ip_timings.bipartitioning_ms / 1e6);
-  LOG << "  uncoarsening_ms:     "
-      << static_cast<std::uint64_t>(timings.ip_timings.uncoarsening_ms / 1e6);
-  LOG << "graph_init_ms:         " << static_cast<std::uint64_t>(timings.graph_init_ms / 1e6);
-  LOG << "extract_ms:            " << static_cast<std::uint64_t>(timings.extract_ms / 1e6);
-  LOG << "copy_ms:               " << static_cast<std::uint64_t>(timings.copy_ms / 1e6);
-  LOG << "misc_ms:               " << static_cast<std::uint64_t>(timings.misc_ms / 1e6);
+  constexpr bool kShowTimings = false;
+  if constexpr (kShowTimings) {
+    LOG << "bipartitioner_init_ms: "
+        << static_cast<std::uint64_t>(timings.bipartitioner_init_ms / 1e6);
+    LOG << "bipartitioner_ms:      " << static_cast<std::uint64_t>(timings.bipartitioner_ms / 1e6);
+    LOG << "  total_ms:            "
+        << static_cast<std::uint64_t>(timings.ip_timings.total_ms / 1e6);
+    LOG << "  misc_ms:             "
+        << static_cast<std::uint64_t>(timings.ip_timings.misc_ms / 1e6);
+    LOG << "  coarsening_ms:       "
+        << static_cast<std::uint64_t>(timings.ip_timings.coarsening_ms / 1e6);
+    LOG << "    misc_ms:           "
+        << static_cast<std::uint64_t>(timings.ip_timings.coarsening_misc_ms / 1e6);
+    LOG << "    call_ms:           "
+        << static_cast<std::uint64_t>(timings.ip_timings.coarsening_call_ms / 1e6);
+    LOG << "      alloc_ms:        "
+        << static_cast<std::uint64_t>(timings.ip_timings.coarsening.alloc_ms / 1e6);
+    LOG << "      contract_ms:     "
+        << static_cast<std::uint64_t>(timings.ip_timings.coarsening.contract_ms / 1e6);
+    LOG << "      lp_ms:           "
+        << static_cast<std::uint64_t>(timings.ip_timings.coarsening.lp_ms / 1e6);
+    LOG << "      interleaved1:    "
+        << static_cast<std::uint64_t>(timings.ip_timings.coarsening.interleaved1_ms / 1e6);
+    LOG << "      interleaved2:    "
+        << static_cast<std::uint64_t>(timings.ip_timings.coarsening.interleaved2_ms / 1e6);
+    LOG << "  bipartitioning_ms:   "
+        << static_cast<std::uint64_t>(timings.ip_timings.bipartitioning_ms / 1e6);
+    LOG << "  uncoarsening_ms:     "
+        << static_cast<std::uint64_t>(timings.ip_timings.uncoarsening_ms / 1e6);
+    LOG << "graph_init_ms:         " << static_cast<std::uint64_t>(timings.graph_init_ms / 1e6);
+    LOG << "extract_ms:            " << static_cast<std::uint64_t>(timings.extract_ms / 1e6);
+    LOG << "copy_ms:               " << static_cast<std::uint64_t>(timings.copy_ms / 1e6);
+    LOG << "misc_ms:               " << static_cast<std::uint64_t>(timings.misc_ms / 1e6);
+  }
 
   update_partition_context(current_p_ctx, p_graph, input_ctx.partition.k);
 
