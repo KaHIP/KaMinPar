@@ -139,16 +139,6 @@ public:
     _best_feasible = false;
     _best_cut = std::numeric_limits<EdgeWeight>::max();
     _best_imbalance = 0.0;
-
-    // @todo this should not be necessary:
-    //
-    // std::fill(_current_partition.begin(), _current_partition.end(), 0);
-    // std::fill(_best_partition.begin(), _best_partition.end(), 0);
-    //
-    // _best_block_weights[0] = 0;
-    // _best_block_weights[1] = 0;
-    // _current_block_weights[0] = 0;
-    // _current_block_weights[1] = 0;
   }
 
   PartitionedCSRGraph bipartition() {

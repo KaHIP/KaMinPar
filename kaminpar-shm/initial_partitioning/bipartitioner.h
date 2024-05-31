@@ -37,7 +37,10 @@ public:
   PartitionedCSRGraph
   bipartition(StaticArray<BlockID> partition, StaticArray<BlockWeight> block_weights) {
     if (_graph->n() == 0) {
-      return {};
+      block_weights[0] = 0;
+      block_weights[1] = 0;
+
+      return {*_graph, 2, std::move(partition), std::move(block_weights)};
     }
 
     _partition = std::move(partition);
