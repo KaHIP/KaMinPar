@@ -11,6 +11,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/datastructures/graph.h"
 
 namespace kaminpar::shm::io {
@@ -30,16 +31,26 @@ enum class GraphFileFormat {
  */
 [[nodiscard]] std::unordered_map<std::string, GraphFileFormat> get_graph_file_formats();
 
+/**
+ * Reads a graph that is stored in METIS or ParHip format.
+ *
+ * @param filename The name of the file to read.
+ * @param file_format The format of the file used to store the graph.
+ * @param sorted Whether the nodes of the graph to read are stored in degree-buckets order.
+ * @return The graph to read in CSR format.
+ */
+CSRGraph
+csr_read(const std::string &filename, const GraphFileFormat file_format, const bool sorted);
+
 /*!
  * Reads a graph that is either stored in METIS, ParHiP or compressed format.
  *
  * @param filename The name of the file to read.
  * @param file_format The format of the file used to store the graph.
  * @param compress Whether to compress the graph.
- * @param may_dismiss Whether the compressed graph is only returned when it uses less memory than
- * the uncompressed graph.
+ * @param may_dismiss Whether to only return the compressed graph if it uses less memory than the
+ * uncompressed graph.
  * @param sorted Whether the nodes of the graph to read are stored in degree-buckets order.
- * @param validate Whether to validate the graph.
  * @return The graph to read.
  */
 Graph read(

@@ -25,6 +25,18 @@ std::unordered_map<std::string, GraphFileFormat> get_graph_file_formats() {
   };
 }
 
+CSRGraph
+csr_read(const std::string &filename, const GraphFileFormat file_format, const bool sorted) {
+  switch (file_format) {
+  case GraphFileFormat::METIS:
+    return metis::csr_read(filename, sorted);
+  case GraphFileFormat::PARHIP:
+    return parhip::csr_read(filename, sorted);
+  default:
+    __builtin_unreachable();
+  }
+}
+
 Graph read(
     const std::string &filename,
     const GraphFileFormat file_format,
@@ -61,14 +73,7 @@ Graph read(
     }
   }
 
-  switch (file_format) {
-  case GraphFileFormat::METIS:
-    return Graph(std::make_unique<CSRGraph>(metis::csr_read(filename, sorted)));
-  case GraphFileFormat::PARHIP:
-    return Graph(std::make_unique<CSRGraph>(parhip::csr_read(filename, sorted)));
-  default:
-    __builtin_unreachable();
-  }
+  return Graph(std::make_unique<CSRGraph>(csr_read(filename, file_format, sorted)));
 }
 
 namespace partition {

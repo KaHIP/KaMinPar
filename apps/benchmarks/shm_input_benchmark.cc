@@ -12,6 +12,7 @@
 #include <tbb/global_control.h>
 
 #include "kaminpar-shm/context_io.h"
+#include "kaminpar-shm/datastructures/compressed_graph_builder.h"
 
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/logger.h"
@@ -31,6 +32,7 @@ int main(int argc, char *argv[]) {
   // Parse CLI arguments
   std::string graph_filename;
   io::GraphFileFormat graph_file_format = io::GraphFileFormat::METIS;
+  bool compress_in_memory = false;
   int seed = 0;
 
   CLI::App app("Shared-memory input benchmark");
@@ -41,9 +43,15 @@ int main(int argc, char *argv[]) {
   - metis
   - parhip)")
       ->capture_default_str();
+  app.add_flag(
+         "--compress-in-memory",
+         compress_in_memory,
+         "Whether to compress the input graph in memory when graph compression is enabled"
+  )
+      ->capture_default_str();
   app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads")
       ->capture_default_str();
-  app.add_option("-s,--seed", seed, "Seed for random number generation.")->capture_default_str();
+  app.add_option("-s,--seed", seed, "Seed for random number generation")->capture_default_str();
   app.add_option("-k,--k", ctx.partition.k);
   app.add_option("-e,--epsilon", ctx.partition.epsilon);
   create_graph_compression_options(&app, ctx);
@@ -59,14 +67,36 @@ int main(int argc, char *argv[]) {
     SCOPED_HEAP_PROFILER("Read Input Graph");
     SCOPED_TIMER("Read Input Graph");
 
-    Graph graph = io::read(
-        graph_filename,
-        graph_file_format,
-        ctx.compression.enabled,
-        ctx.compression.may_dismiss,
-        false
-    );
-    ctx.setup(graph);
+    if (ctx.compression.enabled && compress_in_memory) {
+      CSRGraph csr_graph = TIMED_SCOPE("Read CSR Graph") {
+        SCOPED_HEAP_PROFILER("Read CSR Graph");
+        return io::csr_read(graph_filename, graph_file_format, false);
+      };
+
+      SCOPED_TIMER("Compress CSR Graph");
+      SCOPED_HEAP_PROFILER("Compress CSR Graph");
+
+      const bool sequential_compression = ctx.parallel.num_threads <= 1;
+      if (sequential_compression) {
+        Graph graph =
+            Graph(std::make_unique<CompressedGraph>(CompressedGraphBuilder::compress(csr_graph)));
+        ctx.setup(graph);
+      } else {
+        Graph graph = Graph(
+            std::make_unique<CompressedGraph>(ParallelCompressedGraphBuilder::compress(csr_graph))
+        );
+        ctx.setup(graph);
+      }
+    } else {
+      Graph graph = io::read(
+          graph_filename,
+          graph_file_format,
+          ctx.compression.enabled,
+          ctx.compression.may_dismiss,
+          false
+      );
+      ctx.setup(graph);
+    }
   }
 
   DISABLE_HEAP_PROFILER();
