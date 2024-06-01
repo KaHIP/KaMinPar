@@ -12,8 +12,10 @@
 #include <vector>
 
 #include <tbb/enumerable_thread_specific.h>
+#include <tbb/parallel_for.h>
 #include <tbb/task_arena.h>
 
+#include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/parallel/aligned_element.h"
 
@@ -23,7 +25,7 @@ namespace kaminpar {
  * A static array that can reset used elements in O(# of used elements).
  *
  * @tparam Value The type of value to store.
- * @tparam Size The type of index to use to access and save values.
+ * @tparam Size The type of index to use to access and store values.
  */
 template <typename Value, typename Size = std::size_t> class ConcurrentFastResetArray {
 public:
@@ -34,7 +36,7 @@ public:
   /*!
    * Constructs a new ConcurrentFastResetArray.
    *
-   * @param capacity The capacity of the map, i.e. the amount of values to possibly save.
+   * @param capacity The capacity of the map, i.e., the number of values that can be stored.
    */
   explicit ConcurrentFastResetArray(const std::size_t capacity = 0) : _data(capacity) {
     RECORD_DATA_STRUCT(capacity * sizeof(value_type), _struct);
@@ -46,8 +48,8 @@ public:
    *
    * @return The capacity of this array.
    */
-  std::size_t capacity() const {
-    return _data.capacity();
+  [[nodiscard]] std::size_t capacity() const {
+    return _data.size();
   }
 
   /*!
@@ -72,9 +74,9 @@ public:
   }
 
   /*!
-   * Resized the array.
+   * Resizes the array.
    *
-   * @param capacity The new capacity of the map, i.e. the amount of values to possibly save.
+   * @param capacity The new capacity of the map, i.e., the number of values that can be stored.
    */
   void resize(const size_type capacity) {
     IF_HEAP_PROFILING(_struct->size = std::max(_struct->size, capacity * sizeof(value_type)));
@@ -86,18 +88,17 @@ public:
    * Frees the memory used by this data structure.
    */
   void free() {
-    _data.clear();
-    _data.shrink_to_fit();
+    _data.free();
 
     _used_entries_tls.clear();
     _used_entries_tls.shrink_to_fit();
   }
 
   /*!
-   * Iterates over all thread-local vector of used entries and clears them afterwards.
+   * Iterates over all thread-local vectors of used entries and clears them afterwards.
    *
    * @param l The function object that is invoked with a thread-local vector of used entries before
-   * they are cleared.
+   * its cleared.
    */
   template <typename Lambda> void iterate_and_reset(Lambda &&l) {
     tbb::parallel_for<std::size_t>(0, _used_entries_tls.size(), [&](const auto i) {
@@ -112,7 +113,7 @@ public:
   }
 
 private:
-  std::vector<value_type> _data;
+  StaticArray<value_type> _data;
   std::vector<parallel::AlignedVec<std::vector<size_type>>> _used_entries_tls;
 
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
