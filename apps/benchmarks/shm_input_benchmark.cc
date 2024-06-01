@@ -43,6 +43,13 @@ int main(int argc, char *argv[]) {
   - metis
   - parhip)")
       ->capture_default_str();
+  app.add_option("--node-order", ctx.node_ordering)
+      ->transform(CLI::CheckedTransformer(get_node_orderings()).description(""))
+      ->description(R"(Criteria by which the nodes of the graph are sorted and rearranged:
+  - natural:     keep node order of the graph (do not rearrange)
+  - deg-buckets: sort nodes by degree bucket and rearrange accordingly
+  - implicit-deg-buckets: nodes of the input graph are sorted by deg-buckets order)")
+      ->capture_default_str();
   app.add_flag(
          "--compress-in-memory",
          compress_in_memory,
@@ -93,7 +100,7 @@ int main(int argc, char *argv[]) {
           graph_file_format,
           ctx.compression.enabled,
           ctx.compression.may_dismiss,
-          false
+          ctx.node_ordering
       );
       ctx.setup(graph);
     }

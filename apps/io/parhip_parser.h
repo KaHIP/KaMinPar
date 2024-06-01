@@ -11,6 +11,7 @@
 
 #include "kaminpar-shm/datastructures/compressed_graph.h"
 #include "kaminpar-shm/datastructures/csr_graph.h"
+#include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm::io::parhip {
 
@@ -39,6 +40,6 @@ CompressedGraph compressed_read(const std::string &filename, const bool sorted);
  * @param sorted Whether the nodes of the graph to read are stored in degree-buckets order.
  * @return The graph that is stored in the file.
  */
-CompressedGraph compressed_read_parallel(const std::string &filename, const bool sorted);
+CompressedGraph compressed_read_parallel(const std::string &filename, const NodeOrdering ordering);
 
 } // namespace kaminpar::shm::io::parhip

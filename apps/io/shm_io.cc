@@ -42,8 +42,10 @@ Graph read(
     const GraphFileFormat file_format,
     const bool compress,
     const bool may_dismiss,
-    const bool sorted
+    const NodeOrdering ordering
 ) {
+  const bool sorted = ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS;
+
   if (compressed_binary::is_compressed(filename)) {
     if (!compress) {
       LOG_ERROR << "The input graph is stored in a compressed format but graph compression is"
@@ -61,7 +63,7 @@ Graph read(
         return metis::compress_read(filename, sorted, may_dismiss);
       }
       case GraphFileFormat::PARHIP: {
-        return std::optional(parhip::compressed_read_parallel(filename, sorted));
+        return std::optional(parhip::compressed_read_parallel(filename, ordering));
       }
       default:
         __builtin_unreachable();

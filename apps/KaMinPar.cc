@@ -192,7 +192,8 @@ int main(int argc, char *argv[]) {
     std::exit(0);
   }
 
-  if (ctx.compression.enabled && ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
+  if (ctx.compression.enabled && app.graph_file_format == io::GraphFileFormat::METIS &&
+      ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
     std::cout << "The nodes of the compressed graph cannot be rearranged by degree buckets!"
               << std::endl;
     std::exit(0);
@@ -236,7 +237,7 @@ int main(int argc, char *argv[]) {
         app.graph_file_format,
         ctx.compression.enabled,
         ctx.compression.may_dismiss,
-        ctx.node_ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS
+        ctx.node_ordering
     );
   };
 

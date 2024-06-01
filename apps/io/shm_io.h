@@ -50,7 +50,7 @@ csr_read(const std::string &filename, const GraphFileFormat file_format, const b
  * @param compress Whether to compress the graph.
  * @param may_dismiss Whether to only return the compressed graph if it uses less memory than the
  * uncompressed graph.
- * @param sorted Whether the nodes of the graph to read are stored in degree-buckets order.
+ * @param ordering The node ordering of the graph to read.
  * @return The graph to read.
  */
 Graph read(
@@ -58,7 +58,7 @@ Graph read(
     const GraphFileFormat file_format,
     const bool compress,
     const bool may_dismiss,
-    const bool sorted
+    const NodeOrdering ordering
 );
 
 namespace partition {

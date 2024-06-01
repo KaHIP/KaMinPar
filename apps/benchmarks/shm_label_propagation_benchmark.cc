@@ -65,7 +65,7 @@ int main(int argc, char *argv[]) {
       graph_file_format,
       ctx.compression.enabled,
       ctx.compression.may_dismiss,
-      ctx.node_ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS
+      ctx.node_ordering
   );
   ctx.setup(graph);
 
