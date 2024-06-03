@@ -100,6 +100,8 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
     return std::make_unique<sparsification::UniformRandomSampler>();
   case SparsificationAlgorithm::K_NEIGHBOUR:
     return std::make_unique<sparsification::kNeighbourSampler>();
+  case SparsificationAlgorithm::K_NEIGHBOUR_SPANNING_TREE:
+    return std::make_unique<sparsification::kNeighbourSampler>(true);
   }
 
   __builtin_unreachable();

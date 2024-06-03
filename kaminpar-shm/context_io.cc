@@ -78,7 +78,9 @@ std::unordered_map<std::string, SparsificationAlgorithm> get_sparsification_algo
       {"random", SparsificationAlgorithm::UNIFORM_RANDOM_SAMPLING},
       {"rn", SparsificationAlgorithm::UNIFORM_RANDOM_SAMPLING},
       {"k-neighbour", SparsificationAlgorithm::K_NEIGHBOUR},
-      {"kn", SparsificationAlgorithm::K_NEIGHBOUR}
+      {"kn", SparsificationAlgorithm::K_NEIGHBOUR},
+      {"k-neighbour-spanning-tree", SparsificationAlgorithm::K_NEIGHBOUR_SPANNING_TREE},
+      {"kn-st", SparsificationAlgorithm::K_NEIGHBOUR_SPANNING_TREE}
   };
 }
 
