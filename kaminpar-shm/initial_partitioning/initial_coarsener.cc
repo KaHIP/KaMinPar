@@ -59,8 +59,10 @@ const CSRGraph *InitialCoarsener::coarsen(const NodeWeight max_cluster_weight) {
 
   if (!converged) {
     _interleaved_max_cluster_weight = max_cluster_weight;
+
     auto [c_graph, c_mapping] = contract_current_clustering();
     _hierarchy.push(std::move(c_graph), std::move(c_mapping));
+
     _current_graph = &_hierarchy.current();
   }
 
@@ -171,24 +173,42 @@ void InitialCoarsener::handle_node(const NodeID u, const NodeWeight max_cluster_
 }
 
 InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clustering() {
-  timer::LocalTimer timer;
-  timer.reset();
-
   const NodeID n = _current_graph->n();
   NodeID c_n = n - _current_num_moves;
 
-  ScalableVector<NodeID> node_mapping(_current_graph->n());
+  timer::LocalTimer timer;
+  timer.reset();
 
-  StaticArray<EdgeID> c_nodes(c_n + 1, static_array::small, static_array::seq);
-  StaticArray<NodeWeight> c_node_weights(c_n, static_array::small, static_array::seq);
+  ScalableVector<NodeID> node_mapping = _hierarchy.alloc_mapping_memory();
+  if (node_mapping.size() < _current_graph->n()) {
+    node_mapping.resize(_current_graph->n());
+  }
+
+  CSRGraphMemory c_memory = _hierarchy.alloc_graph_memory();
+  StaticArray<EdgeID> c_nodes = std::move(c_memory.nodes);
+  StaticArray<NodeID> c_edges = std::move(c_memory.edges);
+  StaticArray<NodeWeight> c_node_weights = std::move(c_memory.node_weights);
+  StaticArray<EdgeWeight> c_edge_weights = std::move(c_memory.edge_weights);
+
+  if (c_nodes.size() < c_n + 1) {
+    c_nodes.resize(c_n + 1, static_array::small, static_array::seq);
+  }
+  if (c_node_weights.size() < c_n) {
+    c_node_weights.resize(c_n, static_array::small, static_array::seq);
+  }
 
   // Overerstimate edges for now:
-  StaticArray<NodeID> c_edges(
-      _current_graph->m(), static_array::small, static_array::seq, static_array::noinit
-  );
-  StaticArray<EdgeWeight> c_edge_weights(
-      _current_graph->m(), static_array::small, static_array::seq, static_array::noinit
-  );
+  if (c_edges.size() < _current_graph->m()) {
+    c_edges.resize(
+        _current_graph->m(), static_array::small, static_array::seq, static_array::noinit
+    );
+  }
+  if (c_edge_weights.size() < _current_graph->m()) {
+    c_edge_weights.resize(
+        _current_graph->m(), static_array::small, static_array::seq, static_array::noinit
+    );
+  }
+
   _timings.alloc_ms += timer.elapsed();
 
   timer.reset();
@@ -323,5 +343,54 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
   _timings.alloc_ms += timer.elapsed();
 
   return {std::move(coarse_graph), std::move(node_mapping)};
+}
+
+void InitialCoarsener::reset_current_clustering() {
+  if (_current_graph->is_node_weighted()) {
+    reset_current_clustering(_current_graph->n(), _current_graph->raw_node_weights());
+  } else {
+    // This is robust if _current_graph is empty
+    // (in this case, we cannot use node_weight(0))
+    reset_current_clustering_unweighted(
+        _current_graph->n(), _current_graph->total_node_weight() / _current_graph->n()
+    );
+  }
+}
+
+void InitialCoarsener::reset_current_clustering_unweighted(
+    const NodeID n, const NodeWeight unit_node_weight
+) {
+  _current_num_moves = 0;
+  for (NodeID u = 0; u < n; ++u) {
+    _clustering[u].locked = false;
+    _clustering[u].leader = u;
+    _clustering[u].weight = unit_node_weight;
+  }
+}
+
+void InitialCoarsener::interleaved_handle_node(const NodeID c_u, const NodeWeight c_u_weight) {
+  if (!_interleaved_locked) {
+    const NodeID best_cluster{
+        pick_cluster_from_rating_map(c_u, c_u_weight, _interleaved_max_cluster_weight)
+    };
+    const bool changed_cluster{best_cluster != c_u};
+
+    if (changed_cluster) {
+      ++_current_num_moves;
+      _clustering[c_u].leader = best_cluster;
+      _clustering[best_cluster].weight += c_u_weight;
+      _clustering[best_cluster].locked = true;
+    }
+  }
+
+  _interleaved_locked = _clustering[c_u + 1].locked;
+}
+
+void InitialCoarsener::interleaved_visit_neighbor(
+    const NodeID, const NodeID c_v, const EdgeWeight weight
+) {
+  if (!_interleaved_locked) {
+    _rating_map[_clustering[c_v].leader] += weight;
+  }
 }
 } // namespace kaminpar::shm::ip

@@ -10,6 +10,7 @@
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/scalable_vector.h"
 
@@ -40,19 +41,21 @@ public:
     return _coarse_graphs.empty();
   }
 
-  //[[nodiscard]] inline const auto &coarse_mappings() const {
-  //  return _coarse_mappings;
-  //}
-
-  //[[nodiscard]] inline const auto &coarse_graphs() const {
-  //  return _coarse_graphs;
-  //}
+  ScalableVector<NodeID> alloc_mapping_memory();
+  CSRGraphMemory alloc_graph_memory();
 
 private:
   [[nodiscard]] const CSRGraph &get_second_coarsest_graph() const;
 
+  void recover_mapping_memory(ScalableVector<NodeID> mapping);
+  void recover_graph_memory(CSRGraph graph);
+
   const CSRGraph *_finest_graph;
+
   ScalableVector<ScalableVector<NodeID>> _coarse_mappings;
   ScalableVector<CSRGraph> _coarse_graphs;
+
+  ScalableVector<CSRGraphMemory> _graph_memory_cache;
+  ScalableVector<ScalableVector<NodeID>> _mapping_memory_cache;
 };
 } // namespace kaminpar::shm::ip

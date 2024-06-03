@@ -36,7 +36,7 @@ PartitionedCSRGraph SequentialGraphHierarchy::pop(PartitionedCSRGraph &&coarse_p
   KASSERT(!_coarse_graphs.empty());
   KASSERT(&_coarse_graphs.back() == &coarse_p_graph.graph());
 
-  // goal: project partition of p_graph == c_graph onto new_c_graph
+  // Goal: project partition of p_graph == c_graph onto new_c_graph
   ScalableVector<NodeID> c_mapping = std::move(_coarse_mappings.back());
   _coarse_mappings.pop_back();
 
@@ -48,7 +48,10 @@ PartitionedCSRGraph SequentialGraphHierarchy::pop(PartitionedCSRGraph &&coarse_p
     partition[u] = coarse_p_graph.block(c_mapping[u]);
   }
 
-  // This destroys underlying Graph wrapped in p_graph
+  // Recover the memory of the coarsest graph before free'ing the graph object:
+  // @todo recover partition memory
+  recover_mapping_memory(std::move(c_mapping));
+  recover_graph_memory(std::move(_coarse_graphs.back()));
   _coarse_graphs.pop_back();
 
   return {PartitionedCSRGraph::seq{}, graph, coarse_p_graph.k(), std::move(partition)};
@@ -57,5 +60,43 @@ PartitionedCSRGraph SequentialGraphHierarchy::pop(PartitionedCSRGraph &&coarse_p
 const CSRGraph &SequentialGraphHierarchy::get_second_coarsest_graph() const {
   KASSERT(!_coarse_graphs.empty());
   return (_coarse_graphs.size() > 1) ? _coarse_graphs[_coarse_graphs.size() - 2] : *_finest_graph;
+}
+
+void SequentialGraphHierarchy::recover_mapping_memory(ScalableVector<NodeID> mapping) {
+  _mapping_memory_cache.push_back(std::move(mapping));
+}
+
+void SequentialGraphHierarchy::recover_graph_memory(CSRGraph graph) {
+  _graph_memory_cache.push_back(CSRGraphMemory{
+      .nodes = _coarse_graphs.back().take_raw_nodes(),
+      .edges = _coarse_graphs.back().take_raw_edges(),
+      .node_weights = _coarse_graphs.back().take_raw_node_weights(),
+      .edge_weights = _coarse_graphs.back().take_raw_edge_weights(),
+  });
+}
+
+ScalableVector<NodeID> SequentialGraphHierarchy::alloc_mapping_memory() {
+  if (_mapping_memory_cache.empty()) {
+    _mapping_memory_cache.emplace_back();
+  }
+
+  auto memory = std::move(_mapping_memory_cache.back());
+  _mapping_memory_cache.pop_back();
+  return memory;
+}
+
+CSRGraphMemory SequentialGraphHierarchy::alloc_graph_memory() {
+  if (_graph_memory_cache.empty()) {
+    _graph_memory_cache.push_back(CSRGraphMemory{
+        StaticArray<EdgeID>{0, static_array::small, static_array::seq},
+        StaticArray<NodeID>{0, static_array::small, static_array::seq},
+        StaticArray<NodeWeight>{0, static_array::small, static_array::seq},
+        StaticArray<EdgeWeight>{0, static_array::small, static_array::seq},
+    });
+  }
+
+  auto memory = std::move(_graph_memory_cache.back());
+  _graph_memory_cache.pop_back();
+  return memory;
 }
 } // namespace kaminpar::shm::ip
