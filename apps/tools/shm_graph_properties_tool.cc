@@ -12,6 +12,7 @@
 #include <tbb/global_control.h>
 
 #include "kaminpar-shm/context_io.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/logger.h"
@@ -92,7 +93,11 @@ int main(int argc, char *argv[]) {
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, ctx.parallel.num_threads);
 
   Graph graph = io::read(
-      graph_filename, graph_file_format, ctx.compression.enabled, ctx.compression.may_dismiss, false
+      graph_filename,
+      graph_file_format,
+      ctx.compression.enabled,
+      ctx.compression.may_dismiss,
+      NodeOrdering::NATURAL
   );
 
   ctx.debug.graph_name = str::extract_basename(graph_filename);

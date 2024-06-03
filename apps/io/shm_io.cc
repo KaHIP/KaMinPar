@@ -25,13 +25,27 @@ std::unordered_map<std::string, GraphFileFormat> get_graph_file_formats() {
   };
 }
 
+CSRGraph
+csr_read(const std::string &filename, const GraphFileFormat file_format, const bool sorted) {
+  switch (file_format) {
+  case GraphFileFormat::METIS:
+    return metis::csr_read(filename, sorted);
+  case GraphFileFormat::PARHIP:
+    return parhip::csr_read(filename, sorted);
+  default:
+    __builtin_unreachable();
+  }
+}
+
 Graph read(
     const std::string &filename,
     const GraphFileFormat file_format,
     const bool compress,
     const bool may_dismiss,
-    const bool sorted
+    const NodeOrdering ordering
 ) {
+  const bool sorted = ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS;
+
   if (compressed_binary::is_compressed(filename)) {
     if (!compress) {
       LOG_ERROR << "The input graph is stored in a compressed format but graph compression is"
@@ -49,7 +63,7 @@ Graph read(
         return metis::compress_read(filename, sorted, may_dismiss);
       }
       case GraphFileFormat::PARHIP: {
-        return std::optional(parhip::compressed_read_parallel(filename, sorted));
+        return std::optional(parhip::compressed_read_parallel(filename, ordering));
       }
       default:
         __builtin_unreachable();
@@ -61,14 +75,7 @@ Graph read(
     }
   }
 
-  switch (file_format) {
-  case GraphFileFormat::METIS:
-    return Graph(std::make_unique<CSRGraph>(metis::csr_read(filename, sorted)));
-  case GraphFileFormat::PARHIP:
-    return Graph(std::make_unique<CSRGraph>(parhip::csr_read(filename, sorted)));
-  default:
-    __builtin_unreachable();
-  }
+  return Graph(std::make_unique<CSRGraph>(csr_read(filename, file_format, sorted)));
 }
 
 namespace partition {
