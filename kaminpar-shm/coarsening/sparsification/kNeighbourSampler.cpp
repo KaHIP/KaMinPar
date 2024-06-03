@@ -3,14 +3,21 @@
 //
 
 #include "kNeighbourSampler.h"
+
 #include <networkit/auxiliary/Random.hpp>
+
+#include "UnionFind.h"
+
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::shm::sparsification {
 
 StaticArray<EdgeWeight> kNeighbourSampler::sample(const CSRGraph &g, EdgeID target_edge_amount) {
   int k = compute_k(g, target_edge_amount);
-  StaticArray<EdgeWeight> sample = sample_directed(g, k);
+  auto sample = StaticArray<EdgeWeight>(g.m(), 0);
+  if (_sample_spanning_tree)
+    sample_spanning_tree(g, sample);
+  sample_directed(g, k, sample);
   make_sample_symmetric(g, sample);
   return sample;
 }
@@ -34,8 +41,9 @@ EdgeID kNeighbourSampler::compute_k(const CSRGraph &g, EdgeID target_edge_amount
   return k - 1;
 }
 
-StaticArray<EdgeWeight> kNeighbourSampler::sample_directed(const CSRGraph &g, EdgeID k) {
-  StaticArray<EdgeWeight> sample = StaticArray<EdgeWeight>(g.m(), 0);
+void kNeighbourSampler::sample_directed(
+    const CSRGraph &g, EdgeID k, StaticArray<EdgeWeight> &sample
+) {
   StaticArray<double> choices = StaticArray<double>(k);
   StaticArray<EdgeWeight> weights_prefix_sum = StaticArray<EdgeWeight>(g.max_degree());
 
@@ -68,7 +76,6 @@ StaticArray<EdgeWeight> kNeighbourSampler::sample_directed(const CSRGraph &g, Ed
       }
     }
   }
-  return sample;
 }
 
 void kNeighbourSampler::make_sample_symmetric(const CSRGraph &g, StaticArray<EdgeWeight> &sample) {
@@ -96,6 +103,28 @@ void kNeighbourSampler::make_sample_symmetric(const CSRGraph &g, StaticArray<Edg
         sample[counter_edge] = combined_sample;
         edges_done[v]++;
       }
+    }
+  }
+}
+
+void kNeighbourSampler::sample_spanning_tree(const CSRGraph &g, StaticArray<EdgeWeight> &sample) {
+  // Kruskal's algorithm
+  auto edges = StaticArray<std::tuple<NodeID, EdgeID>>(g.m());
+  for (NodeID u : g.nodes()) {
+    for (EdgeID e : g.incident_edges(u)) {
+      edges[e] = std::make_tuple(u, e);
+    }
+  }
+  std::sort(edges.begin(), edges.end(), [&](const auto &e1, const auto &e2) {
+    return 1.0 / g.edge_weight(std::get<1>(e1)) < 1.0 / g.edge_weight(std::get<1>(e2));
+  });
+
+  auto uf = UnionFind<NodeID>(g.n());
+  for (auto [u, e] : edges) {
+    NodeID v = g.edge_target(e);
+    if (uf.find(u) != uf.find(v)) {
+      uf.unionNodes(u, v);
+      sample[e] = g.edge_weight(e);
     }
   }
 }

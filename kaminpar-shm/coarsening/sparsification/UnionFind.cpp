@@ -1,6 +1,8 @@
 #include "UnionFind.h"
 
-namespace kaminpar::coarsening::sparsification {
+#include "kaminpar-shm/kaminpar.h"
+
+namespace kaminpar::shm::sparsification {
 template <typename T> UnionFind<T>::UnionFind(T size) : _parent(size), _rank(size) {
   for (T i = 0; i < size; i++) {
     _parent[i] = i;
@@ -28,5 +30,5 @@ template <typename T> void UnionFind<T>::unionNodes(T x, T y) {
     _rank[x]++;
   }
 }
-
-} // namespace kaminpar::coarsening::sparsification
+template class UnionFind<NodeID>;
+} // namespace kaminpar::shm::sparsification

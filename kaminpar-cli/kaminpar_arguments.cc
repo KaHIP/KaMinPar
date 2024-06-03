@@ -128,7 +128,8 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
       ->description(R"(One of the following options:
   - random, rn: uniform random sampling
   - forest-fire, ff: sampling by forest fire scores
-  - k-neighbour, kn: k-Neighbour sampling)")
+  - k-neighbour, kn: k-Neighbour sampling
+  - k-neighbour-spanning-tree, kn-st: k-Neighbour sampling with spanning tree)")
       ->capture_default_str();
 
   coarsening->add_option("--s-target", ctx.coarsening.sparsification_target)
