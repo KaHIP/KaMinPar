@@ -10,16 +10,12 @@
 #include <tbb/enumerable_thread_specific.h>
 
 #include "kaminpar-shm/datastructures/graph.h"
-#include "kaminpar-shm/factories.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/partitioning/helper.h"
 #include "kaminpar-shm/partitioning/partitioner.h"
 
 namespace kaminpar::shm {
 class KWayMultilevelPartitioner : public Partitioner {
-  SET_DEBUG(false);
-  SET_STATISTICS_FROM_GLOBAL();
-
 public:
   KWayMultilevelPartitioner(const Graph &input_graph, const Context &input_ctx);
 
@@ -46,13 +42,9 @@ private:
   const Context &_input_ctx;
   PartitionContext _current_p_ctx;
 
-  // Coarsening
   std::unique_ptr<Coarsener> _coarsener;
-
-  // Refinement
   std::unique_ptr<Refiner> _refiner;
 
-  // Initial partitioning
-  partitioning::GlobalInitialPartitionerMemoryPool _ip_m_ctx_pool;
+  partitioning::InitialBipartitionerPoolEts _bipartitioner_pool_ets;
 };
 } // namespace kaminpar::shm

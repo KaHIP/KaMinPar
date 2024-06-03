@@ -11,14 +11,18 @@
 #include "kaminpar-shm/factories.h"
 
 namespace kaminpar::shm::partitioning {
+namespace {
+SET_DEBUG(false);
+}
+
 SyncInitialPartitioner::SyncInitialPartitioner(
     const Context &input_ctx,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
-    TemporaryGraphExtractionBufferPool &ip_extraction_pool
+    InitialBipartitionerPoolEts &bipartitioner_pool_ets,
+    TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets
 )
     : _input_ctx(input_ctx),
-      _ip_m_ctx_pool(ip_m_ctx_pool),
-      _ip_extraction_pool(ip_extraction_pool) {}
+      _bipartitioner_pool_ets(bipartitioner_pool_ets),
+      _tmp_extraction_mem_pool_ets(tmp_extraction_mem_pool_ets) {}
 
 PartitionedGraph
 SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionContext &p_ctx) {
@@ -79,8 +83,9 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
   tbb::parallel_for(static_cast<std::size_t>(0), num_threads, [&](const std::size_t i) {
     auto &current_coarseners = coarseners.back();
     const Graph *graph = &current_coarseners[i]->current();
-    current_p_graphs[i] =
-        helper::bipartition(graph, _input_ctx.partition.k, _input_ctx, _ip_m_ctx_pool);
+    current_p_graphs[i] = helper::bipartition(
+        graph, _input_ctx.partition.k, _input_ctx, _bipartitioner_pool_ets, true
+    );
   });
 
   // Uncoarsen and join graphs
@@ -111,7 +116,13 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
       const BlockID k_prime = helper::compute_k_for_n(p_graph.n(), _input_ctx);
       if (p_graph.k() < k_prime) {
         helper::extend_partition(
-            p_graph, k_prime, _input_ctx, p_ctx, _ip_extraction_pool, _ip_m_ctx_pool, num_threads
+            p_graph,
+            k_prime,
+            _input_ctx,
+            p_ctx,
+            _tmp_extraction_mem_pool_ets,
+            _bipartitioner_pool_ets,
+            num_threads
         );
       }
     });

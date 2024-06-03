@@ -1,29 +1,28 @@
 /*******************************************************************************
+ * Sequential label propagation coarsening used during initial bipartitionign.
+ *
  * @file:   initial_coarsener.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Sequential coarsener based on label propagation with leader
- * locking.
  ******************************************************************************/
 #include "kaminpar-shm/initial_partitioning/initial_coarsener.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/logger.h"
+#include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::ip {
-InitialCoarsener::InitialCoarsener(
-    const CSRGraph *graph, const InitialCoarseningContext &c_ctx, MemoryContext &&m_ctx
-)
-    : _input_graph(graph),
-      _current_graph(graph),
-      _hierarchy(graph),
-      _c_ctx(c_ctx),
-      _clustering(std::move(m_ctx.clustering)),
-      _rating_map(std::move(m_ctx.rating_map)),
-      _cluster_sizes(std::move(m_ctx.cluster_sizes)),
-      _leader_node_mapping(std::move(m_ctx.leader_node_mapping)),
-      _edge_weight_collector(std::move(m_ctx.edge_weight_collector)),
-      _cluster_nodes(std::move(m_ctx.cluster_nodes)) {
+namespace {
+constexpr static bool kRandomizeNodeOrder = true;
+}
+
+InitialCoarsener::InitialCoarsener(const InitialCoarseningContext &c_ctx) : _c_ctx(c_ctx) {}
+
+void InitialCoarsener::init(const CSRGraph &graph) {
+  _input_graph = &graph;
+  _current_graph = &graph;
+  _hierarchy.init(graph);
+
   if (_clustering.size() < _input_graph->n() + 1) {
     _clustering.resize(_input_graph->n() + 1);
   }
@@ -38,50 +37,41 @@ InitialCoarsener::InitialCoarsener(
   }
   if (_edge_weight_collector.capacity() < _input_graph->n()) {
     _edge_weight_collector.resize(_input_graph->n());
-  } // c_n
+  }
   if (_cluster_nodes.size() < _input_graph->n()) {
     _cluster_nodes.resize(_input_graph->n());
   }
+
+  _precomputed_clustering = false;
 }
 
-InitialCoarsener::InitialCoarsener(const CSRGraph *graph, const InitialCoarseningContext &c_ctx)
-    : InitialCoarsener(graph, c_ctx, MemoryContext{}) {}
+const CSRGraph *InitialCoarsener::coarsen(const NodeWeight max_cluster_weight) {
+  timer::LocalTimer timer;
 
-const CSRGraph *
-InitialCoarsener::coarsen(const std::function<NodeWeight(NodeID)> &cb_max_cluster_weight) {
-  const NodeWeight max_cluster_weight = cb_max_cluster_weight(_current_graph->n());
+  timer.reset();
   if (!_precomputed_clustering) {
     perform_label_propagation(max_cluster_weight);
   }
+  _timings.lp_ms += timer.elapsed();
 
   const NodeID c_n = _current_graph->n() - _current_num_moves;
   const bool converged = (1.0 - 1.0 * c_n / _current_graph->n()) <= _c_ctx.convergence_threshold;
 
   if (!converged) {
-    _interleaved_max_cluster_weight = cb_max_cluster_weight(c_n);
+    _interleaved_max_cluster_weight = max_cluster_weight;
     auto [c_graph, c_mapping] = contract_current_clustering();
-    _hierarchy.take_coarse_graph(std::move(c_graph), std::move(c_mapping));
-    _current_graph = &_hierarchy.coarsest_graph();
+    _hierarchy.push(std::move(c_graph), std::move(c_mapping));
+    _current_graph = &_hierarchy.current();
   }
 
+  _timings.total_ms += timer.elapsed();
   return _current_graph;
 }
 
 PartitionedCSRGraph InitialCoarsener::uncoarsen(PartitionedCSRGraph &&c_p_graph) {
-  PartitionedCSRGraph p_graph = _hierarchy.pop_and_project(std::move(c_p_graph));
-  _current_graph = &_hierarchy.coarsest_graph();
+  PartitionedCSRGraph p_graph = _hierarchy.pop(std::move(c_p_graph));
+  _current_graph = &_hierarchy.current();
   return p_graph;
-}
-
-InitialCoarsener::MemoryContext InitialCoarsener::free() {
-  return {
-      .clustering = std::move(_clustering),
-      .cluster_sizes = std::move(_cluster_sizes),
-      .leader_node_mapping = std::move(_leader_node_mapping),
-      .rating_map = std::move(_rating_map),
-      .edge_weight_collector = std::move(_edge_weight_collector),
-      .cluster_nodes = std::move(_cluster_nodes),
-  };
 }
 
 NodeID InitialCoarsener::pick_cluster(
@@ -121,36 +111,45 @@ NodeID InitialCoarsener::pick_cluster_from_rating_map(
 void InitialCoarsener::perform_label_propagation(const NodeWeight max_cluster_weight) {
   reset_current_clustering();
 
-  const auto max_bucket = math::floor_log2(_c_ctx.large_degree_threshold);
-  for (std::size_t bucket = 0;
-       bucket < std::min<std::size_t>(max_bucket, _current_graph->number_of_buckets());
-       ++bucket) {
-    const NodeID bucket_size = static_cast<NodeID>(_current_graph->bucket_size(bucket));
-    if (bucket_size == 0) {
-      continue;
-    }
+  if constexpr (kRandomizeNodeOrder) {
+    const auto max_bucket = math::floor_log2(_c_ctx.large_degree_threshold);
+    for (std::size_t bucket = 0;
+         bucket < std::min<std::size_t>(max_bucket, _current_graph->number_of_buckets());
+         ++bucket) {
+      const NodeID bucket_size = static_cast<NodeID>(_current_graph->bucket_size(bucket));
+      if (bucket_size == 0) {
+        continue;
+      }
 
-    const NodeID first_node = _current_graph->first_node_in_bucket(bucket);
-    const auto num_chunks = bucket_size / kChunkSize;
+      const NodeID first_node = _current_graph->first_node_in_bucket(bucket);
+      const auto num_chunks = bucket_size / kChunkSize;
 
-    std::vector<std::size_t> chunks(num_chunks);
-    std::iota(chunks.begin(), chunks.end(), 0);
-    std::transform(chunks.begin(), chunks.end(), chunks.begin(), [first_node](const std::size_t i) {
-      return first_node + i * kChunkSize;
-    });
-    Random::instance().shuffle(chunks);
+      std::vector<std::size_t> chunks(num_chunks);
+      std::iota(chunks.begin(), chunks.end(), 0);
+      std::transform(
+          chunks.begin(),
+          chunks.end(),
+          chunks.begin(),
+          [first_node](const std::size_t i) { return first_node + i * kChunkSize; }
+      );
+      Random::instance().shuffle(chunks);
 
-    for (const NodeID chunk_offset : chunks) {
-      const auto &permutation{_random_permutations.get()};
-      for (const NodeID local_u : permutation) {
-        handle_node(chunk_offset + local_u, max_cluster_weight);
+      for (const NodeID chunk_offset : chunks) {
+        const auto &permutation{_random_permutations.get()};
+        for (const NodeID local_u : permutation) {
+          handle_node(chunk_offset + local_u, max_cluster_weight);
+        }
+      }
+
+      const NodeID last_chunk_size{bucket_size % kChunkSize};
+      const NodeID last_start{first_node + bucket_size - last_chunk_size};
+      for (NodeID local_u = 0; local_u < last_chunk_size; ++local_u) {
+        handle_node(last_start + local_u, max_cluster_weight);
       }
     }
-
-    const NodeID last_chunk_size{bucket_size % kChunkSize};
-    const NodeID last_start{first_node + bucket_size - last_chunk_size};
-    for (NodeID local_u = 0; local_u < last_chunk_size; ++local_u) {
-      handle_node(last_start + local_u, max_cluster_weight);
+  } else {
+    for (NodeID u : _current_graph->nodes()) {
+      handle_node(u, max_cluster_weight);
     }
   }
 
@@ -172,29 +171,37 @@ void InitialCoarsener::handle_node(const NodeID u, const NodeWeight max_cluster_
 }
 
 InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clustering() {
-  StaticArray<EdgeID> c_nodes{};
-  StaticArray<NodeID> c_edges{};
-  StaticArray<NodeWeight> c_node_weights{};
-  StaticArray<EdgeWeight> c_edge_weights{};
-  std::vector<NodeID> node_mapping{};
+  timer::LocalTimer timer;
+  timer.reset();
 
   const NodeID n = _current_graph->n();
   NodeID c_n = n - _current_num_moves;
 
-  node_mapping.resize(_current_graph->n());
-  c_nodes.resize(c_n + 1);
-  c_node_weights.resize(c_n);
-  c_edges.resize(_current_graph->m(), static_array::noinit);        // overestimate
-  c_edge_weights.resize(_current_graph->m(), static_array::noinit); // overestimate
+  ScalableVector<NodeID> node_mapping(_current_graph->n());
 
+  StaticArray<EdgeID> c_nodes(c_n + 1, static_array::small, static_array::seq);
+  StaticArray<NodeWeight> c_node_weights(c_n, static_array::small, static_array::seq);
+
+  // Overerstimate edges for now:
+  StaticArray<NodeID> c_edges(
+      _current_graph->m(), static_array::small, static_array::seq, static_array::noinit
+  );
+  StaticArray<EdgeWeight> c_edge_weights(
+      _current_graph->m(), static_array::small, static_array::seq, static_array::noinit
+  );
+  _timings.alloc_ms += timer.elapsed();
+
+  timer.reset();
   std::fill(_cluster_sizes.begin(), _cluster_sizes.end(), 0);
   std::fill(_leader_node_mapping.begin(), _leader_node_mapping.end(), 0);
   // _clustering does not need to be cleared
+  _timings.contract_ms += timer.elapsed();
 
   KASSERT(_current_graph->n() <= _cluster_sizes.size());
   KASSERT(_current_graph->n() <= _leader_node_mapping.size());
   KASSERT(_current_graph->n() <= _cluster_nodes.size());
 
+  timer.reset();
   {
     NodeID current_node = 0;
 
@@ -235,6 +242,7 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
     // coarse graph (interleaved clustering computation)
     reset_current_clustering(c_n, c_node_weights);
   }
+  _timings.interleaved1_ms += timer.elapsed();
 
   // Here, we have the following arrays, with n -- number of nodes in current
   // graph, c_n -- number of nodes in coarse
@@ -251,6 +259,7 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
   //   1 is
   //   `_cluster_sizes[1] - _cluster_sizes[0]` and so on
 
+  timer.reset();
   {
     // note: c_node_weights is already set
     NodeID c_u = 0;
@@ -301,7 +310,9 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
     c_edges.restrict(c_m);
     c_edge_weights.restrict(c_m);
   }
+  _timings.interleaved2_ms += timer.elapsed();
 
+  timer.reset();
   CSRGraph coarse_graph(
       CSRGraph::seq{},
       std::move(c_nodes),
@@ -309,6 +320,7 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
       std::move(c_node_weights),
       std::move(c_edge_weights)
   );
+  _timings.alloc_ms += timer.elapsed();
 
   return {std::move(coarse_graph), std::move(node_mapping)};
 }

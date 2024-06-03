@@ -1,18 +1,22 @@
 /*******************************************************************************
+ * Sequential graph hierarchy used for the multilevel cycle during initial
+ * bipartitioning.
+ *
  * @file:   sequential_graph_hierarchy.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:
  ******************************************************************************/
 #pragma once
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 
+#include "kaminpar-common/datastructures/scalable_vector.h"
+
 namespace kaminpar::shm::ip {
 class SequentialGraphHierarchy {
 public:
-  explicit SequentialGraphHierarchy(const CSRGraph *finest_graph);
+  SequentialGraphHierarchy() = default;
 
   SequentialGraphHierarchy(const SequentialGraphHierarchy &) = delete;
   SequentialGraphHierarchy &operator=(const SequentialGraphHierarchy &) = delete;
@@ -20,13 +24,15 @@ public:
   SequentialGraphHierarchy(SequentialGraphHierarchy &&) noexcept = default;
   SequentialGraphHierarchy &operator=(SequentialGraphHierarchy &&) noexcept = default;
 
-  void take_coarse_graph(CSRGraph &&c_graph, std::vector<NodeID> &&c_mapping);
+  void init(const CSRGraph &graph);
 
-  [[nodiscard]] const CSRGraph &coarsest_graph() const;
+  void push(CSRGraph &&c_graph, ScalableVector<NodeID> &&c_mapping);
 
-  PartitionedCSRGraph pop_and_project(PartitionedCSRGraph &&coarse_p_graph);
+  [[nodiscard]] const CSRGraph &current() const;
 
-  [[nodiscard]] inline std::size_t size() const {
+  PartitionedCSRGraph pop(PartitionedCSRGraph &&coarse_p_graph);
+
+  [[nodiscard]] inline std::size_t level() const {
     return _coarse_graphs.size();
   }
 
@@ -34,19 +40,19 @@ public:
     return _coarse_graphs.empty();
   }
 
-  [[nodiscard]] inline const auto &coarse_mappings() const {
-    return _coarse_mappings;
-  }
+  //[[nodiscard]] inline const auto &coarse_mappings() const {
+  //  return _coarse_mappings;
+  //}
 
-  [[nodiscard]] inline const auto &coarse_graphs() const {
-    return _coarse_graphs;
-  }
+  //[[nodiscard]] inline const auto &coarse_graphs() const {
+  //  return _coarse_graphs;
+  //}
 
 private:
   [[nodiscard]] const CSRGraph &get_second_coarsest_graph() const;
 
   const CSRGraph *_finest_graph;
-  std::vector<std::vector<NodeID>> _coarse_mappings;
-  std::vector<CSRGraph> _coarse_graphs;
+  ScalableVector<ScalableVector<NodeID>> _coarse_mappings;
+  ScalableVector<CSRGraph> _coarse_graphs;
 };
 } // namespace kaminpar::shm::ip

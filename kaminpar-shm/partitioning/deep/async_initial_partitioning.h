@@ -22,8 +22,8 @@ class AsyncInitialPartitioner {
 public:
   AsyncInitialPartitioner(
       const Context &input_ctx,
-      GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
-      TemporaryGraphExtractionBufferPool &ip_extraction_pool
+      InitialBipartitionerPoolEts &bipartitioner_pool_ets,
+      TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets
   );
 
   PartitionedGraph partition(const Coarsener *coarsener, const PartitionContext &p_ctx);
@@ -41,7 +41,8 @@ private:
   );
 
   const Context &_input_ctx;
-  GlobalInitialPartitionerMemoryPool &_ip_m_ctx_pool;
-  TemporaryGraphExtractionBufferPool &_ip_extraction_pool;
+
+  InitialBipartitionerPoolEts &_bipartitioner_pool_ets;
+  TemporarySubgraphMemoryEts &_tmp_extraction_mem_pool_ets;
 };
 } // namespace kaminpar::shm::partitioning

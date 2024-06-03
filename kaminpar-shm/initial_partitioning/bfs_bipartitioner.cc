@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Initial partitioner based on breath-first searches.
+ * BFS based initial bipartitioner.
  *
  * @file:   bfs_bipartitioner.h
  * @author: Daniel Seemaier

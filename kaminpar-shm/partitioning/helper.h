@@ -7,6 +7,8 @@
  ******************************************************************************/
 #pragma once
 
+#include <vector>
+
 #include <tbb/concurrent_vector.h>
 
 #include "kaminpar-shm/coarsening/coarsener.h"
@@ -19,36 +21,32 @@
 #include "kaminpar-common/assert.h"
 
 namespace kaminpar::shm::partitioning {
-struct InitialPartitionerMemoryPool {
-  std::vector<InitialPartitioner::MemoryContext> pool;
+class InitialBipartitionerPool {
+public:
+  explicit InitialBipartitionerPool(const Context &ctx) : _ctx(ctx) {}
 
-  InitialPartitioner::MemoryContext get() {
-    if (!pool.empty()) {
-      auto m_ctx = std::move(pool.back());
-      pool.pop_back();
-      return m_ctx;
+  InitialPartitioner get() {
+    if (!_pool.empty()) {
+      auto initial_partitioner = std::move(_pool.back());
+      _pool.pop_back();
+      return initial_partitioner;
     }
 
-    return {};
+    return InitialPartitioner(_ctx);
   }
 
-  [[nodiscard]] std::size_t memory_in_kb() const {
-    std::size_t memory = 0;
-    for (const auto &obj : pool) {
-      memory += obj.memory_in_kb();
-    }
-    return memory;
+  void put(InitialPartitioner initial_partitioner) {
+    _pool.push_back(std::move(initial_partitioner));
   }
 
-  void put(InitialPartitioner::MemoryContext m_ctx) {
-    pool.push_back(std::move(m_ctx));
-  }
+private:
+  const Context &_ctx;
+
+  std::vector<InitialPartitioner> _pool;
 };
 
-using GlobalInitialPartitionerMemoryPool =
-    tbb::enumerable_thread_specific<InitialPartitionerMemoryPool>;
-using TemporaryGraphExtractionBufferPool =
-    tbb::enumerable_thread_specific<graph::TemporarySubgraphMemory>;
+using InitialBipartitionerPoolEts = tbb::enumerable_thread_specific<InitialBipartitionerPool>;
+using TemporarySubgraphMemoryEts = tbb::enumerable_thread_specific<graph::TemporarySubgraphMemory>;
 
 namespace helper {
 void update_partition_context(
@@ -62,11 +60,34 @@ PartitionedGraph uncoarsen_once(
     const PartitionContext &input_p_ctx
 );
 
+struct BipartitionTimingInfo {
+  std::uint64_t bipartitioner_init_ms = 0;
+  std::uint64_t bipartitioner_ms = 0;
+  std::uint64_t graph_init_ms = 0;
+  std::uint64_t extract_ms = 0;
+  std::uint64_t copy_ms = 0;
+  std::uint64_t misc_ms = 0;
+  InitialPartitionerTimings ip_timings{};
+
+  BipartitionTimingInfo &operator+=(const BipartitionTimingInfo &other) {
+    bipartitioner_init_ms += other.bipartitioner_init_ms;
+    bipartitioner_ms += other.bipartitioner_ms;
+    graph_init_ms += other.graph_init_ms;
+    extract_ms += other.extract_ms;
+    copy_ms += other.copy_ms;
+    misc_ms += other.misc_ms;
+    ip_timings += other.ip_timings;
+    return *this;
+  }
+};
+
 PartitionedGraph bipartition(
     const Graph *graph,
     BlockID final_k,
     const Context &input_ctx,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool
+    InitialBipartitionerPoolEts &bipartitioner_pool_ets,
+    bool partition_lifespan,
+    BipartitionTimingInfo *timing_info = nullptr
 );
 
 void refine(Refiner *refiner, PartitionedGraph &p_graph, const PartitionContext &current_p_ctx);
@@ -80,8 +101,9 @@ void extend_partition_recursive(
     const Context &input_ctx,
     graph::SubgraphMemory &subgraph_memory,
     graph::SubgraphMemoryStartPosition position,
-    TemporaryGraphExtractionBufferPool &extraction_pool,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool
+    TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
+    InitialBipartitionerPoolEts &bipartitioner_pool_ets,
+    BipartitionTimingInfo *timings = nullptr
 );
 
 void extend_partition(
@@ -89,7 +111,7 @@ void extend_partition(
     BlockID k_prime,
     const Context &input_ctx,
     PartitionContext &current_p_ctx,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool
+    InitialBipartitionerPoolEts &bipartitioner_pool_ets
 );
 
 void extend_partition(
@@ -98,8 +120,8 @@ void extend_partition(
     const Context &input_ctx,
     PartitionContext &current_p_ctx,
     graph::SubgraphMemory &subgraph_memory,
-    TemporaryGraphExtractionBufferPool &extraction_pool,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
+    TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
+    InitialBipartitionerPoolEts &bipartitioner_pool_ets,
     int num_active_threads
 );
 
@@ -108,8 +130,8 @@ void extend_partition(
     BlockID k_prime,
     const Context &input_ctx,
     PartitionContext &current_p_ctx,
-    TemporaryGraphExtractionBufferPool &extraction_pool,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
+    TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
+    InitialBipartitionerPoolEts &bipartitioner_pool_ets,
     int num_active_threads
 );
 
