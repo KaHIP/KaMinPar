@@ -43,13 +43,17 @@ PartitionedCSRGraph SequentialGraphHierarchy::pop(PartitionedCSRGraph &&coarse_p
   const CSRGraph &graph = get_second_coarsest_graph();
   KASSERT(graph.n() == c_mapping.size());
 
-  StaticArray<BlockID> partition(graph.n(), static_array::small, static_array::seq);
+  StaticArray<BlockID> partition = alloc_partition_memory();
+  if (partition.size() < graph.n()) {
+    partition.resize(graph.n(), static_array::small, static_array::seq);
+  }
+
   for (const NodeID u : graph.nodes()) {
     partition[u] = coarse_p_graph.block(c_mapping[u]);
   }
 
   // Recover the memory of the coarsest graph before free'ing the graph object:
-  // @todo recover partition memory
+  recover_partition_memory(coarse_p_graph.take_raw_partition());
   recover_mapping_memory(std::move(c_mapping));
   recover_graph_memory(std::move(_coarse_graphs.back()));
   _coarse_graphs.pop_back();
@@ -60,6 +64,10 @@ PartitionedCSRGraph SequentialGraphHierarchy::pop(PartitionedCSRGraph &&coarse_p
 const CSRGraph &SequentialGraphHierarchy::get_second_coarsest_graph() const {
   KASSERT(!_coarse_graphs.empty());
   return (_coarse_graphs.size() > 1) ? _coarse_graphs[_coarse_graphs.size() - 2] : *_finest_graph;
+}
+
+void SequentialGraphHierarchy::recover_partition_memory(StaticArray<BlockID> partition) {
+  _partition_memory_cache.push_back(std::move(partition));
 }
 
 void SequentialGraphHierarchy::recover_mapping_memory(ScalableVector<NodeID> mapping) {
@@ -73,6 +81,16 @@ void SequentialGraphHierarchy::recover_graph_memory(CSRGraph graph) {
       .node_weights = _coarse_graphs.back().take_raw_node_weights(),
       .edge_weights = _coarse_graphs.back().take_raw_edge_weights(),
   });
+}
+
+StaticArray<BlockID> SequentialGraphHierarchy::alloc_partition_memory() {
+  if (_partition_memory_cache.empty()) {
+    _partition_memory_cache.emplace_back(0, static_array::small, static_array::seq);
+  }
+
+  auto memory = std::move(_partition_memory_cache.back());
+  _partition_memory_cache.pop_back();
+  return memory;
 }
 
 ScalableVector<NodeID> SequentialGraphHierarchy::alloc_mapping_memory() {

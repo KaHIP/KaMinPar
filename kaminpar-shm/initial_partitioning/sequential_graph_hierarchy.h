@@ -13,6 +13,7 @@
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/scalable_vector.h"
+#include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm::ip {
 class SequentialGraphHierarchy {
@@ -41,12 +42,14 @@ public:
     return _coarse_graphs.empty();
   }
 
+  StaticArray<BlockID> alloc_partition_memory();
   ScalableVector<NodeID> alloc_mapping_memory();
   CSRGraphMemory alloc_graph_memory();
 
 private:
   [[nodiscard]] const CSRGraph &get_second_coarsest_graph() const;
 
+  void recover_partition_memory(StaticArray<BlockID> partition);
   void recover_mapping_memory(ScalableVector<NodeID> mapping);
   void recover_graph_memory(CSRGraph graph);
 
@@ -57,5 +60,6 @@ private:
 
   ScalableVector<CSRGraphMemory> _graph_memory_cache;
   ScalableVector<ScalableVector<NodeID>> _mapping_memory_cache;
+  ScalableVector<StaticArray<BlockID>> _partition_memory_cache;
 };
 } // namespace kaminpar::shm::ip
