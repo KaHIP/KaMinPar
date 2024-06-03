@@ -44,7 +44,7 @@ NodePermutations<StaticArray> sort_by_degree_buckets(const StaticArray<EdgeID> &
   };
 
   const NodeID n = nodes.size() - 1;
-  const int cpus = std::min<int>(tbb::this_task_arena::max_concurrency(), n);
+  const std::size_t cpus = std::min<std::size_t>(tbb::this_task_arena::max_concurrency(), n);
 
   RECORD("permutation") StaticArray<NodeID> permutation(n);
   RECORD("inverse_permutation") StaticArray<NodeID> inverse_permutation(n);
@@ -53,13 +53,17 @@ NodePermutations<StaticArray> sort_by_degree_buckets(const StaticArray<EdgeID> &
   using Buckets = std::array<NodeID, kNumberOfDegreeBuckets<NodeID> + 1>;
   std::vector<Buckets, tbb::cache_aligned_allocator<Buckets>> local_buckets(cpus + 1);
 
-  parallel::deterministic_for<NodeID>(0, n, [&](const NodeID from, const NodeID to, const int cpu) {
-    KASSERT(cpu < cpus);
-    for (NodeID u = from; u < to; ++u) {
-      const auto bucket = find_bucket(nodes[u + 1] - nodes[u]);
-      permutation[u] = local_buckets[cpu + 1][bucket]++;
-    }
-  });
+  parallel::deterministic_for<NodeID>(
+      0,
+      n,
+      [&](const NodeID from, const NodeID to, const std::size_t cpu) {
+        KASSERT(cpu < cpus);
+        for (NodeID u = from; u < to; ++u) {
+          const auto bucket = find_bucket(nodes[u + 1] - nodes[u]);
+          permutation[u] = local_buckets[cpu + 1][bucket]++;
+        }
+      }
+  );
 
   // Build a table of prefix numbers to correct the position of each node in the
   // final permutation After the previous loop, permutation[u] contains the
@@ -67,27 +71,31 @@ NodePermutations<StaticArray> sort_by_degree_buckets(const StaticArray<EdgeID> &
   // --> add prefix computed in global_buckets (ii) account for the same bucket
   // in smaller processor IDs --> add prefix computed in local_buckets
   Buckets global_buckets{};
-  for (int id = 1; id < cpus + 1; ++id) {
+  for (std::size_t id = 1; id < cpus + 1; ++id) {
     for (std::size_t i = 0; i + 1 < global_buckets.size(); ++i) {
       global_buckets[i + 1] += local_buckets[id][i];
     }
   }
   parallel::prefix_sum(global_buckets.begin(), global_buckets.end(), global_buckets.begin());
   for (std::size_t i = 0; i < global_buckets.size(); ++i) {
-    for (int id = 0; id + 1 < cpus; ++id) {
+    for (std::size_t id = 0; id + 1 < cpus; ++id) {
       local_buckets[id + 1][i] += local_buckets[id][i];
     }
   }
 
   // Apply offsets to obtain global permutation
-  parallel::deterministic_for<NodeID>(0, n, [&](const NodeID from, const NodeID to, const int cpu) {
-    KASSERT(cpu < cpus);
+  parallel::deterministic_for<NodeID>(
+      0,
+      n,
+      [&](const NodeID from, const NodeID to, const std::size_t cpu) {
+        KASSERT(cpu < cpus);
 
-    for (NodeID u = from; u < to; ++u) {
-      const NodeID bucket = find_bucket(nodes[u + 1] - nodes[u]);
-      permutation[u] += global_buckets[bucket] + local_buckets[cpu][bucket];
-    }
-  });
+        for (NodeID u = from; u < to; ++u) {
+          const NodeID bucket = find_bucket(nodes[u + 1] - nodes[u]);
+          permutation[u] += global_buckets[bucket] + local_buckets[cpu][bucket];
+        }
+      }
+  );
 
   // Compute inverse permutation
   tbb::parallel_for<std::size_t>(1, nodes.size(), [&](const NodeID u_plus_one) {
