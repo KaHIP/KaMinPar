@@ -10,30 +10,12 @@
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/datastructures/marker.h"
+#include "kaminpar-common/datastructures/queue.h"
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::shm::ip {
-std::pair<NodeID, NodeID>
-find_far_away_nodes(const CSRGraph &graph, const std::size_t num_iterations) {
-  Queue<NodeID> queue(graph.n());
-  Marker<> marker(graph.n());
-
-  NodeID best_distance = 0;
-  std::pair<NodeID, NodeID> best_pair{0, 0};
-  for (std::size_t i = 0; i < num_iterations; ++i) {
-    const NodeID u = Random::instance().random_index(0, graph.n());
-    const auto [v, distance] = find_furthest_away_node(graph, u, queue, marker);
-
-    if (distance > best_distance ||
-        (distance == best_distance && Random::instance().random_bool())) {
-      best_distance = distance;
-      best_pair = {u, v};
-    }
-  }
-
-  return best_pair;
-}
-
+namespace {
 std::pair<NodeID, NodeID> find_furthest_away_node(
     const CSRGraph &graph, const NodeID start_node, Queue<NodeID> &queue, Marker<> &marker
 ) {
@@ -79,5 +61,37 @@ std::pair<NodeID, NodeID> find_furthest_away_node(
   marker.reset();
   queue.clear();
   return {last_node, current_distance};
+}
+} // namespace
+
+std::pair<NodeID, NodeID> find_far_away_nodes(const CSRGraph &graph, const int num_iterations) {
+  Queue<NodeID> queue(graph.n());
+  Marker<> marker(graph.n());
+
+  return find_far_away_nodes(graph, num_iterations, queue, marker);
+}
+
+std::pair<NodeID, NodeID> find_far_away_nodes(
+    const CSRGraph &graph, int num_iterations, Queue<NodeID> &queue, Marker<> &marker
+) {
+  queue.clear();
+  marker.reset();
+
+  NodeID best_distance = 0;
+  std::pair<NodeID, NodeID> best_pair = {0, 0};
+
+  Random &rand = Random::instance();
+
+  for (int i = 0; i < num_iterations; ++i) {
+    const NodeID u = Random::instance().random_index(0, graph.n());
+    const auto [v, distance] = find_furthest_away_node(graph, u, queue, marker);
+
+    if (distance > best_distance || (distance == best_distance && rand.random_bool())) {
+      best_distance = distance;
+      best_pair = {u, v};
+    }
+  }
+
+  return best_pair;
 }
 } // namespace kaminpar::shm::ip
