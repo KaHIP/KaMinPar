@@ -287,79 +287,6 @@ CompressedGraph compressed_read(const std::string &filename, const bool sorted) 
 }
 
 namespace {
-namespace debug {
-using Duration = std::chrono::high_resolution_clock::duration;
-
-struct Stats {
-  Duration compression_time{0};
-  Duration sync_time{0};
-  Duration copy_time{0};
-
-  std::size_t num_chunks{0};
-  std::size_t num_edges{0};
-};
-
-template <typename Lambda> decltype(auto) scoped_time(auto &elapsed, Lambda &&l) {
-  constexpr bool kNonReturning = std::is_void_v<std::invoke_result_t<Lambda>>;
-
-  if constexpr (kDebug) {
-    if constexpr (kNonReturning) {
-      auto start = std::chrono::high_resolution_clock::now();
-      l();
-      auto end = std::chrono::high_resolution_clock::now();
-      elapsed += end - start;
-    } else {
-      auto start = std::chrono::high_resolution_clock::now();
-      decltype(auto) val = l();
-      auto end = std::chrono::high_resolution_clock::now();
-      elapsed += end - start;
-      return val;
-    }
-  } else {
-    return l();
-  }
-}
-
-void print_stats(const auto &stats_ets) {
-  DBG << "Chunk distribution:";
-
-  std::size_t cur_thread = 0;
-  for (const auto &stats : stats_ets) {
-    DBG << "t" << ++cur_thread << ": " << stats.num_chunks;
-  }
-
-  DBG << "Edge distribution:";
-
-  cur_thread = 0;
-  for (const auto &stats : stats_ets) {
-    DBG << "t" << ++cur_thread << ": " << stats.num_edges;
-  }
-
-  DBG << "Time distribution: (compression, sync, copy) [s]";
-
-  const auto to_sec = [&](auto elapsed) {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() / 1000.0;
-  };
-
-  Duration total_time_compression(0);
-  Duration total_time_sync(0);
-  Duration total_time_copy(0);
-
-  cur_thread = 0;
-  for (const auto &stats : stats_ets) {
-    total_time_compression += stats.compression_time;
-    total_time_sync += stats.sync_time;
-    total_time_copy += stats.copy_time;
-
-    DBG << "t" << ++cur_thread << ": " << to_sec(stats.compression_time) << ' '
-        << to_sec(stats.sync_time) << ' ' << to_sec(stats.copy_time);
-  }
-
-  DBG << "sum: " << to_sec(total_time_compression) << ' ' << to_sec(total_time_sync) << ' '
-      << to_sec(total_time_copy);
-}
-
-} // namespace debug
 
 std::pair<StaticArray<NodeID>, StaticArray<NodeID>>
 sort_by_degree_buckets(const NodeID n, const StaticArray<NodeID> &degrees) {
@@ -457,176 +384,53 @@ CompressedGraph compressed_read_parallel(const std::string &filename, const Node
     // Since the offsets stored in the (raw) node array of the binary are relative byte adresses
     // into the binary itself, these offsets must be mapped to the actual edge IDs.
     const EdgeID nodes_offset_base = ParhipHeader::kSize + (header.num_nodes + 1) * sizeof(EdgeID);
-    const auto map_edge_offset = [&](const NodeID node) {
+    const auto fetch_edge_offset = [&](const NodeID node) {
       return (nodes[node] - nodes_offset_base) / sizeof(NodeID);
     };
     const auto fetch_degree = [&](const NodeID node) {
       return static_cast<NodeID>((nodes[node + 1] - nodes[node]) / sizeof(NodeID));
     };
 
-    RECORD("degrees") StaticArray<NodeID> degrees(num_nodes, static_array::noinit);
-    TIMED_SCOPE("Read degrees") {
-      tbb::parallel_for(tbb::blocked_range<NodeID>(0, num_nodes), [&](const auto &r) {
-        for (NodeID u = r.begin(); u != r.end(); ++u) {
-          degrees[u] = fetch_degree(u);
-        }
-      });
-    };
-
     const bool sort_by_degree_bucket = ordering == NodeOrdering::DEGREE_BUCKETS;
-    StaticArray<NodeID> permutation;
-    StaticArray<NodeID> inverse_permutation;
     if (sort_by_degree_bucket) {
-      SCOPED_TIMER("Compute permutation");
-      auto [perm, inv_perm] = sort_by_degree_buckets(num_nodes, degrees);
-      permutation = std::move(perm);
-      inverse_permutation = std::move(inv_perm);
-    }
-
-    // To compress the graph in parallel the nodes are split into chunks. Each parallel task fetches
-    // a chunk and compresses the neighbourhoods of the corresponding nodes. The compressed
-    // neighborhoods are meanwhile temporarily stored in a buffer. They are moved into the
-    // compressed edge array when the (total) length of the compressed neighborhoods of the previous
-    // chunks is determined.
-    constexpr std::size_t kNumChunks = 5000;
-    const EdgeID max_chunk_size = num_edges / kNumChunks;
-    std::vector<std::tuple<NodeID, NodeID, EdgeID>> chunks;
-
-    NodeID max_degree = 0;
-    TIMED_SCOPE("Compute chunks") {
-      NodeID cur_chunk_start = 0;
-      EdgeID cur_chunk_size = 0;
-      EdgeID cur_first_edge = 0;
-      for (NodeID i = 0; i < num_nodes; ++i) {
-        NodeID node = sort_by_degree_bucket ? inverse_permutation[i] : i;
-
-        const NodeID degree = degrees[node];
-        max_degree = std::max(max_degree, degree);
-
-        cur_chunk_size += degree;
-        if (cur_chunk_size >= max_chunk_size) {
-          if (cur_chunk_start == i) {
-            chunks.emplace_back(cur_chunk_start, i + 1, cur_first_edge);
-
-            cur_chunk_start = i + 1;
-            cur_first_edge += degree;
-            cur_chunk_size = 0;
-          } else {
-            chunks.emplace_back(cur_chunk_start, i, cur_first_edge);
-
-            cur_chunk_start = i;
-            cur_first_edge += cur_chunk_size - degree;
-            cur_chunk_size = degree;
+      RECORD("degrees") StaticArray<NodeID> degrees(num_nodes, static_array::noinit);
+      TIMED_SCOPE("Read degrees") {
+        tbb::parallel_for(tbb::blocked_range<NodeID>(0, num_nodes), [&](const auto &r) {
+          for (NodeID u = r.begin(); u != r.end(); ++u) {
+            degrees[u] = fetch_degree(u);
           }
-        }
-      }
+        });
+      };
+      const auto [perm, inv_perm] = sort_by_degree_buckets(num_nodes, degrees);
 
-      if (cur_chunk_start != num_nodes) {
-        chunks.emplace_back(cur_chunk_start, num_nodes, cur_first_edge);
-      }
-    };
-
-    degrees.free();
-
-    // Initializes the data structures used to build the compressed graph in parallel.
-    const bool sorted = ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS || sort_by_degree_bucket;
-    ParallelCompressedGraphBuilder builder(
-        header.num_nodes, header.num_edges, header.has_node_weights, header.has_edge_weights, sorted
-    );
-
-    tbb::enumerable_thread_specific<std::vector<EdgeID>> offsets_ets;
-    tbb::enumerable_thread_specific<std::vector<std::pair<NodeID, EdgeWeight>>> neighbourhood_ets;
-    tbb::enumerable_thread_specific<CompressedEdgesBuilder> neighbourhood_builder_ets([&] {
-      return CompressedEdgesBuilder(
-          num_nodes, num_edges, max_degree, header.has_edge_weights, builder.edge_weights()
+      return ParallelCompressedGraphBuilder::compress(
+          num_nodes,
+          num_edges,
+          header.has_node_weights,
+          header.has_edge_weights,
+          true,
+          [&](const NodeID u) { return inv_perm[u]; },
+          [&](const NodeID u) { return degrees[u]; },
+          [&](const NodeID u) { return fetch_edge_offset(u); },
+          [&](const EdgeID e) { return perm[edges[e]]; },
+          [&](const NodeID u) { return node_weights[u]; },
+          [&](const EdgeID e) { return edge_weights[e]; }
       );
-    });
-
-    const std::size_t num_threads = tbb::this_task_arena::max_concurrency();
-    ConcurrentCircularVectorMutex<NodeID, EdgeID> buffer(num_threads);
-
-    tbb::enumerable_thread_specific<debug::Stats> dbg_ets;
-    tbb::parallel_for<NodeID>(0, chunks.size(), [&](const auto) {
-      auto &dbg = dbg_ets.local();
-      IF_DBG dbg.num_chunks++;
-
-      std::vector<EdgeID> &offsets = offsets_ets.local();
-      std::vector<std::pair<NodeID, EdgeWeight>> &neighbourhood = neighbourhood_ets.local();
-      CompressedEdgesBuilder &neighbourhood_builder = neighbourhood_builder_ets.local();
-
-      const NodeID chunk = buffer.next();
-      const auto [start, end, first_edge] = chunks[chunk];
-
-      NodeWeight local_node_weight = 0;
-      neighbourhood_builder.init(first_edge);
-
-      // Compress the neighborhoods of the nodes in the fetched chunk.
-      debug::scoped_time(dbg.compression_time, [&] {
-        for (NodeID i = start; i < end; ++i) {
-          const NodeID node = sort_by_degree_bucket ? inverse_permutation[i] : i;
-          const NodeID degree = fetch_degree(node);
-          IF_DBG dbg.num_edges += degree;
-
-          EdgeID edge = map_edge_offset(node);
-          for (NodeID j = 0; j < degree; ++j) {
-            const NodeID adjacent_node =
-                sort_by_degree_bucket ? permutation[edges[edge]] : edges[edge];
-            const EdgeWeight edge_weight = header.has_edge_weights ? edge_weights[edge] : 1;
-
-            neighbourhood.emplace_back(adjacent_node, edge_weight);
-            edge += 1;
-          }
-
-          const EdgeID local_offset = neighbourhood_builder.add(i, neighbourhood);
-          offsets.push_back(local_offset);
-
-          neighbourhood.clear();
-        }
-      });
-
-      // Wait for the parallel tasks that process the previous chunks to finish.
-      const EdgeID offset = debug::scoped_time(dbg.sync_time, [&] {
-        const EdgeID compressed_neighborhoods_size = neighbourhood_builder.size();
-        return buffer.fetch_and_update(chunk, compressed_neighborhoods_size);
-      });
-
-      // Store the edge offset and node weight for each node in the chunk and copy the compressed
-      // neighborhoods into the actual compressed edge array.
-      debug::scoped_time(dbg.copy_time, [&] {
-        for (NodeID i = start; i < end; ++i) {
-          const EdgeID local_offset = offsets[i - start];
-
-          builder.add_node(i, offset + local_offset);
-
-          if (header.has_node_weights) {
-            const NodeID node = sort_by_degree_bucket ? inverse_permutation[i] : i;
-            const NodeWeight node_weight = node_weights[node];
-            local_node_weight += node_weight;
-
-            builder.add_node_weight(i, node_weight);
-          }
-        }
-        offsets.clear();
-
-        builder.add_compressed_edges(
-            offset, neighbourhood_builder.size(), neighbourhood_builder.compressed_data()
-        );
-
-        builder.record_local_statistics(
-            neighbourhood_builder.max_degree(),
-            local_node_weight,
-            neighbourhood_builder.total_edge_weight(),
-            neighbourhood_builder.num_high_degree_nodes(),
-            neighbourhood_builder.num_high_degree_parts(),
-            neighbourhood_builder.num_interval_nodes(),
-            neighbourhood_builder.num_intervals()
-        );
-      });
-    });
-
-    IF_DBG debug::print_stats(dbg_ets);
-
-    return builder.build();
+    } else {
+      return ParallelCompressedGraphBuilder::compress(
+          num_nodes,
+          num_edges,
+          header.has_node_weights,
+          header.has_edge_weights,
+          ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS,
+          [](const NodeID u) { return u; },
+          [&](const NodeID u) { return fetch_degree(u); },
+          [&](const NodeID u) { return fetch_edge_offset(u); },
+          [&](const EdgeID e) { return edges[e]; },
+          [&](const NodeID u) { return node_weights[u]; },
+          [&](const EdgeID e) { return edge_weights[e]; }
+      );
+    }
   } catch (const BinaryReaderException &e) {
     LOG_ERROR << e.what();
     std::exit(1);

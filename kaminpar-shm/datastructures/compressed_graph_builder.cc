@@ -520,110 +520,19 @@ std::int64_t CompressedGraphBuilder::total_edge_weight() const {
 }
 
 CompressedGraph ParallelCompressedGraphBuilder::compress(const CSRGraph &graph) {
-  const NodeID num_nodes = graph.n();
-  const EdgeID num_edges = graph.m();
-  const bool has_node_weights = graph.is_node_weighted();
-  const bool has_edge_weights = graph.is_edge_weighted();
-
-  constexpr std::size_t kNumChunks = 5000;
-  const EdgeID max_chunk_size = num_edges / kNumChunks;
-  std::vector<std::pair<NodeID, NodeID>> chunks;
-
-  NodeID cur_chunk_start = 0;
-  EdgeID cur_chunk_size = 0;
-  for (NodeID node = 0; node < num_nodes; ++node) {
-    const NodeID degree = graph.degree(node);
-
-    cur_chunk_size += degree;
-    if (cur_chunk_size >= max_chunk_size) {
-      if (cur_chunk_start == node) {
-        chunks.emplace_back(node, node + 1);
-        cur_chunk_start = node + 1;
-      } else {
-        chunks.emplace_back(cur_chunk_start, node);
-        cur_chunk_start = node;
-      }
-
-      cur_chunk_size = 0;
-    }
-  }
-
-  if (cur_chunk_start != num_nodes) {
-    chunks.emplace_back(cur_chunk_start, num_nodes);
-  }
-
-  ParallelCompressedGraphBuilder builder(
-      graph.n(), graph.m(), has_node_weights, has_edge_weights, graph.sorted()
+  return ParallelCompressedGraphBuilder::compress(
+      graph.n(),
+      graph.m(),
+      graph.is_node_weighted(),
+      graph.is_edge_weighted(),
+      graph.sorted(),
+      [](const NodeID u) { return u; },
+      [&](const NodeID u) { return graph.degree(u); },
+      [&](const NodeID u) { return graph.first_edge(u); },
+      [&](const EdgeID e) { return graph.edge_target(e); },
+      [&](const NodeID u) { return graph.node_weight(u); },
+      [&](const EdgeID e) { return graph.edge_weight(e); }
   );
-
-  tbb::enumerable_thread_specific<std::vector<EdgeID>> offsets_ets;
-  tbb::enumerable_thread_specific<std::vector<std::pair<NodeID, EdgeWeight>>> neighbourhood_ets;
-  tbb::enumerable_thread_specific<CompressedEdgesBuilder> neighbourhood_builder_ets([&] {
-    return CompressedEdgesBuilder(
-        graph.n(), graph.m(), graph.max_degree(), has_edge_weights, builder.edge_weights()
-    );
-  });
-
-  const std::size_t num_threads = tbb::this_task_arena::max_concurrency();
-  ConcurrentCircularVectorMutex<NodeID, EdgeID> buffer(num_threads);
-
-  tbb::parallel_for<NodeID>(0, chunks.size(), [&](const auto) {
-    std::vector<EdgeID> &offsets = offsets_ets.local();
-    std::vector<std::pair<NodeID, EdgeWeight>> &neighbourhood = neighbourhood_ets.local();
-    CompressedEdgesBuilder &neighbourhood_builder = neighbourhood_builder_ets.local();
-
-    const NodeID chunk = buffer.next();
-    const auto [start_node, end_node] = chunks[chunk];
-
-    const EdgeID first_edge = graph.first_edge(start_node);
-    neighbourhood_builder.init(first_edge);
-
-    NodeWeight local_node_weight = 0;
-    for (NodeID node = start_node; node < end_node; ++node) {
-      for (const auto [incident_edge, adjacent_node] : graph.neighbors(node)) {
-        neighbourhood.emplace_back(adjacent_node, graph.edge_weight(incident_edge));
-      }
-
-      const EdgeID local_offset = neighbourhood_builder.add(node, neighbourhood);
-      offsets.push_back(local_offset);
-
-      neighbourhood.clear();
-    }
-
-    const EdgeID compressed_neighborhoods_size = neighbourhood_builder.size();
-    const EdgeID offset = buffer.fetch_and_update(chunk, compressed_neighborhoods_size);
-
-    NodeID node = start_node;
-    for (EdgeID local_offset : offsets) {
-      builder.add_node(node, offset + local_offset);
-
-      if (has_node_weights) {
-        const NodeWeight node_weight = graph.node_weight(node);
-        local_node_weight += node_weight;
-
-        builder.add_node_weight(node, node_weight);
-      }
-
-      node += 1;
-    }
-    offsets.clear();
-
-    builder.add_compressed_edges(
-        offset, compressed_neighborhoods_size, neighbourhood_builder.compressed_data()
-    );
-
-    builder.record_local_statistics(
-        neighbourhood_builder.max_degree(),
-        local_node_weight,
-        neighbourhood_builder.total_edge_weight(),
-        neighbourhood_builder.num_high_degree_nodes(),
-        neighbourhood_builder.num_high_degree_parts(),
-        neighbourhood_builder.num_interval_nodes(),
-        neighbourhood_builder.num_intervals()
-    );
-  });
-
-  return builder.build();
 }
 
 ParallelCompressedGraphBuilder::ParallelCompressedGraphBuilder(
