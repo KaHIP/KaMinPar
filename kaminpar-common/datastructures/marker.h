@@ -26,7 +26,7 @@ public:
       : _data(capacity),
         _marker_id(0),
         _first_unmarked_element{0} {
-    RECORD_DATA_STRUCT(capacity * sizeof(element_type), _struct);
+    RECORD_DATA_STRUCT(capacity * sizeof(Value), _struct);
   }
 
   Marker(const Marker &) = delete;
@@ -87,7 +87,7 @@ public:
   }
 
   void resize(const std::size_t capacity) {
-    IF_HEAP_PROFILING(_struct->size = std::max(_struct->size, capacity * sizeof(element_type)));
+    IF_HEAP_PROFILING(_struct->size = std::max(_struct->size, capacity * sizeof(Value)));
     _data.resize(capacity);
   }
 
