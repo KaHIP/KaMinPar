@@ -53,9 +53,15 @@ PartitionedCSRGraph SequentialGraphHierarchy::pop(PartitionedCSRGraph &&coarse_p
   }
 
   // Recover the memory of the coarsest graph before free'ing the graph object:
-  recover_partition_memory(coarse_p_graph.take_raw_partition());
   recover_mapping_memory(std::move(c_mapping));
   recover_graph_memory(std::move(_coarse_graphs.back()));
+
+  // ... the partition array of the coarsest graph is managed by the PoolBipartitioner
+  // instead of the PartitionedCSRGraph object: do not push it back to the memory cache
+  if (!coarse_p_graph.raw_partition().is_span()) {
+    recover_partition_memory(coarse_p_graph.take_raw_partition());
+  }
+
   _coarse_graphs.pop_back();
 
   return {PartitionedCSRGraph::seq{}, graph, coarse_p_graph.k(), std::move(partition)};
@@ -63,10 +69,13 @@ PartitionedCSRGraph SequentialGraphHierarchy::pop(PartitionedCSRGraph &&coarse_p
 
 const CSRGraph &SequentialGraphHierarchy::get_second_coarsest_graph() const {
   KASSERT(!_coarse_graphs.empty());
+
   return (_coarse_graphs.size() > 1) ? _coarse_graphs[_coarse_graphs.size() - 2] : *_finest_graph;
 }
 
 void SequentialGraphHierarchy::recover_partition_memory(StaticArray<BlockID> partition) {
+  KASSERT(!partition.is_span(), "span should not be cached");
+
   _partition_memory_cache.push_back(std::move(partition));
 }
 
@@ -75,11 +84,16 @@ void SequentialGraphHierarchy::recover_mapping_memory(ScalableVector<NodeID> map
 }
 
 void SequentialGraphHierarchy::recover_graph_memory(CSRGraph graph) {
+  KASSERT(!graph.raw_nodes().is_span(), "span should not be cached");
+  KASSERT(!graph.raw_edges().is_span(), "span should not be cached");
+  KASSERT(!graph.raw_node_weights().is_span(), "span should not be cached");
+  KASSERT(!graph.raw_edge_weights().is_span(), "span should not be cached");
+
   _graph_memory_cache.push_back(CSRGraphMemory{
-      .nodes = _coarse_graphs.back().take_raw_nodes(),
-      .edges = _coarse_graphs.back().take_raw_edges(),
-      .node_weights = _coarse_graphs.back().take_raw_node_weights(),
-      .edge_weights = _coarse_graphs.back().take_raw_edge_weights(),
+      .nodes = graph.take_raw_nodes(),
+      .edges = graph.take_raw_edges(),
+      .node_weights = graph.take_raw_node_weights(),
+      .edge_weights = graph.take_raw_edge_weights(),
   });
 }
 
@@ -115,6 +129,12 @@ CSRGraphMemory SequentialGraphHierarchy::alloc_graph_memory() {
 
   auto memory = std::move(_graph_memory_cache.back());
   _graph_memory_cache.pop_back();
+
+  KASSERT(!memory.nodes.is_span(), "span should not be cached");
+  KASSERT(!memory.edges.is_span(), "span should not be cached");
+  KASSERT(!memory.node_weights.is_span(), "span should not be cached");
+  KASSERT(!memory.edge_weights.is_span(), "span should not be cached");
+
   return memory;
 }
 } // namespace kaminpar::shm::ip
