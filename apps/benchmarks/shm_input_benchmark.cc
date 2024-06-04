@@ -113,7 +113,7 @@ int main(int argc, char *argv[]) {
   std::cout << "Execution mode:               " << ctx.parallel.num_threads << "\n";
   std::cout << "Seed:                         " << Random::get_seed() << "\n";
   cio::print_delimiter("Graph Compression", '-');
-  print(ctx.compression, std::cout);
+  shm::print(ctx.compression, std::cout);
   LOG;
 
   cio::print_delimiter("Result Summary");

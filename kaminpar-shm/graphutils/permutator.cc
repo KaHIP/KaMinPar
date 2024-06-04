@@ -16,7 +16,6 @@
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/parallel/aligned_element.h"
-#include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::graph {
 
@@ -41,9 +40,7 @@ NodePermutations<StaticArray> rearrange_graph(
   // the graph data structure this way, we can just cut them off without doing
   // further work
   START_HEAP_PROFILER("Rearrange input graph");
-  START_TIMER("Sort nodes by degree bucket");
-  NodePermutations<StaticArray> permutations = sort_by_degree_buckets<>(nodes);
-  STOP_TIMER();
+  NodePermutations<StaticArray> permutations = sort_by_degree_buckets(nodes);
   START_TIMER("Rearrange input graph");
   build_permuted_graph(
       nodes,

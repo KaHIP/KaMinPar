@@ -15,6 +15,7 @@
 
 #include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/parallel/loops.h"
+#include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::graph {
 /*!
@@ -32,18 +33,21 @@ template <template <typename> typename Container> struct NodePermutations {
  * by their exponentially spaced degree buckets. Isolated nodes moved to the
  * back of the graph.
  *
- * @tparam Container
- * @param nodes Nodes array of a static graph.
+ * @tparam put_deg0_at_end Whether isolated nodes are moved to the back
+ * @param n The number of nodes.
+ * @param degrees Function that returns the degree of a node.
  * @return Bidirectional node permutation.
  */
-template <bool put_deg0_at_end = true>
-NodePermutations<StaticArray> sort_by_degree_buckets(const StaticArray<EdgeID> &nodes) {
+template <bool put_deg0_at_end = true, typename Lambda>
+NodePermutations<StaticArray> sort_by_degree_buckets(const NodeID n, const Lambda &&degrees) {
+  static_assert(std::is_invocable_r_v<NodeID, Lambda, NodeID>);
+  SCOPED_TIMER("Sort nodes by degree bucket");
+
   auto find_bucket = [&](const NodeID deg) {
     return deg == 0 ? (put_deg0_at_end ? kNumberOfDegreeBuckets<NodeID> - 1 : 0)
                     : degree_bucket(deg);
   };
 
-  const NodeID n = nodes.size() - 1;
   const std::size_t cpus = std::min<std::size_t>(tbb::this_task_arena::max_concurrency(), n);
 
   RECORD("permutation") StaticArray<NodeID> permutation(n);
@@ -58,8 +62,10 @@ NodePermutations<StaticArray> sort_by_degree_buckets(const StaticArray<EdgeID> &
       n,
       [&](const NodeID from, const NodeID to, const std::size_t cpu) {
         KASSERT(cpu < cpus);
+
         for (NodeID u = from; u < to; ++u) {
-          const auto bucket = find_bucket(nodes[u + 1] - nodes[u]);
+          const NodeID degree = degrees(u);
+          const auto bucket = find_bucket(degree);
           permutation[u] = local_buckets[cpu + 1][bucket]++;
         }
       }
@@ -91,19 +97,36 @@ NodePermutations<StaticArray> sort_by_degree_buckets(const StaticArray<EdgeID> &
         KASSERT(cpu < cpus);
 
         for (NodeID u = from; u < to; ++u) {
-          const NodeID bucket = find_bucket(nodes[u + 1] - nodes[u]);
+          const NodeID degree = degrees(u);
+          const NodeID bucket = find_bucket(degree);
           permutation[u] += global_buckets[bucket] + local_buckets[cpu][bucket];
         }
       }
   );
 
   // Compute inverse permutation
-  tbb::parallel_for<std::size_t>(1, nodes.size(), [&](const NodeID u_plus_one) {
-    const NodeID u = u_plus_one - 1;
+  tbb::parallel_for<std::size_t>(0, n, [&](const NodeID u) {
     inverse_permutation[permutation[u]] = u;
   });
 
   return {std::move(permutation), std::move(inverse_permutation)};
+}
+
+/*!
+ * Computes a permutation on the nodes of the graph such that nodes are sorted
+ * by their exponentially spaced degree buckets. Isolated nodes moved to the
+ * back of the graph.
+ *
+ * @tparam Container
+ * @param nodes Nodes array of a static graph.
+ * @return Bidirectional node permutation.
+ */
+template <bool put_deg0_at_end = true>
+NodePermutations<StaticArray> sort_by_degree_buckets(const StaticArray<EdgeID> &nodes) {
+  return sort_by_degree_buckets<put_deg0_at_end>(nodes.size() - 1, [&](const NodeID u) {
+    const NodeID degree = nodes[u + 1] - nodes[u];
+    return degree;
+  });
 }
 
 /*!
