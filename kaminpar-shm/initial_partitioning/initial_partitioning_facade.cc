@@ -28,6 +28,7 @@
 #include "kaminpar-shm/initial_partitioning/initial_refiner.h"
 #include "kaminpar-shm/initial_partitioning/pool_bipartitioner.h"
 #include "kaminpar-shm/kaminpar.h"
+#include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/partitioning/partition_utils.h"
 
 #include "kaminpar-common/logger.h"
@@ -69,7 +70,7 @@ PartitionedCSRGraph InitialPartitioner::partition(InitialPartitionerTimings *tim
   }
 
   timer.reset();
-  _bipartitioner->init(*c_graph, _p_ctx, _refiner.get());
+  _bipartitioner->init(*c_graph, _p_ctx);
   PartitionedCSRGraph p_graph = _bipartitioner->bipartition();
 
   if (_i_ctx.refine_pool_partition) {
