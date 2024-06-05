@@ -9,6 +9,7 @@
 #include "kaminpar-shm/partitioning/deep/sync_initial_partitioning.h"
 
 #include "kaminpar-shm/factories.h"
+#include "kaminpar-shm/partitioning/partition_utils.h"
 
 namespace kaminpar::shm::partitioning {
 namespace {
@@ -26,7 +27,7 @@ SyncInitialPartitioner::SyncInitialPartitioner(
 
 PartitionedGraph
 SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionContext &p_ctx) {
-  const std::size_t num_threads = helper::compute_num_threads_for_parallel_ip(_input_ctx);
+  const std::size_t num_threads = compute_num_threads_for_parallel_ip(_input_ctx);
 
   std::vector<std::vector<std::unique_ptr<Coarsener>>> coarseners(1);
   std::vector<PartitionContext> current_p_ctxs;
@@ -42,7 +43,7 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
   while (num_current_copies < num_threads) {
     const NodeID n = coarseners.back()[0]->current().n();
     const std::size_t num_local_copies =
-        helper::compute_num_copies(_input_ctx, n, converged, num_current_threads);
+        compute_num_copies(_input_ctx, n, converged, num_current_threads);
     num_local_copies_record.push_back(num_local_copies);
 
     DBG << V(num_current_copies) << V(num_threads) << V(num_current_threads) << V(num_local_copies);
@@ -113,7 +114,7 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
       helper::refine(refiner.get(), p_graph, p_ctx);
 
       // extend partition
-      const BlockID k_prime = helper::compute_k_for_n(p_graph.n(), _input_ctx);
+      const BlockID k_prime = compute_k_for_n(p_graph.n(), _input_ctx);
       if (p_graph.k() < k_prime) {
         helper::extend_partition(
             p_graph,

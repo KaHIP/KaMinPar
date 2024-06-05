@@ -380,48 +380,8 @@ bool coarsen_once(Coarsener *coarsener, const Graph *graph, PartitionContext &cu
 
   return shrunk;
 }
-
-BlockID compute_k_for_n(const NodeID n, const Context &input_ctx) {
-  // Catch special case where log is negative:
-  if (n < 2 * input_ctx.coarsening.contraction_limit) {
-    return 2;
-  }
-
-  const BlockID k_prime = 1 << math::ceil_log2(n / input_ctx.coarsening.contraction_limit);
-  return std::clamp<BlockID>(k_prime, 2, input_ctx.partition.k);
-}
-
-std::size_t compute_num_copies(
-    const Context &input_ctx, const NodeID n, const bool converged, const std::size_t num_threads
-) {
-  KASSERT(num_threads > 0u);
-
-  // Sequential base case;
-  const NodeID C = input_ctx.coarsening.contraction_limit;
-  if (converged || n <= 2 * C) {
-    return num_threads;
-  }
-
-  // Parallel case:
-  const std::size_t f = 1 << static_cast<std::size_t>(std::ceil(std::log2(1.0 * n / C)));
-
-  // Continue with coarsening if the graph is still too large ...
-  if (f > num_threads) {
-    return 1;
-  }
-
-  // ... otherwise, split into groups:
-  return num_threads / f;
-}
-
 std::size_t
 select_best(const ScalableVector<PartitionedGraph> &p_graphs, const PartitionContext &p_ctx) {
   return select_best(p_graphs.begin(), p_graphs.end(), p_ctx);
-}
-
-int compute_num_threads_for_parallel_ip(const Context &input_ctx) {
-  return math::floor2(static_cast<unsigned int>(
-      1.0 * input_ctx.parallel.num_threads * input_ctx.partitioning.deep_initial_partitioning_load
-  ));
 }
 } // namespace kaminpar::shm::partitioning::helper

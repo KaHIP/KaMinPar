@@ -136,12 +136,6 @@ void extend_partition(
 
 bool coarsen_once(Coarsener *coarsener, const Graph *graph, PartitionContext &current_p_ctx);
 
-// compute smallest k_prime such that it is a power of 2 and n / k_prime <= C
-BlockID compute_k_for_n(NodeID n, const Context &input_ctx);
-
-std::size_t
-compute_num_copies(const Context &input_ctx, NodeID n, bool converged, std::size_t num_threads);
-
 std::size_t
 select_best(const ScalableVector<PartitionedGraph> &p_graphs, const PartitionContext &p_ctx);
 
@@ -173,8 +167,6 @@ std::size_t select_best(
 
   return best_index;
 }
-
-int compute_num_threads_for_parallel_ip(const Context &input_ctx);
 
 inline bool parallel_ip_mode(const InitialPartitioningMode &mode) {
   return mode == InitialPartitioningMode::ASYNCHRONOUS_PARALLEL ||

@@ -13,6 +13,7 @@
 #include "kaminpar-shm/partitioning/deep/async_initial_partitioning.h"
 #include "kaminpar-shm/partitioning/deep/sync_initial_partitioning.h"
 #include "kaminpar-shm/partitioning/helper.h"
+#include "kaminpar-shm/partitioning/partition_utils.h"
 
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/heap_profiler.h"
@@ -122,7 +123,7 @@ PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph, 
     refine(p_graph);
     refined = true;
 
-    const BlockID desired_k = helper::compute_k_for_n(p_graph.n(), _input_ctx);
+    const BlockID desired_k = compute_k_for_n(p_graph.n(), _input_ctx);
     if (p_graph.k() < desired_k) {
       extend_partition(p_graph, desired_k);
       refined = false;
@@ -165,7 +166,7 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
     // To avoid repeated allocation, we pre-allocate the memory during coarsening for the largest
     // coarse graph for which we still need recursive bipartitioning
     if (search_subgraph_memory_size &&
-        helper::compute_k_for_n(c_graph->n(), _input_ctx) < _input_ctx.partition.k) {
+        compute_k_for_n(c_graph->n(), _input_ctx) < _input_ctx.partition.k) {
       search_subgraph_memory_size = false;
       subgraph_memory_n = prev_c_graph_n;
       subgraph_memory_m = prev_c_graph_m;

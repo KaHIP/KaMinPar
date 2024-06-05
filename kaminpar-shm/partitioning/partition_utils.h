@@ -43,4 +43,12 @@ PartitionContext create_bipartition_context(
  * @return The number of blocks into which $B$ will be split for the final partition.
  */
 BlockID compute_final_k(BlockID block, BlockID current_k, BlockID input_k);
+
+// compute smallest k_prime such that it is a power of 2 and n / k_prime <= C
+BlockID compute_k_for_n(NodeID n, const Context &input_ctx);
+
+std::size_t
+compute_num_copies(const Context &input_ctx, NodeID n, bool converged, std::size_t num_threads);
+
+int compute_num_threads_for_parallel_ip(const Context &input_ctx);
 } // namespace kaminpar::shm

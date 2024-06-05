@@ -9,6 +9,7 @@
 #include "kaminpar-shm/partitioning/deep/async_initial_partitioning.h"
 
 #include "kaminpar-shm/factories.h"
+#include "kaminpar-shm/partitioning/partition_utils.h"
 
 namespace kaminpar::shm::partitioning {
 namespace {
@@ -26,7 +27,7 @@ AsyncInitialPartitioner::AsyncInitialPartitioner(
 
 PartitionedGraph
 AsyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionContext &p_ctx) {
-  const std::size_t num_threads = helper::compute_num_threads_for_parallel_ip(_input_ctx);
+  const std::size_t num_threads = compute_num_threads_for_parallel_ip(_input_ctx);
   return split_and_join(coarsener, p_ctx, false, num_threads);
 }
 
@@ -62,7 +63,7 @@ PartitionedGraph AsyncInitialPartitioner::partition_recursive(
 
   const BlockID k_prime = std::min(
       _input_ctx.partition.k,
-      std::max<BlockID>(helper::compute_k_for_n(p_graph.n(), _input_ctx), num_threads)
+      std::max<BlockID>(compute_k_for_n(p_graph.n(), _input_ctx), num_threads)
   );
 
   if (p_graph.k() < k_prime) {
@@ -87,8 +88,7 @@ PartitionedGraph AsyncInitialPartitioner::split_and_join(
     const std::size_t num_threads
 ) {
   const Graph *graph = &coarsener->current();
-  const std::size_t num_copies =
-      helper::compute_num_copies(_input_ctx, graph->n(), converged, num_threads);
+  const std::size_t num_copies = compute_num_copies(_input_ctx, graph->n(), converged, num_threads);
   const std::size_t threads_per_copy = num_threads / num_copies;
 
   // parallel recursion
