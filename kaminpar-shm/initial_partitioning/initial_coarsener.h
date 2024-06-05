@@ -19,7 +19,7 @@
 #include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/random.h"
 
-namespace kaminpar::shm::ip {
+namespace kaminpar::shm {
 struct InitialCoarsenerTimings {
   std::uint64_t contract_ms = 0;
   std::uint64_t alloc_ms = 0;
@@ -40,8 +40,8 @@ struct InitialCoarsenerTimings {
 };
 
 class InitialCoarsener {
-  static constexpr auto kChunkSize = 256;
-  static constexpr auto kNumberOfNodePermutations = 16;
+  static constexpr std::size_t kChunkSize = 256;
+  static constexpr std::size_t kNumberOfNodePermutations = 16;
 
   using ContractionResult = std::pair<CSRGraph, ScalableVector<NodeID>>;
 
@@ -142,4 +142,4 @@ private:
 
   InitialCoarsenerTimings _timings{};
 };
-} // namespace kaminpar::shm::ip
+} // namespace kaminpar::shm

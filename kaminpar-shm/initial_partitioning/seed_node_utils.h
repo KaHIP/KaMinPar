@@ -15,7 +15,7 @@
 #include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/datastructures/queue.h"
 
-namespace kaminpar::shm::ip {
+namespace kaminpar::shm {
 /*!
  * Heuristic to find "far away" nodes for BFS initialization. Starts at a random seed
  * node and performs a BFS to find the furthest away node; repeats the process multiple

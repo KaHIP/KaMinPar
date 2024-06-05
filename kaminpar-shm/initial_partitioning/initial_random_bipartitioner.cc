@@ -5,15 +5,16 @@
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  ******************************************************************************/
-#include "kaminpar-shm/initial_partitioning/random_bipartitioner.h"
+#include "kaminpar-shm/initial_partitioning/initial_random_bipartitioner.h"
 
 #include "kaminpar-shm/kaminpar.h"
 
-namespace kaminpar::shm::ip {
-RandomBipartitioner::RandomBipartitioner(const InitialPoolPartitionerContext &pool_ctx)
-    : Bipartitioner(pool_ctx) {}
+namespace kaminpar::shm {
+InitialRandomBipartitioner::InitialRandomBipartitioner(const InitialPoolPartitionerContext &pool_ctx
+)
+    : InitialFlatBipartitioner(pool_ctx) {}
 
-void RandomBipartitioner::fill_bipartition() {
+void InitialRandomBipartitioner::fill_bipartition() {
   for (const NodeID u : _graph->nodes()) {
     const std::size_t block = _rand.random_index(0, 2);
 
@@ -25,4 +26,4 @@ void RandomBipartitioner::fill_bipartition() {
     }
   }
 }
-} // namespace kaminpar::shm::ip
+} // namespace kaminpar::shm

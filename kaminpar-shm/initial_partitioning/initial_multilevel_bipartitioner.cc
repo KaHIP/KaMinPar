@@ -21,12 +21,12 @@
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  ******************************************************************************/
-#include "kaminpar-shm/initial_partitioning/initial_partitioning_facade.h"
+#include "kaminpar-shm/initial_partitioning/initial_multilevel_bipartitioner.h"
 
 #include "kaminpar-shm/coarsening/max_cluster_weights.h"
 #include "kaminpar-shm/initial_partitioning/initial_coarsener.h"
+#include "kaminpar-shm/initial_partitioning/initial_pool_bipartitioner.h"
 #include "kaminpar-shm/initial_partitioning/initial_refiner.h"
-#include "kaminpar-shm/initial_partitioning/pool_bipartitioner.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/partitioning/partition_utils.h"
@@ -39,14 +39,14 @@ namespace {
 SET_DEBUG(false);
 }
 
-InitialPartitioner::InitialPartitioner(const Context &ctx)
+InitialMultilevelBipartitioner::InitialMultilevelBipartitioner(const Context &ctx)
     : _ctx(ctx),
       _i_ctx(ctx.initial_partitioning),
-      _coarsener(std::make_unique<ip::InitialCoarsener>(_i_ctx.coarsening)),
-      _bipartitioner(std::make_unique<ip::PoolBipartitioner>(_i_ctx.pool)),
-      _refiner(ip::create_initial_refiner(_i_ctx.refinement)) {}
+      _coarsener(std::make_unique<InitialCoarsener>(_i_ctx.coarsening)),
+      _bipartitioner(std::make_unique<InitialPoolBipartitioner>(_i_ctx.pool)),
+      _refiner(create_initial_refiner(_i_ctx.refinement)) {}
 
-void InitialPartitioner::init(const CSRGraph &graph, const BlockID final_k) {
+void InitialMultilevelBipartitioner::init(const CSRGraph &graph, const BlockID final_k) {
   _graph = &graph;
 
   const auto [final_k1, final_k2] = math::split_integral(final_k);
@@ -60,7 +60,7 @@ void InitialPartitioner::init(const CSRGraph &graph, const BlockID final_k) {
   _bipartitioner->set_num_repetitions(num_bipartition_repetitions);
 }
 
-PartitionedCSRGraph InitialPartitioner::partition(InitialPartitionerTimings *timings) {
+PartitionedCSRGraph InitialMultilevelBipartitioner::partition(InitialPartitionerTimings *timings) {
   timer::LocalTimer timer;
 
   timer.reset();
@@ -91,7 +91,7 @@ PartitionedCSRGraph InitialPartitioner::partition(InitialPartitionerTimings *tim
   return p_graph;
 }
 
-const CSRGraph *InitialPartitioner::coarsen(InitialPartitionerTimings *timings) {
+const CSRGraph *InitialMultilevelBipartitioner::coarsen(InitialPartitionerTimings *timings) {
   timer::LocalTimer timer;
 
   timer.reset();
@@ -135,7 +135,7 @@ const CSRGraph *InitialPartitioner::coarsen(InitialPartitionerTimings *timings) 
   return c_graph;
 }
 
-PartitionedCSRGraph InitialPartitioner::uncoarsen(PartitionedCSRGraph p_graph) {
+PartitionedCSRGraph InitialMultilevelBipartitioner::uncoarsen(PartitionedCSRGraph p_graph) {
   DBG << "Uncoarsen: n=" << p_graph.n() << " m=" << p_graph.m();
 
   while (!_coarsener->empty()) {

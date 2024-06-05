@@ -5,7 +5,7 @@
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  ******************************************************************************/
-#include "kaminpar-shm/initial_partitioning/bipartitioner.h"
+#include "kaminpar-shm/initial_partitioning/initial_flat_bipartitioner.h"
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
@@ -14,16 +14,17 @@
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/static_array.h"
 
-namespace kaminpar::shm::ip {
-void Bipartitioner::init(const CSRGraph &graph, const PartitionContext &p_ctx) {
+namespace kaminpar::shm {
+void InitialFlatBipartitioner::init(const CSRGraph &graph, const PartitionContext &p_ctx) {
   KASSERT(p_ctx.k == 2u, "must be initialized with a 2-way partition context");
 
   _graph = &graph;
   _p_ctx = &p_ctx;
 }
 
-PartitionedCSRGraph
-Bipartitioner::bipartition(StaticArray<BlockID> partition, StaticArray<BlockWeight> block_weights) {
+PartitionedCSRGraph InitialFlatBipartitioner::bipartition(
+    StaticArray<BlockID> partition, StaticArray<BlockWeight> block_weights
+) {
   if (_graph->n() == 0) {
     block_weights[0] = 0;
     block_weights[1] = 0;
@@ -54,4 +55,4 @@ Bipartitioner::bipartition(StaticArray<BlockID> partition, StaticArray<BlockWeig
 
   return {*_graph, 2, std::move(_partition), std::move(_final_block_weights)};
 }
-} // namespace kaminpar::shm::ip
+} // namespace kaminpar::shm

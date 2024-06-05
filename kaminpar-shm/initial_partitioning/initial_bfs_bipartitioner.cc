@@ -5,7 +5,7 @@
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  ******************************************************************************/
-#include "kaminpar-shm/initial_partitioning/bfs_bipartitioner.h"
+#include "kaminpar-shm/initial_partitioning/initial_bfs_bipartitioner.h"
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/initial_partitioning/seed_node_utils.h"
@@ -14,7 +14,7 @@
 #include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/datastructures/queue.h"
 
-namespace kaminpar::shm::ip {
+namespace kaminpar::shm {
 using Queues = std::array<Queue<NodeID>, 2>;
 
 namespace bfs {
@@ -68,17 +68,17 @@ struct shorter_queue {
 } // namespace bfs
 
 template <typename BlockSelectionStrategy>
-BfsBipartitioner<BlockSelectionStrategy>::BfsBipartitioner(
+InitialBFSBipartitioner<BlockSelectionStrategy>::InitialBFSBipartitioner(
     const InitialPoolPartitionerContext &pool_ctx
 )
-    : Bipartitioner(pool_ctx),
+    : InitialFlatBipartitioner(pool_ctx),
       _num_seed_iterations(pool_ctx.num_seed_iterations) {}
 
 template <typename BlockSelectionStrategy>
-void BfsBipartitioner<BlockSelectionStrategy>::init(
+void InitialBFSBipartitioner<BlockSelectionStrategy>::init(
     const CSRGraph &graph, const PartitionContext &p_ctx
 ) {
-  Bipartitioner::init(graph, p_ctx);
+  InitialFlatBipartitioner::init(graph, p_ctx);
 
   if (_marker.capacity() < _graph->n()) {
     _marker.resize(_graph->n());
@@ -95,9 +95,9 @@ void BfsBipartitioner<BlockSelectionStrategy>::init(
 }
 
 template <typename BlockSelectionStrategy>
-void BfsBipartitioner<BlockSelectionStrategy>::fill_bipartition() {
+void InitialBFSBipartitioner<BlockSelectionStrategy>::fill_bipartition() {
   const auto [start_a, start_b] =
-      ip::find_far_away_nodes(*_graph, _num_seed_iterations, _queues[0], _bfs_init_marker);
+      find_far_away_nodes(*_graph, _num_seed_iterations, _queues[0], _bfs_init_marker);
 
   _marker.reset();
   for (const auto i : {0, 1}) {
@@ -165,9 +165,9 @@ void BfsBipartitioner<BlockSelectionStrategy>::fill_bipartition() {
   }
 }
 
-template class BfsBipartitioner<bfs::alternating>;
-template class BfsBipartitioner<bfs::lighter>;
-template class BfsBipartitioner<bfs::sequential>;
-template class BfsBipartitioner<bfs::longer_queue>;
-template class BfsBipartitioner<bfs::shorter_queue>;
-} // namespace kaminpar::shm::ip
+template class InitialBFSBipartitioner<bfs::alternating>;
+template class InitialBFSBipartitioner<bfs::lighter>;
+template class InitialBFSBipartitioner<bfs::sequential>;
+template class InitialBFSBipartitioner<bfs::longer_queue>;
+template class InitialBFSBipartitioner<bfs::shorter_queue>;
+} // namespace kaminpar::shm

@@ -7,18 +7,18 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar-shm/initial_partitioning/bipartitioner.h"
+#include "kaminpar-shm/initial_partitioning/initial_flat_bipartitioner.h"
 
 #include "kaminpar-common/random.h"
 
-namespace kaminpar::shm::ip {
-class RandomBipartitioner : public Bipartitioner {
+namespace kaminpar::shm {
+class InitialRandomBipartitioner : public InitialFlatBipartitioner {
 public:
-  explicit RandomBipartitioner(const InitialPoolPartitionerContext &pool_ctx);
+  explicit InitialRandomBipartitioner(const InitialPoolPartitionerContext &pool_ctx);
 
 protected:
   void fill_bipartition() final;
 
   Random &_rand = Random::instance();
 };
-} // namespace kaminpar::shm::ip
+} // namespace kaminpar::shm

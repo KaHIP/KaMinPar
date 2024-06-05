@@ -5,7 +5,7 @@
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  ******************************************************************************/
-#include "kaminpar-shm/initial_partitioning/greedy_graph_growing_bipartitioner.h"
+#include "kaminpar-shm/initial_partitioning/initial_ggg_bipartitioner.h"
 
 #include <algorithm>
 
@@ -15,9 +15,9 @@
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/random.h"
 
-namespace kaminpar::shm::ip {
-void GreedyGraphGrowingBipartitioner::init(const CSRGraph &graph, const PartitionContext &p_ctx) {
-  Bipartitioner::init(graph, p_ctx);
+namespace kaminpar::shm {
+void InitialGGGBipartitioner::init(const CSRGraph &graph, const PartitionContext &p_ctx) {
+  InitialFlatBipartitioner::init(graph, p_ctx);
 
   if (_queue.capacity() < _graph->n()) {
     _queue.resize(_graph->n());
@@ -28,7 +28,7 @@ void GreedyGraphGrowingBipartitioner::init(const CSRGraph &graph, const Partitio
   }
 }
 
-void GreedyGraphGrowingBipartitioner::fill_bipartition() {
+void InitialGGGBipartitioner::fill_bipartition() {
   KASSERT(_graph->n() > 0u);
 
   _marker.reset();
@@ -89,7 +89,7 @@ void GreedyGraphGrowingBipartitioner::fill_bipartition() {
   } while (_block_weights[V2] < _p_ctx->block_weights.perfectly_balanced(V2));
 }
 
-[[nodiscard]] EdgeWeight GreedyGraphGrowingBipartitioner::compute_gain(const NodeID u) const {
+[[nodiscard]] EdgeWeight InitialGGGBipartitioner::compute_gain(const NodeID u) const {
   EdgeWeight gain = 0;
 
   for (const auto [e, v] : _graph->neighbors(u)) {
@@ -102,4 +102,4 @@ void GreedyGraphGrowingBipartitioner::fill_bipartition() {
 
   return gain;
 }
-} // namespace kaminpar::shm::ip
+} // namespace kaminpar::shm

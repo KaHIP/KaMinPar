@@ -10,13 +10,13 @@
 #include <array>
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
-#include "kaminpar-shm/initial_partitioning/bipartitioner.h"
+#include "kaminpar-shm/initial_partitioning/initial_flat_bipartitioner.h"
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/datastructures/queue.h"
 
-namespace kaminpar::shm::ip {
+namespace kaminpar::shm {
 namespace bfs {
 struct alternating;   // Switch between queues after each node
 struct lighter;       // Use lighter queue next
@@ -34,11 +34,12 @@ struct shorter_queue; // Use shorter queue next
  *
  * @tparam BlockSelectionStrategy Invoked after each step to choose the active block.
  */
-template <typename BlockSelectionStrategy> class BfsBipartitioner : public Bipartitioner {
+template <typename BlockSelectionStrategy>
+class InitialBFSBipartitioner : public InitialFlatBipartitioner {
   static constexpr std::size_t kMarkAssigned = 2;
 
 public:
-  BfsBipartitioner(const InitialPoolPartitionerContext &pool_ctx);
+  InitialBFSBipartitioner(const InitialPoolPartitionerContext &pool_ctx);
 
   void init(const CSRGraph &graph, const PartitionContext &p_ctx) final;
 
@@ -53,9 +54,9 @@ private:
   Marker<3> _marker{};
 };
 
-using AlternatingBfsBipartitioner = BfsBipartitioner<bfs::alternating>;
-using LighterBlockBfsBipartitioner = BfsBipartitioner<bfs::lighter>;
-using SequentialBfsBipartitioner = BfsBipartitioner<bfs::sequential>;
-using LongerQueueBfsBipartitioner = BfsBipartitioner<bfs::longer_queue>;
-using ShorterQueueBfsBipartitioner = BfsBipartitioner<bfs::shorter_queue>;
-} // namespace kaminpar::shm::ip
+using AlternatingBfsBipartitioner = InitialBFSBipartitioner<bfs::alternating>;
+using LighterBlockBfsBipartitioner = InitialBFSBipartitioner<bfs::lighter>;
+using SequentialBfsBipartitioner = InitialBFSBipartitioner<bfs::sequential>;
+using LongerQueueBfsBipartitioner = InitialBFSBipartitioner<bfs::longer_queue>;
+using ShorterQueueBfsBipartitioner = InitialBFSBipartitioner<bfs::shorter_queue>;
+} // namespace kaminpar::shm

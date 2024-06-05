@@ -26,8 +26,8 @@
 #include <memory>
 
 #include "kaminpar-shm/initial_partitioning/initial_coarsener.h"
+#include "kaminpar-shm/initial_partitioning/initial_pool_bipartitioner.h"
 #include "kaminpar-shm/initial_partitioning/initial_refiner.h"
-#include "kaminpar-shm/initial_partitioning/pool_bipartitioner.h"
 
 namespace kaminpar::shm {
 struct InitialPartitionerTimings {
@@ -38,7 +38,7 @@ struct InitialPartitionerTimings {
   std::uint64_t bipartitioning_ms = 0;
   std::uint64_t total_ms = 0;
   std::uint64_t misc_ms = 0;
-  ip::InitialCoarsenerTimings coarsening{};
+  InitialCoarsenerTimings coarsening{};
 
   InitialPartitionerTimings &operator+=(const InitialPartitionerTimings &other) {
     coarsening_ms += other.coarsening_ms;
@@ -53,9 +53,9 @@ struct InitialPartitionerTimings {
   }
 };
 
-class InitialPartitioner {
+class InitialMultilevelBipartitioner {
 public:
-  InitialPartitioner(const Context &ctx);
+  InitialMultilevelBipartitioner(const Context &ctx);
 
   void init(const CSRGraph &graph, BlockID final_k);
 
@@ -71,8 +71,8 @@ private:
   const Context &_ctx;
   const InitialPartitioningContext &_i_ctx;
 
-  std::unique_ptr<ip::InitialCoarsener> _coarsener;
-  std::unique_ptr<ip::PoolBipartitioner> _bipartitioner;
-  std::unique_ptr<ip::InitialRefiner> _refiner;
+  std::unique_ptr<InitialCoarsener> _coarsener;
+  std::unique_ptr<InitialPoolBipartitioner> _bipartitioner;
+  std::unique_ptr<InitialRefiner> _refiner;
 };
 } // namespace kaminpar::shm

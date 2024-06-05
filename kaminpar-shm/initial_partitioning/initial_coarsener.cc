@@ -11,7 +11,7 @@
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 
-namespace kaminpar::shm::ip {
+namespace kaminpar::shm {
 namespace {
 constexpr static bool kRandomizeNodeOrder = true;
 }
@@ -403,4 +403,4 @@ void InitialCoarsener::interleaved_visit_neighbor(
     _rating_map[_clustering[c_v].leader] += weight;
   }
 }
-} // namespace kaminpar::shm::ip
+} // namespace kaminpar::shm

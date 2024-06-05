@@ -1,24 +1,21 @@
 /*******************************************************************************
- * Interface for initial refinement algorithms.
+ * Initial refiner that does nothing.
  *
- * @file:   initial_refiner.h
+ * @file:   initial_noop_refiner.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  ******************************************************************************/
-#pragma once
+#include "kaminpar-shm/initial_partitioning/initial_noop_refiner.h"
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
-class InitialRefiner {
-public:
-  virtual ~InitialRefiner() = default;
+void InitialNoopRefiner::init(const CSRGraph &) {}
 
-  virtual void init(const CSRGraph &graph) = 0;
-  virtual bool refine(PartitionedCSRGraph &p_graph, const PartitionContext &p_ctx) = 0;
-};
-
-std::unique_ptr<InitialRefiner> create_initial_refiner(const InitialRefinementContext &r_ctx);
+bool InitialNoopRefiner::refine(PartitionedCSRGraph &, const PartitionContext &) {
+  return false;
+}
 } // namespace kaminpar::shm
+

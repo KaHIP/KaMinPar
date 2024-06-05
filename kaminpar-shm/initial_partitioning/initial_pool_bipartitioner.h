@@ -14,13 +14,13 @@
 #include <memory>
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
-#include "kaminpar-shm/initial_partitioning/bipartitioner.h"
+#include "kaminpar-shm/initial_partitioning/initial_flat_bipartitioner.h"
 #include "kaminpar-shm/initial_partitioning/initial_refiner.h"
 
 #include "kaminpar-common/assert.h"
 
-namespace kaminpar::shm::ip {
-class PoolBipartitioner {
+namespace kaminpar::shm {
+class InitialPoolBipartitioner {
 public:
   struct RunningVariance {
     [[nodiscard]] std::pair<double, double> get() const;
@@ -50,7 +50,7 @@ public:
     std::size_t num_imbalanced_partitions;
   };
 
-  PoolBipartitioner(const InitialPoolPartitionerContext &pool_ctx);
+  InitialPoolBipartitioner(const InitialPoolPartitionerContext &pool_ctx);
 
   void set_num_repetitions(int num_repetitions);
 
@@ -99,11 +99,11 @@ private:
   std::size_t _best_bipartitioner = 0;
 
   std::vector<std::string_view> _bipartitioner_names{};
-  std::vector<std::unique_ptr<Bipartitioner>> _bipartitioners{};
+  std::vector<std::unique_ptr<InitialFlatBipartitioner>> _bipartitioners{};
 
   std::unique_ptr<InitialRefiner> _refiner;
 
   std::vector<RunningVariance> _running_statistics{};
   Statistics _statistics{};
 };
-} // namespace kaminpar::shm::ip
+} // namespace kaminpar::shm

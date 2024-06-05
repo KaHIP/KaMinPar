@@ -8,22 +8,22 @@
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  ******************************************************************************/
-#include "kaminpar-shm/initial_partitioning/pool_bipartitioner.h"
+#include "kaminpar-shm/initial_partitioning/initial_pool_bipartitioner.h"
 
-#include "kaminpar-shm/initial_partitioning/bfs_bipartitioner.h"
-#include "kaminpar-shm/initial_partitioning/greedy_graph_growing_bipartitioner.h"
-#include "kaminpar-shm/initial_partitioning/random_bipartitioner.h"
+#include "kaminpar-shm/initial_partitioning/initial_bfs_bipartitioner.h"
+#include "kaminpar-shm/initial_partitioning/initial_ggg_bipartitioner.h"
+#include "kaminpar-shm/initial_partitioning/initial_random_bipartitioner.h"
 #include "kaminpar-shm/metrics.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/logger.h"
 
-namespace kaminpar::shm::ip {
+namespace kaminpar::shm {
 namespace {
 SET_DEBUG(false);
 }
 
-std::pair<double, double> PoolBipartitioner::RunningVariance::get() const {
+std::pair<double, double> InitialPoolBipartitioner::RunningVariance::get() const {
   if (_count == 0) {
     return {std::numeric_limits<double>::max(), 0.0};
   } else if (_count < 2) {
@@ -33,13 +33,13 @@ std::pair<double, double> PoolBipartitioner::RunningVariance::get() const {
   }
 }
 
-void PoolBipartitioner::RunningVariance::reset() {
+void InitialPoolBipartitioner::RunningVariance::reset() {
   _mean = 0.0;
   _count = 0;
   _M2 = 0.0;
 }
 
-void PoolBipartitioner::RunningVariance::update(const double value) {
+void InitialPoolBipartitioner::RunningVariance::update(const double value) {
   ++_count;
   double delta = value - _mean;
   _mean += delta / _count;
@@ -47,7 +47,7 @@ void PoolBipartitioner::RunningVariance::update(const double value) {
   _M2 += delta * delta2;
 }
 
-PoolBipartitioner::PoolBipartitioner(const InitialPoolPartitionerContext &pool_ctx)
+InitialPoolBipartitioner::InitialPoolBipartitioner(const InitialPoolPartitionerContext &pool_ctx)
     : _pool_ctx(pool_ctx),
       _refiner(create_initial_refiner(pool_ctx.refinement)) {
   if (pool_ctx.enable_bfs_bipartitioner) {
@@ -58,18 +58,18 @@ PoolBipartitioner::PoolBipartitioner(const InitialPoolPartitionerContext &pool_c
     register_bipartitioner<SequentialBfsBipartitioner>("bfs_sequential");
   }
   if (pool_ctx.enable_ggg_bipartitioner) {
-    register_bipartitioner<GreedyGraphGrowingBipartitioner>("greedy_graph_growing");
+    register_bipartitioner<InitialGGGBipartitioner>("greedy_graph_growing");
   }
   if (pool_ctx.enable_random_bipartitioner) {
-    register_bipartitioner<RandomBipartitioner>("random");
+    register_bipartitioner<InitialRandomBipartitioner>("random");
   }
 }
 
-void PoolBipartitioner::set_num_repetitions(const int num_repetitions) {
+void InitialPoolBipartitioner::set_num_repetitions(const int num_repetitions) {
   _num_repetitions = num_repetitions;
 }
 
-void PoolBipartitioner::init(const CSRGraph &graph, const PartitionContext &p_ctx) {
+void InitialPoolBipartitioner::init(const CSRGraph &graph, const PartitionContext &p_ctx) {
   _graph = &graph;
   _p_ctx = &p_ctx;
 
@@ -88,7 +88,7 @@ void PoolBipartitioner::init(const CSRGraph &graph, const PartitionContext &p_ct
   reset();
 }
 
-void PoolBipartitioner::reset() {
+void InitialPoolBipartitioner::reset() {
   const std::size_t n = _bipartitioners.size();
 
   _running_statistics.clear();
@@ -102,7 +102,7 @@ void PoolBipartitioner::reset() {
   _best_imbalance = 0.0;
 }
 
-PartitionedCSRGraph PoolBipartitioner::bipartition() {
+PartitionedCSRGraph InitialPoolBipartitioner::bipartition() {
   KASSERT(_current_partition.size() >= _graph->n());
   KASSERT(_best_partition.size() >= _graph->n());
 
@@ -140,13 +140,13 @@ PartitionedCSRGraph PoolBipartitioner::bipartition() {
   return {*_graph, 2, std::move(best_partition_view), std::move(best_block_weights_view)};
 }
 
-bool PoolBipartitioner::likely_to_improve(const std::size_t i) const {
+bool InitialPoolBipartitioner::likely_to_improve(const std::size_t i) const {
   const auto [mean, variance] = _running_statistics[i].get();
   const double rhs = (mean - static_cast<double>(_best_cut)) / 2;
   return variance > rhs * rhs;
 }
 
-void PoolBipartitioner::finalize_statistics() {
+void InitialPoolBipartitioner::finalize_statistics() {
   for (std::size_t i = 0; i < _bipartitioners.size(); ++i) {
     const auto [mean, variance] = _running_statistics[i].get();
     _statistics.per_bipartitioner[i].cut_mean = mean;
@@ -158,7 +158,7 @@ void PoolBipartitioner::finalize_statistics() {
   _statistics.best_bipartitioner = _best_bipartitioner;
 }
 
-void PoolBipartitioner::print_statistics() {
+void InitialPoolBipartitioner::print_statistics() {
   std::size_t num_runs_total = 0;
 
   for (std::size_t i = 0; i < _bipartitioners.size(); ++i) {
@@ -185,7 +185,7 @@ void PoolBipartitioner::print_statistics() {
              );
 }
 
-void PoolBipartitioner::run_bipartitioner(const std::size_t i) {
+void InitialPoolBipartitioner::run_bipartitioner(const std::size_t i) {
   PartitionedCSRGraph p_graph = _bipartitioners[i]->bipartition(
       std::move(_current_partition), std::move(_current_block_weights)
   );
@@ -222,4 +222,4 @@ void PoolBipartitioner::run_bipartitioner(const std::size_t i) {
     std::swap(_current_block_weights, _best_block_weights);
   }
 }
-} // namespace kaminpar::shm::ip
+} // namespace kaminpar::shm

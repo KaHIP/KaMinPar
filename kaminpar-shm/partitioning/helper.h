@@ -7,14 +7,12 @@
  ******************************************************************************/
 #pragma once
 
-#include <vector>
-
 #include <tbb/concurrent_vector.h>
 
 #include "kaminpar-shm/coarsening/coarsener.h"
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/graphutils/subgraph_extractor.h"
-#include "kaminpar-shm/initial_partitioning/initial_partitioning_facade.h"
+#include "kaminpar-shm/initial_partitioning/initial_multilevel_bipartitioner.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/refinement/refiner.h"
@@ -26,24 +24,24 @@ class InitialBipartitionerPool {
 public:
   explicit InitialBipartitionerPool(const Context &ctx) : _ctx(ctx) {}
 
-  InitialPartitioner get() {
+  InitialMultilevelBipartitioner get() {
     if (!_pool.empty()) {
       auto initial_partitioner = std::move(_pool.back());
       _pool.pop_back();
       return initial_partitioner;
     }
 
-    return InitialPartitioner(_ctx);
+    return InitialMultilevelBipartitioner(_ctx);
   }
 
-  void put(InitialPartitioner initial_partitioner) {
+  void put(InitialMultilevelBipartitioner initial_partitioner) {
     _pool.push_back(std::move(initial_partitioner));
   }
 
 private:
   const Context &_ctx;
 
-  std::vector<InitialPartitioner> _pool;
+  std::vector<InitialMultilevelBipartitioner> _pool;
 };
 
 using InitialBipartitionerPoolEts = tbb::enumerable_thread_specific<InitialBipartitionerPool>;

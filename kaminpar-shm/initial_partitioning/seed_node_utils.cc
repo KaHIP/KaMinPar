@@ -14,7 +14,7 @@
 #include "kaminpar-common/datastructures/queue.h"
 #include "kaminpar-common/random.h"
 
-namespace kaminpar::shm::ip {
+namespace kaminpar::shm {
 namespace {
 std::pair<NodeID, NodeID> find_furthest_away_node(
     const CSRGraph &graph, const NodeID start_node, Queue<NodeID> &queue, Marker<> &marker
@@ -94,4 +94,4 @@ std::pair<NodeID, NodeID> find_far_away_nodes(
 
   return best_pair;
 }
-} // namespace kaminpar::shm::ip
+} // namespace kaminpar::shm

@@ -16,16 +16,16 @@
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/static_array.h"
 
-namespace kaminpar::shm::ip {
-class Bipartitioner {
+namespace kaminpar::shm {
+class InitialFlatBipartitioner {
 public:
-  Bipartitioner(const Bipartitioner &) = delete;
-  Bipartitioner &operator=(Bipartitioner &&) = delete;
+  InitialFlatBipartitioner(const InitialFlatBipartitioner &) = delete;
+  InitialFlatBipartitioner &operator=(InitialFlatBipartitioner &&) = delete;
 
-  Bipartitioner(Bipartitioner &&) noexcept = default;
-  Bipartitioner &operator=(const Bipartitioner &) = delete;
+  InitialFlatBipartitioner(InitialFlatBipartitioner &&) noexcept = default;
+  InitialFlatBipartitioner &operator=(const InitialFlatBipartitioner &) = delete;
 
-  virtual ~Bipartitioner() = default;
+  virtual ~InitialFlatBipartitioner() = default;
 
   virtual void init(const CSRGraph &graph, const PartitionContext &p_ctx);
 
@@ -36,7 +36,7 @@ protected:
   static constexpr BlockID V1 = 0;
   static constexpr BlockID V2 = 1;
 
-  Bipartitioner(const InitialPoolPartitionerContext &pool_ctx) : _pool_ctx(pool_ctx) {}
+  InitialFlatBipartitioner(const InitialPoolPartitionerContext &pool_ctx) : _pool_ctx(pool_ctx) {}
 
   virtual void fill_bipartition() = 0;
 
@@ -81,4 +81,4 @@ protected:
   StaticArray<BlockID> _partition;
   StaticArray<BlockWeight> _final_block_weights;
 };
-} // namespace kaminpar::shm::ip
+} // namespace kaminpar::shm
