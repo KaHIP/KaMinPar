@@ -8,13 +8,8 @@
  ******************************************************************************/
 #pragma once
 
-#include <tbb/enumerable_thread_specific.h>
-#include <tbb/parallel_invoke.h>
-#include <tbb/task_arena.h>
-#include <tbb/task_group.h>
-#include <tbb/task_scheduler_observer.h>
-
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
+#include "kaminpar-shm/initial_partitioning/initial_bipartitioner_worker_pool.h"
 #include "kaminpar-shm/partitioning/helper.h"
 
 namespace kaminpar::shm::partitioning {
@@ -22,7 +17,7 @@ class AsyncInitialPartitioner {
 public:
   AsyncInitialPartitioner(
       const Context &input_ctx,
-      InitialBipartitionerPoolEts &bipartitioner_pool_ets,
+      InitialBipartitionerWorkerPool &bipartitioner_pool,
       TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets
   );
 
@@ -42,7 +37,7 @@ private:
 
   const Context &_input_ctx;
 
-  InitialBipartitionerPoolEts &_bipartitioner_pool_ets;
+  InitialBipartitionerWorkerPool &_bipartitioner_pool;
   TemporarySubgraphMemoryEts &_tmp_extraction_mem_pool_ets;
 };
 } // namespace kaminpar::shm::partitioning

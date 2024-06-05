@@ -50,7 +50,7 @@ void InitialMultilevelBipartitioner::init(const CSRGraph &graph, const BlockID f
   _graph = &graph;
 
   const auto [final_k1, final_k2] = math::split_integral(final_k);
-  _p_ctx = create_bipartition_context(graph, final_k1, final_k2, _ctx.partition);
+  _p_ctx = partitioning::create_bipartition_context(graph, final_k1, final_k2, _ctx.partition);
 
   _coarsener->init(graph);
   _refiner->init(graph);

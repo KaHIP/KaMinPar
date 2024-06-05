@@ -22,9 +22,7 @@ public:
   RBMultilevelPartitioner(const Graph &input_graph, const Context &input_ctx)
       : _input_graph(input_graph),
         _input_ctx(input_ctx),
-        _bipartitioner_pool_ets([this] {
-          return partitioning::InitialBipartitionerPool(this->_input_ctx);
-        }) {}
+        _bipartitioner_pool(_input_ctx) {}
 
   PartitionedGraph partition() final {
     DISABLE_TIMERS();
@@ -84,24 +82,25 @@ public:
         create_bipartition_context(graph, final_k / 2, final_k / 2, _input_ctx.partition);
     bool shrunk = true;
     while (shrunk && c_graph->n() > 2 * _input_ctx.coarsening.contraction_limit) {
-      shrunk = helper::coarsen_once(coarsener.get(), c_graph, p_ctx);
+      shrunk = partitioning::coarsen_once(coarsener.get(), c_graph, p_ctx);
       c_graph = &coarsener->current();
     }
 
     // initial bipartitioning
     PartitionedGraph p_graph =
-        helper::bipartition(c_graph, final_k, _input_ctx, _bipartitioner_pool_ets, true);
-    helper::update_partition_context(p_ctx, p_graph, _input_ctx.partition.k);
+        partitioning::bipartition(c_graph, final_k, _input_ctx, _bipartitioner_pool, true);
+    partitioning::update_partition_context(p_ctx, p_graph, _input_ctx.partition.k);
 
     // refine
     auto refiner = factory::create_refiner(_input_ctx);
 
     while (!coarsener->empty()) {
-      helper::refine(refiner.get(), p_graph, p_ctx);
-      p_graph =
-          helper::uncoarsen_once(coarsener.get(), std::move(p_graph), p_ctx, _input_ctx.partition);
+      partitioning::refine(refiner.get(), p_graph, p_ctx);
+      p_graph = partitioning::uncoarsen_once(
+          coarsener.get(), std::move(p_graph), p_ctx, _input_ctx.partition
+      );
     }
-    helper::refine(refiner.get(), p_graph, p_ctx);
+    partitioning::refine(refiner.get(), p_graph, p_ctx);
 
     return p_graph;
   }
@@ -110,6 +109,6 @@ private:
   const Graph &_input_graph;
   const Context &_input_ctx;
 
-  partitioning::InitialBipartitionerPoolEts _bipartitioner_pool_ets;
+  InitialBipartitionerWorkerPool _bipartitioner_pool;
 };
 } // namespace kaminpar::shm

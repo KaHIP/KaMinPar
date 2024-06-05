@@ -11,7 +11,7 @@
 
 #include "kaminpar-common/math.h"
 
-namespace kaminpar::shm::partitioning::helper {
+namespace kaminpar::shm::partitioning {
 namespace {
 SET_DEBUG(false);
 SET_STATISTICS_FROM_GLOBAL();
@@ -51,7 +51,7 @@ PartitionedGraph bipartition(
     const Graph *graph,
     const BlockID final_k,
     const Context &input_ctx,
-    InitialBipartitionerPoolEts &bipartitioner_pool_ets,
+    InitialBipartitionerWorkerPool &initial_bipartitioner_pool,
     const bool partition_lifespan,
     BipartitionTimingInfo *timings
 ) {
@@ -77,8 +77,7 @@ PartitionedGraph bipartition(
 
   timer.reset();
   auto bipartition = [&] {
-    InitialBipartitionerPool &bipartitioner_pool = bipartitioner_pool_ets.local();
-    InitialMultilevelBipartitioner bipartitioner = bipartitioner_pool.get();
+    InitialMultilevelBipartitioner bipartitioner = initial_bipartitioner_pool.get();
     bipartitioner.init(*csr, final_k);
     auto bipartition =
         bipartitioner.partition(timings ? &(timings->ip_timings) : nullptr).take_raw_partition();
@@ -87,11 +86,11 @@ PartitionedGraph bipartition(
       StaticArray<BlockID> owned_bipartition(bipartition.size());
       std::copy(bipartition.begin(), bipartition.end(), owned_bipartition.begin());
 
-      bipartitioner_pool.put(std::move(bipartitioner));
+      initial_bipartitioner_pool.put(std::move(bipartitioner));
 
       return owned_bipartition;
     } else {
-      bipartitioner_pool.put(std::move(bipartitioner));
+      initial_bipartitioner_pool.put(std::move(bipartitioner));
       return bipartition;
     }
   }();
@@ -118,13 +117,13 @@ void extend_partition_recursive(
     graph::SubgraphMemory &subgraph_memory,
     const graph::SubgraphMemoryStartPosition position,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
-    InitialBipartitionerPoolEts &bipartitioner_pool_ets,
+    InitialBipartitionerWorkerPool &bipartitioner_pool,
     BipartitionTimingInfo *timings
 ) {
   KASSERT(k > 1u);
 
   PartitionedGraph p_graph =
-      bipartition(&graph, final_k, input_ctx, bipartitioner_pool_ets, false, timings);
+      bipartition(&graph, final_k, input_ctx, bipartitioner_pool, false, timings);
 
   timer::LocalTimer timer;
 
@@ -186,7 +185,7 @@ void extend_partition_recursive(
           subgraph_memory,
           positions[i],
           tmp_extraction_mem_pool_ets,
-          bipartitioner_pool_ets,
+          bipartitioner_pool,
           timings
       );
     }
@@ -200,7 +199,7 @@ void extend_partition(
     PartitionContext &current_p_ctx,
     graph::SubgraphMemory &subgraph_memory,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
-    InitialBipartitionerPoolEts &bipartitioner_pool_ets,
+    InitialBipartitionerWorkerPool &bipartitioner_pool,
     const int num_active_threads
 ) {
   if (input_ctx.partitioning.min_consecutive_seq_bipartitioning_levels > 0) {
@@ -222,7 +221,7 @@ void extend_partition(
           current_p_ctx,
           subgraph_memory,
           tmp_extraction_mem_pool_ets,
-          bipartitioner_pool_ets,
+          bipartitioner_pool,
           num_active_threads
       );
     }
@@ -276,7 +275,7 @@ void extend_partition(
           subgraph_memory,
           positions[b],
           tmp_extraction_mem_pool_ets,
-          bipartitioner_pool_ets,
+          bipartitioner_pool,
           &timing
       );
     }
@@ -342,7 +341,7 @@ void extend_partition(
     const Context &input_ctx,
     PartitionContext &current_p_ctx,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
-    InitialBipartitionerPoolEts &bipartitioner_pool_ets,
+    InitialBipartitionerWorkerPool &bipartitioner_pool,
     const int num_active_threads
 ) {
   graph::SubgraphMemory memory;
@@ -362,7 +361,7 @@ void extend_partition(
       current_p_ctx,
       memory,
       tmp_extraction_mem_pool_ets,
-      bipartitioner_pool_ets,
+      bipartitioner_pool,
       num_active_threads
   );
 }
@@ -384,4 +383,4 @@ std::size_t
 select_best(const ScalableVector<PartitionedGraph> &p_graphs, const PartitionContext &p_ctx) {
   return select_best(p_graphs.begin(), p_graphs.end(), p_ctx);
 }
-} // namespace kaminpar::shm::partitioning::helper
+} // namespace kaminpar::shm::partitioning

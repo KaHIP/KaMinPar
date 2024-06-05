@@ -15,7 +15,7 @@
 
 #include "kaminpar-common/math.h"
 
-namespace kaminpar::shm {
+namespace kaminpar::shm::partitioning {
 double compute_2way_adaptive_epsilon(
     const NodeWeight total_node_weight, const BlockID k, const PartitionContext &p_ctx
 ) {
@@ -111,4 +111,4 @@ int compute_num_threads_for_parallel_ip(const Context &input_ctx) {
       1.0 * input_ctx.parallel.num_threads * input_ctx.partitioning.deep_initial_partitioning_load
   ));
 }
-} // namespace kaminpar::shm
+} // namespace kaminpar::shm::partitioning

@@ -113,7 +113,7 @@ void BlockWeightsContext::setup(const PartitionContext &p_ctx, const BlockID inp
   _perfectly_balanced_block_weights.resize(p_ctx.k);
 
   tbb::parallel_for<BlockID>(0, p_ctx.k, [&](const BlockID b) {
-    const BlockID final_k = compute_final_k(b, p_ctx.k, input_k);
+    const BlockID final_k = partitioning::compute_final_k(b, p_ctx.k, input_k);
 
     _perfectly_balanced_block_weights[b] = std::ceil(final_k * block_weight);
 

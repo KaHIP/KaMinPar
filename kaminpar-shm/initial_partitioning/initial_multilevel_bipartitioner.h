@@ -55,7 +55,7 @@ struct InitialPartitionerTimings {
 
 class InitialMultilevelBipartitioner {
 public:
-  InitialMultilevelBipartitioner(const Context &ctx);
+  explicit InitialMultilevelBipartitioner(const Context &ctx);
 
   void init(const CSRGraph &graph, BlockID final_k);
 

@@ -10,7 +10,7 @@
 #include "kaminpar-shm/datastructures/abstract_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
-namespace kaminpar::shm {
+namespace kaminpar::shm::partitioning {
 double compute_2way_adaptive_epsilon(
     NodeWeight total_node_weight, BlockID k, const PartitionContext &p_ctx
 );
@@ -51,4 +51,4 @@ std::size_t
 compute_num_copies(const Context &input_ctx, NodeID n, bool converged, std::size_t num_threads);
 
 int compute_num_threads_for_parallel_ip(const Context &input_ctx);
-} // namespace kaminpar::shm
+} // namespace kaminpar::shm::partitioning
