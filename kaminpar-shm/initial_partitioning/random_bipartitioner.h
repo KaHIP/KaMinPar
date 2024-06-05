@@ -7,7 +7,6 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/initial_partitioning/bipartitioner.h"
 
 #include "kaminpar-common/random.h"
@@ -15,22 +14,10 @@
 namespace kaminpar::shm::ip {
 class RandomBipartitioner : public Bipartitioner {
 public:
-  explicit RandomBipartitioner(const InitialPoolPartitionerContext &pool_ctx)
-      : Bipartitioner(pool_ctx) {}
+  explicit RandomBipartitioner(const InitialPoolPartitionerContext &pool_ctx);
 
 protected:
-  void fill_bipartition() final {
-    for (const NodeID u : _graph->nodes()) {
-      const std::size_t block = _rand.random_index(0, 2);
-
-      if (_block_weights[block] + _graph->node_weight(u) <
-          _p_ctx->block_weights.perfectly_balanced(block)) {
-        set_block(u, block);
-      } else {
-        add_to_smaller_block(u);
-      }
-    }
-  }
+  void fill_bipartition() final;
 
   Random &_rand = Random::instance();
 };
