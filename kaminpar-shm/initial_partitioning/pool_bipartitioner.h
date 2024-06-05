@@ -18,6 +18,7 @@
 #include "kaminpar-shm/initial_partitioning/greedy_graph_growing_bipartitioner.h"
 #include "kaminpar-shm/initial_partitioning/initial_refiner.h"
 #include "kaminpar-shm/initial_partitioning/random_bipartitioner.h"
+#include "kaminpar-shm/metrics.h"
 
 #include "kaminpar-common/assert.h"
 

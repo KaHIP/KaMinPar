@@ -7,6 +7,7 @@
  ******************************************************************************/
 #include "kaminpar-shm/partitioning/kway/kway_multilevel.h"
 
+#include "kaminpar-shm/coarsening/max_cluster_weights.h"
 #include "kaminpar-shm/factories.h"
 #include "kaminpar-shm/partitioning/debug.h"
 

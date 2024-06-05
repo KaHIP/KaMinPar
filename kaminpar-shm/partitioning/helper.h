@@ -16,6 +16,7 @@
 #include "kaminpar-shm/graphutils/subgraph_extractor.h"
 #include "kaminpar-shm/initial_partitioning/initial_partitioning_facade.h"
 #include "kaminpar-shm/kaminpar.h"
+#include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/refinement/refiner.h"
 
 #include "kaminpar-common/assert.h"
