@@ -20,6 +20,8 @@ namespace {
 SET_DEBUG(false);
 }
 
+using Queues = std::array<BinaryMinHeap<EdgeWeight>, 2>;
+
 namespace fm {
 void SimpleStoppingPolicy::init(const CSRGraph *) {
   reset();

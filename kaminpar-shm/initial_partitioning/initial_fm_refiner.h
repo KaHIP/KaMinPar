@@ -17,7 +17,6 @@
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::shm {
-using Queues = std::array<BinaryMinHeap<EdgeWeight>, 2>;
 
 namespace fm {
 struct SimpleStoppingPolicy {
@@ -96,7 +95,9 @@ private:
   const PartitionContext *_p_ctx;
   const InitialRefinementContext &_r_ctx;
 
-  Queues _queues{BinaryMinHeap<EdgeWeight>{0}, BinaryMinHeap<EdgeWeight>{0}};
+  std::array<BinaryMinHeap<EdgeWeight>, 2> _queues{
+      BinaryMinHeap<EdgeWeight>{0}, BinaryMinHeap<EdgeWeight>{0}
+  };
   Marker<> _marker{0};
   ScalableVector<EdgeWeight> _weighted_degrees{};
 
