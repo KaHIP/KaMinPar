@@ -295,7 +295,7 @@ void extend_partition(
     return a += b;
   });
 
-  if (true) {
+  if (false) {
     LOG << "bipartitioner_init_ms: "
         << static_cast<std::uint64_t>(timings.bipartitioner_init_ms / 1e6);
     LOG << "bipartitioner_ms:      " << static_cast<std::uint64_t>(timings.bipartitioner_ms / 1e6);
