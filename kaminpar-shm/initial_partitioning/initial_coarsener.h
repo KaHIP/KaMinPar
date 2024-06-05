@@ -43,7 +43,7 @@ class InitialCoarsener {
   static constexpr std::size_t kChunkSize = 256;
   static constexpr std::size_t kNumberOfNodePermutations = 16;
 
-  using ContractionResult = std::pair<CSRGraph, ScalableVector<NodeID>>;
+  using ContractionResult = std::pair<CSRGraph, StaticArray<NodeID>>;
 
 public:
   struct Cluster {

@@ -182,9 +182,9 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
   timer::LocalTimer timer;
   timer.reset();
 
-  ScalableVector<NodeID> node_mapping = _hierarchy.alloc_mapping_memory();
+  StaticArray<NodeID> node_mapping = _hierarchy.alloc_mapping_memory();
   if (node_mapping.size() < _current_graph->n()) {
-    node_mapping.resize(_current_graph->n());
+    node_mapping.resize(_current_graph->n(), static_array::seq);
   }
 
   CSRGraphMemory c_memory = _hierarchy.alloc_graph_memory();
@@ -194,10 +194,10 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
   StaticArray<EdgeWeight> c_edge_weights = std::move(c_memory.edge_weights);
 
   if (c_nodes.size() < c_n + 1) {
-    c_nodes.resize(c_n + 1, static_array::small, static_array::seq);
+    c_nodes.resize(c_n + 1, static_array::seq);
   }
   if (c_node_weights.size() < c_n) {
-    c_node_weights.resize(c_n, static_array::small, static_array::seq);
+    c_node_weights.resize(c_n, static_array::seq);
   }
 
   // CSRGraph determines the number of nodes based on the size of the c_nodes array:
@@ -206,14 +206,10 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
   c_node_weights.restrict(c_n);
 
   if (c_edges.size() < _current_graph->m()) {
-    c_edges.resize(
-        _current_graph->m(), static_array::small, static_array::seq, static_array::noinit
-    );
+    c_edges.resize(_current_graph->m(), static_array::seq, static_array::noinit);
   }
   if (c_edge_weights.size() < _current_graph->m()) {
-    c_edge_weights.resize(
-        _current_graph->m(), static_array::small, static_array::seq, static_array::noinit
-    );
+    c_edge_weights.resize(_current_graph->m(), static_array::seq, static_array::noinit);
   }
 
   // Similarly to the c_nodes array, we must restrict the size of the c_edges array: this is

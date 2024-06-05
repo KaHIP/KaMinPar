@@ -21,7 +21,7 @@ void SequentialGraphHierarchy::init(const CSRGraph &graph) {
   _coarse_graphs.clear();
 }
 
-void SequentialGraphHierarchy::push(CSRGraph &&c_graph, ScalableVector<NodeID> &&c_mapping) {
+void SequentialGraphHierarchy::push(CSRGraph &&c_graph, StaticArray<NodeID> &&c_mapping) {
   KASSERT(current().n() == c_mapping.size());
 
   _coarse_mappings.push_back(std::move(c_mapping));
@@ -37,7 +37,7 @@ PartitionedCSRGraph SequentialGraphHierarchy::pop(PartitionedCSRGraph &&coarse_p
   KASSERT(&_coarse_graphs.back() == &coarse_p_graph.graph());
 
   // Goal: project partition of p_graph == c_graph onto new_c_graph
-  ScalableVector<NodeID> c_mapping = std::move(_coarse_mappings.back());
+  StaticArray<NodeID> c_mapping = std::move(_coarse_mappings.back());
   _coarse_mappings.pop_back();
 
   const CSRGraph &graph = get_second_coarsest_graph();
@@ -79,7 +79,7 @@ void SequentialGraphHierarchy::recover_partition_memory(StaticArray<BlockID> par
   _partition_memory_cache.push_back(std::move(partition));
 }
 
-void SequentialGraphHierarchy::recover_mapping_memory(ScalableVector<NodeID> mapping) {
+void SequentialGraphHierarchy::recover_mapping_memory(StaticArray<NodeID> mapping) {
   _mapping_memory_cache.push_back(std::move(mapping));
 }
 
@@ -107,9 +107,9 @@ StaticArray<BlockID> SequentialGraphHierarchy::alloc_partition_memory() {
   return memory;
 }
 
-ScalableVector<NodeID> SequentialGraphHierarchy::alloc_mapping_memory() {
+StaticArray<NodeID> SequentialGraphHierarchy::alloc_mapping_memory() {
   if (_mapping_memory_cache.empty()) {
-    _mapping_memory_cache.emplace_back();
+    _mapping_memory_cache.emplace_back(0, static_array::seq);
   }
 
   auto memory = std::move(_mapping_memory_cache.back());
@@ -120,10 +120,10 @@ ScalableVector<NodeID> SequentialGraphHierarchy::alloc_mapping_memory() {
 CSRGraphMemory SequentialGraphHierarchy::alloc_graph_memory() {
   if (_graph_memory_cache.empty()) {
     _graph_memory_cache.push_back(CSRGraphMemory{
-        StaticArray<EdgeID>{0, static_array::small, static_array::seq},
-        StaticArray<NodeID>{0, static_array::small, static_array::seq},
-        StaticArray<NodeWeight>{0, static_array::small, static_array::seq},
-        StaticArray<EdgeWeight>{0, static_array::small, static_array::seq},
+        StaticArray<EdgeID>{0, static_array::seq},
+        StaticArray<NodeID>{0, static_array::seq},
+        StaticArray<NodeWeight>{0, static_array::seq},
+        StaticArray<EdgeWeight>{0, static_array::seq},
     });
   }
 

@@ -28,7 +28,7 @@ public:
 
   void init(const CSRGraph &graph);
 
-  void push(CSRGraph &&c_graph, ScalableVector<NodeID> &&c_mapping);
+  void push(CSRGraph &&c_graph, StaticArray<NodeID> &&c_mapping);
 
   [[nodiscard]] const CSRGraph &current() const;
 
@@ -43,23 +43,23 @@ public:
   }
 
   StaticArray<BlockID> alloc_partition_memory();
-  ScalableVector<NodeID> alloc_mapping_memory();
+  StaticArray<NodeID> alloc_mapping_memory();
   CSRGraphMemory alloc_graph_memory();
 
 private:
   [[nodiscard]] const CSRGraph &get_second_coarsest_graph() const;
 
   void recover_partition_memory(StaticArray<BlockID> partition);
-  void recover_mapping_memory(ScalableVector<NodeID> mapping);
+  void recover_mapping_memory(StaticArray<NodeID> mapping);
   void recover_graph_memory(CSRGraph graph);
 
   const CSRGraph *_finest_graph;
 
-  ScalableVector<ScalableVector<NodeID>> _coarse_mappings;
+  ScalableVector<StaticArray<NodeID>> _coarse_mappings;
   ScalableVector<CSRGraph> _coarse_graphs;
 
   ScalableVector<CSRGraphMemory> _graph_memory_cache;
-  ScalableVector<ScalableVector<NodeID>> _mapping_memory_cache;
+  ScalableVector<StaticArray<NodeID>> _mapping_memory_cache;
   ScalableVector<StaticArray<BlockID>> _partition_memory_cache;
 };
 } // namespace kaminpar::shm

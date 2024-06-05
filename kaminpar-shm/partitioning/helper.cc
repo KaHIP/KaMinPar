@@ -296,8 +296,7 @@ void extend_partition(
     return a += b;
   });
 
-  constexpr bool kShowTimings = false;
-  if constexpr (kShowTimings) {
+  if (true) {
     LOG << "bipartitioner_init_ms: "
         << static_cast<std::uint64_t>(timings.bipartitioner_init_ms / 1e6);
     LOG << "bipartitioner_ms:      " << static_cast<std::uint64_t>(timings.bipartitioner_ms / 1e6);

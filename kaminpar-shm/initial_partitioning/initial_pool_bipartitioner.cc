@@ -79,10 +79,10 @@ void InitialPoolBipartitioner::init(const CSRGraph &graph, const PartitionContex
   }
 
   if (_current_partition.size() < _graph->n()) {
-    _current_partition.resize(_graph->n(), static_array::small, static_array::seq);
+    _current_partition.resize(_graph->n(), static_array::seq);
   }
   if (_best_partition.size() < _graph->n()) {
-    _best_partition.resize(_graph->n(), static_array::small, static_array::seq);
+    _best_partition.resize(_graph->n(), static_array::seq);
   }
 
   reset();
