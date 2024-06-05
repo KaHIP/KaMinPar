@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Interface for initial bipartitioning algorithms.
  *
- * @file:   bipartitioner.h
+ * @file:   initial_flat_bipartitioner.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  ******************************************************************************/

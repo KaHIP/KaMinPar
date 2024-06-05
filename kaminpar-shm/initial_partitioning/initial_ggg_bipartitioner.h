@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Initial bipartitioner based on greedy graph growing.
  *
- * @file:   greedy_graph_growing_bipartitioner.h
+ * @file:   initial_ggg_bipartitioner.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  ******************************************************************************/

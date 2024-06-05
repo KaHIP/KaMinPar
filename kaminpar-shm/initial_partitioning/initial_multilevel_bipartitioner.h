@@ -17,7 +17,7 @@
  * Data structures are re-allocated to a larger size whenever necessary and never
  * shrink.
  *
- * @file:   initial_partitioning_facade.h
+ * @file:   initial_multilevel_bipartitioner.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  ******************************************************************************/

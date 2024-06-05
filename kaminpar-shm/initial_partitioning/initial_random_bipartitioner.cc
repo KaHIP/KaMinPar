@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Random initial bipartitioner that uses actual PRNG.
  *
- * @file:   random_bipartitioner.cc
+ * @file:   initial_random_bipartitioner.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  ******************************************************************************/

@@ -4,7 +4,7 @@
  * beat the best partition found so far are executed less often than promising
  * candidates.
  *
- * @file:   pool_bipartitioner.cc
+ * @file:   initial_pool_bipartitioner.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  ******************************************************************************/

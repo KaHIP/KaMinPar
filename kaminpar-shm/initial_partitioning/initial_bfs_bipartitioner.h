@@ -1,7 +1,7 @@
 /*******************************************************************************
  * BFS based initial bipartitioner.
  *
- * @file:   bfs_bipartitioner.h
+ * @file:   initial_bfs_bipartitioner.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  ******************************************************************************/
