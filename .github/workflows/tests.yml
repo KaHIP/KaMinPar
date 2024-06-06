@@ -9,7 +9,7 @@ jobs:
     strategy:
       matrix:
         compiler:
-          #- { name: Clang, cc: clang, cxx: clang++ }
+          - { name: Clang, cc: clang, cxx: clang++ }
           - { name: GNU, cc: gcc, cxx: g++ }
         build-mode: [Release]
     steps:
