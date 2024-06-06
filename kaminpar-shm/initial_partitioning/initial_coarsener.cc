@@ -187,6 +187,8 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
     node_mapping.resize(_current_graph->n(), static_array::seq);
   }
 
+  node_mapping.restrict(_current_graph->n());
+
   CSRGraphMemory c_memory = _hierarchy.alloc_graph_memory();
   StaticArray<EdgeID> c_nodes = std::move(c_memory.nodes);
   StaticArray<NodeID> c_edges = std::move(c_memory.edges);
