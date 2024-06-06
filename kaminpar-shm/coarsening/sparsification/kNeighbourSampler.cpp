@@ -7,6 +7,7 @@
 #include <networkit/auxiliary/Random.hpp>
 
 #include "UnionFind.h"
+#include "sparsification_utils.h"
 
 #include "kaminpar-common/random.h"
 
@@ -80,16 +81,7 @@ void kNeighbourSampler::sample_directed(
 
 void kNeighbourSampler::make_sample_symmetric(const CSRGraph &g, StaticArray<EdgeWeight> &sample) {
   // Then combine the sample of each edge at both endpoints
-  StaticArray<EdgeID> sorted_by_target_permutation = StaticArray<EdgeID>(g.m());
-  for (auto e : g.edges())
-    sorted_by_target_permutation[e] = e;
-  for (NodeID u : g.nodes()) {
-    std::sort(
-        sorted_by_target_permutation.begin() + g.raw_nodes()[u],
-        sorted_by_target_permutation.begin() + g.raw_nodes()[u + 1],
-        [&](const auto e1, const auto e2) { return g.edge_target(e1) <= g.edge_target(e2); }
-    );
-  }
+  StaticArray<EdgeID> sorted_by_target_permutation = utils::sort_by_traget(g);
 
   auto edges_done = StaticArray<EdgeID>(g.n(), 0);
   for (NodeID u : g.nodes()) {
