@@ -196,6 +196,9 @@ struct CoarseningContext {
   SparsificationAlgorithm sparsification_algorithm;
   SparsificationTargetSelection sparsification_target;
   float sparsification_factor;
+
+  float ff_pf;
+  float ff_target_burnt_ratio;
 };
 
 //

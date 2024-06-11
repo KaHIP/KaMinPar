@@ -147,6 +147,12 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
       ->check(CLI::PositiveNumber)
       ->description(R"(The factor c for the sparsification target, supplied with --s-target.)")
       ->default_val(1);
+  coarsening->add_option("--ff-pf", ctx.coarsening.ff_pf)
+      ->check(CLI::PositiveNumber)
+      ->default_val(1);
+  coarsening->add_option("--ff-tbr", ctx.coarsening.ff_target_burnt_ratio)
+      ->check(CLI::PositiveNumber)
+      ->default_val(1);
 
   coarsening
       ->add_option(

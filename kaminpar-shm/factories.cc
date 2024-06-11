@@ -95,7 +95,9 @@ std::unique_ptr<Coarsener> create_coarsener(const Context &ctx, const PartitionC
 std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
   switch (ctx.coarsening.sparsification_algorithm) {
   case SparsificationAlgorithm::FOREST_FIRE:
-    return std::make_unique<sparsification::ForestFireSampler>(0.9, 2);
+    return std::make_unique<sparsification::ForestFireSampler>(
+        ctx.coarsening.ff_pf, ctx.coarsening.ff_target_burnt_ratio
+    );
   case SparsificationAlgorithm::UNIFORM_RANDOM_SAMPLING:
     return std::make_unique<sparsification::UniformRandomSampler>();
   case SparsificationAlgorithm::K_NEIGHBOUR:
