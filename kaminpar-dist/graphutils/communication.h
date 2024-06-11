@@ -14,7 +14,6 @@
 #include "kaminpar-mpi/sparse_alltoall.h"
 #include "kaminpar-mpi/utils.h"
 
-#include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/timer.h"
 
@@ -109,12 +108,13 @@ template <typename Data> void inclusive_col_prefix_sum(Data &data) {
 template <
     typename Message,
     typename Buffer = NoinitVector<Message>,
+    typename Graph,
     typename Mapper,
     typename Filter,
     typename Builder,
     typename Receiver>
 void sparse_alltoall_interface_to_ghost_custom_range(
-    const DistributedGraph &graph,
+    const Graph &graph,
     const NodeID from,
     const NodeID to,
     Mapper &&mapper,
@@ -165,18 +165,18 @@ void sparse_alltoall_interface_to_ghost_custom_range(
 
     const PEID thread = omp_get_thread_num();
 
-    for (const auto [e, v] : graph.neighbors(u)) {
+    graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
       if (graph.is_ghost_node(v)) {
         if constexpr (filter_invocable_with_edge) {
           if (!filter(u, e, v)) {
-            continue;
+            return;
           }
         }
 
         const PEID owner = graph.ghost_owner(v);
         ++num_messages[thread][owner];
       }
-    }
+    });
   }
 
   // Offset messages for each thread
@@ -200,12 +200,11 @@ void sparse_alltoall_interface_to_ghost_custom_range(
     }
 
     const PEID thread = omp_get_thread_num();
-
-    for (const auto [e, v] : graph.neighbors(u)) {
+    graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
       if (graph.is_ghost_node(v)) {
         if constexpr (filter_invocable_with_edge) {
           if (!filter(u, e, v)) {
-            continue;
+            return;
           }
         }
 
@@ -217,7 +216,7 @@ void sparse_alltoall_interface_to_ghost_custom_range(
           send_buffers[pe][slot] = builder(u, e, v);
         }
       }
-    }
+    });
   }
 
   // STOP_TIMER();
@@ -230,11 +229,12 @@ void sparse_alltoall_interface_to_ghost_custom_range(
 template <
     typename Message,
     typename Buffer = NoinitVector<Message>,
+    typename Graph,
     typename Filter,
     typename Builder,
     typename Receiver>
 void sparse_alltoall_interface_to_ghost(
-    const DistributedGraph &graph,
+    const Graph &graph,
     const NodeID from,
     const NodeID to,
     Filter &&filter,
@@ -255,11 +255,12 @@ void sparse_alltoall_interface_to_ghost(
 template <
     typename Message,
     typename Buffer = NoinitVector<Message>,
+    typename Graph,
     typename Mapper,
     typename Filter,
     typename Builder>
 std::vector<Buffer> sparse_alltoall_interface_to_ghost_custom_range_get(
-    const DistributedGraph &graph,
+    const Graph &graph,
     const NodeID from,
     const NodeID to,
     Mapper &&mapper,
@@ -282,11 +283,12 @@ std::vector<Buffer> sparse_alltoall_interface_to_ghost_custom_range_get(
 template <
     typename Message,
     typename Buffer = NoinitVector<Message>,
+    typename Graph,
     typename Filter,
     typename Builder,
     typename Receiver>
 void sparse_alltoall_interface_to_ghost(
-    const DistributedGraph &graph, Filter &&filter, Builder &&builder, Receiver &&receiver
+    const Graph &graph, Filter &&filter, Builder &&builder, Receiver &&receiver
 ) {
   sparse_alltoall_interface_to_ghost<Message, Buffer>(
       graph,
@@ -301,10 +303,11 @@ void sparse_alltoall_interface_to_ghost(
 template <
     typename Message,
     typename Buffer = NoinitVector<Message>,
+    typename Graph,
     typename Builder,
     typename Receiver>
 void sparse_alltoall_interface_to_ghost(
-    const DistributedGraph &graph, Builder &&builder, Receiver &&receiver
+    const Graph &graph, Builder &&builder, Receiver &&receiver
 ) {
   sparse_alltoall_interface_to_ghost<Message, Buffer>(
       graph,
@@ -317,14 +320,11 @@ void sparse_alltoall_interface_to_ghost(
 template <
     typename Message,
     typename Buffer = NoinitVector<Message>,
+    typename Graph,
     typename Filter,
     typename Builder>
 std::vector<Buffer> sparse_alltoall_interface_to_ghost_get(
-    const DistributedGraph &graph,
-    const NodeID from,
-    const NodeID to,
-    Filter &&filter,
-    Builder &&builder
+    const Graph &graph, const NodeID from, const NodeID to, Filter &&filter, Builder &&builder
 ) {
   std::vector<Buffer> recv_buffers(mpi::get_comm_size(graph.communicator()));
   sparse_alltoall_interface_to_ghost<Message, Buffer>(
@@ -341,11 +341,11 @@ std::vector<Buffer> sparse_alltoall_interface_to_ghost_get(
 template <
     typename Message,
     typename Buffer = NoinitVector<Message>,
+    typename Graph,
     typename Filter,
     typename Builder>
-std::vector<Buffer> sparse_alltoall_interface_to_ghost_get(
-    const DistributedGraph &graph, Filter &&filter, Builder &&builder
-) {
+std::vector<Buffer>
+sparse_alltoall_interface_to_ghost_get(const Graph &graph, Filter &&filter, Builder &&builder) {
   std::vector<Buffer> recv_buffers(mpi::get_comm_size(graph.communicator()));
   sparse_alltoall_interface_to_ghost<Message, Buffer>(
       graph,
@@ -356,9 +356,12 @@ std::vector<Buffer> sparse_alltoall_interface_to_ghost_get(
   return recv_buffers;
 }
 
-template <typename Message, typename Buffer = NoinitVector<Message>, typename Builder>
-std::vector<Buffer>
-sparse_alltoall_interface_to_ghost_get(const DistributedGraph &graph, Builder &&builder) {
+template <
+    typename Message,
+    typename Buffer = NoinitVector<Message>,
+    typename Graph,
+    typename Builder>
+std::vector<Buffer> sparse_alltoall_interface_to_ghost_get(const Graph &graph, Builder &&builder) {
   std::vector<Buffer> recv_buffers(mpi::get_comm_size(graph.communicator()));
   sparse_alltoall_interface_to_ghost<Message, Buffer>(
       graph,
@@ -429,12 +432,13 @@ sparse_alltoall_interface_to_ghost_get(const DistributedGraph &graph, Builder &&
 template <
     typename Message,
     typename Buffer = NoinitVector<Message>,
+    typename Graph,
     typename Mapper,
     typename Filter,
     typename Builder,
     typename Receiver>
 void sparse_alltoall_interface_to_pe_custom_range(
-    const DistributedGraph &graph,
+    const Graph &graph,
     const NodeID from,
     const NodeID to,
     Mapper &&mapper,
@@ -490,20 +494,20 @@ void sparse_alltoall_interface_to_pe_custom_range(
         }
       }
 
-      for (const auto [e, v] : graph.neighbors(u)) {
+      graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
         if (!graph.is_ghost_node(v)) {
-          continue;
+          return;
         }
 
         const PEID pe = graph.ghost_owner(v);
 
         if (created_message_for_pe.get(pe)) {
-          continue;
+          return;
         }
         created_message_for_pe.set(pe);
 
         ++num_messages[thread][pe];
-      }
+      });
 
       created_message_for_pe.reset();
     }
@@ -539,15 +543,15 @@ void sparse_alltoall_interface_to_pe_custom_range(
         }
       }
 
-      for (const NodeID v : graph.adjacent_nodes(u)) {
+      graph.adjacent_nodes(u, [&](const NodeID v) {
         if (!graph.is_ghost_node(v)) {
-          continue;
+          return;
         }
 
         const PEID pe = graph.ghost_owner(v);
 
         if (created_message_for_pe.get(pe)) {
-          continue;
+          return;
         }
         created_message_for_pe.set(pe);
 
@@ -560,7 +564,7 @@ void sparse_alltoall_interface_to_pe_custom_range(
         } else {
           send_buffers[pe][slot] = builder(u);
         }
-      }
+      });
 
       created_message_for_pe.reset();
     }
@@ -576,11 +580,12 @@ void sparse_alltoall_interface_to_pe_custom_range(
 template <
     typename Message,
     typename Buffer = NoinitVector<Message>,
+    typename Graph,
     typename Filter,
     typename Builder,
     typename Receiver>
 void sparse_alltoall_interface_to_pe(
-    const DistributedGraph &graph,
+    const Graph &graph,
     const NodeID from,
     const NodeID to,
     Filter &&filter,
@@ -601,11 +606,12 @@ void sparse_alltoall_interface_to_pe(
 template <
     typename Message,
     typename Buffer = NoinitVector<Message>,
+    typename Graph,
     typename Filter,
     typename Builder,
     typename Receiver>
 void sparse_alltoall_interface_to_pe(
-    const DistributedGraph &graph, Filter &&filter, Builder &&builder, Receiver &&receiver
+    const Graph &graph, Filter &&filter, Builder &&builder, Receiver &&receiver
 ) {
   sparse_alltoall_interface_to_pe<Message, Buffer>(
       graph,
@@ -620,11 +626,10 @@ void sparse_alltoall_interface_to_pe(
 template <
     typename Message,
     typename Buffer = NoinitVector<Message>,
+    typename Graph,
     typename Builder,
     typename Receiver>
-void sparse_alltoall_interface_to_pe(
-    const DistributedGraph &graph, Builder &&builder, Receiver &&receiver
-) {
+void sparse_alltoall_interface_to_pe(const Graph &graph, Builder &&builder, Receiver &&receiver) {
   sparse_alltoall_interface_to_pe<Message, Buffer>(
       graph,
       SPARSE_ALLTOALL_NOFILTER,
@@ -636,14 +641,11 @@ void sparse_alltoall_interface_to_pe(
 template <
     typename Message,
     typename Buffer = NoinitVector<Message>,
+    typename Graph,
     typename Filter,
     typename Builder>
 std::vector<Buffer> sparse_alltoall_interface_to_pe_get(
-    const DistributedGraph &graph,
-    const NodeID from,
-    const NodeID to,
-    Filter &&filter,
-    Builder &&builder
+    const Graph &graph, const NodeID from, const NodeID to, Filter &&filter, Builder &&builder
 ) {
   std::vector<Buffer> recv_buffers(mpi::get_comm_size(graph.communicator()));
   sparse_alltoall_interface_to_pe<Message, Buffer>(
@@ -660,11 +662,12 @@ std::vector<Buffer> sparse_alltoall_interface_to_pe_get(
 template <
     typename Message,
     typename Buffer = NoinitVector<Message>,
+    typename Graph,
     typename Mapper,
     typename Filter,
     typename Builder>
 std::vector<Buffer> sparse_alltoall_interface_to_pe_custom_range_get(
-    const DistributedGraph &graph,
+    const Graph &graph,
     const NodeID from,
     const NodeID to,
     Mapper &&mapper,
@@ -687,11 +690,11 @@ std::vector<Buffer> sparse_alltoall_interface_to_pe_custom_range_get(
 template <
     typename Message,
     typename Buffer = NoinitVector<Message>,
+    typename Graph,
     typename Filter,
     typename Builder>
-std::vector<Buffer> sparse_alltoall_interface_to_pe_get(
-    const DistributedGraph &graph, Filter &&filter, Builder &&builder
-) {
+std::vector<Buffer>
+sparse_alltoall_interface_to_pe_get(const Graph &graph, Filter &&filter, Builder &&builder) {
   std::vector<Buffer> recv_buffers(mpi::get_comm_size(graph.communicator()));
   sparse_alltoall_interface_to_pe<Message, Buffer>(
       graph,
@@ -704,9 +707,12 @@ std::vector<Buffer> sparse_alltoall_interface_to_pe_get(
   return recv_buffers;
 }
 
-template <typename Message, typename Buffer = NoinitVector<Message>, typename Builder>
-std::vector<Buffer>
-sparse_alltoall_interface_to_pe_get(const DistributedGraph &graph, Builder &&builder) {
+template <
+    typename Message,
+    typename Buffer = NoinitVector<Message>,
+    typename Graph,
+    typename Builder>
+std::vector<Buffer> sparse_alltoall_interface_to_pe_get(const Graph &graph, Builder &&builder) {
   std::vector<Buffer> recv_buffers(mpi::get_comm_size(graph.communicator()));
   sparse_alltoall_interface_to_pe<Message, Buffer>(
       graph,
@@ -722,12 +728,13 @@ sparse_alltoall_interface_to_pe_get(const DistributedGraph &graph, Builder &&bui
 template <
     typename Message,
     typename Buffer = NoinitVector<Message>,
+    typename Graph,
     typename Filter,
     typename PEGetter,
     typename Builder,
     typename Receiver>
 void sparse_alltoall_custom(
-    const DistributedGraph &graph,
+    const Graph &graph,
     const NodeID from,
     const NodeID to,
     Filter &&filter,
@@ -796,11 +803,12 @@ void sparse_alltoall_custom(
 template <
     typename Message,
     typename Buffer = NoinitVector<Message>,
+    typename Graph,
     typename Filter,
     typename PEGetter,
     typename Builder>
 std::vector<Buffer> sparse_alltoall_custom(
-    const DistributedGraph &graph,
+    const Graph &graph,
     const NodeID from,
     const NodeID to,
     Filter &&filter,

@@ -14,7 +14,7 @@
 #include <mpi.h>
 #include <omp.h>
 
-#include "kaminpar-dist/coarsening/contraction/cluster_contraction.h"
+#include "kaminpar-dist/coarsening/contraction/global_cluster_contraction.h"
 #include "kaminpar-dist/context.h"
 #include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/factories.h"

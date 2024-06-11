@@ -7,9 +7,10 @@
  ******************************************************************************/
 #include "kaminpar-dist/algorithms/greedy_node_coloring.h"
 
+/*
 #include "kaminpar-mpi/wrapper.h"
 
-#include "kaminpar-dist/datastructures/distributed_graph.h"
+#include "kaminpar-dist/datastructures/distributed_csr_graph.h"
 #include "kaminpar-dist/graphutils/communication.h"
 
 #include "kaminpar-common/assert.h"
@@ -26,9 +27,9 @@ namespace {
 SET_DEBUG(false);
 }
 
-NoinitVector<ColorID> compute_node_coloring_sequentially(
-    const DistributedGraph &graph, const NodeID number_of_supersteps
-) {
+template <typename Graph>
+NoinitVector<ColorID>
+compute_node_coloring_sequentially(const Graph &graph, const NodeID number_of_supersteps) {
   KASSERT(number_of_supersteps > 0u, "bad parameter", assert::light);
   SCOPED_TIMER("Compute greedy node coloring");
 
@@ -65,7 +66,7 @@ NoinitVector<ColorID> compute_node_coloring_sequentially(
         }
 
         bool is_interface_node = false;
-        for (const auto [e, v] : graph.neighbors(u)) {
+        graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
           is_interface_node = is_interface_node || graph.is_ghost_node(v);
 
           // @todo replace v < u with random numbers r(v) < r(u)
@@ -74,7 +75,7 @@ NoinitVector<ColorID> compute_node_coloring_sequentially(
                                                              graph.local_to_global_node(v)))) {
             incident_colors.set<true>(coloring[v] - 1);
           }
-        }
+        });
 
         if (coloring[u] == 0) {
           coloring[u] = incident_colors.first_unmarked_element() + 1;
@@ -144,12 +145,20 @@ NoinitVector<ColorID> compute_node_coloring_sequentially(
   KASSERT(
       [&] {
         for (const NodeID u : graph.nodes()) {
-          for (const auto v : graph.adjacent_nodes(u)) {
+          bool fail = false;
+
+          graph.adjacent_nodes(u, [&](const NodeID v) {
             if (coloring[u] == coloring[v]) {
               LOG_WARNING << "bad color for node " << u << " with neighbor " << v << ": "
                           << coloring[u];
-              return false;
+              fail = true;
             }
+
+            return fail;
+          });
+
+          if (fail) {
+            return false;
           }
         }
         return true;
@@ -192,4 +201,6 @@ NoinitVector<ColorID> compute_node_coloring_sequentially(
 
   return coloring;
 }
+
 } // namespace kaminpar::dist
+*/

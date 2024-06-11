@@ -12,6 +12,7 @@
 
 #include "kaminpar-mpi/wrapper.h"
 
+#include "kaminpar-dist/datastructures/distributed_csr_graph.h"
 #include "kaminpar-dist/datastructures/ghost_node_mapper.h"
 #include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/graphutils/communication.h"
@@ -196,12 +197,12 @@ contract_local_clustering(const DistributedGraph &graph, const StaticArray<NodeI
           KASSERT(mapping[u] == c_u);
 
           // collect coarse edges
-          for (const auto [e, v] : graph.neighbors(u)) {
+          graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
             const NodeID c_v = mapping[v];
             if (c_u != c_v) {
               map[c_v] += graph.edge_weight(e);
             }
-          }
+          });
         }
 
         c_nodes[c_u + 1] = map.size(); // node degree (used to build c_nodes)
@@ -269,7 +270,7 @@ contract_local_clustering(const DistributedGraph &graph, const StaticArray<NodeI
 
   auto [c_global_to_ghost, c_ghost_to_global, c_ghost_owner] = ghost_mapper.finalize();
 
-  DistributedGraph c_graph{
+  DistributedGraph c_graph(std::make_unique<DistributedCSRGraph>(
       std::move(c_node_distribution),
       std::move(c_edge_distribution),
       std::move(c_nodes),
@@ -281,7 +282,7 @@ contract_local_clustering(const DistributedGraph &graph, const StaticArray<NodeI
       std::move(c_global_to_ghost),
       false,
       graph.communicator()
-  };
+  ));
 
   return std::make_unique<LocalCoarseGraphImpl>(graph, std::move(c_graph), std::move(mapping));
 }

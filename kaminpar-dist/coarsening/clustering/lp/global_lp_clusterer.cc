@@ -241,9 +241,9 @@ public:
       bool interface_node = false;
       bool smallest = true;
 
-      for (const NodeID lv : _graph->adjacent_nodes(lu)) {
+      _graph->adjacent_nodes(lu, [&](const NodeID lv) {
         if (_graph->is_owned_node(lv)) {
-          continue;
+          return false;
         }
 
         interface_node = true;
@@ -251,9 +251,11 @@ public:
         const GlobalNodeID gv = _graph->local_to_global_node(lv);
         if (gv < gu) {
           smallest = false;
-          break;
+          return true;
         }
-      }
+
+        return false;
+      });
 
       if (interface_node && smallest) {
         _locked[lu] = 1;
@@ -514,7 +516,9 @@ private:
         from,
         to,
         [&](const NodeID lnode) { return _changed_label[lnode] != kInvalidGlobalNodeID; },
-        [&](const NodeID lnode) -> ChangedLabelMessage { return {lnode, cluster(lnode)}; },
+        [&](const NodeID lnode) -> ChangedLabelMessage {
+          return {lnode, cluster(lnode)};
+        },
         [&](const auto &buffer, const PEID owner) {
           tbb::parallel_for(tbb::blocked_range<std::size_t>(0, buffer.size()), [&](const auto &r) {
             auto &weight_delta_handle = _weight_delta_handles_ets.local();

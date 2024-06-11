@@ -304,6 +304,10 @@ struct RefinementContext {
   [[nodiscard]] bool includes_algorithm(RefinementAlgorithm algorithm) const;
 };
 
+struct GraphCompressionContext {
+  bool enabled;
+};
+
 struct PartitionContext {
   PartitionContext(BlockID k, BlockID K, double epsilon);
 
@@ -327,6 +331,7 @@ struct DebugContext {
 
 struct Context {
   GraphOrdering rearrange_by;
+  GraphCompressionContext compression;
 
   PartitioningMode mode;
 
@@ -373,6 +378,8 @@ public:
       dist::GlobalNodeWeight *node_weights,
       dist::GlobalEdgeWeight *edge_weights
   );
+
+  void import_graph(dist::DistributedGraph graph);
 
   dist::GlobalEdgeWeight compute_partition(dist::BlockID k, dist::BlockID *partition);
 

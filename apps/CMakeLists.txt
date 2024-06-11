@@ -39,7 +39,9 @@ add_shm_app(KaMinPar KaMinPar.cc)
 if (TARGET kaminpar_dist)
     add_dist_app(dKaMinPar dKaMinPar.cc)
     target_sources(dKaMinPar PRIVATE 
-        ${CMAKE_CURRENT_SOURCE_DIR}/io/dist_io.cc)
+        ${CMAKE_CURRENT_SOURCE_DIR}/io/dist_io.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/io/dist_parhip_parser.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/io/dist_parhip_parser.cc)
     target_link_libraries(dKaMinPar PRIVATE KaGen::KaGen)
 endif ()
 

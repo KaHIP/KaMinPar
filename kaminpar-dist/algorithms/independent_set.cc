@@ -61,20 +61,22 @@ find_independent_border_set(const DistributedPartitionedGraph &p_graph, const in
       return; // Not a border node
     }
 
-    const bool is_seed_node = std::all_of(
-        p_graph.adjacent_nodes(u).begin(),
-        p_graph.adjacent_nodes(u).end(),
-        [&](const NodeID v) {
-          // Compute score for ghost nodes lazy
-          if (score[v] < 0) {
-            const auto v_score =
-                compute_score(generator_ets.local(), p_graph.local_to_global_node(v), seed);
-            __atomic_store_n(&score[v], v_score, __ATOMIC_RELAXED);
-          }
+    bool is_seed_node = true;
+    p_graph.adjacent_nodes(u, [&](const NodeID v) {
+      // Compute score for ghost nodes lazy
+      if (score[v] < 0) {
+        const auto v_score =
+            compute_score(generator_ets.local(), p_graph.local_to_global_node(v), seed);
+        __atomic_store_n(&score[v], v_score, __ATOMIC_RELAXED);
+      }
 
-          return score[u] < score[v];
-        }
-    );
+      if (score[u] >= score[v]) {
+        is_seed_node = false;
+        return true;
+      }
+
+      return false;
+    });
 
     if (is_seed_node) {
       seed_nodes.push_back(u);

@@ -45,6 +45,7 @@ void create_chunks_options(CLI::Option_group *cli, const std::string &prefix, Ch
 void create_all_options(CLI::App *app, Context &ctx) {
   create_partitioning_options(app, ctx);
   create_debug_options(app, ctx);
+  create_compression_options(app, ctx);
   create_coarsening_options(app, ctx);
   create_initial_partitioning_options(app, ctx);
   create_refinement_options(app, ctx);
@@ -108,6 +109,16 @@ CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
 
   return debug;
+}
+
+CLI::Option_group *create_compression_options(CLI::App *app, Context &ctx) {
+  auto *compression = app->add_option_group("Graph Compression");
+
+  compression->add_flag(
+      "-c,--compress", ctx.compression.enabled, "Whether to compress the input graph."
+  );
+
+  return compression;
 }
 
 CLI::Option_group *create_initial_partitioning_options(CLI::App *app, Context &ctx) {

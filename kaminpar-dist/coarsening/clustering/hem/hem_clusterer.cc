@@ -243,28 +243,28 @@ void HEMClusterer::compute_local_matching(
 
     NodeID best_neighbor = 0;
     EdgeWeight best_weight = 0;
-    for (const auto [e, v] : _graph->neighbors(u)) {
+    _graph->neighbors(u, [&](const EdgeID e, const NodeID v) {
       // v already matched?
       if (_matching[v] != kInvalidGlobalNodeID) {
-        continue;
+        return;
       }
 
       // v too heavy?
       const NodeWeight v_weight = _graph->node_weight(v);
       if (u_weight + v_weight > max_cluster_weight && !_ctx.ignore_weight_limit) {
-        continue;
+        return;
       }
 
       // Already found a better neighbor?
       const EdgeWeight e_weight = _graph->edge_weight(e);
       if (e_weight < best_weight) {
-        continue;
+        return;
       }
 
       // Match with v
       best_weight = e_weight;
       best_neighbor = v;
-    }
+    });
 
     // If we found a good neighbor, try to match with it
     if (best_weight > 0) {
@@ -401,9 +401,9 @@ void HEMClusterer::resolve_global_conflicts(const ColorID c) {
 
   auto add_node = [&](const NodeID u) {
     marked.reset();
-    for (const auto &[e, v] : _graph->neighbors(u)) {
+    _graph->neighbors(u, [&](const EdgeID e, const NodeID v) {
       if (!_graph->is_ghost_node(v)) {
-        continue;
+        return;
       }
 
       const PEID owner = _graph->ghost_owner(v);
@@ -411,7 +411,7 @@ void HEMClusterer::resolve_global_conflicts(const ColorID c) {
         sync_msgs[owner].push_back({u, _matching[u]});
         marked.set(owner);
       }
-    }
+    });
   };
 
   for (const NodeID seq_u : _graph->nodes(seq_from, seq_to)) {

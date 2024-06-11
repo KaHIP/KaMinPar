@@ -23,11 +23,11 @@ GlobalEdgeWeight local_edge_cut(const DistributedPartitionedGraph &p_graph) {
     auto &cut = cut_ets.local();
     for (NodeID u = r.begin(); u < r.end(); ++u) {
       const BlockID u_block = p_graph.block(u);
-      for (const auto [e, v] : p_graph.neighbors(u)) {
+      p_graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
         if (u_block != p_graph.block(v)) {
           cut += p_graph.edge_weight(e);
         }
-      }
+      });
     }
   });
 

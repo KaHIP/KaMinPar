@@ -77,9 +77,7 @@ void expect_nonempty_independent_set(
       continue;
     }
 
-    for (const NodeID v : p_graph.adjacent_nodes(u)) {
-      EXPECT_FALSE(is_in_independent_set[v]);
-    }
+    p_graph.adjacent_nodes(u, [&](const NodeID v) { EXPECT_FALSE(is_in_independent_set[v]); });
   }
 }
 } // namespace

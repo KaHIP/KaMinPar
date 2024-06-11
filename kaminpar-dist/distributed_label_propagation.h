@@ -282,30 +282,25 @@ protected:
 
       bool is_interface_node = false;
 
-      auto add_to_rating_map = [&](const EdgeID e, const NodeID v) {
+      _graph->neighbors(u, _max_num_neighbors, [&](const EdgeID e, const NodeID v) {
         if (derived_accept_neighbor(u, v)) {
           const ClusterID v_cluster = derived_cluster(v);
           const EdgeWeight rating = _graph->edge_weight(e);
+
           map[v_cluster] += rating;
+
           if constexpr (Config::kUseLocalActiveSetStrategy) {
             is_interface_node |= v >= _num_active_nodes;
           }
         }
-      };
+      });
 
-      const EdgeID from = _graph->first_edge(u);
-      const EdgeID to = from + std::min(_graph->degree(u), _max_num_neighbors);
-      for (EdgeID e = from; e < to; ++e) {
-        add_to_rating_map(e, _graph->edge_target(e));
-      }
-
-      if constexpr (Config::kUseLocalActiveSetStrategy) {
+      if constexpr (Config::kUseActiveSetStrategy) {
+        _active[u] = 0;
+      } else if constexpr (Config::kUseLocalActiveSetStrategy) {
         if (!is_interface_node) {
           _active[u] = 0;
         }
-      }
-      if constexpr (Config::kUseActiveSetStrategy) {
-        _active[u] = 0;
       }
 
       // After LP, we might want to use 2-hop clustering to merge nodes that
@@ -360,7 +355,7 @@ protected:
    * @param u Node that was moved.
    */
   void activate_neighbors(const NodeID u) {
-    for (const NodeID v : _graph->adjacent_nodes(u)) {
+    _graph->adjacent_nodes(u, [&](const NodeID v) {
       // call derived_activate_neighbor() even if we do not use the active set
       // strategy since the function might have side effects; the compiler
       // should remove it if it does not side effects
@@ -369,7 +364,7 @@ protected:
           _active[v].store(1, std::memory_order_relaxed);
         }
       }
-    }
+    });
   }
 
   void match_isolated_nodes(

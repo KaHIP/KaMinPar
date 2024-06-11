@@ -7,6 +7,7 @@
  ******************************************************************************/
 #include "kaminpar-dist/dkaminpar.h"
 
+#include <memory>
 #include <utility>
 
 #include <mpi.h>
@@ -15,6 +16,7 @@
 #include <tbb/parallel_invoke.h>
 
 #include "kaminpar-dist/context_io.h"
+#include "kaminpar-dist/datastructures/distributed_csr_graph.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/ghost_node_mapper.h"
 #include "kaminpar-dist/factories.h"
@@ -99,9 +101,12 @@ void print_input_summary(
   if (root && parseable) {
     LOG << "EXECUTION_MODE num_mpis=" << ctx.parallel.num_mpis
         << " num_threads=" << ctx.parallel.num_threads;
-    LOG << "INPUT_GRAPH " << "global_n=" << graph.global_n() << " "
-        << "global_m=" << graph.global_m() << " " << "n=[" << n_str << "] " << "m=[" << m_str
-        << "] " << "ghost_n=[" << ghost_n_str << "]";
+    LOG << "INPUT_GRAPH "
+        << "global_n=" << graph.global_n() << " "
+        << "global_m=" << graph.global_m() << " "
+        << "n=[" << n_str << "] "
+        << "m=[" << m_str << "] "
+        << "ghost_n=[" << ghost_n_str << "]";
   }
 
   // Output
@@ -235,7 +240,7 @@ void dKaMinPar::import_graph(
 
   auto [global_to_ghost, ghost_to_global, ghost_owner] = mapper.finalize();
 
-  _graph_ptr = std::make_unique<DistributedGraph>(
+  import_graph({std::make_unique<DistributedCSRGraph>(
       std::move(node_distribution),
       std::move(edge_distribution),
       std::move(nodes),
@@ -247,12 +252,17 @@ void dKaMinPar::import_graph(
       std::move(global_to_ghost),
       false,
       _comm
-  );
+  )});
 
   // Fill in ghost node weights
   if (vwgt != nullptr) {
     graph::synchronize_ghost_node_weights(*_graph_ptr);
   }
+}
+
+void dKaMinPar::import_graph(DistributedGraph graph) {
+  _was_rearranged = false;
+  _graph_ptr = std::make_unique<DistributedGraph>(std::move(graph));
 }
 
 GlobalEdgeWeight dKaMinPar::compute_partition(const BlockID k, BlockID *partition) {
@@ -284,8 +294,12 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const BlockID k, BlockID *partitio
   }
 
   START_TIMER("Partitioning");
-  if (!_was_rearranged) {
-    graph = graph::rearrange(std::move(graph), _ctx);
+  if (!_was_rearranged && _ctx.rearrange_by != GraphOrdering::NATURAL) {
+    DistributedCSRGraph &csr_graph =
+        *dynamic_cast<DistributedCSRGraph *>(_graph_ptr->take_underlying_graph());
+    graph = DistributedGraph(
+        std::make_unique<DistributedCSRGraph>(graph::rearrange(std::move(csr_graph), _ctx))
+    );
     _was_rearranged = true;
   }
   auto p_graph = factory::create_partitioner(_ctx, graph)->partition();

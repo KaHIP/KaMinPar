@@ -17,6 +17,7 @@
 #include "kaminpar-common/environment.h"
 
 #include "apps/io/dist_io.h"
+#include "apps/io/dist_parhip_parser.h"
 
 using namespace kaminpar;
 using namespace kaminpar::dist;
@@ -174,6 +175,17 @@ NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
 
   return graph.vertex_range.second - graph.vertex_range.first;
 }
+
+NodeID load_compressed_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
+  DistributedGraph graph(std::make_unique<DistributedCompressedGraph>(
+      io::parhip::compressed_read(app.graph_filename, false, MPI_COMM_WORLD)
+  ));
+  const NodeID n = graph.n();
+
+  partitioner.import_graph(std::move(graph));
+  return n;
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -215,8 +227,14 @@ int main(int argc, char *argv[]) {
   partitioner.context().debug.graph_filename = app.graph_filename;
   partitioner.set_max_timer_depth(app.max_timer_depth);
 
-  // Load the graph via KaGen
-  const NodeID n = load_kagen_graph(app, partitioner);
+  // Load the graph via KaGen or via our graph compressor.
+  const NodeID n = [&] {
+    if (ctx.compression.enabled) {
+      return load_compressed_graph(app, partitioner);
+    } else {
+      return load_kagen_graph(app, partitioner);
+    }
+  }();
 
   // Compute the partition
   std::vector<BlockID> partition(n);

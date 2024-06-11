@@ -87,14 +87,14 @@ private:
     BlockID max_target = b_u;
 
     auto action = [&](auto &map) {
-      for (const auto [e, v] : _p_graph->neighbors(u)) {
+      _p_graph->neighbors(u, [&](const EdgeID e, const NodeID v) {
         const BlockID b_v = _p_graph->block(v);
         if (b_u != b_v && weight_checker(b_v, _p_graph->block_weight(b_v) + w_u)) {
           map[b_v] += _p_graph->edge_weight(e);
         } else if (b_u == b_v) {
           int_conn += _p_graph->edge_weight(e);
         }
-      }
+      });
 
       for (const auto [target, conn] : map.entries()) {
         if (conn > max_ext_conn || (randomize && conn == max_ext_conn && rand.random_bool())) {

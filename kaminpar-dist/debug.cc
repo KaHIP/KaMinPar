@@ -64,12 +64,13 @@ void write_metis_graph(const std::string &filename, const DistributedGraph &grap
         if (graph.is_node_weighted()) {
           out << graph.node_weight(lu) << " ";
         }
-        for (const auto &[e, lv] : graph.neighbors(lu)) {
+
+        graph.neighbors(lu, [&](const EdgeID e, const NodeID lv) {
           out << graph.local_to_global_node(lv) + 1 << " ";
           if (graph.is_edge_weighted()) {
             out << graph.edge_weight(e) << " ";
           }
-        }
+        });
         out << "\n";
       }
     }

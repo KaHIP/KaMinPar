@@ -81,8 +81,7 @@ void NodeBalancer::reinit() {
   tbb::enumerable_thread_specific<std::vector<DynamicBinaryMinHeap<NodeID, double>>> local_pq_ets{
       [&] {
         return std::vector<DynamicBinaryMinHeap<NodeID, double>>(_p_graph.k());
-      }
-  };
+      }};
   tbb::enumerable_thread_specific<std::vector<NodeWeight>> local_pq_weight_ets{[&] {
     return std::vector<NodeWeight>(_p_graph.k());
   }};
@@ -325,16 +324,16 @@ void NodeBalancer::perform_move(const Candidate &move, const bool update_block_w
       _pq_weight[from] -= weight;
 
       // Activate neighbors
-      for (const NodeID v : _p_graph.adjacent_nodes(u)) {
+      _p_graph.adjacent_nodes(u, [&, from = from](const NodeID v) {
         if (!_p_graph.is_owned_node(v)) {
-          continue;
+          return;
         }
 
         if (!_marker.get(v) && _p_graph.block(v) == from) {
           try_pq_insertion(from, v);
           _marker.set(v);
         }
-      }
+      });
     }
 
     if (update_block_weights) {
@@ -377,8 +376,7 @@ std::vector<NodeBalancer::Candidate> NodeBalancer::pick_sequential_candidates() 
 
       if (relative_gain == actual_relative_gain) {
         Candidate candidate{
-            _p_graph.local_to_global_node(u), from, to, u_weight, actual_relative_gain
-        };
+            _p_graph.local_to_global_node(u), from, to, u_weight, actual_relative_gain};
         candidates.push_back(candidate);
       } else {
         try_pq_insertion(from, u, u_weight, actual_relative_gain);
@@ -573,8 +571,9 @@ bool NodeBalancer::perform_parallel_round(const int round) {
               reassigned,
               "could not find a feasible target block for node "
                   << candidate.id << ", weight " << candidate.weight << ", deltas: ["
-                  << block_weight_deltas_to << "]" << ", max block weights: "
-                  << _p_ctx.graph->max_block_weights << ", block weights: "
+                  << block_weight_deltas_to << "]"
+                  << ", max block weights: " << _p_ctx.graph->max_block_weights
+                  << ", block weights: "
                   << std::vector<BlockWeight>(
                          _p_graph.block_weights().begin(), _p_graph.block_weights().end()
                      )

@@ -116,6 +116,11 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
         FILES dist/coarsening/internal_cluster_contraction_test.cc
         CORES 1)
 
+    # dKaMinPar -> Datastructures
+    kaminpar_add_dist_test(test_dist_compressed_graph
+        FILES dist/datastructures/distributed_compressed_graph_test.cc
+        CORES 1)
+
     # dKaMinPar -> Graph Utils
     kaminpar_add_dist_test(test_dist_graphutils_block_extractor
         FILES dist/graphutils/block_extractor_test.cc
@@ -155,4 +160,3 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
         FILES mpi/sparse_allreduce_test.cc
         CORES 1 4 8)
 endif ()
-

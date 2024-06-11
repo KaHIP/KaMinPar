@@ -392,8 +392,8 @@ NodeID ColoredLPRefiner::perform_best_moves(const ColorID c) {
   return num_local_moved_nodes;
 }
 
-auto ColoredLPRefiner::reduce_move_candidates(std::vector<MoveCandidate> &&candidates
-) -> std::vector<MoveCandidate> {
+auto ColoredLPRefiner::reduce_move_candidates(std::vector<MoveCandidate> &&candidates)
+    -> std::vector<MoveCandidate> {
   const int size = mpi::get_comm_size(_p_graph.communicator());
   const int rank = mpi::get_comm_rank(_p_graph.communicator());
   KASSERT(math::is_power_of_2(size), "#PE must be a power of two", assert::always);
@@ -822,12 +822,12 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
 
       auto action = [&](auto &map) {
         bool is_interface_node = false;
-        for (const auto [e, v] : graph.neighbors(u)) {
+        graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
           const BlockID b = _p_graph.block(v);
           const EdgeWeight weight = graph.edge_weight(e);
           map[b] += weight;
           is_interface_node |= graph.is_ghost_node(v);
-        }
+        });
 
         const BlockID u_block = _p_graph.block(u);
         const NodeWeight u_weight = graph.node_weight(u);
@@ -885,9 +885,7 @@ void ColoredLPRefiner::activate_neighbors(const NodeID u) {
     return;
   }
 
-  for (const auto &[e, v] : _p_graph.neighbors(u)) {
-    _is_active[v] = 1;
-  }
+  _p_graph.adjacent_nodes(u, [&](const NodeID v) { _is_active[v] = 1; });
 }
 
 void ColoredLPRefiner::GainStatistics::initialize(const ColorID c) {

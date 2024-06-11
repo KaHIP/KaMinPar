@@ -68,7 +68,7 @@ allgather_graph(const DistributedPartitionedGraph &p_graph) {
   return {std::move(shm_graph), std::move(shm_p_graph)};
 }
 
-shm::Graph replicate_graph_everywhere(const DistributedGraph &graph) {
+shm::Graph replicate_graph_everywhere(const DistributedCSRGraph &graph) {
   KASSERT(
       graph.global_n() < std::numeric_limits<NodeID>::max(),
       "number of nodes exceeds int size",
@@ -84,9 +84,9 @@ shm::Graph replicate_graph_everywhere(const DistributedGraph &graph) {
   // copy edges array with global node IDs
   StaticArray<NodeID> remapped_edges(graph.m());
   graph.pfor_nodes([&](const NodeID u) {
-    for (const auto [e, v] : graph.neighbors(u)) {
+    graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
       remapped_edges[e] = graph.local_to_global_node(v);
-    }
+    });
   });
 
   // gather graph
@@ -193,7 +193,18 @@ shm::Graph replicate_graph_everywhere(const DistributedGraph &graph) {
   )};
 }
 
-DistributedGraph replicate_graph(const DistributedGraph &graph, const int num_replications) {
+shm::Graph replicate_graph_everywhere(const DistributedGraph &graph) {
+  const AbstractDistributedGraph *underlying_graph = graph.underlying_graph();
+
+  if (const auto *csr_graph = dynamic_cast<const DistributedCSRGraph *>(graph.underlying_graph());
+      csr_graph != nullptr) {
+    return replicate_graph_everywhere(*csr_graph);
+  }
+
+  __builtin_unreachable();
+}
+
+DistributedGraph replicate_graph(const DistributedCSRGraph &graph, const int num_replications) {
   const PEID size = mpi::get_comm_size(graph.communicator());
   const PEID rank = mpi::get_comm_rank(graph.communicator());
 
@@ -246,9 +257,8 @@ DistributedGraph replicate_graph(const DistributedGraph &graph, const int num_re
   // Create edges array with global node IDs
   const GlobalEdgeID my_tmp_global_edges_offset = edges_displs[primary_rank];
   NoinitVector<GlobalNodeID> tmp_global_edges(edges_displs.back() + secondary_num_edges);
-  graph.pfor_edges([&](const EdgeID e) {
-    tmp_global_edges[my_tmp_global_edges_offset + e] =
-        graph.local_to_global_node(graph.edge_target(e));
+  graph.pfor_edges([&](const EdgeID e, const NodeID v) {
+    tmp_global_edges[my_tmp_global_edges_offset + e] = graph.local_to_global_node(v);
   });
 
   const bool is_node_weighted =
@@ -419,7 +429,7 @@ DistributedGraph replicate_graph(const DistributedGraph &graph, const int num_re
     DBG << "Have mapping " << k << " --> " << v;
   }
 
-  DistributedGraph new_graph(
+  DistributedGraph new_graph(std::make_unique<DistributedCSRGraph>(
       std::move(node_distribution),
       std::move(edge_distribution),
       std::move(nodes),
@@ -431,7 +441,7 @@ DistributedGraph replicate_graph(const DistributedGraph &graph, const int num_re
       std::move(ghost_node_info.global_to_ghost),
       false,
       new_comm
-  );
+  ));
 
   // Fix weights of ghost nodes
   if (is_node_weighted) {
@@ -446,6 +456,17 @@ DistributedGraph replicate_graph(const DistributedGraph &graph, const int num_re
   }
 
   return new_graph;
+}
+
+DistributedGraph replicate_graph(const DistributedGraph &graph, const int num_replications) {
+  const AbstractDistributedGraph *underlying_graph = graph.underlying_graph();
+
+  if (const auto *csr_graph = dynamic_cast<const DistributedCSRGraph *>(graph.underlying_graph());
+      csr_graph != nullptr) {
+    return replicate_graph(*csr_graph, num_replications);
+  }
+
+  __builtin_unreachable();
 }
 
 DistributedPartitionedGraph

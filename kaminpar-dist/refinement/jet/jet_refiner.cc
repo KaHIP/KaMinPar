@@ -306,7 +306,7 @@ void JetRefiner::filter_bad_moves() {
 
     EdgeWeight projected_gain = 0;
 
-    for (const auto &[e, v] : _p_graph.neighbors(u)) {
+    _p_graph.neighbors(u, [&, gain_u = gain_u, to_u = to_u](const EdgeID e, const NodeID v) {
       const auto [gain_v, to_v] = _gains_and_targets[v];
       const BlockID projected_b_v =
           (gain_v > gain_u || (gain_v == gain_u && v < u)) ? to_v : _p_graph.block(v);
@@ -316,7 +316,7 @@ void JetRefiner::filter_bad_moves() {
       } else if (projected_b_v == from_u) {
         projected_gain -= _p_graph.edge_weight(e);
       }
-    }
+    });
 
     // Locking the node here means that the move
     // will be executed by move_locked_nodes()
