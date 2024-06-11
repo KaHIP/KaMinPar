@@ -376,6 +376,7 @@ if(DEFINED ENV{JL_DIR})
 else()
     execute_process(COMMAND julia -e "print(joinpath(Sys.BINDIR, Base.DATAROOTDIR, \"julia\"))" OUTPUT_VARIABLE JL_SHARE)
 endif()
+
 message(STATUS "JL_SHARE: ${JL_SHARE}")
 execute_process(COMMAND $(JL_SHARE)/julia-config.jl --cflags OUTPUT_VARIABLE JL_CFLAGS)
 execute_process(COMMAND $(JL_SHARE)/julia-config.jl --ldflags OUTPUT_VARIABLE JL_LDFLAGS)
