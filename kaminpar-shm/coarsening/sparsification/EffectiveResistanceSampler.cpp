@@ -9,6 +9,7 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
     namespace kaminpar::shm::sparsification {
   EffectiveResistanceSampler::EffectiveResistanceSampler() {
     jl_init();
+    jl_eval_string(JL_LAPLACIANS_ADAPTER_CODE);
   }
 
   EffectiveResistanceSampler::~EffectiveResistanceSampler() {
@@ -93,8 +94,6 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
     return sample;
   }
   EffectiveResistanceSampler::IJVMatrix EffectiveResistanceSampler::sparsify_in_julia(IJVMatrix & a) {
-    jl_eval_string(JL_LAPLACIANS_ADAPTER_CODE);
-
     jl_array_t *jl_I = nullptr;
     jl_array_t *jl_J = nullptr;
     jl_array_t *jl_V = nullptr;
