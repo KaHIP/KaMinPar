@@ -9,7 +9,6 @@
 
 #include "contraction/cluster_contraction_preprocessing.h"
 #include "sparsification/DensitySparsificationTarget.h"
-#include "sparsification/ForestFireSampler.h"
 #include "sparsification/UniformRandomSampler.h"
 
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"

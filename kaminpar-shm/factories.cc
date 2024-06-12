@@ -30,7 +30,6 @@
 
 #include "coarsening/sparsification/DensitySparsificationTarget.h"
 #include "coarsening/sparsification/EdgeReductionSparsificationTarget.h"
-#include "coarsening/sparsification/ForestFireSampler.h"
 #include "coarsening/sparsification/NetworKitScoreAdapter.h"
 #include "coarsening/sparsification/ThresholdSampler.h"
 #include "coarsening/sparsification/UniformRandomSampler.h"
@@ -114,6 +113,17 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
     return std::make_unique<sparsification::kNeighbourSampler>();
   case SparsificationAlgorithm::K_NEIGHBOUR_SPANNING_TREE:
     return std::make_unique<sparsification::kNeighbourSampler>(true);
+  case SparsificationAlgorithm::WEIGHT_THRESHOLD:
+    class WeightFunction : public sparsification::ScoreFunction<EdgeWeight> {
+    public:
+      StaticArray<EdgeWeight> scores(const CSRGraph &g) override {
+        return StaticArray<EdgeWeight>(g.raw_edge_weights().begin(), g.raw_edge_weights().end());
+      };
+    };
+    return std::make_unique<sparsification::ThresholdSampler<EdgeWeight>>(
+        std::make_unique<WeightFunction>(),
+        std::make_unique<sparsification::IdentityReweihingFunction<EdgeWeight>>()
+    );
   }
 
   __builtin_unreachable();

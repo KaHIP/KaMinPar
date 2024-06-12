@@ -129,7 +129,8 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
   - random, rn: uniform random sampling
   - forest-fire, ff: sampling by forest fire scores
   - k-neighbour, kn: k-Neighbour sampling
-  - k-neighbour-spanning-tree, kn-st: k-Neighbour sampling with spanning tree)")
+  - k-neighbour-spanning-tree, kn-st: k-Neighbour sampling with spanning tree
+  - weight-theshold, wt: sample egdes with weights above threshold)")
       ->capture_default_str();
 
   coarsening->add_option("--s-target", ctx.coarsening.sparsification_target)
