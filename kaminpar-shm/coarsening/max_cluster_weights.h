@@ -39,6 +39,10 @@ NodeWeight compute_max_cluster_weight(
   case ClusterWeightLimit::ZERO:
     max_cluster_weight = 0.0;
     break;
+
+  case ClusterWeightLimit::AVERAGE_NODE_WEIGHT:
+    max_cluster_weight = static_cast<NodeWeight>(total_node_weight / n);
+    break;
   }
 
   return static_cast<NodeWeight>(max_cluster_weight * c_ctx.clustering.cluster_weight_multiplier);
@@ -69,6 +73,10 @@ NodeWeight compute_max_cluster_weight(
 
   case ClusterWeightLimit::ZERO:
     max_cluster_weight = 0.0;
+    break;
+
+  case ClusterWeightLimit::AVERAGE_NODE_WEIGHT:
+    max_cluster_weight = static_cast<NodeWeight>(total_node_weight / n);
     break;
   }
 

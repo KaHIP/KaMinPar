@@ -21,6 +21,7 @@
 #include "kaminpar-shm/coarsening/clustering/noop_clusterer.h"
 
 // Coarsening
+#include "kaminpar-shm/coarsening/balanced_coarsener.h"
 #include "kaminpar-shm/coarsening/cluster_coarsener.h"
 #include "kaminpar-shm/coarsening/noop_coarsener.h"
 
@@ -77,6 +78,9 @@ std::unique_ptr<Coarsener> create_coarsener(const Context &ctx, const PartitionC
 
   case CoarseningAlgorithm::CLUSTERING:
     return std::make_unique<ClusteringCoarsener>(ctx, p_ctx);
+    
+  case CoarseningAlgorithm::BALANCED:
+    return std::make_unique<BalancedCoarsener>(ctx, p_ctx);
   }
 
   __builtin_unreachable();

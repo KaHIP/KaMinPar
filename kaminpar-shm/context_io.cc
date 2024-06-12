@@ -67,6 +67,7 @@ std::unordered_map<std::string, CoarseningAlgorithm> get_coarsening_algorithms()
   return {
       {"noop", CoarseningAlgorithm::NOOP},
       {"clustering", CoarseningAlgorithm::CLUSTERING},
+      {"balanced", CoarseningAlgorithm::BALANCED},
   };
 }
 
@@ -76,6 +77,8 @@ std::ostream &operator<<(std::ostream &out, const CoarseningAlgorithm algorithm)
     return out << "noop";
   case CoarseningAlgorithm::CLUSTERING:
     return out << "clustering";
+  case CoarseningAlgorithm::BALANCED:
+    return out << "balanced";
   }
 
   return out << "<invalid>";
@@ -108,6 +111,7 @@ std::unordered_map<std::string, ClusterWeightLimit> get_cluster_weight_limits() 
       {"static-block-weight", ClusterWeightLimit::BLOCK_WEIGHT},
       {"one", ClusterWeightLimit::ONE},
       {"zero", ClusterWeightLimit::ZERO},
+      {"average-node-weight", ClusterWeightLimit::AVERAGE_NODE_WEIGHT},
   };
 }
 
@@ -121,6 +125,8 @@ std::ostream &operator<<(std::ostream &out, const ClusterWeightLimit limit) {
     return out << "one";
   case ClusterWeightLimit::ZERO:
     return out << "zero";
+  case ClusterWeightLimit::AVERAGE_NODE_WEIGHT:
+    return out << "average-node-weight";
   }
   return out << "<invalid>";
 }

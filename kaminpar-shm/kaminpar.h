@@ -80,6 +80,7 @@ enum class EdgeOrdering {
 enum class CoarseningAlgorithm {
   NOOP,
   CLUSTERING,
+  BALANCED,
 };
 
 enum class ClusteringAlgorithm {
@@ -93,6 +94,7 @@ enum class ClusterWeightLimit {
   BLOCK_WEIGHT,
   ONE,
   ZERO,
+  AVERAGE_NODE_WEIGHT,
 };
 
 enum class ClusterWeightsStructure {
