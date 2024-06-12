@@ -25,9 +25,14 @@
 #include "kaminpar-shm/coarsening/noop_coarsener.h"
 
 // Refinement
+#include <networkit/auxiliary/Multiprecision.hpp>
+#include <networkit/sparsification/ForestFireScore.hpp>
+
 #include "coarsening/sparsification/DensitySparsificationTarget.h"
 #include "coarsening/sparsification/EdgeReductionSparsificationTarget.h"
 #include "coarsening/sparsification/ForestFireSampler.h"
+#include "coarsening/sparsification/NetworKitScoreAdapter.h"
+#include "coarsening/sparsification/ThresholdSampler.h"
 #include "coarsening/sparsification/UniformRandomSampler.h"
 #include "coarsening/sparsification/kNeighbourSampler.h"
 #include "coarsening/sparsifing_cluster_coarsener.h"
@@ -95,7 +100,14 @@ std::unique_ptr<Coarsener> create_coarsener(const Context &ctx, const PartitionC
 std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
   switch (ctx.coarsening.sparsification_algorithm) {
   case SparsificationAlgorithm::FOREST_FIRE:
-    return std::make_unique<sparsification::ForestFireSampler>(0.1, 30);
+    return std::make_unique<sparsification::ThresholdSampler<double>>(
+        std::make_unique<sparsification::NetworKitScoreAdapter<double>>(
+            sparsification::NetworKitScoreAdapter<double>([](NetworKit::Graph g) {
+              return NetworKit::ForestFireScore(g, 0.95, 5);
+            })
+        ),
+        std::make_unique<sparsification::IdentityReweihingFunction<double>>()
+    );
   case SparsificationAlgorithm::UNIFORM_RANDOM_SAMPLING:
     return std::make_unique<sparsification::UniformRandomSampler>();
   case SparsificationAlgorithm::K_NEIGHBOUR:

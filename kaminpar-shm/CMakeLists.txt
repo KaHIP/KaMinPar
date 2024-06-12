@@ -6,8 +6,6 @@ add_library(kaminpar_shm ${KAMINPAR_SHM_SOURCE_FILES}
         coarsening/sparsification/UniformRandomSampler.cpp
         coarsening/sparsification/UniformRandomSampler.h
         coarsening/sparsifing_cluster_coarsener.h
-        coarsening/sparsification/ForestFireSampler.cpp
-        coarsening/sparsification/ForestFireSampler.h
         coarsening/sparsification/networkit_utils.cpp
         coarsening/sparsification/networkit_utils.h
         coarsening/sparsification/SparsificationTarget.h
@@ -19,9 +17,10 @@ add_library(kaminpar_shm ${KAMINPAR_SHM_SOURCE_FILES}
         coarsening/sparsification/UnionFind.h
         coarsening/sparsification/sparsification_utils.cpp
         coarsening/sparsification/sparsification_utils.h
-        coarsening/sparsification/ThresholdSampler.cpp
         coarsening/sparsification/ThresholdSampler.h
-        coarsening/sparsification/ScoreBacedSampler.h)
+        coarsening/sparsification/ScoreBacedSampler.h
+        coarsening/sparsification/NetworKitScoreAdapter.cpp
+        coarsening/sparsification/NetworKitScoreAdapter.h)
 target_include_directories(kaminpar_shm PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../")
 target_link_libraries(kaminpar_shm PUBLIC kaminpar_common networkit)
 
