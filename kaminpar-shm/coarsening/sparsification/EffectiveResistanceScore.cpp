@@ -2,21 +2,23 @@
 // Created by badger on 5/19/24.
 //
 
-#include "EffectiveResistanceSampler.h"
+#include "EffectiveResistanceScore.h"
+
+#include "sparsification_utils.h"
 JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a shared library) if you
                       // want fast code.
 
     namespace kaminpar::shm::sparsification {
-  EffectiveResistanceSampler::EffectiveResistanceSampler() {
+  EffectiveResistanceScore::EffectiveResistanceScore() {
     jl_init();
     jl_eval_string(JL_LAPLACIANS_ADAPTER_CODE);
   }
 
-  EffectiveResistanceSampler::~EffectiveResistanceSampler() {
+  EffectiveResistanceScore::~EffectiveResistanceScore() {
     jl_atexit_hook(0);
   }
 
-  void EffectiveResistanceSampler::print_jl_exception() {
+  void EffectiveResistanceScore::print_jl_exception() {
     jl_value_t *exception = jl_exception_occurred();
     jl_value_t *sprint_fun = jl_get_function(jl_main_module, "sprint");
     jl_value_t *showerror_fun = jl_get_function(jl_main_module, "showerror");
@@ -32,68 +34,59 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
     jl_exception_clear();
     JL_GC_POP();
   }
-  EffectiveResistanceSampler::IJVMatrix EffectiveResistanceSampler::encode_as_ijv(const CSRGraph &g) {
+  EffectiveResistanceScore::IJVMatrix EffectiveResistanceScore::encode_as_ijv(const CSRGraph &g
+  ) {
     // Encode ajacency matrix in csc fromat: A[I[n],J[n]] = V[n] and all other entries are zero
     IJVMatrix a = alloc_ijv(g.m());
-    for (NodeID source : g.nodes()) {
-      for (EdgeID edge : g.incident_edges(source)) {
-        NodeID target = g.edge_target(edge);
-        // Julia is 1-indexed
-        a.i[edge] = source + 1;
-        a.j[edge] = target + 1;
-        a.v[edge] = g.edge_weight(edge);
-      }
-    }
+    utils::for_edges_with_endpoints(g, [&](EdgeID edge, NodeID source, NodeID target) {
+      // Julia is 1-indexed
+      a.i[edge] = source + 1;
+      a.j[edge] = target + 1;
+      a.v[edge] = g.edge_weight(edge);
+    });
     a.m = g.m();
     return a;
   }
 
-  StaticArray<EdgeWeight> EffectiveResistanceSampler::extract_sample(
+  StaticArray<double> EffectiveResistanceScore::extract_scores(
       const CSRGraph &g, IJVMatrix &sparsifyer
   ) {
-    auto sampled_edges = StaticArray<std::tuple<NodeID, NodeID, EdgeWeight>>(sparsifyer.m);
+    auto endpoint_with_scores = StaticArray<std::tuple<NodeID, NodeID, double>>(sparsifyer.m);
     for (size_t k = 0; k < sparsifyer.m; k++) {
-      sampled_edges[k] = std::make_tuple(
+      endpoint_with_scores[k] = std::make_tuple(
           // Back to 0-based indexing
           sparsifyer.i[k] - 1,
           sparsifyer.j[k] - 1,
           static_cast<EdgeWeight>(sparsifyer.v[k])
       );
     }
-    std::sort(sampled_edges.begin(), sampled_edges.end(), [&](const auto &a, const auto &b) {
-      return std::get<0>(a) < std::get<0>(b) ||
-             (std::get<0>(a) == std::get<0>(b) && std::get<1>(a) < std::get<1>(b));
-    });
-    auto sample = StaticArray<EdgeWeight>(g.m(), 0);
-
-    auto sorted_by_target_permutation = StaticArray<EdgeID>(g.m());
-    for (EdgeID e : g.edges())
-      sorted_by_target_permutation[e] = e;
-    for (NodeID u : g.nodes()) {
-      std::sort(
-          sorted_by_target_permutation.begin() + g.raw_nodes()[u],
-          sorted_by_target_permutation.begin() + g.raw_nodes()[u + 1],
-          [&](const EdgeID e1, const EdgeID e2) { return g.edge_target(e1) <= g.edge_target(e2); }
-      );
-    }
-    size_t k = 0;
-    for (NodeID u : g.nodes()) {
-      if (k == sparsifyer.m)
-        break;
-      for (EdgeID i : g.incident_edges(u)) {
-        EdgeID e = sorted_by_target_permutation[i];
-        NodeID v = g.edge_target(e);
-        auto [x, y, w] = sampled_edges[k];
-        if (u == x && v == y) {
-          sample[e] = w;
-          k++;
+    std::sort(
+        endpoint_with_scores.begin(),
+        endpoint_with_scores.end(),
+        [&](const auto &a, const auto &b) {
+          return std::get<0>(a) < std::get<0>(b) ||
+                 (std::get<0>(a) == std::get<0>(b) && std::get<1>(a) < std::get<1>(b));
         }
+    );
+
+    auto scores = StaticArray<double>(g.m(), 0);
+
+    auto sorted_by_target_permutation = utils::sort_by_traget(g);
+    for (NodeID u : g.nodes()) {
+      for (EdgeID i : g.incident_edges(u)) {
+        auto [x, y, w] = endpoint_with_scores[i];
+
+        EdgeID e = sorted_by_target_permutation[i];
+        KASSERT(u == x && g.edge_target(e) == y, "julia edges don't match c++ edges");
+
+        scores[e] = w;
       }
     }
-    KASSERT(k == sparsifyer.m, "Not alle sampled edges were added to sample!", assert::always);
-    return sample;
+    return scores;
   }
-  EffectiveResistanceSampler::IJVMatrix EffectiveResistanceSampler::sparsify_in_julia(IJVMatrix & a) {
+  EffectiveResistanceScore::IJVMatrix EffectiveResistanceScore::sparsify_in_julia(
+      IJVMatrix & a
+  ) {
     jl_array_t *jl_I = nullptr;
     jl_array_t *jl_J = nullptr;
     jl_array_t *jl_V = nullptr;
@@ -132,18 +125,16 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
     return sparsifyer;
   }
 
-  StaticArray<EdgeWeight> EffectiveResistanceSampler::sample(
-      const CSRGraph &g, EdgeID target_edge_amount
-  ) {
+  StaticArray<double> EffectiveResistanceScore::scores(const CSRGraph &g) {
     IJVMatrix a = encode_as_ijv(g);
     IJVMatrix sparsifyer = sparsify_in_julia(a);
     free_ijv(a);
-    auto sample = extract_sample(g, sparsifyer);
+    auto sample = extract_scores(g, sparsifyer);
     // The sample is freed by the julia garbage collector (hopefully)
     return sample;
   }
 
-  EffectiveResistanceSampler::IJVMatrix EffectiveResistanceSampler::alloc_ijv(EdgeID m) {
+  EffectiveResistanceScore::IJVMatrix EffectiveResistanceScore::alloc_ijv(EdgeID m) {
     return IJVMatrix(
         (int64_t *)malloc(sizeof(int64_t) * m),
         (int64_t *)malloc(sizeof(int64_t) * m),
@@ -151,7 +142,7 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
         m
     );
   }
-  void EffectiveResistanceSampler::free_ijv(IJVMatrix & a) {
+  void EffectiveResistanceScore::free_ijv(IJVMatrix & a) {
     free(a.i);
     free(a.j);
     free(a.v);

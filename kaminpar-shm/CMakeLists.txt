@@ -21,7 +21,7 @@ add_library(kaminpar_shm ${KAMINPAR_SHM_SOURCE_FILES}
         coarsening/sparsification/ScoreBacedSampler.h
         coarsening/sparsification/NetworKitScoreAdapter.cpp
         coarsening/sparsification/NetworKitScoreAdapter.h
-        coarsening/sparsification/EffectiveResistanceSampler.cpp)
+        coarsening/sparsification/EffectiveResistanceScore.cpp)
 target_include_directories(kaminpar_shm PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../")
 target_link_libraries(kaminpar_shm PUBLIC kaminpar_common networkit)
 

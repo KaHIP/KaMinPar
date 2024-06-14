@@ -88,7 +88,8 @@ enum class SparsificationAlgorithm {
   FOREST_FIRE,
   K_NEIGHBOUR,
   K_NEIGHBOUR_SPANNING_TREE,
-  WEIGHT_THRESHOLD
+  WEIGHT_THRESHOLD,
+  EFFECTIVE_RESISTANCE,
 };
 
 enum class SparsificationTargetSelection {

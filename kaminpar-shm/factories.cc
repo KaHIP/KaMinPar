@@ -30,6 +30,7 @@
 
 #include "coarsening/sparsification/DensitySparsificationTarget.h"
 #include "coarsening/sparsification/EdgeReductionSparsificationTarget.h"
+#include "coarsening/sparsification/EffectiveResistanceScore.h"
 #include "coarsening/sparsification/NetworKitScoreAdapter.h"
 #include "coarsening/sparsification/ThresholdSampler.h"
 #include "coarsening/sparsification/UniformRandomSampler.h"
@@ -123,6 +124,11 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
     return std::make_unique<sparsification::ThresholdSampler<EdgeWeight>>(
         std::make_unique<WeightFunction>(),
         std::make_unique<sparsification::IdentityReweihingFunction<EdgeWeight>>()
+    );
+  case SparsificationAlgorithm::EFFECTIVE_RESISTANCE:
+    return std::make_unique<sparsification::ThresholdSampler<double>>(
+        std::make_unique<sparsification::EffectiveResistanceScore>(),
+        std::make_unique<sparsification::IdentityReweihingFunction<double>>()
     );
   }
 

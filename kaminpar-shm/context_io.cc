@@ -83,6 +83,8 @@ std::unordered_map<std::string, SparsificationAlgorithm> get_sparsification_algo
       {"kn-st", SparsificationAlgorithm::K_NEIGHBOUR_SPANNING_TREE},
       {"weight-theshold", SparsificationAlgorithm::WEIGHT_THRESHOLD},
       {"wt", SparsificationAlgorithm::WEIGHT_THRESHOLD},
+      {"effective-resistance", SparsificationAlgorithm::EFFECTIVE_RESISTANCE},
+      {"er", SparsificationAlgorithm::EFFECTIVE_RESISTANCE},
   };
 }
 
