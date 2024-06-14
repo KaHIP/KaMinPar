@@ -44,7 +44,6 @@ EffectiveResistanceSampler::sample(const CSRGraph &g, EdgeID target_edge_amount)
   KASSERT(laplacian != nullptr, "Could not find module Laplacian in Julia.", assert::always);
 
 
-  // TODO: jl_base_module is very very likely wrong.
   jl_function_t *sparse = jl_get_function(laplacian, "sparse");
   jl_function_t *sparsify = jl_get_function(laplacian, "sparsify");
   jl_function_t *nnz = jl_get_function(laplacian, "sparsify");
