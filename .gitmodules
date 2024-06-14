@@ -10,3 +10,6 @@
 [submodule "networkit"]
 	path = networkit
 	url = https://github.com/networkit/networkit
+[submodule "Laplacians.jl"]
+	path = Laplacians.jl
+	url = git@github.com:danspielman/Laplacians.jl.git
