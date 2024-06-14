@@ -47,6 +47,7 @@ void SparsifyingClusteringCoarsener::initialize(const Graph *graph) {
 CSRGraph
 SparsifyingClusteringCoarsener::sparsify(const CSRGraph &g, StaticArray<EdgeWeight> sample) {
   auto nodes = StaticArray<EdgeID>(g.n() + 1);
+  nodes[0] = 0;
   for (NodeID v : g.nodes()) {
     for (EdgeID e : g.incident_edges(v)) {
       NodeID u = g.edge_target(e);
