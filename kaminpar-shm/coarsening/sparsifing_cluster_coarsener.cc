@@ -10,6 +10,7 @@
 #include "contraction/cluster_contraction_preprocessing.h"
 #include "sparsification/DensitySparsificationTarget.h"
 #include "sparsification/UniformRandomSampler.h"
+#include "sparsification/sparsification_utils.h"
 
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"
 #include "kaminpar-shm/coarsening/max_cluster_weights.h"
@@ -48,34 +49,28 @@ CSRGraph
 SparsifyingClusteringCoarsener::sparsify(const CSRGraph &g, StaticArray<EdgeWeight> sample) {
   auto nodes = StaticArray<EdgeID>(g.n() + 1);
   nodes[0] = 0;
-  for (NodeID v : g.nodes()) {
-    for (EdgeID e : g.incident_edges(v)) {
-      NodeID u = g.edge_target(e);
-      if (v < u && sample[e]) {
-        nodes[v + 1]++;
-        nodes[u + 1]++;
-      }
+  sparsification::utils::for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
+    if (u < v && sample[e]) {
+      nodes[u + 1]++;
+      nodes[v + 1]++;
     }
-  }
+  });
   parallel::prefix_sum(nodes.begin(), nodes.end(), nodes.begin());
 
   auto edges_added = StaticArray<EdgeID>(g.n(), 0);
   auto edges = StaticArray<NodeID>(nodes[g.n()]);
   auto edge_weights = StaticArray<EdgeWeight>(nodes[g.n()]);
 
-  for (NodeID v : g.nodes()) {
-    for (EdgeID e : g.incident_edges(v)) {
-      NodeID u = g.edge_target(e);
-      if (v < u && sample[e]) {
-        edges[nodes[v] + edges_added[v]] = u;
-        edges[nodes[u] + edges_added[u]] = v;
-        edge_weights[nodes[v] + edges_added[v]] = sample[e];
-        edge_weights[nodes[u] + edges_added[u]] = sample[e];
-        edges_added[v]++;
-        edges_added[u]++;
-      }
+  sparsification::utils::for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
+    if (u < v && sample[e]) {
+      edges[nodes[v] + edges_added[v]] = u;
+      edges[nodes[u] + edges_added[u]] = v;
+      edge_weights[nodes[v] + edges_added[v]] = sample[e];
+      edge_weights[nodes[u] + edges_added[u]] = sample[e];
+      edges_added[v]++;
+      edges_added[u]++;
     }
-  }
+  });
 
   return CSRGraph(
       std::move(nodes),
