@@ -38,11 +38,13 @@ struct LPRefinerConfig : public LabelPropagationConfig {
   static constexpr bool kUseLocalActiveSetStrategy = true;
 };
 
-class LPRefinerImpl final : public ChunkRandomdLabelPropagation<LPRefinerImpl, LPRefinerConfig> {
+template <typename Graph>
+class LPRefinerImpl final
+    : public ChunkRandomdLabelPropagation<LPRefinerImpl<Graph>, LPRefinerConfig, Graph> {
   SET_STATISTICS_FROM_GLOBAL();
   SET_DEBUG(false);
 
-  using Base = ChunkRandomdLabelPropagation<LPRefinerImpl, LPRefinerConfig>;
+  using Base = ChunkRandomdLabelPropagation<LPRefinerImpl<Graph>, LPRefinerConfig, Graph>;
   using Config = LPRefinerConfig;
 
   struct Statistics {
@@ -123,27 +125,28 @@ public:
         _next_partition(p_graph.n()),
         _gains(p_graph.n()),
         _block_weights(p_graph.k()) {
-    set_max_degree(_lp_ctx.active_high_degree_threshold);
-    allocate(p_graph.total_n(), p_graph.n(), p_graph.k());
+    Base::set_max_degree(_lp_ctx.active_high_degree_threshold);
+    Base::allocate(p_graph.total_n(), p_graph.n(), p_graph.k());
   }
 
-  void refine(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
+  void
+  refine(const Graph &graph, DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
     SCOPED_TIMER("LP Refinement");
     _p_graph = &p_graph;
     _p_ctx = &p_ctx;
 
     // no of local nodes might increase on some PEs
     START_TIMER("Allocation");
-    if (_next_partition.size() < p_graph.n()) {
-      _next_partition.resize(p_graph.n());
+    if (_next_partition.size() < graph.n()) {
+      _next_partition.resize(graph.n());
     }
-    if (_gains.size() < p_graph.n()) {
-      _gains.resize(p_graph.n());
+    if (_gains.size() < graph.n()) {
+      _gains.resize(graph.n());
     }
-    allocate(p_graph.total_n(), p_graph.n(), _block_weights.size());
+    Base::allocate(graph.total_n(), graph.n(), _block_weights.size());
     STOP_TIMER();
 
-    Base::initialize(&p_graph.graph(), _p_ctx->k); // needs access to _p_graph
+    Base::initialize(&graph, _p_ctx->k);
 
     IFSTATS(_statistics = Statistics{_p_graph->communicator()});
     IFSTATS(_statistics.cut_before = metrics::edge_cut(*_p_graph));
@@ -153,7 +156,7 @@ public:
     for (int iteration = 0; iteration < _lp_ctx.num_iterations; ++iteration) {
       GlobalNodeID num_moved_nodes = 0;
       for (int chunk = 0; chunk < num_chunks; ++chunk) {
-        const auto [from, to] = math::compute_local_range<NodeID>(_p_graph->n(), num_chunks, chunk);
+        const auto [from, to] = math::compute_local_range<NodeID>(graph.n(), num_chunks, chunk);
         num_moved_nodes += process_chunk(from, to);
       }
       if (num_moved_nodes == 0) {
@@ -175,7 +178,7 @@ private:
 
     // run label propagation
     START_TIMER("Label propagation");
-    const NodeID num_moved_nodes = perform_iteration(from, to);
+    const NodeID num_moved_nodes = Base::perform_iteration(from, to);
     const auto global_num_moved_nodes =
         mpi::allreduce<GlobalNodeID>(num_moved_nodes, MPI_SUM, _graph->communicator());
     STOP_TIMER();
@@ -189,13 +192,13 @@ private:
     parallel::vector_ets<BlockWeight> weight_to_block_ets(_p_ctx->k);
     parallel::vector_ets<EdgeWeight> gain_to_block_ets(_p_ctx->k);
 
-    _p_graph->pfor_nodes_range(from, to, [&](const auto r) {
+    _graph->pfor_nodes_range(from, to, [&](const auto r) {
       auto &weight_to_block = weight_to_block_ets.local();
       auto &gain_to_block = gain_to_block_ets.local();
 
       for (NodeID u = r.begin(); u < r.end(); ++u) {
         if (_p_graph->block(u) != _next_partition[u]) {
-          weight_to_block[_next_partition[u]] += _p_graph->node_weight(u);
+          weight_to_block[_next_partition[u]] += _graph->node_weight(u);
           gain_to_block[_next_partition[u]] += _gains[u];
         }
       }
@@ -234,9 +237,7 @@ private:
       }
     }
     synchronize_state(from, to);
-    _p_graph->pfor_nodes(from, to, [&](const NodeID u) {
-      _next_partition[u] = _p_graph->block(u);
-    });
+    _graph->pfor_nodes(from, to, [&](const NodeID u) { _next_partition[u] = _p_graph->block(u); });
     STOP_TIMER();
 
     // _next_partition should be in a consistent state at this point
@@ -271,7 +272,7 @@ private:
 
     tbb::concurrent_vector<Move> moves;
 
-    _p_graph->pfor_nodes_range(from, to, [&](const auto &r) {
+    _graph->pfor_nodes_range(from, to, [&](const auto &r) {
       auto &rand = Random::instance();
 
       for (NodeID u = r.begin(); u < r.end(); ++u) {
@@ -291,7 +292,7 @@ private:
             _lp_ctx.ignore_probabilities
                 ? 1.0
                 : gain_prob *
-                      (static_cast<double>(residual_block_weights[b]) / _p_graph->node_weight(u));
+                      (static_cast<double>(residual_block_weights[b]) / _graph->node_weight(u));
         IFSTATS(_statistics.expected_gain += probability * _gains[u]);
 
         // perform move with probability
@@ -300,7 +301,7 @@ private:
 
           const BlockID from = _p_graph->block(u);
           const BlockID to = _next_partition[u];
-          const NodeWeight u_weight = _p_graph->node_weight(u);
+          const NodeWeight u_weight = _graph->node_weight(u);
 
           moves.emplace_back(u, from);
           __atomic_fetch_sub(&block_weight_deltas[from], u_weight, __ATOMIC_RELAXED);
@@ -320,9 +321,7 @@ private:
     });
 
     // compute global block weights after moves
-    mpi::inplace_sparse_allreduce(
-        block_weight_deltas, _p_ctx->k, MPI_SUM, _p_graph->communicator()
-    );
+    mpi::inplace_sparse_allreduce(block_weight_deltas, _p_ctx->k, MPI_SUM, _graph->communicator());
 
     // check for balance violations
     parallel::Atomic<std::uint8_t> feasible = 1;
@@ -399,8 +398,8 @@ private:
               [&](const std::size_t i) {
                 const auto [local_node_on_pe, new_block] = recv_buffer[i];
                 const auto global_node =
-                    static_cast<GlobalNodeID>(_p_graph->offset_n(pe) + local_node_on_pe);
-                const NodeID local_node = _p_graph->global_to_local_node(global_node);
+                    static_cast<GlobalNodeID>(_graph->offset_n(pe) + local_node_on_pe);
+                const NodeID local_node = _graph->global_to_local_node(global_node);
                 KASSERT(new_block != _p_graph->block(local_node)); // otherwise, we should not
                                                                    // have gotten this message
 
@@ -422,17 +421,17 @@ public:
   }
 
   [[nodiscard]] BlockID initial_cluster(const NodeID u) {
-    KASSERT(u < _p_graph->n());
+    KASSERT(u < _graph->n());
     return _p_graph->block(u);
   }
 
   [[nodiscard]] BlockID cluster(const NodeID u) {
-    KASSERT(u < _p_graph->total_n());
-    return _p_graph->is_owned_node(u) ? _next_partition[u] : _p_graph->block(u);
+    KASSERT(u < _graph->total_n());
+    return _graph->is_owned_node(u) ? _next_partition[u] : _p_graph->block(u);
   }
 
   void move_node(const NodeID u, const BlockID b) {
-    KASSERT(u < _p_graph->n());
+    KASSERT(u < _graph->n());
     _next_partition[u] = b;
   }
 
@@ -477,7 +476,7 @@ public:
   }
 
   [[nodiscard]] bool activate_neighbor(const NodeID u) {
-    return u < _p_graph->n();
+    return u < _graph->n();
   }
 
 private:
@@ -496,6 +495,8 @@ private:
   }
 #endif
 
+  using Base::_graph;
+
   const LabelPropagationRefinementContext &_lp_ctx;
   const ParallelContext &_par_ctx;
 
@@ -507,6 +508,27 @@ private:
   ScalableVector<parallel::Atomic<BlockWeight>> _block_weights;
 
   Statistics _statistics;
+};
+
+class LPRefinerImplWrapper {
+public:
+  LPRefinerImplWrapper(const Context &ctx, DistributedPartitionedGraph &p_graph)
+      : _csr_impl(std::make_unique<LPRefinerImpl<DistributedCSRGraph>>(ctx, p_graph)),
+        _compressed_impl(std::make_unique<LPRefinerImpl<DistributedCompressedGraph>>(ctx, p_graph)
+        ) {}
+
+  void refine(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
+    p_graph.reified(
+        [&](const DistributedCSRGraph &csr_graph) { _csr_impl->refine(csr_graph, p_graph, p_ctx); },
+        [&](const DistributedCompressedGraph &compressed_graph) {
+          _compressed_impl->refine(compressed_graph, p_graph, p_ctx);
+        }
+    );
+  }
+
+private:
+  std::unique_ptr<LPRefinerImpl<DistributedCSRGraph>> _csr_impl;
+  std::unique_ptr<LPRefinerImpl<DistributedCompressedGraph>> _compressed_impl;
 };
 
 /*
@@ -523,7 +545,7 @@ LPRefinerFactory::create(DistributedPartitionedGraph &p_graph, const PartitionCo
 LPRefiner::LPRefiner(
     const Context &ctx, DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
 )
-    : _impl(std::make_unique<LPRefinerImpl>(ctx, p_graph)),
+    : _impl(std::make_unique<LPRefinerImplWrapper>(ctx, p_graph)),
       _p_graph(p_graph),
       _p_ctx(p_ctx) {}
 

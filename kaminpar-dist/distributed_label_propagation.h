@@ -27,8 +27,6 @@
 
 namespace kaminpar::dist {
 struct LabelPropagationConfig {
-  using Graph = DistributedGraph;
-
   // Data structure used to accumulate edge weights for gain value calculation
   using RatingMap = ::kaminpar::RatingMap<EdgeWeight, NodeID>;
 
@@ -68,7 +66,7 @@ struct LabelPropagationConfig {
  * @tparam Derived Derived class for static polymorphism.
  * @tparam Config Algorithmic configuration and data types.
  */
-template <typename Derived, typename Config> class LabelPropagation {
+template <typename Derived, typename Config, typename Graph> class LabelPropagation {
   static_assert(std::is_base_of_v<LabelPropagationConfig, Config>);
 
   SET_DEBUG(false);
@@ -76,7 +74,6 @@ template <typename Derived, typename Config> class LabelPropagation {
 
 protected:
   using RatingMap = typename Config::RatingMap;
-  using Graph = typename Config::Graph;
   using NodeID = typename Graph::NodeID;
   using NodeWeight = typename Graph::NodeWeight;
   using EdgeID = typename Graph::EdgeID;
@@ -849,15 +846,14 @@ private:
  * @tparam Derived Derived subclass for static polymorphism.
  * @tparam Config Algorithmic configuration and data types.
  */
-template <typename Derived, typename Config>
-class InOrderLabelPropagation : public LabelPropagation<Derived, Config> {
+template <typename Derived, typename Config, typename Graph>
+class InOrderLabelPropagation : public LabelPropagation<Derived, Config, Graph> {
   static_assert(std::is_base_of_v<LabelPropagationConfig, Config>);
   SET_DEBUG(true);
 
 protected:
-  using Base = LabelPropagation<Derived, Config>;
+  using Base = LabelPropagation<Derived, Config, Graph>;
 
-  using Graph = typename Base::Graph;
   using ClusterID = typename Base::ClusterID;
   using ClusterWeight = typename Base::ClusterWeight;
   using EdgeID = typename Base::EdgeID;
@@ -933,15 +929,14 @@ protected:
  * @tparam Derived Derived subclass for static polymorphism.
  * @tparam Config Algorithmic configuration and data types.
  */
-template <typename Derived, typename Config>
-class ChunkRandomdLabelPropagation : public LabelPropagation<Derived, Config> {
-  using Base = LabelPropagation<Derived, Config>;
+template <typename Derived, typename Config, typename Graph>
+class ChunkRandomdLabelPropagation : public LabelPropagation<Derived, Config, Graph> {
+  using Base = LabelPropagation<Derived, Config, Graph>;
   static_assert(std::is_base_of_v<LabelPropagationConfig, Config>);
 
   SET_DEBUG(false);
 
 protected:
-  using Graph = typename Base::Graph;
   using ClusterID = typename Base::ClusterID;
   using ClusterWeight = typename Base::ClusterWeight;
   using EdgeID = typename Base::EdgeID;

@@ -19,25 +19,32 @@ struct LocalLPClusteringConfig : public LabelPropagationConfig {
   static constexpr bool kUseTwoHopClustering = true;
 };
 
-class LocalLPClusteringImpl final
-    : public ChunkRandomdLabelPropagation<LocalLPClusteringImpl, LocalLPClusteringConfig>,
-      public NonatomicClusterVectorRef<NodeID, NodeID>,
-      public OwnedRelaxedClusterWeightVector<NodeID, NodeWeight> {
+template <typename Graph>
+class LocalLPClusteringImpl final : public ChunkRandomdLabelPropagation<
+                                        LocalLPClusteringImpl<Graph>,
+                                        LocalLPClusteringConfig,
+                                        Graph>,
+                                    public NonatomicClusterVectorRef<NodeID, NodeID>,
+                                    public OwnedRelaxedClusterWeightVector<NodeID, NodeWeight> {
   SET_DEBUG(false);
 
-  using Base = ChunkRandomdLabelPropagation<LocalLPClusteringImpl, LocalLPClusteringConfig>;
+  using Base =
+      ChunkRandomdLabelPropagation<LocalLPClusteringImpl<Graph>, LocalLPClusteringConfig, Graph>;
   using ClusterBase = NonatomicClusterVectorRef<NodeID, NodeID>;
   using ClusterWeightBase = OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>;
+
+  using Config = LocalLPClusteringConfig;
+  using ClusterID = Config::ClusterID;
 
 public:
   LocalLPClusteringImpl(const NodeID max_n, const CoarseningContext &c_ctx)
       : _ignore_ghost_nodes(c_ctx.local_lp.ignore_ghost_nodes),
         _keep_ghost_clusters(c_ctx.local_lp.keep_ghost_clusters) {
-    allocate_cluster_weights(max_n);
-    allocate(max_n, max_n);
     set_max_num_iterations(c_ctx.local_lp.num_iterations);
-    set_max_degree(c_ctx.local_lp.active_high_degree_threshold);
-    set_max_num_neighbors(c_ctx.local_lp.max_num_neighbors);
+    Base::set_max_degree(c_ctx.local_lp.active_high_degree_threshold);
+    Base::set_max_num_neighbors(c_ctx.local_lp.max_num_neighbors);
+    Base::allocate(max_n, max_n);
+    ClusterWeightBase::allocate_cluster_weights(max_n);
   }
 
   void initialize(const DistributedGraph &graph) {
@@ -64,7 +71,7 @@ public:
 
     std::size_t iteration;
     for (iteration = 0; iteration < _max_num_iterations; ++iteration) {
-      if (perform_iteration() == 0) {
+      if (Base::perform_iteration() == 0) {
         break;
       }
     }
@@ -149,12 +156,42 @@ public:
   const BlockID *_partition = nullptr;
 };
 
+class LocalLPClusteringImplWrapper {
+public:
+  LocalLPClusteringImplWrapper(const NodeID max_n, const CoarseningContext &c_ctx)
+      : _csr_impl(std::make_unique<LocalLPClusteringImpl<DistributedCSRGraph>>(max_n, c_ctx)),
+        _compressed_impl(
+            std::make_unique<LocalLPClusteringImpl<DistributedCompressedGraph>>(max_n, c_ctx)
+        ) {}
+
+  void set_communities(const StaticArray<BlockID> &communities) {
+    _csr_impl->_partition = communities.data();
+    _compressed_impl->_partition = communities.data();
+  }
+
+  void clear_communities() {
+    _csr_impl->_partition = nullptr;
+    _compressed_impl->_partition = nullptr;
+  }
+
+  void set_max_cluster_weight(const GlobalNodeWeight weight) {
+    _csr_impl->set_max_cluster_weight(weight);
+    _compressed_impl->set_max_cluster_weight(weight);
+  }
+
+  void compute_clustering(StaticArray<NodeID> &clustering, const DistributedGraph &graph) {}
+
+private:
+  std::unique_ptr<LocalLPClusteringImpl<DistributedCSRGraph>> _csr_impl;
+  std::unique_ptr<LocalLPClusteringImpl<DistributedCompressedGraph>> _compressed_impl;
+};
+
 //
 // Interface
 //
 
 LocalLPClusterer::LocalLPClusterer(const Context &ctx)
-    : _impl(std::make_unique<LocalLPClusteringImpl>(
+    : _impl(std::make_unique<LocalLPClusteringImplWrapper>(
           ctx.coarsening.local_lp.ignore_ghost_nodes ? ctx.partition.graph->n
                                                      : ctx.partition.graph->total_n,
           ctx.coarsening
@@ -163,11 +200,11 @@ LocalLPClusterer::LocalLPClusterer(const Context &ctx)
 LocalLPClusterer::~LocalLPClusterer() = default;
 
 void LocalLPClusterer::set_communities(const StaticArray<BlockID> &communities) {
-  _impl->_partition = communities.data();
+  _impl->set_communities(communities);
 }
 
 void LocalLPClusterer::clear_communities() {
-  _impl->_partition = nullptr;
+  _impl->clear_communities();
 }
 
 void LocalLPClusterer::set_max_cluster_weight(GlobalNodeWeight weight) {

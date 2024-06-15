@@ -42,13 +42,13 @@ public:
   LPRefiner(LPRefiner &&) noexcept = default;
   LPRefiner &operator=(LPRefiner &&) = delete;
 
-  ~LPRefiner();
+  ~LPRefiner() override;
 
   void initialize() final;
   bool refine() final;
 
 private:
-  std::unique_ptr<class LPRefinerImpl> _impl;
+  std::unique_ptr<class LPRefinerImplWrapper> _impl;
 
   DistributedPartitionedGraph &_p_graph;
   const PartitionContext &_p_ctx;

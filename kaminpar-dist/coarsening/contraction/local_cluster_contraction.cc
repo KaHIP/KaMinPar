@@ -63,8 +63,10 @@ private:
 };
 } // namespace
 
-std::unique_ptr<CoarseGraph>
-contract_local_clustering(const DistributedGraph &graph, const StaticArray<NodeID> &clustering) {
+template <typename Graph>
+std::unique_ptr<CoarseGraph> contract_local_clustering(
+    const DistributedGraph &fine_graph, const Graph &graph, const StaticArray<NodeID> &clustering
+) {
   KASSERT(
       clustering.size() >= graph.n(),
       "clustering array is too small for the given graph",
@@ -284,6 +286,19 @@ contract_local_clustering(const DistributedGraph &graph, const StaticArray<NodeI
       graph.communicator()
   ));
 
-  return std::make_unique<LocalCoarseGraphImpl>(graph, std::move(c_graph), std::move(mapping));
+  return std::make_unique<LocalCoarseGraphImpl>(fine_graph, std::move(c_graph), std::move(mapping));
 }
+
+std::unique_ptr<CoarseGraph>
+contract_local_clustering(const DistributedGraph &graph, const StaticArray<NodeID> &clustering) {
+  return graph.reified(
+      [&](const DistributedCSRGraph &csr_graph) {
+        return contract_local_clustering(graph, csr_graph, clustering);
+      },
+      [&](const DistributedCompressedGraph &compressed_graph) {
+        return contract_local_clustering(graph, compressed_graph, clustering);
+      }
+  );
+}
+
 } // namespace kaminpar::dist

@@ -33,7 +33,7 @@ public:
   using AbstractDistributedGraph::NodeID;
   using AbstractDistributedGraph::NodeWeight;
 
-  using CompressedEdges = CompressedEdges<NodeID, EdgeID>;
+  using CompressedEdges = kaminpar::CompressedEdges<NodeID, EdgeID>;
 
   DistributedCompressedGraph(
       StaticArray<GlobalNodeID> node_distribution,

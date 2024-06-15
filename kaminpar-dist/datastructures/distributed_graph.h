@@ -426,22 +426,27 @@ public:
     return _underlying_graph->get_color_sizes();
   }
 
-private:
-  std::unique_ptr<AbstractDistributedGraph> _underlying_graph;
-
-  template <typename Lambda> decltype(auto) reified(Lambda &&l) const {
+  template <typename Lambda1, typename Lambda2>
+  decltype(auto) reified(Lambda1 &&l1, Lambda2 &&l2) const {
     const AbstractDistributedGraph *abstract_graph = _underlying_graph.get();
 
     if (const auto *graph = dynamic_cast<const DistributedCSRGraph *>(abstract_graph);
         graph != nullptr) {
-      return l(*graph);
+      return l1(*graph);
     } else if (const auto *graph = dynamic_cast<const DistributedCompressedGraph *>(abstract_graph);
                graph != nullptr) {
-      return l(*graph);
+      return l2(*graph);
     }
 
     __builtin_unreachable();
   }
+
+  template <typename Lambda> decltype(auto) reified(Lambda &&l) const {
+    return reified(std::forward<Lambda>(l), std::forward<Lambda>(l));
+  }
+
+private:
+  std::unique_ptr<AbstractDistributedGraph> _underlying_graph;
 };
 
 /**

@@ -34,14 +34,22 @@ struct GlobalLPClusteringConfig : public LabelPropagationConfig {
 };
 } // namespace
 
-class GlobalLPClusteringImpl final
-    : public ChunkRandomdLabelPropagation<GlobalLPClusteringImpl, GlobalLPClusteringConfig>,
-      public NonatomicClusterVectorRef<NodeID, GlobalNodeID> {
+template <typename Graph>
+class GlobalLPClusteringImpl final : public ChunkRandomdLabelPropagation<
+                                         GlobalLPClusteringImpl<Graph>,
+                                         GlobalLPClusteringConfig,
+                                         Graph>,
+                                     public NonatomicClusterVectorRef<NodeID, GlobalNodeID> {
   SET_DEBUG(false);
 
-  using Base = ChunkRandomdLabelPropagation<GlobalLPClusteringImpl, GlobalLPClusteringConfig>;
+  using Base =
+      ChunkRandomdLabelPropagation<GlobalLPClusteringImpl<Graph>, GlobalLPClusteringConfig, Graph>;
   using ClusterBase = NonatomicClusterVectorRef<NodeID, GlobalNodeID>;
   using WeightDeltaMap = growt::GlobalNodeIDMap<GlobalNodeWeight>;
+
+  using Config = GlobalLPClusteringConfig;
+  using ClusterID = Config::ClusterID;
+  using ClusterWeight = Config::ClusterWeight;
 
 public:
   explicit GlobalLPClusteringImpl(const Context &ctx)
@@ -52,11 +60,11 @@ public:
         _local_cluster_weights(ctx.partition.graph->n),
         _passive_high_degree_threshold(_c_ctx.global_lp.passive_high_degree_threshold) {
     set_max_num_iterations(_c_ctx.global_lp.num_iterations);
-    set_max_degree(_c_ctx.global_lp.active_high_degree_threshold);
-    set_max_num_neighbors(_c_ctx.global_lp.max_num_neighbors);
+    Base::set_max_degree(_c_ctx.global_lp.active_high_degree_threshold);
+    Base::set_max_num_neighbors(_c_ctx.global_lp.max_num_neighbors);
   }
 
-  void initialize(const DistributedGraph &graph) {
+  void initialize(const Graph &graph) {
     TIMER_BARRIER(graph.communicator());
     SCOPED_TIMER("Label propagation");
 
@@ -90,7 +98,7 @@ public:
     _max_cluster_weight = weight;
   }
 
-  void compute_clustering(StaticArray<GlobalNodeID> &clustering, const DistributedGraph &graph) {
+  void compute_clustering(StaticArray<GlobalNodeID> &clustering, const Graph &graph) {
     TIMER_BARRIER(graph.communicator());
     SCOPED_TIMER("Label propagation");
 
@@ -301,7 +309,7 @@ private:
   GlobalNodeID process_chunk(const NodeID from, const NodeID to) {
     TIMER_BARRIER(_graph->communicator());
     START_TIMER("Chunk iteration");
-    const NodeID local_num_moved_nodes = perform_iteration(from, to);
+    const NodeID local_num_moved_nodes = Base::perform_iteration(from, to);
     STOP_TIMER();
 
     const GlobalNodeID global_num_moved_nodes =
@@ -320,7 +328,7 @@ private:
     return global_num_moved_nodes;
   }
 
-  void allocate(const DistributedGraph &graph) {
+  void allocate(const Graph &graph) {
     const NodeID allocated_num_active_nodes = _changed_label.size();
 
     if (allocated_num_active_nodes < graph.n()) {
@@ -644,12 +652,40 @@ private:
   }};
 };
 
+class GlobalLPClusteringImplWrapper {
+public:
+  GlobalLPClusteringImplWrapper(const Context &ctx)
+      : _csr_impl(std::make_unique<GlobalLPClusteringImpl<DistributedCSRGraph>>(ctx)),
+        _compressed_impl(std::make_unique<GlobalLPClusteringImpl<DistributedCompressedGraph>>(ctx)
+        ) {}
+
+  void set_max_cluster_weight(const GlobalNodeWeight weight) {
+    _csr_impl->set_max_cluster_weight(weight);
+    _compressed_impl->set_max_cluster_weight(weight);
+  }
+
+  void compute_clustering(StaticArray<GlobalNodeID> &clustering, const DistributedGraph &graph) {
+    graph.reified(
+        [&](const DistributedCSRGraph &csr_graph) {
+          _csr_impl->compute_clustering(clustering, csr_graph);
+        },
+        [&](const DistributedCompressedGraph &compressed_graph) {
+          _compressed_impl->compute_clustering(clustering, compressed_graph);
+        }
+    );
+  }
+
+private:
+  std::unique_ptr<GlobalLPClusteringImpl<DistributedCSRGraph>> _csr_impl;
+  std::unique_ptr<GlobalLPClusteringImpl<DistributedCompressedGraph>> _compressed_impl;
+};
+
 //
 // Public interface
 //
 
 GlobalLPClusterer::GlobalLPClusterer(const Context &ctx)
-    : _impl(std::make_unique<GlobalLPClusteringImpl>(ctx)) {}
+    : _impl(std::make_unique<GlobalLPClusteringImplWrapper>(ctx)) {}
 
 GlobalLPClusterer::~GlobalLPClusterer() = default;
 

@@ -134,6 +134,7 @@ public:
   [[nodiscard]] inline MPI_Comm communicator() const { return _graph->communicator(); }
   [[nodiscard]] inline bool permuted() const { return _graph->permuted(); }
   [[nodiscard]] inline NodeID map_original_node(const NodeID u) const { return _graph->map_original_node(u); }
+  template <typename Lambda1, typename Lambda2> decltype(auto) reified(Lambda1 &&l1, Lambda2 &&l2) const { return _graph->reified(std::forward<Lambda1>(l1), std::forward<Lambda2>(l2)); }
   // clang-format on
 
   [[nodiscard]] BlockID k() const {
