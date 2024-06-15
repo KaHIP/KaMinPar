@@ -13,6 +13,7 @@
 #include "kaminpar-shm/partitioning/deep/async_initial_partitioning.h"
 #include "kaminpar-shm/partitioning/deep/sync_initial_partitioning.h"
 #include "kaminpar-shm/partitioning/helper.h"
+#include "kaminpar-shm/partitioning/partition_utils.h"
 
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/heap_profiler.h"
@@ -32,7 +33,7 @@ DeepMultilevelPartitioner::DeepMultilevelPartitioner(
       _current_p_ctx(input_ctx.partition),
       _coarsener(factory::create_coarsener(input_ctx)),
       _refiner(factory::create_refiner(input_ctx)),
-      _bipartitioner_pool_ets([this] { return InitialBipartitionerPool(this->_input_ctx); }) {
+      _bipartitioner_pool(_input_ctx) {
   _coarsener->initialize(&_input_graph);
 }
 
@@ -62,7 +63,7 @@ PartitionedGraph DeepMultilevelPartitioner::partition() {
 }
 
 PartitionedGraph DeepMultilevelPartitioner::uncoarsen_once(PartitionedGraph p_graph) {
-  return helper::uncoarsen_once(
+  return partitioning::uncoarsen_once(
       _coarsener.get(), std::move(p_graph), _current_p_ctx, _input_ctx.partition
   );
 }
@@ -74,7 +75,7 @@ void DeepMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
   debug::dump_partition_hierarchy(p_graph, _coarsener->level(), "pre-refinement", _input_ctx);
 
   LOG << "  Running refinement on " << p_graph.k() << " blocks";
-  helper::refine(_refiner.get(), p_graph, _current_p_ctx);
+  partitioning::refine(_refiner.get(), p_graph, _current_p_ctx);
 
   if (_print_metrics) {
     SCOPED_TIMER("Partition metrics");
@@ -90,14 +91,14 @@ void DeepMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
 void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, const BlockID k_prime) {
   SCOPED_HEAP_PROFILER("Extending partition");
   LOG << "  Extending partition from " << p_graph.k() << " blocks to " << k_prime << " blocks";
-  helper::extend_partition(
+  partitioning::extend_partition(
       p_graph,
       k_prime,
       _input_ctx,
       _current_p_ctx,
       _subgraph_memory,
       _tmp_extraction_mem_pool_ets,
-      _bipartitioner_pool_ets,
+      _bipartitioner_pool,
       _input_ctx.parallel.num_threads
   );
 
@@ -122,7 +123,7 @@ PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph, 
     refine(p_graph);
     refined = true;
 
-    const BlockID desired_k = helper::compute_k_for_n(p_graph.n(), _input_ctx);
+    const BlockID desired_k = partitioning::compute_k_for_n(p_graph.n(), _input_ctx);
     if (p_graph.k() < desired_k) {
       extend_partition(p_graph, desired_k);
       refined = false;
@@ -157,7 +158,7 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
     prev_c_graph_m = c_graph->m();
 
     // Build next coarse graph
-    shrunk = helper::coarsen_once(_coarsener.get(), c_graph, _current_p_ctx);
+    shrunk = partitioning::coarsen_once(_coarsener.get(), c_graph, _current_p_ctx);
     c_graph = &_coarsener->current();
 
     // _subgraph_memory stores the block-induced subgraphs of the partitioned graph during recursive
@@ -165,7 +166,7 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
     // To avoid repeated allocation, we pre-allocate the memory during coarsening for the largest
     // coarse graph for which we still need recursive bipartitioning
     if (search_subgraph_memory_size &&
-        helper::compute_k_for_n(c_graph->n(), _input_ctx) < _input_ctx.partition.k) {
+        partitioning::compute_k_for_n(c_graph->n(), _input_ctx) < _input_ctx.partition.k) {
       search_subgraph_memory_size = false;
       subgraph_memory_n = prev_c_graph_n;
       subgraph_memory_m = prev_c_graph_m;
@@ -210,7 +211,7 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
 }
 
 NodeID DeepMultilevelPartitioner::initial_partitioning_threshold() {
-  if (helper::parallel_ip_mode(_input_ctx.partitioning.deep_initial_partitioning_mode)) {
+  if (partitioning::parallel_ip_mode(_input_ctx.partitioning.deep_initial_partitioning_mode)) {
     return _input_ctx.parallel.num_threads * _input_ctx.coarsening.contraction_limit; // p * C
   } else {
     return 2 * _input_ctx.coarsening.contraction_limit; // 2 * C
@@ -236,27 +237,23 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
   PartitionedGraph p_graph = [&] {
     switch (_input_ctx.partitioning.deep_initial_partitioning_mode) {
     case InitialPartitioningMode::SEQUENTIAL:
-      return helper::bipartition(
-          graph, _input_ctx.partition.k, _input_ctx, _bipartitioner_pool_ets, true
+      return partitioning::bipartition(
+          graph, _input_ctx.partition.k, _input_ctx, _bipartitioner_pool, true
       );
 
     case InitialPartitioningMode::SYNCHRONOUS_PARALLEL:
-      return SyncInitialPartitioner(
-                 _input_ctx, _bipartitioner_pool_ets, _tmp_extraction_mem_pool_ets
-      )
+      return SyncInitialPartitioner(_input_ctx, _bipartitioner_pool, _tmp_extraction_mem_pool_ets)
           .partition(_coarsener.get(), _current_p_ctx);
 
     case InitialPartitioningMode::ASYNCHRONOUS_PARALLEL:
-      return AsyncInitialPartitioner(
-                 _input_ctx, _bipartitioner_pool_ets, _tmp_extraction_mem_pool_ets
-      )
+      return AsyncInitialPartitioner(_input_ctx, _bipartitioner_pool, _tmp_extraction_mem_pool_ets)
           .partition(_coarsener.get(), _current_p_ctx);
     }
 
     __builtin_unreachable();
   }();
   ENABLE_TIMERS();
-  helper::update_partition_context(_current_p_ctx, p_graph, _input_ctx.partition.k);
+  partitioning::update_partition_context(_current_p_ctx, p_graph, _input_ctx.partition.k);
 
   // Print some metrics for the initial partition.
   LOG << "  Number of blocks: " << p_graph.k();

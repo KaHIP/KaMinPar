@@ -189,6 +189,10 @@ public:
     return std::memcmp(_data, other._data, size()) == 0;
   }
 
+  [[nodiscard]] bool is_span() const {
+    return _owned_data.get() == nullptr;
+  }
+
   //
   // Data access members
   //

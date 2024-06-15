@@ -25,6 +25,14 @@
 namespace kaminpar::heap_profiler {
 
 /*!
+ * Determines the total system memory in bytes. This value bounds the amount of memory that can
+ * be overcommitted.
+ *
+ * @return The total system memory in bytes.
+ */
+[[nodiscard]] std::size_t get_total_system_memory();
+
+/*!
  * Returns the (demangled) name of a type.
  *
  * See https://stackoverflow.com/a/25893042
@@ -37,7 +45,8 @@ template <typename T> std::string type_name() {
   int status = 0;
 
   std::unique_ptr<char, void (*)(void *)> demangled_result{
-      abi::__cxa_demangle(mangeled_name, NULL, NULL, &status), std::free};
+      abi::__cxa_demangle(mangeled_name, NULL, NULL, &status), std::free
+  };
 
   // Strip the trailing brackets from the constructed function type.
   std::string name((status == 0) ? demangled_result.get() : mangeled_name);
@@ -80,11 +89,13 @@ template <typename T> using unique_ptr = std::unique_ptr<T, HeapProfiledMemoryDe
  * @return A pointer to the allocated memory.
  */
 template <typename T> unique_ptr<T> overcommit_memory(const std::size_t size) {
+  const std::size_t nbytes = std::min(get_total_system_memory(), size * sizeof(T));
+
   T *ptr =
 #ifdef KAMINPAR_ENABLE_HEAP_PROFILING
-      ptr = static_cast<T *>(heap_profiler::std_malloc(size * sizeof(T)));
+      ptr = static_cast<T *>(heap_profiler::std_malloc(nbytes));
 #else
-      ptr = static_cast<T *>(std::malloc(size * sizeof(T)));
+      ptr = static_cast<T *>(std::malloc(nbytes));
 #endif
 
   if (ptr == NULL) {

@@ -10,10 +10,12 @@
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/scalable_vector.h"
+#include "kaminpar-common/datastructures/static_array.h"
 
-namespace kaminpar::shm::ip {
+namespace kaminpar::shm {
 class SequentialGraphHierarchy {
 public:
   SequentialGraphHierarchy() = default;
@@ -26,7 +28,7 @@ public:
 
   void init(const CSRGraph &graph);
 
-  void push(CSRGraph &&c_graph, ScalableVector<NodeID> &&c_mapping);
+  void push(CSRGraph &&c_graph, StaticArray<NodeID> &&c_mapping);
 
   [[nodiscard]] const CSRGraph &current() const;
 
@@ -40,19 +42,24 @@ public:
     return _coarse_graphs.empty();
   }
 
-  //[[nodiscard]] inline const auto &coarse_mappings() const {
-  //  return _coarse_mappings;
-  //}
-
-  //[[nodiscard]] inline const auto &coarse_graphs() const {
-  //  return _coarse_graphs;
-  //}
+  StaticArray<BlockID> alloc_partition_memory();
+  StaticArray<NodeID> alloc_mapping_memory();
+  CSRGraphMemory alloc_graph_memory();
 
 private:
   [[nodiscard]] const CSRGraph &get_second_coarsest_graph() const;
 
+  void recover_partition_memory(StaticArray<BlockID> partition);
+  void recover_mapping_memory(StaticArray<NodeID> mapping);
+  void recover_graph_memory(CSRGraph graph);
+
   const CSRGraph *_finest_graph;
-  ScalableVector<ScalableVector<NodeID>> _coarse_mappings;
+
+  ScalableVector<StaticArray<NodeID>> _coarse_mappings;
   ScalableVector<CSRGraph> _coarse_graphs;
+
+  ScalableVector<CSRGraphMemory> _graph_memory_cache;
+  ScalableVector<StaticArray<NodeID>> _mapping_memory_cache;
+  ScalableVector<StaticArray<BlockID>> _partition_memory_cache;
 };
-} // namespace kaminpar::shm::ip
+} // namespace kaminpar::shm

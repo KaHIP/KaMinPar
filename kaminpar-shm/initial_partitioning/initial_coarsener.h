@@ -19,7 +19,7 @@
 #include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/random.h"
 
-namespace kaminpar::shm::ip {
+namespace kaminpar::shm {
 struct InitialCoarsenerTimings {
   std::uint64_t contract_ms = 0;
   std::uint64_t alloc_ms = 0;
@@ -40,15 +40,15 @@ struct InitialCoarsenerTimings {
 };
 
 class InitialCoarsener {
-  static constexpr auto kChunkSize = 256;
-  static constexpr auto kNumberOfNodePermutations = 16;
+  static constexpr std::size_t kChunkSize = 256;
+  static constexpr std::size_t kNumberOfNodePermutations = 16;
 
-  using ContractionResult = std::pair<CSRGraph, ScalableVector<NodeID>>;
+  using ContractionResult = std::pair<CSRGraph, StaticArray<NodeID>>;
 
 public:
   struct Cluster {
-    bool locked : 1; // use bit from weight so that the struct is 8 bytes wide
-                     // instead of 12
+    // Steal one bit from the weight field to achieve 8 instead 12 bytes per entry
+    bool locked : 1;
     NodeWeight weight : std::numeric_limits<NodeWeight>::digits - 1;
     NodeID leader;
   };
@@ -80,19 +80,10 @@ public:
   void init(const CSRGraph &graph);
 
   const CSRGraph *coarsen(NodeWeight max_cluster_weight);
+
   PartitionedCSRGraph uncoarsen(PartitionedCSRGraph &&c_p_graph);
 
-  void reset_current_clustering() {
-    if (_current_graph->is_node_weighted()) {
-      reset_current_clustering(_current_graph->n(), _current_graph->raw_node_weights());
-    } else {
-      // This is robust if _current_graph is empty
-      // (in this case, we cannot use node_weight(0))
-      reset_current_clustering_unweighted(
-          _current_graph->n(), _current_graph->total_node_weight() / _current_graph->n()
-      );
-    }
-  }
+  void reset_current_clustering();
 
   template <typename Weights>
   void reset_current_clustering(const NodeID n, const Weights &node_weights) {
@@ -107,14 +98,7 @@ public:
     }
   }
 
-  void reset_current_clustering_unweighted(const NodeID n, const NodeWeight unit_node_weight) {
-    _current_num_moves = 0;
-    for (NodeID u = 0; u < n; ++u) {
-      _clustering[u].locked = false;
-      _clustering[u].leader = u;
-      _clustering[u].weight = unit_node_weight;
-    }
-  }
+  void reset_current_clustering_unweighted(const NodeID n, const NodeWeight unit_node_weight);
 
   void handle_node(NodeID u, NodeWeight max_cluster_weight);
   NodeID pick_cluster(NodeID u, NodeWeight u_weight, NodeWeight max_cluster_weight);
@@ -131,31 +115,9 @@ private:
 
   void perform_label_propagation(NodeWeight max_cluster_weight);
 
-  // Interleaved label propagation: compute for the next coarse graph while
-  // constructing it
-  inline void interleaved_handle_node(const NodeID c_u, const NodeWeight c_u_weight) {
-    if (!_interleaved_locked) {
-      const NodeID best_cluster{
-          pick_cluster_from_rating_map(c_u, c_u_weight, _interleaved_max_cluster_weight)
-      };
-      const bool changed_cluster{best_cluster != c_u};
+  void interleaved_handle_node(NodeID c_u, NodeWeight c_u_weight);
 
-      if (changed_cluster) {
-        ++_current_num_moves;
-        _clustering[c_u].leader = best_cluster;
-        _clustering[best_cluster].weight += c_u_weight;
-        _clustering[best_cluster].locked = true;
-      }
-    }
-
-    _interleaved_locked = _clustering[c_u + 1].locked;
-  }
-
-  inline void interleaved_visit_neighbor(const NodeID, const NodeID c_v, const EdgeWeight weight) {
-    if (!_interleaved_locked) {
-      _rating_map[_clustering[c_v].leader] += weight;
-    }
-  }
+  void interleaved_visit_neighbor(NodeID, NodeID c_v, EdgeWeight weight);
 
   const CSRGraph *_input_graph;
   const CSRGraph *_current_graph;
@@ -180,4 +142,4 @@ private:
 
   InitialCoarsenerTimings _timings{};
 };
-} // namespace kaminpar::shm::ip
+} // namespace kaminpar::shm

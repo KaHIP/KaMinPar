@@ -28,6 +28,13 @@
 #include "kaminpar-common/ranges.h"
 
 namespace kaminpar::shm {
+struct CSRGraphMemory {
+  StaticArray<EdgeID> nodes;
+  StaticArray<NodeID> edges;
+  StaticArray<NodeWeight> node_weights;
+  StaticArray<EdgeWeight> edge_weights;
+};
+
 template <template <typename> typename Container, template <typename> typename CompactContainer>
 class AbstractCSRGraph : public AbstractGraph {
 public:
