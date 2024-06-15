@@ -66,6 +66,8 @@ CompressedEdgesBuilder::CompressedEdgesBuilder(
       _edge_weights(edge_weights) {
   const std::size_t max_size = compressed_edge_array_max_size(num_nodes, num_edges);
   _compressed_data_start = heap_profiler::overcommit_memory<std::uint8_t>(max_size);
+  _compressed_data = _compressed_data_start.get();
+  _compressed_data_max_size = 0;
 }
 
 CompressedEdgesBuilder::CompressedEdgesBuilder(
@@ -79,9 +81,29 @@ CompressedEdgesBuilder::CompressedEdgesBuilder(
       _edge_weights(edge_weights) {
   const std::size_t max_size = compressed_edge_array_max_size<false>(num_nodes, max_degree);
   _compressed_data_start = heap_profiler::overcommit_memory<std::uint8_t>(max_size);
+  _compressed_data = _compressed_data_start.get();
+  _compressed_data_max_size = 0;
+}
+
+CompressedEdgesBuilder::~CompressedEdgesBuilder() {
+  if constexpr (kHeapProfiling) {
+    if (_compressed_data_start) {
+      const auto prev_compressed_data_size =
+          static_cast<std::size_t>(_compressed_data - _compressed_data_start.get());
+      const std::size_t compressed_data_size =
+          std::max(_compressed_data_max_size, prev_compressed_data_size);
+
+      heap_profiler::HeapProfiler::global().record_alloc(
+          _compressed_data_start.get(), compressed_data_size
+      );
+    }
+  }
 }
 
 void CompressedEdgesBuilder::init(const EdgeID first_edge) {
+  const auto prev_compressed_data_size =
+      static_cast<std::size_t>(_compressed_data - _compressed_data_start.get());
+  _compressed_data_max_size = std::max(_compressed_data_max_size, prev_compressed_data_size);
   _compressed_data = _compressed_data_start.get();
 
   _edge = first_edge;
@@ -553,11 +575,11 @@ ParallelCompressedGraphBuilder::ParallelCompressedGraphBuilder(
   _num_edges = num_edges;
 
   if (has_node_weights) {
-    _node_weights.resize(num_nodes);
+    _node_weights.resize(num_nodes, static_array::noinit);
   }
 
   if (has_edge_weights) {
-    _edge_weights.resize(num_edges);
+    _edge_weights.resize(num_edges, static_array::noinit);
   }
 
   _max_degree = 0;

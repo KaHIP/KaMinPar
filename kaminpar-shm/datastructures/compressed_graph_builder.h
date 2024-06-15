@@ -57,6 +57,8 @@ public:
       StaticArray<EdgeWeight> &edge_weights
   );
 
+  ~CompressedEdgesBuilder();
+
   CompressedEdgesBuilder(const CompressedEdgesBuilder &) = delete;
   CompressedEdgesBuilder &operator=(const CompressedEdgesBuilder &) = delete;
 
@@ -110,6 +112,7 @@ public:
 private:
   heap_profiler::unique_ptr<std::uint8_t> _compressed_data_start;
   std::uint8_t *_compressed_data;
+  std::size_t _compressed_data_max_size;
 
   bool _has_edge_weights;
   StaticArray<EdgeWeight> &_edge_weights;
