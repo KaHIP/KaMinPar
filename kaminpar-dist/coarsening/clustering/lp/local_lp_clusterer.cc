@@ -19,6 +19,12 @@ struct LocalLPClusteringConfig : public LabelPropagationConfig {
   static constexpr bool kUseTwoHopClustering = true;
 };
 
+struct LocalLPClusteringMemoryContext : public LabelPropagationMemoryContext<
+                                            LocalLPClusteringConfig::RatingMap,
+                                            LocalLPClusteringConfig::ClusterID> {
+  OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>::ClusterWeights cluster_weights;
+};
+
 template <typename Graph>
 class LocalLPClusteringImpl final : public ChunkRandomdLabelPropagation<
                                         LocalLPClusteringImpl<Graph>,
@@ -43,19 +49,38 @@ public:
     set_max_num_iterations(c_ctx.local_lp.num_iterations);
     Base::set_max_degree(c_ctx.local_lp.active_high_degree_threshold);
     Base::set_max_num_neighbors(c_ctx.local_lp.max_num_neighbors);
-    Base::allocate(max_n, max_n);
-    ClusterWeightBase::allocate_cluster_weights(max_n);
   }
 
-  void initialize(const DistributedGraph &graph) {
+  void setup(LocalLPClusteringMemoryContext &memory_context) {
+    Base::setup(memory_context);
+    ClusterWeightBase::setup_cluster_weights(std::move(memory_context.cluster_weights));
+  }
+
+  LocalLPClusteringMemoryContext release() {
+    auto [rating_map_ets, active, favored_clusters] = Base::release();
+    return {
+        std::move(rating_map_ets),
+        std::move(active),
+        std::move(favored_clusters),
+        ClusterWeightBase::take_cluster_weights(),
+    };
+  }
+
+  void preinitialize(const NodeID num_nodes) {
+    Base::preinitialize(num_nodes, num_nodes);
+  }
+
+  void initialize(const Graph &graph) {
     Base::initialize(&graph, graph.n());
+    Base::allocate();
+    ClusterWeightBase::allocate_cluster_weights(graph.n());
   }
 
   void set_max_cluster_weight(const GlobalNodeWeight max_cluster_weight) {
     _max_cluster_weight = max_cluster_weight;
   }
 
-  void compute_clustering(StaticArray<NodeID> &clustering, const DistributedGraph &graph) {
+  void compute_clustering(StaticArray<NodeID> &clustering, const Graph &graph) {
     init_clusters_ref(clustering);
     initialize(graph);
 
@@ -179,9 +204,31 @@ public:
     _compressed_impl->set_max_cluster_weight(weight);
   }
 
-  void compute_clustering(StaticArray<NodeID> &clustering, const DistributedGraph &graph) {}
+  void compute_clustering(StaticArray<NodeID> &clustering, const DistributedGraph &graph) {
+    const auto compute_clustering = [&](auto &impl, const auto &graph) {
+      impl.setup(_memory_context);
+      impl.compute_clustering(clustering, graph);
+      _memory_context = impl.release();
+    };
+
+    const NodeID num_nodes = graph.total_n();
+    _csr_impl->preinitialize(num_nodes);
+    _compressed_impl->preinitialize(num_nodes);
+
+    graph.reified(
+        [&](const DistributedCSRGraph &csr_graph) {
+          LocalLPClusteringImpl<DistributedCSRGraph> &impl = *_csr_impl;
+          compute_clustering(impl, csr_graph);
+        },
+        [&](const DistributedCompressedGraph &compressed_graph) {
+          LocalLPClusteringImpl<DistributedCompressedGraph> &impl = *_compressed_impl;
+          compute_clustering(impl, compressed_graph);
+        }
+    );
+  }
 
 private:
+  LocalLPClusteringMemoryContext _memory_context;
   std::unique_ptr<LocalLPClusteringImpl<DistributedCSRGraph>> _csr_impl;
   std::unique_ptr<LocalLPClusteringImpl<DistributedCompressedGraph>> _compressed_impl;
 };

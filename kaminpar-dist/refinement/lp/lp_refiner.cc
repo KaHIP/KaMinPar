@@ -38,6 +38,13 @@ struct LPRefinerConfig : public LabelPropagationConfig {
   static constexpr bool kUseLocalActiveSetStrategy = true;
 };
 
+struct LPRefinerMemoryContext
+    : public LabelPropagationMemoryContext<LPRefinerConfig::RatingMap, LPRefinerConfig::ClusterID> {
+  ScalableVector<BlockID> next_partition;
+  ScalableVector<EdgeWeight> gains;
+  ScalableVector<parallel::Atomic<BlockWeight>> block_weights;
+};
+
 template <typename Graph>
 class LPRefinerImpl final
     : public ChunkRandomdLabelPropagation<LPRefinerImpl<Graph>, LPRefinerConfig, Graph> {
@@ -121,12 +128,28 @@ class LPRefinerImpl final
 public:
   explicit LPRefinerImpl(const Context &ctx, const DistributedPartitionedGraph &p_graph)
       : _lp_ctx(ctx.refinement.lp),
-        _par_ctx(ctx.parallel),
-        _next_partition(p_graph.n()),
-        _gains(p_graph.n()),
-        _block_weights(p_graph.k()) {
+        _par_ctx(ctx.parallel) {
     Base::set_max_degree(_lp_ctx.active_high_degree_threshold);
-    Base::allocate(p_graph.total_n(), p_graph.n(), p_graph.k());
+    Base::preinitialize(p_graph.total_n(), p_graph.n(), p_graph.k());
+  }
+
+  void setup(LPRefinerMemoryContext &memory_context) {
+    Base::setup(memory_context);
+    _next_partition = std::move(memory_context.next_partition);
+    _gains = std::move(memory_context.gains);
+    _block_weights = std::move(memory_context.block_weights);
+  }
+
+  LPRefinerMemoryContext release() {
+    auto [rating_map_ets, active, favored_clusters] = Base::release();
+    return {
+        std::move(rating_map_ets),
+        std::move(active),
+        std::move(favored_clusters),
+        std::move(_next_partition),
+        std::move(_gains),
+        std::move(_block_weights),
+    };
   }
 
   void
@@ -143,7 +166,10 @@ public:
     if (_gains.size() < graph.n()) {
       _gains.resize(graph.n());
     }
-    Base::allocate(graph.total_n(), graph.n(), _block_weights.size());
+    if (_block_weights.size() < p_graph.k()) {
+      _block_weights.resize(p_graph.k());
+    }
+    Base::allocate();
     STOP_TIMER();
 
     Base::initialize(&graph, _p_ctx->k);
@@ -510,6 +536,10 @@ private:
   Statistics _statistics;
 };
 
+//
+// Private interface
+//
+
 class LPRefinerImplWrapper {
 public:
   LPRefinerImplWrapper(const Context &ctx, DistributedPartitionedGraph &p_graph)
@@ -518,22 +548,33 @@ public:
         ) {}
 
   void refine(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
+    const auto refine = [&](auto &impl, const auto &graph) {
+      impl.setup(_memory_context);
+      impl.refine(graph, p_graph, p_ctx);
+      _memory_context = impl.release();
+    };
+
     p_graph.reified(
-        [&](const DistributedCSRGraph &csr_graph) { _csr_impl->refine(csr_graph, p_graph, p_ctx); },
+        [&](const DistributedCSRGraph &csr_graph) {
+          LPRefinerImpl<DistributedCSRGraph> &impl = *_csr_impl;
+          refine(impl, csr_graph);
+        },
         [&](const DistributedCompressedGraph &compressed_graph) {
-          _compressed_impl->refine(compressed_graph, p_graph, p_ctx);
+          LPRefinerImpl<DistributedCompressedGraph> &impl = *_compressed_impl;
+          refine(impl, compressed_graph);
         }
     );
   }
 
 private:
+  LPRefinerMemoryContext _memory_context;
   std::unique_ptr<LPRefinerImpl<DistributedCSRGraph>> _csr_impl;
   std::unique_ptr<LPRefinerImpl<DistributedCompressedGraph>> _compressed_impl;
 };
 
-/*
- * Public interface
- */
+//
+// Public interface
+//
 
 LPRefinerFactory::LPRefinerFactory(const Context &ctx) : _ctx(ctx) {}
 

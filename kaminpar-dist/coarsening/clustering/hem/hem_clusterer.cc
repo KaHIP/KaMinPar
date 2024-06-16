@@ -22,9 +22,29 @@ SET_DEBUG(true);
 // Implementation
 //
 
+struct HEMClustererMemoryContext {
+  NoinitVector<std::uint8_t> color_blacklist;
+  NoinitVector<ColorID> color_sizes;
+  NoinitVector<NodeID> color_sorted_nodes;
+};
+
 template <typename Graph> class HEMClustererImpl {
 public:
-  HEMClustererImpl(const Context &ctx) : _input_ctx(ctx), _ctx(ctx.coarsening.hem) {}
+  explicit HEMClustererImpl(const Context &ctx) : _input_ctx(ctx), _ctx(ctx.coarsening.hem) {}
+
+  void setup(HEMClustererMemoryContext &memory_context) {
+    _color_blacklist = std::move(memory_context.color_blacklist);
+    _color_sizes = std::move(memory_context.color_sizes);
+    _color_sorted_nodes = std::move(memory_context.color_sorted_nodes);
+  }
+
+  HEMClustererMemoryContext release() {
+    return {
+        std::move(_color_blacklist),
+        std::move(_color_sizes),
+        std::move(_color_sorted_nodes),
+    };
+  }
 
   void set_max_cluster_weight(const GlobalNodeWeight max_cluster_weight) {
     _max_cluster_weight = max_cluster_weight;
@@ -489,15 +509,26 @@ public:
   }
 
   void cluster(StaticArray<GlobalNodeID> &matching, const DistributedGraph &graph) {
+    const auto compute_cluster = [&](auto &impl, const auto &graph) {
+      impl.setup(_memory_context);
+      impl.cluster(matching, graph);
+      _memory_context = impl.release();
+    };
+
     graph.reified(
-        [&](const DistributedCSRGraph &csr_graph) { _csr_impl->cluster(matching, csr_graph); },
+        [&](const DistributedCSRGraph &csr_graph) {
+          HEMClustererImpl<DistributedCSRGraph> &impl = *_csr_impl;
+          compute_cluster(impl, csr_graph);
+        },
         [&](const DistributedCompressedGraph &compressed_graph) {
-          _compressed_impl->cluster(matching, compressed_graph);
+          HEMClustererImpl<DistributedCompressedGraph> &impl = *_compressed_impl;
+          compute_cluster(impl, compressed_graph);
         }
     );
   }
 
 private:
+  HEMClustererMemoryContext _memory_context;
   std::unique_ptr<HEMClustererImpl<DistributedCSRGraph>> _csr_impl;
   std::unique_ptr<HEMClustererImpl<DistributedCompressedGraph>> _compressed_impl;
 };

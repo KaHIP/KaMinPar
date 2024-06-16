@@ -34,6 +34,16 @@ struct GlobalLPClusteringConfig : public LabelPropagationConfig {
 };
 } // namespace
 
+struct GlobalLPClusteringMemoryContext : public LabelPropagationMemoryContext<
+                                             GlobalLPClusteringConfig::RatingMap,
+                                             GlobalLPClusteringConfig::ClusterID> {
+  StaticArray<GlobalNodeID> changed_label;
+  StaticArray<std::uint8_t> locked;
+  growt::GlobalNodeIDMap<GlobalNodeWeight> cluster_weights{0};
+  StaticArray<GlobalNodeWeight> local_cluster_weights;
+  growt::GlobalNodeIDMap<GlobalNodeWeight> weight_deltas{0};
+};
+
 template <typename Graph>
 class GlobalLPClusteringImpl final : public ChunkRandomdLabelPropagation<
                                          GlobalLPClusteringImpl<Graph>,
@@ -55,13 +65,40 @@ public:
   explicit GlobalLPClusteringImpl(const Context &ctx)
       : _ctx(ctx),
         _c_ctx(ctx.coarsening),
-        _changed_label(ctx.partition.graph->n),
-        _cluster_weights(ctx.partition.graph->total_n - ctx.partition.graph->n),
-        _local_cluster_weights(ctx.partition.graph->n),
         _passive_high_degree_threshold(_c_ctx.global_lp.passive_high_degree_threshold) {
     set_max_num_iterations(_c_ctx.global_lp.num_iterations);
     Base::set_max_degree(_c_ctx.global_lp.active_high_degree_threshold);
     Base::set_max_num_neighbors(_c_ctx.global_lp.max_num_neighbors);
+  }
+
+  void setup(GlobalLPClusteringMemoryContext &memory_context) {
+    Base::setup(memory_context);
+    _changed_label = std::move(memory_context.changed_label);
+    _locked = std::move(memory_context.locked);
+    _cluster_weights = std::move(memory_context.cluster_weights);
+    _local_cluster_weights = std::move(memory_context.local_cluster_weights);
+    _weight_deltas = std::move(memory_context.weight_deltas);
+  }
+
+  GlobalLPClusteringMemoryContext release() {
+    _weight_delta_handles_ets.clear();
+    _cluster_weights_handles_ets.clear();
+
+    auto [rating_map_ets, active, favored_clusters] = Base::release();
+    return {
+        std::move(rating_map_ets),
+        std::move(active),
+        std::move(favored_clusters),
+        std::move(_changed_label),
+        std::move(_locked),
+        std::move(_cluster_weights),
+        std::move(_local_cluster_weights),
+        std::move(_weight_deltas),
+    };
+  }
+
+  void preinitialize(const NodeID num_nodes, const NodeID num_active_nodes) {
+    Base::preinitialize(num_nodes, num_active_nodes, num_nodes);
   }
 
   void initialize(const Graph &graph) {
@@ -329,14 +366,15 @@ private:
   }
 
   void allocate(const Graph &graph) {
-    const NodeID allocated_num_active_nodes = _changed_label.size();
-
-    if (allocated_num_active_nodes < graph.n()) {
+    if (_changed_label.size() < graph.n()) {
       _changed_label.resize(graph.n());
+    }
+
+    if (_local_cluster_weights.size() < graph.n()) {
       _local_cluster_weights.resize(graph.n());
     }
 
-    Base::allocate(graph.total_n(), graph.n(), graph.total_n());
+    Base::allocate();
 
     if (_c_ctx.global_lp.prevent_cyclic_moves) {
       _locked.resize(graph.n());
@@ -665,17 +703,31 @@ public:
   }
 
   void compute_clustering(StaticArray<GlobalNodeID> &clustering, const DistributedGraph &graph) {
+    const auto compute_clustering = [&](auto &impl, const auto &graph) {
+      impl.setup(_memory_context);
+      impl.compute_clustering(clustering, graph);
+      _memory_context = impl.release();
+    };
+
+    const NodeID num_nodes = graph.total_n();
+    const NodeID num_active_nodes = graph.n();
+    _csr_impl->preinitialize(num_nodes, num_active_nodes);
+    _compressed_impl->preinitialize(num_nodes, num_active_nodes);
+
     graph.reified(
         [&](const DistributedCSRGraph &csr_graph) {
-          _csr_impl->compute_clustering(clustering, csr_graph);
+          GlobalLPClusteringImpl<DistributedCSRGraph> &impl = *_csr_impl;
+          compute_clustering(impl, csr_graph);
         },
         [&](const DistributedCompressedGraph &compressed_graph) {
-          _compressed_impl->compute_clustering(clustering, compressed_graph);
+          GlobalLPClusteringImpl<DistributedCompressedGraph> &impl = *_compressed_impl;
+          compute_clustering(impl, compressed_graph);
         }
     );
   }
 
 private:
+  GlobalLPClusteringMemoryContext _memory_context;
   std::unique_ptr<GlobalLPClusteringImpl<DistributedCSRGraph>> _csr_impl;
   std::unique_ptr<GlobalLPClusteringImpl<DistributedCompressedGraph>> _compressed_impl;
 };
