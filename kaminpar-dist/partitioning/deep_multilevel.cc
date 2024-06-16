@@ -60,6 +60,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   const PEID initial_size = mpi::get_comm_size(_input_graph.communicator());
   PEID current_num_pes = initial_size;
 
+  START_HEAP_PROFILER("Coarsening");
   while (!converged && graph->global_n() > desired_num_nodes) {
     SCOPED_TIMER("Coarsening");
 
@@ -102,12 +103,14 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
 
     graph = c_graph;
   }
+  STOP_HEAP_PROFILER();
   TIMER_BARRIER(_input_graph.communicator());
 
   /*
    * Initial Partitioning
    */
   START_TIMER("Initial partitioning");
+  START_HEAP_PROFILER("Initial partitioning");
   auto initial_partitioner = TIMED_SCOPE("Allocation") {
     return factory::create_initial_partitioner(_input_ctx);
   };
@@ -144,6 +147,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
       assert::heavy
   );
   print_initial_partitioning_result(dist_p_graph, ip_p_ctx);
+  STOP_HEAP_PROFILER();
   STOP_TIMER();
   TIMER_BARRIER(_input_graph.communicator());
 
@@ -157,6 +161,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
    * Uncoarsening and Refinement
    */
   START_TIMER("Uncoarsening");
+  START_HEAP_PROFILER("Uncoarsening");
   auto refiner_factory = TIMED_SCOPE("Allocation") {
     return factory::create_refiner(_input_ctx);
   };
@@ -339,6 +344,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     LOG << "  Feasible:  " << (feasible ? "yes" : "no");
     STOP_TIMER();
   }
+  STOP_HEAP_PROFILER();
   STOP_TIMER();
   TIMER_BARRIER(_input_graph.communicator());
 

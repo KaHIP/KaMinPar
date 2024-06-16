@@ -313,7 +313,7 @@ private:
   static constexpr char kPadding = '.';
 
   static constexpr std::size_t kBranchLength = 3;
-  static constexpr std::size_t kPercentageLength = 10;
+  static constexpr std::size_t kPercentageLength = 9;
   static constexpr std::size_t kDataStructSizeThreshold = 1024;
 
   static std::string to_megabytes(std::size_t bytes) {
@@ -322,9 +322,11 @@ private:
     return stream.str();
   }
 
+public:
   struct HeapProfileTreeNode {
     std::string_view name;
     std::string description;
+    std::string annotation;
 
     HeapProfileTreeNode *parent;
     std::vector<HeapProfileTreeNode *, NoProfilAllocator<HeapProfileTreeNode *>> children;
@@ -363,10 +365,12 @@ private:
   struct HeapProfileTree {
     HeapProfileTreeNode root;
     HeapProfileTreeNode *currentNode;
+    std::string annotation;
 
     HeapProfileTree(std::string_view name) : root(name, "", nullptr), currentNode(&root) {}
   };
 
+private:
   struct HeapProfileTreeStats {
     std::size_t len;
     std::size_t max_alloc_size;
@@ -557,6 +561,13 @@ public:
    * @return The amount of free operations of the current heap profile.
    */
   std::size_t get_frees();
+
+  /*!
+   * Returns the tree that stores the data of this heap profiler.
+   *
+   * @return The tree that stores the data of this heap profiler.
+   */
+  [[nodiscard]] HeapProfileTree &tree_root();
 
 private:
   bool _enabled = false;

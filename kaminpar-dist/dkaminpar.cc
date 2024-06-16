@@ -22,6 +22,7 @@
 #include "kaminpar-dist/factories.h"
 #include "kaminpar-dist/graphutils/rearrangement.h"
 #include "kaminpar-dist/graphutils/synchronization.h"
+#include "kaminpar-dist/heap_profiler.h"
 #include "kaminpar-dist/metrics.h"
 #include "kaminpar-dist/timer.h"
 
@@ -29,6 +30,7 @@
 
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/environment.h"
+#include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/random.h"
 
 namespace kaminpar {
@@ -42,51 +44,72 @@ void print_partition_summary(
     const bool parseable,
     const bool root
 ) {
+  MPI_Comm comm = p_graph.communicator();
+
   const auto edge_cut = metrics::edge_cut(p_graph);
   const auto imbalance = metrics::imbalance(p_graph);
   const auto feasible =
       metrics::is_feasible(p_graph, ctx.partition) && p_graph.k() == ctx.partition.k;
 
 #ifdef KAMINPAR_ENABLE_TIMERS
-  finalize_distributed_timer(Timer::global(), p_graph.communicator());
+  finalize_distributed_timer(Timer::global(), comm);
 #endif // KAMINPAR_ENABLE_TIMERS
 
-  if (!root) {
-    // Non-root PEs are only needed to compute the partition metrics
-    return;
+  bool heap_profile_root;
+  if constexpr (kHeapProfiling) {
+    auto &heap_profiler = heap_profiler::HeapProfiler::global();
+    const int heap_profile_root_rank = finalize_distributed_heap_profiler(heap_profiler, comm);
+
+    const int rank = mpi::get_comm_rank(comm);
+    heap_profile_root = rank == heap_profile_root_rank;
   }
 
-  cio::print_delimiter("Result Summary");
+  if (root) {
+    cio::print_delimiter("Result Summary");
 
-  if (parseable) {
-    LOG << "RESULT cut=" << edge_cut << " imbalance=" << imbalance << " feasible=" << feasible
-        << " k=" << p_graph.k();
+    if (parseable) {
+      LOG << "RESULT cut=" << edge_cut << " imbalance=" << imbalance << " feasible=" << feasible
+          << " k=" << p_graph.k();
 #ifdef KAMINPAR_ENABLE_TIMERS
-    std::cout << "TIME ";
-    Timer::global().print_machine_readable(std::cout);
+      std::cout << "TIME ";
+      Timer::global().print_machine_readable(std::cout);
 #else  // KAMINPAR_ENABLE_TIMERS
-    LOG << "TIME disabled";
+      LOG << "TIME disabled";
 #endif // KAMINPAR_ENABLE_TIMERS
-  }
+    }
 
 #ifdef KAMINPAR_ENABLE_TIMERS
-  Timer::global().print_human_readable(std::cout, max_timer_depth);
+    Timer::global().print_human_readable(std::cout, max_timer_depth);
 #else  // KAMINPAR_ENABLE_TIMERS
-  LOG << "Global Timers: disabled";
+    LOG << "Global Timers: disabled";
 #endif // KAMINPAR_ENABLE_TIMERS
-  LOG;
-  LOG << "Partition summary:";
-  if (p_graph.k() != ctx.partition.k) {
-    LOG << logger::RED << "  Number of blocks: " << p_graph.k();
-  } else {
-    LOG << "  Number of blocks: " << p_graph.k();
+    LOG;
   }
-  LOG << "  Edge cut:         " << edge_cut;
-  LOG << "  Imbalance:        " << imbalance;
-  if (feasible) {
-    LOG << "  Feasible:         yes";
-  } else {
-    LOG << logger::RED << "  Feasible:         no";
+
+  if constexpr (kHeapProfiling) {
+    mpi::barrier(comm);
+
+    if (heap_profile_root) {
+      PRINT_HEAP_PROFILE(std::cout);
+    }
+
+    mpi::barrier(comm);
+  }
+
+  if (root) {
+    LOG << "Partition summary:";
+    if (p_graph.k() != ctx.partition.k) {
+      LOG << logger::RED << "  Number of blocks: " << p_graph.k();
+    } else {
+      LOG << "  Number of blocks: " << p_graph.k();
+    }
+    LOG << "  Edge cut:         " << edge_cut;
+    LOG << "  Imbalance:        " << imbalance;
+    if (feasible) {
+      LOG << "  Feasible:         yes";
+    } else {
+      LOG << logger::RED << "  Feasible:         no";
+    }
   }
 }
 
@@ -293,6 +316,7 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const BlockID k, BlockID *partitio
     print_input_summary(_ctx, graph, _output_level == OutputLevel::EXPERIMENT, root);
   }
 
+  START_HEAP_PROFILER("Partitioning");
   START_TIMER("Partitioning");
   if (!_was_rearranged && _ctx.rearrange_by != GraphOrdering::NATURAL) {
     DistributedCSRGraph &csr_graph =
@@ -304,6 +328,7 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const BlockID k, BlockID *partitio
   }
   auto p_graph = factory::create_partitioner(_ctx, graph)->partition();
   STOP_TIMER();
+  STOP_HEAP_PROFILER();
 
   KASSERT(
       dist::debug::validate_partition(p_graph),

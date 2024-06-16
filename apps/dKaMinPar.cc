@@ -15,6 +15,7 @@
 #include <tbb/scalable_allocator.h>
 
 #include "kaminpar-common/environment.h"
+#include "kaminpar-common/heap_profiler.h"
 
 #include "apps/io/dist_io.h"
 #include "apps/io/dist_parhip_parser.h"
@@ -31,6 +32,11 @@ struct ApplicationContext {
   int num_threads = 1;
 
   int max_timer_depth = 3;
+
+  bool heap_profiler_detailed = false;
+  int heap_profiler_max_depth = 3;
+  bool heap_profiler_print_structs = false;
+  float heap_profiler_min_struct_size = 10;
 
   BlockID k = 0;
 
@@ -119,6 +125,41 @@ The output should be stored in a file and can be used by the -C,--config option.
 
   cli.add_flag("--no-huge-pages", app.no_huge_pages, "Do not use huge pages via TBBmalloc.");
 
+  // Heap profiler options
+  if constexpr (kHeapProfiling) {
+    auto *hp_group = cli.add_option_group("Heap Profiler");
+
+    hp_group
+        ->add_flag(
+            "-H,--hp-print-detailed",
+            app.heap_profiler_detailed,
+            "Show all levels and data structures in the result summary."
+        )
+        ->default_val(app.heap_profiler_detailed);
+    hp_group
+        ->add_option(
+            "--hp-max-depth",
+            app.heap_profiler_max_depth,
+            "Set maximum heap profiler depth shown in the result summary."
+        )
+        ->default_val(app.heap_profiler_max_depth);
+    hp_group
+        ->add_option(
+            "--hp-print-structs",
+            app.heap_profiler_print_structs,
+            "Print data structure memory statistics in the result summary."
+        )
+        ->default_val(app.heap_profiler_print_structs);
+    hp_group
+        ->add_option(
+            "--hp-min-struct-size",
+            app.heap_profiler_min_struct_size,
+            "Sets the minimum size of a data structure in MB to be included in the result summary."
+        )
+        ->default_val(app.heap_profiler_min_struct_size)
+        ->check(CLI::NonNegativeNumber);
+  }
+
   // Algorithmic options
   create_all_options(&cli, ctx);
 }
@@ -176,6 +217,16 @@ NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
   return graph.vertex_range.second - graph.vertex_range.first;
 }
 
+NodeID load_csr_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
+  DistributedGraph graph(std::make_unique<DistributedCSRGraph>(
+      io::parhip::csr_read(app.graph_filename, false, MPI_COMM_WORLD)
+  ));
+  const NodeID n = graph.n();
+
+  partitioner.import_graph(std::move(graph));
+  return n;
+}
+
 NodeID load_compressed_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
   DistributedGraph graph(std::make_unique<DistributedCompressedGraph>(
       io::parhip::compressed_read(app.graph_filename, false, MPI_COMM_WORLD)
@@ -215,6 +266,8 @@ int main(int argc, char *argv[]) {
   // If available, use huge pages for large allocations
   scalable_allocation_mode(TBBMALLOC_USE_HUGE_PAGES, !app.no_huge_pages);
 
+  ENABLE_HEAP_PROFILER();
+
   dKaMinPar partitioner(MPI_COMM_WORLD, app.num_threads, ctx);
   dKaMinPar::reseed(app.seed);
 
@@ -226,7 +279,18 @@ int main(int argc, char *argv[]) {
 
   partitioner.context().debug.graph_filename = app.graph_filename;
   partitioner.set_max_timer_depth(app.max_timer_depth);
+  if constexpr (kHeapProfiling) {
+    auto &global_heap_profiler = heap_profiler::HeapProfiler::global();
+    if (app.heap_profiler_detailed) {
+      global_heap_profiler.set_detailed_summary_options();
+    } else {
+      global_heap_profiler.set_max_depth(app.heap_profiler_max_depth);
+      global_heap_profiler.set_print_data_structs(app.heap_profiler_print_structs);
+      global_heap_profiler.set_min_data_struct_size(app.heap_profiler_min_struct_size);
+    }
+  }
 
+  START_HEAP_PROFILER("Input Graph Allocation");
   // Load the graph via KaGen or via our graph compressor.
   const NodeID n = [&] {
     if (ctx.compression.enabled) {
@@ -236,13 +300,18 @@ int main(int argc, char *argv[]) {
     }
   }();
 
-  // Compute the partition
+  // Allocate memory for the partition
   std::vector<BlockID> partition(n);
+  STOP_HEAP_PROFILER();
+
+  // Compute the partition
   partitioner.compute_partition(app.k, partition.data());
 
   if (!app.partition_filename.empty()) {
     dist::io::partition::write(app.partition_filename, partition);
   }
+
+  DISABLE_HEAP_PROFILER();
 
   return MPI_Finalize();
 }
