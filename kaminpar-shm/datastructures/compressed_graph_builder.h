@@ -10,6 +10,7 @@
 #include "kaminpar-shm/datastructures/compressed_graph.h"
 
 #include "kaminpar-common/datastructures/concurrent_circular_vector.h"
+#include "kaminpar-common/datastructures/maxsize_vector.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
@@ -78,7 +79,26 @@ public:
    * @param neighbourhood The neighbourhood of the node to add.
    * @return The offset into the compressed edge array of the node.
    */
-  EdgeID add(const NodeID node, std::vector<std::pair<NodeID, EdgeWeight>> &neighbourhood);
+  template <template <typename> typename Container>
+  EdgeID add(const NodeID node, Container<NodeID> &neighbourhood) {
+    std::sort(neighbourhood.begin(), neighbourhood.end());
+    return add_node(node, neighbourhood);
+  }
+
+  /*!
+   * Adds the (weighted) neighborhood of a node. Note that the neighbourhood vector is modified.
+   *
+   * @param node The node whose neighborhood to add.
+   * @param neighbourhood The neighbourhood of the node to add.
+   * @return The offset into the compressed edge array of the node.
+   */
+  template <template <typename> typename Container>
+  EdgeID add(const NodeID node, Container<std::pair<NodeID, EdgeWeight>> &neighbourhood) {
+    std::sort(neighbourhood.begin(), neighbourhood.end(), [](const auto &a, const auto &b) {
+      return a.first < b.first;
+    });
+    return add_node(node, neighbourhood);
+  }
 
   /*!
    * Returns the number of bytes that the compressed data of the added neighborhoods take up.
@@ -127,8 +147,269 @@ private:
   std::size_t _num_interval_nodes;
   std::size_t _num_intervals;
 
+  template <typename Container> EdgeID add_node(const NodeID node, Container &neighbourhood) {
+    // The offset into the compressed edge array to the start of the neighbourhood.
+    const auto offset = static_cast<EdgeID>(_compressed_data - _compressed_data_start.get());
+
+    const NodeID degree = neighbourhood.size();
+    if (degree == 0) {
+      return offset;
+    }
+
+    _max_degree = std::max(_max_degree, degree);
+
+    // Store a pointer to the first byte of the first edge of this neighborhood. This byte encodes
+    // in one of its bits whether interval encoding is used for this node, i.e., whether the nodes
+    // has intervals in its neighbourhood.
+    std::uint8_t *marked_byte = _compressed_data;
+
+    // Store only the first edge for the source node. The degree can be obtained by determining the
+    // difference between the first edge ids of a node and the next node. Additionally, store the
+    // first edge as a gap when the isolated nodes are continuously stored at the end of the nodes
+    // array.
+    const EdgeID first_edge = _edge;
+    if constexpr (CompressedGraph::kIntervalEncoding) {
+      _compressed_data += marked_varint_encode(first_edge, false, _compressed_data);
+    } else {
+      _compressed_data += varint_encode(first_edge, _compressed_data);
+    }
+
+    // Only increment the edge if edge weights are not stored as otherwise the edge is
+    // incremented with each edge weight being added.
+    if (!_has_edge_weights) {
+      _edge += degree;
+    }
+
+    // If high-degree encoding is used then split the neighborhood if the degree crosses a
+    // threshold. The neighborhood is split into equally sized parts (except possible the last part)
+    // and each part is encoded independently. Furthermore, the offset at which the part is encoded
+    // is also stored.
+    if constexpr (CompressedGraph::kHighDegreeEncoding) {
+      const bool split_neighbourhood = degree >= CompressedGraph::kHighDegreeThreshold;
+
+      if (split_neighbourhood) {
+        const NodeID part_count = math::div_ceil(degree, CompressedGraph::kHighDegreePartLength);
+        const NodeID last_part_length = ((degree % CompressedGraph::kHighDegreePartLength) == 0)
+                                            ? CompressedGraph::kHighDegreePartLength
+                                            : (degree % CompressedGraph::kHighDegreePartLength);
+
+        uint8_t *part_ptr = _compressed_data;
+        _compressed_data += sizeof(NodeID) * part_count;
+
+        for (NodeID i = 0; i < part_count; ++i) {
+          const bool last_part = (i + 1) == part_count;
+          const NodeID part_length =
+              last_part ? last_part_length : CompressedGraph::kHighDegreePartLength;
+
+          auto part_begin = neighbourhood.begin() + i * CompressedGraph::kHighDegreePartLength;
+          auto part_end = part_begin + part_length;
+
+          std::uint8_t *cur_part_ptr = part_ptr + sizeof(NodeID) * i;
+          *((NodeID *)cur_part_ptr) = static_cast<NodeID>(_compressed_data - part_ptr);
+
+          using Neighbour = typename Container::value_type;
+          add_edges(node, nullptr, std::span<Neighbour>(part_begin, part_end));
+        }
+
+        _num_high_degree_nodes += 1;
+        _num_high_degree_parts += part_count;
+        return offset;
+      }
+    }
+
+    add_edges(node, marked_byte, std::forward<decltype(neighbourhood)>(neighbourhood));
+    return offset;
+  }
+
   template <typename Container>
-  void add_edges(const NodeID node, std::uint8_t *marked_byte, Container &&neighbourhood);
+  void add_edges(const NodeID node, std::uint8_t *marked_byte, Container &&neighbourhood) {
+    using Neighbour = std::remove_reference_t<Container>::value_type;
+    constexpr bool kHasEdgeWeights = std::is_same_v<Neighbour, std::pair<NodeID, EdgeWeight>>;
+
+    const auto store_edge_weight = [&](const EdgeWeight edge_weight) {
+      _edge_weights[_edge++] = edge_weight;
+      _total_edge_weight += edge_weight;
+    };
+
+    const auto fetch_adjacent_node = [&](const NodeID i) {
+      if constexpr (kHasEdgeWeights) {
+        return neighbourhood[i].first;
+      } else {
+        return neighbourhood[i];
+      }
+    };
+
+    const auto set_adjacent_node = [&](const NodeID i, const NodeID value) {
+      if constexpr (kHasEdgeWeights) {
+        neighbourhood[i].first = value;
+      } else {
+        neighbourhood[i] = value;
+      }
+    };
+
+    NodeID local_degree = neighbourhood.size();
+
+    // Find intervals [i, j] of consecutive adjacent nodes i, i + 1, ..., j - 1, j of length at
+    // least kIntervalLengthTreshold. Instead of storing all nodes, only encode the left extreme i
+    // and the length j - i + 1. Left extremes are stored using the differences between each left
+    // extreme and the previous right extreme minus 2 (because there must be at least one integer
+    // between the end of an interval and the beginning of the next one), except the first left
+    // extreme, which is stored directly. The lengths are decremented by kIntervalLengthTreshold,
+    // the minimum length of an interval.
+    if constexpr (CompressedGraph::kIntervalEncoding) {
+      NodeID interval_count = 0;
+
+      // Save the pointer to the interval count and skip the amount of bytes needed to store the
+      // interval count as we can only determine the amount of intervals after finding all of
+      // them.
+      std::uint8_t *interval_count_ptr = _compressed_data;
+      _compressed_data += sizeof(NodeID);
+
+      if (local_degree >= CompressedGraph::kIntervalLengthTreshold) {
+        NodeID interval_len = 1;
+        NodeID previous_right_extreme = 2;
+        NodeID prev_adjacent_node = fetch_adjacent_node(0);
+
+        for (NodeID i = 1; i < neighbourhood.size(); ++i) {
+          const NodeID adjacent_node = fetch_adjacent_node(i);
+
+          if (prev_adjacent_node + 1 == adjacent_node) {
+            ++interval_len;
+
+            // The interval ends if there are no more nodes or the next node is not the increment of
+            // the current node.
+            if (i + 1 == neighbourhood.size() || fetch_adjacent_node(i + 1) != adjacent_node + 1) {
+              if (interval_len >= CompressedGraph::kIntervalLengthTreshold) {
+                const NodeID left_extreme = adjacent_node + 1 - interval_len;
+                const NodeID left_extreme_gap = left_extreme + 2 - previous_right_extreme;
+                const NodeID interval_length_gap =
+                    interval_len - CompressedGraph::kIntervalLengthTreshold;
+
+                _compressed_data += varint_encode(left_extreme_gap, _compressed_data);
+                _compressed_data += varint_encode(interval_length_gap, _compressed_data);
+
+                for (NodeID j = 0; j < interval_len; ++j) {
+                  const NodeID k = i + 1 + j - interval_len;
+
+                  // Set the adjacent node to a special value, which indicates for the gap encoder
+                  // that the node has been encoded through an interval.
+                  set_adjacent_node(k, std::numeric_limits<NodeID>::max());
+
+                  if constexpr (kHasEdgeWeights) {
+                    if (_has_edge_weights) {
+                      const EdgeWeight edge_weight = neighbourhood[k].second;
+                      store_edge_weight(edge_weight);
+                    }
+                  }
+                }
+
+                previous_right_extreme = adjacent_node;
+
+                local_degree -= interval_len;
+                interval_count += 1;
+              }
+
+              interval_len = 1;
+            }
+          }
+
+          prev_adjacent_node = adjacent_node;
+        }
+      }
+
+      // If intervals have been encoded store the interval count and set the bit in the marked byte
+      // indicating that interval encoding has been used for the neighbourhood if the marked byte is
+      // given. Otherwise, fix the amount of bytes stored as we don't store the interval count if no
+      // intervals have been encoded.
+      if (marked_byte == nullptr) {
+        *((NodeID *)interval_count_ptr) = interval_count;
+      } else if (interval_count > 0) {
+        *((NodeID *)interval_count_ptr) = interval_count;
+        *marked_byte |= 0b01000000;
+      } else {
+        _compressed_data -= sizeof(NodeID);
+      }
+
+      if (interval_count > 0) {
+        _num_interval_nodes += 1;
+        _num_intervals += interval_count;
+      }
+
+      // If all incident edges have been compressed using intervals then gap encoding cannot be
+      // applied.
+      if (local_degree == 0) {
+        return;
+      }
+    }
+
+    // Store the remaining adjacent nodes using gap encoding. That is instead of directly storing
+    // the nodes v_1, v_2, ..., v_{k - 1}, v_k, store the gaps v_1 - u, v_2 - v_1 - 1, ..., v_k -
+    // v_{k - 1} - 1 between the nodes, where u is the source node. Note that all gaps except the
+    // first one have to be positive as we sorted the nodes in ascending order. Thus, only for the
+    // first gap the sign is additionally stored.
+    NodeID i = 0;
+
+    // Go to the first adjacent node that has not been encoded through an interval.
+    if constexpr (CompressedGraph::kIntervalEncoding) {
+      while (fetch_adjacent_node(i) == std::numeric_limits<NodeID>::max()) {
+        i += 1;
+      }
+    }
+
+    const NodeID first_adjacent_node = fetch_adjacent_node(i);
+    const SignedID first_gap = first_adjacent_node - static_cast<SignedID>(node);
+    _compressed_data += signed_varint_encode(first_gap, _compressed_data);
+
+    if constexpr (kHasEdgeWeights) {
+      if (_has_edge_weights) {
+        const EdgeWeight first_edge_weight = neighbourhood[i].second;
+        store_edge_weight(first_edge_weight);
+      }
+    }
+
+    i += 1;
+
+    VarIntRunLengthEncoder<NodeID> rl_encoder(_compressed_data);
+    VarIntStreamEncoder<NodeID> sv_encoder(_compressed_data, local_degree - 1);
+
+    NodeID prev_adjacent_node = first_adjacent_node;
+    while (i < neighbourhood.size()) {
+      const NodeID adjacent_node = fetch_adjacent_node(i);
+
+      // Skip the adjacent node since it has been encoded through an interval.
+      if constexpr (CompressedGraph::kIntervalEncoding) {
+        if (adjacent_node == std::numeric_limits<NodeID>::max()) {
+          i += 1;
+          continue;
+        }
+      }
+
+      const NodeID gap = adjacent_node - prev_adjacent_node - 1;
+      if constexpr (CompressedGraph::kRunLengthEncoding) {
+        _compressed_data += rl_encoder.add(gap);
+      } else if constexpr (CompressedGraph::kStreamEncoding) {
+        _compressed_data += sv_encoder.add(gap);
+      } else {
+        _compressed_data += varint_encode(gap, _compressed_data);
+      }
+
+      if constexpr (kHasEdgeWeights) {
+        if (_has_edge_weights) {
+          const EdgeWeight edge_weight = neighbourhood[i].second;
+          store_edge_weight(edge_weight);
+        }
+      }
+
+      prev_adjacent_node = adjacent_node;
+      i += 1;
+    }
+
+    if constexpr (CompressedGraph::kRunLengthEncoding) {
+      rl_encoder.flush();
+    } else if constexpr (CompressedGraph::kStreamEncoding) {
+      sv_encoder.flush();
+    }
+  }
 };
 
 /*!
@@ -264,12 +545,12 @@ public:
       const bool has_node_weights,
       const bool has_edge_weights,
       const bool sorted,
-      const PermutationMapper &&node_mapper,
-      const DegreeMapper &&degrees,
-      const NodeMapper &&nodes,
-      const EdgeMapper &&edges,
-      const NodeWeightMapper &&node_weights,
-      const EdgeWeightMapper &&edge_weights
+      PermutationMapper &&node_mapper,
+      DegreeMapper &&degrees,
+      NodeMapper &&nodes,
+      EdgeMapper &&edges,
+      NodeWeightMapper &&node_weights,
+      EdgeWeightMapper &&edge_weights
   );
 
   /*!
@@ -450,25 +731,27 @@ void print_stats(const auto &stats_ets) {
 
 } // namespace debug
 
+namespace {
+
 template <
+    bool kHasEdgeWeights,
     typename PermutationMapper,
     typename DegreeMapper,
     typename NodeMapper,
     typename EdgeMapper,
     typename NodeWeightMapper,
     typename EdgeWeightMapper>
-CompressedGraph ParallelCompressedGraphBuilder::compress(
+CompressedGraph compute_compressed_graph(
     const NodeID num_nodes,
     const EdgeID num_edges,
     const bool has_node_weights,
-    const bool has_edge_weights,
     const bool sorted,
-    const PermutationMapper &&node_mapper,
-    const DegreeMapper &&degrees,
-    const NodeMapper &&nodes,
-    const EdgeMapper &&edges,
-    const NodeWeightMapper &&node_weights,
-    const EdgeWeightMapper &&edge_weights
+    PermutationMapper &&node_mapper,
+    DegreeMapper &&degrees,
+    NodeMapper &&nodes,
+    EdgeMapper &&edges,
+    NodeWeightMapper &&node_weights,
+    EdgeWeightMapper &&edge_weights
 ) {
   // To compress the graph in parallel the nodes are split into chunks. Each parallel task fetches
   // a chunk and compresses the neighbourhoods of the corresponding nodes. The compressed
@@ -514,14 +797,26 @@ CompressedGraph ParallelCompressedGraphBuilder::compress(
 
   // Initializes the data structures used to build the compressed graph in parallel.
   ParallelCompressedGraphBuilder builder(
-      num_nodes, num_edges, has_node_weights, has_edge_weights, sorted
+      num_nodes, num_edges, has_node_weights, kHasEdgeWeights, sorted
   );
 
-  tbb::enumerable_thread_specific<std::vector<EdgeID>> offsets_ets;
-  tbb::enumerable_thread_specific<std::vector<std::pair<NodeID, EdgeWeight>>> neighbourhood_ets;
+  const std::size_t max_capacity = std::max<std::size_t>(max_chunk_size, max_degree);
+
+  tbb::enumerable_thread_specific<MaxSizeVector<EdgeID>> offsets_ets([&] {
+    return MaxSizeVector<EdgeID>(max_capacity);
+  });
+
+  using Neighbourhood = std::conditional_t<
+      kHasEdgeWeights,
+      MaxSizeVector<std::pair<NodeID, EdgeWeight>>,
+      MaxSizeVector<NodeID>>;
+  tbb::enumerable_thread_specific<Neighbourhood> neighbourhood_ets([&] {
+    return Neighbourhood(max_capacity);
+  });
+
   tbb::enumerable_thread_specific<CompressedEdgesBuilder> neighbourhood_builder_ets([&] {
     return CompressedEdgesBuilder(
-        num_nodes, num_edges, max_degree, has_edge_weights, builder.edge_weights()
+        num_nodes, num_edges, max_degree, kHasEdgeWeights, builder.edge_weights()
     );
   });
 
@@ -533,8 +828,8 @@ CompressedGraph ParallelCompressedGraphBuilder::compress(
     auto &dbg = dbg_ets.local();
     IF_DBG dbg.num_chunks++;
 
-    std::vector<EdgeID> &offsets = offsets_ets.local();
-    std::vector<std::pair<NodeID, EdgeWeight>> &neighbourhood = neighbourhood_ets.local();
+    auto &offsets = offsets_ets.local();
+    auto &neighbourhood = neighbourhood_ets.local();
     CompressedEdgesBuilder &neighbourhood_builder = neighbourhood_builder_ets.local();
 
     const NodeID chunk = buffer.next();
@@ -554,14 +849,13 @@ CompressedGraph ParallelCompressedGraphBuilder::compress(
         for (NodeID j = 0; j < degree; ++j) {
           const NodeID adjacent_node = edges(edge);
 
-          EdgeWeight edge_weight;
-          if (has_edge_weights) [[unlikely]] {
-            edge_weight = edge_weights(edge);
+          if constexpr (kHasEdgeWeights) {
+            const EdgeWeight edge_weight = edge_weights(edge);
+            neighbourhood.emplace_back(adjacent_node, edge_weight);
           } else {
-            edge_weight = 1;
+            neighbourhood.push_back(adjacent_node);
           }
 
-          neighbourhood.emplace_back(adjacent_node, edge_weight);
           edge += 1;
         }
 
@@ -615,6 +909,59 @@ CompressedGraph ParallelCompressedGraphBuilder::compress(
   IF_DBG debug::print_stats(dbg_ets);
 
   return builder.build();
+}
+
+} // namespace
+
+template <
+    typename PermutationMapper,
+    typename DegreeMapper,
+    typename NodeMapper,
+    typename EdgeMapper,
+    typename NodeWeightMapper,
+    typename EdgeWeightMapper>
+CompressedGraph ParallelCompressedGraphBuilder::compress(
+    const NodeID num_nodes,
+    const EdgeID num_edges,
+    const bool has_node_weights,
+    const bool has_edge_weights,
+    const bool sorted,
+    PermutationMapper &&node_mapper,
+    DegreeMapper &&degrees,
+    NodeMapper &&nodes,
+    EdgeMapper &&edges,
+    NodeWeightMapper &&node_weights,
+    EdgeWeightMapper &&edge_weights
+) {
+  if (has_edge_weights) {
+    constexpr bool kHasEdgeWeights = true;
+    return compute_compressed_graph<kHasEdgeWeights>(
+        num_nodes,
+        num_edges,
+        has_node_weights,
+        sorted,
+        std::forward<PermutationMapper>(node_mapper),
+        std::forward<DegreeMapper>(degrees),
+        std::forward<NodeMapper>(nodes),
+        std::forward<EdgeMapper>(edges),
+        std::forward<NodeWeightMapper>(node_weights),
+        std::forward<EdgeWeightMapper>(edge_weights)
+    );
+  } else {
+    constexpr bool kHasEdgeWeights = false;
+    return compute_compressed_graph<kHasEdgeWeights>(
+        num_nodes,
+        num_edges,
+        has_node_weights,
+        sorted,
+        std::forward<PermutationMapper>(node_mapper),
+        std::forward<DegreeMapper>(degrees),
+        std::forward<NodeMapper>(nodes),
+        std::forward<EdgeMapper>(edges),
+        std::forward<NodeWeightMapper>(node_weights),
+        std::forward<EdgeWeightMapper>(edge_weights)
+    );
+  }
 }
 
 } // namespace kaminpar::shm
