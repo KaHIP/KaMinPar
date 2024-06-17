@@ -99,7 +99,9 @@ public:
   using Base::resize;
   using Base::swap;
 
-  MaxSizeVector(const std::size_t max_capacity) : Base(MaxCapacityAllocator<T>(max_capacity)) {}
+  MaxSizeVector(const std::size_t max_capacity)
+      : Base(MaxCapacityAllocator<T>(max_capacity)),
+        _max_capacity(max_capacity) {}
 
   size_type max_size() const {
     return std::min(Base::max_size(), _max_capacity);

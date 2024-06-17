@@ -10,7 +10,6 @@
 #include <algorithm>
 #include <bitset>
 #include <cstdint>
-#include <span>
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>

@@ -7,6 +7,8 @@
  ******************************************************************************/
 #pragma once
 
+#include <span>
+
 #include "kaminpar-shm/datastructures/compressed_graph.h"
 
 #include "kaminpar-common/datastructures/concurrent_circular_vector.h"
