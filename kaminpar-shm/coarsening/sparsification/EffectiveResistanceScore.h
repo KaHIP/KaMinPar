@@ -15,7 +15,8 @@
 namespace kaminpar::shm::sparsification {
 class EffectiveResistanceScore : public ScoreFunction<double> {
 public:
-  EffectiveResistanceScore();
+  EffectiveResistanceScore(float johnson_lindenstrauss_factor);
+
   ~EffectiveResistanceScore();
   StaticArray<double> scores(const CSRGraph &g) override;
 
@@ -26,6 +27,7 @@ private:
     double *v;
     EdgeID m;
   };
+  float _johnson_lindenstrauss_factor;
   IJVMatrix alloc_ijv(EdgeID m);
   void free_ijv(IJVMatrix &a);
   void print_jl_exception();
@@ -38,15 +40,29 @@ private:
   module LapaciansAdapter
     using Laplacians
     using SparseArrays
+    using LinearAlgebra
 
     struct C_IJV
         i::Array{Int64,1}
         j::Array{Int64,1}
-        v::Array{Cdouble,1}
+        v::Array{Float64,1}
+    end
+
+    function get_i(a::C_IJV)::Array{Int64}
+      return a.i
+    end
+    function get_j(a::C_IJV)::Array{Int64}
+      return a.j
+    end
+    function get_v(a::C_IJV)::Array{Float64}
+      return a.v
+    end
+    function get_m(a::C_IJV)::Int64
+      return length(a.v)
     end
 
     # based on sparsify method in module Lapacians
-    function effective_resistances(g::C_IJV)::C_IJV
+    function effective_resistances(g::C_IJV, JLfac::Float32)::C_IJV
       a = sparse(g.i, g.j, g.v)
       f = approxchol_lap(a,tol=1e-2);
 
@@ -72,13 +88,13 @@ private:
         ers[h] = min(1,av[h]* ((norm(V[i,:]-V[j,:])^2)/k))
         #        min(1, w_e * (R_e                      ))
       end
-      erMatrix = sparse(ai,aj,ers)
+      erMatrix = sparse(ai,aj,ers,n,n)
       erMatrix = erMatrix + erMatrix'
 
       (i,j,v) = findnz(erMatrix)
       return C_IJV(i,j,v)
-      return
     end
+  end
   )";
 };
 } // namespace kaminpar::shm::sparsification

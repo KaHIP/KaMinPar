@@ -127,7 +127,7 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
     );
   case SparsificationAlgorithm::EFFECTIVE_RESISTANCE:
     return std::make_unique<sparsification::ThresholdSampler<double>>(
-        std::make_unique<sparsification::EffectiveResistanceScore>(),
+        std::make_unique<sparsification::EffectiveResistanceScore>(4),
         std::make_unique<sparsification::IdentityReweihingFunction<double>>()
     );
   }

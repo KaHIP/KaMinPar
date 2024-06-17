@@ -9,9 +9,11 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
                       // want fast code.
 
     namespace kaminpar::shm::sparsification {
-  EffectiveResistanceScore::EffectiveResistanceScore() {
+  EffectiveResistanceScore::EffectiveResistanceScore(float johnson_lindenstrauss_factor)
+      : _johnson_lindenstrauss_factor(johnson_lindenstrauss_factor) {
     jl_init();
     jl_eval_string(JL_LAPLACIANS_ADAPTER_CODE);
+    print_jl_exception();
   }
 
   EffectiveResistanceScore::~EffectiveResistanceScore() {
@@ -34,8 +36,7 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
     jl_exception_clear();
     JL_GC_POP();
   }
-  EffectiveResistanceScore::IJVMatrix EffectiveResistanceScore::encode_as_ijv(const CSRGraph &g
-  ) {
+  EffectiveResistanceScore::IJVMatrix EffectiveResistanceScore::encode_as_ijv(const CSRGraph &g) {
     // Encode ajacency matrix in csc fromat: A[I[n],J[n]] = V[n] and all other entries are zero
     IJVMatrix a = alloc_ijv(g.m());
     utils::for_edges_with_endpoints(g, [&](EdgeID edge, NodeID source, NodeID target) {
@@ -84,9 +85,7 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
     }
     return scores;
   }
-  EffectiveResistanceScore::IJVMatrix EffectiveResistanceScore::sparsify_in_julia(
-      IJVMatrix & a
-  ) {
+  EffectiveResistanceScore::IJVMatrix EffectiveResistanceScore::sparsify_in_julia(IJVMatrix & a) {
     jl_array_t *jl_I = nullptr;
     jl_array_t *jl_J = nullptr;
     jl_array_t *jl_V = nullptr;
@@ -103,20 +102,24 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
 
     jl_a = jl_new_struct((jl_datatype_t *)jl_get_function(adapter, "C_IJV"), jl_I, jl_J, jl_V);
 
-    // TODO: Pick eps in a sensible way
-    jl_value_t *jl_eps = jl_box_float32(0.1);
+    jl_value_t *jl_johnson_lindenstrauss_factor = jl_box_float32(_johnson_lindenstrauss_factor);
 
-    jl_function_t *sparsify_adapter = jl_get_function(adapter, "sparsify_adapter");
-    jl_value_t *jl_sparsifyer = jl_call2(sparsify_adapter, jl_a, jl_eps);
+    jl_function_t *jl_effective_resistances_function =
+        jl_get_function(adapter, "effective_resistances");
+    jl_value_t *jl_effective_resistances =
+        jl_call2(jl_effective_resistances_function, jl_a, jl_johnson_lindenstrauss_factor);
     print_jl_exception();
 
-    KASSERT(jl_sparsifyer != nullptr, "sparsify_adapter failed!", assert::always);
+    KASSERT(jl_effective_resistances != nullptr, "sparsify_adapter failed!", assert::always);
 
     IJVMatrix sparsifyer(
-        (int64_t *)jl_array_data(jl_call1(jl_get_function(adapter, "get_i"), jl_sparsifyer)),
-        (int64_t *)jl_array_data(jl_call1(jl_get_function(adapter, "get_j"), jl_sparsifyer)),
-        (double *)jl_array_data(jl_call1(jl_get_function(adapter, "get_v"), jl_sparsifyer)),
-        jl_unbox_int64(jl_call1(jl_get_function(adapter, "get_m"), jl_sparsifyer))
+        (int64_t *)
+            jl_array_data(jl_call1(jl_get_function(adapter, "get_i"), jl_effective_resistances)),
+        (int64_t *)
+            jl_array_data(jl_call1(jl_get_function(adapter, "get_j"), jl_effective_resistances)),
+        (double *)
+            jl_array_data(jl_call1(jl_get_function(adapter, "get_v"), jl_effective_resistances)),
+        jl_unbox_int64(jl_call1(jl_get_function(adapter, "get_m"), jl_effective_resistances))
     );
 
     JL_GC_POP();
