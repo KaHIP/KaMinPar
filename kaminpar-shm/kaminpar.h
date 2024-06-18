@@ -86,6 +86,7 @@ enum class CoarseningAlgorithm {
 enum class SparsificationAlgorithm {
   UNIFORM_RANDOM_SAMPLING,
   FOREST_FIRE,
+  WEIGHTED_FOREST_FIRE,
   K_NEIGHBOUR,
   K_NEIGHBOUR_SPANNING_TREE,
   WEIGHT_THRESHOLD,

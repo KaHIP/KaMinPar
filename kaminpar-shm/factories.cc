@@ -34,6 +34,7 @@
 #include "coarsening/sparsification/NetworKitScoreAdapter.h"
 #include "coarsening/sparsification/ThresholdSampler.h"
 #include "coarsening/sparsification/UniformRandomSampler.h"
+#include "coarsening/sparsification/WeightedForestFireScore.hpp"
 #include "coarsening/sparsification/kNeighbourSampler.h"
 #include "coarsening/sparsifing_cluster_coarsener.h"
 
@@ -101,10 +102,22 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
   switch (ctx.coarsening.sparsification_algorithm) {
   case SparsificationAlgorithm::FOREST_FIRE:
     return std::make_unique<sparsification::ThresholdSampler<double>>(
-        std::make_unique<sparsification::NetworKitScoreAdapter<double>>(
-            sparsification::NetworKitScoreAdapter<double>([](NetworKit::Graph g) {
-              return NetworKit::ForestFireScore(g, 0.95, 5);
-            })
+        std::make_unique<sparsification::NetworKitScoreAdapter<NetworKit::ForestFireScore, double>>(
+            sparsification::NetworKitScoreAdapter<NetworKit::ForestFireScore, double>(
+                [](NetworKit::Graph g) { return NetworKit::ForestFireScore(g, 0.95, 5); }
+            )
+        ),
+        std::make_unique<sparsification::IdentityReweihingFunction<double>>()
+    );
+  case SparsificationAlgorithm::WEIGHTED_FOREST_FIRE:
+    return std::make_unique<sparsification::ThresholdSampler<double>>(
+        std::make_unique<
+            sparsification::NetworKitScoreAdapter<sparsification::WeightedForestFireScore, double>>(
+            sparsification::NetworKitScoreAdapter<sparsification::WeightedForestFireScore, double>(
+                [](NetworKit::Graph g) {
+                  return sparsification::WeightedForestFireScore(g, 0.95, 5);
+                }
+            )
         ),
         std::make_unique<sparsification::IdentityReweihingFunction<double>>()
     );

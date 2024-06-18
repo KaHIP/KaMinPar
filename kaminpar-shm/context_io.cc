@@ -85,6 +85,8 @@ std::unordered_map<std::string, SparsificationAlgorithm> get_sparsification_algo
       {"wt", SparsificationAlgorithm::WEIGHT_THRESHOLD},
       {"effective-resistance", SparsificationAlgorithm::EFFECTIVE_RESISTANCE},
       {"er", SparsificationAlgorithm::EFFECTIVE_RESISTANCE},
+      {"weighted-forest-fire", SparsificationAlgorithm::WEIGHTED_FOREST_FIRE},
+      {"wff", SparsificationAlgorithm::WEIGHTED_FOREST_FIRE},
   };
 }
 
