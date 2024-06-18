@@ -7,7 +7,12 @@
  ******************************************************************************/
 #include "compressed_graph.h"
 
+#include <numeric>
+
+#include <tbb/enumerable_thread_specific.h>
+
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/parallel/algorithm.h"
 
 namespace kaminpar::shm {
 

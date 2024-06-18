@@ -5,14 +5,13 @@
  * @author: Daniel Salwasser
  * @date:   12.11.2023
  ******************************************************************************/
+#include <limits>
+
 #include "kaminpar-cli/CLI11.h"
 
 #include "kaminpar-shm/datastructures/compressed_graph_builder.h"
-#include "kaminpar-shm/datastructures/graph.h"
-#include "kaminpar-shm/graphutils/permutator.h"
 
 #include "kaminpar-common/console_io.h"
-#include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 
@@ -80,6 +79,21 @@ template <typename Graph> static void benchmark_neighbors(const Graph &graph) {
   }
 }
 
+template <typename Graph> static void benchmark_neighbors_limit(const Graph &graph) {
+  SCOPED_TIMER("Neighbors (with limit)");
+
+  for (const auto node : graph.nodes()) {
+    graph.neighbors(
+        node,
+        std::numeric_limits<NodeID>::max(),
+        [](const auto incident_edge, const auto adjacent_node) {
+          do_not_optimize(incident_edge);
+          do_not_optimize(adjacent_node);
+        }
+    );
+  }
+}
+
 template <typename Graph> static void benchmark_pfor_neighbors(const Graph &graph) {
   SCOPED_TIMER("Parallel For Neighbors");
 
@@ -104,6 +118,7 @@ static void run_benchmark(CSRGraph graph, CompressedGraph compressed_graph) {
     benchmark_incident_edges(graph);
     benchmark_adjacent_nodes(graph);
     benchmark_neighbors(graph);
+    benchmark_neighbors_limit(graph);
     benchmark_pfor_neighbors(graph);
   };
 
@@ -112,6 +127,7 @@ static void run_benchmark(CSRGraph graph, CompressedGraph compressed_graph) {
     benchmark_incident_edges(compressed_graph);
     benchmark_adjacent_nodes(compressed_graph);
     benchmark_neighbors(compressed_graph);
+    benchmark_neighbors_limit(compressed_graph);
     benchmark_pfor_neighbors(compressed_graph);
   };
 }
