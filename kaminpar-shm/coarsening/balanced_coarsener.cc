@@ -49,7 +49,7 @@ bool BalancedCoarsener::coarsen() {
         compute_max_cluster_weight<NodeWeight>(_c_ctx, _p_ctx, prev_n, total_node_weight);
 
     Context ctx = create_largek_fast_context();
-    ctx.partition.epsilon = 0.03;
+    ctx.partition.epsilon = _c_ctx.clustering.max_allowed_imbalance;
     ctx.partition.k = total_node_weight / max_cluster_weight;
     ctx.partition.setup(graph);
 

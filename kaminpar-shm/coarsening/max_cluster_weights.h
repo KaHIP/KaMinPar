@@ -12,6 +12,8 @@
 
 #include "kaminpar-shm/kaminpar.h"
 
+#include "kaminpar-common/logger.h"
+
 namespace kaminpar::shm {
 template <typename NodeWeight, typename PartitionContext>
 NodeWeight compute_max_cluster_weight(

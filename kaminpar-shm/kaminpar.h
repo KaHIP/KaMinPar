@@ -175,6 +175,7 @@ struct ClusterCoarseningContext {
   double cluster_weight_multiplier;
 
   int max_mem_free_coarsening_level;
+  double max_allowed_imbalance;
 };
 
 struct CoarseningContext {

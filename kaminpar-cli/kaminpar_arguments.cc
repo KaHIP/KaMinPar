@@ -177,6 +177,14 @@ Options are:
       )
       ->capture_default_str();
 
+  coarsening
+      ->add_option(
+          "--c-max-allowed-imbalance",
+          ctx.coarsening.clustering.max_allowed_imbalance,
+          "Maximum allowed imbalance for the cluster sizes when using partitioning"
+      )
+      ->capture_default_str();
+
   create_lp_coarsening_options(app, ctx);
   create_contraction_coarsening_options(app, ctx);
 

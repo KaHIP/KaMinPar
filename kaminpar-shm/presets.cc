@@ -105,6 +105,7 @@ Context create_default_context() {
                       .cluster_weight_limit = ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
                       .cluster_weight_multiplier = 1.0,
                       .max_mem_free_coarsening_level = 0,
+                      .max_allowed_imbalance = 0.03,
                   },
               .contraction =
                   {
