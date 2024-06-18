@@ -100,8 +100,10 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
     jl_V = jl_ptr_to_array_1d(jl_apply_array_type((jl_value_t *)jl_float64_type, 1), a.v, a.m, 0);
 
     auto *adapter = (jl_module_t *)jl_eval_string("LapaciansAdapter");
+    print_jl_exception();
 
     jl_a = jl_new_struct((jl_datatype_t *)jl_get_function(adapter, "C_IJV"), jl_I, jl_J, jl_V);
+    print_jl_exception();
 
     jl_value_t *jl_johnson_lindenstrauss_factor = jl_box_float32(_johnson_lindenstrauss_factor);
 
