@@ -7,7 +7,6 @@
  ******************************************************************************/
 #pragma once
 
-#include <algorithm>
 #include <limits>
 #include <mutex>
 #include <vector>

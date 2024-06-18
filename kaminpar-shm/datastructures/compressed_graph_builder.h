@@ -10,6 +10,7 @@
 #include <span>
 
 #include "kaminpar-shm/datastructures/compressed_graph.h"
+#include "kaminpar-shm/datastructures/csr_graph.h"
 
 #include "kaminpar-common/datastructures/concurrent_circular_vector.h"
 #include "kaminpar-common/datastructures/maxsize_vector.h"
@@ -759,53 +760,61 @@ CompressedGraph compute_compressed_graph(
   // a chunk and compresses the neighbourhoods of the corresponding nodes. The compressed
   // neighborhoods are meanwhile stored in a buffer. They are moved into the compressed edge array
   // when the (total) length of the compressed neighborhoods of the previous chunks is determined.
+
+  // First step: create the chunks so that each chunk has about the same number of edges.
   constexpr std::size_t kNumChunks = 5000;
-  const EdgeID max_chunk_size = num_edges / kNumChunks;
+  const EdgeID max_chunk_order = num_edges / kNumChunks;
   std::vector<std::tuple<NodeID, NodeID, EdgeID>> chunks;
 
   NodeID max_degree = 0;
+  NodeID max_chunk_size = 0;
   TIMED_SCOPE("Compute chunks") {
     NodeID cur_chunk_start = 0;
     EdgeID cur_chunk_size = 0;
     EdgeID cur_first_edge = 0;
     for (NodeID i = 0; i < num_nodes; ++i) {
-      NodeID node = node_mapper(i);
-
+      const NodeID node = node_mapper(i);
       const NodeID degree = degrees(node);
-      max_degree = std::max(max_degree, degree);
 
+      max_degree = std::max(max_degree, degree);
       cur_chunk_size += degree;
-      if (cur_chunk_size >= max_chunk_size) {
-        if (cur_chunk_start == i) {
+
+      if (cur_chunk_size >= max_chunk_order) {
+        // If there is a node whose neighborhood is larger than the chunk size limit, create a chunk
+        // consisting only of this node.
+        const bool singleton_chunk = cur_chunk_start == i;
+        if (singleton_chunk) {
           chunks.emplace_back(cur_chunk_start, i + 1, cur_first_edge);
+          max_chunk_size = std::max<NodeID>(max_chunk_size, 1);
 
           cur_chunk_start = i + 1;
           cur_first_edge += degree;
           cur_chunk_size = 0;
-        } else {
-          chunks.emplace_back(cur_chunk_start, i, cur_first_edge);
-
-          cur_chunk_start = i;
-          cur_first_edge += cur_chunk_size - degree;
-          cur_chunk_size = degree;
+          continue;
         }
+
+        chunks.emplace_back(cur_chunk_start, i, cur_first_edge);
+        max_chunk_size = std::max<NodeID>(max_chunk_size, i - cur_chunk_start);
+
+        cur_chunk_start = i;
+        cur_first_edge += cur_chunk_size - degree;
+        cur_chunk_size = degree;
       }
     }
 
+    // If the last chunk is smaller than the chunk size limit, add it explicitly.
     if (cur_chunk_start != num_nodes) {
       chunks.emplace_back(cur_chunk_start, num_nodes, cur_first_edge);
     }
   };
 
-  // Initializes the data structures used to build the compressed graph in parallel.
+  // Second step: Initializes the data structures used to build the compressed graph in parallel.
   ParallelCompressedGraphBuilder builder(
       num_nodes, num_edges, has_node_weights, kHasEdgeWeights, sorted
   );
 
-  const std::size_t max_capacity = std::max<std::size_t>(max_chunk_size, max_degree);
-
   tbb::enumerable_thread_specific<MaxSizeVector<EdgeID>> offsets_ets([&] {
-    return MaxSizeVector<EdgeID>(max_capacity);
+    return MaxSizeVector<EdgeID>(max_chunk_size);
   });
 
   using Neighbourhood = std::conditional_t<
@@ -813,6 +822,7 @@ CompressedGraph compute_compressed_graph(
       MaxSizeVector<std::pair<NodeID, EdgeWeight>>,
       MaxSizeVector<NodeID>>;
   tbb::enumerable_thread_specific<Neighbourhood> neighbourhood_ets([&] {
+    const std::size_t max_capacity = std::max<std::size_t>(max_chunk_order, max_degree);
     return Neighbourhood(max_capacity);
   });
 
@@ -825,6 +835,7 @@ CompressedGraph compute_compressed_graph(
   const std::size_t num_threads = tbb::this_task_arena::max_concurrency();
   ConcurrentCircularVectorMutex<NodeID, EdgeID> buffer(num_threads);
 
+  // Third step: Compress the chunks in parallel.
   tbb::enumerable_thread_specific<debug::Stats> dbg_ets;
   tbb::parallel_for<NodeID>(0, chunks.size(), [&](const auto) {
     auto &dbg = dbg_ets.local();
@@ -832,7 +843,7 @@ CompressedGraph compute_compressed_graph(
 
     auto &offsets = offsets_ets.local();
     auto &neighbourhood = neighbourhood_ets.local();
-    CompressedEdgesBuilder &neighbourhood_builder = neighbourhood_builder_ets.local();
+    auto &neighbourhood_builder = neighbourhood_builder_ets.local();
 
     const NodeID chunk = buffer.next();
     const auto [start, end, first_edge] = chunks[chunk];
@@ -935,6 +946,8 @@ CompressedGraph ParallelCompressedGraphBuilder::compress(
     NodeWeightMapper &&node_weights,
     EdgeWeightMapper &&edge_weights
 ) {
+  // To reduce memory usage, we distinguish between graphs with and without edge weights and only
+  // store edge weights during compression if they are present.
   if (has_edge_weights) {
     constexpr bool kHasEdgeWeights = true;
     return compute_compressed_graph<kHasEdgeWeights>(
