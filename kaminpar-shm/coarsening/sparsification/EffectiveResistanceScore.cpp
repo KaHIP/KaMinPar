@@ -14,7 +14,7 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
     jl_init();
     jl_eval_string(JL_LAPLACIANS_ADAPTER_CODE);
     print_jl_exception();
-    JL_GC_DISABLED;
+    jl_gc_enable(false);
   }
 
   EffectiveResistanceScore::~EffectiveResistanceScore() {
