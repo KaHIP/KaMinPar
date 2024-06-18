@@ -130,7 +130,7 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
   - forest-fire, ff: sampling by forest fire scores
   - k-neighbour, kn: k-Neighbour sampling
   - k-neighbour-spanning-tree, kn-st: k-Neighbour sampling with spanning tree
-  - weight-theshold, wt: sample edges with weights above threshold
+  - weight-threshold, wt: sample edges with weights above threshold
   - effective-resistance, er: sample edges with relative effective-resistance above threshold)")
       ->capture_default_str();
 
