@@ -14,6 +14,7 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
     jl_init();
     jl_eval_string(JL_LAPLACIANS_ADAPTER_CODE);
     print_jl_exception();
+    JL_GC_DISABLED;
   }
 
   EffectiveResistanceScore::~EffectiveResistanceScore() {
@@ -25,7 +26,7 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
     jl_value_t *sprint_fun = jl_get_function(jl_main_module, "sprint");
     jl_value_t *showerror_fun = jl_get_function(jl_main_module, "showerror");
 
-    JL_GC_PUSH3(&exception, &sprint_fun, &showerror_fun);
+    // JL_GC_PUSH3(&exception, &sprint_fun, &showerror_fun);
 
     if (exception) {
       const char *returned_exception =
@@ -34,7 +35,7 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
     }
 
     jl_exception_clear();
-    JL_GC_POP();
+    // JL_GC_POP();
   }
   EffectiveResistanceScore::IJVMatrix EffectiveResistanceScore::encode_as_ijv(const CSRGraph &g) {
     // Encode ajacency matrix in csc fromat: A[I[n],J[n]] = V[n] and all other entries are zero
@@ -91,7 +92,7 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
     jl_array_t *jl_V = nullptr;
     jl_value_t *jl_a = nullptr;
 
-    JL_GC_PUSH4(&jl_I, &jl_I, &jl_V, &jl_a);
+    // JL_GC_PUSH4(&jl_I, &jl_I, &jl_V, &jl_a);
 
     jl_value_t *jl_int_array_type = jl_apply_array_type((jl_value_t *)jl_int64_type, 1);
     jl_I = jl_ptr_to_array_1d(jl_int_array_type, a.i, a.m, 0);
@@ -122,7 +123,7 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
         jl_unbox_int64(jl_call1(jl_get_function(adapter, "get_m"), jl_effective_resistances))
     );
 
-    JL_GC_POP();
+    // JL_GC_POP();
 
     print_jl_exception();
     return sparsifyer;
