@@ -25,9 +25,6 @@ WeightedForestFireScore::WeightedForestFireScore(
       targetBurntRatio(targetBurntRatio) {}
 
 void WeightedForestFireScore::run() {
-  printf("hasEdgeIds: %d\n", G->hasEdgeIds());
-  printf("not hasEdgeIds: %d\n", !G->hasEdgeIds());
-  printf("hasEdgeIds equal false: %d\n", G->hasEdgeIds() == false);
   if (G->hasEdgeIds() == false) {
     throw std::runtime_error("edges have not been indexed - call indexEdges first");
   }
