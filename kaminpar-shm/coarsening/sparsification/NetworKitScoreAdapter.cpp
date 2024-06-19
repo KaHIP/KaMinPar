@@ -21,7 +21,6 @@ StaticArray<Score> NetworKitScoreAdapter<EdgeScore, Score>::scores(const CSRGrap
   auto scorer = _curried_constructor(*nk_graph);
   scorer.run();
   auto nk_scores = scorer.scores();
-  delete (nk_graph);
 
   auto sorted_by_target = utils::sort_by_traget(g);
   auto scores = StaticArray<Score>(g.m());
@@ -30,9 +29,11 @@ StaticArray<Score> NetworKitScoreAdapter<EdgeScore, Score>::scores(const CSRGrap
       EdgeID e = sorted_by_target[g.raw_nodes()[u] + i];
       auto [v, nk_e] = nk_graph->getIthNeighborWithId(u, i);
       KASSERT(g.edge_target(e) == v, "edge target does not match");
-      scores[e] = scores[nk_e];
+      scores[e] = nk_scores[nk_e];
     }
   }
+
+  delete (nk_graph);
 
   return scores;
 }
