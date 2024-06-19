@@ -76,30 +76,21 @@ public:
   void init(const EdgeID first_edge);
 
   /*!
-   * Adds the neighborhood of a node. Note that the neighbourhood vector is modified.
+   * Adds the (possibly weighted) neighborhood of a node. Note that the neighbourhood vector is modified.
    *
    * @param node The node whose neighborhood to add.
    * @param neighbourhood The neighbourhood of the node to add.
    * @return The offset into the compressed edge array of the node.
    */
-  template <template <typename> typename Container>
-  EdgeID add(const NodeID node, Container<NodeID> &neighbourhood) {
-    std::sort(neighbourhood.begin(), neighbourhood.end());
-    return add_node(node, neighbourhood);
-  }
+  template <typename Container> EdgeID add(const NodeID node, Container &neighbourhood) {
+    if constexpr (std::is_same_v<typename Container::value_type, std::pair<NodeID, EdgeWeight>>) {
+      std::sort(neighbourhood.begin(), neighbourhood.end(), [](const auto &a, const auto &b) {
+        return a.first < b.first;
+      });
+    } else {
+      std::sort(neighbourhood.begin(), neighbourhood.end());
+    }
 
-  /*!
-   * Adds the (weighted) neighborhood of a node. Note that the neighbourhood vector is modified.
-   *
-   * @param node The node whose neighborhood to add.
-   * @param neighbourhood The neighbourhood of the node to add.
-   * @return The offset into the compressed edge array of the node.
-   */
-  template <template <typename> typename Container>
-  EdgeID add(const NodeID node, Container<std::pair<NodeID, EdgeWeight>> &neighbourhood) {
-    std::sort(neighbourhood.begin(), neighbourhood.end(), [](const auto &a, const auto &b) {
-      return a.first < b.first;
-    });
     return add_node(node, neighbourhood);
   }
 
