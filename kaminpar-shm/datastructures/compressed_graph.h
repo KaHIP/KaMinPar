@@ -7,15 +7,18 @@
  ******************************************************************************/
 #pragma once
 
+#include <type_traits>
 #include <utility>
 #include <vector>
 
 #include <tbb/parallel_for.h>
 
 #include "kaminpar-shm/datastructures/abstract_graph.h"
-#include "kaminpar-shm/datastructures/csr_graph.h"
 
 #include "kaminpar-common/constexpr_utils.h"
+#include "kaminpar-common/datastructures/compact_static_array.h"
+#include "kaminpar-common/datastructures/static_array.h"
+#include "kaminpar-common/degree_buckets.h"
 #include "kaminpar-common/math.h"
 #include "kaminpar-common/ranges.h"
 #include "kaminpar-common/varint_codec.h"
@@ -290,7 +293,7 @@ public:
 
   template <typename Lambda> void adjacent_nodes(const NodeID node, Lambda &&l) const {
     decode_neighborhood(node, [&](const EdgeID incident_edge, const NodeID adjacent_node) {
-      l(adjacent_node);
+      return l(adjacent_node);
     });
   }
 
@@ -300,14 +303,29 @@ public:
 
   template <typename Lambda>
   void neighbors(const NodeID node, const NodeID max_neighbor_count, Lambda &&l) const {
-    decode_neighborhood(node, std::forward<Lambda>(l));
+    KASSERT(max_neighbor_count > 0);
+    constexpr bool non_stoppable = std::is_void_v<std::invoke_result_t<Lambda, EdgeID, NodeID>>;
+
+    NodeID num_neighbors_visited = 1;
+    decode_neighborhood(node, [&](const EdgeID incident_edge, const NodeID adjacent_node) {
+      bool abort = num_neighbors_visited++ >= max_neighbor_count;
+
+      if constexpr (non_stoppable) {
+        l(incident_edge, adjacent_node);
+      } else {
+        abort |= l(incident_edge, adjacent_node);
+      }
+
+      return abort;
+    });
   }
 
   template <typename Lambda>
   void pfor_neighbors(
       const NodeID node, const NodeID max_neighbor_count, const NodeID grainsize, Lambda &&l
   ) const {
-    decode_neighborhood<true>(node, std::forward<Lambda>(l));
+    constexpr bool kParallelDecoding = true;
+    decode_neighborhood<kParallelDecoding>(node, std::forward<Lambda>(l));
   }
 
   // Graph permutation
@@ -499,7 +517,7 @@ private:
     }
   }
 
-  template <bool parallel = false, typename Lambda>
+  template <bool kParallelDecoding = false, typename Lambda>
   void decode_neighborhood(const NodeID node, Lambda &&l) const {
     const std::uint8_t *data = _compressed_edges.data();
 
@@ -521,7 +539,7 @@ private:
 
     if constexpr (kHighDegreeEncoding) {
       if (degree >= kHighDegreeThreshold) {
-        decode_parts<parallel>(node_data, node, edge, degree, std::forward<Lambda>(l));
+        decode_parts<kParallelDecoding>(node_data, node, edge, degree, std::forward<Lambda>(l));
         return;
       }
     }
@@ -536,7 +554,7 @@ private:
     );
   }
 
-  template <bool parallel, typename Lambda>
+  template <bool kParallelDecoding, typename Lambda>
   void decode_parts(
       const std::uint8_t *data,
       const NodeID node,
@@ -567,7 +585,7 @@ private:
       );
     };
 
-    if constexpr (parallel) {
+    if constexpr (kParallelDecoding) {
       tbb::parallel_for<NodeID>(0, part_count, std::forward<decltype(iterate_part)>(iterate_part));
     } else {
       for (NodeID part = 0; part < part_count; ++part) {

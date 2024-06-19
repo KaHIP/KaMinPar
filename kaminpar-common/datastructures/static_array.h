@@ -170,7 +170,8 @@ public:
   }
 
   template <typename Iterator>
-  StaticArray(Iterator first, Iterator last) : StaticArray(std::distance(first, last)) {
+  StaticArray(Iterator first, Iterator last)
+      : StaticArray(std::distance(first, last), static_array::noinit) {
     tbb::parallel_for<std::size_t>(0, _size, [&](const std::size_t i) { _data[i] = *(first + i); });
   }
 

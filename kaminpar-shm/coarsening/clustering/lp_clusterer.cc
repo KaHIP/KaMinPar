@@ -36,6 +36,9 @@ class LPClusteringImpl final
   using ClusterWeightBase = OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>;
   using ClusterBase = NonatomicClusterVectorRef<NodeID, NodeID>;
 
+  using Config = LPClusteringConfig;
+  using ClusterID = Config::ClusterID;
+
 public:
   using Permutations = Base::Permutations;
 
@@ -238,6 +241,48 @@ public:
 
   [[nodiscard]] NodeWeight max_cluster_weight(const NodeID /* cluster */) {
     return _max_cluster_weight;
+  }
+
+  template <typename RatingMap>
+  [[nodiscard]] ClusterID select_best_cluster(
+      const bool store_favored_cluster,
+      Base::ClusterSelectionState &state,
+      RatingMap &map,
+      ScalableVector<ClusterID> &tie_breaking_clusters
+  ) {
+    ClusterID favored_cluster = state.initial_cluster;
+
+    const EdgeWeight gain_delta = (Config::kUseActualGain) ? map[state.initial_cluster] : 0;
+    for (const auto [cluster, rating] : map.entries()) {
+      state.current_cluster = cluster;
+      state.current_gain = rating - gain_delta;
+      state.current_cluster_weight = cluster_weight(cluster);
+
+      if (state.current_gain > state.best_gain) {
+        if (store_favored_cluster) {
+          favored_cluster = state.current_cluster;
+        }
+
+        if (accept_cluster(state)) {
+          tie_breaking_clusters.clear();
+          tie_breaking_clusters.push_back(state.current_cluster);
+
+          state.best_cluster = state.current_cluster;
+          state.best_gain = state.current_gain;
+        }
+      } else if (state.current_gain == state.best_gain && accept_cluster(state)) {
+        tie_breaking_clusters.push_back(state.current_cluster);
+      }
+    }
+
+    if (tie_breaking_clusters.size() > 1) {
+      const ClusterID index = state.local_rand.random_index(0, tie_breaking_clusters.size());
+      const ClusterID best_cluster = tie_breaking_clusters[index];
+      state.best_cluster = best_cluster;
+    }
+
+    tie_breaking_clusters.clear();
+    return favored_cluster;
   }
 
   [[nodiscard]] bool accept_cluster(const Base::ClusterSelectionState &state) {
