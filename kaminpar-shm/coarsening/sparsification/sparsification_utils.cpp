@@ -6,9 +6,13 @@ StaticArray<EdgeID> sort_by_traget(const CSRGraph &g) {
   auto permutation = StaticArray<EdgeID>(g.m());
   for (auto e : g.edges())
     permutation[e] = e;
-  tbb::parallel_for(static_cast<NodeID>(0), g.n() - 1, [&](const NodeID u) {
-    std::sort(permutation.begin() + g.raw_nodes()[u], permutation.begin() + g.raw_nodes()[u + 1]);
-  });
+  for (NodeID u : g.nodes()){
+    std::sort(
+        permutation.begin() + g.raw_nodes()[u],
+        permutation.begin() + g.raw_nodes()[u + 1],
+        [&](EdgeID e1, EdgeID e2) { return g.edge_target(e1) <= g.edge_target(e2); }
+    );
+  }
   return permutation;
 }
 

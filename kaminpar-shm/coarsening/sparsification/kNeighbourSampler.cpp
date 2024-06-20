@@ -27,19 +27,52 @@ StaticArray<EdgeWeight> kNeighbourSampler::sample(const CSRGraph &g, EdgeID targ
  * compute max k s.t. the number of sampled edges is at most target_edge_amount
  */
 EdgeID kNeighbourSampler::compute_k(const CSRGraph &g, EdgeID target_edge_amount) {
-  auto nodes_of_degree = StaticArray<EdgeID>(g.max_degree());
-  for (NodeID u : g.nodes()) {
-    nodes_of_degree[g.degree(u)]++;
-  }
+  StaticArray<EdgeID> edges_incident_to_smaller_degree(g.n() - 1, 0);
+  utils::for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
+    edges_incident_to_smaller_degree[std::max(g.degree(u), g.degree(v))];
+  });
+  parallel::prefix_sum(
+      edges_incident_to_smaller_degree.begin(),
+      edges_incident_to_smaller_degree.end(),
+      edges_incident_to_smaller_degree.begin()
+  );
+  StaticArray<EdgeWeight> incident_weights(g.n(), 0);
+  utils::for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
+    incident_weights[u] += g.edge_weight(e);
+    incident_weights[v] += g.edge_weight(e);
+  });
+  auto expected_m = [&](NodeID k) {
+    // Exp(m) = |{u v in E : deg(u)<=k or deg(v) <= k}|
+    //        + sum_(u in V, deg(u)>k) sum_(v in N(u), deg(v)>k) 1 - (1-w_(uv)/(W_u W_v))
+    // With w_(uv) being the weight of the edge beween u and v and W_u being the incident weights of
+    // vertex u
+    double sum = 0;
+    for (NodeID u : g.nodes()) {
+      if (g.degree(u) <= k)
+        continue;
+      for (EdgeID e : g.incident_edges(u)) {
+        NodeID v = g.edge_target(e);
+        if (g.degree(v) <= k)
+          continue;
+        sum += 1 - (1 - g.edge_weight(e) / pow(incident_weights[u] * incident_weights[v], k));
+      }
+    }
+    return edges_incident_to_smaller_degree[k] + sum;
+  };
 
-  EdgeID k = 0, incidence_with_degree_lt_k = 0;
-  NodeID nodes_with_degree_gt_k = g.n() - nodes_of_degree[0];
-  while (incidence_with_degree_lt_k + k * nodes_with_degree_gt_k <= target_edge_amount) {
-    incidence_with_degree_lt_k += k * nodes_of_degree[k];
-    nodes_with_degree_gt_k -= nodes_of_degree[k];
-    k++;
+  // binary search
+  NodeID k = 1;
+  NodeID low = 1;
+  NodeID heigh = target_edge_amount / g.n() + 1;
+  while (low + 1 != heigh) {
+    k = low + (heigh - low) / 2;
+    double expected = expected_m(k);
+    if (target_edge_amount < expected)
+      heigh = k;
+    else
+      low = k;
   }
-  return k - 1;
+  return k;
 }
 
 void kNeighbourSampler::sample_directed(
