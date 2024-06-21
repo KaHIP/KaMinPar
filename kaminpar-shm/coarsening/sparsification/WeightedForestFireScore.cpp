@@ -15,6 +15,8 @@
 #include <networkit/auxiliary/Parallel.hpp>
 #include <networkit/graph/GraphTools.hpp>
 
+#include "FiniteRandomDistribution.h"
+
 namespace kaminpar::shm::sparsification {
 
 WeightedForestFireScore::WeightedForestFireScore(
@@ -41,12 +43,14 @@ void WeightedForestFireScore::run() {
 
     auto forwardNeighbors = [&](node u) {
       std::vector<std::pair<node, edgeid>> validEdges;
-      G->forNeighborsOf(u, [&](node, node x, edgeid eid) {
-        if (!visited[x]) {
-          validEdges.emplace_back(x, eid);
-        }
-      });
-      return validEdges;
+      std::vector<edgeweight> weights;
+      for (count i = 0; i < G->degree(u); i++) {
+        auto [v, e] = G->getIthNeighborWithId(u, i);
+        validEdges.emplace_back(v, e);
+        weights.push_back(G->getIthNeighborWeight(u, i));
+      }
+      return std::pair(validEdges, 0);
+      // return std::pair(validEdges, FiniteRandomDistribution<edgeweight>(weights.begin(), weights.end()));
     };
 
     count localEdgesBurnt = 0;
@@ -55,7 +59,7 @@ void WeightedForestFireScore::run() {
       node v = activeNodes.front();
       activeNodes.pop();
 
-      std::vector<std::pair<node, edgeid>> validNeighbors = forwardNeighbors(v);
+      auto [validNeighbors, distribution] = forwardNeighbors(v);
       std::vector<edgeweight> neighbor_weight_prefixsum(validNeighbors.size());
       edgeweight neighbour_weight_sum = 0;
       for (count i = 0; i < validNeighbors.size(); i++) {

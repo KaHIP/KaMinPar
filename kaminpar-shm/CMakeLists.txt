@@ -23,7 +23,8 @@ add_library(kaminpar_shm ${KAMINPAR_SHM_SOURCE_FILES}
         coarsening/sparsification/NetworKitScoreAdapter.h
         coarsening/sparsification/EffectiveResistanceScore.cpp
         coarsening/sparsification/WeightedForestFireScore.hpp
-        coarsening/sparsification/WeightedForestFireScore.cpp)
+        coarsening/sparsification/WeightedForestFireScore.cpp
+        coarsening/sparsification/FiniteRandomDistribution.h)
 target_include_directories(kaminpar_shm PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../"  ${JL_SHARE}/../../include/julia/)
 target_link_libraries(kaminpar_shm PUBLIC kaminpar_common networkit ${JL_SHARE}/../../lib/libjulia.so)
 
