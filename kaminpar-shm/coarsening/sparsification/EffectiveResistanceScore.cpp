@@ -12,8 +12,10 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
   EffectiveResistanceScore::EffectiveResistanceScore(float johnson_lindenstrauss_factor)
       : _johnson_lindenstrauss_factor(johnson_lindenstrauss_factor) {
     jl_init();
+    printf("* Julia init\n");
     jl_eval_string(JL_LAPLACIANS_ADAPTER_CODE);
     print_jl_exception();
+    printf("* Loading julia code done\n");
     jl_gc_enable(false);
   }
 
@@ -99,13 +101,18 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
     jl_J = jl_ptr_to_array_1d(jl_int_array_type, a.j, a.m, 0);
     jl_V = jl_ptr_to_array_1d(jl_apply_array_type((jl_value_t *)jl_float64_type, 1), a.v, a.m, 0);
 
+    printf("* Created Arrays\n")
+
     auto *adapter = (jl_module_t *)jl_eval_string("LapaciansAdapter");
     print_jl_exception();
+    KASSERT(adapter != nullptr, "Loading Lapacians Adapter failed", assert::always);
 
     jl_a = jl_new_struct((jl_datatype_t *)jl_get_function(adapter, "C_IJV"), jl_I, jl_J, jl_V);
     print_jl_exception();
+    KASSERT(jl_a != nullptr, "jl_a is null");
 
     jl_value_t *jl_johnson_lindenstrauss_factor = jl_box_float32(_johnson_lindenstrauss_factor);
+    printf("* Loaded all data in julia\n");
 
     jl_function_t *jl_effective_resistances_function =
         jl_get_function(adapter, "effective_resistances");
@@ -114,6 +121,7 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
     print_jl_exception();
 
     KASSERT(jl_effective_resistances != nullptr, "sparsify_adapter failed!", assert::always);
+    printf("* Called function\n");
 
     IJVMatrix sparsifyer(
         (int64_t *)
@@ -124,6 +132,8 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
             jl_array_data(jl_call1(jl_get_function(adapter, "get_v"), jl_effective_resistances)),
         jl_unbox_int64(jl_call1(jl_get_function(adapter, "get_m"), jl_effective_resistances))
     );
+
+    printf("* Loaded data into C++\n");
 
     // JL_GC_POP();
 
