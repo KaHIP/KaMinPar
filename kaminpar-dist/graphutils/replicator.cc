@@ -31,7 +31,7 @@ SET_DEBUG(false);
 
 namespace {
 
-template <typename Graph> StaticArray<EdgeID> copy_raw_nodes(const Graph &graph) {
+template <typename Graph> decltype(auto) copy_raw_nodes(const Graph &graph) {
   constexpr bool kIsCompressedGraph = std::is_same_v<Graph, DistributedCompressedGraph>;
 
   // Copy node array with (uncompressed) edge IDs or simply forward the raw nodes if the graph is
@@ -43,7 +43,7 @@ template <typename Graph> StaticArray<EdgeID> copy_raw_nodes(const Graph &graph)
     }
     return raw_nodes;
   } else {
-    return StaticArray<EdgeID>(graph.n() + 1, graph.raw_nodes().data());
+    return graph.raw_nodes();
   }
 }
 
