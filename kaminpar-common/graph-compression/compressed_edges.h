@@ -147,6 +147,36 @@ public:
     return {first_edge, first_edge + degree};
   }
 
+  template <typename Lambda>
+  void decode_neighborhood(
+      const NodeID node,
+      const NodeID max_num_neighbors,
+      const EdgeID edge_offset,
+      const EdgeID next_edge_offset,
+      Lambda &&l
+  ) const {
+    KASSERT(max_num_neighbors > 0);
+    constexpr bool non_stoppable = std::is_void_v<std::invoke_result_t<Lambda, EdgeID, NodeID>>;
+
+    NodeID num_neighbors_visited = 1;
+    decode_neighborhood(
+        node,
+        edge_offset,
+        next_edge_offset,
+        [&](const EdgeID incident_edge, const NodeID adjacent_node) {
+          bool abort = num_neighbors_visited++ >= max_num_neighbors;
+
+          if constexpr (non_stoppable) {
+            l(incident_edge, adjacent_node);
+          } else {
+            abort |= l(incident_edge, adjacent_node);
+          }
+
+          return abort;
+        }
+    );
+  }
+
   template <bool kParallelDecoding = false, typename Lambda>
   void decode_neighborhood(
       const NodeID node, const EdgeID edge_offset, const EdgeID next_edge_offset, Lambda &&l

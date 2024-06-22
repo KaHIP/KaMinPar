@@ -207,4 +207,28 @@ TEST(DistributedCompressedGraphTest, compressed_graph_neighbors_operation) {
   TEST_ON_ALL_GRAPHS(test_compressed_graph_neighbors_operation);
 }
 
+static void test_compressed_graph_neighbors_limit_operation(const DistributedCSRGraph &graph) {
+  const auto compressed_graph = DistributedCompressedGraphBuilder::compress(graph);
+
+  for (const NodeID u : graph.nodes()) {
+    const NodeID max_neighbor_count = std::max<NodeID>(1, graph.degree(u) / 2);
+
+    NodeID graph_num_neighbors_visited = 0;
+    graph.neighbors(u, max_neighbor_count, [&](const EdgeID e, const NodeID v) {
+      graph_num_neighbors_visited += 1;
+    });
+
+    NodeID compressed_graph_num_neighbors_visited = 0;
+    compressed_graph.neighbors(u, max_neighbor_count, [&](const EdgeID e, const NodeID v) {
+      compressed_graph_num_neighbors_visited += 1;
+    });
+
+    EXPECT_EQ(graph_num_neighbors_visited, compressed_graph_num_neighbors_visited);
+  }
+}
+
+TEST(CompressedGraphTest, compressed_graph_neighbors_limit_operation) {
+  TEST_ON_ALL_GRAPHS(test_compressed_graph_neighbors_limit_operation);
+}
+
 } // namespace kaminpar::dist

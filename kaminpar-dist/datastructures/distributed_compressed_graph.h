@@ -313,7 +313,9 @@ public:
 
   template <typename Lambda>
   inline void neighbors(const NodeID u, const NodeID max_num_neighbors, Lambda &&l) const {
-    _compressed_edges.decode_neighborhood(u, _nodes[u], _nodes[u + 1], std::forward<Lambda>(l));
+    _compressed_edges.decode_neighborhood(
+        u, max_num_neighbors, _nodes[u], _nodes[u + 1], std::forward<Lambda>(l)
+    );
   }
 
   //
