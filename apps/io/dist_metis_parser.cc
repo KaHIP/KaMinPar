@@ -176,7 +176,7 @@ std::tuple<NodeID, NodeID, EdgeID, std::size_t> find_node_by_edge(
       [&](const auto, const auto) { current_edge += 1; }
   );
 
-  const EdgeID num_edges = current_edge - actual_first_edge;
+  const EdgeID num_edges = (last_node == 0) ? 0 : current_edge - actual_first_edge;
   return std::make_tuple(first_node, first_node + last_node, num_edges, start_pos);
 }
 
@@ -235,43 +235,45 @@ compress_read(const std::string &filename, const bool sorted, const MPI_Comm com
     node_weights.resize(header.num_nodes, static_array::noinit);
   }
 
-  toker.seek(start_pos);
-  header.num_nodes = num_local_nodes;
+  if (num_local_nodes > 0) {
+    toker.seek(start_pos);
+    header.num_nodes = num_local_nodes;
 
-  std::vector<std::pair<NodeID, EdgeWeight>> neighbourhood;
-  NodeID node = 0;
-  EdgeID edge = 0;
-  parse_graph(
-      toker,
-      header,
-      [&](const auto weight) {
-        if (node > 0) {
-          builder.add_node(node - 1, neighbourhood);
-          neighbourhood.clear();
+    std::vector<std::pair<NodeID, EdgeWeight>> neighbourhood;
+    NodeID node = 0;
+    EdgeID edge = 0;
+    parse_graph(
+        toker,
+        header,
+        [&](const auto weight) {
+          if (node > 0) {
+            builder.add_node(node - 1, neighbourhood);
+            neighbourhood.clear();
+          }
+
+          if (header.has_node_weights) {
+            node_weights[node] = static_cast<NodeWeight>(weight);
+          }
+
+          node += 1;
+        },
+        [&, first_node = first_node, last_node = last_node](const auto weight, const auto v) {
+          NodeID adjacent_node = static_cast<NodeID>(v);
+          if (adjacent_node >= first_node && adjacent_node < last_node) {
+            adjacent_node = adjacent_node - first_node;
+          } else {
+            adjacent_node = mapper.new_ghost_node(adjacent_node);
+          }
+
+          neighbourhood.emplace_back(adjacent_node, static_cast<EdgeWeight>(weight));
+          edge += 1;
         }
+    );
 
-        if (header.has_node_weights) {
-          node_weights[node] = static_cast<NodeWeight>(weight);
-        }
-
-        node += 1;
-      },
-      [&, first_node = first_node, last_node = last_node](const auto weight, const auto v) {
-        NodeID adjacent_node = static_cast<NodeID>(v);
-        if (adjacent_node >= first_node && adjacent_node < last_node) {
-          adjacent_node = adjacent_node - first_node;
-        } else {
-          adjacent_node = mapper.new_ghost_node(adjacent_node);
-        }
-
-        neighbourhood.emplace_back(adjacent_node, static_cast<EdgeWeight>(weight));
-        edge += 1;
-      }
-  );
-
-  builder.add_node(node - 1, neighbourhood);
-  neighbourhood.clear();
-  neighbourhood.shrink_to_fit();
+    builder.add_node(node - 1, neighbourhood);
+    neighbourhood.clear();
+    neighbourhood.shrink_to_fit();
+  }
 
   if (header.has_node_weights && mapper.next_ghost_node() > 0) {
     StaticArray<NodeWeight> actual_node_weights(
