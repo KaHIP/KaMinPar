@@ -8,6 +8,7 @@
 #pragma once
 
 #include <cctype>
+#include <cstdint>
 #include <exception>
 #include <string>
 
@@ -17,7 +18,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-namespace kaminpar::shm::io {
+namespace kaminpar::io {
 
 class TokerException : public std::exception {
 public:
@@ -58,6 +59,14 @@ public:
   ~MappedFileToker() {
     munmap(_contents, _length);
     close(_fd);
+  }
+
+  void reset() {
+    _position = 0;
+  }
+
+  void seek(const std::size_t position) {
+    _position = position;
   }
 
   inline void skip_spaces() {
@@ -167,4 +176,4 @@ private:
   char *_contents;
 };
 
-} // namespace kaminpar::shm::io
+} // namespace kaminpar::io

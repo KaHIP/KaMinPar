@@ -88,6 +88,7 @@ void write(const std::string &filename, const std::vector<BlockID> &partition) {
 }
 
 std::vector<BlockID> read(const std::string &filename) {
+  using namespace kaminpar::io;
   MappedFileToker toker(filename);
 
   std::vector<BlockID> partition;

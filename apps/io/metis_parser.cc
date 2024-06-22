@@ -18,6 +18,7 @@
 #include "apps/io/file_tokener.h"
 
 namespace kaminpar::shm::io::metis {
+using namespace kaminpar::io;
 
 namespace {
 

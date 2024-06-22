@@ -40,6 +40,8 @@ if (TARGET kaminpar_dist)
     add_dist_app(dKaMinPar dKaMinPar.cc)
     target_sources(dKaMinPar PRIVATE 
         ${CMAKE_CURRENT_SOURCE_DIR}/io/dist_io.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/io/dist_metis_parser.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/io/dist_metis_parser.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/io/dist_parhip_parser.h
         ${CMAKE_CURRENT_SOURCE_DIR}/io/dist_parhip_parser.cc)
     target_link_libraries(dKaMinPar PRIVATE KaGen::KaGen)

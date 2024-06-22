@@ -18,6 +18,7 @@
 #include "kaminpar-common/heap_profiler.h"
 
 #include "apps/io/dist_io.h"
+#include "apps/io/dist_metis_parser.h"
 #include "apps/io/dist_parhip_parser.h"
 
 using namespace kaminpar;
@@ -164,6 +165,14 @@ The output should be stored in a file and can be used by the -C,--config option.
   create_all_options(&cli, ctx);
 }
 
+template <typename Lambda> [[noreturn]] void root_run_and_exit(Lambda &&l) {
+  const int rank = mpi::get_comm_rank(MPI_COMM_WORLD);
+  if (rank == 0) {
+    l();
+  }
+  std::exit(MPI_Finalize());
+}
+
 NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
   using namespace kagen;
 
@@ -228,9 +237,20 @@ NodeID load_csr_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
 }
 
 NodeID load_compressed_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
-  DistributedGraph graph(std::make_unique<DistributedCompressedGraph>(
-      io::parhip::compressed_read(app.graph_filename, false, MPI_COMM_WORLD)
-  ));
+  const auto read_graph = [&] {
+    switch (app.io_format) {
+    case kagen::FileFormat::METIS:
+      return io::metis::compress_read(app.graph_filename, false, MPI_COMM_WORLD);
+    case kagen::FileFormat::PARHIP:
+      return io::parhip::compressed_read(app.graph_filename, false, MPI_COMM_WORLD);
+    default:
+      root_run_and_exit([&] {
+        LOG_ERROR << "Only graphs stored in files with METIS or ParHIP format can be compressed!";
+      });
+    }
+  };
+
+  DistributedGraph graph(std::make_unique<DistributedCompressedGraph>(read_graph()));
   const NodeID n = graph.n();
 
   partitioner.import_graph(std::move(graph));
@@ -251,16 +271,16 @@ int main(int argc, char *argv[]) {
   setup_context(cli, app, ctx);
   CLI11_PARSE(cli, argc, argv);
 
-  if (rank == 0 && app.dump_config) {
-    CLI::App dump;
-    create_all_options(&dump, ctx);
-    std::cout << dump.config_to_str(true, true);
-    std::exit(1);
+  if (app.dump_config) {
+    root_run_and_exit([&] {
+      CLI::App dump;
+      create_all_options(&dump, ctx);
+      std::cout << dump.config_to_str(true, true);
+    });
   }
 
-  if (rank == 0 && app.show_version) {
-    std::cout << Environment::GIT_SHA1 << std::endl;
-    std::exit(0);
+  if (app.show_version) {
+    root_run_and_exit([&] { std::cout << Environment::GIT_SHA1 << std::endl; });
   }
 
   // If available, use huge pages for large allocations
