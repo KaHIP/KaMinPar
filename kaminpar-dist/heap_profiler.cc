@@ -9,6 +9,7 @@
 #include "kaminpar-dist/heap_profiler.h"
 
 #include <algorithm>
+#include <array>
 #include <iterator>
 #include <numeric>
 #include <sstream>
