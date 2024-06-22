@@ -115,6 +115,10 @@ public:
     return _num_edges;
   }
 
+  [[nodiscard]] std::size_t size() const {
+    return _compressed_edges.size();
+  }
+
   [[nodiscard]] NodeID
   degree(const NodeID node, const EdgeID edge_offset, const EdgeID next_edge_offset) const {
     const std::uint8_t *data = _compressed_edges.data();

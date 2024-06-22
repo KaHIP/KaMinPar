@@ -55,22 +55,6 @@ public:
   ~DistributedGraph() override = default;
 
   //
-  // Underlying graph
-  //
-
-  [[nodiscard]] AbstractDistributedGraph *underlying_graph() {
-    return _underlying_graph.get();
-  }
-
-  [[nodiscard]] const AbstractDistributedGraph *underlying_graph() const {
-    return _underlying_graph.get();
-  }
-
-  [[nodiscard]] AbstractDistributedGraph *take_underlying_graph() {
-    return _underlying_graph.release();
-  }
-
-  //
   // Size of the graph
   //
 
@@ -424,6 +408,27 @@ public:
 
   [[nodiscard]] const StaticArray<NodeID> &get_color_sizes() const final {
     return _underlying_graph->get_color_sizes();
+  }
+
+  //
+  // Access to underlying graph
+  //
+
+  [[nodiscard]] AbstractDistributedGraph *underlying_graph() {
+    return _underlying_graph.get();
+  }
+
+  [[nodiscard]] const AbstractDistributedGraph *underlying_graph() const {
+    return _underlying_graph.get();
+  }
+
+  [[nodiscard]] AbstractDistributedGraph *take_underlying_graph() {
+    return _underlying_graph.release();
+  }
+
+  [[nodiscard]] const DistributedCompressedGraph &compressed_graph() const {
+    const AbstractDistributedGraph *abstract_graph = _underlying_graph.get();
+    return *dynamic_cast<const DistributedCompressedGraph *>(abstract_graph);
   }
 
   template <typename Lambda1, typename Lambda2>

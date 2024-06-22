@@ -505,6 +505,27 @@ public:
   }
 
   //
+  // Statistics about graph compression
+  //
+
+  [[nodiscard]] double compression_ratio() const {
+    std::size_t uncompressed_size = (n() + 1) * sizeof(EdgeID) + m() * sizeof(NodeID);
+    std::size_t compressed_size = (n() + 1) * sizeof(EdgeID) + _compressed_edges.size();
+
+    if (is_node_weighted()) {
+      uncompressed_size += n() * sizeof(NodeWeight);
+      compressed_size += n() * sizeof(NodeWeight);
+    }
+
+    if (is_edge_weighted()) {
+      uncompressed_size += m() * sizeof(EdgeWeight);
+      compressed_size += m() * sizeof(EdgeWeight);
+    }
+
+    return uncompressed_size / static_cast<double>(compressed_size);
+  }
+
+  //
   // Functions to access raw members of this graph
   //
 

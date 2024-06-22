@@ -306,6 +306,18 @@ struct RefinementContext {
 
 struct GraphCompressionContext {
   bool enabled;
+
+  // Graph compression statistics
+  double avg_compression_ratio;
+  double min_compression_ratio;
+  double max_compression_ratio;
+
+  /*!
+   * Setups the graph compression statistics of this context.
+   *
+   * @param graph The compressed graph of this process.
+   */
+  void setup(const class DistributedCompressedGraph &graph);
 };
 
 struct PartitionContext {
@@ -331,7 +343,6 @@ struct DebugContext {
 
 struct Context {
   GraphOrdering rearrange_by;
-  GraphCompressionContext compression;
 
   PartitioningMode mode;
 
@@ -340,6 +351,7 @@ struct Context {
 
   PartitionContext partition;
   ParallelContext parallel;
+  GraphCompressionContext compression;
   CoarseningContext coarsening;
   InitialPartitioningContext initial_partitioning;
   RefinementContext refinement;

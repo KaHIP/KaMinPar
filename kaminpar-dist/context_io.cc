@@ -286,6 +286,8 @@ void print(const Context &ctx, const bool root, std::ostream &out, MPI_Comm comm
       out << "  Partition extension factor: " << ctx.partition.K << "\n";
       out << "  Simulate seq. hybrid exe.:  " << (ctx.simulate_singlethread ? "yes" : "no") << "\n";
     }
+    cio::print_delimiter("Graph Compression", '-');
+    print(ctx.compression, ctx.parallel, out);
     cio::print_delimiter("Coarsening", '-');
     print(ctx.coarsening, ctx.parallel, out);
     cio::print_delimiter("Initial Partitioning", '-');
@@ -345,6 +347,15 @@ void print(const ChunksContext &ctx, const ParallelContext &parallel, std::ostre
         << "]\n";
   } else {
     out << "  Number of chunks:           " << ctx.fixed_num_chunks << "\n";
+  }
+}
+
+void print(const GraphCompressionContext &ctx, const ParallelContext &parallel, std::ostream &out) {
+  out << "Enabled:                      " << (ctx.enabled ? "yes" : "no") << "\n";
+  if (ctx.enabled) {
+    out << "  Compression ratio:          [Min=" << ctx.min_compression_ratio
+        << " | Mean=" << ctx.avg_compression_ratio << " | Max=" << ctx.max_compression_ratio << "]"
+        << "\n";
   }
 }
 

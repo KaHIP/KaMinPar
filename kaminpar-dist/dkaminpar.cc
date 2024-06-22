@@ -309,6 +309,9 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const BlockID k, BlockID *partitio
   _ctx.initial_partitioning.kaminpar.parallel.num_threads = _ctx.parallel.num_threads;
   _ctx.partition.k = k;
   _ctx.partition.graph = std::make_unique<GraphContext>(graph, _ctx.partition);
+  if (_ctx.compression.enabled) {
+    _ctx.compression.setup(_graph_ptr->compressed_graph());
+  }
 
   // Initialize console output
   Logger::set_quiet_mode(_output_level == OutputLevel::QUIET);

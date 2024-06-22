@@ -8,11 +8,12 @@
 #include "kaminpar-dist/context.h"
 
 #include <algorithm>
-#include <unordered_map>
 
 #include <tbb/parallel_for.h>
 
 #include "kaminpar-mpi/wrapper.h"
+
+#include "kaminpar-dist/datastructures/distributed_compressed_graph.h"
 
 namespace kaminpar::dist {
 using namespace std::string_literals;
@@ -111,5 +112,16 @@ bool LabelPropagationCoarseningContext::should_merge_nonadjacent_clusters(
 
 bool RefinementContext::includes_algorithm(const RefinementAlgorithm algorithm) const {
   return std::find(algorithms.begin(), algorithms.end(), algorithm) != algorithms.end();
+}
+
+void GraphCompressionContext::setup(const DistributedCompressedGraph &graph) {
+  const MPI_Comm comm = graph.communicator();
+  const double compression_ratio = graph.compression_ratio();
+  auto compression_ratios = mpi::allgather(compression_ratio, comm);
+
+  const auto size = static_cast<double>(compression_ratios.size());
+  avg_compression_ratio = std::reduce(compression_ratios.begin(), compression_ratios.end()) / size;
+  min_compression_ratio = *std::min_element(compression_ratios.begin(), compression_ratios.end());
+  max_compression_ratio = *std::max_element(compression_ratios.begin(), compression_ratios.end());
 }
 } // namespace kaminpar::dist
