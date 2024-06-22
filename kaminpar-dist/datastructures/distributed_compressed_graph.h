@@ -504,6 +504,18 @@ public:
     return _color_sizes;
   }
 
+  //
+  // Functions to access raw members of this graph
+  //
+
+  [[nodiscard]] const auto &raw_node_weights() const {
+    return _node_weights;
+  }
+
+  [[nodiscard]] const auto &raw_edge_weights() const {
+    return _edge_weights;
+  }
+
 private:
   void init_degree_buckets();
   void init_total_weights();

@@ -29,6 +29,26 @@
 namespace kaminpar::dist {
 SET_DEBUG(false);
 
+namespace {
+
+template <typename Graph> StaticArray<EdgeID> copy_raw_nodes(const Graph &graph) {
+  constexpr bool kIsCompressedGraph = std::is_same_v<Graph, DistributedCompressedGraph>;
+
+  // Copy node array with (uncompressed) edge IDs or simply forward the raw nodes if the graph is
+  // uncompresed
+  if constexpr (kIsCompressedGraph) {
+    StaticArray<EdgeID> raw_nodes(graph.n() + 1);
+    for (NodeID u : graph.nodes()) {
+      raw_nodes[u + 1] = raw_nodes[u] + graph.degree(u);
+    }
+    return raw_nodes;
+  } else {
+    return StaticArray<EdgeID>(graph.n() + 1, graph.raw_nodes().data());
+  }
+}
+
+} // namespace
+
 std::unique_ptr<shm::Graph> allgather_graph(const DistributedGraph &graph) {
   return std::make_unique<shm::Graph>(replicate_graph_everywhere(graph));
 }
@@ -68,7 +88,7 @@ allgather_graph(const DistributedPartitionedGraph &p_graph) {
   return {std::move(shm_graph), std::move(shm_p_graph)};
 }
 
-shm::Graph replicate_graph_everywhere(const DistributedCSRGraph &graph) {
+template <typename Graph> shm::Graph replicate_graph_everywhere(const Graph &graph) {
   KASSERT(
       graph.global_n() < std::numeric_limits<NodeID>::max(),
       "number of nodes exceeds int size",
@@ -107,7 +127,7 @@ shm::Graph replicate_graph_everywhere(const DistributedCSRGraph &graph) {
   auto edges_displs = mpi::build_distribution_displs(graph.edge_distribution());
 
   mpi::allgatherv(
-      graph.raw_nodes().data(),
+      copy_raw_nodes(graph).data(),
       asserting_cast<int>(graph.n()),
       nodes.data(),
       nodes_recvcounts.data(),
@@ -194,17 +214,11 @@ shm::Graph replicate_graph_everywhere(const DistributedCSRGraph &graph) {
 }
 
 shm::Graph replicate_graph_everywhere(const DistributedGraph &graph) {
-  const AbstractDistributedGraph *underlying_graph = graph.underlying_graph();
-
-  if (const auto *csr_graph = dynamic_cast<const DistributedCSRGraph *>(graph.underlying_graph());
-      csr_graph != nullptr) {
-    return replicate_graph_everywhere(*csr_graph);
-  }
-
-  __builtin_unreachable();
+  return graph.reified([&](const auto &graph) { return replicate_graph_everywhere(graph); });
 }
 
-DistributedGraph replicate_graph(const DistributedCSRGraph &graph, const int num_replications) {
+template <typename Graph>
+DistributedGraph replicate_graph(const Graph &graph, const int num_replications) {
   const PEID size = mpi::get_comm_size(graph.communicator());
   const PEID rank = mpi::get_comm_rank(graph.communicator());
 
@@ -277,7 +291,7 @@ DistributedGraph replicate_graph(const DistributedCSRGraph &graph, const int num
   // Exchange data -- except for node weights (need the number of ghost nodes
   // to allocate the vector)
   mpi::allgatherv(
-      graph.raw_nodes().data(),
+      copy_raw_nodes(graph).data(),
       asserting_cast<int>(graph.n()),
       nodes.data(),
       nodes_counts.data(),
@@ -459,14 +473,7 @@ DistributedGraph replicate_graph(const DistributedCSRGraph &graph, const int num
 }
 
 DistributedGraph replicate_graph(const DistributedGraph &graph, const int num_replications) {
-  const AbstractDistributedGraph *underlying_graph = graph.underlying_graph();
-
-  if (const auto *csr_graph = dynamic_cast<const DistributedCSRGraph *>(graph.underlying_graph());
-      csr_graph != nullptr) {
-    return replicate_graph(*csr_graph, num_replications);
-  }
-
-  __builtin_unreachable();
+  return graph.reified([&](const auto &graph) { return replicate_graph(graph, num_replications); });
 }
 
 DistributedPartitionedGraph
