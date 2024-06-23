@@ -239,10 +239,6 @@ void HeapProfiler::print_heap_tree_node(
       );
     }
   }
-
-  if (depth == 0) {
-    out << std::endl;
-  }
 }
 
 void HeapProfiler::print_indentation(std::ostream &out, std::size_t depth, bool last) {

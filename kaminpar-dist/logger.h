@@ -124,4 +124,62 @@ private:
   int _root;
   MPI_Comm _comm;
 };
+
+class SingleSynchronizedLogger {
+public:
+  explicit SingleSynchronizedLogger(
+      const int sender_rank, const int root = 0, MPI_Comm comm = MPI_COMM_WORLD
+  )
+      : _buf{},
+        _logger{_buf, ""},
+        _sender_rank{sender_rank},
+        _root{root},
+        _comm{comm} {}
+
+  ~SingleSynchronizedLogger() {
+    int size, rank;
+    MPI_Comm_size(_comm, &size);
+    MPI_Comm_rank(_comm, &rank);
+
+    if (rank == _root) {
+      if (_sender_rank == _root) {
+        _logger.flush();
+        LLOG << _buf.str();
+        return;
+      }
+
+      MPI_Status status;
+      MPI_Probe(_sender_rank, 0, MPI_COMM_WORLD, &status);
+
+      int cnt;
+      MPI_Get_count(&status, MPI_CHAR, &cnt);
+
+      auto str = std::make_unique<char[]>(cnt);
+      MPI_Recv(str.get(), cnt, MPI_CHAR, _sender_rank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+      LLOG << std::string(str.get(), cnt);
+    } else if (rank == _sender_rank) {
+      _logger.flush();
+
+      std::string str = _buf.str();
+      MPI_Send(str.data(), static_cast<int>(str.length()), MPI_CHAR, _root, 0, MPI_COMM_WORLD);
+    }
+  }
+
+  template <typename Arg> SingleSynchronizedLogger &operator<<(Arg &&arg) {
+    _logger << std::forward<Arg>(arg);
+    return *this;
+  }
+
+  [[nodiscard]] std::ostringstream &output() {
+    return _buf;
+  }
+
+private:
+  std::ostringstream _buf;
+  Logger _logger;
+  int _sender_rank;
+  int _root;
+  MPI_Comm _comm;
+};
 } // namespace kaminpar::dist

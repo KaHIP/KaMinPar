@@ -23,6 +23,7 @@
 #include "kaminpar-dist/graphutils/rearrangement.h"
 #include "kaminpar-dist/graphutils/synchronization.h"
 #include "kaminpar-dist/heap_profiler.h"
+#include "kaminpar-dist/logger.h"
 #include "kaminpar-dist/metrics.h"
 #include "kaminpar-dist/timer.h"
 
@@ -55,13 +56,10 @@ void print_partition_summary(
   finalize_distributed_timer(Timer::global(), comm);
 #endif // KAMINPAR_ENABLE_TIMERS
 
-  bool heap_profile_root;
+  int heap_profile_root_rank;
   if constexpr (kHeapProfiling) {
     auto &heap_profiler = heap_profiler::HeapProfiler::global();
-    const int heap_profile_root_rank = finalize_distributed_heap_profiler(heap_profiler, comm);
-
-    const int rank = mpi::get_comm_rank(comm);
-    heap_profile_root = rank == heap_profile_root_rank;
+    heap_profile_root_rank = finalize_distributed_heap_profiler(heap_profiler, comm);
   }
 
   if (root) {
@@ -87,13 +85,12 @@ void print_partition_summary(
   }
 
   if constexpr (kHeapProfiling) {
-    mpi::barrier(comm);
+    SingleSynchronizedLogger logger(heap_profile_root_rank);
 
+    const bool heap_profile_root = heap_profile_root_rank == mpi::get_comm_rank(comm);
     if (heap_profile_root) {
-      PRINT_HEAP_PROFILE(std::cout);
+      PRINT_HEAP_PROFILE(logger.output());
     }
-
-    mpi::barrier(comm);
   }
 
   if (root) {
