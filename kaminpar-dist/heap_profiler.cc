@@ -100,9 +100,10 @@ void generate_statistics(
     };
 
     std::stringstream stream;
-    stream << "[ " << min_pe << " : " << pad(to_megabytes(min), mem_str_width) << " mb | "
-           << pad(to_megabytes(mean), mem_str_width) << " mb | " << max_pe << " : "
-           << pad(to_megabytes(max), mem_str_width) << " mb ]";
+    stream << "[ " << pad(min_pe, pe_str_width) << " : " << pad(to_megabytes(min), mem_str_width)
+           << " mb | " << pad(to_megabytes(mean), mem_str_width) << " mb | "
+           << pad(max_pe, pe_str_width) << " : " << pad(to_megabytes(max), mem_str_width)
+           << " mb ]";
 
     node->annotation = stream.str();
   }

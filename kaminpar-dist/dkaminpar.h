@@ -311,6 +311,8 @@ struct GraphCompressionContext {
   double avg_compression_ratio;
   double min_compression_ratio;
   double max_compression_ratio;
+  std::size_t largest_compressed_graph;
+  std::size_t largest_compressed_graph_prev_size;
 
   /*!
    * Setups the graph compression statistics of this context.

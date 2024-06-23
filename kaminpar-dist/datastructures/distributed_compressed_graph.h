@@ -525,6 +525,20 @@ public:
     return uncompressed_size / static_cast<double>(compressed_size);
   }
 
+  [[nodiscard]] std::size_t memory_space() const {
+    std::size_t memory_space = (n() + 1) * sizeof(EdgeID) + _compressed_edges.size();
+
+    if (is_node_weighted()) {
+      memory_space += n() * sizeof(NodeWeight);
+    }
+
+    if (is_edge_weighted()) {
+      memory_space += m() * sizeof(EdgeWeight);
+    }
+
+    return memory_space;
+  }
+
   //
   // Functions to access raw members of this graph
   //
