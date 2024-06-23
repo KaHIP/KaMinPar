@@ -76,7 +76,8 @@ public:
   void init(const EdgeID first_edge);
 
   /*!
-   * Adds the (possibly weighted) neighborhood of a node. Note that the neighbourhood vector is modified.
+   * Adds the (possibly weighted) neighborhood of a node. Note that the neighbourhood vector is
+   * modified.
    *
    * @param node The node whose neighborhood to add.
    * @param neighbourhood The neighbourhood of the node to add.
@@ -796,6 +797,7 @@ CompressedGraph compute_compressed_graph(
     // If the last chunk is smaller than the chunk size limit, add it explicitly.
     if (cur_chunk_start != num_nodes) {
       chunks.emplace_back(cur_chunk_start, num_nodes, cur_first_edge);
+      max_chunk_size = std::max<NodeID>(max_chunk_size, num_nodes - cur_chunk_start);
     }
   };
 

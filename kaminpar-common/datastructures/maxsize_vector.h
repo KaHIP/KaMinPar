@@ -38,7 +38,7 @@ public:
   }
 
   void deallocate(T *p, size_type n) {
-    return Base::deallocate(p, n);
+    return Base::deallocate(p, std::min(n, _max_capacity));
   }
 
 private:
