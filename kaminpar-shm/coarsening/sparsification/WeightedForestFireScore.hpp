@@ -17,6 +17,7 @@ using namespace NetworKit;
  * The burn frequency of the edges is used as edge score.
  */
 class WeightedForestFireScore final : public EdgeScore<double> {
+typedef std::tuple<node, edgeid, edgeweight> edgetriple;
 
 public:
   WeightedForestFireScore(const NetworKit::Graph &graph, double pf, double targetBurntRatio);

@@ -42,15 +42,13 @@ void WeightedForestFireScore::run() {
     activeNodes.push(GraphTools::randomNode(*G));
 
     auto forwardNeighbors = [&](node u) {
-      std::vector<std::pair<node, edgeid>> validEdges;
-      std::vector<edgeweight> weights;
+      std::vector<edgetriple> validEdges;
       for (count i = 0; i < G->degree(u); i++) {
         auto [v, e] = G->getIthNeighborWithId(u, i);
-        validEdges.emplace_back(v, e);
-        weights.push_back(G->getIthNeighborWeight(u, i));
+        auto weight = G->getIthNeighborWeight(u, i);
+        validEdges.emplace_back(v, e, weight);
       }
-      return std::pair(validEdges, 0);
-      // return std::pair(validEdges, FiniteRandomDistribution<edgeweight>(weights.begin(), weights.end()));
+      return validEdges;
     };
 
     count localEdgesBurnt = 0;
@@ -59,34 +57,36 @@ void WeightedForestFireScore::run() {
       node v = activeNodes.front();
       activeNodes.pop();
 
-      auto [validNeighbors, distribution] = forwardNeighbors(v);
-      std::vector<edgeweight> neighbor_weight_prefixsum(validNeighbors.size());
-      edgeweight neighbour_weight_sum = 0;
-      for (count i = 0; i < validNeighbors.size(); i++) {
-        neighbour_weight_sum += G->getIthNeighborWeight(v, i);
-        neighbor_weight_prefixsum[i] = neighbour_weight_sum;
-      }
+      auto validNeighbors = forwardNeighbors(v);
+
+
+      edgeweight validNeighboursWeightSum = std::accumulate(
+          validNeighbors.begin(),
+          validNeighbors.end(),
+          0,
+          [](edgeweight accumulator, edgetriple edge) { return accumulator + std::get<2>(edge); }
+      );
 
       while (true) {
         double q = Aux::Random::real(1.0);
         if (q > pf || validNeighbors.empty()) {
           break;
         }
-        edgeweight r = Aux::Random::real(neighbour_weight_sum);
-        count index = std::lower_bound(
-                          neighbor_weight_prefixsum.begin(), neighbor_weight_prefixsum.end(), r
-                      ) -
-                      neighbor_weight_prefixsum.begin();
+        edgeweight r = Aux::Random::real(validNeighboursWeightSum);
+        count index = 0;
+        edgeweight prefix_sum = std::get<2>(validNeighbors[0]);
+        while ((prefix_sum += std::get<2>(validNeighbors[index])) < r) {
+          index++;
+        }
 
         { // mark node as visited, burn edge
-          node x;
-          edgeid eid;
-          std::tie(x, eid) = validNeighbors[index];
+          auto [x, eid, weight] = validNeighbors[index];
           activeNodes.push(x);
 #pragma omp atomic
           burnt[eid]++;
           localEdgesBurnt++;
           visited[x] = true;
+          validNeighboursWeightSum -= weight;
         }
 
         validNeighbors[index] = validNeighbors.back();
