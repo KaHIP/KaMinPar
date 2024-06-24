@@ -32,6 +32,7 @@
 #include "coarsening/sparsification/EdgeReductionSparsificationTarget.h"
 #include "coarsening/sparsification/EffectiveResistanceScore.h"
 #include "coarsening/sparsification/NetworKitScoreAdapter.h"
+#include "coarsening/sparsification/RandomSampler.h"
 #include "coarsening/sparsification/ThresholdSampler.h"
 #include "coarsening/sparsification/UniformRandomSampler.h"
 #include "coarsening/sparsification/kNeighbourSampler.h"
@@ -98,7 +99,7 @@ std::unique_ptr<Coarsener> create_coarsener(const Context &ctx, const PartitionC
 }
 
 std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
-  switch (ctx.coarsening.sparsification_algorithm) {
+  switch (ctx.sparsification.algorithm) {
   case SparsificationAlgorithm::FOREST_FIRE:
     return std::make_unique<sparsification::ThresholdSampler<double>>(
         std::make_unique<sparsification::NetworKitScoreAdapter<double>>(
@@ -130,20 +131,33 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
         std::make_unique<sparsification::EffectiveResistanceScore>(4),
         std::make_unique<sparsification::IdentityReweihingFunction<double>>()
     );
+  case SparsificationAlgorithm::RANDOM:
+    switch (ctx.sparsification.score_function) {
+    case ScoreFunctionSection::WEIGHT:
+      return std::make_unique<sparsification::RandomSampler<EdgeWeight>>(
+          std::make_unique<WeightFunction>(),
+          std::make_unique<sparsification::IdentityReweihingFunction<EdgeWeight>>()
+      );
+    case ScoreFunctionSection::EFFECTIVE_RESISTANCE:
+      return std::make_unique<sparsification::RandomSampler<double>>(
+          std::make_unique<sparsification::EffectiveResistanceScore>(4),
+          std::make_unique<sparsification::WeightDiviedByScore<double>>()
+      );
+    }
   }
-
   __builtin_unreachable();
 }
+
 std::unique_ptr<sparsification::SparsificationTarget>
 create_sparsification_target(const Context &ctx) {
-  switch (ctx.coarsening.sparsification_target) {
+  switch (ctx.sparsification.target) {
   case SparsificationTargetSelection::DENSITY:
     return std::make_unique<sparsification::DensitySparsificationTarget>(
-        ctx.coarsening.sparsification_factor
+        ctx.sparsification.target_factor
     );
   case SparsificationTargetSelection::EDGE_REDUCTION:
     return std::make_unique<sparsification::EdgeReductionSparsificationTarget>(
-        ctx.coarsening.sparsification_factor
+        ctx.sparsification.target_factor
     );
   }
 

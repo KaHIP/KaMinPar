@@ -5,20 +5,28 @@
 
 namespace kaminpar::shm::sparsification {
 template <typename Score> class RandomSampler : public ScoreBacedSampler<Score> {
+public:
+  RandomSampler(
+      std::unique_ptr<ScoreFunction<Score>> scoreFunction,
+      std::unique_ptr<ReweighingFunction<Score>> reweighingFunction
+  )
+      : ScoreBacedSampler<Score>(std::move(scoreFunction), std::move(reweighingFunction)) {}
 
   StaticArray<EdgeWeight> sample(const CSRGraph &g, EdgeID target_edge_amount) override {
-    auto scores = _score_function->scores(g);
+    auto scores = this->_score_function->scores(g);
     utils::for_downward_edges(g, [&](EdgeID e) { scores[e] = 0; });
-    auto distribution = FiniteRandomDistribution<Score>(scores);
+    auto distribution = FiniteRandomDistribution<Score>(scores.begin(), scores.end());
 
     EdgeID edges_sampled = 0;
+    EdgeID iterations = 0;
     StaticArray<EdgeWeight> sample(g.m(), 0);
-    while (edges_sampled < target_edge_amount) {
+    while (iterations  < target_edge_amount) {
       EdgeID e = distribution();
       if (sample[e] == 0) // new edge
         edges_sampled++;
 
       sample[e] += this->_reweighing_function->new_weight(g.edge_weight(e), scores[e]);
+      iterations++;
     }
 
     return sample;

@@ -90,6 +90,14 @@ enum class SparsificationAlgorithm {
   K_NEIGHBOUR_SPANNING_TREE,
   WEIGHT_THRESHOLD,
   EFFECTIVE_RESISTANCE,
+  RANDOM,
+  THRESHOLD,
+};
+
+enum class ScoreFunctionSection {
+  WEIGHT,
+  EFFECTIVE_RESISTANCE,
+  FOREST_FIRE
 };
 
 enum class SparsificationTargetSelection {
@@ -194,10 +202,15 @@ struct CoarseningContext {
   NodeID contraction_limit;
 
   double convergence_threshold;
+};
 
-  SparsificationAlgorithm sparsification_algorithm;
-  SparsificationTargetSelection sparsification_target;
-  float sparsification_factor;
+struct SparsificationContext {
+  SparsificationAlgorithm algorithm;
+  ScoreFunctionSection score_function;
+
+  SparsificationTargetSelection target;
+  float target_factor;
+
 };
 
 //
@@ -434,6 +447,7 @@ struct Context {
   PartitioningContext partitioning;
   PartitionContext partition;
   CoarseningContext coarsening;
+  SparsificationContext sparsification;
   InitialPartitioningContext initial_partitioning;
   RefinementContext refinement;
   ParallelContext parallel;
