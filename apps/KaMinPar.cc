@@ -14,10 +14,12 @@
 
 #include <tbb/scalable_allocator.h>
 
-#if __has_include(<numa.h>)
+#if __has_include(<numa.h> )
 #include <numa.h>
 #endif // __has_include(<numa.h>)
 
+#include "kaminpar-shm/coarsening/sparsification/EffectiveResistanceScore.h"
+#include "kaminpar-shm/coarsening/sparsification/sparsification_utils.h"
 #include "kaminpar-shm/datastructures/graph.h"
 
 #include "kaminpar-common/environment.h"
@@ -166,7 +168,7 @@ The output should be stored in a file and can be used by the -C,--config option.
 } // namespace
 
 int main(int argc, char *argv[]) {
-#if __has_include(<numa.h>)
+#if __has_include(<numa.h> )
   if (numa_available() >= 0) {
     numa_set_interleave_mask(numa_all_nodes_ptr);
   }
@@ -194,6 +196,10 @@ int main(int argc, char *argv[]) {
     std::cout << "The nodes of the compressed graph cannot be rearranged by degree buckets!"
               << std::endl;
     std::exit(0);
+  }
+
+  if (ctx.coarsening.sparsification_algorithm == SparsificationAlgorithm::EFFECTIVE_RESISTANCE) {
+    sparsification::EffectiveResistanceScore::init_julia();
   }
 
   // If available, use huge pages for large allocations
@@ -249,6 +255,10 @@ int main(int argc, char *argv[]) {
   }
 
   DISABLE_HEAP_PROFILER();
+
+  if (ctx.coarsening.sparsification_algorithm == SparsificationAlgorithm::EFFECTIVE_RESISTANCE) {
+    sparsification::EffectiveResistanceScore::finalize_julia();
+  }
 
   return 0;
 }

@@ -15,9 +15,19 @@
 namespace kaminpar::shm::sparsification {
 class EffectiveResistanceScore : public ScoreFunction<double> {
 public:
-  EffectiveResistanceScore(float johnson_lindenstrauss_factor);
+  static void init_julia() {
+    jl_init();
+    jl_eval_string(JL_LAPLACIANS_ADAPTER_CODE);
+    print_jl_exception();
+  }
+  static void finalize_julia() {
+    jl_atexit_hook(0);
+  }
+  static void print_jl_exception();
 
-  ~EffectiveResistanceScore();
+  EffectiveResistanceScore(float johnson_lindenstrauss_factor)
+      : _johnson_lindenstrauss_factor(johnson_lindenstrauss_factor) {}
+
   StaticArray<double> scores(const CSRGraph &g) override;
 
 private:
@@ -30,7 +40,6 @@ private:
   float _johnson_lindenstrauss_factor;
   IJVMatrix alloc_ijv(EdgeID m);
   void free_ijv(IJVMatrix &a);
-  void print_jl_exception();
 
   IJVMatrix encode_as_ijv(const CSRGraph &g);
   StaticArray<double> extract_scores(const CSRGraph &g, IJVMatrix &sparsifyer);
