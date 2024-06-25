@@ -16,6 +16,7 @@
 
 #include "kaminpar-common/environment.h"
 #include "kaminpar-common/heap_profiler.h"
+#include "kaminpar-common/strutils.h"
 
 #include "apps/io/dist_io.h"
 #include "apps/io/dist_metis_parser.h"
@@ -297,7 +298,7 @@ int main(int argc, char *argv[]) {
     partitioner.set_output_level(OutputLevel::EXPERIMENT);
   }
 
-  partitioner.context().debug.graph_filename = app.graph_filename;
+  partitioner.context().debug.graph_filename = str::extract_basename(app.graph_filename);
   partitioner.set_max_timer_depth(app.max_timer_depth);
   if constexpr (kHeapProfiling) {
     auto &global_heap_profiler = heap_profiler::HeapProfiler::global();
