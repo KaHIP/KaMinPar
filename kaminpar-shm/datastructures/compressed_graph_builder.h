@@ -33,14 +33,8 @@ public:
    * @param num_nodes The number of nodes of the graph to compress.
    * @param num_edges The number of edges of the graph to compress.
    * @param has_edge_weights Whether the graph to compress has edge weights.
-   * @param edge_weights A reference to the edge weights of the compressed graph.
    */
-  CompressedEdgesBuilder(
-      const NodeID num_nodes,
-      const EdgeID num_edges,
-      bool has_edge_weights,
-      StaticArray<EdgeWeight> &edge_weights
-  );
+  CompressedEdgesBuilder(const NodeID num_nodes, const EdgeID num_edges, bool has_edge_weights);
 
   /*!
    * Constructs a new CompressedEdgesBuilder where the maxmimum degree specifies the number of edges
@@ -50,15 +44,9 @@ public:
    * @param num_edges The number of edges of the graph to compress.
    * @param max_degree The maximum degree of the graph to compress.
    * @param has_edge_weights Whether the graph to compress has edge weights.
-   * @param edge_weights A reference to the edge weights of the compressed graph.
-   * @param edge_weights A reference to the edge weights of the compressed graph.
    */
   CompressedEdgesBuilder(
-      const NodeID num_nodes,
-      const EdgeID num_edges,
-      const NodeID max_degree,
-      bool has_edge_weights,
-      StaticArray<EdgeWeight> &edge_weights
+      const NodeID num_nodes, const EdgeID num_edges, const NodeID max_degree, bool has_edge_weights
   );
 
   ~CompressedEdgesBuilder();
@@ -67,6 +55,7 @@ public:
   CompressedEdgesBuilder &operator=(const CompressedEdgesBuilder &) = delete;
 
   CompressedEdgesBuilder(CompressedEdgesBuilder &&) noexcept = default;
+  CompressedEdgesBuilder &operator=(CompressedEdgesBuilder &&) noexcept = delete;
 
   /*!
    * Initializes/resets the builder.
@@ -130,7 +119,6 @@ private:
   std::size_t _compressed_data_max_size;
 
   bool _has_edge_weights;
-  StaticArray<EdgeWeight> &_edge_weights;
 
   EdgeID _edge;
   NodeID _max_degree;
@@ -169,11 +157,7 @@ private:
       _compressed_data += varint_encode(first_edge, _compressed_data);
     }
 
-    // Only increment the edge if edge weights are not stored as otherwise the edge is
-    // incremented with each edge weight being added.
-    if (!_has_edge_weights) {
-      _edge += degree;
-    }
+    _edge += degree;
 
     // If high-degree encoding is used then split the neighborhood if the degree crosses a
     // threshold. The neighborhood is split into equally sized parts (except possible the last part)
@@ -220,11 +204,6 @@ private:
   void add_edges(const NodeID node, std::uint8_t *marked_byte, Container &&neighbourhood) {
     using Neighbour = std::remove_reference_t<Container>::value_type;
     constexpr bool kHasEdgeWeights = std::is_same_v<Neighbour, std::pair<NodeID, EdgeWeight>>;
-
-    const auto store_edge_weight = [&](const EdgeWeight edge_weight) {
-      _edge_weights[_edge++] = edge_weight;
-      _total_edge_weight += edge_weight;
-    };
 
     const auto fetch_adjacent_node = [&](const NodeID i) {
       if constexpr (kHasEdgeWeights) {
@@ -293,7 +272,8 @@ private:
                   if constexpr (kHasEdgeWeights) {
                     if (_has_edge_weights) {
                       const EdgeWeight edge_weight = neighbourhood[k].second;
-                      store_edge_weight(edge_weight);
+                      _compressed_data += signed_varint_encode(edge_weight, _compressed_data);
+                      _total_edge_weight += edge_weight;
                     }
                   }
                 }
@@ -358,7 +338,8 @@ private:
     if constexpr (kHasEdgeWeights) {
       if (_has_edge_weights) {
         const EdgeWeight first_edge_weight = neighbourhood[i].second;
-        store_edge_weight(first_edge_weight);
+        _compressed_data += signed_varint_encode(first_edge_weight, _compressed_data);
+        _total_edge_weight += first_edge_weight;
       }
     }
 
@@ -391,7 +372,8 @@ private:
       if constexpr (kHasEdgeWeights) {
         if (_has_edge_weights) {
           const EdgeWeight edge_weight = neighbourhood[i].second;
-          store_edge_weight(edge_weight);
+          _compressed_data += signed_varint_encode(edge_weight, _compressed_data);
+          _total_edge_weight += edge_weight;
         }
       }
 
@@ -489,19 +471,16 @@ public:
   [[nodiscard]] std::int64_t total_edge_weight() const;
 
 private:
-  // The arrays that store information about the compressed graph
   CompactStaticArray<EdgeID> _nodes;
   bool _sorted; // Whether the nodes of the graph are stored in degree-bucket order
 
   CompressedEdgesBuilder _compressed_edges_builder;
   EdgeID _num_edges;
+  bool _store_edge_weights;
 
-  StaticArray<NodeWeight> _node_weights;
-  StaticArray<EdgeWeight> _edge_weights;
-
-  // Statistics about the graph
   bool _store_node_weights;
   std::int64_t _total_node_weight;
+  StaticArray<NodeWeight> _node_weights;
 };
 
 class ParallelCompressedGraphBuilder {
@@ -601,13 +580,6 @@ public:
   void add_node_weight(const NodeID node, const NodeWeight weight);
 
   /*!
-   * Returns a reference to the edge weights of the compressed graph.
-   *
-   * @return A reference to the edge weights of the compressed graph.
-   */
-  [[nodiscard]] StaticArray<EdgeWeight> &edge_weights();
-
-  /*!
    * Adds (cummulative) statistics about nodes of the compressed graph.
    */
   void record_local_statistics(
@@ -636,9 +608,9 @@ private:
   heap_profiler::unique_ptr<std::uint8_t> _compressed_edges;
   EdgeID _compressed_edges_size;
   EdgeID _num_edges;
+  bool _has_edge_weights;
 
   StaticArray<NodeWeight> _node_weights;
-  StaticArray<EdgeWeight> _edge_weights;
 
   NodeID _max_degree;
   NodeWeight _total_node_weight;
@@ -820,9 +792,7 @@ CompressedGraph compute_compressed_graph(
   });
 
   tbb::enumerable_thread_specific<CompressedEdgesBuilder> neighbourhood_builder_ets([&] {
-    return CompressedEdgesBuilder(
-        num_nodes, num_edges, max_degree, kHasEdgeWeights, builder.edge_weights()
-    );
+    return CompressedEdgesBuilder(num_nodes, num_edges, max_degree, kHasEdgeWeights);
   });
 
   const std::size_t num_threads = tbb::this_task_arena::max_concurrency();

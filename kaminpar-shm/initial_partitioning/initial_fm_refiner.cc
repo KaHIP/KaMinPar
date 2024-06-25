@@ -384,9 +384,9 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
     compute_gain_from_scratch(const PartitionedCSRGraph &p_graph, const NodeID u) {
   const BlockID u_block = p_graph.block(u);
   EdgeWeight weighted_external_degree = 0;
-  for (const auto [e, v] : p_graph.neighbors(u)) {
-    weighted_external_degree += (p_graph.block(v) != u_block) * p_graph.edge_weight(e);
-  }
+  p_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+    weighted_external_degree += (p_graph.block(v) != u_block) * weight;
+  });
   const EdgeWeight weighted_internal_degree = _weighted_degrees[u] - weighted_external_degree;
   return weighted_internal_degree - weighted_external_degree;
 }
@@ -447,4 +447,3 @@ template class InitialFMRefiner<
     fm::BalancedMinCutAcceptancePolicy,
     fm::AdaptiveStoppingPolicy>;
 } // namespace kaminpar::shm
-

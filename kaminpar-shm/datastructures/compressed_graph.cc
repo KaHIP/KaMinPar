@@ -20,8 +20,9 @@ CompressedGraph::CompressedGraph(
     CompactStaticArray<EdgeID> nodes,
     StaticArray<std::uint8_t> compressed_edges,
     StaticArray<NodeWeight> node_weights,
-    StaticArray<EdgeWeight> edge_weights,
     EdgeID edge_count,
+    EdgeWeight total_edge_weight,
+    bool has_edge_weights,
     NodeID max_degree,
     bool sorted,
     std::size_t num_high_degree_nodes,
@@ -32,8 +33,9 @@ CompressedGraph::CompressedGraph(
     : _nodes(std::move(nodes)),
       _compressed_edges(std::move(compressed_edges)),
       _node_weights(std::move(node_weights)),
-      _edge_weights(std::move(edge_weights)),
       _edge_count(edge_count),
+      _total_edge_weight(total_edge_weight),
+      _has_edge_weights(has_edge_weights),
       _max_degree(max_degree),
       _sorted(sorted),
       _num_high_degree_nodes(num_high_degree_nodes),
@@ -51,12 +53,6 @@ CompressedGraph::CompressedGraph(
   } else {
     _total_node_weight = parallel::accumulate(_node_weights, static_cast<NodeWeight>(0));
     _max_node_weight = parallel::max_element(_node_weights);
-  }
-
-  if (_edge_weights.empty()) {
-    _total_edge_weight = static_cast<EdgeWeight>(m());
-  } else {
-    _total_edge_weight = parallel::accumulate(_edge_weights, static_cast<EdgeWeight>(0));
   }
 
   init_degree_buckets();

@@ -459,12 +459,10 @@ protected:
     };
 
     bool is_interface_node = false;
-    _graph->neighbors(u, _max_num_neighbors, [&](const EdgeID e, const NodeID v) {
+    _graph->neighbors(u, _max_num_neighbors, [&](const EdgeID, const NodeID v, const EdgeWeight w) {
       if (derived_accept_neighbor(u, v)) {
         const ClusterID v_cluster = derived_cluster(v);
-        const EdgeWeight rating = _graph->edge_weight(e);
-
-        map[v_cluster] += rating;
+        map[v_cluster] += w;
 
         if constexpr (Config::kUseLocalActiveSetStrategy) {
           is_interface_node |= v >= _num_active_nodes;
@@ -533,12 +531,10 @@ protected:
 
     bool is_interface_node = false;
     bool is_second_phase_node = false;
-    _graph->neighbors(u, _max_num_neighbors, [&](const EdgeID e, const NodeID v) {
+    _graph->neighbors(u, _max_num_neighbors, [&](const EdgeID, const NodeID v, const EdgeWeight w) {
       if (derived_accept_neighbor(u, v)) {
         const ClusterID v_cluster = derived_cluster(v);
-        const EdgeWeight rating = _graph->edge_weight(e);
-
-        map[v_cluster] += rating;
+        map[v_cluster] += w;
 
         if (use_frm_selection && map.size() >= Config::kRatingMapThreshold) {
           if (aggregate_during_second_phase) {
@@ -616,23 +612,26 @@ protected:
     bool is_interface_node = false;
     switch (_second_phase_aggregation_strategy) {
     case SecondPhaseAggregationStrategy::DIRECT: {
-      _graph->pfor_neighbors(u, _max_num_neighbors, 2000, [&](const EdgeID e, const NodeID v) {
-        if (derived_accept_neighbor(u, v)) {
-          const ClusterID v_cluster = derived_cluster(v);
-          const EdgeWeight rating = _graph->edge_weight(e);
+      _graph->pfor_neighbors(
+          u,
+          _max_num_neighbors,
+          2000,
+          [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
+            if (derived_accept_neighbor(u, v)) {
+              const ClusterID v_cluster = derived_cluster(v);
+              const EdgeWeight prev_rating =
+                  __atomic_fetch_add(&map[v_cluster], w, __ATOMIC_RELAXED);
 
-          const EdgeWeight prev_rating =
-              __atomic_fetch_add(&map[v_cluster], rating, __ATOMIC_RELAXED);
+              if (prev_rating == 0) {
+                map.local_used_entries().push_back(v_cluster);
+              }
 
-          if (prev_rating == 0) {
-            map.local_used_entries().push_back(v_cluster);
+              if constexpr (Config::kUseLocalActiveSetStrategy) {
+                is_interface_node |= v >= _num_active_nodes;
+              }
+            }
           }
-
-          if constexpr (Config::kUseLocalActiveSetStrategy) {
-            is_interface_node |= v >= _num_active_nodes;
-          }
-        }
-      });
+      );
       break;
     }
     case SecondPhaseAggregationStrategy::BUFFERED: {
@@ -652,12 +651,10 @@ protected:
       _graph->pfor_neighbors(u, _max_num_neighbors, 2000, [&](auto &&local_pfor_neighbors) {
         auto &local_rating_map = _rating_map_ets.local().small_map();
 
-        local_pfor_neighbors([&](const EdgeID e, const NodeID v) {
+        local_pfor_neighbors([&](const EdgeID e, const NodeID v, const EdgeWeight w) {
           if (derived_accept_neighbor(u, v)) {
             const ClusterID v_cluster = derived_cluster(v);
-            const EdgeWeight rating = _graph->edge_weight(e);
-
-            local_rating_map[v_cluster] += rating;
+            local_rating_map[v_cluster] += w;
 
             if (local_rating_map.size() >= Config::kRatingMapThreshold) {
               flush_local_rating_map(local_rating_map);

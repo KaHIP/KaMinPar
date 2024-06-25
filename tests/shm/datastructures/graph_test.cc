@@ -30,7 +30,7 @@ TEST_F(AWeightedGridGraph, InitialNodeWeightingWorks) {
 
 TEST_F(AWeightedGridGraph, InitialEdgeWeightingWorks) {
   for (const EdgeID e : graph.edges()) {
-    EXPECT_EQ(graph.edge_weight(e), 1);
+    EXPECT_EQ(graph.csr_graph().edge_weight(e), 1);
   }
 }
 

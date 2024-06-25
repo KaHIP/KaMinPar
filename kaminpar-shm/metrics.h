@@ -26,8 +26,8 @@ EdgeWeight edge_cut(const PartitionedGraph &p_graph, const Graph &graph) {
   tbb::parallel_for(tbb::blocked_range<NodeID>(0, graph.n()), [&](const auto &r) {
     auto &cut = cut_ets.local();
     for (NodeID u = r.begin(); u < r.end(); ++u) {
-      graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
-        cut += (p_graph.block(u) != p_graph.block(v)) ? graph.edge_weight(e) : 0;
+      graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+        cut += (p_graph.block(u) != p_graph.block(v)) ? w : 0;
       });
     }
   });
@@ -47,8 +47,8 @@ EdgeWeight edge_cut_seq(const PartitionedGraph &p_graph, const Graph &graph) {
   std::int64_t cut = 0;
 
   for (const NodeID u : graph.nodes()) {
-    graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
-      cut += (p_graph.block(u) != p_graph.block(v)) ? graph.edge_weight(e) : 0;
+    graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+      cut += (p_graph.block(u) != p_graph.block(v)) ? w : 0;
     });
   }
 

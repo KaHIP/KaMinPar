@@ -79,11 +79,11 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential_generic_graph(
     const NodeID n0 = b * n1;
     const EdgeID m0 = b * m1; // either 0 or s_m[0]
 
-    graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
+    graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
       if (p_graph.block(v) == b) {
         edges[m0 + next_edge_id[b]] = mapping[v];
         if (is_edge_weighted) {
-          edge_weights[m0 + next_edge_id[b]] = graph.edge_weight(e);
+          edge_weights[m0 + next_edge_id[b]] = w;
         }
         ++next_edge_id[b];
       }
@@ -269,12 +269,12 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
 
       const EdgeID e0 = start_positions[b].edges_start_pos;
 
-      graph.neighbors(
+      graph.adjacent_nodes(
           u_prime,
-          [&](const EdgeID e_prime, const NodeID v_prime) { // e_prime, v_prime = in graph
-            if (p_graph.block(v_prime) == b) {              // only keep internal edges
+          [&](const NodeID v_prime, const EdgeWeight w_prime) { // v_prime, w_prime = in graph
+            if (p_graph.block(v_prime) == b) {                  // only keep internal edges
               if (is_edge_weighted) {
-                subgraph_memory.edge_weights[e0 + e] = graph.edge_weight(e_prime);
+                subgraph_memory.edge_weights[e0 + e] = w_prime;
               }
               subgraph_memory.edges[e0 + e] = mapping[v_prime];
               ++e;

@@ -8,7 +8,6 @@
 #include "kaminpar-shm/datastructures/compressed_graph_builder.h"
 
 #include <algorithm>
-#include <bitset>
 #include <cstdint>
 
 #include <tbb/enumerable_thread_specific.h>
@@ -17,7 +16,6 @@
 
 #include "kaminpar-shm/kaminpar.h"
 
-#include "kaminpar-common/datastructures/concurrent_circular_vector.h"
 #include "kaminpar-common/heap_profiler.h"
 
 namespace kaminpar::shm {
@@ -56,13 +54,9 @@ compressed_edge_array_max_size(const NodeID num_nodes, const EdgeID num_edges) {
 } // namespace
 
 CompressedEdgesBuilder::CompressedEdgesBuilder(
-    const NodeID num_nodes,
-    const EdgeID num_edges,
-    bool has_edge_weights,
-    StaticArray<EdgeWeight> &edge_weights
+    const NodeID num_nodes, const EdgeID num_edges, bool has_edge_weights
 )
-    : _has_edge_weights(has_edge_weights),
-      _edge_weights(edge_weights) {
+    : _has_edge_weights(has_edge_weights) {
   const std::size_t max_size = compressed_edge_array_max_size(num_nodes, num_edges);
   _compressed_data_start = heap_profiler::overcommit_memory<std::uint8_t>(max_size);
   _compressed_data = _compressed_data_start.get();
@@ -70,14 +64,9 @@ CompressedEdgesBuilder::CompressedEdgesBuilder(
 }
 
 CompressedEdgesBuilder::CompressedEdgesBuilder(
-    const NodeID num_nodes,
-    const EdgeID num_edges,
-    const NodeID max_degree,
-    bool has_edge_weights,
-    StaticArray<EdgeWeight> &edge_weights
+    const NodeID num_nodes, const EdgeID num_edges, const NodeID max_degree, bool has_edge_weights
 )
-    : _has_edge_weights(has_edge_weights),
-      _edge_weights(edge_weights) {
+    : _has_edge_weights(has_edge_weights) {
   const std::size_t max_size = compressed_edge_array_max_size<false>(num_nodes, max_degree);
   _compressed_data_start = heap_profiler::overcommit_memory<std::uint8_t>(max_size);
   _compressed_data = _compressed_data_start.get();
@@ -162,14 +151,14 @@ CompressedGraph CompressedGraphBuilder::compress(const CSRGraph &graph) {
   std::vector<std::pair<NodeID, EdgeWeight>> neighbourhood;
   neighbourhood.reserve(graph.max_degree());
 
-  for (const NodeID node : graph.nodes()) {
-    for (const auto [incident_edge, adjacent_node] : graph.neighbors(node)) {
-      neighbourhood.emplace_back(adjacent_node, graph.edge_weight(incident_edge));
-    }
+  for (const NodeID u : graph.nodes()) {
+    graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+      neighbourhood.emplace_back(v, w);
+    });
 
-    builder.add_node(node, neighbourhood);
+    builder.add_node(u, neighbourhood);
     if (store_node_weights) {
-      builder.add_node_weight(node, graph.node_weight(node));
+      builder.add_node_weight(u, graph.node_weight(u));
     }
 
     neighbourhood.clear();
@@ -185,7 +174,8 @@ CompressedGraphBuilder::CompressedGraphBuilder(
     const bool has_edge_weights,
     const bool sorted
 )
-    : _compressed_edges_builder(num_nodes, num_edges, has_edge_weights, _edge_weights) {
+    : _compressed_edges_builder(num_nodes, num_edges, has_edge_weights),
+      _store_edge_weights(has_edge_weights) {
   KASSERT(num_nodes < std::numeric_limits<NodeID>::max() - 1);
   const std::size_t max_size = compressed_edge_array_max_size(num_nodes, num_edges);
 
@@ -197,10 +187,6 @@ CompressedGraphBuilder::CompressedGraphBuilder(
 
   if (has_node_weights) {
     _node_weights.resize(num_nodes);
-  }
-
-  if (has_edge_weights) {
-    _edge_weights.resize(num_edges);
   }
 
   _store_node_weights = has_node_weights;
@@ -265,18 +251,13 @@ CompressedGraph CompressedGraphBuilder::build() {
     _node_weights.free();
   }
 
-  const bool unit_edge_weights =
-      static_cast<EdgeID>(_compressed_edges_builder.total_edge_weight()) == _num_edges;
-  if (unit_edge_weights) {
-    _edge_weights.free();
-  }
-
   return CompressedGraph(
       std::move(_nodes),
       std::move(compressed_edges),
       std::move(_node_weights),
-      std::move(_edge_weights),
       _num_edges,
+      _compressed_edges_builder.total_edge_weight(),
+      _store_edge_weights,
       _compressed_edges_builder.max_degree(),
       _sorted,
       _compressed_edges_builder.num_high_degree_nodes(),
@@ -288,7 +269,7 @@ CompressedGraph CompressedGraphBuilder::build() {
 
 std::size_t CompressedGraphBuilder::currently_used_memory() const {
   return _nodes.allocated_size() + _compressed_edges_builder.size() +
-         _node_weights.size() * sizeof(NodeWeight) + _edge_weights.size() * sizeof(EdgeWeight);
+         _node_weights.size() * sizeof(NodeWeight);
 }
 
 std::int64_t CompressedGraphBuilder::total_node_weight() const {
@@ -331,13 +312,10 @@ ParallelCompressedGraphBuilder::ParallelCompressedGraphBuilder(
   _compressed_edges = heap_profiler::overcommit_memory<std::uint8_t>(max_size);
   _compressed_edges_size = 0;
   _num_edges = num_edges;
+  _has_edge_weights = has_edge_weights;
 
   if (has_node_weights) {
     _node_weights.resize(num_nodes, static_array::noinit);
-  }
-
-  if (has_edge_weights) {
-    _edge_weights.resize(num_edges, static_array::noinit);
   }
 
   _max_degree = 0;
@@ -394,10 +372,6 @@ void ParallelCompressedGraphBuilder::record_local_statistics(
   __atomic_fetch_add(&_num_intervals, num_intervals, __ATOMIC_RELAXED);
 }
 
-StaticArray<EdgeWeight> &ParallelCompressedGraphBuilder::edge_weights() {
-  return _edge_weights;
-}
-
 CompressedGraph ParallelCompressedGraphBuilder::build() {
   // Store in the last entry of the node array the offset one after the last byte belonging to the
   // last node.
@@ -434,17 +408,13 @@ CompressedGraph ParallelCompressedGraphBuilder::build() {
     _node_weights.free();
   }
 
-  const bool unit_edge_weights = static_cast<EdgeID>(_total_edge_weight) == _num_edges;
-  if (unit_edge_weights) {
-    _edge_weights.free();
-  }
-
   return CompressedGraph(
       std::move(_nodes),
       std::move(compressed_edges),
       std::move(_node_weights),
-      std::move(_edge_weights),
       _num_edges,
+      _total_edge_weight,
+      _has_edge_weights,
       _max_degree,
       _sorted,
       _num_high_degree_nodes,
