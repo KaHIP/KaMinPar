@@ -15,6 +15,7 @@
 #include <networkit/auxiliary/Parallel.hpp>
 #include <networkit/graph/GraphTools.hpp>
 
+#include "DistributionWithoutReplacement.h"
 #include "FiniteRandomDistribution.h"
 
 namespace kaminpar::shm::sparsification {
@@ -41,14 +42,17 @@ void WeightedForestFireScore::run() {
     std::vector<bool> visited(G->upperNodeIdBound(), false);
     activeNodes.push(GraphTools::randomNode(*G));
 
-    auto forwardNeighbors = [&](node u) {
-      std::vector<edgetriple> validEdges;
+    auto forwardNeighborDistribution = [&](node u) {
+      std::vector<std::pair<node, edgeid>> validEdges;
+      std::vector<edgeweight> weights;
       for (count i = 0; i < G->degree(u); i++) {
         auto [v, e] = G->getIthNeighborWithId(u, i);
-        auto weight = G->getIthNeighborWeight(u, i);
-        validEdges.emplace_back(v, e, weight);
+        if (visited[v])
+          continue;
+        weights.push_back(G->getIthNeighborWeight(u, i));
+        validEdges.emplace_back(v, e);
       }
-      return validEdges;
+      return DistributionWithoutReplacement<std::pair<node, edgeid>>(validEdges, weights);
     };
 
     count localEdgesBurnt = 0;
@@ -57,40 +61,22 @@ void WeightedForestFireScore::run() {
       node v = activeNodes.front();
       activeNodes.pop();
 
-      auto validNeighbors = forwardNeighbors(v);
-
-
-      edgeweight validNeighboursWeightSum = std::accumulate(
-          validNeighbors.begin(),
-          validNeighbors.end(),
-          0,
-          [](edgeweight accumulator, edgetriple edge) { return accumulator + std::get<2>(edge); }
-      );
+      auto validNeighborDistribution = forwardNeighborDistribution(v);
 
       while (true) {
         double q = Aux::Random::real(1.0);
-        if (q > pf || validNeighbors.empty()) {
+        if (q > pf || validNeighborDistribution.empty()) {
           break;
-        }
-        edgeweight r = Aux::Random::real(validNeighboursWeightSum);
-        count index = 0;
-        edgeweight prefix_sum = std::get<2>(validNeighbors[0]);
-        while ((prefix_sum += std::get<2>(validNeighbors[index])) < r) {
-          index++;
         }
 
         { // mark node as visited, burn edge
-          auto [x, eid, weight] = validNeighbors[index];
+          auto [x, eid] = validNeighborDistribution();
           activeNodes.push(x);
 #pragma omp atomic
           burnt[eid]++;
           localEdgesBurnt++;
           visited[x] = true;
-          validNeighboursWeightSum -= weight;
         }
-
-        validNeighbors[index] = validNeighbors.back();
-        validNeighbors.pop_back();
       }
     }
 
