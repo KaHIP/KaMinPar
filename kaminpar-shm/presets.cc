@@ -83,7 +83,7 @@ Context create_default_context() {
               .clustering =
                   {
                       // Context -> Coarsening -> Clustering
-                      .algorithm = ClusteringAlgorithm::LEGACY_LABEL_PROPAGATION,
+                      .algorithm = ClusteringAlgorithm::LABEL_PROPAGATION,
                       .lp =
                           {
                               // Context -> Coarsening -> Clustering -> Label Propagation
@@ -91,7 +91,7 @@ Context create_default_context() {
                               .large_degree_threshold = 1000000,
                               .max_num_neighbors = 200000,
                               .cluster_weights_structure = ClusterWeightsStructure::VEC,
-                              .impl = LabelPropagationImplementation::SINGLE_PHASE,
+                              .impl = LabelPropagationImplementation::TWO_PHASE,
                               .second_phase_selection_strategy =
                                   SecondPhaseSelectionStrategy::FULL_RATING_MAP,
                               .second_phase_aggregation_strategy =
