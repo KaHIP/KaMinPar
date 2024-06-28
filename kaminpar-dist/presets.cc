@@ -222,6 +222,7 @@ Context create_default_context() {
           {
               .save_coarsest_graph = false,
               .save_coarsest_partition = false,
+              .print_compression_details = false,
           }
   };
 }

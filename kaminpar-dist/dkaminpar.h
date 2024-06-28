@@ -311,8 +311,17 @@ struct GraphCompressionContext {
   double avg_compression_ratio;
   double min_compression_ratio;
   double max_compression_ratio;
+
   std::size_t largest_compressed_graph;
   std::size_t largest_compressed_graph_prev_size;
+
+  std::size_t largest_uncompressed_graph;
+  std::size_t largest_uncompressed_graph_after_size;
+
+  std::vector<std::size_t> compressed_graph_sizes;
+  std::vector<std::size_t> uncompressed_graph_sizes;
+  std::vector<NodeID> num_nodes;
+  std::vector<EdgeID> num_edges;
 
   /*!
    * Setups the graph compression statistics of this context.
@@ -341,6 +350,7 @@ struct DebugContext {
   std::string graph_filename;
   bool save_coarsest_graph;
   bool save_coarsest_partition;
+  bool print_compression_details;
 };
 
 struct Context {

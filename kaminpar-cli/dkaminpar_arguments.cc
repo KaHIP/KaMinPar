@@ -107,6 +107,9 @@ CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx) {
   debug->add_flag("--d-save-coarsest-partition", ctx.debug.save_coarsest_partition)
       ->configurable(false)
       ->capture_default_str();
+  debug->add_flag("--d-print-compression-details", ctx.debug.print_compression_details)
+      ->configurable(false)
+      ->capture_default_str();
 
   return debug;
 }

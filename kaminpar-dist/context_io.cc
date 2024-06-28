@@ -288,7 +288,7 @@ void print(const Context &ctx, const bool root, std::ostream &out, MPI_Comm comm
       out << "  Simulate seq. hybrid exe.:  " << (ctx.simulate_singlethread ? "yes" : "no") << "\n";
     }
     cio::print_delimiter("Graph Compression", '-');
-    print(ctx.compression, ctx.parallel, out);
+    print(ctx.compression, ctx.parallel, ctx.debug.print_compression_details, out);
     cio::print_delimiter("Coarsening", '-');
     print(ctx.coarsening, ctx.parallel, out);
     cio::print_delimiter("Initial Partitioning", '-');
@@ -351,7 +351,12 @@ void print(const ChunksContext &ctx, const ParallelContext &parallel, std::ostre
   }
 }
 
-void print(const GraphCompressionContext &ctx, const ParallelContext &parallel, std::ostream &out) {
+void print(
+    const GraphCompressionContext &ctx,
+    const ParallelContext &parallel,
+    const bool print_compression_details,
+    std::ostream &out
+) {
   using Compression = DistributedCompressedGraph::CompressedEdges;
 
   const auto round = [](const auto value) {
@@ -396,6 +401,20 @@ void print(const GraphCompressionContext &ctx, const ParallelContext &parallel, 
 
     out << "Largest compressed graph:     " << to_gib(ctx.largest_compressed_graph_prev_size)
         << " GiB -> " << to_gib(ctx.largest_compressed_graph) << " GiB\n";
+
+    out << "Largest uncompressed graph:   " << to_gib(ctx.largest_uncompressed_graph) << " GiB -> "
+        << to_gib(ctx.largest_uncompressed_graph_after_size) << " GiB\n";
+
+    if (print_compression_details) {
+      out << "Local graph size reductions:\n";
+      const std::size_t num_processes = ctx.compressed_graph_sizes.size();
+      for (std::size_t num_process = 0; num_process < num_processes; ++num_process) {
+        out << "  PE" << num_process << ": " << to_gib(ctx.uncompressed_graph_sizes[num_process])
+            << " GiB -> " << to_gib(ctx.compressed_graph_sizes[num_process])
+            << " GiB [n=" << ctx.num_nodes[num_process] << ", m=" << ctx.num_edges[num_process]
+            << "]\n";
+      }
+    }
   }
 }
 

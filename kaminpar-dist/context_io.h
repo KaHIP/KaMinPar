@@ -40,7 +40,12 @@ std::string get_balancing_algorithms_description();
 void print(const Context &ctx, bool root, std::ostream &out, MPI_Comm comm);
 void print(const PartitionContext &ctx, bool root, std::ostream &out, MPI_Comm comm);
 void print(const ChunksContext &ctx, const ParallelContext &parallel, std::ostream &out);
-void print(const GraphCompressionContext &ctx, const ParallelContext &parallel, std::ostream &out);
+void print(
+    const GraphCompressionContext &ctx,
+    const ParallelContext &parallel,
+    const bool print_compression_details,
+    std::ostream &out
+);
 void print(const CoarseningContext &ctx, const ParallelContext &parallel, std::ostream &out);
 void print(const InitialPartitioningContext &ctx, std::ostream &out);
 void print(const RefinementContext &ctx, const ParallelContext &parallel, std::ostream &out);

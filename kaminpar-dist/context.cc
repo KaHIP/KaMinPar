@@ -115,21 +115,43 @@ bool RefinementContext::includes_algorithm(const RefinementAlgorithm algorithm) 
 }
 
 void GraphCompressionContext::setup(const DistributedCompressedGraph &graph) {
+  constexpr int kRoot = 0;
   const MPI_Comm comm = graph.communicator();
+  const int rank = mpi::get_comm_rank(comm);
 
-  const auto compression_ratios = mpi::allgather(graph.compression_ratio(), comm);
-  const auto size = static_cast<double>(compression_ratios.size());
-  avg_compression_ratio = std::reduce(compression_ratios.begin(), compression_ratios.end()) / size;
-  min_compression_ratio = *std::min_element(compression_ratios.begin(), compression_ratios.end());
-  max_compression_ratio = *std::max_element(compression_ratios.begin(), compression_ratios.end());
+  compressed_graph_sizes =
+      mpi::gather<std::size_t, std::vector<std::size_t>>(graph.memory_space(), kRoot, comm);
+  uncompressed_graph_sizes = mpi::gather<std::size_t, std::vector<std::size_t>>(
+      graph.uncompressed_memory_space(), kRoot, comm
+  );
+  num_nodes = mpi::gather<NodeID, std::vector<NodeID>>(graph.n(), kRoot, comm);
+  num_edges = mpi::gather<EdgeID, std::vector<EdgeID>>(graph.m(), kRoot, comm);
 
-  const auto graph_sizes = mpi::allgather(graph.memory_space(), comm);
-  const auto largest_compressed_graph_it = std::max_element(graph_sizes.begin(), graph_sizes.end());
-  largest_compressed_graph = *largest_compressed_graph_it;
+  const auto compression_ratios = mpi::gather(graph.compression_ratio(), kRoot, comm);
+  if (rank == kRoot) {
+    const auto size = static_cast<double>(compression_ratios.size());
+    avg_compression_ratio =
+        std::reduce(compression_ratios.begin(), compression_ratios.end()) / size;
+    min_compression_ratio = *std::min_element(compression_ratios.begin(), compression_ratios.end());
+    max_compression_ratio = *std::max_element(compression_ratios.begin(), compression_ratios.end());
 
-  const auto largest_compressed_graph_rank =
-      std::distance(graph_sizes.begin(), largest_compressed_graph_it);
-  largest_compressed_graph_prev_size =
-      largest_compressed_graph * compression_ratios[largest_compressed_graph_rank];
+    const auto largest_compressed_graph_it =
+        std::max_element(compressed_graph_sizes.begin(), compressed_graph_sizes.end());
+    largest_compressed_graph = *largest_compressed_graph_it;
+
+    const auto largest_compressed_graph_rank =
+        std::distance(compressed_graph_sizes.begin(), largest_compressed_graph_it);
+    largest_compressed_graph_prev_size =
+        largest_compressed_graph * compression_ratios[largest_compressed_graph_rank];
+
+    const auto largest_uncompressed_graph_it =
+        std::max_element(uncompressed_graph_sizes.begin(), uncompressed_graph_sizes.end());
+    largest_uncompressed_graph = *largest_uncompressed_graph_it;
+
+    const auto largest_uncompressed_graph_rank =
+        std::distance(uncompressed_graph_sizes.begin(), largest_uncompressed_graph_it);
+    largest_uncompressed_graph_after_size =
+        largest_uncompressed_graph / compression_ratios[largest_uncompressed_graph_rank];
+  }
 }
 } // namespace kaminpar::dist
