@@ -3,9 +3,9 @@
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::shm::sparsification {
-template <typename Object> class DistributionWithoutReplacement {
+class IndexDistributionWithoutReplacement {
 public:
-  DistributionWithoutReplacement(std::vector<Object> objects, std::vector<double> values)
+  IndexDistributionWithoutReplacement(std::vector<double> values)
       : objects(objects),
         remaining_objects(values.size()) {
     if (values.size() == 0)
@@ -31,7 +31,7 @@ public:
     }
   }
 
-  Object operator()() {
+  size_t operator()() {
     double r = Random::instance().random_double() * segment_tree[0];
 
     size_t current_subtree = 0;
@@ -44,7 +44,7 @@ public:
       }
     }
 
-    Object obj = to_object(current_subtree);
+    size_t index = to_index(current_subtree);
     double value = segment_tree[current_subtree];
 
     // delete
@@ -55,7 +55,7 @@ public:
     segment_tree[0] -= value;
 
     remaining_objects--;
-    return obj;
+    return index;
   }
 
   size_t size() {
@@ -81,9 +81,8 @@ private:
   size_t firstLeaf() {
     return segment_tree.size() / 2;
   }
-  Object to_object(size_t leaf) {
-    size_t index = leaf - firstLeaf();
-    return objects[index];
+  size_t to_index(size_t leaf) {
+    return leaf - firstLeaf();
   }
   std::vector<double> segment_tree;
   std::vector<Object> objects;
