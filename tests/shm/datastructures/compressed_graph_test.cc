@@ -17,9 +17,7 @@
   test_function(make_complete_bipartite_graph(100, 100));                                          \
   test_function(make_complete_graph(100));                                                         \
   test_function(make_matching_graph(100));                                                         \
-  test_function(make_star_graph(HIGH_DEGREE_NUM));
-
-#define TEST_ON_WEIGHTED_GRAPHS(test_function)                                                     \
+  test_function(make_star_graph(HIGH_DEGREE_NUM));                                                 \
   test_function(make_complete_graph(100, [](const NodeID u, const NodeID v) {                      \
     return static_cast<EdgeWeight>(u + v);                                                         \
   }));                                                                                             \

@@ -222,6 +222,7 @@ private:
     };
 
     NodeID local_degree = neighbourhood.size();
+    EdgeWeight prev_edge_weight = 0;
 
     // Find intervals [i, j] of consecutive adjacent nodes i, i + 1, ..., j - 1, j of length at
     // least kIntervalLengthTreshold. Instead of storing all nodes, only encode the left extreme i
@@ -272,7 +273,10 @@ private:
                   if constexpr (kHasEdgeWeights) {
                     if (_has_edge_weights) {
                       const EdgeWeight edge_weight = neighbourhood[k].second;
-                      _compressed_data += signed_varint_encode(edge_weight, _compressed_data);
+                      const EdgeWeight edge_weight_gap = edge_weight - prev_edge_weight;
+                      _compressed_data += signed_varint_encode(edge_weight_gap, _compressed_data);
+
+                      prev_edge_weight = edge_weight;
                       _total_edge_weight += edge_weight;
                     }
                   }
@@ -338,7 +342,10 @@ private:
     if constexpr (kHasEdgeWeights) {
       if (_has_edge_weights) {
         const EdgeWeight first_edge_weight = neighbourhood[i].second;
-        _compressed_data += signed_varint_encode(first_edge_weight, _compressed_data);
+        const EdgeWeight first_edge_weight_gap = first_edge_weight - prev_edge_weight;
+        _compressed_data += signed_varint_encode(first_edge_weight_gap, _compressed_data);
+
+        prev_edge_weight = first_edge_weight;
         _total_edge_weight += first_edge_weight;
       }
     }
@@ -372,7 +379,10 @@ private:
       if constexpr (kHasEdgeWeights) {
         if (_has_edge_weights) {
           const EdgeWeight edge_weight = neighbourhood[i].second;
-          _compressed_data += signed_varint_encode(edge_weight, _compressed_data);
+          const EdgeWeight edge_weight_gap = edge_weight - prev_edge_weight;
+          _compressed_data += signed_varint_encode(edge_weight_gap, _compressed_data);
+
+          prev_edge_weight = edge_weight;
           _total_edge_weight += edge_weight;
         }
       }

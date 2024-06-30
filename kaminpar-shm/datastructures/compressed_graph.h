@@ -691,10 +691,13 @@ private:
       Lambda &&l
   ) const {
     const EdgeID max_edge = edge + degree;
+    EdgeWeight prev_edge_weight = 0;
 
     if constexpr (kIntervalEncoding) {
       if (uses_intervals) {
-        const bool stop = decode_intervals<kHasEdgeWeights>(data, edge, std::forward<Lambda>(l));
+        const bool stop = decode_intervals<kHasEdgeWeights>(
+            data, edge, prev_edge_weight, std::forward<Lambda>(l)
+        );
         if (stop) {
           return true;
         }
@@ -705,11 +708,15 @@ private:
       }
     }
 
-    return decode_gaps<kHasEdgeWeights>(data, node, edge, max_edge, std::forward<Lambda>(l));
+    return decode_gaps<kHasEdgeWeights>(
+        data, node, edge, prev_edge_weight, max_edge, std::forward<Lambda>(l)
+    );
   }
 
   template <bool kHasEdgeWeights, typename Lambda>
-  bool decode_intervals(const std::uint8_t *&data, EdgeID &edge, Lambda &&l) const {
+  bool decode_intervals(
+      const std::uint8_t *&data, EdgeID &edge, EdgeWeight &prev_edge_weight, Lambda &&l
+  ) const {
     using LambdaReturnType = std::conditional_t<
         kHasEdgeWeights,
         std::invoke_result<Lambda, EdgeID, NodeID, EdgeWeight>,
@@ -718,9 +725,11 @@ private:
 
     const auto invoke_caller = [&](const NodeID adjacent_node) {
       if constexpr (kHasEdgeWeights) {
-        const auto [edge_weight, length] = signed_varint_decode<EdgeWeight>(data);
+        const auto [edge_weight_gap, length] = signed_varint_decode<EdgeWeight>(data);
         data += length;
 
+        const EdgeWeight edge_weight = edge_weight_gap + prev_edge_weight;
+        prev_edge_weight = edge_weight;
         return l(edge, adjacent_node, edge_weight);
       } else {
         return l(edge, adjacent_node);
@@ -761,7 +770,12 @@ private:
 
   template <bool kHasEdgeWeights, typename Lambda>
   bool decode_gaps(
-      const std::uint8_t *data, NodeID node, EdgeID &edge, const EdgeID max_edge, Lambda &&l
+      const std::uint8_t *data,
+      NodeID node,
+      EdgeID &edge,
+      EdgeWeight &prev_edge_weight,
+      const EdgeID max_edge,
+      Lambda &&l
   ) const {
     using LambdaReturnType = std::conditional_t<
         kHasEdgeWeights,
@@ -771,9 +785,11 @@ private:
 
     const auto invoke_caller = [&](const NodeID adjacent_node) {
       if constexpr (kHasEdgeWeights) {
-        const auto [edge_weight, length] = signed_varint_decode<EdgeWeight>(data);
+        const auto [edge_weight_gap, length] = signed_varint_decode<EdgeWeight>(data);
         data += length;
 
+        const EdgeWeight edge_weight = edge_weight_gap + prev_edge_weight;
+        prev_edge_weight = edge_weight;
         return l(edge, adjacent_node, edge_weight);
       } else {
         return l(edge, adjacent_node);
