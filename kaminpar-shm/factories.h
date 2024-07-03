@@ -28,9 +28,8 @@ std::unique_ptr<Coarsener> create_coarsener(const Context &ctx, const PartitionC
 std::unique_ptr<Coarsener> create_coarsener(const Context &ctx);
 
 std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx);
-template <typename Score>
-std::unique_ptr<sparsification::ScoreFunction<Score>> create_sampler(const ScoreFunctionSection selection);
-std::unique_ptr<sparsification::SparsificationTarget> create_sparsification_target(const Context &ctx);
+std::unique_ptr<sparsification::SparsificationTarget>
+create_sparsification_target(const Context &ctx);
 
 std::unique_ptr<Refiner> create_refiner(const Context &ctx);
 } // namespace kaminpar::shm::factory

@@ -5,15 +5,32 @@
 namespace kaminpar::shm::sparsification {
 class IndexDistributionWithoutReplacement {
 public:
-  IndexDistributionWithoutReplacement(std::vector<double> values)
-      : objects(objects),
-        remaining_objects(values.size()) {
-    if (values.size() == 0)
+  /*
+  template <typename Iterator> IndexDistributionWithoutReplacement(Iterator begin, Iterator end) {
+    std::vector<double> casted(end-begin);
+    for (Iterator e = begin; e != end; e++) {
+      casted[e -begin] = static_cast<double>(*e);
+    }
+    IndexDistributionWithoutReplacement((
+      );
+  }
+
+   */
+  IndexDistributionWithoutReplacement(std::vector<double> values) {
+    IndexDistributionWithoutReplacement(values.begin(), values.end());
+  }
+  IndexDistributionWithoutReplacement(StaticArray<double> values) {
+    IndexDistributionWithoutReplacement(values.begin(), values.end());
+  }
+  template <typename Iterator>
+  IndexDistributionWithoutReplacement(Iterator values_begin, Iterator values_end)
+      : remaining_objects(values_end - values_begin) {
+    if (remaining_objects == 0)
       return;
 
     // size of a complete binary tree, where all values can be in the leaves
     size_t size = 1;
-    while (size <= 2 * values.size()) {
+    while (size <= 2 * remaining_objects) {
       size *= 2;
     }
     size -= 1;
@@ -21,8 +38,8 @@ public:
 
     // initalize leafs
     const size_t first_leaf = firstLeaf();
-    for (size_t leaf = first_leaf; leaf < first_leaf + values.size(); leaf++) {
-      segment_tree[leaf] = values[leaf - first_leaf];
+    for (size_t leaf = first_leaf; leaf < first_leaf + remaining_objects; leaf++) {
+      segment_tree[leaf] = *(values_begin + (leaf - first_leaf));
     }
 
     // calculate sum of subtrees
@@ -85,7 +102,6 @@ private:
     return leaf - firstLeaf();
   }
   std::vector<double> segment_tree;
-  std::vector<Object> objects;
   size_t remaining_objects;
 };
 } // namespace kaminpar::shm::sparsification

@@ -23,7 +23,7 @@ add_library(kaminpar_shm ${KAMINPAR_SHM_SOURCE_FILES}
         coarsening/sparsification/NetworKitScoreAdapter.h
         coarsening/sparsification/EffectiveResistanceScore.cpp
         coarsening/sparsification/FiniteRandomDistribution.h
-        coarsening/sparsification/RandomSampler.h
+        coarsening/sparsification/RandomWithReplacementSampler.h
         coarsening/sparsification/IndexDistributionWithoutReplacement.h
         coarsening/sparsification/RandomWithoutReplacementSampler.h
         coarsening/sparsification/IndependentRandomSampler.h)

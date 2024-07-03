@@ -6,13 +6,13 @@
 #include "ScoreBacedSampler.h"
 
 namespace kaminpar::shm::sparsification {
-template <typename Score> class NetworKitScoreAdapter : public ScoreFunction<Score> {
+template <typename EdgeScore, typename Score> class NetworKitScoreAdapter : public ScoreFunction<Score> {
 public:
-  NetworKitScoreAdapter(std::function<NetworKit::EdgeScore<Score>(NetworKit::Graph)> constructor)
+  NetworKitScoreAdapter(std::function<EdgeScore(NetworKit::Graph&)> constructor)
       : _curried_constructor(constructor) {}
   StaticArray<Score> scores(const CSRGraph &g) override;
 
 private:
-  std::function<NetworKit::EdgeScore<Score>(NetworKit::Graph)> _curried_constructor;
+  std::function<EdgeScore(NetworKit::Graph&)> _curried_constructor;
 };
 } // namespace kaminpar::shm::sparsification

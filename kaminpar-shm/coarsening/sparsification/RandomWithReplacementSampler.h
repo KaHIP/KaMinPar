@@ -4,9 +4,9 @@
 #include "sparsification_utils.h"
 
 namespace kaminpar::shm::sparsification {
-template <typename Score> class RandomSampler : public ScoreBacedSampler<Score> {
+template <typename Score> class RandomWithReplacementSampler : public ScoreBacedSampler<Score> {
 public:
-  RandomSampler(
+  RandomWithReplacementSampler(
       std::unique_ptr<ScoreFunction<Score>> scoreFunction,
       std::unique_ptr<ReweighingFunction<Score>> reweighingFunction
   )

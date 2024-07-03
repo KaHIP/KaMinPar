@@ -85,12 +85,18 @@ std::unordered_map<std::string, SparsificationAlgorithm> get_sparsification_algo
       {"wt", SparsificationAlgorithm::WEIGHT_THRESHOLD},
       {"effective-resistance", SparsificationAlgorithm::EFFECTIVE_RESISTANCE},
       {"er", SparsificationAlgorithm::EFFECTIVE_RESISTANCE},
-      {"random", SparsificationAlgorithm::RANDOM}
+      {"random-with-replacement", SparsificationAlgorithm::RANDOM_WITH_REPLACEMENT},
+      {"rw/r", SparsificationAlgorithm::RANDOM_WITH_REPLACEMENT},
+      {"random-without-replacement", SparsificationAlgorithm::RANDOM_WITHOUT_REPLACEMENT},
+      {"rw/or", SparsificationAlgorithm::RANDOM_WITHOUT_REPLACEMENT},
+      {"independent-random", SparsificationAlgorithm::INDEPENDENT_RANDOM},
+      {"ir", SparsificationAlgorithm::INDEPENDENT_RANDOM},
   };
 }
 std::unordered_map<std::string, ScoreFunctionSection> get_score_function() {
   return {
       {"weight", ScoreFunctionSection::WEIGHT},
+      {"w", ScoreFunctionSection::WEIGHT},
       {"effective-resistance", ScoreFunctionSection::EFFECTIVE_RESISTANCE},
       {"er", ScoreFunctionSection::EFFECTIVE_RESISTANCE},
       {"forest-fire", ScoreFunctionSection::FOREST_FIRE},
