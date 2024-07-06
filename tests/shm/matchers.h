@@ -63,11 +63,14 @@ public:
   bool MatchAndExplain(const Graph &graph, MatchResultListener *) const override {
     for (const NodeID u : graph.nodes()) {
       if (graph.node_weight(u) == _u_weight) {
-        for (const auto [e, v] : graph.neighbors(u)) {
-          if ((_e_weight == 0 || graph.edge_weight(e) == _e_weight) &&
-              graph.node_weight(v) == _v_weight) {
-            return true;
-          }
+        bool aborted = false;
+        graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+          aborted = (_e_weight == 0 || weight == _e_weight) && graph.node_weight(v) == _v_weight;
+          return aborted;
+        });
+
+        if (aborted) {
+          return true;
         }
       }
     }

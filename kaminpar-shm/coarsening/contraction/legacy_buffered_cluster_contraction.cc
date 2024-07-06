@@ -83,10 +83,10 @@ std::unique_ptr<CoarseGraph> contract_clustering_buffered_legacy(
           c_u_weight += graph.node_weight(u); // coarse node weight
 
           // collect coarse edges
-          graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
+          graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
             const NodeID c_v = mapping[v];
             if (c_u != c_v) {
-              map[c_v] += graph.edge_weight(e);
+              map[c_v] += w;
             }
           });
         }

@@ -26,9 +26,9 @@ namespace debug {
 void print_graph(const Graph &graph) {
   for (const NodeID u : graph.nodes()) {
     LLOG << "L" << u << " NW" << graph.node_weight(u) << " | ";
-    for (const auto [e, v] : graph.neighbors(u)) {
-      LLOG << "EW" << graph.edge_weight(e) << " L" << v << " NW" << graph.node_weight(v) << "  ";
-    }
+    graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+      LLOG << "EW" << w << " L" << v << " NW" << graph.node_weight(v) << "  ";
+    });
     LOG;
   }
 }

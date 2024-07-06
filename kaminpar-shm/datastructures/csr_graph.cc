@@ -27,9 +27,9 @@ AbstractCSRGraph<Container, CompactContainer>::AbstractCSRGraph(const Graph &gra
     parallel::prefix_sum(_nodes.begin(), _nodes.end(), _nodes.begin());
 
     graph.pfor_nodes([&](const NodeID u) {
-      graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
+      graph.neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
         _edges[e] = v;
-        _edge_weights[e] = graph.edge_weight(e);
+        _edge_weights[e] = w;
       });
     });
 

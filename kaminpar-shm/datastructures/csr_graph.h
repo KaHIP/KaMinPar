@@ -204,7 +204,7 @@ public:
     return static_cast<EdgeWeight>(m()) != total_edge_weight();
   }
 
-  [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const final {
+  [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const {
     KASSERT(!is_edge_weighted() || e < _edge_weights.size());
     return is_edge_weighted() ? _edge_weights[e] : 1;
   }
@@ -269,12 +269,45 @@ public:
   }
 
   template <typename Lambda> inline void adjacent_nodes(const NodeID u, Lambda &&l) const {
-    KASSERT(u + 1 < _nodes.size());
+    KASSERT(u < n());
 
-    const EdgeID from = _nodes[u];
-    const EdgeID to = _nodes[u + 1];
-    for (EdgeID edge = from; edge < to; ++edge) {
-      l(_edges[edge]);
+    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID>;
+    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID, EdgeWeight>;
+    static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
+
+    using LambdaReturnType = std::conditional_t<
+        kDecodeEdgeWeights,
+        std::invoke_result<Lambda, NodeID, EdgeWeight>,
+        std::invoke_result<Lambda, NodeID>>::type;
+    constexpr bool kNonStoppable = std::is_void_v<LambdaReturnType>;
+
+    const auto decode_adjacent_nodes = [&](auto &&decode_edge_weight) {
+      const auto invoke_caller = [&](const EdgeID edge) {
+        if constexpr (kDecodeEdgeWeights) {
+          return l(_edges[edge], decode_edge_weight(edge));
+        } else {
+          return l(_edges[edge]);
+        }
+      };
+
+      const EdgeID from = _nodes[u];
+      const EdgeID to = _nodes[u + 1];
+      for (EdgeID edge = from; edge < to; ++edge) {
+        if constexpr (kNonStoppable) {
+          invoke_caller(edge);
+        } else {
+          const bool stop = invoke_caller(edge);
+          if (stop) {
+            return;
+          }
+        }
+      }
+    };
+
+    if (is_edge_weighted()) {
+      decode_adjacent_nodes([&](const EdgeID edge) { return _edge_weights[edge]; });
+    } else {
+      decode_adjacent_nodes([](const EdgeID) { return 1; });
     }
   }
 
@@ -286,32 +319,90 @@ public:
   }
 
   template <typename Lambda> inline void neighbors(const NodeID u, Lambda &&l) const {
-    KASSERT(u + 1 < _nodes.size());
+    KASSERT(u < n());
 
-    const EdgeID from = _nodes[u];
-    const EdgeID to = _nodes[u + 1];
-    for (EdgeID edge = from; edge < to; ++edge) {
-      l(edge, _edges[edge]);
+    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID>;
+    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID, EdgeWeight>;
+    static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
+
+    using LambdaReturnType = std::conditional_t<
+        kDecodeEdgeWeights,
+        std::invoke_result<Lambda, EdgeID, NodeID, EdgeWeight>,
+        std::invoke_result<Lambda, EdgeID, NodeID>>::type;
+    constexpr bool kNonStoppable = std::is_void_v<LambdaReturnType>;
+
+    const auto decode_neighbors = [&](auto &&decode_edge_weight) {
+      const auto invoke_caller = [&](const EdgeID edge) {
+        if constexpr (kDecodeEdgeWeights) {
+          return l(edge, _edges[edge], decode_edge_weight(edge));
+        } else {
+          return l(edge, _edges[edge]);
+        }
+      };
+
+      const EdgeID from = _nodes[u];
+      const EdgeID to = _nodes[u + 1];
+      for (EdgeID edge = from; edge < to; ++edge) {
+        if constexpr (kNonStoppable) {
+          invoke_caller(edge);
+        } else {
+          const bool stop = invoke_caller(edge);
+          if (stop) {
+            return;
+          }
+        }
+      }
+    };
+
+    if (is_edge_weighted()) {
+      decode_neighbors([&](const EdgeID edge) { return _edge_weights[edge]; });
+    } else {
+      decode_neighbors([](const EdgeID) { return 1; });
     }
   }
 
   template <typename Lambda>
   inline void neighbors(const NodeID u, const NodeID max_neighbor_count, Lambda &&l) const {
-    KASSERT(u + 1 < _nodes.size());
-    constexpr bool non_stoppable =
-        std::is_void<std::invoke_result_t<Lambda, EdgeID, NodeID>>::value;
+    KASSERT(u < n());
 
-    const EdgeID from = _nodes[u];
-    const EdgeID to = from + std::min(degree(u), max_neighbor_count);
+    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID>;
+    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID, EdgeWeight>;
+    static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
 
-    for (EdgeID edge = from; edge < to; ++edge) {
-      if constexpr (non_stoppable) {
-        l(edge, _edges[edge]);
-      } else {
-        if (l(edge, _edges[edge])) {
-          return;
+    using LambdaReturnType = std::conditional_t<
+        kDecodeEdgeWeights,
+        std::invoke_result<Lambda, EdgeID, NodeID, EdgeWeight>,
+        std::invoke_result<Lambda, EdgeID, NodeID>>::type;
+    constexpr bool kNonStoppable = std::is_void_v<LambdaReturnType>;
+
+    const auto decode_neighbors = [&](auto &&decode_edge_weight) {
+      const auto invoke_caller = [&](const EdgeID edge) {
+        if constexpr (kDecodeEdgeWeights) {
+          return l(edge, _edges[edge], decode_edge_weight(edge));
+        } else {
+          return l(edge, _edges[edge]);
+        }
+      };
+
+      const EdgeID from = _nodes[u];
+      const NodeID degree = static_cast<NodeID>(_nodes[u + 1] - from);
+      const EdgeID to = from + std::min(degree, max_neighbor_count);
+      for (EdgeID edge = from; edge < to; ++edge) {
+        if constexpr (kNonStoppable) {
+          invoke_caller(edge);
+        } else {
+          const bool stop = invoke_caller(edge);
+          if (stop) {
+            return;
+          }
         }
       }
+    };
+
+    if (is_edge_weighted()) {
+      decode_neighbors([&](const EdgeID edge) { return _edge_weights[edge]; });
+    } else {
+      decode_neighbors([](const EdgeID) { return 1; });
     }
   }
 
@@ -319,26 +410,30 @@ public:
   inline void pfor_neighbors(
       const NodeID u, const NodeID max_neighbor_count, const NodeID grainsize, Lambda &&l
   ) const {
-    KASSERT(u + 1 < _nodes.size());
+    KASSERT(u < n());
+    constexpr bool kInvokeDirectly = std::is_invocable_v<Lambda, EdgeID, NodeID, EdgeWeight>;
 
     const EdgeID from = _nodes[u];
-    const EdgeID to = from + std::min(degree(u), max_neighbor_count);
+    const NodeID degree = static_cast<NodeID>(_nodes[u + 1] - from);
+    const EdgeID to = from + std::min(degree, max_neighbor_count);
 
-    tbb::parallel_for(
-        tbb::blocked_range<EdgeID>(from, to, grainsize),
-        [&](const tbb::blocked_range<EdgeID> range) {
-          const auto end = range.end();
+    const auto visit_neighbors = [&](auto &&l3) {
+      tbb::parallel_for(tbb::blocked_range<EdgeID>(from, to, grainsize), [&](const auto &range) {
+        const auto end = range.end();
 
-          invoke_indirect<std::is_invocable_v<Lambda, EdgeID, NodeID>>(
-              std::forward<Lambda>(l),
-              [&](auto &&l2) {
-                for (EdgeID e = range.begin(); e < end; ++e) {
-                  l2(e, _edges[e]);
-                }
-              }
-          );
-        }
-    );
+        invoke_indirect<kInvokeDirectly>(std::forward<Lambda>(l), [&](auto &&l2) {
+          for (EdgeID e = range.begin(); e < end; ++e) {
+            l2(e, _edges[e], l3(e));
+          }
+        });
+      });
+    };
+
+    if (is_edge_weighted()) {
+      visit_neighbors([&](const EdgeID e) { return _edge_weights[e]; });
+    } else {
+      visit_neighbors([](const EdgeID) { return 1; });
+    }
   }
 
   // Graph permutation

@@ -63,10 +63,6 @@ public:
     return _graph->total_edge_weight();
   }
 
-  [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const {
-    return _graph->edge_weight(e);
-  }
-
   //
   // Graph properties
   //

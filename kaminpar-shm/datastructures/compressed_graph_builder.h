@@ -33,14 +33,8 @@ public:
    * @param num_nodes The number of nodes of the graph to compress.
    * @param num_edges The number of edges of the graph to compress.
    * @param has_edge_weights Whether the graph to compress has edge weights.
-   * @param edge_weights A reference to the edge weights of the compressed graph.
    */
-  CompressedEdgesBuilder(
-      const NodeID num_nodes,
-      const EdgeID num_edges,
-      bool has_edge_weights,
-      StaticArray<EdgeWeight> &edge_weights
-  );
+  CompressedEdgesBuilder(const NodeID num_nodes, const EdgeID num_edges, bool has_edge_weights);
 
   /*!
    * Constructs a new CompressedEdgesBuilder where the maxmimum degree specifies the number of edges
@@ -50,15 +44,9 @@ public:
    * @param num_edges The number of edges of the graph to compress.
    * @param max_degree The maximum degree of the graph to compress.
    * @param has_edge_weights Whether the graph to compress has edge weights.
-   * @param edge_weights A reference to the edge weights of the compressed graph.
-   * @param edge_weights A reference to the edge weights of the compressed graph.
    */
   CompressedEdgesBuilder(
-      const NodeID num_nodes,
-      const EdgeID num_edges,
-      const NodeID max_degree,
-      bool has_edge_weights,
-      StaticArray<EdgeWeight> &edge_weights
+      const NodeID num_nodes, const EdgeID num_edges, const NodeID max_degree, bool has_edge_weights
   );
 
   ~CompressedEdgesBuilder();
@@ -67,6 +55,7 @@ public:
   CompressedEdgesBuilder &operator=(const CompressedEdgesBuilder &) = delete;
 
   CompressedEdgesBuilder(CompressedEdgesBuilder &&) noexcept = default;
+  CompressedEdgesBuilder &operator=(CompressedEdgesBuilder &&) noexcept = delete;
 
   /*!
    * Initializes/resets the builder.
@@ -124,13 +113,15 @@ public:
   [[nodiscard]] std::size_t num_interval_nodes() const;
   [[nodiscard]] std::size_t num_intervals() const;
 
+  [[nodiscard]] std::size_t num_adjacent_node_bytes() const;
+  [[nodiscard]] std::size_t num_edge_weights_bytes() const;
+
 private:
   heap_profiler::unique_ptr<std::uint8_t> _compressed_data_start;
   std::uint8_t *_compressed_data;
   std::size_t _compressed_data_max_size;
 
   bool _has_edge_weights;
-  StaticArray<EdgeWeight> &_edge_weights;
 
   EdgeID _edge;
   NodeID _max_degree;
@@ -141,6 +132,10 @@ private:
   std::size_t _num_high_degree_parts;
   std::size_t _num_interval_nodes;
   std::size_t _num_intervals;
+
+  // Debug graph compression statistics
+  std::size_t _num_adjacent_node_bytes;
+  std::size_t _num_edge_weights_bytes;
 
   template <typename Container> EdgeID add_node(const NodeID node, Container &neighbourhood) {
     // The offset into the compressed edge array to the start of the neighbourhood.
@@ -169,11 +164,7 @@ private:
       _compressed_data += varint_encode(first_edge, _compressed_data);
     }
 
-    // Only increment the edge if edge weights are not stored as otherwise the edge is
-    // incremented with each edge weight being added.
-    if (!_has_edge_weights) {
-      _edge += degree;
-    }
+    _edge += degree;
 
     // If high-degree encoding is used then split the neighborhood if the degree crosses a
     // threshold. The neighborhood is split into equally sized parts (except possible the last part)
@@ -221,11 +212,6 @@ private:
     using Neighbour = std::remove_reference_t<Container>::value_type;
     constexpr bool kHasEdgeWeights = std::is_same_v<Neighbour, std::pair<NodeID, EdgeWeight>>;
 
-    const auto store_edge_weight = [&](const EdgeWeight edge_weight) {
-      _edge_weights[_edge++] = edge_weight;
-      _total_edge_weight += edge_weight;
-    };
-
     const auto fetch_adjacent_node = [&](const NodeID i) {
       if constexpr (kHasEdgeWeights) {
         return neighbourhood[i].first;
@@ -243,6 +229,7 @@ private:
     };
 
     NodeID local_degree = neighbourhood.size();
+    EdgeWeight prev_edge_weight = 0;
 
     // Find intervals [i, j] of consecutive adjacent nodes i, i + 1, ..., j - 1, j of length at
     // least kIntervalLengthTreshold. Instead of storing all nodes, only encode the left extreme i
@@ -280,8 +267,15 @@ private:
                 const NodeID interval_length_gap =
                     interval_len - CompressedGraph::kIntervalLengthTreshold;
 
-                _compressed_data += varint_encode(left_extreme_gap, _compressed_data);
-                _compressed_data += varint_encode(interval_length_gap, _compressed_data);
+                const std::size_t left_extreme_gap_len =
+                    varint_encode(left_extreme_gap, _compressed_data);
+                _compressed_data += left_extreme_gap_len;
+                IF_DBG _num_adjacent_node_bytes += left_extreme_gap_len;
+
+                const std::size_t interval_length_gap_len =
+                    varint_encode(interval_length_gap, _compressed_data);
+                _compressed_data += interval_length_gap_len;
+                IF_DBG _num_adjacent_node_bytes += interval_length_gap_len;
 
                 for (NodeID j = 0; j < interval_len; ++j) {
                   const NodeID k = i + 1 + j - interval_len;
@@ -293,7 +287,15 @@ private:
                   if constexpr (kHasEdgeWeights) {
                     if (_has_edge_weights) {
                       const EdgeWeight edge_weight = neighbourhood[k].second;
-                      store_edge_weight(edge_weight);
+                      const EdgeWeight edge_weight_gap = edge_weight - prev_edge_weight;
+
+                      const std::size_t edge_weight_gap_len =
+                          signed_varint_encode(edge_weight_gap, _compressed_data);
+                      _compressed_data += edge_weight_gap_len;
+                      IF_DBG _num_edge_weights_bytes += edge_weight_gap_len;
+
+                      prev_edge_weight = edge_weight;
+                      _total_edge_weight += edge_weight;
                     }
                   }
                 }
@@ -318,9 +320,11 @@ private:
       // intervals have been encoded.
       if (marked_byte == nullptr) {
         *((NodeID *)interval_count_ptr) = interval_count;
+        _num_adjacent_node_bytes += sizeof(NodeID);
       } else if (interval_count > 0) {
         *((NodeID *)interval_count_ptr) = interval_count;
         *marked_byte |= 0b01000000;
+        _num_adjacent_node_bytes += sizeof(NodeID);
       } else {
         _compressed_data -= sizeof(NodeID);
       }
@@ -353,12 +357,23 @@ private:
 
     const NodeID first_adjacent_node = fetch_adjacent_node(i);
     const SignedID first_gap = first_adjacent_node - static_cast<SignedID>(node);
-    _compressed_data += signed_varint_encode(first_gap, _compressed_data);
+
+    const std::size_t first_gap_len = signed_varint_encode(first_gap, _compressed_data);
+    _compressed_data += first_gap_len;
+    IF_DBG _num_adjacent_node_bytes += first_gap_len;
 
     if constexpr (kHasEdgeWeights) {
       if (_has_edge_weights) {
         const EdgeWeight first_edge_weight = neighbourhood[i].second;
-        store_edge_weight(first_edge_weight);
+        const EdgeWeight first_edge_weight_gap = first_edge_weight - prev_edge_weight;
+
+        const std::size_t first_edge_weight_gap_len =
+            signed_varint_encode(first_edge_weight_gap, _compressed_data);
+        _compressed_data += first_edge_weight_gap_len;
+        IF_DBG _num_edge_weights_bytes += first_edge_weight_gap_len;
+
+        prev_edge_weight = first_edge_weight;
+        _total_edge_weight += first_edge_weight;
       }
     }
 
@@ -381,17 +396,31 @@ private:
 
       const NodeID gap = adjacent_node - prev_adjacent_node - 1;
       if constexpr (CompressedGraph::kRunLengthEncoding) {
-        _compressed_data += rl_encoder.add(gap);
+        const std::size_t gap_len = rl_encoder.add(gap);
+        _compressed_data += gap_len;
+        IF_DBG _num_adjacent_node_bytes += gap_len;
       } else if constexpr (CompressedGraph::kStreamEncoding) {
-        _compressed_data += sv_encoder.add(gap);
+        const std::size_t gap_len = sv_encoder.add(gap);
+        _compressed_data += gap_len;
+        IF_DBG _num_adjacent_node_bytes += gap_len;
       } else {
-        _compressed_data += varint_encode(gap, _compressed_data);
+        const std::size_t gap_len = varint_encode(gap, _compressed_data);
+        _compressed_data += gap_len;
+        IF_DBG _num_adjacent_node_bytes += gap_len;
       }
 
       if constexpr (kHasEdgeWeights) {
         if (_has_edge_weights) {
           const EdgeWeight edge_weight = neighbourhood[i].second;
-          store_edge_weight(edge_weight);
+          const EdgeWeight edge_weight_gap = edge_weight - prev_edge_weight;
+
+          const std::size_t edge_weight_gap_len =
+              signed_varint_encode(edge_weight_gap, _compressed_data);
+          _compressed_data += edge_weight_gap_len;
+          IF_DBG _num_edge_weights_bytes += edge_weight_gap_len;
+
+          prev_edge_weight = edge_weight;
+          _total_edge_weight += edge_weight;
         }
       }
 
@@ -489,19 +518,16 @@ public:
   [[nodiscard]] std::int64_t total_edge_weight() const;
 
 private:
-  // The arrays that store information about the compressed graph
   CompactStaticArray<EdgeID> _nodes;
   bool _sorted; // Whether the nodes of the graph are stored in degree-bucket order
 
   CompressedEdgesBuilder _compressed_edges_builder;
   EdgeID _num_edges;
+  bool _store_edge_weights;
 
-  StaticArray<NodeWeight> _node_weights;
-  StaticArray<EdgeWeight> _edge_weights;
-
-  // Statistics about the graph
   bool _store_node_weights;
   std::int64_t _total_node_weight;
+  StaticArray<NodeWeight> _node_weights;
 };
 
 class ParallelCompressedGraphBuilder {
@@ -601,13 +627,6 @@ public:
   void add_node_weight(const NodeID node, const NodeWeight weight);
 
   /*!
-   * Returns a reference to the edge weights of the compressed graph.
-   *
-   * @return A reference to the edge weights of the compressed graph.
-   */
-  [[nodiscard]] StaticArray<EdgeWeight> &edge_weights();
-
-  /*!
    * Adds (cummulative) statistics about nodes of the compressed graph.
    */
   void record_local_statistics(
@@ -636,9 +655,9 @@ private:
   heap_profiler::unique_ptr<std::uint8_t> _compressed_edges;
   EdgeID _compressed_edges_size;
   EdgeID _num_edges;
+  bool _has_edge_weights;
 
   StaticArray<NodeWeight> _node_weights;
-  StaticArray<EdgeWeight> _edge_weights;
 
   NodeID _max_degree;
   NodeWeight _total_node_weight;
@@ -685,19 +704,19 @@ template <typename Lambda> decltype(auto) scoped_time(auto &elapsed, Lambda &&l)
   }
 }
 
-void print_stats(const auto &stats_ets) {
+void print_graph_compression_stats(const auto &stats_ets) {
   DBG << "Chunk distribution:";
 
   std::size_t cur_thread = 0;
   for (const auto &stats : stats_ets) {
-    DBG << "t" << ++cur_thread << ": " << stats.num_chunks;
+    DBG << " t" << ++cur_thread << ": " << stats.num_chunks;
   }
 
   DBG << "Edge distribution:";
 
   cur_thread = 0;
   for (const auto &stats : stats_ets) {
-    DBG << "t" << ++cur_thread << ": " << stats.num_edges;
+    DBG << " t" << ++cur_thread << ": " << stats.num_edges;
   }
 
   DBG << "Time distribution: (compression, sync, copy) [s]";
@@ -716,12 +735,30 @@ void print_stats(const auto &stats_ets) {
     total_time_sync += stats.sync_time;
     total_time_copy += stats.copy_time;
 
-    DBG << "t" << ++cur_thread << ": " << to_sec(stats.compression_time) << ' '
+    DBG << " t" << ++cur_thread << ": " << to_sec(stats.compression_time) << ' '
         << to_sec(stats.sync_time) << ' ' << to_sec(stats.copy_time);
   }
 
-  DBG << "sum: " << to_sec(total_time_compression) << ' ' << to_sec(total_time_sync) << ' '
+  DBG << " sum: " << to_sec(total_time_compression) << ' ' << to_sec(total_time_sync) << ' '
       << to_sec(total_time_copy);
+}
+
+void print_compressed_graph_stats(const auto &stats_ets) {
+  std::size_t _total_adjacent_nodes_num_bytes = 0;
+  std::size_t _total_edge_weights_num_bytes = 0;
+
+  for (const auto &neighbourhood_builder : stats_ets) {
+    _total_adjacent_nodes_num_bytes += neighbourhood_builder.num_adjacent_node_bytes();
+    _total_edge_weights_num_bytes += neighbourhood_builder.num_edge_weights_bytes();
+  }
+
+  const auto to_mb = [](const auto num_bytes) {
+    return num_bytes / static_cast<float>(1024 * 1024);
+  };
+
+  DBG << "Compressed adjacent nodes memory space: " << to_mb(_total_adjacent_nodes_num_bytes)
+      << " MiB";
+  DBG << "Compressed edge weights memory space: " << to_mb(_total_edge_weights_num_bytes) << " MiB";
 }
 
 } // namespace debug
@@ -820,9 +857,7 @@ CompressedGraph compute_compressed_graph(
   });
 
   tbb::enumerable_thread_specific<CompressedEdgesBuilder> neighbourhood_builder_ets([&] {
-    return CompressedEdgesBuilder(
-        num_nodes, num_edges, max_degree, kHasEdgeWeights, builder.edge_weights()
-    );
+    return CompressedEdgesBuilder(num_nodes, num_edges, max_degree, kHasEdgeWeights);
   });
 
   const std::size_t num_threads = tbb::this_task_arena::max_concurrency();
@@ -912,7 +947,8 @@ CompressedGraph compute_compressed_graph(
     });
   });
 
-  IF_DBG debug::print_stats(dbg_ets);
+  IF_DBG debug::print_graph_compression_stats(dbg_ets);
+  IF_DBG debug::print_compressed_graph_stats(neighbourhood_builder_ets);
 
   return builder.build();
 }

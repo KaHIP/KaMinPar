@@ -160,13 +160,12 @@ public:
 
   void
   move(const PartitionedGraph &p_graph, const NodeID node, const BlockID from, const BlockID to) {
-    for (const auto &[e, v] : p_graph.neighbors(node)) {
+    p_graph.adjacent_nodes(node, [&](const NodeID v, const EdgeWeight w_e) {
       if (is_high_degree_node(v)) {
-        const EdgeWeight w_e = p_graph.edge_weight(e);
         __atomic_fetch_sub(&_gain_cache[gc_index(v, from)], w_e, __ATOMIC_RELAXED);
         __atomic_fetch_add(&_gain_cache[gc_index(v, to)], w_e, __ATOMIC_RELAXED);
       }
-    }
+    });
   }
 
   [[nodiscard]] bool is_border_node(const NodeID node, const BlockID block) const {
@@ -255,11 +254,10 @@ private:
     const BlockID b_u = p_graph.block(u);
     wd(u) = 0;
 
-    for (const auto &[e, v] : p_graph.neighbors(u)) {
-      const EdgeWeight w_e = p_graph.edge_weight(e);
+    p_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w_e) {
       gc(u, p_graph.block(v)) += w_e;
       wd(u) += w_e;
-    }
+    });
   }
 
   [[nodiscard]] bool
@@ -269,13 +267,12 @@ private:
     std::vector<EdgeWeight> actual_external_degrees(_k, 0);
     EdgeWeight actual_weighted_degree = 0;
 
-    for (const auto &[e, v] : p_graph.neighbors(u)) {
+    p_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
       const BlockID block_v = p_graph.block(v);
-      const EdgeWeight weight = p_graph.edge_weight(e);
 
       actual_weighted_degree += weight;
       actual_external_degrees[block_v] += weight;
-    }
+    });
 
     for (BlockID b = 0; b < _k; ++b) {
       if (actual_external_degrees[b] != conn(u, b)) {
@@ -370,13 +367,12 @@ public:
       const BlockID block_from,
       const BlockID block_to
   ) {
-    for (const auto &[e, v] : d_graph.neighbors(u)) {
+    d_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
       if (_gain_cache.is_high_degree_node(v)) {
-        const EdgeWeight weight = d_graph.edge_weight(e);
         _gain_cache_delta[_gain_cache.gc_index(v, block_from)] -= weight;
         _gain_cache_delta[_gain_cache.gc_index(v, block_to)] += weight;
       }
-    }
+    });
   }
 
   void clear() {
