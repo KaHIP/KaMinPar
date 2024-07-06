@@ -23,10 +23,8 @@
 #include "kaminpar-shm/graphutils/permutator.h"
 #include "kaminpar-shm/kaminpar.h"
 
-#include "kaminpar-common/datastructures/concurrent_circular_vector.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/logger.h"
-#include "kaminpar-common/parallel/loops.h"
 #include "kaminpar-common/timer.h"
 
 namespace {
@@ -74,14 +72,36 @@ public:
     return *reinterpret_cast<T *>(_data + position);
   }
 
-  template <typename T> [[nodiscard]] T *fetch(std::size_t position) const {
-    return reinterpret_cast<T *>(_data + position);
+  template <typename T> [[nodiscard]] const T *fetch(std::size_t position) const {
+    return reinterpret_cast<const T *>(_data + position);
   }
 
 private:
   int _file;
   std::size_t _length;
   std::uint8_t *_data;
+};
+
+class BinaryWriter {
+public:
+  BinaryWriter(const std::string &filename) : _out(filename, std::ios::binary) {}
+
+  void write(const char *data, const std::size_t size) {
+    _out.write(data, size);
+  }
+
+  template <typename T> void write_int(const T value) {
+    _out.write(reinterpret_cast<const char *>(&value), sizeof(T));
+  }
+
+  template <typename T> void write_static_array(const kaminpar::StaticArray<T> &static_array) {
+    const char *data = reinterpret_cast<const char *>(static_array.data());
+    const std::size_t size = static_array.size() * sizeof(T);
+    write(data, size);
+  }
+
+private:
+  std::ofstream _out;
 };
 
 class ParhipHeader {
@@ -93,6 +113,25 @@ class ParhipHeader {
 
 public:
   static constexpr std::uint64_t kSize = 3 * sizeof(std::uint64_t);
+
+  [[nodiscard]] static std::uint64_t version(
+      const bool has_edge_weights,
+      const bool has_node_weights,
+      const bool has_64_bit_edge_id = sizeof(EdgeID) == 8,
+      const bool has_64_bit_node_id = sizeof(NodeID) == 8,
+      const bool has_64_bit_node_weight = sizeof(NodeWeight) == 8,
+      const bool has_64_bit_edge_weight = sizeof(EdgeWeight) == 8
+  ) {
+    const auto make_flag = [&](const bool flag, const std::uint64_t shift) {
+      return static_cast<std::uint64_t>(flag ? 0 : 1) << shift;
+    };
+
+    const std::uint64_t version =
+        make_flag(has_64_bit_edge_weight, 5) | make_flag(has_64_bit_node_weight, 4) |
+        make_flag(has_64_bit_node_id, 3) | make_flag(has_64_bit_edge_id, 2) |
+        make_flag(has_node_weights, 1) | make_flag(has_edge_weights, 0);
+    return version;
+  }
 
   bool has_edge_weights;
   bool has_node_weights;
@@ -136,12 +175,12 @@ public:
 
     if (has_64_bit_node_weight) {
       if (sizeof(NodeWeight) != 8) {
-        LOG_ERROR << "The stored graph uses 64-Bit node weights but this build uses 32-Bit node"
+        LOG_ERROR << "The stored graph uses 64-Bit node weights but this build uses 32-Bit node "
                      "weights.";
         std::exit(1);
       }
     } else if (sizeof(NodeWeight) != 4) {
-      LOG_ERROR << "The stored graph uses 32-Bit node weights but this build uses 64-Bit node"
+      LOG_ERROR << "The stored graph uses 32-Bit node weights but this build uses 64-Bit node "
                    "weights.";
       std::exit(1);
     }
@@ -153,7 +192,7 @@ public:
         std::exit(1);
       }
     } else if (sizeof(EdgeWeight) != 4) {
-      LOG_ERROR << "The stored graph uses 32-Bit edge weights but this build uses 64-Bit edge"
+      LOG_ERROR << "The stored graph uses 32-Bit edge weights but this build uses 64-Bit edge "
                    "weights.";
       std::exit(1);
     }
@@ -227,10 +266,12 @@ CompressedGraph compressed_read(const std::string &filename, const bool sorted) 
     position += (header.num_nodes + 1) * sizeof(EdgeID);
 
     const NodeID *edges = reader.fetch<NodeID>(position);
-    position += header.num_edges + sizeof(NodeID);
+    position += header.num_edges * sizeof(NodeID);
 
     const NodeWeight *node_weights = reader.fetch<NodeWeight>(position);
-    position += header.num_nodes + sizeof(NodeWeight);
+    if (header.has_node_weights) {
+      position += header.num_nodes * sizeof(NodeWeight);
+    }
 
     const EdgeWeight *edge_weights = reader.fetch<EdgeWeight>(position);
 
@@ -291,10 +332,12 @@ CompressedGraph compressed_read_parallel(const std::string &filename, const Node
     position += (header.num_nodes + 1) * sizeof(EdgeID);
 
     const NodeID *edges = reader.fetch<NodeID>(position);
-    position += header.num_edges + sizeof(NodeID);
+    position += header.num_edges * sizeof(NodeID);
 
     const NodeWeight *node_weights = reader.fetch<NodeWeight>(position);
-    position += header.num_nodes + sizeof(NodeWeight);
+    if (header.has_node_weights) {
+      position += header.num_nodes * sizeof(NodeWeight);
+    }
 
     const EdgeWeight *edge_weights = reader.fetch<EdgeWeight>(position);
 
@@ -352,6 +395,44 @@ CompressedGraph compressed_read_parallel(const std::string &filename, const Node
   } catch (const BinaryReaderException &e) {
     LOG_ERROR << e.what();
     std::exit(1);
+  }
+}
+
+void write(const std::string &filename, const CSRGraph &graph) {
+  BinaryWriter writer(filename);
+
+  const bool has_node_weights = graph.is_node_weighted();
+  const bool has_edge_weights = graph.is_edge_weighted();
+
+  const std::uint64_t version = ParhipHeader::version(has_edge_weights, has_node_weights);
+  writer.write_int(version);
+
+  const std::uint64_t num_nodes = graph.n();
+  writer.write_int(num_nodes);
+
+  const std::uint64_t num_edges = graph.m();
+  writer.write_int(num_edges);
+
+  const NodeID num_total_nodes = num_nodes + 1;
+  const EdgeID nodes_offset_base = ParhipHeader::kSize + num_total_nodes * sizeof(EdgeID);
+  const StaticArray<EdgeID> &nodes = graph.raw_nodes();
+
+  StaticArray<EdgeID> raw_nodes(num_total_nodes, static_array::noinit);
+  tbb::parallel_for(tbb::blocked_range<NodeID>(0, num_total_nodes), [&](const auto &r) {
+    for (NodeID u = r.begin(); u != r.end(); ++u) {
+      raw_nodes[u] = nodes_offset_base + nodes[u] * sizeof(NodeID);
+    }
+  });
+
+  writer.write_static_array(raw_nodes);
+  writer.write_static_array(graph.raw_edges());
+
+  if (has_node_weights) {
+    writer.write_static_array(graph.raw_node_weights());
+  }
+
+  if (has_edge_weights) {
+    writer.write_static_array(graph.raw_edge_weights());
   }
 }
 
