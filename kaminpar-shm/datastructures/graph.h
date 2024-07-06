@@ -72,6 +72,11 @@ public:
     return _underlying_graph.get();
   }
 
+  [[nodiscard]] CSRGraph &csr_graph() {
+    AbstractGraph *abstract_graph = _underlying_graph.get();
+    return *dynamic_cast<CSRGraph *>(abstract_graph);
+  }
+
   template <typename Lambda> decltype(auto) reified(Lambda &&l) const {
     return graph::reified(underlying_graph(), std::forward<Lambda>(l));
   }
@@ -104,10 +109,6 @@ public:
 
   [[nodiscard]] inline bool is_edge_weighted() const final {
     return _underlying_graph->is_edge_weighted();
-  }
-
-  [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const final {
-    return _underlying_graph->edge_weight(e);
   }
 
   [[nodiscard]] inline EdgeWeight total_edge_weight() const final {

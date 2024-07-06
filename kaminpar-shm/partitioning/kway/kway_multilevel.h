@@ -7,12 +7,12 @@
  ******************************************************************************/
 #pragma once
 
-#include <tbb/enumerable_thread_specific.h>
-
+#include "kaminpar-shm/coarsening/coarsener.h"
 #include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/initial_partitioning/initial_bipartitioner_worker_pool.h"
 #include "kaminpar-shm/kaminpar.h"
-#include "kaminpar-shm/partitioning/helper.h"
 #include "kaminpar-shm/partitioning/partitioner.h"
+#include "kaminpar-shm/refinement/refiner.h"
 
 namespace kaminpar::shm {
 class KWayMultilevelPartitioner : public Partitioner {
@@ -45,6 +45,6 @@ private:
   std::unique_ptr<Coarsener> _coarsener;
   std::unique_ptr<Refiner> _refiner;
 
-  partitioning::InitialBipartitionerPoolEts _bipartitioner_pool_ets;
+  InitialBipartitionerWorkerPool _bipartitioner_pool;
 };
 } // namespace kaminpar::shm

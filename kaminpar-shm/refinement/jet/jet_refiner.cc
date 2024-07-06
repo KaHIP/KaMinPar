@@ -128,9 +128,7 @@ bool JetRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx
           const EdgeWeight gain_u = gain_cache.gain(u, from, to);
           EdgeWeight gain = 0;
 
-          for (const auto &[e, v] : p_graph.neighbors(u)) {
-            const EdgeWeight weight = p_graph.edge_weight(e);
-
+          p_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
             const bool v_before_u = [&, v = v] {
               const BlockID from_v = p_graph.block(v);
               const BlockID to_v = next_partition[v];
@@ -147,7 +145,7 @@ bool JetRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx
             } else if (from == block_v) {
               gain -= weight;
             }
-          }
+          });
 
           if (gain > 0) {
             lock[u] = 1;

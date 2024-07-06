@@ -254,13 +254,13 @@ GreedyBalancer::compute_gain(const NodeID u, const BlockID u_block) const {
   auto action = [&](auto &map) {
     // compute external degree to each adjacent block that can take u without
     // becoming overloaded
-    _p_graph->neighbors(u, [&](const EdgeID e, const NodeID v) {
+    _p_graph->adjacent_nodes(u, [&](const NodeID v, const EdgeID w) {
       const BlockID v_block = _p_graph->block(v);
       if (u_block != v_block &&
           _p_graph->block_weight(v_block) + u_weight <= _p_ctx->block_weights.max(v_block)) {
-        map[v_block] += _p_graph->edge_weight(e);
+        map[v_block] += w;
       } else if (u_block == v_block) {
-        internal_degree += _p_graph->edge_weight(e);
+        internal_degree += w;
       }
     });
 

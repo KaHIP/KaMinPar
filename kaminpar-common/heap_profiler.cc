@@ -11,7 +11,40 @@
 
 #include <kassert/kassert.hpp>
 
+#ifdef __linux__
+#include <unistd.h>
+#elif _WIN32
+#include <windows.h>
+#else
+#include <limits>
+#endif
+
 namespace kaminpar::heap_profiler {
+
+// Source: https://stackoverflow.com/a/2513561
+#ifdef __linux__
+std::size_t get_total_system_memory() {
+  const long npages = sysconf(_SC_PHYS_PAGES);
+  const long pagesz = sysconf(_SC_PAGE_SIZE);
+
+  if (npages <= 0 || pagesz <= 0) {
+    return std::numeric_limits<std::size_t>::max();
+  }
+
+  return static_cast<std::size_t>(npages * pagesz);
+}
+#elif _WIN32
+std::size_t get_total_system_memory() {
+  MEMORYSTATUSEX status;
+  status.dwLength = sizeof(status);
+  GlobalMemoryStatusEx(&status);
+  return static_cast<std::size_t>(status.ullTotalPhys);
+}
+#else
+std::size_t get_total_system_memory() {
+  return std::numeric_limits<std::size_t>::max();
+}
+#endif
 
 HeapProfiler &HeapProfiler::global() {
   static HeapProfiler global("Global Heap Profiler");

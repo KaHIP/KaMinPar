@@ -39,6 +39,7 @@ struct CompressedBinaryHeader {
 
   std::uint64_t num_nodes;
   std::uint64_t num_edges;
+  std::int64_t total_edge_weight;
   std::uint64_t max_degree;
 
   std::uint64_t num_high_degree_nodes;
@@ -72,12 +73,14 @@ CompressedBinaryHeader create_header(const CompressedGraph &graph) {
 
       graph.n(),
       graph.m(),
+      graph.total_edge_weight(),
       graph.max_degree(),
 
       graph.num_high_degree_nodes(),
       graph.num_high_degree_parts(),
       graph.num_interval_nodes(),
-      graph.num_intervals()};
+      graph.num_intervals()
+  };
 }
 
 template <typename T> static void write_int(std::ofstream &out, const T id) {
@@ -100,6 +103,7 @@ static void write_header(std::ofstream &out, const CompressedBinaryHeader header
 
   write_int(out, header.num_nodes);
   write_int(out, header.num_edges);
+  write_int(out, header.total_edge_weight);
   write_int(out, header.max_degree);
 
   write_int(out, header.num_high_degree_nodes);
@@ -134,10 +138,6 @@ void write(const std::string &filename, const CompressedGraph &graph) {
   if (graph.is_node_weighted()) {
     write_static_array(out, graph.raw_node_weights());
   }
-
-  if (graph.is_edge_weighted()) {
-    write_static_array(out, graph.raw_edge_weights());
-  }
 }
 
 template <typename T> static T read_int(std::ifstream &in) {
@@ -154,7 +154,7 @@ CompressedBinaryHeader read_header(std::ifstream &in) {
       (boolean_values & 64) != 0,  (boolean_values & 128) != 0,  (boolean_values & 256) != 0,
       (boolean_values & 512) != 0, (boolean_values & 1024) != 0, (boolean_values & 2048) != 0,
       read_int<std::uint64_t>(in), read_int<std::uint64_t>(in),  read_int<std::uint64_t>(in),
-      read_int<std::uint64_t>(in), read_int<std::uint64_t>(in),  read_int<std::uint64_t>(in),
+      read_int<std::uint64_t>(in), read_int<std::uint64_t>(in),  read_int<std::int64_t>(in),
       read_int<std::uint64_t>(in), read_int<std::uint64_t>(in),  read_int<std::uint64_t>(in),
       read_int<std::uint64_t>(in),
   };
@@ -301,14 +301,14 @@ template <typename T> static StaticArray<T> read_static_array(std::ifstream &in)
   const auto size = read_int<std::size_t>(in);
   StaticArray<T> array(size, static_array::noinit);
   in.read(reinterpret_cast<char *>(array.data()), sizeof(T) * size);
-  return std::move(array);
+  return array;
 }
 
 CompressedGraph read(const std::string &filename) {
   std::ifstream in(filename, std::ios::binary);
   if (kMagicNumber != read_int<std::uint64_t>(in)) {
     LOG_ERROR << "The magic number of the file is not correct!";
-    std::exit(1);
+    std::exit(EXIT_FAILURE);
   }
 
   CompressedBinaryHeader header = read_header(in);
@@ -326,8 +326,9 @@ CompressedGraph read(const std::string &filename) {
       std::move(nodes),
       std::move(compressed_edges),
       std::move(node_weights),
-      std::move(edge_weights),
       header.num_edges,
+      header.total_edge_weight,
+      header.has_edge_weights,
       header.max_degree,
       header.use_degree_bucket_order,
       header.num_high_degree_nodes,

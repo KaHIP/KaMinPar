@@ -9,29 +9,35 @@
   outputs = { self, nixpkgs, flake-utils, ... }: flake-utils.lib.eachDefaultSystem (system:
     let
       pkgs = import nixpkgs { inherit system; };
+
       inputs = builtins.attrValues {
-        inherit (pkgs) cmake ninja python312 gcc13 tbb_2021_11 sparsehash mpi;
+        inherit (pkgs) cmake ninja python312 gcc14 tbb_2021_11 sparsehash mpi;
+        inherit (pkgs.llvmPackages_18) openmp;
+      };
+
+      devShellInputs = builtins.attrValues {
+        inherit (pkgs) fish ccache gdb;
       };
     in
     {
-      devShells.default = pkgs.mkShell {
-        packages = inputs ++ builtins.attrValues {
-          inherit (pkgs) fish ccache gdb;
+      devShells = rec {
+        default = gcc;
+
+        gcc = pkgs.mkShell {
+          packages = inputs ++ devShellInputs;
+
+          shellHook = ''
+            exec fish
+          '';
         };
 
-        shellHook = ''
-          exec fish
-        '';
-      };
+        clang = (pkgs.mkShell.override { stdenv = pkgs.llvmPackages_18.stdenv; }) {
+          packages = (pkgs.lib.lists.remove pkgs.gcc14 inputs) ++ devShellInputs;
 
-      devShells.clang = (pkgs.mkShell.override { stdenv = pkgs.llvmPackages_18.stdenv; }) {
-        packages = (pkgs.lib.lists.remove pkgs.gcc13 inputs) ++ builtins.attrValues {
-          inherit (pkgs) fish ccache gdb;
+          shellHook = ''
+            exec fish
+          '';
         };
-
-        shellHook = ''
-          exec fish
-        '';
       };
 
       packages.default = pkgs.stdenv.mkDerivation {
@@ -41,7 +47,7 @@
         src = self;
         nativeBuildInputs = inputs;
 
-        cmakeFlags = [ "-DKAMINPAR_BUILD_DISTRIBUTED=On" ];
+        cmakeFlags = [ "-DKAMINPAR_BUILD_DISTRIBUTED=On" "-DKAMINPAR_BUILD_TESTS=Off" ];
         enableParallelBuilding = true;
 
         meta = {

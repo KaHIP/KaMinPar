@@ -420,7 +420,7 @@ TEST(GlobalGraphExtractionTest, extract_local_edge_weights_in_circle_clique_grap
   auto subgraphs = extract_global_subgraphs(p_graph);
 
   ASSERT_EQ(subgraphs.size(), 1);
-  auto &subgraph = subgraphs.front();
+  auto &subgraph = subgraphs.front().csr_graph();
 
   ASSERT_EQ(subgraph.n(), 2);
   ASSERT_EQ(subgraph.m(), 2);

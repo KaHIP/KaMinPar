@@ -9,21 +9,14 @@
 #include <kaminpar-cli/dkaminpar_arguments.h>
 // clang-format on
 
-#include <fstream>
-
 #include <mpi.h>
 #include <omp.h>
 
 #include "kaminpar-dist/coarsening/contraction/global_cluster_contraction.h"
 #include "kaminpar-dist/context.h"
 #include "kaminpar-dist/dkaminpar.h"
-#include "kaminpar-dist/factories.h"
-#include "kaminpar-dist/graphutils/communication.h"
-#include "kaminpar-dist/metrics.h"
-#include "kaminpar-dist/presets.h"
 
 #include "kaminpar-common/logger.h"
-#include "kaminpar-common/random.h"
 #include "kaminpar-common/timer.h"
 
 #include "apps/benchmarks/dist_io.h"
@@ -55,8 +48,8 @@ int main(int argc, char *argv[]) {
   auto &graph = *wrapper.graph;
   ctx.partition.graph = std::make_unique<GraphContext>(graph, ctx.partition);
 
-  GlobalClustering clustering =
-      load_node_property_vector<NoinitVector<GlobalNodeID>>(graph, clustering_filename);
+  using GlobalClustering = StaticArray<GlobalNodeID>;
+  auto clustering = load_node_property_vector<GlobalClustering>(graph, clustering_filename);
 
   // Compute coarse graph
   START_TIMER("Contraction");
@@ -64,7 +57,7 @@ int main(int argc, char *argv[]) {
   STOP_TIMER();
 
   LOG << "Coarse graph:";
-  print_graph_summary(result.graph);
+  print_graph_summary(result->get());
 
   // Output statistics
   mpi::barrier(MPI_COMM_WORLD);

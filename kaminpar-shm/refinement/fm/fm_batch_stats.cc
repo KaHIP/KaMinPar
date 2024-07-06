@@ -165,13 +165,13 @@ auto BatchStatsComputator::compute_single_batch_stats_in_sequence(
     // Compute the gain of the move
     EdgeWeight int_degree = 0;
     EdgeWeight ext_degree = 0;
-    for (const auto &[e, v] : p_graph.neighbors(u)) {
+    p_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
       if (p_graph.block(v) == p_graph.block(u)) {
-        int_degree += p_graph.edge_weight(e);
+        int_degree += weight;
       } else if (p_graph.block(v) == block) {
-        ext_degree += p_graph.edge_weight(e);
+        ext_degree += weight;
       }
-    }
+    });
 
     KASSERT(i < distances.size());
     cur_distance = std::max(cur_distance, distances[i]);

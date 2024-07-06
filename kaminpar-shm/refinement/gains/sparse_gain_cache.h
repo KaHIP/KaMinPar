@@ -117,11 +117,10 @@ public:
       const BlockID block_from,
       const BlockID block_to
   ) {
-    for (const auto &[e, v] : p_graph.neighbors(node)) {
-      const EdgeWeight weight = p_graph.edge_weight(e);
+    p_graph.adjacent_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
       __atomic_fetch_sub(&_gain_cache[index(v, block_from)], weight, __ATOMIC_RELAXED);
       __atomic_fetch_add(&_gain_cache[index(v, block_to)], weight, __ATOMIC_RELAXED);
-    }
+    });
   }
 
   [[nodiscard]] bool is_border_node(const NodeID node, const BlockID block) const {
@@ -175,13 +174,12 @@ private:
     const BlockID block_u = p_graph.block(u);
     _weighted_degrees[u] = 0;
 
-    for (const auto &[e, v] : p_graph.neighbors(u)) {
+    p_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
       const BlockID block_v = p_graph.block(v);
-      const EdgeWeight weight = p_graph.edge_weight(e);
 
       _gain_cache[index(u, block_v)] += weight;
       _weighted_degrees[u] += weight;
-    }
+    });
   }
 
   [[nodiscard]] bool
@@ -190,13 +188,12 @@ private:
     std::vector<EdgeWeight> actual_external_degrees(_k, 0);
     EdgeWeight actual_weighted_degree = 0;
 
-    for (const auto &[e, v] : p_graph.neighbors(u)) {
+    p_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
       const BlockID block_v = p_graph.block(v);
-      const EdgeWeight weight = p_graph.edge_weight(e);
 
       actual_weighted_degree += weight;
       actual_external_degrees[block_v] += weight;
-    }
+    });
 
     for (BlockID b = 0; b < _k; ++b) {
       if (actual_external_degrees[b] != weighted_degree_to(u, b)) {
@@ -263,11 +260,10 @@ public:
       const BlockID block_from,
       const BlockID block_to
   ) {
-    for (const auto &[e, v] : d_graph.neighbors(u)) {
-      const EdgeWeight weight = d_graph.edge_weight(e);
+    d_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
       _gain_cache_delta[_gain_cache.index(v, block_from)] -= weight;
       _gain_cache_delta[_gain_cache.index(v, block_to)] += weight;
-    }
+    });
   }
 
   void clear() {
