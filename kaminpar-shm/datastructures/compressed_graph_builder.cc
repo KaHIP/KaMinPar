@@ -17,14 +17,16 @@
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/heap_profiler.h"
+#include "kaminpar-common/varint_codec.h"
 
 namespace kaminpar::shm {
 
 namespace {
 
 template <bool kActualNumEdges = true>
-[[nodiscard]] std::size_t
-compressed_edge_array_max_size(const NodeID num_nodes, const EdgeID num_edges) {
+[[nodiscard]] std::size_t compressed_edge_array_max_size(
+    const NodeID num_nodes, const EdgeID num_edges, const bool has_edge_weights
+) {
   std::size_t edge_id_width;
   if constexpr (kActualNumEdges) {
     if constexpr (CompressedGraph::kIntervalEncoding) {
@@ -48,6 +50,10 @@ compressed_edge_array_max_size(const NodeID num_nodes, const EdgeID num_edges) {
     max_size += (num_edges / CompressedGraph::kHighDegreePartLength) * varint_max_length<NodeID>();
   }
 
+  if (has_edge_weights) {
+    max_size += num_edges * varint_max_length<EdgeWeight>();
+  }
+
   return max_size;
 }
 
@@ -57,7 +63,8 @@ CompressedEdgesBuilder::CompressedEdgesBuilder(
     const NodeID num_nodes, const EdgeID num_edges, bool has_edge_weights
 )
     : _has_edge_weights(has_edge_weights) {
-  const std::size_t max_size = compressed_edge_array_max_size(num_nodes, num_edges);
+  const std::size_t max_size =
+      compressed_edge_array_max_size(num_nodes, num_edges, has_edge_weights);
   _compressed_data_start = heap_profiler::overcommit_memory<std::uint8_t>(max_size);
   _compressed_data = _compressed_data_start.get();
   _compressed_data_max_size = 0;
@@ -67,7 +74,8 @@ CompressedEdgesBuilder::CompressedEdgesBuilder(
     const NodeID num_nodes, const EdgeID num_edges, const NodeID max_degree, bool has_edge_weights
 )
     : _has_edge_weights(has_edge_weights) {
-  const std::size_t max_size = compressed_edge_array_max_size<false>(num_nodes, max_degree);
+  const std::size_t max_size =
+      compressed_edge_array_max_size<false>(num_nodes, max_degree, has_edge_weights);
   _compressed_data_start = heap_profiler::overcommit_memory<std::uint8_t>(max_size);
   _compressed_data = _compressed_data_start.get();
   _compressed_data_max_size = 0;
@@ -140,6 +148,14 @@ std::size_t CompressedEdgesBuilder::num_intervals() const {
   return _num_intervals;
 }
 
+std::size_t CompressedEdgesBuilder::num_adjacent_node_bytes() const {
+  return _num_adjacent_node_bytes;
+}
+
+std::size_t CompressedEdgesBuilder::num_edge_weights_bytes() const {
+  return _num_edge_weights_bytes;
+}
+
 CompressedGraph CompressedGraphBuilder::compress(const CSRGraph &graph) {
   const bool store_node_weights = graph.is_node_weighted();
   const bool store_edge_weights = graph.is_edge_weighted();
@@ -177,7 +193,8 @@ CompressedGraphBuilder::CompressedGraphBuilder(
     : _compressed_edges_builder(num_nodes, num_edges, has_edge_weights),
       _store_edge_weights(has_edge_weights) {
   KASSERT(num_nodes < std::numeric_limits<NodeID>::max() - 1);
-  const std::size_t max_size = compressed_edge_array_max_size(num_nodes, num_edges);
+  const std::size_t max_size =
+      compressed_edge_array_max_size(num_nodes, num_edges, has_edge_weights);
 
   _nodes.resize(math::byte_width(max_size), num_nodes + 1);
   _sorted = sorted;
@@ -304,7 +321,8 @@ ParallelCompressedGraphBuilder::ParallelCompressedGraphBuilder(
     const bool sorted
 ) {
   KASSERT(num_nodes != std::numeric_limits<NodeID>::max() - 1);
-  const std::size_t max_size = compressed_edge_array_max_size(num_nodes, num_edges);
+  const std::size_t max_size =
+      compressed_edge_array_max_size(num_nodes, num_edges, has_edge_weights);
 
   _nodes.resize(math::byte_width(max_size), num_nodes + 1);
   _sorted = sorted;
