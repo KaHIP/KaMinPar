@@ -12,9 +12,9 @@
 #include "kaminpar-common/logger.h"
 
 #include "apps/io/file_tokener.h"
-#include "apps/io/metis_parser.h"
-#include "apps/io/parhip_parser.h"
 #include "apps/io/shm_compressed_graph_binary.h"
+#include "apps/io/shm_metis_parser.h"
+#include "apps/io/shm_parhip_parser.h"
 
 namespace kaminpar::shm::io {
 

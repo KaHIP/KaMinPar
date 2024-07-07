@@ -5,7 +5,7 @@
  * @author: Daniel Salwasser
  * @date:   15.02.2024
  ******************************************************************************/
-#include "apps/io/parhip_parser.h"
+#include "apps/io/shm_parhip_parser.h"
 
 #include <array>
 #include <cstdint>

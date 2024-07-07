@@ -31,6 +31,7 @@ std::unordered_map<std::string, RefinementAlgorithm> get_balancing_algorithms();
 std::unordered_map<std::string, LabelPropagationMoveExecutionStrategy>
 get_label_propagation_move_execution_strategies();
 std::unordered_map<std::string, GraphOrdering> get_graph_orderings();
+std::unordered_map<std::string, GraphDistribution> get_graph_distributions();
 std::unordered_map<std::string, ClusterSizeStrategy> get_move_set_size_strategies();
 std::unordered_map<std::string, ClusterStrategy> get_move_set_strategies();
 

@@ -162,6 +162,20 @@ public:
     return _edge_distribution[pe];
   }
 
+  [[nodiscard]] inline std::size_t memory_space() const {
+    std::size_t memory_space = (n() + 1) * sizeof(EdgeID) + m() * sizeof(NodeID);
+
+    if (is_node_weighted()) {
+      memory_space += n() * sizeof(NodeWeight);
+    }
+
+    if (is_edge_weighted()) {
+      memory_space += m() * sizeof(EdgeWeight);
+    }
+
+    return memory_space;
+  }
+
   //
   // Node and edge weights
   //

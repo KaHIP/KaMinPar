@@ -58,8 +58,9 @@ public:
     const NodeID ghost_n = static_cast<NodeID>(_next_ghost_node - _n);
 
     growt::StaticGhostNodeMapping global_to_ghost(ghost_n);
-    StaticArray<GlobalNodeID> ghost_to_global(ghost_n);
-    StaticArray<PEID> ghost_owner(ghost_n);
+
+    RECORD("ghost_to_global") StaticArray<GlobalNodeID> ghost_to_global(ghost_n);
+    RECORD("ghost_owner") StaticArray<PEID> ghost_owner(ghost_n);
 
     tbb::parallel_for(_global_to_ghost.range(), [&](const auto r) {
       for (auto it = r.begin(); it != r.end(); ++it) {
@@ -82,6 +83,12 @@ public:
         global_to_ghost.insert(global_node + 1, local_node);
       }
     });
+
+    RECORD("global_to_ghost");
+    RECORD_LOCAL_DATA_STRUCT(
+        "growt::StaticGhostNodeMapping",
+        global_to_ghost.capacity() * sizeof(growt::StaticGhostNodeMapping::atomic_slot_type)
+    );
 
     return {
         .global_to_ghost = std::move(global_to_ghost),

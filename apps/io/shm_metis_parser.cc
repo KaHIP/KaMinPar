@@ -5,7 +5,7 @@
  * @author: Daniel Seemaier
  * @date:   26.10.2022
  ******************************************************************************/
-#include "apps/io/metis_parser.h"
+#include "apps/io/shm_metis_parser.h"
 
 #include <fstream>
 

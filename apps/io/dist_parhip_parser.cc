@@ -105,35 +105,32 @@ using namespace kaminpar::io;
 
 namespace {
 
-std::pair<EdgeID, EdgeID>
-compute_edge_range(const EdgeID num_edges, const mpi::PEID size, const mpi::PEID rank) {
-  const EdgeID chunk = num_edges / size;
-  const EdgeID rem = num_edges % size;
-  const EdgeID from = rank * chunk + std::min<EdgeID>(rank, rem);
-  const EdgeID to =
-      std::min<EdgeID>(from + ((static_cast<EdgeID>(rank) < rem) ? chunk + 1 : chunk), num_edges);
+template <typename Int>
+std::pair<Int, Int>
+compute_chunks(const Int length, const mpi::PEID num_processes, const mpi::PEID rank) {
+  const Int chunk_size = length / num_processes;
+  const Int remainder = length % num_processes;
+  const Int from = rank * chunk_size + std::min<Int>(rank, remainder);
+  const Int to = std::min<Int>(
+      from + ((static_cast<Int>(rank) < remainder) ? chunk_size + 1 : chunk_size), length
+  );
   return std::make_pair(from, to);
 }
 
-template <typename Lambda>
-NodeID find_node_by_edge(
-    const NodeID num_nodes,
-    const EdgeID num_edges,
-    const EdgeID edge,
-    Lambda &&fetch_adjacent_offset
-) {
-  if (edge == 0) {
+template <typename Int, typename Lambda>
+NodeID find_node(const NodeID num_nodes, const Int max, const Int target, Lambda &&fetch_target) {
+  if (target == 0) {
     return 0;
   }
 
-  std::pair<NodeID, EdgeID> low = {0, 0};
-  std::pair<NodeID, EdgeID> high = {num_nodes, num_edges - 1};
+  std::pair<NodeID, Int> low = {0, 0};
+  std::pair<NodeID, Int> high = {num_nodes, max};
   while (high.first - low.first > 1) {
-    std::pair<NodeID, EdgeID> mid;
+    std::pair<NodeID, Int> mid;
     mid.first = (low.first + high.first) / 2;
-    mid.second = fetch_adjacent_offset(mid.first);
+    mid.second = fetch_target(mid.first);
 
-    if (mid.second < edge) {
+    if (mid.second < target) {
       low = mid;
     } else {
       high = mid;
@@ -143,16 +140,63 @@ NodeID find_node_by_edge(
   return high.first;
 }
 
+template <typename Lambda>
+std::pair<std::uint64_t, std::uint64_t> find_local_nodes(
+    const mpi::PEID size,
+    const mpi::PEID rank,
+    const GraphDistribution distribution,
+    const NodeID num_nodes,
+    const EdgeID num_edges,
+    Lambda &&fetch_edge
+) {
+  switch (distribution) {
+  case GraphDistribution::BALANCED_EDGES: {
+    const auto [first_edge, last_edge] = compute_chunks(num_edges, size, rank);
+
+    const std::uint64_t first_node =
+        find_node(num_nodes, num_edges - 1, first_edge, std::forward<Lambda>(fetch_edge));
+    const std::uint64_t last_node =
+        find_node(num_nodes, num_edges - 1, last_edge, std::forward<Lambda>(fetch_edge));
+
+    return std::make_pair(first_node, last_node);
+  }
+  case GraphDistribution::BALANCED_MEMORY_SPACE: {
+    const std::size_t total_memory_space = num_nodes * sizeof(EdgeID) + num_edges * sizeof(NodeID);
+    const auto [memory_space_start, memory_space_end] =
+        compute_chunks(total_memory_space, size, rank);
+
+    const auto fetch_memory_space = [&](const NodeID node) {
+      const EdgeID edge = fetch_edge(node + 1);
+      return node * sizeof(EdgeID) + edge * sizeof(NodeID);
+    };
+
+    const std::uint64_t first_node =
+        find_node(num_nodes, total_memory_space, memory_space_start, fetch_memory_space);
+    const std::uint64_t last_node =
+        find_node(num_nodes, total_memory_space, memory_space_end, fetch_memory_space);
+
+    return std::make_pair(first_node, last_node);
+  }
+  default:
+    __builtin_unreachable();
+  }
+}
+
 } // namespace
 
-DistributedCSRGraph csr_read(const std::string &filename, const bool sorted, const MPI_Comm comm) {
+DistributedCSRGraph csr_read(
+    const std::string &filename,
+    const bool sorted,
+    const GraphDistribution distribution,
+    const MPI_Comm comm
+) {
   BinaryReader reader(filename);
 
   const auto version = reader.read<std::uint64_t>(0);
   const auto num_nodes = reader.read<std::uint64_t>(sizeof(std::uint64_t));
   const auto num_edges = reader.read<std::uint64_t>(sizeof(std::uint64_t) * 2);
   const ParhipHeader header(version, num_nodes, num_edges);
-  header.validate();
+  // header.validate();
 
   std::size_t position = ParhipHeader::kSize;
 
@@ -179,17 +223,13 @@ DistributedCSRGraph csr_read(const std::string &filename, const bool sorted, con
   const mpi::PEID size = mpi::get_comm_size(comm);
   const mpi::PEID rank = mpi::get_comm_rank(comm);
 
-  const auto [first_edge, last_edge] = compute_edge_range(num_edges, size, rank);
-
-  const std::uint64_t first_node =
-      find_node_by_edge(num_nodes, num_edges, first_edge, map_edge_offset);
-  const std::uint64_t last_node =
-      find_node_by_edge(num_nodes, num_edges, last_edge, map_edge_offset);
+  const auto [first_node, last_node] =
+      find_local_nodes(size, rank, distribution, num_nodes, num_edges, map_edge_offset);
 
   const NodeID num_local_nodes = last_node - first_node;
   const EdgeID num_local_edges = map_edge_offset(last_node) - map_edge_offset(first_node);
 
-  StaticArray<GlobalNodeID> node_distribution(size + 1);
+  RECORD("node_distribution") StaticArray<GlobalNodeID> node_distribution(size + 1);
   node_distribution[rank + 1] = last_node;
   MPI_Allgather(
       MPI_IN_PLACE,
@@ -201,7 +241,7 @@ DistributedCSRGraph csr_read(const std::string &filename, const bool sorted, con
       comm
   );
 
-  StaticArray<GlobalEdgeID> edge_distribution(size + 1);
+  RECORD("edge_distribution") StaticArray<GlobalEdgeID> edge_distribution(size + 1);
   edge_distribution[rank] = num_local_edges;
   MPI_Allgather(
       MPI_IN_PLACE,
@@ -220,9 +260,9 @@ DistributedCSRGraph csr_read(const std::string &filename, const bool sorted, con
   );
 
   graph::GhostNodeMapper mapper(rank, node_distribution);
-  StaticArray<EdgeID> nodes(num_local_nodes + 1, static_array::noinit);
-  StaticArray<NodeID> edges(num_local_edges, static_array::noinit);
-  StaticArray<EdgeWeight> edge_weights;
+  RECORD("nodes") StaticArray<EdgeID> nodes(num_local_nodes + 1, static_array::noinit);
+  RECORD("edges") StaticArray<NodeID> edges(num_local_edges, static_array::noinit);
+  RECORD("edge_weights") StaticArray<EdgeWeight> edge_weights;
   if (header.has_edge_weights) {
     edge_weights.resize(num_local_edges, static_array::noinit);
   }
@@ -255,7 +295,7 @@ DistributedCSRGraph csr_read(const std::string &filename, const bool sorted, con
   }
   nodes[num_local_nodes] = edge;
 
-  StaticArray<NodeWeight> node_weights;
+  RECORD("node_weights") StaticArray<NodeWeight> node_weights;
   if (header.has_node_weights) {
     node_weights.resize(num_local_nodes + mapper.next_ghost_node(), static_array::noinit);
 
@@ -290,15 +330,19 @@ DistributedCSRGraph csr_read(const std::string &filename, const bool sorted, con
   return graph;
 }
 
-DistributedCompressedGraph
-compressed_read(const std::string &filename, const bool sorted, const MPI_Comm comm) {
+DistributedCompressedGraph compressed_read(
+    const std::string &filename,
+    const bool sorted,
+    const GraphDistribution distribution,
+    const MPI_Comm comm
+) {
   BinaryReader reader(filename);
 
   const auto version = reader.read<std::uint64_t>(0);
   const auto num_nodes = reader.read<std::uint64_t>(sizeof(std::uint64_t));
   const auto num_edges = reader.read<std::uint64_t>(sizeof(std::uint64_t) * 2);
   const ParhipHeader header(version, num_nodes, num_edges);
-  header.validate();
+  //  header.validate();
 
   std::size_t position = ParhipHeader::kSize;
 
@@ -325,17 +369,15 @@ compressed_read(const std::string &filename, const bool sorted, const MPI_Comm c
   const mpi::PEID size = mpi::get_comm_size(comm);
   const mpi::PEID rank = mpi::get_comm_rank(comm);
 
-  const auto [first_edge, last_edge] = compute_edge_range(num_edges, size, rank);
+  const auto [first_edge, last_edge] = compute_chunks(num_edges, size, rank);
 
-  const std::uint64_t first_node =
-      find_node_by_edge(num_nodes, num_edges, first_edge, map_edge_offset);
-  const std::uint64_t last_node =
-      find_node_by_edge(num_nodes, num_edges, last_edge, map_edge_offset);
+  const std::uint64_t first_node = find_node(num_nodes, num_edges - 1, first_edge, map_edge_offset);
+  const std::uint64_t last_node = find_node(num_nodes, num_edges - 1, last_edge, map_edge_offset);
 
   const NodeID num_local_nodes = last_node - first_node;
   const EdgeID num_local_edges = map_edge_offset(last_node) - map_edge_offset(first_node);
 
-  StaticArray<GlobalNodeID> node_distribution(size + 1);
+  RECORD("node_distribution") StaticArray<GlobalNodeID> node_distribution(size + 1);
   node_distribution[rank + 1] = last_node;
   MPI_Allgather(
       MPI_IN_PLACE,
@@ -347,7 +389,7 @@ compressed_read(const std::string &filename, const bool sorted, const MPI_Comm c
       comm
   );
 
-  StaticArray<GlobalEdgeID> edge_distribution(size + 1);
+  RECORD("edge_distribution") StaticArray<GlobalEdgeID> edge_distribution(size + 1);
   edge_distribution[rank] = num_local_edges;
   MPI_Allgather(
       MPI_IN_PLACE,
@@ -400,7 +442,7 @@ compressed_read(const std::string &filename, const bool sorted, const MPI_Comm c
     neighbourhood.clear();
   }
 
-  StaticArray<NodeWeight> node_weights;
+  RECORD("node_weights") StaticArray<NodeWeight> node_weights;
   if (header.has_node_weights) {
     node_weights.resize(num_local_nodes + mapper.next_ghost_node(), static_array::noinit);
 

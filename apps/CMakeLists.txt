@@ -1,10 +1,10 @@
 set(KAMINPAR_IO_SOURCE_FILES
     io/file_tokener.h
     io/binary_util.h
-    io/metis_parser.h
-    io/metis_parser.cc
-    io/parhip_parser.h
-    io/parhip_parser.cc
+    io/shm_metis_parser.h
+    io/shm_metis_parser.cc
+    io/shm_parhip_parser.h
+    io/shm_parhip_parser.cc
     io/shm_compressed_graph_binary.h
     io/shm_compressed_graph_binary.cc
     io/shm_input_validator.h

@@ -7,6 +7,7 @@
  ******************************************************************************/
 // clang-format off
 #include "kaminpar-cli/dkaminpar_arguments.h"
+#include "kaminpar-dist/context_io.h"
 #include "kaminpar-dist/dkaminpar.h"
 // clang-format on
 
@@ -46,8 +47,10 @@ struct ApplicationContext {
   bool experiment = false;
   bool check_input_graph = false;
 
+  bool kagen_io = false;
   kagen::FileFormat io_format = kagen::FileFormat::EXTENSION;
-  kagen::GraphDistribution io_distribution = kagen::GraphDistribution::BALANCE_EDGES;
+  kagen::GraphDistribution io_kagen_distribution = kagen::GraphDistribution::BALANCE_EDGES;
+  GraphDistribution io_distribution = GraphDistribution::BALANCED_EDGES;
 
   std::string graph_filename = "";
   std::string partition_filename = "";
@@ -109,8 +112,18 @@ The output should be stored in a file and can be used by the -C,--config option.
       )
       ->capture_default_str();
   cli.add_option("--io-distribution", app.io_distribution)
-      ->transform(CLI::CheckedTransformer(kagen::GetGraphDistributionMap()).description(""))
+      ->transform(CLI::CheckedTransformer(get_graph_distributions()).description(""))
       ->description(R"(Graph distribution scheme, possible options are:
+  - balance-edges:        distribute edges such that each PE has roughly the same number of edges
+  - balance-memory-space: distribute graph such that each PE uses roughly the same memory space for the input graph)"
+      )
+      ->capture_default_str();
+  cli.add_flag("--io-kagen", app.kagen_io)
+      ->description("Whether to use KaGen for IO.")
+      ->capture_default_str();
+  cli.add_option("--io-kagen-distribution", app.io_kagen_distribution)
+      ->transform(CLI::CheckedTransformer(kagen::GetGraphDistributionMap()).description(""))
+      ->description(R"(Graph distribution scheme used for KaGen IO, possible options are:
   - balance-vertices: distribute vertices such that each PE has roughly the same number of vertices
   - balance-edges:    distribute edges such that each PE has roughly the same number of edges)")
       ->capture_default_str();
@@ -166,11 +179,14 @@ The output should be stored in a file and can be used by the -C,--config option.
   create_all_options(&cli, ctx);
 }
 
-template <typename Lambda> [[noreturn]] void root_run_and_exit(Lambda &&l) {
-  const int rank = mpi::get_comm_rank(MPI_COMM_WORLD);
-  if (rank == 0) {
+template <typename Lambda> void root_run(Lambda &&l) {
+  if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
     l();
   }
+}
+
+template <typename Lambda> [[noreturn]] void root_run_and_exit(Lambda &&l) {
+  root_run(std::forward<Lambda>(l));
   std::exit(MPI_Finalize());
 }
 
@@ -192,7 +208,7 @@ NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
         app.graph_filename.end()) {
       return generator.GenerateFromOptionString(app.graph_filename);
     } else {
-      return generator.ReadFromFile(app.graph_filename, app.io_format, app.io_distribution);
+      return generator.ReadFromFile(app.graph_filename, app.io_format, app.io_kagen_distribution);
     }
   }();
 
@@ -228,9 +244,18 @@ NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
 }
 
 NodeID load_csr_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
-  DistributedGraph graph(std::make_unique<DistributedCSRGraph>(
-      io::parhip::csr_read(app.graph_filename, false, MPI_COMM_WORLD)
-  ));
+  const auto read_graph = [&] {
+    switch (app.io_format) {
+    case kagen::FileFormat::PARHIP:
+      return io::parhip::csr_read(app.graph_filename, false, app.io_distribution, MPI_COMM_WORLD);
+    default:
+      root_run_and_exit([&] {
+        LOG_ERROR << "To read graphs not stored in ParHIP format, use KaGen as the IO!";
+      });
+    }
+  };
+
+  DistributedGraph graph(std::make_unique<DistributedCSRGraph>(read_graph()));
   const NodeID n = graph.n();
 
   partitioner.import_graph(std::move(graph));
@@ -243,10 +268,12 @@ NodeID load_compressed_graph(const ApplicationContext &app, dKaMinPar &partition
     case kagen::FileFormat::METIS:
       return io::metis::compress_read(app.graph_filename, false, MPI_COMM_WORLD);
     case kagen::FileFormat::PARHIP:
-      return io::parhip::compressed_read(app.graph_filename, false, MPI_COMM_WORLD);
+      return io::parhip::compressed_read(
+          app.graph_filename, false, app.io_distribution, MPI_COMM_WORLD
+      );
     default:
       root_run_and_exit([&] {
-        LOG_ERROR << "Only graphs stored in files with METIS or ParHIP format can be compressed!";
+        LOG_ERROR << "Only graphs stored in METIS or ParHIP format can be compressed!";
       });
     }
   };
@@ -314,10 +341,20 @@ int main(int argc, char *argv[]) {
   START_HEAP_PROFILER("Input Graph Allocation");
   // Load the graph via KaGen or via our graph compressor.
   const NodeID n = [&] {
+    if (app.kagen_io) {
+      if (ctx.compression.enabled) {
+        root_run([] {
+          LOG_WARNING << "Disabling graph compression since it is not supported with KaGen-IO!";
+        });
+      }
+
+      return load_kagen_graph(app, partitioner);
+    }
+
     if (ctx.compression.enabled) {
       return load_compressed_graph(app, partitioner);
     } else {
-      return load_kagen_graph(app, partitioner);
+      return load_csr_graph(app, partitioner);
     }
   }();
 

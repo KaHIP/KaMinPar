@@ -86,16 +86,21 @@ enum class RefinementAlgorithm {
   MTKAHYPAR_REFINER,
 };
 
-enum class LabelPropagationMoveExecutionStrategy {
-  PROBABILISTIC,
-  BEST_MOVES,
-  LOCAL_MOVES,
-};
-
 enum class GraphOrdering {
   NATURAL,
   DEGREE_BUCKETS,
   COLORING,
+};
+
+enum class GraphDistribution {
+  BALANCED_EDGES,
+  BALANCED_MEMORY_SPACE
+};
+
+enum class LabelPropagationMoveExecutionStrategy {
+  PROBABILISTIC,
+  BEST_MOVES,
+  LOCAL_MOVES,
 };
 
 enum class ClusterSizeStrategy {

@@ -210,6 +210,13 @@ std::unordered_map<std::string, GraphOrdering> get_graph_orderings() {
   };
 }
 
+std::unordered_map<std::string, GraphDistribution> get_graph_distributions() {
+  return {
+      {"balanced-edges", GraphDistribution::BALANCED_EDGES},
+      {"balanced-memory-space", GraphDistribution::BALANCED_MEMORY_SPACE},
+  };
+}
+
 std::ostream &operator<<(std::ostream &out, const GraphOrdering ordering) {
   switch (ordering) {
   case GraphOrdering::NATURAL:
