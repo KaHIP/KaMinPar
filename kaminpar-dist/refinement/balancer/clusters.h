@@ -160,7 +160,7 @@ public:
     for (const NodeID u : nodes(set)) {
       KASSERT(_p_graph->is_owned_node(u));
 
-      _p_graph->neighbors(u, [&](const EdgeID e, const NodeID v) {
+      _p_graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
         if (!_p_graph->is_owned_node(v)) {
           return;
         }
@@ -170,7 +170,7 @@ public:
           return;
         }
 
-        const EdgeWeight delta = _p_graph->edge_weight(e);
+        const EdgeWeight delta = w;
         _cluster_conns[set_v * _p_graph->k() + from] -= delta;
         _cluster_conns[set_v * _p_graph->k() + to] += delta;
       });

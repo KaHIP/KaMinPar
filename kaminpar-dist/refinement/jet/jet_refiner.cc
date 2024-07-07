@@ -281,17 +281,20 @@ private:
 
       EdgeWeight projected_gain = 0;
 
-      _graph.neighbors(u, [&, gain_u = gain_u, to_u = to_u](const EdgeID e, const NodeID v) {
-        const auto [gain_v, to_v] = _gains_and_targets[v];
-        const BlockID projected_b_v =
-            (gain_v > gain_u || (gain_v == gain_u && v < u)) ? to_v : _p_graph.block(v);
+      _graph.adjacent_nodes(
+          u,
+          [&, gain_u = gain_u, to_u = to_u](const NodeID v, const EdgeWeight w) {
+            const auto [gain_v, to_v] = _gains_and_targets[v];
+            const BlockID projected_b_v =
+                (gain_v > gain_u || (gain_v == gain_u && v < u)) ? to_v : _p_graph.block(v);
 
-        if (projected_b_v == to_u) {
-          projected_gain += _graph.edge_weight(e);
-        } else if (projected_b_v == from_u) {
-          projected_gain -= _graph.edge_weight(e);
-        }
-      });
+            if (projected_b_v == to_u) {
+              projected_gain += w;
+            } else if (projected_b_v == from_u) {
+              projected_gain -= w;
+            }
+          }
+      );
 
       // Locking the node here means that the move
       // will be executed by move_locked_nodes()

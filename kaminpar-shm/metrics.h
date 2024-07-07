@@ -19,6 +19,7 @@
 #include "kaminpar-common/asserting_cast.h"
 
 namespace kaminpar::shm::metrics {
+
 template <typename PartitionedGraph, typename Graph>
 EdgeWeight edge_cut(const PartitionedGraph &p_graph, const Graph &graph) {
   tbb::enumerable_thread_specific<int64_t> cut_ets;

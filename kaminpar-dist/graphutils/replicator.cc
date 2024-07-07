@@ -47,6 +47,24 @@ template <typename Graph> decltype(auto) copy_raw_nodes(const Graph &graph) {
   }
 }
 
+template <typename Graph> decltype(auto) copy_raw_edge_weights(const Graph &graph) {
+  constexpr bool kIsCompressedGraph = std::is_same_v<Graph, DistributedCompressedGraph>;
+
+  // Copy edge weights with (uncompressed) weights or simply forward the raw edge weights if the
+  // graph is uncompresed
+  if constexpr (kIsCompressedGraph) {
+    StaticArray<EdgeWeight> raw_edge_weights(graph.m());
+    graph.pfor_nodes([&](const NodeID u) {
+      graph.neighbors(u, [&](const EdgeID e, NodeID, const EdgeWeight w) {
+        raw_edge_weights[e] = w;
+      });
+    });
+    return raw_edge_weights;
+  } else {
+    return graph.raw_edge_weights();
+  }
+}
+
 } // namespace
 
 std::unique_ptr<shm::Graph> allgather_graph(const DistributedGraph &graph) {
@@ -172,7 +190,7 @@ template <typename Graph> shm::Graph replicate_graph_everywhere(const Graph &gra
     KASSERT((graph.is_edge_weighted() || graph.m() == 0));
     if constexpr (std::is_same_v<shm::EdgeWeight, EdgeWeight>) {
       mpi::allgatherv(
-          graph.raw_edge_weights().data(),
+          copy_raw_edge_weights(graph).data(),
           asserting_cast<int>(graph.m()),
           edge_weights.data(),
           edges_recvcounts.data(),
@@ -182,7 +200,7 @@ template <typename Graph> shm::Graph replicate_graph_everywhere(const Graph &gra
     } else {
       StaticArray<EdgeWeight> edge_weights_buffer(graph.global_m());
       mpi::allgatherv(
-          graph.raw_edge_weights().data(),
+          copy_raw_edge_weights(graph).data(),
           asserting_cast<int>(graph.m()),
           edge_weights_buffer.data(),
           edges_recvcounts.data(),
@@ -311,7 +329,7 @@ DistributedGraph replicate_graph(const Graph &graph, const int num_replications)
   if (is_edge_weighted) {
     KASSERT(graph.is_edge_weighted() || graph.m() == 0);
     mpi::allgatherv(
-        graph.raw_edge_weights().data(),
+        copy_raw_edge_weights(graph).data(),
         asserting_cast<int>(graph.m()),
         edge_weights.data(),
         edges_counts.data(),

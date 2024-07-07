@@ -85,18 +85,13 @@ void DistributedCompressedGraph::init_total_weights() {
     _max_node_weight = 1;
   }
 
-  if (is_edge_weighted()) {
-    _total_edge_weight = parallel::accumulate(_edge_weights.begin(), _edge_weights.end(), 0);
-  } else {
-    _total_edge_weight = m();
-  }
-
   _global_total_node_weight =
       mpi::allreduce<GlobalNodeWeight>(_total_node_weight, MPI_SUM, communicator());
   _global_max_node_weight =
       mpi::allreduce<GlobalNodeWeight>(_max_node_weight, MPI_MAX, communicator());
-  _global_total_edge_weight =
-      mpi::allreduce<GlobalEdgeWeight>(_total_edge_weight, MPI_SUM, communicator());
+  _global_total_edge_weight = mpi::allreduce<GlobalEdgeWeight>(
+      _compressed_neighborhoods.total_edge_weight(), MPI_SUM, communicator()
+  );
 }
 
 void DistributedCompressedGraph::init_communication_metrics() {

@@ -75,11 +75,11 @@ void print_graph(const DistributedGraph &graph) {
 
     if (graph.is_owned_node(u)) {
       buf << " | ";
-      graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
+      graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
         const char v_prefix = graph.is_owned_node(v) ? ' ' : '!';
         buf << v_prefix << "L" << std::setw(w) << v << " G" << std::setw(w)
-            << graph.local_to_global_node(v) << " EW" << std::setw(w) << graph.edge_weight(e)
-            << " NW" << std::setw(w) << graph.node_weight(v) << "\t";
+            << graph.local_to_global_node(v) << " EW" << std::setw(w) << w << " NW" << std::setw(w)
+            << graph.node_weight(v) << "\t";
       });
       if (graph.degree(u) == 0) {
         buf << "<isolated>";
@@ -261,7 +261,7 @@ bool validate_graph(const DistributedGraph &graph) {
 
     const auto recvbufs = mpi::graph::sparse_alltoall_interface_to_ghost_get<GhostNodeEdge>(
         graph,
-        [&](const NodeID u, const EdgeID, const NodeID v) -> GhostNodeEdge {
+        [&](const NodeID u, EdgeID, const NodeID v, EdgeWeight) -> GhostNodeEdge {
           return {.owned = graph.local_to_global_node(u), .ghost = graph.local_to_global_node(v)};
         }
     );

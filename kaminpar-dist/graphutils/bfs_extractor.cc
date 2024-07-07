@@ -328,7 +328,7 @@ auto BfsExtractor::bfs(
 
     external_degrees_map.clear();
 
-    explore_outgoing_edges(node, [&](const EdgeID edge, const NodeID neighbor) {
+    explore_outgoing_edges(node, [&](const NodeID neighbor, const EdgeWeight weight) {
       const bool is_real_target =
           taken.get(neighbor) ||                                                                 //
           (_graph->is_owned_node(neighbor) && !is_distance_border_node) ||                       //
@@ -347,7 +347,7 @@ auto BfsExtractor::bfs(
 
       if (is_real_target) {
         edges.push_back(_graph->local_to_global_node(neighbor));
-        edge_weights.push_back(_graph->edge_weight(edge));
+        edge_weights.push_back(weight);
 
         if (!taken.get(neighbor)) {
           taken.set(neighbor);
@@ -372,7 +372,7 @@ auto BfsExtractor::bfs(
           next_ghost_seed_edges.emplace_back(node, neighbor, current_distance + 1);
         }
       } else {
-        external_degrees_map[_p_graph->block(neighbor)] += _graph->edge_weight(edge);
+        external_degrees_map[_p_graph->block(neighbor)] += weight;
       }
 
       return true;
@@ -409,21 +409,25 @@ void BfsExtractor::explore_outgoing_edges(const NodeID node, Lambda &&lambda) {
   const bool is_high_degree_node = _graph->degree(node) >= _high_degree_threshold;
 
   if (!is_high_degree_node || _high_degree_strategy == HighDegreeStrategy::TAKE_ALL) {
-    _graph->neighbors(node, [&](const EdgeID e, const NodeID v) {
-      const bool abort = !lambda(e, v);
+    _graph->adjacent_nodes(node, [&](const NodeID v, const EdgeWeight w) {
+      const bool abort = !lambda(v, w);
       return abort;
     });
   } else if (_high_degree_strategy == HighDegreeStrategy::CUT) {
-    _graph->neighbors(node, _high_degree_threshold, [&](const EdgeID e, const NodeID v) {
-      const bool abort = !lambda(e, v);
-      return abort;
-    });
+    _graph->neighbors(
+        node,
+        _high_degree_threshold,
+        [&](const EdgeID, const NodeID v, const EdgeWeight w) {
+          const bool abort = !lambda(v, w);
+          return abort;
+        }
+    );
   } else if (_high_degree_strategy == HighDegreeStrategy::SAMPLE) {
     const double skip_prob = 1.0 * _high_degree_threshold / _graph->degree(node);
     std::geometric_distribution<EdgeID> skip_dist(skip_prob);
 
-    _graph->neighbors(node, [&](const EdgeID e, const NodeID v) {
-      const bool abort = !lambda(e, v);
+    _graph->adjacent_nodes(node, [&](const NodeID v, const EdgeWeight w) {
+      const bool abort = !lambda(v, w);
       return abort;
     });
     // @todo
@@ -588,9 +592,8 @@ void BfsExtractor::init_external_degrees() {
   });
 
   _graph->pfor_nodes([&](const NodeID u) {
-    _graph->neighbors(u, [&](const EdgeID e, const NodeID v) {
+    _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight e_weight) {
       const BlockID v_block = _p_graph->block(v);
-      const EdgeWeight e_weight = _graph->edge_weight(e);
       external_degree(u, v_block) += e_weight;
     });
   });

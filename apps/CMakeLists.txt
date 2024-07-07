@@ -1,5 +1,6 @@
 set(KAMINPAR_IO_SOURCE_FILES
     io/file_tokener.h
+    io/binary_util.h
     io/metis_parser.h
     io/metis_parser.cc
     io/parhip_parser.h

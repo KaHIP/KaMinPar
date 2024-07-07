@@ -357,7 +357,7 @@ void print(
     const bool print_compression_details,
     std::ostream &out
 ) {
-  using Compression = DistributedCompressedGraph::CompressedEdges;
+  using Compression = DistributedCompressedGraph::CompressedNeighborhoods;
 
   const auto round = [](const auto value) {
     return std::ceil(value * 1000.0) / 1000.0;

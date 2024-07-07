@@ -12,10 +12,11 @@
 #include "kaminpar-mpi/datatype.h"
 #include "kaminpar-mpi/utils.h"
 
-#include "kaminpar-dist/datastructures/distributed_compressed_graph_builder.h"
 #include "kaminpar-dist/datastructures/ghost_node_mapper.h"
 #include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/graphutils/synchronization.h"
+
+#include "kaminpar-common/graph-compression/compressed_neighborhoods_builder.h"
 
 #include "apps/io/file_tokener.h"
 
@@ -226,8 +227,8 @@ compress_read(const std::string &filename, const bool sorted, const MPI_Comm com
   );
 
   graph::GhostNodeMapper mapper(rank, node_distribution);
-  DistributedCompressedGraphBuilder builder(
-      num_local_nodes, num_local_edges, header.has_node_weights, header.has_edge_weights, sorted
+  CompressedNeighborhoodsBuilder<NodeID, EdgeID, EdgeWeight> builder(
+      num_local_nodes, num_local_edges, header.has_edge_weights
   );
 
   StaticArray<NodeWeight> node_weights;
@@ -247,7 +248,7 @@ compress_read(const std::string &filename, const bool sorted, const MPI_Comm com
         header,
         [&](const auto weight) {
           if (node > 0) {
-            builder.add_node(node - 1, neighbourhood);
+            builder.add(node - 1, neighbourhood);
             neighbourhood.clear();
           }
 
@@ -270,7 +271,7 @@ compress_read(const std::string &filename, const bool sorted, const MPI_Comm com
         }
     );
 
-    builder.add_node(node - 1, neighbourhood);
+    builder.add(node - 1, neighbourhood);
     neighbourhood.clear();
     neighbourhood.shrink_to_fit();
   }
@@ -290,15 +291,12 @@ compress_read(const std::string &filename, const bool sorted, const MPI_Comm com
   }
 
   auto [global_to_ghost, ghost_to_global, ghost_owner] = mapper.finalize();
-  auto [nodes, edges, edge_weights] = builder.build();
 
   DistributedCompressedGraph graph(
       std::move(node_distribution),
       std::move(edge_distribution),
-      std::move(nodes),
-      std::move(edges),
+      builder.build(),
       std::move(node_weights),
-      std::move(edge_weights),
       std::move(ghost_owner),
       std::move(ghost_to_global),
       std::move(global_to_ghost),

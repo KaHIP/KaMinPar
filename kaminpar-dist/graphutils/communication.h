@@ -126,9 +126,9 @@ void sparse_alltoall_interface_to_ghost_custom_range(
   SCOPED_TIMER("Sparse AllToAll");
 
   constexpr bool builder_invocable_with_pe =
-      std::is_invocable_r_v<Message, Builder, NodeID, EdgeID, NodeID, PEID>;
+      std::is_invocable_r_v<Message, Builder, NodeID, EdgeID, NodeID, EdgeWeight, PEID>;
   constexpr bool builder_invocable_without_pe =
-      std::is_invocable_r_v<Message, Builder, NodeID, EdgeID, NodeID>;
+      std::is_invocable_r_v<Message, Builder, NodeID, EdgeID, NodeID, EdgeWeight>;
   static_assert(builder_invocable_with_pe || builder_invocable_without_pe, "bad builder type");
 
   constexpr bool receiver_invocable_with_pe =
@@ -138,7 +138,7 @@ void sparse_alltoall_interface_to_ghost_custom_range(
   static_assert(receiver_invocable_with_pe || receiver_invocable_without_pe, "bad receiver type");
 
   constexpr bool filter_invocable_with_edge =
-      std::is_invocable_r_v<bool, Filter, NodeID, EdgeID, NodeID>;
+      std::is_invocable_r_v<bool, Filter, NodeID, EdgeID, NodeID, EdgeWeight>;
   constexpr bool filter_invocable_with_node = std::is_invocable_r_v<bool, Filter, NodeID>;
   static_assert(filter_invocable_with_edge || filter_invocable_with_node, "bad filter type");
 
@@ -165,10 +165,10 @@ void sparse_alltoall_interface_to_ghost_custom_range(
 
     const PEID thread = omp_get_thread_num();
 
-    graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
+    graph.neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
       if (graph.is_ghost_node(v)) {
         if constexpr (filter_invocable_with_edge) {
-          if (!filter(u, e, v)) {
+          if (!filter(u, e, v, w)) {
             return;
           }
         }
@@ -200,10 +200,10 @@ void sparse_alltoall_interface_to_ghost_custom_range(
     }
 
     const PEID thread = omp_get_thread_num();
-    graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
+    graph.neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
       if (graph.is_ghost_node(v)) {
         if constexpr (filter_invocable_with_edge) {
-          if (!filter(u, e, v)) {
+          if (!filter(u, e, v, w)) {
             return;
           }
         }
@@ -211,9 +211,9 @@ void sparse_alltoall_interface_to_ghost_custom_range(
         const PEID pe = graph.ghost_owner(v);
         const std::size_t slot = --num_messages[thread][pe];
         if constexpr (builder_invocable_with_pe) {
-          send_buffers[pe][slot] = builder(u, e, v, pe);
+          send_buffers[pe][slot] = builder(u, e, v, w, pe);
         } else /* if (builder_invocable_without_pe) */ {
-          send_buffers[pe][slot] = builder(u, e, v);
+          send_buffers[pe][slot] = builder(u, e, v, w);
         }
       }
     });
@@ -494,7 +494,7 @@ void sparse_alltoall_interface_to_pe_custom_range(
         }
       }
 
-      graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
+      graph.adjacent_nodes(u, [&](const NodeID v) {
         if (!graph.is_ghost_node(v)) {
           return;
         }

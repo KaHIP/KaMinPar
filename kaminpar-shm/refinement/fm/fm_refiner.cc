@@ -401,7 +401,7 @@ EdgeWeight LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::run_batch() {
         _stopping_policy.update(actual_gain);
       }
 
-      for (const auto &[e, v] : _p_graph.neighbors(node)) {
+      _p_graph.adjacent_nodes(node, [&](const NodeID v) {
         const int owner = _shared.node_tracker.owner(v);
         if (owner == _id) {
           KASSERT(_node_pqs[_p_graph.block(v)].contains(v), "owned node not in PQ");
@@ -414,7 +414,7 @@ EdgeWeight LocalizedFMRefiner<GainCache, DeltaPartitionedGraph>::run_batch() {
           _touched_nodes.push_back(v);
           IFSTATS(++stats.num_touched_nodes);
         }
-      }
+      });
     }
   }
 

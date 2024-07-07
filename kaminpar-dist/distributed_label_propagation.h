@@ -317,12 +317,10 @@ protected:
 
       bool is_interface_node = false;
 
-      _graph->neighbors(u, _max_num_neighbors, [&](const EdgeID e, const NodeID v) {
+      _graph->neighbors(u, _max_num_neighbors, [&](EdgeID, const NodeID v, const EdgeWeight w) {
         if (derived_accept_neighbor(u, v)) {
           const ClusterID v_cluster = derived_cluster(v);
-          const EdgeWeight rating = _graph->edge_weight(e);
-
-          map[v_cluster] += rating;
+          map[v_cluster] += w;
 
           if constexpr (Config::kUseLocalActiveSetStrategy) {
             is_interface_node |= v >= _num_active_nodes;

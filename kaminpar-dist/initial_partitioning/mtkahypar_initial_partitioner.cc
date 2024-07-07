@@ -59,7 +59,7 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
   graph.pfor_nodes([&](const NodeID u) {
     vertex_weights[u] = static_cast<mt_kahypar_hypernode_weight_t>(graph.node_weight(u));
 
-    graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
+    graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
       if (v < u) { // Only need edges in one direction
         return;
       }
@@ -67,7 +67,7 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
       EdgeID position = edge_position[e] - 1;
       edges[2 * position] = static_cast<mt_kahypar_hypernode_id_t>(u);
       edges[2 * position + 1] = static_cast<mt_kahypar_hypernode_id_t>(v);
-      edge_weights[position] = static_cast<mt_kahypar_hypernode_weight_t>(graph.edge_weight(e));
+      edge_weights[position] = static_cast<mt_kahypar_hypernode_weight_t>(w);
     });
   });
 

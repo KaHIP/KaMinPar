@@ -63,7 +63,6 @@ public:
   [[nodiscard]] virtual GlobalNodeWeight global_total_node_weight() const = 0;
 
   [[nodiscard]] virtual bool is_edge_weighted() const = 0;
-  [[nodiscard]] virtual EdgeWeight edge_weight(const EdgeID e) const = 0;
   [[nodiscard]] virtual EdgeWeight total_edge_weight() const = 0;
   [[nodiscard]] virtual GlobalEdgeWeight global_total_edge_weight() const = 0;
 
@@ -94,7 +93,6 @@ public:
   [[nodiscard]] virtual NodeID degree(const NodeID u) const = 0;
 
   [[nodiscard]] virtual const StaticArray<NodeWeight> &node_weights() const = 0;
-  [[nodiscard]] virtual const StaticArray<EdgeWeight> &edge_weights() const = 0;
 
   virtual void set_ghost_node_weight(const NodeID ghost_node, const NodeWeight weight) = 0;
 

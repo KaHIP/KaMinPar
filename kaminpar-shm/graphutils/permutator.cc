@@ -293,13 +293,7 @@ void remove_isolated_nodes_generic_graph(Graph &graph, PartitionContext &p_ctx) 
 
 void remove_isolated_nodes(Graph &graph, PartitionContext &p_ctx) {
   SCOPED_TIMER("Remove isolated nodes");
-
-  if (auto *csr_graph = dynamic_cast<CSRGraph *>(graph.underlying_graph()); csr_graph != nullptr) {
-    remove_isolated_nodes_generic_graph(*csr_graph, p_ctx);
-  } else if (auto *compressed_graph = dynamic_cast<CompressedGraph *>(graph.underlying_graph());
-             compressed_graph != nullptr) {
-    remove_isolated_nodes_generic_graph(*compressed_graph, p_ctx);
-  }
+  graph.reified([&](auto &graph) { remove_isolated_nodes_generic_graph(graph, p_ctx); });
 }
 
 template <typename Graph>
@@ -317,14 +311,9 @@ NodeID integrate_isolated_nodes_generic_graph(Graph &graph, const double epsilon
 }
 
 NodeID integrate_isolated_nodes(Graph &graph, double epsilon, Context &ctx) {
-  NodeID num_isolated_nodes;
-  if (auto *csr_graph = dynamic_cast<CSRGraph *>(graph.underlying_graph()); csr_graph != nullptr) {
-    num_isolated_nodes = integrate_isolated_nodes_generic_graph(*csr_graph, epsilon, ctx);
-
-  } else if (auto *compressed_graph = dynamic_cast<CompressedGraph *>(graph.underlying_graph());
-             compressed_graph != nullptr) {
-    num_isolated_nodes = integrate_isolated_nodes_generic_graph(*compressed_graph, epsilon, ctx);
-  }
+  NodeID num_isolated_nodes = graph.reified([&](auto &graph) {
+    return integrate_isolated_nodes_generic_graph(graph, epsilon, ctx);
+  });
 
   ctx.setup(graph);
   return num_isolated_nodes;

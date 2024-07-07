@@ -9,7 +9,7 @@
 
 #include <fstream>
 
-#include "kaminpar-shm/datastructures/compressed_graph_builder.h"
+#include "kaminpar-shm/graphutils/compressed_graph_builder.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/static_array.h"

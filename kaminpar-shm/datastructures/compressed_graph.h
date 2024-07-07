@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Compressed static graph representation.
+ * Static compressed graph representation.
  *
  * @file:   compressed_graph.h
  * @author: Daniel Salwasser
@@ -7,7 +7,6 @@
  ******************************************************************************/
 #pragma once
 
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -15,144 +14,84 @@
 
 #include "kaminpar-shm/datastructures/abstract_graph.h"
 
-#include "kaminpar-common/constexpr_utils.h"
-#include "kaminpar-common/datastructures/compact_static_array.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/degree_buckets.h"
-#include "kaminpar-common/math.h"
+#include "kaminpar-common/graph-compression/compressed_neighborhoods.h"
 #include "kaminpar-common/ranges.h"
-#include "kaminpar-common/varint_codec.h"
-#include "kaminpar-common/varint_run_length_codec.h"
-#include "kaminpar-common/varint_stream_codec.h"
 
 namespace kaminpar::shm {
 
 /*!
  * A compressed static graph that stores the nodes and edges in a compressed adjacency array. It
  * uses variable length encoding, gap encoding and interval encoding to compress the edge array.
+ * Additionally, it stores the edge weights interleaved with the edges and stores them with variable
+ * length encoding and gap encoding.
  */
 class CompressedGraph : public AbstractGraph {
+  using CompressedNeighborhoods = kaminpar::CompressedNeighborhoods<NodeID, EdgeID, EdgeWeight>;
+
 public:
   using AbstractGraph::EdgeID;
   using AbstractGraph::EdgeWeight;
   using AbstractGraph::NodeID;
   using AbstractGraph::NodeWeight;
-  using SignedID = std::int64_t;
 
-#ifdef KAMINPAR_COMPRESSION_HIGH_DEGREE_ENCODING
   /*!
    * Whether high degree encoding is used.
    */
-  static constexpr bool kHighDegreeEncoding = true;
-#else
-  /*!
-   * Whether high degree encoding is used.
-   */
-  static constexpr bool kHighDegreeEncoding = false;
-#endif
+  static constexpr bool kHighDegreeEncoding = CompressedNeighborhoods::kHighDegreeEncoding;
 
   /*!
    * The minimum degree of a node to be considered high degree.
    */
-  static constexpr NodeID kHighDegreeThreshold = 10000;
+  static constexpr NodeID kHighDegreeThreshold = CompressedNeighborhoods::kHighDegreeThreshold;
 
   /*!
-   * The length of a part when splitting the neighbourhood of a high degree node.
+   * The length of a part when splitting the neighbourhood of a high degree
+   * node.
    */
-  static constexpr NodeID kHighDegreePartLength = 1000;
+  static constexpr NodeID kHighDegreePartLength = CompressedNeighborhoods::kHighDegreePartLength;
 
-#ifdef KAMINPAR_COMPRESSION_INTERVAL_ENCODING
   /*!
    * Whether interval encoding is used.
    */
-  static constexpr bool kIntervalEncoding = true;
-#else
-  /*!
-   * Whether interval encoding is used.
-   */
-  static constexpr bool kIntervalEncoding = false;
-#endif
+  static constexpr bool kIntervalEncoding = CompressedNeighborhoods::kIntervalEncoding;
 
   /*!
    * The minimum length of an interval to encode if interval encoding is used.
    */
-  static constexpr NodeID kIntervalLengthTreshold = 3;
+  static constexpr NodeID kIntervalLengthTreshold =
+      CompressedNeighborhoods::kIntervalLengthTreshold;
 
-#ifdef KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING
   /*!
    * Whether run-length encoding is used.
    */
-  static constexpr bool kRunLengthEncoding = true;
-#else
-  /*!
-   * Whether run-length encoding is used.
-   */
-  static constexpr bool kRunLengthEncoding = false;
-#endif
+  static constexpr bool kRunLengthEncoding = CompressedNeighborhoods::kRunLengthEncoding;
 
-#ifdef KAMINPAR_COMPRESSION_STREAM_ENCODING
   /*!
    * Whether stream encoding is used.
    */
-  static constexpr bool kStreamEncoding = true;
-#else
-  /*!
-   * Whether stream encoding is used.
-   */
-  static constexpr bool kStreamEncoding = false;
-#endif
+  static constexpr bool kStreamEncoding = CompressedNeighborhoods::kStreamEncoding;
 
-  static_assert(
-      !kRunLengthEncoding || !kStreamEncoding,
-      "Either run-length or stream encoding can be used for varints but not both."
-  );
-
-#ifdef KAMINPAR_COMPRESSION_ISOLATED_NODES_SEPARATION
   /*!
-   * Whether the isolated nodes of the compressed graph are continuously stored at the end of the
-   * nodes array.
+   * Whether the isolated nodes of the compressed graph are continuously stored
+   * at the end of the nodes array.
    */
-  static constexpr bool kIsolatedNodesSeparation = true;
-#else
-  /*!
-   * Whether the isolated nodes of the compressed graph are continuously stored at the end of the
-   * nodes array.
-   */
-  static constexpr bool kIsolatedNodesSeparation = false;
-#endif
+  static constexpr bool kIsolatedNodesSeparation =
+      CompressedNeighborhoods::kIsolatedNodesSeparation;
 
   /*!
    * Constructs a new compressed graph.
    *
-   * @param nodes The node array which stores for each node the offset in the compressed edges array
-   * of the first edge.
-   * @param compressed_edges The edge array which stores the edges for each node in a compressed
-   * format.
-   * @param node_weights The array of node weights in which the weights of each node in the
-   * respective entry are stored.
-   * @param edge_count The number of edges stored in the compressed edge array.
-   * @param max_degree The maximum degree of the graph.
-   * @param sorted Whether the nodes are stored by deg-buckets order.
-   * @param num_high_degree_nodes The number of nodes that have high degree.
-   * @param num_high_degree_parts The total number of parts that result from splitting high degree
-   * neighborhoods.
-   * @param num_interval_nodes The number of nodes that have at least one interval in its
-   * neighborhood.
-   * @param num_intervals The total number of intervals.
+   * @param compressed_neighborhoods The nodes, edges and edge weights that are stored in compressed
+   * form.
+   * @param node_weights The node weights.
+   * @param sorted Whether the nodes are stored in degree-buckets order.
    */
   explicit CompressedGraph(
-      CompactStaticArray<EdgeID> nodes,
-      StaticArray<std::uint8_t> compressed_edges,
+      CompressedNeighborhoods compressed_neighborhoods,
       StaticArray<NodeWeight> node_weights,
-      EdgeID edge_count,
-      EdgeWeight total_edge_weight,
-      bool has_edge_weights,
-      NodeID max_degree,
-      bool sorted,
-      std::size_t num_high_degree_nodes,
-      std::size_t num_high_degree_parts,
-      std::size_t num_interval_nodes,
-      std::size_t num_intervals
+      bool sorted
   );
 
   CompressedGraph(const CompressedGraph &) = delete;
@@ -161,49 +100,22 @@ public:
   CompressedGraph(CompressedGraph &&) noexcept = default;
   CompressedGraph &operator=(CompressedGraph &&) noexcept = default;
 
-  template <typename Lambda> decltype(auto) reified(Lambda &&l) const {
-    return l(*this);
-  }
-
-  // Direct member access -- used for some "low level" operations
-  [[nodiscard]] inline CompactStaticArray<EdgeID> &raw_nodes() {
-    return _nodes;
-  }
-
-  [[nodiscard]] inline const CompactStaticArray<EdgeID> &raw_nodes() const {
-    return _nodes;
-  }
-
-  [[nodiscard]] inline StaticArray<NodeWeight> &raw_node_weights() {
-    return _node_weights;
-  }
-
-  [[nodiscard]] inline const StaticArray<NodeWeight> &raw_node_weights() const {
-    return _node_weights;
-  }
-
-  [[nodiscard]] inline CompactStaticArray<EdgeID> &&take_raw_nodes() {
-    return std::move(_nodes);
-  }
-
-  [[nodiscard]] inline StaticArray<NodeWeight> &&take_raw_node_weights() {
-    return std::move(_node_weights);
-  }
-
-  [[nodiscard]] const StaticArray<std::uint8_t> &raw_compressed_edges() const {
-    return _compressed_edges;
-  }
-
+  //
   // Size of the graph
+  //
+
   [[nodiscard]] NodeID n() const final {
-    return static_cast<NodeID>(_nodes.size() - 1);
+    return _compressed_neighborhoods.num_nodes();
   };
 
   [[nodiscard]] EdgeID m() const final {
-    return _edge_count;
+    return _compressed_neighborhoods.num_edges();
   }
 
+  //
   // Node and edge weights
+  //
+
   [[nodiscard]] inline bool is_node_weighted() const final {
     return static_cast<NodeWeight>(n()) != total_node_weight();
   }
@@ -220,35 +132,20 @@ public:
     return _total_node_weight;
   }
 
+  void update_total_node_weight() final;
+
   [[nodiscard]] inline bool is_edge_weighted() const final {
-    return _has_edge_weights;
+    return _compressed_neighborhoods.has_edge_weights();
   }
 
   [[nodiscard]] inline EdgeWeight total_edge_weight() const final {
     return _total_edge_weight;
   }
 
-  // Low-level access to the graph structure
-  [[nodiscard]] inline NodeID max_degree() const final {
-    return _max_degree;
-  }
-
-  [[nodiscard]] inline NodeID degree(const NodeID node) const final {
-    const std::uint8_t *data = _compressed_edges.data();
-
-    const std::uint8_t *node_data = data + _nodes[node];
-    const std::uint8_t *next_node_data = data + _nodes[node + 1];
-
-    const bool is_isolated_node = node_data == next_node_data;
-    if (is_isolated_node) {
-      return 0;
-    }
-
-    const auto [first_edge, degree, _, __] = decode_header(node, node_data, next_node_data);
-    return degree;
-  }
-
+  //
   // Iterators for nodes / edges
+  //
+
   [[nodiscard]] IotaRange<NodeID> nodes() const final {
     return {static_cast<NodeID>(0), n()};
   }
@@ -257,7 +154,74 @@ public:
     return {static_cast<EdgeID>(0), m()};
   }
 
+  [[nodiscard]] inline IotaRange<EdgeID> incident_edges(const NodeID node) const final {
+    return _compressed_neighborhoods.incident_edges(node);
+  }
+
+  //
+  // Node degree
+  //
+
+  [[nodiscard]] inline NodeID max_degree() const final {
+    return _compressed_neighborhoods.max_degree();
+  }
+
+  [[nodiscard]] inline NodeID degree(const NodeID node) const final {
+    return _compressed_neighborhoods.degree(node);
+  }
+
+  //
+  // Graph operations
+  //
+
+  template <typename Lambda> inline void adjacent_nodes(const NodeID u, Lambda &&l) const {
+    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID>;
+    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID, EdgeWeight>;
+    static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
+
+    _compressed_neighborhoods.decode(u, [&](const EdgeID, const NodeID v, const EdgeWeight w) {
+      if constexpr (kDecodeEdgeWeights) {
+        return l(v, w);
+      } else {
+        return l(v);
+      }
+    });
+  }
+
+  template <typename Lambda> inline void neighbors(const NodeID u, Lambda &&l) const {
+    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID>;
+    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID, EdgeWeight>;
+    static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
+
+    _compressed_neighborhoods.decode(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
+      if constexpr (kDecodeEdgeWeights) {
+        return l(e, v, w);
+      } else {
+        return l(e, v);
+      }
+    });
+  }
+
+  template <typename Lambda>
+  inline void neighbors(const NodeID u, const NodeID max_num_neighbors, Lambda &&l) const {
+    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID>;
+    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID, EdgeWeight>;
+    static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
+
+    _compressed_neighborhoods
+        .decode(u, max_num_neighbors, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
+          if constexpr (kDecodeEdgeWeights) {
+            return l(e, v, w);
+          } else {
+            return l(e, v);
+          }
+        });
+  }
+
+  //
   // Parallel iteration
+  //
+
   template <typename Lambda> inline void pfor_nodes(Lambda &&l) const {
     tbb::parallel_for(static_cast<NodeID>(0), n(), std::forward<Lambda>(l));
   }
@@ -266,143 +230,18 @@ public:
     tbb::parallel_for(static_cast<EdgeID>(0), m(), std::forward<Lambda>(l));
   }
 
-  // Graph operations
-  [[nodiscard]] inline IotaRange<EdgeID> incident_edges(const NodeID node) const {
-    const std::uint8_t *data = _compressed_edges.data();
-
-    const std::uint8_t *node_data = data + _nodes[node];
-    const std::uint8_t *next_node_data = data + _nodes[node + 1];
-
-    const bool is_isolated_node = node_data == next_node_data;
-    if (is_isolated_node) {
-      return {0, 0};
-    }
-
-    const auto [first_edge, degree, _, __] = decode_header(node, node_data, next_node_data);
-    return {first_edge, first_edge + degree};
-  }
-
-  template <typename Lambda> void adjacent_nodes(const NodeID u, Lambda &&l) const {
-    KASSERT(u < n());
-
-    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID>;
-    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID, EdgeWeight>;
-    static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
-
-    const auto invoke_caller = [&](const NodeID v, const EdgeWeight w) {
-      if constexpr (kDecodeEdgeWeights) {
-        return l(v, w);
-      } else {
-        return l(v);
-      }
-    };
-
-    if (is_edge_weighted()) {
-      decode_neighborhood<true>(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
-        return invoke_caller(v, w);
-      });
-    } else {
-      decode_neighborhood<false>(u, [&](const EdgeID e, const NodeID v) {
-        return invoke_caller(v, 1);
-      });
-    }
-  }
-
-  template <typename Lambda> void neighbors(const NodeID u, Lambda &&l) const {
-    KASSERT(u < n());
-
-    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID>;
-    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID, EdgeWeight>;
-    static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
-
-    const auto invoke_caller = [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
-      if constexpr (kDecodeEdgeWeights) {
-        return l(e, v, w);
-      } else {
-        return l(e, v);
-      }
-    };
-
-    if (is_edge_weighted()) {
-      decode_neighborhood<true>(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
-        return invoke_caller(e, v, w);
-      });
-    } else {
-      decode_neighborhood<false>(u, [&](const EdgeID e, const NodeID v) {
-        return invoke_caller(e, v, 1);
-      });
-    }
-  }
-
   template <typename Lambda>
-  void neighbors(const NodeID u, const NodeID max_neighbor_count, Lambda &&l) const {
-    KASSERT(u < n());
-    KASSERT(max_neighbor_count > 0);
-
-    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID>;
-    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID, EdgeWeight>;
-    static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
-
-    using LambdaReturnType = std::conditional_t<
-        kDecodeEdgeWeights,
-        std::invoke_result<Lambda, EdgeID, NodeID, EdgeWeight>,
-        std::invoke_result<Lambda, EdgeID, NodeID>>::type;
-    constexpr bool kNonStoppable = std::is_void_v<LambdaReturnType>;
-
-    const auto invoke_caller = [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
-      if constexpr (kDecodeEdgeWeights) {
-        return l(e, v, w);
-      } else {
-        return l(e, v);
-      }
-    };
-
-    NodeID num_neighbors_visited = 1;
-    const auto check_abort_condition = [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
-      bool abort = num_neighbors_visited++ >= max_neighbor_count;
-
-      if constexpr (kNonStoppable) {
-        invoke_caller(e, v, w);
-      } else {
-        abort |= invoke_caller(e, v, w);
-      }
-
-      return abort;
-    };
-
-    if (is_edge_weighted()) {
-      decode_neighborhood<true>(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
-        return check_abort_condition(e, v, w);
-      });
-    } else {
-      decode_neighborhood<false>(u, [&](const EdgeID e, const NodeID v) {
-        return check_abort_condition(e, v, 1);
-      });
-    }
-  }
-
-  template <typename Lambda>
-  void pfor_neighbors(
-      const NodeID u, const NodeID max_neighbor_count, const NodeID grainsize, Lambda &&l
+  inline void pfor_neighbors(
+      const NodeID u, const NodeID max_num_neighbors, const NodeID grainsize, Lambda &&l
   ) const {
-    if (is_edge_weighted()) {
-      decode_neighborhood<true, true>(u, std::forward<Lambda>(l));
-    } else {
-      constexpr bool kInvokeDirectly = std::is_invocable_v<Lambda, EdgeID, NodeID, EdgeWeight>;
-
-      if constexpr (kInvokeDirectly) {
-        decode_neighborhood<false, true>(u, [&](const EdgeID e, const NodeID v) {
-          return l(e, v, 1);
-        });
-      } else {
-        decode_neighborhood<false, true>(u, [&](auto &&l2) {
-          l([&](auto &&l3) { l2([&](const EdgeID e, const NodeID v) { return l3(e, v, 1); }); });
-        });
-      }
-    }
+    constexpr bool kParallelDecoding = true;
+    _compressed_neighborhoods.decode<kParallelDecoding>(u, std::forward<Lambda>(l));
   }
 
+  //
   // Graph permutation
+  //
+
   inline void set_permutation(StaticArray<NodeID> permutation) final {
     _permutation = std::move(permutation);
   }
@@ -419,7 +258,18 @@ public:
     return std::move(_permutation);
   }
 
+  //
   // Degree buckets
+  //
+
+  [[nodiscard]] inline bool sorted() const final {
+    return _sorted;
+  }
+
+  [[nodiscard]] inline std::size_t number_of_buckets() const final {
+    return _number_of_buckets;
+  }
+
   [[nodiscard]] inline std::size_t bucket_size(const std::size_t bucket) const final {
     return _buckets[bucket + 1] - _buckets[bucket];
   }
@@ -432,21 +282,17 @@ public:
     return first_node_in_bucket(bucket + 1);
   }
 
-  [[nodiscard]] inline std::size_t number_of_buckets() const final {
-    return _number_of_buckets;
-  }
+  //
+  // Isolated nodes
+  //
 
-  [[nodiscard]] inline bool sorted() const final {
-    return _sorted;
-  }
-
-  void update_total_node_weight() final;
-
-  void remove_isolated_nodes(const NodeID isolated_nodes);
+  void remove_isolated_nodes(const NodeID num_isolated_nodes);
 
   void integrate_isolated_nodes();
 
+  //
   // Compressions statistics
+  //
 
   /*!
    * Returns the number of nodes that have high degree.
@@ -454,7 +300,7 @@ public:
    * @returns The number of nodes that have high degree.
    */
   [[nodiscard]] std::size_t num_high_degree_nodes() const {
-    return _num_high_degree_nodes;
+    return _compressed_neighborhoods.num_high_degree_nodes();
   }
 
   /*!
@@ -463,7 +309,7 @@ public:
    * @returns The total number of parts that result from splitting high degree neighborhoods.
    */
   [[nodiscard]] std::size_t num_high_degree_parts() const {
-    return _num_high_degree_parts;
+    return _compressed_neighborhoods.num_high_degree_parts();
   }
 
   /*!
@@ -472,7 +318,7 @@ public:
    * @returns The number of nodes that have at least one interval.
    */
   [[nodiscard]] std::size_t num_interval_nodes() const {
-    return _num_interval_nodes;
+    return _compressed_neighborhoods.num_interval_nodes();
   }
 
   /*!
@@ -481,7 +327,7 @@ public:
    * @returns The total number of intervals.
    */
   [[nodiscard]] std::size_t num_intervals() const {
-    return _num_intervals;
+    return _compressed_neighborhoods.num_intervals();
   }
 
   /*!
@@ -491,7 +337,7 @@ public:
    */
   [[nodiscard]] double compression_ratio() const {
     std::size_t uncompressed_size = (n() + 1) * sizeof(EdgeID) + m() * sizeof(NodeID);
-    std::size_t compressed_size = _nodes.allocated_size() + _compressed_edges.size();
+    std::size_t compressed_size = _compressed_neighborhoods.memory_space();
 
     if (is_node_weighted()) {
       uncompressed_size += n() * sizeof(NodeWeight);
@@ -512,7 +358,7 @@ public:
    */
   [[nodiscard]] std::int64_t size_reduction() const {
     std::size_t uncompressed_size = (n() + 1) * sizeof(EdgeID) + m() * sizeof(NodeID);
-    std::size_t compressed_size = _nodes.allocated_size() + _compressed_edges.size();
+    std::size_t compressed_size = _compressed_neighborhoods.memory_space();
 
     if (is_node_weighted()) {
       uncompressed_size += n() * sizeof(NodeWeight);
@@ -532,328 +378,55 @@ public:
    * @return The amount of memory in bytes used by the data structure.
    */
   [[nodiscard]] std::size_t used_memory() const {
-    return _nodes.allocated_size() + _compressed_edges.size() +
-           _node_weights.size() * sizeof(NodeWeight);
+    return _compressed_neighborhoods.memory_space() + _node_weights.size() * sizeof(NodeWeight);
+  }
+
+  //
+  // Direct member access -- used for some "low level" operations
+  //
+
+  [[nodiscard]] inline CompactStaticArray<EdgeID> &raw_nodes() {
+    return _compressed_neighborhoods.raw_nodes();
+  }
+
+  [[nodiscard]] inline const CompactStaticArray<EdgeID> &raw_nodes() const {
+    return _compressed_neighborhoods.raw_nodes();
+  }
+
+  [[nodiscard]] inline StaticArray<NodeWeight> &raw_node_weights() {
+    return _node_weights;
+  }
+
+  [[nodiscard]] inline const StaticArray<NodeWeight> &raw_node_weights() const {
+    return _node_weights;
+  }
+
+  [[nodiscard]] inline CompactStaticArray<EdgeID> &&take_raw_nodes() {
+    return _compressed_neighborhoods.take_raw_nodes();
+  }
+
+  [[nodiscard]] inline StaticArray<NodeWeight> &&take_raw_node_weights() {
+    return std::move(_node_weights);
+  }
+
+  [[nodiscard]] const StaticArray<std::uint8_t> &raw_compressed_edges() const {
+    return _compressed_neighborhoods.raw_compressed_edges();
   }
 
 private:
-  CompactStaticArray<EdgeID> _nodes;
-  StaticArray<std::uint8_t> _compressed_edges;
+  CompressedNeighborhoods _compressed_neighborhoods;
   StaticArray<NodeWeight> _node_weights;
 
-  EdgeID _edge_count;
-  bool _has_edge_weights;
-  NodeID _max_degree;
-  bool _sorted;
-
+  NodeWeight _max_node_weight = kInvalidNodeWeight;
   NodeWeight _total_node_weight = kInvalidNodeWeight;
   EdgeWeight _total_edge_weight = kInvalidEdgeWeight;
-  NodeWeight _max_node_weight = kInvalidNodeWeight;
 
   StaticArray<NodeID> _permutation;
-
+  bool _sorted;
   std::vector<NodeID> _buckets = std::vector<NodeID>(kNumberOfDegreeBuckets<NodeID> + 1);
   std::size_t _number_of_buckets = 0;
 
-  std::size_t _num_high_degree_nodes;
-  std::size_t _num_high_degree_parts;
-  std::size_t _num_interval_nodes;
-  std::size_t _num_intervals;
-
   void init_degree_buckets();
-
-  inline std::tuple<EdgeID, NodeID, bool, std::size_t> decode_header(
-      const NodeID node, const std::uint8_t *node_data, const std::uint8_t *next_node_data
-  ) const {
-    const auto [first_edge, next_first_edge, uses_intervals, len] = [&] {
-      if constexpr (CompressedGraph::kIntervalEncoding) {
-        auto [first_edge, uses_intervals, len] = marked_varint_decode<EdgeID>(node_data);
-        auto [next_first_edge, _, __] = marked_varint_decode<EdgeID>(next_node_data);
-
-        return std::make_tuple(first_edge, next_first_edge, uses_intervals, len);
-      } else {
-        auto [first_edge, len] = varint_decode<EdgeID>(node_data);
-        auto [next_first_edge, _] = varint_decode<EdgeID>(next_node_data);
-
-        return std::make_tuple(first_edge, next_first_edge, false, len);
-      }
-    }();
-
-    if constexpr (kIsolatedNodesSeparation) {
-      const EdgeID ungapped_first_edge = first_edge + node;
-      const NodeID degree = static_cast<NodeID>(1 + next_first_edge - first_edge);
-      return std::make_tuple(ungapped_first_edge, degree, uses_intervals, len);
-    } else {
-      const NodeID degree = static_cast<NodeID>(next_first_edge - first_edge);
-      return std::make_tuple(first_edge, degree, uses_intervals, len);
-    }
-  }
-
-  template <bool kHasEdgeWeights, bool kParallelDecoding = false, typename Lambda>
-  void decode_neighborhood(const NodeID node, Lambda &&l) const {
-    constexpr bool kInvokeDirectly = []() {
-      if constexpr (kHasEdgeWeights) {
-        return std::is_invocable_v<Lambda, EdgeID, NodeID, EdgeWeight>;
-      } else {
-        return std::is_invocable_v<Lambda, EdgeID, NodeID>;
-      }
-    }();
-
-    const std::uint8_t *data = _compressed_edges.data();
-
-    const std::uint8_t *node_data = data + _nodes[node];
-    const std::uint8_t *next_node_data = data + _nodes[node + 1];
-
-    const bool is_isolated_node = node_data == next_node_data;
-    if (is_isolated_node) {
-      return;
-    }
-
-    const auto header = decode_header(node, node_data, next_node_data);
-    const auto &edge = std::get<0>(header);
-    const auto &degree = std::get<1>(header);
-    const auto &uses_intervals = std::get<2>(header);
-    const auto &len = std::get<3>(header);
-
-    node_data += len;
-
-    if constexpr (kHighDegreeEncoding) {
-      if (degree >= kHighDegreeThreshold) {
-        decode_parts<kHasEdgeWeights, kParallelDecoding>(
-            node_data, node, edge, degree, std::forward<Lambda>(l)
-        );
-        return;
-      }
-    }
-
-    invoke_indirect<kInvokeDirectly>(std::forward<Lambda>(l), [&](auto &&l2) {
-      decode_edges<kHasEdgeWeights>(
-          node_data, node, edge, degree, uses_intervals, std::forward<decltype(l2)>(l2)
-      );
-    });
-  }
-
-  template <bool kHasEdgeWeights, bool kParallelDecoding, typename Lambda>
-  void decode_parts(
-      const std::uint8_t *data,
-      const NodeID node,
-      const EdgeID edge,
-      const NodeID degree,
-      Lambda &&l
-  ) const {
-    constexpr bool kInvokeDirectly = []() {
-      if constexpr (kHasEdgeWeights) {
-        return std::is_invocable_v<Lambda, EdgeID, NodeID, EdgeWeight>;
-      } else {
-        return std::is_invocable_v<Lambda, EdgeID, NodeID>;
-      }
-    }();
-
-    const NodeID part_count = math::div_ceil(degree, kHighDegreePartLength);
-
-    const auto iterate_part = [&](const NodeID part) {
-      const NodeID part_offset = *((NodeID *)(data + sizeof(NodeID) * part));
-      const std::uint8_t *part_data = data + part_offset;
-
-      const NodeID part_count_m1 = part_count - 1;
-      const bool last_part = part == part_count_m1;
-
-      const EdgeID part_edge = edge + kHighDegreePartLength * part;
-      const NodeID part_degree =
-          last_part ? (degree - kHighDegreePartLength * part_count_m1) : kHighDegreePartLength;
-
-      return invoke_indirect2<kInvokeDirectly, bool>(std::forward<Lambda>(l), [&](auto &&l2) {
-        return decode_edges<kHasEdgeWeights>(
-            part_data, node, part_edge, part_degree, true, std::forward<decltype(l2)>(l2)
-        );
-      });
-    };
-
-    if constexpr (kParallelDecoding) {
-      tbb::parallel_for<NodeID>(0, part_count, std::forward<decltype(iterate_part)>(iterate_part));
-    } else {
-      for (NodeID part = 0; part < part_count; ++part) {
-        const bool stop = iterate_part(part);
-        if (stop) {
-          return;
-        }
-      }
-    }
-  }
-
-  template <bool kHasEdgeWeights, typename Lambda>
-  bool decode_edges(
-      const std::uint8_t *data,
-      const NodeID node,
-      EdgeID edge,
-      const NodeID degree,
-      bool uses_intervals,
-      Lambda &&l
-  ) const {
-    const EdgeID max_edge = edge + degree;
-    EdgeWeight prev_edge_weight = 0;
-
-    if constexpr (kIntervalEncoding) {
-      if (uses_intervals) {
-        const bool stop = decode_intervals<kHasEdgeWeights>(
-            data, edge, prev_edge_weight, std::forward<Lambda>(l)
-        );
-        if (stop) {
-          return true;
-        }
-
-        if (edge == max_edge) {
-          return false;
-        }
-      }
-    }
-
-    return decode_gaps<kHasEdgeWeights>(
-        data, node, edge, prev_edge_weight, max_edge, std::forward<Lambda>(l)
-    );
-  }
-
-  template <bool kHasEdgeWeights, typename Lambda>
-  bool decode_intervals(
-      const std::uint8_t *&data, EdgeID &edge, EdgeWeight &prev_edge_weight, Lambda &&l
-  ) const {
-    using LambdaReturnType = std::conditional_t<
-        kHasEdgeWeights,
-        std::invoke_result<Lambda, EdgeID, NodeID, EdgeWeight>,
-        std::invoke_result<Lambda, EdgeID, NodeID>>::type;
-    constexpr bool kNonStoppable = std::is_void_v<LambdaReturnType>;
-
-    const auto invoke_caller = [&](const NodeID adjacent_node) {
-      if constexpr (kHasEdgeWeights) {
-        const auto [edge_weight_gap, length] = signed_varint_decode<EdgeWeight>(data);
-        data += length;
-
-        const EdgeWeight edge_weight = edge_weight_gap + prev_edge_weight;
-        prev_edge_weight = edge_weight;
-        return l(edge, adjacent_node, edge_weight);
-      } else {
-        return l(edge, adjacent_node);
-      }
-    };
-
-    const NodeID interval_count = *((NodeID *)data);
-    data += sizeof(NodeID);
-
-    NodeID previous_right_extreme = 2;
-    for (NodeID i = 0; i < interval_count; ++i) {
-      const auto [left_extreme_gap, left_extreme_gap_len] = varint_decode<NodeID>(data);
-      data += left_extreme_gap_len;
-
-      const auto [interval_length_gap, interval_length_gap_len] = varint_decode<NodeID>(data);
-      data += interval_length_gap_len;
-
-      const NodeID cur_left_extreme = left_extreme_gap + previous_right_extreme - 2;
-      const NodeID cur_interval_len = interval_length_gap + kIntervalLengthTreshold;
-      previous_right_extreme = cur_left_extreme + cur_interval_len - 1;
-
-      for (NodeID j = 0; j < cur_interval_len; ++j) {
-        if constexpr (kNonStoppable) {
-          invoke_caller(cur_left_extreme + j);
-        } else {
-          const bool stop = invoke_caller(cur_left_extreme + j);
-          if (stop) {
-            return true;
-          }
-        }
-
-        edge += 1;
-      }
-    }
-
-    return false;
-  }
-
-  template <bool kHasEdgeWeights, typename Lambda>
-  bool decode_gaps(
-      const std::uint8_t *data,
-      NodeID node,
-      EdgeID &edge,
-      EdgeWeight &prev_edge_weight,
-      const EdgeID max_edge,
-      Lambda &&l
-  ) const {
-    using LambdaReturnType = std::conditional_t<
-        kHasEdgeWeights,
-        std::invoke_result<Lambda, EdgeID, NodeID, EdgeWeight>,
-        std::invoke_result<Lambda, EdgeID, NodeID>>::type;
-    constexpr bool kNonStoppable = std::is_void_v<LambdaReturnType>;
-
-    const auto invoke_caller = [&](const NodeID adjacent_node) {
-      if constexpr (kHasEdgeWeights) {
-        const auto [edge_weight_gap, length] = signed_varint_decode<EdgeWeight>(data);
-        data += length;
-
-        const EdgeWeight edge_weight = edge_weight_gap + prev_edge_weight;
-        prev_edge_weight = edge_weight;
-        return l(edge, adjacent_node, edge_weight);
-      } else {
-        return l(edge, adjacent_node);
-      }
-    };
-
-    const auto [first_gap, first_gap_len] = signed_varint_decode<SignedID>(data);
-    data += first_gap_len;
-
-    const NodeID first_adjacent_node = static_cast<NodeID>(first_gap + node);
-    NodeID prev_adjacent_node = first_adjacent_node;
-
-    if constexpr (kNonStoppable) {
-      invoke_caller(first_adjacent_node);
-    } else {
-      const bool stop = invoke_caller(first_adjacent_node);
-      if (stop) {
-        return true;
-      }
-    }
-    edge += 1;
-
-    /*
-    const auto handle_gap = [&](const NodeID gap) {
-      const NodeID adjacent_node = gap + prev_adjacent_node + 1;
-      prev_adjacent_node = adjacent_node;
-
-      if constexpr (kNonStoppable) {
-        l(edge++, adjacent_node);
-      } else {
-        return l(edge++, adjacent_node);
-      }
-    };
-    */
-
-    if constexpr (kRunLengthEncoding) {
-      // VarIntRunLengthDecoder<NodeID> rl_decoder(data, max_edge - edge);
-      // rl_decoder.decode(std::forward<decltype(handle_gap)>(handle_gap));
-    } else if constexpr (kStreamEncoding) {
-      // VarIntStreamDecoder<NodeID> sv_encoder(data, max_edge - edge);
-      // sv_encoder.decode(std::forward<decltype(handle_gap)>(handle_gap));
-    } else {
-      while (edge != max_edge) {
-        const auto [gap, gap_len] = varint_decode<NodeID>(data);
-        data += gap_len;
-
-        const NodeID adjacent_node = gap + prev_adjacent_node + 1;
-        prev_adjacent_node = adjacent_node;
-
-        if constexpr (kNonStoppable) {
-          invoke_caller(adjacent_node);
-        } else {
-          const bool stop = invoke_caller(adjacent_node);
-          if (stop) {
-            return true;
-          }
-        }
-
-        edge += 1;
-      }
-    }
-
-    return false;
-  }
 };
 
 } // namespace kaminpar::shm

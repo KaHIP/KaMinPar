@@ -102,7 +102,6 @@ public:
   [[nodiscard]] inline NodeID map_remote_node(const NodeID lnode, const PEID owner) const { return _graph->map_remote_node(lnode, owner); }
   [[nodiscard]] inline NodeID global_to_local_node(const GlobalNodeID global_u) const { return _graph->global_to_local_node(global_u); }
   [[nodiscard]] inline NodeWeight node_weight(const NodeID u) const { return _graph->node_weight(u); }
-  [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const { return _graph->edge_weight(e); }
   [[nodiscard]] inline NodeID degree(const NodeID u) const { return _graph->degree(u); }
   [[nodiscard]] inline const auto &node_distribution() const { return _graph->node_distribution(); }
   [[nodiscard]] inline GlobalNodeID node_distribution(const PEID pe) const { return _graph->node_distribution(pe); }

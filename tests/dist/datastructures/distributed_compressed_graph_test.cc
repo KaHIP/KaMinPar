@@ -9,7 +9,9 @@
 #include "tests/dist/distributed_graph_factories.h"
 
 #include "kaminpar-dist/datastructures/distributed_compressed_graph.h"
-#include "kaminpar-dist/datastructures/distributed_compressed_graph_builder.h"
+#include "kaminpar-dist/graphutils/synchronization.h"
+
+#include "kaminpar-common/graph-compression/compressed_neighborhoods_builder.h"
 
 #define TEST_ON_ALL_GRAPHS(test_function)                                                          \
   test_function(testing::make_csr_empty_graph());                                                  \
@@ -29,11 +31,84 @@ template <typename T> static bool operator==(const IotaRange<T> &a, const IotaRa
   return a.begin() == b.begin() && a.end() == b.end();
 };
 
+DistributedCompressedGraph compress(const DistributedCSRGraph &graph) {
+  const mpi::PEID size = mpi::get_comm_size(graph.communicator());
+  const mpi::PEID rank = mpi::get_comm_rank(graph.communicator());
+
+  StaticArray<GlobalNodeID> node_distribution(
+      graph.node_distribution().begin(), graph.node_distribution().end()
+  );
+  StaticArray<GlobalEdgeID> edge_distribution(
+      graph.edge_distribution().begin(), graph.edge_distribution().end()
+  );
+
+  graph::GhostNodeMapper mapper(rank, node_distribution);
+  CompressedNeighborhoodsBuilder<NodeID, EdgeID, EdgeWeight> builder(
+      graph.n(), graph.m(), graph.is_edge_weighted()
+  );
+
+  const NodeID first_node = node_distribution[rank];
+  const NodeID last_node = node_distribution[rank + 1];
+
+  const auto &raw_nodes = graph.raw_nodes();
+  const auto &raw_edges = graph.raw_nodes();
+  const auto &raw_node_weights = graph.raw_nodes();
+
+  std::vector<std::pair<NodeID, EdgeWeight>> neighbourhood;
+  for (const NodeID u : graph.nodes()) {
+    graph.neighbors(u, [&](const EdgeID e, const NodeID adjacent_node) {
+      const EdgeWeight edge_weight = graph.is_edge_weighted() ? graph.edge_weight(e) : 1;
+
+      if (graph.is_owned_node(adjacent_node)) {
+        neighbourhood.emplace_back(adjacent_node, edge_weight);
+      } else {
+        const NodeID original_adjacent_node = graph.local_to_global_node(adjacent_node);
+        neighbourhood.emplace_back(mapper.new_ghost_node(original_adjacent_node), edge_weight);
+      }
+    });
+
+    builder.add(u, neighbourhood);
+    neighbourhood.clear();
+  }
+
+  StaticArray<NodeWeight> node_weights;
+  if (graph.is_node_weighted()) {
+    node_weights.resize(graph.n() + mapper.next_ghost_node(), static_array::noinit);
+
+    tbb::parallel_for(tbb::blocked_range<NodeID>(0, graph.n()), [&](const auto &r) {
+      for (NodeID u = r.begin(); u != r.end(); ++u) {
+        node_weights[u] = raw_node_weights[first_node + u];
+      }
+    });
+  }
+
+  auto [global_to_ghost, ghost_to_global, ghost_owner] = mapper.finalize();
+
+  DistributedCompressedGraph compressed_graph(
+      std::move(node_distribution),
+      std::move(edge_distribution),
+      builder.build(),
+      std::move(node_weights),
+      std::move(ghost_owner),
+      std::move(ghost_to_global),
+      std::move(global_to_ghost),
+      graph.sorted(),
+      graph.communicator()
+  );
+
+  // Fill in ghost node weights
+  if (graph.is_node_weighted()) {
+    graph::synchronize_ghost_node_weights(compressed_graph);
+  }
+
+  return compressed_graph;
+}
+
 static void test_compressed_graph_size(const DistributedCSRGraph &graph) {
   const mpi::PEID size = mpi::get_comm_size(graph.communicator());
   const mpi::PEID rank = mpi::get_comm_rank(graph.communicator());
 
-  const auto compressed_graph = DistributedCompressedGraphBuilder::compress(graph);
+  const auto compressed_graph = compress(graph);
 
   EXPECT_EQ(graph.global_n(), compressed_graph.global_n());
   EXPECT_EQ(graph.global_m(), compressed_graph.global_m());
@@ -61,7 +136,7 @@ TEST(DistributedCompressedGraphTest, compressed_graph_size) {
 }
 
 static void test_compressed_graph_node_ownership(const DistributedCSRGraph &graph) {
-  const auto compressed_graph = DistributedCompressedGraphBuilder::compress(graph);
+  const auto compressed_graph = compress(graph);
 
   for (const NodeID u : IotaRange<GlobalNodeID>(0, graph.global_n())) {
     EXPECT_EQ(graph.is_owned_global_node(u), compressed_graph.is_owned_global_node(u));
@@ -74,7 +149,7 @@ TEST(DistributedCompressedGraphTest, compressed_graph_node_ownership) {
 }
 
 static void test_compressed_graph_node_type(const DistributedCSRGraph &graph) {
-  const auto compressed_graph = DistributedCompressedGraphBuilder::compress(graph);
+  const auto compressed_graph = compress(graph);
 
   for (const NodeID u : graph.all_nodes()) {
     EXPECT_EQ(graph.is_ghost_node(u), compressed_graph.is_ghost_node(u));
@@ -98,7 +173,7 @@ TEST(DistributedCompressedGraphTest, compressed_graph_node_type) {
 }
 
 static void test_compressed_graph_iterators(const DistributedCSRGraph &graph) {
-  const auto compressed_graph = DistributedCompressedGraphBuilder::compress(graph);
+  const auto compressed_graph = compress(graph);
 
   EXPECT_TRUE(graph.nodes() == compressed_graph.nodes());
   EXPECT_TRUE(graph.ghost_nodes() == compressed_graph.ghost_nodes());
@@ -115,7 +190,7 @@ TEST(DistributedCompressedGraphTest, compressed_graph_iterators) {
 }
 
 static void test_compressed_graph_cached_inter_pe_metrics(const DistributedCSRGraph &graph) {
-  const auto compressed_graph = DistributedCompressedGraphBuilder::compress(graph);
+  const auto compressed_graph = compress(graph);
 
   const mpi::PEID size = mpi::get_comm_size(graph.communicator());
   for (mpi::PEID pe = 0; pe < size; ++pe) {
@@ -131,7 +206,7 @@ TEST(DistributedCompressedGraphTest, compressed_graph_cached_inter_pe_metrics) {
 }
 
 static void test_compressed_graph_degree_operation(const DistributedCSRGraph &graph) {
-  const auto compressed_graph = DistributedCompressedGraphBuilder::compress(graph);
+  const auto compressed_graph = compress(graph);
 
   for (const NodeID u : graph.nodes()) {
     EXPECT_EQ(graph.degree(u), compressed_graph.degree(u));
@@ -143,7 +218,7 @@ TEST(DistributedCompressedGraphTest, compressed_graph_degree_operation) {
 }
 
 static void test_compressed_graph_adjacent_nodes_operation(const DistributedCSRGraph &graph) {
-  const auto compressed_graph = DistributedCompressedGraphBuilder::compress(graph);
+  const auto compressed_graph = compress(graph);
 
   std::vector<NodeID> graph_neighbours;
   std::vector<NodeID> compressed_graph_neighbours;
@@ -170,7 +245,7 @@ TEST(DistributedCompressedGraphTest, compressed_graph_adjacent_nodes_operation) 
 }
 
 static void test_compressed_graph_neighbors_operation(const DistributedCSRGraph &graph) {
-  const auto compressed_graph = DistributedCompressedGraphBuilder::compress(graph);
+  const auto compressed_graph = compress(graph);
 
   std::vector<EdgeID> graph_incident_edges;
   std::vector<NodeID> graph_adjacent_node;
@@ -208,7 +283,7 @@ TEST(DistributedCompressedGraphTest, compressed_graph_neighbors_operation) {
 }
 
 static void test_compressed_graph_neighbors_limit_operation(const DistributedCSRGraph &graph) {
-  const auto compressed_graph = DistributedCompressedGraphBuilder::compress(graph);
+  const auto compressed_graph = compress(graph);
 
   for (const NodeID u : graph.nodes()) {
     const NodeID max_neighbor_count = std::max<NodeID>(1, graph.degree(u) / 2);

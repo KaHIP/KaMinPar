@@ -11,15 +11,10 @@
 #include <cstdint>
 #include <fstream>
 
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
-#include <tbb/task_arena.h>
-#include <unistd.h>
 
-#include "kaminpar-shm/datastructures/compressed_graph_builder.h"
+#include "kaminpar-shm/graphutils/compressed_graph_builder.h"
+#include "kaminpar-shm/graphutils/parallel_compressed_graph_builder.h"
 #include "kaminpar-shm/graphutils/permutator.h"
 #include "kaminpar-shm/kaminpar.h"
 
@@ -27,82 +22,9 @@
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 
+#include "apps/io/binary_util.h"
+
 namespace {
-
-class BinaryReaderException : public std::exception {
-public:
-  BinaryReaderException(std::string msg) : _msg(std::move(msg)) {}
-
-  [[nodiscard]] const char *what() const noexcept override {
-    return _msg.c_str();
-  }
-
-private:
-  std::string _msg;
-};
-
-class BinaryReader {
-public:
-  BinaryReader(const std::string &filename) {
-    _file = open(filename.c_str(), O_RDONLY);
-    if (_file == -1) {
-      throw BinaryReaderException("Cannot read the file that stores the graph");
-    }
-
-    struct stat file_info;
-    if (fstat(_file, &file_info) == -1) {
-      close(_file);
-      throw BinaryReaderException("Cannot determine the size of the file that stores the graph");
-    }
-
-    _length = static_cast<std::size_t>(file_info.st_size);
-    _data = static_cast<std::uint8_t *>(mmap(nullptr, _length, PROT_READ, MAP_PRIVATE, _file, 0));
-    if (_data == MAP_FAILED) {
-      close(_file);
-      throw BinaryReaderException("Cannot map the file that stores the graph");
-    }
-  }
-
-  ~BinaryReader() {
-    munmap(_data, _length);
-    close(_file);
-  }
-
-  template <typename T> [[nodiscard]] T read(std::size_t position) const {
-    return *reinterpret_cast<T *>(_data + position);
-  }
-
-  template <typename T> [[nodiscard]] const T *fetch(std::size_t position) const {
-    return reinterpret_cast<const T *>(_data + position);
-  }
-
-private:
-  int _file;
-  std::size_t _length;
-  std::uint8_t *_data;
-};
-
-class BinaryWriter {
-public:
-  BinaryWriter(const std::string &filename) : _out(filename, std::ios::binary) {}
-
-  void write(const char *data, const std::size_t size) {
-    _out.write(data, size);
-  }
-
-  template <typename T> void write_int(const T value) {
-    _out.write(reinterpret_cast<const char *>(&value), sizeof(T));
-  }
-
-  template <typename T> void write_static_array(const kaminpar::StaticArray<T> &static_array) {
-    const char *data = reinterpret_cast<const char *>(static_array.data());
-    const std::size_t size = static_array.size() * sizeof(T);
-    write(data, size);
-  }
-
-private:
-  std::ofstream _out;
-};
 
 class ParhipHeader {
   using CompressedGraph = kaminpar::shm::CompressedGraph;
@@ -202,6 +124,7 @@ public:
 } // namespace
 
 namespace kaminpar::shm::io::parhip {
+using namespace kaminpar::io;
 
 CSRGraph csr_read(const std::string &filename, const bool sorted) {
   std::ifstream in(filename, std::ios::binary);
@@ -364,7 +287,7 @@ CompressedGraph compressed_read_parallel(const std::string &filename, const Node
       const auto [perm, inv_perm] =
           graph::sort_by_degree_buckets(num_nodes, [&](const NodeID u) { return degrees[u]; });
 
-      return ParallelCompressedGraphBuilder::compress(
+      return parallel_compress(
           num_nodes,
           num_edges,
           header.has_node_weights,
@@ -378,7 +301,7 @@ CompressedGraph compressed_read_parallel(const std::string &filename, const Node
           [&](const EdgeID e) { return edge_weights[e]; }
       );
     } else {
-      return ParallelCompressedGraphBuilder::compress(
+      return parallel_compress(
           num_nodes,
           num_edges,
           header.has_node_weights,
@@ -424,15 +347,15 @@ void write(const std::string &filename, const CSRGraph &graph) {
     }
   });
 
-  writer.write_static_array(raw_nodes);
-  writer.write_static_array(graph.raw_edges());
+  writer.write_raw_static_array(raw_nodes);
+  writer.write_raw_static_array(graph.raw_edges());
 
   if (has_node_weights) {
-    writer.write_static_array(graph.raw_node_weights());
+    writer.write_raw_static_array(graph.raw_node_weights());
   }
 
   if (has_edge_weights) {
-    writer.write_static_array(graph.raw_edge_weights());
+    writer.write_raw_static_array(graph.raw_edge_weights());
   }
 }
 

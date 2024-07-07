@@ -8,6 +8,7 @@
 #include "kaminpar-dist/context.h"
 
 #include <algorithm>
+#include <numeric>
 
 #include <tbb/parallel_for.h>
 

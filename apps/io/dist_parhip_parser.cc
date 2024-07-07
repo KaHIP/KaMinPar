@@ -7,80 +7,29 @@
  ******************************************************************************/
 #include "apps/io/dist_parhip_parser.h"
 
-#include <cstdint>
 #include <numeric>
-
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <unistd.h>
 
 #include "kaminpar-mpi/datatype.h"
 #include "kaminpar-mpi/utils.h"
 
-#include "kaminpar-dist/datastructures/distributed_compressed_graph_builder.h"
 #include "kaminpar-dist/datastructures/ghost_node_mapper.h"
 #include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/graphutils/synchronization.h"
 
-#include "kaminpar-common/logger.h"
+#include "kaminpar-common/datastructures/static_array.h"
+#include "kaminpar-common/graph-compression/compressed_neighborhoods_builder.h"
+
+#include "apps/io/binary_util.h"
 
 namespace {
 
-class BinaryReaderException : public std::exception {
+class ParhipHeader {
+  using NodeID = kaminpar::dist::NodeID;
+  using EdgeID = kaminpar::dist::EdgeID;
+  using NodeWeight = kaminpar::dist::NodeWeight;
+  using EdgeWeight = kaminpar::dist::EdgeWeight;
+
 public:
-  BinaryReaderException(std::string msg) : _msg(std::move(msg)) {}
-
-  [[nodiscard]] const char *what() const noexcept override {
-    return _msg.c_str();
-  }
-
-private:
-  std::string _msg;
-};
-
-class BinaryReader {
-public:
-  BinaryReader(const std::string &filename) {
-    _file = open(filename.c_str(), O_RDONLY);
-    if (_file == -1) {
-      throw BinaryReaderException("Cannot read the file that stores the graph");
-    }
-
-    struct stat file_info;
-    if (fstat(_file, &file_info) == -1) {
-      close(_file);
-      throw BinaryReaderException("Cannot determine the size of the file that stores the graph");
-    }
-
-    _length = static_cast<std::size_t>(file_info.st_size);
-    _data = static_cast<std::uint8_t *>(mmap(nullptr, _length, PROT_READ, MAP_PRIVATE, _file, 0));
-    if (_data == MAP_FAILED) {
-      close(_file);
-      throw BinaryReaderException("Cannot map the file that stores the graph");
-    }
-  }
-
-  ~BinaryReader() {
-    munmap(_data, _length);
-    close(_file);
-  }
-
-  template <typename T> [[nodiscard]] T read(std::size_t position) const {
-    return *reinterpret_cast<T *>(_data + position);
-  }
-
-  template <typename T> [[nodiscard]] T *fetch(std::size_t position) const {
-    return reinterpret_cast<T *>(_data + position);
-  }
-
-private:
-  int _file;
-  std::size_t _length;
-  std::uint8_t *_data;
-};
-
-struct ParhipHeader {
   static constexpr std::uint64_t kSize = 3 * sizeof(std::uint64_t);
 
   bool has_edge_weights;
@@ -101,11 +50,58 @@ struct ParhipHeader {
         has_64_bit_edge_weight((version & 32) == 0),
         num_nodes(num_nodes),
         num_edges(num_edges) {}
+
+  void validate() const {
+    if (has_64_bit_node_id) {
+      if (sizeof(NodeID) != 8) {
+        LOG_ERROR << "The stored graph uses 64-Bit node IDs but this build uses 32-Bit node IDs.";
+        std::exit(1);
+      }
+    } else if (sizeof(NodeID) != 4) {
+      LOG_ERROR << "The stored graph uses 32-Bit node IDs but this build uses 64-Bit node IDs.";
+      std::exit(1);
+    }
+
+    if (has_64_bit_edge_id) {
+      if (sizeof(EdgeID) != 8) {
+        LOG_ERROR << "The stored graph uses 64-Bit edge IDs but this build uses 32-Bit edge IDs.";
+        std::exit(1);
+      }
+    } else if (sizeof(EdgeID) != 4) {
+      LOG_ERROR << "The stored graph uses 32-Bit edge IDs but this build uses 64-Bit edge IDs.";
+      std::exit(1);
+    }
+
+    if (has_64_bit_node_weight) {
+      if (sizeof(NodeWeight) != 8) {
+        LOG_ERROR << "The stored graph uses 64-Bit node weights but this build uses 32-Bit node "
+                     "weights.";
+        std::exit(1);
+      }
+    } else if (sizeof(NodeWeight) != 4) {
+      LOG_ERROR << "The stored graph uses 32-Bit node weights but this build uses 64-Bit node "
+                   "weights.";
+      std::exit(1);
+    }
+
+    if (has_64_bit_edge_weight) {
+      if (sizeof(EdgeWeight) != 8) {
+        LOG_ERROR << "The stored graph uses 64-Bit edge weights but this build uses 32-Bit edge "
+                     "weights.";
+        std::exit(1);
+      }
+    } else if (sizeof(EdgeWeight) != 4) {
+      LOG_ERROR << "The stored graph uses 32-Bit edge weights but this build uses 64-Bit edge "
+                   "weights.";
+      std::exit(1);
+    }
+  }
 };
 
 } // namespace
 
 namespace kaminpar::dist::io::parhip {
+using namespace kaminpar::io;
 
 namespace {
 
@@ -156,6 +152,7 @@ DistributedCSRGraph csr_read(const std::string &filename, const bool sorted, con
   const auto num_nodes = reader.read<std::uint64_t>(sizeof(std::uint64_t));
   const auto num_edges = reader.read<std::uint64_t>(sizeof(std::uint64_t) * 2);
   const ParhipHeader header(version, num_nodes, num_edges);
+  header.validate();
 
   std::size_t position = ParhipHeader::kSize;
 
@@ -163,10 +160,12 @@ DistributedCSRGraph csr_read(const std::string &filename, const bool sorted, con
   position += (header.num_nodes + 1) * sizeof(EdgeID);
 
   const NodeID *raw_edges = reader.fetch<NodeID>(position);
-  position += header.num_edges + sizeof(NodeID);
+  position += header.num_edges * sizeof(NodeID);
 
   const NodeWeight *raw_node_weights = reader.fetch<NodeWeight>(position);
-  position += header.num_nodes + sizeof(NodeWeight);
+  if (header.has_node_weights) {
+    position += header.num_nodes * sizeof(NodeWeight);
+  }
 
   const EdgeWeight *raw_edge_weights = reader.fetch<EdgeWeight>(position);
 
@@ -299,6 +298,7 @@ compressed_read(const std::string &filename, const bool sorted, const MPI_Comm c
   const auto num_nodes = reader.read<std::uint64_t>(sizeof(std::uint64_t));
   const auto num_edges = reader.read<std::uint64_t>(sizeof(std::uint64_t) * 2);
   const ParhipHeader header(version, num_nodes, num_edges);
+  header.validate();
 
   std::size_t position = ParhipHeader::kSize;
 
@@ -306,10 +306,12 @@ compressed_read(const std::string &filename, const bool sorted, const MPI_Comm c
   position += (header.num_nodes + 1) * sizeof(EdgeID);
 
   const NodeID *raw_edges = reader.fetch<NodeID>(position);
-  position += header.num_edges + sizeof(NodeID);
+  position += header.num_edges * sizeof(NodeID);
 
   const NodeWeight *raw_node_weights = reader.fetch<NodeWeight>(position);
-  position += header.num_nodes + sizeof(NodeWeight);
+  if (header.has_node_weights) {
+    position += header.num_nodes * sizeof(NodeWeight);
+  }
 
   const EdgeWeight *raw_edge_weights = reader.fetch<EdgeWeight>(position);
 
@@ -364,8 +366,8 @@ compressed_read(const std::string &filename, const bool sorted, const MPI_Comm c
   );
 
   graph::GhostNodeMapper mapper(rank, node_distribution);
-  DistributedCompressedGraphBuilder builder(
-      num_local_nodes, num_local_edges, header.has_node_weights, header.has_edge_weights, sorted
+  CompressedNeighborhoodsBuilder<NodeID, EdgeID, EdgeWeight> builder(
+      num_local_nodes, num_local_edges, header.has_edge_weights
   );
 
   std::vector<std::pair<NodeID, EdgeWeight>> neighbourhood;
@@ -394,7 +396,7 @@ compressed_read(const std::string &filename, const bool sorted, const MPI_Comm c
       neighbourhood.emplace_back(adjacent_node, edge_weight);
     }
 
-    builder.add_node(u - first_node, neighbourhood);
+    builder.add(u - first_node, neighbourhood);
     neighbourhood.clear();
   }
 
@@ -410,15 +412,12 @@ compressed_read(const std::string &filename, const bool sorted, const MPI_Comm c
   }
 
   auto [global_to_ghost, ghost_to_global, ghost_owner] = mapper.finalize();
-  auto [nodes, edges, edge_weights] = builder.build();
 
   DistributedCompressedGraph graph(
       std::move(node_distribution),
       std::move(edge_distribution),
-      std::move(nodes),
-      std::move(edges),
+      builder.build(),
       std::move(node_weights),
-      std::move(edge_weights),
       std::move(ghost_owner),
       std::move(ghost_to_global),
       std::move(global_to_ghost),

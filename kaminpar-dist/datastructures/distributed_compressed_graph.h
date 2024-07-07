@@ -17,11 +17,12 @@
 
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/degree_buckets.h"
-#include "kaminpar-common/graph-compression/compressed_edges.h"
+#include "kaminpar-common/graph-compression/compressed_neighborhoods.h"
 
 namespace kaminpar::dist {
 
 class DistributedCompressedGraph : public AbstractDistributedGraph {
+
 public:
   // Data types used for this graph
   using AbstractDistributedGraph::EdgeID;
@@ -33,13 +34,12 @@ public:
   using AbstractDistributedGraph::NodeID;
   using AbstractDistributedGraph::NodeWeight;
 
-  using CompressedEdges = kaminpar::CompressedEdges<NodeID, EdgeID>;
+  using CompressedNeighborhoods = kaminpar::CompressedNeighborhoods<NodeID, EdgeID, EdgeWeight>;
 
   DistributedCompressedGraph(
       StaticArray<GlobalNodeID> node_distribution,
       StaticArray<GlobalEdgeID> edge_distribution,
-      StaticArray<EdgeID> nodes,
-      CompressedEdges compressed_edges,
+      CompressedNeighborhoods compressed_neighborhoods,
       StaticArray<PEID> ghost_owner,
       StaticArray<GlobalNodeID> ghost_to_global,
       growt::StaticGhostNodeMapping global_to_ghost,
@@ -49,9 +49,7 @@ public:
       : DistributedCompressedGraph(
             std::move(node_distribution),
             std::move(edge_distribution),
-            std::move(nodes),
-            std::move(compressed_edges),
-            {},
+            std::move(compressed_neighborhoods),
             {},
             std::move(ghost_owner),
             std::move(ghost_to_global),
@@ -63,10 +61,8 @@ public:
   DistributedCompressedGraph(
       StaticArray<GlobalNodeID> node_distribution,
       StaticArray<GlobalEdgeID> edge_distribution,
-      StaticArray<EdgeID> nodes,
-      CompressedEdges compressed_edges,
+      CompressedNeighborhoods compressed_neighborhoods,
       StaticArray<NodeWeight> node_weights,
-      StaticArray<EdgeWeight> edge_weights,
       StaticArray<PEID> ghost_owner,
       StaticArray<GlobalNodeID> ghost_to_global,
       growt::StaticGhostNodeMapping global_to_ghost,
@@ -75,10 +71,8 @@ public:
   )
       : _node_distribution(std::move(node_distribution)),
         _edge_distribution(std::move(edge_distribution)),
-        _nodes(std::move(nodes)),
-        _compressed_edges(std::move(compressed_edges)),
+        _compressed_neighborhoods(std::move(compressed_neighborhoods)),
         _node_weights(std::move(node_weights)),
-        _edge_weights(std::move(edge_weights)),
         _ghost_owner(std::move(ghost_owner)),
         _ghost_to_global(std::move(ghost_to_global)),
         _global_to_ghost(std::move(global_to_ghost)),
@@ -86,8 +80,8 @@ public:
         _communicator(comm) {
     const PEID rank = mpi::get_comm_rank(communicator());
 
-    _n = _nodes.size() - 1;
-    _m = _compressed_edges.num_edges();
+    _n = _compressed_neighborhoods.num_nodes();
+    _m = compressed_neighborhoods.num_edges();
     _ghost_n = _ghost_to_global.size();
     _offset_n = _node_distribution[rank];
     _offset_m = _edge_distribution[rank];
@@ -190,15 +184,11 @@ public:
   }
 
   [[nodiscard]] inline bool is_edge_weighted() const final {
-    return !_edge_weights.empty();
-  }
-
-  [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const final {
-    return is_edge_weighted() ? _edge_weights[e] : 1;
+    return _compressed_neighborhoods.has_edge_weights();
   }
 
   [[nodiscard]] inline EdgeWeight total_edge_weight() const final {
-    return _total_edge_weight;
+    return _compressed_neighborhoods.total_edge_weight();
   }
 
   [[nodiscard]] inline GlobalEdgeWeight global_total_edge_weight() const final {
@@ -291,7 +281,7 @@ public:
   }
 
   [[nodiscard]] inline IotaRange<EdgeID> incident_edges(const NodeID u) const final {
-    return _compressed_edges.incident_edges(u, _nodes[u], _nodes[u + 1]);
+    return _compressed_neighborhoods.incident_edges(u);
   }
 
   //
@@ -299,23 +289,47 @@ public:
   //
 
   template <typename Lambda> inline void adjacent_nodes(const NodeID u, Lambda &&l) const {
-    _compressed_edges.decode_neighborhood(
-        u,
-        _nodes[u],
-        _nodes[u + 1],
-        [&](const EdgeID incident_edge, const NodeID adjacent_node) { return l(adjacent_node); }
-    );
+    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID>;
+    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID, EdgeWeight>;
+    static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
+
+    _compressed_neighborhoods.decode(u, [&](const EdgeID, const NodeID v, const EdgeWeight w) {
+      if constexpr (kDecodeEdgeWeights) {
+        return l(v, w);
+      } else {
+        return l(v);
+      }
+    });
   }
 
   template <typename Lambda> inline void neighbors(const NodeID u, Lambda &&l) const {
-    _compressed_edges.decode_neighborhood(u, _nodes[u], _nodes[u + 1], std::forward<Lambda>(l));
+    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID>;
+    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID, EdgeWeight>;
+    static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
+
+    _compressed_neighborhoods.decode(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
+      if constexpr (kDecodeEdgeWeights) {
+        return l(e, v, w);
+      } else {
+        return l(e, v);
+      }
+    });
   }
 
   template <typename Lambda>
   inline void neighbors(const NodeID u, const NodeID max_num_neighbors, Lambda &&l) const {
-    _compressed_edges.decode_neighborhood(
-        u, max_num_neighbors, _nodes[u], _nodes[u + 1], std::forward<Lambda>(l)
-    );
+    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID>;
+    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID, EdgeWeight>;
+    static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
+
+    _compressed_neighborhoods
+        .decode(u, max_num_neighbors, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
+          if constexpr (kDecodeEdgeWeights) {
+            return l(e, v, w);
+          } else {
+            return l(e, v);
+          }
+        });
   }
 
   //
@@ -362,15 +376,11 @@ public:
 
   [[nodiscard]] inline NodeID degree(const NodeID u) const final {
     KASSERT(is_owned_node(u));
-    return _compressed_edges.degree(u, _nodes[u], _nodes[u + 1]);
+    return _compressed_neighborhoods.degree(u);
   }
 
   [[nodiscard]] inline const StaticArray<NodeWeight> &node_weights() const final {
     return _node_weights;
-  }
-
-  [[nodiscard]] inline const StaticArray<EdgeWeight> &edge_weights() const final {
-    return _edge_weights;
   }
 
   inline void set_ghost_node_weight(const NodeID ghost_node, const NodeWeight weight) final {
@@ -510,7 +520,7 @@ public:
 
   [[nodiscard]] double compression_ratio() const {
     std::size_t uncompressed_size = (n() + 1) * sizeof(EdgeID) + m() * sizeof(NodeID);
-    std::size_t compressed_size = (n() + 1) * sizeof(EdgeID) + _compressed_edges.size();
+    std::size_t compressed_size = _compressed_neighborhoods.memory_space();
 
     if (is_node_weighted()) {
       uncompressed_size += n() * sizeof(NodeWeight);
@@ -519,21 +529,16 @@ public:
 
     if (is_edge_weighted()) {
       uncompressed_size += m() * sizeof(EdgeWeight);
-      compressed_size += m() * sizeof(EdgeWeight);
     }
 
     return uncompressed_size / static_cast<double>(compressed_size);
   }
 
   [[nodiscard]] std::size_t memory_space() const {
-    std::size_t memory_space = (n() + 1) * sizeof(EdgeID) + _compressed_edges.size();
+    std::size_t memory_space = _compressed_neighborhoods.memory_space();
 
     if (is_node_weighted()) {
       memory_space += n() * sizeof(NodeWeight);
-    }
-
-    if (is_edge_weighted()) {
-      memory_space += m() * sizeof(EdgeWeight);
     }
 
     return memory_space;
@@ -561,10 +566,6 @@ public:
     return _node_weights;
   }
 
-  [[nodiscard]] const auto &raw_edge_weights() const {
-    return _edge_weights;
-  }
-
 private:
   void init_degree_buckets();
   void init_total_weights();
@@ -583,16 +584,13 @@ private:
   NodeWeight _max_node_weight{};
   NodeWeight _global_max_node_weight{};
 
-  EdgeWeight _total_edge_weight{};
   GlobalEdgeWeight _global_total_edge_weight{};
 
   StaticArray<GlobalNodeID> _node_distribution{};
   StaticArray<GlobalEdgeID> _edge_distribution{};
 
-  StaticArray<EdgeID> _nodes{};
-  CompressedEdges _compressed_edges;
+  CompressedNeighborhoods _compressed_neighborhoods;
   StaticArray<NodeWeight> _node_weights{};
-  StaticArray<EdgeWeight> _edge_weights{};
 
   StaticArray<PEID> _ghost_owner{};
   StaticArray<GlobalNodeID> _ghost_to_global{};

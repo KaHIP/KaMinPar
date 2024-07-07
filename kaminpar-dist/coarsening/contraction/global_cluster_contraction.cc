@@ -270,13 +270,13 @@ find_nonlocal_edges(const Graph &graph, const StaticArray<GlobalNodeID> &lnode_t
 
     if (!graph.is_owned_global_node(gcluster_u)) {
       NodeID pos = edge_position_buffer[lnode_u];
-      graph.neighbors(lnode_u, [&](const EdgeID e, const NodeID lnode_v) {
+      graph.adjacent_nodes(lnode_u, [&](const NodeID lnode_v, const EdgeWeight w) {
         const GlobalNodeID gcluster_v = lnode_to_gcluster[lnode_v];
         if (gcluster_u != gcluster_v) {
           nonlocal_edges[pos] = {
               .u = gcluster_u,
               .v = gcluster_v,
-              .weight = graph.edge_weight(e),
+              .weight = w,
           };
           ++pos;
         }
@@ -1387,8 +1387,8 @@ std::unique_ptr<CoarseGraph> contract_clustering(
 
           if (u < graph.n()) {
             c_u_weight += graph.node_weight(u);
-            graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
-              handle_edge_to_lnode(graph.edge_weight(e), v);
+            graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+              handle_edge_to_lnode(w, v);
             });
           } else {
             // Fix node weight later

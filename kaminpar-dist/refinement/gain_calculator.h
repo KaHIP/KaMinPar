@@ -88,12 +88,12 @@ private:
     BlockID max_target = b_u;
 
     auto action = [&](auto &map) {
-      _graph->neighbors(u, [&](const EdgeID e, const NodeID v) {
+      _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
         const BlockID b_v = _p_graph->block(v);
         if (b_u != b_v && weight_checker(b_v, _p_graph->block_weight(b_v) + w_u)) {
-          map[b_v] += _graph->edge_weight(e);
+          map[b_v] += w;
         } else if (b_u == b_v) {
-          int_conn += _graph->edge_weight(e);
+          int_conn += w;
         }
       });
 

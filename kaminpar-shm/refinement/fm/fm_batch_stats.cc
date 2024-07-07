@@ -234,12 +234,12 @@ std::vector<NodeID> BatchStatsComputator::compute_batch_distances(
     }
 
     // Expand search to its neighbors
-    for (const auto &[e, v] : graph.neighbors(u)) {
+    graph.adjacent_nodes(u, [&](const NodeID v) {
       if (visited.count(v) == 0) {
         visited.insert(v);
         frontier.push(v);
       }
-    }
+    });
   }
 
   return distances;

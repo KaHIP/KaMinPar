@@ -207,12 +207,12 @@ extract_local_block_induced_subgraphs(const DistributedPartitionedGraph &p_graph
         const NodeID pos = n0 + u;
         const NodeID u_prime = shared_nodes[pos];
 
-        p_graph.neighbors(u_prime, [&](const EdgeID e_prime, const NodeID v_prime) {
+        p_graph.adjacent_nodes(u_prime, [&](const NodeID v_prime, const EdgeWeight w_prime) {
           if (p_graph.block(v_prime) != b) {
             return;
           }
 
-          shared_edge_weights[e0 + e] = p_graph.edge_weight(e_prime);
+          shared_edge_weights[e0 + e] = w_prime;
           shared_edges[e0 + e] = mapping[v_prime];
           ++e;
         });

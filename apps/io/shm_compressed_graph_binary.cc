@@ -317,24 +317,26 @@ CompressedGraph read(const std::string &filename) {
   CompactStaticArray<EdgeID> nodes = read_compact_static_array<EdgeID>(in);
   StaticArray<std::uint8_t> compressed_edges = read_static_array<std::uint8_t>(in);
 
-  StaticArray<NodeWeight> node_weights =
-      header.has_node_weights ? read_static_array<NodeWeight>(in) : StaticArray<NodeWeight>();
-  StaticArray<EdgeWeight> edge_weights =
-      header.has_edge_weights ? read_static_array<EdgeWeight>(in) : StaticArray<EdgeWeight>();
+  StaticArray<NodeWeight> node_weights;
+  if (header.has_node_weights) {
+    node_weights = read_static_array<NodeWeight>(in);
+  }
 
-  return CompressedGraph(
+  CompressedNeighborhoods<NodeID, EdgeID, EdgeWeight> compressed_neighborhoods(
       std::move(nodes),
       std::move(compressed_edges),
-      std::move(node_weights),
-      header.num_edges,
-      header.total_edge_weight,
-      header.has_edge_weights,
       header.max_degree,
-      header.use_degree_bucket_order,
+      header.num_edges,
+      header.has_edge_weights,
+      header.total_edge_weight,
       header.num_high_degree_nodes,
       header.num_high_degree_parts,
       header.num_interval_nodes,
       header.num_intervals
+  );
+
+  return CompressedGraph(
+      std::move(compressed_neighborhoods), std::move(node_weights), header.use_degree_bucket_order
   );
 }
 

@@ -11,20 +11,14 @@
  ******************************************************************************/
 #pragma once
 
-#include <algorithm>
 #include <memory>
-#include <vector>
-
-#include "kaminpar-mpi/utils.h"
 
 #include "kaminpar-dist/datastructures/abstract_distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_compressed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_csr_graph.h"
-#include "kaminpar-dist/datastructures/growt.h"
 #include "kaminpar-dist/dkaminpar.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
-#include "kaminpar-common/degree_buckets.h"
 #include "kaminpar-common/ranges.h"
 
 namespace kaminpar::dist {
@@ -138,10 +132,6 @@ public:
     return _underlying_graph->is_edge_weighted();
   }
 
-  [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const final {
-    return _underlying_graph->edge_weight(e);
-  }
-
   [[nodiscard]] inline EdgeWeight total_edge_weight() const final {
     return _underlying_graph->total_edge_weight();
   }
@@ -233,10 +223,6 @@ public:
 
   [[nodiscard]] inline const StaticArray<NodeWeight> &node_weights() const final {
     return _underlying_graph->node_weights();
-  }
-
-  [[nodiscard]] inline const StaticArray<EdgeWeight> &edge_weights() const final {
-    return _underlying_graph->edge_weights();
   }
 
   inline void set_ghost_node_weight(const NodeID ghost_node, const NodeWeight weight) final {
@@ -338,11 +324,11 @@ public:
   // High degree classification
   //
 
-  void init_high_degree_info(const EdgeID high_degree_threshold) const final {
+  inline void init_high_degree_info(const EdgeID high_degree_threshold) const final {
     _underlying_graph->init_high_degree_info(high_degree_threshold);
   }
 
-  [[nodiscard]] bool is_high_degree_node(const NodeID node) const final {
+  [[nodiscard]] inline bool is_high_degree_node(const NodeID node) const final {
     return _underlying_graph->is_high_degree_node(node);
   }
 
@@ -350,7 +336,7 @@ public:
   // Graph permutation
   //
 
-  void set_permutation(StaticArray<NodeID> permutation) final {
+  inline void set_permutation(StaticArray<NodeID> permutation) final {
     _underlying_graph->set_permutation(std::move(permutation));
   }
 
@@ -390,7 +376,7 @@ public:
   // Graph permutation by coloring
   //
 
-  void set_color_sorted(StaticArray<NodeID> color_sizes) final {
+  inline void set_color_sorted(StaticArray<NodeID> color_sizes) final {
     _underlying_graph->set_color_sorted(std::move(color_sizes));
   }
 
@@ -398,15 +384,15 @@ public:
     return _underlying_graph->color_sorted();
   }
 
-  [[nodiscard]] std::size_t number_of_colors() const final {
+  [[nodiscard]] inline std::size_t number_of_colors() const final {
     return _underlying_graph->number_of_colors();
   }
 
-  [[nodiscard]] NodeID color_size(const std::size_t c) const final {
+  [[nodiscard]] inline NodeID color_size(const std::size_t c) const final {
     return _underlying_graph->color_size(c);
   }
 
-  [[nodiscard]] const StaticArray<NodeID> &get_color_sizes() const final {
+  [[nodiscard]] inline const StaticArray<NodeID> &get_color_sizes() const final {
     return _underlying_graph->get_color_sizes();
   }
 
@@ -414,25 +400,30 @@ public:
   // Access to underlying graph
   //
 
-  [[nodiscard]] AbstractDistributedGraph *underlying_graph() {
+  [[nodiscard]] inline AbstractDistributedGraph *underlying_graph() {
     return _underlying_graph.get();
   }
 
-  [[nodiscard]] const AbstractDistributedGraph *underlying_graph() const {
+  [[nodiscard]] inline const AbstractDistributedGraph *underlying_graph() const {
     return _underlying_graph.get();
   }
 
-  [[nodiscard]] AbstractDistributedGraph *take_underlying_graph() {
+  [[nodiscard]] inline AbstractDistributedGraph *take_underlying_graph() {
     return _underlying_graph.release();
   }
 
-  [[nodiscard]] const DistributedCompressedGraph &compressed_graph() const {
+  [[nodiscard]] inline const DistributedCSRGraph &csr_graph() const {
+    const AbstractDistributedGraph *abstract_graph = _underlying_graph.get();
+    return *dynamic_cast<const DistributedCSRGraph *>(abstract_graph);
+  }
+
+  [[nodiscard]] inline const DistributedCompressedGraph &compressed_graph() const {
     const AbstractDistributedGraph *abstract_graph = _underlying_graph.get();
     return *dynamic_cast<const DistributedCompressedGraph *>(abstract_graph);
   }
 
   template <typename Lambda1, typename Lambda2>
-  decltype(auto) reified(Lambda1 &&l1, Lambda2 &&l2) const {
+  inline decltype(auto) reified(Lambda1 &&l1, Lambda2 &&l2) const {
     const AbstractDistributedGraph *abstract_graph = _underlying_graph.get();
 
     if (const auto *graph = dynamic_cast<const DistributedCSRGraph *>(abstract_graph);
@@ -446,7 +437,7 @@ public:
     __builtin_unreachable();
   }
 
-  template <typename Lambda> decltype(auto) reified(Lambda &&l) const {
+  template <typename Lambda> inline decltype(auto) reified(Lambda &&l) const {
     return reified(std::forward<Lambda>(l), std::forward<Lambda>(l));
   }
 

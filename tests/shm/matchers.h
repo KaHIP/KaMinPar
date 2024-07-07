@@ -17,19 +17,23 @@ public:
     bool found_u_v = false;
     bool found_v_u = false;
 
-    for (const NodeID v_prime : graph.adjacent_nodes(_u)) {
+    graph.adjacent_nodes(_u, [&](const NodeID v_prime) {
       if (_v == v_prime) {
         found_u_v = true;
-        break;
+        return true;
       }
-    }
 
-    for (const NodeID u_prime : graph.adjacent_nodes(_v)) {
+      return false;
+    });
+
+    graph.adjacent_nodes(_v, [&](const NodeID u_prime) {
       if (_u == u_prime) {
         found_v_u = true;
-        break;
+        return true;
       }
-    }
+
+      return false;
+    });
 
     return found_u_v && found_v_u;
   }

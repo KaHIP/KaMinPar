@@ -115,7 +115,7 @@ bool MtKaHyParRefiner::refine() {
     shm_graph->pfor_nodes([&](const NodeID u) {
       vertex_weights[u] = static_cast<mt_kahypar_hypernode_weight_t>(shm_graph->node_weight(u));
 
-      shm_graph->neighbors(u, [&](const EdgeID e, const NodeID v) {
+      shm_graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
         if (v < u) { // Only need edges in one direction
           return;
         }
@@ -123,8 +123,7 @@ bool MtKaHyParRefiner::refine() {
         EdgeID position = edge_position[e] - 1;
         edges[2 * position] = asserting_cast<mt_kahypar_hypernode_id_t>(u);
         edges[2 * position + 1] = asserting_cast<mt_kahypar_hypernode_id_t>(v);
-        edge_weights[position] =
-            asserting_cast<mt_kahypar_hypernode_weight_t>(shm_graph->edge_weight(e));
+        edge_weights[position] = asserting_cast<mt_kahypar_hypernode_weight_t>(w);
       });
     });
 
