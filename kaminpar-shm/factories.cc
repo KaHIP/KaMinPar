@@ -111,7 +111,7 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
   case SparsificationAlgorithm::FOREST_FIRE:
     return std::make_unique<sparsification::ThresholdSampler<double>>(
         std::make_unique<sparsification::NetworKitScoreAdapter<NetworKit::ForestFireScore, double>>(
-            [](NetworKit::Graph g) { return NetworKit::ForestFireScore(g, 0.95, 5); }
+            [](const NetworKit::Graph &g) { return NetworKit::ForestFireScore(g, 0.95, 5); }
         ),
         std::make_unique<sparsification::IdentityReweihingFunction<double>>()
     );
@@ -137,7 +137,7 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
       return std::make_unique<sparsification::RandomWithReplacementSampler<double>>(
           std::make_unique<
               sparsification::NetworKitScoreAdapter<NetworKit::ForestFireScore, double>>(
-              [](NetworKit::Graph g) { return NetworKit::ForestFireScore(g, 0.95, 5); }
+              [](const NetworKit::Graph &g) { return NetworKit::ForestFireScore(g, 0.95, 5); }
           ),
           std::make_unique<sparsification::IdentityReweihingFunction<double>>()
       );
@@ -158,7 +158,7 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
       return std::make_unique<sparsification::RandomWithoutReplacementSampler<double>>(
           std::make_unique<
               sparsification::NetworKitScoreAdapter<NetworKit::ForestFireScore, double>>(
-              [](NetworKit::Graph g) { return NetworKit::ForestFireScore(g, 0.95, 5); }
+              [](const NetworKit::Graph &g) { return NetworKit::ForestFireScore(g, 0.95, 5); }
           ),
           std::make_unique<sparsification::IdentityReweihingFunction<double>>()
       );
@@ -179,7 +179,7 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
       return std::make_unique<sparsification::IndependentRandomSampler<double>>(
           std::make_unique<
               sparsification::NetworKitScoreAdapter<NetworKit::ForestFireScore, double>>(
-              [](NetworKit::Graph g) { return NetworKit::ForestFireScore(g, 0.95, 5); }
+              [](const NetworKit::Graph &g) { return NetworKit::ForestFireScore(g, 0.95, 5); }
           ),
           std::make_unique<sparsification::IdentityReweihingFunction<double>>()
       );
@@ -200,7 +200,7 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
       return std::make_unique<sparsification::ThresholdSampler<double>>(
           std::make_unique<
               sparsification::NetworKitScoreAdapter<NetworKit::ForestFireScore, double>>(
-              [](NetworKit::Graph g) { return NetworKit::ForestFireScore(g, 0.95, 5); }
+              [](const NetworKit::Graph &g) { return NetworKit::ForestFireScore(g, 0.95, 5); }
           ),
           std::make_unique<sparsification::IdentityReweihingFunction<double>>()
       );
