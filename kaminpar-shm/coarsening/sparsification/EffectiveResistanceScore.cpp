@@ -47,7 +47,7 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
           // Back to 0-based indexing
           sparsifyer.i[k] - 1,
           sparsifyer.j[k] - 1,
-          static_cast<EdgeWeight>(sparsifyer.v[k])
+          sparsifyer.v[k]
       );
     }
     std::sort(

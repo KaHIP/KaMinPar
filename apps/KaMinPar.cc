@@ -198,7 +198,8 @@ int main(int argc, char *argv[]) {
     std::exit(0);
   }
 
-  if (ctx.coarsening.sparsification_algorithm == SparsificationAlgorithm::EFFECTIVE_RESISTANCE) {
+  if (ctx.sparsification.algorithm == SparsificationAlgorithm::EFFECTIVE_RESISTANCE ||
+      ctx.sparsification.score_function == ScoreFunctionSection::EFFECTIVE_RESISTANCE) {
     sparsification::EffectiveResistanceScore::init_julia();
   }
 
@@ -256,7 +257,8 @@ int main(int argc, char *argv[]) {
 
   DISABLE_HEAP_PROFILER();
 
-  if (ctx.coarsening.sparsification_algorithm == SparsificationAlgorithm::EFFECTIVE_RESISTANCE) {
+  if (ctx.sparsification.algorithm == SparsificationAlgorithm::EFFECTIVE_RESISTANCE ||
+      ctx.sparsification.score_function == ScoreFunctionSection::EFFECTIVE_RESISTANCE) {
     sparsification::EffectiveResistanceScore::finalize_julia();
   }
 

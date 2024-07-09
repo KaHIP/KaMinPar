@@ -75,8 +75,8 @@ std::unordered_map<std::string, SparsificationAlgorithm> get_sparsification_algo
   return {
       {"forest-fire", SparsificationAlgorithm::FOREST_FIRE},
       {"ff", SparsificationAlgorithm::FOREST_FIRE},
-      {"random", SparsificationAlgorithm::UNIFORM_RANDOM_SAMPLING},
-      {"rn", SparsificationAlgorithm::UNIFORM_RANDOM_SAMPLING},
+      {"uniform-random", SparsificationAlgorithm::UNIFORM_RANDOM_SAMPLING},
+      {"ur", SparsificationAlgorithm::UNIFORM_RANDOM_SAMPLING},
       {"k-neighbour", SparsificationAlgorithm::K_NEIGHBOUR},
       {"kn", SparsificationAlgorithm::K_NEIGHBOUR},
       {"k-neighbour-spanning-tree", SparsificationAlgorithm::K_NEIGHBOUR_SPANNING_TREE},
@@ -85,6 +85,22 @@ std::unordered_map<std::string, SparsificationAlgorithm> get_sparsification_algo
       {"wt", SparsificationAlgorithm::WEIGHT_THRESHOLD},
       {"effective-resistance", SparsificationAlgorithm::EFFECTIVE_RESISTANCE},
       {"er", SparsificationAlgorithm::EFFECTIVE_RESISTANCE},
+      {"random-with-replacement", SparsificationAlgorithm::RANDOM_WITH_REPLACEMENT},
+      {"rw/r", SparsificationAlgorithm::RANDOM_WITH_REPLACEMENT},
+      {"random-without-replacement", SparsificationAlgorithm::RANDOM_WITHOUT_REPLACEMENT},
+      {"rw/or", SparsificationAlgorithm::RANDOM_WITHOUT_REPLACEMENT},
+      {"independent-random", SparsificationAlgorithm::INDEPENDENT_RANDOM},
+      {"ir", SparsificationAlgorithm::INDEPENDENT_RANDOM},
+  };
+}
+std::unordered_map<std::string, ScoreFunctionSection> get_score_function() {
+  return {
+      {"weight", ScoreFunctionSection::WEIGHT},
+      {"w", ScoreFunctionSection::WEIGHT},
+      {"effective-resistance", ScoreFunctionSection::EFFECTIVE_RESISTANCE},
+      {"er", ScoreFunctionSection::EFFECTIVE_RESISTANCE},
+      {"forest-fire", ScoreFunctionSection::FOREST_FIRE},
+      {"ff", ScoreFunctionSection::FOREST_FIRE},
   };
 }
 

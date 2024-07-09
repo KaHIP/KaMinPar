@@ -123,7 +123,7 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
   - sparsifying-clustering: like clustering with additionale edge sparsification)")
       ->capture_default_str();
 
-  coarsening->add_option("--c-sparsification", ctx.coarsening.sparsification_algorithm)
+  coarsening->add_option("--c-sparsification", ctx.sparsification.algorithm)
       ->transform(CLI::CheckedTransformer(get_sparsification_algorithms()))
       ->description(R"(One of the following options:
   - random, rn: uniform random sampling
@@ -131,10 +131,21 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
   - k-neighbour, kn: k-Neighbour sampling
   - k-neighbour-spanning-tree, kn-st: k-Neighbour sampling with spanning tree
   - weight-threshold, wt: sample edges with weights above threshold
-  - effective-resistance, er: sample edges with relative effective-resistance above threshold)")
+  - effective-resistance, er: sample edges with relative effective-resistance above threshold
+  - independent-random, ir: sample edges indepently with probabilites proportional to scores
+  - random-with-replacement, rw/r: draw random edges WITH replacment and probailites proportinal to scores
+  - random-without-replacement, rw/or: draw random edges WITHOUT replacment and probailites proportinal to scores)")
       ->capture_default_str();
 
-  coarsening->add_option("--s-target", ctx.coarsening.sparsification_target)
+  coarsening->add_option("--s-score", ctx.sparsification.score_function)
+      ->transform(CLI::CheckedTransformer(get_score_function()))
+      ->description(R"(How the scores for sampling are calculated:
+  - weight, w: use edge weights as scores
+  - effective-restistance, er: effective resistance relativ to the resistance of an edge
+  - forest-fire, ff)")
+      ->capture_default_str();
+
+  coarsening->add_option("--s-target", ctx.sparsification.target)
       ->transform(CLI::CheckedTransformer(get_sparsification_target_selection(), CLI::ignore_case)
                       .description(""))
       ->description(
@@ -145,7 +156,7 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
       )
       ->capture_default_str();
 
-  coarsening->add_option("--s-factor", ctx.coarsening.sparsification_factor)
+  coarsening->add_option("--s-factor", ctx.sparsification.target_factor)
       ->check(CLI::PositiveNumber)
       ->description(R"(The factor c for the sparsification target, supplied with --s-target.)")
       ->default_val(1);
