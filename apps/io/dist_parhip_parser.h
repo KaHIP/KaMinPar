@@ -20,14 +20,14 @@ namespace kaminpar::dist::io::parhip {
  *
  * @param filename The name of the file to read.
  * @param sorted Whether the nodes of the graph to read are stored in degree-buckets order.
- *  @param distribution How the graph is distributed among the processes.
+ * @param distribution How the graph is distributed among the processes.
  * @param comm The group of processes that read the distributed graph.
  * @return The graph that is stored in the file.
  */
 DistributedCSRGraph csr_read(
     const std::string &filename,
-    const bool sorted,
     const GraphDistribution distribution,
+    const bool sorted,
     const MPI_Comm comm
 );
 
@@ -42,8 +42,8 @@ DistributedCSRGraph csr_read(
  */
 DistributedCompressedGraph compressed_read(
     const std::string &filename,
-    const bool sorted,
     const GraphDistribution distribution,
+    const bool sorted,
     const MPI_Comm comm
 );
 

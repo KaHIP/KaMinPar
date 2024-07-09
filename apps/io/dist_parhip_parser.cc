@@ -186,8 +186,8 @@ std::pair<std::uint64_t, std::uint64_t> find_local_nodes(
 
 DistributedCSRGraph csr_read(
     const std::string &filename,
-    const bool sorted,
     const GraphDistribution distribution,
+    const bool sorted,
     const MPI_Comm comm
 ) {
   BinaryReader reader(filename);
@@ -332,8 +332,8 @@ DistributedCSRGraph csr_read(
 
 DistributedCompressedGraph compressed_read(
     const std::string &filename,
-    const bool sorted,
     const GraphDistribution distribution,
+    const bool sorted,
     const MPI_Comm comm
 ) {
   BinaryReader reader(filename);

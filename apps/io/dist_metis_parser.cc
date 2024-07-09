@@ -130,13 +130,15 @@ void parse_graph(
 
 namespace {
 
-std::pair<EdgeID, EdgeID>
-compute_edge_range(const EdgeID num_edges, const mpi::PEID size, const mpi::PEID rank) {
-  const EdgeID chunk = num_edges / size;
-  const EdgeID rem = num_edges % size;
-  const EdgeID from = rank * chunk + std::min<EdgeID>(rank, rem);
-  const EdgeID to =
-      std::min<EdgeID>(from + ((static_cast<EdgeID>(rank) < rem) ? chunk + 1 : chunk), num_edges);
+template <typename Int>
+std::pair<Int, Int>
+compute_chunks(const Int length, const mpi::PEID num_processes, const mpi::PEID rank) {
+  const Int chunk_size = length / num_processes;
+  const Int remainder = length % num_processes;
+  const Int from = rank * chunk_size + std::min<Int>(rank, remainder);
+  const Int to = std::min<Int>(
+      from + ((static_cast<Int>(rank) < remainder) ? chunk_size + 1 : chunk_size), length
+  );
   return std::make_pair(from, to);
 }
 
@@ -146,11 +148,11 @@ std::tuple<NodeID, NodeID, EdgeID, std::size_t> find_node_by_edge(
     const EdgeID first_edge,
     const EdgeID last_edge
 ) {
-  NodeID a = 0;
   NodeID first_node = 0;
-  NodeID last_node = 0;
-  EdgeID actual_first_edge = 0;
+  NodeID length = 0;
+
   std::size_t start_pos;
+  EdgeID actual_first_edge;
 
   EdgeID current_edge = 0;
   parse_graph(
@@ -163,12 +165,12 @@ std::tuple<NodeID, NodeID, EdgeID, std::size_t> find_node_by_edge(
         }
 
         if (current_edge < last_edge) {
-          if (last_node == 0) {
+          if (length == 0) {
             start_pos = toker.position();
             actual_first_edge = current_edge;
           }
 
-          last_node += 1;
+          length += 1;
           return false;
         }
 
@@ -177,23 +179,229 @@ std::tuple<NodeID, NodeID, EdgeID, std::size_t> find_node_by_edge(
       [&](const auto, const auto) { current_edge += 1; }
   );
 
-  const EdgeID num_edges = (last_node == 0) ? 0 : current_edge - actual_first_edge;
-  return std::make_tuple(first_node, first_node + last_node, num_edges, start_pos);
+  const EdgeID num_edges = (length == 0) ? 0 : current_edge - actual_first_edge;
+  return std::make_tuple(first_node, first_node + length, num_edges, start_pos);
+}
+
+std::tuple<NodeID, NodeID, EdgeID, std::size_t> find_node_by_memory_space(
+    MappedFileToker &toker,
+    const MetisHeader header,
+    const std::size_t memory_space_start,
+    const std::size_t memory_space_stop
+) {
+  NodeID first_node = 0;
+  NodeID length = 0;
+
+  std::size_t start_pos;
+  EdgeID first_edge;
+
+  EdgeID current_edge = 0;
+  parse_graph(
+      toker,
+      header,
+      [&](const auto) {
+        std::size_t memory_space = first_node * sizeof(EdgeID) + current_edge * sizeof(NodeID);
+        if (memory_space < memory_space_start) {
+          first_node += 1;
+          return false;
+        }
+
+        memory_space += length * sizeof(EdgeID);
+        if (memory_space < memory_space_stop) {
+          if (length == 0) {
+            start_pos = toker.position();
+            first_edge = current_edge;
+          }
+
+          length += 1;
+          return false;
+        }
+
+        return true;
+      },
+      [&](const auto, const auto) { current_edge += 1; }
+  );
+
+  const EdgeID num_edges = (length == 0) ? 0 : current_edge - first_edge;
+  return std::make_tuple(first_node, first_node + length, num_edges, start_pos);
+}
+
+std::tuple<NodeID, NodeID, EdgeID, std::size_t> find_local_nodes(
+    const mpi::PEID size,
+    const mpi::PEID rank,
+    MappedFileToker &toker,
+    const MetisHeader header,
+    const GraphDistribution distribution
+) {
+  switch (distribution) {
+  case GraphDistribution::BALANCED_EDGES: {
+    const auto [first_edge, last_edge] = compute_chunks(header.num_edges, size, rank);
+    return find_node_by_edge(toker, header, first_edge, last_edge);
+  }
+  case GraphDistribution::BALANCED_MEMORY_SPACE: {
+    const std::size_t total_memory_space =
+        header.num_nodes * sizeof(EdgeID) + header.num_edges * sizeof(NodeID);
+    const auto [memory_space_start, memory_space_end] =
+        compute_chunks(total_memory_space, size, rank);
+
+    return find_node_by_memory_space(toker, header, memory_space_start, memory_space_end);
+  }
+  default:
+    __builtin_unreachable();
+  }
 }
 
 } // namespace
 
-DistributedCompressedGraph
-compress_read(const std::string &filename, const bool sorted, const MPI_Comm comm) {
+DistributedCSRGraph csr_read(
+    const std::string &filename,
+    const GraphDistribution distribution,
+    const bool sorted,
+    const MPI_Comm comm
+) {
   MappedFileToker toker(filename);
   MetisHeader header = parse_header(toker);
 
   const mpi::PEID size = mpi::get_comm_size(comm);
   const mpi::PEID rank = mpi::get_comm_rank(comm);
 
-  const auto [first_edge, last_edge] = compute_edge_range(header.num_edges, size, rank);
   const auto [first_node, last_node, num_local_edges, start_pos] =
-      find_node_by_edge(toker, header, first_edge, last_edge);
+      find_local_nodes(size, rank, toker, header, distribution);
+  const NodeID num_local_nodes = last_node - first_node;
+
+  StaticArray<GlobalNodeID> node_distribution(size + 1);
+  node_distribution[rank + 1] = last_node;
+  MPI_Allgather(
+      MPI_IN_PLACE,
+      0,
+      MPI_DATATYPE_NULL,
+      node_distribution.data() + 1,
+      1,
+      mpi::type::get<GlobalNodeID>(),
+      comm
+  );
+
+  StaticArray<GlobalEdgeID> edge_distribution(size + 1);
+  edge_distribution[rank] = num_local_edges;
+  MPI_Allgather(
+      MPI_IN_PLACE,
+      1,
+      mpi::type::get<GlobalEdgeID>(),
+      edge_distribution.data(),
+      1,
+      mpi::type::get<GlobalEdgeID>(),
+      comm
+  );
+  std::exclusive_scan(
+      edge_distribution.begin(),
+      edge_distribution.end(),
+      edge_distribution.begin(),
+      static_cast<GlobalEdgeID>(0)
+  );
+
+  graph::GhostNodeMapper mapper(rank, node_distribution);
+  RECORD("nodes") StaticArray<EdgeID> nodes(num_local_nodes + 1, static_array::noinit);
+  RECORD("edges") StaticArray<NodeID> edges(num_local_edges, static_array::noinit);
+
+  RECORD("edge_weights") StaticArray<EdgeWeight> edge_weights;
+  if (header.has_edge_weights) {
+    edge_weights.resize(num_local_edges, static_array::noinit);
+  }
+
+  RECORD("node_weights") StaticArray<NodeWeight> node_weights;
+  if (header.has_node_weights) {
+    node_weights.resize(header.num_nodes, static_array::noinit);
+  }
+
+  NodeID node = 0;
+  EdgeID edge = 0;
+  if (num_local_nodes > 0) {
+    toker.seek(start_pos);
+    header.num_nodes = num_local_nodes;
+
+    parse_graph(
+        toker,
+        header,
+        [&](const auto weight) {
+          nodes[node] = edge;
+
+          if (header.has_node_weights) {
+            node_weights[node] = static_cast<NodeWeight>(weight);
+          }
+
+          node += 1;
+        },
+        [&, first_node = first_node, last_node = last_node](const auto weight, const auto v) {
+          NodeID adjacent_node = static_cast<NodeID>(v);
+          if (adjacent_node >= first_node && adjacent_node < last_node) {
+            adjacent_node = adjacent_node - first_node;
+          } else {
+            adjacent_node = mapper.new_ghost_node(adjacent_node);
+          }
+
+          edges[edge] = adjacent_node;
+          if (header.has_edge_weights) {
+            edge_weights[edge] = static_cast<EdgeWeight>(weight);
+          }
+
+          edge += 1;
+        }
+    );
+  }
+  nodes[node] = edge;
+
+  if (header.has_node_weights && mapper.next_ghost_node() > 0) {
+    StaticArray<NodeWeight> actual_node_weights(
+        num_local_nodes + mapper.next_ghost_node(), static_array::noinit
+    );
+
+    tbb::parallel_for(tbb::blocked_range<NodeID>(0, num_local_nodes), [&](const auto &r) {
+      for (NodeID u = r.begin(); u != r.end(); ++u) {
+        actual_node_weights[u] = node_weights[u];
+      }
+    });
+
+    node_weights = std::move(actual_node_weights);
+  }
+
+  auto [global_to_ghost, ghost_to_global, ghost_owner] = mapper.finalize();
+
+  DistributedCSRGraph graph(
+      std::move(node_distribution),
+      std::move(edge_distribution),
+      std::move(nodes),
+      std::move(edges),
+      std::move(edge_weights),
+      std::move(node_weights),
+      std::move(ghost_owner),
+      std::move(ghost_to_global),
+      std::move(global_to_ghost),
+      sorted,
+      comm
+  );
+
+  // Fill in ghost node weights
+  if (header.has_node_weights) {
+    graph::synchronize_ghost_node_weights(graph);
+  }
+
+  return graph;
+}
+
+DistributedCompressedGraph compress_read(
+    const std::string &filename,
+    const GraphDistribution distribution,
+    const bool sorted,
+    const MPI_Comm comm
+) {
+  MappedFileToker toker(filename);
+  MetisHeader header = parse_header(toker);
+
+  const mpi::PEID size = mpi::get_comm_size(comm);
+  const mpi::PEID rank = mpi::get_comm_rank(comm);
+
+  const auto [first_node, last_node, num_local_edges, start_pos] =
+      find_local_nodes(size, rank, toker, header, distribution);
   const NodeID num_local_nodes = last_node - first_node;
 
   StaticArray<GlobalNodeID> node_distribution(size + 1);
