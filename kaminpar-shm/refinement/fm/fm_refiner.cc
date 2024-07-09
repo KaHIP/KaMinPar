@@ -17,6 +17,7 @@
 #include "kaminpar-shm/refinement/gains/dense_gain_cache.h"
 
 #ifdef KAMINPAR_EXPERIMENTAL
+#include "kaminpar-shm/refinement/gains/denser_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/hybrid_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/on_the_fly_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
@@ -42,6 +43,9 @@ std::unique_ptr<Refiner> create_fm_refiner(const Context &ctx) {
     return std::make_unique<FMRefiner<DenseGainCache<false, LargeKDenseDeltaGainCache>>>(ctx);
 
 #ifdef KAMINPAR_EXPERIMENTAL
+  case GainCacheStrategy::DENSER:
+    return std::make_unique<FMRefiner<DenserGainCache<true, DenserDeltaGainCache>>>(ctx);
+
   case GainCacheStrategy::SPARSE:
     return std::make_unique<FMRefiner<SparseGainCache<true>>>(ctx);
 
