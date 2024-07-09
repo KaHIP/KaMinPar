@@ -45,19 +45,6 @@ option(KAMINPAR_BUILD_WITH_MTKAHYPAR "If Mt-KaHyPar can be found, build the Mt-K
 option(KAMINPAR_BUILD_WITH_GROWT "Build the shared-memory partitioner with Growt." ON)
 option(KAMINPAR_BUILD_WITH_PG "Build with the -pg option for profiling." OFF)
 
-# Control graph compression options
-###################################
-option(KAMINPAR_COMPRESSION_HIGH_DEGREE_ENCODING "Use high-degree encoding for the compressed graph." ON)
-option(KAMINPAR_COMPRESSION_INTERVAL_ENCODING "Use interval encoding for the compressed graph." ON)
-option(KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING "Use run-length encoding for the compressed graph." OFF)
-option(KAMINPAR_COMPRESSION_STREAM_ENCODING "Use stream encoding for the compressed graph." OFF)
-option(KAMINPAR_COMPRESSION_FAST_DECODING "Use fast decoding for the compressed graph." OFF)
-option(KAMINPAR_COMPRESSION_ISOLATED_NODES_SEPARATION "Whether all isolated nodes are the last nodes of the input graph" OFF)
-
-if (KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING AND KAMINPAR_COMPRESSION_STREAM_ENCODING)
-    message(FATAL_ERROR "Either run-length or stream encoding can be used for varints but not both.")
-endif ()
-
 # Control data type sizes
 #########################
 
@@ -77,6 +64,23 @@ option(KAMINPAR_64BIT_LOCAL_WEIGHTS "Use 64 bit for local node and edge weights.
 # Thus, force 64 bit weights for the shared-memory partitioner in this case.
 if (KAMINPAR_BUILD_DISTRIBUTED)
     set(KAMINPAR_64BIT_WEIGHTS ON)
+endif ()
+
+# Control graph compression options
+###################################
+option(KAMINPAR_COMPRESSION_HIGH_DEGREE_ENCODING "Use high-degree encoding for the compressed graph." ON)
+option(KAMINPAR_COMPRESSION_INTERVAL_ENCODING "Use interval encoding for the compressed graph." ON)
+option(KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING "Use run-length encoding for the compressed graph." OFF)
+option(KAMINPAR_COMPRESSION_STREAM_ENCODING "Use stream encoding for the compressed graph." OFF)
+option(KAMINPAR_COMPRESSION_FAST_DECODING "Use fast decoding for the compressed graph." OFF)
+option(KAMINPAR_COMPRESSION_ISOLATED_NODES_SEPARATION "Whether all isolated nodes are the last nodes of the input graph" OFF)
+
+if (KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING AND KAMINPAR_COMPRESSION_STREAM_ENCODING)
+    message(FATAL_ERROR "Either run-length or stream encoding can be used for varints but not both.")
+endif ()
+
+if (KAMINPAR_64BIT_NODE_IDS AND KAMINPAR_COMPRESSION_STREAM_ENCODING)
+    message(FATAL_ERROR "Stream encoding cannot be used with 64-bit NodeIDs.")
 endif ()
 
 ################################################################################
