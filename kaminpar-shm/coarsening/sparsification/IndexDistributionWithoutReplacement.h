@@ -5,17 +5,6 @@
 namespace kaminpar::shm::sparsification {
 class IndexDistributionWithoutReplacement {
 public:
-  /*
-  template <typename Iterator> IndexDistributionWithoutReplacement(Iterator begin, Iterator end) {
-    std::vector<double> casted(end-begin);
-    for (Iterator e = begin; e != end; e++) {
-      casted[e -begin] = static_cast<double>(*e);
-    }
-    IndexDistributionWithoutReplacement((
-      );
-  }
-
-   */
   IndexDistributionWithoutReplacement(std::vector<double> values) {
     IndexDistributionWithoutReplacement(values.begin(), values.end());
   }

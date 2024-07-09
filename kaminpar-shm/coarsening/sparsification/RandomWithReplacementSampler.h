@@ -1,5 +1,5 @@
 #pragma once
-#include "FiniteRandomDistribution.h"
+#include "IndexDistributionWithReplacement.h"
 #include "ScoreBacedSampler.h"
 #include "sparsification_utils.h"
 
@@ -15,7 +15,7 @@ public:
   StaticArray<EdgeWeight> sample(const CSRGraph &g, EdgeID target_edge_amount) override {
     auto scores = this->_score_function->scores(g);
     utils::for_downward_edges(g, [&](EdgeID e) { scores[e] = 0; });
-    auto distribution = FiniteRandomDistribution<Score>(scores.begin(), scores.end());
+    auto distribution = IndexDistributionWithReplacement<Score>(scores.begin(), scores.end());
 
     EdgeID edges_sampled = 0;
     EdgeID iterations = 0;
