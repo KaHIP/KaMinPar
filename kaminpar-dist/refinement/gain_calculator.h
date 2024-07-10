@@ -23,7 +23,7 @@ namespace kaminpar::dist {
 template <bool randomize = true> class GainCalculator {
 public:
   GainCalculator(const BlockID max_k)
-      : _rating_map_ets([max_k] { return BlockRatingMap<EdgeWeight, BlockID>(max_k); }) {}
+      : _rating_map_ets([max_k] { return RatingMap<EdgeWeight, BlockID>(max_k); }) {}
 
   struct MaxGainer {
     EdgeWeight int_degree;
@@ -117,7 +117,7 @@ private:
   }
 
   const DistributedPartitionedGraph *_p_graph = nullptr;
-  mutable tbb::enumerable_thread_specific<BlockRatingMap<EdgeWeight, BlockID>> _rating_map_ets;
+  mutable tbb::enumerable_thread_specific<RatingMap<EdgeWeight, BlockID>> _rating_map_ets;
 };
 
 using DeterministicGainCalculator = GainCalculator<false>;

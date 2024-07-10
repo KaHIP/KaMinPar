@@ -16,7 +16,8 @@
 
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 
-#include "kaminpar-common/timer.h"
+#include "kaminpar-common/datastructures/noinit_vector.h"
+#include "kaminpar-common/logger.h"
 
 namespace kaminpar::dist::graph {
 SET_DEBUG(false);
@@ -26,9 +27,8 @@ template <typename Generator, typename ScoreType = std::int64_t>
 ScoreType compute_score(Generator &generator, const GlobalNodeID node, const int seed) {
   // @todo replace with something efficient / use communication
   generator.seed(seed + node);
-  return std::uniform_int_distribution<ScoreType>(
-      ScoreType(), std::numeric_limits<ScoreType>::max() - 1
-  )(generator);
+  return std::uniform_int_distribution<
+      ScoreType>(ScoreType(), std::numeric_limits<ScoreType>::max() - 1)(generator);
 }
 } // namespace
 

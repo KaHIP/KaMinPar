@@ -25,7 +25,9 @@
 #include "kaminpar-common/environment.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/strutils.h"
+#include "kaminpar-common/timer.h"
 
+#include "apps/io/shm_input_validator.h"
 #include "apps/io/shm_io.h"
 
 using namespace kaminpar;
@@ -192,7 +194,8 @@ int main(int argc, char *argv[]) {
     std::exit(0);
   }
 
-  if (ctx.compression.enabled && ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
+  if (ctx.compression.enabled && app.graph_file_format == io::GraphFileFormat::METIS &&
+      ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
     std::cout << "The nodes of the compressed graph cannot be rearranged by degree buckets!"
               << std::endl;
     std::exit(0);
@@ -208,21 +211,7 @@ int main(int argc, char *argv[]) {
 
   ENABLE_HEAP_PROFILER();
 
-  // Read the input graph and allocate memory for the partition
-  START_HEAP_PROFILER("Input Graph Allocation");
-  Graph graph = io::read(
-      app.graph_filename,
-      app.graph_file_format,
-      ctx.compression.enabled,
-      ctx.compression.may_dismiss,
-      ctx.node_ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS,
-      app.validate
-  );
-  RECORD("partition") std::vector<BlockID> partition(graph.n());
-  RECORD_LOCAL_DATA_STRUCT("vector<BlockID>", partition.capacity() * sizeof(BlockID));
-  STOP_HEAP_PROFILER();
-
-  // Compute graph partition
+  // Setup the KaMinPar instance
   KaMinPar partitioner(app.num_threads, ctx);
   KaMinPar::reseed(app.seed);
 
@@ -247,6 +236,27 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  // Read the input graph and allocate memory for the partition
+  START_HEAP_PROFILER("Input Graph Allocation");
+  Graph graph = TIMED_SCOPE("Read input graph") {
+    return io::read(
+        app.graph_filename,
+        app.graph_file_format,
+        ctx.compression.enabled,
+        ctx.compression.may_dismiss,
+        ctx.node_ordering
+    );
+  };
+
+  if (app.validate) {
+    shm::validate_undirected_graph(graph);
+  }
+
+  RECORD("partition") std::vector<BlockID> partition(graph.n());
+  RECORD_LOCAL_DATA_STRUCT("vector<BlockID>", partition.capacity() * sizeof(BlockID));
+  STOP_HEAP_PROFILER();
+
+  // Compute graph partition
   partitioner.set_graph(std::move(graph));
   partitioner.compute_partition(app.k, partition.data());
 

@@ -8,13 +8,12 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar-dist/coarsening/clustering/clusterer.h"
+#include "kaminpar-dist/coarsening/clusterer.h"
 #include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
-#include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 
 namespace kaminpar::dist {
-class LocalLPClusterer : public LocalClusterer {
+class LocalLPClusterer : public Clusterer {
 public:
   explicit LocalLPClusterer(const Context &ctx);
 
@@ -26,12 +25,12 @@ public:
 
   ~LocalLPClusterer() override;
 
-  void initialize(const DistributedGraph &graph) final;
+  void set_communities(const StaticArray<BlockID> &communities) final;
+  void clear_communities() final;
 
-  ClusterArray &cluster(const DistributedGraph &graph, GlobalNodeWeight max_cluster_weight) final;
+  void set_max_cluster_weight(GlobalNodeWeight weight) final;
 
-  ClusterArray &
-  cluster(const DistributedPartitionedGraph &graph, GlobalNodeWeight max_cluster_weight) final;
+  void cluster(StaticArray<GlobalNodeID> &clustering, const DistributedGraph &graph) final;
 
 private:
   std::unique_ptr<class LocalLPClusteringImpl> _impl;

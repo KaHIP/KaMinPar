@@ -86,8 +86,8 @@ public:
   }
 
   // Node and edge weights
-  [[nodiscard]] inline bool node_weighted() const final {
-    return _underlying_graph->node_weighted();
+  [[nodiscard]] inline bool is_node_weighted() const final {
+    return _underlying_graph->is_node_weighted();
   }
 
   [[nodiscard]] inline NodeWeight node_weight(const NodeID u) const final {
@@ -102,8 +102,8 @@ public:
     return _underlying_graph->total_node_weight();
   }
 
-  [[nodiscard]] inline bool edge_weighted() const final {
-    return _underlying_graph->edge_weighted();
+  [[nodiscard]] inline bool is_edge_weighted() const final {
+    return _underlying_graph->is_edge_weighted();
   }
 
   [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const final {

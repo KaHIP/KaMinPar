@@ -1,5 +1,5 @@
 file(GLOB_RECURSE KAMINPAR_SHM_SOURCE_FILES CONFIGURE_DEPENDS
-        *.cc *.h)
+	*.cc *.h)
 
 add_library(kaminpar_shm ${KAMINPAR_SHM_SOURCE_FILES}
         coarsening/sparsification/Sampler.h
@@ -28,7 +28,7 @@ add_library(kaminpar_shm ${KAMINPAR_SHM_SOURCE_FILES}
         coarsening/sparsification/RandomWithoutReplacementSampler.h
         coarsening/sparsification/IndependentRandomSampler.h)
 target_include_directories(kaminpar_shm PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../" ${JL_SHARE}/../../include/julia/)
-target_link_libraries(kaminpar_shm PUBLIC kaminpar_common networkit ${JL_SHARE}/../../lib/libjulia.so)
+target_link_libraries(kaminpar_shm PUBLIC kaminpar_common Sparsehash::Sparsehash networkit ${JL_SHARE}/../../lib/libjulia.so)
 
 # If we can find Mt-KaHyPar, make it available as an option for refinement
 if (KAMINPAR_BUILD_WITH_MTKAHYPAR)

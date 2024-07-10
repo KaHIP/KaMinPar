@@ -122,9 +122,9 @@ bool SparsifyingClusteringCoarsener::coarsen() {
     auto sample = _sampling_algorithm->sample(*csr, target_edge_amount);
     CSRGraph sparsified = sparsify(*csr, std::move(sample));
 
-    _hierarchy.push_back(std::make_unique<contraction::CoarseGraphImpl<StaticArray>>(
+    _hierarchy.push_back(std::make_unique<contraction::CoarseGraphImpl>(
         Graph(std::make_unique<CSRGraph>(std::move(sparsified))),
-        std::move(dynamic_cast<contraction::CoarseGraphImpl<StaticArray> *>(coarsened.get())
+        std::move(dynamic_cast<contraction::CoarseGraphImpl *>(coarsened.get())
                       ->get_mapping())
     ));
     printf(

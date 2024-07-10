@@ -15,6 +15,8 @@
 
 #include "kaminpar-common/logger.h"
 
+#include "apps/io/metis_parser.h"
+#include "apps/io/parhip_parser.h"
 #include "apps/io/shm_io.h"
 
 using namespace kaminpar;
@@ -26,10 +28,16 @@ int main(int argc, char *argv[]) {
 
   // Parse CLI arguments
   std::string graph_filename;
+  io::GraphFileFormat graph_file_format = io::GraphFileFormat::METIS;
   std::string out_graph_filename;
 
   CLI::App app("Shared-memory graph rearrangement tool");
   app.add_option("-G,--graph", graph_filename, "Input graph in METIS format")->required();
+  app.add_option("-f,--graph-file-format", graph_file_format)
+      ->transform(CLI::CheckedTransformer(io::get_graph_file_formats()).description(""))
+      ->description(R"(Graph file formats:
+  - metis
+  - parhip)");
   app.add_option("-O,--out", out_graph_filename, "Ouput file for saving the rearranged graph")
       ->required();
   app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads");
@@ -39,9 +47,21 @@ int main(int argc, char *argv[]) {
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, ctx.parallel.num_threads);
 
   LOG << "Reading input graph...";
-  CSRGraph input_graph = io::metis::csr_read<false>(
-      graph_filename, ctx.node_ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS
-  );
+
+  CSRGraph input_graph = [&] {
+    switch (graph_file_format) {
+    case io::GraphFileFormat::METIS:
+      return io::metis::csr_read(
+          graph_filename, ctx.node_ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS
+      );
+    case io::GraphFileFormat::PARHIP:
+      return io::parhip::csr_read(
+          graph_filename, ctx.node_ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS
+      );
+    default:
+      __builtin_unreachable();
+    }
+  }();
 
   Graph graph(std::make_unique<CSRGraph>(std::move(input_graph)));
   CSRGraph &csr_graph = *dynamic_cast<CSRGraph *>(graph.underlying_graph());

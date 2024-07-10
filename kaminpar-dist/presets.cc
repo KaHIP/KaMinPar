@@ -59,7 +59,7 @@ Context create_default_context() {
       .coarsening =
           {
               .max_global_clustering_levels = std::numeric_limits<std::size_t>::max(),
-              .global_clustering_algorithm = GlobalClusteringAlgorithm::LP,
+              .global_clustering_algorithm = ClusteringAlgorithm::GLOBAL_LP,
               .global_lp =
                   {
                       .num_iterations = 3,
@@ -95,7 +95,7 @@ Context create_default_context() {
                       .ignore_weight_limit = false,
                   },
               .max_local_clustering_levels = 0,
-              .local_clustering_algorithm = LocalClusteringAlgorithm::NOOP,
+              .local_clustering_algorithm = ClusteringAlgorithm::LOCAL_NOOP,
               .local_lp =
                   {
                       .num_iterations = 5,
@@ -218,10 +218,12 @@ Context create_default_context() {
                       .only_run_on_root = true,
                   },
           },
-      .debug = {
-          .save_coarsest_graph = false,
-          .save_coarsest_partition = false,
-      }};
+      .debug =
+          {
+              .save_coarsest_graph = false,
+              .save_coarsest_partition = false,
+          }
+  };
 }
 
 Context create_strong_context() {
@@ -230,7 +232,8 @@ Context create_strong_context() {
   ctx.refinement.jet.num_coarse_rounds = 4;
   ctx.refinement.jet.num_fine_rounds = 4;
   ctx.refinement.algorithms = {
-      RefinementAlgorithm::HYBRID_NODE_BALANCER, RefinementAlgorithm::JET_REFINER};
+      RefinementAlgorithm::HYBRID_NODE_BALANCER, RefinementAlgorithm::JET_REFINER
+  };
   return ctx;
 }
 
@@ -240,7 +243,8 @@ Context create_jet_context() {
   ctx.refinement.jet.num_coarse_rounds = 1;
   ctx.refinement.jet.num_fine_rounds = 1;
   ctx.refinement.algorithms = {
-      RefinementAlgorithm::HYBRID_NODE_BALANCER, RefinementAlgorithm::JET_REFINER};
+      RefinementAlgorithm::HYBRID_NODE_BALANCER, RefinementAlgorithm::JET_REFINER
+  };
   return ctx;
 }
 

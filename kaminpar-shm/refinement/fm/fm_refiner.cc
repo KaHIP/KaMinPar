@@ -36,7 +36,10 @@ SET_STATISTICS_FROM_GLOBAL();
 std::unique_ptr<Refiner> create_fm_refiner(const Context &ctx) {
   switch (ctx.refinement.kway_fm.gain_cache_strategy) {
   case GainCacheStrategy::DENSE:
-    return std::make_unique<FMRefiner<DenseGainCache<true>>>(ctx);
+    return std::make_unique<FMRefiner<DenseGainCache<true, DenseDeltaGainCache>>>(ctx);
+
+  case GainCacheStrategy::LARGE_K:
+    return std::make_unique<FMRefiner<DenseGainCache<false, LargeKDenseDeltaGainCache>>>(ctx);
 
 #ifdef KAMINPAR_EXPERIMENTAL
   case GainCacheStrategy::SPARSE:
@@ -118,17 +121,25 @@ template <typename GainCache, typename DeltaPartitionedGraph>
 FMRefiner<GainCache, DeltaPartitionedGraph>::FMRefiner(const Context &input_ctx)
     : _ctx(input_ctx),
       _fm_ctx(input_ctx.refinement.kway_fm),
-      _shared(std::make_unique<fm::SharedData<GainCache>>(
-          input_ctx, input_ctx.partition.n, input_ctx.partition.k
-      )) {}
+      _uninitialized(true) {}
 
 template <typename GainCache, typename DeltaPartitionedGraph>
 FMRefiner<GainCache, DeltaPartitionedGraph>::~FMRefiner() = default;
 
 template <typename GainCache, typename DeltaPartitionedGraph>
+void FMRefiner<GainCache, DeltaPartitionedGraph>::initialize(const PartitionedGraph &) {
+  if (_uninitialized) {
+    SCOPED_HEAP_PROFILER("FM Allocation");
+    _shared = std::make_unique<fm::SharedData<GainCache>>(_ctx, _ctx.partition.n, _ctx.partition.k);
+    _uninitialized = false;
+  }
+}
+
+template <typename GainCache, typename DeltaPartitionedGraph>
 bool FMRefiner<GainCache, DeltaPartitionedGraph>::refine(
     PartitionedGraph &p_graph, const PartitionContext &p_ctx
 ) {
+  SCOPED_HEAP_PROFILER("FM");
   SCOPED_TIMER("FM");
 
   START_TIMER("Initialize gain cache");

@@ -32,10 +32,16 @@ int main(int argc, char *argv[]) {
 
   // Parse CLI arguments
   std::string graph_filename;
+  io::GraphFileFormat graph_file_format = io::GraphFileFormat::METIS;
   int seed = 0;
 
   CLI::App app("Shared-memory LP benchmark");
   app.add_option("-G,--graph", graph_filename, "Graph file")->required();
+  app.add_option("-f,--graph-file-format", graph_file_format)
+      ->transform(CLI::CheckedTransformer(io::get_graph_file_formats()).description(""))
+      ->description(R"(Graph file formats:
+  - metis
+  - parhip)");
   app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads");
   app.add_option("-s,--seed", seed, "Seed for random number generation.")->default_val(seed);
   app.add_option("-k,--k", ctx.partition.k, "Number of blocks in the partition.")->required();
@@ -56,11 +62,10 @@ int main(int argc, char *argv[]) {
 
   Graph graph = io::read(
       graph_filename,
-      io::GraphFileFormat::METIS,
+      graph_file_format,
       ctx.compression.enabled,
       ctx.compression.may_dismiss,
-      ctx.node_ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS,
-      false
+      ctx.node_ordering
   );
   ctx.setup(graph);
 
@@ -106,10 +111,12 @@ int main(int argc, char *argv[]) {
   print(ctx.compression, std::cout);
   cio::print_delimiter("Coarsening", '-');
   print(ctx.coarsening, std::cout);
+  LOG;
 
   cio::print_delimiter("Result Summary");
   Timer::global().print_human_readable(std::cout);
   LOG;
+
   heap_profiler::HeapProfiler::global().set_detailed_summary_options();
   PRINT_HEAP_PROFILE(std::cout);
 

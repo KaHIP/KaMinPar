@@ -24,12 +24,15 @@ public:
   JetRefiner &operator=(JetRefiner &&) = delete;
 
   void initialize(const PartitionedGraph &) final;
-
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
 private:
+  [[nodiscard]] double compute_gain_temp(int round) const;
+
   const Context &_ctx;
 
-  double _negative_gain_factor;
+  int _num_rounds = 0;
+  double _initial_gain_temp = 0.0;
+  double _final_gain_temp = 0.0;
 };
 } // namespace kaminpar::shm

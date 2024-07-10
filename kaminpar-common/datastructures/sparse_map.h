@@ -31,7 +31,6 @@
 #include <memory>
 
 #include "kaminpar-common/assert.h"
-
 #include "kaminpar-common/heap_profiler.h"
 
 namespace kaminpar {
@@ -142,8 +141,8 @@ public:
 private:
   void allocate_data(const std::size_t capacity) {
     _capacity = capacity;
+    _data.reset(nullptr);
 
-    KASSERT(!_data);
     const std::size_t total_memory = _capacity * sizeof(Element) + _capacity * sizeof(std::size_t);
     const std::size_t num_elements = std::ceil(1.0 * total_memory / sizeof(std::size_t));
     _data = std::make_unique<std::size_t[]>(num_elements);
