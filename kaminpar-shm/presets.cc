@@ -313,7 +313,7 @@ Context create_largek_fm_context() {
       RefinementAlgorithm::GREEDY_BALANCER,
   };
 
-  ctx.refinement.kway_fm.gain_cache_strategy = GainCacheStrategy::LARGE_K;
+  ctx.refinement.kway_fm.gain_cache_strategy = GainCacheStrategy::DENSE_LARGE_K;
 
   return ctx;
 }

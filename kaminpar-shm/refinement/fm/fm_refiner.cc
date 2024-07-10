@@ -39,12 +39,15 @@ std::unique_ptr<Refiner> create_fm_refiner(const Context &ctx) {
   case GainCacheStrategy::DENSE:
     return std::make_unique<FMRefiner<DenseGainCache<true, DenseDeltaGainCache>>>(ctx);
 
-  case GainCacheStrategy::LARGE_K:
+  case GainCacheStrategy::DENSE_LARGE_K:
     return std::make_unique<FMRefiner<DenseGainCache<false, LargeKDenseDeltaGainCache>>>(ctx);
 
 #ifdef KAMINPAR_EXPERIMENTAL
   case GainCacheStrategy::DENSER:
-    return std::make_unique<FMRefiner<DenserGainCache<true, DenserDeltaGainCache>>>(ctx);
+    return std::make_unique<FMRefiner<DenserGainCache<true, DenseDeltaGainCache>>>(ctx);
+
+  case GainCacheStrategy::DENSER_LARGE_K:
+    return std::make_unique<FMRefiner<DenserGainCache<true, LargeKDenseDeltaGainCache>>>(ctx);
 
   case GainCacheStrategy::SPARSE:
     return std::make_unique<FMRefiner<SparseGainCache<true>>>(ctx);

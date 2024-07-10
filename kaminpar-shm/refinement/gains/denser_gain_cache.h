@@ -22,10 +22,10 @@
 #include <tbb/parallel_invoke.h>
 
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
+#include "kaminpar-shm/refinement/gains/dense_gain_cache.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/compact_hash_map.h"
-#include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/datastructures/fast_reset_array.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/degree_buckets.h"
@@ -34,12 +34,9 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
-template <typename DeltaPartitionedGraph, typename GainCache> class DenserDeltaGainCache;
-template <typename DeltaPartitionedGraph, typename GainCache> class LargeKDenserDeltaGainCache;
-
 template <
     bool iterate_nonadjacent_blocks = true,
-    template <typename, typename> typename DeltaGainCache = DenserDeltaGainCache,
+    template <typename, typename> typename DeltaGainCache = DenseDeltaGainCache,
     bool iterate_exact_gains = false>
 class DenserGainCache {
   SET_DEBUG(false);
@@ -120,43 +117,31 @@ public:
     // Size of the gain cache (dense + sparse part)
     std::size_t gc_size = 0;
 
-    if (p_graph.sorted()) {
-      DBG << "Graph was rearranged by degree buckets: using the mixed dense-sparse strategy";
+    // Compute the degree that we use to determine the threshold degree bucket: nodes in buckets
+    // up to the one determined by this degree are assigned to the dense part, the other ones to
+    // the sparse part.
+    const EdgeID degree_threshold = std::max<EdgeID>(
+        _k * _ctx.refinement.kway_fm.k_based_high_degree_threshold, // usually k * 1
+        _ctx.refinement.kway_fm.constant_high_degree_threshold      // usually 0
+    );
 
-      // Compute the degree that we use to determine the threshold degree bucket: nodes in buckets
-      // up to the one determined by this degree are assigned to the dense part, the other ones to
-      // the sparse part.
-      const EdgeID degree_threshold = std::max<EdgeID>(
-          _k * _ctx.refinement.kway_fm.k_based_high_degree_threshold, // usually k * 1
-          _ctx.refinement.kway_fm.constant_high_degree_threshold      // usually 0
-      );
-
-      // (i) compute size of the dense part (== hash tables) ...
-      for (_bucket_threshold = 0;
-           _node_threshold < p_graph.n() && p_graph.degree(_node_threshold) < degree_threshold;
-           ++_bucket_threshold) {
-        _cache_offsets[_bucket_threshold] = gc_size;
-        _node_threshold += p_graph.bucket_size(_bucket_threshold);
-        gc_size += p_graph.bucket_size(_bucket_threshold) *
-                   (lowest_degree_in_bucket<NodeID>(_bucket_threshold + 1));
-      }
-      std::fill(_cache_offsets.begin() + _bucket_threshold, _cache_offsets.end(), gc_size);
-
-      // + ... (ii) size of the sparse part (table with k entries per node)
-      gc_size += static_cast<std::size_t>(p_graph.n() - _node_threshold) * _k;
-
-      DBG << "Initialized with degree threshold: " << degree_threshold
-          << ", node threshold: " << _node_threshold << ", bucket threshold: " << _bucket_threshold;
-      DBG << "Cache offsets: " << _cache_offsets;
-    } else {
-      // For graphs that do not have degree buckets, assign all nodes to the sparse part
-      gc_size = 1ul * _n * _k;
-
-      DBG << "Graph was *not* rearranged by degree buckets: using the sparse strategy only (i.e., "
-             "using node threshold: "
-          << _node_threshold << ", bucket threshold: " << _bucket_threshold << ")";
-      DBG << "Cache offsets: " << _cache_offsets;
+    // (i) compute size of the dense part (== hash tables) ...
+    for (_bucket_threshold = 0;
+         _node_threshold < p_graph.n() && p_graph.degree(_node_threshold) < degree_threshold;
+         ++_bucket_threshold) {
+      _cache_offsets[_bucket_threshold] = gc_size;
+      _node_threshold += p_graph.bucket_size(_bucket_threshold);
+      gc_size += p_graph.bucket_size(_bucket_threshold) *
+                 (lowest_degree_in_bucket<NodeID>(_bucket_threshold + 1));
     }
+    std::fill(_cache_offsets.begin() + _bucket_threshold, _cache_offsets.end(), gc_size);
+
+    // + ... (ii) size of the sparse part (table with k entries per node)
+    gc_size += static_cast<std::size_t>(p_graph.n() - _node_threshold) * _k;
+
+    DBG << "Initialized with degree threshold: " << degree_threshold
+        << ", node threshold: " << _node_threshold << ", bucket threshold: " << _bucket_threshold;
+    DBG << "Cache offsets: " << _cache_offsets;
 
     _sparse_offset = _cache_offsets[_bucket_threshold];
 
@@ -551,78 +536,5 @@ private:
   mutable tbb::enumerable_thread_specific<FastResetArray<EdgeWeight>> _dense_buffer_ets{[&] {
     return FastResetArray<EdgeWeight>(_k);
   }};
-};
-
-template <typename _DeltaPartitionedGraph, typename _GainCache> class DenserDeltaGainCache {
-public:
-  using DeltaPartitionedGraph = _DeltaPartitionedGraph;
-  using GainCache = _GainCache;
-
-  // Delta gain caches should only be used with GainCaches that iterate over all blocks, since there
-  // might be new connections to non-adjacent blocks in the delta graph. These connections might be
-  // missed if the gain cache does not iterate over all blocks.
-  constexpr static bool kIteratesExactGains = GainCache::kIteratesExactGains;
-  static_assert(GainCache::kIteratesNonadjacentBlocks);
-
-  DenserDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph &d_graph)
-      : _k(d_graph.k()),
-        _gain_cache(gain_cache) {}
-
-  [[nodiscard]] KAMINPAR_INLINE EdgeWeight conn(const NodeID node, const BlockID block) const {
-    return _gain_cache.conn(node, block) + conn_delta(node, block);
-  }
-
-  [[nodiscard]] KAMINPAR_INLINE EdgeWeight
-  gain(const NodeID node, const BlockID from, const BlockID to) const {
-    return _gain_cache.gain(node, from, to) + conn_delta(node, to) - conn_delta(node, from);
-  }
-
-  [[nodiscard]] KAMINPAR_INLINE std::pair<EdgeWeight, EdgeWeight>
-  gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) {
-    return {gain(node, b_node, targets.first), gain(node, b_node, targets.second)};
-  }
-
-  template <typename Lambda>
-  KAMINPAR_INLINE void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
-    const EdgeWeight conn_from_delta = kIteratesExactGains ? conn_delta(node, from) : 0;
-
-    _gain_cache.gains(node, from, [&](const BlockID to, auto &&gain) {
-      lambda(to, [&] { return gain() + conn_delta(node, to) - conn_from_delta; });
-    });
-  }
-
-  KAMINPAR_INLINE void move(
-      const DeltaPartitionedGraph &d_graph,
-      const NodeID u,
-      const BlockID block_from,
-      const BlockID block_to
-  ) {
-    d_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
-      _gain_cache_delta[index(v, block_from)] -= weight;
-      _gain_cache_delta[index(v, block_to)] += weight;
-    });
-  }
-
-  KAMINPAR_INLINE void clear() {
-    _gain_cache_delta.clear();
-  }
-
-private:
-  [[nodiscard]] KAMINPAR_INLINE std::size_t index(const NodeID node, const BlockID block) const {
-    // Note: this increases running times substantially due to the shifts
-    // return index_sparse(node, block);
-
-    return 1ull * node * _k + block;
-  }
-
-  [[nodiscard]] KAMINPAR_INLINE EdgeWeight
-  conn_delta(const NodeID node, const BlockID block) const {
-    const auto it = _gain_cache_delta.get_if_contained(index(node, block));
-    return it != _gain_cache_delta.end() ? *it : 0;
-  }
-
-  BlockID _k;
-  const GainCache &_gain_cache;
-  DynamicFlatMap<std::size_t, EdgeWeight> _gain_cache_delta;
 };
 } // namespace kaminpar::shm
