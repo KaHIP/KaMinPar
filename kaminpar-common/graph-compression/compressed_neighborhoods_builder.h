@@ -46,6 +46,15 @@ public:
     }
   }
 
+  /**
+   * Sets the number of edges of the graph to compress.
+   *
+   * @param num_edges The number of edges of the graph to compress.
+   */
+  void set_num_edges(const EdgeID num_edges) {
+    _num_edges = num_edges;
+  }
+
   /*!
    * Adds the (possibly weighted) neighborhood of a node. Note that the neighbourhood vector is
    * modified.
@@ -104,7 +113,7 @@ public:
         _compressed_edges_builder.max_degree(),
         _num_edges,
         _has_edge_weights,
-        _compressed_edges_builder.total_edge_weight(),
+        _has_edge_weights ? _compressed_edges_builder.total_edge_weight() : _num_edges,
         _compressed_edges_builder.num_high_degree_nodes(),
         _compressed_edges_builder.num_high_degree_parts(),
         _compressed_edges_builder.num_interval_nodes(),

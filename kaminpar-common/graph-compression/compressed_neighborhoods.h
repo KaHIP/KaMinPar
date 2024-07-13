@@ -333,7 +333,7 @@ public:
    *
    * @return The total edge weight.
    */
-  [[nodiscard]] bool total_edge_weight() const {
+  [[nodiscard]] EdgeWeight total_edge_weight() const {
     return _total_edge_weight;
   }
 
