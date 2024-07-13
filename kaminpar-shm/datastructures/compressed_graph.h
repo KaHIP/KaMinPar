@@ -37,6 +37,11 @@ public:
   using AbstractGraph::NodeWeight;
 
   /*!
+   * Whether edge weights are compressed.
+   */
+  static constexpr bool kCompressEdgeWeights = CompressedNeighborhoods::kCompressEdgeWeights;
+
+  /*!
    * Whether high degree encoding is used.
    */
   static constexpr bool kHighDegreeEncoding = CompressedNeighborhoods::kHighDegreeEncoding;
@@ -411,6 +416,10 @@ public:
 
   [[nodiscard]] const StaticArray<std::uint8_t> &raw_compressed_edges() const {
     return _compressed_neighborhoods.raw_compressed_edges();
+  }
+
+  [[nodiscard]] inline const StaticArray<NodeWeight> &raw_edge_weights() const {
+    return _compressed_neighborhoods.raw_edge_weights();
   }
 
 private:

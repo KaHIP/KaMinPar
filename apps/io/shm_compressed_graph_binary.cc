@@ -27,6 +27,7 @@ struct CompressedBinaryHeader {
 
   bool use_degree_bucket_order;
 
+  bool compress_edge_weights;
   bool use_high_degree_encoding;
   bool use_interval_encoding;
   bool use_run_length_encoding;
@@ -61,6 +62,7 @@ CompressedBinaryHeader create_header(const CompressedGraph &graph) {
 
       graph.sorted(),
 
+      CompressedGraph::kCompressEdgeWeights,
       CompressedGraph::kHighDegreeEncoding,
       CompressedGraph::kIntervalEncoding,
       CompressedGraph::kRunLengthEncoding,
@@ -90,11 +92,11 @@ template <typename T> static void write_int(std::ofstream &out, const T id) {
 static void write_header(std::ofstream &out, const CompressedBinaryHeader header) {
   const std::uint16_t boolean_values =
       (header.use_isolated_nodes_separation << 12) | (header.use_stream_vbyte_encoding << 11) |
-      (header.use_run_length_encoding << 9) | (header.use_interval_encoding << 8) |
-      (header.use_high_degree_encoding << 7) | (header.use_degree_bucket_order << 6) |
-      (header.has_64_bit_edge_weight << 5) | (header.has_64_bit_node_weight << 4) |
-      (header.has_64_bit_edge_id << 3) | (header.has_64_bit_node_id << 2) |
-      (header.has_edge_weights << 1) | (header.has_node_weights);
+      (header.use_run_length_encoding << 10) | (header.use_interval_encoding << 9) |
+      (header.use_high_degree_encoding << 8) | (header.compress_edge_weights << 7) |
+      (header.use_degree_bucket_order << 6) | (header.has_64_bit_edge_weight << 5) |
+      (header.has_64_bit_node_weight << 4) | (header.has_64_bit_edge_id << 3) |
+      (header.has_64_bit_node_id << 2) | (header.has_edge_weights << 1) | (header.has_node_weights);
   write_int(out, boolean_values);
 
   write_int(out, header.high_degree_threshold);
@@ -138,6 +140,10 @@ void write(const std::string &filename, const CompressedGraph &graph) {
   if (graph.is_node_weighted()) {
     write_static_array(out, graph.raw_node_weights());
   }
+
+  if (graph.is_edge_weighted() && !CompressedGraph::kCompressEdgeWeights) {
+    write_static_array(out, graph.raw_edge_weights());
+  }
 }
 
 template <typename T> static T read_int(std::ifstream &in) {
@@ -149,14 +155,14 @@ template <typename T> static T read_int(std::ifstream &in) {
 CompressedBinaryHeader read_header(std::ifstream &in) {
   const auto boolean_values = read_int<std::uint16_t>(in);
   return {
-      (boolean_values & 1) != 0,   (boolean_values & 2) != 0,    (boolean_values & 4) != 0,
-      (boolean_values & 8) != 0,   (boolean_values & 16) != 0,   (boolean_values & 32) != 0,
-      (boolean_values & 64) != 0,  (boolean_values & 128) != 0,  (boolean_values & 256) != 0,
-      (boolean_values & 512) != 0, (boolean_values & 1024) != 0, (boolean_values & 2048) != 0,
-      read_int<std::uint64_t>(in), read_int<std::uint64_t>(in),  read_int<std::uint64_t>(in),
-      read_int<std::uint64_t>(in), read_int<std::uint64_t>(in),  read_int<std::int64_t>(in),
-      read_int<std::uint64_t>(in), read_int<std::uint64_t>(in),  read_int<std::uint64_t>(in),
-      read_int<std::uint64_t>(in),
+      (boolean_values & 1) != 0,    (boolean_values & 2) != 0,    (boolean_values & 4) != 0,
+      (boolean_values & 8) != 0,    (boolean_values & 16) != 0,   (boolean_values & 32) != 0,
+      (boolean_values & 64) != 0,   (boolean_values & 128) != 0,  (boolean_values & 256) != 0,
+      (boolean_values & 512) != 0,  (boolean_values & 1024) != 0, (boolean_values & 2048) != 0,
+      (boolean_values & 4096) != 0, read_int<std::uint64_t>(in),  read_int<std::uint64_t>(in),
+      read_int<std::uint64_t>(in),  read_int<std::uint64_t>(in),  read_int<std::uint64_t>(in),
+      read_int<std::int64_t>(in),   read_int<std::uint64_t>(in),  read_int<std::uint64_t>(in),
+      read_int<std::uint64_t>(in),  read_int<std::uint64_t>(in),
   };
 }
 
@@ -213,6 +219,17 @@ void verify_header(const CompressedBinaryHeader header) {
   } else if (sizeof(EdgeWeight) != 4) {
     LOG_ERROR << "The stored compressed graph uses 32-Bit edge weights but this build uses 64-Bit "
                  "edge weights.";
+    std::exit(1);
+  }
+
+  if (header.compress_edge_weights != CompressedGraph::kCompressEdgeWeights) {
+    if (header.compress_edge_weights) {
+      LOG_ERROR
+          << "The stored compressed graph has compressed edge weight but this build does not.";
+    } else {
+      LOG_ERROR
+          << "The stored compressed graph does not compress edge weights but this build does.";
+    }
     std::exit(1);
   }
 
@@ -322,9 +339,15 @@ CompressedGraph read(const std::string &filename) {
     node_weights = read_static_array<NodeWeight>(in);
   }
 
+  StaticArray<EdgeWeight> edge_weights;
+  if (header.has_edge_weights && !CompressedGraph::kCompressEdgeWeights) {
+    edge_weights = read_static_array<EdgeWeight>(in);
+  }
+
   CompressedNeighborhoods<NodeID, EdgeID, EdgeWeight> compressed_neighborhoods(
       std::move(nodes),
       std::move(compressed_edges),
+      std::move(edge_weights),
       header.max_degree,
       header.num_edges,
       header.has_edge_weights,

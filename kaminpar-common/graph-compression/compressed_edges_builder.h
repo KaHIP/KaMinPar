@@ -22,6 +22,7 @@ template <typename NodeID, typename EdgeID, typename EdgeWeight> class Compresse
   using CompressedNeighborhoods = kaminpar::CompressedNeighborhoods<NodeID, EdgeID, EdgeWeight>;
   using SignedID = CompressedNeighborhoods::SignedID;
 
+  static constexpr bool kCompressEdgeWeights = CompressedNeighborhoods::kCompressEdgeWeights;
   static constexpr bool kHighDegreeEncoding = CompressedNeighborhoods::kHighDegreeEncoding;
   static constexpr NodeID kHighDegreeThreshold = CompressedNeighborhoods::kHighDegreeThreshold;
   static constexpr NodeID kHighDegreePartLength = CompressedNeighborhoods::kHighDegreePartLength;
@@ -83,9 +84,17 @@ public:
    * @param num_nodes The number of nodes of the graph to compress.
    * @param num_edges The number of edges of the graph to compress.
    * @param has_edge_weights Whether the graph to compress has edge weights.
+   * @param edge_weights A reference to the edge weights of the graph, which is only used when the
+   * graph has edge weights and graph compression is disabled.
    */
-  CompressedEdgesBuilder(const NodeID num_nodes, const EdgeID num_edges, bool has_edge_weights)
-      : _has_edge_weights(has_edge_weights) {
+  CompressedEdgesBuilder(
+      const NodeID num_nodes,
+      const EdgeID num_edges,
+      const bool has_edge_weights,
+      StaticArray<EdgeWeight> &edge_weights
+  )
+      : _has_edge_weights(has_edge_weights),
+        _edge_weights(edge_weights) {
     const std::size_t max_size =
         compressed_edge_array_max_size(num_nodes, num_edges, has_edge_weights);
     _compressed_data_start = heap_profiler::overcommit_memory<std::uint8_t>(max_size);
@@ -101,11 +110,18 @@ public:
    * @param num_edges The number of edges of the graph to compress.
    * @param max_degree The maximum number of edges that are compressed at once.
    * @param has_edge_weights Whether the graph to compress has edge weights.
+   * @param edge_weights A reference to the edge weights of the graph, which is only used when the
+   * graph has edge weights and graph compression is disabled.
    */
   CompressedEdgesBuilder(
-      const NodeID num_nodes, const EdgeID num_edges, const NodeID max_degree, bool has_edge_weights
+      const NodeID num_nodes,
+      const EdgeID num_edges,
+      const NodeID max_degree,
+      const bool has_edge_weights,
+      StaticArray<EdgeWeight> &edge_weights
   )
-      : _has_edge_weights(has_edge_weights) {
+      : _has_edge_weights(has_edge_weights),
+        _edge_weights(edge_weights) {
     const std::size_t max_size =
         compressed_edge_array_max_size<false>(num_nodes, max_degree, has_edge_weights);
     _compressed_data_start = heap_profiler::overcommit_memory<std::uint8_t>(max_size);
@@ -152,6 +168,7 @@ public:
     _edge = first_edge;
     _max_degree = 0;
     _total_edge_weight = 0;
+    _cur_edge_weight = 0;
 
     _num_high_degree_nodes = 0;
     _num_high_degree_parts = 0;
@@ -267,6 +284,8 @@ private:
 
   bool _has_edge_weights;
   EdgeWeight _total_edge_weight;
+  EdgeID _cur_edge_weight;
+  StaticArray<EdgeWeight> &_edge_weights;
 
   EdgeID _edge;
   NodeID _max_degree;
@@ -372,8 +391,35 @@ private:
       }
     };
 
-    NodeID local_degree = neighbourhood.size();
     EdgeWeight prev_edge_weight = 0;
+    const auto add_edge_weight = [&](const NodeID i) {
+      if (!_has_edge_weights) {
+        return;
+      }
+
+      if constexpr (kHasEdgeWeights) {
+        const EdgeWeight edge_weight = neighbourhood[i].second;
+        _total_edge_weight += edge_weight;
+
+        if constexpr (kCompressEdgeWeights) {
+          const EdgeWeight edge_weight_gap = edge_weight - prev_edge_weight;
+
+          const std::size_t edge_weight_gap_len =
+              signed_varint_encode(edge_weight_gap, _compressed_data);
+          _compressed_data += edge_weight_gap_len;
+          IF_DBG _num_edge_weights_bytes += edge_weight_gap_len;
+
+          prev_edge_weight = edge_weight;
+        } else {
+          _edge_weights[_cur_edge_weight++] = edge_weight;
+        }
+      } else {
+        _edge_weights[_cur_edge_weight++] = 1;
+        _total_edge_weight += 1;
+      }
+    };
+
+    NodeID local_degree = neighbourhood.size();
 
     // Find intervals [i, j] of consecutive adjacent nodes i, i + 1, ..., j - 1, j of length at
     // least kIntervalLengthTreshold. Instead of storing all nodes, only encode the left extreme i
@@ -426,21 +472,7 @@ private:
                   // Set the adjacent node to a special value, which indicates for the gap encoder
                   // that the node has been encoded through an interval.
                   set_adjacent_node(k, std::numeric_limits<NodeID>::max());
-
-                  if constexpr (kHasEdgeWeights) {
-                    if (_has_edge_weights) {
-                      const EdgeWeight edge_weight = neighbourhood[k].second;
-                      const EdgeWeight edge_weight_gap = edge_weight - prev_edge_weight;
-
-                      const std::size_t edge_weight_gap_len =
-                          signed_varint_encode(edge_weight_gap, _compressed_data);
-                      _compressed_data += edge_weight_gap_len;
-                      IF_DBG _num_edge_weights_bytes += edge_weight_gap_len;
-
-                      prev_edge_weight = edge_weight;
-                      _total_edge_weight += edge_weight;
-                    }
-                  }
+                  add_edge_weight(k);
                 }
 
                 previous_right_extreme = adjacent_node;
@@ -505,76 +537,53 @@ private:
     _compressed_data += first_gap_len;
     IF_DBG _num_adjacent_node_bytes += first_gap_len;
 
-    if constexpr (kHasEdgeWeights) {
-      if (_has_edge_weights) {
-        const EdgeWeight first_edge_weight = neighbourhood[i].second;
-        const EdgeWeight first_edge_weight_gap = first_edge_weight - prev_edge_weight;
-
-        const std::size_t first_edge_weight_gap_len =
-            signed_varint_encode(first_edge_weight_gap, _compressed_data);
-        _compressed_data += first_edge_weight_gap_len;
-        IF_DBG _num_edge_weights_bytes += first_edge_weight_gap_len;
-
-        prev_edge_weight = first_edge_weight;
-        _total_edge_weight += first_edge_weight;
-      }
-    }
-
+    add_edge_weight(i);
     i += 1;
 
-    VarIntRunLengthEncoder<NodeID> rl_encoder(_compressed_data);
-    VarIntStreamEncoder<NodeID> sv_encoder(_compressed_data, local_degree - 1);
+    const auto encode_gaps = [&](const auto &&encode_gap) {
+      NodeID prev_adjacent_node = first_adjacent_node;
+      while (i < neighbourhood.size()) {
+        const NodeID adjacent_node = fetch_adjacent_node(i);
 
-    NodeID prev_adjacent_node = first_adjacent_node;
-    while (i < neighbourhood.size()) {
-      const NodeID adjacent_node = fetch_adjacent_node(i);
-
-      // Skip the adjacent node since it has been encoded through an interval.
-      if constexpr (kIntervalEncoding) {
-        if (adjacent_node == std::numeric_limits<NodeID>::max()) {
-          i += 1;
-          continue;
+        // Skip the adjacent node if it has been encoded through an interval.
+        if constexpr (kIntervalEncoding) {
+          if (adjacent_node == std::numeric_limits<NodeID>::max()) {
+            i += 1;
+            continue;
+          }
         }
-      }
 
-      const NodeID gap = adjacent_node - prev_adjacent_node - 1;
-      if constexpr (kRunLengthEncoding) {
+        const NodeID gap = adjacent_node - prev_adjacent_node - 1;
+        encode_gap(gap);
+        add_edge_weight(i);
+
+        prev_adjacent_node = adjacent_node;
+        i += 1;
+      }
+    };
+
+    if constexpr (kRunLengthEncoding) {
+      VarIntRunLengthEncoder<NodeID> rl_encoder(_compressed_data);
+      encode_gaps([&](const NodeID gap) {
         const std::size_t gap_len = rl_encoder.add(gap);
         _compressed_data += gap_len;
         IF_DBG _num_adjacent_node_bytes += gap_len;
-      } else if constexpr (kStreamEncoding) {
+      });
+      rl_encoder.flush();
+    } else if constexpr (kStreamEncoding) {
+      VarIntStreamEncoder<NodeID> sv_encoder(_compressed_data, local_degree - 1);
+      encode_gaps([&](const NodeID gap) {
         const std::size_t gap_len = sv_encoder.add(gap);
         _compressed_data += gap_len;
         IF_DBG _num_adjacent_node_bytes += gap_len;
-      } else {
+      });
+      sv_encoder.flush();
+    } else {
+      encode_gaps([&](const NodeID gap) {
         const std::size_t gap_len = varint_encode(gap, _compressed_data);
         _compressed_data += gap_len;
         IF_DBG _num_adjacent_node_bytes += gap_len;
-      }
-
-      if constexpr (kHasEdgeWeights) {
-        if (_has_edge_weights) {
-          const EdgeWeight edge_weight = neighbourhood[i].second;
-          const EdgeWeight edge_weight_gap = edge_weight - prev_edge_weight;
-
-          const std::size_t edge_weight_gap_len =
-              signed_varint_encode(edge_weight_gap, _compressed_data);
-          _compressed_data += edge_weight_gap_len;
-          IF_DBG _num_edge_weights_bytes += edge_weight_gap_len;
-
-          prev_edge_weight = edge_weight;
-          _total_edge_weight += edge_weight;
-        }
-      }
-
-      prev_adjacent_node = adjacent_node;
-      i += 1;
-    }
-
-    if constexpr (kRunLengthEncoding) {
-      rl_encoder.flush();
-    } else if constexpr (kStreamEncoding) {
-      sv_encoder.flush();
+      });
     }
   }
 };

@@ -94,11 +94,11 @@ TEST(CompressedGraphTest, compressed_graph_incident_edges_operation) {
   TEST_ON_ALL_GRAPHS(test_compressed_graph_incident_edges_operation);
 }
 
-template <bool rearrange> static void test_compressed_graph_adjacent_nodes_operation(Graph graph) {
+template <bool kRearrange> static void test_compressed_graph_adjacent_nodes_operation(Graph graph) {
   auto &csr_graph = graph.csr_graph();
   const auto compressed_graph = CompressedGraphBuilder::compress(csr_graph);
 
-  if constexpr (rearrange) {
+  if constexpr (kRearrange) {
     graph::reorder_edges_by_compression(csr_graph);
   }
 
@@ -115,7 +115,7 @@ template <bool rearrange> static void test_compressed_graph_adjacent_nodes_opera
 
     EXPECT_EQ(graph_neighbours.size(), compressed_graph_neighbours.size());
 
-    if constexpr (!rearrange) {
+    if constexpr (!kRearrange) {
       std::sort(graph_neighbours.begin(), graph_neighbours.end());
       std::sort(compressed_graph_neighbours.begin(), compressed_graph_neighbours.end());
     }
@@ -171,11 +171,11 @@ TEST(CompressedGraphTest, compressed_graph_weighted_adjacent_nodes_operation) {
   TEST_ON_ALL_GRAPHS(test_compressed_graph_weighted_adjacent_nodes_operation<true>);
 }
 
-template <bool rearrange> static void test_compressed_graph_neighbors_operation(Graph graph) {
+template <bool kRearrange> static void test_compressed_graph_neighbors_operation(Graph graph) {
   auto &csr_graph = graph.csr_graph();
   const auto compressed_graph = CompressedGraphBuilder::compress(csr_graph);
 
-  if constexpr (rearrange) {
+  if constexpr (kRearrange) {
     graph::reorder_edges_by_compression(csr_graph);
   }
 
@@ -196,7 +196,7 @@ template <bool rearrange> static void test_compressed_graph_neighbors_operation(
 
     EXPECT_EQ(graph_incident_edges.size(), compressed_graph_incident_edges.size());
 
-    if constexpr (!rearrange) {
+    if constexpr (!kRearrange) {
       std::sort(graph_incident_edges.begin(), graph_incident_edges.end());
       std::sort(graph_adjacent_node.begin(), graph_adjacent_node.end());
       std::sort(compressed_graph_incident_edges.begin(), compressed_graph_incident_edges.end());
@@ -218,12 +218,12 @@ TEST(CompressedGraphTest, compressed_graph_neighbors_operation) {
   TEST_ON_ALL_GRAPHS(test_compressed_graph_neighbors_operation<true>);
 }
 
-template <bool rearrange>
+template <bool kRearrange>
 static void test_compressed_graph_weighted_neighbors_operation(Graph graph) {
   auto &csr_graph = graph.csr_graph();
   const auto compressed_graph = CompressedGraphBuilder::compress(csr_graph);
 
-  if constexpr (rearrange) {
+  if constexpr (kRearrange) {
     graph::reorder_edges_by_compression(csr_graph);
   }
 
@@ -244,7 +244,7 @@ static void test_compressed_graph_weighted_neighbors_operation(Graph graph) {
 
     EXPECT_EQ(graph_incident_edges.size(), compressed_graph_incident_edges.size());
 
-    if constexpr (!rearrange) {
+    if constexpr (!kRearrange) {
       std::sort(graph_incident_edges.begin(), graph_incident_edges.end());
       std::sort(graph_adjacent_node.begin(), graph_adjacent_node.end());
       std::sort(compressed_graph_incident_edges.begin(), compressed_graph_incident_edges.end());
