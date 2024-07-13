@@ -22,6 +22,7 @@
 #include "apps/io/dist_io.h"
 #include "apps/io/dist_metis_parser.h"
 #include "apps/io/dist_parhip_parser.h"
+#include "apps/io/dist_skagen.h"
 
 using namespace kaminpar;
 using namespace kaminpar::dist;
@@ -31,12 +32,14 @@ namespace {
 enum class IOKind {
   KAMINPAR,
   KAGEN,
+  STREAMING_KAGEN
 };
 
 std::unordered_map<std::string, IOKind> get_io_kinds() {
   return {
       {"kaminpar", IOKind::KAMINPAR},
       {"kagen", IOKind::KAGEN},
+      {"skagen", IOKind::STREAMING_KAGEN},
   };
 }
 
@@ -64,6 +67,8 @@ struct ApplicationContext {
   GraphDistribution io_distribution = GraphDistribution::BALANCED_EDGES;
   kagen::FileFormat io_format = kagen::FileFormat::EXTENSION;
   kagen::GraphDistribution io_kagen_distribution = kagen::GraphDistribution::BALANCE_EDGES;
+  std::string io_skagen_graph_options;
+  int io_skagen_chunks_per_pe;
 
   std::string graph_filename = "";
   std::string partition_filename = "";
@@ -128,13 +133,14 @@ The output should be stored in a file and can be used by the -C,--config option.
       ->transform(CLI::CheckedTransformer(get_io_kinds()).description(""))
       ->description(R"(Graph distribution scheme used for KaGen IO, possible options are:
   - kaminpar: use KaMinPar for IO
-  - kagen:    use KaGen for IO)")
+  - kagen:    use KaGen for IO
+  - skagen:   use streaming KaGen for IO)")
       ->capture_default_str();
   cli.add_option("--io-distribution", app.io_distribution)
       ->transform(CLI::CheckedTransformer(get_graph_distributions()).description(""))
       ->description(R"(Graph distribution scheme, possible options are:
   - balanced-edges:        distribute edges such that each PE has roughly the same number of edges
-  - balancde-memory-space: distribute graph such that each PE uses roughly the same memory space for the input graph)"
+  - balanced-memory-space: distribute graph such that each PE uses roughly the same memory space for the input graph)"
       )
       ->capture_default_str();
   cli.add_option("--io-kagen-distribution", app.io_kagen_distribution)
@@ -143,6 +149,10 @@ The output should be stored in a file and can be used by the -C,--config option.
   - balance-vertices: distribute vertices such that each PE has roughly the same number of vertices
   - balance-edges:    distribute edges such that each PE has roughly the same number of edges)")
       ->capture_default_str();
+  cli.add_option("--io-skagen-graph", app.io_skagen_graph_options)
+      ->description("The options used for generating the graph");
+  cli.add_option("--io-skagen-chunks", app.io_skagen_chunks_per_pe)
+      ->description("The number of chunks per PE that generation will be split into");
   cli.add_flag("-E,--experiment", app.experiment, "Use an output format that is easier to parse.");
   cli.add_option(
       "--max-timer-depth", app.max_timer_depth, "Set maximum timer depth shown in result summary."
@@ -259,6 +269,18 @@ NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
   return graph.vertex_range.second - graph.vertex_range.first;
 }
 
+NodeID load_skagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
+  DistributedCompressedGraph compressed_graph = io::skagen::compressed_streaming_generate(
+      app.io_skagen_graph_options, app.io_skagen_chunks_per_pe, MPI_COMM_WORLD
+  );
+
+  DistributedGraph graph(std::make_unique<DistributedCompressedGraph>(std::move(compressed_graph)));
+  const NodeID n = graph.n();
+
+  partitioner.import_graph(std::move(graph));
+  return n;
+}
+
 NodeID load_csr_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
   const auto read_graph = [&] {
     switch (app.io_format) {
@@ -268,7 +290,7 @@ NodeID load_csr_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
       return io::parhip::csr_read(app.graph_filename, app.io_distribution, false, MPI_COMM_WORLD);
     default:
       root_run_and_exit([&] {
-        LOG_ERROR << "To read graphs not stored in METIS or ParHIP format, use KaGen as the IO!";
+        LOG_ERROR << "To read graphs not stored in METIS/ParHIP format, use KaGen as the IO!";
       });
     }
   };
@@ -367,9 +389,13 @@ int main(int argc, char *argv[]) {
       }
 
       return load_csr_graph(app, partitioner);
+    }
+
+    if (app.io_kind == IOKind::STREAMING_KAGEN) {
+      return load_skagen_graph(app, partitioner);
     } else if (ctx.compression.enabled) {
       root_run([] {
-        LOG_WARNING << "Disabling graph compression as it is only supported with KaMinPar-IO!";
+        LOG_WARNING << "Disabling graph compression since it is not supported with KaGen-IO!";
       });
     }
 

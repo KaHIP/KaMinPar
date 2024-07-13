@@ -44,7 +44,9 @@ if (TARGET kaminpar_dist)
         ${CMAKE_CURRENT_SOURCE_DIR}/io/dist_metis_parser.h
         ${CMAKE_CURRENT_SOURCE_DIR}/io/dist_metis_parser.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/io/dist_parhip_parser.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/io/dist_parhip_parser.cc)
+        ${CMAKE_CURRENT_SOURCE_DIR}/io/dist_parhip_parser.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/io/dist_skagen.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/io/dist_skagen.cc)
     target_link_libraries(dKaMinPar PRIVATE KaGen::KaGen)
 endif ()
 
