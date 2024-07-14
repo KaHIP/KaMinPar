@@ -62,6 +62,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
 
   START_HEAP_PROFILER("Coarsening");
   while (!converged && graph->global_n() > desired_num_nodes) {
+    SCOPED_HEAP_PROFILER("Level", std::to_string(coarsener->level()));
     SCOPED_TIMER("Coarsening");
 
     // Replicate graph and split PEs when the graph becomes too small
@@ -112,6 +113,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   START_TIMER("Initial partitioning");
   START_HEAP_PROFILER("Initial partitioning");
   auto initial_partitioner = TIMED_SCOPE("Allocation") {
+    SCOPED_HEAP_PROFILER("Allocation");
     return factory::create_initial_partitioner(_input_ctx);
   };
 
@@ -163,14 +165,17 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   START_TIMER("Uncoarsening");
   START_HEAP_PROFILER("Uncoarsening");
   auto refiner_factory = TIMED_SCOPE("Allocation") {
+    SCOPED_HEAP_PROFILER("Allocation");
     return factory::create_refiner(_input_ctx);
   };
 
   auto run_refinement = [&](DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
     START_TIMER("Refinement");
+    START_HEAP_PROFILER("Refinement");
     auto refiner = refiner_factory->create(p_graph, p_ctx);
     refiner->initialize();
     refiner->refine();
+    STOP_HEAP_PROFILER();
     STOP_TIMER();
     TIMER_BARRIER(p_graph.communicator());
 
@@ -182,6 +187,8 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   };
 
   auto extend_partition = [&](DistributedPartitionedGraph &p_graph, PartitionContext &ref_p_ctx) {
+    SCOPED_HEAP_PROFILER("Extending partition");
+
     BlockID desired_k = std::min<BlockID>(
         _input_ctx.partition.k,
         math::ceil2(dist_p_graph.global_n() / _input_ctx.coarsening.contraction_limit)
@@ -271,6 +278,8 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
 
   // Uncoarsen, partition blocks and refine
   while (_coarseners.size() > 1 || coarsener->level() > 0) {
+    SCOPED_HEAP_PROFILER("Level", std::to_string(coarsener->level()));
+
     LOG;
     LOG << "Uncoarsening -> Level " << _coarseners.size() << "," << coarsener->level() << ":";
 

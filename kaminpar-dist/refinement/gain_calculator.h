@@ -7,8 +7,6 @@
  ******************************************************************************/
 #pragma once
 
-#include <utility>
-
 #include <tbb/enumerable_thread_specific.h>
 
 #include "kaminpar-dist/context.h"
@@ -107,7 +105,9 @@ private:
       map.clear();
     };
 
-    _rating_map_ets.local().execute(std::min(_p_graph->k(), _graph->degree(u)), action);
+    _rating_map_ets.local().execute(
+        std::min<std::size_t>(_p_graph->k(), _p_graph->degree(u)), action
+    );
 
     return {
         .int_degree = int_conn,

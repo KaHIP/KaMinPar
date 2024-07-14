@@ -528,7 +528,7 @@ NodeID ColoredLPRefiner::perform_local_moves(const ColorID c) {
 
     if (to != _p_graph.block(u)) {
       activate_neighbors(u);
-      _next_partition[seq_u] = kInvalidNodeID; // Mark as moved
+      _next_partition[seq_u] = kInvalidBlockID; // Mark as moved
       _p_graph.set_block<false>(u, to);
       ++num_moved_nodes_ets.local();
       IFSTATS(_gain_statistics.record_gain(_gains[seq_u], c));

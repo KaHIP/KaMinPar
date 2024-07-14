@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Functions to annotate the heap profiler tree with aggregate information from
+ * Functions to annotate the heap profiler tree with aggregated information from
  * all PEs.
  *
  * @file:   heap_profiler.h

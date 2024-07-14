@@ -109,6 +109,7 @@ public:
 
     START_TIMER("Initialize high-degree node info");
     if (_passive_high_degree_threshold > 0) {
+      SCOPED_HEAP_PROFILER("Initialize high-degree node info");
       graph.init_high_degree_info(_passive_high_degree_threshold);
     }
     STOP_TIMER();
@@ -120,12 +121,14 @@ public:
     TIMER_BARRIER(graph.communicator());
 
     START_TIMER("Initialize datastructures");
+    START_HEAP_PROFILER("Initialize datastructures");
     _cluster_weights_handles_ets.clear();
     _cluster_weights = ClusterWeightsMap{0};
     std::fill(_local_cluster_weights.begin(), _local_cluster_weights.end(), 0);
 
     Base::initialize(&graph, graph.total_n());
     initialize_ghost_node_clusters();
+    STOP_HEAP_PROFILER();
     STOP_TIMER();
 
     TIMER_BARRIER(graph.communicator());
@@ -138,12 +141,14 @@ public:
   void compute_clustering(StaticArray<GlobalNodeID> &clustering, const Graph &graph) {
     TIMER_BARRIER(graph.communicator());
     SCOPED_TIMER("Label propagation");
+    SCOPED_HEAP_PROFILER("Label propagation");
 
     init_clusters_ref(clustering);
     initialize(graph);
 
     const int num_chunks = _c_ctx.global_lp.chunks.compute(_ctx.parallel);
 
+    SCOPED_HEAP_PROFILER("Process chunks");
     for (int iteration = 0; iteration < _max_num_iterations; ++iteration) {
       GlobalNodeID global_num_moved_nodes = 0;
       for (int chunk = 0; chunk < num_chunks; ++chunk) {
@@ -345,9 +350,10 @@ public:
 private:
   GlobalNodeID process_chunk(const NodeID from, const NodeID to) {
     TIMER_BARRIER(_graph->communicator());
-    START_TIMER("Chunk iteration");
-    const NodeID local_num_moved_nodes = Base::perform_iteration(from, to);
-    STOP_TIMER();
+
+    const NodeID local_num_moved_nodes = TIMED_SCOPE("Chunk iteration") {
+      return Base::perform_iteration(from, to);
+    };
 
     const GlobalNodeID global_num_moved_nodes =
         mpi::allreduce(local_num_moved_nodes, MPI_SUM, _graph->communicator());
@@ -366,6 +372,8 @@ private:
   }
 
   void allocate(const Graph &graph) {
+    SCOPED_HEAP_PROFILER("Allocation");
+
     if (_changed_label.size() < graph.n()) {
       _changed_label.resize(graph.n());
     }
@@ -562,9 +570,7 @@ private:
         from,
         to,
         [&](const NodeID lnode) { return _changed_label[lnode] != kInvalidGlobalNodeID; },
-        [&](const NodeID lnode) -> ChangedLabelMessage {
-          return {lnode, cluster(lnode)};
-        },
+        [&](const NodeID lnode) -> ChangedLabelMessage { return {lnode, cluster(lnode)}; },
         [&](const auto &buffer, const PEID owner) {
           tbb::parallel_for(tbb::blocked_range<std::size_t>(0, buffer.size()), [&](const auto &r) {
             auto &weight_delta_handle = _weight_delta_handles_ets.local();

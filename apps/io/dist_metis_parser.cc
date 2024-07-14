@@ -303,14 +303,14 @@ DistributedCSRGraph csr_read(
   RECORD("nodes") StaticArray<EdgeID> nodes(num_local_nodes + 1, static_array::noinit);
   RECORD("edges") StaticArray<NodeID> edges(num_local_edges, static_array::noinit);
 
+  RECORD("node_weights") StaticArray<NodeWeight> node_weights;
+  if (header.has_node_weights) {
+    node_weights.resize(num_local_nodes, static_array::noinit);
+  }
+
   RECORD("edge_weights") StaticArray<EdgeWeight> edge_weights;
   if (header.has_edge_weights) {
     edge_weights.resize(num_local_edges, static_array::noinit);
-  }
-
-  RECORD("node_weights") StaticArray<NodeWeight> node_weights;
-  if (header.has_node_weights) {
-    node_weights.resize(header.num_nodes, static_array::noinit);
   }
 
   NodeID node = 0;
@@ -371,8 +371,8 @@ DistributedCSRGraph csr_read(
       std::move(edge_distribution),
       std::move(nodes),
       std::move(edges),
-      std::move(edge_weights),
       std::move(node_weights),
+      std::move(edge_weights),
       std::move(ghost_owner),
       std::move(ghost_to_global),
       std::move(global_to_ghost),
@@ -441,7 +441,7 @@ DistributedCompressedGraph compress_read(
 
   StaticArray<NodeWeight> node_weights;
   if (header.has_node_weights) {
-    node_weights.resize(header.num_nodes, static_array::noinit);
+    node_weights.resize(num_local_edges, static_array::noinit);
   }
 
   if (num_local_nodes > 0) {

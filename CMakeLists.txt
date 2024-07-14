@@ -80,6 +80,10 @@ if (KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING AND KAMINPAR_COMPRESSION_STREAM_ENC
     message(FATAL_ERROR "Either run-length or stream encoding can be used for varints but not both.")
 endif ()
 
+if (KAMINPAR_64BIT_NODE_IDS AND KAMINPAR_COMPRESSION_STREAM_ENCODING)
+    message(FATAL_ERROR "Stream encoding cannot be used with 64-bit NodeIDs.")
+endif ()
+
 if (KAMINPAR_COMPRESSION_EDGE_WEIGHTS AND KAMINPAR_COMPRESSION_STREAM_ENCODING)
     message(FATAL_ERROR "Stream encoding cannot be used together with compressed edge weights.")
 elseif (KAMINPAR_COMPRESSION_EDGE_WEIGHTS AND KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING)
