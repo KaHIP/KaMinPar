@@ -102,19 +102,11 @@ public:
   [[nodiscard]] inline NodeID map_remote_node(const NodeID lnode, const PEID owner) const { return _graph->map_remote_node(lnode, owner); }
   [[nodiscard]] inline NodeID global_to_local_node(const GlobalNodeID global_u) const { return _graph->global_to_local_node(global_u); }
   [[nodiscard]] inline NodeWeight node_weight(const NodeID u) const { return _graph->node_weight(u); }
-  [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const { return _graph->edge_weight(e); }
-  [[nodiscard]] inline EdgeID first_edge(const NodeID u) const { return _graph->first_edge(u); }
-  [[nodiscard]] inline EdgeID first_invalid_edge(const NodeID u) const { return _graph->first_invalid_edge(u); }
-  [[nodiscard]] inline NodeID edge_target(const EdgeID e) const { return _graph->edge_target(e); }
   [[nodiscard]] inline NodeID degree(const NodeID u) const { return _graph->degree(u); }
   [[nodiscard]] inline const auto &node_distribution() const { return _graph->node_distribution(); }
   [[nodiscard]] inline GlobalNodeID node_distribution(const PEID pe) const { return _graph->node_distribution(pe); }
   [[nodiscard]] inline const auto &edge_distribution() const { return _graph->edge_distribution(); }
   [[nodiscard]] inline GlobalEdgeID edge_distribution(const PEID pe) const { return _graph->edge_distribution(pe); }
-  [[nodiscard]] const auto &raw_nodes() const { return _graph->raw_nodes(); }
-  [[nodiscard]] const auto &raw_node_weights() const { return _graph->raw_node_weights(); }
-  [[nodiscard]] const auto &raw_edges() const { return _graph->raw_edges(); }
-  [[nodiscard]] const auto &raw_edge_weights() const { return _graph->raw_edge_weights(); }
   template<typename Lambda> inline void pfor_nodes(const NodeID from, const NodeID to, Lambda &&l) const { _graph->pfor_nodes(from, to, std::forward<Lambda>(l)); }
   template<typename Lambda> inline void pfor_nodes_range(const NodeID from, const NodeID to, Lambda &&l) const { _graph->pfor_nodes_range(from, to, std::forward<Lambda>(l)); }
   template<typename Lambda> inline void pfor_all_nodes(Lambda &&l) const { _graph->pfor_all_nodes(std::forward<Lambda>(l)); }
@@ -128,8 +120,9 @@ public:
   [[nodiscard]] inline auto all_nodes() const { return _graph->all_nodes(); }
   [[nodiscard]] inline auto edges() const { return _graph->edges(); }
   [[nodiscard]] inline auto incident_edges(const NodeID u) const { return _graph->incident_edges(u); }
-  [[nodiscard]] inline auto adjacent_nodes(const NodeID u) const { return _graph->adjacent_nodes(u); }
-  [[nodiscard]] inline auto neighbors(const NodeID u) const { return _graph->neighbors(u); }
+  template <typename Lambda> inline void adjacent_nodes(const NodeID u, Lambda &&l) const { _graph->adjacent_nodes(u, std::forward<Lambda>(l)); }
+  template <typename Lambda> inline void neighbors(const NodeID u, Lambda &&l) const { _graph->neighbors(u, std::forward<Lambda>(l)); }
+  template <typename Lambda> inline void neighbors(const NodeID u, NodeID max_num_neighbors, const Lambda &&l) const { _graph->neighbors(u, max_num_neighbors, std::forward<Lambda>(l)); }
   [[nodiscard]] inline std::size_t bucket_size(const std::size_t bucket) const { return _graph->bucket_size(bucket); }
   [[nodiscard]] inline NodeID first_node_in_bucket(const std::size_t bucket) const { return _graph->first_node_in_bucket(bucket); }
   [[nodiscard]] inline NodeID first_invalid_node_in_bucket(const std::size_t bucket) const { return _graph->first_invalid_node_in_bucket(bucket); }
@@ -140,6 +133,7 @@ public:
   [[nodiscard]] inline MPI_Comm communicator() const { return _graph->communicator(); }
   [[nodiscard]] inline bool permuted() const { return _graph->permuted(); }
   [[nodiscard]] inline NodeID map_original_node(const NodeID u) const { return _graph->map_original_node(u); }
+  template <typename Lambda1, typename Lambda2> decltype(auto) reified(Lambda1 &&l1, Lambda2 &&l2) const { return _graph->reified(std::forward<Lambda1>(l1), std::forward<Lambda2>(l2)); }
   // clang-format on
 
   [[nodiscard]] BlockID k() const {
@@ -203,9 +197,14 @@ public:
 
   [[nodiscard]] inline bool check_border_node(const NodeID u) const {
     const BlockID u_block = block(u);
-    return std::any_of(adjacent_nodes(u).begin(), adjacent_nodes(u).end(), [&](const NodeID v) {
-      return u_block != block(v);
+
+    bool is_border_node = false;
+    adjacent_nodes(u, [&](const NodeID v) {
+      is_border_node = u_block != block(v);
+      return is_border_node;
     });
+
+    return is_border_node;
   }
 
 private:

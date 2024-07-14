@@ -68,6 +68,7 @@ endif ()
 
 # Control graph compression options
 ###################################
+option(KAMINPAR_COMPRESSION_EDGE_WEIGHTS "Whether to compress edge weights." ON)
 option(KAMINPAR_COMPRESSION_HIGH_DEGREE_ENCODING "Use high-degree encoding for the compressed graph." ON)
 option(KAMINPAR_COMPRESSION_INTERVAL_ENCODING "Use interval encoding for the compressed graph." ON)
 option(KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING "Use run-length encoding for the compressed graph." OFF)
@@ -81,6 +82,12 @@ endif ()
 
 if (KAMINPAR_64BIT_NODE_IDS AND KAMINPAR_COMPRESSION_STREAM_ENCODING)
     message(FATAL_ERROR "Stream encoding cannot be used with 64-bit NodeIDs.")
+endif ()
+
+if (KAMINPAR_COMPRESSION_EDGE_WEIGHTS AND KAMINPAR_COMPRESSION_STREAM_ENCODING)
+    message(FATAL_ERROR "Stream encoding cannot be used together with compressed edge weights.")
+elseif (KAMINPAR_COMPRESSION_EDGE_WEIGHTS AND KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING)
+    message(FATAL_ERROR "Run-length encoding cannot be used together with compressed edge weights.")
 endif ()
 
 ################################################################################
@@ -217,6 +224,13 @@ else ()
 endif ()
 
 message(STATUS "Graph compression summary:")
+
+if (KAMINPAR_COMPRESSION_EDGE_WEIGHTS)
+    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_COMPRESSION_EDGE_WEIGHTS")
+    message("  Compressed edge weights: enabled")
+else ()
+    message("  Compressed edge weights: disabled")
+endif ()
 
 if (KAMINPAR_COMPRESSION_HIGH_DEGREE_ENCODING)
     list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_COMPRESSION_HIGH_DEGREE_ENCODING")

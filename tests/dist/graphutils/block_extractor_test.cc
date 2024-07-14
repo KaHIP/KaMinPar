@@ -372,17 +372,17 @@ TEST(GlobalGraphExtractionTest, extract_node_weights_in_circle_clique_graph) {
   const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
 
   // create clique/circle graph with rank as node weight
-  auto graph = make_circle_clique_graph(2 * size);
+  auto csr_graph = make_csr_circle_clique_graph(2 * size);
   std::vector<std::pair<NodeID, NodeWeight>> node_weights;
   std::vector<BlockID> local_partition;
-  for (const NodeID u : graph.nodes()) {
+  for (const NodeID u : csr_graph.nodes()) {
     node_weights.emplace_back(u, rank + 1);
     local_partition.push_back(u);
   }
-  for (const NodeID u : graph.ghost_nodes()) {
-    node_weights.emplace_back(u, graph.ghost_owner(u) + 1);
+  for (const NodeID u : csr_graph.ghost_nodes()) {
+    node_weights.emplace_back(u, csr_graph.ghost_owner(u) + 1);
   }
-  graph = change_node_weights(std::move(graph), node_weights);
+  auto graph = change_node_weights(std::move(csr_graph), node_weights);
   auto p_graph = make_partitioned_graph(graph, 2 * size, local_partition);
   auto subgraphs = extract_global_subgraphs(p_graph);
 
@@ -409,18 +409,18 @@ TEST(GlobalGraphExtractionTest, extract_local_edge_weights_in_circle_clique_grap
   const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
 
   // create clique/circle graph with rank as node weight
-  auto graph = make_circle_clique_graph(2);
+  auto csr_graph = make_csr_circle_clique_graph(2);
 
   std::vector<std::tuple<NodeID, NodeID, EdgeWeight>> edge_weights;
   edge_weights.emplace_back(0, 1, rank);
   edge_weights.emplace_back(1, 0, rank);
 
-  graph = change_edge_weights_by_endpoints(std::move(graph), edge_weights);
+  auto graph = change_edge_weights_by_endpoints(std::move(csr_graph), edge_weights);
   auto p_graph = make_partitioned_graph_by_rank(graph);
   auto subgraphs = extract_global_subgraphs(p_graph);
 
   ASSERT_EQ(subgraphs.size(), 1);
-  auto &subgraph = subgraphs.front();
+  auto &subgraph = subgraphs.front().csr_graph();
 
   ASSERT_EQ(subgraph.n(), 2);
   ASSERT_EQ(subgraph.m(), 2);
@@ -601,17 +601,17 @@ TEST(GlobalGraphExtractionBlockAssignment, test_first_block_computation_P7_k3) {
 TEST(GlobalGraphExtractionTest, extract_from_circle_clique_graph_fewer_blocks_than_pes) {
   const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
 
-  auto graph = make_circle_clique_graph(size / 2);
+  auto csr_graph = make_csr_circle_clique_graph(size / 2);
 
   std::vector<BlockID> local_partition(size / 2);
   std::iota(local_partition.begin(), local_partition.end(), 0);
 
   // Use global node IDs as node weights
   std::vector<std::pair<NodeID, NodeWeight>> node_weights;
-  for (const NodeID u : graph.all_nodes()) {
-    node_weights.emplace_back(u, graph.local_to_global_node(u) + 1);
+  for (const NodeID u : csr_graph.all_nodes()) {
+    node_weights.emplace_back(u, csr_graph.local_to_global_node(u) + 1);
   }
-  graph = change_node_weights(std::move(graph), node_weights);
+  auto graph = change_node_weights(std::move(csr_graph), node_weights);
 
   auto p_graph = make_partitioned_graph(graph, size / 2, local_partition);
   auto subgraphs = extract_global_subgraphs(p_graph);

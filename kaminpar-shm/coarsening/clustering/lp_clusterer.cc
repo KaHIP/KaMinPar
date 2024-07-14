@@ -303,22 +303,18 @@ public:
 class LPClusteringImplWrapper {
 public:
   LPClusteringImplWrapper(const CoarseningContext &c_ctx)
-      : _csr_core(std::make_unique<LPClusteringImpl<CSRGraph>>(c_ctx, _permutations)),
-        _compact_csr_core(std::make_unique<LPClusteringImpl<CompactCSRGraph>>(c_ctx, _permutations)
-        ),
-        _compressed_core(std::make_unique<LPClusteringImpl<CompressedGraph>>(c_ctx, _permutations)
+      : _csr_impl(std::make_unique<LPClusteringImpl<CSRGraph>>(c_ctx, _permutations)),
+        _compressed_impl(std::make_unique<LPClusteringImpl<CompressedGraph>>(c_ctx, _permutations)
         ) {}
 
   void set_max_cluster_weight(const NodeWeight max_cluster_weight) {
-    _csr_core->set_max_cluster_weight(max_cluster_weight);
-    _compact_csr_core->set_max_cluster_weight(max_cluster_weight);
-    _compressed_core->set_max_cluster_weight(max_cluster_weight);
+    _csr_impl->set_max_cluster_weight(max_cluster_weight);
+    _compressed_impl->set_max_cluster_weight(max_cluster_weight);
   }
 
   void set_desired_cluster_count(const NodeID count) {
-    _csr_core->set_desired_num_clusters(count);
-    _compact_csr_core->set_desired_num_clusters(count);
-    _compressed_core->set_desired_num_clusters(count);
+    _csr_impl->set_desired_num_clusters(count);
+    _compressed_impl->set_desired_num_clusters(count);
   }
 
   void compute_clustering(
@@ -326,7 +322,7 @@ public:
   ) {
     // Compute a clustering and setup/release the data structures used by the core, so that they can
     // be shared by all implementations.
-    const auto compute = [&](auto &core, auto &graph) {
+    const auto compute_clustering = [&](auto &core, auto &graph) {
       if (_freed) {
         _freed = false;
         core.allocate(graph.n());
@@ -347,38 +343,32 @@ public:
     };
 
     const NodeID num_nodes = graph.n();
-    _csr_core->preinitialize(num_nodes);
-    _compact_csr_core->preinitialize(num_nodes);
-    _compressed_core->preinitialize(num_nodes);
+    _csr_impl->preinitialize(num_nodes);
+    _compressed_impl->preinitialize(num_nodes);
 
-    if (auto *csr_graph = dynamic_cast<const CSRGraph *>(graph.underlying_graph());
-        csr_graph != nullptr) {
-      compute(*_csr_core, *csr_graph);
-    } else if (auto *compact_csr_graph =
-                   dynamic_cast<const CompactCSRGraph *>(graph.underlying_graph());
-               compact_csr_graph != nullptr) {
-      compute(*_compact_csr_core, *compact_csr_graph);
-    } else if (auto *compressed_graph =
-                   dynamic_cast<const CompressedGraph *>(graph.underlying_graph());
-               compressed_graph != nullptr) {
-      compute(*_compressed_core, *compressed_graph);
-    }
+    graph.reified(
+        [&](const auto &csr_graph) {
+          LPClusteringImpl<CSRGraph> &impl = *_csr_impl;
+          compute_clustering(impl, csr_graph);
+        },
+        [&](const auto &compressed_graph) {
+          LPClusteringImpl<CompressedGraph> &impl = *_compressed_impl;
+          compute_clustering(impl, compressed_graph);
+        }
+    );
 
     // Only relabel clusters during the first iteration
-    _csr_core->set_relabel_before_second_phase(false);
-    _compact_csr_core->set_relabel_before_second_phase(false);
-    _compressed_core->set_relabel_before_second_phase(false);
+    _csr_impl->set_relabel_before_second_phase(false);
+    _compressed_impl->set_relabel_before_second_phase(false);
 
     // Only use the initially small cluster weight vector for the first lp implementation
-    _csr_core->set_use_small_vector_initially(false);
-    _compact_csr_core->set_use_small_vector_initially(false);
-    _compressed_core->set_use_small_vector_initially(false);
+    _csr_impl->set_use_small_vector_initially(false);
+    _compressed_impl->set_use_small_vector_initially(false);
   }
 
 private:
-  std::unique_ptr<LPClusteringImpl<CSRGraph>> _csr_core;
-  std::unique_ptr<LPClusteringImpl<CompactCSRGraph>> _compact_csr_core;
-  std::unique_ptr<LPClusteringImpl<CompressedGraph>> _compressed_core;
+  std::unique_ptr<LPClusteringImpl<CSRGraph>> _csr_impl;
+  std::unique_ptr<LPClusteringImpl<CompressedGraph>> _compressed_impl;
 
   // The data structures that are used by the LP clusterer and are shared between the
   // different implementations.
@@ -412,4 +402,5 @@ void LPClustering::compute_clustering(
 ) {
   return _impl_wrapper->compute_clustering(clustering, graph, free_memory_afterwards);
 }
+
 } // namespace kaminpar::shm

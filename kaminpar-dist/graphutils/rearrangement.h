@@ -7,20 +7,20 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar-dist/datastructures/distributed_graph.h"
+#include "kaminpar-dist/datastructures/distributed_csr_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::dist::graph {
-DistributedGraph rearrange(DistributedGraph graph, const Context &ctx);
+DistributedCSRGraph rearrange(DistributedCSRGraph graph, const Context &ctx);
 
-DistributedGraph rearrange_by_degree_buckets(DistributedGraph graph);
+DistributedCSRGraph rearrange_by_degree_buckets(DistributedCSRGraph graph);
 
-DistributedGraph rearrange_by_coloring(DistributedGraph graph, const Context &ctx);
+DistributedCSRGraph rearrange_by_coloring(DistributedCSRGraph graph, const Context &ctx);
 
-DistributedGraph rearrange_by_permutation(
-    DistributedGraph graph,
+DistributedCSRGraph rearrange_by_permutation(
+    DistributedCSRGraph graph,
     StaticArray<NodeID> old_to_new,
     StaticArray<NodeID> new_to_old,
     bool degree_sorted

@@ -33,6 +33,6 @@ public:
   void cluster(StaticArray<GlobalNodeID> &clustering, const DistributedGraph &graph) final;
 
 private:
-  std::unique_ptr<class LocalLPClusteringImpl> _impl;
+  std::unique_ptr<class LocalLPClusteringImplWrapper> _impl;
 };
 } // namespace kaminpar::dist

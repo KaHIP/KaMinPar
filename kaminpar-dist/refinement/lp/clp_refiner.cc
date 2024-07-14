@@ -822,12 +822,11 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
 
       auto action = [&](auto &map) {
         bool is_interface_node = false;
-        for (const auto [e, v] : graph.neighbors(u)) {
+        graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
           const BlockID b = _p_graph.block(v);
-          const EdgeWeight weight = graph.edge_weight(e);
           map[b] += weight;
           is_interface_node |= graph.is_ghost_node(v);
-        }
+        });
 
         const BlockID u_block = _p_graph.block(u);
         const NodeWeight u_weight = graph.node_weight(u);
@@ -885,9 +884,7 @@ void ColoredLPRefiner::activate_neighbors(const NodeID u) {
     return;
   }
 
-  for (const auto &[e, v] : _p_graph.neighbors(u)) {
-    _is_active[v] = 1;
-  }
+  _p_graph.adjacent_nodes(u, [&](const NodeID v) { _is_active[v] = 1; });
 }
 
 void ColoredLPRefiner::GainStatistics::initialize(const ColorID c) {

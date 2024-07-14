@@ -14,6 +14,7 @@
 
 #include "kaminpar-mpi/wrapper.h"
 
+#include "kaminpar-dist/datastructures/distributed_csr_graph.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
 
@@ -22,9 +23,9 @@ namespace kaminpar::dist::testing {
  * Creates a distributed path with `num_nodes_per_pe` nodes per PE.
  *
  * @param num_nodes_per_pe Number of nodes per PE.
- * @return Distributed graph with `num_nodes_per_pe` nodes per PE.
+ * @return Distributed CSR graph with `num_nodes_per_pe` nodes per PE.
  */
-inline DistributedGraph make_path(const NodeID num_nodes_per_pe) {
+inline DistributedCSRGraph make_csr_path(const NodeID num_nodes_per_pe) {
   const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
   const NodeID n0 = num_nodes_per_pe * rank;
 
@@ -45,12 +46,22 @@ inline DistributedGraph make_path(const NodeID num_nodes_per_pe) {
 }
 
 /*!
+ * Creates a distributed path with `num_nodes_per_pe` nodes per PE.
+ *
+ * @param num_nodes_per_pe Number of nodes per PE.
+ * @return Distributed graph with `num_nodes_per_pe` nodes per PE.
+ */
+inline DistributedGraph make_path(const NodeID num_nodes_per_pe) {
+  return {std::make_unique<DistributedCSRGraph>(make_csr_path(num_nodes_per_pe))};
+}
+
+/*!
  * Creates a distributed circle with one node on each PE.
  *
- * @return Distributed graph with one node on each PE, nodes are connected in a
+ * @return Distributed CSR graph with one node on each PE, nodes are connected in a
  * circle.
  */
-inline DistributedGraph make_circle_graph() {
+inline DistributedCSRGraph make_csr_circle_graph() {
   const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
   const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
 
@@ -72,13 +83,23 @@ inline DistributedGraph make_circle_graph() {
 }
 
 /*!
+ * Creates a distributed circle with one node on each PE.
+ *
+ * @return Distributed graph with one node on each PE, nodes are connected in a
+ * circle.
+ */
+inline DistributedGraph make_circle_graph() {
+  return {std::make_unique<DistributedCSRGraph>(make_csr_circle_graph())};
+}
+
+/*!
  * Creates a distributed graph with `num_nodes_per_pe` nodes per PE and zero
  * edges.
  *
  * @param num_nodes_per_pe Number of nodes on each PE.
- * @return Distributed graph with `num_nodes_per_pe` nodes per PE.
+ * @return Distributed CSR graph with `num_nodes_per_pe` nodes per PE.
  */
-inline DistributedGraph make_isolated_nodes_graph(const NodeID num_nodes_per_pe) {
+inline DistributedCSRGraph make_csr_isolated_nodes_graph(const NodeID num_nodes_per_pe) {
   graph::Builder builder(MPI_COMM_WORLD);
   builder.initialize(num_nodes_per_pe);
   for (NodeID u = 0; u < num_nodes_per_pe; ++u) {
@@ -88,12 +109,32 @@ inline DistributedGraph make_isolated_nodes_graph(const NodeID num_nodes_per_pe)
 }
 
 /*!
+ * Creates a distributed graph with `num_nodes_per_pe` nodes per PE and zero
+ * edges.
+ *
+ * @param num_nodes_per_pe Number of nodes on each PE.
+ * @return Distributed graph with `num_nodes_per_pe` nodes per PE.
+ */
+inline DistributedGraph make_isolated_nodes_graph(const NodeID num_nodes_per_pe) {
+  return {std::make_unique<DistributedCSRGraph>(make_csr_isolated_nodes_graph(num_nodes_per_pe))};
+}
+
+/*!
+ * Creates a distributed graph without any nodes.
+ *
+ * @return Distributed CSR graph without any nodes.
+ */
+inline DistributedCSRGraph make_csr_empty_graph() {
+  return make_csr_isolated_nodes_graph(0);
+}
+
+/*!
  * Creates a distributed graph without any nodes.
  *
  * @return Distributed graph without any nodes.
  */
 inline DistributedGraph make_empty_graph() {
-  return make_isolated_nodes_graph(0);
+  return {std::make_unique<DistributedCSRGraph>(make_csr_empty_graph())};
 }
 
 /*!
@@ -101,10 +142,10 @@ inline DistributedGraph make_empty_graph() {
  * each pair connected by an edge.
  *
  * @param num_edges_per_pe Number of edges on each PE, with distinct endpoints.
- * @return Distributed graph with `2 * num_edges_per_pe` nodes and
+ * @return Distributed CSR graph with `2 * num_edges_per_pe` nodes and
  * `num_edges_per_pe` edges per PE.
  */
-inline DistributedGraph make_isolated_edges_graph(const NodeID num_edges_per_pe) {
+inline DistributedCSRGraph make_csr_isolated_edges_graph(const NodeID num_edges_per_pe) {
   const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
   const NodeID n0 = rank * num_edges_per_pe * 2;
 
@@ -119,7 +160,19 @@ inline DistributedGraph make_isolated_edges_graph(const NodeID num_edges_per_pe)
   return builder.finalize();
 }
 
-inline DistributedGraph make_local_complete_graph(const NodeID num_nodes_per_pe) {
+/*!
+ * Creates a distributed graph with `2 * num_edges_per_pe` nodes on each PE,
+ * each pair connected by an edge.
+ *
+ * @param num_edges_per_pe Number of edges on each PE, with distinct endpoints.
+ * @return Distributed CSR graph with `2 * num_edges_per_pe` nodes and
+ * `num_edges_per_pe` edges per PE.
+ */
+inline DistributedGraph make_isolated_edges_graph(const NodeID num_edges_per_pe) {
+  return {std::make_unique<DistributedCSRGraph>(make_csr_isolated_edges_graph(num_edges_per_pe))};
+}
+
+inline DistributedCSRGraph make_csr_local_complete_graph(const NodeID num_nodes_per_pe) {
   const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
   const GlobalNodeID n0 = rank * num_nodes_per_pe;
 
@@ -136,7 +189,11 @@ inline DistributedGraph make_local_complete_graph(const NodeID num_nodes_per_pe)
   return builder.finalize();
 }
 
-inline DistributedGraph make_local_complete_bipartite_graph(const NodeID set_size_per_pe) {
+inline DistributedGraph make_local_complete_graph(const NodeID num_nodes_per_pe) {
+  return {std::make_unique<DistributedCSRGraph>(make_csr_local_complete_graph(num_nodes_per_pe))};
+}
+
+inline DistributedCSRGraph make_csr_local_complete_bipartite_graph(const NodeID set_size_per_pe) {
   const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
   const GlobalNodeID n0 = rank * set_size_per_pe * 2;
 
@@ -156,7 +213,13 @@ inline DistributedGraph make_local_complete_bipartite_graph(const NodeID set_siz
   return builder.finalize();
 }
 
-inline DistributedGraph make_global_complete_graph(const NodeID nodes_per_pe) {
+inline DistributedGraph make_local_complete_bipartite_graph(const NodeID set_size_per_pe) {
+  return {
+      std::make_unique<DistributedCSRGraph>(make_csr_local_complete_bipartite_graph(set_size_per_pe)
+      )};
+}
+
+inline DistributedCSRGraph make_csr_global_complete_graph(const NodeID nodes_per_pe) {
   const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
   const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
   const GlobalNodeID n0 = rank * nodes_per_pe;
@@ -175,16 +238,20 @@ inline DistributedGraph make_global_complete_graph(const NodeID nodes_per_pe) {
   return builder.finalize();
 }
 
+inline DistributedGraph make_global_complete_graph(const NodeID nodes_per_pe) {
+  return {std::make_unique<DistributedCSRGraph>(make_csr_global_complete_graph(nodes_per_pe))};
+}
+
 /*!
  * Creates a distributed graph with `num_nodes_per_pe` nodes on each PE.
  * The nodes on a single PE are connected to a clique.
  * Globally, nodes with the same local ID are connected to a circle.
  *
  * @param num_nodes_per_pe Number of nodes per PE.
- * @return Distributed graph with a clique on `num_nodes_per_pe` nodes on each
+ * @return Distributed CSR graph with a clique on `num_nodes_per_pe` nodes on each
  * PE and `num_nodes_per_pe` global circles.
  */
-inline DistributedGraph make_circle_clique_graph(const NodeID num_nodes_per_pe) {
+inline DistributedCSRGraph make_csr_circle_clique_graph(const NodeID num_nodes_per_pe) {
   const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
   const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
 
@@ -220,6 +287,19 @@ inline DistributedGraph make_circle_clique_graph(const NodeID num_nodes_per_pe) 
 }
 
 /*!
+ * Creates a distributed graph with `num_nodes_per_pe` nodes on each PE.
+ * The nodes on a single PE are connected to a clique.
+ * Globally, nodes with the same local ID are connected to a circle.
+ *
+ * @param num_nodes_per_pe Number of nodes per PE.
+ * @return Distributed graph with a clique on `num_nodes_per_pe` nodes on each
+ * PE and `num_nodes_per_pe` global circles.
+ */
+inline DistributedGraph make_circle_clique_graph(const NodeID num_nodes_per_pe) {
+  return {std::make_unique<DistributedCSRGraph>(make_csr_circle_clique_graph(num_nodes_per_pe))};
+}
+
+/*!
  * Creates a distributed graph with `2 * num_nodes_per_pe` nodes on each PE,
  * that are connected to a node on the next / previous PE:
  *
@@ -228,9 +308,9 @@ inline DistributedGraph make_circle_clique_graph(const NodeID num_nodes_per_pe) 
  * +-------------+
  *
  * @param num_nodes_per_pe Number of nodes on each side of each PE.
- * @return Distributed graph as described above.
+ * @return Distributed CSR graph as described above.
  */
-inline DistributedGraph make_cut_edge_graph(const NodeID num_nodes_per_pe) {
+inline DistributedCSRGraph make_csr_cut_edge_graph(const NodeID num_nodes_per_pe) {
   const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
   const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
 
@@ -266,5 +346,20 @@ inline DistributedGraph make_cut_edge_graph(const NodeID num_nodes_per_pe) {
   }
 
   return builder.finalize();
+}
+
+/*!
+ * Creates a distributed graph with `2 * num_nodes_per_pe` nodes on each PE,
+ * that are connected to a node on the next / previous PE:
+ *
+ * O O-#-O O-#-O O
+ * |   #######   |
+ * +-------------+
+ *
+ * @param num_nodes_per_pe Number of nodes on each side of each PE.
+ * @return Distributed graph as described above.
+ */
+inline DistributedGraph make_cut_edge_graph(const NodeID num_nodes_per_pe) {
+  return {std::make_unique<DistributedCSRGraph>(make_csr_cut_edge_graph(num_nodes_per_pe))};
 }
 } // namespace kaminpar::dist::testing

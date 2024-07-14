@@ -5,11 +5,11 @@
  * @author: Daniel Seemaier
  * @date:   26.10.2022
  ******************************************************************************/
-#include "apps/io/metis_parser.h"
+#include "apps/io/shm_metis_parser.h"
 
 #include <fstream>
 
-#include "kaminpar-shm/datastructures/compressed_graph_builder.h"
+#include "kaminpar-shm/graphutils/compressed_graph_builder.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/static_array.h"
@@ -18,6 +18,7 @@
 #include "apps/io/file_tokener.h"
 
 namespace kaminpar::shm::io::metis {
+using namespace kaminpar::io;
 
 namespace {
 

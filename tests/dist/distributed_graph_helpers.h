@@ -10,6 +10,7 @@
 
 #include "kaminpar-mpi/wrapper.h"
 
+#include "kaminpar-dist/datastructures/distributed_csr_graph.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
@@ -22,25 +23,21 @@
 namespace kaminpar::dist::testing {
 inline std::vector<NodeID> local_neighbors(const shm::Graph &graph, const NodeID u) {
   std::vector<NodeID> neighbors;
-  for (const auto &[e, v] : graph.neighbors(u)) {
-    neighbors.push_back(v);
-  }
+  graph.adjacent_nodes(u, [&](const NodeID v) { neighbors.push_back(v); });
   return neighbors;
 }
 
 inline std::vector<NodeID> local_neighbors(const DistributedGraph &graph, const NodeID u) {
   std::vector<NodeID> neighbors;
-  for (const auto &[e, v] : graph.neighbors(u)) {
-    neighbors.push_back(v);
-  }
+  graph.adjacent_nodes(u, [&](const NodeID v) { neighbors.push_back(v); });
   return neighbors;
 }
 
 inline std::vector<GlobalNodeID> global_neighbors(const DistributedGraph &graph, const NodeID u) {
   std::vector<GlobalNodeID> neighbors;
-  for (const auto &[e, v] : graph.neighbors(u)) {
+  graph.adjacent_nodes(u, [&](const NodeID v) {
     neighbors.push_back(graph.local_to_global_node(v));
-  }
+  });
   return neighbors;
 }
 
@@ -87,27 +84,32 @@ inline DistributedPartitionedGraph make_partitioned_graph_by_rank(const Distribu
 
 //! Return the id of the edge connecting two adjacent nodes \c u and \c v in \c
 //! graph, found by linear search.
+template <typename Graph>
 inline std::pair<EdgeID, EdgeID>
-get_edge_by_endpoints(const DistributedGraph &graph, const NodeID u, const NodeID v) {
+get_edge_by_endpoints(const Graph &graph, const NodeID u, const NodeID v) {
   EdgeID forward_edge = kInvalidEdgeID;
   EdgeID backward_edge = kInvalidEdgeID;
 
   if (graph.is_owned_node(u)) {
-    for (const auto [cur_e, cur_v] : graph.neighbors(u)) {
+    graph.neighbors(u, [&](const EdgeID cur_e, const NodeID cur_v) {
       if (cur_v == v) {
         forward_edge = cur_e;
-        break;
+        return true;
       }
-    }
+
+      return false;
+    });
   }
 
   if (graph.is_owned_node(v)) {
-    for (const auto [cur_e, cur_u] : graph.neighbors(v)) {
+    graph.neighbors(u, [&](const EdgeID cur_e, const NodeID cur_u) {
       if (cur_u == u) {
         backward_edge = cur_e;
-        break;
+        return true;
       }
-    }
+
+      return false;
+    });
   }
 
   // one of those edges might now exist due to ghost nodes
@@ -116,15 +118,15 @@ get_edge_by_endpoints(const DistributedGraph &graph, const NodeID u, const NodeI
 
 //! Return the id of the edge connecting two adjacent nodes \c u and \c v given
 //! by their global id in \c graph, found by linear search
-inline std::pair<EdgeID, EdgeID> get_edge_by_endpoints_global(
-    const DistributedGraph &graph, const GlobalNodeID u, const GlobalNodeID v
-) {
+template <typename Graph>
+inline std::pair<EdgeID, EdgeID>
+get_edge_by_endpoints_global(const Graph &graph, const GlobalNodeID u, const GlobalNodeID v) {
   return get_edge_by_endpoints(graph, graph.global_to_local_node(u), graph.global_to_local_node(v));
 }
 
 //! Based on some graph, build a new graph with modified edge weights.
 inline DistributedGraph change_edge_weights(
-    DistributedGraph graph, const std::vector<std::pair<EdgeID, EdgeWeight>> &changes
+    DistributedCSRGraph graph, const std::vector<std::pair<EdgeID, EdgeWeight>> &changes
 ) {
   auto edge_weights = graph.take_edge_weights();
   if (edge_weights.empty()) {
@@ -137,7 +139,7 @@ inline DistributedGraph change_edge_weights(
     }
   }
 
-  return {
+  return {std::make_unique<DistributedCSRGraph>(
       graph.take_node_distribution(),
       graph.take_edge_distribution(),
       graph.take_nodes(),
@@ -148,11 +150,12 @@ inline DistributedGraph change_edge_weights(
       graph.take_ghost_to_global(),
       graph.take_global_to_ghost(),
       false,
-      graph.communicator()};
+      graph.communicator()
+  )};
 }
 
 inline DistributedGraph change_edge_weights_by_endpoints(
-    DistributedGraph graph, const std::vector<std::tuple<NodeID, NodeID, EdgeWeight>> &changes
+    DistributedCSRGraph graph, const std::vector<std::tuple<NodeID, NodeID, EdgeWeight>> &changes
 ) {
   std::vector<std::pair<EdgeID, EdgeWeight>> edge_id_changes;
   for (const auto &[u, v, weight] : changes) {
@@ -165,7 +168,7 @@ inline DistributedGraph change_edge_weights_by_endpoints(
 }
 
 inline DistributedGraph change_edge_weights_by_global_endpoints(
-    DistributedGraph graph,
+    DistributedCSRGraph graph,
     const std::vector<std::tuple<GlobalNodeID, GlobalNodeID, EdgeWeight>> &changes
 ) {
   std::vector<std::pair<EdgeID, EdgeWeight>> edge_id_changes;
@@ -182,7 +185,7 @@ inline DistributedGraph change_edge_weights_by_global_endpoints(
 
 //! Based on some graph, build a new graph with modified node weights.
 inline DistributedGraph change_node_weights(
-    DistributedGraph graph, const std::vector<std::pair<NodeID, NodeWeight>> &changes
+    DistributedCSRGraph graph, const std::vector<std::pair<NodeID, NodeWeight>> &changes
 ) {
   auto node_weights = graph.take_node_weights();
   if (node_weights.empty()) {
@@ -193,7 +196,7 @@ inline DistributedGraph change_node_weights(
     node_weights[u] = weight;
   }
 
-  return {
+  return {std::make_unique<DistributedCSRGraph>(
       graph.take_node_distribution(),
       graph.take_edge_distribution(),
       graph.take_nodes(),
@@ -204,6 +207,7 @@ inline DistributedGraph change_node_weights(
       graph.take_ghost_to_global(),
       graph.take_global_to_ghost(),
       false,
-      graph.communicator()};
+      graph.communicator()
+  )};
 }
 } // namespace kaminpar::dist::testing

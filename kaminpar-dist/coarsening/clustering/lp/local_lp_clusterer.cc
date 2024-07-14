@@ -19,36 +19,68 @@ struct LocalLPClusteringConfig : public LabelPropagationConfig {
   static constexpr bool kUseTwoHopClustering = true;
 };
 
-class LocalLPClusteringImpl final
-    : public ChunkRandomdLabelPropagation<LocalLPClusteringImpl, LocalLPClusteringConfig>,
-      public NonatomicClusterVectorRef<NodeID, NodeID>,
-      public OwnedRelaxedClusterWeightVector<NodeID, NodeWeight> {
+struct LocalLPClusteringMemoryContext : public LabelPropagationMemoryContext<
+                                            LocalLPClusteringConfig::RatingMap,
+                                            LocalLPClusteringConfig::ClusterID> {
+  OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>::ClusterWeights cluster_weights;
+};
+
+template <typename Graph>
+class LocalLPClusteringImpl final : public ChunkRandomdLabelPropagation<
+                                        LocalLPClusteringImpl<Graph>,
+                                        LocalLPClusteringConfig,
+                                        Graph>,
+                                    public NonatomicClusterVectorRef<NodeID, NodeID>,
+                                    public OwnedRelaxedClusterWeightVector<NodeID, NodeWeight> {
   SET_DEBUG(false);
 
-  using Base = ChunkRandomdLabelPropagation<LocalLPClusteringImpl, LocalLPClusteringConfig>;
+  using Base =
+      ChunkRandomdLabelPropagation<LocalLPClusteringImpl<Graph>, LocalLPClusteringConfig, Graph>;
   using ClusterBase = NonatomicClusterVectorRef<NodeID, NodeID>;
   using ClusterWeightBase = OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>;
+
+  using Config = LocalLPClusteringConfig;
+  using ClusterID = Config::ClusterID;
 
 public:
   LocalLPClusteringImpl(const NodeID max_n, const CoarseningContext &c_ctx)
       : _ignore_ghost_nodes(c_ctx.local_lp.ignore_ghost_nodes),
         _keep_ghost_clusters(c_ctx.local_lp.keep_ghost_clusters) {
-    allocate_cluster_weights(max_n);
-    allocate(max_n, max_n);
     set_max_num_iterations(c_ctx.local_lp.num_iterations);
-    set_max_degree(c_ctx.local_lp.active_high_degree_threshold);
-    set_max_num_neighbors(c_ctx.local_lp.max_num_neighbors);
+    Base::set_max_degree(c_ctx.local_lp.active_high_degree_threshold);
+    Base::set_max_num_neighbors(c_ctx.local_lp.max_num_neighbors);
   }
 
-  void initialize(const DistributedGraph &graph) {
+  void setup(LocalLPClusteringMemoryContext &memory_context) {
+    Base::setup(memory_context);
+    ClusterWeightBase::setup_cluster_weights(std::move(memory_context.cluster_weights));
+  }
+
+  LocalLPClusteringMemoryContext release() {
+    auto [rating_map_ets, active, favored_clusters] = Base::release();
+    return {
+        std::move(rating_map_ets),
+        std::move(active),
+        std::move(favored_clusters),
+        ClusterWeightBase::take_cluster_weights(),
+    };
+  }
+
+  void preinitialize(const NodeID num_nodes) {
+    Base::preinitialize(num_nodes, num_nodes);
+  }
+
+  void initialize(const Graph &graph) {
     Base::initialize(&graph, graph.n());
+    Base::allocate();
+    ClusterWeightBase::allocate_cluster_weights(graph.n());
   }
 
   void set_max_cluster_weight(const GlobalNodeWeight max_cluster_weight) {
     _max_cluster_weight = max_cluster_weight;
   }
 
-  void compute_clustering(StaticArray<NodeID> &clustering, const DistributedGraph &graph) {
+  void compute_clustering(StaticArray<NodeID> &clustering, const Graph &graph) {
     init_clusters_ref(clustering);
     initialize(graph);
 
@@ -64,7 +96,7 @@ public:
 
     std::size_t iteration;
     for (iteration = 0; iteration < _max_num_iterations; ++iteration) {
-      if (perform_iteration() == 0) {
+      if (Base::perform_iteration() == 0) {
         break;
       }
     }
@@ -149,12 +181,64 @@ public:
   const BlockID *_partition = nullptr;
 };
 
+class LocalLPClusteringImplWrapper {
+public:
+  LocalLPClusteringImplWrapper(const NodeID max_n, const CoarseningContext &c_ctx)
+      : _csr_impl(std::make_unique<LocalLPClusteringImpl<DistributedCSRGraph>>(max_n, c_ctx)),
+        _compressed_impl(
+            std::make_unique<LocalLPClusteringImpl<DistributedCompressedGraph>>(max_n, c_ctx)
+        ) {}
+
+  void set_communities(const StaticArray<BlockID> &communities) {
+    _csr_impl->_partition = communities.data();
+    _compressed_impl->_partition = communities.data();
+  }
+
+  void clear_communities() {
+    _csr_impl->_partition = nullptr;
+    _compressed_impl->_partition = nullptr;
+  }
+
+  void set_max_cluster_weight(const GlobalNodeWeight weight) {
+    _csr_impl->set_max_cluster_weight(weight);
+    _compressed_impl->set_max_cluster_weight(weight);
+  }
+
+  void compute_clustering(StaticArray<NodeID> &clustering, const DistributedGraph &graph) {
+    const auto compute_clustering = [&](auto &impl, const auto &graph) {
+      impl.setup(_memory_context);
+      impl.compute_clustering(clustering, graph);
+      _memory_context = impl.release();
+    };
+
+    const NodeID num_nodes = graph.total_n();
+    _csr_impl->preinitialize(num_nodes);
+    _compressed_impl->preinitialize(num_nodes);
+
+    graph.reified(
+        [&](const DistributedCSRGraph &csr_graph) {
+          LocalLPClusteringImpl<DistributedCSRGraph> &impl = *_csr_impl;
+          compute_clustering(impl, csr_graph);
+        },
+        [&](const DistributedCompressedGraph &compressed_graph) {
+          LocalLPClusteringImpl<DistributedCompressedGraph> &impl = *_compressed_impl;
+          compute_clustering(impl, compressed_graph);
+        }
+    );
+  }
+
+private:
+  LocalLPClusteringMemoryContext _memory_context;
+  std::unique_ptr<LocalLPClusteringImpl<DistributedCSRGraph>> _csr_impl;
+  std::unique_ptr<LocalLPClusteringImpl<DistributedCompressedGraph>> _compressed_impl;
+};
+
 //
 // Interface
 //
 
 LocalLPClusterer::LocalLPClusterer(const Context &ctx)
-    : _impl(std::make_unique<LocalLPClusteringImpl>(
+    : _impl(std::make_unique<LocalLPClusteringImplWrapper>(
           ctx.coarsening.local_lp.ignore_ghost_nodes ? ctx.partition.graph->n
                                                      : ctx.partition.graph->total_n,
           ctx.coarsening
@@ -163,11 +247,11 @@ LocalLPClusterer::LocalLPClusterer(const Context &ctx)
 LocalLPClusterer::~LocalLPClusterer() = default;
 
 void LocalLPClusterer::set_communities(const StaticArray<BlockID> &communities) {
-  _impl->_partition = communities.data();
+  _impl->set_communities(communities);
 }
 
 void LocalLPClusterer::clear_communities() {
-  _impl->_partition = nullptr;
+  _impl->clear_communities();
 }
 
 void LocalLPClusterer::set_max_cluster_weight(GlobalNodeWeight weight) {

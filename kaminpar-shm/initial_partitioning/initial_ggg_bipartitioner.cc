@@ -66,10 +66,10 @@ void InitialGGGBipartitioner::fill_bipartition() {
       }
 
       // Queue unmarked neighbors / update gains
-      for (const auto [e, v] : _graph->neighbors(u)) {
+      _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
         if (_partition[u] == V2) {
           // v already in V2: won't touch this node anymore
-          continue;
+          return;
         }
 
         KASSERT(_partition[v] == V1);
@@ -77,14 +77,14 @@ void InitialGGGBipartitioner::fill_bipartition() {
         if (_marker.get(v)) {
           // Marked and not in V2: must already be queued
           KASSERT(_queue.contains(v));
-          _queue.decrease_priority_by(v, 2 * _graph->edge_weight(e));
+          _queue.decrease_priority_by(v, 2 * w);
           KASSERT(_queue.key(v) == compute_gain(v), "invalid gain in queue", assert::heavy);
         } else {
           KASSERT(!_queue.contains(v));
           _queue.push(v, compute_gain(v));
           _marker.set<true>(v);
         }
-      }
+      });
     }
   } while (_block_weights[V2] < _p_ctx->block_weights.perfectly_balanced(V2));
 }
@@ -92,13 +92,13 @@ void InitialGGGBipartitioner::fill_bipartition() {
 [[nodiscard]] EdgeWeight InitialGGGBipartitioner::compute_gain(const NodeID u) const {
   EdgeWeight gain = 0;
 
-  for (const auto [e, v] : _graph->neighbors(u)) {
+  _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
     if (_partition[u] == _partition[v]) {
-      gain += _graph->edge_weight(e);
+      gain += w;
     } else {
-      gain -= _graph->edge_weight(e);
+      gain -= w;
     }
-  }
+  });
 
   return gain;
 }

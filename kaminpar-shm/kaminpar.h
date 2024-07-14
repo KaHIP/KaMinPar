@@ -411,6 +411,7 @@ struct GraphCompressionContext {
   bool enabled;
   bool may_dismiss;
 
+  bool compressed_edge_weights;
   bool high_degree_encoding;
   NodeID high_degree_threshold;
   NodeID high_degree_part_length;

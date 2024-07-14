@@ -9,15 +9,15 @@
 
 #include "kaminpar-cli/CLI11.h"
 
-#include "kaminpar-shm/datastructures/compressed_graph_builder.h"
+#include "kaminpar-shm/graphutils/parallel_compressed_graph_builder.h"
 
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 
-#include "apps/io/metis_parser.h"
-#include "apps/io/parhip_parser.h"
 #include "apps/io/shm_io.h"
+#include "apps/io/shm_metis_parser.h"
+#include "apps/io/shm_parhip_parser.h"
 
 using namespace kaminpar;
 using namespace kaminpar::shm;
@@ -212,7 +212,7 @@ int main(int argc, char *argv[]) {
   }();
 
   LOG << "Compressing the input graph...";
-  CompressedGraph compressed_graph = ParallelCompressedGraphBuilder::compress(graph);
+  CompressedGraph compressed_graph = parallel_compress(graph);
 
   // Run benchmarks
   LOG << "Running the benchmarks...";

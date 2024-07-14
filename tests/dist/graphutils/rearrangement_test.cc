@@ -19,7 +19,7 @@ using namespace kaminpar::dist::testing;
 
 TEST(GraphRearrangementTest, sort_path_by_degree_buckets) {
   const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
-  auto graph = make_path(2); // two nodes per PE
+  auto graph = make_csr_path(2); // two nodes per PE
   auto sorted_graph = graph::rearrange_by_degree_buckets(std::move(graph));
 
   // Check weights

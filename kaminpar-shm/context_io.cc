@@ -398,6 +398,9 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
     } else {
       out << "VarInt Encoding\n";
     }
+
+    out << "  Compressed edge weights:    " << (c_ctx.compressed_edge_weights ? "yes" : "no")
+        << "\n";
     out << "  High Degree Encoding:       " << (c_ctx.high_degree_encoding ? "yes" : "no") << "\n";
     if (c_ctx.high_degree_encoding) {
       out << "    Threshold:                " << c_ctx.high_degree_threshold << "\n";

@@ -15,31 +15,40 @@
 
 #include "kaminpar-common/logger.h"
 
-#include "apps/io/metis_parser.h"
-#include "apps/io/parhip_parser.h"
 #include "apps/io/shm_io.h"
+#include "apps/io/shm_metis_parser.h"
+#include "apps/io/shm_parhip_parser.h"
 
 using namespace kaminpar;
 using namespace kaminpar::shm;
+using namespace kaminpar::shm::io;
 
 int main(int argc, char *argv[]) {
   Context ctx = create_default_context();
   ctx.partition.k = 0;
 
   // Parse CLI arguments
-  std::string graph_filename;
-  io::GraphFileFormat graph_file_format = io::GraphFileFormat::METIS;
-  std::string out_graph_filename;
-
   CLI::App app("Shared-memory graph rearrangement tool");
+
+  std::string graph_filename;
+  GraphFileFormat graph_file_format = io::GraphFileFormat::METIS;
   app.add_option("-G,--graph", graph_filename, "Input graph in METIS format")->required();
   app.add_option("-f,--graph-file-format", graph_file_format)
       ->transform(CLI::CheckedTransformer(io::get_graph_file_formats()).description(""))
-      ->description(R"(Graph file formats:
+      ->description(R"(Graph file format of the input graph:
   - metis
   - parhip)");
+
+  std::string out_graph_filename;
+  GraphFileFormat out_graph_file_format = io::GraphFileFormat::METIS;
   app.add_option("-O,--out", out_graph_filename, "Ouput file for saving the rearranged graph")
       ->required();
+  app.add_option("--out-f,--out-graph-file-format", out_graph_file_format)
+      ->transform(CLI::CheckedTransformer(io::get_graph_file_formats()).description(""))
+      ->description(R"(Graph file format used for storing the rearranged graph:
+  - metis
+  - parhip)");
+
   app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads");
   create_partitioning_rearrangement_options(&app, ctx);
   CLI11_PARSE(app, argc, argv);
@@ -64,20 +73,26 @@ int main(int argc, char *argv[]) {
   }();
 
   Graph graph(std::make_unique<CSRGraph>(std::move(input_graph)));
-  CSRGraph &csr_graph = *dynamic_cast<CSRGraph *>(graph.underlying_graph());
 
   LOG << "Rearranging graph...";
   if (ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
-    graph = graph::rearrange_by_degree_buckets(csr_graph);
+    graph = graph::rearrange_by_degree_buckets(graph.csr_graph());
     graph::integrate_isolated_nodes(graph, ctx.partition.epsilon, ctx);
   }
 
   if (ctx.edge_ordering == EdgeOrdering::COMPRESSION) {
-    graph::reorder_edges_by_compression(csr_graph);
+    graph::reorder_edges_by_compression(graph.csr_graph());
   }
 
-  LOG << "Writing graph...";
-  io::metis::write(out_graph_filename, graph);
+  LOG << "Writing rearanged graph...";
+  switch (out_graph_file_format) {
+  case GraphFileFormat::METIS:
+    io::metis::write(out_graph_filename, graph);
+    break;
+  case GraphFileFormat::PARHIP:
+    io::parhip::write(out_graph_filename, graph.csr_graph());
+    break;
+  }
 
-  return 0;
+  return EXIT_SUCCESS;
 }

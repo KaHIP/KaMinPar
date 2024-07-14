@@ -15,6 +15,7 @@
 #include "kaminpar-mpi/wrapper.h"
 
 #include "kaminpar-dist/context.h"
+#include "kaminpar-dist/datastructures/distributed_compressed_graph.h"
 
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/random.h"
@@ -209,6 +210,13 @@ std::unordered_map<std::string, GraphOrdering> get_graph_orderings() {
   };
 }
 
+std::unordered_map<std::string, GraphDistribution> get_graph_distributions() {
+  return {
+      {"balanced-edges", GraphDistribution::BALANCED_EDGES},
+      {"balanced-memory-space", GraphDistribution::BALANCED_MEMORY_SPACE},
+  };
+}
+
 std::ostream &operator<<(std::ostream &out, const GraphOrdering ordering) {
   switch (ordering) {
   case GraphOrdering::NATURAL:
@@ -286,6 +294,8 @@ void print(const Context &ctx, const bool root, std::ostream &out, MPI_Comm comm
       out << "  Partition extension factor: " << ctx.partition.K << "\n";
       out << "  Simulate seq. hybrid exe.:  " << (ctx.simulate_singlethread ? "yes" : "no") << "\n";
     }
+    cio::print_delimiter("Graph Compression", '-');
+    print(ctx.compression, ctx.parallel, ctx.debug.print_compression_details, out);
     cio::print_delimiter("Coarsening", '-');
     print(ctx.coarsening, ctx.parallel, out);
     cio::print_delimiter("Initial Partitioning", '-');
@@ -345,6 +355,73 @@ void print(const ChunksContext &ctx, const ParallelContext &parallel, std::ostre
         << "]\n";
   } else {
     out << "  Number of chunks:           " << ctx.fixed_num_chunks << "\n";
+  }
+}
+
+void print(
+    const GraphCompressionContext &ctx,
+    const ParallelContext &parallel,
+    const bool print_compression_details,
+    std::ostream &out
+) {
+  using Compression = DistributedCompressedGraph::CompressedNeighborhoods;
+
+  const auto round = [](const auto value) {
+    return std::ceil(value * 1000.0) / 1000.0;
+  };
+  const auto to_gib = [&round](const std::size_t num_bytes) {
+    return round(num_bytes / static_cast<double>(1024 * 1024 * 1024));
+  };
+  const auto yeyornay = [](const bool value) {
+    return value ? "yes" : "no";
+  };
+
+  out << "Enabled:                      " << (ctx.enabled ? "yes" : "no") << "\n";
+  if (ctx.enabled) {
+    out << "Compression Scheme:           Gap Encoding + ";
+    if constexpr (Compression::kStreamEncoding) {
+      out << "VarInt Stream Encoding\n";
+    } else if constexpr (Compression::kRunLengthEncoding) {
+      out << "VarInt Run-Length Encoding\n";
+    } else {
+      out << "VarInt Encoding\n";
+    }
+
+    out << "  High Degree Encoding:       " << yeyornay(Compression::kHighDegreeEncoding) << "\n";
+    if constexpr (Compression::kHighDegreeEncoding) {
+      out << "    Threshold:                " << Compression::kHighDegreeThreshold << "\n";
+      out << "    Part Length:              " << Compression::kHighDegreePartLength << "\n";
+    }
+
+    out << "  Interval Encoding:          " << yeyornay(Compression::kIntervalEncoding) << "\n";
+    if constexpr (Compression::kIntervalLengthTreshold) {
+      out << "    Length Threshold:         " << Compression::kIntervalLengthTreshold << "\n";
+    }
+
+    out << "  Isolated Nodes Separation:  " << yeyornay(Compression::kIsolatedNodesSeparation)
+        << "\n";
+
+    out << "Compression ratio:            [Min=" << round(ctx.min_compression_ratio)
+        << " | Mean=" << round(ctx.avg_compression_ratio)
+        << " | Max=" << round(ctx.max_compression_ratio) << "]"
+        << "\n";
+
+    out << "Largest compressed graph:     " << to_gib(ctx.largest_compressed_graph_prev_size)
+        << " GiB -> " << to_gib(ctx.largest_compressed_graph) << " GiB\n";
+
+    out << "Largest uncompressed graph:   " << to_gib(ctx.largest_uncompressed_graph) << " GiB -> "
+        << to_gib(ctx.largest_uncompressed_graph_after_size) << " GiB\n";
+
+    if (print_compression_details) {
+      out << "Local graph size reductions:\n";
+      const std::size_t num_processes = ctx.compressed_graph_sizes.size();
+      for (std::size_t num_process = 0; num_process < num_processes; ++num_process) {
+        out << "  PE" << num_process << ": " << to_gib(ctx.uncompressed_graph_sizes[num_process])
+            << " GiB -> " << to_gib(ctx.compressed_graph_sizes[num_process])
+            << " GiB [n=" << ctx.num_nodes[num_process] << ", m=" << ctx.num_edges[num_process]
+            << "]\n";
+      }
+    }
   }
 }
 

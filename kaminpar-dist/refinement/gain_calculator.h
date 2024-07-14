@@ -18,7 +18,7 @@
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::dist {
-template <bool randomize = true> class GainCalculator {
+template <typename Graph, bool randomize = true> class GainCalculator {
 public:
   GainCalculator(const BlockID max_k)
       : _rating_map_ets([max_k] { return RatingMap<EdgeWeight, BlockID>(max_k); }) {}
@@ -42,8 +42,9 @@ public:
     }
   };
 
-  void init(const DistributedPartitionedGraph &p_graph) {
+  void init(const DistributedPartitionedGraph &p_graph, const Graph &graph) {
     _p_graph = &p_graph;
+    _graph = &graph;
   }
 
   MaxGainer compute_max_gainer(const NodeID u, const PartitionContext &p_ctx) const {
@@ -77,7 +78,7 @@ private:
 
     Random &rand = Random::instance();
 
-    const NodeWeight w_u = _p_graph->node_weight(u);
+    const NodeWeight w_u = _graph->node_weight(u);
     const BlockID b_u = _p_graph->block(u);
 
     EdgeWeight int_conn = 0;
@@ -85,14 +86,14 @@ private:
     BlockID max_target = b_u;
 
     auto action = [&](auto &map) {
-      for (const auto [e, v] : _p_graph->neighbors(u)) {
+      _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
         const BlockID b_v = _p_graph->block(v);
         if (b_u != b_v && weight_checker(b_v, _p_graph->block_weight(b_v) + w_u)) {
-          map[b_v] += _p_graph->edge_weight(e);
+          map[b_v] += w;
         } else if (b_u == b_v) {
-          int_conn += _p_graph->edge_weight(e);
+          int_conn += w;
         }
-      }
+      });
 
       for (const auto [target, conn] : map.entries()) {
         if (conn > max_ext_conn || (randomize && conn == max_ext_conn && rand.random_bool())) {
@@ -117,9 +118,10 @@ private:
   }
 
   const DistributedPartitionedGraph *_p_graph = nullptr;
+  const Graph *_graph = nullptr;
   mutable tbb::enumerable_thread_specific<RatingMap<EdgeWeight, BlockID>> _rating_map_ets;
 };
 
-using DeterministicGainCalculator = GainCalculator<false>;
-using RandomizedGainCalculator = GainCalculator<true>;
+template <typename Graph> using DeterministicGainCalculator = GainCalculator<Graph, false>;
+template <typename Graph> using RandomizedGainCalculator = GainCalculator<Graph, true>;
 } // namespace kaminpar::dist

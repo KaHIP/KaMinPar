@@ -1,9 +1,10 @@
 set(KAMINPAR_IO_SOURCE_FILES
     io/file_tokener.h
-    io/metis_parser.h
-    io/metis_parser.cc
-    io/parhip_parser.h
-    io/parhip_parser.cc
+    io/binary_util.h
+    io/shm_metis_parser.h
+    io/shm_metis_parser.cc
+    io/shm_parhip_parser.h
+    io/shm_parhip_parser.cc
     io/shm_compressed_graph_binary.h
     io/shm_compressed_graph_binary.cc
     io/shm_input_validator.h
@@ -39,7 +40,11 @@ add_shm_app(KaMinPar KaMinPar.cc)
 if (TARGET kaminpar_dist)
     add_dist_app(dKaMinPar dKaMinPar.cc)
     target_sources(dKaMinPar PRIVATE 
-        ${CMAKE_CURRENT_SOURCE_DIR}/io/dist_io.cc)
+        ${CMAKE_CURRENT_SOURCE_DIR}/io/dist_io.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/io/dist_metis_parser.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/io/dist_metis_parser.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/io/dist_parhip_parser.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/io/dist_parhip_parser.cc)
     target_link_libraries(dKaMinPar PRIVATE KaGen::KaGen)
 endif ()
 

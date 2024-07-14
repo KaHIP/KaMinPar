@@ -7,6 +7,7 @@
  ******************************************************************************/
 // clang-format off
 #include "kaminpar-cli/dkaminpar_arguments.h"
+#include "kaminpar-dist/context_io.h"
 #include "kaminpar-dist/dkaminpar.h"
 // clang-format on
 
@@ -15,13 +16,30 @@
 #include <tbb/scalable_allocator.h>
 
 #include "kaminpar-common/environment.h"
+#include "kaminpar-common/heap_profiler.h"
+#include "kaminpar-common/strutils.h"
 
 #include "apps/io/dist_io.h"
+#include "apps/io/dist_metis_parser.h"
+#include "apps/io/dist_parhip_parser.h"
 
 using namespace kaminpar;
 using namespace kaminpar::dist;
 
 namespace {
+
+enum class IOKind {
+  KAMINPAR,
+  KAGEN,
+};
+
+std::unordered_map<std::string, IOKind> get_io_kinds() {
+  return {
+      {"kaminpar", IOKind::KAMINPAR},
+      {"kagen", IOKind::KAGEN},
+  };
+}
+
 struct ApplicationContext {
   bool dump_config = false;
   bool show_version = false;
@@ -31,14 +49,21 @@ struct ApplicationContext {
 
   int max_timer_depth = 3;
 
+  bool heap_profiler_detailed = false;
+  int heap_profiler_max_depth = 3;
+  bool heap_profiler_print_structs = false;
+  float heap_profiler_min_struct_size = 10;
+
   BlockID k = 0;
 
   bool quiet = false;
   bool experiment = false;
   bool check_input_graph = false;
 
+  IOKind io_kind;
+  GraphDistribution io_distribution = GraphDistribution::BALANCED_EDGES;
   kagen::FileFormat io_format = kagen::FileFormat::EXTENSION;
-  kagen::GraphDistribution io_distribution = kagen::GraphDistribution::BALANCE_EDGES;
+  kagen::GraphDistribution io_kagen_distribution = kagen::GraphDistribution::BALANCE_EDGES;
 
   std::string graph_filename = "";
   std::string partition_filename = "";
@@ -99,9 +124,22 @@ The output should be stored in a file and can be used by the -C,--config option.
   - parhip: binary format used by ParHiP (+ extensions))"
       )
       ->capture_default_str();
+  cli.add_option("--io-kind", app.io_kind)
+      ->transform(CLI::CheckedTransformer(get_io_kinds()).description(""))
+      ->description(R"(Graph distribution scheme used for KaGen IO, possible options are:
+  - kaminpar: use KaMinPar for IO
+  - kagen:    use KaGen for IO)")
+      ->capture_default_str();
   cli.add_option("--io-distribution", app.io_distribution)
-      ->transform(CLI::CheckedTransformer(kagen::GetGraphDistributionMap()).description(""))
+      ->transform(CLI::CheckedTransformer(get_graph_distributions()).description(""))
       ->description(R"(Graph distribution scheme, possible options are:
+  - balanced-edges:        distribute edges such that each PE has roughly the same number of edges
+  - balancde-memory-space: distribute graph such that each PE uses roughly the same memory space for the input graph)"
+      )
+      ->capture_default_str();
+  cli.add_option("--io-kagen-distribution", app.io_kagen_distribution)
+      ->transform(CLI::CheckedTransformer(kagen::GetGraphDistributionMap()).description(""))
+      ->description(R"(Graph distribution scheme used for KaGen IO, possible options are:
   - balance-vertices: distribute vertices such that each PE has roughly the same number of vertices
   - balance-edges:    distribute edges such that each PE has roughly the same number of edges)")
       ->capture_default_str();
@@ -118,8 +156,54 @@ The output should be stored in a file and can be used by the -C,--config option.
 
   cli.add_flag("--no-huge-pages", app.no_huge_pages, "Do not use huge pages via TBBmalloc.");
 
+  // Heap profiler options
+  if constexpr (kHeapProfiling) {
+    auto *hp_group = cli.add_option_group("Heap Profiler");
+
+    hp_group
+        ->add_flag(
+            "-H,--hp-print-detailed",
+            app.heap_profiler_detailed,
+            "Show all levels and data structures in the result summary."
+        )
+        ->default_val(app.heap_profiler_detailed);
+    hp_group
+        ->add_option(
+            "--hp-max-depth",
+            app.heap_profiler_max_depth,
+            "Set maximum heap profiler depth shown in the result summary."
+        )
+        ->default_val(app.heap_profiler_max_depth);
+    hp_group
+        ->add_option(
+            "--hp-print-structs",
+            app.heap_profiler_print_structs,
+            "Print data structure memory statistics in the result summary."
+        )
+        ->default_val(app.heap_profiler_print_structs);
+    hp_group
+        ->add_option(
+            "--hp-min-struct-size",
+            app.heap_profiler_min_struct_size,
+            "Sets the minimum size of a data structure in MB to be included in the result summary."
+        )
+        ->default_val(app.heap_profiler_min_struct_size)
+        ->check(CLI::NonNegativeNumber);
+  }
+
   // Algorithmic options
   create_all_options(&cli, ctx);
+}
+
+template <typename Lambda> void root_run(Lambda &&l) {
+  if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+    l();
+  }
+}
+
+template <typename Lambda> [[noreturn]] void root_run_and_exit(Lambda &&l) {
+  root_run(std::forward<Lambda>(l));
+  std::exit(MPI_Finalize());
 }
 
 NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
@@ -140,7 +224,7 @@ NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
         app.graph_filename.end()) {
       return generator.GenerateFromOptionString(app.graph_filename);
     } else {
-      return generator.ReadFromFile(app.graph_filename, app.io_format, app.io_distribution);
+      return generator.ReadFromFile(app.graph_filename, app.io_format, app.io_kagen_distribution);
     }
   }();
 
@@ -174,6 +258,53 @@ NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
 
   return graph.vertex_range.second - graph.vertex_range.first;
 }
+
+NodeID load_csr_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
+  const auto read_graph = [&] {
+    switch (app.io_format) {
+    case kagen::FileFormat::METIS:
+      return io::metis::csr_read(app.graph_filename, app.io_distribution, false, MPI_COMM_WORLD);
+    case kagen::FileFormat::PARHIP:
+      return io::parhip::csr_read(app.graph_filename, app.io_distribution, false, MPI_COMM_WORLD);
+    default:
+      root_run_and_exit([&] {
+        LOG_ERROR << "To read graphs not stored in METIS or ParHIP format, use KaGen as the IO!";
+      });
+    }
+  };
+
+  DistributedGraph graph(std::make_unique<DistributedCSRGraph>(read_graph()));
+  const NodeID n = graph.n();
+
+  partitioner.import_graph(std::move(graph));
+  return n;
+}
+
+NodeID load_compressed_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
+  const auto read_graph = [&] {
+    switch (app.io_format) {
+    case kagen::FileFormat::METIS:
+      return io::metis::compress_read(
+          app.graph_filename, app.io_distribution, false, MPI_COMM_WORLD
+      );
+    case kagen::FileFormat::PARHIP:
+      return io::parhip::compressed_read(
+          app.graph_filename, app.io_distribution, false, MPI_COMM_WORLD
+      );
+    default:
+      root_run_and_exit([&] {
+        LOG_ERROR << "Only graphs stored in METIS or ParHIP format can be compressed!";
+      });
+    }
+  };
+
+  DistributedGraph graph(std::make_unique<DistributedCompressedGraph>(read_graph()));
+  const NodeID n = graph.n();
+
+  partitioner.import_graph(std::move(graph));
+  return n;
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -188,20 +319,22 @@ int main(int argc, char *argv[]) {
   setup_context(cli, app, ctx);
   CLI11_PARSE(cli, argc, argv);
 
-  if (rank == 0 && app.dump_config) {
-    CLI::App dump;
-    create_all_options(&dump, ctx);
-    std::cout << dump.config_to_str(true, true);
-    std::exit(1);
+  if (app.dump_config) {
+    root_run_and_exit([&] {
+      CLI::App dump;
+      create_all_options(&dump, ctx);
+      std::cout << dump.config_to_str(true, true);
+    });
   }
 
-  if (rank == 0 && app.show_version) {
-    std::cout << Environment::GIT_SHA1 << std::endl;
-    std::exit(0);
+  if (app.show_version) {
+    root_run_and_exit([&] { std::cout << Environment::GIT_SHA1 << std::endl; });
   }
 
   // If available, use huge pages for large allocations
   scalable_allocation_mode(TBBMALLOC_USE_HUGE_PAGES, !app.no_huge_pages);
+
+  ENABLE_HEAP_PROFILER();
 
   dKaMinPar partitioner(MPI_COMM_WORLD, app.num_threads, ctx);
   dKaMinPar::reseed(app.seed);
@@ -212,19 +345,49 @@ int main(int argc, char *argv[]) {
     partitioner.set_output_level(OutputLevel::EXPERIMENT);
   }
 
-  partitioner.context().debug.graph_filename = app.graph_filename;
+  partitioner.context().debug.graph_filename = str::extract_basename(app.graph_filename);
   partitioner.set_max_timer_depth(app.max_timer_depth);
+  if constexpr (kHeapProfiling) {
+    auto &global_heap_profiler = heap_profiler::HeapProfiler::global();
+    if (app.heap_profiler_detailed) {
+      global_heap_profiler.set_detailed_summary_options();
+    } else {
+      global_heap_profiler.set_max_depth(app.heap_profiler_max_depth);
+      global_heap_profiler.set_print_data_structs(app.heap_profiler_print_structs);
+      global_heap_profiler.set_min_data_struct_size(app.heap_profiler_min_struct_size);
+    }
+  }
 
-  // Load the graph via KaGen
-  const NodeID n = load_kagen_graph(app, partitioner);
+  START_HEAP_PROFILER("Input Graph Allocation");
+  // Load the graph via KaGen or via our graph compressor.
+  const NodeID n = [&] {
+    if (app.io_kind == IOKind::KAMINPAR) {
+      if (ctx.compression.enabled) {
+        return load_compressed_graph(app, partitioner);
+      }
+
+      return load_csr_graph(app, partitioner);
+    } else if (ctx.compression.enabled) {
+      root_run([] {
+        LOG_WARNING << "Disabling graph compression as it is only supported with KaMinPar-IO!";
+      });
+    }
+
+    return load_kagen_graph(app, partitioner);
+  }();
+
+  // Allocate memory for the partition
+  std::vector<BlockID> partition(n);
+  STOP_HEAP_PROFILER();
 
   // Compute the partition
-  std::vector<BlockID> partition(n);
   partitioner.compute_partition(app.k, partition.data());
 
   if (!app.partition_filename.empty()) {
     dist::io::partition::write(app.partition_filename, partition);
   }
+
+  DISABLE_HEAP_PROFILER();
 
   return MPI_Finalize();
 }

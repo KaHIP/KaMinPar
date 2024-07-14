@@ -143,13 +143,17 @@ private:
   [[nodiscard]] bool is_border_node_impl(
       const PartitionedGraphType &p_graph, const NodeID node, const BlockID block
   ) const {
-    for (const auto [e, v] : p_graph.neighbors(node)) {
+    bool border_node = false;
+    p_graph.adjacent_nodes(node, [&](const NodeID v) {
       if (p_graph.block(v) != block) {
+        border_node = true;
         return true;
       }
-    }
 
-    return false;
+      return false;
+    });
+
+    return border_node;
   }
 
   template <typename PartitionedGraphType, typename Lambda>

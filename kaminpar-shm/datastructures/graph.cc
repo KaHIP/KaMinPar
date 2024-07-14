@@ -11,16 +11,11 @@
  ******************************************************************************/
 #include "kaminpar-shm/datastructures/graph.h"
 
-#include "kaminpar-shm/kaminpar.h"
-
 #include "kaminpar-common/logger.h"
 
 namespace kaminpar::shm {
-Graph::Graph(std::unique_ptr<AbstractGraph> graph) : _underlying_graph(std::move(graph)) {}
 
-//
-// Utility debug functions
-//
+Graph::Graph(std::unique_ptr<AbstractGraph> graph) : _underlying_graph(std::move(graph)) {}
 
 namespace debug {
 void print_graph(const Graph &graph) {
@@ -33,4 +28,5 @@ void print_graph(const Graph &graph) {
   }
 }
 } // namespace debug
+
 } // namespace kaminpar::shm

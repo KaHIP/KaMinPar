@@ -49,11 +49,11 @@ auto count_block_induced_subgraph_sizes(const DistributedPartitionedGraph &p_gra
     for (NodeID u = r.begin(); u != r.end(); ++u) {
       const BlockID u_block = p_graph.block(u);
       ++num_nodes_per_block[u_block];
-      for (const auto [e, v] : p_graph.neighbors(u)) {
+      p_graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
         if (u_block == p_graph.block(v)) {
           ++num_edges_per_block[u_block];
         }
-      }
+      });
     }
   });
 
@@ -207,15 +207,15 @@ extract_local_block_induced_subgraphs(const DistributedPartitionedGraph &p_graph
         const NodeID pos = n0 + u;
         const NodeID u_prime = shared_nodes[pos];
 
-        for (const auto [e_prime, v_prime] : p_graph.neighbors(u_prime)) {
+        p_graph.adjacent_nodes(u_prime, [&](const NodeID v_prime, const EdgeWeight w_prime) {
           if (p_graph.block(v_prime) != b) {
-            continue;
+            return;
           }
 
-          shared_edge_weights[e0 + e] = p_graph.edge_weight(e_prime);
+          shared_edge_weights[e0 + e] = w_prime;
           shared_edges[e0 + e] = mapping[v_prime];
           ++e;
-        }
+        });
 
         shared_nodes[pos] = e;
         shared_node_weights[pos] = p_graph.node_weight(u_prime);
@@ -607,7 +607,7 @@ extract_and_scatter_block_induced_subgraphs(const DistributedPartitionedGraph &p
   return {
       std::move(gathered_subgraphs),
       std::move(offsets),
-      std::move(extracted_local_subgraphs.mapping)
+      std::move(extracted_local_subgraphs.mapping),
   };
 }
 

@@ -23,7 +23,7 @@ namespace kaminpar {
  * @tparam Int The type of integer to encode.
  */
 template <typename Int> class VarIntStreamEncoder {
-  // static_assert(sizeof(Int) == 4);
+  static_assert(sizeof(Int) == 4);
 
 public:
   /*!

@@ -86,16 +86,21 @@ enum class RefinementAlgorithm {
   MTKAHYPAR_REFINER,
 };
 
-enum class LabelPropagationMoveExecutionStrategy {
-  PROBABILISTIC,
-  BEST_MOVES,
-  LOCAL_MOVES,
-};
-
 enum class GraphOrdering {
   NATURAL,
   DEGREE_BUCKETS,
   COLORING,
+};
+
+enum class GraphDistribution {
+  BALANCED_EDGES,
+  BALANCED_MEMORY_SPACE
+};
+
+enum class LabelPropagationMoveExecutionStrategy {
+  PROBABILISTIC,
+  BEST_MOVES,
+  LOCAL_MOVES,
 };
 
 enum class ClusterSizeStrategy {
@@ -304,6 +309,33 @@ struct RefinementContext {
   [[nodiscard]] bool includes_algorithm(RefinementAlgorithm algorithm) const;
 };
 
+struct GraphCompressionContext {
+  bool enabled;
+
+  // Graph compression statistics
+  double avg_compression_ratio;
+  double min_compression_ratio;
+  double max_compression_ratio;
+
+  std::size_t largest_compressed_graph;
+  std::size_t largest_compressed_graph_prev_size;
+
+  std::size_t largest_uncompressed_graph;
+  std::size_t largest_uncompressed_graph_after_size;
+
+  std::vector<std::size_t> compressed_graph_sizes;
+  std::vector<std::size_t> uncompressed_graph_sizes;
+  std::vector<NodeID> num_nodes;
+  std::vector<EdgeID> num_edges;
+
+  /*!
+   * Setups the graph compression statistics of this context.
+   *
+   * @param graph The compressed graph of this process.
+   */
+  void setup(const class DistributedCompressedGraph &graph);
+};
+
 struct PartitionContext {
   PartitionContext(BlockID k, BlockID K, double epsilon);
 
@@ -323,6 +355,7 @@ struct DebugContext {
   std::string graph_filename;
   bool save_coarsest_graph;
   bool save_coarsest_partition;
+  bool print_compression_details;
 };
 
 struct Context {
@@ -335,6 +368,7 @@ struct Context {
 
   PartitionContext partition;
   ParallelContext parallel;
+  GraphCompressionContext compression;
   CoarseningContext coarsening;
   InitialPartitioningContext initial_partitioning;
   RefinementContext refinement;
@@ -373,6 +407,8 @@ public:
       dist::GlobalNodeWeight *node_weights,
       dist::GlobalEdgeWeight *edge_weights
   );
+
+  void import_graph(dist::DistributedGraph graph);
 
   dist::GlobalEdgeWeight compute_partition(dist::BlockID k, dist::BlockID *partition);
 

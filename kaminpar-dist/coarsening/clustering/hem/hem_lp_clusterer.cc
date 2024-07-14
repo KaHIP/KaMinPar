@@ -48,13 +48,15 @@ GlobalNodeID
 HEMLPClusterer::compute_size_after_matching_contraction(const StaticArray<GlobalNodeID> &clustering
 ) {
   tbb::enumerable_thread_specific<NodeID> num_matched_edges_ets;
-  _graph->pfor_nodes([&](const NodeID u) {
-    if (clustering[u] != _graph->local_to_global_node(u)) {
-      ++num_matched_edges_ets.local();
-    }
+  _graph->reified([&](const auto &graph) {
+    graph.pfor_nodes([&](const NodeID u) {
+      if (clustering[u] != graph.local_to_global_node(u)) {
+        ++num_matched_edges_ets.local();
+      }
+    });
   });
-  const NodeID num_matched_edges = num_matched_edges_ets.combine(std::plus{});
 
+  const NodeID num_matched_edges = num_matched_edges_ets.combine(std::plus{});
   const GlobalNodeID num_matched_edges_globally =
       mpi::allreduce<GlobalNodeID>(num_matched_edges, MPI_SUM, _graph->communicator());
 
