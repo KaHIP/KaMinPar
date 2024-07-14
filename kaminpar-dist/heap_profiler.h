@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Functions to annotate the heap profiler tree with aggregate information from
+ * Functions to annotate the heap profiler tree with aggregated information from
  * all PEs.
  *
  * @file:   heap_profiler.h
@@ -15,10 +15,10 @@
 namespace kaminpar::dist {
 
 /**
- * Annotates a heap profiler tree with aggregate information from all PEs.
+ * Annotates a heap profiler tree with aggregated information from all PEs.
  *
  * @param heap_profiler The heap profiler to annotate.
- * @param comm The group of process whose information to aggregate.
+ * @param comm The group of processes whose information to aggregate.
  * @return The rank of the process that stores the annotated heap profile.
  */
 int finalize_distributed_heap_profiler(heap_profiler::HeapProfiler &heap_profiler, MPI_Comm comm);

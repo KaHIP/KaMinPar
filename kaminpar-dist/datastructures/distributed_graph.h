@@ -412,9 +412,19 @@ public:
     return _underlying_graph.release();
   }
 
+  [[nodiscard]] inline DistributedCSRGraph &csr_graph() {
+    AbstractDistributedGraph *abstract_graph = _underlying_graph.get();
+    return *dynamic_cast<DistributedCSRGraph *>(abstract_graph);
+  }
+
   [[nodiscard]] inline const DistributedCSRGraph &csr_graph() const {
     const AbstractDistributedGraph *abstract_graph = _underlying_graph.get();
     return *dynamic_cast<const DistributedCSRGraph *>(abstract_graph);
+  }
+
+  [[nodiscard]] inline DistributedCompressedGraph &compressed_graph() {
+    AbstractDistributedGraph *abstract_graph = _underlying_graph.get();
+    return *dynamic_cast<DistributedCompressedGraph *>(abstract_graph);
   }
 
   [[nodiscard]] inline const DistributedCompressedGraph &compressed_graph() const {

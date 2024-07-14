@@ -319,8 +319,7 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const BlockID k, BlockID *partitio
   START_HEAP_PROFILER("Partitioning");
   START_TIMER("Partitioning");
   if (!_was_rearranged && _ctx.rearrange_by != GraphOrdering::NATURAL) {
-    DistributedCSRGraph &csr_graph =
-        *dynamic_cast<DistributedCSRGraph *>(_graph_ptr->take_underlying_graph());
+    DistributedCSRGraph &csr_graph = _graph_ptr->csr_graph();
     graph = DistributedGraph(
         std::make_unique<DistributedCSRGraph>(graph::rearrange(std::move(csr_graph), _ctx))
     );
