@@ -126,13 +126,14 @@ The output should be stored in a file and can be used by the -C,--config option.
       ->capture_default_str();
   cli.add_option("--io-kind", app.io_kind)
       ->transform(CLI::CheckedTransformer(get_io_kinds()).description(""))
-      ->description(R"(Graph distribution scheme used for KaGen IO, possible options are:
+      ->description(R"(Used IO for reading the input graph, possible options are:
   - kaminpar: use KaMinPar for IO
   - kagen:    use KaGen for IO)")
       ->capture_default_str();
   cli.add_option("--io-distribution", app.io_distribution)
       ->transform(CLI::CheckedTransformer(get_graph_distributions()).description(""))
-      ->description(R"(Graph distribution scheme, possible options are:
+      ->description(R"(Graph distribution scheme used for KaMinPar IO, possible options are:
+  - balanced-nodes:        distribute nodes such that each PE has roughly the same number of nodes
   - balanced-edges:        distribute edges such that each PE has roughly the same number of edges
   - balancde-memory-space: distribute graph such that each PE uses roughly the same memory space for the input graph)"
       )

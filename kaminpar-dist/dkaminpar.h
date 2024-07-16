@@ -93,6 +93,7 @@ enum class GraphOrdering {
 };
 
 enum class GraphDistribution {
+  BALANCED_NODES,
   BALANCED_EDGES,
   BALANCED_MEMORY_SPACE
 };

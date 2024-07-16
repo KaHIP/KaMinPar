@@ -154,6 +154,9 @@ std::pair<std::uint64_t, std::uint64_t> find_local_nodes(
     Lambda &&fetch_edge
 ) {
   switch (distribution) {
+  case GraphDistribution::BALANCED_NODES: {
+    return compute_chunks(num_nodes, size, rank);
+  }
   case GraphDistribution::BALANCED_EDGES: {
     const auto [first_edge, last_edge] = compute_chunks(num_edges, size, rank);
 
