@@ -379,7 +379,7 @@ public:
    * @return The used memory space in bytes.
    */
   [[nodiscard]] std::size_t memory_space() const {
-    return _nodes.allocated_size() + _compressed_edges.size() +
+    return _nodes.memory_space() + _compressed_edges.size() +
            _edge_weights.size() * sizeof(EdgeWeight);
   }
 

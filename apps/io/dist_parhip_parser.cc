@@ -72,28 +72,32 @@ public:
       std::exit(1);
     }
 
-    if (has_64_bit_node_weight) {
-      if (sizeof(NodeWeight) != 8) {
-        LOG_ERROR << "The stored graph uses 64-Bit node weights but this build uses 32-Bit node "
+    if (has_node_weights) {
+      if (has_64_bit_node_weight) {
+        if (sizeof(NodeWeight) != 8) {
+          LOG_ERROR << "The stored graph uses 64-Bit node weights but this build uses 32-Bit node "
+                       "weights.";
+          std::exit(1);
+        }
+      } else if (sizeof(NodeWeight) != 4) {
+        LOG_ERROR << "The stored graph uses 32-Bit node weights but this build uses 64-Bit node "
                      "weights.";
         std::exit(1);
       }
-    } else if (sizeof(NodeWeight) != 4) {
-      LOG_ERROR << "The stored graph uses 32-Bit node weights but this build uses 64-Bit node "
-                   "weights.";
-      std::exit(1);
     }
 
-    if (has_64_bit_edge_weight) {
-      if (sizeof(EdgeWeight) != 8) {
-        LOG_ERROR << "The stored graph uses 64-Bit edge weights but this build uses 32-Bit edge "
+    if (has_edge_weights) {
+      if (has_64_bit_edge_weight) {
+        if (sizeof(EdgeWeight) != 8) {
+          LOG_ERROR << "The stored graph uses 64-Bit edge weights but this build uses 32-Bit edge "
+                       "weights.";
+          std::exit(1);
+        }
+      } else if (sizeof(EdgeWeight) != 4) {
+        LOG_ERROR << "The stored graph uses 32-Bit edge weights but this build uses 64-Bit edge "
                      "weights.";
         std::exit(1);
       }
-    } else if (sizeof(EdgeWeight) != 4) {
-      LOG_ERROR << "The stored graph uses 32-Bit edge weights but this build uses 64-Bit edge "
-                   "weights.";
-      std::exit(1);
     }
   }
 };
@@ -196,7 +200,7 @@ DistributedCSRGraph csr_read(
   const auto num_nodes = reader.read<std::uint64_t>(sizeof(std::uint64_t));
   const auto num_edges = reader.read<std::uint64_t>(sizeof(std::uint64_t) * 2);
   const ParhipHeader header(version, num_nodes, num_edges);
-  // header.validate();
+  header.validate();
 
   std::size_t position = ParhipHeader::kSize;
 
@@ -342,7 +346,7 @@ DistributedCompressedGraph compressed_read(
   const auto num_nodes = reader.read<std::uint64_t>(sizeof(std::uint64_t));
   const auto num_edges = reader.read<std::uint64_t>(sizeof(std::uint64_t) * 2);
   const ParhipHeader header(version, num_nodes, num_edges);
-  //  header.validate();
+  header.validate();
 
   std::size_t position = ParhipHeader::kSize;
 
@@ -369,10 +373,8 @@ DistributedCompressedGraph compressed_read(
   const mpi::PEID size = mpi::get_comm_size(comm);
   const mpi::PEID rank = mpi::get_comm_rank(comm);
 
-  const auto [first_edge, last_edge] = compute_chunks(num_edges, size, rank);
-
-  const std::uint64_t first_node = find_node(num_nodes, num_edges - 1, first_edge, map_edge_offset);
-  const std::uint64_t last_node = find_node(num_nodes, num_edges - 1, last_edge, map_edge_offset);
+  const auto [first_node, last_node] =
+      find_local_nodes(size, rank, distribution, num_nodes, num_edges, map_edge_offset);
 
   const NodeID num_local_nodes = last_node - first_node;
   const EdgeID num_local_edges = map_edge_offset(last_node) - map_edge_offset(first_node);
@@ -407,7 +409,7 @@ DistributedCompressedGraph compressed_read(
       static_cast<GlobalEdgeID>(0)
   );
 
-  graph::GhostNodeMapper mapper(rank, node_distribution);
+  CompactGhostNodeMappingBuilder mapper(rank, node_distribution);
   CompressedNeighborhoodsBuilder<NodeID, EdgeID, EdgeWeight> builder(
       num_local_nodes, num_local_edges, header.has_edge_weights
   );
@@ -453,16 +455,12 @@ DistributedCompressedGraph compressed_read(
     });
   }
 
-  auto [global_to_ghost, ghost_to_global, ghost_owner] = mapper.finalize();
-
   DistributedCompressedGraph graph(
       std::move(node_distribution),
       std::move(edge_distribution),
       builder.build(),
       std::move(node_weights),
-      std::move(ghost_owner),
-      std::move(ghost_to_global),
-      std::move(global_to_ghost),
+      mapper.finalize(),
       sorted,
       comm
   );

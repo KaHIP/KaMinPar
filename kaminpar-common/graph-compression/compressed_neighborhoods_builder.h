@@ -127,7 +127,7 @@ public:
    * @return The used memory of the compressed neighborhoods.
    */
   [[nodiscard]] std::size_t currently_used_memory() const {
-    return _nodes.allocated_size() + _compressed_edges_builder.size();
+    return _nodes.memory_space() + _compressed_edges_builder.size();
   }
 
   /*!

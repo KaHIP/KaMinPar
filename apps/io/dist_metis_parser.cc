@@ -434,7 +434,7 @@ DistributedCompressedGraph compress_read(
       static_cast<GlobalEdgeID>(0)
   );
 
-  graph::GhostNodeMapper mapper(rank, node_distribution);
+  CompactGhostNodeMappingBuilder mapper(rank, node_distribution);
   CompressedNeighborhoodsBuilder<NodeID, EdgeID, EdgeWeight> builder(
       num_local_nodes, num_local_edges, header.has_edge_weights
   );
@@ -498,16 +498,12 @@ DistributedCompressedGraph compress_read(
     node_weights = std::move(actual_node_weights);
   }
 
-  auto [global_to_ghost, ghost_to_global, ghost_owner] = mapper.finalize();
-
   DistributedCompressedGraph graph(
       std::move(node_distribution),
       std::move(edge_distribution),
       builder.build(),
       std::move(node_weights),
-      std::move(ghost_owner),
-      std::move(ghost_to_global),
-      std::move(global_to_ghost),
+      mapper.finalize(),
       sorted,
       comm
   );

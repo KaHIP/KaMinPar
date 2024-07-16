@@ -117,8 +117,8 @@ static void write_header(std::ofstream &out, const CompressedBinaryHeader header
 template <typename T>
 static void write_compact_static_array(std::ofstream &out, const CompactStaticArray<T> &array) {
   write_int(out, array.byte_width());
-  write_int(out, array.allocated_size());
-  out.write(reinterpret_cast<const char *>(array.data()), array.allocated_size());
+  write_int(out, array.memory_space());
+  out.write(reinterpret_cast<const char *>(array.data()), array.memory_space());
 }
 
 template <typename T>
