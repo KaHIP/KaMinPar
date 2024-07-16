@@ -13,11 +13,11 @@
 #include "kaminpar-cli/CLI11.h"
 
 #include "kaminpar-common/console_io.h"
+#include "kaminpar-common/graph-compression/varint_codec.h"
+#include "kaminpar-common/graph-compression/varint_run_length_codec.h"
+#include "kaminpar-common/graph-compression/varint_stream_codec.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
-#include "kaminpar-common/varint_codec.h"
-#include "kaminpar-common/varint_run_length_codec.h"
-#include "kaminpar-common/varint_stream_codec.h"
 
 using namespace kaminpar;
 

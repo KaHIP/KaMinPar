@@ -15,9 +15,9 @@
 
 #include "kaminpar-common/asserting_cast.h"
 #include "kaminpar-common/console_io.h"
+#include "kaminpar-common/graph-compression/varint_codec.h"
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/strutils.h"
-#include "kaminpar-common/varint_codec.h"
 
 namespace kaminpar::shm {
 using namespace std::string_literals;

@@ -8,12 +8,12 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 
 #include <immintrin.h>
 
 #include "kaminpar-common/constexpr_utils.h"
-#include "kaminpar-common/varint_codec.h"
 
 namespace kaminpar {
 
@@ -189,7 +189,7 @@ public:
    * parameter of type Int.
    */
   template <typename Lambda> void decode(Lambda &&l) {
-    constexpr bool non_stoppable = std::is_void_v<std::invoke_result_t<Lambda, std::uint32_t>>;
+    constexpr bool kNonStoppable = std::is_void_v<std::invoke_result_t<Lambda, Int>>;
 
     for (std::size_t i = 0; i < _control_bytes; ++i) {
       const std::uint8_t control_byte = _control_bytes_ptr[i];
@@ -201,25 +201,25 @@ public:
       const std::uint8_t *shuffle_mask = kShuffleTable[control_byte].data();
       data = _mm_shuffle_epi8(data, *(const __m128i *)shuffle_mask);
 
-      if constexpr (non_stoppable) {
+      if constexpr (kNonStoppable) {
         l(_mm_extract_epi32(data, 0));
         l(_mm_extract_epi32(data, 1));
         l(_mm_extract_epi32(data, 2));
         l(_mm_extract_epi32(data, 3));
       } else {
-        if (l(_mm_extract_epi32(data, 0))) {
+        if (l(_mm_extract_epi32(data, 0))) [[unlikely]] {
           return;
         }
 
-        if (l(_mm_extract_epi32(data, 1))) {
+        if (l(_mm_extract_epi32(data, 1))) [[unlikely]] {
           return;
         }
 
-        if (l(_mm_extract_epi32(data, 2))) {
+        if (l(_mm_extract_epi32(data, 2))) [[unlikely]] {
           return;
         }
 
-        if (l(_mm_extract_epi32(data, 3))) {
+        if (l(_mm_extract_epi32(data, 3))) [[unlikely]] {
           return;
         }
       }
@@ -233,10 +233,10 @@ public:
       __m128i data = _mm_loadu_si128((const __m128i *)_data_ptr);
       data = _mm_shuffle_epi8(data, *(const __m128i *)shuffle_mask);
 
-      if constexpr (non_stoppable) {
+      if constexpr (kNonStoppable) {
         l(_mm_extract_epi32(data, 0));
       } else {
-        if (l(_mm_extract_epi32(data, 0))) {
+        if (l(_mm_extract_epi32(data, 0))) [[unlikely]] {
           return;
         }
       }
@@ -249,15 +249,15 @@ public:
       __m128i data = _mm_loadu_si128((const __m128i *)_data_ptr);
       data = _mm_shuffle_epi8(data, *(const __m128i *)shuffle_mask);
 
-      if constexpr (non_stoppable) {
+      if constexpr (kNonStoppable) {
         l(_mm_extract_epi32(data, 0));
         l(_mm_extract_epi32(data, 1));
       } else {
-        if (l(_mm_extract_epi32(data, 0))) {
+        if (l(_mm_extract_epi32(data, 0))) [[unlikely]] {
           return;
         }
 
-        if (l(_mm_extract_epi32(data, 1))) {
+        if (l(_mm_extract_epi32(data, 1))) [[unlikely]] {
           return;
         }
       }
@@ -270,20 +270,20 @@ public:
       __m128i data = _mm_loadu_si128((const __m128i *)_data_ptr);
       data = _mm_shuffle_epi8(data, *(const __m128i *)shuffle_mask);
 
-      if constexpr (non_stoppable) {
+      if constexpr (kNonStoppable) {
         l(_mm_extract_epi32(data, 0));
         l(_mm_extract_epi32(data, 1));
         l(_mm_extract_epi32(data, 2));
       } else {
-        if (l(_mm_extract_epi32(data, 0))) {
+        if (l(_mm_extract_epi32(data, 0))) [[unlikely]] {
           return;
         }
 
-        if (l(_mm_extract_epi32(data, 1))) {
+        if (l(_mm_extract_epi32(data, 1))) [[unlikely]] {
           return;
         }
 
-        if (l(_mm_extract_epi32(data, 2))) {
+        if (l(_mm_extract_epi32(data, 2))) [[unlikely]] {
           return;
         }
       }

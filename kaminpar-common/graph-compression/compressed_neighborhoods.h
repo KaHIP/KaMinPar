@@ -10,11 +10,11 @@
 #include "kaminpar-common/constexpr_utils.h"
 #include "kaminpar-common/datastructures/compact_static_array.h"
 #include "kaminpar-common/datastructures/static_array.h"
+#include "kaminpar-common/graph-compression/varint_codec.h"
+#include "kaminpar-common/graph-compression/varint_run_length_codec.h"
+#include "kaminpar-common/graph-compression/varint_stream_codec.h"
 #include "kaminpar-common/math.h"
 #include "kaminpar-common/ranges.h"
-#include "kaminpar-common/varint_codec.h"
-#include "kaminpar-common/varint_run_length_codec.h"
-#include "kaminpar-common/varint_stream_codec.h"
 
 namespace kaminpar {
 
@@ -562,7 +562,7 @@ private:
     } else {
       for (NodeID part = 0; part < part_count; ++part) {
         const bool stop = iterate_part(part);
-        if (stop) {
+        if (stop) [[unlikely]] {
           return;
         }
       }
@@ -586,11 +586,11 @@ private:
         const bool stop = decode_intervals<kHasEdgeWeights>(
             data, edge, prev_edge_weight, std::forward<Lambda>(l)
         );
-        if (stop) {
+        if (stop) [[unlikely]] {
           return true;
         }
 
-        if (edge == max_edge) {
+        if (edge == max_edge) [[unlikely]] {
           return false;
         }
       }
@@ -649,7 +649,7 @@ private:
           invoke_caller(cur_left_extreme + j);
         } else {
           const bool stop = invoke_caller(cur_left_extreme + j);
-          if (stop) {
+          if (stop) [[unlikely]] {
             return true;
           }
         }
@@ -703,7 +703,7 @@ private:
       invoke_caller(first_adjacent_node);
     } else {
       const bool stop = invoke_caller(first_adjacent_node);
-      if (stop) {
+      if (stop) [[unlikely]] {
         return true;
       }
     }
@@ -741,7 +741,7 @@ private:
           invoke_caller(adjacent_node);
         } else {
           const bool stop = invoke_caller(adjacent_node);
-          if (stop) {
+          if (stop) [[unlikely]] {
             return true;
           }
         }

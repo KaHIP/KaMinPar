@@ -1,6 +1,6 @@
 #include <gmock/gmock.h>
 
-#include "kaminpar-common/varint_run_length_codec.h"
+#include "kaminpar-common/graph-compression/varint_run_length_codec.h"
 
 using namespace kaminpar;
 

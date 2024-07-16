@@ -7,8 +7,8 @@
  ******************************************************************************/
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
-#include <stdexcept>
 #include <utility>
 #include <vector>
 
@@ -143,7 +143,7 @@ public:
           decode32(run_length, run_size, std::forward<Lambda>(l));
         } else {
           const bool stop = decode32(run_length, run_size, std::forward<Lambda>(l));
-          if (stop) {
+          if (stop) [[unlikely]] {
             return;
           }
         }
@@ -157,7 +157,7 @@ public:
           decode64(run_length, run_size, std::forward<Lambda>(l));
         } else {
           const bool stop = decode64(run_length, run_size, std::forward<Lambda>(l));
-          if (stop) {
+          if (stop) [[unlikely]] {
             return;
           }
         }
@@ -171,19 +171,19 @@ private:
 
   template <typename Lambda>
   bool decode32(const std::uint8_t run_length, const std::uint8_t run_size, Lambda &&l) {
-    constexpr bool non_stoppable = std::is_void_v<std::invoke_result_t<Lambda, std::uint32_t>>;
+    constexpr bool kNonStoppable = std::is_void_v<std::invoke_result_t<Lambda, std::uint32_t>>;
 
     switch (run_size) {
     case 1:
       for (std::uint8_t i = 0; i < run_length; ++i) {
-        std::uint32_t value = static_cast<std::uint32_t>(*_ptr);
+        const std::uint32_t value = static_cast<std::uint32_t>(*_ptr);
         _ptr += 1;
 
-        if constexpr (non_stoppable) {
+        if constexpr (kNonStoppable) {
           l(value);
         } else {
           const bool stop = l(value);
-          if (stop) {
+          if (stop) [[unlikely]] {
             return true;
           }
         }
@@ -191,14 +191,14 @@ private:
       break;
     case 2:
       for (std::uint8_t i = 0; i < run_length; ++i) {
-        std::uint32_t value = *((std::uint16_t *)_ptr);
+        const std::uint32_t value = *((std::uint16_t *)_ptr);
         _ptr += 2;
 
-        if constexpr (non_stoppable) {
+        if constexpr (kNonStoppable) {
           l(value);
         } else {
           const bool stop = l(value);
-          if (stop) {
+          if (stop) [[unlikely]] {
             return true;
           }
         }
@@ -206,14 +206,14 @@ private:
       break;
     case 3:
       for (std::uint8_t i = 0; i < run_length; ++i) {
-        std::uint32_t value = *((std::uint32_t *)_ptr) & 0xFFFFFF;
+        const std::uint32_t value = *((std::uint32_t *)_ptr) & 0xFFFFFF;
         _ptr += 3;
 
-        if constexpr (non_stoppable) {
+        if constexpr (kNonStoppable) {
           l(value);
         } else {
           const bool stop = l(value);
-          if (stop) {
+          if (stop) [[unlikely]] {
             return true;
           }
         }
@@ -221,21 +221,21 @@ private:
       break;
     case 4:
       for (std::uint8_t i = 0; i < run_length; ++i) {
-        std::uint32_t value = *((std::uint32_t *)_ptr);
+        const std::uint32_t value = *((std::uint32_t *)_ptr);
         _ptr += 4;
 
-        if constexpr (non_stoppable) {
+        if constexpr (kNonStoppable) {
           l(value);
         } else {
           const bool stop = l(value);
-          if (stop) {
+          if (stop) [[unlikely]] {
             return true;
           }
         }
       }
       break;
     default:
-      throw std::runtime_error("unexpected run size");
+      __builtin_unreachable();
     }
 
     return false;
@@ -243,19 +243,19 @@ private:
 
   template <typename Lambda>
   bool decode64(const std::uint8_t run_length, const std::uint8_t run_size, Lambda &&l) {
-    constexpr bool non_stoppable = std::is_void_v<std::invoke_result_t<Lambda, std::uint64_t>>;
+    constexpr bool kNonStoppable = std::is_void_v<std::invoke_result_t<Lambda, std::uint64_t>>;
 
     switch (run_size) {
     case 1:
       for (std::uint8_t i = 0; i < run_length; ++i) {
-        std::uint64_t value = static_cast<std::uint64_t>(*_ptr);
+        const std::uint64_t value = static_cast<std::uint64_t>(*_ptr);
         _ptr += 1;
 
-        if constexpr (non_stoppable) {
+        if constexpr (kNonStoppable) {
           l(value);
         } else {
           const bool stop = l(value);
-          if (stop) {
+          if (stop) [[unlikely]] {
             return true;
           }
         }
@@ -263,14 +263,14 @@ private:
       break;
     case 2:
       for (std::uint8_t i = 0; i < run_length; ++i) {
-        std::uint64_t value = *((std::uint16_t *)_ptr);
+        const std::uint64_t value = *((std::uint16_t *)_ptr);
         _ptr += 2;
 
-        if constexpr (non_stoppable) {
+        if constexpr (kNonStoppable) {
           l(value);
         } else {
           const bool stop = l(value);
-          if (stop) {
+          if (stop) [[unlikely]] {
             return true;
           }
         }
@@ -278,14 +278,14 @@ private:
       break;
     case 3:
       for (std::uint8_t i = 0; i < run_length; ++i) {
-        std::uint64_t value = *((std::uint32_t *)_ptr) & 0xFFFFFF;
+        const std::uint64_t value = *((std::uint32_t *)_ptr) & 0xFFFFFF;
         _ptr += 3;
 
-        if constexpr (non_stoppable) {
+        if constexpr (kNonStoppable) {
           l(value);
         } else {
           const bool stop = l(value);
-          if (stop) {
+          if (stop) [[unlikely]] {
             return true;
           }
         }
@@ -293,14 +293,14 @@ private:
       break;
     case 4:
       for (std::uint8_t i = 0; i < run_length; ++i) {
-        std::uint64_t value = *((std::uint32_t *)_ptr);
+        const std::uint64_t value = *((std::uint32_t *)_ptr);
         _ptr += 4;
 
-        if constexpr (non_stoppable) {
+        if constexpr (kNonStoppable) {
           l(value);
         } else {
           const bool stop = l(value);
-          if (stop) {
+          if (stop) [[unlikely]] {
             return true;
           }
         }
@@ -308,14 +308,14 @@ private:
       break;
     case 5:
       for (std::uint8_t i = 0; i < run_length; ++i) {
-        std::uint64_t value = *((std::uint64_t *)_ptr) & 0xFFFFFFFFFF;
+        const std::uint64_t value = *((std::uint64_t *)_ptr) & 0xFFFFFFFFFF;
         _ptr += 5;
 
-        if constexpr (non_stoppable) {
+        if constexpr (kNonStoppable) {
           l(value);
         } else {
           const bool stop = l(value);
-          if (stop) {
+          if (stop) [[unlikely]] {
             return true;
           }
         }
@@ -323,14 +323,14 @@ private:
       break;
     case 6:
       for (std::uint8_t i = 0; i < run_length; ++i) {
-        std::uint64_t value = *((std::uint64_t *)_ptr) & 0xFFFFFFFFFFFF;
+        const std::uint64_t value = *((std::uint64_t *)_ptr) & 0xFFFFFFFFFFFF;
         _ptr += 6;
 
-        if constexpr (non_stoppable) {
+        if constexpr (kNonStoppable) {
           l(value);
         } else {
           const bool stop = l(value);
-          if (stop) {
+          if (stop) [[unlikely]] {
             return true;
           }
         }
@@ -338,14 +338,14 @@ private:
       break;
     case 7:
       for (std::uint8_t i = 0; i < run_length; ++i) {
-        std::uint64_t value = *((std::uint64_t *)_ptr) & 0xFFFFFFFFFFFFFF;
+        const std::uint64_t value = *((std::uint64_t *)_ptr) & 0xFFFFFFFFFFFFFF;
         _ptr += 7;
 
-        if constexpr (non_stoppable) {
+        if constexpr (kNonStoppable) {
           l(value);
         } else {
           const bool stop = l(value);
-          if (stop) {
+          if (stop) [[unlikely]] {
             return true;
           }
         }
@@ -353,21 +353,21 @@ private:
       break;
     case 8:
       for (std::uint8_t i = 0; i < run_length; ++i) {
-        std::uint64_t value = *((std::uint64_t *)_ptr);
+        const std::uint64_t value = *((std::uint64_t *)_ptr);
         _ptr += 8;
 
-        if constexpr (non_stoppable) {
+        if constexpr (kNonStoppable) {
           l(value);
         } else {
           const bool stop = l(value);
-          if (stop) {
+          if (stop) [[unlikely]] {
             return true;
           }
         }
       }
       break;
     default:
-      throw std::runtime_error("unexpected run size");
+      __builtin_unreachable();
     }
 
     return false;
