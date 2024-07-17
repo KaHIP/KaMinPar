@@ -306,11 +306,14 @@ DistributedCSRGraph csr_read(
   if (header.has_node_weights) {
     node_weights.resize(num_local_nodes + mapper.next_ghost_node(), static_array::noinit);
 
-    tbb::parallel_for(tbb::blocked_range<NodeID>(0, num_local_nodes), [&](const auto &r) {
-      for (NodeID u = r.begin(); u != r.end(); ++u) {
-        node_weights[u] = raw_node_weights[first_node + u];
-      }
-    });
+    tbb::parallel_for(
+        tbb::blocked_range<NodeID>(0, num_local_nodes),
+        [&, first_node = first_node](const auto &r) {
+          for (NodeID u = r.begin(); u != r.end(); ++u) {
+            node_weights[u] = raw_node_weights[first_node + u];
+          }
+        }
+    );
   }
 
   auto [global_to_ghost, ghost_to_global, ghost_owner] = mapper.finalize();
@@ -451,11 +454,14 @@ DistributedCompressedGraph compressed_read(
   if (header.has_node_weights) {
     node_weights.resize(num_local_nodes + mapper.next_ghost_node(), static_array::noinit);
 
-    tbb::parallel_for(tbb::blocked_range<NodeID>(0, num_local_nodes), [&](const auto &r) {
-      for (NodeID u = r.begin(); u != r.end(); ++u) {
-        node_weights[u] = raw_node_weights[first_node + u];
-      }
-    });
+    tbb::parallel_for(
+        tbb::blocked_range<NodeID>(0, num_local_nodes),
+        [&, first_node = first_node](const auto &r) {
+          for (NodeID u = r.begin(); u != r.end(); ++u) {
+            node_weights[u] = raw_node_weights[first_node + u];
+          }
+        }
+    );
   }
 
   DistributedCompressedGraph graph(
