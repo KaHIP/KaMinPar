@@ -79,10 +79,9 @@ public:
 private:
   google::dense_hash_map<Key, Value> map;
 };
-#else
-// @todo decide whether we want this silent fallback or trigger an error
+#else  // KAMINPAR_SPARSEHASH_FOUND
 template <typename Key, typename Value> using Sparsehash = SparseMap<Key, Value>;
-#endif
+#endif // KAMINPAR_SPARSEHASH_FOUND
 } // namespace rm_backyard
 
 template <
