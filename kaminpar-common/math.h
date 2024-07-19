@@ -67,9 +67,9 @@ template <typename T> constexpr bool is_power_of_2(const T arg) {
 
 //! With `UInt = uint32_t`, same as `static_cast<uint32_t>(std::log2(arg))`
 template <typename T> T floor_log2(const T arg) {
-  constexpr std::size_t arg_width{std::numeric_limits<T>::digits};
+  constexpr std::size_t arg_width = std::numeric_limits<T>::digits;
 
-  auto log2{static_cast<T>(arg_width)};
+  auto log2 = static_cast<T>(arg_width);
   if constexpr (arg_width == std::numeric_limits<unsigned int>::digits) {
     log2 -= __builtin_clz(arg);
   } else {

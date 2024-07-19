@@ -240,7 +240,7 @@ public:
    */
   void write(const std::size_t pos, const Int value) {
     KASSERT(pos < _num_values);
-    KASSERT(math::byte_width(value) <= _byte_width);
+    KASSERT(math::byte_width<std::uint32_t>(value) <= _byte_width);
 
     Int *data = reinterpret_cast<Int *>(_values.get() + pos * _byte_width);
     *data = value | (*data & _write_mask);
