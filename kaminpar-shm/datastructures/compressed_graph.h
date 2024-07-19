@@ -144,7 +144,7 @@ public:
   }
 
   [[nodiscard]] inline EdgeWeight total_edge_weight() const final {
-    return _total_edge_weight;
+    return _compressed_neighborhoods.total_edge_weight();
   }
 
   //
@@ -428,7 +428,6 @@ private:
 
   NodeWeight _max_node_weight = kInvalidNodeWeight;
   NodeWeight _total_node_weight = kInvalidNodeWeight;
-  EdgeWeight _total_edge_weight = kInvalidEdgeWeight;
 
   StaticArray<NodeID> _permutation;
   bool _sorted;
