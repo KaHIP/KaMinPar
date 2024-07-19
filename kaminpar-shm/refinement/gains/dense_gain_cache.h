@@ -652,8 +652,10 @@ public:
   LargeKDenseDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph &d_graph)
       : _k(d_graph.k()),
         _gain_cache(gain_cache) {
+#ifdef KAMINPAR_SPARSEHASH_FOUND
     _adjacent_blocks_delta.set_empty_key(kInvalidNodeID);
     _adjacent_blocks_delta.set_deleted_key(kInvalidNodeID - 1);
+#endif // KAMINPAR_SPARSEHASH_FOUND
   }
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight conn(const NodeID node, const BlockID block) const {
