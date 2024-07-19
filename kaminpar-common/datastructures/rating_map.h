@@ -10,7 +10,10 @@
  ******************************************************************************/
 #pragma once
 
+#ifdef KAMINPAR_SPARSEHASH_FOUND
 #include <google/dense_hash_map>
+#endif
+
 #include <unordered_map>
 
 #include "kaminpar-common/datastructures/fast_reset_array.h"
@@ -24,6 +27,31 @@ using FastResetArray = ::kaminpar::FastResetArray<Value, Key>;
 
 template <typename Key, typename Value> using SparseMap = ::kaminpar::SparseMap<Key, Value>;
 
+template <typename Key, typename Value> class UnorderedMap {
+public:
+  Value &operator[](const Key key) {
+    return map[key];
+  }
+
+  [[nodiscard]] auto &entries() {
+    return map;
+  }
+
+  void clear() {
+    map.clear();
+  }
+
+  [[nodiscard]] std::size_t capacity() const {
+    return std::numeric_limits<std::size_t>::max();
+  }
+
+  void resize(std::size_t) {}
+
+private:
+  std::unordered_map<Key, Value> map;
+};
+
+#ifdef KAMINPAR_SPARSEHASH_FOUND
 template <typename Key, typename Value> class Sparsehash {
 public:
   Sparsehash() {
@@ -51,30 +79,10 @@ public:
 private:
   google::dense_hash_map<Key, Value> map;
 };
-
-template <typename Key, typename Value> class UnorderedMap {
-public:
-  Value &operator[](const Key key) {
-    return map[key];
-  }
-
-  [[nodiscard]] auto &entries() {
-    return map;
-  }
-
-  void clear() {
-    map.clear();
-  }
-
-  [[nodiscard]] std::size_t capacity() const {
-    return std::numeric_limits<std::size_t>::max();
-  }
-
-  void resize(std::size_t) {}
-
-private:
-  std::unordered_map<Key, Value> map;
-};
+#else
+// @todo decide whether we want this silent fallback or trigger an error
+template <typename Key, typename Value> using Sparsehash = SparseMap<Key, Value>;
+#endif
 } // namespace rm_backyard
 
 template <

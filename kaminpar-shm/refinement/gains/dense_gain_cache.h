@@ -20,7 +20,12 @@
  ******************************************************************************/
 #pragma once
 
+#ifdef KAMINPAR_SPARSEHASH_FOUND
 #include <google/dense_hash_map>
+#else // KAMINPAR_SPARSEHASH_FOUND
+#include <unordered_map>
+#endif // KAMINPAR_SPARSEHASH_FOUND
+
 #include <limits>
 #include <vector>
 
@@ -729,6 +734,10 @@ private:
   BlockID _k;
   const GainCache &_gain_cache;
   DynamicFlatMap<std::size_t, EdgeWeight> _gain_cache_delta;
+#ifdef KAMINPAR_SPARSEHASH_FOUND
   google::dense_hash_map<NodeID, std::vector<BlockID>> _adjacent_blocks_delta;
+#else  // KAMINPAR_SPARSEHASH_FOUND
+  std::unordered_map<NodeID, std::vector<BlockID>> _adjacent_blocks_delta;
+#endif // KAMINPAR_SPARSEHASH_FOUND
 };
 } // namespace kaminpar::shm

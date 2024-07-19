@@ -322,7 +322,11 @@ message("  dist::BlockWeight      =  std::int64_t")
 ################################################################################
 
 # Google Sparsehash 
-find_package(Sparsehash REQUIRED)
+find_package(Sparsehash)
+if (Sparsehash_FOUND) 
+    message(STATUS "Found Google Sparsehash")
+    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_SPARSEHASH_FOUND")
+endif ()
 
 if (KAMINPAR_BUILD_WITH_CCACHE)
     find_program(CCACHE_PROGRAM ccache)
