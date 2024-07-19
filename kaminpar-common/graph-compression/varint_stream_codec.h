@@ -11,7 +11,11 @@
 #include <cstddef>
 #include <cstdint>
 
+#if defined(__x86_64__)
 #include <immintrin.h>
+#elif defined(__aarch64__)
+#include <arm_neon.h>
+#endif
 
 #include "kaminpar-common/constexpr_utils.h"
 
@@ -188,6 +192,7 @@ public:
    * @param l The function to be called with the decoded integers, i.e. the function has one
    * parameter of type Int.
    */
+#if defined(__x86_64__)
   template <typename Lambda> void decode(Lambda &&l) {
     constexpr bool kNonStoppable = std::is_void_v<std::invoke_result_t<Lambda, Int>>;
 
@@ -291,6 +296,127 @@ public:
     }
     }
   }
+#elif 0 // defined(__aarch64__)
+  template <typename Lambda> void decode(Lambda &&l) {
+    constexpr bool kNonStoppable = std::is_void_v<std::invoke_result_t<Lambda, Int>>;
+
+    for (std::size_t i = 0; i < _control_bytes; ++i) {
+      const std::uint8_t control_byte = _control_bytes_ptr[i];
+      const std::uint8_t length = kLengthTable[control_byte];
+
+      //__m128i data = _mm_loadu_si128((const __m128i *)_data_ptr);
+      uint32x4_t data = vld1q_u32(reinterpret_cast<const std::uint32_t *>(_data_ptr));
+      _data_ptr += length;
+
+      // const std::uint8_t *shuffle_mask = kShuffleTable[control_byte].data();
+      //  data = _mm_shuffle_epi8(data, *(const __m128i *)shuffle_mask);
+      const uint8x16_t shuffle_mask = vld1q_u8(kShuffleTable[control_byte].data());
+      data = vqtbl1q_u8(data, shuffle_mask);
+
+      if constexpr (kNonStoppable) {
+        l(vgetq_lane_u32(data, 0));
+        l(vgetq_lane_u32(data, 1));
+        l(vgetq_lane_u32(data, 2));
+        l(vgetq_lane_u32(data, 3));
+      } else {
+        if (l(vgetq_lane_u32(data, 0))) [[unlikely]] {
+          return;
+        }
+
+        if (l(vgetq_lane_u32(data, 1))) [[unlikely]] {
+          return;
+        }
+
+        if (l(vgetq_lane_u32(data, 2))) [[unlikely]] {
+          return;
+        }
+
+        if (l(vgetq_lane_u32(data, 3))) [[unlikely]] {
+          return;
+        }
+      }
+    }
+
+    switch (_count % 4) {
+    case 1: {
+      const std::uint8_t control_byte = _control_bytes_ptr[_control_bytes];
+      // const std::uint8_t *shuffle_mask = kShuffleTable[control_byte].data();
+      const uint8x16_t shuffle_mask = vld1q_u8(kShuffleTable[control_byte].data());
+
+      // __m128i data = _mm_loadu_si128((const __m128i *)_data_ptr);
+      // data = _mm_shuffle_epi8(data, *(const __m128i *)shuffle_mask);
+      uint32x4_t data = vld1q_u32(reinterpret_cast<const std::uint32_t *>(_data_ptr));
+      data = vqtbl1q_u8(data, shuffle_mask);
+
+      if constexpr (kNonStoppable) {
+        l(vgetq_lane_u32(data, 0));
+      } else {
+        if (l(vgetq_lane_u32(data, 0))) [[unlikely]] {
+          return;
+        }
+      }
+      break;
+    }
+    case 2: {
+      const std::uint8_t control_byte = _control_bytes_ptr[_control_bytes];
+      // const std::uint8_t *shuffle_mask = kShuffleTable[control_byte].data();
+      const uint8x16_t shuffle_mask = vld1q_u8(kShuffleTable[control_byte].data());
+
+      // __m128i data = _mm_loadu_si128((const __m128i *)_data_ptr);
+      // data = _mm_shuffle_epi8(data, *(const __m128i *)shuffle_mask);
+      uint32x4_t data = vld1q_u32(reinterpret_cast<const std::uint32_t *>(_data_ptr));
+      data = vqtbl1q_u8(data, shuffle_mask);
+
+      if constexpr (kNonStoppable) {
+        l(vgetq_lane_u32(data, 0));
+        l(vgetq_lane_u32(data, 1));
+      } else {
+        if (l(vgetq_lane_u32(data, 0))) [[unlikely]] {
+          return;
+        }
+
+        if (l(vgetq_lane_u32(data, 1))) [[unlikely]] {
+          return;
+        }
+      }
+      break;
+    }
+    case 3: {
+      const std::uint8_t control_byte = _control_bytes_ptr[_control_bytes];
+      // const std::uint8_t *shuffle_mask = kShuffleTable[control_byte].data();
+      const uint8x16_t shuffle_mask = vld1q_u8(kShuffleTable[control_byte].data());
+
+      // __m128i data = _mm_loadu_si128((const __m128i *)_data_ptr);
+      // data = _mm_shuffle_epi8(data, *(const __m128i *)shuffle_mask);
+      uint32x4_t data = vld1q_u32(reinterpret_cast<const std::uint32_t *>(_data_ptr));
+      data = vqtbl1q_u8(data, shuffle_mask);
+
+      if constexpr (kNonStoppable) {
+        l(vgetq_lane_u32(data, 0));
+        l(vgetq_lane_u32(data, 1));
+        l(vgetq_lane_u32(data, 2));
+      } else {
+        if (l(vgetq_lane_u32(data, 0))) [[unlikely]] {
+          return;
+        }
+
+        if (l(vgetq_lane_u32(data, 1))) [[unlikely]] {
+          return;
+        }
+
+        if (l(vgetq_lane_u32(data, 2))) [[unlikely]] {
+          return;
+        }
+      }
+      break;
+    }
+    }
+  }
+#else
+  template <typename Lambda> void decode(Lambda &&l) {
+    throw std::runtime_error("not implemented");
+  }
+#endif
 
 private:
   const std::uint8_t *_control_bytes_ptr;

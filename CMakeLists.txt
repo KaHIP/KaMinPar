@@ -92,6 +92,36 @@ elseif (KAMINPAR_COMPRESSION_EDGE_WEIGHTS AND KAMINPAR_COMPRESSION_RUN_LENGTH_EN
 endif ()
 
 ################################################################################
+## ARM: Disable options that we do not yet support on ARM                     ##
+################################################################################
+if (${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm64") 
+    if (KAMINPAR_BUILD_WITH_GROWT)
+        message(WARNING "Configured build with Growt hash tables, but Growt is "
+            "not available on ARM: overwriting option with 'OFF'.")
+    endif ()
+    if (KAMINPAR_BUILD_DISTRIBUTED)
+        message(WARNING "Configured distributed build, but the distributed "
+            "partitioner is not yet available on ARM: overwriting option with "
+            "'OFF'")
+    endif ()
+
+    set(KAMINPAR_BUILD_WITH_GROWT OFF)
+    set(KAMINPAR_BUILD_DISTRIBUTED OFF)
+endif ()
+
+################################################################################
+## MacOS: Disable options that only make sense when building on Linux         ##
+################################################################################
+if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    if (KAMINPAR_ENABLE_THP)
+        message(WARNING "Configured with transparent huge pages, but these are "
+            "not available on MacOS: overwriting option with 'OFF'")
+    endif ()
+
+    set(KAMINPAR_ENABLE_THP OFF)
+endif ()
+
+################################################################################
 ## Declare dependencies                                                       ##
 ################################################################################
 
@@ -141,7 +171,10 @@ if (KAMINPAR_BUILD_WITH_DEBUG_SYMBOLS)
 endif ()
 
 # Set compile flags
-add_compile_options(-msse4.1)
+check_cxx_compiler_flag(-msse4.1 COMPILER_SUPPORTS_MSSE41)
+if (COMPILER_SUPPORTS_MSSE41)
+    add_compile_options(-msse4.1)
+endif ()
 
 check_cxx_compiler_flag(-mcx16 COMPILER_SUPPORTS_MCX16)
 if (COMPILER_SUPPORTS_MCX16)
