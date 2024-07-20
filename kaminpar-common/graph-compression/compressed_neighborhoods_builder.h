@@ -89,14 +89,14 @@ public:
     const EdgeID last_edge = _num_edges;
     std::uint8_t *compressed_edges_end = compressed_edges.get() + compressed_edges_size;
     if constexpr (CompressedNeighborhoods::kIntervalEncoding) {
-      compressed_edges_size += marked_varint_encode(last_edge, false, compressed_edges_end);
+      marked_varint_encode(last_edge, false, &compressed_edges_end);
     } else {
-      compressed_edges_size += varint_encode(last_edge, compressed_edges_end);
+      varint_encode(last_edge, &compressed_edges_end);
     }
 
     // Add an additional 15 bytes to the compressed edge array when stream encoding is enabled to
     // avoid a possible segmentation fault as the stream decoder reads 16-byte chunks.
-    if constexpr (CompressedNeighborhoods::kStreamEncoding) {
+    if constexpr (CompressedNeighborhoods::kStreamVByteEncoding) {
       compressed_edges_size += 15;
     }
 
@@ -257,14 +257,14 @@ public:
     std::uint8_t *_compressed_edges_end = _compressed_edges.get() + _compressed_edges_size;
     const EdgeID last_edge = _num_edges;
     if constexpr (CompressedNeighborhoods::kIntervalEncoding) {
-      _compressed_edges_size += marked_varint_encode(last_edge, false, _compressed_edges_end);
+      marked_varint_encode(last_edge, false, &_compressed_edges_end);
     } else {
-      _compressed_edges_size += varint_encode(last_edge, _compressed_edges_end);
+      varint_encode(last_edge, &_compressed_edges_end);
     }
 
     // Add an additional 15 bytes to the compressed edge array when stream encoding is enabled to
     // avoid a possible segmentation fault as the stream decoder reads 16-byte chunks.
-    if constexpr (CompressedNeighborhoods::kStreamEncoding) {
+    if constexpr (CompressedNeighborhoods::kStreamVByteEncoding) {
       _compressed_edges_size += 15;
     }
 
@@ -281,7 +281,7 @@ public:
         _max_degree,
         _num_edges,
         _has_edge_weights,
-        _total_edge_weight,
+        _has_edge_weights ? _total_edge_weight : _num_edges,
         _num_high_degree_nodes,
         _num_high_degree_parts,
         _num_interval_nodes,

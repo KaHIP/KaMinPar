@@ -15,7 +15,6 @@
 
 #include "kaminpar-common/asserting_cast.h"
 #include "kaminpar-common/console_io.h"
-#include "kaminpar-common/graph-compression/varint_codec.h"
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/strutils.h"
 
@@ -393,8 +392,8 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
     out << "Compression Scheme:           Gap Encoding + ";
     if (c_ctx.run_length_encoding) {
       out << "VarInt Run-Length Encoding\n";
-    } else if (c_ctx.stream_encoding) {
-      out << "VarInt Stream Encoding\n";
+    } else if (c_ctx.streamvbyte_encoding) {
+      out << "StreamVByte Encoding\n";
     } else {
       out << "VarInt Encoding\n";
     }
@@ -410,8 +409,6 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
     if (c_ctx.interval_encoding) {
       out << "    Length Threshold:         " << c_ctx.interval_length_treshold << "\n";
     }
-    out << "  Isolated Nodes Separation:  " << (c_ctx.isolated_nodes_separation ? "yes" : "no")
-        << "\n";
 
     out << "Compresion Ratio:             ";
     if (c_ctx.dismissed) {
@@ -424,29 +421,6 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
       out << "  High Degree Part Count:     " << c_ctx.num_high_degree_parts << "\n";
       out << "  Interval Node Count:        " << c_ctx.num_interval_nodes << "\n";
       out << "  Interval Count:             " << c_ctx.num_intervals << "\n";
-
-      if (debug::kTrackVarintStats) {
-        const auto &stats = debug::varint_stats_global();
-
-        const float avg_varint_len =
-            (stats.varint_count == 0) ? 0 : (stats.varint_bytes / (float)stats.varint_count);
-        out << "Average Varint Length:        " << avg_varint_len
-            << " [count: " << stats.varint_count << "]\n";
-
-        const float avg_signed_varint_len =
-            (stats.signed_varint_count == 0)
-                ? 0
-                : (stats.signed_varint_bytes / (float)stats.signed_varint_count);
-        out << "Average Signed Varint Length: " << avg_signed_varint_len
-            << " [count: " << stats.signed_varint_count << "]\n";
-
-        const float avg_marked_varint_len =
-            (stats.marked_varint_count == 0)
-                ? 0
-                : (stats.marked_varint_bytes / (float)stats.marked_varint_count);
-        out << "Average Marked Varint Length: " << avg_marked_varint_len
-            << " [count: " << stats.marked_varint_count << "]\n";
-      }
     }
   }
 }

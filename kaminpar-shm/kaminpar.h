@@ -418,8 +418,7 @@ struct GraphCompressionContext {
   bool interval_encoding;
   NodeID interval_length_treshold;
   bool run_length_encoding;
-  bool stream_encoding;
-  bool isolated_nodes_separation;
+  bool streamvbyte_encoding;
 
   bool dismissed;
   double compression_ratio;

@@ -120,13 +120,13 @@ public:
       std::exit(1);
     }
 
-    if (has_64_bit_node_weight && sizeof(NodeWeight) == 4) {
+    if (has_node_weights && has_64_bit_node_weight && sizeof(NodeWeight) == 4) {
       LOG_ERROR
           << "The stored graph uses 64-Bit node weights but this build uses 32-Bit node weights.";
       std::exit(1);
     }
 
-    if (has_64_bit_edge_weight && sizeof(EdgeWeight) == 4) {
+    if (has_edge_weights && has_64_bit_edge_weight && sizeof(EdgeWeight) == 4) {
       LOG_ERROR
           << "The stored graph uses 64-Bit edge weights but this build uses 32-Bit edge weights.";
       std::exit(1);

@@ -19,6 +19,12 @@
 
 namespace kaminpar::math {
 
+template <std::integral Int> constexpr Int kSetMSB = static_cast<Int>(1) << (sizeof(Int) * 8 - 1);
+
+template <std::integral Int> [[nodiscard]] constexpr bool is_msb_set(const Int x) {
+  return (x & kSetMSB<Int>) != 0;
+}
+
 /*!
  * Divides two integers with ceil rounding.
  *
@@ -54,6 +60,12 @@ template <typename Int1, typename Int2> constexpr std::size_t abs_diff(const Int
  */
 template <typename Int1, typename Int2> constexpr Int1 div_ceil(const Int1 x, const Int2 y) {
   return x / y + (x % y != 0);
+}
+
+template <typename Int1, typename Int2>
+[[nodiscard]] constexpr Int1 mod_ceil(const Int1 x, const Int2 y) {
+  const Int1 mod = x % y;
+  return mod == 0 ? y : mod;
 }
 
 template <typename Int> bool is_square(const Int value) {
