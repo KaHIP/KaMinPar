@@ -37,7 +37,7 @@ template <typename Int> class CompactStaticArray {
     using difference_type = std::ptrdiff_t;
 
     CompactStaticArrayIterator(
-        const std::uint8_t byte_width, const Int read_mask, const std::uint8_t *data
+        const std::size_t byte_width, const Int read_mask, const std::uint8_t *data
     )
         : _byte_width(byte_width),
           _mask(read_mask),
@@ -125,7 +125,7 @@ template <typename Int> class CompactStaticArray {
     }
 
   private:
-    const std::uint8_t _byte_width;
+    const std::size_t _byte_width;
     const Int _mask;
     const std::uint8_t *_data;
   };
@@ -151,7 +151,7 @@ public:
    * @param byte_width The number of bytes needed to store the largest integer in the array.
    * @param size num_values number of values to store.
    */
-  CompactStaticArray(const std::uint8_t byte_width, const std::size_t num_values) {
+  CompactStaticArray(const std::size_t byte_width, const std::size_t num_values) {
     RECORD_DATA_STRUCT(0, _struct);
     resize(byte_width, num_values);
   }
@@ -164,7 +164,7 @@ public:
    * @param data The pointer to the memory location where the data is compactly stored.
    */
   CompactStaticArray(
-      const std::uint8_t byte_width,
+      const std::size_t byte_width,
       const std::size_t actual_size,
       std::unique_ptr<std::uint8_t[]> data
   )
@@ -193,7 +193,7 @@ public:
    * @param byte_width The number of bytes needed to store the largest integer in the array.
    * @param num_values The number of values to store.
    */
-  void resize(const std::uint8_t byte_width, const std::size_t num_values) {
+  void resize(const std::size_t byte_width, const std::size_t num_values) {
     KASSERT(byte_width >= 1);
     KASSERT(byte_width <= 8);
 
@@ -238,12 +238,15 @@ public:
    * @param pos The position in the array at which the integer is to be stored.
    * @param value The value to store.
    */
-  void write(const std::size_t pos, const Int value) {
+  void write(const std::size_t pos, Int value) {
     KASSERT(pos < _num_values);
-    KASSERT(math::byte_width<std::uint32_t>(value) <= _byte_width);
+    KASSERT(math::byte_width(value) <= _byte_width);
 
-    Int *data = reinterpret_cast<Int *>(_values.get() + pos * _byte_width);
-    *data = value | (*data & _write_mask);
+    std::uint8_t *data = _values.get() + pos * _byte_width;
+    for (std::size_t i = 0; i < _byte_width; ++i) {
+      *data++ = value & 0b11111111;
+      value >>= 8;
+    }
   }
 
   /*!
@@ -322,7 +325,7 @@ public:
   }
 
 private:
-  std::uint8_t _byte_width;
+  std::size_t _byte_width;
   std::size_t _size;
   std::size_t _unrestricted_size;
 

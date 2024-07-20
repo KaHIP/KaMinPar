@@ -8,6 +8,7 @@
 #pragma once
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <limits>
 #include <tuple>
@@ -101,7 +102,7 @@ template <typename Int> constexpr Int byte_width(const Int i) {
     return 1;
   }
 
-  const Int bit_width = 1 + floor_log2(i);
+  const Int bit_width = std::bit_width(i);
   return div_ceil<Int>(bit_width, 8);
 }
 

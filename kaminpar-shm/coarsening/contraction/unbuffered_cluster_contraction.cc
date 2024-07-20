@@ -130,7 +130,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
   START_HEAP_PROFILER("Construct coarse graph");
   START_TIMER("Construct coarse graph");
 
-  CompactStaticArray<NodeID> remapping(static_cast<std::uint8_t>(math::byte_width(c_n)), c_n);
+  CompactStaticArray<NodeID> remapping(math::byte_width(c_n), c_n);
 
   tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> collector{[&] {
     return RatingMap<EdgeWeight, NodeID>(c_n);
