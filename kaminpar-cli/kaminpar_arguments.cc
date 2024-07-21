@@ -322,6 +322,13 @@ Options are:
           "The fraction of the total edges with which to fill the edge buffer"
       )
       ->capture_default_str();
+  contraction
+      ->add_option(
+          "--c-con-use-growing-hash-tables",
+          ctx.coarsening.contraction.use_growing_hash_tables,
+          "Whether to use growing hash tables to collect coarse edges (only for unbuffered mode)"
+      )
+      ->capture_default_str();
 
   return contraction;
 }

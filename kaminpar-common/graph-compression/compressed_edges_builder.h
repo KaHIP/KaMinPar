@@ -85,7 +85,7 @@ public:
                   (num_edges / kHighDegreePartLength) * varint_max_length<NodeID>();
     }
 
-    if constexpr (kCompressEdgeWeights && has_edge_weights) {
+    if (kCompressEdgeWeights && has_edge_weights) {
       max_size += num_edges * varint_max_length<EdgeWeight>();
     }
 

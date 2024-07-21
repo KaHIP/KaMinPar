@@ -468,6 +468,9 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
   out << "Contraction mode:             " << c_ctx.contraction.mode << '\n';
   if (c_ctx.contraction.mode == ContractionMode::BUFFERED) {
     out << "  Edge buffer fill fraction:  " << c_ctx.contraction.edge_buffer_fill_fraction << "\n";
+  } else if (c_ctx.contraction.mode == ContractionMode::UNBUFFERED) {
+    out << "  Use growing hash tables:    "
+        << (c_ctx.contraction.use_growing_hash_tables ? "yes" : "no") << "\n";
   }
 }
 
