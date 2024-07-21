@@ -13,10 +13,8 @@
 
 #include "kaminpar-common/graph-compression/compressed_neighborhoods.h"
 #include "kaminpar-common/heap_profiler.h"
-#include "kaminpar-common/logger.h"
 
 namespace kaminpar {
-SET_DEBUG(false);
 
 /*!
  * A builder to construct compressed edges.
@@ -87,7 +85,7 @@ public:
                   (num_edges / kHighDegreePartLength) * varint_max_length<NodeID>();
     }
 
-    if constexpr (kCompressEdgeWeights) {
+    if constexpr (kCompressEdgeWeights && has_edge_weights) {
       max_size += num_edges * varint_max_length<EdgeWeight>();
     }
 

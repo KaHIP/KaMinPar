@@ -15,7 +15,7 @@
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/graph-compression/streamvbyte.h"
 #include "kaminpar-common/graph-compression/varint.h"
-#include "kaminpar-common/graph-compression/varint_run_length_codec.h"
+#include "kaminpar-common/graph-compression/varint_rle.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 
@@ -227,7 +227,7 @@ template <typename Int>
 void benchmark_rle(std::string_view name, const std::size_t count, const std::uint8_t *values_ptr) {
   SCOPED_TIMER(name);
 
-  VarIntRunLengthDecoder<Int> decoder(values_ptr, count);
+  VarIntRunLengthDecoder<Int> decoder(count, values_ptr);
   decoder.decode([](const Int value) { do_not_optimize(value); });
 }
 
