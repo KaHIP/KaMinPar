@@ -87,7 +87,7 @@ public:
                   (num_edges / kHighDegreePartLength) * varint_max_length<NodeID>();
     }
 
-    if (has_edge_weights) {
+    if constexpr (kCompressEdgeWeights) {
       max_size += num_edges * varint_max_length<EdgeWeight>();
     }
 
@@ -182,7 +182,7 @@ public:
     _cur_edge = first_edge;
     _max_degree = 0;
     _total_edge_weight = 0;
-    _cur_edge_weight = 0;
+    _cur_edge_weight = first_edge;
 
     _num_high_degree_nodes = 0;
     _num_high_degree_parts = 0;
