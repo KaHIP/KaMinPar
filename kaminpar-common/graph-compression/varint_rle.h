@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Encoding and decoding methods for run-length VarInts.
  *
- * @file:   varint_run_length_codec.h
+ * @file:   varint_rle.h
  * @author: Daniel Salwasser
  * @date:   29.12.2023
  ******************************************************************************/
@@ -11,6 +11,8 @@
 #include <cstdint>
 #include <utility>
 #include <vector>
+
+#include "kaminpar-common/math.h"
 
 namespace kaminpar {
 
@@ -40,13 +42,13 @@ public:
    * includes the control byte if it is the first integer of a block.
    */
   std::size_t add(Int i) {
-    std::uint8_t size = needed_bytes(i);
+    std::uint8_t size = math::byte_width(i);
 
     if (_buffer.empty()) {
-      _buffered_size = size++;
-    } else if (_buffer.size() == kBufferSize || _buffered_size != size) {
+      _num_buffered = size++;
+    } else if (_buffer.size() == kBufferSize || _num_buffered != size) {
       flush();
-      _buffered_size = size++;
+      _num_buffered = size++;
     }
 
     _buffer.push_back(i);
@@ -64,17 +66,17 @@ public:
 
     const std::uint8_t *begin = _ptr;
     if constexpr (sizeof(Int) == 4) {
-      const std::uint8_t header = (static_cast<std::uint8_t>(_buffer.size() - 1) << 2) |
-                                  ((_buffered_size - 1) & 0b00000011);
+      const std::uint8_t header =
+          (static_cast<std::uint8_t>(_buffer.size() - 1) << 2) | ((_num_buffered - 1) & 0b00000011);
       *_ptr++ = header;
     } else if constexpr (sizeof(Int) == 8) {
-      const std::uint8_t header = (static_cast<std::uint8_t>(_buffer.size() - 1) << 3) |
-                                  ((_buffered_size - 1) & 0b00000111);
+      const std::uint8_t header =
+          (static_cast<std::uint8_t>(_buffer.size() - 1) << 3) | ((_num_buffered - 1) & 0b00000111);
       *_ptr++ = header;
     }
 
     for (Int value : _buffer) {
-      for (std::uint8_t i = 0; i < _buffered_size; ++i) {
+      for (std::uint8_t i = 0; i < _num_buffered; ++i) {
         *_ptr++ = static_cast<std::uint8_t>(value);
         value >>= 8;
       }
@@ -86,19 +88,8 @@ public:
 private:
   std::uint8_t *_ptr;
 
-  std::uint8_t _buffered_size;
+  std::uint8_t _num_buffered;
   std::vector<Int> _buffer;
-
-  std::uint8_t needed_bytes(Int i) const {
-    std::size_t len = 1;
-
-    while (i > 0b11111111) {
-      i >>= 8;
-      len++;
-    }
-
-    return len;
-  }
 };
 
 /*!
@@ -113,12 +104,12 @@ public:
   /*!
    * Constructs a new VarIntRunLengthDecoder.
    *
+   * @param num_values The number of integers that are encoded.
    * @param ptr The pointer to the memory location where the encoded integers are stored.
-   * @param count The number of integers that are encoded.
    */
-  VarIntRunLengthDecoder(const std::uint8_t *ptr, const std::size_t count)
-      : _ptr(ptr),
-        _count(count) {}
+  VarIntRunLengthDecoder(const std::size_t num_values, const std::uint8_t *ptr)
+      : _num_values(num_values),
+        _ptr(ptr) {}
 
   /*!
    * Decodes the encoded integers.
@@ -127,19 +118,19 @@ public:
    * parameter of type Int.
    */
   template <typename Lambda> void decode(Lambda &&l) {
-    constexpr bool non_stoppable = std::is_void_v<std::invoke_result_t<Lambda, std::uint32_t>>;
+    constexpr bool kNonStoppable = std::is_void_v<std::invoke_result_t<Lambda, Int>>;
 
-    std::size_t decoded = 0;
-    while (decoded < _count) {
+    std::size_t num_decoded = 0;
+    while (num_decoded < _num_values) {
       const std::uint8_t run_header = *_ptr++;
 
       if constexpr (sizeof(Int) == 4) {
-        const std::uint8_t run_length = (run_header >> 2) + 1;
-        const std::uint8_t run_size = (run_header & 0b00000011) + 1;
+        const std::size_t run_length = (run_header >> 2) + 1;
+        const std::size_t run_size = (run_header & 0b00000011) + 1;
 
-        decoded += run_length;
+        num_decoded += run_length;
 
-        if constexpr (non_stoppable) {
+        if constexpr (kNonStoppable) {
           decode32(run_length, run_size, std::forward<Lambda>(l));
         } else {
           const bool stop = decode32(run_length, run_size, std::forward<Lambda>(l));
@@ -148,12 +139,12 @@ public:
           }
         }
       } else if constexpr (sizeof(Int) == 8) {
-        const std::uint8_t run_length = (run_header >> 3) + 1;
-        const std::uint8_t run_size = (run_header & 0b00000111) + 1;
+        const std::size_t run_length = (run_header >> 3) + 1;
+        const std::size_t run_size = (run_header & 0b00000111) + 1;
 
-        decoded += run_length;
+        num_decoded += run_length;
 
-        if constexpr (non_stoppable) {
+        if constexpr (kNonStoppable) {
           decode64(run_length, run_size, std::forward<Lambda>(l));
         } else {
           const bool stop = decode64(run_length, run_size, std::forward<Lambda>(l));
@@ -166,16 +157,13 @@ public:
   }
 
 private:
-  const std::uint8_t *_ptr;
-  const std::size_t _count;
-
   template <typename Lambda>
-  bool decode32(const std::uint8_t run_length, const std::uint8_t run_size, Lambda &&l) {
+  bool decode32(const std::size_t run_length, const std::size_t run_size, Lambda &&l) {
     constexpr bool kNonStoppable = std::is_void_v<std::invoke_result_t<Lambda, std::uint32_t>>;
 
     switch (run_size) {
     case 1:
-      for (std::uint8_t i = 0; i < run_length; ++i) {
+      for (std::size_t i = 0; i < run_length; ++i) {
         const std::uint32_t value = static_cast<std::uint32_t>(*_ptr);
         _ptr += 1;
 
@@ -190,7 +178,7 @@ private:
       }
       break;
     case 2:
-      for (std::uint8_t i = 0; i < run_length; ++i) {
+      for (std::size_t i = 0; i < run_length; ++i) {
         const std::uint32_t value = *((std::uint16_t *)_ptr);
         _ptr += 2;
 
@@ -205,7 +193,7 @@ private:
       }
       break;
     case 3:
-      for (std::uint8_t i = 0; i < run_length; ++i) {
+      for (std::size_t i = 0; i < run_length; ++i) {
         const std::uint32_t value = *((std::uint32_t *)_ptr) & 0xFFFFFF;
         _ptr += 3;
 
@@ -220,7 +208,7 @@ private:
       }
       break;
     case 4:
-      for (std::uint8_t i = 0; i < run_length; ++i) {
+      for (std::size_t i = 0; i < run_length; ++i) {
         const std::uint32_t value = *((std::uint32_t *)_ptr);
         _ptr += 4;
 
@@ -242,12 +230,12 @@ private:
   }
 
   template <typename Lambda>
-  bool decode64(const std::uint8_t run_length, const std::uint8_t run_size, Lambda &&l) {
+  bool decode64(const std::size_t run_length, const std::size_t run_size, Lambda &&l) {
     constexpr bool kNonStoppable = std::is_void_v<std::invoke_result_t<Lambda, std::uint64_t>>;
 
     switch (run_size) {
     case 1:
-      for (std::uint8_t i = 0; i < run_length; ++i) {
+      for (std::size_t i = 0; i < run_length; ++i) {
         const std::uint64_t value = static_cast<std::uint64_t>(*_ptr);
         _ptr += 1;
 
@@ -262,7 +250,7 @@ private:
       }
       break;
     case 2:
-      for (std::uint8_t i = 0; i < run_length; ++i) {
+      for (std::size_t i = 0; i < run_length; ++i) {
         const std::uint64_t value = *((std::uint16_t *)_ptr);
         _ptr += 2;
 
@@ -277,7 +265,7 @@ private:
       }
       break;
     case 3:
-      for (std::uint8_t i = 0; i < run_length; ++i) {
+      for (std::size_t i = 0; i < run_length; ++i) {
         const std::uint64_t value = *((std::uint32_t *)_ptr) & 0xFFFFFF;
         _ptr += 3;
 
@@ -292,7 +280,7 @@ private:
       }
       break;
     case 4:
-      for (std::uint8_t i = 0; i < run_length; ++i) {
+      for (std::size_t i = 0; i < run_length; ++i) {
         const std::uint64_t value = *((std::uint32_t *)_ptr);
         _ptr += 4;
 
@@ -307,7 +295,7 @@ private:
       }
       break;
     case 5:
-      for (std::uint8_t i = 0; i < run_length; ++i) {
+      for (std::size_t i = 0; i < run_length; ++i) {
         const std::uint64_t value = *((std::uint64_t *)_ptr) & 0xFFFFFFFFFF;
         _ptr += 5;
 
@@ -322,7 +310,7 @@ private:
       }
       break;
     case 6:
-      for (std::uint8_t i = 0; i < run_length; ++i) {
+      for (std::size_t i = 0; i < run_length; ++i) {
         const std::uint64_t value = *((std::uint64_t *)_ptr) & 0xFFFFFFFFFFFF;
         _ptr += 6;
 
@@ -337,7 +325,7 @@ private:
       }
       break;
     case 7:
-      for (std::uint8_t i = 0; i < run_length; ++i) {
+      for (std::size_t i = 0; i < run_length; ++i) {
         const std::uint64_t value = *((std::uint64_t *)_ptr) & 0xFFFFFFFFFFFFFF;
         _ptr += 7;
 
@@ -352,7 +340,7 @@ private:
       }
       break;
     case 8:
-      for (std::uint8_t i = 0; i < run_length; ++i) {
+      for (std::size_t i = 0; i < run_length; ++i) {
         const std::uint64_t value = *((std::uint64_t *)_ptr);
         _ptr += 8;
 
@@ -372,6 +360,10 @@ private:
 
     return false;
   }
+
+private:
+  const std::size_t _num_values;
+  const std::uint8_t *_ptr;
 };
 
 }; // namespace kaminpar

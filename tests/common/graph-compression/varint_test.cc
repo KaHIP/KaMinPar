@@ -92,7 +92,7 @@ TEST(VarIntTest, Codec) {
       [](const std::uint32_t i) { return varint_length(i); },
       [](const std::uint32_t i, std::uint8_t *ptr) { return varint_encode(i, ptr); },
       [](const std::uint8_t *ptr) { return varint_decode<std::uint32_t>(ptr); },
-      [](const std::uint8_t **ptr) { return varint_decode<std::uint32_t, true>(ptr); }
+      [](const std::uint8_t **ptr) { return varint_decode<std::uint32_t>(ptr); }
   );
 }
 

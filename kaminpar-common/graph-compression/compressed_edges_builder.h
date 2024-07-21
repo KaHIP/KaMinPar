@@ -18,6 +18,13 @@
 namespace kaminpar {
 SET_DEBUG(false);
 
+/*!
+ * A builder to construct compressed edges.
+ *
+ * @tparam NodeID The type of integer to use to identify a node.
+ * @tparam EdgeID The type of integer to use to identify an edge.
+ * @tparam EdgeWeight The type of integer to use for edge weights.
+ */
 template <typename NodeID, typename EdgeID, typename EdgeWeight> class CompressedEdgesBuilder {
   using CompressedNeighborhoods = kaminpar::CompressedNeighborhoods<NodeID, EdgeID, EdgeWeight>;
 
@@ -76,13 +83,8 @@ public:
     std::size_t max_size = (num_nodes + 1) * edge_id_width + num_edges * node_id_width;
 
     if constexpr (kHighDegreeEncoding) {
-      if constexpr (kIntervalEncoding) {
-        max_size += 2 * num_nodes * varint_max_length<NodeID>();
-      } else {
-        max_size += num_nodes * varint_max_length<NodeID>();
-      }
-
-      max_size += (num_edges / kHighDegreePartLength) * varint_max_length<NodeID>();
+      max_size += num_nodes * varint_max_length<NodeID>() +
+                  (num_edges / kHighDegreePartLength) * varint_max_length<NodeID>();
     }
 
     if (has_edge_weights) {
@@ -168,7 +170,7 @@ public:
   CompressedEdgesBuilder &operator=(CompressedEdgesBuilder &&) noexcept = delete;
 
   /*!
-   * Initializes/resets the builder.
+   * Initializes the builder.
    *
    * @param first_edge The first edge ID of the first node to be added.
    */
@@ -550,7 +552,32 @@ private:
 
     i += 1;
 
-    if constexpr (kStreamVByteEncoding) {
+    if constexpr (kRunLengthEncoding) {
+      VarIntRunLengthEncoder<NodeID> rl_encoder(_cur_compressed_edges);
+
+      NodeID prev_adjacent_node = first_adjacent_node;
+      while (i < neighborhood.size()) {
+        const NodeID adjacent_node = get_adjacent_node(neighborhood, i);
+        if (adjacent_node == kInvalidNodeID) {
+          i += 1;
+          continue;
+        }
+
+        const NodeID gap = adjacent_node - prev_adjacent_node - 1;
+        prev_adjacent_node = adjacent_node;
+
+        _cur_compressed_edges += rl_encoder.add(gap);
+        if constexpr (kHasEdgeWeights) {
+          const EdgeWeight edge_weight = get_edge_weight(neighborhood, i);
+          encode_edge_weight(edge_weight, prev_edge_weight);
+        }
+
+        i += 1;
+      }
+
+      rl_encoder.flush();
+      return;
+    } else if constexpr (kStreamVByteEncoding) {
       const NodeID num_remaining_gaps = degree - 1;
 
       if (num_remaining_gaps >= kStreamVByteThreshold) [[likely]] {
@@ -631,10 +658,6 @@ private:
   std::size_t _num_high_degree_parts;
   std::size_t _num_interval_nodes;
   std::size_t _num_intervals;
-
-  // Debug graph compression statistics
-  std::size_t _num_adjacent_node_bytes;
-  std::size_t _num_edge_weights_bytes;
 };
 
 } // namespace kaminpar

@@ -1,3 +1,10 @@
+/*******************************************************************************
+ * Endoder and decoder for StreamVByte.
+ *
+ * @file:   streamvbyte.h
+ * @author: Daniel Salwasser
+ * @date:   29.12.2023
+ ******************************************************************************/
 #pragma once
 
 #include <algorithm>
