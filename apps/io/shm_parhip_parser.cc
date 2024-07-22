@@ -9,7 +9,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <fstream>
 #include <functional>
 
 #include <tbb/parallel_for.h>
@@ -105,7 +104,7 @@ public:
            (has_node_weights ? num_nodes * _node_weight_width : 0);
   }
 
-  [[nodiscard]] NodeID map_edge_offset(const EdgeID edge_offset) const {
+  [[nodiscard]] EdgeID map_edge_offset(const EdgeID edge_offset) const {
     return (edge_offset - _nodes_offset_base) / _node_id_width;
   }
 
