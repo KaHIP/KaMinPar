@@ -38,6 +38,8 @@ public:
     return _hierarchy.size();
   }
 
+  void release_allocated_memory() final;
+
 private:
   std::unique_ptr<CoarseGraph> pop_hierarchy(PartitionedGraph &&p_graph);
 
