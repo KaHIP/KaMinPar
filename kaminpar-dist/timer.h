@@ -10,9 +10,7 @@
 
 #include <mpi.h>
 
-#include "kaminpar-dist/dkaminpar.h"
-
-#include "kaminpar-common/timer.h"
+#include "kaminpar-common/timer.h" // IWYU pragma: export
 
 #ifdef KAMINPAR_ENABLE_TIMER_BARRIERS
 #define TIMER_BARRIER(comm) MPI_Barrier(comm)

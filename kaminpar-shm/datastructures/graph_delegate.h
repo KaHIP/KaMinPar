@@ -36,7 +36,7 @@ public:
   //
 
   [[nodiscard]] inline bool is_node_weighted() const {
-    return _graph->node_weighted();
+    return _graph->is_node_weighted();
   }
 
   [[nodiscard]] inline NodeWeight total_node_weight() const {
@@ -56,7 +56,7 @@ public:
   //
 
   [[nodiscard]] inline bool is_edge_weighted() const {
-    return _graph->edge_weighted();
+    return _graph->is_edge_weighted();
   }
 
   [[nodiscard]] inline EdgeWeight total_edge_weight() const {

@@ -44,15 +44,14 @@ public:
         std::size_t>(inclusive_lower_bound, exclusive_upper_bound - 1)(_generator);
   }
 
-  double random_double() {
-    return _real_dist(_generator);
-  }
-
   bool random_bool() {
     return _random_bools[_next_random_bool++ % kPrecomputedBools];
   }
   bool random_bool(const double prob) {
     return _real_dist(_generator) <= prob;
+  }
+  double random_double() {
+    return _real_dist(_generator);
   }
 
   template <typename Container> void shuffle(Container &&vec) {

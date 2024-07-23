@@ -303,6 +303,9 @@ message("  dist::BlockWeight      =  std::int64_t")
 ## Search and fetch dependencies                                              ##
 ################################################################################
 
+# Google Sparsehash 
+find_package(Sparsehash REQUIRED)
+
 if (KAMINPAR_BUILD_WITH_CCACHE)
     find_program(CCACHE_PROGRAM ccache)
     if (CCACHE_PROGRAM)
@@ -326,9 +329,6 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
         message(WARNING "MPI not available: cannot build the distributed partitioner")
         set(KAMINPAR_BUILD_DISTRIBUTED OFF)
     endif ()
-
-    # Google Sparsehash 
-    find_package(Sparsehash REQUIRED)
 endif ()
 
 if (KAMINPAR_ASSERTION_LEVEL STREQUAL "none")

@@ -77,13 +77,13 @@ void deterministic_for(const Index from, const Index to, Lambda &&lambda) {
   static_assert(std::is_invocable_v<Lambda, Index, Index, int>);
 
   const Index n = to - from;
-  const int p = std::min<int>(tbb::this_task_arena::max_concurrency(), n);
+  const std::size_t p = std::min<std::size_t>(tbb::this_task_arena::max_concurrency(), n);
 
-  tbb::parallel_for(static_cast<int>(0), p, [&](const int cpu) {
+  tbb::parallel_for<std::size_t>(0, p, [&](const std::size_t cpu) {
     const Index chunk = n / p;
     const Index rem = n % p;
-    const Index cpu_from = cpu * chunk + std::min(cpu, static_cast<int>(rem));
-    const Index cpu_to = cpu_from + ((cpu < static_cast<int>(rem)) ? chunk + 1 : chunk);
+    const Index cpu_from = cpu * chunk + std::min<std::size_t>(cpu, rem);
+    const Index cpu_to = cpu_from + ((cpu < rem) ? chunk + 1 : chunk);
 
     lambda(from + cpu_from, from + cpu_to, cpu);
   });

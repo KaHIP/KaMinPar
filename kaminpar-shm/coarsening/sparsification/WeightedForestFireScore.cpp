@@ -15,8 +15,8 @@
 #include <networkit/auxiliary/Parallel.hpp>
 #include <networkit/graph/GraphTools.hpp>
 
-#include "DistributionWithoutReplacement.h"
-#include "FiniteRandomDistribution.h"
+#include "DistributionDecorator.h"
+#include "IndexDistributionWithoutReplacement.h"
 
 namespace kaminpar::shm::sparsification {
 
@@ -52,7 +52,9 @@ void WeightedForestFireScore::run() {
         weights.push_back(G->getIthNeighborWeight(u, i));
         validEdges.emplace_back(v, e);
       }
-      return DistributionWithoutReplacement<std::pair<node, edgeid>>(validEdges, weights);
+      return DistributionDecorator<std::pair<node, edgeid>, IndexDistributionWithoutReplacement>(
+          weights.begin(), weights.end(), validEdges.begin(), validEdges.end()
+      );
     };
 
     count localEdgesBurnt = 0;
@@ -65,7 +67,7 @@ void WeightedForestFireScore::run() {
 
       while (true) {
         double q = Aux::Random::real(1.0);
-        if (q > pf || validNeighborDistribution.empty()) {
+        if (q > pf || validNeighborDistribution.underlying_distribution().empty()) {
           break;
         }
 

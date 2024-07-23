@@ -10,7 +10,7 @@
 #include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 
-#include "kaminpar-common/datastructures/fast_reset_array.h"
+#include "kaminpar-common/datastructures/noinit_vector.h"
 #include "kaminpar-common/ranges.h"
 
 namespace kaminpar::dist {

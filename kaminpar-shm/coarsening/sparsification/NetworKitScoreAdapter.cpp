@@ -6,8 +6,8 @@
 
 #include <networkit/graph/Graph.hpp>
 #include <networkit/sparsification/ForestFireScore.hpp>
-
 #include "WeightedForestFireScore.hpp"
+
 #include "networkit_utils.h"
 #include "sparsification_utils.h"
 

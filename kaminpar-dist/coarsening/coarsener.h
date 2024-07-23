@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Builds and manages a hierarchy of coarse graphs.
+ * Interface for graph coarseners.
  *
  * @file:   coarsener.h
  * @author: Daniel Seemaier
@@ -7,55 +7,63 @@
  ******************************************************************************/
 #pragma once
 
-#include <vector>
-
-#include "kaminpar-dist/coarsening/clustering/clusterer.h"
-#include "kaminpar-dist/coarsening/contraction/cluster_contraction.h"
 #include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
 
-#include "kaminpar-common/datastructures/scalable_vector.h"
-
 namespace kaminpar::dist {
 class Coarsener {
 public:
-  Coarsener(const DistributedGraph &input_graph, const Context &input_ctx);
+  Coarsener() = default;
 
-  const DistributedGraph *coarsen_once();
+  Coarsener(const Coarsener &) = delete;
+  Coarsener &operator=(const Coarsener &) = delete;
 
-  const DistributedGraph *coarsen_once(GlobalNodeWeight max_cluster_weight);
+  Coarsener(Coarsener &&) noexcept = default;
+  Coarsener &operator=(Coarsener &&) noexcept = default;
 
-  DistributedPartitionedGraph uncoarsen_once(DistributedPartitionedGraph &&p_graph);
+  virtual ~Coarsener() = default;
 
-  GlobalNodeWeight max_cluster_weight() const;
-  const DistributedGraph *coarsest() const;
-  std::size_t level() const;
+  /**
+   * Initializes the coarsener with a new toplevel graph.
+   */
+  virtual void initialize(const DistributedGraph *graph) = 0;
 
-private:
-  const DistributedGraph *coarsen_once_local(GlobalNodeWeight max_cluster_weight);
-  const DistributedGraph *coarsen_once_global(GlobalNodeWeight max_cluster_weight);
+  /**
+   * Computes the next level of the graph hierarchy.
+   *
+   * @return whether coarsening has *not* yet converged.
+   */
+  virtual bool coarsen() = 0;
 
-  DistributedPartitionedGraph uncoarsen_once_local(DistributedPartitionedGraph &&p_graph);
-  DistributedPartitionedGraph uncoarsen_once_global(DistributedPartitionedGraph &&p_graph);
+  /**
+   * @return the coarsest graph in the hierarchy.
+   */
+  [[nodiscard]] virtual const DistributedGraph &current() const = 0;
 
-  const DistributedGraph *nth_coarsest(std::size_t n) const;
+  /**
+   * @return number of coarse graphs in the hierarchy.
+   */
+  [[nodiscard]] virtual std::size_t level() const = 0;
 
-  bool has_converged(const DistributedGraph &before, const DistributedGraph &after) const;
+  /**
+   * @return whether we have *not* yet computed any coarse graphs.
+   */
+  [[nodiscard]] bool empty() const {
+    return level() == 0;
+  }
 
-  const DistributedGraph &_input_graph;
-  const Context &_input_ctx;
-
-  std::unique_ptr<GlobalClusterer> _global_clusterer;
-  std::unique_ptr<LocalClusterer> _local_clusterer;
-
-  std::vector<DistributedGraph> _graph_hierarchy;
-  std::vector<GlobalMapping> _global_mapping_hierarchy; //< produced by global clustering algorithm
-  std::vector<MigratedNodes> _node_migration_history;
-  std::vector<ScalableVector<NodeID>>
-      _local_mapping_hierarchy; //< produced by local clustering_algorithm
-
-  bool _local_clustering_converged = false;
+  /**
+   * Projects a partition of the currently coarsest graph onto the next finer
+   * graph and frees the currently coarsest graph, i.e., unrolls one level of
+   * the coarse graph hierarchy.
+   *
+   * @param p_graph Partition of the currently coarsest graph.
+   *                Precondition: `p_graph.graph() == current()`.
+   *
+   * @return partition of the *new* coarsest graph.
+   */
+  virtual DistributedPartitionedGraph uncoarsen(DistributedPartitionedGraph &&p_graph) = 0;
 };
 } // namespace kaminpar::dist

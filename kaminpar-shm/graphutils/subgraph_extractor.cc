@@ -35,8 +35,8 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential_generic_graph(
 ) {
   KASSERT(p_graph.k() == 2u, "Only suitable for bipartitions!", assert::light);
 
-  const bool is_node_weighted = graph.node_weighted();
-  const bool is_edge_weighted = graph.edge_weighted();
+  const bool is_node_weighted = graph.is_node_weighted();
+  const bool is_edge_weighted = graph.is_edge_weighted();
 
   const BlockID final_k = final_ks[0] + final_ks[1];
   tmp_subgraph_memory.ensure_size_nodes(graph.n() + final_k, is_node_weighted);
@@ -224,8 +224,9 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
 
   START_TIMER("Merge block sizes");
   tbb::parallel_for<BlockID>(0, p_graph.k(), [&](const BlockID b) {
-    NodeID num_nodes =
-        compute_final_k(b, p_graph.k(), input_k); // padding for sequential subgraph extraction
+    NodeID num_nodes = partitioning::compute_final_k(
+        b, p_graph.k(), input_k
+    ); // padding for sequential subgraph extraction
     EdgeID num_edges = 0;
     for (auto &local_num_nodes : tl_num_nodes_in_block) {
       num_nodes += local_num_nodes[b];
@@ -250,8 +251,8 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
   });
   STOP_TIMER();
 
-  const bool is_node_weighted = p_graph.graph().node_weighted();
-  const bool is_edge_weighted = p_graph.graph().edge_weighted();
+  const bool is_node_weighted = p_graph.graph().is_node_weighted();
+  const bool is_edge_weighted = p_graph.graph().is_edge_weighted();
 
   // build graph
   START_TIMER("Construct subgraphs");
@@ -291,8 +292,8 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
     const NodeID n0 = start_positions[b].nodes_start_pos;
     const EdgeID m0 = start_positions[b].edges_start_pos;
 
-    const NodeID n =
-        start_positions[b + 1].nodes_start_pos - n0 - compute_final_k(b, p_graph.k(), input_k);
+    const NodeID n = start_positions[b + 1].nodes_start_pos - n0 -
+                     partitioning::compute_final_k(b, p_graph.k(), input_k);
     const EdgeID m = start_positions[b + 1].edges_start_pos - m0;
 
     StaticArray<EdgeID> nodes(n + 1, subgraph_memory.nodes.data() + n0);
@@ -354,7 +355,7 @@ PartitionedGraph copy_subgraph_partitions(
   std::vector<BlockID> k0(p_graph.k() + 1, k_prime / p_graph.k());
   if (k_prime == input_k) {
     for (const BlockID b : p_graph.blocks()) {
-      k0[b + 1] = compute_final_k(b, p_graph.k(), input_k);
+      k0[b + 1] = partitioning::compute_final_k(b, p_graph.k(), input_k);
     }
   }
 

@@ -4,13 +4,9 @@
 
 #include "kaminpar-common/random.h"
 namespace kaminpar::shm::sparsification {
-template <typename T> class FiniteRandomDistribution {
+template <typename T> class IndexDistributionWithReplacement {
 public:
-  FiniteRandomDistribution(std::initializer_list<T> values) {
-    UniformRandomDistribution(values.begin(), values.end());
-  }
-
-  template <class Iterator> FiniteRandomDistribution(Iterator begin, Iterator end) {
+  template <class Iterator> IndexDistributionWithReplacement(Iterator begin, Iterator end) {
     size_t size = end - begin;
     _probabilities.resize(size);
     _aliases.resize(size);

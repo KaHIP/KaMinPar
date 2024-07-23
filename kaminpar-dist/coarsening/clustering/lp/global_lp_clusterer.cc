@@ -17,38 +17,12 @@
 #include "kaminpar-dist/graphutils/communication.h"
 #include "kaminpar-dist/timer.h"
 
+#include "kaminpar-common/datastructures/rating_map.h"
+
 namespace kaminpar::dist {
 namespace {
-// Wrapper to make google::dense_hash_map<> compatible with
-// kaminpar::RatingMap<>.
-struct UnorderedRatingMap {
-  UnorderedRatingMap() {
-    map.set_empty_key(kInvalidGlobalNodeID);
-  }
-
-  EdgeWeight &operator[](const GlobalNodeID key) {
-    return map[key];
-  }
-
-  [[nodiscard]] auto &entries() {
-    return map;
-  }
-
-  void clear() {
-    map.clear();
-  }
-
-  [[nodiscard]] std::size_t capacity() const {
-    return std::numeric_limits<std::size_t>::max();
-  }
-
-  void resize(const std::size_t /* capacity */) {}
-
-  google::dense_hash_map<GlobalNodeID, EdgeWeight> map{};
-};
-
 struct GlobalLPClusteringConfig : public LabelPropagationConfig {
-  using RatingMap = ::kaminpar::RatingMap<EdgeWeight, GlobalNodeID, UnorderedRatingMap>;
+  using RatingMap = ::kaminpar::RatingMap<EdgeWeight, GlobalNodeID, rm_backyard::Sparsehash>;
 
   using ClusterID = GlobalNodeID;
   using ClusterWeight = GlobalNodeWeight;
@@ -62,17 +36,16 @@ struct GlobalLPClusteringConfig : public LabelPropagationConfig {
 
 class GlobalLPClusteringImpl final
     : public ChunkRandomdLabelPropagation<GlobalLPClusteringImpl, GlobalLPClusteringConfig>,
-      public NonatomicOwnedClusterVector<NodeID, GlobalNodeID> {
+      public NonatomicClusterVectorRef<NodeID, GlobalNodeID> {
   SET_DEBUG(false);
 
   using Base = ChunkRandomdLabelPropagation<GlobalLPClusteringImpl, GlobalLPClusteringConfig>;
-  using ClusterBase = NonatomicOwnedClusterVector<NodeID, GlobalNodeID>;
+  using ClusterBase = NonatomicClusterVectorRef<NodeID, GlobalNodeID>;
   using WeightDeltaMap = growt::GlobalNodeIDMap<GlobalNodeWeight>;
 
 public:
   explicit GlobalLPClusteringImpl(const Context &ctx)
-      : ClusterBase{ctx.partition.graph->total_n},
-        _ctx(ctx),
+      : _ctx(ctx),
         _c_ctx(ctx.coarsening),
         _changed_label(ctx.partition.graph->n),
         _cluster_weights(ctx.partition.graph->total_n - ctx.partition.graph->n),
@@ -113,15 +86,16 @@ public:
     TIMER_BARRIER(graph.communicator());
   }
 
-  auto &
-  compute_clustering(const DistributedGraph &graph, const GlobalNodeWeight max_cluster_weight) {
+  void set_max_cluster_weight(const GlobalNodeWeight weight) {
+    _max_cluster_weight = weight;
+  }
+
+  void compute_clustering(StaticArray<GlobalNodeID> &clustering, const DistributedGraph &graph) {
     TIMER_BARRIER(graph.communicator());
     SCOPED_TIMER("Label propagation");
 
-    _max_cluster_weight = max_cluster_weight;
-
-    // Ensure that the clustering algorithm was properly initialized
-    KASSERT(_graph == &graph, "must call initialize() before compute_clustering()", assert::always);
+    init_clusters_ref(clustering);
+    initialize(graph);
 
     const int num_chunks = _c_ctx.global_lp.chunks.compute(_ctx.parallel);
 
@@ -135,8 +109,6 @@ public:
         break;
       }
     }
-
-    return clusters();
   }
 
   void set_max_num_iterations(const int max_num_iterations) {
@@ -260,7 +232,7 @@ public:
   void move_node(const NodeID lu, const ClusterID gcluster) {
     KASSERT(lu < _changed_label.size());
     _changed_label[lu] = this->cluster(lu);
-    NonatomicOwnedClusterVector::move_node(lu, gcluster);
+    NonatomicClusterVectorRef::move_node(lu, gcluster);
 
     // Detect if a node was moved back to its original cluster
     if (_c_ctx.global_lp.prevent_cyclic_moves && gcluster == initial_cluster(lu)) {
@@ -347,8 +319,6 @@ private:
   }
 
   void allocate(const DistributedGraph &graph) {
-    ensure_cluster_size(graph.total_n());
-
     const NodeID allocated_num_active_nodes = _changed_label.size();
 
     if (allocated_num_active_nodes < graph.n()) {
@@ -568,7 +538,7 @@ private:
                   weight_delta_handle.find(old_gcluster + 1) == weight_delta_handle.end()) {
                 change_cluster_weight(old_gcluster, -weight, true);
               }
-              NonatomicOwnedClusterVector::move_node(lnode, new_gcluster);
+              NonatomicClusterVectorRef::move_node(lnode, new_gcluster);
               if (!should_sync_cluster_weights() ||
                   weight_delta_handle.find(new_gcluster + 1) == weight_delta_handle.end()) {
                 change_cluster_weight(new_gcluster, weight, false);
@@ -610,7 +580,7 @@ private:
           if (current != kInvalidNodeID &&
               current_weight + u_weight <= max_cluster_weight(u_cluster)) {
             change_cluster_weight(current_cluster, u_weight, true);
-            NonatomicOwnedClusterVector::move_node(u, current_cluster);
+            NonatomicClusterVectorRef::move_node(u, current_cluster);
             current_weight += u_weight;
           } else {
             current = u;
@@ -679,13 +649,13 @@ GlobalLPClusterer::GlobalLPClusterer(const Context &ctx)
 
 GlobalLPClusterer::~GlobalLPClusterer() = default;
 
-void GlobalLPClusterer::initialize(const DistributedGraph &graph) {
-  _impl->initialize(graph);
+void GlobalLPClusterer::set_max_cluster_weight(const GlobalNodeWeight weight) {
+  _impl->set_max_cluster_weight(weight);
 }
 
-GlobalLPClusterer::ClusterArray &GlobalLPClusterer::cluster(
-    const DistributedGraph &graph, const GlobalNodeWeight max_cluster_weight
+void GlobalLPClusterer::cluster(
+    StaticArray<GlobalNodeID> &clustering, const DistributedGraph &graph
 ) {
-  return _impl->compute_clustering(graph, max_cluster_weight);
+  _impl->compute_clustering(clustering, graph);
 }
 } // namespace kaminpar::dist

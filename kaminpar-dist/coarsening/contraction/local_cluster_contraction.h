@@ -7,36 +7,13 @@
  ******************************************************************************/
 #pragma once
 
+#include "kaminpar-dist/coarsening/contraction.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
+#include "kaminpar-dist/dkaminpar.h"
 
-#include "kaminpar-common/datastructures/scalable_vector.h"
-#include "kaminpar-common/datastructures/ts_navigable_linked_list.h"
-#include "kaminpar-common/parallel/atomic.h"
+#include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::dist {
-namespace contraction {
-struct Edge {
-  NodeID target;
-  EdgeWeight weight;
-};
-
-struct MemoryContext {
-  ScalableVector<NodeID> buckets;
-  ScalableVector<parallel::Atomic<NodeID>> buckets_index;
-  ScalableVector<parallel::Atomic<NodeID>> leader_mapping;
-  StaticArray<NavigationMarker<NodeID, Edge, ScalableVector>> all_buffered_nodes;
-};
-
-struct Result {
-  DistributedGraph graph;
-  ScalableVector<NodeID> mapping;
-  MemoryContext m_ctx;
-};
-} // namespace contraction
-
-contraction::Result contract_local_clustering(
-    const DistributedGraph &graph,
-    const ScalableVector<parallel::Atomic<NodeID>> &clustering,
-    contraction::MemoryContext m_ctx = {}
-);
+std::unique_ptr<CoarseGraph>
+contract_local_clustering(const DistributedGraph &graph, const StaticArray<NodeID> &clustering);
 } // namespace kaminpar::dist

@@ -15,8 +15,6 @@
 
 #include "kaminpar-shm/graphutils/permutator.h"
 
-#include "kaminpar-common/datastructures/marker.h"
-#include "kaminpar-common/parallel/atomic.h"
 #include "kaminpar-common/parallel/loops.h"
 #include "kaminpar-common/timer.h"
 
@@ -96,7 +94,8 @@ DistributedGraph rearrange_by_permutation(
     const bool degree_sorted
 ) {
   shm::graph::NodePermutations<StaticArray> permutations{
-      std::move(old_to_new), std::move(new_to_old)};
+      std::move(old_to_new), std::move(new_to_old)
+  };
 
   const auto &old_nodes = graph.raw_nodes();
   const auto &old_edges = graph.raw_edges();

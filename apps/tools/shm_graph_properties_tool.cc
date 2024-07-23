@@ -12,6 +12,7 @@
 #include <tbb/global_control.h>
 
 #include "kaminpar-shm/context_io.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/logger.h"
@@ -54,13 +55,13 @@ void print_graph_properties(const Graph &graph, const Context ctx, std::ostream 
   cio::print_delimiter("Graph Properties", '#');
   out << "Graph:                        " << ctx.debug.graph_name << "\n";
   out << "  Number of nodes:            " << std::setw(width) << graph.n();
-  if (graph.node_weighted()) {
+  if (graph.is_node_weighted()) {
     out << " (total weight: " << graph.total_node_weight() << ")\n";
   } else {
     out << " (unweighted)\n";
   }
   out << "  Number of edges:            " << std::setw(width) << graph.m();
-  if (graph.edge_weighted()) {
+  if (graph.is_edge_weighted()) {
     out << " (total weight: " << graph.total_edge_weight() << ")\n";
   } else {
     out << " (unweighted)\n";
@@ -96,8 +97,7 @@ int main(int argc, char *argv[]) {
       graph_file_format,
       ctx.compression.enabled,
       ctx.compression.may_dismiss,
-      false,
-      false
+      NodeOrdering::NATURAL
   );
 
   ctx.debug.graph_name = str::extract_basename(graph_filename);

@@ -9,17 +9,6 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
                       // want fast code.
 
     namespace kaminpar::shm::sparsification {
-  EffectiveResistanceScore::EffectiveResistanceScore(float johnson_lindenstrauss_factor)
-      : _johnson_lindenstrauss_factor(johnson_lindenstrauss_factor) {
-    jl_init();
-    jl_eval_string(JL_LAPLACIANS_ADAPTER_CODE);
-    print_jl_exception();
-  }
-
-  EffectiveResistanceScore::~EffectiveResistanceScore() {
-    jl_atexit_hook(0);
-  }
-
   void EffectiveResistanceScore::print_jl_exception() {
     jl_value_t *exception = jl_exception_occurred();
     jl_value_t *sprint_fun = jl_get_function(jl_main_module, "sprint");
@@ -58,7 +47,7 @@ JULIA_DEFINE_FAST_TLS // only define this once, in an executable (not in a share
           // Back to 0-based indexing
           sparsifyer.i[k] - 1,
           sparsifyer.j[k] - 1,
-          static_cast<EdgeWeight>(sparsifyer.v[k])
+          sparsifyer.v[k]
       );
     }
     std::sort(

@@ -21,32 +21,31 @@ HEMLPClusterer::HEMLPClusterer(const Context &ctx)
     : _lp(std::make_unique<GlobalLPClusterer>(ctx)),
       _hem(std::make_unique<HEMClusterer>(ctx)) {}
 
-void HEMLPClusterer::initialize(const DistributedGraph &graph) {
-  _lp->initialize(graph);
-  _hem->initialize(graph);
+void HEMLPClusterer::set_max_cluster_weight(const GlobalNodeWeight weight) {
+  _lp->set_max_cluster_weight(weight);
+  _hem->set_max_cluster_weight(weight);
 }
 
-HEMLPClusterer::ClusterArray &
-HEMLPClusterer::cluster(const DistributedGraph &graph, const GlobalNodeWeight max_cluster_weight) {
+void HEMLPClusterer::cluster(StaticArray<GlobalNodeID> &clustering, const DistributedGraph &graph) {
   _graph = &graph;
 
   if (_fallback) {
-    return _lp->cluster(graph, max_cluster_weight);
+    _lp->cluster(clustering, graph);
   } else {
-    auto &matching = _hem->cluster(graph, max_cluster_weight);
-    const GlobalNodeID new_size = compute_size_after_matching_contraction(matching);
+    _hem->cluster(clustering, graph);
 
+    // If the matching shrinks the graph by less than 10%, switch to label propagation
     // @todo make this configurable
-    if (1.0 * new_size / graph.global_n() <= 0.9) { // Shrink by at least 10%
-      return matching;
+    const GlobalNodeID new_size = compute_size_after_matching_contraction(clustering);
+    if (1.0 * new_size / graph.global_n() > 0.9) {
+      _fallback = true;
+      cluster(clustering, graph);
     }
-
-    _fallback = true;
-    return cluster(graph, max_cluster_weight);
   }
 }
 
-GlobalNodeID HEMLPClusterer::compute_size_after_matching_contraction(const ClusterArray &clustering
+GlobalNodeID
+HEMLPClusterer::compute_size_after_matching_contraction(const StaticArray<GlobalNodeID> &clustering
 ) {
   tbb::enumerable_thread_specific<NodeID> num_matched_edges_ets;
   _graph->pfor_nodes([&](const NodeID u) {

@@ -7,14 +7,19 @@
  ******************************************************************************/
 #include "kaminpar-shm/partitioning/kway/kway_multilevel.h"
 
+#include "kaminpar-shm/coarsening/max_cluster_weights.h"
 #include "kaminpar-shm/factories.h"
 #include "kaminpar-shm/partitioning/debug.h"
+#include "kaminpar-shm/partitioning/helper.h"
 
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/heap_profiler.h"
 
 namespace kaminpar::shm {
-using namespace partitioning;
+namespace {
+SET_DEBUG(false);
+SET_STATISTICS_FROM_GLOBAL();
+} // namespace
 
 KWayMultilevelPartitioner::KWayMultilevelPartitioner(
     const Graph &input_graph, const Context &input_ctx
@@ -23,7 +28,8 @@ KWayMultilevelPartitioner::KWayMultilevelPartitioner(
       _input_ctx(input_ctx),
       _current_p_ctx(input_ctx.partition),
       _coarsener(factory::create_coarsener(input_ctx)),
-      _refiner(factory::create_refiner(input_ctx)) {
+      _refiner(factory::create_refiner(input_ctx)),
+      _bipartitioner_pool(_input_ctx) {
   _coarsener->initialize(&_input_graph);
 }
 
@@ -38,7 +44,7 @@ void KWayMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
   // If requested, dump the current partition to disk before refinement ...
   debug::dump_partition_hierarchy(p_graph, _coarsener->level(), "pre-refinement", _input_ctx);
 
-  helper::refine(_refiner.get(), p_graph, _current_p_ctx);
+  partitioning::refine(_refiner.get(), p_graph, _current_p_ctx);
   if (_print_metrics) {
     SCOPED_TIMER("Partition metrics");
     LOG << "  Cut:       " << metrics::edge_cut(p_graph);
@@ -59,7 +65,7 @@ PartitionedGraph KWayMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) 
     LOG;
     LOG << "Uncoarsening -> Level " << _coarsener->level();
 
-    p_graph = helper::uncoarsen_once(
+    p_graph = partitioning::uncoarsen_once(
         _coarsener.get(), std::move(p_graph), _current_p_ctx, _input_ctx.partition
     );
     refine(p_graph);
@@ -82,7 +88,7 @@ const Graph *KWayMultilevelPartitioner::coarsen() {
     debug::dump_graph_hierarchy(*c_graph, _coarsener->level(), _input_ctx);
 
     // Build next coarse graph
-    shrunk = helper::coarsen_once(_coarsener.get(), c_graph, _current_p_ctx);
+    shrunk = partitioning::coarsen_once(_coarsener.get(), c_graph, _current_p_ctx);
     c_graph = &_coarsener->current();
 
     // Print some metrics for the coarse graphs
@@ -137,25 +143,26 @@ PartitionedGraph KWayMultilevelPartitioner::initial_partition(const Graph *graph
   // Since timers are not multi-threaded, we disable them during (parallel)
   // initial partitioning.
   DISABLE_TIMERS();
-  PartitionedGraph p_graph =
-      helper::bipartition(graph, _input_ctx.partition.k, _input_ctx, _ip_m_ctx_pool);
-  helper::update_partition_context(_current_p_ctx, p_graph, _input_ctx.partition.k);
+  PartitionedGraph p_graph = partitioning::bipartition(
+      graph, _input_ctx.partition.k, _input_ctx, _bipartitioner_pool, true
+  );
+  partitioning::update_partition_context(_current_p_ctx, p_graph, _input_ctx.partition.k);
 
   graph::SubgraphMemory subgraph_memory(p_graph.n(), _input_ctx.partition.k, p_graph.m());
-  partitioning::TemporaryGraphExtractionBufferPool ip_extraction_pool;
+  partitioning::TemporarySubgraphMemoryEts ip_extraction_pool_ets;
 
-  helper::extend_partition(
+  partitioning::extend_partition(
       p_graph,
       _input_ctx.partition.k,
       _input_ctx,
       _current_p_ctx,
       subgraph_memory,
-      ip_extraction_pool,
-      _ip_m_ctx_pool,
+      ip_extraction_pool_ets,
+      _bipartitioner_pool,
       _input_ctx.parallel.num_threads
   );
 
-  helper::update_partition_context(_current_p_ctx, p_graph, _input_ctx.partition.k);
+  partitioning::update_partition_context(_current_p_ctx, p_graph, _input_ctx.partition.k);
   ENABLE_TIMERS();
 
   // Print some metrics for the initial partition.

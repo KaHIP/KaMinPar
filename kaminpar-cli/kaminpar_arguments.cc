@@ -123,7 +123,7 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
   - sparsifying-clustering: like clustering with additionale edge sparsification)")
       ->capture_default_str();
 
-  coarsening->add_option("--c-sparsification", ctx.coarsening.sparsification_algorithm)
+  coarsening->add_option("--c-sparsification", ctx.sparsification.algorithm)
       ->transform(CLI::CheckedTransformer(get_sparsification_algorithms()))
       ->description(R"(One of the following options:
   - random, rn: uniform random sampling
@@ -131,10 +131,21 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
   - k-neighbour, kn: k-Neighbour sampling
   - k-neighbour-spanning-tree, kn-st: k-Neighbour sampling with spanning tree
   - weight-threshold, wt: sample edges with weights above threshold
-  - effective-resistance, er: sample edges with relative effective-resistance above threshold)")
+  - effective-resistance, er: sample edges with relative effective-resistance above threshold
+  - independent-random, ir: sample edges indepently with probabilites proportional to scores
+  - random-with-replacement, rw/r: draw random edges WITH replacment and probailites proportinal to scores
+  - random-without-replacement, rw/or: draw random edges WITHOUT replacment and probailites proportinal to scores)")
       ->capture_default_str();
 
-  coarsening->add_option("--s-target", ctx.coarsening.sparsification_target)
+  coarsening->add_option("--s-score", ctx.sparsification.score_function)
+      ->transform(CLI::CheckedTransformer(get_score_function()))
+      ->description(R"(How the scores for sampling are calculated:
+  - weight, w: use edge weights as scores
+  - effective-restistance, er: effective resistance relativ to the resistance of an edge
+  - forest-fire, ff)")
+      ->capture_default_str();
+
+  coarsening->add_option("--s-target", ctx.sparsification.target)
       ->transform(CLI::CheckedTransformer(get_sparsification_target_selection(), CLI::ignore_case)
                       .description(""))
       ->description(
@@ -145,7 +156,7 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
       )
       ->capture_default_str();
 
-  coarsening->add_option("--s-factor", ctx.coarsening.sparsification_factor)
+  coarsening->add_option("--s-factor", ctx.sparsification.target_factor)
       ->check(CLI::PositiveNumber)
       ->description(R"(The factor c for the sparsification target, supplied with --s-target.)")
       ->default_val(1);
@@ -246,14 +257,18 @@ Options are:
   )"
       )
       ->capture_default_str();
-
-  lp->add_option(
-        "--c-lp-two-phases",
-        ctx.coarsening.clustering.lp.use_two_phases,
-        "Uses two phases in each iteration, where in the second phase the high-degree nodes are "
-        "treated separately"
-  )
+  lp->add_option("--c-lp-impl", ctx.coarsening.clustering.lp.impl)
+      ->transform(CLI::CheckedTransformer(get_lp_implementations()).description(""))
+      ->description(
+          R"(Determines the label propagation implementation.
+Options are:
+  - single-phase:        Uses single-phase label propagation
+  - two-phase:           Uses two-phase label propagation
+  - growing-hash-tables: Uses single-phase label propagation with growing hash tables
+  )"
+      )
       ->capture_default_str();
+
   lp->add_option(
         "--c-lp-second-phase-selection-strategy",
         ctx.coarsening.clustering.lp.second_phase_selection_strategy
@@ -280,7 +295,8 @@ Options are:
   - direct:   Write the ratings directly into the global vector (shared between threads)
   - buffered: Write the ratings into a thread-local buffer and then copy them into the global vector when the buffer is full
   )"
-      );
+      )
+      ->capture_default_str();
   lp->add_option(
         "--c-lp-second-phase-relabel",
         ctx.coarsening.clustering.lp.relabel_before_second_phase,
@@ -330,7 +346,7 @@ CLI::Option_group *create_contraction_coarsening_options(CLI::App *app, Context 
 
   contraction->add_option("--c-con-mode", ctx.coarsening.contraction.mode)
       ->transform(CLI::CheckedTransformer(get_contraction_modes()).description(""))
-      ->description(R"(The mode useed for contraction.
+      ->description(R"(The mode used for contraction.
 Options are:
   - buffered:         Use an edge buffer that is partially filled
   - buffered-legacy:  Use an edge buffer
@@ -345,9 +361,6 @@ Options are:
           "The fraction of the total edges with which to fill the edge buffer"
       )
       ->capture_default_str();
-  contraction->add_flag(
-      "--c-con-use-compact-mapping", ctx.coarsening.contraction.use_compact_mapping
-  );
 
   return contraction;
 }
@@ -410,13 +423,18 @@ CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx) {
   )
       ->capture_default_str();
 
-  lp->add_option(
-        "--r-lp-two-phases",
-        ctx.refinement.lp.use_two_phases,
-        "Uses two phases in each iteration, where in the second phase the high-degree nodes are "
-        "treated separately"
-  )
+  lp->add_option("--r-lp-impl", ctx.refinement.lp.impl)
+      ->transform(CLI::CheckedTransformer(get_lp_implementations()).description(""))
+      ->description(
+          R"(Determines the label propagation implementation.
+Options are:
+  - single-phase:        Uses single-phase label propagation
+  - two-phase:           Uses two-phase label propagation
+  - growing-hash-tables: Uses single-phase label propagation with growing hash tables
+  )"
+      )
       ->capture_default_str();
+
   lp->add_option(
         "--r-lp-second-phase-selection-strategy", ctx.refinement.lp.second_phase_selection_strategy
   )
@@ -524,11 +542,30 @@ CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
   jet->add_option("--r-jet-fruitless-threshold", ctx.refinement.jet.fruitless_threshold)
       ->capture_default_str();
+  jet->add_option("--r-jet-num-rounds-on-fine-level", ctx.refinement.jet.num_rounds_on_fine_level)
+      ->capture_default_str();
   jet->add_option(
-         "--r-jet-coarse-negative-gain-factor", ctx.refinement.jet.coarse_negative_gain_factor
+         "--r-jet-num-rounds-on-coarse-level", ctx.refinement.jet.num_rounds_on_coarse_level
   )
       ->capture_default_str();
-  jet->add_option("--r-jet-fine-negative-gain-factor", ctx.refinement.jet.fine_negative_gain_factor)
+  jet->add_option(
+         "--r-jet-initial-gain-temp-on-fine-level",
+         ctx.refinement.jet.initial_gain_temp_on_fine_level
+  )
+      ->capture_default_str();
+  jet->add_option(
+         "--r-jet-final-gain-temp-on-fine-level", ctx.refinement.jet.final_gain_temp_on_fine_level
+  )
+      ->capture_default_str();
+  jet->add_option(
+         "--r-jet-initial-gain-temp-on-coarse-level",
+         ctx.refinement.jet.initial_gain_temp_on_coarse_level
+  )
+      ->capture_default_str();
+  jet->add_option(
+         "--r-jet-final-gain-temp-on-coarse-level",
+         ctx.refinement.jet.final_gain_temp_on_coarse_level
+  )
       ->capture_default_str();
 
   return jet;

@@ -5,20 +5,23 @@
  * @author: Daniel Salwasser
  * @date:   12.11.2023
  ******************************************************************************/
+#include <limits>
+
 #include "kaminpar-cli/CLI11.h"
 
-#include "kaminpar-shm/datastructures/graph.h"
-#include "kaminpar-shm/graphutils/permutator.h"
+#include "kaminpar-shm/datastructures/compressed_graph_builder.h"
 
 #include "kaminpar-common/console_io.h"
-#include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 
+#include "apps/io/metis_parser.h"
+#include "apps/io/parhip_parser.h"
 #include "apps/io/shm_io.h"
 
 using namespace kaminpar;
 using namespace kaminpar::shm;
+using namespace kaminpar::shm::io;
 
 static std::string to_megabytes(std::size_t bytes) {
   std::stringstream stream;
@@ -76,6 +79,21 @@ template <typename Graph> static void benchmark_neighbors(const Graph &graph) {
   }
 }
 
+template <typename Graph> static void benchmark_neighbors_limit(const Graph &graph) {
+  SCOPED_TIMER("Neighbors (with limit)");
+
+  for (const auto node : graph.nodes()) {
+    graph.neighbors(
+        node,
+        std::numeric_limits<NodeID>::max(),
+        [](const auto incident_edge, const auto adjacent_node) {
+          do_not_optimize(incident_edge);
+          do_not_optimize(adjacent_node);
+        }
+    );
+  }
+}
+
 template <typename Graph> static void benchmark_pfor_neighbors(const Graph &graph) {
   SCOPED_TIMER("Parallel For Neighbors");
 
@@ -100,6 +118,7 @@ static void run_benchmark(CSRGraph graph, CompressedGraph compressed_graph) {
     benchmark_incident_edges(graph);
     benchmark_adjacent_nodes(graph);
     benchmark_neighbors(graph);
+    benchmark_neighbors_limit(graph);
     benchmark_pfor_neighbors(graph);
   };
 
@@ -108,6 +127,7 @@ static void run_benchmark(CSRGraph graph, CompressedGraph compressed_graph) {
     benchmark_incident_edges(compressed_graph);
     benchmark_adjacent_nodes(compressed_graph);
     benchmark_neighbors(compressed_graph);
+    benchmark_neighbors_limit(compressed_graph);
     benchmark_pfor_neighbors(compressed_graph);
   };
 }
@@ -115,12 +135,18 @@ static void run_benchmark(CSRGraph graph, CompressedGraph compressed_graph) {
 int main(int argc, char *argv[]) {
   // Parse CLI arguments
   std::string graph_filename;
+  GraphFileFormat graph_file_format = io::GraphFileFormat::METIS;
   int num_threads = 1;
   bool enable_benchmarks = true;
   bool enable_checks = false;
 
   CLI::App app("Shared-memory graph compression benchmark");
   app.add_option("-G,--graph", graph_filename, "Graph file")->required();
+  app.add_option("-f,--graph-file-format", graph_file_format)
+      ->transform(CLI::CheckedTransformer(get_graph_file_formats()).description(""))
+      ->description(R"(Graph file formats:
+  - metis
+  - parhip)");
   app.add_option("-t,--threads", num_threads, "Number of threads")
       ->check(CLI::NonNegativeNumber)
       ->default_val(num_threads);
@@ -128,29 +154,27 @@ int main(int argc, char *argv[]) {
 
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, num_threads);
 
-  ENABLE_HEAP_PROFILER();
-  GLOBAL_TIMER.reset();
-
   // Read input graph
   LOG << "Reading the input graph...";
 
-  START_HEAP_PROFILER("CSR Graph Allocation");
-  CSRGraph graph = TIMED_SCOPE("Read csr graph") {
-    return io::metis::csr_read<false>(graph_filename);
-  };
-  STOP_HEAP_PROFILER();
+  CSRGraph graph = [&] {
+    switch (graph_file_format) {
+    case GraphFileFormat::METIS:
+      return metis::csr_read(graph_filename, false);
+    case GraphFileFormat::PARHIP:
+      return parhip::csr_read(graph_filename, false);
+    default:
+      __builtin_unreachable();
+    }
+  }();
 
-  START_HEAP_PROFILER("Compressed Graph Allocation");
-  CompressedGraph compressed_graph = TIMED_SCOPE("Read compressed graph") {
-    return *io::metis::compress_read<false>(graph_filename);
-  };
-  STOP_HEAP_PROFILER();
+  CompressedGraph compressed_graph = CompressedGraphBuilder::compress(graph);
 
   // Run benchmarks
-  run_benchmark(std::move(graph), std::move(compressed_graph));
 
+  GLOBAL_TIMER.reset();
+  run_benchmark(std::move(graph), std::move(compressed_graph));
   STOP_TIMER();
-  DISABLE_HEAP_PROFILER();
 
   // Print the result summary
   LOG;
@@ -158,13 +182,11 @@ int main(int argc, char *argv[]) {
 
   LOG << "Input graph has " << graph.n() << " vertices and " << graph.m()
       << " edges. Its density is " << ((graph.m()) / (float)(graph.n() * (graph.n() - 1))) << ".";
-  LOG << "Node weights: " << (graph.node_weighted() ? "yes" : "no")
-      << ", edge weights: " << (graph.edge_weighted() ? "yes" : "no");
+  LOG << "Node weights: " << (graph.is_node_weighted() ? "yes" : "no")
+      << ", edge weights: " << (graph.is_edge_weighted() ? "yes" : "no");
   LOG;
 
   Timer::global().print_human_readable(std::cout);
-  LOG;
-  PRINT_HEAP_PROFILE(std::cout);
 
   return 0;
 }

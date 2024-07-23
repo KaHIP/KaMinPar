@@ -12,6 +12,7 @@
 #include "kaminpar-shm/coarsening/coarsener.h"
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/graphutils/subgraph_extractor.h"
+#include "kaminpar-shm/initial_partitioning/initial_bipartitioner_worker_pool.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/partitioning/helper.h"
 #include "kaminpar-shm/partitioning/partitioner.h"
@@ -51,17 +52,12 @@ private:
   const Context &_input_ctx;
   PartitionContext _current_p_ctx;
 
-  // Coarsening
   std::unique_ptr<Coarsener> _coarsener;
-
-  // Refinement
   std::unique_ptr<Refiner> _refiner;
 
-  // Initial partitioning -> subgraph extraction
   graph::SubgraphMemory _subgraph_memory;
-  partitioning::TemporaryGraphExtractionBufferPool _ip_extraction_pool;
 
-  // Initial partitioning
-  partitioning::GlobalInitialPartitionerMemoryPool _ip_m_ctx_pool;
+  partitioning::TemporarySubgraphMemoryEts _tmp_extraction_mem_pool_ets;
+  InitialBipartitionerWorkerPool _bipartitioner_pool;
 };
 } // namespace kaminpar::shm

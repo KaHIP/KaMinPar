@@ -18,6 +18,7 @@
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/datastructures/ghost_node_mapper.h"
 #include "kaminpar-dist/graphutils/synchronization.h"
+#include "kaminpar-dist/logger.h"
 #include "kaminpar-dist/metrics.h"
 
 #include "kaminpar-shm/datastructures/graph.h"

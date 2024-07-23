@@ -3,17 +3,23 @@
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::shm::sparsification {
-template <typename Object> class DistributionWithoutReplacement {
+class IndexDistributionWithoutReplacement {
 public:
-  DistributionWithoutReplacement(std::vector<Object> objects, std::vector<double> values)
-      : objects(objects),
-        remaining_objects(values.size()) {
-    if (values.size() == 0)
+  IndexDistributionWithoutReplacement(std::vector<double> values) {
+    IndexDistributionWithoutReplacement(values.begin(), values.end());
+  }
+  IndexDistributionWithoutReplacement(StaticArray<double> values) {
+    IndexDistributionWithoutReplacement(values.begin(), values.end());
+  }
+  template <typename Iterator>
+  IndexDistributionWithoutReplacement(Iterator values_begin, Iterator values_end)
+      : remaining_objects(values_end - values_begin) {
+    if (remaining_objects == 0)
       return;
 
     // size of a complete binary tree, where all values can be in the leaves
     size_t size = 1;
-    while (size <= 2 * values.size()) {
+    while (size <= 2 * remaining_objects) {
       size *= 2;
     }
     size -= 1;
@@ -21,8 +27,8 @@ public:
 
     // initalize leafs
     const size_t first_leaf = firstLeaf();
-    for (size_t leaf = first_leaf; leaf < first_leaf + values.size(); leaf++) {
-      segment_tree[leaf] = values[leaf - first_leaf];
+    for (size_t leaf = first_leaf; leaf < first_leaf + remaining_objects; leaf++) {
+      segment_tree[leaf] = *(values_begin + (leaf - first_leaf));
     }
 
     // calculate sum of subtrees
@@ -31,7 +37,7 @@ public:
     }
   }
 
-  Object operator()() {
+  size_t operator()() {
     double r = Random::instance().random_double() * segment_tree[0];
 
     size_t current_subtree = 0;
@@ -44,7 +50,7 @@ public:
       }
     }
 
-    Object obj = to_object(current_subtree);
+    size_t index = to_index(current_subtree);
     double value = segment_tree[current_subtree];
 
     // delete
@@ -55,7 +61,7 @@ public:
     segment_tree[0] -= value;
 
     remaining_objects--;
-    return obj;
+    return index;
   }
 
   size_t size() {
@@ -81,12 +87,10 @@ private:
   size_t firstLeaf() {
     return segment_tree.size() / 2;
   }
-  Object to_object(size_t leaf) {
-    size_t index = leaf - firstLeaf();
-    return objects[index];
+  size_t to_index(size_t leaf) {
+    return leaf - firstLeaf();
   }
   std::vector<double> segment_tree;
-  std::vector<Object> objects;
   size_t remaining_objects;
 };
 } // namespace kaminpar::shm::sparsification

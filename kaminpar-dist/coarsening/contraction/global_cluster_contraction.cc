@@ -7,12 +7,12 @@
  *         ^ ID in [c]oarse graph or in fine graph
  *            ^ node or cluster ID
  *
- * @file:   cluster_contraction.cc
+ * @file:   global_cluster_contraction.cc
  * @author: Daniel Seemaier
  * @date:   06.02.2023
  * @brief:  Graph contraction for arbitrary clusterings.
  ******************************************************************************/
-#include "kaminpar-dist/coarsening/contraction/cluster_contraction.h"
+#include "kaminpar-dist/coarsening/contraction/global_cluster_contraction.h"
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/global_control.h>
@@ -20,10 +20,10 @@
 #include <tbb/parallel_invoke.h>
 #include <tbb/parallel_sort.h>
 
+#include "kaminpar-dist/coarsening/contraction.h"
 #include "kaminpar-dist/graphutils/communication.h"
 
 #include "kaminpar-common/datastructures/binary_heap.h"
-#include "kaminpar-common/datastructures/noinit_vector.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/datastructures/ts_navigable_linked_list.h"
@@ -33,11 +33,15 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::dist {
+namespace {
 SET_STATISTICS_FROM_GLOBAL();
 SET_DEBUG(false);
+} // namespace
 
-ContractionResult contract_clustering(
-    const DistributedGraph &graph, GlobalClustering &clustering, const CoarseningContext &c_ctx
+std::unique_ptr<CoarseGraph> contract_clustering(
+    const DistributedGraph &graph,
+    StaticArray<GlobalNodeID> &clustering,
+    const CoarseningContext &c_ctx
 ) {
   return contract_clustering(
       graph,
@@ -49,9 +53,136 @@ ContractionResult contract_clustering(
 }
 
 namespace {
+// Stores technical mappings necessary to project a partition of the coarse graph to the fine graph.
+// Part of the contraction result and should not be used outside the `project_partition()` function.
+struct MigratedNodes {
+  StaticArray<NodeID> nodes;
+
+  std::vector<int> sendcounts;
+  std::vector<int> sdispls;
+  std::vector<int> recvcounts;
+  std::vector<int> rdispls;
+};
+
+class GlobalCoarseGraphImpl : public CoarseGraph {
+public:
+  GlobalCoarseGraphImpl(
+      const DistributedGraph &f_graph,
+      DistributedGraph c_graph,
+      StaticArray<GlobalNodeID> mapping,
+      MigratedNodes migration
+  )
+      : _f_graph(f_graph),
+        _c_graph(std::move(c_graph)),
+        _mapping(std::move(mapping)),
+        _migration(std::move(migration)) {}
+
+  const DistributedGraph &get() const final {
+    return _c_graph;
+  }
+
+  DistributedGraph &get() final {
+    return _c_graph;
+  }
+
+  void project(const StaticArray<BlockID> &c_partition, StaticArray<BlockID> &f_partition) final {
+    SCOPED_TIMER("Project partition");
+
+    struct MigratedNodeBlock {
+      GlobalNodeID gcnode;
+      BlockID block;
+    };
+    StaticArray<MigratedNodeBlock> migrated_nodes_sendbuf(
+        _migration.sdispls.back() + _migration.sendcounts.back()
+    );
+    StaticArray<MigratedNodeBlock> migrated_nodes_recvbuf(
+        _migration.rdispls.back() + _migration.recvcounts.back()
+    );
+
+    TIMED_SCOPE("Exchange migrated node blocks") {
+      tbb::parallel_for<std::size_t>(0, migrated_nodes_sendbuf.size(), [&](const std::size_t i) {
+        const NodeID lcnode = _migration.nodes[i];
+        const BlockID block = c_partition[lcnode];
+        const GlobalNodeID gcnode = _c_graph.local_to_global_node(lcnode);
+        migrated_nodes_sendbuf[i] = {.gcnode = gcnode, .block = block};
+      });
+
+      MPI_Alltoallv(
+          migrated_nodes_sendbuf.data(),
+          _migration.sendcounts.data(),
+          _migration.sdispls.data(),
+          mpi::type::get<MigratedNodeBlock>(),
+          migrated_nodes_recvbuf.data(),
+          _migration.recvcounts.data(),
+          _migration.rdispls.data(),
+          mpi::type::get<MigratedNodeBlock>(),
+          _f_graph.communicator()
+      );
+    };
+
+    TIMED_SCOPE("Building projected partition array") {
+      growt::GlobalNodeIDMap<GlobalNodeID> gcnode_to_block(0);
+      tbb::enumerable_thread_specific<growt::GlobalNodeIDMap<GlobalNodeID>::handle_type>
+          gcnode_to_block_handle_ets([&] { return gcnode_to_block.get_handle(); });
+      tbb::parallel_for(
+          tbb::blocked_range<std::size_t>(0, migrated_nodes_recvbuf.size()),
+          [&](const auto &r) {
+            auto &gcnode_to_block_handle = gcnode_to_block_handle_ets.local();
+            for (std::size_t i = r.begin(); i != r.end(); ++i) {
+              const auto &migrated_node = migrated_nodes_recvbuf[i];
+              gcnode_to_block_handle.insert(migrated_node.gcnode + 1, migrated_node.block);
+            }
+          }
+      );
+
+      _f_graph.pfor_nodes_range([&](const auto &r) {
+        auto &gcnode_to_block_handle = gcnode_to_block_handle_ets.local();
+
+        for (NodeID u = r.begin(); u != r.end(); ++u) {
+          const GlobalNodeID gcnode = _mapping[u];
+          if (_c_graph.is_owned_global_node(gcnode)) {
+            const NodeID lcnode = _c_graph.global_to_local_node(gcnode);
+            f_partition[u] = c_partition[lcnode];
+          } else {
+            auto it = gcnode_to_block_handle.find(gcnode + 1);
+            KASSERT(it != gcnode_to_block_handle.end(), V(gcnode));
+            f_partition[u] = (*it).second;
+          }
+        }
+      });
+    };
+
+    struct GhostNodeLabel {
+      NodeID local_node_on_sender;
+      BlockID block;
+    };
+
+    mpi::graph::sparse_alltoall_interface_to_pe<GhostNodeLabel>(
+        _f_graph,
+        [&](const NodeID lnode) -> GhostNodeLabel { return {lnode, f_partition[lnode]}; },
+        [&](const auto buffer, const PEID pe) {
+          tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
+            const auto &[sender_lnode, block] = buffer[i];
+            const GlobalNodeID gnode = _f_graph.offset_n(pe) + sender_lnode;
+            const NodeID lnode = _f_graph.global_to_local_node(gnode);
+            f_partition[lnode] = block;
+          });
+        }
+    );
+  }
+
+private:
+  const DistributedGraph &_f_graph;
+  DistributedGraph _c_graph;
+  StaticArray<GlobalNodeID> _mapping;
+  MigratedNodes _migration;
+};
+} // namespace
+
+namespace {
 struct AssignmentShifts {
-  NoinitVector<GlobalNodeID> overload;
-  NoinitVector<GlobalNodeID> underload;
+  StaticArray<GlobalNodeID> overload;
+  StaticArray<GlobalNodeID> underload;
 };
 
 struct GlobalEdge {
@@ -66,7 +197,7 @@ struct GlobalNode {
 };
 
 template <typename T> struct MigrationResult {
-  NoinitVector<T> elements;
+  StaticArray<T> elements;
 
   // Can be re-used for mapping exchange ...
   std::vector<int> sendcounts;
@@ -81,15 +212,16 @@ struct NodeMapping {
 };
 
 struct MigratedNodesMapping {
-  NoinitVector<NodeMapping> my_nonlocal_to_gcnode;
-  NoinitVector<NodeID> their_req_to_lcnode;
+  StaticArray<NodeMapping> my_nonlocal_to_gcnode;
+  StaticArray<NodeID> their_req_to_lcnode;
 };
 
-NoinitVector<GlobalNode>
-find_nonlocal_nodes(const DistributedGraph &graph, const GlobalClustering &lnode_to_gcluster) {
+StaticArray<GlobalNode> find_nonlocal_nodes(
+    const DistributedGraph &graph, const StaticArray<GlobalNodeID> &lnode_to_gcluster
+) {
   SCOPED_TIMER("Collect nonlocal nodes");
 
-  NoinitVector<NodeID> node_position_buffer(graph.n() + 1);
+  StaticArray<NodeID> node_position_buffer(graph.n() + 1);
   node_position_buffer.front() = 0;
   graph.pfor_nodes([&](const NodeID lnode) {
     const GlobalNodeID gcluster = lnode_to_gcluster[lnode];
@@ -99,7 +231,7 @@ find_nonlocal_nodes(const DistributedGraph &graph, const GlobalClustering &lnode
       node_position_buffer.begin(), node_position_buffer.end(), node_position_buffer.begin()
   );
 
-  NoinitVector<GlobalNode> nonlocal_nodes(node_position_buffer.back());
+  StaticArray<GlobalNode> nonlocal_nodes(node_position_buffer.back());
   graph.pfor_nodes([&](const NodeID lnode) {
     const GlobalNodeID gcluster = lnode_to_gcluster[lnode];
     if (!graph.is_owned_global_node(gcluster)) {
@@ -112,11 +244,12 @@ find_nonlocal_nodes(const DistributedGraph &graph, const GlobalClustering &lnode
   return nonlocal_nodes;
 }
 
-NoinitVector<GlobalEdge>
-find_nonlocal_edges(const DistributedGraph &graph, const GlobalClustering &lnode_to_gcluster) {
+StaticArray<GlobalEdge> find_nonlocal_edges(
+    const DistributedGraph &graph, const StaticArray<GlobalNodeID> &lnode_to_gcluster
+) {
   SCOPED_TIMER("Collect nonlocal edges");
 
-  NoinitVector<NodeID> edge_position_buffer(graph.n() + 1);
+  StaticArray<NodeID> edge_position_buffer(graph.n() + 1);
   edge_position_buffer.front() = 0;
 
   graph.pfor_nodes([&](const NodeID lnode_u) {
@@ -139,7 +272,7 @@ find_nonlocal_edges(const DistributedGraph &graph, const GlobalClustering &lnode
       edge_position_buffer.begin(), edge_position_buffer.end(), edge_position_buffer.begin()
   );
 
-  NoinitVector<GlobalEdge> nonlocal_edges(edge_position_buffer.back());
+  StaticArray<GlobalEdge> nonlocal_edges(edge_position_buffer.back());
   graph.pfor_nodes([&](const NodeID lnode_u) {
     const GlobalNodeID gcluster_u = lnode_to_gcluster[lnode_u];
 
@@ -162,7 +295,7 @@ find_nonlocal_edges(const DistributedGraph &graph, const GlobalClustering &lnode
   return nonlocal_edges;
 }
 
-void deduplicate_edge_list(NoinitVector<GlobalEdge> &edges) {
+void deduplicate_edge_list(StaticArray<GlobalEdge> &edges) {
   SCOPED_TIMER("Deduplicate edge list");
 
   if (edges.empty()) {
@@ -179,7 +312,7 @@ void deduplicate_edge_list(NoinitVector<GlobalEdge> &edges) {
 
   // Mark the first edge in every block of duplicate edges
   START_TIMER("Mark start of parallel edge blocks");
-  NoinitVector<EdgeID> edge_position_buffer(edges.size());
+  StaticArray<EdgeID> edge_position_buffer(edges.size());
   edge_position_buffer.front() = 0;
   tbb::parallel_for<std::size_t>(1, edges.size(), [&](const std::size_t i) {
     edge_position_buffer[i] = (edges[i].u != edges[i - 1].u || edges[i].v != edges[i - 1].v);
@@ -193,7 +326,7 @@ void deduplicate_edge_list(NoinitVector<GlobalEdge> &edges) {
 
   // Deduplicate edges in a separate buffer
   START_TIMER("Deduplicate");
-  NoinitVector<GlobalEdge> tmp_nonlocal_edges(edge_position_buffer.back() + 1);
+  StaticArray<GlobalEdge> tmp_nonlocal_edges(edge_position_buffer.back() + 1);
   tbb::parallel_for<std::size_t>(0, edge_position_buffer.back() + 1, [&](const std::size_t i) {
     tmp_nonlocal_edges[i].weight = 0;
   });
@@ -207,7 +340,7 @@ void deduplicate_edge_list(NoinitVector<GlobalEdge> &edges) {
   STOP_TIMER();
 }
 
-void sort_node_list(NoinitVector<GlobalNode> &nodes) {
+void sort_node_list(StaticArray<GlobalNode> &nodes) {
   SCOPED_TIMER("Sort nodes");
 
   tbb::parallel_sort(nodes.begin(), nodes.end(), [&](const GlobalNode &lhs, const GlobalNode &rhs) {
@@ -265,14 +398,14 @@ template <typename T> double compute_distribution_imbalance(const StaticArray<T>
   return 1.0 * max / (1.0 * distribution.back() / (distribution.size() - 1));
 }
 
-NoinitVector<NodeID> build_lcluster_to_lcnode_mapping(
+StaticArray<NodeID> build_lcluster_to_lcnode_mapping(
     const DistributedGraph &graph,
-    const GlobalClustering &lnode_to_gcluster,
-    const NoinitVector<GlobalNode> &local_nodes
+    const StaticArray<GlobalNodeID> &lnode_to_gcluster,
+    const StaticArray<GlobalNode> &local_nodes
 ) {
   SCOPED_TIMER("Build lcluster_to_lcnode");
 
-  NoinitVector<NodeID> lcluster_to_lcnode(graph.n());
+  StaticArray<NodeID> lcluster_to_lcnode(graph.n());
   graph.pfor_nodes([&](const NodeID u) { lcluster_to_lcnode[u] = 0; });
   tbb::parallel_invoke(
       [&] {
@@ -304,9 +437,9 @@ NoinitVector<NodeID> build_lcluster_to_lcnode_mapping(
 }
 
 void localize_global_edge_list(
-    NoinitVector<GlobalEdge> &edges,
+    StaticArray<GlobalEdge> &edges,
     const GlobalNodeID offset,
-    const NoinitVector<NodeID> &lnode_to_lcnode
+    const StaticArray<NodeID> &lnode_to_lcnode
 ) {
   tbb::parallel_for<std::size_t>(0, edges.size(), [&](const std::size_t i) {
     const NodeID lcluster = static_cast<NodeID>(edges[i].u - offset);
@@ -314,16 +447,16 @@ void localize_global_edge_list(
   });
 }
 
-std::pair<NoinitVector<NodeID>, NoinitVector<NodeID>> build_node_buckets(
+std::pair<StaticArray<NodeID>, StaticArray<NodeID>> build_node_buckets(
     const DistributedGraph &graph,
-    const NoinitVector<NodeID> &lcluster_to_lcnode,
+    const StaticArray<NodeID> &lcluster_to_lcnode,
     const GlobalNodeID c_n,
-    const NoinitVector<GlobalEdge> &local_edges,
-    const GlobalClustering &lnode_to_gcluster
+    const StaticArray<GlobalEdge> &local_edges,
+    const StaticArray<GlobalNodeID> &lnode_to_gcluster
 ) {
   SCOPED_TIMER("Bucket sort nodes by clusters");
 
-  NoinitVector<NodeID> buckets_position_buffer(c_n + 1);
+  StaticArray<NodeID> buckets_position_buffer(c_n + 1);
   tbb::parallel_for<NodeID>(0, c_n + 1, [&](const NodeID lcnode) {
     buckets_position_buffer[lcnode] = 0;
   });
@@ -355,9 +488,7 @@ std::pair<NoinitVector<NodeID>, NoinitVector<NodeID>> build_node_buckets(
       buckets_position_buffer.begin()
   );
 
-  NoinitVector<NodeID> buckets(
-      buckets_position_buffer.empty() ? 0 : buckets_position_buffer.back()
-  );
+  StaticArray<NodeID> buckets(buckets_position_buffer.empty() ? 0 : buckets_position_buffer.back());
   tbb::parallel_invoke(
       [&] {
         graph.pfor_nodes([&](const NodeID lnode) {
@@ -389,12 +520,11 @@ std::pair<NoinitVector<NodeID>, NoinitVector<NodeID>> build_node_buckets(
 template <typename Element, typename NumElementsForPEContainer>
 MigrationResult<Element> migrate_elements(
     const NumElementsForPEContainer &num_elements_for_pe,
-    const NoinitVector<Element> &elements,
+    const StaticArray<Element> &elements,
     MPI_Comm comm
 ) {
   const PEID size = mpi::get_comm_size(comm);
 
-  NoinitVector<Element> recvbuf;
   std::vector<int> sendcounts(size);
   std::vector<int> sdispls(size);
   std::vector<int> recvcounts(size);
@@ -405,7 +535,7 @@ MigrationResult<Element> migrate_elements(
   MPI_Alltoall(sendcounts.data(), 1, MPI_INT, recvcounts.data(), 1, MPI_INT, comm);
   std::exclusive_scan(recvcounts.begin(), recvcounts.end(), rdispls.begin(), 0);
 
-  recvbuf.resize(rdispls.back() + recvcounts.back());
+  StaticArray<Element> recvbuf(rdispls.back() + recvcounts.back());
   MPI_Alltoallv(
       elements.data(),
       sendcounts.data(),
@@ -428,7 +558,7 @@ MigrationResult<Element> migrate_elements(
 }
 
 MigrationResult<GlobalNode>
-migrate_nodes(const DistributedGraph &graph, const NoinitVector<GlobalNode> &nonlocal_nodes) {
+migrate_nodes(const DistributedGraph &graph, const StaticArray<GlobalNode> &nonlocal_nodes) {
   SCOPED_TIMER("Exchange nonlocal nodes");
 
   const PEID size = mpi::get_comm_size(graph.communicator());
@@ -448,7 +578,7 @@ migrate_nodes(const DistributedGraph &graph, const NoinitVector<GlobalNode> &non
 }
 
 MigrationResult<GlobalEdge>
-migrate_edges(const DistributedGraph &graph, const NoinitVector<GlobalEdge> &nonlocal_edges) {
+migrate_edges(const DistributedGraph &graph, const StaticArray<GlobalEdge> &nonlocal_edges) {
   SCOPED_TIMER("Exchange nonlocal edges");
 
   const PEID size = mpi::get_comm_size(graph.communicator());
@@ -484,17 +614,17 @@ migrate_edges(const DistributedGraph &graph, const NoinitVector<GlobalEdge> &non
 
 MigratedNodesMapping exchange_migrated_nodes_mapping(
     const DistributedGraph &graph,
-    const NoinitVector<GlobalNode> &nonlocal_nodes,
+    const StaticArray<GlobalNode> &nonlocal_nodes,
     const MigrationResult<GlobalNode> &local_nodes,
-    const NoinitVector<NodeID> &lcluster_to_lcnode,
+    const StaticArray<NodeID> &lcluster_to_lcnode,
     const StaticArray<GlobalNodeID> &c_node_distribution
 ) {
   SCOPED_TIMER("Exchange node mapping for migrated nodes");
 
   const PEID rank = mpi::get_comm_rank(graph.communicator());
 
-  NoinitVector<NodeMapping> their_nonlocal_to_gcnode(local_nodes.elements.size());
-  NoinitVector<NodeID> their_req_to_lcnode(their_nonlocal_to_gcnode.size());
+  StaticArray<NodeMapping> their_nonlocal_to_gcnode(local_nodes.elements.size());
+  StaticArray<NodeID> their_req_to_lcnode(their_nonlocal_to_gcnode.size());
 
   tbb::parallel_for<std::size_t>(0, local_nodes.elements.size(), [&](const std::size_t i) {
     const GlobalNodeID gcluster = local_nodes.elements[i].u;
@@ -508,7 +638,7 @@ MigratedNodesMapping exchange_migrated_nodes_mapping(
     their_req_to_lcnode[i] = lcnode;
   });
 
-  NoinitVector<NodeMapping> my_nonlocal_to_gcnode(nonlocal_nodes.size());
+  StaticArray<NodeMapping> my_nonlocal_to_gcnode(nonlocal_nodes.size());
   MPI_Alltoallv(
       their_nonlocal_to_gcnode.data(),
       local_nodes.recvcounts.data(),
@@ -541,8 +671,8 @@ std::pair<NodeID, PEID> remap_gcnode(
     const GlobalNodeID gcnode,
     const PEID current_owner,
     const StaticArray<GlobalNodeID> &current_cnode_distribution,
-    const NoinitVector<GlobalNodeID> &pe_overload,
-    const NoinitVector<GlobalNodeID> &pe_underload
+    const StaticArray<GlobalNodeID> &pe_overload,
+    const StaticArray<GlobalNodeID> &pe_underload
 ) {
   const auto lcnode = static_cast<NodeID>(gcnode - current_cnode_distribution[current_owner]);
 
@@ -601,9 +731,9 @@ AssignmentShifts compute_assignment_shifts(
     GlobalNodeID count;
   };
 
-  NoinitVector<PELoad> pe_load(size);
-  NoinitVector<GlobalNodeID> pe_overload(size + 1);
-  NoinitVector<GlobalNodeID> pe_underload(size + 1);
+  ScalableVector<PELoad> pe_load(size);
+  StaticArray<GlobalNodeID> pe_overload(size + 1);
+  StaticArray<GlobalNodeID> pe_underload(size + 1);
 
   pe_overload.front() = 0;
   pe_underload.front() = 0;
@@ -732,9 +862,9 @@ AssignmentShifts compute_assignment_shifts(
 void rebalance_cluster_placement(
     const DistributedGraph &graph,
     const StaticArray<GlobalNodeID> &current_cnode_distribution,
-    const NoinitVector<NodeID> &lcluster_to_lcnode,
-    const NoinitVector<NodeMapping> &nonlocal_gcluster_to_gcnode,
-    GlobalClustering &lnode_to_gcluster,
+    const StaticArray<NodeID> &lcluster_to_lcnode,
+    const StaticArray<NodeMapping> &nonlocal_gcluster_to_gcnode,
+    StaticArray<GlobalNodeID> &lnode_to_gcluster,
     const double max_cnode_imbalance,
     const double migrate_cnode_prefix
 ) {
@@ -830,7 +960,9 @@ void rebalance_cluster_placement(
 } // namespace
 
 namespace debug {
-bool validate_clustering(const DistributedGraph &graph, const GlobalClustering &lnode_to_gcluster) {
+bool validate_clustering(
+    const DistributedGraph &graph, const StaticArray<GlobalNodeID> &lnode_to_gcluster
+) {
   for (const NodeID lnode : graph.all_nodes()) {
     const GlobalNodeID gcluster = lnode_to_gcluster[lnode];
     if (gcluster > graph.global_n()) {
@@ -874,9 +1006,9 @@ bool validate_clustering(const DistributedGraph &graph, const GlobalClustering &
 }
 } // namespace debug
 
-ContractionResult contract_clustering(
+std::unique_ptr<CoarseGraph> contract_clustering(
     const DistributedGraph &graph,
-    GlobalClustering &lnode_to_gcluster,
+    StaticArray<GlobalNodeID> &lnode_to_gcluster,
     const double max_cnode_imbalance,
     const bool migrate_cnode_prefix,
     const bool force_perfect_cnode_balance
@@ -1108,7 +1240,7 @@ ContractionResult contract_clustering(
   );
 
   // Build a mapping array from fine nodes to coarse nodes
-  NoinitVector<GlobalNodeID> lnode_to_gcnode(graph.n());
+  StaticArray<GlobalNodeID> lnode_to_gcnode(graph.n());
   graph.pfor_nodes([&](const NodeID u) {
     const GlobalNodeID cluster = lnode_to_gcluster[u];
 
@@ -1359,113 +1491,17 @@ ContractionResult contract_clustering(
 
   STOP_TIMER(); // Contract clustering timer
 
-  return {
+  return std::make_unique<GlobalCoarseGraphImpl>(
+      graph,
       std::move(c_graph),
       std::move(lnode_to_gcnode),
-      {
+      MigratedNodes{
           .nodes = std::move(their_req_to_lcnode),
           .sendcounts = std::move(migration_result_nodes.recvcounts),
           .sdispls = std::move(migration_result_nodes.rdispls),
           .recvcounts = std::move(migration_result_nodes.sendcounts),
           .rdispls = std::move(migration_result_nodes.sdispls),
-      },
-  };
-}
-
-DistributedPartitionedGraph project_partition(
-    const DistributedGraph &graph,
-    DistributedPartitionedGraph p_c_graph,
-    const NoinitVector<GlobalNodeID> &c_mapping,
-    const MigratedNodes &migration
-) {
-  SCOPED_TIMER("Project partition");
-
-  struct MigratedNodeBlock {
-    GlobalNodeID gcnode;
-    BlockID block;
-  };
-  NoinitVector<MigratedNodeBlock> migrated_nodes_sendbuf(
-      migration.sdispls.back() + migration.sendcounts.back()
-  );
-  NoinitVector<MigratedNodeBlock> migrated_nodes_recvbuf(
-      migration.rdispls.back() + migration.recvcounts.back()
-  );
-
-  TIMED_SCOPE("Exchange migrated node blocks") {
-    tbb::parallel_for<std::size_t>(0, migrated_nodes_sendbuf.size(), [&](const std::size_t i) {
-      const NodeID lcnode = migration.nodes[i];
-      const BlockID block = p_c_graph.block(lcnode);
-      const GlobalNodeID gcnode = p_c_graph.local_to_global_node(lcnode);
-      migrated_nodes_sendbuf[i] = {.gcnode = gcnode, .block = block};
-    });
-
-    MPI_Alltoallv(
-        migrated_nodes_sendbuf.data(),
-        migration.sendcounts.data(),
-        migration.sdispls.data(),
-        mpi::type::get<MigratedNodeBlock>(),
-        migrated_nodes_recvbuf.data(),
-        migration.recvcounts.data(),
-        migration.rdispls.data(),
-        mpi::type::get<MigratedNodeBlock>(),
-        graph.communicator()
-    );
-  };
-
-  START_TIMER("Allocation");
-  StaticArray<BlockID> partition(graph.total_n());
-  STOP_TIMER();
-
-  TIMED_SCOPE("Building projected partition array") {
-    growt::GlobalNodeIDMap<GlobalNodeID> gcnode_to_block(0);
-    tbb::enumerable_thread_specific<growt::GlobalNodeIDMap<GlobalNodeID>::handle_type>
-        gcnode_to_block_handle_ets([&] { return gcnode_to_block.get_handle(); });
-    tbb::parallel_for(
-        tbb::blocked_range<std::size_t>(0, migrated_nodes_recvbuf.size()),
-        [&](const auto &r) {
-          auto &gcnode_to_block_handle = gcnode_to_block_handle_ets.local();
-          for (std::size_t i = r.begin(); i != r.end(); ++i) {
-            const auto &migrated_node = migrated_nodes_recvbuf[i];
-            gcnode_to_block_handle.insert(migrated_node.gcnode + 1, migrated_node.block);
-          }
-        }
-    );
-
-    graph.pfor_nodes_range([&](const auto &r) {
-      auto &gcnode_to_block_handle = gcnode_to_block_handle_ets.local();
-
-      for (NodeID u = r.begin(); u != r.end(); ++u) {
-        const GlobalNodeID gcnode = c_mapping[u];
-        if (p_c_graph.is_owned_global_node(gcnode)) {
-          const NodeID lcnode = p_c_graph.global_to_local_node(gcnode);
-          partition[u] = p_c_graph.block(lcnode);
-        } else {
-          auto it = gcnode_to_block_handle.find(gcnode + 1);
-          KASSERT(it != gcnode_to_block_handle.end(), V(gcnode));
-          partition[u] = (*it).second;
-        }
-      }
-    });
-  };
-
-  struct GhostNodeLabel {
-    NodeID local_node_on_sender;
-    BlockID block;
-  };
-
-  mpi::graph::sparse_alltoall_interface_to_pe<GhostNodeLabel>(
-      graph,
-      [&](const NodeID lnode) -> GhostNodeLabel { return {lnode, partition[lnode]}; },
-      [&](const auto buffer, const PEID pe) {
-        tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
-          const auto &[sender_lnode, block] = buffer[i];
-          const GlobalNodeID gnode = graph.offset_n(pe) + sender_lnode;
-          const NodeID lnode = graph.global_to_local_node(gnode);
-          partition[lnode] = block;
-        });
       }
   );
-
-  return {&graph, p_c_graph.k(), std::move(partition), p_c_graph.take_block_weights()};
 }
 } // namespace kaminpar::dist

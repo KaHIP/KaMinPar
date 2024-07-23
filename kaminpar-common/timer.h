@@ -83,6 +83,31 @@ inline std::chrono::time_point<std::chrono::high_resolution_clock> now() {
   return std::chrono::high_resolution_clock::now();
 }
 
+inline std::uint64_t duration_to_ms(const std::chrono::high_resolution_clock::duration &d) {
+  return std::chrono::duration_cast<std::chrono::milliseconds>(d).count();
+}
+
+inline std::uint64_t duration_to_ns(const std::chrono::high_resolution_clock::duration &d) {
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(d).count();
+}
+
+struct LocalTimer {
+  LocalTimer() {
+    reset();
+  }
+
+  [[nodiscard]] inline std::uint64_t elapsed() const {
+    return duration_to_ns(now() - _start);
+  }
+
+  void reset() {
+    _start = now();
+  }
+
+private:
+  std::chrono::time_point<std::chrono::high_resolution_clock> _start;
+};
+
 class ScopedTimer {
 public:
   explicit ScopedTimer(Timer *timer) : _timer(timer) {}

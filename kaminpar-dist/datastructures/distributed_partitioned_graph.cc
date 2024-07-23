@@ -9,6 +9,8 @@
 
 #include <tbb/parallel_for.h>
 
+#include "kaminpar-mpi/wrapper.h"
+
 #include "kaminpar-dist/logger.h"
 
 #include "kaminpar-common/datastructures/scalable_vector.h"

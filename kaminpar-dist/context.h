@@ -14,7 +14,7 @@
 #include "kaminpar-shm/datastructures/graph.h"
 
 // Most of the functions are part of the public API
-#include "kaminpar-dist/dkaminpar.h"
+#include "kaminpar-dist/dkaminpar.h" // IWYU pragma: export
 
 namespace kaminpar::dist {
 struct GraphContext {
