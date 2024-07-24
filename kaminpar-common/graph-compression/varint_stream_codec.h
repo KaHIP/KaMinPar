@@ -296,7 +296,7 @@ public:
     }
     }
   }
-#elif 0 // defined(__aarch64__)
+#elif defined(__aarch64__)
   template <typename Lambda> void decode(Lambda &&l) {
     constexpr bool kNonStoppable = std::is_void_v<std::invoke_result_t<Lambda, Int>>;
 
@@ -305,7 +305,7 @@ public:
       const std::uint8_t length = kLengthTable[control_byte];
 
       //__m128i data = _mm_loadu_si128((const __m128i *)_data_ptr);
-      uint32x4_t data = vld1q_u32(reinterpret_cast<const std::uint32_t *>(_data_ptr));
+      uint8x16_t data = vld1q_u8(_data_ptr);
       _data_ptr += length;
 
       // const std::uint8_t *shuffle_mask = kShuffleTable[control_byte].data();
@@ -313,25 +313,28 @@ public:
       const uint8x16_t shuffle_mask = vld1q_u8(kShuffleTable[control_byte].data());
       data = vqtbl1q_u8(data, shuffle_mask);
 
+      std::array<std::uint32_t, 4> out;
+      vst1q_u8(reinterpret_cast<std::uint8_t *>(out.data()), data);
+
       if constexpr (kNonStoppable) {
-        l(vgetq_lane_u32(data, 0));
-        l(vgetq_lane_u32(data, 1));
-        l(vgetq_lane_u32(data, 2));
-        l(vgetq_lane_u32(data, 3));
+        l(out[0]);
+        l(out[1]);
+        l(out[2]);
+        l(out[3]);
       } else {
-        if (l(vgetq_lane_u32(data, 0))) [[unlikely]] {
+        if (l(out[0])) [[unlikely]] {
           return;
         }
 
-        if (l(vgetq_lane_u32(data, 1))) [[unlikely]] {
+        if (l(out[1])) [[unlikely]] {
           return;
         }
 
-        if (l(vgetq_lane_u32(data, 2))) [[unlikely]] {
+        if (l(out[2])) [[unlikely]] {
           return;
         }
 
-        if (l(vgetq_lane_u32(data, 3))) [[unlikely]] {
+        if (l(out[3])) [[unlikely]] {
           return;
         }
       }
@@ -345,13 +348,16 @@ public:
 
       // __m128i data = _mm_loadu_si128((const __m128i *)_data_ptr);
       // data = _mm_shuffle_epi8(data, *(const __m128i *)shuffle_mask);
-      uint32x4_t data = vld1q_u32(reinterpret_cast<const std::uint32_t *>(_data_ptr));
+      uint8x16_t data = vld1q_u8(_data_ptr);
       data = vqtbl1q_u8(data, shuffle_mask);
 
+      std::array<std::uint32_t, 4> out;
+      vst1q_u8(reinterpret_cast<std::uint8_t *>(out.data()), data);
+
       if constexpr (kNonStoppable) {
-        l(vgetq_lane_u32(data, 0));
+        l(out[0]);
       } else {
-        if (l(vgetq_lane_u32(data, 0))) [[unlikely]] {
+        if (l(out[0])) [[unlikely]] {
           return;
         }
       }
@@ -364,18 +370,21 @@ public:
 
       // __m128i data = _mm_loadu_si128((const __m128i *)_data_ptr);
       // data = _mm_shuffle_epi8(data, *(const __m128i *)shuffle_mask);
-      uint32x4_t data = vld1q_u32(reinterpret_cast<const std::uint32_t *>(_data_ptr));
+      uint8x16_t data = vld1q_u8(_data_ptr);
       data = vqtbl1q_u8(data, shuffle_mask);
 
+      std::array<std::uint32_t, 4> out;
+      vst1q_u8(reinterpret_cast<std::uint8_t *>(out.data()), data);
+
       if constexpr (kNonStoppable) {
-        l(vgetq_lane_u32(data, 0));
-        l(vgetq_lane_u32(data, 1));
+        l(out[0]);
+        l(out[1]);
       } else {
-        if (l(vgetq_lane_u32(data, 0))) [[unlikely]] {
+        if (l(out[0])) [[unlikely]] {
           return;
         }
 
-        if (l(vgetq_lane_u32(data, 1))) [[unlikely]] {
+        if (l(out[1])) [[unlikely]] {
           return;
         }
       }
@@ -388,23 +397,26 @@ public:
 
       // __m128i data = _mm_loadu_si128((const __m128i *)_data_ptr);
       // data = _mm_shuffle_epi8(data, *(const __m128i *)shuffle_mask);
-      uint32x4_t data = vld1q_u32(reinterpret_cast<const std::uint32_t *>(_data_ptr));
+      uint8x16_t data = vld1q_u8(_data_ptr);
       data = vqtbl1q_u8(data, shuffle_mask);
 
+      std::array<std::uint32_t, 4> out;
+      vst1q_u8(reinterpret_cast<std::uint8_t *>(out.data()), data);
+
       if constexpr (kNonStoppable) {
-        l(vgetq_lane_u32(data, 0));
-        l(vgetq_lane_u32(data, 1));
-        l(vgetq_lane_u32(data, 2));
+        l(out[0]);
+        l(out[1]);
+        l(out[2]);
       } else {
-        if (l(vgetq_lane_u32(data, 0))) [[unlikely]] {
+        if (l(out[0])) [[unlikely]] {
           return;
         }
 
-        if (l(vgetq_lane_u32(data, 1))) [[unlikely]] {
+        if (l(out[1])) [[unlikely]] {
           return;
         }
 
-        if (l(vgetq_lane_u32(data, 2))) [[unlikely]] {
+        if (l(out[2])) [[unlikely]] {
           return;
         }
       }
