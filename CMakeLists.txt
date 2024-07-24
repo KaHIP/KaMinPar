@@ -5,7 +5,7 @@ include(FetchContent)
 include(CheckCXXCompilerFlag)
 
 project(KaMinPar
-        DESCRIPTION "Shared-memory and distributed graph partitioner for large k partitioning."
+        DESCRIPTION "Shared-memory and distributed-memory Graph Partitioner"
         LANGUAGES C CXX)
 
 set(PROJECT_VENDOR "Daniel Seemaier")
@@ -48,7 +48,6 @@ option(KAMINPAR_BUILD_WITH_PG "Build with the -pg option for profiling." OFF)
 
 # Control data type sizes
 #########################
-
 # These IDs refer to the shared-memory partitioner + local IDs of the distributed partitioner
 option(KAMINPAR_64BIT_IDS "Use 64 bits for node and edge IDs." OFF)
 option(KAMINPAR_64BIT_EDGE_IDS "Use 64 bits for edge IDs." OFF)
@@ -64,6 +63,7 @@ option(KAMINPAR_64BIT_LOCAL_WEIGHTS "Use 64 bit for local node and edge weights.
 # which is copied to each PE and build with data types of the shared-memory partitioner.
 # Thus, force 64 bit weights for the shared-memory partitioner in this case.
 if (KAMINPAR_BUILD_DISTRIBUTED)
+    message(STATUS "Distributed build: enabling 64 bit weights.")
     set(KAMINPAR_64BIT_WEIGHTS ON)
 endif ()
 
@@ -161,8 +161,6 @@ endif ()
 check_cxx_compiler_flag(-mcx16 COMPILER_SUPPORTS_MCX16)
 if (COMPILER_SUPPORTS_MCX16)
     add_compile_options(-mcx16)
-else ()
-    message(WARNING "-mcx16 flag not supported by the compiler")
 endif ()
 
 if (KAMINPAR_BUILD_WITH_MTUNE_NATIVE) 
@@ -297,31 +295,25 @@ endif ()
 
 if (KAMINPAR_64BIT_WEIGHTS)
     list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_64BIT_WEIGHTS")
-    set(KAMINPAR_SHM_NODE_WEIGHT_STR "std::int64_t")
-    set(KAMINPAR_SHM_EDGE_WEIGHT_STR "std::int64_t")
+    set(KAMINPAR_SHM_WEIGHT_STR "std::int64_t")
 else () 
-    set(KAMINPAR_SHM_NODE_WEIGHT_STR "std::int32_t")
-    set(KAMINPAR_SHM_EDGE_WEIGHT_STR "std::int32_t")
+    set(KAMINPAR_SHM_WEIGHT_STR "std::int32_t")
 endif ()
 
 if (KAMINPAR_64BIT_LOCAL_WEIGHTS)
     list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_64BIT_LOCAL_WEIGHTS")
-    set(KAMINPAR_DIST_NODE_WEIGHT_STR "std::int64_t")
-    set(KAMINPAR_DIST_EDGE_WEIGHT_STR "std::int64_t")
+    set(KAMINPAR_DIST_WEIGHT_STR "std::int64_t")
 else ()
-    set(KAMINPAR_DIST_NODE_WEIGHT_STR "std::int32_t")
-    set(KAMINPAR_DIST_EDGE_WEIGHT_STR "std::int32_t")
+    set(KAMINPAR_DIST_WEIGHT_STR "std::int32_t")
 endif ()
 
 message(STATUS "Data type summary:")
-message("  {shm, dist}::NodeID    = ${KAMINPAR_SHM_NODE_ID_STR} | {shm, dist}::EdgeID    = ${KAMINPAR_SHM_EDGE_ID_STR}")
-message("  dist::GlobalNodeID     = std::uint64_t | dist::GlobalEdgeID     = std::uint64_t")
-message("  shm::NodeWeight        =  ${KAMINPAR_SHM_NODE_WEIGHT_STR} | shm::EdgeWeight        =  ${KAMINPAR_SHM_EDGE_WEIGHT_STR}")
-message("  dist::NodeWeight       =  ${KAMINPAR_DIST_NODE_WEIGHT_STR} | dist::EdgeWeight       =  ${KAMINPAR_DIST_EDGE_WEIGHT_STR}")
-message("  dist::GlobalNodeWeight =  std::int64_t | dist::GlobalEdgeWeight =  std::int64_t")
-message("  {shm, dist}::BlockID   = std::uint32_t")
-message("  shm::BlockWeight       =  ${KAMINPAR_SHM_NODE_WEIGHT_STR}")
-message("  dist::BlockWeight      =  std::int64_t")
+message("  {shm, dist}::NodeID: ${KAMINPAR_SHM_NODE_ID_STR}")
+message("  {shm, dist}::EdgeID: ${KAMINPAR_SHM_EDGE_ID_STR}")
+message("  shm::{Node, Edge}Weight: ${KAMINPAR_SHM_WEIGHT_STR}")
+message("  {dist::Global{Node, Edge}ID: std::uint64_t")
+message("  dist::Global{Node, Edge}Weight: std::int64_t")
+message("  dist::{Node, Edge}Weight: ${KAMINPAR_DIST_WEIGHT_STR}")
 
 ################################################################################
 ## Search and fetch dependencies                                              ##
