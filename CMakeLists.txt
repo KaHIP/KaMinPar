@@ -167,7 +167,7 @@ endif ()
 
 # Always enable Debug symbols (including in Release mode)
 if (KAMINPAR_BUILD_WITH_DEBUG_SYMBOLS)
-    add_compile_options(-g -g3)
+    add_compile_options(-g)
 endif ()
 
 # Set compile flags
