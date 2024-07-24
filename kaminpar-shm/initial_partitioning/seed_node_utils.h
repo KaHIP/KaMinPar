@@ -48,4 +48,4 @@ std::pair<NodeID, NodeID> find_far_away_nodes(const CSRGraph &graph, int num_ite
 std::pair<NodeID, NodeID> find_far_away_nodes(
     const CSRGraph &graph, int num_iterations, Queue<NodeID> &queue, Marker<> &marker
 );
-} // namespace kaminpar::shm::ip
+} // namespace kaminpar::shm

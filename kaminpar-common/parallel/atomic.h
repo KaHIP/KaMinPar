@@ -90,7 +90,7 @@ public:
     return ++_value;
   }
 
-  T operator++(int) &noexcept {
+  T operator++(int) & noexcept {
     return _value++;
   } // NOLINT
 
@@ -98,7 +98,7 @@ public:
     return --_value;
   }
 
-  T operator--(int) &noexcept {
+  T operator--(int) & noexcept {
     return _value++;
   } // NOLINT
 

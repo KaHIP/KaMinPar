@@ -11,65 +11,65 @@
 #ifndef TIME_FN_H_MODULE_287987
 #define TIME_FN_H_MODULE_287987
 
-#if defined (__cplusplus)
+#if defined(__cplusplus)
 extern "C" {
 #endif
 
-
 /*-****************************************
-*  Dependencies
-******************************************/
-#include <sys/types.h>    /* utime */
+ *  Dependencies
+ ******************************************/
+#include <sys/types.h> /* utime */
 #if defined(_MSC_VER)
-#  include <sys/utime.h>  /* utime */
+#include <sys/utime.h> /* utime */
 #else
-#  include <utime.h>      /* utime */
+#include <utime.h> /* utime */
 #endif
-#include <time.h>         /* clock_t, clock, CLOCKS_PER_SEC */
-
-
+#include <time.h> /* clock_t, clock, CLOCKS_PER_SEC */
 
 /*-****************************************
-*  Local Types
-******************************************/
+ *  Local Types
+ ******************************************/
 
-#if !defined (__VMS) && (defined (__cplusplus) || (defined (__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L) /* C99 */) )
-# include <stdint.h>
-  typedef uint64_t           PTime;  /* Precise Time */
+#if !defined(__VMS) && (defined(__cplusplus) ||                                                    \
+                        (defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L) /* C99 */))
+#include <stdint.h>
+typedef uint64_t PTime; /* Precise Time */
 #else
-  typedef unsigned long long PTime;  /* does not support compilers without long long support */
+typedef unsigned long long PTime; /* does not support compilers without long long support */
 #endif
 
-
-
 /*-****************************************
-*  Time functions
-******************************************/
-#if defined(_WIN32)   /* Windows */
+ *  Time functions
+ ******************************************/
+#if defined(_WIN32) /* Windows */
 
-    #include <Windows.h>   /* LARGE_INTEGER */
-    typedef LARGE_INTEGER UTIL_time_t;
-    #define UTIL_TIME_INITIALIZER { { 0, 0 } }
+#include <Windows.h> /* LARGE_INTEGER */
+typedef LARGE_INTEGER UTIL_time_t;
+#define UTIL_TIME_INITIALIZER                                                                      \
+  {                                                                                                \
+    { 0, 0 }                                                                                       \
+  }
 
 #elif defined(__APPLE__) && defined(__MACH__)
 
-    #include <mach/mach_time.h>
-    typedef PTime UTIL_time_t;
-    #define UTIL_TIME_INITIALIZER 0
+#include <mach/mach_time.h>
+typedef PTime UTIL_time_t;
+#define UTIL_TIME_INITIALIZER 0
 
-#elif (defined (__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L) /* C11 */) \
-    && defined(TIME_UTC) /* C11 requires timespec_get, but FreeBSD 11 lacks it, while still claiming C11 compliance */
+#elif (defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L) /* C11 */) &&                    \
+    defined(TIME_UTC) /* C11 requires timespec_get, but FreeBSD 11 lacks it, while still claiming  \
+                         C11 compliance */
 
-    typedef struct timespec UTIL_time_t;
-    #define UTIL_TIME_INITIALIZER { 0, 0 }
+typedef struct timespec UTIL_time_t;
+#define UTIL_TIME_INITIALIZER {0, 0}
 
-#else   /* relies on standard C90 (note : clock_t measurements can be wrong when using multi-threading) */
+#else /* relies on standard C90 (note : clock_t measurements can be wrong when using               \
+         multi-threading) */
 
-    typedef clock_t UTIL_time_t;
-    #define UTIL_TIME_INITIALIZER 0
+typedef clock_t UTIL_time_t;
+#define UTIL_TIME_INITIALIZER 0
 
 #endif
-
 
 UTIL_time_t UTIL_getTime(void);
 PTime UTIL_getSpanTimeMicro(UTIL_time_t clockStart, UTIL_time_t clockEnd);
@@ -81,8 +81,7 @@ PTime UTIL_clockSpanNano(UTIL_time_t clockStart);
 
 void UTIL_waitForNextTick(void);
 
-
-#if defined (__cplusplus)
+#if defined(__cplusplus)
 }
 #endif
 

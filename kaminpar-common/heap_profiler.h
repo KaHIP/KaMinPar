@@ -37,7 +37,8 @@ template <typename T> std::string type_name() {
   int status = 0;
 
   std::unique_ptr<char, void (*)(void *)> demangled_result{
-      abi::__cxa_demangle(mangeled_name, NULL, NULL, &status), std::free};
+      abi::__cxa_demangle(mangeled_name, NULL, NULL, &status), std::free
+  };
 
   // Strip the trailing brackets from the constructed function type.
   std::string name((status == 0) ? demangled_result.get() : mangeled_name);

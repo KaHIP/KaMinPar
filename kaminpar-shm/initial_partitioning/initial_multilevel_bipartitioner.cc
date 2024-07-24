@@ -155,4 +155,3 @@ PartitionedCSRGraph InitialMultilevelBipartitioner::uncoarsen(PartitionedCSRGrap
   return p_graph;
 }
 } // namespace kaminpar::shm
-

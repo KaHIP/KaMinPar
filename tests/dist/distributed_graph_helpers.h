@@ -62,9 +62,7 @@ inline DistributedPartitionedGraph make_partitioned_graph(
 
   mpi::graph::sparse_alltoall_interface_to_pe<NodeBlock>(
       graph,
-      [&](const NodeID u) {
-        return NodeBlock{graph.local_to_global_node(u), local_partition[u]};
-      },
+      [&](const NodeID u) { return NodeBlock{graph.local_to_global_node(u), local_partition[u]}; },
       [&](const auto &buffer) {
         for (const auto &[global_node, block] : buffer) {
           partition[graph.global_to_local_node(global_node)] = block;

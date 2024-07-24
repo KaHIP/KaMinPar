@@ -5,7 +5,7 @@
  * @author: Daniel Seemaier
  * @date:   27.02.2024
  ******************************************************************************/
-#pragma once 
+#pragma once
 
 #include "kaminpar-shm/kaminpar.h"
 
@@ -20,4 +20,4 @@ struct AppliedMove {
   BlockID from;
   bool improvement;
 };
-}
+} // namespace kaminpar::shm::fm
