@@ -34,7 +34,7 @@ option(KAMINPAR_ENABLE_STATISTICS "Generate and output detailed statistics." OFF
 option(KAMINPAR_ENABLE_TIMERS "Measure running times. Must be set to 'OFF' if the library interface is used from multiple threads simulatinously." ON)
 option(KAMINPAR_ENABLE_TIMER_BARRIERS "Add additional MPI_Barrier() instructions for more accurate time measurements." ON)
 
-option(KAMINPAR_ENABLE_THP "Use transparent huge pages for large memory allocations." ON)
+option(KAMINPAR_ENABLE_THP "Use transparent huge pages for large memory allocations (Linux only)." ON)
 
 option(KAMINPAR_BUILD_WITH_ASAN "Enable address sanitizer." OFF)
 option(KAMINPAR_BUILD_WITH_UBSAN "Enable undefined behaviour sanitizer." OFF)
@@ -89,18 +89,6 @@ if (KAMINPAR_COMPRESSION_EDGE_WEIGHTS AND KAMINPAR_COMPRESSION_STREAM_ENCODING)
     message(FATAL_ERROR "Stream encoding cannot be used together with compressed edge weights.")
 elseif (KAMINPAR_COMPRESSION_EDGE_WEIGHTS AND KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING)
     message(FATAL_ERROR "Run-length encoding cannot be used together with compressed edge weights.")
-endif ()
-
-################################################################################
-## MacOS: Disable options that only make sense when building on Linux         ##
-################################################################################
-if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    if (KAMINPAR_ENABLE_THP)
-        message(WARNING "Configured with transparent huge pages, but these are "
-            "not available on MacOS: overwriting option with 'OFF'")
-    endif ()
-
-    set(KAMINPAR_ENABLE_THP OFF)
 endif ()
 
 ################################################################################
