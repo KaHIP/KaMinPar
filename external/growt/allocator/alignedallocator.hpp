@@ -14,8 +14,7 @@
 #define ALIGNED_ALLOCATOR_H
 
 #include <algorithm>
-#include <malloc.h>
-#include <stdlib.h>
+#include <cstdlib>
 
 namespace growt
 {
@@ -61,7 +60,13 @@ class GenericAlignedAllocator
 
         if (n > max_size()) throw std::bad_alloc();
 
-        return static_cast<pointer>(memalign(A, n * sizeof(T)));
+        pointer memptr = nullptr;
+
+        if (posix_memalign(reinterpret_cast<void **>(&memptr), A, n * sizeof (T))) {
+            throw std::bad_alloc();
+        }
+
+        return memptr;
     }
 
     //! Frees an allocated piece of memory

@@ -92,24 +92,6 @@ elseif (KAMINPAR_COMPRESSION_EDGE_WEIGHTS AND KAMINPAR_COMPRESSION_RUN_LENGTH_EN
 endif ()
 
 ################################################################################
-## ARM: Disable options that we do not yet support on ARM                     ##
-################################################################################
-if (${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm64") 
-    if (KAMINPAR_BUILD_WITH_GROWT)
-        message(WARNING "Configured build with Growt hash tables, but Growt is "
-            "not available on ARM: overwriting option with 'OFF'.")
-    endif ()
-    if (KAMINPAR_BUILD_DISTRIBUTED)
-        message(WARNING "Configured distributed build, but the distributed "
-            "partitioner is not yet available on ARM: overwriting option with "
-            "'OFF'")
-    endif ()
-
-    set(KAMINPAR_BUILD_WITH_GROWT OFF)
-    set(KAMINPAR_BUILD_DISTRIBUTED OFF)
-endif ()
-
-################################################################################
 ## MacOS: Disable options that only make sense when building on Linux         ##
 ################################################################################
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
@@ -181,16 +163,6 @@ if (COMPILER_SUPPORTS_MCX16)
     add_compile_options(-mcx16)
 else ()
     message(WARNING "-mcx16 flag not supported by the compiler")
-
-    if (KAMINPAR_BUILD_WITH_GROWT)
-        message(WARNING "-mcx16 flag not supported by the compiler: cannot use growt for the shared-memory partitioner")
-        set(KAMINPAR_BUILD_WITH_GROWT OFF)
-    endif ()
-
-    if (KAMINPAR_BUILD_DISTRIBUTED)
-        message(WARNING "-mcx16 flag not supported by the compiler: cannot build the distributed partitioner")
-        set(KAMINPAR_BUILD_DISTRIBUTED OFF)
-    endif ()
 endif ()
 
 if (KAMINPAR_BUILD_WITH_MTUNE_NATIVE) 
@@ -370,7 +342,9 @@ endif ()
 
 if (KAMINPAR_BUILD_WITH_GROWT)
     list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_USES_GROWT")
+endif ()
 
+if (TRUE) 
     add_subdirectory(external/growt EXCLUDE_FROM_ALL)
     add_library(growt INTERFACE)
     target_include_directories(growt SYSTEM INTERFACE "external/growt")

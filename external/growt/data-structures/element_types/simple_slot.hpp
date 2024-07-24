@@ -13,7 +13,7 @@
 #include "utils/debug.hpp"
 namespace debug = utils_tm::debug_tm;
 
-#ifndef ICPC
+#if !defined(ICPC) && defined(__x86_64__)
 #include <xmmintrin.h>
 using int128_t = __int128;
 #else
@@ -316,9 +316,13 @@ simple_slot<K, D, m, dd>::atomic_slot_type::load() const
     // _mm_load_ps because the memory should be aligned
 
     // as128i() = (int128_t) _mm_loadu_ps((float *) &e);
+#if defined(__linux__)
     auto temp = reinterpret_cast<int128_t>(
         _mm_loadu_si128(reinterpret_cast<const __m128i*>(&_raw_data)));
     return slot_type(temp);
+#else // @todo(arm) whats the difference?
+    return slot_type(_raw_data);
+#endif
 }
 
 template <class K, class D, bool m, K dd>

@@ -229,14 +229,10 @@ NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
     }
   }();
 
-  // We use `unsigned long` here since we currently do not have any MPI type definitions for
-  // GlobalNodeID
-  static_assert(std::is_same_v<GlobalNodeID, unsigned long>);
-  std::vector<GlobalNodeID> vtxdist =
-      BuildVertexDistribution<unsigned long>(graph, MPI_UNSIGNED_LONG, MPI_COMM_WORLD);
+  auto vtxdist = BuildVertexDistribution<std::uint64_t>(graph, MPI_UINT64_T, MPI_COMM_WORLD);
 
-  // ... if the data types are not the same, we would need to re-allocate memory for the graph; to
-  // this if we ever need it ...
+  // If data types mismatch, we would need to allocate new memory for the graph; this is to do until
+  // we actually need it ...
   std::vector<SInt> xadj = graph.TakeXadj<>();
   std::vector<SInt> adjncy = graph.TakeAdjncy<>();
   std::vector<SSInt> vwgt = graph.TakeVertexWeights<>();
@@ -247,12 +243,10 @@ NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
   static_assert(sizeof(SSInt) == sizeof(GlobalNodeWeight));
   static_assert(sizeof(SSInt) == sizeof(GlobalEdgeWeight));
 
-  GlobalEdgeID *xadj_ptr = reinterpret_cast<GlobalNodeID *>(xadj.data());
-  GlobalNodeID *adjncy_ptr = reinterpret_cast<GlobalNodeID *>(adjncy.data());
-  GlobalNodeWeight *vwgt_ptr =
-      vwgt.empty() ? nullptr : reinterpret_cast<GlobalNodeWeight *>(vwgt.data());
-  GlobalEdgeWeight *adjwgt_ptr =
-      adjwgt.empty() ? nullptr : reinterpret_cast<GlobalEdgeWeight *>(adjwgt.data());
+  auto *xadj_ptr = reinterpret_cast<GlobalNodeID *>(xadj.data());
+  auto *adjncy_ptr = reinterpret_cast<GlobalNodeID *>(adjncy.data());
+  auto *vwgt_ptr = vwgt.empty() ? nullptr : reinterpret_cast<GlobalNodeWeight *>(vwgt.data());
+  auto *adjwgt_ptr = adjwgt.empty() ? nullptr : reinterpret_cast<GlobalEdgeWeight *>(adjwgt.data());
 
   // Pass the graph to the partitioner --
   partitioner.import_graph(vtxdist.data(), xadj_ptr, adjncy_ptr, vwgt_ptr, adjwgt_ptr);
