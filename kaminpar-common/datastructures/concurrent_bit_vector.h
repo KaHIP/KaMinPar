@@ -109,7 +109,7 @@ public:
   void free() {
     _size = 0;
     _byte_capacity = 0;
-    _data.release();
+    _data.reset();
   }
 
   /*!

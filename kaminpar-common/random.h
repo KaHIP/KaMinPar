@@ -40,9 +40,8 @@ public:
 
   std::size_t
   random_index(const std::size_t inclusive_lower_bound, const std::size_t exclusive_upper_bound) {
-    return std::uniform_int_distribution<std::size_t>(
-        inclusive_lower_bound, exclusive_upper_bound - 1
-    )(_generator);
+    return std::uniform_int_distribution<
+        std::size_t>(inclusive_lower_bound, exclusive_upper_bound - 1)(_generator);
   }
 
   bool random_bool() {
@@ -50,6 +49,9 @@ public:
   }
   bool random_bool(const double prob) {
     return _real_dist(_generator) <= prob;
+  }
+  double random_double() {
+    return _real_dist(_generator);
   }
 
   template <typename Container> void shuffle(Container &&vec) {

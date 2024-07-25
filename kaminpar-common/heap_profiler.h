@@ -7,6 +7,7 @@
  ******************************************************************************/
 #pragma once
 
+#include <cstdlib>
 #include <iomanip>
 #include <memory>
 #include <mutex>
@@ -19,6 +20,7 @@
 #include <cxxabi.h>
 
 #include "kaminpar-common/libc_memory_override.h"
+#include "kaminpar-common/logger.h"
 
 namespace kaminpar::heap_profiler {
 
@@ -35,8 +37,7 @@ template <typename T> std::string type_name() {
   int status = 0;
 
   std::unique_ptr<char, void (*)(void *)> demangled_result{
-      abi::__cxa_demangle(mangeled_name, NULL, NULL, &status), std::free
-  };
+      abi::__cxa_demangle(mangeled_name, NULL, NULL, &status), std::free};
 
   // Strip the trailing brackets from the constructed function type.
   std::string name((status == 0) ? demangled_result.get() : mangeled_name);
@@ -158,7 +159,7 @@ namespace kaminpar::heap_profiler {
 template <typename T> struct NoProfilAllocator {
   using value_type = T;
 
-  NoProfilAllocator() noexcept {}
+  NoProfilAllocator() noexcept = default;
   template <typename U> NoProfilAllocator(const NoProfilAllocator<U> &) noexcept {}
 
   template <typename U> bool operator==(const NoProfilAllocator<U> &) const noexcept {
@@ -591,5 +592,55 @@ public:
     HeapProfiler::global().stop_profile();
   }
 };
+
+/*!
+ * Determines the total system memory in bytes. This value bounds the amount of memory that can
+ * be overcommitted.
+ *
+ * @return The total system memory in bytes.
+ */
+[[nodiscard]] std::size_t get_total_system_memory();
+
+template <typename T> struct HeapProfiledMemoryDeleter {
+  void operator()(T *ptr) {
+    if constexpr (kHeapProfiling) {
+      heap_profiler::std_free(ptr);
+      HeapProfiler::global().record_free(ptr);
+    } else {
+      std::free(ptr);
+    }
+  }
+};
+
+//! Unique pointer wrapper whose owner is responsible for manually tracking the memory. The release
+//! of the associated memory is tracked by the wrapper itself.
+template <typename T> using unique_ptr = std::unique_ptr<T, HeapProfiledMemoryDeleter<T>>;
+
+/*!
+ * Allocates memory that is not tracked by the heap profiler. This method is useful for correctly
+ * tracking overcomitted memory.
+ *
+ * @tparam T The type of data to allocate.
+ * @param size The number of data copies to allocate.
+ * @return A pointer to the allocated memory.
+ */
+template <typename T> unique_ptr<T> overcommit_memory(const std::size_t size) {
+  const std::size_t nbytes = std::min(get_total_system_memory(), size * sizeof(T));
+
+  T *ptr;
+  if constexpr (kHeapProfiling) {
+    ptr = static_cast<T *>(heap_profiler::std_malloc(nbytes));
+  } else {
+    ptr = static_cast<T *>(std::malloc(nbytes));
+  }
+
+  if (ptr == NULL) {
+    LOG_ERROR << "The overcommitment of memory failed. Ensure that memory overcommitment is"
+                 " enabled on this system!";
+    std::exit(0);
+  }
+
+  return unique_ptr<T>(ptr);
+}
 
 } // namespace kaminpar::heap_profiler

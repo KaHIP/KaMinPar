@@ -11,14 +11,18 @@
 #include <iostream>
 #include <tuple>
 
+#include "kaminpar-common/heap_profiler.h"
+#include "kaminpar-common/timer.h"
+
 namespace kaminpar::shm {
+
 namespace {
+
 template <typename ForwardIterator, typename T>
 ForwardIterator binary_find(ForwardIterator begin, ForwardIterator end, const T &val) {
   const auto i = std::lower_bound(begin, end, val);
   return (i != end && (*i <= val)) ? i : end;
 }
-} // namespace
 
 void validate_undirected_graph(
     const StaticArray<EdgeID> &nodes,
@@ -71,4 +75,22 @@ void validate_undirected_graph(
     }
   });
 }
+
+} // namespace
+
+void validate_undirected_graph(const Graph &graph) {
+  SCOPED_HEAP_PROFILER("Validate Input Graph");
+  SCOPED_TIMER("Validate input graph");
+
+  if (auto *csr_graph = dynamic_cast<const CSRGraph *>(graph.underlying_graph());
+      csr_graph != nullptr) {
+    validate_undirected_graph(
+        csr_graph->raw_nodes(),
+        csr_graph->raw_edges(),
+        csr_graph->raw_node_weights(),
+        csr_graph->raw_edge_weights()
+    );
+  }
+}
+
 } // namespace kaminpar::shm

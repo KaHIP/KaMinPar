@@ -9,10 +9,12 @@
 
 #include <algorithm>
 
-#include "kaminpar-dist/datastructures/distributed_graph.h"
+#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/metrics.h"
+
+#include "kaminpar-common/asserting_cast.h"
 
 namespace kaminpar::dist {
 class Buckets {

@@ -1,4 +1,7 @@
 set(KAMINPAR_IO_SOURCE_FILES
+    io/file_tokener.h
+    io/metis_parser.h
+    io/metis_parser.cc
     io/parhip_parser.h
     io/parhip_parser.cc
     io/shm_compressed_graph_binary.h

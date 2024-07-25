@@ -7,15 +7,18 @@
  ******************************************************************************/
 #pragma once
 
+#include <type_traits>
 #include <utility>
 #include <vector>
 
 #include <tbb/parallel_for.h>
 
 #include "kaminpar-shm/datastructures/abstract_graph.h"
-#include "kaminpar-shm/datastructures/csr_graph.h"
 
 #include "kaminpar-common/constexpr_utils.h"
+#include "kaminpar-common/datastructures/compact_static_array.h"
+#include "kaminpar-common/datastructures/static_array.h"
+#include "kaminpar-common/degree_buckets.h"
 #include "kaminpar-common/math.h"
 #include "kaminpar-common/ranges.h"
 #include "kaminpar-common/varint_codec.h"
@@ -206,12 +209,12 @@ public:
   }
 
   // Node and edge weights
-  [[nodiscard]] inline bool node_weighted() const final {
+  [[nodiscard]] inline bool is_node_weighted() const final {
     return static_cast<NodeWeight>(n()) != total_node_weight();
   }
 
   [[nodiscard]] inline NodeWeight node_weight(const NodeID u) const final {
-    return node_weighted() ? _node_weights[u] : 1;
+    return is_node_weighted() ? _node_weights[u] : 1;
   }
 
   [[nodiscard]] inline NodeWeight max_node_weight() const final {
@@ -222,12 +225,12 @@ public:
     return _total_node_weight;
   }
 
-  [[nodiscard]] inline bool edge_weighted() const final {
+  [[nodiscard]] inline bool is_edge_weighted() const final {
     return static_cast<EdgeWeight>(m()) != total_edge_weight();
   }
 
   [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const final {
-    return edge_weighted() ? _edge_weights[e] : 1;
+    return is_edge_weighted() ? _edge_weights[e] : 1;
   }
 
   [[nodiscard]] inline EdgeWeight total_edge_weight() const final {
@@ -290,7 +293,7 @@ public:
 
   template <typename Lambda> void adjacent_nodes(const NodeID node, Lambda &&l) const {
     decode_neighborhood(node, [&](const EdgeID incident_edge, const NodeID adjacent_node) {
-      l(adjacent_node);
+      return l(adjacent_node);
     });
   }
 
@@ -300,14 +303,29 @@ public:
 
   template <typename Lambda>
   void neighbors(const NodeID node, const NodeID max_neighbor_count, Lambda &&l) const {
-    decode_neighborhood(node, std::forward<Lambda>(l));
+    KASSERT(max_neighbor_count > 0);
+    constexpr bool non_stoppable = std::is_void_v<std::invoke_result_t<Lambda, EdgeID, NodeID>>;
+
+    NodeID num_neighbors_visited = 1;
+    decode_neighborhood(node, [&](const EdgeID incident_edge, const NodeID adjacent_node) {
+      bool abort = num_neighbors_visited++ >= max_neighbor_count;
+
+      if constexpr (non_stoppable) {
+        l(incident_edge, adjacent_node);
+      } else {
+        abort |= l(incident_edge, adjacent_node);
+      }
+
+      return abort;
+    });
   }
 
   template <typename Lambda>
   void pfor_neighbors(
       const NodeID node, const NodeID max_neighbor_count, const NodeID grainsize, Lambda &&l
   ) const {
-    decode_neighborhood<true>(node, std::forward<Lambda>(l));
+    constexpr bool kParallelDecoding = true;
+    decode_neighborhood<kParallelDecoding>(node, std::forward<Lambda>(l));
   }
 
   // Graph permutation
@@ -401,12 +419,12 @@ public:
     std::size_t uncompressed_size = (n() + 1) * sizeof(EdgeID) + m() * sizeof(NodeID);
     std::size_t compressed_size = _nodes.allocated_size() + _compressed_edges.size();
 
-    if (node_weighted()) {
+    if (is_node_weighted()) {
       uncompressed_size += n() * sizeof(NodeWeight);
       compressed_size += n() * sizeof(NodeWeight);
     }
 
-    if (edge_weighted()) {
+    if (is_edge_weighted()) {
       uncompressed_size += m() * sizeof(EdgeWeight);
       compressed_size += m() * sizeof(EdgeWeight);
     }
@@ -423,12 +441,12 @@ public:
     std::size_t uncompressed_size = (n() + 1) * sizeof(EdgeID) + m() * sizeof(NodeID);
     std::size_t compressed_size = _nodes.allocated_size() + _compressed_edges.size();
 
-    if (node_weighted()) {
+    if (is_node_weighted()) {
       uncompressed_size += n() * sizeof(NodeWeight);
       compressed_size += n() * sizeof(NodeWeight);
     }
 
-    if (edge_weighted()) {
+    if (is_edge_weighted()) {
       uncompressed_size += m() * sizeof(EdgeWeight);
       compressed_size += m() * sizeof(EdgeWeight);
     }
@@ -499,7 +517,7 @@ private:
     }
   }
 
-  template <bool parallel = false, typename Lambda>
+  template <bool kParallelDecoding = false, typename Lambda>
   void decode_neighborhood(const NodeID node, Lambda &&l) const {
     const std::uint8_t *data = _compressed_edges.data();
 
@@ -521,7 +539,7 @@ private:
 
     if constexpr (kHighDegreeEncoding) {
       if (degree >= kHighDegreeThreshold) {
-        decode_parts<parallel>(node_data, node, edge, degree, std::forward<Lambda>(l));
+        decode_parts<kParallelDecoding>(node_data, node, edge, degree, std::forward<Lambda>(l));
         return;
       }
     }
@@ -536,7 +554,7 @@ private:
     );
   }
 
-  template <bool parallel, typename Lambda>
+  template <bool kParallelDecoding, typename Lambda>
   void decode_parts(
       const std::uint8_t *data,
       const NodeID node,
@@ -567,7 +585,7 @@ private:
       );
     };
 
-    if constexpr (parallel) {
+    if constexpr (kParallelDecoding) {
       tbb::parallel_for<NodeID>(0, part_count, std::forward<decltype(iterate_part)>(iterate_part));
     } else {
       for (NodeID part = 0; part < part_count; ++part) {
@@ -704,132 +722,6 @@ private:
 
     return false;
   }
-};
-
-/*!
- * A builder that constructs compressed graphs in a single read pass. It does this by
- * overcommiting memory for the compressed edge array.
- */
-class CompressedGraphBuilder {
-public:
-  using NodeID = CompressedGraph::NodeID;
-  using NodeWeight = CompressedGraph::NodeWeight;
-  using EdgeID = CompressedGraph::EdgeID;
-  using EdgeWeight = CompressedGraph::EdgeWeight;
-  using SignedID = CompressedGraph::SignedID;
-
-  /*!
-   * Gives an upper limit for the size of the compressed edge array in bytes.
-   *
-   * @param node_count The number of nodes in the graph.
-   * @param edge_count The number of edges in the graph.
-   * @return The max size in bytes of the compressed edge array.
-   */
-  [[nodiscard]] static std::size_t
-  compressed_edge_array_max_size(const NodeID node_count, const EdgeID edge_count);
-
-  /*!
-   * Compresses a graph in compressed sparse row format.
-   *
-   * @param graph The graph to compress.
-   * @return The compressed input graph.
-   */
-  static CompressedGraph compress(const CSRGraph &graph);
-
-  /*!
-   * Initializes the builder by allocating memory for the various arrays.
-   *
-   * @param node_count The number of nodes of the graph to compress.
-   * @param edge_count The number of edges of the graph to compress.
-   * @param store_node_weights Whether node weights are stored.
-   * @param store_edge_weights Whether edge weights are stored.
-   * @param sorted Whether the nodes to add are stored in degree-bucket order.
-   */
-  void init(
-      const NodeID node_count,
-      const EdgeID edge_count,
-      const bool store_node_weights,
-      const bool store_edge_weights,
-      const bool sorted
-  );
-
-  /*!
-   * Adds a node to the compressed graph, modifying the neighbourhood vector.
-   *
-   * @param node The node to add.
-   * @param neighbourhood The neighbourhood of the node to add, which consits of the adjacent
-   * nodes and the corresponding edge weights.
-   */
-  void add_node(const NodeID node, std::vector<std::pair<NodeID, EdgeWeight>> &neighbourhood);
-
-  /*!
-   * Sets the weight of a node.
-   *
-   * @param node The node whose weight is to be set.
-   * @param weight The weight to be set.
-   */
-  void set_node_weight(const NodeID node, const NodeWeight weight);
-
-  /*!
-   * Builds the compressed graph. The builder must then be reinitialized in order to compress
-   * another graph.
-   *
-   * @return The compressed graph that has been build.
-   */
-  CompressedGraph build();
-
-  /*!
-   * Returns the used memory of the compressed edge array.
-   *
-   * @return The used memory of the compressed edge array.
-   */
-  [[nodiscard]] std::size_t edge_array_size() const;
-
-  /*!
-   * Returns the total weight of the nodes that have been added.
-   *
-   * @return The total weight of the nodes that have been added.
-   */
-  [[nodiscard]] std::int64_t total_node_weight() const;
-
-  /*!
-   * Returns the total weight of the edges that have been added.
-   *
-   * @return The total weight of the edges that have been added.
-   */
-  [[nodiscard]] std::int64_t total_edge_weight() const;
-
-private:
-  CompactStaticArray<EdgeID> _nodes;
-  StaticArray<NodeWeight> _node_weights;
-  StaticArray<EdgeWeight> _edge_weights;
-
-  bool _store_node_weights;
-  bool _store_edge_weights;
-  std::int64_t _total_node_weight;
-  std::int64_t _total_edge_weight;
-
-  bool _sorted;
-
-  std::uint8_t *_compressed_edges;
-  std::uint8_t *_cur_compressed_edges;
-
-  EdgeID _edge_count;
-  NodeID _max_degree;
-
-  bool _first_isolated_node;
-  EdgeID _effective_last_edge_offset;
-
-  std::size_t _num_high_degree_nodes;
-  std::size_t _num_high_degree_parts;
-  std::size_t _num_interval_nodes;
-  std::size_t _num_intervals;
-
-  void add_edges(
-      const NodeID node,
-      std::uint8_t *marked_byte,
-      std::vector<std::pair<NodeID, EdgeWeight>> &neighbourhood
-  );
 };
 
 } // namespace kaminpar::shm

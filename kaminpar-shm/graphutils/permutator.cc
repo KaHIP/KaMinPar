@@ -16,7 +16,6 @@
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/parallel/aligned_element.h"
-#include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::graph {
 
@@ -41,9 +40,7 @@ NodePermutations<StaticArray> rearrange_graph(
   // the graph data structure this way, we can just cut them off without doing
   // further work
   START_HEAP_PROFILER("Rearrange input graph");
-  START_TIMER("Sort nodes by degree bucket");
-  NodePermutations<StaticArray> permutations = sort_by_degree_buckets<>(nodes);
-  STOP_TIMER();
+  NodePermutations<StaticArray> permutations = sort_by_degree_buckets(nodes);
   START_TIMER("Rearrange input graph");
   build_permuted_graph(
       nodes,
@@ -235,7 +232,7 @@ void reorder_edges_by_compression(CSRGraph &graph) {
     NodeID *edges_begin = raw_edges.data() + raw_nodes[node];
     NodeID *edges_end = raw_edges.data() + raw_nodes[node + 1];
 
-    const bool store_edge_weights = graph.edge_weighted();
+    const bool store_edge_weights = graph.is_edge_weighted();
     EdgeWeight *edge_weights =
         store_edge_weights ? (raw_edge_weights.data() + raw_nodes[node]) : nullptr;
 

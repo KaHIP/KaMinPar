@@ -10,7 +10,6 @@
 
 #include "kaminpar-dist/algorithms/greedy_node_coloring.h"
 #include "kaminpar-dist/context.h"
-#include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/refinement/refiner.h"
 
@@ -35,9 +34,6 @@ private:
 };
 
 class ColoredLPRefiner : public GlobalRefiner {
-  SET_STATISTICS_FROM_GLOBAL();
-  SET_DEBUG(false);
-
   using BlockGainsContainer = typename parallel::vector_ets<EdgeWeight>::Container;
 
   struct MoveCandidate {

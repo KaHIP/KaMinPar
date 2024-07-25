@@ -29,8 +29,8 @@ public:
   // Optional options
   //
 
-  virtual void set_max_cluster_weight(const NodeWeight /* weight */) {}
-  virtual void set_desired_cluster_count(const NodeID /* count */) {}
+  virtual void set_max_cluster_weight(NodeWeight /* weight */) {}
+  virtual void set_desired_cluster_count(NodeID /* count */) {}
 
   //
   // Clustering function

@@ -11,7 +11,7 @@
 
 #include "kaminpar-common/math.h"
 
-namespace kaminpar::shm::partitioning::helper {
+namespace kaminpar::shm::partitioning {
 namespace {
 SET_DEBUG(false);
 SET_STATISTICS_FROM_GLOBAL();
@@ -51,9 +51,13 @@ PartitionedGraph bipartition(
     const Graph *graph,
     const BlockID final_k,
     const Context &input_ctx,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool
+    InitialBipartitionerWorkerPool &initial_bipartitioner_pool,
+    const bool partition_lifespan,
+    BipartitionTimingInfo *timings
 ) {
-  const auto *csr = dynamic_cast<const CSRGraph *>(graph->underlying_graph());
+  timer::LocalTimer timer;
+
+  const CSRGraph *csr = dynamic_cast<const CSRGraph *>(graph->underlying_graph());
 
   // If we work with something other than a CSRGraph, construct a CSR copy to call the initial
   // partitioning code
@@ -71,11 +75,36 @@ PartitionedGraph bipartition(
     csr = csr_cpy.get();
   }
 
-  InitialPartitioner partitioner(*csr, input_ctx, final_k, ip_m_ctx_pool.local().get());
-  auto bipart = partitioner.partition().take_raw_partition();
-  ip_m_ctx_pool.local().put(partitioner.free());
+  timer.reset();
+  auto bipartition = [&] {
+    InitialMultilevelBipartitioner bipartitioner = initial_bipartitioner_pool.get();
+    bipartitioner.init(*csr, final_k);
+    auto bipartition =
+        bipartitioner.partition(timings ? &(timings->ip_timings) : nullptr).take_raw_partition();
 
-  return PartitionedGraph{PartitionedGraph::seq{}, *graph, 2, std::move(bipart)};
+    if (partition_lifespan) {
+      StaticArray<BlockID> owned_bipartition(bipartition.size());
+      std::copy(bipartition.begin(), bipartition.end(), owned_bipartition.begin());
+
+      initial_bipartitioner_pool.put(std::move(bipartitioner));
+
+      return owned_bipartition;
+    } else {
+      initial_bipartitioner_pool.put(std::move(bipartitioner));
+      return bipartition;
+    }
+  }();
+  if (timings != nullptr) {
+    timings->bipartitioner_ms += timer.elapsed();
+  }
+
+  timer.reset();
+  PartitionedGraph p_graph(PartitionedGraph::seq{}, *graph, 2, std::move(bipartition));
+  if (timings != nullptr) {
+    timings->graph_init_ms += timer.elapsed();
+  }
+
+  return p_graph;
 }
 
 void extend_partition_recursive(
@@ -87,18 +116,25 @@ void extend_partition_recursive(
     const Context &input_ctx,
     graph::SubgraphMemory &subgraph_memory,
     const graph::SubgraphMemoryStartPosition position,
-    TemporaryGraphExtractionBufferPool &extraction_pool,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool
+    TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
+    InitialBipartitionerWorkerPool &bipartitioner_pool,
+    BipartitionTimingInfo *timings
 ) {
   KASSERT(k > 1u);
 
-  PartitionedGraph p_graph = bipartition(&graph, final_k, input_ctx, ip_m_ctx_pool);
+  PartitionedGraph p_graph =
+      bipartition(&graph, final_k, input_ctx, bipartitioner_pool, false, timings);
 
+  timer::LocalTimer timer;
+
+  timer.reset();
   std::array<BlockID, 2> final_ks{0, 0};
   std::array<BlockID, 2> ks{0, 0};
   std::tie(final_ks[0], final_ks[1]) = math::split_integral(final_k);
   std::tie(ks[0], ks[1]) = math::split_integral(k);
   std::array<BlockID, 2> b{b0, b0 + ks[0]};
+  if (timings != nullptr)
+    timings->misc_ms += timer.elapsed();
 
   DBG << "bipartitioning graph with weight " << graph.total_node_weight() << " = "
       << p_graph.block_weight(0) << " + " << p_graph.block_weight(1) << " for final k " << final_k
@@ -114,37 +150,44 @@ void extend_partition_recursive(
 
   // Copy p_graph to partition -> replace b0 with b0 or b1
   {
+    timer.reset();
     NodeID node = 0;
     for (BlockID &block : partition) {
       block = (block == b0) ? b[p_graph.block(node++)] : block;
     }
     KASSERT(node == p_graph.n());
+    if (timings != nullptr)
+      timings->copy_ms += timer.elapsed();
   }
 
   if (k > 2) {
+    timer.reset();
     auto extraction = extract_subgraphs_sequential(
-        p_graph, final_ks, position, subgraph_memory, extraction_pool.local()
+        p_graph, final_ks, position, subgraph_memory, tmp_extraction_mem_pool_ets.local()
     );
     const auto &subgraphs = extraction.subgraphs;
     const auto &positions = extraction.positions;
+    if (timings != nullptr)
+      timings->extract_ms += timer.elapsed();
 
     for (const std::size_t i : {0, 1}) {
-      if (ks[i] > 1) {
-        DBG << "... recursive";
-        extend_partition_recursive(
-            subgraphs[i],
-            partition,
-            b[i],
-            ks[i],
-            final_ks[i],
-            input_ctx,
-            subgraph_memory,
-            positions[i],
-            extraction_pool,
-            ip_m_ctx_pool
-        );
-        DBG << "--> done";
+      if (ks[i] <= 1) {
+        continue;
       }
+
+      extend_partition_recursive(
+          subgraphs[i],
+          partition,
+          b[i],
+          ks[i],
+          final_ks[i],
+          input_ctx,
+          subgraph_memory,
+          positions[i],
+          tmp_extraction_mem_pool_ets,
+          bipartitioner_pool,
+          timings
+      );
     }
   }
 }
@@ -155,8 +198,8 @@ void extend_partition(
     const Context &input_ctx,  // stores input k
     PartitionContext &current_p_ctx,
     graph::SubgraphMemory &subgraph_memory,
-    TemporaryGraphExtractionBufferPool &extraction_pool,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
+    TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
+    InitialBipartitionerWorkerPool &bipartitioner_pool,
     const int num_active_threads
 ) {
   if (input_ctx.partitioning.min_consecutive_seq_bipartitioning_levels > 0) {
@@ -177,8 +220,8 @@ void extend_partition(
           input_ctx,
           current_p_ctx,
           subgraph_memory,
-          extraction_pool,
-          ip_m_ctx_pool,
+          tmp_extraction_mem_pool_ets,
+          bipartitioner_pool,
           num_active_threads
       );
     }
@@ -206,7 +249,11 @@ void extend_partition(
 
   START_HEAP_PROFILER("Bipartitioning");
   START_TIMER("Bipartitioning");
+  tbb::enumerable_thread_specific<BipartitionTimingInfo> timings_ets;
+
   tbb::parallel_for<BlockID>(0, subgraphs.size(), [&](const BlockID b) {
+    BipartitionTimingInfo &timing = timings_ets.local();
+
     const auto &subgraph = subgraphs[b];
     const BlockID final_kb = compute_final_k(b, p_graph.k(), input_ctx.partition.k);
 
@@ -227,8 +274,9 @@ void extend_partition(
           input_ctx,
           subgraph_memory,
           positions[b],
-          extraction_pool,
-          ip_m_ctx_pool
+          tmp_extraction_mem_pool_ets,
+          bipartitioner_pool,
+          &timing
       );
     }
   });
@@ -243,6 +291,44 @@ void extend_partition(
   };
   STOP_HEAP_PROFILER();
 
+  auto timings = timings_ets.combine([](BipartitionTimingInfo &a, const BipartitionTimingInfo &b) {
+    return a += b;
+  });
+
+  if (false) {
+    LOG << "bipartitioner_init_ms: "
+        << static_cast<std::uint64_t>(timings.bipartitioner_init_ms / 1e6);
+    LOG << "bipartitioner_ms:      " << static_cast<std::uint64_t>(timings.bipartitioner_ms / 1e6);
+    LOG << "  total_ms:            "
+        << static_cast<std::uint64_t>(timings.ip_timings.total_ms / 1e6);
+    LOG << "  misc_ms:             "
+        << static_cast<std::uint64_t>(timings.ip_timings.misc_ms / 1e6);
+    LOG << "  coarsening_ms:       "
+        << static_cast<std::uint64_t>(timings.ip_timings.coarsening_ms / 1e6);
+    LOG << "    misc_ms:           "
+        << static_cast<std::uint64_t>(timings.ip_timings.coarsening_misc_ms / 1e6);
+    LOG << "    call_ms:           "
+        << static_cast<std::uint64_t>(timings.ip_timings.coarsening_call_ms / 1e6);
+    LOG << "      alloc_ms:        "
+        << static_cast<std::uint64_t>(timings.ip_timings.coarsening.alloc_ms / 1e6);
+    LOG << "      contract_ms:     "
+        << static_cast<std::uint64_t>(timings.ip_timings.coarsening.contract_ms / 1e6);
+    LOG << "      lp_ms:           "
+        << static_cast<std::uint64_t>(timings.ip_timings.coarsening.lp_ms / 1e6);
+    LOG << "      interleaved1:    "
+        << static_cast<std::uint64_t>(timings.ip_timings.coarsening.interleaved1_ms / 1e6);
+    LOG << "      interleaved2:    "
+        << static_cast<std::uint64_t>(timings.ip_timings.coarsening.interleaved2_ms / 1e6);
+    LOG << "  bipartitioning_ms:   "
+        << static_cast<std::uint64_t>(timings.ip_timings.bipartitioning_ms / 1e6);
+    LOG << "  uncoarsening_ms:     "
+        << static_cast<std::uint64_t>(timings.ip_timings.uncoarsening_ms / 1e6);
+    LOG << "graph_init_ms:         " << static_cast<std::uint64_t>(timings.graph_init_ms / 1e6);
+    LOG << "extract_ms:            " << static_cast<std::uint64_t>(timings.extract_ms / 1e6);
+    LOG << "copy_ms:               " << static_cast<std::uint64_t>(timings.copy_ms / 1e6);
+    LOG << "misc_ms:               " << static_cast<std::uint64_t>(timings.misc_ms / 1e6);
+  }
+
   update_partition_context(current_p_ctx, p_graph, input_ctx.partition.k);
 
   KASSERT(p_graph.k() == k_prime);
@@ -254,8 +340,8 @@ void extend_partition(
     const BlockID k_prime,
     const Context &input_ctx,
     PartitionContext &current_p_ctx,
-    TemporaryGraphExtractionBufferPool &extraction_pool,
-    GlobalInitialPartitionerMemoryPool &ip_m_ctx_pool,
+    TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
+    InitialBipartitionerWorkerPool &bipartitioner_pool,
     const int num_active_threads
 ) {
   graph::SubgraphMemory memory;
@@ -264,8 +350,8 @@ void extend_partition(
       p_graph.n(),
       input_ctx.partition.k,
       p_graph.m(),
-      p_graph.graph().node_weighted(),
-      p_graph.graph().edge_weighted()
+      p_graph.graph().is_node_weighted(),
+      p_graph.graph().is_edge_weighted()
   );
 
   extend_partition(
@@ -274,8 +360,8 @@ void extend_partition(
       input_ctx,
       current_p_ctx,
       memory,
-      extraction_pool,
-      ip_m_ctx_pool,
+      tmp_extraction_mem_pool_ets,
+      bipartitioner_pool,
       num_active_threads
   );
 }
@@ -293,48 +379,8 @@ bool coarsen_once(Coarsener *coarsener, const Graph *graph, PartitionContext &cu
 
   return shrunk;
 }
-
-BlockID compute_k_for_n(const NodeID n, const Context &input_ctx) {
-  // Catch special case where log is negative:
-  if (n < 2 * input_ctx.coarsening.contraction_limit) {
-    return 2;
-  }
-
-  const BlockID k_prime = 1 << math::ceil_log2(n / input_ctx.coarsening.contraction_limit);
-  return std::clamp<BlockID>(k_prime, 2, input_ctx.partition.k);
-}
-
-std::size_t compute_num_copies(
-    const Context &input_ctx, const NodeID n, const bool converged, const std::size_t num_threads
-) {
-  KASSERT(num_threads > 0u);
-
-  // Sequential base case;
-  const NodeID C = input_ctx.coarsening.contraction_limit;
-  if (converged || n <= 2 * C) {
-    return num_threads;
-  }
-
-  // Parallel case:
-  const std::size_t f = 1 << static_cast<std::size_t>(std::ceil(std::log2(1.0 * n / C)));
-
-  // Continue with coarsening if the graph is still too large ...
-  if (f > num_threads) {
-    return 1;
-  }
-
-  // ... otherwise, split into groups:
-  return num_threads / f;
-}
-
 std::size_t
 select_best(const ScalableVector<PartitionedGraph> &p_graphs, const PartitionContext &p_ctx) {
   return select_best(p_graphs.begin(), p_graphs.end(), p_ctx);
 }
-
-int compute_num_threads_for_parallel_ip(const Context &input_ctx) {
-  return math::floor2(static_cast<unsigned int>(
-      1.0 * input_ctx.parallel.num_threads * input_ctx.partitioning.deep_initial_partitioning_load
-  ));
-}
-} // namespace kaminpar::shm::partitioning::helper
+} // namespace kaminpar::shm::partitioning

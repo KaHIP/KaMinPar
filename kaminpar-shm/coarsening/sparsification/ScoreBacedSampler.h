@@ -17,6 +17,11 @@ template <typename Score> class IdentityReweihingFunction : public ReweighingFun
     return old_weight;
   }
 };
+template <typename Score> class WeightDiviedByScore : public ReweighingFunction<Score> {
+  EdgeWeight new_weight(EdgeWeight old_weight, Score score) override {
+    return old_weight / score;
+  }
+};
 template <typename Score> class ScoreBacedSampler : public Sampler {
 public:
   ScoreBacedSampler(

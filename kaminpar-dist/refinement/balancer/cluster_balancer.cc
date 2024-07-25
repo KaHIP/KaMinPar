@@ -10,10 +10,10 @@
 #include <iomanip>
 #include <sstream>
 
-#include "kaminpar-mpi/binary_reduction_tree.h"
 #include "kaminpar-mpi/sparse_alltoall.h"
 #include "kaminpar-mpi/wrapper.h"
 
+#include "kaminpar-dist/logger.h"
 #include "kaminpar-dist/refinement/balancer/clusters.h"
 #include "kaminpar-dist/refinement/balancer/reductions.h"
 
@@ -778,7 +778,7 @@ void ClusterBalancer::perform_moves(
       move_sendbufs,
       [&](const auto recvbuf, const PEID owner) {
         for (const auto &[their_lnode, to] : recvbuf) {
-          const NodeID lnode = _p_graph.map_foreign_node(their_lnode, owner);
+          const NodeID lnode = _p_graph.map_remote_node(their_lnode, owner);
           _clusters.move_ghost_node(lnode, _p_graph.block(lnode), to, [&](const NodeID cluster) {
             update_adjacent_cluster(cluster);
           });

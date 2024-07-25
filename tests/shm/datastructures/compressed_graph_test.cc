@@ -5,6 +5,7 @@
 #include "tests/shm/graph_factories.h"
 
 #include "kaminpar-shm/datastructures/compressed_graph.h"
+#include "kaminpar-shm/datastructures/compressed_graph_builder.h"
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/graphutils/permutator.h"
 
@@ -182,7 +183,7 @@ TEST(CompressedGraphTest, compressed_graph_neighbors_operation) {
   TEST_ON_ALL_GRAPHS(test_compressed_graph_neighbors_operation<true>);
 }
 
-static void test_compressed_graph_neighbors_lambda_max_operation(Graph graph) {
+static void test_compressed_graph_neighbors_limit_operation(Graph graph) {
   auto &csr_graph = *dynamic_cast<CSRGraph *>(graph.underlying_graph());
   const auto compressed_graph = CompressedGraphBuilder::compress(csr_graph);
 
@@ -193,7 +194,7 @@ static void test_compressed_graph_neighbors_lambda_max_operation(Graph graph) {
   std::vector<EdgeID> compressed_graph_incident_edges;
   std::vector<NodeID> compressed_graph_adjacent_node;
   for (const NodeID node : graph.nodes()) {
-    const NodeID max_neighbor_count = graph.degree(node) / 2;
+    const NodeID max_neighbor_count = std::max<NodeID>(1, graph.degree(node) / 2);
 
     csr_graph.neighbors(
         node,
@@ -224,8 +225,8 @@ static void test_compressed_graph_neighbors_lambda_max_operation(Graph graph) {
   }
 }
 
-TEST(CompressedGraphTest, compressed_graph_neighbors_lambda_max_operation) {
-  // TEST_ON_ALL_GRAPHS(test_compressed_graph_neighbors_lambda_max_operation);
+TEST(CompressedGraphTest, compressed_graph_neighbors_limit_operation) {
+  TEST_ON_ALL_GRAPHS(test_compressed_graph_neighbors_limit_operation);
 }
 
 static void test_compressed_graph_pfor_neighbors_operation(const Graph &graph) {

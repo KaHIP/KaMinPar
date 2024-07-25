@@ -5,6 +5,7 @@
 #include "kaminpar-shm/partitioning/partition_utils.h"
 
 using namespace kaminpar::shm;
+using namespace kaminpar::shm::partitioning;
 
 namespace {
 TEST(PartitionUtilsTest, TwoBlocks) {

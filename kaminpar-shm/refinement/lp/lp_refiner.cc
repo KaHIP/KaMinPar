@@ -9,7 +9,7 @@
 
 #include "kaminpar-shm/label_propagation.h"
 
-#include "kaminpar-common/datastructures/sparse_map.h"
+#include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/timer.h"
 
@@ -22,7 +22,7 @@ namespace kaminpar::shm {
 struct LPRefinerConfig : public LabelPropagationConfig {
   using ClusterID = BlockID;
   using ClusterWeight = BlockWeight;
-  using RatingMap = ::kaminpar::RatingMap<EdgeWeight, NodeID, SparseMap<NodeID, EdgeWeight>>;
+  using RatingMap = ::kaminpar::RatingMap<EdgeWeight, NodeID, rm_backyard::SparseMap>;
   static constexpr bool kUseHardWeightConstraint = true;
   static constexpr bool kReportEmptyClusters = false;
 };
@@ -32,6 +32,9 @@ class LPRefinerImpl final
     : public ChunkRandomLabelPropagation<LPRefinerImpl<Graph>, LPRefinerConfig, Graph> {
   using Base = ChunkRandomLabelPropagation<LPRefinerImpl<Graph>, LPRefinerConfig, Graph>;
   friend Base;
+
+  using Config = LPRefinerConfig;
+  using ClusterID = Config::ClusterID;
 
   static constexpr std::size_t kInfiniteIterations = std::numeric_limits<std::size_t>::max();
 
@@ -44,7 +47,7 @@ public:
     Base::preinitialize(ctx.partition.n, ctx.partition.k);
     Base::set_max_degree(_r_ctx.lp.large_degree_threshold);
     Base::set_max_num_neighbors(_r_ctx.lp.max_num_neighbors);
-    Base::set_use_two_phases(_r_ctx.lp.use_two_phases);
+    Base::set_implementation(_r_ctx.lp.impl);
     Base::set_second_phase_selection_strategy(_r_ctx.lp.second_phase_selection_strategy);
     Base::set_second_phase_aggregation_strategy(_r_ctx.lp.second_phase_aggregation_strategy);
     Base::set_relabel_before_second_phase(false);
@@ -64,6 +67,8 @@ public:
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
     KASSERT(_graph == p_graph.graph().underlying_graph());
     KASSERT(p_graph.k() <= p_ctx.k);
+    SCOPED_HEAP_PROFILER("Label Propagation");
+
     _p_graph = &p_graph;
     _p_ctx = &p_ctx;
 
@@ -110,6 +115,10 @@ public:
       const StaticArray<BlockID> & /* mapping */, const BlockID /* num_new_clusters */
   ) {}
 
+  [[nodiscard]] bool cluster_weights_require_reassignment() const {
+    return false;
+  }
+
   void init_cluster(const NodeID /* u */, const BlockID /* b */) {}
 
   void init_cluster_weight(const BlockID /* b */, const BlockWeight /* weight */) {}
@@ -127,22 +136,80 @@ public:
     return _p_ctx->block_weights.max(block);
   }
 
-  bool accept_cluster(const Base::ClusterSelectionState &state) {
-    static_assert(std::is_signed_v<NodeWeight>);
+  template <typename RatingMap>
+  [[nodiscard]] ClusterID select_best_cluster(
+      const bool store_favored_cluster,
+      Base::ClusterSelectionState &state,
+      RatingMap &map,
+      ScalableVector<ClusterID> &tie_breaking_clusters
+  ) {
+    ClusterID favored_cluster = state.initial_cluster;
 
-    const NodeWeight current_max_weight = max_cluster_weight(state.current_cluster);
-    const NodeWeight best_overload =
-        state.best_cluster_weight - max_cluster_weight(state.best_cluster);
-    const NodeWeight current_overload = state.current_cluster_weight - current_max_weight;
-    const NodeWeight initial_overload =
-        state.initial_cluster_weight - max_cluster_weight(state.initial_cluster);
+    const EdgeWeight gain_delta = (Config::kUseActualGain) ? map[state.initial_cluster] : 0;
+    for (const auto [cluster, rating] : map.entries()) {
+      state.current_cluster = cluster;
+      state.current_gain = rating - gain_delta;
+      state.current_cluster_weight = cluster_weight(cluster);
 
-    return (state.current_gain > state.best_gain ||
-            (state.current_gain == state.best_gain &&
-             (current_overload < best_overload ||
-              (current_overload == best_overload && state.local_rand.random_bool())))) &&
-           (state.current_cluster_weight + state.u_weight < current_max_weight ||
-            current_overload < initial_overload || state.current_cluster == state.initial_cluster);
+      if (state.current_gain > state.best_gain) {
+        if (store_favored_cluster) {
+          favored_cluster = state.current_cluster;
+        }
+
+        const NodeWeight current_max_weight = max_cluster_weight(state.current_cluster);
+        const NodeWeight current_overload = state.current_cluster_weight - current_max_weight;
+        const NodeWeight initial_overload =
+            state.initial_cluster_weight - max_cluster_weight(state.initial_cluster);
+
+        if (state.current_cluster_weight + state.u_weight < current_max_weight ||
+            current_overload < initial_overload || state.current_cluster == state.initial_cluster) {
+          tie_breaking_clusters.clear();
+          tie_breaking_clusters.push_back(state.current_cluster);
+
+          state.best_cluster = state.current_cluster;
+          state.best_cluster_weight = state.current_cluster_weight;
+          state.best_gain = state.current_gain;
+        }
+      } else if (state.current_gain == state.best_gain) {
+        const NodeWeight current_max_weight = max_cluster_weight(state.current_cluster);
+        const NodeWeight best_overload =
+            state.best_cluster_weight - max_cluster_weight(state.best_cluster);
+        const NodeWeight current_overload = state.current_cluster_weight - current_max_weight;
+
+        if (current_overload < best_overload) {
+          const NodeWeight initial_overload =
+              state.initial_cluster_weight - max_cluster_weight(state.initial_cluster);
+
+          if (state.current_cluster_weight + state.u_weight < current_max_weight ||
+              current_overload < initial_overload ||
+              state.current_cluster == state.initial_cluster) {
+            tie_breaking_clusters.clear();
+            tie_breaking_clusters.push_back(state.current_cluster);
+
+            state.best_cluster = state.current_cluster;
+            state.best_cluster_weight = state.current_cluster_weight;
+          }
+        } else if (current_overload == best_overload) {
+          const NodeWeight initial_overload =
+              state.initial_cluster_weight - max_cluster_weight(state.initial_cluster);
+
+          if (state.current_cluster_weight + state.u_weight < current_max_weight ||
+              current_overload < initial_overload ||
+              state.current_cluster == state.initial_cluster) {
+            tie_breaking_clusters.push_back(state.current_cluster);
+          }
+        }
+      }
+    }
+
+    if (tie_breaking_clusters.size() > 1) {
+      const ClusterID index = state.local_rand.random_index(0, tie_breaking_clusters.size());
+      const ClusterID best_cluster = tie_breaking_clusters[index];
+      state.best_cluster = best_cluster;
+    }
+
+    tie_breaking_clusters.clear();
+    return favored_cluster;
   }
 
   const Graph *_graph = nullptr;

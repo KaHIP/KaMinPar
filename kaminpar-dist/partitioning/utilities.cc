@@ -10,6 +10,7 @@
 #include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
+#include "kaminpar-dist/logger.h"
 #include "kaminpar-dist/metrics.h"
 #include "kaminpar-dist/timer.h"
 

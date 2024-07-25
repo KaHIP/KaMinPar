@@ -26,6 +26,7 @@ std::ostream &operator<<(std::ostream &out, CoarseningAlgorithm algorithm);
 std::unordered_map<std::string, CoarseningAlgorithm> get_coarsening_algorithms();
 
 std::unordered_map<std::string, SparsificationAlgorithm> get_sparsification_algorithms();
+std::unordered_map<std::string, ScoreFunctionSection> get_score_function();
 std::unordered_map<std::string, SparsificationTargetSelection>
 get_sparsification_target_selection();
 
@@ -42,6 +43,10 @@ std::ostream &operator<<(std::ostream &out, RefinementAlgorithm algorithm);
 std::unordered_map<std::string, ClusterWeightsStructure> get_cluster_weight_structures();
 
 std::ostream &operator<<(std::ostream &out, const ClusterWeightsStructure structure);
+
+std::unordered_map<std::string, LabelPropagationImplementation> get_lp_implementations();
+
+std::ostream &operator<<(std::ostream &out, const LabelPropagationImplementation impl);
 
 std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorithms();
 

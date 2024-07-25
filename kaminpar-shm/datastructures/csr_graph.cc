@@ -153,7 +153,7 @@ bool validate_graph(
 
 CSRGraph sort_neighbors(CSRGraph graph) {
   const bool sorted = graph.sorted();
-  const bool edge_weighted = graph.edge_weighted();
+  const bool edge_weighted = graph.is_edge_weighted();
 
   StaticArray<EdgeID> nodes = graph.take_raw_nodes();
   StaticArray<NodeID> edges = graph.take_raw_edges();

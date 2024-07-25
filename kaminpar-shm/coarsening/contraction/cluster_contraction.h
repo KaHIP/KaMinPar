@@ -20,7 +20,7 @@ class CoarseGraph {
 public:
   virtual ~CoarseGraph() = default;
 
-  virtual const Graph &get() const = 0;
+  [[nodiscard]] virtual const Graph &get() const = 0;
   virtual Graph &get() = 0;
 
   virtual void project(const StaticArray<BlockID> &array, StaticArray<BlockID> &onto) = 0;

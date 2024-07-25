@@ -18,11 +18,10 @@
 #include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/timer.h"
 
-#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/cache_aligned_vector.h"
 #include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/datastructures/noinit_vector.h"
-#include "kaminpar-common/parallel/aligned_element.h"
+#include "kaminpar-common/logger.h"
 
 #define SPARSE_ALLTOALL_NOFILTER                                                                   \
   [](NodeID) {                                                                                     \

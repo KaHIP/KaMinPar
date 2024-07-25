@@ -1,38 +1,51 @@
 /*******************************************************************************
- * @file:   seed_node_utils.h
+ * Utility functions to find far-away nodes for BFS initialization.
  *
+ * @file:   seed_node_utils.h
  * @author: Daniel Seemaier
  * @date:   21.09.21
- * @brief:  Algorithms to find seed nodes for initial partitioner based on
- * graph growing.
  ******************************************************************************/
 #pragma once
 
 #include <utility>
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/datastructures/queue.h"
 
-namespace kaminpar::shm::ip {
+namespace kaminpar::shm {
 /*!
- * Fast heuristic for finding two nodes with large distance: selects a random
- * node (if seed_node is not specified), performs a BFS and selects the last
- * node processed as pseudo peripheral node. If the graph is disconnected, we
- * select a node in another connected component.
+ * Heuristic to find "far away" nodes for BFS initialization. Starts at a random seed
+ * node and performs a BFS to find the furthest away node; repeats the process multiple
+ * times for a higher chance at finding a good seed node.
  *
- * @tparam seed_node If specified, start from this node instead of a random one
- * (for unit tests).
- * @param graph
- * @param num_iterations Repeat the graphutils this many times for a chance of
+ * Allocates helper data structures with size O(n). Use the explicit version of this
+ * function to avoid the extra allocations.
+ *
+ * @param graph the graph to search in.
+ * @param num_iterations repeat the algorthm this many times for a chance of
  * finding a pair of nodes with even larger distance.
- * @return Pair of nodes with large distance between them.
+ *
+ * @return Pair of hopefully far away nodes.
  */
-std::pair<NodeID, NodeID>
-find_far_away_nodes(const CSRGraph &graph, std::size_t num_iterations = 1);
+std::pair<NodeID, NodeID> find_far_away_nodes(const CSRGraph &graph, int num_iterations);
 
-std::pair<NodeID, NodeID> find_furthest_away_node(
-    const CSRGraph &graph, NodeID start_node, Queue<NodeID> &queue, Marker<> &marker
+/*!
+ * Heuristic to find "far away" nodes for BFS initialization. Starts at a random seed
+ * node and performs a BFS to find the furthest away node; repeats the process multiple
+ * times for a higher chance at finding a good seed node.
+ *
+ * @param graph the graph to search in.
+ * @param num_iterations repeat the algorthm this many times for a chance of
+ * finding a pair of nodes with even larger distance.
+ * @param queue a queue to use for BFS.
+ * @param marker a marker to use for BFS.
+ *
+ * @return Pair of hopefully far away nodes.
+ */
+std::pair<NodeID, NodeID> find_far_away_nodes(
+    const CSRGraph &graph, int num_iterations, Queue<NodeID> &queue, Marker<> &marker
 );
 } // namespace kaminpar::shm::ip

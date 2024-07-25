@@ -14,16 +14,20 @@
 
 #include <tbb/scalable_allocator.h>
 
-#if __has_include(<numa.h>)
+#if __has_include(<numa.h> )
 #include <numa.h>
 #endif // __has_include(<numa.h>)
 
+#include "kaminpar-shm/coarsening/sparsification/EffectiveResistanceScore.h"
+#include "kaminpar-shm/coarsening/sparsification/sparsification_utils.h"
 #include "kaminpar-shm/datastructures/graph.h"
 
 #include "kaminpar-common/environment.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/strutils.h"
+#include "kaminpar-common/timer.h"
 
+#include "apps/io/shm_input_validator.h"
 #include "apps/io/shm_io.h"
 
 using namespace kaminpar;
@@ -166,7 +170,7 @@ The output should be stored in a file and can be used by the -C,--config option.
 } // namespace
 
 int main(int argc, char *argv[]) {
-#if __has_include(<numa.h>)
+#if __has_include(<numa.h> )
   if (numa_available() >= 0) {
     numa_set_interleave_mask(numa_all_nodes_ptr);
   }
@@ -190,10 +194,16 @@ int main(int argc, char *argv[]) {
     std::exit(0);
   }
 
-  if (ctx.compression.enabled && ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
+  if (ctx.compression.enabled && app.graph_file_format == io::GraphFileFormat::METIS &&
+      ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
     std::cout << "The nodes of the compressed graph cannot be rearranged by degree buckets!"
               << std::endl;
     std::exit(0);
+  }
+
+  if (ctx.sparsification.algorithm == SparsificationAlgorithm::EFFECTIVE_RESISTANCE ||
+      ctx.sparsification.score_function == ScoreFunctionSection::EFFECTIVE_RESISTANCE) {
+    sparsification::EffectiveResistanceScore::init_julia();
   }
 
   // If available, use huge pages for large allocations
@@ -201,21 +211,7 @@ int main(int argc, char *argv[]) {
 
   ENABLE_HEAP_PROFILER();
 
-  // Read the input graph and allocate memory for the partition
-  START_HEAP_PROFILER("Input Graph Allocation");
-  Graph graph = io::read(
-      app.graph_filename,
-      app.graph_file_format,
-      ctx.compression.enabled,
-      ctx.compression.may_dismiss,
-      ctx.node_ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS,
-      app.validate
-  );
-  RECORD("partition") std::vector<BlockID> partition(graph.n());
-  RECORD_LOCAL_DATA_STRUCT("vector<BlockID>", partition.capacity() * sizeof(BlockID));
-  STOP_HEAP_PROFILER();
-
-  // Compute graph partition
+  // Setup the KaMinPar instance
   KaMinPar partitioner(app.num_threads, ctx);
   KaMinPar::reseed(app.seed);
 
@@ -240,6 +236,27 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  // Read the input graph and allocate memory for the partition
+  START_HEAP_PROFILER("Input Graph Allocation");
+  Graph graph = TIMED_SCOPE("Read input graph") {
+    return io::read(
+        app.graph_filename,
+        app.graph_file_format,
+        ctx.compression.enabled,
+        ctx.compression.may_dismiss,
+        ctx.node_ordering
+    );
+  };
+
+  if (app.validate) {
+    shm::validate_undirected_graph(graph);
+  }
+
+  RECORD("partition") std::vector<BlockID> partition(graph.n());
+  RECORD_LOCAL_DATA_STRUCT("vector<BlockID>", partition.capacity() * sizeof(BlockID));
+  STOP_HEAP_PROFILER();
+
+  // Compute graph partition
   partitioner.set_graph(std::move(graph));
   partitioner.compute_partition(app.k, partition.data());
 
@@ -249,6 +266,11 @@ int main(int argc, char *argv[]) {
   }
 
   DISABLE_HEAP_PROFILER();
+
+  if (ctx.sparsification.algorithm == SparsificationAlgorithm::EFFECTIVE_RESISTANCE ||
+      ctx.sparsification.score_function == ScoreFunctionSection::EFFECTIVE_RESISTANCE) {
+    sparsification::EffectiveResistanceScore::finalize_julia();
+  }
 
   return 0;
 }

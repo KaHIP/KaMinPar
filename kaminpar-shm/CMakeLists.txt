@@ -21,9 +21,17 @@ add_library(kaminpar_shm ${KAMINPAR_SHM_SOURCE_FILES}
         coarsening/sparsification/ScoreBacedSampler.h
         coarsening/sparsification/NetworKitScoreAdapter.cpp
         coarsening/sparsification/NetworKitScoreAdapter.h
-        coarsening/sparsification/EffectiveResistanceScore.cpp)
-target_include_directories(kaminpar_shm PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../"  ${JL_SHARE}/../../include/julia/)
-target_link_libraries(kaminpar_shm PUBLIC kaminpar_common networkit ${JL_SHARE}/../../lib/libjulia.so)
+        coarsening/sparsification/EffectiveResistanceScore.cpp
+        coarsening/sparsification/RandomWithReplacementSampler.h
+        coarsening/sparsification/IndexDistributionWithoutReplacement.h
+        coarsening/sparsification/IndexDistributionWithReplacement.h
+        coarsening/sparsification/RandomWithoutReplacementSampler.h
+        coarsening/sparsification/WeightedForestFireScore.hpp
+        coarsening/sparsification/WeightedForestFireScore.cpp
+        coarsening/sparsification/IndependentRandomSampler.h
+        coarsening/sparsification/DistributionDecorator.h)
+target_include_directories(kaminpar_shm PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../" ${JL_SHARE}/../../include/julia/)
+target_link_libraries(kaminpar_shm PUBLIC kaminpar_common Sparsehash::Sparsehash networkit ${JL_SHARE}/../../lib/libjulia.so)
 
 # If we can find Mt-KaHyPar, make it available as an option for refinement
 if (KAMINPAR_BUILD_WITH_MTKAHYPAR)

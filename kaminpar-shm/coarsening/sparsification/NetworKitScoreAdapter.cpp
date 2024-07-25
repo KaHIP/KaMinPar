@@ -5,18 +5,20 @@
 #include "NetworKitScoreAdapter.h"
 
 #include <networkit/graph/Graph.hpp>
+#include <networkit/sparsification/ForestFireScore.hpp>
+#include "WeightedForestFireScore.hpp"
 
 #include "networkit_utils.h"
 #include "sparsification_utils.h"
 
 namespace kaminpar::shm::sparsification {
-template <typename Score>
-StaticArray<Score> NetworKitScoreAdapter<Score>::scores(const CSRGraph &g) {
-  NetworKit::Graph nk_graph = networkit_utils::toNetworKitGraph(g);
-  nk_graph.indexEdges();
-  nk_graph.sortEdges();
+template <typename EdgeScore, typename Score>
+StaticArray<Score> NetworKitScoreAdapter<EdgeScore, Score>::scores(const CSRGraph &g) {
+  NetworKit::Graph *nk_graph = networkit_utils::toNetworKitGraph(g);
+  nk_graph->indexEdges();
+  nk_graph->sortEdges();
 
-  auto scorer = _curried_constructor(nk_graph);
+  auto scorer = _curried_constructor(*nk_graph);
   scorer.run();
   auto nk_scores = scorer.scores();
 
@@ -25,14 +27,17 @@ StaticArray<Score> NetworKitScoreAdapter<Score>::scores(const CSRGraph &g) {
   for (NodeID u : g.nodes()) {
     for (EdgeID i = 0; i < g.degree(u); i++) {
       EdgeID e = sorted_by_target[g.raw_nodes()[u] + i];
-      auto [v, nk_e] = nk_graph.getIthNeighborWithId(u, i);
+      auto [v, nk_e] = nk_graph->getIthNeighborWithId(u, i);
       KASSERT(g.edge_target(e) == v, "edge target does not match");
-      scores[e] = scores[nk_e];
+      scores[e] = nk_scores[nk_e];
     }
   }
 
+  delete (nk_graph);
+
   return scores;
 }
-template class NetworKitScoreAdapter<double>;
+template class NetworKitScoreAdapter<NetworKit::ForestFireScore, double>;
+template class NetworKitScoreAdapter<WeightedForestFireScore, double>;
 
 } // namespace kaminpar::shm::sparsification

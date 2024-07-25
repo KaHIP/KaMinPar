@@ -11,7 +11,9 @@
 #include <cmath>
 #include <iomanip>
 
-#include "kaminpar-cli/CLI11.h"
+#include "coarsening/sparsification/ThresholdSampler.h"
+
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/asserting_cast.h"
 #include "kaminpar-common/console_io.h"
@@ -75,8 +77,8 @@ std::unordered_map<std::string, SparsificationAlgorithm> get_sparsification_algo
   return {
       {"forest-fire", SparsificationAlgorithm::FOREST_FIRE},
       {"ff", SparsificationAlgorithm::FOREST_FIRE},
-      {"random", SparsificationAlgorithm::UNIFORM_RANDOM_SAMPLING},
-      {"rn", SparsificationAlgorithm::UNIFORM_RANDOM_SAMPLING},
+      {"uniform-random", SparsificationAlgorithm::UNIFORM_RANDOM_SAMPLING},
+      {"ur", SparsificationAlgorithm::UNIFORM_RANDOM_SAMPLING},
       {"k-neighbour", SparsificationAlgorithm::K_NEIGHBOUR},
       {"kn", SparsificationAlgorithm::K_NEIGHBOUR},
       {"k-neighbour-spanning-tree", SparsificationAlgorithm::K_NEIGHBOUR_SPANNING_TREE},
@@ -85,6 +87,26 @@ std::unordered_map<std::string, SparsificationAlgorithm> get_sparsification_algo
       {"wt", SparsificationAlgorithm::WEIGHT_THRESHOLD},
       {"effective-resistance", SparsificationAlgorithm::EFFECTIVE_RESISTANCE},
       {"er", SparsificationAlgorithm::EFFECTIVE_RESISTANCE},
+      {"random-with-replacement", SparsificationAlgorithm::RANDOM_WITH_REPLACEMENT},
+      {"rw/r", SparsificationAlgorithm::RANDOM_WITH_REPLACEMENT},
+      {"random-without-replacement", SparsificationAlgorithm::RANDOM_WITHOUT_REPLACEMENT},
+      {"rw/or", SparsificationAlgorithm::RANDOM_WITHOUT_REPLACEMENT},
+      {"independent-random", SparsificationAlgorithm::INDEPENDENT_RANDOM},
+      {"ir", SparsificationAlgorithm::INDEPENDENT_RANDOM},
+    {"threshold", SparsificationAlgorithm::THRESHOLD},
+    {"t", SparsificationAlgorithm::THRESHOLD},
+  };
+}
+std::unordered_map<std::string, ScoreFunctionSection> get_score_function() {
+  return {
+      {"weight", ScoreFunctionSection::WEIGHT},
+      {"w", ScoreFunctionSection::WEIGHT},
+      {"effective-resistance", ScoreFunctionSection::EFFECTIVE_RESISTANCE},
+      {"er", ScoreFunctionSection::EFFECTIVE_RESISTANCE},
+      {"forest-fire", ScoreFunctionSection::FOREST_FIRE},
+      {"ff", ScoreFunctionSection::FOREST_FIRE},
+      {"weighted-forest-fire", ScoreFunctionSection::WEIGHTED_FOREST_FIRE},
+      {"wff", ScoreFunctionSection::WEIGHTED_FOREST_FIRE},
   };
 }
 
@@ -167,6 +189,26 @@ std::ostream &operator<<(std::ostream &out, const ClusterWeightsStructure struct
     return out << "two-level vector";
   case ClusterWeightsStructure::INITIALLY_SMALL_VEC:
     return out << "initially small vector";
+  }
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, LabelPropagationImplementation> get_lp_implementations() {
+  return {
+      {"single-phase", LabelPropagationImplementation::SINGLE_PHASE},
+      {"two-phase", LabelPropagationImplementation::TWO_PHASE},
+      {"growing-hash-tables", LabelPropagationImplementation::GROWING_HASH_TABLES},
+  };
+}
+
+std::ostream &operator<<(std::ostream &out, const LabelPropagationImplementation impl) {
+  switch (impl) {
+  case LabelPropagationImplementation::SINGLE_PHASE:
+    return out << "single-phase";
+  case LabelPropagationImplementation::TWO_PHASE:
+    return out << "two-phase";
+  case LabelPropagationImplementation::GROWING_HASH_TABLES:
+    return out << "growing-hash-tables";
   }
   return out << "<invalid>";
 }
@@ -268,6 +310,7 @@ std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies() {
   return {
       {"sparse", GainCacheStrategy::SPARSE},
       {"dense", GainCacheStrategy::DENSE},
+      {"largek", GainCacheStrategy::LARGE_K},
       {"on-the-fly", GainCacheStrategy::ON_THE_FLY},
       {"hybrid", GainCacheStrategy::HYBRID},
       {"tracing", GainCacheStrategy::TRACING},
@@ -280,6 +323,8 @@ std::ostream &operator<<(std::ostream &out, const GainCacheStrategy strategy) {
     return out << "sparse";
   case GainCacheStrategy::DENSE:
     return out << "dense";
+  case GainCacheStrategy::LARGE_K:
+    return out << "largek";
   case GainCacheStrategy::ON_THE_FLY:
     return out << "on-the-fly";
   case GainCacheStrategy::HYBRID:
@@ -425,8 +470,8 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
       out << "  Interval Node Count:        " << c_ctx.num_interval_nodes << "\n";
       out << "  Interval Count:             " << c_ctx.num_intervals << "\n";
 
-      if (debug::kTrackVarintStats) {
-        const auto &stats = debug::varint_stats_global();
+      if (kaminpar::debug::kTrackVarintStats) {
+        const auto &stats = kaminpar::debug::varint_stats_global();
 
         const float avg_varint_len =
             (stats.varint_count == 0) ? 0 : (stats.varint_bytes / (float)stats.varint_count);
@@ -492,8 +537,6 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
   }
 
   out << "Contraction mode:             " << c_ctx.contraction.mode << '\n';
-  out << "  Mapping type:               "
-      << (c_ctx.contraction.use_compact_mapping ? "compact" : "normal") << '\n';
   if (c_ctx.contraction.mode == ContractionMode::BUFFERED) {
     out << "  Edge buffer fill fraction:  " << c_ctx.contraction.edge_buffer_fill_fraction << "\n";
   }
@@ -504,8 +547,8 @@ void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
   out << "    High degree threshold:    " << lp_ctx.large_degree_threshold << "\n";
   out << "    Max degree:               " << lp_ctx.max_num_neighbors << "\n";
   out << "    Cluster weights struct:   " << lp_ctx.cluster_weights_structure << "\n";
-  out << "    Use two phases:           " << (lp_ctx.use_two_phases ? "yes" : "no") << "\n";
-  if (lp_ctx.use_two_phases) {
+  out << "    Implementation:           " << lp_ctx.impl << "\n";
+  if (lp_ctx.impl == LabelPropagationImplementation::TWO_PHASE) {
     out << "      Selection strategy:     " << lp_ctx.second_phase_selection_strategy << '\n';
     out << "      Aggregation strategy:   " << lp_ctx.second_phase_aggregation_strategy << '\n';
     out << "      Relabel:                " << (lp_ctx.relabel_before_second_phase ? "yes" : "no")
@@ -518,7 +561,7 @@ void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
 
 void print(const InitialPartitioningContext &i_ctx, std::ostream &out) {
   out << "Adaptive algorithm selection: "
-      << (i_ctx.use_adaptive_bipartitioner_selection ? "yes" : "no") << "\n";
+      << (i_ctx.pool.use_adaptive_bipartitioner_selection ? "yes" : "no") << "\n";
 }
 
 void print(const RefinementContext &r_ctx, std::ostream &out) {
@@ -526,8 +569,8 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
   if (r_ctx.includes_algorithm(RefinementAlgorithm::LABEL_PROPAGATION)) {
     out << "Label propagation:\n";
     out << "  Number of iterations:       " << r_ctx.lp.num_iterations << "\n";
-    out << "  Uses two phases: " << (r_ctx.lp.use_two_phases ? "yes" : "no") << "\n";
-    if (r_ctx.lp.use_two_phases) {
+    out << "  Implementation:             " << r_ctx.lp.impl << "\n";
+    if (r_ctx.lp.impl == LabelPropagationImplementation::TWO_PHASE) {
       out << "    Selection strategy:       " << r_ctx.lp.second_phase_selection_strategy << '\n';
       out << "    Aggregation strategy:     " << r_ctx.lp.second_phase_aggregation_strategy << '\n';
     }
@@ -539,7 +582,7 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
         << "%]\n";
     out << "  Number of seed nodes:       " << r_ctx.kway_fm.num_seed_nodes << "\n";
     out << "  Locking strategies:         seed nodes: "
-        << (r_ctx.kway_fm.unlock_seed_nodes ? "unlock" : "lock") << ", locally moved nodes:"
+        << (r_ctx.kway_fm.unlock_seed_nodes ? "unlock" : "lock") << ", locally moved nodes: "
         << (r_ctx.kway_fm.unlock_locally_moved_nodes ? "unlock" : "lock") << "\n";
     out << "  Gain cache:                 " << r_ctx.kway_fm.gain_cache_strategy << "\n";
     if (r_ctx.kway_fm.gain_cache_strategy == GainCacheStrategy::HYBRID) {
@@ -552,11 +595,15 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
   }
   if (r_ctx.includes_algorithm(RefinementAlgorithm::JET)) {
     out << "Jet refinement:               " << RefinementAlgorithm::JET << "\n";
+    out << "  Number of rounds:           coarse " << r_ctx.jet.num_rounds_on_coarse_level
+        << ", fine " << r_ctx.jet.num_rounds_on_fine_level << "\n";
     out << "  Number of iterations:       max " << r_ctx.jet.num_iterations << ", or "
         << r_ctx.jet.num_fruitless_iterations << " fruitless (improvement < "
         << 100.0 * (1 - r_ctx.jet.fruitless_threshold) << "%)\n";
-    out << "  Penalty factors:            coarse " << r_ctx.jet.coarse_negative_gain_factor
-        << ", fine " << r_ctx.jet.fine_negative_gain_factor << "\n";
+    out << "  Gain temperature:           coarse [" << r_ctx.jet.initial_gain_temp_on_coarse_level
+        << ", " << r_ctx.jet.final_gain_temp_on_coarse_level << "], " << "fine ["
+        << r_ctx.jet.initial_gain_temp_on_fine_level << ", "
+        << r_ctx.jet.final_gain_temp_on_fine_level << "]\n";
     out << "  Balancing algorithm:        " << r_ctx.jet.balancing_algorithm << "\n";
   }
 }
@@ -597,8 +644,8 @@ void print(const Context &ctx, std::ostream &out) {
   out << "Execution mode:               " << ctx.parallel.num_threads << "\n";
   out << "Seed:                         " << Random::get_seed() << "\n";
   out << "Graph:                        " << ctx.debug.graph_name
-      << " [node ordering: " << ctx.node_ordering << "]"
-      << " [edge ordering: " << ctx.edge_ordering << "]\n";
+      << " [node ordering: " << ctx.node_ordering << "]" << " [edge ordering: " << ctx.edge_ordering
+      << "]\n";
   print(ctx.partition, out);
   cio::print_delimiter("Graph Compression", '-');
   print(ctx.compression, out);

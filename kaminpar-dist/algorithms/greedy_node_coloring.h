@@ -10,6 +10,8 @@
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
 
+#include "kaminpar-common/datastructures/noinit_vector.h"
+
 namespace kaminpar::dist {
 using ColorID = EdgeID;
 

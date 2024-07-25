@@ -6,7 +6,7 @@ StaticArray<EdgeID> sort_by_traget(const CSRGraph &g) {
   auto permutation = StaticArray<EdgeID>(g.m());
   for (auto e : g.edges())
     permutation[e] = e;
-  for (NodeID u : g.nodes()){
+  for (NodeID u : g.nodes()) {
     std::sort(
         permutation.begin() + g.raw_nodes()[u],
         permutation.begin() + g.raw_nodes()[u + 1],
@@ -29,6 +29,12 @@ void for_edges_with_endpoints(
 void for_upward_edges(const CSRGraph &g, std::function<void(EdgeID)> function) {
   for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
     if (u < v)
+      function(e);
+  });
+}
+void for_downward_edges(const CSRGraph &g, std::function<void(EdgeID)> function) {
+  for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
+    if (u > v)
       function(e);
   });
 }

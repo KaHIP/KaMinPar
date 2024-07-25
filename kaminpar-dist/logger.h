@@ -14,9 +14,9 @@
 
 #include <mpi.h>
 
-#include "kaminpar-mpi/utils.h"
+#include "kaminpar-mpi/utils.h" // IWYU pragma: keep
 
-#include "kaminpar-common/logger.h"
+#include "kaminpar-common/logger.h" // IWYU pragma: export
 
 #define LOG_RANK "[PE" << kaminpar::mpi::get_comm_rank(MPI_COMM_WORLD) << "]"
 

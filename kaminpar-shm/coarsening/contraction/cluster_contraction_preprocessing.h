@@ -15,13 +15,13 @@
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm::contraction {
-template <template <typename> typename Mapping> class CoarseGraphImpl : public CoarseGraph {
+class CoarseGraphImpl : public CoarseGraph {
 public:
-  CoarseGraphImpl(Graph graph, Mapping<NodeID> mapping)
+  CoarseGraphImpl(Graph graph, StaticArray<NodeID> mapping)
       : _graph(std::move(graph)),
         _mapping(std::move(mapping)) {}
 
-  const Graph &get() const final {
+  [[nodiscard]] const Graph &get() const final {
     return _graph;
   }
 
@@ -29,7 +29,7 @@ public:
     return _graph;
   }
 
-  Mapping<NodeID> &get_mapping() {
+  StaticArray<NodeID> &get_mapping() {
     return _mapping;
   }
 
@@ -41,27 +41,24 @@ public:
 
 private:
   Graph _graph;
-  Mapping<NodeID> _mapping;
+  StaticArray<NodeID> _mapping;
 };
 
 void fill_leader_mapping(
     const Graph &graph, const StaticArray<NodeID> &clustering, StaticArray<NodeID> &leader_mapping
 );
 
-template <template <typename> typename Mapping>
-Mapping<NodeID> compute_mapping(
+StaticArray<NodeID> compute_mapping(
     const Graph &graph, StaticArray<NodeID> clustering, const StaticArray<NodeID> &leader_mapping
 );
 
-template <template <typename> typename Mapping>
-std::pair<NodeID, Mapping<NodeID>>
+std::pair<NodeID, StaticArray<NodeID>>
 compute_mapping(const Graph &graph, StaticArray<NodeID> clustering, MemoryContext &m_ctx);
 
-template <typename Mapping>
 void fill_cluster_buckets(
     const NodeID c_n,
     const Graph &graph,
-    const Mapping &mapping,
+    const StaticArray<NodeID> &mapping,
     StaticArray<NodeID> &buckets_index,
     StaticArray<NodeID> &buckets
 );
