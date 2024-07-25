@@ -619,13 +619,13 @@ void print(const PartitionContext &p_ctx, std::ostream &out) {
   const std::size_t width = std::ceil(std::log10(size));
 
   out << "  Number of nodes:            " << std::setw(width) << p_ctx.n;
-  if (asserting_cast<NodeWeight>(p_ctx.n) == p_ctx.total_node_weight) {
+  if (p_ctx.n == p_ctx.total_node_weight) {
     out << " (unweighted)\n";
   } else {
     out << " (total weight: " << p_ctx.total_node_weight << ")\n";
   }
   out << "  Number of edges:            " << std::setw(width) << p_ctx.m;
-  if (asserting_cast<EdgeWeight>(p_ctx.m) == p_ctx.total_edge_weight) {
+  if (p_ctx.m == p_ctx.total_edge_weight) {
     out << " (unweighted)\n";
   } else {
     out << " (total weight: " << p_ctx.total_edge_weight << ")\n";
