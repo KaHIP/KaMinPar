@@ -18,4 +18,3 @@ bool InitialNoopRefiner::refine(PartitionedCSRGraph &, const PartitionContext &)
   return false;
 }
 } // namespace kaminpar::shm
-

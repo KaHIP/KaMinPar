@@ -16,6 +16,7 @@
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/heap_profiler.h"
+#include "kaminpar-common/math.h"
 
 namespace kaminpar {
 
@@ -36,25 +37,25 @@ template <typename Int> class CompactStaticArray {
     using difference_type = std::ptrdiff_t;
 
     CompactStaticArrayIterator(
-        const std::uint8_t byte_width, const Int mask, const std::uint8_t *data
+        const std::uint8_t byte_width, const Int read_mask, const std::uint8_t *data
     )
         : _byte_width(byte_width),
-          _mask(mask),
+          _mask(read_mask),
           _data(data) {}
 
-    CompactStaticArrayIterator(const CompactStaticArrayIterator &other) = default;
-    CompactStaticArrayIterator &operator=(const CompactStaticArrayIterator &other) = default;
+    CompactStaticArrayIterator(const CompactStaticArrayIterator &) = default;
+    CompactStaticArrayIterator &operator=(const CompactStaticArrayIterator &) = default;
 
     Int operator*() const {
       return *reinterpret_cast<const Int *>(_data) & _mask;
     }
 
     pointer operator->() const {
-      return *reinterpret_cast<const Int *>(_data) & _mask;
+      return reinterpret_cast<const Int *>(_data);
     }
 
     reference operator[](const difference_type n) const {
-      return *reinterpret_cast<const Int *>(_data + _byte_width * n) & _mask;
+      return reinterpret_cast<const Int *>(_data + _byte_width * n);
     }
 
     CompactStaticArrayIterator &operator++() {
@@ -138,27 +139,25 @@ public:
   using const_iterator = const CompactStaticArrayIterator;
 
   /*!
-   * Constructs a new CompactStaticArray.
+   * Constructs an unitialized CompactStaticArray.
    */
-  CompactStaticArray() : _byte_width(0), _size(0), _unrestricted_size(0) {
+  CompactStaticArray() : _byte_width(0), _size(0), _unrestricted_size(0), _num_values(0) {
     RECORD_DATA_STRUCT(0, _struct);
   }
 
   /*!
-   * Constructs a new CompactStaticArray.
+   * Constructs an unitialized CompactStaticArray.
    *
    * @param byte_width The number of bytes needed to store the largest integer in the array.
-   * @param size The number of values to store.
+   * @param size num_values number of values to store.
    */
-  CompactStaticArray(const std::uint8_t byte_width, const std::size_t size) {
-    KASSERT(byte_width <= 8);
+  CompactStaticArray(const std::uint8_t byte_width, const std::size_t num_values) {
     RECORD_DATA_STRUCT(0, _struct);
-
-    resize(byte_width, size);
+    resize(byte_width, num_values);
   }
 
   /*!
-   * Constructs a new CompactStaticArray.
+   * Constructs an unitialized CompactStaticArray.
    *
    * @param byte_width The number of bytes needed to store the largest integer in the array.
    * @param actual_size The number of bytes that the compact representation in memory uses.
@@ -171,13 +170,15 @@ public:
   )
       : _byte_width(byte_width),
         _size(actual_size),
+        _unrestricted_size(actual_size),
+        _num_values((_size - (sizeof(Int) - _byte_width)) / _byte_width),
         _values(std::move(data)),
-        _mask(
-            (byte_width == 8) ? std::numeric_limits<Int>::max()
-                              : (static_cast<std::uint64_t>(1) << (byte_width * 8)) - 1
-        ) {
-    KASSERT(byte_width <= 8);
+        _read_mask(std::numeric_limits<Int>::max() << (byte_width * 8)),
+        _write_mask(std::numeric_limits<Int>::max() << (byte_width * 8)) {
     RECORD_DATA_STRUCT(0, _struct);
+    KASSERT(actual_size >= sizeof(Int) - _byte_width);
+    KASSERT(byte_width >= 1);
+    KASSERT(byte_width <= 8);
   }
 
   CompactStaticArray(const CompactStaticArray &) = delete;
@@ -190,30 +191,37 @@ public:
    * Resizes the array.
    *
    * @param byte_width The number of bytes needed to store the largest integer in the array.
-   * @param size The number of values to store.
+   * @param num_values The number of values to store.
    */
-  void resize(const std::uint8_t byte_width, const std::size_t size) {
-    IF_HEAP_PROFILING(
-        _struct->size = std::max(_struct->size, byte_width * size + sizeof(Int) - byte_width)
-    );
+  void resize(const std::uint8_t byte_width, const std::size_t num_values) {
+    KASSERT(byte_width >= 1);
+    KASSERT(byte_width <= 8);
 
     _byte_width = byte_width;
-    _size = byte_width * size + sizeof(Int) - byte_width;
+    _size = num_values * byte_width + sizeof(Int) - byte_width;
     _unrestricted_size = _size;
+
+    _num_values = num_values;
     _values = std::make_unique<std::uint8_t[]>(_size);
-    _mask = (byte_width == 8) ? std::numeric_limits<Int>::max()
-                              : (static_cast<std::uint64_t>(1) << (byte_width * 8)) - 1;
+
+    _read_mask = std::numeric_limits<Int>::max() >> ((sizeof(Int) - byte_width) * 8);
+    _write_mask = std::numeric_limits<Int>::max() << (byte_width * 8);
+
+    IF_HEAP_PROFILING(_struct->size = std::max(_struct->size, _size));
   }
 
   /*!
-   * Restricts the array to a specific size. This operation can be undone by calling the unrestrict
-   * method.
+   * Restricts the array to a specific size. This operation can be undone by calling unrestrict().
    *
    * @param new_size The number of values to be visible.
    */
-  void restrict(const std::size_t new_size) {
+  void restrict(const std::size_t new_num_values) {
+    KASSERT(new_num_values <= _num_values);
+
+    _num_values = new_num_values;
+
     _unrestricted_size = _size;
-    _size = _byte_width * new_size + sizeof(Int) - _byte_width;
+    _size = new_num_values * _byte_width + sizeof(Int) - _byte_width;
   }
 
   /*!
@@ -225,28 +233,28 @@ public:
   }
 
   /*!
-   * Stores an integer in the array.
+   * Stores an integer.
    *
-   * @param pos The position in the array at which to store the integer.
+   * @param pos The position in the array at which the integer is to be stored.
    * @param value The value to store.
    */
-  void write(const std::size_t pos, Int value) {
-    std::uint8_t *data = _values.get() + pos * _byte_width;
+  void write(const std::size_t pos, const Int value) {
+    KASSERT(pos < _num_values);
+    KASSERT(math::byte_width<std::uint32_t>(value) <= _byte_width);
 
-    for (std::uint8_t i = 0; i < _byte_width; ++i) {
-      *data++ = value & 0b11111111;
-      value >>= 8;
-    }
+    Int *data = reinterpret_cast<Int *>(_values.get() + pos * _byte_width);
+    *data = value | (*data & _write_mask);
   }
 
   /*!
-   * Accesses an integer in the array.
+   * Accesses an integer.
    *
-   * @param pos The position of the integer in the array to return.
-   * @return The integer stored at the position in the array.
+   * @param pos The position of the integer in the array to be returned.
+   * @return The integer stored at the given position in the array.
    */
   [[nodiscard]] Int operator[](const std::size_t pos) const {
-    return *reinterpret_cast<const Int *>(_values.get() + pos * _byte_width) & _mask;
+    KASSERT(pos < _num_values);
+    return *reinterpret_cast<const Int *>(_values.get() + pos * _byte_width) & _read_mask;
   }
 
   /*!
@@ -255,7 +263,7 @@ public:
    * @return An interator to the beginning.
    */
   [[nodiscard]] CompactStaticArrayIterator begin() const {
-    return CompactStaticArrayIterator(_byte_width, _mask, _values.get());
+    return CompactStaticArrayIterator{_byte_width, _read_mask, _values.get()};
   }
 
   /*!
@@ -264,9 +272,8 @@ public:
    * @return An interator to the end.
    */
   [[nodiscard]] CompactStaticArrayIterator end() const {
-    return CompactStaticArrayIterator(
-        _byte_width, _mask, _values.get() + _size - (sizeof(Int) - _byte_width)
-    );
+    const std::uint8_t *data = _values.get() + _size - (sizeof(Int) - _byte_width);
+    return CompactStaticArrayIterator{_byte_width, _read_mask, data};
   }
 
   /*!
@@ -275,16 +282,16 @@ public:
    * @return Whether the array is empty.
    */
   [[nodiscard]] bool empty() const {
-    return _size == 0;
+    return _num_values == 0;
   }
 
   /*!
-   * Returns the amount of integers in the array.
+   * Returns the number of integers in the array.
    *
-   * @return The amount of integers in the array.
+   * @return The number of integers in the array.
    */
   [[nodiscard]] std::size_t size() const {
-    return (_size - (sizeof(Int) - _byte_width)) / _byte_width;
+    return _num_values;
   }
 
   /*!
@@ -297,11 +304,11 @@ public:
   }
 
   /*!
-   * Returns the amount of bytes the compact array allocated.
+   * Returns the memory space of this array in bytes.
    *
-   * @return The amount of bytes the compact array allocated.
+   * @return The memory space of this array in bytes.
    */
-  [[nodiscard]] std::size_t allocated_size() const {
+  [[nodiscard]] std::size_t memory_space() const {
     return _size;
   }
 
@@ -318,8 +325,12 @@ private:
   std::uint8_t _byte_width;
   std::size_t _size;
   std::size_t _unrestricted_size;
+
+  std::size_t _num_values;
   std::unique_ptr<std::uint8_t[]> _values;
-  Int _mask;
+
+  Int _read_mask;
+  Int _write_mask;
 
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };

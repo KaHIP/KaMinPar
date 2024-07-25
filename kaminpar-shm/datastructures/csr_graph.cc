@@ -7,13 +7,19 @@
  ******************************************************************************/
 #include "kaminpar-shm/datastructures/csr_graph.h"
 
+#include <numeric>
+
+#include <tbb/enumerable_thread_specific.h>
+#include <tbb/parallel_reduce.h>
+
 #include "kaminpar-shm/datastructures/graph.h"
 
 #include "kaminpar-common/logger.h"
+#include "kaminpar-common/parallel/algorithm.h"
 
 namespace kaminpar::shm {
-template <template <typename> typename Container, template <typename> typename CompactContainer>
-AbstractCSRGraph<Container, CompactContainer>::AbstractCSRGraph(const Graph &graph)
+
+CSRGraph::CSRGraph(const Graph &graph)
     : _nodes(graph.n() + 1),
       _edges(graph.m()),
       _node_weights(graph.n()),
@@ -27,9 +33,9 @@ AbstractCSRGraph<Container, CompactContainer>::AbstractCSRGraph(const Graph &gra
     parallel::prefix_sum(_nodes.begin(), _nodes.end(), _nodes.begin());
 
     graph.pfor_nodes([&](const NodeID u) {
-      graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
+      graph.neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
         _edges[e] = v;
-        _edge_weights[e] = graph.edge_weight(e);
+        _edge_weights[e] = w;
       });
     });
 
@@ -40,7 +46,177 @@ AbstractCSRGraph<Container, CompactContainer>::AbstractCSRGraph(const Graph &gra
   });
 }
 
-template AbstractCSRGraph<StaticArray, StaticArray>::AbstractCSRGraph(const Graph &graph);
+CSRGraph::CSRGraph(
+    StaticArray<EdgeID> nodes,
+    StaticArray<NodeID> edges,
+    StaticArray<NodeWeight> node_weights,
+    StaticArray<EdgeWeight> edge_weights,
+    bool sorted
+)
+    : _nodes(std::move(nodes)),
+      _edges(std::move(edges)),
+      _node_weights(std::move(node_weights)),
+      _edge_weights(std::move(edge_weights)),
+      _sorted(sorted) {
+  if (_node_weights.empty()) {
+    _total_node_weight = static_cast<NodeWeight>(n());
+    _max_node_weight = 1;
+  } else {
+    _total_node_weight = parallel::accumulate(_node_weights, static_cast<NodeWeight>(0));
+    _max_node_weight = parallel::max_element(_node_weights);
+  }
+
+  if (_edge_weights.empty()) {
+    _total_edge_weight = static_cast<EdgeWeight>(m());
+  } else {
+    _total_edge_weight = parallel::accumulate(_edge_weights, static_cast<EdgeWeight>(0));
+  }
+
+  _max_degree = parallel::max_difference(_nodes.begin(), _nodes.end());
+
+  init_degree_buckets();
+}
+
+CSRGraph::CSRGraph(
+    seq,
+    StaticArray<EdgeID> nodes,
+    StaticArray<NodeID> edges,
+    StaticArray<NodeWeight> node_weights,
+    StaticArray<EdgeWeight> edge_weights,
+    bool sorted
+)
+    : _nodes(std::move(nodes)),
+      _edges(std::move(edges)),
+      _node_weights(std::move(node_weights)),
+      _edge_weights(std::move(edge_weights)),
+      _sorted(sorted) {
+  if (_node_weights.empty()) {
+    _total_node_weight = static_cast<NodeWeight>(n());
+    _max_node_weight = 1;
+  } else {
+    _total_node_weight =
+        std::accumulate(_node_weights.begin(), _node_weights.end(), static_cast<NodeWeight>(0));
+    _max_node_weight = *std::max_element(_node_weights.begin(), _node_weights.end());
+  }
+
+  if (_edge_weights.empty()) {
+    _total_edge_weight = static_cast<EdgeWeight>(m());
+  } else {
+    _total_edge_weight =
+        std::accumulate(_edge_weights.begin(), _edge_weights.end(), static_cast<EdgeWeight>(0));
+  }
+
+  init_degree_buckets();
+}
+
+void CSRGraph::update_total_node_weight() {
+  if (_node_weights.empty()) {
+    _total_node_weight = n();
+    _max_node_weight = 1;
+  } else {
+    _total_node_weight =
+        std::accumulate(_node_weights.begin(), _node_weights.end(), static_cast<NodeWeight>(0));
+    _max_node_weight = *std::max_element(_node_weights.begin(), _node_weights.end());
+  }
+}
+
+void CSRGraph::remove_isolated_nodes(const NodeID num_isolated_nodes) {
+  KASSERT(sorted());
+
+  if (num_isolated_nodes == 0) {
+    return;
+  }
+
+  const NodeID new_n = n() - num_isolated_nodes;
+  _nodes.restrict(new_n + 1);
+  if (!_node_weights.empty()) {
+    _node_weights.restrict(new_n);
+  }
+
+  update_total_node_weight();
+
+  // Update degree buckets
+  for (std::size_t i = 0; i < _buckets.size() - 1; ++i) {
+    _buckets[1 + i] -= num_isolated_nodes;
+  }
+
+  // If the graph has only isolated nodes then there are no buckets afterwards
+  if (_number_of_buckets == 1) {
+    _number_of_buckets = 0;
+  }
+}
+
+void CSRGraph::integrate_isolated_nodes() {
+  KASSERT(sorted());
+
+  const NodeID nonisolated_nodes = n();
+  _nodes.unrestrict();
+  _node_weights.unrestrict();
+
+  const NodeID isolated_nodes = n() - nonisolated_nodes;
+  update_total_node_weight();
+
+  // Update degree buckets
+  for (std::size_t i = 0; i < _buckets.size() - 1; ++i) {
+    _buckets[1 + i] += isolated_nodes;
+  }
+
+  // If the graph has only isolated nodes then there is one afterwards
+  if (_number_of_buckets == 0) {
+    _number_of_buckets = 1;
+  }
+}
+
+void CSRGraph::init_degree_buckets() {
+  KASSERT(std::all_of(_buckets.begin(), _buckets.end(), [](const auto n) { return n == 0; }));
+
+  constexpr std::size_t kNumBuckets = kNumberOfDegreeBuckets<NodeID> + 1;
+
+  if (_sorted) {
+    tbb::enumerable_thread_specific<std::array<NodeID, kNumBuckets>> buckets_ets([&] {
+      return std::array<NodeID, kNumBuckets>{};
+    });
+
+    tbb::parallel_for(tbb::blocked_range<NodeID>(0, n()), [&](const tbb::blocked_range<NodeID> r) {
+      auto &buckets = buckets_ets.local();
+      for (NodeID u = r.begin(); u != r.end(); ++u) {
+        ++buckets[degree_bucket(degree(u)) + 1];
+      }
+    });
+
+    std::fill(_buckets.begin(), _buckets.end(), 0);
+    for (auto &local_buckets : buckets_ets) {
+      for (std::size_t i = 0; i < kNumBuckets; ++i) {
+        _buckets[i] += local_buckets[i];
+      }
+    }
+
+    KASSERT(
+        [&] {
+          std::vector<NodeID> buckets2(_buckets.size());
+          for (const NodeID u : nodes()) {
+            ++buckets2[degree_bucket(degree(u)) + 1];
+          }
+          for (std::size_t i = 0; i < _buckets.size(); ++i) {
+            if (_buckets[i] != buckets2[i]) {
+              return false;
+            }
+          }
+          return true;
+        }(),
+        "",
+        assert::heavy
+    );
+    auto last_nonempty_bucket =
+        std::find_if(_buckets.rbegin(), _buckets.rend(), [](const auto n) { return n > 0; });
+    _number_of_buckets = std::distance(_buckets.begin(), (last_nonempty_bucket + 1).base());
+  } else {
+    _buckets[1] = n();
+    _number_of_buckets = 1;
+  }
+
+  std::partial_sum(_buckets.begin(), _buckets.end(), _buckets.begin());
+}
 
 namespace debug {
 bool validate_graph(

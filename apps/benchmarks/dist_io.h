@@ -102,7 +102,7 @@ inline DistributedGraphWrapper load_graph(const std::string &graph_name) {
   auto [global_to_ghost, ghost_to_global, ghost_owner] = mapper.finalize();
 
   DistributedGraphWrapper wrapper;
-  wrapper.graph = std::make_unique<DistributedGraph>(
+  wrapper.graph = std::make_unique<DistributedGraph>(std::make_unique<DistributedCSRGraph>(
       std::move(node_distribution),
       std::move(edge_distribution),
       std::move(nodes),
@@ -114,7 +114,7 @@ inline DistributedGraphWrapper load_graph(const std::string &graph_name) {
       std::move(global_to_ghost),
       false,
       MPI_COMM_WORLD
-  );
+  ));
   return wrapper;
 }
 

@@ -9,6 +9,7 @@
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction_preprocessing.h"
 
 #include "kaminpar-common/heap_profiler.h"
+#include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::contraction {

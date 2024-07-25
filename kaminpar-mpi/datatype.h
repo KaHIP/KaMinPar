@@ -11,6 +11,7 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <limits>
 #include <type_traits>
 #include <utility>
 
@@ -58,6 +59,16 @@ template <typename T> inline MPI_Datatype get() {
     return MPI_DOUBLE_INT;
   } else if constexpr (std::is_same_v<T, std::pair<long double, int>>) {
     return MPI_LONG_DOUBLE_INT;
+  } else if constexpr (std::is_same_v<T, std::size_t> &&
+                       std::numeric_limits<std::size_t>::digits ==
+                           std::numeric_limits<std::uint64_t>::digits) {
+    // Note: this branch is only needed on some systems
+    return MPI_UINT64_T;
+  } else if constexpr (std::is_same_v<T, std::size_t> &&
+                       std::numeric_limits<std::size_t>::digits ==
+                           std::numeric_limits<std::uint32_t>::digits) {
+    // Note: this branch is only needed on some systems
+    return MPI_UINT32_T;
   } else {
     return custom<sizeof(T)>();
   }

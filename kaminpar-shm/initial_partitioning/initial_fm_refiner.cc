@@ -281,12 +281,11 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
     current_overload = metrics::total_overload(p_graph, *_p_ctx);
 
     // update gain of neighboring nodes
-    for (const auto [e, v] : _graph->neighbors(u)) {
+    _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight e_weight) {
       if (_marker.get(v)) {
-        continue;
+        return;
       }
 
-      const EdgeWeight e_weight = _graph->edge_weight(e);
       const BlockID v_block = p_graph.block(v);
       const EdgeWeight loss_delta = 2 * e_weight * ((to == v_block) ? 1 : -1);
 
@@ -305,7 +304,7 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
         KASSERT(is_boundary_node(p_graph, v), "", assert::heavy);
         _queues[v_block].push(v, _weighted_degrees[v] + loss_delta);
       }
-    }
+    });
 
     // accept move if it improves the best edge cut found so far
     if (cut_acceptance_policy(
@@ -384,9 +383,9 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
     compute_gain_from_scratch(const PartitionedCSRGraph &p_graph, const NodeID u) {
   const BlockID u_block = p_graph.block(u);
   EdgeWeight weighted_external_degree = 0;
-  for (const auto [e, v] : p_graph.neighbors(u)) {
-    weighted_external_degree += (p_graph.block(v) != u_block) * p_graph.edge_weight(e);
-  }
+  p_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+    weighted_external_degree += (p_graph.block(v) != u_block) * weight;
+  });
   const EdgeWeight weighted_internal_degree = _weighted_degrees[u] - weighted_external_degree;
   return weighted_internal_degree - weighted_external_degree;
 }
@@ -407,12 +406,17 @@ template <typename QueueSelectionPolicy, typename CutAcceptancePolicy, typename 
 bool InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>::is_boundary_node(
     const PartitionedCSRGraph &p_graph, const NodeID u
 ) {
-  for (const NodeID v : p_graph.adjacent_nodes(u)) {
+  bool boundary_node = false;
+  p_graph.adjacent_nodes(u, [&](const NodeID v) {
     if (p_graph.block(u) != p_graph.block(v)) {
+      boundary_node = true;
       return true;
     }
-  }
-  return false;
+
+    return false;
+  });
+
+  return boundary_node;
 }
 
 template <typename QueueSelectionPolicy, typename CutAcceptancePolicy, typename StoppingPolicy>
@@ -447,4 +451,3 @@ template class InitialFMRefiner<
     fm::BalancedMinCutAcceptancePolicy,
     fm::AdaptiveStoppingPolicy>;
 } // namespace kaminpar::shm
-

@@ -7,24 +7,19 @@
  ******************************************************************************/
 #pragma once
 
-#include <numeric>
 #include <utility>
 #include <vector>
 
 #include <kassert/kassert.hpp>
 #include <tbb/blocked_range.h>
-#include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
-#include <tbb/parallel_reduce.h>
 
 #include "kaminpar-shm/datastructures/abstract_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/constexpr_utils.h"
-#include "kaminpar-common/datastructures/compact_static_array.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/degree_buckets.h"
-#include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/ranges.h"
 
 namespace kaminpar::shm {
@@ -35,8 +30,7 @@ struct CSRGraphMemory {
   StaticArray<EdgeWeight> edge_weights;
 };
 
-template <template <typename> typename Container, template <typename> typename CompactContainer>
-class AbstractCSRGraph : public AbstractGraph {
+class CSRGraph : public AbstractGraph {
 public:
   // Data types used by this graph
   using AbstractGraph::EdgeID;
@@ -47,133 +41,37 @@ public:
   // Tag for the sequential ctor.
   struct seq {};
 
-  explicit AbstractCSRGraph(const class Graph &graph);
+  explicit CSRGraph(const class Graph &graph);
 
-  AbstractCSRGraph(
-      Container<EdgeID> nodes,
-      CompactContainer<NodeID> edges,
-      Container<NodeWeight> node_weights = {},
-      CompactContainer<EdgeWeight> edge_weights = {},
+  CSRGraph(
+      StaticArray<EdgeID> nodes,
+      StaticArray<NodeID> edges,
+      StaticArray<NodeWeight> node_weights = {},
+      StaticArray<EdgeWeight> edge_weights = {},
       bool sorted = false
-  )
-      : _nodes(std::move(nodes)),
-        _edges(std::move(edges)),
-        _node_weights(std::move(node_weights)),
-        _edge_weights(std::move(edge_weights)),
-        _sorted(sorted) {
-    if (_node_weights.empty()) {
-      _total_node_weight = static_cast<NodeWeight>(n());
-      _max_node_weight = 1;
-    } else {
-      _total_node_weight = parallel::accumulate(_node_weights, static_cast<NodeWeight>(0));
-      _max_node_weight = parallel::max_element(_node_weights);
-    }
+  );
 
-    if (_edge_weights.empty()) {
-      _total_edge_weight = static_cast<EdgeWeight>(m());
-    } else {
-      _total_edge_weight = parallel::accumulate(_edge_weights, static_cast<EdgeWeight>(0));
-    }
-
-    _max_degree = parallel::max_difference(_nodes.begin(), _nodes.end());
-
-    init_degree_buckets();
-  }
-
-  AbstractCSRGraph(
+  CSRGraph(
       seq,
-      Container<EdgeID> nodes,
-      CompactContainer<NodeID> edges,
-      Container<NodeWeight> node_weights = {},
-      CompactContainer<EdgeWeight> edge_weights = {},
+      StaticArray<EdgeID> nodes,
+      StaticArray<NodeID> edges,
+      StaticArray<NodeWeight> node_weights = {},
+      StaticArray<EdgeWeight> edge_weights = {},
       bool sorted = false
-  )
-      : _nodes(std::move(nodes)),
-        _edges(std::move(edges)),
-        _node_weights(std::move(node_weights)),
-        _edge_weights(std::move(edge_weights)),
-        _sorted(sorted) {
-    if (_node_weights.empty()) {
-      _total_node_weight = static_cast<NodeWeight>(n());
-      _max_node_weight = 1;
-    } else {
-      _total_node_weight =
-          std::accumulate(_node_weights.begin(), _node_weights.end(), static_cast<NodeWeight>(0));
-      _max_node_weight = *std::max_element(_node_weights.begin(), _node_weights.end());
-    }
+  );
 
-    if (_edge_weights.empty()) {
-      _total_edge_weight = static_cast<EdgeWeight>(m());
-    } else {
-      _total_edge_weight =
-          std::accumulate(_edge_weights.begin(), _edge_weights.end(), static_cast<EdgeWeight>(0));
-    }
+  CSRGraph(const CSRGraph &) = delete;
+  CSRGraph &operator=(const CSRGraph &) = delete;
 
-    init_degree_buckets();
-  }
+  CSRGraph(CSRGraph &&) noexcept = default;
+  CSRGraph &operator=(CSRGraph &&) noexcept = default;
 
-  AbstractCSRGraph(const AbstractCSRGraph &) = delete;
-  AbstractCSRGraph &operator=(const AbstractCSRGraph &) = delete;
+  ~CSRGraph() override = default;
 
-  AbstractCSRGraph(AbstractCSRGraph &&) noexcept = default;
-  AbstractCSRGraph &operator=(AbstractCSRGraph &&) noexcept = default;
-
-  ~AbstractCSRGraph() override = default;
-
-  template <typename Lambda> decltype(auto) reified(Lambda &&l) const {
-    return l(*this);
-  }
-
-  // Direct member access -- used for some "low level" operations
-  [[nodiscard]] inline Container<EdgeID> &raw_nodes() {
-    return _nodes;
-  }
-
-  [[nodiscard]] inline const Container<EdgeID> &raw_nodes() const {
-    return _nodes;
-  }
-
-  [[nodiscard]] inline CompactContainer<NodeID> &raw_edges() {
-    return _edges;
-  }
-
-  [[nodiscard]] inline const CompactContainer<NodeID> &raw_edges() const {
-    return _edges;
-  }
-
-  [[nodiscard]] inline Container<NodeWeight> &raw_node_weights() {
-    return _node_weights;
-  }
-
-  [[nodiscard]] inline const Container<NodeWeight> &raw_node_weights() const {
-    return _node_weights;
-  }
-
-  [[nodiscard]] inline CompactContainer<EdgeWeight> &raw_edge_weights() {
-    return _edge_weights;
-  }
-
-  [[nodiscard]] inline const CompactContainer<EdgeWeight> &raw_edge_weights() const {
-    return _edge_weights;
-  }
-
-  [[nodiscard]] inline Container<EdgeID> &&take_raw_nodes() {
-    return std::move(_nodes);
-  }
-
-  [[nodiscard]] inline CompactContainer<NodeID> &&take_raw_edges() {
-    return std::move(_edges);
-  }
-
-  [[nodiscard]] inline Container<NodeWeight> &&take_raw_node_weights() {
-    return std::move(_node_weights);
-  }
-
-  [[nodiscard]] inline CompactContainer<EdgeWeight> &&take_raw_edge_weights() {
-    return std::move(_edge_weights);
-  }
-
+  //
   // Size of the graph
+  //
+
   [[nodiscard]] inline NodeID n() const final {
     return static_cast<NodeID>(_nodes.size() - 1);
   }
@@ -182,7 +80,10 @@ public:
     return static_cast<EdgeID>(_edges.size());
   }
 
+  //
   // Node and edge weights
+  //
+
   [[nodiscard]] inline bool is_node_weighted() const final {
     return static_cast<NodeWeight>(n()) != total_node_weight();
   }
@@ -200,11 +101,13 @@ public:
     return _total_node_weight;
   }
 
+  void update_total_node_weight() final;
+
   [[nodiscard]] inline bool is_edge_weighted() const final {
     return static_cast<EdgeWeight>(m()) != total_edge_weight();
   }
 
-  [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const final {
+  [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const {
     KASSERT(!is_edge_weighted() || e < _edge_weights.size());
     return is_edge_weighted() ? _edge_weights[e] : 1;
   }
@@ -213,31 +116,10 @@ public:
     return _total_edge_weight;
   }
 
-  // Low-level access to the graph structure
-  [[nodiscard]] inline NodeID max_degree() const final {
-    return _max_degree;
-  }
-
-  [[nodiscard]] inline NodeID degree(const NodeID u) const final {
-    return static_cast<NodeID>(_nodes[u + 1] - _nodes[u]);
-  }
-
-  // This function is not part of the Graph interface:
-  [[nodiscard]] EdgeID first_edge(const NodeID u) const {
-    return _nodes[u];
-  }
-
-  // This function is not part of the Graph interface:
-  [[nodiscard]] EdgeID first_invalid_edge(const NodeID u) const {
-    return _nodes[u + 1];
-  }
-
-  // This function is not part of the Graph interface:
-  [[nodiscard]] NodeID edge_target(const EdgeID e) const {
-    return _edges[e];
-  }
-
+  //
   // Iterators for nodes / edges
+  //
+
   [[nodiscard]] inline IotaRange<NodeID> nodes() const final {
     return {static_cast<NodeID>(0), n()};
   }
@@ -246,7 +128,178 @@ public:
     return {static_cast<EdgeID>(0), m()};
   }
 
+  [[nodiscard]] inline IotaRange<EdgeID> incident_edges(const NodeID u) const final {
+    KASSERT(u + 1 < _nodes.size());
+    return {_nodes[u], _nodes[u + 1]};
+  }
+
+  //
+  // Node degree
+  //
+
+  [[nodiscard]] inline NodeID max_degree() const final {
+    return _max_degree;
+  }
+
+  [[nodiscard]] inline NodeID degree(const NodeID u) const final {
+    return static_cast<NodeID>(_nodes[u + 1] - _nodes[u]);
+  }
+
+  //
+  // Graph operations not part of the interface
+  //
+
+  [[nodiscard]] EdgeID first_edge(const NodeID u) const {
+    return _nodes[u];
+  }
+
+  [[nodiscard]] EdgeID first_invalid_edge(const NodeID u) const {
+    return _nodes[u + 1];
+  }
+
+  [[nodiscard]] NodeID edge_target(const EdgeID e) const {
+    return _edges[e];
+  }
+
+  //
+  // Graph operations
+  //
+
+  template <typename Lambda> inline void adjacent_nodes(const NodeID u, Lambda &&l) const {
+    KASSERT(u < n());
+
+    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID>;
+    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID, EdgeWeight>;
+    static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
+
+    using LambdaReturnType = std::conditional_t<
+        kDecodeEdgeWeights,
+        std::invoke_result<Lambda, NodeID, EdgeWeight>,
+        std::invoke_result<Lambda, NodeID>>::type;
+    constexpr bool kNonStoppable = std::is_void_v<LambdaReturnType>;
+
+    const auto decode_adjacent_nodes = [&](auto &&decode_edge_weight) {
+      const auto invoke_caller = [&](const EdgeID edge) {
+        if constexpr (kDecodeEdgeWeights) {
+          return l(_edges[edge], decode_edge_weight(edge));
+        } else {
+          return l(_edges[edge]);
+        }
+      };
+
+      const EdgeID from = _nodes[u];
+      const EdgeID to = _nodes[u + 1];
+      for (EdgeID edge = from; edge < to; ++edge) {
+        if constexpr (kNonStoppable) {
+          invoke_caller(edge);
+        } else {
+          const bool stop = invoke_caller(edge);
+          if (stop) {
+            return;
+          }
+        }
+      }
+    };
+
+    if (is_edge_weighted()) {
+      decode_adjacent_nodes([&](const EdgeID edge) { return _edge_weights[edge]; });
+    } else {
+      decode_adjacent_nodes([](const EdgeID) { return 1; });
+    }
+  }
+
+  template <typename Lambda> inline void neighbors(const NodeID u, Lambda &&l) const {
+    KASSERT(u < n());
+
+    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID>;
+    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID, EdgeWeight>;
+    static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
+
+    using LambdaReturnType = std::conditional_t<
+        kDecodeEdgeWeights,
+        std::invoke_result<Lambda, EdgeID, NodeID, EdgeWeight>,
+        std::invoke_result<Lambda, EdgeID, NodeID>>::type;
+    constexpr bool kNonStoppable = std::is_void_v<LambdaReturnType>;
+
+    const auto decode_neighbors = [&](auto &&decode_edge_weight) {
+      const auto invoke_caller = [&](const EdgeID edge) {
+        if constexpr (kDecodeEdgeWeights) {
+          return l(edge, _edges[edge], decode_edge_weight(edge));
+        } else {
+          return l(edge, _edges[edge]);
+        }
+      };
+
+      const EdgeID from = _nodes[u];
+      const EdgeID to = _nodes[u + 1];
+      for (EdgeID edge = from; edge < to; ++edge) {
+        if constexpr (kNonStoppable) {
+          invoke_caller(edge);
+        } else {
+          const bool stop = invoke_caller(edge);
+          if (stop) {
+            return;
+          }
+        }
+      }
+    };
+
+    if (is_edge_weighted()) {
+      decode_neighbors([&](const EdgeID edge) { return _edge_weights[edge]; });
+    } else {
+      decode_neighbors([](const EdgeID) { return 1; });
+    }
+  }
+
+  template <typename Lambda>
+  inline void neighbors(const NodeID u, const NodeID max_neighbor_count, Lambda &&l) const {
+    KASSERT(u < n());
+
+    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID>;
+    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID, EdgeWeight>;
+    static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
+
+    using LambdaReturnType = std::conditional_t<
+        kDecodeEdgeWeights,
+        std::invoke_result<Lambda, EdgeID, NodeID, EdgeWeight>,
+        std::invoke_result<Lambda, EdgeID, NodeID>>::type;
+    constexpr bool kNonStoppable = std::is_void_v<LambdaReturnType>;
+
+    const auto decode_neighbors = [&](auto &&decode_edge_weight) {
+      const auto invoke_caller = [&](const EdgeID edge) {
+        if constexpr (kDecodeEdgeWeights) {
+          return l(edge, _edges[edge], decode_edge_weight(edge));
+        } else {
+          return l(edge, _edges[edge]);
+        }
+      };
+
+      const EdgeID from = _nodes[u];
+      const NodeID degree = static_cast<NodeID>(_nodes[u + 1] - from);
+      const EdgeID to = from + std::min(degree, max_neighbor_count);
+      for (EdgeID edge = from; edge < to; ++edge) {
+        if constexpr (kNonStoppable) {
+          invoke_caller(edge);
+        } else {
+          const bool stop = invoke_caller(edge);
+          if (stop) {
+            return;
+          }
+        }
+      }
+    };
+
+    if (is_edge_weighted()) {
+      decode_neighbors([&](const EdgeID edge) { return _edge_weights[edge]; });
+    } else {
+      decode_neighbors([](const EdgeID) { return 1; });
+    }
+  }
+
+  //
   // Parallel iteration
+  //
+
   template <typename Lambda> inline void pfor_nodes(Lambda &&l) const {
     tbb::parallel_for(static_cast<NodeID>(0), n(), std::forward<Lambda>(l));
   }
@@ -255,93 +308,40 @@ public:
     tbb::parallel_for(static_cast<EdgeID>(0), m(), std::forward<Lambda>(l));
   }
 
-  // Graph operations
-  [[nodiscard]] inline IotaRange<EdgeID> incident_edges(const NodeID u) const {
-    KASSERT(u + 1 < _nodes.size());
-    return {_nodes[u], _nodes[u + 1]};
-  }
-
-  [[nodiscard]] inline auto adjacent_nodes(const NodeID u) const {
-    KASSERT(u + 1 < _nodes.size());
-    return TransformedIotaRange(_nodes[u], _nodes[u + 1], [this](const EdgeID e) {
-      return _edges[e];
-    });
-  }
-
-  template <typename Lambda> inline void adjacent_nodes(const NodeID u, Lambda &&l) const {
-    KASSERT(u + 1 < _nodes.size());
-
-    const EdgeID from = _nodes[u];
-    const EdgeID to = _nodes[u + 1];
-    for (EdgeID edge = from; edge < to; ++edge) {
-      l(_edges[edge]);
-    }
-  }
-
-  [[nodiscard]] inline auto neighbors(const NodeID u) const {
-    KASSERT(u + 1 < _nodes.size());
-    return TransformedIotaRange(_nodes[u], _nodes[u + 1], [this](const EdgeID e) {
-      return std::make_pair(e, _edges[e]);
-    });
-  }
-
-  template <typename Lambda> inline void neighbors(const NodeID u, Lambda &&l) const {
-    KASSERT(u + 1 < _nodes.size());
-
-    const EdgeID from = _nodes[u];
-    const EdgeID to = _nodes[u + 1];
-    for (EdgeID edge = from; edge < to; ++edge) {
-      l(edge, _edges[edge]);
-    }
-  }
-
-  template <typename Lambda>
-  inline void neighbors(const NodeID u, const NodeID max_neighbor_count, Lambda &&l) const {
-    KASSERT(u + 1 < _nodes.size());
-    constexpr bool non_stoppable =
-        std::is_void<std::invoke_result_t<Lambda, EdgeID, NodeID>>::value;
-
-    const EdgeID from = _nodes[u];
-    const EdgeID to = from + std::min(degree(u), max_neighbor_count);
-
-    for (EdgeID edge = from; edge < to; ++edge) {
-      if constexpr (non_stoppable) {
-        l(edge, _edges[edge]);
-      } else {
-        if (l(edge, _edges[edge])) {
-          return;
-        }
-      }
-    }
-  }
-
   template <typename Lambda>
   inline void pfor_neighbors(
-      const NodeID u, const NodeID max_neighbor_count, const NodeID grainsize, Lambda &&l
+      const NodeID u, const NodeID max_num_neighbors, const NodeID grainsize, Lambda &&l
   ) const {
-    KASSERT(u + 1 < _nodes.size());
+    KASSERT(u < n());
+    constexpr bool kInvokeDirectly = std::is_invocable_v<Lambda, EdgeID, NodeID, EdgeWeight>;
 
     const EdgeID from = _nodes[u];
-    const EdgeID to = from + std::min(degree(u), max_neighbor_count);
+    const NodeID degree = static_cast<NodeID>(_nodes[u + 1] - from);
+    const EdgeID to = from + std::min(degree, max_num_neighbors);
 
-    tbb::parallel_for(
-        tbb::blocked_range<EdgeID>(from, to, grainsize),
-        [&](const tbb::blocked_range<EdgeID> range) {
-          const auto end = range.end();
+    const auto visit_neighbors = [&](auto &&decode_edge_weight) {
+      tbb::parallel_for(tbb::blocked_range<EdgeID>(from, to, grainsize), [&](const auto &range) {
+        const auto end = range.end();
 
-          invoke_indirect<std::is_invocable_v<Lambda, EdgeID, NodeID>>(
-              std::forward<Lambda>(l),
-              [&](auto &&l2) {
-                for (EdgeID e = range.begin(); e < end; ++e) {
-                  l2(e, _edges[e]);
-                }
-              }
-          );
-        }
-    );
+        invoke_indirect<kInvokeDirectly>(std::forward<Lambda>(l), [&](auto &&l2) {
+          for (EdgeID e = range.begin(); e < end; ++e) {
+            l2(e, _edges[e], decode_edge_weight(e));
+          }
+        });
+      });
+    };
+
+    if (is_edge_weighted()) {
+      visit_neighbors([&](const EdgeID e) { return _edge_weights[e]; });
+    } else {
+      visit_neighbors([](const EdgeID) { return 1; });
+    }
   }
 
+  //
   // Graph permutation
+  //
+
   inline void set_permutation(StaticArray<NodeID> permutation) final {
     _permutation = std::move(permutation);
   }
@@ -359,7 +359,18 @@ public:
     return std::move(_permutation);
   }
 
+  //
   // Degree buckets
+  //
+
+  [[nodiscard]] inline bool sorted() const final {
+    return _sorted;
+  }
+
+  [[nodiscard]] inline std::size_t number_of_buckets() const final {
+    return _number_of_buckets;
+  }
+
   [[nodiscard]] inline std::size_t bucket_size(const std::size_t bucket) const final {
     return _buckets[bucket + 1] - _buckets[bucket];
   }
@@ -372,151 +383,81 @@ public:
     return first_node_in_bucket(bucket + 1);
   }
 
-  [[nodiscard]] inline std::size_t number_of_buckets() const final {
-    return _number_of_buckets;
+  //
+  // Isolated nodes
+  //
+
+  void remove_isolated_nodes(const NodeID num_isolated_nodes);
+
+  void integrate_isolated_nodes();
+
+  //
+  // Direct member access -- used for some "low level" operations
+  //
+
+  template <typename Lambda> decltype(auto) reified(Lambda &&l) const {
+    return l(*this);
   }
 
-  [[nodiscard]] inline bool sorted() const final {
-    return _sorted;
+  [[nodiscard]] inline StaticArray<EdgeID> &raw_nodes() {
+    return _nodes;
   }
 
-  void update_total_node_weight() final {
-    if (_node_weights.empty()) {
-      _total_node_weight = n();
-      _max_node_weight = 1;
-    } else {
-      _total_node_weight =
-          std::accumulate(_node_weights.begin(), _node_weights.end(), static_cast<NodeWeight>(0));
-      _max_node_weight = *std::max_element(_node_weights.begin(), _node_weights.end());
-    }
+  [[nodiscard]] inline const StaticArray<EdgeID> &raw_nodes() const {
+    return _nodes;
   }
 
-  void remove_isolated_nodes(const NodeID isolated_nodes) {
-    KASSERT(sorted());
-
-    if (isolated_nodes == 0) {
-      return;
-    }
-
-    const NodeID new_n = n() - isolated_nodes;
-    _nodes.restrict(new_n + 1);
-    if (!_node_weights.empty()) {
-      _node_weights.restrict(new_n);
-    }
-
-    update_total_node_weight();
-
-    // Update degree buckets
-    for (std::size_t i = 0; i < _buckets.size() - 1; ++i) {
-      _buckets[1 + i] -= isolated_nodes;
-    }
-
-    // If the graph has only isolated nodes then there are no buckets afterwards
-    if (_number_of_buckets == 1) {
-      _number_of_buckets = 0;
-    }
+  [[nodiscard]] inline StaticArray<NodeID> &raw_edges() {
+    return _edges;
   }
 
-  void integrate_isolated_nodes() {
-    KASSERT(sorted());
-
-    const NodeID nonisolated_nodes = n();
-    _nodes.unrestrict();
-    _node_weights.unrestrict();
-
-    const NodeID isolated_nodes = n() - nonisolated_nodes;
-    update_total_node_weight();
-
-    // Update degree buckets
-    for (std::size_t i = 0; i < _buckets.size() - 1; ++i) {
-      _buckets[1 + i] += isolated_nodes;
-    }
-
-    // If the graph has only isolated nodes then there is one afterwards
-    if (_number_of_buckets == 0) {
-      _number_of_buckets = 1;
-    }
+  [[nodiscard]] inline const StaticArray<NodeID> &raw_edges() const {
+    return _edges;
   }
 
-  std::size_t node_id_byte_width() const {
-    if constexpr (std::is_same_v<CompactContainer<NodeID>, CompactStaticArray<NodeID>>) {
-      return _edges.byte_width();
-    }
-
-    return sizeof(NodeID);
+  [[nodiscard]] inline StaticArray<NodeWeight> &raw_node_weights() {
+    return _node_weights;
   }
 
-  std::size_t edge_weight_byte_width() const {
-    if constexpr (std::is_same_v<CompactContainer<EdgeWeight>, CompactStaticArray<EdgeWeight>>) {
-      return _edge_weights.byte_width();
-    }
+  [[nodiscard]] inline const StaticArray<NodeWeight> &raw_node_weights() const {
+    return _node_weights;
+  }
 
-    return sizeof(EdgeWeight);
+  [[nodiscard]] inline StaticArray<EdgeWeight> &raw_edge_weights() {
+    return _edge_weights;
+  }
+
+  [[nodiscard]] inline const StaticArray<EdgeWeight> &raw_edge_weights() const {
+    return _edge_weights;
+  }
+
+  [[nodiscard]] inline StaticArray<EdgeID> &&take_raw_nodes() {
+    return std::move(_nodes);
+  }
+
+  [[nodiscard]] inline StaticArray<NodeID> &&take_raw_edges() {
+    return std::move(_edges);
+  }
+
+  [[nodiscard]] inline StaticArray<NodeWeight> &&take_raw_node_weights() {
+    return std::move(_node_weights);
+  }
+
+  [[nodiscard]] inline StaticArray<EdgeWeight> &&take_raw_edge_weights() {
+    return std::move(_edge_weights);
   }
 
 private:
-  void init_degree_buckets() {
-    KASSERT(std::all_of(_buckets.begin(), _buckets.end(), [](const auto n) { return n == 0; }));
+  void init_degree_buckets();
 
-    constexpr std::size_t kNumBuckets = kNumberOfDegreeBuckets<NodeID> + 1;
+  StaticArray<EdgeID> _nodes;
+  StaticArray<NodeID> _edges;
+  StaticArray<NodeWeight> _node_weights;
+  StaticArray<EdgeWeight> _edge_weights;
 
-    if (_sorted) {
-      tbb::enumerable_thread_specific<std::array<NodeID, kNumBuckets>> buckets_ets([&] {
-        return std::array<NodeID, kNumBuckets>{};
-      });
-
-      tbb::parallel_for(
-          tbb::blocked_range<NodeID>(0, n()),
-          [&](const tbb::blocked_range<NodeID> r) {
-            auto &buckets = buckets_ets.local();
-            for (NodeID u = r.begin(); u != r.end(); ++u) {
-              ++buckets[degree_bucket(degree(u)) + 1];
-            }
-          }
-      );
-
-      std::fill(_buckets.begin(), _buckets.end(), 0);
-      for (auto &local_buckets : buckets_ets) {
-        for (std::size_t i = 0; i < kNumBuckets; ++i) {
-          _buckets[i] += local_buckets[i];
-        }
-      }
-
-      KASSERT(
-          [&] {
-            std::vector<NodeID> buckets2(_buckets.size());
-            for (const NodeID u : nodes()) {
-              ++buckets2[degree_bucket(degree(u)) + 1];
-            }
-            for (std::size_t i = 0; i < _buckets.size(); ++i) {
-              if (_buckets[i] != buckets2[i]) {
-                return false;
-              }
-            }
-            return true;
-          }(),
-          "",
-          assert::heavy
-      );
-      auto last_nonempty_bucket =
-          std::find_if(_buckets.rbegin(), _buckets.rend(), [](const auto n) { return n > 0; });
-      _number_of_buckets = std::distance(_buckets.begin(), (last_nonempty_bucket + 1).base());
-    } else {
-      _buckets[1] = n();
-      _number_of_buckets = 1;
-    }
-
-    std::partial_sum(_buckets.begin(), _buckets.end(), _buckets.begin());
-  }
-
-  Container<EdgeID> _nodes;
-  CompactContainer<NodeID> _edges;
-  Container<NodeWeight> _node_weights;
-  CompactContainer<EdgeWeight> _edge_weights;
-
+  NodeWeight _max_node_weight = kInvalidNodeWeight;
   NodeWeight _total_node_weight = kInvalidNodeWeight;
   EdgeWeight _total_edge_weight = kInvalidEdgeWeight;
-  NodeWeight _max_node_weight = kInvalidNodeWeight;
 
   NodeID _max_degree;
 
@@ -525,9 +466,6 @@ private:
   std::vector<NodeID> _buckets = std::vector<NodeID>(kNumberOfDegreeBuckets<NodeID> + 1);
   std::size_t _number_of_buckets = 0;
 };
-
-using CSRGraph = AbstractCSRGraph<StaticArray, StaticArray>;
-using CompactCSRGraph = AbstractCSRGraph<StaticArray, CompactStaticArray>;
 
 namespace debug {
 bool validate_graph(const CSRGraph &graph, bool undirected = true, NodeID num_pseudo_nodes = 0);

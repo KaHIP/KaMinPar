@@ -12,7 +12,8 @@
 #include <tbb/global_control.h>
 
 #include "kaminpar-shm/context_io.h"
-#include "kaminpar-shm/datastructures/compressed_graph_builder.h"
+#include "kaminpar-shm/graphutils/compressed_graph_builder.h"
+#include "kaminpar-shm/graphutils/parallel_compressed_graph_builder.h"
 
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/logger.h"
@@ -89,9 +90,7 @@ int main(int argc, char *argv[]) {
             Graph(std::make_unique<CompressedGraph>(CompressedGraphBuilder::compress(csr_graph)));
         ctx.setup(graph);
       } else {
-        Graph graph = Graph(
-            std::make_unique<CompressedGraph>(ParallelCompressedGraphBuilder::compress(csr_graph))
-        );
+        Graph graph = Graph(std::make_unique<CompressedGraph>(parallel_compress(csr_graph)));
         ctx.setup(graph);
       }
     } else {

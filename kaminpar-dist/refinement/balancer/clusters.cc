@@ -15,6 +15,7 @@
 
 #include "kaminpar-dist/coarsening/clusterer.h"
 #include "kaminpar-dist/context.h"
+#include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/factories.h"
 #include "kaminpar-dist/logger.h"
 #include "kaminpar-dist/timer.h"
@@ -25,6 +26,7 @@
 #include "kaminpar-common/datastructures/binary_heap.h"
 #include "kaminpar-common/datastructures/fast_reset_array.h"
 #include "kaminpar-common/datastructures/noinit_vector.h"
+#include "kaminpar-common/parallel/algorithm.h"
 
 #define HEAVY assert::heavy
 
@@ -93,13 +95,13 @@ void Clusters::init_ghost_node_adjacency() {
 
   for (const NodeID cluster : clusters()) {
     for (const NodeID u : nodes(cluster)) {
-      for (const auto [e, v] : _p_graph->neighbors(u)) {
+      _p_graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
         if (!_p_graph->is_ghost_node(v)) {
-          continue;
+          return;
         }
 
-        weight_to_ghost[v - _p_graph->n()] += _p_graph->edge_weight(e);
-      }
+        weight_to_ghost[v - _p_graph->n()] += w;
+      });
     }
 
     for (const auto &[ghost, weight] : weight_to_ghost.entries()) {
@@ -219,11 +221,11 @@ bool Clusters::dbg_check_conns(const NodeID cluster) const {
   std::vector<EdgeWeight> actual(_p_graph->k());
 
   for (const NodeID u : nodes(cluster)) {
-    for (const auto &[e, v] : _p_graph->neighbors(u)) {
+    _p_graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
       if (!_p_graph->is_owned_node(v) || cluster_of(v) != cluster_of(u)) {
-        actual[_p_graph->block(v)] += _p_graph->edge_weight(e);
+        actual[_p_graph->block(v)] += w;
       }
-    }
+    });
   }
 
   for (const BlockID b : _p_graph->blocks()) {
@@ -309,16 +311,16 @@ public:
 
       add_to_cluster(u);
 
-      for (const auto [e, v] : _p_graph.neighbors(u)) {
+      _p_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
         if (_p_graph.is_owned_node(v) && _node_to_cluster[v] == kInvalidBlockID &&
             _p_graph.block(v) == bu) {
           if (_frontier.contains(v)) {
-            _frontier.decrease_priority(v, _frontier.key(v) + _p_graph.edge_weight(e));
+            _frontier.decrease_priority(v, _frontier.key(v) + w);
           } else {
-            _frontier.push(v, _p_graph.edge_weight(e));
+            _frontier.push(v, w);
           }
         }
-      }
+      });
     }
 
     finish_cluster();
@@ -338,20 +340,20 @@ public:
     _clusters[_cur_pos] = u;
     ++_cur_pos;
 
-    for (const auto [e, v] : _p_graph.neighbors(u)) {
+    _p_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
       if (_p_graph.is_owned_node(v) && _node_to_cluster[v] == _cur_cluster) {
-        _cur_block_conn -= _p_graph.edge_weight(e);
+        _cur_block_conn -= w;
       } else {
         const BlockID bv = _p_graph.block(v);
         if (bv == _cur_block) {
-          _cur_block_conn += _p_graph.edge_weight(e);
+          _cur_block_conn += w;
         } else if (_p_graph.block_weight(bv) + _cur_weight <= _p_ctx.graph->max_block_weight(bv)) {
-          _cur_conns.change_priority(bv, _cur_conns.key(bv) + _p_graph.edge_weight(e));
+          _cur_conns.change_priority(bv, _cur_conns.key(bv) + w);
         } else if (_cur_conns.key(bv) > 0) { // no longer a viable target
           _cur_conns.change_priority(bv, -1);
         }
       }
-    }
+    });
 
     _stopping_policy.update(_cur_conns.peek_key() - _cur_block_conn);
 
@@ -372,13 +374,13 @@ public:
     // @todo should do this when updating _best_*
     for (NodeID pos = _cluster_indices[_cur_cluster]; pos < _best_prefix_pos; ++pos) {
       const NodeID u = _clusters[pos];
-      for (const auto &[e, v] : _p_graph.neighbors(u)) {
+      _p_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
         if (_p_graph.is_owned_node(v) && _node_to_cluster[v] == _cur_cluster) {
-          continue;
+          return;
         }
         const BlockID bv = _p_graph.block(v);
-        _conns[_cur_cluster * _p_graph.k() + bv] += _p_graph.edge_weight(e);
-      }
+        _conns[_cur_cluster * _p_graph.k() + bv] += w;
+      });
     }
 
     _cluster_indices[++_cur_cluster] = _best_prefix_pos;
@@ -478,12 +480,12 @@ Clusters build_singleton_clusters(
       for (const BlockID k : p_graph.blocks()) {
         m_ctx.cluster_conns.push_back(0);
       }
-      for (const auto [e, v] : p_graph.neighbors(u)) {
+      p_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
         const BlockID bv = p_graph.block(v);
         const std::size_t idx = cur_move_set * p_graph.k() + bv;
         KASSERT(idx < m_ctx.cluster_conns.size());
-        m_ctx.cluster_conns[idx] += p_graph.edge_weight(e);
-      }
+        m_ctx.cluster_conns[idx] += w;
+      });
 
       ++cur_move_set;
     } else {
@@ -554,13 +556,13 @@ Clusters build_local_clusters(
       m_ctx.clusters[cluster_sizes[clustering[u]]++] = u;
       m_ctx.cluster_indices[ms + 1] = cluster_sizes[clustering[u]];
 
-      for (const auto [e, v] : p_graph.neighbors(u)) {
+      p_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
         // We may not access clustering[.] for ghost vertices
         if (!p_graph.is_owned_node(v) || clustering[v] != clustering[u]) {
           const BlockID bv = p_graph.block(v);
-          m_ctx.cluster_conns[ms * p_graph.k() + bv] += p_graph.edge_weight(e);
+          m_ctx.cluster_conns[ms * p_graph.k() + bv] += w;
         }
-      }
+      });
     } else {
       m_ctx.node_to_cluster[u] = kInvalidNodeID;
     }

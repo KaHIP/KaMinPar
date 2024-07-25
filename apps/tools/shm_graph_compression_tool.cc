@@ -16,10 +16,10 @@
 
 #include "kaminpar-common/logger.h"
 
-#include "apps/io/metis_parser.h"
-#include "apps/io/parhip_parser.h"
 #include "apps/io/shm_compressed_graph_binary.h"
 #include "apps/io/shm_io.h"
+#include "apps/io/shm_metis_parser.h"
+#include "apps/io/shm_parhip_parser.h"
 
 using namespace kaminpar;
 using namespace kaminpar::shm;

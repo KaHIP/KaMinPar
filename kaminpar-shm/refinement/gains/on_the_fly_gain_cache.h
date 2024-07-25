@@ -11,7 +11,6 @@
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/rating_map.h"
-#include "kaminpar-common/datastructures/sparse_map.h"
 
 namespace kaminpar::shm {
 template <typename DeltaPartitionedGraph, typename GainCache> class OnTheFlyDeltaGainCache;
@@ -30,7 +29,7 @@ public:
 
   OnTheFlyGainCache(const Context & /* ctx */, NodeID /* max_n */, const BlockID preallocate_k)
       : _rating_map_ets([preallocate_k] {
-          return RatingMap<EdgeWeight, BlockID, SparseMap>(preallocate_k);
+          return RatingMap<EdgeWeight, BlockID, rm_backyard::SparseMap>(preallocate_k);
         }) {}
 
   void initialize(const PartitionedGraph &p_graph) {
@@ -89,13 +88,13 @@ private:
     EdgeWeight conn_from = 0;
     EdgeWeight conn_to = 0;
 
-    for (const auto [e, v] : p_graph.neighbors(node)) {
+    p_graph.adjacent_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
       if (p_graph.block(v) == from) {
-        conn_from += p_graph.edge_weight(e);
+        conn_from += weight;
       } else if (p_graph.block(v) == to) {
-        conn_to += p_graph.edge_weight(e);
+        conn_to += weight;
       }
-    }
+    });
 
     return conn_to - conn_from;
   }
@@ -110,9 +109,9 @@ private:
     EdgeWeight conn_from = 0;
     std::pair<EdgeWeight, EdgeWeight> conns_to = {0, 0};
 
-    for (const auto [e, v] : p_graph.neighbors(node)) {
+    p_graph.adjacent_nodes(node, [&](const NodeID v, const EdgeWeight w_e) {
       const BlockID b_v = p_graph.block(v);
-      const EdgeWeight w_e = p_graph.edge_weight(e);
+
       if (b_v == b_node) {
         conn_from += w_e;
       } else if (b_v == targets.first) {
@@ -120,7 +119,7 @@ private:
       } else if (b_v == targets.second) {
         conns_to.second += w_e;
       }
-    }
+    });
 
     return {conns_to.first - conn_from, conns_to.second - conn_from};
   }
@@ -130,11 +129,11 @@ private:
   conn_impl(const PartitionedGraphType &p_graph, const NodeID node, const BlockID block) const {
     EdgeWeight conn = 0;
 
-    for (const auto [e, v] : p_graph.neighbors(node)) {
+    p_graph.adjacent_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
       if (p_graph.block(v) == block) {
-        conn += p_graph.edge_weight(e);
+        conn += weight;
       }
-    }
+    });
 
     return conn;
   }
@@ -143,13 +142,17 @@ private:
   [[nodiscard]] bool is_border_node_impl(
       const PartitionedGraphType &p_graph, const NodeID node, const BlockID block
   ) const {
-    for (const auto [e, v] : p_graph.neighbors(node)) {
+    bool border_node = false;
+    p_graph.adjacent_nodes(node, [&](const NodeID v) {
       if (p_graph.block(v) != block) {
+        border_node = true;
         return true;
       }
-    }
 
-    return false;
+      return false;
+    });
+
+    return border_node;
   }
 
   template <typename PartitionedGraphType, typename Lambda>
@@ -157,9 +160,9 @@ private:
       const PartitionedGraphType &p_graph, const NodeID node, const BlockID from, Lambda &&lambda
   ) const {
     auto action = [&](auto &map) {
-      for (const auto [e, v] : p_graph.neighbors(node)) {
-        map[p_graph.block(v)] += p_graph.edge_weight(e);
-      }
+      p_graph.adjacent_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
+        map[p_graph.block(v)] += weight;
+      });
       const EdgeWeight conn_from = kIteratesExactGains ? map[from] : 0;
 
       if constexpr (kIteratesNonadjacentBlocks) {

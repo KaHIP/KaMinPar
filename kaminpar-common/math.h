@@ -52,7 +52,7 @@ template <typename Int1, typename Int2> constexpr std::size_t abs_diff(const Int
  * @return The ceiling of x divided by y.
  */
 template <typename Int1, typename Int2> constexpr Int1 div_ceil(const Int1 x, const Int2 y) {
-  return 1 + ((x - 1) / y);
+  return x / y + (x % y != 0);
 }
 
 template <typename Int> bool is_square(const Int value) {
@@ -67,9 +67,9 @@ template <typename T> constexpr bool is_power_of_2(const T arg) {
 
 //! With `UInt = uint32_t`, same as `static_cast<uint32_t>(std::log2(arg))`
 template <typename T> T floor_log2(const T arg) {
-  constexpr std::size_t arg_width{std::numeric_limits<T>::digits};
+  constexpr std::size_t arg_width = std::numeric_limits<T>::digits;
 
-  auto log2{static_cast<T>(arg_width)};
+  auto log2 = static_cast<T>(arg_width);
   if constexpr (arg_width == std::numeric_limits<unsigned int>::digits) {
     log2 -= __builtin_clz(arg);
   } else {
@@ -224,8 +224,8 @@ template <typename Container> double find_mean(const Container &container) {
 }
 
 template <typename Container>
-auto find_min_mean_max(const Container &container)
-    -> std::tuple<typename Container::value_type, double, typename Container::value_type> {
+auto find_min_mean_max(const Container &container
+) -> std::tuple<typename Container::value_type, double, typename Container::value_type> {
   return std::make_tuple(find_min(container), find_mean(container), find_max(container));
 }
 

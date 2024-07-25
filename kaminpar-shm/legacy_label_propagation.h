@@ -358,7 +358,7 @@ protected:
    * @param u Node that was moved.
    */
   void activate_neighbors(const NodeID u) {
-    for (const NodeID v : _graph->adjacent_nodes(u)) {
+    _graph->adjacent_nodes(u, [&](const NodeID v) {
       // call derived_activate_neighbor() even if we do not use the active set
       // strategy since the function might have side effects; the compiler
       // should remove it if it does not side effects
@@ -367,7 +367,7 @@ protected:
           __atomic_store_n(&_active[v], 1, __ATOMIC_RELAXED);
         }
       }
-    }
+    });
   }
 
   void match_isolated_nodes(

@@ -10,6 +10,7 @@
 
 #include <tbb/concurrent_hash_map.h>
 
+#include "kaminpar-dist/datastructures/distributed_csr_graph.h"
 #include "kaminpar-dist/datastructures/ghost_node_mapper.h"
 #include "kaminpar-dist/datastructures/growt.h"
 #include "kaminpar-dist/dkaminpar.h"
@@ -81,7 +82,7 @@ public:
     return *this;
   }
 
-  DistributedGraph finalize() {
+  DistributedCSRGraph finalize() {
     _nodes.push_back(_edges.size());
 
     // First step: use unit node weights for ghost nodes
@@ -94,7 +95,7 @@ public:
     const EdgeID m = _edges.size();
     auto edge_distribution = mpi::build_distribution_from_local_count<GlobalEdgeID, vec>(m, _comm);
 
-    DistributedGraph graph(
+    DistributedCSRGraph graph(
         static_array::create(_node_distribution),
         static_array::create(edge_distribution),
         static_array::create(_nodes),
@@ -105,7 +106,8 @@ public:
         static_array::create(_ghost_to_global),
         build_static_ghost_node_mapping(_global_to_ghost),
         false,
-        _comm);
+        _comm
+    );
 
     // If the graph does not have unit node weights, exchange ghost node weights
     // now
@@ -117,9 +119,7 @@ public:
     if (!_unit_node_weights) {
       mpi::graph::sparse_alltoall_interface_to_pe<Message>(
           graph,
-          [&](const NodeID u) -> Message {
-            return {u, graph.node_weight(u)};
-          },
+          [&](const NodeID u) -> Message { return {u, graph.node_weight(u)}; },
           [&](const auto buffer, const PEID pe) {
             tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
               const auto &[local_node_on_other_pe, weight] = buffer[i];

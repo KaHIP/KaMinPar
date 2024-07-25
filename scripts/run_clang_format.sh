@@ -11,7 +11,8 @@ for directory in "apps" \
     "kaminpar-shm" \
     "kaminpar-dist" \
     "kaminpar-cli" \
-    "kaminpar-mpi"; do
+    "kaminpar-mpi" \
+    "external/growt"; do
     find "$directory"                        \
         -type f                              \
         \( -name "*.cc" -or -name "*.h" \)   \

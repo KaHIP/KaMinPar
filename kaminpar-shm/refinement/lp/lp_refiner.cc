@@ -223,35 +223,19 @@ class LPRefinerImplWrapper {
 public:
   LPRefinerImplWrapper(const Context &ctx)
       : _csr_impl(std::make_unique<LPRefinerImpl<CSRGraph>>(ctx, _permutations)),
-        _compact_csr_impl(std::make_unique<LPRefinerImpl<CompactCSRGraph>>(ctx, _permutations)),
         _compressed_impl(std::make_unique<LPRefinerImpl<CompressedGraph>>(ctx, _permutations)) {}
 
   void initialize(const PartitionedGraph &p_graph) {
-    const Graph &graph = p_graph.graph();
-
-    if (auto *csr_graph = dynamic_cast<const CSRGraph *>(graph.underlying_graph());
-        csr_graph != nullptr) {
-      _csr_impl->initialize(csr_graph);
-      return;
-    }
-
-    if (auto *compact_csr_graph = dynamic_cast<const CompactCSRGraph *>(graph.underlying_graph());
-        compact_csr_graph != nullptr) {
-      _compact_csr_impl->initialize(compact_csr_graph);
-      return;
-    }
-
-    if (auto *compressed_graph = dynamic_cast<const CompressedGraph *>(graph.underlying_graph());
-        compressed_graph != nullptr) {
-      _compressed_impl->initialize(compressed_graph);
-      return;
-    }
-
-    __builtin_unreachable();
+    p_graph.graph().reified(
+        [&](const auto &graph) { _csr_impl->initialize(&graph); },
+        [&](const auto &graph) { _compressed_impl->initialize(&graph); }
+    );
   }
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
-    const auto specific_refine = [&](auto &impl) {
+    SCOPED_TIMER("Label Propagation");
+
+    const auto refine = [&](auto &impl) {
       if (_freed) {
         _freed = false;
         impl.allocate();
@@ -265,30 +249,14 @@ public:
       return found_improvement;
     };
 
-    SCOPED_TIMER("Label Propagation");
-    const Graph &graph = p_graph.graph();
-
-    if (auto *csr_graph = dynamic_cast<const CSRGraph *>(graph.underlying_graph());
-        csr_graph != nullptr) {
-      return specific_refine(*_csr_impl);
-    }
-
-    if (auto *compact_csr_graph = dynamic_cast<const CompactCSRGraph *>(graph.underlying_graph());
-        compact_csr_graph != nullptr) {
-      return specific_refine(*_compact_csr_impl);
-    }
-
-    if (auto *compressed_graph = dynamic_cast<const CompressedGraph *>(graph.underlying_graph());
-        compressed_graph != nullptr) {
-      return specific_refine(*_compressed_impl);
-    }
-
-    __builtin_unreachable();
+    return p_graph.graph().reified(
+        [&](const auto &) { return refine(*_csr_impl); },
+        [&](const auto &) { return refine(*_compressed_impl); }
+    );
   }
 
 private:
   std::unique_ptr<LPRefinerImpl<CSRGraph>> _csr_impl;
-  std::unique_ptr<LPRefinerImpl<CompactCSRGraph>> _compact_csr_impl;
   std::unique_ptr<LPRefinerImpl<CompressedGraph>> _compressed_impl;
 
   // The data structures which are used by the LP refiner and are shared between the
@@ -314,4 +282,5 @@ void LabelPropagationRefiner::initialize(const PartitionedGraph &p_graph) {
 bool LabelPropagationRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
   return _impl_wrapper->refine(p_graph, p_ctx);
 }
+
 } // namespace kaminpar::shm

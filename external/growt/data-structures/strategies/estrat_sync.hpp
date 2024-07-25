@@ -88,8 +88,8 @@ template <class Parent> class estrat_sync
         std::atomic<growable_table_type*> _next_table;
     };
 
-    static constexpr size_t   growing_flag = 0;
-    static constexpr uint64_t unused_flags = 1;
+    static constexpr std::size_t   growing_flag = 0;
+    static constexpr std::uint64_t unused_flags = 1;
     using intern_table_type                = growable_table_type;
     using intern_table_ptr                 = growable_table_type*;
     using atomic_table_ptr                 = std::atomic<growable_table_type*>;
@@ -440,8 +440,8 @@ estrat_sync<P>::local_data_type::blockwise_migrate(base_table_type& source,
     while (temp < source._mapper.addressable_slots())
     {
         n += source.migrate(target, temp,
-                            std::min(uint(temp + migration_block_size),
-                                     uint(source._mapper.addressable_slots())));
+                            std::min<unsigned int>(temp + migration_block_size,
+                                     source._mapper.addressable_slots()));
         temp = source._current_copy_block.fetch_add(migration_block_size);
     }
     return n;

@@ -187,6 +187,9 @@ void HeapProfiler::print_heap_profile(std::ostream &out) {
   out << kFreeTitle << std::string(stats.free_size - kFreeTitle.length() + 1, ' ');
   out << kAllocsTitle << std::string(stats.allocs - kAllocsTitle.length() + 1, ' ');
   out << kFreesTitle << std::string(stats.frees - kFreesTitle.length() + 1, ' ');
+  if (!_tree.annotation.empty()) {
+    out << "   " << _tree.annotation;
+  }
   out << '\n';
 
   print_heap_tree_node(out, root, stats, _max_depth, _print_data_structs, _min_data_struct_size);
@@ -211,6 +214,10 @@ std::size_t HeapProfiler::get_allocs() {
 
 std::size_t HeapProfiler::get_frees() {
   return _tree.currentNode->frees;
+}
+
+[[nodiscard]] HeapProfiler::HeapProfileTree &HeapProfiler::tree_root() {
+  return _tree;
 }
 
 void HeapProfiler::print_heap_tree_node(
@@ -281,13 +288,13 @@ void HeapProfiler::print_percentage(std::ostream &out, const HeapProfileTreeNode
   out << "(";
 
   if (percentage >= 0.999995) {
-    out << "100.00";
+    out << "100.0";
   } else {
     if (percentage < 0.1) {
       out << "0";
     }
 
-    out << percentage * 100;
+    out << std::fixed << std::setprecision(2) << percentage * 100;
   }
 
   out << "%) ";
@@ -306,7 +313,13 @@ void HeapProfiler::print_statistics(
   out << free_size << std::string(stats.free_size - free_size.length() + 1, ' ');
 
   out << node.allocs << std::string(stats.allocs - std::to_string(node.allocs).length() + 1, ' ')
-      << node.frees << std::string(stats.frees - std::to_string(node.frees).length(), ' ') << '\n';
+      << node.frees << std::string(stats.frees - std::to_string(node.frees).length(), ' ');
+
+  if (!node.annotation.empty()) {
+    out << "   " << node.annotation;
+  }
+
+  out << '\n';
 }
 
 void HeapProfiler::print_data_structures(

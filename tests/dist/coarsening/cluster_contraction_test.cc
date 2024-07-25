@@ -89,8 +89,8 @@ TEST(ClusterContractionTest, contract_local_complete_bipartite_graph_vertically)
     EXPECT_EQ(c_graph.node_weight(1), set_size);
 
     ASSERT_EQ(c_graph.m(), 2);
-    EXPECT_EQ(c_graph.edge_weight(0), set_size * set_size);
-    EXPECT_EQ(c_graph.edge_weight(1), set_size * set_size);
+    EXPECT_EQ(c_graph.csr_graph().edge_weight(0), set_size * set_size);
+    EXPECT_EQ(c_graph.csr_graph().edge_weight(1), set_size * set_size);
 
     /*
     ASSERT_EQ(c_mapping.size(), graph.n());
@@ -134,7 +134,7 @@ TEST(ClusterContractionTest, contract_local_complete_bipartite_graph_horizontall
     EXPECT_THAT(c_graph.node_weights(), Each(Eq(2)));
 
     ASSERT_EQ(c_graph.m(), set_size * (set_size - 1));
-    EXPECT_THAT(c_graph.edge_weights(), Each(Eq(2)));
+    EXPECT_THAT(c_graph.csr_graph().edge_weights(), Each(Eq(2)));
 
     /*
     ASSERT_EQ(c_mapping.size(), graph.n());
@@ -199,7 +199,7 @@ TEST(ClusterContractionTest, contract_global_complete_graph_to_one_node_per_pe) 
     ASSERT_EQ(c_graph.m(), size - 1);
 
     EXPECT_EQ(c_graph.node_weight(0), nodes_per_pe);
-    EXPECT_THAT(c_graph.edge_weights(), Each(Eq(nodes_per_pe * nodes_per_pe)));
+    EXPECT_THAT(c_graph.csr_graph().edge_weights(), Each(Eq(nodes_per_pe * nodes_per_pe)));
 
     /*
     ASSERT_EQ(c_mapping.size(), graph.n());
@@ -221,7 +221,7 @@ TEST(ClusterContractionTest, keep_global_complete_graph) {
     EXPECT_EQ(c_graph.n(), graph.n());
     EXPECT_EQ(c_graph.m(), graph.m());
     EXPECT_EQ(c_graph.node_weights(), graph.node_weights());
-    EXPECT_EQ(c_graph.edge_weights(), graph.edge_weights());
+    EXPECT_EQ(c_graph.csr_graph().edge_weights(), graph.csr_graph().edge_weights());
 
     /*
     ASSERT_EQ(c_mapping.size(), graph.n());
@@ -250,7 +250,7 @@ TEST(ClusterContractionTest, rotate_global_complete_graph) {
     EXPECT_EQ(c_graph.n(), graph.n());
     EXPECT_EQ(c_graph.m(), graph.m());
     EXPECT_EQ(c_graph.node_weights(), graph.node_weights());
-    EXPECT_EQ(c_graph.edge_weights(), graph.edge_weights());
+    EXPECT_EQ(c_graph.csr_graph().edge_weights(), graph.csr_graph().edge_weights());
   }
 }
 } // namespace kaminpar::dist

@@ -24,18 +24,16 @@ namespace kaminpar::dist {
 using namespace kaminpar::dist::testing;
 
 namespace {
-template <typename Coloring>
+template <typename Graph, typename Coloring>
 void validate_node_coloring(
-    const DistributedGraph &graph,
+    const Graph &graph,
     const Coloring &coloring,
     const ColorID max_num_colors = std::numeric_limits<ColorID>::max()
 ) {
   ASSERT_GE(coloring.size(), graph.total_n());
   for (const NodeID u : graph.nodes()) {
     EXPECT_LT(coloring[u], max_num_colors);
-    for (const NodeID v : graph.adjacent_nodes(u)) {
-      EXPECT_NE(coloring[u], coloring[v]);
-    }
+    graph.adjacent_nodes(u, [&](const NodeID v) { EXPECT_NE(coloring[u], coloring[v]); });
   }
 }
 } // namespace

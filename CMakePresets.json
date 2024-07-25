@@ -21,6 +21,7 @@
             "displayName": "Default Config for dKaMinPar",
             "cacheVariables": {
                 "KAMINPAR_BUILD_DISTRIBUTED": "ON",
+                "KAMINPAR_BUILD_WITH_SPARSEHASH": "ON",
                 "KAMINPAR_64BIT_IDS": "OFF",
                 "KAMINPAR_64BIT_EDGE_IDS": "OFF",
                 "KAMINPAR_64BIT_NODE_IDS": "OFF",
@@ -28,7 +29,7 @@
             }
         },
         {
-            "name": "compressed",
+            "name": "memory",
             "displayName": "Default Config for KaMinPar with Memory Optimizations",
             "cacheVariables": {
                 "KAMINPAR_64BIT_EDGE_IDS": "ON",
@@ -49,8 +50,8 @@
             "inherits": ["default", "stats"]
         },
         {
-            "name": "compressed-stats",
-            "inherits": ["compressed", "stats"]
+            "name": "memory-stats",
+            "inherits": ["memory", "stats"]
         },
         {
             "name": "distributed-stats",

@@ -7,12 +7,11 @@
 
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction_preprocessing.h"
-#include "kaminpar-shm/coarsening/contraction/unbuffered_cluster_contraction.h"
 
-#include "kaminpar-common/datastructures/compact_static_array.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/heap_profiler.h"
+#include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::contraction {
@@ -70,10 +69,10 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered_naive(
           c_u_weight += graph.node_weight(u);
 
           // Collect coarse edges
-          graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
+          graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
             const NodeID c_v = mapping[v];
             if (c_u != c_v) {
-              map[c_v] += graph.edge_weight(e);
+              map[c_v] += w;
             }
           });
         }
@@ -140,10 +139,10 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered_naive(
           KASSERT(mapping[u] == c_u);
 
           // Collect coarse edges
-          graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
+          graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
             const NodeID c_v = mapping[v];
             if (c_u != c_v) {
-              map[c_v] += graph.edge_weight(e);
+              map[c_v] += w;
             }
           });
         }

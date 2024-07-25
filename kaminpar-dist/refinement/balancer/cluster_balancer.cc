@@ -736,7 +736,7 @@ void ClusterBalancer::perform_moves(
         // @todo set blocks before updating other data structures to avoid max gainer changes?
         _p_graph.set_block<false>(u, candidate.to);
 
-        for (const auto &[e, v] : _p_graph.neighbors(u)) {
+        _p_graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
           if (_p_graph.is_ghost_node(v)) {
             const PEID pe = _p_graph.ghost_owner(v);
             if (!created_message_for_pe.get(pe)) {
@@ -747,7 +747,7 @@ void ClusterBalancer::perform_moves(
               created_message_for_pe.set(pe);
             }
 
-            continue;
+            return;
           }
 
           // !is_overloaded(.) is not a sufficient condition, since parallel moves might overload
@@ -756,7 +756,7 @@ void ClusterBalancer::perform_moves(
           if (_clusters.contains(v)) {
             update_adjacent_cluster(_clusters.cluster_of(v));
           }
-        }
+        });
 
         created_message_for_pe.reset();
       }

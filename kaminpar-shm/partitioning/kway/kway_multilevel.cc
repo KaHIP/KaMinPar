@@ -93,11 +93,6 @@ const Graph *KWayMultilevelPartitioner::coarsen() {
 
     // Print some metrics for the coarse graphs
     LOG << "Coarsening -> Level " << _coarsener->level();
-    if (const auto *graph = dynamic_cast<const CompactCSRGraph *>(c_graph->underlying_graph());
-        graph != nullptr) {
-      LOG << "  Compact Node IDs: " << graph->node_id_byte_width()
-          << " bytes | Compact edge weights: " << graph->edge_weight_byte_width() << " bytes";
-    }
     LOG << "  Number of nodes: " << c_graph->n() << " | Number of edges: " << c_graph->m();
     LLOG << "  Maximum node weight: " << c_graph->max_node_weight() << " ";
     LLOG << "<= "

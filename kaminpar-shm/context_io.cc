@@ -17,9 +17,9 @@
 
 #include "kaminpar-common/asserting_cast.h"
 #include "kaminpar-common/console_io.h"
+#include "kaminpar-common/graph-compression/varint_codec.h"
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/strutils.h"
-#include "kaminpar-common/varint_codec.h"
 
 namespace kaminpar::shm {
 using namespace std::string_literals;
@@ -446,6 +446,9 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
     } else {
       out << "VarInt Encoding\n";
     }
+
+    out << "  Compressed edge weights:    " << (c_ctx.compressed_edge_weights ? "yes" : "no")
+        << "\n";
     out << "  High Degree Encoding:       " << (c_ctx.high_degree_encoding ? "yes" : "no") << "\n";
     if (c_ctx.high_degree_encoding) {
       out << "    Threshold:                " << c_ctx.high_degree_threshold << "\n";

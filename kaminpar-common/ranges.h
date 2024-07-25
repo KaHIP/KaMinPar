@@ -70,7 +70,7 @@ public:
   class iterator {
   public:
     using iterator_category = std::input_iterator_tag;
-    using value_type = std::result_of_t<Function(Int)>;
+    using value_type = std::invoke_result_t<Function, Int>;
     using difference_type = std::make_signed_t<Int>;
     using pointer = value_type *;
     using reference = value_type &;
@@ -133,7 +133,7 @@ public:
   class iterator {
   public:
     using iterator_category = typename Iterator::iterator_category;
-    using value_type = std::result_of_t<Function(typename Iterator::value_type)>;
+    using value_type = std::invoke_result_t<Function, typename Iterator::value_type>;
     using difference_type = typename Iterator::difference_type;
     using pointer = value_type *;
     using reference = value_type &;

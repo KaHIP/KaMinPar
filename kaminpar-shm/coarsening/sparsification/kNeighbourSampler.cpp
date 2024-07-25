@@ -11,6 +11,7 @@
 #include "UnionFind.h"
 #include "sparsification_utils.h"
 
+#include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::shm::sparsification {

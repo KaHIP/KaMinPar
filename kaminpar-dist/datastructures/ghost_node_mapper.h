@@ -7,17 +7,159 @@
  ******************************************************************************/
 #pragma once
 
+#include <mpi.h>
 #include <tbb/concurrent_hash_map.h>
 
 #include "kaminpar-dist/datastructures/growt.h"
 #include "kaminpar-dist/dkaminpar.h"
 
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/datastructures/bitvector_rank.h"
+#include "kaminpar-common/datastructures/compact_static_array.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/parallel/atomic.h"
 
-namespace kaminpar::dist::graph {
+namespace kaminpar::dist {
+
+class CompactGhostNodeMapping {
+public:
+  explicit CompactGhostNodeMapping(
+      const NodeID num_nodes,
+      const NodeID num_ghost_nodes,
+      RankCombinedBitVector<> global_to_ghost_bitmap,
+      CompactStaticArray<NodeID> dense_global_to_ghost,
+      CompactStaticArray<GlobalNodeID> ghost_to_global,
+      CompactStaticArray<PEID> ghost_owner
+  )
+      : _num_nodes(num_nodes),
+        _num_ghost_nodes(num_ghost_nodes),
+        _global_to_ghost_bitmap(std::move(global_to_ghost_bitmap)),
+        _dense_global_to_ghost(std::move(dense_global_to_ghost)),
+        _ghost_to_global(std::move(ghost_to_global)),
+        _ghost_owner(std::move(ghost_owner)) {}
+
+  [[nodiscard]] bool contains_global_as_ghost(const GlobalNodeID global_node) const {
+    return _global_to_ghost_bitmap.is_set(global_node);
+  }
+
+  [[nodiscard]] NodeID global_to_ghost(const GlobalNodeID global_node) const {
+    const NodeID dense_index = _global_to_ghost_bitmap.rank(global_node);
+    return _dense_global_to_ghost[dense_index] + _num_nodes;
+  }
+
+  [[nodiscard]] GlobalNodeID ghost_to_global(const NodeID ghost_node) const {
+    return _ghost_to_global[ghost_node];
+  }
+
+  [[nodiscard]] PEID ghost_owner(const NodeID ghost_node) const {
+    return _ghost_owner[ghost_node];
+  }
+
+  [[nodiscard]] NodeID num_ghost_nodes() const {
+    return _num_ghost_nodes;
+  }
+
+private:
+  NodeID _num_nodes;
+  NodeID _num_ghost_nodes;
+  RankCombinedBitVector<> _global_to_ghost_bitmap;
+  CompactStaticArray<NodeID> _dense_global_to_ghost;
+  CompactStaticArray<GlobalNodeID> _ghost_to_global;
+  CompactStaticArray<PEID> _ghost_owner;
+};
+
+class CompactGhostNodeMappingBuilder {
+  SET_DEBUG(false);
+
+  // @todo replace by growt hash table
+  using GhostNodeMap = tbb::concurrent_hash_map<GlobalNodeID, NodeID>;
+
+public:
+  CompactGhostNodeMappingBuilder(
+      const PEID rank, const StaticArray<GlobalNodeID> &node_distribution
+  )
+      : _num_nodes(static_cast<NodeID>(node_distribution[rank + 1] - node_distribution[rank])),
+        _node_distribution(node_distribution.begin(), node_distribution.end()),
+        _next_ghost_node(_num_nodes),
+        _global_to_ghost_bitmap(node_distribution.back()) {}
+
+  NodeID new_ghost_node(const GlobalNodeID global_node) {
+    GhostNodeMap::accessor entry;
+    if (_global_to_ghost.insert(entry, global_node)) {
+      const NodeID ghost_node = _next_ghost_node++;
+      entry->second = ghost_node;
+      _global_to_ghost_bitmap.set(global_node);
+    } else {
+      [[maybe_unused]] const bool found = _global_to_ghost.find(entry, global_node);
+      KASSERT(found);
+    }
+
+    DBG << "Mapping " << global_node << " to " << entry->second;
+    return entry->second;
+  }
+
+  [[nodiscard]] NodeID next_ghost_node() const {
+    return _next_ghost_node;
+  }
+
+  [[nodiscard]] CompactGhostNodeMapping finalize() {
+    const NodeID num_ghost_nodes = _next_ghost_node - _num_nodes;
+    const GlobalNodeID num_global_nodes = _node_distribution.back();
+    const std::size_t num_processes = _node_distribution.size() - 1;
+
+    RECORD("dense_global_to_ghost")
+    CompactStaticArray<NodeID> dense_global_to_ghost(
+        math::byte_width(num_ghost_nodes - 1), num_ghost_nodes
+    );
+
+    RECORD("ghost_to_global")
+    CompactStaticArray<GlobalNodeID> ghost_to_global(
+        math::byte_width(num_global_nodes - 1), num_ghost_nodes
+    );
+
+    RECORD("ghost_owner")
+    CompactStaticArray<PEID> ghost_owner(math::byte_width(num_processes - 1), num_ghost_nodes);
+
+    _global_to_ghost_bitmap.update();
+    for (const auto [global_node, local_node] : _global_to_ghost) {
+      const NodeID local_ghost = local_node - _num_nodes;
+
+      const auto owner_it =
+          std::upper_bound(_node_distribution.begin() + 1, _node_distribution.end(), global_node);
+      const auto owner = static_cast<PEID>(std::distance(_node_distribution.begin(), owner_it) - 1);
+
+      KASSERT(local_ghost < dense_global_to_ghost.size());
+      KASSERT(local_ghost < ghost_to_global.size());
+      KASSERT(local_ghost < ghost_owner.size());
+
+      const std::size_t dense_index = _global_to_ghost_bitmap.rank(global_node);
+      dense_global_to_ghost.write(dense_index, local_ghost);
+
+      ghost_to_global.write(local_ghost, global_node);
+      ghost_owner.write(local_ghost, owner);
+    }
+
+    return CompactGhostNodeMapping(
+        _num_nodes,
+        num_ghost_nodes,
+        std::move(_global_to_ghost_bitmap),
+        std::move(dense_global_to_ghost),
+        std::move(ghost_to_global),
+        std::move(ghost_owner)
+    );
+  }
+
+private:
+  NodeID _num_nodes;
+  StaticArray<GlobalNodeID> _node_distribution;
+
+  NodeID _next_ghost_node;
+  GhostNodeMap _global_to_ghost;
+  RankCombinedBitVector<> _global_to_ghost_bitmap;
+};
+
+namespace graph {
 class GhostNodeMapper {
   SET_DEBUG(false);
 
@@ -58,8 +200,9 @@ public:
     const NodeID ghost_n = static_cast<NodeID>(_next_ghost_node - _n);
 
     growt::StaticGhostNodeMapping global_to_ghost(ghost_n);
-    StaticArray<GlobalNodeID> ghost_to_global(ghost_n);
-    StaticArray<PEID> ghost_owner(ghost_n);
+
+    RECORD("ghost_to_global") StaticArray<GlobalNodeID> ghost_to_global(ghost_n);
+    RECORD("ghost_owner") StaticArray<PEID> ghost_owner(ghost_n);
 
     tbb::parallel_for(_global_to_ghost.range(), [&](const auto r) {
       for (auto it = r.begin(); it != r.end(); ++it) {
@@ -83,10 +226,16 @@ public:
       }
     });
 
+    RECORD("global_to_ghost");
+    RECORD_LOCAL_DATA_STRUCT(
+        "growt::StaticGhostNodeMapping",
+        global_to_ghost.capacity() * sizeof(growt::StaticGhostNodeMapping::atomic_slot_type)
+    );
+
     return {
         .global_to_ghost = std::move(global_to_ghost),
         .ghost_to_global = std::move(ghost_to_global),
-        .ghost_owner = std::move(ghost_owner)
+        .ghost_owner = std::move(ghost_owner),
     };
   }
 
@@ -96,4 +245,5 @@ private:
   parallel::Atomic<NodeID> _next_ghost_node;
   GhostNodeMap _global_to_ghost;
 };
-} // namespace kaminpar::dist::graph
+} // namespace graph
+} // namespace kaminpar::dist

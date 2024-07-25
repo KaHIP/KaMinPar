@@ -11,7 +11,9 @@
 #include <tuple>
 #include <utility>
 
+#ifdef KAMINPAR_COMPRESSION_FAST_DECODING
 #include <immintrin.h>
+#endif // KAMINPAR_COMPRESSION_FAST_DECODING
 
 namespace kaminpar {
 

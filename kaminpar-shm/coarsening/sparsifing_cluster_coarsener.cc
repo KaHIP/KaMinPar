@@ -20,6 +20,7 @@
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/heap_profiler.h"
+#include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/timer.h"
 
@@ -56,6 +57,7 @@ SparsifyingClusteringCoarsener::sparsify(const CSRGraph &g, StaticArray<EdgeWeig
     }
   });
   parallel::prefix_sum(nodes.begin(), nodes.end(), nodes.begin());
+
 
   auto edges_added = StaticArray<EdgeID>(g.n(), 0);
   auto edges = StaticArray<NodeID>(nodes[g.n()]);

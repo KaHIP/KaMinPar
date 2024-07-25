@@ -21,7 +21,6 @@ q /*****************************************************************************
 #include "data-structures/strategy/estrat_async.hpp"
 #include "data-structures/strategy/estrat_sync.hpp"
 #include "data-structures/strategy/estrat_sync_alt.hpp"
-#include "data-structures/strategy/wstrat_pool.hpp"
 #include "data-structures/strategy/wstrat_user.hpp"
 #include "data-structures/tsxcircular.hpp"
 

@@ -8,12 +8,16 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 
+#if defined(__x86_64__)
 #include <immintrin.h>
+#elif defined(__aarch64__)
+#include <arm_neon.h>
+#endif
 
 #include "kaminpar-common/constexpr_utils.h"
-#include "kaminpar-common/varint_codec.h"
 
 namespace kaminpar {
 
@@ -188,8 +192,9 @@ public:
    * @param l The function to be called with the decoded integers, i.e. the function has one
    * parameter of type Int.
    */
+#if defined(__x86_64__)
   template <typename Lambda> void decode(Lambda &&l) {
-    constexpr bool non_stoppable = std::is_void_v<std::invoke_result_t<Lambda, std::uint32_t>>;
+    constexpr bool kNonStoppable = std::is_void_v<std::invoke_result_t<Lambda, Int>>;
 
     for (std::size_t i = 0; i < _control_bytes; ++i) {
       const std::uint8_t control_byte = _control_bytes_ptr[i];
@@ -201,25 +206,25 @@ public:
       const std::uint8_t *shuffle_mask = kShuffleTable[control_byte].data();
       data = _mm_shuffle_epi8(data, *(const __m128i *)shuffle_mask);
 
-      if constexpr (non_stoppable) {
+      if constexpr (kNonStoppable) {
         l(_mm_extract_epi32(data, 0));
         l(_mm_extract_epi32(data, 1));
         l(_mm_extract_epi32(data, 2));
         l(_mm_extract_epi32(data, 3));
       } else {
-        if (l(_mm_extract_epi32(data, 0))) {
+        if (l(_mm_extract_epi32(data, 0))) [[unlikely]] {
           return;
         }
 
-        if (l(_mm_extract_epi32(data, 1))) {
+        if (l(_mm_extract_epi32(data, 1))) [[unlikely]] {
           return;
         }
 
-        if (l(_mm_extract_epi32(data, 2))) {
+        if (l(_mm_extract_epi32(data, 2))) [[unlikely]] {
           return;
         }
 
-        if (l(_mm_extract_epi32(data, 3))) {
+        if (l(_mm_extract_epi32(data, 3))) [[unlikely]] {
           return;
         }
       }
@@ -233,10 +238,10 @@ public:
       __m128i data = _mm_loadu_si128((const __m128i *)_data_ptr);
       data = _mm_shuffle_epi8(data, *(const __m128i *)shuffle_mask);
 
-      if constexpr (non_stoppable) {
+      if constexpr (kNonStoppable) {
         l(_mm_extract_epi32(data, 0));
       } else {
-        if (l(_mm_extract_epi32(data, 0))) {
+        if (l(_mm_extract_epi32(data, 0))) [[unlikely]] {
           return;
         }
       }
@@ -249,15 +254,15 @@ public:
       __m128i data = _mm_loadu_si128((const __m128i *)_data_ptr);
       data = _mm_shuffle_epi8(data, *(const __m128i *)shuffle_mask);
 
-      if constexpr (non_stoppable) {
+      if constexpr (kNonStoppable) {
         l(_mm_extract_epi32(data, 0));
         l(_mm_extract_epi32(data, 1));
       } else {
-        if (l(_mm_extract_epi32(data, 0))) {
+        if (l(_mm_extract_epi32(data, 0))) [[unlikely]] {
           return;
         }
 
-        if (l(_mm_extract_epi32(data, 1))) {
+        if (l(_mm_extract_epi32(data, 1))) [[unlikely]] {
           return;
         }
       }
@@ -270,20 +275,20 @@ public:
       __m128i data = _mm_loadu_si128((const __m128i *)_data_ptr);
       data = _mm_shuffle_epi8(data, *(const __m128i *)shuffle_mask);
 
-      if constexpr (non_stoppable) {
+      if constexpr (kNonStoppable) {
         l(_mm_extract_epi32(data, 0));
         l(_mm_extract_epi32(data, 1));
         l(_mm_extract_epi32(data, 2));
       } else {
-        if (l(_mm_extract_epi32(data, 0))) {
+        if (l(_mm_extract_epi32(data, 0))) [[unlikely]] {
           return;
         }
 
-        if (l(_mm_extract_epi32(data, 1))) {
+        if (l(_mm_extract_epi32(data, 1))) [[unlikely]] {
           return;
         }
 
-        if (l(_mm_extract_epi32(data, 2))) {
+        if (l(_mm_extract_epi32(data, 2))) [[unlikely]] {
           return;
         }
       }
@@ -291,6 +296,139 @@ public:
     }
     }
   }
+#elif defined(__aarch64__)
+  template <typename Lambda> void decode(Lambda &&l) {
+    constexpr bool kNonStoppable = std::is_void_v<std::invoke_result_t<Lambda, Int>>;
+
+    for (std::size_t i = 0; i < _control_bytes; ++i) {
+      const std::uint8_t control_byte = _control_bytes_ptr[i];
+      const std::uint8_t length = kLengthTable[control_byte];
+
+      //__m128i data = _mm_loadu_si128((const __m128i *)_data_ptr);
+      uint8x16_t data = vld1q_u8(_data_ptr);
+      _data_ptr += length;
+
+      // const std::uint8_t *shuffle_mask = kShuffleTable[control_byte].data();
+      //  data = _mm_shuffle_epi8(data, *(const __m128i *)shuffle_mask);
+      const uint8x16_t shuffle_mask = vld1q_u8(kShuffleTable[control_byte].data());
+      data = vqtbl1q_u8(data, shuffle_mask);
+
+      std::array<std::uint32_t, 4> out;
+      vst1q_u8(reinterpret_cast<std::uint8_t *>(out.data()), data);
+
+      if constexpr (kNonStoppable) {
+        l(out[0]);
+        l(out[1]);
+        l(out[2]);
+        l(out[3]);
+      } else {
+        if (l(out[0])) [[unlikely]] {
+          return;
+        }
+
+        if (l(out[1])) [[unlikely]] {
+          return;
+        }
+
+        if (l(out[2])) [[unlikely]] {
+          return;
+        }
+
+        if (l(out[3])) [[unlikely]] {
+          return;
+        }
+      }
+    }
+
+    switch (_count % 4) {
+    case 1: {
+      const std::uint8_t control_byte = _control_bytes_ptr[_control_bytes];
+      // const std::uint8_t *shuffle_mask = kShuffleTable[control_byte].data();
+      const uint8x16_t shuffle_mask = vld1q_u8(kShuffleTable[control_byte].data());
+
+      // __m128i data = _mm_loadu_si128((const __m128i *)_data_ptr);
+      // data = _mm_shuffle_epi8(data, *(const __m128i *)shuffle_mask);
+      uint8x16_t data = vld1q_u8(_data_ptr);
+      data = vqtbl1q_u8(data, shuffle_mask);
+
+      std::array<std::uint32_t, 4> out;
+      vst1q_u8(reinterpret_cast<std::uint8_t *>(out.data()), data);
+
+      if constexpr (kNonStoppable) {
+        l(out[0]);
+      } else {
+        if (l(out[0])) [[unlikely]] {
+          return;
+        }
+      }
+      break;
+    }
+    case 2: {
+      const std::uint8_t control_byte = _control_bytes_ptr[_control_bytes];
+      // const std::uint8_t *shuffle_mask = kShuffleTable[control_byte].data();
+      const uint8x16_t shuffle_mask = vld1q_u8(kShuffleTable[control_byte].data());
+
+      // __m128i data = _mm_loadu_si128((const __m128i *)_data_ptr);
+      // data = _mm_shuffle_epi8(data, *(const __m128i *)shuffle_mask);
+      uint8x16_t data = vld1q_u8(_data_ptr);
+      data = vqtbl1q_u8(data, shuffle_mask);
+
+      std::array<std::uint32_t, 4> out;
+      vst1q_u8(reinterpret_cast<std::uint8_t *>(out.data()), data);
+
+      if constexpr (kNonStoppable) {
+        l(out[0]);
+        l(out[1]);
+      } else {
+        if (l(out[0])) [[unlikely]] {
+          return;
+        }
+
+        if (l(out[1])) [[unlikely]] {
+          return;
+        }
+      }
+      break;
+    }
+    case 3: {
+      const std::uint8_t control_byte = _control_bytes_ptr[_control_bytes];
+      // const std::uint8_t *shuffle_mask = kShuffleTable[control_byte].data();
+      const uint8x16_t shuffle_mask = vld1q_u8(kShuffleTable[control_byte].data());
+
+      // __m128i data = _mm_loadu_si128((const __m128i *)_data_ptr);
+      // data = _mm_shuffle_epi8(data, *(const __m128i *)shuffle_mask);
+      uint8x16_t data = vld1q_u8(_data_ptr);
+      data = vqtbl1q_u8(data, shuffle_mask);
+
+      std::array<std::uint32_t, 4> out;
+      vst1q_u8(reinterpret_cast<std::uint8_t *>(out.data()), data);
+
+      if constexpr (kNonStoppable) {
+        l(out[0]);
+        l(out[1]);
+        l(out[2]);
+      } else {
+        if (l(out[0])) [[unlikely]] {
+          return;
+        }
+
+        if (l(out[1])) [[unlikely]] {
+          return;
+        }
+
+        if (l(out[2])) [[unlikely]] {
+          return;
+        }
+      }
+      break;
+    }
+    }
+  }
+#else
+  template <typename Lambda> void decode(Lambda &&l) {
+    throw std::runtime_error("not implemented");
+  }
+#endif
 
 private:
   const std::uint8_t *_control_bytes_ptr;

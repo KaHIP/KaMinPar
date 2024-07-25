@@ -42,4 +42,12 @@ CompressedGraph compressed_read(const std::string &filename, const bool sorted);
  */
 CompressedGraph compressed_read_parallel(const std::string &filename, const NodeOrdering ordering);
 
+/*!
+ * Writes a graph to a file in ParHIP format.
+ *
+ * @param filename The name of the file in which to store the graph.
+ * @param graph The graph to store.
+ */
+void write(const std::string &filename, const CSRGraph &graph);
+
 } // namespace kaminpar::shm::io::parhip

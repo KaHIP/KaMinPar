@@ -78,12 +78,14 @@ void dump_graph(const Graph &graph, const std::string &filename) {
     if (graph.is_node_weighted()) {
       out << graph.node_weight(u) << " ";
     }
-    for (const auto &[e, v] : graph.neighbors(u)) {
+
+    graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
       out << v + 1 << " ";
       if (graph.is_edge_weighted()) {
-        out << graph.edge_weight(e) << " ";
+        out << w << " ";
       }
-    }
+    });
+
     out << "\n";
   }
 }

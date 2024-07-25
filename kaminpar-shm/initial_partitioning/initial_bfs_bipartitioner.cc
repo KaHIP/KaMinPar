@@ -152,13 +152,14 @@ void InitialBFSBipartitioner<BlockSelectionStrategy>::fill_bipartition() {
       set_block(u, active);
       _marker.set<true>(u, kMarkAssigned);
 
-      for (const NodeID v : _graph->adjacent_nodes(u)) {
+      _graph->adjacent_nodes(u, [&](const NodeID v) {
         if (_marker.get(v, kMarkAssigned) || _marker.get(v, active)) {
-          continue;
+          return;
         }
+
         _queues[active].push_tail(v);
         _marker.set(v, active);
-      }
+      });
     }
 
     active = select_next_block(active, _block_weights, *_p_ctx, _queues);

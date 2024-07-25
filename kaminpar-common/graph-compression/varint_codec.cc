@@ -5,7 +5,7 @@
  * @author: Daniel Salwasser
  * @date:   26.12.2023
  ******************************************************************************/
-#include "kaminpar-common/varint_codec.h"
+#include "kaminpar-common/graph-compression/varint_codec.h"
 
 namespace kaminpar {
 

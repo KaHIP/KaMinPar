@@ -9,15 +9,12 @@
 #include <kaminpar-cli/dkaminpar_arguments.h>
 // clang-format on
 
-#include <fstream>
-
 #include <mpi.h>
 #include <omp.h>
 
 #include "kaminpar-dist/coarsening/coarsener.h"
 #include "kaminpar-dist/context.h"
-
-#include "kaminpar-shm/kaminpar.h"
+#include "kaminpar-dist/factories.h"
 
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
@@ -58,13 +55,15 @@ int main(int argc, char *argv[]) {
   auto &graph = *wrapper.graph;
   ctx.partition.graph = std::make_unique<GraphContext>(graph, ctx.partition);
 
-  Coarsener coarsener(graph, ctx);
+  auto coarsener = factory::create_coarsener(ctx);
   const DistributedGraph *c_graph = &graph;
+  coarsener->initialize(c_graph);
 
   while (c_graph->global_n() > ctx.partition.k * ctx.coarsening.contraction_limit ||
-         (min_levels > 0 && coarsener.level() < min_levels)) {
-    const DistributedGraph *new_c_graph = coarsener.coarsen_once();
-    if (new_c_graph == c_graph) {
+         (min_levels > 0 && coarsener->level() < min_levels)) {
+    const bool converged = coarsener->coarsen();
+    const DistributedGraph *new_c_graph = &coarsener->current();
+    if (converged) {
       LOG << "=> converged";
       break;
     }
@@ -74,7 +73,7 @@ int main(int argc, char *argv[]) {
     LOG << "=> n=" << c_graph->global_n() << " m=" << c_graph->global_m()
         << " max_node_weight=" << c_graph->max_node_weight();
 
-    if (max_levels > 0 && coarsener.level() == max_levels) {
+    if (max_levels > 0 && coarsener->level() == max_levels) {
       LOG << "=> number of configured levels reached";
       break;
     }

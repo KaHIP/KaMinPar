@@ -5,7 +5,7 @@ include(FetchContent)
 include(CheckCXXCompilerFlag)
 
 project(KaMinPar
-        DESCRIPTION "Shared-memory and distributed graph partitioner for large k partitioning."
+        DESCRIPTION "Shared-memory and distributed-memory Graph Partitioner"
         LANGUAGES C CXX)
 
 set(PROJECT_VENDOR "Daniel Seemaier")
@@ -34,7 +34,7 @@ option(KAMINPAR_ENABLE_STATISTICS "Generate and output detailed statistics." OFF
 option(KAMINPAR_ENABLE_TIMERS "Measure running times. Must be set to 'OFF' if the library interface is used from multiple threads simulatinously." ON)
 option(KAMINPAR_ENABLE_TIMER_BARRIERS "Add additional MPI_Barrier() instructions for more accurate time measurements." ON)
 
-option(KAMINPAR_ENABLE_THP "Use transparent huge pages for large memory allocations." ON)
+option(KAMINPAR_ENABLE_THP "Use transparent huge pages for large memory allocations (Linux only)." ON)
 
 option(KAMINPAR_BUILD_WITH_ASAN "Enable address sanitizer." OFF)
 option(KAMINPAR_BUILD_WITH_UBSAN "Enable undefined behaviour sanitizer." OFF)
@@ -43,24 +43,11 @@ option(KAMINPAR_BUILD_WITH_CCACHE "Use ccache to build." ON)
 option(KAMINPAR_BUILD_WITH_DEBUG_SYMBOLS "Always build with debug symbols, even in Release mode." ON)
 option(KAMINPAR_BUILD_WITH_MTKAHYPAR "If Mt-KaHyPar can be found, build the Mt-KaHyPar initial partitioner." OFF)
 option(KAMINPAR_BUILD_WITH_GROWT "Build the shared-memory partitioner with Growt." ON)
+option(KAMINPAR_BUILD_WITH_SPARSEHASH "Build with Google Sparsehash." OFF)
 option(KAMINPAR_BUILD_WITH_PG "Build with the -pg option for profiling." OFF)
-
-# Control graph compression options
-###################################
-option(KAMINPAR_COMPRESSION_HIGH_DEGREE_ENCODING "Use high-degree encoding for the compressed graph." ON)
-option(KAMINPAR_COMPRESSION_INTERVAL_ENCODING "Use interval encoding for the compressed graph." ON)
-option(KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING "Use run-length encoding for the compressed graph." OFF)
-option(KAMINPAR_COMPRESSION_STREAM_ENCODING "Use stream encoding for the compressed graph." OFF)
-option(KAMINPAR_COMPRESSION_FAST_DECODING "Use fast decoding for the compressed graph." OFF)
-option(KAMINPAR_COMPRESSION_ISOLATED_NODES_SEPARATION "Whether all isolated nodes are the last nodes of the input graph" OFF)
-
-if (KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING AND KAMINPAR_COMPRESSION_STREAM_ENCODING)
-    message(FATAL_ERROR "Either run-length or stream encoding can be used for varints but not both.")
-endif ()
 
 # Control data type sizes
 #########################
-
 # These IDs refer to the shared-memory partitioner + local IDs of the distributed partitioner
 option(KAMINPAR_64BIT_IDS "Use 64 bits for node and edge IDs." OFF)
 option(KAMINPAR_64BIT_EDGE_IDS "Use 64 bits for edge IDs." OFF)
@@ -76,7 +63,32 @@ option(KAMINPAR_64BIT_LOCAL_WEIGHTS "Use 64 bit for local node and edge weights.
 # which is copied to each PE and build with data types of the shared-memory partitioner.
 # Thus, force 64 bit weights for the shared-memory partitioner in this case.
 if (KAMINPAR_BUILD_DISTRIBUTED)
+    message(STATUS "Distributed build: enabling 64 bit weights.")
     set(KAMINPAR_64BIT_WEIGHTS ON)
+endif ()
+
+# Control graph compression options
+###################################
+option(KAMINPAR_COMPRESSION_EDGE_WEIGHTS "Whether to compress edge weights." ON)
+option(KAMINPAR_COMPRESSION_HIGH_DEGREE_ENCODING "Use high-degree encoding for the compressed graph." ON)
+option(KAMINPAR_COMPRESSION_INTERVAL_ENCODING "Use interval encoding for the compressed graph." ON)
+option(KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING "Use run-length encoding for the compressed graph." OFF)
+option(KAMINPAR_COMPRESSION_STREAM_ENCODING "Use stream encoding for the compressed graph." OFF)
+option(KAMINPAR_COMPRESSION_FAST_DECODING "Use fast decoding for the compressed graph." OFF)
+option(KAMINPAR_COMPRESSION_ISOLATED_NODES_SEPARATION "Whether all isolated nodes are the last nodes of the input graph" OFF)
+
+if (KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING AND KAMINPAR_COMPRESSION_STREAM_ENCODING)
+    message(FATAL_ERROR "Either run-length or stream encoding can be used for varints but not both.")
+endif ()
+
+if (KAMINPAR_64BIT_NODE_IDS AND KAMINPAR_COMPRESSION_STREAM_ENCODING)
+    message(FATAL_ERROR "Stream encoding cannot be used with 64-bit NodeIDs.")
+endif ()
+
+if (KAMINPAR_COMPRESSION_EDGE_WEIGHTS AND KAMINPAR_COMPRESSION_STREAM_ENCODING)
+    message(FATAL_ERROR "Stream encoding cannot be used together with compressed edge weights.")
+elseif (KAMINPAR_COMPRESSION_EDGE_WEIGHTS AND KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING)
+    message(FATAL_ERROR "Run-length encoding cannot be used together with compressed edge weights.")
 endif ()
 
 ################################################################################
@@ -125,27 +137,18 @@ endif ()
 
 # Always enable Debug symbols (including in Release mode)
 if (KAMINPAR_BUILD_WITH_DEBUG_SYMBOLS)
-    add_compile_options(-g -g3)
+    add_compile_options(-g)
 endif ()
 
 # Set compile flags
-add_compile_options(-msse4.1)
+check_cxx_compiler_flag(-msse4.1 COMPILER_SUPPORTS_MSSE41)
+if (COMPILER_SUPPORTS_MSSE41)
+    add_compile_options(-msse4.1)
+endif ()
 
 check_cxx_compiler_flag(-mcx16 COMPILER_SUPPORTS_MCX16)
 if (COMPILER_SUPPORTS_MCX16)
     add_compile_options(-mcx16)
-else ()
-    message(WARNING "-mcx16 flag not supported by the compiler")
-
-    if (KAMINPAR_BUILD_WITH_GROWT)
-        message(WARNING "-mcx16 flag not supported by the compiler: cannot use growt for the shared-memory partitioner")
-        set(KAMINPAR_BUILD_WITH_GROWT OFF)
-    endif ()
-
-    if (KAMINPAR_BUILD_DISTRIBUTED)
-        message(WARNING "-mcx16 flag not supported by the compiler: cannot build the distributed partitioner")
-        set(KAMINPAR_BUILD_DISTRIBUTED OFF)
-    endif ()
 endif ()
 
 if (KAMINPAR_BUILD_WITH_MTUNE_NATIVE) 
@@ -214,6 +217,13 @@ endif ()
 
 message(STATUS "Graph compression summary:")
 
+if (KAMINPAR_COMPRESSION_EDGE_WEIGHTS)
+    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_COMPRESSION_EDGE_WEIGHTS")
+    message("  Compressed edge weights: enabled")
+else ()
+    message("  Compressed edge weights: disabled")
+endif ()
+
 if (KAMINPAR_COMPRESSION_HIGH_DEGREE_ENCODING)
     list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_COMPRESSION_HIGH_DEGREE_ENCODING")
     message("  High-degree encoding: enabled")
@@ -273,38 +283,35 @@ endif ()
 
 if (KAMINPAR_64BIT_WEIGHTS)
     list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_64BIT_WEIGHTS")
-    set(KAMINPAR_SHM_NODE_WEIGHT_STR "std::int64_t")
-    set(KAMINPAR_SHM_EDGE_WEIGHT_STR "std::int64_t")
+    set(KAMINPAR_SHM_WEIGHT_STR "std::int64_t")
 else () 
-    set(KAMINPAR_SHM_NODE_WEIGHT_STR "std::int32_t")
-    set(KAMINPAR_SHM_EDGE_WEIGHT_STR "std::int32_t")
+    set(KAMINPAR_SHM_WEIGHT_STR "std::int32_t")
 endif ()
 
 if (KAMINPAR_64BIT_LOCAL_WEIGHTS)
     list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_64BIT_LOCAL_WEIGHTS")
-    set(KAMINPAR_DIST_NODE_WEIGHT_STR "std::int64_t")
-    set(KAMINPAR_DIST_EDGE_WEIGHT_STR "std::int64_t")
+    set(KAMINPAR_DIST_WEIGHT_STR "std::int64_t")
 else ()
-    set(KAMINPAR_DIST_NODE_WEIGHT_STR "std::int32_t")
-    set(KAMINPAR_DIST_EDGE_WEIGHT_STR "std::int32_t")
+    set(KAMINPAR_DIST_WEIGHT_STR "std::int32_t")
 endif ()
 
 message(STATUS "Data type summary:")
-message("  {shm, dist}::NodeID    = ${KAMINPAR_SHM_NODE_ID_STR} | {shm, dist}::EdgeID    = ${KAMINPAR_SHM_EDGE_ID_STR}")
-message("  dist::GlobalNodeID     = std::uint64_t | dist::GlobalEdgeID     = std::uint64_t")
-message("  shm::NodeWeight        =  ${KAMINPAR_SHM_NODE_WEIGHT_STR} | shm::EdgeWeight        =  ${KAMINPAR_SHM_EDGE_WEIGHT_STR}")
-message("  dist::NodeWeight       =  ${KAMINPAR_DIST_NODE_WEIGHT_STR} | dist::EdgeWeight       =  ${KAMINPAR_DIST_EDGE_WEIGHT_STR}")
-message("  dist::GlobalNodeWeight =  std::int64_t | dist::GlobalEdgeWeight =  std::int64_t")
-message("  {shm, dist}::BlockID   = std::uint32_t")
-message("  shm::BlockWeight       =  ${KAMINPAR_SHM_NODE_WEIGHT_STR}")
-message("  dist::BlockWeight      =  std::int64_t")
+message("  {shm, dist}::NodeID: ${KAMINPAR_SHM_NODE_ID_STR}")
+message("  {shm, dist}::EdgeID: ${KAMINPAR_SHM_EDGE_ID_STR}")
+message("  shm::{Node, Edge}Weight: ${KAMINPAR_SHM_WEIGHT_STR}")
+message("  {dist::Global{Node, Edge}ID: std::uint64_t")
+message("  dist::Global{Node, Edge}Weight: std::int64_t")
+message("  dist::{Node, Edge}Weight: ${KAMINPAR_DIST_WEIGHT_STR}")
 
 ################################################################################
 ## Search and fetch dependencies                                              ##
 ################################################################################
 
 # Google Sparsehash 
-find_package(Sparsehash REQUIRED)
+if (KAMINPAR_BUILD_WITH_SPARSEHASH)
+    find_package(Sparsehash REQUIRED)
+    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_SPARSEHASH_FOUND")
+endif ()
 
 if (KAMINPAR_BUILD_WITH_CCACHE)
     find_program(CCACHE_PROGRAM ccache)
@@ -315,7 +322,9 @@ endif ()
 
 if (KAMINPAR_BUILD_WITH_GROWT)
     list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_USES_GROWT")
+endif ()
 
+if (TRUE) 
     add_subdirectory(external/growt EXCLUDE_FROM_ALL)
     add_library(growt INTERFACE)
     target_include_directories(growt SYSTEM INTERFACE "external/growt")

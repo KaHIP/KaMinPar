@@ -1,6 +1,6 @@
 #include <gmock/gmock.h>
 
-#include "kaminpar-common/varint_codec.h"
+#include "kaminpar-common/graph-compression/varint_codec.h"
 
 using namespace kaminpar;
 

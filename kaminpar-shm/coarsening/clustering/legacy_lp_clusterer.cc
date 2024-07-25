@@ -250,12 +250,6 @@ void LegacyLPClustering::set_desired_cluster_count(const NodeID count) {
 void LegacyLPClustering::compute_clustering(
     StaticArray<NodeID> &clustering, const Graph &graph, bool
 ) {
-  if (auto *csr_graph = dynamic_cast<const CSRGraph *>(graph.underlying_graph());
-      csr_graph != nullptr) {
-    _core->compute_clustering(clustering, *csr_graph, false);
-    return;
-  }
-
-  __builtin_unreachable();
+  _core->compute_clustering(clustering, graph.csr_graph(), false);
 }
 } // namespace kaminpar::shm

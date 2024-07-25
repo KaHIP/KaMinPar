@@ -5,11 +5,11 @@
  * @author: Daniel Seemaier
  * @date:   26.10.2022
  ******************************************************************************/
-#include "apps/io/metis_parser.h"
+#include "apps/io/shm_metis_parser.h"
 
 #include <fstream>
 
-#include "kaminpar-shm/datastructures/compressed_graph_builder.h"
+#include "kaminpar-shm/graphutils/compressed_graph_builder.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/static_array.h"
@@ -18,6 +18,7 @@
 #include "apps/io/file_tokener.h"
 
 namespace kaminpar::shm::io::metis {
+using namespace kaminpar::io;
 
 namespace {
 
@@ -322,11 +323,11 @@ void write(const std::string &filename, const Graph &graph) {
       out << graph.node_weight(node) << ' ';
     }
 
-    graph.neighbors(node, [&](const EdgeID incident_edge, const NodeID adjacent_node) {
+    graph.adjacent_nodes(node, [&](const NodeID adjacent_node, const EdgeWeight weight) {
       out << (adjacent_node + 1) << ' ';
 
       if (graph.is_edge_weighted()) {
-        out << graph.edge_weight(incident_edge) << ' ';
+        out << weight << ' ';
       }
     });
 
