@@ -15,7 +15,7 @@ public:
   StaticArray<EdgeWeight> sample(const CSRGraph &g, EdgeID target_edge_amount) override {
     auto scores = this->_score_function->scores(g);
     utils::for_downward_edges(g, [&](EdgeID e) { scores[e] = 0; });
-    auto distribution = IndexDistributionWithReplacement<Score>(scores.begin(), scores.end());
+    auto distribution = IndexDistributionWithReplacement(scores.begin(), scores.end());
 
     EdgeID edges_sampled = 0;
     EdgeID iterations = 0;

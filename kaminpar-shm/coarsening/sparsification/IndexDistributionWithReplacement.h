@@ -4,7 +4,7 @@
 
 #include "kaminpar-common/random.h"
 namespace kaminpar::shm::sparsification {
-template <typename T> class IndexDistributionWithReplacement {
+class IndexDistributionWithReplacement {
 public:
   template <class Iterator> IndexDistributionWithReplacement(Iterator begin, Iterator end) {
     size_t size = end - begin;

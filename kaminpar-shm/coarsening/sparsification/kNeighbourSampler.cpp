@@ -6,6 +6,8 @@
 
 #include <networkit/auxiliary/Random.hpp>
 
+#include "IndexDistributionWithReplacement.h"
+#include "IndexDistributionWithoutReplacement.h"
 #include "UnionFind.h"
 #include "sparsification_utils.h"
 
@@ -88,25 +90,19 @@ void kNeighbourSampler::sample_directed(
         sample[e] = g.edge_weight(e);
       }
     } else { // sample k incicdent edges randomly, with probailties proportional to edge weights
-      EdgeID first_incident_edge = g.raw_nodes()[u];
-      weights_prefix_sum[0] = g.edge_weight(first_incident_edge);
-      for (int offset = 1; offset < g.degree(u); ++offset) {
-        weights_prefix_sum[offset] =
-            weights_prefix_sum[offset - 1] + g.edge_weight(first_incident_edge + offset);
-      }
-      EdgeWeight total_weight = weights_prefix_sum[g.degree(u) - 1];
+      IndexDistributionWithReplacement distribution(
+          g.raw_edge_weights().begin() + g.raw_nodes()[u],
+          g.raw_edge_weights().begin() + g.raw_nodes()[u + 1]
+      );
+
+      EdgeWeight total_weight = std::reduce(
+          g.raw_edge_weights().begin() + g.raw_nodes()[u],
+          g.raw_edge_weights().begin() + g.raw_nodes()[u + 1],
+          0, std::plus<>()
+      );
 
       for (int i = 0; i < k; ++i) {
-        choices[i] = Aux::Random::real(total_weight);
-      }
-      std::sort(choices.begin(), choices.end());
-
-      EdgeID incident_edge_offset = 0;
-      for (int i = 0; i < k; ++i) {
-        while (weights_prefix_sum[incident_edge_offset] < choices[i]) {
-          incident_edge_offset++;
-        }
-        sample[first_incident_edge + incident_edge_offset] += total_weight / k;
+        sample[distribution()] += total_weight / k;
       }
     }
   }
