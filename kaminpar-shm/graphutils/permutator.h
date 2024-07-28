@@ -39,7 +39,7 @@ template <template <typename> typename Container> struct NodePermutations {
  * @return Bidirectional node permutation.
  */
 template <bool put_deg0_at_end = true, typename Lambda>
-NodePermutations<StaticArray> sort_by_degree_buckets(const NodeID n, const Lambda &&degrees) {
+NodePermutations<StaticArray> sort_by_degree_buckets(const NodeID n, Lambda &&degrees) {
   static_assert(std::is_invocable_r_v<NodeID, Lambda, NodeID>);
   SCOPED_TIMER("Sort nodes by degree bucket");
 

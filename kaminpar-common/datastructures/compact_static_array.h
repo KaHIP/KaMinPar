@@ -218,10 +218,11 @@ public:
   void restrict(const std::size_t new_num_values) {
     KASSERT(new_num_values <= _num_values);
 
-    _num_values = new_num_values;
-
     _unrestricted_size = _size;
     _size = new_num_values * _byte_width + sizeof(Int) - _byte_width;
+
+    _unrestricted_num_values = _num_values;
+    _num_values = new_num_values;
   }
 
   /*!
@@ -230,6 +231,7 @@ public:
    */
   void unrestrict() {
     _size = _unrestricted_size;
+    _num_values = _unrestricted_num_values;
   }
 
   /*!
@@ -327,13 +329,15 @@ public:
 private:
   std::size_t _byte_width;
   std::size_t _size;
-  std::size_t _unrestricted_size;
 
   std::size_t _num_values;
   std::unique_ptr<std::uint8_t[]> _values;
 
   Int _read_mask;
   Int _write_mask;
+
+  std::size_t _unrestricted_size;
+  std::size_t _unrestricted_num_values;
 
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };

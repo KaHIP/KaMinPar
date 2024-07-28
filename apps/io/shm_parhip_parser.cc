@@ -350,32 +350,29 @@ CompressedGraph compressed_read_parallel(const std::string &filename, const Node
 
     const bool sort_by_degree_bucket = ordering == NodeOrdering::DEGREE_BUCKETS;
     if (sort_by_degree_bucket) {
-      RECORD("degrees") StaticArray<NodeID> degrees(header.num_nodes, static_array::noinit);
-      TIMED_SCOPE("Read degrees") {
-        tbb::parallel_for(tbb::blocked_range<NodeID>(0, header.num_nodes), [&](const auto &r) {
-          for (NodeID u = r.begin(); u != r.end(); ++u) {
-            degrees[u] = header.map_edge_offset(node(u + 1)) - header.map_edge_offset(node(u));
-          }
-        });
+      const auto degree = [&](const NodeID u) {
+        return static_cast<NodeID>(
+            header.map_edge_offset(node(u + 1)) - header.map_edge_offset(node(u))
+        );
       };
-      const auto [perm, inv_perm] =
-          graph::sort_by_degree_buckets(header.num_nodes, [&](const NodeID u) {
-            return degrees[u];
-          });
 
-      return parallel_compress(
+      auto [perm, inv_perm] = graph::sort_by_degree_buckets(header.num_nodes, degree);
+      CompressedGraph compressed_graph = parallel_compress(
           header.num_nodes,
           header.num_edges,
           header.has_node_weights,
           header.has_edge_weights,
           true,
           [&](const NodeID u) { return inv_perm[u]; },
-          [&](const NodeID u) { return degrees[u]; },
+          degree,
           [&](const NodeID u) { return header.map_edge_offset(node(u)); },
           [&](const EdgeID e) { return perm[edge(e)]; },
           [&](const NodeID u) { return node_weight(u); },
           [&](const EdgeID e) { return edge_weight(e); }
       );
+
+      compressed_graph.set_permutation(std::move(perm));
+      return compressed_graph;
     } else {
       return parallel_compress(
           header.num_nodes,
