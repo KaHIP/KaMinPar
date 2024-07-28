@@ -29,7 +29,7 @@ constexpr static mpi_allreduce_tag mpi_allreduce;
 constexpr static doubling_allreduce_tag doubling_allreduce;
 
 // Used if no other implementation has priority
-constexpr static auto default_sparse_allreduce = mpi_allreduce; //doubling_allreduce;
+constexpr static auto default_sparse_allreduce = mpi_allreduce; // doubling_allreduce;
 } // namespace tag
 
 template <typename Buffer>

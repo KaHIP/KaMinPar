@@ -184,7 +184,8 @@ private:
     tbb::enumerable_thread_specific<std::vector<DynamicBinaryMinHeap<NodeID, double>>> local_pq_ets{
         [&] {
           return std::vector<DynamicBinaryMinHeap<NodeID, double>>(_p_graph.k());
-        }};
+        }
+    };
     tbb::enumerable_thread_specific<std::vector<NodeWeight>> local_pq_weight_ets{[&] {
       return std::vector<NodeWeight>(_p_graph.k());
     }};
@@ -345,7 +346,8 @@ private:
 
         if (relative_gain == actual_relative_gain) {
           Candidate candidate{
-              _graph.local_to_global_node(u), from, to, u_weight, actual_relative_gain};
+              _graph.local_to_global_node(u), from, to, u_weight, actual_relative_gain
+          };
           candidates.push_back(candidate);
         } else {
           try_pq_insertion(from, u, u_weight, actual_relative_gain);

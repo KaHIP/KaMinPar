@@ -43,4 +43,3 @@ private:
   std::vector<std::unique_ptr<CoarseGraph>> _graph_hierarchy;
 };
 } // namespace kaminpar::dist
-

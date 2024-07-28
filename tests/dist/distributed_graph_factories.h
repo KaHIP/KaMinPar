@@ -214,9 +214,9 @@ inline DistributedCSRGraph make_csr_local_complete_bipartite_graph(const NodeID 
 }
 
 inline DistributedGraph make_local_complete_bipartite_graph(const NodeID set_size_per_pe) {
-  return {
-      std::make_unique<DistributedCSRGraph>(make_csr_local_complete_bipartite_graph(set_size_per_pe)
-      )};
+  return {std::make_unique<DistributedCSRGraph>(
+      make_csr_local_complete_bipartite_graph(set_size_per_pe)
+  )};
 }
 
 inline DistributedCSRGraph make_csr_global_complete_graph(const NodeID nodes_per_pe) {

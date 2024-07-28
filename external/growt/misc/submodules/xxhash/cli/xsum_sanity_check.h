@@ -26,10 +26,9 @@
 #ifndef XSUM_SANITY_CHECK_H
 #define XSUM_SANITY_CHECK_H
 
-#include "xsum_config.h"  /* XSUM_API, XSUM_U8 */
+#include <stddef.h> /* size_t */
 
-#include <stddef.h>   /* size_t */
-
+#include "xsum_config.h" /* XSUM_API, XSUM_U8 */
 
 #ifdef __cplusplus
 extern "C" {
@@ -51,7 +50,7 @@ XSUM_API void XSUM_sanityCheck(void);
  * This is used in the sanity check and the benchmarks - its values must not be
  * changed.
  */
-XSUM_API void XSUM_fillTestBuffer(XSUM_U8* buffer, size_t len);
+XSUM_API void XSUM_fillTestBuffer(XSUM_U8 *buffer, size_t len);
 
 #ifdef __cplusplus
 }

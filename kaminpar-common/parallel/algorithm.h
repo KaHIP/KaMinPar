@@ -53,7 +53,7 @@ template <
     typename InputIt,
     typename UnaryOperation,
     typename ValueType =
-        std::result_of_t<UnaryOperation(typename std::iterator_traits<InputIt>::value_type)>>
+        std::invoke_result_t<UnaryOperation, typename std::iterator_traits<InputIt>::value_type>>
 ValueType accumulate(InputIt begin, InputIt end, ValueType initial, UnaryOperation op) {
   using size_t = typename std::iterator_traits<InputIt>::difference_type;
   using value_t = ValueType;

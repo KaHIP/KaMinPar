@@ -13,7 +13,11 @@
 #include <cstddef>
 #include <cstdint>
 
+#if defined(__x86_64__)
 #include <immintrin.h>
+#elif defined(__aarch64__)
+#include <arm_neon.h>
+#endif
 
 #include "kaminpar-common/constexpr_utils.h"
 #include "kaminpar-common/math.h"
@@ -345,6 +349,7 @@ public:
   }
 
 private:
+#if defined(__x86_64__)
   template <typename Lambda> void decode32(Lambda &&l) {
     static_assert(std::is_invocable_v<Lambda, Int> || PassPairs && std::is_invocable_v<Lambda, Int, Int>);
 
@@ -531,7 +536,186 @@ private:
       }
     }
   }
+#elif defined(__aarch64__)
+  template <typename Lambda> void decode32(Lambda &&l) {
+    static_assert(std::is_invocable_v<Lambda, Int> || PassPairs && std::is_invocable_v<Lambda, Int, Int>);
 
+    using LambdaReturnType = std::conditional_t<
+        PassPairs,
+        std::invoke_result<Lambda, Int, Int>,
+        std::invoke_result<Lambda, Int>>::type;
+    constexpr bool kNonStoppable = std::is_void_v<LambdaReturnType>;
+
+    uint32x4_t prev = vmovq_n_u32(0);
+    const auto decode_gaps = [&](__m128i data) {
+      if constexpr (GapKind == DifferentialCodingKind::NONE) {
+        prev = data;
+        return;
+      } else {
+        static_assert("Unsupported differential coding kind (ARM).");
+      }
+    };
+
+    for (std::size_t i = 0; i < _num_control_bytes; ++i) {
+      const std::uint8_t control_byte = _control_bytes_ptr[i];
+      const std::uint8_t length = kLengthTable[control_byte];
+
+      uint32x4_t data = vld1q_u32(reinterpret_cast<const std::uint32_t *>(_data_ptr));
+      _data_ptr += length;
+
+      const uint8x16_t shuffle_mask = vld1q_u8(kShuffleTable[control_byte].data());
+      data = vqtbl1q_u8(data, shuffle_mask);
+
+      decode_gaps(data);
+
+      if constexpr (kNonStoppable) {
+        if constexpr (PassPairs) {
+          l(vgetq_lane_u32(prev, 0), vgetq_lane_u32(prev, 1));
+          l(vgetq_lane_u32(prev, 2), vgetq_lane_u32(prev, 3));
+        } else {
+          l(vgetq_lane_u32(prev, 0));
+          l(vgetq_lane_u32(prev, 1));
+          l(vgetq_lane_u32(prev, 2));
+          l(vgetq_lane_u32(prev, 3));
+        }
+      } else {
+        if constexpr (PassPairs) {
+          if (l(vgetq_lane_u32(prev, 0), vgetq_lane_u32(prev, 1))) [[unlikely]] {
+            return;
+          }
+
+          if (l(vgetq_lane_u32(prev, 2), vgetq_lane_u32(prev, 3))) [[unlikely]] {
+            return;
+          }
+        } else {
+          if (l(vgetq_lane_u32(prev, 0))) [[unlikely]] {
+            return;
+          }
+
+          if (l(vgetq_lane_u32(prev, 1))) [[unlikely]] {
+            return;
+          }
+
+          if (l(vgetq_lane_u32(prev, 2))) [[unlikely]] {
+            return;
+          }
+
+          if (l(vgetq_lane_u32(prev, 3))) [[unlikely]] {
+            return;
+          }
+        }
+      }
+    }
+
+    if constexpr (PassPairs) {
+      if (_num_values % 4 == 2) {
+        const std::uint8_t control_byte = _control_bytes_ptr[_num_control_bytes];
+        const std::uint8_t length = kLengthTable[control_byte];
+
+        uint32x4_t data = vld1q_u32(reinterpret_cast<const std::uint32_t *>(_data_ptr));
+        _data_ptr += length;
+
+        const uint8x16_t shuffle_mask = vld1q_u8(kShuffleTable[control_byte].data());
+        data = vqtbl1q_u8(data, shuffle_mask);
+
+        decode_gaps(data);
+
+        if constexpr (kNonStoppable) {
+          l(vgetq_lane_u32(prev, 0), vgetq_lane_u32(prev, 1));
+        } else {
+          if (l(vgetq_lane_u32(prev, 0), vgetq_lane_u32(prev, 1))) [[unlikely]] {
+            return;
+          }
+        }
+      }
+    } else {
+      switch (_num_values % 4) {
+      case 1: {
+        const std::uint8_t control_byte = _control_bytes_ptr[_num_control_bytes];
+        const std::uint8_t *shuffle_mask = kShuffleTable[control_byte].data();
+
+        uint32x4_t data = vld1q_u32(reinterpret_cast<const std::uint32_t *>(_data_ptr));
+        _data_ptr += length;
+
+        const uint8x16_t shuffle_mask = vld1q_u8(kShuffleTable[control_byte].data());
+        data = vqtbl1q_u8(data, shuffle_mask);
+
+        decode_gaps(data);
+
+        if constexpr (kNonStoppable) {
+          l(vgetq_lane_u32(prev, 0));
+        } else {
+          if (l(vgetq_lane_u32(prev, 0))) [[unlikely]] {
+            return;
+          }
+        }
+        break;
+      }
+      case 2: {
+        const std::uint8_t control_byte = _control_bytes_ptr[_num_control_bytes];
+        const std::uint8_t *shuffle_mask = kShuffleTable[control_byte].data();
+
+        uint32x4_t data = vld1q_u32(reinterpret_cast<const std::uint32_t *>(_data_ptr));
+        _data_ptr += length;
+
+        const uint8x16_t shuffle_mask = vld1q_u8(kShuffleTable[control_byte].data());
+        data = vqtbl1q_u8(data, shuffle_mask);
+
+        decode_gaps(data);
+
+        if constexpr (kNonStoppable) {
+          l(vgetq_lane_u32(prev, 0));
+          l(vgetq_lane_u32(prev, 1));
+        } else {
+          if (l(vgetq_lane_u32(prev, 0))) [[unlikely]] {
+            return;
+          }
+
+          if (l(vgetq_lane_u32(prev, 1))) [[unlikely]] {
+            return;
+          }
+        }
+        break;
+      }
+      case 3: {
+        const std::uint8_t control_byte = _control_bytes_ptr[_num_control_bytes];
+        const std::uint8_t *shuffle_mask = kShuffleTable[control_byte].data();
+
+        uint32x4_t data = vld1q_u32(reinterpret_cast<const std::uint32_t *>(_data_ptr));
+        _data_ptr += length;
+
+        const uint8x16_t shuffle_mask = vld1q_u8(kShuffleTable[control_byte].data());
+        data = vqtbl1q_u8(data, shuffle_mask);
+
+        decode_gaps(data);
+
+        if constexpr (kNonStoppable) {
+          l(vgetq_lane_u32(prev, 0));
+          l(vgetq_lane_u32(prev, 1));
+          l(vgetq_lane_u32(prev, 2));
+        } else {
+          if (l(vgetq_lane_u32(prev, 0))) [[unlikely]] {
+            return;
+          }
+
+          if (l(vgetq_lane_u32(prev, 1))) [[unlikely]] {
+            return;
+          }
+
+          if (l(vgetq_lane_u32(prev, 2))) [[unlikely]] {
+            return;
+          }
+        }
+        break;
+      }
+      }
+    }
+  }
+#else
+#error "Only x64 and ARM are supported"
+#endif
+
+#if defined(__x86_64__)
   template <typename Lambda> void decode64(Lambda &&l) {
     static_assert(std::is_invocable_v<Lambda, Int>);
     constexpr bool kNonStoppable = std::is_void_v<std::invoke_result_t<Lambda, Int>>;
@@ -698,6 +882,11 @@ private:
     }
     }
   }
+#elif defined(__aarch64__)
+  template <typename Lambda> void decode64(Lambda &&l) {
+    static_assert("Unsupported streamvbyte configuration (ARM).");
+  }
+#endif
 
 private:
   const std::size_t _num_control_bytes;

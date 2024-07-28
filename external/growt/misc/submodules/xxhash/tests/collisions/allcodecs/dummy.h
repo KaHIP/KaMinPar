@@ -28,18 +28,16 @@
 #ifndef DUMMY_H_987987
 #define DUMMY_H_987987
 
-#if defined (__cplusplus)
+#if defined(__cplusplus)
 extern "C" {
 #endif
 
-
 #include <stddef.h> /* size_t */
 
-unsigned badsum32(const void* input, size_t len, unsigned seed);
+unsigned badsum32(const void *input, size_t len, unsigned seed);
 
-
-#if defined (__cplusplus)
+#if defined(__cplusplus)
 }
 #endif
 
-#endif  /* DUMMY_H_987987 */
+#endif /* DUMMY_H_987987 */
