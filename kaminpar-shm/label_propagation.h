@@ -98,6 +98,7 @@ protected:
   using GrowingRatingMap = typename Config::GrowingRatingMap;
 
   using LabelPropagationImplementation = shm::LabelPropagationImplementation;
+  using TieBreakingStrategy = shm::TieBreakingStrategy;
   using SecondPhaseSelectionStrategy = shm::SecondPhaseSelectionStrategy;
   using SecondPhaseAggregationStrategy = shm::SecondPhaseAggregationStrategy;
 
@@ -128,6 +129,13 @@ public:
   }
   [[nodiscard]] LabelPropagationImplementation implementation() {
     return _impl;
+  }
+
+  void set_tie_breaking_strategy(const TieBreakingStrategy strategy) {
+    _tie_breaking_strategy = strategy;
+  }
+  [[nodiscard]] TieBreakingStrategy tie_breaking_strategy() {
+    return _tie_breaking_strategy;
   }
 
   void set_second_phase_selection_strategy(const SecondPhaseSelectionStrategy strategy) {
@@ -1293,6 +1301,9 @@ protected: // Members
 
   //! The label propagation implementation that is used.
   LabelPropagationImplementation _impl;
+
+  //! The tie breaking strategy that is used.
+  TieBreakingStrategy _tie_breaking_strategy;
 
   //! The strategy by which the nodes for the second phase are selected.
   SecondPhaseSelectionStrategy _second_phase_selection_strategy;

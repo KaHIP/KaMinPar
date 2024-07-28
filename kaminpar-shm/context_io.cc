@@ -287,6 +287,24 @@ std::ostream &operator<<(std::ostream &out, const GainCacheStrategy strategy) {
   return out << "<invalid>";
 }
 
+std::unordered_map<std::string, TieBreakingStrategy> get_tie_breaking_strategies() {
+  return {
+      {"geometric", TieBreakingStrategy::GEOMETRIC},
+      {"uniform", TieBreakingStrategy::UNIFORM},
+  };
+}
+
+std::ostream &operator<<(std::ostream &out, const TieBreakingStrategy strategy) {
+  switch (strategy) {
+  case TieBreakingStrategy::GEOMETRIC:
+    return out << "geometric";
+  case TieBreakingStrategy::UNIFORM:
+    return out << "uniform";
+  }
+
+  return out << "<invalid>";
+}
+
 std::ostream &operator<<(std::ostream &out, const TwoHopStrategy strategy) {
   switch (strategy) {
   case TwoHopStrategy::DISABLE:
@@ -478,6 +496,7 @@ void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
   out << "    Number of iterations:     " << lp_ctx.num_iterations << "\n";
   out << "    High degree threshold:    " << lp_ctx.large_degree_threshold << "\n";
   out << "    Max degree:               " << lp_ctx.max_num_neighbors << "\n";
+  out << "    Tie breaking strategy:    " << lp_ctx.tie_breaking_strategy << "\n";
   out << "    Cluster weights struct:   " << lp_ctx.cluster_weights_structure << "\n";
   out << "    Implementation:           " << lp_ctx.impl << "\n";
   if (lp_ctx.impl == LabelPropagationImplementation::TWO_PHASE) {
@@ -501,6 +520,7 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
   if (r_ctx.includes_algorithm(RefinementAlgorithm::LABEL_PROPAGATION)) {
     out << "Label propagation:\n";
     out << "  Number of iterations:       " << r_ctx.lp.num_iterations << "\n";
+    out << "  Tie breaking strategy:      " << r_ctx.lp.tie_breaking_strategy << "\n";
     out << "  Implementation:             " << r_ctx.lp.impl << "\n";
     if (r_ctx.lp.impl == LabelPropagationImplementation::TWO_PHASE) {
       out << "    Selection strategy:       " << r_ctx.lp.second_phase_selection_strategy << '\n';

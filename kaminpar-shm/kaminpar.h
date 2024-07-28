@@ -95,6 +95,11 @@ enum class ClusterWeightLimit {
   ZERO,
 };
 
+enum class TieBreakingStrategy {
+  GEOMETRIC,
+  UNIFORM,
+};
+
 enum class ClusterWeightsStructure {
   VEC,
   TWO_LEVEL_VEC,
@@ -146,6 +151,8 @@ struct LabelPropagationCoarseningContext {
   int num_iterations;
   NodeID large_degree_threshold;
   NodeID max_num_neighbors;
+
+  TieBreakingStrategy tie_breaking_strategy;
 
   ClusterWeightsStructure cluster_weights_structure;
   LabelPropagationImplementation impl;
@@ -221,6 +228,8 @@ struct LabelPropagationRefinementContext {
   NodeID max_num_neighbors;
 
   LabelPropagationImplementation impl;
+
+  TieBreakingStrategy tie_breaking_strategy;
 
   SecondPhaseSelectionStrategy second_phase_selection_strategy;
   SecondPhaseAggregationStrategy second_phase_aggregation_strategy;

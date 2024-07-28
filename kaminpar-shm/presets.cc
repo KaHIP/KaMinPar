@@ -90,6 +90,7 @@ Context create_default_context() {
                               .num_iterations = 5,
                               .large_degree_threshold = 1000000,
                               .max_num_neighbors = 200000,
+                              .tie_breaking_strategy = TieBreakingStrategy::GEOMETRIC,
                               .cluster_weights_structure = ClusterWeightsStructure::VEC,
                               .impl = LabelPropagationImplementation::TWO_PHASE,
                               .second_phase_selection_strategy =
@@ -172,6 +173,7 @@ Context create_default_context() {
                       .large_degree_threshold = 1000000,
                       .max_num_neighbors = std::numeric_limits<NodeID>::max(),
                       .impl = LabelPropagationImplementation::SINGLE_PHASE,
+                      .tie_breaking_strategy = TieBreakingStrategy::GEOMETRIC,
                       .second_phase_selection_strategy =
                           SecondPhaseSelectionStrategy::FULL_RATING_MAP,
                       .second_phase_aggregation_strategy = SecondPhaseAggregationStrategy::BUFFERED,
