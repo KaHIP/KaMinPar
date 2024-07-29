@@ -138,15 +138,15 @@ public:
   template <typename RatingMap>
   [[nodiscard]] ClusterID select_best_cluster(
       const bool store_favored_cluster,
+      const EdgeWeight gain_delta,
       Base::ClusterSelectionState &state,
       RatingMap &map,
-      ScalableVector<ClusterID> &tie_breaking_clusters
+      ScalableVector<ClusterID> &tie_breaking_clusters,
+      ScalableVector<ClusterID> &tie_breaking_favored_clusters
   ) {
     const bool use_uniform_tie_breaking = _tie_breaking_strategy == TieBreakingStrategy::UNIFORM;
 
     ClusterID favored_cluster = state.initial_cluster;
-    const EdgeWeight gain_delta = (Config::kUseActualGain) ? map[state.initial_cluster] : 0;
-
     if (use_uniform_tie_breaking) {
       for (const auto [cluster, rating] : map.entries()) {
         state.current_cluster = cluster;
@@ -155,6 +155,9 @@ public:
 
         if (state.current_gain > state.best_gain) {
           if (store_favored_cluster) {
+            tie_breaking_favored_clusters.clear();
+            tie_breaking_favored_clusters.push_back(state.current_cluster);
+
             favored_cluster = state.current_cluster;
           }
 
@@ -174,6 +177,10 @@ public:
             state.best_gain = state.current_gain;
           }
         } else if (state.current_gain == state.best_gain) {
+          if (store_favored_cluster) {
+            tie_breaking_favored_clusters.push_back(state.current_cluster);
+          }
+
           const NodeWeight current_max_weight = max_cluster_weight(state.current_cluster);
           const NodeWeight best_overload =
               state.best_cluster_weight - max_cluster_weight(state.best_cluster);
@@ -206,12 +213,19 @@ public:
       }
 
       if (tie_breaking_clusters.size() > 1) {
-        const ClusterID index = state.local_rand.random_index(0, tie_breaking_clusters.size());
-        const ClusterID best_cluster = tie_breaking_clusters[index];
+        const ClusterID i = state.local_rand.random_index(0, tie_breaking_clusters.size());
+        const ClusterID best_cluster = tie_breaking_clusters[i];
         state.best_cluster = best_cluster;
       }
-
       tie_breaking_clusters.clear();
+
+      if (tie_breaking_favored_clusters.size() > 1) {
+        const ClusterID i = state.local_rand.random_index(0, tie_breaking_favored_clusters.size());
+        const ClusterID best_favored_cluster = tie_breaking_favored_clusters[i];
+        favored_cluster = best_favored_cluster;
+      }
+      tie_breaking_favored_clusters.clear();
+
       return favored_cluster;
     } else {
       const auto accept_cluster = [&] {
