@@ -353,7 +353,7 @@ void print(const ChunksContext &ctx, const ParallelContext &parallel, std::ostre
         << (ctx.scale_chunks_with_threads
                 ? std::string(" / ") + std::to_string(parallel.num_threads)
                 : "")
-        << "]\n";
+        << ")]\n";
   } else {
     out << "  Number of chunks:           " << ctx.fixed_num_chunks << "\n";
   }
