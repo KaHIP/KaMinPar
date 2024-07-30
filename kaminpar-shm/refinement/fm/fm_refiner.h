@@ -227,16 +227,11 @@ public:
   const std::vector<NodeID> &last_batch_seed_nodes();
 
 private:
-  template <typename GainCacheType, typename PartitionedGraphType>
-  void insert_into_node_pq(
-      const PartitionedGraphType &p_graph, const GainCacheType &gain_cache, NodeID u
-  );
+  void insert_into_node_pq(const auto &p_graph, const auto &gain_cache, NodeID u);
 
   void update_after_move(NodeID node, NodeID moved_node, BlockID moved_from, BlockID moved_to);
 
-  template <typename GainCacheType, typename PartitionedGraphType>
-  std::pair<BlockID, EdgeWeight>
-  best_gain(const PartitionedGraphType &p_graph, const GainCacheType &gain_cache, NodeID u);
+  std::pair<BlockID, EdgeWeight> best_gain(const auto &p_graph, const auto &gain_cache, NodeID u);
 
   bool update_block_pq();
 
