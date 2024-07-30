@@ -220,7 +220,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
   }};
 
   if (con_ctx.use_growing_hash_tables) {
-    using EdgeCollector = DynamicRememberingFlatMap<NodeID, EdgeWeight>;
+    using EdgeCollector = DynamicRememberingFlatMap<NodeID, EdgeWeight, NodeID>;
     tbb::enumerable_thread_specific<EdgeCollector> edge_collector_ets;
 
     tbb::parallel_for(tbb::blocked_range<NodeID>(0, c_n), [&](const auto &r) {
