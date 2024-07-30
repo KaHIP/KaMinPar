@@ -187,8 +187,7 @@ template <typename GainCache> struct SharedData {
 };
 } // namespace fm
 
-template <typename GainCache, typename DeltaPartitionedGraph = GenericDeltaPartitionedGraph<>>
-class FMRefiner : public Refiner {
+template <typename GainCache> class FMRefiner : public Refiner {
 public:
   FMRefiner(const Context &ctx);
   ~FMRefiner() override; // Required for the std::unique_ptr<> member.
@@ -211,8 +210,7 @@ private:
   std::unique_ptr<fm::SharedData<GainCache>> _shared;
 };
 
-template <typename GainCache, typename DeltaPartitionedGraph = GenericDeltaPartitionedGraph<>>
-class LocalizedFMRefiner {
+template <typename GainCache> class LocalizedFMRefiner {
 public:
   LocalizedFMRefiner(
       int id,

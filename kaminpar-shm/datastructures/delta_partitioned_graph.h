@@ -16,27 +16,17 @@
 #include "kaminpar-common/ranges.h"
 
 namespace kaminpar::shm {
-template <
-    // If false, block(NodeID) may only be called on nodes that were not moved.
-    bool allow_read_after_move = true,
-    // If false, store the block weight changes in a vector of size k, otherwise
-    // use a hash map.
-    bool compact_block_weight_delta = false>
-class GenericDeltaPartitionedGraph : public GraphDelegate<Graph> {
+class DeltaPartitionedGraph : public GraphDelegate<Graph> {
   struct DeltaEntry {
     NodeID node;
     BlockID block;
   };
 
 public:
-  constexpr static bool kAllowsReadAfterMove = allow_read_after_move;
-
-  GenericDeltaPartitionedGraph(const PartitionedGraph *p_graph)
+  DeltaPartitionedGraph(const PartitionedGraph *p_graph)
       : GraphDelegate<Graph>(&p_graph->graph()),
         _p_graph(p_graph) {
-    if constexpr (!compact_block_weight_delta) {
-      _block_weights_delta.resize(_p_graph->k());
-    }
+    _block_weights_delta.resize(_p_graph->k());
   }
 
   [[nodiscard]] const PartitionedGraph &p_graph() const {
@@ -56,22 +46,8 @@ public:
   }
 
   [[nodiscard]] inline BlockID block(const NodeID node) const {
-    if constexpr (allow_read_after_move) {
-      const auto *it = _partition_delta.get_if_contained(node);
-      return (it != _partition_delta.end()) ? *it : _p_graph->block(node);
-    } else {
-      KASSERT(
-          std::find_if(
-              _partition_delta.begin(),
-              _partition_delta.end(),
-              [&](const DeltaEntry &entry) { return entry.node == node; }
-          ) == _partition_delta.end(),
-          "node " << node << " was moved, access illegal",
-          assert::heavy
-      );
-
-      return _p_graph->block(node);
-    }
+    const auto *it = _partition_delta.get_if_contained(node);
+    return (it != _partition_delta.end()) ? *it : _p_graph->block(node);
   }
 
   template <bool update_block_weight = true>
@@ -88,79 +64,30 @@ public:
       _block_weights_delta[new_block] += node_weight(node);
     }
 
-    if constexpr (allow_read_after_move) {
-      _partition_delta[node] = new_block;
-    } else {
-      KASSERT(
-          std::find_if(
-              _partition_delta.begin(),
-              _partition_delta.end(),
-              [&](const DeltaEntry &entry) { return entry.node == node; }
-          ) == _partition_delta.end(),
-          "node " << node << " already in delta",
-          assert::heavy
-      );
-
-      _partition_delta.push_back({node, new_block});
-    }
+    _partition_delta[node] = new_block;
   }
 
   [[nodiscard]] inline BlockWeight block_weight(const BlockID block) const {
-    BlockWeight delta = 0;
-
-    if constexpr (compact_block_weight_delta) {
-      const auto *it = _block_weights_delta.get_if_contained(block);
-      if (it != _block_weights_delta.end()) {
-        delta = *it;
-      }
-    } else {
-      delta = _block_weights_delta[block];
-    }
-
-    return _p_graph->block_weight(block) + delta;
+    return _p_graph->block_weight(block) + _block_weights_delta[block];
   }
 
   template <typename Lambda> void for_each(Lambda &&lambda) {
-    if constexpr (allow_read_after_move) {
-      _partition_delta.for_each(std::forward<Lambda>(lambda));
-    } else {
-      for (const auto &[moved_node, moved_to] : _partition_delta) {
-        lambda(moved_node, moved_to);
-      }
-    }
+    _partition_delta.for_each(std::forward<Lambda>(lambda));
   }
 
-  std::size_t size() const {
+  [[nodiscard]] std::size_t size() const {
     return _partition_delta.size();
   }
 
   void clear() {
-    if constexpr (compact_block_weight_delta) {
-      _block_weights_delta.clear();
-    } else {
-      std::fill(_block_weights_delta.begin(), _block_weights_delta.end(), 0);
-    }
-
+    std::fill(_block_weights_delta.begin(), _block_weights_delta.end(), 0);
     _partition_delta.clear();
   }
 
 private:
   const PartitionedGraph *_p_graph;
 
-  // Depending on the configuration, use a hash map to be memory efficient,
-  // otherwise store the block weight deltas in vector (i.e., O(P * k) memory).
-  std::conditional_t<
-      compact_block_weight_delta,
-      DynamicFlatMap<BlockID, BlockWeight>,
-      ScalableVector<BlockWeight>>
-      _block_weights_delta;
-
-  // If we need random access to the partition delta, use a hash map. Otherwise,
-  // we can just store the moves in a vector.
-  std::conditional_t<
-      allow_read_after_move,
-      DynamicFlatMap<NodeID, BlockID>,
-      ScalableVector<DeltaEntry>>
-      _partition_delta;
+  ScalableVector<BlockWeight> _block_weights_delta;
+  DynamicFlatMap<NodeID, BlockID> _partition_delta;
 };
 } // namespace kaminpar::shm
