@@ -11,6 +11,7 @@
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
+#include "kaminpar-shm/datastructures/delta_partitioned_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
@@ -20,18 +21,23 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
-template <typename DeltaPartitionedGraph, typename GainCache> class DenseDeltaGainCache;
+template <typename GainCache> class DenseDeltaGainCache;
 
-template <bool iterate_nonadjacent_blocks = true, bool iterate_exact_gains = false>
+template <
+    typename GraphType,
+    bool iterate_nonadjacent_blocks = true,
+    bool iterate_exact_gains = false>
 class DenseGainCache {
   SET_DEBUG(true);
 
-  using Self = DenseGainCache<iterate_nonadjacent_blocks, iterate_exact_gains>;
   template <typename, typename> friend class DenseDeltaGainCache;
 
 public:
-  template <typename DeltaPartitionedGraph>
-  using DeltaCache = DenseDeltaGainCache<DeltaPartitionedGraph, Self>;
+  using Graph = GraphType;
+  using PartitionedGraph = GenericPartitionedGraph<Graph>;
+
+  using Self = DenseGainCache<Graph, iterate_nonadjacent_blocks, iterate_exact_gains>;
+  using DeltaCache = DenseDeltaGainCache<Self>;
 
   // gains() will iterate over all blocks, including those not adjacent to the node.
   constexpr static bool kIteratesNonadjacentBlocks = iterate_nonadjacent_blocks;
@@ -40,9 +46,7 @@ public:
   // the gain consumer with the total edge weight between the node and nodes in the specific block.
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
-  DenseGainCache(
-      const Context & /* ctx */, const NodeID preallocate_n, const BlockID preallocate_k
-  )
+  DenseGainCache(const Context & /* ctx */, const NodeID preallocate_n, const BlockID preallocate_k)
       : _gain_cache(1ull * preallocate_n * preallocate_k, static_array::noinit),
         _weighted_degrees(preallocate_n, static_array::noinit) {
     DBG << "Pre-allocating sparse gain cache: " << preallocate_n << " nodes, " << preallocate_k
@@ -219,10 +223,11 @@ private:
   StaticArray<EdgeWeight> _weighted_degrees;
 };
 
-template <typename _DeltaPartitionedGraph, typename _GainCache> class DenseDeltaGainCache {
+template <typename GainCacheType> class DenseDeltaGainCache {
 public:
-  using DeltaPartitionedGraph = _DeltaPartitionedGraph;
-  using GainCache = _GainCache;
+  using GainCache = GainCacheType;
+  using PartitionedGraph = typename GainCache::PartitionedGraph;
+  using DeltaPartitionedGraph = GenericDeltaPartitionedGraph<PartitionedGraph>;
 
   // Delta gain caches can only be used with GainCaches that iterate over all blocks, since there
   // might be new connections to non-adjacent blocks in the delta graph.

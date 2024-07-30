@@ -33,6 +33,7 @@
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
+#include "kaminpar-shm/datastructures/delta_partitioned_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 
 #include "kaminpar-common/assert.h"
@@ -46,18 +47,15 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
-template <typename DeltaPartitionedGraph, typename GainCache> class SparseDeltaGainCache;
-template <typename DeltaPartitionedGraph, typename GainCache> class LargeKSparseDeltaGainCache;
-
 template <
-    bool iterate_nonadjacent_blocks = true,
-    template <typename, typename> typename DeltaGainCache = SparseDeltaGainCache,
+    typename GraphType,
+    template <typename>
+    typename DeltaGainCacheType,
+    bool iterate_nonadjacent_blocks,
     bool iterate_exact_gains = false>
 class SparseGainCache {
   SET_DEBUG(false);
   SET_STATISTICS_FROM_GLOBAL();
-
-  using Self = SparseGainCache<iterate_nonadjacent_blocks, DeltaGainCache, iterate_exact_gains>;
 
   // Abuse MSB bit in the _weighted_degrees[] array for locking
   constexpr static UnsignedEdgeWeight kWeightedDegreeLock =
@@ -94,8 +92,15 @@ class SparseGainCache {
   };
 
 public:
-  template <typename DeltaPartitionedGraph>
-  using DeltaCache = DeltaGainCache<DeltaPartitionedGraph, Self>;
+  using Graph = GraphType;
+
+  using Self = SparseGainCache<
+      GraphType,
+      DeltaGainCacheType,
+      iterate_nonadjacent_blocks,
+      iterate_exact_gains>;
+
+  using DeltaGainCache = DeltaGainCacheType<Self>;
 
   // gains() will iterate over all blocks, including those not adjacent to the node.
   constexpr static bool kIteratesNonadjacentBlocks = iterate_nonadjacent_blocks;
@@ -111,9 +116,9 @@ public:
         _gain_cache(0, static_array::noinit),
         _weighted_degrees(preallocate_n, static_array::noinit) {}
 
-  void initialize(const PartitionedGraph &p_graph) {
-    _n = p_graph.n();
-    _k = p_graph.k();
+  void initialize(const Graph &graph, const PartitionedGraph &p_graph) {
+    _graph = &graph;
+    _p_graph = &p_graph;
 
     _node_threshold = 0;
     _bucket_threshold = 0;
@@ -124,7 +129,7 @@ public:
     // value in the same 32 bit / 64 bit integer (depending on the size of the EdgeWeight data
     // type).
     // Thus, we compute the number of bits that we must reserve for the block IDs.
-    _bits_for_key = math::ceil_log2(_k);
+    _bits_for_key = math::ceil_log2(_p_graph->k());
     DBG << "Reserve " << (sizeof(UnsignedEdgeWeight) * 8 - _bits_for_key) << " of "
         << sizeof(UnsignedEdgeWeight) * 8 << " bits for gain values, " << _bits_for_key
         << " bits for block IDs";
@@ -132,37 +137,37 @@ public:
     // Size of the gain cache (dense + sparse part)
     std::size_t gc_size = 0;
 
-    if (p_graph.sorted()) {
+    if (_graph->sorted()) {
       DBG << "Graph was rearranged by degree buckets: using the mixed dense-sparse strategy";
 
       // Compute the degree that we use to determine the threshold degree bucket: nodes in buckets
       // up to the one determined by this degree are assigned to the dense part, the other ones to
       // the sparse part.
       const EdgeID degree_threshold = std::max<EdgeID>(
-          _k * _ctx.refinement.kway_fm.k_based_high_degree_threshold, // usually k * 1
-          _ctx.refinement.kway_fm.constant_high_degree_threshold      // usually 0
+          _p_graph->k() * _ctx.refinement.kway_fm.k_based_high_degree_threshold, // Usually k * 1
+          _ctx.refinement.kway_fm.constant_high_degree_threshold                 // Usually 0
       );
 
       // (i) compute size of the dense part (== hash tables) ...
       for (_bucket_threshold = 0;
-           _node_threshold < p_graph.n() && p_graph.degree(_node_threshold) < degree_threshold;
+           _node_threshold < _graph->n() && _graph->degree(_node_threshold) < degree_threshold;
            ++_bucket_threshold) {
         _cache_offsets[_bucket_threshold] = gc_size;
-        _node_threshold += p_graph.bucket_size(_bucket_threshold);
-        gc_size += p_graph.bucket_size(_bucket_threshold) *
+        _node_threshold += _graph->bucket_size(_bucket_threshold);
+        gc_size += _graph->bucket_size(_bucket_threshold) *
                    (lowest_degree_in_bucket<NodeID>(_bucket_threshold + 1));
       }
       std::fill(_cache_offsets.begin() + _bucket_threshold, _cache_offsets.end(), gc_size);
 
       // + ... (ii) size of the sparse part (table with k entries per node)
-      gc_size += static_cast<std::size_t>(p_graph.n() - _node_threshold) * _k;
+      gc_size += static_cast<std::size_t>(_graph->n() - _node_threshold) * _p_graph->k();
 
       DBG << "Initialized with degree threshold: " << degree_threshold
           << ", node threshold: " << _node_threshold << ", bucket threshold: " << _bucket_threshold;
       DBG << "Cache offsets: " << _cache_offsets;
     } else {
       // For graphs that do not have degree buckets, assign all nodes to the sparse part
-      gc_size = 1ul * _n * _k;
+      gc_size = 1ul * _graph->n() * _p_graph->k();
 
       DBG << "Graph was *not* rearranged by degree buckets: using the sparse strategy only (i.e., "
              "using node threshold: "
@@ -181,14 +186,14 @@ public:
       _gain_cache.resize(gc_size);
     }
 
-    if (_weighted_degrees.size() < _n) {
+    if (_weighted_degrees.size() < _graph->n()) {
       SCOPED_TIMER("Allocation");
-      _weighted_degrees.resize(_n);
+      _weighted_degrees.resize(_graph->n());
     }
 
-    init_buckets(p_graph.graph());
+    init_buckets();
     reset();
-    recompute_all(p_graph);
+    recompute_all();
   }
 
   void free() {
@@ -215,7 +220,7 @@ public:
     if (in_sparse_part(node)) {
       const EdgeWeight conn_from = kIteratesExactGains ? conn_sparse(node, from) : 0;
 
-      for (BlockID to = 0; to < _k; ++to) {
+      for (BlockID to = 0; to < _p_graph->k(); ++to) {
         if (from == to) {
           continue;
         }
@@ -234,12 +239,15 @@ public:
 
       if constexpr (kIteratesNonadjacentBlocks) {
         auto &buffer = _dense_buffer_ets.local();
+        if (buffer.capacity() < _p_graph->k()) {
+          buffer.resize(_p_graph->k());
+        }
 
         create_dense_wrapper(node).for_each([&](const BlockID to, const EdgeWeight conn_to) {
           buffer.set(to, conn_to);
         });
 
-        for (BlockID to = 0; to < _k; ++to) {
+        for (BlockID to = 0; to < _p_graph->k(); ++to) {
           if (from != to) {
             lambda(to, [&] { return buffer.get(to) - conn_from; });
           }
@@ -256,15 +264,10 @@ public:
     }
   }
 
-  KAMINPAR_INLINE void move(
-      const PartitionedGraph &p_graph,
-      const NodeID node,
-      const BlockID block_from,
-      const BlockID block_to
-  ) {
+  KAMINPAR_INLINE void move(const NodeID node, const BlockID block_from, const BlockID block_to) {
     IFSTATS(++_stats_ets.local().num_moves);
 
-    p_graph.adjacent_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
+    _graph->adjacent_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
       if (in_sparse_part(v)) {
         __atomic_fetch_sub(&_gain_cache[index_sparse(v, block_from)], weight, __ATOMIC_RELAXED);
         __atomic_fetch_add(&_gain_cache[index_sparse(v, block_to)], weight, __ATOMIC_RELAXED);
@@ -290,10 +293,10 @@ public:
     return weighted_degree(node) != weighted_degree_to(node, block_of_node);
   }
 
-  [[nodiscard]] bool validate(const PartitionedGraph &p_graph) const {
+  [[nodiscard]] bool validate() const {
     bool valid = true;
-    p_graph.pfor_nodes([&](const NodeID u) {
-      if (!dbg_check_cached_gain_for_node(p_graph, u)) {
+    _graph->pfor_nodes([&](const NodeID u) {
+      if (!dbg_check_cached_gain_for_node(u)) {
         LOG_WARNING << "gain cache invalid for node " << u;
         valid = false;
       }
@@ -324,12 +327,12 @@ private:
   // Degree buckets
   //
 
-  void init_buckets(const Graph &graph) {
+  void init_buckets() {
     _buckets.front() = 0;
-    for (int bucket = 0; bucket < graph.number_of_buckets(); ++bucket) {
-      _buckets[bucket + 1] = _buckets[bucket] + graph.bucket_size(bucket);
+    for (int bucket = 0; bucket < _graph->number_of_buckets(); ++bucket) {
+      _buckets[bucket + 1] = _buckets[bucket] + _graph->bucket_size(bucket);
     }
-    std::fill(_buckets.begin() + graph.number_of_buckets(), _buckets.end(), graph.n());
+    std::fill(_buckets.begin() + _graph->number_of_buckets(), _buckets.end(), _graph->n());
   }
 
   [[nodiscard]] int find_bucket(const NodeID node) const {
@@ -435,7 +438,7 @@ private:
 
   [[nodiscard]] KAMINPAR_INLINE std::size_t
   index_sparse(const NodeID node, const BlockID block) const {
-    return _sparse_offset + 1ull * (node - _node_threshold) * _k + block;
+    return _sparse_offset + 1ull * (node - _node_threshold) * _p_graph->k() + block;
   }
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight
@@ -465,16 +468,14 @@ private:
     _dense_buffer_ets.clear();
   }
 
-  void recompute_all(const PartitionedGraph &p_graph) {
+  void recompute_all() {
     SCOPED_TIMER("Recompute gain cache");
 
-    p_graph.pfor_nodes([&](const NodeID u) { recompute_node(p_graph, u); });
-    KASSERT(
-        validate(p_graph), "dense gain cache verification failed after recomputation", assert::heavy
-    );
+    _graph->pfor_nodes([&](const NodeID u) { recompute_node(u); });
+    KASSERT(validate(), "dense gain cache verification failed after recomputation", assert::heavy);
 
     IF_STATS {
-      p_graph.pfor_nodes([&](const NodeID u) {
+      _graph->pfor_nodes([&](const NodeID u) {
         if (!in_sparse_part(u)) {
           auto map = create_dense_wrapper(u);
 
@@ -486,42 +487,38 @@ private:
     }
   }
 
-  void recompute_node(const PartitionedGraph &p_graph, const NodeID u) {
-    KASSERT(u < p_graph.n());
-    KASSERT(p_graph.block(u) < p_graph.k());
-
+  void recompute_node(const NodeID u) {
     _weighted_degrees[u] = 0;
 
     if (in_sparse_part(u)) {
-      p_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
-        const BlockID block_v = p_graph.block(v);
+      _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+        const BlockID block_v = _p_graph->block(v);
         _weighted_degrees[u] += static_cast<UnsignedEdgeWeight>(weight);
         _gain_cache[index_sparse(u, block_v)] += static_cast<UnsignedEdgeWeight>(weight);
       });
     } else {
       auto ht = create_dense_wrapper(u);
-      p_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
-        const BlockID block_v = p_graph.block(v);
+      _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+        const BlockID block_v = _p_graph->block(v);
         _weighted_degrees[u] += static_cast<UnsignedEdgeWeight>(weight);
         ht.increase_by(block_v, static_cast<UnsignedEdgeWeight>(weight));
       });
     }
   }
 
-  [[nodiscard]] bool
-  dbg_check_cached_gain_for_node(const PartitionedGraph &p_graph, const NodeID u) const {
-    const BlockID block_u = p_graph.block(u);
-    std::vector<EdgeWeight> actual_external_degrees(_k, 0);
+  [[nodiscard]] bool dbg_check_cached_gain_for_node(const NodeID u) const {
+    const BlockID block_u = _p_graph->block(u);
+    std::vector<EdgeWeight> actual_external_degrees(_p_graph->k(), 0);
     EdgeWeight actual_weighted_degree = 0;
 
-    p_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
-      const BlockID block_v = p_graph.block(v);
+    _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+      const BlockID block_v = _p_graph->block(v);
 
       actual_weighted_degree += weight;
       actual_external_degrees[block_v] += weight;
     });
 
-    for (BlockID b = 0; b < _k; ++b) {
+    for (BlockID b = 0; b < _p_graph->k(); ++b) {
       if (actual_external_degrees[b] != weighted_degree_to(u, b)) {
         LOG_WARNING << "For node " << u << ": cached weighted degree to block " << b << " is "
                     << weighted_degree_to(u, b) << " but should be " << actual_external_degrees[b];
@@ -540,17 +537,21 @@ private:
 
   const Context &_ctx;
 
-  NodeID _n = kInvalidNodeID;
-  BlockID _k = kInvalidBlockID;
+  const Graph *_graph = nullptr;
+  const PartitionedGraph *_p_graph = nullptr;
 
   // First node ID assigned to the sparse part of the gain cache
   NodeID _node_threshold = kInvalidNodeID;
+
   // First degree bucket assigned to the sparse part of the gain cache
   int _bucket_threshold = -1;
+
   // Copy of the degree buckets
   std::array<NodeID, kNumberOfDegreeBuckets<NodeID>> _buckets;
+
   // For each degree bucket, the offset for vertices in that bucket in the gain cache
   std::array<std::size_t, kNumberOfDegreeBuckets<NodeID>> _cache_offsets;
+
   // Number of bits reserved in hash table cells to store the key (i.e., block ID) of the entry
   int _bits_for_key = 0;
 
@@ -561,14 +562,14 @@ private:
 
   mutable tbb::enumerable_thread_specific<Statistics> _stats_ets;
   mutable tbb::enumerable_thread_specific<FastResetArray<EdgeWeight>> _dense_buffer_ets{[&] {
-    return FastResetArray<EdgeWeight>(_k);
+    return FastResetArray<EdgeWeight>(0);
   }};
 };
 
-template <typename _DeltaPartitionedGraph, typename _GainCache> class SparseDeltaGainCache {
+template <typename GainCacheType> class SparseDeltaGainCache {
 public:
-  using DeltaPartitionedGraph = _DeltaPartitionedGraph;
-  using GainCache = _GainCache;
+  using GainCache = GainCacheType;
+  using Graph = typename GainCache::Graph;
 
   // Delta gain caches should only be used with GainCaches that iterate over all blocks, since there
   // might be new connections to non-adjacent blocks in the delta graph. These connections might be
@@ -577,8 +578,9 @@ public:
   static_assert(GainCache::kIteratesNonadjacentBlocks);
 
   SparseDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph &d_graph)
-      : _k(d_graph.k()),
-        _gain_cache(gain_cache) {}
+      : _gain_cache(gain_cache),
+        _d_graph(d_graph),
+        _k(d_graph.k()) {}
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight conn(const NodeID node, const BlockID block) const {
     return _gain_cache.conn(node, block) + conn_delta(node, block);
@@ -603,13 +605,8 @@ public:
     });
   }
 
-  KAMINPAR_INLINE void move(
-      const DeltaPartitionedGraph &d_graph,
-      const NodeID u,
-      const BlockID block_from,
-      const BlockID block_to
-  ) {
-    d_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+  KAMINPAR_INLINE void move(const NodeID u, const BlockID block_from, const BlockID block_to) {
+    _d_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
       _gain_cache_delta[index(v, block_from)] -= weight;
       _gain_cache_delta[index(v, block_to)] += weight;
     });
@@ -623,7 +620,6 @@ private:
   [[nodiscard]] KAMINPAR_INLINE std::size_t index(const NodeID node, const BlockID block) const {
     // Note: this increases running times substantially due to the shifts
     // return index_sparse(node, block);
-
     return 1ull * node * _k + block;
   }
 
@@ -633,15 +629,17 @@ private:
     return it != _gain_cache_delta.end() ? *it : 0;
   }
 
-  BlockID _k;
   const GainCache &_gain_cache;
+  const DeltaPartitionedGraph &_d_graph;
+  BlockID _k;
+
   DynamicFlatMap<std::size_t, EdgeWeight> _gain_cache_delta;
 };
 
-template <typename _DeltaPartitionedGraph, typename _GainCache> class LargeKSparseDeltaGainCache {
+template <typename GainCacheType> class LargeKSparseDeltaGainCache {
 public:
-  using DeltaPartitionedGraph = _DeltaPartitionedGraph;
-  using GainCache = _GainCache;
+  using GainCache = GainCacheType;
+  using Graph = typename GainCache::Graph;
 
   constexpr static bool kIteratesExactGains = GainCache::kIteratesExactGains;
 
@@ -650,8 +648,9 @@ public:
   static_assert(!GainCache::kIteratesNonadjacentBlocks);
 
   LargeKSparseDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph &d_graph)
-      : _k(d_graph.k()),
-        _gain_cache(gain_cache) {
+      : _gain_cache(gain_cache),
+        _d_graph(d_graph),
+        _k(d_graph.k()) {
 #ifdef KAMINPAR_SPARSEHASH_FOUND
     _adjacent_blocks_delta.set_empty_key(kInvalidNodeID);
     _adjacent_blocks_delta.set_deleted_key(kInvalidNodeID - 1);
@@ -692,13 +691,8 @@ public:
     }
   }
 
-  KAMINPAR_INLINE void move(
-      const DeltaPartitionedGraph &d_graph,
-      const NodeID u,
-      const BlockID block_from,
-      const BlockID block_to
-  ) {
-    d_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+  KAMINPAR_INLINE void move(const NodeID u, const BlockID block_from, const BlockID block_to) {
+    _d_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
       _gain_cache_delta[index(v, block_from)] -= weight;
 
       if (_gain_cache.conn(v, block_to) == 0 && conn_delta(v, block_to) == 0) {
@@ -733,13 +727,22 @@ private:
     return it != _gain_cache_delta.end() ? *it : 0;
   }
 
-  BlockID _k;
   const GainCache &_gain_cache;
+  const DeltaPartitionedGraph &_d_graph;
+  BlockID _k;
+
   DynamicFlatMap<std::size_t, EdgeWeight> _gain_cache_delta;
+
 #ifdef KAMINPAR_SPARSEHASH_FOUND
   google::dense_hash_map<NodeID, std::vector<BlockID>> _adjacent_blocks_delta;
 #else  // KAMINPAR_SPARSEHASH_FOUND
   std::unordered_map<NodeID, std::vector<BlockID>> _adjacent_blocks_delta;
 #endif // KAMINPAR_SPARSEHASH_FOUND
 };
+
+template <typename Graph>
+using NormalSparseGainCache = SparseGainCache<Graph, SparseDeltaGainCache, true>;
+
+template <typename Graph>
+using LargeKSparseGainCache = SparseGainCache<Graph, LargeKSparseDeltaGainCache, false>;
 } // namespace kaminpar::shm

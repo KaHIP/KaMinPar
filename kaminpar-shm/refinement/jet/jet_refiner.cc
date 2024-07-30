@@ -11,7 +11,7 @@
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/refinement/balancer/greedy_balancer.h"
-#include "kaminpar-shm/refinement/gains/dense_gain_cache.h"
+#include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
 
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
@@ -45,8 +45,8 @@ bool JetRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx
   SCOPED_TIMER("Jet Refiner");
 
   START_TIMER("Allocation");
-  DenseGainCache<> gain_cache(_ctx, p_graph.n(), p_graph.k());
-  gain_cache.initialize(p_graph);
+  NormalSparseGainCache<Graph> gain_cache(_ctx, p_graph.n(), p_graph.k());
+  gain_cache.initialize(p_graph.graph(), p_graph);
 
   StaticArray<BlockID> next_partition(p_graph.n());
   p_graph.pfor_nodes([&](const NodeID u) { next_partition[u] = 0; });
@@ -160,7 +160,7 @@ bool JetRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx
             const BlockID to = next_partition[u];
 
             p_graph.set_block(u, to);
-            gain_cache.move(p_graph, u, from, to);
+            gain_cache.move(u, from, to);
           }
         });
       };
@@ -205,7 +205,7 @@ bool JetRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx
         p_graph.pfor_nodes([&](const NodeID u) { p_graph.set_block(u, best_partition[u]); });
 
         // Re-initialize gain cache and balancer after rollback
-        gain_cache.initialize(p_graph);
+        gain_cache.initialize(p_graph.graph(), p_graph);
         balancer.initialize(p_graph);
         balancer.track_moves(&gain_cache);
       }

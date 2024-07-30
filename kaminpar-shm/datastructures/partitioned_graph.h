@@ -28,8 +28,10 @@ namespace kaminpar::shm {
  * If an object of this class is constructed without partition, all nodes are
  * marked unassigned, i.e., are placed in block `kInvalidBlockID`.
  */
-template <typename Graph> class GenericPartitionedGraph : public GraphDelegate<Graph> {
+template <typename GraphType> class GenericPartitionedGraph : public GraphDelegate<GraphType> {
 public:
+  using Graph = GraphType;
+
   using NodeID = typename Graph::NodeID;
   using NodeWeight = typename Graph::NodeWeight;
   using EdgeID = typename Graph::EdgeID;

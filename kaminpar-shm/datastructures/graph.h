@@ -212,6 +212,14 @@ public:
     return _underlying_graph.get();
   }
 
+  template <typename ConcretizedGraph> [[nodiscard]] ConcretizedGraph &concretize() {
+    return *static_cast<ConcretizedGraph *>(underlying_graph());
+  }
+
+  template <typename ConcretizedGraph> [[nodiscard]] const ConcretizedGraph &concretize() const {
+    return *static_cast<const ConcretizedGraph *>(underlying_graph());
+  }
+
   [[nodiscard]] CSRGraph &csr_graph() {
     AbstractGraph *abstract_graph = _underlying_graph.get();
     return *dynamic_cast<CSRGraph *>(abstract_graph);

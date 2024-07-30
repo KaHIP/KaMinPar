@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Stores changes to a static partitioned graph.
+ * Stores changes to a static graph partition.
  *
  * @file:   delta_partitioned_graph.h
  * @author: Daniel Seemaier
@@ -17,11 +17,6 @@
 
 namespace kaminpar::shm {
 class DeltaPartitionedGraph : public GraphDelegate<Graph> {
-  struct DeltaEntry {
-    NodeID node;
-    BlockID block;
-  };
-
 public:
   DeltaPartitionedGraph(const PartitionedGraph *p_graph)
       : GraphDelegate<Graph>(&p_graph->graph()),
@@ -52,16 +47,16 @@ public:
 
   template <bool update_block_weight = true>
   void set_block(const NodeID node, const BlockID new_block) {
-    KASSERT(node < n(), "invalid node id " << node);
+    KASSERT(node < this->n(), "invalid node id " << node);
     KASSERT(new_block < k(), "invalid block id " << new_block << " for node " << node);
 
     if constexpr (update_block_weight) {
       const BlockID old_block = block(node);
       KASSERT(old_block < k());
 
-      const NodeWeight w = node_weight(node);
+      const NodeWeight w = this->node_weight(node);
       _block_weights_delta[old_block] -= w;
-      _block_weights_delta[new_block] += node_weight(node);
+      _block_weights_delta[new_block] += this->node_weight(node);
     }
 
     _partition_delta[node] = new_block;

@@ -2,12 +2,13 @@
  * Analyzes the moves made by the FM algorithm to compute per-batch statistics.
  * This is only used for debugging and analyzing the algorithm.
  *
- * @file:   fm_batch_stats.cc
+ * @file:   batch_stats.cc
  * @author: Daniel Seemaier
  * @date:   27.02.2024
  ******************************************************************************/
-#include "kaminpar-shm/refinement/fm/fm_batch_stats.h"
+#include "kaminpar-shm/refinement/fm/batch_stats.h"
 
+#include <algorithm>
 #include <queue>
 #include <set>
 

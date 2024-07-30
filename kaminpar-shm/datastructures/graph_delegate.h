@@ -32,6 +32,14 @@ public:
     return _graph->reified(std::forward<Lambda>(l));
   }
 
+  template <typename ConcreteGraph> [[nodiscard]] ConcreteGraph &concretize() {
+    return _graph->template concretize<ConcreteGraph>();
+  }
+
+  template <typename ConcreteGraph> [[nodiscard]] const ConcreteGraph &concretize() const {
+    return _graph->template concretize<ConcreteGraph>();
+  }
+
   //
   // Size of the graph
   //
