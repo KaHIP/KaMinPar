@@ -516,9 +516,8 @@ template <typename GainCache> inline bool LocalizedFMRefiner<GainCache>::update_
 }
 
 template <typename GainCache>
-template <typename GainCacheType, typename PartitionedGraphType>
 inline void LocalizedFMRefiner<GainCache>::insert_into_node_pq(
-    const PartitionedGraphType &p_graph, const GainCacheType &gain_cache, const NodeID u
+    const auto &p_graph, const auto &gain_cache, const NodeID u
 ) {
   const BlockID block_u = p_graph.block(u);
   const auto [block_to, gain] = best_gain(p_graph, gain_cache, u);
@@ -529,9 +528,8 @@ inline void LocalizedFMRefiner<GainCache>::insert_into_node_pq(
 }
 
 template <typename GainCache>
-template <typename GainCacheType, typename PartitionedGraphType>
 inline std::pair<BlockID, EdgeWeight> LocalizedFMRefiner<GainCache>::best_gain(
-    const PartitionedGraphType &p_graph, const GainCacheType &gain_cache, const NodeID u
+    const auto &p_graph, const auto &gain_cache, const NodeID u
 ) {
   const BlockID from = p_graph.block(u);
   const NodeWeight weight = p_graph.node_weight(u);
@@ -563,7 +561,7 @@ inline std::pair<BlockID, EdgeWeight> LocalizedFMRefiner<GainCache>::best_gain(
     if (best_target_block == from) {
       return std::numeric_limits<EdgeWeight>::min();
     } else {
-      if constexpr (GainCacheType::kIteratesExactGains) {
+      if constexpr (GainCache::kIteratesExactGains) {
         return best_gain;
       } else {
         return gain_cache.gain(u, from, best_target_block);
