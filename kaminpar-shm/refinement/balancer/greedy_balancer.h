@@ -10,7 +10,7 @@
 #include <tbb/enumerable_thread_specific.h>
 
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
-#include "kaminpar-shm/refinement/gains/dense_gain_cache.h"
+#include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
 #include "kaminpar-shm/refinement/refiner.h"
 
 #include "kaminpar-common/datastructures/binary_heap.h"
@@ -27,7 +27,7 @@ struct GreedyBalancerMemoryContext {
   tbb::enumerable_thread_specific<std::vector<BlockID>> feasible_target_blocks;
   Marker<> marker;
   std::vector<BlockWeight> pq_weight;
-  DenseGainCache<> *gain_cache = nullptr;
+  NormalSparseGainCache<Graph> *gain_cache = nullptr;
 };
 
 class GreedyBalancer : public Refiner {
@@ -47,7 +47,7 @@ public:
   void initialize(const PartitionedGraph &p_graph) final;
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
-  void track_moves(DenseGainCache<> *gain_cache);
+  void track_moves(NormalSparseGainCache<Graph> *gain_cache);
 
 private:
   std::unique_ptr<GreedyBalancerCSRImpl> _csr_impl;

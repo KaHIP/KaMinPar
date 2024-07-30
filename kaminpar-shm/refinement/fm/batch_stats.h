@@ -2,7 +2,7 @@
  * Analyzes the moves made by the FM algorithm to compute per-batch statistics.
  * This is only used for debugging and analyzing the algorithm.
  *
- * @file:   fm_batch_stats.h
+ * @file:   batch_stats.h
  * @author: Daniel Seemaier
  * @date:   27.02.2024
  ******************************************************************************/

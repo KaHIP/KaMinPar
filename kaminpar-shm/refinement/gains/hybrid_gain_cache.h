@@ -21,18 +21,23 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
-template <typename DeltaPartitionedGraph, typename GainCache> class HybridDeltaGainCache;
+template <typename GainCache> class HybridDeltaGainCache;
 
-template <bool iterate_nonadjacent_blocks = true, bool iterate_exact_gains = true>
+template <
+    typename GraphType,
+    bool iterate_nonadjacent_blocks = true,
+    bool iterate_exact_gains = true>
 class HybridGainCache {
   SET_DEBUG(false);
 
-  using Self = HybridGainCache<iterate_nonadjacent_blocks, iterate_exact_gains>;
-  template <typename, typename> friend class HybridDeltaGainCache;
+  template <typename> friend class HybridDeltaGainCache;
 
 public:
-  template <typename DeltaPartitionedGraph>
-  using DeltaCache = HybridDeltaGainCache<DeltaPartitionedGraph, Self>;
+  using Graph = GraphType;
+  using PartitionedGraph = GenericPartitionedGraph<Graph>;
+
+  using Self = HybridGainCache<GraphType, iterate_nonadjacent_blocks, iterate_exact_gains>;
+  using DeltaCache = HybridDeltaGainCache<Self>;
 
   // gains() will iterate over all blocks, including those not adjacent to the node.
   constexpr static bool kIteratesNonadjacentBlocks = iterate_nonadjacent_blocks;
@@ -306,17 +311,19 @@ private:
   StaticArray<EdgeWeight> _gain_cache;
   StaticArray<EdgeWeight> _weighted_degrees;
 
-  OnTheFlyGainCache<kIteratesNonadjacentBlocks, kIteratesExactGains> _on_the_fly_gain_cache;
+  OnTheFlyGainCache<Graph, kIteratesNonadjacentBlocks, kIteratesExactGains> _on_the_fly_gain_cache;
 };
 
-template <typename _DeltaPartitionedGraph, typename _GainCache> class HybridDeltaGainCache {
+template <typename GainCacheType> class HybridDeltaGainCache {
 public:
-  using DeltaPartitionedGraph = _DeltaPartitionedGraph;
-  using GainCache = _GainCache;
+  using GainCache = GainCacheType;
+  using PartitionedGraph = typename GainCache::PartitionedGraph;
+  using DeltaPartitionedGraph = GenericDeltaPartitionedGraph<PartitionedGraph>;
 
   // Delta gain caches can only be used with GainCaches that iterate over all blocks, since there
   // might be new connections to non-adjacent blocks in the delta graph.
   static_assert(GainCache::kIteratesNonadjacentBlocks);
+  constexpr static bool kIteratesNonadjacentBlocks = GainCache::kIteratesNonadjacentBlocks;
   constexpr static bool kIteratesExactGains = GainCache::kIteratesExactGains;
 
   HybridDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph &d_graph)
@@ -389,9 +396,7 @@ private:
   const GainCache &_gain_cache;
   DynamicFlatMap<std::size_t, EdgeWeight> _gain_cache_delta;
 
-  OnTheFlyDeltaGainCache<
-      DeltaPartitionedGraph,
-      OnTheFlyGainCache<GainCache::kIteratesNonadjacentBlocks, GainCache::kIteratesExactGains>>
+  OnTheFlyDeltaGainCache<OnTheFlyGainCache<Graph, kIteratesNonadjacentBlocks, kIteratesExactGains>>
       _on_the_fly_delta_gain_cache;
 };
 } // namespace kaminpar::shm
