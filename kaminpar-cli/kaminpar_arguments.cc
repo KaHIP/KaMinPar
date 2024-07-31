@@ -205,6 +205,16 @@ CLI::Option_group *create_lp_coarsening_options(CLI::App *app, Context &ctx) {
   )
       ->capture_default_str();
 
+  lp->add_option("--c-lp-tie-breaking-strategy", ctx.coarsening.clustering.lp.tie_breaking_strategy)
+      ->transform(CLI::CheckedTransformer(get_tie_breaking_strategies()).description(""))
+      ->description(
+          R"(Determines the tie breaking strategy.
+Options are:
+  - geometric: Prefer nodes with same rating located at the end of a neighborhood
+  - uniform:   Select nodes with same rating uniformly at random
+  )"
+      )
+      ->capture_default_str();
   lp->add_option(
         "--c-lp-cluster-weights-struct", ctx.coarsening.clustering.lp.cluster_weights_structure
   )
@@ -322,6 +332,13 @@ Options are:
           "The fraction of the total edges with which to fill the edge buffer"
       )
       ->capture_default_str();
+  contraction
+      ->add_option(
+          "--c-con-use-growing-hash-tables",
+          ctx.coarsening.contraction.use_growing_hash_tables,
+          "Whether to use growing hash tables to collect coarse edges (only for unbuffered mode)"
+      )
+      ->capture_default_str();
 
   return contraction;
 }
@@ -396,6 +413,16 @@ Options are:
       )
       ->capture_default_str();
 
+  lp->add_option("--r-lp-tie-breaking-strategy", ctx.refinement.lp.tie_breaking_strategy)
+      ->transform(CLI::CheckedTransformer(get_tie_breaking_strategies()).description(""))
+      ->description(
+          R"(Determines the tie breaking strategy.
+Options are:
+  - geometric: Prefer nodes with same rating located at the end of a neighborhood
+  - uniform:   Select nodes with same rating uniformly at random
+  )"
+      )
+      ->capture_default_str();
   lp->add_option(
         "--r-lp-second-phase-selection-strategy", ctx.refinement.lp.second_phase_selection_strategy
   )

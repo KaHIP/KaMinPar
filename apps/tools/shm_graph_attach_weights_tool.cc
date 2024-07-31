@@ -35,14 +35,20 @@ namespace {
 
 enum class WeightDistribution {
   UNIFORM,
-  ALTERNATING
+  ALTERNATING,
+  EXPONENTIAL,
 };
 
 [[nodiscard]] std::unordered_map<std::string, WeightDistribution> get_weight_distributions() {
   return {
       {"uniform", WeightDistribution::UNIFORM},
       {"alternating", WeightDistribution::ALTERNATING},
+      {"exponential", WeightDistribution::EXPONENTIAL},
   };
+}
+
+[[nodiscard]] int local_seed(const int cpu, const int seed) {
+  return seed + (cpu + 42) * 3;
 }
 
 struct EdgeHasher {
@@ -112,8 +118,7 @@ generate_edge_weights(const CSRGraph &graph, Lambda &&edge_weight_generator_fact
     const CSRGraph &graph, const int seed, const EdgeWeight min, const EdgeWeight max
 ) {
   return generate_edge_weights(graph, [&](const int cpu, auto &&edge_weight_fetcher) {
-    const int local_seed = seed + cpu;
-    std::mt19937 gen(local_seed);
+    std::mt19937 gen(local_seed(seed, cpu));
     std::uniform_int_distribution<EdgeWeight> dist(min, max);
 
     edge_weight_fetcher([&](const EdgeID, const NodeID, const NodeID) {
@@ -132,8 +137,7 @@ generate_edge_weights(const CSRGraph &graph, Lambda &&edge_weight_generator_fact
     const EdgeWeight max_large_weights
 ) {
   return generate_edge_weights(graph, [&](const int cpu, auto &&edge_weight_fetcher) {
-    const int local_seed = seed + cpu;
-    std::mt19937 gen(local_seed);
+    std::mt19937 gen(local_seed(seed, cpu));
     std::uniform_int_distribution<EdgeWeight> small_dist(min_small_weights, max_small_weights);
     std::uniform_int_distribution<EdgeWeight> large_dist(min_large_weights, max_large_weights);
 
@@ -147,6 +151,19 @@ generate_edge_weights(const CSRGraph &graph, Lambda &&edge_weight_generator_fact
         const EdgeWeight weight = large_dist(gen);
         return weight;
       }
+    });
+  });
+}
+
+[[nodiscard]] StaticArray<EdgeWeight>
+generate_exponential_edge_weights(const CSRGraph &graph, const int seed, const double lambda) {
+  return generate_edge_weights(graph, [&](const int cpu, auto &&edge_weight_fetcher) {
+    std::mt19937 gen(local_seed(seed, cpu));
+    std::exponential_distribution<double> dist(lambda);
+
+    edge_weight_fetcher([&](const EdgeID e, const NodeID, const NodeID) {
+      const EdgeWeight weight = static_cast<EdgeWeight>(dist(gen)) + 1;
+      return weight;
     });
   });
 }
@@ -186,12 +203,13 @@ int main(int argc, char *argv[]) {
       ->transform(CLI::CheckedTransformer(get_weight_distributions()).description(""))
       ->description(R"(Distribution used for generating edge weights:
   - uniform
-  - alternating)")
+  - alternating
+  - exponential)")
       ->required()
       ->capture_default_str();
 
   EdgeWeight uniform_min_weight = 1;
-  EdgeWeight uniform_max_weight = 32768;
+  EdgeWeight uniform_max_weight = 65536;
   auto *uniform_group = app.add_option_group("Uniform Distribution");
   uniform_group->add_option("--u-min", uniform_min_weight, "Minimum weight value.")
       ->capture_default_str();
@@ -199,10 +217,10 @@ int main(int argc, char *argv[]) {
       ->capture_default_str();
 
   EdgeWeight alt_min_small_weights = 1;
-  EdgeWeight alt_max_small_weights = 128;
-  EdgeWeight alt_min_large_weights = 32768;
-  EdgeWeight alt_max_large_weights = 8388608;
-  auto *alt_group = app.add_option_group("Uniform Distribution");
+  EdgeWeight alt_max_small_weights = 1;
+  EdgeWeight alt_min_large_weights = 65536;
+  EdgeWeight alt_max_large_weights = 65536;
+  auto *alt_group = app.add_option_group("Alternating Distribution");
   alt_group
       ->add_option("--a-min-small", alt_min_small_weights, "Minimum weight value of small weights.")
       ->capture_default_str();
@@ -215,6 +233,10 @@ int main(int argc, char *argv[]) {
   alt_group
       ->add_option("--a-max-large", alt_max_large_weights, "Maximum weight value of large weights.")
       ->capture_default_str();
+
+  double lambda = 0.0001;
+  auto *exp_group = app.add_option_group("Exponential Distribution");
+  exp_group->add_option("--e-lambda", lambda, "Rate parameter.")->capture_default_str();
 
   CLI11_PARSE(app, argc, argv);
 
@@ -238,6 +260,8 @@ int main(int argc, char *argv[]) {
           alt_min_large_weights,
           alt_max_large_weights
       );
+    case WeightDistribution::EXPONENTIAL:
+      return generate_exponential_edge_weights(csr_graph, seed, lambda);
     default:
       __builtin_unreachable();
     }

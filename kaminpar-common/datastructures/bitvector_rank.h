@@ -65,6 +65,16 @@ class RankCombinedBitVector {
 
 public:
   /*!
+   * Constructs an empty bit vector.
+   */
+  explicit RankCombinedBitVector()
+      : _length(0),
+        _num_blocks(0),
+        _data(0),
+        _num_superblocks(0),
+        _superblock_data(0) {}
+
+  /*!
    * Constructs an uninitialized bit vector.
    *
    * @param length The number of bits that this bit vector contains.
