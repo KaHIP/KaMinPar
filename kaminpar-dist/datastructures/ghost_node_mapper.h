@@ -10,6 +10,8 @@
 #include <mpi.h>
 #include <tbb/concurrent_hash_map.h>
 
+#include "kaminpar-mpi/definitions.h"
+
 #include "kaminpar-dist/datastructures/growt.h"
 #include "kaminpar-dist/dkaminpar.h"
 
@@ -30,7 +32,7 @@ public:
       RankCombinedBitVector<> global_to_ghost_bitmap,
       CompactStaticArray<NodeID> dense_global_to_ghost,
       CompactStaticArray<GlobalNodeID> ghost_to_global,
-      CompactStaticArray<PEID> ghost_owner
+      CompactStaticArray<UPEID> ghost_owner
   )
       : _num_nodes(num_nodes),
         _num_ghost_nodes(num_ghost_nodes),
@@ -45,7 +47,7 @@ public:
       const NodeID num_ghost_nodes,
       growt::StaticGhostNodeMapping sparse_global_to_ghost,
       CompactStaticArray<GlobalNodeID> ghost_to_global,
-      CompactStaticArray<PEID> ghost_owner
+      CompactStaticArray<UPEID> ghost_owner
   )
       : _num_nodes(num_nodes),
         _num_ghost_nodes(num_ghost_nodes),
@@ -80,7 +82,7 @@ public:
   }
 
   [[nodiscard]] PEID ghost_owner(const NodeID ghost_node) const {
-    return _ghost_owner[ghost_node];
+    return static_cast<PEID>(_ghost_owner[ghost_node]);
   }
 
 private:
@@ -94,7 +96,7 @@ private:
   CompactStaticArray<NodeID> _dense_global_to_ghost;
 
   CompactStaticArray<GlobalNodeID> _ghost_to_global;
-  CompactStaticArray<PEID> _ghost_owner;
+  CompactStaticArray<UPEID> _ghost_owner;
 };
 
 class CompactGhostNodeMappingBuilder {
@@ -140,7 +142,7 @@ public:
     );
 
     RECORD("ghost_owner")
-    CompactStaticArray<PEID> ghost_owner(math::byte_width(num_processes - 1), num_ghost_nodes);
+    CompactStaticArray<UPEID> ghost_owner(math::byte_width(num_processes - 1), num_ghost_nodes);
 
     const auto foreach_global_to_ghost = [&](auto &&l) {
       for (const auto [global_node, local_node] : _global_to_ghost) {

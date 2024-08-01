@@ -13,6 +13,7 @@
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <concepts>
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/heap_profiler.h"
@@ -25,7 +26,7 @@ namespace kaminpar {
  *
  * @tparam Int The type of integer to store.
  */
-template <typename Int> class CompactStaticArray {
+template <std::unsigned_integral Int> class CompactStaticArray {
   static_assert(std::numeric_limits<Int>::is_integer);
 
   class CompactStaticArrayIterator {
