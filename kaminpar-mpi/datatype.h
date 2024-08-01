@@ -28,6 +28,11 @@ template <std::size_t N> inline MPI_Datatype custom() {
 }
 
 // Map to default MPI type
+//
+// Disable the Wtautological-compare warning because it depends on the compiler whether std::size_t
+// is the same type as std::uint64_t.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wtautological-compare"
 template <typename T> inline MPI_Datatype get() {
   if constexpr (std::is_same_v<T, bool>) {
     return MPI_CXX_BOOL;
@@ -73,4 +78,6 @@ template <typename T> inline MPI_Datatype get() {
     return custom<sizeof(T)>();
   }
 }
+#pragma GCC diagnostic pop
+
 } // namespace kaminpar::mpi::type
