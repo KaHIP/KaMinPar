@@ -209,8 +209,8 @@ public:
     KASSERT(kHighDegreeEncoding || _num_high_degree_parts == 0);
     KASSERT(kIntervalEncoding || _num_interval_nodes == 0);
     KASSERT(kIntervalEncoding || _num_intervals == 0);
-    KASSERT(!has_edge_weights || edge_weights.size() == num_edges);
-    KASSERT(has_edge_weights || edge_weights.empty());
+    KASSERT(!has_edge_weights || kCompressEdgeWeights || _edge_weights.size() == num_edges);
+    KASSERT(has_edge_weights || _edge_weights.empty());
   }
 
   CompressedNeighborhoods(const CompressedNeighborhoods &) = delete;
