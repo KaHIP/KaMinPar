@@ -866,8 +866,11 @@ private:
     }
   }
 #elif defined(__aarch64__)
-  template <typename Lambda> void decode64(Lambda &&l) {
-    static_assert("Unsupported streamvbyte configuration (ARM).");
+  template <typename Lambda>
+  void decode64(Lambda &&l)
+    requires(false)
+  {
+    // @todo implement decode for ARM
   }
 #endif
 
