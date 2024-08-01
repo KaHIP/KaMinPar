@@ -37,7 +37,7 @@ template <typename Int> class CompactStaticArray {
     using difference_type = std::ptrdiff_t;
 
     CompactStaticArrayIterator(
-        const std::uint8_t byte_width, const Int read_mask, const std::uint8_t *data
+        const std::size_t byte_width, const Int read_mask, const std::uint8_t *data
     )
         : _byte_width(byte_width),
           _mask(read_mask),
@@ -125,7 +125,7 @@ template <typename Int> class CompactStaticArray {
     }
 
   private:
-    const std::uint8_t _byte_width;
+    const std::size_t _byte_width;
     const Int _mask;
     const std::uint8_t *_data;
   };
@@ -141,7 +141,12 @@ public:
   /*!
    * Constructs an unitialized CompactStaticArray.
    */
-  CompactStaticArray() : _byte_width(0), _size(0), _unrestricted_size(0), _num_values(0) {
+  CompactStaticArray()
+      : _byte_width(0),
+        _size(0),
+        _num_values(0),
+        _unrestricted_size(0),
+        _unrestricted_num_values(0) {
     RECORD_DATA_STRUCT(0, _struct);
   }
 
@@ -151,7 +156,7 @@ public:
    * @param byte_width The number of bytes needed to store the largest integer in the array.
    * @param size num_values number of values to store.
    */
-  CompactStaticArray(const std::uint8_t byte_width, const std::size_t num_values) {
+  CompactStaticArray(const std::size_t byte_width, const std::size_t num_values) {
     RECORD_DATA_STRUCT(0, _struct);
     resize(byte_width, num_values);
   }
@@ -164,17 +169,18 @@ public:
    * @param data The pointer to the memory location where the data is compactly stored.
    */
   CompactStaticArray(
-      const std::uint8_t byte_width,
+      const std::size_t byte_width,
       const std::size_t actual_size,
       std::unique_ptr<std::uint8_t[]> data
   )
       : _byte_width(byte_width),
         _size(actual_size),
-        _unrestricted_size(actual_size),
         _num_values((_size - (sizeof(Int) - _byte_width)) / _byte_width),
         _values(std::move(data)),
-        _read_mask(std::numeric_limits<Int>::max() << (byte_width * 8)),
-        _write_mask(std::numeric_limits<Int>::max() << (byte_width * 8)) {
+        _read_mask(std::numeric_limits<Int>::max() >> ((sizeof(Int) - byte_width) * 8)),
+        _write_mask(std::numeric_limits<Int>::max() << (byte_width * 8)),
+        _unrestricted_size(_size),
+        _unrestricted_num_values(_num_values) {
     RECORD_DATA_STRUCT(0, _struct);
     KASSERT(actual_size >= sizeof(Int) - _byte_width);
     KASSERT(byte_width >= 1);
@@ -193,19 +199,21 @@ public:
    * @param byte_width The number of bytes needed to store the largest integer in the array.
    * @param num_values The number of values to store.
    */
-  void resize(const std::uint8_t byte_width, const std::size_t num_values) {
+  void resize(const std::size_t byte_width, const std::size_t num_values) {
     KASSERT(byte_width >= 1);
     KASSERT(byte_width <= 8);
 
     _byte_width = byte_width;
     _size = num_values * byte_width + sizeof(Int) - byte_width;
-    _unrestricted_size = _size;
 
     _num_values = num_values;
     _values = std::make_unique<std::uint8_t[]>(_size);
 
     _read_mask = std::numeric_limits<Int>::max() >> ((sizeof(Int) - byte_width) * 8);
     _write_mask = std::numeric_limits<Int>::max() << (byte_width * 8);
+
+    _unrestricted_size = _size;
+    _unrestricted_num_values = num_values;
 
     IF_HEAP_PROFILING(_struct->size = std::max(_struct->size, _size));
   }
@@ -218,10 +226,11 @@ public:
   void restrict(const std::size_t new_num_values) {
     KASSERT(new_num_values <= _num_values);
 
-    _num_values = new_num_values;
-
     _unrestricted_size = _size;
     _size = new_num_values * _byte_width + sizeof(Int) - _byte_width;
+
+    _unrestricted_num_values = _num_values;
+    _num_values = new_num_values;
   }
 
   /*!
@@ -230,6 +239,7 @@ public:
    */
   void unrestrict() {
     _size = _unrestricted_size;
+    _num_values = _unrestricted_num_values;
   }
 
   /*!
@@ -238,12 +248,15 @@ public:
    * @param pos The position in the array at which the integer is to be stored.
    * @param value The value to store.
    */
-  void write(const std::size_t pos, const Int value) {
+  void write(const std::size_t pos, Int value) {
     KASSERT(pos < _num_values);
-    KASSERT(math::byte_width<std::uint32_t>(value) <= _byte_width);
+    KASSERT(math::byte_width(value) <= _byte_width);
 
-    Int *data = reinterpret_cast<Int *>(_values.get() + pos * _byte_width);
-    *data = value | (*data & _write_mask);
+    std::uint8_t *data = _values.get() + pos * _byte_width;
+    for (std::size_t i = 0; i < _byte_width; ++i) {
+      *data++ = value & 0b11111111;
+      value >>= 8;
+    }
   }
 
   /*!
@@ -322,15 +335,17 @@ public:
   }
 
 private:
-  std::uint8_t _byte_width;
+  std::size_t _byte_width;
   std::size_t _size;
-  std::size_t _unrestricted_size;
 
   std::size_t _num_values;
   std::unique_ptr<std::uint8_t[]> _values;
 
   Int _read_mask;
   Int _write_mask;
+
+  std::size_t _unrestricted_size;
+  std::size_t _unrestricted_num_values;
 
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };

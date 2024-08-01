@@ -195,6 +195,10 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
   }
   _subgraph_memory.resize(subgraph_memory_n, _input_ctx.partition.k, subgraph_memory_m, true, true);
 
+  TIMED_SCOPE("Coarsening") {
+    _coarsener->release_allocated_memory();
+  };
+
   if (shrunk) {
     LOG << "==> Coarsening terminated with less than " << initial_partitioning_threshold()
         << " nodes.";

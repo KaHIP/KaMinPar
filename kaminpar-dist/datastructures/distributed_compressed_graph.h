@@ -283,7 +283,7 @@ public:
     constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID, EdgeWeight>;
     static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
 
-    _compressed_neighborhoods.decode(u, [&](const EdgeID, const NodeID v, const EdgeWeight w) {
+    _compressed_neighborhoods.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
       if constexpr (kDecodeEdgeWeights) {
         return l(v, w);
       } else {
@@ -297,7 +297,7 @@ public:
     constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID, EdgeWeight>;
     static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
 
-    _compressed_neighborhoods.decode(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
+    _compressed_neighborhoods.neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
       if constexpr (kDecodeEdgeWeights) {
         return l(e, v, w);
       } else {
@@ -313,7 +313,7 @@ public:
     static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
 
     _compressed_neighborhoods
-        .decode(u, max_num_neighbors, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
+        .neighbors(u, max_num_neighbors, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
           if constexpr (kDecodeEdgeWeights) {
             return l(e, v, w);
           } else {

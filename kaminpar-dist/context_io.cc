@@ -353,7 +353,7 @@ void print(const ChunksContext &ctx, const ParallelContext &parallel, std::ostre
         << (ctx.scale_chunks_with_threads
                 ? std::string(" / ") + std::to_string(parallel.num_threads)
                 : "")
-        << "]\n";
+        << ")]\n";
   } else {
     out << "  Number of chunks:           " << ctx.fixed_num_chunks << "\n";
   }
@@ -380,8 +380,8 @@ void print(
   out << "Enabled:                      " << (ctx.enabled ? "yes" : "no") << "\n";
   if (ctx.enabled) {
     out << "Compression Scheme:           Gap Encoding + ";
-    if constexpr (Compression::kStreamEncoding) {
-      out << "VarInt Stream Encoding\n";
+    if constexpr (Compression::kStreamVByteEncoding) {
+      out << "StreamVByte Encoding\n";
     } else if constexpr (Compression::kRunLengthEncoding) {
       out << "VarInt Run-Length Encoding\n";
     } else {
@@ -398,9 +398,6 @@ void print(
     if constexpr (Compression::kIntervalLengthTreshold) {
       out << "    Length Threshold:         " << Compression::kIntervalLengthTreshold << "\n";
     }
-
-    out << "  Isolated Nodes Separation:  " << yeyornay(Compression::kIsolatedNodesSeparation)
-        << "\n";
 
     out << "Compression ratio:            [Min=" << round(ctx.min_compression_ratio)
         << " | Mean=" << round(ctx.avg_compression_ratio)

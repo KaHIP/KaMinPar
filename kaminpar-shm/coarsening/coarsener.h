@@ -67,5 +67,11 @@ public:
    * @return partition of the *new* coarsest graph.
    */
   virtual PartitionedGraph uncoarsen(PartitionedGraph &&p_graph) = 0;
+
+  /**
+   * Releases the memory reserved for coarsening, thus making it not possible to call coarsen()
+   * afterwards.
+   */
+  virtual void release_allocated_memory() = 0;
 };
 } // namespace kaminpar::shm

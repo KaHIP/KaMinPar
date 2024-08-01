@@ -15,7 +15,6 @@
 
 #include "kaminpar-common/asserting_cast.h"
 #include "kaminpar-common/console_io.h"
-#include "kaminpar-common/graph-compression/varint_codec.h"
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/strutils.h"
 
@@ -288,6 +287,24 @@ std::ostream &operator<<(std::ostream &out, const GainCacheStrategy strategy) {
   return out << "<invalid>";
 }
 
+std::unordered_map<std::string, TieBreakingStrategy> get_tie_breaking_strategies() {
+  return {
+      {"geometric", TieBreakingStrategy::GEOMETRIC},
+      {"uniform", TieBreakingStrategy::UNIFORM},
+  };
+}
+
+std::ostream &operator<<(std::ostream &out, const TieBreakingStrategy strategy) {
+  switch (strategy) {
+  case TieBreakingStrategy::GEOMETRIC:
+    return out << "geometric";
+  case TieBreakingStrategy::UNIFORM:
+    return out << "uniform";
+  }
+
+  return out << "<invalid>";
+}
+
 std::ostream &operator<<(std::ostream &out, const TwoHopStrategy strategy) {
   switch (strategy) {
   case TwoHopStrategy::DISABLE:
@@ -393,8 +410,8 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
     out << "Compression Scheme:           Gap Encoding + ";
     if (c_ctx.run_length_encoding) {
       out << "VarInt Run-Length Encoding\n";
-    } else if (c_ctx.stream_encoding) {
-      out << "VarInt Stream Encoding\n";
+    } else if (c_ctx.streamvbyte_encoding) {
+      out << "StreamVByte Encoding\n";
     } else {
       out << "VarInt Encoding\n";
     }
@@ -410,8 +427,6 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
     if (c_ctx.interval_encoding) {
       out << "    Length Threshold:         " << c_ctx.interval_length_treshold << "\n";
     }
-    out << "  Isolated Nodes Separation:  " << (c_ctx.isolated_nodes_separation ? "yes" : "no")
-        << "\n";
 
     out << "Compresion Ratio:             ";
     if (c_ctx.dismissed) {
@@ -424,29 +439,6 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
       out << "  High Degree Part Count:     " << c_ctx.num_high_degree_parts << "\n";
       out << "  Interval Node Count:        " << c_ctx.num_interval_nodes << "\n";
       out << "  Interval Count:             " << c_ctx.num_intervals << "\n";
-
-      if (debug::kTrackVarintStats) {
-        const auto &stats = debug::varint_stats_global();
-
-        const float avg_varint_len =
-            (stats.varint_count == 0) ? 0 : (stats.varint_bytes / (float)stats.varint_count);
-        out << "Average Varint Length:        " << avg_varint_len
-            << " [count: " << stats.varint_count << "]\n";
-
-        const float avg_signed_varint_len =
-            (stats.signed_varint_count == 0)
-                ? 0
-                : (stats.signed_varint_bytes / (float)stats.signed_varint_count);
-        out << "Average Signed Varint Length: " << avg_signed_varint_len
-            << " [count: " << stats.signed_varint_count << "]\n";
-
-        const float avg_marked_varint_len =
-            (stats.marked_varint_count == 0)
-                ? 0
-                : (stats.marked_varint_bytes / (float)stats.marked_varint_count);
-        out << "Average Marked Varint Length: " << avg_marked_varint_len
-            << " [count: " << stats.marked_varint_count << "]\n";
-      }
     }
   }
 }
@@ -494,6 +486,9 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
   out << "Contraction mode:             " << c_ctx.contraction.mode << '\n';
   if (c_ctx.contraction.mode == ContractionMode::BUFFERED) {
     out << "  Edge buffer fill fraction:  " << c_ctx.contraction.edge_buffer_fill_fraction << "\n";
+  } else if (c_ctx.contraction.mode == ContractionMode::UNBUFFERED) {
+    out << "  Use growing hash tables:    "
+        << (c_ctx.contraction.use_growing_hash_tables ? "yes" : "no") << "\n";
   }
 }
 
@@ -501,6 +496,7 @@ void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
   out << "    Number of iterations:     " << lp_ctx.num_iterations << "\n";
   out << "    High degree threshold:    " << lp_ctx.large_degree_threshold << "\n";
   out << "    Max degree:               " << lp_ctx.max_num_neighbors << "\n";
+  out << "    Tie breaking strategy:    " << lp_ctx.tie_breaking_strategy << "\n";
   out << "    Cluster weights struct:   " << lp_ctx.cluster_weights_structure << "\n";
   out << "    Implementation:           " << lp_ctx.impl << "\n";
   if (lp_ctx.impl == LabelPropagationImplementation::TWO_PHASE) {
@@ -524,6 +520,7 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
   if (r_ctx.includes_algorithm(RefinementAlgorithm::LABEL_PROPAGATION)) {
     out << "Label propagation:\n";
     out << "  Number of iterations:       " << r_ctx.lp.num_iterations << "\n";
+    out << "  Tie breaking strategy:      " << r_ctx.lp.tie_breaking_strategy << "\n";
     out << "  Implementation:             " << r_ctx.lp.impl << "\n";
     if (r_ctx.lp.impl == LabelPropagationImplementation::TWO_PHASE) {
       out << "    Selection strategy:       " << r_ctx.lp.second_phase_selection_strategy << '\n';

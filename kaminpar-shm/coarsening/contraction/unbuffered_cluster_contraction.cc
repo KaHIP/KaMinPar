@@ -12,6 +12,7 @@
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/compact_static_array.h"
+#include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/heap_profiler.h"
@@ -19,7 +20,7 @@
 
 namespace kaminpar::shm::contraction {
 namespace {
-class ConstantSizeNeighborhoodsBuffer {
+class NeighborhoodsBuffer {
   static constexpr NodeID kSize = 30000; // Chosen such that its about 1 MB in size
 
 public:
@@ -27,7 +28,7 @@ public:
     return degree >= kSize;
   }
 
-  ConstantSizeNeighborhoodsBuffer(
+  NeighborhoodsBuffer(
       EdgeID *nodes,
       NodeID *edges,
       NodeWeight *node_weights,
@@ -123,29 +124,18 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
 
   // Overcomit memory for the edge and edge weight array as we only know the amount of edges of
   // the coarse graph afterwards.
-  const EdgeID edge_count = graph.m();
-  auto c_edges = heap_profiler::overcommit_memory<NodeID>(edge_count);
-  auto c_edge_weights = heap_profiler::overcommit_memory<EdgeWeight>(edge_count);
+  const EdgeID num_fine_edges = graph.m();
+  auto c_edges = heap_profiler::overcommit_memory<NodeID>(num_fine_edges);
+  auto c_edge_weights = heap_profiler::overcommit_memory<EdgeWeight>(num_fine_edges);
 
   START_HEAP_PROFILER("Construct coarse graph");
   START_TIMER("Construct coarse graph");
 
-  CompactStaticArray<NodeID> remapping(static_cast<std::uint8_t>(math::byte_width(c_n)), c_n);
-
-  tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> collector{[&] {
-    return RatingMap<EdgeWeight, NodeID>(c_n);
-  }};
-
-  tbb::enumerable_thread_specific<ConstantSizeNeighborhoodsBuffer> neighborhoods_buffer_ets{[&] {
-    return ConstantSizeNeighborhoodsBuffer(
-        c_nodes.data(), c_edges.get(), c_node_weights.data(), c_edge_weights.get(), remapping
-    );
-  }};
-
+  CompactStaticArray<NodeID> remapping(math::byte_width(c_n), c_n);
   const auto write_neighbourhood = [&](const NodeID c_u,
+                                       const NodeWeight c_u_weight,
                                        const NodeID new_c_u,
                                        EdgeID edge,
-                                       const NodeWeight c_u_weight,
                                        auto &map) {
     remapping.write(c_u, new_c_u);
 
@@ -160,86 +150,117 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
   };
 
   __uint128_t next_coarse_node_info = 0;
-  const auto &atomic_fetch_next_coarse_node_info = [&](std::uint64_t nodes, std::uint64_t degree) {
-    std::uint64_t old_c_v;
-    std::uint64_t old_edge;
+  const auto atomic_fetch_next_coarse_node_info = [&](const std::uint64_t nodes,
+                                                      const std::uint64_t degree) {
+    std::uint64_t c_v;
+    std::uint64_t edge;
 
     bool success;
     do {
-      __uint128_t expected = next_coarse_node_info;
-      old_c_v = (expected >> 64) & 0xFFFFFFFFFFFFFFFF;
-      old_edge = expected & 0xFFFFFFFFFFFFFFFF;
+      const __uint128_t expected = next_coarse_node_info;
+      c_v = (expected >> 64) & 0xFFFFFFFFFFFFFFFF;
+      edge = expected & 0xFFFFFFFFFFFFFFFF;
 
-      __uint128_t desired = (static_cast<__uint128_t>(old_c_v + nodes) << 64) |
-                            static_cast<__uint128_t>(old_edge + degree);
+      const __uint128_t desired =
+          (static_cast<__uint128_t>(c_v + nodes) << 64) | static_cast<__uint128_t>(edge + degree);
       success = __sync_bool_compare_and_swap(&next_coarse_node_info, expected, desired);
     } while (!success);
 
-    return std::make_pair(old_c_v, old_edge);
+    return std::make_pair(c_v, edge);
   };
 
-  tbb::parallel_for(tbb::blocked_range<NodeID>(0, c_n), [&](const auto &r) {
-    auto &local_collector = collector.local();
-    auto &local_buffer = neighborhoods_buffer_ets.local();
+  const auto aggregate_edges = [&](const NodeID c_u,
+                                   const NodeID first,
+                                   const NodeID last,
+                                   auto &edge_collector,
+                                   auto &neighborhood_buffer) {
+    NodeWeight c_u_weight = 0;
+    for (NodeID i = first; i < last; ++i) {
+      const NodeID u = buckets[i];
+      KASSERT(mapping[u] == c_u);
 
-    for (NodeID c_u = r.begin(); c_u != r.end(); ++c_u) {
-      const NodeID first = buckets_index[c_u];
-      const NodeID last = buckets_index[c_u + 1];
+      c_u_weight += graph.node_weight(u);
 
-      // Build coarse graph
-      const auto collect_edges = [&](auto &map) {
-        NodeWeight c_u_weight = 0;
+      graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+        const NodeID c_v = mapping[v];
+        if (c_u != c_v) {
+          edge_collector[c_v] += w;
+        }
+      });
+    }
+
+    const std::size_t degree = edge_collector.size();
+    if (NeighborhoodsBuffer::exceeds_capacity(degree)) {
+      auto [new_c_u, edge] = atomic_fetch_next_coarse_node_info(1, degree);
+      write_neighbourhood(c_u, c_u_weight, new_c_u, edge, edge_collector);
+    } else if (neighborhood_buffer.overfills(degree)) {
+      const NodeID num_buffered_nodes = neighborhood_buffer.num_buffered_nodes();
+      const EdgeID num_buffered_edges = neighborhood_buffer.num_buffered_edges();
+      const auto [new_c_u, edge] =
+          atomic_fetch_next_coarse_node_info(num_buffered_nodes + 1, num_buffered_edges + degree);
+      neighborhood_buffer.flush(new_c_u, edge);
+      write_neighbourhood(
+          c_u, c_u_weight, new_c_u + num_buffered_nodes, edge + num_buffered_edges, edge_collector
+      );
+    } else {
+      neighborhood_buffer.add(c_u, degree, c_u_weight, [&](auto &&l) {
+        for (const auto [c_v, weight] : edge_collector.entries()) {
+          l(c_v, weight);
+        }
+      });
+    }
+
+    edge_collector.clear();
+  };
+
+  tbb::enumerable_thread_specific<NeighborhoodsBuffer> neighborhoods_buffer_ets{[&] {
+    return NeighborhoodsBuffer(
+        c_nodes.data(), c_edges.get(), c_node_weights.data(), c_edge_weights.get(), remapping
+    );
+  }};
+
+  if (con_ctx.use_growing_hash_tables) {
+    using EdgeCollector = DynamicRememberingFlatMap<NodeID, EdgeWeight, NodeID>;
+    tbb::enumerable_thread_specific<EdgeCollector> edge_collector_ets;
+
+    tbb::parallel_for(tbb::blocked_range<NodeID>(0, c_n), [&](const auto &r) {
+      auto &local_collector = edge_collector_ets.local();
+      auto &local_buffer = neighborhoods_buffer_ets.local();
+
+      for (NodeID c_u = r.begin(); c_u != r.end(); ++c_u) {
+        const NodeID first = buckets_index[c_u];
+        const NodeID last = buckets_index[c_u + 1];
+        aggregate_edges(c_u, first, last, local_collector, local_buffer);
+      }
+    });
+  } else {
+    using EdgeCollector = RatingMap<EdgeWeight, NodeID>;
+    tbb::enumerable_thread_specific<EdgeCollector> edge_collector_ets{[&] {
+      return EdgeCollector(c_n);
+    }};
+
+    tbb::parallel_for(tbb::blocked_range<NodeID>(0, c_n), [&](const auto &r) {
+      auto &local_collector = edge_collector_ets.local();
+      auto &local_buffer = neighborhoods_buffer_ets.local();
+
+      for (NodeID c_u = r.begin(); c_u != r.end(); ++c_u) {
+        const NodeID first = buckets_index[c_u];
+        const NodeID last = buckets_index[c_u + 1];
+
+        // To select the right map, we compute a upper bound on the coarse node degree by summing
+        // the degree of all fine nodes.
+        NodeID upper_bound_degree = 0;
         for (NodeID i = first; i < last; ++i) {
           const NodeID u = buckets[i];
-          KASSERT(mapping[u] == c_u);
-
-          c_u_weight += graph.node_weight(u);
-
-          graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
-            const NodeID c_v = mapping[v];
-            if (c_u != c_v) {
-              map[c_v] += w;
-            }
-          });
+          upper_bound_degree += graph.degree(u);
         }
 
-        const std::size_t degree = map.size();
-        if (ConstantSizeNeighborhoodsBuffer::exceeds_capacity(degree)) {
-          auto [new_c_u, edge] = atomic_fetch_next_coarse_node_info(1, degree);
-          write_neighbourhood(c_u, new_c_u, edge, c_u_weight, map);
-        } else if (local_buffer.overfills(degree)) {
-          const NodeID num_buffered_nodes = local_buffer.num_buffered_nodes();
-          const EdgeID num_buffered_edges = local_buffer.num_buffered_edges();
-          const auto [new_c_u, edge] = atomic_fetch_next_coarse_node_info(
-              num_buffered_nodes + 1, num_buffered_edges + degree
-          );
-          local_buffer.flush(new_c_u, edge);
-          write_neighbourhood(
-              c_u, new_c_u + num_buffered_nodes, edge + num_buffered_edges, c_u_weight, map
-          );
-        } else {
-          local_buffer.add(c_u, degree, c_u_weight, [&](auto &&l) {
-            for (const auto [c_v, weight] : map.entries()) {
-              l(c_v, weight);
-            }
-          });
-        }
-
-        map.clear();
-      };
-
-      // To select the right map, we need a upper bound on the coarse node degree. If we
-      // previously split the coarse nodes into chunks, we have already computed them and stored
-      // them in the c_nodes array.
-      NodeID upper_bound_degree = 0;
-      for (NodeID i = first; i < last; ++i) {
-        const NodeID u = buckets[i];
-        upper_bound_degree += graph.degree(u);
+        local_collector.execute(upper_bound_degree, [&](auto &edge_collector) {
+          aggregate_edges(c_u, first, last, edge_collector, local_buffer);
+        });
       }
-
-      local_collector.execute(upper_bound_degree, collect_edges);
-    }
-  });
+    });
+  }
 
   tbb::parallel_for(neighborhoods_buffer_ets.range(), [&](auto &r) {
     for (auto &buffer : r) {

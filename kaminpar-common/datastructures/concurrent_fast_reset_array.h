@@ -18,6 +18,7 @@
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/parallel/aligned_element.h"
+#include "kaminpar-common/ranges.h"
 
 namespace kaminpar {
 
@@ -102,13 +103,25 @@ public:
    */
   template <typename Lambda> void iterate_and_reset(Lambda &&l) {
     tbb::parallel_for<std::size_t>(0, _used_entries_tls.size(), [&](const auto i) {
-      l(i, _used_entries_tls[i]);
-
-      for (const size_type pos : _used_entries_tls[i]) {
-        _data[pos] = Value();
+      auto &local_used_entries = _used_entries_tls[i].vec;
+      if (local_used_entries.empty()) {
+        return;
       }
 
-      _used_entries_tls[i].clear();
+      auto local_entries = TransformedIotaRange(
+          static_cast<std::size_t>(0),
+          local_used_entries.size(),
+          [this, &local_used_entries](const std::size_t j) {
+            const std::size_t pos = local_used_entries[j];
+            return std::make_pair(pos, _data[pos]);
+          }
+      );
+      l(i, local_entries);
+
+      for (const size_type pos : local_used_entries) {
+        _data[pos] = Value();
+      }
+      local_used_entries.clear();
     });
   }
 

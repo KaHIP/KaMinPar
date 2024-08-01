@@ -90,12 +90,13 @@ Context create_default_context() {
                               .num_iterations = 5,
                               .large_degree_threshold = 1000000,
                               .max_num_neighbors = 200000,
+                              .tie_breaking_strategy = TieBreakingStrategy::UNIFORM,
                               .cluster_weights_structure = ClusterWeightsStructure::VEC,
                               .impl = LabelPropagationImplementation::TWO_PHASE,
                               .second_phase_selection_strategy =
                                   SecondPhaseSelectionStrategy::FULL_RATING_MAP,
                               .second_phase_aggregation_strategy =
-                                  SecondPhaseAggregationStrategy::BUFFERED,
+                                  SecondPhaseAggregationStrategy::DIRECT,
                               .relabel_before_second_phase = false,
                               .two_hop_strategy = TwoHopStrategy::MATCH_THREADWISE,
                               .two_hop_threshold = 0.5,
@@ -172,9 +173,10 @@ Context create_default_context() {
                       .large_degree_threshold = 1000000,
                       .max_num_neighbors = std::numeric_limits<NodeID>::max(),
                       .impl = LabelPropagationImplementation::SINGLE_PHASE,
+                      .tie_breaking_strategy = TieBreakingStrategy::UNIFORM,
                       .second_phase_selection_strategy =
                           SecondPhaseSelectionStrategy::FULL_RATING_MAP,
-                      .second_phase_aggregation_strategy = SecondPhaseAggregationStrategy::BUFFERED,
+                      .second_phase_aggregation_strategy = SecondPhaseAggregationStrategy::DIRECT,
                   },
               .kway_fm =
                   {
@@ -241,6 +243,7 @@ Context create_memory_context() {
   ctx.coarsening.clustering.lp.impl = LabelPropagationImplementation::TWO_PHASE;
   ctx.coarsening.clustering.max_mem_free_coarsening_level = 1;
   ctx.coarsening.contraction.mode = ContractionMode::UNBUFFERED;
+  ctx.coarsening.contraction.use_growing_hash_tables = true;
   ctx.refinement.algorithms = {
       RefinementAlgorithm::GREEDY_BALANCER,
       RefinementAlgorithm::LABEL_PROPAGATION,

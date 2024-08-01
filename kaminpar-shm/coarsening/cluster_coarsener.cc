@@ -95,6 +95,18 @@ PartitionedGraph ClusteringCoarsener::uncoarsen(PartitionedGraph &&p_graph) {
   return {current(), p_graph_k, std::move(partition)};
 }
 
+void ClusteringCoarsener::release_allocated_memory() {
+  SCOPED_HEAP_PROFILER("Deallocation");
+  SCOPED_TIMER("Deallocation");
+
+  _clustering_algorithm.reset();
+
+  _contraction_m_ctx.buckets.free();
+  _contraction_m_ctx.buckets_index.free();
+  _contraction_m_ctx.leader_mapping.free();
+  _contraction_m_ctx.all_buffered_nodes.free();
+}
+
 std::unique_ptr<CoarseGraph> ClusteringCoarsener::pop_hierarchy(PartitionedGraph &&p_graph) {
   KASSERT(!empty(), "cannot pop from an empty graph hierarchy", assert::light);
 

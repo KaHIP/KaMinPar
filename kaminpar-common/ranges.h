@@ -66,6 +66,8 @@ private:
 };
 
 template <typename Int, typename Function> class TransformedIotaRange {
+  using Self = TransformedIotaRange<Int, Function>;
+
 public:
   class iterator {
   public:
@@ -121,6 +123,10 @@ public:
   }
   iterator end() const {
     return _end;
+  }
+
+  const Self &entries() const {
+    return *this;
   }
 
 private:

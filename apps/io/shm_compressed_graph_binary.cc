@@ -31,8 +31,7 @@ struct CompressedBinaryHeader {
   bool use_high_degree_encoding;
   bool use_interval_encoding;
   bool use_run_length_encoding;
-  bool use_stream_vbyte_encoding;
-  bool use_isolated_nodes_separation;
+  bool use_streamvbyte_encoding;
 
   std::uint64_t high_degree_threshold;
   std::uint64_t high_degree_part_length;
@@ -66,8 +65,7 @@ CompressedBinaryHeader create_header(const CompressedGraph &graph) {
       CompressedGraph::kHighDegreeEncoding,
       CompressedGraph::kIntervalEncoding,
       CompressedGraph::kRunLengthEncoding,
-      CompressedGraph::kStreamEncoding,
-      CompressedGraph::kIsolatedNodesSeparation,
+      CompressedGraph::kStreamVByteEncoding,
 
       CompressedGraph::kHighDegreeThreshold,
       CompressedGraph::kHighDegreePartLength,
@@ -91,12 +89,12 @@ template <typename T> static void write_int(std::ofstream &out, const T id) {
 
 static void write_header(std::ofstream &out, const CompressedBinaryHeader header) {
   const std::uint16_t boolean_values =
-      (header.use_isolated_nodes_separation << 12) | (header.use_stream_vbyte_encoding << 11) |
-      (header.use_run_length_encoding << 10) | (header.use_interval_encoding << 9) |
-      (header.use_high_degree_encoding << 8) | (header.compress_edge_weights << 7) |
-      (header.use_degree_bucket_order << 6) | (header.has_64_bit_edge_weight << 5) |
-      (header.has_64_bit_node_weight << 4) | (header.has_64_bit_edge_id << 3) |
-      (header.has_64_bit_node_id << 2) | (header.has_edge_weights << 1) | (header.has_node_weights);
+      (header.use_streamvbyte_encoding << 11) | (header.use_run_length_encoding << 10) |
+      (header.use_interval_encoding << 9) | (header.use_high_degree_encoding << 8) |
+      (header.compress_edge_weights << 7) | (header.use_degree_bucket_order << 6) |
+      (header.has_64_bit_edge_weight << 5) | (header.has_64_bit_node_weight << 4) |
+      (header.has_64_bit_edge_id << 3) | (header.has_64_bit_node_id << 2) |
+      (header.has_edge_weights << 1) | (header.has_node_weights);
   write_int(out, boolean_values);
 
   write_int(out, header.high_degree_threshold);
@@ -155,14 +153,14 @@ template <typename T> static T read_int(std::ifstream &in) {
 CompressedBinaryHeader read_header(std::ifstream &in) {
   const auto boolean_values = read_int<std::uint16_t>(in);
   return {
-      (boolean_values & 1) != 0,    (boolean_values & 2) != 0,    (boolean_values & 4) != 0,
-      (boolean_values & 8) != 0,    (boolean_values & 16) != 0,   (boolean_values & 32) != 0,
-      (boolean_values & 64) != 0,   (boolean_values & 128) != 0,  (boolean_values & 256) != 0,
-      (boolean_values & 512) != 0,  (boolean_values & 1024) != 0, (boolean_values & 2048) != 0,
-      (boolean_values & 4096) != 0, read_int<std::uint64_t>(in),  read_int<std::uint64_t>(in),
-      read_int<std::uint64_t>(in),  read_int<std::uint64_t>(in),  read_int<std::uint64_t>(in),
-      read_int<std::int64_t>(in),   read_int<std::uint64_t>(in),  read_int<std::uint64_t>(in),
-      read_int<std::uint64_t>(in),  read_int<std::uint64_t>(in),
+      (boolean_values & 1) != 0,   (boolean_values & 2) != 0,    (boolean_values & 4) != 0,
+      (boolean_values & 8) != 0,   (boolean_values & 16) != 0,   (boolean_values & 32) != 0,
+      (boolean_values & 64) != 0,  (boolean_values & 128) != 0,  (boolean_values & 256) != 0,
+      (boolean_values & 512) != 0, (boolean_values & 1024) != 0, (boolean_values & 2048) != 0,
+      read_int<std::uint64_t>(in), read_int<std::uint64_t>(in),  read_int<std::uint64_t>(in),
+      read_int<std::uint64_t>(in), read_int<std::uint64_t>(in),  read_int<std::int64_t>(in),
+      read_int<std::uint64_t>(in), read_int<std::uint64_t>(in),  read_int<std::uint64_t>(in),
+      read_int<std::uint64_t>(in),
   };
 }
 
@@ -263,22 +261,11 @@ void verify_header(const CompressedBinaryHeader header) {
     std::exit(1);
   }
 
-  if (header.use_stream_vbyte_encoding != CompressedGraph::kStreamEncoding) {
-    if (header.use_stream_vbyte_encoding) {
+  if (header.use_streamvbyte_encoding != CompressedGraph::kStreamVByteEncoding) {
+    if (header.use_streamvbyte_encoding) {
       LOG_ERROR << "The stored compressed graph uses stream encoding but this build does not.";
     } else {
       LOG_ERROR << "The stored compressed graph does not use stream encoding but this build does.";
-    }
-    std::exit(1);
-  }
-
-  if (header.use_isolated_nodes_separation != CompressedGraph::kIsolatedNodesSeparation) {
-    if (header.use_isolated_nodes_separation) {
-      LOG_ERROR
-          << "The stored compressed graph uses isolated nodes separation but this build does not.";
-    } else {
-      LOG_ERROR << "The stored compressed graph does not use isolated nodes separation but this "
-                   "build does.";
     }
     std::exit(1);
   }

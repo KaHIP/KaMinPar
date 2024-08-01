@@ -210,7 +210,7 @@ template <
   });
 
   using CompressedEdgesBuilder = kaminpar::CompressedEdgesBuilder<NodeID, EdgeID, EdgeWeight>;
-  tbb::enumerable_thread_specific<CompressedEdgesBuilder> neighbourhood_builder_ets([&] {
+  tbb::enumerable_thread_specific<CompressedEdgesBuilder> edges_builder_ets([&] {
     return CompressedEdgesBuilder(
         num_nodes, num_edges, max_degree, kHasEdgeWeights, builder.edge_weights()
     );
@@ -227,13 +227,13 @@ template <
 
     auto &offsets = offsets_ets.local();
     auto &neighbourhood = neighbourhood_ets.local();
-    auto &neighbourhood_builder = neighbourhood_builder_ets.local();
+    auto &edges_builder = edges_builder_ets.local();
 
     const NodeID chunk = buffer.next();
     const auto [start, end, first_edge] = chunks[chunk];
 
     NodeWeight local_node_weight = 0;
-    neighbourhood_builder.init(first_edge);
+    edges_builder.init(first_edge);
 
     // Compress the neighborhoods of the nodes in the fetched chunk.
     debug::scoped_time(dbg.compression_time, [&] {
@@ -256,7 +256,7 @@ template <
           edge += 1;
         }
 
-        const EdgeID local_offset = neighbourhood_builder.add(i, neighbourhood);
+        const EdgeID local_offset = edges_builder.add(i, neighbourhood);
         offsets.push_back(local_offset);
 
         neighbourhood.clear();
@@ -265,7 +265,7 @@ template <
 
     // Wait for the parallel tasks that process the previous chunks to finish.
     const EdgeID offset = debug::scoped_time(dbg.sync_time, [&] {
-      const EdgeID compressed_neighborhoods_size = neighbourhood_builder.size();
+      const EdgeID compressed_neighborhoods_size = edges_builder.size();
       return buffer.fetch_and_update(chunk, compressed_neighborhoods_size);
     });
 
@@ -287,23 +287,20 @@ template <
       }
       offsets.clear();
 
-      builder.add_compressed_edges(
-          offset, neighbourhood_builder.size(), neighbourhood_builder.compressed_data()
-      );
-
+      builder.add_compressed_edges(offset, edges_builder.size(), edges_builder.compressed_data());
       builder.record_local_statistics(
-          neighbourhood_builder.max_degree(),
-          neighbourhood_builder.total_edge_weight(),
-          neighbourhood_builder.num_high_degree_nodes(),
-          neighbourhood_builder.num_high_degree_parts(),
-          neighbourhood_builder.num_interval_nodes(),
-          neighbourhood_builder.num_intervals()
+          edges_builder.max_degree(),
+          edges_builder.total_edge_weight(),
+          edges_builder.num_high_degree_nodes(),
+          edges_builder.num_high_degree_parts(),
+          edges_builder.num_interval_nodes(),
+          edges_builder.num_intervals()
       );
     });
   });
 
   IF_DBG debug::print_graph_compression_stats(dbg_ets);
-  IF_DBG debug::print_compressed_graph_stats(neighbourhood_builder_ets);
+  IF_DBG debug::print_compressed_graph_stats(edges_builder_ets);
 
   return CompressedGraph(builder.build(), std::move(node_weights_array), sorted);
 }

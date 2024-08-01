@@ -7,8 +7,7 @@
 #pragma once
 
 #include <cstdlib>
-
-#include "kaminpar-common/ranges.h"
+#include <utility>
 
 namespace kaminpar::parallel {
 
@@ -38,16 +37,19 @@ template <typename Value> struct alignas(64) Aligned {
 };
 
 template <typename Vector> struct alignas(64) AlignedVec {
+  using value_type = typename Vector::value_type;
+  using size_type = typename Vector::size_type;
+
   Vector vec;
 
   AlignedVec() : vec() {}
   AlignedVec(Vector vec) : vec(std::move(vec)) {}
 
-  decltype(auto) operator[](std::size_t pos) {
+  decltype(auto) operator[](size_type pos) {
     return vec[pos];
   }
 
-  decltype(auto) operator[](std::size_t pos) const {
+  decltype(auto) operator[](size_type pos) const {
     return vec[pos];
   }
 
@@ -67,20 +69,20 @@ template <typename Vector> struct alignas(64) AlignedVec {
     return vec.end();
   }
 
+  decltype(auto) size() const {
+    return vec.size();
+  }
+
   void clear() noexcept {
     vec.clear();
   }
 
-  void resize(std::size_t count) {
+  void resize(size_type count) {
     vec.resize(count);
   }
 
-  [[nodiscard]] decltype(auto) entries() const {
-    return TransformedIotaRange(
-        static_cast<std::size_t>(0),
-        vec.size(),
-        [this](const std::size_t pos) { return std::make_pair(pos, vec[pos]); }
-    );
+  void resize(size_type count, const value_type &value) {
+    vec.resize(count, value);
   }
 };
 

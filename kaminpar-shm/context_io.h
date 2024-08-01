@@ -59,6 +59,10 @@ std::unordered_map<std::string, InitialPartitioningMode> get_initial_partitionin
 
 std::ostream &operator<<(std::ostream &out, GainCacheStrategy strategy);
 
+std::unordered_map<std::string, TieBreakingStrategy> get_tie_breaking_strategies();
+
+std::ostream &operator<<(std::ostream &out, TieBreakingStrategy strategy);
+
 std::ostream &operator<<(std::ostream &out, SecondPhaseSelectionStrategy strategy);
 
 std::unordered_map<std::string, SecondPhaseSelectionStrategy>

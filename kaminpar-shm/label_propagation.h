@@ -98,6 +98,7 @@ protected:
   using GrowingRatingMap = typename Config::GrowingRatingMap;
 
   using LabelPropagationImplementation = shm::LabelPropagationImplementation;
+  using TieBreakingStrategy = shm::TieBreakingStrategy;
   using SecondPhaseSelectionStrategy = shm::SecondPhaseSelectionStrategy;
   using SecondPhaseAggregationStrategy = shm::SecondPhaseAggregationStrategy;
 
@@ -128,6 +129,13 @@ public:
   }
   [[nodiscard]] LabelPropagationImplementation implementation() {
     return _impl;
+  }
+
+  void set_tie_breaking_strategy(const TieBreakingStrategy strategy) {
+    _tie_breaking_strategy = strategy;
+  }
+  [[nodiscard]] TieBreakingStrategy tie_breaking_strategy() {
+    return _tie_breaking_strategy;
   }
 
   void set_second_phase_selection_strategy(const SecondPhaseSelectionStrategy strategy) {
@@ -254,7 +262,7 @@ protected:
     _graph = graph;
     _initial_num_clusters = num_clusters;
     _current_num_clusters = num_clusters;
-    _local_cluster_selection_states.resize(tbb::this_task_arena::max_concurrency());
+    _local_cluster_selection_states.resize(tbb::this_task_arena::max_concurrency(), {-1, 0, -1, 0});
     reset_state();
   }
 
@@ -337,7 +345,8 @@ protected:
       const NodeID u,
       Random &rand,
       GrowingRatingMap &map,
-      ScalableVector<ClusterID> &tie_breaking_clusters
+      ScalableVector<ClusterID> &tie_breaking_clusters,
+      ScalableVector<ClusterID> &tie_breaking_favored_clusters
   ) {
     if (derived_skip_node(u)) {
       return {false, false};
@@ -346,8 +355,9 @@ protected:
     const NodeWeight u_weight = _graph->node_weight(u);
     const ClusterID u_cluster = derived_cluster(u);
 
-    const auto [best_cluster, gain] =
-        find_best_cluster(u, u_weight, u_cluster, rand, map, tie_breaking_clusters);
+    const auto [best_cluster, gain] = find_best_cluster(
+        u, u_weight, u_cluster, rand, map, tie_breaking_clusters, tie_breaking_favored_clusters
+    );
     return try_node_move(u, u_weight, u_cluster, best_cluster, gain);
   }
 
@@ -361,7 +371,11 @@ protected:
    * the previous cluster is now empty.
    */
   std::pair<bool, bool> handle_first_phase_node(
-      const NodeID u, Random &rand, RatingMap &map, ScalableVector<ClusterID> &tie_breaking_clusters
+      const NodeID u,
+      Random &rand,
+      RatingMap &map,
+      ScalableVector<ClusterID> &tie_breaking_clusters,
+      ScalableVector<ClusterID> &tie_breaking_favored_clusters
   ) {
     if (!derived_skip_node(u)) {
       const NodeWeight u_weight = _graph->node_weight(u);
@@ -378,9 +392,16 @@ protected:
 
       const auto maybe_move = map.execute(upper_bound_size, [&](auto &actual_map) {
         return find_best_cluster_first_phase(
-            u, u_weight, u_cluster, rand, actual_map, tie_breaking_clusters
+            u,
+            u_weight,
+            u_cluster,
+            rand,
+            actual_map,
+            tie_breaking_clusters,
+            tie_breaking_favored_clusters
         );
       });
+
       if (maybe_move.has_value()) {
         const auto [best_cluster, gain] = *maybe_move;
         return try_node_move(u, u_weight, u_cluster, best_cluster, gain);
@@ -441,7 +462,8 @@ protected:
       const ClusterID u_cluster,
       Random &rand,
       RatingMap &map,
-      ScalableVector<ClusterID> &tie_breaking_clusters
+      ScalableVector<ClusterID> &tie_breaking_clusters,
+      ScalableVector<ClusterID> &tie_breaking_favored_clusters
   ) {
     const ClusterWeight initial_cluster_weight = derived_cluster_weight(u_cluster);
     ClusterSelectionState state{
@@ -486,8 +508,15 @@ protected:
     const bool store_favored_cluster =
         Config::kUseTwoHopClustering && u_weight == initial_cluster_weight &&
         initial_cluster_weight <= derived_max_cluster_weight(u_cluster) / 2;
-    ClusterID favored_cluster =
-        derived_select_best_cluster(store_favored_cluster, state, map, tie_breaking_clusters);
+    const EdgeWeight gain_delta = (Config::kUseActualGain) ? map[u_cluster] : 0;
+    ClusterID favored_cluster = derived_select_best_cluster(
+        store_favored_cluster,
+        gain_delta,
+        state,
+        map,
+        tie_breaking_clusters,
+        tie_breaking_favored_clusters
+    );
 
     // If we couldn't join any cluster, we store the favored cluster
     if (store_favored_cluster && state.best_cluster == state.initial_cluster) {
@@ -506,7 +535,8 @@ protected:
       const ClusterID u_cluster,
       Random &rand,
       RatingMap &map,
-      ScalableVector<ClusterID> &tie_breaking_clusters
+      ScalableVector<ClusterID> &tie_breaking_clusters,
+      ScalableVector<ClusterID> &tie_breaking_favored_clusters
   ) {
     const ClusterWeight initial_cluster_weight = derived_cluster_weight(u_cluster);
     ClusterSelectionState state{
@@ -536,7 +566,7 @@ protected:
         const ClusterID v_cluster = derived_cluster(v);
         map[v_cluster] += w;
 
-        if (use_frm_selection && map.size() >= Config::kRatingMapThreshold) {
+        if (use_frm_selection && map.size() >= Config::kRatingMapThreshold) [[unlikely]] {
           if (aggregate_during_second_phase) {
             _second_phase_nodes.push_back(u);
           }
@@ -574,8 +604,15 @@ protected:
     const bool store_favored_cluster =
         Config::kUseTwoHopClustering && u_weight == initial_cluster_weight &&
         initial_cluster_weight <= derived_max_cluster_weight(u_cluster) / 2;
-    ClusterID favored_cluster =
-        derived_select_best_cluster(store_favored_cluster, state, map, tie_breaking_clusters);
+    const EdgeWeight gain_delta = (Config::kUseActualGain) ? map[u_cluster] : 0;
+    ClusterID favored_cluster = derived_select_best_cluster(
+        store_favored_cluster,
+        gain_delta,
+        state,
+        map,
+        tie_breaking_clusters,
+        tie_breaking_favored_clusters
+    );
 
     // If we couldn't join any cluster, we store the favored cluster
     if (store_favored_cluster && state.best_cluster == state.initial_cluster) {
@@ -695,9 +732,10 @@ protected:
     const bool store_favored_cluster =
         Config::kUseTwoHopClustering && u_weight == initial_cluster_weight &&
         initial_cluster_weight <= derived_max_cluster_weight(u_cluster) / 2;
+    const EdgeWeight gain_delta = (Config::kUseActualGain) ? map[u_cluster] : 0;
     ClusterID favored_cluster = u_cluster;
 
-    map.iterate_and_reset([&](const auto i, const auto &used_entries) {
+    map.iterate_and_reset([&](const auto i, const auto &local_entries) {
       ClusterSelectionState local_state{
           .local_rand = Random::instance(),
           .u = u,
@@ -713,7 +751,12 @@ protected:
       };
 
       const ClusterID local_favored_cluster = derived_select_best_cluster(
-          store_favored_cluster, local_state, used_entries, _tie_breaking_clusters_ets.local()
+          store_favored_cluster,
+          gain_delta,
+          local_state,
+          local_entries,
+          _tie_breaking_clusters_ets.local(),
+          _tie_breaking_favored_clusters_ets.local()
       );
       const EdgeWeight local_favored_cluster_gain = map[local_favored_cluster];
 
@@ -725,19 +768,69 @@ protected:
       };
     });
 
-    EdgeWeight favored_cluster_gain = 0;
-    for (const LocalClusterSelectionState local_state : _local_cluster_selection_states) {
-      if (local_state.best_gain > state.best_gain) {
-        state.best_gain = local_state.best_gain;
-        state.best_cluster = local_state.best_cluster;
+    const bool use_uniform_tie_breaking = _tie_breaking_strategy == TieBreakingStrategy::UNIFORM;
+    if (use_uniform_tie_breaking) {
+      auto &tie_breaking_clusters = _tie_breaking_clusters_ets.local();
+      auto &tie_breaking_favored_clusters = _tie_breaking_favored_clusters_ets.local();
+
+      EdgeWeight favored_cluster_gain = 0;
+      for (LocalClusterSelectionState &local_state : _local_cluster_selection_states) {
+        if (local_state.best_gain > state.best_gain) {
+          state.best_gain = local_state.best_gain;
+          state.best_cluster = local_state.best_cluster;
+
+          tie_breaking_clusters.clear();
+          tie_breaking_clusters.push_back(local_state.best_cluster);
+        } else if (local_state.best_gain == state.best_gain) {
+          tie_breaking_clusters.push_back(local_state.best_cluster);
+        }
+
+        if (store_favored_cluster) {
+          if (local_state.favored_cluster_gain > favored_cluster_gain) {
+            tie_breaking_favored_clusters.clear();
+            tie_breaking_favored_clusters.push_back(local_state.favored_cluster);
+
+            favored_cluster_gain = local_state.favored_cluster_gain;
+            favored_cluster = local_state.favored_cluster;
+          } else if (local_state.favored_cluster_gain == favored_cluster_gain) {
+            tie_breaking_favored_clusters.push_back(local_state.favored_cluster);
+          }
+        }
+
+        local_state.best_gain = -1;
+        local_state.favored_cluster_gain = -1;
       }
 
-      if (store_favored_cluster && local_state.favored_cluster_gain > favored_cluster_gain) {
-        favored_cluster_gain = local_state.favored_cluster_gain;
-        favored_cluster = local_state.favored_cluster;
+      if (tie_breaking_clusters.size() > 1) {
+        const ClusterID i = state.local_rand.random_index(0, tie_breaking_clusters.size());
+        const ClusterID best_cluster = tie_breaking_clusters[i];
+        state.best_cluster = best_cluster;
+      }
+      tie_breaking_clusters.clear();
+
+      if (tie_breaking_favored_clusters.size() > 1) {
+        const ClusterID i = state.local_rand.random_index(0, tie_breaking_favored_clusters.size());
+        const ClusterID best_favored_cluster = tie_breaking_favored_clusters[i];
+        favored_cluster = best_favored_cluster;
+      }
+      tie_breaking_favored_clusters.clear();
+    } else {
+      EdgeWeight favored_cluster_gain = 0;
+      for (LocalClusterSelectionState &local_state : _local_cluster_selection_states) {
+        if (local_state.best_gain > state.best_gain) {
+          state.best_gain = local_state.best_gain;
+          state.best_cluster = local_state.best_cluster;
+        }
+
+        if (store_favored_cluster && local_state.favored_cluster_gain > favored_cluster_gain) {
+          favored_cluster_gain = local_state.favored_cluster_gain;
+          favored_cluster = local_state.favored_cluster;
+        }
+
+        local_state.best_gain = -1;
+        local_state.favored_cluster_gain = -1;
       }
     }
-    _local_cluster_selection_states.clear();
 
     // If we couldn't join any cluster, we store the favored cluster
     if (store_favored_cluster && state.best_cluster == state.initial_cluster) {
@@ -1209,12 +1302,19 @@ private: // CRTP calls
   template <typename RatingMap>
   [[nodiscard]] ClusterID derived_select_best_cluster(
       const bool store_favored_cluster,
+      const EdgeWeight gain_delta,
       ClusterSelectionState &state,
       RatingMap &map,
-      ScalableVector<ClusterID> &tie_breaking_clusters
+      ScalableVector<ClusterID> &tie_breaking_clusters,
+      ScalableVector<ClusterID> &tie_breaking_favored_clusters
   ) {
     return static_cast<Derived *>(this)->select_best_cluster(
-        store_favored_cluster, state, map, tie_breaking_clusters
+        store_favored_cluster,
+        gain_delta,
+        state,
+        map,
+        tie_breaking_clusters,
+        tie_breaking_favored_clusters
     );
   }
 
@@ -1294,6 +1394,9 @@ protected: // Members
   //! The label propagation implementation that is used.
   LabelPropagationImplementation _impl;
 
+  //! The tie breaking strategy that is used.
+  TieBreakingStrategy _tie_breaking_strategy;
+
   //! The strategy by which the nodes for the second phase are selected.
   SecondPhaseSelectionStrategy _second_phase_selection_strategy;
 
@@ -1312,8 +1415,11 @@ protected: // Members
   //! Thread-local vector to hold clusters considered for uniform tie-breaking.
   tbb::enumerable_thread_specific<ScalableVector<ClusterID>> _tie_breaking_clusters_ets;
 
+  //! Thread-local vector to hold favored clusters considered for uniform tie-breaking.
+  tbb::enumerable_thread_specific<ScalableVector<ClusterID>> _tie_breaking_favored_clusters_ets;
+
   //! Vector of local cluster selection states where each entry is owned by a parallel task.
-  std::vector<LocalClusterSelectionState> _local_cluster_selection_states;
+  parallel::AlignedVec<std::vector<LocalClusterSelectionState>> _local_cluster_selection_states;
 
   //! Flags nodes with at least one node in its neighborhood that changed
   //! clusters during the last iteration. Nodes without this flag set must not
@@ -1785,6 +1891,7 @@ private:
       auto &local_rand = Random::instance();
       auto &local_rating_map = _growing_rating_map_ets.local();
       auto &tie_breaking_clusters = _tie_breaking_clusters_ets.local();
+      auto &tie_breaking_favored_clusters = _tie_breaking_favored_clusters_ets.local();
       NodeID num_removed_clusters = 0;
 
       const auto chunk_id = next_chunk.fetch_add(1, std::memory_order_relaxed);
@@ -1814,8 +1921,13 @@ private:
 
           const NodeID degree = _graph->degree(u);
           if (degree < _max_degree) {
-            const auto [moved_node, emptied_cluster] =
-                handle_node(u, local_rand, local_rating_map, tie_breaking_clusters);
+            const auto [moved_node, emptied_cluster] = handle_node(
+                u,
+                local_rand,
+                local_rating_map,
+                tie_breaking_clusters,
+                tie_breaking_favored_clusters
+            );
 
             ++local_num_processed_nodes;
             if (moved_node) {
@@ -1861,6 +1973,7 @@ private:
       auto &local_rand = Random::instance();
       auto &local_rating_map = _rating_map_ets.local();
       auto &tie_breaking_clusters = _tie_breaking_clusters_ets.local();
+      auto &tie_breaking_favored_clusters = _tie_breaking_favored_clusters_ets.local();
       NodeID num_removed_clusters = 0;
 
       const auto chunk_id = next_chunk.fetch_add(1, std::memory_order_relaxed);
@@ -1900,8 +2013,13 @@ private:
               continue;
             }
 
-            const auto [moved_node, emptied_cluster] =
-                handle_first_phase_node(u, local_rand, local_rating_map, tie_breaking_clusters);
+            const auto [moved_node, emptied_cluster] = handle_first_phase_node(
+                u,
+                local_rand,
+                local_rating_map,
+                tie_breaking_clusters,
+                tie_breaking_favored_clusters
+            );
             if (moved_node) {
               ++local_num_moved_nodes;
 
@@ -1972,6 +2090,7 @@ protected:
   using Base::_second_phase_nodes;
   using Base::_second_phase_selection_strategy;
   using Base::_tie_breaking_clusters_ets;
+  using Base::_tie_breaking_favored_clusters_ets;
 
   Permutations &_random_permutations;
   std::vector<Chunk> _chunks;
