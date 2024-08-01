@@ -19,10 +19,14 @@
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::mpi {
+
 using PEID = int;
-}
+using UPEID = unsigned int;
+
+} // namespace kaminpar::mpi
 
 namespace kaminpar::dist {
+
 using GlobalNodeID = std::uint64_t;
 using GlobalNodeWeight = std::int64_t;
 using GlobalEdgeID = std::uint64_t;
@@ -30,6 +34,8 @@ using GlobalEdgeWeight = std::int64_t;
 using BlockWeight = std::int64_t;
 
 using mpi::PEID;
+using mpi::UPEID;
+
 using shm::BlockID;
 using shm::EdgeID;
 using shm::NodeID;
@@ -426,4 +432,5 @@ private:
 
   bool _was_rearranged = false;
 };
+
 } // namespace kaminpar
