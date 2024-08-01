@@ -113,8 +113,10 @@ TEST(StreamVByte32Test, GapKindD4) {
   test_sorted_streamvbyte_codec<std::uint32_t, DifferentialCodingKind::D4>();
 }
 
+#if defined(__x86_64__)
 TEST(StreamVByte64Test, Default) {
   test_streamvbyte_codec<std::uint64_t>();
 }
+#endif 
 
 } // namespace
