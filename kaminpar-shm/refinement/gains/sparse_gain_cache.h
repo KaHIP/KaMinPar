@@ -120,6 +120,9 @@ public:
     _graph = &graph;
     _p_graph = &p_graph;
 
+    _n = _graph->n();
+    _k = _p_graph->k();
+
     _node_threshold = 0;
     _bucket_threshold = 0;
     _cache_offsets[0] = 0;
@@ -129,7 +132,7 @@ public:
     // value in the same 32 bit / 64 bit integer (depending on the size of the EdgeWeight data
     // type).
     // Thus, we compute the number of bits that we must reserve for the block IDs.
-    _bits_for_key = math::ceil_log2(_p_graph->k());
+    _bits_for_key = math::ceil_log2(_k);
     DBG << "Reserve " << (sizeof(UnsignedEdgeWeight) * 8 - _bits_for_key) << " of "
         << sizeof(UnsignedEdgeWeight) * 8 << " bits for gain values, " << _bits_for_key
         << " bits for block IDs";
@@ -144,13 +147,13 @@ public:
       // up to the one determined by this degree are assigned to the dense part, the other ones to
       // the sparse part.
       const EdgeID degree_threshold = std::max<EdgeID>(
-          _p_graph->k() * _ctx.refinement.kway_fm.k_based_high_degree_threshold, // Usually k * 1
+          _k * _ctx.refinement.kway_fm.k_based_high_degree_threshold, // Usually k * 1
           _ctx.refinement.kway_fm.constant_high_degree_threshold                 // Usually 0
       );
 
       // (i) compute size of the dense part (== hash tables) ...
       for (_bucket_threshold = 0;
-           _node_threshold < _graph->n() && _graph->degree(_node_threshold) < degree_threshold;
+           _node_threshold < _n && _graph->degree(_node_threshold) < degree_threshold;
            ++_bucket_threshold) {
         _cache_offsets[_bucket_threshold] = gc_size;
         _node_threshold += _graph->bucket_size(_bucket_threshold);
@@ -160,14 +163,14 @@ public:
       std::fill(_cache_offsets.begin() + _bucket_threshold, _cache_offsets.end(), gc_size);
 
       // + ... (ii) size of the sparse part (table with k entries per node)
-      gc_size += static_cast<std::size_t>(_graph->n() - _node_threshold) * _p_graph->k();
+      gc_size += static_cast<std::size_t>(_n - _node_threshold) * _k;
 
       DBG << "Initialized with degree threshold: " << degree_threshold
           << ", node threshold: " << _node_threshold << ", bucket threshold: " << _bucket_threshold;
       DBG << "Cache offsets: " << _cache_offsets;
     } else {
       // For graphs that do not have degree buckets, assign all nodes to the sparse part
-      gc_size = 1ul * _graph->n() * _p_graph->k();
+      gc_size = 1ul * _n * _k;
 
       DBG << "Graph was *not* rearranged by degree buckets: using the sparse strategy only (i.e., "
              "using node threshold: "
@@ -186,9 +189,9 @@ public:
       _gain_cache.resize(gc_size);
     }
 
-    if (_weighted_degrees.size() < _graph->n()) {
+    if (_weighted_degrees.size() < _n) {
       SCOPED_TIMER("Allocation");
-      _weighted_degrees.resize(_graph->n());
+      _weighted_degrees.resize(_n);
     }
 
     init_buckets();
@@ -220,7 +223,7 @@ public:
     if (in_sparse_part(node)) {
       const EdgeWeight conn_from = kIteratesExactGains ? conn_sparse(node, from) : 0;
 
-      for (BlockID to = 0; to < _p_graph->k(); ++to) {
+      for (BlockID to = 0; to < _k; ++to) {
         if (from == to) {
           continue;
         }
@@ -239,15 +242,12 @@ public:
 
       if constexpr (kIteratesNonadjacentBlocks) {
         auto &buffer = _dense_buffer_ets.local();
-        if (buffer.capacity() < _p_graph->k()) {
-          buffer.resize(_p_graph->k());
-        }
 
         create_dense_wrapper(node).for_each([&](const BlockID to, const EdgeWeight conn_to) {
           buffer.set(to, conn_to);
         });
 
-        for (BlockID to = 0; to < _p_graph->k(); ++to) {
+        for (BlockID to = 0; to < _k; ++to) {
           if (from != to) {
             lambda(to, [&] { return buffer.get(to) - conn_from; });
           }
@@ -438,7 +438,7 @@ private:
 
   [[nodiscard]] KAMINPAR_INLINE std::size_t
   index_sparse(const NodeID node, const BlockID block) const {
-    return _sparse_offset + 1ull * (node - _node_threshold) * _p_graph->k() + block;
+    return _sparse_offset + 1ull * (node - _node_threshold) * _k + block;
   }
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight
@@ -508,7 +508,7 @@ private:
 
   [[nodiscard]] bool dbg_check_cached_gain_for_node(const NodeID u) const {
     const BlockID block_u = _p_graph->block(u);
-    std::vector<EdgeWeight> actual_external_degrees(_p_graph->k(), 0);
+    std::vector<EdgeWeight> actual_external_degrees(_k, 0);
     EdgeWeight actual_weighted_degree = 0;
 
     _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
@@ -518,7 +518,7 @@ private:
       actual_external_degrees[block_v] += weight;
     });
 
-    for (BlockID b = 0; b < _p_graph->k(); ++b) {
+    for (BlockID b = 0; b < _k; ++b) {
       if (actual_external_degrees[b] != weighted_degree_to(u, b)) {
         LOG_WARNING << "For node " << u << ": cached weighted degree to block " << b << " is "
                     << weighted_degree_to(u, b) << " but should be " << actual_external_degrees[b];
@@ -539,6 +539,9 @@ private:
 
   const Graph *_graph = nullptr;
   const PartitionedGraph *_p_graph = nullptr;
+
+  NodeID _n = kInvalidNodeID;
+  BlockID _k = kInvalidBlockID;
 
   // First node ID assigned to the sparse part of the gain cache
   NodeID _node_threshold = kInvalidNodeID;
@@ -562,7 +565,7 @@ private:
 
   mutable tbb::enumerable_thread_specific<Statistics> _stats_ets;
   mutable tbb::enumerable_thread_specific<FastResetArray<EdgeWeight>> _dense_buffer_ets{[&] {
-    return FastResetArray<EdgeWeight>(0);
+    return FastResetArray<EdgeWeight>(_k);
   }};
 };
 

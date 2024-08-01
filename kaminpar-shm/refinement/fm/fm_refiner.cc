@@ -451,11 +451,11 @@ public:
     SCOPED_HEAP_PROFILER("FM");
     SCOPED_TIMER("FM");
 
-    const auto &graph = p_graph.concretize<Graph>();
+    const Graph &graph = p_graph.concretize<Graph>();
 
-    START_TIMER("Initialize gain cache");
-    _shared->gain_cache.initialize(graph, p_graph);
-    STOP_TIMER();
+    TIMED_SCOPE("Initialize gain cache") {
+      _shared->gain_cache.initialize(graph, p_graph);
+    };
 
     const EdgeWeight initial_cut = metrics::edge_cut(p_graph);
     EdgeWeight cut_before_current_iteration = initial_cut;
@@ -576,7 +576,7 @@ FMRefiner::~FMRefiner() = default;
 
 void FMRefiner::initialize(const PartitionedGraph &p_graph) {
   if (!_core) {
-    p_graph.graph().reified([&]<typename Graph>(Graph &graph) {
+    p_graph.reified([&]<typename Graph>(Graph &graph) {
       switch (_ctx.refinement.kway_fm.gain_cache_strategy) {
       case GainCacheStrategy::SPARSE:
         _core = std::make_unique<FMRefinerCore<Graph, NormalSparseGainCache<Graph>>>(_ctx);
