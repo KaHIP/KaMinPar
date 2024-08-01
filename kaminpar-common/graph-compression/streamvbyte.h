@@ -537,70 +537,84 @@ private:
     }
   }
 #elif defined(__aarch64__)
-  template <typename Lambda> void decode32(Lambda &&l) {
-    static_assert(std::is_invocable_v<Lambda, Int> || PassPairs && std::is_invocable_v<Lambda, Int, Int>);
-
+  template <typename Lambda>
+  void decode32(Lambda &&l)
+    requires(std::is_invocable_v<Lambda, Int> || PassPairs && std::is_invocable_v<Lambda, Int, Int>)
+  {
     using LambdaReturnType = std::conditional_t<
         PassPairs,
         std::invoke_result<Lambda, Int, Int>,
         std::invoke_result<Lambda, Int>>::type;
     constexpr bool kNonStoppable = std::is_void_v<LambdaReturnType>;
 
-    uint32x4_t prev = vmovq_n_u32(0);
-    const auto decode_gaps = [&](__m128i data) {
-      if constexpr (GapKind == DifferentialCodingKind::NONE) {
+    uint32x4_t prev = vdupq_n_u32(0);
+
+    auto decode_values = [&](const std::uint8_t ctrl_byte) {
+      const uint32x4_t data = vreinterpretq_u32_u8(
+          vqtbl1q_u8(vld1q_u8(_data_ptr), vld1q_u8(kShuffleTable[ctrl_byte].data()))
+      );
+
+      if constexpr (GapKind == DifferentialCodingKind::D1) {
+        const uint32x4_t zero = vdupq_n_u32(0);
+        uint32x4_t shifted = vaddq_u32(vextq_u32(zero, data, 2), data);
+        shifted = vaddq_u32(vextq_u32(zero, shifted, 3), shifted);
+        prev = vaddq_u32(shifted, vdupq_laneq_u32(prev, 3));
+      } else if constexpr (GapKind == DifferentialCodingKind::D2) {
+        prev = vaddq_u32(
+            vaddq_u32(vextq_u32(vdupq_n_u32(0), data, 2), data),
+            vcombine_u32(vget_high_u32(prev), vget_high_u32(prev))
+        );
+      } else if constexpr (GapKind == DifferentialCodingKind::DM) {
+        prev = vaddq_u32(data, vdupq_laneq_u32(prev, 3));
+      } else if constexpr (GapKind == DifferentialCodingKind::D4) {
+        prev = vaddq_u32(data, prev);
+      } else { // DifferentialCodingKind::NONE
         prev = data;
-        return;
-      } else {
-        static_assert("Unsupported differential coding kind (ARM).");
       }
+
+      std::array<std::uint32_t, 4> out;
+      vst1q_u32(out.data(), prev);
+      return std::make_tuple(out[0], out[1], out[2], out[3]);
     };
 
     for (std::size_t i = 0; i < _num_control_bytes; ++i) {
-      const std::uint8_t control_byte = _control_bytes_ptr[i];
-      const std::uint8_t length = kLengthTable[control_byte];
-
-      uint32x4_t data = vld1q_u32(reinterpret_cast<const std::uint32_t *>(_data_ptr));
-      _data_ptr += length;
-
-      const uint8x16_t shuffle_mask = vld1q_u8(kShuffleTable[control_byte].data());
-      data = vqtbl1q_u8(data, shuffle_mask);
-
-      decode_gaps(data);
+      const std::uint8_t ctrl_byte = _control_bytes_ptr[i];
+      const auto [v0, v1, v2, v3] = decode_values(ctrl_byte);
+      _data_ptr += kLengthTable[ctrl_byte];
 
       if constexpr (kNonStoppable) {
         if constexpr (PassPairs) {
-          l(vgetq_lane_u32(prev, 0), vgetq_lane_u32(prev, 1));
-          l(vgetq_lane_u32(prev, 2), vgetq_lane_u32(prev, 3));
+          l(v0, v1);
+          l(v2, v3);
         } else {
-          l(vgetq_lane_u32(prev, 0));
-          l(vgetq_lane_u32(prev, 1));
-          l(vgetq_lane_u32(prev, 2));
-          l(vgetq_lane_u32(prev, 3));
+          l(v0);
+          l(v1);
+          l(v2);
+          l(v3);
         }
       } else {
         if constexpr (PassPairs) {
-          if (l(vgetq_lane_u32(prev, 0), vgetq_lane_u32(prev, 1))) [[unlikely]] {
+          if (l(v0, v1)) [[unlikely]] {
             return;
           }
 
-          if (l(vgetq_lane_u32(prev, 2), vgetq_lane_u32(prev, 3))) [[unlikely]] {
+          if (l(v2, v3)) [[unlikely]] {
             return;
           }
         } else {
-          if (l(vgetq_lane_u32(prev, 0))) [[unlikely]] {
+          if (l(v0)) [[unlikely]] {
             return;
           }
 
-          if (l(vgetq_lane_u32(prev, 1))) [[unlikely]] {
+          if (l(v1)) [[unlikely]] {
             return;
           }
 
-          if (l(vgetq_lane_u32(prev, 2))) [[unlikely]] {
+          if (l(v2)) [[unlikely]] {
             return;
           }
 
-          if (l(vgetq_lane_u32(prev, 3))) [[unlikely]] {
+          if (l(v3)) [[unlikely]] {
             return;
           }
         }
@@ -609,21 +623,14 @@ private:
 
     if constexpr (PassPairs) {
       if (_num_values % 4 == 2) {
-        const std::uint8_t control_byte = _control_bytes_ptr[_num_control_bytes];
-        const std::uint8_t length = kLengthTable[control_byte];
-
-        uint32x4_t data = vld1q_u32(reinterpret_cast<const std::uint32_t *>(_data_ptr));
-        _data_ptr += length;
-
-        const uint8x16_t shuffle_mask = vld1q_u8(kShuffleTable[control_byte].data());
-        data = vqtbl1q_u8(data, shuffle_mask);
-
-        decode_gaps(data);
+        const std::uint8_t ctrl_byte = _control_bytes_ptr[_num_control_bytes];
+        const auto [v0, v1, v2, v3] = decode_values(ctrl_byte);
+        _data_ptr += kLengthTable[ctrl_byte] - 2;
 
         if constexpr (kNonStoppable) {
-          l(vgetq_lane_u32(prev, 0), vgetq_lane_u32(prev, 1));
+          l(v0, v1);
         } else {
-          if (l(vgetq_lane_u32(prev, 0), vgetq_lane_u32(prev, 1))) [[unlikely]] {
+          if (l(v0, v1)) [[unlikely]] {
             return;
           }
         }
@@ -631,78 +638,54 @@ private:
     } else {
       switch (_num_values % 4) {
       case 1: {
-        const std::uint8_t control_byte = _control_bytes_ptr[_num_control_bytes];
-        const std::uint8_t *shuffle_mask = kShuffleTable[control_byte].data();
-
-        uint32x4_t data = vld1q_u32(reinterpret_cast<const std::uint32_t *>(_data_ptr));
-        _data_ptr += length;
-
-        const uint8x16_t shuffle_mask = vld1q_u8(kShuffleTable[control_byte].data());
-        data = vqtbl1q_u8(data, shuffle_mask);
-
-        decode_gaps(data);
+        const std::uint8_t ctrl_byte = _control_bytes_ptr[_num_control_bytes];
+        const auto [v0, v1, v2, v3] = decode_values(ctrl_byte);
 
         if constexpr (kNonStoppable) {
-          l(vgetq_lane_u32(prev, 0));
+          l(v0);
         } else {
-          if (l(vgetq_lane_u32(prev, 0))) [[unlikely]] {
+          if (l(v0)) [[unlikely]] {
             return;
           }
         }
         break;
       }
       case 2: {
-        const std::uint8_t control_byte = _control_bytes_ptr[_num_control_bytes];
-        const std::uint8_t *shuffle_mask = kShuffleTable[control_byte].data();
-
-        uint32x4_t data = vld1q_u32(reinterpret_cast<const std::uint32_t *>(_data_ptr));
-        _data_ptr += length;
-
-        const uint8x16_t shuffle_mask = vld1q_u8(kShuffleTable[control_byte].data());
-        data = vqtbl1q_u8(data, shuffle_mask);
-
-        decode_gaps(data);
+        const std::uint8_t ctrl_byte = _control_bytes_ptr[_num_control_bytes];
+        const auto [v0, v1, v2, v3] = decode_values(ctrl_byte);
 
         if constexpr (kNonStoppable) {
-          l(vgetq_lane_u32(prev, 0));
-          l(vgetq_lane_u32(prev, 1));
+          l(v0);
+          l(v1);
         } else {
-          if (l(vgetq_lane_u32(prev, 0))) [[unlikely]] {
+          if (l(v0)) [[unlikely]] {
             return;
           }
 
-          if (l(vgetq_lane_u32(prev, 1))) [[unlikely]] {
+          if (l(v1)) [[unlikely]] {
             return;
           }
         }
         break;
       }
       case 3: {
-        const std::uint8_t control_byte = _control_bytes_ptr[_num_control_bytes];
-        const std::uint8_t *shuffle_mask = kShuffleTable[control_byte].data();
-
-        uint32x4_t data = vld1q_u32(reinterpret_cast<const std::uint32_t *>(_data_ptr));
-        _data_ptr += length;
-
-        const uint8x16_t shuffle_mask = vld1q_u8(kShuffleTable[control_byte].data());
-        data = vqtbl1q_u8(data, shuffle_mask);
-
-        decode_gaps(data);
+        const std::uint8_t ctrl_byte = _control_bytes_ptr[_num_control_bytes];
+        const auto [v0, v1, v2, v3] = decode_values(ctrl_byte);
 
         if constexpr (kNonStoppable) {
-          l(vgetq_lane_u32(prev, 0));
-          l(vgetq_lane_u32(prev, 1));
-          l(vgetq_lane_u32(prev, 2));
+          l(v0);
+          l(v1);
+          l(v2);
         } else {
-          if (l(vgetq_lane_u32(prev, 0))) [[unlikely]] {
+          if (l(v0)) [[unlikely]] {
             return;
           }
 
-          if (l(vgetq_lane_u32(prev, 1))) [[unlikely]] {
+          if (l(v1)) [[unlikely]] {
             return;
           }
 
-          if (l(vgetq_lane_u32(prev, 2))) [[unlikely]] {
+          if (l(v2)) [[unlikely]] {
             return;
           }
         }
