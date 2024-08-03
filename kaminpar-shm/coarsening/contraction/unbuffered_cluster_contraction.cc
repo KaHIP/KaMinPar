@@ -5,7 +5,10 @@
  ******************************************************************************/
 #include "kaminpar-shm/coarsening/contraction/unbuffered_cluster_contraction.h"
 
-#include <memory>
+#include <array>
+#include <cstring>
+#include <optional>
+#include <utility>
 
 #include <tbb/concurrent_vector.h>
 #include <tbb/enumerable_thread_specific.h>
@@ -17,6 +20,7 @@
 #include "kaminpar-common/datastructures/compact_static_array.h"
 #include "kaminpar-common/datastructures/concurrent_fast_reset_array.h"
 #include "kaminpar-common/datastructures/dynamic_map.h"
+#include "kaminpar-common/datastructures/fixed_size_sparse_map.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/heap_profiler.h"
