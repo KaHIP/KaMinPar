@@ -115,8 +115,13 @@ public:
   };
 
   TransformedIotaRange(const Int begin, const Int end, const Function transformer)
-      : _begin(begin, transformer),
+      : _size(end - begin),
+        _begin(begin, transformer),
         _end(end, transformer) {}
+
+  std::size_t size() const {
+    return _size;
+  }
 
   iterator begin() const {
     return _begin;
@@ -130,6 +135,7 @@ public:
   }
 
 private:
+  std::size_t _size;
   iterator _begin;
   iterator _end;
 };

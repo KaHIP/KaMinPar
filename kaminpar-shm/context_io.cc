@@ -467,6 +467,27 @@ std::unordered_map<std::string, ContractionMode> get_contraction_modes() {
   };
 }
 
+std::ostream &operator<<(std::ostream &out, const ContractionImplementation mode) {
+  switch (mode) {
+  case ContractionImplementation::SINGLE_PHASE:
+    return out << "single-phase";
+  case ContractionImplementation::TWO_PHASE:
+    return out << "two-phase";
+  case ContractionImplementation::GROWING_HASH_TABLES:
+    return out << "growing-hash-tables";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, ContractionImplementation> get_contraction_implementations() {
+  return {
+      {"single-phase", ContractionImplementation::SINGLE_PHASE},
+      {"two-phase", ContractionImplementation::TWO_PHASE},
+      {"growing-hash-tables", ContractionImplementation::GROWING_HASH_TABLES},
+  };
+}
+
 void print(const CoarseningContext &c_ctx, std::ostream &out) {
   out << "Contraction limit:            " << c_ctx.contraction_limit << "\n";
   out << "Coarsening algorithm:         " << c_ctx.algorithm << "\n";
@@ -487,8 +508,7 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
   if (c_ctx.contraction.mode == ContractionMode::BUFFERED) {
     out << "  Edge buffer fill fraction:  " << c_ctx.contraction.edge_buffer_fill_fraction << "\n";
   } else if (c_ctx.contraction.mode == ContractionMode::UNBUFFERED) {
-    out << "  Use growing hash tables:    "
-        << (c_ctx.contraction.use_growing_hash_tables ? "yes" : "no") << "\n";
+    out << "  Implementation:             " << c_ctx.contraction.implementation << "\n";
   }
 }
 

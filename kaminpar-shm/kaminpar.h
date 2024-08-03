@@ -147,6 +147,12 @@ enum class ContractionMode {
   UNBUFFERED_NAIVE,
 };
 
+enum class ContractionImplementation {
+  SINGLE_PHASE,
+  TWO_PHASE,
+  GROWING_HASH_TABLES
+};
+
 struct LabelPropagationCoarseningContext {
   int num_iterations;
   NodeID large_degree_threshold;
@@ -169,8 +175,9 @@ struct LabelPropagationCoarseningContext {
 
 struct ContractionCoarseningContext {
   ContractionMode mode;
+  ContractionImplementation implementation;
+
   double edge_buffer_fill_fraction;
-  bool use_growing_hash_tables;
 };
 
 struct ClusterCoarseningContext {

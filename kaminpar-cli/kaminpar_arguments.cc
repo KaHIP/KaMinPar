@@ -313,9 +313,9 @@ Options are:
 }
 
 CLI::Option_group *create_contraction_coarsening_options(CLI::App *app, Context &ctx) {
-  auto *contraction = app->add_option_group("Coarsening -> Contraction");
+  auto *con = app->add_option_group("Coarsening -> Contraction");
 
-  contraction->add_option("--c-con-mode", ctx.coarsening.contraction.mode)
+  con->add_option("--c-con-mode", ctx.coarsening.contraction.mode)
       ->transform(CLI::CheckedTransformer(get_contraction_modes()).description(""))
       ->description(R"(The mode used for contraction.
 Options are:
@@ -325,22 +325,26 @@ Options are:
   - unbuffered-naive: Use no edge buffer by computing twice
   )")
       ->capture_default_str();
-  contraction
-      ->add_option(
-          "--c-con-edge-buffer-fill-fraction",
-          ctx.coarsening.contraction.edge_buffer_fill_fraction,
-          "The fraction of the total edges with which to fill the edge buffer"
-      )
-      ->capture_default_str();
-  contraction
-      ->add_option(
-          "--c-con-use-growing-hash-tables",
-          ctx.coarsening.contraction.use_growing_hash_tables,
-          "Whether to use growing hash tables to collect coarse edges (only for unbuffered mode)"
+  con->add_option("--c-con-unbuffered-impl", ctx.coarsening.contraction.implementation)
+      ->transform(CLI::CheckedTransformer(get_contraction_implementations()).description(""))
+      ->description(
+          R"(The implementation used for unbuffered contraction.
+Options are:
+  - single-phase:        Use single-phase unbuffered contraction
+  - two-phase:           Use two-phase unbuffered contraction
+  - growing-hash-tables: Use single-phase unbuffered contraction with growing hash tables
+  )"
       )
       ->capture_default_str();
 
-  return contraction;
+  con->add_option(
+         "--c-con-edge-buffer-fill-fraction",
+         ctx.coarsening.contraction.edge_buffer_fill_fraction,
+         "The fraction of the total edges with which to fill the edge buffer"
+  )
+      ->capture_default_str();
+
+  return con;
 }
 
 CLI::Option_group *create_initial_partitioning_options(CLI::App *app, Context &ctx) {

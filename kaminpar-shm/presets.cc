@@ -111,6 +111,7 @@ Context create_default_context() {
                   {
                       // Context -> Coarsening -> Contraction
                       .mode = ContractionMode::BUFFERED,
+                      .implementation = ContractionImplementation::SINGLE_PHASE,
                       .edge_buffer_fill_fraction = 1,
                   },
               .contraction_limit = 2000,
@@ -243,7 +244,7 @@ Context create_memory_context() {
   ctx.coarsening.clustering.lp.impl = LabelPropagationImplementation::TWO_PHASE;
   ctx.coarsening.clustering.max_mem_free_coarsening_level = 1;
   ctx.coarsening.contraction.mode = ContractionMode::UNBUFFERED;
-  ctx.coarsening.contraction.use_growing_hash_tables = true;
+  ctx.coarsening.contraction.implementation = ContractionImplementation::TWO_PHASE;
   ctx.refinement.algorithms = {
       RefinementAlgorithm::GREEDY_BALANCER,
       RefinementAlgorithm::LABEL_PROPAGATION,
