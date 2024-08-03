@@ -268,14 +268,19 @@ public:
         state.current_gain = rating - gain_delta;
         state.current_cluster_weight = cluster_weight(cluster);
 
-        if (state.current_gain > state.best_gain) {
-          if (store_favored_cluster) {
+        if (store_favored_cluster) {
+          if (state.current_gain > state.overall_best_gain) {
+            state.overall_best_gain = state.current_gain;
+            favored_cluster = state.current_cluster;
+
             tie_breaking_favored_clusters.clear();
             tie_breaking_favored_clusters.push_back(state.current_cluster);
-
-            favored_cluster = state.current_cluster;
+          } else if (state.current_gain == state.overall_best_gain) {
+            tie_breaking_favored_clusters.push_back(state.current_cluster);
           }
+        }
 
+        if (state.current_gain > state.best_gain) {
           if (accept_cluster()) {
             tie_breaking_clusters.clear();
             tie_breaking_clusters.push_back(state.current_cluster);
@@ -284,10 +289,6 @@ public:
             state.best_gain = state.current_gain;
           }
         } else if (state.current_gain == state.best_gain) {
-          if (store_favored_cluster) {
-            tie_breaking_favored_clusters.push_back(state.current_cluster);
-          }
-
           if (accept_cluster()) {
             tie_breaking_clusters.push_back(state.current_cluster);
           }
@@ -296,15 +297,13 @@ public:
 
       if (tie_breaking_clusters.size() > 1) {
         const ClusterID i = state.local_rand.random_index(0, tie_breaking_clusters.size());
-        const ClusterID best_cluster = tie_breaking_clusters[i];
-        state.best_cluster = best_cluster;
+        state.best_cluster = tie_breaking_clusters[i];
       }
       tie_breaking_clusters.clear();
 
       if (tie_breaking_favored_clusters.size() > 1) {
         const ClusterID i = state.local_rand.random_index(0, tie_breaking_favored_clusters.size());
-        const ClusterID best_favored_cluster = tie_breaking_favored_clusters[i];
-        favored_cluster = best_favored_cluster;
+        favored_cluster = tie_breaking_favored_clusters[i];
       }
       tie_breaking_favored_clusters.clear();
 
@@ -323,7 +322,8 @@ public:
         state.current_gain = rating - gain_delta;
         state.current_cluster_weight = cluster_weight(cluster);
 
-        if (store_favored_cluster && state.current_gain > state.best_gain) {
+        if (store_favored_cluster && state.current_gain > state.overall_best_gain) {
+          state.overall_best_gain = state.current_gain;
           favored_cluster = state.current_cluster;
         }
 

@@ -341,10 +341,11 @@ protected:
    * @return Pair with: whether the node was moved to another cluster, whether
    * the previous cluster is now empty.
    */
+  template <typename RatingMap>
   std::pair<bool, bool> handle_node(
       const NodeID u,
       Random &rand,
-      GrowingRatingMap &map,
+      RatingMap &map,
       ScalableVector<ClusterID> &tie_breaking_clusters,
       ScalableVector<ClusterID> &tie_breaking_favored_clusters
   ) {
@@ -355,9 +356,28 @@ protected:
     const NodeWeight u_weight = _graph->node_weight(u);
     const ClusterID u_cluster = derived_cluster(u);
 
-    const auto [best_cluster, gain] = find_best_cluster(
-        u, u_weight, u_cluster, rand, map, tie_breaking_clusters, tie_breaking_favored_clusters
-    );
+    const auto [best_cluster, gain] = [&] {
+      if constexpr (std::is_same_v<RatingMap, GrowingRatingMap>) {
+        return find_best_cluster(
+            u, u_weight, u_cluster, rand, map, tie_breaking_clusters, tie_breaking_favored_clusters
+        );
+      } else {
+        const std::size_t upper_bound_size =
+            std::min<ClusterID>(_graph->degree(u), _initial_num_clusters);
+        return map.execute(upper_bound_size, [&](auto &actual_map) {
+          return find_best_cluster(
+              u,
+              u_weight,
+              u_cluster,
+              rand,
+              actual_map,
+              tie_breaking_clusters,
+              tie_breaking_favored_clusters
+          );
+        });
+      }
+    }();
+
     return try_node_move(u, u_weight, u_cluster, best_cluster, gain);
   }
 
@@ -443,6 +463,7 @@ protected:
     ClusterID best_cluster;
     EdgeWeight best_gain;
     ClusterWeight best_cluster_weight;
+    EdgeWeight overall_best_gain;
     ClusterID current_cluster;
     EdgeWeight current_gain;
     ClusterWeight current_cluster_weight;
@@ -475,6 +496,7 @@ protected:
         .best_cluster = u_cluster,
         .best_gain = 0,
         .best_cluster_weight = initial_cluster_weight,
+        .overall_best_gain = 0,
         .current_cluster = 0,
         .current_gain = 0,
         .current_cluster_weight = 0,
@@ -548,6 +570,7 @@ protected:
         .best_cluster = u_cluster,
         .best_gain = 0,
         .best_cluster_weight = initial_cluster_weight,
+        .overall_best_gain = 0,
         .current_cluster = 0,
         .current_gain = 0,
         .current_cluster_weight = 0,
@@ -583,7 +606,7 @@ protected:
       return false;
     });
 
-    if (is_second_phase_node) {
+    if (is_second_phase_node) [[unlikely]] {
       map.clear();
       return std::nullopt;
     }
@@ -632,19 +655,6 @@ protected:
       ConcurrentRatingMap &map
   ) {
     const ClusterWeight initial_cluster_weight = derived_cluster_weight(u_cluster);
-    ClusterSelectionState state{
-        .local_rand = rand,
-        .u = u,
-        .u_weight = u_weight,
-        .initial_cluster = u_cluster,
-        .initial_cluster_weight = initial_cluster_weight,
-        .best_cluster = u_cluster,
-        .best_gain = 0,
-        .best_cluster_weight = initial_cluster_weight,
-        .current_cluster = 0,
-        .current_gain = 0,
-        .current_cluster_weight = 0,
-    };
 
     bool is_interface_node = false;
     switch (_second_phase_aggregation_strategy) {
@@ -733,7 +743,6 @@ protected:
         Config::kUseTwoHopClustering && u_weight == initial_cluster_weight &&
         initial_cluster_weight <= derived_max_cluster_weight(u_cluster) / 2;
     const EdgeWeight gain_delta = (Config::kUseActualGain) ? map[u_cluster] : 0;
-    ClusterID favored_cluster = u_cluster;
 
     map.iterate_and_reset([&](const auto i, const auto &local_entries) {
       ClusterSelectionState local_state{
@@ -745,6 +754,7 @@ protected:
           .best_cluster = u_cluster,
           .best_gain = 0,
           .best_cluster_weight = initial_cluster_weight,
+          .overall_best_gain = 0,
           .current_cluster = 0,
           .current_gain = 0,
           .current_cluster_weight = 0,
@@ -768,6 +778,10 @@ protected:
       };
     });
 
+    ClusterID favored_cluster = u_cluster;
+    ClusterID best_cluster = u_cluster;
+    EdgeWeight best_gain = 0;
+
     const bool use_uniform_tie_breaking = _tie_breaking_strategy == TieBreakingStrategy::UNIFORM;
     if (use_uniform_tie_breaking) {
       auto &tie_breaking_clusters = _tie_breaking_clusters_ets.local();
@@ -775,23 +789,23 @@ protected:
 
       EdgeWeight favored_cluster_gain = 0;
       for (LocalClusterSelectionState &local_state : _local_cluster_selection_states) {
-        if (local_state.best_gain > state.best_gain) {
-          state.best_gain = local_state.best_gain;
-          state.best_cluster = local_state.best_cluster;
+        if (local_state.best_gain > best_gain) {
+          best_gain = local_state.best_gain;
+          best_cluster = local_state.best_cluster;
 
           tie_breaking_clusters.clear();
           tie_breaking_clusters.push_back(local_state.best_cluster);
-        } else if (local_state.best_gain == state.best_gain) {
+        } else if (local_state.best_gain == best_gain) {
           tie_breaking_clusters.push_back(local_state.best_cluster);
         }
 
         if (store_favored_cluster) {
           if (local_state.favored_cluster_gain > favored_cluster_gain) {
-            tie_breaking_favored_clusters.clear();
-            tie_breaking_favored_clusters.push_back(local_state.favored_cluster);
-
             favored_cluster_gain = local_state.favored_cluster_gain;
             favored_cluster = local_state.favored_cluster;
+
+            tie_breaking_favored_clusters.clear();
+            tie_breaking_favored_clusters.push_back(local_state.favored_cluster);
           } else if (local_state.favored_cluster_gain == favored_cluster_gain) {
             tie_breaking_favored_clusters.push_back(local_state.favored_cluster);
           }
@@ -802,24 +816,22 @@ protected:
       }
 
       if (tie_breaking_clusters.size() > 1) {
-        const ClusterID i = state.local_rand.random_index(0, tie_breaking_clusters.size());
-        const ClusterID best_cluster = tie_breaking_clusters[i];
-        state.best_cluster = best_cluster;
+        const ClusterID i = rand.random_index(0, tie_breaking_clusters.size());
+        best_cluster = tie_breaking_clusters[i];
       }
       tie_breaking_clusters.clear();
 
       if (tie_breaking_favored_clusters.size() > 1) {
-        const ClusterID i = state.local_rand.random_index(0, tie_breaking_favored_clusters.size());
-        const ClusterID best_favored_cluster = tie_breaking_favored_clusters[i];
-        favored_cluster = best_favored_cluster;
+        const ClusterID i = rand.random_index(0, tie_breaking_favored_clusters.size());
+        favored_cluster = tie_breaking_favored_clusters[i];
       }
       tie_breaking_favored_clusters.clear();
     } else {
       EdgeWeight favored_cluster_gain = 0;
       for (LocalClusterSelectionState &local_state : _local_cluster_selection_states) {
-        if (local_state.best_gain > state.best_gain) {
-          state.best_gain = local_state.best_gain;
-          state.best_cluster = local_state.best_cluster;
+        if (local_state.best_gain > best_gain) {
+          best_gain = local_state.best_gain;
+          best_cluster = local_state.best_cluster;
         }
 
         if (store_favored_cluster && local_state.favored_cluster_gain > favored_cluster_gain) {
@@ -833,12 +845,12 @@ protected:
     }
 
     // If we couldn't join any cluster, we store the favored cluster
-    if (store_favored_cluster && state.best_cluster == state.initial_cluster) {
+    if (store_favored_cluster && best_cluster == u_cluster) {
       _favored_clusters[u] = favored_cluster;
     }
 
-    const EdgeWeight actual_gain = IFSTATS(state.best_gain - map[state.initial_cluster]);
-    return std::make_pair(state.best_cluster, actual_gain);
+    const EdgeWeight actual_gain = IFSTATS(best_gain - map[u_cluster]);
+    return std::make_pair(best_cluster, actual_gain);
   }
 
   std::pair<bool, bool> try_node_move(
@@ -1707,11 +1719,14 @@ protected:
     }
     shuffle_chunks();
 
-    const bool use_growing_hash_tables =
-        _impl == LabelPropagationImplementation::GROWING_HASH_TABLES;
-    if (use_growing_hash_tables) {
-      perform_with_growing_rating_maps();
-    } else {
+    switch (_impl) {
+    case LabelPropagationImplementation::GROWING_HASH_TABLES:
+      perform(_growing_rating_map_ets);
+      break;
+    case LabelPropagationImplementation::SINGLE_PHASE:
+      perform(_rating_map_ets);
+      break;
+    case LabelPropagationImplementation::TWO_PHASE:
       const NodeID initial_num_clusters = _initial_num_clusters;
       const auto [num_processed_nodes, num_moved_nodes_first_phase] = perform_first_phase();
 
@@ -1741,6 +1756,7 @@ protected:
         LOG << "  Moved: " << (num_moved_nodes - num_moved_nodes_first_phase) << " nodes";
         LOG;
       }
+      break;
     }
 
     const NodeID num_moved_nodes = _num_moved_nodes_ets.combine(std::plus{});
@@ -1879,7 +1895,7 @@ private:
     });
   }
 
-  std::pair<std::size_t, std::size_t> perform_with_growing_rating_maps() {
+  template <typename RatingMapETS> void perform(RatingMapETS &rating_map_ets) {
     parallel::Atomic<std::size_t> next_chunk = 0;
     tbb::parallel_for(static_cast<std::size_t>(0), _chunks.size(), [&](const std::size_t) {
       if (should_stop()) {
@@ -1889,7 +1905,7 @@ private:
       auto &local_num_processed_nodes = _num_processed_nodes_ets.local();
       auto &local_num_moved_nodes = _num_moved_nodes_ets.local();
       auto &local_rand = Random::instance();
-      auto &local_rating_map = _growing_rating_map_ets.local();
+      auto &local_rating_map = rating_map_ets.local();
       auto &tie_breaking_clusters = _tie_breaking_clusters_ets.local();
       auto &tie_breaking_favored_clusters = _tie_breaking_favored_clusters_ets.local();
       NodeID num_removed_clusters = 0;
@@ -1942,10 +1958,6 @@ private:
 
       _current_num_clusters -= num_removed_clusters;
     });
-
-    return std::make_pair(
-        _num_processed_nodes_ets.combine(std::plus{}), _num_moved_nodes_ets.combine(std::plus{})
-    );
   }
 
   std::pair<std::size_t, std::size_t> perform_first_phase() {
