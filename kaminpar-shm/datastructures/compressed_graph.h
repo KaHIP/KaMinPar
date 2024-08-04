@@ -232,6 +232,8 @@ public:
   inline void pfor_neighbors(
       const NodeID u, const NodeID max_num_neighbors, const NodeID grainsize, Lambda &&l
   ) const {
+    // The compressed graph does not allow for arbitrary grainsize. It is also not supported
+    // to only visit a subrange of neighbors.
     _compressed_neighborhoods.parallel_neighbors(u, std::forward<Lambda>(l));
   }
 

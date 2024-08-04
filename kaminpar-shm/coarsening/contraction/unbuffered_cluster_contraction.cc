@@ -27,8 +27,9 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::contraction {
-
 namespace {
+SET_DEBUG(false);
+
 class NeighborhoodsBuffer {
   static constexpr NodeID kMaxNumNodes = 4096;
   static constexpr EdgeID kMaxNumEdges = 32768;
@@ -267,6 +268,9 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
     neighborhood_buffer.flush(new_c_u, edge);
   };
 
+  // To aggregate the edges of a coarse node for the growing hash tables and single-phase
+  // implementation, we simply iterate over the fine edges of the nodes that are contracted to the
+  // coarse node and meanwhile compute the coarse node weight.
   const auto aggregate_edges = [&](const NodeID c_u,
                                    const NodeID bucket_start,
                                    const NodeID bucket_end,
@@ -275,8 +279,6 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
 
     for (NodeID i = bucket_start; i < bucket_end; ++i) {
       const NodeID u = buckets[i];
-      KASSERT(mapping[u] == c_u);
-
       c_u_weight += graph.node_weight(u);
 
       graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
@@ -302,22 +304,22 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
     tbb::enumerable_thread_specific<EdgeCollector> edge_collector_ets;
 
     tbb::parallel_for(tbb::blocked_range<NodeID>(0, c_n), [&](const auto &r) {
-      auto &edge_collector = edge_collector_ets.local();
-      auto &buffer = neighborhoods_buffer_ets.local();
+      auto &local_edge_collector = edge_collector_ets.local();
+      auto &local_buffer = neighborhoods_buffer_ets.local();
 
       for (NodeID c_u = r.begin(); c_u != r.end(); ++c_u) {
         const NodeID first = buckets_index[c_u];
         const NodeID last = buckets_index[c_u + 1];
 
-        const NodeWeight c_u_weight = aggregate_edges(c_u, first, last, edge_collector);
-        transfer_edges(c_u, c_u_weight, edge_collector, buffer);
-        edge_collector.clear();
+        const NodeWeight c_u_weight = aggregate_edges(c_u, first, last, local_edge_collector);
+        transfer_edges(c_u, c_u_weight, local_edge_collector, local_buffer);
+        local_edge_collector.clear();
       }
     });
 
-    tbb::parallel_for(neighborhoods_buffer_ets.range(), [&](auto &r) {
-      for (auto &buffer : r) {
-        flush_edges(buffer);
+    tbb::parallel_for(neighborhoods_buffer_ets.range(), [&](const auto &local_buffers) {
+      for (auto &local_buffer : local_buffers) {
+        flush_edges(local_buffer);
       }
     });
   } else if (con_ctx.implementation == ContractionImplementation::SINGLE_PHASE) {
@@ -327,7 +329,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
     }};
 
     tbb::parallel_for(tbb::blocked_range<NodeID>(0, c_n), [&](const auto &r) {
-      auto &local_collector = edge_collector_ets.local();
+      auto &local_edge_collector = edge_collector_ets.local();
       auto &local_buffer = neighborhoods_buffer_ets.local();
 
       for (NodeID c_u = r.begin(); c_u != r.end(); ++c_u) {
@@ -342,7 +344,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
           upper_bound_degree += graph.degree(u);
         }
 
-        local_collector.execute(upper_bound_degree, [&](auto &edge_collector) {
+        local_edge_collector.execute(upper_bound_degree, [&](auto &edge_collector) {
           const NodeWeight c_u_weight = aggregate_edges(c_u, first, last, edge_collector);
           transfer_edges(c_u, c_u_weight, edge_collector, local_buffer);
           edge_collector.clear();
@@ -350,17 +352,21 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
       }
     });
 
-    tbb::parallel_for(neighborhoods_buffer_ets.range(), [&](auto &r) {
-      for (auto &buffer : r) {
-        flush_edges(buffer);
+    tbb::parallel_for(neighborhoods_buffer_ets.range(), [&](const auto &local_buffers) {
+      for (auto &local_buffer : local_buffers) {
+        flush_edges(local_buffer);
       }
     });
   } else if (con_ctx.implementation == ContractionImplementation::TWO_PHASE) {
-    using EdgeCollector = FixedSizeSparseMap<NodeID, EdgeWeight>;
+    using EdgeCollector = FixedSizeSparseMap<NodeID, EdgeWeight, 65536>;
+    tbb::enumerable_thread_specific<EdgeCollector> edge_collector_ets;
 
+    // To aggregate the edges of a coarse node for the two-phase implementation, we iterate over the
+    // fine edges of the nodes that are contracted to the coarse node and bump the coarse node to
+    // the second phase if its degree crosses a threshold.
     constexpr NodeID kDegreeThreshold = EdgeCollector::MAP_SIZE / 3;
     const auto aggregate_edges = [&](const NodeID c_u,
-                                     auto &edge_collector) -> std::optional<NodeWeight> {
+                                     auto &local_edge_collector) -> std::optional<NodeWeight> {
       const NodeID bucket_start = buckets_index[c_u];
       const NodeID bucket_end = buckets_index[c_u + 1];
 
@@ -368,16 +374,14 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
       bool second_phase_node = false;
       for (NodeID i = bucket_start; i < bucket_end; ++i) {
         const NodeID u = buckets[i];
-        KASSERT(mapping[u] == c_u);
-
         c_u_weight += graph.node_weight(u);
 
         graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
           const NodeID c_v = mapping[v];
           if (c_u != c_v) {
-            edge_collector[c_v] += w;
+            local_edge_collector[c_v] += w;
 
-            if (edge_collector.size() >= kDegreeThreshold) [[unlikely]] {
+            if (local_edge_collector.size() >= kDegreeThreshold) [[unlikely]] {
               second_phase_node = true;
               return true;
             }
@@ -394,34 +398,33 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
     };
 
     START_TIMER("First phase");
-    tbb::enumerable_thread_specific<EdgeCollector> edge_collector_ets;
     tbb::concurrent_vector<NodeID> second_phase_nodes;
     tbb::parallel_for(tbb::blocked_range<NodeID>(0, c_n), [&](const auto &r) {
-      auto &edge_collector = edge_collector_ets.local();
-      auto &buffer = neighborhoods_buffer_ets.local();
+      auto &local_edge_collector = edge_collector_ets.local();
+      auto &local_buffer = neighborhoods_buffer_ets.local();
 
       for (NodeID c_u = r.begin(); c_u != r.end(); ++c_u) {
-        if (const auto c_u_weight = aggregate_edges(c_u, edge_collector)) {
-          transfer_edges(c_u, *c_u_weight, edge_collector, buffer);
+        if (const auto c_u_weight = aggregate_edges(c_u, local_edge_collector)) {
+          transfer_edges(c_u, *c_u_weight, local_edge_collector, local_buffer);
         } else {
           second_phase_nodes.push_back(c_u);
         }
 
-        edge_collector.clear();
+        local_edge_collector.clear();
       }
     });
     STOP_TIMER();
 
     START_TIMER("Flush buffer");
-    tbb::parallel_for(neighborhoods_buffer_ets.range(), [&](auto &r) {
-      for (auto &buffer : r) {
-        flush_edges(buffer);
+    tbb::parallel_for(neighborhoods_buffer_ets.range(), [&](const auto &local_buffers) {
+      for (auto &local_buffer : local_buffers) {
+        flush_edges(local_buffer);
       }
     });
     STOP_TIMER();
 
     START_TIMER("Second phase");
-    ConcurrentFastResetArray<NodeID, EdgeWeight> edge_collector(c_n);
+    ConcurrentFastResetArray<EdgeWeight, NodeID> edge_collector(c_n);
     tbb::enumerable_thread_specific<NodeWeight> coarse_node_weight_ets(0);
 
     NodeID cur_c_u = next_coarse_node_info.c_u;
@@ -430,25 +433,54 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
       const NodeID bucket_start = buckets_index[c_u];
       const NodeID bucket_end = buckets_index[c_u + 1];
 
+      const auto flush_local_rating_map = [&](auto &local_used_entries,
+                                              auto &local_edge_collector) {
+        for (const auto [c_v, w] : local_edge_collector.entries()) {
+          const EdgeWeight prev_weight =
+              __atomic_fetch_add(&edge_collector[c_v], w, __ATOMIC_RELAXED);
+
+          if (prev_weight == 0) {
+            local_used_entries.push_back(c_v);
+          }
+        }
+
+        local_edge_collector.clear();
+      };
+
       tbb::parallel_for(tbb::blocked_range<NodeID>(bucket_start, bucket_end), [&](const auto &r) {
-        auto &coarse_node_weight = coarse_node_weight_ets.local();
-        auto &local_used_entries = edge_collector.local_used_entries();
+        auto &local_coarse_node_weight = coarse_node_weight_ets.local();
 
         for (NodeID i = r.begin(); i != r.end(); ++i) {
           const NodeID u = buckets[i];
-          coarse_node_weight += graph.node_weight(u);
+          local_coarse_node_weight += graph.node_weight(u);
 
-          graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
-            const NodeID c_v = mapping[v];
-            if (c_u != c_v) {
-              const EdgeWeight prev_weight =
-                  __atomic_fetch_add(&edge_collector[c_v], w, __ATOMIC_RELAXED);
+          graph.pfor_neighbors(
+              u,
+              std::numeric_limits<NodeID>::max(),
+              2000,
+              [&](auto &&pfor_neighbors) {
+                auto &local_used_entries = edge_collector.local_used_entries();
+                auto &local_edge_collector = edge_collector_ets.local();
 
-              if (prev_weight == 0) {
-                local_used_entries.push_back(c_v);
+                pfor_neighbors([&](const EdgeID, const NodeID v, const EdgeWeight w) {
+                  const NodeID c_v = mapping[v];
+                  if (c_u != c_v) {
+                    local_edge_collector[c_v] += w;
+
+                    if (local_edge_collector.size() >= kDegreeThreshold) [[unlikely]] {
+                      flush_local_rating_map(local_used_entries, local_edge_collector);
+                    }
+                  }
+                });
               }
-            }
-          });
+          );
+        }
+      });
+
+      tbb::parallel_for(edge_collector_ets.range(), [&](const auto &local_edge_collectors) {
+        auto &local_used_entries = edge_collector.local_used_entries();
+        for (auto &local_edge_collector : local_edge_collectors) {
+          flush_local_rating_map(local_used_entries, local_edge_collector);
         }
       });
 
@@ -475,9 +507,14 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
         }
       });
     }
+
     next_coarse_node_info.c_u = cur_c_u;
     next_coarse_node_info.edge = cur_edge;
     STOP_TIMER();
+
+    DBG << "Unbuffered Contraction:";
+    DBG << " First Phase:  " << (c_n - second_phase_nodes.size()) << " clusters";
+    DBG << " Second Phase: " << second_phase_nodes.size() << " clusters";
   }
 
   const EdgeID c_m = next_coarse_node_info.edge;
