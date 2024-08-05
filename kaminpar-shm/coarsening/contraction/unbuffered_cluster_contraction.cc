@@ -166,7 +166,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
   START_HEAP_PROFILER("Construct coarse graph");
   START_TIMER("Construct coarse graph");
 
-  // When writing the neighborhood of a coaase node into the coarse node array, we additionally
+  // When writing the neighborhood of a coarse node into the coarse node array, we additionally
   // store inside a vector the coarse node ID it is remapped to. This allows us to directly write
   // the coarse edges into the coarse edge array.
   CompactStaticArray<NodeID> remapping(math::byte_width(c_n), c_n);
@@ -433,6 +433,10 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
       const NodeID bucket_start = buckets_index[c_u];
       const NodeID bucket_end = buckets_index[c_u + 1];
 
+      // To avoid possible contention caused by atomic fetch-and-add operations when there are
+      // clusters in the neighborhood of a coarse node that are often encountered, we first store
+      // the edge weights to adjacent coarse nodes in the thread-local hash tables of the first
+      // phase and flush them when they are full.
       const auto flush_local_rating_map = [&](auto &local_used_entries,
                                               auto &local_edge_collector) {
         for (const auto [c_v, w] : local_edge_collector.entries()) {
@@ -447,17 +451,42 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
         local_edge_collector.clear();
       };
 
+      // Since there can be many fine nodes with a low degree inside a cluster, parallel iteration
+      // only over the neighborhood of fine nodes can lead to inferior running times. For this
+      // reason, we iterate in parallel over the fine nodes in a cluster. Furthermore, we iterate in
+      // parallel (with nested parallelism) over the neighborhood of fine nodes, if they have a high
+      // degree, to reduce load imbalance.
+      constexpr NodeID kParallelIterationGrainsize = 2000;
       tbb::parallel_for(tbb::blocked_range<NodeID>(bucket_start, bucket_end), [&](const auto &r) {
         auto &local_coarse_node_weight = coarse_node_weight_ets.local();
+        auto &local_used_entries = edge_collector.local_used_entries();
+        auto &local_edge_collector = edge_collector_ets.local();
 
-        for (NodeID i = r.begin(); i != r.end(); ++i) {
+        const NodeID local_bucket_start = r.begin();
+        const NodeID local_bucket_end = r.end();
+        for (NodeID i = local_bucket_start; i < local_bucket_end; ++i) {
           const NodeID u = buckets[i];
           local_coarse_node_weight += graph.node_weight(u);
+
+          if (graph.degree(u) < kParallelIterationGrainsize * 2) {
+            graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+              const NodeID c_v = mapping[v];
+              if (c_u != c_v) {
+                local_edge_collector[c_v] += w;
+
+                if (local_edge_collector.size() >= kDegreeThreshold) [[unlikely]] {
+                  flush_local_rating_map(local_used_entries, local_edge_collector);
+                }
+              }
+            });
+
+            continue;
+          }
 
           graph.pfor_neighbors(
               u,
               std::numeric_limits<NodeID>::max(),
-              2000,
+              kParallelIterationGrainsize,
               [&](auto &&pfor_neighbors) {
                 auto &local_used_entries = edge_collector.local_used_entries();
                 auto &local_edge_collector = edge_collector_ets.local();
@@ -522,7 +551,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
   STOP_TIMER();
 
   // After aggregation, we have to remap the adjacent coarse nodes stored in the coarse edge array
-  // as well as the mapping which is used for projection during uncorasening, because we remapped
+  // as well as the mapping which is used for projection during uncoarsening, because we remapped
   // the coarse nodes during aggregation.
   START_TIMER("Remap coarse edges and mapping");
   tbb::parallel_for(tbb::blocked_range<EdgeID>(0, c_m), [&](const auto &r) {
