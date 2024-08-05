@@ -96,7 +96,7 @@ Context create_default_context() {
                               .second_phase_selection_strategy =
                                   SecondPhaseSelectionStrategy::FULL_RATING_MAP,
                               .second_phase_aggregation_strategy =
-                                  SecondPhaseAggregationStrategy::DIRECT,
+                                  SecondPhaseAggregationStrategy::BUFFERED,
                               .relabel_before_second_phase = false,
                               .two_hop_strategy = TwoHopStrategy::MATCH_THREADWISE,
                               .two_hop_threshold = 0.5,
@@ -177,7 +177,7 @@ Context create_default_context() {
                       .tie_breaking_strategy = TieBreakingStrategy::UNIFORM,
                       .second_phase_selection_strategy =
                           SecondPhaseSelectionStrategy::FULL_RATING_MAP,
-                      .second_phase_aggregation_strategy = SecondPhaseAggregationStrategy::DIRECT,
+                      .second_phase_aggregation_strategy = SecondPhaseAggregationStrategy::BUFFERED,
                   },
               .kway_fm =
                   {

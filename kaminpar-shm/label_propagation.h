@@ -451,7 +451,7 @@ protected:
 
     const auto [best_cluster, gain] =
         find_best_cluster_second_phase(u, u_weight, u_cluster, rand, map);
-    return try_node_move(u, u_weight, u_cluster, best_cluster, gain);
+    return try_node_move<true>(u, u_weight, u_cluster, best_cluster, gain);
   }
 
   struct ClusterSelectionState {
@@ -659,52 +659,52 @@ protected:
     bool is_interface_node = false;
     switch (_second_phase_aggregation_strategy) {
     case SecondPhaseAggregationStrategy::DIRECT: {
-      _graph->pfor_neighbors(
-          u,
-          _max_num_neighbors,
-          2000,
-          [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
-            if (derived_accept_neighbor(u, v)) {
-              const ClusterID v_cluster = derived_cluster(v);
-              const EdgeWeight prev_rating =
-                  __atomic_fetch_add(&map[v_cluster], w, __ATOMIC_RELAXED);
+      _graph->pfor_neighbors(u, _max_num_neighbors, 2000, [&](auto &&pfor_neighbors) {
+        auto &local_used_entries = map.local_used_entries();
 
-              if (prev_rating == 0) {
-                map.local_used_entries().push_back(v_cluster);
-              }
+        pfor_neighbors([&](const EdgeID, const NodeID v, const EdgeWeight w) {
+          if (derived_accept_neighbor(u, v)) {
+            const ClusterID v_cluster = derived_cluster(v);
+            const EdgeWeight prev_rating = __atomic_fetch_add(&map[v_cluster], w, __ATOMIC_RELAXED);
 
-              if constexpr (Config::kUseLocalActiveSetStrategy) {
-                is_interface_node |= v >= _num_active_nodes;
-              }
+            if (prev_rating == 0) {
+              local_used_entries.push_back(v_cluster);
+            }
+
+            if constexpr (Config::kUseLocalActiveSetStrategy) {
+              is_interface_node |= v >= _num_active_nodes;
             }
           }
-      );
+        });
+      });
+
       break;
     }
     case SecondPhaseAggregationStrategy::BUFFERED: {
-      const auto flush_local_rating_map = [&](auto &local_rating_map) {
+      const auto flush_local_rating_map = [&](auto &local_used_entries, auto &local_rating_map) {
         for (const auto [cluster, rating] : local_rating_map.entries()) {
           const EdgeWeight prev_rating =
               __atomic_fetch_add(&map[cluster], rating, __ATOMIC_RELAXED);
 
           if (prev_rating == 0) {
-            map.local_used_entries().push_back(cluster);
+            local_used_entries.push_back(cluster);
           }
         }
 
         local_rating_map.clear();
       };
 
-      _graph->pfor_neighbors(u, _max_num_neighbors, 2000, [&](auto &&local_pfor_neighbors) {
+      _graph->pfor_neighbors(u, _max_num_neighbors, 2000, [&](auto &&pfor_neighbors) {
+        auto &local_used_entries = map.local_used_entries();
         auto &local_rating_map = _rating_map_ets.local().small_map();
 
-        local_pfor_neighbors([&](const EdgeID e, const NodeID v, const EdgeWeight w) {
+        pfor_neighbors([&](const EdgeID, const NodeID v, const EdgeWeight w) {
           if (derived_accept_neighbor(u, v)) {
             const ClusterID v_cluster = derived_cluster(v);
             local_rating_map[v_cluster] += w;
 
-            if (local_rating_map.size() >= Config::kRatingMapThreshold) {
-              flush_local_rating_map(local_rating_map);
+            if (local_rating_map.size() >= Config::kRatingMapThreshold) [[unlikely]] {
+              flush_local_rating_map(local_used_entries, local_rating_map);
             }
 
             if constexpr (Config::kUseLocalActiveSetStrategy) {
@@ -715,9 +715,10 @@ protected:
       });
 
       tbb::parallel_for(_rating_map_ets.range(), [&](auto &rating_maps) {
+        auto &local_used_entries = map.local_used_entries();
         for (auto &rating_map : rating_maps) {
           auto &local_rating_map = rating_map.small_map();
-          flush_local_rating_map(local_rating_map);
+          flush_local_rating_map(local_used_entries, local_rating_map);
         }
       });
       break;
@@ -853,6 +854,7 @@ protected:
     return std::make_pair(best_cluster, actual_gain);
   }
 
+  template <bool kParallelActivate = false>
   std::pair<bool, bool> try_node_move(
       NodeID u, NodeWeight u_weight, ClusterID u_cluster, ClusterID new_cluster, EdgeWeight gain
   ) {
@@ -863,7 +865,7 @@ protected:
 
       if (successful_weight_move) {
         derived_move_node(u, new_cluster);
-        activate_neighbors(u);
+        activate_neighbors<kParallelActivate>(u);
         IFSTATS(_expected_total_gain += gain);
 
         const bool decrement_cluster_count =
@@ -891,8 +893,8 @@ protected:
    *
    * @param u Node that was moved.
    */
-  void activate_neighbors(const NodeID u) {
-    _graph->adjacent_nodes(u, [&](const NodeID v) {
+  template <bool kParallel = false> void activate_neighbors(const NodeID u) {
+    const auto activate_neighbors = [&](const NodeID v) {
       // call derived_activate_neighbor() even if we do not use the active set
       // strategy since the function might have side effects; the compiler
       // should remove it if it does not side effects
@@ -901,7 +903,18 @@ protected:
           __atomic_store_n(&_active[v], 1, __ATOMIC_RELAXED);
         }
       }
-    });
+    };
+
+    if constexpr (kParallel) {
+      _graph->pfor_neighbors(
+          u,
+          std::numeric_limits<NodeID>::max(),
+          20000,
+          [&](const EdgeID, const NodeID v, const EdgeWeight) { activate_neighbors(v); }
+      );
+    } else {
+      _graph->adjacent_nodes(u, activate_neighbors);
+    }
   }
 
   void match_isolated_nodes(
