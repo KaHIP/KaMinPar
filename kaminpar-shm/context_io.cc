@@ -26,6 +26,8 @@ std::unordered_map<std::string, NodeOrdering> get_node_orderings() {
       {"natural", NodeOrdering::NATURAL},
       {"deg-buckets", NodeOrdering::DEGREE_BUCKETS},
       {"degree-buckets", NodeOrdering::DEGREE_BUCKETS},
+      {"external-deg-buckets", NodeOrdering::EXTERNAL_DEGREE_BUCKETS},
+      {"external-degree-buckets", NodeOrdering::EXTERNAL_DEGREE_BUCKETS},
       {"implicit-deg-buckets", NodeOrdering::IMPLICIT_DEGREE_BUCKETS},
       {"implicit-degree-buckets", NodeOrdering::IMPLICIT_DEGREE_BUCKETS},
   };
@@ -37,6 +39,8 @@ std::ostream &operator<<(std::ostream &out, const NodeOrdering ordering) {
     return out << "natural";
   case NodeOrdering::DEGREE_BUCKETS:
     return out << "deg-buckets";
+  case NodeOrdering::EXTERNAL_DEGREE_BUCKETS:
+    return out << "external-deg-buckets";
   case NodeOrdering::IMPLICIT_DEGREE_BUCKETS:
     return out << "implicit-deg-buckets";
   }

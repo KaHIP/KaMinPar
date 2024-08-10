@@ -11,8 +11,10 @@
 #include <unordered_map>
 #include <vector>
 
+#include "kaminpar-shm/datastructures/compressed_graph.h"
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm::io {
 
@@ -36,29 +38,39 @@ enum class GraphFileFormat {
  *
  * @param filename The name of the file to read.
  * @param file_format The format of the file used to store the graph.
- * @param sorted Whether the nodes of the graph to read are stored in degree-buckets order.
- * @return The graph to read in CSR format.
+ * @param ordering The node ordering of the graph to read.
+ * @return The graph that is stored in the file.
  */
-CSRGraph
-csr_read(const std::string &filename, const GraphFileFormat file_format, const bool sorted);
+CSRGraph csr_read(
+    const std::string &filename, const GraphFileFormat file_format, const NodeOrdering ordering
+);
+
+/**
+ * Reads a graph that is stored in METIS or ParHip format.
+ *
+ * @param filename The name of the file to read.
+ * @param file_format The format of the file used to store the graph.
+ * @param ordering The node ordering of the graph to read.
+ * @return The graph that is stored in the file.
+ */
+CompressedGraph compressed_read(
+    const std::string &filename, const GraphFileFormat file_format, const NodeOrdering ordering
+);
 
 /*!
  * Reads a graph that is either stored in METIS, ParHiP or compressed format.
  *
  * @param filename The name of the file to read.
  * @param file_format The format of the file used to store the graph.
- * @param compress Whether to compress the graph.
- * @param may_dismiss Whether to only return the compressed graph if it uses less memory than the
- * uncompressed graph.
  * @param ordering The node ordering of the graph to read.
- * @return The graph to read.
+ * @param compress Whether to compress the graph.
+ * @return The graph that is stored in the file.
  */
 Graph read(
     const std::string &filename,
     const GraphFileFormat file_format,
-    const bool compress,
-    const bool may_dismiss,
-    const NodeOrdering ordering
+    const NodeOrdering ordering,
+    const bool compress
 );
 
 namespace partition {

@@ -241,8 +241,7 @@ int main(int argc, char *argv[]) {
   CLI11_PARSE(app, argc, argv);
 
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, num_threads);
-  const auto graph =
-      io::read(graph_filename, graph_file_format, compress, false, NodeOrdering::NATURAL);
+  const auto graph = io::read(graph_filename, graph_file_format, NodeOrdering::NATURAL, compress);
 
   auto stats = graph.reified([](const auto &graph) { return connected_components_stats(graph); });
   LOG << "Number of connected components: " << stats.num_connected_component;

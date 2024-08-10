@@ -7,7 +7,6 @@
  ******************************************************************************/
 #pragma once
 
-#include <optional>
 #include <string>
 
 #include "kaminpar-shm/datastructures/compressed_graph.h"
@@ -17,7 +16,7 @@
 namespace kaminpar::shm::io::metis {
 
 /**
- * Reads a graph that is stored in a file with METIS format.
+ * Reads a graph that is stored in a file in METIS format.
  *
  * @param filename The name of the file to read.
  * @param sorted Whether the nodes of the graph to read are stored in degree-buckets order.
@@ -30,12 +29,9 @@ CSRGraph csr_read(const std::string &filename, const bool sorted);
  *
  * @param filename The name of the file to read.
  * @param sorted Whether the nodes of the graph to read are stored in degree-buckets order.
- * @param may_dismiss Whether to abort the compression when it is determined that the compressed
- * graph uses more memory than the uncompressed graph.
- * @return The graph that is stored in the file, or nothing if the graph was dismissed.
+ * @return The graph that is stored in the file.
  */
-std::optional<CompressedGraph>
-compress_read(const std::string &filename, const bool sorted, const bool may_dismiss);
+CompressedGraph compress_read(const std::string &filename, const bool sorted);
 
 /*!
  * Writes a graph to a file in METIS format.

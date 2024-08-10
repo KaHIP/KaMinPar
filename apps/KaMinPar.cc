@@ -192,13 +192,6 @@ int main(int argc, char *argv[]) {
     std::exit(0);
   }
 
-  if (ctx.compression.enabled && app.graph_file_format == io::GraphFileFormat::METIS &&
-      ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
-    std::cout << "The nodes of the compressed graph cannot be rearranged by degree buckets!"
-              << std::endl;
-    std::exit(0);
-  }
-
   // If available, use huge pages for large allocations
   scalable_allocation_mode(TBBMALLOC_USE_HUGE_PAGES, !app.no_huge_pages);
 
@@ -233,11 +226,7 @@ int main(int argc, char *argv[]) {
   START_HEAP_PROFILER("Input Graph Allocation");
   Graph graph = TIMED_SCOPE("Read input graph") {
     return io::read(
-        app.graph_filename,
-        app.graph_file_format,
-        ctx.compression.enabled,
-        ctx.compression.may_dismiss,
-        ctx.node_ordering
+        app.graph_filename, app.graph_file_format, ctx.node_ordering, ctx.compression.enabled
     );
   };
 

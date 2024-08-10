@@ -82,7 +82,7 @@ public:
     });
   }
 
-  void flush(const NodeID c_u, EdgeID e) {
+  void flush(const NodeID c_u, const EdgeID e) {
     const std::size_t buffered_edge_weights_size = _num_buffered_edges * sizeof(EdgeWeight);
     std::memcpy(_edge_weights + e, _edge_weight_buffer.data(), buffered_edge_weights_size);
 

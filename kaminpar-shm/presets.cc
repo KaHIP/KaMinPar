@@ -60,7 +60,10 @@ std::unordered_set<std::string> get_preset_names() {
 
 Context create_default_context() {
   return {
-      .compression = {.enabled = false, .may_dismiss = false},
+      .compression =
+          {
+              .enabled = false,
+          },
       .node_ordering = NodeOrdering::DEGREE_BUCKETS,
       .edge_ordering = EdgeOrdering::NATURAL,
       .partitioning =
@@ -238,18 +241,13 @@ Context create_default_context() {
 
 Context create_memory_context() {
   Context ctx = create_default_context();
+  ctx.node_ordering = NodeOrdering::EXTERNAL_DEGREE_BUCKETS;
   ctx.compression.enabled = true;
-  ctx.compression.may_dismiss = true;
-  ctx.coarsening.clustering.algorithm = ClusteringAlgorithm::LABEL_PROPAGATION;
-  ctx.coarsening.clustering.lp.impl = LabelPropagationImplementation::TWO_PHASE;
   ctx.coarsening.clustering.max_mem_free_coarsening_level = 1;
+  ctx.coarsening.clustering.lp.impl = LabelPropagationImplementation::TWO_PHASE;
   ctx.coarsening.contraction.mode = ContractionMode::UNBUFFERED;
   ctx.coarsening.contraction.implementation = ContractionImplementation::TWO_PHASE;
-  ctx.refinement.algorithms = {
-      RefinementAlgorithm::GREEDY_BALANCER,
-      RefinementAlgorithm::LABEL_PROPAGATION,
-  };
-
+  ctx.refinement.kway_fm.gain_cache_strategy = GainCacheStrategy::SPARSE;
   return ctx;
 }
 

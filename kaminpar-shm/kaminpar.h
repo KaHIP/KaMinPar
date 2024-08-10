@@ -65,6 +65,7 @@ constexpr BlockWeight kInvalidBlockWeight = std::numeric_limits<BlockWeight>::ma
 enum class NodeOrdering {
   NATURAL,
   DEGREE_BUCKETS,
+  EXTERNAL_DEGREE_BUCKETS,
   IMPLICIT_DEGREE_BUCKETS
 };
 
@@ -426,7 +427,6 @@ struct PartitioningContext {
 
 struct GraphCompressionContext {
   bool enabled;
-  bool may_dismiss;
 
   bool compressed_edge_weights;
   bool high_degree_encoding;
