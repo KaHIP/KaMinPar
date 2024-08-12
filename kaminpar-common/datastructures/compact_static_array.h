@@ -8,12 +8,12 @@
  ******************************************************************************/
 #pragma once
 
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
 #include <limits>
 #include <memory>
-#include <concepts>
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/heap_profiler.h"

@@ -65,6 +65,7 @@ constexpr BlockWeight kInvalidBlockWeight = std::numeric_limits<BlockWeight>::ma
 enum class NodeOrdering {
   NATURAL,
   DEGREE_BUCKETS,
+  EXTERNAL_DEGREE_BUCKETS,
   IMPLICIT_DEGREE_BUCKETS
 };
 
@@ -147,6 +148,12 @@ enum class ContractionMode {
   UNBUFFERED_NAIVE,
 };
 
+enum class ContractionImplementation {
+  SINGLE_PHASE,
+  TWO_PHASE,
+  GROWING_HASH_TABLES
+};
+
 struct LabelPropagationCoarseningContext {
   int num_iterations;
   NodeID large_degree_threshold;
@@ -169,8 +176,9 @@ struct LabelPropagationCoarseningContext {
 
 struct ContractionCoarseningContext {
   ContractionMode mode;
+  ContractionImplementation implementation;
+
   double edge_buffer_fill_fraction;
-  bool use_growing_hash_tables;
 };
 
 struct ClusterCoarseningContext {
@@ -419,7 +427,6 @@ struct PartitioningContext {
 
 struct GraphCompressionContext {
   bool enabled;
-  bool may_dismiss;
 
   bool compressed_edge_weights;
   bool high_degree_encoding;

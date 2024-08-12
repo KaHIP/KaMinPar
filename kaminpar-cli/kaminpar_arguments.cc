@@ -26,15 +26,7 @@ CLI::Option_group *create_graph_compression_options(CLI::App *app, Context &ctx)
   auto *compression = app->add_option_group("Graph Compression");
 
   compression->add_flag("-c,--compress", ctx.compression.enabled, "Enable graph compression")
-      ->default_val(false);
-  compression
-      ->add_flag(
-          "--may-dismiss",
-          ctx.compression.may_dismiss,
-          "Whether the compressed graph is only used if it uses less memory than the uncompressed "
-          "graph."
-      )
-      ->default_val(false);
+      ->capture_default_str();
 
   return compression;
 }
@@ -96,9 +88,10 @@ CLI::Option_group *create_partitioning_rearrangement_options(CLI::App *app, Cont
   rearrangement->add_option("--node-order", ctx.node_ordering)
       ->transform(CLI::CheckedTransformer(get_node_orderings()).description(""))
       ->description(R"(Criteria by which the nodes of the graph are sorted and rearranged:
-  - natural:     keep node order of the graph (do not rearrange)
-  - deg-buckets: sort nodes by degree bucket and rearrange accordingly
-  - implicit-deg-buckets: nodes of the input graph are sorted by deg-buckets order)")
+  - natural:              keep node order of the graph (do not rearrange)
+  - deg-buckets:          sort nodes by degree bucket and rearrange accordingly
+  - external-deg-buckets: sort nodes by degree bucket and rearrange accordingly during IO
+  - implicit-deg-buckets: nodes of the input graph are stored in degree bucket order)")
       ->capture_default_str();
   rearrangement->add_option("--edge-order", ctx.edge_ordering)
       ->transform(CLI::CheckedTransformer(get_edge_orderings()).description(""))
@@ -313,9 +306,9 @@ Options are:
 }
 
 CLI::Option_group *create_contraction_coarsening_options(CLI::App *app, Context &ctx) {
-  auto *contraction = app->add_option_group("Coarsening -> Contraction");
+  auto *con = app->add_option_group("Coarsening -> Contraction");
 
-  contraction->add_option("--c-con-mode", ctx.coarsening.contraction.mode)
+  con->add_option("--c-con-mode", ctx.coarsening.contraction.mode)
       ->transform(CLI::CheckedTransformer(get_contraction_modes()).description(""))
       ->description(R"(The mode used for contraction.
 Options are:
@@ -325,22 +318,26 @@ Options are:
   - unbuffered-naive: Use no edge buffer by computing twice
   )")
       ->capture_default_str();
-  contraction
-      ->add_option(
-          "--c-con-edge-buffer-fill-fraction",
-          ctx.coarsening.contraction.edge_buffer_fill_fraction,
-          "The fraction of the total edges with which to fill the edge buffer"
-      )
-      ->capture_default_str();
-  contraction
-      ->add_option(
-          "--c-con-use-growing-hash-tables",
-          ctx.coarsening.contraction.use_growing_hash_tables,
-          "Whether to use growing hash tables to collect coarse edges (only for unbuffered mode)"
+  con->add_option("--c-con-unbuffered-impl", ctx.coarsening.contraction.implementation)
+      ->transform(CLI::CheckedTransformer(get_contraction_implementations()).description(""))
+      ->description(
+          R"(The implementation used for unbuffered contraction.
+Options are:
+  - single-phase:        Use single-phase unbuffered contraction
+  - two-phase:           Use two-phase unbuffered contraction
+  - growing-hash-tables: Use single-phase unbuffered contraction with growing hash tables
+  )"
       )
       ->capture_default_str();
 
-  return contraction;
+  con->add_option(
+         "--c-con-edge-buffer-fill-fraction",
+         ctx.coarsening.contraction.edge_buffer_fill_fraction,
+         "The fraction of the total edges with which to fill the edge buffer"
+  )
+      ->capture_default_str();
+
+  return con;
 }
 
 CLI::Option_group *create_initial_partitioning_options(CLI::App *app, Context &ctx) {

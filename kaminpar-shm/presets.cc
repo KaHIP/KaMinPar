@@ -60,7 +60,10 @@ std::unordered_set<std::string> get_preset_names() {
 
 Context create_default_context() {
   return {
-      .compression = {.enabled = false, .may_dismiss = false},
+      .compression =
+          {
+              .enabled = false,
+          },
       .node_ordering = NodeOrdering::DEGREE_BUCKETS,
       .edge_ordering = EdgeOrdering::NATURAL,
       .partitioning =
@@ -96,7 +99,7 @@ Context create_default_context() {
                               .second_phase_selection_strategy =
                                   SecondPhaseSelectionStrategy::FULL_RATING_MAP,
                               .second_phase_aggregation_strategy =
-                                  SecondPhaseAggregationStrategy::DIRECT,
+                                  SecondPhaseAggregationStrategy::BUFFERED,
                               .relabel_before_second_phase = false,
                               .two_hop_strategy = TwoHopStrategy::MATCH_THREADWISE,
                               .two_hop_threshold = 0.5,
@@ -111,6 +114,7 @@ Context create_default_context() {
                   {
                       // Context -> Coarsening -> Contraction
                       .mode = ContractionMode::BUFFERED,
+                      .implementation = ContractionImplementation::SINGLE_PHASE,
                       .edge_buffer_fill_fraction = 1,
                   },
               .contraction_limit = 2000,
@@ -176,7 +180,7 @@ Context create_default_context() {
                       .tie_breaking_strategy = TieBreakingStrategy::UNIFORM,
                       .second_phase_selection_strategy =
                           SecondPhaseSelectionStrategy::FULL_RATING_MAP,
-                      .second_phase_aggregation_strategy = SecondPhaseAggregationStrategy::DIRECT,
+                      .second_phase_aggregation_strategy = SecondPhaseAggregationStrategy::BUFFERED,
                   },
               .kway_fm =
                   {
@@ -237,18 +241,13 @@ Context create_default_context() {
 
 Context create_memory_context() {
   Context ctx = create_default_context();
+  ctx.node_ordering = NodeOrdering::EXTERNAL_DEGREE_BUCKETS;
   ctx.compression.enabled = true;
-  ctx.compression.may_dismiss = true;
-  ctx.coarsening.clustering.algorithm = ClusteringAlgorithm::LABEL_PROPAGATION;
-  ctx.coarsening.clustering.lp.impl = LabelPropagationImplementation::TWO_PHASE;
   ctx.coarsening.clustering.max_mem_free_coarsening_level = 1;
+  ctx.coarsening.clustering.lp.impl = LabelPropagationImplementation::TWO_PHASE;
   ctx.coarsening.contraction.mode = ContractionMode::UNBUFFERED;
-  ctx.coarsening.contraction.use_growing_hash_tables = true;
-  ctx.refinement.algorithms = {
-      RefinementAlgorithm::GREEDY_BALANCER,
-      RefinementAlgorithm::LABEL_PROPAGATION,
-  };
-
+  ctx.coarsening.contraction.implementation = ContractionImplementation::TWO_PHASE;
+  ctx.refinement.kway_fm.gain_cache_strategy = GainCacheStrategy::SPARSE;
   return ctx;
 }
 

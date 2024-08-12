@@ -11,12 +11,48 @@
       pkgs = import nixpkgs { inherit system; };
 
       inputs = builtins.attrValues {
-        inherit (pkgs) cmake ninja python312 gcc14 tbb_2021_11 sparsehash mpi;
+        inherit (pkgs) cmake ninja python3 gcc14 tbb_2021_11 sparsehash mpi numactl pkg-config;
         inherit (pkgs.llvmPackages_18) openmp;
+        inherit mt-kahypar;
       };
 
       devShellInputs = builtins.attrValues {
-        inherit (pkgs) fish ccache gdb;
+        inherit (pkgs) fish ccache mold-wrapped gdb;
+      };
+
+      mt-kahypar = pkgs.stdenv.mkDerivation {
+        pname = "Mt-KaHyPar";
+        version = "1.4";
+
+        src = pkgs.fetchFromGitHub {
+          owner = "kahypar";
+          repo = "mt-kahypar";
+          rev = "c51ffeaa3b1040530bf821b7f323e3790b147b33";
+
+          fetchSubmodules = true;
+          hash = "sha256-MlF6ZGsqtGQxzDJHbvo5uFj+6w8ehr9V4Ul5oBIGzws=";
+        };
+
+        nativeBuildInputs = builtins.attrValues {
+          inherit (pkgs) cmake ninja python3 gcc14 boost tbb_2021_11 hwloc;
+        };
+
+        cmakeFlags = [
+          # The cmake package does not handle absolute CMAKE_INSTALL_INCLUDEDIR
+          # correctly (setting it to an absolute path causes include files to go to
+          # $out/$out/include, because the absolute path is interpreted with root
+          # at $out).
+          # See: https://github.com/NixOS/nixpkgs/issues/144170
+          "-DCMAKE_INSTALL_INCLUDEDIR=include"
+          "-DCMAKE_INSTALL_LIBDIR=lib"
+        ];
+        enableParallelBuilding = true;
+
+        meta = {
+          description = "A shared-memory multilevel graph and hypergraph partitioner.";
+          homepage = "https://github.com/kahypar/mt-kahypar";
+          license = pkgs.lib.licenses.mit;
+        };
       };
     in
     {
@@ -47,7 +83,12 @@
         src = self;
         nativeBuildInputs = inputs;
 
-        cmakeFlags = [ "-DKAMINPAR_BUILD_DISTRIBUTED=On" "-DKAMINPAR_BUILD_TESTS=Off" ];
+        cmakeFlags = [
+          "-DKAMINPAR_BUILD_DISTRIBUTED=On"
+          "-DKAMINPAR_BUILD_WITH_MTKAHYPAR=On"
+          "-DKAMINPAR_BUILD_TESTS=Off"
+          "-DKAMINPAR_BUILD_WITH_CCACHE=Off"
+        ];
         enableParallelBuilding = true;
 
         meta = {

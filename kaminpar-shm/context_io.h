@@ -88,6 +88,10 @@ std::ostream &operator<<(std::ostream &out, const ContractionMode mode);
 
 std::unordered_map<std::string, ContractionMode> get_contraction_modes();
 
+std::ostream &operator<<(std::ostream &out, const ContractionImplementation mode);
+
+std::unordered_map<std::string, ContractionImplementation> get_contraction_implementations();
+
 void print(const Context &ctx, std::ostream &out);
 void print(const GraphCompressionContext &c_ctx, std::ostream &out);
 void print(const PartitioningContext &p_ctx, std::ostream &out);

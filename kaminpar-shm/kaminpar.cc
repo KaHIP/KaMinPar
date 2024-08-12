@@ -189,9 +189,15 @@ EdgeWeight KaMinPar::compute_partition(const BlockID k, BlockID *partition) {
   START_TIMER("Partitioning");
 
   if (!_was_rearranged) {
-    if (_ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS && !_graph_ptr->sorted()) {
-      CSRGraph &csr_graph = _graph_ptr->csr_graph();
-      _graph_ptr = std::make_unique<Graph>(graph::rearrange_by_degree_buckets(csr_graph));
+    if (_ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
+      if (_ctx.compression.enabled) {
+        LOG_WARNING << "A compressed graph cannot be rearranged by degree buckets. Disabling "
+                       "degree bucket ordering!";
+        _ctx.node_ordering = NodeOrdering::NATURAL;
+      } else if (!_graph_ptr->sorted()) {
+        CSRGraph &csr_graph = _graph_ptr->csr_graph();
+        _graph_ptr = std::make_unique<Graph>(graph::rearrange_by_degree_buckets(csr_graph));
+      }
     }
 
     if (_ctx.edge_ordering == EdgeOrdering::COMPRESSION && !_ctx.compression.enabled) {

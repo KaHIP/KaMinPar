@@ -239,12 +239,10 @@ int main(int argc, char *argv[]) {
   exp_group->add_option("--e-lambda", lambda, "Rate parameter.")->capture_default_str();
 
   CLI11_PARSE(app, argc, argv);
-
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, num_threads);
 
   LOG << "Reading input graph...";
-  Graph graph = io::read(graph_filename, graph_file_format, false, false, NodeOrdering::NATURAL);
-  CSRGraph &csr_graph = graph.csr_graph();
+  CSRGraph csr_graph = io::csr_read(graph_filename, graph_file_format, NodeOrdering::NATURAL);
 
   LOG << "Generating edge weights...";
   StaticArray<EdgeWeight> edge_weights = [&] {

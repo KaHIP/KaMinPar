@@ -52,14 +52,11 @@ bool MtKaHyParRefiner::refine(
     );
   }
   mt_kahypar_set_partitioning_parameters(
-      mt_kahypar_ctx,
-      static_cast<mt_kahypar_partition_id_t>(p_ctx.k),
-      p_ctx.epsilon,
-      KM1,
-      Random::get_seed()
+      mt_kahypar_ctx, static_cast<mt_kahypar_partition_id_t>(p_ctx.k), p_ctx.epsilon, KM1
   );
+  mt_kahypar_set_seed(Random::get_seed());
 
-  StaticArray<mt_kahypar_hypernode_weight_t> block_weights(p_ctx.k);
+  StaticArray<mt_kahypar_hypernode_weight_t> block_weights(p_ctx.k, static_array::noinit);
   p_graph.pfor_blocks([&](const BlockID b) { block_weights[b] = p_ctx.block_weights.max(b); });
   mt_kahypar_set_individual_target_block_weights(
       mt_kahypar_ctx, static_cast<mt_kahypar_partition_id_t>(p_ctx.k), block_weights.data()
@@ -71,33 +68,33 @@ bool MtKaHyParRefiner::refine(
   const mt_kahypar_hypernode_id_t num_vertices = p_graph.n();
   const mt_kahypar_hyperedge_id_t num_edges = p_graph.m() / 2; // Only need one direction
 
-  StaticArray<EdgeID> edge_position(2 * num_edges);
-  p_graph.pfor_nodes([&](const NodeID u) {
-    for (const auto [e, v] : p_graph.neighbors(u)) {
-      edge_position[e] = u < v;
-    }
+  StaticArray<EdgeID> edge_position(2 * num_edges, static_array::noinit);
+  p_graph.reified([&](const auto &graph) {
+    graph.pfor_nodes([&](const NodeID u) {
+      graph.neighbors(u, [&](const EdgeID e, const NodeID v) { edge_position[e] = u < v; });
+    });
   });
   parallel::prefix_sum(edge_position.begin(), edge_position.end(), edge_position.begin());
 
-  StaticArray<mt_kahypar_hypernode_id_t> edges(2 * num_edges);
-  StaticArray<mt_kahypar_hypernode_weight_t> edge_weights(num_edges);
-  StaticArray<mt_kahypar_hypernode_weight_t> vertex_weights(num_vertices);
-  edges.reserve(2 * num_edges);
-  edge_weights.reserve(num_edges);
+  StaticArray<mt_kahypar_hypernode_id_t> edges(2 * num_edges, static_array::noinit);
+  StaticArray<mt_kahypar_hypernode_weight_t> edge_weights(num_edges, static_array::noinit);
+  StaticArray<mt_kahypar_hypernode_weight_t> vertex_weights(num_vertices, static_array::noinit);
 
-  p_graph.pfor_nodes([&](const NodeID u) {
-    vertex_weights[u] = static_cast<mt_kahypar_hypernode_weight_t>(p_graph.node_weight(u));
+  p_graph.reified([&](const auto &graph) {
+    graph.pfor_nodes([&](const NodeID u) {
+      vertex_weights[u] = static_cast<mt_kahypar_hypernode_weight_t>(graph.node_weight(u));
 
-    for (const auto [e, v] : p_graph.neighbors(u)) {
-      if (v < u) { // Only need edges in one direction
-        continue;
-      }
+      graph.neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
+        if (v < u) { // Only need edges in one direction
+          return;
+        }
 
-      EdgeID position = edge_position[e] - 1;
-      edges[2 * position] = static_cast<mt_kahypar_hypernode_id_t>(u);
-      edges[2 * position + 1] = static_cast<mt_kahypar_hypernode_id_t>(v);
-      edge_weights[position] = static_cast<mt_kahypar_hypernode_weight_t>(p_graph.edge_weight(e));
-    }
+        EdgeID position = edge_position[e] - 1;
+        edges[2 * position] = static_cast<mt_kahypar_hypernode_id_t>(u);
+        edges[2 * position + 1] = static_cast<mt_kahypar_hypernode_id_t>(v);
+        edge_weights[position] = static_cast<mt_kahypar_hypernode_weight_t>(w);
+      });
+    });
   });
 
   mt_kahypar_hypergraph_t mt_kahypar_graph = mt_kahypar_create_graph(
@@ -107,7 +104,7 @@ bool MtKaHyParRefiner::refine(
   DBG << "Partition metrics before Mt-KaHyPar refinement: cut=" << metrics::edge_cut(p_graph)
       << " imbalance=" << metrics::imbalance(p_graph);
 
-  StaticArray<mt_kahypar_partition_id_t> partition(num_vertices);
+  StaticArray<mt_kahypar_partition_id_t> partition(num_vertices, static_array::noinit);
   p_graph.pfor_nodes([&](const NodeID u) { partition[u] = p_graph.block(u); });
 
   mt_kahypar_partitioned_hypergraph_t mt_kahypar_partitioned_graph =
@@ -122,7 +119,7 @@ bool MtKaHyParRefiner::refine(
   mt_kahypar_improve_partition(mt_kahypar_partitioned_graph, mt_kahypar_ctx, 1);
 
   // Copy partition back to our graph
-  StaticArray<mt_kahypar_partition_id_t> improved_partition(num_vertices);
+  StaticArray<mt_kahypar_partition_id_t> improved_partition(num_vertices, static_array::noinit);
   mt_kahypar_get_partition(mt_kahypar_partitioned_graph, improved_partition.data());
   p_graph.pfor_nodes([&](const NodeID u) { p_graph.set_block(u, improved_partition[u]); });
 

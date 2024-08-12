@@ -25,19 +25,13 @@ void GraphCompressionContext::setup(const Graph &graph) {
   streamvbyte_encoding = CompressedGraph::kStreamVByteEncoding;
 
   if (enabled) {
-    if (const auto *compressed_graph =
-            dynamic_cast<const CompressedGraph *>(graph.underlying_graph());
-        compressed_graph != nullptr) {
-      dismissed = false;
-      compression_ratio = compressed_graph->compression_ratio();
-      size_reduction = compressed_graph->size_reduction();
-      num_high_degree_nodes = compressed_graph->num_high_degree_nodes();
-      num_high_degree_parts = compressed_graph->num_high_degree_parts();
-      num_interval_nodes = compressed_graph->num_interval_nodes();
-      num_intervals = compressed_graph->num_intervals();
-    } else {
-      dismissed = true;
-    }
+    const auto &compressed_graph = graph.compressed_graph();
+    compression_ratio = compressed_graph.compression_ratio();
+    size_reduction = compressed_graph.size_reduction();
+    num_high_degree_nodes = compressed_graph.num_high_degree_nodes();
+    num_high_degree_parts = compressed_graph.num_high_degree_parts();
+    num_interval_nodes = compressed_graph.num_interval_nodes();
+    num_intervals = compressed_graph.num_intervals();
   }
 }
 

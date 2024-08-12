@@ -7,15 +7,19 @@
  ******************************************************************************/
 #include "kaminpar-dist/refinement/adapters/mtkahypar_refiner.h"
 
+#include "kaminpar-common/datastructures/static_array.h"
+
 #ifdef KAMINPAR_HAVE_MTKAHYPAR_LIB
 #include <libmtkahypar.h>
 
+#include "kaminpar-mpi/wrapper.h"
+
 #include "kaminpar-dist/graphutils/replicator.h"
-#include "kaminpar-dist/metrics.h"
 
 #include "kaminpar-shm/metrics.h"
 
 #include "kaminpar-common/asserting_cast.h"
+#include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/random.h"
 #endif // KAMINPAR_HAVE_MTKAHYPAR_LIB
 
@@ -80,14 +84,11 @@ bool MtKaHyParRefiner::refine() {
       );
     }
     mt_kahypar_set_partitioning_parameters(
-        mt_kahypar_ctx,
-        asserting_cast<mt_kahypar_partition_id_t>(_p_ctx.k),
-        _p_ctx.epsilon,
-        CUT,
-        Random::get_seed()
+        mt_kahypar_ctx, asserting_cast<mt_kahypar_partition_id_t>(_p_ctx.k), _p_ctx.epsilon, CUT
     );
+    mt_kahypar_set_seed(Random::get_seed());
 
-    StaticArray<mt_kahypar_hypernode_weight_t> block_weights(_p_ctx.k);
+    StaticArray<mt_kahypar_hypernode_weight_t> block_weights(_p_ctx.k, static_array::noinit);
     shm_p_graph->pfor_blocks([&](const BlockID b) {
       block_weights[b] =
           asserting_cast<mt_kahypar_hypernode_weight_t>(_p_ctx.graph->max_block_weight(b));
@@ -102,28 +103,33 @@ bool MtKaHyParRefiner::refine() {
     const auto num_vertices = asserting_cast<mt_kahypar_hypernode_id_t>(shm_graph->n());
     const auto num_edges = asserting_cast<mt_kahypar_hyperedge_id_t>(shm_graph->m() / 2);
 
-    StaticArray<EdgeID> edge_position(2 * num_edges);
-    shm_graph->pfor_nodes([&](const NodeID u) {
-      shm_graph->neighbors(u, [&](const EdgeID e, const NodeID v) { edge_position[e] = u < v; });
+    StaticArray<EdgeID> edge_position(2 * num_edges, static_array::noinit);
+    shm_graph->reified([&](const auto &graph) {
+      graph.pfor_nodes([&](const NodeID u) {
+        graph.neighbors(u, [&](const EdgeID e, const NodeID v) { edge_position[e] = u < v; });
+      });
     });
+
     parallel::prefix_sum(edge_position.begin(), edge_position.end(), edge_position.begin());
 
-    StaticArray<mt_kahypar_hypernode_id_t> edges(2 * num_edges);
-    StaticArray<mt_kahypar_hypernode_weight_t> edge_weights(num_edges);
-    StaticArray<mt_kahypar_hypernode_weight_t> vertex_weights(num_vertices);
+    StaticArray<mt_kahypar_hypernode_id_t> edges(2 * num_edges, static_array::noinit);
+    StaticArray<mt_kahypar_hypernode_weight_t> edge_weights(num_edges, static_array::noinit);
+    StaticArray<mt_kahypar_hypernode_weight_t> vertex_weights(num_vertices, static_array::noinit);
 
-    shm_graph->pfor_nodes([&](const NodeID u) {
-      vertex_weights[u] = static_cast<mt_kahypar_hypernode_weight_t>(shm_graph->node_weight(u));
+    shm_graph->reified([&](const auto &graph) {
+      graph.pfor_nodes([&](const NodeID u) {
+        vertex_weights[u] = static_cast<mt_kahypar_hypernode_weight_t>(graph.node_weight(u));
 
-      shm_graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
-        if (v < u) { // Only need edges in one direction
-          return;
-        }
+        graph.neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
+          if (v < u) { // Only need edges in one direction
+            return;
+          }
 
-        EdgeID position = edge_position[e] - 1;
-        edges[2 * position] = asserting_cast<mt_kahypar_hypernode_id_t>(u);
-        edges[2 * position + 1] = asserting_cast<mt_kahypar_hypernode_id_t>(v);
-        edge_weights[position] = asserting_cast<mt_kahypar_hypernode_weight_t>(w);
+          EdgeID position = edge_position[e] - 1;
+          edges[2 * position] = asserting_cast<mt_kahypar_hypernode_id_t>(u);
+          edges[2 * position + 1] = asserting_cast<mt_kahypar_hypernode_id_t>(v);
+          edge_weights[position] = asserting_cast<mt_kahypar_hypernode_weight_t>(w);
+        });
       });
     });
 
@@ -135,7 +141,9 @@ bool MtKaHyParRefiner::refine() {
         << shm::metrics::edge_cut(*shm_p_graph)
         << " imbalance=" << shm::metrics::imbalance(*shm_p_graph);
 
-    StaticArray<mt_kahypar_partition_id_t> mt_kahypar_original_partition(num_vertices);
+    StaticArray<mt_kahypar_partition_id_t> mt_kahypar_original_partition(
+        num_vertices, static_array::noinit
+    );
     shm_p_graph->pfor_nodes([&](const NodeID u) {
       mt_kahypar_original_partition[u] =
           static_cast<mt_kahypar_partition_id_t>(shm_p_graph->block(u));
@@ -153,7 +161,9 @@ bool MtKaHyParRefiner::refine() {
     mt_kahypar_improve_partition(mt_kahypar_partitioned_graph, mt_kahypar_ctx, 1);
 
     // Copy partition back to our graph
-    StaticArray<mt_kahypar_partition_id_t> mt_kahypar_improved_partition(num_vertices);
+    StaticArray<mt_kahypar_partition_id_t> mt_kahypar_improved_partition(
+        num_vertices, static_array::noinit
+    );
     mt_kahypar_get_partition(mt_kahypar_partitioned_graph, mt_kahypar_improved_partition.data());
     shm_p_graph->pfor_nodes([&](const NodeID u) {
       shm_p_graph->set_block(u, asserting_cast<BlockID>(mt_kahypar_improved_partition[u]));
