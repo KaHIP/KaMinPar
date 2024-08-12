@@ -50,7 +50,7 @@ kaminpar_add_shm_test(test_shm_subgraph_extraction shm/graphutils/subgraph_extra
 kaminpar_add_shm_test(test_shm_partition_utils shm/graphutils/partition_utils_test.cc)
 
 # KaMinPar -> Coarsening
-kaminpar_add_shm_test(test_shm_graph_utils shm/coarsening/cluster_contraction_test.cc)
+kaminpar_add_shm_test(test_shm_cluster_contraction shm/coarsening/cluster_contraction_test.cc)
 
 # KaMinPar -> Data structures
 kaminpar_add_shm_test(test_shm_graph shm/datastructures/graph_test.cc)
