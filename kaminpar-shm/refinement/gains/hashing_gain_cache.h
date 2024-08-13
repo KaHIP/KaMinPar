@@ -24,6 +24,7 @@
 #include "kaminpar-common/degree_buckets.h"
 #include "kaminpar-common/inline.h"
 #include "kaminpar-common/logger.h"
+#include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
@@ -103,70 +104,23 @@ public:
     _n = _graph->n();
     _k = _p_graph->k();
 
-    _node_threshold = 0;
-    _bucket_threshold = 0;
-    _cache_offsets[0] = 0;
-
-    // Gains for nodes in the dense part of the gain cache are stored in small hash tables with
-    // linear probing. Each slot of the hash table stores the right key (i.e., block) and its gain
-    // value in the same 32 bit / 64 bit integer (depending on the size of the EdgeWeight data
-    // type).
-    // Thus, we compute the number of bits that we must reserve for the block IDs.
-    _bits_for_key = math::ceil_log2(_k);
-    DBG << "Reserve " << (sizeof(UnsignedEdgeWeight) * 8 - _bits_for_key) << " of "
-        << sizeof(UnsignedEdgeWeight) * 8 << " bits for gain values, " << _bits_for_key
-        << " bits for block IDs";
-
-    // Size of the gain cache (dense + sparse part)
-    std::size_t gc_size = 0;
-
-    if (_graph->sorted()) {
-      DBG << "Graph was rearranged by degree buckets: using the mixed dense-sparse strategy";
-
-      // Compute the degree that we use to determine the threshold degree bucket: nodes in buckets
-      // up to the one determined by this degree are assigned to the dense part, the other ones to
-      // the sparse part.
-      const EdgeID degree_threshold = std::max<EdgeID>(
-          _k * _ctx.refinement.kway_fm.k_based_high_degree_threshold, // Usually k * 1
-          _ctx.refinement.kway_fm.constant_high_degree_threshold      // Usually 0
-      );
-
-      // (i) compute size of the dense part (== hash tables) ...
-      for (_bucket_threshold = 0;
-           _node_threshold < _n && _graph->degree(_node_threshold) < degree_threshold;
-           ++_bucket_threshold) {
-        _cache_offsets[_bucket_threshold] = gc_size;
-        _node_threshold += _graph->bucket_size(_bucket_threshold);
-        gc_size += _graph->bucket_size(_bucket_threshold) *
-                   (lowest_degree_in_bucket<NodeID>(_bucket_threshold + 1));
-      }
-      std::fill(_cache_offsets.begin() + _bucket_threshold, _cache_offsets.end(), gc_size);
-
-      // + ... (ii) size of the sparse part (table with k entries per node)
-      gc_size += static_cast<std::size_t>(_n - _node_threshold) * _k;
-
-      DBG << "Initialized with degree threshold: " << degree_threshold
-          << ", node threshold: " << _node_threshold << ", bucket threshold: " << _bucket_threshold;
-      DBG << "Cache offsets: " << _cache_offsets;
-    } else {
-      // For graphs that do not have degree buckets, assign all nodes to the sparse part
-      gc_size = 1ul * _n * _k;
-
-      DBG << "Graph was *not* rearranged by degree buckets: using the sparse strategy only (i.e., "
-             "using node threshold: "
-          << _node_threshold << ", bucket threshold: " << _bucket_threshold << ")";
-      DBG << "Cache offsets: " << _cache_offsets;
+    if (_offset.size() < _n + 1) {
+      SCOPED_TIMER("Allocation");
+      _offset.resize(_n + 1);
     }
 
-    _sparse_offset = _cache_offsets[_bucket_threshold];
+    _offset.front() = 0;
+    _graph->pfor_nodes([&](const NodeID u) {
+      _offset[u + 1] = std::min<EdgeID>(math::ceil2(_graph->degree(u)), _k);
+    });
+    parallel::prefix_sum(_offset.begin(), _offset.begin() + _n + 1, _offset.begin());
+    const std::size_t gain_cache_size = _offset.back();
 
-    DBG << "Computed gain cache size: " << gc_size << " entries, consumes "
-        << (gc_size * sizeof(UnsignedEdgeWeight) / 1024.0) << " KiB memory";
-
-    if (_gain_cache.size() < gc_size) {
-      DBG << "Re-allocating dense gain cache to " << gc_size * sizeof(EdgeWeight) / 1024 << " KiB";
+    if (_gain_cache.size() < gain_cache_size) {
       SCOPED_TIMER("Allocation");
-      _gain_cache.resize(gc_size);
+      DBG << "Re-allocating dense gain cache to " << gain_cache_size * sizeof(EdgeWeight) / 1024
+          << " KiB";
+      _gain_cache.resize(gain_cache_size);
     }
 
     if (_weighted_degrees.size() < _n) {
@@ -174,7 +128,13 @@ public:
       _weighted_degrees.resize(_n);
     }
 
-    init_buckets();
+    _bits_for_key = math::ceil_log2(_k);
+    DBG << "Gain cache summary: have " << _n << " nodes, " << _k << " blocks";
+    DBG << "  Reserve " << (sizeof(UnsignedEdgeWeight) * 8 - _bits_for_key) << " of "
+        << sizeof(UnsignedEdgeWeight) * 8 << " bits for gain values";
+    DBG << "  Reserve " << _bits_for_key << " of " << sizeof(UnsignedEdgeWeight) * 8
+        << " bits for block IDs";
+
     reset();
     recompute_all();
   }
@@ -200,8 +160,8 @@ public:
   // Forcing inlining here seems to be very important
   template <typename Lambda>
   KAMINPAR_INLINE void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
-    if (in_sparse_part(node)) {
-      const EdgeWeight conn_from = kIteratesExactGains ? conn_sparse(node, from) : 0;
+    if (use_full_table(node)) {
+      const EdgeWeight conn_from = kIteratesExactGains ? conn_full_table(node, from) : 0;
 
       for (BlockID to = 0; to < _k; ++to) {
         if (from == to) {
@@ -209,21 +169,21 @@ public:
         }
 
         if constexpr (kIteratesNonadjacentBlocks) {
-          lambda(to, [&] { return conn_sparse(node, to) - conn_from; });
+          lambda(to, [&] { return conn_full_table(node, to) - conn_from; });
         } else {
-          const EdgeWeight conn_to = conn_sparse(node, to);
+          const EdgeWeight conn_to = conn_full_table(node, to);
           if (conn_to > 0) {
             lambda(to, [&] { return conn_to - conn_from; });
           }
         }
       }
     } else {
-      const EdgeWeight conn_from = kIteratesExactGains ? conn_dense(node, from) : 0;
+      const EdgeWeight conn_from = kIteratesExactGains ? conn_hash_table(node, from) : 0;
 
       if constexpr (kIteratesNonadjacentBlocks) {
         auto &buffer = _dense_buffer_ets.local();
 
-        create_dense_wrapper(node).for_each([&](const BlockID to, const EdgeWeight conn_to) {
+        create_hash_table(node).for_each([&](const BlockID to, const EdgeWeight conn_to) {
           buffer.set(to, conn_to);
         });
 
@@ -235,7 +195,7 @@ public:
 
         buffer.clear();
       } else {
-        create_dense_wrapper(node).for_each([&](const BlockID to, const EdgeWeight conn_to) {
+        create_hash_table(node).for_each([&](const BlockID to, const EdgeWeight conn_to) {
           if (to != from) {
             lambda(to, [&] { return conn_to - conn_from; });
           }
@@ -248,13 +208,13 @@ public:
     IFSTATS(++_stats_ets.local().num_moves);
 
     _graph->adjacent_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
-      if (in_sparse_part(v)) {
-        __atomic_fetch_sub(&_gain_cache[index_sparse(v, block_from)], weight, __ATOMIC_RELAXED);
-        __atomic_fetch_add(&_gain_cache[index_sparse(v, block_to)], weight, __ATOMIC_RELAXED);
+      if (use_full_table(v)) {
+        __atomic_fetch_sub(&_gain_cache[index_full_table(v, block_from)], weight, __ATOMIC_RELAXED);
+        __atomic_fetch_add(&_gain_cache[index_full_table(v, block_to)], weight, __ATOMIC_RELAXED);
 
         IFSTATS(++_stats_ets.local().num_sparse_updates);
       } else {
-        auto table = create_dense_wrapper(v);
+        auto table = create_hash_table(v);
 
         lock(v);
         [[maybe_unused]] bool was_deleted = table.decrease_by(block_from, weight);
@@ -304,33 +264,7 @@ public:
 
 private:
   //
-  // Degree buckets
-  //
-
-  void init_buckets() {
-    _buckets.front() = 0;
-    for (int bucket = 0; bucket < _graph->number_of_buckets(); ++bucket) {
-      _buckets[bucket + 1] = _buckets[bucket] + _graph->bucket_size(bucket);
-    }
-    std::fill(_buckets.begin() + _graph->number_of_buckets(), _buckets.end(), _graph->n());
-  }
-
-  [[nodiscard]] int find_bucket(const NodeID node) const {
-    // @todo: which variation is best?
-    // (a) linear scan over _buckets
-    // (b) degree() + fast log2
-    // (c) binary search on _buckets
-    int bucket = 0;
-    while (node >= _buckets[bucket + 1]) {
-      for (int i = 0; i < 8; ++i) {
-        bucket += (node >= _buckets[bucket + 1]);
-      }
-    }
-    return bucket;
-  }
-
-  //
-  // Locking (dense part)
+  // Locking (hash table)
   //
 
   void lock(const NodeID node) {
@@ -366,77 +300,77 @@ private:
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight
   weighted_degree_to(const NodeID node, const BlockID block) const {
-    IFSTATS(_stats_ets.local().num_sparse_queries += in_sparse_part(node));
-    IFSTATS(_stats_ets.local().num_dense_queries += !in_sparse_part(node));
+    IFSTATS(_stats_ets.local().num_sparse_queries += use_full_table(node));
+    IFSTATS(_stats_ets.local().num_dense_queries += !use_full_table(node));
 
-    if (in_sparse_part(node)) {
-      const std::size_t idx = index_sparse(node, block);
+    if (use_full_table(node)) {
+      const std::size_t idx = index_full_table(node, block);
       return static_cast<EdgeWeight>(__atomic_load_n(&_gain_cache[idx], __ATOMIC_RELAXED));
     } else {
-      return static_cast<EdgeWeight>(create_dense_wrapper(node).get(block));
+      return static_cast<EdgeWeight>(create_hash_table(node).get(block));
     }
   }
 
   //
-  // Lookups (dense part)
+  // Lookups (hash table)
   //
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight
-  conn_dense(const NodeID node, const BlockID block) const {
-    return weighted_degree_to_dense(node, block);
+  conn_hash_table(const NodeID node, const BlockID block) const {
+    return weighted_degree_to_hash_table(node, block);
   }
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight
-  weighted_degree_to_dense(const NodeID node, const BlockID block) const {
+  weighted_degree_to_hash_table(const NodeID node, const BlockID block) const {
     IFSTATS(++_stats_ets.local().num_dense_queries);
-    return static_cast<EdgeWeight>(create_dense_wrapper(node).get(block));
-  }
-
-  [[nodiscard]] KAMINPAR_INLINE std::pair<std::size_t, std::size_t> index_dense(const NodeID node
-  ) const {
-    const int bucket = find_bucket(node);
-    const std::size_t size = lowest_degree_in_bucket<NodeID>(bucket + 1);
-    KASSERT(math::is_power_of_2(size));
-    return std::make_pair(_cache_offsets[bucket] + (node - _buckets[bucket]) * size, size);
+    return static_cast<EdgeWeight>(create_hash_table(node).get(block));
   }
 
   [[nodiscard]] KAMINPAR_INLINE CompactHashMap<UnsignedEdgeWeight const>
-  create_dense_wrapper(const NodeID node) const {
-    const auto [start, size] = index_dense(node);
+  create_hash_table(const NodeID node) const {
+    const std::size_t start = _offset[node];
+    const std::size_t size = _offset[node + 1] - start;
+    KASSERT(math::is_power_of_2(size));
     return {_gain_cache.data() + start, size, _bits_for_key};
   }
 
   [[nodiscard]] KAMINPAR_INLINE CompactHashMap<UnsignedEdgeWeight>
-  create_dense_wrapper(const NodeID node) {
-    const auto [start, size] = index_dense(node);
+  create_hash_table(const NodeID node) {
+    const std::size_t start = _offset[node];
+    const std::size_t size = _offset[node + 1] - start;
+    KASSERT(math::is_power_of_2(size));
     return {_gain_cache.data() + start, size, _bits_for_key};
   }
 
   //
-  // Lookups (sparse part)
+  // Lookups (full table)
   //
 
   [[nodiscard]] KAMINPAR_INLINE std::size_t
-  index_sparse(const NodeID node, const BlockID block) const {
-    return _sparse_offset + 1ull * (node - _node_threshold) * _k + block;
+  index_full_table(const NodeID node, const BlockID block) const {
+    return _offset[node] + block;
   }
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight
-  conn_sparse(const NodeID node, const BlockID block) const {
-    return weighted_degree_to_sparse(node, block);
+  conn_full_table(const NodeID node, const BlockID block) const {
+    return weighted_degree_to_full_table(node, block);
   }
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight
-  weighted_degree_to_sparse(const NodeID node, const BlockID block) const {
+  weighted_degree_to_full_table(const NodeID node, const BlockID block) const {
     IFSTATS(++_stats_ets.local().num_sparse_queries);
     return static_cast<EdgeWeight>(
-        __atomic_load_n(&_gain_cache[index_sparse(node, block)], __ATOMIC_RELAXED)
+        __atomic_load_n(&_gain_cache[index_full_table(node, block)], __ATOMIC_RELAXED)
     );
   }
 
-  [[nodiscard]] KAMINPAR_INLINE bool in_sparse_part(const NodeID node) const {
-    return node >= _node_threshold;
+  [[nodiscard]] KAMINPAR_INLINE bool use_full_table(const NodeID node) const {
+    return _offset[node + 1] - _offset[node] == _k;
   }
+
+  //
+  // Init (mixed)
+  //
 
   void reset() {
     SCOPED_TIMER("Reset gain cache");
@@ -456,8 +390,8 @@ private:
 
     IF_STATS {
       _graph->pfor_nodes([&](const NodeID u) {
-        if (!in_sparse_part(u)) {
-          auto map = create_dense_wrapper(u);
+        if (!use_full_table(u)) {
+          auto map = create_hash_table(u);
 
           auto &stats = _stats_ets.local();
           stats.total_dense_fill_degree += 1.0 * map.count() / map.capacity();
@@ -470,14 +404,14 @@ private:
   void recompute_node(const NodeID u) {
     _weighted_degrees[u] = 0;
 
-    if (in_sparse_part(u)) {
+    if (use_full_table(u)) {
       _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
         const BlockID block_v = _p_graph->block(v);
         _weighted_degrees[u] += static_cast<UnsignedEdgeWeight>(weight);
-        _gain_cache[index_sparse(u, block_v)] += static_cast<UnsignedEdgeWeight>(weight);
+        _gain_cache[index_full_table(u, block_v)] += static_cast<UnsignedEdgeWeight>(weight);
       });
     } else {
-      auto ht = create_dense_wrapper(u);
+      auto ht = create_hash_table(u);
       _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
         const BlockID block_v = _p_graph->block(v);
         _weighted_degrees[u] += static_cast<UnsignedEdgeWeight>(weight);
@@ -523,17 +457,7 @@ private:
   NodeID _n = kInvalidNodeID;
   BlockID _k = kInvalidBlockID;
 
-  // First node ID assigned to the sparse part of the gain cache
-  NodeID _node_threshold = kInvalidNodeID;
-
-  // First degree bucket assigned to the sparse part of the gain cache
-  int _bucket_threshold = -1;
-
-  // Copy of the degree buckets
-  std::array<NodeID, kNumberOfDegreeBuckets<NodeID>> _buckets;
-
-  // For each degree bucket, the offset for vertices in that bucket in the gain cache
-  std::array<std::size_t, kNumberOfDegreeBuckets<NodeID>> _cache_offsets;
+  StaticArray<EdgeID> _offset;
 
   // Number of bits reserved in hash table cells to store the key (i.e., block ID) of the entry
   int _bits_for_key = 0;
