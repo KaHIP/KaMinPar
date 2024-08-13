@@ -438,7 +438,10 @@ private:
 
 } // namespace fm
 
-template <typename Graph, typename GainCache> class FMRefinerCore : public Refiner {
+template <typename Graph, template <typename> typename GainCacheTemplate>
+class FMRefinerCore : public Refiner {
+  using GainCache = GainCacheTemplate<Graph>;
+
 public:
   FMRefinerCore(const Context &ctx) : _ctx(ctx), _fm_ctx(ctx.refinement.kway_fm) {}
 
@@ -583,15 +586,15 @@ void FMRefiner::initialize(const PartitionedGraph &p_graph) {
     p_graph.reified([&]<typename Graph>(Graph &graph) {
       switch (_ctx.refinement.kway_fm.gain_cache_strategy) {
       case GainCacheStrategy::HASHING:
-        _core = std::make_unique<FMRefinerCore<Graph, NormalHashingGainCache<Graph>>>(_ctx);
+        _core = std::make_unique<FMRefinerCore<Graph, NormalHashingGainCache>>(_ctx);
         break;
 
       case GainCacheStrategy::SPARSE:
-        _core = std::make_unique<FMRefinerCore<Graph, NormalSparseGainCache<Graph>>>(_ctx);
+        _core = std::make_unique<FMRefinerCore<Graph, NormalSparseGainCache>>(_ctx);
         break;
 
       case GainCacheStrategy::LARGE_K:
-        _core = std::make_unique<FMRefinerCore<Graph, LargeKSparseGainCache<Graph>>>(_ctx);
+        _core = std::make_unique<FMRefinerCore<Graph, LargeKSparseGainCache>>(_ctx);
         break;
 
       default:
