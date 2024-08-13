@@ -268,8 +268,6 @@ std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies() {
       {"dense", GainCacheStrategy::DENSE},
       {"largek", GainCacheStrategy::LARGE_K},
       {"on-the-fly", GainCacheStrategy::ON_THE_FLY},
-      {"hybrid", GainCacheStrategy::HYBRID},
-      {"tracing", GainCacheStrategy::TRACING},
   };
 }
 
@@ -285,10 +283,6 @@ std::ostream &operator<<(std::ostream &out, const GainCacheStrategy strategy) {
     return out << "largek";
   case GainCacheStrategy::ON_THE_FLY:
     return out << "on-the-fly";
-  case GainCacheStrategy::HYBRID:
-    return out << "hybrid";
-  case GainCacheStrategy::TRACING:
-    return out << "tracing";
   }
 
   return out << "<invalid>";
@@ -564,13 +558,6 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
         << (r_ctx.kway_fm.unlock_seed_nodes ? "unlock" : "lock") << ", locally moved nodes: "
         << (r_ctx.kway_fm.unlock_locally_moved_nodes ? "unlock" : "lock") << "\n";
     out << "  Gain cache:                 " << r_ctx.kway_fm.gain_cache_strategy << "\n";
-    if (r_ctx.kway_fm.gain_cache_strategy == GainCacheStrategy::HYBRID) {
-      out << "  High-degree threshold:\n";
-      out << "    based on k:               " << r_ctx.kway_fm.k_based_high_degree_threshold
-          << "\n";
-      out << "    constant:                 " << r_ctx.kway_fm.constant_high_degree_threshold
-          << "\n";
-    }
   }
   if (r_ctx.includes_algorithm(RefinementAlgorithm::JET)) {
     out << "Jet refinement:               " << RefinementAlgorithm::JET << "\n";

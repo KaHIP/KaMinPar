@@ -14,7 +14,7 @@
  * since the implementation exhibits undefined behaviour if this assumption does
  * not work out ...
  *
- * @file:   dense_gain_cache.h
+ * @file:   sparse_gain_cache.h
  * @author: Daniel Seemaier
  * @date:   07.02.2024
  ******************************************************************************/
@@ -47,6 +47,7 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
+
 template <
     typename GraphType,
     template <typename>
@@ -293,17 +294,6 @@ public:
     return weighted_degree(node) != weighted_degree_to(node, block_of_node);
   }
 
-  [[nodiscard]] bool validate() const {
-    bool valid = true;
-    _graph->pfor_nodes([&](const NodeID u) {
-      if (!dbg_check_cached_gain_for_node(u)) {
-        LOG_WARNING << "gain cache invalid for node " << u;
-        valid = false;
-      }
-    });
-    return valid;
-  }
-
   void print_statistics() const {
     Statistics stats = _stats_ets.combine(std::plus{});
 
@@ -472,7 +462,6 @@ private:
     SCOPED_TIMER("Recompute gain cache");
 
     _graph->pfor_nodes([&](const NodeID u) { recompute_node(u); });
-    KASSERT(validate(), "dense gain cache verification failed after recomputation", assert::heavy);
 
     IF_STATS {
       _graph->pfor_nodes([&](const NodeID u) {
@@ -504,35 +493,6 @@ private:
         ht.increase_by(block_v, static_cast<UnsignedEdgeWeight>(weight));
       });
     }
-  }
-
-  [[nodiscard]] bool dbg_check_cached_gain_for_node(const NodeID u) const {
-    const BlockID block_u = _p_graph->block(u);
-    std::vector<EdgeWeight> actual_external_degrees(_k, 0);
-    EdgeWeight actual_weighted_degree = 0;
-
-    _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
-      const BlockID block_v = _p_graph->block(v);
-
-      actual_weighted_degree += weight;
-      actual_external_degrees[block_v] += weight;
-    });
-
-    for (BlockID b = 0; b < _k; ++b) {
-      if (actual_external_degrees[b] != weighted_degree_to(u, b)) {
-        LOG_WARNING << "For node " << u << ": cached weighted degree to block " << b << " is "
-                    << weighted_degree_to(u, b) << " but should be " << actual_external_degrees[b];
-        return false;
-      }
-    }
-
-    if (actual_weighted_degree != weighted_degree(u)) {
-      LOG_WARNING << "For node " << u << ": cached weighted degree is " << weighted_degree(u)
-                  << " but should be " << actual_weighted_degree;
-      return false;
-    }
-
-    return true;
   }
 
   const Context &_ctx;
@@ -748,4 +708,5 @@ using NormalSparseGainCache = SparseGainCache<Graph, SparseDeltaGainCache, true>
 
 template <typename Graph>
 using LargeKSparseGainCache = SparseGainCache<Graph, LargeKSparseDeltaGainCache, false>;
+
 } // namespace kaminpar::shm

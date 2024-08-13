@@ -21,7 +21,8 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
-template <typename GainCache> class DenseDeltaGainCache;
+
+template <typename> class DenseDeltaGainCache;
 
 template <
     typename GraphType,
@@ -30,14 +31,12 @@ template <
 class DenseGainCache {
   SET_DEBUG(true);
 
-  template <typename, typename> friend class DenseDeltaGainCache;
+  template <typename> friend class DenseDeltaGainCache;
 
 public:
   using Graph = GraphType;
-  using PartitionedGraph = GenericPartitionedGraph<Graph>;
-
   using Self = DenseGainCache<Graph, iterate_nonadjacent_blocks, iterate_exact_gains>;
-  using DeltaCache = DenseDeltaGainCache<Self>;
+  using DeltaGainCache = DenseDeltaGainCache<Self>;
 
   // gains() will iterate over all blocks, including those not adjacent to the node.
   constexpr static bool kIteratesNonadjacentBlocks = iterate_nonadjacent_blocks;
@@ -54,7 +53,10 @@ public:
         << " KiB";
   }
 
-  void initialize(const PartitionedGraph &p_graph) {
+  void initialize(const Graph &graph, const PartitionedGraph &p_graph) {
+    _graph = &graph;
+    _p_graph = &p_graph;
+
     _n = p_graph.n();
     _k = p_graph.k();
 
@@ -66,13 +68,14 @@ public:
           << gc_size * sizeof(EdgeWeight) / 1024 << " KiB";
       _gain_cache.resize(gc_size, static_array::noinit);
     }
+
     if (_weighted_degrees.size() < _n) {
       SCOPED_TIMER("Allocation");
       _weighted_degrees.resize(_n, static_array::noinit);
     }
 
     reset();
-    recompute_all(p_graph);
+    recompute_all();
   }
 
   void free() {
@@ -115,13 +118,8 @@ public:
     }
   }
 
-  void move(
-      const PartitionedGraph &p_graph,
-      const NodeID node,
-      const BlockID block_from,
-      const BlockID block_to
-  ) {
-    p_graph.adjacent_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
+  void move(const NodeID node, const BlockID block_from, const BlockID block_to) {
+    _graph->adjacent_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
       __atomic_fetch_sub(&_gain_cache[index(v, block_from)], weight, __ATOMIC_RELAXED);
       __atomic_fetch_add(&_gain_cache[index(v, block_to)], weight, __ATOMIC_RELAXED);
     });
@@ -130,17 +128,6 @@ public:
   [[nodiscard]] bool is_border_node(const NodeID node, const BlockID block) const {
     KASSERT(node < _weighted_degrees.size());
     return _weighted_degrees[node] != weighted_degree_to(node, block);
-  }
-
-  [[nodiscard]] bool validate(const PartitionedGraph &p_graph) const {
-    bool valid = true;
-    p_graph.pfor_nodes([&](const NodeID u) {
-      if (!check_cached_gain_for_node(p_graph, u)) {
-        LOG_WARNING << "gain cache invalid for node " << u;
-        valid = false;
-      }
-    });
-    return valid;
   }
 
   void print_statistics() const {
@@ -166,55 +153,28 @@ private:
     });
   }
 
-  void recompute_all(const PartitionedGraph &p_graph) {
+  void recompute_all() {
     SCOPED_TIMER("Recompute gain cache");
-    p_graph.pfor_nodes([&](const NodeID u) { recompute_node(p_graph, u); });
+    _graph->pfor_nodes([&](const NodeID u) { recompute_node(u); });
   }
 
-  void recompute_node(const PartitionedGraph &p_graph, const NodeID u) {
-    KASSERT(u < p_graph.n());
-    KASSERT(p_graph.block(u) < p_graph.k());
+  void recompute_node(const NodeID u) {
+    KASSERT(u < _n);
+    KASSERT(_p_graph->block(u) < _k);
 
-    const BlockID block_u = p_graph.block(u);
+    const BlockID block_u = _p_graph->block(u);
     _weighted_degrees[u] = 0;
 
-    p_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
-      const BlockID block_v = p_graph.block(v);
+    _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+      const BlockID block_v = _p_graph->block(v);
 
       _gain_cache[index(u, block_v)] += weight;
       _weighted_degrees[u] += weight;
     });
   }
 
-  [[nodiscard]] bool
-  check_cached_gain_for_node(const PartitionedGraph &p_graph, const NodeID u) const {
-    const BlockID block_u = p_graph.block(u);
-    std::vector<EdgeWeight> actual_external_degrees(_k, 0);
-    EdgeWeight actual_weighted_degree = 0;
-
-    p_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
-      const BlockID block_v = p_graph.block(v);
-
-      actual_weighted_degree += weight;
-      actual_external_degrees[block_v] += weight;
-    });
-
-    for (BlockID b = 0; b < _k; ++b) {
-      if (actual_external_degrees[b] != weighted_degree_to(u, b)) {
-        LOG_WARNING << "For node " << u << ": cached weighted degree to block " << b << " is "
-                    << weighted_degree_to(u, b) << " but should be " << actual_external_degrees[b];
-        return false;
-      }
-    }
-
-    if (actual_weighted_degree != _weighted_degrees[u]) {
-      LOG_WARNING << "For node " << u << ": cached weighted degree is " << _weighted_degrees[u]
-                  << " but should be " << actual_weighted_degree;
-      return false;
-    }
-
-    return true;
-  }
+  const Graph *_graph = nullptr;
+  const PartitionedGraph *_p_graph = nullptr;
 
   NodeID _n;
   BlockID _k;
@@ -226,16 +186,15 @@ private:
 template <typename GainCacheType> class DenseDeltaGainCache {
 public:
   using GainCache = GainCacheType;
-  using PartitionedGraph = typename GainCache::PartitionedGraph;
-  using DeltaPartitionedGraph = GenericDeltaPartitionedGraph<PartitionedGraph>;
 
   // Delta gain caches can only be used with GainCaches that iterate over all blocks, since there
   // might be new connections to non-adjacent blocks in the delta graph.
   static_assert(GainCache::kIteratesNonadjacentBlocks);
   constexpr static bool kIteratesExactGains = GainCache::kIteratesExactGains;
 
-  DenseDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph & /* d_graph */)
-      : _gain_cache(gain_cache) {}
+  DenseDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph &d_graph)
+      : _gain_cache(gain_cache),
+        _d_graph(d_graph) {}
 
   [[nodiscard]] EdgeWeight conn(const NodeID node, const BlockID block) const {
     return _gain_cache.conn(node, block) + conn_delta(node, block);
@@ -259,13 +218,8 @@ public:
     });
   }
 
-  void move(
-      const DeltaPartitionedGraph &d_graph,
-      const NodeID u,
-      const BlockID block_from,
-      const BlockID block_to
-  ) {
-    d_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+  void move(const NodeID u, const BlockID block_from, const BlockID block_to) {
+    _d_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
       _gain_cache_delta[_gain_cache.index(v, block_from)] -= weight;
       _gain_cache_delta[_gain_cache.index(v, block_to)] += weight;
     });
@@ -282,6 +236,10 @@ private:
   }
 
   const GainCache &_gain_cache;
+  const DeltaPartitionedGraph &_d_graph;
   DynamicFlatMap<std::size_t, EdgeWeight> _gain_cache_delta;
 };
+
+template <typename GraphType> using NormalDenseGainCache = DenseGainCache<GraphType>;
+
 } // namespace kaminpar::shm

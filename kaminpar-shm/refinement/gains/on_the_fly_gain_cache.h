@@ -14,6 +14,7 @@
 #include "kaminpar-common/datastructures/rating_map.h"
 
 namespace kaminpar::shm {
+
 template <typename GainCache> class OnTheFlyDeltaGainCache;
 
 template <
@@ -26,7 +27,7 @@ class OnTheFlyGainCache {
 public:
   using Graph = GraphType;
   using Self = OnTheFlyGainCache<Graph, iterate_nonadjacent_blocks, iterate_exact_gains>;
-  using DeltaCache = OnTheFlyDeltaGainCache<Self>;
+  using DeltaGainCache = OnTheFlyDeltaGainCache<Self>;
 
   constexpr static bool kIteratesNonadjacentBlocks = iterate_nonadjacent_blocks;
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
@@ -39,6 +40,8 @@ public:
   void initialize(const Graph &graph, const PartitionedGraph &p_graph) {
     _graph = &graph;
     _p_graph = &p_graph;
+
+    _k = p_graph.k();
   }
 
   void free() {
@@ -46,16 +49,16 @@ public:
   }
 
   [[nodiscard]] EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
-    return gain_impl(*_graph, *_p_graph, node, from, to);
+    return gain_impl(*_p_graph, node, from, to);
   }
 
   [[nodiscard]] std::pair<EdgeWeight, EdgeWeight>
   gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) const {
-    return gain_impl(*_graph, *_p_graph, node, b_node, targets);
+    return gain_impl(*_p_graph, node, b_node, targets);
   }
 
   [[nodiscard]] EdgeWeight conn(const NodeID node, const BlockID block) const {
-    return conn_impl(*_graph, *_p_graph, node, block);
+    return conn_impl(*_p_graph, node, block);
   }
 
   void move(NodeID, BlockID, BlockID) {
@@ -63,16 +66,12 @@ public:
   }
 
   [[nodiscard]] bool is_border_node(const NodeID node, const BlockID block) const {
-    return is_border_node_impl(*_graph, *_p_graph, node, block);
-  }
-
-  [[nodiscard]] bool validate() const {
-    return true; // Nothing to do
+    return is_border_node_impl(*_p_graph, node, block);
   }
 
   template <typename Lambda>
   void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
-    gains_impl<PartitionedGraph>(*_graph, *_p_graph, node, from, std::forward<Lambda>(lambda));
+    gains_impl(*_p_graph, node, from, std::forward<Lambda>(lambda));
   }
 
   void print_statistics() const {
@@ -80,17 +79,12 @@ public:
   }
 
 private:
-  [[nodiscard]] EdgeWeight gain_impl(
-      const Graph &graph,
-      const auto &p_graph,
-      const NodeID node,
-      const BlockID from,
-      const BlockID to
-  ) const {
+  [[nodiscard]] EdgeWeight
+  gain_impl(const auto &p_graph, const NodeID node, const BlockID from, const BlockID to) const {
     EdgeWeight conn_from = 0;
     EdgeWeight conn_to = 0;
 
-    graph.adjacent_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
+    _graph->adjacent_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
       if (p_graph.block(v) == from) {
         conn_from += weight;
       } else if (p_graph.block(v) == to) {
@@ -102,7 +96,6 @@ private:
   }
 
   [[nodiscard]] std::pair<EdgeWeight, EdgeWeight> gain_impl(
-      const Graph &graph,
       const auto &p_graph,
       const NodeID node,
       const BlockID b_node,
@@ -111,7 +104,7 @@ private:
     EdgeWeight conn_from = 0;
     std::pair<EdgeWeight, EdgeWeight> conns_to = {0, 0};
 
-    graph.adjacent_nodes(node, [&](const NodeID v, const EdgeWeight w_e) {
+    _graph->adjacent_nodes(node, [&](const NodeID v, const EdgeWeight w_e) {
       const BlockID b_v = p_graph.block(v);
 
       if (b_v == b_node) {
@@ -127,10 +120,10 @@ private:
   }
 
   [[nodiscard]] EdgeWeight
-  conn_impl(const Graph &graph, const auto &p_graph, const NodeID node, const BlockID block) const {
+  conn_impl(const auto &p_graph, const NodeID node, const BlockID block) const {
     EdgeWeight conn = 0;
 
-    graph.adjacent_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
+    _graph->adjacent_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
       if (p_graph.block(v) == block) {
         conn += weight;
       }
@@ -139,11 +132,10 @@ private:
     return conn;
   }
 
-  [[nodiscard]] bool is_border_node_impl(
-      const Graph &graph, const auto &p_graph, const NodeID node, const BlockID block
-  ) const {
+  [[nodiscard]] bool
+  is_border_node_impl(const auto &p_graph, const NodeID node, const BlockID block) const {
     bool border_node = false;
-    graph.adjacent_nodes(node, [&](const NodeID v) {
+    _graph->adjacent_nodes(node, [&](const NodeID v) {
       if (p_graph.block(v) != block) {
         border_node = true;
         return true;
@@ -156,15 +148,10 @@ private:
   }
 
   template <typename Lambda>
-  void gains_impl(
-      const Graph &graph,
-      const auto &p_graph,
-      const NodeID node,
-      const BlockID from,
-      Lambda &&lambda
-  ) const {
+  void
+  gains_impl(const auto &p_graph, const NodeID node, const BlockID from, Lambda &&lambda) const {
     auto action = [&](auto &map) {
-      graph.adjacent_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
+      _graph->adjacent_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
         map[p_graph.block(v)] += weight;
       });
       const EdgeWeight conn_from = kIteratesExactGains ? map[from] : 0;
@@ -187,13 +174,15 @@ private:
     };
 
     if constexpr (kIteratesNonadjacentBlocks) {
-      _rating_map_ets.local().execute(p_graph.k(), action);
+      _rating_map_ets.local().execute(_k, action);
     } else {
-      _rating_map_ets.local().execute(std::min<BlockID>(graph.degree(node), p_graph.k()), action);
+      _rating_map_ets.local().execute(std::min<BlockID>(_graph->degree(node), _k), action);
     }
   }
 
-  const Graph &_graph = nullptr;
+  BlockID _k = kInvalidBlockID;
+
+  const Graph *_graph = nullptr;
   const PartitionedGraph *_p_graph = nullptr;
 
   mutable tbb::enumerable_thread_specific<RatingMap<EdgeWeight, BlockID, rm_backyard::SparseMap>>
@@ -243,4 +232,7 @@ private:
   const GainCache &_gain_cache;
   const DeltaPartitionedGraph &_d_graph;
 };
+
+template <typename GraphType> using NormalOnTheFlyGainCache = OnTheFlyGainCache<GraphType>;
+
 } // namespace kaminpar::shm

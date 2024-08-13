@@ -227,8 +227,6 @@ enum class GainCacheStrategy {
   DENSE,
   LARGE_K,
   ON_THE_FLY,
-  HYBRID,
-  TRACING,
 };
 
 struct LabelPropagationRefinementContext {
