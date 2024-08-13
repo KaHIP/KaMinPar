@@ -401,11 +401,9 @@ endif ()
 
 add_library(KaMinPar::KaMinPar ALIAS kaminpar_shm)
 add_library(KaMinPar::KaMinParCLI ALIAS kaminpar_cli)
-add_library(KaMinPar::KaMinParCLI11 ALIAS kaminpar_cli) # deprecated
 
 if (KAMINPAR_BUILD_DISTRIBUTED)
     add_library(KaMinPar::dKaMinPar ALIAS kaminpar_dist)
     add_library(KaMinPar::dKaMinParCLI ALIAS kaminpar_dist_cli)
-    add_library(KaMinPar::dKaMinParCLI11 ALIAS kaminpar_dist_cli) # deprecated
 endif ()
 
