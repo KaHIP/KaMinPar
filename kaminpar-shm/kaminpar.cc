@@ -46,6 +46,12 @@ void print_statistics(
 #else  // KAMINPAR_ENABLE_TIMERS
     LOG << "TIME disabled";
 #endif // KAMINPAR_ENABLE_TIMERS
+#ifdef KAMINPAR_ENABLE_HEAP_PROFILING
+    LOG << "MEMORY " << heap_profiler::HeapProfiler::global().peak_memory();
+#else
+    LOG << "MEMORY disabled";
+#endif
+    LOG;
   }
 
 #ifdef KAMINPAR_ENABLE_TIMERS
