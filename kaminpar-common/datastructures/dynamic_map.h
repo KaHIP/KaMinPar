@@ -137,6 +137,15 @@ class DynamicFlatMap final : public DynamicMapBase<Key, Value, DynamicFlatMap<Ke
     std::size_t timestamp;
   };
 
+  [[nodiscard]] static std::size_t murmur64(std::size_t key) {
+    key ^= key >> 33;
+    key *= 0xff51afd7ed558ccdL;
+    key ^= key >> 33;
+    key *= 0xc4ceb9fe1a85ec53L;
+    key ^= key >> 33;
+    return key;
+  }
+
 public:
   DynamicFlatMap() {
     initialize_impl();
@@ -164,7 +173,7 @@ private:
   }
 
   std::size_t find_impl(const Key key) const {
-    std::size_t hash = key & (_capacity - 1);
+    std::size_t hash = murmur64(key) & (_capacity - 1);
     while (_elements[hash].timestamp == _timestamp) {
       if (_elements[hash].key == key) {
         return hash;
@@ -232,6 +241,15 @@ class DynamicRememberingFlatMap final
     Value value;
   };
 
+  [[nodiscard]] static std::size_t murmur64(std::size_t key) {
+    key ^= key >> 33;
+    key *= 0xff51afd7ed558ccdL;
+    key ^= key >> 33;
+    key *= 0xc4ceb9fe1a85ec53L;
+    key ^= key >> 33;
+    return key;
+  }
+
 public:
   DynamicRememberingFlatMap() {
     initialize_impl();
@@ -266,7 +284,7 @@ private:
   }
 
   std::size_t find_impl(const Key key) const {
-    std::size_t hash = key & (_capacity - 1);
+    std::size_t hash = murmur64(key) & (_capacity - 1);
 
     MapElement element;
     while ((element = _elements[hash]).timestamp == _timestamp) {
@@ -275,6 +293,7 @@ private:
       }
       hash = (hash + 1) & (_capacity - 1);
     }
+
     return hash | INVALID_POS_MASK;
   }
 
