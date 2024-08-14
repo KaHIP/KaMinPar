@@ -118,7 +118,7 @@ int main(int argc, char *argv[]) {
   Timer::global().print_human_readable(std::cout);
   LOG;
 
-  heap_profiler::HeapProfiler::global().set_detailed_summary_options();
+  heap_profiler::HeapProfiler::global().set_experiment_summary_options();
   PRINT_HEAP_PROFILE(std::cout);
 
   return 0;

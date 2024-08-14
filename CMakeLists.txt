@@ -175,10 +175,7 @@ else ()
 endif ()
 
 if (KAMINPAR_ENABLE_HEAP_PROFILING)
-    string(LENGTH "${CMAKE_SOURCE_DIR}/" SOURCE_PATH_SIZE)
-
     list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_ENABLE_HEAP_PROFILING")
-    list(APPEND KAMINPAR_DEFINITIONS "-DSOURCE_PATH_SIZE=${SOURCE_PATH_SIZE}")
     message(STATUS "Heap Profiling: enabled")
 else ()
     message(STATUS "Heap Profiling: disabled")
