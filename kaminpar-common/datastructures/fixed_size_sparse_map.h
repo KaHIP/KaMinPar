@@ -61,6 +61,15 @@ class FixedSizeSparseMap {
     std::size_t timestamp;
   };
 
+  [[nodiscard]] static std::size_t murmur64(std::size_t key) {
+    key ^= key >> 33;
+    key *= 0xff51afd7ed558ccdL;
+    key ^= key >> 33;
+    key *= 0xc4ceb9fe1a85ec53L;
+    key ^= key >> 33;
+    return key;
+  }
+
 public:
   static constexpr std::size_t MAP_SIZE = fixed_size;
   static_assert(math::is_power_of_2(MAP_SIZE), "Size of map is not a power of two!");
@@ -155,7 +164,7 @@ public:
 private:
   inline SparseElement *find(const Key key) const {
     KASSERT(_size < _map_size);
-    std::size_t hash = key & (_map_size - 1);
+    std::size_t hash = murmur64(key) & (_map_size - 1);
     while (_sparse[hash].timestamp == _timestamp) {
       KASSERT(_sparse[hash].element);
       if (_sparse[hash].element->key == key) {
