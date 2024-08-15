@@ -26,7 +26,7 @@
 #include "kaminpar-common/math.h"
 
 namespace kaminpar {
-template <typename Type> class CompactHashMap {
+template <typename Type, bool allow_full_map = false> class CompactHashMap {
   using MutType = std::remove_const_t<Type>;
   static_assert(std::is_unsigned_v<Type>);
 
@@ -58,6 +58,7 @@ public:
     std::size_t cur_pos = start_pos;
     MutType cur_entry;
 
+    // Fix the hash map invariant by moving displaced elements to the hole position:
     do {
       cur_pos = hash(cur_pos + 1);
       cur_entry = read_pos(cur_pos);
@@ -66,7 +67,12 @@ public:
         write_pos(hole_pos, cur_entry);
         hole_pos = cur_pos;
       }
-    } while (cur_entry != 0);
+    } while (cur_entry != 0 && (!allow_full_map || cur_pos != start_pos));
+
+    if constexpr (allow_full_map) {
+      write_pos(hole_pos, 0);
+    }
+
     return true;
   }
 
@@ -88,9 +94,7 @@ public:
   [[nodiscard]] std::size_t count() const {
     std::size_t num_nz = 0;
     for (std::size_t i = 0; i < capacity(); ++i) {
-      if (read_pos(i) != 0) {
-        ++num_nz;
-      }
+      num_nz += (read_pos(i) != 0);
     }
     return num_nz;
   }
@@ -131,10 +135,19 @@ private:
     std::size_t pos = key - 1;
     MutType entry;
 
-    do {
-      pos = hash(pos + 1);
-      entry = read_pos(pos);
-    } while (entry != 0 && decode_key(entry) != key);
+    // If we the hash table is not allowed to fill up 100%, we can use a simpler condition for
+    // elements that are not in the hash table ...
+    if constexpr (allow_full_map) {
+      do {
+        pos = hash(pos + 1);
+        entry = read_pos(pos);
+      } while (entry != 0 && decode_key(entry) != key && hash(pos + 1) != hash(key));
+    } else {
+      do {
+        pos = hash(pos + 1);
+        entry = read_pos(pos);
+      } while (entry != 0 && decode_key(entry) != key);
+    }
 
     return {pos, entry};
   }

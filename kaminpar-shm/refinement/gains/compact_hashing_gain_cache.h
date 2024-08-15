@@ -1,5 +1,5 @@
 /*******************************************************************************
- * @file:   hashing_gain_cache.h
+ * @file:   compact_hashing_gain_cache.h
  * @author: Daniel Seemaier
  * @date:   13.08.2024
  ******************************************************************************/
@@ -35,7 +35,7 @@ template <
     typename DeltaGainCacheType,
     bool iterate_nonadjacent_blocks,
     bool iterate_exact_gains = false>
-class HashingGainCache {
+class CompactHashingGainCache {
   SET_DEBUG(true);
 
   // Abuse MSB bit in the _weighted_degrees[] array for locking
@@ -46,7 +46,7 @@ class HashingGainCache {
 public:
   using Graph = GraphType;
 
-  using Self = HashingGainCache<
+  using Self = CompactHashingGainCache<
       GraphType,
       DeltaGainCacheType,
       iterate_nonadjacent_blocks,
@@ -61,7 +61,7 @@ public:
   // the gain consumer with the total edge weight between the node and nodes in the specific block.
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
-  HashingGainCache(const Context &ctx, const NodeID preallocate_n, BlockID preallocate_k)
+  CompactHashingGainCache(const Context &ctx, const NodeID preallocate_n, BlockID preallocate_k)
       : _ctx(ctx),
         // Since we do not know the size of the gain cache in advance (depends on vertex degrees),
         // we cannot preallocate it
@@ -75,18 +75,23 @@ public:
     _n = _graph->n();
     _k = _p_graph->k();
 
-    if (_offsets.size() < _n + 1) {
-      SCOPED_TIMER("Allocation");
-      _offsets.resize(_n + 1);
-    }
     if (_weighted_degrees.size() < _n) {
       SCOPED_TIMER("Allocation");
       _weighted_degrees.resize(_n);
     }
+    recompute_weighted_degrees();
+
+    if (_offsets.size() < _n + 1) {
+      SCOPED_TIMER("Allocation");
+      _offsets.resize(_n + 1);
+    }
 
     _offsets.front() = 0;
     _graph->pfor_nodes([&](const NodeID u) {
-      _offsets[u + 1] = std::min<EdgeID>(math::ceil2(_graph->degree(u)), _k);
+      const EdgeID deg = math::ceil2(_graph->degree(u));
+      const unsigned bytes =
+          (deg < _k) ? compute_entry_width(u, true) * deg : compute_entry_width(u, false) * _k;
+      _offsets[u + 1] = math::div_ceil(bytes, sizeof(std::uint64_t));
     });
     parallel::prefix_sum(_offsets.begin(), _offsets.begin() + _n + 1, _offsets.begin());
     const std::size_t gain_cache_size = _offsets.back();
@@ -94,8 +99,7 @@ public:
     if (_gain_cache.size() < gain_cache_size) {
       SCOPED_TIMER("Allocation");
       _gain_cache.resize(gain_cache_size);
-      DBG << "Allocating gain cache: " << _gain_cache.size() * sizeof(UnsignedEdgeWeight)
-          << " bytes";
+      DBG << "Allocating gain cache: " << _gain_cache.size() * sizeof(std::uint64_t) << " bytes";
     }
 
     _bits_for_key = math::ceil_log2(_k);
@@ -106,7 +110,7 @@ public:
         << " bits for block IDs";
 
     reset();
-    recompute();
+    recompute_gains();
   }
 
   void free() {
@@ -131,7 +135,33 @@ public:
   // Forcing inlining here seems to be very important
   template <typename Lambda>
   KAMINPAR_INLINE void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
-    if (use_full_table(node)) {
+    if (use_hash_table(node)) {
+      const EdgeWeight conn_from = kIteratesExactGains ? conn_hash_table(node, from) : 0;
+
+      if constexpr (kIteratesNonadjacentBlocks) {
+        auto &buffer = _sparse_buffer_ets.local();
+
+        with_hash_table(node, [&](const auto &&ht) {
+          ht.for_each([&](const BlockID to, const EdgeWeight conn_to) { buffer.set(to, conn_to); });
+        });
+
+        for (BlockID to = 0; to < _k; ++to) {
+          if (from != to) {
+            lambda(to, [&] { return buffer.get(to) - conn_from; });
+          }
+        }
+
+        buffer.clear();
+      } else {
+        with_hash_table(node, [&](const auto &&ht) {
+          ht.for_each([&](const BlockID to, const EdgeWeight conn_to) {
+            if (to != from) {
+              lambda(to, [&] { return conn_to - conn_from; });
+            }
+          });
+        });
+      }
+    } else {
       const EdgeWeight conn_from = kIteratesExactGains ? conn_full_table(node, from) : 0;
 
       for (BlockID to = 0; to < _k; ++to) {
@@ -148,44 +178,23 @@ public:
           }
         }
       }
-    } else {
-      const EdgeWeight conn_from = kIteratesExactGains ? conn_hash_table(node, from) : 0;
-
-      if constexpr (kIteratesNonadjacentBlocks) {
-        auto &buffer = _sparse_buffer_ets.local();
-
-        create_hash_table(node).for_each([&](const BlockID to, const EdgeWeight conn_to) {
-          buffer.set(to, conn_to);
-        });
-
-        for (BlockID to = 0; to < _k; ++to) {
-          if (from != to) {
-            lambda(to, [&] { return buffer.get(to) - conn_from; });
-          }
-        }
-
-        buffer.clear();
-      } else {
-        create_hash_table(node).for_each([&](const BlockID to, const EdgeWeight conn_to) {
-          if (to != from) {
-            lambda(to, [&] { return conn_to - conn_from; });
-          }
-        });
-      }
     }
   }
 
   KAMINPAR_INLINE void move(const NodeID node, const BlockID block_from, const BlockID block_to) {
     _graph->adjacent_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
-      if (use_full_table(v)) {
-        __atomic_fetch_sub(&_gain_cache[index_full_table(v, block_from)], weight, __ATOMIC_RELAXED);
-        __atomic_fetch_add(&_gain_cache[index_full_table(v, block_to)], weight, __ATOMIC_RELAXED);
-      } else {
+      if (use_hash_table(v)) {
         lock(v);
-        auto table = create_hash_table(v);
-        table.decrease_by(block_from, weight);
-        table.increase_by(block_to, weight);
+        with_hash_table(v, [&](auto &&hash_table) {
+          hash_table.decrease_by(block_from, weight);
+          hash_table.increase_by(block_to, weight);
+        });
         unlock(v);
+      } else {
+        with_full_table(v, [&](auto *full_table) {
+          __atomic_fetch_sub(full_table + block_from, weight, __ATOMIC_RELAXED);
+          __atomic_fetch_add(full_table + block_to, weight, __ATOMIC_RELAXED);
+        });
       }
     });
   }
@@ -195,9 +204,18 @@ public:
     return weighted_degree(node) != weighted_degree_to(node, block_of_node);
   }
 
-  void print_statistics() const {}
+  void print_statistics() const {
+    // Nothing to do
+  }
 
 private:
+  KAMINPAR_INLINE int compute_entry_width(const NodeID u, const bool with_key) const {
+    const auto max_value = static_cast<std::uint64_t>(weighted_degree(u));
+    const int bits = math::floor_log2(max_value) + 1 + (with_key ? _bits_for_key : 0);
+    const int bytes = (bits + 7) / 8;
+    return math::ceil2<unsigned>(bytes);
+  }
+
   //
   // Locking (hash table)
   //
@@ -235,11 +253,10 @@ private:
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight
   weighted_degree_to(const NodeID node, const BlockID block) const {
-    if (use_full_table(node)) {
-      const std::size_t idx = index_full_table(node, block);
-      return static_cast<EdgeWeight>(__atomic_load_n(&_gain_cache[idx], __ATOMIC_RELAXED));
+    if (use_hash_table(node)) {
+      return weighted_degree_to_hash_table(node, block);
     } else {
-      return static_cast<EdgeWeight>(create_hash_table(node).get(block));
+      return weighted_degree_to_full_table(node, block);
     }
   }
 
@@ -254,33 +271,114 @@ private:
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight
   weighted_degree_to_hash_table(const NodeID node, const BlockID block) const {
-    return static_cast<EdgeWeight>(create_hash_table(node).get(block));
+    return with_hash_table(node, [&](const auto &&hash_table) {
+      return static_cast<EdgeWeight>(hash_table.get(block));
+    });
   }
 
-  [[nodiscard]] KAMINPAR_INLINE CompactHashMap<UnsignedEdgeWeight const, true>
-  create_hash_table(const NodeID node) const {
+  template <typename Lambda>
+  KAMINPAR_INLINE decltype(auto) with_full_table(const NodeID node, Lambda &&l) const {
+    const int nbytes = compute_entry_width(node, false);
     const std::size_t start = _offsets[node];
-    const std::size_t size = _offsets[node + 1] - start;
-    KASSERT(math::is_power_of_2(size));
-    return {_gain_cache.data() + start, size, _bits_for_key};
+
+    switch (nbytes) {
+    case 1:
+      return l(reinterpret_cast<const std::uint8_t *>(_gain_cache.data() + start));
+      break;
+
+    case 2:
+      return l(reinterpret_cast<const std::uint16_t *>(_gain_cache.data() + start));
+      break;
+
+    case 4:
+      return l(reinterpret_cast<const std::uint32_t *>(_gain_cache.data() + start));
+      break;
+
+    case 8:
+      return l(reinterpret_cast<const std::uint64_t *>(_gain_cache.data() + start));
+      break;
+    }
+
+    __builtin_unreachable();
   }
 
-  [[nodiscard]] KAMINPAR_INLINE CompactHashMap<UnsignedEdgeWeight, true>
-  create_hash_table(const NodeID node) {
+  template <typename Lambda>
+  KAMINPAR_INLINE decltype(auto) with_full_table(const NodeID node, Lambda &&l) {
+    return static_cast<const Self *>(this)->with_full_table(
+        node, [&]<typename Entry>(const Entry *table) { l(const_cast<Entry *>(table)); }
+    );
+  }
+
+  template <typename Lambda>
+  KAMINPAR_INLINE decltype(auto) with_hash_table(const NodeID node, Lambda &&l) const {
+    const int nbytes = compute_entry_width(node, true);
+
+    switch (nbytes) {
+    case 1:
+      return l(create_hash_table<std::uint8_t>(node));
+      break;
+
+    case 2:
+      return l(create_hash_table<std::uint16_t>(node));
+      break;
+
+    case 4:
+      return l(create_hash_table<std::uint32_t>(node));
+      break;
+
+    case 8:
+      return l(create_hash_table<std::uint64_t>(node));
+      break;
+    }
+
+    __builtin_unreachable();
+  }
+
+  template <typename Lambda>
+  KAMINPAR_INLINE decltype(auto) with_hash_table(const NodeID node, Lambda &&l) {
+    const int nbytes = compute_entry_width(node, true);
+
+    switch (nbytes) {
+    case 1:
+      return l(create_hash_table<std::uint8_t>(node));
+      break;
+
+    case 2:
+      return l(create_hash_table<std::uint16_t>(node));
+      break;
+
+    case 4:
+      return l(create_hash_table<std::uint32_t>(node));
+      break;
+
+    case 8:
+      return l(create_hash_table<std::uint64_t>(node));
+      break;
+    }
+
+    __builtin_unreachable();
+  }
+
+  template <typename Width>
+  [[nodiscard]] KAMINPAR_INLINE CompactHashMap<Width const> create_hash_table(const NodeID node
+  ) const {
     const std::size_t start = _offsets[node];
-    const std::size_t size = _offsets[node + 1] - start;
+    const std::size_t size = (_offsets[node + 1] - start) * (sizeof(std::uint64_t) / sizeof(Width));
     KASSERT(math::is_power_of_2(size));
-    return {_gain_cache.data() + start, size, _bits_for_key};
+    return {reinterpret_cast<const Width *>(_gain_cache.data() + start), size, _bits_for_key};
+  }
+
+  template <typename Width>
+  [[nodiscard]] KAMINPAR_INLINE CompactHashMap<Width> create_hash_table(const NodeID node) {
+    const std::size_t start = _offsets[node];
+    const std::size_t size = (_offsets[node + 1] - start) * (sizeof(std::uint64_t) / sizeof(Width));
+    KASSERT(math::is_power_of_2(size));
+    return {reinterpret_cast<Width *>(_gain_cache.data() + start), size, _bits_for_key};
   }
 
   //
   // Lookups (full table)
   //
-
-  [[nodiscard]] KAMINPAR_INLINE std::size_t
-  index_full_table(const NodeID node, const BlockID block) const {
-    return _offsets[node] + block;
-  }
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight
   conn_full_table(const NodeID node, const BlockID block) const {
@@ -289,13 +387,13 @@ private:
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight
   weighted_degree_to_full_table(const NodeID node, const BlockID block) const {
-    return static_cast<EdgeWeight>(
-        __atomic_load_n(&_gain_cache[index_full_table(node, block)], __ATOMIC_RELAXED)
-    );
+    return with_full_table(node, [&](const auto *full_table) {
+      return static_cast<EdgeWeight>(__atomic_load_n(full_table + block, __ATOMIC_RELAXED));
+    });
   }
 
-  [[nodiscard]] KAMINPAR_INLINE bool use_full_table(const NodeID node) const {
-    return _offsets[node + 1] - _offsets[node] == _k;
+  [[nodiscard]] KAMINPAR_INLINE bool use_hash_table(const NodeID node) const {
+    return math::ceil2(_graph->degree(node)) < _k;
   }
 
   //
@@ -312,28 +410,34 @@ private:
     _sparse_buffer_ets.clear();
   }
 
-  void recompute() {
+  void recompute_gains() {
     SCOPED_TIMER("Recompute gain cache");
 
     _graph->pfor_nodes([&](const NodeID u) {
-      _weighted_degrees[u] = 0;
-
-      if (use_full_table(u)) {
-        _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
-          const BlockID block_v = _p_graph->block(v);
-          _weighted_degrees[u] += static_cast<UnsignedEdgeWeight>(weight);
-
-          _gain_cache[index_full_table(u, block_v)] += static_cast<UnsignedEdgeWeight>(weight);
+      if (use_hash_table(u)) {
+        with_hash_table(u, [&](auto &&hash_table) {
+          _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+            hash_table.increase_by(_p_graph->block(v), static_cast<UnsignedEdgeWeight>(weight));
+          });
         });
       } else {
-        auto ht = create_hash_table(u);
-        _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
-          const BlockID block_v = _p_graph->block(v);
-          _weighted_degrees[u] += static_cast<UnsignedEdgeWeight>(weight);
-
-          ht.increase_by(block_v, static_cast<UnsignedEdgeWeight>(weight));
+        with_full_table(u, [&](auto *full_table) {
+          _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+            full_table[_p_graph->block(v)] += static_cast<UnsignedEdgeWeight>(weight);
+          });
         });
       }
+    });
+  }
+
+  void recompute_weighted_degrees() {
+    _graph->pfor_nodes([&](const NodeID u) {
+      _weighted_degrees[u] = 0;
+
+      // @todo avoid v lookup
+      _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+        _weighted_degrees[u] += static_cast<UnsignedEdgeWeight>(weight);
+      });
     });
   }
 
@@ -350,7 +454,7 @@ private:
   // Number of bits reserved in hash table cells to store the key (i.e., block ID) of the entry
   int _bits_for_key = 0;
 
-  StaticArray<UnsignedEdgeWeight> _gain_cache;
+  StaticArray<std::uint64_t> _gain_cache;
   StaticArray<UnsignedEdgeWeight> _weighted_degrees;
 
   mutable tbb::enumerable_thread_specific<FastResetArray<EdgeWeight>> _sparse_buffer_ets{[&] {
@@ -359,9 +463,10 @@ private:
 };
 
 template <typename Graph>
-using NormalHashingGainCache = HashingGainCache<Graph, SparseDeltaGainCache, true>;
+using NormalCompactHashingGainCache = CompactHashingGainCache<Graph, SparseDeltaGainCache, true>;
 
 template <typename Graph>
-using LargeKHashingGainCache = HashingGainCache<Graph, LargeKSparseDeltaGainCache, false>;
+using LargeKCompactHashingGainCache =
+    CompactHashingGainCache<Graph, LargeKSparseDeltaGainCache, false>;
 
 } // namespace kaminpar::shm

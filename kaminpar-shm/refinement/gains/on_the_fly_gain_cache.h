@@ -12,6 +12,7 @@
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/rating_map.h"
+#include "kaminpar-common/inline.h"
 
 namespace kaminpar::shm {
 
@@ -40,7 +41,6 @@ public:
   void initialize(const Graph &graph, const PartitionedGraph &p_graph) {
     _graph = &graph;
     _p_graph = &p_graph;
-
     _k = p_graph.k();
   }
 
@@ -48,29 +48,30 @@ public:
     // Nothing to do
   }
 
-  [[nodiscard]] EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
+  [[nodiscard]] KAMINPAR_INLINE EdgeWeight
+  gain(const NodeID node, const BlockID from, const BlockID to) const {
     return gain_impl(*_p_graph, node, from, to);
   }
 
-  [[nodiscard]] std::pair<EdgeWeight, EdgeWeight>
+  [[nodiscard]] KAMINPAR_INLINE std::pair<EdgeWeight, EdgeWeight>
   gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) const {
     return gain_impl(*_p_graph, node, b_node, targets);
   }
 
-  [[nodiscard]] EdgeWeight conn(const NodeID node, const BlockID block) const {
+  [[nodiscard]] KAMINPAR_INLINE EdgeWeight conn(const NodeID node, const BlockID block) const {
     return conn_impl(*_p_graph, node, block);
   }
 
-  void move(NodeID, BlockID, BlockID) {
+  void KAMINPAR_INLINE move(NodeID, BlockID, BlockID) {
     // Nothing to do
   }
 
-  [[nodiscard]] bool is_border_node(const NodeID node, const BlockID block) const {
+  [[nodiscard]] KAMINPAR_INLINE bool is_border_node(const NodeID node, const BlockID block) const {
     return is_border_node_impl(*_p_graph, node, block);
   }
 
   template <typename Lambda>
-  void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
+  KAMINPAR_INLINE void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
     gains_impl(*_p_graph, node, from, std::forward<Lambda>(lambda));
   }
 
@@ -79,7 +80,7 @@ public:
   }
 
 private:
-  [[nodiscard]] EdgeWeight
+  [[nodiscard]] KAMINPAR_INLINE EdgeWeight
   gain_impl(const auto &p_graph, const NodeID node, const BlockID from, const BlockID to) const {
     EdgeWeight conn_from = 0;
     EdgeWeight conn_to = 0;
@@ -95,7 +96,7 @@ private:
     return conn_to - conn_from;
   }
 
-  [[nodiscard]] std::pair<EdgeWeight, EdgeWeight> gain_impl(
+  [[nodiscard]] KAMINPAR_INLINE std::pair<EdgeWeight, EdgeWeight> gain_impl(
       const auto &p_graph,
       const NodeID node,
       const BlockID b_node,
@@ -119,7 +120,7 @@ private:
     return {conns_to.first - conn_from, conns_to.second - conn_from};
   }
 
-  [[nodiscard]] EdgeWeight
+  [[nodiscard]] KAMINPAR_INLINE EdgeWeight
   conn_impl(const auto &p_graph, const NodeID node, const BlockID block) const {
     EdgeWeight conn = 0;
 
@@ -132,7 +133,7 @@ private:
     return conn;
   }
 
-  [[nodiscard]] bool
+  [[nodiscard]] KAMINPAR_INLINE bool
   is_border_node_impl(const auto &p_graph, const NodeID node, const BlockID block) const {
     bool border_node = false;
     _graph->adjacent_nodes(node, [&](const NodeID v) {
@@ -148,7 +149,7 @@ private:
   }
 
   template <typename Lambda>
-  void
+  KAMINPAR_INLINE void
   gains_impl(const auto &p_graph, const NodeID node, const BlockID from, Lambda &&lambda) const {
     auto action = [&](auto &map) {
       _graph->adjacent_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
@@ -202,29 +203,30 @@ public:
       : _gain_cache(gain_cache),
         _d_graph(d_graph) {}
 
-  [[nodiscard]] EdgeWeight conn(const NodeID node, const BlockID block) const {
+  [[nodiscard]] KAMINPAR_INLINE EdgeWeight conn(const NodeID node, const BlockID block) const {
     return _gain_cache.conn_impl(_d_graph, node, block);
   }
 
-  [[nodiscard]] EdgeWeight gain(const NodeID node, const BlockID from, const BlockID to) const {
+  [[nodiscard]] KAMINPAR_INLINE EdgeWeight
+  gain(const NodeID node, const BlockID from, const BlockID to) const {
     return _gain_cache.gain_impl(_d_graph, node, from, to);
   }
 
-  [[nodiscard]] std::pair<EdgeWeight, EdgeWeight>
+  [[nodiscard]] KAMINPAR_INLINE std::pair<EdgeWeight, EdgeWeight>
   gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) const {
     return _gain_cache.gain_impl(_d_graph, node, b_node, targets);
   }
 
   template <typename Lambda>
-  void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
+  KAMINPAR_INLINE void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
     _gain_cache.gains_impl(_d_graph, node, from, std::forward<Lambda>(lambda));
   }
 
-  void move(NodeID, BlockID, BlockID) {
+  KAMINPAR_INLINE void move(NodeID, BlockID, BlockID) {
     // Nothing to do
   }
 
-  void clear() {
+  KAMINPAR_INLINE void clear() {
     // Nothing to do
   }
 
