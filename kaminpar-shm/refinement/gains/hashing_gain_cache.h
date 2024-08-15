@@ -326,7 +326,7 @@ private:
     return static_cast<EdgeWeight>(create_hash_table(node).get(block));
   }
 
-  [[nodiscard]] KAMINPAR_INLINE CompactHashMap<UnsignedEdgeWeight const>
+  [[nodiscard]] KAMINPAR_INLINE CompactHashMap<UnsignedEdgeWeight const, true>
   create_hash_table(const NodeID node) const {
     const std::size_t start = _offset[node];
     const std::size_t size = _offset[node + 1] - start;
@@ -334,7 +334,7 @@ private:
     return {_gain_cache.data() + start, size, _bits_for_key};
   }
 
-  [[nodiscard]] KAMINPAR_INLINE CompactHashMap<UnsignedEdgeWeight>
+  [[nodiscard]] KAMINPAR_INLINE CompactHashMap<UnsignedEdgeWeight, true>
   create_hash_table(const NodeID node) {
     const std::size_t start = _offset[node];
     const std::size_t size = _offset[node + 1] - start;
