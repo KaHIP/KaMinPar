@@ -106,11 +106,12 @@ public:
         << " bits for block IDs";
 
     reset();
-    recompute_all();
+    recompute();
   }
 
   void free() {
-    tbb::parallel_invoke([&] { _gain_cache.free(); }, [&] { _weighted_degrees.free(); });
+    _gain_cache.free();
+    _weighted_degrees.free();
   }
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight
@@ -180,11 +181,10 @@ public:
         __atomic_fetch_sub(&_gain_cache[index_full_table(v, block_from)], weight, __ATOMIC_RELAXED);
         __atomic_fetch_add(&_gain_cache[index_full_table(v, block_to)], weight, __ATOMIC_RELAXED);
       } else {
-        auto table = create_hash_table(v);
-
         lock(v);
-        [[maybe_unused]] bool was_deleted = table.decrease_by(block_from, weight);
-        [[maybe_unused]] bool was_inserted = table.increase_by(block_to, weight);
+        auto table = create_hash_table(v);
+        table.decrease_by(block_from, weight);
+        table.increase_by(block_to, weight);
         unlock(v);
       }
     });
@@ -308,32 +308,33 @@ private:
     tbb::parallel_for<std::size_t>(0, _gain_cache.size(), [&](const std::size_t i) {
       _gain_cache[i] = 0;
     });
+
     _sparse_buffer_ets.clear();
   }
 
-  void recompute_all() {
+  void recompute() {
     SCOPED_TIMER("Recompute gain cache");
 
-    _graph->pfor_nodes([&](const NodeID u) { recompute_node(u); });
-  }
+    _graph->pfor_nodes([&](const NodeID u) {
+      _weighted_degrees[u] = 0;
 
-  void recompute_node(const NodeID u) {
-    _weighted_degrees[u] = 0;
+      if (use_full_table(u)) {
+        _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+          const BlockID block_v = _p_graph->block(v);
+          _weighted_degrees[u] += static_cast<UnsignedEdgeWeight>(weight);
 
-    if (use_full_table(u)) {
-      _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
-        const BlockID block_v = _p_graph->block(v);
-        _weighted_degrees[u] += static_cast<UnsignedEdgeWeight>(weight);
-        _gain_cache[index_full_table(u, block_v)] += static_cast<UnsignedEdgeWeight>(weight);
-      });
-    } else {
-      auto ht = create_hash_table(u);
-      _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
-        const BlockID block_v = _p_graph->block(v);
-        _weighted_degrees[u] += static_cast<UnsignedEdgeWeight>(weight);
-        ht.increase_by(block_v, static_cast<UnsignedEdgeWeight>(weight));
-      });
-    }
+          _gain_cache[index_full_table(u, block_v)] += static_cast<UnsignedEdgeWeight>(weight);
+        });
+      } else {
+        auto ht = create_hash_table(u);
+        _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+          const BlockID block_v = _p_graph->block(v);
+          _weighted_degrees[u] += static_cast<UnsignedEdgeWeight>(weight);
+
+          ht.increase_by(block_v, static_cast<UnsignedEdgeWeight>(weight));
+        });
+      }
+    });
   }
 
   const Context &_ctx;

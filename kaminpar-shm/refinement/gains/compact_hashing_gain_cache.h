@@ -28,6 +28,7 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
+
 template <
     typename GraphType,
     template <typename>
@@ -36,7 +37,6 @@ template <
     bool iterate_exact_gains = false>
 class CompactHashingGainCache {
   SET_DEBUG(false);
-  SET_STATISTICS_FROM_GLOBAL();
 
   // Abuse MSB bit in the _weighted_degrees[] array for locking
   constexpr static UnsignedEdgeWeight kWeightedDegreeLock =
@@ -373,4 +373,5 @@ using NormalCompactHashingGainCache = CompactHashingGainCache<Graph, SparseDelta
 template <typename Graph>
 using LargeKCompactHashingGainCache =
     CompactHashingGainCache<Graph, LargeKSparseDeltaGainCache, false>;
+
 } // namespace kaminpar::shm
