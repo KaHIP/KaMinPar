@@ -28,10 +28,10 @@
 #ifdef KAMINPAR_EXPERIMENTAL
 #include "kaminpar-shm/refinement/gains/compact_hashing_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/dense_gain_cache.h"
+#include "kaminpar-shm/refinement/gains/hashing_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/on_the_fly_gain_cache.h"
 #endif
 
-#include "kaminpar-shm/refinement/gains/hashing_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
 
 namespace kaminpar::shm {
@@ -577,23 +577,23 @@ void FMRefiner::initialize(const PartitionedGraph &p_graph) {
   if (!_core) {
     p_graph.reified([&]<typename Graph>(Graph &graph) {
       switch (_ctx.refinement.kway_fm.gain_cache_strategy) {
-      case GainCacheStrategy::HASHING:
-        _core = std::make_unique<FMRefinerCore<Graph, NormalHashingGainCache>>(_ctx);
-        break;
-
-      case GainCacheStrategy::COMPACT_HASHING:
-        _core = std::make_unique<FMRefinerCore<Graph, NormalCompactHashingGainCache>>(_ctx);
-        break;
-
       case GainCacheStrategy::SPARSE:
         _core = std::make_unique<FMRefinerCore<Graph, NormalSparseGainCache>>(_ctx);
+        break;
+
+#ifdef KAMINPAR_EXPERIMENTAL
+      case GainCacheStrategy::HASHING:
+        _core = std::make_unique<FMRefinerCore<Graph, NormalHashingGainCache>>(_ctx);
         break;
 
       case GainCacheStrategy::LARGE_K:
         _core = std::make_unique<FMRefinerCore<Graph, LargeKSparseGainCache>>(_ctx);
         break;
 
-#ifdef KAMINPAR_EXPERIMENTAL
+      case GainCacheStrategy::COMPACT_HASHING:
+        _core = std::make_unique<FMRefinerCore<Graph, NormalCompactHashingGainCache>>(_ctx);
+        break;
+
       case GainCacheStrategy::DENSE:
         _core = std::make_unique<FMRefinerCore<Graph, NormalDenseGainCache>>(_ctx);
         break;
@@ -601,7 +601,6 @@ void FMRefiner::initialize(const PartitionedGraph &p_graph) {
       case GainCacheStrategy::ON_THE_FLY:
         _core = std::make_unique<FMRefinerCore<Graph, NormalOnTheFlyGainCache>>(_ctx);
         break;
-
 #endif // KAMINPAR_EXPERIMENTAL
 
       default:
