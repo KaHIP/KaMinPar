@@ -213,8 +213,8 @@ public:
 
   KAMINPAR_INLINE void move(const NodeID u, const BlockID block_from, const BlockID block_to) {
     _d_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
-      _gain_cache_delta[_gain_cache.index(v, block_from)] -= weight;
-      _gain_cache_delta[_gain_cache.index(v, block_to)] += weight;
+      _gain_cache_delta[index(v, block_from)] -= weight;
+      _gain_cache_delta[index(v, block_to)] += weight;
     });
   }
 
@@ -232,7 +232,7 @@ private:
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight
   conn_delta(const NodeID node, const BlockID block) const {
-    const auto it = _gain_cache_delta.get_if_contained(_gain_cache.index(node, block));
+    const auto it = _gain_cache_delta.get_if_contained(index(node, block));
     return it != _gain_cache_delta.end() ? *it : 0;
   }
 

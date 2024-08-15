@@ -679,9 +679,6 @@ public:
 
 private:
   [[nodiscard]] KAMINPAR_INLINE std::size_t index(const NodeID node, const BlockID block) const {
-    // Note: this increases running times substantially due to the shifts
-    // return index_sparse(node, block);
-
     return 1ull * node * _k + block;
   }
 
