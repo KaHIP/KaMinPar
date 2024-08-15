@@ -55,7 +55,7 @@ template <
     bool iterate_nonadjacent_blocks,
     bool iterate_exact_gains = false>
 class SparseGainCache {
-  SET_DEBUG(false);
+  SET_DEBUG(true);
   SET_STATISTICS_FROM_GLOBAL();
 
   // Abuse MSB bit in the _weighted_degrees[] array for locking
@@ -149,7 +149,7 @@ public:
       // the sparse part.
       const EdgeID degree_threshold = std::max<EdgeID>(
           _k * _ctx.refinement.kway_fm.k_based_high_degree_threshold, // Usually k * 1
-          _ctx.refinement.kway_fm.constant_high_degree_threshold                 // Usually 0
+          _ctx.refinement.kway_fm.constant_high_degree_threshold      // Usually 0
       );
 
       // (i) compute size of the dense part (== hash tables) ...
@@ -185,9 +185,10 @@ public:
         << (gc_size * sizeof(UnsignedEdgeWeight) / 1024.0) << " KiB memory";
 
     if (_gain_cache.size() < gc_size) {
-      DBG << "Re-allocating dense gain cache to " << gc_size * sizeof(EdgeWeight) / 1024 << " KiB";
       SCOPED_TIMER("Allocation");
       _gain_cache.resize(gc_size);
+      DBG << "Allocating gain cache: " << _gain_cache.size() * sizeof(UnsignedEdgeWeight)
+          << " bytes";
     }
 
     if (_weighted_degrees.size() < _n) {

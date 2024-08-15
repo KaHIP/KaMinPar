@@ -48,9 +48,7 @@ public:
   DenseGainCache(const Context & /* ctx */, const NodeID preallocate_n, const BlockID preallocate_k)
       : _gain_cache(1ull * preallocate_n * preallocate_k, static_array::noinit),
         _weighted_degrees(preallocate_n, static_array::noinit) {
-    DBG << "Pre-allocating sparse gain cache: " << preallocate_n << " nodes, " << preallocate_k
-        << " blocks -> allocate " << preallocate_n * preallocate_k * sizeof(EdgeWeight) / 1024
-        << " KiB";
+    DBG << "Allocating gain cache: " << _gain_cache.size() * sizeof(EdgeWeight) << " bytes";
   }
 
   void initialize(const Graph &graph, const PartitionedGraph &p_graph) {
@@ -61,12 +59,10 @@ public:
     _k = p_graph.k();
 
     const std::size_t gc_size = 1ull * _n * _k;
-
     if (_gain_cache.size() < gc_size) {
       SCOPED_TIMER("Allocation");
-      DBG << "Re-allocating sparse gain cache: " << _n << " nodes, " << _k << " blocks -> allocate "
-          << gc_size * sizeof(EdgeWeight) / 1024 << " KiB";
       _gain_cache.resize(gc_size, static_array::noinit);
+      DBG << "Allocating gain cache: " << _gain_cache.size() * sizeof(EdgeWeight) << " bytes";
     }
 
     if (_weighted_degrees.size() < _n) {

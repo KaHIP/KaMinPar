@@ -28,6 +28,7 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
+
 template <
     typename GraphType,
     template <typename>
@@ -35,42 +36,12 @@ template <
     bool iterate_nonadjacent_blocks,
     bool iterate_exact_gains = false>
 class HashingGainCache {
-  SET_DEBUG(false);
-  SET_STATISTICS_FROM_GLOBAL();
+  SET_DEBUG(true);
 
   // Abuse MSB bit in the _weighted_degrees[] array for locking
   constexpr static UnsignedEdgeWeight kWeightedDegreeLock =
       (static_cast<UnsignedEdgeWeight>(1) << (std::numeric_limits<UnsignedEdgeWeight>::digits - 1));
   constexpr static UnsignedEdgeWeight kWeightedDegreeMask = ~kWeightedDegreeLock;
-
-  struct Statistics {
-    Statistics operator+(const Statistics &other) const {
-      return {
-          num_sparse_queries + other.num_sparse_queries,
-          num_sparse_updates + other.num_sparse_updates,
-          num_dense_queries + other.num_dense_queries,
-          num_dense_updates + other.num_dense_updates,
-          num_dense_insertions + other.num_dense_insertions,
-          num_dense_deletions + other.num_dense_deletions,
-          total_dense_fill_degree + other.total_dense_fill_degree,
-          dense_fill_degree_count + other.dense_fill_degree_count,
-          num_moves + other.num_moves,
-      };
-    }
-
-    std::size_t num_sparse_queries = 0;
-    std::size_t num_sparse_updates = 0;
-
-    std::size_t num_dense_queries = 0;
-    std::size_t num_dense_updates = 0;
-    std::size_t num_dense_insertions = 0;
-    std::size_t num_dense_deletions = 0;
-
-    double total_dense_fill_degree = 0;
-    std::size_t dense_fill_degree_count = 0;
-
-    std::size_t num_moves = 0;
-  };
 
 public:
   using Graph = GraphType;
@@ -104,28 +75,27 @@ public:
     _n = _graph->n();
     _k = _p_graph->k();
 
-    if (_offset.size() < _n + 1) {
+    if (_offsets.size() < _n + 1) {
       SCOPED_TIMER("Allocation");
-      _offset.resize(_n + 1);
+      _offsets.resize(_n + 1);
     }
-
-    _offset.front() = 0;
-    _graph->pfor_nodes([&](const NodeID u) {
-      _offset[u + 1] = std::min<EdgeID>(math::ceil2(_graph->degree(u)), _k);
-    });
-    parallel::prefix_sum(_offset.begin(), _offset.begin() + _n + 1, _offset.begin());
-    const std::size_t gain_cache_size = _offset.back();
-
-    if (_gain_cache.size() < gain_cache_size) {
-      SCOPED_TIMER("Allocation");
-      DBG << "Re-allocating dense gain cache to " << gain_cache_size * sizeof(EdgeWeight) / 1024
-          << " KiB";
-      _gain_cache.resize(gain_cache_size);
-    }
-
     if (_weighted_degrees.size() < _n) {
       SCOPED_TIMER("Allocation");
       _weighted_degrees.resize(_n);
+    }
+
+    _offsets.front() = 0;
+    _graph->pfor_nodes([&](const NodeID u) {
+      _offsets[u + 1] = std::min<EdgeID>(math::ceil2(_graph->degree(u)), _k);
+    });
+    parallel::prefix_sum(_offsets.begin(), _offsets.begin() + _n + 1, _offsets.begin());
+    const std::size_t gain_cache_size = _offsets.back();
+
+    if (_gain_cache.size() < gain_cache_size) {
+      SCOPED_TIMER("Allocation");
+      _gain_cache.resize(gain_cache_size);
+      DBG << "Allocating gain cache: " << _gain_cache.size() * sizeof(UnsignedEdgeWeight)
+          << " bytes";
     }
 
     _bits_for_key = math::ceil_log2(_k);
@@ -181,7 +151,7 @@ public:
       const EdgeWeight conn_from = kIteratesExactGains ? conn_hash_table(node, from) : 0;
 
       if constexpr (kIteratesNonadjacentBlocks) {
-        auto &buffer = _dense_buffer_ets.local();
+        auto &buffer = _sparse_buffer_ets.local();
 
         create_hash_table(node).for_each([&](const BlockID to, const EdgeWeight conn_to) {
           buffer.set(to, conn_to);
@@ -205,14 +175,10 @@ public:
   }
 
   KAMINPAR_INLINE void move(const NodeID node, const BlockID block_from, const BlockID block_to) {
-    IFSTATS(++_stats_ets.local().num_moves);
-
     _graph->adjacent_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
       if (use_full_table(v)) {
         __atomic_fetch_sub(&_gain_cache[index_full_table(v, block_from)], weight, __ATOMIC_RELAXED);
         __atomic_fetch_add(&_gain_cache[index_full_table(v, block_to)], weight, __ATOMIC_RELAXED);
-
-        IFSTATS(++_stats_ets.local().num_sparse_updates);
       } else {
         auto table = create_hash_table(v);
 
@@ -220,10 +186,6 @@ public:
         [[maybe_unused]] bool was_deleted = table.decrease_by(block_from, weight);
         [[maybe_unused]] bool was_inserted = table.increase_by(block_to, weight);
         unlock(v);
-
-        IFSTATS(++_stats_ets.local().num_dense_updates);
-        IFSTATS(_stats_ets.local().num_dense_deletions += (was_deleted ? 1 : 0));
-        IFSTATS(_stats_ets.local().num_dense_insertions += (was_inserted ? 1 : 0));
       }
     });
   }
@@ -233,23 +195,7 @@ public:
     return weighted_degree(node) != weighted_degree_to(node, block_of_node);
   }
 
-  void print_statistics() const {
-    Statistics stats = _stats_ets.combine(std::plus{});
-
-    LOG_STATS << "Sparse Gain Cache:";
-    LOG_STATS << "  * # of moves: " << stats.num_moves;
-    LOG_STATS << "  * # of queries: " << stats.num_dense_queries << " LD, "
-              << stats.num_sparse_queries << " HD";
-    LOG_STATS << "    + Average initial LD fill degree: "
-              << (stats.dense_fill_degree_count > 0
-                      ? 100.0 * stats.total_dense_fill_degree / stats.dense_fill_degree_count
-                      : 0)
-              << "%";
-    LOG_STATS << "  * # of updates: " << stats.num_dense_updates << " LD, "
-              << stats.num_sparse_updates << " HD";
-    LOG_STATS << "    + # of LD Insertions: " << stats.num_dense_insertions;
-    LOG_STATS << "    + # of LD Deletions: " << stats.num_dense_deletions;
-  }
+  void print_statistics() const {}
 
 private:
   //
@@ -289,9 +235,6 @@ private:
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight
   weighted_degree_to(const NodeID node, const BlockID block) const {
-    IFSTATS(_stats_ets.local().num_sparse_queries += use_full_table(node));
-    IFSTATS(_stats_ets.local().num_dense_queries += !use_full_table(node));
-
     if (use_full_table(node)) {
       const std::size_t idx = index_full_table(node, block);
       return static_cast<EdgeWeight>(__atomic_load_n(&_gain_cache[idx], __ATOMIC_RELAXED));
@@ -311,22 +254,21 @@ private:
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight
   weighted_degree_to_hash_table(const NodeID node, const BlockID block) const {
-    IFSTATS(++_stats_ets.local().num_dense_queries);
     return static_cast<EdgeWeight>(create_hash_table(node).get(block));
   }
 
-  [[nodiscard]] KAMINPAR_INLINE CompactHashMap<UnsignedEdgeWeight const>
+  [[nodiscard]] KAMINPAR_INLINE CompactHashMap<UnsignedEdgeWeight const, true>
   create_hash_table(const NodeID node) const {
-    const std::size_t start = _offset[node];
-    const std::size_t size = _offset[node + 1] - start;
+    const std::size_t start = _offsets[node];
+    const std::size_t size = _offsets[node + 1] - start;
     KASSERT(math::is_power_of_2(size));
     return {_gain_cache.data() + start, size, _bits_for_key};
   }
 
-  [[nodiscard]] KAMINPAR_INLINE CompactHashMap<UnsignedEdgeWeight>
+  [[nodiscard]] KAMINPAR_INLINE CompactHashMap<UnsignedEdgeWeight, true>
   create_hash_table(const NodeID node) {
-    const std::size_t start = _offset[node];
-    const std::size_t size = _offset[node + 1] - start;
+    const std::size_t start = _offsets[node];
+    const std::size_t size = _offsets[node + 1] - start;
     KASSERT(math::is_power_of_2(size));
     return {_gain_cache.data() + start, size, _bits_for_key};
   }
@@ -337,7 +279,7 @@ private:
 
   [[nodiscard]] KAMINPAR_INLINE std::size_t
   index_full_table(const NodeID node, const BlockID block) const {
-    return _offset[node] + block;
+    return _offsets[node] + block;
   }
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight
@@ -347,14 +289,13 @@ private:
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight
   weighted_degree_to_full_table(const NodeID node, const BlockID block) const {
-    IFSTATS(++_stats_ets.local().num_sparse_queries);
     return static_cast<EdgeWeight>(
         __atomic_load_n(&_gain_cache[index_full_table(node, block)], __ATOMIC_RELAXED)
     );
   }
 
   [[nodiscard]] KAMINPAR_INLINE bool use_full_table(const NodeID node) const {
-    return _offset[node + 1] - _offset[node] == _k;
+    return _offsets[node + 1] - _offsets[node] == _k;
   }
 
   //
@@ -363,31 +304,17 @@ private:
 
   void reset() {
     SCOPED_TIMER("Reset gain cache");
-    IFSTATS(_stats_ets.clear());
 
     tbb::parallel_for<std::size_t>(0, _gain_cache.size(), [&](const std::size_t i) {
       _gain_cache[i] = 0;
     });
-    _dense_buffer_ets.clear();
+    _sparse_buffer_ets.clear();
   }
 
   void recompute_all() {
     SCOPED_TIMER("Recompute gain cache");
 
     _graph->pfor_nodes([&](const NodeID u) { recompute_node(u); });
-    KASSERT(validate(), "dense gain cache verification failed after recomputation", assert::heavy);
-
-    IF_STATS {
-      _graph->pfor_nodes([&](const NodeID u) {
-        if (!use_full_table(u)) {
-          auto map = create_hash_table(u);
-
-          auto &stats = _stats_ets.local();
-          stats.total_dense_fill_degree += 1.0 * map.count() / map.capacity();
-          ++stats.dense_fill_degree_count;
-        }
-      });
-    }
   }
 
   void recompute_node(const NodeID u) {
@@ -417,18 +344,15 @@ private:
   NodeID _n = kInvalidNodeID;
   BlockID _k = kInvalidBlockID;
 
-  StaticArray<EdgeID> _offset;
+  StaticArray<EdgeID> _offsets;
 
   // Number of bits reserved in hash table cells to store the key (i.e., block ID) of the entry
   int _bits_for_key = 0;
 
-  std::size_t _sparse_offset = 0;
-
   StaticArray<UnsignedEdgeWeight> _gain_cache;
   StaticArray<UnsignedEdgeWeight> _weighted_degrees;
 
-  mutable tbb::enumerable_thread_specific<Statistics> _stats_ets;
-  mutable tbb::enumerable_thread_specific<FastResetArray<EdgeWeight>> _dense_buffer_ets{[&] {
+  mutable tbb::enumerable_thread_specific<FastResetArray<EdgeWeight>> _sparse_buffer_ets{[&] {
     return FastResetArray<EdgeWeight>(_k);
   }};
 };
@@ -438,4 +362,5 @@ using NormalHashingGainCache = HashingGainCache<Graph, SparseDeltaGainCache, tru
 
 template <typename Graph>
 using LargeKHashingGainCache = HashingGainCache<Graph, LargeKSparseDeltaGainCache, false>;
+
 } // namespace kaminpar::shm
