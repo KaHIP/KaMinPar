@@ -26,6 +26,7 @@
 // Gain cache variations: unless compiled with experimental features enabled, only the sparse gain
 // cache will be available
 #ifdef KAMINPAR_EXPERIMENTAL
+#include "kaminpar-shm/refinement/gains/compact_hashing_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/dense_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/on_the_fly_gain_cache.h"
 #endif
@@ -578,6 +579,10 @@ void FMRefiner::initialize(const PartitionedGraph &p_graph) {
       switch (_ctx.refinement.kway_fm.gain_cache_strategy) {
       case GainCacheStrategy::HASHING:
         _core = std::make_unique<FMRefinerCore<Graph, NormalHashingGainCache>>(_ctx);
+        break;
+
+      case GainCacheStrategy::COMPACT_HASHING:
+        _core = std::make_unique<FMRefinerCore<Graph, NormalCompactHashingGainCache>>(_ctx);
         break;
 
       case GainCacheStrategy::SPARSE:

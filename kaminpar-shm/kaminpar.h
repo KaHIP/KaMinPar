@@ -223,6 +223,7 @@ enum class FMStoppingRule {
 
 enum class GainCacheStrategy {
   HASHING,
+  COMPACT_HASHING,
   SPARSE,
   DENSE,
   LARGE_K,
