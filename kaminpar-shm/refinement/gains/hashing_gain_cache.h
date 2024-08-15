@@ -36,7 +36,7 @@ template <
     bool iterate_nonadjacent_blocks,
     bool iterate_exact_gains = false>
 class HashingGainCache {
-  SET_DEBUG(false);
+  SET_DEBUG(true);
 
   // Abuse MSB bit in the _weighted_degrees[] array for locking
   constexpr static UnsignedEdgeWeight kWeightedDegreeLock =
@@ -79,6 +79,10 @@ public:
       SCOPED_TIMER("Allocation");
       _offsets.resize(_n + 1);
     }
+    if (_weighted_degrees.size() < _n) {
+      SCOPED_TIMER("Allocation");
+      _weighted_degrees.resize(_n);
+    }
 
     _offsets.front() = 0;
     _graph->pfor_nodes([&](const NodeID u) {
@@ -89,14 +93,9 @@ public:
 
     if (_gain_cache.size() < gain_cache_size) {
       SCOPED_TIMER("Allocation");
-      DBG << "Re-allocating dense gain cache to " << gain_cache_size * sizeof(EdgeWeight) / 1024
-          << " KiB";
       _gain_cache.resize(gain_cache_size);
-    }
-
-    if (_weighted_degrees.size() < _n) {
-      SCOPED_TIMER("Allocation");
-      _weighted_degrees.resize(_n);
+      DBG << "Allocating gain cache: " << _gain_cache.size() * sizeof(UnsignedEdgeWeight)
+          << " bytes";
     }
 
     _bits_for_key = math::ceil_log2(_k);
