@@ -225,7 +225,7 @@ TEST(CompactHashMapTest, CountWorksOnEmptyMap) {
 
 TEST(CompactHashMapTest, CountWorksOnFullMap) {
   std::vector<std::uint64_t> storage(4);
-  CompactHashMap<std::uint64_t, true> ht(storage.data(), 4, 4);
+  CompactHashMap<std::uint64_t, true> ht(storage.data(), 4, 5);
   EXPECT_EQ(ht.capacity(), 4);
 
   ht.increase_by(0, 1);
