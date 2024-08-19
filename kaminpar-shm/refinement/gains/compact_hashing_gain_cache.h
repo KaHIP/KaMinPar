@@ -207,6 +207,10 @@ public:
 private:
   KAMINPAR_INLINE int compute_entry_width(const NodeID u, const bool with_key) const {
     const auto max_value = static_cast<std::uint64_t>(weighted_degree(u));
+    if (max_value == 0) {
+      return 0;
+    }
+
     const int bits = math::floor_log2(max_value) + 1 + (with_key ? _bits_for_key : 0);
     const int bytes = (bits + 7) / 8;
     return math::ceil2<unsigned>(bytes);
@@ -295,7 +299,9 @@ private:
       break;
     }
 
-    __builtin_unreachable();
+    // Default case: isolated nodes with degree 0
+    KASSERT(nbytes == 0);
+    return std::invoke_result_t<Lambda, const std::uint64_t *>();
   }
 
   template <typename Lambda>
@@ -327,7 +333,9 @@ private:
       break;
     }
 
-    __builtin_unreachable();
+    // Default case: isolated nodes with degree 0
+    KASSERT(nbytes == 0);
+    return std::invoke_result_t<Lambda, const CompactHashMap<std::uint64_t>>();
   }
 
   template <typename Lambda>
@@ -352,7 +360,9 @@ private:
       break;
     }
 
-    __builtin_unreachable();
+    // Default case: isolated nodes with degree 0
+    KASSERT(nbytes == 0);
+    return std::invoke_result_t<Lambda, CompactHashMap<std::uint64_t>>();
   }
 
   template <typename Width>
