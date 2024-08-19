@@ -252,4 +252,55 @@ TEST(CompactHashMapTest, SingleSlotMapWorks) {
   EXPECT_EQ(ht.count(), 1);
 }
 
+TEST(CompactHashMapTest, UnsuccessfulQueriesWorkOnEmptyMap) {
+  std::vector<std::uint64_t> storage(4);
+  CompactHashMap<std::uint64_t> ht(storage.data(), 4, 5);
+
+  EXPECT_EQ(ht.get(0), 0);
+  EXPECT_EQ(ht.get(1), 0);
+  EXPECT_EQ(ht.get(2), 0);
+  EXPECT_EQ(ht.get(3), 0);
+}
+
+TEST(CompactHashMapTest, UnsuccessfulQueriesWorkOnFullMap) {
+  std::vector<std::uint64_t> storage(4);
+  CompactHashMap<std::uint64_t, true> ht(storage.data(), 4, 5);
+
+  ht.increase_by(4, 1);
+  ht.increase_by(5, 1);
+  ht.increase_by(6, 1);
+  ht.increase_by(7, 1);
+
+  EXPECT_EQ(ht.get(0), 0);
+  EXPECT_EQ(ht.get(1), 0);
+  EXPECT_EQ(ht.get(2), 0);
+  EXPECT_EQ(ht.get(3), 0);
+}
+
+TEST(CompactHashMapTest, UnsuccessfulQueriesWorkOnPartialFullMap_NoAllowFullMap) {
+  std::vector<std::uint64_t> storage(4);
+  CompactHashMap<std::uint64_t> ht(storage.data(), 4, 5);
+
+  ht.increase_by(4, 1);
+  ht.increase_by(5, 1);
+
+  EXPECT_EQ(ht.get(0), 0);
+  EXPECT_EQ(ht.get(1), 0);
+  EXPECT_EQ(ht.get(2), 0);
+  EXPECT_EQ(ht.get(3), 0);
+}
+
+TEST(CompactHashMapTest, UnsuccessfulQueriesWorkOnPartialFullMap_AllowFullMap) {
+  std::vector<std::uint64_t> storage(4);
+  CompactHashMap<std::uint64_t, true> ht(storage.data(), 4, 5);
+
+  ht.increase_by(4, 1);
+  ht.increase_by(5, 1);
+
+  EXPECT_EQ(ht.get(0), 0);
+  EXPECT_EQ(ht.get(1), 0);
+  EXPECT_EQ(ht.get(2), 0);
+  EXPECT_EQ(ht.get(3), 0);
+}
+
 } // namespace kaminpar
