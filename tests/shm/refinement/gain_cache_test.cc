@@ -36,6 +36,11 @@ public:
     this->_gain_cache = nullptr;
   }
 
+  void move(PartitionedGraph &p_graph, const NodeID node, const BlockID to) {
+    this->_gain_cache->move(node, p_graph.block(node), to);
+    p_graph.set_block(node, to);
+  }
+
   std::unique_ptr<GainCacheType> _gain_cache = nullptr;
   Context _ctx = create_default_context();
 };
@@ -119,22 +124,48 @@ TYPED_TEST(GainCacheTest, InitWorksOn4PartiteStarGraphWith4Nodes) {
   EXPECT_EQ(this->_gain_cache->conn(0, 1), 1);
   EXPECT_EQ(this->_gain_cache->conn(0, 2), 1);
   EXPECT_EQ(this->_gain_cache->conn(0, 3), 1);
+  this->_gain_cache->gains(0, 0, [&](const BlockID to, auto &&gain) {
+    EXPECT_EQ(gain(), to == 0 ? 0 : 1);
+  });
 
-  EXPECT_EQ(this->_gain_cache->conn(1, 0), 1);
-  EXPECT_EQ(this->_gain_cache->conn(1, 1), 0);
-  EXPECT_EQ(this->_gain_cache->conn(1, 2), 0);
-  EXPECT_EQ(this->_gain_cache->conn(1, 3), 0);
+  for (const BlockID leaf : {1, 2, 3}) {
+    EXPECT_EQ(this->_gain_cache->conn(leaf, 0), 1);
+    EXPECT_EQ(this->_gain_cache->conn(leaf, 1), 0);
+    EXPECT_EQ(this->_gain_cache->conn(leaf, 2), 0);
+    EXPECT_EQ(this->_gain_cache->conn(leaf, 3), 0);
 
-  EXPECT_EQ(this->_gain_cache->conn(2, 0), 1);
-  EXPECT_EQ(this->_gain_cache->conn(2, 1), 0);
-  EXPECT_EQ(this->_gain_cache->conn(2, 2), 0);
-  EXPECT_EQ(this->_gain_cache->conn(2, 3), 0);
-
-  EXPECT_EQ(this->_gain_cache->conn(3, 0), 1);
-  EXPECT_EQ(this->_gain_cache->conn(3, 1), 0);
-  EXPECT_EQ(this->_gain_cache->conn(3, 2), 0);
-  EXPECT_EQ(this->_gain_cache->conn(3, 3), 0);
+    this->_gain_cache->gains(leaf, leaf, [&](const BlockID to, auto &&gain) {
+      EXPECT_EQ(gain(), to == 0 ? 1 : 0);
+    });
+  }
 
   this->free();
 }
+
+TYPED_TEST(GainCacheTest, MoveWorksOn4PartiteStarGraphWith4Nodes) {
+  auto star = make_star_graph(3);
+  EXPECT_EQ(star.degree(0), 3); // Node 0 is the center of the star
+
+  auto p_star = make_p_graph(star, 4, {0, 1, 2, 3});
+
+  this->init(p_star);
+
+  // Move center of the star to block 1 == block of node 1
+  this->move(p_star, 0, 1);
+
+  EXPECT_EQ(this->_gain_cache->conn(0, 0), 0);
+  EXPECT_EQ(this->_gain_cache->conn(0, 1), 1);
+  EXPECT_EQ(this->_gain_cache->conn(0, 2), 1);
+  EXPECT_EQ(this->_gain_cache->conn(0, 3), 1);
+
+  for (const auto leaf : {1, 2, 3}) {
+    EXPECT_EQ(this->_gain_cache->conn(leaf, 0), 0);
+    EXPECT_EQ(this->_gain_cache->conn(leaf, 1), 1);
+    EXPECT_EQ(this->_gain_cache->conn(leaf, 2), 0);
+    EXPECT_EQ(this->_gain_cache->conn(leaf, 3), 0);
+  }
+
+  this->free();
+}
+
 } // namespace

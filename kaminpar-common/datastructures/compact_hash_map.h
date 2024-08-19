@@ -26,6 +26,7 @@
 #include "kaminpar-common/math.h"
 
 namespace kaminpar {
+
 template <typename Type, bool allow_full_map = false> class CompactHashMap {
   using MutType = std::remove_const_t<Type>;
   static_assert(std::is_unsigned_v<Type>);
@@ -174,7 +175,7 @@ private:
   }
 
   [[nodiscard]] MutType decode_value(const MutType entry) const {
-    return (entry << key_bits()) >> key_bits();
+    return static_cast<MutType>((entry << key_bits())) >> key_bits();
   }
 
   MutType encode_key_value(const MutType key, const MutType value) {
@@ -194,4 +195,5 @@ private:
   MutType _value_mask;
   int _key_bits;
 };
+
 } // namespace kaminpar
