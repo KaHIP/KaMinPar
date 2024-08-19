@@ -5,13 +5,10 @@
  ******************************************************************************/
 #pragma once
 
+#include <array>
 #include <atomic>
 #include <cstdint>
 #include <vector>
-
-#include "kaminpar-shm/kaminpar.h"
-
-#include "kaminpar-common/parallel/atomic.h"
 
 namespace kaminpar::shm::fm {
 
