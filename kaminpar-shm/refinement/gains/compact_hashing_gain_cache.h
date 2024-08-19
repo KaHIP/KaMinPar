@@ -366,8 +366,8 @@ private:
   }
 
   template <typename Width>
-  [[nodiscard]] KAMINPAR_INLINE CompactHashMap<Width const> create_hash_table(const NodeID node
-  ) const {
+  [[nodiscard]] KAMINPAR_INLINE CompactHashMap<Width const, true>
+  create_hash_table(const NodeID node) const {
     const std::size_t start = _offsets[node];
     const std::size_t size = (_offsets[node + 1] - start) * (sizeof(std::uint64_t) / sizeof(Width));
     KASSERT(math::is_power_of_2(size));
@@ -375,7 +375,7 @@ private:
   }
 
   template <typename Width>
-  [[nodiscard]] KAMINPAR_INLINE CompactHashMap<Width> create_hash_table(const NodeID node) {
+  [[nodiscard]] KAMINPAR_INLINE CompactHashMap<Width, true> create_hash_table(const NodeID node) {
     const std::size_t start = _offsets[node];
     const std::size_t size = (_offsets[node + 1] - start) * (sizeof(std::uint64_t) / sizeof(Width));
     KASSERT(math::is_power_of_2(size));
