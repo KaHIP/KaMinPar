@@ -236,4 +236,20 @@ TEST(CompactHashMapTest, CountWorksOnFullMap) {
   EXPECT_EQ(ht.count(), 4);
 }
 
+TEST(CompactHashMapTest, SingleSlotMapWorks) {
+  std::vector<std::uint64_t> storage(1);
+  CompactHashMap<std::uint64_t, true> ht(storage.data(), 1, 2);
+  EXPECT_EQ(ht.capacity(), 1);
+
+  ht.increase_by(0, 1);
+  EXPECT_EQ(ht.count(), 1);
+  EXPECT_EQ(ht.get(0), 1);
+  ht.decrease_by(0, 1);
+  EXPECT_EQ(ht.count(), 0);
+  ht.increase_by(1, 1);
+  EXPECT_EQ(ht.get(0), 0);
+  EXPECT_EQ(ht.get(1), 1);
+  EXPECT_EQ(ht.count(), 1);
+}
+
 } // namespace kaminpar
