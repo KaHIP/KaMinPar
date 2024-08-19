@@ -312,74 +312,52 @@ private:
   }
 
   template <typename Lambda>
-  KAMINPAR_INLINE decltype(auto) with_hash_table(const NodeID node, Lambda &&l) const {
+  KAMINPAR_INLINE decltype(auto) with_hash_table_impl(const NodeID node, Lambda &&l) const {
     const int nbytes = compute_entry_width(node, true);
+    const std::size_t start = _offsets[node];
+    const std::size_t size = (_offsets[node + 1] - start) * (sizeof(std::uint64_t) / nbytes);
 
     switch (nbytes) {
     case 1:
-      return l(create_hash_table<std::uint8_t>(node));
+      return l(reinterpret_cast<const std::uint8_t *>(_gain_cache.data() + start), size);
       break;
 
     case 2:
-      return l(create_hash_table<std::uint16_t>(node));
+      return l(reinterpret_cast<const std::uint16_t *>(_gain_cache.data() + start), size);
       break;
 
     case 4:
-      return l(create_hash_table<std::uint32_t>(node));
+      return l(reinterpret_cast<const std::uint32_t *>(_gain_cache.data() + start), size);
       break;
 
     case 8:
-      return l(create_hash_table<std::uint64_t>(node));
+      return l(reinterpret_cast<const std::uint64_t *>(_gain_cache.data() + start), size);
       break;
     }
 
     // Default case: isolated nodes with degree 0
     KASSERT(nbytes == 0);
-    return std::invoke_result_t<Lambda, const CompactHashMap<std::uint64_t>>();
+    return std::invoke_result_t<Lambda, const std::uint64_t *, std::size_t>();
+  }
+
+  template <typename Lambda>
+  KAMINPAR_INLINE decltype(auto) with_hash_table(const NodeID node, Lambda &&l) const {
+    return with_hash_table_impl(
+        node,
+        [&]<typename Width>(const Width *storage, const std::size_t size) {
+          return l(CompactHashMap<const Width, true>(storage, size, _bits_for_key));
+        }
+    );
   }
 
   template <typename Lambda>
   KAMINPAR_INLINE decltype(auto) with_hash_table(const NodeID node, Lambda &&l) {
-    const int nbytes = compute_entry_width(node, true);
-
-    switch (nbytes) {
-    case 1:
-      return l(create_hash_table<std::uint8_t>(node));
-      break;
-
-    case 2:
-      return l(create_hash_table<std::uint16_t>(node));
-      break;
-
-    case 4:
-      return l(create_hash_table<std::uint32_t>(node));
-      break;
-
-    case 8:
-      return l(create_hash_table<std::uint64_t>(node));
-      break;
-    }
-
-    // Default case: isolated nodes with degree 0
-    KASSERT(nbytes == 0);
-    return std::invoke_result_t<Lambda, CompactHashMap<std::uint64_t>>();
-  }
-
-  template <typename Width>
-  [[nodiscard]] KAMINPAR_INLINE CompactHashMap<Width const, true>
-  create_hash_table(const NodeID node) const {
-    const std::size_t start = _offsets[node];
-    const std::size_t size = (_offsets[node + 1] - start) * (sizeof(std::uint64_t) / sizeof(Width));
-    KASSERT(math::is_power_of_2(size));
-    return {reinterpret_cast<const Width *>(_gain_cache.data() + start), size, _bits_for_key};
-  }
-
-  template <typename Width>
-  [[nodiscard]] KAMINPAR_INLINE CompactHashMap<Width, true> create_hash_table(const NodeID node) {
-    const std::size_t start = _offsets[node];
-    const std::size_t size = (_offsets[node + 1] - start) * (sizeof(std::uint64_t) / sizeof(Width));
-    KASSERT(math::is_power_of_2(size));
-    return {reinterpret_cast<Width *>(_gain_cache.data() + start), size, _bits_for_key};
+    return static_cast<const Self *>(this)->with_hash_table_impl(
+        node,
+        [&]<typename Width>(const Width *storage, const std::size_t size) {
+          return l(CompactHashMap<Width, true>(const_cast<Width *>(storage), size, _bits_for_key));
+        }
+    );
   }
 
   //
