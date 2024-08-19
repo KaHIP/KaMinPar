@@ -326,7 +326,6 @@ private:
         _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
           const BlockID block_v = _p_graph->block(v);
           _weighted_degrees[u] += static_cast<UnsignedEdgeWeight>(weight);
-
           ht.increase_by(block_v, static_cast<UnsignedEdgeWeight>(weight));
         });
       }

@@ -84,7 +84,12 @@ public:
   }
 
   [[nodiscard]] MutType get(const MutType key) const {
-    return decode_value(find(key).second);
+    if constexpr (allow_full_map) {
+      const auto slot = find(key);
+      return decode_key(slot.second) == key ? decode_value(find(key).second) : 0;
+    } else {
+      return decode_value(find(key).second);
+    }
   }
 
   [[nodiscard]] std::size_t capacity() const {
