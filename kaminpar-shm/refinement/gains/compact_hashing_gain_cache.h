@@ -84,18 +84,18 @@ public:
     }
 
     _offsets.front() = 0;
-    _graph->pfor_nodes([&](const NodeID u) {
+    for (const NodeID u : _graph->nodes()) { // @todo parallelize
       const EdgeID deg = math::ceil2(_graph->degree(u));
-      const unsigned bytes =
-          (deg < _k) ? compute_entry_width(u, true) * deg : compute_entry_width(u, false) * _k;
-      _offsets[u + 1] = math::div_ceil(bytes, sizeof(std::uint64_t));
-    });
-    parallel::prefix_sum(_offsets.begin(), _offsets.begin() + _n + 1, _offsets.begin());
+      const unsigned width = compute_entry_width(u, deg < _k);
+      const unsigned nbytes = (deg < _k) ? width * deg : width * _k;
+      _offsets[u] += ((width - (_offsets[u] % width)) % width);
+      _offsets[u + 1] = _offsets[u] + nbytes;
+    }
     const std::size_t gain_cache_size = _offsets.back();
 
     if (_gain_cache.size() < gain_cache_size) {
       SCOPED_TIMER("Allocation");
-      _gain_cache.resize(gain_cache_size);
+      _gain_cache.resize(math::div_ceil(gain_cache_size, sizeof(std::uint64_t)));
       DBG << "Allocating gain cache: " << _gain_cache.size() * sizeof(std::uint64_t) << " bytes";
     }
 
@@ -305,30 +305,48 @@ private:
 
   template <typename Lambda>
   KAMINPAR_INLINE decltype(auto) with_hash_table_impl(const NodeID node, Lambda &&l) const {
-    const int nbytes = compute_entry_width(node, true);
+    const int width = compute_entry_width(node, true);
     const std::size_t start = _offsets[node];
-    const std::size_t size = (_offsets[node + 1] - start) * (sizeof(std::uint64_t) / nbytes);
+    const std::size_t size = (_offsets[node + 1] - start) / width;
 
-    switch (nbytes) {
+    KASSERT((start % width) == 0);
+    KASSERT((_offsets[node + 1] - start) % width == 0);
+
+    switch (width) {
     case 1:
-      return l(reinterpret_cast<const std::uint8_t *>(_gain_cache.data() + start), size);
+      return l(reinterpret_cast<const std::uint8_t *>(_gain_cache.data()) + start, size);
       break;
 
     case 2:
-      return l(reinterpret_cast<const std::uint16_t *>(_gain_cache.data() + start), size);
+      return l(
+          reinterpret_cast<const std::uint16_t *>(
+              reinterpret_cast<const std::uint8_t *>(_gain_cache.data()) + start
+          ),
+          size
+      );
       break;
 
     case 4:
-      return l(reinterpret_cast<const std::uint32_t *>(_gain_cache.data() + start), size);
+      return l(
+          reinterpret_cast<const std::uint32_t *>(
+              reinterpret_cast<const std::uint8_t *>(_gain_cache.data()) + start
+          ),
+          size
+      );
       break;
 
     case 8:
-      return l(reinterpret_cast<const std::uint64_t *>(_gain_cache.data() + start), size);
+      return l(
+          reinterpret_cast<const std::uint64_t *>(
+              reinterpret_cast<const std::uint8_t *>(_gain_cache.data()) + start
+          ),
+          size
+      );
       break;
     }
 
     // Default case: isolated nodes with degree 0
-    KASSERT(nbytes == 0);
+    KASSERT(width == 0);
     return std::invoke_result_t<Lambda, const std::uint64_t *, std::size_t>();
   }
 
@@ -358,29 +376,37 @@ private:
 
   template <typename Lambda>
   KAMINPAR_INLINE decltype(auto) with_full_table(const NodeID node, Lambda &&l) const {
-    const int nbytes = compute_entry_width(node, false);
+    const int width = compute_entry_width(node, false);
     const std::size_t start = _offsets[node];
 
-    switch (nbytes) {
+    KASSERT((start % width) == 0);
+
+    switch (width) {
     case 1:
-      return l(reinterpret_cast<const std::uint8_t *>(_gain_cache.data() + start));
+      return l(reinterpret_cast<const std::uint8_t *>(_gain_cache.data()) + start);
       break;
 
     case 2:
-      return l(reinterpret_cast<const std::uint16_t *>(_gain_cache.data() + start));
+      return l(reinterpret_cast<const std::uint16_t *>(
+          reinterpret_cast<const std::uint8_t *>(_gain_cache.data()) + start
+      ));
       break;
 
     case 4:
-      return l(reinterpret_cast<const std::uint32_t *>(_gain_cache.data() + start));
+      return l(reinterpret_cast<const std::uint32_t *>(
+          reinterpret_cast<const std::uint8_t *>(_gain_cache.data()) + start
+      ));
       break;
 
     case 8:
-      return l(reinterpret_cast<const std::uint64_t *>(_gain_cache.data() + start));
+      return l(reinterpret_cast<const std::uint64_t *>(
+          reinterpret_cast<const std::uint8_t *>(_gain_cache.data()) + start
+      ));
       break;
     }
 
     // Default case: isolated nodes with degree 0
-    KASSERT(nbytes == 0);
+    KASSERT(width == 0);
     return std::invoke_result_t<Lambda, const std::uint64_t *>();
   }
 
