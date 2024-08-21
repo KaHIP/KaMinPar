@@ -20,7 +20,6 @@
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/inline.h"
 #include "kaminpar-common/logger.h"
-#include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
@@ -88,14 +87,19 @@ public:
       const EdgeID deg = math::ceil2(_graph->degree(u));
       const unsigned width = compute_entry_width(u, deg < _k);
       const unsigned nbytes = (deg < _k) ? width * deg : width * _k;
-      _offsets[u] += ((width - (_offsets[u] % width)) % width);
+
+      if (width > 0) {
+        _offsets[u] += (width - (_offsets[u] % width)) % width;
+        KASSERT(_offsets[u] % width == 0);
+      }
+
       _offsets[u + 1] = _offsets[u] + nbytes;
     }
-    const std::size_t gain_cache_size = _offsets.back();
+    const std::size_t gain_cache_size = math::div_ceil(_offsets[_n], sizeof(std::uint64_t));
 
     if (_gain_cache.size() < gain_cache_size) {
       SCOPED_TIMER("Allocation");
-      _gain_cache.resize(math::div_ceil(gain_cache_size, sizeof(std::uint64_t)));
+      _gain_cache.resize(gain_cache_size);
       DBG << "Allocating gain cache: " << _gain_cache.size() * sizeof(std::uint64_t) << " bytes";
     }
 
@@ -105,7 +109,6 @@ public:
     DBG << "  Reserve " << _bits_for_key << " of " << sizeof(UnsignedEdgeWeight) * 8
         << " bits for block IDs";
 
-    reset();
     recompute_gains();
   }
 
@@ -209,18 +212,13 @@ private:
   // Init (mixed)
   //
 
-  void reset() {
+  void recompute_gains() {
     SCOPED_TIMER("Reset gain cache");
 
     tbb::parallel_for<std::size_t>(0, _gain_cache.size(), [&](const std::size_t i) {
       _gain_cache[i] = 0;
     });
-
     _sparse_buffer_ets.clear();
-  }
-
-  void recompute_gains() {
-    SCOPED_TIMER("Recompute gain cache");
 
     _graph->pfor_nodes([&](const NodeID u) {
       if (use_hash_table(u)) {
@@ -244,7 +242,7 @@ private:
       _weighted_degrees[u] = 0;
 
       // @todo avoid v lookup
-      _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+      _graph->adjacent_nodes(u, [&](NodeID, const EdgeWeight weight) {
         _weighted_degrees[u] += static_cast<UnsignedEdgeWeight>(weight);
       });
     });
@@ -259,7 +257,9 @@ private:
 
     const int bits = math::floor_log2(max_value) + 1 + (with_key ? _bits_for_key : 0);
     const int bytes = (bits + 7) / 8;
-    return math::ceil2<unsigned>(bytes);
+    const int ans = math::ceil2<unsigned>(bytes);
+    KASSERT(ans == 1 || ans == 2 || ans == 4 || ans == 8);
+    return ans;
   }
 
   [[nodiscard]] KAMINPAR_INLINE bool use_hash_table(const NodeID node) const {
@@ -307,10 +307,14 @@ private:
   KAMINPAR_INLINE decltype(auto) with_hash_table_impl(const NodeID node, Lambda &&l) const {
     const int width = compute_entry_width(node, true);
     const std::size_t start = _offsets[node];
-    const std::size_t size = (_offsets[node + 1] - start) / width;
+    const std::size_t size = width > 0 ? math::floor2((_offsets[node + 1] - start) / width) : 0;
 
-    KASSERT((start % width) == 0);
-    KASSERT((_offsets[node + 1] - start) % width == 0);
+    KASSERT(use_hash_table(node));
+    KASSERT(
+        width == 0 || (start % width) == 0,
+        V(width) << V(start) << V(_offsets[node]) << V(_offsets[node + 1])
+    );
+    KASSERT(width == 0 || (_offsets[node + 1] - start) % width == 0);
 
     switch (width) {
     case 1:
@@ -379,7 +383,10 @@ private:
     const int width = compute_entry_width(node, false);
     const std::size_t start = _offsets[node];
 
-    KASSERT((start % width) == 0);
+    KASSERT(
+        width == 0 || (start % width) == 0,
+        V(start) << V(width) << V(_offsets[node]) << V(_offsets[node + 1])
+    );
 
     switch (width) {
     case 1:
