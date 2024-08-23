@@ -130,6 +130,7 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
   - forest-fire, ff: sampling by forest fire scores
   - k-neighbour, kn: k-Neighbour sampling
   - k-neighbour-spanning-tree, kn-st: k-Neighbour sampling with spanning tree
+  - unbiased-threshold, ut: sample edges above a threshold T, and other edges with probability w(e)/T
   - weight-threshold, wt: sample edges with weights above threshold
   - effective-resistance, er: sample edges with relative effective-resistance above threshold
   - independent-random, ir: sample edges indepently with probabilites proportional to scores

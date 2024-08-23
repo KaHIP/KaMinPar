@@ -95,6 +95,7 @@ enum class SparsificationAlgorithm {
   RANDOM_WITHOUT_REPLACEMENT,
   INDEPENDENT_RANDOM,
   THRESHOLD,
+  UNBIASED_THRESHOLD
 };
 
 enum class ScoreFunctionSection {

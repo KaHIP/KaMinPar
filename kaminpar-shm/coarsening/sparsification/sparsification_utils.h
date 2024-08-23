@@ -17,4 +17,5 @@ void for_edges_with_endpoints(
 void for_upward_edges(const CSRGraph &g, std::function<void(EdgeID)>);
 void for_downward_edges(const CSRGraph &g, std::function<void(EdgeID)>);
 
+
 } // namespace kaminpar::shm::sparsification::utils

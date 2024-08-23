@@ -36,6 +36,7 @@
 #include "coarsening/sparsification/RandomWithReplacementSampler.h"
 #include "coarsening/sparsification/RandomWithoutReplacementSampler.h"
 #include "coarsening/sparsification/ThresholdSampler.h"
+#include "coarsening/sparsification/UnbiasedThesholdSampler.h"
 #include "coarsening/sparsification/UniformRandomSampler.h"
 #include "coarsening/sparsification/WeightedForestFireScore.hpp"
 #include "coarsening/sparsification/kNeighbourSampler.h"
@@ -122,6 +123,8 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
     return std::make_unique<sparsification::kNeighbourSampler>();
   case SparsificationAlgorithm::K_NEIGHBOUR_SPANNING_TREE:
     return std::make_unique<sparsification::kNeighbourSampler>(true);
+  case SparsificationAlgorithm::UNBIASED_THRESHOLD:
+    return std::make_unique<sparsification::UnbiasedThesholdSampler>();
   case SparsificationAlgorithm::WEIGHT_THRESHOLD:
     return std::make_unique<sparsification::ThresholdSampler<EdgeWeight>>(
         std::make_unique<WeightFunction>(),

@@ -95,6 +95,8 @@ std::unordered_map<std::string, SparsificationAlgorithm> get_sparsification_algo
       {"ir", SparsificationAlgorithm::INDEPENDENT_RANDOM},
     {"threshold", SparsificationAlgorithm::THRESHOLD},
     {"t", SparsificationAlgorithm::THRESHOLD},
+    {"unbiased-threshold", SparsificationAlgorithm::UNBIASED_THRESHOLD},
+    {"ut", SparsificationAlgorithm::UNBIASED_THRESHOLD},
   };
 }
 std::unordered_map<std::string, ScoreFunctionSection> get_score_function() {
