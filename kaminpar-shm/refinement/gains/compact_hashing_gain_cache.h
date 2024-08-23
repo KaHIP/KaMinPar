@@ -70,6 +70,7 @@ public:
 
     _n = _graph->n();
     _k = _p_graph->k();
+    _bits_for_key = math::ceil_log2(_k);
 
     if (_weighted_degrees.size() < _n) {
       SCOPED_TIMER("Allocation");
@@ -98,7 +99,6 @@ public:
       DBG << "Allocating gain cache: " << _gain_cache.size() * sizeof(std::uint64_t) << " bytes";
     }
 
-    _bits_for_key = math::ceil_log2(_k);
     DBG << "Gain cache summary: have " << _n << " nodes, " << _k << " blocks";
     DBG << "  Reserve " << (sizeof(UnsignedEdgeWeight) * 8 - _bits_for_key) << " of "
         << sizeof(UnsignedEdgeWeight) * 8 << " bits for gain values";
