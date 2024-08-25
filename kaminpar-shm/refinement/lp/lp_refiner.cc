@@ -48,6 +48,7 @@ public:
     Base::set_max_degree(_r_ctx.lp.large_degree_threshold);
     Base::set_max_num_neighbors(_r_ctx.lp.max_num_neighbors);
     Base::set_implementation(_r_ctx.lp.impl);
+    Base::set_tie_breaking_strategy(_r_ctx.lp.tie_breaking_strategy);
     Base::set_second_phase_selection_strategy(_r_ctx.lp.second_phase_selection_strategy);
     Base::set_second_phase_aggregation_strategy(_r_ctx.lp.second_phase_aggregation_strategy);
     Base::set_relabel_before_second_phase(false);
@@ -86,8 +87,6 @@ public:
 
     return true;
   }
-
-  using Base::expected_total_gain;
 
 public:
   [[nodiscard]] BlockID initial_cluster(const NodeID u) {
@@ -139,44 +138,36 @@ public:
   template <typename RatingMap>
   [[nodiscard]] ClusterID select_best_cluster(
       const bool store_favored_cluster,
+      const EdgeWeight gain_delta,
       Base::ClusterSelectionState &state,
       RatingMap &map,
-      ScalableVector<ClusterID> &tie_breaking_clusters
+      ScalableVector<ClusterID> &tie_breaking_clusters,
+      ScalableVector<ClusterID> &tie_breaking_favored_clusters
   ) {
+    const bool use_uniform_tie_breaking = _tie_breaking_strategy == TieBreakingStrategy::UNIFORM;
+
     ClusterID favored_cluster = state.initial_cluster;
+    if (use_uniform_tie_breaking) {
+      for (const auto [cluster, rating] : map.entries()) {
+        state.current_cluster = cluster;
+        state.current_gain = rating - gain_delta;
+        state.current_cluster_weight = cluster_weight(cluster);
 
-    const EdgeWeight gain_delta = (Config::kUseActualGain) ? map[state.initial_cluster] : 0;
-    for (const auto [cluster, rating] : map.entries()) {
-      state.current_cluster = cluster;
-      state.current_gain = rating - gain_delta;
-      state.current_cluster_weight = cluster_weight(cluster);
-
-      if (state.current_gain > state.best_gain) {
         if (store_favored_cluster) {
-          favored_cluster = state.current_cluster;
+          if (state.current_gain > state.overall_best_gain) {
+            state.overall_best_gain = state.current_gain;
+            favored_cluster = state.current_cluster;
+
+            tie_breaking_favored_clusters.clear();
+            tie_breaking_favored_clusters.push_back(state.current_cluster);
+          } else if (state.current_gain == state.overall_best_gain) {
+            tie_breaking_favored_clusters.push_back(state.current_cluster);
+          }
         }
 
-        const NodeWeight current_max_weight = max_cluster_weight(state.current_cluster);
-        const NodeWeight current_overload = state.current_cluster_weight - current_max_weight;
-        const NodeWeight initial_overload =
-            state.initial_cluster_weight - max_cluster_weight(state.initial_cluster);
-
-        if (state.current_cluster_weight + state.u_weight < current_max_weight ||
-            current_overload < initial_overload || state.current_cluster == state.initial_cluster) {
-          tie_breaking_clusters.clear();
-          tie_breaking_clusters.push_back(state.current_cluster);
-
-          state.best_cluster = state.current_cluster;
-          state.best_cluster_weight = state.current_cluster_weight;
-          state.best_gain = state.current_gain;
-        }
-      } else if (state.current_gain == state.best_gain) {
-        const NodeWeight current_max_weight = max_cluster_weight(state.current_cluster);
-        const NodeWeight best_overload =
-            state.best_cluster_weight - max_cluster_weight(state.best_cluster);
-        const NodeWeight current_overload = state.current_cluster_weight - current_max_weight;
-
-        if (current_overload < best_overload) {
+        if (state.current_gain > state.best_gain) {
+          const NodeWeight current_max_weight = max_cluster_weight(state.current_cluster);
+          const NodeWeight current_overload = state.current_cluster_weight - current_max_weight;
           const NodeWeight initial_overload =
               state.initial_cluster_weight - max_cluster_weight(state.initial_cluster);
 
@@ -188,29 +179,96 @@ public:
 
             state.best_cluster = state.current_cluster;
             state.best_cluster_weight = state.current_cluster_weight;
+            state.best_gain = state.current_gain;
           }
-        } else if (current_overload == best_overload) {
-          const NodeWeight initial_overload =
-              state.initial_cluster_weight - max_cluster_weight(state.initial_cluster);
+        } else if (state.current_gain == state.best_gain) {
+          const NodeWeight current_max_weight = max_cluster_weight(state.current_cluster);
+          const NodeWeight best_overload =
+              state.best_cluster_weight - max_cluster_weight(state.best_cluster);
+          const NodeWeight current_overload = state.current_cluster_weight - current_max_weight;
 
-          if (state.current_cluster_weight + state.u_weight < current_max_weight ||
-              current_overload < initial_overload ||
-              state.current_cluster == state.initial_cluster) {
-            tie_breaking_clusters.push_back(state.current_cluster);
+          if (current_overload < best_overload) {
+            const NodeWeight initial_overload =
+                state.initial_cluster_weight - max_cluster_weight(state.initial_cluster);
+
+            if (state.current_cluster_weight + state.u_weight < current_max_weight ||
+                current_overload < initial_overload ||
+                state.current_cluster == state.initial_cluster) {
+              tie_breaking_clusters.clear();
+              tie_breaking_clusters.push_back(state.current_cluster);
+
+              state.best_cluster = state.current_cluster;
+              state.best_cluster_weight = state.current_cluster_weight;
+            }
+          } else if (current_overload == best_overload) {
+            const NodeWeight initial_overload =
+                state.initial_cluster_weight - max_cluster_weight(state.initial_cluster);
+
+            if (state.current_cluster_weight + state.u_weight < current_max_weight ||
+                current_overload < initial_overload ||
+                state.current_cluster == state.initial_cluster) {
+              tie_breaking_clusters.push_back(state.current_cluster);
+            }
           }
         }
       }
-    }
 
-    if (tie_breaking_clusters.size() > 1) {
-      const ClusterID index = state.local_rand.random_index(0, tie_breaking_clusters.size());
-      const ClusterID best_cluster = tie_breaking_clusters[index];
-      state.best_cluster = best_cluster;
-    }
+      if (tie_breaking_clusters.size() > 1) {
+        const ClusterID i = state.local_rand.random_index(0, tie_breaking_clusters.size());
+        state.best_cluster = tie_breaking_clusters[i];
+      }
+      tie_breaking_clusters.clear();
 
-    tie_breaking_clusters.clear();
-    return favored_cluster;
+      if (tie_breaking_favored_clusters.size() > 1) {
+        const ClusterID i = state.local_rand.random_index(0, tie_breaking_favored_clusters.size());
+        favored_cluster = tie_breaking_favored_clusters[i];
+      }
+      tie_breaking_favored_clusters.clear();
+
+      return favored_cluster;
+    } else {
+      const auto accept_cluster = [&] {
+        static_assert(std::is_signed_v<NodeWeight>);
+
+        const NodeWeight current_max_weight = max_cluster_weight(state.current_cluster);
+        const NodeWeight best_overload =
+            state.best_cluster_weight - max_cluster_weight(state.best_cluster);
+        const NodeWeight current_overload = state.current_cluster_weight - current_max_weight;
+        const NodeWeight initial_overload =
+            state.initial_cluster_weight - max_cluster_weight(state.initial_cluster);
+
+        return (state.current_gain > state.best_gain ||
+                (state.current_gain == state.best_gain &&
+                 (current_overload < best_overload ||
+                  (current_overload == best_overload && state.local_rand.random_bool())))) &&
+               (state.current_cluster_weight + state.u_weight < current_max_weight ||
+                current_overload < initial_overload ||
+                state.current_cluster == state.initial_cluster);
+      };
+
+      for (const auto [cluster, rating] : map.entries()) {
+        state.current_cluster = cluster;
+        state.current_gain = rating - gain_delta;
+        state.current_cluster_weight = cluster_weight(cluster);
+
+        if (store_favored_cluster && state.current_gain > state.overall_best_gain) {
+          state.overall_best_gain = state.current_gain;
+          favored_cluster = state.current_cluster;
+        }
+
+        if (accept_cluster()) {
+          state.best_cluster = state.current_cluster;
+          state.best_cluster_weight = state.current_cluster_weight;
+          state.best_gain = state.current_gain;
+        }
+      }
+
+      return favored_cluster;
+    }
   }
+
+  using Base::_tie_breaking_strategy;
+  using Base::expected_total_gain;
 
   const Graph *_graph = nullptr;
   PartitionedGraph *_p_graph = nullptr;

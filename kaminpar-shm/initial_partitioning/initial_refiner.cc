@@ -28,4 +28,3 @@ std::unique_ptr<InitialRefiner> create_initial_refiner(const InitialRefinementCo
   __builtin_unreachable();
 }
 } // namespace kaminpar::shm
-

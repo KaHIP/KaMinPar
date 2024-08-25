@@ -11,17 +11,18 @@ Moreover, for large values of k, it is an order of magnitude faster than competi
 
 ### Requirements
 
-* C++17 compiler (GCC or Clang)
-* CMake 
-* Intel Thread Building Blocks library (TBB)
-* MPI (optional)
+* **Compiler:** GCC or Clang with C++20 support
+* **CPU:** x86 or ARM
+* **Operating System:** Linux or macOS
+* **Tools:** CMake
+* **Libraries:** Intel TBB, MPI (optional, for the distributed partitioner)
 
 ### Building KaMinPar
 
 Build KaMinPar following the standard CMake steps:
 
 ```shell
-cmake -B build -DCMAKE_BUILD_TYPE=Release --preset=<default|distributed>
+cmake -B build -DCMAKE_BUILD_TYPE=Release --preset=<default|memory|distributed>
 cmake --build build --parallel
 ```
 
@@ -31,7 +32,7 @@ To partition a graph in METIS format using (d)KaMinPar, run
 
 ```shell
 # KaMinPar: shared-memory partitioning
-./build/apps/KaMinPar [-P fast|default|strong|largek] -G <graph filename> -k <number of blocks> -t <nproc> [--epsilon=0.03] [--seed=0]
+./build/apps/KaMinPar [-P default|strong|memory|largek] -G <graph filename> -k <number of blocks> -t <nproc> [--epsilon=0.03] [--seed=0]
 
 # dKaMinPar: distributed partitioning
 mpirun -n <nproc> ./build/apps/dKaMinPar [-P default|strong] -G <graph filename> -k <number of blocks> [--epsilon=0.03] [--seed=0]

@@ -74,16 +74,9 @@ public:
   static constexpr bool kRunLengthEncoding = CompressedNeighborhoods::kRunLengthEncoding;
 
   /*!
-   * Whether stream encoding is used.
+   * Whether StreamVByte encoding is used.
    */
-  static constexpr bool kStreamEncoding = CompressedNeighborhoods::kStreamEncoding;
-
-  /*!
-   * Whether the isolated nodes of the compressed graph are continuously stored
-   * at the end of the nodes array.
-   */
-  static constexpr bool kIsolatedNodesSeparation =
-      CompressedNeighborhoods::kIsolatedNodesSeparation;
+  static constexpr bool kStreamVByteEncoding = CompressedNeighborhoods::kStreamVByteEncoding;
 
   /*!
    * Constructs a new compressed graph.
@@ -144,7 +137,7 @@ public:
   }
 
   [[nodiscard]] inline EdgeWeight total_edge_weight() const final {
-    return _total_edge_weight;
+    return _compressed_neighborhoods.total_edge_weight();
   }
 
   //
@@ -184,7 +177,7 @@ public:
     constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID, EdgeWeight>;
     static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
 
-    _compressed_neighborhoods.decode(u, [&](const EdgeID, const NodeID v, const EdgeWeight w) {
+    _compressed_neighborhoods.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
       if constexpr (kDecodeEdgeWeights) {
         return l(v, w);
       } else {
@@ -198,7 +191,7 @@ public:
     constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID, EdgeWeight>;
     static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
 
-    _compressed_neighborhoods.decode(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
+    _compressed_neighborhoods.neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
       if constexpr (kDecodeEdgeWeights) {
         return l(e, v, w);
       } else {
@@ -214,7 +207,7 @@ public:
     static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
 
     _compressed_neighborhoods
-        .decode(u, max_num_neighbors, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
+        .neighbors(u, max_num_neighbors, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
           if constexpr (kDecodeEdgeWeights) {
             return l(e, v, w);
           } else {
@@ -239,8 +232,9 @@ public:
   inline void pfor_neighbors(
       const NodeID u, const NodeID max_num_neighbors, const NodeID grainsize, Lambda &&l
   ) const {
-    constexpr bool kParallelDecoding = true;
-    _compressed_neighborhoods.decode<kParallelDecoding>(u, std::forward<Lambda>(l));
+    // The compressed graph does not allow for arbitrary grainsize. It is also not supported
+    // to only visit a subrange of neighbors.
+    _compressed_neighborhoods.parallel_neighbors(u, std::forward<Lambda>(l));
   }
 
   //
@@ -428,7 +422,6 @@ private:
 
   NodeWeight _max_node_weight = kInvalidNodeWeight;
   NodeWeight _total_node_weight = kInvalidNodeWeight;
-  EdgeWeight _total_edge_weight = kInvalidEdgeWeight;
 
   StaticArray<NodeID> _permutation;
   bool _sorted;

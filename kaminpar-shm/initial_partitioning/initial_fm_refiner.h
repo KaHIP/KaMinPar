@@ -117,4 +117,3 @@ using InitialAdaptive2WayFM = InitialFMRefiner<
     fm::BalancedMinCutAcceptancePolicy,
     fm::AdaptiveStoppingPolicy>;
 } // namespace kaminpar::shm
-

@@ -18,21 +18,25 @@
 #include <atomic>
 #include <iostream>
 #include <memory>
-#include <stdlib.h>
-#include <sys/time.h>
+#include <cstdlib>
 
+#if defined(__linux__)
+#include <sys/time.h>
 #include <linux/futex.h>
 #include <sys/syscall.h>
 #include <unistd.h>
+#endif 
 
 namespace growt
 {
 
+#if defined(__linux__)
 static long sys_futex(void* addr1, int op, int val1, struct timespec* timeout,
                       void* addr2, int val3)
 {
     return syscall(SYS_futex, addr1, op, val1, timeout, addr2, val3);
 }
+#endif 
 
 class alignas(64) counting_wait
 {
@@ -54,15 +58,25 @@ class alignas(64) counting_wait
 
     inline bool wait_if(int exp)
     {
+#if defined(__linux__)
         // while (counter.load(std::memory_order_acquire) < l_epoch) ;
         // //temporary should soon be removed
         auto ecode = sys_futex(&counter, FUTEX_WAIT, exp, NULL, NULL, 0);
         return !ecode;
+#else 
+        counter.wait(exp);
+        return true; // always ignored
+#endif 
     }
 
-    inline uint wake(uint n_threads = 9999)
+    inline unsigned int wake(int n_threads = 9999) // always 9999
     {
+#if defined(__linux__)
         return sys_futex(&counter, FUTEX_WAKE, n_threads, NULL, NULL, 0);
+#else 
+        counter.notify_all();
+        return 1; // always ignored
+#endif 
     }
 
   private:

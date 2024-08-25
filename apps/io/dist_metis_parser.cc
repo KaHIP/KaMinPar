@@ -142,6 +142,45 @@ compute_chunks(const Int length, const mpi::PEID num_processes, const mpi::PEID 
   return std::make_pair(from, to);
 }
 
+std::tuple<NodeID, NodeID, EdgeID, std::size_t> find_node_by_node(
+    MappedFileToker &toker,
+    const MetisHeader header,
+    const EdgeID first_node,
+    const EdgeID last_node
+) {
+  std::size_t start_pos;
+  EdgeID actual_first_edge;
+
+  NodeID current_node = 0;
+  EdgeID current_edge = 0;
+  parse_graph(
+      toker,
+      header,
+      [&](const auto) {
+        if (current_node < first_node) {
+          current_node += 1;
+          return false;
+        }
+
+        if (current_node < last_node) {
+          if (current_node - first_node == 0) {
+            start_pos = toker.position();
+            actual_first_edge = current_edge;
+          }
+
+          current_node += 1;
+          return false;
+        }
+
+        return true;
+      },
+      [&](const auto, const auto) { current_edge += 1; }
+  );
+
+  const EdgeID num_edges = ((last_node - first_node) == 0) ? 0 : current_edge - actual_first_edge;
+  return std::make_tuple(first_node, last_node, num_edges, start_pos);
+}
+
 std::tuple<NodeID, NodeID, EdgeID, std::size_t> find_node_by_edge(
     MappedFileToker &toker,
     const MetisHeader header,
@@ -234,6 +273,10 @@ std::tuple<NodeID, NodeID, EdgeID, std::size_t> find_local_nodes(
     const GraphDistribution distribution
 ) {
   switch (distribution) {
+  case GraphDistribution::BALANCED_NODES: {
+    const auto [first_node, last_node] = compute_chunks(header.num_nodes, size, rank);
+    return find_node_by_node(toker, header, first_node, last_node);
+  }
   case GraphDistribution::BALANCED_EDGES: {
     const auto [first_edge, last_edge] = compute_chunks(header.num_edges, size, rank);
     return find_node_by_edge(toker, header, first_edge, last_edge);
@@ -434,7 +477,7 @@ DistributedCompressedGraph compress_read(
       static_cast<GlobalEdgeID>(0)
   );
 
-  graph::GhostNodeMapper mapper(rank, node_distribution);
+  CompactGhostNodeMappingBuilder mapper(rank, node_distribution);
   CompressedNeighborhoodsBuilder<NodeID, EdgeID, EdgeWeight> builder(
       num_local_nodes, num_local_edges, header.has_edge_weights
   );
@@ -498,16 +541,12 @@ DistributedCompressedGraph compress_read(
     node_weights = std::move(actual_node_weights);
   }
 
-  auto [global_to_ghost, ghost_to_global, ghost_owner] = mapper.finalize();
-
   DistributedCompressedGraph graph(
       std::move(node_distribution),
       std::move(edge_distribution),
       builder.build(),
       std::move(node_weights),
-      std::move(ghost_owner),
-      std::move(ghost_to_global),
-      std::move(global_to_ghost),
+      mapper.finalize(),
       sorted,
       comm
   );

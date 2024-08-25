@@ -131,14 +131,15 @@ The output should be stored in a file and can be used by the -C,--config option.
       ->capture_default_str();
   cli.add_option("--io-kind", app.io_kind)
       ->transform(CLI::CheckedTransformer(get_io_kinds()).description(""))
-      ->description(R"(Graph distribution scheme used for KaGen IO, possible options are:
+      ->description(R"(Used IO for reading the input graph, possible options are:
   - kaminpar: use KaMinPar for IO
   - kagen:    use KaGen for IO
   - skagen:   use streaming KaGen for IO)")
       ->capture_default_str();
   cli.add_option("--io-distribution", app.io_distribution)
       ->transform(CLI::CheckedTransformer(get_graph_distributions()).description(""))
-      ->description(R"(Graph distribution scheme, possible options are:
+      ->description(R"(Graph distribution scheme used for KaMinPar IO, possible options are:
+  - balanced-nodes:        distribute nodes such that each PE has roughly the same number of nodes
   - balanced-edges:        distribute edges such that each PE has roughly the same number of edges
   - balanced-memory-space: distribute graph such that each PE uses roughly the same memory space for the input graph)"
       )
@@ -174,30 +175,30 @@ The output should be stored in a file and can be used by the -C,--config option.
         ->add_flag(
             "-H,--hp-print-detailed",
             app.heap_profiler_detailed,
-            "Show all levels and data structures in the result summary."
+            "Show all levels in the result summary."
         )
-        ->default_val(app.heap_profiler_detailed);
+        ->capture_default_str();
     hp_group
         ->add_option(
             "--hp-max-depth",
             app.heap_profiler_max_depth,
             "Set maximum heap profiler depth shown in the result summary."
         )
-        ->default_val(app.heap_profiler_max_depth);
+        ->capture_default_str();
     hp_group
         ->add_option(
             "--hp-print-structs",
             app.heap_profiler_print_structs,
             "Print data structure memory statistics in the result summary."
         )
-        ->default_val(app.heap_profiler_print_structs);
+        ->capture_default_str();
     hp_group
         ->add_option(
             "--hp-min-struct-size",
             app.heap_profiler_min_struct_size,
-            "Sets the minimum size of a data structure in MB to be included in the result summary."
+            "Sets the minimum size of a data structure in MiB to be included in the result summary."
         )
-        ->default_val(app.heap_profiler_min_struct_size)
+        ->capture_default_str()
         ->check(CLI::NonNegativeNumber);
   }
 
@@ -238,14 +239,10 @@ NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
     }
   }();
 
-  // We use `unsigned long` here since we currently do not have any MPI type definitions for
-  // GlobalNodeID
-  static_assert(std::is_same_v<GlobalNodeID, unsigned long>);
-  std::vector<GlobalNodeID> vtxdist =
-      BuildVertexDistribution<unsigned long>(graph, MPI_UNSIGNED_LONG, MPI_COMM_WORLD);
+  auto vtxdist = BuildVertexDistribution<std::uint64_t>(graph, MPI_UINT64_T, MPI_COMM_WORLD);
 
-  // ... if the data types are not the same, we would need to re-allocate memory for the graph; to
-  // this if we ever need it ...
+  // If data types mismatch, we would need to allocate new memory for the graph; this is to do until
+  // we actually need it ...
   std::vector<SInt> xadj = graph.TakeXadj<>();
   std::vector<SInt> adjncy = graph.TakeAdjncy<>();
   std::vector<SSInt> vwgt = graph.TakeVertexWeights<>();
@@ -256,12 +253,10 @@ NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
   static_assert(sizeof(SSInt) == sizeof(GlobalNodeWeight));
   static_assert(sizeof(SSInt) == sizeof(GlobalEdgeWeight));
 
-  GlobalEdgeID *xadj_ptr = reinterpret_cast<GlobalNodeID *>(xadj.data());
-  GlobalNodeID *adjncy_ptr = reinterpret_cast<GlobalNodeID *>(adjncy.data());
-  GlobalNodeWeight *vwgt_ptr =
-      vwgt.empty() ? nullptr : reinterpret_cast<GlobalNodeWeight *>(vwgt.data());
-  GlobalEdgeWeight *adjwgt_ptr =
-      adjwgt.empty() ? nullptr : reinterpret_cast<GlobalEdgeWeight *>(adjwgt.data());
+  auto *xadj_ptr = reinterpret_cast<GlobalNodeID *>(xadj.data());
+  auto *adjncy_ptr = reinterpret_cast<GlobalNodeID *>(adjncy.data());
+  auto *vwgt_ptr = vwgt.empty() ? nullptr : reinterpret_cast<GlobalNodeWeight *>(vwgt.data());
+  auto *adjwgt_ptr = adjwgt.empty() ? nullptr : reinterpret_cast<GlobalEdgeWeight *>(adjwgt.data());
 
   // Pass the graph to the partitioner --
   partitioner.import_graph(vtxdist.data(), xadj_ptr, adjncy_ptr, vwgt_ptr, adjwgt_ptr);
@@ -371,12 +366,13 @@ int main(int argc, char *argv[]) {
   partitioner.set_max_timer_depth(app.max_timer_depth);
   if constexpr (kHeapProfiling) {
     auto &global_heap_profiler = heap_profiler::HeapProfiler::global();
+
+    global_heap_profiler.set_max_depth(app.heap_profiler_max_depth);
+    global_heap_profiler.set_print_data_structs(app.heap_profiler_print_structs);
+    global_heap_profiler.set_min_data_struct_size(app.heap_profiler_min_struct_size);
+
     if (app.heap_profiler_detailed) {
-      global_heap_profiler.set_detailed_summary_options();
-    } else {
-      global_heap_profiler.set_max_depth(app.heap_profiler_max_depth);
-      global_heap_profiler.set_print_data_structs(app.heap_profiler_print_structs);
-      global_heap_profiler.set_min_data_struct_size(app.heap_profiler_min_struct_size);
+      global_heap_profiler.set_experiment_summary_options();
     }
   }
 

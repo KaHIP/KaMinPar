@@ -13,9 +13,9 @@
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/heap_profiler.h"
 
-#ifdef KAMINPAR_ENABLE_THP
+#if defined(__linux__) && defined(KAMINPAR_ENABLE_THP)
 #include "sys/mman.h"
-#endif // KAMINPAR_ENABLE_THP
+#endif
 
 namespace kaminpar::parallel {
 template <typename T> struct tbb_deleter {
@@ -35,16 +35,16 @@ template <typename T> tbb_unique_ptr<T> make_unique(const std::size_t size, cons
   auto nbytes = sizeof(T) * size;
   T *ptr = nullptr;
 
-#ifdef KAMINPAR_ENABLE_THP
+#if defined(__linux__) && defined(KAMINPAR_ENABLE_THP)
   if (thp) {
     scalable_posix_memalign(reinterpret_cast<void **>(&ptr), 1 << 21, nbytes);
     madvise(ptr, nbytes, MADV_HUGEPAGE);
   } else {
-#endif // KAMINPAR_ENABLE_THP
+#endif
     ptr = static_cast<T *>(scalable_malloc(nbytes));
-#ifdef KAMINPAR_ENABLE_THP
+#if defined(__linux__) && defined(KAMINPAR_ENABLE_THP)
   }
-#endif // KAMINPAR_ENABLE_THP
+#endif
 
   KASSERT(
       ptr != nullptr, "out of memory: could not allocate " << nbytes << " bytes", assert::light

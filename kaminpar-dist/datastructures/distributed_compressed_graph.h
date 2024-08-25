@@ -12,6 +12,7 @@
 #include "kaminpar-mpi/utils.h"
 
 #include "kaminpar-dist/datastructures/abstract_distributed_graph.h"
+#include "kaminpar-dist/datastructures/ghost_node_mapper.h"
 #include "kaminpar-dist/datastructures/growt.h"
 #include "kaminpar-dist/dkaminpar.h"
 
@@ -40,9 +41,7 @@ public:
       StaticArray<GlobalNodeID> node_distribution,
       StaticArray<GlobalEdgeID> edge_distribution,
       CompressedNeighborhoods compressed_neighborhoods,
-      StaticArray<PEID> ghost_owner,
-      StaticArray<GlobalNodeID> ghost_to_global,
-      growt::StaticGhostNodeMapping global_to_ghost,
+      CompactGhostNodeMapping ghost_node_mapping,
       const bool sorted,
       MPI_Comm comm
   )
@@ -51,9 +50,7 @@ public:
             std::move(edge_distribution),
             std::move(compressed_neighborhoods),
             {},
-            std::move(ghost_owner),
-            std::move(ghost_to_global),
-            std::move(global_to_ghost),
+            std::move(ghost_node_mapping),
             sorted,
             comm
         ) {}
@@ -63,9 +60,7 @@ public:
       StaticArray<GlobalEdgeID> edge_distribution,
       CompressedNeighborhoods compressed_neighborhoods,
       StaticArray<NodeWeight> node_weights,
-      StaticArray<PEID> ghost_owner,
-      StaticArray<GlobalNodeID> ghost_to_global,
-      growt::StaticGhostNodeMapping global_to_ghost,
+      CompactGhostNodeMapping ghost_node_mapping,
       const bool sorted,
       MPI_Comm comm
   )
@@ -73,16 +68,14 @@ public:
         _edge_distribution(std::move(edge_distribution)),
         _compressed_neighborhoods(std::move(compressed_neighborhoods)),
         _node_weights(std::move(node_weights)),
-        _ghost_owner(std::move(ghost_owner)),
-        _ghost_to_global(std::move(ghost_to_global)),
-        _global_to_ghost(std::move(global_to_ghost)),
+        _ghost_node_mapping(std::move(ghost_node_mapping)),
         _sorted(sorted),
         _communicator(comm) {
     const PEID rank = mpi::get_comm_rank(communicator());
 
     _n = _compressed_neighborhoods.num_nodes();
     _m = compressed_neighborhoods.num_edges();
-    _ghost_n = _ghost_to_global.size();
+    _ghost_n = ghost_node_mapping.num_ghost_nodes();
     _offset_n = _node_distribution[rank];
     _offset_m = _edge_distribution[rank];
     _global_n = _node_distribution.back();
@@ -204,8 +197,7 @@ public:
   }
 
   [[nodiscard]] inline bool contains_global_node(const GlobalNodeID global_u) const final {
-    return is_owned_global_node(global_u) ||
-           (_global_to_ghost.find(global_u + 1) != _global_to_ghost.end());
+    return is_owned_global_node(global_u) || _ghost_node_mapping.contains_global_as_ghost(global_u);
   }
 
   [[nodiscard]] inline bool contains_local_node(const NodeID local_u) const final {
@@ -228,10 +220,8 @@ public:
 
   [[nodiscard]] inline PEID ghost_owner(const NodeID u) const final {
     KASSERT(is_ghost_node(u));
-    KASSERT(u - n() < _ghost_owner.size());
-    KASSERT(_ghost_owner[u - n()] >= 0);
-    KASSERT(_ghost_owner[u - n()] < mpi::get_comm_size(communicator()));
-    return _ghost_owner[u - n()];
+    KASSERT(u - n() < _ghost_node_mapping.num_ghost_nodes());
+    return _ghost_node_mapping.ghost_owner(u - n());
   }
 
   [[nodiscard]] inline NodeID
@@ -242,7 +232,8 @@ public:
 
   [[nodiscard]] inline GlobalNodeID local_to_global_node(const NodeID local_u) const final {
     KASSERT(contains_local_node(local_u));
-    return is_owned_node(local_u) ? _offset_n + local_u : _ghost_to_global[local_u - n()];
+    return is_owned_node(local_u) ? _offset_n + local_u
+                                  : _ghost_node_mapping.ghost_to_global(local_u - n());
   }
 
   [[nodiscard]] inline NodeID global_to_local_node(const GlobalNodeID global_u) const final {
@@ -251,8 +242,7 @@ public:
     if (offset_n() <= global_u && global_u < offset_n() + n()) {
       return global_u - offset_n();
     } else {
-      KASSERT(_global_to_ghost.find(global_u + 1) != _global_to_ghost.end());
-      return (*_global_to_ghost.find(global_u + 1)).second;
+      return _ghost_node_mapping.global_to_ghost(global_u);
     }
   }
 
@@ -293,7 +283,7 @@ public:
     constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID, EdgeWeight>;
     static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
 
-    _compressed_neighborhoods.decode(u, [&](const EdgeID, const NodeID v, const EdgeWeight w) {
+    _compressed_neighborhoods.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
       if constexpr (kDecodeEdgeWeights) {
         return l(v, w);
       } else {
@@ -307,7 +297,7 @@ public:
     constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID, EdgeWeight>;
     static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
 
-    _compressed_neighborhoods.decode(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
+    _compressed_neighborhoods.neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
       if constexpr (kDecodeEdgeWeights) {
         return l(e, v, w);
       } else {
@@ -323,7 +313,7 @@ public:
     static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
 
     _compressed_neighborhoods
-        .decode(u, max_num_neighbors, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
+        .neighbors(u, max_num_neighbors, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
           if constexpr (kDecodeEdgeWeights) {
             return l(e, v, w);
           } else {
@@ -592,9 +582,7 @@ private:
   CompressedNeighborhoods _compressed_neighborhoods;
   StaticArray<NodeWeight> _node_weights{};
 
-  StaticArray<PEID> _ghost_owner{};
-  StaticArray<GlobalNodeID> _ghost_to_global{};
-  growt::StaticGhostNodeMapping _global_to_ghost{};
+  CompactGhostNodeMapping _ghost_node_mapping;
 
   // mutable for lazy initialization
   mutable StaticArray<std::uint8_t> _high_degree_ghost_node{};

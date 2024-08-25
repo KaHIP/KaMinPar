@@ -60,7 +60,10 @@ std::unordered_set<std::string> get_preset_names() {
 
 Context create_default_context() {
   return {
-      .compression = {.enabled = false, .may_dismiss = false},
+      .compression =
+          {
+              .enabled = false,
+          },
       .node_ordering = NodeOrdering::DEGREE_BUCKETS,
       .edge_ordering = EdgeOrdering::NATURAL,
       .partitioning =
@@ -90,6 +93,7 @@ Context create_default_context() {
                               .num_iterations = 5,
                               .large_degree_threshold = 1000000,
                               .max_num_neighbors = 200000,
+                              .tie_breaking_strategy = TieBreakingStrategy::UNIFORM,
                               .cluster_weights_structure = ClusterWeightsStructure::VEC,
                               .impl = LabelPropagationImplementation::TWO_PHASE,
                               .second_phase_selection_strategy =
@@ -110,6 +114,7 @@ Context create_default_context() {
                   {
                       // Context -> Coarsening -> Contraction
                       .mode = ContractionMode::BUFFERED,
+                      .implementation = ContractionImplementation::SINGLE_PHASE,
                       .edge_buffer_fill_fraction = 1,
                   },
               .contraction_limit = 2000,
@@ -172,6 +177,7 @@ Context create_default_context() {
                       .large_degree_threshold = 1000000,
                       .max_num_neighbors = std::numeric_limits<NodeID>::max(),
                       .impl = LabelPropagationImplementation::SINGLE_PHASE,
+                      .tie_breaking_strategy = TieBreakingStrategy::UNIFORM,
                       .second_phase_selection_strategy =
                           SecondPhaseSelectionStrategy::FULL_RATING_MAP,
                       .second_phase_aggregation_strategy = SecondPhaseAggregationStrategy::BUFFERED,
@@ -185,7 +191,7 @@ Context create_default_context() {
                       .unlock_seed_nodes = true,
                       .use_exact_abortion_threshold = false,
                       .abortion_threshold = 0.999,
-                      .gain_cache_strategy = GainCacheStrategy::DENSE,
+                      .gain_cache_strategy = GainCacheStrategy::SPARSE,
                       .constant_high_degree_threshold = 0,
                       .k_based_high_degree_threshold = 1.0,
 
@@ -235,17 +241,13 @@ Context create_default_context() {
 
 Context create_memory_context() {
   Context ctx = create_default_context();
+  ctx.node_ordering = NodeOrdering::EXTERNAL_DEGREE_BUCKETS;
   ctx.compression.enabled = true;
-  ctx.compression.may_dismiss = true;
-  ctx.coarsening.clustering.algorithm = ClusteringAlgorithm::LABEL_PROPAGATION;
-  ctx.coarsening.clustering.lp.impl = LabelPropagationImplementation::TWO_PHASE;
   ctx.coarsening.clustering.max_mem_free_coarsening_level = 1;
+  ctx.coarsening.clustering.lp.impl = LabelPropagationImplementation::TWO_PHASE;
   ctx.coarsening.contraction.mode = ContractionMode::UNBUFFERED;
-  ctx.refinement.algorithms = {
-      RefinementAlgorithm::GREEDY_BALANCER,
-      RefinementAlgorithm::LABEL_PROPAGATION,
-  };
-
+  ctx.coarsening.contraction.implementation = ContractionImplementation::TWO_PHASE;
+  ctx.refinement.kway_fm.gain_cache_strategy = GainCacheStrategy::SPARSE;
   return ctx;
 }
 

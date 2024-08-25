@@ -1136,13 +1136,13 @@ template <typename T, typename C> class is_direct_constructible {
 #ifdef __CUDACC__
 #pragma diag_suppress 2361
 #endif
-      TT{std::declval<CC>()}
+                                            TT{std::declval<CC>()}
 #ifdef __CUDACC__
 #pragma diag_default 2361
 #endif
-      ,
-      std::is_move_assignable<TT>()
-  );
+                                            ,
+                                            std::is_move_assignable<TT>()
+                                        );
 
   template <typename TT, typename CC> static auto test(int, std::false_type) -> std::false_type;
 
@@ -1184,8 +1184,8 @@ public:
 /// Check for complex
 template <typename T> class is_complex {
   template <typename TT>
-  static auto test(int)
-      -> decltype(std::declval<TT>().real(), std::declval<TT>().imag(), std::true_type());
+  static auto test(int
+  ) -> decltype(std::declval<TT>().real(), std::declval<TT>().imag(), std::true_type());
 
   template <typename> static auto test(...) -> std::false_type;
 
@@ -1262,8 +1262,8 @@ template <typename S> class is_tuple_like {
   // static auto test(int)
   //     -> decltype(std::conditional<(std::tuple_size<SS>::value > 0),
   //     std::true_type, std::false_type>::type());
-  static auto test(int)
-      -> decltype(std::tuple_size<typename std::decay<SS>::type>::value, std::true_type{});
+  static auto test(int
+  ) -> decltype(std::tuple_size<typename std::decay<SS>::type>::value, std::true_type{});
   template <typename> static auto test(...) -> std::false_type;
 
 public:
@@ -1481,7 +1481,8 @@ template <typename T> struct type_count<T, typename std::enable_if<is_tuple_like
 /// definition of subtype count
 template <typename T> struct subtype_count {
   static constexpr int value{
-      is_mutable_container<T>::value ? expected_max_vector_size : type_count<T>::value};
+      is_mutable_container<T>::value ? expected_max_vector_size : type_count<T>::value
+  };
 };
 
 /// This will only trigger for actual void type
@@ -1541,7 +1542,8 @@ template <typename T> struct subtype_count_min {
   static constexpr int value{
       is_mutable_container<T>::value
           ? ((type_count<T>::value < expected_max_vector_size) ? type_count<T>::value : 0)
-          : type_count_min<T>::value};
+          : type_count_min<T>::value
+  };
 };
 
 /// This will only trigger for actual void type
@@ -9332,7 +9334,8 @@ inline void deprecate_option(Option *opt, const std::string &replacement = "") {
                   << "' instead\n";
         return std::string();
       },
-      "DEPRECATED"};
+      "DEPRECATED"
+  };
   deprecate_warning.application_index(0);
   opt->check(deprecate_warning);
   if (!replacement.empty()) {
@@ -9379,7 +9382,8 @@ inline void retire_option(App *app, Option *opt) {
         std::cout << "WARNING " << opt2->get_name() << " is retired and has no effect\n";
         return std::string();
       },
-      ""};
+      ""
+  };
   retired_warning.application_index(0);
   opt2->check(retired_warning);
 }
@@ -9405,7 +9409,8 @@ inline void retire_option(App *app, const std::string &option_name) {
         std::cout << "WARNING " << opt2->get_name() << " is retired and has no effect\n";
         return std::string();
       },
-      ""};
+      ""
+  };
   retired_warning.application_index(0);
   opt2->check(retired_warning);
 }

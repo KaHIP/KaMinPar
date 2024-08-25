@@ -65,7 +65,12 @@ public:
 
   void update(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
-  void update(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx, EdgeWeight cut, double l1) final;
+  void update(
+      const DistributedPartitionedGraph &p_graph,
+      const PartitionContext &p_ctx,
+      EdgeWeight cut,
+      double l1
+  ) final;
 
   void rollback(DistributedPartitionedGraph &p_graph) final;
 };

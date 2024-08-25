@@ -65,6 +65,7 @@ constexpr BlockWeight kInvalidBlockWeight = std::numeric_limits<BlockWeight>::ma
 enum class NodeOrdering {
   NATURAL,
   DEGREE_BUCKETS,
+  EXTERNAL_DEGREE_BUCKETS,
   IMPLICIT_DEGREE_BUCKETS
 };
 
@@ -93,6 +94,11 @@ enum class ClusterWeightLimit {
   BLOCK_WEIGHT,
   ONE,
   ZERO,
+};
+
+enum class TieBreakingStrategy {
+  GEOMETRIC,
+  UNIFORM,
 };
 
 enum class ClusterWeightsStructure {
@@ -142,10 +148,18 @@ enum class ContractionMode {
   UNBUFFERED_NAIVE,
 };
 
+enum class ContractionImplementation {
+  SINGLE_PHASE,
+  TWO_PHASE,
+  GROWING_HASH_TABLES
+};
+
 struct LabelPropagationCoarseningContext {
   int num_iterations;
   NodeID large_degree_threshold;
   NodeID max_num_neighbors;
+
+  TieBreakingStrategy tie_breaking_strategy;
 
   ClusterWeightsStructure cluster_weights_structure;
   LabelPropagationImplementation impl;
@@ -162,6 +176,8 @@ struct LabelPropagationCoarseningContext {
 
 struct ContractionCoarseningContext {
   ContractionMode mode;
+  ContractionImplementation implementation;
+
   double edge_buffer_fill_fraction;
 };
 
@@ -206,12 +222,12 @@ enum class FMStoppingRule {
 };
 
 enum class GainCacheStrategy {
+  HASHING,
+  COMPACT_HASHING,
   SPARSE,
   DENSE,
   LARGE_K,
   ON_THE_FLY,
-  HYBRID,
-  TRACING,
 };
 
 struct LabelPropagationRefinementContext {
@@ -220,6 +236,8 @@ struct LabelPropagationRefinementContext {
   NodeID max_num_neighbors;
 
   LabelPropagationImplementation impl;
+
+  TieBreakingStrategy tie_breaking_strategy;
 
   SecondPhaseSelectionStrategy second_phase_selection_strategy;
   SecondPhaseAggregationStrategy second_phase_aggregation_strategy;
@@ -409,7 +427,6 @@ struct PartitioningContext {
 
 struct GraphCompressionContext {
   bool enabled;
-  bool may_dismiss;
 
   bool compressed_edge_weights;
   bool high_degree_encoding;
@@ -418,8 +435,7 @@ struct GraphCompressionContext {
   bool interval_encoding;
   NodeID interval_length_treshold;
   bool run_length_encoding;
-  bool stream_encoding;
-  bool isolated_nodes_separation;
+  bool streamvbyte_encoding;
 
   bool dismissed;
   double compression_ratio;

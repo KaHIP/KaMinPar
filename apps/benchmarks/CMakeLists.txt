@@ -2,7 +2,7 @@ function(add_shm_benchmark target)
     add_executable(${target} ${ARGN})
     target_link_libraries(${target} PRIVATE 
         KaMinPar::KaMinPar 
-        KaMinPar::KaMinParCLI11 
+        KaMinPar::KaMinParCLI 
         KaMinPar::KaMinParIO 
         KaGen::KaGen)
     message(STATUS "Enabled benchmark: ${target}")
@@ -21,7 +21,7 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
         add_shm_benchmark(${target} ${ARGN})
         target_link_libraries(${target} PRIVATE 
             KaMinPar::dKaMinPar 
-            KaMinPar::dKaMinParCLI11)
+            KaMinPar::dKaMinParCLI)
     endfunction()
 
     # Distributed benchmarks

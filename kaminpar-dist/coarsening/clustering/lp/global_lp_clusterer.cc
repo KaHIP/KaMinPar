@@ -7,8 +7,6 @@
  ******************************************************************************/
 #include "kaminpar-dist/coarsening/clustering/lp/global_lp_clusterer.h"
 
-#include <google/dense_hash_map>
-
 #include "kaminpar-mpi/sparse_alltoall.h"
 
 #include "kaminpar-dist/datastructures/distributed_graph.h"

@@ -17,7 +17,6 @@
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/strutils.h"
-#include "kaminpar-common/varint_codec.h"
 
 namespace kaminpar::shm {
 using namespace std::string_literals;
@@ -27,6 +26,8 @@ std::unordered_map<std::string, NodeOrdering> get_node_orderings() {
       {"natural", NodeOrdering::NATURAL},
       {"deg-buckets", NodeOrdering::DEGREE_BUCKETS},
       {"degree-buckets", NodeOrdering::DEGREE_BUCKETS},
+      {"external-deg-buckets", NodeOrdering::EXTERNAL_DEGREE_BUCKETS},
+      {"external-degree-buckets", NodeOrdering::EXTERNAL_DEGREE_BUCKETS},
       {"implicit-deg-buckets", NodeOrdering::IMPLICIT_DEGREE_BUCKETS},
       {"implicit-degree-buckets", NodeOrdering::IMPLICIT_DEGREE_BUCKETS},
   };
@@ -38,6 +39,8 @@ std::ostream &operator<<(std::ostream &out, const NodeOrdering ordering) {
     return out << "natural";
   case NodeOrdering::DEGREE_BUCKETS:
     return out << "deg-buckets";
+  case NodeOrdering::EXTERNAL_DEGREE_BUCKETS:
+    return out << "external-deg-buckets";
   case NodeOrdering::IMPLICIT_DEGREE_BUCKETS:
     return out << "implicit-deg-buckets";
   }
@@ -260,17 +263,21 @@ std::ostream &operator<<(std::ostream &out, const InitialPartitioningMode mode) 
 
 std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies() {
   return {
+      {"hashing", GainCacheStrategy::HASHING},
+      {"compact-hashing", GainCacheStrategy::COMPACT_HASHING},
       {"sparse", GainCacheStrategy::SPARSE},
       {"dense", GainCacheStrategy::DENSE},
       {"largek", GainCacheStrategy::LARGE_K},
       {"on-the-fly", GainCacheStrategy::ON_THE_FLY},
-      {"hybrid", GainCacheStrategy::HYBRID},
-      {"tracing", GainCacheStrategy::TRACING},
   };
 }
 
 std::ostream &operator<<(std::ostream &out, const GainCacheStrategy strategy) {
   switch (strategy) {
+  case GainCacheStrategy::HASHING:
+    return out << "hashing";
+  case GainCacheStrategy::COMPACT_HASHING:
+    return out << "compact-hashing";
   case GainCacheStrategy::SPARSE:
     return out << "sparse";
   case GainCacheStrategy::DENSE:
@@ -279,10 +286,24 @@ std::ostream &operator<<(std::ostream &out, const GainCacheStrategy strategy) {
     return out << "largek";
   case GainCacheStrategy::ON_THE_FLY:
     return out << "on-the-fly";
-  case GainCacheStrategy::HYBRID:
-    return out << "hybrid";
-  case GainCacheStrategy::TRACING:
-    return out << "tracing";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, TieBreakingStrategy> get_tie_breaking_strategies() {
+  return {
+      {"geometric", TieBreakingStrategy::GEOMETRIC},
+      {"uniform", TieBreakingStrategy::UNIFORM},
+  };
+}
+
+std::ostream &operator<<(std::ostream &out, const TieBreakingStrategy strategy) {
+  switch (strategy) {
+  case TieBreakingStrategy::GEOMETRIC:
+    return out << "geometric";
+  case TieBreakingStrategy::UNIFORM:
+    return out << "uniform";
   }
 
   return out << "<invalid>";
@@ -393,8 +414,8 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
     out << "Compression Scheme:           Gap Encoding + ";
     if (c_ctx.run_length_encoding) {
       out << "VarInt Run-Length Encoding\n";
-    } else if (c_ctx.stream_encoding) {
-      out << "VarInt Stream Encoding\n";
+    } else if (c_ctx.streamvbyte_encoding) {
+      out << "StreamVByte Encoding\n";
     } else {
       out << "VarInt Encoding\n";
     }
@@ -410,8 +431,6 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
     if (c_ctx.interval_encoding) {
       out << "    Length Threshold:         " << c_ctx.interval_length_treshold << "\n";
     }
-    out << "  Isolated Nodes Separation:  " << (c_ctx.isolated_nodes_separation ? "yes" : "no")
-        << "\n";
 
     out << "Compresion Ratio:             ";
     if (c_ctx.dismissed) {
@@ -424,29 +443,6 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
       out << "  High Degree Part Count:     " << c_ctx.num_high_degree_parts << "\n";
       out << "  Interval Node Count:        " << c_ctx.num_interval_nodes << "\n";
       out << "  Interval Count:             " << c_ctx.num_intervals << "\n";
-
-      if (debug::kTrackVarintStats) {
-        const auto &stats = debug::varint_stats_global();
-
-        const float avg_varint_len =
-            (stats.varint_count == 0) ? 0 : (stats.varint_bytes / (float)stats.varint_count);
-        out << "Average Varint Length:        " << avg_varint_len
-            << " [count: " << stats.varint_count << "]\n";
-
-        const float avg_signed_varint_len =
-            (stats.signed_varint_count == 0)
-                ? 0
-                : (stats.signed_varint_bytes / (float)stats.signed_varint_count);
-        out << "Average Signed Varint Length: " << avg_signed_varint_len
-            << " [count: " << stats.signed_varint_count << "]\n";
-
-        const float avg_marked_varint_len =
-            (stats.marked_varint_count == 0)
-                ? 0
-                : (stats.marked_varint_bytes / (float)stats.marked_varint_count);
-        out << "Average Marked Varint Length: " << avg_marked_varint_len
-            << " [count: " << stats.marked_varint_count << "]\n";
-      }
     }
   }
 }
@@ -475,6 +471,27 @@ std::unordered_map<std::string, ContractionMode> get_contraction_modes() {
   };
 }
 
+std::ostream &operator<<(std::ostream &out, const ContractionImplementation mode) {
+  switch (mode) {
+  case ContractionImplementation::SINGLE_PHASE:
+    return out << "single-phase";
+  case ContractionImplementation::TWO_PHASE:
+    return out << "two-phase";
+  case ContractionImplementation::GROWING_HASH_TABLES:
+    return out << "growing-hash-tables";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, ContractionImplementation> get_contraction_implementations() {
+  return {
+      {"single-phase", ContractionImplementation::SINGLE_PHASE},
+      {"two-phase", ContractionImplementation::TWO_PHASE},
+      {"growing-hash-tables", ContractionImplementation::GROWING_HASH_TABLES},
+  };
+}
+
 void print(const CoarseningContext &c_ctx, std::ostream &out) {
   out << "Contraction limit:            " << c_ctx.contraction_limit << "\n";
   out << "Coarsening algorithm:         " << c_ctx.algorithm << "\n";
@@ -494,6 +511,8 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
   out << "Contraction mode:             " << c_ctx.contraction.mode << '\n';
   if (c_ctx.contraction.mode == ContractionMode::BUFFERED) {
     out << "  Edge buffer fill fraction:  " << c_ctx.contraction.edge_buffer_fill_fraction << "\n";
+  } else if (c_ctx.contraction.mode == ContractionMode::UNBUFFERED) {
+    out << "  Implementation:             " << c_ctx.contraction.implementation << "\n";
   }
 }
 
@@ -501,6 +520,7 @@ void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
   out << "    Number of iterations:     " << lp_ctx.num_iterations << "\n";
   out << "    High degree threshold:    " << lp_ctx.large_degree_threshold << "\n";
   out << "    Max degree:               " << lp_ctx.max_num_neighbors << "\n";
+  out << "    Tie breaking strategy:    " << lp_ctx.tie_breaking_strategy << "\n";
   out << "    Cluster weights struct:   " << lp_ctx.cluster_weights_structure << "\n";
   out << "    Implementation:           " << lp_ctx.impl << "\n";
   if (lp_ctx.impl == LabelPropagationImplementation::TWO_PHASE) {
@@ -524,6 +544,7 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
   if (r_ctx.includes_algorithm(RefinementAlgorithm::LABEL_PROPAGATION)) {
     out << "Label propagation:\n";
     out << "  Number of iterations:       " << r_ctx.lp.num_iterations << "\n";
+    out << "  Tie breaking strategy:      " << r_ctx.lp.tie_breaking_strategy << "\n";
     out << "  Implementation:             " << r_ctx.lp.impl << "\n";
     if (r_ctx.lp.impl == LabelPropagationImplementation::TWO_PHASE) {
       out << "    Selection strategy:       " << r_ctx.lp.second_phase_selection_strategy << '\n';
@@ -540,13 +561,6 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
         << (r_ctx.kway_fm.unlock_seed_nodes ? "unlock" : "lock") << ", locally moved nodes: "
         << (r_ctx.kway_fm.unlock_locally_moved_nodes ? "unlock" : "lock") << "\n";
     out << "  Gain cache:                 " << r_ctx.kway_fm.gain_cache_strategy << "\n";
-    if (r_ctx.kway_fm.gain_cache_strategy == GainCacheStrategy::HYBRID) {
-      out << "  High-degree threshold:\n";
-      out << "    based on k:               " << r_ctx.kway_fm.k_based_high_degree_threshold
-          << "\n";
-      out << "    constant:                 " << r_ctx.kway_fm.constant_high_degree_threshold
-          << "\n";
-    }
   }
   if (r_ctx.includes_algorithm(RefinementAlgorithm::JET)) {
     out << "Jet refinement:               " << RefinementAlgorithm::JET << "\n";

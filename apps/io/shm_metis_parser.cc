@@ -230,8 +230,7 @@ CSRGraph csr_read(const std::string &filename, const bool sorted) {
   );
 }
 
-std::optional<CompressedGraph>
-compress_read(const std::string &filename, const bool sorted, const bool may_dismiss) {
+CompressedGraph compress_read(const std::string &filename, const bool sorted) {
   MappedFileToker toker(filename);
   const MetisHeader header = parse_header(toker);
 
@@ -253,19 +252,12 @@ compress_read(const std::string &filename, const bool sorted, const bool may_dis
 
   NodeID node = 0;
   EdgeID edge = 0;
-
   parse_graph(
       toker,
       header,
       [&](const std::uint64_t weight) {
         if (node > 0) {
           builder.add_node(node - 1, neighbourhood);
-
-          if (may_dismiss && builder.currently_used_memory() > uncompressed_graph_size) {
-            dismissed = true;
-            return true;
-          }
-
           neighbourhood.clear();
         }
 
@@ -281,11 +273,6 @@ compress_read(const std::string &filename, const bool sorted, const bool may_dis
         edge += 1;
       }
   );
-
-  if (dismissed) {
-    return std::nullopt;
-  }
-
   builder.add_node(node - 1, neighbourhood);
 
   KASSERT(

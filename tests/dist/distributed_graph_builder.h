@@ -119,9 +119,7 @@ public:
     if (!_unit_node_weights) {
       mpi::graph::sparse_alltoall_interface_to_pe<Message>(
           graph,
-          [&](const NodeID u) -> Message {
-            return {u, graph.node_weight(u)};
-          },
+          [&](const NodeID u) -> Message { return {u, graph.node_weight(u)}; },
           [&](const auto buffer, const PEID pe) {
             tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
               const auto &[local_node_on_other_pe, weight] = buffer[i];

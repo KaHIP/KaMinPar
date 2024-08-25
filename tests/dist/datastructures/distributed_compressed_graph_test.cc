@@ -27,11 +27,12 @@
 
 namespace kaminpar::dist {
 
-template <typename T> static bool operator==(const IotaRange<T> &a, const IotaRange<T> &b) {
+template <typename T>
+[[nodiscard]] static bool operator==(const IotaRange<T> &a, const IotaRange<T> &b) {
   return a.begin() == b.begin() && a.end() == b.end();
 };
 
-DistributedCompressedGraph compress(const DistributedCSRGraph &graph) {
+[[nodiscard]] DistributedCompressedGraph compress(const DistributedCSRGraph &graph) {
   const mpi::PEID size = mpi::get_comm_size(graph.communicator());
   const mpi::PEID rank = mpi::get_comm_rank(graph.communicator());
 
@@ -42,7 +43,7 @@ DistributedCompressedGraph compress(const DistributedCSRGraph &graph) {
       graph.edge_distribution().begin(), graph.edge_distribution().end()
   );
 
-  graph::GhostNodeMapper mapper(rank, node_distribution);
+  CompactGhostNodeMappingBuilder mapper(rank, node_distribution);
   CompressedNeighborhoodsBuilder<NodeID, EdgeID, EdgeWeight> builder(
       graph.n(), graph.m(), graph.is_edge_weighted()
   );
@@ -62,7 +63,7 @@ DistributedCompressedGraph compress(const DistributedCSRGraph &graph) {
       if (graph.is_owned_node(adjacent_node)) {
         neighbourhood.emplace_back(adjacent_node, edge_weight);
       } else {
-        const NodeID original_adjacent_node = graph.local_to_global_node(adjacent_node);
+        const GlobalNodeID original_adjacent_node = graph.local_to_global_node(adjacent_node);
         neighbourhood.emplace_back(mapper.new_ghost_node(original_adjacent_node), edge_weight);
       }
     });
@@ -82,16 +83,12 @@ DistributedCompressedGraph compress(const DistributedCSRGraph &graph) {
     });
   }
 
-  auto [global_to_ghost, ghost_to_global, ghost_owner] = mapper.finalize();
-
   DistributedCompressedGraph compressed_graph(
       std::move(node_distribution),
       std::move(edge_distribution),
       builder.build(),
       std::move(node_weights),
-      std::move(ghost_owner),
-      std::move(ghost_to_global),
-      std::move(global_to_ghost),
+      mapper.finalize(),
       graph.sorted(),
       graph.communicator()
   );

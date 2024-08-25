@@ -5,11 +5,14 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
-#include <memory>
-#include <vector>
+
+#include "kaminpar-common/datastructures/scalable_vector.h"
+#include "kaminpar-common/parallel/tbb_malloc.h"
 
 namespace kaminpar {
 template <typename Key, typename Value, typename Derived> class DynamicMapBase {
+  static constexpr std::size_t kTHPThreshold = 1024 * 1024 * 16;
+
 public:
   DynamicMapBase(const DynamicMapBase &) = delete;
   DynamicMapBase &operator=(const DynamicMapBase &other) = delete;
@@ -82,8 +85,8 @@ protected:
     _size = 0;
     _capacity = align_to_next_power_of_two(capacity);
 
-    const size_t alloc_size = static_cast<const Derived *>(this)->size_in_bytes_impl();
-    _data = std::make_unique<std::uint8_t[]>(alloc_size);
+    const std::size_t alloc_size = static_cast<const Derived *>(this)->size_in_bytes_impl();
+    _data = parallel::make_unique<std::uint8_t>(alloc_size, alloc_size >= kTHPThreshold);
     std::memset(_data.get(), 0, alloc_size);
 
     static_cast<Derived *>(this)->initialize_impl();
@@ -98,7 +101,7 @@ private:
     const std::size_t old_size = _size;
     const std::size_t old_capacity = _capacity;
     const std::size_t new_capacity = 2UL * _capacity;
-    const std::unique_ptr<std::uint8_t[]> old_data = std::move(_data);
+    const parallel::tbb_unique_ptr<std::uint8_t> old_data = std::move(_data);
     const std::uint8_t *old_data_begin = old_data.get();
 
     initialize(new_capacity);
@@ -118,7 +121,7 @@ protected:
   std::size_t _capacity = 0;
   std::size_t _size = 0;
 
-  std::unique_ptr<std::uint8_t[]> _data = nullptr;
+  parallel::tbb_unique_ptr<std::uint8_t> _data = nullptr;
 };
 
 template <typename Key, typename Value>
@@ -133,6 +136,15 @@ class DynamicFlatMap final : public DynamicMapBase<Key, Value, DynamicFlatMap<Ke
     Value value;
     std::size_t timestamp;
   };
+
+  [[nodiscard]] static std::size_t murmur64(std::size_t key) {
+    key ^= key >> 33;
+    key *= 0xff51afd7ed558ccdL;
+    key ^= key >> 33;
+    key *= 0xc4ceb9fe1a85ec53L;
+    key ^= key >> 33;
+    return key;
+  }
 
 public:
   DynamicFlatMap() {
@@ -161,7 +173,7 @@ private:
   }
 
   std::size_t find_impl(const Key key) const {
-    std::size_t hash = key & (_capacity - 1);
+    std::size_t hash = murmur64(key) & (_capacity - 1);
     while (_elements[hash].timestamp == _timestamp) {
       if (_elements[hash].key == key) {
         return hash;
@@ -215,19 +227,28 @@ private:
   MapElement *_elements = nullptr;
 };
 
-template <typename Key, typename Value>
+template <typename Key, typename Value, typename Timestamp = std::size_t>
 class DynamicRememberingFlatMap final
-    : public DynamicMapBase<Key, Value, DynamicRememberingFlatMap<Key, Value>> {
-  using Base = DynamicMapBase<Key, Value, DynamicRememberingFlatMap<Key, Value>>;
+    : public DynamicMapBase<Key, Value, DynamicRememberingFlatMap<Key, Value, Timestamp>> {
+  using Base = DynamicMapBase<Key, Value, DynamicRememberingFlatMap<Key, Value, Timestamp>>;
   using Base::INVALID_POS_MASK;
 
   friend Base;
 
   struct MapElement {
+    Timestamp timestamp;
     Key key;
     Value value;
-    std::size_t timestamp;
   };
+
+  [[nodiscard]] static std::size_t murmur64(std::size_t key) {
+    key ^= key >> 33;
+    key *= 0xff51afd7ed558ccdL;
+    key ^= key >> 33;
+    key *= 0xc4ceb9fe1a85ec53L;
+    key ^= key >> 33;
+    return key;
+  }
 
 public:
   DynamicRememberingFlatMap() {
@@ -243,15 +264,17 @@ public:
   ~DynamicRememberingFlatMap() = default;
 
   template <typename Lambda> void for_each(Lambda &&lambda) const {
-    for (const std::size_t pos : _positions) {
-      lambda(_elements[pos].key, _elements[pos].value);
+    for (const std::size_t pos : _used_elements) {
+      const MapElement element = _elements[pos];
+      lambda(element.key, element.value);
     }
   }
 
   [[nodiscard]] auto entries() const {
     return TransformedIotaRange(static_cast<std::size_t>(0), _size, [this](const std::size_t i) {
-      const std::size_t pos = _positions[i];
-      return std::make_pair(_elements[pos].key, _elements[pos].value);
+      const std::size_t pos = _used_elements[i];
+      const MapElement element = _elements[pos];
+      return std::make_pair(element.key, element.value);
     });
   }
 
@@ -261,13 +284,16 @@ private:
   }
 
   std::size_t find_impl(const Key key) const {
-    std::size_t hash = key & (_capacity - 1);
-    while (_elements[hash].timestamp == _timestamp) {
-      if (_elements[hash].key == key) {
+    std::size_t hash = murmur64(key) & (_capacity - 1);
+
+    MapElement element;
+    while ((element = _elements[hash]).timestamp == _timestamp) {
+      if (element.key == key) {
         return hash;
       }
       hash = (hash + 1) & (_capacity - 1);
     }
+
     return hash | INVALID_POS_MASK;
   }
 
@@ -277,15 +303,14 @@ private:
 
   Value &add_element_impl(Key key, Value value, const std::size_t pos) {
     _size++;
-    _positions.push_back(pos);
+    _used_elements.push_back(pos);
 
-    _elements[pos] = MapElement{key, value, _timestamp};
+    _elements[pos] = MapElement{_timestamp, key, value};
     return _elements[pos].value;
   }
 
   void initialize_impl() {
     _elements = reinterpret_cast<MapElement *>(_data.get());
-    _old_timestamp = _timestamp;
     _timestamp = 1;
   }
 
@@ -296,29 +321,29 @@ private:
 
     const auto *elements = reinterpret_cast<const MapElement *>(old_data_begin);
     for (std::size_t i = 0; i < old_size; ++i) {
-      const std::size_t pos = _positions[i];
+      const std::size_t pos = _used_elements[i];
+      const MapElement element = elements[pos];
       const Key key = elements[pos].key;
       const std::size_t new_pos = find_impl(key) & ~INVALID_POS_MASK;
 
-      _positions[i] = new_pos;
-      _elements[new_pos] = MapElement{key, elements[pos].value, _timestamp};
+      _used_elements[i] = new_pos;
+      _elements[new_pos] = MapElement{_timestamp, key, element.value};
     }
   }
 
   void clear_impl() {
     ++_timestamp;
-    _positions.clear();
+    _used_elements.clear();
   }
 
   using Base::_capacity;
   using Base::_data;
   using Base::_size;
 
-  std::size_t _old_timestamp = 0;
-  std::size_t _timestamp = 1;
+  Timestamp _timestamp = 1;
 
   MapElement *_elements = nullptr;
-  std::vector<std::size_t> _positions;
+  ScalableVector<std::size_t> _used_elements;
 };
 
 } // namespace kaminpar

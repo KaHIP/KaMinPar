@@ -13,11 +13,11 @@
 #include "kaminpar-cli/CLI11.h"
 
 #include "kaminpar-common/console_io.h"
+#include "kaminpar-common/graph-compression/streamvbyte.h"
+#include "kaminpar-common/graph-compression/varint.h"
+#include "kaminpar-common/graph-compression/varint_rle.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
-#include "kaminpar-common/varint_codec.h"
-#include "kaminpar-common/varint_run_length_codec.h"
-#include "kaminpar-common/varint_stream_codec.h"
 
 using namespace kaminpar;
 
@@ -112,7 +112,7 @@ sv_encode_values(std::string_view name, const std::size_t count, Lambda &&l) {
   auto encoded_values = std::make_unique<std::uint8_t[]>(count * sizeof(Int) + count);
 
   TIMED_SCOPE(name) {
-    VarIntStreamEncoder<Int> encoder(encoded_values.get(), count);
+    streamvbyte::StreamVByteEncoder<Int> encoder(count, encoded_values.get());
 
     for (std::size_t i = 0; i < count; ++i) {
       const std::size_t bytes_written = encoder.add(l(i));
@@ -218,9 +218,7 @@ void benchmark(
   SCOPED_TIMER(name);
 
   for (std::size_t i = 0; i < count; ++i) {
-    const auto [value, bytes_decoded] = l(values_ptr);
-    values_ptr += bytes_decoded;
-
+    const auto value = l(&values_ptr);
     do_not_optimize(value);
   }
 }
@@ -229,7 +227,7 @@ template <typename Int>
 void benchmark_rle(std::string_view name, const std::size_t count, const std::uint8_t *values_ptr) {
   SCOPED_TIMER(name);
 
-  VarIntRunLengthDecoder<Int> decoder(values_ptr, count);
+  VarIntRunLengthDecoder<Int> decoder(count, values_ptr);
   decoder.decode([](const Int value) { do_not_optimize(value); });
 }
 
@@ -237,7 +235,7 @@ template <typename Int>
 void benchmark_sve(std::string_view name, const std::size_t count, const std::uint8_t *values_ptr) {
   SCOPED_TIMER(name);
 
-  VarIntStreamDecoder<Int> decoder(values_ptr, count);
+  streamvbyte::StreamVByteDecoder<Int> decoder(count, values_ptr);
   decoder.decode([](const Int value) { do_not_optimize(value); });
 }
 
@@ -299,7 +297,7 @@ template <typename Int> void run_benchmark(std::size_t count) {
       encoded_zero_values.get(),
       encoded_max_values.get(),
       encoded_random_values.get(),
-      [](const std::uint8_t *ptr) { return varint_decode_general<Int>(ptr); }
+      [](const std::uint8_t **ptr) { return varint_decode_loop<Int>(ptr); }
   );
 
   benchmark(
@@ -308,9 +306,10 @@ template <typename Int> void run_benchmark(std::size_t count) {
       encoded_zero_values.get(),
       encoded_max_values.get(),
       encoded_random_values.get(),
-      [](const std::uint8_t *ptr) { return varint_decode<Int>(ptr); }
+      [](const std::uint8_t **ptr) { return varint_decode_pext_unrolled<Int>(ptr); }
   );
 
+  /*
   std::vector<std::make_signed_t<Int>> random_signed_values =
       generate_random_values<std::make_signed_t<Int>>(count);
 
@@ -336,6 +335,7 @@ template <typename Int> void run_benchmark(std::size_t count) {
       encoded_random_signed_values.get(),
       [](const std::uint8_t *ptr) { return signed_varint_decode<std::make_signed_t<Int>>(ptr); }
   );
+  */
 
   const auto [rl_encoded_zero_values, rl_encoded_max_values, rl_encoded_random_values] =
       rl_encode_values<Int>(count, random_values);

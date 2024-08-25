@@ -35,6 +35,8 @@ public:
     return std::move(p_graph);
   }
 
+  void release_allocated_memory() final {};
+
 private:
   const Graph *_graph = nullptr;
 };

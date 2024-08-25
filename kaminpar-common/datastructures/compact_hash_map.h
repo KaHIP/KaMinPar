@@ -26,7 +26,8 @@
 #include "kaminpar-common/math.h"
 
 namespace kaminpar {
-template <typename Type> class CompactHashMap {
+
+template <typename Type, bool allow_full_map = false> class CompactHashMap {
   using MutType = std::remove_const_t<Type>;
   static_assert(std::is_unsigned_v<Type>);
 
@@ -58,6 +59,7 @@ public:
     std::size_t cur_pos = start_pos;
     MutType cur_entry;
 
+    // Fix the hash map invariant by moving displaced elements to the hole position:
     do {
       cur_pos = hash(cur_pos + 1);
       cur_entry = read_pos(cur_pos);
@@ -66,7 +68,12 @@ public:
         write_pos(hole_pos, cur_entry);
         hole_pos = cur_pos;
       }
-    } while (cur_entry != 0);
+    } while (cur_entry != 0 && (!allow_full_map || cur_pos != start_pos));
+
+    if constexpr (allow_full_map) {
+      write_pos(hole_pos, 0);
+    }
+
     return true;
   }
 
@@ -78,7 +85,12 @@ public:
   }
 
   [[nodiscard]] MutType get(const MutType key) const {
-    return decode_value(find(key).second);
+    if constexpr (allow_full_map) {
+      const auto slot = find(key);
+      return decode_key(slot.second) == key ? decode_value(find(key).second) : 0;
+    } else {
+      return decode_value(find(key).second);
+    }
   }
 
   [[nodiscard]] std::size_t capacity() const {
@@ -88,9 +100,7 @@ public:
   [[nodiscard]] std::size_t count() const {
     std::size_t num_nz = 0;
     for (std::size_t i = 0; i < capacity(); ++i) {
-      if (read_pos(i) != 0) {
-        ++num_nz;
-      }
+      num_nz += (read_pos(i) != 0);
     }
     return num_nz;
   }
@@ -131,10 +141,19 @@ private:
     std::size_t pos = key - 1;
     MutType entry;
 
-    do {
-      pos = hash(pos + 1);
-      entry = read_pos(pos);
-    } while (entry != 0 && decode_key(entry) != key);
+    // If we the hash table is not allowed to fill up 100%, we can use a simpler condition for
+    // elements that are not in the hash table ...
+    if constexpr (allow_full_map) {
+      do {
+        pos = hash(pos + 1);
+        entry = read_pos(pos);
+      } while (entry != 0 && decode_key(entry) != key && hash(pos + 1) != hash(key));
+    } else {
+      do {
+        pos = hash(pos + 1);
+        entry = read_pos(pos);
+      } while (entry != 0 && decode_key(entry) != key);
+    }
 
     return {pos, entry};
   }
@@ -156,11 +175,11 @@ private:
   }
 
   [[nodiscard]] MutType decode_value(const MutType entry) const {
-    return (entry << key_bits()) >> key_bits();
+    return static_cast<MutType>((entry << key_bits())) >> key_bits();
   }
 
   MutType encode_key_value(const MutType key, const MutType value) {
-    KASSERT(key == 0 || math::ceil_log2(key) <= _key_bits, "key too large");
+    KASSERT(key == 0 || math::ceil_log2<std::uint64_t>(key) <= _key_bits, "key too large");
     return (key << value_bits()) | value;
   }
 
@@ -176,4 +195,5 @@ private:
   MutType _value_mask;
   int _key_bits;
 };
+
 } // namespace kaminpar

@@ -125,30 +125,30 @@ The output should be stored in a file and can be used by the -C,--config option.
         ->add_flag(
             "-H,--hp-print-detailed",
             app.heap_profiler_detailed,
-            "Show all levels and data structures in the result summary."
+            "Show all levels in the result summary."
         )
-        ->default_val(app.heap_profiler_detailed);
+        ->capture_default_str();
     hp_group
         ->add_option(
             "--hp-max-depth",
             app.heap_profiler_max_depth,
             "Set maximum heap profiler depth shown in the result summary."
         )
-        ->default_val(app.heap_profiler_max_depth);
+        ->capture_default_str();
     hp_group
         ->add_option(
             "--hp-print-structs",
             app.heap_profiler_print_structs,
             "Print data structure memory statistics in the result summary."
         )
-        ->default_val(app.heap_profiler_print_structs);
+        ->capture_default_str();
     hp_group
         ->add_option(
             "--hp-min-struct-size",
             app.heap_profiler_min_struct_size,
-            "Sets the minimum size of a data structure in MB to be included in the result summary."
+            "Sets the minimum size of a data structure in MiB to be included in the result summary."
         )
-        ->default_val(app.heap_profiler_min_struct_size)
+        ->capture_default_str()
         ->check(CLI::NonNegativeNumber);
   }
 
@@ -192,13 +192,6 @@ int main(int argc, char *argv[]) {
     std::exit(0);
   }
 
-  if (ctx.compression.enabled && app.graph_file_format == io::GraphFileFormat::METIS &&
-      ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
-    std::cout << "The nodes of the compressed graph cannot be rearranged by degree buckets!"
-              << std::endl;
-    std::exit(0);
-  }
-
   // If available, use huge pages for large allocations
   scalable_allocation_mode(TBBMALLOC_USE_HUGE_PAGES, !app.no_huge_pages);
 
@@ -220,12 +213,13 @@ int main(int argc, char *argv[]) {
   partitioner.set_max_timer_depth(app.max_timer_depth);
   if constexpr (kHeapProfiling) {
     auto &global_heap_profiler = heap_profiler::HeapProfiler::global();
+
+    global_heap_profiler.set_max_depth(app.heap_profiler_max_depth);
+    global_heap_profiler.set_print_data_structs(app.heap_profiler_print_structs);
+    global_heap_profiler.set_min_data_struct_size(app.heap_profiler_min_struct_size);
+
     if (app.heap_profiler_detailed) {
-      global_heap_profiler.set_detailed_summary_options();
-    } else {
-      global_heap_profiler.set_max_depth(app.heap_profiler_max_depth);
-      global_heap_profiler.set_print_data_structs(app.heap_profiler_print_structs);
-      global_heap_profiler.set_min_data_struct_size(app.heap_profiler_min_struct_size);
+      global_heap_profiler.set_experiment_summary_options();
     }
   }
 
@@ -233,11 +227,7 @@ int main(int argc, char *argv[]) {
   START_HEAP_PROFILER("Input Graph Allocation");
   Graph graph = TIMED_SCOPE("Read input graph") {
     return io::read(
-        app.graph_filename,
-        app.graph_file_format,
-        ctx.compression.enabled,
-        ctx.compression.may_dismiss,
-        ctx.node_ordering
+        app.graph_filename, app.graph_file_format, ctx.node_ordering, ctx.compression.enabled
     );
   };
 

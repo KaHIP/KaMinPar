@@ -41,4 +41,3 @@ public:
   virtual void cluster(StaticArray<GlobalNodeID> &clustering, const DistributedGraph &graph) = 0;
 };
 } // namespace kaminpar::dist
-

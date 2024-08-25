@@ -95,12 +95,15 @@ public:
   [[nodiscard]] bool empty() const {
     return _used_entries.empty();
   }
+
   [[nodiscard]] std::size_t size() const {
     return _used_entries.size();
   }
+
   [[nodiscard]] std::size_t capacity() const {
     return _data.size();
   }
+
   void resize(const std::size_t capacity) {
     _data.resize(capacity, static_array::seq);
 
@@ -110,10 +113,6 @@ public:
             _data.size() * sizeof(value_type) + _used_entries.capacity() * sizeof(size_type)
         )
     );
-  }
-
-  [[nodiscard]] std::size_t memory_in_kb() const {
-    return _data.size() * sizeof(value_type) / 1000;
   }
 
 private:
