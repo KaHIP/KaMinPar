@@ -55,7 +55,7 @@ DistributedCSRGraph csr_streaming_generate(
   const NodeID num_local_nodes = last_node - first_node;
   StaticArray<EdgeID> nodes(num_local_nodes + 1, static_array::noinit);
 
-  const EdgeID max_num_local_edges = gen.MaxNumEdges();
+  const EdgeID max_num_local_edges = num_local_nodes * (num_local_nodes - 1);
   auto edges_ptr = heap_profiler::overcommit_memory<NodeID>(max_num_local_edges);
   auto edges = edges_ptr.get();
 
