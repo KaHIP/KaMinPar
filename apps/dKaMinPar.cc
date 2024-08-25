@@ -264,12 +264,22 @@ NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
   return graph.vertex_range.second - graph.vertex_range.first;
 }
 
-NodeID load_skagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
-  DistributedCompressedGraph compressed_graph = io::skagen::compressed_streaming_generate(
-      app.io_skagen_graph_options, app.io_skagen_chunks_per_pe, MPI_COMM_WORLD
-  );
-
-  DistributedGraph graph(std::make_unique<DistributedCompressedGraph>(std::move(compressed_graph)));
+NodeID load_skagen_graph(const ApplicationContext &app, bool compression, dKaMinPar &partitioner) {
+  DistributedGraph graph = [&] {
+    if (compression) {
+      return DistributedGraph(
+          std::make_unique<DistributedCompressedGraph>(io::skagen::compressed_streaming_generate(
+              app.io_skagen_graph_options, app.io_skagen_chunks_per_pe, MPI_COMM_WORLD
+          ))
+      );
+    } else {
+      return DistributedGraph(
+          std::make_unique<DistributedCSRGraph>(io::skagen::csr_streaming_generate(
+              app.io_skagen_graph_options, app.io_skagen_chunks_per_pe, MPI_COMM_WORLD
+          ))
+      );
+    }
+  }();
   const NodeID n = graph.n();
 
   partitioner.import_graph(std::move(graph));
@@ -388,7 +398,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (app.io_kind == IOKind::STREAMING_KAGEN) {
-      return load_skagen_graph(app, partitioner);
+      return load_skagen_graph(app, ctx.compression.enabled, partitioner);
     } else if (ctx.compression.enabled) {
       root_run([] {
         LOG_WARNING << "Disabling graph compression since it is not supported with KaGen-IO!";

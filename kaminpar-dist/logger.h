@@ -50,6 +50,10 @@
   kStatistics && (kaminpar::mpi::get_comm_rank(MPI_COMM_WORLD) == 0) &&                            \
       kaminpar::DisposableLogger<false>(std::cout) << kaminpar::logger::CYAN
 
+#define LOG_WARNING_ROOT                                                                           \
+  (kaminpar::mpi::get_comm_rank(MPI_COMM_WORLD) == 0) &&                                           \
+      kaminpar::DisposableLogger<false>(std::cout) << kaminpar::logger::ORANGE << "[Warning] "
+
 #undef LOG_ERROR
 #define LOG_ERROR (kaminpar::Logger(std::cout) << LOG_RANK << kaminpar::logger::RED << "[Error] ")
 

@@ -319,10 +319,17 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const BlockID k, BlockID *partitio
   START_HEAP_PROFILER("Partitioning");
   START_TIMER("Partitioning");
   if (!_was_rearranged && _ctx.rearrange_by != GraphOrdering::NATURAL) {
-    DistributedCSRGraph &csr_graph = _graph_ptr->csr_graph();
-    graph = DistributedGraph(
-        std::make_unique<DistributedCSRGraph>(graph::rearrange(std::move(csr_graph), _ctx))
-    );
+    if (_ctx.compression.enabled) {
+      LOG_WARNING_ROOT << "A compressed graph cannot be rearranged by degree buckets. Disabling "
+                          "degree bucket ordering!";
+      _ctx.rearrange_by = GraphOrdering::NATURAL;
+    } else {
+      DistributedCSRGraph &csr_graph = _graph_ptr->csr_graph();
+      graph = DistributedGraph(
+          std::make_unique<DistributedCSRGraph>(graph::rearrange(std::move(csr_graph), _ctx))
+      );
+    }
+
     _was_rearranged = true;
   }
   auto p_graph = factory::create_partitioner(_ctx, graph)->partition();
