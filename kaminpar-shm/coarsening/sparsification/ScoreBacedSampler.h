@@ -12,11 +12,6 @@ template <typename Score> class ReweighingFunction {
 public:
   virtual EdgeWeight new_weight(EdgeWeight old_weight, Score score) = 0;
 };
-template <typename Score> class IdentityReweihingFunction : public ReweighingFunction<Score> {
-  EdgeWeight new_weight(EdgeWeight old_weight, Score score) override {
-    return old_weight;
-  }
-};
 template <typename Score> class WeightDiviedByScore : public ReweighingFunction<Score> {
   EdgeWeight new_weight(EdgeWeight old_weight, Score score) override {
     return old_weight / score;
@@ -25,14 +20,11 @@ template <typename Score> class WeightDiviedByScore : public ReweighingFunction<
 template <typename Score> class ScoreBacedSampler : public Sampler {
 public:
   ScoreBacedSampler(
-      std::unique_ptr<ScoreFunction<Score>> scoreFunction,
-      std::unique_ptr<ReweighingFunction<Score>> reweighing_function
+      std::unique_ptr<ScoreFunction<Score>> scoreFunction
   )
-      : _score_function(std::move(scoreFunction)),
-        _reweighing_function(std::move(reweighing_function)){};
+      : _score_function(std::move(scoreFunction)){};
 
 protected:
   std::unique_ptr<ScoreFunction<Score>> _score_function;
-  std::unique_ptr<ReweighingFunction<Score>> _reweighing_function;
 };
 } // namespace kaminpar::shm::sparsification

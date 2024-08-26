@@ -8,10 +8,9 @@ namespace kaminpar::shm::sparsification {
 template <typename Score> class ThresholdSampler : public ScoreBacedSampler<Score> {
 public:
   ThresholdSampler(
-      std::unique_ptr<ScoreFunction<Score>> scoreFunction,
-      std::unique_ptr<ReweighingFunction<Score>> reweighingFunction
+      std::unique_ptr<ScoreFunction<Score>> scoreFunction
   )
-      : ScoreBacedSampler<Score>(std::move(scoreFunction), std::move(reweighingFunction)) {}
+      : ScoreBacedSampler<Score>(std::move(scoreFunction)) {}
 
   StaticArray<EdgeWeight> sample(const CSRGraph &g, EdgeID target_edge_amount) override {
     auto sample = StaticArray<EdgeWeight>(g.m(), 0);
@@ -21,9 +20,9 @@ public:
 
     utils::for_upward_edges(g, [&](EdgeID e) {
       if (scores[e] > threshold) {
-        sample[e] = this->_reweighing_function->new_weight(g.edge_weight(e), scores[e]);
+        sample[e] = g.edge_weight(e);
       } else if (scores[e] == threshold && numEdgesAtThresholdScoreToInclude > 0) {
-        sample[e] = this->_reweighing_function->new_weight(g.edge_weight(e), scores[e]);
+        sample[e] = g.edge_weight(e);
         numEdgesAtThresholdScoreToInclude--;
       } else {
         sample[e] = 0;

@@ -9,10 +9,9 @@ namespace kaminpar::shm::sparsification {
 template <typename Score> class IndependentRandomSampler : public ScoreBacedSampler<Score> {
 public:
   IndependentRandomSampler(
-      std::unique_ptr<ScoreFunction<Score>> scoreFunction,
-      std::unique_ptr<ReweighingFunction<Score>> reweighingFunction
+      std::unique_ptr<ScoreFunction<Score>> scoreFunction
   )
-      : ScoreBacedSampler<Score>(std::move(scoreFunction), std::move(reweighingFunction)) {}
+      : ScoreBacedSampler<Score>(std::move(scoreFunction)) {}
 
   StaticArray<EdgeWeight> sample(const CSRGraph &g, EdgeID target_edge_amount) override {
     auto scores = this->_score_function->scores(g);
@@ -21,7 +20,7 @@ public:
     StaticArray<EdgeWeight> sample(g.m(), 0);
     utils::for_upward_edges(g, [&](EdgeID e) {
       sample[e] = Random::instance().random_bool(factor * scores[e])
-                      ? this->_reweighing_function->new_weight(g.edge_weight(e), scores[e])
+                      ? g.edge_weight(e)
                       : 0;
     });
     return sample;

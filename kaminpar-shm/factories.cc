@@ -114,8 +114,7 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
     return std::make_unique<sparsification::ThresholdSampler<double>>(
         std::make_unique<sparsification::NetworKitScoreAdapter<NetworKit::ForestFireScore, double>>(
             [](const NetworKit::Graph &g) { return NetworKit::ForestFireScore(g, 0.95, 5); }
-        ),
-        std::make_unique<sparsification::IdentityReweihingFunction<double>>()
+        )
     );
   case SparsificationAlgorithm::UNIFORM_RANDOM_SAMPLING:
     return std::make_unique<sparsification::UniformRandomSampler>();
@@ -127,13 +126,12 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
     return std::make_unique<sparsification::UnbiasedThesholdSampler>();
   case SparsificationAlgorithm::WEIGHT_THRESHOLD:
     return std::make_unique<sparsification::ThresholdSampler<EdgeWeight>>(
-        std::make_unique<WeightFunction>(),
-        std::make_unique<sparsification::IdentityReweihingFunction<EdgeWeight>>()
+        std::make_unique<WeightFunction>()
+
     );
   case SparsificationAlgorithm::EFFECTIVE_RESISTANCE:
     return std::make_unique<sparsification::ThresholdSampler<double>>(
-        std::make_unique<sparsification::EffectiveResistanceScore>(4),
-        std::make_unique<sparsification::IdentityReweihingFunction<double>>()
+        std::make_unique<sparsification::EffectiveResistanceScore>(4)
     );
   case SparsificationAlgorithm::RANDOM_WITH_REPLACEMENT:
     switch (ctx.sparsification.score_function) {
@@ -142,8 +140,7 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
           std::make_unique<
               sparsification::NetworKitScoreAdapter<NetworKit::ForestFireScore, double>>(
               [](const NetworKit::Graph &g) { return NetworKit::ForestFireScore(g, 0.95, 5); }
-          ),
-          std::make_unique<sparsification::IdentityReweihingFunction<double>>()
+          )
       );
     case ScoreFunctionSection::WEIGHTED_FOREST_FIRE:
       return std::make_unique<sparsification::RandomWithReplacementSampler<double>>(
@@ -151,18 +148,16 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
               sparsification::WeightedForestFireScore,
               double>>([](const NetworKit::Graph &g) {
             return sparsification::WeightedForestFireScore(g, 0.95, 5);
-          }),
-          std::make_unique<sparsification::IdentityReweihingFunction<double>>()
+          })
       );
     case ScoreFunctionSection::EFFECTIVE_RESISTANCE:
       return std::make_unique<sparsification::RandomWithReplacementSampler<double>>(
-          std::make_unique<sparsification::EffectiveResistanceScore>(4),
-          std::make_unique<sparsification::IdentityReweihingFunction<double>>()
+          std::make_unique<sparsification::EffectiveResistanceScore>(4)
       );
     case ScoreFunctionSection::WEIGHT:
       return std::make_unique<sparsification::RandomWithReplacementSampler<EdgeWeight>>(
-          std::make_unique<WeightFunction>(),
-          std::make_unique<sparsification::IdentityReweihingFunction<EdgeWeight>>()
+          std::make_unique<WeightFunction>()
+
       );
     }
   case SparsificationAlgorithm::RANDOM_WITHOUT_REPLACEMENT:
@@ -172,8 +167,7 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
           std::make_unique<
               sparsification::NetworKitScoreAdapter<NetworKit::ForestFireScore, double>>(
               [](const NetworKit::Graph &g) { return NetworKit::ForestFireScore(g, 0.95, 5); }
-          ),
-          std::make_unique<sparsification::IdentityReweihingFunction<double>>()
+          )
       );
     case ScoreFunctionSection::WEIGHTED_FOREST_FIRE:
       return std::make_unique<sparsification::RandomWithoutReplacementSampler<double>>(
@@ -181,18 +175,16 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
               sparsification::WeightedForestFireScore,
               double>>([](const NetworKit::Graph &g) {
             return sparsification::WeightedForestFireScore(g, 0.95, 5);
-          }),
-          std::make_unique<sparsification::IdentityReweihingFunction<double>>()
+          })
       );
     case ScoreFunctionSection::EFFECTIVE_RESISTANCE:
       return std::make_unique<sparsification::RandomWithoutReplacementSampler<double>>(
-          std::make_unique<sparsification::EffectiveResistanceScore>(4),
-          std::make_unique<sparsification::IdentityReweihingFunction<double>>()
+          std::make_unique<sparsification::EffectiveResistanceScore>(4)
       );
     case ScoreFunctionSection::WEIGHT:
       return std::make_unique<sparsification::RandomWithoutReplacementSampler<EdgeWeight>>(
-          std::make_unique<WeightFunction>(),
-          std::make_unique<sparsification::IdentityReweihingFunction<EdgeWeight>>()
+          std::make_unique<WeightFunction>()
+
       );
     }
   case SparsificationAlgorithm::INDEPENDENT_RANDOM:
@@ -202,8 +194,7 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
           std::make_unique<
               sparsification::NetworKitScoreAdapter<NetworKit::ForestFireScore, double>>(
               [](const NetworKit::Graph &g) { return NetworKit::ForestFireScore(g, 0.95, 5); }
-          ),
-          std::make_unique<sparsification::IdentityReweihingFunction<double>>()
+          )
       );
     case ScoreFunctionSection::WEIGHTED_FOREST_FIRE:
       return std::make_unique<sparsification::IndependentRandomSampler<double>>(
@@ -211,18 +202,16 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
               sparsification::WeightedForestFireScore,
               double>>([](const NetworKit::Graph &g) {
             return sparsification::WeightedForestFireScore(g, 0.95, 5);
-          }),
-          std::make_unique<sparsification::IdentityReweihingFunction<double>>()
+          })
       );
     case ScoreFunctionSection::EFFECTIVE_RESISTANCE:
       return std::make_unique<sparsification::IndependentRandomSampler<double>>(
-          std::make_unique<sparsification::EffectiveResistanceScore>(4),
-          std::make_unique<sparsification::IdentityReweihingFunction<double>>()
+          std::make_unique<sparsification::EffectiveResistanceScore>(4)
       );
     case ScoreFunctionSection::WEIGHT:
       return std::make_unique<sparsification::IndependentRandomSampler<EdgeWeight>>(
-          std::make_unique<WeightFunction>(),
-          std::make_unique<sparsification::IdentityReweihingFunction<EdgeWeight>>()
+          std::make_unique<WeightFunction>()
+
       );
     }
   case SparsificationAlgorithm::THRESHOLD:
@@ -232,8 +221,7 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
           std::make_unique<
               sparsification::NetworKitScoreAdapter<NetworKit::ForestFireScore, double>>(
               [](const NetworKit::Graph &g) { return NetworKit::ForestFireScore(g, 0.95, 5); }
-          ),
-          std::make_unique<sparsification::IdentityReweihingFunction<double>>()
+          )
       );
     case ScoreFunctionSection::WEIGHTED_FOREST_FIRE:
       return std::make_unique<sparsification::ThresholdSampler<double>>(
@@ -241,18 +229,16 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
               sparsification::WeightedForestFireScore,
               double>>([](const NetworKit::Graph &g) {
             return sparsification::WeightedForestFireScore(g, 0.95, 5);
-          }),
-          std::make_unique<sparsification::IdentityReweihingFunction<double>>()
+          })
       );
     case ScoreFunctionSection::EFFECTIVE_RESISTANCE:
       return std::make_unique<sparsification::ThresholdSampler<double>>(
-          std::make_unique<sparsification::EffectiveResistanceScore>(4),
-          std::make_unique<sparsification::IdentityReweihingFunction<double>>()
+          std::make_unique<sparsification::EffectiveResistanceScore>(4)
       );
     case ScoreFunctionSection::WEIGHT:
       return std::make_unique<sparsification::ThresholdSampler<EdgeWeight>>(
-          std::make_unique<WeightFunction>(),
-          std::make_unique<sparsification::IdentityReweihingFunction<EdgeWeight>>()
+          std::make_unique<WeightFunction>()
+
       );
     }
   }
