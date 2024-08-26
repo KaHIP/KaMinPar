@@ -4,7 +4,10 @@
 
 #include "kNeighbourSampler.h"
 
+#include <ranges>
+
 #include <networkit/auxiliary/Random.hpp>
+#include <sys/stat.h>
 
 #include "IndexDistributionWithReplacement.h"
 #include "IndexDistributionWithoutReplacement.h"
@@ -29,23 +32,25 @@ StaticArray<EdgeWeight> kNeighbourSampler::sample(const CSRGraph &g, EdgeID targ
  * compute max k s.t. the number of sampled edges is at most target_edge_amount
  */
 EdgeID kNeighbourSampler::compute_k(const CSRGraph &g, EdgeID target_edge_amount) {
-  StaticArray<EdgeID> edges_incident_to_smaller_degree(g.n() - 1, 0);
+  StaticArray<EdgeID> incidences_to_leq_degree(g.n(), 0);
   utils::for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
-    edges_incident_to_smaller_degree[std::max(g.degree(u), g.degree(v))];
+    incidences_to_leq_degree[std::min(g.degree(u), g.degree(v))]++;
   });
   parallel::prefix_sum(
-      edges_incident_to_smaller_degree.begin(),
-      edges_incident_to_smaller_degree.end(),
-      edges_incident_to_smaller_degree.begin()
+      incidences_to_leq_degree.begin(),
+      incidences_to_leq_degree.end(),
+      incidences_to_leq_degree.begin()
   );
+  KASSERT(incidences_to_leq_degree[g.n() - 1] == g.m(), "foo", assert::always);
   StaticArray<EdgeWeight> incident_weights(g.n(), 0);
   utils::for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
     incident_weights[u] += g.edge_weight(e);
     incident_weights[v] += g.edge_weight(e);
   });
   auto expected_m = [&](NodeID k) {
-    // Exp(m) = |{u v in E : deg(u)<=k or deg(v) <= k}|
-    //        + sum_(u in V, deg(u)>k) sum_(v in N(u), deg(v)>k) 1 - (1-w_(uv)/(W_u W_v))
+    // Exp(m) = 2 * |{u v in E : deg(u)<=k or deg(v) <= k}|
+    //        + sum_(u in V, deg(u)>k) sum_(v in N(u), deg(v)>k) 1 - (1-w(u v)/W_u)^k (1-w(u
+    //        v)/W_v)^k
     // With w_(uv) being the weight of the edge beween u and v and W_u being the incident weights of
     // vertex u
     double sum = 0;
@@ -56,33 +61,39 @@ EdgeID kNeighbourSampler::compute_k(const CSRGraph &g, EdgeID target_edge_amount
         NodeID v = g.edge_target(e);
         if (g.degree(v) <= k)
           continue;
-        sum += 1 - (1 - g.edge_weight(e) / pow(incident_weights[u] * incident_weights[v], k));
+        sum += 1 - pow(1 - static_cast<double>(g.edge_weight(e)) / incident_weights[u], k) *
+                       pow(1 - static_cast<double>(g.edge_weight(e)) / incident_weights[v], k);
       }
     }
-    return edges_incident_to_smaller_degree[k] + sum;
+    return incidences_to_leq_degree[k] + sum;
   };
 
-  // binary search
-  NodeID k = 1;
-  NodeID low = 1;
-  NodeID heigh = target_edge_amount / g.n() + 1;
-  while (low + 1 != heigh) {
-    k = low + (heigh - low) / 2;
-    double expected = expected_m(k);
-    if (target_edge_amount < expected)
-      heigh = k;
-    else
-      low = k;
-  }
+  auto possible_ks = std::ranges::iota_view(static_cast<NodeID>(1), static_cast<NodeID>(g.n()));
+  NodeID k = *std::upper_bound(
+      possible_ks.begin(),
+      possible_ks.end(),
+      target_edge_amount,
+      [&](EdgeID target, NodeID possible_k) {
+        KASSERT(target == target_edge_amount, "foo", assert::always);
+        KASSERT(1 <= possible_k && possible_k < g.n(), "foo", assert::always);
+        return target <= expected_m(possible_k);
+      }
+  );
+  printf(
+      ">>> k is %d and the expected number of edges is %f. incidences to vetecies with deg <= k: %d.\n"
+      ">>> n = %d and expected_m(n-1) = %f\n",
+      k,
+      expected_m(k),
+      incidences_to_leq_degree[k],
+      g.n(),
+      expected_m(g.n() - 1)
+  );
   return k;
 }
 
 void kNeighbourSampler::sample_directed(
     const CSRGraph &g, EdgeID k, StaticArray<EdgeWeight> &sample
 ) {
-  StaticArray<double> choices = StaticArray<double>(k);
-  StaticArray<EdgeWeight> weights_prefix_sum = StaticArray<EdgeWeight>(g.max_degree());
-
   // First choose locally at evey node how much of each incident edge to sample
   for (NodeID u : g.nodes()) {
     if (g.degree(u) <= k) { // sample all edges
@@ -98,7 +109,8 @@ void kNeighbourSampler::sample_directed(
       EdgeWeight total_weight = std::reduce(
           g.raw_edge_weights().begin() + g.raw_nodes()[u],
           g.raw_edge_weights().begin() + g.raw_nodes()[u + 1],
-          0, std::plus<>()
+          0,
+          std::plus<>()
       );
 
       for (int i = 0; i < k; ++i) {
@@ -113,19 +125,16 @@ void kNeighbourSampler::make_sample_symmetric(const CSRGraph &g, StaticArray<Edg
   StaticArray<EdgeID> sorted_by_target_permutation = utils::sort_by_traget(g);
 
   auto edges_done = StaticArray<EdgeID>(g.n(), 0);
-  for (NodeID u : g.nodes()) {
-    for (EdgeID e : g.incident_edges(u)) {
-      NodeID v = g.edge_target(e);
-      if (u < v) {
-        EdgeID counter_edge = sorted_by_target_permutation[g.raw_nodes()[v] + edges_done[v]];
-        KASSERT(g.edge_target(counter_edge) == u, "incorrect counter_edge", assert::always);
-        EdgeWeight combined_sample = (sample[e] + sample[counter_edge]) / 2;
-        sample[e] = combined_sample;
-        sample[counter_edge] = combined_sample;
-        edges_done[v]++;
-      }
+  utils::for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
+    if (u < v) {
+      EdgeID counter_edge = sorted_by_target_permutation[g.raw_nodes()[v] + edges_done[v]];
+      KASSERT(g.edge_target(counter_edge) == u, "incorrect counter_edge", assert::always);
+      EdgeWeight combined_sample = std::ceil((sample[e] + sample[counter_edge]) / 2.0);
+      sample[e] = combined_sample;
+      sample[counter_edge] = combined_sample;
+      edges_done[v]++;
     }
-  }
+  });
 }
 
 void kNeighbourSampler::sample_spanning_tree(const CSRGraph &g, StaticArray<EdgeWeight> &sample) {
