@@ -263,27 +263,33 @@ std::ostream &operator<<(std::ostream &out, const InitialPartitioningMode mode) 
 
 std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies() {
   return {
-      {"hashing", GainCacheStrategy::HASHING},
       {"compact-hashing", GainCacheStrategy::COMPACT_HASHING},
+      {"compact-hashing-largek", GainCacheStrategy::COMPACT_HASHING_LARGE_K},
       {"sparse", GainCacheStrategy::SPARSE},
+      {"sparse-largek", GainCacheStrategy::SPARSE_LARGE_K},
+      {"hashing", GainCacheStrategy::HASHING},
+      {"hashing-largek", GainCacheStrategy::HASHING_LARGE_K},
       {"dense", GainCacheStrategy::DENSE},
-      {"largek", GainCacheStrategy::LARGE_K},
       {"on-the-fly", GainCacheStrategy::ON_THE_FLY},
   };
 }
 
 std::ostream &operator<<(std::ostream &out, const GainCacheStrategy strategy) {
   switch (strategy) {
-  case GainCacheStrategy::HASHING:
-    return out << "hashing";
   case GainCacheStrategy::COMPACT_HASHING:
     return out << "compact-hashing";
+  case GainCacheStrategy::COMPACT_HASHING_LARGE_K:
+    return out << "compact-hashing-largek";
   case GainCacheStrategy::SPARSE:
     return out << "sparse";
+  case GainCacheStrategy::SPARSE_LARGE_K:
+    return out << "sparse-largek";
+  case GainCacheStrategy::HASHING:
+    return out << "hashing";
+  case GainCacheStrategy::HASHING_LARGE_K:
+    return out << "hashing-largek";
   case GainCacheStrategy::DENSE:
     return out << "dense";
-  case GainCacheStrategy::LARGE_K:
-    return out << "largek";
   case GainCacheStrategy::ON_THE_FLY:
     return out << "on-the-fly";
   }

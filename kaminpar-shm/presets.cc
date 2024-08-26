@@ -191,7 +191,7 @@ Context create_default_context() {
                       .unlock_seed_nodes = true,
                       .use_exact_abortion_threshold = false,
                       .abortion_threshold = 0.999,
-                      .gain_cache_strategy = GainCacheStrategy::SPARSE,
+                      .gain_cache_strategy = GainCacheStrategy::COMPACT_HASHING,
                       .constant_high_degree_threshold = 0,
                       .k_based_high_degree_threshold = 1.0,
 
@@ -315,7 +315,7 @@ Context create_largek_fm_context() {
       RefinementAlgorithm::GREEDY_BALANCER,
   };
 
-  ctx.refinement.kway_fm.gain_cache_strategy = GainCacheStrategy::LARGE_K;
+  ctx.refinement.kway_fm.gain_cache_strategy = GainCacheStrategy::COMPACT_HASHING_LARGE_K;
 
   return ctx;
 }
