@@ -70,13 +70,22 @@ double UnbiasedThesholdSampler::find_threshold(const CSRGraph &g, EdgeID target_
     number_of_lighter_edges.push_back(number_of_lighter_edges.back() + number);
     weight_of_lighter_edges.push_back(weight_of_lighter_edges.back() + w * number);
   }
-  EdgeID index = 0;
-  while (target_edge_amount / 2 <
-         g.m() / 2 - number_of_lighter_edges[index] +
-             weight_of_lighter_edges[index] /
-                 std::get<0>(deduplicated_sorted_weights_with_number[index])) {
-    index++;
-  }
+
+  auto possible_indices = std::ranges::iota_view(
+      static_cast<EdgeID>(0), static_cast<EdgeID>(deduplicated_sorted_weights_with_number.size())
+  );
+  EdgeID index = *std::upper_bound(
+      possible_indices.begin(),
+      possible_indices.end(),
+      target_edge_amount / 2,
+      [&](EdgeID target, EdgeID index) {
+        KASSERT(target_edge_amount/2 == target, "tmp", assert::always);
+        // > since decending
+        return target > g.m() / 2 - number_of_lighter_edges[index] +
+                            weight_of_lighter_edges[index] /
+                                std::get<0>(deduplicated_sorted_weights_with_number[index]);
+      }
+  );
 
   return weight_of_lighter_edges[index] /
          (target_edge_amount / 2 - g.m() / 2 + number_of_lighter_edges[index]);
