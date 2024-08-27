@@ -20,6 +20,7 @@
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/inline.h"
 #include "kaminpar-common/logger.h"
+#include "kaminpar-common/parallel/aligned_prefix_sum.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
@@ -82,20 +83,17 @@ public:
       _offsets.resize(_n + 1);
     }
 
-    _offsets.front() = 0;
-    for (const NodeID u : _graph->nodes()) { // @todo parallelize
-      const EdgeID deg = math::ceil2(_graph->degree(u));
-      const unsigned width = compute_entry_width(u, deg < _k);
-      const unsigned nbytes = (deg < _k) ? width * deg : width * _k;
-
-      if (width > 0) {
-        _offsets[u] += (width - (_offsets[u] % width)) % width;
-        KASSERT(_offsets[u] % width == 0);
-      }
-
-      _offsets[u + 1] = _offsets[u] + nbytes;
-    }
-    const std::size_t gain_cache_size = math::div_ceil(_offsets[_n], sizeof(std::uint64_t));
+    const std::size_t total_nbytes = parallel::aligned_prefix_sum(
+        _offsets.begin(),
+        _offsets.begin() + _n + 1,
+        [&](const NodeID u) {
+          const EdgeID deg = math::ceil2(_graph->degree(u));
+          const unsigned width = compute_entry_width(u, deg < _k);
+          const unsigned nbytes = (deg < _k) ? width * deg : width * _k;
+          return std::make_pair(width, nbytes);
+        }
+    );
+    const std::size_t gain_cache_size = math::div_ceil(total_nbytes, sizeof(std::uint64_t));
 
     if (_gain_cache.size() < gain_cache_size) {
       SCOPED_TIMER("Allocation");
