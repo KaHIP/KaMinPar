@@ -43,7 +43,7 @@ option(KAMINPAR_BUILD_WITH_CCACHE "Use ccache to build." ON)
 option(KAMINPAR_BUILD_WITH_DEBUG_SYMBOLS "Always build with debug symbols, even in Release mode." ON)
 option(KAMINPAR_BUILD_WITH_MTKAHYPAR "If Mt-KaHyPar can be found, build the Mt-KaHyPar initial partitioner." OFF)
 option(KAMINPAR_BUILD_WITH_GROWT "Build the shared-memory partitioner with Growt." ON)
-option(KAMINPAR_BUILD_WITH_SPARSEHASH "Build with Google Sparsehash." OFF)
+option(KAMINPAR_BUILD_WITH_SPARSEHASH "Build with Google Sparsehash." ON)
 option(KAMINPAR_BUILD_WITH_PG "Build with the -pg option for profiling." OFF)
 
 # Control data type sizes
