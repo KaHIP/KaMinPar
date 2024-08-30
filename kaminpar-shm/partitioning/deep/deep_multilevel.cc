@@ -91,16 +91,29 @@ void DeepMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
 void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, const BlockID k_prime) {
   SCOPED_HEAP_PROFILER("Extending partition");
   LOG << "  Extending partition from " << p_graph.k() << " blocks to " << k_prime << " blocks";
-  partitioning::extend_partition(
-      p_graph,
-      k_prime,
-      _input_ctx,
-      _current_p_ctx,
-      _subgraph_memory,
-      _tmp_extraction_mem_pool_ets,
-      _bipartitioner_pool,
-      _input_ctx.parallel.num_threads
-  );
+
+  if (_input_ctx.partitioning.use_subgraph_memory) {
+    partitioning::extend_partition(
+        p_graph,
+        k_prime,
+        _input_ctx,
+        _current_p_ctx,
+        _subgraph_memory,
+        _tmp_extraction_mem_pool_ets,
+        _bipartitioner_pool,
+        _input_ctx.parallel.num_threads
+    );
+  } else {
+    partitioning::extend_partition2(
+        p_graph,
+        k_prime,
+        _input_ctx,
+        _current_p_ctx,
+        _tmp_extraction_mem_pool_ets,
+        _bipartitioner_pool,
+        _input_ctx.parallel.num_threads
+    );
+  }
 
   if (_print_metrics) {
     SCOPED_TIMER("Partition metrics");
@@ -142,7 +155,7 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
   NodeWeight prev_c_graph_total_node_weight = c_graph->total_node_weight();
   bool shrunk = true;
 
-  bool search_subgraph_memory_size = true;
+  bool search_subgraph_memory_size = _input_ctx.partitioning.use_subgraph_memory;
   NodeID subgraph_memory_n;
   EdgeID subgraph_memory_m;
 
@@ -193,7 +206,12 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
     subgraph_memory_n = prev_c_graph_n;
     subgraph_memory_m = prev_c_graph_m;
   }
-  _subgraph_memory.resize(subgraph_memory_n, _input_ctx.partition.k, subgraph_memory_m, true, true);
+
+  if (_input_ctx.partitioning.use_subgraph_memory) {
+    _subgraph_memory.resize(
+        subgraph_memory_n, _input_ctx.partition.k, subgraph_memory_m, true, true
+    );
+  }
 
   TIMED_SCOPE("Coarsening") {
     _coarsener->release_allocated_memory();

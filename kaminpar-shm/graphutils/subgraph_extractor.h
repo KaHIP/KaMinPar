@@ -157,6 +157,78 @@ struct TemporarySubgraphMemory {
   }
 };
 
+class OCSubgraphMemory {
+public:
+  OCSubgraphMemory(const NodeID n, const EdgeID m)
+      : _nodes(heap_profiler::overcommit_memory<EdgeID>(n + 1)),
+        _edges(heap_profiler::overcommit_memory<NodeID>(m)),
+        _node_weights(heap_profiler::overcommit_memory<NodeWeight>(n)),
+        _edge_weights(heap_profiler::overcommit_memory<EdgeWeight>(m)),
+        _max_n(0),
+        _max_m(0) {}
+
+  [[nodiscard]] EdgeID *nodes() {
+    return _nodes.get();
+  }
+
+  [[nodiscard]] NodeID *edges() {
+    return _edges.get();
+  }
+
+  [[nodiscard]] NodeWeight *node_weights() {
+    return _node_weights.get();
+  }
+
+  [[nodiscard]] EdgeWeight *edge_weights() {
+    return _edge_weights.get();
+  }
+
+  void record(const NodeID n, const EdgeID m) {
+    _max_n = std::max(_max_n, n);
+    _max_m = std::max(_max_m, m);
+  }
+
+  void record_allocations() {
+    if constexpr (kHeapProfiling) {
+      heap_profiler::HeapProfiler::global().record_alloc(
+          _nodes.get(), (_max_n + 1) * sizeof(EdgeID)
+      );
+      heap_profiler::HeapProfiler::global().record_alloc(_edges.get(), _max_m * sizeof(NodeID));
+      heap_profiler::HeapProfiler::global().record_alloc(
+          _node_weights.get(), _max_n * sizeof(NodeWeight)
+      );
+      heap_profiler::HeapProfiler::global().record_alloc(
+          _edge_weights.get(), _max_m * sizeof(EdgeWeight)
+      );
+    }
+  }
+
+private:
+  heap_profiler::unique_ptr<EdgeID> _nodes;
+  heap_profiler::unique_ptr<NodeID> _edges;
+  heap_profiler::unique_ptr<NodeWeight> _node_weights;
+  heap_profiler::unique_ptr<EdgeWeight> _edge_weights;
+
+  NodeID _max_n;
+  EdgeID _max_m;
+};
+
+Graph extract_subgraph(
+    const PartitionedGraph &p_graph,
+    const BlockID block,
+    const StaticArray<NodeID> &block_nodes,
+    const StaticArray<NodeID> &mapping,
+    graph::OCSubgraphMemory &subgraph_memory
+);
+
+SequentialSubgraphExtractionResult extract_subgraphs_sequential(
+    const PartitionedGraph &p_graph,
+    const std::array<BlockID, 2> &final_ks,
+    const SubgraphMemoryStartPosition memory_position,
+    OCSubgraphMemory &subgraph_memory,
+    TemporarySubgraphMemory &tmp_subgraph_memory
+);
+
 SubgraphExtractionResult extract_subgraphs(
     const PartitionedGraph &p_graph, BlockID input_k, SubgraphMemory &subgraph_memory
 );
