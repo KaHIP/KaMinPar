@@ -366,7 +366,7 @@ shm::Graph extract_subgraph_generic_graph(
   }
   nodes[block_nodes.size()] = cur_edge;
 
-  subgraph_memory.record(cur_node, cur_edge);
+  subgraph_memory.record(cur_node, cur_edge, has_node_weights, has_edge_weights);
   return shm::Graph(std::make_unique<CSRGraph>(
       CSRGraph::seq{},
       StaticArray<EdgeID>(cur_node + 1, nodes),

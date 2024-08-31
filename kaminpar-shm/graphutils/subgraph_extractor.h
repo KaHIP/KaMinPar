@@ -72,20 +72,29 @@ struct SubgraphMemory {
       const bool is_node_weighted = true,
       const bool is_edge_weighted = true
   ) {
+    resize(n, k, m, is_node_weighted ? n : 0, is_edge_weighted ? m : 0);
+  }
+
+  void resize(
+      const NodeID n,
+      const BlockID k,
+      const EdgeID m,
+      const NodeID n_weights,
+      const EdgeID m_weights
+  ) {
     SCOPED_HEAP_PROFILER("SubgraphMemory resize");
     SCOPED_TIMER("Allocation");
 
     nodes.resize(n + k);
     edges.resize(m);
-    node_weights.resize(is_node_weighted * (n + k));
-    edge_weights.resize(is_edge_weighted * m);
+    node_weights.resize((n_weights == 0) ? 0 : (n_weights + k));
+    edge_weights.resize(m_weights);
 
     IF_HEAP_PROFILING(
         _struct->size = std::max(
             _struct->size,
-            (n + k) * sizeof(EdgeID) + m * sizeof(NodeID) +
-                is_node_weighted * (n + k) * sizeof(NodeWeight) +
-                is_edge_weighted * m * sizeof(EdgeWeight)
+            nodes.size() * sizeof(EdgeID) + edges.size() * sizeof(NodeID) +
+                node_weights.size() * sizeof(NodeWeight) + edge_weights.size() * sizeof(EdgeWeight)
         )
     );
   }
@@ -165,7 +174,9 @@ public:
         _node_weights(heap_profiler::overcommit_memory<NodeWeight>(n)),
         _edge_weights(heap_profiler::overcommit_memory<EdgeWeight>(m)),
         _max_n(0),
-        _max_m(0) {}
+        _max_m(0),
+        _max_n_weights(0),
+        _max_m_weights(0) {}
 
   [[nodiscard]] EdgeID *nodes() {
     return _nodes.get();
@@ -183,9 +194,18 @@ public:
     return _edge_weights.get();
   }
 
-  void record(const NodeID n, const EdgeID m) {
+  void
+  record(const NodeID n, const EdgeID m, const bool has_node_weights, const bool has_edge_weights) {
     _max_n = std::max(_max_n, n);
     _max_m = std::max(_max_m, m);
+
+    if (has_node_weights) {
+      _max_n_weights = std::max(_max_n_weights, n);
+    }
+
+    if (has_edge_weights) {
+      _max_m_weights = std::max(_max_m_weights, m);
+    }
   }
 
   void record_allocations() {
@@ -195,10 +215,10 @@ public:
       );
       heap_profiler::HeapProfiler::global().record_alloc(_edges.get(), _max_m * sizeof(NodeID));
       heap_profiler::HeapProfiler::global().record_alloc(
-          _node_weights.get(), _max_n * sizeof(NodeWeight)
+          _node_weights.get(), _max_n_weights * sizeof(NodeWeight)
       );
       heap_profiler::HeapProfiler::global().record_alloc(
-          _edge_weights.get(), _max_m * sizeof(EdgeWeight)
+          _edge_weights.get(), _max_m_weights * sizeof(EdgeWeight)
       );
     }
   }
@@ -211,6 +231,8 @@ private:
 
   NodeID _max_n;
   EdgeID _max_m;
+  NodeID _max_n_weights;
+  EdgeID _max_m_weights;
 };
 
 Graph extract_subgraph(
