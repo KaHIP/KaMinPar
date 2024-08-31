@@ -104,7 +104,7 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
         _input_ctx.parallel.num_threads
     );
   } else {
-    partitioning::extend_partition2(
+    partitioning::extend_partition_lazy_extraction(
         p_graph,
         k_prime,
         _input_ctx,

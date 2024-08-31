@@ -79,7 +79,7 @@ void extend_partition_recursive(
     BipartitionTimingInfo *timings = nullptr
 );
 
-void extend_partition2(
+void extend_partition_lazy_extraction(
     PartitionedGraph &p_graph,
     BlockID k_prime,
     const Context &input_ctx,

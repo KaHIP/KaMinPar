@@ -166,6 +166,12 @@ struct TemporarySubgraphMemory {
   }
 };
 
+struct OCSubgraphMemoryPreprocessingResult {
+  StaticArray<NodeID> mapping;
+  StaticArray<NodeID> block_nodes_offset;
+  StaticArray<NodeID> block_nodes;
+};
+
 class OCSubgraphMemory {
 public:
   OCSubgraphMemory(const NodeID n, const EdgeID m)
@@ -234,6 +240,9 @@ private:
   NodeID _max_n_weights;
   EdgeID _max_m_weights;
 };
+
+[[nodiscard]] OCSubgraphMemoryPreprocessingResult
+extract_subgraphs_preprocessing(const PartitionedGraph &p_graph);
 
 Graph extract_subgraph(
     const PartitionedGraph &p_graph,

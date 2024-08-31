@@ -325,6 +325,58 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential(
   });
 }
 
+OCSubgraphMemoryPreprocessingResult extract_subgraphs_preprocessing(const PartitionedGraph &p_graph
+) {
+  const BlockID n = p_graph.n();
+  const BlockID k = p_graph.k();
+
+  StaticArray<NodeID> mapping(n, static_array::noinit);
+  StaticArray<NodeID> block_nodes_offset(p_graph.k() + 1);
+  StaticArray<NodeID> block_nodes(n, static_array::noinit);
+
+  tbb::enumerable_thread_specific<ScalableVector<NodeID>> tl_num_nodes_in_block{[&] {
+    return ScalableVector<NodeID>(k);
+  }};
+  tbb::parallel_for(tbb::blocked_range<NodeID>(0, n), [&](auto &local_nodes) {
+    auto &num_nodes_in_block = tl_num_nodes_in_block.local();
+
+    const NodeID first_node = local_nodes.begin();
+    const NodeID last_node = local_nodes.end();
+
+    for (NodeID u = first_node; u < last_node; ++u) {
+      const BlockID b = p_graph.block(u);
+      num_nodes_in_block[b] += 1;
+    }
+  });
+
+  tbb::parallel_for<BlockID>(0, k, [&](const BlockID b) {
+    NodeID num_block_nodes = 0;
+    for (const auto &local_num_nodes : tl_num_nodes_in_block) {
+      num_block_nodes += local_num_nodes[b];
+    }
+    block_nodes_offset[b + 1] = num_block_nodes;
+  });
+  parallel::prefix_sum(
+      block_nodes_offset.begin(), block_nodes_offset.end(), block_nodes_offset.begin()
+  );
+
+  StaticArray<NodeID> block_node_index(p_graph.k());
+  tbb::parallel_for(tbb::blocked_range<NodeID>(0, n), [&](auto &local_nodes) {
+    const NodeID first_node = local_nodes.begin();
+    const NodeID last_node = local_nodes.end();
+
+    for (NodeID u = first_node; u < last_node; ++u) {
+      const BlockID b = p_graph.block(u);
+      const NodeID offset = block_nodes_offset[b];
+      const NodeID i = __atomic_fetch_add(&block_node_index[b], 1, __ATOMIC_RELAXED);
+      block_nodes[offset + i] = u;
+      mapping[u] = i;
+    }
+  });
+
+  return {std::move(mapping), std::move(block_nodes_offset), std::move(block_nodes)};
+}
+
 namespace {
 template <typename Graph>
 shm::Graph extract_subgraph_generic_graph(
