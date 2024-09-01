@@ -55,7 +55,7 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential_generic_graph(
     const BlockID b = p_graph.block(u);
     tmp_subgraph_memory.mapping[u] = s_n[b]++;
 
-    graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
+    graph.adjacent_nodes(u, [&](const NodeID v) {
       if (p_graph.block(v) == b) {
         ++s_m[b];
       }
@@ -172,6 +172,271 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential(
   return p_graph.reified([&](const auto &graph) {
     return extract_subgraphs_sequential_generic_graph(
         p_graph, graph, final_ks, memory_position, subgraph_memory, tmp_subgraph_memory
+    );
+  });
+}
+
+namespace {
+template <typename Graph>
+SequentialSubgraphExtractionResult extract_subgraphs_sequential_generic_graph(
+    const PartitionedGraph &p_graph,
+    const Graph &graph,
+    const std::array<BlockID, 2> &final_ks,
+    const SubgraphMemoryStartPosition memory_position,
+    OCSubgraphMemory &subgraph_memory,
+    OCTemporarySubgraphMemory &tmp_subgraph_memory
+) {
+  KASSERT(p_graph.k() == 2u, "Only suitable for bipartitions!", assert::light);
+
+  const bool is_node_weighted = graph.is_node_weighted();
+  const bool is_edge_weighted = graph.is_edge_weighted();
+
+  const BlockID final_k = final_ks[0] + final_ks[1];
+
+  NodeID *mapping = tmp_subgraph_memory.mapping();
+  EdgeID *nodes = tmp_subgraph_memory.nodes();
+  NodeID *edges = tmp_subgraph_memory.edges();
+  NodeWeight *node_weights = tmp_subgraph_memory.node_weights();
+  EdgeWeight *edge_weights = tmp_subgraph_memory.edge_weights();
+
+  std::array<NodeID, 2> s_n{0, 0};
+  std::array<EdgeID, 2> s_m{0, 0};
+
+  // find graph sizes
+  for (const NodeID u : graph.nodes()) {
+    const BlockID b = p_graph.block(u);
+    mapping[u] = s_n[b]++;
+
+    graph.adjacent_nodes(u, [&](const NodeID v) {
+      if (p_graph.block(v) == b) {
+        ++s_m[b];
+      }
+    });
+  }
+
+  // start position of subgraph[1] in common memory ds
+  const NodeID n1 = s_n[0] + final_ks[0];
+  const EdgeID m1 = s_m[0];
+
+  nodes[0] = 0;
+  nodes[n1] = 0;
+
+  // build extract graphs in temporary memory buffer
+  std::array<EdgeID, 2> next_edge_id{0, 0};
+
+  for (const NodeID u : graph.nodes()) {
+    const BlockID b = p_graph.block(u);
+
+    const NodeID n0 = b * n1;
+    const EdgeID m0 = b * m1; // either 0 or s_m[0]
+
+    graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+      if (p_graph.block(v) == b) {
+        edges[m0 + next_edge_id[b]] = mapping[v];
+        if (is_edge_weighted) {
+          edge_weights[m0 + next_edge_id[b]] = w;
+        }
+        ++next_edge_id[b];
+      }
+    });
+
+    nodes[n0 + mapping[u] + 1] = next_edge_id[b];
+    if (is_node_weighted) {
+      node_weights[n0 + mapping[u]] = graph.node_weight(u);
+    }
+  }
+
+  // copy graphs to subgraph_memory at memory_position
+  // THIS OPERATION OVERWRITES p_graph!
+  std::copy(
+      nodes, nodes + graph.n() + final_k, subgraph_memory.nodes() + memory_position.nodes_start_pos
+  );
+  std::copy(
+      edges, edges + s_m[0] + s_m[1], subgraph_memory.edges() + memory_position.edges_start_pos
+  );
+  if (is_node_weighted) {
+    std::copy(
+        node_weights,
+        node_weights + graph.n() + final_k,
+        subgraph_memory.node_weights() + memory_position.nodes_start_pos
+    );
+  }
+  if (is_edge_weighted) {
+    std::copy(
+        edge_weights,
+        edge_weights + s_m[0] + s_m[1],
+        subgraph_memory.edge_weights() + memory_position.edges_start_pos
+    );
+  }
+  tmp_subgraph_memory.record(
+      graph.n() + final_k, s_m[0] + s_m[1], is_node_weighted, is_edge_weighted
+  );
+
+  std::array<SubgraphMemoryStartPosition, 2> subgraph_positions;
+  subgraph_positions[0].nodes_start_pos = memory_position.nodes_start_pos;
+  subgraph_positions[0].edges_start_pos = memory_position.edges_start_pos;
+  subgraph_positions[1].nodes_start_pos = memory_position.nodes_start_pos + n1;
+  subgraph_positions[1].edges_start_pos = memory_position.edges_start_pos + m1;
+
+  auto create_graph = [&](const NodeID n0, const NodeID n, const EdgeID m0, const EdgeID m) {
+    StaticArray<EdgeID> s_nodes(
+        n + 1, subgraph_memory.nodes() + memory_position.nodes_start_pos + n0
+    );
+    StaticArray<NodeID> s_edges(m, subgraph_memory.edges() + memory_position.edges_start_pos + m0);
+    StaticArray<NodeWeight> s_node_weights(
+        is_node_weighted * n,
+        subgraph_memory.node_weights() + is_node_weighted * (memory_position.nodes_start_pos + n0)
+    );
+    StaticArray<EdgeWeight> s_edge_weights(
+        is_edge_weighted * m,
+        subgraph_memory.edge_weights() + is_edge_weighted * (memory_position.edges_start_pos + m0)
+    );
+    return shm::Graph(std::make_unique<CSRGraph>(
+        CSRGraph::seq{},
+        std::move(s_nodes),
+        std::move(s_edges),
+        std::move(s_node_weights),
+        std::move(s_edge_weights)
+    ));
+  };
+
+  std::array<shm::Graph, 2> subgraphs{
+      create_graph(0, s_n[0], 0, s_m[0]), create_graph(n1, s_n[1], m1, s_m[1])
+  };
+
+  return {std::move(subgraphs), std::move(subgraph_positions)};
+}
+} // namespace
+
+SequentialSubgraphExtractionResult extract_subgraphs_sequential(
+    const PartitionedGraph &p_graph,
+    const std::array<BlockID, 2> &final_ks,
+    const SubgraphMemoryStartPosition memory_position,
+    OCSubgraphMemory &subgraph_memory,
+    OCTemporarySubgraphMemory &tmp_subgraph_memory
+) {
+  return p_graph.reified([&](const auto &graph) {
+    return extract_subgraphs_sequential_generic_graph(
+        p_graph, graph, final_ks, memory_position, subgraph_memory, tmp_subgraph_memory
+    );
+  });
+}
+
+OCSubgraphMemoryPreprocessingResult extract_subgraphs_preprocessing(const PartitionedGraph &p_graph
+) {
+  const BlockID n = p_graph.n();
+  const BlockID k = p_graph.k();
+
+  StaticArray<NodeID> mapping(n, static_array::noinit);
+  StaticArray<NodeID> block_nodes_offset(p_graph.k() + 1);
+  StaticArray<NodeID> block_nodes(n, static_array::noinit);
+
+  tbb::enumerable_thread_specific<ScalableVector<NodeID>> tl_num_nodes_in_block{[&] {
+    return ScalableVector<NodeID>(k);
+  }};
+  tbb::parallel_for(tbb::blocked_range<NodeID>(0, n), [&](auto &local_nodes) {
+    auto &num_nodes_in_block = tl_num_nodes_in_block.local();
+
+    const NodeID first_node = local_nodes.begin();
+    const NodeID last_node = local_nodes.end();
+
+    for (NodeID u = first_node; u < last_node; ++u) {
+      const BlockID b = p_graph.block(u);
+      num_nodes_in_block[b] += 1;
+    }
+  });
+
+  tbb::parallel_for<BlockID>(0, k, [&](const BlockID b) {
+    NodeID num_block_nodes = 0;
+    for (const auto &local_num_nodes : tl_num_nodes_in_block) {
+      num_block_nodes += local_num_nodes[b];
+    }
+    block_nodes_offset[b + 1] = num_block_nodes;
+  });
+  parallel::prefix_sum(
+      block_nodes_offset.begin(), block_nodes_offset.end(), block_nodes_offset.begin()
+  );
+
+  StaticArray<NodeID> block_node_index(p_graph.k());
+  tbb::parallel_for(tbb::blocked_range<NodeID>(0, n), [&](auto &local_nodes) {
+    const NodeID first_node = local_nodes.begin();
+    const NodeID last_node = local_nodes.end();
+
+    for (NodeID u = first_node; u < last_node; ++u) {
+      const BlockID b = p_graph.block(u);
+      const NodeID offset = block_nodes_offset[b];
+      const NodeID i = __atomic_fetch_add(&block_node_index[b], 1, __ATOMIC_RELAXED);
+      block_nodes[offset + i] = u;
+      mapping[u] = i;
+    }
+  });
+
+  return {std::move(mapping), std::move(block_nodes_offset), std::move(block_nodes)};
+}
+
+namespace {
+template <typename Graph>
+shm::Graph extract_subgraph_generic_graph(
+    const PartitionedGraph &p_graph,
+    const Graph &graph,
+    const BlockID block,
+    const StaticArray<NodeID> &block_nodes,
+    const StaticArray<NodeID> &mapping,
+    graph::OCSubgraphMemory &subgraph_memory
+) {
+  const bool has_node_weights = graph.is_node_weighted();
+  const bool has_edge_weights = graph.is_edge_weighted();
+
+  EdgeID *nodes = subgraph_memory.nodes();
+  NodeID *edges = subgraph_memory.edges();
+  NodeWeight *node_weights = subgraph_memory.node_weights();
+  EdgeWeight *edge_weights = subgraph_memory.edge_weights();
+
+  NodeID cur_node = 0;
+  EdgeID cur_edge = 0;
+  for (const NodeID u : block_nodes) {
+    nodes[cur_node] = cur_edge;
+    if (has_node_weights) {
+      node_weights[cur_node] = graph.node_weight(u);
+    }
+    cur_node += 1;
+
+    graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+      if (p_graph.block(v) != block) {
+        return;
+      }
+
+      edges[cur_edge] = mapping[v];
+      if (has_edge_weights) {
+        edge_weights[cur_edge] = w;
+      }
+      cur_edge += 1;
+    });
+  }
+  nodes[block_nodes.size()] = cur_edge;
+
+  subgraph_memory.record(cur_node, cur_edge, has_node_weights, has_edge_weights);
+  return shm::Graph(std::make_unique<CSRGraph>(
+      CSRGraph::seq{},
+      StaticArray<EdgeID>(cur_node + 1, nodes),
+      StaticArray<NodeID>(cur_edge, edges),
+      has_node_weights ? StaticArray<NodeWeight>(cur_node, node_weights)
+                       : StaticArray<NodeWeight>(),
+      has_edge_weights ? StaticArray<EdgeWeight>(cur_edge, edge_weights) : StaticArray<EdgeWeight>()
+  ));
+}
+} // namespace
+
+Graph extract_subgraph(
+    const PartitionedGraph &p_graph,
+    const BlockID block,
+    const StaticArray<NodeID> &block_nodes,
+    const StaticArray<NodeID> &mapping,
+    graph::OCSubgraphMemory &subgraph_memory
+) {
+  return p_graph.reified([&](const auto &concrete_graph) {
+    return extract_subgraph_generic_graph(
+        p_graph, concrete_graph, block, block_nodes, mapping, subgraph_memory
     );
   });
 }

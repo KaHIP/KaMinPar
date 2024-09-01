@@ -613,6 +613,8 @@ void print(const PartitioningContext &p_ctx, std::ostream &out) {
     out << "  Deep initial part. mode:    " << p_ctx.deep_initial_partitioning_mode << "\n";
     out << "  Deep initial part. load:    " << p_ctx.deep_initial_partitioning_load << "\n";
   }
+  out << "Subgraph memory:              " << (p_ctx.use_lazy_subgraph_memory ? "Lazy" : "Default")
+      << "\n";
 }
 
 void print(const Context &ctx, std::ostream &out) {
