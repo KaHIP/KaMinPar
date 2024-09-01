@@ -42,13 +42,15 @@ public:
     return _coarse_graphs.empty();
   }
 
-  StaticArray<BlockID> alloc_partition_memory();
+  StaticArray<BlockWeight> alloc_block_weights_memory(std::size_t size = 0);
+  StaticArray<BlockID> alloc_partition_memory(std::size_t size = 0);
   StaticArray<NodeID> alloc_mapping_memory();
   CSRGraphMemory alloc_graph_memory();
 
 private:
   [[nodiscard]] const CSRGraph &get_second_coarsest_graph() const;
 
+  void recover_block_weights_memory(StaticArray<BlockWeight> block_weights);
   void recover_partition_memory(StaticArray<BlockID> partition);
   void recover_mapping_memory(StaticArray<NodeID> mapping);
   void recover_graph_memory(CSRGraph graph);
@@ -61,5 +63,6 @@ private:
   ScalableVector<CSRGraphMemory> _graph_memory_cache;
   ScalableVector<StaticArray<NodeID>> _mapping_memory_cache;
   ScalableVector<StaticArray<BlockID>> _partition_memory_cache;
+  ScalableVector<StaticArray<BlockWeight>> _block_weights_memory_cache;
 };
 } // namespace kaminpar::shm
