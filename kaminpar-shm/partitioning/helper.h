@@ -84,7 +84,6 @@ void extend_partition_lazy_extraction(
     BlockID k_prime,
     const Context &input_ctx,
     PartitionContext &current_p_ctx,
-    TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
     const int num_active_threads
 );

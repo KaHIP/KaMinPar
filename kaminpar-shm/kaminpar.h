@@ -426,7 +426,7 @@ struct PartitioningContext {
   double deep_initial_partitioning_load;
   int min_consecutive_seq_bipartitioning_levels;
 
-  bool use_subgraph_memory;
+  bool use_lazy_subgraph_memory;
 };
 
 struct GraphCompressionContext {

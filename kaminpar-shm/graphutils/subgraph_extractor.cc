@@ -184,7 +184,7 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential_generic_graph(
     const std::array<BlockID, 2> &final_ks,
     const SubgraphMemoryStartPosition memory_position,
     OCSubgraphMemory &subgraph_memory,
-    TemporarySubgraphMemory &tmp_subgraph_memory
+    OCTemporarySubgraphMemory &tmp_subgraph_memory
 ) {
   KASSERT(p_graph.k() == 2u, "Only suitable for bipartitions!", assert::light);
 
@@ -192,13 +192,12 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential_generic_graph(
   const bool is_edge_weighted = graph.is_edge_weighted();
 
   const BlockID final_k = final_ks[0] + final_ks[1];
-  tmp_subgraph_memory.ensure_size_nodes(graph.n() + final_k, is_node_weighted);
 
-  auto &nodes = tmp_subgraph_memory.nodes;
-  auto &edges = tmp_subgraph_memory.edges;
-  auto &node_weights = tmp_subgraph_memory.node_weights;
-  auto &edge_weights = tmp_subgraph_memory.edge_weights;
-  auto &mapping = tmp_subgraph_memory.mapping;
+  NodeID *mapping = tmp_subgraph_memory.mapping();
+  EdgeID *nodes = tmp_subgraph_memory.nodes();
+  NodeID *edges = tmp_subgraph_memory.edges();
+  NodeWeight *node_weights = tmp_subgraph_memory.node_weights();
+  EdgeWeight *edge_weights = tmp_subgraph_memory.edge_weights();
 
   std::array<NodeID, 2> s_n{0, 0};
   std::array<EdgeID, 2> s_m{0, 0};
@@ -206,7 +205,7 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential_generic_graph(
   // find graph sizes
   for (const NodeID u : graph.nodes()) {
     const BlockID b = p_graph.block(u);
-    tmp_subgraph_memory.mapping[u] = s_n[b]++;
+    mapping[u] = s_n[b]++;
 
     graph.adjacent_nodes(u, [&](const NodeID v) {
       if (p_graph.block(v) == b) {
@@ -221,7 +220,6 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential_generic_graph(
 
   nodes[0] = 0;
   nodes[n1] = 0;
-  tmp_subgraph_memory.ensure_size_edges(s_m[0] + s_m[1], is_edge_weighted);
 
   // build extract graphs in temporary memory buffer
   std::array<EdgeID, 2> next_edge_id{0, 0};
@@ -251,29 +249,28 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential_generic_graph(
   // copy graphs to subgraph_memory at memory_position
   // THIS OPERATION OVERWRITES p_graph!
   std::copy(
-      nodes.begin(),
-      nodes.begin() + graph.n() + final_k,
-      subgraph_memory.nodes() + memory_position.nodes_start_pos
+      nodes, nodes + graph.n() + final_k, subgraph_memory.nodes() + memory_position.nodes_start_pos
   );
   std::copy(
-      edges.begin(),
-      edges.begin() + s_m[0] + s_m[1],
-      subgraph_memory.edges() + memory_position.edges_start_pos
+      edges, edges + s_m[0] + s_m[1], subgraph_memory.edges() + memory_position.edges_start_pos
   );
   if (is_node_weighted) {
     std::copy(
-        node_weights.begin(),
-        node_weights.begin() + graph.n() + final_k,
+        node_weights,
+        node_weights + graph.n() + final_k,
         subgraph_memory.node_weights() + memory_position.nodes_start_pos
     );
   }
   if (is_edge_weighted) {
     std::copy(
-        edge_weights.begin(),
-        edge_weights.begin() + s_m[0] + s_m[1],
+        edge_weights,
+        edge_weights + s_m[0] + s_m[1],
         subgraph_memory.edge_weights() + memory_position.edges_start_pos
     );
   }
+  tmp_subgraph_memory.record(
+      graph.n() + final_k, s_m[0] + s_m[1], is_node_weighted, is_edge_weighted
+  );
 
   std::array<SubgraphMemoryStartPosition, 2> subgraph_positions;
   subgraph_positions[0].nodes_start_pos = memory_position.nodes_start_pos;
@@ -316,7 +313,7 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential(
     const std::array<BlockID, 2> &final_ks,
     const SubgraphMemoryStartPosition memory_position,
     OCSubgraphMemory &subgraph_memory,
-    TemporarySubgraphMemory &tmp_subgraph_memory
+    OCTemporarySubgraphMemory &tmp_subgraph_memory
 ) {
   return p_graph.reified([&](const auto &graph) {
     return extract_subgraphs_sequential_generic_graph(

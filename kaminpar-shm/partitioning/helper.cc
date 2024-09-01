@@ -10,7 +10,6 @@
 #include "kaminpar-shm/partitioning/partition_utils.h"
 
 #include "kaminpar-common/math.h"
-#include "kaminpar-common/parallel/algorithm.h"
 
 namespace kaminpar::shm::partitioning {
 namespace {
@@ -117,7 +116,7 @@ void extend_partition_recursive(
     const Context &input_ctx,
     const graph::SubgraphMemoryStartPosition position,
     graph::OCSubgraphMemory &subgraph_memory,
-    graph::TemporarySubgraphMemory &tmp_extraction_mem_pool,
+    graph::OCTemporarySubgraphMemory &tmp_subgraph_memory,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
     BipartitionTimingInfo *timings
 ) {
@@ -164,7 +163,7 @@ void extend_partition_recursive(
   if (k > 2) {
     timer.reset();
     auto extraction = extract_subgraphs_sequential(
-        p_graph, final_ks, position, subgraph_memory, tmp_extraction_mem_pool
+        p_graph, final_ks, position, subgraph_memory, tmp_subgraph_memory
     );
     const auto &subgraphs = extraction.subgraphs;
     const auto &positions = extraction.positions;
@@ -185,7 +184,7 @@ void extend_partition_recursive(
           input_ctx,
           positions[i],
           subgraph_memory,
-          tmp_extraction_mem_pool,
+          tmp_subgraph_memory,
           bipartitioner_pool,
           timings
       );
@@ -283,7 +282,6 @@ void extend_partition_lazy_extraction(
     const BlockID k_prime,     // extend to this many blocks
     const Context &input_ctx,  // stores input k
     PartitionContext &current_p_ctx,
-    TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
     const int num_active_threads
 ) {
@@ -304,7 +302,6 @@ void extend_partition_lazy_extraction(
           factor * p_graph.k(),
           input_ctx,
           current_p_ctx,
-          tmp_extraction_mem_pool_ets,
           bipartitioner_pool,
           num_active_threads
       );
@@ -339,6 +336,9 @@ void extend_partition_lazy_extraction(
     tbb::enumerable_thread_specific<graph::SubgraphMemoryStartPosition> positions_ets;
     tbb::enumerable_thread_specific<graph::OCSubgraphMemory> subgraph_memory_ets([&] {
       return graph::OCSubgraphMemory(p_graph.n(), p_graph.m());
+    });
+    tbb::enumerable_thread_specific<graph::OCTemporarySubgraphMemory> tmp_subgraph_memory_ets([&] {
+      return graph::OCTemporarySubgraphMemory(p_graph.n(), p_graph.m());
     });
 
     tbb::parallel_for<BlockID>(0, k, [&](const BlockID b) {
@@ -376,7 +376,7 @@ void extend_partition_lazy_extraction(
           input_ctx,
           positions,
           subgraph_memory,
-          tmp_extraction_mem_pool_ets.local(),
+          tmp_subgraph_memory_ets.local(),
           bipartitioner_pool,
           &timing
       );
@@ -387,6 +387,10 @@ void extend_partition_lazy_extraction(
 
       for (auto &subgraph_memory : subgraph_memory_ets) {
         subgraph_memory.record_allocations();
+      }
+
+      for (auto &tmp_subgraph_memory : tmp_subgraph_memory_ets) {
+        tmp_subgraph_memory.record_allocations();
       }
     }
 

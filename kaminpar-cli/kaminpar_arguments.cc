@@ -78,9 +78,9 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
   partitioning
       ->add_option(
-          "--p-use-subgraph-memory",
-          ctx.partitioning.use_subgraph_memory,
-          "Whether to use subgraph memory for storing block-induced subgraphs during bipartitioning"
+          "--p-lazy-extract-subgraph-memory",
+          ctx.partitioning.use_lazy_subgraph_memory,
+          "Whether to lazily extract block-induced subgraph during bipartitioning"
       )
       ->capture_default_str();
 

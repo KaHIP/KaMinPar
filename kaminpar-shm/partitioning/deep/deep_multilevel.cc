@@ -92,23 +92,22 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
   SCOPED_HEAP_PROFILER("Extending partition");
   LOG << "  Extending partition from " << p_graph.k() << " blocks to " << k_prime << " blocks";
 
-  if (_input_ctx.partitioning.use_subgraph_memory) {
+  if (_input_ctx.partitioning.use_lazy_subgraph_memory) {
+    partitioning::extend_partition_lazy_extraction(
+        p_graph,
+        k_prime,
+        _input_ctx,
+        _current_p_ctx,
+        _bipartitioner_pool,
+        _input_ctx.parallel.num_threads
+    );
+  } else {
     partitioning::extend_partition(
         p_graph,
         k_prime,
         _input_ctx,
         _current_p_ctx,
         _subgraph_memory,
-        _tmp_extraction_mem_pool_ets,
-        _bipartitioner_pool,
-        _input_ctx.parallel.num_threads
-    );
-  } else {
-    partitioning::extend_partition_lazy_extraction(
-        p_graph,
-        k_prime,
-        _input_ctx,
-        _current_p_ctx,
         _tmp_extraction_mem_pool_ets,
         _bipartitioner_pool,
         _input_ctx.parallel.num_threads
@@ -155,7 +154,7 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
   NodeWeight prev_c_graph_total_node_weight = c_graph->total_node_weight();
   bool shrunk = true;
 
-  bool search_subgraph_memory_size = _input_ctx.partitioning.use_subgraph_memory;
+  bool search_subgraph_memory_size = !_input_ctx.partitioning.use_lazy_subgraph_memory;
   NodeID subgraph_memory_n;
   EdgeID subgraph_memory_m;
   NodeID subgraph_memory_n_weights;
@@ -221,7 +220,7 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
     subgraph_memory_m = subgraph_memory_m_weights = prev_c_graph_m;
   }
 
-  if (_input_ctx.partitioning.use_subgraph_memory) {
+  if (!_input_ctx.partitioning.use_lazy_subgraph_memory) {
     _subgraph_memory.resize(
         subgraph_memory_n,
         _input_ctx.partition.k,
