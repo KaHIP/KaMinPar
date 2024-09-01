@@ -99,7 +99,7 @@ void HeapProfiler::record_data_struct(
   }
 }
 
-DataStructure *HeapProfiler::add_data_struct(std::string name, std::size_t size) {
+DataStructure *HeapProfiler::add_data_struct(hp_string name, std::size_t size) {
   if (_enabled) {
     std::lock_guard<std::mutex> guard(_mutex);
 
@@ -334,7 +334,7 @@ void HeapProfiler::print_data_structures(
     bool last,
     std::size_t min_data_struct_size
 ) {
-  std::vector<DataStructure *, NoProfilAllocator<DataStructure *>> filtered_data_structures;
+  std::vector<DataStructure *, NoProfileAllocator<DataStructure *>> filtered_data_structures;
   std::copy_if(
       node.data_structures.begin(),
       node.data_structures.end(),
