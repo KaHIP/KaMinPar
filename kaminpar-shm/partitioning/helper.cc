@@ -383,14 +383,17 @@ void extend_partition_lazy_extraction(
     });
 
     if constexpr (kHeapProfiling) {
-      SCOPED_HEAP_PROFILER("Subgraph memory allocation");
-
-      for (auto &subgraph_memory : subgraph_memory_ets) {
-        subgraph_memory.record_allocations();
+      {
+        SCOPED_HEAP_PROFILER("Subgraph memory allocation");
+        for (auto &subgraph_memory : subgraph_memory_ets) {
+          subgraph_memory.record_allocations();
+        }
       }
-
-      for (auto &tmp_subgraph_memory : tmp_subgraph_memory_ets) {
-        tmp_subgraph_memory.record_allocations();
+      {
+        SCOPED_HEAP_PROFILER("Temporary subgraph memory allocation");
+        for (auto &tmp_subgraph_memory : tmp_subgraph_memory_ets) {
+          tmp_subgraph_memory.record_allocations();
+        }
       }
     }
 
