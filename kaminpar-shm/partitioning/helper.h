@@ -79,12 +79,13 @@ void extend_partition_recursive(
     BipartitionTimingInfo *timings = nullptr
 );
 
-void extend_partition(
+void extend_partition_lazy_extraction(
     PartitionedGraph &p_graph,
     BlockID k_prime,
     const Context &input_ctx,
     PartitionContext &current_p_ctx,
-    InitialBipartitionerWorkerPool &bipartitioner_pool
+    InitialBipartitionerWorkerPool &bipartitioner_pool,
+    const int num_active_threads
 );
 
 void extend_partition(

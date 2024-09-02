@@ -28,6 +28,7 @@ struct CSRGraphMemory {
   StaticArray<NodeID> edges;
   StaticArray<NodeWeight> node_weights;
   StaticArray<EdgeWeight> edge_weights;
+  std::vector<NodeID> buckets;
 };
 
 class CSRGraph : public AbstractGraph {
@@ -57,7 +58,8 @@ public:
       StaticArray<NodeID> edges,
       StaticArray<NodeWeight> node_weights = {},
       StaticArray<EdgeWeight> edge_weights = {},
-      bool sorted = false
+      bool sorted = false,
+      std::vector<NodeID> buckets = std::vector<NodeID>(kNumberOfDegreeBuckets<NodeID> + 1)
   );
 
   CSRGraph(const CSRGraph &) = delete;
@@ -447,6 +449,10 @@ public:
     return std::move(_edge_weights);
   }
 
+  [[nodiscard]] inline std::vector<NodeID> &&take_raw_buckets() {
+    return std::move(_buckets);
+  }
+
 private:
   void init_degree_buckets();
 
@@ -463,7 +469,7 @@ private:
 
   StaticArray<NodeID> _permutation;
   bool _sorted;
-  std::vector<NodeID> _buckets = std::vector<NodeID>(kNumberOfDegreeBuckets<NodeID> + 1);
+  std::vector<NodeID> _buckets;
   std::size_t _number_of_buckets = 0;
 };
 

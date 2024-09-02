@@ -1809,8 +1809,6 @@ private:
           std::min<NodeID>({remaining_bucket_size, to - position, to - from});
 
       parallel::Atomic<NodeID> offset = 0;
-      tbb::enumerable_thread_specific<std::size_t> num_chunks_ets;
-      tbb::enumerable_thread_specific<std::vector<Chunk>> chunks_ets;
 
       const std::size_t bucket_start = std::max(_graph->first_node_in_bucket(bucket), from);
 
@@ -1818,8 +1816,8 @@ private:
           static_cast<int>(0),
           tbb::this_task_arena::max_concurrency(),
           [&](const int) {
-            auto &chunks = chunks_ets.local();
-            auto &num_chunks = num_chunks_ets.local();
+            auto &chunks = _chunks_ets.local();
+            auto &num_chunks = _num_chunks_ets.local();
 
             while (offset < bucket_size) {
               const NodeID begin = offset.fetch_add(max_node_chunk_size);
@@ -1852,15 +1850,20 @@ private:
           }
       );
 
-      const std::size_t num_chunks = num_chunks_ets.combine(std::plus{});
+      std::size_t num_chunks = 0;
+      for (auto &local_num_chunks : _num_chunks_ets) {
+        num_chunks += local_num_chunks;
+        local_num_chunks = 0;
+      }
 
       const std::size_t chunks_start = _chunks.size();
       parallel::Atomic<std::size_t> pos = chunks_start;
       _chunks.resize(chunks_start + num_chunks);
-      tbb::parallel_for(chunks_ets.range(), [&](auto &r) {
+      tbb::parallel_for(_chunks_ets.range(), [&](auto &r) {
         for (auto &chunk : r) {
           const std::size_t local_pos = pos.fetch_add(chunk.size());
           std::copy(chunk.begin(), chunk.end(), _chunks.begin() + local_pos);
+          chunk.clear();
         }
       });
 
@@ -1929,9 +1932,16 @@ private:
 
       const std::size_t num_sub_chunks =
           std::ceil(1.0 * (chunk.end - chunk.start) / Config::kPermutationSize);
-      std::vector<NodeID> sub_chunk_permutation(num_sub_chunks);
-      std::iota(sub_chunk_permutation.begin(), sub_chunk_permutation.end(), 0);
-      local_rand.shuffle(sub_chunk_permutation);
+
+      auto &sub_chunk_permutation = _sub_chunk_permutation_ets.local();
+      if (sub_chunk_permutation.capacity() < num_sub_chunks) {
+        sub_chunk_permutation.resize(num_sub_chunks);
+      }
+
+      std::iota(sub_chunk_permutation.begin(), sub_chunk_permutation.begin() + num_sub_chunks, 0);
+      local_rand.shuffle(
+          sub_chunk_permutation.begin(), sub_chunk_permutation.begin() + num_sub_chunks
+      );
 
       for (std::size_t sub_chunk = 0; sub_chunk < num_sub_chunks; ++sub_chunk) {
         for (std::size_t i = 0; i < Config::kPermutationSize; ++i) {
@@ -2007,9 +2017,16 @@ private:
 
       const std::size_t num_sub_chunks =
           std::ceil(1.0 * (chunk.end - chunk.start) / Config::kPermutationSize);
-      std::vector<NodeID> sub_chunk_permutation(num_sub_chunks);
-      std::iota(sub_chunk_permutation.begin(), sub_chunk_permutation.end(), 0);
-      local_rand.shuffle(sub_chunk_permutation);
+
+      auto &sub_chunk_permutation = _sub_chunk_permutation_ets.local();
+      if (sub_chunk_permutation.capacity() < num_sub_chunks) {
+        sub_chunk_permutation.resize(num_sub_chunks);
+      }
+
+      std::iota(sub_chunk_permutation.begin(), sub_chunk_permutation.begin() + num_sub_chunks, 0);
+      local_rand.shuffle(
+          sub_chunk_permutation.begin(), sub_chunk_permutation.begin() + num_sub_chunks
+      );
 
       for (std::size_t sub_chunk = 0; sub_chunk < num_sub_chunks; ++sub_chunk) {
         for (std::size_t i = 0; i < Config::kPermutationSize; ++i) {
@@ -2118,10 +2135,15 @@ protected:
   using Base::_tie_breaking_favored_clusters_ets;
 
   Permutations &_random_permutations;
+  tbb::enumerable_thread_specific<std::vector<NodeID>> _sub_chunk_permutation_ets;
+  tbb::enumerable_thread_specific<std::size_t> _num_chunks_ets;
+  tbb::enumerable_thread_specific<std::vector<Chunk>> _chunks_ets;
   std::vector<Chunk> _chunks;
   std::vector<Bucket> _buckets;
+
   tbb::enumerable_thread_specific<NodeID> _num_processed_nodes_ets;
   tbb::enumerable_thread_specific<NodeID> _num_moved_nodes_ets;
+
   ConcurrentRatingMap _concurrent_rating_map;
 };
 

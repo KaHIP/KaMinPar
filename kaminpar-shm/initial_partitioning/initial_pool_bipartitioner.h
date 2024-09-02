@@ -33,6 +33,8 @@ public:
   };
 
   struct BipartitionerStatistics {
+    void reset();
+
     std::vector<EdgeWeight> cuts;
     double cut_mean;
     double cut_variance;

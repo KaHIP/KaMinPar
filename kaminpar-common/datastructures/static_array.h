@@ -175,7 +175,9 @@ public:
     tbb::parallel_for<std::size_t>(0, _size, [&](const std::size_t i) { _data[i] = *(first + i); });
   }
 
-  StaticArray() : StaticArray(0) {}
+  StaticArray() {
+    RECORD_DATA_STRUCT(0, _struct);
+  }
 
   StaticArray(const StaticArray &) = delete;
   StaticArray &operator=(const StaticArray &) = delete;
@@ -317,9 +319,6 @@ public:
     const bool use_thp =
         (size >= KAMINPAR_THP_THRESHOLD && !contains_tag_v<static_array::small_t, Tags...>);
 
-    // Before allocating the new memory, free the old memory to prevent both from being held in
-    // memory at the same time
-    _owned_data.reset();
     allocate_data(size, use_thp);
 
     if constexpr (!contains_tag_v<static_array::noinit_t, Tags...>) {
@@ -357,6 +356,12 @@ public:
 
 private:
   void allocate_data(const std::size_t size, const bool thp) {
+    // Before allocating the new memory, free the old memory to prevent both from being held in
+    // memory at the same time
+    if (_owned_data != nullptr) {
+      _owned_data.reset();
+    }
+
     _owned_data = parallel::make_unique<value_type>(size, thp);
     _data = _owned_data.get();
     _size = size;

@@ -23,7 +23,74 @@
 #include "kaminpar-common/libc_memory_override.h"
 #include "kaminpar-common/logger.h"
 
+namespace kaminpar::heap_profiler {
+/*!
+ * A minimal allocator that uses memory allocation functions that bypass the heap profiler.
+ *
+ * This is required for allocations inside the heap profiler, otherwise a memory allocation would
+ * lead to an infinite recursion.
+ */
+template <typename T> struct NoProfileAllocator {
+  using value_type = T;
+
+  NoProfileAllocator() noexcept = default;
+  template <typename U> NoProfileAllocator(const NoProfileAllocator<U> &) noexcept {}
+
+  template <typename U> bool operator==(const NoProfileAllocator<U> &) const noexcept {
+    return true;
+  }
+  template <typename U> bool operator!=(const NoProfileAllocator<U> &) const noexcept {
+    return false;
+  }
+
+  T *allocate(const size_t n) const {
+    if (n == 0) {
+      return nullptr;
+    }
+
+    if (n > static_cast<size_t>(-1) / sizeof(T)) {
+      throw std::bad_array_new_length();
+    }
+
+#ifdef KAMINPAR_ENABLE_HEAP_PROFILING
+    void *const ptr = heap_profiler::std_malloc(n * sizeof(T));
+#else
+    void *const ptr = std::malloc(n * sizeof(T));
+#endif
+    if (!ptr) {
+      throw std::bad_alloc();
+    }
+
+    return static_cast<T *>(ptr);
+  }
+
+  void deallocate(T *const ptr, size_t) const noexcept {
+#ifdef KAMINPAR_ENABLE_HEAP_PROFILING
+    heap_profiler::std_free(ptr);
+#else
+    std::free(ptr);
+#endif
+  }
+
+  template <typename... Args> T *create(Args &&...args) const {
+    T *t = allocate(1);
+    new (t) T(std::forward<Args>(args)...);
+    return t;
+  }
+
+  void destruct(T *const t) const {
+    t->~T();
+    deallocate(t, 1);
+  }
+};
+
+//! A string type whose memory allocations are not tracked by the heap profiler.
+using hp_string = std::basic_string<char, std::char_traits<char>, NoProfileAllocator<char>>;
+
+}; // namespace kaminpar::heap_profiler
+
 namespace {
+using namespace kaminpar;
 
 /*!
  * Returns the (demangled) name of a type.
@@ -33,16 +100,18 @@ namespace {
  * @tparam T The type whose name to return.
  * @return The (demangled) name of the type T.
  */
-template <typename T> std::string type_name() {
+template <typename T> heap_profiler::hp_string type_name() {
   auto mangeled_name = typeid(T()).name();
   int status = 0;
 
-  std::unique_ptr<char, void (*)(void *)> demangled_result{
-      abi::__cxa_demangle(mangeled_name, NULL, NULL, &status), std::free
-  };
+  std::size_t length = 1024;
+  char *output_buffer = static_cast<char *>(heap_profiler::std_malloc(length));
+  abi::__cxa_demangle(mangeled_name, output_buffer, &length, &status);
+
+  heap_profiler::hp_string name((status == 0) ? output_buffer : mangeled_name);
+  heap_profiler::std_free(output_buffer);
 
   // Strip the trailing brackets from the constructed function type.
-  std::string name((status == 0) ? demangled_result.get() : mangeled_name);
   if (name.substr(name.size() - 3) == " ()") {
     name.resize(name.size() - 3);
   }
@@ -60,8 +129,7 @@ template <typename T> std::string type_name() {
 
   return name;
 }
-
-}; // namespace
+} // namespace
 
 #ifdef KAMINPAR_ENABLE_HEAP_PROFILING
 
@@ -143,66 +211,6 @@ constexpr bool kPageProfiling = false;
 namespace kaminpar::heap_profiler {
 
 /*!
- * A minimal allocator that uses memory allocation functions which bypass the heap profiler.
- *
- * This is required for allocations inside the heap profiler, otherwise a memory allocation would
- * lead to an infinite recursion.
- */
-template <typename T> struct NoProfilAllocator {
-  using value_type = T;
-
-  NoProfilAllocator() noexcept = default;
-  template <typename U> NoProfilAllocator(const NoProfilAllocator<U> &) noexcept {}
-
-  template <typename U> bool operator==(const NoProfilAllocator<U> &) const noexcept {
-    return true;
-  }
-  template <typename U> bool operator!=(const NoProfilAllocator<U> &) const noexcept {
-    return false;
-  }
-
-  T *allocate(const size_t n) const {
-    if (n == 0) {
-      return nullptr;
-    }
-
-    if (n > static_cast<size_t>(-1) / sizeof(T)) {
-      throw std::bad_array_new_length();
-    }
-
-#ifdef KAMINPAR_ENABLE_HEAP_PROFILING
-    void *const ptr = std_malloc(n * sizeof(T));
-#else
-    void *const ptr = std::malloc(n * sizeof(T));
-#endif
-    if (!ptr) {
-      throw std::bad_alloc();
-    }
-
-    return static_cast<T *>(ptr);
-  }
-
-  void deallocate(T *const ptr, size_t) const noexcept {
-#ifdef KAMINPAR_ENABLE_HEAP_PROFILING
-    std_free(ptr);
-#else
-    std::free(ptr);
-#endif
-  }
-
-  template <typename... Args> T *create(Args &&...args) const {
-    T *t = allocate(1);
-    new (t) T(std::forward<Args>(args)...);
-    return t;
-  }
-
-  void destruct(T *const t) const {
-    t->~T();
-    deallocate(t, 1);
-  }
-};
-
-/*!
  * Represents a data structure in the program. It contains information about a data structure that
  * is tracked by the heap profiler.
  */
@@ -210,7 +218,7 @@ struct DataStructure {
   /*!
    * The name of the data structure.
    */
-  std::string name;
+  hp_string name;
 
   /*!
    * The size of the memory in bytes allocated on the heap by the data structure.
@@ -244,7 +252,7 @@ struct DataStructure {
    * @param name The name of the data structure.
    * @param size The size of the memory in bytes allocated on the heap by the data structure.
    */
-  explicit DataStructure(std::string name, std::size_t size)
+  explicit DataStructure(hp_string name, std::size_t size)
       : name(std::move(name)),
         size(size),
         variable_name(""),
@@ -293,7 +301,7 @@ public:
     std::string annotation;
 
     HeapProfileTreeNode *parent;
-    std::vector<HeapProfileTreeNode *, NoProfilAllocator<HeapProfileTreeNode *>> children;
+    std::vector<HeapProfileTreeNode *, NoProfileAllocator<HeapProfileTreeNode *>> children;
 
     std::size_t peak_memory;
     std::size_t total_alloc;
@@ -301,7 +309,7 @@ public:
     std::size_t num_allocs;
     std::size_t num_frees;
 
-    std::vector<DataStructure *, NoProfilAllocator<DataStructure *>> data_structures;
+    std::vector<DataStructure *, NoProfileAllocator<DataStructure *>> data_structures;
 
     HeapProfileTreeNode(std::string_view name, std::string description, HeapProfileTreeNode *parent)
         : name(name),
@@ -443,7 +451,7 @@ public:
    * @return A pointer to the object holding information about the data structure or a nullptr if
    * the heap profiler is disabled.
    */
-  DataStructure *add_data_struct(std::string name, std::size_t size);
+  DataStructure *add_data_struct(hp_string name, std::size_t size);
 
   /*!
    * Records a memory allocation.
@@ -539,17 +547,17 @@ private:
   bool _enabled = false;
   std::mutex _mutex;
 
-  NoProfilAllocator<HeapProfileTreeNode> _node_allocator;
+  NoProfileAllocator<HeapProfileTreeNode> _node_allocator;
   HeapProfileTree _tree;
   std::unordered_map<
       const void *,
       std::size_t,
       std::hash<const void *>,
       std::equal_to<const void *>,
-      NoProfilAllocator<std::pair<const void *const, std::size_t>>>
+      NoProfileAllocator<std::pair<const void *const, std::size_t>>>
       _address_map;
 
-  NoProfilAllocator<DataStructure> _struct_allocator;
+  NoProfileAllocator<DataStructure> _struct_allocator;
   std::string_view _var_name;
   std::string_view _file_name;
   std::size_t _line;

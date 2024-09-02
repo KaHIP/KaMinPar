@@ -234,8 +234,7 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
 
   init_pq(p_graph);
 
-  std::vector<NodeID> moves; // moves since last accepted cut
-  std::size_t active = 0;    // block from which we select a node for movement
+  std::size_t active = 0; // block from which we select a node for movement
 
   EdgeWeight current_overload = metrics::total_overload(p_graph, *_p_ctx);
   EdgeWeight accepted_overload = current_overload;
@@ -273,7 +272,7 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
     DBG << "Performed move, new cut=" << metrics::edge_cut_seq(p_graph);
     p_graph.set_block(u, to);
     current_delta += delta;
-    moves.push_back(u);
+    _moves.push_back(u);
 #if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
     KASSERT(initial_edge_cut + current_delta == metrics::edge_cut(p_graph), "", assert::heavy);
 #endif
@@ -315,12 +314,12 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
       _stopping_policy.reset();
       accepted_delta = current_delta;
       accepted_overload = current_overload;
-      moves.clear();
+      _moves.clear();
     }
   }
 
   // rollback to last accepted cut
-  for (const NodeID u : moves) {
+  for (const NodeID u : _moves) {
     p_graph.set_block(u, 1 - p_graph.block(u));
   };
 
@@ -329,6 +328,7 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
     _queues[i].clear();
   }
   _marker.reset();
+  _moves.clear();
 
 #if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
   KASSERT(!initially_feasible || accepted_delta <= 0);
@@ -345,16 +345,24 @@ void InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>
   KASSERT(_queues[0].empty());
   KASSERT(_queues[1].empty());
 
-  const std::size_t num_chunks = _graph->n() / kChunkSize + 1;
+  const NodeID num_chunks = _graph->n() / kChunkSize + 1;
 
-  std::vector<std::size_t> chunks(num_chunks);
-  std::iota(chunks.begin(), chunks.end(), 0);
-  std::transform(chunks.begin(), chunks.end(), chunks.begin(), [](const std::size_t i) {
-    return i * kChunkSize;
-  });
-  _rand.shuffle(chunks);
+  _chunks.clear();
+  if (_chunks.capacity() < num_chunks) {
+    _chunks.resize(num_chunks);
+  }
 
-  for (const std::size_t chunk : chunks) {
+  std::iota(_chunks.begin(), _chunks.begin() + num_chunks, 0);
+  std::transform(
+      _chunks.begin(),
+      _chunks.begin() + num_chunks,
+      _chunks.begin(),
+      [](const NodeID i) { return i * kChunkSize; }
+  );
+  _rand.shuffle(_chunks.begin(), _chunks.begin() + num_chunks);
+
+  for (NodeID i = 0; i < num_chunks; ++i) {
+    const NodeID chunk = _chunks[i];
     const auto &permutation = _permutations.get(_rand);
     for (const NodeID i : permutation) {
       const NodeID u = chunk + i;

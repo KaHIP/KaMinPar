@@ -100,11 +100,13 @@ private:
   };
   Marker<> _marker{0};
   ScalableVector<EdgeWeight> _weighted_degrees{};
+  std::vector<NodeID> _moves;
 
   StoppingPolicy _stopping_policy{};
 
   Random &_rand = Random::instance();
   RandomPermutations<NodeID, kChunkSize, kNumberOfNodePermutations> _permutations;
+  std::vector<NodeID> _chunks;
 };
 
 using InitialSimple2WayFM = InitialFMRefiner<

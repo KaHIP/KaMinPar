@@ -14,6 +14,7 @@
 #include "kaminpar-shm/context.h"
 
 namespace kaminpar::shm {
+
 Context create_context_by_preset_name(const std::string &name) {
   if (name == "default") {
     return create_default_context();
@@ -79,6 +80,7 @@ Context create_default_context() {
               .deep_initial_partitioning_mode = InitialPartitioningMode::ASYNCHRONOUS_PARALLEL,
               .deep_initial_partitioning_load = 1.0,
               .min_consecutive_seq_bipartitioning_levels = 1,
+              .use_lazy_subgraph_memory = false,
           },
       .partition =
           {
@@ -312,14 +314,18 @@ Context create_strong_largek_context() {
   return ctx;
 }
 
+
 Context create_memory_context() {
   Context ctx = create_default_context();
   ctx.node_ordering = NodeOrdering::EXTERNAL_DEGREE_BUCKETS;
   ctx.compression.enabled = true;
+  ctx.partitioning.deep_initial_partitioning_mode = InitialPartitioningMode::SEQUENTIAL;
+  ctx.partitioning.use_lazy_subgraph_memory = true;
   ctx.coarsening.clustering.max_mem_free_coarsening_level = 1;
   ctx.coarsening.clustering.lp.impl = LabelPropagationImplementation::TWO_PHASE;
   ctx.coarsening.contraction.mode = ContractionMode::UNBUFFERED;
   ctx.coarsening.contraction.implementation = ContractionImplementation::TWO_PHASE;
+  ctx.refinement.kway_fm.gain_cache_strategy = GainCacheStrategy::SPARSE;
 
   ctx.refinement.algorithms = {
       RefinementAlgorithm::GREEDY_BALANCER,
@@ -366,4 +372,5 @@ Context create_noref_context() {
   ctx.refinement.algorithms.clear();
   return ctx;
 }
+
 } // namespace kaminpar::shm
