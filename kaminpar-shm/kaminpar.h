@@ -474,14 +474,18 @@ struct Context {
 namespace kaminpar::shm {
 std::unordered_set<std::string> get_preset_names();
 Context create_context_by_preset_name(const std::string &name);
+
 Context create_default_context();
-Context create_memory_context();
 Context create_fast_context();
-Context create_largek_context();
-Context create_largek_fast_context();
-Context create_largek_ultrafast_context();
-Context create_largek_fm_context();
 Context create_strong_context();
+
+Context create_largek_context();
+Context create_fast_largek_context();
+Context create_strong_largek_context();
+
+Context create_memory_context();
+Context create_strong_memory_context();
+
 Context create_jet_context(int rounds = 1);
 Context create_noref_context();
 } // namespace kaminpar::shm
