@@ -8,10 +8,10 @@
 #pragma once
 
 #include "kaminpar-shm/context.h"
-#include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 
 namespace kaminpar::shm {
+
 class Refiner {
 public:
   Refiner(const Refiner &) = delete;
@@ -38,4 +38,5 @@ public:
     return false;
   }
 };
+
 } // namespace kaminpar::shm
