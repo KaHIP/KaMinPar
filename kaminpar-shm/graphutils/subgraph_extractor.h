@@ -170,6 +170,8 @@ struct OCSubgraphMemoryPreprocessingResult {
   StaticArray<NodeID> mapping;
   StaticArray<NodeID> block_nodes_offset;
   StaticArray<NodeID> block_nodes;
+  NodeID max_num_block_nodes;
+  EdgeID max_num_block_edges;
 };
 
 class OCTemporarySubgraphMemory {
@@ -318,7 +320,7 @@ private:
 };
 
 [[nodiscard]] OCSubgraphMemoryPreprocessingResult
-extract_subgraphs_preprocessing(const PartitionedGraph &p_graph);
+lazy_extract_subgraphs_preprocessing(const PartitionedGraph &p_graph);
 
 Graph extract_subgraph(
     const PartitionedGraph &p_graph,
@@ -333,7 +335,7 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential(
     const std::array<BlockID, 2> &final_ks,
     const SubgraphMemoryStartPosition memory_position,
     OCSubgraphMemory &subgraph_memory,
-    OCTemporarySubgraphMemory &tmp_subgraph_memory
+    TemporarySubgraphMemory &tmp_subgraph_memory
 );
 
 SubgraphExtractionResult extract_subgraphs(

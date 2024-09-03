@@ -184,7 +184,7 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential_generic_graph(
     const std::array<BlockID, 2> &final_ks,
     const SubgraphMemoryStartPosition memory_position,
     OCSubgraphMemory &subgraph_memory,
-    OCTemporarySubgraphMemory &tmp_subgraph_memory
+    TemporarySubgraphMemory &tmp_subgraph_memory
 ) {
   KASSERT(p_graph.k() == 2u, "Only suitable for bipartitions!", assert::light);
 
@@ -192,12 +192,13 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential_generic_graph(
   const bool is_edge_weighted = graph.is_edge_weighted();
 
   const BlockID final_k = final_ks[0] + final_ks[1];
+  tmp_subgraph_memory.ensure_size_nodes(graph.n() + final_k, is_node_weighted);
 
-  NodeID *mapping = tmp_subgraph_memory.mapping();
-  EdgeID *nodes = tmp_subgraph_memory.nodes();
-  NodeID *edges = tmp_subgraph_memory.edges();
-  NodeWeight *node_weights = tmp_subgraph_memory.node_weights();
-  EdgeWeight *edge_weights = tmp_subgraph_memory.edge_weights();
+  auto &nodes = tmp_subgraph_memory.nodes;
+  auto &edges = tmp_subgraph_memory.edges;
+  auto &node_weights = tmp_subgraph_memory.node_weights;
+  auto &edge_weights = tmp_subgraph_memory.edge_weights;
+  auto &mapping = tmp_subgraph_memory.mapping;
 
   std::array<NodeID, 2> s_n{0, 0};
   std::array<EdgeID, 2> s_m{0, 0};
@@ -249,28 +250,29 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential_generic_graph(
   // copy graphs to subgraph_memory at memory_position
   // THIS OPERATION OVERWRITES p_graph!
   std::copy(
-      nodes, nodes + graph.n() + final_k, subgraph_memory.nodes() + memory_position.nodes_start_pos
+      nodes.begin(),
+      nodes.begin() + graph.n() + final_k,
+      subgraph_memory.nodes() + memory_position.nodes_start_pos
   );
   std::copy(
-      edges, edges + s_m[0] + s_m[1], subgraph_memory.edges() + memory_position.edges_start_pos
+      edges.begin(),
+      edges.begin() + s_m[0] + s_m[1],
+      subgraph_memory.edges() + memory_position.edges_start_pos
   );
   if (is_node_weighted) {
     std::copy(
-        node_weights,
-        node_weights + graph.n() + final_k,
+        node_weights.begin(),
+        node_weights.begin() + graph.n() + final_k,
         subgraph_memory.node_weights() + memory_position.nodes_start_pos
     );
   }
   if (is_edge_weighted) {
     std::copy(
-        edge_weights,
-        edge_weights + s_m[0] + s_m[1],
+        edge_weights.begin(),
+        edge_weights.begin() + s_m[0] + s_m[1],
         subgraph_memory.edge_weights() + memory_position.edges_start_pos
     );
   }
-  tmp_subgraph_memory.record(
-      graph.n() + final_k, s_m[0] + s_m[1], is_node_weighted, is_edge_weighted
-  );
 
   std::array<SubgraphMemoryStartPosition, 2> subgraph_positions;
   subgraph_positions[0].nodes_start_pos = memory_position.nodes_start_pos;
@@ -313,7 +315,7 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential(
     const std::array<BlockID, 2> &final_ks,
     const SubgraphMemoryStartPosition memory_position,
     OCSubgraphMemory &subgraph_memory,
-    OCTemporarySubgraphMemory &tmp_subgraph_memory
+    TemporarySubgraphMemory &tmp_subgraph_memory
 ) {
   return p_graph.reified([&](const auto &graph) {
     return extract_subgraphs_sequential_generic_graph(
@@ -322,28 +324,41 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential(
   });
 }
 
-OCSubgraphMemoryPreprocessingResult extract_subgraphs_preprocessing(const PartitionedGraph &p_graph
-) {
+OCSubgraphMemoryPreprocessingResult
+lazy_extract_subgraphs_preprocessing(const PartitionedGraph &p_graph) {
   const BlockID n = p_graph.n();
   const BlockID k = p_graph.k();
 
   StaticArray<NodeID> mapping(n, static_array::noinit);
   StaticArray<NodeID> block_nodes_offset(p_graph.k() + 1);
   StaticArray<NodeID> block_nodes(n, static_array::noinit);
+  StaticArray<NodeID> block_num_edges(p_graph.k());
 
   tbb::enumerable_thread_specific<ScalableVector<NodeID>> tl_num_nodes_in_block{[&] {
     return ScalableVector<NodeID>(k);
   }};
-  tbb::parallel_for(tbb::blocked_range<NodeID>(0, n), [&](auto &local_nodes) {
-    auto &num_nodes_in_block = tl_num_nodes_in_block.local();
+  tbb::enumerable_thread_specific<ScalableVector<EdgeID>> tl_num_edges_in_block{[&] {
+    return ScalableVector<EdgeID>(k);
+  }};
+  p_graph.reified([&](const auto &graph) {
+    tbb::parallel_for(tbb::blocked_range<NodeID>(0, n), [&](auto &local_nodes) {
+      auto &num_nodes_in_block = tl_num_nodes_in_block.local();
+      auto &num_edges_in_block = tl_num_edges_in_block.local();
 
-    const NodeID first_node = local_nodes.begin();
-    const NodeID last_node = local_nodes.end();
+      const NodeID first_node = local_nodes.begin();
+      const NodeID last_node = local_nodes.end();
 
-    for (NodeID u = first_node; u < last_node; ++u) {
-      const BlockID b = p_graph.block(u);
-      num_nodes_in_block[b] += 1;
-    }
+      for (NodeID u = first_node; u < last_node; ++u) {
+        const BlockID b = p_graph.block(u);
+        num_nodes_in_block[b] += 1;
+
+        graph.adjacent_nodes(u, [&](const NodeID v) {
+          if (p_graph.block(v) == b) {
+            num_edges_in_block[b] += 1;
+          }
+        });
+      }
+    });
   });
 
   tbb::parallel_for<BlockID>(0, k, [&](const BlockID b) {
@@ -352,7 +367,15 @@ OCSubgraphMemoryPreprocessingResult extract_subgraphs_preprocessing(const Partit
       num_block_nodes += local_num_nodes[b];
     }
     block_nodes_offset[b + 1] = num_block_nodes;
+
+    EdgeID num_block_edges = 0;
+    for (const auto &local_num_edges : tl_num_edges_in_block) {
+      num_block_edges += local_num_edges[b];
+    }
+    block_num_edges[b] = num_block_edges;
   });
+  const NodeID max_num_block_nodes = parallel::max_element(block_nodes_offset);
+  const EdgeID max_num_block_edges = parallel::max_element(block_num_edges);
   parallel::prefix_sum(
       block_nodes_offset.begin(), block_nodes_offset.end(), block_nodes_offset.begin()
   );
@@ -371,7 +394,13 @@ OCSubgraphMemoryPreprocessingResult extract_subgraphs_preprocessing(const Partit
     }
   });
 
-  return {std::move(mapping), std::move(block_nodes_offset), std::move(block_nodes)};
+  return {
+      std::move(mapping),
+      std::move(block_nodes_offset),
+      std::move(block_nodes),
+      max_num_block_nodes,
+      max_num_block_edges
+  };
 }
 
 namespace {

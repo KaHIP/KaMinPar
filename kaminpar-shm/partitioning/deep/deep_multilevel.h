@@ -56,6 +56,8 @@ private:
   std::unique_ptr<Refiner> _refiner;
 
   graph::SubgraphMemory _subgraph_memory;
+  NodeID _subgraph_memory_n, _subgraph_memory_n_weights;
+  EdgeID _subgraph_memory_m, _subgraph_memory_m_weights;
 
   partitioning::TemporarySubgraphMemoryEts _tmp_extraction_mem_pool_ets;
   InitialBipartitionerWorkerPool _bipartitioner_pool;

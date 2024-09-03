@@ -116,7 +116,7 @@ void extend_partition_recursive(
     const Context &input_ctx,
     const graph::SubgraphMemoryStartPosition position,
     graph::OCSubgraphMemory &subgraph_memory,
-    graph::OCTemporarySubgraphMemory &tmp_subgraph_memory,
+    graph::TemporarySubgraphMemory &tmp_subgraph_memory,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
     BipartitionTimingInfo *timings
 ) {
@@ -282,6 +282,7 @@ void extend_partition_lazy_extraction(
     const BlockID k_prime,     // extend to this many blocks
     const Context &input_ctx,  // stores input k
     PartitionContext &current_p_ctx,
+    TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
     const int num_active_threads
 ) {
@@ -302,6 +303,7 @@ void extend_partition_lazy_extraction(
           factor * p_graph.k(),
           input_ctx,
           current_p_ctx,
+          tmp_extraction_mem_pool_ets,
           bipartitioner_pool,
           num_active_threads
       );
@@ -312,9 +314,9 @@ void extend_partition_lazy_extraction(
   const BlockID n = p_graph.n();
   const BlockID k = p_graph.k();
 
-  auto [mapping, block_nodes_offset, block_nodes] = TIMED_SCOPE("Preprocessing") {
+  auto [mapping, block_nodes_offset, block_nodes, max_b_n, max_b_m] = TIMED_SCOPE("Preprocessing") {
     SCOPED_HEAP_PROFILER("Preprocessing");
-    return graph::extract_subgraphs_preprocessing(p_graph);
+    return graph::lazy_extract_subgraphs_preprocessing(p_graph);
   };
 
   auto subgraph_partitions = TIMED_SCOPE("Allocation") {
@@ -335,10 +337,7 @@ void extend_partition_lazy_extraction(
 
     tbb::enumerable_thread_specific<graph::SubgraphMemoryStartPosition> positions_ets;
     tbb::enumerable_thread_specific<graph::OCSubgraphMemory> subgraph_memory_ets([&] {
-      return graph::OCSubgraphMemory(p_graph.n(), p_graph.m());
-    });
-    tbb::enumerable_thread_specific<graph::OCTemporarySubgraphMemory> tmp_subgraph_memory_ets([&] {
-      return graph::OCTemporarySubgraphMemory(p_graph.n(), p_graph.m());
+      return graph::OCSubgraphMemory(max_b_n, max_b_m);
     });
 
     tbb::parallel_for<BlockID>(0, k, [&](const BlockID b) {
@@ -376,24 +375,16 @@ void extend_partition_lazy_extraction(
           input_ctx,
           positions,
           subgraph_memory,
-          tmp_subgraph_memory_ets.local(),
+          tmp_extraction_mem_pool_ets.local(),
           bipartitioner_pool,
           &timing
       );
     });
 
     if constexpr (kHeapProfiling) {
-      {
-        SCOPED_HEAP_PROFILER("Subgraph memory allocation");
-        for (auto &subgraph_memory : subgraph_memory_ets) {
-          subgraph_memory.record_allocations();
-        }
-      }
-      {
-        SCOPED_HEAP_PROFILER("Temporary subgraph memory allocation");
-        for (auto &tmp_subgraph_memory : tmp_subgraph_memory_ets) {
-          tmp_subgraph_memory.record_allocations();
-        }
+      SCOPED_HEAP_PROFILER("Subgraph memory allocation");
+      for (auto &subgraph_memory : subgraph_memory_ets) {
+        subgraph_memory.record_allocations();
       }
     }
 
