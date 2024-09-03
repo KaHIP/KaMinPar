@@ -22,23 +22,27 @@
 
 #include "kaminpar-dist/coarsening/contraction.h"
 #include "kaminpar-dist/graphutils/communication.h"
+#include "kaminpar-dist/logger.h"
 
 #include "kaminpar-common/datastructures/binary_heap.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/datastructures/ts_navigable_linked_list.h"
 #include "kaminpar-common/parallel/algorithm.h"
-#include "kaminpar-common/parallel/aligned_element.h"
 #include "kaminpar-common/parallel/vector_ets.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::dist {
+
 namespace {
+
 SET_STATISTICS_FROM_GLOBAL();
-SET_DEBUG(false);
+SET_DEBUG(true);
+
 } // namespace
 
 namespace {
+
 // Stores technical mappings necessary to project a partition of the coarse graph to the fine graph.
 // Part of the contraction result and should not be used outside the `project_partition()` function.
 struct MigratedNodes {
@@ -72,6 +76,9 @@ public:
   }
 
   void project(const StaticArray<BlockID> &c_partition, StaticArray<BlockID> &f_partition) final {
+    // @TODO lnode_to_gcnode now includes mappings for ghost vertices -- can this be used to speed
+    // things up here?
+
     SCOPED_TIMER("Project partition");
     SCOPED_HEAP_PROFILER("Project partition");
 
@@ -215,9 +222,9 @@ find_nonlocal_nodes(const Graph &graph, const StaticArray<GlobalNodeID> &lnode_t
   SCOPED_TIMER("Collect nonlocal nodes");
   SCOPED_HEAP_PROFILER("Collect nonlocal nodes");
 
-  RECORD("node_position_buffer") StaticArray<NodeID> node_position_buffer(graph.n() + 1);
+  RECORD("node_position_buffer") StaticArray<NodeID> node_position_buffer(graph.total_n() + 1);
   node_position_buffer.front() = 0;
-  graph.pfor_nodes([&](const NodeID lnode) {
+  graph.pfor_all_nodes([&](const NodeID lnode) {
     const GlobalNodeID gcluster = lnode_to_gcluster[lnode];
     node_position_buffer[lnode + 1] = !graph.is_owned_global_node(gcluster);
   });
@@ -226,12 +233,20 @@ find_nonlocal_nodes(const Graph &graph, const StaticArray<GlobalNodeID> &lnode_t
   );
 
   RECORD("nonlocal_nodes") StaticArray<GlobalNode> nonlocal_nodes(node_position_buffer.back());
-  graph.pfor_nodes([&](const NodeID lnode) {
+  graph.pfor_all_nodes([&](const NodeID lnode) {
     const GlobalNodeID gcluster = lnode_to_gcluster[lnode];
     if (!graph.is_owned_global_node(gcluster)) {
-      nonlocal_nodes[node_position_buffer[lnode]] = {
-          .u = gcluster, .weight = graph.node_weight(lnode)
-      };
+      if (graph.is_owned_node(lnode)) {
+        nonlocal_nodes[node_position_buffer[lnode]] = {
+            .u = gcluster,
+            .weight = graph.node_weight(lnode),
+        };
+      } else {
+        nonlocal_nodes[node_position_buffer[lnode]] = {
+            .u = gcluster,
+            .weight = 0,
+        };
+      }
     }
   });
 
@@ -444,7 +459,7 @@ void localize_global_edge_list(
 ) {
   tbb::parallel_for<std::size_t>(0, edges.size(), [&](const std::size_t i) {
     const NodeID lcluster = static_cast<NodeID>(edges[i].u - offset);
-    edges[i].u = lnode_to_lcnode[lcluster];
+    edges[i].u -= offset; //= lnode_to_lcnode[lcluster];
   });
 }
 
@@ -586,16 +601,15 @@ migrate_nodes(const Graph &graph, const StaticArray<GlobalNode> &nonlocal_nodes)
 }
 
 template <typename Graph>
-MigrationResult<GlobalEdge>
-migrate_edges(const Graph &graph, const StaticArray<GlobalEdge> &nonlocal_edges) {
+MigrationResult<GlobalEdge> migrate_edges(
+    const Graph &graph,
+    const StaticArray<GlobalEdge> &nonlocal_edges,
+    const StaticArray<GlobalNodeID> &c_node_distribution
+) {
   SCOPED_TIMER("Exchange nonlocal edges");
   SCOPED_HEAP_PROFILER("Exchange nonlocal edges");
 
   const PEID size = mpi::get_comm_size(graph.communicator());
-
-  START_TIMER("Barrier");
-  MPI_Barrier(graph.communicator());
-  STOP_TIMER();
 
   START_TIMER("Count messages");
   parallel::vector_ets<EdgeID> num_edges_for_pe_ets(size);
@@ -606,7 +620,7 @@ migrate_edges(const Graph &graph, const StaticArray<GlobalEdge> &nonlocal_edges)
         PEID current_pe = 0;
         for (std::size_t i = r.begin(); i != r.end(); ++i) {
           const GlobalNodeID u = nonlocal_edges[i].u;
-          while (u >= graph.node_distribution(current_pe + 1)) {
+          while (u >= c_node_distribution[current_pe + 1]) {
             ++current_pe;
           }
           ++num_edges_for_pe[current_pe];
@@ -615,7 +629,6 @@ migrate_edges(const Graph &graph, const StaticArray<GlobalEdge> &nonlocal_edges)
       tbb::static_partitioner{}
   );
   auto num_edges_for_pe = num_edges_for_pe_ets.combine(std::plus{});
-  MPI_Barrier(graph.communicator());
   STOP_TIMER();
 
   SCOPED_TIMER("Exchange messages");
@@ -977,6 +990,7 @@ void rebalance_cluster_placement(
 } // namespace
 
 namespace debug {
+
 bool validate_clustering(
     const DistributedGraph &graph, const StaticArray<GlobalNodeID> &lnode_to_gcluster
 ) {
@@ -1009,8 +1023,8 @@ bool validate_clustering(
           const NodeID lnode = graph.global_to_local_node(gnode);
           if (lnode_to_gcluster[lnode] != gcluster) {
             LOG_WARNING << "Inconsistent cluster for local node " << lnode
-                        << " (ghost node, global node ID " << gnode << "): "
-                        << "the node is owned by PE " << pe
+                        << " (ghost node, global node ID " << gnode
+                        << "): " << "the node is owned by PE " << pe
                         << ", which assigned the node to cluster " << gcluster
                         << ", but our ghost node is assigned to cluster "
                         << lnode_to_gcluster[lnode] << "; aborting";
@@ -1021,6 +1035,7 @@ bool validate_clustering(
   );
   return failed == 0;
 }
+
 } // namespace debug
 
 template <typename Graph>
@@ -1048,17 +1063,17 @@ std::unique_ptr<CoarseGraph> contract_clustering(
   // Collect nodes and edges that must be migrated to another PE:
   // - nodes that are assigned to non-local clusters
   // - edges whose source is a node in a non-local cluster
+  // Also includes ghost nodes
   auto nonlocal_nodes = find_nonlocal_nodes(graph, lnode_to_gcluster);
 
   IF_STATS {
     const auto total_num_nonlocal_nodes =
         mpi::allreduce<GlobalNodeID>(nonlocal_nodes.size(), MPI_SUM, graph.communicator());
-    STATS << "Total number of nonlocal nodes: " << total_num_nonlocal_nodes;
+    STATS << "Total number of nonlocal nodes (including ghost nodes): " << total_num_nonlocal_nodes;
   }
 
-  sort_node_list(nonlocal_nodes);
-
   // Migrate those nodes and edges
+  sort_node_list(nonlocal_nodes);
   auto migration_result_nodes = migrate_nodes(graph, nonlocal_nodes);
   auto &local_nodes = migration_result_nodes.elements;
 
@@ -1081,24 +1096,44 @@ std::unique_ptr<CoarseGraph> contract_clustering(
   );
 
   // Mapping from local nodes that belong to non-local clusters to coarse nodes:
-  // .gcluster -- global cluster that belongs to another PE (but have at least
-  // one node in this cluster) .gcnode -- the corresponding coarse node (global
-  // ID)
+  // -> .gcluster -- global cluster that belongs to another PE (but we have at least
+  //     one node in this cluster)
+  // -> .gcnode -- the corresponding coarse node (global ID)
   auto &my_nonlocal_to_gcnode = mapping_exchange_result.my_nonlocal_to_gcnode;
 
   // Mapping from node migration messages that we received (i.e., messages that
   // other PEs send us since they own nodes that belong to some cluster owned by
-  // our PE) to the corresponding coarse node (local ID) We don't need this
-  // information during contraction, but can use it to send the block assignment
+  // our PE) to the corresponding coarse node (local ID)
+  // We don't need this information during contraction, but can use it to send the block assignment
   // of coarse nodes to other PEs during uncoarsening
   auto &their_req_to_lcnode = mapping_exchange_result.their_req_to_lcnode;
+
+  // @TODO deduplicate this from rebalance_cluster_placement()
+  growt::GlobalNodeIDMap<GlobalNodeID> nonlocal_gcluster_to_gcnode_map(my_nonlocal_to_gcnode.size()
+  );
+  tbb::enumerable_thread_specific<growt::GlobalNodeIDMap<GlobalNodeID>::handle_type>
+      nonlocal_gcluster_to_gcnode_handle_ets([&] {
+        return nonlocal_gcluster_to_gcnode_map.get_handle();
+      });
+
+  tbb::parallel_for(
+      tbb::blocked_range<std::size_t>(0, my_nonlocal_to_gcnode.size()),
+      [&](const auto &r) {
+        auto &handle = nonlocal_gcluster_to_gcnode_handle_ets.local();
+        for (std::size_t i = r.begin(); i != r.end(); ++i) {
+          const auto &[gcluster, gcnode] = my_nonlocal_to_gcnode[i];
+          handle.insert(gcluster + 1, gcnode);
+        }
+      }
+  );
+  // @TODO end
 
   // If the "natural" assignment of coarse nodes to PEs has too much imbalance,
   // we remap the cluster IDs to achieve perfect coarse node balance
   if (const double cnode_imbalance = compute_distribution_imbalance(c_node_distribution);
       cnode_imbalance > max_cnode_imbalance) {
-    STATS << "Natural cluster assignment exceeds maximum coarse node imbalance: " << cnode_imbalance
-          << " > " << max_cnode_imbalance << " --> rebalancing cluster assignment";
+    DBG << "Natural cluster assignment exceeds maximum coarse node imbalance: " << cnode_imbalance
+        << " > " << max_cnode_imbalance << " --> rebalancing cluster assignment";
 
     const double max_imbalance = force_perfect_cnode_balance ? 1.0 : max_cnode_imbalance;
     rebalance_cluster_placement(
@@ -1120,7 +1155,33 @@ std::unique_ptr<CoarseGraph> contract_clustering(
     return contract_clustering(fine_graph, graph, lnode_to_gcluster);
   }
 
+  // @TODO already map these edges to gcnode's
   auto nonlocal_edges = find_nonlocal_edges(graph, lnode_to_gcluster);
+  deduplicate_edge_list(nonlocal_edges); // must go first since it sorts the edges
+
+  for (auto &[u, v, weight] : nonlocal_edges) {
+    // u is a gcluster assigned to another PE
+    // v is a gcluster that could be on any PE, including this one
+
+    auto &handle = nonlocal_gcluster_to_gcnode_handle_ets.local();
+
+    {
+      auto it = handle.find(u + 1);
+      KASSERT(it != handle.end());
+      u = (*it).second;
+    }
+
+    { // @TODO switch around to avoid the hash table lookup for local clusters
+      auto it = handle.find(v + 1);
+      if (it != handle.end()) {
+        v = (*it).second;
+      } else {
+        KASSERT(graph.is_owned_global_node(v));
+        const NodeID lcnode_v = lcluster_to_lcnode[v - graph.offset_n()];
+        v = c_node_distribution[rank] + lcnode_v;
+      }
+    }
+  }
 
   IF_STATS {
     const auto total_num_nonlocal_edges =
@@ -1132,8 +1193,6 @@ std::unique_ptr<CoarseGraph> contract_clustering(
           << "; imbalance: " << max_num_nonlocal_edges / (1.0 * total_num_nonlocal_edges / size);
   }
 
-  deduplicate_edge_list(nonlocal_edges);
-
   IF_STATS {
     const auto total_num_nonlocal_edges =
         mpi::allreduce<GlobalEdgeID>(nonlocal_edges.size(), MPI_SUM, graph.communicator());
@@ -1144,185 +1203,82 @@ std::unique_ptr<CoarseGraph> contract_clustering(
           << "; imbalance: " << max_num_nonlocal_edges / (1.0 * total_num_nonlocal_edges / size);
   }
 
-  auto migration_result_edges = migrate_edges(graph, nonlocal_edges);
+  auto migration_result_edges = migrate_edges(graph, nonlocal_edges, c_node_distribution);
   auto &local_edges = migration_result_edges.elements;
 
+  // Sort again since we got edges from multiple PEs
   START_TIMER("Sort migrated local edges");
   tbb::parallel_sort(local_edges.begin(), local_edges.end(), [&](const auto &lhs, const auto &rhs) {
     return lhs.u < rhs.u;
   });
   STOP_TIMER();
 
-  // Next, exchange the mapping of ghost nodes to coarse nodes
-  START_TIMER("Communicate mapping for ghost nodes");
-  START_HEAP_PROFILER("Communicate mapping for ghost nodes");
-  using NonlocalClusterMap = growt::StaticGhostNodeMapping;
-  NonlocalClusterMap nonlocal_gcluster_to_index(graph.total_n() + local_edges.size());
-  std::vector<parallel::Aligned<parallel::Atomic<NodeID>>> next_index_for_pe(size + 1);
+  // Build a mapping array from fine nodes to coarse nodes
+  RECORD("lnode_to_gcnode") StaticArray<GlobalNodeID> lnode_to_gcnode(graph.total_n());
+  graph.pfor_all_nodes([&](const NodeID u) {
+    const GlobalNodeID cluster = lnode_to_gcluster[u];
+    auto &handle = nonlocal_gcluster_to_gcnode_handle_ets.local();
 
-  auto request_nonlocal_mapping = [&](const GlobalNodeID cluster) {
-    const auto [it, mine] = nonlocal_gcluster_to_index.insert(cluster + 1, 1); // dummy value
-    if (mine) {
-      const PEID owner = graph.find_owner_of_global_node(cluster);
-      nonlocal_gcluster_to_index.update(cluster + 1, [&](auto &lhs) {
-        return lhs = ++(next_index_for_pe[owner].value);
-      });
+    if (graph.is_owned_global_node(cluster)) {
+      lnode_to_gcnode[u] =
+          lcluster_to_lcnode[cluster - graph.offset_n()] + c_node_distribution[rank];
+    } else {
+      auto it = handle.find(cluster + 1);
+      KASSERT(it != handle.end());
+      lnode_to_gcnode[u] = (*it).second;
     }
-  };
 
+    KASSERT(lnode_to_gcnode[u] < c_node_distribution.back());
+  });
+
+  //
+  // Sort local nodes by their cluster ID
+  //
+  localize_global_edge_list(local_edges, c_node_distribution[rank], lcluster_to_lcnode);
+
+  auto bucket_sort_result =
+      build_node_buckets(graph, lcluster_to_lcnode, c_n, local_edges, lnode_to_gcluster);
+  auto &buckets_position_buffer = bucket_sort_result.first;
+  auto &buckets = bucket_sort_result.second;
+
+  graph::GhostNodeMapper ghost_node_mapper(rank, c_node_distribution);
   tbb::parallel_invoke(
       [&] {
-        graph.pfor_nodes([&](const NodeID u) {
-          const GlobalNodeID gcluster_u = lnode_to_gcluster[u];
+        graph.pfor_nodes([&](const NodeID lu) {
+          const GlobalNodeID gcluster_u = lnode_to_gcluster[lu];
+
           if (!graph.is_owned_global_node(gcluster_u)) {
             return;
           }
 
-          graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
-            const GlobalNodeID gcluster_v = lnode_to_gcluster[v];
+          graph.adjacent_nodes(lu, [&](const NodeID lv) {
+            const GlobalNodeID gcluster_v = lnode_to_gcluster[lv];
+
             if (!graph.is_owned_global_node(gcluster_v)) {
-              request_nonlocal_mapping(gcluster_v);
+              auto &handle = nonlocal_gcluster_to_gcnode_handle_ets.local();
+              auto it = handle.find(gcluster_v + 1);
+              KASSERT(it != handle.end());
+              const NodeID gcnode = (*it).second;
+              ghost_node_mapper.new_ghost_node(gcnode);
             }
           });
         });
       },
       [&] {
         tbb::parallel_for<std::size_t>(0, local_edges.size(), [&](const std::size_t i) {
-          const GlobalNodeID gcluster_v = local_edges[i].v;
-          if (!graph.is_owned_global_node(gcluster_v)) {
-            request_nonlocal_mapping(gcluster_v);
+          const GlobalNodeID gcnode = local_edges[i].v;
+          if (gcnode < c_node_distribution[rank] || gcnode >= c_node_distribution[rank + 1]) {
+            ghost_node_mapper.new_ghost_node(gcnode);
           }
         });
       }
   );
 
-  // @bug not all entries are used, why?
-  std::vector<ScalableVector<GlobalNodeID>> my_mapping_requests(size);
-  tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
-    my_mapping_requests[pe].resize(next_index_for_pe[pe].value, kInvalidGlobalNodeID);
-  });
-
-  growt::pfor_map(
-      nonlocal_gcluster_to_index,
-      [&](const GlobalNodeID gcluster_p1, const std::size_t index_p1) {
-        const GlobalNodeID gcluster = gcluster_p1 - 1;
-        const std::size_t index = index_p1 - 1;
-        const PEID owner = graph.find_owner_of_global_node(gcluster);
-
-        KASSERT(owner < static_cast<PEID>(my_mapping_requests.size()));
-        KASSERT(index < my_mapping_requests[owner].size());
-        KASSERT(gcluster != 0u || owner == 0);
-
-        my_mapping_requests[owner][index] = gcluster;
-      }
-  );
-
-  auto their_mapping_requests =
-      mpi::sparse_alltoall_get<GlobalNodeID>(my_mapping_requests, graph.communicator());
-
-  std::vector<ScalableVector<GlobalNodeID>> my_mapping_responses(size);
-  tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
-    my_mapping_responses[pe].resize(their_mapping_requests[pe].size());
-
-    tbb::parallel_for<std::size_t>(0, their_mapping_requests[pe].size(), [&](const std::size_t i) {
-      KASSERT(static_cast<std::size_t>(pe) < their_mapping_requests.size());
-      KASSERT(i < their_mapping_requests[pe].size());
-      const GlobalNodeID global = their_mapping_requests[pe][i];
-      KASSERT(global != kInvalidGlobalNodeID);
-      KASSERT(global >= graph.offset_n(), V(rank));
-      const auto local = static_cast<NodeID>(global - graph.offset_n());
-      KASSERT(local < lcluster_to_lcnode.size());
-      const NodeID coarse_local = lcluster_to_lcnode[local];
-      KASSERT(static_cast<std::size_t>(rank) < c_node_distribution.size());
-      const GlobalNodeID coarse_global = c_node_distribution[rank] + coarse_local;
-      KASSERT(static_cast<std::size_t>(pe) < my_mapping_responses.size());
-      KASSERT(i < my_mapping_responses[pe].size());
-      my_mapping_responses[pe][i] = coarse_global;
-    });
-  });
-
-  auto their_mapping_responses =
-      mpi::sparse_alltoall_get<GlobalNodeID>(my_mapping_responses, graph.communicator());
-  STOP_HEAP_PROFILER();
-  STOP_TIMER();
-
-  // Build the coarse ghost node mapping: coarse ghost nodes to coarse global
-  // nodes
-  START_TIMER("Build mapping");
-  START_HEAP_PROFILER("Build mapping");
-  tbb::parallel_for(
-      tbb::blocked_range<std::size_t>(0, my_nonlocal_to_gcnode.size()),
-      [&](const auto &r) {
-        for (std::size_t i = r.begin(); i != r.end(); ++i) {
-          const auto &[local_cluster, global_coarse_node] = my_nonlocal_to_gcnode[i];
-          nonlocal_gcluster_to_index.insert(
-              local_cluster + 1, graph.global_n() + global_coarse_node + 1
-          );
-        }
-      }
-  );
-
-  // Build a mapping array from fine nodes to coarse nodes
-  RECORD("lnode_to_gcnode") StaticArray<GlobalNodeID> lnode_to_gcnode(graph.n());
-  graph.pfor_nodes([&](const NodeID u) {
-    const GlobalNodeID cluster = lnode_to_gcluster[u];
-
-    if (graph.is_owned_global_node(cluster)) {
-      lnode_to_gcnode[u] =
-          lcluster_to_lcnode[cluster - graph.offset_n()] + c_node_distribution[rank];
-    } else {
-      auto it = nonlocal_gcluster_to_index.find(cluster + 1);
-      KASSERT(it != nonlocal_gcluster_to_index.end());
-
-      const std::size_t index = (*it).second - 1;
-      if (index < graph.global_n()) {
-        const PEID owner = graph.find_owner_of_global_node(cluster);
-        lnode_to_gcnode[u] = their_mapping_responses[owner][index];
-      } else {
-        lnode_to_gcnode[u] = static_cast<GlobalNodeID>(index - graph.global_n());
-      }
-    }
-
-    KASSERT(lnode_to_gcnode[u] < c_node_distribution.back());
-  });
-
-  // Build mapping for ghost nodes
-  std::exclusive_scan(
-      next_index_for_pe.begin(),
-      next_index_for_pe.end(),
-      next_index_for_pe.begin(),
-      parallel::Aligned<parallel::Atomic<NodeID>>(0),
-      [](const auto &init, const auto &op) {
-        return parallel::Aligned<parallel::Atomic<NodeID>>(init.value + op.value);
-      }
-  );
-
-  const NodeID c_ghost_n = next_index_for_pe.back().value;
-  growt::StaticGhostNodeMapping c_global_to_ghost(c_ghost_n);
-  RECORD("c_ghost_to_global") StaticArray<GlobalNodeID> c_ghost_to_global(c_ghost_n);
-  RECORD("c_ghost_owner") StaticArray<PEID> c_ghost_owner(c_ghost_n);
-
-  tbb::parallel_for<PEID>(0, size, [&](const PEID pe) {
-    for (std::size_t i = 0; i < my_mapping_requests[pe].size(); ++i) {
-      const GlobalNodeID global = their_mapping_responses[pe][i];
-      const NodeID local = next_index_for_pe[pe].value + i;
-      c_global_to_ghost.insert(global + 1, c_n + local);
-      c_ghost_to_global[local] = global;
-      c_ghost_owner[local] = pe;
-    }
-  });
-  STOP_HEAP_PROFILER();
-  STOP_TIMER();
-
-  //
-  // Sort local nodes by their cluster ID
-  //
-  localize_global_edge_list(local_edges, graph.offset_n(), lcluster_to_lcnode);
-
-  auto bucket_sort_result =
-      build_node_buckets(graph, lcluster_to_lcnode, c_n, local_edges, lnode_to_gcluster);
-  auto &buckets_position_buffer = bucket_sort_result.first;
-  auto &buckets = bucket_sort_result.second;
+  auto result = ghost_node_mapper.finalize();
+  auto &c_global_to_ghost = result.global_to_ghost;
+  auto &c_ghost_to_global = result.ghost_to_global;
+  auto &c_ghost_owner = result.ghost_owner;
+  const GlobalNodeID c_ghost_n = c_ghost_to_global.size();
 
   //
   // Construct the coarse edges
@@ -1363,23 +1319,15 @@ std::unique_ptr<CoarseGraph> contract_clustering(
         for (std::size_t i = first_pos; i < last_pos; ++i) {
           const NodeID u = buckets[i];
 
-          auto handle_edge_to_gcluster = [&](const EdgeWeight weight, const GlobalNodeID gcluster) {
-            if (graph.is_owned_global_node(gcluster)) {
-              const auto lcluster = static_cast<NodeID>(gcluster - graph.offset_n());
-              const auto lcnode = lcluster_to_lcnode[lcluster];
+          auto handle_edge_to_gcnode = [&](const EdgeWeight weight, const GlobalNodeID gcnode) {
+            if (gcnode >= c_node_distribution[rank] && gcnode < c_node_distribution[rank + 1]) {
+              const auto lcnode = gcnode - c_node_distribution[rank];
               if (lcnode != lcu) {
                 map[lcnode] += weight;
               }
             } else {
-              auto it = nonlocal_gcluster_to_index.find(gcluster + 1);
-              KASSERT(
-                  it != nonlocal_gcluster_to_index.end() && (*it).second - 1 < graph.global_n()
-              );
-
-              const std::size_t index = (*it).second - 1;
-              const PEID owner = graph.find_owner_of_global_node(gcluster);
-              const GlobalNodeID gcnode = their_mapping_responses[owner][index];
               auto lcnode_it = c_global_to_ghost.find(gcnode + 1);
+              KASSERT(lcnode_it != c_global_to_ghost.end());
               const NodeID lcnode = (*lcnode_it).second;
 
               if (lcnode != lcu) {
@@ -1388,41 +1336,17 @@ std::unique_ptr<CoarseGraph> contract_clustering(
             }
           };
 
-          auto handle_edge_to_lnode = [&](const EdgeWeight weight, const NodeID lnode) {
-            if (graph.is_owned_node(lnode)) {
-              const GlobalNodeID gcnode = lnode_to_gcnode[lnode];
-              const bool is_local_gcnode =
-                  (gcnode >= c_node_distribution[rank] && gcnode < c_node_distribution[rank + 1]);
-
-              if (is_local_gcnode) {
-                const auto lcnode = static_cast<NodeID>(gcnode - c_node_distribution[rank]);
-                if (lcu != lcnode) {
-                  map[lcnode] += weight;
-                }
-              } else {
-                auto lcnode_it = c_global_to_ghost.find(gcnode + 1);
-                KASSERT(lcnode_it != c_global_to_ghost.end());
-                const NodeID lcnode = (*lcnode_it).second;
-                if (lcu != lcnode) {
-                  map[lcnode] += weight;
-                }
-              }
-            } else {
-              handle_edge_to_gcluster(weight, lnode_to_gcluster[lnode]);
-            }
-          };
-
           if (u < graph.n()) {
             c_u_weight += graph.node_weight(u);
             graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
-              handle_edge_to_lnode(w, v);
+              handle_edge_to_gcnode(w, lnode_to_gcnode[v]);
             });
           } else {
             // Fix node weight later
             for (std::size_t index = u - graph.n();
                  index < local_edges.size() && local_edges[index].u == lcu;
                  ++index) {
-              handle_edge_to_gcluster(local_edges[index].weight, local_edges[index].v);
+              handle_edge_to_gcnode(local_edges[index].weight, local_edges[index].v);
             }
           }
         }

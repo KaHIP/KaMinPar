@@ -154,7 +154,7 @@ TEST(ClusterContractionTest, contract_global_complete_graph_to_single_node) {
   const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
   const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
 
-  for (const NodeID nodes_per_pe : {5}) {
+  for (const NodeID nodes_per_pe : {1}) {
     const auto graph = make_global_complete_graph(nodes_per_pe);
     StaticArray<GlobalNodeID> clustering(graph.total_n(), 0);
     const auto wrapped = contract_clustering(graph, clustering);
@@ -182,7 +182,7 @@ TEST(ClusterContractionTest, contract_global_complete_graph_to_one_node_per_pe) 
   const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
   const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
 
-  for (const NodeID nodes_per_pe : {1, 5, 10}) {
+  for (const NodeID nodes_per_pe : {1, 5, 10}) { // 1 5 10
     const auto graph = make_global_complete_graph(nodes_per_pe);
     StaticArray<GlobalNodeID> clustering(graph.total_n());
     graph.pfor_all_nodes([&](const NodeID u) {

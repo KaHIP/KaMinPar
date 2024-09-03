@@ -10,8 +10,6 @@
 #include <mpi.h>
 #include <tbb/concurrent_hash_map.h>
 
-#include "kaminpar-mpi/definitions.h"
-
 #include "kaminpar-dist/datastructures/growt.h"
 #include "kaminpar-dist/dkaminpar.h"
 
@@ -225,6 +223,7 @@ private:
 };
 
 namespace graph {
+
 class GhostNodeMapper {
   SET_DEBUG(false);
 
@@ -310,5 +309,7 @@ private:
   parallel::Atomic<NodeID> _next_ghost_node;
   GhostNodeMap _global_to_ghost;
 };
+
 } // namespace graph
+
 } // namespace kaminpar::dist
