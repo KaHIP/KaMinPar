@@ -71,7 +71,6 @@ bool ClusteringCoarsener::coarsen() {
 }
 
 PartitionedGraph ClusteringCoarsener::uncoarsen(PartitionedGraph &&p_graph) {
-  SCOPED_HEAP_PROFILER("Level", std::to_string(_hierarchy.size()));
   SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
 
   const BlockID p_graph_k = p_graph.k();

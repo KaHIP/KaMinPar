@@ -31,6 +31,7 @@ PartitionedGraph uncoarsen_once(
     PartitionContext &current_p_ctx,
     const PartitionContext &input_p_ctx
 ) {
+  SCOPED_HEAP_PROFILER("Uncoarsen");
   SCOPED_TIMER("Uncoarsening");
 
   if (!coarsener->empty()) {

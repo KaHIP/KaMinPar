@@ -43,9 +43,12 @@ PartitionedGraph DeepMultilevelPartitioner::partition() {
   const Graph *c_graph = coarsen();
   PartitionedGraph p_graph = initial_partition(c_graph);
 
+  SCOPED_HEAP_PROFILER("Uncoarsening");
   bool refined = false;
   p_graph = uncoarsen(std::move(p_graph), refined);
   if (!refined || p_graph.k() < _input_ctx.partition.k) {
+    SCOPED_HEAP_PROFILER("Toplevel");
+
     LOG;
     LOG << "Toplevel:";
     LOG << "  Number of nodes: " << p_graph.n() << " | Number of edges: " << p_graph.m();
@@ -123,9 +126,9 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
 }
 
 PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph, bool &refined) {
-  SCOPED_HEAP_PROFILER("Uncoarsening");
-
   while (!_coarsener->empty()) {
+    SCOPED_HEAP_PROFILER("Level", std::to_string(_coarsener->level() - 1));
+
     LOG;
     LOG << "Uncoarsening -> Level " << (_coarsener->level() - 1);
 
