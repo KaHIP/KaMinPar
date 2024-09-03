@@ -453,27 +453,27 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
   }
 }
 
-std::ostream &operator<<(std::ostream &out, const ContractionMode mode) {
+std::ostream &operator<<(std::ostream &out, const ContractionAlgorithm mode) {
   switch (mode) {
-  case ContractionMode::BUFFERED:
+  case ContractionAlgorithm::BUFFERED:
     return out << "buffered";
-  case ContractionMode::BUFFERED_LEGACY:
+  case ContractionAlgorithm::BUFFERED_LEGACY:
     return out << "buffered-legacy";
-  case ContractionMode::UNBUFFERED:
+  case ContractionAlgorithm::UNBUFFERED:
     return out << "unbuffered";
-  case ContractionMode::UNBUFFERED_NAIVE:
+  case ContractionAlgorithm::UNBUFFERED_NAIVE:
     return out << "unbuffered-naive";
   }
 
   return out << "<invalid>";
 }
 
-std::unordered_map<std::string, ContractionMode> get_contraction_modes() {
+std::unordered_map<std::string, ContractionAlgorithm> get_contraction_algorithms() {
   return {
-      {"buffered", ContractionMode::BUFFERED},
-      {"buffered-legacy", ContractionMode::BUFFERED_LEGACY},
-      {"unbuffered", ContractionMode::UNBUFFERED},
-      {"unbuffered-naive", ContractionMode::UNBUFFERED_NAIVE},
+      {"buffered", ContractionAlgorithm::BUFFERED},
+      {"buffered-legacy", ContractionAlgorithm::BUFFERED_LEGACY},
+      {"unbuffered", ContractionAlgorithm::UNBUFFERED},
+      {"unbuffered-naive", ContractionAlgorithm::UNBUFFERED_NAIVE},
   };
 }
 
@@ -514,11 +514,11 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
     }
   }
 
-  out << "Contraction mode:             " << c_ctx.contraction.mode << '\n';
-  if (c_ctx.contraction.mode == ContractionMode::BUFFERED) {
+  out << "Contraction algorithm:        " << c_ctx.contraction.algorithm << '\n';
+  if (c_ctx.contraction.algorithm == ContractionAlgorithm::BUFFERED) {
     out << "  Edge buffer fill fraction:  " << c_ctx.contraction.edge_buffer_fill_fraction << "\n";
-  } else if (c_ctx.contraction.mode == ContractionMode::UNBUFFERED) {
-    out << "  Implementation:             " << c_ctx.contraction.implementation << "\n";
+  } else if (c_ctx.contraction.algorithm == ContractionAlgorithm::UNBUFFERED) {
+    out << "  Implementation:             " << c_ctx.contraction.unbuffered_implementation << "\n";
   }
 }
 

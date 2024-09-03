@@ -84,9 +84,9 @@ std::ostream &operator<<(std::ostream &out, IsolatedNodesClusteringStrategy stra
 std::unordered_map<std::string, IsolatedNodesClusteringStrategy>
 get_isolated_nodes_clustering_strategies();
 
-std::ostream &operator<<(std::ostream &out, const ContractionMode mode);
+std::ostream &operator<<(std::ostream &out, const ContractionAlgorithm algorithm);
 
-std::unordered_map<std::string, ContractionMode> get_contraction_modes();
+std::unordered_map<std::string, ContractionAlgorithm> get_contraction_algorithms();
 
 std::ostream &operator<<(std::ostream &out, const ContractionImplementation mode);
 

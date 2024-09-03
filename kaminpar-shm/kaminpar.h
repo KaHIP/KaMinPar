@@ -141,7 +141,7 @@ enum class IsolatedNodesClusteringStrategy {
   CLUSTER_DURING_TWO_HOP,
 };
 
-enum class ContractionMode {
+enum class ContractionAlgorithm {
   BUFFERED,
   BUFFERED_LEGACY,
   UNBUFFERED,
@@ -175,8 +175,8 @@ struct LabelPropagationCoarseningContext {
 };
 
 struct ContractionCoarseningContext {
-  ContractionMode mode;
-  ContractionImplementation implementation;
+  ContractionAlgorithm algorithm;
+  ContractionImplementation unbuffered_implementation;
 
   double edge_buffer_fill_fraction;
 };

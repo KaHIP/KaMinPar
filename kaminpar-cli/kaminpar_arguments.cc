@@ -315,9 +315,9 @@ Options are:
 CLI::Option_group *create_contraction_coarsening_options(CLI::App *app, Context &ctx) {
   auto *con = app->add_option_group("Coarsening -> Contraction");
 
-  con->add_option("--c-con-mode", ctx.coarsening.contraction.mode)
-      ->transform(CLI::CheckedTransformer(get_contraction_modes()).description(""))
-      ->description(R"(The mode used for contraction.
+  con->add_option("--c-contraction-algorithm", ctx.coarsening.contraction.algorithm)
+      ->transform(CLI::CheckedTransformer(get_contraction_algorithms()).description(""))
+      ->description(R"(The algorithm used for contraction.
 Options are:
   - buffered:         Use an edge buffer that is partially filled
   - buffered-legacy:  Use an edge buffer
@@ -325,7 +325,9 @@ Options are:
   - unbuffered-naive: Use no edge buffer by computing twice
   )")
       ->capture_default_str();
-  con->add_option("--c-con-unbuffered-impl", ctx.coarsening.contraction.implementation)
+  con->add_option(
+         "--c-contraction-unbuffered-impl", ctx.coarsening.contraction.unbuffered_implementation
+  )
       ->transform(CLI::CheckedTransformer(get_contraction_implementations()).description(""))
       ->description(
           R"(The implementation used for unbuffered contraction.

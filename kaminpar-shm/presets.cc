@@ -122,8 +122,8 @@ Context create_default_context() {
               .contraction =
                   {
                       // Context -> Coarsening -> Contraction
-                      .mode = ContractionMode::BUFFERED,
-                      .implementation = ContractionImplementation::SINGLE_PHASE,
+                      .algorithm = ContractionAlgorithm::BUFFERED,
+                      .unbuffered_implementation = ContractionImplementation::TWO_PHASE,
                       .edge_buffer_fill_fraction = 1,
                   },
               .contraction_limit = 2000,
@@ -314,7 +314,6 @@ Context create_strong_largek_context() {
   return ctx;
 }
 
-
 Context create_memory_context() {
   Context ctx = create_default_context();
   ctx.node_ordering = NodeOrdering::EXTERNAL_DEGREE_BUCKETS;
@@ -323,9 +322,9 @@ Context create_memory_context() {
   ctx.partitioning.use_lazy_subgraph_memory = true;
   ctx.coarsening.clustering.max_mem_free_coarsening_level = 1;
   ctx.coarsening.clustering.lp.impl = LabelPropagationImplementation::TWO_PHASE;
-  ctx.coarsening.contraction.mode = ContractionMode::UNBUFFERED;
-  ctx.coarsening.contraction.implementation = ContractionImplementation::TWO_PHASE;
-  ctx.refinement.kway_fm.gain_cache_strategy = GainCacheStrategy::SPARSE;
+  ctx.coarsening.contraction.algorithm = ContractionAlgorithm::UNBUFFERED;
+  ctx.coarsening.contraction.unbuffered_implementation = ContractionImplementation::TWO_PHASE;
+  ctx.refinement.kway_fm.gain_cache_strategy = GainCacheStrategy::COMPACT_HASHING;
 
   ctx.refinement.algorithms = {
       RefinementAlgorithm::GREEDY_BALANCER,
