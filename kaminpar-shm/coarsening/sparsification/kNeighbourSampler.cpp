@@ -44,8 +44,10 @@ EdgeID kNeighbourSampler::compute_k(const CSRGraph &g, EdgeID target_edge_amount
   KASSERT(incidences_to_leq_degree[g.n() - 1] == g.m(), "foo", assert::always);
   StaticArray<EdgeWeight> incident_weights(g.n(), 0);
   utils::for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
-    incident_weights[u] += g.edge_weight(e);
-    incident_weights[v] += g.edge_weight(e);
+    if (u < v) {
+      incident_weights[u] += g.edge_weight(e);
+      incident_weights[v] += g.edge_weight(e);
+    }
   });
   auto expected_m = [&](NodeID k) {
     // Exp(m) = 2 * |{u v in E : deg(u)<=k or deg(v) <= k}|
@@ -114,7 +116,7 @@ void kNeighbourSampler::sample_directed(
       );
 
       for (int i = 0; i < k; ++i) {
-        sample[distribution()] += total_weight / k;
+        sample[g.raw_nodes()[u] + distribution()] += total_weight / k;
       }
     }
   }
