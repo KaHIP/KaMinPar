@@ -311,7 +311,6 @@ void extend_partition_lazy_extraction(
   }
 
   SCOPED_TIMER("Initial partitioning");
-  const BlockID n = p_graph.n();
   const BlockID k = p_graph.k();
 
   auto [mapping, block_nodes_offset, block_nodes, max_b_n, max_b_m] = TIMED_SCOPE("Preprocessing") {
@@ -337,7 +336,7 @@ void extend_partition_lazy_extraction(
 
     tbb::enumerable_thread_specific<graph::SubgraphMemoryStartPosition> positions_ets;
     tbb::enumerable_thread_specific<graph::OCSubgraphMemory> subgraph_memory_ets([&] {
-      return graph::OCSubgraphMemory(max_b_n + input_ctx.partition.k + 1, max_b_m);
+      return graph::OCSubgraphMemory(max_b_n + input_ctx.partition.k, max_b_m);
     });
 
     tbb::parallel_for<BlockID>(0, k, [&](const BlockID b) {

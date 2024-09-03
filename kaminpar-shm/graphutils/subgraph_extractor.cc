@@ -327,7 +327,7 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential(
 
 OCSubgraphMemoryPreprocessingResult
 lazy_extract_subgraphs_preprocessing(const PartitionedGraph &p_graph) {
-  const BlockID n = p_graph.n();
+  const NodeID n = p_graph.n();
   const BlockID k = p_graph.k();
 
   StaticArray<NodeID> mapping(n, static_array::noinit);
