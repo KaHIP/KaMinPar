@@ -323,7 +323,7 @@ public:
    * @return The memory space of this array in bytes.
    */
   [[nodiscard]] std::size_t memory_space() const {
-    return _size;
+    return _unrestricted_size;
   }
 
   /*!
