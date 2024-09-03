@@ -221,6 +221,7 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential_generic_graph(
 
   nodes[0] = 0;
   nodes[n1] = 0;
+  tmp_subgraph_memory.ensure_size_edges(s_m[0] + s_m[1], is_edge_weighted);
 
   // build extract graphs in temporary memory buffer
   std::array<EdgeID, 2> next_edge_id{0, 0};
