@@ -1109,6 +1109,7 @@ std::unique_ptr<CoarseGraph> contract_clustering(
   auto &their_req_to_lcnode = mapping_exchange_result.their_req_to_lcnode;
 
   // @TODO deduplicate this from rebalance_cluster_placement()
+  // @TODO note: could deduplicate the node list before allocation
   growt::GlobalNodeIDMap<GlobalNodeID> nonlocal_gcluster_to_gcnode_map(my_nonlocal_to_gcnode.size()
   );
   tbb::enumerable_thread_specific<growt::GlobalNodeIDMap<GlobalNodeID>::handle_type>
@@ -1155,33 +1156,7 @@ std::unique_ptr<CoarseGraph> contract_clustering(
     return contract_clustering(fine_graph, graph, lnode_to_gcluster);
   }
 
-  // @TODO already map these edges to gcnode's
   auto nonlocal_edges = find_nonlocal_edges(graph, lnode_to_gcluster);
-  deduplicate_edge_list(nonlocal_edges); // must go first since it sorts the edges
-
-  for (auto &[u, v, weight] : nonlocal_edges) {
-    // u is a gcluster assigned to another PE
-    // v is a gcluster that could be on any PE, including this one
-
-    auto &handle = nonlocal_gcluster_to_gcnode_handle_ets.local();
-
-    {
-      auto it = handle.find(u + 1);
-      KASSERT(it != handle.end());
-      u = (*it).second;
-    }
-
-    { // @TODO switch around to avoid the hash table lookup for local clusters
-      auto it = handle.find(v + 1);
-      if (it != handle.end()) {
-        v = (*it).second;
-      } else {
-        KASSERT(graph.is_owned_global_node(v));
-        const NodeID lcnode_v = lcluster_to_lcnode[v - graph.offset_n()];
-        v = c_node_distribution[rank] + lcnode_v;
-      }
-    }
-  }
 
   IF_STATS {
     const auto total_num_nonlocal_edges =
@@ -1193,6 +1168,8 @@ std::unique_ptr<CoarseGraph> contract_clustering(
           << "; imbalance: " << max_num_nonlocal_edges / (1.0 * total_num_nonlocal_edges / size);
   }
 
+  deduplicate_edge_list(nonlocal_edges);
+
   IF_STATS {
     const auto total_num_nonlocal_edges =
         mpi::allreduce<GlobalEdgeID>(nonlocal_edges.size(), MPI_SUM, graph.communicator());
@@ -1202,6 +1179,34 @@ std::unique_ptr<CoarseGraph> contract_clustering(
           << "; max: " << max_num_nonlocal_edges
           << "; imbalance: " << max_num_nonlocal_edges / (1.0 * total_num_nonlocal_edges / size);
   }
+
+  // find_nonlocal_edges() returns the edges with their gcluster IDs
+  // Since we already have all the necessary mappings, we can remap these IDs to gcnode IDs
+  tbb::parallel_for(tbb::blocked_range<std::size_t>(0, nonlocal_edges.size()), [&](const auto &r) {
+    auto &handle = nonlocal_gcluster_to_gcnode_handle_ets.local();
+
+    for (std::size_t i = r.begin(); i != r.end(); ++i) {
+      auto &[u, v, weight] = nonlocal_edges[r.begin()];
+
+      // gcluster_u is guaranteed to be a cluster assigned to this PE
+      {
+        auto it = handle.find(u + 1);
+        KASSERT(it != handle.end());
+        u = (*it).second;
+      }
+
+      // gcluster_v might be on this PE or any other one
+      if (graph.is_owned_global_node(v)) {
+        const NodeID lcluster_v = static_cast<NodeID>(v - graph.offset_n());
+        const NodeID lcnode_v = lcluster_to_lcnode[lcluster_v];
+        v = c_node_distribution[rank] + lcnode_v;
+      } else {
+        auto it = handle.find(v + 1);
+        KASSERT(it != handle.end());
+        v = (*it).second;
+      }
+    }
+  });
 
   auto migration_result_edges = migrate_edges(graph, nonlocal_edges, c_node_distribution);
   auto &local_edges = migration_result_edges.elements;
