@@ -102,8 +102,6 @@ Context create_default_context() {
                               .num_iterations = 5,
                               .large_degree_threshold = 1000000,
                               .max_num_neighbors = 200000,
-                              .tie_breaking_strategy = TieBreakingStrategy::UNIFORM,
-                              .cluster_weights_structure = ClusterWeightsStructure::VEC,
                               .impl = LabelPropagationImplementation::TWO_PHASE,
                               .second_phase_selection_strategy =
                                   SecondPhaseSelectionStrategy::FULL_RATING_MAP,
@@ -114,6 +112,7 @@ Context create_default_context() {
                               .two_hop_threshold = 0.5,
                               .isolated_nodes_strategy =
                                   IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP,
+                              .tie_breaking_strategy = TieBreakingStrategy::UNIFORM,
                           },
                       .cluster_weight_limit = ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
                       .cluster_weight_multiplier = 1.0,

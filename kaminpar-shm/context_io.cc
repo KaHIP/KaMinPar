@@ -128,26 +128,6 @@ std::ostream &operator<<(std::ostream &out, const ClusterWeightLimit limit) {
   return out << "<invalid>";
 }
 
-std::unordered_map<std::string, ClusterWeightsStructure> get_cluster_weight_structures() {
-  return {
-      {"vec", ClusterWeightsStructure::VEC},
-      {"two-level-vec", ClusterWeightsStructure::TWO_LEVEL_VEC},
-      {"initially-small-vec", ClusterWeightsStructure::INITIALLY_SMALL_VEC},
-  };
-}
-
-std::ostream &operator<<(std::ostream &out, const ClusterWeightsStructure structure) {
-  switch (structure) {
-  case ClusterWeightsStructure::VEC:
-    return out << "vector";
-  case ClusterWeightsStructure::TWO_LEVEL_VEC:
-    return out << "two-level vector";
-  case ClusterWeightsStructure::INITIALLY_SMALL_VEC:
-    return out << "initially small vector";
-  }
-  return out << "<invalid>";
-}
-
 std::unordered_map<std::string, LabelPropagationImplementation> get_lp_implementations() {
   return {
       {"single-phase", LabelPropagationImplementation::SINGLE_PHASE},
@@ -527,7 +507,6 @@ void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
   out << "    High degree threshold:    " << lp_ctx.large_degree_threshold << "\n";
   out << "    Max degree:               " << lp_ctx.max_num_neighbors << "\n";
   out << "    Tie breaking strategy:    " << lp_ctx.tie_breaking_strategy << "\n";
-  out << "    Cluster weights struct:   " << lp_ctx.cluster_weights_structure << "\n";
   out << "    Implementation:           " << lp_ctx.impl << "\n";
   if (lp_ctx.impl == LabelPropagationImplementation::TWO_PHASE) {
     out << "      Selection strategy:     " << lp_ctx.second_phase_selection_strategy << '\n';

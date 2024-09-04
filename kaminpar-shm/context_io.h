@@ -35,10 +35,6 @@ std::unordered_map<std::string, ClusterWeightLimit> get_cluster_weight_limits();
 
 std::ostream &operator<<(std::ostream &out, RefinementAlgorithm algorithm);
 
-std::unordered_map<std::string, ClusterWeightsStructure> get_cluster_weight_structures();
-
-std::ostream &operator<<(std::ostream &out, const ClusterWeightsStructure structure);
-
 std::unordered_map<std::string, LabelPropagationImplementation> get_lp_implementations();
 
 std::ostream &operator<<(std::ostream &out, const LabelPropagationImplementation impl);

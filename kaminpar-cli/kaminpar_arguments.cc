@@ -215,19 +215,6 @@ Options are:
   )"
       )
       ->capture_default_str();
-  lp->add_option(
-        "--c-lp-cluster-weights-struct", ctx.coarsening.clustering.lp.cluster_weights_structure
-  )
-      ->transform(CLI::CheckedTransformer(get_cluster_weight_structures()).description(""))
-      ->description(
-          R"(Determines the data structure for storing the cluster weights.
-Options are:
-  - vec:                 Uses a fixed-width vector
-  - two-level-vec:       Uses a two-level vector
-  - initially-small-vec: Uses a small fixed-width vector initially and switches to a bigger fixed-width vector after relabeling (Requires two-phase lp with relabeling)
-  )"
-      )
-      ->capture_default_str();
   lp->add_option("--c-lp-impl", ctx.coarsening.clustering.lp.impl)
       ->transform(CLI::CheckedTransformer(get_lp_implementations()).description(""))
       ->description(

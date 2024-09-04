@@ -96,17 +96,6 @@ enum class ClusterWeightLimit {
   ZERO,
 };
 
-enum class TieBreakingStrategy {
-  GEOMETRIC,
-  UNIFORM,
-};
-
-enum class ClusterWeightsStructure {
-  VEC,
-  TWO_LEVEL_VEC,
-  INITIALLY_SMALL_VEC
-};
-
 enum class LabelPropagationImplementation {
   SINGLE_PHASE,
   TWO_PHASE,
@@ -141,6 +130,11 @@ enum class IsolatedNodesClusteringStrategy {
   CLUSTER_DURING_TWO_HOP,
 };
 
+enum class TieBreakingStrategy {
+  GEOMETRIC,
+  UNIFORM,
+};
+
 enum class ContractionAlgorithm {
   BUFFERED,
   BUFFERED_LEGACY,
@@ -159,9 +153,6 @@ struct LabelPropagationCoarseningContext {
   NodeID large_degree_threshold;
   NodeID max_num_neighbors;
 
-  TieBreakingStrategy tie_breaking_strategy;
-
-  ClusterWeightsStructure cluster_weights_structure;
   LabelPropagationImplementation impl;
 
   SecondPhaseSelectionStrategy second_phase_selection_strategy;
@@ -172,6 +163,8 @@ struct LabelPropagationCoarseningContext {
   double two_hop_threshold;
 
   IsolatedNodesClusteringStrategy isolated_nodes_strategy;
+
+  TieBreakingStrategy tie_breaking_strategy;
 };
 
 struct ContractionCoarseningContext {
