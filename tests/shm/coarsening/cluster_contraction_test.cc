@@ -27,7 +27,7 @@ TEST(ClusterContractionTest, ContractingToSingleNodeWorks) {
     auto coarsened = contract_clustering(
         graph,
         std::move(clustering),
-        {.mode = ContractionMode::BUFFERED, .edge_buffer_fill_fraction = 1}
+        {.algorithm = ContractionAlgorithm::BUFFERED, .edge_buffer_fill_fraction = 1}
     );
 
     const auto &c_graph = coarsened->get();
@@ -50,7 +50,7 @@ TEST(ClusterContractionTest, ContractingToSingletonsWorks) {
   auto coarsened = contract_clustering(
       graph,
       std::move(clustering),
-      {.mode = ContractionMode::BUFFERED, .edge_buffer_fill_fraction = 1}
+      {.algorithm = ContractionAlgorithm::BUFFERED, .edge_buffer_fill_fraction = 1}
   );
 
   const auto &c_graph = coarsened->get();
@@ -76,7 +76,7 @@ TEST(ClusterContractionTest, ContractingAllNodesButOneWorks) {
   auto coarsened = contract_clustering(
       graph,
       std::move(clustering),
-      {.mode = ContractionMode::BUFFERED, .edge_buffer_fill_fraction = 1}
+      {.algorithm = ContractionAlgorithm::BUFFERED, .edge_buffer_fill_fraction = 1}
   );
 
   const auto &c_graph = coarsened->get();
@@ -103,7 +103,7 @@ TEST(ClusterContractionTest, ContractingGridHorizontallyWorks) {
   auto coarsened = contract_clustering(
       graph,
       std::move(clustering),
-      {.mode = ContractionMode::BUFFERED, .edge_buffer_fill_fraction = 1}
+      {.algorithm = ContractionAlgorithm::BUFFERED, .edge_buffer_fill_fraction = 1}
   );
 
   const auto &c_graph = coarsened->get();
@@ -134,7 +134,7 @@ TEST(ClusterContractionTest, ContractingGridVerticallyWorks) {
   auto coarsened = contract_clustering(
       graph,
       std::move(clustering),
-      {.mode = ContractionMode::BUFFERED, .edge_buffer_fill_fraction = 1}
+      {.algorithm = ContractionAlgorithm::BUFFERED, .edge_buffer_fill_fraction = 1}
   );
 
   const auto &c_graph = coarsened->get();
