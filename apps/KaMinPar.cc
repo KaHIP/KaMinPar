@@ -236,7 +236,7 @@ int main(int argc, char *argv[]) {
   }
 
   RECORD("partition") std::vector<BlockID> partition(graph.n());
-  RECORD_LOCAL_DATA_STRUCT("vector<BlockID>", partition.capacity() * sizeof(BlockID));
+  RECORD_LOCAL_DATA_STRUCT(partition, partition.capacity() * sizeof(BlockID));
   STOP_HEAP_PROFILER();
 
   // Compute graph partition
