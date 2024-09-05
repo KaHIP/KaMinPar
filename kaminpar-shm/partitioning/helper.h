@@ -57,7 +57,6 @@ struct BipartitionTimingInfo {
 PartitionedGraph bipartition(
     const Graph *graph,
     BlockID final_k,
-    const Context &input_ctx,
     InitialBipartitionerWorkerPool &bipartitioner_pool_ets,
     bool partition_lifespan,
     BipartitionTimingInfo *timing_info = nullptr
@@ -86,7 +85,7 @@ void extend_partition_lazy_extraction(
     PartitionContext &current_p_ctx,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
-    const int num_active_threads
+    std::size_t num_active_threads
 );
 
 void extend_partition(
@@ -97,7 +96,7 @@ void extend_partition(
     graph::SubgraphMemory &subgraph_memory,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
-    int num_active_threads
+    std::size_t num_active_threads
 );
 
 void extend_partition(
@@ -107,7 +106,7 @@ void extend_partition(
     PartitionContext &current_p_ctx,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
-    int num_active_threads
+    std::size_t num_active_threads
 );
 
 bool coarsen_once(Coarsener *coarsener, const Graph *graph, PartitionContext &current_p_ctx);

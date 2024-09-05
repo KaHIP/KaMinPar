@@ -211,9 +211,7 @@ template <
 
   using CompressedEdgesBuilder = kaminpar::CompressedEdgesBuilder<NodeID, EdgeID, EdgeWeight>;
   tbb::enumerable_thread_specific<CompressedEdgesBuilder> edges_builder_ets([&] {
-    return CompressedEdgesBuilder(
-        num_nodes, num_edges, max_degree, kHasEdgeWeights, builder.edge_weights()
-    );
+    return CompressedEdgesBuilder(num_nodes, max_degree, kHasEdgeWeights, builder.edge_weights());
   });
 
   const std::size_t num_threads = tbb::this_task_arena::max_concurrency();

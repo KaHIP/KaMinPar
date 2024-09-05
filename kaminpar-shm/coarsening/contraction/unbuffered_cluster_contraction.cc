@@ -128,7 +128,6 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
 ) {
   auto &buckets_index = m_ctx.buckets_index;
   auto &buckets = m_ctx.buckets;
-  auto &all_buffered_nodes = m_ctx.all_buffered_nodes;
 
   // To contract the graph, we iterate over the coarse nodes in parallel and aggregate the
   // neighborhood of the coarse nodes. The neighborhoods are aggregated by iterating over the
@@ -195,10 +194,10 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
     struct {
       std::uint64_t c_u;
       std::uint64_t edge;
-    };
+    } info;
   };
 
-  NextCoarseNodeInfo next_coarse_node_info = {.c_u = 0, .edge = 0};
+  NextCoarseNodeInfo next_coarse_node_info = {.info = {.c_u = 0, .edge = 0}};
   const auto atomic_fetch_next_coarse_node_info = [&](const std::uint64_t nodes,
                                                       const std::uint64_t degree) {
     NextCoarseNodeInfo expected;
@@ -207,12 +206,12 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
     do {
       expected = next_coarse_node_info;
       const NextCoarseNodeInfo desired = {
-          .c_u = expected.c_u + nodes, .edge = expected.edge + degree
+          .info = {.c_u = expected.info.c_u + nodes, .edge = expected.info.edge + degree}
       };
       success = __sync_bool_compare_and_swap(&next_coarse_node_info.val, expected.val, desired.val);
     } while (!success);
 
-    return std::make_pair(expected.c_u, expected.edge);
+    return std::make_pair(expected.info.c_u, expected.info.edge);
   };
 
   // After aggregating the neighborhood of a coarse node, we want to write the edges into the coarse
@@ -425,8 +424,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
     ConcurrentFastResetArray<EdgeWeight, NodeID> edge_collector(c_n);
     tbb::enumerable_thread_specific<NodeWeight> coarse_node_weight_ets(0);
 
-    NodeID cur_c_u = next_coarse_node_info.c_u;
-    EdgeID cur_edge = next_coarse_node_info.edge;
+    auto &[cur_c_u, cur_edge] = next_coarse_node_info.info;
     for (const NodeID c_u : second_phase_nodes) {
       const NodeID bucket_start = buckets_index[c_u];
       const NodeID bucket_end = buckets_index[c_u + 1];
@@ -534,9 +532,6 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
         }
       });
     }
-
-    next_coarse_node_info.c_u = cur_c_u;
-    next_coarse_node_info.edge = cur_edge;
     STOP_TIMER();
 
     DBG << "Unbuffered Contraction:";
@@ -544,7 +539,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
     DBG << " Second Phase: " << second_phase_nodes.size() << " clusters";
   }
 
-  const EdgeID c_m = next_coarse_node_info.edge;
+  const EdgeID c_m = next_coarse_node_info.info.edge;
   c_nodes[c_n] = c_m;
   STOP_TIMER();
 

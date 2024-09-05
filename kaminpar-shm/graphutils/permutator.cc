@@ -115,7 +115,6 @@ static void apply_permutation(S *u, T *v, U &indices, V size) {
 }
 
 static void sort_by_compression(
-    const NodeID node,
     NodeID *edges_begin,
     NodeID *edges_end,
     bool store_edge_weights,
@@ -236,9 +235,7 @@ void reorder_edges_by_compression(CSRGraph &graph) {
     EdgeWeight *edge_weights =
         store_edge_weights ? (raw_edge_weights.data() + raw_nodes[node]) : nullptr;
 
-    sort_by_compression(
-        node, edges_begin, edges_end, store_edge_weights, permutation_ets, edge_weights
-    );
+    sort_by_compression(edges_begin, edges_end, store_edge_weights, permutation_ets, edge_weights);
   });
 }
 

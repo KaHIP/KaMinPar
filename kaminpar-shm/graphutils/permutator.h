@@ -105,7 +105,7 @@ NodePermutations<StaticArray> sort_by_degree_buckets(const NodeID n, Lambda &&de
   );
 
   // Compute inverse permutation
-  tbb::parallel_for<std::size_t>(0, n, [&](const NodeID u) {
+  tbb::parallel_for<std::size_t>(0, n, [&](const NodeID u) noexcept {
     inverse_permutation[permutation[u]] = u;
   });
 

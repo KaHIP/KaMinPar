@@ -22,9 +22,9 @@ public:
   MtKaHyParRefiner(MtKaHyParRefiner &&) noexcept = default;
   MtKaHyParRefiner &operator=(MtKaHyParRefiner &&) = delete;
 
-  void initialize(const PartitionedGraph &) {}
+  void initialize(const PartitionedGraph &) final {}
 
-  bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx);
+  bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
 private:
   const Context &_ctx;
