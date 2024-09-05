@@ -92,6 +92,12 @@ public:
     return max_size;
   }
 
+  struct num_edges_ctor {};
+  static constexpr num_edges_ctor num_edges_tag;
+
+  struct degree_ctor {};
+  static constexpr degree_ctor degree_tag;
+
   /*!
    * Constructs a new CompressedEdgesBuilder.
    *
@@ -102,6 +108,7 @@ public:
    * graph has edge weights and graph compression is disabled.
    */
   CompressedEdgesBuilder(
+      num_edges_ctor,
       const NodeID num_nodes,
       const EdgeID num_edges,
       const bool has_edge_weights,
@@ -127,6 +134,7 @@ public:
    * graph has edge weights and graph compression is disabled.
    */
   CompressedEdgesBuilder(
+      degree_ctor,
       const NodeID num_nodes,
       const NodeID max_degree,
       const bool has_edge_weights,

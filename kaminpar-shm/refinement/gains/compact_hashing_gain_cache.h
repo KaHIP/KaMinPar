@@ -92,7 +92,7 @@ public:
 
       if (width > 0) {
         _offsets[u] += (width - (_offsets[u] % width)) % width;
-        KASSERT(_offsets[u] % width == 0);
+        KASSERT(_offsets[u] % width == 0u);
       }
 
       _offsets[u + 1] = _offsets[u] + nbytes;

@@ -29,7 +29,13 @@ public:
   CompressedNeighborhoodsBuilder(
       const NodeID num_nodes, const EdgeID num_edges, const bool has_edge_weights
   )
-      : _compressed_edges_builder(num_nodes, num_edges, has_edge_weights, _edge_weights),
+      : _compressed_edges_builder(
+            CompressedEdgesBuilder::num_edges_tag,
+            num_nodes,
+            num_edges,
+            has_edge_weights,
+            _edge_weights
+        ),
         _num_edges(num_edges),
         _has_edge_weights(has_edge_weights) {
 

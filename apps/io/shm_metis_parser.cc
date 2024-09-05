@@ -234,11 +234,13 @@ CompressedGraph compress_read(const std::string &filename, const bool sorted) {
   MappedFileToker toker(filename);
   const MetisHeader header = parse_header(toker);
 
+  /*
   const std::size_t uncompressed_graph_size =
       (header.num_nodes + 1) * sizeof(EdgeID) + header.num_edges * 2 * sizeof(NodeID) +
       header.has_node_weights * header.num_nodes * sizeof(NodeWeight) +
       header.has_edge_weights * header.num_edges * 2 * sizeof(EdgeID);
   bool dismissed = false;
+  */
 
   CompressedGraphBuilder builder(
       header.num_nodes,

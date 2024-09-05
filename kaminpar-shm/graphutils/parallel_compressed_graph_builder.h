@@ -211,7 +211,13 @@ template <
 
   using CompressedEdgesBuilder = kaminpar::CompressedEdgesBuilder<NodeID, EdgeID, EdgeWeight>;
   tbb::enumerable_thread_specific<CompressedEdgesBuilder> edges_builder_ets([&] {
-    return CompressedEdgesBuilder(num_nodes, max_degree, kHasEdgeWeights, builder.edge_weights());
+    return CompressedEdgesBuilder(
+        CompressedEdgesBuilder::degree_tag,
+        num_nodes,
+        max_degree,
+        kHasEdgeWeights,
+        builder.edge_weights()
+    );
   });
 
   const std::size_t num_threads = tbb::this_task_arena::max_concurrency();
@@ -230,7 +236,6 @@ template <
     const NodeID chunk = buffer.next();
     const auto [start, end, first_edge] = chunks[chunk];
 
-    NodeWeight local_node_weight = 0;
     edges_builder.init(first_edge);
 
     // Compress the neighborhoods of the nodes in the fetched chunk.
@@ -278,7 +283,6 @@ template <
         if (has_node_weights) [[unlikely]] {
           const NodeID node = node_mapper(i);
           const NodeWeight node_weight = node_weights(node);
-          local_node_weight += node_weight;
 
           node_weights_array[i] = node_weight;
         }

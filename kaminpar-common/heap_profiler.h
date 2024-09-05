@@ -86,7 +86,7 @@ constexpr bool kHeapProfiling = true;
 #define RECORD_DATA_STRUCT(...)
 #define RECORD_LOCAL_DATA_STRUCT(...)
 #define RECORD(...)
-#define IF_HEAP_PROFILING(...)
+#define IF_HEAP_PROFILING(...) struct __dummy__
 #define ENABLE_HEAP_PROFILER()
 #define DISABLE_HEAP_PROFILER()
 #define PRINT_HEAP_PROFILE(...)

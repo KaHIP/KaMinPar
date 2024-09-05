@@ -27,6 +27,6 @@ public:
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
 private:
-  const Context &_ctx;
+  const Context &_ctx [[maybe_unused]];
 };
 } // namespace kaminpar::shm

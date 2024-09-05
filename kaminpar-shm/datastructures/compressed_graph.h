@@ -104,7 +104,7 @@ public:
 
   [[nodiscard]] NodeID n() const final {
     return _compressed_neighborhoods.num_nodes();
-  };
+  }
 
   [[nodiscard]] EdgeID m() const final {
     return _compressed_neighborhoods.num_edges();
