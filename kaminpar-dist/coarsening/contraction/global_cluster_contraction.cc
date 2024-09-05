@@ -76,9 +76,6 @@ public:
   }
 
   void project(const StaticArray<BlockID> &c_partition, StaticArray<BlockID> &f_partition) final {
-    // @TODO lnode_to_gcnode now includes mappings for ghost vertices -- can this be used to speed
-    // things up here?
-
     SCOPED_TIMER("Project partition");
     SCOPED_HEAP_PROFILER("Project partition");
 
@@ -132,25 +129,22 @@ public:
       );
 
       _c_graph.reified([&](const auto &graph) {
-        _f_graph.pfor_nodes_range([&](const auto &r) {
-          auto &gcnode_to_block_handle = gcnode_to_block_handle_ets.local();
-
-          for (NodeID u = r.begin(); u != r.end(); ++u) {
-            const GlobalNodeID gcnode = _mapping[u];
-            if (graph.is_owned_global_node(gcnode)) {
-              const NodeID lcnode = graph.global_to_local_node(gcnode);
-              f_partition[u] = c_partition[lcnode];
-            } else {
-              auto it = gcnode_to_block_handle.find(gcnode + 1);
-              KASSERT(it != gcnode_to_block_handle.end(), V(gcnode));
-              f_partition[u] = (*it).second;
-            }
+        _f_graph.pfor_all_nodes([&](const NodeID u) {
+          const GlobalNodeID gcnode = _mapping[u];
+          if (graph.is_owned_global_node(gcnode)) {
+            const NodeID lcnode = graph.global_to_local_node(gcnode);
+            f_partition[u] = c_partition[lcnode];
+          } else {
+            auto &gcnode_to_block_handle = gcnode_to_block_handle_ets.local();
+            auto it = gcnode_to_block_handle.find(gcnode + 1);
+            KASSERT(it != gcnode_to_block_handle.end(), V(gcnode));
+            f_partition[u] = (*it).second;
           }
         });
       });
     };
 
-    struct GhostNodeLabel {
+    /*struct GhostNodeLabel {
       NodeID local_node_on_sender;
       BlockID block;
     };
@@ -168,7 +162,7 @@ public:
             });
           }
       );
-    });
+    });*/
   }
 
 private:
@@ -1186,7 +1180,7 @@ std::unique_ptr<CoarseGraph> contract_clustering(
     auto &handle = nonlocal_gcluster_to_gcnode_handle_ets.local();
 
     for (std::size_t i = r.begin(); i != r.end(); ++i) {
-      auto &[u, v, weight] = nonlocal_edges[r.begin()];
+      auto &[u, v, weight] = nonlocal_edges[i];
 
       // gcluster_u is guaranteed to be a cluster assigned to this PE
       {
