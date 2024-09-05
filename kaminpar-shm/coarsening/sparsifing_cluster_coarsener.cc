@@ -48,23 +48,35 @@ void SparsifyingClusteringCoarsener::initialize(const Graph *graph) {
  */
 CSRGraph
 SparsifyingClusteringCoarsener::sparsify(const CSRGraph &g, StaticArray<EdgeWeight> sample) {
-  auto nodes = StaticArray<EdgeID>(g.n() + 1);
-  nodes[0] = 0;
-  sparsification::utils::for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
+  auto atomic_nodes = std::vector<std::atomic_uint32_t>(g.n() + 1);
+  tbb::parallel_for(static_cast<size_t>(0), atomic_nodes.size(), [&](auto i) {
+    atomic_nodes[i] = 0;
+  });
+  atomic_nodes[0] = 0;
+  sparsification::utils::p_for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
     if (u < v && sample[e]) {
-      nodes[u + 1]++;
-      nodes[v + 1]++;
+      atomic_nodes[u + 1]++;
+      atomic_nodes[v + 1]++;
     }
+  });
+  StaticArray<EdgeID> nodes(g.n() + 1);
+  tbb::parallel_for(static_cast<NodeID>(0), g.n() + 1, [&](NodeID i) {
+    nodes[i] = atomic_nodes[i].load();
   });
   parallel::prefix_sum(nodes.begin(), nodes.end(), nodes.begin());
 
-
-  auto edges_added = StaticArray<EdgeID>(g.n(), 0);
+  auto edges_added = std::vector<std::atomic_uint32_t>(g.n());
+  tbb::parallel_for(static_cast<size_t>(0), edges_added.size(), [&](auto i) {
+    edges_added[i] = 0;
+  });
+  auto node_locks = std::vector<tbb::spin_mutex>(g.n());
   auto edges = StaticArray<NodeID>(nodes[g.n()]);
   auto edge_weights = StaticArray<EdgeWeight>(nodes[g.n()]);
 
   sparsification::utils::for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
     if (u < v && sample[e]) {
+      tbb::spin_mutex::scoped_lock lock_start_node(node_locks[u]);
+      tbb::spin_mutex::scoped_lock lock_end_node(node_locks[v]);
       edges[nodes[v] + edges_added[v]] = u;
       edges[nodes[u] + edges_added[u]] = v;
       edge_weights[nodes[v] + edges_added[v]] = sample[e];
@@ -126,8 +138,7 @@ bool SparsifyingClusteringCoarsener::coarsen() {
 
     _hierarchy.push_back(std::make_unique<contraction::CoarseGraphImpl>(
         Graph(std::make_unique<CSRGraph>(std::move(sparsified))),
-        std::move(dynamic_cast<contraction::CoarseGraphImpl *>(coarsened.get())
-                      ->get_mapping())
+        std::move(dynamic_cast<contraction::CoarseGraphImpl *>(coarsened.get())->get_mapping())
     ));
     printf(
         "Sparsifying from %d to %d edges (target: %d)\n",
