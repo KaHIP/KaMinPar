@@ -60,7 +60,7 @@ struct ApplicationContext {
   bool experiment = false;
   bool check_input_graph = false;
 
-  IOKind io_kind;
+  IOKind io_kind = IOKind::KAGEN;
   GraphDistribution io_distribution = GraphDistribution::BALANCED_EDGES;
   kagen::FileFormat io_format = kagen::FileFormat::EXTENSION;
   kagen::GraphDistribution io_kagen_distribution = kagen::GraphDistribution::BALANCE_EDGES;
