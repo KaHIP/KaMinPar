@@ -5,6 +5,7 @@ function(add_shm_benchmark target)
         KaMinPar::KaMinParCLI 
         KaMinPar::KaMinParIO 
         KaGen::KaGen)
+    target_compile_options(${target} PRIVATE ${KAMINPAR_WARNING_FLAGS})
     message(STATUS "Enabled benchmark: ${target}")
 endfunction()
 

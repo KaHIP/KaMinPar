@@ -18,7 +18,7 @@ file(GLOB_RECURSE KAMINPAR_COMMON_SOURCE_FILES CONFIGURE_DEPENDS
 add_library(kaminpar_common OBJECT ${KAMINPAR_COMMON_SOURCE_FILES} "${CMAKE_CURRENT_BINARY_DIR}/environment.cc")
 target_include_directories(kaminpar_common PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../")
 target_compile_definitions(kaminpar_common PUBLIC ${KAMINPAR_DEFINITIONS})
-target_compile_options(kaminpar_common PUBLIC ${KAMINPAR_WARNING_FLAGS})
+target_compile_options(kaminpar_common PRIVATE ${KAMINPAR_WARNING_FLAGS})
 
 # Link libraries
 find_package(TBB REQUIRED) 

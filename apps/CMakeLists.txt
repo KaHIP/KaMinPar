@@ -15,6 +15,7 @@ set(KAMINPAR_IO_SOURCE_FILES
 add_library(kaminpar_io ${KAMINPAR_IO_SOURCE_FILES})
 target_include_directories(kaminpar_io PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/io/../")
 target_link_libraries(kaminpar_io PUBLIC KaMinPar::KaMinPar KaMinPar::KaMinParCLI)
+target_compile_options(kaminpar_io PRIVATE ${KAMINPAR_WARNING_FLAGS})
 
 add_library(KaMinPar::KaMinParIO ALIAS kaminpar_io)
 
@@ -22,6 +23,7 @@ function(add_shm_app target)
     add_executable(${target} ${ARGN})
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(${target} PRIVATE KaMinPar::KaMinPar KaMinPar::KaMinParCLI KaMinPar::KaMinParIO)
+    target_compile_options(${target} PRIVATE ${KAMINPAR_WARNING_FLAGS})
     install(TARGETS ${target})
     message(STATUS "Enabled app: ${target}")
 endfunction()
