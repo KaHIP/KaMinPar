@@ -72,7 +72,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     if (_input_ctx.enable_pe_splitting && current_num_pes > 1 &&
         num_blocks_on_this_level < static_cast<BlockID>(current_num_pes)) {
       const PEID num_replications = current_num_pes / num_blocks_on_this_level;
-      const PEID remaining_pes = current_num_pes % num_blocks_on_this_level;
+      // const PEID remaining_pes = current_num_pes % num_blocks_on_this_level;
 
       LOG << "Current graph (" << graph->global_n()
           << " nodes) is too small for the available parallelism (" << current_num_pes

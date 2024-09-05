@@ -400,7 +400,7 @@ public:
 
   Clusters finalize() {
     _cluster_indices.resize(_cur_cluster + 1);
-    KASSERT(_cluster_indices.front() == 0);
+    KASSERT(_cluster_indices.front() == 0u);
 
     KASSERT([&] {
       for (NodeID cluster = 1; cluster < _cluster_indices.size(); ++cluster) {
@@ -463,7 +463,7 @@ private:
 Clusters build_singleton_clusters(
     const DistributedPartitionedGraph &p_graph,
     const PartitionContext &p_ctx,
-    const NodeWeight max_weight,
+    NodeWeight /* max_weight */,
     ClustersMemoryContext m_ctx
 ) {
   m_ctx.clear();
@@ -477,7 +477,7 @@ Clusters build_singleton_clusters(
       m_ctx.cluster_indices.push_back(cur_move_set);
       m_ctx.clusters.push_back(u);
 
-      for (const BlockID k : p_graph.blocks()) {
+      for (const BlockID k [[maybe_unused]] : p_graph.blocks()) {
         m_ctx.cluster_conns.push_back(0);
       }
       p_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {

@@ -252,7 +252,7 @@ find_nonlocal_edges(const Graph &graph, const StaticArray<GlobalNodeID> &lnode_t
 
     NodeID nonlocal_neighbors_count = 0;
     if (!graph.is_owned_global_node(gcluster_u)) {
-      graph.neighbors(lnode_u, [&](const EdgeID e, const NodeID lnode_v) {
+      graph.neighbors(lnode_u, [&](EdgeID, const NodeID lnode_v) {
         const GlobalNodeID gcluster_v = lnode_to_gcluster[lnode_v];
         if (gcluster_u != gcluster_v) {
           ++nonlocal_neighbors_count;
@@ -1009,8 +1009,8 @@ bool validate_clustering(
           const NodeID lnode = graph.global_to_local_node(gnode);
           if (lnode_to_gcluster[lnode] != gcluster) {
             LOG_WARNING << "Inconsistent cluster for local node " << lnode
-                        << " (ghost node, global node ID " << gnode << "): "
-                        << "the node is owned by PE " << pe
+                        << " (ghost node, global node ID " << gnode
+                        << "): " << "the node is owned by PE " << pe
                         << ", which assigned the node to cluster " << gcluster
                         << ", but our ghost node is assigned to cluster "
                         << lnode_to_gcluster[lnode] << "; aborting";
@@ -1178,7 +1178,7 @@ std::unique_ptr<CoarseGraph> contract_clustering(
             return;
           }
 
-          graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
+          graph.neighbors(u, [&](EdgeID, const NodeID v) {
             const GlobalNodeID gcluster_v = lnode_to_gcluster[v];
             if (!graph.is_owned_global_node(gcluster_v)) {
               request_nonlocal_mapping(gcluster_v);
