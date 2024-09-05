@@ -351,4 +351,4 @@ private:
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };
 
-}; // namespace kaminpar
+} // namespace kaminpar

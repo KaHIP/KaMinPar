@@ -87,7 +87,7 @@ template <typename T> struct NoProfileAllocator {
 //! A string type whose memory allocations are not tracked by the heap profiler.
 using hp_string = std::basic_string<char, std::char_traits<char>, NoProfileAllocator<char>>;
 
-}; // namespace kaminpar::heap_profiler
+} // namespace kaminpar::heap_profiler
 
 namespace {
 using namespace kaminpar;
@@ -190,7 +190,7 @@ constexpr bool kHeapProfiling = true;
 #define RECORD_DATA_STRUCT(...)
 #define RECORD_LOCAL_DATA_STRUCT(...)
 #define RECORD(...)
-#define IF_HEAP_PROFILING(...)
+#define IF_HEAP_PROFILING(...) 
 #define ENABLE_HEAP_PROFILER()
 #define DISABLE_HEAP_PROFILER()
 #define PRINT_HEAP_PROFILE(...)

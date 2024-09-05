@@ -64,7 +64,6 @@ public:
       return;
     }
 
-    const std::uint8_t *begin = _ptr;
     if constexpr (sizeof(Int) == 4) {
       const std::uint8_t header =
           (static_cast<std::uint8_t>(_buffer.size() - 1) << 2) | ((_num_buffered - 1) & 0b00000011);
@@ -366,4 +365,4 @@ private:
   const std::uint8_t *_ptr;
 };
 
-}; // namespace kaminpar
+} // namespace kaminpar

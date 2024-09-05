@@ -117,10 +117,10 @@ public:
 
   ScopedTimer(ScopedTimer &&other) noexcept : _timer{other._timer} {
     other._timer = nullptr;
-  };
+  }
   ScopedTimer &operator=(ScopedTimer &&other) noexcept {
     return (std::swap(_timer, other._timer), *this);
-  };
+  }
 
   inline ~ScopedTimer();
 
