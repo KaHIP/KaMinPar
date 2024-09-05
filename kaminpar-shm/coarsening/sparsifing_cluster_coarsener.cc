@@ -48,6 +48,7 @@ void SparsifyingClusteringCoarsener::initialize(const Graph *graph) {
  */
 CSRGraph
 SparsifyingClusteringCoarsener::sparsify(const CSRGraph &g, StaticArray<EdgeWeight> sample) {
+  SCOPED_TIMER("Build Sparsifier");
   auto atomic_nodes = std::vector<std::atomic_uint32_t>(g.n() + 1);
   tbb::parallel_for(static_cast<size_t>(0), atomic_nodes.size(), [&](auto i) {
     atomic_nodes[i] = 0;
