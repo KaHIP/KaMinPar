@@ -32,7 +32,7 @@ namespace kaminpar::shm::testing {
 
 template <typename T> static bool operator==(const IotaRange<T> &a, const IotaRange<T> &b) {
   return a.begin() == b.begin() && a.end() == b.end();
-};
+}
 
 static void test_compressed_graph_size(const Graph &graph) {
   const auto &csr_graph = graph.csr_graph();

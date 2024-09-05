@@ -93,10 +93,10 @@ public:
   }
 
   struct num_edges_ctor {};
-  static constexpr num_edges_ctor num_edges_tag;
+  static constexpr num_edges_ctor num_edges_tag{};
 
   struct degree_ctor {};
-  static constexpr degree_ctor degree_tag;
+  static constexpr degree_ctor degree_tag{};
 
   /*!
    * Constructs a new CompressedEdgesBuilder.

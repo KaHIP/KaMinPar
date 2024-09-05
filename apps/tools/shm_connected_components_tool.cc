@@ -38,7 +38,7 @@ public:
   using size_type = NodeID;
 
   [[nodiscard]] static size_type bucket(const size_type size) {
-    KASSERT(size > 0);
+    KASSERT(size > static_cast<size_type>(0));
     return (size == 1) ? 0 : (std::bit_width(size) - 1);
   }
 
@@ -60,7 +60,7 @@ public:
     return _buckets;
   }
 
-  [[nodiscard]] const size_type largest_buckets() const {
+  [[nodiscard]] size_type largest_buckets() const {
     return _largest_bucket;
   }
 
@@ -204,7 +204,7 @@ template <typename Graph>
   );
 }
 
-}; // namespace
+} // namespace
 
 int main(int argc, char *argv[]) {
   CLI::App app("Shared-memory connected components tool");
