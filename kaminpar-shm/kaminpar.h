@@ -149,7 +149,7 @@ enum class ContractionImplementation {
 };
 
 struct LabelPropagationCoarseningContext {
-  int num_iterations;
+  std::size_t num_iterations;
   NodeID large_degree_threshold;
   NodeID max_num_neighbors;
 
@@ -181,7 +181,7 @@ struct ClusterCoarseningContext {
   ClusterWeightLimit cluster_weight_limit;
   double cluster_weight_multiplier;
 
-  int max_mem_free_coarsening_level;
+  std::size_t max_mem_free_coarsening_level;
 };
 
 struct CoarseningContext {
@@ -314,7 +314,7 @@ struct InitialRefinementContext {
   NodeID num_fruitless_moves;
   double alpha;
 
-  int num_iterations;
+  std::size_t num_iterations;
   double improvement_abortion_threshold;
 };
 
@@ -425,22 +425,21 @@ struct PartitioningContext {
 struct GraphCompressionContext {
   bool enabled;
 
-  bool compressed_edge_weights;
-  bool high_degree_encoding;
-  NodeID high_degree_threshold;
-  NodeID high_degree_part_length;
-  bool interval_encoding;
-  NodeID interval_length_treshold;
-  bool run_length_encoding;
-  bool streamvbyte_encoding;
+  bool compressed_edge_weights = false;
+  bool high_degree_encoding = false;
+  NodeID high_degree_threshold = kInvalidNodeID;
+  NodeID high_degree_part_length = kInvalidNodeID;
+  bool interval_encoding = false;
+  NodeID interval_length_treshold = kInvalidNodeID;
+  bool run_length_encoding = false;
+  bool streamvbyte_encoding = false;
 
-  bool dismissed;
-  double compression_ratio;
-  std::int64_t size_reduction;
-  std::size_t num_high_degree_nodes;
-  std::size_t num_high_degree_parts;
-  std::size_t num_interval_nodes;
-  std::size_t num_intervals;
+  double compression_ratio = -1;
+  std::int64_t size_reduction = -1;
+  std::size_t num_high_degree_nodes = std::numeric_limits<std::size_t>::max();
+  std::size_t num_high_degree_parts = std::numeric_limits<std::size_t>::max();
+  std::size_t num_interval_nodes = std::numeric_limits<std::size_t>::max();
+  std::size_t num_intervals = std::numeric_limits<std::size_t>::max();
 
   void setup(const Graph &graph);
 };

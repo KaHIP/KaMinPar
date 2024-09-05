@@ -138,9 +138,8 @@ PartitionedGraph KWayMultilevelPartitioner::initial_partition(const Graph *graph
   // Since timers are not multi-threaded, we disable them during (parallel)
   // initial partitioning.
   DISABLE_TIMERS();
-  PartitionedGraph p_graph = partitioning::bipartition(
-      graph, _input_ctx.partition.k, _input_ctx, _bipartitioner_pool, true
-  );
+  PartitionedGraph p_graph =
+      partitioning::bipartition(graph, _input_ctx.partition.k, _bipartitioner_pool, true);
   partitioning::update_partition_context(_current_p_ctx, p_graph, _input_ctx.partition.k);
 
   graph::SubgraphMemory subgraph_memory(p_graph.n(), _input_ctx.partition.k, p_graph.m());

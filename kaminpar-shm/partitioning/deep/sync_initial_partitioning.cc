@@ -90,8 +90,7 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
   tbb::parallel_for(static_cast<std::size_t>(0), num_threads, [&](const std::size_t i) {
     auto &current_coarseners = coarseners.back();
     const Graph *graph = &current_coarseners[i]->current();
-    current_p_graphs[i] =
-        bipartition(graph, _input_ctx.partition.k, _input_ctx, _bipartitioner_pool, true);
+    current_p_graphs[i] = bipartition(graph, _input_ctx.partition.k, _bipartitioner_pool, true);
   });
 
   // Uncoarsen and join graphs

@@ -121,7 +121,6 @@ public:
    * of edges that are compressed at once.
    *
    * @param num_nodes The number of nodes of the graph to compress.
-   * @param num_edges The number of edges of the graph to compress.
    * @param max_degree The maximum number of edges that are compressed at once.
    * @param has_edge_weights Whether the graph to compress has edge weights.
    * @param edge_weights A reference to the edge weights of the graph, which is only used when the
@@ -129,7 +128,6 @@ public:
    */
   CompressedEdgesBuilder(
       const NodeID num_nodes,
-      const EdgeID num_edges,
       const NodeID max_degree,
       const bool has_edge_weights,
       StaticArray<EdgeWeight> &edge_weights

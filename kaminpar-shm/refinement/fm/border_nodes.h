@@ -20,7 +20,7 @@ namespace kaminpar::shm::fm {
 
 template <typename GainCache> class BorderNodes {
 public:
-  BorderNodes(const Context &ctx, GainCache &gain_cache, NodeTracker &node_tracker)
+  BorderNodes(GainCache &gain_cache, NodeTracker &node_tracker)
       : _gain_cache(gain_cache),
         _node_tracker(node_tracker) {}
 

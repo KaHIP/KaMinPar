@@ -56,7 +56,9 @@ public:
   // the gain consumer with the total edge weight between the node and nodes in the specific block.
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
-  CompactHashingGainCache(const Context &ctx, const NodeID preallocate_n, BlockID preallocate_k)
+  CompactHashingGainCache(
+      const Context &ctx, const NodeID preallocate_n, [[maybe_unused]] BlockID preallocate_k
+  )
       : _ctx(ctx),
         // Since we do not know the size of the gain cache in advance (depends on vertex degrees),
         // we cannot preallocate it
@@ -215,7 +217,7 @@ private:
   void recompute_gains() {
     SCOPED_TIMER("Reset gain cache");
 
-    tbb::parallel_for<std::size_t>(0, _gain_cache.size(), [&](const std::size_t i) {
+    tbb::parallel_for<std::size_t>(0, _gain_cache.size(), [&](const std::size_t i) noexcept {
       _gain_cache[i] = 0;
     });
     _sparse_buffer_ets.clear();

@@ -1987,9 +1987,6 @@ private:
     const bool use_high_degree_selection =
         use_two_phases && _initial_num_clusters >= Config::kRatingMapThreshold &&
         _second_phase_selection_strategy == SecondPhaseSelectionStrategy::HIGH_DEGREE;
-    const bool use_frm_selection =
-        use_two_phases &&
-        _second_phase_selection_strategy == SecondPhaseSelectionStrategy::FULL_RATING_MAP;
     const bool aggregate_during_second_phase =
         _second_phase_aggregation_strategy != SecondPhaseAggregationStrategy::NONE;
 

@@ -44,7 +44,7 @@ StaticArray<NodeID> compute_mapping(
     });
   };
 
-  return std::move(clustering);
+  return clustering;
 }
 
 std::pair<NodeID, StaticArray<NodeID>>

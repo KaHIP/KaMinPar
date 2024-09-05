@@ -18,9 +18,9 @@
 
 namespace kaminpar::shm {
 ClusteringCoarsener::ClusteringCoarsener(const Context &ctx, const PartitionContext &p_ctx)
-    : _clustering_algorithm(factory::create_clusterer(ctx)),
-      _c_ctx(ctx.coarsening),
-      _p_ctx(p_ctx) {}
+    : _c_ctx(ctx.coarsening),
+      _p_ctx(p_ctx),
+      _clustering_algorithm(factory::create_clusterer(ctx)) {}
 
 void ClusteringCoarsener::initialize(const Graph *graph) {
   _hierarchy.clear();

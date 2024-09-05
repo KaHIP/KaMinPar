@@ -418,18 +418,13 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
       out << "    Length Threshold:         " << c_ctx.interval_length_treshold << "\n";
     }
 
-    out << "Compresion Ratio:             ";
-    if (c_ctx.dismissed) {
-      out << "<1 (dismissed)\n";
-    } else {
-      out << c_ctx.compression_ratio
-          << " [size reduction: " << (c_ctx.size_reduction / (float)(1024 * 1024)) << " mb]"
-          << "\n";
-      out << "  High Degree Node Count:     " << c_ctx.num_high_degree_nodes << "\n";
-      out << "  High Degree Part Count:     " << c_ctx.num_high_degree_parts << "\n";
-      out << "  Interval Node Count:        " << c_ctx.num_interval_nodes << "\n";
-      out << "  Interval Count:             " << c_ctx.num_intervals << "\n";
-    }
+    out << "Compresion Ratio:             " << c_ctx.compression_ratio
+        << " [size reduction: " << (c_ctx.size_reduction / (float)(1024 * 1024)) << " mb]"
+        << "\n";
+    out << "  High Degree Node Count:     " << c_ctx.num_high_degree_nodes << "\n";
+    out << "  High Degree Part Count:     " << c_ctx.num_high_degree_parts << "\n";
+    out << "  Interval Node Count:        " << c_ctx.num_interval_nodes << "\n";
+    out << "  Interval Count:             " << c_ctx.num_intervals << "\n";
   }
 }
 

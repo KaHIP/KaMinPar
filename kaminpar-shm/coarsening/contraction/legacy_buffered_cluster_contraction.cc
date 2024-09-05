@@ -25,7 +25,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_buffered_legacy(
     const Graph &graph,
     const NodeID c_n,
     StaticArray<NodeID> mapping,
-    const ContractionCoarseningContext &con_ctx,
+    [[maybe_unused]] const ContractionCoarseningContext &con_ctx,
     MemoryContext &m_ctx
 ) {
   auto &buckets_index = m_ctx.buckets_index;

@@ -122,7 +122,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_buffered(
   }};
   NavigableLinkedList<NodeID, Edge, ScalableVector> edge_buffer_ets;
 
-  for (const auto [cluster_start, cluster_end] : cluster_chunks) {
+  for (const auto &[cluster_start, cluster_end] : cluster_chunks) {
     tbb::parallel_for(tbb::blocked_range<NodeID>(cluster_start, cluster_end), [&](const auto &r) {
       auto &local_collector = collector.local();
       auto &local_edge_buffer = edge_buffer_ets.local();

@@ -51,7 +51,6 @@ void refine(Refiner *refiner, PartitionedGraph &p_graph, const PartitionContext 
 PartitionedGraph bipartition(
     const Graph *graph,
     const BlockID final_k,
-    const Context &input_ctx,
     InitialBipartitionerWorkerPool &initial_bipartitioner_pool,
     const bool partition_lifespan,
     BipartitionTimingInfo *timings
@@ -123,8 +122,7 @@ void extend_partition_recursive(
 ) {
   KASSERT(k > 1u);
 
-  PartitionedGraph p_graph =
-      bipartition(&graph, final_k, input_ctx, bipartitioner_pool, false, timings);
+  PartitionedGraph p_graph = bipartition(&graph, final_k, bipartitioner_pool, false, timings);
 
   timer::LocalTimer timer;
 
@@ -208,8 +206,7 @@ void extend_partition_recursive(
 ) {
   KASSERT(k > 1u);
 
-  PartitionedGraph p_graph =
-      bipartition(&graph, final_k, input_ctx, bipartitioner_pool, false, timings);
+  PartitionedGraph p_graph = bipartition(&graph, final_k, bipartitioner_pool, false, timings);
 
   timer::LocalTimer timer;
 
@@ -285,7 +282,7 @@ void extend_partition_lazy_extraction(
     PartitionContext &current_p_ctx,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
-    const int num_active_threads
+    std::size_t num_active_threads
 ) {
   if (input_ctx.partitioning.min_consecutive_seq_bipartitioning_levels > 0) {
     // Depending on the coarsening level and the deep multilevel implementation, it can occur that
@@ -433,7 +430,7 @@ void extend_partition(
     graph::SubgraphMemory &subgraph_memory,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
-    const int num_active_threads
+    std::size_t num_active_threads
 ) {
   if (input_ctx.partitioning.min_consecutive_seq_bipartitioning_levels > 0) {
     // Depending on the coarsening level and the deep multilevel implementation, it can occur that
@@ -558,7 +555,7 @@ void extend_partition(
     PartitionContext &current_p_ctx,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
-    const int num_active_threads
+    std::size_t num_active_threads
 ) {
   graph::SubgraphMemory memory;
 
@@ -582,7 +579,9 @@ void extend_partition(
   );
 }
 
-bool coarsen_once(Coarsener *coarsener, const Graph *graph, PartitionContext &current_p_ctx) {
+bool coarsen_once(
+    Coarsener *coarsener, [[maybe_unused]] const Graph *graph, PartitionContext &current_p_ctx
+) {
   SCOPED_TIMER("Coarsening");
 
   const auto shrunk = coarsener->coarsen();
