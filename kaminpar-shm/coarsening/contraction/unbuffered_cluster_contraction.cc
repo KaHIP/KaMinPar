@@ -299,7 +299,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
   }};
 
   START_TIMER("Aggregate coarse edges");
-  if (con_ctx.implementation == ContractionImplementation::GROWING_HASH_TABLES) {
+  if (con_ctx.unbuffered_implementation == ContractionImplementation::GROWING_HASH_TABLES) {
     using EdgeCollector = DynamicRememberingFlatMap<NodeID, EdgeWeight, NodeID>;
     tbb::enumerable_thread_specific<EdgeCollector> edge_collector_ets;
 
@@ -322,7 +322,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
         flush_edges(local_buffer);
       }
     });
-  } else if (con_ctx.implementation == ContractionImplementation::SINGLE_PHASE) {
+  } else if (con_ctx.unbuffered_implementation == ContractionImplementation::SINGLE_PHASE) {
     using EdgeCollector = RatingMap<EdgeWeight, NodeID>;
     tbb::enumerable_thread_specific<EdgeCollector> edge_collector_ets{[&] {
       return EdgeCollector(c_n);
@@ -357,7 +357,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
         flush_edges(local_buffer);
       }
     });
-  } else if (con_ctx.implementation == ContractionImplementation::TWO_PHASE) {
+  } else if (con_ctx.unbuffered_implementation == ContractionImplementation::TWO_PHASE) {
     using EdgeCollector = FixedSizeSparseMap<NodeID, EdgeWeight, 65536>;
     tbb::enumerable_thread_specific<EdgeCollector> edge_collector_ets;
 
@@ -413,9 +413,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
         local_edge_collector.clear();
       }
     });
-    STOP_TIMER();
 
-    START_TIMER("Flush buffer");
     tbb::parallel_for(neighborhoods_buffer_ets.range(), [&](const auto &local_buffers) {
       for (auto &local_buffer : local_buffers) {
         flush_edges(local_buffer);

@@ -18,12 +18,94 @@
 #include <unordered_map>
 #include <vector>
 
-#include <cxxabi.h>
-
+#include "kaminpar-common/constexpr_utils.h"
 #include "kaminpar-common/libc_memory_override.h"
 #include "kaminpar-common/logger.h"
 
+#ifdef KAMINPAR_ENABLE_HEAP_PROFILING
+
+#define GET_MACRO(X, Y, Z, FUNC, ...) FUNC
+
+#define START_HEAP_PROFILER_2(name, desc)                                                          \
+  kaminpar::heap_profiler::HeapProfiler::global().start_profile(name, desc)
+#define START_HEAP_PROFILER_1(name) START_HEAP_PROFILER_2(name, "")
+#define START_HEAP_PROFILER(...)                                                                   \
+  GET_MACRO(_, __VA_ARGS__, START_HEAP_PROFILER_2, START_HEAP_PROFILER_1)(__VA_ARGS__)
+
+#define STOP_HEAP_PROFILER() kaminpar::heap_profiler::HeapProfiler::global().stop_profile()
+
+#define SCOPED_HEAP_PROFILER_2(name, desc, line)                                                   \
+  const auto __SCOPED_HEAP_PROFILER__##line =                                                      \
+      kaminpar::heap_profiler::ScopedHeapProfiler(name, desc);
+#define SCOPED_HEAP_PROFILER_1(name, line) SCOPED_HEAP_PROFILER_2(name, "", line)
+#define SCOPED_HEAP_PROFILER(...)                                                                  \
+  GET_MACRO(_, __VA_ARGS__, SCOPED_HEAP_PROFILER_2, SCOPED_HEAP_PROFILER_1)(__VA_ARGS__, __LINE__)
+
+#define RECORD_DATA_STRUCT_2(size, variable_name)                                                  \
+  variable_name = kaminpar::heap_profiler::HeapProfiler::global().add_data_struct(                 \
+      kaminpar::type_name<decltype(this)>(), size                                                  \
+  )
+#define RECORD_DATA_STRUCT_1(size)                                                                 \
+  kaminpar::heap_profiler::HeapProfiler::global().add_data_struct(                                 \
+      kaminpar::type_name<decltype(this)>(), size                                                  \
+  )
+#define RECORD_DATA_STRUCT(...)                                                                    \
+  GET_MACRO(_, __VA_ARGS__, RECORD_DATA_STRUCT_2, RECORD_DATA_STRUCT_1)(__VA_ARGS__)
+
+#define RECORD_LOCAL_DATA_STRUCT_2(var, size, variable_name)                                       \
+  const auto variable_name = kaminpar::heap_profiler::HeapProfiler::global().add_data_struct(      \
+      kaminpar::type_name<decltype(var)>(), size                                                   \
+  )
+#define RECORD_LOCAL_DATA_STRUCT_1(var, size)                                                      \
+  kaminpar::heap_profiler::HeapProfiler::global().add_data_struct(                                 \
+      kaminpar::type_name<decltype(var)>(), size                                                   \
+  )
+#define RECORD_LOCAL_DATA_STRUCT(...)                                                              \
+  GET_MACRO(__VA_ARGS__, RECORD_LOCAL_DATA_STRUCT_2, RECORD_LOCAL_DATA_STRUCT_1)(__VA_ARGS__)
+
+#define RECORD(name) kaminpar::heap_profiler::HeapProfiler::global().record_data_struct(name);
+
+#define IF_HEAP_PROFILING(expression) expression
+
+#define ENABLE_HEAP_PROFILER() kaminpar::heap_profiler::HeapProfiler::global().enable()
+#define DISABLE_HEAP_PROFILER() kaminpar::heap_profiler::HeapProfiler::global().disable()
+
+#define PRINT_HEAP_PROFILE(out)                                                                    \
+  kaminpar::heap_profiler::HeapProfiler::global().print_heap_profile(out)
+
+/*!
+ * Whether heap profiling is enabled.
+ */
+constexpr bool kHeapProfiling = true;
+
+#else
+
+#define START_HEAP_PROFILER(...)
+#define STOP_HEAP_PROFILER()
+#define SCOPED_HEAP_PROFILER(...)
+#define RECORD_DATA_STRUCT(...)
+#define RECORD_LOCAL_DATA_STRUCT(...)
+#define RECORD(...)
+#define IF_HEAP_PROFILING(...)
+#define ENABLE_HEAP_PROFILER()
+#define DISABLE_HEAP_PROFILER()
+#define PRINT_HEAP_PROFILE(...)
+
+/*!
+ * Whether heap profiling is enabled.
+ */
+constexpr bool kHeapProfiling = false;
+
+#endif
+
+#ifdef KAMINPAR_ENABLE_PAGE_PROFILING
+constexpr bool kPageProfiling = true;
+#else
+constexpr bool kPageProfiling = false;
+#endif
+
 namespace kaminpar::heap_profiler {
+
 /*!
  * A minimal allocator that uses memory allocation functions that bypass the heap profiler.
  *
@@ -84,132 +166,6 @@ template <typename T> struct NoProfileAllocator {
   }
 };
 
-//! A string type whose memory allocations are not tracked by the heap profiler.
-using hp_string = std::basic_string<char, std::char_traits<char>, NoProfileAllocator<char>>;
-
-} // namespace kaminpar::heap_profiler
-
-namespace {
-using namespace kaminpar;
-
-/*!
- * Returns the (demangled) name of a type.
- *
- * See https://stackoverflow.com/a/25893042
- *
- * @tparam T The type whose name to return.
- * @return The (demangled) name of the type T.
- */
-template <typename T> heap_profiler::hp_string type_name() {
-  auto mangeled_name = typeid(T()).name();
-  int status = 0;
-
-  std::size_t length = 1024;
-  char *output_buffer = static_cast<char *>(heap_profiler::std_malloc(length));
-  abi::__cxa_demangle(mangeled_name, output_buffer, &length, &status);
-
-  heap_profiler::hp_string name((status == 0) ? output_buffer : mangeled_name);
-  heap_profiler::std_free(output_buffer);
-
-  // Strip the trailing brackets from the constructed function type.
-  if (name.substr(name.size() - 3) == " ()") {
-    name.resize(name.size() - 3);
-  }
-
-  // Remove the namespace from the type name.
-  auto it = name.find_last_of("::");
-  if (it != std::string::npos) {
-    name = name.substr(it + 1);
-  }
-
-  // Remove the asterisk from a this pointer.
-  if (name.back() == '*') {
-    name.resize(name.size() - 1);
-  }
-
-  return name;
-}
-} // namespace
-
-#ifdef KAMINPAR_ENABLE_HEAP_PROFILING
-
-#define GET_MACRO(X, Y, Z, FUNC, ...) FUNC
-
-#define START_HEAP_PROFILER_2(name, desc)                                                          \
-  kaminpar::heap_profiler::HeapProfiler::global().start_profile(name, desc)
-#define START_HEAP_PROFILER_1(name) START_HEAP_PROFILER_2(name, "")
-#define START_HEAP_PROFILER(...)                                                                   \
-  GET_MACRO(_, __VA_ARGS__, START_HEAP_PROFILER_2, START_HEAP_PROFILER_1)(__VA_ARGS__)
-
-#define STOP_HEAP_PROFILER() kaminpar::heap_profiler::HeapProfiler::global().stop_profile()
-
-#define SCOPED_HEAP_PROFILER_2(name, desc, line)                                                   \
-  const auto __SCOPED_HEAP_PROFILER__##line =                                                      \
-      kaminpar::heap_profiler::HeapProfiler::global().start_scoped_profile(name, desc)
-#define SCOPED_HEAP_PROFILER_1(name, line) SCOPED_HEAP_PROFILER_2(name, "", line)
-#define SCOPED_HEAP_PROFILER(...)                                                                  \
-  GET_MACRO(_, __VA_ARGS__, SCOPED_HEAP_PROFILER_2, SCOPED_HEAP_PROFILER_1)(__VA_ARGS__, __LINE__)
-
-#define RECORD_DATA_STRUCT_2(size, variable_name)                                                  \
-  variable_name = kaminpar::heap_profiler::HeapProfiler::global().add_data_struct(                 \
-      type_name<decltype(this)>(), size                                                            \
-  )
-#define RECORD_DATA_STRUCT_1(size)                                                                 \
-  kaminpar::heap_profiler::HeapProfiler::global().add_data_struct(type_name<decltype(this)>(), size)
-#define RECORD_DATA_STRUCT(...)                                                                    \
-  GET_MACRO(_, __VA_ARGS__, RECORD_DATA_STRUCT_2, RECORD_DATA_STRUCT_1)(__VA_ARGS__)
-
-#define RECORD_LOCAL_DATA_STRUCT_2(name, size, variable_name)                                      \
-  const auto variable_name =                                                                       \
-      kaminpar::heap_profiler::HeapProfiler::global().add_data_struct(name, size)
-#define RECORD_LOCAL_DATA_STRUCT_1(name, size)                                                     \
-  kaminpar::heap_profiler::HeapProfiler::global().add_data_struct(name, size)
-#define RECORD_LOCAL_DATA_STRUCT(...)                                                              \
-  GET_MACRO(__VA_ARGS__, RECORD_LOCAL_DATA_STRUCT_2, RECORD_LOCAL_DATA_STRUCT_1)(__VA_ARGS__)
-
-#define RECORD(name) kaminpar::heap_profiler::HeapProfiler::global().record_data_struct(name);
-
-#define IF_HEAP_PROFILING(expression) expression
-
-#define ENABLE_HEAP_PROFILER() kaminpar::heap_profiler::HeapProfiler::global().enable()
-#define DISABLE_HEAP_PROFILER() kaminpar::heap_profiler::HeapProfiler::global().disable()
-
-#define PRINT_HEAP_PROFILE(out)                                                                    \
-  kaminpar::heap_profiler::HeapProfiler::global().print_heap_profile(out)
-
-/*!
- * Whether heap profiling is enabled.
- */
-constexpr bool kHeapProfiling = true;
-
-#else
-
-#define START_HEAP_PROFILER(...)
-#define STOP_HEAP_PROFILER()
-#define SCOPED_HEAP_PROFILER(...)
-#define RECORD_DATA_STRUCT(...)
-#define RECORD_LOCAL_DATA_STRUCT(...)
-#define RECORD(...)
-#define IF_HEAP_PROFILING(...) 
-#define ENABLE_HEAP_PROFILER()
-#define DISABLE_HEAP_PROFILER()
-#define PRINT_HEAP_PROFILE(...)
-
-/*!
- * Whether heap profiling is enabled.
- */
-constexpr bool kHeapProfiling = false;
-
-#endif
-
-#ifdef KAMINPAR_ENABLE_PAGE_PROFILING
-constexpr bool kPageProfiling = true;
-#else
-constexpr bool kPageProfiling = false;
-#endif
-
-namespace kaminpar::heap_profiler {
-
 /*!
  * Represents a data structure in the program. It contains information about a data structure that
  * is tracked by the heap profiler.
@@ -218,7 +174,7 @@ struct DataStructure {
   /*!
    * The name of the data structure.
    */
-  hp_string name;
+  std::string_view name;
 
   /*!
    * The size of the memory in bytes allocated on the heap by the data structure.
@@ -252,16 +208,14 @@ struct DataStructure {
    * @param name The name of the data structure.
    * @param size The size of the memory in bytes allocated on the heap by the data structure.
    */
-  explicit DataStructure(hp_string name, std::size_t size)
-      : name(std::move(name)),
+  explicit DataStructure(std::string_view name, std::size_t size)
+      : name(name),
         size(size),
         variable_name(""),
         file_name(""),
         line(0),
         column(0) {}
 };
-
-class ScopedHeapProfiler;
 
 /*!
  * A hierarchical heap profiler to measure dynamic memory allocation of the program.
@@ -271,9 +225,9 @@ class ScopedHeapProfiler;
  */
 class HeapProfiler {
 private:
-  static constexpr std::string_view kMaxAllocTitle = "Peak Memory (mb)";
-  static constexpr std::string_view kAllocTitle = "Total Alloc (mb)";
-  static constexpr std::string_view kFreeTitle = "Total Free (mb)";
+  static constexpr std::string_view kMaxAllocTitle = "Peak Memory (MiB)";
+  static constexpr std::string_view kAllocTitle = "Total Alloc (MiB)";
+  static constexpr std::string_view kFreeTitle = "Total Free (MiB)";
   static constexpr std::string_view kAllocsTitle = "Allocs";
   static constexpr std::string_view kFreesTitle = "Frees";
 
@@ -288,9 +242,9 @@ private:
   static constexpr std::size_t kPercentageLength = 9;
   static constexpr std::size_t kDataStructSizeThreshold = 1024;
 
-  static std::string to_megabytes(std::size_t bytes) {
+  [[nodiscard]] static std::string to_megabytes(const std::size_t bytes) {
     std::stringstream stream;
-    stream << std::fixed << std::setprecision(2) << (bytes / (float)(1024 * 1024));
+    stream << std::fixed << std::setprecision(2) << (bytes / static_cast<float>(1024 * 1024));
     return stream.str();
   }
 
@@ -422,14 +376,6 @@ public:
   void stop_profile();
 
   /*!
-   * Starts a scoped heap profile and returns the associated object.
-   *
-   * @param name The name of the profile to start.
-   * @param desc The description of the profile to start.
-   */
-  ScopedHeapProfiler start_scoped_profile(std::string_view name, std::string desc);
-
-  /*!
    * Records information about the variable storing the next data structure that is added to the
    * heap profiler.
    *
@@ -451,7 +397,7 @@ public:
    * @return A pointer to the object holding information about the data structure or a nullptr if
    * the heap profiler is disabled.
    */
-  DataStructure *add_data_struct(hp_string name, std::size_t size);
+  DataStructure *add_data_struct(std::string_view name, std::size_t size);
 
   /*!
    * Records a memory allocation.
@@ -659,7 +605,7 @@ template <typename T> unique_ptr<T> overcommit_memory(const std::size_t size) {
   if (ptr == NULL) {
     LOG_ERROR << "The overcommitment of memory failed. Ensure that memory overcommitment is"
                  " enabled on this system!";
-    std::exit(0);
+    std::exit(EXIT_FAILURE);
   }
 
   return unique_ptr<T>(ptr);

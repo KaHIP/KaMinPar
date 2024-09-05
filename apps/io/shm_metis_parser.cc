@@ -248,7 +248,7 @@ CompressedGraph compress_read(const std::string &filename, const bool sorted) {
       sorted
   );
   RECORD("neighbourhood") std::vector<std::pair<NodeID, EdgeWeight>> neighbourhood;
-  RECORD_LOCAL_DATA_STRUCT("vector<pair<NodeID, EdgeWeight>>", 0, neighbourhood_stats);
+  RECORD_LOCAL_DATA_STRUCT(neighbourhood, 0, neighbourhood_stats);
 
   NodeID node = 0;
   EdgeID edge = 0;

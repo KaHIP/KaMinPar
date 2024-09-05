@@ -160,7 +160,7 @@ CompressedBinaryHeader read_header(std::ifstream &in) {
       read_int<std::uint64_t>(in), read_int<std::uint64_t>(in),  read_int<std::uint64_t>(in),
       read_int<std::uint64_t>(in), read_int<std::uint64_t>(in),  read_int<std::int64_t>(in),
       read_int<std::uint64_t>(in), read_int<std::uint64_t>(in),  read_int<std::uint64_t>(in),
-      read_int<std::uint64_t>(in),
+      read_int<std::uint64_t>(in), read_int<std::uint64_t>(in),
   };
 }
 

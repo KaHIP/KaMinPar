@@ -90,10 +90,10 @@ public:
     return _max_degree;
   }
 
-  void set_max_num_neighbors(const ClusterID max_num_neighbors) {
+  void set_max_num_neighbors(const NodeID max_num_neighbors) {
     _max_num_neighbors = max_num_neighbors;
   }
-  [[nodiscard]] ClusterID max_num_neighbors() const {
+  [[nodiscard]] NodeID max_num_neighbors() const {
     return _max_num_neighbors;
   }
 

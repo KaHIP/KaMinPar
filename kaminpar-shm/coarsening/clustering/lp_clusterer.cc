@@ -44,7 +44,6 @@ public:
 
   LPClusteringImpl(const CoarseningContext &c_ctx, Permutations &permutations)
       : Base(permutations),
-        ClusterWeightBase(c_ctx.clustering.lp.cluster_weights_structure),
         _lp_ctx(c_ctx.clustering.lp) {
     Base::set_max_degree(_lp_ctx.large_degree_threshold);
     Base::set_max_num_neighbors(_lp_ctx.max_num_neighbors);
@@ -403,13 +402,9 @@ public:
         }
     );
 
-    // Only relabel clusters during the first iteration
+    // Only relabel clusters for the first iteration
     _csr_impl->set_relabel_before_second_phase(false);
     _compressed_impl->set_relabel_before_second_phase(false);
-
-    // Only use the initially small cluster weight vector for the first lp implementation
-    _csr_impl->set_use_small_vector_initially(false);
-    _compressed_impl->set_use_small_vector_initially(false);
   }
 
 private:

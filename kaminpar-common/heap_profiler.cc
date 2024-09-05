@@ -84,10 +84,6 @@ void HeapProfiler::stop_profile() {
   }
 }
 
-ScopedHeapProfiler HeapProfiler::start_scoped_profile(std::string_view name, std::string desc) {
-  return ScopedHeapProfiler(name, desc);
-}
-
 void HeapProfiler::record_data_struct(
     std::string_view var_name, const std::source_location location
 ) {
@@ -99,11 +95,11 @@ void HeapProfiler::record_data_struct(
   }
 }
 
-DataStructure *HeapProfiler::add_data_struct(hp_string name, std::size_t size) {
+DataStructure *HeapProfiler::add_data_struct(std::string_view name, std::size_t size) {
   if (_enabled) {
     std::lock_guard<std::mutex> guard(_mutex);
 
-    DataStructure *data_structure = _struct_allocator.create(std::move(name), size);
+    DataStructure *data_structure = _struct_allocator.create(name, size);
     if (_line != 0) {
       data_structure->variable_name = _var_name;
       data_structure->file_name = _file_name;
@@ -118,7 +114,7 @@ DataStructure *HeapProfiler::add_data_struct(hp_string name, std::size_t size) {
     return data_structure;
   }
 
-  return new DataStructure(std::move(name), size);
+  return new DataStructure(name, size);
 }
 
 void HeapProfiler::record_alloc(const void *ptr, std::size_t size) {

@@ -37,14 +37,14 @@ std::unique_ptr<CoarseGraph> contract_clustering(
     const ContractionCoarseningContext &con_ctx,
     MemoryContext &m_ctx
 ) {
-  switch (con_ctx.mode) {
-  case ContractionMode::BUFFERED:
+  switch (con_ctx.algorithm) {
+  case ContractionAlgorithm::BUFFERED:
     return contract_clustering_buffered(graph, std::move(clustering), con_ctx, m_ctx);
-  case ContractionMode::BUFFERED_LEGACY:
+  case ContractionAlgorithm::BUFFERED_LEGACY:
     return contract_clustering_buffered_legacy(graph, std::move(clustering), con_ctx, m_ctx);
-  case ContractionMode::UNBUFFERED:
+  case ContractionAlgorithm::UNBUFFERED:
     return contract_clustering_unbuffered(graph, std::move(clustering), con_ctx, m_ctx);
-  case ContractionMode::UNBUFFERED_NAIVE:
+  case ContractionAlgorithm::UNBUFFERED_NAIVE:
     return contract_clustering_unbuffered_naive(graph, std::move(clustering), con_ctx, m_ctx);
   }
 

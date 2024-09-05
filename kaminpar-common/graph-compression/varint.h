@@ -334,6 +334,33 @@ template <typename Int> [[nodiscard]] std::size_t marked_varint_length(Int i) {
  * @param marker_set Whether the integer is marked.
  * @param ptr The pointer to the memory location to write the integer to.
  */
+template <typename Int> std::size_t marked_varint_encode(Int i, bool marked, std::uint8_t *ptr) {
+  std::uint8_t first_octet = i & 0b00111111;
+  if (marked) {
+    first_octet |= 0b01000000;
+  }
+
+  i >>= 6;
+
+  if (i == 0) {
+    *ptr = first_octet;
+    return 1;
+  }
+
+  first_octet |= 0b10000000;
+  *ptr = first_octet;
+
+  return varint_encode<Int>(i, ptr + 1) + 1;
+}
+
+/*!
+ * Writes an integer to a memory location as a marked VarInt.
+ *
+ * @tparam Int The type of integer to encode.
+ * @param Int The integer to store.
+ * @param marker_set Whether the integer is marked.
+ * @param ptr The pointer to the memory location to write the integer to.
+ */
 template <typename Int> void marked_varint_encode(Int i, const bool marked, std::uint8_t **ptr) {
   std::uint8_t first_octet = i & 0b00111111;
   if (marked) {
