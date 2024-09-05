@@ -20,7 +20,7 @@ void for_downward_edges(const CSRGraph &g, std::function<void(EdgeID)>);
 template <typename Lambda>
 inline void p_for_edges_with_endpoints(const CSRGraph &g, Lambda function) {
   g.pfor_nodes([&](NodeID u) {
-    g.pfor_neighbors(u, g.n() - 1, 123, [&](EdgeID e, NodeID v, EdgeWeight e_weight) {
+    g.pfor_neighbors(u, g.n() - 1, 2000, [&](EdgeID e, NodeID v, EdgeWeight e_weight) {
       function(e, u, v);
     });
   });
