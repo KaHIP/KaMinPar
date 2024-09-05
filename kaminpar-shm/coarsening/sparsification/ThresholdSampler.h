@@ -2,6 +2,7 @@
 #include "Sampler.h"
 #include "ScoreBacedSampler.h"
 #include "sparsification_utils.h"
+    #include <oneapi/tbb/parallel_sort.h>
 
 namespace kaminpar::shm::sparsification {
 
@@ -18,14 +19,12 @@ public:
     auto [threshold, numEdgesAtThresholdScoreToInclude] =
         find_threshold(scores, target_edge_amount, g);
 
-    utils::for_upward_edges(g, [&](EdgeID e) {
+    utils::p_for_upward_edges(g, [&](EdgeID e) {
       if (scores[e] > threshold) {
         sample[e] = g.edge_weight(e);
       } else if (scores[e] == threshold && numEdgesAtThresholdScoreToInclude > 0) {
         sample[e] = g.edge_weight(e);
         numEdgesAtThresholdScoreToInclude--;
-      } else {
-        sample[e] = 0;
       }
     });
 
@@ -39,19 +38,16 @@ public:
 private:
   std::pair<EdgeID, EdgeID>
   find_threshold(const StaticArray<Score> &scores, EdgeID target_edge_amount, const CSRGraph &g) {
-    StaticArray<Score> sorted_scores(scores.size() / 2);
+    std::vector<Score> sorted_scores(scores.size());
+    tbb::parallel_for(0ul, scores.size(), [&](auto e) { sorted_scores[e] = scores[e]; });
+    tbb::parallel_sort(sorted_scores.begin(), sorted_scores.end());
 
-    EdgeID i = 0;
-    utils::for_upward_edges(g, [&](EdgeID e) { sorted_scores[i++] = scores[e]; });
-    KASSERT(i == sorted_scores.size());
-
-    std::sort(sorted_scores.begin(), sorted_scores.end());
-    EdgeID indexOfThreshold = sorted_scores.size() - target_edge_amount / 2;
+    EdgeID indexOfThreshold = sorted_scores.size() - target_edge_amount;
     Score threshold = sorted_scores[indexOfThreshold];
     EdgeID indexOfFirstLagerScore =
         std::upper_bound(sorted_scores.begin(), sorted_scores.end(), threshold) -
         sorted_scores.begin();
-    EdgeID numEdgesAtThresholdScoreToInclude = indexOfFirstLagerScore - indexOfThreshold;
+    EdgeID numEdgesAtThresholdScoreToInclude = indexOfFirstLagerScore - indexOfThreshold / 2;
     return std::make_pair(threshold, numEdgesAtThresholdScoreToInclude);
   };
 };
