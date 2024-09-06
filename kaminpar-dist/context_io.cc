@@ -140,7 +140,7 @@ std::unordered_map<std::string, RefinementAlgorithm> get_balancing_algorithms() 
       {"hybrid-cluster-balancer", RefinementAlgorithm::HYBRID_CLUSTER_BALANCER},
       {"mtkahypar", RefinementAlgorithm::MTKAHYPAR_REFINER},
   };
-};
+}
 
 std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm) {
   switch (algorithm) {
@@ -361,7 +361,7 @@ void print(const ChunksContext &ctx, const ParallelContext &parallel, std::ostre
 
 void print(
     const GraphCompressionContext &ctx,
-    const ParallelContext &parallel,
+    const ParallelContext & /* parallel */,
     const bool print_compression_details,
     std::ostream &out
 ) {
@@ -401,8 +401,7 @@ void print(
 
     out << "Compression ratio:            [Min=" << round(ctx.min_compression_ratio)
         << " | Mean=" << round(ctx.avg_compression_ratio)
-        << " | Max=" << round(ctx.max_compression_ratio) << "]"
-        << "\n";
+        << " | Max=" << round(ctx.max_compression_ratio) << "]" << "\n";
 
     out << "Largest compressed graph:     " << to_gib(ctx.largest_compressed_graph_prev_size)
         << " GiB -> " << to_gib(ctx.largest_compressed_graph) << " GiB\n";

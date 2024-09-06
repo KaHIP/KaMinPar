@@ -57,7 +57,7 @@ public:
   // the gain consumer with the total edge weight between the node and nodes in the specific block.
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
-  HashingGainCache(const Context &ctx, const NodeID preallocate_n, BlockID preallocate_k)
+  HashingGainCache(const Context &ctx, const NodeID preallocate_n, BlockID)
       : _ctx(ctx),
         // Since we do not know the size of the gain cache in advance (depends on vertex degrees),
         // we cannot preallocate it

@@ -45,8 +45,8 @@ public:
   bool refine() final;
 
 private:
-  const Context &_ctx;
-  DistributedPartitionedGraph &_p_graph;
-  const PartitionContext &_p_ctx;
+  const Context &_ctx [[maybe_unused]];
+  DistributedPartitionedGraph &_p_graph [[maybe_unused]];
+  const PartitionContext &_p_ctx [[maybe_unused]];
 };
 } // namespace kaminpar::dist

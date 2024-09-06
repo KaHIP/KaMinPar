@@ -78,7 +78,7 @@ bool use_sparse_grid_alltoall(const SendBuffers &send_buffers, MPI_Comm comm) {
   const PEID size = get_comm_size(comm);
   return global_num_elements / size / size <= SPARSE_GRID_ALLTOALL_THRESHOLD;
 }
-}; // namespace internal
+} // namespace internal
 
 template <typename Message, typename Buffer = NoinitVector<Message>, typename Receiver>
 void sparse_alltoall(const std::vector<Buffer> &send_buffers, Receiver &&receiver, MPI_Comm comm) {

@@ -61,8 +61,8 @@ public:
         _buckets(
             p_graph, p_ctx, _nb_ctx.par_enable_positive_gain_buckets, _nb_ctx.par_gain_bucket_base
         ),
-        _cached_cutoff_buckets(_p_graph.k()),
         _gain_calculator(_p_ctx.k),
+        _cached_cutoff_buckets(_p_graph.k()),
         _target_blocks(_graph.n()),
         _tmp_gains(!_nb_ctx.par_update_pq_gains * _graph.n()) {
     _gain_calculator.init(_p_graph, _graph);
@@ -94,9 +94,6 @@ public:
     }
 
     KASSERT(debug::validate_partition(_p_graph), "invalid partition before balancing", HEAVY);
-
-    const PEID size = mpi::get_comm_size(_graph.communicator());
-    const PEID rank = mpi::get_comm_rank(_graph.communicator());
 
     double previous_imbalance_distance =
         is_sequential_balancing_enabled() ? metrics::imbalance_l1(_p_graph, _p_ctx) : 0.0;
@@ -478,8 +475,6 @@ private:
     TIMER_BARRIER(_graph.communicator());
     SCOPED_TIMER("Parallel round");
 
-    const PEID rank = mpi::get_comm_rank(_graph.communicator());
-
     // Postpone PQ updates until after the iteration
     std::vector<std::tuple<BlockID, NodeID, double>> pq_updates;
 
@@ -585,9 +580,8 @@ private:
                 reassigned,
                 "could not find a feasible target block for node "
                     << candidate.id << ", weight " << candidate.weight << ", deltas: ["
-                    << block_weight_deltas_to << "]"
-                    << ", max block weights: " << _p_ctx.graph->max_block_weights
-                    << ", block weights: "
+                    << block_weight_deltas_to << "]" << ", max block weights: "
+                    << _p_ctx.graph->max_block_weights << ", block weights: "
                     << std::vector<BlockWeight>(
                            _p_graph.block_weights().begin(), _p_graph.block_weights().end()
                        )

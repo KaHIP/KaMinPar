@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
       ->transform(CLI::CheckedTransformer(get_node_orderings()).description(""))
       ->description(R"(Criteria by which the nodes of the graph are sorted and rearranged:
   - natural:     keep node order of the graph (do not rearrange)
-  - deg-buckets: sort nodes by degree bucket and rearrange accordingly
+  - external-deg-buckets: sort nodes by degree bucket and rearrange accordingly during IO
   - implicit-deg-buckets: nodes of the input graph are sorted by deg-buckets order)")
       ->capture_default_str();
 
@@ -61,5 +61,5 @@ int main(int argc, char *argv[]) {
   LOG << "Writing compressed graph...";
   io::compressed_binary::write(compressed_graph_filename, graph);
 
-  return 0;
+  return EXIT_SUCCESS;
 }

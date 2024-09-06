@@ -184,8 +184,8 @@ public:
         _unrestricted_num_values(_num_values) {
     RECORD_DATA_STRUCT(0, _struct);
     KASSERT(actual_size >= sizeof(Int) - _byte_width);
-    KASSERT(byte_width >= 1);
-    KASSERT(byte_width <= 8);
+    KASSERT(byte_width >= 1u);
+    KASSERT(byte_width <= 8u);
   }
 
   CompactStaticArray(const CompactStaticArray &) = delete;
@@ -201,8 +201,8 @@ public:
    * @param num_values The number of values to store.
    */
   void resize(const std::size_t byte_width, const std::size_t num_values) {
-    KASSERT(byte_width >= 1);
-    KASSERT(byte_width <= 8);
+    KASSERT(byte_width >= 1u);
+    KASSERT(byte_width <= 8u);
 
     _byte_width = byte_width;
     _size = num_values * byte_width + sizeof(Int) - byte_width;
@@ -323,7 +323,7 @@ public:
    * @return The memory space of this array in bytes.
    */
   [[nodiscard]] std::size_t memory_space() const {
-    return _size;
+    return _unrestricted_size;
   }
 
   /*!
@@ -351,4 +351,4 @@ private:
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };
 
-}; // namespace kaminpar
+} // namespace kaminpar

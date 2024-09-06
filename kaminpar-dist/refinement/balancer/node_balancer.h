@@ -13,6 +13,7 @@
 #include "kaminpar-dist/refinement/refiner.h"
 
 namespace kaminpar::dist {
+
 class NodeBalancerFactory : public GlobalRefinerFactory {
 public:
   NodeBalancerFactory(const Context &ctx);
@@ -29,4 +30,5 @@ public:
 private:
   const Context &_ctx;
 };
-}; // namespace kaminpar::dist
+
+} // namespace kaminpar::dist

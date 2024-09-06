@@ -143,9 +143,11 @@ public:
   LPRefinerMemoryContext release() {
     auto [rating_map_ets, active, favored_clusters] = Base::release();
     return {
-        std::move(rating_map_ets),
-        std::move(active),
-        std::move(favored_clusters),
+        {
+            std::move(rating_map_ets),
+            std::move(active),
+            std::move(favored_clusters),
+        },
         std::move(_next_partition),
         std::move(_gains),
         std::move(_block_weights),

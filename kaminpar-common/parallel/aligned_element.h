@@ -14,8 +14,8 @@ namespace kaminpar::parallel {
 template <typename Value> struct alignas(64) Aligned {
   Value value;
 
-  Aligned() : value() {}
-  Aligned(Value value) : value(value) {}
+  Aligned() noexcept : value() {}
+  Aligned(Value value) noexcept : value(value) {}
 
   Aligned<Value> &operator++() {
     ++value;
@@ -42,8 +42,8 @@ template <typename Vector> struct alignas(64) AlignedVec {
 
   Vector vec;
 
-  AlignedVec() : vec() {}
-  AlignedVec(Vector vec) : vec(std::move(vec)) {}
+  AlignedVec() noexcept : vec() {}
+  AlignedVec(Vector vec) noexcept : vec(std::move(vec)) {}
 
   decltype(auto) operator[](size_type pos) {
     return vec[pos];

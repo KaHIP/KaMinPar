@@ -29,7 +29,13 @@ public:
   CompressedNeighborhoodsBuilder(
       const NodeID num_nodes, const EdgeID num_edges, const bool has_edge_weights
   )
-      : _compressed_edges_builder(num_nodes, num_edges, has_edge_weights, _edge_weights),
+      : _compressed_edges_builder(
+            CompressedEdgesBuilder::num_edges_tag,
+            num_nodes,
+            num_edges,
+            has_edge_weights,
+            _edge_weights
+        ),
         _num_edges(num_edges),
         _has_edge_weights(has_edge_weights) {
 
@@ -86,12 +92,12 @@ public:
     // Store at the end of the compressed edge array the (gap of the) id of the last edge. This
     // ensures that the the degree of the last node can be computed from the difference between the
     // last two first edge ids.
+    std::uint8_t *_compressed_edges_end = compressed_edges.get() + compressed_edges_size;
     const EdgeID last_edge = _num_edges;
-    std::uint8_t *compressed_edges_end = compressed_edges.get() + compressed_edges_size;
     if constexpr (CompressedNeighborhoods::kIntervalEncoding) {
-      marked_varint_encode(last_edge, false, &compressed_edges_end);
+      compressed_edges_size += marked_varint_encode(last_edge, false, _compressed_edges_end);
     } else {
-      varint_encode(last_edge, &compressed_edges_end);
+      compressed_edges_size += varint_encode(last_edge, _compressed_edges_end);
     }
 
     // Add an additional 15 bytes to the compressed edge array when stream encoding is enabled to
@@ -257,9 +263,9 @@ public:
     std::uint8_t *_compressed_edges_end = _compressed_edges.get() + _compressed_edges_size;
     const EdgeID last_edge = _num_edges;
     if constexpr (CompressedNeighborhoods::kIntervalEncoding) {
-      marked_varint_encode(last_edge, false, &_compressed_edges_end);
+      _compressed_edges_size += marked_varint_encode(last_edge, false, _compressed_edges_end);
     } else {
-      varint_encode(last_edge, &_compressed_edges_end);
+      _compressed_edges_size += varint_encode(last_edge, _compressed_edges_end);
     }
 
     // Add an additional 15 bytes to the compressed edge array when stream encoding is enabled to

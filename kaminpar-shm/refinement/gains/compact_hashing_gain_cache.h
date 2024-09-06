@@ -31,7 +31,7 @@ template <
     bool iterate_nonadjacent_blocks,
     bool iterate_exact_gains = false>
 class CompactHashingGainCache {
-  SET_DEBUG(true);
+  SET_DEBUG(false);
 
   // Abuse MSB bit in the _weighted_degrees[] array for locking
   constexpr static UnsignedEdgeWeight kWeightedDegreeLock =
@@ -56,7 +56,9 @@ public:
   // the gain consumer with the total edge weight between the node and nodes in the specific block.
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
-  CompactHashingGainCache(const Context &ctx, const NodeID preallocate_n, BlockID preallocate_k)
+  CompactHashingGainCache(
+      const Context &ctx, const NodeID preallocate_n, [[maybe_unused]] BlockID preallocate_k
+  )
       : _ctx(ctx),
         // Since we do not know the size of the gain cache in advance (depends on vertex degrees),
         // we cannot preallocate it
@@ -90,7 +92,7 @@ public:
 
       if (width > 0) {
         _offsets[u] += (width - (_offsets[u] % width)) % width;
-        KASSERT(_offsets[u] % width == 0);
+        KASSERT(_offsets[u] % width == 0u);
       }
 
       _offsets[u + 1] = _offsets[u] + nbytes;
@@ -215,7 +217,7 @@ private:
   void recompute_gains() {
     SCOPED_TIMER("Reset gain cache");
 
-    tbb::parallel_for<std::size_t>(0, _gain_cache.size(), [&](const std::size_t i) {
+    tbb::parallel_for<std::size_t>(0, _gain_cache.size(), [&](const std::size_t i) noexcept {
       _gain_cache[i] = 0;
     });
     _sparse_buffer_ets.clear();

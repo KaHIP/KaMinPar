@@ -68,9 +68,8 @@ void BestPartitionSnapshooter::update(
   }
 }
 
-void BestPartitionSnapshooter::copy_partition(
-    const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
-) {
+void BestPartitionSnapshooter::
+    copy_partition(const DistributedPartitionedGraph &p_graph, const PartitionContext &) {
   tbb::parallel_invoke(
       [&] {
         p_graph.pfor_all_nodes([&](const NodeID u) { _best_partition[u] = p_graph.block(u); });

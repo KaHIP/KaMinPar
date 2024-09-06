@@ -16,12 +16,6 @@ namespace kaminpar::dist {
 using namespace kaminpar::dist::testing;
 using namespace ::testing;
 
-namespace {
-StaticArray<GlobalNodeID> build_cnode_distribution(const GlobalNodeID n) {
-  return mpi::build_distribution_from_local_count<GlobalNodeID, StaticArray>(n, MPI_COMM_WORLD);
-}
-} // namespace
-
 TEST(ClusterContractionTest, contract_empty_graph) {
   auto graph = make_empty_graph();
 

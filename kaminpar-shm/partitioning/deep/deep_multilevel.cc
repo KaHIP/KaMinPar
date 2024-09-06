@@ -43,9 +43,12 @@ PartitionedGraph DeepMultilevelPartitioner::partition() {
   const Graph *c_graph = coarsen();
   PartitionedGraph p_graph = initial_partition(c_graph);
 
+  SCOPED_HEAP_PROFILER("Uncoarsening");
   bool refined = false;
   p_graph = uncoarsen(std::move(p_graph), refined);
   if (!refined || p_graph.k() < _input_ctx.partition.k) {
+    SCOPED_HEAP_PROFILER("Toplevel");
+
     LOG;
     LOG << "Toplevel:";
     LOG << "  Number of nodes: " << p_graph.n() << " | Number of edges: " << p_graph.m();
@@ -98,6 +101,7 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
         k_prime,
         _input_ctx,
         _current_p_ctx,
+        _tmp_extraction_mem_pool_ets,
         _bipartitioner_pool,
         _input_ctx.parallel.num_threads
     );
@@ -122,9 +126,9 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
 }
 
 PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph, bool &refined) {
-  SCOPED_HEAP_PROFILER("Uncoarsening");
-
   while (!_coarsener->empty()) {
+    SCOPED_HEAP_PROFILER("Level", std::to_string(_coarsener->level() - 1));
+
     LOG;
     LOG << "Uncoarsening -> Level " << (_coarsener->level() - 1);
 
@@ -152,13 +156,9 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
   NodeID prev_c_graph_n = c_graph->n();
   EdgeID prev_c_graph_m = c_graph->m();
   NodeWeight prev_c_graph_total_node_weight = c_graph->total_node_weight();
-  bool shrunk = true;
 
+  bool shrunk = true;
   bool search_subgraph_memory_size = !_input_ctx.partitioning.use_lazy_subgraph_memory;
-  NodeID subgraph_memory_n;
-  EdgeID subgraph_memory_m;
-  NodeID subgraph_memory_n_weights;
-  EdgeID subgraph_memory_m_weights;
 
   while (shrunk && c_graph->n() > initial_partitioning_threshold()) {
     // If requested, dump graph before each coarsening step + after coarsening
@@ -185,16 +185,20 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
         partitioning::compute_k_for_n(c_graph->n(), _input_ctx) < _input_ctx.partition.k) {
       search_subgraph_memory_size = false;
 
-      subgraph_memory_n = prev_c_graph_n;
-      subgraph_memory_m = prev_c_graph_m;
+      _subgraph_memory_n = prev_c_graph_n;
+      _subgraph_memory_m = prev_c_graph_m;
 
       const bool toplevel = _coarsener->level() == 1;
-      if (toplevel) {
-        subgraph_memory_n_weights = _input_graph.is_node_weighted() ? prev_c_graph_n : c_graph->n();
-        subgraph_memory_m_weights = _input_graph.is_edge_weighted() ? prev_c_graph_m : c_graph->m();
+      if (toplevel && !_input_graph.is_node_weighted()) {
+        _subgraph_memory_n_weights = c_graph->n();
       } else {
-        subgraph_memory_n_weights = prev_c_graph_n;
-        subgraph_memory_m_weights = prev_c_graph_m;
+        _subgraph_memory_n_weights = prev_c_graph_n;
+      }
+
+      if (toplevel && !_input_graph.is_edge_weighted()) {
+        _subgraph_memory_m_weights = c_graph->m();
+      } else {
+        _subgraph_memory_m_weights = prev_c_graph_m;
       }
     }
 
@@ -214,20 +218,8 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
   }
 
   if (search_subgraph_memory_size) {
-    subgraph_memory_n = prev_c_graph_n;
-    subgraph_memory_m = prev_c_graph_m;
-    subgraph_memory_n = subgraph_memory_n_weights = prev_c_graph_n;
-    subgraph_memory_m = subgraph_memory_m_weights = prev_c_graph_m;
-  }
-
-  if (!_input_ctx.partitioning.use_lazy_subgraph_memory) {
-    _subgraph_memory.resize(
-        subgraph_memory_n,
-        _input_ctx.partition.k,
-        subgraph_memory_m,
-        subgraph_memory_n_weights,
-        subgraph_memory_m_weights
-    );
+    _subgraph_memory_n = _subgraph_memory_n_weights = prev_c_graph_n;
+    _subgraph_memory_m = _subgraph_memory_m_weights = prev_c_graph_m;
   }
 
   TIMED_SCOPE("Coarsening") {
@@ -259,6 +251,16 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
   SCOPED_TIMER("Initial partitioning scheme");
   LOG << "Initial partitioning:";
 
+  if (!_input_ctx.partitioning.use_lazy_subgraph_memory) {
+    _subgraph_memory.resize(
+        _subgraph_memory_n,
+        _input_ctx.partition.k,
+        _subgraph_memory_m,
+        _subgraph_memory_n_weights,
+        _subgraph_memory_m_weights
+    );
+  }
+
   // If requested, dump the coarsest graph to disk. Note that in the context of
   // deep multilevel, this is not actually the coarsest graph, but rather the
   // coarsest graph before splitting PEs and duplicating the graph.
@@ -273,9 +275,7 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
   PartitionedGraph p_graph = [&] {
     switch (_input_ctx.partitioning.deep_initial_partitioning_mode) {
     case InitialPartitioningMode::SEQUENTIAL:
-      return partitioning::bipartition(
-          graph, _input_ctx.partition.k, _input_ctx, _bipartitioner_pool, true
-      );
+      return partitioning::bipartition(graph, _input_ctx.partition.k, _bipartitioner_pool, true);
 
     case InitialPartitioningMode::SYNCHRONOUS_PARALLEL:
       return SyncInitialPartitioner(_input_ctx, _bipartitioner_pool, _tmp_extraction_mem_pool_ets)

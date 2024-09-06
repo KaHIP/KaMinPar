@@ -162,26 +162,24 @@ public:
 
     if (sparse_size >= dense_size) {
       RankCombinedBitVector global_to_ghost_bitmap(_node_distribution.back());
-      foreach_global_to_ghost([&](const GlobalNodeID global_node,
-                                  const NodeID local_node,
-                                  const NodeID local_ghost,
-                                  const PEID owner) { global_to_ghost_bitmap.set(global_node); });
+      foreach_global_to_ghost([&](const GlobalNodeID global_node, NodeID, NodeID, PEID) {
+        global_to_ghost_bitmap.set(global_node);
+      });
       global_to_ghost_bitmap.update();
 
       RECORD("dense_global_to_ghost")
       CompactStaticArray<NodeID> dense_global_to_ghost(
           math::byte_width(num_ghost_nodes - 1), num_ghost_nodes
       );
-      foreach_global_to_ghost([&](const GlobalNodeID global_node,
-                                  const NodeID local_node,
-                                  const NodeID local_ghost,
-                                  const PEID owner) {
-        const std::size_t dense_index = global_to_ghost_bitmap.rank(global_node);
-        dense_global_to_ghost.write(dense_index, local_ghost);
+      foreach_global_to_ghost(
+          [&](const GlobalNodeID global_node, NodeID, const NodeID local_ghost, const PEID owner) {
+            const std::size_t dense_index = global_to_ghost_bitmap.rank(global_node);
+            dense_global_to_ghost.write(dense_index, local_ghost);
 
-        ghost_to_global.write(local_ghost, global_node);
-        ghost_owner.write(local_ghost, owner);
-      });
+            ghost_to_global.write(local_ghost, global_node);
+            ghost_owner.write(local_ghost, owner);
+          }
+      );
 
       return CompactGhostNodeMapping(
           _num_nodes,

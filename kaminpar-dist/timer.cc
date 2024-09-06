@@ -167,8 +167,6 @@ void generate_statistics(
   {
     constexpr std::size_t check_chars = 1024;
 
-    const PEID rank = mpi::get_comm_rank(comm);
-
     // check that this timer node has the same number of children on each PE
     auto num_children = mpi::allgather(node.children.size(), comm);
     if (!std::all_of(num_children.begin(), num_children.end(), [&](const std::size_t num) {

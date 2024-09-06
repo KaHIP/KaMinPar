@@ -351,7 +351,7 @@ public:
 private:
 #if defined(__x86_64__)
   template <typename Lambda> void decode32(Lambda &&l) {
-    static_assert(std::is_invocable_v<Lambda, Int> || PassPairs && std::is_invocable_v<Lambda, Int, Int>);
+    static_assert(std::is_invocable_v<Lambda, Int> || (PassPairs && std::is_invocable_v<Lambda, Int, Int>));
 
     using LambdaReturnType = std::conditional_t<
         PassPairs,

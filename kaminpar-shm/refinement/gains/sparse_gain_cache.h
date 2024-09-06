@@ -64,7 +64,7 @@ class SparseGainCache {
   constexpr static UnsignedEdgeWeight kWeightedDegreeMask = ~kWeightedDegreeLock;
 
   struct Statistics {
-    Statistics operator+(const Statistics &other) const {
+    Statistics operator+(const Statistics &other) const noexcept {
       return {
           num_sparse_queries + other.num_sparse_queries,
           num_sparse_updates + other.num_sparse_updates,
@@ -110,7 +110,9 @@ public:
   // the gain consumer with the total edge weight between the node and nodes in the specific block.
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
-  SparseGainCache(const Context &ctx, const NodeID preallocate_n, BlockID preallocate_k)
+  SparseGainCache(
+      const Context &ctx, const NodeID preallocate_n, [[maybe_unused]] BlockID preallocate_k
+  )
       : _ctx(ctx),
         // Since we do not know the size of the gain cache in advance (depends on vertex degrees),
         // we cannot preallocate it
@@ -320,7 +322,7 @@ private:
 
   void init_buckets() {
     _buckets.front() = 0;
-    for (int bucket = 0; bucket < _graph->number_of_buckets(); ++bucket) {
+    for (std::size_t bucket = 0; bucket < _graph->number_of_buckets(); ++bucket) {
       _buckets[bucket + 1] = _buckets[bucket] + _graph->bucket_size(bucket);
     }
     std::fill(_buckets.begin() + _graph->number_of_buckets(), _buckets.end(), _graph->n());
@@ -454,7 +456,7 @@ private:
 
     IFSTATS(_stats_ets.clear());
 
-    tbb::parallel_for<std::size_t>(0, _gain_cache.size(), [&](const std::size_t i) {
+    tbb::parallel_for<std::size_t>(0, _gain_cache.size(), [&](const std::size_t i) noexcept {
       _gain_cache[i] = 0;
     });
 

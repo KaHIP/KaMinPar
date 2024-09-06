@@ -30,7 +30,7 @@ template <typename T> static bool operator!=(const IotaRange<T> &a, const IotaRa
   }
 
   return a.begin() != b.begin() || a.end() != b.end();
-};
+}
 
 // See https://github.com/google/benchmark/blob/main/include/benchmark/benchmark.h
 template <class T> void do_not_optimize(T value) {
@@ -181,7 +181,6 @@ int main(int argc, char *argv[]) {
   std::string graph_filename;
   GraphFileFormat graph_file_format = io::GraphFileFormat::METIS;
   int num_threads = 1;
-  bool enable_benchmarks = true;
 
   CLI::App app("Shared-memory graph compression benchmark");
   app.add_option("-G,--graph", graph_filename, "Graph file")->required();

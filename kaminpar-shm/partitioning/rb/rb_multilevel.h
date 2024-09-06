@@ -88,7 +88,7 @@ public:
 
     // initial bipartitioning
     PartitionedGraph p_graph =
-        partitioning::bipartition(c_graph, final_k, _input_ctx, _bipartitioner_pool, true);
+        partitioning::bipartition(c_graph, final_k, _bipartitioner_pool, true);
     partitioning::update_partition_context(p_ctx, p_graph, _input_ctx.partition.k);
 
     // refine

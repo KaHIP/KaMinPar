@@ -18,9 +18,9 @@
 
 namespace kaminpar::shm {
 ClusteringCoarsener::ClusteringCoarsener(const Context &ctx, const PartitionContext &p_ctx)
-    : _clustering_algorithm(factory::create_clusterer(ctx)),
-      _c_ctx(ctx.coarsening),
-      _p_ctx(p_ctx) {}
+    : _c_ctx(ctx.coarsening),
+      _p_ctx(p_ctx),
+      _clustering_algorithm(factory::create_clusterer(ctx)) {}
 
 void ClusteringCoarsener::initialize(const Graph *graph) {
   _hierarchy.clear();
@@ -71,7 +71,6 @@ bool ClusteringCoarsener::coarsen() {
 }
 
 PartitionedGraph ClusteringCoarsener::uncoarsen(PartitionedGraph &&p_graph) {
-  SCOPED_HEAP_PROFILER("Level", std::to_string(_hierarchy.size()));
   SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
 
   const BlockID p_graph_k = p_graph.k();

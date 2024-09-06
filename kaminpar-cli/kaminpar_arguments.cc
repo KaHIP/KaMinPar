@@ -215,19 +215,6 @@ Options are:
   )"
       )
       ->capture_default_str();
-  lp->add_option(
-        "--c-lp-cluster-weights-struct", ctx.coarsening.clustering.lp.cluster_weights_structure
-  )
-      ->transform(CLI::CheckedTransformer(get_cluster_weight_structures()).description(""))
-      ->description(
-          R"(Determines the data structure for storing the cluster weights.
-Options are:
-  - vec:                 Uses a fixed-width vector
-  - two-level-vec:       Uses a two-level vector
-  - initially-small-vec: Uses a small fixed-width vector initially and switches to a bigger fixed-width vector after relabeling (Requires two-phase lp with relabeling)
-  )"
-      )
-      ->capture_default_str();
   lp->add_option("--c-lp-impl", ctx.coarsening.clustering.lp.impl)
       ->transform(CLI::CheckedTransformer(get_lp_implementations()).description(""))
       ->description(
@@ -315,9 +302,9 @@ Options are:
 CLI::Option_group *create_contraction_coarsening_options(CLI::App *app, Context &ctx) {
   auto *con = app->add_option_group("Coarsening -> Contraction");
 
-  con->add_option("--c-con-mode", ctx.coarsening.contraction.mode)
-      ->transform(CLI::CheckedTransformer(get_contraction_modes()).description(""))
-      ->description(R"(The mode used for contraction.
+  con->add_option("--c-contraction-algorithm", ctx.coarsening.contraction.algorithm)
+      ->transform(CLI::CheckedTransformer(get_contraction_algorithms()).description(""))
+      ->description(R"(The algorithm used for contraction.
 Options are:
   - buffered:         Use an edge buffer that is partially filled
   - buffered-legacy:  Use an edge buffer
@@ -325,7 +312,9 @@ Options are:
   - unbuffered-naive: Use no edge buffer by computing twice
   )")
       ->capture_default_str();
-  con->add_option("--c-con-unbuffered-impl", ctx.coarsening.contraction.implementation)
+  con->add_option(
+         "--c-contraction-unbuffered-impl", ctx.coarsening.contraction.unbuffered_implementation
+  )
       ->transform(CLI::CheckedTransformer(get_contraction_implementations()).description(""))
       ->description(
           R"(The implementation used for unbuffered contraction.

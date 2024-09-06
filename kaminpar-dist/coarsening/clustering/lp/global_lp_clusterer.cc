@@ -84,9 +84,11 @@ public:
 
     auto [rating_map_ets, active, favored_clusters] = Base::release();
     return {
-        std::move(rating_map_ets),
-        std::move(active),
-        std::move(favored_clusters),
+        {
+            std::move(rating_map_ets),
+            std::move(active),
+            std::move(favored_clusters),
+        },
         std::move(_changed_label),
         std::move(_locked),
         std::move(_cluster_weights),

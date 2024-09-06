@@ -36,7 +36,6 @@ DistributedPartitionedGraph KWayMultilevelPartitioner::partition() {
   coarsener->initialize(&_graph);
 
   const DistributedGraph *graph = &_graph;
-  const bool is_root = mpi::get_comm_rank(_graph.communicator());
 
   ////////////////////////////////////////////////////////////////////////////////
   // Step 1: Coarsening

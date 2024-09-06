@@ -315,7 +315,9 @@ private:
   }
 
   void rehash_impl(
-      const std::uint8_t *old_data_begin, const std::size_t old_size, const std::size_t old_capacity
+      const std::uint8_t *old_data_begin,
+      const std::size_t old_size,
+      [[maybe_unused]] const std::size_t old_capacity
   ) {
     _size = old_size;
 

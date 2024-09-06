@@ -20,7 +20,6 @@
 
 #include "kaminpar-common/datastructures/binary_heap.h"
 #include "kaminpar-common/logger.h"
-#include "kaminpar-common/parallel/atomic.h"
 #include "kaminpar-common/timer.h"
 
 // Gain cache variations: unless compiled with experimental features enabled, only the sparse gain
@@ -49,7 +48,7 @@ template <typename GainCache> struct SharedData {
   SharedData(const Context &ctx, const NodeID preallocate_n, const BlockID preallocate_k)
       : node_tracker(preallocate_n),
         gain_cache(ctx, preallocate_n, preallocate_k),
-        border_nodes(ctx, gain_cache, node_tracker),
+        border_nodes(gain_cache, node_tracker),
         shared_pq_handles(preallocate_n, SharedBinaryMaxHeap<EdgeWeight>::kInvalidID),
         target_blocks(preallocate_n, static_array::noinit) {}
 
@@ -99,7 +98,7 @@ public:
         _block_pq(_p_graph.k()),
         _stopping_policy(_fm_ctx.alpha) {
     _stopping_policy.init(_graph.n());
-    for (const BlockID b : _p_graph.blocks()) {
+    for ([[maybe_unused]] const BlockID b : _p_graph.blocks()) {
       _node_pqs.emplace_back(_graph.n(), _shared.shared_pq_handles.data());
     }
   }
@@ -304,7 +303,10 @@ private:
   }
 
   void update_after_move(
-      const NodeID node, const NodeID moved_node, const BlockID moved_from, const BlockID moved_to
+      const NodeID node,
+      [[maybe_unused]] const NodeID moved_node,
+      const BlockID moved_from,
+      const BlockID moved_to
   ) {
     const BlockID old_block = _p_graph.block(node);
     const BlockID old_target_block = _shared.target_blocks[node];
@@ -444,7 +446,7 @@ class FMRefinerCore : public Refiner {
 public:
   FMRefinerCore(const Context &ctx) : _ctx(ctx), _fm_ctx(ctx.refinement.kway_fm) {}
 
-  void initialize(const PartitionedGraph &p_graph) final {
+  void initialize([[maybe_unused]] const PartitionedGraph &p_graph) final {
     if (_uninitialized) {
       SCOPED_HEAP_PROFILER("FM Allocation");
       _shared =
@@ -574,7 +576,7 @@ FMRefiner::FMRefiner(const Context &input_ctx) : _ctx(input_ctx) {}
 FMRefiner::~FMRefiner() = default;
 
 void FMRefiner::initialize(const PartitionedGraph &p_graph) {
-  p_graph.reified([&]<typename Graph>(Graph &graph) {
+  p_graph.reified([&]<typename Graph>(Graph &) {
     switch (_ctx.refinement.kway_fm.gain_cache_strategy) {
     case GainCacheStrategy::COMPACT_HASHING:
       _core = std::make_unique<FMRefinerCore<Graph, NormalCompactHashingGainCache>>(_ctx);
