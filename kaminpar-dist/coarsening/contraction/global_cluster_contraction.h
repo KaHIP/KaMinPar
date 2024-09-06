@@ -16,7 +16,9 @@
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::dist {
+
 namespace debug {
+
 /**
  * Validates the given clustering, i.e., whether it is a valid input to the `contract_clustering()`
  * function.
@@ -30,6 +32,7 @@ namespace debug {
 bool validate_clustering(
     const DistributedGraph &graph, const StaticArray<GlobalNodeID> &lnode_to_gcluster
 );
+
 } // namespace debug
 
 /**
@@ -79,4 +82,5 @@ std::unique_ptr<CoarseGraph> contract_clustering(
     bool migrate_cnode_prefix = false,
     bool force_perfect_cnode_balance = true
 );
+
 } // namespace kaminpar::dist
