@@ -1,5 +1,5 @@
 /*
- * WeightedForestFireScore.hpp
+ * NetworKitWeightedForestFireScore.hpp
  *
  *  Created on: 26.08.2014
  *      Author: Gerd Lindner
@@ -16,11 +16,11 @@ using namespace NetworKit;
  * Based on the Forest Fire algorithm introduced by Leskovec et al.
  * The burn frequency of the edges is used as edge score.
  */
-class WeightedForestFireScore final : public EdgeScore<double> {
+class NetworKitWeightedForestFireScore final : public EdgeScore<double> {
 typedef std::tuple<node, edgeid, edgeweight> edgetriple;
 
 public:
-  WeightedForestFireScore(const NetworKit::Graph &graph, double pf, double targetBurntRatio);
+  NetworKitWeightedForestFireScore(const NetworKit::Graph &graph, double pf, double targetBurntRatio);
   double score(edgeid eid) override;
   double score(node u, node v) override;
   void run() override;

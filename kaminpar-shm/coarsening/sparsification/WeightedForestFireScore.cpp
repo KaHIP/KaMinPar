@@ -1,111 +1,82 @@
-/*
- * WeightedWeightedForestFireScore.cpp
- *
- *  Created on: 26.08.2014
- *      Author: Gerd Lindner
- */
+#include "WeightedForestFireScore.h"
 
-#include "WeightedForestFireScore.hpp"
-
-#include <limits>
+#include <functional>
 #include <queue>
-#include <set>
 
-#include <networkit/auxiliary/Log.hpp>
-#include <networkit/auxiliary/Parallel.hpp>
-#include <networkit/graph/GraphTools.hpp>
+#include <oneapi/tbb/concurrent_vector.h>
 
 #include "DistributionDecorator.h"
 #include "IndexDistributionWithoutReplacement.h"
 
+#include "kaminpar-common/random.h"
+
 namespace kaminpar::shm::sparsification {
+StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
+  std::vector<std::atomic_uint32_t> burnt(g.m());
+  tbb::parallel_for(0ul, burnt.size(), [&](auto i) { burnt[i] = 0; });
+  std::atomic_uint32_t edges_burnt = 0;
 
-WeightedForestFireScore::WeightedForestFireScore(
-    const NetworKit::Graph &G, double pf, double targetBurntRatio
-)
-    : EdgeScore<double>(G),
-      pf(pf),
-      targetBurntRatio(targetBurntRatio) {}
+  while (edges_burnt < _targetBurnRatio * g.m()) {
 
-void WeightedForestFireScore::run() {
-  if (G->hasEdgeIds() == false) {
-    throw std::runtime_error("edges have not been indexed - call indexEdges first");
-  }
-
-  std::vector<count> burnt(G->upperEdgeIdBound(), 0);
-  count edgesBurnt = 0;
-
-#pragma omp parallel
-  while (edgesBurnt < targetBurntRatio * G->numberOfEdges()) {
     // Start a new fire
-    std::queue<node> activeNodes;
-    std::vector<bool> visited(G->upperNodeIdBound(), false);
-    activeNodes.push(GraphTools::randomNode(*G));
+    std::queue<NodeID> activeNodes;
+    StaticArray<std::atomic_bool> visited(g.m(), false);
+    activeNodes.push(Random::instance().random_index(0, g.n()));
 
-    auto forwardNeighborDistribution = [&](node u) {
-      std::vector<std::pair<node, edgeid>> validEdges;
-      std::vector<edgeweight> weights;
-      for (count i = 0; i < G->degree(u); i++) {
-        auto [v, e] = G->getIthNeighborWithId(u, i);
-        if (visited[v])
-          continue;
-        weights.push_back(G->getIthNeighborWeight(u, i));
-        validEdges.emplace_back(v, e);
-      }
-      return DistributionDecorator<std::pair<node, edgeid>, IndexDistributionWithoutReplacement>(
+    auto forwardNeighborDistribution = [&](NodeID u) {
+      tbb::concurrent_vector<EdgeID> validEdges;
+      tbb::concurrent_vector<EdgeWeight> weights;
+      tbb::parallel_for(*g.incident_edges(u).begin(), *g.incident_edges(u).end(), [&](EdgeID e) {
+        if (!visited[g.edge_target(e)]) {
+          weights.push_back(g.edge_weight(e));
+          validEdges.push_back(e);
+        }
+      });
+      return DistributionDecorator<EdgeID, IndexDistributionWithoutReplacement>(
           weights.begin(), weights.end(), validEdges.begin(), validEdges.end()
       );
     };
 
-    count localEdgesBurnt = 0;
+    EdgeID localEdgesBurnt = 0;
 
     while (!activeNodes.empty()) {
-      node v = activeNodes.front();
+      NodeID u = activeNodes.front();
       activeNodes.pop();
 
-      auto validNeighborDistribution = forwardNeighborDistribution(v);
-
-      while (true) {
-        double q = Aux::Random::real(1.0);
-        if (q > pf || validNeighborDistribution.underlying_distribution().empty()) {
-          break;
+      tbb::concurrent_vector<EdgeID> validEdges;
+      tbb::concurrent_vector<EdgeWeight> weights;
+      tbb::parallel_for(*g.incident_edges(u).begin(), *g.incident_edges(u).end(), [&](EdgeID e) {
+        if (!visited[g.edge_target(e)]) {
+          weights.push_back(g.edge_weight(e));
+          validEdges.push_back(e);
         }
+      });
+      DistributionDecorator<EdgeID, IndexDistributionWithoutReplacement> validNeighborDistribution(
+          weights.begin(), weights.end(), validEdges.begin(), validEdges.end()
+      );
 
-        { // mark node as visited, burn edge
-          auto [x, eid] = validNeighborDistribution();
+      while (Random::instance().random_bool(_pf) ||
+             validNeighborDistribution.underlying_distribution().empty()) {
+
+        { // mark NodeID as visited, burn edge
+          EdgeID e = validNeighborDistribution();
+          NodeID x = g.edge_target(e);
           activeNodes.push(x);
-#pragma omp atomic
-          burnt[eid]++;
+          burnt[e]++;
           localEdgesBurnt++;
           visited[x] = true;
         }
       }
     }
 
-#pragma omp atomic
-    edgesBurnt += localEdgesBurnt;
+    edges_burnt += localEdgesBurnt;
   }
 
-  std::vector<double> burntNormalized(G->upperEdgeIdBound(), 0.0);
-  double maxv = (double)*Aux::Parallel::max_element(std::begin(burnt), std::end(burnt));
+  StaticArray<EdgeID> scores(g.m(), 0.0);
+  tbb::parallel_for(0ul, scores.size(), [&](auto i) { scores[i] = burnt[i].load(); });
 
-  if (maxv > 0) {
-#pragma omp parallel for
-    for (omp_index i = 0; i < static_cast<omp_index>(burnt.size()); ++i) {
-      burntNormalized[i] = burnt[i] / maxv;
-    }
-  }
-
-  scoreData = std::move(burntNormalized);
-  hasRun = true;
-}
-
-double WeightedForestFireScore::score(node, node) {
-  throw std::runtime_error("Not implemented: Use scores() instead.");
-}
-
-double WeightedForestFireScore::score(edgeid) {
-  throw std::runtime_error("Not implemented: Use scores() instead.");
+  // Not normalized as in the NetworKit implementation
+  return scores;
 }
 
 } // namespace kaminpar::shm::sparsification
