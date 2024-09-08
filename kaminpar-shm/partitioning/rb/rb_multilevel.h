@@ -16,6 +16,8 @@
 #include "kaminpar-shm/partitioning/partition_utils.h"
 #include "kaminpar-shm/partitioning/partitioner.h"
 
+#include "kaminpar-common/timer.h"
+
 namespace kaminpar::shm {
 class RBMultilevelPartitioner : public Partitioner {
 public:
