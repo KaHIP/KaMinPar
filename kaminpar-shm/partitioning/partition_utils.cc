@@ -13,17 +13,22 @@
 
 #include "kaminpar-shm/kaminpar.h"
 
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/math.h"
 
 namespace kaminpar::shm::partitioning {
 double compute_2way_adaptive_epsilon(
     const NodeWeight total_node_weight, const BlockID k, const PartitionContext &p_ctx
 ) {
+  KASSERT(p_ctx.k > 0u);
+  KASSERT(total_node_weight > 0);
+
   const double base =
       (1.0 + p_ctx.epsilon) * k * p_ctx.total_node_weight / p_ctx.k / total_node_weight;
   const double exponent = 1.0 / math::ceil_log2(k);
   const double epsilon_prime = std::pow(base, exponent) - 1.0;
   const double adaptive_epsilon = std::max(epsilon_prime, 0.0001);
+
   return adaptive_epsilon;
 }
 

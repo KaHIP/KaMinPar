@@ -562,7 +562,7 @@ void print(const PartitionContext &p_ctx, std::ostream &out) {
   const auto size = std::max<std::int64_t>(
       {static_cast<std::int64_t>(p_ctx.n), static_cast<std::int64_t>(p_ctx.m), max_block_weight}
   );
-  const std::size_t width = std::ceil(std::log10(size));
+  const std::size_t width = size > 0 ? std::ceil(std::log10(size)) : 1;
 
   out << "  Number of nodes:            " << std::setw(width) << p_ctx.n;
   if (asserting_cast<NodeWeight>(p_ctx.n) == p_ctx.total_node_weight) {

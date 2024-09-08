@@ -77,8 +77,12 @@ PartitionedGraph bipartition(
 
   timer.reset();
   auto bipartition = [&] {
+    if (graph->n() == 0) {
+      return StaticArray<BlockID>{};
+    }
+
     InitialMultilevelBipartitioner bipartitioner = initial_bipartitioner_pool.get();
-    bipartitioner.init(*csr, final_k);
+    bipartitioner.initialize(*csr, final_k);
     auto bipartition =
         bipartitioner.partition(timings ? &(timings->ip_timings) : nullptr).take_raw_partition();
 
@@ -94,6 +98,7 @@ PartitionedGraph bipartition(
       return bipartition;
     }
   }();
+
   if (timings != nullptr) {
     timings->bipartitioner_ms += timer.elapsed();
   }
