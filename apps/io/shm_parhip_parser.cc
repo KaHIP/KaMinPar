@@ -306,7 +306,7 @@ CSRGraph csr_read_deg_buckets(const std::string &filename) {
 
     StaticArray<NodeID> edges(header.num_edges, static_array::noinit);
     StaticArray<EdgeWeight> edge_weights;
-    if (header.has_node_weights) {
+    if (header.has_edge_weights) {
       edge_weights = StaticArray<EdgeWeight>(header.num_edges, static_array::noinit);
     }
 
