@@ -305,28 +305,48 @@ find_nonlocal_nodes(const Graph &graph, const StaticArray<GlobalNodeID> &lnode_t
   SCOPED_TIMER("Collect nonlocal nodes");
   SCOPED_HEAP_PROFILER("Collect nonlocal nodes");
 
-  std::size_t pos = 0;
-  std::unordered_map<GlobalNodeID, std::size_t> filter;
-  RECORD("nonlocal_nodes") StaticArray<GlobalNode> nonlocal_nodes(graph.total_n());
+  // @TODO parallelize
 
-  for (NodeID lnode = 0; lnode < graph.total_n(); ++lnode) {
-  //graph.pfor_all_nodes([&](const NodeID lnode) {
+  //growt::StaticGhostNodeMapping nonlocal_nodes(graph.total_n());
+  std::unordered_map<GlobalNodeID, NodeWeight> nonlocal_nodes;
+  std::atomic<std::size_t> size = 0;
+
+  graph.pfor_all_nodes([&](const NodeID lnode) {
     const GlobalNodeID gcluster = lnode_to_gcluster[lnode];
 
-    if (!graph.is_owned_global_node(gcluster)) {
-      const NodeWeight weight = graph.is_owned_node(lnode) ? graph.node_weight(lnode) : 0;
-
-      if (weight > 0 && filter.contains(gcluster)) {
-        nonlocal_nodes[filter[gcluster]].weight += weight;
-      } else if (!filter.contains(gcluster)) {
-        filter[gcluster] = pos;
-        nonlocal_nodes[pos++] = {.gcluster = gcluster, .weight = weight};
-      }
+    if (graph.is_owned_global_node(gcluster)) {
+      return;
     }
-  }//);
 
-  nonlocal_nodes.restrict(pos);
-  return nonlocal_nodes;
+    const NodeWeight weight = graph.is_owned_node(lnode) ? graph.node_weight(lnode) : 0;
+
+    //auto ans = nonlocal_nodes.insert_or_update(
+    //    gcluster + 1, weight, [](auto &lhs, auto rhs) { return lhs = lhs + rhs; }, weight
+    //);
+    //if (ans.second) {
+    //  size.fetch_add(1, std::memory_order_relaxed);
+    //}
+
+    if (nonlocal_nodes.contains(gcluster + 1)) {
+      nonlocal_nodes[gcluster + 1] += weight;
+    } else {
+      size.fetch_add(1, std::memory_order_relaxed);
+      nonlocal_nodes[gcluster + 1] = weight;
+    }
+  });
+
+  RECORD("nonlocal_nodes") StaticArray<GlobalNode> dense_nonlocal_nodes(size);
+  std::size_t i = 0;
+  for (const auto &[gcluster, weight] : nonlocal_nodes) {
+    KASSERT(i < size);
+
+    dense_nonlocal_nodes[i++] = {
+        .gcluster = gcluster - 1,
+        .weight = static_cast<NodeWeight>(weight),
+    };
+  }
+
+  return dense_nonlocal_nodes;
 
   /*
   RECORD("node_position_buffer") StaticArray<NodeID> node_position_buffer(graph.total_n() + 1);
