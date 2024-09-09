@@ -20,6 +20,7 @@
 #include "kaminpar-common/assert.h"
 
 namespace kaminpar::shm::partitioning {
+using SubgraphMemoryEts = tbb::enumerable_thread_specific<graph::SubgraphMemory>;
 using TemporarySubgraphMemoryEts = tbb::enumerable_thread_specific<graph::TemporarySubgraphMemory>;
 
 void update_partition_context(
@@ -83,6 +84,7 @@ void extend_partition_lazy_extraction(
     BlockID k_prime,
     const Context &input_ctx,
     PartitionContext &current_p_ctx,
+    SubgraphMemoryEts &extraction_mem_pool_ets,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
     std::size_t num_active_threads

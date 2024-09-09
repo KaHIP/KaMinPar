@@ -102,6 +102,7 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
         k_prime,
         _input_ctx,
         _current_p_ctx,
+        _extraction_mem_pool_ets,
         _tmp_extraction_mem_pool_ets,
         _bipartitioner_pool,
         _input_ctx.parallel.num_threads
@@ -261,7 +262,7 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
     SCOPED_HEAP_PROFILER("SubgraphMemory resize");
     SCOPED_TIMER("Allocation");
 
-    _subgraph_memory.resize(
+    _subgraph_memory.resize2(
         _subgraph_memory_n,
         _input_ctx.partition.k,
         _subgraph_memory_m,
