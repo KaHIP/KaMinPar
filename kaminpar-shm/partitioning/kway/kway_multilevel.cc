@@ -14,6 +14,7 @@
 
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/heap_profiler.h"
+#include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
 namespace {

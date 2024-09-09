@@ -9,7 +9,9 @@
 
 #include "kaminpar-shm/partitioning/partition_utils.h"
 
+#include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/math.h"
+#include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::partitioning {
 namespace {
@@ -120,7 +122,7 @@ void extend_partition_recursive(
     const BlockID final_k,
     const Context &input_ctx,
     const graph::SubgraphMemoryStartPosition position,
-    graph::OCSubgraphMemory &subgraph_memory,
+    graph::SubgraphMemory &subgraph_memory,
     graph::TemporarySubgraphMemory &tmp_subgraph_memory,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
     BipartitionTimingInfo *timings
@@ -285,6 +287,7 @@ void extend_partition_lazy_extraction(
     const BlockID k_prime,     // extend to this many blocks
     const Context &input_ctx,  // stores input k
     PartitionContext &current_p_ctx,
+    SubgraphMemoryEts &extraction_mem_pool_ets,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
     std::size_t num_active_threads
@@ -306,6 +309,7 @@ void extend_partition_lazy_extraction(
           factor * p_graph.k(),
           input_ctx,
           current_p_ctx,
+          extraction_mem_pool_ets,
           tmp_extraction_mem_pool_ets,
           bipartitioner_pool,
           num_active_threads
@@ -316,7 +320,7 @@ void extend_partition_lazy_extraction(
   SCOPED_TIMER("Initial partitioning");
   const BlockID k = p_graph.k();
 
-  auto [mapping, block_nodes_offset, block_nodes, max_b_n, max_b_m] = TIMED_SCOPE("Preprocessing") {
+  auto [mapping, block_nodes_offset, block_nodes, block_num_edges] = TIMED_SCOPE("Preprocessing") {
     SCOPED_HEAP_PROFILER("Preprocessing");
     return graph::lazy_extract_subgraphs_preprocessing(p_graph);
   };
@@ -337,11 +341,6 @@ void extend_partition_lazy_extraction(
     SCOPED_HEAP_PROFILER("Bipartitioning");
     tbb::enumerable_thread_specific<BipartitionTimingInfo> dbg_timings_ets;
 
-    tbb::enumerable_thread_specific<graph::SubgraphMemoryStartPosition> positions_ets;
-    tbb::enumerable_thread_specific<graph::OCSubgraphMemory> subgraph_memory_ets([&] {
-      return graph::OCSubgraphMemory(max_b_n + input_ctx.partition.k, max_b_m);
-    });
-
     tbb::parallel_for<BlockID>(0, k, [&](const BlockID b) {
       const BlockID final_kb = compute_final_k(b, k, input_ctx.partition.k);
       const BlockID subgraph_k = (k_prime == input_ctx.partition.k) ? final_kb : k_prime / k;
@@ -352,15 +351,23 @@ void extend_partition_lazy_extraction(
       auto &timing = dbg_timings_ets.local();
 
       const NodeID num_block_nodes = block_nodes_offset[b + 1] - block_nodes_offset[b];
+      const EdgeID num_block_edges = block_num_edges[b];
+
+      auto &subgraph_memory = extraction_mem_pool_ets.local();
+      if (subgraph_memory.nodes.size() < num_block_nodes) {
+        subgraph_memory.nodes.resize(num_block_nodes + input_ctx.partition.k, static_array::noinit);
+        subgraph_memory.node_weights.resize(
+            num_block_nodes + input_ctx.partition.k, static_array::noinit
+        );
+      }
+      if (subgraph_memory.edges.size() < num_block_edges) {
+        subgraph_memory.edges.resize(num_block_edges, static_array::noinit);
+        subgraph_memory.edge_weights.resize(num_block_edges, static_array::noinit);
+      }
+
       const StaticArray<NodeID> local_block_nodes(
           num_block_nodes, block_nodes.data() + block_nodes_offset[b]
       );
-
-      auto &positions = positions_ets.local();
-      positions.nodes_start_pos = 0;
-      positions.edges_start_pos = 0;
-
-      auto &subgraph_memory = subgraph_memory_ets.local();
       const auto subgraph =
           graph::extract_subgraph(p_graph, b, local_block_nodes, mapping, subgraph_memory);
 
@@ -375,20 +382,13 @@ void extend_partition_lazy_extraction(
           subgraph_k,
           final_kb,
           input_ctx,
-          positions,
+          {},
           subgraph_memory,
           tmp_extraction_mem_pool_ets.local(),
           bipartitioner_pool,
           &timing
       );
     });
-
-    if constexpr (kHeapProfiling) {
-      SCOPED_HEAP_PROFILER("Subgraph memory allocation");
-      for (auto &subgraph_memory : subgraph_memory_ets) {
-        subgraph_memory.record_allocations();
-      }
-    }
 
     if constexpr (kDebug) {
       const auto timings = dbg_timings_ets.combine([](auto &a, const auto &b) { return a += b; });
@@ -425,6 +425,7 @@ void extend_partition_lazy_extraction(
   };
 
   update_partition_context(current_p_ctx, p_graph, input_ctx.partition.k);
+  KASSERT(p_graph.k() == k_prime);
 }
 
 void extend_partition(

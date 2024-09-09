@@ -17,6 +17,7 @@
 
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/heap_profiler.h"
+#include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
 namespace {
@@ -101,6 +102,7 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
         k_prime,
         _input_ctx,
         _current_p_ctx,
+        _extraction_mem_pool_ets,
         _tmp_extraction_mem_pool_ets,
         _bipartitioner_pool,
         _input_ctx.parallel.num_threads
@@ -252,7 +254,10 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
   LOG << "Initial partitioning:";
 
   if (!_input_ctx.partitioning.use_lazy_subgraph_memory) {
-    _subgraph_memory.resize(
+    SCOPED_HEAP_PROFILER("SubgraphMemory resize");
+    SCOPED_TIMER("Allocation");
+
+    _subgraph_memory.resize2(
         _subgraph_memory_n,
         _input_ctx.partition.k,
         _subgraph_memory_m,
