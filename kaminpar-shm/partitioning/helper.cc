@@ -282,6 +282,7 @@ void extend_partition_lazy_extraction(
     const BlockID k_prime,     // extend to this many blocks
     const Context &input_ctx,  // stores input k
     PartitionContext &current_p_ctx,
+    SubgraphMemoryEts &extraction_mem_pool_ets,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
     std::size_t num_active_threads
@@ -303,6 +304,7 @@ void extend_partition_lazy_extraction(
           factor * p_graph.k(),
           input_ctx,
           current_p_ctx,
+          extraction_mem_pool_ets,
           tmp_extraction_mem_pool_ets,
           bipartitioner_pool,
           num_active_threads
@@ -344,12 +346,22 @@ void extend_partition_lazy_extraction(
       auto &timing = dbg_timings_ets.local();
 
       const NodeID num_block_nodes = block_nodes_offset[b + 1] - block_nodes_offset[b];
+      const EdgeID num_block_edges = block_num_edges[b];
+
+      auto &subgraph_memory = extraction_mem_pool_ets.local();
+      if (subgraph_memory.nodes.size() < num_block_nodes) {
+        subgraph_memory.nodes.resize(num_block_nodes + input_ctx.partition.k, static_array::noinit);
+        subgraph_memory.node_weights.resize(
+            num_block_nodes + input_ctx.partition.k, static_array::noinit
+        );
+      }
+      if (subgraph_memory.edges.size() < num_block_edges) {
+        subgraph_memory.edges.resize(num_block_edges, static_array::noinit);
+        subgraph_memory.edge_weights.resize(num_block_edges, static_array::noinit);
+      }
+
       const StaticArray<NodeID> local_block_nodes(
           num_block_nodes, block_nodes.data() + block_nodes_offset[b]
-      );
-
-      graph::SubgraphMemory subgraph_memory(
-          num_block_nodes, input_ctx.partition.k, block_num_edges[b], true, true
       );
       const auto subgraph =
           graph::extract_subgraph(p_graph, b, local_block_nodes, mapping, subgraph_memory);

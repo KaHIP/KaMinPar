@@ -66,10 +66,10 @@ struct SubgraphMemory {
       const bool is_node_weighted = true,
       const bool is_edge_weighted = true
   ) {
-    resize(n, k, m, is_node_weighted ? n : 0, is_edge_weighted ? m : 0);
+    resize2(n, k, m, is_node_weighted ? n : 0, is_edge_weighted ? m : 0);
   }
 
-  void resize(
+  void resize2(
       const NodeID n,
       const BlockID k,
       const EdgeID m,
