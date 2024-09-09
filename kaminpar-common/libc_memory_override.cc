@@ -31,7 +31,7 @@ void *malloc(size_t size) {
   void *ptr = __libc_malloc(size);
   HeapProfiler::global().record_alloc(ptr, size);
   return ptr;
-};
+}
 
 void *calloc(size_t size, size_t n) {
   void *ptr = __libc_calloc(size, n);
