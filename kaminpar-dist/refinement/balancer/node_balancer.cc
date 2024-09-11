@@ -580,8 +580,9 @@ private:
                 reassigned,
                 "could not find a feasible target block for node "
                     << candidate.id << ", weight " << candidate.weight << ", deltas: ["
-                    << block_weight_deltas_to << "]" << ", max block weights: "
-                    << _p_ctx.graph->max_block_weights << ", block weights: "
+                    << block_weight_deltas_to << "]"
+                    << ", max block weights: " << _p_ctx.graph->max_block_weights
+                    << ", block weights: "
                     << std::vector<BlockWeight>(
                            _p_graph.block_weights().begin(), _p_graph.block_weights().end()
                        )

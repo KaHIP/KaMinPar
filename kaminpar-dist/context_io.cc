@@ -401,7 +401,8 @@ void print(
 
     out << "Compression ratio:            [Min=" << round(ctx.min_compression_ratio)
         << " | Mean=" << round(ctx.avg_compression_ratio)
-        << " | Max=" << round(ctx.max_compression_ratio) << "]" << "\n";
+        << " | Max=" << round(ctx.max_compression_ratio) << "]"
+        << "\n";
 
     out << "Largest compressed graph:     " << to_gib(ctx.largest_compressed_graph_prev_size)
         << " GiB -> " << to_gib(ctx.largest_compressed_graph) << " GiB\n";

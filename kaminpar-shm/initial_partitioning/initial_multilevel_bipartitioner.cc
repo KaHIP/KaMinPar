@@ -47,7 +47,7 @@ InitialMultilevelBipartitioner::InitialMultilevelBipartitioner(const Context &ct
       _refiner(create_initial_refiner(_i_ctx.refinement)) {}
 
 void InitialMultilevelBipartitioner::initialize(const CSRGraph &graph, const BlockID final_k) {
-  KASSERT(final_k > 0);
+  KASSERT(final_k > 0u);
   KASSERT(graph.n() > 0);
 
   _graph = &graph;
