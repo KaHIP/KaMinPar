@@ -24,13 +24,13 @@ public:
     auto [threshold, numEdgesAtThresholdScoreToInclude] =
         find_threshold(scores, target_edge_amount, g);
 
-    utils::p_for_upward_edges(g, [&](EdgeID e) {
+    utils::parallel_for_upward_edges(g, [&](EdgeID e) {
       if (scores[e] > threshold) {
         sample[e] = g.edge_weight(e);
       } else if (scores[e] == threshold && numEdgesAtThresholdScoreToInclude > 0) {
         sample[e] = g.edge_weight(e);
-        numEdgesAtThresholdScoreToInclude--;
-      }
+        __atomic_add_fetch(&numEdgesAtThresholdScoreToInclude, -1, __ATOMIC_RELAXED);
+        }
     });
 
     KASSERT(

@@ -49,41 +49,27 @@ void SparsifyingClusteringCoarsener::initialize(const Graph *graph) {
 CSRGraph
 SparsifyingClusteringCoarsener::sparsify(const CSRGraph &g, StaticArray<EdgeWeight> sample) {
   SCOPED_TIMER("Build Sparsifier");
-  auto atomic_nodes = std::vector<std::atomic_uint32_t>(g.n() + 1);
-  tbb::parallel_for(static_cast<size_t>(0), atomic_nodes.size(), [&](auto i) {
-    atomic_nodes[i] = 0;
-  });
-  atomic_nodes[0] = 0;
-  sparsification::utils::p_for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
+  auto nodes = StaticArray<EdgeID>(g.n() + 1);
+  sparsification::utils::parallel_for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
     if (u < v && sample[e]) {
-      atomic_nodes[u + 1]++;
-      atomic_nodes[v + 1]++;
+      __atomic_add_fetch(&nodes[u+1],1,__ATOMIC_RELAXED);
+      __atomic_add_fetch(&nodes[v+1],1,__ATOMIC_RELAXED);
     }
-  });
-  StaticArray<EdgeID> nodes(g.n() + 1);
-  tbb::parallel_for(static_cast<NodeID>(0), g.n() + 1, [&](NodeID i) {
-    nodes[i] = atomic_nodes[i].load();
   });
   parallel::prefix_sum(nodes.begin(), nodes.end(), nodes.begin());
 
-  auto edges_added = std::vector<std::atomic_uint32_t>(g.n());
-  tbb::parallel_for(static_cast<size_t>(0), edges_added.size(), [&](auto i) {
-    edges_added[i] = 0;
-  });
-  auto node_locks = std::vector<tbb::spin_mutex>(g.n());
+  auto edges_added = StaticArray<EdgeID>(g.n());
   auto edges = StaticArray<NodeID>(nodes[g.n()]);
   auto edge_weights = StaticArray<EdgeWeight>(nodes[g.n()]);
 
-  sparsification::utils::for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
+  sparsification::utils::parallel_for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
     if (u < v && sample[e]) {
-      tbb::spin_mutex::scoped_lock lock_start_node(node_locks[u]);
-      tbb::spin_mutex::scoped_lock lock_end_node(node_locks[v]);
-      edges[nodes[v] + edges_added[v]] = u;
-      edges[nodes[u] + edges_added[u]] = v;
-      edge_weights[nodes[v] + edges_added[v]] = sample[e];
-      edge_weights[nodes[u] + edges_added[u]] = sample[e];
-      edges_added[v]++;
-      edges_added[u]++;
+      auto v_edges_added = __atomic_fetch_add(&edges_added[v],1,__ATOMIC_RELAXED);
+      auto u_edges_added = __atomic_fetch_add(&edges_added[u],1,__ATOMIC_RELAXED);
+      edges[nodes[v] + v_edges_added] = u;
+      edges[nodes[u] + u_edges_added] = v;
+      edge_weights[nodes[v] + v_edges_added] = sample[e];
+      edge_weights[nodes[u] + u_edges_added] = sample[e];
     }
   });
 
