@@ -151,7 +151,7 @@ struct SubgraphMemoryPreprocessingResult {
   StaticArray<NodeID> mapping;
   StaticArray<NodeID> block_nodes_offset;
   StaticArray<NodeID> block_nodes;
-  StaticArray<NodeID> block_num_edges;
+  StaticArray<EdgeID> block_num_edges;
 };
 
 [[nodiscard]] SubgraphMemoryPreprocessingResult
@@ -164,16 +164,6 @@ Graph extract_subgraph(
     const StaticArray<NodeID> &mapping,
     SubgraphMemory &subgraph_memory
 );
-
-/*
-SequentialSubgraphExtractionResult extract_subgraphs_sequential(
-    const PartitionedGraph &p_graph,
-    const std::array<BlockID, 2> &final_ks,
-    const SubgraphMemoryStartPosition memory_position,
-    SubgraphMemory &subgraph_memory,
-    TemporarySubgraphMemory &tmp_subgraph_memory
-);
-*/
 
 SubgraphExtractionResult extract_subgraphs(
     const PartitionedGraph &p_graph, BlockID input_k, SubgraphMemory &subgraph_memory

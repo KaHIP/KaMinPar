@@ -184,7 +184,7 @@ lazy_extract_subgraphs_preprocessing(const PartitionedGraph &p_graph) {
   StaticArray<NodeID> mapping(n, static_array::noinit);
   StaticArray<NodeID> block_nodes_offset(p_graph.k() + 1);
   StaticArray<NodeID> block_nodes(n, static_array::noinit);
-  StaticArray<NodeID> block_num_edges(p_graph.k());
+  StaticArray<EdgeID> block_num_edges(p_graph.k());
 
   tbb::enumerable_thread_specific<ScalableVector<NodeID>> tl_num_nodes_in_block{[&] {
     return ScalableVector<NodeID>(k);

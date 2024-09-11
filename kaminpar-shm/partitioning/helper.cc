@@ -123,7 +123,7 @@ void extend_partition_recursive(
     const Context &input_ctx,
     const graph::SubgraphMemoryStartPosition position,
     graph::SubgraphMemory &subgraph_memory,
-    graph::TemporarySubgraphMemory &tmp_subgraph_memory,
+    graph::TemporarySubgraphMemory &tmp_extraction_mem_pool,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
     BipartitionTimingInfo *timings
 ) {
@@ -168,11 +168,9 @@ void extend_partition_recursive(
 
   if (k > 2) {
     timer.reset();
-    auto extraction = extract_subgraphs_sequential(
-        p_graph, final_ks, position, subgraph_memory, tmp_subgraph_memory
+    auto [subgraphs, positions] = extract_subgraphs_sequential(
+        p_graph, final_ks, position, subgraph_memory, tmp_extraction_mem_pool
     );
-    const auto &subgraphs = extraction.subgraphs;
-    const auto &positions = extraction.positions;
     if (timings != nullptr)
       timings->extract_ms += timer.elapsed();
 
@@ -190,91 +188,7 @@ void extend_partition_recursive(
           input_ctx,
           positions[i],
           subgraph_memory,
-          tmp_subgraph_memory,
-          bipartitioner_pool,
-          timings
-      );
-    }
-  }
-}
-
-void extend_partition_recursive(
-    const Graph &graph,
-    StaticArray<BlockID> &partition,
-    const BlockID b0,
-    const BlockID k,
-    const BlockID final_k,
-    const Context &input_ctx,
-    graph::SubgraphMemory &subgraph_memory,
-    const graph::SubgraphMemoryStartPosition position,
-    TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
-    InitialBipartitionerWorkerPool &bipartitioner_pool,
-    BipartitionTimingInfo *timings
-) {
-  KASSERT(k > 1u);
-
-  PartitionedGraph p_graph = bipartition(&graph, final_k, bipartitioner_pool, false, timings);
-
-  timer::LocalTimer timer;
-
-  timer.reset();
-  std::array<BlockID, 2> final_ks{0, 0};
-  std::array<BlockID, 2> ks{0, 0};
-  std::tie(final_ks[0], final_ks[1]) = math::split_integral(final_k);
-  std::tie(ks[0], ks[1]) = math::split_integral(k);
-  std::array<BlockID, 2> b{b0, b0 + ks[0]};
-  if (timings != nullptr)
-    timings->misc_ms += timer.elapsed();
-
-  DBG << "bipartitioning graph with weight " << graph.total_node_weight() << " = "
-      << p_graph.block_weight(0) << " + " << p_graph.block_weight(1) << " for final k " << final_k
-      << " = " << final_ks[0] << " + " << final_ks[1] << ", for total of " << k << " = " << ks[0]
-      << " + " << ks[1] << " blocks";
-
-  KASSERT(ks[0] >= 1u);
-  KASSERT(ks[1] >= 1u);
-  KASSERT(final_ks[0] >= ks[0]);
-  KASSERT(final_ks[1] >= ks[1]);
-  KASSERT(b[0] < input_ctx.partition.k);
-  KASSERT(b[1] < input_ctx.partition.k);
-
-  // Copy p_graph to partition -> replace b0 with b0 or b1
-  {
-    timer.reset();
-    NodeID node = 0;
-    for (BlockID &block : partition) {
-      block = (block == b0) ? b[p_graph.block(node++)] : block;
-    }
-    KASSERT(node == p_graph.n());
-    if (timings != nullptr)
-      timings->copy_ms += timer.elapsed();
-  }
-
-  if (k > 2) {
-    timer.reset();
-    auto extraction = extract_subgraphs_sequential(
-        p_graph, final_ks, position, subgraph_memory, tmp_extraction_mem_pool_ets.local()
-    );
-    const auto &subgraphs = extraction.subgraphs;
-    const auto &positions = extraction.positions;
-    if (timings != nullptr)
-      timings->extract_ms += timer.elapsed();
-
-    for (const std::size_t i : {0, 1}) {
-      if (ks[i] <= 1) {
-        continue;
-      }
-
-      extend_partition_recursive(
-          subgraphs[i],
-          partition,
-          b[i],
-          ks[i],
-          final_ks[i],
-          input_ctx,
-          subgraph_memory,
-          positions[i],
-          tmp_extraction_mem_pool_ets,
+          tmp_extraction_mem_pool,
           bipartitioner_pool,
           timings
       );
@@ -351,14 +265,13 @@ void extend_partition_lazy_extraction(
       auto &timing = dbg_timings_ets.local();
 
       const NodeID num_block_nodes = block_nodes_offset[b + 1] - block_nodes_offset[b];
+      const NodeID subgraph_memory_n = num_block_nodes + input_ctx.partition.k;
       const EdgeID num_block_edges = block_num_edges[b];
 
       auto &subgraph_memory = extraction_mem_pool_ets.local();
-      if (subgraph_memory.nodes.size() < num_block_nodes) {
-        subgraph_memory.nodes.resize(num_block_nodes + input_ctx.partition.k, static_array::noinit);
-        subgraph_memory.node_weights.resize(
-            num_block_nodes + input_ctx.partition.k, static_array::noinit
-        );
+      if (subgraph_memory.nodes.size() < subgraph_memory_n) {
+        subgraph_memory.nodes.resize(subgraph_memory_n, static_array::noinit);
+        subgraph_memory.node_weights.resize(subgraph_memory_n, static_array::noinit);
       }
       if (subgraph_memory.edges.size() < num_block_edges) {
         subgraph_memory.edges.resize(num_block_edges, static_array::noinit);
@@ -382,7 +295,7 @@ void extend_partition_lazy_extraction(
           subgraph_k,
           final_kb,
           input_ctx,
-          {},
+          {.nodes_start_pos = 0, .edges_start_pos = 0},
           subgraph_memory,
           tmp_extraction_mem_pool_ets.local(),
           bipartitioner_pool,
@@ -506,9 +419,9 @@ void extend_partition(
             subgraph_k,
             final_kb,
             input_ctx,
-            subgraph_memory,
             positions[b],
-            tmp_extraction_mem_pool_ets,
+            subgraph_memory,
+            tmp_extraction_mem_pool_ets.local(),
             bipartitioner_pool,
             &timing
         );
