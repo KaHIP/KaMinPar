@@ -80,6 +80,7 @@ Context create_default_context() {
               .deep_initial_partitioning_mode = InitialPartitioningMode::ASYNCHRONOUS_PARALLEL,
               .deep_initial_partitioning_load = 1.0,
               .min_consecutive_seq_bipartitioning_levels = 1,
+              .refine_after_extending_partition = false,
               .use_lazy_subgraph_memory = false,
           },
       .partition =

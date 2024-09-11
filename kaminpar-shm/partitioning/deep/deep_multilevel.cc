@@ -143,6 +143,11 @@ PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph, 
     if (p_graph.k() < desired_k) {
       extend_partition(p_graph, desired_k);
       refined = false;
+
+      if (_input_ctx.partitioning.refine_after_extending_partition) {
+        refine(p_graph);
+        refined = true;
+      }
     }
   }
 

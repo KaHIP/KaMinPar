@@ -83,6 +83,9 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
           "Whether to lazily extract block-induced subgraph during bipartitioning"
       )
       ->capture_default_str();
+  partitioning
+      ->add_flag("--p-refine-after-extending", ctx.partitioning.refine_after_extending_partition)
+      ->capture_default_str();
 
   create_partitioning_rearrangement_options(app, ctx);
 
@@ -177,21 +180,13 @@ Options are:
       )
       ->capture_default_str();
 
-  coarsening
-      ->add_flag("--c-force-kc-level", ctx.coarsening.clustering.force_kc_level)
+  coarsening->add_flag("--c-force-kc-level", ctx.coarsening.clustering.force_kc_level)
       ->capture_default_str();
-  coarsening
-      ->add_flag("--c-force-pc-level", ctx.coarsening.clustering.force_pc_level)
+  coarsening->add_flag("--c-force-pc-level", ctx.coarsening.clustering.force_pc_level)
       ->capture_default_str();
-  coarsening
-      ->add_option(
-          "--c-forced-upper-factor", ctx.coarsening.clustering.forced_upper_factor
-      )
+  coarsening->add_option("--c-forced-upper-factor", ctx.coarsening.clustering.forced_upper_factor)
       ->capture_default_str();
-  coarsening
-      ->add_option(
-          "--c-forced-lower-factor", ctx.coarsening.clustering.forced_lower_factor
-      )
+  coarsening->add_option("--c-forced-lower-factor", ctx.coarsening.clustering.forced_lower_factor)
       ->capture_default_str();
 
   create_lp_coarsening_options(app, ctx);
