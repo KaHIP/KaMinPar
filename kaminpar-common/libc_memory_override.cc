@@ -25,7 +25,6 @@ extern void *__libc_free(void *);
 extern void *__libc_memalign(size_t, size_t);
 extern void *__libc_valloc(size_t);
 extern void *__libc_pvalloc(size_t);
-extern void *__libc_realloc(void *, size_t);
 
 void *malloc(size_t size) {
   void *ptr = __libc_malloc(size);
