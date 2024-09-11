@@ -161,7 +161,7 @@ auto BfsExtractor::exchange_ghost_seed_nodes(
 
       // @todo filter
       // Only use this as a ghost node
-      
+
       next_ghost_seed_nodes[pe].emplace_back(distance, cur_interface_node);
       next_ignored_nodes[pe].push_back(cur_ghost_node);
     }

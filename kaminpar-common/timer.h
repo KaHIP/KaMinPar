@@ -57,11 +57,11 @@
 
 #define SCOPED_TIMER(...)                                                                          \
   VARARG_SELECT_HELPER2(                                                                           \
-      , __VA_ARGS__, SCOPED_TIMER_2(__VA_ARGS__), SCOPED_TIMER_1(__VA_ARGS__), ignore            \
+      , __VA_ARGS__, SCOPED_TIMER_2(__VA_ARGS__), SCOPED_TIMER_1(__VA_ARGS__), ignore              \
   )
 #define START_TIMER(...)                                                                           \
   VARARG_SELECT_HELPER2(                                                                           \
-      , __VA_ARGS__, START_TIMER_2(__VA_ARGS__), START_TIMER_1(__VA_ARGS__), ignore              \
+      , __VA_ARGS__, START_TIMER_2(__VA_ARGS__), START_TIMER_1(__VA_ARGS__), ignore                \
   )
 #ifdef KAMINPAR_ENABLE_TIMERS
 #define STOP_TIMER() (GLOBAL_TIMER.stop_timer())
@@ -72,7 +72,7 @@
 // must be followed by a lambda body that may or may not return some value
 #define TIMED_SCOPE(...)                                                                           \
   VARARG_SELECT_HELPER2(                                                                           \
-      , __VA_ARGS__, TIMED_SCOPE_2(__VA_ARGS__), TIMED_SCOPE_1(__VA_ARGS__), ignore              \
+      , __VA_ARGS__, TIMED_SCOPE_2(__VA_ARGS__), TIMED_SCOPE_1(__VA_ARGS__), ignore                \
   )
 
 namespace kaminpar {

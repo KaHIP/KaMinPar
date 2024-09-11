@@ -109,7 +109,7 @@ public:
         const BlockWeight max_weight = _p_ctx.graph->max_block_weight(block);
 
         if (current_weight > max_weight) {
-            std::size_t cutoff_bucket = 0;
+          std::size_t cutoff_bucket = 0;
           for (; cutoff_bucket < num_buckets() && current_weight > max_weight; ++cutoff_bucket) {
             current_weight -=
                 compactified_buckets[compactified_block * num_buckets() + cutoff_bucket];

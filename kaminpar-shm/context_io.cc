@@ -550,8 +550,8 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
         << r_ctx.jet.num_fruitless_iterations << " fruitless (improvement < "
         << 100.0 * (1 - r_ctx.jet.fruitless_threshold) << "%)\n";
     out << "  Gain temperature:           coarse [" << r_ctx.jet.initial_gain_temp_on_coarse_level
-        << ", " << r_ctx.jet.final_gain_temp_on_coarse_level << "], " << "fine ["
-        << r_ctx.jet.initial_gain_temp_on_fine_level << ", "
+        << ", " << r_ctx.jet.final_gain_temp_on_coarse_level << "], "
+        << "fine [" << r_ctx.jet.initial_gain_temp_on_fine_level << ", "
         << r_ctx.jet.final_gain_temp_on_fine_level << "]\n";
     out << "  Balancing algorithm:        " << r_ctx.jet.balancing_algorithm << "\n";
   }
@@ -595,8 +595,8 @@ void print(const Context &ctx, std::ostream &out) {
   out << "Execution mode:               " << ctx.parallel.num_threads << "\n";
   out << "Seed:                         " << Random::get_seed() << "\n";
   out << "Graph:                        " << ctx.debug.graph_name
-      << " [node ordering: " << ctx.node_ordering << "]" << " [edge ordering: " << ctx.edge_ordering
-      << "]\n";
+      << " [node ordering: " << ctx.node_ordering << "]"
+      << " [edge ordering: " << ctx.edge_ordering << "]\n";
   print(ctx.partition, out);
   cio::print_delimiter("Graph Compression", '-');
   print(ctx.compression, out);

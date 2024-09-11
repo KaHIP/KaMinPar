@@ -307,7 +307,7 @@ find_nonlocal_nodes(const Graph &graph, const StaticArray<GlobalNodeID> &lnode_t
 
   // @TODO parallelize
 
-  //growt::StaticGhostNodeMapping nonlocal_nodes(graph.total_n());
+  // growt::StaticGhostNodeMapping nonlocal_nodes(graph.total_n());
   std::unordered_map<GlobalNodeID, NodeWeight> nonlocal_nodes;
   std::atomic<std::size_t> size = 0;
 
@@ -320,12 +320,12 @@ find_nonlocal_nodes(const Graph &graph, const StaticArray<GlobalNodeID> &lnode_t
 
     const NodeWeight weight = graph.is_owned_node(lnode) ? graph.node_weight(lnode) : 0;
 
-    //auto ans = nonlocal_nodes.insert_or_update(
-    //    gcluster + 1, weight, [](auto &lhs, auto rhs) { return lhs = lhs + rhs; }, weight
+    // auto ans = nonlocal_nodes.insert_or_update(
+    //     gcluster + 1, weight, [](auto &lhs, auto rhs) { return lhs = lhs + rhs; }, weight
     //);
-    //if (ans.second) {
-    //  size.fetch_add(1, std::memory_order_relaxed);
-    //}
+    // if (ans.second) {
+    //   size.fetch_add(1, std::memory_order_relaxed);
+    // }
 
     if (nonlocal_nodes.contains(gcluster + 1)) {
       nonlocal_nodes[gcluster + 1] += weight;
@@ -1142,8 +1142,8 @@ bool validate_clustering(
           const NodeID lnode = graph.global_to_local_node(gnode);
           if (lnode_to_gcluster[lnode] != gcluster) {
             LOG_WARNING << "Inconsistent cluster for local node " << lnode
-                        << " (ghost node, global node ID " << gnode
-                        << "): " << "the node is owned by PE " << pe
+                        << " (ghost node, global node ID " << gnode << "): "
+                        << "the node is owned by PE " << pe
                         << ", which assigned the node to cluster " << gcluster
                         << ", but our ghost node is assigned to cluster "
                         << lnode_to_gcluster[lnode] << "; aborting";
