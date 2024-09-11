@@ -117,6 +117,11 @@ Context create_default_context() {
                       .cluster_weight_limit = ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
                       .cluster_weight_multiplier = 1.0,
                       .max_mem_free_coarsening_level = 0,
+
+                      .force_kc_level = false,
+                      .force_pc_level = false,
+                      .forced_upper_factor = 1.5,
+                      .forced_lower_factor = 1.1,
                   },
               .contraction =
                   {
