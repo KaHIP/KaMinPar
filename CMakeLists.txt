@@ -117,7 +117,6 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
 endif ()
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     list(APPEND KAMINPAR_WARNING_FLAGS
-        "-Wnoexcept"
         "-Wsuggest-override"
         "-fdiagnostics-color=always"
         "-Wcast-qual"
