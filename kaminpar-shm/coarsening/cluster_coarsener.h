@@ -45,6 +45,7 @@ private:
 
   [[nodiscard]] bool keep_allocated_memory() const;
 
+  const Context &_ctx;
   const CoarseningContext &_c_ctx;
   const PartitionContext &_p_ctx;
 

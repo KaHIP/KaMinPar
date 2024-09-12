@@ -182,6 +182,11 @@ struct ClusterCoarseningContext {
   double cluster_weight_multiplier;
 
   std::size_t max_mem_free_coarsening_level;
+
+  bool forced_kc_level;
+  bool forced_pc_level;
+  double forced_level_upper_factor;
+  double forced_level_lower_factor;
 };
 
 struct CoarseningContext {
@@ -418,6 +423,7 @@ struct PartitioningContext {
   InitialPartitioningMode deep_initial_partitioning_mode;
   double deep_initial_partitioning_load;
   int min_consecutive_seq_bipartitioning_levels;
+  bool refine_after_extending_partition;
 
   bool use_lazy_subgraph_memory;
 };

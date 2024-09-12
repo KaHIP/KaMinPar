@@ -80,6 +80,7 @@ Context create_default_context() {
               .deep_initial_partitioning_mode = InitialPartitioningMode::ASYNCHRONOUS_PARALLEL,
               .deep_initial_partitioning_load = 1.0,
               .min_consecutive_seq_bipartitioning_levels = 1,
+              .refine_after_extending_partition = false,
               .use_lazy_subgraph_memory = false,
           },
       .partition =
@@ -117,6 +118,11 @@ Context create_default_context() {
                       .cluster_weight_limit = ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
                       .cluster_weight_multiplier = 1.0,
                       .max_mem_free_coarsening_level = 0,
+
+                      .forced_kc_level = false,
+                      .forced_pc_level = false,
+                      .forced_level_upper_factor = 10.0,
+                      .forced_level_lower_factor = 1.1,
                   },
               .contraction =
                   {

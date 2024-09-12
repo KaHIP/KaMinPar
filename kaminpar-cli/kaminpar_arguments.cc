@@ -83,6 +83,9 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
           "Whether to lazily extract block-induced subgraph during bipartitioning"
       )
       ->capture_default_str();
+  partitioning
+      ->add_flag("--p-refine-after-extending", ctx.partitioning.refine_after_extending_partition)
+      ->capture_default_str();
 
   create_partitioning_rearrangement_options(app, ctx);
 
@@ -174,6 +177,21 @@ Options are:
           ctx.coarsening.clustering.max_mem_free_coarsening_level,
           "Maximum coarsening level for which the corresponding memory should be released "
           "afterwards"
+      )
+      ->capture_default_str();
+
+  coarsening->add_flag("--c-forced-kc-level", ctx.coarsening.clustering.forced_kc_level)
+      ->capture_default_str();
+  coarsening->add_flag("--c-forced-pc-level", ctx.coarsening.clustering.forced_pc_level)
+      ->capture_default_str();
+  coarsening
+      ->add_option(
+          "--c-forced-level-upper-factor", ctx.coarsening.clustering.forced_level_upper_factor
+      )
+      ->capture_default_str();
+  coarsening
+      ->add_option(
+          "--c-forced-level-lower-factor", ctx.coarsening.clustering.forced_level_lower_factor
       )
       ->capture_default_str();
 

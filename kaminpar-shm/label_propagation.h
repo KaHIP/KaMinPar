@@ -60,7 +60,7 @@ struct LabelPropagationConfig {
   static constexpr std::size_t kRatingMapThreshold = 10000;
 
   // If true, we count the number of empty clusters
-  static constexpr bool kTrackClusterCount = false;
+  static constexpr bool kTrackClusterCount = true;
 
   // If true, match singleton clusters in 2-hop distance
   static constexpr bool kUseTwoHopClustering = false;
