@@ -183,10 +183,10 @@ struct ClusterCoarseningContext {
 
   std::size_t max_mem_free_coarsening_level;
 
-  bool force_kc_level;
-  bool force_pc_level;
-  double forced_upper_factor;
-  double forced_lower_factor;
+  bool forced_kc_level;
+  bool forced_pc_level;
+  double forced_level_upper_factor;
+  double forced_level_lower_factor;
 };
 
 struct CoarseningContext {

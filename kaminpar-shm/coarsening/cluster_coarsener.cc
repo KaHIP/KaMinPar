@@ -21,7 +21,7 @@
 namespace kaminpar::shm {
 
 namespace {
-SET_DEBUG(true);
+SET_DEBUG(false);
 }
 
 ClusteringCoarsener::ClusteringCoarsener(const Context &ctx, const PartitionContext &p_ctx)
@@ -58,18 +58,18 @@ bool ClusteringCoarsener::coarsen() {
   {
     NodeID desired_cluster_count = 0;
 
-    const double U = _c_ctx.clustering.forced_upper_factor;
-    const double L = _c_ctx.clustering.forced_lower_factor;
+    const double U = _c_ctx.clustering.forced_level_upper_factor;
+    const double L = _c_ctx.clustering.forced_level_lower_factor;
     const BlockID k = _p_ctx.k;
     const int p = _ctx.parallel.num_threads;
     const NodeID C = _c_ctx.contraction_limit;
 
-    if (_c_ctx.clustering.force_kc_level) {
+    if (_c_ctx.clustering.forced_kc_level) {
       if (prev_n > U * C * k) {
         desired_cluster_count = std::max<NodeID>(desired_cluster_count, L * C * k);
       }
     }
-    if (_c_ctx.clustering.force_pc_level) {
+    if (_c_ctx.clustering.forced_pc_level) {
       if (prev_n > U * C * p) {
         desired_cluster_count = std::max<NodeID>(desired_cluster_count, L * C * p);
       }

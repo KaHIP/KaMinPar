@@ -180,13 +180,19 @@ Options are:
       )
       ->capture_default_str();
 
-  coarsening->add_flag("--c-force-kc-level", ctx.coarsening.clustering.force_kc_level)
+  coarsening->add_flag("--c-forced-kc-level", ctx.coarsening.clustering.forced_kc_level)
       ->capture_default_str();
-  coarsening->add_flag("--c-force-pc-level", ctx.coarsening.clustering.force_pc_level)
+  coarsening->add_flag("--c-forced-pc-level", ctx.coarsening.clustering.forced_pc_level)
       ->capture_default_str();
-  coarsening->add_option("--c-forced-upper-factor", ctx.coarsening.clustering.forced_upper_factor)
+  coarsening
+      ->add_option(
+          "--c-forced-level-upper-factor", ctx.coarsening.clustering.forced_level_upper_factor
+      )
       ->capture_default_str();
-  coarsening->add_option("--c-forced-lower-factor", ctx.coarsening.clustering.forced_lower_factor)
+  coarsening
+      ->add_option(
+          "--c-forced-level-lower-factor", ctx.coarsening.clustering.forced_level_lower_factor
+      )
       ->capture_default_str();
 
   create_lp_coarsening_options(app, ctx);

@@ -487,6 +487,12 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
         c_ctx.clustering.algorithm == ClusteringAlgorithm::LEGACY_LABEL_PROPAGATION) {
       print(c_ctx.clustering.lp, out);
     }
+    out << "  Forced hierarchy levels:    " << (c_ctx.clustering.forced_kc_level ? "+kC " : "")
+        << (c_ctx.clustering.forced_pc_level ? "+pC " : "")
+        << ((!c_ctx.clustering.forced_kc_level && !c_ctx.clustering.forced_pc_level) ? "<none> "
+                                                                                     : "")
+        << "(leeway: U=" << c_ctx.clustering.forced_level_upper_factor
+        << ", L=" << c_ctx.clustering.forced_level_lower_factor << ")\n";
   }
 
   out << "Contraction algorithm:        " << c_ctx.contraction.algorithm << '\n';
