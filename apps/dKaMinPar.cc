@@ -176,7 +176,7 @@ The output should be stored in a file and can be used by the -C,--config option.
         )
         ->capture_default_str();
     hp_group
-        ->add_option(
+        ->add_flag(
             "--hp-print-structs",
             app.heap_profiler_print_structs,
             "Print data structure memory statistics in the result summary."
