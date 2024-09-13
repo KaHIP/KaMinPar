@@ -32,7 +32,8 @@ template <typename T> struct tbb_deleter {
 template <typename T> using tbb_unique_ptr = std::unique_ptr<T, tbb_deleter<T>>;
 // template <typename T> using tbb_unique_ptr = std::unique_ptr<T>;
 
-template <typename T> tbb_unique_ptr<T> make_unique(const std::size_t size, const bool thp) {
+template <typename T>
+tbb_unique_ptr<T> make_unique(const std::size_t size, [[maybe_unused]] const bool thp) {
   auto nbytes = sizeof(T) * size;
   T *ptr = nullptr;
 
