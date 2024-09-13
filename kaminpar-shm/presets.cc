@@ -115,8 +115,12 @@ Context create_default_context() {
                                   IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP,
                               .tie_breaking_strategy = TieBreakingStrategy::UNIFORM,
                           },
+
                       .cluster_weight_limit = ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
                       .cluster_weight_multiplier = 1.0,
+
+                      .shrink_factor = std::numeric_limits<double>::max(),
+
                       .max_mem_free_coarsening_level = 0,
 
                       .forced_kc_level = false,

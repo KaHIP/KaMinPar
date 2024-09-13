@@ -480,6 +480,7 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
   if (c_ctx.algorithm == CoarseningAlgorithm::CLUSTERING) {
     out << "  Cluster weight limit:       " << c_ctx.clustering.cluster_weight_limit << " x "
         << c_ctx.clustering.cluster_weight_multiplier << "\n";
+    out << "  Shrink factor:              " << c_ctx.clustering.shrink_factor << "\n";
     out << "  Max mem-free level:         " << c_ctx.clustering.max_mem_free_coarsening_level
         << "\n";
     out << "  Clustering algorithm:       " << c_ctx.clustering.algorithm << "\n";

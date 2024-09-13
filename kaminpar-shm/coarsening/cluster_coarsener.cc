@@ -56,7 +56,7 @@ bool ClusteringCoarsener::coarsen() {
   );
 
   {
-    NodeID desired_cluster_count = 0;
+    NodeID desired_cluster_count = prev_n / _c_ctx.clustering.shrink_factor;
 
     const double U = _c_ctx.clustering.forced_level_upper_factor;
     const double L = _c_ctx.clustering.forced_level_lower_factor;

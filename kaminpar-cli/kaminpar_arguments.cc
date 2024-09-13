@@ -143,6 +143,14 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
 
   // Clustering options:
+  coarsening
+      ->add_option(
+          "--c-shrink-factor",
+          ctx.coarsening.clustering.shrink_factor,
+          "Upper limit on how fast the graph can shrink."
+      )
+      ->capture_default_str();
+
   coarsening->add_option("--c-clustering-algorithm", ctx.coarsening.clustering.algorithm)
       ->transform(CLI::CheckedTransformer(get_clustering_algorithms()).description(""))
       ->description(R"(One of the following options:

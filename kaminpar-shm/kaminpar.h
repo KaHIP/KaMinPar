@@ -181,6 +181,8 @@ struct ClusterCoarseningContext {
   ClusterWeightLimit cluster_weight_limit;
   double cluster_weight_multiplier;
 
+  double shrink_factor;
+
   std::size_t max_mem_free_coarsening_level;
 
   bool forced_kc_level;
