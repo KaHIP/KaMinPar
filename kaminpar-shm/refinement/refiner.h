@@ -32,7 +32,7 @@ public:
 
   [[nodiscard]] virtual std::string name() const {
     return "Unknown";
-  };
+  }
 
   virtual void initialize(const PartitionedGraph &p_graph) = 0;
 

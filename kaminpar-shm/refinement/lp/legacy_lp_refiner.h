@@ -17,7 +17,7 @@ class LegacyLabelPropagationRefiner : public Refiner {
 public:
   LegacyLabelPropagationRefiner(const Context &ctx);
 
-  ~LegacyLabelPropagationRefiner() final;
+  ~LegacyLabelPropagationRefiner() override;
 
   [[nodiscard]] std::string name() const override;
 
