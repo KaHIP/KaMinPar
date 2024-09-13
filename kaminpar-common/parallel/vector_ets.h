@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Vector of combinable thread-local data.
+ *
  * @file:   vector_ets.h
  * @author: Daniel Seemaier
  * @date:   27.10.2021
- * @brief:  Vector of combinable thread-local data.
  ******************************************************************************/
 #pragma once
 

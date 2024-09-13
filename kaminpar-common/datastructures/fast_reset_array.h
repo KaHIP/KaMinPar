@@ -1,9 +1,10 @@
 /*******************************************************************************
+ * Static array that can reset used elements in O(# of used elements), where the
+ * number of used elements might be much smaller than the array's capacity.
+ *
  * @file:   fast_reset_array.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Static array that can reset used elements in O(# of used elements),
- * where # of used elements might be much smaller than the array's capacity.
  ******************************************************************************/
 #pragma once
 

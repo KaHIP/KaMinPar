@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Hand rolled priority queues.
+ *
  * @file:   binary_heap.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Priority queue implementations.
  ******************************************************************************/
 #pragma once
 
