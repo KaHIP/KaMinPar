@@ -329,6 +329,10 @@ LabelPropagationRefiner::LabelPropagationRefiner(const Context &ctx)
 
 LabelPropagationRefiner::~LabelPropagationRefiner() = default;
 
+std::string LabelPropagationRefiner::name() const {
+  return "Label Propagation";
+}
+
 void LabelPropagationRefiner::initialize(const PartitionedGraph &p_graph) {
   _impl_wrapper->initialize(p_graph);
 }

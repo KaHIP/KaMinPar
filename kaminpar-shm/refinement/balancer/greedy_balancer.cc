@@ -18,9 +18,14 @@
 
 namespace kaminpar::shm {
 
+namespace {
+
+SET_DEBUG(false);
+SET_STATISTICS_FROM_GLOBAL();
+
+} // namespace
+
 template <typename Graph> class GreedyBalancerImpl {
-  SET_DEBUG(false);
-  SET_STATISTICS_FROM_GLOBAL();
 
   struct Statistics {
     EdgeWeight initial_cut;
@@ -453,6 +458,10 @@ GreedyBalancer::GreedyBalancer(const Context &ctx)
 }
 
 GreedyBalancer::~GreedyBalancer() = default;
+
+std::string GreedyBalancer::name() const {
+  return "Greedy Balancer";
+}
 
 void GreedyBalancer::initialize(const PartitionedGraph &) {}
 

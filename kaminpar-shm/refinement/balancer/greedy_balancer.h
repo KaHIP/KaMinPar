@@ -44,7 +44,10 @@ public:
   GreedyBalancer &operator=(GreedyBalancer &&) = default;
   GreedyBalancer(GreedyBalancer &&) noexcept = default;
 
+  [[nodiscard]] std::string name() const final;
+
   void initialize(const PartitionedGraph &p_graph) final;
+
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
   void track_moves(NormalSparseGainCache<Graph> *gain_cache);

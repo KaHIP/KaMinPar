@@ -575,6 +575,10 @@ private:
 FMRefiner::FMRefiner(const Context &input_ctx) : _ctx(input_ctx) {}
 FMRefiner::~FMRefiner() = default;
 
+std::string FMRefiner::name() const {
+  return "FM";
+}
+
 void FMRefiner::initialize(const PartitionedGraph &p_graph) {
   p_graph.reified([&]<typename Graph>(Graph &) {
     switch (_ctx.refinement.kway_fm.gain_cache_strategy) {

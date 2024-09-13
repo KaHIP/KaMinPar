@@ -34,6 +34,7 @@
 #include "kaminpar-shm/refinement/multi_refiner.h"
 
 namespace kaminpar::shm::factory {
+
 std::unique_ptr<Partitioner> create_partitioner(const Graph &graph, const Context &ctx) {
   SCOPED_HEAP_PROFILER("Create partitioner");
 
@@ -132,4 +133,5 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx) {
 
   return std::make_unique<MultiRefiner>(std::move(refiners), ctx.refinement.algorithms);
 }
+
 } // namespace kaminpar::shm::factory
