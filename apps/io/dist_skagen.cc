@@ -162,7 +162,9 @@ DistributedCompressedGraph compressed_streaming_generate(
   ::kagen::sKaGen gen(graph_options, chunks_per_pe, MPI_COMM_WORLD);
   gen.Initialize();
 
-  const auto [first_node, last_node] = gen.EstimateVertexRange();
+  const auto range = gen.EstimateVertexRange();
+  const auto first_node = range.first;
+  const auto last_node = range.second;
   bool respects_esimated_vertex_range = true;
 
   for (std::size_t pe = 0; pe < size; ++pe) {
