@@ -54,7 +54,7 @@ public:
     LegacyNonatomicClusterVectorRef::init_clusters_ref(clustering);
     Base::initialize(&graph, graph.n());
 
-    for (int iteration = 0; iteration < _lp_ctx.num_iterations; ++iteration) {
+    for (std::size_t iteration = 0; iteration < _lp_ctx.num_iterations; ++iteration) {
       SCOPED_TIMER("Iteration", std::to_string(iteration));
       if (perform_iteration() == 0) {
         break;

@@ -152,7 +152,6 @@ private:
     SCOPED_TIMER("Recompute gain cache");
 
     _graph->pfor_nodes([&](const NodeID u) {
-      const BlockID block_u = _p_graph->block(u);
       _weighted_degrees[u] = 0;
 
       _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {

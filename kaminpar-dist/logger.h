@@ -18,7 +18,7 @@
 
 #include "kaminpar-common/logger.h" // IWYU pragma: export
 
-#define LOG_RANK "[PE" << kaminpar::mpi::get_comm_rank(MPI_COMM_WORLD) << "]"
+#define LOG_RANK "[PE" << kaminpar::mpi::get_comm_rank(MPI_COMM_WORLD) << "] "
 
 #undef DBGC
 #define DBGC(cond)                                                                                 \

@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Dummy definition of sched_getcpu() for macOS.
+ *
  * @file:   sched_getcpu.h
  * @author: Daniel Seemaier
  * @date:   30.03.2022
- * @brief:  Dummy definition of sched_getcpu() for macOS.
  ******************************************************************************/
 #pragma once
 

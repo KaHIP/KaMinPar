@@ -175,7 +175,9 @@ public:
     tbb::parallel_for<std::size_t>(0, _size, [&](const std::size_t i) { _data[i] = *(first + i); });
   }
 
-  StaticArray() : StaticArray(0) {}
+  StaticArray() {
+    RECORD_DATA_STRUCT(0, _struct);
+  }
 
   StaticArray(const StaticArray &) = delete;
   StaticArray &operator=(const StaticArray &) = delete;
@@ -312,14 +314,11 @@ public:
   }
 
   template <typename... Tags>
-  void resize(const std::size_t size, const value_type init_value, Tags... tags) {
+  void resize(const std::size_t size, const value_type init_value, Tags...) {
     KASSERT(_data == _owned_data.get(), "cannot resize span", assert::always);
     const bool use_thp =
         (size >= KAMINPAR_THP_THRESHOLD && !contains_tag_v<static_array::small_t, Tags...>);
 
-    // Before allocating the new memory, free the old memory to prevent both from being held in
-    // memory at the same time
-    _owned_data.reset();
     allocate_data(size, use_thp);
 
     if constexpr (!contains_tag_v<static_array::noinit_t, Tags...>) {
@@ -336,7 +335,7 @@ public:
 
     if (assign_parallel) {
       const std::size_t step = std::max(count / std::thread::hardware_concurrency(), 1UL);
-      tbb::parallel_for<std::size_t>(0, count, step, [&](const size_type i) {
+      tbb::parallel_for<std::size_t>(0, count, step, [&](const size_type i) noexcept {
         for (size_type j = i; j < std::min(i + step, count); ++j) {
           _data[j] = value;
         }
@@ -357,6 +356,12 @@ public:
 
 private:
   void allocate_data(const std::size_t size, const bool thp) {
+    // Before allocating the new memory, free the old memory to prevent both from being held in
+    // memory at the same time
+    if (_owned_data != nullptr) {
+      _owned_data.reset();
+    }
+
     _owned_data = parallel::make_unique<value_type>(size, thp);
     _data = _owned_data.get();
     _size = size;

@@ -90,10 +90,10 @@ public:
     return _max_degree;
   }
 
-  void set_max_num_neighbors(const ClusterID max_num_neighbors) {
+  void set_max_num_neighbors(const NodeID max_num_neighbors) {
     _max_num_neighbors = max_num_neighbors;
   }
-  [[nodiscard]] ClusterID max_num_neighbors() const {
+  [[nodiscard]] NodeID max_num_neighbors() const {
     return _max_num_neighbors;
   }
 
@@ -166,7 +166,7 @@ protected:
    */
   void initialize(const CSRGraph *graph, const ClusterID num_clusters) {
     KASSERT(
-        graph->n() == 0 || (_num_nodes > 0u && _num_active_nodes > 0u),
+        graph->n() == 0u || (_num_nodes > 0u && _num_active_nodes > 0u),
         "you must call allocate() before initialize()"
     );
 

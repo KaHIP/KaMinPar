@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Hand rolled priority queues.
+ *
  * @file:   binary_heap.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Priority queue implementations.
  ******************************************************************************/
 #pragma once
 
@@ -67,7 +68,7 @@ template <typename Key, template <typename> typename Comparator> class SharedBin
 public:
   static constexpr ID kInvalidID = std::numeric_limits<ID>::max();
 
-  explicit SharedBinaryHeap(const ID shared_capacity, std::size_t *handles)
+  explicit SharedBinaryHeap(const ID shared_capacity, std::size_t *handles) noexcept
       : _capacity(shared_capacity),
         _heap(),
         _id_pos(handles) {}
@@ -189,8 +190,8 @@ public:
 
 private:
   struct HeapElement {
-    HeapElement() : id(kInvalidID), key(0) {}
-    HeapElement(const ID id, const Key &key) : id(id), key(key) {}
+    HeapElement() noexcept : id(kInvalidID), key(0) {}
+    HeapElement(const ID id, const Key &key) noexcept : id(id), key(key) {}
     ID id;
     Key key;
   };
@@ -409,8 +410,8 @@ public:
 
 private:
   struct HeapElement {
-    HeapElement() : id(kInvalidID), key(0) {}
-    HeapElement(const ID id, const Key &key) : id(id), key(key) {}
+    HeapElement() noexcept : id(kInvalidID), key(0) {}
+    HeapElement(const ID id, const Key &key) noexcept : id(id), key(key) {}
     ID id;
     Key key;
   };

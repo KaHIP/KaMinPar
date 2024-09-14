@@ -203,7 +203,7 @@ protected:
    */
   void initialize(const Graph *graph, const ClusterID num_clusters) {
     KASSERT(
-        graph->n() == 0 || (_num_nodes > 0u && _num_active_nodes > 0u),
+        graph->n() == 0u || (_num_nodes > 0u && _num_active_nodes > 0u),
         "you must call allocate() before initialize()"
     );
 

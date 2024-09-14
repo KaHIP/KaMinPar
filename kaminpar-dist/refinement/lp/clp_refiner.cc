@@ -54,8 +54,8 @@ ColoredLPRefiner::ColoredLPRefiner(
 )
     : _input_ctx(ctx),
       _ctx(ctx.refinement.colored_lp),
-      _p_graph(p_graph),
       _p_ctx(p_ctx),
+      _p_graph(p_graph),
       _gain_statistics() {}
 
 void ColoredLPRefiner::initialize() {

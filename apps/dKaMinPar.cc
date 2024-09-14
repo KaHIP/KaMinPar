@@ -63,7 +63,7 @@ struct ApplicationContext {
   bool experiment = false;
   bool check_input_graph = false;
 
-  IOKind io_kind;
+  IOKind io_kind = IOKind::KAGEN;
   GraphDistribution io_distribution = GraphDistribution::BALANCED_EDGES;
   kagen::FileFormat io_format = kagen::FileFormat::EXTENSION;
   kagen::GraphDistribution io_kagen_distribution = kagen::GraphDistribution::BALANCE_EDGES;
@@ -186,7 +186,7 @@ The output should be stored in a file and can be used by the -C,--config option.
         )
         ->capture_default_str();
     hp_group
-        ->add_option(
+        ->add_flag(
             "--hp-print-structs",
             app.heap_profiler_print_structs,
             "Print data structure memory statistics in the result summary."

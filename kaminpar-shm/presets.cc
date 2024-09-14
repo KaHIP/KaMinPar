@@ -14,24 +14,31 @@
 #include "kaminpar-shm/context.h"
 
 namespace kaminpar::shm {
+
 Context create_context_by_preset_name(const std::string &name) {
   if (name == "default") {
     return create_default_context();
-  } else if (name == "memory") {
-    return create_memory_context();
   } else if (name == "fast") {
     return create_fast_context();
-  } else if (name == "largek") {
-    return create_largek_context();
-  } else if (name == "largek-fast") {
-    return create_largek_fast_context();
-  } else if (name == "largek-ultrafast") {
-    return create_largek_ultrafast_context();
-  } else if (name == "largek-fm") {
-    return create_largek_fm_context();
   } else if (name == "strong" || name == "fm") {
     return create_strong_context();
-  } else if (name == "jet") {
+  }
+
+  if (name == "largek") {
+    return create_largek_context();
+  } else if (name == "fast-largek") {
+    return create_fast_largek_context();
+  } else if (name == "strong-largek") {
+    return create_strong_largek_context();
+  }
+
+  if (name == "memory") {
+    return create_memory_context();
+  } else if (name == "strong-memory") {
+    return create_strong_memory_context();
+  }
+
+  if (name == "jet") {
     return create_jet_context(1);
   } else if (name == "4xjet") {
     return create_jet_context(4);
@@ -45,16 +52,17 @@ Context create_context_by_preset_name(const std::string &name) {
 std::unordered_set<std::string> get_preset_names() {
   return {
       "default",
-      "memory",
       "fast",
-      "largek",
-      "largek-fast",
-      "largek-ultrafast",
       "strong",
-      "fm",
+      "largek",
+      "fast-largek",
+      "strong-largek",
+      "memory",
+      "strong-memory",
       "jet",
       "4xjet",
       "noref",
+      "fm",
   };
 }
 
@@ -72,6 +80,8 @@ Context create_default_context() {
               .deep_initial_partitioning_mode = InitialPartitioningMode::ASYNCHRONOUS_PARALLEL,
               .deep_initial_partitioning_load = 1.0,
               .min_consecutive_seq_bipartitioning_levels = 1,
+              .refine_after_extending_partition = false,
+              .use_lazy_subgraph_memory = false,
           },
       .partition =
           {
@@ -93,8 +103,6 @@ Context create_default_context() {
                               .num_iterations = 5,
                               .large_degree_threshold = 1000000,
                               .max_num_neighbors = 200000,
-                              .tie_breaking_strategy = TieBreakingStrategy::UNIFORM,
-                              .cluster_weights_structure = ClusterWeightsStructure::VEC,
                               .impl = LabelPropagationImplementation::TWO_PHASE,
                               .second_phase_selection_strategy =
                                   SecondPhaseSelectionStrategy::FULL_RATING_MAP,
@@ -105,16 +113,26 @@ Context create_default_context() {
                               .two_hop_threshold = 0.5,
                               .isolated_nodes_strategy =
                                   IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP,
+                              .tie_breaking_strategy = TieBreakingStrategy::UNIFORM,
                           },
+
                       .cluster_weight_limit = ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
                       .cluster_weight_multiplier = 1.0,
+
+                      .shrink_factor = std::numeric_limits<double>::max(),
+
                       .max_mem_free_coarsening_level = 0,
+
+                      .forced_kc_level = false,
+                      .forced_pc_level = false,
+                      .forced_level_upper_factor = 10.0,
+                      .forced_level_lower_factor = 1.1,
                   },
               .contraction =
                   {
                       // Context -> Coarsening -> Contraction
-                      .mode = ContractionMode::BUFFERED,
-                      .implementation = ContractionImplementation::SINGLE_PHASE,
+                      .algorithm = ContractionAlgorithm::BUFFERED,
+                      .unbuffered_implementation = ContractionImplementation::TWO_PHASE,
                       .edge_buffer_fill_fraction = 1,
                   },
               .contraction_limit = 2000,
@@ -191,7 +209,7 @@ Context create_default_context() {
                       .unlock_seed_nodes = true,
                       .use_exact_abortion_threshold = false,
                       .abortion_threshold = 0.999,
-                      .gain_cache_strategy = GainCacheStrategy::SPARSE,
+                      .gain_cache_strategy = GainCacheStrategy::COMPACT_HASHING,
                       .constant_high_degree_threshold = 0,
                       .k_based_high_degree_threshold = 1.0,
 
@@ -239,18 +257,6 @@ Context create_default_context() {
   };
 }
 
-Context create_memory_context() {
-  Context ctx = create_default_context();
-  ctx.node_ordering = NodeOrdering::EXTERNAL_DEGREE_BUCKETS;
-  ctx.compression.enabled = true;
-  ctx.coarsening.clustering.max_mem_free_coarsening_level = 1;
-  ctx.coarsening.clustering.lp.impl = LabelPropagationImplementation::TWO_PHASE;
-  ctx.coarsening.contraction.mode = ContractionMode::UNBUFFERED;
-  ctx.coarsening.contraction.implementation = ContractionImplementation::TWO_PHASE;
-  ctx.refinement.kway_fm.gain_cache_strategy = GainCacheStrategy::SPARSE;
-  return ctx;
-}
-
 Context create_fast_context() {
   Context ctx = create_default_context();
   ctx.partitioning.deep_initial_partitioning_load = 0.5;
@@ -258,6 +264,19 @@ Context create_fast_context() {
   ctx.initial_partitioning.pool.min_num_repetitions = 1;
   ctx.initial_partitioning.pool.min_num_non_adaptive_repetitions = 1;
   ctx.initial_partitioning.pool.max_num_repetitions = 1;
+  return ctx;
+}
+
+Context create_strong_context() {
+  Context ctx = create_default_context();
+
+  ctx.refinement.algorithms = {
+      RefinementAlgorithm::GREEDY_BALANCER,
+      RefinementAlgorithm::LEGACY_LABEL_PROPAGATION,
+      RefinementAlgorithm::KWAY_FM,
+      RefinementAlgorithm::GREEDY_BALANCER,
+  };
+
   return ctx;
 }
 
@@ -271,7 +290,7 @@ Context create_largek_context() {
   return ctx;
 }
 
-Context create_largek_fast_context() {
+Context create_fast_largek_context() {
   Context ctx = create_largek_context();
 
   ctx.initial_partitioning.pool.min_num_repetitions = 2;
@@ -289,23 +308,7 @@ Context create_largek_fast_context() {
   return ctx;
 }
 
-Context create_largek_ultrafast_context() {
-  Context ctx = create_default_context();
-
-  ctx.initial_partitioning.pool.min_num_repetitions = 1;
-  ctx.initial_partitioning.pool.min_num_non_adaptive_repetitions = 1;
-  ctx.initial_partitioning.pool.max_num_repetitions = 1;
-  ctx.initial_partitioning.pool.refinement.disabled = true;
-  ctx.initial_partitioning.pool.enable_bfs_bipartitioner = true;
-  ctx.initial_partitioning.pool.enable_ggg_bipartitioner = false;
-  ctx.initial_partitioning.pool.enable_random_bipartitioner = false;
-  ctx.initial_partitioning.refine_pool_partition = false;
-  ctx.initial_partitioning.refinement.disabled = true;
-
-  return ctx;
-}
-
-Context create_largek_fm_context() {
+Context create_strong_largek_context() {
   Context ctx = create_largek_context();
 
   ctx.refinement.algorithms = {
@@ -315,17 +318,37 @@ Context create_largek_fm_context() {
       RefinementAlgorithm::GREEDY_BALANCER,
   };
 
-  ctx.refinement.kway_fm.gain_cache_strategy = GainCacheStrategy::LARGE_K;
+  ctx.refinement.kway_fm.gain_cache_strategy = GainCacheStrategy::COMPACT_HASHING_LARGE_K;
 
   return ctx;
 }
 
-Context create_strong_context() {
+Context create_memory_context() {
   Context ctx = create_default_context();
+  ctx.node_ordering = NodeOrdering::EXTERNAL_DEGREE_BUCKETS;
+  ctx.compression.enabled = true;
+  ctx.partitioning.deep_initial_partitioning_mode = InitialPartitioningMode::SEQUENTIAL;
+  ctx.partitioning.use_lazy_subgraph_memory = true;
+  ctx.coarsening.clustering.max_mem_free_coarsening_level = 1;
+  ctx.coarsening.clustering.lp.impl = LabelPropagationImplementation::TWO_PHASE;
+  ctx.coarsening.contraction.algorithm = ContractionAlgorithm::UNBUFFERED;
+  ctx.coarsening.contraction.unbuffered_implementation = ContractionImplementation::TWO_PHASE;
+  ctx.refinement.kway_fm.gain_cache_strategy = GainCacheStrategy::COMPACT_HASHING;
 
   ctx.refinement.algorithms = {
       RefinementAlgorithm::GREEDY_BALANCER,
-      RefinementAlgorithm::LEGACY_LABEL_PROPAGATION,
+      RefinementAlgorithm::LABEL_PROPAGATION,
+  };
+
+  return ctx;
+}
+
+Context create_strong_memory_context() {
+  Context ctx = create_memory_context();
+
+  ctx.refinement.algorithms = {
+      RefinementAlgorithm::GREEDY_BALANCER,
+      RefinementAlgorithm::LABEL_PROPAGATION,
       RefinementAlgorithm::KWAY_FM,
       RefinementAlgorithm::GREEDY_BALANCER,
   };
@@ -357,4 +380,5 @@ Context create_noref_context() {
   ctx.refinement.algorithms.clear();
   return ctx;
 }
+
 } // namespace kaminpar::shm

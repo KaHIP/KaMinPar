@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Helpers for parallel loops.
+ *
  * @file:   loops.h
  * @author: Daniel Seemaier
  * @date:   30.03.2022
- * @brief:  Helpers for parallel loops.
  ******************************************************************************/
 #pragma once
 

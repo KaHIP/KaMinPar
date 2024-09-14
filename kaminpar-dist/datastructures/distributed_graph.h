@@ -464,6 +464,7 @@ private:
 void print_graph_summary(const DistributedGraph &graph);
 
 namespace debug {
+
 void print_graph(const DistributedGraph &graph);
 
 void print_local_graph_stats(const DistributedGraph &graph);
@@ -480,6 +481,7 @@ void print_local_graph_stats(const DistributedGraph &graph);
  * @return whether the graph data structure is consistent.
  */
 bool validate_graph(const DistributedGraph &graph);
+
 } // namespace debug
 
 } // namespace kaminpar::dist

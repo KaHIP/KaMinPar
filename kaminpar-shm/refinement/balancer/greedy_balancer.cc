@@ -18,9 +18,14 @@
 
 namespace kaminpar::shm {
 
+namespace {
+
+SET_DEBUG(false);
+SET_STATISTICS_FROM_GLOBAL();
+
+} // namespace
+
 template <typename Graph> class GreedyBalancerImpl {
-  SET_DEBUG(false);
-  SET_STATISTICS_FROM_GLOBAL();
 
   struct Statistics {
     EdgeWeight initial_cut;
@@ -77,8 +82,6 @@ template <typename Graph> class GreedyBalancerImpl {
   };
 
 public:
-  GreedyBalancerImpl(const Context &ctx) {}
-
   void setup(GreedyBalancerMemoryContext memory_context) {
     _pq = std::move(memory_context.pq);
     _rating_map = std::move(memory_context.rating_map);
@@ -447,14 +450,18 @@ private:
 };
 
 GreedyBalancer::GreedyBalancer(const Context &ctx)
-    : _csr_impl(std::make_unique<GreedyBalancerCSRImpl>(ctx)),
-      _compressed_impl(std::make_unique<GreedyBalancerCompressedImpl>(ctx)) {
+    : _csr_impl(std::make_unique<GreedyBalancerCSRImpl>()),
+      _compressed_impl(std::make_unique<GreedyBalancerCompressedImpl>()) {
   _memory_context.rating_map = tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>>{[&] {
     return RatingMap<EdgeWeight, NodeID>{ctx.partition.k};
   }};
 }
 
 GreedyBalancer::~GreedyBalancer() = default;
+
+std::string GreedyBalancer::name() const {
+  return "Greedy Balancer";
+}
 
 void GreedyBalancer::initialize(const PartitionedGraph &) {}
 

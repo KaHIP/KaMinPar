@@ -15,6 +15,7 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
+
 //
 // Private implementation
 //
@@ -148,6 +149,10 @@ LegacyLabelPropagationRefiner::~LegacyLabelPropagationRefiner() {
   delete _impl;
 }
 
+std::string LegacyLabelPropagationRefiner::name() const {
+  return "Legacy Label Propagation";
+}
+
 void LegacyLabelPropagationRefiner::initialize(const PartitionedGraph &p_graph) {
   _impl->initialize(p_graph);
 }
@@ -157,4 +162,5 @@ bool LegacyLabelPropagationRefiner::refine(
 ) {
   return _impl->refine(p_graph, p_ctx);
 }
+
 } // namespace kaminpar::shm

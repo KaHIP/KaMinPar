@@ -134,11 +134,9 @@ encode_values(const std::size_t count, const std::vector<Int> &random_values) {
   SCOPED_TIMER("Encoding");
 
   return std::make_tuple(
-      encode_values<Int>("Encoding zero values", count, [](const std::size_t i) { return 0; }),
+      encode_values<Int>("Encoding zero values", count, [](std::size_t) { return 0; }),
       encode_values<Int>(
-          "Encoding max values",
-          count,
-          [](const std::size_t i) { return std::numeric_limits<Int>::max(); }
+          "Encoding max values", count, [](std::size_t) { return std::numeric_limits<Int>::max(); }
       ),
       encode_values<Int>(
           "Encoding random values", count, [&](const std::size_t i) { return random_values[i]; }
@@ -155,13 +153,9 @@ encode_signed_values(const std::size_t count, const std::vector<Int> &random_val
   SCOPED_TIMER("Encoding signed values");
 
   return std::make_tuple(
+      encode_signed_values<Int>("Encoding zero values", count, [](std::size_t) { return 0; }),
       encode_signed_values<Int>(
-          "Encoding zero values", count, [](const std::size_t i) { return 0; }
-      ),
-      encode_signed_values<Int>(
-          "Encoding max values",
-          count,
-          [](const std::size_t i) { return std::numeric_limits<Int>::max(); }
+          "Encoding max values", count, [](std::size_t) { return std::numeric_limits<Int>::max(); }
       ),
       encode_signed_values<Int>(
           "Encoding random values", count, [&](const std::size_t i) { return random_values[i]; }
@@ -178,11 +172,9 @@ rl_encode_values(const std::size_t count, const std::vector<Int> &random_values)
   SCOPED_TIMER("Encoding run-length");
 
   return std::make_tuple(
-      rl_encode_values<Int>("Encoding zero values", count, [](const std::size_t i) { return 0; }),
+      rl_encode_values<Int>("Encoding zero values", count, [](std::size_t) { return 0; }),
       rl_encode_values<Int>(
-          "Encoding max values",
-          count,
-          [](const std::size_t i) { return std::numeric_limits<Int>::max(); }
+          "Encoding max values", count, [](std::size_t) { return std::numeric_limits<Int>::max(); }
       ),
       rl_encode_values<Int>(
           "Encoding random values", count, [&](const std::size_t i) { return random_values[i]; }
@@ -199,11 +191,9 @@ sv_encode_values(const std::size_t count, const std::vector<Int> &random_values)
   SCOPED_TIMER("Encoding stream");
 
   return std::make_tuple(
-      sv_encode_values<Int>("Encoding zero values", count, [](const std::size_t i) { return 0; }),
+      sv_encode_values<Int>("Encoding zero values", count, [](std::size_t) { return 0; }),
       sv_encode_values<Int>(
-          "Encoding max values",
-          count,
-          [](const std::size_t i) { return std::numeric_limits<Int>::max(); }
+          "Encoding max values", count, [](std::size_t) { return std::numeric_limits<Int>::max(); }
       ),
       sv_encode_values<Int>(
           "Encoding random values", count, [&](const std::size_t i) { return random_values[i]; }

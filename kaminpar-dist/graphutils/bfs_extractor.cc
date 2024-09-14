@@ -162,12 +162,6 @@ auto BfsExtractor::exchange_ghost_seed_nodes(
       // @todo filter
       // Only use this as a ghost node
 
-      if (cur_interface_node == -1) {
-        DBG0 << "received ghost seed node " << cur_interface_node << " with distance " << distance
-             << ", comign from ghost node " << cur_ghost_node
-             << " == " << _graph->local_to_global_node(cur_ghost_node) << " from PE " << pe;
-      }
-
       next_ghost_seed_nodes[pe].emplace_back(distance, cur_interface_node);
       next_ignored_nodes[pe].push_back(cur_ghost_node);
     }

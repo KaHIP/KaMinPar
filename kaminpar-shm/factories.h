@@ -16,6 +16,7 @@
 #include "kaminpar-shm/refinement/refiner.h"
 
 namespace kaminpar::shm::factory {
+
 std::unique_ptr<Partitioner> create_partitioner(const Graph &graph, const Context &ctx);
 
 std::unique_ptr<Clusterer> create_clusterer(const Context &ctx);
@@ -24,4 +25,5 @@ std::unique_ptr<Coarsener> create_coarsener(const Context &ctx, const PartitionC
 std::unique_ptr<Coarsener> create_coarsener(const Context &ctx);
 
 std::unique_ptr<Refiner> create_refiner(const Context &ctx);
+
 } // namespace kaminpar::shm::factory

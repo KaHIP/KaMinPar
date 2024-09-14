@@ -244,7 +244,6 @@ private:
 
     _graph.pfor_nodes([&](const NodeID u) {
       const BlockID b_u = _p_graph.block(u);
-      const NodeWeight w_u = _graph.node_weight(u);
 
       if (_locked[u]) {
         _gains_and_targets[u] = {0, b_u};

@@ -139,6 +139,7 @@ private:
 
   Random &_rand = Random::instance();
   RandomPermutations<NodeID, kChunkSize, kNumberOfNodePermutations> _random_permutations{_rand};
+  std::vector<NodeID> _chunks;
 
   InitialCoarsenerTimings _timings{};
 };

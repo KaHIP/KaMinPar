@@ -20,6 +20,7 @@
 #include "kaminpar-common/assert.h"
 
 namespace kaminpar::shm::partitioning {
+using SubgraphMemoryEts = tbb::enumerable_thread_specific<graph::SubgraphMemory>;
 using TemporarySubgraphMemoryEts = tbb::enumerable_thread_specific<graph::TemporarySubgraphMemory>;
 
 void update_partition_context(
@@ -57,7 +58,6 @@ struct BipartitionTimingInfo {
 PartitionedGraph bipartition(
     const Graph *graph,
     BlockID final_k,
-    const Context &input_ctx,
     InitialBipartitionerWorkerPool &bipartitioner_pool_ets,
     bool partition_lifespan,
     BipartitionTimingInfo *timing_info = nullptr
@@ -68,23 +68,26 @@ void refine(Refiner *refiner, PartitionedGraph &p_graph, const PartitionContext 
 void extend_partition_recursive(
     const Graph &graph,
     StaticArray<BlockID> &partition,
-    BlockID b0,
-    BlockID k,
-    BlockID final_k,
+    const BlockID b0,
+    const BlockID k,
+    const BlockID final_k,
     const Context &input_ctx,
+    const graph::SubgraphMemoryStartPosition position,
     graph::SubgraphMemory &subgraph_memory,
-    graph::SubgraphMemoryStartPosition position,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
     BipartitionTimingInfo *timings = nullptr
 );
 
-void extend_partition(
+void extend_partition_lazy_extraction(
     PartitionedGraph &p_graph,
     BlockID k_prime,
     const Context &input_ctx,
     PartitionContext &current_p_ctx,
-    InitialBipartitionerWorkerPool &bipartitioner_pool
+    SubgraphMemoryEts &extraction_mem_pool_ets,
+    TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
+    InitialBipartitionerWorkerPool &bipartitioner_pool,
+    std::size_t num_active_threads
 );
 
 void extend_partition(
@@ -95,7 +98,7 @@ void extend_partition(
     graph::SubgraphMemory &subgraph_memory,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
-    int num_active_threads
+    std::size_t num_active_threads
 );
 
 void extend_partition(
@@ -105,7 +108,7 @@ void extend_partition(
     PartitionContext &current_p_ctx,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
-    int num_active_threads
+    std::size_t num_active_threads
 );
 
 bool coarsen_once(Coarsener *coarsener, const Graph *graph, PartitionContext &current_p_ctx);

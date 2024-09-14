@@ -33,7 +33,7 @@ CompressedGraph::CompressedGraph(
   }
 
   init_degree_buckets();
-};
+}
 
 void CompressedGraph::init_degree_buckets() {
   KASSERT(std::all_of(_buckets.begin(), _buckets.end(), [](const auto n) { return n == 0; }));

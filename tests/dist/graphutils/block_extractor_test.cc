@@ -702,8 +702,6 @@ TEST(GlobalGraphExtractionTest, project_from_circle_clique_graph_less_pes_than_b
 
 // Test extracting one block with many PEs = each PE gets a copy of the block
 TEST(GlobalGraphExtractionTest, extract_one_block_with_many_pes) {
-  const PEID rank = mpi::get_comm_size(MPI_COMM_WORLD);
-
   auto graph = make_circle_graph();
   auto p_graph = make_partitioned_graph(graph, 1, {0});
 

@@ -46,7 +46,10 @@ InitialMultilevelBipartitioner::InitialMultilevelBipartitioner(const Context &ct
       _bipartitioner(std::make_unique<InitialPoolBipartitioner>(_i_ctx.pool)),
       _refiner(create_initial_refiner(_i_ctx.refinement)) {}
 
-void InitialMultilevelBipartitioner::init(const CSRGraph &graph, const BlockID final_k) {
+void InitialMultilevelBipartitioner::initialize(const CSRGraph &graph, const BlockID final_k) {
+  KASSERT(final_k > 0u);
+  KASSERT(graph.n() > 0);
+
   _graph = &graph;
 
   const auto [final_k1, final_k2] = math::split_integral(final_k);

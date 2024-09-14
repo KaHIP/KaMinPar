@@ -104,7 +104,7 @@ public:
 
   [[nodiscard]] NodeID n() const final {
     return _compressed_neighborhoods.num_nodes();
-  };
+  }
 
   [[nodiscard]] EdgeID m() const final {
     return _compressed_neighborhoods.num_edges();
@@ -230,7 +230,10 @@ public:
 
   template <typename Lambda>
   inline void pfor_neighbors(
-      const NodeID u, const NodeID max_num_neighbors, const NodeID grainsize, Lambda &&l
+      const NodeID u,
+      [[maybe_unused]] const NodeID max_num_neighbors,
+      [[maybe_unused]] const NodeID grainsize,
+      Lambda &&l
   ) const {
     // The compressed graph does not allow for arbitrary grainsize. It is also not supported
     // to only visit a subrange of neighbors.

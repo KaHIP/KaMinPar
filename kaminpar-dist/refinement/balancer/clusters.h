@@ -178,7 +178,7 @@ public:
   }
 
   inline std::pair<EdgeWeight, BlockID> find_max_conn(const NodeID cluster) const {
-    KASSERT(size(cluster) > 0);
+    KASSERT(size(cluster) > 0u);
 
     EdgeWeight max_conn = std::numeric_limits<EdgeWeight>::min();
     BlockID max_gainer = kInvalidBlockID;

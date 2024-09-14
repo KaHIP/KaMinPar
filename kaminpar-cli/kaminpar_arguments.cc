@@ -76,6 +76,16 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
           "(set to '0' for the old behaviour)"
       )
       ->capture_default_str();
+  partitioning
+      ->add_option(
+          "--p-lazy-extract-subgraph-memory",
+          ctx.partitioning.use_lazy_subgraph_memory,
+          "Whether to lazily extract block-induced subgraph during bipartitioning"
+      )
+      ->capture_default_str();
+  partitioning
+      ->add_flag("--p-refine-after-extending", ctx.partitioning.refine_after_extending_partition)
+      ->capture_default_str();
 
   create_partitioning_rearrangement_options(app, ctx);
 
@@ -133,6 +143,14 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
 
   // Clustering options:
+  coarsening
+      ->add_option(
+          "--c-shrink-factor",
+          ctx.coarsening.clustering.shrink_factor,
+          "Upper limit on how fast the graph can shrink."
+      )
+      ->capture_default_str();
+
   coarsening->add_option("--c-clustering-algorithm", ctx.coarsening.clustering.algorithm)
       ->transform(CLI::CheckedTransformer(get_clustering_algorithms()).description(""))
       ->description(R"(One of the following options:
@@ -167,6 +185,21 @@ Options are:
           ctx.coarsening.clustering.max_mem_free_coarsening_level,
           "Maximum coarsening level for which the corresponding memory should be released "
           "afterwards"
+      )
+      ->capture_default_str();
+
+  coarsening->add_flag("--c-forced-kc-level", ctx.coarsening.clustering.forced_kc_level)
+      ->capture_default_str();
+  coarsening->add_flag("--c-forced-pc-level", ctx.coarsening.clustering.forced_pc_level)
+      ->capture_default_str();
+  coarsening
+      ->add_option(
+          "--c-forced-level-upper-factor", ctx.coarsening.clustering.forced_level_upper_factor
+      )
+      ->capture_default_str();
+  coarsening
+      ->add_option(
+          "--c-forced-level-lower-factor", ctx.coarsening.clustering.forced_level_lower_factor
       )
       ->capture_default_str();
 
@@ -205,19 +238,6 @@ CLI::Option_group *create_lp_coarsening_options(CLI::App *app, Context &ctx) {
 Options are:
   - geometric: Prefer nodes with same rating located at the end of a neighborhood
   - uniform:   Select nodes with same rating uniformly at random
-  )"
-      )
-      ->capture_default_str();
-  lp->add_option(
-        "--c-lp-cluster-weights-struct", ctx.coarsening.clustering.lp.cluster_weights_structure
-  )
-      ->transform(CLI::CheckedTransformer(get_cluster_weight_structures()).description(""))
-      ->description(
-          R"(Determines the data structure for storing the cluster weights.
-Options are:
-  - vec:                 Uses a fixed-width vector
-  - two-level-vec:       Uses a two-level vector
-  - initially-small-vec: Uses a small fixed-width vector initially and switches to a bigger fixed-width vector after relabeling (Requires two-phase lp with relabeling)
   )"
       )
       ->capture_default_str();
@@ -308,9 +328,9 @@ Options are:
 CLI::Option_group *create_contraction_coarsening_options(CLI::App *app, Context &ctx) {
   auto *con = app->add_option_group("Coarsening -> Contraction");
 
-  con->add_option("--c-con-mode", ctx.coarsening.contraction.mode)
-      ->transform(CLI::CheckedTransformer(get_contraction_modes()).description(""))
-      ->description(R"(The mode used for contraction.
+  con->add_option("--c-contraction-algorithm", ctx.coarsening.contraction.algorithm)
+      ->transform(CLI::CheckedTransformer(get_contraction_algorithms()).description(""))
+      ->description(R"(The algorithm used for contraction.
 Options are:
   - buffered:         Use an edge buffer that is partially filled
   - buffered-legacy:  Use an edge buffer
@@ -318,7 +338,9 @@ Options are:
   - unbuffered-naive: Use no edge buffer by computing twice
   )")
       ->capture_default_str();
-  con->add_option("--c-con-unbuffered-impl", ctx.coarsening.contraction.implementation)
+  con->add_option(
+         "--c-contraction-unbuffered-impl", ctx.coarsening.contraction.unbuffered_implementation
+  )
       ->transform(CLI::CheckedTransformer(get_contraction_implementations()).description(""))
       ->description(
           R"(The implementation used for unbuffered contraction.

@@ -114,10 +114,6 @@ public:
       const StaticArray<BlockID> & /* mapping */, const BlockID /* num_new_clusters */
   ) {}
 
-  [[nodiscard]] bool cluster_weights_require_reassignment() const {
-    return false;
-  }
-
   void init_cluster(const NodeID /* u */, const BlockID /* b */) {}
 
   void init_cluster_weight(const BlockID /* b */, const BlockWeight /* weight */) {}
@@ -332,6 +328,10 @@ LabelPropagationRefiner::LabelPropagationRefiner(const Context &ctx)
     : _impl_wrapper(std::make_unique<LPRefinerImplWrapper>(ctx)) {}
 
 LabelPropagationRefiner::~LabelPropagationRefiner() = default;
+
+std::string LabelPropagationRefiner::name() const {
+  return "Label Propagation";
+}
 
 void LabelPropagationRefiner::initialize(const PartitionedGraph &p_graph) {
   _impl_wrapper->initialize(p_graph);

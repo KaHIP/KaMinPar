@@ -140,7 +140,7 @@ std::unordered_map<std::string, RefinementAlgorithm> get_balancing_algorithms() 
       {"hybrid-cluster-balancer", RefinementAlgorithm::HYBRID_CLUSTER_BALANCER},
       {"mtkahypar", RefinementAlgorithm::MTKAHYPAR_REFINER},
   };
-};
+}
 
 std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm) {
   switch (algorithm) {
@@ -361,7 +361,7 @@ void print(const ChunksContext &ctx, const ParallelContext &parallel, std::ostre
 
 void print(
     const GraphCompressionContext &ctx,
-    const ParallelContext &parallel,
+    const ParallelContext & /* parallel */,
     const bool print_compression_details,
     std::ostream &out
 ) {

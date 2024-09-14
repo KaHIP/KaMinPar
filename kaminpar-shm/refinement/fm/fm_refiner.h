@@ -16,7 +16,7 @@ class FMRefiner : public Refiner {
 public:
   FMRefiner(const Context &ctx);
 
-  // Note: require dtor definition in the *.cc file due to the std::unique_ptr<> member.
+  // Note: requires dtor definition in the *.cc file due to the std::unique_ptr<> member.
   ~FMRefiner() override;
 
   FMRefiner(const FMRefiner &) = delete;
@@ -24,6 +24,8 @@ public:
 
   FMRefiner(FMRefiner &&) noexcept = default;
   FMRefiner &operator=(FMRefiner &&) = delete;
+
+  [[nodiscard]] std::string name() const final;
 
   void initialize(const PartitionedGraph &p_graph) final;
 

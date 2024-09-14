@@ -115,7 +115,6 @@ static void apply_permutation(S *u, T *v, U &indices, V size) {
 }
 
 static void sort_by_compression(
-    const NodeID node,
     NodeID *edges_begin,
     NodeID *edges_end,
     bool store_edge_weights,
@@ -236,9 +235,7 @@ void reorder_edges_by_compression(CSRGraph &graph) {
     EdgeWeight *edge_weights =
         store_edge_weights ? (raw_edge_weights.data() + raw_nodes[node]) : nullptr;
 
-    sort_by_compression(
-        node, edges_begin, edges_end, store_edge_weights, permutation_ets, edge_weights
-    );
+    sort_by_compression(edges_begin, edges_end, store_edge_weights, permutation_ets, edge_weights);
   });
 }
 
@@ -283,7 +280,8 @@ void remove_isolated_nodes_generic_graph(Graph &graph, PartitionContext &p_ctx) 
 
   const BlockID k = p_ctx.k;
   const double old_max_block_weight = (1 + p_ctx.epsilon) * std::ceil(1.0 * total_node_weight / k);
-  const double new_epsilon = old_max_block_weight / std::ceil(1.0 * new_weight / k) - 1;
+  const double new_epsilon =
+      new_weight > 0 ? old_max_block_weight / std::ceil(1.0 * new_weight / k) - 1 : 0.0;
   p_ctx.epsilon = new_epsilon;
   p_ctx.n = new_n;
   p_ctx.total_node_weight = new_weight;

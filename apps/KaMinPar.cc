@@ -136,7 +136,7 @@ The output should be stored in a file and can be used by the -C,--config option.
         )
         ->capture_default_str();
     hp_group
-        ->add_option(
+        ->add_flag(
             "--hp-print-structs",
             app.heap_profiler_print_structs,
             "Print data structure memory statistics in the result summary."
@@ -236,7 +236,7 @@ int main(int argc, char *argv[]) {
   }
 
   RECORD("partition") std::vector<BlockID> partition(graph.n());
-  RECORD_LOCAL_DATA_STRUCT("vector<BlockID>", partition.capacity() * sizeof(BlockID));
+  RECORD_LOCAL_DATA_STRUCT(partition, partition.capacity() * sizeof(BlockID));
   STOP_HEAP_PROFILER();
 
   // Compute graph partition

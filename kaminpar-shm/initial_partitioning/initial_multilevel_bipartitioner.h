@@ -57,7 +57,7 @@ class InitialMultilevelBipartitioner {
 public:
   explicit InitialMultilevelBipartitioner(const Context &ctx);
 
-  void init(const CSRGraph &graph, BlockID final_k);
+  void initialize(const CSRGraph &graph, BlockID final_k);
 
   PartitionedCSRGraph partition(InitialPartitionerTimings *timings = nullptr);
 

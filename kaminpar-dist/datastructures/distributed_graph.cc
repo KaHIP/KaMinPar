@@ -105,7 +105,7 @@ void print_local_graph_stats(const DistributedGraph &graph) {
   EdgeID local_m = 0, nonlocal_m = 0;
   NodeID min_deg = std::numeric_limits<NodeID>::max(), max_deg = 0;
   for (NodeID u = 0; u < graph.n(); ++u) {
-    graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
+    graph.neighbors(u, [&](EdgeID, const NodeID v) {
       if (graph.is_owned_node(v)) {
         ++local_m;
       } else {
@@ -341,7 +341,7 @@ bool validate_graph(const DistributedGraph &graph) {
       for (NodeID u = graph.first_node_in_bucket(bucket);
            u < graph.first_invalid_node_in_bucket(bucket);
            ++u) {
-        const auto expected_bucket = degree_bucket(graph.degree(u));
+        const std::size_t expected_bucket = degree_bucket(graph.degree(u));
         if (expected_bucket != bucket) {
           LOG_ERROR << "on PE " << rank << ":node " << u << " with degree " << graph.degree(u)
                     << " is expected to be in bucket " << expected_bucket << ", but is in bucket "

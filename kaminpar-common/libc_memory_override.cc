@@ -25,13 +25,12 @@ extern void *__libc_free(void *);
 extern void *__libc_memalign(size_t, size_t);
 extern void *__libc_valloc(size_t);
 extern void *__libc_pvalloc(size_t);
-extern void *__libc_realloc(void *, size_t);
 
 void *malloc(size_t size) {
   void *ptr = __libc_malloc(size);
   HeapProfiler::global().record_alloc(ptr, size);
   return ptr;
-};
+}
 
 void *calloc(size_t size, size_t n) {
   void *ptr = __libc_calloc(size, n);

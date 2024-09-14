@@ -21,12 +21,11 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered_naive(
     const Graph &graph,
     const NodeID c_n,
     StaticArray<NodeID> mapping,
-    const ContractionCoarseningContext &con_ctx,
+    [[maybe_unused]] const ContractionCoarseningContext &con_ctx,
     MemoryContext &m_ctx
 ) {
   auto &buckets_index = m_ctx.buckets_index;
   auto &buckets = m_ctx.buckets;
-  auto &all_buffered_nodes = m_ctx.all_buffered_nodes;
 
   START_TIMER("Allocation");
   START_HEAP_PROFILER("Coarse graph node allocation");

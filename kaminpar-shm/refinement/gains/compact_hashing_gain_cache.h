@@ -20,7 +20,6 @@
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/inline.h"
 #include "kaminpar-common/logger.h"
-#include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
@@ -32,7 +31,7 @@ template <
     bool iterate_nonadjacent_blocks,
     bool iterate_exact_gains = false>
 class CompactHashingGainCache {
-  SET_DEBUG(true);
+  SET_DEBUG(false);
 
   // Abuse MSB bit in the _weighted_degrees[] array for locking
   constexpr static UnsignedEdgeWeight kWeightedDegreeLock =
@@ -57,7 +56,9 @@ public:
   // the gain consumer with the total edge weight between the node and nodes in the specific block.
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
-  CompactHashingGainCache(const Context &ctx, const NodeID preallocate_n, BlockID preallocate_k)
+  CompactHashingGainCache(
+      const Context &ctx, const NodeID preallocate_n, [[maybe_unused]] BlockID preallocate_k
+  )
       : _ctx(ctx),
         // Since we do not know the size of the gain cache in advance (depends on vertex degrees),
         // we cannot preallocate it
@@ -84,14 +85,19 @@ public:
     }
 
     _offsets.front() = 0;
-    _graph->pfor_nodes([&](const NodeID u) {
+    for (const NodeID u : _graph->nodes()) { // @todo parallelize
       const EdgeID deg = math::ceil2(_graph->degree(u));
-      const unsigned bytes =
-          (deg < _k) ? compute_entry_width(u, true) * deg : compute_entry_width(u, false) * _k;
-      _offsets[u + 1] = math::div_ceil(bytes, sizeof(std::uint64_t));
-    });
-    parallel::prefix_sum(_offsets.begin(), _offsets.begin() + _n + 1, _offsets.begin());
-    const std::size_t gain_cache_size = _offsets.back();
+      const unsigned width = compute_entry_width(u, deg < _k);
+      const unsigned nbytes = (deg < _k) ? width * deg : width * _k;
+
+      if (width > 0) {
+        _offsets[u] += (width - (_offsets[u] % width)) % width;
+        KASSERT(_offsets[u] % width == 0u);
+      }
+
+      _offsets[u + 1] = _offsets[u] + nbytes;
+    }
+    const std::size_t gain_cache_size = math::div_ceil(_offsets[_n], sizeof(std::uint64_t));
 
     if (_gain_cache.size() < gain_cache_size) {
       SCOPED_TIMER("Allocation");
@@ -105,7 +111,6 @@ public:
     DBG << "  Reserve " << _bits_for_key << " of " << sizeof(UnsignedEdgeWeight) * 8
         << " bits for block IDs";
 
-    reset();
     recompute_gains();
   }
 
@@ -209,18 +214,13 @@ private:
   // Init (mixed)
   //
 
-  void reset() {
+  void recompute_gains() {
     SCOPED_TIMER("Reset gain cache");
 
-    tbb::parallel_for<std::size_t>(0, _gain_cache.size(), [&](const std::size_t i) {
+    tbb::parallel_for<std::size_t>(0, _gain_cache.size(), [&](const std::size_t i) noexcept {
       _gain_cache[i] = 0;
     });
-
     _sparse_buffer_ets.clear();
-  }
-
-  void recompute_gains() {
-    SCOPED_TIMER("Recompute gain cache");
 
     _graph->pfor_nodes([&](const NodeID u) {
       if (use_hash_table(u)) {
@@ -244,7 +244,7 @@ private:
       _weighted_degrees[u] = 0;
 
       // @todo avoid v lookup
-      _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+      _graph->adjacent_nodes(u, [&](NodeID, const EdgeWeight weight) {
         _weighted_degrees[u] += static_cast<UnsignedEdgeWeight>(weight);
       });
     });
@@ -259,7 +259,9 @@ private:
 
     const int bits = math::floor_log2(max_value) + 1 + (with_key ? _bits_for_key : 0);
     const int bytes = (bits + 7) / 8;
-    return math::ceil2<unsigned>(bytes);
+    const int ans = math::ceil2<unsigned>(bytes);
+    KASSERT(ans == 1 || ans == 2 || ans == 4 || ans == 8);
+    return ans;
   }
 
   [[nodiscard]] KAMINPAR_INLINE bool use_hash_table(const NodeID node) const {
@@ -305,30 +307,52 @@ private:
 
   template <typename Lambda>
   KAMINPAR_INLINE decltype(auto) with_hash_table_impl(const NodeID node, Lambda &&l) const {
-    const int nbytes = compute_entry_width(node, true);
+    const int width = compute_entry_width(node, true);
     const std::size_t start = _offsets[node];
-    const std::size_t size = (_offsets[node + 1] - start) * (sizeof(std::uint64_t) / nbytes);
+    const std::size_t size = width > 0 ? math::floor2((_offsets[node + 1] - start) / width) : 0;
 
-    switch (nbytes) {
+    KASSERT(use_hash_table(node));
+    KASSERT(
+        width == 0 || (start % width) == 0,
+        V(width) << V(start) << V(_offsets[node]) << V(_offsets[node + 1])
+    );
+    KASSERT(width == 0 || (_offsets[node + 1] - start) % width == 0);
+
+    switch (width) {
     case 1:
-      return l(reinterpret_cast<const std::uint8_t *>(_gain_cache.data() + start), size);
+      return l(reinterpret_cast<const std::uint8_t *>(_gain_cache.data()) + start, size);
       break;
 
     case 2:
-      return l(reinterpret_cast<const std::uint16_t *>(_gain_cache.data() + start), size);
+      return l(
+          reinterpret_cast<const std::uint16_t *>(
+              reinterpret_cast<const std::uint8_t *>(_gain_cache.data()) + start
+          ),
+          size
+      );
       break;
 
     case 4:
-      return l(reinterpret_cast<const std::uint32_t *>(_gain_cache.data() + start), size);
+      return l(
+          reinterpret_cast<const std::uint32_t *>(
+              reinterpret_cast<const std::uint8_t *>(_gain_cache.data()) + start
+          ),
+          size
+      );
       break;
 
     case 8:
-      return l(reinterpret_cast<const std::uint64_t *>(_gain_cache.data() + start), size);
+      return l(
+          reinterpret_cast<const std::uint64_t *>(
+              reinterpret_cast<const std::uint8_t *>(_gain_cache.data()) + start
+          ),
+          size
+      );
       break;
     }
 
     // Default case: isolated nodes with degree 0
-    KASSERT(nbytes == 0);
+    KASSERT(width == 0);
     return std::invoke_result_t<Lambda, const std::uint64_t *, std::size_t>();
   }
 
@@ -358,29 +382,40 @@ private:
 
   template <typename Lambda>
   KAMINPAR_INLINE decltype(auto) with_full_table(const NodeID node, Lambda &&l) const {
-    const int nbytes = compute_entry_width(node, false);
+    const int width = compute_entry_width(node, false);
     const std::size_t start = _offsets[node];
 
-    switch (nbytes) {
+    KASSERT(
+        width == 0 || (start % width) == 0,
+        V(start) << V(width) << V(_offsets[node]) << V(_offsets[node + 1])
+    );
+
+    switch (width) {
     case 1:
-      return l(reinterpret_cast<const std::uint8_t *>(_gain_cache.data() + start));
+      return l(reinterpret_cast<const std::uint8_t *>(_gain_cache.data()) + start);
       break;
 
     case 2:
-      return l(reinterpret_cast<const std::uint16_t *>(_gain_cache.data() + start));
+      return l(reinterpret_cast<const std::uint16_t *>(
+          reinterpret_cast<const std::uint8_t *>(_gain_cache.data()) + start
+      ));
       break;
 
     case 4:
-      return l(reinterpret_cast<const std::uint32_t *>(_gain_cache.data() + start));
+      return l(reinterpret_cast<const std::uint32_t *>(
+          reinterpret_cast<const std::uint8_t *>(_gain_cache.data()) + start
+      ));
       break;
 
     case 8:
-      return l(reinterpret_cast<const std::uint64_t *>(_gain_cache.data() + start));
+      return l(reinterpret_cast<const std::uint64_t *>(
+          reinterpret_cast<const std::uint8_t *>(_gain_cache.data()) + start
+      ));
       break;
     }
 
     // Default case: isolated nodes with degree 0
-    KASSERT(nbytes == 0);
+    KASSERT(width == 0);
     return std::invoke_result_t<Lambda, const std::uint64_t *>();
   }
 

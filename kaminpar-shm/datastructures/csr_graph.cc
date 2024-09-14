@@ -23,7 +23,8 @@ CSRGraph::CSRGraph(const Graph &graph)
     : _nodes(graph.n() + 1),
       _edges(graph.m()),
       _node_weights(graph.n()),
-      _edge_weights(graph.m()) {
+      _edge_weights(graph.m()),
+      _buckets(kNumberOfDegreeBuckets<NodeID> + 1) {
   graph.reified([&](const auto &graph) {
     _nodes.front() = 0;
     graph.pfor_nodes([&](const NodeID u) {
@@ -57,7 +58,8 @@ CSRGraph::CSRGraph(
       _edges(std::move(edges)),
       _node_weights(std::move(node_weights)),
       _edge_weights(std::move(edge_weights)),
-      _sorted(sorted) {
+      _sorted(sorted),
+      _buckets(kNumberOfDegreeBuckets<NodeID> + 1) {
   if (_node_weights.empty()) {
     _total_node_weight = static_cast<NodeWeight>(n());
     _max_node_weight = 1;
@@ -83,13 +85,15 @@ CSRGraph::CSRGraph(
     StaticArray<NodeID> edges,
     StaticArray<NodeWeight> node_weights,
     StaticArray<EdgeWeight> edge_weights,
-    bool sorted
+    bool sorted,
+    std::vector<NodeID> buckets
 )
     : _nodes(std::move(nodes)),
       _edges(std::move(edges)),
       _node_weights(std::move(node_weights)),
       _edge_weights(std::move(edge_weights)),
-      _sorted(sorted) {
+      _sorted(sorted),
+      _buckets(std::move(buckets)) {
   if (_node_weights.empty()) {
     _total_node_weight = static_cast<NodeWeight>(n());
     _max_node_weight = 1;

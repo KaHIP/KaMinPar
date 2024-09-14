@@ -9,7 +9,6 @@
 
 #include <memory>
 
-#include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/refinement/refiner.h"
 
@@ -26,6 +25,8 @@ public:
   LabelPropagationRefiner &operator=(LabelPropagationRefiner &&) noexcept = default;
 
   ~LabelPropagationRefiner() override;
+
+  [[nodiscard]] std::string name() const override;
 
   void initialize(const PartitionedGraph &p_graph) override;
 

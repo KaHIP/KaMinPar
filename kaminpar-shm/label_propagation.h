@@ -60,7 +60,7 @@ struct LabelPropagationConfig {
   static constexpr std::size_t kRatingMapThreshold = 10000;
 
   // If true, we count the number of empty clusters
-  static constexpr bool kTrackClusterCount = false;
+  static constexpr bool kTrackClusterCount = true;
 
   // If true, match singleton clusters in 2-hop distance
   static constexpr bool kUseTwoHopClustering = false;
@@ -110,10 +110,10 @@ public:
     return _max_degree;
   }
 
-  void set_max_num_neighbors(const ClusterID max_num_neighbors) {
+  void set_max_num_neighbors(const NodeID max_num_neighbors) {
     _max_num_neighbors = max_num_neighbors;
   }
-  [[nodiscard]] ClusterID max_num_neighbors() const {
+  [[nodiscard]] NodeID max_num_neighbors() const {
     return _max_num_neighbors;
   }
 
@@ -255,7 +255,7 @@ protected:
    */
   void initialize(const Graph *graph, const ClusterID num_clusters) {
     KASSERT(
-        graph->n() == 0 || (_num_nodes > 0u && _num_active_nodes > 0u),
+        graph->n() == 0u || (_num_nodes > 0u && _num_active_nodes > 0u),
         "you must call allocate() before initialize()"
     );
 
@@ -873,14 +873,6 @@ protected:
         // do not update _current_num_clusters here to avoid fetch_add()
         return {true, decrement_cluster_count}; // did move, did reduce nonempty
                                                 // cluster count?
-      } else {
-        if constexpr (Config::kUseActiveSetStrategy || Config::kUseLocalActiveSetStrategy) {
-          // Activate the node when a move failed due to cluster weight restrictions and when the
-          // cluster weights are readjusted in the next iteration.
-          if (derived_cluster_weights_require_reassignment()) {
-            __atomic_store_n(&_active[u], 1, __ATOMIC_RELAXED);
-          }
-        }
       }
     }
 
@@ -1268,11 +1260,6 @@ private:
     _relabeled = false;
   }
 
-protected:
-  [[nodiscard]] inline bool derived_cluster_weights_require_reassignment() const {
-    return static_cast<const Derived *>(this)->cluster_weights_require_reassignment();
-  }
-
 private: // CRTP calls
   //! Return current cluster ID of  node \c u.
   [[nodiscard]] ClusterID derived_cluster(const NodeID u) {
@@ -1602,7 +1589,6 @@ protected:
   using SecondPhaseSelectionStrategy = Base::SecondPhaseSelectionStrategy;
   using SecondPhaseAggregationStrategy = Base::SecondPhaseAggregationStrategy;
 
-  using Base::derived_cluster_weights_require_reassignment;
   using Base::handle_first_phase_node;
   using Base::handle_node;
   using Base::handle_second_phase_node;
@@ -1620,14 +1606,17 @@ public:
   using DataStructures = std::tuple<
       tbb::enumerable_thread_specific<RatingMap>,
       tbb::enumerable_thread_specific<GrowingRatingMap>,
+      ConcurrentRatingMap,
       tbb::enumerable_thread_specific<ScalableVector<ClusterID>>,
       StaticArray<uint8_t>,
       StaticArray<uint8_t>,
       StaticArray<ClusterID>,
       tbb::concurrent_vector<NodeID>,
+      tbb::enumerable_thread_specific<std::vector<NodeID>>,
+      tbb::enumerable_thread_specific<std::size_t>,
+      tbb::enumerable_thread_specific<std::vector<Chunk>>,
       std::vector<Chunk>,
-      std::vector<Bucket>,
-      ConcurrentRatingMap>;
+      std::vector<Bucket>>;
 
   /*!
    * Sets the data structures to use, which can save memory space when (unused) data structures are
@@ -1639,24 +1628,30 @@ public:
     auto
         [rating_map_ets,
          growing_rating_map_ets,
+         concurrent_rating_map,
          tie_breaking_clusters_ets,
          active,
          moved,
          favored_clusters,
          second_phase_nodes,
+         sub_chunk_permutation_ets,
+         num_chunks_ets,
+         chunks_ets,
          chunks,
-         buckets,
-         concurrent_rating_map] = std::move(structs);
+         buckets] = std::move(structs);
     _rating_map_ets = std::move(rating_map_ets);
     _growing_rating_map_ets = std::move(growing_rating_map_ets);
+    _concurrent_rating_map = std::move(concurrent_rating_map);
     _tie_breaking_clusters_ets = std::move(tie_breaking_clusters_ets);
     _active = std::move(active);
     _moved = std::move(moved);
     _favored_clusters = std::move(favored_clusters);
     _second_phase_nodes = std::move(second_phase_nodes);
+    _sub_chunk_permutation_ets = std::move(sub_chunk_permutation_ets);
+    _num_chunks_ets = std::move(num_chunks_ets);
+    _chunks_ets = std::move(chunks_ets);
     _chunks = std::move(chunks);
     _buckets = std::move(buckets);
-    _concurrent_rating_map = std::move(concurrent_rating_map);
   }
 
   /*!
@@ -1668,14 +1663,17 @@ public:
     return std::make_tuple(
         std::move(_rating_map_ets),
         std::move(_growing_rating_map_ets),
+        std::move(_concurrent_rating_map),
         std::move(_tie_breaking_clusters_ets),
         std::move(_active),
         std::move(_moved),
         std::move(_favored_clusters),
         std::move(_second_phase_nodes),
+        std::move(_sub_chunk_permutation_ets),
+        std::move(_num_chunks_ets),
+        std::move(_chunks_ets),
         std::move(_chunks),
-        std::move(_buckets),
-        std::move(_concurrent_rating_map)
+        std::move(_buckets)
     );
   }
 
@@ -1750,8 +1748,6 @@ protected:
         }
 
         perform_second_phase();
-      } else if (derived_cluster_weights_require_reassignment()) {
-        relabel_clusters();
       }
 
       const NodeID num_moved_nodes = _num_moved_nodes_ets.combine(std::plus{});
@@ -1809,8 +1805,6 @@ private:
           std::min<NodeID>({remaining_bucket_size, to - position, to - from});
 
       parallel::Atomic<NodeID> offset = 0;
-      tbb::enumerable_thread_specific<std::size_t> num_chunks_ets;
-      tbb::enumerable_thread_specific<std::vector<Chunk>> chunks_ets;
 
       const std::size_t bucket_start = std::max(_graph->first_node_in_bucket(bucket), from);
 
@@ -1818,8 +1812,8 @@ private:
           static_cast<int>(0),
           tbb::this_task_arena::max_concurrency(),
           [&](const int) {
-            auto &chunks = chunks_ets.local();
-            auto &num_chunks = num_chunks_ets.local();
+            auto &chunks = _chunks_ets.local();
+            auto &num_chunks = _num_chunks_ets.local();
 
             while (offset < bucket_size) {
               const NodeID begin = offset.fetch_add(max_node_chunk_size);
@@ -1852,15 +1846,20 @@ private:
           }
       );
 
-      const std::size_t num_chunks = num_chunks_ets.combine(std::plus{});
+      std::size_t num_chunks = 0;
+      for (auto &local_num_chunks : _num_chunks_ets) {
+        num_chunks += local_num_chunks;
+        local_num_chunks = 0;
+      }
 
       const std::size_t chunks_start = _chunks.size();
       parallel::Atomic<std::size_t> pos = chunks_start;
       _chunks.resize(chunks_start + num_chunks);
-      tbb::parallel_for(chunks_ets.range(), [&](auto &r) {
+      tbb::parallel_for(_chunks_ets.range(), [&](auto &r) {
         for (auto &chunk : r) {
           const std::size_t local_pos = pos.fetch_add(chunk.size());
           std::copy(chunk.begin(), chunk.end(), _chunks.begin() + local_pos);
+          chunk.clear();
         }
       });
 
@@ -1929,9 +1928,16 @@ private:
 
       const std::size_t num_sub_chunks =
           std::ceil(1.0 * (chunk.end - chunk.start) / Config::kPermutationSize);
-      std::vector<NodeID> sub_chunk_permutation(num_sub_chunks);
-      std::iota(sub_chunk_permutation.begin(), sub_chunk_permutation.end(), 0);
-      local_rand.shuffle(sub_chunk_permutation);
+
+      auto &sub_chunk_permutation = _sub_chunk_permutation_ets.local();
+      if (sub_chunk_permutation.capacity() < num_sub_chunks) {
+        sub_chunk_permutation.resize(num_sub_chunks);
+      }
+
+      std::iota(sub_chunk_permutation.begin(), sub_chunk_permutation.begin() + num_sub_chunks, 0);
+      local_rand.shuffle(
+          sub_chunk_permutation.begin(), sub_chunk_permutation.begin() + num_sub_chunks
+      );
 
       for (std::size_t sub_chunk = 0; sub_chunk < num_sub_chunks; ++sub_chunk) {
         for (std::size_t i = 0; i < Config::kPermutationSize; ++i) {
@@ -1981,9 +1987,6 @@ private:
     const bool use_high_degree_selection =
         use_two_phases && _initial_num_clusters >= Config::kRatingMapThreshold &&
         _second_phase_selection_strategy == SecondPhaseSelectionStrategy::HIGH_DEGREE;
-    const bool use_frm_selection =
-        use_two_phases &&
-        _second_phase_selection_strategy == SecondPhaseSelectionStrategy::FULL_RATING_MAP;
     const bool aggregate_during_second_phase =
         _second_phase_aggregation_strategy != SecondPhaseAggregationStrategy::NONE;
 
@@ -2007,9 +2010,16 @@ private:
 
       const std::size_t num_sub_chunks =
           std::ceil(1.0 * (chunk.end - chunk.start) / Config::kPermutationSize);
-      std::vector<NodeID> sub_chunk_permutation(num_sub_chunks);
-      std::iota(sub_chunk_permutation.begin(), sub_chunk_permutation.end(), 0);
-      local_rand.shuffle(sub_chunk_permutation);
+
+      auto &sub_chunk_permutation = _sub_chunk_permutation_ets.local();
+      if (sub_chunk_permutation.capacity() < num_sub_chunks) {
+        sub_chunk_permutation.resize(num_sub_chunks);
+      }
+
+      std::iota(sub_chunk_permutation.begin(), sub_chunk_permutation.begin() + num_sub_chunks, 0);
+      local_rand.shuffle(
+          sub_chunk_permutation.begin(), sub_chunk_permutation.begin() + num_sub_chunks
+      );
 
       for (std::size_t sub_chunk = 0; sub_chunk < num_sub_chunks; ++sub_chunk) {
         for (std::size_t i = 0; i < Config::kPermutationSize; ++i) {
@@ -2118,187 +2128,16 @@ protected:
   using Base::_tie_breaking_favored_clusters_ets;
 
   Permutations &_random_permutations;
+  tbb::enumerable_thread_specific<std::vector<NodeID>> _sub_chunk_permutation_ets;
+  tbb::enumerable_thread_specific<std::size_t> _num_chunks_ets;
+  tbb::enumerable_thread_specific<std::vector<Chunk>> _chunks_ets;
   std::vector<Chunk> _chunks;
   std::vector<Bucket> _buckets;
+
   tbb::enumerable_thread_specific<NodeID> _num_processed_nodes_ets;
   tbb::enumerable_thread_specific<NodeID> _num_moved_nodes_ets;
+
   ConcurrentRatingMap _concurrent_rating_map;
-};
-
-template <typename ClusterID, typename ClusterWeight> class OwnedRelaxedClusterWeightVector {
-  using Structure = shm::ClusterWeightsStructure;
-
-  using ClusterWeightVec = StaticArray<ClusterWeight>;
-
-  using SmallClusterWeight = std::uint8_t;
-  using SmallClusterWeightVec = StaticArray<SmallClusterWeight>;
-
-  using FirstLevelClusterWeight = typename std::
-      conditional_t<std::is_same_v<ClusterWeight, std::int32_t>, std::uint16_t, std::uint32_t>;
-  using ClusterWeightTwoLevelVec =
-      ConcurrentTwoLevelVector<ClusterWeight, ClusterID, FirstLevelClusterWeight>;
-
-public:
-  using ClusterWeights = std::pair<ClusterWeightVec, ClusterWeightTwoLevelVec>;
-
-  OwnedRelaxedClusterWeightVector(const Structure structure)
-      : _use_two_level_vector(structure == Structure::TWO_LEVEL_VEC),
-        _use_small_vector_initially(structure == Structure::INITIALLY_SMALL_VEC) {}
-
-  void set_use_small_vector_initially(const bool use_small_vector_initially) {
-    _use_small_vector_initially = use_small_vector_initially;
-  }
-
-  void allocate_cluster_weights(const ClusterID num_clusters) {
-    if (_use_two_level_vector) {
-      if (_two_level_cluster_weights.capacity() < num_clusters) {
-        _two_level_cluster_weights.resize(num_clusters);
-      }
-    } else if (_use_small_vector_initially) {
-      if (_small_cluster_weights.size() < num_clusters) {
-        _small_cluster_weights.resize(num_clusters);
-      }
-    } else {
-      if (_cluster_weights.size() < num_clusters) {
-        _cluster_weights.resize(num_clusters);
-      }
-    }
-  }
-
-  void free() {
-    if (_use_two_level_vector) {
-      _two_level_cluster_weights.free();
-    } else if (_use_small_vector_initially) {
-      _small_cluster_weights.free();
-    } else {
-      _cluster_weights.free();
-    }
-  }
-
-  void setup_cluster_weights(ClusterWeights weights) {
-    auto [cluster_weights, two_level_cluster_weights] = std::move(weights);
-    _cluster_weights = std::move(cluster_weights);
-    _two_level_cluster_weights = std::move(two_level_cluster_weights);
-  }
-
-  ClusterWeights take_cluster_weights() {
-    return std::make_pair(std::move(_cluster_weights), std::move(_two_level_cluster_weights));
-  }
-
-  void reset_cluster_weights() {
-    if (_use_two_level_vector) {
-      _two_level_cluster_weights.reset();
-    }
-  }
-
-  void init_cluster_weight(const ClusterID cluster, const ClusterWeight weight) {
-    if (_use_two_level_vector) {
-      _two_level_cluster_weights.insert(cluster, weight);
-    } else if (_use_small_vector_initially) {
-      // Can cause problems for graphs with node weights.
-      KASSERT(weight <= std::numeric_limits<SmallClusterWeight>::max());
-
-      _small_cluster_weights[cluster] = static_cast<SmallClusterWeight>(weight);
-    } else {
-      _cluster_weights[cluster] = weight;
-    }
-  }
-
-  ClusterWeight cluster_weight(const ClusterID cluster) {
-    if (_use_two_level_vector) {
-      return _two_level_cluster_weights[cluster];
-    } else if (_use_small_vector_initially) {
-      return static_cast<ClusterWeight>(
-          __atomic_load_n(&_small_cluster_weights[cluster], __ATOMIC_RELAXED)
-      );
-    } else {
-      return __atomic_load_n(&_cluster_weights[cluster], __ATOMIC_RELAXED);
-    }
-  }
-
-  bool move_cluster_weight(
-      const ClusterID old_cluster,
-      const ClusterID new_cluster,
-      const ClusterWeight delta,
-      const ClusterWeight max_weight
-  ) {
-    if (_use_two_level_vector) {
-      if (_two_level_cluster_weights[new_cluster] + delta <= max_weight) {
-        _two_level_cluster_weights.atomic_add(new_cluster, delta);
-        _two_level_cluster_weights.atomic_sub(old_cluster, delta);
-        return true;
-      }
-    } else if (_use_small_vector_initially) {
-      const ClusterWeight actual_max_weight = std::min(
-          max_weight, static_cast<ClusterWeight>(std::numeric_limits<SmallClusterWeight>::max())
-      );
-
-      if (static_cast<ClusterWeight>(_small_cluster_weights[new_cluster]) + delta <=
-          actual_max_weight) {
-        __atomic_fetch_add(&_small_cluster_weights[new_cluster], delta, __ATOMIC_RELAXED);
-        __atomic_fetch_sub(&_small_cluster_weights[old_cluster], delta, __ATOMIC_RELAXED);
-        return true;
-      }
-    } else {
-      if (_cluster_weights[new_cluster] + delta <= max_weight) {
-        __atomic_fetch_add(&_cluster_weights[new_cluster], delta, __ATOMIC_RELAXED);
-        __atomic_fetch_sub(&_cluster_weights[old_cluster], delta, __ATOMIC_RELAXED);
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  void reassign_cluster_weights(
-      const StaticArray<ClusterID> &mapping, const ClusterID num_new_clusters
-  ) {
-    if (_use_two_level_vector) {
-      _two_level_cluster_weights.reassign(mapping, num_new_clusters);
-      return;
-    }
-
-    const auto reassign = [&](const auto &old_cluster_weights) {
-      RECORD("new_cluster_weights") ClusterWeightVec new_cluster_weights(num_new_clusters);
-
-      tbb::parallel_for(
-          tbb::blocked_range<ClusterID>(0, old_cluster_weights.size()),
-          [&](const auto &r) {
-            for (ClusterID u = r.begin(); u != r.end(); ++u) {
-              ClusterWeight weight = old_cluster_weights[u];
-
-              if (weight != 0) {
-                ClusterID new_cluster_id = mapping[u] - 1;
-                new_cluster_weights[new_cluster_id] = weight;
-              }
-            }
-          }
-      );
-
-      _cluster_weights = std::move(new_cluster_weights);
-    };
-
-    if (_use_small_vector_initially) {
-      reassign(_small_cluster_weights);
-      _small_cluster_weights.free();
-      _use_small_vector_initially = false;
-    } else {
-      reassign(_cluster_weights);
-    }
-  }
-
-  [[nodiscard]] bool cluster_weights_require_reassignment() const {
-    return _use_small_vector_initially;
-  }
-
-private:
-  ClusterWeightVec _cluster_weights;
-
-  const bool _use_two_level_vector;
-  ClusterWeightTwoLevelVec _two_level_cluster_weights;
-
-  bool _use_small_vector_initially;
-  SmallClusterWeightVec _small_cluster_weights;
 };
 
 template <typename NodeID, typename ClusterID> class NonatomicClusterVectorRef {
@@ -2323,5 +2162,143 @@ public:
 
 private:
   StaticArray<ClusterID> *_clusters = nullptr;
+};
+
+template <typename ClusterID, typename ClusterWeight> class OwnedRelaxedClusterWeightVector {
+public:
+  using ClusterWeights = StaticArray<ClusterWeight>;
+
+  void allocate_cluster_weights(const ClusterID num_clusters) {
+    if (_cluster_weights.size() < num_clusters) {
+      _cluster_weights.resize(num_clusters);
+    }
+  }
+
+  void free() {
+    _cluster_weights.free();
+  }
+
+  void setup_cluster_weights(ClusterWeights cluster_weights) {
+    _cluster_weights = std::move(cluster_weights);
+  }
+
+  ClusterWeights take_cluster_weights() {
+    return std::move(_cluster_weights);
+  }
+
+  void reset_cluster_weights() {}
+
+  void init_cluster_weight(const ClusterID cluster, const ClusterWeight weight) {
+    _cluster_weights[cluster] = weight;
+  }
+
+  ClusterWeight cluster_weight(const ClusterID cluster) {
+    return __atomic_load_n(&_cluster_weights[cluster], __ATOMIC_RELAXED);
+  }
+
+  bool move_cluster_weight(
+      const ClusterID old_cluster,
+      const ClusterID new_cluster,
+      const ClusterWeight delta,
+      const ClusterWeight max_weight
+  ) {
+    if (_cluster_weights[new_cluster] + delta <= max_weight) {
+      __atomic_fetch_add(&_cluster_weights[new_cluster], delta, __ATOMIC_RELAXED);
+      __atomic_fetch_sub(&_cluster_weights[old_cluster], delta, __ATOMIC_RELAXED);
+      return true;
+    }
+
+    return false;
+  }
+
+  void reassign_cluster_weights(
+      const StaticArray<ClusterID> &mapping, const ClusterID num_new_clusters
+  ) {
+    RECORD("new_cluster_weights") ClusterWeights new_cluster_weights(num_new_clusters);
+
+    tbb::parallel_for(
+        tbb::blocked_range<ClusterID>(0, _cluster_weights.size()),
+        [&](const auto &r) {
+          for (ClusterID u = r.begin(); u != r.end(); ++u) {
+            ClusterWeight weight = _cluster_weights[u];
+
+            if (weight != 0) {
+              ClusterID new_cluster_id = mapping[u] - 1;
+              new_cluster_weights[new_cluster_id] = weight;
+            }
+          }
+        }
+    );
+
+    _cluster_weights = std::move(new_cluster_weights);
+  }
+
+private:
+  ClusterWeights _cluster_weights;
+};
+
+template <typename ClusterID, typename ClusterWeight>
+class OwnedRelaxedTwoLevelClusterWeightVector {
+  using FirstLevelClusterWeight = typename std::
+      conditional_t<std::is_same_v<ClusterWeight, std::int32_t>, std::uint16_t, std::uint32_t>;
+  using TwoLevelClusterWeightVector =
+      ConcurrentTwoLevelVector<ClusterWeight, ClusterID, FirstLevelClusterWeight>;
+
+public:
+  using ClusterWeights = TwoLevelClusterWeightVector;
+
+  void allocate_cluster_weights(const ClusterID num_clusters) {
+    if (_cluster_weights.capacity() < num_clusters) {
+      _cluster_weights.resize(num_clusters);
+    }
+  }
+
+  void free() {
+    _cluster_weights.free();
+  }
+
+  void setup_cluster_weights(ClusterWeights cluster_weights) {
+    _cluster_weights = std::move(cluster_weights);
+  }
+
+  ClusterWeights take_cluster_weights() {
+    return std::move(_cluster_weights);
+  }
+
+  void reset_cluster_weights() {
+    _cluster_weights.reset();
+  }
+
+  void init_cluster_weight(const ClusterID cluster, const ClusterWeight weight) {
+    _cluster_weights.insert(cluster, weight);
+  }
+
+  ClusterWeight cluster_weight(const ClusterID cluster) {
+    return _cluster_weights[cluster];
+  }
+
+  bool move_cluster_weight(
+      const ClusterID old_cluster,
+      const ClusterID new_cluster,
+      const ClusterWeight delta,
+      const ClusterWeight max_weight
+  ) {
+    if (_cluster_weights[new_cluster] + delta <= max_weight) {
+      _cluster_weights.atomic_add(new_cluster, delta);
+      _cluster_weights.atomic_sub(old_cluster, delta);
+      return true;
+    }
+
+    return false;
+  }
+
+  void reassign_cluster_weights(
+      const StaticArray<ClusterID> &mapping, const ClusterID num_new_clusters
+  ) {
+    _cluster_weights.reassign(mapping, num_new_clusters);
+  }
+
+private:
+  TwoLevelClusterWeightVector _cluster_weights;
 };
 } // namespace kaminpar

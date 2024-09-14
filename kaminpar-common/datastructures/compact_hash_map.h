@@ -179,7 +179,11 @@ private:
   }
 
   MutType encode_key_value(const MutType key, const MutType value) {
-    KASSERT(key == 0 || math::ceil_log2<std::uint64_t>(key) <= _key_bits, "key too large");
+    KASSERT(
+        key == static_cast<MutType>(0) ||
+            math::ceil_log2<std::uint64_t>(key) <= static_cast<std::uint64_t>(_key_bits),
+        "key too large"
+    );
     return (key << value_bits()) | value;
   }
 
