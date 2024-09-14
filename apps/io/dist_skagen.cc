@@ -35,7 +35,7 @@ DistributedCSRGraph csr_streaming_generate(
 
   bool respects_esimated_vertex_range = true;
 
-  for (std::size_t pe = 0; pe < size; ++pe) {
+  for (std::size_t pe = 0; pe < static_cast<std::size_t>(size); ++pe) {
     LOG << "Vertices on PE " << std::setw(math::byte_width(pe)) << pe << ": "
         << gen.EstimateVertexRange(pe).first << " - " << gen.EstimateVertexRange(pe).second;
   }
@@ -171,7 +171,7 @@ DistributedCompressedGraph compressed_streaming_generate(
 
   bool respects_esimated_vertex_range = true;
 
-  for (std::size_t pe = 0; pe < size; ++pe) {
+  for (std::size_t pe = 0; pe < static_cast<std::size_t>(size); ++pe) {
     LOG << "Vertices on PE " << std::setw(math::byte_width(pe)) << pe << ": "
         << gen.EstimateVertexRange(pe).first << " - " << gen.EstimateVertexRange(pe).second;
   }
