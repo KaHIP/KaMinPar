@@ -11,8 +11,6 @@
 #include <utility>
 #include <vector>
 
-#include <tbb/parallel_for.h>
-
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
 

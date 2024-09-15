@@ -89,7 +89,7 @@ PartitionedGraph bipartition(
         bipartitioner.partition(timings ? &(timings->ip_timings) : nullptr).take_raw_partition();
 
     if (partition_lifespan) {
-      StaticArray<BlockID> owned_bipartition(bipartition.size());
+      StaticArray<BlockID> owned_bipartition(bipartition.size(), static_array::noinit);
       std::copy(bipartition.begin(), bipartition.end(), owned_bipartition.begin());
 
       initial_bipartitioner_pool.put(std::move(bipartitioner));
