@@ -1,3 +1,10 @@
+/*******************************************************************************
+ * Utilities for graph generation with streaming KaGen.
+ *
+ * @file:   dist_skagen.h
+ * @author: Daniel Salwasser
+ * @date:   13.07.2024
+ ******************************************************************************/
 #include "apps/io/dist_skagen.h"
 
 #include <limits>
@@ -120,6 +127,9 @@ DistributedCSRGraph csr_streaming_generate(
 
   const EdgeID num_local_edges = current_edge;
   StaticArray<NodeID> wrapped_edges(num_local_edges, std::move(edges_ptr));
+  if constexpr (kHeapProfiling) {
+    heap_profiler::HeapProfiler::global().record_alloc(edges, num_local_edges * sizeof(NodeID));
+  }
 
   StaticArray<GlobalEdgeID> edge_distribution(size + 1);
   edge_distribution[rank] = num_local_edges;

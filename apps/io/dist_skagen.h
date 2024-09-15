@@ -1,3 +1,10 @@
+/*******************************************************************************
+ * Utilities for graph generation with streaming KaGen.
+ *
+ * @file:   dist_skagen.h
+ * @author: Daniel Salwasser
+ * @date:   13.07.2024
+ ******************************************************************************/
 #pragma once
 
 #include <string>
