@@ -211,8 +211,13 @@ DistributedCompressedGraph compressed_streaming_generate(
   CompactGhostNodeMappingBuilder mapper(rank, node_distribution);
 
   const NodeID num_local_nodes = last_node - first_node;
+  std::size_t max_num_local_edges = num_local_nodes * node_distribution.back();
+  if (max_num_local_edges / num_local_nodes != node_distribution.back()) {
+    max_num_local_edges = std::numeric_limits<std::size_t>::max();
+  }
+
   CompressedNeighborhoodsBuilder<NodeID, EdgeID, EdgeWeight> builder(
-      num_local_nodes, num_local_nodes * (num_local_nodes - 1), false
+      num_local_nodes, max_num_local_edges, false
   );
 
   NodeID num_local_edges = 0;
