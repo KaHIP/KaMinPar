@@ -324,10 +324,12 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const BlockID k, BlockID *partitio
                           "degree bucket ordering!";
       _ctx.rearrange_by = GraphOrdering::NATURAL;
     } else {
+      START_HEAP_PROFILER("Rearrange input graph");
       DistributedCSRGraph &csr_graph = _graph_ptr->csr_graph();
       graph = DistributedGraph(
           std::make_unique<DistributedCSRGraph>(graph::rearrange(std::move(csr_graph), _ctx))
       );
+      STOP_HEAP_PROFILER();
     }
 
     _was_rearranged = true;
