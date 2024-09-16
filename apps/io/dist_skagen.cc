@@ -24,6 +24,12 @@
 
 namespace kaminpar::dist::io::skagen {
 
+namespace {
+
+SET_DEBUG(true);
+
+}
+
 DistributedCSRGraph csr_streaming_generate(
     const std::string &graph_options, const PEID chunks_per_pe, const MPI_Comm comm
 ) {
@@ -185,8 +191,8 @@ DistributedCompressedGraph compressed_streaming_generate(
   gen.Initialize();
 
   const auto range = gen.EstimateVertexRange();
-  const auto first_node = range.first;
-  const auto last_node = range.second;
+  const GlobalNodeID first_node = range.first;
+  const GlobalNodeID last_node = range.second;
 
   bool respects_esimated_vertex_range = true;
 
@@ -210,7 +216,7 @@ DistributedCompressedGraph compressed_streaming_generate(
   );
   CompactGhostNodeMappingBuilder mapper(rank, node_distribution);
 
-  const NodeID num_local_nodes = last_node - first_node;
+  const NodeID num_local_nodes = static_cast<NodeID>(last_node - first_node);
   std::size_t max_num_local_edges = num_local_nodes * node_distribution.back();
   if (max_num_local_edges / num_local_nodes != node_distribution.back()) {
     max_num_local_edges = std::numeric_limits<std::size_t>::max();
@@ -220,8 +226,8 @@ DistributedCompressedGraph compressed_streaming_generate(
       num_local_nodes, max_num_local_edges, false
   );
 
-  NodeID num_local_edges = 0;
-  NodeID current_node = std::numeric_limits<NodeID>::max();
+  EdgeID num_local_edges = 0;
+  GlobalNodeID current_node = std::numeric_limits<GlobalNodeID>::max();
 
   std::vector<NodeID> neighbourhood;
   std::vector<NodeID> empty_neighbourhood(0);
@@ -241,19 +247,20 @@ DistributedCompressedGraph compressed_streaming_generate(
 
     graph.ForEachEdge([&](const kagen::SInt node, kagen::SInt adjacent_node) {
       if (current_node != node) [[unlikely]] {
-        if (current_node == std::numeric_limits<NodeID>::max()) [[unlikely]] {
+        if (current_node == std::numeric_limits<GlobalNodeID>::max()) [[unlikely]] {
           current_node = first_node;
 
-          if (current_node < node) {
-            while (++current_node < node) {
-              add_isolated_node();
-            }
+          while (current_node < node) {
+            add_isolated_node();
+            current_node++;
           }
         } else {
           compress_neighborhood();
+          current_node++;
 
-          while (++current_node < node) {
+          while (current_node < node) {
             add_isolated_node();
+            current_node++;
           }
         }
       }
@@ -276,9 +283,11 @@ DistributedCompressedGraph compressed_streaming_generate(
 
   if (num_local_nodes > 0) {
     compress_neighborhood();
+    current_node++;
 
-    while (++current_node < last_node) {
+    while (current_node < last_node) {
       add_isolated_node();
+      current_node++;
     }
   }
 

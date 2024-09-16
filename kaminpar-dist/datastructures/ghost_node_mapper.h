@@ -12,12 +12,12 @@
 
 #include "kaminpar-dist/datastructures/growt.h"
 #include "kaminpar-dist/dkaminpar.h"
+#include "kaminpar-dist/logger.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/bitvector_rank.h"
 #include "kaminpar-common/datastructures/compact_static_array.h"
 #include "kaminpar-common/datastructures/static_array.h"
-#include "kaminpar-common/logger.h"
 #include "kaminpar-common/parallel/atomic.h"
 
 namespace kaminpar::dist {
@@ -121,7 +121,6 @@ public:
       KASSERT(found);
     }
 
-    DBG << "Mapping " << global_node << " to " << entry->second;
     return entry->second;
   }
 
@@ -195,7 +194,6 @@ public:
                                   const NodeID local_node,
                                   const NodeID local_ghost,
                                   const PEID owner) {
-        DBG << "Map global node " << global_node << " to local ghost node " << local_node;
         global_to_ghost.insert(global_node + 1, local_node);
 
         ghost_to_global.write(local_ghost, global_node);
