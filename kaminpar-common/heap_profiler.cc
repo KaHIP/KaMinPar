@@ -21,6 +21,8 @@
 
 namespace kaminpar::heap_profiler {
 
+double max_overcommitment_factor = 1.0;
+
 // Source: https://stackoverflow.com/a/2513561
 #ifdef __linux__
 std::size_t get_total_system_memory() {

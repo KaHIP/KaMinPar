@@ -21,6 +21,7 @@
 namespace kaminpar::dist {
 
 namespace {
+
 using HeapProfiler = heap_profiler::HeapProfiler;
 using HeapProfilerTree = HeapProfiler::HeapProfileTree;
 using HeapProfilerTreeNode = HeapProfiler::HeapProfileTreeNode;

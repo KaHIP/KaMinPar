@@ -161,6 +161,12 @@ The output should be stored in a file and can be used by the -C,--config option.
       "checks the graph format)."
   );
   cli.add_flag("--no-huge-pages", app.no_huge_pages, "Do not use huge pages via TBBmalloc.");
+  cli.add_flag(
+         "--max-overcommitment-factor",
+         heap_profiler::max_overcommitment_factor,
+         "Limit memory overcommitment to this factor times the total available system memory."
+  )
+      ->capture_default_str();
 
   // Algorithmic options
   create_all_options(&cli, ctx);
