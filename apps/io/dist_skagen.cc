@@ -58,7 +58,11 @@ DistributedCSRGraph csr_streaming_generate(
   const NodeID num_local_nodes = last_node - first_node;
   StaticArray<EdgeID> nodes(num_local_nodes + 1, static_array::noinit);
 
-  const EdgeID max_num_local_edges = num_local_nodes * (num_local_nodes - 1);
+  std::size_t max_num_local_edges = num_local_nodes * node_distribution.back();
+  if (max_num_local_edges / num_local_nodes != node_distribution.back()) {
+    max_num_local_edges = std::numeric_limits<std::size_t>::max();
+  }
+
   auto edges_ptr = heap_profiler::overcommit_memory<NodeID>(max_num_local_edges);
   auto edges = edges_ptr.get();
 
@@ -76,9 +80,13 @@ DistributedCSRGraph csr_streaming_generate(
           visited_node += 1;
         }
 
+        KASSERT(current_node < nodes.size());
         nodes[current_node++] = current_edge;
+
         while (visited_node < node) {
           visited_node += 1;
+
+          KASSERT(current_node < nodes.size());
           nodes[current_node++] = current_edge;
         }
       }
@@ -89,6 +97,7 @@ DistributedCSRGraph csr_streaming_generate(
         adjacent_node = mapper.new_ghost_node(adjacent_node);
       }
 
+      KASSERT(current_edge < max_num_local_edges);
       edges[current_edge++] = adjacent_node;
 
       if (node < first_node || node >= last_node) [[unlikely]] {
