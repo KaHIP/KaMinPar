@@ -242,7 +242,7 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
   EdgeWeight current_delta = 0;
   EdgeWeight accepted_delta = 0;
 #if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
-  const EdgeWeight initial_edge_cut = metrics::edge_cut(p_graph);
+  const EdgeWeight initial_edge_cut = metrics::edge_cut_seq(p_graph);
 #endif
 
   DBG << "Starting main refinement loop with #_pq[0]=" << _queues[0].size()
@@ -274,7 +274,7 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
     current_delta += delta;
     _moves.push_back(u);
 #if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
-    KASSERT(initial_edge_cut + current_delta == metrics::edge_cut(p_graph), "", assert::heavy);
+    KASSERT(initial_edge_cut + current_delta == metrics::edge_cut_seq(p_graph), "", assert::heavy);
 #endif
     _stopping_policy.update(-delta); // assumes gain, not loss
     current_overload = metrics::total_overload(p_graph, *_p_ctx);
@@ -332,7 +332,7 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
 
 #if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
   KASSERT(!initially_feasible || accepted_delta <= 0);
-  KASSERT(metrics::edge_cut(p_graph) == initial_edge_cut + accepted_delta);
+  KASSERT(metrics::edge_cut_seq(p_graph) == initial_edge_cut + accepted_delta);
 #endif
 
   return accepted_delta;
