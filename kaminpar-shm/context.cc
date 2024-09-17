@@ -39,13 +39,16 @@ void GraphCompressionContext::setup(const Graph &graph) {
 // PartitionContext
 //
 
-void PartitionContext::setup(const AbstractGraph &graph) {
+void PartitionContext::setup(const AbstractGraph &graph, const bool setup_block_weights) {
   n = graph.n();
   m = graph.m();
   total_node_weight = graph.total_node_weight();
   total_edge_weight = graph.total_edge_weight();
   max_node_weight = graph.max_node_weight();
-  setup_block_weights();
+
+  if (setup_block_weights) {
+    PartitionContext::setup_block_weights();
+  }
 }
 
 void PartitionContext::setup_block_weights() {
@@ -56,7 +59,7 @@ void PartitionContext::setup_block_weights() {
 // BlockWeightsContext
 //
 
-void BlockWeightsContext::setup(const PartitionContext &p_ctx) {
+void BlockWeightsContext::setup(const PartitionContext &p_ctx, const bool parallel) {
   KASSERT(p_ctx.k != kInvalidBlockID, "PartitionContext::k not initialized");
   KASSERT(p_ctx.k != 0u, "PartitionContext::k not initialized");
   KASSERT(
@@ -76,7 +79,7 @@ void BlockWeightsContext::setup(const PartitionContext &p_ctx) {
   _max_block_weights.resize(p_ctx.k);
   _perfectly_balanced_block_weights.resize(p_ctx.k);
 
-  tbb::parallel_for<BlockID>(0, p_ctx.k, [&](const BlockID b) {
+  const auto setup_block_weight = [&](const BlockID b) {
     _perfectly_balanced_block_weights[b] = perfectly_balanced_block_weight;
 
     // relax balance constraint by max_node_weight on coarse levels only
@@ -87,10 +90,20 @@ void BlockWeightsContext::setup(const PartitionContext &p_ctx) {
           max_block_weight, perfectly_balanced_block_weight + p_ctx.max_node_weight
       );
     }
-  });
+  };
+
+  if (parallel) {
+    tbb::parallel_for<BlockID>(0, p_ctx.k, setup_block_weight);
+  } else {
+    for (BlockID b = 0; b < p_ctx.k; ++b) {
+      setup_block_weight(b);
+    }
+  }
 }
 
-void BlockWeightsContext::setup(const PartitionContext &p_ctx, const BlockID input_k) {
+void BlockWeightsContext::setup(
+    const PartitionContext &p_ctx, const BlockID input_k, const bool parallel
+) {
   KASSERT(p_ctx.k != kInvalidBlockID, "PartitionContext::k not initialized");
   KASSERT(
       p_ctx.total_node_weight != kInvalidNodeWeight,
@@ -106,7 +119,7 @@ void BlockWeightsContext::setup(const PartitionContext &p_ctx, const BlockID inp
   _max_block_weights.resize(p_ctx.k);
   _perfectly_balanced_block_weights.resize(p_ctx.k);
 
-  tbb::parallel_for<BlockID>(0, p_ctx.k, [&](const BlockID b) {
+  const auto setup_block_weight = [&](const BlockID b) {
     const BlockID final_k = partitioning::compute_final_k(b, p_ctx.k, input_k);
 
     _perfectly_balanced_block_weights[b] = std::ceil(final_k * block_weight);
@@ -122,7 +135,15 @@ void BlockWeightsContext::setup(const PartitionContext &p_ctx, const BlockID inp
           max_block_weight, _perfectly_balanced_block_weights[b] + p_ctx.max_node_weight
       );
     }
-  });
+  };
+
+  if (parallel) {
+    tbb::parallel_for<BlockID>(0, p_ctx.k, setup_block_weight);
+  } else {
+    for (BlockID b = 0; b < p_ctx.k; ++b) {
+      setup_block_weight(b);
+    }
+  }
 }
 
 [[nodiscard]] const std::vector<BlockWeight> &BlockWeightsContext::all_max() const {

@@ -359,8 +359,8 @@ class Graph;
 struct PartitionContext;
 
 struct BlockWeightsContext {
-  void setup(const PartitionContext &ctx);
-  void setup(const PartitionContext &ctx, BlockID input_k);
+  void setup(const PartitionContext &ctx, const bool parallel = true);
+  void setup(const PartitionContext &ctx, const BlockID input_k, const bool parallel = true);
 
   [[nodiscard]] BlockWeight max(BlockID b) const {
     return _max_block_weights[b];
@@ -392,7 +392,7 @@ struct PartitionContext {
   EdgeWeight total_edge_weight = kInvalidEdgeWeight;
   NodeWeight max_node_weight = kInvalidNodeWeight;
 
-  void setup(const AbstractGraph &graph);
+  void setup(const AbstractGraph &graph, const bool setup_block_weights = true);
 };
 
 struct ParallelContext {

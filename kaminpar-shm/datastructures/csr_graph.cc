@@ -110,6 +110,8 @@ CSRGraph::CSRGraph(
         std::accumulate(_edge_weights.begin(), _edge_weights.end(), static_cast<EdgeWeight>(0));
   }
 
+  // TODO: Use a sequential routine to initialize degree buckets since work isolation can otherwise
+  // be violated. However, this does not currently pose a problem as it is not called in parallel.
   init_degree_buckets();
 }
 

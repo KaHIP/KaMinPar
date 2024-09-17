@@ -36,14 +36,15 @@ PartitionContext create_bipartition_context(
     const AbstractGraph &subgraph,
     const BlockID k1,
     const BlockID k2,
-    const PartitionContext &kway_p_ctx
+    const PartitionContext &kway_p_ctx,
+    const bool parallel
 ) {
   PartitionContext twoway_p_ctx;
   twoway_p_ctx.k = 2;
-  twoway_p_ctx.setup(subgraph);
+  twoway_p_ctx.setup(subgraph, false);
   twoway_p_ctx.epsilon =
       compute_2way_adaptive_epsilon(subgraph.total_node_weight(), k1 + k2, kway_p_ctx);
-  twoway_p_ctx.block_weights.setup(twoway_p_ctx, k1 + k2);
+  twoway_p_ctx.block_weights.setup(twoway_p_ctx, k1 + k2, parallel);
   return twoway_p_ctx;
 }
 
