@@ -15,7 +15,7 @@
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/logger.h"
 
-#include "apps/io/file_tokener.h"
+#include "apps/io/file_toker.h"
 
 namespace kaminpar::shm::io::metis {
 using namespace kaminpar::io;

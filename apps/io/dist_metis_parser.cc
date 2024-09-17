@@ -18,7 +18,7 @@
 
 #include "kaminpar-common/graph-compression/compressed_neighborhoods_builder.h"
 
-#include "apps/io/file_tokener.h"
+#include "apps/io/file_toker.h"
 
 namespace kaminpar::dist::io::metis {
 using namespace kaminpar::io;

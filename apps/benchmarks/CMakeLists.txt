@@ -22,7 +22,8 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
         add_shm_benchmark(${target} ${ARGN})
         target_link_libraries(${target} PRIVATE 
             KaMinPar::dKaMinPar 
-            KaMinPar::dKaMinParCLI)
+            KaMinPar::dKaMinParCLI
+            KaMinPar::dKaMinParIO)
     endfunction()
 
     # Distributed benchmarks
