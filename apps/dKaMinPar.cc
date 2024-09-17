@@ -74,6 +74,8 @@ struct ApplicationContext {
   std::string partition_filename = "";
 
   bool no_huge_pages = false;
+
+  bool dry_run = false;
 };
 
 void setup_context(CLI::App &cli, ApplicationContext &app, Context &ctx) {
@@ -207,6 +209,12 @@ The output should be stored in a file and can be used by the -C,--config option.
         ->capture_default_str()
         ->check(CLI::NonNegativeNumber);
   }
+
+  cli.add_flag(
+      "--dry-run",
+      app.dry_run,
+      "Only check the given command line arguments, but do not partition the graph."
+  );
 
   // Algorithmic options
   create_all_options(&cli, ctx);
@@ -362,6 +370,10 @@ int main(int argc, char *argv[]) {
 
   if (app.show_version) {
     root_run_and_exit([&] { std::cout << Environment::GIT_SHA1 << std::endl; });
+  }
+
+  if (app.dry_run) {
+    std::exit(MPI_Finalize());
   }
 
   // If available, use huge pages for large allocations

@@ -58,6 +58,8 @@ struct ApplicationContext {
   io::GraphFileFormat graph_file_format = io::GraphFileFormat::METIS;
 
   bool no_huge_pages = false;
+
+  bool dry_run = false;
 };
 
 void setup_context(CLI::App &cli, ApplicationContext &app, Context &ctx) {
@@ -168,6 +170,12 @@ The output should be stored in a file and can be used by the -C,--config option.
   )
       ->capture_default_str();
 
+  cli.add_flag(
+      "--dry-run",
+      app.dry_run,
+      "Only check the given command line arguments, but do not partition the graph."
+  );
+
   // Algorithmic options
   create_all_options(&cli, ctx);
 }
@@ -195,6 +203,10 @@ int main(int argc, char *argv[]) {
 
   if (app.show_version) {
     std::cout << Environment::GIT_SHA1 << std::endl;
+    std::exit(0);
+  }
+
+  if (app.dry_run) {
     std::exit(0);
   }
 
