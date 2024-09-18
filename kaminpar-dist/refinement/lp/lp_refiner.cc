@@ -138,7 +138,7 @@ public:
 private:
   GlobalNodeID process_chunk(const NodeID from, const NodeID to) {
     TIMER_BARRIER(_graph->communicator());
-    DBG << "Running label propagation on node chunk [" << from << ".." << to << "]";
+    DBG0 << "Running label propagation on chunk [" << from << ".." << to << "]";
 
 #if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
     KASSERT(ASSERT_NEXT_PARTITION_STATE(), "", assert::heavy);
@@ -149,10 +149,10 @@ private:
       return Base::perform_iteration(from, to);
     };
 
-    DBG << "Moved " << num_moved_nodes << " nodes locally";
-
     const auto global_num_moved_nodes =
         mpi::allreduce<GlobalNodeID>(num_moved_nodes, MPI_SUM, _graph->communicator());
+
+    DBG0 << "Moved " << global_num_moved_nodes << " nodes in chunk [" << from << ".." << to << "]";
 
     if (global_num_moved_nodes == 0) {
       // Nothing to do:
@@ -199,7 +199,7 @@ private:
       }
     };
 
-    DBG << "Performing probabilistic moves ...";
+    DBG0 << "Performing probabilistic moves ...";
 
     // Perform probabilistic moves
     for (int i = 0; i < _lp_ctx.num_move_attempts; ++i) {
@@ -208,7 +208,7 @@ private:
       }
     }
 
-    DBG << "Syncing state ...";
+    DBG0 << "Syncing state ...";
 
     synchronize_state(from, to);
     _graph->pfor_nodes(from, to, [&](const NodeID u) { _next_partition[u] = _p_graph->block(u); });
