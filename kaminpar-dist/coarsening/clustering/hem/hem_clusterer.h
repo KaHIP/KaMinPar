@@ -12,6 +12,7 @@
 #include "kaminpar-dist/dkaminpar.h"
 
 namespace kaminpar::dist {
+
 class HEMClusterer : public Clusterer {
 public:
   explicit HEMClusterer(const Context &ctx);
@@ -31,4 +32,5 @@ public:
 private:
   std::unique_ptr<class HEMClustererImplWrapper> _impl_wrapper;
 };
+
 } // namespace kaminpar::dist

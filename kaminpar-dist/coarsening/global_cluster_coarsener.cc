@@ -16,8 +16,11 @@
 #include "kaminpar-shm/coarsening/max_cluster_weights.h"
 
 namespace kaminpar::dist {
+
 namespace {
+
 SET_DEBUG(false);
+
 }
 
 GlobalClusterCoarsener::GlobalClusterCoarsener(const Context &input_ctx)
@@ -104,4 +107,5 @@ GlobalNodeWeight GlobalClusterCoarsener::max_cluster_weight() const {
       current().global_total_node_weight()
   );
 }
+
 } // namespace kaminpar::dist

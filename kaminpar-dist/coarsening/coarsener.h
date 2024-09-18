@@ -13,6 +13,7 @@
 #include "kaminpar-dist/dkaminpar.h"
 
 namespace kaminpar::dist {
+
 class Coarsener {
 public:
   Coarsener() = default;
@@ -66,4 +67,5 @@ public:
    */
   virtual DistributedPartitionedGraph uncoarsen(DistributedPartitionedGraph &&p_graph) = 0;
 };
+
 } // namespace kaminpar::dist
