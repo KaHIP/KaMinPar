@@ -65,6 +65,11 @@ if (TARGET kaminpar_dist)
 
     add_dist_app(dKaMinPar dKaMinPar.cc)
     target_link_libraries(dKaMinPar PRIVATE KaMinPar::dKaMinParIO)
+
+    if (KAMINPAR_BUILD_WITH_BACKWARD)
+        target_link_libraries(dKaMinPar PRIVATE Backward::Backward)
+        target_compile_definitions(dKaMinPar PRIVATE -DKAMINPAR_HAVE_BACKWARD)
+    endif ()
 endif ()
 
 if (KAMINPAR_BUILD_BENCHMARKS)

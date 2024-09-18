@@ -24,6 +24,10 @@
 #include "apps/io/dist_parhip_parser.h"
 #include "apps/io/dist_skagen.h"
 
+#ifdef KAMINPAR_HAVE_BACKWARD
+#include <backward.hpp>
+#endif
+
 using namespace kaminpar;
 using namespace kaminpar::dist;
 
@@ -352,6 +356,11 @@ int main(int argc, char *argv[]) {
   int provided, rank;
   MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+#ifdef KAMINPAR_HAVE_BACKWARD
+  backward::MPIErrorHandler mpi_error_handler(MPI_COMM_WORLD);
+  backward::SignalHandling sh;
+#endif // KAMINPAR_HAVE_BACKWARD
 
   CLI::App cli("dKaMinPar: (Somewhat) Minimal Distributed Deep Multilevel "
                "Graph Partitioner");
