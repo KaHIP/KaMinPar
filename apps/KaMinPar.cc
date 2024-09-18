@@ -28,10 +28,15 @@
 #include "apps/io/shm_io.h"
 #include "apps/version.h"
 
+#if defined(__linux__)
+#include <sys/resource.h>
+#endif
+
 using namespace kaminpar;
 using namespace kaminpar::shm;
 
 namespace {
+
 struct ApplicationContext {
   bool dump_config = false;
   bool show_version = false;
@@ -275,6 +280,22 @@ int main(int argc, char *argv[]) {
   }
 
   DISABLE_HEAP_PROFILER();
+
+  if (!app.quiet) {
+    std::cout << "\n";
+
+#if defined(__linux__)
+    if (struct rusage usage; getrusage(RUSAGE_SELF, &usage) == 0) {
+      std::cout << "Maximum resident set size: " << usage.ru_maxrss << " KiB\n";
+    } else {
+#else
+    {
+#endif
+      std::cout << "Maximum resident set size: unknown\n";
+    }
+
+    std::cout << std::flush;
+  }
 
   return 0;
 }
