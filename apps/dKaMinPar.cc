@@ -23,6 +23,7 @@
 #include "apps/io/dist_metis_parser.h"
 #include "apps/io/dist_parhip_parser.h"
 #include "apps/io/dist_skagen.h"
+#include "apps/version.h"
 
 #ifdef KAMINPAR_HAVE_BACKWARD
 #include <backward.hpp>
@@ -425,7 +426,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (app.show_version) {
-    root_run_and_exit([&] { std::cout << Environment::GIT_SHA1 << std::endl; });
+    root_run_and_exit([&] { print_version(); });
   }
 
   if (app.dry_run) {

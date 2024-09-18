@@ -20,13 +20,13 @@
 
 #include "kaminpar-shm/datastructures/graph.h"
 
-#include "kaminpar-common/environment.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/strutils.h"
 #include "kaminpar-common/timer.h"
 
 #include "apps/io/shm_input_validator.h"
 #include "apps/io/shm_io.h"
+#include "apps/version.h"
 
 using namespace kaminpar;
 using namespace kaminpar::shm;
@@ -202,7 +202,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (app.show_version) {
-    std::cout << Environment::GIT_SHA1 << std::endl;
+    print_version();
     std::exit(0);
   }
 
