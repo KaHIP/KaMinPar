@@ -595,8 +595,9 @@ template <typename T> using unique_ptr = std::unique_ptr<T, HeapProfiledMemoryDe
  * @return A pointer to the allocated memory.
  */
 template <typename T> unique_ptr<T> overcommit_memory(const std::size_t size) {
+  const std::size_t total_system_memory = get_total_system_memory();
   const std::size_t nbytes =
-      std::min<std::size_t>(max_overcommitment_factor * get_total_system_memory(), size * sizeof(T));
+      std::min<std::size_t>(max_overcommitment_factor * total_system_memory, size * sizeof(T));
 
   T *ptr;
   if constexpr (kHeapProfiling) {
@@ -606,8 +607,10 @@ template <typename T> unique_ptr<T> overcommit_memory(const std::size_t size) {
   }
 
   if (ptr == NULL) {
-    LOG_ERROR << "The overcommitment of memory failed. Ensure that memory overcommitment is"
-                 " enabled on this system!";
+    LOG_ERROR << "Overcommitting " << nbytes << " bytes = min(" << max_overcommitment_factor
+              << " * " << total_system_memory << " bytes, " << size << " * " << sizeof(T)
+              << " bytes) of memory failed."
+              << "Ensure that memory overcommitment is enabled on this system!";
     std::exit(EXIT_FAILURE);
   }
 
