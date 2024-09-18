@@ -31,7 +31,12 @@
 #include "kaminpar-common/math.h"
 
 namespace kaminpar::dist {
+
+namespace {
+
 SET_DEBUG(false);
+
+}
 
 DeepMultilevelPartitioner::DeepMultilevelPartitioner(
     const DistributedGraph &input_graph, const Context &input_ctx
@@ -277,7 +282,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   ref_p_ctx.graph = std::make_unique<GraphContext>(dist_p_graph.graph(), ref_p_ctx);
 
   // Uncoarsen, partition blocks and refine
-  while (_coarseners.size() > 1 || coarsener->level() > 0) {
+  while (!_coarseners.empty() && coarsener->level() > 0) {
     SCOPED_HEAP_PROFILER("Level", std::to_string(coarsener->level()));
 
     LOG;
@@ -301,6 +306,12 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     // If we replicated early, we might already be on the finest level
     if (coarsener->level() > 0) {
       dist_p_graph = coarsener->uncoarsen(std::move(dist_p_graph));
+    }
+
+    // Destroy coarsener before we run refinement on the finest level
+    if (_coarseners.size() == 1 && coarsener->level() == 0) {
+      LOG << "Dstr coarsener";
+      _coarseners.pop();
     }
 
     // Extend partition
@@ -369,4 +380,5 @@ const Coarsener *DeepMultilevelPartitioner::get_current_coarsener() const {
   KASSERT(!_coarseners.empty());
   return _coarseners.top().get();
 }
+
 } // namespace kaminpar::dist
