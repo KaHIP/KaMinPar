@@ -18,6 +18,7 @@
 #include "kaminpar-dist/dkaminpar.h"
 
 namespace kaminpar::dist {
+
 class GlobalClusterCoarsener : public Coarsener {
 public:
   GlobalClusterCoarsener(const Context &input_ctx);
@@ -42,4 +43,5 @@ private:
   std::unique_ptr<Clusterer> _clusterer;
   std::vector<std::unique_ptr<CoarseGraph>> _graph_hierarchy;
 };
+
 } // namespace kaminpar::dist

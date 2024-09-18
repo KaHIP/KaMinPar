@@ -16,6 +16,7 @@
 #include "kaminpar-dist/dkaminpar.h"
 
 namespace kaminpar::dist::metrics {
+
 GlobalEdgeWeight local_edge_cut(const DistributedPartitionedGraph &p_graph) {
   tbb::enumerable_thread_specific<GlobalEdgeWeight> cut_ets;
 
@@ -96,4 +97,5 @@ double imbalance_l1(const DistributedPartitionedGraph &p_graph, const PartitionC
   }
   return distance;
 }
+
 } // namespace kaminpar::dist::metrics

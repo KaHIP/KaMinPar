@@ -11,6 +11,7 @@
 #include "kaminpar-dist/dkaminpar.h"
 
 namespace kaminpar::dist::metrics {
+
 /**
  * Computes the number of edges cut in the part of the graph owned by this PE.
  * Includes edges to ghost nodes. Since the graph is directed (there are no
@@ -73,4 +74,5 @@ double imbalance_l2(const DistributedPartitionedGraph &p_graph, const PartitionC
  * @param p_ctx Partition context describing the maximum block weights.
  */
 double imbalance_l1(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx);
+
 } // namespace kaminpar::dist::metrics

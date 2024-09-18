@@ -17,6 +17,7 @@
 #include "kaminpar-dist/coarsening/clustering/lp/global_lp_clusterer.h"
 
 namespace kaminpar::dist {
+
 HEMLPClusterer::HEMLPClusterer(const Context &ctx)
     : _lp(std::make_unique<GlobalLPClusterer>(ctx)),
       _hem(std::make_unique<HEMClusterer>(ctx)) {}
@@ -62,4 +63,5 @@ HEMLPClusterer::compute_size_after_matching_contraction(const StaticArray<Global
 
   return _graph->global_n() - num_matched_edges_globally;
 }
+
 } // namespace kaminpar::dist

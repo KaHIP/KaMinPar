@@ -20,7 +20,9 @@
 #include "kaminpar-common/assert.h"
 
 namespace kaminpar::dist {
+
 namespace {
+
 class AlignedTable {
 public:
   template <typename T> void update_next_column(const T &val) {
@@ -277,6 +279,7 @@ void annotate_timer_tree(
     annotate_timer_tree(*child, pos, statistics, table);
   }
 }
+
 } // namespace
 
 void finalize_distributed_timer(Timer &timer, MPI_Comm comm) {
@@ -302,4 +305,5 @@ void finalize_distributed_timer(Timer &timer, MPI_Comm comm) {
     annotate_timer_tree(timer.tree(), pos, statistics, table);
   }
 }
+
 } // namespace kaminpar::dist

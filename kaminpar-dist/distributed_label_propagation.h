@@ -15,17 +15,17 @@
 #include <tbb/parallel_invoke.h>
 #include <tbb/scalable_allocator.h>
 
-#include "kaminpar-dist/datastructures/distributed_graph.h"
+#include "kaminpar-dist/dkaminpar.h"
+#include "kaminpar-dist/logger.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/datastructures/rating_map.h"
-#include "kaminpar-common/datastructures/scalable_vector.h"
-#include "kaminpar-common/logger.h"
 #include "kaminpar-common/parallel/atomic.h"
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::dist {
+
 struct LabelPropagationConfig {
   // Data structure used to accumulate edge weights for gain value calculation
   using RatingMap = ::kaminpar::RatingMap<EdgeWeight, NodeID>;
@@ -61,8 +61,8 @@ struct LabelPropagationConfig {
 
 template <typename RatingMap, typename ClusterID> struct LabelPropagationMemoryContext {
   tbb::enumerable_thread_specific<RatingMap> rating_map_ets;
-  ScalableVector<parallel::Atomic<uint8_t>> active;
-  ScalableVector<parallel::Atomic<ClusterID>> favored_clusters;
+  StaticArray<std::uint8_t> active;
+  StaticArray<ClusterID> favored_clusters;
 };
 
 /*!
@@ -394,7 +394,7 @@ protected:
       // should remove it if it does not side effects
       if (derived_activate_neighbor(v)) {
         if constexpr (Config::kUseActiveSetStrategy || Config::kUseLocalActiveSetStrategy) {
-          _active[v].store(1, std::memory_order_relaxed);
+          __atomic_store_n(&_active[v], 1, __ATOMIC_RELAXED);
         }
       }
     });
@@ -639,7 +639,7 @@ protected:
       // Conclusion:
       // We can use _favored_clusters[u] to build the two-hop clusters.
 
-      const NodeID C = _favored_clusters[u];
+      const NodeID C = __atomic_load_n(&_favored_clusters[u], __ATOMIC_RELAXED);
       auto &sync = _favored_clusters[C];
 
       do {
@@ -826,7 +826,7 @@ protected: // Default implementations
 protected: // Members
   //! Graph we operate on, or \c nullptr if \c initialize has not been called
   //! yet.
-  const Graph *_graph{nullptr};
+  const Graph *_graph = nullptr;
 
   //! The number of non-empty clusters before we ran the first iteration of
   //! label propagation.
@@ -856,12 +856,12 @@ protected: // Members
   //! Flags nodes with at least one node in its neighborhood that changed
   //! clusters during the last iteration. Nodes without this flag set must not
   //! be considered in the next iteration.
-  ScalableVector<parallel::Atomic<uint8_t>> _active;
+  StaticArray<std::uint8_t> _active;
 
   //! If a node cannot join any cluster during an iteration, this vector stores
   //! the node's highest rated cluster independent of the maximum cluster
   //! weight. This information is used during 2-hop clustering.
-  ScalableVector<parallel::Atomic<ClusterID>> _favored_clusters;
+  StaticArray<ClusterID> _favored_clusters;
 
   //! If statistics are enabled, this is the sum of the gain of all moves that
   //! were performed. If executed single-thread, this should be equal to the
@@ -921,7 +921,7 @@ protected:
             }
 
             if constexpr (Config::kUseActiveSetStrategy || Config::kUseLocalActiveSetStrategy) {
-              if (!_active[u].load(std::memory_order_relaxed)) {
+              if (!__atomic_load_n(&_active[u], __ATOMIC_RELAXED)) {
                 continue;
               }
             }
@@ -1052,7 +1052,7 @@ protected:
                            permutation[i % Config::kPermutationSize];
           if (u < chunk.end && _graph->degree(u) < _max_degree &&
               ((!Config::kUseActiveSetStrategy && !Config::kUseLocalActiveSetStrategy) ||
-               _active[u].load(std::memory_order_relaxed))) {
+               __atomic_load_n(&_active[u], __ATOMIC_RELAXED))) {
             const auto [moved_node, emptied_cluster] = handle_node(u, local_rand, local_rating_map);
             if (moved_node) {
               ++local_num_moved_nodes;
@@ -1290,4 +1290,5 @@ public:
 private:
   StaticArray<ClusterID> *_clusters = nullptr;
 };
+
 } // namespace kaminpar::dist

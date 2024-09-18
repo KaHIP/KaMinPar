@@ -14,8 +14,11 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::dist {
+
 namespace {
+
 SET_DEBUG(true);
+
 }
 
 //

@@ -36,9 +36,12 @@
 #endif
 
 namespace kaminpar::dist {
+
 namespace {
+
 SET_STATISTICS_FROM_GLOBAL();
 SET_DEBUG(false);
+
 } // namespace
 
 ColoredLPRefinerFactory::ColoredLPRefinerFactory(const Context &ctx) : _ctx(ctx) {}
@@ -955,4 +958,5 @@ void ColoredLPRefiner::GainStatistics::summarize_by_size(
           << " percentage=" << gain_percentage << " percentage_so_far=" << gain_so_far_percentage;
   }
 }
+
 } // namespace kaminpar::dist

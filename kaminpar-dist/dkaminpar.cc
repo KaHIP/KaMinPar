@@ -35,9 +35,11 @@
 #include "kaminpar-common/random.h"
 
 namespace kaminpar {
+
 using namespace dist;
 
 namespace {
+
 void print_partition_summary(
     const Context &ctx,
     const DistributedPartitionedGraph &p_graph,
@@ -121,12 +123,9 @@ void print_input_summary(
   if (root && parseable) {
     LOG << "EXECUTION_MODE num_mpis=" << ctx.parallel.num_mpis
         << " num_threads=" << ctx.parallel.num_threads;
-    LOG << "INPUT_GRAPH "
-        << "global_n=" << graph.global_n() << " "
-        << "global_m=" << graph.global_m() << " "
-        << "n=[" << n_str << "] "
-        << "m=[" << m_str << "] "
-        << "ghost_n=[" << ghost_n_str << "]";
+    LOG << "INPUT_GRAPH " << "global_n=" << graph.global_n() << " "
+        << "global_m=" << graph.global_m() << " " << "n=[" << n_str << "] " << "m=[" << m_str
+        << "] " << "ghost_n=[" << ghost_n_str << "]";
   }
 
   // Output
@@ -150,6 +149,7 @@ void print_input_summary(
     cio::print_delimiter("Partitioning");
   }
 }
+
 } // namespace
 
 dKaMinPar::dKaMinPar(MPI_Comm comm, const int num_threads, const Context ctx)
@@ -374,4 +374,5 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const BlockID k, BlockID *partitio
 
   return final_cut;
 }
+
 } // namespace kaminpar

@@ -21,7 +21,9 @@
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::dist {
+
 namespace {
+
 template <typename T> std::ostream &operator<<(std::ostream &out, const std::vector<T> &vec) {
   out << "[";
   bool first = true;
@@ -35,6 +37,7 @@ template <typename T> std::ostream &operator<<(std::ostream &out, const std::vec
   }
   return out << "]";
 }
+
 } // namespace
 
 std::unordered_map<std::string, PartitioningMode> get_partitioning_modes() {
@@ -401,8 +404,7 @@ void print(
 
     out << "Compression ratio:            [Min=" << round(ctx.min_compression_ratio)
         << " | Mean=" << round(ctx.avg_compression_ratio)
-        << " | Max=" << round(ctx.max_compression_ratio) << "]"
-        << "\n";
+        << " | Max=" << round(ctx.max_compression_ratio) << "]" << "\n";
 
     out << "Largest compressed graph:     " << to_gib(ctx.largest_compressed_graph_prev_size)
         << " GiB -> " << to_gib(ctx.largest_compressed_graph) << " GiB\n";
@@ -604,4 +606,5 @@ void print(const RefinementContext &ctx, const ParallelContext &parallel, std::o
         << 100.0 * ctx.cluster_balancer.par_rebalance_fraction_increase << "% each round\n";
   }
 }
+
 } // namespace kaminpar::dist

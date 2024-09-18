@@ -370,6 +370,7 @@ void run_partitioner(
 
   if (app.repetitions == 0) {
     partitioner.compute_partition(app.k, partition.data());
+    return;
   }
 
   START_HEAP_PROFILER("Input Graph Allocation");

@@ -11,6 +11,7 @@
 #include "kaminpar-dist/distributed_label_propagation.h"
 
 namespace kaminpar::dist {
+
 struct LocalLPClusteringConfig : public LabelPropagationConfig {
   using ClusterID = NodeID;
   using ClusterWeight = NodeWeight;
@@ -268,4 +269,5 @@ void LocalLPClusterer::cluster(
   );
   return _impl->compute_clustering(local_clustering, p_graph);
 }
+
 } // namespace kaminpar::dist

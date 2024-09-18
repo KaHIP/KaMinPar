@@ -8,10 +8,10 @@
 #pragma once
 
 #include "kaminpar-dist/context.h"
-#include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 
 namespace kaminpar::dist {
+
 /**
  * Interface for refinement algorithms. The graph partition and partition
  * context struct should be passed via the ctor.
@@ -50,4 +50,5 @@ public:
   virtual std::unique_ptr<GlobalRefiner>
   create(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) = 0;
 };
+
 } // namespace kaminpar::dist

@@ -13,6 +13,7 @@
 #include "kaminpar-dist/refinement/refiner.h"
 
 namespace kaminpar::dist {
+
 MultiRefinerFactory::MultiRefinerFactory(
     std::unordered_map<RefinementAlgorithm, std::unique_ptr<GlobalRefinerFactory>> factories,
     std::vector<RefinementAlgorithm> order
@@ -46,4 +47,5 @@ bool MultiRefiner::refine() {
   }
   return improved_partition;
 }
+
 } // namespace kaminpar::dist

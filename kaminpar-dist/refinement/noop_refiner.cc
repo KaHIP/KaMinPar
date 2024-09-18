@@ -11,6 +11,7 @@
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 
 namespace kaminpar::dist {
+
 std::unique_ptr<GlobalRefiner>
 NoopRefinerFactory::create(DistributedPartitionedGraph &, const PartitionContext &) {
   return std::make_unique<NoopRefiner>();
@@ -21,4 +22,5 @@ void NoopRefiner::initialize() {}
 bool NoopRefiner::refine() {
   return false;
 }
+
 } // namespace kaminpar::dist

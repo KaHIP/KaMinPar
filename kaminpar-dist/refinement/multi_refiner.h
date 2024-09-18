@@ -16,6 +16,7 @@
 #include "kaminpar-dist/refinement/refiner.h"
 
 namespace kaminpar::dist {
+
 class MultiRefinerFactory : public GlobalRefinerFactory {
 public:
   MultiRefinerFactory(
@@ -57,4 +58,5 @@ private:
   std::unordered_map<RefinementAlgorithm, std::unique_ptr<GlobalRefiner>> _refiners;
   std::vector<RefinementAlgorithm> _order;
 };
+
 } // namespace kaminpar::dist
