@@ -22,6 +22,7 @@
 namespace kaminpar::heap_profiler {
 
 double max_overcommitment_factor = 1.0;
+bool bruteforce_max_overcommitment_factor = false;
 
 // Source: https://stackoverflow.com/a/2513561
 #ifdef __linux__
