@@ -24,6 +24,7 @@
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::dist {
+
 struct LPRefinerConfig : public LabelPropagationConfig {
   using RatingMap = ::kaminpar::RatingMap<EdgeWeight, BlockID>;
   using Graph = DistributedGraph;
@@ -40,9 +41,9 @@ struct LPRefinerConfig : public LabelPropagationConfig {
 
 struct LPRefinerMemoryContext
     : public LabelPropagationMemoryContext<LPRefinerConfig::RatingMap, LPRefinerConfig::ClusterID> {
-  ScalableVector<BlockID> next_partition;
-  ScalableVector<EdgeWeight> gains;
-  ScalableVector<parallel::Atomic<BlockWeight>> block_weights;
+  StaticArray<BlockID> next_partition;
+  StaticArray<EdgeWeight> gains;
+  StaticArray<BlockWeight> block_weights;
 };
 
 template <typename Graph>
@@ -156,7 +157,9 @@ public:
 
   void
   refine(const Graph &graph, DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
+    SCOPED_HEAP_PROFILER("Label Propagation");
     SCOPED_TIMER("LP Refinement");
+
     _p_graph = &p_graph;
     _p_ctx = &p_ctx;
 
@@ -468,7 +471,7 @@ public:
   }
 
   [[nodiscard]] BlockWeight cluster_weight(const BlockID b) {
-    return _block_weights[b];
+    return __atomic_load_n(&_block_weights[b], __ATOMIC_RELAXED);
   }
 
   void init_cluster_weight(const BlockID b, const BlockWeight weight) {
@@ -482,9 +485,9 @@ public:
   [[nodiscard]] bool move_cluster_weight(
       const BlockID from, const BlockID to, const BlockWeight delta, const BlockWeight max_weight
   ) {
-    if (_block_weights[to] + delta <= max_weight) {
-      _block_weights[to] += delta;
-      _block_weights[from] -= delta;
+    if (cluster_weight(to) + delta <= max_weight) {
+      __atomic_fetch_add(&_block_weights[to], delta, __ATOMIC_RELAXED);
+      __atomic_fetch_sub(&_block_weights[from], delta, __ATOMIC_RELAXED);
       return true;
     }
     return false;
@@ -531,9 +534,9 @@ private:
   DistributedPartitionedGraph *_p_graph = nullptr;
   const PartitionContext *_p_ctx = nullptr;
 
-  ScalableVector<BlockID> _next_partition;
-  ScalableVector<EdgeWeight> _gains;
-  ScalableVector<parallel::Atomic<BlockWeight>> _block_weights;
+  StaticArray<BlockID> _next_partition;
+  StaticArray<EdgeWeight> _gains;
+  StaticArray<BlockWeight> _block_weights;
 
   Statistics _statistics;
 };
@@ -600,4 +603,5 @@ bool LPRefiner::refine() {
   _impl->refine(_p_graph, _p_ctx);
   return false;
 }
+
 } // namespace kaminpar::dist
