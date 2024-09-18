@@ -525,6 +525,9 @@ private:
     });
     STOP_TIMER();
 
+    // Barrier has to be placed here since code paths might diverge after the return statement
+    TIMER_BARRIER(_graph->communicator());
+
     // If we detected a max cluster weight violation, remove node weight
     // proportional to our chunk of the cluster weight
     if (!should_enforce_cluster_weights() || !violation) {
@@ -535,7 +538,6 @@ private:
     // VVV possibly diverged code paths, might not be executed on all PEs VVV
     //
 
-    TIMER_BARRIER(_graph->communicator());
     START_TIMER("Enforce cluster weights");
     _graph->pfor_nodes(from, to, [&](const NodeID u) {
       const GlobalNodeID old_label = _changed_label[u];
