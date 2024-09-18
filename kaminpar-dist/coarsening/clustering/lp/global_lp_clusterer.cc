@@ -105,9 +105,6 @@ public:
   }
 
   void initialize(const Graph &graph) {
-    TIMER_BARRIER(graph.communicator());
-    SCOPED_TIMER("Label Propagation");
-
     _graph = &graph;
 
     START_TIMER("Initialize high-degree node info");
@@ -116,13 +113,13 @@ public:
       graph.init_high_degree_info(_passive_high_degree_threshold);
     }
     STOP_TIMER();
-    TIMER_BARRIER(graph.communicator());
 
+    TIMER_BARRIER(graph.communicator());
     START_TIMER("Allocation");
     allocate(graph);
     STOP_TIMER();
-    TIMER_BARRIER(graph.communicator());
 
+    TIMER_BARRIER(graph.communicator());
     START_TIMER("Initialize datastructures");
     START_HEAP_PROFILER("Initialize datastructures");
     _cluster_weights_handles_ets.clear();
@@ -142,7 +139,7 @@ public:
   void compute_clustering(StaticArray<GlobalNodeID> &clustering, const Graph &graph) {
     TIMER_BARRIER(graph.communicator());
     SCOPED_TIMER("Label propagation");
-    SCOPED_HEAP_PROFILER("Label propagation");
+    SCOPED_HEAP_PROFILER("Label Propagation");
 
     init_clusters_ref(clustering);
     initialize(graph);
