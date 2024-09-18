@@ -15,17 +15,17 @@
 #include <tbb/parallel_invoke.h>
 #include <tbb/scalable_allocator.h>
 
-#include "kaminpar-dist/datastructures/distributed_graph.h"
+#include "kaminpar-dist/dkaminpar.h"
+#include "kaminpar-dist/logger.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/datastructures/rating_map.h"
-#include "kaminpar-common/datastructures/scalable_vector.h"
-#include "kaminpar-common/logger.h"
 #include "kaminpar-common/parallel/atomic.h"
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::dist {
+
 struct LabelPropagationConfig {
   // Data structure used to accumulate edge weights for gain value calculation
   using RatingMap = ::kaminpar::RatingMap<EdgeWeight, NodeID>;
@@ -1290,4 +1290,5 @@ public:
 private:
   StaticArray<ClusterID> *_clusters = nullptr;
 };
+
 } // namespace kaminpar::dist

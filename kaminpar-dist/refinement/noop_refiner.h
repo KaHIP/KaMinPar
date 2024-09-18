@@ -12,6 +12,7 @@
 #include "kaminpar-dist/refinement/refiner.h"
 
 namespace kaminpar::dist {
+
 class NoopRefinerFactory : public GlobalRefinerFactory {
 public:
   NoopRefinerFactory() = default;
@@ -39,4 +40,5 @@ public:
   void initialize() final;
   bool refine() final;
 };
+
 } // namespace kaminpar::dist

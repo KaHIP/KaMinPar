@@ -17,7 +17,9 @@
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 
 namespace kaminpar::dist::debug {
+
 namespace {
+
 std::string generate_filename(
     const DistributedGraph &graph, const DebugContext &d_ctx, const std::string &suffix
 ) {
@@ -31,6 +33,7 @@ std::string generate_filename(
   filename_ss << "." << suffix;
   return filename_ss.str();
 }
+
 } // namespace
 
 void write_coarsest_graph(const DistributedGraph &graph, const DebugContext &d_ctx) {
@@ -115,4 +118,5 @@ void write_partition(
     mpi::barrier(p_graph.communicator());
   }
 }
+
 } // namespace kaminpar::dist::debug

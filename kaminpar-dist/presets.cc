@@ -14,6 +14,7 @@
 #include "kaminpar-shm/presets.h"
 
 namespace kaminpar::dist {
+
 Context create_context_by_preset_name(const std::string &name) {
   if (name == "default" || name == "fast") {
     return create_default_context();
@@ -275,4 +276,5 @@ Context create_europar23_strong_context() {
   ctx.coarsening.global_lp.num_iterations = 5;
   return ctx;
 }
+
 } // namespace kaminpar::dist

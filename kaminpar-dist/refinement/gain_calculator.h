@@ -18,6 +18,7 @@
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::dist {
+
 template <typename Graph, bool randomize = true> class GainCalculator {
 public:
   GainCalculator(const BlockID max_k)
@@ -124,4 +125,5 @@ private:
 
 template <typename Graph> using DeterministicGainCalculator = GainCalculator<Graph, false>;
 template <typename Graph> using RandomizedGainCalculator = GainCalculator<Graph, true>;
+
 } // namespace kaminpar::dist
