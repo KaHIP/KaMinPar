@@ -190,8 +190,8 @@ std::tuple<NodeID, NodeID, EdgeID, std::size_t> find_node_by_edge(
   NodeID first_node = 0;
   NodeID length = 0;
 
-  std::size_t start_pos;
-  EdgeID actual_first_edge;
+  std::size_t start_pos = 0;
+  EdgeID actual_first_edge = 0;
 
   EdgeID current_edge = 0;
   parse_graph(
