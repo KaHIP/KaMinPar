@@ -87,7 +87,7 @@ public:
 private:
   std::uint8_t *_ptr;
 
-  std::uint8_t _num_buffered;
+  std::uint8_t _num_buffered = 0;
   std::vector<Int> _buffer;
 };
 
