@@ -53,15 +53,15 @@ endfunction()
 add_shm_app(KaMinPar KaMinPar.cc)
 
 if (TARGET kaminpar_dist)
-    add_library(dkaminpar_io ${DKAMINPAR_IO_SOURCE_FILES})
-    target_include_directories(dkaminpar_io PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
-    target_link_libraries(dkaminpar_io PUBLIC 
+    add_library(kaminpar_dist_io ${DKAMINPAR_IO_SOURCE_FILES})
+    target_include_directories(kaminpar_dist_io PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+    target_link_libraries(kaminpar_dist_io PUBLIC 
         KaMinPar::dKaMinPar 
         KaMinPar::dKaMinParCLI 
         KaGen::KaGen)
-    target_compile_options(dkaminpar_io PRIVATE ${KAMINPAR_WARNING_FLAGS})
+    target_compile_options(kaminpar_dist_io PRIVATE ${KAMINPAR_WARNING_FLAGS})
 
-    add_library(KaMinPar::dKaMinParIO ALIAS dkaminpar_io)
+    add_library(KaMinPar::dKaMinParIO ALIAS kaminpar_dist_io)
 
     add_dist_app(dKaMinPar dKaMinPar.cc)
     target_link_libraries(dKaMinPar PRIVATE KaMinPar::dKaMinParIO)
