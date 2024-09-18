@@ -18,7 +18,9 @@
 #include "kaminpar-common/datastructures/rating_map.h"
 
 namespace kaminpar::dist {
+
 namespace {
+
 struct GlobalLPClusteringConfig : public LabelPropagationConfig {
   using RatingMap = ::kaminpar::RatingMap<EdgeWeight, GlobalNodeID, rm_backyard::Sparsehash>;
 
@@ -30,6 +32,7 @@ struct GlobalLPClusteringConfig : public LabelPropagationConfig {
   static constexpr bool kUseActiveSetStrategy = false;      // NOLINT
   static constexpr bool kUseLocalActiveSetStrategy = false; // NOLINT
 };
+
 } // namespace
 
 struct GlobalLPClusteringMemoryContext : public LabelPropagationMemoryContext<
@@ -103,7 +106,7 @@ public:
 
   void initialize(const Graph &graph) {
     TIMER_BARRIER(graph.communicator());
-    SCOPED_TIMER("Label propagation");
+    SCOPED_TIMER("Label Propagation");
 
     _graph = &graph;
 
@@ -130,8 +133,6 @@ public:
     initialize_ghost_node_clusters();
     STOP_HEAP_PROFILER();
     STOP_TIMER();
-
-    TIMER_BARRIER(graph.communicator());
   }
 
   void set_max_cluster_weight(const GlobalNodeWeight weight) {
@@ -351,7 +352,7 @@ private:
   GlobalNodeID process_chunk(const NodeID from, const NodeID to) {
     TIMER_BARRIER(_graph->communicator());
 
-    const NodeID local_num_moved_nodes = TIMED_SCOPE("Chunk iteration") {
+    const NodeID local_num_moved_nodes = TIMED_SCOPE("Local work") {
       return Base::perform_iteration(from, to);
     };
 
@@ -527,8 +528,6 @@ private:
     });
     STOP_TIMER();
 
-    TIMER_BARRIER(_graph->communicator());
-
     // If we detected a max cluster weight violation, remove node weight
     // proportional to our chunk of the cluster weight
     if (!should_enforce_cluster_weights() || !violation) {
@@ -539,6 +538,7 @@ private:
     // VVV possibly diverged code paths, might not be executed on all PEs VVV
     //
 
+    TIMER_BARRIER(_graph->communicator());
     START_TIMER("Enforce cluster weights");
     _graph->pfor_nodes(from, to, [&](const NodeID u) {
       const GlobalNodeID old_label = _changed_label[u];
@@ -756,4 +756,5 @@ void GlobalLPClusterer::cluster(
 ) {
   _impl->compute_clustering(clustering, graph);
 }
+
 } // namespace kaminpar::dist
