@@ -54,6 +54,8 @@ struct ApplicationContext {
   int seed = 0;
   int num_threads = 1;
 
+  int repetitions = 0;
+
   int max_timer_depth = 3;
 
   bool heap_profiler_detailed = false;
@@ -220,6 +222,14 @@ The output should be stored in a file and can be used by the -C,--config option.
       "Only check the given command line arguments, but do not partition the graph."
   );
 
+  cli.add_option(
+         "--repetitions",
+         app.repetitions,
+         "Partition multiple time and output the best cut. Set 0 for just one run."
+  )
+      ->check(CLI::NonNegativeNumber)
+      ->capture_default_str();
+
   // Algorithmic options
   create_all_options(&cli, ctx);
 }
@@ -350,17 +360,53 @@ NodeID load_compressed_graph(const ApplicationContext &app, dKaMinPar &partition
   return n;
 }
 
+void run_partitioner(
+    dKaMinPar &partitioner, std::vector<BlockID> &partition, const ApplicationContext &app
+) {
+#ifdef KAMINPAR_HAVE_BACKWARD
+  backward::MPIErrorHandler mpi_error_handler(MPI_COMM_WORLD);
+  backward::SignalHandling sh;
+#endif // KAMINPAR_HAVE_BACKWARD
+
+  if (app.repetitions == 0) {
+    partitioner.compute_partition(app.k, partition.data());
+  }
+
+  START_HEAP_PROFILER("Input Graph Allocation");
+  std::vector<GlobalEdgeWeight> cuts;
+  GlobalEdgeWeight best_cut = std::numeric_limits<GlobalEdgeWeight>::max();
+  std::vector<BlockID> best_partition(partition.size());
+  STOP_HEAP_PROFILER();
+
+  for (int repetition = 0; repetition < app.repetitions; ++repetition) {
+    const GlobalEdgeWeight cut = partitioner.compute_partition(app.k, partition.data());
+    cuts.push_back(cut);
+
+    if (cut < best_cut) {
+      std::swap(best_partition, partition);
+      best_cut = cut;
+    }
+  }
+
+  root_run([&] {
+    const GlobalEdgeWeight cut_sum =
+        std::accumulate(cuts.begin(), cuts.end(), static_cast<GlobalNodeWeight>(0));
+    const double avg_cut = 1.0 * cut_sum / cuts.size();
+    const GlobalEdgeWeight worst_cut = *std::max_element(cuts.begin(), cuts.end());
+
+    LOG;
+    LOG << "Worst cut: " << worst_cut;
+    LOG << "Avg. cut:  " << avg_cut;
+    LOG << "Best cut:  " << best_cut;
+  });
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
   int provided, rank;
   MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-#ifdef KAMINPAR_HAVE_BACKWARD
-  backward::MPIErrorHandler mpi_error_handler(MPI_COMM_WORLD);
-  backward::SignalHandling sh;
-#endif // KAMINPAR_HAVE_BACKWARD
 
   CLI::App cli("dKaMinPar: (Somewhat) Minimal Distributed Deep Multilevel "
                "Graph Partitioner");
@@ -439,8 +485,7 @@ int main(int argc, char *argv[]) {
   std::vector<BlockID> partition(n);
   STOP_HEAP_PROFILER();
 
-  // Compute the partition
-  partitioner.compute_partition(app.k, partition.data());
+  run_partitioner(partitioner, partition, app);
 
   if (!app.partition_filename.empty()) {
     dist::io::partition::write(app.partition_filename, partition);
