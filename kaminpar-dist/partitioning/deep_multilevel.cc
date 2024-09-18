@@ -282,7 +282,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   ref_p_ctx.graph = std::make_unique<GraphContext>(dist_p_graph.graph(), ref_p_ctx);
 
   // Uncoarsen, partition blocks and refine
-  while (!_coarseners.empty() && coarsener->level() > 0) {
+  while (_coarseners.size() > 1 || (!_coarseners.empty() && coarsener->level() > 0)) {
     SCOPED_HEAP_PROFILER("Level", std::to_string(coarsener->level()));
 
     LOG;
@@ -310,7 +310,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
 
     // Destroy coarsener before we run refinement on the finest level
     if (_coarseners.size() == 1 && coarsener->level() == 0) {
-      LOG << "Dstr coarsener";
+      LOG << "    Freeing toplevel coarsener";
       _coarseners.pop();
     }
 
