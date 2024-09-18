@@ -29,7 +29,7 @@ namespace kaminpar::dist {
 namespace {
 
 SET_STATISTICS_FROM_GLOBAL();
-SET_DEBUG(false);
+SET_DEBUG(true);
 
 } // namespace
 
@@ -149,6 +149,8 @@ private:
       return Base::perform_iteration(from, to);
     };
 
+    DBG << "Moved " << num_moved_nodes << " nodes locally";
+
     const auto global_num_moved_nodes =
         mpi::allreduce<GlobalNodeID>(num_moved_nodes, MPI_SUM, _graph->communicator());
 
@@ -197,12 +199,16 @@ private:
       }
     };
 
+    DBG << "Performing probabilistic moves ...";
+
     // Perform probabilistic moves
     for (int i = 0; i < _lp_ctx.num_move_attempts; ++i) {
       if (perform_moves(from, to, residual_cluster_weights, global_total_gains_to_block)) {
         break;
       }
     }
+
+    DBG << "Syncing state ...";
 
     synchronize_state(from, to);
     _graph->pfor_nodes(from, to, [&](const NodeID u) { _next_partition[u] = _p_graph->block(u); });
