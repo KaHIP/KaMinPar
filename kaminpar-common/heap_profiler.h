@@ -107,6 +107,7 @@ constexpr bool kPageProfiling = false;
 namespace kaminpar::heap_profiler {
 
 extern double max_overcommitment_factor;
+extern bool bruteforce_max_overcommitment_factor;
 
 /*!
  * A minimal allocator that uses memory allocation functions that bypass the heap profiler.
@@ -595,26 +596,45 @@ template <typename T> using unique_ptr = std::unique_ptr<T, HeapProfiledMemoryDe
  * @return A pointer to the allocated memory.
  */
 template <typename T> unique_ptr<T> overcommit_memory(const std::size_t size) {
+  constexpr static double kBackoffPercentage = 0.05;
+
   const std::size_t total_system_memory = get_total_system_memory();
-  const std::size_t nbytes =
-      std::min<std::size_t>(max_overcommitment_factor * total_system_memory, size * sizeof(T));
 
-  T *ptr;
-  if constexpr (kHeapProfiling) {
-    ptr = static_cast<T *>(heap_profiler::std_malloc(nbytes));
-  } else {
-    ptr = static_cast<T *>(std::malloc(nbytes));
+  for (double cur_max_overcommitment_factor = max_overcommitment_factor;
+       cur_max_overcommitment_factor > 0.0;
+       cur_max_overcommitment_factor -= kBackoffPercentage) {
+    const std::size_t nbytes = std::min<std::size_t>(
+        cur_max_overcommitment_factor * total_system_memory, size * sizeof(T)
+    );
+
+    T *ptr;
+    if constexpr (kHeapProfiling) {
+      ptr = static_cast<T *>(heap_profiler::std_malloc(nbytes));
+    } else {
+      ptr = static_cast<T *>(std::malloc(nbytes));
+    }
+
+    if (!bruteforce_max_overcommitment_factor && ptr == nullptr) {
+      LOG_ERROR << "Overcommitting " << nbytes << " bytes = min(" << cur_max_overcommitment_factor
+                << " * " << total_system_memory << " bytes, " << size << " * " << sizeof(T)
+                << " bytes) of memory failed."
+                << "Ensure that memory overcommitment is enabled on this system!";
+      std::exit(EXIT_FAILURE);
+    } else if (ptr == nullptr) {
+      LOG_WARNING
+          << "Overcommitting " << nbytes << " bytes = min(" << cur_max_overcommitment_factor
+          << " * " << total_system_memory << " bytes, " << size << " * " << sizeof(T)
+          << " bytes) of memory failed. Re-trying with a smaller max overcommitment factor.";
+    } else {
+      return unique_ptr<T>(ptr);
+    }
   }
 
-  if (ptr == NULL) {
-    LOG_ERROR << "Overcommitting " << nbytes << " bytes = min(" << max_overcommitment_factor
-              << " * " << total_system_memory << " bytes, " << size << " * " << sizeof(T)
-              << " bytes) of memory failed."
-              << "Ensure that memory overcommitment is enabled on this system!";
-    std::exit(EXIT_FAILURE);
-  }
-
-  return unique_ptr<T>(ptr);
+  LOG_ERROR
+      << "Overcommitment failed for all factors. Ensure that memory overcommitment is enabled "
+      << "on this system!";
+  std::exit(EXIT_FAILURE);
+  __builtin_unreachable();
 }
 
 } // namespace kaminpar::heap_profiler

@@ -175,10 +175,18 @@ The output should be stored in a file and can be used by the -C,--config option.
   cli.add_flag("--check-input-graph", app.check_input_graph, "Check input graph for errors.");
 
   cli.add_flag("--no-huge-pages", app.no_huge_pages, "Do not use huge pages via TBBmalloc.");
-  cli.add_flag(
+
+  cli.add_option(
          "--max-overcommitment-factor",
          heap_profiler::max_overcommitment_factor,
          "Limit memory overcommitment to this factor times the total available system memory."
+  )
+      ->capture_default_str();
+  cli.add_flag(
+         "--bruteforce-max-overcommitment-factor",
+         heap_profiler::bruteforce_max_overcommitment_factor,
+         "If enabled, the maximum overcommitment factor is slowly decreased until memory "
+         "overcommitment succeeded."
   )
       ->capture_default_str();
 
