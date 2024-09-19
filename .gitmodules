@@ -9,4 +9,4 @@
 	url = https://github.com/KarlsruheGraphGeneration/KaGen.git
 [submodule "external/bakward-mpi"]
 	path = external/bakward-mpi
-	url = git@github.com:kamping-site/bakward-mpi.git
+	url = https://github.com/kamping-site/bakward-mpi.git
