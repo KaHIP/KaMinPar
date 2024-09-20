@@ -1,6 +1,6 @@
 /*******************************************************************************
- * This file overwrites the memory allocation operations of libc with operations that additionally
- * invoke the heap profiler.
+ * This file overwrites the memory allocation operations of libc with operations
+ * that additionally invoke the heap profiler.
  *
  * @file:   libc_memory_override.h
  * @author: Daniel Salwasser

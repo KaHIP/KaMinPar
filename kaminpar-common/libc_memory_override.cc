@@ -1,6 +1,6 @@
 /*******************************************************************************
- * This file overwrites the memory allocation operations of libc with operations that additionally
- * invoke the heap profiler.
+ * This file overwrites the memory allocation operations of libc with operations
+ * that additionally invoke the heap profiler.
  *
  * @file:   libc_memory_override.cc
  * @author: Daniel Salwasser
@@ -19,9 +19,10 @@ extern "C" {
 using kaminpar::heap_profiler::HeapProfiler;
 
 extern void *__libc_malloc(size_t);
+extern void *__libc_free(void *);
 extern void *__libc_calloc(size_t, size_t);
 extern void *__libc_realloc(void *, size_t);
-extern void *__libc_free(void *);
+extern void *__libc_reallocarray(void *, size_t, size_t);
 extern void *__libc_memalign(size_t, size_t);
 extern void *__libc_valloc(size_t);
 extern void *__libc_pvalloc(size_t);
@@ -32,9 +33,14 @@ void *malloc(size_t size) {
   return ptr;
 }
 
-void *calloc(size_t size, size_t n) {
-  void *ptr = __libc_calloc(size, n);
-  HeapProfiler::global().record_alloc(ptr, size * n);
+void free(void *p) {
+  __libc_free(p);
+  HeapProfiler::global().record_free(p);
+}
+
+void *calloc(size_t nmemb, size_t size) {
+  void *ptr = __libc_calloc(nmemb, size);
+  HeapProfiler::global().record_alloc(ptr, nmemb * size);
   return ptr;
 }
 
@@ -45,9 +51,28 @@ void *realloc(void *p, size_t newsize) {
   return ptr;
 }
 
-void free(void *p) {
-  __libc_free(p);
+void *reallocarray(void *p, size_t nmemb, size_t size) {
+  void *new_ptr = __libc_reallocarray(p, nmemb, size);
   HeapProfiler::global().record_free(p);
+  HeapProfiler::global().record_alloc(new_ptr, nmemb * size);
+  return new_ptr;
+}
+
+int posix_memalign(void **memptr, size_t alignment, size_t size) {
+  // Since glibc does not define posix_memalign as a weak symbol to e.g. __libc_posix_memalign,
+  // unlike other functions, __libc_memalign is called instead with a check for valid alignment.
+  bool is_power_of_2 = ((alignment / sizeof(void *)) & ((alignment / sizeof(void *)) - 1)) == 0;
+  if (alignment % sizeof(void *) != 0 || !is_power_of_2 || alignment == 0) {
+    return EINVAL;
+  }
+
+  void *mem = __libc_memalign(alignment, size);
+  if (mem != NULL) {
+    *memptr = mem;
+    return 0;
+  }
+
+  return ENOMEM;
 }
 
 void *aligned_alloc(size_t alignment, size_t size) {
@@ -64,14 +89,14 @@ void *aligned_alloc(size_t alignment, size_t size) {
   return ptr;
 }
 
-void *memalign(size_t alignment, size_t size) {
-  void *ptr = __libc_memalign(alignment, size);
+void *valloc(size_t size) {
+  void *ptr = __libc_valloc(size);
   HeapProfiler::global().record_alloc(ptr, size);
   return ptr;
 }
 
-void *valloc(size_t size) {
-  void *ptr = __libc_valloc(size);
+void *memalign(size_t alignment, size_t size) {
+  void *ptr = __libc_memalign(alignment, size);
   HeapProfiler::global().record_alloc(ptr, size);
   return ptr;
 }
