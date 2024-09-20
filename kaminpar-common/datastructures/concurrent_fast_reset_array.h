@@ -15,9 +15,9 @@
 #include <tbb/parallel_for.h>
 #include <tbb/task_arena.h>
 
+#include "kaminpar-common/datastructures/cache_aligned_vector.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/heap_profiler.h"
-#include "kaminpar-common/parallel/aligned_element.h"
 #include "kaminpar-common/ranges.h"
 
 namespace kaminpar {
@@ -59,7 +59,7 @@ public:
    * @return The thread-local vector of used entries.
    */
   [[nodiscard]] std::vector<size_type> &local_used_entries() {
-    return _used_entries_tls[tbb::this_task_arena::current_thread_index()].vec;
+    return _used_entries_tls[tbb::this_task_arena::current_thread_index()];
   }
 
   /*!
@@ -103,7 +103,7 @@ public:
    */
   template <typename Lambda> void iterate_and_reset(Lambda &&l) {
     tbb::parallel_for<std::size_t>(0, _used_entries_tls.size(), [&](const auto i) {
-      auto &local_used_entries = _used_entries_tls[i].vec;
+      auto &local_used_entries = _used_entries_tls[i];
       if (local_used_entries.empty()) {
         return;
       }
@@ -127,7 +127,7 @@ public:
 
 private:
   StaticArray<value_type> _data;
-  std::vector<parallel::AlignedVec<std::vector<size_type>>> _used_entries_tls;
+  CacheAlignedVector<std::vector<size_type>> _used_entries_tls;
 
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };

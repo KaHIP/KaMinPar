@@ -5,10 +5,16 @@
  * @author: Daniel Seemaier
  * @date:   15.07.2022
  ******************************************************************************/
+#pragma once
+
 #include <vector>
 
 #include <tbb/cache_aligned_allocator.h>
 
 namespace kaminpar {
-template <typename T> using cache_aligned_vector = std::vector<T, tbb::cache_aligned_allocator<T>>;
-}
+#ifdef KAMINPAR_ENABLE_HEAP_PROFILING
+template <typename T> using CacheAlignedVector = std::vector<T>;
+#else
+template <typename T> using CacheAlignedVector = std::vector<T, cache_aligned_allocator<T>>;
+#endif
+} // namespace kaminpar
