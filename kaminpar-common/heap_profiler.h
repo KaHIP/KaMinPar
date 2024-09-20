@@ -16,7 +16,6 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
-#include <vector>
 
 #include "kaminpar-common/constexpr_utils.h"
 #include "kaminpar-common/libc_memory_override.h"
@@ -495,6 +494,10 @@ public:
 private:
   bool _enabled = false;
   std::mutex _mutex;
+
+  std::size_t _sum_suspicious_allocs = 0;
+  std::size_t _num_suspicious_allocs = 0;
+  std::size_t _num_suspicious_frees = 0;
 
   NoProfileAllocator<HeapProfileTreeNode> _node_allocator;
   HeapProfileTree _tree;

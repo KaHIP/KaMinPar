@@ -117,6 +117,8 @@ DataStructure *HeapProfiler::add_data_struct(std::string_view name, std::size_t 
     return data_structure;
   }
 
+  // @todo: Potential memory leak. However, this method is currently not called when the heap
+  // profiler is disabled.
   return new DataStructure(name, size);
 }
 
@@ -132,6 +134,11 @@ void HeapProfiler::record_alloc(const void *ptr, std::size_t size) {
           node->total_alloc > node->total_free && current_alloc > node->peak_memory) {
         node->peak_memory = current_alloc;
       }
+    }
+
+    if (_address_map.contains(ptr)) {
+      _num_suspicious_allocs++;
+      _sum_suspicious_allocs += size;
     }
 
     _address_map.insert_or_assign(ptr, size);
@@ -151,6 +158,8 @@ void HeapProfiler::record_free(const void *ptr) {
       }
 
       _address_map.erase(search);
+    } else {
+      _num_suspicious_frees++;
     }
   }
 }
@@ -173,6 +182,16 @@ void HeapProfiler::set_min_data_struct_size(float size) {
 }
 
 void HeapProfiler::print_heap_profile(std::ostream &out) {
+  if (_num_suspicious_allocs > 0) {
+    out << "[Warning] The heap profiler recorded some allocations twice (#"
+        << _num_suspicious_allocs << ", " << to_megabytes(_sum_suspicious_allocs) << " MiB)\n";
+  }
+  if (_num_suspicious_frees > 0) {
+    out << "[Warning] The heap profiler failed to record some deallocations as the corresponding "
+           "allocation has not been recorded (#"
+        << _num_suspicious_frees << ")\n";
+  }
+
   HeapProfileTreeNode &root = *_tree.currentNode;
   HeapProfileTreeStats stats(root);
 
