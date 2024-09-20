@@ -125,7 +125,7 @@ void extend_partition_recursive(
     graph::SubgraphMemory &subgraph_memory,
     graph::TemporarySubgraphMemory &tmp_extraction_mem_pool,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
-    BipartitionTimingInfo *timings
+    BipartitionTimingInfo *timings = nullptr
 ) {
   KASSERT(k > 1u);
 
@@ -263,19 +263,30 @@ void extend_partition_lazy_extraction(
       }
 
       auto &timing = dbg_timings_ets.local();
+      auto &subgraph_memory = extraction_mem_pool_ets.local();
 
       const NodeID num_block_nodes = block_nodes_offset[b + 1] - block_nodes_offset[b];
-      const NodeID subgraph_memory_n = num_block_nodes + input_ctx.partition.k;
+      const NodeID subgraph_memory_n = num_block_nodes + final_kb;
       const EdgeID num_block_edges = block_num_edges[b];
 
-      auto &subgraph_memory = extraction_mem_pool_ets.local();
       if (subgraph_memory.nodes.size() < subgraph_memory_n) {
-        subgraph_memory.nodes.resize(subgraph_memory_n, static_array::noinit);
-        subgraph_memory.node_weights.resize(subgraph_memory_n, static_array::noinit);
+        subgraph_memory.nodes.resize(subgraph_memory_n, static_array::seq, static_array::noinit);
+
+        if (p_graph.is_node_weighted()) {
+          subgraph_memory.node_weights.resize(
+              subgraph_memory_n, static_array::seq, static_array::noinit
+          );
+        }
       }
+
       if (subgraph_memory.edges.size() < num_block_edges) {
-        subgraph_memory.edges.resize(num_block_edges, static_array::noinit);
-        subgraph_memory.edge_weights.resize(num_block_edges, static_array::noinit);
+        subgraph_memory.edges.resize(num_block_edges, static_array::seq, static_array::noinit);
+
+        if (p_graph.is_edge_weighted()) {
+          subgraph_memory.edge_weights.resize(
+              num_block_edges, static_array::seq, static_array::noinit
+          );
+        }
       }
 
       const StaticArray<NodeID> local_block_nodes(

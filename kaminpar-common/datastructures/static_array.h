@@ -36,6 +36,10 @@ constexpr struct noinit_t {
 constexpr struct small_t {
 } small;
 
+//! Tag for uninitialized and overcommited memory allocations that are manually tracked.
+constexpr struct overcommit_t {
+} overcommit;
+
 //! Tag for initializing memory sequentially. Without this tag, memory will be initialized by a
 //! parallel loop. Has no effect in the presence of the noinit tag.
 constexpr struct seq_t {
@@ -148,7 +152,7 @@ public:
   using const_iterator = StaticArrayIterator<true>;
 
   StaticArray(const std::size_t size, value_type *data) : _size(size), _data(data) {
-    RECORD_DATA_STRUCT(size * sizeof(T), _struct);
+    RECORD_DATA_STRUCT(0, _struct);
   }
 
   StaticArray(const std::size_t size, heap_profiler::unique_ptr<T> storage)
@@ -315,11 +319,17 @@ public:
 
   template <typename... Tags>
   void resize(const std::size_t size, const value_type init_value, Tags...) {
-    KASSERT(_data == _owned_data.get(), "cannot resize span", assert::always);
-    const bool use_thp =
-        (size >= KAMINPAR_THP_THRESHOLD && !contains_tag_v<static_array::small_t, Tags...>);
+    KASSERT(
+        _data == _owned_data.get() || _data == _overcommited_data.get(),
+        "cannot resize span",
+        assert::always
+    );
 
-    allocate_data(size, use_thp);
+    const bool overcommit = kHeapProfiling && contains_tag_v<static_array::overcommit_t, Tags...>;
+    const bool use_thp =
+        size >= KAMINPAR_THP_THRESHOLD && !contains_tag_v<static_array::small_t, Tags...>;
+
+    allocate_data(size, overcommit, use_thp);
 
     if constexpr (!contains_tag_v<static_array::noinit_t, Tags...>) {
       if constexpr (contains_tag_v<static_array::seq_t, Tags...>) {
@@ -347,23 +357,34 @@ public:
     }
   }
 
-  parallel::tbb_unique_ptr<value_type> free() {
+  void free() {
     _size = 0;
     _unrestricted_size = 0;
     _data = nullptr;
-    return std::move(_owned_data);
+
+    _owned_data.reset();
+    _overcommited_data.reset();
   }
 
 private:
-  void allocate_data(const std::size_t size, const bool thp) {
+  void allocate_data(const std::size_t size, const bool overcommit, const bool thp) {
     // Before allocating the new memory, free the old memory to prevent both from being held in
     // memory at the same time
     if (_owned_data != nullptr) {
       _owned_data.reset();
     }
+    if (_overcommited_data != nullptr) {
+      _overcommited_data.reset();
+    }
 
-    _owned_data = parallel::make_unique<value_type>(size, thp);
-    _data = _owned_data.get();
+    if (overcommit) {
+      _overcommited_data = heap_profiler::overcommit_memory<value_type>(size);
+      _data = _overcommited_data.get();
+    } else {
+      _owned_data = parallel::make_unique<value_type>(size, thp);
+      _data = _owned_data.get();
+    }
+
     _size = size;
     _unrestricted_size = _size;
 
