@@ -109,6 +109,8 @@ std::unordered_map<std::string, ScoreFunctionSection> get_score_function() {
       {"ff", ScoreFunctionSection::FOREST_FIRE},
       {"weighted-forest-fire", ScoreFunctionSection::WEIGHTED_FOREST_FIRE},
       {"wff", ScoreFunctionSection::WEIGHTED_FOREST_FIRE},
+      {"netwokit-weighted-forest-fire", ScoreFunctionSection::NETWORKIT_WEIGHTED_FOREST_FIRE},
+      {"nk-wff", ScoreFunctionSection::NETWORKIT_WEIGHTED_FOREST_FIRE},
   };
 }
 
