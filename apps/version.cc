@@ -9,6 +9,7 @@
 
 #include <iostream>
 
+#include <kaminpar-common/assert.h>
 #include <kaminpar-common/environment.h>
 #include <kaminpar-shm/kaminpar.h>
 
@@ -124,6 +125,17 @@ void print_version() {
 #else
   std::cout << "    Mt-KaHyPar: not found or disabled\n";
 #endif
+  std::cout << "  Assertion levels: always";
+#if KASSERT_ENABLED(ASSERTION_LEVEL_LIGHT)
+  std::cout << "+light";
+#endif
+#if KASSERT_ENABLED(ASSERTION_LEVEL_NORMAL)
+  std::cout << "+normal";
+#endif
+#if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
+  std::cout << "+heavy";
+#endif
+  std::cout << "\n";
   std::cout << std::flush;
 }
 
