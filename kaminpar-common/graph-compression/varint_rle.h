@@ -178,7 +178,7 @@ private:
       break;
     case 2:
       for (std::size_t i = 0; i < run_length; ++i) {
-        const std::uint32_t value = *((std::uint16_t *)_ptr);
+        const std::uint32_t value = *reinterpret_cast<const std::uint16_t *>(_ptr);
         _ptr += 2;
 
         if constexpr (kNonStoppable) {
@@ -193,7 +193,7 @@ private:
       break;
     case 3:
       for (std::size_t i = 0; i < run_length; ++i) {
-        const std::uint32_t value = *((std::uint32_t *)_ptr) & 0xFFFFFF;
+        const std::uint32_t value = *reinterpret_cast<const std::uint32_t *>(_ptr) & 0xFFFFFF;
         _ptr += 3;
 
         if constexpr (kNonStoppable) {
@@ -208,7 +208,7 @@ private:
       break;
     case 4:
       for (std::size_t i = 0; i < run_length; ++i) {
-        const std::uint32_t value = *((std::uint32_t *)_ptr);
+        const std::uint32_t value = *reinterpret_cast<const std::uint32_t *>(_ptr);
         _ptr += 4;
 
         if constexpr (kNonStoppable) {
@@ -250,7 +250,7 @@ private:
       break;
     case 2:
       for (std::size_t i = 0; i < run_length; ++i) {
-        const std::uint64_t value = *((std::uint16_t *)_ptr);
+        const std::uint64_t value = *reinterpret_cast<const std::uint16_t *>(_ptr);
         _ptr += 2;
 
         if constexpr (kNonStoppable) {
@@ -265,7 +265,7 @@ private:
       break;
     case 3:
       for (std::size_t i = 0; i < run_length; ++i) {
-        const std::uint64_t value = *((std::uint32_t *)_ptr) & 0xFFFFFF;
+        const std::uint64_t value = *reinterpret_cast<const std::uint32_t *>(_ptr) & 0xFFFFFF;
         _ptr += 3;
 
         if constexpr (kNonStoppable) {
@@ -280,7 +280,7 @@ private:
       break;
     case 4:
       for (std::size_t i = 0; i < run_length; ++i) {
-        const std::uint64_t value = *((std::uint32_t *)_ptr);
+        const std::uint64_t value = *reinterpret_cast<const std::uint32_t *>(_ptr);
         _ptr += 4;
 
         if constexpr (kNonStoppable) {
@@ -295,7 +295,7 @@ private:
       break;
     case 5:
       for (std::size_t i = 0; i < run_length; ++i) {
-        const std::uint64_t value = *((std::uint64_t *)_ptr) & 0xFFFFFFFFFF;
+        const std::uint64_t value = *reinterpret_cast<const std::uint64_t *>(_ptr) & 0xFFFFFFFFFF;
         _ptr += 5;
 
         if constexpr (kNonStoppable) {
@@ -310,7 +310,7 @@ private:
       break;
     case 6:
       for (std::size_t i = 0; i < run_length; ++i) {
-        const std::uint64_t value = *((std::uint64_t *)_ptr) & 0xFFFFFFFFFFFF;
+        const std::uint64_t value = *reinterpret_cast<const std::uint64_t *>(_ptr) & 0xFFFFFFFFFFFF;
         _ptr += 6;
 
         if constexpr (kNonStoppable) {
@@ -325,7 +325,8 @@ private:
       break;
     case 7:
       for (std::size_t i = 0; i < run_length; ++i) {
-        const std::uint64_t value = *((std::uint64_t *)_ptr) & 0xFFFFFFFFFFFFFF;
+        const std::uint64_t value =
+            *reinterpret_cast<const std::uint64_t *>(_ptr) & 0xFFFFFFFFFFFFFF;
         _ptr += 7;
 
         if constexpr (kNonStoppable) {
@@ -340,7 +341,7 @@ private:
       break;
     case 8:
       for (std::size_t i = 0; i < run_length; ++i) {
-        const std::uint64_t value = *((std::uint64_t *)_ptr);
+        const std::uint64_t value = *reinterpret_cast<const std::uint64_t *>(_ptr);
         _ptr += 8;
 
         if constexpr (kNonStoppable) {

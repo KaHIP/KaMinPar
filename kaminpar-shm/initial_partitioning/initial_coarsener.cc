@@ -205,9 +205,7 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
   std::fill(buckets.begin(), buckets.end(), 0);
 
   c_nodes.unrestrict();
-  c_edges.unrestrict();
   c_node_weights.unrestrict();
-  c_edge_weights.unrestrict();
 
   if (c_nodes.size() < c_n + 1) {
     c_nodes.resize(c_n + 1, static_array::seq);
@@ -221,11 +219,23 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
   c_nodes.restrict(c_n + 1);
   c_node_weights.restrict(c_n);
 
-  if (c_edges.size() < _current_graph->m()) {
-    c_edges.resize(_current_graph->m(), static_array::seq, static_array::noinit);
+  const EdgeID prev_c_edges_size = c_edges.size();
+  const EdgeID prev_c_edge_weights_size = c_edge_weights.size();
+  c_edges.unrestrict();
+  c_edge_weights.unrestrict();
+
+  // Overcommit memory for the edge and edge weight array.
+  const bool resize_edges = c_edges.size() < _current_graph->m();
+  if (resize_edges) {
+    c_edges.resize(
+        _current_graph->m(), static_array::seq, static_array::noinit, static_array::overcommit
+    );
   }
-  if (c_edge_weights.size() < _current_graph->m()) {
-    c_edge_weights.resize(_current_graph->m(), static_array::seq, static_array::noinit);
+  const bool resize_edge_weights = c_edge_weights.size() < _current_graph->m();
+  if (resize_edge_weights) {
+    c_edge_weights.resize(
+        _current_graph->m(), static_array::seq, static_array::noinit, static_array::overcommit
+    );
   }
 
   // Similarly to the c_nodes array, we must restrict the size of the c_edges array: this is
@@ -354,6 +364,30 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
   _timings.interleaved2_ms += timer.elapsed();
 
   timer.reset();
+  if constexpr (kHeapProfiling) {
+    if (resize_edges) {
+      heap_profiler::HeapProfiler::global().record_alloc(
+          c_edges.data(), c_edges.size() * sizeof(NodeID)
+      );
+    } else if (c_edges.size() > prev_c_edges_size) {
+      heap_profiler::HeapProfiler::global().record_free(c_edges.data());
+      heap_profiler::HeapProfiler::global().record_alloc(
+          c_edges.data(), c_edges.size() * sizeof(NodeID)
+      );
+    }
+
+    if (resize_edge_weights) {
+      heap_profiler::HeapProfiler::global().record_alloc(
+          c_edge_weights.data(), c_edge_weights.size() * sizeof(EdgeWeight)
+      );
+    } else if (c_edge_weights.size() > prev_c_edge_weights_size) {
+      heap_profiler::HeapProfiler::global().record_free(c_edge_weights.data());
+      heap_profiler::HeapProfiler::global().record_alloc(
+          c_edge_weights.data(), c_edge_weights.size() * sizeof(EdgeWeight)
+      );
+    }
+  }
+
   CSRGraph coarse_graph(
       CSRGraph::seq{},
       std::move(c_nodes),

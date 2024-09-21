@@ -19,6 +19,7 @@
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/datastructures/cache_aligned_vector.h"
 #include "kaminpar-common/datastructures/concurrent_fast_reset_array.h"
 #include "kaminpar-common/datastructures/concurrent_two_level_vector.h"
 #include "kaminpar-common/datastructures/dynamic_map.h"
@@ -1431,7 +1432,7 @@ protected: // Members
   tbb::enumerable_thread_specific<ScalableVector<ClusterID>> _tie_breaking_favored_clusters_ets;
 
   //! Vector of local cluster selection states where each entry is owned by a parallel task.
-  parallel::AlignedVec<std::vector<LocalClusterSelectionState>> _local_cluster_selection_states;
+  CacheAlignedVector<LocalClusterSelectionState> _local_cluster_selection_states;
 
   //! Flags nodes with at least one node in its neighborhood that changed
   //! clusters during the last iteration. Nodes without this flag set must not

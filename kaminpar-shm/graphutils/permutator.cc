@@ -15,7 +15,6 @@
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/parallel/algorithm.h"
-#include "kaminpar-common/parallel/aligned_element.h"
 
 namespace kaminpar::shm::graph {
 
@@ -118,7 +117,7 @@ static void sort_by_compression(
     NodeID *edges_begin,
     NodeID *edges_end,
     bool store_edge_weights,
-    tbb::enumerable_thread_specific<parallel::AlignedVec<std::vector<EdgeID>>> &permutation_ets,
+    tbb::enumerable_thread_specific<std::vector<EdgeID>> &permutation_ets,
     EdgeWeight *edge_weights
 ) {
   const auto permutate = [&](NodeID *edges_begin, NodeID *edges_end, EdgeWeight *edge_weights) {
@@ -226,7 +225,7 @@ void reorder_edges_by_compression(CSRGraph &graph) {
   StaticArray<NodeID> &raw_edges = graph.raw_edges();
   StaticArray<EdgeWeight> &raw_edge_weights = graph.raw_edge_weights();
 
-  tbb::enumerable_thread_specific<parallel::AlignedVec<std::vector<EdgeID>>> permutation_ets;
+  tbb::enumerable_thread_specific<std::vector<EdgeID>> permutation_ets;
   graph.pfor_nodes([&](const NodeID node) {
     NodeID *edges_begin = raw_edges.data() + raw_nodes[node];
     NodeID *edges_end = raw_edges.data() + raw_nodes[node + 1];

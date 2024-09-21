@@ -65,20 +65,6 @@ PartitionedGraph bipartition(
 
 void refine(Refiner *refiner, PartitionedGraph &p_graph, const PartitionContext &current_p_ctx);
 
-void extend_partition_recursive(
-    const Graph &graph,
-    StaticArray<BlockID> &partition,
-    const BlockID b0,
-    const BlockID k,
-    const BlockID final_k,
-    const Context &input_ctx,
-    const graph::SubgraphMemoryStartPosition position,
-    graph::SubgraphMemory &subgraph_memory,
-    TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
-    InitialBipartitionerWorkerPool &bipartitioner_pool,
-    BipartitionTimingInfo *timings = nullptr
-);
-
 void extend_partition_lazy_extraction(
     PartitionedGraph &p_graph,
     BlockID k_prime,

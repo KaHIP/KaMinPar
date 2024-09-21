@@ -9,10 +9,9 @@
 
 #include <limits>
 #include <mutex>
-#include <vector>
 
 #include "kaminpar-common/assert.h"
-#include "kaminpar-common/parallel/aligned_element.h"
+#include "kaminpar-common/datastructures/cache_aligned_vector.h"
 
 namespace kaminpar {
 
@@ -54,19 +53,19 @@ public:
 
     Value value;
     do {
-      value = __atomic_load_n(&_buffer[prev_pos].value, __ATOMIC_RELAXED);
+      value = __atomic_load_n(&_buffer[prev_pos], __ATOMIC_RELAXED);
     } while (value == kLock);
 
     KASSERT((value + delta) != kLock);
-    __atomic_store_n(&_buffer[prev_pos].value, kLock, __ATOMIC_RELAXED);
-    __atomic_store_n(&_buffer[pos].value, value + delta, __ATOMIC_RELAXED);
+    __atomic_store_n(&_buffer[prev_pos], kLock, __ATOMIC_RELAXED);
+    __atomic_store_n(&_buffer[pos], value + delta, __ATOMIC_RELAXED);
 
     return value;
   }
 
 private:
   Size _counter;
-  std::vector<parallel::Aligned<Value>> _buffer;
+  CacheAlignedVector<Value> _buffer;
 };
 
 template <typename Size, typename Value> class ConcurrentCircularVectorMutex {
@@ -92,7 +91,7 @@ public:
     const Size _value = _counter++;
 
     const Size pos = _value % _buffer.size();
-    const bool success = _buffer_mutexes[pos].value.try_lock();
+    const bool success = _buffer_mutexes[pos].try_lock();
     KASSERT(success);
 
     return _value;
@@ -112,22 +111,22 @@ public:
 
     Value value;
     {
-      const std::unique_lock lock(_buffer_mutexes[prev_pos].value);
-      value = _buffer[prev_pos].value;
+      const std::unique_lock lock(_buffer_mutexes[prev_pos]);
+      value = _buffer[prev_pos];
     }
 
     _buffer[pos] = value + delta;
-    _buffer_mutexes[pos].value.unlock();
+    _buffer_mutexes[pos].unlock();
 
     return value;
   }
 
 private:
   Size _counter;
-  std::vector<parallel::Aligned<Value>> _buffer;
+  CacheAlignedVector<Value> _buffer;
 
   std::mutex _next_mutex;
-  std::vector<parallel::Aligned<std::mutex>> _buffer_mutexes;
+  CacheAlignedVector<std::mutex> _buffer_mutexes;
 };
 
 } // namespace kaminpar
