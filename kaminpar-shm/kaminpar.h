@@ -263,7 +263,10 @@ struct KwayFMRefinementContext {
   EdgeID constant_high_degree_threshold;
   double k_based_high_degree_threshold;
 
+  int minimal_parallelism;
+
   bool dbg_compute_batch_stats;
+  bool dbg_report_progress;
 };
 
 struct JetRefinementContext {

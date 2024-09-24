@@ -73,6 +73,10 @@ public:
     return _next_border_node < _border_nodes.size();
   }
 
+  [[nodiscard]] std::size_t remaining() const {
+    return _border_nodes.size() - std::min<std::size_t>(_border_nodes.size(), _next_border_node);
+  }
+
   [[nodiscard]] std::size_t size() const {
     return _border_nodes.size();
   }

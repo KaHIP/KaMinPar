@@ -213,7 +213,10 @@ Context create_default_context() {
                       .constant_high_degree_threshold = 0,
                       .k_based_high_degree_threshold = 1.0,
 
+                      .minimal_parallelism = std::numeric_limits<int>::max(),
+
                       .dbg_compute_batch_stats = false,
+                      .dbg_report_progress = false,
                   },
               .balancer = {},
               .jet =

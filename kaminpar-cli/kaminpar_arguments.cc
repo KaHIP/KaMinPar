@@ -528,6 +528,9 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
   )
       ->capture_default_str();
 
+  fm->add_option("--r-fm-minimal-parallelism-pm", ctx.refinement.kway_fm.minimal_parallelism)
+      ->capture_default_str();
+
   // Flags for debugging / analysis
   fm->add_flag(
         "--r-fm-dbg-batch-stats",
@@ -535,6 +538,8 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
         "If set, compute and output detailed statistics about FM batches (can be expensive to "
         "compute on some irregular graphs)."
   )
+      ->capture_default_str();
+  fm->add_flag("--r-fm-dbg-report-progress", ctx.refinement.kway_fm.dbg_report_progress)
       ->capture_default_str();
 
   return fm;

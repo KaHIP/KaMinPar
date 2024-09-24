@@ -73,6 +73,8 @@ template <typename GainCache> struct SharedData {
   StaticArray<std::size_t> shared_pq_handles;
   StaticArray<BlockID> target_blocks;
   GlobalStatistics stats;
+
+  std::atomic<std::uint8_t> abort = 0;
 };
 
 template <typename Graph, typename GainCache> class LocalizedFMRefiner {
@@ -125,7 +127,10 @@ public:
     EdgeWeight current_total_gain = 0;
     EdgeWeight best_total_gain = 0;
 
-    while (update_block_pq() && !_stopping_policy.should_stop()) {
+    int steps = 0;
+
+    while (update_block_pq() && !_stopping_policy.should_stop() &&
+           ((++steps %= 64) || !_shared.abort.load(std::memory_order_relaxed))) {
       const BlockID block_from = _block_pq.peek_id();
       KASSERT(block_from < _p_graph.k());
 
@@ -509,6 +514,9 @@ public:
       } else {
         START_TIMER("Localized searches, coarse level");
       }
+
+      std::atomic<int> num_finished_workers = 0;
+
       tbb::parallel_for<int>(0, _ctx.parallel.num_threads, [&](int) {
         auto &expected_gain = expected_gain_ets.local();
         auto &localized_refiner = *localized_fm_refiner_ets.local();
@@ -517,6 +525,10 @@ public:
         // that are still available, continuing this process until there are
         // no more border nodes
         while (_shared->border_nodes.has_more()) {
+          if (_fm_ctx.dbg_report_progress) {
+            LLOG << " " << _shared->border_nodes.remaining();
+          }
+
           const auto expected_batch_gain = localized_refiner.run_batch();
           expected_gain += expected_batch_gain;
 
@@ -528,6 +540,10 @@ public:
                   localized_refiner.last_batch_seed_nodes(), localized_refiner.last_batch_moves()
               )
           );
+        }
+
+        if (++num_finished_workers >= _fm_ctx.minimal_parallelism) {
+          _shared->abort = 1;
         }
       });
       STOP_TIMER();
