@@ -233,6 +233,7 @@ enum class GainCacheStrategy {
   HASHING,
   HASHING_LARGE_K,
   DENSE,
+  DENSE_LARGE_K,
   ON_THE_FLY,
 };
 

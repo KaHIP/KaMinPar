@@ -14,6 +14,7 @@
 #include "kaminpar-shm/datastructures/delta_partitioned_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
+#include "kaminpar-shm/refinement/gains/delta_gain_caches.h"
 
 #include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/inline.h"
@@ -22,10 +23,10 @@
 
 namespace kaminpar::shm {
 
-template <typename> class DenseDeltaGainCache;
-
 template <
     typename GraphType,
+    template <typename>
+    typename DeltaGainCacheType,
     bool iterate_nonadjacent_blocks = true,
     bool iterate_exact_gains = false>
 class DenseGainCache {
@@ -33,8 +34,9 @@ class DenseGainCache {
 
 public:
   using Graph = GraphType;
-  using Self = DenseGainCache<Graph, iterate_nonadjacent_blocks, iterate_exact_gains>;
-  using DeltaGainCache = DenseDeltaGainCache<Self>;
+  using Self =
+      DenseGainCache<Graph, DeltaGainCacheType, iterate_nonadjacent_blocks, iterate_exact_gains>;
+  using DeltaGainCache = DeltaGainCacheType<Self>;
 
   // gains() will iterate over all blocks, including those not adjacent to the node.
   constexpr static bool kIteratesNonadjacentBlocks = iterate_nonadjacent_blocks;
@@ -173,75 +175,10 @@ private:
   StaticArray<EdgeWeight> _weighted_degrees;
 };
 
-template <typename GainCacheType> class DenseDeltaGainCache {
-public:
-  using GainCache = GainCacheType;
+template <typename Graph>
+using NormalDenseGainCache = DenseGainCache<Graph, GenericDeltaGainCache, true>;
 
-  // Delta gain caches can only be used with GainCaches that iterate over all blocks, since there
-  // might be new connections to non-adjacent blocks in the delta graph.
-  static_assert(GainCache::kIteratesNonadjacentBlocks);
-  constexpr static bool kIteratesExactGains = GainCache::kIteratesExactGains;
-
-  DenseDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph &d_graph)
-      : _gain_cache(gain_cache),
-        _d_graph(d_graph),
-        _k(d_graph.k()) {}
-
-  [[nodiscard]] KAMINPAR_INLINE EdgeWeight conn(const NodeID node, const BlockID block) const {
-    return _gain_cache.conn(node, block) + conn_delta(node, block);
-  }
-
-  [[nodiscard]] KAMINPAR_INLINE EdgeWeight
-  gain(const NodeID node, const BlockID from, const BlockID to) const {
-    return _gain_cache.gain(node, from, to) + conn_delta(node, to) - conn_delta(node, from);
-  }
-
-  [[nodiscard]] KAMINPAR_INLINE std::pair<EdgeWeight, EdgeWeight>
-  gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) {
-    return {gain(node, b_node, targets.first), gain(node, b_node, targets.second)};
-  }
-
-  template <typename Lambda>
-  KAMINPAR_INLINE void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
-    const EdgeWeight conn_from_delta = kIteratesExactGains ? conn_delta(node, from) : 0;
-
-    _gain_cache.gains(node, from, [&](const BlockID to, auto &&gain) {
-      lambda(to, [&] { return gain() + conn_delta(node, to) - conn_from_delta; });
-    });
-  }
-
-  KAMINPAR_INLINE void move(const NodeID u, const BlockID block_from, const BlockID block_to) {
-    _d_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
-      _gain_cache_delta[index(v, block_from)] -= weight;
-      _gain_cache_delta[index(v, block_to)] += weight;
-    });
-  }
-
-  KAMINPAR_INLINE void clear() {
-    _gain_cache_delta.clear();
-  }
-
-private:
-  [[nodiscard]] KAMINPAR_INLINE std::size_t index(const NodeID node, const BlockID block) const {
-    // Note: this increases running times substantially due to the shifts
-    // return index_sparse(node, block);
-
-    return 1ull * node * _k + block;
-  }
-
-  [[nodiscard]] KAMINPAR_INLINE EdgeWeight
-  conn_delta(const NodeID node, const BlockID block) const {
-    const auto it = _gain_cache_delta.get_if_contained(index(node, block));
-    return it != _gain_cache_delta.end() ? *it : 0;
-  }
-
-  const GainCache &_gain_cache;
-  const DeltaPartitionedGraph &_d_graph;
-  BlockID _k;
-
-  DynamicFlatMap<std::size_t, EdgeWeight> _gain_cache_delta;
-};
-
-template <typename GraphType> using NormalDenseGainCache = DenseGainCache<GraphType>;
+template <typename Graph>
+using LargeKDenseGainCache = DenseGainCache<Graph, LargeKGenericDeltaGainCache, false>;
 
 } // namespace kaminpar::shm

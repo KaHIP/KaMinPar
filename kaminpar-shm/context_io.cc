@@ -250,6 +250,7 @@ std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies() {
       {"hashing", GainCacheStrategy::HASHING},
       {"hashing-largek", GainCacheStrategy::HASHING_LARGE_K},
       {"dense", GainCacheStrategy::DENSE},
+      {"dense-largek", GainCacheStrategy::DENSE_LARGE_K},
       {"on-the-fly", GainCacheStrategy::ON_THE_FLY},
   };
 }
@@ -270,6 +271,8 @@ std::ostream &operator<<(std::ostream &out, const GainCacheStrategy strategy) {
     return out << "hashing-largek";
   case GainCacheStrategy::DENSE:
     return out << "dense";
+  case GainCacheStrategy::DENSE_LARGE_K:
+    return out << "dense-largek";
   case GainCacheStrategy::ON_THE_FLY:
     return out << "on-the-fly";
   }
@@ -419,8 +422,7 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
     }
 
     out << "Compresion Ratio:             " << c_ctx.compression_ratio
-        << " [size reduction: " << (c_ctx.size_reduction / (float)(1024 * 1024)) << " mb]"
-        << "\n";
+        << " [size reduction: " << (c_ctx.size_reduction / (float)(1024 * 1024)) << " mb]" << "\n";
     out << "  High Degree Node Count:     " << c_ctx.num_high_degree_nodes << "\n";
     out << "  High Degree Part Count:     " << c_ctx.num_high_degree_parts << "\n";
     out << "  Interval Node Count:        " << c_ctx.num_interval_nodes << "\n";
@@ -557,8 +559,8 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
         << r_ctx.jet.num_fruitless_iterations << " fruitless (improvement < "
         << 100.0 * (1 - r_ctx.jet.fruitless_threshold) << "%)\n";
     out << "  Gain temperature:           coarse [" << r_ctx.jet.initial_gain_temp_on_coarse_level
-        << ", " << r_ctx.jet.final_gain_temp_on_coarse_level << "], "
-        << "fine [" << r_ctx.jet.initial_gain_temp_on_fine_level << ", "
+        << ", " << r_ctx.jet.final_gain_temp_on_coarse_level << "], " << "fine ["
+        << r_ctx.jet.initial_gain_temp_on_fine_level << ", "
         << r_ctx.jet.final_gain_temp_on_fine_level << "]\n";
     out << "  Balancing algorithm:        " << r_ctx.jet.balancing_algorithm << "\n";
   }
@@ -602,8 +604,8 @@ void print(const Context &ctx, std::ostream &out) {
   out << "Execution mode:               " << ctx.parallel.num_threads << "\n";
   out << "Seed:                         " << Random::get_seed() << "\n";
   out << "Graph:                        " << ctx.debug.graph_name
-      << " [node ordering: " << ctx.node_ordering << "]"
-      << " [edge ordering: " << ctx.edge_ordering << "]\n";
+      << " [node ordering: " << ctx.node_ordering << "]" << " [edge ordering: " << ctx.edge_ordering
+      << "]\n";
   print(ctx.partition, out);
   cio::print_delimiter("Graph Compression", '-');
   print(ctx.compression, out);

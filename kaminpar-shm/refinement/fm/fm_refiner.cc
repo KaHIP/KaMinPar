@@ -611,6 +611,10 @@ void FMRefiner::initialize(const PartitionedGraph &p_graph) {
       _core = std::make_unique<FMRefinerCore<Graph, NormalDenseGainCache>>(_ctx);
       break;
 
+    case GainCacheStrategy::DENSE_LARGE_K:
+      _core = std::make_unique<FMRefinerCore<Graph, LargeKDenseGainCache>>(_ctx);
+      break;
+
     case GainCacheStrategy::ON_THE_FLY:
       _core = std::make_unique<FMRefinerCore<Graph, NormalOnTheFlyGainCache>>(_ctx);
       break;

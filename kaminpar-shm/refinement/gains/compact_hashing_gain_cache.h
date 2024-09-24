@@ -12,7 +12,7 @@
 #include <tbb/parallel_invoke.h>
 
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
-#include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
+#include "kaminpar-shm/refinement/gains/delta_gain_caches.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/compact_hash_map.h"
@@ -464,10 +464,10 @@ private:
 };
 
 template <typename Graph>
-using NormalCompactHashingGainCache = CompactHashingGainCache<Graph, SparseDeltaGainCache, true>;
+using NormalCompactHashingGainCache = CompactHashingGainCache<Graph, GenericDeltaGainCache, true>;
 
 template <typename Graph>
 using LargeKCompactHashingGainCache =
-    CompactHashingGainCache<Graph, LargeKSparseDeltaGainCache, false>;
+    CompactHashingGainCache<Graph, LargeKGenericDeltaGainCache, false>;
 
 } // namespace kaminpar::shm
