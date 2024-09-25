@@ -246,7 +246,7 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
 
   std::fill(_cluster_sizes.begin(), _cluster_sizes.begin() + n, 0);
   std::fill(_leader_node_mapping.begin(), _leader_node_mapping.begin() + n, 0);
-  // Note:_clustering does not need to be cleared
+  // Note: _clustering does not need to be cleared
 
   _timings.contract_ms += timer.elapsed();
 

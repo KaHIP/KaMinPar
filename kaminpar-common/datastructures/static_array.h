@@ -197,7 +197,7 @@ public:
   }
 
   [[nodiscard]] bool is_span() const {
-    return _owned_data.get() == nullptr;
+    return _owned_data.get() == nullptr && _overcommited_data.get() == nullptr;
   }
 
   //

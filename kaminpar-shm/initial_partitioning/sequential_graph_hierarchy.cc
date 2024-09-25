@@ -24,6 +24,23 @@ void SequentialGraphHierarchy::init(const CSRGraph &graph) {
 void SequentialGraphHierarchy::push(CSRGraph &&c_graph, StaticArray<NodeID> &&c_mapping) {
   KASSERT(current().n() == c_mapping.size());
 
+  KASSERT(
+      !c_graph.raw_nodes().is_span(),
+      "span-based coarse graph should not be used with the sequential graph hierarchy"
+  );
+  KASSERT(
+      !c_graph.raw_edges().is_span(),
+      "span-based coarse graph should not be used with the sequential graph hierarchy"
+  );
+  KASSERT(
+      !c_graph.raw_node_weights().is_span(),
+      "span-based coarse graph should not be used with the sequential graph hierarchy"
+  );
+  KASSERT(
+      !c_graph.raw_edge_weights().is_span(),
+      "span-based coarse graph should not be used with the sequential graph hierarchy"
+  );
+
   _coarse_mappings.push_back(std::move(c_mapping));
   _coarse_graphs.push_back(std::move(c_graph));
 }
