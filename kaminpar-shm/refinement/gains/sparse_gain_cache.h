@@ -53,7 +53,7 @@ template <
     bool iterate_nonadjacent_blocks,
     bool iterate_exact_gains = false>
 class SparseGainCache {
-  SET_DEBUG(true);
+  SET_DEBUG(false);
   SET_STATISTICS_FROM_GLOBAL();
 
   // Abuse MSB bit in the _weighted_degrees[] array for locking

@@ -27,7 +27,7 @@ template <
     bool iterate_nonadjacent_blocks = true,
     bool iterate_exact_gains = false>
 class DenseGainCache {
-  SET_DEBUG(true);
+  SET_DEBUG(false);
 
 public:
   using Graph = GraphType;

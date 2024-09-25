@@ -454,8 +454,7 @@ public:
   void initialize([[maybe_unused]] const PartitionedGraph &p_graph) final {
     if (_uninitialized) {
       SCOPED_HEAP_PROFILER("FM Allocation");
-      _shared =
-          std::make_unique<fm::SharedData<GainCache>>(_ctx, _ctx.partition.n, _ctx.partition.k);
+      _shared = std::make_unique<fm::SharedData<GainCache>>(_ctx, p_graph.n(), _ctx.partition.k);
       _uninitialized = false;
     }
   }
