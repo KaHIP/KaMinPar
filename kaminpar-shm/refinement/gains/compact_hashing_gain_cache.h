@@ -26,12 +26,11 @@ namespace kaminpar::shm {
 
 template <
     typename GraphType,
-    template <typename>
-    typename DeltaGainCacheType,
+    template <typename> typename DeltaGainCacheType,
     bool iterate_nonadjacent_blocks,
     bool iterate_exact_gains = false>
 class CompactHashingGainCache {
-  SET_DEBUG(false);
+  SET_DEBUG(true);
 
   // Abuse MSB bit in the _weighted_degrees[] array for locking
   constexpr static UnsignedEdgeWeight kWeightedDegreeLock =

@@ -11,12 +11,10 @@
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
-#include "kaminpar-shm/datastructures/delta_partitioned_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/refinement/gains/delta_gain_caches.h"
 
-#include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/inline.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
@@ -25,8 +23,7 @@ namespace kaminpar::shm {
 
 template <
     typename GraphType,
-    template <typename>
-    typename DeltaGainCacheType,
+    template <typename> typename DeltaGainCacheType,
     bool iterate_nonadjacent_blocks = true,
     bool iterate_exact_gains = false>
 class DenseGainCache {
