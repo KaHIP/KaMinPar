@@ -15,7 +15,6 @@
 #include <mpi.h>
 #include <tbb/scalable_allocator.h>
 
-#include "kaminpar-common/environment.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/strutils.h"
 
@@ -27,6 +26,10 @@
 
 #ifdef KAMINPAR_HAVE_BACKWARD
 #include <backward.hpp>
+#endif
+
+#if defined(__linux__)
+#include <sys/resource.h>
 #endif
 
 using namespace kaminpar;
@@ -369,6 +372,31 @@ NodeID load_compressed_graph(const ApplicationContext &app, dKaMinPar &partition
   return n;
 }
 
+void report_max_rss() {
+  LOG;
+
+#if defined(__linux__)
+  if (struct rusage usage; getrusage(RUSAGE_SELF, &usage) == 0) {
+    const long rss = usage.ru_maxrss;
+    long total_rss, min_rss, max_rss;
+
+    MPI_Reduce(&rss, &total_rss, 1, MPI_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(&rss, &min_rss, 1, MPI_LONG, MPI_MIN, 0, MPI_COMM_WORLD);
+    MPI_Reduce(&rss, &max_rss, 1, MPI_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
+
+    int size;
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    LOG << "Maximum resident set size: " << total_rss << " kB [min: " << min_rss
+        << " kB, avg: " << total_rss / size << " kB, max: " << max_rss << " kB]";
+  } else {
+#else
+  {
+#endif
+    LOG << "Maximum resident set size: unknown\n";
+  }
+}
+
 void run_partitioner(
     dKaMinPar &partitioner, std::vector<BlockID> &partition, const ApplicationContext &app
 ) {
@@ -379,6 +407,9 @@ void run_partitioner(
 
   if (app.repetitions == 0) {
     partitioner.compute_partition(app.k, partition.data());
+    if (!app.quiet) {
+      report_max_rss();
+    }
     return;
   }
 
@@ -395,6 +426,10 @@ void run_partitioner(
     if (cut < best_cut) {
       std::swap(best_partition, partition);
       best_cut = cut;
+    }
+
+    if (!app.quiet) {
+      report_max_rss();
     }
   }
 
