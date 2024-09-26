@@ -21,7 +21,7 @@ namespace kaminpar {
 template <
     std::size_t kNumConcurrentMarkers = 1,
     typename Value = std::size_t,
-    template <typename> typename Container = std::vector>
+    template <typename...> typename Container = std::vector>
 class Marker {
 public:
   explicit Marker() : _marker_id(0), _first_unmarked_element{0} {

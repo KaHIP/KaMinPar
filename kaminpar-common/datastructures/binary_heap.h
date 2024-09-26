@@ -465,7 +465,7 @@ template <
     typename Key,
     template <typename>
     typename Comparator,
-    template <typename> typename Container = std::vector>
+    template <typename...> typename Container = std::vector>
 class DynamicBinaryForest {
   static constexpr std::size_t kTreeArity = 4;
   static constexpr ID kInvalidID = std::numeric_limits<ID>::max();
@@ -655,15 +655,15 @@ private:
   Comparator<Key> _comparator{};
 };
 
-template <typename ID, typename Key, template <typename> typename Container = std::vector>
+template <typename ID, typename Key, template <typename...> typename Container = std::vector>
 using DynamicBinaryMaxForest =
     DynamicBinaryForest<ID, Key, binary_heap::max_heap_comparator, Container>;
 
-template <typename ID, typename Key, template <typename> typename Container = std::vector>
+template <typename ID, typename Key, template <typename...> typename Container = std::vector>
 using DynamicBinaryMinForest =
     DynamicBinaryForest<ID, Key, binary_heap::min_heap_comparator, Container>;
 
-template <typename ID, typename Key, template <typename> typename Container = std::vector>
+template <typename ID, typename Key, template <typename...> typename Container = std::vector>
 class DynamicBinaryMinMaxForest {
 public:
   DynamicBinaryMinMaxForest() {}
