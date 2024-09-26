@@ -12,11 +12,17 @@
 #include <limits>
 #include <vector>
 
+#include <tbb/parallel_for.h>
+
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/heap_profiler.h"
 
 namespace kaminpar {
-template <std::size_t kNumConcurrentMarkers = 1, typename Value = std::size_t> class Marker {
+template <
+    std::size_t kNumConcurrentMarkers = 1,
+    typename Value = std::size_t,
+    template <typename> typename Container = std::vector>
+class Marker {
 public:
   explicit Marker() : _marker_id(0), _first_unmarked_element{0} {
     RECORD_DATA_STRUCT(0, _struct);
@@ -80,9 +86,14 @@ public:
 
     if ((_marker_id | ((1u << kNumConcurrentMarkers) - 1u)) == std::numeric_limits<Value>::max()) {
       _marker_id = 0;
-      const auto capacity = _data.size();
-      _data.clear();
-      _data.resize(capacity, 0);
+
+      if constexpr (std::is_same_v<Container<Value>, std::vector<Value>>) {
+        const auto capacity = _data.size();
+        _data.clear();
+        _data.resize(capacity, 0);
+      } else {
+        tbb::parallel_for<std::size_t>(0, _data.size(), [&](const std::size_t i) { _data[i] = 0; });
+      }
     }
   }
 
@@ -96,7 +107,7 @@ public:
   }
 
 private:
-  std::vector<Value> _data;
+  Container<Value> _data;
   Value _marker_id;
   std::array<std::size_t, kNumConcurrentMarkers> _first_unmarked_element;
 
