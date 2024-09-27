@@ -438,10 +438,10 @@ private:
   PartitionedGraph *_p_graph;
   const Graph *_graph;
 
-  DynamicBinaryMinMaxForest<NodeID, double> _pq;
+  DynamicBinaryMinMaxForest<NodeID, double, StaticArray> _pq;
   mutable tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> _rating_map;
   tbb::enumerable_thread_specific<std::vector<BlockID>> _feasible_target_blocks;
-  Marker<> _marker;
+  Marker<1, std::size_t, StaticArray> _marker;
   std::vector<BlockWeight> _pq_weight;
 
   Statistics _stats;
