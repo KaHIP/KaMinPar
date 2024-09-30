@@ -18,7 +18,7 @@ public:
     double factor = normalizationFactor(g, scores, target_edge_amount);
 
     StaticArray<EdgeWeight> sample(g.m(), 0);
-    utils::for_upward_edges(g, [&](EdgeID e) {
+    utils::parallel_for_upward_edges(g, [&](EdgeID e) {
       sample[e] = Random::instance().random_bool(factor * scores[e])
                       ? g.edge_weight(e)
                       : 0;
@@ -32,7 +32,7 @@ private:
     StaticArray<Score> prefix_sum(g.m() / 2);
     EdgeID i = 0;
     utils::for_upward_edges(g, [&](EdgeID e) { sorted_scores[i++] = scores[e]; });
-    std::sort(sorted_scores.begin(), sorted_scores.end());
+    tbb::parallel_sort(sorted_scores.begin(), sorted_scores.end());
     parallel::prefix_sum(sorted_scores.begin(), sorted_scores.end(), prefix_sum.begin());
 
     EdgeID upper = 0;
