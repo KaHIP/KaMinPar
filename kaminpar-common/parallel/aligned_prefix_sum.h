@@ -12,7 +12,6 @@
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/math.h"
-#include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/parallel/loops.h"
 
 namespace kaminpar::parallel {
@@ -24,7 +23,6 @@ std::size_t aligned_prefix_sum_seq(OutputIt begin, OutputIt end, AlignedValueLam
     return 0;
   }
 
-  *begin = 0;
   --n;
   if (n == 0) {
     return 0;
@@ -33,13 +31,16 @@ std::size_t aligned_prefix_sum_seq(OutputIt begin, OutputIt end, AlignedValueLam
   for (std::size_t i = 0; i < n; ++i) {
     const auto [alignment, value] = l(i);
 
-    if (alignment > 0) {
+    if (i > 0 && alignment > 0) {
       *(begin + i) += (alignment - (*(begin + i) % alignment)) % alignment;
       KASSERT(*(begin + i) % alignment == 0);
     }
 
-    *(begin + i + 1) = *(begin + i) + value;
+    *(begin + i + 1) = (i > 0 ? *(begin + i) : 0) + value;
   }
+
+  const auto [last_alignment, last_value] = l(n);
+  *(begin + n) += (last_alignment - (*(begin + n) % last_alignment)) % last_alignment;
 
   return *(begin + n);
 }
@@ -64,19 +65,10 @@ std::size_t aligned_prefix_sum(OutputIt begin, OutputIt end, AlignedValueLambda 
   const int ncpus = parallel::deterministic_for<std::size_t>(
       0,
       n,
-      [&](const std::size_t from, const std::size_t to, const int cpu) {
-        for (std::size_t i = from; i < to; ++i) {
-          const auto [alignment, value] = l(i);
-
-          if (alignment > 0) {
-            *(begin + i) += compute_alignment_offset(alignment, *(begin + i));
-            KASSERT(*(begin + i) % alignment == 0);
-          }
-
-          if (i + 1 < to) {
-            *(begin + i + 1) = *(begin + i) + value;
-          }
-        }
+      [&](const std::size_t from, const std::size_t to, int) {
+        aligned_prefix_sum_seq(begin + from, begin + to + 1, [&](const std::size_t i) {
+          return l(from + i);
+        });
       }
   );
 
@@ -88,26 +80,21 @@ std::size_t aligned_prefix_sum(OutputIt begin, OutputIt end, AlignedValueLambda 
       continue;
     }
 
-    const auto [alignment, value] = l(to - 1);
-    const std::size_t last_offset = (*(begin + to - 1) += value);
-
-    prefix_sums[cpu] = prefix_sums[cpu - 1] + last_offset +
-                       compute_alignment_offset(alignment, prefix_sums[cpu - 1] + last_offset);
+    const auto value = prefix_sums[cpu - 1] + *(begin + from);
+    prefix_sums[cpu] = value + compute_alignment_offset(8, value);
   }
 
   parallel::deterministic_for<std::size_t>(
       0,
       n,
       [&](const std::size_t from, const std::size_t to, const int cpu) {
-        for (std::size_t i = from; i < to; ++i) {
+        for (std::size_t i = from + 1; i < to + 1; ++i) {
           *(begin + i) += prefix_sums[cpu];
         }
       }
   );
 
-  *(begin + n) += l(n - 1).second;
-
-  return *(begin + n);
+  return *(begin + n) + l(n).second;
 }
 
 } // namespace kaminpar::parallel
