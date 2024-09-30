@@ -117,6 +117,6 @@ TEST(StreamVByte32Test, GapKindD4) {
 TEST(StreamVByte64Test, Default) {
   test_streamvbyte_codec<std::uint64_t>();
 }
-#endif 
+#endif
 
 } // namespace

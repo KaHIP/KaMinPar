@@ -46,7 +46,7 @@ public:
 };
 
 using GainCacheTypes = ::testing::Types<
-    DenseGainCache<Graph>,
+    NormalDenseGainCache<Graph>,
     NormalHashingGainCache<Graph>,
     OnTheFlyGainCache<Graph>,
     NormalSparseGainCache<Graph>,

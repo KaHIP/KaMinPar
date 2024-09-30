@@ -8,6 +8,7 @@ function(kaminpar_add_shm_test target)
         kaminpar_common
         kaminpar_shm)
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_compile_options(${target} PRIVATE ${KAMINPAR_WARNING_FLAGS})
     gtest_discover_tests(${target})
 
     message(STATUS "Enabled shared-memory test: ${target}")
@@ -20,6 +21,7 @@ function(kaminpar_add_common_test target)
         GTest::gmock_main
         kaminpar_common)
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_compile_options(${target} PRIVATE ${KAMINPAR_WARNING_FLAGS})
     gtest_discover_tests(${target})
 
     message(STATUS "Enabled common test: ${target}")
@@ -79,6 +81,7 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
                 kaminpar_shm
                 kaminpar_mpi)
         target_include_directories(${KAMINPAR_TARGET_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+        target_compile_options(${KAMINPAR_TARGET_NAME} PRIVATE ${KAMINPAR_WARNING_FLAGS})
         katestrophe_add_mpi_test(${KAMINPAR_TARGET_NAME} CORES ${KAMINPAR_CORES})
 
         message(STATUS "Enabled MPI test: ${KAMINPAR_TARGET_NAME}, PEs: ${KAMINPAR_CORES}")
@@ -100,6 +103,7 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
             kaminpar_mpi
             kaminpar_dist)
         target_include_directories(${KAMINPAR_TARGET_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+        target_compile_options(${KAMINPAR_TARGET_NAME} PRIVATE ${KAMINPAR_WARNING_FLAGS})
         katestrophe_add_mpi_test(${KAMINPAR_TARGET_NAME} CORES ${KAMINPAR_CORES})
     
         message(STATUS "Enabled distributed test: ${KAMINPAR_TARGET_NAME}, PEs: ${KAMINPAR_CORES}")

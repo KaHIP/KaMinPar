@@ -13,17 +13,22 @@
 
 #include "kaminpar-shm/kaminpar.h"
 
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/math.h"
 
 namespace kaminpar::shm::partitioning {
 double compute_2way_adaptive_epsilon(
     const NodeWeight total_node_weight, const BlockID k, const PartitionContext &p_ctx
 ) {
+  KASSERT(p_ctx.k > 0u);
+  KASSERT(total_node_weight > 0);
+
   const double base =
       (1.0 + p_ctx.epsilon) * k * p_ctx.total_node_weight / p_ctx.k / total_node_weight;
   const double exponent = 1.0 / math::ceil_log2(k);
   const double epsilon_prime = std::pow(base, exponent) - 1.0;
   const double adaptive_epsilon = std::max(epsilon_prime, 0.0001);
+
   return adaptive_epsilon;
 }
 
@@ -31,14 +36,15 @@ PartitionContext create_bipartition_context(
     const AbstractGraph &subgraph,
     const BlockID k1,
     const BlockID k2,
-    const PartitionContext &kway_p_ctx
+    const PartitionContext &kway_p_ctx,
+    const bool parallel
 ) {
   PartitionContext twoway_p_ctx;
   twoway_p_ctx.k = 2;
-  twoway_p_ctx.setup(subgraph);
+  twoway_p_ctx.setup(subgraph, false);
   twoway_p_ctx.epsilon =
       compute_2way_adaptive_epsilon(subgraph.total_node_weight(), k1 + k2, kway_p_ctx);
-  twoway_p_ctx.block_weights.setup(twoway_p_ctx, k1 + k2);
+  twoway_p_ctx.block_weights.setup(twoway_p_ctx, k1 + k2, parallel);
   return twoway_p_ctx;
 }
 

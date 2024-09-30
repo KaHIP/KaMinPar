@@ -45,7 +45,7 @@ PartitionedGraph AsyncInitialPartitioner::partition_recursive(
 
   // Base case: only one thread left <=> compute bipartition
   if (num_threads == 1) {
-    return bipartition(graph, _input_ctx.partition.k, _input_ctx, _bipartitioner_pool, true);
+    return bipartition(graph, _input_ctx.partition.k, _bipartitioner_pool, true);
   }
 
   // Otherwise, coarsen further and proceed recursively

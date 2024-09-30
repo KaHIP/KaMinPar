@@ -20,7 +20,9 @@
 #include "kaminpar-common/assert.h"
 
 namespace kaminpar::dist {
+
 namespace {
+
 class AlignedTable {
 public:
   template <typename T> void update_next_column(const T &val) {
@@ -167,8 +169,6 @@ void generate_statistics(
   {
     constexpr std::size_t check_chars = 1024;
 
-    const PEID rank = mpi::get_comm_rank(comm);
-
     // check that this timer node has the same number of children on each PE
     auto num_children = mpi::allgather(node.children.size(), comm);
     if (!std::all_of(num_children.begin(), num_children.end(), [&](const std::size_t num) {
@@ -279,6 +279,7 @@ void annotate_timer_tree(
     annotate_timer_tree(*child, pos, statistics, table);
   }
 }
+
 } // namespace
 
 void finalize_distributed_timer(Timer &timer, MPI_Comm comm) {
@@ -304,4 +305,5 @@ void finalize_distributed_timer(Timer &timer, MPI_Comm comm) {
     annotate_timer_tree(timer.tree(), pos, statistics, table);
   }
 }
+
 } // namespace kaminpar::dist

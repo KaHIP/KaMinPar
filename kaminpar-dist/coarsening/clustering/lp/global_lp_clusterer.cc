@@ -18,7 +18,9 @@
 #include "kaminpar-common/datastructures/rating_map.h"
 
 namespace kaminpar::dist {
+
 namespace {
+
 struct GlobalLPClusteringConfig : public LabelPropagationConfig {
   using RatingMap = ::kaminpar::RatingMap<EdgeWeight, GlobalNodeID, rm_backyard::Sparsehash>;
 
@@ -30,6 +32,7 @@ struct GlobalLPClusteringConfig : public LabelPropagationConfig {
   static constexpr bool kUseActiveSetStrategy = false;      // NOLINT
   static constexpr bool kUseLocalActiveSetStrategy = false; // NOLINT
 };
+
 } // namespace
 
 struct GlobalLPClusteringMemoryContext : public LabelPropagationMemoryContext<
@@ -84,9 +87,11 @@ public:
 
     auto [rating_map_ets, active, favored_clusters] = Base::release();
     return {
-        std::move(rating_map_ets),
-        std::move(active),
-        std::move(favored_clusters),
+        {
+            std::move(rating_map_ets),
+            std::move(active),
+            std::move(favored_clusters),
+        },
         std::move(_changed_label),
         std::move(_locked),
         std::move(_cluster_weights),
@@ -100,9 +105,6 @@ public:
   }
 
   void initialize(const Graph &graph) {
-    TIMER_BARRIER(graph.communicator());
-    SCOPED_TIMER("Label propagation");
-
     _graph = &graph;
 
     START_TIMER("Initialize high-degree node info");
@@ -111,13 +113,13 @@ public:
       graph.init_high_degree_info(_passive_high_degree_threshold);
     }
     STOP_TIMER();
-    TIMER_BARRIER(graph.communicator());
 
+    TIMER_BARRIER(graph.communicator());
     START_TIMER("Allocation");
     allocate(graph);
     STOP_TIMER();
-    TIMER_BARRIER(graph.communicator());
 
+    TIMER_BARRIER(graph.communicator());
     START_TIMER("Initialize datastructures");
     START_HEAP_PROFILER("Initialize datastructures");
     _cluster_weights_handles_ets.clear();
@@ -128,8 +130,6 @@ public:
     initialize_ghost_node_clusters();
     STOP_HEAP_PROFILER();
     STOP_TIMER();
-
-    TIMER_BARRIER(graph.communicator());
   }
 
   void set_max_cluster_weight(const GlobalNodeWeight weight) {
@@ -139,7 +139,7 @@ public:
   void compute_clustering(StaticArray<GlobalNodeID> &clustering, const Graph &graph) {
     TIMER_BARRIER(graph.communicator());
     SCOPED_TIMER("Label propagation");
-    SCOPED_HEAP_PROFILER("Label propagation");
+    SCOPED_HEAP_PROFILER("Label Propagation");
 
     init_clusters_ref(clustering);
     initialize(graph);
@@ -349,7 +349,7 @@ private:
   GlobalNodeID process_chunk(const NodeID from, const NodeID to) {
     TIMER_BARRIER(_graph->communicator());
 
-    const NodeID local_num_moved_nodes = TIMED_SCOPE("Chunk iteration") {
+    const NodeID local_num_moved_nodes = TIMED_SCOPE("Local work") {
       return Base::perform_iteration(from, to);
     };
 
@@ -525,6 +525,7 @@ private:
     });
     STOP_TIMER();
 
+    // Barrier has to be placed here since code paths might diverge after the return statement
     TIMER_BARRIER(_graph->communicator());
 
     // If we detected a max cluster weight violation, remove node weight
@@ -754,4 +755,5 @@ void GlobalLPClusterer::cluster(
 ) {
   _impl->compute_clustering(clustering, graph);
 }
+
 } // namespace kaminpar::dist

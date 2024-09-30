@@ -10,6 +10,7 @@
             "name": "default",
             "displayName": "Default Config",
             "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
                 "KAMINPAR_64BIT_IDS": "OFF",
                 "KAMINPAR_64BIT_EDGE_IDS": "OFF",
                 "KAMINPAR_64BIT_NODE_IDS": "OFF",
@@ -20,6 +21,7 @@
             "name": "distributed",
             "displayName": "Default Config for dKaMinPar",
             "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
                 "KAMINPAR_BUILD_DISTRIBUTED": "ON",
                 "KAMINPAR_BUILD_WITH_SPARSEHASH": "ON",
                 "KAMINPAR_64BIT_IDS": "OFF",
@@ -32,14 +34,30 @@
             "name": "memory",
             "displayName": "Default Config for KaMinPar with Memory Optimizations",
             "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
                 "KAMINPAR_64BIT_EDGE_IDS": "ON",
                 "KAMINPAR_64BIT_WEIGHTS": "ON"
+            }
+        },
+        {
+            "name": "distributed-memory",
+            "displayName": "Default Config for dKaMinPar with Memory Optimizations",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "KAMINPAR_BUILD_DISTRIBUTED": "ON",
+                "KAMINPAR_BUILD_WITH_SPARSEHASH": "ON",
+                "KAMINPAR_64BIT_IDS": "OFF",
+                "KAMINPAR_64BIT_EDGE_IDS": "ON",
+                "KAMINPAR_64BIT_NODE_IDS": "OFF",
+                "KAMINPAR_64BIT_WEIGHTS": "ON",
+                "KAMINPAR_64BIT_LOCAL_WEIGHTS": "ON"
             }
         },
         {
             "name": "stats",
             "displayName": "Default Config for KaMinPar with Statistics",
             "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
                 "KAMINPAR_ENABLE_STATISTICS": "ON",
                 "KAMINPAR_ENABLE_HEAP_PROFILING": "ON"
             }

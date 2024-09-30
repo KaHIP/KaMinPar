@@ -21,6 +21,9 @@
 
 namespace kaminpar::heap_profiler {
 
+double max_overcommitment_factor = 1.0;
+bool bruteforce_max_overcommitment_factor = false;
+
 // Source: https://stackoverflow.com/a/2513561
 #ifdef __linux__
 std::size_t get_total_system_memory() {
@@ -84,10 +87,6 @@ void HeapProfiler::stop_profile() {
   }
 }
 
-ScopedHeapProfiler HeapProfiler::start_scoped_profile(std::string_view name, std::string desc) {
-  return ScopedHeapProfiler(name, desc);
-}
-
 void HeapProfiler::record_data_struct(
     std::string_view var_name, const std::source_location location
 ) {
@@ -99,11 +98,11 @@ void HeapProfiler::record_data_struct(
   }
 }
 
-DataStructure *HeapProfiler::add_data_struct(std::string name, std::size_t size) {
+DataStructure *HeapProfiler::add_data_struct(std::string_view name, std::size_t size) {
   if (_enabled) {
     std::lock_guard<std::mutex> guard(_mutex);
 
-    DataStructure *data_structure = _struct_allocator.create(std::move(name), size);
+    DataStructure *data_structure = _struct_allocator.create(name, size);
     if (_line != 0) {
       data_structure->variable_name = _var_name;
       data_structure->file_name = _file_name;
@@ -118,7 +117,9 @@ DataStructure *HeapProfiler::add_data_struct(std::string name, std::size_t size)
     return data_structure;
   }
 
-  return new DataStructure(std::move(name), size);
+  // @todo: Potential memory leak. However, this method is currently not called when the heap
+  // profiler is disabled.
+  return new DataStructure(name, size);
 }
 
 void HeapProfiler::record_alloc(const void *ptr, std::size_t size) {
@@ -133,6 +134,11 @@ void HeapProfiler::record_alloc(const void *ptr, std::size_t size) {
           node->total_alloc > node->total_free && current_alloc > node->peak_memory) {
         node->peak_memory = current_alloc;
       }
+    }
+
+    if (_address_map.contains(ptr)) {
+      _num_suspicious_allocs++;
+      _sum_suspicious_allocs += size;
     }
 
     _address_map.insert_or_assign(ptr, size);
@@ -152,6 +158,8 @@ void HeapProfiler::record_free(const void *ptr) {
       }
 
       _address_map.erase(search);
+    } else {
+      _num_suspicious_frees++;
     }
   }
 }
@@ -174,6 +182,16 @@ void HeapProfiler::set_min_data_struct_size(float size) {
 }
 
 void HeapProfiler::print_heap_profile(std::ostream &out) {
+  if (_num_suspicious_allocs > 0) {
+    out << "[Warning] The heap profiler recorded some allocations twice (#"
+        << _num_suspicious_allocs << ", " << to_megabytes(_sum_suspicious_allocs) << " MiB)\n";
+  }
+  if (_num_suspicious_frees > 0) {
+    out << "[Warning] The heap profiler failed to record some deallocations as the corresponding "
+           "allocation has not been recorded (#"
+        << _num_suspicious_frees << ")\n";
+  }
+
   HeapProfileTreeNode &root = *_tree.currentNode;
   HeapProfileTreeStats stats(root);
 
@@ -334,7 +352,7 @@ void HeapProfiler::print_data_structures(
     bool last,
     std::size_t min_data_struct_size
 ) {
-  std::vector<DataStructure *, NoProfilAllocator<DataStructure *>> filtered_data_structures;
+  std::vector<DataStructure *, NoProfileAllocator<DataStructure *>> filtered_data_structures;
   std::copy_if(
       node.data_structures.begin(),
       node.data_structures.end(),

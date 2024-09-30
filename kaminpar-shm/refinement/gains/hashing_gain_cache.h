@@ -12,7 +12,7 @@
 #include <tbb/parallel_invoke.h>
 
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
-#include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
+#include "kaminpar-shm/refinement/gains/delta_gain_caches.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/compact_hash_map.h"
@@ -32,7 +32,7 @@ template <
     bool iterate_nonadjacent_blocks,
     bool iterate_exact_gains = false>
 class HashingGainCache {
-  SET_DEBUG(true);
+  SET_DEBUG(false);
 
   // Abuse MSB bit in the _weighted_degrees[] array for locking
   constexpr static UnsignedEdgeWeight kWeightedDegreeLock =
@@ -57,7 +57,7 @@ public:
   // the gain consumer with the total edge weight between the node and nodes in the specific block.
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
-  HashingGainCache(const Context &ctx, const NodeID preallocate_n, BlockID preallocate_k)
+  HashingGainCache(const Context &ctx, const NodeID preallocate_n, BlockID)
       : _ctx(ctx),
         // Since we do not know the size of the gain cache in advance (depends on vertex degrees),
         // we cannot preallocate it
@@ -354,9 +354,9 @@ private:
 };
 
 template <typename Graph>
-using NormalHashingGainCache = HashingGainCache<Graph, SparseDeltaGainCache, true>;
+using NormalHashingGainCache = HashingGainCache<Graph, GenericDeltaGainCache, true>;
 
 template <typename Graph>
-using LargeKHashingGainCache = HashingGainCache<Graph, LargeKSparseDeltaGainCache, false>;
+using LargeKHashingGainCache = HashingGainCache<Graph, LargeKGenericDeltaGainCache, false>;
 
 } // namespace kaminpar::shm

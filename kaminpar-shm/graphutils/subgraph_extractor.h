@@ -14,8 +14,6 @@
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/scalable_vector.h"
-#include "kaminpar-common/heap_profiler.h"
-#include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::graph {
 struct SubgraphMemoryStartPosition {
@@ -35,9 +33,7 @@ struct SubgraphMemoryStartPosition {
 };
 
 struct SubgraphMemory {
-  SubgraphMemory() {
-    RECORD_DATA_STRUCT(0, _struct);
-  }
+  SubgraphMemory() {}
 
   SubgraphMemory(
       const NodeID n,
@@ -46,12 +42,10 @@ struct SubgraphMemory {
       const bool is_node_weighted = true,
       const bool is_edge_weighted = true
   ) {
-    RECORD_DATA_STRUCT(0, _struct);
     resize(n, k, m, is_node_weighted, is_edge_weighted);
   }
 
   explicit SubgraphMemory(const PartitionedGraph &p_graph) {
-    RECORD_DATA_STRUCT(0, _struct);
     resize(p_graph);
   }
 
@@ -72,22 +66,20 @@ struct SubgraphMemory {
       const bool is_node_weighted = true,
       const bool is_edge_weighted = true
   ) {
-    SCOPED_HEAP_PROFILER("SubgraphMemory resize");
-    SCOPED_TIMER("Allocation");
+    resize2(n, k, m, is_node_weighted ? n : 0, is_edge_weighted ? m : 0);
+  }
 
+  void resize2(
+      const NodeID n,
+      const BlockID k,
+      const EdgeID m,
+      const NodeID n_weights,
+      const EdgeID m_weights
+  ) {
     nodes.resize(n + k);
     edges.resize(m);
-    node_weights.resize(is_node_weighted * (n + k));
-    edge_weights.resize(is_edge_weighted * m);
-
-    IF_HEAP_PROFILING(
-        _struct->size = std::max(
-            _struct->size,
-            (n + k) * sizeof(EdgeID) + m * sizeof(NodeID) +
-                is_node_weighted * (n + k) * sizeof(NodeWeight) +
-                is_edge_weighted * m * sizeof(EdgeWeight)
-        )
-    );
+    node_weights.resize((n_weights == 0) ? 0 : (n_weights + k));
+    edge_weights.resize(m_weights);
   }
 
   [[nodiscard]] bool empty() const {
@@ -98,8 +90,6 @@ struct SubgraphMemory {
   StaticArray<NodeID> edges;
   StaticArray<NodeWeight> node_weights;
   StaticArray<EdgeWeight> edge_weights;
-
-  IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };
 
 struct SubgraphExtractionResult {
@@ -156,6 +146,24 @@ struct TemporarySubgraphMemory {
            mapping.size() * sizeof(NodeID) / 1000;           //
   }
 };
+
+struct SubgraphMemoryPreprocessingResult {
+  StaticArray<NodeID> mapping;
+  StaticArray<NodeID> block_nodes_offset;
+  StaticArray<NodeID> block_nodes;
+  StaticArray<EdgeID> block_num_edges;
+};
+
+[[nodiscard]] SubgraphMemoryPreprocessingResult
+lazy_extract_subgraphs_preprocessing(const PartitionedGraph &p_graph);
+
+Graph extract_subgraph(
+    const PartitionedGraph &p_graph,
+    const BlockID block,
+    const StaticArray<NodeID> &block_nodes,
+    const StaticArray<NodeID> &mapping,
+    SubgraphMemory &subgraph_memory
+);
 
 SubgraphExtractionResult extract_subgraphs(
     const PartitionedGraph &p_graph, BlockID input_k, SubgraphMemory &subgraph_memory

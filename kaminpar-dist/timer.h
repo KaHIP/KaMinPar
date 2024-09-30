@@ -19,5 +19,7 @@
 #endif // KAMINPAR_ENABLE_TIMER_BARRIERS
 
 namespace kaminpar::dist {
+
 void finalize_distributed_timer(Timer &timer, MPI_Comm comm);
+
 } // namespace kaminpar::dist

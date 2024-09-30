@@ -16,6 +16,7 @@
 #include "kaminpar-common/parallel/vector_ets.h"
 
 namespace kaminpar::dist {
+
 class ColoredLPRefinerFactory : public GlobalRefinerFactory {
 public:
   ColoredLPRefinerFactory(const Context &ctx);
@@ -104,4 +105,5 @@ private:
 
   GainStatistics _gain_statistics;
 };
+
 } // namespace kaminpar::dist

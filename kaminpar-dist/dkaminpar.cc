@@ -35,9 +35,11 @@
 #include "kaminpar-common/random.h"
 
 namespace kaminpar {
+
 using namespace dist;
 
 namespace {
+
 void print_partition_summary(
     const Context &ctx,
     const DistributedPartitionedGraph &p_graph,
@@ -121,12 +123,9 @@ void print_input_summary(
   if (root && parseable) {
     LOG << "EXECUTION_MODE num_mpis=" << ctx.parallel.num_mpis
         << " num_threads=" << ctx.parallel.num_threads;
-    LOG << "INPUT_GRAPH "
-        << "global_n=" << graph.global_n() << " "
-        << "global_m=" << graph.global_m() << " "
-        << "n=[" << n_str << "] "
-        << "m=[" << m_str << "] "
-        << "ghost_n=[" << ghost_n_str << "]";
+    LOG << "INPUT_GRAPH " << "global_n=" << graph.global_n() << " "
+        << "global_m=" << graph.global_m() << " " << "n=[" << n_str << "] " << "m=[" << m_str
+        << "] " << "ghost_n=[" << ghost_n_str << "]";
   }
 
   // Output
@@ -150,6 +149,7 @@ void print_input_summary(
     cio::print_delimiter("Partitioning");
   }
 }
+
 } // namespace
 
 dKaMinPar::dKaMinPar(MPI_Comm comm, const int num_threads, const Context ctx)
@@ -319,10 +319,19 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const BlockID k, BlockID *partitio
   START_HEAP_PROFILER("Partitioning");
   START_TIMER("Partitioning");
   if (!_was_rearranged && _ctx.rearrange_by != GraphOrdering::NATURAL) {
-    DistributedCSRGraph &csr_graph = _graph_ptr->csr_graph();
-    graph = DistributedGraph(
-        std::make_unique<DistributedCSRGraph>(graph::rearrange(std::move(csr_graph), _ctx))
-    );
+    if (_ctx.compression.enabled) {
+      LOG_WARNING_ROOT << "A compressed graph cannot be rearranged by degree buckets. Disabling "
+                          "degree bucket ordering!";
+      _ctx.rearrange_by = GraphOrdering::NATURAL;
+    } else {
+      START_HEAP_PROFILER("Rearrange input graph");
+      DistributedCSRGraph &csr_graph = _graph_ptr->csr_graph();
+      graph = DistributedGraph(
+          std::make_unique<DistributedCSRGraph>(graph::rearrange(std::move(csr_graph), _ctx))
+      );
+      STOP_HEAP_PROFILER();
+    }
+
     _was_rearranged = true;
   }
   auto p_graph = factory::create_partitioner(_ctx, graph)->partition();
@@ -365,4 +374,5 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const BlockID k, BlockID *partitio
 
   return final_cut;
 }
+
 } // namespace kaminpar

@@ -153,7 +153,7 @@ std::unique_ptr<CoarseGraph> contract_local_clustering(
             .coarse_weight = c_node_weights[mapping[u]],
         };
       },
-      [&](const auto recv_buffer, const PEID pe) {
+      [&](const auto recv_buffer, PEID) {
         tbb::parallel_for<std::size_t>(0, recv_buffer.size(), [&](const std::size_t i) {
           const auto &[old_global_u, new_global_u, new_weight] = recv_buffer[i];
           const NodeID old_local_u = graph.global_to_local_node(old_global_u);

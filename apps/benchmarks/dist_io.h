@@ -180,9 +180,6 @@ load_partitioned_graph(const std::string &graph_name, const std::string &partiti
   wrapper.graph = std::move(graph_wrapper.graph);
   auto &graph = wrapper.graph;
 
-  const GlobalNodeID first_node = graph->offset_n();
-  const GlobalNodeID first_invalid_node = graph->offset_n() + graph->n();
-
   auto partition = load_node_property_vector<StaticArray<BlockID>>(*graph, partition_name);
 
   BlockID k = *std::max_element(partition.begin(), partition.end()) + 1;

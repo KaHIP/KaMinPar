@@ -12,6 +12,7 @@
 #include "kaminpar-dist/metrics.h"
 
 namespace kaminpar::dist {
+
 BestPartitionSnapshooter::BestPartitionSnapshooter(const NodeID max_total_n, const BlockID max_k)
     : _best_partition(max_total_n),
       _best_block_weights(max_k) {}
@@ -68,9 +69,8 @@ void BestPartitionSnapshooter::update(
   }
 }
 
-void BestPartitionSnapshooter::copy_partition(
-    const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
-) {
+void BestPartitionSnapshooter::
+    copy_partition(const DistributedPartitionedGraph &p_graph, const PartitionContext &) {
   tbb::parallel_invoke(
       [&] {
         p_graph.pfor_all_nodes([&](const NodeID u) { _best_partition[u] = p_graph.block(u); });
@@ -99,4 +99,5 @@ void DummyPartitionSnapshooter::update(
 ) {}
 
 void DummyPartitionSnapshooter::rollback(DistributedPartitionedGraph & /* p_graph */) {}
+
 } // namespace kaminpar::dist

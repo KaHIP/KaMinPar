@@ -31,7 +31,12 @@
 #include "kaminpar-common/math.h"
 
 namespace kaminpar::dist {
+
+namespace {
+
 SET_DEBUG(false);
+
+}
 
 DeepMultilevelPartitioner::DeepMultilevelPartitioner(
     const DistributedGraph &input_graph, const Context &input_ctx
@@ -72,7 +77,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     if (_input_ctx.enable_pe_splitting && current_num_pes > 1 &&
         num_blocks_on_this_level < static_cast<BlockID>(current_num_pes)) {
       const PEID num_replications = current_num_pes / num_blocks_on_this_level;
-      const PEID remaining_pes = current_num_pes % num_blocks_on_this_level;
+      // const PEID remaining_pes = current_num_pes % num_blocks_on_this_level;
 
       LOG << "Current graph (" << graph->global_n()
           << " nodes) is too small for the available parallelism (" << current_num_pes
@@ -277,7 +282,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   ref_p_ctx.graph = std::make_unique<GraphContext>(dist_p_graph.graph(), ref_p_ctx);
 
   // Uncoarsen, partition blocks and refine
-  while (_coarseners.size() > 1 || coarsener->level() > 0) {
+  while (_coarseners.size() > 1 || (!_coarseners.empty() && coarsener->level() > 0)) {
     SCOPED_HEAP_PROFILER("Level", std::to_string(coarsener->level()));
 
     LOG;
@@ -301,6 +306,12 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     // If we replicated early, we might already be on the finest level
     if (coarsener->level() > 0) {
       dist_p_graph = coarsener->uncoarsen(std::move(dist_p_graph));
+    }
+
+    // Destroy coarsener before we run refinement on the finest level
+    if (_coarseners.size() == 1 && coarsener->level() == 0) {
+      LOG << "    Freeing toplevel coarsener";
+      _coarseners.pop();
     }
 
     // Extend partition
@@ -369,4 +380,5 @@ const Coarsener *DeepMultilevelPartitioner::get_current_coarsener() const {
   KASSERT(!_coarseners.empty());
   return _coarseners.top().get();
 }
+
 } // namespace kaminpar::dist

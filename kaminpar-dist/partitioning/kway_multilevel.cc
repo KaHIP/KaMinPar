@@ -36,7 +36,6 @@ DistributedPartitionedGraph KWayMultilevelPartitioner::partition() {
   coarsener->initialize(&_graph);
 
   const DistributedGraph *graph = &_graph;
-  const bool is_root = mpi::get_comm_rank(_graph.communicator());
 
   ////////////////////////////////////////////////////////////////////////////////
   // Step 1: Coarsening
@@ -65,10 +64,14 @@ DistributedPartitionedGraph KWayMultilevelPartitioner::partition() {
         );
 
         // Machine readable
-        LOG << "=> level=" << coarsener->level() << " " << "global_n=" << c_graph.global_n() << " "
-            << "global_m=" << c_graph.global_m() << " " << "n=[" << n_str << "] " << "ghost_n=["
-            << ghost_n_str << "] " << "m=[" << m_str << "] " << "max_node_weight=["
-            << max_node_weight_str << "] " << "max_cluster_weight=" << max_cluster_weight;
+        LOG << "=> level=" << coarsener->level() << " "
+            << "global_n=" << c_graph.global_n() << " "
+            << "global_m=" << c_graph.global_m() << " "
+            << "n=[" << n_str << "] "
+            << "ghost_n=[" << ghost_n_str << "] "
+            << "m=[" << m_str << "] "
+            << "max_node_weight=[" << max_node_weight_str << "] "
+            << "max_cluster_weight=" << max_cluster_weight;
 
         // Human readable
         LOG << "Level " << coarsener->level() << ":";

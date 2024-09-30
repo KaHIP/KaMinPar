@@ -15,7 +15,7 @@
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/logger.h"
 
-#include "apps/io/file_tokener.h"
+#include "apps/io/file_toker.h"
 
 namespace kaminpar::shm::io::metis {
 using namespace kaminpar::io;
@@ -234,11 +234,13 @@ CompressedGraph compress_read(const std::string &filename, const bool sorted) {
   MappedFileToker toker(filename);
   const MetisHeader header = parse_header(toker);
 
+  /*
   const std::size_t uncompressed_graph_size =
       (header.num_nodes + 1) * sizeof(EdgeID) + header.num_edges * 2 * sizeof(NodeID) +
       header.has_node_weights * header.num_nodes * sizeof(NodeWeight) +
       header.has_edge_weights * header.num_edges * 2 * sizeof(EdgeID);
   bool dismissed = false;
+  */
 
   CompressedGraphBuilder builder(
       header.num_nodes,
@@ -248,7 +250,7 @@ CompressedGraph compress_read(const std::string &filename, const bool sorted) {
       sorted
   );
   RECORD("neighbourhood") std::vector<std::pair<NodeID, EdgeWeight>> neighbourhood;
-  RECORD_LOCAL_DATA_STRUCT("vector<pair<NodeID, EdgeWeight>>", 0, neighbourhood_stats);
+  RECORD_LOCAL_DATA_STRUCT(neighbourhood, 0, neighbourhood_stats);
 
   NodeID node = 0;
   EdgeID edge = 0;

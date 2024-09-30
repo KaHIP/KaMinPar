@@ -12,10 +12,14 @@
 #include "kaminpar-shm/refinement/refiner.h"
 
 namespace kaminpar::shm {
+
 class LegacyLabelPropagationRefiner : public Refiner {
 public:
   LegacyLabelPropagationRefiner(const Context &ctx);
-  ~LegacyLabelPropagationRefiner();
+
+  ~LegacyLabelPropagationRefiner() override;
+
+  [[nodiscard]] std::string name() const override;
 
   void initialize(const PartitionedGraph &p_graph) override;
 
@@ -24,4 +28,5 @@ public:
 private:
   class LegacyLabelPropagationRefinerImpl *_impl;
 };
+
 } // namespace kaminpar::shm

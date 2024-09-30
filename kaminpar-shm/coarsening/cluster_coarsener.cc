@@ -7,6 +7,8 @@
  ******************************************************************************/
 #include "kaminpar-shm/coarsening/cluster_coarsener.h"
 
+#include <algorithm>
+
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"
 #include "kaminpar-shm/coarsening/max_cluster_weights.h"
 #include "kaminpar-shm/factories.h"
@@ -17,10 +19,16 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
+
+namespace {
+SET_DEBUG(false);
+}
+
 ClusteringCoarsener::ClusteringCoarsener(const Context &ctx, const PartitionContext &p_ctx)
-    : _clustering_algorithm(factory::create_clusterer(ctx)),
+    : _ctx(ctx),
       _c_ctx(ctx.coarsening),
-      _p_ctx(p_ctx) {}
+      _p_ctx(p_ctx),
+      _clustering_algorithm(factory::create_clusterer(ctx)) {}
 
 void ClusteringCoarsener::initialize(const Graph *graph) {
   _hierarchy.clear();
@@ -39,12 +47,38 @@ bool ClusteringCoarsener::coarsen() {
   const NodeWeight total_node_weight = current().total_node_weight();
   const NodeID prev_n = current().n();
 
+  DBG << "Coarsening graph with " << prev_n << " nodes";
+
   START_HEAP_PROFILER("Label Propagation");
   START_TIMER("Label Propagation");
   _clustering_algorithm->set_max_cluster_weight(
       compute_max_cluster_weight<NodeWeight>(_c_ctx, _p_ctx, prev_n, total_node_weight)
   );
-  _clustering_algorithm->set_desired_cluster_count(0);
+
+  {
+    NodeID desired_cluster_count = prev_n / _c_ctx.clustering.shrink_factor;
+
+    const double U = _c_ctx.clustering.forced_level_upper_factor;
+    const double L = _c_ctx.clustering.forced_level_lower_factor;
+    const BlockID k = _p_ctx.k;
+    const int p = _ctx.parallel.num_threads;
+    const NodeID C = _c_ctx.contraction_limit;
+
+    if (_c_ctx.clustering.forced_kc_level) {
+      if (prev_n > U * C * k) {
+        desired_cluster_count = std::max<NodeID>(desired_cluster_count, L * C * k);
+      }
+    }
+    if (_c_ctx.clustering.forced_pc_level) {
+      if (prev_n > U * C * p) {
+        desired_cluster_count = std::max<NodeID>(desired_cluster_count, L * C * p);
+      }
+    }
+
+    DBG << "Desired cluster count: " << desired_cluster_count;
+    _clustering_algorithm->set_desired_cluster_count(desired_cluster_count);
+  }
+
   _clustering_algorithm->compute_clustering(clustering, current(), free_allocated_memory);
   STOP_TIMER();
   STOP_HEAP_PROFILER();
@@ -71,7 +105,6 @@ bool ClusteringCoarsener::coarsen() {
 }
 
 PartitionedGraph ClusteringCoarsener::uncoarsen(PartitionedGraph &&p_graph) {
-  SCOPED_HEAP_PROFILER("Level", std::to_string(_hierarchy.size()));
   SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
 
   const BlockID p_graph_k = p_graph.k();
@@ -127,4 +160,5 @@ std::unique_ptr<CoarseGraph> ClusteringCoarsener::pop_hierarchy(PartitionedGraph
 bool ClusteringCoarsener::keep_allocated_memory() const {
   return level() >= _c_ctx.clustering.max_mem_free_coarsening_level;
 }
+
 } // namespace kaminpar::shm

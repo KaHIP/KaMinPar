@@ -15,13 +15,22 @@
 #include <mpi.h>
 #include <tbb/scalable_allocator.h>
 
-#include "kaminpar-common/environment.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/strutils.h"
 
 #include "apps/io/dist_io.h"
 #include "apps/io/dist_metis_parser.h"
 #include "apps/io/dist_parhip_parser.h"
+#include "apps/io/dist_skagen.h"
+#include "apps/version.h"
+
+#ifdef KAMINPAR_HAVE_BACKWARD
+#include <backward.hpp>
+#endif
+
+#if defined(__linux__)
+#include <sys/resource.h>
+#endif
 
 using namespace kaminpar;
 using namespace kaminpar::dist;
@@ -31,12 +40,14 @@ namespace {
 enum class IOKind {
   KAMINPAR,
   KAGEN,
+  STREAMING_KAGEN
 };
 
 std::unordered_map<std::string, IOKind> get_io_kinds() {
   return {
       {"kaminpar", IOKind::KAMINPAR},
       {"kagen", IOKind::KAGEN},
+      {"skagen", IOKind::STREAMING_KAGEN},
   };
 }
 
@@ -46,6 +57,8 @@ struct ApplicationContext {
 
   int seed = 0;
   int num_threads = 1;
+
+  int repetitions = 0;
 
   int max_timer_depth = 3;
 
@@ -60,15 +73,19 @@ struct ApplicationContext {
   bool experiment = false;
   bool check_input_graph = false;
 
-  IOKind io_kind;
+  IOKind io_kind = IOKind::KAGEN;
   GraphDistribution io_distribution = GraphDistribution::BALANCED_EDGES;
   kagen::FileFormat io_format = kagen::FileFormat::EXTENSION;
   kagen::GraphDistribution io_kagen_distribution = kagen::GraphDistribution::BALANCE_EDGES;
+  std::string io_skagen_graph_options;
+  int io_skagen_chunks_per_pe;
 
   std::string graph_filename = "";
   std::string partition_filename = "";
 
   bool no_huge_pages = false;
+
+  bool dry_run = false;
 };
 
 void setup_context(CLI::App &cli, ApplicationContext &app, Context &ctx) {
@@ -128,14 +145,15 @@ The output should be stored in a file and can be used by the -C,--config option.
       ->transform(CLI::CheckedTransformer(get_io_kinds()).description(""))
       ->description(R"(Used IO for reading the input graph, possible options are:
   - kaminpar: use KaMinPar for IO
-  - kagen:    use KaGen for IO)")
+  - kagen:    use KaGen for IO
+  - skagen:   use streaming KaGen for IO)")
       ->capture_default_str();
   cli.add_option("--io-distribution", app.io_distribution)
       ->transform(CLI::CheckedTransformer(get_graph_distributions()).description(""))
       ->description(R"(Graph distribution scheme used for KaMinPar IO, possible options are:
   - balanced-nodes:        distribute nodes such that each PE has roughly the same number of nodes
   - balanced-edges:        distribute edges such that each PE has roughly the same number of edges
-  - balancde-memory-space: distribute graph such that each PE uses roughly the same memory space for the input graph)"
+  - balanced-memory-space: distribute graph such that each PE uses roughly the same memory space for the input graph)"
       )
       ->capture_default_str();
   cli.add_option("--io-kagen-distribution", app.io_kagen_distribution)
@@ -144,6 +162,10 @@ The output should be stored in a file and can be used by the -C,--config option.
   - balance-vertices: distribute vertices such that each PE has roughly the same number of vertices
   - balance-edges:    distribute edges such that each PE has roughly the same number of edges)")
       ->capture_default_str();
+  cli.add_option("--io-skagen-graph", app.io_skagen_graph_options)
+      ->description("The options used for generating the graph");
+  cli.add_option("--io-skagen-chunks", app.io_skagen_chunks_per_pe)
+      ->description("The number of chunks per PE that generation will be split into");
   cli.add_flag("-E,--experiment", app.experiment, "Use an output format that is easier to parse.");
   cli.add_option(
       "--max-timer-depth", app.max_timer_depth, "Set maximum timer depth shown in result summary."
@@ -156,6 +178,20 @@ The output should be stored in a file and can be used by the -C,--config option.
   cli.add_flag("--check-input-graph", app.check_input_graph, "Check input graph for errors.");
 
   cli.add_flag("--no-huge-pages", app.no_huge_pages, "Do not use huge pages via TBBmalloc.");
+
+  cli.add_option(
+         "--max-overcommitment-factor",
+         heap_profiler::max_overcommitment_factor,
+         "Limit memory overcommitment to this factor times the total available system memory."
+  )
+      ->capture_default_str();
+  cli.add_flag(
+         "--bruteforce-max-overcommitment-factor",
+         heap_profiler::bruteforce_max_overcommitment_factor,
+         "If enabled, the maximum overcommitment factor is slowly decreased until memory "
+         "overcommitment succeeded."
+  )
+      ->capture_default_str();
 
   // Heap profiler options
   if constexpr (kHeapProfiling) {
@@ -176,7 +212,7 @@ The output should be stored in a file and can be used by the -C,--config option.
         )
         ->capture_default_str();
     hp_group
-        ->add_option(
+        ->add_flag(
             "--hp-print-structs",
             app.heap_profiler_print_structs,
             "Print data structure memory statistics in the result summary."
@@ -191,6 +227,20 @@ The output should be stored in a file and can be used by the -C,--config option.
         ->capture_default_str()
         ->check(CLI::NonNegativeNumber);
   }
+
+  cli.add_flag(
+      "--dry-run",
+      app.dry_run,
+      "Only check the given command line arguments, but do not partition the graph."
+  );
+
+  cli.add_option(
+         "--repetitions",
+         app.repetitions,
+         "Partition multiple time and output the best cut. Set 0 for just one run."
+  )
+      ->check(CLI::NonNegativeNumber)
+      ->capture_default_str();
 
   // Algorithmic options
   create_all_options(&cli, ctx);
@@ -254,6 +304,28 @@ NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
   return graph.vertex_range.second - graph.vertex_range.first;
 }
 
+NodeID load_skagen_graph(const ApplicationContext &app, bool compression, dKaMinPar &partitioner) {
+  DistributedGraph graph = [&] {
+    if (compression) {
+      return DistributedGraph(
+          std::make_unique<DistributedCompressedGraph>(io::skagen::compressed_streaming_generate(
+              app.io_skagen_graph_options, app.io_skagen_chunks_per_pe, MPI_COMM_WORLD
+          ))
+      );
+    } else {
+      return DistributedGraph(
+          std::make_unique<DistributedCSRGraph>(io::skagen::csr_streaming_generate(
+              app.io_skagen_graph_options, app.io_skagen_chunks_per_pe, MPI_COMM_WORLD
+          ))
+      );
+    }
+  }();
+  const NodeID n = graph.n();
+
+  partitioner.import_graph(std::move(graph));
+  return n;
+}
+
 NodeID load_csr_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
   const auto read_graph = [&] {
     switch (app.io_format) {
@@ -263,7 +335,7 @@ NodeID load_csr_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
       return io::parhip::csr_read(app.graph_filename, app.io_distribution, false, MPI_COMM_WORLD);
     default:
       root_run_and_exit([&] {
-        LOG_ERROR << "To read graphs not stored in METIS or ParHIP format, use KaGen as the IO!";
+        LOG_ERROR << "To read graphs not stored in METIS/ParHIP format, use KaGen as the IO!";
       });
     }
   };
@@ -300,6 +372,80 @@ NodeID load_compressed_graph(const ApplicationContext &app, dKaMinPar &partition
   return n;
 }
 
+void report_max_rss() {
+  LOG;
+
+#if defined(__linux__)
+  if (struct rusage usage; getrusage(RUSAGE_SELF, &usage) == 0) {
+    const long rss = usage.ru_maxrss;
+    long total_rss, min_rss, max_rss;
+
+    MPI_Reduce(&rss, &total_rss, 1, MPI_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(&rss, &min_rss, 1, MPI_LONG, MPI_MIN, 0, MPI_COMM_WORLD);
+    MPI_Reduce(&rss, &max_rss, 1, MPI_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
+
+    int size;
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    LOG << "Maximum resident set size: " << total_rss << " kB [min: " << min_rss
+        << " kB, avg: " << total_rss / size << " kB, max: " << max_rss << " kB]";
+  } else {
+#else
+  {
+#endif
+    LOG << "Maximum resident set size: unknown\n";
+  }
+}
+
+void run_partitioner(
+    dKaMinPar &partitioner, std::vector<BlockID> &partition, const ApplicationContext &app
+) {
+#ifdef KAMINPAR_HAVE_BACKWARD
+  backward::MPIErrorHandler mpi_error_handler(MPI_COMM_WORLD);
+  backward::SignalHandling sh;
+#endif // KAMINPAR_HAVE_BACKWARD
+
+  if (app.repetitions == 0) {
+    partitioner.compute_partition(app.k, partition.data());
+    if (!app.quiet) {
+      report_max_rss();
+    }
+    return;
+  }
+
+  START_HEAP_PROFILER("Input Graph Allocation");
+  std::vector<GlobalEdgeWeight> cuts;
+  GlobalEdgeWeight best_cut = std::numeric_limits<GlobalEdgeWeight>::max();
+  std::vector<BlockID> best_partition(partition.size());
+  STOP_HEAP_PROFILER();
+
+  for (int repetition = 0; repetition < app.repetitions; ++repetition) {
+    const GlobalEdgeWeight cut = partitioner.compute_partition(app.k, partition.data());
+    cuts.push_back(cut);
+
+    if (cut < best_cut) {
+      std::swap(best_partition, partition);
+      best_cut = cut;
+    }
+
+    if (!app.quiet) {
+      report_max_rss();
+    }
+  }
+
+  root_run([&] {
+    const GlobalEdgeWeight cut_sum =
+        std::accumulate(cuts.begin(), cuts.end(), static_cast<GlobalNodeWeight>(0));
+    const double avg_cut = 1.0 * cut_sum / cuts.size();
+    const GlobalEdgeWeight worst_cut = *std::max_element(cuts.begin(), cuts.end());
+
+    LOG;
+    LOG << "Worst cut: " << worst_cut;
+    LOG << "Avg. cut:  " << avg_cut;
+    LOG << "Best cut:  " << best_cut;
+  });
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -323,7 +469,11 @@ int main(int argc, char *argv[]) {
   }
 
   if (app.show_version) {
-    root_run_and_exit([&] { std::cout << Environment::GIT_SHA1 << std::endl; });
+    root_run_and_exit([&] { print_version(); });
+  }
+
+  if (app.dry_run) {
+    std::exit(MPI_Finalize());
   }
 
   // If available, use huge pages for large allocations
@@ -363,9 +513,13 @@ int main(int argc, char *argv[]) {
       }
 
       return load_csr_graph(app, partitioner);
+    }
+
+    if (app.io_kind == IOKind::STREAMING_KAGEN) {
+      return load_skagen_graph(app, ctx.compression.enabled, partitioner);
     } else if (ctx.compression.enabled) {
       root_run([] {
-        LOG_WARNING << "Disabling graph compression as it is only supported with KaMinPar-IO!";
+        LOG_WARNING << "Disabling graph compression since it is not supported with KaGen-IO!";
       });
     }
 
@@ -376,8 +530,7 @@ int main(int argc, char *argv[]) {
   std::vector<BlockID> partition(n);
   STOP_HEAP_PROFILER();
 
-  // Compute the partition
-  partitioner.compute_partition(app.k, partition.data());
+  run_partitioner(partitioner, partition, app);
 
   if (!app.partition_filename.empty()) {
     dist::io::partition::write(app.partition_filename, partition);

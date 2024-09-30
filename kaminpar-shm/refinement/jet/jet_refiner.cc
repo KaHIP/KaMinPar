@@ -17,10 +17,19 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
+
+namespace {
+
 SET_STATISTICS_FROM_GLOBAL();
 SET_DEBUG(false);
 
+}
+
 JetRefiner::JetRefiner(const Context &ctx) : _ctx(ctx) {}
+
+std::string JetRefiner::name() const {
+  return "Jet";
+}
 
 void JetRefiner::initialize(const PartitionedGraph &p_graph) {
   SCOPED_TIMER("Jet Refiner");
@@ -223,4 +232,5 @@ double JetRefiner::compute_gain_temp(int round) const {
 
   return 1.0 * (_initial_gain_temp + _final_gain_temp) / 2;
 }
+
 } // namespace kaminpar::shm

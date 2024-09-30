@@ -22,10 +22,10 @@ namespace kaminpar::shm {
 template <typename Graph> class GreedyBalancerImpl;
 
 struct GreedyBalancerMemoryContext {
-  DynamicBinaryMinMaxForest<NodeID, double> pq;
+  DynamicBinaryMinMaxForest<NodeID, double, StaticArray> pq;
   tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> rating_map;
   tbb::enumerable_thread_specific<std::vector<BlockID>> feasible_target_blocks;
-  Marker<> marker;
+  Marker<1, std::size_t, StaticArray> marker;
   std::vector<BlockWeight> pq_weight;
   NormalSparseGainCache<Graph> *gain_cache = nullptr;
 };
@@ -44,7 +44,10 @@ public:
   GreedyBalancer &operator=(GreedyBalancer &&) = default;
   GreedyBalancer(GreedyBalancer &&) noexcept = default;
 
+  [[nodiscard]] std::string name() const final;
+
   void initialize(const PartitionedGraph &p_graph) final;
+
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
   void track_moves(NormalSparseGainCache<Graph> *gain_cache);

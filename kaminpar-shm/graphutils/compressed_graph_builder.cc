@@ -7,6 +7,8 @@
  ******************************************************************************/
 #include "kaminpar-shm/graphutils/compressed_graph_builder.h"
 
+#include <utility>
+
 namespace kaminpar::shm {
 
 CompressedGraph CompressedGraphBuilder::compress(const CSRGraph &graph) {
@@ -68,7 +70,8 @@ void CompressedGraphBuilder::add_node_weight(const NodeID node, const NodeWeight
 CompressedGraph CompressedGraphBuilder::build() {
   CompressedNeighborhoods compressed_neighborhoods = _compressed_neighborhoods_builder.build();
 
-  const bool unit_node_weights = (_total_node_weight + 1) == compressed_neighborhoods.num_nodes();
+  const bool unit_node_weights =
+      std::cmp_equal(_total_node_weight + 1, compressed_neighborhoods.num_nodes());
   if (unit_node_weights) {
     _node_weights.free();
   }

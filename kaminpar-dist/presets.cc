@@ -14,6 +14,7 @@
 #include "kaminpar-shm/presets.h"
 
 namespace kaminpar::dist {
+
 Context create_context_by_preset_name(const std::string &name) {
   if (name == "default" || name == "fast") {
     return create_default_context();
@@ -56,6 +57,10 @@ Context create_default_context() {
               .num_threads = 1,
               .num_mpis = 1,
           },
+      .compression =
+          {
+              .enabled = false,
+          },
       .coarsening =
           {
               .max_global_clustering_levels = std::numeric_limits<std::size_t>::max(),
@@ -75,6 +80,7 @@ Context create_default_context() {
                               .min_num_chunks = 8,
                               .scale_chunks_with_threads = false,
                           },
+                      .ignore_ghost_nodes = false,
                       .keep_ghost_clusters = false,
                       .sync_cluster_weights = true,
                       .enforce_cluster_weights = true,
@@ -91,6 +97,7 @@ Context create_default_context() {
                               .min_num_chunks = 8,
                               .scale_chunks_with_threads = false,
                           },
+                      .small_color_blacklist = 0.0,
                       .only_blacklist_input_level = false,
                       .ignore_weight_limit = false,
                   },
@@ -99,12 +106,19 @@ Context create_default_context() {
               .local_lp =
                   {
                       .num_iterations = 5,
+                      .passive_high_degree_threshold = 200'000,
                       .active_high_degree_threshold = 1'000'000,
                       .max_num_neighbors = kInvalidNodeID,
                       .merge_singleton_clusters = false,
                       .merge_nonadjacent_clusters_threshold = 0.5,
+                      .chunks = {},
                       .ignore_ghost_nodes = true,
                       .keep_ghost_clusters = false,
+                      .sync_cluster_weights = false,
+                      .enforce_cluster_weights = false,
+                      .cheap_toplevel = false,
+                      .prevent_cyclic_moves = false,
+                      .enforce_legacy_weight = false,
                   },
               .contraction_limit = 2000,
               .cluster_weight_limit = shm::ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
@@ -220,6 +234,7 @@ Context create_default_context() {
           },
       .debug =
           {
+              .graph_filename = "<NA>",
               .save_coarsest_graph = false,
               .save_coarsest_partition = false,
               .print_compression_details = false,
@@ -261,4 +276,5 @@ Context create_europar23_strong_context() {
   ctx.coarsening.global_lp.num_iterations = 5;
   return ctx;
 }
+
 } // namespace kaminpar::dist

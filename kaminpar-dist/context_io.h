@@ -14,6 +14,7 @@
 #include "kaminpar-dist/context.h"
 
 namespace kaminpar::dist {
+
 std::ostream &operator<<(std::ostream &out, PartitioningMode mode);
 std::ostream &operator<<(std::ostream &out, ClusteringAlgorithm algorithm);
 std::ostream &operator<<(std::ostream &out, InitialPartitioningAlgorithm algorithm);
@@ -50,4 +51,5 @@ void print(
 void print(const CoarseningContext &ctx, const ParallelContext &parallel, std::ostream &out);
 void print(const InitialPartitioningContext &ctx, std::ostream &out);
 void print(const RefinementContext &ctx, const ParallelContext &parallel, std::ostream &out);
+
 } // namespace kaminpar::dist

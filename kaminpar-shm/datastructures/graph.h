@@ -213,10 +213,20 @@ public:
   }
 
   template <typename ConcretizedGraph> [[nodiscard]] ConcretizedGraph &concretize() {
+    KASSERT(
+        dynamic_cast<ConcretizedGraph *>(underlying_graph()) != nullptr,
+        "underlying graph is not a " << typeid(ConcretizedGraph).name()
+    );
+
     return *static_cast<ConcretizedGraph *>(underlying_graph());
   }
 
   template <typename ConcretizedGraph> [[nodiscard]] const ConcretizedGraph &concretize() const {
+    KASSERT(
+        dynamic_cast<const ConcretizedGraph *>(underlying_graph()) != nullptr,
+        "underlying graph is not a " << typeid(ConcretizedGraph).name()
+    );
+
     return *static_cast<const ConcretizedGraph *>(underlying_graph());
   }
 

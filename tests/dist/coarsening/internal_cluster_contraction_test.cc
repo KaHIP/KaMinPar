@@ -68,7 +68,7 @@ TEST(ClusterReassignmentTest, twitter_2010_64pe_2copy_regression) {
       12363, 13587, 14663, 15819, 16873, 17774, 18973, 20163, 21370, 22589, 23806,
       25008, 26070, 27127, 28041, 28951, 29860, 31072, 31961, 33095, 34310, 35224,
   });
-  const double max_cnode_imbalance = 1.1;
+  // const double max_cnode_imbalance = 1.1;
 
   const auto shifts = compute_assignment_shifts(node_distribution, cnode_distribution, 1.1);
 
@@ -83,7 +83,7 @@ TEST(ClusterReassignmentTest, twitter_2010_64pe_2copy_regression) {
 TEST(ClusterReassignmentTest, rgg2d_N7_M11_2pe_regression) {
   const auto node_distribution = static_array::create<GlobalNodeID>({0, 57, 128});
   const auto cnode_distribution = static_array::create<GlobalNodeID>({0, 57, 128});
-  const double max_cnode_imbalance = 1.1;
+  // const double max_cnode_imbalance = 1.1;
 
   const auto shifts = compute_assignment_shifts(node_distribution, cnode_distribution, 1.1);
 
@@ -108,7 +108,7 @@ TEST(ClusterReassignmentTest, twitter_2010_128pe_4copies_regression) {
        14917, 16267, 17605, 19028, 20388, 21745, 23200, 24656, 26104, 27558, 29015,
        30471, 31927, 33066, 34086, 35025, 35965, 37421, 38878, 39818, 40876, 42333}
   );
-  const double max_cnode_imbalance = 1.1;
+  // const double max_cnode_imbalance = 1.1;
 
   const auto shifts = compute_assignment_shifts(node_distribution, cnode_distribution, 1.1);
 

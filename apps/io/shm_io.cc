@@ -11,7 +11,7 @@
 
 #include "kaminpar-common/logger.h"
 
-#include "apps/io/file_tokener.h"
+#include "apps/io/file_toker.h"
 #include "apps/io/shm_compressed_graph_binary.h"
 #include "apps/io/shm_metis_parser.h"
 #include "apps/io/shm_parhip_parser.h"
@@ -73,8 +73,6 @@ Graph read(
     const NodeOrdering ordering,
     const bool compress
 ) {
-  const bool sorted = ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS;
-
   if (compressed_binary::is_compressed(filename)) {
     if (!compress) {
       LOG_ERROR << "The input graph is stored in a compressed format but graph compression is "

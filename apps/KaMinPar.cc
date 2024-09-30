@@ -20,18 +20,23 @@
 
 #include "kaminpar-shm/datastructures/graph.h"
 
-#include "kaminpar-common/environment.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/strutils.h"
 #include "kaminpar-common/timer.h"
 
 #include "apps/io/shm_input_validator.h"
 #include "apps/io/shm_io.h"
+#include "apps/version.h"
+
+#if defined(__linux__)
+#include <sys/resource.h>
+#endif
 
 using namespace kaminpar;
 using namespace kaminpar::shm;
 
 namespace {
+
 struct ApplicationContext {
   bool dump_config = false;
   bool show_version = false;
@@ -58,6 +63,8 @@ struct ApplicationContext {
   io::GraphFileFormat graph_file_format = io::GraphFileFormat::METIS;
 
   bool no_huge_pages = false;
+
+  bool dry_run = false;
 };
 
 void setup_context(CLI::App &cli, ApplicationContext &app, Context &ctx) {
@@ -136,7 +143,7 @@ The output should be stored in a file and can be used by the -C,--config option.
         )
         ->capture_default_str();
     hp_group
-        ->add_option(
+        ->add_flag(
             "--hp-print-structs",
             app.heap_profiler_print_structs,
             "Print data structure memory statistics in the result summary."
@@ -161,6 +168,26 @@ The output should be stored in a file and can be used by the -C,--config option.
       "checks the graph format)."
   );
   cli.add_flag("--no-huge-pages", app.no_huge_pages, "Do not use huge pages via TBBmalloc.");
+
+  cli.add_option(
+         "--max-overcommitment-factor",
+         heap_profiler::max_overcommitment_factor,
+         "Limit memory overcommitment to this factor times the total available system memory."
+  )
+      ->capture_default_str();
+  cli.add_flag(
+         "--bruteforce-max-overcommitment-factor",
+         heap_profiler::bruteforce_max_overcommitment_factor,
+         "If enabled, the maximum overcommitment factor is slowly decreased until memory "
+         "overcommitment succeeded."
+  )
+      ->capture_default_str();
+
+  cli.add_flag(
+      "--dry-run",
+      app.dry_run,
+      "Only check the given command line arguments, but do not partition the graph."
+  );
 
   // Algorithmic options
   create_all_options(&cli, ctx);
@@ -188,7 +215,11 @@ int main(int argc, char *argv[]) {
   }
 
   if (app.show_version) {
-    std::cout << Environment::GIT_SHA1 << std::endl;
+    print_version();
+    std::exit(0);
+  }
+
+  if (app.dry_run) {
     std::exit(0);
   }
 
@@ -236,7 +267,7 @@ int main(int argc, char *argv[]) {
   }
 
   RECORD("partition") std::vector<BlockID> partition(graph.n());
-  RECORD_LOCAL_DATA_STRUCT("vector<BlockID>", partition.capacity() * sizeof(BlockID));
+  RECORD_LOCAL_DATA_STRUCT(partition, partition.capacity() * sizeof(BlockID));
   STOP_HEAP_PROFILER();
 
   // Compute graph partition
@@ -249,6 +280,22 @@ int main(int argc, char *argv[]) {
   }
 
   DISABLE_HEAP_PROFILER();
+
+  if (!app.quiet) {
+    std::cout << "\n";
+
+#if defined(__linux__)
+    if (struct rusage usage; getrusage(RUSAGE_SELF, &usage) == 0) {
+      std::cout << "Maximum resident set size: " << usage.ru_maxrss << " KiB\n";
+    } else {
+#else
+    {
+#endif
+      std::cout << "Maximum resident set size: unknown\n";
+    }
+
+    std::cout << std::flush;
+  }
 
   return 0;
 }

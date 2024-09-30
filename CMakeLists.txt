@@ -11,6 +11,7 @@ project(KaMinPar
 set(PROJECT_VENDOR "Daniel Seemaier")
 set(PROJECT_CONTACT "daniel.seemaier@kit.edu")
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 ################################################################################
 ## Options                                                                    ##
@@ -45,6 +46,7 @@ option(KAMINPAR_BUILD_WITH_MTKAHYPAR "If Mt-KaHyPar can be found, build the Mt-K
 option(KAMINPAR_BUILD_WITH_GROWT "Build the shared-memory partitioner with Growt." ON)
 option(KAMINPAR_BUILD_WITH_SPARSEHASH "Build with Google Sparsehash." ON)
 option(KAMINPAR_BUILD_WITH_PG "Build with the -pg option for profiling." OFF)
+option(KAMINPAR_BUILD_WITH_BACKWARD "Build with backward-cpp for stack traces (distributed partitioner only)." OFF)
 
 # Control data type sizes
 #########################
@@ -117,7 +119,6 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
 endif ()
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     list(APPEND KAMINPAR_WARNING_FLAGS
-        "-Wnoexcept"
         "-Wsuggest-override"
         "-fdiagnostics-color=always"
         "-Wcast-qual"
@@ -324,6 +325,10 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
     if (NOT MPI_FOUND) 
         message(WARNING "MPI not available: cannot build the distributed partitioner")
         set(KAMINPAR_BUILD_DISTRIBUTED OFF)
+    endif ()
+
+    if (KAMINPAR_BUILD_WITH_BACKWARD)
+        add_subdirectory(external/bakward-mpi EXCLUDE_FROM_ALL)
     endif ()
 endif ()
 

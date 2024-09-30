@@ -15,6 +15,7 @@
 #include "kaminpar-shm/refinement/refiner.h"
 
 namespace kaminpar::shm {
+
 class MultiRefiner : public Refiner {
 public:
   MultiRefiner(
@@ -28,6 +29,8 @@ public:
   MultiRefiner(MultiRefiner &&) = delete;
   MultiRefiner &operator=(MultiRefiner &&) = delete;
 
+  [[nodiscard]] std::string name() const final;
+
   void initialize(const PartitionedGraph &p_graph) final;
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
@@ -36,4 +39,5 @@ private:
   std::unordered_map<RefinementAlgorithm, std::unique_ptr<Refiner>> _refiners;
   std::vector<RefinementAlgorithm> _order;
 };
+
 } // namespace kaminpar::shm

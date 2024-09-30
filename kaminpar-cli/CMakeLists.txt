@@ -10,6 +10,7 @@ set(DKAMINPAR_CLI_SOURCE_FILES
 add_library(kaminpar_cli ${KAMINPAR_CLI_SOURCE_FILES})
 target_include_directories(kaminpar_cli PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../")
 target_link_libraries(kaminpar_cli PUBLIC kaminpar_shm)
+target_compile_options(kaminpar_cli PRIVATE ${KAMINPAR_WARNING_FLAGS})
 
 if (TARGET kaminpar_dist)
     add_library(kaminpar_dist_cli ${DKAMINPAR_CLI_SOURCE_FILES})

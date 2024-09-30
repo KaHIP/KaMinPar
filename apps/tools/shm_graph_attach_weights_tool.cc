@@ -161,14 +161,14 @@ generate_exponential_edge_weights(const CSRGraph &graph, const int seed, const d
     std::mt19937 gen(local_seed(seed, cpu));
     std::exponential_distribution<double> dist(lambda);
 
-    edge_weight_fetcher([&](const EdgeID e, const NodeID, const NodeID) {
+    edge_weight_fetcher([&](EdgeID, const NodeID, const NodeID) {
       const EdgeWeight weight = static_cast<EdgeWeight>(dist(gen)) + 1;
       return weight;
     });
   });
 }
 
-}; // namespace
+} // namespace
 
 int main(int argc, char *argv[]) {
   CLI::App app("Shared-memory graph attach-weights tool");

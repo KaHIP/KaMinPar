@@ -30,10 +30,9 @@ namespace kaminpar::dist {
 template <typename T>
 [[nodiscard]] static bool operator==(const IotaRange<T> &a, const IotaRange<T> &b) {
   return a.begin() == b.begin() && a.end() == b.end();
-};
+}
 
 [[nodiscard]] DistributedCompressedGraph compress(const DistributedCSRGraph &graph) {
-  const mpi::PEID size = mpi::get_comm_size(graph.communicator());
   const mpi::PEID rank = mpi::get_comm_rank(graph.communicator());
 
   StaticArray<GlobalNodeID> node_distribution(
@@ -49,10 +48,7 @@ template <typename T>
   );
 
   const NodeID first_node = node_distribution[rank];
-  const NodeID last_node = node_distribution[rank + 1];
 
-  const auto &raw_nodes = graph.raw_nodes();
-  const auto &raw_edges = graph.raw_nodes();
   const auto &raw_node_weights = graph.raw_nodes();
 
   std::vector<std::pair<NodeID, EdgeWeight>> neighbourhood;
@@ -103,7 +99,6 @@ template <typename T>
 
 static void test_compressed_graph_size(const DistributedCSRGraph &graph) {
   const mpi::PEID size = mpi::get_comm_size(graph.communicator());
-  const mpi::PEID rank = mpi::get_comm_rank(graph.communicator());
 
   const auto compressed_graph = compress(graph);
 
@@ -286,12 +281,12 @@ static void test_compressed_graph_neighbors_limit_operation(const DistributedCSR
     const NodeID max_neighbor_count = std::max<NodeID>(1, graph.degree(u) / 2);
 
     NodeID graph_num_neighbors_visited = 0;
-    graph.neighbors(u, max_neighbor_count, [&](const EdgeID e, const NodeID v) {
+    graph.neighbors(u, max_neighbor_count, [&](EdgeID, NodeID) {
       graph_num_neighbors_visited += 1;
     });
 
     NodeID compressed_graph_num_neighbors_visited = 0;
-    compressed_graph.neighbors(u, max_neighbor_count, [&](const EdgeID e, const NodeID v) {
+    compressed_graph.neighbors(u, max_neighbor_count, [&](EdgeID, NodeID) {
       compressed_graph_num_neighbors_visited += 1;
     });
 

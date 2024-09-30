@@ -12,7 +12,7 @@
 #include <tbb/parallel_invoke.h>
 
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
-#include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
+#include "kaminpar-shm/refinement/gains/delta_gain_caches.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/compact_hash_map.h"
@@ -27,12 +27,11 @@ namespace kaminpar::shm {
 
 template <
     typename GraphType,
-    template <typename>
-    typename DeltaGainCacheType,
+    template <typename> typename DeltaGainCacheType,
     bool iterate_nonadjacent_blocks,
     bool iterate_exact_gains = false>
 class CompactHashingGainCache {
-  SET_DEBUG(true);
+  SET_DEBUG(false);
 
   // Abuse MSB bit in the _weighted_degrees[] array for locking
   constexpr static UnsignedEdgeWeight kWeightedDegreeLock =
@@ -57,7 +56,9 @@ public:
   // the gain consumer with the total edge weight between the node and nodes in the specific block.
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
-  CompactHashingGainCache(const Context &ctx, const NodeID preallocate_n, BlockID preallocate_k)
+  CompactHashingGainCache(
+      const Context &ctx, const NodeID preallocate_n, [[maybe_unused]] BlockID preallocate_k
+  )
       : _ctx(ctx),
         // Since we do not know the size of the gain cache in advance (depends on vertex degrees),
         // we cannot preallocate it
@@ -213,7 +214,7 @@ private:
   void recompute_gains() {
     SCOPED_TIMER("Reset gain cache");
 
-    tbb::parallel_for<std::size_t>(0, _gain_cache.size(), [&](const std::size_t i) {
+    tbb::parallel_for<std::size_t>(0, _gain_cache.size(), [&](const std::size_t i) noexcept {
       _gain_cache[i] = 0;
     });
     _sparse_buffer_ets.clear();
@@ -460,10 +461,10 @@ private:
 };
 
 template <typename Graph>
-using NormalCompactHashingGainCache = CompactHashingGainCache<Graph, SparseDeltaGainCache, true>;
+using NormalCompactHashingGainCache = CompactHashingGainCache<Graph, GenericDeltaGainCache, true>;
 
 template <typename Graph>
 using LargeKCompactHashingGainCache =
-    CompactHashingGainCache<Graph, LargeKSparseDeltaGainCache, false>;
+    CompactHashingGainCache<Graph, LargeKGenericDeltaGainCache, false>;
 
 } // namespace kaminpar::shm

@@ -13,6 +13,7 @@
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 
 namespace kaminpar::dist {
+
 class LocalLPClusterer : public Clusterer {
 public:
   explicit LocalLPClusterer(const Context &ctx);
@@ -35,4 +36,5 @@ public:
 private:
   std::unique_ptr<class LocalLPClusteringImplWrapper> _impl;
 };
+
 } // namespace kaminpar::dist
