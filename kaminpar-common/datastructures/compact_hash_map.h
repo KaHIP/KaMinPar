@@ -40,7 +40,7 @@ public:
       : _data(data),
         _value_mask(size - 1),
         _key_bits(key_bits) {
-    KASSERT(math::is_power_of_2(size));
+    KASSERT(math::is_power_of_2(size), "not a power of 2: " << size);
   }
 
   // May not be called concurrently

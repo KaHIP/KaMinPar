@@ -20,6 +20,7 @@
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/inline.h"
 #include "kaminpar-common/logger.h"
+#include "kaminpar-common/math.h"
 #include "kaminpar-common/parallel/aligned_prefix_sum.h"
 #include "kaminpar-common/timer.h"
 
@@ -27,7 +28,8 @@ namespace kaminpar::shm {
 
 template <
     typename GraphType,
-    template <typename> typename DeltaGainCacheType,
+    template <typename>
+    typename DeltaGainCacheType,
     bool iterate_nonadjacent_blocks,
     bool iterate_exact_gains = false>
 class CompactHashingGainCache {
@@ -84,9 +86,9 @@ public:
       _offsets.resize(_n + 1);
     }
 
-    const std::size_t total_nbytes = parallel::aligned_prefix_sum(
+    const std::size_t total_nbytes = parallel::aligned_prefix_sum_seq(
         _offsets.begin(),
-        _offsets.begin() + _n + 1,
+        _offsets.begin() + _n,
         [&](const NodeID u) {
           const EdgeID deg = math::ceil2(_graph->degree(u));
           const unsigned width = compute_entry_width(u, deg < _k);
@@ -94,6 +96,33 @@ public:
           return std::make_pair(width, nbytes);
         }
     );
+    if (_n > 0) {
+      const NodeID u = _n - 1;
+      const EdgeID deg = math::ceil2(_graph->degree(u));
+      const unsigned width = compute_entry_width(u, deg < _k);
+      const unsigned nbytes = (deg < _k) ? width * deg : width * _k;
+
+      if (width > 0) {
+        _offsets[u] += (width - (_offsets[u] % width)) % width;
+        KASSERT(_offsets[u] % width == 0u);
+      }
+
+      _offsets[u + 1] = _offsets[u] + nbytes;
+    }
+
+    KASSERT([&] {
+      _graph->pfor_nodes([&](const NodeID u) {
+        const EdgeID deg = math::ceil2(_graph->degree(u));
+        const unsigned alignment = compute_entry_width(u, deg < _k);
+        const unsigned nbytes = (deg < _k) ? alignment * deg : alignment * _k;
+        KASSERT((alignment == 0u) || (_offsets[u] % alignment == 0u));
+        KASSERT(
+            _offsets[u + 1] - _offsets[u] >= nbytes, "bad entry for " << u << " (n: " << _n << ")"
+        );
+      });
+      return true;
+    }());
+
     const std::size_t gain_cache_size = math::div_ceil(total_nbytes, sizeof(std::uint64_t));
 
     if (_gain_cache.size() < gain_cache_size) {
@@ -314,6 +343,11 @@ private:
         V(width) << V(start) << V(_offsets[node]) << V(_offsets[node + 1])
     );
     KASSERT(width == 0 || (_offsets[node + 1] - start) % width == 0);
+    KASSERT(
+        math::is_power_of_2(size),
+        "not a power of 2: " << size << "; start: " << start << "; width: " << width
+                             << "; end: " << _offsets[node + 1]
+    );
 
     switch (width) {
     case 1:

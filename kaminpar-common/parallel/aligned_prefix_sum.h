@@ -33,14 +33,16 @@ std::size_t aligned_prefix_sum_seq(OutputIt begin, OutputIt end, AlignedValueLam
 
     if (i > 0 && alignment > 0) {
       *(begin + i) += (alignment - (*(begin + i) % alignment)) % alignment;
-      KASSERT(*(begin + i) % alignment == 0);
+      KASSERT(*(begin + i) % alignment == 0u);
     }
 
     *(begin + i + 1) = (i > 0 ? *(begin + i) : 0) + value;
   }
 
   const auto [last_alignment, last_value] = l(n);
-  *(begin + n) += (last_alignment - (*(begin + n) % last_alignment)) % last_alignment;
+  if (last_alignment > 0) {
+    *(begin + n) += (last_alignment - (*(begin + n) % last_alignment)) % last_alignment;
+  }
 
   return *(begin + n);
 }
@@ -94,6 +96,7 @@ std::size_t aligned_prefix_sum(OutputIt begin, OutputIt end, AlignedValueLambda 
       }
   );
 
+  std::cout << "add " << l(n).second << "@" << n << " to " << *(begin +n) << std::endl;
   return *(begin + n) + l(n).second;
 }
 
