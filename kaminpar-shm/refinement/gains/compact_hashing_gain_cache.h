@@ -86,6 +86,7 @@ public:
       _offsets.resize(_n + 1);
     }
 
+    START_TIMER("Compute gain cache offsets");
     const std::size_t total_nbytes = parallel::aligned_prefix_sum_seq(
         _offsets.begin(),
         _offsets.begin() + _n,
@@ -124,6 +125,7 @@ public:
     }());
 
     const std::size_t gain_cache_size = math::div_ceil(total_nbytes, sizeof(std::uint64_t));
+    STOP_TIMER();
 
     if (_gain_cache.size() < gain_cache_size) {
       SCOPED_TIMER("Allocation");
