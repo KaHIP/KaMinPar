@@ -87,7 +87,7 @@ public:
     }
 
     START_TIMER("Compute gain cache offsets");
-    const std::size_t total_nbytes = parallel::aligned_prefix_sum_seq(
+    const std::size_t total_nbytes = parallel::aligned_prefix_sum(
         _offsets.begin(),
         _offsets.begin() + _n,
         [&](const NodeID u) {
