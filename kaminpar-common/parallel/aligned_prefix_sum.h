@@ -96,7 +96,6 @@ std::size_t aligned_prefix_sum(OutputIt begin, OutputIt end, AlignedValueLambda 
       }
   );
 
-  std::cout << "add " << l(n).second << "@" << n << " to " << *(begin +n) << std::endl;
   return *(begin + n) + l(n).second;
 }
 

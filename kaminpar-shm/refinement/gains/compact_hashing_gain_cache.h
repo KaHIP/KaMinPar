@@ -97,6 +97,8 @@ public:
           return std::make_pair(width, nbytes);
         }
     );
+    STOP_TIMER();
+
     if (_n > 0) {
       const NodeID u = _n - 1;
       const EdgeID deg = math::ceil2(_graph->degree(u));
@@ -125,7 +127,6 @@ public:
     }());
 
     const std::size_t gain_cache_size = math::div_ceil(total_nbytes, sizeof(std::uint64_t));
-    STOP_TIMER();
 
     if (_gain_cache.size() < gain_cache_size) {
       SCOPED_TIMER("Allocation");
