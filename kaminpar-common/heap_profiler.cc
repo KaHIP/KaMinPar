@@ -133,6 +133,16 @@ void HeapProfiler::record_alloc(const void *ptr, std::size_t size) {
       if (std::size_t current_alloc = node->total_alloc - node->total_free;
           node->total_alloc > node->total_free && current_alloc > node->peak_memory) {
         node->peak_memory = current_alloc;
+
+        const bool is_root_node = node->parent == nullptr;
+        if (is_root_node) {
+          if (_peak_memory_node != nullptr) {
+            _peak_memory_node->is_peak_memory_node = false;
+          }
+
+          _peak_memory_node = _tree.currentNode;
+          _peak_memory_node->is_peak_memory_node = true;
+        }
       }
     }
 
@@ -166,11 +176,16 @@ void HeapProfiler::record_free(const void *ptr) {
 
 void HeapProfiler::set_experiment_summary_options() {
   set_max_depth(std::numeric_limits<std::size_t>::max());
+  set_highlight_peak_memory_node(false);
   set_print_data_structs(false);
 }
 
 void HeapProfiler::set_max_depth(std::size_t max_depth) {
   _max_depth = max_depth;
+}
+
+void HeapProfiler::set_highlight_peak_memory_node(bool highlight) {
+  _highlight_peak_memory_node = highlight;
 }
 
 void HeapProfiler::set_print_data_structs(bool print) {
@@ -212,7 +227,15 @@ void HeapProfiler::print_heap_profile(std::ostream &out) {
   }
   out << '\n';
 
-  print_heap_tree_node(out, root, stats, _max_depth, _print_data_structs, _min_data_struct_size);
+  print_heap_tree_node(
+      out,
+      root,
+      stats,
+      _max_depth,
+      _print_data_structs,
+      _highlight_peak_memory_node,
+      _min_data_struct_size
+  );
   out << '\n';
 }
 
@@ -246,12 +269,17 @@ void HeapProfiler::print_heap_tree_node(
     const HeapProfileTreeStats stats,
     std::size_t max_depth,
     bool print_data_structs,
+    bool highlight_peak_memory_node,
     std::size_t min_data_struct_size,
     std::size_t depth,
     bool last
 ) {
   if (depth > max_depth) {
     return;
+  }
+
+  if (highlight_peak_memory_node && node.is_peak_memory_node) {
+    out << "\u001b[35m";
   }
 
   print_indentation(out, depth, last);
@@ -275,6 +303,12 @@ void HeapProfiler::print_heap_tree_node(
   }
 
   print_statistics(out, node, stats);
+
+  if (highlight_peak_memory_node && node.is_peak_memory_node) {
+    out << "\u001b[0m";
+  }
+  out << '\n';
+
   if (print_data_structs) {
     print_data_structures(out, node, depth, node.children.empty(), min_data_struct_size);
   }
@@ -290,6 +324,7 @@ void HeapProfiler::print_heap_tree_node(
           stats,
           max_depth,
           print_data_structs,
+          highlight_peak_memory_node,
           min_data_struct_size,
           depth + 1,
           is_last
@@ -341,8 +376,6 @@ void HeapProfiler::print_statistics(
   if (!node.annotation.empty()) {
     out << "   " << node.annotation;
   }
-
-  out << '\n';
 }
 
 void HeapProfiler::print_data_structures(

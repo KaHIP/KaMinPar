@@ -48,7 +48,7 @@ struct ApplicationContext {
 
   bool heap_profiler_detailed = false;
   int heap_profiler_max_depth = 3;
-  bool heap_profiler_print_structs = true;
+  bool heap_profiler_print_structs = false;
   float heap_profiler_min_struct_size = 10;
 
   BlockID k = 0;

@@ -37,10 +37,12 @@ std::unique_ptr<CoarseGraph> contract_clustering_buffered_legacy(
   // - firstly, we count the degree of each coarse node
   // - secondly, we obtain the nodes array using a prefix sum
   //
+  START_HEAP_PROFILER("Coarse graph node allocation");
   START_TIMER("Allocation");
   StaticArray<EdgeID> c_nodes{c_n + 1};
   StaticArray<NodeWeight> c_node_weights{c_n};
   STOP_TIMER();
+  STOP_HEAP_PROFILER();
 
   tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> collector{[&] {
     return RatingMap<EdgeWeight, NodeID>(c_n);
@@ -129,10 +131,12 @@ std::unique_ptr<CoarseGraph> contract_clustering_buffered_legacy(
       edge_buffer_ets, std::move(all_buffered_nodes)
   );
 
+  START_HEAP_PROFILER("Coarse graph edges allocation");
   START_TIMER("Allocation");
   StaticArray<NodeID> c_edges(c_m);
   StaticArray<EdgeWeight> c_edge_weights(c_m);
   STOP_TIMER();
+  STOP_HEAP_PROFILER();
 
   // build coarse graph
   START_TIMER("Construct coarse graph");

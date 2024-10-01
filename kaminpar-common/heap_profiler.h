@@ -259,6 +259,7 @@ public:
     HeapProfileTreeNode *parent;
     std::vector<HeapProfileTreeNode *, NoProfileAllocator<HeapProfileTreeNode *>> children;
 
+    bool is_peak_memory_node;
     std::size_t peak_memory;
     std::size_t total_alloc;
     std::size_t total_free;
@@ -271,6 +272,7 @@ public:
         : name(name),
           description(description),
           parent(parent),
+          is_peak_memory_node(false),
           peak_memory(0),
           total_alloc(0),
           total_free(0),
@@ -429,6 +431,13 @@ public:
   void set_max_depth(std::size_t max_depth);
 
   /*!
+   * Sets the option whether to highlight the peak memory node in the summary.
+   *
+   * @param print Whether to highlight the peak memory node in the summary.
+   */
+  void set_highlight_peak_memory_node(bool highlight);
+
+  /*!
    * Sets the option whether to print data structure memory statistics in the summary.
    *
    * @param print Whether to print data structure memory statistics in the summary.
@@ -501,6 +510,7 @@ private:
 
   NoProfileAllocator<HeapProfileTreeNode> _node_allocator;
   HeapProfileTree _tree;
+  HeapProfileTreeNode *_peak_memory_node;
   std::unordered_map<
       const void *,
       std::size_t,
@@ -516,7 +526,8 @@ private:
   std::size_t _column;
 
   std::size_t _max_depth = std::numeric_limits<std::size_t>::max();
-  bool _print_data_structs = true;
+  bool _highlight_peak_memory_node = true;
+  bool _print_data_structs = false;
   std::size_t _min_data_struct_size = 0;
 
   static void print_heap_tree_node(
@@ -525,6 +536,7 @@ private:
       const HeapProfileTreeStats stats,
       std::size_t max_depth,
       bool print_data_structs,
+      bool highlight_peak_memory_node,
       std::size_t min_data_struct_size,
       std::size_t depth = 0,
       bool last = false
