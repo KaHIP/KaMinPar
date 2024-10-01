@@ -142,9 +142,10 @@ private:
 
   void reset() {
     SCOPED_TIMER("Reset gain cache");
-    tbb::parallel_for<std::size_t>(0, 1ull * _n * _k, [this](const std::size_t i) {
-      _gain_cache[i] = 0;
-    });
+    _gain_cache.assign(1ull * _n * _k, 0);
+    //tbb::parallel_for<std::size_t>(0, 1ull * _n * _k, [this](const std::size_t i) {
+    //  _gain_cache[i] = 0;
+    //});
   }
 
   void recompute_all() {
