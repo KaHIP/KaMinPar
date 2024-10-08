@@ -7,6 +7,7 @@
  ******************************************************************************/
 #pragma once
 
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
@@ -195,72 +196,74 @@ template <typename Int> [[nodiscard]] Int varint_decode_pext_unrolled(const std:
     *data += 5;
     return result;
   } else if constexpr (sizeof(Int) == 8) {
-    if ((ptr[0] & 0b10000000) == 0) {
-      const std::uint64_t result = *ptr & 0b01111111;
+    const std::uint8_t *data_ptr = *data;
+    if ((data_ptr[0] & 0b10000000) == 0) {
+      const std::uint64_t result = *data_ptr & 0b01111111;
       *data += 1;
       return result;
     }
 
-    if ((ptr[1] & 0b10000000) == 0) {
-      const std::uint64_t result = _pext_u32(*reinterpret_cast<const std::uint32_t *>(ptr), 0x7F7F);
+    if ((data_ptr[1] & 0b10000000) == 0) {
+      const std::uint64_t result =
+          _pext_u32(*reinterpret_cast<const std::uint32_t *>(data_ptr), 0x7F7F);
       *data += 2;
       return result;
     }
 
-    if ((ptr[2] & 0b10000000) == 0) {
+    if ((data_ptr[2] & 0b10000000) == 0) {
       const std::uint64_t result =
-          _pext_u32(*reinterpret_cast<const std::uint32_t *>(ptr), 0x7F7F7F);
+          _pext_u32(*reinterpret_cast<const std::uint32_t *>(data_ptr), 0x7F7F7F);
       *data += 3;
       return result;
     }
 
-    if ((ptr[3] & 0b10000000) == 0) {
+    if ((data_ptr[3] & 0b10000000) == 0) {
       const std::uint64_t result =
-          _pext_u32(*reinterpret_cast<const std::uint32_t *>(ptr), 0x7F7F7F7F);
+          _pext_u32(*reinterpret_cast<const std::uint32_t *>(data_ptr), 0x7F7F7F7F);
       *data += 4;
       return result;
     }
 
-    if ((ptr[4] & 0b10000000) == 0) {
+    if ((data_ptr[4] & 0b10000000) == 0) {
       const std::uint64_t result =
-          _pext_u64(*reinterpret_cast<const std::uint64_t *>(ptr), 0x7F7F7F7F7F);
+          _pext_u64(*reinterpret_cast<const std::uint64_t *>(data_ptr), 0x7F7F7F7F7F);
       *data += 5;
       return result;
     }
 
-    if ((ptr[5] & 0b10000000) == 0) {
+    if ((data_ptr[5] & 0b10000000) == 0) {
       const std::uint64_t result =
-          _pext_u64(*reinterpret_cast<const std::uint64_t *>(ptr), 0x7F7F7F7F7F7F);
+          _pext_u64(*reinterpret_cast<const std::uint64_t *>(data_ptr), 0x7F7F7F7F7F7F);
       *data += 6;
       return result;
     }
 
-    if ((ptr[6] & 0b10000000) == 0) {
+    if ((data_ptr[6] & 0b10000000) == 0) {
       const std::uint64_t result =
-          _pext_u64(*reinterpret_cast<const std::uint64_t *>(ptr), 0x7F7F7F7F7F7F7F);
+          _pext_u64(*reinterpret_cast<const std::uint64_t *>(data_ptr), 0x7F7F7F7F7F7F7F);
       *data += 7;
       return result;
     }
 
-    if ((ptr[7] & 0b10000000) == 0) {
+    if ((data_ptr[7] & 0b10000000) == 0) {
       const std::uint64_t result =
-          _pext_u64(*reinterpret_cast<const std::uint64_t *>(ptr), 0x7F7F7F7F7F7F7F7F);
+          _pext_u64(*reinterpret_cast<const std::uint64_t *>(data_ptr), 0x7F7F7F7F7F7F7F7F);
       *data += 8;
       return result;
     }
 
-    if ((ptr[8] & 0b10000000) == 0) {
+    if ((data_ptr[8] & 0b10000000) == 0) {
       const std::uint64_t result =
-          _pext_u64(*reinterpret_cast<const std::uint64_t *>(ptr), 0x7F7F7F7F7F7F7F7F) |
-          (static_cast<std::uint64_t>(ptr[8] & 0b01111111) << 56);
+          _pext_u64(*reinterpret_cast<const std::uint64_t *>(data_ptr), 0x7F7F7F7F7F7F7F7F) |
+          (static_cast<std::uint64_t>(data_ptr[8] & 0b01111111) << 56);
       *data += 9;
       return result;
     }
 
     const std::uint64_t result =
-        _pext_u64(*reinterpret_cast<const std::uint64_t *>(ptr), 0x7F7F7F7F7F7F7F7F) |
-        (static_cast<std::uint64_t>(ptr[8] & 0b01111111) << 56) |
-        (static_cast<std::uint64_t>(ptr[9]) << 63);
+        _pext_u64(*reinterpret_cast<const std::uint64_t *>(data_ptr), 0x7F7F7F7F7F7F7F7F) |
+        (static_cast<std::uint64_t>(data_ptr[8] & 0b01111111) << 56) |
+        (static_cast<std::uint64_t>(data_ptr[9]) << 63);
     *data += 10;
     return result;
   }
