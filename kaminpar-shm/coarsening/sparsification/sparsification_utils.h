@@ -44,8 +44,8 @@ inline void parallel_for_downward_edges(const CSRGraph &g, Lambda function) {
   });
 }
 
-template <typename T, typename Iterator, typename Comp>
-T quickselect_k_smallest(size_t k, Iterator begin, Iterator end, Comp comp = std::less<T>()) {
+template <typename T, typename Iterator>
+T quickselect_k_smallest(size_t k, Iterator begin, Iterator end) {
 
   size_t size = begin - end;
   if (size == 1)
@@ -53,7 +53,7 @@ T quickselect_k_smallest(size_t k, Iterator begin, Iterator end, Comp comp = std
   T pivot = medians_of_medians(begin, end);
   tbb::concurrent_vector<T> less = {}, greater = {};
   tbb::parallel_for(begin, end, [&](auto x) {
-    if (comp(x, pivot))
+    if (x <= pivot)
       less.push_back(x);
     else
       greater.push_back(x);
@@ -81,7 +81,8 @@ template <typename T, typename Iterator> T medians_of_medians(Iterator begin, It
 template <typename T, typename Iterator> T median(Iterator begin, Iterator end) {
   size_t size = begin - end;
   StaticArray<T> sorted(size);
-  std::sort(begin, end, begin);
+  for (auto i = 0; i != size; i++) {sorted[i] = begin[i];}
+  std::sort(begin, end);
   if (size % 2 == 1) { // odd size
     return sorted[size / 2];
   } else {
@@ -97,7 +98,7 @@ sample_k_without_replacement(WeightIterator weights_begin, WeightIterator weight
   tbb::parallel_for(0ul, size, [&](auto i) {
     keys[i] = -std::log(Random::instance().random_double()) / weights_begin[i];
   });
-  double x = quickselect_k_smallest<double>(k, keys.begin(), keys.end(), std::less<double>());
+  double x = quickselect_k_smallest<double>(k, keys.begin(), keys.end());
 
   tbb::concurrent_vector<double> selected;
   size_t back = 0;
