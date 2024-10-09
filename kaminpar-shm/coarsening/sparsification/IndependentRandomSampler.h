@@ -40,25 +40,13 @@ public:
 
     auto possible_indices =
         std::ranges::iota_view(static_cast<EdgeID>(0), g.m() / 2) | std::views::reverse;
-    for (auto i : possible_indices)
-      printf("%d |-> %f\n", i, expected_at_index(i));
     EdgeID index = *std::upper_bound(
         possible_indices.begin(),
         possible_indices.end(),
         target / 2,
         [&](EdgeID t, NodeID i) {
-          printf("* i=%d, expected_at_i=%f\n", i, expected_at_index(i));
           return t <= expected_at_index(i); // negated to make asc
         }
-    );
-    printf(
-        "** expected at index:\n** \tindex=%d:\t%f\n** \tindex-1:\t\t%f\n** \tindex+1:\t\t%f\n** "
-        "\ttarget/2:\t\t%d\n",
-        index,
-        expected_at_index(index),
-        (index >= 1) ? expected_at_index(index - 1) : NAN,
-        expected_at_index(index + 1),
-        target / 2
     );
     KASSERT(
         (index + 1 >= g.m() / 2 || expected_at_index(index + 1) <= target / 2) &&
