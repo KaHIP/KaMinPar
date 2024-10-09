@@ -24,7 +24,6 @@ public:
     return sample;
   }
 
-private:
   double normalizationFactor(const CSRGraph &g, const StaticArray<Score> &scores, EdgeID target) {
     StaticArray<Score> sorted_scores(g.m() / 2);
     StaticArray<Score> prefix_sum(g.m() / 2);
@@ -36,16 +35,20 @@ private:
     parallel::prefix_sum(sorted_scores.begin(), sorted_scores.end(), prefix_sum.begin());
 
     auto expected_at_index = [&](EdgeID i) {
-      return g.m() / 2 - i + 1 / static_cast<double>(sorted_scores[i]) * prefix_sum[i];
+      return g.m() / 2 - i - 1 + 1 / static_cast<double>(sorted_scores[i]) * prefix_sum[i];
     };
 
-    auto possible_indices = std::ranges::iota_view(static_cast<EdgeID>(0), g.m() / 2);
+    auto possible_indices =
+        std::ranges::iota_view(static_cast<EdgeID>(0), g.m() / 2) | std::views::reverse;
+    for (auto i : possible_indices)
+      printf("%d |-> %f\n", i, expected_at_index(i));
     EdgeID index = *std::upper_bound(
         possible_indices.begin(),
         possible_indices.end(),
         target / 2,
         [&](EdgeID t, NodeID i) {
-          return t > expected_at_index(i); // negated to make asc
+          printf("* i=%d, expected_at_i=%f\n", i, expected_at_index(i));
+          return t <= expected_at_index(i); // negated to make asc
         }
     );
     printf(
@@ -53,24 +56,28 @@ private:
         "\ttarget/2:\t\t%d\n",
         index,
         expected_at_index(index),
-        expected_at_index(index - 1),
+        (index >= 1) ? expected_at_index(index - 1) : NAN,
         expected_at_index(index + 1),
         target / 2
     );
     KASSERT(
-        expected_at_index(index) < target / 2 && target / 2 <= expected_at_index(index - 1),
-        "binary search did not work",
+        (index + 1 >= g.m() / 2 || expected_at_index(index + 1) <= target / 2) &&
+            target / 2 <= expected_at_index(index),
+        "binary search did not work: target/2=" << target / 2 << " is not in ["
+                                                << expected_at_index(index + 1) << ", "
+                                                << expected_at_index(index) << "]",
         assert::always
     );
 
-    double factor =
-        static_cast<double>((target - (sorted_scores.size() - index))) / prefix_sum[index - 1];
+    double factor = static_cast<double>((target / 2 - (g.m() / 2 - index))) / prefix_sum[index - 1];
+
     KASSERT(
         1.0 / sorted_scores[index] <= factor && factor <= 1.0 / sorted_scores[index - 1],
         "factor=" << factor << " not in interval [" << 1.0 / sorted_scores[index] << ", "
                   << 1.0 / sorted_scores[index - 1] << "]",
         assert::always
     );
+
     return factor;
   }
 };
