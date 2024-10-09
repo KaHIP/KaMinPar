@@ -24,11 +24,56 @@ public:
     return sample;
   }
 
-private:
   static EdgeID exponential_bucket(Score score) {
     return 31 - __builtin_clz(score);
   }
-  double normalizationFactor(const CSRGraph &g, const StaticArray<Score> &scores, EdgeID target) {
+  double
+  exactNormalizationFactor(const CSRGraph &g, const StaticArray<Score> &scores, EdgeID target) {
+    StaticArray<Score> sorted_scores(g.m() / 2);
+    StaticArray<Score> prefix_sum(g.m() / 2);
+    EdgeID end_of_sorted_scores = 0;
+    utils::for_upward_edges(g, [&](EdgeID e) {
+      sorted_scores[end_of_sorted_scores++] = static_cast<Score>(scores[e]);
+    });
+    tbb::parallel_sort(sorted_scores.begin(), sorted_scores.end());
+    parallel::prefix_sum(sorted_scores.begin(), sorted_scores.end(), prefix_sum.begin());
+
+    auto expected_at_index = [&](EdgeID i) {
+      return g.m() / 2 - i - 1 + 1 / static_cast<double>(sorted_scores[i]) * prefix_sum[i];
+    };
+
+    auto possible_indices =
+        std::ranges::iota_view(static_cast<EdgeID>(0), g.m() / 2) | std::views::reverse;
+    EdgeID index = *std::upper_bound(
+        possible_indices.begin(),
+        possible_indices.end(),
+        target / 2,
+        [&](EdgeID t, NodeID i) {
+          return t <= expected_at_index(i); // negated to make asc
+        }
+    );
+    KASSERT(
+        (index + 1 >= g.m() / 2 || expected_at_index(index + 1) <= target / 2) &&
+            target / 2 <= expected_at_index(index),
+        "binary search did not work: target/2=" << target / 2 << " is not in ["
+                                                << expected_at_index(index + 1) << ", "
+                                                << expected_at_index(index) << "]",
+        assert::always
+    );
+
+    double factor = static_cast<double>((target / 2 - (g.m() / 2 - index))) / prefix_sum[index - 1];
+
+    KASSERT(
+        1.0 / sorted_scores[index] <= factor && factor <= 1.0 / sorted_scores[index - 1],
+        "factor=" << factor << " not in interval [" << 1.0 / sorted_scores[index] << ", "
+                  << 1.0 / sorted_scores[index - 1] << "]",
+        assert::always
+    );
+
+    return factor;
+  }
+  double
+  approxNormalizationFactor(const CSRGraph &g, const StaticArray<Score> &scores, EdgeID target) {
     EdgeID number_of_buckets = exponential_bucket(g.total_edge_weight()) + 1;
     std::vector<tbb::concurrent_vector<Score>> expontial_buckets(number_of_buckets);
     StaticArray<Score> buckets_score_prefixsum(number_of_buckets);
@@ -62,34 +107,9 @@ private:
         }
     );
 
-    double new_normalization_factor = (target - (g.m() - buckets_size_prefixsum[bucket_index])) /
-                                      static_cast<double>(buckets_score_prefixsum[bucket_index]);
-
-    // Old algo
-    StaticArray<Score> sorted_scores(g.m() / 2);
-    StaticArray<Score> prefix_sum(g.m() / 2);
-    EdgeID i = 0;
-    utils::for_upward_edges(g, [&](EdgeID e) { sorted_scores[i++] = scores[e]; });
-    tbb::parallel_sort(sorted_scores.begin(), sorted_scores.end());
-    parallel::prefix_sum(sorted_scores.begin(), sorted_scores.end(), prefix_sum.begin());
-
-    EdgeID upper = 0;
-    EdgeID lower = sorted_scores.size();
-    while (lower + 1 < upper) {
-      EdgeID mid = lower + (upper - lower) / 2;
-      if (target < (sorted_scores.size() - mid + prefix_sum[mid] / sorted_scores[mid + 1]))
-        upper = mid;
-      else
-        lower = mid;
-    }
-    EdgeID index = lower;
-
-    double old_normalization =
-        static_cast<double>((target - (sorted_scores.size() - index))) / prefix_sum[index];
-    printf(
-        "*** Normalization: old = %f, new %f ***\n", old_normalization, new_normalization_factor
-    );
-    return new_normalization_factor;
+    double factor = (target - (g.m() - buckets_size_prefixsum[bucket_index])) /
+                    static_cast<double>(buckets_score_prefixsum[bucket_index]);
+    return factor;
   }
 };
 }; // namespace kaminpar::shm::sparsification
