@@ -16,29 +16,23 @@ public:
       : ScoreBacedSampler<Score>(std::move(scoreFunction)),
         _noApprox(noApprox) {}
 
-  StaticArray<EdgeWeight> sample(const CSRGraph &g, EdgeID target_edge_amount) override {
-    auto scores = this->_score_function->scores(g);
-    double factor = exactNormalizationFactor(g, scores, target_edge_amount);
-
-    StaticArray<EdgeWeight> sample(g.m(), 0);
-    utils::parallel_for_upward_edges(g, [&](EdgeID e) {
-      sample[e] = Random::instance().random_bool(factor * scores[e]) ? g.edge_weight(e) : 0;
-    });
-    return sample;
-  }
-
-  static EdgeID exponential_bucket(EdgeWeight score) {
-    return 31 - __builtin_clz(score);
-  }
-
-  double
-  normalizationFactor(const CSRGraph &g, const StaticArray<Score> &scores, EdgeID target);
+  double normalizationFactor(const CSRGraph &g, const StaticArray<Score> &scores, EdgeID target);
   double
   exactNormalizationFactor(const CSRGraph &g, const StaticArray<Score> &scores, EdgeID target);
   double
   approxNormalizationFactor(const CSRGraph &g, const StaticArray<Score> &scores, EdgeID target);
 
+  StaticArray<EdgeWeight> sample(const CSRGraph &g, EdgeID target_edge_amount) override;
+
+  static EdgeID exponential_bucket(EdgeWeight score) {
+    return 31 - __builtin_clz(score);
+  }
+
 private:
   bool _noApprox;
 };
+
+template class IndependentRandomSampler<EdgeWeight>;
+template class IndependentRandomSampler<EdgeID>;
+template class IndependentRandomSampler<double>;
 }; // namespace kaminpar::shm::sparsification

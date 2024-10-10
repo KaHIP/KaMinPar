@@ -1,9 +1,30 @@
 #include "IndependentRandomSampler.h"
 
 namespace kaminpar::shm::sparsification {
+template <typename Score>
+StaticArray<EdgeWeight>
+IndependentRandomSampler<Score>::sample(const CSRGraph &g, EdgeID target_edge_amount) {
+  auto scores = this->_score_function->scores(g);
+  double factor = normalizationFactor(g, scores, target_edge_amount);
+
+  StaticArray<EdgeWeight> sample(g.m(), 0);
+  utils::parallel_for_upward_edges(g, [&](EdgeID e) {
+    sample[e] = Random::instance().random_bool(factor * scores[e]) ? g.edge_weight(e) : 0;
+  });
+  return sample;
+}
 template <>
 double IndependentRandomSampler<EdgeWeight>::normalizationFactor(
     const CSRGraph &g, const StaticArray<EdgeWeight> &scores, EdgeID target
+) {
+  if (_noApprox)
+    return exactNormalizationFactor(g, scores, target);
+  else
+    return approxNormalizationFactor(g, scores, target);
+}
+template <>
+double IndependentRandomSampler<EdgeID>::normalizationFactor(
+    const CSRGraph &g, const StaticArray<EdgeID> &scores, EdgeID target
 ) {
   if (_noApprox)
     return exactNormalizationFactor(g, scores, target);
@@ -17,16 +38,16 @@ double IndependentRandomSampler<double>::normalizationFactor(
   return exactNormalizationFactor(g, scores, target);
 }
 
-template <>
-double IndependentRandomSampler<EdgeWeight>::approxNormalizationFactor(
-    const CSRGraph &g, const StaticArray<EdgeWeight> &scores, EdgeID target
+template <typename Score>
+double IndependentRandomSampler<Score>::approxNormalizationFactor(
+    const CSRGraph &g, const StaticArray<Score> &scores, EdgeID target
 ) {
   EdgeID number_of_buckets = exponential_bucket(g.total_edge_weight()) + 1;
-  std::vector<tbb::concurrent_vector<EdgeWeight>> expontial_buckets(number_of_buckets);
-  StaticArray<EdgeWeight> buckets_score_prefixsum(number_of_buckets);
+  std::vector<tbb::concurrent_vector<Score>> expontial_buckets(number_of_buckets);
+  StaticArray<Score> buckets_score_prefixsum(number_of_buckets);
   StaticArray<EdgeID> buckets_size_prefixsum(number_of_buckets);
   tbb::parallel_for(static_cast<EdgeID>(0), g.m(), [&](EdgeID e) {
-    EdgeWeight score = g.edge_weight(e);
+    Score score = g.edge_weight(e);
     auto bucket = exponential_bucket(score);
     expontial_buckets[bucket].push_back(e);
     __atomic_add_fetch(&buckets_score_prefixsum[bucket], score, __ATOMIC_RELAXED);
@@ -57,6 +78,14 @@ double IndependentRandomSampler<EdgeWeight>::approxNormalizationFactor(
   double factor = (target - (g.m() - buckets_size_prefixsum[bucket_index])) /
                   static_cast<double>(buckets_score_prefixsum[bucket_index]);
   return factor;
+}
+template <>
+double IndependentRandomSampler<double>::approxNormalizationFactor(
+    const CSRGraph &g, const StaticArray<double> &scores, EdgeID target
+) {
+  throw std::logic_error(
+      "no implementation for of approxNormalizationFactor exists for Score=double."
+  );
 }
 
 template <typename Score>
@@ -105,7 +134,4 @@ double IndependentRandomSampler<Score>::exactNormalizationFactor(
   );
   return factor;
 }
-
-template class IndependentRandomSampler<EdgeWeight>;
-template class IndependentRandomSampler<double>;
 }; // namespace kaminpar::shm::sparsification
