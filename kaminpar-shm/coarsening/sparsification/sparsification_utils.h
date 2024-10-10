@@ -60,7 +60,7 @@ T sortselect_k_smallest(size_t k, Iterator begin, Iterator end) {
 template <typename T, typename Iterator>
 T quickselect_k_smallest(size_t k, Iterator begin, Iterator end) {
   size_t size = std::distance(begin, end);
-  if (size <= 5)
+  if (size <= 20)
     return sortselect_k_smallest<T, Iterator>(k, begin, end);
   T pivot = medians_of_medians<T, Iterator>(begin, end);
   tbb::concurrent_vector<T> less = {}, greater = {};
@@ -72,6 +72,11 @@ T quickselect_k_smallest(size_t k, Iterator begin, Iterator end) {
       greater.push_back(x);
   });
 
+  KASSERT(
+      less.size() <= 0.7 * size + 2 && greater.size() <= 0.7 * size + 2,
+      "median of medians privot guarantee does not hold",
+      assert::always
+  );
   if (k <= less.size())
     return quickselect_k_smallest<T, typename tbb::concurrent_vector<T>::iterator>(
         k, less.begin(), less.end()
@@ -88,17 +93,17 @@ template <typename T, typename Iterator> T median(Iterator begin, Iterator end) 
   for (auto i = 0; i != size; i++) {
     sorted[i] = begin[i];
   }
-  std::sort(begin, end);
+  std::sort(sorted.begin(), sorted.end());
   if (size % 2 == 1) { // odd size
     return sorted[size / 2];
   } else {
-    return (sorted[size / 2] + sorted[size / 2 + 1]) / 2;
+    return (sorted[size / 2 - 1] + sorted[size / 2]) / 2;
   }
 }
 
 template <typename T, typename Iterator> T medians_of_medians(Iterator begin, Iterator end) {
   size_t size = std::distance(begin, end);
-  if (size <= 5)
+  if (size <= 10)
     return median<T, Iterator>(begin, end);
 
   size_t number_of_sections = (size + 4) / 5;
@@ -108,13 +113,14 @@ template <typename T, typename Iterator> T medians_of_medians(Iterator begin, It
   });
 
   return quickselect_k_smallest<T, typename StaticArray<T>::iterator>(
-      number_of_sections / 2, medians.begin(), medians.end()
+      (number_of_sections + 1) / 2, medians.begin(), medians.end()
   );
 }
 
 template <typename WeightIterator>
 StaticArray<size_t>
 sample_k_without_replacement(WeightIterator weights_begin, WeightIterator weights_end, size_t k) {
+  StaticArray<double> test(2);
   auto size = weights_end - weights_begin;
   StaticArray<double> keys(size);
   tbb::parallel_for(0ul, size, [&](auto i) {
