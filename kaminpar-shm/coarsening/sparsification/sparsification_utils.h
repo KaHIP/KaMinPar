@@ -44,50 +44,72 @@ inline void parallel_for_downward_edges(const CSRGraph &g, Lambda function) {
   });
 }
 
+template <typename T, typename Iterator> T medians_of_medians(Iterator begin, Iterator end);
+
+template <typename T, typename Iterator>
+T sortselect_k_smallest(size_t k, Iterator begin, Iterator end) {
+  size_t size = std::distance(begin, end);
+  std::vector<T> sorted(size);
+  for (size_t i = 0; i < size; i++) {
+    sorted[i] = begin[i];
+  }
+  std::sort(sorted.begin(), sorted.end());
+  return sorted[k - 1];
+}
+
 template <typename T, typename Iterator>
 T quickselect_k_smallest(size_t k, Iterator begin, Iterator end) {
-
-  size_t size = begin - end;
-  if (size == 1)
-    return *begin;
-  T pivot = medians_of_medians(begin, end);
+  size_t size = std::distance(begin, end);
+  if (size <= 5)
+    return sortselect_k_smallest<T, Iterator>(k, begin, end);
+  T pivot = medians_of_medians<T, Iterator>(begin, end);
   tbb::concurrent_vector<T> less = {}, greater = {};
-  tbb::parallel_for(begin, end, [&](auto x) {
+  tbb::parallel_for(0ul, size, [&](size_t i) {
+    T x = begin[i];
     if (x <= pivot)
       less.push_back(x);
     else
       greater.push_back(x);
   });
 
-  if (k < less.size())
-    return select_k_smallest(k, less.begin(), less.end());
+  if (k <= less.size())
+    return quickselect_k_smallest<T, typename tbb::concurrent_vector<T>::iterator>(
+        k, less.begin(), less.end()
+    );
   else
-    return select_k_smallest(k - less.size(), greater.begin(), greater.end());
+    return quickselect_k_smallest<T, typename tbb::concurrent_vector<T>::iterator>(
+        k - less.size(), greater.begin(), greater.end()
+    );
 }
 
-template <typename T, typename Iterator> T medians_of_medians(Iterator begin, Iterator end) {
-  size_t size = begin - end;
-  if (size <= 5)
-    return median(begin, end);
-
-  size_t number_of_sections = (size + 4) / 5;
-  StaticArray<T> medians(number_of_sections);
-  tbb::parallel_for(0, number_of_sections, [&](auto i) {
-      medians[i] = median(begin + 5 * i, begin + std::min(5 * (i + 1), size));
-  });
-
-  return quickselect_k_smallest<T, Iterator>(number_of_sections / 2, medians.begin(), medians.end());
-}
 template <typename T, typename Iterator> T median(Iterator begin, Iterator end) {
-  size_t size = begin - end;
-  StaticArray<T> sorted(size);
-  for (auto i = 0; i != size; i++) {sorted[i] = begin[i];}
+  size_t size = std::distance(begin, end);
+  std::vector<T> sorted(size);
+  for (auto i = 0; i != size; i++) {
+    sorted[i] = begin[i];
+  }
   std::sort(begin, end);
   if (size % 2 == 1) { // odd size
     return sorted[size / 2];
   } else {
     return (sorted[size / 2] + sorted[size / 2 + 1]) / 2;
   }
+}
+
+template <typename T, typename Iterator> T medians_of_medians(Iterator begin, Iterator end) {
+  size_t size = std::distance(begin, end);
+  if (size <= 5)
+    return median<T, Iterator>(begin, end);
+
+  size_t number_of_sections = (size + 4) / 5;
+  StaticArray<T> medians(number_of_sections);
+  tbb::parallel_for(0ul, number_of_sections, [&](auto i) {
+    medians[i] = median<T, Iterator>(begin + 5 * i, begin + std::min(5 * (i + 1), size));
+  });
+
+  return quickselect_k_smallest<T, typename StaticArray<T>::iterator>(
+      number_of_sections / 2, medians.begin(), medians.end()
+  );
 }
 
 template <typename WeightIterator>
