@@ -24,7 +24,7 @@ TEST(SparsificationUtils, QselctOnPermutation) {
 }
 
 TEST(SparsificationUtils, QselectOnRandomNumbers) {
-  size_t times = 32;
+  size_t times = 1 << 5;
   for (size_t i = 0; i < times; i++) {
     size_t size = 1024;
     StaticArray<double> numbers(size);
@@ -47,6 +47,17 @@ TEST(SparsificationUtils, QselectOnRandomNumbers) {
       );
     }
   }
+}
+
+TEST(SparsificationUtils, QselectAllEqual) {
+  size_t n = 1 << 20;
+  StaticArray<int> numbers(n, 42);
+  ASSERT_EQ(
+      sparsification::utils::quickselect_k_smallest<int>(
+          std::round(.23 * n), numbers.begin(), numbers.end()
+      ),
+      42
+  );
 }
 
 TEST(SparsificationUtils, Median) {

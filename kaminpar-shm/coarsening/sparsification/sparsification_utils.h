@@ -64,12 +64,15 @@ T quickselect_k_smallest(size_t k, Iterator begin, Iterator end) {
     return sortselect_k_smallest<T, Iterator>(k, begin, end);
   T pivot = medians_of_medians<T, Iterator>(begin, end);
   tbb::concurrent_vector<T> less = {}, greater = {};
+  size_t number_equal_to_pivot = 0;
   tbb::parallel_for(0ul, size, [&](size_t i) {
     T x = begin[i];
-    if (x <= pivot)
+    if (x < pivot)
       less.push_back(x);
-    else
+    else if (x > pivot)
       greater.push_back(x);
+    else // equal
+      __atomic_add_fetch(&number_equal_to_pivot, 1, __ATOMIC_RELAXED);
   });
 
   KASSERT(
@@ -81,10 +84,12 @@ T quickselect_k_smallest(size_t k, Iterator begin, Iterator end) {
     return quickselect_k_smallest<T, typename tbb::concurrent_vector<T>::iterator>(
         k, less.begin(), less.end()
     );
-  else
+  else if (less.size() + number_equal_to_pivot < k)
     return quickselect_k_smallest<T, typename tbb::concurrent_vector<T>::iterator>(
-        k - less.size(), greater.begin(), greater.end()
+        k - number_equal_to_pivot - less.size(), greater.begin(), greater.end()
     );
+  else
+    return pivot;
 }
 
 template <typename T, typename Iterator> T median(Iterator begin, Iterator end) {
