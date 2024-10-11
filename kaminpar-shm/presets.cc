@@ -81,7 +81,7 @@ Context create_default_context() {
               .deep_initial_partitioning_load = 1.0,
               .min_consecutive_seq_bipartitioning_levels = 1,
               .refine_after_extending_partition = false,
-              .use_lazy_subgraph_memory = false,
+              .use_lazy_subgraph_memory = true,
           },
       .partition =
           {
@@ -101,8 +101,8 @@ Context create_default_context() {
                           {
                               // Context -> Coarsening -> Clustering -> Label Propagation
                               .num_iterations = 5,
-                              .large_degree_threshold = 1000000,
-                              .max_num_neighbors = 200000,
+                              .large_degree_threshold = std::numeric_limits<NodeID>::max(),
+                              .max_num_neighbors = std::numeric_limits<NodeID>::max(),
                               .impl = LabelPropagationImplementation::TWO_PHASE,
                               .second_phase_selection_strategy =
                                   SecondPhaseSelectionStrategy::FULL_RATING_MAP,
@@ -121,7 +121,7 @@ Context create_default_context() {
 
                       .shrink_factor = std::numeric_limits<double>::max(),
 
-                      .max_mem_free_coarsening_level = 0,
+                      .max_mem_free_coarsening_level = 1,
 
                       .forced_kc_level = false,
                       .forced_pc_level = false,
@@ -131,7 +131,7 @@ Context create_default_context() {
               .contraction =
                   {
                       // Context -> Coarsening -> Contraction
-                      .algorithm = ContractionAlgorithm::BUFFERED,
+                      .algorithm = ContractionAlgorithm::UNBUFFERED,
                       .unbuffered_implementation = ContractionImplementation::TWO_PHASE,
                       .edge_buffer_fill_fraction = 1,
                   },
@@ -186,13 +186,13 @@ Context create_default_context() {
               .algorithms =
                   {
                       RefinementAlgorithm::GREEDY_BALANCER,
-                      RefinementAlgorithm::LEGACY_LABEL_PROPAGATION,
+                      RefinementAlgorithm::LABEL_PROPAGATION,
                   },
               .lp =
                   {
                       // Context -> Refinement -> Label Propagation
                       .num_iterations = 5,
-                      .large_degree_threshold = 1000000,
+                      .large_degree_threshold = std::numeric_limits<NodeID>::max(),
                       .max_num_neighbors = std::numeric_limits<NodeID>::max(),
                       .impl = LabelPropagationImplementation::SINGLE_PHASE,
                       .tie_breaking_strategy = TieBreakingStrategy::UNIFORM,
