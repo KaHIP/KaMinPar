@@ -246,12 +246,12 @@ public:
   }
 
   value_type *data() {
-    KASSERT(_data);
+    KASSERT(_data || _size == 0);
     return _data;
   }
 
   const value_type *data() const {
-    KASSERT(_data);
+    KASSERT(_data || _size == 0);
     return _data;
   }
 
@@ -260,12 +260,12 @@ public:
   //
 
   iterator begin() {
-    KASSERT(_data);
+    KASSERT(_data || _size == 0);
     return iterator(_data);
   }
 
   const_iterator begin() const {
-    KASSERT(_data);
+    KASSERT(_data || _size == 0);
     return const_iterator(_data);
   }
 
@@ -274,12 +274,12 @@ public:
   }
 
   iterator end() {
-    KASSERT(_data);
+    KASSERT(_data || _size == 0);
     return iterator(_data + _size);
   }
 
   const_iterator end() const {
-    KASSERT(_data);
+    KASSERT(_data || _size == 0);
     return const_iterator(_data + _size);
   }
 
@@ -341,7 +341,7 @@ public:
   }
 
   void assign(const size_type count, const value_type value, const bool assign_parallel = true) {
-    KASSERT(_data);
+    KASSERT(_data || count == 0);
 
     if (assign_parallel) {
       const std::size_t step = std::max(count / std::thread::hardware_concurrency(), 1UL);
