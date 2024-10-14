@@ -6,7 +6,6 @@
 #include <oneapi/tbb/concurrent_vector.h>
 
 #include "DistributionDecorator.h"
-#include "IndexDistributionWithoutReplacement.h"
 #include "sparsification_utils.h"
 
 #include "kaminpar-common/random.h"
@@ -43,8 +42,8 @@ StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
 
         EdgeID neighbours_to_sample = std::min(
             static_cast<EdgeID>(
-                std::ceil(std::log(Random::instance().random_double()) / std::log(_pf))
-            ),
+                std::ceil(std::log(Random::instance().random_double()) / std::log(_pf)) - 1
+            ), // shifted geometric distribution
             static_cast<EdgeID>(validEdges.size())
         );
         auto sampled_neighbours_indices = utils::sample_k_without_replacement(
