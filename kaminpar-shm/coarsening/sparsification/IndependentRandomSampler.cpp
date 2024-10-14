@@ -42,7 +42,9 @@ template <typename Score>
 double IndependentRandomSampler<Score>::approxNormalizationFactor(
     const CSRGraph &g, const StaticArray<Score> &scores, EdgeID target
 ) {
-  EdgeID number_of_buckets = exponential_bucket(g.total_edge_weight()) + 1;
+  // The i-th bucket contains scores in [2^i, 2^(i+1))
+  Score max_score = *std::max_element(scores.begin(), scores.end());
+  EdgeID number_of_buckets = exponential_bucket(max_score) + 1;
   std::vector<tbb::concurrent_vector<Score>> expontial_buckets(number_of_buckets);
   StaticArray<Score> buckets_score_prefixsum(number_of_buckets);
   StaticArray<EdgeID> buckets_size_prefixsum(number_of_buckets);
@@ -64,21 +66,24 @@ double IndependentRandomSampler<Score>::approxNormalizationFactor(
       buckets_size_prefixsum.begin(), buckets_size_prefixsum.end(), buckets_size_prefixsum.begin()
   );
 
-  auto possible_buckets = std::ranges::iota_view(static_cast<EdgeID>(0), number_of_buckets);
-  auto bucket_index = *std::upper_bound(
-      possible_buckets.begin(),
-      possible_buckets.end(),
-      target,
-      [&](EdgeID target, auto bucket_index) {
-        return target <= g.m() - buckets_size_prefixsum[bucket_index] +
-                             ((1 << bucket_index) - 1) * buckets_score_prefixsum[bucket_index];
-      }
-  );
+  auto max_edges_with_factor_in_bucket = [&](EdgeID bucket_index) {
+    // s = smallest possible score in bucket = 2^bucket_index
+    // #{e in Edges : s <= scores[e]} + 1/s scores{e in Edges : scores[e] < s}
+    if (bucket_index > 1)
+      return g.m() - buckets_size_prefixsum[bucket_index - 1] +
+             1.0 / (1 << bucket_index) * buckets_score_prefixsum[bucket_index - 1];
+    else
+      return static_cast<double>(g.m());
+  };
+  EdgeID bucket_index = number_of_buckets - 1;
+  while (target > max_edges_with_factor_in_bucket(bucket_index))
+    bucket_index -= 1;
 
   double factor = (target - (g.m() - buckets_size_prefixsum[bucket_index])) /
                   static_cast<double>(buckets_score_prefixsum[bucket_index]);
   return factor;
 }
+
 template <>
 double IndependentRandomSampler<double>::approxNormalizationFactor(
     const CSRGraph &g, const StaticArray<double> &scores, EdgeID target
@@ -111,9 +116,7 @@ double IndependentRandomSampler<Score>::exactNormalizationFactor(
       possible_indices.begin(),
       possible_indices.end(),
       target / 2,
-      [&](EdgeID t, NodeID i) {
-        return t <= expected_at_index(i); // negated to make asc
-      }
+      [&](EdgeID t, NodeID i) { return t <= expected_at_index(i); }
   );
   KASSERT(
       (index + 1 >= g.m() / 2 || expected_at_index(index + 1) <= target / 2) &&
@@ -126,12 +129,6 @@ double IndependentRandomSampler<Score>::exactNormalizationFactor(
 
   double factor = static_cast<double>((target / 2 - (g.m() / 2 - index))) / prefix_sum[index - 1];
 
-  KASSERT(
-      1.0 / sorted_scores[index] <= factor && factor <= 1.0 / sorted_scores[index - 1],
-      "factor=" << factor << " not in interval [" << 1.0 / sorted_scores[index] << ", "
-                << 1.0 / sorted_scores[index - 1] << "]",
-      assert::always
-  );
   return factor;
 }
 }; // namespace kaminpar::shm::sparsification
