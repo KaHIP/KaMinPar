@@ -7,6 +7,7 @@
 
 #include "DistributionDecorator.h"
 #include "IndexDistributionWithoutReplacement.h"
+#include "sparsification_utils.h"
 
 #include "kaminpar-common/random.h"
 
@@ -39,22 +40,24 @@ StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
             validEdges.push_back(e);
           }
         }
-        DistributionDecorator<EdgeID, IndexDistributionWithoutReplacement>
-            validNeighborDistribution(
-                weights.begin(), weights.end(), validEdges.begin(), validEdges.end()
-            );
 
-        while (Random::instance().random_bool(_pf) &&
-               !validNeighborDistribution.underlying_distribution().empty()) {
-
-          { // mark NodeID as visited, burn edge
-            EdgeID e = validNeighborDistribution();
-            NodeID x = g.edge_target(e);
-            activeNodes.push(x);
-            __atomic_add_fetch(&burnt[e], 1, __ATOMIC_RELAXED);
-            localEdgesBurnt++;
-            visited[x] = true;
-          }
+        EdgeID neighbours_to_sample = std::min(
+            static_cast<EdgeID>(
+                std::ceil(std::log(Random::instance().random_double()) / std::log(_pf))
+            ),
+            static_cast<EdgeID>(validEdges.size())
+        );
+        auto sampled_neighbours_indices = utils::sample_k_without_replacement(
+            weights.begin(), weights.end(), neighbours_to_sample
+        );
+        for (auto i : sampled_neighbours_indices) {
+          // mark NodeID as visited, burn edge
+          EdgeID e = validEdges[i];
+          NodeID x = g.edge_target(e);
+          activeNodes.push(x);
+          __atomic_add_fetch(&burnt[e], 1, __ATOMIC_RELAXED);
+          localEdgesBurnt++;
+          visited[x] = true;
         }
       }
 
@@ -68,7 +71,7 @@ StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
       _targetBurnRatio * g.m()
   );
 
-  // Not normalized unlinke in the NetworKit implementation
+  // Not normalized unlike in the NetworKit implementation
   return burnt;
 }
 

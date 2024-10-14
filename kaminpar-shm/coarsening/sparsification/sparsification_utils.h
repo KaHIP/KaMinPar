@@ -125,23 +125,26 @@ template <typename T, typename Iterator> T medians_of_medians(Iterator begin, It
 template <typename WeightIterator>
 StaticArray<size_t>
 sample_k_without_replacement(WeightIterator weights_begin, WeightIterator weights_end, size_t k) {
-  StaticArray<double> test(2);
-  auto size = weights_end - weights_begin;
+  if (k == 0)
+    return StaticArray<size_t>(0);
+  size_t size = weights_end - weights_begin;
   StaticArray<double> keys(size);
   tbb::parallel_for(0ul, size, [&](auto i) {
     keys[i] = -std::log(Random::instance().random_double()) / weights_begin[i];
   });
   double x = quickselect_k_smallest<double>(k, keys.begin(), keys.end());
 
-  tbb::concurrent_vector<double> selected;
+  StaticArray<size_t> selected(k);
   size_t back = 0;
   tbb::parallel_for(0ul, keys.size(), [&](auto i) {
     if (keys[i] <= x) {
-      __atomic_fetch_add(&back, 1, __ATOMIC_RELAXED);
-      selected.push_back(i);
+      size_t current_back = __atomic_fetch_add(&back, 1, __ATOMIC_RELAXED);
+      if (current_back < k) {
+        selected[current_back] = i;
+      }
     }
   });
-  return StaticArray<size_t>(selected.begin(), selected.end());
+  return selected;
 }
 
 } // namespace kaminpar::shm::sparsification::utils
