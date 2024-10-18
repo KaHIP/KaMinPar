@@ -222,6 +222,7 @@ struct SparsificationContext {
   SparsificationTargetSelection target;
   float target_factor;
 
+  bool no_approx;
 };
 
 //

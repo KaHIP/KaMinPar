@@ -127,7 +127,7 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
     return std::make_unique<sparsification::UnbiasedThesholdSampler>();
   case SparsificationAlgorithm::WEIGHT_THRESHOLD:
     return std::make_unique<sparsification::ThresholdSampler<EdgeWeight>>(
-        std::make_unique<WeightFunction>()
+        std::make_unique<WeightFunction>(), ctx.sparsification.no_approx
 
     );
   case SparsificationAlgorithm::EFFECTIVE_RESISTANCE:
@@ -203,7 +203,8 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
           std::make_unique<
               sparsification::NetworKitScoreAdapter<NetworKit::ForestFireScore, double>>(
               [](const NetworKit::Graph &g) { return NetworKit::ForestFireScore(g, 0.95, 5); }
-          )
+          ),
+          ctx.sparsification.no_approx
       );
     case ScoreFunctionSection::NETWORKIT_WEIGHTED_FOREST_FIRE:
       return std::make_unique<sparsification::IndependentRandomSampler<double>>(
@@ -211,19 +212,22 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
               sparsification::NetworKitWeightedForestFireScore,
               double>>([](const NetworKit::Graph &g) {
             return sparsification::NetworKitWeightedForestFireScore(g, 0.95, 5);
-          })
+          }),
+          ctx.sparsification.no_approx
       );
     case ScoreFunctionSection::WEIGHTED_FOREST_FIRE:
       return std::make_unique<sparsification::IndependentRandomSampler<EdgeID>>(
-          std::make_unique<sparsification::WeightedForestFireScore>(0.95, 5)
+          std::make_unique<sparsification::WeightedForestFireScore>(0.95, 5),
+          ctx.sparsification.no_approx
       );
     case ScoreFunctionSection::EFFECTIVE_RESISTANCE:
       return std::make_unique<sparsification::IndependentRandomSampler<double>>(
-          std::make_unique<sparsification::EffectiveResistanceScore>(4)
+          std::make_unique<sparsification::EffectiveResistanceScore>(4),
+          ctx.sparsification.no_approx
       );
     case ScoreFunctionSection::WEIGHT:
       return std::make_unique<sparsification::IndependentRandomSampler<EdgeWeight>>(
-          std::make_unique<WeightFunction>()
+          std::make_unique<WeightFunction>(), ctx.sparsification.no_approx
 
       );
     }
@@ -234,7 +238,8 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
           std::make_unique<
               sparsification::NetworKitScoreAdapter<NetworKit::ForestFireScore, double>>(
               [](const NetworKit::Graph &g) { return NetworKit::ForestFireScore(g, 0.95, 5); }
-          )
+          ),
+          ctx.sparsification.no_approx
       );
     case ScoreFunctionSection::NETWORKIT_WEIGHTED_FOREST_FIRE:
       return std::make_unique<sparsification::ThresholdSampler<double>>(
@@ -242,19 +247,22 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
               sparsification::NetworKitWeightedForestFireScore,
               double>>([](const NetworKit::Graph &g) {
             return sparsification::NetworKitWeightedForestFireScore(g, 0.95, 5);
-          })
+          }),
+          ctx.sparsification.no_approx
       );
     case ScoreFunctionSection::WEIGHTED_FOREST_FIRE:
       return std::make_unique<sparsification::ThresholdSampler<EdgeID>>(
-          std::make_unique<sparsification::WeightedForestFireScore>(0.95, 5)
+          std::make_unique<sparsification::WeightedForestFireScore>(0.95, 5),
+          ctx.sparsification.no_approx
       );
     case ScoreFunctionSection::EFFECTIVE_RESISTANCE:
       return std::make_unique<sparsification::ThresholdSampler<double>>(
-          std::make_unique<sparsification::EffectiveResistanceScore>(4)
+          std::make_unique<sparsification::EffectiveResistanceScore>(4),
+          ctx.sparsification.no_approx
       );
     case ScoreFunctionSection::WEIGHT:
       return std::make_unique<sparsification::ThresholdSampler<EdgeWeight>>(
-          std::make_unique<WeightFunction>()
+          std::make_unique<WeightFunction>(), ctx.sparsification.no_approx
 
       );
     }

@@ -135,7 +135,8 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
   - effective-resistance, er: sample edges with relative effective-resistance above threshold
   - independent-random, ir: sample edges indepently with probabilites proportional to scores
   - random-with-replacement, rw/r: draw random edges WITH replacment and probailites proportinal to scores
-  - random-without-replacement, rw/or: draw random edges WITHOUT replacment and probailites proportinal to scores)")
+  - random-without-replacement, rw/or: draw random edges WITHOUT replacment and probailites proportinal to scores)"
+      )
       ->capture_default_str();
 
   coarsening->add_option("--s-score", ctx.sparsification.score_function)
@@ -161,6 +162,9 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
       ->check(CLI::PositiveNumber)
       ->description(R"(The factor c for the sparsification target, supplied with --s-target.)")
       ->default_val(1);
+  coarsening->add_flag("--s-no-approx", ctx.sparsification.no_approx)
+      ->description("Disables some approximations of sparsification algorithms.")
+      ->default_val(false);
 
   coarsening
       ->add_option(
