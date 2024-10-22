@@ -174,6 +174,10 @@ void KaMinPar::reseed(int seed) {
 }
 
 EdgeWeight KaMinPar::compute_partition(const BlockID k, BlockID *partition) {
+  if (_output_level == OutputLevel::QUIET) {
+    Logger::set_quiet_mode(true);
+  }
+
   cio::print_kaminpar_banner();
   cio::print_build_identifier();
   cio::print_build_datatypes<NodeID, EdgeID, NodeWeight, EdgeWeight>();
