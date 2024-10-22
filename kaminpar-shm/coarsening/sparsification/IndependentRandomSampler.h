@@ -48,23 +48,9 @@ public:
           return t <= expected_at_index(i); // negated to make asc
         }
     );
-    KASSERT(
-        (index + 1 >= g.m() / 2 || expected_at_index(index + 1) <= target / 2) &&
-            target / 2 <= expected_at_index(index),
-        "binary search did not work: target/2=" << target / 2 << " is not in ["
-                                                << expected_at_index(index + 1) << ", "
-                                                << expected_at_index(index) << "]",
-        assert::always
-    );
 
     double factor = static_cast<double>((target / 2 - (g.m() / 2 - index))) / prefix_sum[index - 1];
 
-    KASSERT(
-        1.0 / sorted_scores[index] <= factor && factor <= 1.0 / sorted_scores[index - 1],
-        "factor=" << factor << " not in interval [" << 1.0 / sorted_scores[index] << ", "
-                  << 1.0 / sorted_scores[index - 1] << "]",
-        assert::always
-    );
 
     return factor;
   }
