@@ -22,6 +22,7 @@
 #define KAMINPAR_VERSION_PATCH 0
 
 namespace kaminpar {
+
 enum class OutputLevel : std::uint8_t {
   QUIET,       //! Disable all output to stdout.
   PROGRESS,    //! Continuously output progress information while partitioning.
@@ -29,6 +30,7 @@ enum class OutputLevel : std::uint8_t {
   EXPERIMENT,  //! Also output information only relevant for benchmarking.
   DEBUG,       //! Also output (a sane amount) of debug information.
 };
+
 } // namespace kaminpar
 
 namespace kaminpar::shm {
@@ -505,6 +507,7 @@ Context create_noref_context();
 //
 
 namespace kaminpar {
+
 class KaMinPar {
 public:
   KaMinPar(int num_threads, shm::Context ctx);
@@ -598,7 +601,10 @@ public:
    *
    * @return The edge-cut of the partition.
    */
-  shm::EdgeWeight compute_partition(shm::BlockID k, shm::BlockID *partition);
+  shm::EdgeWeight
+  compute_partition(shm::BlockID k, shm::BlockID *partition, bool use_initial_node_ordering = true);
+
+  const shm::Graph *graph();
 
 private:
   int _num_threads;
@@ -612,4 +618,5 @@ private:
 
   bool _was_rearranged = false;
 };
+
 } // namespace kaminpar

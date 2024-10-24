@@ -181,7 +181,7 @@ TEST(GraphPermutationTest, PermutationByNodeDegreeIsCorrect) {
   //   4
   const StaticArray<EdgeID> nodes = static_array::create<EdgeID>({0, 2, 3, 7, 8, 10, 10});
 
-  const auto permutations = graph::sort_by_degree_buckets(nodes);
+  const auto permutations = graph::compute_node_permutation_by_degree_buckets(nodes);
   const auto &permutation = permutations.old_to_new;
   EXPECT_THAT(permutation[0], AllOf(Ge(2), Le(3)));
   EXPECT_THAT(permutation[1], AllOf(Ge(0), Le(1)));
@@ -196,7 +196,7 @@ TEST(GraphPermutationTest, MovingIsolatedNodesToBackWorks) {
   // deg  0 0 1 1 1 0 0 1 1 0 0
   const StaticArray<EdgeID> nodes =
       static_array::create<EdgeID>({0, 0, 0, 1, 2, 3, 3, 3, 4, 5, 5, 5});
-  const auto permutations = graph::sort_by_degree_buckets(nodes);
+  const auto permutations = graph::compute_node_permutation_by_degree_buckets(nodes);
   const auto &permutation = permutations.old_to_new;
 
   EXPECT_GE(permutation[0], 5);

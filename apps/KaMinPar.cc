@@ -19,6 +19,7 @@
 #endif // __has_include(<numa.h>)
 
 #include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/graphutils/permutator.h"
 
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/strutils.h"
@@ -26,6 +27,8 @@
 
 #include "apps/io/shm_input_validator.h"
 #include "apps/io/shm_io.h"
+#include "apps/io/shm_metis_parser.h"
+#include "apps/io/shm_parhip_parser.h"
 #include "apps/version.h"
 
 #if defined(__linux__)
@@ -59,8 +62,12 @@ struct ApplicationContext {
   bool debug = false;
 
   std::string graph_filename = "";
+  io::GraphFileFormat input_graph_file_format = io::GraphFileFormat::METIS;
+
   std::string partition_filename = "";
-  io::GraphFileFormat graph_file_format = io::GraphFileFormat::METIS;
+  std::string rearranged_graph_filename = "";
+  std::string block_sizes_filename = "";
+  io::GraphFileFormat output_graph_file_format = io::GraphFileFormat::METIS;
 
   bool no_huge_pages = false;
 
@@ -118,7 +125,7 @@ The output should be stored in a file and can be used by the -C,--config option.
   cli.add_flag_function("-T,--all-timers", [&](auto) {
     app.max_timer_depth = std::numeric_limits<int>::max();
   });
-  cli.add_option("-f,--graph-file-format", app.graph_file_format)
+  cli.add_option("-f,--graph-file-format,--input-graph-file-format", app.input_graph_file_format)
       ->transform(CLI::CheckedTransformer(io::get_graph_file_formats()).description(""))
       ->description(R"(Graph file formats:
   - metis
@@ -161,6 +168,26 @@ The output should be stored in a file and can be used by the -C,--config option.
 
   cli.add_option("-o,--output", app.partition_filename, "Output filename for the graph partition.")
       ->capture_default_str();
+  cli.add_option(
+         "--output-rearranged-graph",
+         app.rearranged_graph_filename,
+         "After computing the partition, rearrange the input graph s.t. the vertices of each block "
+         "are contiguous and write it to this file."
+  )
+      ->capture_default_str();
+  cli.add_option("--output-graph-file-format", app.output_graph_file_format)
+      ->transform(CLI::CheckedTransformer(io::get_graph_file_formats()).description(""))
+      ->description(R"(Graph file formats:
+  - metis
+  - parhip)")
+      ->capture_default_str();
+  cli.add_option(
+         "--output-block-sizes",
+         app.block_sizes_filename,
+         "Output the number of vertices in each block (one line per block)."
+  )
+      ->capture_default_str();
+
   cli.add_flag(
       "--validate",
       app.validate,
@@ -258,7 +285,7 @@ int main(int argc, char *argv[]) {
   START_HEAP_PROFILER("Input Graph Allocation");
   Graph graph = TIMED_SCOPE("Read input graph") {
     return io::read(
-        app.graph_filename, app.graph_file_format, ctx.node_ordering, ctx.compression.enabled
+        app.graph_filename, app.input_graph_file_format, ctx.node_ordering, ctx.compression.enabled
     );
   };
 
@@ -272,11 +299,60 @@ int main(int argc, char *argv[]) {
 
   // Compute graph partition
   partitioner.set_graph(std::move(graph));
-  partitioner.compute_partition(app.k, partition.data());
+  partitioner.compute_partition(app.k, partition.data(), app.rearranged_graph_filename.empty());
 
   // Save graph partition
   if (!app.partition_filename.empty()) {
-    shm::io::partition::write(app.partition_filename, partition);
+    if (!app.rearranged_graph_filename.empty()) {
+      LOG_WARNING << "Cannot output partition because rearranged graph is requested";
+    } else {
+      shm::io::partition::write(app.partition_filename, partition);
+    }
+  }
+
+  if (!app.rearranged_graph_filename.empty()) {
+    // @todo: does not work with compressed graphs
+    const auto &csr_graph = partitioner.graph()->concretize<CSRGraph>();
+
+    auto permutations = shm::graph::compute_node_permutation_by_generic_buckets(
+        csr_graph.n(), app.k, [&](const NodeID u) { return partition[u]; }
+    );
+
+    StaticArray<EdgeID> tmp_nodes(csr_graph.raw_nodes().size());
+    StaticArray<NodeID> tmp_edges(csr_graph.raw_edges().size());
+    StaticArray<NodeWeight> tmp_node_weights(csr_graph.raw_node_weights().size());
+    StaticArray<EdgeWeight> tmp_edge_weights(csr_graph.raw_edge_weights().size());
+
+    shm::graph::build_permuted_graph(
+        csr_graph.raw_nodes(),
+        csr_graph.raw_edges(),
+        csr_graph.raw_node_weights(),
+        csr_graph.raw_edge_weights(),
+        permutations,
+        tmp_nodes,
+        tmp_edges,
+        tmp_node_weights,
+        tmp_edge_weights
+    );
+
+    Graph permuted_graph = {std::make_unique<CSRGraph>(
+        std::move(tmp_nodes),
+        std::move(tmp_edges),
+        std::move(tmp_node_weights),
+        std::move(tmp_edge_weights)
+    )};
+
+    if (app.output_graph_file_format == io::GraphFileFormat::METIS) {
+      shm::io::metis::write(app.rearranged_graph_filename, permuted_graph);
+    } else if (app.output_graph_file_format == io::GraphFileFormat::PARHIP) {
+      shm::io::parhip::write(app.rearranged_graph_filename, permuted_graph.concretize<CSRGraph>());
+    } else {
+      LOG_WARNING << "Unsupported output graph format";
+    }
+  }
+
+  if (!app.block_sizes_filename.empty()) {
+    shm::io::partition::write_block_sizes(app.block_sizes_filename, app.k, partition);
   }
 
   DISABLE_HEAP_PROFILER();

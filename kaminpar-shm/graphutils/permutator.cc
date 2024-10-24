@@ -18,7 +18,7 @@
 
 namespace kaminpar::shm::graph {
 
-NodePermutations<StaticArray> rearrange_graph(
+NodePermutations rearrange_graph(
     StaticArray<EdgeID> &nodes,
     StaticArray<NodeID> &edges,
     StaticArray<NodeWeight> &node_weights,
@@ -39,7 +39,7 @@ NodePermutations<StaticArray> rearrange_graph(
   // the graph data structure this way, we can just cut them off without doing
   // further work
   START_HEAP_PROFILER("Rearrange input graph");
-  NodePermutations<StaticArray> permutations = sort_by_degree_buckets(nodes);
+  NodePermutations permutations = compute_node_permutation_by_degree_buckets(nodes);
   START_TIMER("Rearrange input graph");
   build_permuted_graph(
       nodes,
@@ -122,7 +122,7 @@ static void sort_by_compression(
 ) {
   const auto permutate = [&](NodeID *edges_begin, NodeID *edges_end, EdgeWeight *edge_weights) {
     if constexpr (CompressedGraph::kIntervalEncoding) {
-      const NodeID local_degree = static_cast<NodeID>(edges_end - edges_begin);
+      const auto local_degree = static_cast<NodeID>(edges_end - edges_begin);
 
       if (local_degree < 2) {
         return;
@@ -174,7 +174,7 @@ static void sort_by_compression(
     };
   };
 
-  const NodeID degree = static_cast<NodeID>(edges_end - edges_begin);
+  const auto degree = static_cast<NodeID>(edges_end - edges_begin);
 
   if (store_edge_weights) {
     auto &permutation = permutation_ets.local();
@@ -347,4 +347,5 @@ PartitionedGraph assign_isolated_nodes(
 
   return {graph, k, std::move(partition)};
 }
+
 } // namespace kaminpar::shm::graph

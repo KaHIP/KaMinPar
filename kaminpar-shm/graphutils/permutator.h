@@ -1,12 +1,12 @@
 /*******************************************************************************
- * @file:   graph_rearrangement.h
+ * Algorithms to rearrange graphs.
+ *
+ * @file:   permutator.h
  * @author: Daniel Seemaier
  * @date:   17.11.2021
- * @brief:  Algorithms to rearrange graphs.
  ******************************************************************************/
 #pragma once
 
-#include <array>
 #include <utility>
 
 #include "kaminpar-shm/datastructures/graph.h"
@@ -19,35 +19,18 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::graph {
-/*!
- * Bidirectional node permutation.
- *
- * @tparam Container
- */
-template <template <typename> typename Container> struct NodePermutations {
-  Container<NodeID> old_to_new;
-  Container<NodeID> new_to_old;
+
+struct NodePermutations {
+  StaticArray<NodeID> old_to_new;
+  StaticArray<NodeID> new_to_old;
 };
 
-/*!
- * Computes a permutation on the nodes of the graph such that nodes are sorted
- * by their exponentially spaced degree buckets. Isolated nodes moved to the
- * back of the graph.
- *
- * @tparam put_deg0_at_end Whether isolated nodes are moved to the back
- * @param n The number of nodes.
- * @param degrees Function that returns the degree of a node.
- * @return Bidirectional node permutation.
- */
-template <bool put_deg0_at_end = true, typename Lambda>
-NodePermutations<StaticArray> sort_by_degree_buckets(const NodeID n, Lambda &&degrees) {
+template <std::integral Bucket, typename Lambda>
+NodePermutations compute_node_permutation_by_generic_buckets(
+    const NodeID n, const Bucket num_buckets, Lambda &&find_bucket
+) {
   static_assert(std::is_invocable_r_v<NodeID, Lambda, NodeID>);
-  SCOPED_TIMER("Sort nodes by degree bucket");
-
-  auto find_bucket = [&](const NodeID deg) {
-    return deg == 0 ? (put_deg0_at_end ? kNumberOfDegreeBuckets<NodeID> - 1 : 0)
-                    : degree_bucket(deg);
-  };
+  SCOPED_TIMER("Sort nodes by integer buckets");
 
   const std::size_t cpus = std::min<std::size_t>(tbb::this_task_arena::max_concurrency(), n);
 
@@ -55,8 +38,9 @@ NodePermutations<StaticArray> sort_by_degree_buckets(const NodeID n, Lambda &&de
   RECORD("inverse_permutation") StaticArray<NodeID> inverse_permutation(n);
 
   // local_buckets[cpu][bucket]: thread-local bucket sizes
-  using Buckets = std::array<NodeID, kNumberOfDegreeBuckets<NodeID> + 1>;
-  CacheAlignedVector<Buckets> local_buckets(cpus + 1);
+  CacheAlignedVector<std::vector<NodeID>> local_buckets(
+      cpus + 1, std::vector<NodeID>(num_buckets + 1)
+  );
 
   parallel::deterministic_for<NodeID>(
       0,
@@ -65,8 +49,7 @@ NodePermutations<StaticArray> sort_by_degree_buckets(const NodeID n, Lambda &&de
         KASSERT(cpu < cpus);
 
         for (NodeID u = from; u < to; ++u) {
-          const NodeID degree = degrees(u);
-          const auto bucket = find_bucket(degree);
+          const auto bucket = find_bucket(u);
           permutation[u] = local_buckets[cpu + 1][bucket]++;
         }
       }
@@ -77,7 +60,7 @@ NodePermutations<StaticArray> sort_by_degree_buckets(const NodeID n, Lambda &&de
   // position of u in the thread-local bucket. (i) account for smaller buckets
   // --> add prefix computed in global_buckets (ii) account for the same bucket
   // in smaller processor IDs --> add prefix computed in local_buckets
-  Buckets global_buckets{};
+  std::vector<NodeID> global_buckets(num_buckets + 1);
   for (std::size_t id = 1; id < cpus + 1; ++id) {
     for (std::size_t i = 0; i + 1 < global_buckets.size(); ++i) {
       global_buckets[i + 1] += local_buckets[id][i];
@@ -98,8 +81,7 @@ NodePermutations<StaticArray> sort_by_degree_buckets(const NodeID n, Lambda &&de
         KASSERT(cpu < cpus);
 
         for (NodeID u = from; u < to; ++u) {
-          const NodeID degree = degrees(u);
-          const NodeID bucket = find_bucket(degree);
+          const auto bucket = find_bucket(u);
           permutation[u] += global_buckets[bucket] + local_buckets[cpu][bucket];
         }
       }
@@ -118,16 +100,48 @@ NodePermutations<StaticArray> sort_by_degree_buckets(const NodeID n, Lambda &&de
  * by their exponentially spaced degree buckets. Isolated nodes moved to the
  * back of the graph.
  *
+ * @tparam put_deg0_at_end Whether isolated nodes are moved to the back
+ * @param n The number of nodes.
+ * @param degrees Function that returns the degree of a node.
+ * @return Bidirectional node permutation.
+ */
+template <typename Lambda>
+NodePermutations compute_node_permutation_by_degree_buckets(
+    const NodeID n, Lambda &&degrees, const bool put_deg0_at_end = true
+) {
+  static_assert(std::is_invocable_r_v<NodeID, Lambda, NodeID>);
+  return compute_node_permutation_by_generic_buckets(
+      n,
+      kNumberOfDegreeBuckets<NodeID>,
+      [&](const NodeID u) {
+        const NodeID deg = degrees(u);
+
+        return deg == 0 ? (put_deg0_at_end ? kNumberOfDegreeBuckets<NodeID> - 1 : 0)
+                        : degree_bucket(deg);
+      }
+  );
+}
+
+/*!
+ * Computes a permutation on the nodes of the graph such that nodes are sorted
+ * by their exponentially spaced degree buckets. Isolated nodes moved to the
+ * back of the graph.
+ *
  * @tparam Container
  * @param nodes Nodes array of a static graph.
  * @return Bidirectional node permutation.
  */
-template <bool put_deg0_at_end = true>
-NodePermutations<StaticArray> sort_by_degree_buckets(const StaticArray<EdgeID> &nodes) {
-  return sort_by_degree_buckets<put_deg0_at_end>(nodes.size() - 1, [&](const NodeID u) {
-    const NodeID degree = nodes[u + 1] - nodes[u];
-    return degree;
-  });
+inline NodePermutations compute_node_permutation_by_degree_buckets(
+    const StaticArray<EdgeID> &nodes, const bool put_deg0_at_end = true
+) {
+  return compute_node_permutation_by_degree_buckets(
+      nodes.size() - 1,
+      [&](const NodeID u) {
+        const NodeID degree = nodes[u + 1] - nodes[u];
+        return degree;
+      },
+      put_deg0_at_end
+  );
 }
 
 /*!
@@ -149,23 +163,21 @@ NodePermutations<StaticArray> sort_by_degree_buckets(const StaticArray<EdgeID> &
  * edge weights array is empty.
  */
 template <
-    template <typename>
-    typename Container,
     bool has_ghost_nodes = false,
     typename GraphNodeID = NodeID,
     typename GraphEdgeID = EdgeID,
     typename GraphNodeWeight = NodeWeight,
     typename GraphEdgeWeight = EdgeWeight>
 void build_permuted_graph(
-    const Container<GraphEdgeID> &old_nodes,
-    const Container<GraphNodeID> &old_edges,
-    const Container<GraphNodeWeight> &old_node_weights,
-    const Container<GraphEdgeWeight> &old_edge_weights,
-    const NodePermutations<Container> &permutations,
-    Container<GraphEdgeID> &new_nodes,
-    Container<GraphNodeID> &new_edges,
-    Container<GraphNodeWeight> &new_node_weights,
-    Container<GraphEdgeWeight> &new_edge_weights
+    const StaticArray<GraphEdgeID> &old_nodes,
+    const StaticArray<GraphNodeID> &old_edges,
+    const StaticArray<GraphNodeWeight> &old_node_weights,
+    const StaticArray<GraphEdgeWeight> &old_edge_weights,
+    const NodePermutations &permutations,
+    StaticArray<GraphEdgeID> &new_nodes,
+    StaticArray<GraphNodeID> &new_edges,
+    StaticArray<GraphNodeWeight> &new_node_weights,
+    StaticArray<GraphEdgeWeight> &new_edge_weights
 ) {
   // >= for ghost nodes in a distributed graph
   const bool is_node_weighted = old_node_weights.size() + 1 >= old_nodes.size();
@@ -202,12 +214,14 @@ void build_permuted_graph(
   });
 }
 
-NodePermutations<StaticArray> rearrange_graph(
+NodePermutations rearrange_graph(
     StaticArray<EdgeID> &nodes,
     StaticArray<NodeID> &edges,
     StaticArray<NodeWeight> &node_weights,
     StaticArray<EdgeWeight> &edge_weights
 );
+
+CSRGraph rearrange_graph(const CSRGraph &graph, const NodePermutations &permutations);
 
 /*!
  * Rearranges the nodes of the graph such that nodes are sorted by their exponentially spaced degree
