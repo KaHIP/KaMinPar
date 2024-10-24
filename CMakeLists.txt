@@ -139,11 +139,11 @@ if (KAMINPAR_BUILD_WITH_DEBUG_SYMBOLS)
 endif ()
 
 # Set compile flags
+set(CMAKE_REQUIRED_FLAGS -Werror) # otherwise the check fails for Apple Clang 
 check_cxx_compiler_flag(-msse4.1 COMPILER_SUPPORTS_MSSE41)
 if (COMPILER_SUPPORTS_MSSE41)
     add_compile_options(-msse4.1)
 endif ()
-
 check_cxx_compiler_flag(-mcx16 COMPILER_SUPPORTS_MCX16)
 if (COMPILER_SUPPORTS_MCX16)
     add_compile_options(-mcx16)
