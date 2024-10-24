@@ -118,7 +118,7 @@ template <std::unsigned_integral Int> class CompactStaticArray {
     }
 
     bool operator>=(const CompactStaticArrayIterator &other) const {
-      return _data >= other._ptr;
+      return _data >= other._data;
     }
 
     bool operator<=(const CompactStaticArrayIterator &other) const {
