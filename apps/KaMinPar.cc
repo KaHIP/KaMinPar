@@ -64,8 +64,11 @@ struct ApplicationContext {
   std::string graph_filename = "";
   io::GraphFileFormat input_graph_file_format = io::GraphFileFormat::METIS;
 
+  bool ignore_edge_weights = false;
+
   std::string partition_filename = "";
   std::string rearranged_graph_filename = "";
+  std::string rearranged_mapping_filename = "";
   std::string block_sizes_filename = "";
   io::GraphFileFormat output_graph_file_format = io::GraphFileFormat::METIS;
 
@@ -131,6 +134,7 @@ The output should be stored in a file and can be used by the -C,--config option.
   - metis
   - parhip)")
       ->capture_default_str();
+  cli.add_flag("--ignore-edge-weights", app.ignore_edge_weights, "Ignore edge weights.");
 
   if constexpr (kHeapProfiling) {
     auto *hp_group = cli.add_option_group("Heap Profiler");
@@ -174,6 +178,8 @@ The output should be stored in a file and can be used by the -C,--config option.
          "After computing the partition, rearrange the input graph s.t. the vertices of each block "
          "are contiguous and write it to this file."
   )
+      ->capture_default_str();
+  cli.add_option("--output-rearranged-mapping", app.rearranged_mapping_filename)
       ->capture_default_str();
   cli.add_option("--output-graph-file-format", app.output_graph_file_format)
       ->transform(CLI::CheckedTransformer(io::get_graph_file_formats()).description(""))
@@ -289,6 +295,16 @@ int main(int argc, char *argv[]) {
     );
   };
 
+  if (app.ignore_edge_weights) {
+    auto &csr_graph = graph.concretize<CSRGraph>();
+    graph = {std::make_unique<CSRGraph>(
+        csr_graph.take_raw_nodes(),
+        csr_graph.take_raw_edges(),
+        csr_graph.take_raw_node_weights(),
+        StaticArray<EdgeWeight>{}
+    )};
+  }
+
   if (app.validate) {
     shm::validate_undirected_graph(graph);
   }
@@ -299,24 +315,25 @@ int main(int argc, char *argv[]) {
 
   // Compute graph partition
   partitioner.set_graph(std::move(graph));
-  partitioner.compute_partition(app.k, partition.data(), app.rearranged_graph_filename.empty());
+  partitioner.compute_partition(app.k, partition.data());
 
   // Save graph partition
   if (!app.partition_filename.empty()) {
-    if (!app.rearranged_graph_filename.empty()) {
-      LOG_WARNING << "Cannot output partition because rearranged graph is requested";
-    } else {
-      shm::io::partition::write(app.partition_filename, partition);
-    }
+    shm::io::partition::write(app.partition_filename, partition);
   }
 
   if (!app.rearranged_graph_filename.empty()) {
-    // @todo: does not work with compressed graphs
-    const auto &csr_graph = partitioner.graph()->concretize<CSRGraph>();
+    Graph graph =
+        io::read(app.graph_filename, app.input_graph_file_format, NodeOrdering::NATURAL, false);
+    auto &csr_graph = graph.concretize<CSRGraph>();
 
     auto permutations = shm::graph::compute_node_permutation_by_generic_buckets(
         csr_graph.n(), app.k, [&](const NodeID u) { return partition[u]; }
     );
+
+    if (!app.rearranged_mapping_filename.empty()) {
+      shm::io::partition::write(app.rearranged_mapping_filename, permutations.old_to_new);
+    }
 
     StaticArray<EdgeID> tmp_nodes(csr_graph.raw_nodes().size());
     StaticArray<NodeID> tmp_edges(csr_graph.raw_edges().size());
