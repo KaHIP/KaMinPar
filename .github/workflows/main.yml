@@ -1,0 +1,91 @@
+name: Compile and run units tests
+
+on:
+  push:
+    branches: [ "*" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions: read-all
+
+jobs:
+  build-macos:
+    name: macOS Build
+    runs-on: macos-latest
+    steps:
+      - name: Install dependencies
+        run: brew install tbb hwloc open-mpi
+      - name: Checkout HEAD
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          fetch-depth: 1
+          submodules: recursive
+      - name: Configure
+        run: >
+          cmake -B ${{github.workspace}}/build 
+            -DCMAKE_BUILD_TYPE=Release 
+            -DKAMINPAR_ASSERTION_LEVEL=normal 
+            -DKAMINPAR_BUILD_APPS=On
+            -DKAMINPAR_BUILD_TESTS=On 
+            -DKAMINPAR_BUILD_DISTRIBUTED=On 
+      - name: Build
+        run: >
+          cmake --build ${{github.workspace}}/build 
+            --config Release 
+            --parallel 4
+
+  build-linux:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        compiler:
+          - { name: Clang, cc: clang, cxx: clang++ }
+          - { name: GNU, cc: gcc, cxx: g++ }
+        build-mode: [Release]
+        run-tests: [On]
+        exclude:
+          - compiler: { name: GNU, cc: gcc, cxx: g++ }
+            run-tests: On
+    steps:
+      - name: Install dependencies 
+        run: sudo apt-get install -y libtbb-dev libhwloc-dev mpi libopenmpi-dev libomp-dev libsparsehash-dev 
+      - name: Checkout HEAD
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          fetch-depth: 1
+          submodules: recursive
+      - name: Configure
+        run: >
+          cmake -B ${{github.workspace}}/build 
+            -DCMAKE_BUILD_TYPE=${{matrix.build-mode}} 
+            -DCMAKE_C_COMPILER=${{matrix.compiler.cc}} 
+            -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}} 
+            -DKAMINPAR_ASSERTION_LEVEL=normal 
+            -DKAMINPAR_BUILD_APPS=On
+            -DKAMINPAR_BUILD_TESTS=On 
+            -DKAMINPAR_BUILD_DISTRIBUTED=On 
+      - name: Build
+        run: >
+          cmake --build ${{github.workspace}}/build 
+            --config ${{matrix.build-mode}} 
+            --parallel 4
+      - name: Upload binary
+        if: matrix.run-tests == 'On'
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: build
+          path: ${{github.workspace}}/build
+
+  tests:
+    runs-on: ubuntu-24.04
+    needs: build-linux
+    steps:
+      - name: Download build
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: build
+      - name: Run ctest
+        working-directory: ${{github.workspace}}/build
+        run: ctest --output-on-failure
+        env:
+          ASAN_OPTIONS: detect_leaks=0
