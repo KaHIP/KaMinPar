@@ -2,7 +2,7 @@ name: Compile and run units tests
 
 on:
   push:
-    branches: [ "*" ]
+    branches: [ "ci/test-more-combinations" ]
   pull_request:
     branches: [ "main" ]
 
