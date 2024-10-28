@@ -21,7 +21,7 @@ jobs:
           fetch-depth: 1
           submodules: recursive
       - name: Configure
-        run: >
+        run: >-
           cmake -B ${{github.workspace}}/build 
             -DCMAKE_BUILD_TYPE=Release 
             -DKAMINPAR_ASSERTION_LEVEL=normal 
@@ -29,7 +29,7 @@ jobs:
             -DKAMINPAR_BUILD_TESTS=On 
             -DKAMINPAR_BUILD_DISTRIBUTED=On 
       - name: Build
-        run: >
+        run: >-
           cmake --build ${{github.workspace}}/build 
             --config Release 
             --parallel 4
@@ -55,7 +55,7 @@ jobs:
           fetch-depth: 1
           submodules: recursive
       - name: Configure
-        run: >
+        run: >-
           cmake -B ${{github.workspace}}/build 
             -DCMAKE_BUILD_TYPE=${{matrix.build-mode}} 
             -DCMAKE_C_COMPILER=${{matrix.compiler.cc}} 
@@ -65,7 +65,7 @@ jobs:
             -DKAMINPAR_BUILD_TESTS=On 
             -DKAMINPAR_BUILD_DISTRIBUTED=On 
       - name: Build
-        run: >
+        run: >-
           cmake --build ${{github.workspace}}/build 
             --config ${{matrix.build-mode}} 
             --parallel 4
