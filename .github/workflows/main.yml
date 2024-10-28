@@ -23,16 +23,16 @@ jobs:
       - name: Configure
         run: >-
           cmake -B ${{github.workspace}}/build 
-            -DCMAKE_BUILD_TYPE=Release 
-            -DKAMINPAR_ASSERTION_LEVEL=normal 
-            -DKAMINPAR_BUILD_APPS=On
-            -DKAMINPAR_BUILD_TESTS=On 
-            -DKAMINPAR_BUILD_DISTRIBUTED=On 
+          -DCMAKE_BUILD_TYPE=Release 
+          -DKAMINPAR_ASSERTION_LEVEL=normal 
+          -DKAMINPAR_BUILD_APPS=On
+          -DKAMINPAR_BUILD_TESTS=On 
+          -DKAMINPAR_BUILD_DISTRIBUTED=On 
       - name: Build
         run: >-
           cmake --build ${{github.workspace}}/build 
-            --config Release 
-            --parallel 4
+          --config Release 
+          --parallel 4
 
   build-linux:
     runs-on: ubuntu-24.04
@@ -57,18 +57,18 @@ jobs:
       - name: Configure
         run: >-
           cmake -B ${{github.workspace}}/build 
-            -DCMAKE_BUILD_TYPE=${{matrix.build-mode}} 
-            -DCMAKE_C_COMPILER=${{matrix.compiler.cc}} 
-            -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}} 
-            -DKAMINPAR_ASSERTION_LEVEL=normal 
-            -DKAMINPAR_BUILD_APPS=On
-            -DKAMINPAR_BUILD_TESTS=On 
-            -DKAMINPAR_BUILD_DISTRIBUTED=On 
+          -DCMAKE_BUILD_TYPE=${{matrix.build-mode}} 
+          -DCMAKE_C_COMPILER=${{matrix.compiler.cc}} 
+          -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}} 
+          -DKAMINPAR_ASSERTION_LEVEL=normal 
+          -DKAMINPAR_BUILD_APPS=On
+          -DKAMINPAR_BUILD_TESTS=On 
+          -DKAMINPAR_BUILD_DISTRIBUTED=On 
       - name: Build
         run: >-
           cmake --build ${{github.workspace}}/build 
-            --config ${{matrix.build-mode}} 
-            --parallel 4
+          --config ${{matrix.build-mode}} 
+          --parallel 4
       - name: Upload binary
         if: matrix.run-tests == 'On'
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
