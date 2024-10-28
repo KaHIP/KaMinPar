@@ -50,10 +50,6 @@ jobs:
           - { name: Clang, cc: clang, cxx: clang++ }
           - { name: GNU, cc: gcc, cxx: g++ }
         build-mode: [Release]
-        run-tests: [On]
-        exclude:
-          - compiler: { name: GNU, cc: gcc, cxx: g++ }
-            run-tests: On
     steps:
       - name: Install dependencies 
         run: sudo apt-get install -y libtbb-dev libhwloc-dev mpi libopenmpi-dev libomp-dev libsparsehash-dev 
@@ -78,13 +74,14 @@ jobs:
           --config ${{matrix.build-mode}} 
           --parallel 4
       - name: Upload binary
-        if: matrix.run-tests == 'On'
+        if: matrix.name == 'Clang'
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
           name: build
           path: ${{github.workspace}}/build
 
   tests:
+    name: Unit Tests
     runs-on: ubuntu-24.04
     needs: build-linux
     steps:
