@@ -16,7 +16,6 @@ jobs:
       matrix:
         compiler:
           - { name: Clang, cc: /opt/homebrew/opt/llvm/bin/clang, cxx: /opt/homebrew/opt/llvm/bin/clang++ }
-          - { name: GCC, cc: /opt/homebrew/bin/gcc-14, cxx: /opt/homebrew/bin/g++-14 }
         build-mode: [Release]
     steps:
       - name: Install dependencies
