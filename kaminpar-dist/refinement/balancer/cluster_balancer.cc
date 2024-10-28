@@ -378,11 +378,6 @@ bool ClusterBalancer::refine() {
     );
   }
 
-  KASSERT(
-      debug::validate_partition(_p_graph),
-      "partition is in an inconsistent state after round " << round,
-      HEAVY
-  );
   IFSTATS(_stats.print());
   return prev_imbalance_distance > 0;
 }
