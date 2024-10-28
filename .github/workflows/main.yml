@@ -16,15 +16,16 @@ jobs:
       matrix:
         compiler:
           - { name: Clang, cc: /opt/homebrew/opt/llvm/bin/clang, cxx: /opt/homebrew/opt/llvm/bin/clang++ }
+          - { name: GCC, cc: /opt/homebrew/bin/gcc-14, cxx: /opt/homebrew/bin/g++-14 }
         build-mode: [Release]
     steps:
       - name: Install dependencies
-        run: brew install llvm libomp tbb open-mpi google-sparsehash 
+        run: brew install llvm gcc@14 libomp tbb open-mpi google-sparsehash 
       - name: Checkout HEAD
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
-          fetch-depth: 0
-          submodules: recursive
+          fetch-depth: 1
+          submodules: true
       - name: Configure
         run: >-
           cmake -B ${{github.workspace}}/build 
@@ -39,9 +40,10 @@ jobs:
         run: >-
           cmake --build ${{github.workspace}}/build 
           --config Release 
-          --parallel 4
+          --parallel 3
 
   build-linux:
+    name: Linux Build
     runs-on: ubuntu-24.04
     strategy:
       matrix:
@@ -59,8 +61,8 @@ jobs:
       - name: Checkout HEAD
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
-          fetch-depth: 0
-          submodules: recursive
+          fetch-depth: 1
+          submodules: true
       - name: Configure
         run: >-
           cmake -B ${{github.workspace}}/build 
