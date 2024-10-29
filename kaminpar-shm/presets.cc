@@ -26,16 +26,18 @@ Context create_context_by_preset_name(const std::string &name) {
 
   if (name == "largek") {
     return create_largek_context();
-  } else if (name == "fast-largek") {
-    return create_fast_largek_context();
-  } else if (name == "strong-largek") {
-    return create_strong_largek_context();
+  } else if (name == "largek-fast") {
+    return create_largek_fast_context();
+  } else if (name == "largek-strong") {
+    return create_largek_strong_context();
   }
 
-  if (name == "memory") {
-    return create_memory_context();
-  } else if (name == "strong-memory") {
-    return create_strong_memory_context();
+  if (name == "terapart") {
+    return create_terapart_context();
+  } else if (name == "terapart-strong") {
+    return create_terapart_strong_context();
+  } else if (name == "terapart-largek") {
+    return create_terapart_largek_context();
   }
 
   if (name == "jet") {
@@ -55,10 +57,11 @@ std::unordered_set<std::string> get_preset_names() {
       "fast",
       "strong",
       "largek",
-      "fast-largek",
-      "strong-largek",
-      "memory",
-      "strong-memory",
+      "terapart",
+      "terapart-strong",
+      "terapart-largek",
+      "largek-fast",
+      "largek-strong",
       "jet",
       "4xjet",
       "noref",
@@ -293,7 +296,7 @@ Context create_largek_context() {
   return ctx;
 }
 
-Context create_fast_largek_context() {
+Context create_largek_fast_context() {
   Context ctx = create_largek_context();
 
   ctx.initial_partitioning.pool.min_num_repetitions = 2;
@@ -311,7 +314,7 @@ Context create_fast_largek_context() {
   return ctx;
 }
 
-Context create_strong_largek_context() {
+Context create_largek_strong_context() {
   Context ctx = create_largek_context();
 
   ctx.refinement.algorithms = {
@@ -322,39 +325,6 @@ Context create_strong_largek_context() {
   };
 
   ctx.refinement.kway_fm.gain_cache_strategy = GainCacheStrategy::COMPACT_HASHING_LARGE_K;
-
-  return ctx;
-}
-
-Context create_memory_context() {
-  Context ctx = create_default_context();
-  ctx.node_ordering = NodeOrdering::EXTERNAL_DEGREE_BUCKETS;
-  ctx.compression.enabled = true;
-  ctx.partitioning.deep_initial_partitioning_mode = InitialPartitioningMode::SEQUENTIAL;
-  ctx.partitioning.use_lazy_subgraph_memory = true;
-  ctx.coarsening.clustering.max_mem_free_coarsening_level = 1;
-  ctx.coarsening.clustering.lp.impl = LabelPropagationImplementation::TWO_PHASE;
-  ctx.coarsening.contraction.algorithm = ContractionAlgorithm::UNBUFFERED;
-  ctx.coarsening.contraction.unbuffered_implementation = ContractionImplementation::TWO_PHASE;
-  ctx.refinement.kway_fm.gain_cache_strategy = GainCacheStrategy::COMPACT_HASHING;
-
-  ctx.refinement.algorithms = {
-      RefinementAlgorithm::GREEDY_BALANCER,
-      RefinementAlgorithm::LABEL_PROPAGATION,
-  };
-
-  return ctx;
-}
-
-Context create_strong_memory_context() {
-  Context ctx = create_memory_context();
-
-  ctx.refinement.algorithms = {
-      RefinementAlgorithm::GREEDY_BALANCER,
-      RefinementAlgorithm::LABEL_PROPAGATION,
-      RefinementAlgorithm::KWAY_FM,
-      RefinementAlgorithm::GREEDY_BALANCER,
-  };
 
   return ctx;
 }
@@ -380,8 +350,30 @@ Context create_jet_context(const int rounds) {
 
 Context create_noref_context() {
   Context ctx = create_default_context();
-  ctx.refinement.algorithms.clear();
+  ctx.refinement.algorithms = {};
   return ctx;
+}
+
+namespace {
+
+inline Context terapartify_context(Context ctx) {
+  ctx.compression.enabled = true;
+  ctx.partitioning.deep_initial_partitioning_mode = InitialPartitioningMode::SEQUENTIAL;
+  return ctx;
+}
+
+} // namespace
+
+Context create_terapart_context() {
+  return terapartify_context(create_default_context());
+}
+
+Context create_terapart_strong_context() {
+  return terapartify_context(create_strong_context());
+}
+
+Context create_terapart_largek_context() {
+  return terapartify_context(create_largek_context());
 }
 
 } // namespace kaminpar::shm
