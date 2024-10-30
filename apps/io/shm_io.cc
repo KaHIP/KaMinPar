@@ -8,6 +8,7 @@
 #include "apps/io/shm_io.h"
 
 #include <fstream>
+#include <numeric>
 
 #include "kaminpar-common/logger.h"
 
@@ -80,29 +81,26 @@ Graph read(
       std::exit(EXIT_FAILURE);
     }
 
-    CompressedGraph compressed_graph = compressed_binary::read(filename);
-    return Graph(std::make_unique<CompressedGraph>(std::move(compressed_graph)));
+    return {std::make_unique<CompressedGraph>(compressed_binary::read(filename))};
   }
 
   if (compress) {
-    CompressedGraph compressed_graph = compressed_read(filename, file_format, ordering);
-    return Graph(std::make_unique<CompressedGraph>(std::move(compressed_graph)));
+    return {std::make_unique<CompressedGraph>(compressed_read(filename, file_format, ordering))};
   } else {
-    CSRGraph csr_graph = csr_read(filename, file_format, ordering);
-    return Graph(std::make_unique<CSRGraph>(std::move(csr_graph)));
+    return {std::make_unique<CSRGraph>(csr_read(filename, file_format, ordering))};
   }
 }
 
 namespace partition {
 
-void write(const std::string &filename, const std::vector<BlockID> &partition) {
+void write(const std::string &filename, const std::span<const BlockID> partition) {
   std::ofstream out(filename);
   for (const BlockID block : partition) {
     out << block << "\n";
   }
 }
 
-std::vector<BlockID> read(const std::string &filename) {
+StaticArray<BlockID> read(const std::string &filename) {
   using namespace kaminpar::io;
   MappedFileToker toker(filename);
 
@@ -110,6 +108,45 @@ std::vector<BlockID> read(const std::string &filename) {
   while (toker.valid_position()) {
     partition.push_back(toker.scan_uint());
     toker.consume_char('\n');
+  }
+
+  return {partition.begin(), partition.end()};
+}
+
+void write_block_sizes(
+    const std::string &filename, const BlockID k, const std::span<const BlockID> partition
+) {
+  std::vector<NodeID> block_sizes(k);
+  for (const BlockID block : partition) {
+    block_sizes[block]++;
+  }
+
+  std::ofstream out(filename);
+  for (const BlockID block_size : block_sizes) {
+    out << block_size << "\n";
+  }
+}
+
+StaticArray<BlockID> read_block_sizes(const std::string &filename) {
+  using namespace kaminpar::io;
+  MappedFileToker toker(filename);
+
+  std::vector<NodeID> block_sizes;
+  while (toker.valid_position()) {
+    block_sizes.push_back(toker.scan_uint());
+    toker.consume_char('\n');
+  }
+
+  const NodeID n = std::accumulate(block_sizes.begin(), block_sizes.end(), 0);
+
+  StaticArray<BlockID> partition(n);
+  NodeID cur = 0;
+  BlockID block = 0;
+
+  for (const NodeID block_size : block_sizes) {
+    std::fill(partition.begin() + cur, partition.begin() + cur + block_size, block);
+    cur += block_size;
+    ++block;
   }
 
   return partition;

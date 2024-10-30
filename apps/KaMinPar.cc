@@ -11,6 +11,7 @@
 // clang-format on
 
 #include <iostream>
+#include <span>
 
 #include <tbb/scalable_allocator.h>
 
@@ -19,6 +20,7 @@
 #endif // __has_include(<numa.h>)
 
 #include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/graphutils/permutator.h"
 
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/strutils.h"
@@ -26,6 +28,8 @@
 
 #include "apps/io/shm_input_validator.h"
 #include "apps/io/shm_io.h"
+#include "apps/io/shm_metis_parser.h"
+#include "apps/io/shm_parhip_parser.h"
 #include "apps/version.h"
 
 #if defined(__linux__)
@@ -59,8 +63,15 @@ struct ApplicationContext {
   bool debug = false;
 
   std::string graph_filename = "";
+  io::GraphFileFormat input_graph_file_format = io::GraphFileFormat::METIS;
+
+  bool ignore_edge_weights = false;
+
   std::string partition_filename = "";
-  io::GraphFileFormat graph_file_format = io::GraphFileFormat::METIS;
+  std::string rearranged_graph_filename = "";
+  std::string rearranged_mapping_filename = "";
+  std::string block_sizes_filename = "";
+  io::GraphFileFormat output_graph_file_format = io::GraphFileFormat::METIS;
 
   bool no_huge_pages = false;
 
@@ -120,12 +131,13 @@ The output should be stored in a file and can be used by the -C,--config option.
   cli.add_flag_function("-T,--all-timers", [&](auto) {
     app.max_timer_depth = std::numeric_limits<int>::max();
   });
-  cli.add_option("-f,--graph-file-format", app.graph_file_format)
+  cli.add_option("-f,--graph-file-format,--input-graph-file-format", app.input_graph_file_format)
       ->transform(CLI::CheckedTransformer(io::get_graph_file_formats()).description(""))
       ->description(R"(Graph file formats:
   - metis
   - parhip)")
       ->capture_default_str();
+  cli.add_flag("--ignore-edge-weights", app.ignore_edge_weights, "Ignore edge weights.");
 
   if constexpr (kHeapProfiling) {
     auto *hp_group = cli.add_option_group("Heap Profiler");
@@ -163,6 +175,34 @@ The output should be stored in a file and can be used by the -C,--config option.
 
   cli.add_option("-o,--output", app.partition_filename, "Output filename for the graph partition.")
       ->capture_default_str();
+  cli.add_option(
+         "--output-rearranged-graph",
+         app.rearranged_graph_filename,
+         "Output filename for the rearranged graph: rearranged input graph such that the vertices "
+         "of each block form a consecutive range. The corresponding mapping can be saved using the "
+         "--output-rearranged-graph-mapping option."
+  )
+      ->capture_default_str();
+  cli.add_option(
+         "--output-rearranged-graph-mapping",
+         app.rearranged_mapping_filename,
+         "Output filename for the mapping corresponding to the rearranged input graph (see "
+         "--output-rerranged-graph, only works in combination with this option)."
+  )
+      ->capture_default_str();
+  cli.add_option("--output-graph-file-format", app.output_graph_file_format)
+      ->transform(CLI::CheckedTransformer(io::get_graph_file_formats()).description(""))
+      ->description(R"(Graph file formats:
+  - metis
+  - parhip)")
+      ->capture_default_str();
+  cli.add_option(
+         "--output-block-sizes",
+         app.block_sizes_filename,
+         "Output the number of vertices in each block (one line per block)."
+  )
+      ->capture_default_str();
+
   cli.add_flag(
       "--validate",
       app.validate,
@@ -194,6 +234,83 @@ The output should be stored in a file and can be used by the -C,--config option.
   // Algorithmic options
   create_all_options(&cli, ctx);
 }
+
+inline void
+output_block_sizes(const ApplicationContext &app, const std::vector<BlockID> &partition) {
+  shm::io::partition::write_block_sizes(app.block_sizes_filename, app.k, partition);
+}
+
+inline void output_partition(const ApplicationContext &app, const std::vector<BlockID> &partition) {
+  shm::io::partition::write(app.partition_filename, partition);
+}
+
+inline void
+output_rearranged_graph(const ApplicationContext &app, const std::vector<BlockID> &partition) {
+  if (!app.rearranged_graph_filename.empty()) {
+    Graph graph =
+        io::read(app.graph_filename, app.input_graph_file_format, NodeOrdering::NATURAL, false);
+    auto &csr_graph = graph.concretize<CSRGraph>();
+
+    auto permutations = shm::graph::compute_node_permutation_by_generic_buckets(
+        csr_graph.n(), app.k, [&](const NodeID u) { return partition[u]; }
+    );
+
+    if (!app.rearranged_mapping_filename.empty()) {
+      shm::io::partition::write(app.rearranged_mapping_filename, permutations.old_to_new);
+    }
+
+    StaticArray<EdgeID> tmp_nodes(csr_graph.raw_nodes().size());
+    StaticArray<NodeID> tmp_edges(csr_graph.raw_edges().size());
+    StaticArray<NodeWeight> tmp_node_weights(csr_graph.raw_node_weights().size());
+    StaticArray<EdgeWeight> tmp_edge_weights(csr_graph.raw_edge_weights().size());
+
+    shm::graph::build_permuted_graph(
+        csr_graph.raw_nodes(),
+        csr_graph.raw_edges(),
+        csr_graph.raw_node_weights(),
+        csr_graph.raw_edge_weights(),
+        permutations,
+        tmp_nodes,
+        tmp_edges,
+        tmp_node_weights,
+        tmp_edge_weights
+    );
+
+    Graph permuted_graph = {std::make_unique<CSRGraph>(
+        std::move(tmp_nodes),
+        std::move(tmp_edges),
+        std::move(tmp_node_weights),
+        std::move(tmp_edge_weights)
+    )};
+
+    if (app.output_graph_file_format == io::GraphFileFormat::METIS) {
+      shm::io::metis::write(app.rearranged_graph_filename, permuted_graph);
+    } else if (app.output_graph_file_format == io::GraphFileFormat::PARHIP) {
+      shm::io::parhip::write(app.rearranged_graph_filename, permuted_graph.concretize<CSRGraph>());
+    } else {
+      LOG_WARNING << "Unsupported output graph format";
+    }
+  }
+}
+
+inline void print_rss(const ApplicationContext &app) {
+  if (!app.quiet) {
+    std::cout << "\n";
+
+#if defined(__linux__)
+    if (struct rusage usage; getrusage(RUSAGE_SELF, &usage) == 0) {
+      std::cout << "Maximum resident set size: " << usage.ru_maxrss << " KiB\n";
+    } else {
+#else
+    {
+#endif
+      std::cout << "Maximum resident set size: unknown\n";
+    }
+
+    std::cout << std::flush;
+  }
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -244,6 +361,7 @@ int main(int argc, char *argv[]) {
 
   partitioner.context().debug.graph_name = str::extract_basename(app.graph_filename);
   partitioner.set_max_timer_depth(app.max_timer_depth);
+
   if constexpr (kHeapProfiling) {
     auto &global_heap_profiler = heap_profiler::HeapProfiler::global();
 
@@ -260,12 +378,28 @@ int main(int argc, char *argv[]) {
   START_HEAP_PROFILER("Input Graph Allocation");
   Graph graph = TIMED_SCOPE("Read input graph") {
     return io::read(
-        app.graph_filename, app.graph_file_format, ctx.node_ordering, ctx.compression.enabled
+        app.graph_filename, app.input_graph_file_format, ctx.node_ordering, ctx.compression.enabled
     );
   };
 
-  if (app.validate) {
+  if (app.ignore_edge_weights && !ctx.compression.enabled) {
+    auto &csr_graph = graph.concretize<CSRGraph>();
+    graph = {std::make_unique<CSRGraph>(
+        csr_graph.take_raw_nodes(),
+        csr_graph.take_raw_edges(),
+        csr_graph.take_raw_node_weights(),
+        StaticArray<EdgeWeight>{}
+    )};
+  } else if (app.ignore_edge_weights) {
+    LOG_WARNING << "Ignoring edge weights is currently only supported for uncompressed graphs; "
+                   "ignoring option.";
+  }
+
+  if (app.validate && !ctx.compression.enabled) {
     shm::validate_undirected_graph(graph);
+  } else if (app.validate) {
+    LOG_WARNING << "Validating the input graph is currently only supported for uncompressed "
+                   "graphs; ignoring option.";
   }
 
   if (static_cast<std::uint64_t>(graph.m()) >
@@ -278,32 +412,26 @@ int main(int argc, char *argv[]) {
   RECORD_LOCAL_DATA_STRUCT(partition, partition.capacity() * sizeof(BlockID));
   STOP_HEAP_PROFILER();
 
-  // Compute graph partition
+  // Compute partition
   partitioner.set_graph(std::move(graph));
   partitioner.compute_partition(app.k, partition.data());
 
   // Save graph partition
   if (!app.partition_filename.empty()) {
-    shm::io::partition::write(app.partition_filename, partition);
+    output_partition(app, partition);
+  }
+
+  if (!app.rearranged_graph_filename.empty()) {
+    output_rearranged_graph(app, partition);
+  }
+
+  if (!app.block_sizes_filename.empty()) {
+    output_block_sizes(app, partition);
   }
 
   DISABLE_HEAP_PROFILER();
 
-  if (!app.quiet) {
-    std::cout << "\n";
-
-#if defined(__linux__)
-    if (struct rusage usage; getrusage(RUSAGE_SELF, &usage) == 0) {
-      std::cout << "Maximum resident set size: " << usage.ru_maxrss << " KiB\n";
-    } else {
-#else
-    {
-#endif
-      std::cout << "Maximum resident set size: unknown\n";
-    }
-
-    std::cout << std::flush;
-  }
+  print_rss(app);
 
   return 0;
 }

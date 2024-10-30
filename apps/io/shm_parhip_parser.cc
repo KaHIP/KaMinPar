@@ -272,7 +272,8 @@ CSRGraph csr_read_deg_buckets(const std::string &filename) {
           header.map_edge_offset(node_mapper(u + 1)) - header.map_edge_offset(node_mapper(u))
       );
     };
-    auto [perm, inv_perm] = graph::sort_by_degree_buckets(header.num_nodes, degree);
+    auto [perm, inv_perm] =
+        graph::compute_node_permutation_by_degree_buckets(header.num_nodes, degree);
 
     StaticArray<EdgeID> nodes(header.num_nodes + 1, static_array::noinit);
     StaticArray<NodeWeight> node_weights;
@@ -494,7 +495,8 @@ CompressedGraph compressed_read_parallel(const std::string &filename, const Node
         );
       };
 
-      auto [perm, inv_perm] = graph::sort_by_degree_buckets(header.num_nodes, degree);
+      auto [perm, inv_perm] =
+          graph::compute_node_permutation_by_degree_buckets(header.num_nodes, degree);
       CompressedGraph compressed_graph = parallel_compress(
           header.num_nodes,
           header.num_edges,

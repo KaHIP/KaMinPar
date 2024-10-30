@@ -7,6 +7,7 @@
  ******************************************************************************/
 #pragma once
 
+#include <span>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -75,9 +76,13 @@ Graph read(
 
 namespace partition {
 
-std::vector<BlockID> read(const std::string &filename);
+StaticArray<BlockID> read(const std::string &filename);
 
-void write(const std::string &filename, const std::vector<BlockID> &partition);
+StaticArray<BlockID> read_block_sizes(const std::string &filename);
+
+void write(const std::string &filename, std::span<const BlockID> partition);
+
+void write_block_sizes(const std::string &filename, BlockID k, std::span<const BlockID> partition);
 
 } // namespace partition
 
