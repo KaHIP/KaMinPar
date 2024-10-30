@@ -13,7 +13,6 @@
 
 #include "kaminpar-shm/kaminpar.h"
 
-#include "kaminpar-common/asserting_cast.h"
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/strutils.h"
@@ -574,13 +573,13 @@ void print(const PartitionContext &p_ctx, std::ostream &out) {
   const std::size_t width = size > 0 ? std::ceil(std::log10(size)) : 1;
 
   out << "  Number of nodes:            " << std::setw(width) << p_ctx.n;
-  if (asserting_cast<NodeWeight>(p_ctx.n) == p_ctx.total_node_weight) {
+  if (static_cast<NodeWeight>(p_ctx.n) == p_ctx.total_node_weight) {
     out << " (unweighted)\n";
   } else {
     out << " (total weight: " << p_ctx.total_node_weight << ")\n";
   }
   out << "  Number of edges:            " << std::setw(width) << p_ctx.m;
-  if (asserting_cast<EdgeWeight>(p_ctx.m) == p_ctx.total_edge_weight) {
+  if (static_cast<EdgeWeight>(p_ctx.m) == p_ctx.total_edge_weight) {
     out << " (unweighted)\n";
   } else {
     out << " (total weight: " << p_ctx.total_edge_weight << ")\n";

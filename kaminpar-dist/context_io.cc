@@ -328,8 +328,7 @@ void print(const PartitionContext &ctx, const bool root, std::ostream &out, MPI_
 
   if (root) {
     out << "  Number of global nodes:    " << std::setw(width) << ctx.graph->global_n;
-    if (asserting_cast<GlobalNodeWeight>(ctx.graph->global_n) ==
-        ctx.graph->global_total_node_weight) {
+    if (static_cast<GlobalNodeWeight>(ctx.graph->global_n) == ctx.graph->global_total_node_weight) {
       out << " (unweighted)\n";
     } else {
       out << " (total weight: " << ctx.graph->global_total_node_weight << ")\n";
@@ -337,8 +336,7 @@ void print(const PartitionContext &ctx, const bool root, std::ostream &out, MPI_
     out << "    + ghost nodes:           " << std::setw(width)
         << num_global_total_nodes - ctx.graph->global_n << "\n";
     out << "  Number of global edges:    " << std::setw(width) << ctx.graph->global_m;
-    if (asserting_cast<GlobalEdgeWeight>(ctx.graph->global_m) ==
-        ctx.graph->global_total_edge_weight) {
+    if (static_cast<GlobalEdgeWeight>(ctx.graph->global_m) == ctx.graph->global_total_edge_weight) {
       out << " (unweighted)\n";
     } else {
       out << " (total weight: " << ctx.graph->global_total_edge_weight << ")\n";
