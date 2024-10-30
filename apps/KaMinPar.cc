@@ -94,8 +94,10 @@ The output should be stored in a file and can be used by the -C,--config option.
   auto *gp_group = mandatory->add_option_group("Partitioning")->silent();
   gp_group->add_option("-k,--k", app.k, "Number of blocks in the partition.")
       ->configurable(false)
+      ->check(CLI::Range(static_cast<BlockID>(2), std::numeric_limits<BlockID>::max()))
       ->required();
   gp_group->add_option("-G,--graph", app.graph_filename, "Input graph in METIS format.")
+      ->check(CLI::ExistingFile)
       ->configurable(false);
 
   // Application options
@@ -103,7 +105,7 @@ The output should be stored in a file and can be used by the -C,--config option.
       ->default_val(app.seed);
   cli.add_flag("-q,--quiet", app.quiet, "Suppress all console output.");
   cli.add_option("-t,--threads", app.num_threads, "Number of threads to be used.")
-      ->check(CLI::NonNegativeNumber)
+      ->check(CLI::PositiveNumber)
       ->default_val(app.num_threads);
   cli.add_flag("-E,--experiment", app.experiment, "Use an output format that is easier to parse.");
   cli.add_flag(
