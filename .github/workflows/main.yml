@@ -11,10 +11,11 @@ permissions: read-all
 jobs:
   build-macos:
     name: macOS Build
-    runs-on: macos-latest
+    runs-on: macos-15
     strategy:
       matrix:
         compiler:
+          - { name: AppleClang, cc: clang, cxx: clang++ }
           - { name: Clang, cc: /opt/homebrew/opt/llvm/bin/clang, cxx: /opt/homebrew/opt/llvm/bin/clang++ }
         build-mode: [Release]
     steps:
@@ -51,6 +52,13 @@ jobs:
           ${{github.workspace}}/build/apps/dKaMinPar
           -G ${{github.workspace}}/misc/rgg2d.metis
           -k 2
+      - name: Run unit tests (AppleClang build)
+        if: matrix.compiler.name == 'AppleClang'
+        working-directory: ${{github.workspace}}/build
+        run: ctest --output-on-failure
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+
 
   build-linux:
     name: Linux Build
