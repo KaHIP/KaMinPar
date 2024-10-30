@@ -80,9 +80,9 @@ StaticArray<BlockID> read(const std::string &filename);
 
 StaticArray<BlockID> read_block_sizes(const std::string &filename);
 
-void write(const std::string &filename, std::span<BlockID> partition);
+void write(const std::string &filename, std::span<const BlockID> partition);
 
-void write_block_sizes(const std::string &filename, BlockID k, std::span<BlockID> partition);
+void write_block_sizes(const std::string &filename, BlockID k, std::span<const BlockID> partition);
 
 } // namespace partition
 

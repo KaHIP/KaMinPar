@@ -93,7 +93,7 @@ Graph read(
 
 namespace partition {
 
-void write(const std::string &filename, const std::span<BlockID> partition) {
+void write(const std::string &filename, const std::span<const BlockID> partition) {
   std::ofstream out(filename);
   for (const BlockID block : partition) {
     out << block << "\n";
@@ -114,7 +114,7 @@ StaticArray<BlockID> read(const std::string &filename) {
 }
 
 void write_block_sizes(
-    const std::string &filename, const BlockID k, const std::span<BlockID> partition
+    const std::string &filename, const BlockID k, const std::span<const BlockID> partition
 ) {
   std::vector<NodeID> block_sizes(k);
   for (const BlockID block : partition) {
