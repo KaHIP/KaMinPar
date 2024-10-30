@@ -311,11 +311,13 @@ find_nonlocal_nodes(const Graph &graph, const StaticArray<GlobalNodeID> &lnode_t
   std::unordered_map<GlobalNodeID, NodeWeight> nonlocal_nodes;
   std::atomic<std::size_t> size = 0;
 
-  graph.pfor_all_nodes([&](const NodeID lnode) {
+  for (NodeID lnode : graph.all_nodes()) {
+    // graph.pfor_all_nodes([&](const NodeID lnode) {
     const GlobalNodeID gcluster = lnode_to_gcluster[lnode];
 
     if (graph.is_owned_global_node(gcluster)) {
-      return;
+      // return;
+      continue;
     }
 
     const NodeWeight weight = graph.is_owned_node(lnode) ? graph.node_weight(lnode) : 0;
@@ -333,7 +335,8 @@ find_nonlocal_nodes(const Graph &graph, const StaticArray<GlobalNodeID> &lnode_t
       size.fetch_add(1, std::memory_order_relaxed);
       nonlocal_nodes[gcluster + 1] = weight;
     }
-  });
+    //});
+  }
 
   RECORD("nonlocal_nodes") StaticArray<GlobalNode> dense_nonlocal_nodes(size);
   std::size_t i = 0;

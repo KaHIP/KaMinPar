@@ -198,8 +198,8 @@ private:
             _graph->adjacent_nodes(u, [&](const NodeID v) {
               if (!_marker.get(v) && _p_graph->block(v) == from) {
                 add_to_pq(from, v);
+                _marker.set(v);
               }
-              _marker.set(v);
             });
           } else {
             add_to_pq(from, u, u_weight, actual_relative_gain);

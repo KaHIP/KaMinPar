@@ -9,7 +9,7 @@
 
 #include <type_traits>
 
-#include <omp.h>
+#include <tbb/task_arena.h>
 
 #include "kaminpar-mpi/sparse_alltoall.h"
 #include "kaminpar-mpi/utils.h"
@@ -21,6 +21,7 @@
 #include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/datastructures/noinit_vector.h"
 #include "kaminpar-common/logger.h"
+#include "kaminpar-common/parallel/loops.h"
 
 #define SPARSE_ALLTOALL_NOFILTER                                                                   \
   [](NodeID) {                                                                                     \
@@ -28,10 +29,12 @@
   }
 
 namespace kaminpar::mpi::graph {
+
 using namespace kaminpar::dist;
 SET_DEBUG(false);
 
 namespace internal {
+
 template <typename Data> void inclusive_col_prefix_sum(Data &data) {
   if (data.empty()) {
     return;
@@ -46,6 +49,7 @@ template <typename Data> void inclusive_col_prefix_sum(Data &data) {
     }
   }
 }
+
 } // namespace internal
 
 /**
@@ -144,40 +148,41 @@ void sparse_alltoall_interface_to_ghost_custom_range(
 
   const auto [size, rank] = mpi::get_comm_info(graph.communicator());
 
-  // START_TIMER("Message construction");
-
   // Allocate message counters
-  const PEID num_threads = omp_get_max_threads();
+  const PEID num_threads = tbb::this_task_arena::max_concurrency();
   std::vector<CacheAlignedVector<std::size_t>> num_messages(
       num_threads, CacheAlignedVector<std::size_t>(size)
   );
 
   // Count messages to each PE for each thread
-#pragma omp parallel for default(none) shared(graph, from, to, mapper, num_messages, filter)
-  for (NodeID seq_u = from; seq_u < to; ++seq_u) {
-    const NodeID u = mapper(seq_u);
+  parallel::deterministic_for<NodeID>(
+      from,
+      to,
+      [&](const NodeID range_from, const NodeID range_to, const PEID thread) {
+        for (NodeID seq_u = range_from; seq_u < range_to; ++seq_u) {
+          const NodeID u = mapper(seq_u);
 
-    if constexpr (filter_invocable_with_node) {
-      if (!filter(u)) {
-        continue;
-      }
-    }
-
-    const PEID thread = omp_get_thread_num();
-
-    graph.neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
-      if (graph.is_ghost_node(v)) {
-        if constexpr (filter_invocable_with_edge) {
-          if (!filter(u, e, v, w)) {
-            return;
+          if constexpr (filter_invocable_with_node) {
+            if (!filter(u)) {
+              continue;
+            }
           }
-        }
 
-        const PEID owner = graph.ghost_owner(v);
-        ++num_messages[thread][owner];
+          graph.neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
+            if (graph.is_ghost_node(v)) {
+              if constexpr (filter_invocable_with_edge) {
+                if (!filter(u, e, v, w)) {
+                  return;
+                }
+              }
+
+              const PEID owner = graph.ghost_owner(v);
+              ++num_messages[thread][owner];
+            }
+          });
+        }
       }
-    });
-  }
+  );
 
   // Offset messages for each thread
   internal::inclusive_col_prefix_sum(num_messages);
@@ -188,38 +193,39 @@ void sparse_alltoall_interface_to_ghost_custom_range(
     send_buffers[pe].resize(num_messages.back()[pe]);
   });
 
-#pragma omp parallel for default(none)                                                             \
-    shared(send_buffers, from, to, mapper, filter, graph, builder, num_messages)
-  for (NodeID seq_u = from; seq_u < to; ++seq_u) {
-    const NodeID u = mapper(seq_u);
+  parallel::deterministic_for<NodeID>(
+      from,
+      to,
+      [&](const NodeID range_from, const NodeID range_to, const PEID thread) {
+        for (NodeID seq_u = range_from; seq_u < range_to; ++seq_u) {
+          const NodeID u = mapper(seq_u);
 
-    if constexpr (filter_invocable_with_node) {
-      if (!filter(u)) {
-        continue;
-      }
-    }
-
-    const PEID thread = omp_get_thread_num();
-    graph.neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
-      if (graph.is_ghost_node(v)) {
-        if constexpr (filter_invocable_with_edge) {
-          if (!filter(u, e, v, w)) {
-            return;
+          if constexpr (filter_invocable_with_node) {
+            if (!filter(u)) {
+              continue;
+            }
           }
-        }
 
-        const PEID pe = graph.ghost_owner(v);
-        const std::size_t slot = --num_messages[thread][pe];
-        if constexpr (builder_invocable_with_pe) {
-          send_buffers[pe][slot] = builder(u, e, v, w, pe);
-        } else /* if (builder_invocable_without_pe) */ {
-          send_buffers[pe][slot] = builder(u, e, v, w);
+          graph.neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
+            if (graph.is_ghost_node(v)) {
+              if constexpr (filter_invocable_with_edge) {
+                if (!filter(u, e, v, w)) {
+                  return;
+                }
+              }
+
+              const PEID pe = graph.ghost_owner(v);
+              const std::size_t slot = --num_messages[thread][pe];
+              if constexpr (builder_invocable_with_pe) {
+                send_buffers[pe][slot] = builder(u, e, v, w, pe);
+              } else /* if (builder_invocable_without_pe) */ {
+                send_buffers[pe][slot] = builder(u, e, v, w);
+              }
+            }
+          });
         }
       }
-    });
-  }
-
-  // STOP_TIMER();
+  );
 
   sparse_alltoall<Message, Buffer>(
       std::move(send_buffers), std::forward<decltype(receiver)>(receiver), graph.communicator()
@@ -470,48 +476,49 @@ void sparse_alltoall_interface_to_pe_custom_range(
   // START_TIMER("Message construction");
 
   // Allocate message counters
-  const PEID num_threads = omp_get_max_threads();
+  const PEID num_threads = tbb::this_task_arena::max_concurrency();
   std::vector<CacheAlignedVector<std::size_t>> num_messages(
       num_threads, CacheAlignedVector<std::size_t>(size)
   );
 
-#pragma omp parallel default(none) shared(size, from, to, mapper, filter, graph, num_messages)
-  {
-    Marker<> created_message_for_pe(static_cast<std::size_t>(size));
-    const PEID thread = omp_get_thread_num();
+  parallel::deterministic_for<NodeID>(
+      from,
+      to,
+      [&](const NodeID range_from, const NodeID range_to, const PEID thread) {
+        Marker<> created_message_for_pe(static_cast<std::size_t>(size));
 
-#pragma omp for
-    for (NodeID seq_u = from; seq_u < to; ++seq_u) {
-      const NodeID u = mapper(seq_u);
+        for (NodeID seq_u = range_from; seq_u < range_to; ++seq_u) {
+          const NodeID u = mapper(seq_u);
 
-      if constexpr (filter_invocable_with_unmapped_node) {
-        if (!filter(seq_u, u)) {
-          continue;
-        }
-      } else {
-        if (!filter(u)) {
-          continue;
+          if constexpr (filter_invocable_with_unmapped_node) {
+            if (!filter(seq_u, u)) {
+              continue;
+            }
+          } else {
+            if (!filter(u)) {
+              continue;
+            }
+          }
+
+          graph.adjacent_nodes(u, [&](const NodeID v) {
+            if (!graph.is_ghost_node(v)) {
+              return;
+            }
+
+            const PEID pe = graph.ghost_owner(v);
+
+            if (created_message_for_pe.get(pe)) {
+              return;
+            }
+            created_message_for_pe.set(pe);
+
+            ++num_messages[thread][pe];
+          });
+
+          created_message_for_pe.reset();
         }
       }
-
-      graph.adjacent_nodes(u, [&](const NodeID v) {
-        if (!graph.is_ghost_node(v)) {
-          return;
-        }
-
-        const PEID pe = graph.ghost_owner(v);
-
-        if (created_message_for_pe.get(pe)) {
-          return;
-        }
-        created_message_for_pe.set(pe);
-
-        ++num_messages[thread][pe];
-      });
-
-      created_message_for_pe.reset();
-    }
-  }
+  );
 
   // Offset messages for each thread
   internal::inclusive_col_prefix_sum(num_messages);
@@ -522,55 +529,52 @@ void sparse_alltoall_interface_to_pe_custom_range(
     send_buffers[pe].resize(num_messages.back()[pe]);
   });
 
-  // Fill buffers
-#pragma omp parallel default(none)                                                                 \
-    shared(send_buffers, size, from, to, mapper, builder, filter, graph, num_messages)
-  {
-    Marker<> created_message_for_pe(static_cast<std::size_t>(size));
-    const PEID thread = omp_get_thread_num();
+  parallel::deterministic_for<NodeID>(
+      from,
+      to,
+      [&](const NodeID range_from, const NodeID range_to, const PEID thread) {
+        Marker<> created_message_for_pe(static_cast<std::size_t>(size));
 
-#pragma omp for
-    for (NodeID seq_u = from; seq_u < to; ++seq_u) {
-      const NodeID u = mapper(seq_u);
+        for (NodeID seq_u = range_from; seq_u < range_to; ++seq_u) {
+          const NodeID u = mapper(seq_u);
 
-      if constexpr (filter_invocable_with_unmapped_node) {
-        if (!filter(seq_u, u)) {
-          continue;
-        }
-      } else {
-        if (!filter(u)) {
-          continue;
+          if constexpr (filter_invocable_with_unmapped_node) {
+            if (!filter(seq_u, u)) {
+              continue;
+            }
+          } else {
+            if (!filter(u)) {
+              continue;
+            }
+          }
+
+          graph.adjacent_nodes(u, [&](const NodeID v) {
+            if (!graph.is_ghost_node(v)) {
+              return;
+            }
+
+            const PEID pe = graph.ghost_owner(v);
+
+            if (created_message_for_pe.get(pe)) {
+              return;
+            }
+            created_message_for_pe.set(pe);
+
+            const auto slot = --num_messages[thread][pe];
+
+            if constexpr (builder_invocable_with_pe) {
+              send_buffers[pe][slot] = builder(u, pe);
+            } else if constexpr (builder_invocable_with_pe_and_unmapped_node) {
+              send_buffers[pe][slot] = builder(seq_u, u, pe);
+            } else {
+              send_buffers[pe][slot] = builder(u);
+            }
+          });
+
+          created_message_for_pe.reset();
         }
       }
-
-      graph.adjacent_nodes(u, [&](const NodeID v) {
-        if (!graph.is_ghost_node(v)) {
-          return;
-        }
-
-        const PEID pe = graph.ghost_owner(v);
-
-        if (created_message_for_pe.get(pe)) {
-          return;
-        }
-        created_message_for_pe.set(pe);
-
-        const auto slot = --num_messages[thread][pe];
-
-        if constexpr (builder_invocable_with_pe) {
-          send_buffers[pe][slot] = builder(u, pe);
-        } else if constexpr (builder_invocable_with_pe_and_unmapped_node) {
-          send_buffers[pe][slot] = builder(seq_u, u, pe);
-        } else {
-          send_buffers[pe][slot] = builder(u);
-        }
-      });
-
-      created_message_for_pe.reset();
-    }
-  }
-
-  // STOP_TIMER();
+  );
 
   sparse_alltoall<Message, Buffer>(
       std::move(send_buffers), std::forward<Receiver>(receiver), graph.communicator()
@@ -752,22 +756,23 @@ void sparse_alltoall_custom(
   // START_TIMER("Message construction");
 
   // Allocate message counters
-  const PEID num_threads = omp_get_max_threads();
+  const PEID num_threads = tbb::this_task_arena::max_concurrency();
   std::vector<CacheAlignedVector<std::size_t>> num_messages(
       num_threads, CacheAlignedVector<std::size_t>(size)
   );
 
   // Count messages to each PE for each thread
-#pragma omp parallel default(none) shared(pe_getter, size, from, to, filter, graph, num_messages)
-  {
-    const PEID thread = omp_get_thread_num();
-#pragma omp for
-    for (NodeID u = from; u < to; ++u) {
-      if (filter(u)) {
-        ++num_messages[thread][pe_getter(u)];
+  parallel::deterministic_for<NodeID>(
+      from,
+      to,
+      [&](const NodeID range_from, const NodeID range_to, const PEID thread) {
+        for (NodeID u = range_from; u < range_to; ++u) {
+          if (filter(u)) {
+            ++num_messages[thread][pe_getter(u)];
+          }
+        }
       }
-    }
-  }
+  );
 
   // Offset messages for each thread
   internal::inclusive_col_prefix_sum(num_messages);
@@ -778,22 +783,20 @@ void sparse_alltoall_custom(
     send_buffers[pe].resize(num_messages.back()[pe]);
   });
 
-  // fill buffers
-#pragma omp parallel default(none)                                                                 \
-    shared(pe_getter, send_buffers, size, from, to, builder, filter, graph, num_messages)
-  {
-    const PEID thread = omp_get_thread_num();
-#pragma omp for
-    for (NodeID u = from; u < to; ++u) {
-      if (filter(u)) {
-        const PEID pe = pe_getter(u);
-        const auto slot = --num_messages[thread][pe];
-        send_buffers[pe][slot] = builder(u);
+  // Fill buffers
+  parallel::deterministic_for<NodeID>(
+      from,
+      to,
+      [&](const NodeID range_from, const NodeID range_to, const PEID thread) {
+        for (NodeID u = range_from; u < range_to; ++u) {
+          if (filter(u)) {
+            const PEID pe = pe_getter(u);
+            const auto slot = --num_messages[thread][pe];
+            send_buffers[pe][slot] = builder(u);
+          }
+        }
       }
-    }
-  }
-
-  // STOP_TIMER();
+  );
 
   sparse_alltoall<Message, Buffer>(
       std::move(send_buffers), std::forward<Receiver>(receiver), graph.communicator()
@@ -828,4 +831,5 @@ std::vector<Buffer> sparse_alltoall_custom(
   );
   return recv_buffers;
 }
+
 } // namespace kaminpar::mpi::graph

@@ -1,0 +1,112 @@
+name: Compile and run units tests
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions: read-all
+
+jobs:
+  build-macos:
+    name: macOS Build
+    runs-on: macos-15
+    strategy:
+      matrix:
+        compiler:
+          - { name: AppleClang, cc: clang, cxx: clang++ }
+          - { name: Clang, cc: /opt/homebrew/opt/llvm/bin/clang, cxx: /opt/homebrew/opt/llvm/bin/clang++ }
+        build-mode: [Release]
+    steps:
+      - name: Install dependencies
+        run: brew install llvm tbb open-mpi google-sparsehash
+      - name: Checkout HEAD
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          fetch-depth: 1
+          submodules: recursive
+      - name: Configure
+        run: >-
+          cmake -B ${{github.workspace}}/build
+          -DCMAKE_BUILD_TYPE=${{matrix.build-mode}}
+          -DCMAKE_C_COMPILER=${{matrix.compiler.cc}}
+          -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
+          -DKAMINPAR_ASSERTION_LEVEL=normal
+          -DKAMINPAR_BUILD_APPS=On
+          -DKAMINPAR_BUILD_TESTS=On
+          -DKAMINPAR_BUILD_DISTRIBUTED=On
+          -DKAMINPAR_BUILD_WITH_DEBUG_SYMBOLS=Off
+      - name: Build
+        run: >-
+          cmake --build ${{github.workspace}}/build
+          --config Release
+          --parallel 3
+      - name: Run KaMinPar on a Dummy Graph
+        run: >-
+          ${{github.workspace}}/build/apps/KaMinPar
+          -G ${{github.workspace}}/misc/rgg2d.metis
+          -k 2
+      - name: Run dKaMinPar on a Dummy Graph
+        run: >-
+          ${{github.workspace}}/build/apps/dKaMinPar
+          -G ${{github.workspace}}/misc/rgg2d.metis
+          -k 2
+      - name: Run unit tests (AppleClang build)
+        if: matrix.compiler.name == 'AppleClang'
+        working-directory: ${{github.workspace}}/build
+        run: ctest --output-on-failure
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+
+
+  build-linux:
+    name: Linux Build
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        compiler:
+          - { name: Clang, cc: clang, cxx: clang++ }
+          - { name: GNU, cc: gcc, cxx: g++ }
+        build-mode: [Release]
+    steps:
+      - name: Install dependencies
+        run: sudo apt-get install -y libtbb-dev libhwloc-dev mpi libopenmpi-dev libsparsehash-dev
+      - name: Checkout HEAD
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          fetch-depth: 1
+          submodules: recursive
+      - name: Configure
+        run: >-
+          cmake -B ${{github.workspace}}/build
+          -DCMAKE_BUILD_TYPE=${{matrix.build-mode}}
+          -DCMAKE_C_COMPILER=${{matrix.compiler.cc}}
+          -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
+          -DKAMINPAR_ASSERTION_LEVEL=normal
+          -DKAMINPAR_BUILD_APPS=On
+          -DKAMINPAR_BUILD_TESTS=On
+          -DKAMINPAR_BUILD_DISTRIBUTED=On
+          -DKAMINPAR_BUILD_WITH_DEBUG_SYMBOLS=Off
+      - name: Build
+        run: >-
+          cmake --build ${{github.workspace}}/build
+          --config ${{matrix.build-mode}}
+          --parallel 4
+      - name: Run KaMinPar on a Dummy Graph
+        run: >-
+          ${{github.workspace}}/build/apps/KaMinPar
+          -G ${{github.workspace}}/misc/rgg2d.metis
+          -k 2
+      - name: Run dKaMinPar on a Dummy Graph
+        run: >-
+          ${{github.workspace}}/build/apps/dKaMinPar
+          -G ${{github.workspace}}/misc/rgg2d.metis
+          -k 2
+      - name: Run unit tests (Clang build)
+        if: matrix.compiler.name == 'Clang'
+        working-directory: ${{github.workspace}}/build
+        run: ctest --output-on-failure
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+
