@@ -10,6 +10,8 @@
 #include <type_traits>
 
 #include <tbb/enumerable_thread_specific.h>
+#include <tbb/parallel_for.h>
+#include <tbb/task_arena.h>
 
 #include "kaminpar-dist/dkaminpar.h"
 
@@ -59,8 +61,7 @@ using StaticGhostNodeMapping = typename ::growt::
 template <typename Map, typename Lambda> void pfor_map(Map &map, Lambda &&lambda) {
   std::atomic_size_t counter = 0;
 
-#pragma omp parallel default(none) shared(map, counter, lambda)
-  {
+  tbb::parallel_for<int>(0, tbb::this_task_arena::max_concurrency(), [&](const int) {
     const std::size_t capacity = map.capacity();
     std::size_t cur_block = counter.fetch_add(4096);
 
@@ -71,14 +72,13 @@ template <typename Map, typename Lambda> void pfor_map(Map &map, Lambda &&lambda
       }
       cur_block = counter.fetch_add(4096);
     }
-  }
+  });
 }
 
 template <typename Handles, typename Lambda> void pfor_handles(Handles &handles, Lambda &&lambda) {
   std::atomic_size_t counter = 0;
 
-#pragma omp parallel default(none) shared(handles, counter, lambda)
-  {
+  tbb::parallel_for<int>(0, tbb::this_task_arena::max_concurrency(), [&](const int) {
     auto &handle = handles.local();
     const std::size_t capacity = handle.capacity();
     std::size_t cur_block = counter.fetch_add(4096);
@@ -90,6 +90,6 @@ template <typename Handles, typename Lambda> void pfor_handles(Handles &handles,
       }
       cur_block = counter.fetch_add(4096);
     }
-  }
+  });
 }
 } // namespace kaminpar::dist::growt

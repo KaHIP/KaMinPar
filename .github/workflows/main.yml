@@ -19,7 +19,7 @@ jobs:
         build-mode: [Release]
     steps:
       - name: Install dependencies
-        run: brew install llvm libomp tbb open-mpi google-sparsehash
+        run: brew install llvm tbb open-mpi google-sparsehash
       - name: Checkout HEAD
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
@@ -63,7 +63,7 @@ jobs:
         build-mode: [Release]
     steps:
       - name: Install dependencies
-        run: sudo apt-get install -y libtbb-dev libhwloc-dev mpi libopenmpi-dev libomp-dev libsparsehash-dev
+        run: sudo apt-get install -y libtbb-dev libhwloc-dev mpi libopenmpi-dev libsparsehash-dev
       - name: Checkout HEAD
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
