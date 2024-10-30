@@ -37,10 +37,6 @@ jobs:
           -DKAMINPAR_BUILD_TESTS=On
           -DKAMINPAR_BUILD_DISTRIBUTED=On
           -DKAMINPAR_BUILD_WITH_DEBUG_SYMBOLS=Off
-      - name: Export OpenMP root
-        run: |
-          export LDFLAGS="-L/opt/homebrew/opt/libomp/lib"
-          export CPPFLAGS="-I/opt/homebrew/opt/libomp/include"
       - name: Build
         run: >-
           cmake --build ${{github.workspace}}/build
