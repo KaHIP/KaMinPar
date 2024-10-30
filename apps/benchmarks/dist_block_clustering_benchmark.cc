@@ -12,7 +12,6 @@
 #include <fstream>
 
 #include <mpi.h>
-#include <omp.h>
 
 #include "kaminpar-dist/context.h"
 #include "kaminpar-dist/context_io.h"
@@ -56,7 +55,6 @@ int main(int argc, char *argv[]) {
   CLI11_PARSE(app, argc, argv);
 
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, ctx.parallel.num_threads);
-  omp_set_num_threads(ctx.parallel.num_threads);
 
   auto wrapper = load_partitioned_graph(graph_filename, partition_filename);
   auto &graph = *wrapper.graph;
