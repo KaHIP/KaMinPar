@@ -52,6 +52,13 @@ jobs:
           ${{github.workspace}}/build/apps/dKaMinPar
           -G ${{github.workspace}}/misc/rgg2d.metis
           -k 2
+      - name: Run unit tests (AppleClang build)
+        if: matrix.compiler.name == 'AppleClang'
+        working-directory: ${{github.workspace}}/build
+        run: ctest --output-on-failure
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+
 
   build-linux:
     name: Linux Build
