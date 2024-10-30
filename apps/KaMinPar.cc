@@ -268,6 +268,12 @@ int main(int argc, char *argv[]) {
     shm::validate_undirected_graph(graph);
   }
 
+  if (static_cast<std::uint64_t>(graph.m()) >
+      static_cast<std::uint64_t>(std::numeric_limits<EdgeWeight>::max())) {
+    LOG_WARNING << "The edge weight type is not large enough to store the sum of all edge weights. "
+                << "This might cause overflows for very large cuts.";
+  }
+
   RECORD("partition") std::vector<BlockID> partition(graph.n());
   RECORD_LOCAL_DATA_STRUCT(partition, partition.capacity() * sizeof(BlockID));
   STOP_HEAP_PROFILER();
