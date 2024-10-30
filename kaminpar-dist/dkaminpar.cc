@@ -11,7 +11,6 @@
 #include <utility>
 
 #include <mpi.h>
-#include <omp.h>
 #include <tbb/global_control.h>
 #include <tbb/parallel_invoke.h>
 
@@ -157,7 +156,6 @@ dKaMinPar::dKaMinPar(MPI_Comm comm, const int num_threads, const Context ctx)
       _num_threads(num_threads),
       _ctx(ctx),
       _gc(tbb::global_control::max_allowed_parallelism, num_threads) {
-  omp_set_num_threads(num_threads);
 #ifdef KAMINPAR_ENABLE_TIMERS
   GLOBAL_TIMER.reset();
 #endif // KAMINPAR_ENABLE_TIMERS

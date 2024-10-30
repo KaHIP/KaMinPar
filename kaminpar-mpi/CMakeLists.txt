@@ -8,5 +8,4 @@ target_compile_options(kaminpar_mpi PRIVATE ${KAMINPAR_WARNING_FLAGS})
 
 find_library(NUMA_LIB numa) # optional
 
-find_package(OpenMP REQUIRED)
-target_link_libraries(kaminpar_mpi PUBLIC kaminpar_common MPI::MPI_CXX OpenMP::OpenMP_CXX)
+target_link_libraries(kaminpar_mpi PUBLIC kaminpar_common MPI::MPI_CXX)
