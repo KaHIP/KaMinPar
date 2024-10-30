@@ -17,7 +17,9 @@
 #include "kaminpar-common/math.h"
 
 namespace kaminpar::dist {
+
 namespace data {
+
 static std::vector<GlobalEdgeID> global_xadj = {
 #include "data.graph.xadj"
 };
@@ -54,6 +56,7 @@ std::vector<GlobalEdgeID> create_xadj() {
 
   return xadj;
 }
+
 } // namespace data
 
 TEST(DistEndToEndTest, partitions_empty_unweighted_graph) {
@@ -195,4 +198,5 @@ TEST(DistEndToEndTest, partitions_unweighted_walshaw_data_graph_with_three_threa
   dist.import_graph(vtxdist_ptr, xadj_ptr, adjncy_ptr, nullptr, nullptr);
   dist.compute_partition(16, seed0_partition.data());
 }
+
 } // namespace kaminpar::dist
