@@ -15,6 +15,7 @@ jobs:
     strategy:
       matrix:
         compiler:
+          - { name: AppleClang, cc: clang, cxx: clang++ }
           - { name: Clang, cc: /opt/homebrew/opt/llvm/bin/clang, cxx: /opt/homebrew/opt/llvm/bin/clang++ }
         build-mode: [Release]
     steps:
