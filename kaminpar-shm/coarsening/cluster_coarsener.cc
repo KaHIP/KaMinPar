@@ -99,13 +99,18 @@ bool ClusteringCoarsener::coarsen() {
 
   START_HEAP_PROFILER("Contract graph");
   START_TIMER("Contract graph");
-  auto contracted =
-      contract_clustering(current(), std::move(clustering), _c_ctx.contraction, _contraction_m_ctx);
-  _hierarchy.push_back(std::move(contracted));
+  _hierarchy.push_back(
+      contract_clustering(current(), std::move(clustering), _c_ctx.contraction, _contraction_m_ctx)
+  );
 
-  if (!_input_communities.empty()) {
+  if (!_communities_hierarchy.empty()) {
     _communities_hierarchy.emplace_back(current().n());
-    contracted->project_down(_input_communities, _communities_hierarchy.back());
+    _hierarchy.back()->project_down(
+        _communities_hierarchy[_communities_hierarchy.size() - 1], _communities_hierarchy.back()
+    );
+  } else if (!_input_communities.empty()) {
+    _communities_hierarchy.emplace_back(current().n());
+    _hierarchy.back()->project_down(_input_communities, _communities_hierarchy.back());
   }
 
   STOP_TIMER();

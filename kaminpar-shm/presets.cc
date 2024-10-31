@@ -70,6 +70,7 @@ std::unordered_set<std::string> get_preset_names() {
       "4xjet",
       "noref",
       "fm",
+      "vcycle",
   };
 }
 
