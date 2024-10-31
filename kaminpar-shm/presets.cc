@@ -48,6 +48,10 @@ Context create_context_by_preset_name(const std::string &name) {
     return create_noref_context();
   }
 
+  if (name == "vcycle") {
+    return create_vcycle_context();
+  }
+
   throw std::runtime_error("invalid preset name");
 }
 
@@ -378,10 +382,9 @@ Context create_terapart_largek_context() {
   return terapartify_context(create_largek_context());
 }
 
-Context create_restricted_vcycle_context() {
+Context create_vcycle_context() {
   Context ctx = create_default_context();
-  ctx.partitioning.restrict_vcycle_refinement = true;
-  ctx.partitioning.mode = PartitioningMode::VCYCLE_DEEP;
+  ctx.partitioning.mode = PartitioningMode::VCYCLE;
   return ctx;
 }
 

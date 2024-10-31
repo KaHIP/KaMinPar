@@ -195,7 +195,7 @@ std::ostream &operator<<(std::ostream &out, const FMStoppingRule rule) {
 std::unordered_map<std::string, PartitioningMode> get_partitioning_modes() {
   return {
       {"deep", PartitioningMode::DEEP},
-      {"vcycle-deep", PartitioningMode::VCYCLE_DEEP},
+      {"vcycle", PartitioningMode::VCYCLE},
       {"rb", PartitioningMode::RB},
       {"kway", PartitioningMode::KWAY},
   };
@@ -205,8 +205,8 @@ std::ostream &operator<<(std::ostream &out, const PartitioningMode mode) {
   switch (mode) {
   case PartitioningMode::DEEP:
     return out << "deep";
-  case PartitioningMode::VCYCLE_DEEP:
-    return out << "vcycle-deep";
+  case PartitioningMode::VCYCLE:
+    return out << "vcycle";
   case PartitioningMode::RB:
     return out << "rb";
   case PartitioningMode::KWAY:

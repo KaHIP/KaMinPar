@@ -41,7 +41,7 @@ std::unique_ptr<Partitioner> create_partitioner(const Graph &graph, const Contex
   case PartitioningMode::DEEP:
     return std::make_unique<DeepMultilevelPartitioner>(graph, ctx);
 
-  case PartitioningMode::VCYCLE_DEEP:
+  case PartitioningMode::VCYCLE:
     return std::make_unique<VcycleDeepMultilevelPartitioner>(graph, ctx);
 
   case PartitioningMode::RB:

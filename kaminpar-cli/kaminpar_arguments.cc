@@ -89,7 +89,7 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
 
   partitioning->add_option("--p-vcycles", ctx.partitioning.vcycles)->capture_default_str();
   partitioning
-      ->add_flag("--p-restrict-vcycle-refinemjent", ctx.partitioning.restrict_vcycle_refinement)
+      ->add_flag("--p-restrict-vcycle-refinement", ctx.partitioning.restrict_vcycle_refinement)
       ->capture_default_str();
 
   create_partitioning_rearrangement_options(app, ctx);
