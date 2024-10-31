@@ -11,7 +11,7 @@
 #include <span>
 #include <utility>
 
-#include "kaminpar-common/graph-compression/compressed_neighborhoods.h"
+#include "kaminpar-common/graph_compression/compressed_neighborhoods.h"
 #include "kaminpar-common/heap_profiler.h"
 
 namespace kaminpar {

@@ -8,8 +8,8 @@
 #pragma once
 
 #include "kaminpar-common/datastructures/compact_static_array.h"
-#include "kaminpar-common/graph-compression/compressed_edges_builder.h"
-#include "kaminpar-common/graph-compression/compressed_neighborhoods.h"
+#include "kaminpar-common/graph_compression/compressed_edges_builder.h"
+#include "kaminpar-common/graph_compression/compressed_neighborhoods.h"
 
 namespace kaminpar {
 

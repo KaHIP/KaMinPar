@@ -16,7 +16,7 @@
 
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/degree_buckets.h"
-#include "kaminpar-common/graph-compression/compressed_neighborhoods.h"
+#include "kaminpar-common/graph_compression/compressed_neighborhoods.h"
 #include "kaminpar-common/ranges.h"
 
 namespace kaminpar::shm {

@@ -17,7 +17,7 @@
 #include "kaminpar-dist/graphutils/synchronization.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
-#include "kaminpar-common/graph-compression/compressed_neighborhoods_builder.h"
+#include "kaminpar-common/graph_compression/compressed_neighborhoods_builder.h"
 
 #include "apps/io/binary_util.h"
 

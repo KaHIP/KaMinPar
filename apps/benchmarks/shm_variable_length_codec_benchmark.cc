@@ -13,9 +13,9 @@
 #include "kaminpar-cli/CLI11.h"
 
 #include "kaminpar-common/console_io.h"
-#include "kaminpar-common/graph-compression/streamvbyte.h"
-#include "kaminpar-common/graph-compression/varint.h"
-#include "kaminpar-common/graph-compression/varint_rle.h"
+#include "kaminpar-common/graph_compression/streamvbyte.h"
+#include "kaminpar-common/graph_compression/varint.h"
+#include "kaminpar-common/graph_compression/varint_rle.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 

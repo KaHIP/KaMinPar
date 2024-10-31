@@ -1,6 +1,6 @@
 #include <gmock/gmock.h>
 
-#include "kaminpar-common/graph-compression/streamvbyte.h"
+#include "kaminpar-common/graph_compression/streamvbyte.h"
 
 namespace {
 using namespace kaminpar::streamvbyte;

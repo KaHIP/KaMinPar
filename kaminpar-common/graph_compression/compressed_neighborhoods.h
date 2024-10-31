@@ -10,9 +10,9 @@
 #include "kaminpar-common/constexpr_utils.h"
 #include "kaminpar-common/datastructures/compact_static_array.h"
 #include "kaminpar-common/datastructures/static_array.h"
-#include "kaminpar-common/graph-compression/streamvbyte.h"
-#include "kaminpar-common/graph-compression/varint.h"
-#include "kaminpar-common/graph-compression/varint_rle.h"
+#include "kaminpar-common/graph_compression/streamvbyte.h"
+#include "kaminpar-common/graph_compression/varint.h"
+#include "kaminpar-common/graph_compression/varint_rle.h"
 #include "kaminpar-common/math.h"
 #include "kaminpar-common/ranges.h"
 
