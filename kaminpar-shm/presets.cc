@@ -48,8 +48,8 @@ Context create_context_by_preset_name(const std::string &name) {
     return create_noref_context();
   }
 
-  if (name == "vcycle") {
-    return create_vcycle_context();
+  if (name == "restricted-vcycle") {
+    return create_restricted_vcycle_context();
   }
 
   throw std::runtime_error("invalid preset name");
@@ -70,7 +70,7 @@ std::unordered_set<std::string> get_preset_names() {
       "4xjet",
       "noref",
       "fm",
-      "vcycle",
+      "restricted-vcycle",
   };
 }
 
@@ -383,9 +383,14 @@ Context create_terapart_largek_context() {
   return terapartify_context(create_largek_context());
 }
 
-Context create_vcycle_context() {
+Context create_restricted_vcycle_context() {
   Context ctx = create_default_context();
+  ctx.partitioning.restrict_vcycle_refinement = true;
   ctx.partitioning.mode = PartitioningMode::VCYCLE;
+  ctx.refinement.algorithms = {
+      // GREEDY_BALANCER does not respect the community structure
+      RefinementAlgorithm::LABEL_PROPAGATION,
+  };
   return ctx;
 }
 

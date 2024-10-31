@@ -507,7 +507,7 @@ Context create_largek_strong_context();
 Context create_jet_context(int rounds = 1);
 Context create_noref_context();
 
-Context create_vcycle_context();
+Context create_restricted_vcycle_context();
 
 } // namespace kaminpar::shm
 
