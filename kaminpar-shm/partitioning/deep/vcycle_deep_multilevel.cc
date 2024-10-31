@@ -48,6 +48,7 @@ PartitionedGraph VcycleDeepMultilevelPartitioner::partition() {
     }
 
     DeepMultilevelPartitioner partitioner(_input_graph, ctx);
+    partitioner.enable_metrics_output();
     partitioner.use_communities(communities);
     PartitionedGraph p_graph = partitioner.partition();
 
