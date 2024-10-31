@@ -64,7 +64,7 @@ bool ClusteringCoarsener::coarsen() {
   START_TIMER("Label Propagation");
 
   if (!_input_communities.empty()) {
-    _clustering_algorithm->set_communities(_input_communities);
+    _clustering_algorithm->set_communities(current_communities());
   }
 
   _clustering_algorithm->set_max_cluster_weight(

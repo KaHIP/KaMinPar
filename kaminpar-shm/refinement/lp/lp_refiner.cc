@@ -105,6 +105,10 @@ public:
     return _p_graph->block_weight(b);
   }
 
+  [[nodiscard]] bool accept_neighbor(const NodeID u, const NodeID v) {
+      return _communities.empty() || _communities[u] == _communities[v];
+  }
+
   bool move_cluster_weight(
       const BlockID old_block,
       const BlockID new_block,
@@ -146,11 +150,6 @@ public:
   ) {
     const bool use_uniform_tie_breaking = _tie_breaking_strategy == TieBreakingStrategy::UNIFORM;
 
-    const auto accept_cluster_community = [&] {
-      return _communities.empty() ||
-             _communities[state.current_cluster] == _communities[state.initial_cluster];
-    };
-
     ClusterID favored_cluster = state.initial_cluster;
     if (use_uniform_tie_breaking) {
       for (const auto [cluster, rating] : map.entries()) {
@@ -168,10 +167,6 @@ public:
           } else if (state.current_gain == state.overall_best_gain) {
             tie_breaking_favored_clusters.push_back(state.current_cluster);
           }
-        }
-
-        if (!accept_cluster_community()) {
-          continue;
         }
 
         if (state.current_gain > state.best_gain) {
@@ -252,8 +247,7 @@ public:
                   (current_overload == best_overload && state.local_rand.random_bool())))) &&
                (state.current_cluster_weight + state.u_weight < current_max_weight ||
                 current_overload < initial_overload ||
-                state.current_cluster == state.initial_cluster) &&
-               accept_cluster_community();
+                state.current_cluster == state.initial_cluster);
       };
 
       for (const auto [cluster, rating] : map.entries()) {

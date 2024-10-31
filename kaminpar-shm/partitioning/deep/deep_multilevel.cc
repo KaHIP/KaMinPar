@@ -350,7 +350,10 @@ StaticArray<BlockID> DeepMultilevelPartitioner::copy_coarsest_communities() {
 PartitionedGraph DeepMultilevelPartitioner::initial_partition_by_communities(const Graph *graph) {
   StaticArray<BlockID> partition = copy_coarsest_communities();
   KASSERT(partition.size() == graph->n());
-  return {*graph, static_cast<BlockID>(_num_communities), std::move(partition)};
+
+  PartitionedGraph p_graph(*graph, static_cast<BlockID>(_num_communities), std::move(partition));
+
+  return p_graph;
 }
 
 } // namespace kaminpar::shm

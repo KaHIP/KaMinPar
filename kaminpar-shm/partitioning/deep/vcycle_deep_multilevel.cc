@@ -55,6 +55,26 @@ PartitionedGraph VcycleDeepMultilevelPartitioner::partition() {
     }
     PartitionedGraph p_graph = partitioner.partition();
 
+    // Make sure that the restricted refinement option actually restricts nodes to their block
+    KASSERT(
+        !ctx.partitioning.restrict_vcycle_refinement || communities.empty() ||
+            [&] {
+              for (const NodeID u : p_graph.nodes()) {
+                p_graph.adjacent_nodes(u, [&](const NodeID v) {
+                  KASSERT(
+                      p_graph.block(u) != p_graph.block(v) || communities[u] == communities[v],
+                      "Node " << u << " and " << v
+                              << " are in the same block, but in different communities",
+                      assert::always
+                  );
+                });
+              }
+              return true;
+            }(),
+        "",
+        assert::heavy
+    );
+
     if (communities.empty()) {
       communities.resize(p_graph.n());
     }
