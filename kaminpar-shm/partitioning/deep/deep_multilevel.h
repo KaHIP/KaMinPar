@@ -31,7 +31,7 @@ public:
   DeepMultilevelPartitioner(DeepMultilevelPartitioner &&) = delete;
   DeepMultilevelPartitioner &operator=(DeepMultilevelPartitioner &&) = delete;
 
-  void use_communities(std::span<const NodeID> communities);
+  void use_communities(std::span<const NodeID> communities, NodeID num_communities);
 
   PartitionedGraph partition() final;
 

@@ -27,6 +27,7 @@ PartitionedGraph VcycleDeepMultilevelPartitioner::partition() {
   // Need two copies of the same thing since BlockID and NodeID could be different types
   StaticArray<NodeID> communities;
   StaticArray<BlockID> partition(_input_graph.n());
+  BlockID prev_k = 0;
 
   std::vector<BlockID> steps = _input_ctx.partitioning.vcycles;
   if (steps.empty() || steps.back() != _input_ctx.partition.k) {
@@ -49,7 +50,9 @@ PartitionedGraph VcycleDeepMultilevelPartitioner::partition() {
 
     DeepMultilevelPartitioner partitioner(_input_graph, ctx);
     partitioner.enable_metrics_output();
-    partitioner.use_communities(communities);
+    if (prev_k > 0) {
+      partitioner.use_communities(communities, prev_k);
+    }
     PartitionedGraph p_graph = partitioner.partition();
 
     if (communities.empty()) {
@@ -60,6 +63,7 @@ PartitionedGraph VcycleDeepMultilevelPartitioner::partition() {
       communities[u] = p_graph.block(u);
       partition[u] = p_graph.block(u);
     });
+    prev_k = p_graph.k();
   }
 
   return {_input_graph, _input_ctx.partition.k, std::move(partition)};

@@ -17,7 +17,6 @@
 
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/heap_profiler.h"
-#include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
@@ -41,9 +40,11 @@ DeepMultilevelPartitioner::DeepMultilevelPartitioner(
   _refiner->set_output_prefix("   ");
 }
 
-void DeepMultilevelPartitioner::use_communities(const std::span<const NodeID> communities) {
+void DeepMultilevelPartitioner::use_communities(
+    const std::span<const NodeID> communities, const NodeID num_communities
+) {
   _coarsener->use_communities(communities);
-  _num_communities = parallel::max_element(communities) + 1;
+  _num_communities = num_communities;
 }
 
 PartitionedGraph DeepMultilevelPartitioner::partition() {
