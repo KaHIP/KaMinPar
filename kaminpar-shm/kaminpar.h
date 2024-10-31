@@ -92,7 +92,6 @@ enum class CoarseningAlgorithm {
 enum class ClusteringAlgorithm {
   NOOP,
   LABEL_PROPAGATION,
-  LEGACY_LABEL_PROPAGATION,
 };
 
 enum class ClusterWeightLimit {
@@ -214,7 +213,6 @@ struct CoarseningContext {
 
 enum class RefinementAlgorithm {
   LABEL_PROPAGATION,
-  LEGACY_LABEL_PROPAGATION,
   KWAY_FM,
   GREEDY_BALANCER,
   JET,
