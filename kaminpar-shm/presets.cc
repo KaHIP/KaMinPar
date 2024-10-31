@@ -378,4 +378,11 @@ Context create_terapart_largek_context() {
   return terapartify_context(create_largek_context());
 }
 
+Context create_restricted_vcycle_context() {
+  Context ctx = create_default_context();
+  ctx.partitioning.restrict_vcycle_refinement = true;
+  ctx.partitioning.mode = PartitioningMode::VCYCLE_DEEP;
+  return ctx;
+}
+
 } // namespace kaminpar::shm
