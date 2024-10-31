@@ -94,10 +94,8 @@ namespace ts_navigable_list {
 template <
     typename Key,
     typename Element,
-    template <typename>
-    typename Container,
-    template <typename>
-    typename GlobalContainer>
+    template <typename> typename Container,
+    template <typename> typename GlobalContainer>
 GlobalContainer<NavigationMarker<Key, Element, Container>> combine(
     NavigableLinkedList<Key, Element, Container> &list,
     GlobalContainer<NavigationMarker<Key, Element, Container>> global_markers = {}

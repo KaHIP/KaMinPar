@@ -237,8 +237,8 @@ template <typename Container> double find_mean(const Container &container) {
 }
 
 template <typename Container>
-auto find_min_mean_max(const Container &container
-) -> std::tuple<typename Container::value_type, double, typename Container::value_type> {
+auto find_min_mean_max(const Container &container)
+    -> std::tuple<typename Container::value_type, double, typename Container::value_type> {
   return std::make_tuple(find_min(container), find_mean(container), find_max(container));
 }
 

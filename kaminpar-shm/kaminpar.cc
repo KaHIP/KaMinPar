@@ -176,7 +176,9 @@ void KaMinPar::reseed(int seed) {
   Random::reseed(seed);
 }
 
-EdgeWeight KaMinPar::compute_partition(const BlockID k, BlockID *partition, const bool use_initial_node_ordering) {
+EdgeWeight KaMinPar::compute_partition(
+    const BlockID k, BlockID *partition, const bool use_initial_node_ordering
+) {
   if (_output_level == OutputLevel::QUIET) {
     Logger::set_quiet_mode(true);
   }

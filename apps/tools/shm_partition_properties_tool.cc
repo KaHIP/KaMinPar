@@ -33,7 +33,7 @@ int main(int argc, char *argv[]) {
   CLI::App app("Shared-memory partition properties tool");
   app.add_option("-G,--graph", graph_filename, "Input graph")->required();
 
-  auto *partition_group = app.group("Partition options:");//->require_option(1);
+  auto *partition_group = app.group("Partition options:"); //->require_option(1);
   partition_group->add_option(
       "-P,--partition", partition_filename, "Partition (block of one node per line)"
   );

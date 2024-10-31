@@ -46,10 +46,10 @@ public:
 };
 
 using GainCacheTypes = ::testing::Types<
-    //NormalDenseGainCache<Graph>,
-    //NormalHashingGainCache<Graph>,
-    //OnTheFlyGainCache<Graph>,
-    //NormalSparseGainCache<Graph>,
+    // NormalDenseGainCache<Graph>,
+    // NormalHashingGainCache<Graph>,
+    // OnTheFlyGainCache<Graph>,
+    // NormalSparseGainCache<Graph>,
     NormalCompactHashingGainCache<Graph>>;
 
 TYPED_TEST_SUITE(GainCacheTest, GainCacheTypes);

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * A concurrent bit vector which stores bits compactly and uses atomic 
+ * A concurrent bit vector which stores bits compactly and uses atomic
  * read/write operations.
  *
  * @file:   concurrent_bit_vector.h
