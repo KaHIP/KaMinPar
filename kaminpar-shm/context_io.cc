@@ -218,6 +218,7 @@ std::unordered_map<std::string, InitialPartitioningMode> get_initial_partitionin
       {"sequential", InitialPartitioningMode::SEQUENTIAL},
       {"async-parallel", InitialPartitioningMode::ASYNCHRONOUS_PARALLEL},
       {"sync-parallel", InitialPartitioningMode::SYNCHRONOUS_PARALLEL},
+      {"communities", InitialPartitioningMode::COMMUNITIES},
   };
 }
 
@@ -229,6 +230,8 @@ std::ostream &operator<<(std::ostream &out, const InitialPartitioningMode mode) 
     return out << "async-parallel";
   case InitialPartitioningMode::SYNCHRONOUS_PARALLEL:
     return out << "sync-parallel";
+  case InitialPartitioningMode::COMMUNITIES:
+    return out << "communities";
   }
 
   return out << "<invalid>";

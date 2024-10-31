@@ -17,6 +17,7 @@
 
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/heap_profiler.h"
+#include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
@@ -38,6 +39,11 @@ DeepMultilevelPartitioner::DeepMultilevelPartitioner(
   _coarsener->initialize(&_input_graph);
   _refiner->set_output_level(Refiner::OutputLevel::INFO);
   _refiner->set_output_prefix("   ");
+}
+
+void DeepMultilevelPartitioner::use_communities(const std::span<const NodeID> communities) {
+  _coarsener->use_communities(communities);
+  _num_communities = parallel::max_element(communities) + 1;
 }
 
 PartitionedGraph DeepMultilevelPartitioner::partition() {
@@ -255,6 +261,9 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
 NodeID DeepMultilevelPartitioner::initial_partitioning_threshold() {
   if (partitioning::parallel_ip_mode(_input_ctx.partitioning.deep_initial_partitioning_mode)) {
     return _input_ctx.parallel.num_threads * _input_ctx.coarsening.contraction_limit; // p * C
+  } else if (_input_ctx.partitioning.deep_initial_partitioning_mode ==
+             InitialPartitioningMode::COMMUNITIES) {
+    return _input_ctx.coarsening.contraction_limit * _num_communities;
   } else {
     return 2 * _input_ctx.coarsening.contraction_limit; // 2 * C
   }
@@ -301,6 +310,9 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
     case InitialPartitioningMode::ASYNCHRONOUS_PARALLEL:
       return AsyncInitialPartitioner(_input_ctx, _bipartitioner_pool, _tmp_extraction_mem_pool_ets)
           .partition(_coarsener.get(), _current_p_ctx);
+
+    case InitialPartitioningMode::COMMUNITIES:
+      return initial_partition_by_communities(graph);
     }
 
     __builtin_unreachable();
@@ -324,4 +336,16 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
 
   return p_graph;
 }
+
+StaticArray<BlockID> DeepMultilevelPartitioner::copy_coarsest_communities() {
+  std::span<const NodeID> communities = _coarsener->current_communities();
+  return {communities.begin(), communities.end()};
+}
+
+PartitionedGraph DeepMultilevelPartitioner::initial_partition_by_communities(const Graph *graph) {
+  StaticArray<BlockID> partition = copy_coarsest_communities();
+  KASSERT(partition.size() == graph->n());
+  return {*graph, static_cast<BlockID>(_num_communities), std::move(partition)};
+}
+
 } // namespace kaminpar::shm

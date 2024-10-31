@@ -311,6 +311,7 @@ enum class InitialPartitioningMode {
   SEQUENTIAL,
   ASYNCHRONOUS_PARALLEL,
   SYNCHRONOUS_PARALLEL,
+  COMMUNITIES,
 };
 
 struct InitialCoarseningContext {
@@ -436,6 +437,9 @@ struct PartitioningContext {
   bool refine_after_extending_partition;
 
   bool use_lazy_subgraph_memory;
+
+  std::vector<BlockID> vcycles;
+  bool restrict_vcycle_refinement;
 };
 
 struct GraphCompressionContext {

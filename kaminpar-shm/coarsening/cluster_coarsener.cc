@@ -35,6 +35,15 @@ void ClusteringCoarsener::initialize(const Graph *graph) {
   _input_graph = graph;
 }
 
+void ClusteringCoarsener::use_communities(std::span<const NodeID> communities) {
+  _input_communities = communities;
+  _communities_hierarchy.clear();
+}
+
+[[nodiscard]] std::span<const NodeID> ClusteringCoarsener::current_communities() const {
+  return _communities_hierarchy.empty() ? _input_communities : _communities_hierarchy.back();
+}
+
 bool ClusteringCoarsener::coarsen() {
   SCOPED_HEAP_PROFILER("Level", std::to_string(_hierarchy.size()));
   SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
@@ -51,6 +60,11 @@ bool ClusteringCoarsener::coarsen() {
 
   START_HEAP_PROFILER("Label Propagation");
   START_TIMER("Label Propagation");
+
+  if (!_input_communities.empty()) {
+    _clustering_algorithm->set_communities(_input_communities);
+  }
+
   _clustering_algorithm->set_max_cluster_weight(
       compute_max_cluster_weight<NodeWeight>(_c_ctx, _p_ctx, prev_n, total_node_weight)
   );
@@ -84,12 +98,17 @@ bool ClusteringCoarsener::coarsen() {
   STOP_HEAP_PROFILER();
 
   START_HEAP_PROFILER("Contract graph");
-  auto coarsened = TIMED_SCOPE("Contract graph") {
-    return contract_clustering(
-        current(), std::move(clustering), _c_ctx.contraction, _contraction_m_ctx
-    );
-  };
-  _hierarchy.push_back(std::move(coarsened));
+  START_TIMER("Contract graph");
+  auto contracted =
+      contract_clustering(current(), std::move(clustering), _c_ctx.contraction, _contraction_m_ctx);
+  _hierarchy.push_back(std::move(contracted));
+
+  if (!_input_communities.empty()) {
+    _communities_hierarchy.emplace_back(current().n());
+    contracted->project_down(_input_communities, _communities_hierarchy.back());
+  }
+
+  STOP_TIMER();
   STOP_HEAP_PROFILER();
 
   const NodeID next_n = current().n();
@@ -120,7 +139,7 @@ PartitionedGraph ClusteringCoarsener::uncoarsen(PartitionedGraph &&p_graph) {
   STOP_HEAP_PROFILER();
 
   START_TIMER("Project partition");
-  coarsened->project(p_graph_partition, partition);
+  coarsened->project_up(p_graph_partition, partition);
   STOP_TIMER();
 
   SCOPED_HEAP_PROFILER("Create graph");
@@ -153,6 +172,10 @@ std::unique_ptr<CoarseGraph> ClusteringCoarsener::pop_hierarchy(PartitionedGraph
           << ")",
       assert::light
   );
+
+  if (!_communities_hierarchy.empty()) {
+    _communities_hierarchy.pop_back();
+  }
 
   return coarsened;
 }

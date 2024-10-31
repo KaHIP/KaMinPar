@@ -7,6 +7,8 @@
  ******************************************************************************/
 #pragma once
 
+#include <span>
+
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
@@ -54,6 +56,12 @@ public:
    */
   [[nodiscard]] bool empty() const {
     return level() == 0;
+  }
+
+  virtual void use_communities(std::span<const NodeID>) {}
+
+  [[nodiscard]] virtual std::span<const NodeID> current_communities() const {
+    return {};
   }
 
   /**

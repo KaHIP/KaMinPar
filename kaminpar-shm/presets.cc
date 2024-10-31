@@ -85,6 +85,8 @@ Context create_default_context() {
               .min_consecutive_seq_bipartitioning_levels = 1,
               .refine_after_extending_partition = false,
               .use_lazy_subgraph_memory = true,
+              .vcycles = {},
+              .restrict_vcycle_refinement = false,
           },
       .partition =
           {
