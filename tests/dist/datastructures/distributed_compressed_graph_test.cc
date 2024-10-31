@@ -11,7 +11,7 @@
 #include "kaminpar-dist/datastructures/distributed_compressed_graph.h"
 #include "kaminpar-dist/graphutils/synchronization.h"
 
-#include "kaminpar-common/graph-compression/compressed_neighborhoods_builder.h"
+#include "kaminpar-common/graph_compression/compressed_neighborhoods_builder.h"
 
 #define TEST_ON_ALL_GRAPHS(test_function)                                                          \
   test_function(testing::make_csr_empty_graph());                                                  \

@@ -12,7 +12,7 @@
 
 #include "kaminpar-common/datastructures/concurrent_circular_vector.h"
 #include "kaminpar-common/datastructures/maxsize_vector.h"
-#include "kaminpar-common/graph-compression/compressed_neighborhoods_builder.h"
+#include "kaminpar-common/graph_compression/compressed_neighborhoods_builder.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 
