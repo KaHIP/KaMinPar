@@ -88,6 +88,10 @@ PartitionedGraph DeepMultilevelPartitioner::uncoarsen_once(PartitionedGraph p_gr
 void DeepMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
   SCOPED_HEAP_PROFILER("Refinement");
 
+  if (_input_ctx.partitioning.restrict_vcycle_refinement && _num_communities > 0) {
+    _refiner->set_communities(_coarsener->current_communities());
+  }
+
   // If requested, dump the current partition to disk before refinement ...
   debug::dump_partition_hierarchy(p_graph, _coarsener->level(), "pre-refinement", _input_ctx);
 

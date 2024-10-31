@@ -67,4 +67,10 @@ bool MultiRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_c
   return found_improvement;
 }
 
+void MultiRefiner::set_communities(std::span<const NodeID> communities) {
+  for (auto &[_, refiner] : _refiners) {
+    refiner->set_communities(communities);
+  }
+}
+
 } // namespace kaminpar::shm

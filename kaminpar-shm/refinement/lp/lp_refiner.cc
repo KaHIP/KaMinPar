@@ -88,6 +88,10 @@ public:
     return true;
   }
 
+  void set_communities(std::span<const NodeID> communities) {
+    _communities = communities;
+  }
+
 public:
   [[nodiscard]] BlockID initial_cluster(const NodeID u) {
     return _p_graph->block(u);
@@ -142,6 +146,11 @@ public:
   ) {
     const bool use_uniform_tie_breaking = _tie_breaking_strategy == TieBreakingStrategy::UNIFORM;
 
+    const auto accept_cluster_community = [&] {
+      return _communities.empty() ||
+             _communities[state.current_cluster] == _communities[state.initial_cluster];
+    };
+
     ClusterID favored_cluster = state.initial_cluster;
     if (use_uniform_tie_breaking) {
       for (const auto [cluster, rating] : map.entries()) {
@@ -159,6 +168,10 @@ public:
           } else if (state.current_gain == state.overall_best_gain) {
             tie_breaking_favored_clusters.push_back(state.current_cluster);
           }
+        }
+
+        if (!accept_cluster_community()) {
+          continue;
         }
 
         if (state.current_gain > state.best_gain) {
@@ -239,7 +252,8 @@ public:
                   (current_overload == best_overload && state.local_rand.random_bool())))) &&
                (state.current_cluster_weight + state.u_weight < current_max_weight ||
                 current_overload < initial_overload ||
-                state.current_cluster == state.initial_cluster);
+                state.current_cluster == state.initial_cluster) &&
+               accept_cluster_community();
       };
 
       for (const auto [cluster, rating] : map.entries()) {
@@ -271,6 +285,8 @@ public:
 
   const PartitionContext *_p_ctx;
   const RefinementContext &_r_ctx;
+
+  std::span<const NodeID> _communities;
 };
 
 class LPRefinerImplWrapper {
@@ -309,6 +325,11 @@ public:
     );
   }
 
+  void set_communities(std::span<const NodeID> communities) {
+    _csr_impl->set_communities(communities);
+    _compressed_impl->set_communities(communities);
+  }
+
 private:
   std::unique_ptr<LPRefinerImpl<CSRGraph>> _csr_impl;
   std::unique_ptr<LPRefinerImpl<CompressedGraph>> _compressed_impl;
@@ -339,6 +360,10 @@ void LabelPropagationRefiner::initialize(const PartitionedGraph &p_graph) {
 
 bool LabelPropagationRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
   return _impl_wrapper->refine(p_graph, p_ctx);
+}
+
+void LabelPropagationRefiner::set_communities(std::span<const NodeID> communities) {
+  _impl_wrapper->set_communities(communities);
 }
 
 } // namespace kaminpar::shm
