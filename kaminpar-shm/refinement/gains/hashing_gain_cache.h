@@ -27,8 +27,7 @@ namespace kaminpar::shm {
 
 template <
     typename GraphType,
-    template <typename>
-    typename DeltaGainCacheType,
+    template <typename> typename DeltaGainCacheType,
     bool iterate_nonadjacent_blocks,
     bool iterate_exact_gains = false>
 class HashingGainCache {

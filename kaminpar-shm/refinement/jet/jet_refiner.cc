@@ -23,7 +23,7 @@ namespace {
 SET_STATISTICS_FROM_GLOBAL();
 SET_DEBUG(false);
 
-}
+} // namespace
 
 JetRefiner::JetRefiner(const Context &ctx) : _ctx(ctx) {}
 

@@ -395,8 +395,8 @@ NodeID ColoredLPRefiner::perform_best_moves(const ColorID c) {
   return num_local_moved_nodes;
 }
 
-auto ColoredLPRefiner::reduce_move_candidates(std::vector<MoveCandidate> &&candidates
-) -> std::vector<MoveCandidate> {
+auto ColoredLPRefiner::reduce_move_candidates(std::vector<MoveCandidate> &&candidates)
+    -> std::vector<MoveCandidate> {
   const int size = mpi::get_comm_size(_p_graph.communicator());
   const int rank = mpi::get_comm_rank(_p_graph.communicator());
   KASSERT(math::is_power_of_2(size), "#PE must be a power of two", assert::always);

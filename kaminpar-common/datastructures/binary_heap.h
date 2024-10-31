@@ -463,8 +463,7 @@ template <typename Key> using BinaryMinHeap = BinaryHeap<Key, binary_heap::min_h
 template <
     typename ID,
     typename Key,
-    template <typename>
-    typename Comparator,
+    template <typename> typename Comparator,
     template <typename...> typename Container = std::vector>
 class DynamicBinaryForest {
   static constexpr std::size_t kTreeArity = 4;
