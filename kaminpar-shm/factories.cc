@@ -16,7 +16,6 @@
 #include "kaminpar-shm/partitioning/rb/rb_multilevel.h"
 
 // Clusterings
-#include "kaminpar-shm/coarsening/clustering/legacy_lp_clusterer.h"
 #include "kaminpar-shm/coarsening/clustering/lp_clusterer.h"
 #include "kaminpar-shm/coarsening/clustering/noop_clusterer.h"
 
@@ -29,7 +28,6 @@
 #include "kaminpar-shm/refinement/balancer/greedy_balancer.h"
 #include "kaminpar-shm/refinement/fm/fm_refiner.h"
 #include "kaminpar-shm/refinement/jet/jet_refiner.h"
-#include "kaminpar-shm/refinement/lp/legacy_lp_refiner.h"
 #include "kaminpar-shm/refinement/lp/lp_refiner.h"
 #include "kaminpar-shm/refinement/multi_refiner.h"
 
@@ -59,9 +57,6 @@ std::unique_ptr<Clusterer> create_clusterer(const Context &ctx) {
 
   case ClusteringAlgorithm::LABEL_PROPAGATION:
     return std::make_unique<LPClustering>(ctx.coarsening);
-
-  case ClusteringAlgorithm::LEGACY_LABEL_PROPAGATION:
-    return std::make_unique<LegacyLPClustering>(ctx.coarsening);
   }
 
   __builtin_unreachable();
@@ -91,9 +86,6 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
 
   case RefinementAlgorithm::LABEL_PROPAGATION:
     return std::make_unique<LabelPropagationRefiner>(ctx);
-
-  case RefinementAlgorithm::LEGACY_LABEL_PROPAGATION:
-    return std::make_unique<LegacyLabelPropagationRefiner>(ctx);
 
   case RefinementAlgorithm::GREEDY_BALANCER:
     return std::make_unique<GreedyBalancer>(ctx);

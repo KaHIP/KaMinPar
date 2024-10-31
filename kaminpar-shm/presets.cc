@@ -278,7 +278,7 @@ Context create_strong_context() {
 
   ctx.refinement.algorithms = {
       RefinementAlgorithm::GREEDY_BALANCER,
-      RefinementAlgorithm::LEGACY_LABEL_PROPAGATION,
+      RefinementAlgorithm::LABEL_PROPAGATION,
       RefinementAlgorithm::KWAY_FM,
       RefinementAlgorithm::GREEDY_BALANCER,
   };
@@ -319,7 +319,7 @@ Context create_largek_strong_context() {
 
   ctx.refinement.algorithms = {
       RefinementAlgorithm::GREEDY_BALANCER,
-      RefinementAlgorithm::LEGACY_LABEL_PROPAGATION,
+      RefinementAlgorithm::LABEL_PROPAGATION,
       RefinementAlgorithm::KWAY_FM,
       RefinementAlgorithm::GREEDY_BALANCER,
   };
