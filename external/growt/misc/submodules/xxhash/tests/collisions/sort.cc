@@ -29,21 +29,19 @@
  * crashes on the test server.
  */
 
-#include <algorithm>  // std::sort
-#define XXH_INLINE_ALL  // XXH128_cmp
-#include <xxhash.h>
-
+#include <algorithm>   // std::sort
+#define XXH_INLINE_ALL // XXH128_cmp
 #include "sort.hh"
 
-void sort64(uint64_t* table, size_t size)
-{
-    std::sort(table, table + size);
+#include <xxhash.h>
+
+void sort64(uint64_t *table, size_t size) {
+  std::sort(table, table + size);
 }
 
-#include <stdlib.h>  // qsort
+#include <stdlib.h> // qsort
 
-void sort128(XXH128_hash_t* table, size_t size)
-{
+void sort128(XXH128_hash_t *table, size_t size) {
 #if 0
     // C++ sort using a custom function object
     struct {
@@ -54,6 +52,6 @@ void sort128(XXH128_hash_t* table, size_t size)
     } customLess;
     std::sort(table, table + size, customLess);
 #else
-    qsort(table, size, sizeof(*table), XXH128_cmp);
+  qsort(table, size, sizeof(*table), XXH128_cmp);
 #endif
 }

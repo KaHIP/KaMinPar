@@ -227,7 +227,8 @@ TEST(NonaddressableBinaryHeapTest, RepeatedPushPopWorks) {
 TEST(NonaddressableBinaryHeapTest, SortingWithHeapWorks) {
   DynamicBinaryMinHeap<int, int> heap;
   const std::vector<int> sequence{
-      13, -12, 0, 4, 129, 21, -123, -23, 12, -5, -1, 434, 13, 3451, 123};
+      13, -12, 0, 4, 129, 21, -123, -23, 12, -5, -1, 434, 13, 3451, 123
+  };
   for (const auto e : sequence) {
     heap.push(e, e);
   }

@@ -17,7 +17,9 @@
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 
 namespace kaminpar::dist::debug {
+
 namespace {
+
 std::string generate_filename(
     const DistributedGraph &graph, const DebugContext &d_ctx, const std::string &suffix
 ) {
@@ -31,6 +33,7 @@ std::string generate_filename(
   filename_ss << "." << suffix;
   return filename_ss.str();
 }
+
 } // namespace
 
 void write_coarsest_graph(const DistributedGraph &graph, const DebugContext &d_ctx) {
@@ -64,12 +67,13 @@ void write_metis_graph(const std::string &filename, const DistributedGraph &grap
         if (graph.is_node_weighted()) {
           out << graph.node_weight(lu) << " ";
         }
-        for (const auto &[e, lv] : graph.neighbors(lu)) {
+
+        graph.adjacent_nodes(lu, [&](const NodeID lv, const EdgeWeight w) {
           out << graph.local_to_global_node(lv) + 1 << " ";
           if (graph.is_edge_weighted()) {
-            out << graph.edge_weight(e) << " ";
+            out << w << " ";
           }
-        }
+        });
         out << "\n";
       }
     }
@@ -114,4 +118,5 @@ void write_partition(
     mpi::barrier(p_graph.communicator());
   }
 }
+
 } // namespace kaminpar::dist::debug

@@ -30,7 +30,7 @@ TEST_F(AWeightedGridGraph, InitialNodeWeightingWorks) {
 
 TEST_F(AWeightedGridGraph, InitialEdgeWeightingWorks) {
   for (const EdgeID e : graph.edges()) {
-    EXPECT_EQ(graph.edge_weight(e), 1);
+    EXPECT_EQ(graph.csr_graph().edge_weight(e), 1);
   }
 }
 
@@ -124,7 +124,7 @@ TEST(GraphTest, IfBucketsAreDisabledNodesAreInFirstBucket) {
   const Graph graph = make_grid_graph(4, 4);
 
   EXPECT_EQ(16, graph.bucket_size(0));
-  for (int bucket = 1; bucket < graph.number_of_buckets(); ++bucket) {
+  for (std::size_t bucket = 1; bucket < graph.number_of_buckets(); ++bucket) {
     EXPECT_EQ(0, graph.bucket_size(bucket));
   }
 }
@@ -133,7 +133,7 @@ TEST(GraphTest, PutsIsolatedNodesInCorrectBucket) {
   Graph graph = make_empty_graph(10, true);
 
   EXPECT_EQ(10, graph.bucket_size(0));
-  for (int bucket = 1; bucket < graph.number_of_buckets(); ++bucket) {
+  for (std::size_t bucket = 1; bucket < graph.number_of_buckets(); ++bucket) {
     EXPECT_EQ(0, graph.bucket_size(bucket));
   }
   EXPECT_EQ(0, graph.first_node_in_bucket(0));
@@ -145,7 +145,7 @@ TEST(GraphTest, PutsMatchingInCorrectBucket) {
 
   EXPECT_EQ(0, graph.bucket_size(0));
   EXPECT_EQ(20, graph.bucket_size(1));
-  for (int bucket = 2; bucket < graph.number_of_buckets(); ++bucket) {
+  for (std::size_t bucket = 2; bucket < graph.number_of_buckets(); ++bucket) {
     EXPECT_EQ(0, graph.bucket_size(bucket));
   }
   EXPECT_EQ(0, graph.first_node_in_bucket(0));

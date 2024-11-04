@@ -15,6 +15,7 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
+
 //
 // Private implementation
 //
@@ -44,15 +45,16 @@ public:
   }
 
   void initialize(const PartitionedGraph &p_graph) {
-    _graph = dynamic_cast<const CSRGraph *>(p_graph.graph().underlying_graph());
+    _graph = &p_graph.graph().csr_graph();
     KASSERT(_graph != nullptr, "Graph must be a CSRGraph", assert::always);
 
     allocate(p_graph.n(), p_graph.n(), p_graph.k());
   }
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
-    KASSERT(_graph == dynamic_cast<const CSRGraph *>(p_graph.graph().underlying_graph()));
+    KASSERT(_graph == &p_graph.graph().csr_graph());
     KASSERT(p_graph.k() <= p_ctx.k);
+
     _p_graph = &p_graph;
     _p_ctx = &p_ctx;
 
@@ -147,6 +149,10 @@ LegacyLabelPropagationRefiner::~LegacyLabelPropagationRefiner() {
   delete _impl;
 }
 
+std::string LegacyLabelPropagationRefiner::name() const {
+  return "Legacy Label Propagation";
+}
+
 void LegacyLabelPropagationRefiner::initialize(const PartitionedGraph &p_graph) {
   _impl->initialize(p_graph);
 }
@@ -156,4 +162,5 @@ bool LegacyLabelPropagationRefiner::refine(
 ) {
   return _impl->refine(p_graph, p_ctx);
 }
+
 } // namespace kaminpar::shm

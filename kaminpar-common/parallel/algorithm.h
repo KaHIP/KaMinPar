@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Helper utilities for parallel code.
+ *
  * @file:   accumulate.h
  * @author: Daniel Seemaier
  * @date:   30.03.2022
- * @brief:  Helper classes and functions for parallel programming.
  ******************************************************************************/
 #pragma once
 
@@ -53,7 +54,7 @@ template <
     typename InputIt,
     typename UnaryOperation,
     typename ValueType =
-        std::result_of_t<UnaryOperation(typename std::iterator_traits<InputIt>::value_type)>>
+        std::invoke_result_t<UnaryOperation, typename std::iterator_traits<InputIt>::value_type>>
 ValueType accumulate(InputIt begin, InputIt end, ValueType initial, UnaryOperation op) {
   using size_t = typename std::iterator_traits<InputIt>::difference_type;
   using value_t = ValueType;
@@ -224,7 +225,7 @@ void prefix_sum(InputIterator first, InputIterator last, OutputIterator result) 
   tbb::parallel_scan(
       tbb::blocked_range<size_t>(0, n),
       Value(),
-      [first, result](const tbb::blocked_range<size_t> &r, Value sum, bool is_final_scan) {
+      [first, result](const tbb::blocked_range<size_t> &r, Value sum, bool is_final_scan) noexcept {
         Value temp = sum;
         for (auto i = r.begin(); i < r.end(); ++i) {
           temp += *(first + i);
@@ -234,7 +235,7 @@ void prefix_sum(InputIterator first, InputIterator last, OutputIterator result) 
         }
         return temp;
       },
-      [](Value left, Value right) { return left + right; }
+      [](Value left, Value right) noexcept { return left + right; }
   );
 }
 } // namespace kaminpar::parallel

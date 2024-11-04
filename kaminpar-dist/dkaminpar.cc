@@ -7,6 +7,7 @@
  ******************************************************************************/
 #include "kaminpar-dist/dkaminpar.h"
 
+#include <memory>
 #include <utility>
 
 #include <mpi.h>
@@ -15,11 +16,14 @@
 #include <tbb/parallel_invoke.h>
 
 #include "kaminpar-dist/context_io.h"
+#include "kaminpar-dist/datastructures/distributed_csr_graph.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/ghost_node_mapper.h"
 #include "kaminpar-dist/factories.h"
 #include "kaminpar-dist/graphutils/rearrangement.h"
 #include "kaminpar-dist/graphutils/synchronization.h"
+#include "kaminpar-dist/heap_profiler.h"
+#include "kaminpar-dist/logger.h"
 #include "kaminpar-dist/metrics.h"
 #include "kaminpar-dist/timer.h"
 
@@ -27,12 +31,15 @@
 
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/environment.h"
+#include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/random.h"
 
 namespace kaminpar {
+
 using namespace dist;
 
 namespace {
+
 void print_partition_summary(
     const Context &ctx,
     const DistributedPartitionedGraph &p_graph,
@@ -40,51 +47,68 @@ void print_partition_summary(
     const bool parseable,
     const bool root
 ) {
+  MPI_Comm comm = p_graph.communicator();
+
   const auto edge_cut = metrics::edge_cut(p_graph);
   const auto imbalance = metrics::imbalance(p_graph);
   const auto feasible =
       metrics::is_feasible(p_graph, ctx.partition) && p_graph.k() == ctx.partition.k;
 
 #ifdef KAMINPAR_ENABLE_TIMERS
-  finalize_distributed_timer(Timer::global(), p_graph.communicator());
+  finalize_distributed_timer(Timer::global(), comm);
 #endif // KAMINPAR_ENABLE_TIMERS
 
-  if (!root) {
-    // Non-root PEs are only needed to compute the partition metrics
-    return;
+  int heap_profile_root_rank;
+  if constexpr (kHeapProfiling) {
+    auto &heap_profiler = heap_profiler::HeapProfiler::global();
+    heap_profile_root_rank = finalize_distributed_heap_profiler(heap_profiler, comm);
   }
 
-  cio::print_delimiter("Result Summary");
+  if (root) {
+    cio::print_delimiter("Result Summary");
 
-  if (parseable) {
-    LOG << "RESULT cut=" << edge_cut << " imbalance=" << imbalance << " feasible=" << feasible
-        << " k=" << p_graph.k();
+    if (parseable) {
+      LOG << "RESULT cut=" << edge_cut << " imbalance=" << imbalance << " feasible=" << feasible
+          << " k=" << p_graph.k();
 #ifdef KAMINPAR_ENABLE_TIMERS
-    std::cout << "TIME ";
-    Timer::global().print_machine_readable(std::cout);
+      std::cout << "TIME ";
+      Timer::global().print_machine_readable(std::cout);
 #else  // KAMINPAR_ENABLE_TIMERS
-    LOG << "TIME disabled";
+      LOG << "TIME disabled";
 #endif // KAMINPAR_ENABLE_TIMERS
-  }
+    }
 
 #ifdef KAMINPAR_ENABLE_TIMERS
-  Timer::global().print_human_readable(std::cout, max_timer_depth);
+    Timer::global().print_human_readable(std::cout, max_timer_depth);
 #else  // KAMINPAR_ENABLE_TIMERS
-  LOG << "Global Timers: disabled";
+    LOG << "Global Timers: disabled";
 #endif // KAMINPAR_ENABLE_TIMERS
-  LOG;
-  LOG << "Partition summary:";
-  if (p_graph.k() != ctx.partition.k) {
-    LOG << logger::RED << "  Number of blocks: " << p_graph.k();
-  } else {
-    LOG << "  Number of blocks: " << p_graph.k();
+    LOG;
   }
-  LOG << "  Edge cut:         " << edge_cut;
-  LOG << "  Imbalance:        " << imbalance;
-  if (feasible) {
-    LOG << "  Feasible:         yes";
-  } else {
-    LOG << logger::RED << "  Feasible:         no";
+
+  if constexpr (kHeapProfiling) {
+    SingleSynchronizedLogger logger(heap_profile_root_rank);
+
+    const bool heap_profile_root = heap_profile_root_rank == mpi::get_comm_rank(comm);
+    if (heap_profile_root) {
+      PRINT_HEAP_PROFILE(logger.output());
+    }
+  }
+
+  if (root) {
+    LOG << "Partition summary:";
+    if (p_graph.k() != ctx.partition.k) {
+      LOG << logger::RED << "  Number of blocks: " << p_graph.k();
+    } else {
+      LOG << "  Number of blocks: " << p_graph.k();
+    }
+    LOG << "  Edge cut:         " << edge_cut;
+    LOG << "  Imbalance:        " << imbalance;
+    if (feasible) {
+      LOG << "  Feasible:         yes";
+    } else {
+      LOG << logger::RED << "  Feasible:         no";
+    }
   }
 }
 
@@ -125,6 +149,7 @@ void print_input_summary(
     cio::print_delimiter("Partitioning");
   }
 }
+
 } // namespace
 
 dKaMinPar::dKaMinPar(MPI_Comm comm, const int num_threads, const Context ctx)
@@ -235,7 +260,7 @@ void dKaMinPar::import_graph(
 
   auto [global_to_ghost, ghost_to_global, ghost_owner] = mapper.finalize();
 
-  _graph_ptr = std::make_unique<DistributedGraph>(
+  import_graph({std::make_unique<DistributedCSRGraph>(
       std::move(node_distribution),
       std::move(edge_distribution),
       std::move(nodes),
@@ -247,12 +272,17 @@ void dKaMinPar::import_graph(
       std::move(global_to_ghost),
       false,
       _comm
-  );
+  )});
 
   // Fill in ghost node weights
   if (vwgt != nullptr) {
     graph::synchronize_ghost_node_weights(*_graph_ptr);
   }
+}
+
+void dKaMinPar::import_graph(DistributedGraph graph) {
+  _was_rearranged = false;
+  _graph_ptr = std::make_unique<DistributedGraph>(std::move(graph));
 }
 
 GlobalEdgeWeight dKaMinPar::compute_partition(const BlockID k, BlockID *partition) {
@@ -276,6 +306,9 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const BlockID k, BlockID *partitio
   _ctx.initial_partitioning.kaminpar.parallel.num_threads = _ctx.parallel.num_threads;
   _ctx.partition.k = k;
   _ctx.partition.graph = std::make_unique<GraphContext>(graph, _ctx.partition);
+  if (_ctx.compression.enabled) {
+    _ctx.compression.setup(_graph_ptr->compressed_graph());
+  }
 
   // Initialize console output
   Logger::set_quiet_mode(_output_level == OutputLevel::QUIET);
@@ -283,13 +316,27 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const BlockID k, BlockID *partitio
     print_input_summary(_ctx, graph, _output_level == OutputLevel::EXPERIMENT, root);
   }
 
+  START_HEAP_PROFILER("Partitioning");
   START_TIMER("Partitioning");
-  if (!_was_rearranged) {
-    graph = graph::rearrange(std::move(graph), _ctx);
+  if (!_was_rearranged && _ctx.rearrange_by != GraphOrdering::NATURAL) {
+    if (_ctx.compression.enabled) {
+      LOG_WARNING_ROOT << "A compressed graph cannot be rearranged by degree buckets. Disabling "
+                          "degree bucket ordering!";
+      _ctx.rearrange_by = GraphOrdering::NATURAL;
+    } else {
+      START_HEAP_PROFILER("Rearrange input graph");
+      DistributedCSRGraph &csr_graph = _graph_ptr->csr_graph();
+      graph = DistributedGraph(
+          std::make_unique<DistributedCSRGraph>(graph::rearrange(std::move(csr_graph), _ctx))
+      );
+      STOP_HEAP_PROFILER();
+    }
+
     _was_rearranged = true;
   }
   auto p_graph = factory::create_partitioner(_ctx, graph)->partition();
   STOP_TIMER();
+  STOP_HEAP_PROFILER();
 
   KASSERT(
       dist::debug::validate_partition(p_graph),
@@ -327,4 +374,5 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const BlockID k, BlockID *partitio
 
   return final_cut;
 }
+
 } // namespace kaminpar

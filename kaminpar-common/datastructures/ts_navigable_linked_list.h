@@ -1,9 +1,9 @@
 /*******************************************************************************
- * @file:   ts_navigable_linked_list.h
+ * Thread-local chunked linked list.
  *
+ * @file:   ts_navigable_linked_list.h
  * @author: Daniel Seemaier
  * @date:   21.09.21
- * @brief:  Thread-local chunked linked list.
  ******************************************************************************/
 #pragma once
 

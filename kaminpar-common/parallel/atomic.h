@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Wrapper for std::atomic that supports a copy ctor.
+ *
  * @file:   atomic.h
  * @author: Daniel Seemaier
  * @date:   30.03.2022
- * @brief:  Wrapper for std::atomic with copy ctor.
  ******************************************************************************/
 #pragma once
 
@@ -90,7 +91,7 @@ public:
     return ++_value;
   }
 
-  T operator++(int) &noexcept {
+  T operator++(int) & noexcept {
     return _value++;
   } // NOLINT
 
@@ -98,7 +99,7 @@ public:
     return --_value;
   }
 
-  T operator--(int) &noexcept {
+  T operator--(int) & noexcept {
     return _value++;
   } // NOLINT
 

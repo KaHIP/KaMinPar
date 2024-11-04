@@ -11,26 +11,22 @@
  ******************************************************************************/
 #include "kaminpar-shm/datastructures/graph.h"
 
-#include "kaminpar-shm/kaminpar.h"
-
 #include "kaminpar-common/logger.h"
 
 namespace kaminpar::shm {
-Graph::Graph(std::unique_ptr<AbstractGraph> graph) : _underlying_graph(std::move(graph)) {}
 
-//
-// Utility debug functions
-//
+Graph::Graph(std::unique_ptr<AbstractGraph> graph) : _underlying_graph(std::move(graph)) {}
 
 namespace debug {
 void print_graph(const Graph &graph) {
   for (const NodeID u : graph.nodes()) {
     LLOG << "L" << u << " NW" << graph.node_weight(u) << " | ";
-    for (const auto [e, v] : graph.neighbors(u)) {
-      LLOG << "EW" << graph.edge_weight(e) << " L" << v << " NW" << graph.node_weight(v) << "  ";
-    }
+    graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+      LLOG << "EW" << w << " L" << v << " NW" << graph.node_weight(v) << "  ";
+    });
     LOG;
   }
 }
 } // namespace debug
+
 } // namespace kaminpar::shm

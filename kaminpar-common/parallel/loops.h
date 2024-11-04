@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Helpers for parallel loops.
+ *
  * @file:   loops.h
  * @author: Daniel Seemaier
  * @date:   30.03.2022
- * @brief:  Helpers for parallel loops.
  ******************************************************************************/
 #pragma once
 
@@ -12,7 +13,10 @@
 #include <tbb/parallel_for.h>
 #include <tbb/task_arena.h>
 
+#include "kaminpar-common/math.h"
+
 namespace kaminpar::parallel {
+
 /*!
  * @param buffers Vector of buffers of elements.
  * @param lambda Invoked on each element, in parallel.
@@ -47,14 +51,17 @@ template <typename Buffer, typename Lambda> void chunked_for(Buffer &buffers, La
         offset += buffers[current_buf++].size();
         cur_size = buffers[current_buf].size();
       }
+
       KASSERT(current_buf < buffers.size());
       KASSERT(cur_size == buffers[current_buf].size());
       KASSERT(cur - offset < buffers[current_buf].size());
+
       if constexpr (invocable_with_chunk_id) {
         lambda(buffers[current_buf][cur - offset], current_buf);
       } else {
         lambda(buffers[current_buf][cur - offset]);
       }
+
       ++cur;
     }
   });
@@ -73,19 +80,18 @@ template <typename Buffer, typename Lambda> void chunked_for(Buffer &buffers, La
  * invalid element, CPU id
  */
 template <typename Index, typename Lambda>
-void deterministic_for(const Index from, const Index to, Lambda &&lambda) {
+int deterministic_for(const Index from, const Index to, Lambda &&lambda) {
   static_assert(std::is_invocable_v<Lambda, Index, Index, int>);
 
   const Index n = to - from;
   const std::size_t p = std::min<std::size_t>(tbb::this_task_arena::max_concurrency(), n);
 
   tbb::parallel_for<std::size_t>(0, p, [&](const std::size_t cpu) {
-    const Index chunk = n / p;
-    const Index rem = n % p;
-    const Index cpu_from = cpu * chunk + std::min<std::size_t>(cpu, rem);
-    const Index cpu_to = cpu_from + ((cpu < rem) ? chunk + 1 : chunk);
-
-    lambda(from + cpu_from, from + cpu_to, cpu);
+    const auto [cpu_from, cpu_to] = math::compute_local_range<Index>(n, p, cpu);
+    lambda(from + cpu_from, from + cpu_to, static_cast<int>(cpu));
   });
+
+  return p;
 }
+
 } // namespace kaminpar::parallel

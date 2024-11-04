@@ -30,10 +30,12 @@ shm::PartitionedGraph KaMinParInitialPartitioner::initial_partition(
   shm_ctx.setup(graph);
 
   DISABLE_TIMERS();
+  START_HEAP_PROFILER("KaMinPar");
   const bool was_quiet = Logger::is_quiet();
   Logger::set_quiet_mode(true);
   auto p_graph = shm::factory::create_partitioner(graph, shm_ctx)->partition();
   Logger::set_quiet_mode(was_quiet);
+  STOP_HEAP_PROFILER();
   ENABLE_TIMERS();
 
   return p_graph;

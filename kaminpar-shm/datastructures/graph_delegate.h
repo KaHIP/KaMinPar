@@ -15,6 +15,7 @@
 #include "kaminpar-common/ranges.h"
 
 namespace kaminpar::shm {
+
 template <class Graph> class GraphDelegate {
 public:
   GraphDelegate(const Graph *graph) : _graph(graph) {}
@@ -31,44 +32,16 @@ public:
     return _graph->reified(std::forward<Lambda>(l));
   }
 
-  //
-  // Node weights
-  //
-
-  [[nodiscard]] inline bool is_node_weighted() const {
-    return _graph->is_node_weighted();
+  template <typename ConcreteGraph> [[nodiscard]] ConcreteGraph &concretize() {
+    return _graph->template concretize<ConcreteGraph>();
   }
 
-  [[nodiscard]] inline NodeWeight total_node_weight() const {
-    return _graph->total_node_weight();
-  }
-
-  [[nodiscard]] inline NodeWeight max_node_weight() const {
-    return _graph->max_node_weight();
-  }
-
-  [[nodiscard]] inline NodeWeight node_weight(const NodeID u) const {
-    return _graph->node_weight(u);
+  template <typename ConcreteGraph> [[nodiscard]] const ConcreteGraph &concretize() const {
+    return _graph->template concretize<ConcreteGraph>();
   }
 
   //
-  // Edge weights
-  //
-
-  [[nodiscard]] inline bool is_edge_weighted() const {
-    return _graph->is_edge_weighted();
-  }
-
-  [[nodiscard]] inline EdgeWeight total_edge_weight() const {
-    return _graph->total_edge_weight();
-  }
-
-  [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const {
-    return _graph->edge_weight(e);
-  }
-
-  //
-  // Graph properties
+  // Size of the graph
   //
 
   [[nodiscard]] inline NodeID n() const {
@@ -80,27 +53,35 @@ public:
   }
 
   //
-  // Low-level graph structure
+  // Node and edge weights
   //
 
-  [[nodiscard]] inline NodeID degree(const NodeID u) const {
-    return _graph->degree(u);
+  [[nodiscard]] inline bool is_node_weighted() const {
+    return _graph->is_node_weighted();
+  }
+
+  [[nodiscard]] inline NodeWeight node_weight(const NodeID u) const {
+    return _graph->node_weight(u);
+  }
+
+  [[nodiscard]] inline NodeWeight total_node_weight() const {
+    return _graph->total_node_weight();
+  }
+
+  [[nodiscard]] inline NodeWeight max_node_weight() const {
+    return _graph->max_node_weight();
+  }
+
+  [[nodiscard]] inline bool is_edge_weighted() const {
+    return _graph->is_edge_weighted();
+  }
+
+  [[nodiscard]] inline EdgeWeight total_edge_weight() const {
+    return _graph->total_edge_weight();
   }
 
   //
-  // Parallel iteration
-  //
-
-  template <typename Lambda> inline void pfor_nodes(Lambda &&l) const {
-    return _graph->pfor_nodes(std::forward<Lambda>(l));
-  }
-
-  template <typename Lambda> inline void pfor_edges(Lambda &&l) const {
-    return _graph->pfor_edges(std::forward<Lambda>(l));
-  }
-
-  //
-  // Sequential iteration
+  // Iterators for nodes / edges
   //
 
   [[nodiscard]] inline IotaRange<NodeID> nodes() const {
@@ -115,25 +96,45 @@ public:
     return _graph->incident_edges(u);
   }
 
-  [[nodiscard]] inline auto adjacent_nodes(const NodeID u) const {
-    return _graph->adjacent_nodes(u);
+  //
+  // Node degree
+  //
+
+  [[nodiscard]] inline NodeID max_degree() const {
+    return _graph->max_degree();
   }
 
-  template <typename Lambda> inline auto adjacent_nodes(const NodeID u, Lambda &&l) const {
-    return _graph->adjacent_nodes(u, std::forward<Lambda>(l));
+  [[nodiscard]] inline NodeID degree(const NodeID u) const {
+    return _graph->degree(u);
   }
 
-  [[nodiscard]] inline auto neighbors(const NodeID u) const {
-    return _graph->neighbors(u);
+  //
+  // Graph operations
+  //
+
+  template <typename Lambda> inline void adjacent_nodes(const NodeID u, Lambda &&l) const {
+    _graph->adjacent_nodes(u, std::forward<Lambda>(l));
   }
 
-  template <typename Lambda> inline auto neighbors(const NodeID u, Lambda &&l) const {
-    return _graph->neighbors(u, std::numeric_limits<NodeID>::max(), std::forward<Lambda>(l));
+  template <typename Lambda> inline void neighbors(const NodeID u, Lambda &&l) const {
+    _graph->neighbors(u, std::forward<Lambda>(l));
   }
 
   template <typename Lambda>
-  inline auto neighbors(const NodeID u, const NodeID max_neighbor_count, Lambda &&l) const {
-    return _graph->neighbors(u, max_neighbor_count, std::forward<Lambda>(l));
+  inline void neighbors(const NodeID u, const NodeID max_num_neighbors, Lambda &&l) const {
+    _graph->neighbors(u, max_num_neighbors, std::forward<Lambda>(l));
+  }
+
+  //
+  // Parallel iteration
+  //
+
+  template <typename Lambda> inline void pfor_nodes(Lambda &&l) const {
+    return _graph->pfor_nodes(std::forward<Lambda>(l));
+  }
+
+  template <typename Lambda> inline void pfor_edges(Lambda &&l) const {
+    return _graph->pfor_edges(std::forward<Lambda>(l));
   }
 
   //
@@ -152,6 +153,14 @@ public:
   // Degree buckets
   //
 
+  [[nodiscard]] inline bool sorted() const {
+    return _graph->sorted();
+  }
+
+  [[nodiscard]] inline std::size_t number_of_buckets() const {
+    return _graph->number_of_buckets();
+  }
+
   [[nodiscard]] inline std::size_t bucket_size(const std::size_t bucket) const {
     return _graph->bucket_size(bucket);
   }
@@ -164,15 +173,8 @@ public:
     return _graph->first_invalid_node_in_bucket(bucket);
   }
 
-  [[nodiscard]] inline std::size_t number_of_buckets() const {
-    return _graph->number_of_buckets();
-  }
-
-  [[nodiscard]] inline bool sorted() const {
-    return _graph->sorted();
-  }
-
 protected:
   const Graph *_graph;
 };
+
 } // namespace kaminpar::shm

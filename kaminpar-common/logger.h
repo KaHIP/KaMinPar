@@ -126,13 +126,29 @@ constexpr bool is_container_v = !std::is_same_v<std::decay_t<T>, std::string> &&
 
 class ContainerFormatter {
 public:
+  ContainerFormatter() = default;
+
+  ContainerFormatter(const ContainerFormatter &) = default;
+  ContainerFormatter &operator=(const ContainerFormatter &) = default;
+
+  ContainerFormatter(ContainerFormatter &&) = default;
+  ContainerFormatter &operator=(ContainerFormatter &&) = default;
+
   virtual ~ContainerFormatter() = default;
+
   virtual void print(const std::vector<std::string> &container, std::ostream &out) const = 0;
 };
 
 class CompactContainerFormatter : public ContainerFormatter {
 public:
-  constexpr explicit CompactContainerFormatter(std::string_view sep) noexcept : _sep{sep} {}
+  constexpr explicit CompactContainerFormatter(std::string_view sep) noexcept : _sep(sep) {}
+
+  CompactContainerFormatter(const CompactContainerFormatter &) = default;
+  CompactContainerFormatter &operator=(const CompactContainerFormatter &) = default;
+
+  CompactContainerFormatter(CompactContainerFormatter &&) = default;
+  CompactContainerFormatter &operator=(CompactContainerFormatter &&) = default;
+
   void print(const std::vector<std::string> &container, std::ostream &out) const final;
 
 private:
@@ -141,7 +157,7 @@ private:
 
 class Table : public ContainerFormatter {
 public:
-  constexpr explicit Table(std::size_t width) noexcept : _width{width} {}
+  constexpr explicit Table(std::size_t width) noexcept : _width(width) {}
   void print(const std::vector<std::string> &container, std::ostream &out) const final;
 
 private:
@@ -150,12 +166,29 @@ private:
 
 class TextFormatter {
 public:
+  TextFormatter() = default;
+
+  TextFormatter(const TextFormatter &) = default;
+  TextFormatter &operator=(const TextFormatter &) = default;
+
+  TextFormatter(TextFormatter &&) = default;
+  TextFormatter &operator=(TextFormatter &&) = default;
+
   virtual ~TextFormatter() = default;
+
   virtual void print(const std::string &text, std::ostream &out) const = 0;
 };
 
 class DefaultTextFormatter final : public TextFormatter {
 public:
+  DefaultTextFormatter() = default;
+
+  DefaultTextFormatter(const DefaultTextFormatter &) = default;
+  DefaultTextFormatter &operator=(const DefaultTextFormatter &) = default;
+
+  DefaultTextFormatter(DefaultTextFormatter &&) = default;
+  DefaultTextFormatter &operator=(DefaultTextFormatter &&) = default;
+
   void print(const std::string &text, std::ostream &out) const final;
 };
 
@@ -170,7 +203,8 @@ public:
     RESET
   };
 
-  constexpr explicit Colorized(Color color) noexcept : _color{color} {}
+  constexpr explicit Colorized(Color color) noexcept : _color(color) {}
+
   void print(const std::string &text, std::ostream &out) const final;
 
 private:
@@ -206,11 +240,13 @@ public:
 
   Logger(const Logger &) = delete;
   Logger &operator=(const Logger &) = delete;
+
   Logger(Logger &&) noexcept = default;
   Logger &operator=(Logger &&) = delete;
+
   virtual ~Logger() {
     flush();
-  };
+  }
 
   template <typename Arg, std::enable_if_t<logger::is_default_log_arg_v<Arg>, bool> = true>
   Logger &operator<<(Arg &&arg) {
@@ -273,7 +309,7 @@ private:
   std::ostringstream _buffer;
   std::ostream &_out;
   std::string _append;
-  bool _flushed{false};
+  bool _flushed = false;
 };
 
 // Helper function to implement ASSERT() and DBG() macros

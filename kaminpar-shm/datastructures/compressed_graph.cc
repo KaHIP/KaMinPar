@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Compressed static graph representation.
+ * Static compressed graph representation.
  *
  * @file:   compressed_graph.cc
  * @author: Daniel Salwasser
@@ -7,39 +7,23 @@
  ******************************************************************************/
 #include "compressed_graph.h"
 
+#include <numeric>
+
+#include <tbb/enumerable_thread_specific.h>
+
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/parallel/algorithm.h"
 
 namespace kaminpar::shm {
 
 CompressedGraph::CompressedGraph(
-    CompactStaticArray<EdgeID> nodes,
-    StaticArray<std::uint8_t> compressed_edges,
+    CompressedNeighborhoods compressed_neighborhoods,
     StaticArray<NodeWeight> node_weights,
-    StaticArray<EdgeWeight> edge_weights,
-    EdgeID edge_count,
-    NodeID max_degree,
-    bool sorted,
-    std::size_t num_high_degree_nodes,
-    std::size_t num_high_degree_parts,
-    std::size_t num_interval_nodes,
-    std::size_t num_intervals
+    bool sorted
 )
-    : _nodes(std::move(nodes)),
-      _compressed_edges(std::move(compressed_edges)),
+    : _compressed_neighborhoods(std::move(compressed_neighborhoods)),
       _node_weights(std::move(node_weights)),
-      _edge_weights(std::move(edge_weights)),
-      _edge_count(edge_count),
-      _max_degree(max_degree),
-      _sorted(sorted),
-      _num_high_degree_nodes(num_high_degree_nodes),
-      _num_high_degree_parts(num_high_degree_parts),
-      _num_interval_nodes(num_interval_nodes),
-      _num_intervals(num_intervals) {
-  KASSERT(kHighDegreeEncoding || _num_high_degree_nodes == 0);
-  KASSERT(kHighDegreeEncoding || _num_high_degree_parts == 0);
-  KASSERT(kIntervalEncoding || _num_interval_nodes == 0);
-  KASSERT(kIntervalEncoding || _num_intervals == 0);
-
+      _sorted(sorted) {
   if (_node_weights.empty()) {
     _total_node_weight = static_cast<NodeWeight>(n());
     _max_node_weight = 1;
@@ -48,14 +32,8 @@ CompressedGraph::CompressedGraph(
     _max_node_weight = parallel::max_element(_node_weights);
   }
 
-  if (_edge_weights.empty()) {
-    _total_edge_weight = static_cast<EdgeWeight>(m());
-  } else {
-    _total_edge_weight = parallel::accumulate(_edge_weights, static_cast<EdgeWeight>(0));
-  }
-
   init_degree_buckets();
-};
+}
 
 void CompressedGraph::init_degree_buckets() {
   KASSERT(std::all_of(_buckets.begin(), _buckets.end(), [](const auto n) { return n == 0; }));
@@ -101,15 +79,15 @@ void CompressedGraph::update_total_node_weight() {
   }
 }
 
-void CompressedGraph::remove_isolated_nodes(const NodeID isolated_nodes) {
+void CompressedGraph::remove_isolated_nodes(const NodeID num_isolated_nodes) {
   KASSERT(sorted());
 
-  if (isolated_nodes == 0) {
+  if (num_isolated_nodes == 0) {
     return;
   }
 
-  const NodeID new_n = n() - isolated_nodes;
-  _nodes.restrict(new_n + 1);
+  const NodeID new_n = n() - num_isolated_nodes;
+  _compressed_neighborhoods.restrict_nodes(new_n + 1);
   if (!_node_weights.empty()) {
     _node_weights.restrict(new_n);
   }
@@ -118,7 +96,7 @@ void CompressedGraph::remove_isolated_nodes(const NodeID isolated_nodes) {
 
   // Update degree buckets
   for (std::size_t i = 0; i < _buckets.size() - 1; ++i) {
-    _buckets[1 + i] -= isolated_nodes;
+    _buckets[1 + i] -= num_isolated_nodes;
   }
 
   // If the graph has only isolated nodes then there are no buckets afterwards
@@ -131,7 +109,7 @@ void CompressedGraph::integrate_isolated_nodes() {
   KASSERT(sorted());
 
   const NodeID nonisolated_nodes = n();
-  _nodes.unrestrict();
+  _compressed_neighborhoods.unrestrict_nodes();
   _node_weights.unrestrict();
 
   const NodeID isolated_nodes = n() - nonisolated_nodes;

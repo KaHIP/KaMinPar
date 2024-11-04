@@ -194,9 +194,7 @@ TEST(DefaultSparseAlltoallTest, does_not_move_lvalue_reference) {
     sendbufs[pe].push_back(pe);
   }
 
-  sparse_alltoall<int>(
-      sendbufs, [&](auto) {}, MPI_COMM_WORLD
-  );
+  sparse_alltoall<int>(sendbufs, [&](auto) {}, MPI_COMM_WORLD);
 
   EXPECT_EQ(sendbufs.size(), size);
   for (PEID pe = 0; pe < size; ++pe) {

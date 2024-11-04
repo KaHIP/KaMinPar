@@ -38,11 +38,14 @@ public:
     return _hierarchy.size();
   }
 
+  void release_allocated_memory() final;
+
 private:
   std::unique_ptr<CoarseGraph> pop_hierarchy(PartitionedGraph &&p_graph);
 
   [[nodiscard]] bool keep_allocated_memory() const;
 
+  const Context &_ctx;
   const CoarseningContext &_c_ctx;
   const PartitionContext &_p_ctx;
 

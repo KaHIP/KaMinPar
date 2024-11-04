@@ -234,8 +234,7 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
 
   init_pq(p_graph);
 
-  std::vector<NodeID> moves; // moves since last accepted cut
-  std::size_t active = 0;    // block from which we select a node for movement
+  std::size_t active = 0; // block from which we select a node for movement
 
   EdgeWeight current_overload = metrics::total_overload(p_graph, *_p_ctx);
   EdgeWeight accepted_overload = current_overload;
@@ -243,7 +242,7 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
   EdgeWeight current_delta = 0;
   EdgeWeight accepted_delta = 0;
 #if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
-  const EdgeWeight initial_edge_cut = metrics::edge_cut(p_graph);
+  const EdgeWeight initial_edge_cut = metrics::edge_cut_seq(p_graph);
 #endif
 
   DBG << "Starting main refinement loop with #_pq[0]=" << _queues[0].size()
@@ -273,20 +272,19 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
     DBG << "Performed move, new cut=" << metrics::edge_cut_seq(p_graph);
     p_graph.set_block(u, to);
     current_delta += delta;
-    moves.push_back(u);
+    _moves.push_back(u);
 #if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
-    KASSERT(initial_edge_cut + current_delta == metrics::edge_cut(p_graph), "", assert::heavy);
+    KASSERT(initial_edge_cut + current_delta == metrics::edge_cut_seq(p_graph), "", assert::heavy);
 #endif
     _stopping_policy.update(-delta); // assumes gain, not loss
     current_overload = metrics::total_overload(p_graph, *_p_ctx);
 
     // update gain of neighboring nodes
-    for (const auto [e, v] : _graph->neighbors(u)) {
+    _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight e_weight) {
       if (_marker.get(v)) {
-        continue;
+        return;
       }
 
-      const EdgeWeight e_weight = _graph->edge_weight(e);
       const BlockID v_block = p_graph.block(v);
       const EdgeWeight loss_delta = 2 * e_weight * ((to == v_block) ? 1 : -1);
 
@@ -305,7 +303,7 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
         KASSERT(is_boundary_node(p_graph, v), "", assert::heavy);
         _queues[v_block].push(v, _weighted_degrees[v] + loss_delta);
       }
-    }
+    });
 
     // accept move if it improves the best edge cut found so far
     if (cut_acceptance_policy(
@@ -316,12 +314,12 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
       _stopping_policy.reset();
       accepted_delta = current_delta;
       accepted_overload = current_overload;
-      moves.clear();
+      _moves.clear();
     }
   }
 
   // rollback to last accepted cut
-  for (const NodeID u : moves) {
+  for (const NodeID u : _moves) {
     p_graph.set_block(u, 1 - p_graph.block(u));
   };
 
@@ -330,10 +328,11 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
     _queues[i].clear();
   }
   _marker.reset();
+  _moves.clear();
 
 #if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
   KASSERT(!initially_feasible || accepted_delta <= 0);
-  KASSERT(metrics::edge_cut(p_graph) == initial_edge_cut + accepted_delta);
+  KASSERT(metrics::edge_cut_seq(p_graph) == initial_edge_cut + accepted_delta);
 #endif
 
   return accepted_delta;
@@ -346,16 +345,24 @@ void InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>
   KASSERT(_queues[0].empty());
   KASSERT(_queues[1].empty());
 
-  const std::size_t num_chunks = _graph->n() / kChunkSize + 1;
+  const NodeID num_chunks = _graph->n() / kChunkSize + 1;
 
-  std::vector<std::size_t> chunks(num_chunks);
-  std::iota(chunks.begin(), chunks.end(), 0);
-  std::transform(chunks.begin(), chunks.end(), chunks.begin(), [](const std::size_t i) {
-    return i * kChunkSize;
-  });
-  _rand.shuffle(chunks);
+  _chunks.clear();
+  if (_chunks.capacity() < num_chunks) {
+    _chunks.resize(num_chunks);
+  }
 
-  for (const std::size_t chunk : chunks) {
+  std::iota(_chunks.begin(), _chunks.begin() + num_chunks, 0);
+  std::transform(
+      _chunks.begin(),
+      _chunks.begin() + num_chunks,
+      _chunks.begin(),
+      [](const NodeID i) { return i * kChunkSize; }
+  );
+  _rand.shuffle(_chunks.begin(), _chunks.begin() + num_chunks);
+
+  for (NodeID i = 0; i < num_chunks; ++i) {
+    const NodeID chunk = _chunks[i];
     const auto &permutation = _permutations.get(_rand);
     for (const NodeID i : permutation) {
       const NodeID u = chunk + i;
@@ -384,9 +391,9 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
     compute_gain_from_scratch(const PartitionedCSRGraph &p_graph, const NodeID u) {
   const BlockID u_block = p_graph.block(u);
   EdgeWeight weighted_external_degree = 0;
-  for (const auto [e, v] : p_graph.neighbors(u)) {
-    weighted_external_degree += (p_graph.block(v) != u_block) * p_graph.edge_weight(e);
-  }
+  p_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+    weighted_external_degree += (p_graph.block(v) != u_block) * weight;
+  });
   const EdgeWeight weighted_internal_degree = _weighted_degrees[u] - weighted_external_degree;
   return weighted_internal_degree - weighted_external_degree;
 }
@@ -407,12 +414,17 @@ template <typename QueueSelectionPolicy, typename CutAcceptancePolicy, typename 
 bool InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>::is_boundary_node(
     const PartitionedCSRGraph &p_graph, const NodeID u
 ) {
-  for (const NodeID v : p_graph.adjacent_nodes(u)) {
+  bool boundary_node = false;
+  p_graph.adjacent_nodes(u, [&](const NodeID v) {
     if (p_graph.block(u) != p_graph.block(v)) {
+      boundary_node = true;
       return true;
     }
-  }
-  return false;
+
+    return false;
+  });
+
+  return boundary_node;
 }
 
 template <typename QueueSelectionPolicy, typename CutAcceptancePolicy, typename StoppingPolicy>
@@ -447,4 +459,3 @@ template class InitialFMRefiner<
     fm::BalancedMinCutAcceptancePolicy,
     fm::AdaptiveStoppingPolicy>;
 } // namespace kaminpar::shm
-

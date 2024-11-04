@@ -13,9 +13,9 @@
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction_preprocessing.h"
 
-#include "kaminpar-common/datastructures/compact_static_array.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/datastructures/static_array.h"
+#include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::contraction {
@@ -25,7 +25,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_buffered_legacy(
     const Graph &graph,
     const NodeID c_n,
     StaticArray<NodeID> mapping,
-    const ContractionCoarseningContext &con_ctx,
+    [[maybe_unused]] const ContractionCoarseningContext &con_ctx,
     MemoryContext &m_ctx
 ) {
   auto &buckets_index = m_ctx.buckets_index;
@@ -37,10 +37,12 @@ std::unique_ptr<CoarseGraph> contract_clustering_buffered_legacy(
   // - firstly, we count the degree of each coarse node
   // - secondly, we obtain the nodes array using a prefix sum
   //
+  START_HEAP_PROFILER("Coarse graph node allocation");
   START_TIMER("Allocation");
   StaticArray<EdgeID> c_nodes{c_n + 1};
   StaticArray<NodeWeight> c_node_weights{c_n};
   STOP_TIMER();
+  STOP_HEAP_PROFILER();
 
   tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> collector{[&] {
     return RatingMap<EdgeWeight, NodeID>(c_n);
@@ -83,10 +85,10 @@ std::unique_ptr<CoarseGraph> contract_clustering_buffered_legacy(
           c_u_weight += graph.node_weight(u); // coarse node weight
 
           // collect coarse edges
-          graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
+          graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
             const NodeID c_v = mapping[v];
             if (c_u != c_v) {
-              map[c_v] += graph.edge_weight(e);
+              map[c_v] += w;
             }
           });
         }
@@ -129,10 +131,12 @@ std::unique_ptr<CoarseGraph> contract_clustering_buffered_legacy(
       edge_buffer_ets, std::move(all_buffered_nodes)
   );
 
+  START_HEAP_PROFILER("Coarse graph edges allocation");
   START_TIMER("Allocation");
   StaticArray<NodeID> c_edges(c_m);
   StaticArray<EdgeWeight> c_edge_weights(c_m);
   STOP_TIMER();
+  STOP_HEAP_PROFILER();
 
   // build coarse graph
   START_TIMER("Construct coarse graph");

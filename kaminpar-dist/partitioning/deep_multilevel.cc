@@ -31,7 +31,12 @@
 #include "kaminpar-common/math.h"
 
 namespace kaminpar::dist {
+
+namespace {
+
 SET_DEBUG(false);
+
+}
 
 DeepMultilevelPartitioner::DeepMultilevelPartitioner(
     const DistributedGraph &input_graph, const Context &input_ctx
@@ -60,7 +65,9 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   const PEID initial_size = mpi::get_comm_size(_input_graph.communicator());
   PEID current_num_pes = initial_size;
 
+  START_HEAP_PROFILER("Coarsening");
   while (!converged && graph->global_n() > desired_num_nodes) {
+    SCOPED_HEAP_PROFILER("Level", std::to_string(coarsener->level()));
     SCOPED_TIMER("Coarsening");
 
     // Replicate graph and split PEs when the graph becomes too small
@@ -70,7 +77,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     if (_input_ctx.enable_pe_splitting && current_num_pes > 1 &&
         num_blocks_on_this_level < static_cast<BlockID>(current_num_pes)) {
       const PEID num_replications = current_num_pes / num_blocks_on_this_level;
-      const PEID remaining_pes = current_num_pes % num_blocks_on_this_level;
+      // const PEID remaining_pes = current_num_pes % num_blocks_on_this_level;
 
       LOG << "Current graph (" << graph->global_n()
           << " nodes) is too small for the available parallelism (" << current_num_pes
@@ -102,13 +109,16 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
 
     graph = c_graph;
   }
+  STOP_HEAP_PROFILER();
   TIMER_BARRIER(_input_graph.communicator());
 
   /*
    * Initial Partitioning
    */
   START_TIMER("Initial partitioning");
+  START_HEAP_PROFILER("Initial partitioning");
   auto initial_partitioner = TIMED_SCOPE("Allocation") {
+    SCOPED_HEAP_PROFILER("Allocation");
     return factory::create_initial_partitioner(_input_ctx);
   };
 
@@ -144,6 +154,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
       assert::heavy
   );
   print_initial_partitioning_result(dist_p_graph, ip_p_ctx);
+  STOP_HEAP_PROFILER();
   STOP_TIMER();
   TIMER_BARRIER(_input_graph.communicator());
 
@@ -157,15 +168,19 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
    * Uncoarsening and Refinement
    */
   START_TIMER("Uncoarsening");
+  START_HEAP_PROFILER("Uncoarsening");
   auto refiner_factory = TIMED_SCOPE("Allocation") {
+    SCOPED_HEAP_PROFILER("Allocation");
     return factory::create_refiner(_input_ctx);
   };
 
   auto run_refinement = [&](DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
     START_TIMER("Refinement");
+    START_HEAP_PROFILER("Refinement");
     auto refiner = refiner_factory->create(p_graph, p_ctx);
     refiner->initialize();
     refiner->refine();
+    STOP_HEAP_PROFILER();
     STOP_TIMER();
     TIMER_BARRIER(p_graph.communicator());
 
@@ -177,6 +192,8 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   };
 
   auto extend_partition = [&](DistributedPartitionedGraph &p_graph, PartitionContext &ref_p_ctx) {
+    SCOPED_HEAP_PROFILER("Extending partition");
+
     BlockID desired_k = std::min<BlockID>(
         _input_ctx.partition.k,
         math::ceil2(dist_p_graph.global_n() / _input_ctx.coarsening.contraction_limit)
@@ -265,7 +282,9 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   ref_p_ctx.graph = std::make_unique<GraphContext>(dist_p_graph.graph(), ref_p_ctx);
 
   // Uncoarsen, partition blocks and refine
-  while (_coarseners.size() > 1 || coarsener->level() > 0) {
+  while (_coarseners.size() > 1 || (!_coarseners.empty() && coarsener->level() > 0)) {
+    SCOPED_HEAP_PROFILER("Level", std::to_string(coarsener->level()));
+
     LOG;
     LOG << "Uncoarsening -> Level " << _coarseners.size() << "," << coarsener->level() << ":";
 
@@ -287,6 +306,12 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     // If we replicated early, we might already be on the finest level
     if (coarsener->level() > 0) {
       dist_p_graph = coarsener->uncoarsen(std::move(dist_p_graph));
+    }
+
+    // Destroy coarsener before we run refinement on the finest level
+    if (_coarseners.size() == 1 && coarsener->level() == 0) {
+      LOG << "    Freeing toplevel coarsener";
+      _coarseners.pop();
     }
 
     // Extend partition
@@ -339,6 +364,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     LOG << "  Feasible:  " << (feasible ? "yes" : "no");
     STOP_TIMER();
   }
+  STOP_HEAP_PROFILER();
   STOP_TIMER();
   TIMER_BARRIER(_input_graph.communicator());
 
@@ -354,4 +380,5 @@ const Coarsener *DeepMultilevelPartitioner::get_current_coarsener() const {
   KASSERT(!_coarseners.empty());
   return _coarseners.top().get();
 }
+
 } // namespace kaminpar::dist

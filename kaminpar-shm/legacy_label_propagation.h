@@ -90,10 +90,10 @@ public:
     return _max_degree;
   }
 
-  void set_max_num_neighbors(const ClusterID max_num_neighbors) {
+  void set_max_num_neighbors(const NodeID max_num_neighbors) {
     _max_num_neighbors = max_num_neighbors;
   }
-  [[nodiscard]] ClusterID max_num_neighbors() const {
+  [[nodiscard]] NodeID max_num_neighbors() const {
     return _max_num_neighbors;
   }
 
@@ -166,7 +166,7 @@ protected:
    */
   void initialize(const CSRGraph *graph, const ClusterID num_clusters) {
     KASSERT(
-        graph->n() == 0 || (_num_nodes > 0u && _num_active_nodes > 0u),
+        graph->n() == 0u || (_num_nodes > 0u && _num_active_nodes > 0u),
         "you must call allocate() before initialize()"
     );
 
@@ -358,7 +358,7 @@ protected:
    * @param u Node that was moved.
    */
   void activate_neighbors(const NodeID u) {
-    for (const NodeID v : _graph->adjacent_nodes(u)) {
+    _graph->adjacent_nodes(u, [&](const NodeID v) {
       // call derived_activate_neighbor() even if we do not use the active set
       // strategy since the function might have side effects; the compiler
       // should remove it if it does not side effects
@@ -367,7 +367,7 @@ protected:
           __atomic_store_n(&_active[v], 1, __ATOMIC_RELAXED);
         }
       }
-    }
+    });
   }
 
   void match_isolated_nodes(

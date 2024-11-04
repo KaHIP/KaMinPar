@@ -66,11 +66,13 @@ private:
 };
 
 template <typename Int, typename Function> class TransformedIotaRange {
+  using Self = TransformedIotaRange<Int, Function>;
+
 public:
   class iterator {
   public:
     using iterator_category = std::input_iterator_tag;
-    using value_type = std::result_of_t<Function(Int)>;
+    using value_type = std::invoke_result_t<Function, Int>;
     using difference_type = std::make_signed_t<Int>;
     using pointer = value_type *;
     using reference = value_type &;
@@ -113,8 +115,13 @@ public:
   };
 
   TransformedIotaRange(const Int begin, const Int end, const Function transformer)
-      : _begin(begin, transformer),
+      : _size(end - begin),
+        _begin(begin, transformer),
         _end(end, transformer) {}
+
+  std::size_t size() const {
+    return _size;
+  }
 
   iterator begin() const {
     return _begin;
@@ -123,7 +130,12 @@ public:
     return _end;
   }
 
+  const Self &entries() const {
+    return *this;
+  }
+
 private:
+  std::size_t _size;
   iterator _begin;
   iterator _end;
 };
@@ -133,7 +145,7 @@ public:
   class iterator {
   public:
     using iterator_category = typename Iterator::iterator_category;
-    using value_type = std::result_of_t<Function(typename Iterator::value_type)>;
+    using value_type = std::invoke_result_t<Function, typename Iterator::value_type>;
     using difference_type = typename Iterator::difference_type;
     using pointer = value_type *;
     using reference = value_type &;

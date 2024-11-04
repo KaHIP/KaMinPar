@@ -28,18 +28,19 @@ public:
   // Optional options
   //
 
-  virtual void set_max_cluster_weight(const NodeWeight /* weight */) {}
-  virtual void set_desired_cluster_count(const NodeID /* count */) {}
+  void set_max_cluster_weight(const NodeWeight /* weight */) final {}
+  void set_desired_cluster_count(const NodeID /* count */) final {}
 
   //
   // Clustering function
   //
 
   virtual void compute_clustering(
-      StaticArray<NodeID> &clustering, const Graph &graph, bool free_memory_afterwards
-  ) {
+      StaticArray<NodeID> &clustering,
+      const Graph &graph,
+      [[maybe_unused]] bool free_memory_afterwards
+  ) final {
     tbb::parallel_for<NodeID>(0, graph.n(), [&](const NodeID i) { clustering[i] = i; });
   }
 };
 } // namespace kaminpar::shm
-

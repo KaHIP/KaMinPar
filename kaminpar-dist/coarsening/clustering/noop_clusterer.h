@@ -14,6 +14,7 @@
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::dist {
+
 class NoopClustering : public Clusterer {
 public:
   NoopClustering(const bool local_clusterer) : _local_clusterer(local_clusterer) {}
@@ -34,4 +35,5 @@ public:
 private:
   bool _local_clusterer = false;
 };
+
 } // namespace kaminpar::dist

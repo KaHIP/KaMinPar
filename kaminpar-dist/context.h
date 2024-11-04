@@ -17,6 +17,7 @@
 #include "kaminpar-dist/dkaminpar.h" // IWYU pragma: export
 
 namespace kaminpar::dist {
+
 struct GraphContext {
 public:
   GraphContext(const DistributedGraph &graph, const PartitionContext &p_ctx);
@@ -47,4 +48,5 @@ public:
   void setup_perfectly_balanced_block_weights(BlockID k);
   void setup_max_block_weights(BlockID k, double epsilon);
 };
+
 } // namespace kaminpar::dist

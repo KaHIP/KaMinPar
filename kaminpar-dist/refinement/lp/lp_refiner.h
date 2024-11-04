@@ -8,11 +8,11 @@
 #pragma once
 
 #include "kaminpar-dist/context.h"
-#include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/refinement/refiner.h"
 
 namespace kaminpar::dist {
+
 class LPRefinerFactory : public GlobalRefinerFactory {
 public:
   LPRefinerFactory(const Context &ctx);
@@ -42,15 +42,16 @@ public:
   LPRefiner(LPRefiner &&) noexcept = default;
   LPRefiner &operator=(LPRefiner &&) = delete;
 
-  ~LPRefiner();
+  ~LPRefiner() override;
 
   void initialize() final;
   bool refine() final;
 
 private:
-  std::unique_ptr<class LPRefinerImpl> _impl;
+  std::unique_ptr<class LPRefinerImplWrapper> _impl;
 
   DistributedPartitionedGraph &_p_graph;
   const PartitionContext &_p_ctx;
 };
+
 } // namespace kaminpar::dist

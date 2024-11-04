@@ -17,9 +17,9 @@
 
 namespace kaminpar::shm {
 BalancedCoarsener::BalancedCoarsener(const Context &ctx, const PartitionContext &p_ctx)
-    : _clustering_algorithm(factory::create_clusterer(ctx)),
-      _c_ctx(ctx.coarsening),
-      _p_ctx(p_ctx) {}
+    : _c_ctx(ctx.coarsening),
+      _p_ctx(p_ctx),
+      _clustering_algorithm(factory::create_clusterer(ctx)) {}
 
 void BalancedCoarsener::initialize(const Graph *graph) {
   _hierarchy.clear();
@@ -48,7 +48,7 @@ bool BalancedCoarsener::coarsen() {
     const NodeWeight max_cluster_weight =
         compute_max_cluster_weight<NodeWeight>(_c_ctx, _p_ctx, prev_n, total_node_weight);
 
-    Context ctx = create_largek_fast_context();
+    Context ctx = create_fast_largek_context();
     ctx.partition.epsilon = _c_ctx.clustering.max_allowed_imbalance;
     ctx.partition.k = total_node_weight / max_cluster_weight;
     ctx.partition.setup(graph);

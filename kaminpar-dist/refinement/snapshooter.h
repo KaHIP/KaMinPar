@@ -13,6 +13,7 @@
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::dist {
+
 class PartitionSnapshooter {
 public:
   virtual ~PartitionSnapshooter() = default;
@@ -65,8 +66,14 @@ public:
 
   void update(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
-  void update(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx, EdgeWeight cut, double l1) final;
+  void update(
+      const DistributedPartitionedGraph &p_graph,
+      const PartitionContext &p_ctx,
+      EdgeWeight cut,
+      double l1
+  ) final;
 
   void rollback(DistributedPartitionedGraph &p_graph) final;
 };
+
 } // namespace kaminpar::dist

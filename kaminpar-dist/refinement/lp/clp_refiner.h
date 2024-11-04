@@ -16,6 +16,7 @@
 #include "kaminpar-common/parallel/vector_ets.h"
 
 namespace kaminpar::dist {
+
 class ColoredLPRefinerFactory : public GlobalRefinerFactory {
 public:
   ColoredLPRefinerFactory(const Context &ctx);
@@ -78,8 +79,8 @@ private:
   NodeID try_probabilistic_moves(ColorID c, const BlockGainsContainer &block_gains);
   void synchronize_state(ColorID c);
 
-  auto reduce_move_candidates(std::vector<MoveCandidate> &&candidates)
-      -> std::vector<MoveCandidate>;
+  auto reduce_move_candidates(std::vector<MoveCandidate> &&candidates
+  ) -> std::vector<MoveCandidate>;
   auto reduce_move_candidates(std::vector<MoveCandidate> &&a, std::vector<MoveCandidate> &&b)
       -> std::vector<MoveCandidate>;
 
@@ -104,4 +105,5 @@ private:
 
   GainStatistics _gain_statistics;
 };
+
 } // namespace kaminpar::dist

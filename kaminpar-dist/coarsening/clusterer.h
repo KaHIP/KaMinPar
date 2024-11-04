@@ -13,6 +13,7 @@
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::dist {
+
 class Clusterer {
 public:
   Clusterer() = default;
@@ -40,5 +41,5 @@ public:
 
   virtual void cluster(StaticArray<GlobalNodeID> &clustering, const DistributedGraph &graph) = 0;
 };
-} // namespace kaminpar::dist
 
+} // namespace kaminpar::dist

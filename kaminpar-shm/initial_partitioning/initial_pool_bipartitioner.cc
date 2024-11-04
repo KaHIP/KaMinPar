@@ -47,6 +47,14 @@ void InitialPoolBipartitioner::RunningVariance::update(const double value) {
   _M2 += delta * delta2;
 }
 
+void InitialPoolBipartitioner::BipartitionerStatistics::reset() {
+  cuts.clear();
+  cut_mean = 0;
+  cut_variance = 0;
+  num_feasible_partitions = 0;
+  num_infeasible_partitions = 0;
+}
+
 InitialPoolBipartitioner::InitialPoolBipartitioner(const InitialPoolPartitionerContext &pool_ctx)
     : _pool_ctx(pool_ctx),
       _refiner(create_initial_refiner(pool_ctx.refinement)) {
@@ -90,12 +98,10 @@ void InitialPoolBipartitioner::init(const CSRGraph &graph, const PartitionContex
 
 void InitialPoolBipartitioner::reset() {
   const std::size_t n = _bipartitioners.size();
-
-  _running_statistics.clear();
-  _running_statistics.resize(n);
-
-  _statistics.per_bipartitioner.clear();
-  _statistics.per_bipartitioner.resize(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    _running_statistics[i].reset();
+    _statistics.per_bipartitioner[i].reset();
+  }
 
   _best_feasible = false;
   _best_cut = std::numeric_limits<EdgeWeight>::max();

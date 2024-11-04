@@ -28,8 +28,10 @@ namespace kaminpar::shm {
  * If an object of this class is constructed without partition, all nodes are
  * marked unassigned, i.e., are placed in block `kInvalidBlockID`.
  */
-template <typename Graph> class GenericPartitionedGraph : public GraphDelegate<Graph> {
+template <typename GraphType> class GenericPartitionedGraph : public GraphDelegate<GraphType> {
 public:
+  using Graph = GraphType;
+
   using NodeID = typename Graph::NodeID;
   using NodeWeight = typename Graph::NodeWeight;
   using EdgeID = typename Graph::EdgeID;
@@ -56,15 +58,26 @@ public:
   }
 
   // Sequential ctor: use sequential loops to compute block weights.
-  GenericPartitionedGraph(seq, const Graph &graph, BlockID k, StaticArray<BlockID> partition = {})
+  GenericPartitionedGraph(
+      seq,
+      const Graph &graph,
+      BlockID k,
+      StaticArray<BlockID> partition = {},
+      StaticArray<BlockWeight> block_weights = {}
+  )
       : GraphDelegate<Graph>(&graph),
         _k(k),
         _partition(std::move(partition)),
-        _block_weights(k, static_array::seq) {
+        _block_weights(std::move(block_weights)) {
     KASSERT(_partition.empty() || _partition.size() >= graph.n());
+    KASSERT(_block_weights.empty() || _block_weights.size() >= k);
 
     if (graph.n() > 0 && _partition.empty()) {
       _partition.resize(graph.n(), kInvalidBlockID, static_array::seq);
+    }
+
+    if (k > 0 && _block_weights.empty()) {
+      _block_weights.resize(k, static_array::seq);
     }
 
     init_block_weights_seq();

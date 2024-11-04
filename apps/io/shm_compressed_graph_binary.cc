@@ -27,11 +27,11 @@ struct CompressedBinaryHeader {
 
   bool use_degree_bucket_order;
 
+  bool compress_edge_weights;
   bool use_high_degree_encoding;
   bool use_interval_encoding;
   bool use_run_length_encoding;
-  bool use_stream_vbyte_encoding;
-  bool use_isolated_nodes_separation;
+  bool use_streamvbyte_encoding;
 
   std::uint64_t high_degree_threshold;
   std::uint64_t high_degree_part_length;
@@ -39,6 +39,7 @@ struct CompressedBinaryHeader {
 
   std::uint64_t num_nodes;
   std::uint64_t num_edges;
+  std::int64_t total_edge_weight;
   std::uint64_t max_degree;
 
   std::uint64_t num_high_degree_nodes;
@@ -60,11 +61,11 @@ CompressedBinaryHeader create_header(const CompressedGraph &graph) {
 
       graph.sorted(),
 
+      CompressedGraph::kCompressEdgeWeights,
       CompressedGraph::kHighDegreeEncoding,
       CompressedGraph::kIntervalEncoding,
       CompressedGraph::kRunLengthEncoding,
-      CompressedGraph::kStreamEncoding,
-      CompressedGraph::kIsolatedNodesSeparation,
+      CompressedGraph::kStreamVByteEncoding,
 
       CompressedGraph::kHighDegreeThreshold,
       CompressedGraph::kHighDegreePartLength,
@@ -72,12 +73,14 @@ CompressedBinaryHeader create_header(const CompressedGraph &graph) {
 
       graph.n(),
       graph.m(),
+      graph.total_edge_weight(),
       graph.max_degree(),
 
       graph.num_high_degree_nodes(),
       graph.num_high_degree_parts(),
       graph.num_interval_nodes(),
-      graph.num_intervals()};
+      graph.num_intervals()
+  };
 }
 
 template <typename T> static void write_int(std::ofstream &out, const T id) {
@@ -86,9 +89,9 @@ template <typename T> static void write_int(std::ofstream &out, const T id) {
 
 static void write_header(std::ofstream &out, const CompressedBinaryHeader header) {
   const std::uint16_t boolean_values =
-      (header.use_isolated_nodes_separation << 12) | (header.use_stream_vbyte_encoding << 11) |
-      (header.use_run_length_encoding << 9) | (header.use_interval_encoding << 8) |
-      (header.use_high_degree_encoding << 7) | (header.use_degree_bucket_order << 6) |
+      (header.use_streamvbyte_encoding << 11) | (header.use_run_length_encoding << 10) |
+      (header.use_interval_encoding << 9) | (header.use_high_degree_encoding << 8) |
+      (header.compress_edge_weights << 7) | (header.use_degree_bucket_order << 6) |
       (header.has_64_bit_edge_weight << 5) | (header.has_64_bit_node_weight << 4) |
       (header.has_64_bit_edge_id << 3) | (header.has_64_bit_node_id << 2) |
       (header.has_edge_weights << 1) | (header.has_node_weights);
@@ -100,6 +103,7 @@ static void write_header(std::ofstream &out, const CompressedBinaryHeader header
 
   write_int(out, header.num_nodes);
   write_int(out, header.num_edges);
+  write_int(out, header.total_edge_weight);
   write_int(out, header.max_degree);
 
   write_int(out, header.num_high_degree_nodes);
@@ -111,8 +115,8 @@ static void write_header(std::ofstream &out, const CompressedBinaryHeader header
 template <typename T>
 static void write_compact_static_array(std::ofstream &out, const CompactStaticArray<T> &array) {
   write_int(out, array.byte_width());
-  write_int(out, array.allocated_size());
-  out.write(reinterpret_cast<const char *>(array.data()), array.allocated_size());
+  write_int(out, array.memory_space());
+  out.write(reinterpret_cast<const char *>(array.data()), array.memory_space());
 }
 
 template <typename T>
@@ -135,7 +139,7 @@ void write(const std::string &filename, const CompressedGraph &graph) {
     write_static_array(out, graph.raw_node_weights());
   }
 
-  if (graph.is_edge_weighted()) {
+  if (graph.is_edge_weighted() && !CompressedGraph::kCompressEdgeWeights) {
     write_static_array(out, graph.raw_edge_weights());
   }
 }
@@ -154,9 +158,9 @@ CompressedBinaryHeader read_header(std::ifstream &in) {
       (boolean_values & 64) != 0,  (boolean_values & 128) != 0,  (boolean_values & 256) != 0,
       (boolean_values & 512) != 0, (boolean_values & 1024) != 0, (boolean_values & 2048) != 0,
       read_int<std::uint64_t>(in), read_int<std::uint64_t>(in),  read_int<std::uint64_t>(in),
+      read_int<std::uint64_t>(in), read_int<std::uint64_t>(in),  read_int<std::int64_t>(in),
       read_int<std::uint64_t>(in), read_int<std::uint64_t>(in),  read_int<std::uint64_t>(in),
-      read_int<std::uint64_t>(in), read_int<std::uint64_t>(in),  read_int<std::uint64_t>(in),
-      read_int<std::uint64_t>(in),
+      read_int<std::uint64_t>(in), read_int<std::uint64_t>(in),
   };
 }
 
@@ -216,6 +220,17 @@ void verify_header(const CompressedBinaryHeader header) {
     std::exit(1);
   }
 
+  if (header.compress_edge_weights != CompressedGraph::kCompressEdgeWeights) {
+    if (header.compress_edge_weights) {
+      LOG_ERROR
+          << "The stored compressed graph has compressed edge weight but this build does not.";
+    } else {
+      LOG_ERROR
+          << "The stored compressed graph does not compress edge weights but this build does.";
+    }
+    std::exit(1);
+  }
+
   if (header.use_high_degree_encoding != CompressedGraph::kHighDegreeEncoding) {
     if (header.use_high_degree_encoding) {
       LOG_ERROR << "The stored compressed graph uses high degree encoding but this build does not.";
@@ -246,22 +261,11 @@ void verify_header(const CompressedBinaryHeader header) {
     std::exit(1);
   }
 
-  if (header.use_stream_vbyte_encoding != CompressedGraph::kStreamEncoding) {
-    if (header.use_stream_vbyte_encoding) {
+  if (header.use_streamvbyte_encoding != CompressedGraph::kStreamVByteEncoding) {
+    if (header.use_streamvbyte_encoding) {
       LOG_ERROR << "The stored compressed graph uses stream encoding but this build does not.";
     } else {
       LOG_ERROR << "The stored compressed graph does not use stream encoding but this build does.";
-    }
-    std::exit(1);
-  }
-
-  if (header.use_isolated_nodes_separation != CompressedGraph::kIsolatedNodesSeparation) {
-    if (header.use_isolated_nodes_separation) {
-      LOG_ERROR
-          << "The stored compressed graph uses isolated nodes separation but this build does not.";
-    } else {
-      LOG_ERROR << "The stored compressed graph does not use isolated nodes separation but this "
-                   "build does.";
     }
     std::exit(1);
   }
@@ -301,14 +305,14 @@ template <typename T> static StaticArray<T> read_static_array(std::ifstream &in)
   const auto size = read_int<std::size_t>(in);
   StaticArray<T> array(size, static_array::noinit);
   in.read(reinterpret_cast<char *>(array.data()), sizeof(T) * size);
-  return std::move(array);
+  return array;
 }
 
 CompressedGraph read(const std::string &filename) {
   std::ifstream in(filename, std::ios::binary);
   if (kMagicNumber != read_int<std::uint64_t>(in)) {
     LOG_ERROR << "The magic number of the file is not correct!";
-    std::exit(1);
+    std::exit(EXIT_FAILURE);
   }
 
   CompressedBinaryHeader header = read_header(in);
@@ -317,23 +321,32 @@ CompressedGraph read(const std::string &filename) {
   CompactStaticArray<EdgeID> nodes = read_compact_static_array<EdgeID>(in);
   StaticArray<std::uint8_t> compressed_edges = read_static_array<std::uint8_t>(in);
 
-  StaticArray<NodeWeight> node_weights =
-      header.has_node_weights ? read_static_array<NodeWeight>(in) : StaticArray<NodeWeight>();
-  StaticArray<EdgeWeight> edge_weights =
-      header.has_edge_weights ? read_static_array<EdgeWeight>(in) : StaticArray<EdgeWeight>();
+  StaticArray<NodeWeight> node_weights;
+  if (header.has_node_weights) {
+    node_weights = read_static_array<NodeWeight>(in);
+  }
 
-  return CompressedGraph(
+  StaticArray<EdgeWeight> edge_weights;
+  if (header.has_edge_weights && !CompressedGraph::kCompressEdgeWeights) {
+    edge_weights = read_static_array<EdgeWeight>(in);
+  }
+
+  CompressedNeighborhoods<NodeID, EdgeID, EdgeWeight> compressed_neighborhoods(
       std::move(nodes),
       std::move(compressed_edges),
-      std::move(node_weights),
       std::move(edge_weights),
-      header.num_edges,
       header.max_degree,
-      header.use_degree_bucket_order,
+      header.num_edges,
+      header.has_edge_weights,
+      header.total_edge_weight,
       header.num_high_degree_nodes,
       header.num_high_degree_parts,
       header.num_interval_nodes,
       header.num_intervals
+  );
+
+  return CompressedGraph(
+      std::move(compressed_neighborhoods), std::move(node_weights), header.use_degree_bucket_order
   );
 }
 

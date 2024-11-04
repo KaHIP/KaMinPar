@@ -21,6 +21,9 @@
 
 namespace kaminpar::heap_profiler {
 
+double max_overcommitment_factor = 1.0;
+bool bruteforce_max_overcommitment_factor = false;
+
 // Source: https://stackoverflow.com/a/2513561
 #ifdef __linux__
 std::size_t get_total_system_memory() {
@@ -84,38 +87,39 @@ void HeapProfiler::stop_profile() {
   }
 }
 
-ScopedHeapProfiler HeapProfiler::start_scoped_profile(std::string_view name, std::string desc) {
-  return ScopedHeapProfiler(name, desc);
-}
-
 void HeapProfiler::record_data_struct(
-    std::string_view var_name, std::string_view file_name, std::size_t line
+    std::string_view var_name, const std::source_location location
 ) {
   if (_enabled) {
     _var_name = var_name;
-    _file_name = file_name;
-    _line = line;
+    _file_name = location.file_name();
+    _line = location.line();
+    _column = location.column();
   }
 }
 
-DataStructure *HeapProfiler::add_data_struct(std::string name, std::size_t size) {
+DataStructure *HeapProfiler::add_data_struct(std::string_view name, std::size_t size) {
   if (_enabled) {
     std::lock_guard<std::mutex> guard(_mutex);
 
-    DataStructure *data_structure = _struct_allocator.create(std::move(name), size);
+    DataStructure *data_structure = _struct_allocator.create(name, size);
     if (_line != 0) {
       data_structure->variable_name = _var_name;
       data_structure->file_name = _file_name;
       data_structure->line = _line;
+      data_structure->column = _column;
 
       _line = 0;
+      _column = 0;
     }
 
     _tree.currentNode->data_structures.push_back(data_structure);
     return data_structure;
   }
 
-  return new DataStructure(std::move(name), size);
+  // @todo: Potential memory leak. However, this method is currently not called when the heap
+  // profiler is disabled.
+  return new DataStructure(name, size);
 }
 
 void HeapProfiler::record_alloc(const void *ptr, std::size_t size) {
@@ -123,13 +127,28 @@ void HeapProfiler::record_alloc(const void *ptr, std::size_t size) {
     std::lock_guard<std::mutex> guard(_mutex);
 
     for (HeapProfileTreeNode *node = _tree.currentNode; node != nullptr; node = node->parent) {
-      node->allocs++;
-      node->alloc_size += size;
+      node->num_allocs++;
+      node->total_alloc += size;
 
-      if (std::size_t current_alloc = node->alloc_size - node->free_size;
-          node->alloc_size > node->free_size && current_alloc > node->max_alloc_size) {
-        node->max_alloc_size = current_alloc;
+      if (std::size_t current_alloc = node->total_alloc - node->total_free;
+          node->total_alloc > node->total_free && current_alloc > node->peak_memory) {
+        node->peak_memory = current_alloc;
+
+        const bool is_root_node = node->parent == nullptr;
+        if (is_root_node) {
+          if (_peak_memory_node != nullptr) {
+            _peak_memory_node->is_peak_memory_node = false;
+          }
+
+          _peak_memory_node = _tree.currentNode;
+          _peak_memory_node->is_peak_memory_node = true;
+        }
       }
+    }
+
+    if (_address_map.contains(ptr)) {
+      _num_suspicious_allocs++;
+      _sum_suspicious_allocs += size;
     }
 
     _address_map.insert_or_assign(ptr, size);
@@ -141,25 +160,32 @@ void HeapProfiler::record_free(const void *ptr) {
     std::lock_guard<std::mutex> guard(_mutex);
 
     if (auto search = _address_map.find(ptr); search != _address_map.end()) {
-      std::size_t size = search->second;
+      const std::size_t size = search->second;
+
       for (HeapProfileTreeNode *node = _tree.currentNode; node != nullptr; node = node->parent) {
-        node->frees++;
-        node->free_size += size;
+        node->num_frees++;
+        node->total_free += size;
       }
 
       _address_map.erase(search);
+    } else {
+      _num_suspicious_frees++;
     }
   }
 }
 
-void HeapProfiler::set_detailed_summary_options() {
+void HeapProfiler::set_experiment_summary_options() {
   set_max_depth(std::numeric_limits<std::size_t>::max());
-  set_print_data_structs(true);
-  set_min_data_struct_size(1);
+  set_highlight_peak_memory_node(false);
+  set_print_data_structs(false);
 }
 
 void HeapProfiler::set_max_depth(std::size_t max_depth) {
   _max_depth = max_depth;
+}
+
+void HeapProfiler::set_highlight_peak_memory_node(bool highlight) {
+  _highlight_peak_memory_node = highlight;
 }
 
 void HeapProfiler::set_print_data_structs(bool print) {
@@ -171,46 +197,70 @@ void HeapProfiler::set_min_data_struct_size(float size) {
 }
 
 void HeapProfiler::print_heap_profile(std::ostream &out) {
+  if (_num_suspicious_allocs > 0) {
+    out << "[Warning] The heap profiler recorded some allocations twice (#"
+        << _num_suspicious_allocs << ", " << to_megabytes(_sum_suspicious_allocs) << " MiB)\n";
+  }
+  if (_num_suspicious_frees > 0) {
+    out << "[Warning] The heap profiler failed to record some deallocations as the corresponding "
+           "allocation has not been recorded (#"
+        << _num_suspicious_frees << ")\n";
+  }
+
   HeapProfileTreeNode &root = *_tree.currentNode;
   HeapProfileTreeStats stats(root);
 
-  stats.max_alloc_size =
-      std::max(kMaxAllocTitle.length(), to_megabytes(stats.max_alloc_size).length());
-  stats.alloc_size = std::max(kAllocTitle.length(), to_megabytes(stats.alloc_size).length());
-  stats.free_size = std::max(kAllocTitle.length(), to_megabytes(stats.free_size).length());
-  stats.allocs = std::max(kAllocsTitle.length(), std::to_string(stats.allocs).length());
-  stats.frees = std::max(kFreesTitle.length(), std::to_string(stats.frees).length());
+  stats.peak_memory = std::max(kMaxAllocTitle.length(), to_megabytes(stats.peak_memory).length());
+  stats.total_alloc = std::max(kAllocTitle.length(), to_megabytes(stats.total_alloc).length());
+  stats.total_free = std::max(kAllocTitle.length(), to_megabytes(stats.total_free).length());
+  stats.num_allocs = std::max(kAllocsTitle.length(), std::to_string(stats.num_allocs).length());
+  stats.num_frees = std::max(kFreesTitle.length(), std::to_string(stats.num_frees).length());
 
   out << std::string(stats.len + kNameDel.length() + kPercentageLength - 1, kHeadingPadding) << ' ';
-  out << kMaxAllocTitle << std::string(stats.max_alloc_size - kMaxAllocTitle.length() + 1, ' ');
-  out << kAllocTitle << std::string(stats.alloc_size - kAllocTitle.length() + 1, ' ');
-  out << kFreeTitle << std::string(stats.free_size - kFreeTitle.length() + 1, ' ');
-  out << kAllocsTitle << std::string(stats.allocs - kAllocsTitle.length() + 1, ' ');
-  out << kFreesTitle << std::string(stats.frees - kFreesTitle.length() + 1, ' ');
+  out << kMaxAllocTitle << std::string(stats.peak_memory - kMaxAllocTitle.length() + 1, ' ');
+  out << kAllocTitle << std::string(stats.total_alloc - kAllocTitle.length() + 1, ' ');
+  out << kFreeTitle << std::string(stats.total_free - kFreeTitle.length() + 1, ' ');
+  out << kAllocsTitle << std::string(stats.num_allocs - kAllocsTitle.length() + 1, ' ');
+  out << kFreesTitle << std::string(stats.num_frees - kFreesTitle.length() + 1, ' ');
+  if (!_tree.annotation.empty()) {
+    out << "   " << _tree.annotation;
+  }
   out << '\n';
 
-  print_heap_tree_node(out, root, stats, _max_depth, _print_data_structs, _min_data_struct_size);
+  print_heap_tree_node(
+      out,
+      root,
+      stats,
+      _max_depth,
+      _print_data_structs,
+      _highlight_peak_memory_node,
+      _min_data_struct_size
+  );
   out << '\n';
 }
 
-std::size_t HeapProfiler::get_max_alloc() {
-  return _tree.currentNode->max_alloc_size;
+std::size_t HeapProfiler::peak_memory() {
+  return _tree.currentNode->peak_memory;
 }
 
-std::size_t HeapProfiler::get_alloc() {
-  return _tree.currentNode->alloc_size;
+std::size_t HeapProfiler::total_alloc() {
+  return _tree.currentNode->total_alloc;
 }
 
-std::size_t HeapProfiler::get_free() {
-  return _tree.currentNode->free_size;
+std::size_t HeapProfiler::total_free() {
+  return _tree.currentNode->total_free;
 }
 
-std::size_t HeapProfiler::get_allocs() {
-  return _tree.currentNode->allocs;
+std::size_t HeapProfiler::num_allocs() {
+  return _tree.currentNode->num_allocs;
 }
 
-std::size_t HeapProfiler::get_frees() {
-  return _tree.currentNode->frees;
+std::size_t HeapProfiler::num_frees() {
+  return _tree.currentNode->num_frees;
+}
+
+[[nodiscard]] HeapProfiler::HeapProfileTree &HeapProfiler::tree_root() {
+  return _tree;
 }
 
 void HeapProfiler::print_heap_tree_node(
@@ -219,6 +269,7 @@ void HeapProfiler::print_heap_tree_node(
     const HeapProfileTreeStats stats,
     std::size_t max_depth,
     bool print_data_structs,
+    bool highlight_peak_memory_node,
     std::size_t min_data_struct_size,
     std::size_t depth,
     bool last
@@ -227,8 +278,16 @@ void HeapProfiler::print_heap_tree_node(
     return;
   }
 
+  if (highlight_peak_memory_node && node.is_peak_memory_node) {
+    out << "\u001b[35m";
+  }
+
   print_indentation(out, depth, last);
-  print_percentage(out, node);
+
+  const std::size_t parent_alloc_size = node.parent == nullptr ? 0 : node.parent->total_alloc;
+  const float percentage =
+      (parent_alloc_size == 0) ? 1 : (node.total_alloc / static_cast<float>(parent_alloc_size));
+  print_percentage(out, percentage);
 
   out << node.name;
 
@@ -244,6 +303,12 @@ void HeapProfiler::print_heap_tree_node(
   }
 
   print_statistics(out, node, stats);
+
+  if (highlight_peak_memory_node && node.is_peak_memory_node) {
+    out << "\u001b[0m";
+  }
+  out << '\n';
+
   if (print_data_structs) {
     print_data_structures(out, node, depth, node.children.empty(), min_data_struct_size);
   }
@@ -259,6 +324,7 @@ void HeapProfiler::print_heap_tree_node(
           stats,
           max_depth,
           print_data_structs,
+          highlight_peak_memory_node,
           min_data_struct_size,
           depth + 1,
           is_last
@@ -269,25 +335,22 @@ void HeapProfiler::print_heap_tree_node(
 
 void HeapProfiler::print_indentation(std::ostream &out, std::size_t depth, bool last) {
   if (depth > 0) {
-    std::size_t leading_whitespaces = (depth - 1) * kBranchLength;
+    const std::size_t leading_whitespaces = (depth - 1) * kBranchLength;
     out << std::string(leading_whitespaces, ' ') << (last ? kTailBranch : kBranch);
   }
 }
 
-void HeapProfiler::print_percentage(std::ostream &out, const HeapProfileTreeNode &node) {
-  std::size_t parent_alloc_size = node.parent == nullptr ? 0 : node.parent->alloc_size;
-  float percentage = (parent_alloc_size == 0) ? 1 : (node.alloc_size / (float)parent_alloc_size);
+void HeapProfiler::print_percentage(std::ostream &out, const float percentage) {
+  out << '(';
 
-  out << "(";
-
-  if (percentage >= 0.999995) {
-    out << "100.00";
+  if (percentage >= 0.99995) {
+    out << "100.0";
   } else {
     if (percentage < 0.1) {
-      out << "0";
+      out << '0';
     }
 
-    out << percentage * 100;
+    out << std::fixed << std::setprecision(2) << percentage * 100;
   }
 
   out << "%) ";
@@ -296,17 +359,23 @@ void HeapProfiler::print_percentage(std::ostream &out, const HeapProfileTreeNode
 void HeapProfiler::print_statistics(
     std::ostream &out, const HeapProfileTreeNode &node, const HeapProfileTreeStats stats
 ) {
-  std::string max_alloc_size = to_megabytes(node.max_alloc_size);
-  out << max_alloc_size << std::string(stats.max_alloc_size - max_alloc_size.length() + 1, ' ');
+  const std::string peak_memory_size = to_megabytes(node.peak_memory);
+  out << peak_memory_size << std::string(stats.peak_memory - peak_memory_size.length() + 1, ' ');
 
-  std::string alloc_size = to_megabytes(node.alloc_size);
-  out << alloc_size << std::string(stats.alloc_size - alloc_size.length() + 1, ' ');
+  const std::string total_alloc_size = to_megabytes(node.total_alloc);
+  out << total_alloc_size << std::string(stats.total_alloc - total_alloc_size.length() + 1, ' ');
 
-  std::string free_size = to_megabytes(node.free_size);
-  out << free_size << std::string(stats.free_size - free_size.length() + 1, ' ');
+  const std::string total_free_size = to_megabytes(node.total_free);
+  out << total_free_size << std::string(stats.total_free - total_free_size.length() + 1, ' ');
 
-  out << node.allocs << std::string(stats.allocs - std::to_string(node.allocs).length() + 1, ' ')
-      << node.frees << std::string(stats.frees - std::to_string(node.frees).length(), ' ') << '\n';
+  out << node.num_allocs
+      << std::string(stats.num_allocs - std::to_string(node.num_allocs).length() + 1, ' ')
+      << node.num_frees
+      << std::string(stats.num_frees - std::to_string(node.num_frees).length(), ' ');
+
+  if (!node.annotation.empty()) {
+    out << "   " << node.annotation;
+  }
 }
 
 void HeapProfiler::print_data_structures(
@@ -316,7 +385,7 @@ void HeapProfiler::print_data_structures(
     bool last,
     std::size_t min_data_struct_size
 ) {
-  std::vector<DataStructure *, NoProfilAllocator<DataStructure *>> filtered_data_structures;
+  std::vector<DataStructure *, NoProfileAllocator<DataStructure *>> filtered_data_structures;
   std::copy_if(
       node.data_structures.begin(),
       node.data_structures.end(),
@@ -339,14 +408,12 @@ void HeapProfiler::print_data_structures(
     const bool is_last = last && (data_structure == last_data_structure);
     const bool has_info = data_structure->line > 0;
 
-    std::size_t leading_whitespaces = depth * kBranchLength;
+    const std::size_t leading_whitespaces = depth * kBranchLength;
     out << std::string(leading_whitespaces, ' ') << (is_last ? kTailBranch : kBranch);
 
-    std::size_t max_alloc_size = node.max_alloc_size;
-    float percentage = (max_alloc_size == 0) ? 1 : (data_structure->size / (float)max_alloc_size);
-    if (percentage <= 1) {
-      out << '(' << (percentage * 100) << "%) ";
-    }
+    const float percentage =
+        (node.peak_memory == 0) ? 1 : (data_structure->size / static_cast<float>(node.peak_memory));
+    print_percentage(out, percentage);
 
     out << data_structure->name;
     if (has_info) {
@@ -355,7 +422,8 @@ void HeapProfiler::print_data_structures(
     out << " uses " << to_megabytes(data_structure->size) << " mb ";
 
     if (has_info) {
-      out << " (" << data_structure->file_name << " at line " << data_structure->line << ')';
+      out << " [" << data_structure->file_name << '(' << data_structure->line << ':'
+          << data_structure->column << ")]";
     }
 
     out << '\n';

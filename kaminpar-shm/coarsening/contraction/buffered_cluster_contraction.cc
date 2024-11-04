@@ -14,10 +14,10 @@
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction_preprocessing.h"
 
-#include "kaminpar-common/datastructures/compact_static_array.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/heap_profiler.h"
+#include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::contraction {
@@ -122,7 +122,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_buffered(
   }};
   NavigableLinkedList<NodeID, Edge, ScalableVector> edge_buffer_ets;
 
-  for (const auto [cluster_start, cluster_end] : cluster_chunks) {
+  for (const auto &[cluster_start, cluster_end] : cluster_chunks) {
     tbb::parallel_for(tbb::blocked_range<NodeID>(cluster_start, cluster_end), [&](const auto &r) {
       auto &local_collector = collector.local();
       auto &local_edge_buffer = edge_buffer_ets.local();
@@ -143,10 +143,10 @@ std::unique_ptr<CoarseGraph> contract_clustering_buffered(
             c_u_weight += graph.node_weight(u); // coarse node weight
 
             // collect coarse edges
-            graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
+            graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
               const NodeID c_v = mapping[v];
               if (c_u != c_v) {
-                map[c_v] += graph.edge_weight(e);
+                map[c_v] += w;
               }
             });
           }
@@ -246,15 +246,16 @@ std::unique_ptr<CoarseGraph> contract_clustering_buffered(
   const EdgeID c_m = c_nodes.back();
 
   START_HEAP_PROFILER("Coarse graph edges allocation");
-  RECORD("c_edges") StaticArray<NodeID> finalized_c_edges(c_m, std::move(c_edges));
-  RECORD("c_edge_weights")
-  StaticArray<EdgeWeight> finalized_c_edge_weights(c_m, std::move(c_edge_weights));
   if constexpr (kHeapProfiling) {
     heap_profiler::HeapProfiler::global().record_alloc(c_edges.get(), c_m * sizeof(NodeID));
     heap_profiler::HeapProfiler::global().record_alloc(
         c_edge_weights.get(), c_m * sizeof(EdgeWeight)
     );
   }
+
+  RECORD("c_edges") StaticArray<NodeID> finalized_c_edges(c_m, std::move(c_edges));
+  RECORD("c_edge_weights")
+  StaticArray<EdgeWeight> finalized_c_edge_weights(c_m, std::move(c_edge_weights));
   STOP_HEAP_PROFILER();
 
   return std::make_unique<CoarseGraphImpl>(

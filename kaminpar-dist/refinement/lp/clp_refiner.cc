@@ -36,9 +36,12 @@
 #endif
 
 namespace kaminpar::dist {
+
 namespace {
+
 SET_STATISTICS_FROM_GLOBAL();
 SET_DEBUG(false);
+
 } // namespace
 
 ColoredLPRefinerFactory::ColoredLPRefinerFactory(const Context &ctx) : _ctx(ctx) {}
@@ -54,8 +57,8 @@ ColoredLPRefiner::ColoredLPRefiner(
 )
     : _input_ctx(ctx),
       _ctx(ctx.refinement.colored_lp),
-      _p_graph(p_graph),
       _p_ctx(p_ctx),
+      _p_graph(p_graph),
       _gain_statistics() {}
 
 void ColoredLPRefiner::initialize() {
@@ -528,7 +531,7 @@ NodeID ColoredLPRefiner::perform_local_moves(const ColorID c) {
 
     if (to != _p_graph.block(u)) {
       activate_neighbors(u);
-      _next_partition[seq_u] = kInvalidNodeID; // Mark as moved
+      _next_partition[seq_u] = kInvalidBlockID; // Mark as moved
       _p_graph.set_block<false>(u, to);
       ++num_moved_nodes_ets.local();
       IFSTATS(_gain_statistics.record_gain(_gains[seq_u], c));
@@ -822,12 +825,11 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
 
       auto action = [&](auto &map) {
         bool is_interface_node = false;
-        for (const auto [e, v] : graph.neighbors(u)) {
+        graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
           const BlockID b = _p_graph.block(v);
-          const EdgeWeight weight = graph.edge_weight(e);
           map[b] += weight;
           is_interface_node |= graph.is_ghost_node(v);
-        }
+        });
 
         const BlockID u_block = _p_graph.block(u);
         const NodeWeight u_weight = graph.node_weight(u);
@@ -885,9 +887,7 @@ void ColoredLPRefiner::activate_neighbors(const NodeID u) {
     return;
   }
 
-  for (const auto &[e, v] : _p_graph.neighbors(u)) {
-    _is_active[v] = 1;
-  }
+  _p_graph.adjacent_nodes(u, [&](const NodeID v) { _is_active[v] = 1; });
 }
 
 void ColoredLPRefiner::GainStatistics::initialize(const ColorID c) {
@@ -958,4 +958,5 @@ void ColoredLPRefiner::GainStatistics::summarize_by_size(
           << " percentage=" << gain_percentage << " percentage_so_far=" << gain_so_far_percentage;
   }
 }
+
 } // namespace kaminpar::dist

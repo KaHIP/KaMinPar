@@ -36,6 +36,10 @@ constexpr struct noinit_t {
 constexpr struct small_t {
 } small;
 
+//! Tag for uninitialized and overcommited memory allocations that are manually tracked.
+constexpr struct overcommit_t {
+} overcommit;
+
 //! Tag for initializing memory sequentially. Without this tag, memory will be initialized by a
 //! parallel loop. Has no effect in the presence of the noinit tag.
 constexpr struct seq_t {
@@ -148,7 +152,7 @@ public:
   using const_iterator = StaticArrayIterator<true>;
 
   StaticArray(const std::size_t size, value_type *data) : _size(size), _data(data) {
-    RECORD_DATA_STRUCT(size * sizeof(T), _struct);
+    RECORD_DATA_STRUCT(0, _struct);
   }
 
   StaticArray(const std::size_t size, heap_profiler::unique_ptr<T> storage)
@@ -170,11 +174,14 @@ public:
   }
 
   template <typename Iterator>
-  StaticArray(Iterator first, Iterator last) : StaticArray(std::distance(first, last)) {
+  StaticArray(Iterator first, Iterator last)
+      : StaticArray(std::distance(first, last), static_array::noinit) {
     tbb::parallel_for<std::size_t>(0, _size, [&](const std::size_t i) { _data[i] = *(first + i); });
   }
 
-  StaticArray() : StaticArray(0) {}
+  StaticArray() {
+    RECORD_DATA_STRUCT(0, _struct);
+  }
 
   StaticArray(const StaticArray &) = delete;
   StaticArray &operator=(const StaticArray &) = delete;
@@ -190,7 +197,7 @@ public:
   }
 
   [[nodiscard]] bool is_span() const {
-    return _owned_data.get() == nullptr;
+    return _owned_data.get() == nullptr && _overcommited_data.get() == nullptr;
   }
 
   //
@@ -239,12 +246,12 @@ public:
   }
 
   value_type *data() {
-    KASSERT(_data);
+    KASSERT(_data || _size == 0);
     return _data;
   }
 
   const value_type *data() const {
-    KASSERT(_data);
+    KASSERT(_data || _size == 0);
     return _data;
   }
 
@@ -253,12 +260,12 @@ public:
   //
 
   iterator begin() {
-    KASSERT(_data);
+    KASSERT(_data || _size == 0);
     return iterator(_data);
   }
 
   const_iterator begin() const {
-    KASSERT(_data);
+    KASSERT(_data || _size == 0);
     return const_iterator(_data);
   }
 
@@ -267,12 +274,12 @@ public:
   }
 
   iterator end() {
-    KASSERT(_data);
+    KASSERT(_data || _size == 0);
     return iterator(_data + _size);
   }
 
   const_iterator end() const {
-    KASSERT(_data);
+    KASSERT(_data || _size == 0);
     return const_iterator(_data + _size);
   }
 
@@ -311,15 +318,18 @@ public:
   }
 
   template <typename... Tags>
-  void resize(const std::size_t size, const value_type init_value, Tags... tags) {
-    KASSERT(_data == _owned_data.get(), "cannot resize span", assert::always);
-    const bool use_thp =
-        (size >= KAMINPAR_THP_THRESHOLD && !contains_tag_v<static_array::small_t, Tags...>);
+  void resize(const std::size_t size, const value_type init_value, Tags...) {
+    KASSERT(
+        _data == _owned_data.get() || _data == _overcommited_data.get(),
+        "cannot resize span",
+        assert::always
+    );
 
-    // Before allocating the new memory, free the old memory to prevent both from being held in
-    // memory at the same time
-    _owned_data.reset();
-    allocate_data(size, use_thp);
+    const bool overcommit = kHeapProfiling && contains_tag_v<static_array::overcommit_t, Tags...>;
+    const bool use_thp =
+        size >= KAMINPAR_THP_THRESHOLD && !contains_tag_v<static_array::small_t, Tags...>;
+
+    allocate_data(size, overcommit, use_thp);
 
     if constexpr (!contains_tag_v<static_array::noinit_t, Tags...>) {
       if constexpr (contains_tag_v<static_array::seq_t, Tags...>) {
@@ -331,11 +341,11 @@ public:
   }
 
   void assign(const size_type count, const value_type value, const bool assign_parallel = true) {
-    KASSERT(_data);
+    KASSERT(_data || count == 0);
 
     if (assign_parallel) {
       const std::size_t step = std::max(count / std::thread::hardware_concurrency(), 1UL);
-      tbb::parallel_for<std::size_t>(0, count, step, [&](const size_type i) {
+      tbb::parallel_for<std::size_t>(0, count, step, [&](const size_type i) noexcept {
         for (size_type j = i; j < std::min(i + step, count); ++j) {
           _data[j] = value;
         }
@@ -347,17 +357,34 @@ public:
     }
   }
 
-  parallel::tbb_unique_ptr<value_type> free() {
+  void free() {
     _size = 0;
     _unrestricted_size = 0;
     _data = nullptr;
-    return std::move(_owned_data);
+
+    _owned_data.reset();
+    _overcommited_data.reset();
   }
 
 private:
-  void allocate_data(const std::size_t size, const bool thp) {
-    _owned_data = parallel::make_unique<value_type>(size, thp);
-    _data = _owned_data.get();
+  void allocate_data(const std::size_t size, const bool overcommit, const bool thp) {
+    // Before allocating the new memory, free the old memory to prevent both from being held in
+    // memory at the same time
+    if (_owned_data != nullptr) {
+      _owned_data.reset();
+    }
+    if (_overcommited_data != nullptr) {
+      _overcommited_data.reset();
+    }
+
+    if (overcommit) {
+      _overcommited_data = heap_profiler::overcommit_memory<value_type>(size);
+      _data = _overcommited_data.get();
+    } else {
+      _owned_data = parallel::make_unique<value_type>(size, thp);
+      _data = _owned_data.get();
+    }
+
     _size = size;
     _unrestricted_size = _size;
 

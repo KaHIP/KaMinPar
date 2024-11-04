@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Memory allocation functions that use TBB malloc.
+ *
  * @file:   tbb_malloc.h
  * @author: Daniel Seemaier
  * @date:   30.03.2022
- * @brief:  Memory allocation functions that use the TBB scalable allocator.
  ******************************************************************************/
 #pragma once
 
@@ -13,9 +14,9 @@
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/heap_profiler.h"
 
-#ifdef KAMINPAR_ENABLE_THP
+#if defined(__linux__) && defined(KAMINPAR_ENABLE_THP)
 #include "sys/mman.h"
-#endif // KAMINPAR_ENABLE_THP
+#endif
 
 namespace kaminpar::parallel {
 template <typename T> struct tbb_deleter {
@@ -31,20 +32,21 @@ template <typename T> struct tbb_deleter {
 template <typename T> using tbb_unique_ptr = std::unique_ptr<T, tbb_deleter<T>>;
 // template <typename T> using tbb_unique_ptr = std::unique_ptr<T>;
 
-template <typename T> tbb_unique_ptr<T> make_unique(const std::size_t size, const bool thp) {
+template <typename T>
+tbb_unique_ptr<T> make_unique(const std::size_t size, [[maybe_unused]] const bool thp) {
   auto nbytes = sizeof(T) * size;
   T *ptr = nullptr;
 
-#ifdef KAMINPAR_ENABLE_THP
+#if defined(__linux__) && defined(KAMINPAR_ENABLE_THP)
   if (thp) {
     scalable_posix_memalign(reinterpret_cast<void **>(&ptr), 1 << 21, nbytes);
     madvise(ptr, nbytes, MADV_HUGEPAGE);
   } else {
-#endif // KAMINPAR_ENABLE_THP
+#endif
     ptr = static_cast<T *>(scalable_malloc(nbytes));
-#ifdef KAMINPAR_ENABLE_THP
+#if defined(__linux__) && defined(KAMINPAR_ENABLE_THP)
   }
-#endif // KAMINPAR_ENABLE_THP
+#endif
 
   KASSERT(
       ptr != nullptr, "out of memory: could not allocate " << nbytes << " bytes", assert::light

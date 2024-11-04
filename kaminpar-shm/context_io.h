@@ -35,10 +35,6 @@ std::unordered_map<std::string, ClusterWeightLimit> get_cluster_weight_limits();
 
 std::ostream &operator<<(std::ostream &out, RefinementAlgorithm algorithm);
 
-std::unordered_map<std::string, ClusterWeightsStructure> get_cluster_weight_structures();
-
-std::ostream &operator<<(std::ostream &out, const ClusterWeightsStructure structure);
-
 std::unordered_map<std::string, LabelPropagationImplementation> get_lp_implementations();
 
 std::ostream &operator<<(std::ostream &out, const LabelPropagationImplementation impl);
@@ -58,6 +54,10 @@ std::ostream &operator<<(std::ostream &out, InitialPartitioningMode mode);
 std::unordered_map<std::string, InitialPartitioningMode> get_initial_partitioning_modes();
 
 std::ostream &operator<<(std::ostream &out, GainCacheStrategy strategy);
+
+std::unordered_map<std::string, TieBreakingStrategy> get_tie_breaking_strategies();
+
+std::ostream &operator<<(std::ostream &out, TieBreakingStrategy strategy);
 
 std::ostream &operator<<(std::ostream &out, SecondPhaseSelectionStrategy strategy);
 
@@ -80,9 +80,13 @@ std::ostream &operator<<(std::ostream &out, IsolatedNodesClusteringStrategy stra
 std::unordered_map<std::string, IsolatedNodesClusteringStrategy>
 get_isolated_nodes_clustering_strategies();
 
-std::ostream &operator<<(std::ostream &out, const ContractionMode mode);
+std::ostream &operator<<(std::ostream &out, const ContractionAlgorithm algorithm);
 
-std::unordered_map<std::string, ContractionMode> get_contraction_modes();
+std::unordered_map<std::string, ContractionAlgorithm> get_contraction_algorithms();
+
+std::ostream &operator<<(std::ostream &out, const ContractionImplementation mode);
+
+std::unordered_map<std::string, ContractionImplementation> get_contraction_implementations();
 
 void print(const Context &ctx, std::ostream &out);
 void print(const GraphCompressionContext &c_ctx, std::ostream &out);

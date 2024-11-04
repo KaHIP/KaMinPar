@@ -31,12 +31,9 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
   mt_kahypar_context_t *mt_kahypar_ctx = mt_kahypar_context_new();
   mt_kahypar_load_preset(mt_kahypar_ctx, DEFAULT);
   mt_kahypar_set_partitioning_parameters(
-      mt_kahypar_ctx,
-      static_cast<mt_kahypar_partition_id_t>(p_ctx.k),
-      p_ctx.epsilon,
-      KM1,
-      Random::get_seed()
+      mt_kahypar_ctx, static_cast<mt_kahypar_partition_id_t>(p_ctx.k), p_ctx.epsilon, KM1
   );
+  mt_kahypar_set_seed(Random::get_seed());
   mt_kahypar_set_context_parameter(mt_kahypar_ctx, VERBOSE, "0");
 
   mt_kahypar_initialize_thread_pool(_ctx.parallel.num_threads, true);
@@ -45,10 +42,10 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
   const mt_kahypar_hyperedge_id_t num_edges = graph.m() / 2; // Only need one direction
 
   NoinitVector<EdgeID> edge_position(2 * num_edges);
-  graph.pfor_nodes([&](const NodeID u) {
-    for (const auto [e, v] : graph.neighbors(u)) {
-      edge_position[e] = u < v;
-    }
+  graph.reified([&](const auto &graph) {
+    graph.pfor_nodes([&](const NodeID u) {
+      graph.neighbors(u, [&](const EdgeID e, const NodeID v) { edge_position[e] = u < v; });
+    });
   });
   parallel::prefix_sum(edge_position.begin(), edge_position.end(), edge_position.begin());
 
@@ -58,19 +55,21 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
   edges.reserve(2 * num_edges);
   edge_weights.reserve(num_edges);
 
-  graph.pfor_nodes([&](const NodeID u) {
-    vertex_weights[u] = static_cast<mt_kahypar_hypernode_weight_t>(graph.node_weight(u));
+  graph.reified([&](const auto &graph) {
+    graph.pfor_nodes([&](const NodeID u) {
+      vertex_weights[u] = static_cast<mt_kahypar_hypernode_weight_t>(graph.node_weight(u));
 
-    for (const auto [e, v] : graph.neighbors(u)) {
-      if (v < u) { // Only need edges in one direction
-        continue;
-      }
+      graph.neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
+        if (v < u) { // Only need edges in one direction
+          return;
+        }
 
-      EdgeID position = edge_position[e] - 1;
-      edges[2 * position] = static_cast<mt_kahypar_hypernode_id_t>(u);
-      edges[2 * position + 1] = static_cast<mt_kahypar_hypernode_id_t>(v);
-      edge_weights[position] = static_cast<mt_kahypar_hypernode_weight_t>(graph.edge_weight(e));
-    }
+        EdgeID position = edge_position[e] - 1;
+        edges[2 * position] = static_cast<mt_kahypar_hypernode_id_t>(u);
+        edges[2 * position + 1] = static_cast<mt_kahypar_hypernode_id_t>(v);
+        edge_weights[position] = static_cast<mt_kahypar_hypernode_weight_t>(w);
+      });
+    });
   });
 
   mt_kahypar_hypergraph_t mt_kahypar_graph = mt_kahypar_create_graph(

@@ -1,34 +1,28 @@
 /*******************************************************************************
- * Graph compression benchmark for the shared-memory algorithm.
+ * Compressed graph benchmark for the shared-memory algorithm.
  *
  * @file:   shm_compressed_graph_benchmark.cc
  * @author: Daniel Salwasser
  * @date:   12.11.2023
  ******************************************************************************/
+#include <limits>
+
 #include "kaminpar-cli/CLI11.h"
 
-#include "kaminpar-shm/datastructures/compressed_graph_builder.h"
-#include "kaminpar-shm/datastructures/graph.h"
-#include "kaminpar-shm/graphutils/permutator.h"
+#include "kaminpar-shm/graphutils/parallel_compressed_graph_builder.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/console_io.h"
-#include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 
-#include "apps/io/metis_parser.h"
-#include "apps/io/parhip_parser.h"
 #include "apps/io/shm_io.h"
 
 using namespace kaminpar;
 using namespace kaminpar::shm;
 using namespace kaminpar::shm::io;
 
-static std::string to_megabytes(std::size_t bytes) {
-  std::stringstream stream;
-  stream << std::fixed << std::setprecision(2) << (bytes / (float)(1024 * 1024));
-  return stream.str();
-}
+namespace {
 
 template <typename T> static bool operator!=(const IotaRange<T> &a, const IotaRange<T> &b) {
   if (a.begin() == a.end()) {
@@ -36,14 +30,14 @@ template <typename T> static bool operator!=(const IotaRange<T> &a, const IotaRa
   }
 
   return a.begin() != b.begin() || a.end() != b.end();
-};
+}
 
 // See https://github.com/google/benchmark/blob/main/include/benchmark/benchmark.h
-template <class T> static inline void do_not_optimize(T value) {
+template <class T> void do_not_optimize(T value) {
   asm volatile("" : "+m"(value) : : "memory");
 }
 
-template <typename Graph> static void benchmark_degree(const Graph &graph) {
+template <typename Graph> void benchmark_degree(const Graph &graph) {
   SCOPED_TIMER("Degree");
 
   for (const auto node : graph.nodes()) {
@@ -51,7 +45,7 @@ template <typename Graph> static void benchmark_degree(const Graph &graph) {
   }
 }
 
-template <typename Graph> static void benchmark_incident_edges(const Graph &graph) {
+template <typename Graph> void benchmark_incident_edges(const Graph &graph) {
   SCOPED_TIMER("Incident Edges");
 
   for (const auto node : graph.nodes()) {
@@ -61,7 +55,7 @@ template <typename Graph> static void benchmark_incident_edges(const Graph &grap
   }
 }
 
-template <typename Graph> static void benchmark_adjacent_nodes(const Graph &graph) {
+template <typename Graph> void benchmark_adjacent_nodes(const Graph &graph) {
   SCOPED_TIMER("Adjacent Nodes");
 
   for (const auto node : graph.nodes()) {
@@ -69,7 +63,18 @@ template <typename Graph> static void benchmark_adjacent_nodes(const Graph &grap
   }
 }
 
-template <typename Graph> static void benchmark_neighbors(const Graph &graph) {
+template <typename Graph> void benchmark_weighted_adjacent_nodes(const Graph &graph) {
+  SCOPED_TIMER("Adjacent Nodes with Edge Weights");
+
+  for (const auto node : graph.nodes()) {
+    graph.adjacent_nodes(node, [&](const auto adjacent_node, const auto edge_weight) {
+      do_not_optimize(adjacent_node);
+      do_not_optimize(edge_weight);
+    });
+  }
+}
+
+template <typename Graph> void benchmark_neighbors(const Graph &graph) {
   SCOPED_TIMER("Neighbors");
 
   for (const auto node : graph.nodes()) {
@@ -80,14 +85,28 @@ template <typename Graph> static void benchmark_neighbors(const Graph &graph) {
   }
 }
 
-template <typename Graph> static void benchmark_pfor_neighbors(const Graph &graph) {
-  SCOPED_TIMER("Parallel For Neighbors");
+template <typename Graph> void benchmark_weighted_neighbors(const Graph &graph) {
+  SCOPED_TIMER("Neighbors with Edge Weights");
 
   for (const auto node : graph.nodes()) {
-    graph.pfor_neighbors(
+    graph.neighbors(
+        node,
+        [](const auto incident_edge, const auto adjacent_node, const auto edge_weight) {
+          do_not_optimize(incident_edge);
+          do_not_optimize(adjacent_node);
+          do_not_optimize(edge_weight);
+        }
+    );
+  }
+}
+
+template <typename Graph> void benchmark_neighbors_limit(const Graph &graph) {
+  SCOPED_TIMER("Neighbors (with limit)");
+
+  for (const auto node : graph.nodes()) {
+    graph.neighbors(
         node,
         std::numeric_limits<NodeID>::max(),
-        1000,
         [](const auto incident_edge, const auto adjacent_node) {
           do_not_optimize(incident_edge);
           do_not_optimize(adjacent_node);
@@ -96,14 +115,49 @@ template <typename Graph> static void benchmark_pfor_neighbors(const Graph &grap
   }
 }
 
-static void run_benchmark(CSRGraph graph, CompressedGraph compressed_graph) {
-  LOG << "Running the benchmarks...";
+template <typename Graph> void benchmark_weighted_neighbors_limit(const Graph &graph) {
+  SCOPED_TIMER("Neighbors with Edge Weights (with limit)");
 
+  for (const auto node : graph.nodes()) {
+    graph.neighbors(
+        node,
+        std::numeric_limits<NodeID>::max(),
+        [](const auto incident_edge, const auto adjacent_node, const auto edge_weight) {
+          do_not_optimize(incident_edge);
+          do_not_optimize(adjacent_node);
+          do_not_optimize(edge_weight);
+        }
+    );
+  }
+}
+
+template <typename Graph> void benchmark_pfor_neighbors(const Graph &graph) {
+  SCOPED_TIMER("Parallel For Neighbors");
+
+  for (const auto node : graph.nodes()) {
+    graph.pfor_neighbors(
+        node,
+        std::numeric_limits<NodeID>::max(),
+        1000,
+        [](const auto incident_edge, const auto adjacent_node, const auto edge_weight) {
+          do_not_optimize(incident_edge);
+          do_not_optimize(adjacent_node);
+          do_not_optimize(edge_weight);
+        }
+    );
+  }
+}
+
+void run_benchmark(const CSRGraph &graph, const CompressedGraph &compressed_graph) {
   TIMED_SCOPE("Uncompressed graph operations") {
     benchmark_degree(graph);
     benchmark_incident_edges(graph);
     benchmark_adjacent_nodes(graph);
+    benchmark_weighted_adjacent_nodes(graph);
     benchmark_neighbors(graph);
+    benchmark_weighted_neighbors(graph);
+    benchmark_neighbors_limit(graph);
+    benchmark_weighted_neighbors_limit(graph);
     benchmark_pfor_neighbors(graph);
   };
 
@@ -111,18 +165,22 @@ static void run_benchmark(CSRGraph graph, CompressedGraph compressed_graph) {
     benchmark_degree(compressed_graph);
     benchmark_incident_edges(compressed_graph);
     benchmark_adjacent_nodes(compressed_graph);
+    benchmark_weighted_adjacent_nodes(compressed_graph);
     benchmark_neighbors(compressed_graph);
+    benchmark_weighted_neighbors(compressed_graph);
+    benchmark_neighbors_limit(compressed_graph);
+    benchmark_weighted_neighbors_limit(compressed_graph);
     benchmark_pfor_neighbors(compressed_graph);
   };
 }
+
+} // namespace
 
 int main(int argc, char *argv[]) {
   // Parse CLI arguments
   std::string graph_filename;
   GraphFileFormat graph_file_format = io::GraphFileFormat::METIS;
   int num_threads = 1;
-  bool enable_benchmarks = true;
-  bool enable_checks = false;
 
   CLI::App app("Shared-memory graph compression benchmark");
   app.add_option("-G,--graph", graph_filename, "Graph file")->required();
@@ -140,24 +198,15 @@ int main(int argc, char *argv[]) {
 
   // Read input graph
   LOG << "Reading the input graph...";
+  CSRGraph graph = io::csr_read(graph_filename, graph_file_format, NodeOrdering::NATURAL);
 
-  CSRGraph graph = [&] {
-    switch (graph_file_format) {
-    case GraphFileFormat::METIS:
-      return metis::csr_read(graph_filename, false);
-    case GraphFileFormat::PARHIP:
-      return parhip::csr_read(graph_filename, false);
-    default:
-      __builtin_unreachable();
-    }
-  }();
-
-  CompressedGraph compressed_graph = CompressedGraphBuilder::compress(graph);
+  LOG << "Compressing the input graph...";
+  CompressedGraph compressed_graph = parallel_compress(graph);
 
   // Run benchmarks
-
+  LOG << "Running the benchmarks...";
   GLOBAL_TIMER.reset();
-  run_benchmark(std::move(graph), std::move(compressed_graph));
+  run_benchmark(graph, compressed_graph);
   STOP_TIMER();
 
   // Print the result summary
@@ -172,5 +221,5 @@ int main(int argc, char *argv[]) {
 
   Timer::global().print_human_readable(std::cout);
 
-  return 0;
+  return EXIT_SUCCESS;
 }

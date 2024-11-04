@@ -14,6 +14,7 @@
 
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/heap_profiler.h"
+#include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
 namespace {
@@ -93,11 +94,6 @@ const Graph *KWayMultilevelPartitioner::coarsen() {
 
     // Print some metrics for the coarse graphs
     LOG << "Coarsening -> Level " << _coarsener->level();
-    if (const auto *graph = dynamic_cast<const CompactCSRGraph *>(c_graph->underlying_graph());
-        graph != nullptr) {
-      LOG << "  Compact Node IDs: " << graph->node_id_byte_width()
-          << " bytes | Compact edge weights: " << graph->edge_weight_byte_width() << " bytes";
-    }
     LOG << "  Number of nodes: " << c_graph->n() << " | Number of edges: " << c_graph->m();
     LLOG << "  Maximum node weight: " << c_graph->max_node_weight() << " ";
     LLOG << "<= "
@@ -143,9 +139,8 @@ PartitionedGraph KWayMultilevelPartitioner::initial_partition(const Graph *graph
   // Since timers are not multi-threaded, we disable them during (parallel)
   // initial partitioning.
   DISABLE_TIMERS();
-  PartitionedGraph p_graph = partitioning::bipartition(
-      graph, _input_ctx.partition.k, _input_ctx, _bipartitioner_pool, true
-  );
+  PartitionedGraph p_graph =
+      partitioning::bipartition(graph, _input_ctx.partition.k, _bipartitioner_pool, true);
   partitioning::update_partition_context(_current_p_ctx, p_graph, _input_ctx.partition.k);
 
   graph::SubgraphMemory subgraph_memory(p_graph.n(), _input_ctx.partition.k, p_graph.m());

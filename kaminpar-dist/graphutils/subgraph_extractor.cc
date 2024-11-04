@@ -24,20 +24,15 @@
 #include "kaminpar-shm/metrics.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
-#include "kaminpar-common/math.h"
 #include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/parallel/atomic.h"
 #include "kaminpar-common/parallel/vector_ets.h"
 
 namespace kaminpar::dist::graph {
+
 SET_DEBUG(false);
 
 namespace {
-PEID compute_block_owner(const BlockID b, const BlockID k, const PEID num_pes) {
-  return static_cast<PEID>(
-      math::compute_local_range_rank<BlockID>(k, static_cast<BlockID>(num_pes), b)
-  );
-}
 
 auto count_block_induced_subgraph_sizes(const DistributedPartitionedGraph &p_graph) {
   parallel::vector_ets<NodeID> num_nodes_per_block_ets(p_graph.k());
@@ -49,11 +44,11 @@ auto count_block_induced_subgraph_sizes(const DistributedPartitionedGraph &p_gra
     for (NodeID u = r.begin(); u != r.end(); ++u) {
       const BlockID u_block = p_graph.block(u);
       ++num_nodes_per_block[u_block];
-      for (const auto [e, v] : p_graph.neighbors(u)) {
+      p_graph.neighbors(u, [&](EdgeID, const NodeID v) {
         if (u_block == p_graph.block(v)) {
           ++num_edges_per_block[u_block];
         }
-      }
+      });
     }
   });
 
@@ -207,15 +202,15 @@ extract_local_block_induced_subgraphs(const DistributedPartitionedGraph &p_graph
         const NodeID pos = n0 + u;
         const NodeID u_prime = shared_nodes[pos];
 
-        for (const auto [e_prime, v_prime] : p_graph.neighbors(u_prime)) {
+        p_graph.adjacent_nodes(u_prime, [&](const NodeID v_prime, const EdgeWeight w_prime) {
           if (p_graph.block(v_prime) != b) {
-            continue;
+            return;
           }
 
-          shared_edge_weights[e0 + e] = p_graph.edge_weight(e_prime);
+          shared_edge_weights[e0 + e] = w_prime;
           shared_edges[e0 + e] = mapping[v_prime];
           ++e;
-        }
+        });
 
         shared_nodes[pos] = e;
         shared_node_weights[pos] = p_graph.node_weight(u_prime);
@@ -242,7 +237,7 @@ BlockExtractionOffsets::BlockExtractionOffsets(PEID size, BlockID k)
       _rem_pes(size % k) {}
 
 BlockID BlockExtractionOffsets::first_block_on_pe(PEID pe) const {
-  if (_size <= _k) {
+  if (static_cast<BlockID>(_size) <= _k) {
     return pe * _min_blocks_per_pe + std::min<BlockID>(pe, _rem_blocks);
   } else {
     if (pe <= _rem_pes * _min_pes_per_block) {
@@ -257,7 +252,7 @@ BlockID BlockExtractionOffsets::first_invalid_block_on_pe(PEID pe) const {
 }
 
 BlockID BlockExtractionOffsets::num_blocks_on_pe(PEID pe) const {
-  return std::max<BlockID>(1, _min_blocks_per_pe + (pe < _rem_blocks));
+  return std::max<BlockID>(1, _min_blocks_per_pe + (static_cast<BlockID>(pe) < _rem_blocks));
 }
 
 PEID BlockExtractionOffsets::first_pe_with_block(BlockID block) const {
@@ -269,7 +264,7 @@ PEID BlockExtractionOffsets::first_invalid_pe_with_block(BlockID block) const {
 }
 
 PEID BlockExtractionOffsets::num_pes_with_block(BlockID block) const {
-  return std::max<PEID>(1, _min_pes_per_block + (block < _rem_pes));
+  return std::max<PEID>(1, _min_pes_per_block + (block < static_cast<BlockID>(_rem_pes)));
 }
 
 namespace {
@@ -364,7 +359,6 @@ SharedGraphs exchange_subgraphs(
 ) {
   SCOPED_TIMER("Exchange subgraphs");
   const PEID size = mpi::get_comm_size(p_graph.communicator());
-  const PEID rank = mpi::get_comm_rank(p_graph.communicator());
 
   std::vector<int> sendcounts_nodes(size);
   std::vector<int> sendcounts_edges(size);
@@ -559,7 +553,6 @@ std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>> gather_bloc
   SCOPED_TIMER("Gathering block induced subgraphs");
 
   const PEID size = mpi::get_comm_size(p_graph.communicator());
-  const PEID rank = mpi::get_comm_rank(p_graph.communicator());
   BlockExtractionOffsets offsets(size, p_graph.k());
 
   IF_DBG0 {
@@ -590,6 +583,7 @@ std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>> gather_bloc
       p_graph, shared_graphs, recv_subgraph_sizes, recv_subgraph_displs, offsets
   );
 }
+
 } // namespace
 
 ExtractedSubgraphs
@@ -607,7 +601,7 @@ extract_and_scatter_block_induced_subgraphs(const DistributedPartitionedGraph &p
   return {
       std::move(gathered_subgraphs),
       std::move(offsets),
-      std::move(extracted_local_subgraphs.mapping)
+      std::move(extracted_local_subgraphs.mapping),
   };
 }
 
@@ -791,4 +785,5 @@ DistributedPartitionedGraph copy_duplicated_subgraph_partitions(
   );
   return new_p_graph;
 }
+
 } // namespace kaminpar::dist::graph

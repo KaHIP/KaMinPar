@@ -11,6 +11,7 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <limits>
 #include <type_traits>
 #include <utility>
 
@@ -27,6 +28,11 @@ template <std::size_t N> inline MPI_Datatype custom() {
 }
 
 // Map to default MPI type
+//
+// Disable the Wtautological-compare warning because it depends on the compiler whether std::size_t
+// is the same type as std::uint64_t.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wtautological-compare"
 template <typename T> inline MPI_Datatype get() {
   if constexpr (std::is_same_v<T, bool>) {
     return MPI_CXX_BOOL;
@@ -58,8 +64,20 @@ template <typename T> inline MPI_Datatype get() {
     return MPI_DOUBLE_INT;
   } else if constexpr (std::is_same_v<T, std::pair<long double, int>>) {
     return MPI_LONG_DOUBLE_INT;
+  } else if constexpr (std::is_same_v<T, std::size_t> &&
+                       std::numeric_limits<std::size_t>::digits ==
+                           std::numeric_limits<std::uint64_t>::digits) {
+    // Note: this branch is only needed on some systems
+    return MPI_UINT64_T;
+  } else if constexpr (std::is_same_v<T, std::size_t> &&
+                       std::numeric_limits<std::size_t>::digits ==
+                           std::numeric_limits<std::uint32_t>::digits) {
+    // Note: this branch is only needed on some systems
+    return MPI_UINT32_T;
   } else {
     return custom<sizeof(T)>();
   }
 }
+#pragma GCC diagnostic pop
+
 } // namespace kaminpar::mpi::type

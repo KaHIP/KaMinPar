@@ -35,6 +35,7 @@
 #include "kaminpar-shm/refinement/multi_refiner.h"
 
 namespace kaminpar::shm::factory {
+
 std::unique_ptr<Partitioner> create_partitioner(const Graph &graph, const Context &ctx) {
   SCOPED_HEAP_PROFILER("Create partitioner");
 
@@ -102,7 +103,7 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
     return std::make_unique<GreedyBalancer>(ctx);
 
   case RefinementAlgorithm::KWAY_FM:
-    return create_fm_refiner(ctx);
+    return std::make_unique<FMRefiner>(ctx);
 
   case RefinementAlgorithm::JET:
     return std::make_unique<JetRefiner>(ctx);
@@ -136,4 +137,5 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx) {
 
   return std::make_unique<MultiRefiner>(std::move(refiners), ctx.refinement.algorithms);
 }
+
 } // namespace kaminpar::shm::factory

@@ -105,7 +105,7 @@ ClusterBalancer::ClusterBalancer(
     const Context &ctx,
     DistributedPartitionedGraph &p_graph,
     const PartitionContext &p_ctx,
-    ClusterBalancerMemoryContext m_ctx
+    ClusterBalancerMemoryContext /* m_ctx */
 )
     : _factory(factory),
       _ctx(ctx),
@@ -422,7 +422,7 @@ void ClusterBalancer::perform_parallel_round() {
 
     if (current_weight > max_weight) {
       if (rank == 0) {
-        int cut_off_bucket = 0;
+        std::size_t cut_off_bucket = 0;
         for (; cut_off_bucket < _weight_buckets.num_buckets() && current_weight > max_weight;
              ++cut_off_bucket) {
           KASSERT(
@@ -475,7 +475,7 @@ void ClusterBalancer::perform_parallel_round() {
 
     if (const BlockID from = _clusters.block(cluster); is_overloaded(from)) {
       auto [gain, to] = _clusters.find_max_relative_gain(cluster);
-      const auto bucket = _weight_buckets.compute_bucket(gain);
+      const int bucket = _weight_buckets.compute_bucket(gain);
 
       if (bucket < cut_off_buckets[to_overloaded_map[from]]) {
         const NodeWeight weight = _clusters.weight(cluster);
@@ -594,8 +594,6 @@ void ClusterBalancer::perform_sequential_round() {
   SCOPED_TIMER("Sequential round");
 
   IFSTATS(++_stats.num_seq_rounds);
-
-  const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
 
   // Step 1: identify the best move cluster candidates globally
   START_TIMER("Pick candidates");
@@ -736,7 +734,7 @@ void ClusterBalancer::perform_moves(
         // @todo set blocks before updating other data structures to avoid max gainer changes?
         _p_graph.set_block<false>(u, candidate.to);
 
-        for (const auto &[e, v] : _p_graph.neighbors(u)) {
+        _p_graph.neighbors(u, [&](EdgeID, const NodeID v) {
           if (_p_graph.is_ghost_node(v)) {
             const PEID pe = _p_graph.ghost_owner(v);
             if (!created_message_for_pe.get(pe)) {
@@ -747,7 +745,7 @@ void ClusterBalancer::perform_moves(
               created_message_for_pe.set(pe);
             }
 
-            continue;
+            return;
           }
 
           // !is_overloaded(.) is not a sufficient condition, since parallel moves might overload
@@ -756,7 +754,7 @@ void ClusterBalancer::perform_moves(
           if (_clusters.contains(v)) {
             update_adjacent_cluster(_clusters.cluster_of(v));
           }
-        }
+        });
 
         created_message_for_pe.reset();
       }

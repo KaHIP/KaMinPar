@@ -18,12 +18,15 @@ std::vector<NodeID> find_border_nodes(const DistributedPartitionedGraph &p_graph
 
   for (const NodeID u : p_graph.nodes()) {
     const BlockID bu = p_graph.block(u);
-    for (const auto [e, v] : p_graph.neighbors(u)) {
+
+    p_graph.neighbors(u, [&](EdgeID, const NodeID v) {
       if (p_graph.block(v) != bu) {
         border_nodes.push_back(u);
-        break;
+        return true;
       }
-    }
+
+      return false;
+    });
   }
 
   return border_nodes;

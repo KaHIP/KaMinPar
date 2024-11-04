@@ -20,4 +20,3 @@ public:
   bool refine(PartitionedCSRGraph &p_graph, const PartitionContext &p_ctx) final;
 };
 } // namespace kaminpar::shm
-

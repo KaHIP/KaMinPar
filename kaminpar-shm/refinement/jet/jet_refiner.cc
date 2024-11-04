@@ -11,16 +11,25 @@
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/refinement/balancer/greedy_balancer.h"
-#include "kaminpar-shm/refinement/gains/dense_gain_cache.h"
+#include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
 
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
+
+namespace {
+
 SET_STATISTICS_FROM_GLOBAL();
 SET_DEBUG(false);
 
+}
+
 JetRefiner::JetRefiner(const Context &ctx) : _ctx(ctx) {}
+
+std::string JetRefiner::name() const {
+  return "Jet";
+}
 
 void JetRefiner::initialize(const PartitionedGraph &p_graph) {
   SCOPED_TIMER("Jet Refiner");
@@ -45,8 +54,8 @@ bool JetRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx
   SCOPED_TIMER("Jet Refiner");
 
   START_TIMER("Allocation");
-  DenseGainCache<> gain_cache(_ctx, p_graph.n(), p_graph.k());
-  gain_cache.initialize(p_graph);
+  NormalSparseGainCache<Graph> gain_cache(_ctx, p_graph.n(), p_graph.k());
+  gain_cache.initialize(p_graph.graph(), p_graph);
 
   StaticArray<BlockID> next_partition(p_graph.n());
   p_graph.pfor_nodes([&](const NodeID u) { next_partition[u] = 0; });
@@ -128,9 +137,7 @@ bool JetRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx
           const EdgeWeight gain_u = gain_cache.gain(u, from, to);
           EdgeWeight gain = 0;
 
-          for (const auto &[e, v] : p_graph.neighbors(u)) {
-            const EdgeWeight weight = p_graph.edge_weight(e);
-
+          p_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
             const bool v_before_u = [&, v = v] {
               const BlockID from_v = p_graph.block(v);
               const BlockID to_v = next_partition[v];
@@ -147,7 +154,7 @@ bool JetRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx
             } else if (from == block_v) {
               gain -= weight;
             }
-          }
+          });
 
           if (gain > 0) {
             lock[u] = 1;
@@ -162,7 +169,7 @@ bool JetRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx
             const BlockID to = next_partition[u];
 
             p_graph.set_block(u, to);
-            gain_cache.move(p_graph, u, from, to);
+            gain_cache.move(u, from, to);
           }
         });
       };
@@ -207,7 +214,7 @@ bool JetRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx
         p_graph.pfor_nodes([&](const NodeID u) { p_graph.set_block(u, best_partition[u]); });
 
         // Re-initialize gain cache and balancer after rollback
-        gain_cache.initialize(p_graph);
+        gain_cache.initialize(p_graph.graph(), p_graph);
         balancer.initialize(p_graph);
         balancer.track_moves(&gain_cache);
       }
@@ -225,4 +232,5 @@ double JetRefiner::compute_gain_temp(int round) const {
 
   return 1.0 * (_initial_gain_temp + _final_gain_temp) / 2;
 }
+
 } // namespace kaminpar::shm

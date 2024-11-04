@@ -160,25 +160,25 @@ public:
     for (const NodeID u : nodes(set)) {
       KASSERT(_p_graph->is_owned_node(u));
 
-      for (const auto [e, v] : _p_graph->neighbors(u)) {
+      _p_graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
         if (!_p_graph->is_owned_node(v)) {
-          continue;
+          return;
         }
 
         const NodeID set_v = _node_to_cluster[v];
         if (set_v == kInvalidNodeID || set_v == set) {
-          continue;
+          return;
         }
 
-        const EdgeWeight delta = _p_graph->edge_weight(e);
+        const EdgeWeight delta = w;
         _cluster_conns[set_v * _p_graph->k() + from] -= delta;
         _cluster_conns[set_v * _p_graph->k() + to] += delta;
-      }
+      });
     }
   }
 
   inline std::pair<EdgeWeight, BlockID> find_max_conn(const NodeID cluster) const {
-    KASSERT(size(cluster) > 0);
+    KASSERT(size(cluster) > 0u);
 
     EdgeWeight max_conn = std::numeric_limits<EdgeWeight>::min();
     BlockID max_gainer = kInvalidBlockID;

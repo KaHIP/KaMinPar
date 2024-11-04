@@ -4,12 +4,12 @@ on: [ push, pull_request ]
 
 jobs:
   kaminpar_tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     continue-on-error: true 
     strategy:
       matrix:
         compiler:
-          #- { name: Clang, cc: clang, cxx: clang++ }
+          - { name: Clang, cc: clang, cxx: clang++ }
           - { name: GNU, cc: gcc, cxx: g++ }
         build-mode: [Release]
     steps:
