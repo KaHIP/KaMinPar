@@ -729,7 +729,7 @@ void ClusterBalancer::perform_moves(
         // @todo set blocks before updating other data structures to avoid max gainer changes?
         _p_graph.set_block<false>(u, candidate.to);
 
-        _p_graph.neighbors(u, [&](EdgeID, const NodeID v) {
+        _p_graph.adjacent_nodes(u, [&](const NodeID v) {
           if (_p_graph.is_ghost_node(v)) {
             const PEID pe = _p_graph.ghost_owner(v);
             if (!created_message_for_pe.get(pe)) {

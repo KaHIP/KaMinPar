@@ -504,7 +504,7 @@ protected:
     };
 
     bool is_interface_node = false;
-    _graph->neighbors(u, _max_num_neighbors, [&](const EdgeID, const NodeID v, const EdgeWeight w) {
+    _graph->adjacent_nodes(u, _max_num_neighbors, [&](const NodeID v, const EdgeWeight w) {
       if (derived_accept_neighbor(u, v)) {
         const ClusterID v_cluster = derived_cluster(v);
         map[v_cluster] += w;
@@ -585,7 +585,7 @@ protected:
 
     bool is_interface_node = false;
     bool is_second_phase_node = false;
-    _graph->neighbors(u, _max_num_neighbors, [&](const EdgeID, const NodeID v, const EdgeWeight w) {
+    _graph->adjacent_nodes(u, _max_num_neighbors, [&](const NodeID v, const EdgeWeight w) {
       if (derived_accept_neighbor(u, v)) {
         const ClusterID v_cluster = derived_cluster(v);
         map[v_cluster] += w;
@@ -660,10 +660,10 @@ protected:
     bool is_interface_node = false;
     switch (_second_phase_aggregation_strategy) {
     case SecondPhaseAggregationStrategy::DIRECT: {
-      _graph->pfor_neighbors(u, _max_num_neighbors, 2000, [&](auto &&pfor_neighbors) {
+      _graph->pfor_adjacent_nodes(u, _max_num_neighbors, 2000, [&](auto &&pfor_adjacent_nodes) {
         auto &local_used_entries = map.local_used_entries();
 
-        pfor_neighbors([&](const EdgeID, const NodeID v, const EdgeWeight w) {
+        pfor_adjacent_nodes([&](const NodeID v, const EdgeWeight w) {
           if (derived_accept_neighbor(u, v)) {
             const ClusterID v_cluster = derived_cluster(v);
             const EdgeWeight prev_rating = __atomic_fetch_add(&map[v_cluster], w, __ATOMIC_RELAXED);
@@ -695,11 +695,11 @@ protected:
         local_rating_map.clear();
       };
 
-      _graph->pfor_neighbors(u, _max_num_neighbors, 2000, [&](auto &&pfor_neighbors) {
+      _graph->pfor_adjacent_nodes(u, _max_num_neighbors, 2000, [&](auto &&pfor_adjacent_nodes) {
         auto &local_used_entries = map.local_used_entries();
         auto &local_rating_map = _rating_map_ets.local().small_map();
 
-        pfor_neighbors([&](const EdgeID, const NodeID v, const EdgeWeight w) {
+        pfor_adjacent_nodes([&](const NodeID v, const EdgeWeight w) {
           if (derived_accept_neighbor(u, v)) {
             const ClusterID v_cluster = derived_cluster(v);
             local_rating_map[v_cluster] += w;
@@ -899,11 +899,11 @@ protected:
     };
 
     if constexpr (kParallel) {
-      _graph->pfor_neighbors(
+      _graph->pfor_adjacent_nodes(
           u,
           std::numeric_limits<NodeID>::max(),
           20000,
-          [&](const EdgeID, const NodeID v, const EdgeWeight) { activate_neighbors(v); }
+          [&](const NodeID v, [[maybe_unused]] const EdgeWeight) { activate_neighbors(v); }
       );
     } else {
       _graph->adjacent_nodes(u, activate_neighbors);

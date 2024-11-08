@@ -233,9 +233,9 @@ public:
         _num_interval_nodes += has_intervals ? 1 : 0;
       }
 
-      marked_varint_encode(_cur_edge, has_intervals, &_cur_compressed_edges);
+      marked_varint_encode(degree, has_intervals, &_cur_compressed_edges);
     } else {
-      varint_encode(_cur_edge, &_cur_compressed_edges);
+      varint_encode(degree, &_cur_compressed_edges);
     }
 
     _cur_edge += degree;
