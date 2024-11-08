@@ -10,6 +10,7 @@
 #include <tbb/concurrent_vector.h>
 #include <tbb/task_arena.h>
 
+#include "kaminpar-shm/context_io.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/refinement/fm/batch_stats.h"
@@ -633,10 +634,11 @@ void FMRefiner::initialize(const PartitionedGraph &p_graph) {
 
     default:
       LOG_WARNING
-          << "The selected gain cache strategy '" << _ctx.refinement.kway_fm.gain_cache_strategy
+          << "The selected gain cache strategy '"
+          << stringify_enum(_ctx.refinement.kway_fm.gain_cache_strategy)
           << "' is not available in this build. Rebuild with experimental features enabled.";
-      LOG_WARNING << "Using the default gain cache strategy '" << GainCacheStrategy::COMPACT_HASHING
-                  << "' instead.";
+      LOG_WARNING << "Using the default gain cache strategy '"
+                  << stringify_enum(GainCacheStrategy::COMPACT_HASHING) << "' instead.";
 
     case GainCacheStrategy::COMPACT_HASHING:
       _core = std::make_unique<FMRefinerCore<Graph, NormalCompactHashingGainCache>>(_ctx);
