@@ -597,10 +597,6 @@ std::string FMRefiner::name() const {
 void FMRefiner::initialize(const PartitionedGraph &p_graph) {
   p_graph.reified([&]<typename Graph>(Graph &) {
     switch (_ctx.refinement.kway_fm.gain_cache_strategy) {
-    case GainCacheStrategy::COMPACT_HASHING:
-      _core = std::make_unique<FMRefinerCore<Graph, NormalCompactHashingGainCache>>(_ctx);
-      break;
-
     case GainCacheStrategy::SPARSE:
       _core = std::make_unique<FMRefinerCore<Graph, NormalSparseGainCache>>(_ctx);
       break;
@@ -636,8 +632,15 @@ void FMRefiner::initialize(const PartitionedGraph &p_graph) {
 #endif // KAMINPAR_EXPERIMENTAL
 
     default:
-      LOG_ERROR << "invalid gain cache strategy: requires build with experimental features enabled";
-      std::exit(1);
+      LOG_WARNING
+          << "The selected gain cache strategy '" << _ctx.refinement.kway_fm.gain_cache_strategy
+          << "' is not available in this build. Rebuild with experimental features enabled.";
+      LOG_WARNING << "Using the default gain cache strategy '" << GainCacheStrategy::COMPACT_HASHING
+                  << "' instead.";
+
+    case GainCacheStrategy::COMPACT_HASHING:
+      _core = std::make_unique<FMRefinerCore<Graph, NormalCompactHashingGainCache>>(_ctx);
+      break;
     }
   });
 
