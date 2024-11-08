@@ -8,11 +8,14 @@
 #pragma once
 
 #include <iostream>
+#include <sstream>
+#include <string>
 #include <unordered_map>
 
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
+
 std::ostream &operator<<(std::ostream &out, NodeOrdering ordering);
 
 std::unordered_map<std::string, NodeOrdering> get_node_orderings();
@@ -96,4 +99,11 @@ void print(const RefinementContext &r_ctx, std::ostream &out);
 void print(const CoarseningContext &c_ctx, std::ostream &out);
 void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out);
 void print(const InitialPartitioningContext &i_ctx, std::ostream &out);
+
+template <typename T> std::string stringify_enum(const T val) {
+  std::stringstream ss;
+  ss << val;
+  return ss.str();
+}
+
 } // namespace kaminpar::shm

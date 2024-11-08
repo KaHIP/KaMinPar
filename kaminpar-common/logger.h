@@ -60,9 +60,6 @@
 //
 // LLOG, LSUCCESS, LWARNING, LERROR print the message without appending a new
 // line symbol
-//
-// FATAL_ERROR and FATAL_PERROR act like ERROR but also aborting the program
-// after printing the message FATAL_PERROR appends the output of std::perror()
 #define LOG (kaminpar::Logger())
 #define LLOG (kaminpar::Logger(std::cout, ""))
 
@@ -72,11 +69,6 @@
 #define LOG_LSUCCESS (kaminpar::Logger(std::cout, "") << kaminpar::logger::GREEN)
 #define LOG_WARNING (kaminpar::Logger(std::cout) << kaminpar::logger::ORANGE << "[Warning] ")
 #define LOG_LWARNING (kaminpar::Logger(std::cout, "") << kaminpar::logger::ORANGE)
-#define FATAL_ERROR                                                                                \
-  (kaminpar::DisposableLogger<true>(std::cout) << kaminpar::logger::RED << "[Fatal] ")
-#define FATAL_PERROR                                                                               \
-  (kaminpar::DisposableLogger<true>(std::cout, std::string(": ") + std::strerror(errno) + "\n")    \
-   << kaminpar::logger::RED << "[Fatal] ")
 
 // V(x) prints x<space><value of x><space>, e.g., use LOG << V(a) << V(b) <<
 // V(c); to quickly print the values of variables a, b, c C(x, y) prints [<value
