@@ -45,16 +45,6 @@ template <typename Graph> void benchmark_degree(const Graph &graph) {
   }
 }
 
-template <typename Graph> void benchmark_incident_edges(const Graph &graph) {
-  SCOPED_TIMER("Incident Edges");
-
-  for (const auto node : graph.nodes()) {
-    for (const auto incident_edge : graph.incident_edges(node)) {
-      do_not_optimize(incident_edge);
-    }
-  }
-}
-
 template <typename Graph> void benchmark_adjacent_nodes(const Graph &graph) {
   SCOPED_TIMER("Adjacent Nodes");
 
@@ -74,25 +64,14 @@ template <typename Graph> void benchmark_weighted_adjacent_nodes(const Graph &gr
   }
 }
 
-template <typename Graph> void benchmark_neighbors(const Graph &graph) {
-  SCOPED_TIMER("Neighbors");
+template <typename Graph> void benchmark_weighted_adjacent_nodes_limit(const Graph &graph) {
+  SCOPED_TIMER("Adjacent Nodes with Edge Weights");
 
   for (const auto node : graph.nodes()) {
-    graph.neighbors(node, [](const auto incident_edge, const auto adjacent_node) {
-      do_not_optimize(incident_edge);
-      do_not_optimize(adjacent_node);
-    });
-  }
-}
-
-template <typename Graph> void benchmark_weighted_neighbors(const Graph &graph) {
-  SCOPED_TIMER("Neighbors with Edge Weights");
-
-  for (const auto node : graph.nodes()) {
-    graph.neighbors(
+    graph.adjacent_nodes(
         node,
-        [](const auto incident_edge, const auto adjacent_node, const auto edge_weight) {
-          do_not_optimize(incident_edge);
+        std::numeric_limits<NodeID>::max(),
+        [&](const auto adjacent_node, const auto edge_weight) {
           do_not_optimize(adjacent_node);
           do_not_optimize(edge_weight);
         }
@@ -100,47 +79,15 @@ template <typename Graph> void benchmark_weighted_neighbors(const Graph &graph) 
   }
 }
 
-template <typename Graph> void benchmark_neighbors_limit(const Graph &graph) {
-  SCOPED_TIMER("Neighbors (with limit)");
-
-  for (const auto node : graph.nodes()) {
-    graph.neighbors(
-        node,
-        std::numeric_limits<NodeID>::max(),
-        [](const auto incident_edge, const auto adjacent_node) {
-          do_not_optimize(incident_edge);
-          do_not_optimize(adjacent_node);
-        }
-    );
-  }
-}
-
-template <typename Graph> void benchmark_weighted_neighbors_limit(const Graph &graph) {
-  SCOPED_TIMER("Neighbors with Edge Weights (with limit)");
-
-  for (const auto node : graph.nodes()) {
-    graph.neighbors(
-        node,
-        std::numeric_limits<NodeID>::max(),
-        [](const auto incident_edge, const auto adjacent_node, const auto edge_weight) {
-          do_not_optimize(incident_edge);
-          do_not_optimize(adjacent_node);
-          do_not_optimize(edge_weight);
-        }
-    );
-  }
-}
-
-template <typename Graph> void benchmark_pfor_neighbors(const Graph &graph) {
+template <typename Graph> void benchmark_pfor_adjacent_nodes(const Graph &graph) {
   SCOPED_TIMER("Parallel For Neighbors");
 
   for (const auto node : graph.nodes()) {
-    graph.pfor_neighbors(
+    graph.pfor_adjacent_nodes(
         node,
         std::numeric_limits<NodeID>::max(),
         1000,
-        [](const auto incident_edge, const auto adjacent_node, const auto edge_weight) {
-          do_not_optimize(incident_edge);
+        [](const auto adjacent_node, const auto edge_weight) {
           do_not_optimize(adjacent_node);
           do_not_optimize(edge_weight);
         }
@@ -151,26 +98,18 @@ template <typename Graph> void benchmark_pfor_neighbors(const Graph &graph) {
 void run_benchmark(const CSRGraph &graph, const CompressedGraph &compressed_graph) {
   TIMED_SCOPE("Uncompressed graph operations") {
     benchmark_degree(graph);
-    benchmark_incident_edges(graph);
     benchmark_adjacent_nodes(graph);
     benchmark_weighted_adjacent_nodes(graph);
-    benchmark_neighbors(graph);
-    benchmark_weighted_neighbors(graph);
-    benchmark_neighbors_limit(graph);
-    benchmark_weighted_neighbors_limit(graph);
-    benchmark_pfor_neighbors(graph);
+    benchmark_weighted_adjacent_nodes_limit(graph);
+    benchmark_pfor_adjacent_nodes(graph);
   };
 
   TIMED_SCOPE("Compressed graph operations") {
     benchmark_degree(compressed_graph);
-    benchmark_incident_edges(compressed_graph);
     benchmark_adjacent_nodes(compressed_graph);
     benchmark_weighted_adjacent_nodes(compressed_graph);
-    benchmark_neighbors(compressed_graph);
-    benchmark_weighted_neighbors(compressed_graph);
-    benchmark_neighbors_limit(compressed_graph);
-    benchmark_weighted_neighbors_limit(compressed_graph);
-    benchmark_pfor_neighbors(compressed_graph);
+    benchmark_weighted_adjacent_nodes_limit(compressed_graph);
+    benchmark_pfor_adjacent_nodes(compressed_graph);
   };
 }
 

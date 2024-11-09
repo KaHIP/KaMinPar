@@ -269,6 +269,10 @@ public:
   [[nodiscard]] NodeID degree(const NodeID node) const {
     const std::uint8_t *data = _compressed_edges.data();
     const std::uint8_t *node_data = data + _nodes[node];
+    const std::uint8_t *next_node_data = data + _nodes[node + 1];
+    if (node_data == next_node_data) [[unlikely]] {
+      return 0;
+    }
 
     if constexpr (kIntervalEncoding) {
       const auto header = marked_varint_decode<NodeID>(&node_data);

@@ -89,17 +89,6 @@ public:
     // last node.
     _nodes.write(_nodes.size() - 1, static_cast<EdgeID>(compressed_edges_size));
 
-    // Store at the end of the compressed edge array the (gap of the) id of the last edge. This
-    // ensures that the the degree of the last node can be computed from the difference between the
-    // last two first edge ids.
-    std::uint8_t *_compressed_edges_end = compressed_edges.get() + compressed_edges_size;
-    const EdgeID last_edge = _num_edges;
-    if constexpr (CompressedNeighborhoods::kIntervalEncoding) {
-      compressed_edges_size += marked_varint_encode(last_edge, false, _compressed_edges_end);
-    } else {
-      compressed_edges_size += varint_encode(last_edge, _compressed_edges_end);
-    }
-
     // Add an additional 15 bytes to the compressed edge array when stream encoding is enabled to
     // avoid a possible segmentation fault as the stream decoder reads 16-byte chunks.
     if constexpr (CompressedNeighborhoods::kStreamVByteEncoding) {
@@ -256,17 +245,6 @@ public:
     // Store in the last entry of the node array the offset one after the last byte belonging to the
     // last node.
     _nodes.write(_nodes.size() - 1, _compressed_edges_size);
-
-    // Store at the end of the compressed edge array the (gap of the) id of the last edge. This
-    // ensures that the the degree of the last node can be computed from the difference between the
-    // last two first edge ids.
-    std::uint8_t *_compressed_edges_end = _compressed_edges.get() + _compressed_edges_size;
-    const EdgeID last_edge = _num_edges;
-    if constexpr (CompressedNeighborhoods::kIntervalEncoding) {
-      _compressed_edges_size += marked_varint_encode(last_edge, false, _compressed_edges_end);
-    } else {
-      _compressed_edges_size += varint_encode(last_edge, _compressed_edges_end);
-    }
 
     // Add an additional 15 bytes to the compressed edge array when stream encoding is enabled to
     // avoid a possible segmentation fault as the stream decoder reads 16-byte chunks.
