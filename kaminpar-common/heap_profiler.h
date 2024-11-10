@@ -618,9 +618,12 @@ template <typename T> unique_ptr<T> overcommit_memory(const std::size_t size) {
   for (double cur_max_overcommitment_factor = max_overcommitment_factor;
        cur_max_overcommitment_factor > 0.0;
        cur_max_overcommitment_factor -= kBackoffPercentage) {
-    const std::size_t nbytes = std::min<std::size_t>(
-        cur_max_overcommitment_factor * total_system_memory, size * sizeof(T)
-    );
+    const std::size_t nbytes =
+        total_system_memory == std::numeric_limits<std::size_t>::max()
+            ? size * sizeof(T)
+            : std::min<std::size_t>(
+                  cur_max_overcommitment_factor * total_system_memory, size * sizeof(T)
+              );
 
     T *ptr;
     if constexpr (kHeapProfiling) {
