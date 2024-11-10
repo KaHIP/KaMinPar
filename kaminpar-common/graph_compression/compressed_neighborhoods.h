@@ -647,29 +647,29 @@ private:
       });
 
       return stop;
-    } else if constexpr (kStreamVByteEncoding) {
-      const NodeID num_remaining_gaps = static_cast<NodeID>(last_edge - edge);
-
-      if (num_remaining_gaps >= kStreamVByteThreshold) {
+    }
+    */
+    if constexpr (kStreamVByteEncoding) {
+      if (remaining_edges >= kStreamVByteThreshold) {
         bool stop = false;
 
         if constexpr (kHasEdgeWeights) {
-          StreamVByteGapAndWeightsDecoder decoder(num_remaining_gaps * 2, node_data);
+          StreamVByteGapAndWeightsDecoder decoder(remaining_edges * 2, node_data);
           decoder.decode([&](const NodeID adjacent_node, const EdgeWeight edge_weight) {
             if constexpr (kNonStoppable) {
-              callback(edge++, adjacent_node, edge_weight);
+              callback(adjacent_node, edge_weight);
             } else {
-              stop = callback(edge++, adjacent_node, edge_weight);
+              stop = callback(adjacent_node, edge_weight);
               return stop;
             }
           });
         } else {
-          StreamVByteGapDecoder decoder(num_remaining_gaps, node_data);
+          StreamVByteGapDecoder decoder(remaining_edges, node_data);
           decoder.decode([&](const NodeID adjacent_node) {
             if constexpr (kNonStoppable) {
-              callback(edge++, adjacent_node);
+              callback(adjacent_node);
             } else {
-              stop = callback(edge++, adjacent_node);
+              stop = callback(adjacent_node);
               return stop;
             }
           });
@@ -678,7 +678,6 @@ private:
         return stop;
       }
     }
-    */
 
     NodeID prev_adjacent_node = first_adjacent_node;
     while (remaining_edges > 0) {
