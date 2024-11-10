@@ -295,7 +295,6 @@ bool validate_graph(
       for (EdgeID e_prime = xadj[v]; e_prime < xadj[v + 1]; ++e_prime) {
         if (e_prime >= m) {
           LOG_WARNING << "Edge " << e_prime << " of " << v << " is out-of-graph";
-          std::exit(1);
           return false;
         }
 
