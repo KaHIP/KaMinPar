@@ -37,6 +37,7 @@ jobs:
           -DKAMINPAR_BUILD_TESTS=On
           -DKAMINPAR_BUILD_DISTRIBUTED=On
           -DKAMINPAR_BUILD_WITH_DEBUG_SYMBOLS=Off
+          -DKAMINPAR_BUILD_WITH_ASAN=On
       - name: Build
         run: >-
           cmake --build ${{github.workspace}}/build
@@ -88,6 +89,7 @@ jobs:
           -DKAMINPAR_BUILD_TESTS=On
           -DKAMINPAR_BUILD_DISTRIBUTED=On
           -DKAMINPAR_BUILD_WITH_DEBUG_SYMBOLS=Off
+          -DKAMINPAR_BUILD_WITH_ASAN=On
       - name: Build
         run: >-
           cmake --build ${{github.workspace}}/build
