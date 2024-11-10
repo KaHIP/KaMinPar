@@ -634,7 +634,7 @@ template <typename T> unique_ptr<T> overcommit_memory(const std::size_t size) {
                 << " * " << total_system_memory << " bytes, " << size << " * " << sizeof(T)
                 << " bytes) of memory failed."
                 << "Ensure that memory overcommitment is enabled on this system!";
-      std::exit(EXIT_FAILURE);
+      throw std::bad_alloc();
     } else if (ptr == nullptr) {
       LOG_WARNING
           << "Overcommitting " << nbytes << " bytes = min(" << cur_max_overcommitment_factor
@@ -648,8 +648,7 @@ template <typename T> unique_ptr<T> overcommit_memory(const std::size_t size) {
   LOG_ERROR
       << "Overcommitment failed for all factors. Ensure that memory overcommitment is enabled "
       << "on this system!";
-  std::exit(EXIT_FAILURE);
-  __builtin_unreachable();
+  throw std::bad_alloc();
 }
 
 } // namespace kaminpar::heap_profiler
