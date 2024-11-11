@@ -62,7 +62,6 @@ jobs:
         env:
           ASAN_OPTIONS: detect_leaks=0
 
-
   build-linux:
     name: Linux Build
     runs-on: ubuntu-24.04
@@ -115,4 +114,38 @@ jobs:
         run: ctest --output-on-failure
         env:
           ASAN_OPTIONS: detect_leaks=0
+
+  # Make sure that our code compiles with all assertions and experimental features enabled
+  build-with-heavy-assertions-and-experimental-features:
+    name: macOS Build with Heavy Assertions and Experimental Features
+    runs-on: macos-15 # fastest runner to compile the code
+    strategy:
+      matrix:
+        compiler:
+          - { name: AppleClang, cc: clang, cxx: clang++ }
+        build-mode: [Release]
+    steps:
+      - name: Install dependencies
+        run: brew install llvm tbb open-mpi google-sparsehash
+      - name: Checkout HEAD
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          fetch-depth: 1
+          submodules: recursive
+      - name: Configure
+        run: >-
+          cmake -B ${{github.workspace}}/build
+          -DCMAKE_BUILD_TYPE=${{matrix.build-mode}}
+          -DCMAKE_C_COMPILER=${{matrix.compiler.cc}}
+          -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
+          -DKAMINPAR_ASSERTION_LEVEL=heavy
+          -DKAMINPAR_BUILD_EXPERIMENTAL_FEATURES=On
+          -DKAMINPAR_BUILD_APPS=On
+          -DKAMINPAR_BUILD_TESTS=On
+          -DKAMINPAR_BUILD_DISTRIBUTED=On
+      - name: Build
+        run: >-
+          cmake --build ${{github.workspace}}/build
+          --config Release
+          --parallel 3
 
