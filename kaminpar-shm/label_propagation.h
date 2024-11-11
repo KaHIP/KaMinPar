@@ -1931,7 +1931,7 @@ private:
           std::ceil(1.0 * (chunk.end - chunk.start) / Config::kPermutationSize);
 
       auto &sub_chunk_permutation = _sub_chunk_permutation_ets.local();
-      if (sub_chunk_permutation.capacity() < num_sub_chunks) {
+      if (sub_chunk_permutation.size() < num_sub_chunks) {
         sub_chunk_permutation.resize(num_sub_chunks);
       }
 
@@ -2013,7 +2013,7 @@ private:
           std::ceil(1.0 * (chunk.end - chunk.start) / Config::kPermutationSize);
 
       auto &sub_chunk_permutation = _sub_chunk_permutation_ets.local();
-      if (sub_chunk_permutation.capacity() < num_sub_chunks) {
+      if (sub_chunk_permutation.size() < num_sub_chunks) {
         sub_chunk_permutation.resize(num_sub_chunks);
       }
 
