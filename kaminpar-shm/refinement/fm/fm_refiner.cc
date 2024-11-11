@@ -639,6 +639,7 @@ void FMRefiner::initialize(const PartitionedGraph &p_graph) {
           << "' is not available in this build. Rebuild with experimental features enabled.";
       LOG_WARNING << "Using the default gain cache strategy '"
                   << stringify_enum(GainCacheStrategy::COMPACT_HASHING) << "' instead.";
+      [[fallthrough]];
 
     case GainCacheStrategy::COMPACT_HASHING:
       _core = std::make_unique<FMRefinerCore<Graph, NormalCompactHashingGainCache>>(_ctx);
