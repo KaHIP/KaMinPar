@@ -105,6 +105,8 @@ jobs:
           ${{github.workspace}}/build/apps/dKaMinPar
           -G ${{github.workspace}}/misc/rgg2d.metis
           -k 2
+        env: # We leak a few bytes due to OpenMPI
+          ASAN_OPTIONS: detect_leaks=0
       - name: Run unit tests (Clang build)
         if: matrix.compiler.name == 'Clang'
         working-directory: ${{github.workspace}}/build
