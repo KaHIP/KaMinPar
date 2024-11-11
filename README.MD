@@ -30,7 +30,7 @@ cmake -B build --preset=default
 cmake --build build --parallel
 ```
 
-To partition a graph in METIS format (see, e.g., the [KaHIP manual](https://github.com/KaHIP/KaHIP/raw/master/manual/kahip.pdf)) using [d]KaMinPar, run
+To partition a graph in METIS format (see, e.g., the [KaHIP manual](https://github.com/KaHIP/KaHIP/raw/master/manual/kahip.pdf)), run:
 
 ```shell
 # KaMinPar: shared-memory partitioning
@@ -42,7 +42,7 @@ mpirun -n <nproc> ./build/apps/dKaMinPar [-P default|strong|xterapart] -G <graph
 
 The computed partition is written to a text file, where the n-th line contains the block ID (0-based) of the n-th vertex.
 
-We offer configuration presets for a variety of scenratios:
+We offer configuration presets for a variety of scenarios:
 
 * `-P default`: fast partitioning with quality comparable to Metis
 * `-P terapart`: same partition quality as `default` but with a smaller memory footprint
