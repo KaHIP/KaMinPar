@@ -17,6 +17,7 @@
 
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/heap_profiler.h"
+#include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
@@ -52,23 +53,7 @@ PartitionedGraph DeepMultilevelPartitioner::partition() {
   PartitionedGraph p_graph = initial_partition(c_graph);
 
   SCOPED_HEAP_PROFILER("Uncoarsening");
-  bool refined = false;
-  p_graph = uncoarsen(std::move(p_graph), refined);
-  if (!refined || p_graph.k() < _input_ctx.partition.k) {
-    SCOPED_HEAP_PROFILER("Toplevel");
-
-    LOG;
-    LOG << "Toplevel:";
-    LOG << " Number of nodes: " << p_graph.n() << " | Number of edges: " << p_graph.m();
-
-    if (!refined) {
-      refine(p_graph);
-    }
-    if (p_graph.k() < _input_ctx.partition.k) {
-      extend_partition(p_graph, _input_ctx.partition.k);
-      refine(p_graph);
-    }
-  }
+  p_graph = uncoarsen(std::move(p_graph));
 
   return p_graph;
 }
@@ -127,6 +112,14 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
     );
   }
 
+  if (_last_initial_partitioning_level == _coarsener->level()) {
+    SCOPED_TIMER("Deallocation");
+    _subgraph_memory.free();
+    _extraction_mem_pool_ets.clear();
+    _tmp_extraction_mem_pool_ets.clear();
+    _bipartitioner_pool.free();
+  }
+
   if (_print_metrics) {
     SCOPED_TIMER("Partition metrics");
     LOG << "   Cut:       " << metrics::edge_cut(p_graph);
@@ -134,7 +127,8 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
   }
 }
 
-PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph, bool &refined) {
+PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) {
+  bool refined = false;
   while (!_coarsener->empty()) {
     SCOPED_HEAP_PROFILER("Level", std::to_string(_coarsener->level() - 1));
 
@@ -160,6 +154,22 @@ PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph, 
     }
   }
 
+  if (!refined || p_graph.k() < _input_ctx.partition.k) {
+    SCOPED_HEAP_PROFILER("Toplevel");
+
+    LOG;
+    LOG << "Toplevel:";
+    LOG << " Number of nodes: " << p_graph.n() << " | Number of edges: " << p_graph.m();
+
+    if (!refined) {
+      refine(p_graph);
+    }
+    if (p_graph.k() < _input_ctx.partition.k) {
+      extend_partition(p_graph, _input_ctx.partition.k);
+      refine(p_graph);
+    }
+  }
+
   return p_graph;
 }
 
@@ -172,7 +182,7 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
   NodeWeight prev_c_graph_total_node_weight = c_graph->total_node_weight();
 
   bool shrunk = true;
-  bool search_subgraph_memory_size = !_input_ctx.partitioning.use_lazy_subgraph_memory;
+  bool search_subgraph_memory_size = true;
 
   while (shrunk && c_graph->n() > initial_partitioning_threshold()) {
     // If requested, dump graph before each coarsening step + after coarsening
@@ -198,6 +208,8 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
     if (search_subgraph_memory_size &&
         partitioning::compute_k_for_n(c_graph->n(), _input_ctx) < _input_ctx.partition.k) {
       search_subgraph_memory_size = false;
+
+      _last_initial_partitioning_level = _coarsener->level() - 1;
 
       _subgraph_memory_n = prev_c_graph_n;
       _subgraph_memory_m = prev_c_graph_m;
@@ -269,7 +281,7 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
     SCOPED_HEAP_PROFILER("SubgraphMemory resize");
     SCOPED_TIMER("Allocation");
 
-    _subgraph_memory.resize2(
+    _subgraph_memory.weighted_resize(
         _subgraph_memory_n,
         _input_ctx.partition.k,
         _subgraph_memory_m,
