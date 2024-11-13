@@ -279,6 +279,8 @@ NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
     }
   }();
 
+  KASSERT(graph.vertex_range.second >= graph.vertex_range.first, "invalid vertex range from KaGen");
+
   auto vtxdist = BuildVertexDistribution<std::uint64_t>(graph, MPI_UINT64_T, MPI_COMM_WORLD);
 
   // If data types mismatch, we would need to allocate new memory for the graph; this is to do until
