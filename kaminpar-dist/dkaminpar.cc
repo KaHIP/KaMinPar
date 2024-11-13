@@ -273,7 +273,9 @@ void dKaMinPar::import_graph(
   )});
 
   // Fill in ghost node weights
-  if (vwgt != nullptr) {
+  bool has_vwgt = vwgt != nullptr;
+  MPI_Allreduce(MPI_IN_PLACE, &has_vwgt, 1, MPI_C_BOOL, MPI_LOR, _comm);
+  if (has_vwgt) {
     graph::synchronize_ghost_node_weights(*_graph_ptr);
   }
 }

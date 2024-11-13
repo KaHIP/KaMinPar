@@ -279,6 +279,9 @@ NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
     }
   }();
 
+  std::cout << graph.vertex_range.second << ", " << graph.vertex_range.first << std::endl;
+  KASSERT(graph.vertex_range.second >= graph.vertex_range.first, "invalid vertex range from KaGen");
+
   auto vtxdist = BuildVertexDistribution<std::uint64_t>(graph, MPI_UINT64_T, MPI_COMM_WORLD);
 
   // If data types mismatch, we would need to allocate new memory for the graph; this is to do until
@@ -525,6 +528,7 @@ int main(int argc, char *argv[]) {
 
     return load_kagen_graph(app, partitioner);
   }();
+  std::cout << n << std::endl;
 
   // Allocate memory for the partition
   std::vector<BlockID> partition(n);
