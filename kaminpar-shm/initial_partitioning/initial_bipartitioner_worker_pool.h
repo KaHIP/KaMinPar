@@ -36,6 +36,10 @@ public:
     pool.push_back(std::move(initial_partitioner));
   }
 
+  void free() {
+    _pool_ets.clear();
+  }
+
 private:
   const Context &_ctx;
   tbb::enumerable_thread_specific<std::vector<InitialMultilevelBipartitioner>> _pool_ets;
