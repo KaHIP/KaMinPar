@@ -506,7 +506,7 @@ void ClusterBalancer::perform_parallel_round() {
   );
 
   Random &rand = Random::instance();
-  std::size_t num_rejected_candidates;
+  std::size_t num_rejected_candidates = 0;
   std::vector<BlockWeight> actual_block_weight_deltas;
   bool balanced_moves = false;
 
