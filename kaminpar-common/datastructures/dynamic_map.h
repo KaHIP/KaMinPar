@@ -255,6 +255,8 @@ public:
     initialize_impl();
   }
 
+  DynamicRememberingFlatMap(std::size_t) : DynamicRememberingFlatMap() {}
+
   DynamicRememberingFlatMap(const DynamicRememberingFlatMap &) = delete;
   DynamicRememberingFlatMap &operator=(const DynamicRememberingFlatMap &other) = delete;
 
@@ -276,6 +278,12 @@ public:
       const MapElement element = _elements[pos];
       return std::make_pair(element.key, element.value);
     });
+  }
+
+  void change_max_size(std::size_t) {}
+
+  template <typename Lambda> decltype(auto) execute(std::size_t, Lambda &&lambda) {
+    return lambda(*this);
   }
 
 private:

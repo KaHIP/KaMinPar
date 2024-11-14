@@ -15,14 +15,12 @@
 #include "kaminpar-dist/graphutils/communication.h"
 #include "kaminpar-dist/timer.h"
 
-#include "kaminpar-common/datastructures/rating_map.h"
-
 namespace kaminpar::dist {
 
 namespace {
 
 struct GlobalLPClusteringConfig : public LabelPropagationConfig {
-  using RatingMap = ::kaminpar::RatingMap<EdgeWeight, GlobalNodeID, rm_backyard::Sparsehash>;
+  using RatingMap = ::kaminpar::DynamicRememberingFlatMap<GlobalNodeID, EdgeWeight>;
 
   using ClusterID = GlobalNodeID;
   using ClusterWeight = GlobalNodeWeight;
