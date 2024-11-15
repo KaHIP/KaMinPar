@@ -30,11 +30,7 @@ public:
       const NodeID num_nodes, const EdgeID num_edges, const bool has_edge_weights
   )
       : _compressed_edges_builder(
-            CompressedEdgesBuilder::num_edges_tag,
-            num_nodes,
-            num_edges,
-            has_edge_weights,
-            _edge_weights
+            CompressedEdgesBuilder::num_edges_tag, num_nodes, num_edges, has_edge_weights
         ),
         _num_edges(num_edges),
         _has_edge_weights(has_edge_weights) {
@@ -44,12 +40,6 @@ public:
     );
     _nodes.resize(math::byte_width(max_size), num_nodes + 1);
     _compressed_edges_builder.init(0);
-
-    if constexpr (!CompressedNeighborhoods::kCompressEdgeWeights) {
-      if (has_edge_weights) {
-        _edge_weights.resize(num_edges, static_array::noinit);
-      }
-    }
   }
 
   /**
@@ -104,7 +94,6 @@ public:
     return CompressedNeighborhoods(
         std::move(_nodes),
         StaticArray<std::uint8_t>(compressed_edges_size, std::move(compressed_edges)),
-        std::move(_edge_weights),
         _compressed_edges_builder.max_degree(),
         _num_edges,
         _has_edge_weights,
@@ -137,7 +126,6 @@ public:
 private:
   CompactStaticArray<EdgeID> _nodes;
   CompressedEdgesBuilder _compressed_edges_builder;
-  StaticArray<EdgeWeight> _edge_weights;
   EdgeID _num_edges;
   bool _has_edge_weights;
 };
@@ -172,12 +160,6 @@ public:
     _nodes.resize(math::byte_width(max_size), num_nodes + 1);
     _compressed_edges = heap_profiler::overcommit_memory<std::uint8_t>(max_size);
     _compressed_edges_size = 0;
-
-    if constexpr (!CompressedNeighborhoods::kCompressEdgeWeights) {
-      if (has_edge_weights) {
-        _edge_weights.resize(num_edges, static_array::noinit);
-      }
-    }
   }
 
   /*!
@@ -261,7 +243,6 @@ public:
     return CompressedNeighborhoods(
         std::move(_nodes),
         StaticArray<std::uint8_t>(_compressed_edges_size, std::move(_compressed_edges)),
-        std::move(_edge_weights),
         _max_degree,
         _num_edges,
         _has_edge_weights,
@@ -271,18 +252,6 @@ public:
         _num_interval_nodes,
         _num_intervals
     );
-  }
-
-  /*!
-   * Returns a reference to the edge weights.
-   *
-   * Note that it is only valid when edge weight compression is disabled and when the graph has edge
-   * weights.
-   *
-   * @return A reference to the edge weights.
-   */
-  [[nodiscard]] StaticArray<EdgeWeight> &edge_weights() {
-    return _edge_weights;
   }
 
 private:
@@ -295,7 +264,6 @@ private:
 
   bool _has_edge_weights;
   EdgeWeight _total_edge_weight;
-  StaticArray<EdgeWeight> _edge_weights;
 
   // Statistics about graph compression
   std::size_t _num_high_degree_nodes;

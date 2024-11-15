@@ -12,9 +12,7 @@
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/graph_compression/streamvbyte.h"
 #include "kaminpar-common/graph_compression/varint.h"
-#include "kaminpar-common/graph_compression/varint_rle.h"
 #include "kaminpar-common/math.h"
-#include "kaminpar-common/ranges.h"
 
 #define INVOKE_CALLBACKU(adjacent_node)                                                            \
   if constexpr (kNonStoppable) {                                                                   \
@@ -27,7 +25,6 @@
   }
 
 #define INVOKE_CALLBACKW(adjacent_node)                                                            \
-  static_assert(kCompressEdgeWeights);                                                             \
   const SignedEdgeWeight edge_weight_gap = signed_varint_decode<SignedEdgeWeight>(&node_data);     \
   EdgeWeight edge_weight = static_cast<EdgeWeight>(edge_weight_gap + prev_edge_weight);            \
                                                                                                    \
@@ -77,15 +74,6 @@ template <typename NodeID, typename EdgeID, typename EdgeWeight> class Compresse
 
 public:
   /*!
-   * Whether edge weights are compressed.
-   */
-#ifdef KAMINPAR_COMPRESSION_EDGE_WEIGHTS
-  static constexpr bool kCompressEdgeWeights = true;
-#else
-  static constexpr bool kCompressEdgeWeights = false;
-#endif
-
-  /*!
    * Whether high-degree encoding is used.
    */
 #ifdef KAMINPAR_COMPRESSION_HIGH_DEGREE_ENCODING
@@ -120,15 +108,6 @@ public:
   static constexpr NodeID kIntervalLengthTreshold = 3;
 
   /*!
-   * Whether run-length encoding is used.
-   */
-#ifdef KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING
-  static constexpr bool kRunLengthEncoding = true;
-#else
-  static constexpr bool kRunLengthEncoding = false;
-#endif
-
-  /*!
    * Whether StreamVByte encoding is used.
    */
 #ifdef KAMINPAR_COMPRESSION_STREAMVBYTE_ENCODING
@@ -143,20 +122,8 @@ public:
   static constexpr NodeID kStreamVByteThreshold = 3;
 
   static_assert(
-      !kRunLengthEncoding || !kStreamVByteEncoding,
-      "Either run-length or StreamVByte encoding can be used for varints "
-      "but not both."
-  );
-
-  static_assert(
-      !kRunLengthEncoding || !kCompressEdgeWeights,
-      "Run-length cannot be used together with compressed edge weights."
-  );
-
-  static_assert(
-      !kStreamVByteEncoding || !kCompressEdgeWeights || sizeof(NodeID) == sizeof(EdgeWeight),
-      "StreamVByte together with compressed edge weights can only be used when the node IDs and "
-      "edge weights have the same width."
+      !kStreamVByteEncoding || sizeof(NodeID) == sizeof(EdgeWeight),
+      "StreamVByte can only be used when the node IDs and edge weights have the same width."
   );
 
   /*!
@@ -165,8 +132,6 @@ public:
    * @param nodes The offsets for each node into the compressed edges where the corresponding
    * adjacent nodes and edge weights are encoded.
    * @param compressed_edges The edges and edge weights in compresed format.
-   * @param edge_weights The edge weights of the graph, which is only used when the graph has edge
-   * weights and edg weight compression is disabled.
    * @param max_degree The maximum degree of the nodes.
    * @param num_edges The number of edges.
    * @param has_edge_weights Whether edge weights are stored.
@@ -180,7 +145,6 @@ public:
   CompressedNeighborhoods(
       CompactStaticArray<EdgeID> nodes,
       StaticArray<std::uint8_t> compressed_edges,
-      StaticArray<EdgeWeight> edge_weights,
       const NodeID max_degree,
       const EdgeID num_edges,
       const bool has_edge_weights,
@@ -192,7 +156,6 @@ public:
   )
       : _nodes(std::move(nodes)),
         _compressed_edges(std::move(compressed_edges)),
-        _edge_weights(std::move(edge_weights)),
         _num_edges(num_edges),
         _max_degree(max_degree),
         _has_edge_weights(has_edge_weights),
@@ -205,8 +168,6 @@ public:
     KASSERT(kHighDegreeEncoding || _num_high_degree_parts == 0);
     KASSERT(kIntervalEncoding || _num_interval_nodes == 0);
     KASSERT(kIntervalEncoding || _num_intervals == 0);
-    KASSERT(!has_edge_weights || kCompressEdgeWeights || _edge_weights.size() == num_edges);
-    KASSERT(has_edge_weights || _edge_weights.empty());
   }
 
   CompressedNeighborhoods(const CompressedNeighborhoods &) = delete;
@@ -368,8 +329,7 @@ public:
    * @return The used memory space in bytes.
    */
   [[nodiscard]] std::size_t memory_space() const {
-    return _nodes.memory_space() + _compressed_edges.size() +
-           _edge_weights.size() * sizeof(EdgeWeight);
+    return _nodes.memory_space() + _compressed_edges.size();
   }
 
   /*!
@@ -442,18 +402,6 @@ public:
    */
   [[nodiscard]] const StaticArray<std::uint8_t> &raw_compressed_edges() const {
     return _compressed_edges;
-  }
-
-  /*!
-   * Returns a reference to the raw edge weights.
-   *
-   * Note that the weights are only valid when edge weight compression is enabled and when the
-   * graph has edge weights.
-   *
-   * @return A reference to the raw edge weights.
-   */
-  [[nodiscard]] const StaticArray<EdgeWeight> &raw_edge_weights() const {
-    return _edge_weights;
   }
 
 private:
@@ -617,38 +565,6 @@ private:
     INVOKE_CALLBACK(first_adjacent_node);
     remaining_edges -= 1;
 
-    /*
-    if constexpr (kRunLengthEncoding) {
-      VarIntRunLengthDecoder<NodeID> rl_decoder(remaining_edges, node_data);
-
-      bool stop = false;
-      NodeID prev_adjacent_node = first_adjacent_node;
-      rl_decoder.decode([&](const NodeID gap) {
-        const NodeID adjacent_node = gap + prev_adjacent_node + 1;
-        prev_adjacent_node = adjacent_node;
-
-        if constexpr (kHasEdgeWeights) {
-          EdgeWeight edge_weight = _edge_weights[edge];
-
-          if constexpr (kNonStoppable) {
-            callback(edge++, adjacent_node, edge_weight);
-          } else {
-            stop = callback(edge++, adjacent_node, edge_weight);
-            return stop;
-          }
-        } else {
-          if constexpr (kNonStoppable) {
-            callback(edge++, adjacent_node);
-          } else {
-            stop = callback(edge++, adjacent_node);
-            return stop;
-          }
-        }
-      });
-
-      return stop;
-    }
-    */
     if constexpr (kStreamVByteEncoding) {
       if (remaining_edges >= kStreamVByteThreshold) {
         bool stop = false;
@@ -695,7 +611,6 @@ private:
 private:
   CompactStaticArray<EdgeID> _nodes;
   StaticArray<std::uint8_t> _compressed_edges;
-  StaticArray<EdgeWeight> _edge_weights;
 
   EdgeID _num_edges;
   NodeID _max_degree;
