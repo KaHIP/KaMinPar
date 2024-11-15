@@ -261,7 +261,7 @@ bool validate_graph(const DistributedGraph &graph) {
 
     const auto recvbufs = mpi::graph::sparse_alltoall_interface_to_ghost_get<GhostNodeEdge>(
         graph,
-        [&](const NodeID u, EdgeID, const NodeID v, EdgeWeight) -> GhostNodeEdge {
+        [&](const NodeID u, const NodeID v, EdgeWeight) -> GhostNodeEdge {
           return {.owned = graph.local_to_global_node(u), .ghost = graph.local_to_global_node(v)};
         }
     );

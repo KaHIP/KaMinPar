@@ -88,7 +88,6 @@ get_edge_by_endpoints(const Graph &graph, const NodeID u, const NodeID v) {
   EdgeID forward_edge = kInvalidEdgeID;
   EdgeID backward_edge = kInvalidEdgeID;
 
-  /* @TODO
   if (graph.is_owned_node(u)) {
     graph.neighbors(u, [&](const EdgeID cur_e, const NodeID cur_v) {
       if (cur_v == v) {
@@ -110,7 +109,6 @@ get_edge_by_endpoints(const Graph &graph, const NodeID u, const NodeID v) {
       return false;
     });
   }
-  */
 
   // one of those edges might now exist due to ghost nodes
   return {forward_edge, backward_edge};
