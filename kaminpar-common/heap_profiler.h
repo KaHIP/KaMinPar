@@ -618,9 +618,12 @@ template <typename T> unique_ptr<T> overcommit_memory(const std::size_t size) {
   for (double cur_max_overcommitment_factor = max_overcommitment_factor;
        cur_max_overcommitment_factor > 0.0;
        cur_max_overcommitment_factor -= kBackoffPercentage) {
-    const std::size_t nbytes = std::min<std::size_t>(
-        cur_max_overcommitment_factor * total_system_memory, size * sizeof(T)
-    );
+    const std::size_t nbytes =
+        total_system_memory == std::numeric_limits<std::size_t>::max()
+            ? size * sizeof(T)
+            : std::min<std::size_t>(
+                  cur_max_overcommitment_factor * total_system_memory, size * sizeof(T)
+              );
 
     T *ptr;
     if constexpr (kHeapProfiling) {
@@ -634,7 +637,7 @@ template <typename T> unique_ptr<T> overcommit_memory(const std::size_t size) {
                 << " * " << total_system_memory << " bytes, " << size << " * " << sizeof(T)
                 << " bytes) of memory failed."
                 << "Ensure that memory overcommitment is enabled on this system!";
-      std::exit(EXIT_FAILURE);
+      throw std::bad_alloc();
     } else if (ptr == nullptr) {
       LOG_WARNING
           << "Overcommitting " << nbytes << " bytes = min(" << cur_max_overcommitment_factor
@@ -648,8 +651,7 @@ template <typename T> unique_ptr<T> overcommit_memory(const std::size_t size) {
   LOG_ERROR
       << "Overcommitment failed for all factors. Ensure that memory overcommitment is enabled "
       << "on this system!";
-  std::exit(EXIT_FAILURE);
-  __builtin_unreachable();
+  throw std::bad_alloc();
 }
 
 } // namespace kaminpar::heap_profiler

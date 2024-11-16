@@ -62,15 +62,6 @@
 #undef LOG_ERROR
 #define LOG_ERROR (kaminpar::Logger(std::cout) << LOG_RANK << kaminpar::logger::RED << "[Error] ")
 
-#undef FATAL_ERROR
-#undef FATAL_PERROR
-#define FATAL_ERROR                                                                                \
-  (kaminpar::DisposableLogger<true>(std::cout)                                                     \
-   << LOG_RANK << " " << kaminpar::logger::RED << "[Fatal] ")
-#define FATAL_PERROR                                                                               \
-  (kaminpar::DisposableLogger<true>(std::cout, std::string(": ") + std::strerror(errno) + "\n")    \
-   << LOG_RANK << " " << kaminpar::logger::RED << "[Fatal] ")
-
 #define DLOG (kaminpar::Logger() << LOG_RANK << " ")
 #define SLOG (kaminpar::dist::SynchronizedLogger())
 #define SLOGP(root, comm) (kaminpar::dist::SynchronizedLogger(root, comm))

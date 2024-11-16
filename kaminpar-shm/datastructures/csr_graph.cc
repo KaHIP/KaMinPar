@@ -34,9 +34,11 @@ CSRGraph::CSRGraph(const Graph &graph)
     parallel::prefix_sum(_nodes.begin(), _nodes.end(), _nodes.begin());
 
     graph.pfor_nodes([&](const NodeID u) {
-      graph.neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
+      EdgeID e = _nodes[u];
+      graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
         _edges[e] = v;
         _edge_weights[e] = w;
+        e += 1;
       });
     });
 
@@ -295,7 +297,6 @@ bool validate_graph(
       for (EdgeID e_prime = xadj[v]; e_prime < xadj[v + 1]; ++e_prime) {
         if (e_prime >= m) {
           LOG_WARNING << "Edge " << e_prime << " of " << v << " is out-of-graph";
-          std::exit(1);
           return false;
         }
 

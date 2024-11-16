@@ -100,10 +100,6 @@ public:
     return _underlying_graph->edges();
   }
 
-  [[nodiscard]] inline IotaRange<EdgeID> incident_edges(const NodeID u) const final {
-    return _underlying_graph->incident_edges(u);
-  }
-
   //
   // Node degree
   //
@@ -124,14 +120,10 @@ public:
     reified([&](auto &graph) { graph.adjacent_nodes(u, std::forward<Lambda>(l)); });
   }
 
-  template <typename Lambda> inline void neighbors(const NodeID u, Lambda &&l) const {
-    reified([&](const auto &graph) { graph.neighbors(u, std::forward<Lambda>(l)); });
-  }
-
   template <typename Lambda>
-  inline void neighbors(const NodeID u, const NodeID max_num_neighbors, Lambda &&l) const {
-    reified([&](const auto &graph) {
-      graph.neighbors(u, max_num_neighbors, std::forward<Lambda>(l));
+  inline void adjacent_nodes(const NodeID u, const NodeID max_num_neighbors, Lambda &&l) const {
+    reified([&](auto &graph) {
+      graph.adjacent_nodes(u, max_num_neighbors, std::forward<Lambda>(l));
     });
   }
 
@@ -148,11 +140,11 @@ public:
   }
 
   template <typename Lambda>
-  inline void pfor_neighbors(
+  inline void pfor_adjacent_nodes(
       const NodeID u, const NodeID max_num_neighbors, const NodeID grainsize, Lambda &&l
   ) const {
     reified([&](const auto &graph) {
-      graph.pfor_neighbors(u, max_num_neighbors, grainsize, std::forward<Lambda>(l));
+      graph.pfor_adjacent_nodes(u, max_num_neighbors, grainsize, std::forward<Lambda>(l));
     });
   }
 

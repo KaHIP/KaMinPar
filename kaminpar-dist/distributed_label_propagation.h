@@ -317,7 +317,7 @@ protected:
 
       bool is_interface_node = false;
 
-      _graph->neighbors(u, _max_num_neighbors, [&](EdgeID, const NodeID v, const EdgeWeight w) {
+      _graph->adjacent_nodes(u, _max_num_neighbors, [&](const NodeID v, const EdgeWeight w) {
         if (derived_accept_neighbor(u, v)) {
           const ClusterID v_cluster = derived_cluster(v);
           map[v_cluster] += w;

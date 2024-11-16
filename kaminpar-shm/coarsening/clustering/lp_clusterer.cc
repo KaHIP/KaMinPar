@@ -132,9 +132,6 @@ private:
     case TwoHopStrategy::CLUSTER_THREADWISE:
       Base::cluster_two_hop_nodes_threadwise();
       break;
-    case TwoHopStrategy::LEGACY:
-      handle_two_hop_clustering_legacy();
-      break;
     case TwoHopStrategy::DISABLE:
       break;
     }
@@ -168,76 +165,6 @@ private:
 
   [[nodiscard]] bool should_handle_two_hop_nodes() const {
     return (1.0 - 1.0 * _current_num_clusters / _graph->n()) <= _lp_ctx.two_hop_threshold;
-  }
-
-  // @todo: old implementation that should no longer be used
-  void handle_two_hop_clustering_legacy() {
-    // Reset _favored_clusters entries for nodes that are not considered for
-    // 2-hop clustering, i.e., nodes that are already clustered with at least one other node or
-    // nodes that have more weight than max_weight/2.
-    // Set _favored_clusters to dummy entry _graph->n() for isolated nodes
-    tbb::parallel_for<NodeID>(0, _graph->n(), [&](const NodeID u) {
-      if (u != cluster(u)) {
-        Base::_favored_clusters[u] = u;
-      } else {
-        const auto initial_weight = initial_cluster_weight(u);
-        const auto current_weight = ClusterWeightBase::cluster_weight(u);
-        const auto max_weight = max_cluster_weight(u);
-        if (current_weight != initial_weight || current_weight > max_weight / 2) {
-          Base::_favored_clusters[u] = u;
-        }
-      }
-    });
-
-    tbb::parallel_for<NodeID>(0, _graph->n(), [&](const NodeID u) {
-      // Abort once we have merged enough clusters to achieve the configured minimum shrink factor
-      if (Base::should_stop()) {
-        return;
-      }
-
-      // Skip nodes that should not be considered during 2-hop clustering
-      const NodeID favored_leader = Base::_favored_clusters[u];
-      if (favored_leader == u) {
-        return;
-      }
-
-      do {
-        // If this works, we set ourself as clustering partners for nodes that have the same favored
-        // cluster we have
-        NodeID expected_value = favored_leader;
-        if (__atomic_compare_exchange_n(
-                &Base::_favored_clusters[favored_leader],
-                &expected_value,
-                u,
-                false,
-                __ATOMIC_SEQ_CST,
-                __ATOMIC_SEQ_CST
-            )) {
-          break;
-        }
-
-        // If this did not work, there is another node that has the same favored cluster
-        // Try to join the cluster of that node
-        const NodeID partner = expected_value;
-        if (__atomic_compare_exchange_n(
-                &Base::_favored_clusters[favored_leader],
-                &expected_value,
-                favored_leader,
-                false,
-                __ATOMIC_SEQ_CST,
-                __ATOMIC_SEQ_CST
-            )) {
-          if (ClusterWeightBase::move_cluster_weight(
-                  u, partner, ClusterWeightBase::cluster_weight(u), max_cluster_weight(partner)
-              )) {
-            move_node(u, partner);
-            --_current_num_clusters;
-          }
-
-          break;
-        }
-      } while (true);
-    });
   }
 
 public:

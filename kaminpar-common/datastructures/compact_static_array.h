@@ -37,26 +37,21 @@ template <std::unsigned_integral Int> class CompactStaticArray {
     using pointer = Int *;
     using difference_type = std::ptrdiff_t;
 
-    CompactStaticArrayIterator(
-        const std::size_t byte_width, const Int read_mask, const std::uint8_t *data
-    )
+    CompactStaticArrayIterator(const std::size_t byte_width, const std::uint8_t *data)
         : _byte_width(byte_width),
-          _mask(read_mask),
           _data(data) {}
 
     CompactStaticArrayIterator(const CompactStaticArrayIterator &) = default;
     CompactStaticArrayIterator &operator=(const CompactStaticArrayIterator &) = default;
 
     Int operator*() const {
-      return *reinterpret_cast<const Int *>(_data) & _mask;
+      Int value = 0;
+      std::memcpy(&value, _data, _byte_width);
+      return value;
     }
 
     pointer operator->() const {
       return reinterpret_cast<const Int *>(_data);
-    }
-
-    reference operator[](const difference_type n) const {
-      return reinterpret_cast<const Int *>(_data + _byte_width * n);
     }
 
     CompactStaticArrayIterator &operator++() {
@@ -68,19 +63,19 @@ template <std::unsigned_integral Int> class CompactStaticArray {
     }
 
     CompactStaticArrayIterator operator++(int) const {
-      return CompactStaticArrayIterator{_byte_width, _mask, _data + _byte_width};
+      return CompactStaticArrayIterator{_byte_width, _data + _byte_width};
     }
 
     CompactStaticArrayIterator operator--(int) const {
-      return CompactStaticArrayIterator{_byte_width, _mask, _data - _byte_width};
+      return CompactStaticArrayIterator{_byte_width, _data - _byte_width};
     }
 
     CompactStaticArrayIterator operator+(const difference_type n) const {
-      return CompactStaticArrayIterator{_byte_width, _mask, _data + _byte_width * n};
+      return CompactStaticArrayIterator{_byte_width, _data + _byte_width * n};
     }
 
     CompactStaticArrayIterator operator-(const difference_type n) const {
-      return CompactStaticArrayIterator{_byte_width, _mask, _data - _byte_width * n};
+      return CompactStaticArrayIterator{_byte_width, _data - _byte_width * n};
     }
 
     CompactStaticArrayIterator &operator+=(const difference_type n) {
@@ -127,7 +122,6 @@ template <std::unsigned_integral Int> class CompactStaticArray {
 
   private:
     const std::size_t _byte_width;
-    const Int _mask;
     const std::uint8_t *_data;
   };
 
@@ -178,8 +172,6 @@ public:
         _size(actual_size),
         _num_values((_size - (sizeof(Int) - _byte_width)) / _byte_width),
         _values(std::move(data)),
-        _read_mask(std::numeric_limits<Int>::max() >> ((sizeof(Int) - byte_width) * 8)),
-        _write_mask(std::numeric_limits<Int>::max() << (byte_width * 8)),
         _unrestricted_size(_size),
         _unrestricted_num_values(_num_values) {
     RECORD_DATA_STRUCT(0, _struct);
@@ -209,9 +201,6 @@ public:
 
     _num_values = num_values;
     _values = std::make_unique<std::uint8_t[]>(_size);
-
-    _read_mask = std::numeric_limits<Int>::max() >> ((sizeof(Int) - byte_width) * 8);
-    _write_mask = std::numeric_limits<Int>::max() << (byte_width * 8);
 
     _unrestricted_size = _size;
     _unrestricted_num_values = num_values;
@@ -268,7 +257,10 @@ public:
    */
   [[nodiscard]] Int operator[](const std::size_t pos) const {
     KASSERT(pos < _num_values);
-    return *reinterpret_cast<const Int *>(_values.get() + pos * _byte_width) & _read_mask;
+
+    Int val = 0;
+    std::memcpy(&val, _values.get() + pos * _byte_width, _byte_width);
+    return val;
   }
 
   /*!
@@ -277,7 +269,7 @@ public:
    * @return An interator to the beginning.
    */
   [[nodiscard]] CompactStaticArrayIterator begin() const {
-    return CompactStaticArrayIterator{_byte_width, _read_mask, _values.get()};
+    return CompactStaticArrayIterator{_byte_width, _values.get()};
   }
 
   /*!
@@ -287,7 +279,7 @@ public:
    */
   [[nodiscard]] CompactStaticArrayIterator end() const {
     const std::uint8_t *data = _values.get() + _size - (sizeof(Int) - _byte_width);
-    return CompactStaticArrayIterator{_byte_width, _read_mask, data};
+    return CompactStaticArrayIterator{_byte_width, data};
   }
 
   /*!
@@ -341,9 +333,6 @@ private:
 
   std::size_t _num_values;
   std::unique_ptr<std::uint8_t[]> _values;
-
-  Int _read_mask;
-  Int _write_mask;
 
   std::size_t _unrestricted_size;
   std::size_t _unrestricted_num_values;

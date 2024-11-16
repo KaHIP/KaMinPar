@@ -36,7 +36,7 @@ public:
   PartitionedGraph partition() final;
 
 private:
-  PartitionedGraph uncoarsen(PartitionedGraph p_graph, bool &refined);
+  PartitionedGraph uncoarsen(PartitionedGraph p_graph);
 
   inline PartitionedGraph uncoarsen_once(PartitionedGraph p_graph);
 
@@ -62,10 +62,11 @@ private:
   std::unique_ptr<Coarsener> _coarsener;
   std::unique_ptr<Refiner> _refiner;
 
-  graph::SubgraphMemory _subgraph_memory;
+  std::size_t _last_initial_partitioning_level;
   NodeID _subgraph_memory_n, _subgraph_memory_n_weights;
   EdgeID _subgraph_memory_m, _subgraph_memory_m_weights;
 
+  graph::SubgraphMemory _subgraph_memory;
   partitioning::SubgraphMemoryEts _extraction_mem_pool_ets;
   partitioning::TemporarySubgraphMemoryEts _tmp_extraction_mem_pool_ets;
   InitialBipartitionerWorkerPool _bipartitioner_pool;
