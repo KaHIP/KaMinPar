@@ -49,8 +49,6 @@ public:
     Base::set_max_num_neighbors(_lp_ctx.max_num_neighbors);
     Base::set_implementation(_lp_ctx.impl);
     Base::set_tie_breaking_strategy(_lp_ctx.tie_breaking_strategy);
-    Base::set_second_phase_selection_strategy(_lp_ctx.second_phase_selection_strategy);
-    Base::set_second_phase_aggregation_strategy(_lp_ctx.second_phase_aggregation_strategy);
     Base::set_relabel_before_second_phase(_lp_ctx.relabel_before_second_phase);
   }
 

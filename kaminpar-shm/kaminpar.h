@@ -107,17 +107,6 @@ enum class LabelPropagationImplementation {
   GROWING_HASH_TABLES
 };
 
-enum class SecondPhaseSelectionStrategy {
-  HIGH_DEGREE,
-  FULL_RATING_MAP
-};
-
-enum class SecondPhaseAggregationStrategy {
-  NONE,
-  DIRECT,
-  BUFFERED
-};
-
 enum class TwoHopStrategy {
   DISABLE,
   MATCH,
@@ -158,9 +147,6 @@ struct LabelPropagationCoarseningContext {
   NodeID max_num_neighbors;
 
   LabelPropagationImplementation impl;
-
-  SecondPhaseSelectionStrategy second_phase_selection_strategy;
-  SecondPhaseAggregationStrategy second_phase_aggregation_strategy;
   bool relabel_before_second_phase;
 
   TwoHopStrategy two_hop_strategy;
@@ -244,9 +230,6 @@ struct LabelPropagationRefinementContext {
   LabelPropagationImplementation impl;
 
   TieBreakingStrategy tie_breaking_strategy;
-
-  SecondPhaseSelectionStrategy second_phase_selection_strategy;
-  SecondPhaseAggregationStrategy second_phase_aggregation_strategy;
 };
 
 struct KwayFMRefinementContext {
