@@ -105,7 +105,7 @@ void print_local_graph_stats(const DistributedGraph &graph) {
   EdgeID local_m = 0, nonlocal_m = 0;
   NodeID min_deg = std::numeric_limits<NodeID>::max(), max_deg = 0;
   for (NodeID u = 0; u < graph.n(); ++u) {
-    graph.neighbors(u, [&](EdgeID, const NodeID v) {
+    graph.adjacent_nodes(u, [&](const NodeID v) {
       if (graph.is_owned_node(v)) {
         ++local_m;
       } else {
@@ -261,7 +261,7 @@ bool validate_graph(const DistributedGraph &graph) {
 
     const auto recvbufs = mpi::graph::sparse_alltoall_interface_to_ghost_get<GhostNodeEdge>(
         graph,
-        [&](const NodeID u, EdgeID, const NodeID v, EdgeWeight) -> GhostNodeEdge {
+        [&](const NodeID u, const NodeID v, EdgeWeight) -> GhostNodeEdge {
           return {.owned = graph.local_to_global_node(u), .ghost = graph.local_to_global_node(v)};
         }
     );

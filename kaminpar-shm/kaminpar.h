@@ -440,13 +440,11 @@ struct PartitioningContext {
 struct GraphCompressionContext {
   bool enabled;
 
-  bool compressed_edge_weights = false;
   bool high_degree_encoding = false;
   NodeID high_degree_threshold = kInvalidNodeID;
   NodeID high_degree_part_length = kInvalidNodeID;
   bool interval_encoding = false;
   NodeID interval_length_treshold = kInvalidNodeID;
-  bool run_length_encoding = false;
   bool streamvbyte_encoding = false;
 
   double compression_ratio = -1;
