@@ -32,6 +32,7 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar {
+
 struct LabelPropagationConfig {
   // Data structures used to accumulate edge weights for gain value calculation
   using RatingMap = ::kaminpar::RatingMap<shm::EdgeWeight, shm::NodeID>;
@@ -1931,7 +1932,7 @@ private:
           std::ceil(1.0 * (chunk.end - chunk.start) / Config::kPermutationSize);
 
       auto &sub_chunk_permutation = _sub_chunk_permutation_ets.local();
-      if (sub_chunk_permutation.capacity() < num_sub_chunks) {
+      if (sub_chunk_permutation.size() < num_sub_chunks) {
         sub_chunk_permutation.resize(num_sub_chunks);
       }
 
@@ -2013,7 +2014,7 @@ private:
           std::ceil(1.0 * (chunk.end - chunk.start) / Config::kPermutationSize);
 
       auto &sub_chunk_permutation = _sub_chunk_permutation_ets.local();
-      if (sub_chunk_permutation.capacity() < num_sub_chunks) {
+      if (sub_chunk_permutation.size() < num_sub_chunks) {
         sub_chunk_permutation.resize(num_sub_chunks);
       }
 
@@ -2302,4 +2303,5 @@ public:
 private:
   TwoLevelClusterWeightVector _cluster_weights;
 };
+
 } // namespace kaminpar

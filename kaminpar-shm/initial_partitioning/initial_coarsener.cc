@@ -127,7 +127,7 @@ void InitialCoarsener::perform_label_propagation(const NodeWeight max_cluster_we
       const auto num_chunks = bucket_size / kChunkSize;
 
       _chunks.clear();
-      if (_chunks.capacity() < num_chunks) {
+      if (_chunks.size() < num_chunks) {
         _chunks.resize(num_chunks);
       }
 

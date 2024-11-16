@@ -348,7 +348,7 @@ void InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>
   const NodeID num_chunks = _graph->n() / kChunkSize + 1;
 
   _chunks.clear();
-  if (_chunks.capacity() < num_chunks) {
+  if (_chunks.size() < num_chunks) {
     _chunks.resize(num_chunks);
   }
 

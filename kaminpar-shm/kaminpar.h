@@ -124,7 +124,6 @@ enum class TwoHopStrategy {
   MATCH_THREADWISE,
   CLUSTER,
   CLUSTER_THREADWISE,
-  LEGACY,
 };
 
 enum class IsolatedNodesClusteringStrategy {

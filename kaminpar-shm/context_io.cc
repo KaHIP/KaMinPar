@@ -303,8 +303,6 @@ std::ostream &operator<<(std::ostream &out, const TwoHopStrategy strategy) {
     return out << "cluster";
   case TwoHopStrategy::CLUSTER_THREADWISE:
     return out << "cluster-threadwise";
-  case TwoHopStrategy::LEGACY:
-    return out << "legacy";
   }
 
   return out << "<invalid>";
@@ -317,7 +315,6 @@ std::unordered_map<std::string, TwoHopStrategy> get_two_hop_strategies() {
       {"match-threadwise", TwoHopStrategy::MATCH_THREADWISE},
       {"cluster", TwoHopStrategy::CLUSTER},
       {"cluster-threadwise", TwoHopStrategy::CLUSTER_THREADWISE},
-      {"legacy", TwoHopStrategy::LEGACY},
   };
 }
 
