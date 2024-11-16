@@ -479,15 +479,15 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
             continue;
           }
 
-          graph.pfor_neighbors(
+          graph.pfor_adjacent_nodes(
               u,
               std::numeric_limits<NodeID>::max(),
               kParallelIterationGrainsize,
-              [&](auto &&pfor_neighbors) {
+              [&](auto &&pfor_adjacent_nodes) {
                 auto &local_used_entries = edge_collector.local_used_entries();
                 auto &local_edge_collector = edge_collector_ets.local();
 
-                pfor_neighbors([&](const EdgeID, const NodeID v, const EdgeWeight w) {
+                pfor_adjacent_nodes([&](const NodeID v, const EdgeWeight w) {
                   const NodeID c_v = mapping[v];
                   if (c_u != c_v) {
                     local_edge_collector[c_v] += w;

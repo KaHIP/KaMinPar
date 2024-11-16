@@ -26,8 +26,6 @@ namespace kaminpar {
 template <typename NodeID, typename EdgeID, typename EdgeWeight> class CompressedEdgesBuilder {
   using CompressedNeighborhoods = kaminpar::CompressedNeighborhoods<NodeID, EdgeID, EdgeWeight>;
 
-  static constexpr bool kCompressEdgeWeights = CompressedNeighborhoods::kCompressEdgeWeights;
-
   static constexpr bool kHighDegreeEncoding = CompressedNeighborhoods::kHighDegreeEncoding;
   static constexpr NodeID kHighDegreeThreshold = CompressedNeighborhoods::kHighDegreeThreshold;
   static constexpr NodeID kHighDegreePartLength = CompressedNeighborhoods::kHighDegreePartLength;
@@ -35,8 +33,6 @@ template <typename NodeID, typename EdgeID, typename EdgeWeight> class Compresse
   static constexpr NodeID kIntervalEncoding = CompressedNeighborhoods::kIntervalEncoding;
   static constexpr NodeID kIntervalLengthTreshold =
       CompressedNeighborhoods::kIntervalLengthTreshold;
-
-  static constexpr bool kRunLengthEncoding = CompressedNeighborhoods::kRunLengthEncoding;
 
   static constexpr bool kStreamVByteEncoding = CompressedNeighborhoods::kStreamVByteEncoding;
   static constexpr NodeID kStreamVByteThreshold = CompressedNeighborhoods::kStreamVByteThreshold;
@@ -85,7 +81,7 @@ public:
                   (num_edges / kHighDegreePartLength) * varint_max_length<NodeID>();
     }
 
-    if (kCompressEdgeWeights && has_edge_weights) {
+    if (has_edge_weights) {
       max_size += num_edges * varint_max_length<EdgeWeight>();
     }
 
@@ -104,18 +100,11 @@ public:
    * @param num_nodes The number of nodes of the graph to compress.
    * @param num_edges The number of edges of the graph to compress.
    * @param has_edge_weights Whether the graph to compress has edge weights.
-   * @param edge_weights A reference to the edge weights of the graph, which is only used when the
-   * graph has edge weights and graph compression is disabled.
    */
   CompressedEdgesBuilder(
-      num_edges_ctor,
-      const NodeID num_nodes,
-      const EdgeID num_edges,
-      const bool has_edge_weights,
-      StaticArray<EdgeWeight> &edge_weights
+      num_edges_ctor, const NodeID num_nodes, const EdgeID num_edges, const bool has_edge_weights
   )
-      : _has_edge_weights(has_edge_weights),
-        _edge_weights(edge_weights) {
+      : _has_edge_weights(has_edge_weights) {
     const std::size_t max_size =
         compressed_edge_array_max_size(num_nodes, num_edges, has_edge_weights);
     _compressed_edges = heap_profiler::overcommit_memory<std::uint8_t>(max_size);
@@ -130,18 +119,11 @@ public:
    * @param num_nodes The number of nodes of the graph to compress.
    * @param max_degree The maximum number of edges that are compressed at once.
    * @param has_edge_weights Whether the graph to compress has edge weights.
-   * @param edge_weights A reference to the edge weights of the graph, which is only used when the
-   * graph has edge weights and graph compression is disabled.
    */
   CompressedEdgesBuilder(
-      degree_ctor,
-      const NodeID num_nodes,
-      const NodeID max_degree,
-      const bool has_edge_weights,
-      StaticArray<EdgeWeight> &edge_weights
+      degree_ctor, const NodeID num_nodes, const NodeID max_degree, const bool has_edge_weights
   )
-      : _has_edge_weights(has_edge_weights),
-        _edge_weights(edge_weights) {
+      : _has_edge_weights(has_edge_weights) {
     const std::size_t max_size =
         compressed_edge_array_max_size<false>(num_nodes, max_degree, has_edge_weights);
     _compressed_edges = heap_profiler::overcommit_memory<std::uint8_t>(max_size);
@@ -233,9 +215,9 @@ public:
         _num_interval_nodes += has_intervals ? 1 : 0;
       }
 
-      marked_varint_encode(_cur_edge, has_intervals, &_cur_compressed_edges);
+      marked_varint_encode(degree, has_intervals, &_cur_compressed_edges);
     } else {
-      varint_encode(_cur_edge, &_cur_compressed_edges);
+      varint_encode(degree, &_cur_compressed_edges);
     }
 
     _cur_edge += degree;
@@ -413,17 +395,12 @@ private:
       return;
     }
 
+    const SignedEdgeWeight edge_weight_gap =
+        edge_weight - static_cast<SignedEdgeWeight>(prev_edge_weight);
+    signed_varint_encode(edge_weight_gap, &_cur_compressed_edges);
+
+    prev_edge_weight = edge_weight;
     _total_edge_weight += edge_weight;
-
-    if constexpr (kCompressEdgeWeights) {
-      const SignedEdgeWeight edge_weight_gap =
-          edge_weight - static_cast<SignedEdgeWeight>(prev_edge_weight);
-
-      signed_varint_encode(edge_weight_gap, &_cur_compressed_edges);
-      prev_edge_weight = edge_weight;
-    } else {
-      _edge_weights[_cur_edge_weight++] = edge_weight;
-    }
   }
 
   template <typename Container>
@@ -556,32 +533,7 @@ private:
 
     i += 1;
 
-    if constexpr (kRunLengthEncoding) {
-      VarIntRunLengthEncoder<NodeID> rl_encoder(_cur_compressed_edges);
-
-      NodeID prev_adjacent_node = first_adjacent_node;
-      while (i < neighborhood.size()) {
-        const NodeID adjacent_node = get_adjacent_node(neighborhood, i);
-        if (adjacent_node == kInvalidNodeID) {
-          i += 1;
-          continue;
-        }
-
-        const NodeID gap = adjacent_node - prev_adjacent_node - 1;
-        prev_adjacent_node = adjacent_node;
-
-        _cur_compressed_edges += rl_encoder.add(gap);
-        if constexpr (kHasEdgeWeights) {
-          const EdgeWeight edge_weight = get_edge_weight(neighborhood, i);
-          encode_edge_weight(edge_weight, prev_edge_weight);
-        }
-
-        i += 1;
-      }
-
-      rl_encoder.flush();
-      return;
-    } else if constexpr (kStreamVByteEncoding) {
+    if constexpr (kStreamVByteEncoding) {
       const NodeID num_remaining_gaps = degree - 1;
 
       if (num_remaining_gaps >= kStreamVByteThreshold) [[likely]] {
@@ -652,7 +604,6 @@ private:
   bool _has_edge_weights;
   EdgeWeight _total_edge_weight;
   EdgeID _cur_edge_weight;
-  StaticArray<EdgeWeight> &_edge_weights;
 
   EdgeID _cur_edge;
   NodeID _max_degree;

@@ -34,9 +34,11 @@ CSRGraph::CSRGraph(const Graph &graph)
     parallel::prefix_sum(_nodes.begin(), _nodes.end(), _nodes.begin());
 
     graph.pfor_nodes([&](const NodeID u) {
-      graph.neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
+      EdgeID e = _nodes[u];
+      graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
         _edges[e] = v;
         _edge_weights[e] = w;
+        e += 1;
       });
     });
 

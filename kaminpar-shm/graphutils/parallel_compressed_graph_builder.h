@@ -212,11 +212,7 @@ template <
   using CompressedEdgesBuilder = kaminpar::CompressedEdgesBuilder<NodeID, EdgeID, EdgeWeight>;
   tbb::enumerable_thread_specific<CompressedEdgesBuilder> edges_builder_ets([&] {
     return CompressedEdgesBuilder(
-        CompressedEdgesBuilder::degree_tag,
-        num_nodes,
-        max_degree,
-        kHasEdgeWeights,
-        builder.edge_weights()
+        CompressedEdgesBuilder::degree_tag, num_nodes, max_degree, kHasEdgeWeights
     );
   });
 

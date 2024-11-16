@@ -15,13 +15,11 @@
 namespace kaminpar::shm {
 
 void GraphCompressionContext::setup(const Graph &graph) {
-  compressed_edge_weights = CompressedGraph::kCompressEdgeWeights;
   high_degree_encoding = CompressedGraph::kHighDegreeEncoding;
   high_degree_threshold = CompressedGraph::kHighDegreeThreshold;
   high_degree_part_length = CompressedGraph::kHighDegreePartLength;
   interval_encoding = CompressedGraph::kIntervalEncoding;
   interval_length_treshold = CompressedGraph::kIntervalLengthTreshold;
-  run_length_encoding = CompressedGraph::kRunLengthEncoding;
   streamvbyte_encoding = CompressedGraph::kStreamVByteEncoding;
 
   if (enabled) {

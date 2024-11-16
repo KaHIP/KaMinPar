@@ -87,7 +87,6 @@ public:
   [[nodiscard]] virtual IotaRange<NodeID> all_nodes() const = 0;
 
   [[nodiscard]] virtual IotaRange<EdgeID> edges() const = 0;
-  [[nodiscard]] virtual IotaRange<EdgeID> incident_edges(const NodeID u) const = 0;
 
   // Access methods
   [[nodiscard]] virtual NodeID degree(const NodeID u) const = 0;

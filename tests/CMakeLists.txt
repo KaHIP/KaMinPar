@@ -42,7 +42,6 @@ kaminpar_add_common_test(test_common_string common/strutils_test.cc)
 kaminpar_add_common_test(test_common_parallel_algorithm common/parallel/algorithm_test.cc)
 kaminpar_add_common_test(test_common_parallel_aligned_prefix_sum common/parallel/aligned_prefix_sum_test.cc)
 kaminpar_add_common_test(test_common_varint common/graph_compression/varint_test.cc)
-kaminpar_add_common_test(test_common_varint_run_length_codec common/graph_compression/varint_run_length_codec_test.cc)
 kaminpar_add_common_test(test_common_streamvbyte common/graph_compression/streamvbyte_test.cc)
 
 # KaMinPar -> End-to-end

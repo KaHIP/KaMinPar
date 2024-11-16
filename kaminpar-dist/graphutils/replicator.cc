@@ -31,7 +31,7 @@ SET_DEBUG(false);
 
 namespace {
 
-template <typename Graph> decltype(auto) copy_raw_nodes(const Graph &graph) {
+template <typename Graph> StaticArray<EdgeID> copy_raw_nodes(const Graph &graph) {
   constexpr bool kIsCompressedGraph = std::is_same_v<Graph, DistributedCompressedGraph>;
 
   // Copy node array with (uncompressed) edge IDs or simply forward the raw nodes if the graph is
@@ -43,11 +43,16 @@ template <typename Graph> decltype(auto) copy_raw_nodes(const Graph &graph) {
     }
     return raw_nodes;
   } else {
-    return graph.raw_nodes();
+    return StaticArray<EdgeID>(
+        graph.raw_nodes().size(),
+        // const_cast is a lazy workaround since there is no view-only StaticArray
+        const_cast<EdgeID *>(graph.raw_nodes().data())
+    );
   }
 }
 
-template <typename Graph> decltype(auto) copy_raw_edge_weights(const Graph &graph) {
+template <typename Graph>
+decltype(auto) copy_raw_edge_weights(const Graph &graph, const StaticArray<EdgeID> &nodes) {
   constexpr bool kIsCompressedGraph = std::is_same_v<Graph, DistributedCompressedGraph>;
 
   // Copy edge weights with (uncompressed) weights or simply forward the raw edge weights if the
@@ -55,9 +60,8 @@ template <typename Graph> decltype(auto) copy_raw_edge_weights(const Graph &grap
   if constexpr (kIsCompressedGraph) {
     StaticArray<EdgeWeight> raw_edge_weights(graph.m());
     graph.pfor_nodes([&](const NodeID u) {
-      graph.neighbors(u, [&](const EdgeID e, NodeID, const EdgeWeight w) {
-        raw_edge_weights[e] = w;
-      });
+      EdgeID e = nodes[u];
+      graph.adjacent_nodes(u, [&](NodeID, const EdgeWeight w) { raw_edge_weights[e++] = w; });
     });
     return raw_edge_weights;
   } else {
@@ -123,11 +127,14 @@ template <typename Graph> shm::Graph replicate_graph_everywhere(const Graph &gra
   );
   MPI_Comm comm = graph.communicator();
 
+  const StaticArray<EdgeID> raw_nodes = copy_raw_nodes(graph);
+
   // copy edges array with global node IDs
   RECORD("remapped_edges") StaticArray<NodeID> remapped_edges(graph.m());
   graph.pfor_nodes([&](const NodeID u) {
-    graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
-      remapped_edges[e] = graph.local_to_global_node(v);
+    EdgeID e = raw_nodes[u];
+    graph.adjacent_nodes(u, [&](const NodeID v) {
+      remapped_edges[e++] = graph.local_to_global_node(v);
     });
   });
 
@@ -196,7 +203,7 @@ template <typename Graph> shm::Graph replicate_graph_everywhere(const Graph &gra
     KASSERT((graph.is_edge_weighted() || graph.m() == 0));
     if constexpr (std::is_same_v<shm::EdgeWeight, EdgeWeight>) {
       mpi::allgatherv(
-          copy_raw_edge_weights(graph).data(),
+          copy_raw_edge_weights(graph, raw_nodes).data(),
           asserting_cast<int>(graph.m()),
           edge_weights.data(),
           edges_recvcounts.data(),
@@ -206,7 +213,7 @@ template <typename Graph> shm::Graph replicate_graph_everywhere(const Graph &gra
     } else {
       StaticArray<EdgeWeight> edge_weights_buffer(graph.global_m());
       mpi::allgatherv(
-          copy_raw_edge_weights(graph).data(),
+          copy_raw_edge_weights(graph, raw_nodes).data(),
           asserting_cast<int>(graph.m()),
           edge_weights_buffer.data(),
           edges_recvcounts.data(),
@@ -294,11 +301,16 @@ DistributedGraph replicate_graph(const Graph &graph, const int num_replications)
     }
   }
 
+  const StaticArray<EdgeID> raw_nodes = copy_raw_nodes(graph);
+
   // Create edges array with global node IDs
   const GlobalEdgeID my_tmp_global_edges_offset = edges_displs[primary_rank];
   NoinitVector<GlobalNodeID> tmp_global_edges(edges_displs.back() + secondary_num_edges);
-  graph.pfor_edges([&](const EdgeID e, const NodeID v) {
-    tmp_global_edges[my_tmp_global_edges_offset + e] = graph.local_to_global_node(v);
+  graph.pfor_nodes([&](const NodeID u) {
+    EdgeID e = raw_nodes[u];
+    graph.adjacent_nodes(u, [&](const NodeID v) {
+      tmp_global_edges[my_tmp_global_edges_offset + e++] = graph.local_to_global_node(v);
+    });
   });
 
   const bool is_node_weighted =
@@ -317,7 +329,7 @@ DistributedGraph replicate_graph(const Graph &graph, const int num_replications)
   // Exchange data -- except for node weights (need the number of ghost nodes
   // to allocate the vector)
   mpi::allgatherv(
-      copy_raw_nodes(graph).data(),
+      raw_nodes.data(),
       asserting_cast<int>(graph.n()),
       nodes.data(),
       nodes_counts.data(),
@@ -337,7 +349,7 @@ DistributedGraph replicate_graph(const Graph &graph, const int num_replications)
   if (is_edge_weighted) {
     KASSERT(graph.is_edge_weighted() || graph.m() == 0);
     mpi::allgatherv(
-        copy_raw_edge_weights(graph).data(),
+        copy_raw_edge_weights(graph, raw_nodes).data(),
         asserting_cast<int>(graph.m()),
         edge_weights.data(),
         edges_counts.data(),

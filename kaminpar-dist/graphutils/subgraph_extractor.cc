@@ -44,7 +44,7 @@ auto count_block_induced_subgraph_sizes(const DistributedPartitionedGraph &p_gra
     for (NodeID u = r.begin(); u != r.end(); ++u) {
       const BlockID u_block = p_graph.block(u);
       ++num_nodes_per_block[u_block];
-      p_graph.neighbors(u, [&](EdgeID, const NodeID v) {
+      p_graph.adjacent_nodes(u, [&](const NodeID v) {
         if (u_block == p_graph.block(v)) {
           ++num_edges_per_block[u_block];
         }

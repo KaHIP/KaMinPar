@@ -116,15 +116,6 @@ public:
     _graph->adjacent_nodes(u, std::forward<Lambda>(l));
   }
 
-  template <typename Lambda> inline void neighbors(const NodeID u, Lambda &&l) const {
-    _graph->neighbors(u, std::forward<Lambda>(l));
-  }
-
-  template <typename Lambda>
-  inline void neighbors(const NodeID u, const NodeID max_num_neighbors, Lambda &&l) const {
-    _graph->neighbors(u, max_num_neighbors, std::forward<Lambda>(l));
-  }
-
   //
   // Parallel iteration
   //

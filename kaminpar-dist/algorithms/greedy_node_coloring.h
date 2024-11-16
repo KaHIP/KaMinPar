@@ -65,7 +65,7 @@ compute_node_coloring_sequentially(const Graph &graph, const NodeID number_of_su
         }
 
         bool is_interface_node = false;
-        graph.neighbors(u, [&](EdgeID, const NodeID v) {
+        graph.adjacent_nodes(u, [&](const NodeID v) {
           is_interface_node = is_interface_node || graph.is_ghost_node(v);
 
           // @todo replace v < u with random numbers r(v) < r(u)

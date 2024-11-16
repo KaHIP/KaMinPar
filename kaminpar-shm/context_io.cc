@@ -391,16 +391,12 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
   out << "Enabled:                      " << (c_ctx.enabled ? "yes" : "no") << "\n";
   if (c_ctx.enabled) {
     out << "Compression Scheme:           Gap Encoding + ";
-    if (c_ctx.run_length_encoding) {
-      out << "VarInt Run-Length Encoding\n";
-    } else if (c_ctx.streamvbyte_encoding) {
+    if (c_ctx.streamvbyte_encoding) {
       out << "StreamVByte Encoding\n";
     } else {
       out << "VarInt Encoding\n";
     }
 
-    out << "  Compressed edge weights:    " << (c_ctx.compressed_edge_weights ? "yes" : "no")
-        << "\n";
     out << "  High Degree Encoding:       " << (c_ctx.high_degree_encoding ? "yes" : "no") << "\n";
     if (c_ctx.high_degree_encoding) {
       out << "    Threshold:                " << c_ctx.high_degree_threshold << "\n";

@@ -383,8 +383,6 @@ void print(
     out << "Compression Scheme:           Gap Encoding + ";
     if constexpr (Compression::kStreamVByteEncoding) {
       out << "StreamVByte Encoding\n";
-    } else if constexpr (Compression::kRunLengthEncoding) {
-      out << "VarInt Run-Length Encoding\n";
     } else {
       out << "VarInt Encoding\n";
     }
