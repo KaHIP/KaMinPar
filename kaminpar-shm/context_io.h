@@ -62,16 +62,6 @@ std::unordered_map<std::string, TieBreakingStrategy> get_tie_breaking_strategies
 
 std::ostream &operator<<(std::ostream &out, TieBreakingStrategy strategy);
 
-std::ostream &operator<<(std::ostream &out, SecondPhaseSelectionStrategy strategy);
-
-std::unordered_map<std::string, SecondPhaseSelectionStrategy>
-get_second_phase_selection_strategies();
-
-std::ostream &operator<<(std::ostream &out, SecondPhaseAggregationStrategy strategy);
-
-std::unordered_map<std::string, SecondPhaseAggregationStrategy>
-get_second_phase_aggregation_strategies();
-
 std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies();
 
 std::ostream &operator<<(std::ostream &out, TwoHopStrategy strategy);

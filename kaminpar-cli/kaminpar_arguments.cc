@@ -254,34 +254,6 @@ Options are:
       ->capture_default_str();
 
   lp->add_option(
-        "--c-lp-second-phase-selection-strategy",
-        ctx.coarsening.clustering.lp.second_phase_selection_strategy
-  )
-      ->transform(CLI::CheckedTransformer(get_second_phase_selection_strategies()).description(""))
-      ->description(
-          R"(Determines the strategy for selecting nodes for the second phase of label propagation.
-Options are:
-  - high-degree:     Select nodes with high degree
-  - full-rating-map: Select nodes that have a full rating map in the first phase
-  )"
-      )
-      ->capture_default_str();
-  lp->add_option(
-        "--c-lp-second-phase-aggregation-strategy",
-        ctx.coarsening.clustering.lp.second_phase_aggregation_strategy
-  )
-      ->transform(CLI::CheckedTransformer(get_second_phase_aggregation_strategies()).description("")
-      )
-      ->description(
-          R"(Determines the strategy for aggregating ratings in the second phase of label propagation.
-Options are:
-  - none:     Skip the second phase
-  - direct:   Write the ratings directly into the global vector (shared between threads)
-  - buffered: Write the ratings into a thread-local buffer and then copy them into the global vector when the buffer is full
-  )"
-      )
-      ->capture_default_str();
-  lp->add_option(
         "--c-lp-second-phase-relabel",
         ctx.coarsening.clustering.lp.relabel_before_second_phase,
         "Relabel the clusters before running the second phase"
@@ -442,32 +414,6 @@ Options are:
   )"
       )
       ->capture_default_str();
-  lp->add_option(
-        "--r-lp-second-phase-selection-strategy", ctx.refinement.lp.second_phase_selection_strategy
-  )
-      ->transform(CLI::CheckedTransformer(get_second_phase_selection_strategies()).description(""))
-      ->description(
-          R"(Determines the strategy for selecting nodes for the second phase of label propagation.
-Options are:
-  - high-degree:     Select nodes with high degree
-  - full-rating-map: Select nodes that have a full rating map in the first phase
-  )"
-      )
-      ->capture_default_str();
-  lp->add_option(
-        "--r-lp-second-phase-aggregation-strategy",
-        ctx.refinement.lp.second_phase_aggregation_strategy
-  )
-      ->transform(CLI::CheckedTransformer(get_second_phase_aggregation_strategies()).description("")
-      )
-      ->description(
-          R"(Determines the strategy for aggregating ratings in the second phase of label propagation.
-Options are:
-  - none:     Skip the second phase
-  - direct:   Write the ratings directly into the global vector (shared between threads)
-  - buffered: Write the ratings into a thread-local buffer and then copy them into the global vector when the buffer is full
-  )"
-      );
 
   return lp;
 }

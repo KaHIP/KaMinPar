@@ -8,6 +8,7 @@
 #pragma once
 
 #include <atomic>
+#include <limits>
 #include <optional>
 #include <type_traits>
 
@@ -21,7 +22,6 @@
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/cache_aligned_vector.h"
 #include "kaminpar-common/datastructures/concurrent_fast_reset_array.h"
-#include "kaminpar-common/datastructures/concurrent_two_level_vector.h"
 #include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/heap_profiler.h"
@@ -101,8 +101,6 @@ protected:
 
   using LabelPropagationImplementation = shm::LabelPropagationImplementation;
   using TieBreakingStrategy = shm::TieBreakingStrategy;
-  using SecondPhaseSelectionStrategy = shm::SecondPhaseSelectionStrategy;
-  using SecondPhaseAggregationStrategy = shm::SecondPhaseAggregationStrategy;
 
 public:
   void set_max_degree(const NodeID max_degree) {
@@ -138,20 +136,6 @@ public:
   }
   [[nodiscard]] TieBreakingStrategy tie_breaking_strategy() {
     return _tie_breaking_strategy;
-  }
-
-  void set_second_phase_selection_strategy(const SecondPhaseSelectionStrategy strategy) {
-    _second_phase_selection_strategy = strategy;
-  }
-  [[nodiscard]] SecondPhaseSelectionStrategy second_phase_selection_strategy() const {
-    return _second_phase_selection_strategy;
-  }
-
-  void set_second_phase_aggregation_strategy(const SecondPhaseAggregationStrategy strategy) {
-    _second_phase_aggregation_strategy = strategy;
-  }
-  [[nodiscard]] SecondPhaseAggregationStrategy second_phase_aggregation_strategy() const {
-    return _second_phase_aggregation_strategy;
   }
 
   void set_relabel_before_second_phase(const bool relabel) {
@@ -403,14 +387,9 @@ protected:
       const NodeWeight u_weight = _graph->node_weight(u);
       const ClusterID u_cluster = derived_cluster(u);
 
-      std::size_t upper_bound_size = std::min<ClusterID>(_graph->degree(u), _initial_num_clusters);
-
-      const bool use_frm_strategy =
-          _impl == LabelPropagationImplementation::TWO_PHASE &&
-          _second_phase_selection_strategy == SecondPhaseSelectionStrategy::FULL_RATING_MAP;
-      if (use_frm_strategy) {
-        upper_bound_size = std::min(upper_bound_size, Config::kRatingMapThreshold);
-      }
+      const std::size_t upper_bound_size = std::min<std::size_t>(
+          {_graph->degree(u), _initial_num_clusters, Config::kRatingMapThreshold}
+      );
 
       const auto maybe_move = map.execute(upper_bound_size, [&](auto &actual_map) {
         return find_best_cluster_first_phase(
@@ -505,7 +484,7 @@ protected:
     };
 
     bool is_interface_node = false;
-    _graph->adjacent_nodes(u, _max_num_neighbors, [&](const NodeID v, const EdgeWeight w) {
+    const auto add_to_rating_map = [&](const NodeID v, const EdgeWeight w) {
       if (derived_accept_neighbor(u, v)) {
         const ClusterID v_cluster = derived_cluster(v);
         map[v_cluster] += w;
@@ -514,7 +493,16 @@ protected:
           is_interface_node |= v >= _num_active_nodes;
         }
       }
-    });
+    };
+
+    // As the compressed graph data structure has some overhead when imposing a limit on the number
+    // of neighbors visited, we make a case distinction here, as the general case is not to restrict
+    // the number of neighbors visited
+    if (_max_num_neighbors == std::numeric_limits<NodeID>::max()) [[likely]] {
+      _graph->adjacent_nodes(u, add_to_rating_map);
+    } else {
+      _graph->adjacent_nodes(u, _max_num_neighbors, add_to_rating_map);
+    }
 
     if constexpr (Config::kUseActiveSetStrategy) {
       __atomic_store_n(&_active[u], 0, __ATOMIC_RELAXED);
@@ -578,24 +566,14 @@ protected:
         .current_cluster_weight = 0,
     };
 
-    const bool use_frm_selection =
-        _impl == LabelPropagationImplementation::TWO_PHASE &&
-        _second_phase_selection_strategy == SecondPhaseSelectionStrategy::FULL_RATING_MAP;
-    const bool aggregate_during_second_phase =
-        _second_phase_aggregation_strategy != SecondPhaseAggregationStrategy::NONE;
-
     bool is_interface_node = false;
     bool is_second_phase_node = false;
-    _graph->adjacent_nodes(u, _max_num_neighbors, [&](const NodeID v, const EdgeWeight w) {
+    const auto add_to_rating_map = [&](const NodeID v, const EdgeWeight w) -> bool {
       if (derived_accept_neighbor(u, v)) {
         const ClusterID v_cluster = derived_cluster(v);
         map[v_cluster] += w;
 
-        if (use_frm_selection && map.size() >= Config::kRatingMapThreshold) [[unlikely]] {
-          if (aggregate_during_second_phase) {
-            _second_phase_nodes.push_back(u);
-          }
-
+        if (map.size() >= Config::kRatingMapThreshold) [[unlikely]] {
           is_second_phase_node = true;
           return true;
         }
@@ -606,10 +584,20 @@ protected:
       }
 
       return false;
-    });
+    };
+
+    // As the compressed graph data structure has some overhead when imposing a limit on the number
+    // of neighbors visited, we make a case distinction here, as the general case is not to restrict
+    // the number of neighbors visited
+    if (_max_num_neighbors == std::numeric_limits<NodeID>::max()) [[likely]] {
+      _graph->adjacent_nodes(u, add_to_rating_map);
+    } else {
+      _graph->adjacent_nodes(u, _max_num_neighbors, add_to_rating_map);
+    }
 
     if (is_second_phase_node) [[unlikely]] {
       map.clear();
+      _second_phase_nodes.push_back(u);
       return std::nullopt;
     }
 
@@ -658,76 +646,46 @@ protected:
   ) {
     const ClusterWeight initial_cluster_weight = derived_cluster_weight(u_cluster);
 
+    const auto flush_local_rating_map = [&](auto &local_used_entries, auto &local_rating_map) {
+      for (const auto [cluster, rating] : local_rating_map.entries()) {
+        const EdgeWeight prev_rating = __atomic_fetch_add(&map[cluster], rating, __ATOMIC_RELAXED);
+
+        if (prev_rating == 0) {
+          local_used_entries.push_back(cluster);
+        }
+      }
+
+      local_rating_map.clear();
+    };
+
     bool is_interface_node = false;
-    switch (_second_phase_aggregation_strategy) {
-    case SecondPhaseAggregationStrategy::DIRECT: {
-      _graph->pfor_adjacent_nodes(u, _max_num_neighbors, 2000, [&](auto &&pfor_adjacent_nodes) {
-        auto &local_used_entries = map.local_used_entries();
+    _graph->pfor_adjacent_nodes(u, _max_num_neighbors, 2000, [&](auto &&pfor_adjacent_nodes) {
+      auto &local_used_entries = map.local_used_entries();
+      auto &local_rating_map = _rating_map_ets.local().small_map();
 
-        pfor_adjacent_nodes([&](const NodeID v, const EdgeWeight w) {
-          if (derived_accept_neighbor(u, v)) {
-            const ClusterID v_cluster = derived_cluster(v);
-            const EdgeWeight prev_rating = __atomic_fetch_add(&map[v_cluster], w, __ATOMIC_RELAXED);
+      pfor_adjacent_nodes([&](const NodeID v, const EdgeWeight w) {
+        if (derived_accept_neighbor(u, v)) {
+          const ClusterID v_cluster = derived_cluster(v);
+          local_rating_map[v_cluster] += w;
 
-            if (prev_rating == 0) {
-              local_used_entries.push_back(v_cluster);
-            }
-
-            if constexpr (Config::kUseLocalActiveSetStrategy) {
-              is_interface_node |= v >= _num_active_nodes;
-            }
+          if (local_rating_map.size() >= Config::kRatingMapThreshold) [[unlikely]] {
+            flush_local_rating_map(local_used_entries, local_rating_map);
           }
-        });
-      });
 
-      break;
-    }
-    case SecondPhaseAggregationStrategy::BUFFERED: {
-      const auto flush_local_rating_map = [&](auto &local_used_entries, auto &local_rating_map) {
-        for (const auto [cluster, rating] : local_rating_map.entries()) {
-          const EdgeWeight prev_rating =
-              __atomic_fetch_add(&map[cluster], rating, __ATOMIC_RELAXED);
-
-          if (prev_rating == 0) {
-            local_used_entries.push_back(cluster);
+          if constexpr (Config::kUseLocalActiveSetStrategy) {
+            is_interface_node |= v >= _num_active_nodes;
           }
         }
-
-        local_rating_map.clear();
-      };
-
-      _graph->pfor_adjacent_nodes(u, _max_num_neighbors, 2000, [&](auto &&pfor_adjacent_nodes) {
-        auto &local_used_entries = map.local_used_entries();
-        auto &local_rating_map = _rating_map_ets.local().small_map();
-
-        pfor_adjacent_nodes([&](const NodeID v, const EdgeWeight w) {
-          if (derived_accept_neighbor(u, v)) {
-            const ClusterID v_cluster = derived_cluster(v);
-            local_rating_map[v_cluster] += w;
-
-            if (local_rating_map.size() >= Config::kRatingMapThreshold) [[unlikely]] {
-              flush_local_rating_map(local_used_entries, local_rating_map);
-            }
-
-            if constexpr (Config::kUseLocalActiveSetStrategy) {
-              is_interface_node |= v >= _num_active_nodes;
-            }
-          }
-        });
       });
+    });
 
-      tbb::parallel_for(_rating_map_ets.range(), [&](auto &rating_maps) {
-        auto &local_used_entries = map.local_used_entries();
-        for (auto &rating_map : rating_maps) {
-          auto &local_rating_map = rating_map.small_map();
-          flush_local_rating_map(local_used_entries, local_rating_map);
-        }
-      });
-      break;
-    }
-    case SecondPhaseAggregationStrategy::NONE:
-      __builtin_unreachable();
-    }
+    tbb::parallel_for(_rating_map_ets.range(), [&](auto &rating_maps) {
+      auto &local_used_entries = map.local_used_entries();
+      for (auto &rating_map : rating_maps) {
+        auto &local_rating_map = rating_map.small_map();
+        flush_local_rating_map(local_used_entries, local_rating_map);
+      }
+    });
 
     if constexpr (Config::kUseActiveSetStrategy) {
       __atomic_store_n(&_active[u], 0, __ATOMIC_RELAXED);
@@ -1411,12 +1369,6 @@ protected: // Members
   //! The tie breaking strategy that is used.
   TieBreakingStrategy _tie_breaking_strategy;
 
-  //! The strategy by which the nodes for the second phase are selected.
-  SecondPhaseSelectionStrategy _second_phase_selection_strategy;
-
-  //! The strategy by which the ratings for nodes in the second phase are aggregated.
-  SecondPhaseAggregationStrategy _second_phase_aggregation_strategy;
-
   //! Whether to relabel the clusters before the second phase.
   bool _relabel_before_second_phase;
 
@@ -1588,8 +1540,6 @@ protected:
   using GrowingRatingMap = typename Base::GrowingRatingMap;
 
   using LabelPropagationImplementation = Base::LabelPropagationImplementation;
-  using SecondPhaseSelectionStrategy = Base::SecondPhaseSelectionStrategy;
-  using SecondPhaseAggregationStrategy = Base::SecondPhaseAggregationStrategy;
 
   using Base::handle_first_phase_node;
   using Base::handle_node;
@@ -1985,13 +1935,6 @@ private:
     SCOPED_HEAP_PROFILER("First phase");
     SCOPED_TIMER("First phase");
 
-    const bool use_two_phases = _impl == LabelPropagationImplementation::TWO_PHASE;
-    const bool use_high_degree_selection =
-        use_two_phases && _initial_num_clusters >= Config::kRatingMapThreshold &&
-        _second_phase_selection_strategy == SecondPhaseSelectionStrategy::HIGH_DEGREE;
-    const bool aggregate_during_second_phase =
-        _second_phase_aggregation_strategy != SecondPhaseAggregationStrategy::NONE;
-
     parallel::Atomic<std::size_t> next_chunk = 0;
     tbb::parallel_for(static_cast<std::size_t>(0), _chunks.size(), [&](const std::size_t) {
       if (should_stop()) {
@@ -2041,14 +1984,6 @@ private:
           const NodeID degree = _graph->degree(u);
           if (degree < _max_degree) {
             ++local_num_processed_nodes;
-
-            if (use_high_degree_selection && degree >= Config::kRatingMapThreshold) {
-              if (aggregate_during_second_phase) {
-                _second_phase_nodes.push_back(u);
-              }
-
-              continue;
-            }
 
             const auto [moved_node, emptied_cluster] = handle_first_phase_node(
                 u,
@@ -2123,9 +2058,7 @@ protected:
   using Base::_rating_map_ets;
   using Base::_relabel_before_second_phase;
   using Base::_relabeled;
-  using Base::_second_phase_aggregation_strategy;
   using Base::_second_phase_nodes;
-  using Base::_second_phase_selection_strategy;
   using Base::_tie_breaking_clusters_ets;
   using Base::_tie_breaking_favored_clusters_ets;
 
@@ -2237,71 +2170,6 @@ public:
 
 private:
   ClusterWeights _cluster_weights;
-};
-
-template <typename ClusterID, typename ClusterWeight>
-class OwnedRelaxedTwoLevelClusterWeightVector {
-  using FirstLevelClusterWeight = typename std::
-      conditional_t<std::is_same_v<ClusterWeight, std::int32_t>, std::uint16_t, std::uint32_t>;
-  using TwoLevelClusterWeightVector =
-      ConcurrentTwoLevelVector<ClusterWeight, ClusterID, FirstLevelClusterWeight>;
-
-public:
-  using ClusterWeights = TwoLevelClusterWeightVector;
-
-  void allocate_cluster_weights(const ClusterID num_clusters) {
-    if (_cluster_weights.capacity() < num_clusters) {
-      _cluster_weights.resize(num_clusters);
-    }
-  }
-
-  void free() {
-    _cluster_weights.free();
-  }
-
-  void setup_cluster_weights(ClusterWeights cluster_weights) {
-    _cluster_weights = std::move(cluster_weights);
-  }
-
-  ClusterWeights take_cluster_weights() {
-    return std::move(_cluster_weights);
-  }
-
-  void reset_cluster_weights() {
-    _cluster_weights.reset();
-  }
-
-  void init_cluster_weight(const ClusterID cluster, const ClusterWeight weight) {
-    _cluster_weights.insert(cluster, weight);
-  }
-
-  ClusterWeight cluster_weight(const ClusterID cluster) {
-    return _cluster_weights[cluster];
-  }
-
-  bool move_cluster_weight(
-      const ClusterID old_cluster,
-      const ClusterID new_cluster,
-      const ClusterWeight delta,
-      const ClusterWeight max_weight
-  ) {
-    if (_cluster_weights[new_cluster] + delta <= max_weight) {
-      _cluster_weights.atomic_add(new_cluster, delta);
-      _cluster_weights.atomic_sub(old_cluster, delta);
-      return true;
-    }
-
-    return false;
-  }
-
-  void reassign_cluster_weights(
-      const StaticArray<ClusterID> &mapping, const ClusterID num_new_clusters
-  ) {
-    _cluster_weights.reassign(mapping, num_new_clusters);
-  }
-
-private:
-  TwoLevelClusterWeightVector _cluster_weights;
 };
 
 } // namespace kaminpar
