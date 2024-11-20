@@ -1,5 +1,5 @@
 {
-  description = "Shared-memory and distributed graph partitioner for large k partitioning.";
+  description = "A Shared-Memory and Distributed-Memory Parallel Graph Partitioner";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -12,7 +12,7 @@
 
       inputs = builtins.attrValues {
         inherit (pkgs) cmake ninja python3 gcc14 tbb_2021_11 sparsehash mpi numactl pkg-config;
-        inherit (pkgs.llvmPackages_18) openmp;
+        inherit (pkgs.llvmPackages_19) openmp;
         inherit mt-kahypar;
       };
 
@@ -67,7 +67,7 @@
           '';
         };
 
-        clang = (pkgs.mkShell.override { stdenv = pkgs.llvmPackages_18.stdenv; }) {
+        clang = (pkgs.mkShell.override { stdenv = pkgs.llvmPackages_19.stdenv; }) {
           packages = (pkgs.lib.lists.remove pkgs.gcc14 inputs) ++ devShellInputs;
 
           shellHook = ''
@@ -78,7 +78,7 @@
 
       packages.default = pkgs.stdenv.mkDerivation {
         pname = "KaMinPar";
-        version = "2.1.0";
+        version = "3.0";
 
         src = self;
         nativeBuildInputs = inputs;
@@ -92,7 +92,7 @@
         enableParallelBuilding = true;
 
         meta = {
-          description = "Shared-memory and distributed graph partitioner for large k partitioning.";
+          description = "A shared-memory and distributed-memory parallel graph partitioner.";
           homepage = "https://github.com/KaHIP/KaMinPar";
           license = pkgs.lib.licenses.mit;
         };
