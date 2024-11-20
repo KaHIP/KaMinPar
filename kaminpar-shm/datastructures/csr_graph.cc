@@ -154,7 +154,7 @@ void CSRGraph::remove_isolated_nodes(const NodeID num_isolated_nodes) {
   }
 }
 
-void CSRGraph::integrate_isolated_nodes() {
+NodeID CSRGraph::integrate_isolated_nodes() {
   KASSERT(sorted());
 
   const NodeID nonisolated_nodes = n();
@@ -173,6 +173,8 @@ void CSRGraph::integrate_isolated_nodes() {
   if (_number_of_buckets == 0) {
     _number_of_buckets = 1;
   }
+
+  return isolated_nodes;
 }
 
 void CSRGraph::init_degree_buckets() {

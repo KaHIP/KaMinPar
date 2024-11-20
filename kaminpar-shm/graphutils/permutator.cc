@@ -293,29 +293,6 @@ void remove_isolated_nodes(Graph &graph, PartitionContext &p_ctx) {
   graph.reified([&](auto &graph) { remove_isolated_nodes_generic_graph(graph, p_ctx); });
 }
 
-template <typename Graph>
-NodeID integrate_isolated_nodes_generic_graph(Graph &graph, const double epsilon, Context &ctx) {
-  const NodeID num_nonisolated_nodes = graph.n(); // this becomes the first isolated node
-
-  graph.integrate_isolated_nodes();
-
-  const NodeID num_isolated_nodes = graph.n() - num_nonisolated_nodes;
-
-  // note: max block weights should not change
-  ctx.partition.epsilon = epsilon;
-
-  return num_isolated_nodes;
-}
-
-NodeID integrate_isolated_nodes(Graph &graph, double epsilon, Context &ctx) {
-  NodeID num_isolated_nodes = graph.reified([&](auto &graph) {
-    return integrate_isolated_nodes_generic_graph(graph, epsilon, ctx);
-  });
-
-  ctx.setup(graph);
-  return num_isolated_nodes;
-}
-
 PartitionedGraph assign_isolated_nodes(
     PartitionedGraph p_graph, const NodeID num_isolated_nodes, const PartitionContext &p_ctx
 ) {
@@ -326,19 +303,18 @@ PartitionedGraph assign_isolated_nodes(
   RECORD("partition")
   StaticArray<BlockID> partition(graph.n(), static_array::noinit);
 
-  // copy partition of non-isolated nodes
+  // Copy partition of non-isolated nodes
   tbb::parallel_for<NodeID>(0, num_nonisolated_nodes, [&](const NodeID u) {
     partition[u] = p_graph.block(u);
   });
 
-  // now append the isolated ones
+  // Now append the isolated ones
   const BlockID k = p_graph.k();
   auto block_weights = p_graph.take_raw_block_weights();
   BlockID b = 0;
 
-  // TODO parallelize this
   for (NodeID u = num_nonisolated_nodes; u < num_nonisolated_nodes + num_isolated_nodes; ++u) {
-    while (b + 1 < k && block_weights[b] + graph.node_weight(u) > p_ctx.block_weights.max(b)) {
+    while (b + 1 < k && block_weights[b] + graph.node_weight(u) > p_ctx.max_block_weight(b)) {
       ++b;
     }
     partition[u] = b;

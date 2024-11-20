@@ -102,7 +102,7 @@ int main(int argc, char *argv[]) {
   STOP_TIMER();
 
   if (graph.sorted()) {
-    graph::integrate_isolated_nodes(graph, original_epsilon, ctx);
+    graph.integrate_isolated_nodes();
   }
 
   cio::print_delimiter("Input Summary", '#');

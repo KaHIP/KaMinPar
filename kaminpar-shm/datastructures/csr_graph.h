@@ -389,9 +389,9 @@ public:
   // Isolated nodes
   //
 
-  void remove_isolated_nodes(const NodeID num_isolated_nodes);
+  void remove_isolated_nodes(NodeID num_isolated_nodes) final;
 
-  void integrate_isolated_nodes();
+  NodeID integrate_isolated_nodes() final;
 
   //
   // Direct member access -- used for some "low level" operations
