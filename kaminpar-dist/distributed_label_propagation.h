@@ -316,8 +316,7 @@ protected:
       };
 
       bool is_interface_node = false;
-
-      _graph->adjacent_nodes(u, _max_num_neighbors, [&](const NodeID v, const EdgeWeight w) {
+      const auto add_to_rating_map = [&](const NodeID v, const EdgeWeight w) {
         if (derived_accept_neighbor(u, v)) {
           const ClusterID v_cluster = derived_cluster(v);
           map[v_cluster] += w;
@@ -326,7 +325,16 @@ protected:
             is_interface_node |= v >= _num_active_nodes;
           }
         }
-      });
+      };
+
+      // As the compressed graph data structure has some overhead when imposing a limit on the
+      // number of neighbors visited, we make a case distinction here, as the general case is not to
+      // restrict the number of neighbors visited
+      if (_max_num_neighbors == std::numeric_limits<NodeID>::max()) [[likely]] {
+        _graph->adjacent_nodes(u, add_to_rating_map);
+      } else {
+        _graph->adjacent_nodes(u, _max_num_neighbors, add_to_rating_map);
+      }
 
       if constexpr (Config::kUseActiveSetStrategy) {
         _active[u] = 0;
