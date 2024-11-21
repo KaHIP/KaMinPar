@@ -31,6 +31,10 @@ double PartitionContext::epsilon() const {
   return (1.0 * _max_total_block_weight / total_node_weight) - 1.0;
 }
 
+double PartitionContext::inferred_epsilon() const {
+  return epsilon();
+}
+
 void PartitionContext::setup(
     const AbstractGraph &graph,
     const BlockID k,

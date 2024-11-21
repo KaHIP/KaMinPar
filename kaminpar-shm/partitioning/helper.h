@@ -9,30 +9,20 @@
 
 #include <tbb/concurrent_vector.h>
 
-#include "kaminpar-shm/coarsening/coarsener.h"
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/graphutils/subgraph_extractor.h"
 #include "kaminpar-shm/initial_partitioning/initial_bipartitioner_worker_pool.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/metrics.h"
-#include "kaminpar-shm/refinement/refiner.h"
 
 #include "kaminpar-common/assert.h"
 
 namespace kaminpar::shm::partitioning {
+
+PartitionContext create_kway_context(const Context &input_ctx, const PartitionedGraph &p_graph);
+
 using SubgraphMemoryEts = tbb::enumerable_thread_specific<graph::SubgraphMemory>;
 using TemporarySubgraphMemoryEts = tbb::enumerable_thread_specific<graph::TemporarySubgraphMemory>;
-
-void update_partition_context(
-    PartitionContext &p_ctx, const PartitionedGraph &p_graph, BlockID input_k
-);
-
-PartitionedGraph uncoarsen_once(
-    Coarsener *coarsener,
-    PartitionedGraph p_graph,
-    PartitionContext &current_p_ctx,
-    const PartitionContext &input_p_ctx
-);
 
 struct BipartitionTimingInfo {
   std::uint64_t bipartitioner_init_ms = 0;
@@ -62,8 +52,6 @@ PartitionedGraph bipartition(
     bool partition_lifespan,
     BipartitionTimingInfo *timing_info = nullptr
 );
-
-void refine(Refiner *refiner, PartitionedGraph &p_graph, const PartitionContext &current_p_ctx);
 
 void extend_partition_lazy_extraction(
     PartitionedGraph &p_graph,
@@ -96,8 +84,6 @@ void extend_partition(
     InitialBipartitionerWorkerPool &bipartitioner_pool,
     std::size_t num_active_threads
 );
-
-bool coarsen_once(Coarsener *coarsener, const Graph *graph, PartitionContext &current_p_ctx);
 
 std::size_t
 select_best(const ScalableVector<PartitionedGraph> &p_graphs, const PartitionContext &p_ctx);
@@ -135,4 +121,5 @@ inline bool parallel_ip_mode(const InitialPartitioningMode &mode) {
   return mode == InitialPartitioningMode::ASYNCHRONOUS_PARALLEL ||
          mode == InitialPartitioningMode::SYNCHRONOUS_PARALLEL;
 }
+
 } // namespace kaminpar::shm::partitioning

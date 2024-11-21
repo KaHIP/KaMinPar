@@ -8,7 +8,6 @@
 #include "kaminpar-shm/partitioning/debug.h"
 
 #include <fstream>
-#include <iomanip>
 #include <string>
 #include <vector>
 
@@ -19,7 +18,9 @@
 #include "kaminpar-common/strutils.h"
 
 namespace kaminpar::shm::debug {
+
 namespace {
+
 std::string generate_filename(const std::string &pattern, const Graph &graph, const Context &ctx) {
   std::string filename = pattern;
   return str::replace_all(
@@ -29,7 +30,7 @@ std::string generate_filename(const std::string &pattern, const Graph &graph, co
           {"%n", std::to_string(graph.n())},
           {"%m", std::to_string(graph.m())},
           {"%k", std::to_string(ctx.partition.k)},
-          {"%epsilon", std::to_string(ctx.partition.epsilon)},
+          {"%epsilon", std::to_string(ctx.partition.inferred_epsilon())},
           {"%P", std::to_string(ctx.parallel.num_threads)},
           {"%seed", std::to_string(Random::get_seed())},
       }
@@ -45,6 +46,7 @@ std::string
 generate_partition_filename(const std::string &suffix, const Graph &graph, const Context &ctx) {
   return generate_filename(ctx.debug.dump_partition_filename + "." + suffix, graph, ctx);
 }
+
 } // namespace
 
 void dump_coarsest_graph(const Graph &graph, const Context &ctx) {
@@ -120,4 +122,5 @@ void dump_partition(const PartitionedGraph &p_graph, const std::string &filename
     out << p_graph.block(u) << "\n";
   }
 }
+
 } // namespace kaminpar::shm::debug

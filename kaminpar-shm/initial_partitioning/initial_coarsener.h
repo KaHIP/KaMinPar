@@ -20,6 +20,7 @@
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::shm {
+
 struct InitialCoarsenerTimings {
   std::uint64_t contract_ms = 0;
   std::uint64_t alloc_ms = 0;
@@ -143,4 +144,5 @@ private:
 
   InitialCoarsenerTimings _timings{};
 };
+
 } // namespace kaminpar::shm

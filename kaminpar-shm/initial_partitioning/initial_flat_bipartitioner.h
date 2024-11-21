@@ -17,6 +17,7 @@
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm {
+
 class InitialFlatBipartitioner {
 public:
   InitialFlatBipartitioner(const InitialFlatBipartitioner &) = delete;
@@ -45,8 +46,8 @@ protected:
   //
 
   inline void add_to_smaller_block(const NodeID u) {
-    const NodeWeight delta1 = _block_weights[0] - _p_ctx->block_weights.perfectly_balanced(0);
-    const NodeWeight delta2 = _block_weights[1] - _p_ctx->block_weights.perfectly_balanced(1);
+    const NodeWeight delta1 = _block_weights[0] - _p_ctx->perfectly_balanced_block_weight(0);
+    const NodeWeight delta2 = _block_weights[1] - _p_ctx->perfectly_balanced_block_weight(1);
     const BlockID block = delta1 < delta2 ? V1 : V2;
     set_block(u, block);
   }
@@ -81,4 +82,5 @@ protected:
   StaticArray<BlockID> _partition;
   StaticArray<BlockWeight> _final_block_weights;
 };
+
 } // namespace kaminpar::shm

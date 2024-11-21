@@ -19,8 +19,11 @@
 #include "kaminpar-shm/partitioning/partition_utils.h"
 
 namespace kaminpar::shm::partitioning {
+
 namespace {
+
 SET_DEBUG(true);
+
 }
 
 AsyncInitialPartitioner::AsyncInitialPartitioner(
@@ -116,4 +119,5 @@ PartitionedGraph AsyncInitialPartitioner::split_and_join(
   const std::size_t best = select_best(p_graphs, p_ctx);
   return std::move(p_graphs[best]);
 }
+
 } // namespace kaminpar::shm::partitioning

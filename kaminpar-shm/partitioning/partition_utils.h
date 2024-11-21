@@ -7,20 +7,12 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar-shm/datastructures/abstract_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm::partitioning {
+
 double compute_2way_adaptive_epsilon(
     NodeWeight total_node_weight, BlockID k, const PartitionContext &p_ctx
-);
-
-PartitionContext create_bipartition_context(
-    const AbstractGraph &subgraph,
-    const BlockID k1,
-    const BlockID k2,
-    const PartitionContext &kway_p_ctx,
-    const bool parallel = true
 );
 
 /**
@@ -48,6 +40,9 @@ PartitionContext create_bipartition_context(
  */
 BlockID compute_final_k(BlockID block, BlockID current_k, BlockID input_k);
 
+BlockID compute_first_sub_block(BlockID block, BlockID current_k, BlockID input_k);
+BlockID compute_first_invalid_sub_block(BlockID block, BlockID current_k, BlockID input_k);
+
 // compute smallest k_prime such that it is a power of 2 and n / k_prime <= C
 BlockID compute_k_for_n(NodeID n, const Context &input_ctx);
 
@@ -55,4 +50,5 @@ std::size_t
 compute_num_copies(const Context &input_ctx, NodeID n, bool converged, std::size_t num_threads);
 
 int compute_num_threads_for_parallel_ip(const Context &input_ctx);
+
 } // namespace kaminpar::shm::partitioning

@@ -19,6 +19,7 @@
 #include "kaminpar-shm/refinement/refiner.h"
 
 namespace kaminpar::shm {
+
 class DeepMultilevelPartitioner : public Partitioner {
 public:
   DeepMultilevelPartitioner(const Graph &input_graph, const Context &input_ctx);
@@ -32,36 +33,38 @@ public:
   PartitionedGraph partition() final;
 
 private:
-  PartitionedGraph uncoarsen(PartitionedGraph p_graph);
-
-  inline PartitionedGraph uncoarsen_once(PartitionedGraph p_graph);
-
-  void refine(PartitionedGraph &p_graph);
-
-  inline void extend_partition(PartitionedGraph &p_graph, BlockID k_prime);
-
   const Graph *coarsen();
 
   NodeID initial_partitioning_threshold();
 
   PartitionedGraph initial_partition(const Graph *graph);
 
+  PartitionedGraph uncoarsen(PartitionedGraph p_graph);
+
+  void refine(PartitionedGraph &p_graph);
+
+  inline void extend_partition(PartitionedGraph &p_graph, BlockID k_prime);
+
   void print_statistics();
 
   const Graph &_input_graph;
   const Context &_input_ctx;
+
   PartitionContext _current_p_ctx;
 
-  std::unique_ptr<Coarsener> _coarsener;
-  std::unique_ptr<Refiner> _refiner;
+  std::unique_ptr<Coarsener> _coarsener = nullptr;
+  std::unique_ptr<Refiner> _refiner = nullptr;
 
-  std::size_t _last_initial_partitioning_level;
-  NodeID _subgraph_memory_n, _subgraph_memory_n_weights;
-  EdgeID _subgraph_memory_m, _subgraph_memory_m_weights;
+  std::size_t _last_initial_partitioning_level = 0;
+  NodeID _subgraph_memory_n = 0;
+  NodeID _subgraph_memory_n_weights = 0;
+  EdgeID _subgraph_memory_m = 0;
+  EdgeID _subgraph_memory_m_weights = 0;
 
   graph::SubgraphMemory _subgraph_memory;
   partitioning::SubgraphMemoryEts _extraction_mem_pool_ets;
   partitioning::TemporarySubgraphMemoryEts _tmp_extraction_mem_pool_ets;
   InitialBipartitionerWorkerPool _bipartitioner_pool;
 };
+
 } // namespace kaminpar::shm

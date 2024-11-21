@@ -17,9 +17,12 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
+
 namespace {
+
 SET_DEBUG(false);
 SET_STATISTICS_FROM_GLOBAL();
+
 } // namespace
 
 KWayMultilevelPartitioner::KWayMultilevelPartitioner(
@@ -175,4 +178,5 @@ PartitionedGraph KWayMultilevelPartitioner::initial_partition(const Graph *graph
 
   return p_graph;
 }
+
 } // namespace kaminpar::shm

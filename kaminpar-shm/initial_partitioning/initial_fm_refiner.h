@@ -19,6 +19,7 @@
 namespace kaminpar::shm {
 
 namespace fm {
+
 struct SimpleStoppingPolicy {
   void init(const CSRGraph *graph);
   [[nodiscard]] bool should_stop(const InitialRefinementContext &fm_ctx);
@@ -53,6 +54,7 @@ struct MaxGainSelectionPolicy;
 struct MaxOverloadSelectionPolicy;
 
 struct BalancedMinCutAcceptancePolicy;
+
 } // namespace fm
 
 /*!
@@ -105,6 +107,7 @@ private:
   StoppingPolicy _stopping_policy{};
 
   Random &_rand = Random::instance();
+
   RandomPermutations<NodeID, kChunkSize, kNumberOfNodePermutations> _permutations;
   std::vector<NodeID> _chunks;
 };
@@ -118,4 +121,5 @@ using InitialAdaptive2WayFM = InitialFMRefiner<
     fm::MaxOverloadSelectionPolicy,
     fm::BalancedMinCutAcceptancePolicy,
     fm::AdaptiveStoppingPolicy>;
+
 } // namespace kaminpar::shm

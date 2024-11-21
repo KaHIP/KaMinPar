@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <numeric>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -371,9 +372,20 @@ struct PartitionContext {
   BlockID k;
 
   [[nodiscard]] BlockWeight perfectly_balanced_block_weight(BlockID block) const;
+
   [[nodiscard]] BlockWeight max_block_weight(BlockID block) const;
 
+  [[nodiscard]] BlockWeight total_max_block_weights(const BlockID begin, const BlockID end) const {
+    return std::accumulate(
+        _max_block_weights.begin() + begin,
+        _max_block_weights.begin() + end,
+        static_cast<BlockWeight>(0)
+    );
+  }
+
   [[nodiscard]] double epsilon() const;
+
+  [[nodiscard]] double inferred_epsilon() const;
 
   void setup(
       const class AbstractGraph &graph,

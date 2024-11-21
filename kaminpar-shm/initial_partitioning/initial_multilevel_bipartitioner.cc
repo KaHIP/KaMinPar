@@ -35,8 +35,11 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
+
 namespace {
+
 SET_DEBUG(false);
+
 }
 
 InitialMultilevelBipartitioner::InitialMultilevelBipartitioner(const Context &ctx)
@@ -46,21 +49,34 @@ InitialMultilevelBipartitioner::InitialMultilevelBipartitioner(const Context &ct
       _bipartitioner(std::make_unique<InitialPoolBipartitioner>(_i_ctx.pool)),
       _refiner(create_initial_refiner(_i_ctx.refinement)) {}
 
-void InitialMultilevelBipartitioner::initialize(const CSRGraph &graph, const BlockID final_k) {
-  KASSERT(final_k > 0u);
+void InitialMultilevelBipartitioner::initialize(
+    const CSRGraph &graph, const BlockID current_block, const BlockID current_k
+) {
   KASSERT(graph.n() > 0u);
-
   _graph = &graph;
 
-  const auto [final_k1, final_k2] = math::split_integral(final_k);
-  _p_ctx =
-      partitioning::create_bipartition_context(graph, final_k1, final_k2, _ctx.partition, false);
+  const BlockID first_sub_block =
+      partitioning::compute_first_sub_block(current_block, current_k, _ctx.partition.k);
+  const BlockID first_invalid_sub_block =
+      partitioning::compute_first_invalid_sub_block(current_block, current_k, _ctx.partition.k);
+  const BlockID num_sub_blocks =
+      partitioning::compute_final_k(current_block, current_k, _ctx.partition.k);
+  const auto [num_sub_blocks_b0, num_sub_blocks_b1] = math::split_integral(num_sub_blocks);
+
+  std::vector<BlockWeight> max_block_weights{
+      _ctx.partition.total_max_block_weights(first_sub_block, first_sub_block + num_sub_blocks_b0),
+      _ctx.partition.total_max_block_weights(
+          first_sub_block + num_sub_blocks_b0, first_invalid_sub_block
+      )
+  };
+  _p_ctx.setup(graph, std::move(max_block_weights), true);
 
   _coarsener->init(graph);
   _refiner->init(graph);
 
-  const std::size_t num_bipartition_repetitions =
-      std::ceil(_i_ctx.pool.repetition_multiplier * final_k / math::ceil_log2(_ctx.partition.k));
+  const std::size_t num_bipartition_repetitions = std::ceil(
+      _i_ctx.pool.repetition_multiplier * num_sub_blocks / math::ceil_log2(_ctx.partition.k)
+  );
   _bipartitioner->set_num_repetitions(num_bipartition_repetitions);
 }
 
@@ -158,4 +174,5 @@ PartitionedCSRGraph InitialMultilevelBipartitioner::uncoarsen(PartitionedCSRGrap
 
   return p_graph;
 }
+
 } // namespace kaminpar::shm

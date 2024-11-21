@@ -23,13 +23,16 @@
  ******************************************************************************/
 #pragma once
 
+#include <array>
 #include <memory>
 
 #include "kaminpar-shm/initial_partitioning/initial_coarsener.h"
 #include "kaminpar-shm/initial_partitioning/initial_pool_bipartitioner.h"
 #include "kaminpar-shm/initial_partitioning/initial_refiner.h"
+#include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
+
 struct InitialPartitionerTimings {
   std::uint64_t coarsening_ms = 0;
   std::uint64_t coarsening_misc_ms = 0;
@@ -57,7 +60,8 @@ class InitialMultilevelBipartitioner {
 public:
   explicit InitialMultilevelBipartitioner(const Context &ctx);
 
-  void initialize(const CSRGraph &graph, BlockID final_k);
+  void initialize(const CSRGraph &graph, std::array<BlockWeight, 2> max_block_weights);
+  void initialize(const CSRGraph &graph, BlockID current_block, BlockID current_k);
 
   PartitionedCSRGraph partition(InitialPartitionerTimings *timings = nullptr);
 
@@ -75,4 +79,5 @@ private:
   std::unique_ptr<InitialPoolBipartitioner> _bipartitioner;
   std::unique_ptr<InitialRefiner> _refiner;
 };
+
 } // namespace kaminpar::shm

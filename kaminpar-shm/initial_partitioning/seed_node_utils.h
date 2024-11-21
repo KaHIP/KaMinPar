@@ -16,6 +16,7 @@
 #include "kaminpar-common/datastructures/queue.h"
 
 namespace kaminpar::shm {
+
 /*!
  * Heuristic to find "far away" nodes for BFS initialization. Starts at a random seed
  * node and performs a BFS to find the furthest away node; repeats the process multiple
@@ -48,4 +49,5 @@ std::pair<NodeID, NodeID> find_far_away_nodes(const CSRGraph &graph, int num_ite
 std::pair<NodeID, NodeID> find_far_away_nodes(
     const CSRGraph &graph, int num_iterations, Queue<NodeID> &queue, Marker<> &marker
 );
+
 } // namespace kaminpar::shm

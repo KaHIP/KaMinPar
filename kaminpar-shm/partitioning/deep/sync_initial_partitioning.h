@@ -12,6 +12,7 @@
 #include "kaminpar-shm/partitioning/helper.h"
 
 namespace kaminpar::shm::partitioning {
+
 class SyncInitialPartitioner {
 public:
   SyncInitialPartitioner(
@@ -29,4 +30,5 @@ private:
   InitialBipartitionerWorkerPool &_bipartitioner_pool;
   TemporarySubgraphMemoryEts &_tmp_extraction_mem_pool_ets;
 };
+
 } // namespace kaminpar::shm::partitioning

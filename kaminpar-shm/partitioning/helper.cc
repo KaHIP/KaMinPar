@@ -14,40 +14,37 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::partitioning {
+
 namespace {
+
 SET_DEBUG(false);
 SET_STATISTICS_FROM_GLOBAL();
+
 } // namespace
 
-void update_partition_context(
-    PartitionContext &current_p_ctx, const PartitionedGraph &p_graph, const BlockID input_k
-) {
-  current_p_ctx.setup(p_graph.graph());
-  current_p_ctx.k = p_graph.k();
-  current_p_ctx.block_weights.setup(current_p_ctx, input_k);
-}
+PartitionContext create_kway_context(const Context &input_ctx, const PartitionedGraph &p_graph) {
+  const BlockID current_k = p_graph.k();
+  const BlockID final_k = input_ctx.partition.k;
 
-PartitionedGraph uncoarsen_once(
-    Coarsener *coarsener,
-    PartitionedGraph p_graph,
-    PartitionContext &current_p_ctx,
-    const PartitionContext &input_p_ctx
-) {
-  SCOPED_HEAP_PROFILER("Uncoarsen");
-  SCOPED_TIMER("Uncoarsening");
+  std::vector<BlockWeight> max_block_weights(p_graph.k());
+  BlockID cur_fine_block = 0;
+  for (const BlockID coarse_block : p_graph.blocks()) {
+    const BlockID num = compute_final_k(coarse_block, current_k, final_k);
+    const BlockID begin = cur_fine_block;
+    const BlockID end = cur_fine_block + num;
+    cur_fine_block += num;
 
-  if (!coarsener->empty()) {
-    p_graph = coarsener->uncoarsen(std::move(p_graph));
-    update_partition_context(current_p_ctx, p_graph, input_p_ctx.k);
+    for (BlockID b = begin; b < end; ++b) {
+      max_block_weights[b] += input_ctx.partition.max_block_weight(b);
+    }
   }
 
-  return p_graph;
-}
+  const bool is_toplevel_ctx = (p_graph.n() == input_ctx.partition.n);
+  const bool relax_max_block_weights = !is_toplevel_ctx;
 
-void refine(Refiner *refiner, PartitionedGraph &p_graph, const PartitionContext &current_p_ctx) {
-  SCOPED_TIMER("Refinement");
-  refiner->initialize(p_graph);
-  refiner->refine(p_graph, current_p_ctx);
+  PartitionContext new_p_ctx;
+  new_p_ctx.setup(p_graph.graph(), std::move(max_block_weights), relax_max_block_weights);
+  return new_p_ctx;
 }
 
 PartitionedGraph bipartition(
@@ -57,27 +54,22 @@ PartitionedGraph bipartition(
     const bool partition_lifespan,
     BipartitionTimingInfo *timings
 ) {
-  timer::LocalTimer timer;
-
   const CSRGraph *csr = dynamic_cast<const CSRGraph *>(graph->underlying_graph());
 
   // If we work with something other than a CSRGraph, construct a CSR copy to call the initial
-  // partitioning code
-  // This should only be necessary if the graph is too small for coarsening *and* we are using the
-  // compressed mode
-  std::unique_ptr<CSRGraph> csr_cpy;
+  // partitioning code. This is only necessary if the graph is too small for coarsening *and* we are
+  // using graph compression.
+  std::unique_ptr<CSRGraph> csr_copy;
   if (csr == nullptr) {
     DBG << "Bipartitioning a non-CSR graph is not supported by the initial partitioning code: "
            "constructing a CSR-graph copy of the given graph with n="
         << graph->n() << ", m=" << graph->m();
-    DBG << "Note: this should only happen when partitioning a very small graph using the "
-           "compressed mode";
-
-    csr_cpy = std::make_unique<CSRGraph>(*graph);
-    csr = csr_cpy.get();
+    csr_copy = std::make_unique<CSRGraph>(*graph);
+    csr = csr_copy.get();
   }
 
-  timer.reset();
+  timer::LocalTimer timer;
+
   auto bipartition = [&] {
     if (graph->n() == 0) {
       return StaticArray<BlockID>{};
@@ -103,10 +95,11 @@ PartitionedGraph bipartition(
 
   if (timings != nullptr) {
     timings->bipartitioner_ms += timer.elapsed();
+    timer.reset();
   }
 
-  timer.reset();
   PartitionedGraph p_graph(PartitionedGraph::seq{}, *graph, 2, std::move(bipartition));
+
   if (timings != nullptr) {
     timings->graph_init_ms += timer.elapsed();
   }
@@ -320,24 +313,24 @@ void extend_partition_lazy_extraction(
         return static_cast<std::uint64_t>(ns / 1e6);
       };
 
-      LOG << "bipartitioner_init_ms: " << to_ms(timings.bipartitioner_init_ms);
-      LOG << "bipartitioner_ms:      " << to_ms(timings.bipartitioner_ms);
-      LOG << "  total_ms:            " << to_ms(timings.ip_timings.total_ms);
-      LOG << "  misc_ms:             " << to_ms(timings.ip_timings.misc_ms);
-      LOG << "  coarsening_ms:       " << to_ms(timings.ip_timings.coarsening_ms);
-      LOG << "    misc_ms:           " << to_ms(timings.ip_timings.coarsening_misc_ms);
-      LOG << "    call_ms:           " << to_ms(timings.ip_timings.coarsening_call_ms);
-      LOG << "      alloc_ms:        " << to_ms(timings.ip_timings.coarsening.alloc_ms);
-      LOG << "      contract_ms:     " << to_ms(timings.ip_timings.coarsening.contract_ms);
-      LOG << "      lp_ms:           " << to_ms(timings.ip_timings.coarsening.lp_ms);
-      LOG << "      interleaved1:    " << to_ms(timings.ip_timings.coarsening.interleaved1_ms);
-      LOG << "      interleaved2:    " << to_ms(timings.ip_timings.coarsening.interleaved2_ms);
-      LOG << "  bipartitioning_ms:   " << to_ms(timings.ip_timings.bipartitioning_ms);
-      LOG << "  uncoarsening_ms:     " << to_ms(timings.ip_timings.uncoarsening_ms);
-      LOG << "graph_init_ms:         " << to_ms(timings.graph_init_ms);
-      LOG << "extract_ms:            " << to_ms(timings.extract_ms);
-      LOG << "copy_ms:               " << to_ms(timings.copy_ms);
-      LOG << "misc_ms:               " << to_ms(timings.misc_ms);
+      DBG << "bipartitioner_init_ms: " << to_ms(timings.bipartitioner_init_ms);
+      DBG << "bipartitioner_ms:      " << to_ms(timings.bipartitioner_ms);
+      DBG << "  total_ms:            " << to_ms(timings.ip_timings.total_ms);
+      DBG << "  misc_ms:             " << to_ms(timings.ip_timings.misc_ms);
+      DBG << "  coarsening_ms:       " << to_ms(timings.ip_timings.coarsening_ms);
+      DBG << "    misc_ms:           " << to_ms(timings.ip_timings.coarsening_misc_ms);
+      DBG << "    call_ms:           " << to_ms(timings.ip_timings.coarsening_call_ms);
+      DBG << "      alloc_ms:        " << to_ms(timings.ip_timings.coarsening.alloc_ms);
+      DBG << "      contract_ms:     " << to_ms(timings.ip_timings.coarsening.contract_ms);
+      DBG << "      lp_ms:           " << to_ms(timings.ip_timings.coarsening.lp_ms);
+      DBG << "      interleaved1:    " << to_ms(timings.ip_timings.coarsening.interleaved1_ms);
+      DBG << "      interleaved2:    " << to_ms(timings.ip_timings.coarsening.interleaved2_ms);
+      DBG << "  bipartitioning_ms:   " << to_ms(timings.ip_timings.bipartitioning_ms);
+      DBG << "  uncoarsening_ms:     " << to_ms(timings.ip_timings.uncoarsening_ms);
+      DBG << "graph_init_ms:         " << to_ms(timings.graph_init_ms);
+      DBG << "extract_ms:            " << to_ms(timings.extract_ms);
+      DBG << "copy_ms:               " << to_ms(timings.copy_ms);
+      DBG << "misc_ms:               " << to_ms(timings.misc_ms);
     }
   };
 
@@ -509,23 +502,9 @@ void extend_partition(
   );
 }
 
-bool coarsen_once(
-    Coarsener *coarsener, [[maybe_unused]] const Graph *graph, PartitionContext &current_p_ctx
-) {
-  SCOPED_TIMER("Coarsening");
-
-  const auto shrunk = coarsener->coarsen();
-  const auto &c_graph = coarsener->current();
-
-  // @todo always do this?
-  if (shrunk) {
-    current_p_ctx.setup(c_graph);
-  }
-
-  return shrunk;
-}
 std::size_t
 select_best(const ScalableVector<PartitionedGraph> &p_graphs, const PartitionContext &p_ctx) {
   return select_best(p_graphs.begin(), p_graphs.end(), p_ctx);
 }
+
 } // namespace kaminpar::shm::partitioning

@@ -19,8 +19,11 @@
 #include "kaminpar-shm/partitioning/partition_utils.h"
 
 namespace kaminpar::shm::partitioning {
+
 namespace {
+
 SET_DEBUG(false);
+
 }
 
 SyncInitialPartitioner::SyncInitialPartitioner(
@@ -168,4 +171,5 @@ std::unique_ptr<Coarsener> SyncInitialPartitioner::duplicate_coarsener(const Coa
   duplication->initialize(&coarsener->current());
   return duplication;
 }
+
 } // namespace kaminpar::shm::partitioning

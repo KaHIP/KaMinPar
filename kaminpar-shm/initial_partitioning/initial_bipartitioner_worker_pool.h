@@ -15,6 +15,7 @@
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
+
 class InitialBipartitionerWorkerPool {
 public:
   explicit InitialBipartitionerWorkerPool(const Context &ctx) : _ctx(ctx) {}
@@ -44,4 +45,5 @@ private:
   const Context &_ctx;
   tbb::enumerable_thread_specific<std::vector<InitialMultilevelBipartitioner>> _pool_ets;
 };
+
 } // namespace kaminpar::shm

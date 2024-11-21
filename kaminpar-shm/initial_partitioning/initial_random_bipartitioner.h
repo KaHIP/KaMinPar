@@ -12,6 +12,7 @@
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::shm {
+
 class InitialRandomBipartitioner : public InitialFlatBipartitioner {
 public:
   explicit InitialRandomBipartitioner(const InitialPoolPartitionerContext &pool_ctx);
@@ -21,4 +22,5 @@ protected:
 
   Random &_rand = Random::instance();
 };
+
 } // namespace kaminpar::shm

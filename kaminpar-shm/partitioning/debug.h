@@ -14,6 +14,7 @@
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 
 namespace kaminpar::shm::debug {
+
 void dump_coarsest_graph(const Graph &graph, const Context &ctx);
 
 void dump_graph_hierarchy(const Graph &graph, int level, const Context &ctx);
@@ -27,4 +28,5 @@ void dump_partition_hierarchy(
 );
 
 void dump_partition(const PartitionedGraph &p_graph, const std::string &filename);
+
 } // namespace kaminpar::shm::debug

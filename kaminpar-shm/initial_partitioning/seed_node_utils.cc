@@ -15,7 +15,9 @@
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::shm {
+
 namespace {
+
 std::pair<NodeID, NodeID> find_furthest_away_node(
     const CSRGraph &graph, const NodeID start_node, Queue<NodeID> &queue, Marker<> &marker
 ) {
@@ -64,6 +66,7 @@ std::pair<NodeID, NodeID> find_furthest_away_node(
   queue.clear();
   return {last_node, current_distance};
 }
+
 } // namespace
 
 std::pair<NodeID, NodeID> find_far_away_nodes(const CSRGraph &graph, const int num_iterations) {
@@ -96,4 +99,5 @@ std::pair<NodeID, NodeID> find_far_away_nodes(
 
   return best_pair;
 }
+
 } // namespace kaminpar::shm
