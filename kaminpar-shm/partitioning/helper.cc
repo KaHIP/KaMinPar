@@ -48,7 +48,8 @@ PartitionContext create_kway_context(const Context &input_ctx, const Partitioned
 void extend_partition_recursive(
     const Graph &graph,
     StaticArray<BlockID> &partition,
-    const BlockID current_block,
+    const BlockID current_rel_block,
+    const BlockID current_abs_block,
     const BlockID num_subblocks,
     const BlockID current_k,
     const Context &input_ctx,
@@ -61,20 +62,28 @@ void extend_partition_recursive(
   KASSERT(num_subblocks > 1u);
 
   PartitionedGraph p_graph =
-      bipartitioner_pool.bipartition(&graph, current_block, current_k, false);
+      bipartitioner_pool.bipartition(&graph, current_abs_block, current_k, false);
 
   std::array<BlockID, 2> ks{0, 0};
   std::tie(ks[0], ks[1]) = math::split_integral(num_subblocks);
-  std::array<BlockID, 2> b{current_block, current_block + ks[0]};
+  std::array<BlockID, 2> rel_b{current_rel_block, current_rel_block + ks[0]};
+  std::array<BlockID, 2> abs_b{
+      compute_first_sub_block(current_abs_block, current_k, input_ctx.partition.k),
+      compute_first_sub_block(current_abs_block, current_k, input_ctx.partition.k) + ks[0]
+  };
+
+  DBG << "Apply partition of block abs/" << current_abs_block << "-rel/" << current_rel_block
+      << " into blocks abs/" << abs_b[0] << "-rel/" << rel_b[0] << " and abs/" << abs_b[1]
+      << "-rel/" << rel_b[1];
 
   { // Copy p_graph to partition
     NodeID node = 0;
     for (BlockID &block : partition) {
-      block = (block == current_block) ? b[p_graph.block(node++)] : block;
+      block = (block == current_rel_block) ? rel_b[p_graph.block(node++)] : block;
     }
   }
 
-  const BlockID final_k = compute_final_k(current_block, current_k, input_ctx.partition.k);
+  const BlockID final_k = compute_final_k(current_abs_block, current_k, input_ctx.partition.k);
   std::array<BlockID, 2> final_ks{0, 0};
   std::tie(final_ks[0], final_ks[1]) = math::split_integral(final_k);
 
@@ -91,9 +100,10 @@ void extend_partition_recursive(
       extend_partition_recursive(
           subgraphs[i],
           partition,
-          b[i],
+          rel_b[i],
+          abs_b[i],
           ks[i],
-          final_ks[i],
+          partitioning::compute_next_k(current_k, input_ctx),
           input_ctx,
           positions[i],
           subgraph_memory,
@@ -212,8 +222,9 @@ void extend_partition_lazy_extraction(
           subgraph,
           subgraph_partitions[b],
           0,
+          b,
           subgraph_k,
-          final_kb,
+          p_graph.k(),
           input_ctx,
           {.nodes_start_pos = 0, .edges_start_pos = 0},
           subgraph_memory,
@@ -335,8 +346,9 @@ void extend_partition(
             subgraph,
             subgraph_partitions[b],
             0,
+            b,
             subgraph_k,
-            final_kb,
+            p_graph.k(),
             input_ctx,
             positions[b],
             subgraph_memory,

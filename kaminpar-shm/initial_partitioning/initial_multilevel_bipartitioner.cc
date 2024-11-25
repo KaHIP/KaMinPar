@@ -38,7 +38,7 @@ namespace kaminpar::shm {
 
 namespace {
 
-SET_DEBUG(false);
+SET_DEBUG(true);
 
 }
 
@@ -69,6 +69,13 @@ void InitialMultilevelBipartitioner::initialize(
           first_sub_block + num_sub_blocks_b0, first_invalid_sub_block
       )
   };
+
+  DBG << "For block " << current_block << " of " << current_k << ": spans sub-blocks ["
+      << first_sub_block << ", " << first_invalid_sub_block << ")";
+  DBG << "For block " << current_block << ": split weight "
+      << _ctx.partition.total_max_block_weights(first_sub_block, first_invalid_sub_block)
+      << " into " << max_block_weights[0] << " and " << max_block_weights[1];
+
   _p_ctx.setup(graph, std::move(max_block_weights), true);
 
   _coarsener->init(graph);
