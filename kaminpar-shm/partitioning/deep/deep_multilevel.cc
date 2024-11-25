@@ -180,7 +180,7 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
   PartitionedGraph p_graph = [&] {
     switch (_input_ctx.partitioning.deep_initial_partitioning_mode) {
     case InitialPartitioningMode::SEQUENTIAL:
-      return partitioning::bipartition(graph, _input_ctx.partition.k, _bipartitioner_pool, true);
+      return _bipartitioner_pool.bipartition(graph, 0, 1, true);
 
     case InitialPartitioningMode::SYNCHRONOUS_PARALLEL:
       return SyncInitialPartitioner(_input_ctx, _bipartitioner_pool, _tmp_extraction_mem_pool_ets)

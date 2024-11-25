@@ -8,6 +8,7 @@
  ******************************************************************************/
 #pragma once
 
+#include "kaminpar-shm/coarsening/coarsener.h"
 #include "kaminpar-shm/initial_partitioning/initial_bipartitioner_worker_pool.h"
 #include "kaminpar-shm/partitioning/helper.h"
 

@@ -24,35 +24,6 @@ PartitionContext create_kway_context(const Context &input_ctx, const Partitioned
 using SubgraphMemoryEts = tbb::enumerable_thread_specific<graph::SubgraphMemory>;
 using TemporarySubgraphMemoryEts = tbb::enumerable_thread_specific<graph::TemporarySubgraphMemory>;
 
-struct BipartitionTimingInfo {
-  std::uint64_t bipartitioner_init_ms = 0;
-  std::uint64_t bipartitioner_ms = 0;
-  std::uint64_t graph_init_ms = 0;
-  std::uint64_t extract_ms = 0;
-  std::uint64_t copy_ms = 0;
-  std::uint64_t misc_ms = 0;
-  InitialPartitionerTimings ip_timings{};
-
-  BipartitionTimingInfo &operator+=(const BipartitionTimingInfo &other) {
-    bipartitioner_init_ms += other.bipartitioner_init_ms;
-    bipartitioner_ms += other.bipartitioner_ms;
-    graph_init_ms += other.graph_init_ms;
-    extract_ms += other.extract_ms;
-    copy_ms += other.copy_ms;
-    misc_ms += other.misc_ms;
-    ip_timings += other.ip_timings;
-    return *this;
-  }
-};
-
-PartitionedGraph bipartition(
-    const Graph *graph,
-    BlockID final_k,
-    InitialBipartitionerWorkerPool &bipartitioner_pool_ets,
-    bool partition_lifespan,
-    BipartitionTimingInfo *timing_info = nullptr
-);
-
 void extend_partition_lazy_extraction(
     PartitionedGraph &p_graph,
     BlockID k_prime,

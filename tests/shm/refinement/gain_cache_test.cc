@@ -24,8 +24,7 @@ namespace {
 template <typename GainCacheType> class GainCacheTest : public ::testing::Test {
 public:
   void init(const PartitionedGraph &p_graph) {
-    _ctx.partition.k = p_graph.k();
-    _ctx.setup(p_graph.graph());
+    _ctx.partition.setup(p_graph.graph(), p_graph.k(), 0.03);
 
     this->_gain_cache = std::make_unique<GainCacheType>(this->_ctx, p_graph.n(), p_graph.k());
     this->_gain_cache->initialize(p_graph.graph(), p_graph);

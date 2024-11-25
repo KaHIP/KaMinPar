@@ -14,6 +14,7 @@
 #include <tbb/task_group.h>
 #include <tbb/task_scheduler_observer.h>
 
+#include "kaminpar-shm/coarsening/coarsener.h"
 #include "kaminpar-shm/factories.h"
 #include "kaminpar-shm/initial_partitioning/initial_bipartitioner_worker_pool.h"
 #include "kaminpar-shm/partitioning/partition_utils.h"
@@ -80,8 +81,7 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
     // Perform coarsening iteration, converge if all coarseners converged
     converged = true;
     tbb::parallel_for(static_cast<std::size_t>(0), num_current_copies, [&](const std::size_t i) {
-      const bool shrunk =
-          coarsen_once(next_coarseners[i].get(), &next_coarseners[i]->current(), current_p_ctxs[i]);
+      const bool shrunk = next_coarseners[i]->coarsen();
       if (shrunk) {
         converged = false;
       }
@@ -93,7 +93,7 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
   tbb::parallel_for(static_cast<std::size_t>(0), num_threads, [&](const std::size_t i) {
     auto &current_coarseners = coarseners.back();
     const Graph *graph = &current_coarseners[i]->current();
-    current_p_graphs[i] = bipartition(graph, _input_ctx.partition.k, _bipartitioner_pool, true);
+    current_p_graphs[i] = _bipartitioner_pool.bipartition(graph, 0, 1, true);
   });
 
   // Uncoarsen and join graphs
@@ -108,7 +108,7 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
       auto &p_graph = current_p_graphs[i];
       auto &coarsener = current_coarseners[i];
       auto &p_ctx = current_p_ctxs[i];
-      p_graph = uncoarsen_once(coarsener.get(), std::move(p_graph), p_ctx, _input_ctx.partition);
+      p_graph = coarsener->uncoarsen(std::move(p_graph));
 
       // The Context object is used to pre-allocate memory for the finest graph of the input
       // hierarchy Since this refiner is never used for the finest graph, we need to adjust the
@@ -117,7 +117,8 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
       small_ctx.partition.n = p_graph.n();
       small_ctx.partition.m = p_graph.m();
       auto refiner = factory::create_refiner(small_ctx);
-      refine(refiner.get(), p_graph, p_ctx);
+      refiner->initialize(p_graph);
+      refiner->refine(p_graph, p_ctx);
 
       // extend partition
       const BlockID k_prime = compute_k_for_n(p_graph.n(), _input_ctx);

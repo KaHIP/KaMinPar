@@ -302,12 +302,16 @@ public:
   // Parallel iteration
   //
 
+  template <typename Lambda> inline void pfor_nodes_range(Lambda &&l) const {
+    tbb::parallel_for(tbb::blocked_range<NodeID>(0, n()), std::forward<Lambda>(l));
+  }
+
   template <typename Lambda> inline void pfor_nodes(Lambda &&l) const {
-    tbb::parallel_for(static_cast<NodeID>(0), n(), std::forward<Lambda>(l));
+    tbb::parallel_for<NodeID>(0, n(), std::forward<Lambda>(l));
   }
 
   template <typename Lambda> inline void pfor_edges(Lambda &&l) const {
-    tbb::parallel_for(static_cast<EdgeID>(0), m(), std::forward<Lambda>(l));
+    tbb::parallel_for<EdgeID>(0, m(), std::forward<Lambda>(l));
   }
 
   template <typename Lambda>

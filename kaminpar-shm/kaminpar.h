@@ -371,9 +371,13 @@ struct PartitionContext {
 
   BlockID k;
 
-  [[nodiscard]] BlockWeight perfectly_balanced_block_weight(BlockID block) const;
+  [[nodiscard]] BlockWeight perfectly_balanced_block_weight(BlockID block) const {
+    return max_block_weight(block) / (1 + inferred_epsilon());
+  }
 
-  [[nodiscard]] BlockWeight max_block_weight(BlockID block) const;
+  [[nodiscard]] BlockWeight max_block_weight(BlockID block) const {
+    return _max_block_weights[block];
+  }
 
   [[nodiscard]] BlockWeight total_max_block_weights(const BlockID begin, const BlockID end) const {
     return std::accumulate(
@@ -383,9 +387,13 @@ struct PartitionContext {
     );
   }
 
-  [[nodiscard]] double epsilon() const;
+  [[nodiscard]] double epsilon() const {
+    return (1.0 * _max_total_block_weight / total_node_weight) - 1.0;
+  }
 
-  [[nodiscard]] double inferred_epsilon() const;
+  [[nodiscard]] double inferred_epsilon() const {
+    return epsilon();
+  }
 
   void setup(
       const class AbstractGraph &graph,
@@ -601,34 +609,35 @@ public:
   void set_graph(shm::Graph graph);
 
   /*!
-   * Partitions the graph set by `borrow_and_mutate_graph()` or `copy_graph()` into $k$ blocks using
-   * the default imbalance constraint (3%).
+   * Partitions the graph set by `borrow_and_mutate_graph()` or `copy_graph()` into `k` blocks with
+   * a maximum imbalance of 3%.
    *
    * @param k Number of blocks.
-   * @param[out] partition Array of length $n$ to store the partitioning.
+   * @param[out] partition Span of length `n` to store the partitioning.
    *
    * @return Expected edge cut of the partition.
    */
   shm::EdgeWeight compute_partition(shm::BlockID k, shm::BlockID *partition);
 
   /*!
-   * Partitions the graph set by `borrow_and_mutate_graph()` or `copy_graph()` into $k$ blocks.
+   * Partitions the graph set by `borrow_and_mutate_graph()` or `copy_graph()` into `k` blocks with
+   * a maximum imbalance of `epsilon`.
    *
    * @param k Number of blocks.
-   * @param epsilon Imbalance constraint.
-   * @param[out] partition Array of length $n$ to store the partitioning.
+   * @param epsilon Balance constraint (e.g., 0.03 for max 3% imbalance).
+   * @param[out] partition Span of length `n` to store the partitioning.
    *
    * @return Expected edge cut of the partition.
    */
   shm::EdgeWeight compute_partition(shm::BlockID k, double epsilon, shm::BlockID *partition);
 
   /*!
-   * Partitions the graph set by `borrow_and_mutate_graph()` or `copy_graph()` into $k$ blocks,
-   * where $k$ is given implicitly by providing a set of maximum block weights.
+   * Partitions the graph set by `borrow_and_mutate_graph()` or `copy_graph()` such that the
+   * weight of each block is upper bounded by `max_block_weights`. The number of blocks is given
+   * implicitly by the size of `max_block_weights`.
    *
-   * @param max_block_weights Maximum weight for each block, sum must exceed the total node weight
-   * of the graph.
-   * @param[out] partition Array of length $n$ to store the partitioning.
+   * @param max_block_weights Maximum weight for each block of the partition.
+   * @param[out] partition Span of length `n` to store the partitioning.
    *
    * @return Expected edge cut of the partition.
    */

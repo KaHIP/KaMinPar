@@ -14,6 +14,7 @@
 #include <tbb/task_group.h>
 #include <tbb/task_scheduler_observer.h>
 
+#include "kaminpar-shm/coarsening/coarsener.h"
 #include "kaminpar-shm/factories.h"
 #include "kaminpar-shm/initial_partitioning/initial_bipartitioner_worker_pool.h"
 #include "kaminpar-shm/partitioning/partition_utils.h"
@@ -48,16 +49,16 @@ PartitionedGraph AsyncInitialPartitioner::partition_recursive(
 
   // Base case: only one thread left <=> compute bipartition
   if (num_threads == 1) {
-    return bipartition(graph, _input_ctx.partition.k, _bipartitioner_pool, true);
+    return _bipartitioner_pool.bipartition(graph, 0, 1, true);
   }
 
   // Otherwise, coarsen further and proceed recursively
   auto coarsener = factory::create_coarsener(_input_ctx);
   coarsener->initialize(graph);
 
-  const bool shrunk = coarsen_once(coarsener.get(), graph, p_ctx);
+  const bool shrunk = coarsener->coarsen();
   PartitionedGraph p_graph = split_and_join(coarsener.get(), p_ctx, !shrunk, num_threads);
-  p_graph = uncoarsen_once(coarsener.get(), std::move(p_graph), p_ctx, _input_ctx.partition);
+  p_graph = coarsener->uncoarsen(std::move(p_graph));
 
   // The Context object is used to pre-allocate memory for the finest graph of the input hierarchy
   // Since this refiner is never used for the finest graph, we need to adjust the context to
@@ -66,7 +67,8 @@ PartitionedGraph AsyncInitialPartitioner::partition_recursive(
   small_ctx.partition.n = p_graph.n();
   small_ctx.partition.m = p_graph.m();
   auto refiner = factory::create_refiner(small_ctx);
-  refine(refiner.get(), p_graph, p_ctx);
+  refiner->initialize(p_graph);
+  refiner->refine(p_graph, p_ctx);
 
   const BlockID k_prime = std::min(
       _input_ctx.partition.k,

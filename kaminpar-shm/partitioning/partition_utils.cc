@@ -116,4 +116,8 @@ int compute_num_threads_for_parallel_ip(const Context &input_ctx) {
   ));
 }
 
+BlockID compute_next_k(const BlockID current_k, const Context &input_ctx) {
+  return std::min<BlockID>(current_k * 2, input_ctx.partition.k);
+}
+
 } // namespace kaminpar::shm::partitioning

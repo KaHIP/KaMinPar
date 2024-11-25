@@ -71,9 +71,7 @@ TEST_F(MetricsTestFixture, imbalanced_bipartition_balance) {
 inline Context
 create_testing_context(const Graph &graph, const BlockID k = 2, const double epsilon = 0.03) {
   Context context = create_default_context();
-  context.partition.k = k;
-  context.partition.epsilon = epsilon;
-  context.setup(graph);
+  context.partition.setup(graph, k, epsilon);
   return context;
 }
 

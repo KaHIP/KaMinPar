@@ -252,4 +252,6 @@ PartitionedGraph assign_isolated_nodes(
     PartitionedGraph p_graph, const NodeID num_isolated_nodes, const PartitionContext &p_ctx
 );
 
+NodeID count_isolated_nodes(const Graph &graph);
+
 } // namespace kaminpar::shm::graph

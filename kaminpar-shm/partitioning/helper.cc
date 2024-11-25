@@ -47,72 +47,12 @@ PartitionContext create_kway_context(const Context &input_ctx, const Partitioned
   return new_p_ctx;
 }
 
-PartitionedGraph bipartition(
-    const Graph *graph,
-    const BlockID final_k,
-    InitialBipartitionerWorkerPool &initial_bipartitioner_pool,
-    const bool partition_lifespan,
-    BipartitionTimingInfo *timings
-) {
-  const CSRGraph *csr = dynamic_cast<const CSRGraph *>(graph->underlying_graph());
-
-  // If we work with something other than a CSRGraph, construct a CSR copy to call the initial
-  // partitioning code. This is only necessary if the graph is too small for coarsening *and* we are
-  // using graph compression.
-  std::unique_ptr<CSRGraph> csr_copy;
-  if (csr == nullptr) {
-    DBG << "Bipartitioning a non-CSR graph is not supported by the initial partitioning code: "
-           "constructing a CSR-graph copy of the given graph with n="
-        << graph->n() << ", m=" << graph->m();
-    csr_copy = std::make_unique<CSRGraph>(*graph);
-    csr = csr_copy.get();
-  }
-
-  timer::LocalTimer timer;
-
-  auto bipartition = [&] {
-    if (graph->n() == 0) {
-      return StaticArray<BlockID>{};
-    }
-
-    InitialMultilevelBipartitioner bipartitioner = initial_bipartitioner_pool.get();
-    bipartitioner.initialize(*csr, final_k);
-    auto bipartition =
-        bipartitioner.partition(timings ? &(timings->ip_timings) : nullptr).take_raw_partition();
-
-    if (partition_lifespan) {
-      StaticArray<BlockID> owned_bipartition(bipartition.size(), static_array::noinit);
-      std::copy(bipartition.begin(), bipartition.end(), owned_bipartition.begin());
-
-      initial_bipartitioner_pool.put(std::move(bipartitioner));
-
-      return owned_bipartition;
-    } else {
-      initial_bipartitioner_pool.put(std::move(bipartitioner));
-      return bipartition;
-    }
-  }();
-
-  if (timings != nullptr) {
-    timings->bipartitioner_ms += timer.elapsed();
-    timer.reset();
-  }
-
-  PartitionedGraph p_graph(PartitionedGraph::seq{}, *graph, 2, std::move(bipartition));
-
-  if (timings != nullptr) {
-    timings->graph_init_ms += timer.elapsed();
-  }
-
-  return p_graph;
-}
-
 void extend_partition_recursive(
     const Graph &graph,
     StaticArray<BlockID> &partition,
-    const BlockID b0,
-    const BlockID k,
-    const BlockID final_k,
+    const BlockID current_block,
+    const BlockID num_subblocks,
+    const BlockID current_k,
     const Context &input_ctx,
     const graph::SubgraphMemoryStartPosition position,
     graph::SubgraphMemory &subgraph_memory,
@@ -120,52 +60,30 @@ void extend_partition_recursive(
     InitialBipartitionerWorkerPool &bipartitioner_pool,
     BipartitionTimingInfo *timings = nullptr
 ) {
-  KASSERT(k > 1u);
+  KASSERT(num_subblocks > 1u);
 
-  PartitionedGraph p_graph = bipartition(&graph, final_k, bipartitioner_pool, false, timings);
+  PartitionedGraph p_graph =
+      bipartitioner_pool.bipartition(&graph, current_block, current_k, false);
 
-  timer::LocalTimer timer;
-
-  timer.reset();
-  std::array<BlockID, 2> final_ks{0, 0};
   std::array<BlockID, 2> ks{0, 0};
-  std::tie(final_ks[0], final_ks[1]) = math::split_integral(final_k);
-  std::tie(ks[0], ks[1]) = math::split_integral(k);
-  std::array<BlockID, 2> b{b0, b0 + ks[0]};
-  if (timings != nullptr)
-    timings->misc_ms += timer.elapsed();
+  std::tie(ks[0], ks[1]) = math::split_integral(num_subblocks);
+  std::array<BlockID, 2> b{current_block, current_block + ks[0]};
 
-  DBG << "bipartitioning graph with weight " << graph.total_node_weight() << " = "
-      << p_graph.block_weight(0) << " + " << p_graph.block_weight(1) << " for final k " << final_k
-      << " = " << final_ks[0] << " + " << final_ks[1] << ", for total of " << k << " = " << ks[0]
-      << " + " << ks[1] << " blocks";
-
-  KASSERT(ks[0] >= 1u);
-  KASSERT(ks[1] >= 1u);
-  KASSERT(final_ks[0] >= ks[0]);
-  KASSERT(final_ks[1] >= ks[1]);
-  KASSERT(b[0] < input_ctx.partition.k);
-  KASSERT(b[1] < input_ctx.partition.k);
-
-  // Copy p_graph to partition -> replace b0 with b0 or b1
-  {
-    timer.reset();
+  { // Copy p_graph to partition
     NodeID node = 0;
     for (BlockID &block : partition) {
-      block = (block == b0) ? b[p_graph.block(node++)] : block;
+      block = (block == current_block) ? b[p_graph.block(node++)] : block;
     }
-    KASSERT(node == p_graph.n());
-    if (timings != nullptr)
-      timings->copy_ms += timer.elapsed();
   }
 
-  if (k > 2) {
-    timer.reset();
+  const BlockID final_k = compute_final_k(current_block, current_k, input_ctx.partition.k);
+  std::array<BlockID, 2> final_ks{0, 0};
+  std::tie(final_ks[0], final_ks[1]) = math::split_integral(final_k);
+
+  if (num_subblocks > 2) {
     auto [subgraphs, positions] = extract_subgraphs_sequential(
         p_graph, final_ks, position, subgraph_memory, tmp_extraction_mem_pool
     );
-    if (timings != nullptr)
-      timings->extract_ms += timer.elapsed();
 
     for (const std::size_t i : {0, 1}) {
       if (ks[i] <= 1) {
@@ -341,7 +259,6 @@ void extend_partition_lazy_extraction(
     );
   };
 
-  update_partition_context(current_p_ctx, p_graph, input_ctx.partition.k);
   KASSERT(p_graph.k() == k_prime);
 }
 
@@ -466,7 +383,6 @@ void extend_partition(
     LOG << "misc_ms:               " << to_ms(timings.misc_ms);
   }
 
-  update_partition_context(current_p_ctx, p_graph, input_ctx.partition.k);
   KASSERT(p_graph.k() == k_prime);
 }
 

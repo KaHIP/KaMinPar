@@ -26,15 +26,6 @@ namespace kaminpar {
 
 namespace shm {
 
-double PartitionContext::epsilon() const {
-  KASSERT(_max_total_block_weight != kInvalidBlockWeight);
-  return (1.0 * _max_total_block_weight / total_node_weight) - 1.0;
-}
-
-double PartitionContext::inferred_epsilon() const {
-  return epsilon();
-}
-
 void PartitionContext::setup(
     const AbstractGraph &graph,
     const BlockID k,
@@ -305,7 +296,8 @@ EdgeWeight KaMinPar::compute_partition(BlockID *partition) {
   // Cut off isolated nodes if the graph has been rearranged such that the isolated nodes are placed
   // at the end.
   if (_graph_ptr->sorted()) {
-    graph::remove_isolated_nodes(*_graph_ptr, _ctx.partition);
+    const NodeID num_isolated_nodes = graph::count_isolated_nodes(*_graph_ptr);
+    _graph_ptr->remove_isolated_nodes(num_isolated_nodes);
   }
 
   // Perform actual partitioning

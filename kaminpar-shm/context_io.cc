@@ -552,7 +552,8 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
 }
 
 void print(const PartitionContext &p_ctx, std::ostream &out) {
-  const auto max_block_weight = static_cast<std::int64_t>(p_ctx.block_weights.max(0));
+  // @todo rework block weights output
+  const auto max_block_weight = static_cast<std::int64_t>(p_ctx.max_block_weight(0));
   const auto size = std::max<std::int64_t>(
       {static_cast<std::int64_t>(p_ctx.n), static_cast<std::int64_t>(p_ctx.m), max_block_weight}
   );
@@ -571,8 +572,8 @@ void print(const PartitionContext &p_ctx, std::ostream &out) {
     out << " (total weight: " << p_ctx.total_edge_weight << ")\n";
   }
   out << "Number of blocks:             " << p_ctx.k << "\n";
-  out << "Maximum block weight:         " << p_ctx.block_weights.max(0) << " ("
-      << p_ctx.block_weights.perfectly_balanced(0) << " + " << 100 * p_ctx.epsilon << "%)\n";
+  out << "Maximum block weight:         " << p_ctx.max_block_weight(0) << " ("
+      << p_ctx.perfectly_balanced_block_weight(0) << " + " << 100 * p_ctx.epsilon() << "%)\n";
 }
 
 void print(const PartitioningContext &p_ctx, std::ostream &out) {
@@ -603,4 +604,5 @@ void print(const Context &ctx, std::ostream &out) {
   cio::print_delimiter("Refinement", '-');
   print(ctx.refinement, out);
 }
+
 } // namespace kaminpar::shm

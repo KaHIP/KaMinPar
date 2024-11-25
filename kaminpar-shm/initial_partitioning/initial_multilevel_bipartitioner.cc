@@ -74,7 +74,7 @@ void InitialMultilevelBipartitioner::initialize(
   _coarsener->init(graph);
   _refiner->init(graph);
 
-  const std::size_t num_bipartition_repetitions = std::ceil(
+  const int num_bipartition_repetitions = std::ceil(
       _i_ctx.pool.repetition_multiplier * num_sub_blocks / math::ceil_log2(_ctx.partition.k)
   );
   _bipartitioner->set_num_repetitions(num_bipartition_repetitions);

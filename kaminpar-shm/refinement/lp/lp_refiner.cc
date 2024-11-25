@@ -128,7 +128,7 @@ public:
     return _p_graph->k();
   }
   [[nodiscard]] BlockWeight max_cluster_weight(const BlockID block) {
-    return _p_ctx->block_weights.max(block);
+    return _p_ctx->max_block_weight(block);
   }
 
   template <typename RatingMap>

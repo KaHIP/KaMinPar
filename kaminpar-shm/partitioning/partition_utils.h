@@ -51,4 +51,6 @@ compute_num_copies(const Context &input_ctx, NodeID n, bool converged, std::size
 
 int compute_num_threads_for_parallel_ip(const Context &input_ctx);
 
+BlockID compute_next_k(BlockID current_k, const Context &input_ctx);
+
 } // namespace kaminpar::shm::partitioning

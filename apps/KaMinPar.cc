@@ -56,6 +56,7 @@ struct ApplicationContext {
   float heap_profiler_min_struct_size = 10;
 
   BlockID k = 0;
+  double epsilon = 0.03;
 
   bool quiet = false;
   bool experiment = false;
@@ -112,6 +113,15 @@ The output should be stored in a file and can be used by the -C,--config option.
       ->configurable(false);
 
   // Application options
+  cli.add_option(
+         "-e,--epsilon",
+         app.epsilon,
+         "Maximum allowed imbalance, e.g. 0.03 for 3%. Must be strictly "
+         "positive."
+  )
+      ->check(CLI::NonNegativeNumber)
+      ->capture_default_str();
+
   cli.add_option("-s,--seed", app.seed, "Seed for random number generation.")
       ->default_val(app.seed);
   cli.add_flag("-q,--quiet", app.quiet, "Suppress all console output.");
@@ -414,7 +424,7 @@ int main(int argc, char *argv[]) {
 
   // Compute partition
   partitioner.set_graph(std::move(graph));
-  partitioner.compute_partition(app.k, partition.data());
+  partitioner.compute_partition(app.k, app.epsilon, partition.data());
 
   // Save graph partition
   if (!app.partition_filename.empty()) {

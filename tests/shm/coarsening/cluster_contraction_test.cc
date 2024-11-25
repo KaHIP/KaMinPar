@@ -227,23 +227,14 @@ TEST(
    * 10    11
    */
   Graph graph = make_graph({0, 0, 1, 3, 4, 5, 5, 5, 7, 8, 8, 8, 8}, {2, 1, 3, 2, 7, 4, 8, 7});
-
-  PartitionContext p_ctx;
-  p_ctx.k = 2;
-  p_ctx.epsilon = 0.17; // max block weight 7
-
   graph = graph::rearrange_by_degree_buckets(*dynamic_cast<CSRGraph *>(graph.underlying_graph()));
-  graph::remove_isolated_nodes(graph, p_ctx);
+  graph.remove_isolated_nodes(graph::count_isolated_nodes(graph));
 
   EXPECT_EQ(graph.n(), 6);
   EXPECT_EQ(graph.m(), 8);
   for (const NodeID v : (*dynamic_cast<CSRGraph *>(graph.underlying_graph())).raw_edges()) {
     EXPECT_LT(v, 7);
-  } // edges are valid
-
-  // total weight of new graph: 6, perfectly balanced block weight: 3
-  // hence eps' should be 1.3333....
-  EXPECT_THAT(p_ctx.epsilon, AllOf(Gt(1.33), Lt(1.34)));
+  }
 }
 
 //

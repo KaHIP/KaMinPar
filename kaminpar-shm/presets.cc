@@ -86,12 +86,7 @@ Context create_default_context() {
               .refine_after_extending_partition = false,
               .use_lazy_subgraph_memory = true,
           },
-      .partition =
-          {
-              // Context -> Partition
-              .epsilon = 0.03,
-              .k = kInvalidBlockID /* must be set */,
-          },
+      .partition = {},
       .coarsening =
           {
               // Context -> Coarsening
