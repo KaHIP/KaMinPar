@@ -200,6 +200,7 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
   ENABLE_TIMERS();
 
   _current_p_ctx = create_kway_context(_input_ctx, p_graph);
+  DBG << debug::describe_partition_state(p_graph, _current_p_ctx);
 
   // Print some metrics for the initial partition.
   LOG << " Number of blocks: " << p_graph.k();
@@ -239,6 +240,7 @@ PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) 
     const BlockID desired_k = partitioning::compute_k_for_n(p_graph.n(), _input_ctx);
     if (p_graph.k() < desired_k) {
       extend_partition(p_graph, desired_k);
+      _current_p_ctx = create_kway_context(_input_ctx, p_graph);
       refined = false;
 
       if (_input_ctx.partitioning.refine_after_extending_partition) {
@@ -260,6 +262,7 @@ PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) 
     }
     if (p_graph.k() < _input_ctx.partition.k) {
       extend_partition(p_graph, _input_ctx.partition.k);
+      _current_p_ctx = create_kway_context(_input_ctx, p_graph);
       refine(p_graph);
     }
   }

@@ -17,26 +17,24 @@ namespace kaminpar::shm::partitioning {
 
 namespace {
 
-SET_DEBUG(false);
+SET_DEBUG(true);
 SET_STATISTICS_FROM_GLOBAL();
 
 } // namespace
 
 PartitionContext create_kway_context(const Context &input_ctx, const PartitionedGraph &p_graph) {
+  const BlockID input_k = input_ctx.partition.k;
   const BlockID current_k = p_graph.k();
-  const BlockID final_k = input_ctx.partition.k;
 
   std::vector<BlockWeight> max_block_weights(p_graph.k());
   BlockID cur_fine_block = 0;
   for (const BlockID coarse_block : p_graph.blocks()) {
-    const BlockID num = compute_final_k(coarse_block, current_k, final_k);
+    const BlockID num = compute_final_k(coarse_block, current_k, input_k);
     const BlockID begin = cur_fine_block;
     const BlockID end = cur_fine_block + num;
     cur_fine_block += num;
 
-    for (BlockID b = begin; b < end; ++b) {
-      max_block_weights[b] += input_ctx.partition.max_block_weight(b);
-    }
+    max_block_weights[coarse_block] = input_ctx.partition.total_max_block_weights(begin, end);
   }
 
   const bool is_toplevel_ctx = (p_graph.n() == input_ctx.partition.n);
