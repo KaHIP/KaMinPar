@@ -391,7 +391,7 @@ struct PartitionContext {
       bool relax_max_block_weights = false
   );
 
-private:
+//private:
   std::vector<BlockWeight> _max_block_weights{};
 
   BlockWeight _total_max_block_weights = 0;

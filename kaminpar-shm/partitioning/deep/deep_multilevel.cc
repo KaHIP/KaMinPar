@@ -21,8 +21,11 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
+
 namespace {
-SET_DEBUG(false);
+
+SET_DEBUG(true);
+
 } // namespace
 
 using namespace partitioning;
@@ -49,6 +52,7 @@ PartitionedGraph DeepMultilevelPartitioner::partition() {
     _refiner->set_output_prefix("    ");
   }
 
+  DBG << debug::describe_partition_context(_input_ctx.partition);
   return uncoarsen(initial_partition(coarsen()));
 }
 
@@ -266,6 +270,8 @@ PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) 
 void DeepMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
   SCOPED_HEAP_PROFILER("Refinement");
   SCOPED_TIMER("Refinement");
+
+  DBG << debug::describe_partition_state(p_graph, _current_p_ctx);
 
   // If requested, dump the current partition to disk before refinement ...
   debug::dump_partition_hierarchy(p_graph, _coarsener->level(), "pre-refinement", _input_ctx);

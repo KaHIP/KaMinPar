@@ -29,4 +29,8 @@ void dump_partition_hierarchy(
 
 void dump_partition(const PartitionedGraph &p_graph, const std::string &filename);
 
+std::string describe_partition_context(const PartitionContext &p_ctx);
+
+std::string describe_partition_state(const PartitionedGraph &p_graph, const PartitionContext &p_ctx);
+
 } // namespace kaminpar::shm::debug
