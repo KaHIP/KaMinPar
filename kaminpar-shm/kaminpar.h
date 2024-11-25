@@ -371,7 +371,7 @@ struct PartitionContext {
   }
 
   [[nodiscard]] double epsilon() const {
-    return (1.0 * _max_total_block_weight / total_node_weight) - 1.0;
+    return (1.0 * _total_max_block_weights / total_node_weight) - 1.0;
   }
 
   [[nodiscard]] double inferred_epsilon() const {
@@ -394,7 +394,7 @@ struct PartitionContext {
 private:
   std::vector<BlockWeight> _max_block_weights{};
 
-  BlockWeight _max_total_block_weight = 0;
+  BlockWeight _total_max_block_weights = 0;
 };
 
 struct ParallelContext {

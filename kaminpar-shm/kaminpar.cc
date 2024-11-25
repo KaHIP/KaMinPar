@@ -52,6 +52,9 @@ void PartitionContext::setup(
 
   k = static_cast<BlockID>(max_block_weights.size());
   _max_block_weights = std::move(max_block_weights);
+  _total_max_block_weights = std::accumulate(
+      _max_block_weights.begin(), _max_block_weights.end(), static_cast<BlockWeight>(0)
+  );
 
   if (relax_max_block_weights) {
     const double eps = epsilon();

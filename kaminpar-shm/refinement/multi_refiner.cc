@@ -60,6 +60,7 @@ bool MultiRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_c
 
       imbalance_before = imbalance_after;
       cut_before = cut_after;
+      feasible_before = feasible_after;
     } else if (_output_level >= OutputLevel::INFO) {
       LOG;
     }
