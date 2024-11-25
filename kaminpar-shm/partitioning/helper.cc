@@ -67,14 +67,21 @@ void extend_partition_recursive(
   std::array<BlockID, 2> ks{0, 0};
   std::tie(ks[0], ks[1]) = math::split_integral(num_subblocks);
   std::array<BlockID, 2> rel_b{current_rel_block, current_rel_block + ks[0]};
-  std::array<BlockID, 2> abs_b{
-      compute_first_sub_block(current_abs_block, current_k, input_ctx.partition.k),
-      compute_first_sub_block(current_abs_block, current_k, input_ctx.partition.k) + ks[0]
-  };
 
-  DBG << "Apply partition of block abs/" << current_abs_block << "-rel/" << current_rel_block
-      << " into blocks abs/" << abs_b[0] << "-rel/" << rel_b[0] << " and abs/" << abs_b[1]
-      << "-rel/" << rel_b[1];
+  // @todo should be correct, but needs clean ups
+  std::array<BlockID, 2> abs_b;
+  if (2 * current_k >= input_ctx.partition.k) {
+    abs_b = {
+        compute_first_sub_block(current_abs_block, current_k, input_ctx.partition.k),
+        compute_first_sub_block(current_abs_block, current_k, input_ctx.partition.k) + 1
+    };
+  } else {
+    abs_b = {2 * current_abs_block, 2 * current_abs_block + 1};
+  }
+
+  DBG << "[k=" << current_k << "] Apply partition of block abs/" << current_abs_block << "-rel/"
+      << current_rel_block << " into blocks abs/" << abs_b[0] << "-rel/" << rel_b[0] << " and abs/"
+      << abs_b[1] << "-rel/" << rel_b[1] << ", num sub-blocks: " << num_subblocks;
 
   { // Copy p_graph to partition
     NodeID node = 0;
@@ -233,32 +240,6 @@ void extend_partition_lazy_extraction(
           &timing
       );
     });
-
-    if constexpr (kDebug) {
-      const auto timings = dbg_timings_ets.combine([](auto &a, const auto &b) { return a += b; });
-      const auto to_ms = [](const auto ns) {
-        return static_cast<std::uint64_t>(ns / 1e6);
-      };
-
-      DBG << "bipartitioner_init_ms: " << to_ms(timings.bipartitioner_init_ms);
-      DBG << "bipartitioner_ms:      " << to_ms(timings.bipartitioner_ms);
-      DBG << "  total_ms:            " << to_ms(timings.ip_timings.total_ms);
-      DBG << "  misc_ms:             " << to_ms(timings.ip_timings.misc_ms);
-      DBG << "  coarsening_ms:       " << to_ms(timings.ip_timings.coarsening_ms);
-      DBG << "    misc_ms:           " << to_ms(timings.ip_timings.coarsening_misc_ms);
-      DBG << "    call_ms:           " << to_ms(timings.ip_timings.coarsening_call_ms);
-      DBG << "      alloc_ms:        " << to_ms(timings.ip_timings.coarsening.alloc_ms);
-      DBG << "      contract_ms:     " << to_ms(timings.ip_timings.coarsening.contract_ms);
-      DBG << "      lp_ms:           " << to_ms(timings.ip_timings.coarsening.lp_ms);
-      DBG << "      interleaved1:    " << to_ms(timings.ip_timings.coarsening.interleaved1_ms);
-      DBG << "      interleaved2:    " << to_ms(timings.ip_timings.coarsening.interleaved2_ms);
-      DBG << "  bipartitioning_ms:   " << to_ms(timings.ip_timings.bipartitioning_ms);
-      DBG << "  uncoarsening_ms:     " << to_ms(timings.ip_timings.uncoarsening_ms);
-      DBG << "graph_init_ms:         " << to_ms(timings.graph_init_ms);
-      DBG << "extract_ms:            " << to_ms(timings.extract_ms);
-      DBG << "copy_ms:               " << to_ms(timings.copy_ms);
-      DBG << "misc_ms:               " << to_ms(timings.misc_ms);
-    }
   };
 
   TIMED_SCOPE("Copy subgraph partitions") {
@@ -366,32 +347,6 @@ void extend_partition(
         std::move(p_graph), subgraph_partitions, k_prime, input_ctx.partition.k, mapping
     );
   };
-
-  if constexpr (kDebug) {
-    const auto timings = timings_ets.combine([](auto &a, const auto &b) { return a += b; });
-    const auto to_ms = [](const auto ns) {
-      return static_cast<std::uint64_t>(ns / 1e6);
-    };
-
-    LOG << "bipartitioner_init_ms: " << to_ms(timings.bipartitioner_init_ms);
-    LOG << "bipartitioner_ms:      " << to_ms(timings.bipartitioner_ms);
-    LOG << "  total_ms:            " << to_ms(timings.ip_timings.total_ms);
-    LOG << "  misc_ms:             " << to_ms(timings.ip_timings.misc_ms);
-    LOG << "  coarsening_ms:       " << to_ms(timings.ip_timings.coarsening_ms);
-    LOG << "    misc_ms:           " << to_ms(timings.ip_timings.coarsening_misc_ms);
-    LOG << "    call_ms:           " << to_ms(timings.ip_timings.coarsening_call_ms);
-    LOG << "      alloc_ms:        " << to_ms(timings.ip_timings.coarsening.alloc_ms);
-    LOG << "      contract_ms:     " << to_ms(timings.ip_timings.coarsening.contract_ms);
-    LOG << "      lp_ms:           " << to_ms(timings.ip_timings.coarsening.lp_ms);
-    LOG << "      interleaved1:    " << to_ms(timings.ip_timings.coarsening.interleaved1_ms);
-    LOG << "      interleaved2:    " << to_ms(timings.ip_timings.coarsening.interleaved2_ms);
-    LOG << "  bipartitioning_ms:   " << to_ms(timings.ip_timings.bipartitioning_ms);
-    LOG << "  uncoarsening_ms:     " << to_ms(timings.ip_timings.uncoarsening_ms);
-    LOG << "graph_init_ms:         " << to_ms(timings.graph_init_ms);
-    LOG << "extract_ms:            " << to_ms(timings.extract_ms);
-    LOG << "copy_ms:               " << to_ms(timings.copy_ms);
-    LOG << "misc_ms:               " << to_ms(timings.misc_ms);
-  }
 
   KASSERT(p_graph.k() == k_prime);
 }
