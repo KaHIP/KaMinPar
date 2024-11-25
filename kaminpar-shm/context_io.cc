@@ -335,47 +335,6 @@ std::ostream &operator<<(std::ostream &out, IsolatedNodesClusteringStrategy stra
   return out << "<invalid>";
 }
 
-std::ostream &operator<<(std::ostream &out, SecondPhaseSelectionStrategy strategy) {
-  switch (strategy) {
-  case SecondPhaseSelectionStrategy::HIGH_DEGREE:
-    return out << "high-degree";
-  case SecondPhaseSelectionStrategy::FULL_RATING_MAP:
-    return out << "full-rating-map";
-  }
-
-  return out << "<invalid>";
-}
-
-std::unordered_map<std::string, SecondPhaseSelectionStrategy>
-get_second_phase_selection_strategies() {
-  return {
-      {"high-degree", SecondPhaseSelectionStrategy::HIGH_DEGREE},
-      {"full-rating-map", SecondPhaseSelectionStrategy::FULL_RATING_MAP},
-  };
-}
-
-std::ostream &operator<<(std::ostream &out, SecondPhaseAggregationStrategy strategy) {
-  switch (strategy) {
-  case SecondPhaseAggregationStrategy::NONE:
-    return out << "none";
-  case SecondPhaseAggregationStrategy::DIRECT:
-    return out << "direct";
-  case SecondPhaseAggregationStrategy::BUFFERED:
-    return out << "buffered";
-  }
-
-  return out << "<invalid>";
-}
-
-std::unordered_map<std::string, SecondPhaseAggregationStrategy>
-get_second_phase_aggregation_strategies() {
-  return {
-      {"none", SecondPhaseAggregationStrategy::NONE},
-      {"direct", SecondPhaseAggregationStrategy::DIRECT},
-      {"buffered", SecondPhaseAggregationStrategy::BUFFERED},
-  };
-}
-
 std::unordered_map<std::string, IsolatedNodesClusteringStrategy>
 get_isolated_nodes_clustering_strategies() {
   return {
@@ -498,8 +457,6 @@ void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
   out << "    Tie breaking strategy:    " << lp_ctx.tie_breaking_strategy << "\n";
   out << "    Implementation:           " << lp_ctx.impl << "\n";
   if (lp_ctx.impl == LabelPropagationImplementation::TWO_PHASE) {
-    out << "      Selection strategy:     " << lp_ctx.second_phase_selection_strategy << '\n';
-    out << "      Aggregation strategy:   " << lp_ctx.second_phase_aggregation_strategy << '\n';
     out << "      Relabel:                " << (lp_ctx.relabel_before_second_phase ? "yes" : "no")
         << '\n';
   }
@@ -520,10 +477,6 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
     out << "  Number of iterations:       " << r_ctx.lp.num_iterations << "\n";
     out << "  Tie breaking strategy:      " << r_ctx.lp.tie_breaking_strategy << "\n";
     out << "  Implementation:             " << r_ctx.lp.impl << "\n";
-    if (r_ctx.lp.impl == LabelPropagationImplementation::TWO_PHASE) {
-      out << "    Selection strategy:       " << r_ctx.lp.second_phase_selection_strategy << '\n';
-      out << "    Aggregation strategy:     " << r_ctx.lp.second_phase_aggregation_strategy << '\n';
-    }
   }
   if (r_ctx.includes_algorithm(RefinementAlgorithm::KWAY_FM)) {
     out << "k-way FM:\n";
