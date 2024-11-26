@@ -11,10 +11,6 @@
 
 namespace kaminpar::shm::partitioning {
 
-double compute_2way_adaptive_epsilon(
-    NodeWeight total_node_weight, BlockID k, const PartitionContext &p_ctx
-);
-
 /**
  * Given a block $0 <= B < k'$ of an intermediate partition with $k' < k$ blocks, this function
  * computes the number of blocks into which $B$ will be split for the final partition.
@@ -43,7 +39,7 @@ BlockID compute_final_k(BlockID block, BlockID current_k, BlockID input_k);
 BlockID compute_first_sub_block(BlockID block, BlockID current_k, BlockID input_k);
 BlockID compute_first_invalid_sub_block(BlockID block, BlockID current_k, BlockID input_k);
 
-// compute smallest k_prime such that it is a power of 2 and n / k_prime <= C
+// Compute smallest k_prime such that it is a power of 2 and n / k_prime <= C
 BlockID compute_k_for_n(NodeID n, const Context &input_ctx);
 
 std::size_t
