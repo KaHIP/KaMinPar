@@ -173,6 +173,7 @@ Context create_default_context() {
                       .improvement_abortion_threshold = 0.0001,
                   },
               .refine_pool_partition = false,
+              .use_adaptive_epsilon = true,
           },
       .refinement =
           {

@@ -339,6 +339,7 @@ struct InitialPartitioningContext {
   InitialRefinementContext refinement;
 
   bool refine_pool_partition;
+  bool use_adaptive_epsilon;
 };
 
 //

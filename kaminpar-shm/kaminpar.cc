@@ -301,6 +301,7 @@ EdgeWeight KaMinPar::compute_partition(BlockID *partition) {
   if (_graph_ptr->sorted()) {
     const NodeID num_isolated_nodes = graph::count_isolated_nodes(*_graph_ptr);
     _graph_ptr->remove_isolated_nodes(num_isolated_nodes);
+    _ctx.partition.total_node_weight = _graph_ptr->total_node_weight();
   }
 
   // Perform actual partitioning

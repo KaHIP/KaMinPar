@@ -331,6 +331,12 @@ CLI::Option_group *create_initial_partitioning_options(CLI::App *app, Context &c
         "--i-r-disable", ctx.initial_partitioning.refinement.disabled, "Disable initial refinement."
   )
       ->capture_default_str();
+  ip->add_flag(
+        "--i-adaptive-epsilon",
+        ctx.initial_partitioning.use_adaptive_epsilon,
+        "Use adaptive epsilon."
+  )
+      ->capture_default_str();
 
   return ip;
 }

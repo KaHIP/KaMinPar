@@ -75,7 +75,17 @@ void InitialMultilevelBipartitioner::initialize(
       << _ctx.partition.total_max_block_weights(first_sub_block, first_invalid_sub_block)
       << " into " << max_block_weights[0] << " and " << max_block_weights[1];
 
-  _p_ctx.setup(graph, std::move(max_block_weights), true);
+  if (_i_ctx.use_adaptive_epsilon) {
+    const double adaptive_epsilon = partitioning::compute_2way_adaptive_epsilon(
+        graph.total_node_weight(), num_sub_blocks, _ctx.partition
+    );
+    for (BlockWeight &max_block_weight : max_block_weights) {
+      max_block_weight *= (1.0 + adaptive_epsilon) / (1.0 + _ctx.partition.epsilon());
+    }
+    _p_ctx.setup(graph, std::move(max_block_weights), true);
+  } else {
+    _p_ctx.setup(graph, std::move(max_block_weights), true);
+  }
 
   _coarsener->init(graph);
   _refiner->init(graph);
@@ -143,11 +153,11 @@ const CSRGraph *InitialMultilevelBipartitioner::coarsen(InitialPartitionerTiming
 
     shrunk = new_c_graph != c_graph;
 
-    //DBG << "-> "                                              //
-        //<< "n=" << new_c_graph->n() << " "                    //
-        //<< "m=" << new_c_graph->m() << " "                    //
-        //<< "max_cluster_weight=" << max_cluster_weight << " " //
-        //<< ((shrunk) ? "" : "==> terminate");                 //
+    // DBG << "-> "                                              //
+    //<< "n=" << new_c_graph->n() << " "                    //
+    //<< "m=" << new_c_graph->m() << " "                    //
+    //<< "max_cluster_weight=" << max_cluster_weight << " " //
+    //<< ((shrunk) ? "" : "==> terminate");                 //
 
     if (shrunk) {
       c_graph = new_c_graph;
@@ -162,7 +172,7 @@ const CSRGraph *InitialMultilevelBipartitioner::coarsen(InitialPartitionerTiming
 }
 
 PartitionedCSRGraph InitialMultilevelBipartitioner::uncoarsen(PartitionedCSRGraph p_graph) {
-  //DBG << "Uncoarsen: n=" << p_graph.n() << " m=" << p_graph.m();
+  // DBG << "Uncoarsen: n=" << p_graph.n() << " m=" << p_graph.m();
 
   while (!_coarsener->empty()) {
     p_graph = _coarsener->uncoarsen(std::move(p_graph));
@@ -170,12 +180,12 @@ PartitionedCSRGraph InitialMultilevelBipartitioner::uncoarsen(PartitionedCSRGrap
     _refiner->init(p_graph.graph());
     _refiner->refine(p_graph, _p_ctx);
 
-    //DBG << "-> "                                                 //
-        //<< "n=" << p_graph.n() << " "                            //
-        //<< "m=" << p_graph.m() << " "                            //
-        //<< "cut=" << metrics::edge_cut_seq(p_graph) << " "       //
-        //<< "imbalance=" << metrics::imbalance(p_graph) << " "    //
-        //<< "feasible=" << metrics::is_feasible(p_graph, _p_ctx); //
+    // DBG << "-> "                                                 //
+    //<< "n=" << p_graph.n() << " "                            //
+    //<< "m=" << p_graph.m() << " "                            //
+    //<< "cut=" << metrics::edge_cut_seq(p_graph) << " "       //
+    //<< "imbalance=" << metrics::imbalance(p_graph) << " "    //
+    //<< "feasible=" << metrics::is_feasible(p_graph, _p_ctx); //
   }
 
   return p_graph;

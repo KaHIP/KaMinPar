@@ -63,7 +63,7 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
   const Graph *c_graph = &_input_graph;
   NodeID prev_c_graph_n = c_graph->n();
   EdgeID prev_c_graph_m = c_graph->m();
-  NodeWeight prev_c_graph_total_node_weight = c_graph->total_node_weight();
+  // NodeWeight prev_c_graph_total_node_weight = c_graph->total_node_weight();
 
   bool shrunk = true;
   bool search_subgraph_memory_size = true;
@@ -79,7 +79,7 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
     // if we need it for this graph (see below)
     prev_c_graph_n = c_graph->n();
     prev_c_graph_m = c_graph->m();
-    prev_c_graph_total_node_weight = c_graph->total_node_weight();
+    // prev_c_graph_total_node_weight = c_graph->total_node_weight();
 
     // Build next coarse graph
     shrunk = _coarsener->coarsen();
@@ -120,7 +120,7 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
                _input_ctx.coarsening,
                _input_ctx.partition,
                prev_c_graph_n,
-               prev_c_graph_total_node_weight
+               _input_ctx.partition.total_node_weight //prev_c_graph_total_node_weight
            );
     LOG;
   }
