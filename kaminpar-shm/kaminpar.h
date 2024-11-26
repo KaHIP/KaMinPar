@@ -8,6 +8,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -356,7 +357,7 @@ struct PartitionContext {
   BlockID k;
 
   [[nodiscard]] BlockWeight perfectly_balanced_block_weight(BlockID block) const {
-    return max_block_weight(block) / (1 + inferred_epsilon());
+    return std::ceil(1.0 * max_block_weight(block) / (1 + inferred_epsilon()));
   }
 
   [[nodiscard]] BlockWeight max_block_weight(BlockID block) const {
@@ -396,7 +397,7 @@ struct PartitionContext {
       bool relax_max_block_weights = false
   );
 
-//private:
+private:
   std::vector<BlockWeight> _max_block_weights{};
 
   BlockWeight _total_max_block_weights = 0;

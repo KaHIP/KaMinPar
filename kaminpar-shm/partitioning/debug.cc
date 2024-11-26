@@ -141,7 +141,6 @@ std::string describe_partition_context(const PartitionContext &p_ctx) {
     ss << p_ctx.perfectly_balanced_block_weight(block) << ", ";
   }
   ss << "\b\b]\n";
-  ss << "  Sum(max weights):  " << p_ctx._total_max_block_weights << "\n";
   return ss.str();
 }
 
@@ -186,7 +185,6 @@ describe_partition_state(const PartitionedGraph &p_graph, const PartitionContext
     ss << p_ctx.perfectly_balanced_block_weight(block) << ", ";
   }
   ss << "\b\b]\n";
-  ss << "  Sum(max weights):  " << p_ctx._total_max_block_weights << "\n";
   return ss.str();
 }
 
