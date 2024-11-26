@@ -127,7 +127,6 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
             p_graph,
             k_prime,
             _input_ctx,
-            p_ctx,
             _tmp_extraction_mem_pool_ets,
             _bipartitioner_pool,
             num_threads

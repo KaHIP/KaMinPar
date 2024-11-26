@@ -7,9 +7,8 @@
  ******************************************************************************/
 #pragma once
 
-#include <tbb/concurrent_vector.h>
+#include <tbb/enumerable_thread_specific.h>
 
-#include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/graphutils/subgraph_extractor.h"
 #include "kaminpar-shm/initial_partitioning/initial_bipartitioner_worker_pool.h"
 #include "kaminpar-shm/kaminpar.h"
@@ -24,40 +23,57 @@ PartitionContext create_kway_context(const Context &input_ctx, const Partitioned
 using SubgraphMemoryEts = tbb::enumerable_thread_specific<graph::SubgraphMemory>;
 using TemporarySubgraphMemoryEts = tbb::enumerable_thread_specific<graph::TemporarySubgraphMemory>;
 
+/**
+ * Peforms recursive bipartitioning on the blocks of `p_graph` to obtain a partition with
+ * `desired_k` blocks.
+ *
+ * In contrast to the non-lazy version, this function does not extract all block-induced subgraphs
+ * of `p_graph` in advance. Instead, it extracts the blocks one-by-one and immediately partitions
+ * them.
+ *
+ * @param p_graph The partitioned graph of which the blocks will be recursively bipartitioned.
+ * @param desired_k The number of blocks in the final partition.
+ * @param input_ctx The input context, used to compute max block weights.
+ * @param extraction_mem_pool_ets ...
+ * @param tmp_extraction_mem_pool_ets ...
+ * @param bipartitioner_pool The worker pool used to compute the bipartitions.
+ * @param num_active_threads The number of currently active threads (in this replication branch of
+ * deep multilevel).
+ */
 void extend_partition_lazy_extraction(
     PartitionedGraph &p_graph,
-    BlockID k_prime,
+    BlockID desired_k,
     const Context &input_ctx,
-    PartitionContext &current_p_ctx,
     SubgraphMemoryEts &extraction_mem_pool_ets,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
-    std::size_t num_active_threads
+    int num_active_threads
 );
 
+/**
+ * @deprecated Use `extend_partition_lazy_extraction` instead.
+ */
 void extend_partition(
     PartitionedGraph &p_graph,
-    BlockID k_prime,
+    BlockID desired_k,
     const Context &input_ctx,
-    PartitionContext &current_p_ctx,
     graph::SubgraphMemory &subgraph_memory,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
-    std::size_t num_active_threads
+    int num_active_threads
 );
 
+/**
+ * @deprecated Use `extend_partition_lazy_extraction` instead.
+ */
 void extend_partition(
     PartitionedGraph &p_graph,
-    BlockID k_prime,
+    BlockID desired_k,
     const Context &input_ctx,
-    PartitionContext &current_p_ctx,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
-    std::size_t num_active_threads
+    int num_active_threads
 );
-
-std::size_t
-select_best(const ScalableVector<PartitionedGraph> &p_graphs, const PartitionContext &p_ctx);
 
 template <typename Iterator>
 std::size_t select_best(
@@ -88,9 +104,9 @@ std::size_t select_best(
   return best_index;
 }
 
-inline bool parallel_ip_mode(const InitialPartitioningMode &mode) {
-  return mode == InitialPartitioningMode::ASYNCHRONOUS_PARALLEL ||
-         mode == InitialPartitioningMode::SYNCHRONOUS_PARALLEL;
+inline std::size_t
+select_best(const ScalableVector<PartitionedGraph> &p_graphs, const PartitionContext &p_ctx) {
+  return select_best(p_graphs.begin(), p_graphs.end(), p_ctx);
 }
 
 } // namespace kaminpar::shm::partitioning

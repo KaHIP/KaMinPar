@@ -150,7 +150,6 @@ PartitionedGraph KWayMultilevelPartitioner::initial_partition(const Graph *graph
       p_graph,
       _input_ctx.partition.k,
       _input_ctx,
-      _current_p_ctx,
       subgraph_memory,
       ip_extraction_pool_ets,
       _bipartitioner_pool,

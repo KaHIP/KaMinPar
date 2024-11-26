@@ -135,13 +135,12 @@ void extend_partition_recursive(
 
 void extend_partition_lazy_extraction(
     PartitionedGraph &p_graph, // stores current k
-    const BlockID k_prime,     // extend to this many blocks
+    const BlockID desired_k,   // extend to this many blocks
     const Context &input_ctx,  // stores input k
-    PartitionContext &current_p_ctx,
     SubgraphMemoryEts &extraction_mem_pool_ets,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
-    std::size_t num_active_threads
+    const int num_active_threads
 ) {
   if (input_ctx.partitioning.min_consecutive_seq_bipartitioning_levels > 0) {
     // Depending on the coarsening level and the deep multilevel implementation, it can occur that
@@ -154,12 +153,12 @@ void extend_partition_lazy_extraction(
     // more parallel compute resources.
     // @todo change async_initial_partitioning.{cc, h} to make this obsolete ...
     const int factor = 2 << (input_ctx.partitioning.min_consecutive_seq_bipartitioning_levels - 1);
-    while (k_prime > factor * p_graph.k() && num_active_threads > p_graph.k()) {
+    while (desired_k > factor * p_graph.k() &&
+           static_cast<BlockID>(num_active_threads) > p_graph.k()) {
       extend_partition_lazy_extraction(
           p_graph,
           factor * p_graph.k(),
           input_ctx,
-          current_p_ctx,
           extraction_mem_pool_ets,
           tmp_extraction_mem_pool_ets,
           bipartitioner_pool,
@@ -194,7 +193,7 @@ void extend_partition_lazy_extraction(
 
     tbb::parallel_for<BlockID>(0, k, [&](const BlockID b) {
       const BlockID final_kb = compute_final_k(b, k, input_ctx.partition.k);
-      const BlockID subgraph_k = (k_prime == input_ctx.partition.k) ? final_kb : k_prime / k;
+      const BlockID subgraph_k = (desired_k == input_ctx.partition.k) ? final_kb : desired_k / k;
       if (subgraph_k <= 1) {
         return;
       }
@@ -256,22 +255,21 @@ void extend_partition_lazy_extraction(
   TIMED_SCOPE("Copy subgraph partitions") {
     SCOPED_HEAP_PROFILER("Copy subgraph partitions");
     p_graph = graph::copy_subgraph_partitions(
-        std::move(p_graph), subgraph_partitions, k_prime, input_ctx.partition.k, mapping
+        std::move(p_graph), subgraph_partitions, desired_k, input_ctx.partition.k, mapping
     );
   };
 
-  KASSERT(p_graph.k() == k_prime);
+  KASSERT(p_graph.k() == desired_k);
 }
 
 void extend_partition(
     PartitionedGraph &p_graph, // stores current k
-    const BlockID k_prime,     // extend to this many blocks
+    const BlockID desired_k,   // extend to this many blocks
     const Context &input_ctx,  // stores input k
-    PartitionContext &current_p_ctx,
     graph::SubgraphMemory &subgraph_memory,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
-    std::size_t num_active_threads
+    const int num_active_threads
 ) {
   if (input_ctx.partitioning.min_consecutive_seq_bipartitioning_levels > 0) {
     // Depending on the coarsening level and the deep multilevel implementation, it can occur that
@@ -284,12 +282,12 @@ void extend_partition(
     // more parallel compute resources.
     // @todo change async_initial_partitioning.{cc, h} to make this obsolete ...
     const int factor = 2 << (input_ctx.partitioning.min_consecutive_seq_bipartitioning_levels - 1);
-    while (k_prime > factor * p_graph.k() && num_active_threads > p_graph.k()) {
+    while (desired_k > factor * p_graph.k() &&
+           static_cast<BlockID>(num_active_threads) > p_graph.k()) {
       extend_partition(
           p_graph,
           factor * p_graph.k(),
           input_ctx,
-          current_p_ctx,
           subgraph_memory,
           tmp_extraction_mem_pool_ets,
           bipartitioner_pool,
@@ -327,7 +325,7 @@ void extend_partition(
       const BlockID final_kb = compute_final_k(b, p_graph.k(), input_ctx.partition.k);
 
       const BlockID subgraph_k =
-          (k_prime == input_ctx.partition.k) ? final_kb : k_prime / p_graph.k();
+          (desired_k == input_ctx.partition.k) ? final_kb : desired_k / p_graph.k();
 
       if (subgraph_k > 1) {
         DBG << "initial extend_partition_recursive() for block " << b << ", final k " << final_kb
@@ -355,22 +353,21 @@ void extend_partition(
   TIMED_SCOPE("Copy subgraph partitions") {
     SCOPED_HEAP_PROFILER("Copy subgraph partitions");
     p_graph = graph::copy_subgraph_partitions(
-        std::move(p_graph), subgraph_partitions, k_prime, input_ctx.partition.k, mapping
+        std::move(p_graph), subgraph_partitions, desired_k, input_ctx.partition.k, mapping
     );
   };
 
-  KASSERT(p_graph.k() == k_prime);
+  KASSERT(p_graph.k() == desired_k);
 }
 
 // extend_partition with local memory allocation for subgraphs
 void extend_partition(
     PartitionedGraph &p_graph,
-    const BlockID k_prime,
+    const BlockID desired_k,
     const Context &input_ctx,
-    PartitionContext &current_p_ctx,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
-    std::size_t num_active_threads
+    const int num_active_threads
 ) {
   graph::SubgraphMemory memory;
 
@@ -384,19 +381,13 @@ void extend_partition(
 
   extend_partition(
       p_graph,
-      k_prime,
+      desired_k,
       input_ctx,
-      current_p_ctx,
       memory,
       tmp_extraction_mem_pool_ets,
       bipartitioner_pool,
       num_active_threads
   );
-}
-
-std::size_t
-select_best(const ScalableVector<PartitionedGraph> &p_graphs, const PartitionContext &p_ctx) {
-  return select_best(p_graphs.begin(), p_graphs.end(), p_ctx);
 }
 
 } // namespace kaminpar::shm::partitioning

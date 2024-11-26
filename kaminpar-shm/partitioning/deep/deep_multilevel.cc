@@ -145,10 +145,15 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
 }
 
 NodeID DeepMultilevelPartitioner::initial_partitioning_threshold() {
-  if (partitioning::parallel_ip_mode(_input_ctx.partitioning.deep_initial_partitioning_mode)) {
-    return _input_ctx.parallel.num_threads * _input_ctx.coarsening.contraction_limit; // p * C
-  } else {
-    return 2 * _input_ctx.coarsening.contraction_limit; // 2 * C
+  const auto mode = _input_ctx.partitioning.deep_initial_partitioning_mode;
+  const bool is_parallel_mode =
+      (mode == InitialPartitioningMode::SYNCHRONOUS_PARALLEL ||
+       mode == InitialPartitioningMode::ASYNCHRONOUS_PARALLEL);
+
+  if (is_parallel_mode) { // Parallel: copy for each thread once n <= p * C
+    return _input_ctx.parallel.num_threads * _input_ctx.coarsening.contraction_limit;
+  } else { // Sequential: coarsen until until n <= 2 * C
+    return 2 * _input_ctx.coarsening.contraction_limit;
   }
 }
 
@@ -281,7 +286,8 @@ void DeepMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
   // If requested, dump the current partition to disk before refinement ...
   debug::dump_partition_hierarchy(p_graph, _coarsener->level(), "pre-refinement", _input_ctx);
 
-  LOG << "[DBG] " << _current_p_ctx.max_block_weight(0) << " " << _current_p_ctx.perfectly_balanced_block_weight(0);
+  LOG << "[DBG] " << _current_p_ctx.max_block_weight(0) << " "
+      << _current_p_ctx.perfectly_balanced_block_weight(0);
   LOG << "  Running refinement on " << p_graph.k() << " blocks";
   _refiner->initialize(p_graph);
   _refiner->refine(p_graph, _current_p_ctx);
@@ -306,7 +312,6 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
         p_graph,
         k_prime,
         _input_ctx,
-        _current_p_ctx,
         _extraction_mem_pool_ets,
         _tmp_extraction_mem_pool_ets,
         _bipartitioner_pool,
@@ -317,7 +322,6 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
         p_graph,
         k_prime,
         _input_ctx,
-        _current_p_ctx,
         _subgraph_memory,
         _tmp_extraction_mem_pool_ets,
         _bipartitioner_pool,
