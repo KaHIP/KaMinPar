@@ -374,6 +374,10 @@ struct PartitionContext {
     return (1.0 * _total_max_block_weights / total_node_weight) - 1.0;
   }
 
+  [[nodiscard]] double infer_epsilon(const NodeWeight actual_total_node_weight) const {
+    return (1.0 * _total_max_block_weights / actual_total_node_weight) - 1.0;
+  }
+
   [[nodiscard]] double inferred_epsilon() const {
     return epsilon();
   }

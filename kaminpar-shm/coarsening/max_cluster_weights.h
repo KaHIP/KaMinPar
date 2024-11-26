@@ -13,6 +13,7 @@
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
+
 template <typename NodeWeight, typename PartitionContext>
 NodeWeight compute_max_cluster_weight(
     const CoarseningContext &c_ctx,
@@ -24,7 +25,7 @@ NodeWeight compute_max_cluster_weight(
 
   switch (c_ctx.clustering.cluster_weight_limit) {
   case ClusterWeightLimit::EPSILON_BLOCK_WEIGHT:
-    max_cluster_weight = (p_ctx.inferred_epsilon() * total_node_weight) /
+    max_cluster_weight = (p_ctx.infer_epsilon(total_node_weight) * total_node_weight) /
                          std::clamp<BlockID>(n / c_ctx.contraction_limit, 2, p_ctx.k);
     break;
 
@@ -74,4 +75,5 @@ NodeWeight compute_max_cluster_weight(
 
   return static_cast<NodeWeight>(max_cluster_weight * c_ctx.cluster_weight_multiplier);
 }
+
 } // namespace kaminpar::shm
