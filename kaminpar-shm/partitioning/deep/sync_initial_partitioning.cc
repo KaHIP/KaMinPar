@@ -57,8 +57,6 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
         compute_num_copies(_input_ctx, n, converged, num_current_threads);
     num_local_copies_record.push_back(num_local_copies);
 
-    DBG << V(num_current_copies) << V(num_threads) << V(num_current_threads) << V(num_local_copies);
-
     // Create coarseners and partition contexts for next coarsening iteration
     coarseners.emplace_back(num_current_copies * num_local_copies);
     auto &next_coarseners = coarseners.back();
@@ -103,12 +101,13 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
 
     auto &current_coarseners = coarseners.back();
 
-    // uncoarsen and refine
+    // Uncoarsen and refine
     tbb::parallel_for(static_cast<std::size_t>(0), num_current_copies, [&](const std::size_t i) {
       auto &p_graph = current_p_graphs[i];
       auto &coarsener = current_coarseners[i];
       auto &p_ctx = current_p_ctxs[i];
       p_graph = coarsener->uncoarsen(std::move(p_graph));
+      p_ctx = create_kway_context(_input_ctx, p_graph);
 
       // The Context object is used to pre-allocate memory for the finest graph of the input
       // hierarchy Since this refiner is never used for the finest graph, we need to adjust the
@@ -116,6 +115,7 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
       Context small_ctx = _input_ctx;
       small_ctx.partition.n = p_graph.n();
       small_ctx.partition.m = p_graph.m();
+
       auto refiner = factory::create_refiner(small_ctx);
       refiner->initialize(p_graph);
       refiner->refine(p_graph, p_ctx);
@@ -132,6 +132,7 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
             _bipartitioner_pool,
             num_threads
         );
+        p_ctx = create_kway_context(_input_ctx, p_graph);
       }
     });
 
