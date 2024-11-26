@@ -17,7 +17,7 @@ namespace kaminpar::shm::partitioning {
 
 namespace {
 
-SET_DEBUG(true);
+SET_DEBUG(false);
 SET_STATISTICS_FROM_GLOBAL();
 
 } // namespace
