@@ -373,16 +373,25 @@ struct PartitionContext {
     );
   }
 
+  [[nodiscard]] BlockWeight total_unrelaxed_max_block_weights(const BlockID begin, const BlockID end) const {
+    return std::accumulate(
+        _unrelaxed_max_block_weights.begin() + begin,
+        _unrelaxed_max_block_weights.begin() + end,
+        static_cast<BlockWeight>(0)
+    );
+  }
+
   [[nodiscard]] double epsilon() const {
-    return _epsilon < 0.0 ? inferred_epsilon() : _epsilon;
+    //return _epsilon < 0.0 ? inferred_epsilon() : _epsilon;
+    return inferred_epsilon();
   }
 
   [[nodiscard]] double infer_epsilon(const NodeWeight actual_total_node_weight) const {
-    return 1.0 * _total_max_block_weights / actual_total_node_weight;
+    return 1.0 * _total_max_block_weights / actual_total_node_weight - 1.0;
   }
 
   [[nodiscard]] double inferred_epsilon() const {
-    return 1.0 * _total_max_block_weights / total_node_weight;
+    return 1.0 * _total_max_block_weights / total_node_weight - 1.0;
   }
 
   void set_epsilon(const double eps) {
@@ -407,6 +416,7 @@ struct PartitionContext {
 
 private:
   std::vector<BlockWeight> _max_block_weights{};
+  std::vector<BlockWeight> _unrelaxed_max_block_weights{};
 
   BlockWeight _total_max_block_weights = 0;
   double _epsilon = -1.0;

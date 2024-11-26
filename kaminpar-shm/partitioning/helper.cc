@@ -34,7 +34,8 @@ PartitionContext create_kway_context(const Context &input_ctx, const Partitioned
     const BlockID end = cur_fine_block + num;
     cur_fine_block += num;
 
-    max_block_weights[coarse_block] = input_ctx.partition.total_max_block_weights(begin, end);
+    max_block_weights[coarse_block] =
+        input_ctx.partition.total_unrelaxed_max_block_weights(begin, end);
 
     if (p_graph.k() != input_ctx.partition.k) { // @todo
       max_block_weights[coarse_block] += end - begin;

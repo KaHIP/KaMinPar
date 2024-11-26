@@ -53,8 +53,10 @@ void PartitionContext::setup(
   total_edge_weight = graph.total_edge_weight();
   max_node_weight = graph.max_node_weight();
 
+
   k = static_cast<BlockID>(max_block_weights.size());
   _max_block_weights = std::move(max_block_weights);
+  _unrelaxed_max_block_weights = _max_block_weights;
   _total_max_block_weights = std::accumulate(
       _max_block_weights.begin(), _max_block_weights.end(), static_cast<BlockWeight>(0)
   );
