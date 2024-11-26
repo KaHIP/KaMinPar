@@ -21,7 +21,9 @@
 namespace kaminpar::shm {
 
 namespace {
+
 SET_DEBUG(false);
+
 }
 
 ClusteringCoarsener::ClusteringCoarsener(const Context &ctx, const PartitionContext &p_ctx)

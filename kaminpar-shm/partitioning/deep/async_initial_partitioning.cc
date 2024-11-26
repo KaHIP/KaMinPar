@@ -66,6 +66,8 @@ PartitionedGraph AsyncInitialPartitioner::partition_recursive(
   Context small_ctx = _input_ctx;
   small_ctx.partition.n = p_graph.n();
   small_ctx.partition.m = p_graph.m();
+
+  p_ctx = create_kway_context(_input_ctx, p_graph);
   auto refiner = factory::create_refiner(small_ctx);
   refiner->initialize(p_graph);
   refiner->refine(p_graph, p_ctx);
@@ -85,6 +87,7 @@ PartitionedGraph AsyncInitialPartitioner::partition_recursive(
         _bipartitioner_pool,
         num_threads
     );
+    p_ctx = create_kway_context(_input_ctx, p_graph);
   }
 
   return p_graph;
@@ -107,17 +110,17 @@ PartitionedGraph AsyncInitialPartitioner::split_and_join(
 
   for (std::size_t copy = 0; copy < num_copies; ++copy) {
     tg.run([this,
-            copy,
+            copy, // `copy` must be captured by value
             coarsener,
             threads_per_copy,
             &p_graphs,
-            &p_ctx_copies] { // must capture copy by value!
+            &p_ctx_copies] {
       p_graphs[copy] = partition_recursive(coarsener, p_ctx_copies[copy], threads_per_copy);
     });
   }
   tg.wait();
 
-  // select best result
+  // Select best result
   const std::size_t best = select_best(p_graphs, p_ctx);
   return std::move(p_graphs[best]);
 }
