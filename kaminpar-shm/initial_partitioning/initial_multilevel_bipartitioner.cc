@@ -82,8 +82,17 @@ void InitialMultilevelBipartitioner::initialize(
     for (BlockWeight &max_block_weight : max_block_weights) {
       max_block_weight *= (1.0 + adaptive_epsilon) / (1.0 + _ctx.partition.epsilon());
     }
+
+    DBG << "-> adapt epsilon from " << _ctx.partition.epsilon() << " to " << adaptive_epsilon
+        << ", chaning max block weights to " << max_block_weights[0] << " and "
+        << max_block_weights[1];
+
     _p_ctx.setup(graph, std::move(max_block_weights), true);
   } else {
+    DBG << "-> using original epsilon: " << _ctx.partition.epsilon()
+        << ", inferred from max block weights " << max_block_weights[0] << " and "
+        << max_block_weights[1];
+
     _p_ctx.setup(graph, std::move(max_block_weights), true);
   }
 
