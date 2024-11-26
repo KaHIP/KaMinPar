@@ -32,6 +32,8 @@ void PartitionContext::setup(
     const double epsilon,
     const bool relax_max_block_weights
 ) {
+  _epsilon = epsilon;
+
   // this->total_node_weight not yet initialized: use graph.total_node_weight instead
   const BlockWeight perfectly_balanced_block_weight =
       std::ceil(1.0 * graph.total_node_weight() / k);
@@ -46,6 +48,7 @@ void PartitionContext::setup(
 ) {
   n = graph.n();
   m = graph.m();
+  original_total_node_weight = graph.total_node_weight();
   total_node_weight = graph.total_node_weight();
   total_edge_weight = graph.total_edge_weight();
   max_node_weight = graph.max_node_weight();

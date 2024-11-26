@@ -250,6 +250,8 @@ PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) 
     }
   }
 
+  _current_p_ctx = create_kway_context(_input_ctx, p_graph);
+
   if (!refined || p_graph.k() < _input_ctx.partition.k) {
     SCOPED_HEAP_PROFILER("Toplevel");
 
@@ -279,6 +281,7 @@ void DeepMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
   // If requested, dump the current partition to disk before refinement ...
   debug::dump_partition_hierarchy(p_graph, _coarsener->level(), "pre-refinement", _input_ctx);
 
+  LOG << "[DBG] " << _current_p_ctx.max_block_weight(0) << " " << _current_p_ctx.perfectly_balanced_block_weight(0);
   LOG << "  Running refinement on " << p_graph.k() << " blocks";
   _refiner->initialize(p_graph);
   _refiner->refine(p_graph, _current_p_ctx);

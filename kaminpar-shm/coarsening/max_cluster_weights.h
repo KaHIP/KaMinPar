@@ -25,12 +25,12 @@ NodeWeight compute_max_cluster_weight(
 
   switch (c_ctx.clustering.cluster_weight_limit) {
   case ClusterWeightLimit::EPSILON_BLOCK_WEIGHT:
-    max_cluster_weight = (p_ctx.infer_epsilon(total_node_weight) * total_node_weight) /
+    max_cluster_weight = (p_ctx.epsilon() * total_node_weight) /
                          std::clamp<BlockID>(n / c_ctx.contraction_limit, 2, p_ctx.k);
     break;
 
   case ClusterWeightLimit::BLOCK_WEIGHT:
-    max_cluster_weight = (1.0 + p_ctx.inferred_epsilon()) * total_node_weight / p_ctx.k;
+    max_cluster_weight = (1.0 + p_ctx.epsilon()) * total_node_weight / p_ctx.k;
     break;
 
   case ClusterWeightLimit::ONE:

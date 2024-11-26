@@ -350,6 +350,7 @@ struct InitialPartitioningContext {
 struct PartitionContext {
   NodeID n = kInvalidNodeID;
   EdgeID m = kInvalidEdgeID;
+  NodeWeight original_total_node_weight = kInvalidNodeWeight;
   NodeWeight total_node_weight = kInvalidNodeWeight;
   EdgeWeight total_edge_weight = kInvalidEdgeWeight;
   NodeWeight max_node_weight = kInvalidNodeWeight;
@@ -373,15 +374,22 @@ struct PartitionContext {
   }
 
   [[nodiscard]] double epsilon() const {
-    return (1.0 * _total_max_block_weights / total_node_weight) - 1.0;
+    return _epsilon < 0.0 ? inferred_epsilon() : _epsilon;
   }
 
   [[nodiscard]] double infer_epsilon(const NodeWeight actual_total_node_weight) const {
-    return (1.0 * _total_max_block_weights / actual_total_node_weight) - 1.0;
+    return 1.0 * _total_max_block_weights / actual_total_node_weight;
   }
 
   [[nodiscard]] double inferred_epsilon() const {
-    return epsilon();
+    return 1.0 * _total_max_block_weights / total_node_weight;
+  }
+
+  void set_epsilon(const double eps) {
+    _epsilon = eps;
+  }
+  [[nodiscard]] bool has_epsilon() const {
+    return _epsilon > 0.0;
   }
 
   void setup(
@@ -401,6 +409,7 @@ private:
   std::vector<BlockWeight> _max_block_weights{};
 
   BlockWeight _total_max_block_weights = 0;
+  double _epsilon = -1.0;
 };
 
 struct ParallelContext {
