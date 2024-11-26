@@ -7,7 +7,7 @@
  ******************************************************************************/
 #include "kaminpar-shm/refinement/multi_refiner.h"
 
-#include "kaminpar-shm/context.h"
+#include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/refinement/refiner.h"
 

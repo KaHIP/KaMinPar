@@ -12,8 +12,8 @@
 #include <string>
 #include <vector>
 
-#include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/strutils.h"

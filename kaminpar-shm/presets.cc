@@ -11,7 +11,7 @@
 #include <string>
 #include <unordered_set>
 
-#include "kaminpar-shm/context.h"
+#include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
 

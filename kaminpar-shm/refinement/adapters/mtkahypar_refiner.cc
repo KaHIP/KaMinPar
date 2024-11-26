@@ -7,8 +7,8 @@
  ******************************************************************************/
 #include "kaminpar-shm/refinement/adapters/mtkahypar_refiner.h"
 
-#include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/logger.h"
 
