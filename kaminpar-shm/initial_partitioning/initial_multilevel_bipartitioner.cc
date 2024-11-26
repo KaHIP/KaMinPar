@@ -76,11 +76,16 @@ void InitialMultilevelBipartitioner::initialize(
       << " into " << max_block_weights[0] << " and " << max_block_weights[1];
 
   if (_i_ctx.use_adaptive_epsilon) {
+      const double ratio_block0 = 1.0 * max_block_weights[0] / (max_block_weights[0] + max_block_weights[1]);
+      const double ratio_block1 = 1.0 * max_block_weights[1] / (max_block_weights[0] + max_block_weights[1]);
+      
     const double adaptive_epsilon = partitioning::compute_2way_adaptive_epsilon(
         graph.total_node_weight(), num_sub_blocks, _ctx.partition
     );
-    for (BlockWeight &max_block_weight : max_block_weights) {
-      max_block_weight *= (1.0 + adaptive_epsilon) / (1.0 + _ctx.partition.epsilon());
+
+    for (const BlockID block : {0, 1}) {
+        max_block_weights[block] = (1.0 + adaptive_epsilon) * graph.total_node_weight() * (block == 0 ? ratio_block0 : ratio_block1);
+      //max_block_weight *= (1.0 + adaptive_epsilon) / (1.0 + _ctx.partition.epsilon());
     }
 
     DBG << "-> adapt epsilon from " << _ctx.partition.epsilon() << " to " << adaptive_epsilon
