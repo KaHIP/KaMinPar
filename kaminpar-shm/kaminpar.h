@@ -358,7 +358,7 @@ struct PartitionContext {
   BlockID k;
 
   [[nodiscard]] BlockWeight perfectly_balanced_block_weight(BlockID block) const {
-    return std::ceil(1.0 * max_block_weight(block) / (1 + inferred_epsilon()));
+    return std::ceil(1.0 * max_block_weight(block) / (1 + epsilon()));
   }
 
   [[nodiscard]] BlockWeight max_block_weight(BlockID block) const {
