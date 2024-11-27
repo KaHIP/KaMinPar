@@ -40,16 +40,36 @@ PartitionedGraph VcycleDeepMultilevelPartitioner::partition() {
 
   for (const BlockID current_k : steps) {
     {
-      std::vector<BlockWeight> max_block_weights(current_k);
-      BlockID cur_begin = 0;
-      for (BlockID b = 0; b < current_k; ++b) {
-        const BlockID num_sub_blocks =
-            partitioning::compute_final_k(b, current_k, _input_ctx.partition.k);
-        const BlockID cur_end = cur_begin + num_sub_blocks;
-        max_block_weights[b] =
-            _input_ctx.partition.total_unrelaxed_max_block_weights(cur_begin, cur_end);
+      const int level = math::floor_log2(current_k);
+      const BlockID expanded_blocks = current_k - (1 << level);
 
-        cur_begin = cur_end;
+      std::vector<BlockWeight> max_block_weights(current_k);
+      if (current_k == _input_ctx.partition.k) {
+        for (BlockID b = 0; b < current_k; ++b) {
+          max_block_weights[b] = _input_ctx.partition.max_block_weight(b);
+        }
+      } else {
+        BlockID cur_begin = 0;
+        for (BlockID b = 0; b < current_k; ++b) {
+          const BlockID num_sub_blocks = [&] {
+            if (b < 2 * expanded_blocks) {
+              const BlockID next_k = std::min(math::ceil2(current_k), _input_ctx.partition.k);
+              return partitioning::compute_final_k(b, next_k, _input_ctx.partition.k);
+            } else {
+              return partitioning::compute_final_k(
+                  b - expanded_blocks, math::floor2(current_k), _input_ctx.partition.k
+              );
+            }
+          }();
+
+          LOG << num_sub_blocks;
+
+          const BlockID cur_end = cur_begin + num_sub_blocks;
+          max_block_weights[b] =
+              _input_ctx.partition.total_unrelaxed_max_block_weights(cur_begin, cur_end);
+
+          cur_begin = cur_end;
+        }
       }
       ctx.partition.setup(_input_graph, std::move(max_block_weights));
     }
