@@ -140,6 +140,33 @@ void print_statistics(
   } else {
     LOG << logger::RED << "  Feasible:         no";
   }
+
+  if (p_graph.k() <= 128) {
+    LOG;
+
+    const int block_id_width = std::log10(p_graph.k()) + 1;
+    const int block_weight_width = std::log10(ctx.partition.original_total_node_weight) + 1;
+
+    constexpr BlockID max_displayed_weights = 128;
+    for (BlockID b = 0; b < std::min<BlockID>(p_graph.k(), max_displayed_weights); ++b) {
+      std::stringstream ss;
+      ss << "w(" << std::left << std::setw(block_id_width) << b
+         << ") = " << std::setw(block_weight_width) << p_graph.block_weight(b) << "\t";
+      if (p_graph.block_weight(b) > ctx.partition.max_block_weight(b)) {
+        LLOG << logger::RED << ss.str() << " ";
+      } else {
+        LLOG << ss.str() << " ";
+      }
+      if ((b % 4) == 3) {
+        LOG;
+      }
+    }
+    if (p_graph.k() > max_displayed_weights) {
+      LOG << "(only showing the first " << max_displayed_weights << " of " << p_graph.k()
+          << " blocks)";
+    }
+    LOG;
+  }
 }
 
 } // namespace
