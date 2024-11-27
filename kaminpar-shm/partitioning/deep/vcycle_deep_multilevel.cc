@@ -14,7 +14,7 @@ namespace kaminpar::shm {
 
 namespace {
 
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 std::vector<BlockWeight> compute_max_block_weights(
     const BlockID current_k,
@@ -56,6 +56,7 @@ std::vector<BlockWeight> compute_max_block_weights(
       cur_begin = cur_end;
     }
   }
+  DBG << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~";
   return max_block_weights;
 }
 

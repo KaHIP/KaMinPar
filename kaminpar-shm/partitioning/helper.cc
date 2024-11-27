@@ -18,7 +18,7 @@ namespace kaminpar::shm::partitioning {
 
 namespace {
 
-SET_DEBUG(true);
+SET_DEBUG(false);
 SET_STATISTICS_FROM_GLOBAL();
 
 } // namespace
@@ -479,9 +479,9 @@ void complete_partial_extend_partition(
       const auto subgraph =
           graph::extract_subgraph(p_graph, b, local_block_nodes, mapping, subgraph_memory);
 
-      DBG << "initial extend_partition_recursive() for block " << b << ", final k " << final_kb
-          << ", subgraph k " << subgraph_k << ", weight " << p_graph.block_weight(b) << " of "
-          << subgraph.total_node_weight();
+      DBG << "Initial extend_partition_recursive() for abs block " << b << " with final k "
+          << final_kb << ", subgraph k " << subgraph_k << ", weight " << p_graph.block_weight(b)
+          << " of " << subgraph.total_node_weight();
 
       extend_partition_recursive(
           subgraph,
