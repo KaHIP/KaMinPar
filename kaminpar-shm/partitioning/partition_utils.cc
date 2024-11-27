@@ -50,7 +50,33 @@ BlockID compute_final_k(const BlockID block, const BlockID current_k, const Bloc
 }
 
 // @todo optimize
-BlockID compute_first_sub_block(BlockID block, BlockID current_k, BlockID input_k) {
+BlockID
+compute_first_sub_block(const BlockID block, const BlockID current_k, const BlockID input_k) {
+  KASSERT(current_k > 0, "", assert::always);
+
+  if (current_k == 1) {
+    return 0;
+  }
+
+  int level = math::ceil_log2(current_k);
+  int mask = 1 << (level - 1);
+
+  BlockID width = 1;
+  BlockID current_value = input_k;
+  BlockID ans = 0;
+  while (width <= current_k) {
+    width *= 2;
+    auto [lhs, rhs] = math::split_integral(current_value);
+    if (block & mask) {
+      current_value = rhs;
+      ans += lhs;
+    } else {
+      current_value = lhs;
+    }
+    mask >>= 1;
+  }
+  return ans;
+  //
   BlockID first_sub_block = 0;
   for (BlockID b = 0; b < block; ++b) {
     first_sub_block += compute_final_k(b, current_k, input_k);
@@ -58,8 +84,11 @@ BlockID compute_first_sub_block(BlockID block, BlockID current_k, BlockID input_
   return first_sub_block;
 }
 
-BlockID compute_first_invalid_sub_block(BlockID block, BlockID current_k, BlockID input_k) {
-  return compute_first_sub_block(block + 1, current_k, input_k);
+BlockID compute_first_invalid_sub_block(
+    const BlockID block, const BlockID current_k, const BlockID input_k
+) {
+  return compute_first_sub_block(block, current_k, input_k) +
+         compute_final_k(block, current_k, input_k);
 }
 
 BlockID compute_k_for_n(const NodeID n, const Context &input_ctx) {
