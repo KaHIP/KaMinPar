@@ -45,10 +45,10 @@ DeepMultilevelPartitioner::DeepMultilevelPartitioner(
 }
 
 void DeepMultilevelPartitioner::use_communities(
-    const std::span<const NodeID> communities, const NodeID num_communities
+    const std::span<const NodeID> communities, const PartitionContext &community_p_ctx
 ) {
   _coarsener->use_communities(communities);
-  _num_communities = num_communities;
+  _community_p_ctx = community_p_ctx;
 }
 
 PartitionedGraph DeepMultilevelPartitioner::partition() {
@@ -159,7 +159,7 @@ NodeID DeepMultilevelPartitioner::initial_partitioning_threshold() {
   if (is_parallel_mode) { // Parallel: copy for each thread once n <= p * C
     return _input_ctx.parallel.num_threads * _input_ctx.coarsening.contraction_limit;
   } else if (mode == InitialPartitioningMode::COMMUNITIES) {
-    return _input_ctx.coarsening.contraction_limit * _num_communities;
+    return _input_ctx.coarsening.contraction_limit * _community_p_ctx.k;
   } else { // Sequential: coarsen until until n <= 2 * C
     return 2 * _input_ctx.coarsening.contraction_limit;
   }
@@ -215,8 +215,14 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
   }();
   ENABLE_TIMERS();
 
-  // @todo for communities
-  _current_p_ctx = create_kway_context(_input_ctx, p_graph);
+  if (_input_ctx.partitioning.deep_initial_partitioning_mode ==
+      InitialPartitioningMode::COMMUNITIES) {
+    _current_p_ctx = _community_p_ctx;
+  } else {
+    _current_p_ctx = create_kway_context(_input_ctx, p_graph);
+  }
+
+  DBG << "Partition state after initial partitioning:";
   DBG << debug::describe_partition_state(p_graph, _current_p_ctx);
 
   // Print some metrics for the initial partition.
@@ -245,7 +251,7 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition_by_communities(con
   StaticArray<BlockID> partition = copy_coarsest_communities();
   KASSERT(partition.size() == graph->n());
 
-  PartitionedGraph p_graph(*graph, static_cast<BlockID>(_num_communities), std::move(partition));
+  PartitionedGraph p_graph(*graph, static_cast<BlockID>(_community_p_ctx.k), std::move(partition));
   return p_graph;
 }
 
@@ -304,10 +310,10 @@ void DeepMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
   SCOPED_HEAP_PROFILER("Refinement");
   SCOPED_TIMER("Refinement");
 
-  if (_input_ctx.partitioning.restrict_vcycle_refinement && _num_communities > 0) {
+  if (_input_ctx.partitioning.restrict_vcycle_refinement && _community_p_ctx.k > 0) {
     // If we are not allowed to move nodes between communities, and we only have one block per
     // community, refinement is pointless
-    if (p_graph.k() == _num_communities) {
+    if (p_graph.k() == _community_p_ctx.k) {
       return;
     }
 
@@ -345,6 +351,7 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
   // current level of the recursion tree to obtain a power-of-two block count.
   if (_input_ctx.partitioning.deep_initial_partitioning_mode ==
       InitialPartitioningMode::COMMUNITIES) {
+    [[maybe_unused]] const BlockID extended_from = p_graph.k();
     partitioning::complete_partial_extend_partition(
         p_graph,
         _input_ctx,
@@ -353,7 +360,8 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
         _bipartitioner_pool
     );
     _current_p_ctx = create_kway_context(_input_ctx, p_graph);
-    DBG << "Partition state after partial extend completion to " << k_prime << " blocks:";
+    DBG << "Partition state after completing partial partition extend from " << extended_from
+        << " to " << p_graph.k() << " blocks:";
     DBG << debug::describe_partition_state(p_graph, _current_p_ctx);
   }
 

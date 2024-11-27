@@ -71,7 +71,6 @@ PartitionedGraph VcycleDeepMultilevelPartitioner::partition() {
   // Need two copies of the same thing since BlockID and NodeID could be different types
   StaticArray<NodeID> communities;
   StaticArray<BlockID> partition(_input_graph.n());
-  BlockID prev_k = 0;
 
   std::vector<BlockID> steps = _input_ctx.partitioning.vcycles;
   if (steps.empty() || steps.back() != _input_ctx.partition.k) {
@@ -98,11 +97,15 @@ PartitionedGraph VcycleDeepMultilevelPartitioner::partition() {
 
   std::reverse(vcycle_block_weights.begin(), vcycle_block_weights.end());
 
-  std::size_t i = 0;
-  for (const BlockID _ : steps) {
-    {
-      ctx.partition.set_epsilon(-1.0);
-      ctx.partition.setup(_input_graph, std::move(vcycle_block_weights[i++]));
+  PartitionContext prev_p_ctx = {};
+
+  for (std::size_t i = 0; i < steps.size(); ++i) {
+    ctx.partition.set_epsilon(-1.0);
+    ctx.partition.setup(_input_graph, std::move(vcycle_block_weights[i]));
+
+    DBG << "Block weights: ";
+    for (BlockID b = 0; b < steps[i]; ++b) {
+      DBG << "w(" << b << "): max: " << ctx.partition.max_block_weight(b);
     }
 
     if (communities.empty()) {
@@ -114,8 +117,8 @@ PartitionedGraph VcycleDeepMultilevelPartitioner::partition() {
 
     DeepMultilevelPartitioner partitioner(_input_graph, ctx);
     partitioner.enable_metrics_output();
-    if (prev_k > 0) {
-      partitioner.use_communities(communities, prev_k);
+    if (i > 0) {
+      partitioner.use_communities(communities, prev_p_ctx);
     }
     PartitionedGraph p_graph = partitioner.partition();
 
@@ -153,7 +156,8 @@ PartitionedGraph VcycleDeepMultilevelPartitioner::partition() {
       communities[u] = p_graph.block(u);
       partition[u] = p_graph.block(u);
     });
-    prev_k = p_graph.k();
+
+    prev_p_ctx = ctx.partition;
   }
 
   return {_input_graph, _input_ctx.partition.k, std::move(partition)};

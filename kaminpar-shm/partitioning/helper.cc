@@ -509,9 +509,13 @@ void complete_partial_extend_partition(
       if (b < 2 * expanded_blocks) {
         k0[b + 1] = 1;
       } else {
-        k0[b + 1] = compute_final_k(b - expanded_blocks, prev_current_k, input_ctx.partition.k);
+        k0[b + 1] = std::min<BlockID>(
+            2, compute_final_k(b - expanded_blocks, prev_current_k, input_ctx.partition.k)
+        );
       }
     }
+
+    DBG << "Block offsets: " << k0;
 
     parallel::prefix_sum(k0.begin(), k0.end(), k0.begin());
 

@@ -32,7 +32,8 @@ public:
   DeepMultilevelPartitioner(DeepMultilevelPartitioner &&) = delete;
   DeepMultilevelPartitioner &operator=(DeepMultilevelPartitioner &&) = delete;
 
-  void use_communities(std::span<const NodeID> communities, NodeID num_communities);
+  void
+  use_communities(std::span<const NodeID> communities, const PartitionContext &community_p_ctx);
 
   PartitionedGraph partition() final;
 
@@ -73,7 +74,7 @@ private:
   partitioning::TemporarySubgraphMemoryEts _tmp_extraction_mem_pool_ets;
   InitialBipartitionerWorkerPool _bipartitioner_pool;
 
-  NodeID _num_communities = 0;
+  PartitionContext _community_p_ctx = {};
 };
 
 } // namespace kaminpar::shm

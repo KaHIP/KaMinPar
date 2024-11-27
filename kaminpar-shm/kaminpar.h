@@ -356,7 +356,7 @@ struct PartitionContext {
   EdgeWeight total_edge_weight = kInvalidEdgeWeight;
   NodeWeight max_node_weight = kInvalidNodeWeight;
 
-  BlockID k;
+  BlockID k = 0;
 
   [[nodiscard]] BlockWeight perfectly_balanced_block_weight(BlockID block) const {
     return std::ceil(1.0 * max_block_weight(block) / (1 + inferred_epsilon()));
