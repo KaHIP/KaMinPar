@@ -57,6 +57,7 @@ struct ApplicationContext {
 
   BlockID k = 0;
   double epsilon = 0.03;
+  std::vector<BlockWeight> max_block_weights = {};
 
   bool quiet = false;
   bool experiment = false;
@@ -116,8 +117,17 @@ The output should be stored in a file and can be used by the -C,--config option.
   cli.add_option(
          "-e,--epsilon",
          app.epsilon,
-         "Maximum allowed imbalance, e.g. 0.03 for 3%. Must be strictly "
-         "positive."
+         "Maximum allowed imbalance, e.g. 0.03 for 3%. Must be greater than 0%. If maximum block "
+         "weights are specified explicitly via the --block-weights<...> flag, this option will be "
+         "ignored."
+  )
+      ->check(CLI::NonNegativeNumber)
+      ->capture_default_str();
+  cli.add_option(
+         "-B,--block-weights",
+         app.max_block_weights,
+         "Explicit maximum block weights, one weight for each block of the partition. Must specify "
+         "either zero or k weights. If specified, the --epsilon flag will be ignored."
   )
       ->check(CLI::NonNegativeNumber)
       ->capture_default_str();
@@ -424,7 +434,17 @@ int main(int argc, char *argv[]) {
 
   // Compute partition
   partitioner.set_graph(std::move(graph));
-  partitioner.compute_partition(app.k, app.epsilon, partition.data());
+  if (app.max_block_weights.size() == app.k) {
+    partitioner.compute_partition(std::move(app.max_block_weights), partition.data());
+  } else {
+    if (!app.max_block_weights.empty()) {
+      LOG_WARNING << "Ignoring explicitly specified block weights, as the number of weights ("
+                  << app.max_block_weights.size() << ") does not mach the number of blocks ("
+                  << app.k << ").";
+    }
+
+    partitioner.compute_partition(app.k, app.epsilon, partition.data());
+  }
 
   // Save graph partition
   if (!app.partition_filename.empty()) {
