@@ -8,10 +8,12 @@
  ******************************************************************************/
 #pragma once
 
+#include "kaminpar-shm/coarsening/coarsener.h"
 #include "kaminpar-shm/initial_partitioning/initial_bipartitioner_worker_pool.h"
 #include "kaminpar-shm/partitioning/helper.h"
 
 namespace kaminpar::shm::partitioning {
+
 class SyncInitialPartitioner {
 public:
   SyncInitialPartitioner(
@@ -29,4 +31,5 @@ private:
   InitialBipartitionerWorkerPool &_bipartitioner_pool;
   TemporarySubgraphMemoryEts &_tmp_extraction_mem_pool_ets;
 };
+
 } // namespace kaminpar::shm::partitioning

@@ -14,13 +14,17 @@
 #include <tbb/task_group.h>
 #include <tbb/task_scheduler_observer.h>
 
+#include "kaminpar-shm/coarsening/coarsener.h"
 #include "kaminpar-shm/factories.h"
 #include "kaminpar-shm/initial_partitioning/initial_bipartitioner_worker_pool.h"
 #include "kaminpar-shm/partitioning/partition_utils.h"
 
 namespace kaminpar::shm::partitioning {
+
 namespace {
+
 SET_DEBUG(true);
+
 }
 
 AsyncInitialPartitioner::AsyncInitialPartitioner(
@@ -45,16 +49,16 @@ PartitionedGraph AsyncInitialPartitioner::partition_recursive(
 
   // Base case: only one thread left <=> compute bipartition
   if (num_threads == 1) {
-    return bipartition(graph, _input_ctx.partition.k, _bipartitioner_pool, true);
+    return _bipartitioner_pool.bipartition(graph, 0, 1, true);
   }
 
   // Otherwise, coarsen further and proceed recursively
   auto coarsener = factory::create_coarsener(_input_ctx);
   coarsener->initialize(graph);
 
-  const bool shrunk = coarsen_once(coarsener.get(), graph, p_ctx);
+  const bool shrunk = coarsener->coarsen();
   PartitionedGraph p_graph = split_and_join(coarsener.get(), p_ctx, !shrunk, num_threads);
-  p_graph = uncoarsen_once(coarsener.get(), std::move(p_graph), p_ctx, _input_ctx.partition);
+  p_graph = coarsener->uncoarsen(std::move(p_graph));
 
   // The Context object is used to pre-allocate memory for the finest graph of the input hierarchy
   // Since this refiner is never used for the finest graph, we need to adjust the context to
@@ -62,8 +66,11 @@ PartitionedGraph AsyncInitialPartitioner::partition_recursive(
   Context small_ctx = _input_ctx;
   small_ctx.partition.n = p_graph.n();
   small_ctx.partition.m = p_graph.m();
+
+  p_ctx = create_kway_context(_input_ctx, p_graph);
   auto refiner = factory::create_refiner(small_ctx);
-  refine(refiner.get(), p_graph, p_ctx);
+  refiner->initialize(p_graph);
+  refiner->refine(p_graph, p_ctx);
 
   const BlockID k_prime = std::min(
       _input_ctx.partition.k,
@@ -75,11 +82,11 @@ PartitionedGraph AsyncInitialPartitioner::partition_recursive(
         p_graph,
         k_prime,
         _input_ctx,
-        p_ctx,
         _tmp_extraction_mem_pool_ets,
         _bipartitioner_pool,
         num_threads
     );
+    p_ctx = create_kway_context(_input_ctx, p_graph);
   }
 
   return p_graph;
@@ -102,18 +109,19 @@ PartitionedGraph AsyncInitialPartitioner::split_and_join(
 
   for (std::size_t copy = 0; copy < num_copies; ++copy) {
     tg.run([this,
-            copy,
+            copy, // `copy` must be captured by value
             coarsener,
             threads_per_copy,
             &p_graphs,
-            &p_ctx_copies] { // must capture copy by value!
+            &p_ctx_copies] {
       p_graphs[copy] = partition_recursive(coarsener, p_ctx_copies[copy], threads_per_copy);
     });
   }
   tg.wait();
 
-  // select best result
+  // Select best result
   const std::size_t best = select_best(p_graphs, p_ctx);
   return std::move(p_graphs[best]);
 }
+
 } // namespace kaminpar::shm::partitioning

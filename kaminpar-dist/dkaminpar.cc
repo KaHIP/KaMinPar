@@ -26,7 +26,7 @@
 #include "kaminpar-dist/metrics.h"
 #include "kaminpar-dist/timer.h"
 
-#include "kaminpar-shm/context.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/environment.h"

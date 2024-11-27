@@ -16,6 +16,7 @@
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm {
+
 class SequentialGraphHierarchy {
 public:
   SequentialGraphHierarchy() = default;
@@ -65,4 +66,5 @@ private:
   ScalableVector<StaticArray<BlockID>> _partition_memory_cache;
   ScalableVector<StaticArray<BlockWeight>> _block_weights_memory_cache;
 };
+
 } // namespace kaminpar::shm

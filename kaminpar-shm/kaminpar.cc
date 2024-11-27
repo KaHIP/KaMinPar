@@ -7,6 +7,8 @@
  ******************************************************************************/
 #include "kaminpar-shm/kaminpar.h"
 
+#include <cmath>
+
 #include "kaminpar-shm/context_io.h"
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
@@ -22,7 +24,69 @@
 
 namespace kaminpar {
 
-using namespace shm;
+namespace shm {
+
+void PartitionContext::setup(
+    const AbstractGraph &graph,
+    const BlockID k,
+    const double epsilon,
+    const bool relax_max_block_weights
+) {
+  _epsilon = epsilon;
+
+  // this->total_node_weight not yet initialized: use graph.total_node_weight instead
+  const BlockWeight perfectly_balanced_block_weight =
+      std::ceil(1.0 * graph.total_node_weight() / k);
+  std::vector<BlockWeight> max_block_weights(k, (1.0 + epsilon) * perfectly_balanced_block_weight);
+  setup(graph, std::move(max_block_weights), relax_max_block_weights);
+}
+
+void PartitionContext::setup(
+    const AbstractGraph &graph,
+    std::vector<BlockWeight> max_block_weights,
+    const bool relax_max_block_weights
+) {
+  n = graph.n();
+  m = graph.m();
+  original_total_node_weight = graph.total_node_weight();
+  total_node_weight = graph.total_node_weight();
+  total_edge_weight = graph.total_edge_weight();
+  max_node_weight = graph.max_node_weight();
+
+  k = static_cast<BlockID>(max_block_weights.size());
+  _max_block_weights = std::move(max_block_weights);
+  _unrelaxed_max_block_weights = _max_block_weights;
+  _total_max_block_weights = std::accumulate(
+      _max_block_weights.begin(), _max_block_weights.end(), static_cast<BlockWeight>(0)
+  );
+
+  if (relax_max_block_weights) {
+    const double eps = inferred_epsilon();
+    for (BlockWeight &max_block_weight : _max_block_weights) {
+      max_block_weight =
+          std::max<BlockWeight>(max_block_weight, max_block_weight / (1.0 + eps) + max_node_weight);
+    }
+  }
+}
+
+void GraphCompressionContext::setup(const Graph &graph) {
+  high_degree_encoding = CompressedGraph::kHighDegreeEncoding;
+  high_degree_threshold = CompressedGraph::kHighDegreeThreshold;
+  high_degree_part_length = CompressedGraph::kHighDegreePartLength;
+  interval_encoding = CompressedGraph::kIntervalEncoding;
+  interval_length_treshold = CompressedGraph::kIntervalLengthTreshold;
+  streamvbyte_encoding = CompressedGraph::kStreamVByteEncoding;
+
+  if (enabled) {
+    const auto &compressed_graph = graph.compressed_graph();
+    compression_ratio = compressed_graph.compression_ratio();
+    size_reduction = compressed_graph.size_reduction();
+    num_high_degree_nodes = compressed_graph.num_high_degree_nodes();
+    num_high_degree_parts = compressed_graph.num_high_degree_parts();
+    num_interval_nodes = compressed_graph.num_interval_nodes();
+    num_intervals = compressed_graph.num_intervals();
+  }
+}
 
 namespace {
 
@@ -38,7 +102,7 @@ void print_statistics(
 
   cio::print_delimiter("Result Summary");
 
-  // statistics output that is easy to parse
+  // Statistics output that is easy to parse
   if (parseable) {
     LOG << "RESULT cut=" << cut << " imbalance=" << imbalance << " feasible=" << feasible
         << " k=" << p_graph.k();
@@ -79,6 +143,10 @@ void print_statistics(
 }
 
 } // namespace
+
+} // namespace shm
+
+using namespace shm;
 
 KaMinPar::KaMinPar(const int num_threads, Context ctx)
     : _num_threads(num_threads),
@@ -176,9 +244,22 @@ void KaMinPar::reseed(int seed) {
   Random::reseed(seed);
 }
 
-EdgeWeight KaMinPar::compute_partition(
-    const BlockID k, BlockID *partition, const bool use_initial_node_ordering
-) {
+EdgeWeight KaMinPar::compute_partition(const BlockID k, BlockID *partition) {
+  return compute_partition(k, 0.03, partition);
+}
+
+EdgeWeight KaMinPar::compute_partition(const BlockID k, const double epsilon, BlockID *partition) {
+  _ctx.partition.setup(*_graph_ptr, k, epsilon);
+  return compute_partition(partition);
+}
+
+EdgeWeight
+KaMinPar::compute_partition(std::vector<BlockWeight> max_block_weights, BlockID *partition) {
+  _ctx.partition.setup(*_graph_ptr, std::move(max_block_weights));
+  return compute_partition(partition);
+}
+
+EdgeWeight KaMinPar::compute_partition(BlockID *partition) {
   if (_output_level == OutputLevel::QUIET) {
     Logger::set_quiet_mode(true);
   }
@@ -188,12 +269,8 @@ EdgeWeight KaMinPar::compute_partition(
   cio::print_build_datatypes<NodeID, EdgeID, NodeWeight, EdgeWeight>();
   cio::print_delimiter("Input Summary", '#');
 
-  const double original_epsilon = _ctx.partition.epsilon;
+  _ctx.compression.setup(*_graph_ptr);
   _ctx.parallel.num_threads = _num_threads;
-  _ctx.partition.k = k;
-
-  // Setup graph dependent context parameters
-  _ctx.setup(*_graph_ptr);
 
   // Initialize console output
   if (_output_level >= OutputLevel::APPLICATION) {
@@ -226,7 +303,9 @@ EdgeWeight KaMinPar::compute_partition(
   // Cut off isolated nodes if the graph has been rearranged such that the isolated nodes are placed
   // at the end.
   if (_graph_ptr->sorted()) {
-    graph::remove_isolated_nodes(*_graph_ptr, _ctx.partition);
+    const NodeID num_isolated_nodes = graph::count_isolated_nodes(*_graph_ptr);
+    _graph_ptr->remove_isolated_nodes(num_isolated_nodes);
+    _ctx.partition.total_node_weight = _graph_ptr->total_node_weight();
   }
 
   // Perform actual partitioning
@@ -249,8 +328,7 @@ EdgeWeight KaMinPar::compute_partition(
     SCOPED_HEAP_PROFILER("Re-integrate isolated nodes");
     SCOPED_TIMER("Re-integrate isolated nodes");
 
-    const NodeID num_isolated_nodes =
-        graph::integrate_isolated_nodes(*_graph_ptr, original_epsilon, _ctx);
+    const NodeID num_isolated_nodes = _graph_ptr->integrate_isolated_nodes();
     p_graph = graph::assign_isolated_nodes(std::move(p_graph), num_isolated_nodes, _ctx.partition);
   }
 
@@ -258,7 +336,7 @@ EdgeWeight KaMinPar::compute_partition(
   STOP_HEAP_PROFILER();
 
   START_TIMER("IO");
-  if (_graph_ptr->permuted() && use_initial_node_ordering) {
+  if (_graph_ptr->permuted()) {
     tbb::parallel_for<NodeID>(0, p_graph.n(), [&](const NodeID u) {
       partition[u] = p_graph.block(_graph_ptr->map_original_node(u));
     });

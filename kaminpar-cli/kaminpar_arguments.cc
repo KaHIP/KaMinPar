@@ -34,16 +34,6 @@ CLI::Option_group *create_graph_compression_options(CLI::App *app, Context &ctx)
 CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
   auto *partitioning = app->add_option_group("Partitioning");
 
-  partitioning
-      ->add_option(
-          "-e,--epsilon",
-          ctx.partition.epsilon,
-          "Maximum allowed imbalance, e.g. 0.03 for 3%. Must be strictly "
-          "positive."
-      )
-      ->check(CLI::NonNegativeNumber)
-      ->capture_default_str();
-
   // Partitioning options
   partitioning->add_option("-m,--p-mode", ctx.partitioning.mode)
       ->transform(CLI::CheckedTransformer(get_partitioning_modes()).description(""))
@@ -344,6 +334,12 @@ CLI::Option_group *create_initial_partitioning_options(CLI::App *app, Context &c
 
   ip->add_flag(
         "--i-r-disable", ctx.initial_partitioning.refinement.disabled, "Disable initial refinement."
+  )
+      ->capture_default_str();
+  ip->add_flag(
+        "--i-adaptive-epsilon",
+        ctx.initial_partitioning.use_adaptive_epsilon,
+        "Use adaptive epsilon."
   )
       ->capture_default_str();
 

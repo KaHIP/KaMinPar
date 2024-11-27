@@ -238,84 +238,6 @@ void reorder_edges_by_compression(CSRGraph &graph) {
   });
 }
 
-template <typename NodeContainer, typename NodeWeightContainer>
-std::pair<NodeID, NodeWeight>
-find_isolated_nodes_info(const NodeContainer &nodes, const NodeWeightContainer &node_weights) {
-  KASSERT((node_weights.empty() || node_weights.size() + 1 == nodes.size()));
-
-  tbb::enumerable_thread_specific<NodeID> isolated_nodes;
-  tbb::enumerable_thread_specific<NodeWeight> isolated_nodes_weights;
-  const bool is_weighted = !node_weights.empty();
-
-  const NodeID n = nodes.size() - 1;
-  tbb::parallel_for(tbb::blocked_range<NodeID>(0, n), [&](const tbb::blocked_range<NodeID> &r) {
-    NodeID &local_isolated_nodes = isolated_nodes.local();
-    NodeWeight &local_isolated_weights = isolated_nodes_weights.local();
-
-    for (NodeID u = r.begin(); u != r.end(); ++u) {
-      if (nodes[u] == nodes[u + 1]) {
-        ++local_isolated_nodes;
-        local_isolated_weights += is_weighted ? node_weights[u] : 1;
-      }
-    }
-  });
-
-  return {isolated_nodes.combine(std::plus{}), isolated_nodes_weights.combine(std::plus{})};
-}
-
-template <typename Graph>
-void remove_isolated_nodes_generic_graph(Graph &graph, PartitionContext &p_ctx) {
-  auto &nodes = graph.raw_nodes();
-  auto &node_weights = graph.raw_node_weights();
-
-  const NodeWeight total_node_weight =
-      node_weights.empty() ? nodes.size() - 1 : parallel::accumulate(node_weights, 0);
-  const auto [isolated_nodes, isolated_nodes_weight] =
-      find_isolated_nodes_info(nodes, node_weights);
-
-  const NodeID old_n = nodes.size() - 1;
-  const NodeID new_n = old_n - isolated_nodes;
-  const NodeWeight new_weight = total_node_weight - isolated_nodes_weight;
-
-  const BlockID k = p_ctx.k;
-  const double old_max_block_weight = (1 + p_ctx.epsilon) * std::ceil(1.0 * total_node_weight / k);
-  const double new_epsilon =
-      new_weight > 0 ? old_max_block_weight / std::ceil(1.0 * new_weight / k) - 1 : 0.0;
-  p_ctx.epsilon = new_epsilon;
-  p_ctx.n = new_n;
-  p_ctx.total_node_weight = new_weight;
-
-  graph.remove_isolated_nodes(isolated_nodes);
-}
-
-void remove_isolated_nodes(Graph &graph, PartitionContext &p_ctx) {
-  SCOPED_TIMER("Remove isolated nodes");
-  graph.reified([&](auto &graph) { remove_isolated_nodes_generic_graph(graph, p_ctx); });
-}
-
-template <typename Graph>
-NodeID integrate_isolated_nodes_generic_graph(Graph &graph, const double epsilon, Context &ctx) {
-  const NodeID num_nonisolated_nodes = graph.n(); // this becomes the first isolated node
-
-  graph.integrate_isolated_nodes();
-
-  const NodeID num_isolated_nodes = graph.n() - num_nonisolated_nodes;
-
-  // note: max block weights should not change
-  ctx.partition.epsilon = epsilon;
-
-  return num_isolated_nodes;
-}
-
-NodeID integrate_isolated_nodes(Graph &graph, double epsilon, Context &ctx) {
-  NodeID num_isolated_nodes = graph.reified([&](auto &graph) {
-    return integrate_isolated_nodes_generic_graph(graph, epsilon, ctx);
-  });
-
-  ctx.setup(graph);
-  return num_isolated_nodes;
-}
-
 PartitionedGraph assign_isolated_nodes(
     PartitionedGraph p_graph, const NodeID num_isolated_nodes, const PartitionContext &p_ctx
 ) {
@@ -326,19 +248,18 @@ PartitionedGraph assign_isolated_nodes(
   RECORD("partition")
   StaticArray<BlockID> partition(graph.n(), static_array::noinit);
 
-  // copy partition of non-isolated nodes
+  // Copy partition of non-isolated nodes
   tbb::parallel_for<NodeID>(0, num_nonisolated_nodes, [&](const NodeID u) {
     partition[u] = p_graph.block(u);
   });
 
-  // now append the isolated ones
+  // Now append the isolated ones
   const BlockID k = p_graph.k();
   auto block_weights = p_graph.take_raw_block_weights();
   BlockID b = 0;
 
-  // TODO parallelize this
   for (NodeID u = num_nonisolated_nodes; u < num_nonisolated_nodes + num_isolated_nodes; ++u) {
-    while (b + 1 < k && block_weights[b] + graph.node_weight(u) > p_ctx.block_weights.max(b)) {
+    while (b + 1 < k && block_weights[b] + graph.node_weight(u) > p_ctx.max_block_weight(b)) {
       ++b;
     }
     partition[u] = b;
@@ -346,6 +267,22 @@ PartitionedGraph assign_isolated_nodes(
   }
 
   return {graph, k, std::move(partition)};
+}
+
+NodeID count_isolated_nodes(const Graph &graph) {
+  tbb::enumerable_thread_specific<NodeID> isolated_nodes_ets;
+
+  graph.pfor_nodes_range([&](const auto &range) {
+    auto &isolated_nodes = isolated_nodes_ets.local();
+
+    for (NodeID u = range.begin(); u != range.end(); ++u) {
+      if (graph.degree(u) == 0) {
+        ++isolated_nodes;
+      }
+    }
+  });
+
+  return isolated_nodes_ets.combine(std::plus{});
 }
 
 } // namespace kaminpar::shm::graph

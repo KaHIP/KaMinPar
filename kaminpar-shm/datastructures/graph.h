@@ -131,6 +131,10 @@ public:
   // Parallel iteration
   //
 
+  template <typename Lambda> inline void pfor_nodes_range(Lambda &&l) const {
+    reified([&](auto &graph) { graph.pfor_nodes_range(std::forward<Lambda>(l)); });
+  }
+
   template <typename Lambda> inline void pfor_nodes(Lambda &&l) const {
     reified([&](auto &graph) { graph.pfor_nodes(std::forward<Lambda>(l)); });
   }
@@ -190,6 +194,14 @@ public:
 
   [[nodiscard]] inline NodeID first_invalid_node_in_bucket(const std::size_t bucket) const final {
     return _underlying_graph->first_invalid_node_in_bucket(bucket);
+  }
+
+  void remove_isolated_nodes(const NodeID num_isolated_nodes) final {
+    _underlying_graph->remove_isolated_nodes(num_isolated_nodes);
+  }
+
+  NodeID integrate_isolated_nodes() final {
+    return _underlying_graph->integrate_isolated_nodes();
   }
 
   //

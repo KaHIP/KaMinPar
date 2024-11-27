@@ -12,8 +12,11 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
+
 namespace {
+
 constexpr static bool kRandomizeNodeOrder = true;
+
 }
 
 InitialCoarsener::InitialCoarsener(const InitialCoarseningContext &c_ctx) : _c_ctx(c_ctx) {}
@@ -449,4 +452,5 @@ void InitialCoarsener::interleaved_visit_neighbor(
     _rating_map[_clustering[c_v].leader] += weight;
   }
 }
+
 } // namespace kaminpar::shm

@@ -10,6 +10,7 @@
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
+
 InitialRandomBipartitioner::InitialRandomBipartitioner(const InitialPoolPartitionerContext &pool_ctx
 )
     : InitialFlatBipartitioner(pool_ctx) {}
@@ -19,11 +20,12 @@ void InitialRandomBipartitioner::fill_bipartition() {
     const std::size_t block = _rand.random_index(0, 2);
 
     if (_block_weights[block] + _graph->node_weight(u) <
-        _p_ctx->block_weights.perfectly_balanced(block)) {
+        _p_ctx->perfectly_balanced_block_weight(block)) {
       set_block(u, block);
     } else {
       add_to_smaller_block(u);
     }
   }
 }
+
 } // namespace kaminpar::shm

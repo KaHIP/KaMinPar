@@ -38,8 +38,7 @@ PartitionedGraph VcycleDeepMultilevelPartitioner::partition() {
   ctx.partitioning.mode = PartitioningMode::DEEP;
 
   for (const BlockID k : steps) {
-    ctx.partition.k = k;
-    ctx.partition.setup(_input_graph);
+    ctx.partition.setup(_input_graph, k, _input_ctx.partition.epsilon());
 
     if (communities.empty()) {
       ctx.partitioning.deep_initial_partitioning_mode =

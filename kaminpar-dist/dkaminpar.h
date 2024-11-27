@@ -351,6 +351,10 @@ struct PartitionContext {
 
   ~PartitionContext();
 
+  [[nodiscard]] double inferred_epsilon() const {
+    return epsilon;
+  }
+
   BlockID k = kInvalidBlockID;
   BlockID K = kInvalidBlockID;
   double epsilon;

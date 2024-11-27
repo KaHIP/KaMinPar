@@ -66,6 +66,9 @@ public:
   [[nodiscard]] virtual std::size_t bucket_size(const std::size_t bucket) const = 0;
   [[nodiscard]] virtual NodeID first_node_in_bucket(const std::size_t bucket) const = 0;
   [[nodiscard]] virtual NodeID first_invalid_node_in_bucket(const std::size_t bucket) const = 0;
+
+  virtual void remove_isolated_nodes(const NodeID num_isolated_nodes) = 0;
+  virtual NodeID integrate_isolated_nodes() = 0;
 };
 
 } // namespace kaminpar::shm

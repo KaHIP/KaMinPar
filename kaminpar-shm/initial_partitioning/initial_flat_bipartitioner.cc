@@ -15,6 +15,7 @@
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm {
+
 void InitialFlatBipartitioner::init(const CSRGraph &graph, const PartitionContext &p_ctx) {
   KASSERT(p_ctx.k == 2u, "must be initialized with a 2-way partition context");
 
@@ -55,4 +56,5 @@ PartitionedCSRGraph InitialFlatBipartitioner::bipartition(
 
   return {*_graph, 2, std::move(_partition), std::move(_final_block_weights)};
 }
+
 } // namespace kaminpar::shm

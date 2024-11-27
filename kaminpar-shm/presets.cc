@@ -11,7 +11,7 @@
 #include <string>
 #include <unordered_set>
 
-#include "kaminpar-shm/context.h"
+#include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
 
@@ -96,12 +96,7 @@ Context create_default_context() {
               .vcycles = {},
               .restrict_vcycle_refinement = false,
           },
-      .partition =
-          {
-              // Context -> Partition
-              .epsilon = 0.03,
-              .k = kInvalidBlockID /* must be set */,
-          },
+      .partition = {},
       .coarsening =
           {
               // Context -> Coarsening
@@ -188,6 +183,7 @@ Context create_default_context() {
                       .improvement_abortion_threshold = 0.0001,
                   },
               .refine_pool_partition = false,
+              .use_adaptive_epsilon = true,
           },
       .refinement =
           {
