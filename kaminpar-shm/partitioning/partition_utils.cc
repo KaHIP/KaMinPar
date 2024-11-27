@@ -52,8 +52,6 @@ BlockID compute_final_k(const BlockID block, const BlockID current_k, const Bloc
 // @todo optimize
 BlockID
 compute_first_sub_block(const BlockID block, const BlockID current_k, const BlockID input_k) {
-  KASSERT(current_k > 0, "", assert::always);
-
   if (current_k == 1) {
     return 0;
   }
@@ -76,12 +74,12 @@ compute_first_sub_block(const BlockID block, const BlockID current_k, const Bloc
     mask >>= 1;
   }
   return ans;
-  //
-  BlockID first_sub_block = 0;
-  for (BlockID b = 0; b < block; ++b) {
-    first_sub_block += compute_final_k(b, current_k, input_k);
-  }
-  return first_sub_block;
+
+  // BlockID first_sub_block = 0;
+  // for (BlockID b = 0; b < block; ++b) {
+  // first_sub_block += compute_final_k(b, current_k, input_k);
+  //}
+  // return first_sub_block;
 }
 
 BlockID compute_first_invalid_sub_block(
