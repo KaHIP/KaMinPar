@@ -305,6 +305,12 @@ void DeepMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
   SCOPED_TIMER("Refinement");
 
   if (_input_ctx.partitioning.restrict_vcycle_refinement && _num_communities > 0) {
+    // If we are not allowed to move nodes between communities, and we only have one block per
+    // community, refinement is pointless
+    if (p_graph.k() == _num_communities) {
+      return;
+    }
+
     _refiner->set_communities(_coarsener->current_communities());
   }
 
