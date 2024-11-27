@@ -95,7 +95,9 @@ KaMinPar shm(int num_threads, shm::create_default_context());
 // KaMinPar::reseed(int seed);
 shm.borrow_and_mutate_graph(NodeID n, EdgeID *xadj, NodeID *adjncy, NodeWeight *vwgt = nullptr, EdgeWeight *adjwgt = nullptr);
 // alternatively: shm.copy_graph(n, xadj, adjncy, vwgt, adjwgt); will work on a copy of the graph
-shm.compute_partition(BlockID number_of_blocks, BlockID *out_partition);
+shm.compute_partition(BlockID number_of_blocks, double epsilon, BlockID *out_partition);
+// alternatively: shm.compute_partition(std::vector<BlockWeight> max_block_weights, BlockID *out_partition);
+// Note: you must ensure that the total max block weight is larger than the total node weight of the graph
 
 // Call the distributed partitioner:
 dKaMinPar dist(MPI_Comm comm, int num_threads, dist::create_default_context());

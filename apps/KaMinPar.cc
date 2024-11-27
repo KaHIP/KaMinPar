@@ -57,6 +57,8 @@ struct ApplicationContext {
 
   BlockID k = 0;
   double epsilon = 0.03;
+  std::vector<BlockWeight> max_block_weights = {};
+  std::vector<double> max_block_weight_factors = {};
 
   bool quiet = false;
   bool experiment = false;
@@ -104,20 +106,41 @@ The output should be stored in a file and can be used by the -C,--config option.
 
   // Mandatory -> ... or partition a graph
   auto *gp_group = mandatory->add_option_group("Partitioning")->silent();
-  gp_group->add_option("-k,--k", app.k, "Number of blocks in the partition.")
-      ->configurable(false)
-      ->check(CLI::Range(static_cast<BlockID>(2), std::numeric_limits<BlockID>::max()))
-      ->required();
   gp_group->add_option("-G,--graph", app.graph_filename, "Input graph in METIS format.")
       ->check(CLI::ExistingFile)
       ->configurable(false);
+
+  auto *partition_group = gp_group->add_option_group("Partition settings")->require_option(1);
+  partition_group
+      ->add_option(
+          "-k,--k",
+          app.k,
+          "Number of blocks in the partition. This option will be ignored if explicit block "
+          "weights are specified via --block-weights or --block-weight-factors."
+      )
+      ->check(CLI::Range(static_cast<BlockID>(2), std::numeric_limits<BlockID>::max()));
+  partition_group
+      ->add_option(
+          "-B,--block-weights",
+          app.max_block_weights,
+          "Absolute max block weights, one weight for each block of the partition. If this "
+          "option is set, --epsilon will be ignored."
+      )
+      ->check(CLI::NonNegativeNumber)
+      ->capture_default_str();
+  partition_group->add_option(
+      "-b,--block-weight-factors",
+      app.max_block_weight_factors,
+      "Max block weights relative to the total node weight of the input graph, one factor for each "
+      "block of the partition. If this option is set, --epsilon will be ignored."
+  );
 
   // Application options
   cli.add_option(
          "-e,--epsilon",
          app.epsilon,
-         "Maximum allowed imbalance, e.g. 0.03 for 3%. Must be strictly "
-         "positive."
+         "Maximum allowed imbalance, e.g. 0.03 for 3%. Must be greater than 0%. If maximum block "
+         "weights are specified explicitly via the --block-weights, this option will be ignored."
   )
       ->check(CLI::NonNegativeNumber)
       ->capture_default_str();
@@ -424,7 +447,30 @@ int main(int argc, char *argv[]) {
 
   // Compute partition
   partitioner.set_graph(std::move(graph));
-  partitioner.compute_partition(app.k, app.epsilon, partition.data());
+  if (!app.max_block_weight_factors.empty()) {
+    const NodeWeight total_node_weight = partitioner.graph()->total_node_weight();
+    app.max_block_weights.reserve(app.max_block_weight_factors.size());
+    for (const double &factor : app.max_block_weight_factors) {
+      app.max_block_weights.push_back(std::ceil(factor * total_node_weight));
+    }
+  }
+
+  if (!app.max_block_weights.empty()) {
+    const BlockWeight total_block_weight = std::accumulate(
+        app.max_block_weights.begin(), app.max_block_weights.end(), static_cast<BlockWeight>(0)
+    );
+    const NodeWeight total_node_weight = partitioner.graph()->total_node_weight();
+    if (total_node_weight > total_block_weight) {
+      LOG_ERROR << "Total max block weights (" << total_block_weight
+                << ") is smaller than the total node weight (" << total_node_weight
+                << ") of the graph. This does not work. Please increase your max block weights.";
+      std::exit(1);
+    }
+
+    partitioner.compute_partition(std::move(app.max_block_weights), partition.data());
+  } else {
+    partitioner.compute_partition(app.k, app.epsilon, partition.data());
+  }
 
   // Save graph partition
   if (!app.partition_filename.empty()) {
