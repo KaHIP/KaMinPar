@@ -75,6 +75,14 @@ void extend_partition(
     int num_active_threads
 );
 
+void complete_partial_extend_partition(
+    PartitionedGraph &p_graph,
+    const Context &input_ctx,
+    SubgraphMemoryEts &extraction_mem_pool_ets,
+    TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
+    InitialBipartitionerWorkerPool &bipartitioner_pool
+);
+
 template <typename Iterator>
 std::size_t select_best(
     const Iterator p_graphs_begin, const Iterator p_graphs_end, const PartitionContext &p_ctx

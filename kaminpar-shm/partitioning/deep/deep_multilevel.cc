@@ -24,7 +24,7 @@ namespace kaminpar::shm {
 
 namespace {
 
-SET_DEBUG(false);
+SET_DEBUG(true);
 
 } // namespace
 
@@ -269,7 +269,6 @@ PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) 
     const BlockID desired_k = partitioning::compute_k_for_n(p_graph.n(), _input_ctx);
     if (p_graph.k() < desired_k) {
       extend_partition(p_graph, desired_k);
-      _current_p_ctx = create_kway_context(_input_ctx, p_graph);
       refined = false;
 
       if (_input_ctx.partitioning.refine_after_extending_partition) {
@@ -293,7 +292,6 @@ PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) 
     }
     if (p_graph.k() < _input_ctx.partition.k) {
       extend_partition(p_graph, _input_ctx.partition.k);
-      _current_p_ctx = create_kway_context(_input_ctx, p_graph);
       refine(p_graph);
     }
   }
@@ -331,6 +329,25 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
   SCOPED_HEAP_PROFILER("Extending partition");
   LOG << "  Extending partition from " << p_graph.k() << " blocks to " << k_prime << " blocks";
 
+  DBG << "Partition state before extending partition from " << p_graph.k() << " to " << k_prime
+      << " blocks:";
+  DBG << debug::describe_partition_state(p_graph, _current_p_ctx);
+
+  // If we are in a v-cycle, we might have a partition whose number of blocks is not a power of two
+  // -- something on which the other extend_* functions rely. In this case, first "complete" the
+  // current level of the recursion tree to obtain a power-of-two block count.
+  if (_input_ctx.partitioning.deep_initial_partitioning_mode ==
+      InitialPartitioningMode::COMMUNITIES) {
+    partitioning::complete_partial_extend_partition(
+        p_graph,
+        _input_ctx,
+        _extraction_mem_pool_ets,
+        _tmp_extraction_mem_pool_ets,
+        _bipartitioner_pool
+    );
+    _current_p_ctx = create_kway_context(_input_ctx, p_graph);
+  }
+
   if (_input_ctx.partitioning.use_lazy_subgraph_memory) {
     partitioning::extend_partition_lazy_extraction(
         p_graph,
@@ -366,6 +383,10 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
     LOG << "   Cut:       " << metrics::edge_cut(p_graph);
     LOG << "   Imbalance: " << metrics::imbalance(p_graph);
   }
+
+  _current_p_ctx = create_kway_context(_input_ctx, p_graph);
+  DBG << "Partition state after extending partition to " << k_prime << " blocks:";
+  DBG << debug::describe_partition_state(p_graph, _current_p_ctx);
 }
 
 } // namespace kaminpar::shm

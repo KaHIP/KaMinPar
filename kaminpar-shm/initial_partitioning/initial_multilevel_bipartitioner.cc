@@ -37,7 +37,7 @@ namespace kaminpar::shm {
 
 namespace {
 
-SET_DEBUG(false);
+SET_DEBUG(true);
 
 }
 

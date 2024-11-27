@@ -14,7 +14,7 @@ namespace kaminpar::shm {
 
 namespace {
 
-SET_DEBUG(false);
+SET_DEBUG(true);
 
 } // namespace
 
@@ -62,11 +62,13 @@ PartitionedGraph VcycleDeepMultilevelPartitioner::partition() {
             }
           }();
 
-          LOG << num_sub_blocks;
-
           const BlockID cur_end = cur_begin + num_sub_blocks;
           max_block_weights[b] =
               _input_ctx.partition.total_unrelaxed_max_block_weights(cur_begin, cur_end);
+
+          DBG << "block " << b << ": aggregate weight for " << num_sub_blocks << " of "
+              << _input_ctx.partition.k << " blocks when partitioning for the " << current_k
+              << " v-cycle = " << max_block_weights[b];
 
           cur_begin = cur_end;
         }
@@ -87,6 +89,12 @@ PartitionedGraph VcycleDeepMultilevelPartitioner::partition() {
       partitioner.use_communities(communities, prev_k);
     }
     PartitionedGraph p_graph = partitioner.partition();
+
+    DBG << "Block weights: ";
+    for (const BlockID b : p_graph.blocks()) {
+      DBG << "w(" << b << "): " << p_graph.block_weight(b)
+          << "; max: " << ctx.partition.max_block_weight(b);
+    }
 
     // Make sure that the restricted refinement option actually restricts nodes to their block
     KASSERT(
