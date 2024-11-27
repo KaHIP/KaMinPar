@@ -154,6 +154,9 @@ PartitionedCSRGraph InitialMultilevelBipartitioner::partition(InitialPartitioner
     timings->uncoarsening_ms += timer.elapsed();
   }
 
+  DBG << " -> obtained bipartition with block weights " << p_graph.block_weight(0) << " + "
+      << p_graph.block_weight(1);
+
   return p_graph;
 }
 

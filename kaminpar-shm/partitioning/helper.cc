@@ -401,7 +401,8 @@ void complete_partial_extend_partition(
   SCOPED_TIMER("Initial partitioning");
   const BlockID current_k = p_graph.k();
 
-  DBG << "Complete partial extend_partition() for k=" << current_k << " to k=" << input_ctx.partition.k;
+  DBG << "Complete partial extend_partition() for k=" << current_k
+      << " to k=" << input_ctx.partition.k;
 
   if (current_k == input_ctx.partition.k || math::is_power_of_2(current_k)) {
     return;
@@ -508,7 +509,7 @@ void complete_partial_extend_partition(
       if (b < 2 * expanded_blocks) {
         k0[b + 1] = 1;
       } else {
-        k0[b + 1] = 2;
+        k0[b + 1] = compute_final_k(b - expanded_blocks, prev_current_k, input_ctx.partition.k);
       }
     }
 
