@@ -83,7 +83,8 @@ void InitialMultilevelBipartitioner::initialize(
       << _ctx.partition.total_max_block_weights(first_sub_block, first_invalid_sub_block)
       << " into " << max_block_weights[0] << " and " << max_block_weights[1];
 
-  if (_i_ctx.use_adaptive_epsilon) {
+  // @todo: how to adapt the inferred epsilon when dealing with arbitrary block weights?
+  if (_ctx.partition.has_epsilon() && _i_ctx.use_adaptive_epsilon) {
     // It can be beneficial to artifically "restrict" the maximum block weights of *this*
     // bipartition, ensuring that there is enough wiggle room for further bipartitioning of the
     // sub-blocks: this is based on the "adapted epsilon" strategy of KaHyPar.
