@@ -8,6 +8,7 @@
 #include "kaminpar-shm/partitioning/deep/vcycle_deep_multilevel.h"
 
 #include "kaminpar-shm/partitioning/deep/deep_multilevel.h"
+#include "kaminpar-shm/partitioning/partition_utils.h"
 
 namespace kaminpar::shm {
 
@@ -37,8 +38,21 @@ PartitionedGraph VcycleDeepMultilevelPartitioner::partition() {
   Context ctx = _input_ctx;
   ctx.partitioning.mode = PartitioningMode::DEEP;
 
-  for (const BlockID k : steps) {
-    ctx.partition.setup(_input_graph, k, _input_ctx.partition.epsilon());
+  for (const BlockID current_k : steps) {
+    {
+      std::vector<BlockWeight> max_block_weights(current_k);
+      BlockID cur_begin = 0;
+      for (BlockID b = 0; b < current_k; ++b) {
+        const BlockID num_sub_blocks =
+            partitioning::compute_final_k(b, current_k, _input_ctx.partition.k);
+        const BlockID cur_end = cur_begin + num_sub_blocks;
+        max_block_weights[b] =
+            _input_ctx.partition.total_unrelaxed_max_block_weights(cur_begin, cur_end);
+
+        cur_begin = cur_end;
+      }
+      ctx.partition.setup(_input_graph, std::move(max_block_weights));
+    }
 
     if (communities.empty()) {
       ctx.partitioning.deep_initial_partitioning_mode =
