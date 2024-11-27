@@ -16,6 +16,49 @@ namespace {
 
 SET_DEBUG(true);
 
+std::vector<BlockWeight> compute_max_block_weights(
+    const BlockID current_k,
+    const PartitionContext &input_p_ctx,
+    const std::vector<BlockWeight> &next_block_weights
+) {
+  const int level = math::floor_log2(current_k);
+  const BlockID expanded_blocks = current_k - (1 << level);
+
+  std::vector<BlockWeight> max_block_weights(current_k);
+  if (current_k == input_p_ctx.k) {
+    for (BlockID b = 0; b < current_k; ++b) {
+      max_block_weights[b] = input_p_ctx.max_block_weight(b);
+    }
+  } else {
+    BlockID cur_begin = 0;
+    for (BlockID b = 0; b < current_k; ++b) {
+      const BlockID num_sub_blocks = [&] {
+        if (b < 2 * expanded_blocks) {
+          const BlockID next_k =
+              std::min<BlockID>(math::ceil2(current_k), next_block_weights.size());
+          return partitioning::compute_final_k(b, next_k, next_block_weights.size());
+        } else {
+          return partitioning::compute_final_k(
+              b - expanded_blocks, math::floor2(current_k), next_block_weights.size()
+          );
+        }
+      }();
+
+      const BlockID cur_end = cur_begin + num_sub_blocks;
+      max_block_weights[b] = std::accumulate(
+          next_block_weights.begin() + cur_begin, next_block_weights.begin() + cur_end, 0
+      );
+
+      DBG << "block " << b << ": aggregate weight for " << num_sub_blocks << " of "
+          << next_block_weights.size() << " blocks when partitioning for the " << current_k
+          << " v-cycle = " << max_block_weights[b];
+
+      cur_begin = cur_end;
+    }
+  }
+  return max_block_weights;
+}
+
 } // namespace
 
 VcycleDeepMultilevelPartitioner::VcycleDeepMultilevelPartitioner(
@@ -38,42 +81,26 @@ PartitionedGraph VcycleDeepMultilevelPartitioner::partition() {
   Context ctx = _input_ctx;
   ctx.partitioning.mode = PartitioningMode::DEEP;
 
-  for (const BlockID current_k : steps) {
+  std::vector<std::vector<BlockWeight>> vcycle_block_weights;
+
+  for (auto it = steps.rbegin(); it != steps.rend(); ++it) {
+    const BlockID current_k = *it;
+    if (vcycle_block_weights.empty()) {
+      vcycle_block_weights.push_back(compute_max_block_weights(current_k, _input_ctx.partition, {})
+      );
+    } else {
+      auto &prev_block_weights = vcycle_block_weights.back();
+      vcycle_block_weights.push_back(
+          compute_max_block_weights(current_k, _input_ctx.partition, prev_block_weights)
+      );
+    }
+  }
+
+  std::size_t i = 0;
+  for (const BlockID _ : steps) {
     {
-      const int level = math::floor_log2(current_k);
-      const BlockID expanded_blocks = current_k - (1 << level);
-
-      std::vector<BlockWeight> max_block_weights(current_k);
-      if (current_k == _input_ctx.partition.k) {
-        for (BlockID b = 0; b < current_k; ++b) {
-          max_block_weights[b] = _input_ctx.partition.max_block_weight(b);
-        }
-      } else {
-        BlockID cur_begin = 0;
-        for (BlockID b = 0; b < current_k; ++b) {
-          const BlockID num_sub_blocks = [&] {
-            if (b < 2 * expanded_blocks) {
-              const BlockID next_k = std::min(math::ceil2(current_k), _input_ctx.partition.k);
-              return partitioning::compute_final_k(b, next_k, _input_ctx.partition.k);
-            } else {
-              return partitioning::compute_final_k(
-                  b - expanded_blocks, math::floor2(current_k), _input_ctx.partition.k
-              );
-            }
-          }();
-
-          const BlockID cur_end = cur_begin + num_sub_blocks;
-          max_block_weights[b] =
-              _input_ctx.partition.total_unrelaxed_max_block_weights(cur_begin, cur_end);
-
-          DBG << "block " << b << ": aggregate weight for " << num_sub_blocks << " of "
-              << _input_ctx.partition.k << " blocks when partitioning for the " << current_k
-              << " v-cycle = " << max_block_weights[b];
-
-          cur_begin = cur_end;
-        }
-      }
-      ctx.partition.setup(_input_graph, std::move(max_block_weights));
+      ctx.partition.set_epsilon(-1.0);
+      ctx.partition.setup(_input_graph, std::move(vcycle_block_weights[i++]));
     }
 
     if (communities.empty()) {

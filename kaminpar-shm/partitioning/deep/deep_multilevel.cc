@@ -215,6 +215,7 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
   }();
   ENABLE_TIMERS();
 
+  // @todo for communities
   _current_p_ctx = create_kway_context(_input_ctx, p_graph);
   DBG << debug::describe_partition_state(p_graph, _current_p_ctx);
 
@@ -346,6 +347,8 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
         _bipartitioner_pool
     );
     _current_p_ctx = create_kway_context(_input_ctx, p_graph);
+    DBG << "Partition state after partial extend completion to " << k_prime << " blocks:";
+    DBG << debug::describe_partition_state(p_graph, _current_p_ctx);
   }
 
   if (_input_ctx.partitioning.use_lazy_subgraph_memory) {
