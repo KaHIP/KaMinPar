@@ -16,6 +16,7 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::dist {
+
 shm::PartitionedGraph KaMinParInitialPartitioner::initial_partition(
     const shm::Graph &graph, const PartitionContext &p_ctx
 ) {
@@ -25,9 +26,8 @@ shm::PartitionedGraph KaMinParInitialPartitioner::initial_partition(
 
   auto shm_ctx = _ctx.initial_partitioning.kaminpar;
   shm_ctx.refinement.lp.num_iterations = 1;
-  shm_ctx.partition.k = p_ctx.k;
-  shm_ctx.partition.epsilon = p_ctx.epsilon;
-  shm_ctx.setup(graph);
+  shm_ctx.partition.setup(graph, p_ctx.k, p_ctx.epsilon);
+  shm_ctx.compression.setup(graph);
 
   DISABLE_TIMERS();
   START_HEAP_PROFILER("KaMinPar");
@@ -40,4 +40,5 @@ shm::PartitionedGraph KaMinParInitialPartitioner::initial_partition(
 
   return p_graph;
 }
+
 } // namespace kaminpar::dist

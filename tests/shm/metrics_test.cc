@@ -6,6 +6,7 @@
 #include "kaminpar-shm/metrics.h"
 
 namespace kaminpar::shm::testing {
+
 class MetricsTestFixture : public ::testing::Test {
 public:
   Graph graph = make_graph(
@@ -68,10 +69,14 @@ TEST_F(MetricsTestFixture, imbalanced_bipartition_balance) {
   EXPECT_DOUBLE_EQ(metrics::imbalance(p_graph), 0.5);
 }
 
-inline Context
-create_testing_context(const Graph &graph, const BlockID k = 2, const double epsilon = 0.03) {
+inline Context create_testing_context(
+    const Graph &graph,
+    const BlockID k = 2,
+    const double epsilon = 0.03,
+    const bool relax_block_weights = true
+) {
   Context context = create_default_context();
-  context.partition.setup(graph, k, epsilon);
+  context.partition.setup(graph, k, epsilon, relax_block_weights);
   return context;
 }
 
@@ -93,4 +98,5 @@ TEST(MetricsTest, is_feasible_with_multiple_nodes) {
   p_graph.set_block(2, 0);
   EXPECT_FALSE(metrics::is_feasible(p_graph, ctx.partition));
 }
+
 } // namespace kaminpar::shm::testing
