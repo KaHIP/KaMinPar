@@ -96,6 +96,8 @@ PartitionedGraph VcycleDeepMultilevelPartitioner::partition() {
     }
   }
 
+  std::reverse(vcycle_block_weights.begin(), vcycle_block_weights.end());
+
   std::size_t i = 0;
   for (const BlockID _ : steps) {
     {
