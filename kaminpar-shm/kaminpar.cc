@@ -147,10 +147,11 @@ void print_statistics(
   LOG;
   LOG << "Block weights:";
 
-  const int block_id_width = std::log10(p_graph.k()) + 1;
+  constexpr BlockID max_displayed_weights = 128;
+
+  const int block_id_width = std::log10(std::min(max_displayed_weights, p_graph.k())) + 1;
   const int block_weight_width = std::log10(ctx.partition.original_total_node_weight) + 1;
 
-  constexpr BlockID max_displayed_weights = 128;
   for (BlockID b = 0; b < std::min<BlockID>(p_graph.k(), max_displayed_weights); ++b) {
     std::stringstream ss;
     ss << "  w(" << std::left << std::setw(block_id_width) << b

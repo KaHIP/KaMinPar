@@ -41,7 +41,7 @@ void InitialGGGBipartitioner::fill_bipartition() {
   Random &rand = Random::instance();
 
   do {
-    // find random unmarked node -- if too many attempts fail, take the first
+    // Find random unmarked node -- if too many attempts fail, take the first
     // unmarked node in sequence
     NodeID start_node = 0;
     std::size_t counter = 0;
@@ -52,7 +52,9 @@ void InitialGGGBipartitioner::fill_bipartition() {
     if (_marker.get(start_node)) {
       start_node = _marker.first_unmarked_element();
     }
-    KASSERT(start_node < _graph->n(), "no unmarked node found");
+    if (start_node >= _graph->n()) {
+      break;
+    }
 
     _queue.push(start_node, compute_gain(start_node));
     _marker.set<true>(start_node);
@@ -88,7 +90,7 @@ void InitialGGGBipartitioner::fill_bipartition() {
         }
       });
     }
-  } while (_block_weights[V2] <= _p_ctx->perfectly_balanced_block_weight(V2));
+  } while (_block_weights[V2] < _p_ctx->perfectly_balanced_block_weight(V2));
 }
 
 [[nodiscard]] EdgeWeight InitialGGGBipartitioner::compute_gain(const NodeID u) const {
