@@ -37,7 +37,7 @@ namespace kaminpar::shm {
 
 namespace {
 
-SET_DEBUG(false);
+SET_DEBUG(true);
 
 }
 
@@ -116,6 +116,11 @@ void InitialMultilevelBipartitioner::initialize(
 
     _p_ctx.setup(graph, std::move(max_block_weights), true);
   }
+
+  DBG << "--> max block weights: " << _p_ctx.max_block_weight(0) << " + "
+      << _p_ctx.max_block_weight(1)
+      << ", perfect block weights: " << _p_ctx.perfectly_balanced_block_weight(0) << " + "
+      << _p_ctx.perfectly_balanced_block_weight(1);
 
   _coarsener->init(graph);
   _refiner->init(graph);
