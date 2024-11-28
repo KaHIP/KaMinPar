@@ -78,8 +78,9 @@ void InitialMultilevelBipartitioner::initialize(
       )
   };
 
-  DBG << "For block " << current_block << " of " << current_k << ": spans sub-blocks ["
-      << first_sub_block << ", " << first_invalid_sub_block << "), split weight "
+  DBG << "For block " << current_block << " of " << current_k << " current weight "
+      << graph.total_node_weight() << ": spans sub-blocks [" << first_sub_block << ", "
+      << first_invalid_sub_block << "), split max weight "
       << _ctx.partition.total_max_block_weights(first_sub_block, first_invalid_sub_block)
       << " into " << max_block_weights[0] << " and " << max_block_weights[1];
 
