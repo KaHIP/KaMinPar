@@ -39,6 +39,8 @@ void PartitionContext::setup(
       std::ceil(1.0 * graph.total_node_weight() / k);
   std::vector<BlockWeight> max_block_weights(k, (1.0 + epsilon) * perfectly_balanced_block_weight);
   setup(graph, std::move(max_block_weights), relax_max_block_weights);
+
+  _uniform_block_weights = true;
 }
 
 void PartitionContext::setup(
@@ -59,6 +61,7 @@ void PartitionContext::setup(
   _total_max_block_weights = std::accumulate(
       _max_block_weights.begin(), _max_block_weights.end(), static_cast<BlockWeight>(0)
   );
+  _uniform_block_weights = false;
 
   if (relax_max_block_weights) {
     const double eps = inferred_epsilon();
