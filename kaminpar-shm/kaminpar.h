@@ -367,6 +367,10 @@ struct PartitionContext {
   }
 
   [[nodiscard]] BlockWeight total_max_block_weights(const BlockID begin, const BlockID end) const {
+    if (_uniform_block_weights) {
+      return _max_block_weights[begin] * (end - begin);
+    }
+
     return std::accumulate(
         _max_block_weights.begin() + begin,
         _max_block_weights.begin() + end,
@@ -376,6 +380,10 @@ struct PartitionContext {
 
   [[nodiscard]] BlockWeight
   total_unrelaxed_max_block_weights(const BlockID begin, const BlockID end) const {
+    if (_uniform_block_weights) {
+      return _unrelaxed_max_block_weights[begin] * (end - begin);
+    }
+
     return std::accumulate(
         _unrelaxed_max_block_weights.begin() + begin,
         _unrelaxed_max_block_weights.begin() + end,
@@ -421,6 +429,7 @@ private:
 
   BlockWeight _total_max_block_weights = 0;
   double _epsilon = -1.0;
+  bool _uniform_block_weights = false;
 };
 
 struct ParallelContext {

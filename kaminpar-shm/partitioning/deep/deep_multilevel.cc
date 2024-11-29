@@ -59,6 +59,9 @@ PartitionedGraph DeepMultilevelPartitioner::partition() {
     _refiner->set_output_prefix("    ");
   }
 
+  DBG << "Initial partition context:";
+  DBG << debug::describe_partition_context(_input_ctx.partition);
+
   return uncoarsen(initial_partition(coarsen()));
 }
 
@@ -319,6 +322,9 @@ void DeepMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
 
     _refiner->set_communities(_coarsener->current_communities());
   }
+
+  DBG << "Partition context for refinement:";
+  DBG << debug::describe_partition_state(p_graph, _current_p_ctx);
 
   // If requested, dump the current partition to disk before refinement ...
   debug::dump_partition_hierarchy(p_graph, _coarsener->level(), "pre-refinement", _input_ctx);
