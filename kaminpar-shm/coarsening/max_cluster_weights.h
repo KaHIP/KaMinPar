@@ -61,7 +61,7 @@ NodeWeight compute_max_cluster_weight(
     break;
 
   case ClusterWeightLimit::BLOCK_WEIGHT:
-    max_cluster_weight = (1.0 + p_ctx.inferred_epsilon()) * total_node_weight / p_ctx.k;
+    max_cluster_weight = (1.0 + p_ctx.epsilon()) * total_node_weight / p_ctx.k;
     break;
 
   case ClusterWeightLimit::ONE:

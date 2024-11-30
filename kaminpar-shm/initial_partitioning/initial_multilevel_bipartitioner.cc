@@ -28,6 +28,7 @@
 #include "kaminpar-shm/initial_partitioning/initial_pool_bipartitioner.h"
 #include "kaminpar-shm/initial_partitioning/initial_refiner.h"
 #include "kaminpar-shm/kaminpar.h"
+#include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/partitioning/partition_utils.h"
 
 #include "kaminpar-common/logger.h"
@@ -37,7 +38,7 @@ namespace kaminpar::shm {
 
 namespace {
 
-SET_DEBUG(false);
+SET_DEBUG(true);
 
 }
 
@@ -111,6 +112,12 @@ void InitialMultilevelBipartitioner::initialize(
         << ", will be relaxed with parameters max node weight " << graph.max_node_weight();
 
     _p_ctx.setup(graph, std::move(max_block_weights), true);
+
+    // @todo: we need this for the max cluster weight computation, where inferred epsilon might give
+    // slightly different values otherwise
+    // For now, only for testing, but keep in mind to update max_cluster_weight() to use
+    // inferred_epsilon() before removing this!
+    _p_ctx.set_epsilon(adapted_eps);
   } else {
     DBG << "[" << current_block << "/" << current_k
         << "]j-> using original epsilon: " << _ctx.partition.epsilon()
@@ -120,12 +127,6 @@ void InitialMultilevelBipartitioner::initialize(
     _p_ctx.setup(graph, std::move(max_block_weights), true);
   }
 
-  DBG << "[" << current_block << "/" << current_k
-      << "]--> max block weights: " << _p_ctx.max_block_weight(0) << " + "
-      << _p_ctx.max_block_weight(1)
-      << ", perfect block weights: " << _p_ctx.perfectly_balanced_block_weight(0) << " + "
-      << _p_ctx.perfectly_balanced_block_weight(1);
-
   _coarsener->init(graph);
   _refiner->init(graph);
 
@@ -133,6 +134,12 @@ void InitialMultilevelBipartitioner::initialize(
       _i_ctx.pool.repetition_multiplier * num_sub_blocks / math::ceil_log2(_ctx.partition.k)
   );
   _bipartitioner->set_num_repetitions(num_bipartition_repetitions);
+
+  DBG << "[" << current_block << "/" << current_k
+      << "]--> max block weights: " << _p_ctx.max_block_weight(0) << " + "
+      << _p_ctx.max_block_weight(1)
+      << ", perfect block weights: " << _p_ctx.perfectly_balanced_block_weight(0) << " + "
+      << _p_ctx.perfectly_balanced_block_weight(1) << ", reps: " << num_bipartition_repetitions;
 }
 
 PartitionedCSRGraph InitialMultilevelBipartitioner::partition(InitialPartitionerTimings *timings) {
@@ -178,7 +185,7 @@ const CSRGraph *InitialMultilevelBipartitioner::coarsen(InitialPartitionerTiming
   const CSRGraph *c_graph = _graph;
 
   bool shrunk = true;
-  // DBG << "Coarsen: n=" << c_graph->n() << " m=" << c_graph->m();
+  DBG << "Initial coarsening: n=" << c_graph->n() << " m=" << c_graph->m();
   if (timings) {
     timings->coarsening_misc_ms += timer.elapsed();
   }
@@ -192,11 +199,11 @@ const CSRGraph *InitialMultilevelBipartitioner::coarsen(InitialPartitionerTiming
 
     shrunk = new_c_graph != c_graph;
 
-    // DBG << "-> "                                              //
-    //<< "n=" << new_c_graph->n() << " "                    //
-    //<< "m=" << new_c_graph->m() << " "                    //
-    //<< "max_cluster_weight=" << max_cluster_weight << " " //
-    //<< ((shrunk) ? "" : "==> terminate");                 //
+    DBG << "-> "                                              //
+        << "n=" << new_c_graph->n() << " "                    //
+        << "m=" << new_c_graph->m() << " "                    //
+        << "max_cluster_weight=" << max_cluster_weight << " " //
+        << ((shrunk) ? "" : "==> terminate");                 //
 
     if (shrunk) {
       c_graph = new_c_graph;
@@ -211,7 +218,7 @@ const CSRGraph *InitialMultilevelBipartitioner::coarsen(InitialPartitionerTiming
 }
 
 PartitionedCSRGraph InitialMultilevelBipartitioner::uncoarsen(PartitionedCSRGraph p_graph) {
-  // DBG << "Uncoarsen: n=" << p_graph.n() << " m=" << p_graph.m();
+  DBG << "Initial uncoarsening: n=" << p_graph.n() << " m=" << p_graph.m();
 
   while (!_coarsener->empty()) {
     p_graph = _coarsener->uncoarsen(std::move(p_graph));
@@ -219,12 +226,12 @@ PartitionedCSRGraph InitialMultilevelBipartitioner::uncoarsen(PartitionedCSRGrap
     _refiner->init(p_graph.graph());
     _refiner->refine(p_graph, _p_ctx);
 
-    // DBG << "-> "                                                 //
-    //<< "n=" << p_graph.n() << " "                            //
-    //<< "m=" << p_graph.m() << " "                            //
-    //<< "cut=" << metrics::edge_cut_seq(p_graph) << " "       //
-    //<< "imbalance=" << metrics::imbalance(p_graph) << " "    //
-    //<< "feasible=" << metrics::is_feasible(p_graph, _p_ctx); //
+    DBG << "-> "                                                 //
+        << "n=" << p_graph.n() << " "                            //
+        << "m=" << p_graph.m() << " "                            //
+        << "cut=" << metrics::edge_cut_seq(p_graph) << " "       //
+        << "imbalance=" << metrics::imbalance(p_graph) << " "    //
+        << "feasible=" << metrics::is_feasible(p_graph, _p_ctx); //
   }
 
   return p_graph;
