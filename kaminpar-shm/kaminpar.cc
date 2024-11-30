@@ -171,7 +171,6 @@ void print_statistics(
     LOG << "(only showing the first " << max_displayed_weights << " of " << p_graph.k()
         << " blocks)";
   }
-  LOG;
 }
 
 } // namespace
