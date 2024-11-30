@@ -23,6 +23,10 @@ SET_STATISTICS_FROM_GLOBAL();
 } // namespace
 
 PartitionContext create_kway_context(const Context &input_ctx, const PartitionedGraph &p_graph) {
+  if (p_graph.k() == input_ctx.partition.k && p_graph.n() == input_ctx.partition.n) {
+    return input_ctx.partition;
+  }
+
   const BlockID input_k = input_ctx.partition.k;
   const BlockID current_k = p_graph.k();
 
@@ -36,8 +40,8 @@ PartitionContext create_kway_context(const Context &input_ctx, const Partitioned
 
     max_block_weights[coarse_block] =
         input_ctx.partition.total_unrelaxed_max_block_weights(begin, end);
-    //LOG << "Block " << coarse_block << ": max weight " << max_block_weights[coarse_block]
-    //    << " with inferred_eps()=" << input_ctx.partition.inferred_epsilon();
+    // LOG << "Block " << coarse_block << ": max weight " << max_block_weights[coarse_block]
+    //     << " with inferred_eps()=" << input_ctx.partition.inferred_epsilon();
 
     // if (p_graph.k() != input_ctx.partition.k) { // @todo
     // max_block_weights[coarse_block] += end - begin;
@@ -55,11 +59,12 @@ PartitionContext create_kway_context(const Context &input_ctx, const Partitioned
     new_p_ctx.set_epsilon(input_ctx.partition.epsilon());
   }
 
-  //for (const BlockID coarse_block : p_graph.blocks()) {
-  //  LOG << "Block " << coarse_block << ": max weight " << new_p_ctx.max_block_weight(coarse_block)
-  //      << ", perfectly balanced weight: "
-  //      << new_p_ctx.perfectly_balanced_block_weight(coarse_block);
-  //}
+  // for (const BlockID coarse_block : p_graph.blocks()) {
+  //   LOG << "Block " << coarse_block << ": max weight " <<
+  //   new_p_ctx.max_block_weight(coarse_block)
+  //       << ", perfectly balanced weight: "
+  //       << new_p_ctx.perfectly_balanced_block_weight(coarse_block);
+  // }
 
   return new_p_ctx;
 }
