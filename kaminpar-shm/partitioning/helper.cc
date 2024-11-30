@@ -23,9 +23,9 @@ SET_STATISTICS_FROM_GLOBAL();
 } // namespace
 
 PartitionContext create_kway_context(const Context &input_ctx, const PartitionedGraph &p_graph) {
-  if (p_graph.k() == input_ctx.partition.k && p_graph.n() == input_ctx.partition.n) {
-    return input_ctx.partition;
-  }
+  //if (p_graph.k() == input_ctx.partition.k && p_graph.n() == input_ctx.partition.n) {
+  //  return input_ctx.partition;
+  //}
 
   const BlockID input_k = input_ctx.partition.k;
   const BlockID current_k = p_graph.k();

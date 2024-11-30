@@ -348,6 +348,7 @@ struct InitialPartitioningContext {
 //
 
 struct PartitionContext {
+  NodeID original_n = kInvalidNodeID;
   NodeID n = kInvalidNodeID;
   EdgeID m = kInvalidEdgeID;
   NodeWeight original_total_node_weight = kInvalidNodeWeight;
