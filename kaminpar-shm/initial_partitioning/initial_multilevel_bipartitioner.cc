@@ -78,18 +78,18 @@ void InitialMultilevelBipartitioner::initialize(
       )
   };
 
-  DBG << "For block " << current_block << " of " << current_k << " current weight "
-      << graph.total_node_weight() << ": spans sub-blocks [" << first_sub_block << ", "
+  DBG << "[" << current_block << "/" << current_k << "] Current weight "
+      << graph.total_node_weight() << ", spans sub-blocks [" << first_sub_block << ", "
       << first_invalid_sub_block << "), split max weight "
       << _ctx.partition.total_max_block_weights(first_sub_block, first_invalid_sub_block)
       << " into " << max_block_weights[0] << " and " << max_block_weights[1];
 
   // @todo: how to adapt the inferred epsilon when dealing with arbitrary block weights?
-  if (_ctx.partition.has_epsilon() && _i_ctx.use_adaptive_epsilon) {
+  if (_ctx.partition.has_uniform_block_weights() && _i_ctx.use_adaptive_epsilon) {
     // It can be beneficial to artifically "restrict" the maximum block weights of *this*
     // bipartition, ensuring that there is enough wiggle room for further bipartitioning of the
     // sub-blocks: this is based on the "adapted epsilon" strategy of KaHyPar.
-    const double base = (1.0 + _ctx.partition.epsilon()) * num_sub_blocks *
+    const double base = (1.0 + _ctx.partition.inferred_epsilon()) * num_sub_blocks *
                         _ctx.partition.total_node_weight / _ctx.partition.k /
                         graph.total_node_weight();
     const double exponent = 1.0 / math::ceil_log2(num_sub_blocks);
@@ -105,20 +105,23 @@ void InitialMultilevelBipartitioner::initialize(
       max_block_weights[b] = (1.0 + adapted_eps) * graph.total_node_weight() * max_weight_ratios[b];
     }
 
-    DBG << "-> adapted epsilon from " << _ctx.partition.epsilon() << " to " << adapted_eps
-        << ", changing max block weights to " << max_block_weights[0] << " and "
-        << max_block_weights[1];
+    DBG << "[" << current_block << "/" << current_k << "]-> adapted epsilon from "
+        << _ctx.partition.epsilon() << " to " << adapted_eps << ", changing max block weights to "
+        << max_block_weights[0] << " + " << max_block_weights[1]
+        << ", will be relaxed with parameters max node weight " << graph.max_node_weight();
 
     _p_ctx.setup(graph, std::move(max_block_weights), true);
   } else {
-    DBG << "-> using original epsilon: " << _ctx.partition.epsilon()
+    DBG << "[" << current_block << "/" << current_k
+        << "]j-> using original epsilon: " << _ctx.partition.epsilon()
         << ", inferred from max block weights " << max_block_weights[0] << " and "
         << max_block_weights[1];
 
     _p_ctx.setup(graph, std::move(max_block_weights), true);
   }
 
-  DBG << "--> max block weights: " << _p_ctx.max_block_weight(0) << " + "
+  DBG << "[" << current_block << "/" << current_k
+      << "]--> max block weights: " << _p_ctx.max_block_weight(0) << " + "
       << _p_ctx.max_block_weight(1)
       << ", perfect block weights: " << _p_ctx.perfectly_balanced_block_weight(0) << " + "
       << _p_ctx.perfectly_balanced_block_weight(1);

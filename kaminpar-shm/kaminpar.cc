@@ -66,8 +66,9 @@ void PartitionContext::setup(
   if (relax_max_block_weights) {
     const double eps = inferred_epsilon();
     for (BlockWeight &max_block_weight : _max_block_weights) {
-      max_block_weight =
-          std::max<BlockWeight>(max_block_weight, max_block_weight / (1.0 + eps) + max_node_weight);
+      max_block_weight = std::max<BlockWeight>(
+          max_block_weight, std::ceil(1.0 * max_block_weight / (1.0 + eps)) + max_node_weight
+      );
     }
   }
 }
