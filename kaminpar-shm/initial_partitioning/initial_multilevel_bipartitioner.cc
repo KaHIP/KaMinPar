@@ -117,7 +117,7 @@ void InitialMultilevelBipartitioner::initialize(
     // slightly different values otherwise
     // For now, only for testing, but keep in mind to update max_cluster_weight() to use
     // inferred_epsilon() before removing this!
-    _p_ctx.set_epsilon(adapted_eps);
+    //_p_ctx.set_epsilon(adapted_eps);
   } else {
     DBG << "[" << current_block << "/" << current_k
         << "]j-> using original epsilon: " << _ctx.partition.epsilon()
