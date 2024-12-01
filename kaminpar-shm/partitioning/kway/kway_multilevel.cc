@@ -17,9 +17,12 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
+
 namespace {
+
 SET_DEBUG(false);
 SET_STATISTICS_FROM_GLOBAL();
+
 } // namespace
 
 KWayMultilevelPartitioner::KWayMultilevelPartitioner(
@@ -45,7 +48,8 @@ void KWayMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
   // If requested, dump the current partition to disk before refinement ...
   debug::dump_partition_hierarchy(p_graph, _coarsener->level(), "pre-refinement", _input_ctx);
 
-  partitioning::refine(_refiner.get(), p_graph, _current_p_ctx);
+  _refiner->initialize(p_graph);
+  _refiner->refine(p_graph, _current_p_ctx);
   if (_print_metrics) {
     SCOPED_TIMER("Partition metrics");
     LOG << "  Cut:       " << metrics::edge_cut(p_graph);
@@ -66,9 +70,7 @@ PartitionedGraph KWayMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) 
     LOG;
     LOG << "Uncoarsening -> Level " << _coarsener->level();
 
-    p_graph = partitioning::uncoarsen_once(
-        _coarsener.get(), std::move(p_graph), _current_p_ctx, _input_ctx.partition
-    );
+    p_graph = _coarsener->uncoarsen(std::move(p_graph));
     refine(p_graph);
   }
 
@@ -89,7 +91,7 @@ const Graph *KWayMultilevelPartitioner::coarsen() {
     debug::dump_graph_hierarchy(*c_graph, _coarsener->level(), _input_ctx);
 
     // Build next coarse graph
-    shrunk = partitioning::coarsen_once(_coarsener.get(), c_graph, _current_p_ctx);
+    shrunk = _coarsener->coarsen();
     c_graph = &_coarsener->current();
 
     // Print some metrics for the coarse graphs
@@ -139,9 +141,7 @@ PartitionedGraph KWayMultilevelPartitioner::initial_partition(const Graph *graph
   // Since timers are not multi-threaded, we disable them during (parallel)
   // initial partitioning.
   DISABLE_TIMERS();
-  PartitionedGraph p_graph =
-      partitioning::bipartition(graph, _input_ctx.partition.k, _bipartitioner_pool, true);
-  partitioning::update_partition_context(_current_p_ctx, p_graph, _input_ctx.partition.k);
+  PartitionedGraph p_graph = _bipartitioner_pool.bipartition(graph, 0, 1, true);
 
   graph::SubgraphMemory subgraph_memory(p_graph.n(), _input_ctx.partition.k, p_graph.m());
   partitioning::TemporarySubgraphMemoryEts ip_extraction_pool_ets;
@@ -150,14 +150,12 @@ PartitionedGraph KWayMultilevelPartitioner::initial_partition(const Graph *graph
       p_graph,
       _input_ctx.partition.k,
       _input_ctx,
-      _current_p_ctx,
       subgraph_memory,
       ip_extraction_pool_ets,
       _bipartitioner_pool,
       _input_ctx.parallel.num_threads
   );
 
-  partitioning::update_partition_context(_current_p_ctx, p_graph, _input_ctx.partition.k);
   ENABLE_TIMERS();
 
   // Print some metrics for the initial partition.
@@ -175,4 +173,5 @@ PartitionedGraph KWayMultilevelPartitioner::initial_partition(const Graph *graph
 
   return p_graph;
 }
+
 } // namespace kaminpar::shm

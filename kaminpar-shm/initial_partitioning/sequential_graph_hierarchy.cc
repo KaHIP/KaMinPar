@@ -14,6 +14,7 @@
 #include "kaminpar-common/datastructures/scalable_vector.h"
 
 namespace kaminpar::shm {
+
 void SequentialGraphHierarchy::init(const CSRGraph &graph) {
   _finest_graph = &graph;
 
@@ -189,4 +190,5 @@ CSRGraphMemory SequentialGraphHierarchy::alloc_graph_memory() {
 
   return memory;
 }
+
 } // namespace kaminpar::shm

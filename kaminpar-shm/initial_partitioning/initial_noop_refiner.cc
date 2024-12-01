@@ -12,9 +12,11 @@
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
+
 void InitialNoopRefiner::init(const CSRGraph &) {}
 
 bool InitialNoopRefiner::refine(PartitionedCSRGraph &, const PartitionContext &) {
   return false;
 }
+
 } // namespace kaminpar::shm

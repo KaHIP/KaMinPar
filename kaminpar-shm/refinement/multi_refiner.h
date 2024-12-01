@@ -11,7 +11,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "kaminpar-shm/context.h"
+#include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/refinement/refiner.h"
 
 namespace kaminpar::shm {

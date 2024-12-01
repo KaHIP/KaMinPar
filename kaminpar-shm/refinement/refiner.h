@@ -9,8 +9,8 @@
 
 #include <string_view>
 
-#include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
+#include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
 

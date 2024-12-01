@@ -8,9 +8,11 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <numeric>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -338,51 +340,110 @@ struct InitialPartitioningContext {
   InitialRefinementContext refinement;
 
   bool refine_pool_partition;
+  bool use_adaptive_epsilon;
 };
 
 //
 // Application level
 //
 
-class AbstractGraph;
-class Graph;
-struct PartitionContext;
-
-struct BlockWeightsContext {
-  void setup(const PartitionContext &ctx, const bool parallel = true);
-  void setup(const PartitionContext &ctx, const BlockID input_k, const bool parallel = true);
-
-  [[nodiscard]] BlockWeight max(BlockID b) const {
-    return _max_block_weights[b];
-  }
-
-  [[nodiscard]] const std::vector<BlockWeight> &all_max() const;
-
-  [[nodiscard]] BlockWeight perfectly_balanced(BlockID b) const {
-    return _perfectly_balanced_block_weights[b];
-  }
-
-  [[nodiscard]] const std::vector<BlockWeight> &all_perfectly_balanced() const;
-
-private:
-  std::vector<BlockWeight> _perfectly_balanced_block_weights;
-  std::vector<BlockWeight> _max_block_weights;
-};
-
 struct PartitionContext {
-  double epsilon;
-  BlockID k;
-
-  BlockWeightsContext block_weights{};
-  void setup_block_weights();
-
+  NodeID original_n = kInvalidNodeID;
   NodeID n = kInvalidNodeID;
   EdgeID m = kInvalidEdgeID;
+  NodeWeight original_total_node_weight = kInvalidNodeWeight;
   NodeWeight total_node_weight = kInvalidNodeWeight;
   EdgeWeight total_edge_weight = kInvalidEdgeWeight;
   NodeWeight max_node_weight = kInvalidNodeWeight;
 
-  void setup(const AbstractGraph &graph, const bool setup_block_weights = true);
+  BlockID k;
+
+  [[nodiscard]] BlockWeight perfectly_balanced_block_weight(const BlockID block) const {
+    return std::ceil(1.0 * _unrelaxed_max_block_weights[block] / (1 + inferred_epsilon()));
+  }
+
+  [[nodiscard]] BlockWeight max_block_weight(const BlockID block) const {
+    return _max_block_weights[block];
+  }
+
+  [[nodiscard]] BlockWeight total_max_block_weights(const BlockID begin, const BlockID end) const {
+    if (_uniform_block_weights) {
+      return _max_block_weights[begin] * (end - begin);
+    }
+
+    return std::accumulate(
+        _max_block_weights.begin() + begin,
+        _max_block_weights.begin() + end,
+        static_cast<BlockWeight>(0)
+    );
+  }
+
+  [[nodiscard]] BlockWeight
+  total_unrelaxed_max_block_weights(const BlockID begin, const BlockID end) const {
+    if (_uniform_block_weights) {
+      const double max =
+          (1.0 + inferred_epsilon()) * std::ceil(1.0 * (end - begin) * total_node_weight / k);
+      return max;
+      // return _unrelaxed_max_block_weights[begin] * (end - begin);
+    }
+
+    return std::accumulate(
+        _unrelaxed_max_block_weights.begin() + begin,
+        _unrelaxed_max_block_weights.begin() + end,
+        static_cast<BlockWeight>(0)
+    );
+  }
+
+  [[nodiscard]] double epsilon() const {
+    return _epsilon < 0.0 ? inferred_epsilon() : _epsilon;
+  }
+
+  [[nodiscard]] double infer_epsilon(const NodeWeight actual_total_node_weight) const {
+    if (_uniform_block_weights) {
+      const double max = (1.0 + _epsilon) * std::ceil(1.0 * original_total_node_weight / k);
+      return max / std::ceil(1.0 * actual_total_node_weight / k) - 1.0;
+    }
+
+    return 1.0 * _total_max_block_weights / actual_total_node_weight - 1.0;
+  }
+
+  [[nodiscard]] double inferred_epsilon() const {
+    return infer_epsilon(total_node_weight);
+    // return 1.0 * _total_max_block_weights / total_node_weight - 1.0;
+  }
+
+  void set_epsilon(const double eps) {
+    _epsilon = eps;
+  }
+
+  [[nodiscard]] bool has_epsilon() const {
+    return _epsilon > 0.0;
+  }
+
+  [[nodiscard]] bool has_uniform_block_weights() const {
+    return _uniform_block_weights;
+  }
+
+  void setup(
+      const class AbstractGraph &graph,
+      BlockID k,
+      double epsilon,
+      bool relax_max_block_weights = false
+  );
+
+  void setup(
+      const class AbstractGraph &graph,
+      std::vector<BlockWeight> max_block_weights,
+      bool relax_max_block_weights = false
+  );
+
+private:
+  std::vector<BlockWeight> _max_block_weights{};
+  std::vector<BlockWeight> _unrelaxed_max_block_weights{};
+
+  BlockWeight _total_max_block_weights = 0;
+  double _epsilon = -1.0;
+  bool _uniform_block_weights = false;
 };
 
 struct ParallelContext {
@@ -437,7 +498,7 @@ struct GraphCompressionContext {
   std::size_t num_interval_nodes = std::numeric_limits<std::size_t>::max();
   std::size_t num_intervals = std::numeric_limits<std::size_t>::max();
 
-  void setup(const Graph &graph);
+  void setup(const class Graph &graph);
 };
 
 struct Context {
@@ -452,9 +513,8 @@ struct Context {
   RefinementContext refinement;
   ParallelContext parallel;
   DebugContext debug;
-
-  void setup(const Graph &graph);
 };
+
 } // namespace kaminpar::shm
 
 //
@@ -489,6 +549,12 @@ Context create_noref_context();
 //
 
 namespace kaminpar {
+
+namespace shm {
+
+class Graph;
+
+} // namespace shm
 
 class KaMinPar {
 public:
@@ -575,20 +641,46 @@ public:
   void set_graph(shm::Graph graph);
 
   /*!
-   * Partitions the graph set by `borrow_and_mutate_graph()` or `copy_graph()` into `k` blocks.
+   * Partitions the graph set by `borrow_and_mutate_graph()` or `copy_graph()` into `k` blocks with
+   * a maximum imbalance of 3%.
    *
-   * @param k The number of blocks to partition the graph into.
-   * @param partition Array of length `n` for storing the partition. The caller is reponsible for
-   * allocating and freeing the memory.
+   * @param k Number of blocks.
+   * @param[out] partition Span of length `n` to store the partitioning.
    *
-   * @return The edge-cut of the partition.
+   * @return Expected edge cut of the partition.
+   */
+  shm::EdgeWeight compute_partition(shm::BlockID k, shm::BlockID *partition);
+
+  /*!
+   * Partitions the graph set by `borrow_and_mutate_graph()` or `copy_graph()` into `k` blocks with
+   * a maximum imbalance of `epsilon`.
+   *
+   * @param k Number of blocks.
+   * @param epsilon Balance constraint (e.g., 0.03 for max 3% imbalance).
+   * @param[out] partition Span of length `n` to store the partitioning.
+   *
+   * @return Expected edge cut of the partition.
+   */
+  shm::EdgeWeight compute_partition(shm::BlockID k, double epsilon, shm::BlockID *partition);
+
+  /*!
+   * Partitions the graph set by `borrow_and_mutate_graph()` or `copy_graph()` such that the
+   * weight of each block is upper bounded by `max_block_weights`. The number of blocks is given
+   * implicitly by the size of `max_block_weights`.
+   *
+   * @param max_block_weights Maximum weight for each block of the partition.
+   * @param[out] partition Span of length `n` to store the partitioning.
+   *
+   * @return Expected edge cut of the partition.
    */
   shm::EdgeWeight
-  compute_partition(shm::BlockID k, shm::BlockID *partition, bool use_initial_node_ordering = true);
+  compute_partition(std::vector<shm::BlockWeight> max_block_weights, shm::BlockID *partition);
 
   const shm::Graph *graph();
 
 private:
+  shm::EdgeWeight compute_partition(shm::BlockID *partition);
+
   int _num_threads;
 
   int _max_timer_depth = std::numeric_limits<int>::max();

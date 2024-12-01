@@ -16,6 +16,7 @@
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::shm {
+
 void InitialGGGBipartitioner::init(const CSRGraph &graph, const PartitionContext &p_ctx) {
   InitialFlatBipartitioner::init(graph, p_ctx);
 
@@ -64,7 +65,7 @@ void InitialGGGBipartitioner::fill_bipartition() {
       KASSERT(_queue.peek_key() == compute_gain(u), "invalid gain in queue", assert::heavy);
       _queue.pop();
       change_block(u, V2);
-      if (_block_weights[V2] >= _p_ctx->block_weights.perfectly_balanced(V2)) {
+      if (_block_weights[V2] >= _p_ctx->perfectly_balanced_block_weight(V2)) {
         break;
       }
 
@@ -89,7 +90,7 @@ void InitialGGGBipartitioner::fill_bipartition() {
         }
       });
     }
-  } while (_block_weights[V2] < _p_ctx->block_weights.perfectly_balanced(V2));
+  } while (_block_weights[V2] < _p_ctx->perfectly_balanced_block_weight(V2));
 }
 
 [[nodiscard]] EdgeWeight InitialGGGBipartitioner::compute_gain(const NodeID u) const {
@@ -105,4 +106,5 @@ void InitialGGGBipartitioner::fill_bipartition() {
 
   return gain;
 }
+
 } // namespace kaminpar::shm

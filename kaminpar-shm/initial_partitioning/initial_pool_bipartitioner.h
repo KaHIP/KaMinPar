@@ -20,6 +20,7 @@
 #include "kaminpar-common/assert.h"
 
 namespace kaminpar::shm {
+
 class InitialPoolBipartitioner {
 public:
   struct RunningVariance {
@@ -108,4 +109,5 @@ private:
   std::vector<RunningVariance> _running_statistics{};
   Statistics _statistics{};
 };
+
 } // namespace kaminpar::shm

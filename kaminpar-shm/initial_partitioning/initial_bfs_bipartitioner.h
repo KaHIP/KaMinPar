@@ -17,12 +17,15 @@
 #include "kaminpar-common/datastructures/queue.h"
 
 namespace kaminpar::shm {
+
 namespace bfs {
+
 struct alternating;   // Switch between queues after each node
 struct lighter;       // Use lighter queue next
 struct sequential;    // Only use the first queue
 struct longer_queue;  // Use longer queue next
 struct shorter_queue; // Use shorter queue next
+
 } // namespace bfs
 
 /*!
@@ -59,4 +62,5 @@ using LighterBlockBfsBipartitioner = InitialBFSBipartitioner<bfs::lighter>;
 using SequentialBfsBipartitioner = InitialBFSBipartitioner<bfs::sequential>;
 using LongerQueueBfsBipartitioner = InitialBFSBipartitioner<bfs::longer_queue>;
 using ShorterQueueBfsBipartitioner = InitialBFSBipartitioner<bfs::shorter_queue>;
+
 } // namespace kaminpar::shm

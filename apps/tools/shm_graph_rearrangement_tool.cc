@@ -62,7 +62,7 @@ int main(int argc, char *argv[]) {
   LOG << "Rearranging graph...";
   if (ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
     graph = graph::rearrange_by_degree_buckets(graph.csr_graph());
-    graph::integrate_isolated_nodes(graph, ctx.partition.epsilon, ctx);
+    graph.integrate_isolated_nodes();
   }
 
   if (ctx.edge_ordering == EdgeOrdering::COMPRESSION) {

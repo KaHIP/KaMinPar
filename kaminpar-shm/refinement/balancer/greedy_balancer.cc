@@ -156,7 +156,7 @@ private:
       while (current_overload > 0 && !_pq.empty(from)) {
         KASSERT(
             current_overload ==
-            std::max<BlockWeight>(0, _p_graph->block_weight(from) - _p_ctx->block_weights.max(from))
+            std::max<BlockWeight>(0, _p_graph->block_weight(from) - _p_ctx->max_block_weight(from))
         );
 
         const NodeID u = _pq.peek_max_id(from);
@@ -212,7 +212,7 @@ private:
 
       KASSERT(
           current_overload ==
-          std::max<BlockWeight>(0, _p_graph->block_weight(from) - _p_ctx->block_weights.max(from))
+          std::max<BlockWeight>(0, _p_graph->block_weight(from) - _p_ctx->max_block_weight(from))
       );
     });
     STOP_TIMER();
@@ -340,7 +340,7 @@ private:
       _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeID w) {
         const BlockID v_block = _p_graph->block(v);
         if (u_block != v_block &&
-            _p_graph->block_weight(v_block) + u_weight <= _p_ctx->block_weights.max(v_block)) {
+            _p_graph->block_weight(v_block) + u_weight <= _p_ctx->max_block_weight(v_block)) {
           map[v_block] += w;
         } else if (u_block == v_block) {
           internal_degree += w;
@@ -367,7 +367,7 @@ private:
   }
 
   bool move_node_if_possible(const NodeID u, const BlockID from, const BlockID to) {
-    if (_p_graph->move(u, from, to, _p_ctx->block_weights.max(to))) {
+    if (_p_graph->move(u, from, to, _p_ctx->max_block_weight(to))) {
       if (_gain_cache != nullptr) {
         _gain_cache->move(u, from, to);
       }
@@ -409,7 +409,7 @@ private:
     auto &blocks = _feasible_target_blocks.local();
     blocks.clear();
     for (const BlockID b : _p_graph->blocks()) {
-      if (_p_graph->block_weight(b) < _p_ctx->block_weights.perfectly_balanced(b)) {
+      if (_p_graph->block_weight(b) < _p_ctx->perfectly_balanced_block_weight(b)) {
         blocks.push_back(b);
       }
     }
@@ -422,7 +422,7 @@ private:
         "block weights!"
     );
 
-    return std::max<BlockWeight>(0, _p_graph->block_weight(b) - _p_ctx->block_weights.max(b));
+    return std::max<BlockWeight>(0, _p_graph->block_weight(b) - _p_ctx->max_block_weight(b));
   }
 
   [[nodiscard]] static inline double

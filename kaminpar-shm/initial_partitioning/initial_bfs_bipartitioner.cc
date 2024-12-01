@@ -15,6 +15,7 @@
 #include "kaminpar-common/datastructures/queue.h"
 
 namespace kaminpar::shm {
+
 using Queues = std::array<Queue<NodeID>, 2>;
 
 namespace bfs {
@@ -38,7 +39,7 @@ struct lighter {
 struct sequential {
   BlockID
   operator()(const BlockID, const std::array<BlockWeight, 2> &block_weights, const PartitionContext &context, const Queues &) {
-    return (block_weights[0] < context.block_weights.perfectly_balanced(0)) ? 0 : 1;
+    return (block_weights[0] < context.perfectly_balanced_block_weight(0)) ? 0 : 1;
   }
 };
 
@@ -146,7 +147,7 @@ void InitialBFSBipartitioner<BlockSelectionStrategy>::fill_bipartition() {
       // than this version:
       const NodeWeight weight = _block_weights[active];
       const bool assignment_allowed =
-          (weight + _graph->node_weight(u) <= _p_ctx->block_weights.max(active));
+          (weight + _graph->node_weight(u) <= _p_ctx->max_block_weight(active));
       active = assignment_allowed * active + (1 - assignment_allowed) * (1 - active);
 
       set_block(u, active);
@@ -171,4 +172,5 @@ template class InitialBFSBipartitioner<bfs::lighter>;
 template class InitialBFSBipartitioner<bfs::sequential>;
 template class InitialBFSBipartitioner<bfs::longer_queue>;
 template class InitialBFSBipartitioner<bfs::shorter_queue>;
+
 } // namespace kaminpar::shm

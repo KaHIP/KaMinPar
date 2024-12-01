@@ -302,12 +302,16 @@ public:
   // Parallel iteration
   //
 
+  template <typename Lambda> inline void pfor_nodes_range(Lambda &&l) const {
+    tbb::parallel_for(tbb::blocked_range<NodeID>(0, n()), std::forward<Lambda>(l));
+  }
+
   template <typename Lambda> inline void pfor_nodes(Lambda &&l) const {
-    tbb::parallel_for(static_cast<NodeID>(0), n(), std::forward<Lambda>(l));
+    tbb::parallel_for<NodeID>(0, n(), std::forward<Lambda>(l));
   }
 
   template <typename Lambda> inline void pfor_edges(Lambda &&l) const {
-    tbb::parallel_for(static_cast<EdgeID>(0), m(), std::forward<Lambda>(l));
+    tbb::parallel_for<EdgeID>(0, m(), std::forward<Lambda>(l));
   }
 
   template <typename Lambda>
@@ -389,9 +393,9 @@ public:
   // Isolated nodes
   //
 
-  void remove_isolated_nodes(const NodeID num_isolated_nodes);
+  void remove_isolated_nodes(NodeID num_isolated_nodes) final;
 
-  void integrate_isolated_nodes();
+  NodeID integrate_isolated_nodes() final;
 
   //
   // Direct member access -- used for some "low level" operations

@@ -73,12 +73,11 @@ template <typename PartitionedGraph> double imbalance(const PartitionedGraph &p_
 }
 
 template <typename PartitionedGraph>
-NodeWeight total_overload(const PartitionedGraph &p_graph, const PartitionContext &context) {
+NodeWeight total_overload(const PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
   NodeWeight total_overload = 0;
 
   for (const BlockID b : p_graph.blocks()) {
-    total_overload +=
-        std::max<BlockWeight>(0, p_graph.block_weight(b) - context.block_weights.max(b));
+    total_overload += std::max<BlockWeight>(0, p_graph.block_weight(b) - p_ctx.max_block_weight(b));
   }
 
   return total_overload;
@@ -87,7 +86,7 @@ NodeWeight total_overload(const PartitionedGraph &p_graph, const PartitionContex
 template <typename PartitionedGraph>
 bool is_balanced(const PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
   return std::all_of(p_graph.blocks().begin(), p_graph.blocks().end(), [&](const BlockID b) {
-    return p_graph.block_weight(b) <= p_ctx.block_weights.max(b);
+    return p_graph.block_weight(b) <= p_ctx.max_block_weight(b);
   });
 }
 
@@ -105,4 +104,5 @@ template <typename PartitionedGraph>
 bool is_feasible(const PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
   return is_balanced(p_graph, p_ctx);
 }
+
 } // namespace kaminpar::shm::metrics

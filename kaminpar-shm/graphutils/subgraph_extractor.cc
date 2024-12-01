@@ -21,7 +21,9 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::graph {
+
 namespace {
+
 SET_DEBUG(false);
 
 template <typename Graph>
@@ -160,6 +162,7 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential_generic_graph(
 
   return {std::move(subgraphs), std::move(subgraph_positions)};
 }
+
 } // namespace
 
 SequentialSubgraphExtractionResult extract_subgraphs_sequential(
@@ -253,6 +256,7 @@ lazy_extract_subgraphs_preprocessing(const PartitionedGraph &p_graph) {
 }
 
 namespace {
+
 template <typename Graph>
 shm::Graph extract_subgraph_generic_graph(
     const PartitionedGraph &p_graph,
@@ -303,6 +307,7 @@ shm::Graph extract_subgraph_generic_graph(
                        : StaticArray<EdgeWeight>()
   ));
 }
+
 } // namespace
 
 Graph extract_subgraph(
@@ -320,6 +325,7 @@ Graph extract_subgraph(
 }
 
 namespace {
+
 /*
  * Builds a block-induced subgraph for each block of a partitioned graph. Return
  * type contains a mapping that maps nodes from p_graph to nodes in the
@@ -471,6 +477,7 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
 
   return {std::move(subgraphs), std::move(mapping), std::move(start_positions)};
 }
+
 } // namespace
 
 SubgraphExtractionResult extract_subgraphs(
@@ -506,10 +513,10 @@ PartitionedGraph copy_subgraph_partitions(
   parallel::prefix_sum(k0.begin(), k0.end(), k0.begin());
 
   DBG << "Copying partition after recursive bipartitioning: extended " << p_graph.k()
-      << "-way partition to " << k_prime << "-way, goal: " << input_k
-      << " with block offsets: " << k0;
+      << "-way partition to " << k_prime << "-way, goal: " << input_k;
 
   StaticArray<BlockID> partition = p_graph.take_raw_partition();
+
   p_graph.pfor_nodes([&](const NodeID u) {
     const BlockID b = partition[u];
     const NodeID s_u = mapping[u];
@@ -518,10 +525,10 @@ PartitionedGraph copy_subgraph_partitions(
 
   PartitionedGraph new_p_graph(p_graph.graph(), k_prime, std::move(partition));
   DBG << "Statistics after copying the subgraph partitions:";
-  DBG << "  Block weights: " << new_p_graph.raw_block_weights();
   DBG << "  Cut:           " << metrics::edge_cut(new_p_graph);
   DBG << "  Imbalance:     " << metrics::imbalance(new_p_graph);
 
   return new_p_graph;
 }
+
 } // namespace kaminpar::shm::graph
