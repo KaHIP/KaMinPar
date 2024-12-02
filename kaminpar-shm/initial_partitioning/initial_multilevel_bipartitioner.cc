@@ -112,12 +112,6 @@ void InitialMultilevelBipartitioner::initialize(
         << ", will be relaxed with parameters max node weight " << graph.max_node_weight();
 
     _p_ctx.setup(graph, std::move(max_block_weights), true);
-
-    // @todo: we need this for the max cluster weight computation, where inferred epsilon might give
-    // slightly different values otherwise
-    // For now, only for testing, but keep in mind to update max_cluster_weight() to use
-    // inferred_epsilon() before removing this!
-    _p_ctx.set_epsilon(adapted_eps);
   } else {
     DBG << "[" << current_block << "/" << current_k
         << "]j-> using original epsilon: " << _ctx.partition.epsilon()

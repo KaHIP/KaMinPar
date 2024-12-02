@@ -30,7 +30,7 @@ NodeWeight compute_max_cluster_weight(
     break;
 
   case ClusterWeightLimit::BLOCK_WEIGHT:
-    max_cluster_weight = (1.0 + p_ctx.epsilon()) * total_node_weight / p_ctx.k;
+    max_cluster_weight = (1.0 + p_ctx.inferred_epsilon()) * total_node_weight / p_ctx.k;
     break;
 
   case ClusterWeightLimit::ONE:
@@ -61,8 +61,8 @@ NodeWeight compute_max_cluster_weight(
     break;
 
   case ClusterWeightLimit::BLOCK_WEIGHT:
-    if constexpr (requires { p_ctx.epsilon(); }) {
-      max_cluster_weight = (1.0 + p_ctx.epsilon()) * total_node_weight / p_ctx.k;
+    if constexpr (requires { p_ctx.inferred_epsilon(); }) {
+      max_cluster_weight = (1.0 + p_ctx.inferred_epsilon()) * total_node_weight / p_ctx.k;
     } else {
       max_cluster_weight = (1.0 + p_ctx.epsilon) * total_node_weight / p_ctx.k;
     }
