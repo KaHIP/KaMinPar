@@ -65,24 +65,26 @@ int main() {
   shm.copy_graph(n, xadj.data(), adjncy.data(), nullptr, nullptr);
 
   std::vector<shm::BlockID> partition(n);
+  EdgeWeight cut = 0;
 
-  std::cout << "Balanced 2-way partition:" << std::endl;
-  shm.compute_partition(2, partition);
+  cut = shm.compute_partition(2, partition);
+  std::cout << "Balanced 2-way partition: " << cut << " edges cut" << std::endl;
   render_graph(partition);
   std::cout << std::endl;
 
-  std::cout << "Balanced 4-way partition:" << std::endl;
-  shm.compute_partition(4, partition);
+  cut = shm.compute_partition(4, partition);
+  std::cout << "Balanced 4-way partition: " << cut << " edges cut" << std::endl;
   render_graph(partition);
   std::cout << std::endl;
 
-  std::cout << "Relative max block weights {0.5, 0.25, 0.25} + 0.01:" << std::endl;
-  shm.compute_partition(std::vector<double>{0.51, 0.251, 0.251}, partition);
+  cut = shm.compute_partition(std::vector<double>{0.51, 0.251, 0.251}, partition);
+  std::cout << "Relative max block weights {0.5, 0.25, 0.25} + 0.01: " << cut << " edges cut"
+            << std::endl;
   render_graph(partition);
   std::cout << std::endl;
 
-  std::cout << "Absolute max block weights {2, 3, 3, 10}:" << std::endl;
-  shm.compute_partition(std::vector<BlockWeight>{2, 3, 3, 10}, partition);
+  cut = shm.compute_partition(std::vector<BlockWeight>{2, 3, 3, 10}, partition);
+  std::cout << "Absolute max block weights {2, 3, 3, 10}: " << cut << " edges cut" << std::endl;
   render_graph(partition);
   std::cout << std::endl;
 }
