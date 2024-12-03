@@ -447,29 +447,36 @@ int main(int argc, char *argv[]) {
 
   // Compute partition
   partitioner.set_graph(std::move(graph));
-  if (!app.max_block_weight_factors.empty()) {
-    const NodeWeight total_node_weight = partitioner.graph()->total_node_weight();
-    app.max_block_weights.reserve(app.max_block_weight_factors.size());
-    for (const double &factor : app.max_block_weight_factors) {
-      app.max_block_weights.push_back(std::ceil(factor * total_node_weight));
-    }
-  }
 
-  if (!app.max_block_weights.empty()) {
+  if (!app.max_block_weight_factors.empty()) {
+    const double total_factor = std::accumulate(
+        app.max_block_weight_factors.begin(), app.max_block_weight_factors.end(), 0.0
+    );
+    if (total_factor <= 1.0) {
+      LOG_ERROR << "Error: total block weights must be greater than the total node weight; "
+                << "this is not the case with the given factors.";
+      std::exit(1);
+    }
+
+    partitioner.compute_partition(
+        std::move(app.max_block_weight_factors), {partition.data(), partition.size()}
+    );
+  } else if (!app.max_block_weights.empty()) {
     const BlockWeight total_block_weight = std::accumulate(
         app.max_block_weights.begin(), app.max_block_weights.end(), static_cast<BlockWeight>(0)
     );
     const NodeWeight total_node_weight = partitioner.graph()->total_node_weight();
-    if (total_node_weight > total_block_weight) {
-      LOG_ERROR << "Total max block weights (" << total_block_weight
-                << ") is smaller than the total node weight (" << total_node_weight
-                << ") of the graph. This does not work. Please increase your max block weights.";
+    if (total_node_weight >= total_block_weight) {
+      LOG_ERROR << "Error: total max block weights (" << total_block_weight
+                << ") must be greater than the total node weight (" << total_node_weight << ").";
       std::exit(1);
     }
 
-    partitioner.compute_partition(std::move(app.max_block_weights), partition.data());
+    partitioner.compute_partition(
+        std::move(app.max_block_weights), {partition.data(), partition.size()}
+    );
   } else {
-    partitioner.compute_partition(app.k, app.epsilon, partition.data());
+    partitioner.compute_partition(app.k, app.epsilon, {partition.data(), partition.size()});
   }
 
   // Save graph partition

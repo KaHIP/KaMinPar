@@ -34,7 +34,7 @@ To partition a graph in METIS format (see, e.g., the [KaHIP manual](https://gith
 
 ```shell
 # KaMinPar: shared-memory partitioning
-./build/apps/KaMinPar [-P default|strong|terapart|largek] -G <graph filename> -k <number of blocks> -t <nproc> [-o <output partition>]
+./build/apps/KaMinPar [-P default|terapart|strong|largek] -G <graph filename> -k <number of blocks> -t <nproc> [-o <output partition>]
 
 # dKaMinPar: distributed partitioning
 mpirun -n <nproc> ./build/apps/dKaMinPar [-P default|strong|xterapart] -G <graph filename> -k <number of blocks> [-o <output partition>]
@@ -42,11 +42,12 @@ mpirun -n <nproc> ./build/apps/dKaMinPar [-P default|strong|xterapart] -G <graph
 
 The computed partition is written to a text file, where the n-th line contains the block ID (0-based) of the n-th vertex.
 
-We offer configuration presets for a variety of scenarios:
+There are multiple configuration presets that tune the algorithm for different scenarios:
 
 * `-P default`: fast partitioning with quality comparable to Metis
-* `-P terapart`: same partition quality as `default` but with a smaller memory footprint
-* `-P strong`: stronger partition quality at the cost of increased running time
+* `-P terapart`: same partition quality as `default`, but with reduced memory consumption (slightly slower)
+* `-P strong`: better quality than `default` at the cost of increased runtime
+* `-P largek`: faster for large values of k (e.g., k > 1024); may reduce partition quality for smaller k
 
 Configuration presets can be inspected using the `--dump-config` flag.
 To build a custom configuration, dump one of the presets to a file, modify it and load it using `-C <filename>`:
@@ -95,8 +96,8 @@ KaMinPar shm(int num_threads, shm::create_default_context());
 // KaMinPar::reseed(int seed);
 shm.borrow_and_mutate_graph(NodeID n, EdgeID *xadj, NodeID *adjncy, NodeWeight *vwgt = nullptr, EdgeWeight *adjwgt = nullptr);
 // alternatively: shm.copy_graph(n, xadj, adjncy, vwgt, adjwgt); will work on a copy of the graph
-shm.compute_partition(BlockID number_of_blocks, double epsilon, BlockID *out_partition);
-// alternatively: shm.compute_partition(std::vector<BlockWeight> max_block_weights, BlockID *out_partition);
+shm.compute_partition(BlockID number_of_blocks, double epsilon, std::span<BlockID> out_partition);
+// alternatively: shm.compute_partition(std::vector<BlockWeight> max_block_weights, std::span<BlockID> out_partition);
 // Note: you must ensure that the total max block weight is larger than the total node weight of the graph
 
 // Call the distributed partitioner:
