@@ -107,7 +107,7 @@ dist.import_graph(GlobalNodeID *vtxdist, GlobalEdgeID *xadj, GlobalNodeID *adjnc
 dist.compute_partition(BlockID number_of_blocks, BlockID *out_partition);
 ```
 
-Please take a look at `apps/KaMinPar.cc` and `apps/dKaMinPar.cc` for a full example on how to call the libraries.
+More examples can be found in the `examples/` directory. 
 
 ## Licensing
 
