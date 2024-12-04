@@ -1,0 +1,2 @@
+add_executable(ShmToyGraphExample shm_toy_graph_example.cc)
+target_link_libraries(ShmToyGraphExample PRIVATE KaMinPar::KaMinPar)
