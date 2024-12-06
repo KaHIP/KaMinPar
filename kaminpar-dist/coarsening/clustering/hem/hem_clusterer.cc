@@ -14,8 +14,11 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::dist {
+
 namespace {
+
 SET_DEBUG(true);
+
 }
 
 //
@@ -278,7 +281,7 @@ private:
             [&](const NodeID u, EdgeID, const NodeID v, EdgeWeight) {
               return _matching[u] == _graph->local_to_global_node(v);
             },
-            [&](const NodeID u, const EdgeID e, const NodeID v, const EdgeWeight w, const PEID pe) {
+            [&](const NodeID u, EdgeID, const NodeID v, const EdgeWeight w, const PEID pe) {
               const GlobalNodeID v_global = _graph->local_to_global_node(v);
               const NodeID their_v = static_cast<NodeID>(v_global - _graph->offset_n(pe));
               return MatchRequest(u, their_v, w);
@@ -375,7 +378,7 @@ private:
 
     auto add_node = [&](const NodeID u) {
       marked.reset();
-      _graph->neighbors(u, [&](const EdgeID e, const NodeID v) {
+      _graph->neighbors(u, [&](EdgeID, const NodeID v) {
         if (!_graph->is_ghost_node(v)) {
           return;
         }

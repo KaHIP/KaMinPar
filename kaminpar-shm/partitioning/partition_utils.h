@@ -16,7 +16,11 @@ double compute_2way_adaptive_epsilon(
 );
 
 PartitionContext create_bipartition_context(
-    const AbstractGraph &subgraph, BlockID k1, BlockID k2, const PartitionContext &kway_p_ctx
+    const AbstractGraph &subgraph,
+    const BlockID k1,
+    const BlockID k2,
+    const PartitionContext &kway_p_ctx,
+    const bool parallel = true
 );
 
 /**

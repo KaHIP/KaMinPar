@@ -110,7 +110,8 @@ extern "C" {
 #if defined(__GNUC__)
 #define XXH_PUBLIC_API static __inline __attribute__((unused))
 #elif defined(__cplusplus) || (defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L) /* C99   \
-                                                                                           */)
+                                                                                           */      \
+                              )
 #define XXH_PUBLIC_API static inline
 #elif defined(_MSC_VER)
 #define XXH_PUBLIC_API static __inline

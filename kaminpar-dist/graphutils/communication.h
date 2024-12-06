@@ -148,8 +148,8 @@ void sparse_alltoall_interface_to_ghost_custom_range(
 
   // Allocate message counters
   const PEID num_threads = omp_get_max_threads();
-  std::vector<cache_aligned_vector<std::size_t>> num_messages(
-      num_threads, cache_aligned_vector<std::size_t>(size)
+  std::vector<CacheAlignedVector<std::size_t>> num_messages(
+      num_threads, CacheAlignedVector<std::size_t>(size)
   );
 
   // Count messages to each PE for each thread
@@ -471,8 +471,8 @@ void sparse_alltoall_interface_to_pe_custom_range(
 
   // Allocate message counters
   const PEID num_threads = omp_get_max_threads();
-  std::vector<cache_aligned_vector<std::size_t>> num_messages(
-      num_threads, cache_aligned_vector<std::size_t>(size)
+  std::vector<CacheAlignedVector<std::size_t>> num_messages(
+      num_threads, CacheAlignedVector<std::size_t>(size)
   );
 
 #pragma omp parallel default(none) shared(size, from, to, mapper, filter, graph, num_messages)
@@ -753,8 +753,8 @@ void sparse_alltoall_custom(
 
   // Allocate message counters
   const PEID num_threads = omp_get_max_threads();
-  std::vector<cache_aligned_vector<std::size_t>> num_messages(
-      num_threads, cache_aligned_vector<std::size_t>(size)
+  std::vector<CacheAlignedVector<std::size_t>> num_messages(
+      num_threads, CacheAlignedVector<std::size_t>(size)
   );
 
   // Count messages to each PE for each thread

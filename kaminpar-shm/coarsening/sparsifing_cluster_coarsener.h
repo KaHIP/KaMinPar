@@ -35,6 +35,8 @@ public:
   bool coarsen() final;
   PartitionedGraph uncoarsen(PartitionedGraph &&p_graph) final;
 
+  void release_allocated_memory() override;
+
   [[nodiscard]] const Graph &current() const final {
     return _hierarchy.empty() ? *_input_graph : _hierarchy.back()->get();
   }

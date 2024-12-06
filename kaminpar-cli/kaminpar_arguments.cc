@@ -26,15 +26,7 @@ CLI::Option_group *create_graph_compression_options(CLI::App *app, Context &ctx)
   auto *compression = app->add_option_group("Graph Compression");
 
   compression->add_flag("-c,--compress", ctx.compression.enabled, "Enable graph compression")
-      ->default_val(false);
-  compression
-      ->add_flag(
-          "--may-dismiss",
-          ctx.compression.may_dismiss,
-          "Whether the compressed graph is only used if it uses less memory than the uncompressed "
-          "graph."
-      )
-      ->default_val(false);
+      ->capture_default_str();
 
   return compression;
 }
@@ -84,6 +76,16 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
           "(set to '0' for the old behaviour)"
       )
       ->capture_default_str();
+  partitioning
+      ->add_option(
+          "--p-lazy-extract-subgraph-memory",
+          ctx.partitioning.use_lazy_subgraph_memory,
+          "Whether to lazily extract block-induced subgraph during bipartitioning"
+      )
+      ->capture_default_str();
+  partitioning
+      ->add_flag("--p-refine-after-extending", ctx.partitioning.refine_after_extending_partition)
+      ->capture_default_str();
 
   create_partitioning_rearrangement_options(app, ctx);
 
@@ -96,9 +98,10 @@ CLI::Option_group *create_partitioning_rearrangement_options(CLI::App *app, Cont
   rearrangement->add_option("--node-order", ctx.node_ordering)
       ->transform(CLI::CheckedTransformer(get_node_orderings()).description(""))
       ->description(R"(Criteria by which the nodes of the graph are sorted and rearranged:
-  - natural:     keep node order of the graph (do not rearrange)
-  - deg-buckets: sort nodes by degree bucket and rearrange accordingly
-  - implicit-deg-buckets: nodes of the input graph are sorted by deg-buckets order)")
+  - natural:              keep node order of the graph (do not rearrange)
+  - deg-buckets:          sort nodes by degree bucket and rearrange accordingly
+  - external-deg-buckets: sort nodes by degree bucket and rearrange accordingly during IO
+  - implicit-deg-buckets: nodes of the input graph are stored in degree bucket order)")
       ->capture_default_str();
   rearrangement->add_option("--edge-order", ctx.edge_ordering)
       ->transform(CLI::CheckedTransformer(get_edge_orderings()).description(""))
@@ -180,6 +183,14 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
 
   // Clustering options:
+  coarsening
+      ->add_option(
+          "--c-shrink-factor",
+          ctx.coarsening.clustering.shrink_factor,
+          "Upper limit on how fast the graph can shrink."
+      )
+      ->capture_default_str();
+
   coarsening->add_option("--c-clustering-algorithm", ctx.coarsening.clustering.algorithm)
       ->transform(CLI::CheckedTransformer(get_clustering_algorithms()).description(""))
       ->description(R"(One of the following options:
@@ -217,6 +228,21 @@ Options are:
       )
       ->capture_default_str();
 
+  coarsening->add_flag("--c-forced-kc-level", ctx.coarsening.clustering.forced_kc_level)
+      ->capture_default_str();
+  coarsening->add_flag("--c-forced-pc-level", ctx.coarsening.clustering.forced_pc_level)
+      ->capture_default_str();
+  coarsening
+      ->add_option(
+          "--c-forced-level-upper-factor", ctx.coarsening.clustering.forced_level_upper_factor
+      )
+      ->capture_default_str();
+  coarsening
+      ->add_option(
+          "--c-forced-level-lower-factor", ctx.coarsening.clustering.forced_level_lower_factor
+      )
+      ->capture_default_str();
+
   create_lp_coarsening_options(app, ctx);
   create_contraction_coarsening_options(app, ctx);
 
@@ -245,16 +271,13 @@ CLI::Option_group *create_lp_coarsening_options(CLI::App *app, Context &ctx) {
   )
       ->capture_default_str();
 
-  lp->add_option(
-        "--c-lp-cluster-weights-struct", ctx.coarsening.clustering.lp.cluster_weights_structure
-  )
-      ->transform(CLI::CheckedTransformer(get_cluster_weight_structures()).description(""))
+  lp->add_option("--c-lp-tie-breaking-strategy", ctx.coarsening.clustering.lp.tie_breaking_strategy)
+      ->transform(CLI::CheckedTransformer(get_tie_breaking_strategies()).description(""))
       ->description(
-          R"(Determines the data structure for storing the cluster weights.
+          R"(Determines the tie breaking strategy.
 Options are:
-  - vec:                 Uses a fixed-width vector
-  - two-level-vec:       Uses a two-level vector
-  - initially-small-vec: Uses a small fixed-width vector initially and switches to a bigger fixed-width vector after relabeling (Requires two-phase lp with relabeling)
+  - geometric: Prefer nodes with same rating located at the end of a neighborhood
+  - uniform:   Select nodes with same rating uniformly at random
   )"
       )
       ->capture_default_str();
@@ -343,11 +366,11 @@ Options are:
 }
 
 CLI::Option_group *create_contraction_coarsening_options(CLI::App *app, Context &ctx) {
-  auto *contraction = app->add_option_group("Coarsening -> Contraction");
+  auto *con = app->add_option_group("Coarsening -> Contraction");
 
-  contraction->add_option("--c-con-mode", ctx.coarsening.contraction.mode)
-      ->transform(CLI::CheckedTransformer(get_contraction_modes()).description(""))
-      ->description(R"(The mode used for contraction.
+  con->add_option("--c-contraction-algorithm", ctx.coarsening.contraction.algorithm)
+      ->transform(CLI::CheckedTransformer(get_contraction_algorithms()).description(""))
+      ->description(R"(The algorithm used for contraction.
 Options are:
   - buffered:         Use an edge buffer that is partially filled
   - buffered-legacy:  Use an edge buffer
@@ -355,15 +378,28 @@ Options are:
   - unbuffered-naive: Use no edge buffer by computing twice
   )")
       ->capture_default_str();
-  contraction
-      ->add_option(
-          "--c-con-edge-buffer-fill-fraction",
-          ctx.coarsening.contraction.edge_buffer_fill_fraction,
-          "The fraction of the total edges with which to fill the edge buffer"
+  con->add_option(
+         "--c-contraction-unbuffered-impl", ctx.coarsening.contraction.unbuffered_implementation
+  )
+      ->transform(CLI::CheckedTransformer(get_contraction_implementations()).description(""))
+      ->description(
+          R"(The implementation used for unbuffered contraction.
+Options are:
+  - single-phase:        Use single-phase unbuffered contraction
+  - two-phase:           Use two-phase unbuffered contraction
+  - growing-hash-tables: Use single-phase unbuffered contraction with growing hash tables
+  )"
       )
       ->capture_default_str();
 
-  return contraction;
+  con->add_option(
+         "--c-con-edge-buffer-fill-fraction",
+         ctx.coarsening.contraction.edge_buffer_fill_fraction,
+         "The fraction of the total edges with which to fill the edge buffer"
+  )
+      ->capture_default_str();
+
+  return con;
 }
 
 CLI::Option_group *create_initial_partitioning_options(CLI::App *app, Context &ctx) {
@@ -436,6 +472,16 @@ Options are:
       )
       ->capture_default_str();
 
+  lp->add_option("--r-lp-tie-breaking-strategy", ctx.refinement.lp.tie_breaking_strategy)
+      ->transform(CLI::CheckedTransformer(get_tie_breaking_strategies()).description(""))
+      ->description(
+          R"(Determines the tie breaking strategy.
+Options are:
+  - geometric: Prefer nodes with same rating located at the end of a neighborhood
+  - uniform:   Select nodes with same rating uniformly at random
+  )"
+      )
+      ->capture_default_str();
   lp->add_option(
         "--r-lp-second-phase-selection-strategy", ctx.refinement.lp.second_phase_selection_strategy
   )
@@ -522,6 +568,9 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
   )
       ->capture_default_str();
 
+  fm->add_option("--r-fm-minimal-parallelism-pm", ctx.refinement.kway_fm.minimal_parallelism)
+      ->capture_default_str();
+
   // Flags for debugging / analysis
   fm->add_flag(
         "--r-fm-dbg-batch-stats",
@@ -529,6 +578,8 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
         "If set, compute and output detailed statistics about FM batches (can be expensive to "
         "compute on some irregular graphs)."
   )
+      ->capture_default_str();
+  fm->add_flag("--r-fm-dbg-report-progress", ctx.refinement.kway_fm.dbg_report_progress)
       ->capture_default_str();
 
   return fm;

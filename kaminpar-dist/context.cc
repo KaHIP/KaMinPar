@@ -17,7 +17,9 @@
 #include "kaminpar-dist/datastructures/distributed_compressed_graph.h"
 
 namespace kaminpar::dist {
+
 using namespace std::string_literals;
+
 PartitionContext::PartitionContext(const BlockID k, const BlockID K, const double epsilon)
     : k(k),
       K(K),
@@ -155,4 +157,5 @@ void GraphCompressionContext::setup(const DistributedCompressedGraph &graph) {
         largest_uncompressed_graph / compression_ratios[largest_uncompressed_graph_rank];
   }
 }
+
 } // namespace kaminpar::dist

@@ -10,14 +10,13 @@
 #include "kaminpar-cli/CLI11.h"
 
 #include "kaminpar-shm/graphutils/parallel_compressed_graph_builder.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 
 #include "apps/io/shm_io.h"
-#include "apps/io/shm_metis_parser.h"
-#include "apps/io/shm_parhip_parser.h"
 
 using namespace kaminpar;
 using namespace kaminpar::shm;
@@ -31,7 +30,7 @@ template <typename T> static bool operator!=(const IotaRange<T> &a, const IotaRa
   }
 
   return a.begin() != b.begin() || a.end() != b.end();
-};
+}
 
 // See https://github.com/google/benchmark/blob/main/include/benchmark/benchmark.h
 template <class T> void do_not_optimize(T value) {
@@ -182,7 +181,6 @@ int main(int argc, char *argv[]) {
   std::string graph_filename;
   GraphFileFormat graph_file_format = io::GraphFileFormat::METIS;
   int num_threads = 1;
-  bool enable_benchmarks = true;
 
   CLI::App app("Shared-memory graph compression benchmark");
   app.add_option("-G,--graph", graph_filename, "Graph file")->required();
@@ -200,16 +198,7 @@ int main(int argc, char *argv[]) {
 
   // Read input graph
   LOG << "Reading the input graph...";
-  CSRGraph graph = [&] {
-    switch (graph_file_format) {
-    case GraphFileFormat::METIS:
-      return metis::csr_read(graph_filename, false);
-    case GraphFileFormat::PARHIP:
-      return parhip::csr_read(graph_filename, false);
-    default:
-      __builtin_unreachable();
-    }
-  }();
+  CSRGraph graph = io::csr_read(graph_filename, graph_file_format, NodeOrdering::NATURAL);
 
   LOG << "Compressing the input graph...";
   CompressedGraph compressed_graph = parallel_compress(graph);

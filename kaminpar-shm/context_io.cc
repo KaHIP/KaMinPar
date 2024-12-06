@@ -17,7 +17,6 @@
 
 #include "kaminpar-common/asserting_cast.h"
 #include "kaminpar-common/console_io.h"
-#include "kaminpar-common/graph-compression/varint_codec.h"
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/strutils.h"
 
@@ -29,6 +28,8 @@ std::unordered_map<std::string, NodeOrdering> get_node_orderings() {
       {"natural", NodeOrdering::NATURAL},
       {"deg-buckets", NodeOrdering::DEGREE_BUCKETS},
       {"degree-buckets", NodeOrdering::DEGREE_BUCKETS},
+      {"external-deg-buckets", NodeOrdering::EXTERNAL_DEGREE_BUCKETS},
+      {"external-degree-buckets", NodeOrdering::EXTERNAL_DEGREE_BUCKETS},
       {"implicit-deg-buckets", NodeOrdering::IMPLICIT_DEGREE_BUCKETS},
       {"implicit-degree-buckets", NodeOrdering::IMPLICIT_DEGREE_BUCKETS},
   };
@@ -40,6 +41,8 @@ std::ostream &operator<<(std::ostream &out, const NodeOrdering ordering) {
     return out << "natural";
   case NodeOrdering::DEGREE_BUCKETS:
     return out << "deg-buckets";
+  case NodeOrdering::EXTERNAL_DEGREE_BUCKETS:
+    return out << "external-deg-buckets";
   case NodeOrdering::IMPLICIT_DEGREE_BUCKETS:
     return out << "implicit-deg-buckets";
   }
@@ -175,26 +178,6 @@ std::ostream &operator<<(std::ostream &out, const ClusterWeightLimit limit) {
   return out << "<invalid>";
 }
 
-std::unordered_map<std::string, ClusterWeightsStructure> get_cluster_weight_structures() {
-  return {
-      {"vec", ClusterWeightsStructure::VEC},
-      {"two-level-vec", ClusterWeightsStructure::TWO_LEVEL_VEC},
-      {"initially-small-vec", ClusterWeightsStructure::INITIALLY_SMALL_VEC},
-  };
-}
-
-std::ostream &operator<<(std::ostream &out, const ClusterWeightsStructure structure) {
-  switch (structure) {
-  case ClusterWeightsStructure::VEC:
-    return out << "vector";
-  case ClusterWeightsStructure::TWO_LEVEL_VEC:
-    return out << "two-level vector";
-  case ClusterWeightsStructure::INITIALLY_SMALL_VEC:
-    return out << "initially small vector";
-  }
-  return out << "<invalid>";
-}
-
 std::unordered_map<std::string, LabelPropagationImplementation> get_lp_implementations() {
   return {
       {"single-phase", LabelPropagationImplementation::SINGLE_PHASE},
@@ -310,29 +293,56 @@ std::ostream &operator<<(std::ostream &out, const InitialPartitioningMode mode) 
 
 std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies() {
   return {
+      {"compact-hashing", GainCacheStrategy::COMPACT_HASHING},
+      {"compact-hashing-largek", GainCacheStrategy::COMPACT_HASHING_LARGE_K},
       {"sparse", GainCacheStrategy::SPARSE},
+      {"sparse-largek", GainCacheStrategy::SPARSE_LARGE_K},
+      {"hashing", GainCacheStrategy::HASHING},
+      {"hashing-largek", GainCacheStrategy::HASHING_LARGE_K},
       {"dense", GainCacheStrategy::DENSE},
-      {"largek", GainCacheStrategy::LARGE_K},
+      {"dense-largek", GainCacheStrategy::DENSE_LARGE_K},
       {"on-the-fly", GainCacheStrategy::ON_THE_FLY},
-      {"hybrid", GainCacheStrategy::HYBRID},
-      {"tracing", GainCacheStrategy::TRACING},
   };
 }
 
 std::ostream &operator<<(std::ostream &out, const GainCacheStrategy strategy) {
   switch (strategy) {
+  case GainCacheStrategy::COMPACT_HASHING:
+    return out << "compact-hashing";
+  case GainCacheStrategy::COMPACT_HASHING_LARGE_K:
+    return out << "compact-hashing-largek";
   case GainCacheStrategy::SPARSE:
     return out << "sparse";
+  case GainCacheStrategy::SPARSE_LARGE_K:
+    return out << "sparse-largek";
+  case GainCacheStrategy::HASHING:
+    return out << "hashing";
+  case GainCacheStrategy::HASHING_LARGE_K:
+    return out << "hashing-largek";
   case GainCacheStrategy::DENSE:
     return out << "dense";
-  case GainCacheStrategy::LARGE_K:
-    return out << "largek";
+  case GainCacheStrategy::DENSE_LARGE_K:
+    return out << "dense-largek";
   case GainCacheStrategy::ON_THE_FLY:
     return out << "on-the-fly";
-  case GainCacheStrategy::HYBRID:
-    return out << "hybrid";
-  case GainCacheStrategy::TRACING:
-    return out << "tracing";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, TieBreakingStrategy> get_tie_breaking_strategies() {
+  return {
+      {"geometric", TieBreakingStrategy::GEOMETRIC},
+      {"uniform", TieBreakingStrategy::UNIFORM},
+  };
+}
+
+std::ostream &operator<<(std::ostream &out, const TieBreakingStrategy strategy) {
+  switch (strategy) {
+  case TieBreakingStrategy::GEOMETRIC:
+    return out << "geometric";
+  case TieBreakingStrategy::UNIFORM:
+    return out << "uniform";
   }
 
   return out << "<invalid>";
@@ -443,8 +453,8 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
     out << "Compression Scheme:           Gap Encoding + ";
     if (c_ctx.run_length_encoding) {
       out << "VarInt Run-Length Encoding\n";
-    } else if (c_ctx.stream_encoding) {
-      out << "VarInt Stream Encoding\n";
+    } else if (c_ctx.streamvbyte_encoding) {
+      out << "StreamVByte Encoding\n";
     } else {
       out << "VarInt Encoding\n";
     }
@@ -460,68 +470,58 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
     if (c_ctx.interval_encoding) {
       out << "    Length Threshold:         " << c_ctx.interval_length_treshold << "\n";
     }
-    out << "  Isolated Nodes Separation:  " << (c_ctx.isolated_nodes_separation ? "yes" : "no")
-        << "\n";
 
-    out << "Compresion Ratio:             ";
-    if (c_ctx.dismissed) {
-      out << "<1 (dismissed)\n";
-    } else {
-      out << c_ctx.compression_ratio
-          << " [size reduction: " << (c_ctx.size_reduction / (float)(1024 * 1024)) << " mb]"
-          << "\n";
-      out << "  High Degree Node Count:     " << c_ctx.num_high_degree_nodes << "\n";
-      out << "  High Degree Part Count:     " << c_ctx.num_high_degree_parts << "\n";
-      out << "  Interval Node Count:        " << c_ctx.num_interval_nodes << "\n";
-      out << "  Interval Count:             " << c_ctx.num_intervals << "\n";
-
-      if (kaminpar::debug::kTrackVarintStats) {
-        const auto &stats = kaminpar::debug::varint_stats_global();
-
-        const float avg_varint_len =
-            (stats.varint_count == 0) ? 0 : (stats.varint_bytes / (float)stats.varint_count);
-        out << "Average Varint Length:        " << avg_varint_len
-            << " [count: " << stats.varint_count << "]\n";
-
-        const float avg_signed_varint_len =
-            (stats.signed_varint_count == 0)
-                ? 0
-                : (stats.signed_varint_bytes / (float)stats.signed_varint_count);
-        out << "Average Signed Varint Length: " << avg_signed_varint_len
-            << " [count: " << stats.signed_varint_count << "]\n";
-
-        const float avg_marked_varint_len =
-            (stats.marked_varint_count == 0)
-                ? 0
-                : (stats.marked_varint_bytes / (float)stats.marked_varint_count);
-        out << "Average Marked Varint Length: " << avg_marked_varint_len
-            << " [count: " << stats.marked_varint_count << "]\n";
-      }
-    }
+    out << "Compresion Ratio:             " << c_ctx.compression_ratio
+        << " [size reduction: " << (c_ctx.size_reduction / (float)(1024 * 1024)) << " mb]" << "\n";
+    out << "  High Degree Node Count:     " << c_ctx.num_high_degree_nodes << "\n";
+    out << "  High Degree Part Count:     " << c_ctx.num_high_degree_parts << "\n";
+    out << "  Interval Node Count:        " << c_ctx.num_interval_nodes << "\n";
+    out << "  Interval Count:             " << c_ctx.num_intervals << "\n";
   }
 }
 
-std::ostream &operator<<(std::ostream &out, const ContractionMode mode) {
+std::ostream &operator<<(std::ostream &out, const ContractionAlgorithm mode) {
   switch (mode) {
-  case ContractionMode::BUFFERED:
+  case ContractionAlgorithm::BUFFERED:
     return out << "buffered";
-  case ContractionMode::BUFFERED_LEGACY:
+  case ContractionAlgorithm::BUFFERED_LEGACY:
     return out << "buffered-legacy";
-  case ContractionMode::UNBUFFERED:
+  case ContractionAlgorithm::UNBUFFERED:
     return out << "unbuffered";
-  case ContractionMode::UNBUFFERED_NAIVE:
+  case ContractionAlgorithm::UNBUFFERED_NAIVE:
     return out << "unbuffered-naive";
   }
 
   return out << "<invalid>";
 }
 
-std::unordered_map<std::string, ContractionMode> get_contraction_modes() {
+std::unordered_map<std::string, ContractionAlgorithm> get_contraction_algorithms() {
   return {
-      {"buffered", ContractionMode::BUFFERED},
-      {"buffered-legacy", ContractionMode::BUFFERED_LEGACY},
-      {"unbuffered", ContractionMode::UNBUFFERED},
-      {"unbuffered-naive", ContractionMode::UNBUFFERED_NAIVE},
+      {"buffered", ContractionAlgorithm::BUFFERED},
+      {"buffered-legacy", ContractionAlgorithm::BUFFERED_LEGACY},
+      {"unbuffered", ContractionAlgorithm::UNBUFFERED},
+      {"unbuffered-naive", ContractionAlgorithm::UNBUFFERED_NAIVE},
+  };
+}
+
+std::ostream &operator<<(std::ostream &out, const ContractionImplementation mode) {
+  switch (mode) {
+  case ContractionImplementation::SINGLE_PHASE:
+    return out << "single-phase";
+  case ContractionImplementation::TWO_PHASE:
+    return out << "two-phase";
+  case ContractionImplementation::GROWING_HASH_TABLES:
+    return out << "growing-hash-tables";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, ContractionImplementation> get_contraction_implementations() {
+  return {
+      {"single-phase", ContractionImplementation::SINGLE_PHASE},
+      {"two-phase", ContractionImplementation::TWO_PHASE},
+      {"growing-hash-tables", ContractionImplementation::GROWING_HASH_TABLES},
   };
 }
 
@@ -532,6 +532,7 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
   if (c_ctx.algorithm == CoarseningAlgorithm::CLUSTERING) {
     out << "  Cluster weight limit:       " << c_ctx.clustering.cluster_weight_limit << " x "
         << c_ctx.clustering.cluster_weight_multiplier << "\n";
+    out << "  Shrink factor:              " << c_ctx.clustering.shrink_factor << "\n";
     out << "  Max mem-free level:         " << c_ctx.clustering.max_mem_free_coarsening_level
         << "\n";
     out << "  Clustering algorithm:       " << c_ctx.clustering.algorithm << "\n";
@@ -539,11 +540,19 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
         c_ctx.clustering.algorithm == ClusteringAlgorithm::LEGACY_LABEL_PROPAGATION) {
       print(c_ctx.clustering.lp, out);
     }
+    out << "  Forced hierarchy levels:    " << (c_ctx.clustering.forced_kc_level ? "+kC " : "")
+        << (c_ctx.clustering.forced_pc_level ? "+pC " : "")
+        << ((!c_ctx.clustering.forced_kc_level && !c_ctx.clustering.forced_pc_level) ? "<none> "
+                                                                                     : "")
+        << "(leeway: U=" << c_ctx.clustering.forced_level_upper_factor
+        << ", L=" << c_ctx.clustering.forced_level_lower_factor << ")\n";
   }
 
-  out << "Contraction mode:             " << c_ctx.contraction.mode << '\n';
-  if (c_ctx.contraction.mode == ContractionMode::BUFFERED) {
+  out << "Contraction algorithm:        " << c_ctx.contraction.algorithm << '\n';
+  if (c_ctx.contraction.algorithm == ContractionAlgorithm::BUFFERED) {
     out << "  Edge buffer fill fraction:  " << c_ctx.contraction.edge_buffer_fill_fraction << "\n";
+  } else if (c_ctx.contraction.algorithm == ContractionAlgorithm::UNBUFFERED) {
+    out << "  Implementation:             " << c_ctx.contraction.unbuffered_implementation << "\n";
   }
 }
 
@@ -551,7 +560,7 @@ void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
   out << "    Number of iterations:     " << lp_ctx.num_iterations << "\n";
   out << "    High degree threshold:    " << lp_ctx.large_degree_threshold << "\n";
   out << "    Max degree:               " << lp_ctx.max_num_neighbors << "\n";
-  out << "    Cluster weights struct:   " << lp_ctx.cluster_weights_structure << "\n";
+  out << "    Tie breaking strategy:    " << lp_ctx.tie_breaking_strategy << "\n";
   out << "    Implementation:           " << lp_ctx.impl << "\n";
   if (lp_ctx.impl == LabelPropagationImplementation::TWO_PHASE) {
     out << "      Selection strategy:     " << lp_ctx.second_phase_selection_strategy << '\n';
@@ -574,6 +583,7 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
   if (r_ctx.includes_algorithm(RefinementAlgorithm::LABEL_PROPAGATION)) {
     out << "Label propagation:\n";
     out << "  Number of iterations:       " << r_ctx.lp.num_iterations << "\n";
+    out << "  Tie breaking strategy:      " << r_ctx.lp.tie_breaking_strategy << "\n";
     out << "  Implementation:             " << r_ctx.lp.impl << "\n";
     if (r_ctx.lp.impl == LabelPropagationImplementation::TWO_PHASE) {
       out << "    Selection strategy:       " << r_ctx.lp.second_phase_selection_strategy << '\n';
@@ -590,13 +600,6 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
         << (r_ctx.kway_fm.unlock_seed_nodes ? "unlock" : "lock") << ", locally moved nodes: "
         << (r_ctx.kway_fm.unlock_locally_moved_nodes ? "unlock" : "lock") << "\n";
     out << "  Gain cache:                 " << r_ctx.kway_fm.gain_cache_strategy << "\n";
-    if (r_ctx.kway_fm.gain_cache_strategy == GainCacheStrategy::HYBRID) {
-      out << "  High-degree threshold:\n";
-      out << "    based on k:               " << r_ctx.kway_fm.k_based_high_degree_threshold
-          << "\n";
-      out << "    constant:                 " << r_ctx.kway_fm.constant_high_degree_threshold
-          << "\n";
-    }
   }
   if (r_ctx.includes_algorithm(RefinementAlgorithm::JET)) {
     out << "Jet refinement:               " << RefinementAlgorithm::JET << "\n";
@@ -618,16 +621,16 @@ void print(const PartitionContext &p_ctx, std::ostream &out) {
   const auto size = std::max<std::int64_t>(
       {static_cast<std::int64_t>(p_ctx.n), static_cast<std::int64_t>(p_ctx.m), max_block_weight}
   );
-  const std::size_t width = std::ceil(std::log10(size));
+  const std::size_t width = size > 0 ? std::ceil(std::log10(size)) : 1;
 
   out << "  Number of nodes:            " << std::setw(width) << p_ctx.n;
-  if (p_ctx.n == p_ctx.total_node_weight) {
+  if (asserting_cast<NodeWeight>(p_ctx.n) == p_ctx.total_node_weight) {
     out << " (unweighted)\n";
   } else {
     out << " (total weight: " << p_ctx.total_node_weight << ")\n";
   }
   out << "  Number of edges:            " << std::setw(width) << p_ctx.m;
-  if (p_ctx.m == p_ctx.total_edge_weight) {
+  if (asserting_cast<EdgeWeight>(p_ctx.m) == p_ctx.total_edge_weight) {
     out << " (unweighted)\n";
   } else {
     out << " (total weight: " << p_ctx.total_edge_weight << ")\n";
@@ -643,6 +646,8 @@ void print(const PartitioningContext &p_ctx, std::ostream &out) {
     out << "  Deep initial part. mode:    " << p_ctx.deep_initial_partitioning_mode << "\n";
     out << "  Deep initial part. load:    " << p_ctx.deep_initial_partitioning_load << "\n";
   }
+  out << "Subgraph memory:              " << (p_ctx.use_lazy_subgraph_memory ? "Lazy" : "Default")
+      << "\n";
 }
 
 void print(const Context &ctx, std::ostream &out) {

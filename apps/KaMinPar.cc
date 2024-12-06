@@ -14,7 +14,7 @@
 
 #include <tbb/scalable_allocator.h>
 
-#if __has_include(<numa.h> )
+#if __has_include(<numa.h>)
 #include <numa.h>
 #endif // __has_include(<numa.h>)
 
@@ -22,18 +22,23 @@
 #include "kaminpar-shm/coarsening/sparsification/sparsification_utils.h"
 #include "kaminpar-shm/datastructures/graph.h"
 
-#include "kaminpar-common/environment.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/strutils.h"
 #include "kaminpar-common/timer.h"
 
 #include "apps/io/shm_input_validator.h"
 #include "apps/io/shm_io.h"
+#include "apps/version.h"
+
+#if defined(__linux__)
+#include <sys/resource.h>
+#endif
 
 using namespace kaminpar;
 using namespace kaminpar::shm;
 
 namespace {
+
 struct ApplicationContext {
   bool dump_config = false;
   bool show_version = false;
@@ -45,7 +50,7 @@ struct ApplicationContext {
 
   bool heap_profiler_detailed = false;
   int heap_profiler_max_depth = 3;
-  bool heap_profiler_print_structs = true;
+  bool heap_profiler_print_structs = false;
   float heap_profiler_min_struct_size = 10;
 
   BlockID k = 0;
@@ -60,6 +65,8 @@ struct ApplicationContext {
   io::GraphFileFormat graph_file_format = io::GraphFileFormat::METIS;
 
   bool no_huge_pages = false;
+
+  bool dry_run = false;
 };
 
 void setup_context(CLI::App &cli, ApplicationContext &app, Context &ctx) {
@@ -127,30 +134,30 @@ The output should be stored in a file and can be used by the -C,--config option.
         ->add_flag(
             "-H,--hp-print-detailed",
             app.heap_profiler_detailed,
-            "Show all levels and data structures in the result summary."
+            "Show all levels in the result summary."
         )
-        ->default_val(app.heap_profiler_detailed);
+        ->capture_default_str();
     hp_group
         ->add_option(
             "--hp-max-depth",
             app.heap_profiler_max_depth,
             "Set maximum heap profiler depth shown in the result summary."
         )
-        ->default_val(app.heap_profiler_max_depth);
+        ->capture_default_str();
     hp_group
-        ->add_option(
+        ->add_flag(
             "--hp-print-structs",
             app.heap_profiler_print_structs,
             "Print data structure memory statistics in the result summary."
         )
-        ->default_val(app.heap_profiler_print_structs);
+        ->capture_default_str();
     hp_group
         ->add_option(
             "--hp-min-struct-size",
             app.heap_profiler_min_struct_size,
-            "Sets the minimum size of a data structure in MB to be included in the result summary."
+            "Sets the minimum size of a data structure in MiB to be included in the result summary."
         )
-        ->default_val(app.heap_profiler_min_struct_size)
+        ->capture_default_str()
         ->check(CLI::NonNegativeNumber);
   }
 
@@ -164,13 +171,33 @@ The output should be stored in a file and can be used by the -C,--config option.
   );
   cli.add_flag("--no-huge-pages", app.no_huge_pages, "Do not use huge pages via TBBmalloc.");
 
+  cli.add_option(
+         "--max-overcommitment-factor",
+         heap_profiler::max_overcommitment_factor,
+         "Limit memory overcommitment to this factor times the total available system memory."
+  )
+      ->capture_default_str();
+  cli.add_flag(
+         "--bruteforce-max-overcommitment-factor",
+         heap_profiler::bruteforce_max_overcommitment_factor,
+         "If enabled, the maximum overcommitment factor is slowly decreased until memory "
+         "overcommitment succeeded."
+  )
+      ->capture_default_str();
+
+  cli.add_flag(
+      "--dry-run",
+      app.dry_run,
+      "Only check the given command line arguments, but do not partition the graph."
+  );
+
   // Algorithmic options
   create_all_options(&cli, ctx);
 }
 } // namespace
 
 int main(int argc, char *argv[]) {
-#if __has_include(<numa.h> )
+#if __has_include(<numa.h>)
   if (numa_available() >= 0) {
     numa_set_interleave_mask(numa_all_nodes_ptr);
   }
@@ -190,14 +217,11 @@ int main(int argc, char *argv[]) {
   }
 
   if (app.show_version) {
-    std::cout << Environment::GIT_SHA1 << std::endl;
+    print_version();
     std::exit(0);
   }
 
-  if (ctx.compression.enabled && app.graph_file_format == io::GraphFileFormat::METIS &&
-      ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
-    std::cout << "The nodes of the compressed graph cannot be rearranged by degree buckets!"
-              << std::endl;
+  if (app.dry_run) {
     std::exit(0);
   }
 
@@ -227,12 +251,13 @@ int main(int argc, char *argv[]) {
   partitioner.set_max_timer_depth(app.max_timer_depth);
   if constexpr (kHeapProfiling) {
     auto &global_heap_profiler = heap_profiler::HeapProfiler::global();
+
+    global_heap_profiler.set_max_depth(app.heap_profiler_max_depth);
+    global_heap_profiler.set_print_data_structs(app.heap_profiler_print_structs);
+    global_heap_profiler.set_min_data_struct_size(app.heap_profiler_min_struct_size);
+
     if (app.heap_profiler_detailed) {
-      global_heap_profiler.set_detailed_summary_options();
-    } else {
-      global_heap_profiler.set_max_depth(app.heap_profiler_max_depth);
-      global_heap_profiler.set_print_data_structs(app.heap_profiler_print_structs);
-      global_heap_profiler.set_min_data_struct_size(app.heap_profiler_min_struct_size);
+      global_heap_profiler.set_experiment_summary_options();
     }
   }
 
@@ -240,11 +265,7 @@ int main(int argc, char *argv[]) {
   START_HEAP_PROFILER("Input Graph Allocation");
   Graph graph = TIMED_SCOPE("Read input graph") {
     return io::read(
-        app.graph_filename,
-        app.graph_file_format,
-        ctx.compression.enabled,
-        ctx.compression.may_dismiss,
-        ctx.node_ordering
+        app.graph_filename, app.graph_file_format, ctx.node_ordering, ctx.compression.enabled
     );
   };
 
@@ -253,7 +274,7 @@ int main(int argc, char *argv[]) {
   }
 
   RECORD("partition") std::vector<BlockID> partition(graph.n());
-  RECORD_LOCAL_DATA_STRUCT("vector<BlockID>", partition.capacity() * sizeof(BlockID));
+  RECORD_LOCAL_DATA_STRUCT(partition, partition.capacity() * sizeof(BlockID));
   STOP_HEAP_PROFILER();
 
   // Compute graph partition
@@ -267,9 +288,25 @@ int main(int argc, char *argv[]) {
 
   DISABLE_HEAP_PROFILER();
 
-  if (ctx.sparsification.algorithm == SparsificationAlgorithm::EFFECTIVE_RESISTANCE ||
+    if (ctx.sparsification.algorithm == SparsificationAlgorithm::EFFECTIVE_RESISTANCE ||
       ctx.sparsification.score_function == ScoreFunctionSection::EFFECTIVE_RESISTANCE) {
     sparsification::EffectiveResistanceScore::finalize_julia();
+  }
+
+  if (!app.quiet) {
+    std::cout << "\n";
+
+#if defined(__linux__)
+    if (struct rusage usage; getrusage(RUSAGE_SELF, &usage) == 0) {
+      std::cout << "Maximum resident set size: " << usage.ru_maxrss << " KiB\n";
+    } else {
+#else
+    {
+#endif
+      std::cout << "Maximum resident set size: unknown\n";
+    }
+
+    std::cout << std::flush;
   }
 
   return 0;

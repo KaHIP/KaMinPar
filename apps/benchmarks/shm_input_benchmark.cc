@@ -71,14 +71,13 @@ int main(int argc, char *argv[]) {
   GLOBAL_TIMER.reset();
   ENABLE_HEAP_PROFILER();
 
-  {
+  TIMED_SCOPE("Read Input Graph") {
     SCOPED_HEAP_PROFILER("Read Input Graph");
-    SCOPED_TIMER("Read Input Graph");
 
     if (ctx.compression.enabled && compress_in_memory) {
       CSRGraph csr_graph = TIMED_SCOPE("Read CSR Graph") {
         SCOPED_HEAP_PROFILER("Read CSR Graph");
-        return io::csr_read(graph_filename, graph_file_format, false);
+        return io::csr_read(graph_filename, graph_file_format, ctx.node_ordering);
       };
 
       SCOPED_TIMER("Compress CSR Graph");
@@ -94,16 +93,11 @@ int main(int argc, char *argv[]) {
         ctx.setup(graph);
       }
     } else {
-      Graph graph = io::read(
-          graph_filename,
-          graph_file_format,
-          ctx.compression.enabled,
-          ctx.compression.may_dismiss,
-          ctx.node_ordering
-      );
+      Graph graph =
+          io::read(graph_filename, graph_file_format, ctx.node_ordering, ctx.compression.enabled);
       ctx.setup(graph);
     }
-  }
+  };
 
   DISABLE_HEAP_PROFILER();
   STOP_TIMER();
@@ -118,7 +112,7 @@ int main(int argc, char *argv[]) {
   cio::print_delimiter("Result Summary");
   Timer::global().print_human_readable(std::cout);
   LOG;
-  heap_profiler::HeapProfiler::global().set_detailed_summary_options();
+  heap_profiler::HeapProfiler::global().set_experiment_summary_options();
   PRINT_HEAP_PROFILE(std::cout);
 
   return 0;

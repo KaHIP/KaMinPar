@@ -126,17 +126,22 @@ void InitialCoarsener::perform_label_propagation(const NodeWeight max_cluster_we
       const NodeID first_node = _current_graph->first_node_in_bucket(bucket);
       const auto num_chunks = bucket_size / kChunkSize;
 
-      std::vector<std::size_t> chunks(num_chunks);
-      std::iota(chunks.begin(), chunks.end(), 0);
-      std::transform(
-          chunks.begin(),
-          chunks.end(),
-          chunks.begin(),
-          [first_node](const std::size_t i) { return first_node + i * kChunkSize; }
-      );
-      Random::instance().shuffle(chunks);
+      _chunks.clear();
+      if (_chunks.capacity() < num_chunks) {
+        _chunks.resize(num_chunks);
+      }
 
-      for (const NodeID chunk_offset : chunks) {
+      std::iota(_chunks.begin(), _chunks.begin() + num_chunks, 0);
+      std::transform(
+          _chunks.begin(),
+          _chunks.begin() + num_chunks,
+          _chunks.begin(),
+          [first_node](const NodeID i) { return first_node + i * kChunkSize; }
+      );
+      _rand.shuffle(_chunks.begin(), _chunks.begin() + num_chunks);
+
+      for (NodeID i = 0; i < num_chunks; ++i) {
+        const NodeID chunk_offset = _chunks[i];
         const auto &permutation{_random_permutations.get()};
         for (const NodeID local_u : permutation) {
           handle_node(chunk_offset + local_u, max_cluster_weight);
@@ -183,10 +188,11 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
   timer.reset();
 
   StaticArray<NodeID> node_mapping = _hierarchy.alloc_mapping_memory();
+  node_mapping.unrestrict();
+
   if (node_mapping.size() < _current_graph->n()) {
     node_mapping.resize(_current_graph->n(), static_array::seq);
   }
-
   node_mapping.restrict(_current_graph->n());
 
   CSRGraphMemory c_memory = _hierarchy.alloc_graph_memory();
@@ -194,6 +200,12 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
   StaticArray<NodeID> c_edges = std::move(c_memory.edges);
   StaticArray<NodeWeight> c_node_weights = std::move(c_memory.node_weights);
   StaticArray<EdgeWeight> c_edge_weights = std::move(c_memory.edge_weights);
+
+  std::vector<NodeID> buckets = std::move(c_memory.buckets);
+  std::fill(buckets.begin(), buckets.end(), 0);
+
+  c_nodes.unrestrict();
+  c_node_weights.unrestrict();
 
   if (c_nodes.size() < c_n + 1) {
     c_nodes.resize(c_n + 1, static_array::seq);
@@ -207,11 +219,23 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
   c_nodes.restrict(c_n + 1);
   c_node_weights.restrict(c_n);
 
-  if (c_edges.size() < _current_graph->m()) {
-    c_edges.resize(_current_graph->m(), static_array::seq, static_array::noinit);
+  const EdgeID prev_c_edges_size = c_edges.size();
+  const EdgeID prev_c_edge_weights_size = c_edge_weights.size();
+  c_edges.unrestrict();
+  c_edge_weights.unrestrict();
+
+  // Overcommit memory for the edge and edge weight array.
+  const bool resize_edges = c_edges.size() < _current_graph->m();
+  if (resize_edges) {
+    c_edges.resize(
+        _current_graph->m(), static_array::seq, static_array::noinit, static_array::overcommit
+    );
   }
-  if (c_edge_weights.size() < _current_graph->m()) {
-    c_edge_weights.resize(_current_graph->m(), static_array::seq, static_array::noinit);
+  const bool resize_edge_weights = c_edge_weights.size() < _current_graph->m();
+  if (resize_edge_weights) {
+    c_edge_weights.resize(
+        _current_graph->m(), static_array::seq, static_array::noinit, static_array::overcommit
+    );
   }
 
   // Similarly to the c_nodes array, we must restrict the size of the c_edges array: this is
@@ -222,7 +246,7 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
 
   std::fill(_cluster_sizes.begin(), _cluster_sizes.begin() + n, 0);
   std::fill(_leader_node_mapping.begin(), _leader_node_mapping.begin() + n, 0);
-  // Note:_clustering does not need to be cleared
+  // Note: _clustering does not need to be cleared
 
   _timings.contract_ms += timer.elapsed();
 
@@ -340,12 +364,38 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
   _timings.interleaved2_ms += timer.elapsed();
 
   timer.reset();
+  if constexpr (kHeapProfiling) {
+    if (resize_edges) {
+      heap_profiler::HeapProfiler::global().record_alloc(
+          c_edges.data(), c_edges.size() * sizeof(NodeID)
+      );
+    } else if (c_edges.size() > prev_c_edges_size) {
+      heap_profiler::HeapProfiler::global().record_free(c_edges.data());
+      heap_profiler::HeapProfiler::global().record_alloc(
+          c_edges.data(), c_edges.size() * sizeof(NodeID)
+      );
+    }
+
+    if (resize_edge_weights) {
+      heap_profiler::HeapProfiler::global().record_alloc(
+          c_edge_weights.data(), c_edge_weights.size() * sizeof(EdgeWeight)
+      );
+    } else if (c_edge_weights.size() > prev_c_edge_weights_size) {
+      heap_profiler::HeapProfiler::global().record_free(c_edge_weights.data());
+      heap_profiler::HeapProfiler::global().record_alloc(
+          c_edge_weights.data(), c_edge_weights.size() * sizeof(EdgeWeight)
+      );
+    }
+  }
+
   CSRGraph coarse_graph(
       CSRGraph::seq{},
       std::move(c_nodes),
       std::move(c_edges),
       std::move(c_node_weights),
-      std::move(c_edge_weights)
+      std::move(c_edge_weights),
+      false,
+      std::move(buckets)
   );
   _timings.alloc_ms += timer.elapsed();
 

@@ -8,6 +8,7 @@ function(kaminpar_add_shm_test target)
         kaminpar_common
         kaminpar_shm)
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_compile_options(${target} PRIVATE ${KAMINPAR_WARNING_FLAGS})
     gtest_discover_tests(${target})
 
     message(STATUS "Enabled shared-memory test: ${target}")
@@ -20,6 +21,7 @@ function(kaminpar_add_common_test target)
         GTest::gmock_main
         kaminpar_common)
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_compile_options(${target} PRIVATE ${KAMINPAR_WARNING_FLAGS})
     gtest_discover_tests(${target})
 
     message(STATUS "Enabled common test: ${target}")
@@ -37,10 +39,10 @@ kaminpar_add_common_test(test_common_compact_hash_map common/datastructures/comp
 kaminpar_add_common_test(test_common_math common/math_test.cc)
 kaminpar_add_common_test(test_common_string common/strutils_test.cc)
 kaminpar_add_common_test(test_common_parallel_algorithm common/parallel/algorithm_test.cc)
-kaminpar_add_common_test(test_common_heap_profiler common/heap_profiler_test.cc)
-kaminpar_add_common_test(test_common_varint_codec_test common/varint_codec_test.cc)
-kaminpar_add_common_test(test_common_varint_run_length_codec_test common/varint_run_length_codec_test.cc)
-kaminpar_add_common_test(test_common_varint_stream_codec_test common/varint_stream_codec_test.cc)
+kaminpar_add_common_test(test_common_parallel_aligned_prefix_sum common/parallel/aligned_prefix_sum_test.cc)
+kaminpar_add_common_test(test_common_varint common/graph-compression/varint_test.cc)
+kaminpar_add_common_test(test_common_varint_run_length_codec common/graph-compression/varint_run_length_codec_test.cc)
+kaminpar_add_common_test(test_common_streamvbyte common/graph-compression/streamvbyte_test.cc)
 
 # KaMinPar -> End-to-end
 kaminpar_add_shm_test(test_shm_endtoend endtoend/shm_endtoend_test.cc)
@@ -51,7 +53,7 @@ kaminpar_add_shm_test(test_shm_subgraph_extraction shm/graphutils/subgraph_extra
 kaminpar_add_shm_test(test_shm_partition_utils shm/graphutils/partition_utils_test.cc)
 
 # KaMinPar -> Coarsening
-kaminpar_add_shm_test(test_shm_graph_utils shm/coarsening/cluster_contraction_test.cc)
+kaminpar_add_shm_test(test_shm_cluster_contraction shm/coarsening/cluster_contraction_test.cc)
 
 # Sparsification
 kaminpar_add_shm_test(test_shm_sparsification shm/coarsening/sparsification/IndependentRandomSampler_test.cc)
@@ -60,6 +62,9 @@ kaminpar_add_shm_test(test_shm_sparsification shm/coarsening/sparsification/Inde
 kaminpar_add_shm_test(test_shm_graph shm/datastructures/graph_test.cc)
 kaminpar_add_shm_test(test_shm_delta_partitioned_graph shm/datastructures/delta_partitioned_graph_test.cc)
 kaminpar_add_shm_test(test_shm_compressed_graph shm/datastructures/compressed_graph_test.cc)
+
+# KaMinPar -> Refinement
+kaminpar_add_shm_test(test_shm_gain_caches shm/refinement/gain_cache_test.cc)
 
 if (KAMINPAR_BUILD_DISTRIBUTED)
     include(cmake/KaTestrophe.cmake)
@@ -79,6 +84,7 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
                 kaminpar_shm
                 kaminpar_mpi)
         target_include_directories(${KAMINPAR_TARGET_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+        target_compile_options(${KAMINPAR_TARGET_NAME} PRIVATE ${KAMINPAR_WARNING_FLAGS})
         katestrophe_add_mpi_test(${KAMINPAR_TARGET_NAME} CORES ${KAMINPAR_CORES})
 
         message(STATUS "Enabled MPI test: ${KAMINPAR_TARGET_NAME}, PEs: ${KAMINPAR_CORES}")
@@ -100,6 +106,7 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
             kaminpar_mpi
             kaminpar_dist)
         target_include_directories(${KAMINPAR_TARGET_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+        target_compile_options(${KAMINPAR_TARGET_NAME} PRIVATE ${KAMINPAR_WARNING_FLAGS})
         katestrophe_add_mpi_test(${KAMINPAR_TARGET_NAME} CORES ${KAMINPAR_CORES})
     
         message(STATUS "Enabled distributed test: ${KAMINPAR_TARGET_NAME}, PEs: ${KAMINPAR_CORES}")

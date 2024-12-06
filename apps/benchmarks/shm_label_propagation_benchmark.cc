@@ -60,19 +60,20 @@ int main(int argc, char *argv[]) {
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, ctx.parallel.num_threads);
   Random::reseed(seed);
 
-  Graph graph = io::read(
-      graph_filename,
-      graph_file_format,
-      ctx.compression.enabled,
-      ctx.compression.may_dismiss,
-      ctx.node_ordering
-  );
+  Graph graph =
+      io::read(graph_filename, graph_file_format, ctx.node_ordering, ctx.compression.enabled);
   ctx.setup(graph);
 
   const double original_epsilon = ctx.partition.epsilon;
   if (ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
-    CSRGraph &csr_graph = *dynamic_cast<CSRGraph *>(graph.underlying_graph());
-    graph = graph::rearrange_by_degree_buckets(csr_graph);
+    if (ctx.compression.enabled) {
+      LOG_WARNING << "A compressed graph cannot be rearranged by degree buckets. Disabling "
+                     "degree bucket ordering!";
+      ctx.node_ordering = NodeOrdering::NATURAL;
+    } else if (!graph.sorted()) {
+      CSRGraph &csr_graph = graph.csr_graph();
+      graph = graph::rearrange_by_degree_buckets(csr_graph);
+    }
   }
 
   if (graph.sorted()) {
@@ -117,7 +118,7 @@ int main(int argc, char *argv[]) {
   Timer::global().print_human_readable(std::cout);
   LOG;
 
-  heap_profiler::HeapProfiler::global().set_detailed_summary_options();
+  heap_profiler::HeapProfiler::global().set_experiment_summary_options();
   PRINT_HEAP_PROFILE(std::cout);
 
   return 0;

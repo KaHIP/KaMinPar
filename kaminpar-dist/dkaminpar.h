@@ -19,10 +19,14 @@
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::mpi {
+
 using PEID = int;
-}
+using UPEID = unsigned int;
+
+} // namespace kaminpar::mpi
 
 namespace kaminpar::dist {
+
 using GlobalNodeID = std::uint64_t;
 using GlobalNodeWeight = std::int64_t;
 using GlobalEdgeID = std::uint64_t;
@@ -30,6 +34,8 @@ using GlobalEdgeWeight = std::int64_t;
 using BlockWeight = std::int64_t;
 
 using mpi::PEID;
+using mpi::UPEID;
+
 using shm::BlockID;
 using shm::EdgeID;
 using shm::NodeID;
@@ -314,20 +320,20 @@ struct GraphCompressionContext {
   bool enabled;
 
   // Graph compression statistics
-  double avg_compression_ratio;
-  double min_compression_ratio;
-  double max_compression_ratio;
+  double avg_compression_ratio = 0.0;
+  double min_compression_ratio = 0.0;
+  double max_compression_ratio = 0.0;
 
-  std::size_t largest_compressed_graph;
-  std::size_t largest_compressed_graph_prev_size;
+  std::size_t largest_compressed_graph = 0;
+  std::size_t largest_compressed_graph_prev_size = 0;
 
-  std::size_t largest_uncompressed_graph;
-  std::size_t largest_uncompressed_graph_after_size;
+  std::size_t largest_uncompressed_graph = 0;
+  std::size_t largest_uncompressed_graph_after_size = 0;
 
-  std::vector<std::size_t> compressed_graph_sizes;
-  std::vector<std::size_t> uncompressed_graph_sizes;
-  std::vector<NodeID> num_nodes;
-  std::vector<EdgeID> num_edges;
+  std::vector<std::size_t> compressed_graph_sizes = {};
+  std::vector<std::size_t> uncompressed_graph_sizes = {};
+  std::vector<NodeID> num_nodes = {};
+  std::vector<EdgeID> num_edges = {};
 
   /*!
    * Setups the graph compression statistics of this context.
@@ -426,4 +432,5 @@ private:
 
   bool _was_rearranged = false;
 };
+
 } // namespace kaminpar

@@ -44,11 +44,11 @@ public:
 
   LPClusteringImpl(const CoarseningContext &c_ctx, Permutations &permutations)
       : Base(permutations),
-        ClusterWeightBase(c_ctx.clustering.lp.cluster_weights_structure),
         _lp_ctx(c_ctx.clustering.lp) {
     Base::set_max_degree(_lp_ctx.large_degree_threshold);
     Base::set_max_num_neighbors(_lp_ctx.max_num_neighbors);
     Base::set_implementation(_lp_ctx.impl);
+    Base::set_tie_breaking_strategy(_lp_ctx.tie_breaking_strategy);
     Base::set_second_phase_selection_strategy(_lp_ctx.second_phase_selection_strategy);
     Base::set_second_phase_aggregation_strategy(_lp_ctx.second_phase_aggregation_strategy);
     Base::set_relabel_before_second_phase(_lp_ctx.relabel_before_second_phase);
@@ -246,55 +246,100 @@ public:
   template <typename RatingMap>
   [[nodiscard]] ClusterID select_best_cluster(
       const bool store_favored_cluster,
+      const EdgeWeight gain_delta,
       Base::ClusterSelectionState &state,
       RatingMap &map,
-      ScalableVector<ClusterID> &tie_breaking_clusters
+      ScalableVector<ClusterID> &tie_breaking_clusters,
+      ScalableVector<ClusterID> &tie_breaking_favored_clusters
   ) {
+    const bool use_uniform_tie_breaking = _tie_breaking_strategy == TieBreakingStrategy::UNIFORM;
+
     ClusterID favored_cluster = state.initial_cluster;
+    if (use_uniform_tie_breaking) {
+      const auto accept_cluster = [&] {
+        return state.current_cluster_weight + state.u_weight <=
+                   max_cluster_weight(state.current_cluster) ||
+               state.current_cluster == state.initial_cluster;
+      };
 
-    const EdgeWeight gain_delta = (Config::kUseActualGain) ? map[state.initial_cluster] : 0;
-    for (const auto [cluster, rating] : map.entries()) {
-      state.current_cluster = cluster;
-      state.current_gain = rating - gain_delta;
-      state.current_cluster_weight = cluster_weight(cluster);
+      for (const auto [cluster, rating] : map.entries()) {
+        state.current_cluster = cluster;
+        state.current_gain = rating - gain_delta;
+        state.current_cluster_weight = cluster_weight(cluster);
 
-      if (state.current_gain > state.best_gain) {
         if (store_favored_cluster) {
+          if (state.current_gain > state.overall_best_gain) {
+            state.overall_best_gain = state.current_gain;
+            favored_cluster = state.current_cluster;
+
+            tie_breaking_favored_clusters.clear();
+            tie_breaking_favored_clusters.push_back(state.current_cluster);
+          } else if (state.current_gain == state.overall_best_gain) {
+            tie_breaking_favored_clusters.push_back(state.current_cluster);
+          }
+        }
+
+        if (state.current_gain > state.best_gain) {
+          if (accept_cluster()) {
+            tie_breaking_clusters.clear();
+            tie_breaking_clusters.push_back(state.current_cluster);
+
+            state.best_cluster = state.current_cluster;
+            state.best_gain = state.current_gain;
+          }
+        } else if (state.current_gain == state.best_gain) {
+          if (accept_cluster()) {
+            tie_breaking_clusters.push_back(state.current_cluster);
+          }
+        }
+      }
+
+      if (tie_breaking_clusters.size() > 1) {
+        const ClusterID i = state.local_rand.random_index(0, tie_breaking_clusters.size());
+        state.best_cluster = tie_breaking_clusters[i];
+      }
+      tie_breaking_clusters.clear();
+
+      if (tie_breaking_favored_clusters.size() > 1) {
+        const ClusterID i = state.local_rand.random_index(0, tie_breaking_favored_clusters.size());
+        favored_cluster = tie_breaking_favored_clusters[i];
+      }
+      tie_breaking_favored_clusters.clear();
+
+      return favored_cluster;
+    } else {
+      const auto accept_cluster = [&] {
+        return (state.current_gain > state.best_gain ||
+                (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
+               (state.current_cluster_weight + state.u_weight <=
+                    max_cluster_weight(state.current_cluster) ||
+                state.current_cluster == state.initial_cluster);
+      };
+
+      for (const auto [cluster, rating] : map.entries()) {
+        state.current_cluster = cluster;
+        state.current_gain = rating - gain_delta;
+        state.current_cluster_weight = cluster_weight(cluster);
+
+        if (store_favored_cluster && state.current_gain > state.overall_best_gain) {
+          state.overall_best_gain = state.current_gain;
           favored_cluster = state.current_cluster;
         }
 
-        if (accept_cluster(state)) {
-          tie_breaking_clusters.clear();
-          tie_breaking_clusters.push_back(state.current_cluster);
-
+        if (accept_cluster()) {
           state.best_cluster = state.current_cluster;
+          state.best_cluster_weight = state.current_cluster_weight;
           state.best_gain = state.current_gain;
         }
-      } else if (state.current_gain == state.best_gain && accept_cluster(state)) {
-        tie_breaking_clusters.push_back(state.current_cluster);
       }
+
+      return favored_cluster;
     }
-
-    if (tie_breaking_clusters.size() > 1) {
-      const ClusterID index = state.local_rand.random_index(0, tie_breaking_clusters.size());
-      const ClusterID best_cluster = tie_breaking_clusters[index];
-      state.best_cluster = best_cluster;
-    }
-
-    tie_breaking_clusters.clear();
-    return favored_cluster;
-  }
-
-  [[nodiscard]] bool accept_cluster(const Base::ClusterSelectionState &state) {
-    return (state.current_gain > state.best_gain ||
-            (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
-           (state.current_cluster_weight + state.u_weight <=
-                max_cluster_weight(state.current_cluster) ||
-            state.current_cluster == state.initial_cluster);
   }
 
   using Base::_current_num_clusters;
   using Base::_graph;
+  using Base::_tie_breaking_strategy;
 
   const LabelPropagationCoarseningContext &_lp_ctx;
   NodeWeight _max_cluster_weight = kInvalidBlockWeight;
@@ -357,13 +402,9 @@ public:
         }
     );
 
-    // Only relabel clusters during the first iteration
+    // Only relabel clusters for the first iteration
     _csr_impl->set_relabel_before_second_phase(false);
     _compressed_impl->set_relabel_before_second_phase(false);
-
-    // Only use the initially small cluster weight vector for the first lp implementation
-    _csr_impl->set_use_small_vector_initially(false);
-    _compressed_impl->set_use_small_vector_initially(false);
   }
 
 private:

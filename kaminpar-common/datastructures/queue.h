@@ -1,8 +1,9 @@
 /*******************************************************************************
+ * Queue with fixed capacity.
+ *
  * @file:   queue.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Queue with fixed capacity.
  ******************************************************************************/
 #pragma once
 

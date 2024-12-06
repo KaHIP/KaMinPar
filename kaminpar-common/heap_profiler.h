@@ -11,66 +11,18 @@
 #include <iomanip>
 #include <memory>
 #include <mutex>
+#include <source_location>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <unordered_map>
-#include <vector>
 
-#include <cxxabi.h>
-
+#include "kaminpar-common/constexpr_utils.h"
 #include "kaminpar-common/libc_memory_override.h"
 #include "kaminpar-common/logger.h"
 
-namespace kaminpar::heap_profiler {
-
-/*!
- * Returns the (demangled) name of a type.
- *
- * See https://stackoverflow.com/a/25893042
- *
- * @tparam T The type whose name to return.
- * @return The (demangled) name of the type T.
- */
-template <typename T> std::string type_name() {
-  auto mangeled_name = typeid(T()).name();
-  int status = 0;
-
-  std::unique_ptr<char, void (*)(void *)> demangled_result{
-      abi::__cxa_demangle(mangeled_name, NULL, NULL, &status), std::free
-  };
-
-  // Strip the trailing brackets from the constructed function type.
-  std::string name((status == 0) ? demangled_result.get() : mangeled_name);
-  if (name.substr(name.size() - 3) == " ()") {
-    name.resize(name.size() - 3);
-  }
-
-  // Remove the namespace from the type name.
-  auto it = name.find_last_of("::");
-  if (it != std::string::npos) {
-    name = name.substr(it + 1);
-  }
-
-  // Remove the asterisk from a this pointer.
-  if (name.back() == '*') {
-    name.resize(name.size() - 1);
-  }
-
-  return name;
-}
-
-}; // namespace kaminpar::heap_profiler
-
 #ifdef KAMINPAR_ENABLE_HEAP_PROFILING
 
-// A macro to get the path of a source file in the project directory
-// (https://stackoverflow.com/a/40947954)
-#ifndef SOURCE_PATH_SIZE
-#define SOURCE_PATH_SIZE 0
-#endif
-
-#define __FILENAME__ ((__FILE__) + (SOURCE_PATH_SIZE))
 #define GET_MACRO(X, Y, Z, FUNC, ...) FUNC
 
 #define START_HEAP_PROFILER_2(name, desc)                                                          \
@@ -83,32 +35,34 @@ template <typename T> std::string type_name() {
 
 #define SCOPED_HEAP_PROFILER_2(name, desc, line)                                                   \
   const auto __SCOPED_HEAP_PROFILER__##line =                                                      \
-      kaminpar::heap_profiler::HeapProfiler::global().start_scoped_profile(name, desc)
+      kaminpar::heap_profiler::ScopedHeapProfiler(name, desc);
 #define SCOPED_HEAP_PROFILER_1(name, line) SCOPED_HEAP_PROFILER_2(name, "", line)
 #define SCOPED_HEAP_PROFILER(...)                                                                  \
   GET_MACRO(_, __VA_ARGS__, SCOPED_HEAP_PROFILER_2, SCOPED_HEAP_PROFILER_1)(__VA_ARGS__, __LINE__)
 
 #define RECORD_DATA_STRUCT_2(size, variable_name)                                                  \
   variable_name = kaminpar::heap_profiler::HeapProfiler::global().add_data_struct(                 \
-      kaminpar::heap_profiler::type_name<decltype(this)>(), size                                   \
+      kaminpar::type_name<decltype(this)>(), size                                                  \
   )
 #define RECORD_DATA_STRUCT_1(size)                                                                 \
   kaminpar::heap_profiler::HeapProfiler::global().add_data_struct(                                 \
-      kaminpar::heap_profiler::type_name<decltype(this)>(), size                                   \
+      kaminpar::type_name<decltype(this)>(), size                                                  \
   )
 #define RECORD_DATA_STRUCT(...)                                                                    \
   GET_MACRO(_, __VA_ARGS__, RECORD_DATA_STRUCT_2, RECORD_DATA_STRUCT_1)(__VA_ARGS__)
 
-#define RECORD_LOCAL_DATA_STRUCT_2(name, size, variable_name)                                      \
-  const auto variable_name =                                                                       \
-      kaminpar::heap_profiler::HeapProfiler::global().add_data_struct(name, size)
-#define RECORD_LOCAL_DATA_STRUCT_1(name, size)                                                     \
-  kaminpar::heap_profiler::HeapProfiler::global().add_data_struct(name, size)
+#define RECORD_LOCAL_DATA_STRUCT_2(var, size, variable_name)                                       \
+  const auto variable_name = kaminpar::heap_profiler::HeapProfiler::global().add_data_struct(      \
+      kaminpar::type_name<decltype(var)>(), size                                                   \
+  )
+#define RECORD_LOCAL_DATA_STRUCT_1(var, size)                                                      \
+  kaminpar::heap_profiler::HeapProfiler::global().add_data_struct(                                 \
+      kaminpar::type_name<decltype(var)>(), size                                                   \
+  )
 #define RECORD_LOCAL_DATA_STRUCT(...)                                                              \
   GET_MACRO(__VA_ARGS__, RECORD_LOCAL_DATA_STRUCT_2, RECORD_LOCAL_DATA_STRUCT_1)(__VA_ARGS__)
 
-#define RECORD(name)                                                                               \
-  kaminpar::heap_profiler::HeapProfiler::global().record_data_struct(name, __FILENAME__, __LINE__);
+#define RECORD(name) kaminpar::heap_profiler::HeapProfiler::global().record_data_struct(name);
 
 #define IF_HEAP_PROFILING(expression) expression
 
@@ -131,7 +85,7 @@ constexpr bool kHeapProfiling = true;
 #define RECORD_DATA_STRUCT(...)
 #define RECORD_LOCAL_DATA_STRUCT(...)
 #define RECORD(...)
-#define IF_HEAP_PROFILING(...)
+#define IF_HEAP_PROFILING(...) struct __dummy__
 #define ENABLE_HEAP_PROFILER()
 #define DISABLE_HEAP_PROFILER()
 #define PRINT_HEAP_PROFILE(...)
@@ -151,22 +105,25 @@ constexpr bool kPageProfiling = false;
 
 namespace kaminpar::heap_profiler {
 
+extern double max_overcommitment_factor;
+extern bool bruteforce_max_overcommitment_factor;
+
 /*!
- * A minimal allocator that uses memory allocation functions which bypass the heap profiler.
+ * A minimal allocator that uses memory allocation functions that bypass the heap profiler.
  *
  * This is required for allocations inside the heap profiler, otherwise a memory allocation would
  * lead to an infinite recursion.
  */
-template <typename T> struct NoProfilAllocator {
+template <typename T> struct NoProfileAllocator {
   using value_type = T;
 
-  NoProfilAllocator() noexcept = default;
-  template <typename U> NoProfilAllocator(const NoProfilAllocator<U> &) noexcept {}
+  NoProfileAllocator() noexcept = default;
+  template <typename U> NoProfileAllocator(const NoProfileAllocator<U> &) noexcept {}
 
-  template <typename U> bool operator==(const NoProfilAllocator<U> &) const noexcept {
+  template <typename U> bool operator==(const NoProfileAllocator<U> &) const noexcept {
     return true;
   }
-  template <typename U> bool operator!=(const NoProfilAllocator<U> &) const noexcept {
+  template <typename U> bool operator!=(const NoProfileAllocator<U> &) const noexcept {
     return false;
   }
 
@@ -180,7 +137,7 @@ template <typename T> struct NoProfilAllocator {
     }
 
 #ifdef KAMINPAR_ENABLE_HEAP_PROFILING
-    void *const ptr = std_malloc(n * sizeof(T));
+    void *const ptr = heap_profiler::std_malloc(n * sizeof(T));
 #else
     void *const ptr = std::malloc(n * sizeof(T));
 #endif
@@ -193,7 +150,7 @@ template <typename T> struct NoProfilAllocator {
 
   void deallocate(T *const ptr, size_t) const noexcept {
 #ifdef KAMINPAR_ENABLE_HEAP_PROFILING
-    std_free(ptr);
+    heap_profiler::std_free(ptr);
 #else
     std::free(ptr);
 #endif
@@ -219,7 +176,7 @@ struct DataStructure {
   /*!
    * The name of the data structure.
    */
-  std::string name;
+  std::string_view name;
 
   /*!
    * The size of the memory in bytes allocated on the heap by the data structure.
@@ -230,15 +187,22 @@ struct DataStructure {
    * The name of the variable storing the data structure. It is empty if it is not available.
    */
   std::string_view variable_name;
+
   /*!
    * The name of the source file of the variable storing the data structure. It is empty if it is
    * not available.
    */
   std::string_view file_name;
+
   /*!
    * The line of the variable storing the data structure. It is zero if it is not available.
    */
   std::size_t line;
+
+  /*!
+   * The column of the variable storing the data structure. It is zero if it is not available.
+   */
+  std::size_t column;
 
   /*!
    * Constructs a new data structure.
@@ -246,15 +210,14 @@ struct DataStructure {
    * @param name The name of the data structure.
    * @param size The size of the memory in bytes allocated on the heap by the data structure.
    */
-  explicit DataStructure(std::string name, std::size_t size)
-      : name(std::move(name)),
+  explicit DataStructure(std::string_view name, std::size_t size)
+      : name(name),
         size(size),
         variable_name(""),
         file_name(""),
-        line(0) {}
+        line(0),
+        column(0) {}
 };
-
-class ScopedHeapProfiler;
 
 /*!
  * A hierarchical heap profiler to measure dynamic memory allocation of the program.
@@ -264,9 +227,9 @@ class ScopedHeapProfiler;
  */
 class HeapProfiler {
 private:
-  static constexpr std::string_view kMaxAllocTitle = "Peak Memory (mb)";
-  static constexpr std::string_view kAllocTitle = "Total Alloc (mb)";
-  static constexpr std::string_view kFreeTitle = "Total Free (mb)";
+  static constexpr std::string_view kMaxAllocTitle = "Peak Memory (MiB)";
+  static constexpr std::string_view kAllocTitle = "Total Alloc (MiB)";
+  static constexpr std::string_view kFreeTitle = "Total Free (MiB)";
   static constexpr std::string_view kAllocsTitle = "Allocs";
   static constexpr std::string_view kFreesTitle = "Frees";
 
@@ -281,9 +244,9 @@ private:
   static constexpr std::size_t kPercentageLength = 9;
   static constexpr std::size_t kDataStructSizeThreshold = 1024;
 
-  static std::string to_megabytes(std::size_t bytes) {
+  [[nodiscard]] static std::string to_megabytes(const std::size_t bytes) {
     std::stringstream stream;
-    stream << std::fixed << std::setprecision(2) << (bytes / (float)(1024 * 1024));
+    stream << std::fixed << std::setprecision(2) << (bytes / static_cast<float>(1024 * 1024));
     return stream.str();
   }
 
@@ -294,25 +257,27 @@ public:
     std::string annotation;
 
     HeapProfileTreeNode *parent;
-    std::vector<HeapProfileTreeNode *, NoProfilAllocator<HeapProfileTreeNode *>> children;
+    std::vector<HeapProfileTreeNode *, NoProfileAllocator<HeapProfileTreeNode *>> children;
 
-    std::size_t max_alloc_size;
-    std::size_t alloc_size;
-    std::size_t free_size;
-    std::size_t allocs;
-    std::size_t frees;
+    bool is_peak_memory_node;
+    std::size_t peak_memory;
+    std::size_t total_alloc;
+    std::size_t total_free;
+    std::size_t num_allocs;
+    std::size_t num_frees;
 
-    std::vector<DataStructure *, NoProfilAllocator<DataStructure *>> data_structures;
+    std::vector<DataStructure *, NoProfileAllocator<DataStructure *>> data_structures;
 
     HeapProfileTreeNode(std::string_view name, std::string description, HeapProfileTreeNode *parent)
         : name(name),
           description(description),
           parent(parent),
-          max_alloc_size(0),
-          alloc_size(0),
-          free_size(0),
-          allocs(0),
-          frees(0) {}
+          is_peak_memory_node(false),
+          peak_memory(0),
+          total_alloc(0),
+          total_free(0),
+          num_allocs(0),
+          num_frees(0) {}
 
     template <typename NodeAllocator, typename DataStructAllocator>
     void free(NodeAllocator node_allocator, DataStructAllocator data_struct_allocator) {
@@ -338,11 +303,11 @@ public:
 private:
   struct HeapProfileTreeStats {
     std::size_t len;
-    std::size_t max_alloc_size;
-    std::size_t alloc_size;
-    std::size_t free_size;
-    std::size_t allocs;
-    std::size_t frees;
+    std::size_t peak_memory;
+    std::size_t total_alloc;
+    std::size_t total_free;
+    std::size_t num_allocs;
+    std::size_t num_frees;
 
     HeapProfileTreeStats(const HeapProfileTreeNode &node) {
       std::size_t name_length = node.name.length();
@@ -351,21 +316,21 @@ private:
       }
 
       len = name_length;
-      max_alloc_size = node.max_alloc_size;
-      alloc_size = node.alloc_size;
-      free_size = node.free_size;
-      allocs = node.allocs;
-      frees = node.frees;
+      peak_memory = node.peak_memory;
+      total_alloc = node.total_alloc;
+      total_free = node.total_free;
+      num_allocs = node.num_allocs;
+      num_frees = node.num_frees;
 
       for (auto const &child : node.children) {
         HeapProfileTreeStats child_stats(*child);
 
         len = std::max(len, child_stats.len + kBranchLength);
-        max_alloc_size = std::max(max_alloc_size, child_stats.max_alloc_size);
-        alloc_size = std::max(alloc_size, child_stats.alloc_size);
-        free_size = std::max(free_size, child_stats.free_size);
-        allocs = std::max(allocs, child_stats.allocs);
-        frees = std::max(frees, child_stats.frees);
+        peak_memory = std::max(peak_memory, child_stats.peak_memory);
+        total_alloc = std::max(total_alloc, child_stats.total_alloc);
+        total_free = std::max(total_free, child_stats.total_free);
+        num_allocs = std::max(num_allocs, child_stats.num_allocs);
+        num_frees = std::max(num_frees, child_stats.num_frees);
       }
     }
   };
@@ -415,22 +380,16 @@ public:
   void stop_profile();
 
   /*!
-   * Starts a scoped heap profile and returns the associated object.
-   *
-   * @param name The name of the profile to start.
-   * @param desc The description of the profile to start.
-   */
-  ScopedHeapProfiler start_scoped_profile(std::string_view name, std::string desc);
-
-  /*!
    * Records information about the variable storing the next data structure that is added to the
    * heap profiler.
    *
    * @param var_name The name of the variable storing the data structure.
-   * @param file_name The name of the source file of the variable storing the data structure.
-   * @param line The line of the variable storing the data structure.
+   * @param location The locataion of the variable storing the data structure.
    */
-  void record_data_struct(std::string_view var_name, std::string_view file_name, std::size_t line);
+  void record_data_struct(
+      std::string_view var_name,
+      const std::source_location location = std::source_location::current()
+  );
 
   /*!
    * Adds a data structure to track to the current profile of the heap profiler. If information
@@ -442,7 +401,7 @@ public:
    * @return A pointer to the object holding information about the data structure or a nullptr if
    * the heap profiler is disabled.
    */
-  DataStructure *add_data_struct(std::string name, std::size_t size);
+  DataStructure *add_data_struct(std::string_view name, std::size_t size);
 
   /*!
    * Records a memory allocation.
@@ -460,9 +419,9 @@ public:
   void record_free(const void *ptr);
 
   /*!
-   * Sets the options such that the printed summary contains detailed information.
+   * Adjusts the summary settings for experiments.
    */
-  void set_detailed_summary_options();
+  void set_experiment_summary_options();
 
   /*!
    * Sets the maximum depth shown in the summary.
@@ -470,6 +429,13 @@ public:
    * @param max_depth The maximum depth shown in the summary.
    */
   void set_max_depth(std::size_t max_depth);
+
+  /*!
+   * Sets the option whether to highlight the peak memory node in the summary.
+   *
+   * @param print Whether to highlight the peak memory node in the summary.
+   */
+  void set_highlight_peak_memory_node(bool highlight);
 
   /*!
    * Sets the option whether to print data structure memory statistics in the summary.
@@ -493,39 +459,39 @@ public:
   void print_heap_profile(std::ostream &out);
 
   /*!
-   * Returns the amount of maximum allocated memory in bytes of the current heap profile.
+   * Returns the peak memory in bytes of the current heap profile.
    *
-   * @return The amount of maximum allocated memory in bytes of the current heap profile.
+   * @return The peak memory in bytes of the current heap profile.
    */
-  std::size_t get_max_alloc();
+  [[nodiscard]] std::size_t peak_memory();
 
   /*!
-   * Returns the amount of allocated memory in bytes of the current heap profile.
+   * Returns the total amount of allocated memory in bytes of the current heap profile.
    *
-   * @return The amount of allocated memory in bytes of the current heap profile.
+   * @return The total amount of allocated memory in bytes of the current heap profile.
    */
-  std::size_t get_alloc();
+  [[nodiscard]] std::size_t total_alloc();
 
   /*!
-   * Returns the amount of freed memory in bytes of the current heap profile.
+   * Returns the total amount of freed memory in bytes of the current heap profile.
    *
-   * @return The amount of freed memory in bytes of the current heap profile.
+   * @return The total amount of freed memory in bytes of the current heap profile.
    */
-  std::size_t get_free();
+  [[nodiscard]] std::size_t total_free();
 
   /*!
-   * Returns the amount of alloc operations of the current heap profile.
+   * Returns the number of alloc operations of the current heap profile.
    *
-   * @return The amount of alloc operations of the current heap profile.
+   * @return The number of alloc operations of the current heap profile.
    */
-  std::size_t get_allocs();
+  [[nodiscard]] std::size_t num_allocs();
 
   /*!
-   * Returns the amount of free operations of the current heap profile.
+   * Returns the number of free operations of the current heap profile.
    *
-   * @return The amount of free operations of the current heap profile.
+   * @return The number of free operations of the current heap profile.
    */
-  std::size_t get_frees();
+  [[nodiscard]] std::size_t num_frees();
 
   /*!
    * Returns the tree that stores the data of this heap profiler.
@@ -538,23 +504,30 @@ private:
   bool _enabled = false;
   std::mutex _mutex;
 
-  NoProfilAllocator<HeapProfileTreeNode> _node_allocator;
+  std::size_t _sum_suspicious_allocs = 0;
+  std::size_t _num_suspicious_allocs = 0;
+  std::size_t _num_suspicious_frees = 0;
+
+  NoProfileAllocator<HeapProfileTreeNode> _node_allocator;
   HeapProfileTree _tree;
+  HeapProfileTreeNode *_peak_memory_node;
   std::unordered_map<
       const void *,
       std::size_t,
       std::hash<const void *>,
       std::equal_to<const void *>,
-      NoProfilAllocator<std::pair<const void *const, std::size_t>>>
+      NoProfileAllocator<std::pair<const void *const, std::size_t>>>
       _address_map;
 
-  NoProfilAllocator<DataStructure> _struct_allocator;
+  NoProfileAllocator<DataStructure> _struct_allocator;
   std::string_view _var_name;
   std::string_view _file_name;
   std::size_t _line;
+  std::size_t _column;
 
   std::size_t _max_depth = std::numeric_limits<std::size_t>::max();
-  bool _print_data_structs = true;
+  bool _highlight_peak_memory_node = true;
+  bool _print_data_structs = false;
   std::size_t _min_data_struct_size = 0;
 
   static void print_heap_tree_node(
@@ -563,12 +536,13 @@ private:
       const HeapProfileTreeStats stats,
       std::size_t max_depth,
       bool print_data_structs,
+      bool highlight_peak_memory_node,
       std::size_t min_data_struct_size,
       std::size_t depth = 0,
       bool last = false
   );
   static void print_indentation(std::ostream &out, std::size_t depth, bool last);
-  static void print_percentage(std::ostream &out, const HeapProfileTreeNode &node);
+  static void print_percentage(std::ostream &out, const float percentage);
   static void print_statistics(
       std::ostream &out, const HeapProfileTreeNode &node, const HeapProfileTreeStats stats
   );
@@ -637,22 +611,45 @@ template <typename T> using unique_ptr = std::unique_ptr<T, HeapProfiledMemoryDe
  * @return A pointer to the allocated memory.
  */
 template <typename T> unique_ptr<T> overcommit_memory(const std::size_t size) {
-  const std::size_t nbytes = std::min(get_total_system_memory(), size * sizeof(T));
+  constexpr static double kBackoffPercentage = 0.05;
 
-  T *ptr;
-  if constexpr (kHeapProfiling) {
-    ptr = static_cast<T *>(heap_profiler::std_malloc(nbytes));
-  } else {
-    ptr = static_cast<T *>(std::malloc(nbytes));
+  const std::size_t total_system_memory = get_total_system_memory();
+
+  for (double cur_max_overcommitment_factor = max_overcommitment_factor;
+       cur_max_overcommitment_factor > 0.0;
+       cur_max_overcommitment_factor -= kBackoffPercentage) {
+    const std::size_t nbytes = std::min<std::size_t>(
+        cur_max_overcommitment_factor * total_system_memory, size * sizeof(T)
+    );
+
+    T *ptr;
+    if constexpr (kHeapProfiling) {
+      ptr = static_cast<T *>(heap_profiler::std_malloc(nbytes));
+    } else {
+      ptr = static_cast<T *>(std::malloc(nbytes));
+    }
+
+    if (!bruteforce_max_overcommitment_factor && ptr == nullptr) {
+      LOG_ERROR << "Overcommitting " << nbytes << " bytes = min(" << cur_max_overcommitment_factor
+                << " * " << total_system_memory << " bytes, " << size << " * " << sizeof(T)
+                << " bytes) of memory failed."
+                << "Ensure that memory overcommitment is enabled on this system!";
+      std::exit(EXIT_FAILURE);
+    } else if (ptr == nullptr) {
+      LOG_WARNING
+          << "Overcommitting " << nbytes << " bytes = min(" << cur_max_overcommitment_factor
+          << " * " << total_system_memory << " bytes, " << size << " * " << sizeof(T)
+          << " bytes) of memory failed. Re-trying with a smaller max overcommitment factor.";
+    } else {
+      return unique_ptr<T>(ptr);
+    }
   }
 
-  if (ptr == NULL) {
-    LOG_ERROR << "The overcommitment of memory failed. Ensure that memory overcommitment is"
-                 " enabled on this system!";
-    std::exit(0);
-  }
-
-  return unique_ptr<T>(ptr);
+  LOG_ERROR
+      << "Overcommitment failed for all factors. Ensure that memory overcommitment is enabled "
+      << "on this system!";
+  std::exit(EXIT_FAILURE);
+  __builtin_unreachable();
 }
 
 } // namespace kaminpar::heap_profiler

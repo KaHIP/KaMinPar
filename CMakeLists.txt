@@ -11,6 +11,7 @@ project(KaMinPar
 set(PROJECT_VENDOR "Daniel Seemaier")
 set(PROJECT_CONTACT "daniel.seemaier@kit.edu")
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 ################################################################################
 ## Options                                                                    ##
@@ -43,8 +44,9 @@ option(KAMINPAR_BUILD_WITH_CCACHE "Use ccache to build." ON)
 option(KAMINPAR_BUILD_WITH_DEBUG_SYMBOLS "Always build with debug symbols, even in Release mode." ON)
 option(KAMINPAR_BUILD_WITH_MTKAHYPAR "If Mt-KaHyPar can be found, build the Mt-KaHyPar initial partitioner." OFF)
 option(KAMINPAR_BUILD_WITH_GROWT "Build the shared-memory partitioner with Growt." ON)
-option(KAMINPAR_BUILD_WITH_SPARSEHASH "Build with Google Sparsehash." OFF)
+option(KAMINPAR_BUILD_WITH_SPARSEHASH "Build with Google Sparsehash." ON)
 option(KAMINPAR_BUILD_WITH_PG "Build with the -pg option for profiling." OFF)
+option(KAMINPAR_BUILD_WITH_BACKWARD "Build with backward-cpp for stack traces (distributed partitioner only)." OFF)
 
 # Control data type sizes
 #########################
@@ -73,21 +75,18 @@ option(KAMINPAR_COMPRESSION_EDGE_WEIGHTS "Whether to compress edge weights." ON)
 option(KAMINPAR_COMPRESSION_HIGH_DEGREE_ENCODING "Use high-degree encoding for the compressed graph." ON)
 option(KAMINPAR_COMPRESSION_INTERVAL_ENCODING "Use interval encoding for the compressed graph." ON)
 option(KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING "Use run-length encoding for the compressed graph." OFF)
-option(KAMINPAR_COMPRESSION_STREAM_ENCODING "Use stream encoding for the compressed graph." OFF)
+option(KAMINPAR_COMPRESSION_STREAMVBYTE_ENCODING "Use StreamVByte encoding for the compressed graph." OFF)
 option(KAMINPAR_COMPRESSION_FAST_DECODING "Use fast decoding for the compressed graph." OFF)
-option(KAMINPAR_COMPRESSION_ISOLATED_NODES_SEPARATION "Whether all isolated nodes are the last nodes of the input graph" OFF)
 
 if (KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING AND KAMINPAR_COMPRESSION_STREAM_ENCODING)
-    message(FATAL_ERROR "Either run-length or stream encoding can be used for varints but not both.")
+    message(FATAL_ERROR "Either run-length or StreamVByte encoding can be used for varints but not both.")
 endif ()
 
 if (KAMINPAR_64BIT_NODE_IDS AND KAMINPAR_COMPRESSION_STREAM_ENCODING)
-    message(FATAL_ERROR "Stream encoding cannot be used with 64-bit NodeIDs.")
+    message(FATAL_ERROR "StreamVByte encoding cannot be used with 64-bit NodeIDs.")
 endif ()
 
-if (KAMINPAR_COMPRESSION_EDGE_WEIGHTS AND KAMINPAR_COMPRESSION_STREAM_ENCODING)
-    message(FATAL_ERROR "Stream encoding cannot be used together with compressed edge weights.")
-elseif (KAMINPAR_COMPRESSION_EDGE_WEIGHTS AND KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING)
+if (KAMINPAR_COMPRESSION_EDGE_WEIGHTS AND KAMINPAR_COMPRESSION_RUN_LENGTH_ENCODING)
     message(FATAL_ERROR "Run-length encoding cannot be used together with compressed edge weights.")
 endif ()
 
@@ -120,7 +119,6 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
 endif ()
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     list(APPEND KAMINPAR_WARNING_FLAGS
-        "-Wnoexcept"
         "-Wsuggest-override"
         "-fdiagnostics-color=always"
         "-Wcast-qual"
@@ -178,10 +176,7 @@ else ()
 endif ()
 
 if (KAMINPAR_ENABLE_HEAP_PROFILING)
-    string(LENGTH "${CMAKE_SOURCE_DIR}/" SOURCE_PATH_SIZE)
-
     list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_ENABLE_HEAP_PROFILING")
-    list(APPEND KAMINPAR_DEFINITIONS "-DSOURCE_PATH_SIZE=${SOURCE_PATH_SIZE}")
     message(STATUS "Heap Profiling: enabled")
 else ()
     message(STATUS "Heap Profiling: disabled")
@@ -245,11 +240,11 @@ else ()
     message("  Run-length encoding: disabled")
 endif ()
 
-if (KAMINPAR_COMPRESSION_STREAM_ENCODING)
-    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_COMPRESSION_STREAM_ENCODING")
-    message("  Stream encoding: enabled")
+if (KAMINPAR_COMPRESSION_STREAMVBYTE_ENCODING)
+    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_COMPRESSION_STREAMVBYTE_ENCODING")
+    message("  StreamVByte encoding: enabled")
 else ()
-    message("  Stream encoding: disabled")
+    message("  StreamVByte encoding: disabled")
 endif ()
 
 if (KAMINPAR_COMPRESSION_FAST_DECODING)
@@ -258,13 +253,6 @@ if (KAMINPAR_COMPRESSION_FAST_DECODING)
     message("  Fast decoding: enabled")
 else ()
     message("  Fast decoding: disabled")
-endif ()
-
-if (KAMINPAR_COMPRESSION_ISOLATED_NODES_SEPARATION)
-    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_COMPRESSION_ISOLATED_NODES_SEPARATION")
-    message("  Isolated nodes separation: enabled")
-else ()
-    message("  Isolated nodes separation: disabled")
 endif ()
 
 if (KAMINPAR_64BIT_NODE_IDS OR KAMINPAR_64BIT_IDS)
@@ -337,6 +325,10 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
     if (NOT MPI_FOUND) 
         message(WARNING "MPI not available: cannot build the distributed partitioner")
         set(KAMINPAR_BUILD_DISTRIBUTED OFF)
+    endif ()
+
+    if (KAMINPAR_BUILD_WITH_BACKWARD)
+        add_subdirectory(external/bakward-mpi EXCLUDE_FROM_ALL)
     endif ()
 endif ()
 
@@ -436,12 +428,10 @@ endif ()
 
 add_library(KaMinPar::KaMinPar ALIAS kaminpar_shm)
 add_library(KaMinPar::KaMinParCLI ALIAS kaminpar_cli)
-add_library(KaMinPar::KaMinParCLI11 ALIAS kaminpar_cli) # deprecated
 
 if (KAMINPAR_BUILD_DISTRIBUTED)
     add_library(KaMinPar::dKaMinPar ALIAS kaminpar_dist)
     add_library(KaMinPar::dKaMinParCLI ALIAS kaminpar_dist_cli)
-    add_library(KaMinPar::dKaMinParCLI11 ALIAS kaminpar_dist_cli) # deprecated
 endif ()
 
 

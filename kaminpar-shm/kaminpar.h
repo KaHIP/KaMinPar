@@ -17,6 +17,10 @@
 
 #include <tbb/global_control.h>
 
+#define KAMINPAR_VERSION_MAJOR 3
+#define KAMINPAR_VERSION_MINOR 0
+#define KAMINPAR_VERSION_PATCH 0
+
 namespace kaminpar {
 enum class OutputLevel : std::uint8_t {
   QUIET,       //! Disable all output to stdout.
@@ -65,6 +69,7 @@ constexpr BlockWeight kInvalidBlockWeight = std::numeric_limits<BlockWeight>::ma
 enum class NodeOrdering {
   NATURAL,
   DEGREE_BUCKETS,
+  EXTERNAL_DEGREE_BUCKETS,
   IMPLICIT_DEGREE_BUCKETS
 };
 
@@ -123,12 +128,6 @@ enum class ClusterWeightLimit {
   ZERO,
 };
 
-enum class ClusterWeightsStructure {
-  VEC,
-  TWO_LEVEL_VEC,
-  INITIALLY_SMALL_VEC
-};
-
 enum class LabelPropagationImplementation {
   SINGLE_PHASE,
   TWO_PHASE,
@@ -163,19 +162,29 @@ enum class IsolatedNodesClusteringStrategy {
   CLUSTER_DURING_TWO_HOP,
 };
 
-enum class ContractionMode {
+enum class TieBreakingStrategy {
+  GEOMETRIC,
+  UNIFORM,
+};
+
+enum class ContractionAlgorithm {
   BUFFERED,
   BUFFERED_LEGACY,
   UNBUFFERED,
   UNBUFFERED_NAIVE,
 };
 
+enum class ContractionImplementation {
+  SINGLE_PHASE,
+  TWO_PHASE,
+  GROWING_HASH_TABLES
+};
+
 struct LabelPropagationCoarseningContext {
-  int num_iterations;
+  std::size_t num_iterations;
   NodeID large_degree_threshold;
   NodeID max_num_neighbors;
 
-  ClusterWeightsStructure cluster_weights_structure;
   LabelPropagationImplementation impl;
 
   SecondPhaseSelectionStrategy second_phase_selection_strategy;
@@ -186,10 +195,14 @@ struct LabelPropagationCoarseningContext {
   double two_hop_threshold;
 
   IsolatedNodesClusteringStrategy isolated_nodes_strategy;
+
+  TieBreakingStrategy tie_breaking_strategy;
 };
 
 struct ContractionCoarseningContext {
-  ContractionMode mode;
+  ContractionAlgorithm algorithm;
+  ContractionImplementation unbuffered_implementation;
+
   double edge_buffer_fill_fraction;
 };
 
@@ -200,7 +213,14 @@ struct ClusterCoarseningContext {
   ClusterWeightLimit cluster_weight_limit;
   double cluster_weight_multiplier;
 
-  int max_mem_free_coarsening_level;
+  double shrink_factor;
+
+  std::size_t max_mem_free_coarsening_level;
+
+  bool forced_kc_level;
+  bool forced_pc_level;
+  double forced_level_upper_factor;
+  double forced_level_lower_factor;
 };
 
 struct CoarseningContext {
@@ -243,12 +263,15 @@ enum class FMStoppingRule {
 };
 
 enum class GainCacheStrategy {
+  COMPACT_HASHING,
+  COMPACT_HASHING_LARGE_K,
   SPARSE,
+  SPARSE_LARGE_K,
+  HASHING,
+  HASHING_LARGE_K,
   DENSE,
-  LARGE_K,
+  DENSE_LARGE_K,
   ON_THE_FLY,
-  HYBRID,
-  TRACING,
 };
 
 struct LabelPropagationRefinementContext {
@@ -257,6 +280,8 @@ struct LabelPropagationRefinementContext {
   NodeID max_num_neighbors;
 
   LabelPropagationImplementation impl;
+
+  TieBreakingStrategy tie_breaking_strategy;
 
   SecondPhaseSelectionStrategy second_phase_selection_strategy;
   SecondPhaseAggregationStrategy second_phase_aggregation_strategy;
@@ -275,7 +300,10 @@ struct KwayFMRefinementContext {
   EdgeID constant_high_degree_threshold;
   double k_based_high_degree_threshold;
 
+  int minimal_parallelism;
+
   bool dbg_compute_batch_stats;
+  bool dbg_report_progress;
 };
 
 struct JetRefinementContext {
@@ -338,7 +366,7 @@ struct InitialRefinementContext {
   NodeID num_fruitless_moves;
   double alpha;
 
-  int num_iterations;
+  std::size_t num_iterations;
   double improvement_abortion_threshold;
 };
 
@@ -376,8 +404,8 @@ class Graph;
 struct PartitionContext;
 
 struct BlockWeightsContext {
-  void setup(const PartitionContext &ctx);
-  void setup(const PartitionContext &ctx, BlockID input_k);
+  void setup(const PartitionContext &ctx, const bool parallel = true);
+  void setup(const PartitionContext &ctx, const BlockID input_k, const bool parallel = true);
 
   [[nodiscard]] BlockWeight max(BlockID b) const {
     return _max_block_weights[b];
@@ -409,7 +437,7 @@ struct PartitionContext {
   EdgeWeight total_edge_weight = kInvalidEdgeWeight;
   NodeWeight max_node_weight = kInvalidNodeWeight;
 
-  void setup(const AbstractGraph &graph);
+  void setup(const AbstractGraph &graph, const bool setup_block_weights = true);
 };
 
 struct ParallelContext {
@@ -442,29 +470,29 @@ struct PartitioningContext {
   InitialPartitioningMode deep_initial_partitioning_mode;
   double deep_initial_partitioning_load;
   int min_consecutive_seq_bipartitioning_levels;
+  bool refine_after_extending_partition;
+
+  bool use_lazy_subgraph_memory;
 };
 
 struct GraphCompressionContext {
   bool enabled;
-  bool may_dismiss;
 
-  bool compressed_edge_weights;
-  bool high_degree_encoding;
-  NodeID high_degree_threshold;
-  NodeID high_degree_part_length;
-  bool interval_encoding;
-  NodeID interval_length_treshold;
-  bool run_length_encoding;
-  bool stream_encoding;
-  bool isolated_nodes_separation;
+  bool compressed_edge_weights = false;
+  bool high_degree_encoding = false;
+  NodeID high_degree_threshold = kInvalidNodeID;
+  NodeID high_degree_part_length = kInvalidNodeID;
+  bool interval_encoding = false;
+  NodeID interval_length_treshold = kInvalidNodeID;
+  bool run_length_encoding = false;
+  bool streamvbyte_encoding = false;
 
-  bool dismissed;
-  double compression_ratio;
-  std::int64_t size_reduction;
-  std::size_t num_high_degree_nodes;
-  std::size_t num_high_degree_parts;
-  std::size_t num_interval_nodes;
-  std::size_t num_intervals;
+  double compression_ratio = -1;
+  std::int64_t size_reduction = -1;
+  std::size_t num_high_degree_nodes = std::numeric_limits<std::size_t>::max();
+  std::size_t num_high_degree_parts = std::numeric_limits<std::size_t>::max();
+  std::size_t num_interval_nodes = std::numeric_limits<std::size_t>::max();
+  std::size_t num_intervals = std::numeric_limits<std::size_t>::max();
 
   void setup(const Graph &graph);
 };
@@ -494,14 +522,18 @@ struct Context {
 namespace kaminpar::shm {
 std::unordered_set<std::string> get_preset_names();
 Context create_context_by_preset_name(const std::string &name);
+
 Context create_default_context();
-Context create_memory_context();
 Context create_fast_context();
-Context create_largek_context();
-Context create_largek_fast_context();
-Context create_largek_ultrafast_context();
-Context create_largek_fm_context();
 Context create_strong_context();
+
+Context create_largek_context();
+Context create_fast_largek_context();
+Context create_strong_largek_context();
+
+Context create_memory_context();
+Context create_strong_memory_context();
+
 Context create_jet_context(int rounds = 1);
 Context create_noref_context();
 } // namespace kaminpar::shm

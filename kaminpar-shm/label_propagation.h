@@ -19,6 +19,7 @@
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/datastructures/cache_aligned_vector.h"
 #include "kaminpar-common/datastructures/concurrent_fast_reset_array.h"
 #include "kaminpar-common/datastructures/concurrent_two_level_vector.h"
 #include "kaminpar-common/datastructures/dynamic_map.h"
@@ -60,7 +61,7 @@ struct LabelPropagationConfig {
   static constexpr std::size_t kRatingMapThreshold = 10000;
 
   // If true, we count the number of empty clusters
-  static constexpr bool kTrackClusterCount = false;
+  static constexpr bool kTrackClusterCount = true;
 
   // If true, match singleton clusters in 2-hop distance
   static constexpr bool kUseTwoHopClustering = false;
@@ -98,6 +99,7 @@ protected:
   using GrowingRatingMap = typename Config::GrowingRatingMap;
 
   using LabelPropagationImplementation = shm::LabelPropagationImplementation;
+  using TieBreakingStrategy = shm::TieBreakingStrategy;
   using SecondPhaseSelectionStrategy = shm::SecondPhaseSelectionStrategy;
   using SecondPhaseAggregationStrategy = shm::SecondPhaseAggregationStrategy;
 
@@ -109,10 +111,10 @@ public:
     return _max_degree;
   }
 
-  void set_max_num_neighbors(const ClusterID max_num_neighbors) {
+  void set_max_num_neighbors(const NodeID max_num_neighbors) {
     _max_num_neighbors = max_num_neighbors;
   }
-  [[nodiscard]] ClusterID max_num_neighbors() const {
+  [[nodiscard]] NodeID max_num_neighbors() const {
     return _max_num_neighbors;
   }
 
@@ -128,6 +130,13 @@ public:
   }
   [[nodiscard]] LabelPropagationImplementation implementation() {
     return _impl;
+  }
+
+  void set_tie_breaking_strategy(const TieBreakingStrategy strategy) {
+    _tie_breaking_strategy = strategy;
+  }
+  [[nodiscard]] TieBreakingStrategy tie_breaking_strategy() {
+    return _tie_breaking_strategy;
   }
 
   void set_second_phase_selection_strategy(const SecondPhaseSelectionStrategy strategy) {
@@ -247,14 +256,14 @@ protected:
    */
   void initialize(const Graph *graph, const ClusterID num_clusters) {
     KASSERT(
-        graph->n() == 0 || (_num_nodes > 0u && _num_active_nodes > 0u),
+        graph->n() == 0u || (_num_nodes > 0u && _num_active_nodes > 0u),
         "you must call allocate() before initialize()"
     );
 
     _graph = graph;
     _initial_num_clusters = num_clusters;
     _current_num_clusters = num_clusters;
-    _local_cluster_selection_states.resize(tbb::this_task_arena::max_concurrency());
+    _local_cluster_selection_states.resize(tbb::this_task_arena::max_concurrency(), {-1, 0, -1, 0});
     reset_state();
   }
 
@@ -333,11 +342,13 @@ protected:
    * @return Pair with: whether the node was moved to another cluster, whether
    * the previous cluster is now empty.
    */
+  template <typename RatingMap>
   std::pair<bool, bool> handle_node(
       const NodeID u,
       Random &rand,
-      GrowingRatingMap &map,
-      ScalableVector<ClusterID> &tie_breaking_clusters
+      RatingMap &map,
+      ScalableVector<ClusterID> &tie_breaking_clusters,
+      ScalableVector<ClusterID> &tie_breaking_favored_clusters
   ) {
     if (derived_skip_node(u)) {
       return {false, false};
@@ -346,8 +357,28 @@ protected:
     const NodeWeight u_weight = _graph->node_weight(u);
     const ClusterID u_cluster = derived_cluster(u);
 
-    const auto [best_cluster, gain] =
-        find_best_cluster(u, u_weight, u_cluster, rand, map, tie_breaking_clusters);
+    const auto [best_cluster, gain] = [&] {
+      if constexpr (std::is_same_v<RatingMap, GrowingRatingMap>) {
+        return find_best_cluster(
+            u, u_weight, u_cluster, rand, map, tie_breaking_clusters, tie_breaking_favored_clusters
+        );
+      } else {
+        const std::size_t upper_bound_size =
+            std::min<ClusterID>(_graph->degree(u), _initial_num_clusters);
+        return map.execute(upper_bound_size, [&](auto &actual_map) {
+          return find_best_cluster(
+              u,
+              u_weight,
+              u_cluster,
+              rand,
+              actual_map,
+              tie_breaking_clusters,
+              tie_breaking_favored_clusters
+          );
+        });
+      }
+    }();
+
     return try_node_move(u, u_weight, u_cluster, best_cluster, gain);
   }
 
@@ -361,7 +392,11 @@ protected:
    * the previous cluster is now empty.
    */
   std::pair<bool, bool> handle_first_phase_node(
-      const NodeID u, Random &rand, RatingMap &map, ScalableVector<ClusterID> &tie_breaking_clusters
+      const NodeID u,
+      Random &rand,
+      RatingMap &map,
+      ScalableVector<ClusterID> &tie_breaking_clusters,
+      ScalableVector<ClusterID> &tie_breaking_favored_clusters
   ) {
     if (!derived_skip_node(u)) {
       const NodeWeight u_weight = _graph->node_weight(u);
@@ -378,9 +413,16 @@ protected:
 
       const auto maybe_move = map.execute(upper_bound_size, [&](auto &actual_map) {
         return find_best_cluster_first_phase(
-            u, u_weight, u_cluster, rand, actual_map, tie_breaking_clusters
+            u,
+            u_weight,
+            u_cluster,
+            rand,
+            actual_map,
+            tie_breaking_clusters,
+            tie_breaking_favored_clusters
         );
       });
+
       if (maybe_move.has_value()) {
         const auto [best_cluster, gain] = *maybe_move;
         return try_node_move(u, u_weight, u_cluster, best_cluster, gain);
@@ -410,7 +452,7 @@ protected:
 
     const auto [best_cluster, gain] =
         find_best_cluster_second_phase(u, u_weight, u_cluster, rand, map);
-    return try_node_move(u, u_weight, u_cluster, best_cluster, gain);
+    return try_node_move<true>(u, u_weight, u_cluster, best_cluster, gain);
   }
 
   struct ClusterSelectionState {
@@ -422,6 +464,7 @@ protected:
     ClusterID best_cluster;
     EdgeWeight best_gain;
     ClusterWeight best_cluster_weight;
+    EdgeWeight overall_best_gain;
     ClusterID current_cluster;
     EdgeWeight current_gain;
     ClusterWeight current_cluster_weight;
@@ -441,7 +484,8 @@ protected:
       const ClusterID u_cluster,
       Random &rand,
       RatingMap &map,
-      ScalableVector<ClusterID> &tie_breaking_clusters
+      ScalableVector<ClusterID> &tie_breaking_clusters,
+      ScalableVector<ClusterID> &tie_breaking_favored_clusters
   ) {
     const ClusterWeight initial_cluster_weight = derived_cluster_weight(u_cluster);
     ClusterSelectionState state{
@@ -453,6 +497,7 @@ protected:
         .best_cluster = u_cluster,
         .best_gain = 0,
         .best_cluster_weight = initial_cluster_weight,
+        .overall_best_gain = 0,
         .current_cluster = 0,
         .current_gain = 0,
         .current_cluster_weight = 0,
@@ -486,8 +531,15 @@ protected:
     const bool store_favored_cluster =
         Config::kUseTwoHopClustering && u_weight == initial_cluster_weight &&
         initial_cluster_weight <= derived_max_cluster_weight(u_cluster) / 2;
-    ClusterID favored_cluster =
-        derived_select_best_cluster(store_favored_cluster, state, map, tie_breaking_clusters);
+    const EdgeWeight gain_delta = (Config::kUseActualGain) ? map[u_cluster] : 0;
+    ClusterID favored_cluster = derived_select_best_cluster(
+        store_favored_cluster,
+        gain_delta,
+        state,
+        map,
+        tie_breaking_clusters,
+        tie_breaking_favored_clusters
+    );
 
     // If we couldn't join any cluster, we store the favored cluster
     if (store_favored_cluster && state.best_cluster == state.initial_cluster) {
@@ -506,7 +558,8 @@ protected:
       const ClusterID u_cluster,
       Random &rand,
       RatingMap &map,
-      ScalableVector<ClusterID> &tie_breaking_clusters
+      ScalableVector<ClusterID> &tie_breaking_clusters,
+      ScalableVector<ClusterID> &tie_breaking_favored_clusters
   ) {
     const ClusterWeight initial_cluster_weight = derived_cluster_weight(u_cluster);
     ClusterSelectionState state{
@@ -518,6 +571,7 @@ protected:
         .best_cluster = u_cluster,
         .best_gain = 0,
         .best_cluster_weight = initial_cluster_weight,
+        .overall_best_gain = 0,
         .current_cluster = 0,
         .current_gain = 0,
         .current_cluster_weight = 0,
@@ -536,7 +590,7 @@ protected:
         const ClusterID v_cluster = derived_cluster(v);
         map[v_cluster] += w;
 
-        if (use_frm_selection && map.size() >= Config::kRatingMapThreshold) {
+        if (use_frm_selection && map.size() >= Config::kRatingMapThreshold) [[unlikely]] {
           if (aggregate_during_second_phase) {
             _second_phase_nodes.push_back(u);
           }
@@ -553,7 +607,7 @@ protected:
       return false;
     });
 
-    if (is_second_phase_node) {
+    if (is_second_phase_node) [[unlikely]] {
       map.clear();
       return std::nullopt;
     }
@@ -574,8 +628,15 @@ protected:
     const bool store_favored_cluster =
         Config::kUseTwoHopClustering && u_weight == initial_cluster_weight &&
         initial_cluster_weight <= derived_max_cluster_weight(u_cluster) / 2;
-    ClusterID favored_cluster =
-        derived_select_best_cluster(store_favored_cluster, state, map, tie_breaking_clusters);
+    const EdgeWeight gain_delta = (Config::kUseActualGain) ? map[u_cluster] : 0;
+    ClusterID favored_cluster = derived_select_best_cluster(
+        store_favored_cluster,
+        gain_delta,
+        state,
+        map,
+        tie_breaking_clusters,
+        tie_breaking_favored_clusters
+    );
 
     // If we couldn't join any cluster, we store the favored cluster
     if (store_favored_cluster && state.best_cluster == state.initial_cluster) {
@@ -595,69 +656,56 @@ protected:
       ConcurrentRatingMap &map
   ) {
     const ClusterWeight initial_cluster_weight = derived_cluster_weight(u_cluster);
-    ClusterSelectionState state{
-        .local_rand = rand,
-        .u = u,
-        .u_weight = u_weight,
-        .initial_cluster = u_cluster,
-        .initial_cluster_weight = initial_cluster_weight,
-        .best_cluster = u_cluster,
-        .best_gain = 0,
-        .best_cluster_weight = initial_cluster_weight,
-        .current_cluster = 0,
-        .current_gain = 0,
-        .current_cluster_weight = 0,
-    };
 
     bool is_interface_node = false;
     switch (_second_phase_aggregation_strategy) {
     case SecondPhaseAggregationStrategy::DIRECT: {
-      _graph->pfor_neighbors(
-          u,
-          _max_num_neighbors,
-          2000,
-          [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
-            if (derived_accept_neighbor(u, v)) {
-              const ClusterID v_cluster = derived_cluster(v);
-              const EdgeWeight prev_rating =
-                  __atomic_fetch_add(&map[v_cluster], w, __ATOMIC_RELAXED);
+      _graph->pfor_neighbors(u, _max_num_neighbors, 2000, [&](auto &&pfor_neighbors) {
+        auto &local_used_entries = map.local_used_entries();
 
-              if (prev_rating == 0) {
-                map.local_used_entries().push_back(v_cluster);
-              }
+        pfor_neighbors([&](const EdgeID, const NodeID v, const EdgeWeight w) {
+          if (derived_accept_neighbor(u, v)) {
+            const ClusterID v_cluster = derived_cluster(v);
+            const EdgeWeight prev_rating = __atomic_fetch_add(&map[v_cluster], w, __ATOMIC_RELAXED);
 
-              if constexpr (Config::kUseLocalActiveSetStrategy) {
-                is_interface_node |= v >= _num_active_nodes;
-              }
+            if (prev_rating == 0) {
+              local_used_entries.push_back(v_cluster);
+            }
+
+            if constexpr (Config::kUseLocalActiveSetStrategy) {
+              is_interface_node |= v >= _num_active_nodes;
             }
           }
-      );
+        });
+      });
+
       break;
     }
     case SecondPhaseAggregationStrategy::BUFFERED: {
-      const auto flush_local_rating_map = [&](auto &local_rating_map) {
+      const auto flush_local_rating_map = [&](auto &local_used_entries, auto &local_rating_map) {
         for (const auto [cluster, rating] : local_rating_map.entries()) {
           const EdgeWeight prev_rating =
               __atomic_fetch_add(&map[cluster], rating, __ATOMIC_RELAXED);
 
           if (prev_rating == 0) {
-            map.local_used_entries().push_back(cluster);
+            local_used_entries.push_back(cluster);
           }
         }
 
         local_rating_map.clear();
       };
 
-      _graph->pfor_neighbors(u, _max_num_neighbors, 2000, [&](auto &&local_pfor_neighbors) {
+      _graph->pfor_neighbors(u, _max_num_neighbors, 2000, [&](auto &&pfor_neighbors) {
+        auto &local_used_entries = map.local_used_entries();
         auto &local_rating_map = _rating_map_ets.local().small_map();
 
-        local_pfor_neighbors([&](const EdgeID e, const NodeID v, const EdgeWeight w) {
+        pfor_neighbors([&](const EdgeID, const NodeID v, const EdgeWeight w) {
           if (derived_accept_neighbor(u, v)) {
             const ClusterID v_cluster = derived_cluster(v);
             local_rating_map[v_cluster] += w;
 
-            if (local_rating_map.size() >= Config::kRatingMapThreshold) {
-              flush_local_rating_map(local_rating_map);
+            if (local_rating_map.size() >= Config::kRatingMapThreshold) [[unlikely]] {
+              flush_local_rating_map(local_used_entries, local_rating_map);
             }
 
             if constexpr (Config::kUseLocalActiveSetStrategy) {
@@ -668,9 +716,10 @@ protected:
       });
 
       tbb::parallel_for(_rating_map_ets.range(), [&](auto &rating_maps) {
+        auto &local_used_entries = map.local_used_entries();
         for (auto &rating_map : rating_maps) {
           auto &local_rating_map = rating_map.small_map();
-          flush_local_rating_map(local_rating_map);
+          flush_local_rating_map(local_used_entries, local_rating_map);
         }
       });
       break;
@@ -695,9 +744,9 @@ protected:
     const bool store_favored_cluster =
         Config::kUseTwoHopClustering && u_weight == initial_cluster_weight &&
         initial_cluster_weight <= derived_max_cluster_weight(u_cluster) / 2;
-    ClusterID favored_cluster = u_cluster;
+    const EdgeWeight gain_delta = (Config::kUseActualGain) ? map[u_cluster] : 0;
 
-    map.iterate_and_reset([&](const auto i, const auto &used_entries) {
+    map.iterate_and_reset([&](const auto i, const auto &local_entries) {
       ClusterSelectionState local_state{
           .local_rand = Random::instance(),
           .u = u,
@@ -707,13 +756,19 @@ protected:
           .best_cluster = u_cluster,
           .best_gain = 0,
           .best_cluster_weight = initial_cluster_weight,
+          .overall_best_gain = 0,
           .current_cluster = 0,
           .current_gain = 0,
           .current_cluster_weight = 0,
       };
 
       const ClusterID local_favored_cluster = derived_select_best_cluster(
-          store_favored_cluster, local_state, used_entries, _tie_breaking_clusters_ets.local()
+          store_favored_cluster,
+          gain_delta,
+          local_state,
+          local_entries,
+          _tie_breaking_clusters_ets.local(),
+          _tie_breaking_favored_clusters_ets.local()
       );
       const EdgeWeight local_favored_cluster_gain = map[local_favored_cluster];
 
@@ -725,29 +780,82 @@ protected:
       };
     });
 
-    EdgeWeight favored_cluster_gain = 0;
-    for (const LocalClusterSelectionState local_state : _local_cluster_selection_states) {
-      if (local_state.best_gain > state.best_gain) {
-        state.best_gain = local_state.best_gain;
-        state.best_cluster = local_state.best_cluster;
+    ClusterID favored_cluster = u_cluster;
+    ClusterID best_cluster = u_cluster;
+    EdgeWeight best_gain = 0;
+
+    const bool use_uniform_tie_breaking = _tie_breaking_strategy == TieBreakingStrategy::UNIFORM;
+    if (use_uniform_tie_breaking) {
+      auto &tie_breaking_clusters = _tie_breaking_clusters_ets.local();
+      auto &tie_breaking_favored_clusters = _tie_breaking_favored_clusters_ets.local();
+
+      EdgeWeight favored_cluster_gain = 0;
+      for (LocalClusterSelectionState &local_state : _local_cluster_selection_states) {
+        if (local_state.best_gain > best_gain) {
+          best_gain = local_state.best_gain;
+          best_cluster = local_state.best_cluster;
+
+          tie_breaking_clusters.clear();
+          tie_breaking_clusters.push_back(local_state.best_cluster);
+        } else if (local_state.best_gain == best_gain) {
+          tie_breaking_clusters.push_back(local_state.best_cluster);
+        }
+
+        if (store_favored_cluster) {
+          if (local_state.favored_cluster_gain > favored_cluster_gain) {
+            favored_cluster_gain = local_state.favored_cluster_gain;
+            favored_cluster = local_state.favored_cluster;
+
+            tie_breaking_favored_clusters.clear();
+            tie_breaking_favored_clusters.push_back(local_state.favored_cluster);
+          } else if (local_state.favored_cluster_gain == favored_cluster_gain) {
+            tie_breaking_favored_clusters.push_back(local_state.favored_cluster);
+          }
+        }
+
+        local_state.best_gain = -1;
+        local_state.favored_cluster_gain = -1;
       }
 
-      if (store_favored_cluster && local_state.favored_cluster_gain > favored_cluster_gain) {
-        favored_cluster_gain = local_state.favored_cluster_gain;
-        favored_cluster = local_state.favored_cluster;
+      if (tie_breaking_clusters.size() > 1) {
+        const ClusterID i = rand.random_index(0, tie_breaking_clusters.size());
+        best_cluster = tie_breaking_clusters[i];
+      }
+      tie_breaking_clusters.clear();
+
+      if (tie_breaking_favored_clusters.size() > 1) {
+        const ClusterID i = rand.random_index(0, tie_breaking_favored_clusters.size());
+        favored_cluster = tie_breaking_favored_clusters[i];
+      }
+      tie_breaking_favored_clusters.clear();
+    } else {
+      EdgeWeight favored_cluster_gain = 0;
+      for (LocalClusterSelectionState &local_state : _local_cluster_selection_states) {
+        if (local_state.best_gain > best_gain) {
+          best_gain = local_state.best_gain;
+          best_cluster = local_state.best_cluster;
+        }
+
+        if (store_favored_cluster && local_state.favored_cluster_gain > favored_cluster_gain) {
+          favored_cluster_gain = local_state.favored_cluster_gain;
+          favored_cluster = local_state.favored_cluster;
+        }
+
+        local_state.best_gain = -1;
+        local_state.favored_cluster_gain = -1;
       }
     }
-    _local_cluster_selection_states.clear();
 
     // If we couldn't join any cluster, we store the favored cluster
-    if (store_favored_cluster && state.best_cluster == state.initial_cluster) {
+    if (store_favored_cluster && best_cluster == u_cluster) {
       _favored_clusters[u] = favored_cluster;
     }
 
-    const EdgeWeight actual_gain = IFSTATS(state.best_gain - map[state.initial_cluster]);
-    return std::make_pair(state.best_cluster, actual_gain);
+    const EdgeWeight actual_gain = IFSTATS(best_gain - map[u_cluster]);
+    return std::make_pair(best_cluster, actual_gain);
   }
 
+  template <bool kParallelActivate = false>
   std::pair<bool, bool> try_node_move(
       NodeID u, NodeWeight u_weight, ClusterID u_cluster, ClusterID new_cluster, EdgeWeight gain
   ) {
@@ -758,7 +866,7 @@ protected:
 
       if (successful_weight_move) {
         derived_move_node(u, new_cluster);
-        activate_neighbors(u);
+        activate_neighbors<kParallelActivate>(u);
         IFSTATS(_expected_total_gain += gain);
 
         const bool decrement_cluster_count =
@@ -766,14 +874,6 @@ protected:
         // do not update _current_num_clusters here to avoid fetch_add()
         return {true, decrement_cluster_count}; // did move, did reduce nonempty
                                                 // cluster count?
-      } else {
-        if constexpr (Config::kUseActiveSetStrategy || Config::kUseLocalActiveSetStrategy) {
-          // Activate the node when a move failed due to cluster weight restrictions and when the
-          // cluster weights are readjusted in the next iteration.
-          if (derived_cluster_weights_require_reassignment()) {
-            __atomic_store_n(&_active[u], 1, __ATOMIC_RELAXED);
-          }
-        }
       }
     }
 
@@ -786,8 +886,8 @@ protected:
    *
    * @param u Node that was moved.
    */
-  void activate_neighbors(const NodeID u) {
-    _graph->adjacent_nodes(u, [&](const NodeID v) {
+  template <bool kParallel = false> void activate_neighbors(const NodeID u) {
+    const auto activate_neighbors = [&](const NodeID v) {
       // call derived_activate_neighbor() even if we do not use the active set
       // strategy since the function might have side effects; the compiler
       // should remove it if it does not side effects
@@ -796,7 +896,18 @@ protected:
           __atomic_store_n(&_active[v], 1, __ATOMIC_RELAXED);
         }
       }
-    });
+    };
+
+    if constexpr (kParallel) {
+      _graph->pfor_neighbors(
+          u,
+          std::numeric_limits<NodeID>::max(),
+          20000,
+          [&](const EdgeID, const NodeID v, const EdgeWeight) { activate_neighbors(v); }
+      );
+    } else {
+      _graph->adjacent_nodes(u, activate_neighbors);
+    }
   }
 
   void match_isolated_nodes(
@@ -1150,11 +1261,6 @@ private:
     _relabeled = false;
   }
 
-protected:
-  [[nodiscard]] inline bool derived_cluster_weights_require_reassignment() const {
-    return static_cast<const Derived *>(this)->cluster_weights_require_reassignment();
-  }
-
 private: // CRTP calls
   //! Return current cluster ID of  node \c u.
   [[nodiscard]] ClusterID derived_cluster(const NodeID u) {
@@ -1209,12 +1315,19 @@ private: // CRTP calls
   template <typename RatingMap>
   [[nodiscard]] ClusterID derived_select_best_cluster(
       const bool store_favored_cluster,
+      const EdgeWeight gain_delta,
       ClusterSelectionState &state,
       RatingMap &map,
-      ScalableVector<ClusterID> &tie_breaking_clusters
+      ScalableVector<ClusterID> &tie_breaking_clusters,
+      ScalableVector<ClusterID> &tie_breaking_favored_clusters
   ) {
     return static_cast<Derived *>(this)->select_best_cluster(
-        store_favored_cluster, state, map, tie_breaking_clusters
+        store_favored_cluster,
+        gain_delta,
+        state,
+        map,
+        tie_breaking_clusters,
+        tie_breaking_favored_clusters
     );
   }
 
@@ -1294,6 +1407,9 @@ protected: // Members
   //! The label propagation implementation that is used.
   LabelPropagationImplementation _impl;
 
+  //! The tie breaking strategy that is used.
+  TieBreakingStrategy _tie_breaking_strategy;
+
   //! The strategy by which the nodes for the second phase are selected.
   SecondPhaseSelectionStrategy _second_phase_selection_strategy;
 
@@ -1312,8 +1428,11 @@ protected: // Members
   //! Thread-local vector to hold clusters considered for uniform tie-breaking.
   tbb::enumerable_thread_specific<ScalableVector<ClusterID>> _tie_breaking_clusters_ets;
 
+  //! Thread-local vector to hold favored clusters considered for uniform tie-breaking.
+  tbb::enumerable_thread_specific<ScalableVector<ClusterID>> _tie_breaking_favored_clusters_ets;
+
   //! Vector of local cluster selection states where each entry is owned by a parallel task.
-  std::vector<LocalClusterSelectionState> _local_cluster_selection_states;
+  CacheAlignedVector<LocalClusterSelectionState> _local_cluster_selection_states;
 
   //! Flags nodes with at least one node in its neighborhood that changed
   //! clusters during the last iteration. Nodes without this flag set must not
@@ -1471,7 +1590,6 @@ protected:
   using SecondPhaseSelectionStrategy = Base::SecondPhaseSelectionStrategy;
   using SecondPhaseAggregationStrategy = Base::SecondPhaseAggregationStrategy;
 
-  using Base::derived_cluster_weights_require_reassignment;
   using Base::handle_first_phase_node;
   using Base::handle_node;
   using Base::handle_second_phase_node;
@@ -1489,14 +1607,17 @@ public:
   using DataStructures = std::tuple<
       tbb::enumerable_thread_specific<RatingMap>,
       tbb::enumerable_thread_specific<GrowingRatingMap>,
+      ConcurrentRatingMap,
       tbb::enumerable_thread_specific<ScalableVector<ClusterID>>,
       StaticArray<uint8_t>,
       StaticArray<uint8_t>,
       StaticArray<ClusterID>,
       tbb::concurrent_vector<NodeID>,
+      tbb::enumerable_thread_specific<std::vector<NodeID>>,
+      tbb::enumerable_thread_specific<std::size_t>,
+      tbb::enumerable_thread_specific<std::vector<Chunk>>,
       std::vector<Chunk>,
-      std::vector<Bucket>,
-      ConcurrentRatingMap>;
+      std::vector<Bucket>>;
 
   /*!
    * Sets the data structures to use, which can save memory space when (unused) data structures are
@@ -1508,24 +1629,30 @@ public:
     auto
         [rating_map_ets,
          growing_rating_map_ets,
+         concurrent_rating_map,
          tie_breaking_clusters_ets,
          active,
          moved,
          favored_clusters,
          second_phase_nodes,
+         sub_chunk_permutation_ets,
+         num_chunks_ets,
+         chunks_ets,
          chunks,
-         buckets,
-         concurrent_rating_map] = std::move(structs);
+         buckets] = std::move(structs);
     _rating_map_ets = std::move(rating_map_ets);
     _growing_rating_map_ets = std::move(growing_rating_map_ets);
+    _concurrent_rating_map = std::move(concurrent_rating_map);
     _tie_breaking_clusters_ets = std::move(tie_breaking_clusters_ets);
     _active = std::move(active);
     _moved = std::move(moved);
     _favored_clusters = std::move(favored_clusters);
     _second_phase_nodes = std::move(second_phase_nodes);
+    _sub_chunk_permutation_ets = std::move(sub_chunk_permutation_ets);
+    _num_chunks_ets = std::move(num_chunks_ets);
+    _chunks_ets = std::move(chunks_ets);
     _chunks = std::move(chunks);
     _buckets = std::move(buckets);
-    _concurrent_rating_map = std::move(concurrent_rating_map);
   }
 
   /*!
@@ -1537,14 +1664,17 @@ public:
     return std::make_tuple(
         std::move(_rating_map_ets),
         std::move(_growing_rating_map_ets),
+        std::move(_concurrent_rating_map),
         std::move(_tie_breaking_clusters_ets),
         std::move(_active),
         std::move(_moved),
         std::move(_favored_clusters),
         std::move(_second_phase_nodes),
+        std::move(_sub_chunk_permutation_ets),
+        std::move(_num_chunks_ets),
+        std::move(_chunks_ets),
         std::move(_chunks),
-        std::move(_buckets),
-        std::move(_concurrent_rating_map)
+        std::move(_buckets)
     );
   }
 
@@ -1601,11 +1731,14 @@ protected:
     }
     shuffle_chunks();
 
-    const bool use_growing_hash_tables =
-        _impl == LabelPropagationImplementation::GROWING_HASH_TABLES;
-    if (use_growing_hash_tables) {
-      perform_with_growing_rating_maps();
-    } else {
+    switch (_impl) {
+    case LabelPropagationImplementation::GROWING_HASH_TABLES:
+      perform(_growing_rating_map_ets);
+      break;
+    case LabelPropagationImplementation::SINGLE_PHASE:
+      perform(_rating_map_ets);
+      break;
+    case LabelPropagationImplementation::TWO_PHASE:
       const NodeID initial_num_clusters = _initial_num_clusters;
       const auto [num_processed_nodes, num_moved_nodes_first_phase] = perform_first_phase();
 
@@ -1616,8 +1749,6 @@ protected:
         }
 
         perform_second_phase();
-      } else if (derived_cluster_weights_require_reassignment()) {
-        relabel_clusters();
       }
 
       const NodeID num_moved_nodes = _num_moved_nodes_ets.combine(std::plus{});
@@ -1635,6 +1766,7 @@ protected:
         LOG << "  Moved: " << (num_moved_nodes - num_moved_nodes_first_phase) << " nodes";
         LOG;
       }
+      break;
     }
 
     const NodeID num_moved_nodes = _num_moved_nodes_ets.combine(std::plus{});
@@ -1674,8 +1806,6 @@ private:
           std::min<NodeID>({remaining_bucket_size, to - position, to - from});
 
       parallel::Atomic<NodeID> offset = 0;
-      tbb::enumerable_thread_specific<std::size_t> num_chunks_ets;
-      tbb::enumerable_thread_specific<std::vector<Chunk>> chunks_ets;
 
       const std::size_t bucket_start = std::max(_graph->first_node_in_bucket(bucket), from);
 
@@ -1683,8 +1813,8 @@ private:
           static_cast<int>(0),
           tbb::this_task_arena::max_concurrency(),
           [&](const int) {
-            auto &chunks = chunks_ets.local();
-            auto &num_chunks = num_chunks_ets.local();
+            auto &chunks = _chunks_ets.local();
+            auto &num_chunks = _num_chunks_ets.local();
 
             while (offset < bucket_size) {
               const NodeID begin = offset.fetch_add(max_node_chunk_size);
@@ -1717,15 +1847,20 @@ private:
           }
       );
 
-      const std::size_t num_chunks = num_chunks_ets.combine(std::plus{});
+      std::size_t num_chunks = 0;
+      for (auto &local_num_chunks : _num_chunks_ets) {
+        num_chunks += local_num_chunks;
+        local_num_chunks = 0;
+      }
 
       const std::size_t chunks_start = _chunks.size();
       parallel::Atomic<std::size_t> pos = chunks_start;
       _chunks.resize(chunks_start + num_chunks);
-      tbb::parallel_for(chunks_ets.range(), [&](auto &r) {
+      tbb::parallel_for(_chunks_ets.range(), [&](auto &r) {
         for (auto &chunk : r) {
           const std::size_t local_pos = pos.fetch_add(chunk.size());
           std::copy(chunk.begin(), chunk.end(), _chunks.begin() + local_pos);
+          chunk.clear();
         }
       });
 
@@ -1773,7 +1908,7 @@ private:
     });
   }
 
-  std::pair<std::size_t, std::size_t> perform_with_growing_rating_maps() {
+  template <typename RatingMapETS> void perform(RatingMapETS &rating_map_ets) {
     parallel::Atomic<std::size_t> next_chunk = 0;
     tbb::parallel_for(static_cast<std::size_t>(0), _chunks.size(), [&](const std::size_t) {
       if (should_stop()) {
@@ -1783,8 +1918,9 @@ private:
       auto &local_num_processed_nodes = _num_processed_nodes_ets.local();
       auto &local_num_moved_nodes = _num_moved_nodes_ets.local();
       auto &local_rand = Random::instance();
-      auto &local_rating_map = _growing_rating_map_ets.local();
+      auto &local_rating_map = rating_map_ets.local();
       auto &tie_breaking_clusters = _tie_breaking_clusters_ets.local();
+      auto &tie_breaking_favored_clusters = _tie_breaking_favored_clusters_ets.local();
       NodeID num_removed_clusters = 0;
 
       const auto chunk_id = next_chunk.fetch_add(1, std::memory_order_relaxed);
@@ -1793,9 +1929,16 @@ private:
 
       const std::size_t num_sub_chunks =
           std::ceil(1.0 * (chunk.end - chunk.start) / Config::kPermutationSize);
-      std::vector<NodeID> sub_chunk_permutation(num_sub_chunks);
-      std::iota(sub_chunk_permutation.begin(), sub_chunk_permutation.end(), 0);
-      local_rand.shuffle(sub_chunk_permutation);
+
+      auto &sub_chunk_permutation = _sub_chunk_permutation_ets.local();
+      if (sub_chunk_permutation.capacity() < num_sub_chunks) {
+        sub_chunk_permutation.resize(num_sub_chunks);
+      }
+
+      std::iota(sub_chunk_permutation.begin(), sub_chunk_permutation.begin() + num_sub_chunks, 0);
+      local_rand.shuffle(
+          sub_chunk_permutation.begin(), sub_chunk_permutation.begin() + num_sub_chunks
+      );
 
       for (std::size_t sub_chunk = 0; sub_chunk < num_sub_chunks; ++sub_chunk) {
         for (std::size_t i = 0; i < Config::kPermutationSize; ++i) {
@@ -1814,8 +1957,13 @@ private:
 
           const NodeID degree = _graph->degree(u);
           if (degree < _max_degree) {
-            const auto [moved_node, emptied_cluster] =
-                handle_node(u, local_rand, local_rating_map, tie_breaking_clusters);
+            const auto [moved_node, emptied_cluster] = handle_node(
+                u,
+                local_rand,
+                local_rating_map,
+                tie_breaking_clusters,
+                tie_breaking_favored_clusters
+            );
 
             ++local_num_processed_nodes;
             if (moved_node) {
@@ -1830,10 +1978,6 @@ private:
 
       _current_num_clusters -= num_removed_clusters;
     });
-
-    return std::make_pair(
-        _num_processed_nodes_ets.combine(std::plus{}), _num_moved_nodes_ets.combine(std::plus{})
-    );
   }
 
   std::pair<std::size_t, std::size_t> perform_first_phase() {
@@ -1844,9 +1988,6 @@ private:
     const bool use_high_degree_selection =
         use_two_phases && _initial_num_clusters >= Config::kRatingMapThreshold &&
         _second_phase_selection_strategy == SecondPhaseSelectionStrategy::HIGH_DEGREE;
-    const bool use_frm_selection =
-        use_two_phases &&
-        _second_phase_selection_strategy == SecondPhaseSelectionStrategy::FULL_RATING_MAP;
     const bool aggregate_during_second_phase =
         _second_phase_aggregation_strategy != SecondPhaseAggregationStrategy::NONE;
 
@@ -1861,6 +2002,7 @@ private:
       auto &local_rand = Random::instance();
       auto &local_rating_map = _rating_map_ets.local();
       auto &tie_breaking_clusters = _tie_breaking_clusters_ets.local();
+      auto &tie_breaking_favored_clusters = _tie_breaking_favored_clusters_ets.local();
       NodeID num_removed_clusters = 0;
 
       const auto chunk_id = next_chunk.fetch_add(1, std::memory_order_relaxed);
@@ -1869,9 +2011,16 @@ private:
 
       const std::size_t num_sub_chunks =
           std::ceil(1.0 * (chunk.end - chunk.start) / Config::kPermutationSize);
-      std::vector<NodeID> sub_chunk_permutation(num_sub_chunks);
-      std::iota(sub_chunk_permutation.begin(), sub_chunk_permutation.end(), 0);
-      local_rand.shuffle(sub_chunk_permutation);
+
+      auto &sub_chunk_permutation = _sub_chunk_permutation_ets.local();
+      if (sub_chunk_permutation.capacity() < num_sub_chunks) {
+        sub_chunk_permutation.resize(num_sub_chunks);
+      }
+
+      std::iota(sub_chunk_permutation.begin(), sub_chunk_permutation.begin() + num_sub_chunks, 0);
+      local_rand.shuffle(
+          sub_chunk_permutation.begin(), sub_chunk_permutation.begin() + num_sub_chunks
+      );
 
       for (std::size_t sub_chunk = 0; sub_chunk < num_sub_chunks; ++sub_chunk) {
         for (std::size_t i = 0; i < Config::kPermutationSize; ++i) {
@@ -1900,8 +2049,13 @@ private:
               continue;
             }
 
-            const auto [moved_node, emptied_cluster] =
-                handle_first_phase_node(u, local_rand, local_rating_map, tie_breaking_clusters);
+            const auto [moved_node, emptied_cluster] = handle_first_phase_node(
+                u,
+                local_rand,
+                local_rating_map,
+                tie_breaking_clusters,
+                tie_breaking_favored_clusters
+            );
             if (moved_node) {
               ++local_num_moved_nodes;
 
@@ -1972,189 +2126,19 @@ protected:
   using Base::_second_phase_nodes;
   using Base::_second_phase_selection_strategy;
   using Base::_tie_breaking_clusters_ets;
+  using Base::_tie_breaking_favored_clusters_ets;
 
   Permutations &_random_permutations;
+  tbb::enumerable_thread_specific<std::vector<NodeID>> _sub_chunk_permutation_ets;
+  tbb::enumerable_thread_specific<std::size_t> _num_chunks_ets;
+  tbb::enumerable_thread_specific<std::vector<Chunk>> _chunks_ets;
   std::vector<Chunk> _chunks;
   std::vector<Bucket> _buckets;
+
   tbb::enumerable_thread_specific<NodeID> _num_processed_nodes_ets;
   tbb::enumerable_thread_specific<NodeID> _num_moved_nodes_ets;
+
   ConcurrentRatingMap _concurrent_rating_map;
-};
-
-template <typename ClusterID, typename ClusterWeight> class OwnedRelaxedClusterWeightVector {
-  using Structure = shm::ClusterWeightsStructure;
-
-  using ClusterWeightVec = StaticArray<ClusterWeight>;
-
-  using SmallClusterWeight = std::uint8_t;
-  using SmallClusterWeightVec = StaticArray<SmallClusterWeight>;
-
-  using FirstLevelClusterWeight = typename std::
-      conditional_t<std::is_same_v<ClusterWeight, std::int32_t>, std::uint16_t, std::uint32_t>;
-  using ClusterWeightTwoLevelVec =
-      ConcurrentTwoLevelVector<ClusterWeight, ClusterID, FirstLevelClusterWeight>;
-
-public:
-  using ClusterWeights = std::pair<ClusterWeightVec, ClusterWeightTwoLevelVec>;
-
-  OwnedRelaxedClusterWeightVector(const Structure structure)
-      : _use_two_level_vector(structure == Structure::TWO_LEVEL_VEC),
-        _use_small_vector_initially(structure == Structure::INITIALLY_SMALL_VEC) {}
-
-  void set_use_small_vector_initially(const bool use_small_vector_initially) {
-    _use_small_vector_initially = use_small_vector_initially;
-  }
-
-  void allocate_cluster_weights(const ClusterID num_clusters) {
-    if (_use_two_level_vector) {
-      if (_two_level_cluster_weights.capacity() < num_clusters) {
-        _two_level_cluster_weights.resize(num_clusters);
-      }
-    } else if (_use_small_vector_initially) {
-      if (_small_cluster_weights.size() < num_clusters) {
-        _small_cluster_weights.resize(num_clusters);
-      }
-    } else {
-      if (_cluster_weights.size() < num_clusters) {
-        _cluster_weights.resize(num_clusters);
-      }
-    }
-  }
-
-  void free() {
-    if (_use_two_level_vector) {
-      _two_level_cluster_weights.free();
-    } else if (_use_small_vector_initially) {
-      _small_cluster_weights.free();
-    } else {
-      _cluster_weights.free();
-    }
-  }
-
-  void setup_cluster_weights(ClusterWeights weights) {
-    auto [cluster_weights, two_level_cluster_weights] = std::move(weights);
-    _cluster_weights = std::move(cluster_weights);
-    _two_level_cluster_weights = std::move(two_level_cluster_weights);
-  }
-
-  ClusterWeights take_cluster_weights() {
-    return std::make_pair(std::move(_cluster_weights), std::move(_two_level_cluster_weights));
-  }
-
-  void reset_cluster_weights() {
-    if (_use_two_level_vector) {
-      _two_level_cluster_weights.reset();
-    }
-  }
-
-  void init_cluster_weight(const ClusterID cluster, const ClusterWeight weight) {
-    if (_use_two_level_vector) {
-      _two_level_cluster_weights.insert(cluster, weight);
-    } else if (_use_small_vector_initially) {
-      // Can cause problems for graphs with node weights.
-      KASSERT(weight <= std::numeric_limits<SmallClusterWeight>::max());
-
-      _small_cluster_weights[cluster] = static_cast<SmallClusterWeight>(weight);
-    } else {
-      _cluster_weights[cluster] = weight;
-    }
-  }
-
-  ClusterWeight cluster_weight(const ClusterID cluster) {
-    if (_use_two_level_vector) {
-      return _two_level_cluster_weights[cluster];
-    } else if (_use_small_vector_initially) {
-      return static_cast<ClusterWeight>(
-          __atomic_load_n(&_small_cluster_weights[cluster], __ATOMIC_RELAXED)
-      );
-    } else {
-      return __atomic_load_n(&_cluster_weights[cluster], __ATOMIC_RELAXED);
-    }
-  }
-
-  bool move_cluster_weight(
-      const ClusterID old_cluster,
-      const ClusterID new_cluster,
-      const ClusterWeight delta,
-      const ClusterWeight max_weight
-  ) {
-    if (_use_two_level_vector) {
-      if (_two_level_cluster_weights[new_cluster] + delta <= max_weight) {
-        _two_level_cluster_weights.atomic_add(new_cluster, delta);
-        _two_level_cluster_weights.atomic_sub(old_cluster, delta);
-        return true;
-      }
-    } else if (_use_small_vector_initially) {
-      const ClusterWeight actual_max_weight = std::min(
-          max_weight, static_cast<ClusterWeight>(std::numeric_limits<SmallClusterWeight>::max())
-      );
-
-      if (static_cast<ClusterWeight>(_small_cluster_weights[new_cluster]) + delta <=
-          actual_max_weight) {
-        __atomic_fetch_add(&_small_cluster_weights[new_cluster], delta, __ATOMIC_RELAXED);
-        __atomic_fetch_sub(&_small_cluster_weights[old_cluster], delta, __ATOMIC_RELAXED);
-        return true;
-      }
-    } else {
-      if (_cluster_weights[new_cluster] + delta <= max_weight) {
-        __atomic_fetch_add(&_cluster_weights[new_cluster], delta, __ATOMIC_RELAXED);
-        __atomic_fetch_sub(&_cluster_weights[old_cluster], delta, __ATOMIC_RELAXED);
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  void reassign_cluster_weights(
-      const StaticArray<ClusterID> &mapping, const ClusterID num_new_clusters
-  ) {
-    if (_use_two_level_vector) {
-      _two_level_cluster_weights.reassign(mapping, num_new_clusters);
-      return;
-    }
-
-    const auto reassign = [&](const auto &old_cluster_weights) {
-      RECORD("new_cluster_weights") ClusterWeightVec new_cluster_weights(num_new_clusters);
-
-      tbb::parallel_for(
-          tbb::blocked_range<ClusterID>(0, old_cluster_weights.size()),
-          [&](const auto &r) {
-            for (ClusterID u = r.begin(); u != r.end(); ++u) {
-              ClusterWeight weight = old_cluster_weights[u];
-
-              if (weight != 0) {
-                ClusterID new_cluster_id = mapping[u] - 1;
-                new_cluster_weights[new_cluster_id] = weight;
-              }
-            }
-          }
-      );
-
-      _cluster_weights = std::move(new_cluster_weights);
-    };
-
-    if (_use_small_vector_initially) {
-      reassign(_small_cluster_weights);
-      _small_cluster_weights.free();
-      _use_small_vector_initially = false;
-    } else {
-      reassign(_cluster_weights);
-    }
-  }
-
-  [[nodiscard]] bool cluster_weights_require_reassignment() const {
-    return _use_small_vector_initially;
-  }
-
-private:
-  ClusterWeightVec _cluster_weights;
-
-  const bool _use_two_level_vector;
-  ClusterWeightTwoLevelVec _two_level_cluster_weights;
-
-  bool _use_small_vector_initially;
-  SmallClusterWeightVec _small_cluster_weights;
 };
 
 template <typename NodeID, typename ClusterID> class NonatomicClusterVectorRef {
@@ -2179,5 +2163,143 @@ public:
 
 private:
   StaticArray<ClusterID> *_clusters = nullptr;
+};
+
+template <typename ClusterID, typename ClusterWeight> class OwnedRelaxedClusterWeightVector {
+public:
+  using ClusterWeights = StaticArray<ClusterWeight>;
+
+  void allocate_cluster_weights(const ClusterID num_clusters) {
+    if (_cluster_weights.size() < num_clusters) {
+      _cluster_weights.resize(num_clusters);
+    }
+  }
+
+  void free() {
+    _cluster_weights.free();
+  }
+
+  void setup_cluster_weights(ClusterWeights cluster_weights) {
+    _cluster_weights = std::move(cluster_weights);
+  }
+
+  ClusterWeights take_cluster_weights() {
+    return std::move(_cluster_weights);
+  }
+
+  void reset_cluster_weights() {}
+
+  void init_cluster_weight(const ClusterID cluster, const ClusterWeight weight) {
+    _cluster_weights[cluster] = weight;
+  }
+
+  ClusterWeight cluster_weight(const ClusterID cluster) {
+    return __atomic_load_n(&_cluster_weights[cluster], __ATOMIC_RELAXED);
+  }
+
+  bool move_cluster_weight(
+      const ClusterID old_cluster,
+      const ClusterID new_cluster,
+      const ClusterWeight delta,
+      const ClusterWeight max_weight
+  ) {
+    if (_cluster_weights[new_cluster] + delta <= max_weight) {
+      __atomic_fetch_add(&_cluster_weights[new_cluster], delta, __ATOMIC_RELAXED);
+      __atomic_fetch_sub(&_cluster_weights[old_cluster], delta, __ATOMIC_RELAXED);
+      return true;
+    }
+
+    return false;
+  }
+
+  void reassign_cluster_weights(
+      const StaticArray<ClusterID> &mapping, const ClusterID num_new_clusters
+  ) {
+    RECORD("new_cluster_weights") ClusterWeights new_cluster_weights(num_new_clusters);
+
+    tbb::parallel_for(
+        tbb::blocked_range<ClusterID>(0, _cluster_weights.size()),
+        [&](const auto &r) {
+          for (ClusterID u = r.begin(); u != r.end(); ++u) {
+            ClusterWeight weight = _cluster_weights[u];
+
+            if (weight != 0) {
+              ClusterID new_cluster_id = mapping[u] - 1;
+              new_cluster_weights[new_cluster_id] = weight;
+            }
+          }
+        }
+    );
+
+    _cluster_weights = std::move(new_cluster_weights);
+  }
+
+private:
+  ClusterWeights _cluster_weights;
+};
+
+template <typename ClusterID, typename ClusterWeight>
+class OwnedRelaxedTwoLevelClusterWeightVector {
+  using FirstLevelClusterWeight = typename std::
+      conditional_t<std::is_same_v<ClusterWeight, std::int32_t>, std::uint16_t, std::uint32_t>;
+  using TwoLevelClusterWeightVector =
+      ConcurrentTwoLevelVector<ClusterWeight, ClusterID, FirstLevelClusterWeight>;
+
+public:
+  using ClusterWeights = TwoLevelClusterWeightVector;
+
+  void allocate_cluster_weights(const ClusterID num_clusters) {
+    if (_cluster_weights.capacity() < num_clusters) {
+      _cluster_weights.resize(num_clusters);
+    }
+  }
+
+  void free() {
+    _cluster_weights.free();
+  }
+
+  void setup_cluster_weights(ClusterWeights cluster_weights) {
+    _cluster_weights = std::move(cluster_weights);
+  }
+
+  ClusterWeights take_cluster_weights() {
+    return std::move(_cluster_weights);
+  }
+
+  void reset_cluster_weights() {
+    _cluster_weights.reset();
+  }
+
+  void init_cluster_weight(const ClusterID cluster, const ClusterWeight weight) {
+    _cluster_weights.insert(cluster, weight);
+  }
+
+  ClusterWeight cluster_weight(const ClusterID cluster) {
+    return _cluster_weights[cluster];
+  }
+
+  bool move_cluster_weight(
+      const ClusterID old_cluster,
+      const ClusterID new_cluster,
+      const ClusterWeight delta,
+      const ClusterWeight max_weight
+  ) {
+    if (_cluster_weights[new_cluster] + delta <= max_weight) {
+      _cluster_weights.atomic_add(new_cluster, delta);
+      _cluster_weights.atomic_sub(old_cluster, delta);
+      return true;
+    }
+
+    return false;
+  }
+
+  void reassign_cluster_weights(
+      const StaticArray<ClusterID> &mapping, const ClusterID num_new_clusters
+  ) {
+    _cluster_weights.reassign(mapping, num_new_clusters);
+  }
+
+private:
+  TwoLevelClusterWeightVector _cluster_weights;
 };
 } // namespace kaminpar

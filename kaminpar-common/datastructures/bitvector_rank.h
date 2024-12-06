@@ -10,6 +10,7 @@
 #include <bit>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/math.h"
@@ -65,6 +66,16 @@ class RankCombinedBitVector {
 
 public:
   /*!
+   * Constructs an empty bit vector.
+   */
+  explicit RankCombinedBitVector()
+      : _length(0),
+        _num_blocks(0),
+        _data(0),
+        _num_superblocks(0),
+        _superblock_data(0) {}
+
+  /*!
    * Constructs an uninitialized bit vector.
    *
    * @param length The number of bits that this bit vector contains.
@@ -82,6 +93,18 @@ public:
       Word *last_block = _data.data() + (_num_blocks - 1) * kNumWordsPerBlock;
       std::fill_n(last_block, kNumWordsPerBlock, 0);
     }
+  }
+
+  /*!
+   * Constructs an bit vector with all bits set to one or zero. Note that the rank structure is not
+   * initialized.
+   *
+   * @param length The number of bits that this bit vector contains.
+   * @param set Whether to set the bits initially.
+   */
+  explicit RankCombinedBitVector(const std::size_t length, const bool set)
+      : RankCombinedBitVector(length) {
+    std::fill_n(_data.data(), _data.size(), set ? std::numeric_limits<Word>::max() : 0);
   }
 
   RankCombinedBitVector(RankCombinedBitVector &&) noexcept = default;

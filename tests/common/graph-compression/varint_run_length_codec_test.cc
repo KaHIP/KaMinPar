@@ -1,6 +1,6 @@
 #include <gmock/gmock.h>
 
-#include "kaminpar-common/graph-compression/varint_run_length_codec.h"
+#include "kaminpar-common/graph-compression/varint_rle.h"
 
 using namespace kaminpar;
 
@@ -28,7 +28,7 @@ template <typename Int> void test_run_length_codec() {
   }
   rl_encoder.flush();
 
-  VarIntRunLengthDecoder<Int> rl_decoder(ptr.get(), values.size());
+  VarIntRunLengthDecoder<Int> rl_decoder(values.size(), ptr.get());
   std::size_t i = 0;
   rl_decoder.decode([&](const Int value) { EXPECT_EQ(values[i++], value); });
   EXPECT_EQ(i, values.size());

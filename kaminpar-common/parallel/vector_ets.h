@@ -1,20 +1,20 @@
 /*******************************************************************************
+ * Vector of combinable thread-local data.
+ *
  * @file:   vector_ets.h
  * @author: Daniel Seemaier
  * @date:   27.10.2021
- * @brief:  Vector of combinable thread-local data.
  ******************************************************************************/
 #pragma once
 
-#include <vector>
-
-#include <tbb/cache_aligned_allocator.h>
 #include <tbb/combinable.h>
+
+#include "kaminpar-common/datastructures/cache_aligned_vector.h"
 
 namespace kaminpar::parallel {
 template <typename T> class vector_ets {
 public:
-  using Container = std::vector<T, tbb::cache_aligned_allocator<T>>;
+  using Container = CacheAlignedVector<T>;
 
   explicit vector_ets(const std::size_t size)
       : _size(size),

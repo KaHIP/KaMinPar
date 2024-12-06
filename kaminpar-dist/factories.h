@@ -17,6 +17,7 @@
 #include "kaminpar-dist/refinement/refiner.h"
 
 namespace kaminpar::dist::factory {
+
 std::unique_ptr<Partitioner>
 create_partitioner(const Context &ctx, const DistributedGraph &graph, PartitioningMode mode);
 
@@ -37,4 +38,5 @@ std::unique_ptr<Coarsener> create_coarsener(const Context &ctx);
 std::unique_ptr<Clusterer> create_clusterer(const Context &ctx, ClusteringAlgorithm algorithm);
 
 std::unique_ptr<Clusterer> create_clusterer(const Context &ctx);
+
 } // namespace kaminpar::dist::factory

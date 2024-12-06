@@ -13,6 +13,7 @@
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
+#include "kaminpar-common/datastructures/cache_aligned_vector.h"
 #include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/parallel/loops.h"
 #include "kaminpar-common/timer.h"
@@ -39,7 +40,7 @@ template <template <typename> typename Container> struct NodePermutations {
  * @return Bidirectional node permutation.
  */
 template <bool put_deg0_at_end = true, typename Lambda>
-NodePermutations<StaticArray> sort_by_degree_buckets(const NodeID n, const Lambda &&degrees) {
+NodePermutations<StaticArray> sort_by_degree_buckets(const NodeID n, Lambda &&degrees) {
   static_assert(std::is_invocable_r_v<NodeID, Lambda, NodeID>);
   SCOPED_TIMER("Sort nodes by degree bucket");
 
@@ -55,7 +56,7 @@ NodePermutations<StaticArray> sort_by_degree_buckets(const NodeID n, const Lambd
 
   // local_buckets[cpu][bucket]: thread-local bucket sizes
   using Buckets = std::array<NodeID, kNumberOfDegreeBuckets<NodeID> + 1>;
-  std::vector<Buckets, tbb::cache_aligned_allocator<Buckets>> local_buckets(cpus + 1);
+  CacheAlignedVector<Buckets> local_buckets(cpus + 1);
 
   parallel::deterministic_for<NodeID>(
       0,
@@ -105,7 +106,7 @@ NodePermutations<StaticArray> sort_by_degree_buckets(const NodeID n, const Lambd
   );
 
   // Compute inverse permutation
-  tbb::parallel_for<std::size_t>(0, n, [&](const NodeID u) {
+  tbb::parallel_for<std::size_t>(0, n, [&](const NodeID u) noexcept {
     inverse_permutation[permutation[u]] = u;
   });
 

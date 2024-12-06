@@ -94,7 +94,6 @@ TEST(DistEndToEndTest, partitions_unweighted_walshaw_data_graph) {
   auto xadj = data::create_xadj();
 
   const GlobalNodeID global_n = data::global_xadj.size() - 1;
-  const NodeID n = xadj.size() - 1;
 
   GlobalNodeID *vtxdist_ptr = vtxdist.data();
   GlobalEdgeID *xadj_ptr = xadj.data();
@@ -184,13 +183,11 @@ TEST(DistEndToEndTest, partitions_unweighted_walshaw_data_graph_multiple_times_w
 TEST(
     DistEndToEndTest, partitions_unweighted_walshaw_data_graph_multiple_times_with_different_seeds
 ) {
-  const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
   const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
 
   auto vtxdist = data::create_vtxdist();
   auto xadj = data::create_xadj();
 
-  const GlobalNodeID global_n = data::global_xadj.size() - 1;
   const NodeID n = xadj.size() - 1;
 
   GlobalNodeID *vtxdist_ptr = vtxdist.data();
@@ -202,7 +199,6 @@ TEST(
   dKaMinPar dist(MPI_COMM_WORLD, 1, create_default_context()); // 1 thread: deterministic
   dist.set_output_level(OutputLevel::QUIET);
   dist.import_graph(vtxdist_ptr, xadj_ptr, adjncy_ptr, nullptr, nullptr);
-  const EdgeWeight reported_cut = dist.compute_partition(16, seed0_partition.data());
 
   for (const int seed : {1, 2, 3}) {
     std::vector<BlockID> partition(n);

@@ -35,7 +35,16 @@ void DistributedCompressedGraph::init_high_degree_info(const EdgeID high_degree_
         tbb::parallel_for<std::size_t>(0, recv_buffer.size(), [&](const std::size_t i) {
           const auto &[remote_node, high_degree] = recv_buffer[i];
           const NodeID local_node = map_remote_node(remote_node, pe);
-          _high_degree_ghost_node[local_node - n()] = high_degree;
+          const NodeID ghost_node = local_node - n();
+
+          KASSERT(
+              ghost_node < _high_degree_ghost_node.size(),
+              "received bad ghost node: local node " << remote_node << " from PE " << pe
+                                                     << ", mapped to my local node " << local_node
+                                                     << " = " << ghost_node << "-th ghost node"
+          );
+
+          _high_degree_ghost_node[ghost_node] = high_degree;
         });
       }
   );

@@ -18,7 +18,7 @@
 
 #include "kaminpar-common/logger.h" // IWYU pragma: export
 
-#define LOG_RANK "[PE" << kaminpar::mpi::get_comm_rank(MPI_COMM_WORLD) << "]"
+#define LOG_RANK "[PE" << kaminpar::mpi::get_comm_rank(MPI_COMM_WORLD) << "] "
 
 #undef DBGC
 #define DBGC(cond)                                                                                 \
@@ -50,6 +50,15 @@
   kStatistics && (kaminpar::mpi::get_comm_rank(MPI_COMM_WORLD) == 0) &&                            \
       kaminpar::DisposableLogger<false>(std::cout) << kaminpar::logger::CYAN
 
+#undef LOG_STATS
+#define LOG_STATS                                                                                  \
+  (kaminpar::mpi::get_comm_rank(MPI_COMM_WORLD) == 0) &&                                           \
+      kaminpar::DisposableLogger<false>(std::cout) << kaminpar::logger::CYAN
+
+#define LOG_WARNING_ROOT                                                                           \
+  (kaminpar::mpi::get_comm_rank(MPI_COMM_WORLD) == 0) &&                                           \
+      kaminpar::DisposableLogger<false>(std::cout) << kaminpar::logger::ORANGE << "[Warning] "
+
 #undef LOG_ERROR
 #define LOG_ERROR (kaminpar::Logger(std::cout) << LOG_RANK << kaminpar::logger::RED << "[Error] ")
 
@@ -67,6 +76,7 @@
 #define SLOGP(root, comm) (kaminpar::dist::SynchronizedLogger(root, comm))
 
 namespace kaminpar::dist {
+
 class SynchronizedLogger {
 public:
   explicit SynchronizedLogger(const int root = 0, MPI_Comm comm = MPI_COMM_WORLD)
@@ -182,4 +192,5 @@ private:
   int _root;
   MPI_Comm _comm;
 };
+
 } // namespace kaminpar::dist

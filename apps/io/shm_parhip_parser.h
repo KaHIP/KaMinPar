@@ -22,7 +22,7 @@ namespace kaminpar::shm::io::parhip {
  * @param sorted Whether the nodes of the graph to read are stored in degree-buckets order.
  * @return The graph that is stored in the file.
  */
-CSRGraph csr_read(const std::string &filename, const bool sorted);
+CSRGraph csr_read(const std::string &filename, const NodeOrdering ordering);
 
 /*!
  * Reads and compresses a graph that is stored in a file in ParHiP format.

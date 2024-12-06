@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
   coarsener->initialize(c_graph);
 
   while (c_graph->global_n() > ctx.partition.k * ctx.coarsening.contraction_limit ||
-         (min_levels > 0 && coarsener->level() < min_levels)) {
+         (min_levels > 0 && coarsener->level() < static_cast<std::size_t>(min_levels))) {
     const bool converged = coarsener->coarsen();
     const DistributedGraph *new_c_graph = &coarsener->current();
     if (converged) {
@@ -73,7 +73,7 @@ int main(int argc, char *argv[]) {
     LOG << "=> n=" << c_graph->global_n() << " m=" << c_graph->global_m()
         << " max_node_weight=" << c_graph->max_node_weight();
 
-    if (max_levels > 0 && coarsener->level() == max_levels) {
+    if (max_levels > 0 && coarsener->level() == static_cast<std::size_t>(max_levels)) {
       LOG << "=> number of configured levels reached";
       break;
     }

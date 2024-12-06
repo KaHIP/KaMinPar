@@ -43,6 +43,7 @@
 #include "kaminpar-dist/coarsening/clustering/noop_clusterer.h"
 
 namespace kaminpar::dist::factory {
+
 std::unique_ptr<Partitioner>
 create_partitioner(const Context &ctx, const DistributedGraph &graph, const PartitioningMode mode) {
   switch (mode) {
@@ -155,4 +156,5 @@ create_clusterer(const Context &ctx, const ClusteringAlgorithm algorithm) {
 std::unique_ptr<Clusterer> create_clusterer(const Context &ctx) {
   return create_clusterer(ctx, ctx.coarsening.global_clustering_algorithm);
 }
+
 } // namespace kaminpar::dist::factory

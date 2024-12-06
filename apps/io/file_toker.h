@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Tokener that transforms a text file into tokens.
  *
- * @file:   file_tokener.h
+ * @file:   file_toker.h
  * @author: Daniel Seemaier
  * @date:   26.10.2022
  ******************************************************************************/

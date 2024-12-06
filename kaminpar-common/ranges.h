@@ -66,6 +66,8 @@ private:
 };
 
 template <typename Int, typename Function> class TransformedIotaRange {
+  using Self = TransformedIotaRange<Int, Function>;
+
 public:
   class iterator {
   public:
@@ -113,8 +115,13 @@ public:
   };
 
   TransformedIotaRange(const Int begin, const Int end, const Function transformer)
-      : _begin(begin, transformer),
+      : _size(end - begin),
+        _begin(begin, transformer),
         _end(end, transformer) {}
+
+  std::size_t size() const {
+    return _size;
+  }
 
   iterator begin() const {
     return _begin;
@@ -123,7 +130,12 @@ public:
     return _end;
   }
 
+  const Self &entries() const {
+    return *this;
+  }
+
 private:
+  std::size_t _size;
   iterator _begin;
   iterator _end;
 };

@@ -56,22 +56,7 @@ int main(int argc, char *argv[]) {
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, ctx.parallel.num_threads);
 
   LOG << "Reading input graph...";
-
-  CSRGraph input_graph = [&] {
-    switch (graph_file_format) {
-    case io::GraphFileFormat::METIS:
-      return io::metis::csr_read(
-          graph_filename, ctx.node_ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS
-      );
-    case io::GraphFileFormat::PARHIP:
-      return io::parhip::csr_read(
-          graph_filename, ctx.node_ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS
-      );
-    default:
-      __builtin_unreachable();
-    }
-  }();
-
+  CSRGraph input_graph = io::csr_read(graph_filename, graph_file_format, ctx.node_ordering);
   Graph graph(std::make_unique<CSRGraph>(std::move(input_graph)));
 
   LOG << "Rearranging graph...";

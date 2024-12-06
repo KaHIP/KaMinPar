@@ -18,9 +18,14 @@
 
 namespace kaminpar::shm {
 
+namespace {
+
+SET_DEBUG(false);
+SET_STATISTICS_FROM_GLOBAL();
+
+} // namespace
+
 template <typename Graph> class GreedyBalancerImpl {
-  SET_DEBUG(false);
-  SET_STATISTICS_FROM_GLOBAL();
 
   struct Statistics {
     EdgeWeight initial_cut;
@@ -77,8 +82,6 @@ template <typename Graph> class GreedyBalancerImpl {
   };
 
 public:
-  GreedyBalancerImpl(const Context &ctx) {}
-
   void setup(GreedyBalancerMemoryContext memory_context) {
     _pq = std::move(memory_context.pq);
     _rating_map = std::move(memory_context.rating_map);
@@ -366,7 +369,7 @@ private:
   bool move_node_if_possible(const NodeID u, const BlockID from, const BlockID to) {
     if (_p_graph->move(u, from, to, _p_ctx->block_weights.max(to))) {
       if (_gain_cache != nullptr) {
-        _gain_cache->move(*_p_graph, u, from, to);
+        _gain_cache->move(u, from, to);
       }
       return true;
     }
@@ -435,26 +438,30 @@ private:
   PartitionedGraph *_p_graph;
   const Graph *_graph;
 
-  DynamicBinaryMinMaxForest<NodeID, double> _pq;
+  DynamicBinaryMinMaxForest<NodeID, double, StaticArray> _pq;
   mutable tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> _rating_map;
   tbb::enumerable_thread_specific<std::vector<BlockID>> _feasible_target_blocks;
-  Marker<> _marker;
+  Marker<1, std::size_t, StaticArray> _marker;
   std::vector<BlockWeight> _pq_weight;
 
   Statistics _stats;
 
-  DenseGainCache<> *_gain_cache = nullptr;
+  NormalSparseGainCache<kaminpar::shm::Graph> *_gain_cache = nullptr;
 };
 
 GreedyBalancer::GreedyBalancer(const Context &ctx)
-    : _csr_impl(std::make_unique<GreedyBalancerCSRImpl>(ctx)),
-      _compressed_impl(std::make_unique<GreedyBalancerCompressedImpl>(ctx)) {
+    : _csr_impl(std::make_unique<GreedyBalancerCSRImpl>()),
+      _compressed_impl(std::make_unique<GreedyBalancerCompressedImpl>()) {
   _memory_context.rating_map = tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>>{[&] {
     return RatingMap<EdgeWeight, NodeID>{ctx.partition.k};
   }};
 }
 
 GreedyBalancer::~GreedyBalancer() = default;
+
+std::string GreedyBalancer::name() const {
+  return "Greedy Balancer";
+}
 
 void GreedyBalancer::initialize(const PartitionedGraph &) {}
 
@@ -479,7 +486,7 @@ bool GreedyBalancer::refine(PartitionedGraph &p_graph, const PartitionContext &p
   );
 }
 
-void GreedyBalancer::track_moves(DenseGainCache<> *gain_cache) {
+void GreedyBalancer::track_moves(NormalSparseGainCache<Graph> *gain_cache) {
   _memory_context.gain_cache = gain_cache;
 }
 

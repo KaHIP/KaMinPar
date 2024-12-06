@@ -1,16 +1,15 @@
 /*******************************************************************************
+ * Hand rolled priority queues.
+ *
  * @file:   binary_heap.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Priority queue implementations.
  ******************************************************************************/
 #pragma once
 
 #include <limits>
 #include <utility>
 #include <vector>
-
-#include <tbb/parallel_for.h>
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
@@ -67,7 +66,7 @@ template <typename Key, template <typename> typename Comparator> class SharedBin
 public:
   static constexpr ID kInvalidID = std::numeric_limits<ID>::max();
 
-  explicit SharedBinaryHeap(const ID shared_capacity, std::size_t *handles)
+  explicit SharedBinaryHeap(const ID shared_capacity, std::size_t *handles) noexcept
       : _capacity(shared_capacity),
         _heap(),
         _id_pos(handles) {}
@@ -189,8 +188,8 @@ public:
 
 private:
   struct HeapElement {
-    HeapElement() : id(kInvalidID), key(0) {}
-    HeapElement(const ID id, const Key &key) : id(id), key(key) {}
+    HeapElement() noexcept : id(kInvalidID), key(0) {}
+    HeapElement(const ID id, const Key &key) noexcept : id(id), key(key) {}
     ID id;
     Key key;
   };
@@ -409,8 +408,8 @@ public:
 
 private:
   struct HeapElement {
-    HeapElement() : id(kInvalidID), key(0) {}
-    HeapElement(const ID id, const Key &key) : id(id), key(key) {}
+    HeapElement() noexcept : id(kInvalidID), key(0) {}
+    HeapElement(const ID id, const Key &key) noexcept : id(id), key(key) {}
     ID id;
     Key key;
   };
@@ -461,7 +460,12 @@ template <typename Key> using BinaryMaxHeap = BinaryHeap<Key, binary_heap::max_h
 
 template <typename Key> using BinaryMinHeap = BinaryHeap<Key, binary_heap::min_heap_comparator>;
 
-template <typename ID, typename Key, template <typename> typename Comparator>
+template <
+    typename ID,
+    typename Key,
+    template <typename>
+    typename Comparator,
+    template <typename...> typename Container = std::vector>
 class DynamicBinaryForest {
   static constexpr std::size_t kTreeArity = 4;
   static constexpr ID kInvalidID = std::numeric_limits<ID>::max();
@@ -646,18 +650,21 @@ private:
     std::swap(_heaps[heap][a], _heaps[heap][b]);
   }
 
-  std::vector<std::size_t> _id_pos;
+  Container<std::size_t> _id_pos;
   std::vector<std::vector<HeapElement>> _heaps;
   Comparator<Key> _comparator{};
 };
 
-template <typename ID, typename Key>
-using DynamicBinaryMaxForest = DynamicBinaryForest<ID, Key, binary_heap::max_heap_comparator>;
+template <typename ID, typename Key, template <typename...> typename Container = std::vector>
+using DynamicBinaryMaxForest =
+    DynamicBinaryForest<ID, Key, binary_heap::max_heap_comparator, Container>;
 
-template <typename ID, typename Key>
-using DynamicBinaryMinForest = DynamicBinaryForest<ID, Key, binary_heap::min_heap_comparator>;
+template <typename ID, typename Key, template <typename...> typename Container = std::vector>
+using DynamicBinaryMinForest =
+    DynamicBinaryForest<ID, Key, binary_heap::min_heap_comparator, Container>;
 
-template <typename ID, typename Key> class DynamicBinaryMinMaxForest {
+template <typename ID, typename Key, template <typename...> typename Container = std::vector>
+class DynamicBinaryMinMaxForest {
 public:
   DynamicBinaryMinMaxForest() {}
 
@@ -764,8 +771,8 @@ public:
   }
 
 private:
-  DynamicBinaryMaxForest<ID, Key> _max_forest;
-  DynamicBinaryMinForest<ID, Key> _min_forest;
+  DynamicBinaryMaxForest<ID, Key, Container> _max_forest;
+  DynamicBinaryMinForest<ID, Key, Container> _min_forest;
 };
 
 //! Dynamic binary heap, not addressable

@@ -11,6 +11,7 @@
 #include "kaminpar-dist/distributed_label_propagation.h"
 
 namespace kaminpar::dist {
+
 struct LocalLPClusteringConfig : public LabelPropagationConfig {
   using ClusterID = NodeID;
   using ClusterWeight = NodeWeight;
@@ -43,7 +44,7 @@ class LocalLPClusteringImpl final : public ChunkRandomdLabelPropagation<
   using ClusterID = Config::ClusterID;
 
 public:
-  LocalLPClusteringImpl(const NodeID max_n, const CoarseningContext &c_ctx)
+  LocalLPClusteringImpl(NodeID, const CoarseningContext &c_ctx)
       : _ignore_ghost_nodes(c_ctx.local_lp.ignore_ghost_nodes),
         _keep_ghost_clusters(c_ctx.local_lp.keep_ghost_clusters) {
     set_max_num_iterations(c_ctx.local_lp.num_iterations);
@@ -59,9 +60,11 @@ public:
   LocalLPClusteringMemoryContext release() {
     auto [rating_map_ets, active, favored_clusters] = Base::release();
     return {
-        std::move(rating_map_ets),
-        std::move(active),
-        std::move(favored_clusters),
+        {
+            std::move(rating_map_ets),
+            std::move(active),
+            std::move(favored_clusters),
+        },
         ClusterWeightBase::take_cluster_weights(),
     };
   }
@@ -266,4 +269,5 @@ void LocalLPClusterer::cluster(
   );
   return _impl->compute_clustering(local_clustering, p_graph);
 }
+
 } // namespace kaminpar::dist

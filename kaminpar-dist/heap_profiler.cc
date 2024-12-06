@@ -21,6 +21,7 @@
 namespace kaminpar::dist {
 
 namespace {
+
 using HeapProfiler = heap_profiler::HeapProfiler;
 using HeapProfilerTree = HeapProfiler::HeapProfileTree;
 using HeapProfilerTreeNode = HeapProfiler::HeapProfileTreeNode;
@@ -68,7 +69,7 @@ void generate_statistics(
     return;
   }
 
-  const auto stats = mpi::gather<std::size_t>(node->max_alloc_size, root, comm);
+  const auto stats = mpi::gather<std::size_t>(node->peak_memory, root, comm);
   const auto num_children = mpi::allgather(node->children.size(), comm);
   const bool is_root = mpi::get_comm_rank(comm) == root;
 
@@ -121,7 +122,7 @@ void generate_statistics(
 
 std::pair<mpi::PEID, std::size_t>
 gather_max_peak_memory(const HeapProfilerTreeNode *node, MPI_Comm comm) {
-  const auto stats = mpi::allgather<std::size_t>(node->max_alloc_size, comm);
+  const auto stats = mpi::allgather<std::size_t>(node->peak_memory, comm);
 
   const auto max_it = std::max_element(stats.begin(), stats.end());
   const mpi::PEID max_pe = std::distance(stats.begin(), max_it);

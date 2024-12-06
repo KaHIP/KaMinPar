@@ -15,7 +15,6 @@
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/console_io.h"
-#include "kaminpar-common/logger.h"
 #include "kaminpar-common/strutils.h"
 
 #include "apps/io/shm_io.h"
@@ -24,32 +23,32 @@ using namespace kaminpar;
 using namespace kaminpar::shm;
 
 float average_degree(const Graph &graph) {
-  std::size_t average_degree = 0;
+  std::size_t total_degree = 0;
 
   for (const NodeID node : graph.nodes()) {
-    average_degree += graph.degree(node);
+    total_degree += graph.degree(node);
   }
 
-  return average_degree / (float)graph.n();
+  return total_degree / static_cast<float>(graph.n());
 }
 
 NodeID isolated_nodes(const Graph &graph) {
-  NodeID count = 0;
+  NodeID num_isolated_nodes = 0;
 
   for (const NodeID node : graph.nodes()) {
     if (graph.degree(node) == 0) {
-      count++;
+      num_isolated_nodes += 1;
     }
   }
 
-  return count;
+  return num_isolated_nodes;
 }
 
 void print_graph_properties(const Graph &graph, const Context ctx, std::ostream &out) {
   const float avg_deg = average_degree(graph);
-  const NodeID isolated_node_count = isolated_nodes(graph);
+  const NodeID num_isolated_nodes = isolated_nodes(graph);
   const std::size_t width = std::ceil(std::log10(
-      std::max<std::size_t>({graph.n(), graph.m(), graph.max_degree(), isolated_node_count})
+      std::max<std::size_t>({graph.n(), graph.m(), graph.max_degree(), num_isolated_nodes})
   ));
 
   cio::print_delimiter("Graph Properties", '#');
@@ -68,7 +67,7 @@ void print_graph_properties(const Graph &graph, const Context ctx, std::ostream 
   }
   out << "  Max degree:                 " << std::setw(width) << graph.max_degree() << '\n';
   out << "  Average degree:             " << std::setw(width) << avg_deg << '\n';
-  out << "  Isolated nodes:             " << std::setw(width) << isolated_node_count << '\n';
+  out << "  Isolated nodes:             " << std::setw(width) << num_isolated_nodes << '\n';
 
   cio::print_delimiter("Graph Compression", '-');
   print(ctx.compression, out);
@@ -92,13 +91,8 @@ int main(int argc, char *argv[]) {
 
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, ctx.parallel.num_threads);
 
-  Graph graph = io::read(
-      graph_filename,
-      graph_file_format,
-      ctx.compression.enabled,
-      ctx.compression.may_dismiss,
-      NodeOrdering::NATURAL
-  );
+  Graph graph =
+      io::read(graph_filename, graph_file_format, NodeOrdering::NATURAL, ctx.compression.enabled);
 
   ctx.debug.graph_name = str::extract_basename(graph_filename);
   ctx.compression.setup(graph);

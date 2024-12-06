@@ -13,6 +13,7 @@
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::dist {
+
 class CoarseGraph {
 public:
   virtual ~CoarseGraph() = default;
@@ -22,4 +23,5 @@ public:
 
   virtual void project(const StaticArray<BlockID> &partition, StaticArray<BlockID> &onto) = 0;
 };
+
 } // namespace kaminpar::dist

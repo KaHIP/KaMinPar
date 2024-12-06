@@ -102,8 +102,6 @@ public:
 
   const StaticArray<std::size_t> &
   compute_cutoff_buckets(const StaticArray<BlockWeight> &compactified_buckets) {
-    const PEID rank = mpi::get_comm_rank(_p_graph.communicator());
-
     std::vector<int> compactified_cutoff_buckets(metrics::num_imbalanced_blocks(_p_graph, _p_ctx));
     if (BlockID compactified_block = 0; mpi::get_comm_rank(_p_graph.communicator()) == 0) {
       for (const BlockID block : _p_graph.blocks()) {
@@ -111,7 +109,7 @@ public:
         const BlockWeight max_weight = _p_ctx.graph->max_block_weight(block);
 
         if (current_weight > max_weight) {
-          int cutoff_bucket = 0;
+          std::size_t cutoff_bucket = 0;
           for (; cutoff_bucket < num_buckets() && current_weight > max_weight; ++cutoff_bucket) {
             current_weight -=
                 compactified_buckets[compactified_block * num_buckets() + cutoff_bucket];

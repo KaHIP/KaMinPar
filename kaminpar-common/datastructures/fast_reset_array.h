@@ -1,9 +1,10 @@
 /*******************************************************************************
+ * Static array that can reset used elements in O(# of used elements), where the
+ * number of used elements might be much smaller than the array's capacity.
+ *
  * @file:   fast_reset_array.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
- * @brief:  Static array that can reset used elements in O(# of used elements),
- * where # of used elements might be much smaller than the array's capacity.
  ******************************************************************************/
 #pragma once
 
@@ -95,12 +96,15 @@ public:
   [[nodiscard]] bool empty() const {
     return _used_entries.empty();
   }
+
   [[nodiscard]] std::size_t size() const {
     return _used_entries.size();
   }
+
   [[nodiscard]] std::size_t capacity() const {
     return _data.size();
   }
+
   void resize(const std::size_t capacity) {
     _data.resize(capacity, static_array::seq);
 
@@ -110,10 +114,6 @@ public:
             _data.size() * sizeof(value_type) + _used_entries.capacity() * sizeof(size_type)
         )
     );
-  }
-
-  [[nodiscard]] std::size_t memory_in_kb() const {
-    return _data.size() * sizeof(value_type) / 1000;
   }
 
 private:

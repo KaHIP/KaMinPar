@@ -21,7 +21,9 @@
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::dist {
+
 namespace {
+
 template <typename T> std::ostream &operator<<(std::ostream &out, const std::vector<T> &vec) {
   out << "[";
   bool first = true;
@@ -35,6 +37,7 @@ template <typename T> std::ostream &operator<<(std::ostream &out, const std::vec
   }
   return out << "]";
 }
+
 } // namespace
 
 std::unordered_map<std::string, PartitioningMode> get_partitioning_modes() {
@@ -140,7 +143,7 @@ std::unordered_map<std::string, RefinementAlgorithm> get_balancing_algorithms() 
       {"hybrid-cluster-balancer", RefinementAlgorithm::HYBRID_CLUSTER_BALANCER},
       {"mtkahypar", RefinementAlgorithm::MTKAHYPAR_REFINER},
   };
-};
+}
 
 std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm) {
   switch (algorithm) {
@@ -353,7 +356,7 @@ void print(const ChunksContext &ctx, const ParallelContext &parallel, std::ostre
         << (ctx.scale_chunks_with_threads
                 ? std::string(" / ") + std::to_string(parallel.num_threads)
                 : "")
-        << "]\n";
+        << ")]\n";
   } else {
     out << "  Number of chunks:           " << ctx.fixed_num_chunks << "\n";
   }
@@ -361,7 +364,7 @@ void print(const ChunksContext &ctx, const ParallelContext &parallel, std::ostre
 
 void print(
     const GraphCompressionContext &ctx,
-    const ParallelContext &parallel,
+    const ParallelContext & /* parallel */,
     const bool print_compression_details,
     std::ostream &out
 ) {
@@ -380,8 +383,8 @@ void print(
   out << "Enabled:                      " << (ctx.enabled ? "yes" : "no") << "\n";
   if (ctx.enabled) {
     out << "Compression Scheme:           Gap Encoding + ";
-    if constexpr (Compression::kStreamEncoding) {
-      out << "VarInt Stream Encoding\n";
+    if constexpr (Compression::kStreamVByteEncoding) {
+      out << "StreamVByte Encoding\n";
     } else if constexpr (Compression::kRunLengthEncoding) {
       out << "VarInt Run-Length Encoding\n";
     } else {
@@ -399,13 +402,9 @@ void print(
       out << "    Length Threshold:         " << Compression::kIntervalLengthTreshold << "\n";
     }
 
-    out << "  Isolated Nodes Separation:  " << yeyornay(Compression::kIsolatedNodesSeparation)
-        << "\n";
-
     out << "Compression ratio:            [Min=" << round(ctx.min_compression_ratio)
         << " | Mean=" << round(ctx.avg_compression_ratio)
-        << " | Max=" << round(ctx.max_compression_ratio) << "]"
-        << "\n";
+        << " | Max=" << round(ctx.max_compression_ratio) << "]" << "\n";
 
     out << "Largest compressed graph:     " << to_gib(ctx.largest_compressed_graph_prev_size)
         << " GiB -> " << to_gib(ctx.largest_compressed_graph) << " GiB\n";
@@ -607,4 +606,5 @@ void print(const RefinementContext &ctx, const ParallelContext &parallel, std::o
         << 100.0 * ctx.cluster_balancer.par_rebalance_fraction_increase << "% each round\n";
   }
 }
+
 } // namespace kaminpar::dist

@@ -168,7 +168,6 @@ TEST(ShmEndToEndTest, partitions_unweighted_walshaw_graph_multiple_times_with_sa
   shm.set_output_level(OutputLevel::QUIET);
   shm.copy_graph(n, xadj.data(), adjncy.data(), nullptr, nullptr);
   shm.compute_partition(16, seed0_partition.data());
-  EdgeWeight expected_cut = 0;
 
   // Partition with the same seed multiple times: result should stay the same
   for (const int seed : {0, 0, 0}) {
@@ -193,7 +192,6 @@ TEST(ShmEndToEndTest, partitions_unweighted_walshaw_graph_multiple_times_with_di
   shm.set_output_level(OutputLevel::QUIET);
   shm.copy_graph(n, xadj.data(), adjncy.data(), nullptr, nullptr);
   shm.compute_partition(16, seed0_partition.data());
-  EdgeWeight expected_cut = 0;
 
   // Partition with the different seeds: result should change
   for (const int seed : {1, 2, 3}) {

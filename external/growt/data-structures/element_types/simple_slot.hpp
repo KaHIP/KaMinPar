@@ -316,7 +316,7 @@ simple_slot<K, D, m, dd>::atomic_slot_type::load() const
     // _mm_load_ps because the memory should be aligned
 
     // as128i() = (int128_t) _mm_loadu_ps((float *) &e);
-#if defined(__linux__)
+#if defined(__x86_64__)
     auto temp = reinterpret_cast<int128_t>(
         _mm_loadu_si128(reinterpret_cast<const __m128i*>(&_raw_data)));
     return slot_type(temp);
