@@ -125,7 +125,7 @@ NodeID CompressedGraph::integrate_isolated_nodes() {
     _number_of_buckets = 1;
   }
 
-  return nonisolated_nodes;
+  return isolated_nodes;
 }
 
 } // namespace kaminpar::shm
