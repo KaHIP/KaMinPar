@@ -12,6 +12,7 @@
 #include "kaminpar-shm/metrics.h"
 
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/parallel/atomic.h"
 #include "kaminpar-common/random.h"
@@ -86,7 +87,7 @@ public:
     _pq = std::move(memory_context.pq);
     _rating_map = std::move(memory_context.rating_map);
     _feasible_target_blocks = std::move(memory_context.feasible_target_blocks);
-    _marker = std::move(memory_context.marker);
+    _moved_nodes = std::move(memory_context.moved_nodes);
     _pq_weight = std::move(memory_context.pq_weight);
     _gain_cache = memory_context.gain_cache;
   }
@@ -96,7 +97,7 @@ public:
         std::move(_pq),
         std::move(_rating_map),
         std::move(_feasible_target_blocks),
-        std::move(_marker),
+        std::move(_moved_nodes),
         std::move(_pq_weight),
         _gain_cache
     };
@@ -108,13 +109,12 @@ public:
     _graph = graph;
 
     TIMED_SCOPE("Allocation") {
-      SCOPED_HEAP_PROFILER("Greedy Balancer Allocation");
-      _marker.resize(_graph->n());
-      _pq.init(_graph->n(), _p_graph->k());
+      SCOPED_HEAP_PROFILER("Allocation");
+      _moved_nodes.resize(_graph->n());
+      _pq.init(_p_graph->k());
       _pq_weight.resize(_p_graph->k());
     };
 
-    _marker.reset();
     _stats.reset();
 
     const NodeWeight initial_overload = metrics::total_overload(p_graph, p_ctx);
@@ -143,6 +143,7 @@ private:
     tbb::enumerable_thread_specific<BlockWeight> overload_delta;
 
     START_TIMER("Main loop");
+    SCOPED_HEAP_PROFILER("Main loop");
     tbb::parallel_for(static_cast<BlockID>(0), _p_graph->k(), [&](const BlockID from) {
       BlockWeight current_overload = block_overload(from);
 
@@ -164,7 +165,7 @@ private:
         const double expected_relative_gain = _pq.peek_max_key(from);
         _pq.pop_max(from);
         _pq_weight[from] -= u_weight;
-        KASSERT(_marker.get(u));
+        KASSERT(_moved_nodes[u] == 1);
 
         auto [to, actual_relative_gain] = compute_gain(u, from);
         if (expected_relative_gain ==
@@ -196,9 +197,9 @@ private:
 
             // try to add neighbors of moved node to PQ
             _graph->adjacent_nodes(u, [&](const NodeID v) {
-              if (!_marker.get(v) && _p_graph->block(v) == from) {
+              if (_moved_nodes[v] == 0 && _p_graph->block(v) == from) {
                 add_to_pq(from, v);
-                _marker.set(v);
+                _moved_nodes[v] = 1;
               }
             });
           } else {
@@ -258,6 +259,7 @@ private:
 
   void init_pq() {
     SCOPED_TIMER("Initialize balancer PQ");
+    SCOPED_HEAP_PROFILER("Initialize balancer PQ");
 
     const BlockID k = _p_graph->k();
 
@@ -269,8 +271,6 @@ private:
     tbb::enumerable_thread_specific<std::vector<NodeWeight>> local_pq_weight{[&] {
       return std::vector<NodeWeight>(k);
     }};
-
-    _marker.reset();
 
     // build thread-local PQs: one PQ for each thread and block, each PQ for block
     // b has at most roughly |overload[b]| weight
@@ -294,7 +294,7 @@ private:
             }
           }
           pq[b].push(u, rel_gain);
-          _marker.set(u);
+          _moved_nodes[u] = 1;
         }
       }
     });
@@ -441,7 +441,7 @@ private:
   DynamicBinaryMinMaxForest<NodeID, double, StaticArray> _pq;
   mutable tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> _rating_map;
   tbb::enumerable_thread_specific<std::vector<BlockID>> _feasible_target_blocks;
-  Marker<1, std::size_t, StaticArray> _marker;
+  StaticArray<std::uint8_t> _moved_nodes;
   std::vector<BlockWeight> _pq_weight;
 
   Statistics _stats;
@@ -467,6 +467,7 @@ void GreedyBalancer::initialize(const PartitionedGraph &) {}
 
 bool GreedyBalancer::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
   SCOPED_TIMER("Greedy Balancer");
+  SCOPED_HEAP_PROFILER("Greedy Balancer");
 
   const NodeWeight initial_overload = metrics::total_overload(p_graph, p_ctx);
   if (initial_overload == 0) {
