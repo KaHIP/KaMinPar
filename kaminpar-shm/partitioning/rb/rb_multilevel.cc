@@ -18,7 +18,7 @@ namespace kaminpar::shm {
 
 namespace {
 
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 }
 
@@ -41,11 +41,12 @@ PartitionedGraph RBMultilevelPartitioner::partition() {
 PartitionedGraph RBMultilevelPartitioner::partition_recursive(
     const Graph &graph, const BlockID current_block, const BlockID current_k
 ) {
+  DBG << "Partitioning subgraphs " << current_block << " of " << current_k;
   auto p_graph = bipartition(graph, current_block, current_k);
 
   if (current_k * 2 < _input_ctx.partition.k) {
     graph::SubgraphMemory memory(p_graph);
-    const auto extraction = extract_subgraphs(p_graph, _input_ctx.partition.k, memory);
+    const auto extraction = extract_subgraphs(p_graph, p_graph.k(), memory);
     const auto &subgraphs = extraction.subgraphs;
     const auto &mapping = extraction.node_mapping;
 
@@ -74,13 +75,11 @@ PartitionedGraph RBMultilevelPartitioner::bipartition(
     const Graph &graph, const BlockID current_block, const BlockID current_k
 ) {
   // set k to 2 for max cluster weight computation
-  PartitionContext bipart_ctx = _input_ctx.partition;
-  bipart_ctx.k = 2;
-  auto coarsener = factory::create_coarsener(_input_ctx, bipart_ctx);
-  coarsener->initialize(&graph);
-
   PartitionContext p_ctx =
       partitioning::create_twoway_context(_input_ctx, current_block, current_k, graph);
+
+  auto coarsener = factory::create_coarsener(_input_ctx, p_ctx);
+  coarsener->initialize(&graph);
 
   // Coarsening
   const Graph *c_graph = &graph;
