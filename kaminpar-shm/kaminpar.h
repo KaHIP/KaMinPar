@@ -600,7 +600,6 @@ public:
    * particular, the partitioner might modify the data pointed to. The caller is responsible for
    * free'ing the memory.
    *
-   * @param n The number of nodes in the graph.
    * @param xadj Array of length `n + 1`, where `xadj[u]` points to the first neighbor of node `u`
    * in `adjncy`. In other words, the neighbors of `u` are `adjncy[xadj[u]..xadj[u+1]-1]`.
    * @param adjncy Array of length `xadj[n]` storing the neighbors of all nodes.
@@ -610,17 +609,15 @@ public:
    * edges must be assigned the same weight. If the edges are unweighted, pass `nullptr`.
    */
   void borrow_and_mutate_graph(
-      shm::NodeID n,
-      shm::EdgeID *xadj,
-      shm::NodeID *adjncy,
-      shm::NodeWeight *vwgt,
-      shm::EdgeWeight *adjwgt
+      std::span<shm::EdgeID> xadj,
+      std::span<shm::NodeID> adjncy,
+      std::span<shm::NodeWeight> vwgt = {},
+      std::span<shm::EdgeWeight> adjwgt = {}
   );
 
   /*!
    * Sets the graph to be partitioned by copying the data pointed to by the given pointers.
    *
-   * @param n The number of nodes in the graph.
    * @param xadj Array of length `n + 1`, where `xadj[u]` points to the first neighbor of node `u`
    * in `adjncy`. In other words, the neighbors of `u` are `adjncy[xadj[u]..xadj[u+1]-1]`.
    * @param adjncy Array of length `xadj[n]` storing the neighbors of all nodes.
@@ -630,11 +627,10 @@ public:
    * edges must be assigned the same weight. If the edges are unweighted, pass `nullptr`.
    */
   void copy_graph(
-      shm::NodeID n,
-      const shm::EdgeID *const xadj,
-      const shm::NodeID *const adjncy,
-      const shm::NodeWeight *const vwgt,
-      const shm::EdgeWeight *const adjwgt
+      std::span<const shm::EdgeID> xadj,
+      std::span<const shm::NodeID> adjncy,
+      std::span<const shm::NodeWeight> vwgt = {},
+      std::span<const shm::EdgeWeight> adjwgt = {}
   );
 
   /*!

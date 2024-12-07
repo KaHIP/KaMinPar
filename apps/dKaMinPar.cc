@@ -286,7 +286,7 @@ NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
 
   KASSERT(graph.vertex_range.second >= graph.vertex_range.first, "invalid vertex range from KaGen");
 
-  auto vtxdist = BuildVertexDistribution<std::uint64_t>(graph, MPI_UINT64_T, MPI_COMM_WORLD);
+  auto vtxdist = BuildVertexDistribution<GlobalNodeID>(graph, MPI_UINT64_T, MPI_COMM_WORLD);
 
   // If data types mismatch, we would need to allocate new memory for the graph; this is to do until
   // we actually need it ...
@@ -300,13 +300,14 @@ NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
   static_assert(sizeof(SSInt) == sizeof(GlobalNodeWeight));
   static_assert(sizeof(SSInt) == sizeof(GlobalEdgeWeight));
 
-  auto *xadj_ptr = reinterpret_cast<GlobalNodeID *>(xadj.data());
-  auto *adjncy_ptr = reinterpret_cast<GlobalNodeID *>(adjncy.data());
-  auto *vwgt_ptr = vwgt.empty() ? nullptr : reinterpret_cast<GlobalNodeWeight *>(vwgt.data());
-  auto *adjwgt_ptr = adjwgt.empty() ? nullptr : reinterpret_cast<GlobalEdgeWeight *>(adjwgt.data());
-
   // Pass the graph to the partitioner --
-  partitioner.import_graph(vtxdist.data(), xadj_ptr, adjncy_ptr, vwgt_ptr, adjwgt_ptr);
+  partitioner.import_graph(
+      vtxdist,
+      {reinterpret_cast<GlobalEdgeID *>(xadj.data()), xadj.size()},
+      {reinterpret_cast<GlobalNodeID *>(adjncy.data()), adjncy.size()},
+      {reinterpret_cast<GlobalNodeWeight *>(vwgt.data()), vwgt.size()},
+      {reinterpret_cast<GlobalEdgeWeight *>(adjwgt.data()), adjwgt.size()}
+  );
 
   return graph.vertex_range.second - graph.vertex_range.first;
 }
