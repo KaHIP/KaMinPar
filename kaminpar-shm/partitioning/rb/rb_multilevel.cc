@@ -11,6 +11,7 @@
 #include "kaminpar-shm/graphutils/subgraph_extractor.h"
 #include "kaminpar-shm/partitioning/helper.h"
 
+#include "kaminpar-common/math.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
@@ -24,7 +25,11 @@ SET_DEBUG(true);
 RBMultilevelPartitioner::RBMultilevelPartitioner(const Graph &graph, const Context &ctx)
     : _input_graph(graph),
       _input_ctx(ctx),
-      _bipartitioner_pool(_input_ctx) {}
+      _bipartitioner_pool(_input_ctx) {
+  if (!math::is_power_of_2(_input_ctx.partition.k)) {
+    throw std::invalid_argument("k must be a power of two");
+  }
+}
 
 PartitionedGraph RBMultilevelPartitioner::partition() {
   DISABLE_TIMERS();
@@ -54,7 +59,11 @@ PartitionedGraph RBMultilevelPartitioner::partition_recursive(
     subgraph_partitions[1] = p_graph2.take_raw_partition();
 
     p_graph = graph::copy_subgraph_partitions(
-        std::move(p_graph), subgraph_partitions, p_graph1.k() + p_graph2.k(), _input_ctx.partition.k, mapping
+        std::move(p_graph),
+        subgraph_partitions,
+        p_graph1.k() + p_graph2.k(),
+        _input_ctx.partition.k,
+        mapping
     );
   }
 
