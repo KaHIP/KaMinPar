@@ -62,7 +62,7 @@ int main() {
 
   KaMinPar shm(4, create_default_context());
   shm.set_output_level(OutputLevel::QUIET);
-  shm.copy_graph(n, xadj.data(), adjncy.data(), nullptr, nullptr);
+  shm.copy_graph(xadj, adjncy);
 
   std::vector<shm::BlockID> partition(n);
   EdgeWeight cut = 0;
