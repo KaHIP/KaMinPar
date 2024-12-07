@@ -74,9 +74,7 @@ PartitionedGraph VcycleDeepMultilevelPartitioner::partition() {
   StaticArray<BlockID> partition(_input_graph.n());
 
   std::vector<BlockID> steps = _input_ctx.partitioning.vcycles;
-  if (steps.empty() || steps.back() != _input_ctx.partition.k) {
-    steps.push_back(_input_ctx.partition.k);
-  }
+  steps.push_back(_input_ctx.partition.k);
 
   Context ctx = _input_ctx;
   ctx.partitioning.mode = PartitioningMode::DEEP;
