@@ -15,6 +15,12 @@
 
 namespace kaminpar::shm {
 
+namespace {
+
+SET_DEBUG(true);
+
+}
+
 RBMultilevelPartitioner::RBMultilevelPartitioner(const Graph &graph, const Context &ctx)
     : _input_graph(graph),
       _input_ctx(ctx),
@@ -32,7 +38,7 @@ PartitionedGraph RBMultilevelPartitioner::partition_recursive(
 ) {
   auto p_graph = bipartition(graph, current_block, current_k);
 
-  if (current_k < _input_ctx.partition.k) {
+  if (current_k * 2 < _input_ctx.partition.k) {
     graph::SubgraphMemory memory(p_graph);
     const auto extraction = extract_subgraphs(p_graph, _input_ctx.partition.k, memory);
     const auto &subgraphs = extraction.subgraphs;
@@ -41,14 +47,14 @@ PartitionedGraph RBMultilevelPartitioner::partition_recursive(
     PartitionedGraph p_graph1, p_graph2;
     tbb::parallel_invoke(
         [&] { p_graph1 = partition_recursive(subgraphs[0], 2 * current_block, current_k * 2); },
-        [&] { p_graph2 = partition_recursive(subgraphs[1], 2 * current_block, current_k * 2); }
+        [&] { p_graph2 = partition_recursive(subgraphs[1], 2 * current_block + 1, current_k * 2); }
     );
     ScalableVector<StaticArray<BlockID>> subgraph_partitions(2);
     subgraph_partitions[0] = p_graph1.take_raw_partition();
     subgraph_partitions[1] = p_graph2.take_raw_partition();
 
     p_graph = graph::copy_subgraph_partitions(
-        std::move(p_graph), subgraph_partitions, 2 * current_k, _input_ctx.partition.k, mapping
+        std::move(p_graph), subgraph_partitions, p_graph1.k() + p_graph2.k(), _input_ctx.partition.k, mapping
     );
   }
 
