@@ -70,7 +70,7 @@ TEST(DistEndToEndTest, partitions_empty_unweighted_graph) {
   std::vector<BlockID> partition{};
   dKaMinPar dist(MPI_COMM_WORLD, 1, create_default_context());
   dist.set_output_level(OutputLevel::QUIET);
-  dist.import_graph(vtxdist.data(), xadj.data(), adjncy.data(), nullptr, nullptr);
+  dist.import_graph(vtxdist, xadj, adjncy);
   EXPECT_EQ(dist.compute_partition(16, partition.data()), 0);
 }
 
@@ -86,7 +86,7 @@ TEST(DistEndToEndTest, partitions_empty_weighted_graph) {
   std::vector<BlockID> partition{};
   dKaMinPar dist(MPI_COMM_WORLD, 1, create_default_context());
   dist.set_output_level(OutputLevel::QUIET);
-  dist.import_graph(vtxdist.data(), xadj.data(), adjncy.data(), vwgt.data(), adjwgt.data());
+  dist.import_graph(vtxdist, xadj, adjncy, vwgt, adjwgt);
   EXPECT_EQ(dist.compute_partition(16, partition.data()), 0);
 }
 
@@ -99,15 +99,14 @@ TEST(DistEndToEndTest, partitions_unweighted_walshaw_data_graph) {
 
   const GlobalNodeID global_n = data::global_xadj.size() - 1;
 
-  GlobalNodeID *vtxdist_ptr = vtxdist.data();
-  GlobalEdgeID *xadj_ptr = xadj.data();
   GlobalNodeID *adjncy_ptr = data::global_adjncy.data() + data::global_xadj[vtxdist[rank]];
+  const GlobalEdgeID m = data::global_xadj[vtxdist[rank + 1]] - data::global_xadj[vtxdist[rank]];
 
   std::vector<BlockID> partition(global_n);
   dKaMinPar::reseed(0);
   dKaMinPar dist(MPI_COMM_WORLD, 1, create_default_context()); // 1 thread: deterministic
   dist.set_output_level(OutputLevel::QUIET);
-  dist.import_graph(vtxdist_ptr, xadj_ptr, adjncy_ptr, nullptr, nullptr);
+  dist.import_graph(vtxdist, xadj, {adjncy_ptr, m});
   const EdgeWeight reported_cut = dist.compute_partition(16, partition.data() + vtxdist[rank]);
 
   // Cut should be around 1200 -- 1300
@@ -158,15 +157,14 @@ TEST(
 
   const NodeID n = xadj.size() - 1;
 
-  GlobalNodeID *vtxdist_ptr = vtxdist.data();
-  GlobalEdgeID *xadj_ptr = xadj.data();
   GlobalNodeID *adjncy_ptr = data::global_adjncy.data() + data::global_xadj[vtxdist[rank]];
+  const GlobalEdgeID m = data::global_xadj[vtxdist[rank + 1]] - data::global_xadj[vtxdist[rank]];
 
   std::vector<BlockID> seed0_partition(n);
   dKaMinPar::reseed(0);
   dKaMinPar dist(MPI_COMM_WORLD, 1, create_default_context()); // 1 thread: deterministic
   dist.set_output_level(OutputLevel::QUIET);
-  dist.import_graph(vtxdist_ptr, xadj_ptr, adjncy_ptr, nullptr, nullptr);
+  dist.import_graph(vtxdist, xadj, {adjncy_ptr, m});
   dist.compute_partition(16, seed0_partition.data());
 
   for (const int seed : {1, 2, 3}) {
@@ -174,7 +172,7 @@ TEST(
     dKaMinPar::reseed(seed);
     dKaMinPar dist(MPI_COMM_WORLD, 1, create_default_context()); // 1 thread: deterministic
     dist.set_output_level(OutputLevel::QUIET);
-    dist.import_graph(vtxdist_ptr, xadj_ptr, adjncy_ptr, nullptr, nullptr);
+    dist.import_graph(vtxdist, xadj, {adjncy_ptr, m});
     dist.compute_partition(16, partition.data());
     EXPECT_NE(partition, seed0_partition);
   }
@@ -188,15 +186,14 @@ TEST(DistEndToEndTest, partitions_unweighted_walshaw_data_graph_with_three_threa
 
   const NodeID n = xadj.size() - 1;
 
-  GlobalNodeID *vtxdist_ptr = vtxdist.data();
-  GlobalEdgeID *xadj_ptr = xadj.data();
   GlobalNodeID *adjncy_ptr = data::global_adjncy.data() + data::global_xadj[vtxdist[rank]];
+  const GlobalEdgeID m = data::global_xadj[vtxdist[rank + 1]] - data::global_xadj[vtxdist[rank]];
 
   std::vector<BlockID> seed0_partition(n);
   dKaMinPar::reseed(0);
   dKaMinPar dist(MPI_COMM_WORLD, 3, create_default_context());
   dist.set_output_level(OutputLevel::QUIET);
-  dist.import_graph(vtxdist_ptr, xadj_ptr, adjncy_ptr, nullptr, nullptr);
+  dist.import_graph(vtxdist, xadj, {adjncy_ptr, m});
   dist.compute_partition(16, seed0_partition.data());
 }
 

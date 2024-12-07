@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <span>
 #include <string>
 #include <unordered_set>
 
@@ -415,8 +416,8 @@ public:
       std::span<dist::GlobalNodeID> node_distribution,
       std::span<dist::GlobalEdgeID> nodes,
       std::span<dist::GlobalNodeID> edges,
-      std::span<dist::GlobalNodeWeight> node_weights,
-      std::span<dist::GlobalEdgeWeight> edge_weights
+      std::span<dist::GlobalNodeWeight> node_weights = {},
+      std::span<dist::GlobalEdgeWeight> edge_weights = {}
   );
 
   void import_graph(dist::DistributedGraph graph);
