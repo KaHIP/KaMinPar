@@ -37,10 +37,6 @@ PartitionContext create_kway_context(const Context &input_ctx, const Partitioned
 
     max_block_weights[coarse_block] =
         input_ctx.partition.total_unrelaxed_max_block_weights(begin, end);
-
-    if (p_graph.k() != input_ctx.partition.k) { // @todo
-      max_block_weights[coarse_block] += end - begin;
-    }
   }
 
   const bool is_toplevel_ctx = (p_graph.n() == input_ctx.partition.n);

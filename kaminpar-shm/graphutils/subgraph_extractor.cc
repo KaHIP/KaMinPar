@@ -513,10 +513,10 @@ PartitionedGraph copy_subgraph_partitions(
   parallel::prefix_sum(k0.begin(), k0.end(), k0.begin());
 
   DBG << "Copying partition after recursive bipartitioning: extended " << p_graph.k()
-      << "-way partition to " << k_prime << "-way, goal: " << input_k
-      << " with block offsets: " << k0;
+      << "-way partition to " << k_prime << "-way, goal: " << input_k;
 
   StaticArray<BlockID> partition = p_graph.take_raw_partition();
+
   p_graph.pfor_nodes([&](const NodeID u) {
     const BlockID b = partition[u];
     const NodeID s_u = mapping[u];
@@ -525,7 +525,6 @@ PartitionedGraph copy_subgraph_partitions(
 
   PartitionedGraph new_p_graph(p_graph.graph(), k_prime, std::move(partition));
   DBG << "Statistics after copying the subgraph partitions:";
-  DBG << "  Block weights: " << new_p_graph.raw_block_weights();
   DBG << "  Cut:           " << metrics::edge_cut(new_p_graph);
   DBG << "  Imbalance:     " << metrics::imbalance(new_p_graph);
 

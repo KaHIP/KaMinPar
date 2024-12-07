@@ -7,6 +7,7 @@
  ******************************************************************************/
 #include "kaminpar-shm/kaminpar.h"
 
+#include <algorithm>
 #include <cmath>
 
 #include "kaminpar-shm/context_io.h"
@@ -48,6 +49,7 @@ void PartitionContext::setup(
     std::vector<BlockWeight> max_block_weights,
     const bool relax_max_block_weights
 ) {
+  original_n = graph.n();
   n = graph.n();
   m = graph.m();
   original_total_node_weight = graph.total_node_weight();
@@ -66,8 +68,9 @@ void PartitionContext::setup(
   if (relax_max_block_weights) {
     const double eps = inferred_epsilon();
     for (BlockWeight &max_block_weight : _max_block_weights) {
-      max_block_weight =
-          std::max<BlockWeight>(max_block_weight, max_block_weight / (1.0 + eps) + max_node_weight);
+      max_block_weight = std::max<BlockWeight>(
+          max_block_weight, std::ceil(1.0 * max_block_weight / (1.0 + eps)) + max_node_weight
+      );
     }
   }
 }
@@ -169,7 +172,6 @@ void print_statistics(
     LOG << "(only showing the first " << max_displayed_weights << " of " << p_graph.k()
         << " blocks)";
   }
-  LOG;
 }
 
 } // namespace
@@ -274,22 +276,38 @@ void KaMinPar::reseed(int seed) {
   Random::reseed(seed);
 }
 
-EdgeWeight KaMinPar::compute_partition(const BlockID k, BlockID *partition) {
+EdgeWeight KaMinPar::compute_partition(const BlockID k, std::span<BlockID> partition) {
   return compute_partition(k, 0.03, partition);
 }
 
-EdgeWeight KaMinPar::compute_partition(const BlockID k, const double epsilon, BlockID *partition) {
+EdgeWeight
+KaMinPar::compute_partition(const BlockID k, const double epsilon, std::span<BlockID> partition) {
   _ctx.partition.setup(*_graph_ptr, k, epsilon);
   return compute_partition(partition);
 }
 
-EdgeWeight
-KaMinPar::compute_partition(std::vector<BlockWeight> max_block_weights, BlockID *partition) {
+EdgeWeight KaMinPar::compute_partition(
+    std::vector<BlockWeight> max_block_weights, std::span<BlockID> partition
+) {
   _ctx.partition.setup(*_graph_ptr, std::move(max_block_weights));
   return compute_partition(partition);
 }
 
-EdgeWeight KaMinPar::compute_partition(BlockID *partition) {
+EdgeWeight KaMinPar::compute_partition(
+    std::vector<double> max_block_weight_factors, std::span<shm::BlockID> partition
+) {
+  std::vector<BlockWeight> max_block_weights(max_block_weight_factors.size());
+  const NodeWeight total_node_weight = _graph_ptr->total_node_weight();
+  std::transform(
+      max_block_weight_factors.begin(),
+      max_block_weight_factors.end(),
+      max_block_weights.begin(),
+      [total_node_weight](const double factor) { return std::ceil(factor * total_node_weight); }
+  );
+  return compute_partition(std::move(max_block_weights), partition);
+}
+
+EdgeWeight KaMinPar::compute_partition(std::span<BlockID> partition) {
   if (_output_level == OutputLevel::QUIET) {
     Logger::set_quiet_mode(true);
   }
@@ -335,7 +353,13 @@ EdgeWeight KaMinPar::compute_partition(BlockID *partition) {
   if (_graph_ptr->sorted()) {
     const NodeID num_isolated_nodes = graph::count_isolated_nodes(*_graph_ptr);
     _graph_ptr->remove_isolated_nodes(num_isolated_nodes);
+    _ctx.partition.n = _graph_ptr->n();
     _ctx.partition.total_node_weight = _graph_ptr->total_node_weight();
+
+    cio::print_delimiter("Preprocessing");
+    LOG << "Removed " << num_isolated_nodes << " isolated nodes";
+    LOG << "  Remaining nodes:             " << _graph_ptr->n();
+    LOG << "  Remaining total node weight: " << _graph_ptr->total_node_weight();
   }
 
   // Perform actual partitioning

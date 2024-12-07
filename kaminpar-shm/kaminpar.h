@@ -13,6 +13,7 @@
 #include <limits>
 #include <memory>
 #include <numeric>
+#include <span>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -349,6 +350,7 @@ struct InitialPartitioningContext {
 //
 
 struct PartitionContext {
+  NodeID original_n = kInvalidNodeID;
   NodeID n = kInvalidNodeID;
   EdgeID m = kInvalidEdgeID;
   NodeWeight original_total_node_weight = kInvalidNodeWeight;
@@ -356,13 +358,13 @@ struct PartitionContext {
   EdgeWeight total_edge_weight = kInvalidEdgeWeight;
   NodeWeight max_node_weight = kInvalidNodeWeight;
 
-  BlockID k = 0;
+  BlockID k;
 
-  [[nodiscard]] BlockWeight perfectly_balanced_block_weight(BlockID block) const {
-    return std::ceil(1.0 * max_block_weight(block) / (1 + inferred_epsilon()));
+  [[nodiscard]] BlockWeight perfectly_balanced_block_weight(const BlockID block) const {
+    return std::ceil(1.0 * _unrelaxed_max_block_weights[block] / (1 + inferred_epsilon()));
   }
 
-  [[nodiscard]] BlockWeight max_block_weight(BlockID block) const {
+  [[nodiscard]] BlockWeight max_block_weight(const BlockID block) const {
     return _max_block_weights[block];
   }
 
@@ -381,7 +383,7 @@ struct PartitionContext {
   [[nodiscard]] BlockWeight
   total_unrelaxed_max_block_weights(const BlockID begin, const BlockID end) const {
     if (_uniform_block_weights) {
-      return _unrelaxed_max_block_weights[begin] * (end - begin);
+      return (1.0 + inferred_epsilon()) * std::ceil(1.0 * (end - begin) * total_node_weight / k);
     }
 
     return std::accumulate(
@@ -396,18 +398,28 @@ struct PartitionContext {
   }
 
   [[nodiscard]] double infer_epsilon(const NodeWeight actual_total_node_weight) const {
+    if (_uniform_block_weights) {
+      const double max = (1.0 + _epsilon) * std::ceil(1.0 * original_total_node_weight / k);
+      return max / std::ceil(1.0 * actual_total_node_weight / k) - 1.0;
+    }
+
     return 1.0 * _total_max_block_weights / actual_total_node_weight - 1.0;
   }
 
   [[nodiscard]] double inferred_epsilon() const {
-    return 1.0 * _total_max_block_weights / total_node_weight - 1.0;
+    return infer_epsilon(total_node_weight);
   }
 
   void set_epsilon(const double eps) {
     _epsilon = eps;
   }
+
   [[nodiscard]] bool has_epsilon() const {
     return _epsilon > 0.0;
+  }
+
+  [[nodiscard]] bool has_uniform_block_weights() const {
+    return _uniform_block_weights;
   }
 
   void setup(
@@ -641,7 +653,7 @@ public:
    *
    * @return Expected edge cut of the partition.
    */
-  shm::EdgeWeight compute_partition(shm::BlockID k, shm::BlockID *partition);
+  shm::EdgeWeight compute_partition(shm::BlockID k, std::span<shm::BlockID> partition);
 
   /*!
    * Partitions the graph set by `borrow_and_mutate_graph()` or `copy_graph()` into `k` blocks with
@@ -653,25 +665,41 @@ public:
    *
    * @return Expected edge cut of the partition.
    */
-  shm::EdgeWeight compute_partition(shm::BlockID k, double epsilon, shm::BlockID *partition);
+  shm::EdgeWeight
+  compute_partition(shm::BlockID k, double epsilon, std::span<shm::BlockID> partition);
 
   /*!
    * Partitions the graph set by `borrow_and_mutate_graph()` or `copy_graph()` such that the
    * weight of each block is upper bounded by `max_block_weights`. The number of blocks is given
-   * implicitly by the size of `max_block_weights`.
+   * implicitly by the size of the vector.
    *
    * @param max_block_weights Maximum weight for each block of the partition.
    * @param[out] partition Span of length `n` to store the partitioning.
    *
    * @return Expected edge cut of the partition.
    */
-  shm::EdgeWeight
-  compute_partition(std::vector<shm::BlockWeight> max_block_weights, shm::BlockID *partition);
+  shm::EdgeWeight compute_partition(
+      std::vector<shm::BlockWeight> max_block_weights, std::span<shm::BlockID> partition
+  );
+
+  /*!
+   * Partitions the graph set by `borrow_and_mutate_graph()` or `copy_graph()` such that the
+   * weight of each block is upper bounded by `max_block_weight_factors` times the total node weigh
+   * of the graph. The number of blocks is given implicitly by the size of the vector.
+   *
+   * @param max_block_weight_factors Maximum weight factor for each block of the partition.
+   * @param[out] partition Span of length `n` to store the partitioning.
+   *
+   * @return Expected edge cut of the partition.
+   */
+  shm::EdgeWeight compute_partition(
+      std::vector<double> max_block_weight_factors, std::span<shm::BlockID> partition
+  );
 
   const shm::Graph *graph();
 
 private:
-  shm::EdgeWeight compute_partition(shm::BlockID *partition);
+  shm::EdgeWeight compute_partition(std::span<shm::BlockID> partition);
 
   int _num_threads;
 

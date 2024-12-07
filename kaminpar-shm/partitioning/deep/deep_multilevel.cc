@@ -25,6 +25,7 @@ namespace kaminpar::shm {
 namespace {
 
 SET_DEBUG(false);
+constexpr static bool kDebugBlockWeights = false;
 
 } // namespace
 
@@ -59,8 +60,8 @@ PartitionedGraph DeepMultilevelPartitioner::partition() {
     _refiner->set_output_prefix("    ");
   }
 
-  DBG << "Initial partition context:";
-  DBG << debug::describe_partition_context(_input_ctx.partition);
+  DBGC(kDebugBlockWeights) << "Initial partition context:";
+  DBGC(kDebugBlockWeights) << debug::describe_partition_context(_input_ctx.partition);
 
   return uncoarsen(initial_partition(coarsen()));
 }
@@ -122,6 +123,9 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
     }
 
     // Print some metrics for the coarse graphs
+    DBG << "Using inferred epsilon: "
+        << _current_p_ctx.infer_epsilon(prev_c_graph_total_node_weight);
+
     LOG << "Coarsening -> Level " << _coarsener->level();
     LOG << " Number of nodes: " << c_graph->n() << " | Number of edges: " << c_graph->m();
     LOG << " Maximum node weight: " << c_graph->max_node_weight() << " <= "
@@ -225,8 +229,8 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
     _current_p_ctx = create_kway_context(_input_ctx, p_graph);
   }
 
-  DBG << "Partition state after initial partitioning:";
-  DBG << debug::describe_partition_state(p_graph, _current_p_ctx);
+  DBGC(kDebugBlockWeights) << "Initial partition context:";
+  DBGC(kDebugBlockWeights) << debug::describe_partition_state(p_graph, _current_p_ctx);
 
   // Print some metrics for the initial partition.
   LOG << " Number of blocks: " << p_graph.k();
@@ -323,8 +327,8 @@ void DeepMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
     _refiner->set_communities(_coarsener->current_communities());
   }
 
-  DBG << "Partition context for refinement:";
-  DBG << debug::describe_partition_state(p_graph, _current_p_ctx);
+  DBGC(kDebugBlockWeights) << "Partition context for refinement:";
+  DBGC(kDebugBlockWeights) << debug::describe_partition_state(p_graph, _current_p_ctx);
 
   // If requested, dump the current partition to disk before refinement ...
   debug::dump_partition_hierarchy(p_graph, _coarsener->level(), "pre-refinement", _input_ctx);

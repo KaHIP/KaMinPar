@@ -271,6 +271,13 @@ public:
 
 private:
   void init_block_weights_par() {
+    if (k() >= 65536) {
+      this->pfor_nodes([&](const NodeID u) {
+        __atomic_fetch_add(&_block_weights[block(u)], this->node_weight(u), __ATOMIC_RELAXED);
+      });
+      return;
+    }
+
     tbb::enumerable_thread_specific<StaticArray<BlockWeight>> block_weights_ets([&] {
       return StaticArray<BlockWeight>(k());
     });
