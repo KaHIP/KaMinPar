@@ -296,6 +296,7 @@ enum class InitialPartitioningMode {
   SEQUENTIAL,
   ASYNCHRONOUS_PARALLEL,
   SYNCHRONOUS_PARALLEL,
+  COMMUNITIES,
 };
 
 struct InitialCoarseningContext {
@@ -463,6 +464,7 @@ struct DebugContext {
 
 enum class PartitioningMode {
   DEEP,
+  VCYCLE,
   RB,
   KWAY,
 };
@@ -476,6 +478,9 @@ struct PartitioningContext {
   bool refine_after_extending_partition;
 
   bool use_lazy_subgraph_memory;
+
+  std::vector<BlockID> vcycles;
+  bool restrict_vcycle_refinement;
 };
 
 struct GraphCompressionContext {
@@ -538,6 +543,8 @@ Context create_largek_strong_context();
 
 Context create_jet_context(int rounds = 1);
 Context create_noref_context();
+
+Context create_vcycle_context(bool restrict_refinement = false);
 
 } // namespace kaminpar::shm
 

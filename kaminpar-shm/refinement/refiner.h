@@ -7,6 +7,7 @@
  ******************************************************************************/
 #pragma once
 
+#include <span>
 #include <string_view>
 
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
@@ -37,6 +38,8 @@ public:
   virtual void initialize(const PartitionedGraph &p_graph) = 0;
 
   virtual bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) = 0;
+
+  virtual void set_communities(std::span<const NodeID>) {}
 
   void set_output_prefix(const std::string_view prefix) {
     _output_prefix = prefix;

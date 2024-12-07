@@ -12,6 +12,7 @@
 
 // Partitioning schemes
 #include "kaminpar-shm/partitioning/deep/deep_multilevel.h"
+#include "kaminpar-shm/partitioning/deep/vcycle_deep_multilevel.h"
 #include "kaminpar-shm/partitioning/kway/kway_multilevel.h"
 // #include "kaminpar-shm/partitioning/rb/rb_multilevel.h"
 
@@ -39,6 +40,9 @@ std::unique_ptr<Partitioner> create_partitioner(const Graph &graph, const Contex
   switch (ctx.partitioning.mode) {
   case PartitioningMode::DEEP:
     return std::make_unique<DeepMultilevelPartitioner>(graph, ctx);
+
+  case PartitioningMode::VCYCLE:
+    return std::make_unique<VcycleDeepMultilevelPartitioner>(graph, ctx);
 
   case PartitioningMode::RB:
     return nullptr;

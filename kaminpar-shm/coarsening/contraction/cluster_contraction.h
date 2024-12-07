@@ -8,6 +8,8 @@
  ******************************************************************************/
 #pragma once
 
+#include <span>
+
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
@@ -23,7 +25,9 @@ public:
   [[nodiscard]] virtual const Graph &get() const = 0;
   virtual Graph &get() = 0;
 
-  virtual void project(const StaticArray<BlockID> &array, StaticArray<BlockID> &onto) = 0;
+  virtual void project_up(std::span<const BlockID> coarse, std::span<BlockID> fine) = 0;
+
+  virtual void project_down(std::span<const BlockID> fine, std::span<BlockID> coarse) = 0;
 };
 
 namespace contraction {

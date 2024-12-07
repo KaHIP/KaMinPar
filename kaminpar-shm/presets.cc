@@ -48,6 +48,12 @@ Context create_context_by_preset_name(const std::string &name) {
     return create_noref_context();
   }
 
+  if (name == "vcycle") {
+    return create_vcycle_context(false);
+  } else if (name == "restricted-vcycle") {
+    return create_vcycle_context(true);
+  }
+
   throw std::runtime_error("invalid preset name");
 }
 
@@ -66,6 +72,8 @@ std::unordered_set<std::string> get_preset_names() {
       "4xjet",
       "noref",
       "fm",
+      "vcycle",
+      "restricted-vcycle",
   };
 }
 
@@ -85,6 +93,8 @@ Context create_default_context() {
               .min_consecutive_seq_bipartitioning_levels = 1,
               .refine_after_extending_partition = false,
               .use_lazy_subgraph_memory = true,
+              .vcycles = {},
+              .restrict_vcycle_refinement = false,
           },
       .partition = {},
       .coarsening =
@@ -363,6 +373,21 @@ Context create_terapart_strong_context() {
 
 Context create_terapart_largek_context() {
   return terapartify_context(create_largek_context());
+}
+
+Context create_vcycle_context(const bool restrict_refinement) {
+  Context ctx = create_default_context();
+  ctx.partitioning.mode = PartitioningMode::VCYCLE;
+
+  if (restrict_refinement) {
+    ctx.partitioning.restrict_vcycle_refinement = true;
+    ctx.refinement.algorithms = {
+        // GREEDY_BALANCER does not respect the community structure
+        RefinementAlgorithm::LABEL_PROPAGATION,
+    };
+  }
+
+  return ctx;
 }
 
 } // namespace kaminpar::shm
