@@ -154,4 +154,15 @@ StaticArray<BlockID> read_block_sizes(const std::string &filename) {
 
 } // namespace partition
 
+namespace remapping {
+
+void write(const std::string &filename, std::span<const NodeID> remapping) {
+  std::ofstream out(filename);
+  for (const NodeID new_id : remapping) {
+    out << new_id << "\n";
+  }
+}
+
+} // namespace remapping
+
 } // namespace kaminpar::shm::io
