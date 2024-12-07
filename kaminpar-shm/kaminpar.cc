@@ -204,21 +204,25 @@ Context &KaMinPar::context() {
 }
 
 void KaMinPar::borrow_and_mutate_graph(
-    const NodeID n, EdgeID *xadj, NodeID *adjncy, NodeWeight *vwgt, EdgeWeight *adjwgt
+    std::span<EdgeID> xadj,
+    std::span<NodeID> adjncy,
+    std::span<NodeWeight> vwgt,
+    std::span<EdgeWeight> adjwgt
 ) {
   SCOPED_HEAP_PROFILER("Borrow and mutate graph");
   SCOPED_TIMER("IO");
 
+  const NodeID n = xadj.size() - 1;
   const EdgeID m = xadj[n];
 
   RECORD("nodes") StaticArray<EdgeID> nodes(n + 1, xadj);
   RECORD("edges") StaticArray<NodeID> edges(m, adjncy);
   RECORD("node_weights")
   StaticArray<NodeWeight> node_weights =
-      (vwgt == nullptr) ? StaticArray<NodeWeight>(0) : StaticArray<NodeWeight>(n, vwgt);
+      vwgt.empty() ? StaticArray<NodeWeight>(0) : StaticArray<NodeWeight>(n, vwgt.data());
   RECORD("edge_weights")
   StaticArray<EdgeWeight> edge_weights =
-      (adjwgt == nullptr) ? StaticArray<EdgeWeight>(0) : StaticArray<EdgeWeight>(m, adjwgt);
+      adjwgt.empty() ? StaticArray<EdgeWeight>(0) : StaticArray<EdgeWeight>(m, adjwgt.data());
 
   auto csr_graph = std::make_unique<CSRGraph>(
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), false
@@ -228,18 +232,18 @@ void KaMinPar::borrow_and_mutate_graph(
 }
 
 void KaMinPar::copy_graph(
-    const NodeID n,
-    const EdgeID *const xadj,
-    const NodeID *const adjncy,
-    const NodeWeight *const vwgt,
-    const EdgeWeight *const adjwgt
+    std::span<const EdgeID> xadj,
+    std::span<const NodeID> adjncy,
+    std::span<const NodeWeight> vwgt,
+    std::span<const EdgeWeight> adjwgt
 ) {
   SCOPED_HEAP_PROFILER("Copy graph");
   SCOPED_TIMER("IO");
 
+  const NodeID n = xadj.size() - 1;
   const EdgeID m = xadj[n];
-  const bool has_node_weights = vwgt != nullptr;
-  const bool has_edge_weights = adjwgt != nullptr;
+  const bool has_node_weights = !vwgt.empty();
+  const bool has_edge_weights = !adjwgt.empty();
 
   RECORD("nodes") StaticArray<EdgeID> nodes(n + 1);
   RECORD("edges") StaticArray<NodeID> edges(m);

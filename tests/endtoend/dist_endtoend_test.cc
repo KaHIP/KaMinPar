@@ -23,6 +23,7 @@ namespace data {
 static std::vector<GlobalEdgeID> global_xadj = {
 #include "data.graph.xadj"
 };
+
 static std::vector<GlobalNodeID> global_adjncy = {
 #include "data.graph.adjncy"
 };

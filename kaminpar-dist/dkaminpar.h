@@ -412,11 +412,11 @@ public:
   dist::Context &context();
 
   void import_graph(
-      dist::GlobalNodeID *node_distribution,
-      dist::GlobalEdgeID *nodes,
-      dist::GlobalNodeID *edges,
-      dist::GlobalNodeWeight *node_weights,
-      dist::GlobalEdgeWeight *edge_weights
+      std::span<dist::GlobalNodeID> node_distribution,
+      std::span<dist::GlobalEdgeID> nodes,
+      std::span<dist::GlobalNodeID> edges,
+      std::span<dist::GlobalNodeWeight> node_weights,
+      std::span<dist::GlobalEdgeWeight> edge_weights
   );
 
   void import_graph(dist::DistributedGraph graph);
