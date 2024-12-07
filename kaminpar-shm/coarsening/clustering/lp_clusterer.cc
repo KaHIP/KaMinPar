@@ -7,6 +7,8 @@
  ******************************************************************************/
 #include "kaminpar-shm/coarsening/clustering/lp_clusterer.h"
 
+#include <span>
+
 #include "kaminpar-shm/label_propagation.h"
 
 #include "kaminpar-common/heap_profiler.h"
@@ -54,6 +56,14 @@ public:
 
   void set_max_cluster_weight(const NodeWeight max_cluster_weight) {
     _max_cluster_weight = max_cluster_weight;
+  }
+
+  void set_communities(const std::span<const NodeID> communities) {
+    _communities = communities;
+  }
+
+  void reset_communities() {
+    _communities = {};
   }
 
   void preinitialize(const NodeID num_nodes) {
@@ -179,12 +189,18 @@ public:
   ) {
     const bool use_uniform_tie_breaking = _tie_breaking_strategy == TieBreakingStrategy::UNIFORM;
 
+    const auto accept_cluster_community = [&] {
+      return _communities.empty() ||
+             _communities[state.current_cluster] == _communities[state.initial_cluster];
+    };
+
     ClusterID favored_cluster = state.initial_cluster;
     if (use_uniform_tie_breaking) {
       const auto accept_cluster = [&] {
-        return state.current_cluster_weight + state.u_weight <=
-                   max_cluster_weight(state.current_cluster) ||
-               state.current_cluster == state.initial_cluster;
+        return (state.current_cluster_weight + state.u_weight <=
+                    max_cluster_weight(state.current_cluster) ||
+                state.current_cluster == state.initial_cluster) &&
+               accept_cluster_community();
       };
 
       for (const auto [cluster, rating] : map.entries()) {
@@ -238,7 +254,8 @@ public:
                 (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
                (state.current_cluster_weight + state.u_weight <=
                     max_cluster_weight(state.current_cluster) ||
-                state.current_cluster == state.initial_cluster);
+                state.current_cluster == state.initial_cluster) &&
+               accept_cluster_community();
       };
 
       for (const auto [cluster, rating] : map.entries()) {
@@ -268,6 +285,8 @@ public:
 
   const LabelPropagationCoarseningContext &_lp_ctx;
   NodeWeight _max_cluster_weight = kInvalidBlockWeight;
+
+  std::span<const NodeID> _communities;
 };
 
 class LPClusteringImplWrapper {
@@ -285,6 +304,11 @@ public:
   void set_desired_cluster_count(const NodeID count) {
     _csr_impl->set_desired_num_clusters(count);
     _compressed_impl->set_desired_num_clusters(count);
+  }
+
+  void set_communities(std::span<const NodeID> communities) {
+    _csr_impl->set_communities(communities);
+    _compressed_impl->set_communities(communities);
   }
 
   void compute_clustering(
@@ -361,6 +385,10 @@ void LPClustering::set_max_cluster_weight(const NodeWeight max_cluster_weight) {
 
 void LPClustering::set_desired_cluster_count(const NodeID count) {
   _impl_wrapper->set_desired_cluster_count(count);
+}
+
+void LPClustering::set_communities(std::span<const NodeID> communities) {
+  _impl_wrapper->set_communities(communities);
 }
 
 void LPClustering::compute_clustering(

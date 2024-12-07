@@ -7,6 +7,8 @@
  ******************************************************************************/
 #pragma once
 
+#include <span>
+
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
@@ -31,6 +33,8 @@ public:
 
   virtual void set_max_cluster_weight(NodeWeight /* weight */) {}
   virtual void set_desired_cluster_count(NodeID /* count */) {}
+
+  virtual void set_communities(std::span<const NodeID> /* communities */) {}
 
   //
   // Clustering function

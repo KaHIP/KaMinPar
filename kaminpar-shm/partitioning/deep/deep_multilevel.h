@@ -7,6 +7,8 @@
  ******************************************************************************/
 #pragma once
 
+#include <span>
+
 #include <tbb/enumerable_thread_specific.h>
 
 #include "kaminpar-shm/coarsening/coarsener.h"
@@ -30,6 +32,9 @@ public:
   DeepMultilevelPartitioner(DeepMultilevelPartitioner &&) = delete;
   DeepMultilevelPartitioner &operator=(DeepMultilevelPartitioner &&) = delete;
 
+  void
+  use_communities(std::span<const NodeID> communities, const PartitionContext &community_p_ctx);
+
   PartitionedGraph partition() final;
 
 private:
@@ -38,6 +43,9 @@ private:
   NodeID initial_partitioning_threshold();
 
   PartitionedGraph initial_partition(const Graph *graph);
+
+  StaticArray<BlockID> copy_coarsest_communities();
+  PartitionedGraph initial_partition_by_communities(const Graph *graph);
 
   PartitionedGraph uncoarsen(PartitionedGraph p_graph);
 
@@ -65,6 +73,8 @@ private:
   partitioning::SubgraphMemoryEts _extraction_mem_pool_ets;
   partitioning::TemporarySubgraphMemoryEts _tmp_extraction_mem_pool_ets;
   InitialBipartitionerWorkerPool _bipartitioner_pool;
+
+  PartitionContext _community_p_ctx = {};
 };
 
 } // namespace kaminpar::shm

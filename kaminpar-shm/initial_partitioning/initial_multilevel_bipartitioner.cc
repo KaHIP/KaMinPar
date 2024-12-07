@@ -28,7 +28,6 @@
 #include "kaminpar-shm/initial_partitioning/initial_pool_bipartitioner.h"
 #include "kaminpar-shm/initial_partitioning/initial_refiner.h"
 #include "kaminpar-shm/kaminpar.h"
-#include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/partitioning/helper.h"
 #include "kaminpar-shm/partitioning/partition_utils.h"
 
@@ -104,6 +103,9 @@ PartitionedCSRGraph InitialMultilevelBipartitioner::partition(InitialPartitioner
     timings->uncoarsening_ms += timer.elapsed();
   }
 
+  DBG << " -> obtained bipartition with block weights " << p_graph.block_weight(0) << " + "
+      << p_graph.block_weight(1);
+
   return p_graph;
 }
 
@@ -133,11 +135,11 @@ const CSRGraph *InitialMultilevelBipartitioner::coarsen(InitialPartitionerTiming
 
     shrunk = new_c_graph != c_graph;
 
-    DBG << "-> "                                              //
-        << "n=" << new_c_graph->n() << " "                    //
-        << "m=" << new_c_graph->m() << " "                    //
-        << "max_cluster_weight=" << max_cluster_weight << " " //
-        << ((shrunk) ? "" : "==> terminate");                 //
+    // DBG << "-> "                                              //
+    //<< "n=" << new_c_graph->n() << " "                    //
+    //<< "m=" << new_c_graph->m() << " "                    //
+    //<< "max_cluster_weight=" << max_cluster_weight << " " //
+    //<< ((shrunk) ? "" : "==> terminate");                 //
 
     if (shrunk) {
       c_graph = new_c_graph;
@@ -160,12 +162,12 @@ PartitionedCSRGraph InitialMultilevelBipartitioner::uncoarsen(PartitionedCSRGrap
     _refiner->init(p_graph.graph());
     _refiner->refine(p_graph, _p_ctx);
 
-    DBG << "-> "                                                 //
-        << "n=" << p_graph.n() << " "                            //
-        << "m=" << p_graph.m() << " "                            //
-        << "cut=" << metrics::edge_cut_seq(p_graph) << " "       //
-        << "imbalance=" << metrics::imbalance(p_graph) << " "    //
-        << "feasible=" << metrics::is_feasible(p_graph, _p_ctx); //
+    // DBG << "-> "                                                 //
+    //<< "n=" << p_graph.n() << " "                            //
+    //<< "m=" << p_graph.m() << " "                            //
+    //<< "cut=" << metrics::edge_cut_seq(p_graph) << " "       //
+    //<< "imbalance=" << metrics::imbalance(p_graph) << " "    //
+    //<< "feasible=" << metrics::is_feasible(p_graph, _p_ctx); //
   }
 
   return p_graph;

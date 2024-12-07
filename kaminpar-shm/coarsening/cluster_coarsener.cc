@@ -13,9 +13,11 @@
 #include "kaminpar-shm/coarsening/max_cluster_weights.h"
 #include "kaminpar-shm/factories.h"
 #include "kaminpar-shm/kaminpar.h"
+#include "kaminpar-shm/metrics.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/heap_profiler.h"
+#include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
@@ -37,6 +39,15 @@ void ClusteringCoarsener::initialize(const Graph *graph) {
   _input_graph = graph;
 }
 
+void ClusteringCoarsener::use_communities(std::span<const NodeID> communities) {
+  _input_communities = communities;
+  _communities_hierarchy.clear();
+}
+
+[[nodiscard]] std::span<const NodeID> ClusteringCoarsener::current_communities() const {
+  return _communities_hierarchy.empty() ? _input_communities : _communities_hierarchy.back();
+}
+
 bool ClusteringCoarsener::coarsen() {
   SCOPED_HEAP_PROFILER("Level", std::to_string(_hierarchy.size()));
   SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
@@ -53,6 +64,11 @@ bool ClusteringCoarsener::coarsen() {
 
   START_HEAP_PROFILER("Label Propagation");
   START_TIMER("Label Propagation");
+
+  if (!_input_communities.empty()) {
+    _clustering_algorithm->set_communities(current_communities());
+  }
+
   _clustering_algorithm->set_max_cluster_weight(
       compute_max_cluster_weight<NodeWeight>(_c_ctx, _p_ctx, prev_n, total_node_weight)
   );
@@ -86,12 +102,22 @@ bool ClusteringCoarsener::coarsen() {
   STOP_HEAP_PROFILER();
 
   START_HEAP_PROFILER("Contract graph");
-  auto coarsened = TIMED_SCOPE("Contract graph") {
-    return contract_clustering(
-        current(), std::move(clustering), _c_ctx.contraction, _contraction_m_ctx
+  START_TIMER("Contract graph");
+  _hierarchy.push_back(
+      contract_clustering(current(), std::move(clustering), _c_ctx.contraction, _contraction_m_ctx)
+  );
+
+  if (!_communities_hierarchy.empty()) {
+    _communities_hierarchy.emplace_back(current().n());
+    _hierarchy.back()->project_down(
+        _communities_hierarchy[_communities_hierarchy.size() - 2], _communities_hierarchy.back()
     );
-  };
-  _hierarchy.push_back(std::move(coarsened));
+  } else if (!_input_communities.empty()) {
+    _communities_hierarchy.emplace_back(current().n());
+    _hierarchy.back()->project_down(_input_communities, _communities_hierarchy.back());
+  }
+
+  STOP_TIMER();
   STOP_HEAP_PROFILER();
 
   const NodeID next_n = current().n();
@@ -122,7 +148,7 @@ PartitionedGraph ClusteringCoarsener::uncoarsen(PartitionedGraph &&p_graph) {
   STOP_HEAP_PROFILER();
 
   START_TIMER("Project partition");
-  coarsened->project(p_graph_partition, partition);
+  coarsened->project_up(p_graph_partition, partition);
   STOP_TIMER();
 
   SCOPED_HEAP_PROFILER("Create graph");
@@ -155,6 +181,10 @@ std::unique_ptr<CoarseGraph> ClusteringCoarsener::pop_hierarchy(PartitionedGraph
           << ")",
       assert::light
   );
+
+  if (!_communities_hierarchy.empty()) {
+    _communities_hierarchy.pop_back();
+  }
 
   return coarsened;
 }

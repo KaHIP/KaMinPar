@@ -45,6 +45,13 @@ DeepMultilevelPartitioner::DeepMultilevelPartitioner(
   _refiner->set_output_prefix("   ");
 }
 
+void DeepMultilevelPartitioner::use_communities(
+    const std::span<const NodeID> communities, const PartitionContext &community_p_ctx
+) {
+  _coarsener->use_communities(communities);
+  _community_p_ctx = community_p_ctx;
+}
+
 PartitionedGraph DeepMultilevelPartitioner::partition() {
   cio::print_delimiter("Partitioning");
 
@@ -158,6 +165,8 @@ NodeID DeepMultilevelPartitioner::initial_partitioning_threshold() {
 
   if (is_parallel_mode) { // Parallel: copy for each thread once n <= p * C
     return _input_ctx.parallel.num_threads * _input_ctx.coarsening.contraction_limit;
+  } else if (mode == InitialPartitioningMode::COMMUNITIES) {
+    return _input_ctx.coarsening.contraction_limit * _community_p_ctx.k;
   } else { // Sequential: coarsen until until n <= 2 * C
     return 2 * _input_ctx.coarsening.contraction_limit;
   }
@@ -204,13 +213,21 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
     case InitialPartitioningMode::ASYNCHRONOUS_PARALLEL:
       return AsyncInitialPartitioner(_input_ctx, _bipartitioner_pool, _tmp_extraction_mem_pool_ets)
           .partition(_coarsener.get(), _current_p_ctx);
+
+    case InitialPartitioningMode::COMMUNITIES:
+      return initial_partition_by_communities(graph);
     }
 
     __builtin_unreachable();
   }();
   ENABLE_TIMERS();
 
-  _current_p_ctx = create_kway_context(_input_ctx, p_graph);
+  if (_input_ctx.partitioning.deep_initial_partitioning_mode ==
+      InitialPartitioningMode::COMMUNITIES) {
+    _current_p_ctx = _community_p_ctx;
+  } else {
+    _current_p_ctx = create_kway_context(_input_ctx, p_graph);
+  }
 
   DBGC(kDebugBlockWeights) << "Initial partition context:";
   DBGC(kDebugBlockWeights) << debug::describe_partition_state(p_graph, _current_p_ctx);
@@ -229,6 +246,19 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
   debug::dump_coarsest_partition(p_graph, _input_ctx);
   debug::dump_partition_hierarchy(p_graph, _coarsener->level(), "post-refinement", _input_ctx);
 
+  return p_graph;
+}
+
+StaticArray<BlockID> DeepMultilevelPartitioner::copy_coarsest_communities() {
+  std::span<const NodeID> communities = _coarsener->current_communities();
+  return {communities.begin(), communities.end()};
+}
+
+PartitionedGraph DeepMultilevelPartitioner::initial_partition_by_communities(const Graph *graph) {
+  StaticArray<BlockID> partition = copy_coarsest_communities();
+  KASSERT(partition.size() == graph->n());
+
+  PartitionedGraph p_graph(*graph, static_cast<BlockID>(_community_p_ctx.k), std::move(partition));
   return p_graph;
 }
 
@@ -253,7 +283,6 @@ PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) 
     const BlockID desired_k = partitioning::compute_k_for_n(p_graph.n(), _input_ctx);
     if (p_graph.k() < desired_k) {
       extend_partition(p_graph, desired_k);
-      _current_p_ctx = create_kway_context(_input_ctx, p_graph);
       refined = false;
 
       if (_input_ctx.partitioning.refine_after_extending_partition) {
@@ -277,7 +306,6 @@ PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) 
     }
     if (p_graph.k() < _input_ctx.partition.k) {
       extend_partition(p_graph, _input_ctx.partition.k);
-      _current_p_ctx = create_kway_context(_input_ctx, p_graph);
       refine(p_graph);
     }
   }
@@ -288,6 +316,16 @@ PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) 
 void DeepMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
   SCOPED_HEAP_PROFILER("Refinement");
   SCOPED_TIMER("Refinement");
+
+  if (_input_ctx.partitioning.restrict_vcycle_refinement && _community_p_ctx.k > 0) {
+    // If we are not allowed to move nodes between communities, and we only have one block per
+    // community, refinement is pointless
+    if (p_graph.k() == _community_p_ctx.k) {
+      return;
+    }
+
+    _refiner->set_communities(_coarsener->current_communities());
+  }
 
   DBGC(kDebugBlockWeights) << "Partition context for refinement:";
   DBGC(kDebugBlockWeights) << debug::describe_partition_state(p_graph, _current_p_ctx);
@@ -313,6 +351,29 @@ void DeepMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
 void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, const BlockID k_prime) {
   SCOPED_HEAP_PROFILER("Extending partition");
   LOG << "  Extending partition from " << p_graph.k() << " blocks to " << k_prime << " blocks";
+
+  DBG << "Partition state before extending partition from " << p_graph.k() << " to " << k_prime
+      << " blocks:";
+  DBG << debug::describe_partition_state(p_graph, _current_p_ctx);
+
+  // If we are in a v-cycle, we might have a partition whose number of blocks is not a power of two
+  // -- something on which the other extend_* functions rely. In this case, first "complete" the
+  // current level of the recursion tree to obtain a power-of-two block count.
+  if (_input_ctx.partitioning.deep_initial_partitioning_mode ==
+      InitialPartitioningMode::COMMUNITIES) {
+    [[maybe_unused]] const BlockID extended_from = p_graph.k();
+    partitioning::complete_partial_extend_partition(
+        p_graph,
+        _input_ctx,
+        _extraction_mem_pool_ets,
+        _tmp_extraction_mem_pool_ets,
+        _bipartitioner_pool
+    );
+    _current_p_ctx = create_kway_context(_input_ctx, p_graph);
+    DBG << "Partition state after completing partial partition extend from " << extended_from
+        << " to " << p_graph.k() << " blocks:";
+    DBG << debug::describe_partition_state(p_graph, _current_p_ctx);
+  }
 
   if (_input_ctx.partitioning.use_lazy_subgraph_memory) {
     partitioning::extend_partition_lazy_extraction(
@@ -349,6 +410,10 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
     LOG << "   Cut:       " << metrics::edge_cut(p_graph);
     LOG << "   Imbalance: " << metrics::imbalance(p_graph);
   }
+
+  _current_p_ctx = create_kway_context(_input_ctx, p_graph);
+  DBG << "Partition state after extending partition to " << k_prime << " blocks:";
+  DBG << debug::describe_partition_state(p_graph, _current_p_ctx);
 }
 
 } // namespace kaminpar::shm

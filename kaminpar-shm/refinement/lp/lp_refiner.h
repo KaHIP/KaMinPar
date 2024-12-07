@@ -32,6 +32,8 @@ public:
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) override;
 
+  void set_communities(std::span<const NodeID> communities) override;
+
 private:
   std::unique_ptr<class LPRefinerImplWrapper> _impl_wrapper;
 };

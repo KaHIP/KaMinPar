@@ -86,6 +86,10 @@ public:
     return true;
   }
 
+  void set_communities(std::span<const NodeID> communities) {
+    _communities = communities;
+  }
+
 public:
   [[nodiscard]] BlockID initial_cluster(const NodeID u) {
     return _p_graph->block(u);
@@ -97,6 +101,10 @@ public:
 
   [[nodiscard]] BlockWeight cluster_weight(const BlockID b) {
     return _p_graph->block_weight(b);
+  }
+
+  [[nodiscard]] bool accept_neighbor(const NodeID u, const NodeID v) {
+      return _communities.empty() || _communities[u] == _communities[v];
   }
 
   bool move_cluster_weight(
@@ -269,6 +277,8 @@ public:
 
   const PartitionContext *_p_ctx;
   const RefinementContext &_r_ctx;
+
+  std::span<const NodeID> _communities;
 };
 
 class LPRefinerImplWrapper {
@@ -307,6 +317,11 @@ public:
     );
   }
 
+  void set_communities(std::span<const NodeID> communities) {
+    _csr_impl->set_communities(communities);
+    _compressed_impl->set_communities(communities);
+  }
+
 private:
   std::unique_ptr<LPRefinerImpl<CSRGraph>> _csr_impl;
   std::unique_ptr<LPRefinerImpl<CompressedGraph>> _compressed_impl;
@@ -337,6 +352,10 @@ void LabelPropagationRefiner::initialize(const PartitionedGraph &p_graph) {
 
 bool LabelPropagationRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
   return _impl_wrapper->refine(p_graph, p_ctx);
+}
+
+void LabelPropagationRefiner::set_communities(std::span<const NodeID> communities) {
+  _impl_wrapper->set_communities(communities);
 }
 
 } // namespace kaminpar::shm
