@@ -289,7 +289,7 @@ output_rearranged_graph(const ApplicationContext &app, const std::vector<BlockID
     );
 
     if (!app.rearranged_mapping_filename.empty()) {
-      shm::io::partition::write(app.rearranged_mapping_filename, permutations.old_to_new);
+      shm::io::remapping::write(app.rearranged_mapping_filename, permutations.old_to_new);
     }
 
     StaticArray<EdgeID> tmp_nodes(csr_graph.raw_nodes().size());
