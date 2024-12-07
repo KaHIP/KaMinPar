@@ -295,13 +295,8 @@ NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
   static_assert(sizeof(SSInt) == sizeof(GlobalNodeWeight));
   static_assert(sizeof(SSInt) == sizeof(GlobalEdgeWeight));
 
-  auto *xadj_ptr = reinterpret_cast<GlobalNodeID *>(xadj.data());
-  auto *adjncy_ptr = reinterpret_cast<GlobalNodeID *>(adjncy.data());
-  auto *vwgt_ptr = vwgt.empty() ? nullptr : reinterpret_cast<GlobalNodeWeight *>(vwgt.data());
-  auto *adjwgt_ptr = adjwgt.empty() ? nullptr : reinterpret_cast<GlobalEdgeWeight *>(adjwgt.data());
-
   // Pass the graph to the partitioner --
-  partitioner.import_graph(vtxdist.data(), xadj_ptr, adjncy_ptr, vwgt_ptr, adjwgt_ptr);
+  partitioner.import_graph(vtxdist, xadj, adjncy, vwgt, adjwgt);
 
   return graph.vertex_range.second - graph.vertex_range.first;
 }
