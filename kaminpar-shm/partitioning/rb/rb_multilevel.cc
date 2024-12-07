@@ -1,0 +1,100 @@
+/*******************************************************************************
+ * Partitioning scheme that uses toplevel multilevel recursvie bipartitioning.
+ *
+ * @file:   rb_multilevel.cc
+ * @author: Daniel Seemaier
+ * @date:   21.09.2021
+ ******************************************************************************/
+#include "kaminpar-shm/partitioning/rb/rb_multilevel.h"
+
+#include "kaminpar-shm/factories.h"
+#include "kaminpar-shm/graphutils/subgraph_extractor.h"
+
+#include "kaminpar-common/timer.h"
+
+namespace kaminpar::shm {
+
+RBMultilevelPartitioner::RBMultilevelPartitioner(const Graph &graph, const Context &ctx)
+    : _input_graph(graph),
+      _input_ctx(ctx),
+      _bipartitioner_pool(_input_ctx) {}
+
+PartitionedGraph RBMultilevelPartitioner::partition() {
+  DISABLE_TIMERS();
+  PartitionedGraph p_graph = partition_recursive(_input_graph, _input_ctx.partition.k);
+  ENABLE_TIMERS();
+  return p_graph;
+}
+
+PartitionedGraph RBMultilevelPartitioner::partition_recursive(const Graph &graph, const BlockID k) {
+  auto p_graph = bipartition(graph, k);
+
+  if (k > 2) {
+    graph::SubgraphMemory memory;
+    memory.resize(
+        p_graph.n(),
+        k,
+        p_graph.m(),
+        p_graph.graph().is_node_weighted(),
+        p_graph.graph().is_edge_weighted()
+    );
+
+    const auto extraction = extract_subgraphs(p_graph, _input_ctx.partition.k, memory);
+
+    const auto &subgraphs = extraction.subgraphs;
+    const auto &mapping = extraction.node_mapping;
+
+    PartitionedGraph p_graph1, p_graph2;
+    tbb::parallel_invoke(
+        [&] { p_graph1 = partition_recursive(subgraphs[0], k / 2); },
+        [&] { p_graph2 = partition_recursive(subgraphs[1], k / 2); }
+    );
+    ScalableVector<StaticArray<BlockID>> subgraph_partitions(2);
+    subgraph_partitions[0] = p_graph1.take_raw_partition();
+    subgraph_partitions[1] = p_graph2.take_raw_partition();
+
+    p_graph = graph::copy_subgraph_partitions(
+        std::move(p_graph), subgraph_partitions, k, _input_ctx.partition.k, mapping
+    );
+  }
+
+  return p_graph;
+}
+
+PartitionedGraph RBMultilevelPartitioner::bipartition(const Graph &graph, const BlockID final_k) {
+  // set k to 2 for max cluster weight computation
+  PartitionContext bipart_ctx = _input_ctx.partition;
+  bipart_ctx.k = 2;
+  auto coarsener = factory::create_coarsener(_input_ctx, bipart_ctx);
+  coarsener->initialize(&graph);
+
+  const Graph *c_graph = &graph;
+
+  // coarsening
+  PartitionContext p_ctx =
+      create_bipartition_context(graph, final_k / 2, final_k / 2, _input_ctx.partition);
+  bool shrunk = true;
+  while (shrunk && c_graph->n() > 2 * _input_ctx.coarsening.contraction_limit) {
+    shrunk = coarsener->coarsen();
+    c_graph = &coarsener->current();
+  }
+
+  // initial bipartitioning
+  PartitionedGraph p_graph = _bipartitioner_pool.bipartition(c_graph, 0, 1, true); // @todo final_
+
+  // refine
+  auto refiner = factory::create_refiner(_input_ctx);
+
+  while (!coarsener->empty()) {
+    refiner->initialize(p_graph);
+    refiner->refine(p_graph, p_ctx);
+    p_graph = coarsener->uncoarsen(std::move(p_graph));
+  }
+
+  refiner->initialize(p_graph);
+  refiner->refine(p_graph, p_ctx);
+
+  return p_graph;
+}
+
+} // namespace kaminpar::shm
