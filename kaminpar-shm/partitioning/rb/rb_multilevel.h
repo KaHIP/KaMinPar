@@ -28,9 +28,9 @@ public:
   PartitionedGraph partition() final;
 
 private:
-  PartitionedGraph partition_recursive(const Graph &graph, BlockID k);
+  PartitionedGraph partition_recursive(const Graph &graph, BlockID current_block, BlockID current_k);
 
-  PartitionedGraph bipartition(const Graph &graph, BlockID final_k);
+  PartitionedGraph bipartition(const Graph &graph, BlockID current_block, BlockID current_k);
 
   const Graph &_input_graph;
   const Context &_input_ctx;

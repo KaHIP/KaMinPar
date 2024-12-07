@@ -23,9 +23,9 @@ SET_STATISTICS_FROM_GLOBAL();
 } // namespace
 
 PartitionContext create_kway_context(const Context &input_ctx, const PartitionedGraph &p_graph) {
-  //if (p_graph.k() == input_ctx.partition.k && p_graph.n() == input_ctx.partition.n) {
-  //  return input_ctx.partition;
-  //}
+  // if (p_graph.k() == input_ctx.partition.k && p_graph.n() == input_ctx.partition.n) {
+  //   return input_ctx.partition;
+  // }
 
   const BlockID input_k = input_ctx.partition.k;
   const BlockID current_k = p_graph.k();
@@ -67,6 +67,85 @@ PartitionContext create_kway_context(const Context &input_ctx, const Partitioned
   // }
 
   return new_p_ctx;
+}
+
+PartitionContext create_twoway_context(
+    const Context &input_ctx,
+    const BlockID current_block,
+    const BlockID current_k,
+    const AbstractGraph &graph
+) {
+  // Through recursive bipartitioning, `current_block` (i.e., `graph`) will be subdivided further
+  // into a range of sub-blocks: R = [first_sub_block, first_invalid_sub_block).
+  const BlockID first_sub_block =
+      partitioning::compute_first_sub_block(current_block, current_k, input_ctx.partition.k);
+  const BlockID first_invalid_sub_block = partitioning::compute_first_invalid_sub_block(
+      current_block, current_k, input_ctx.partition.k
+  );
+  const BlockID num_sub_blocks =
+      partitioning::compute_final_k(current_block, current_k, input_ctx.partition.k);
+
+  // The first `num_sub_blocks_b0` of `R` will be descendands of the first block of the bipartition
+  // that we are about to compute; the remaining ones will be descendands of the second block.
+  const auto [num_sub_blocks_b0, num_sub_blocks_b1] = math::split_integral(num_sub_blocks);
+
+  // Based on this information, we can compute the maximum block weights by summing all maximum
+  // block weights of the corresponding sub-blocks.
+  std::vector<BlockWeight> max_block_weights{
+      input_ctx.partition.total_max_block_weights(
+          first_sub_block, first_sub_block + num_sub_blocks_b0
+      ),
+      input_ctx.partition.total_max_block_weights(
+          first_sub_block + num_sub_blocks_b0, first_invalid_sub_block
+      )
+  };
+
+  DBG << "[" << current_block << "/" << current_k << "] Current weight "
+      << graph.total_node_weight() << ", spans sub-blocks [" << first_sub_block << ", "
+      << first_invalid_sub_block << "), split max weight "
+      << input_ctx.partition.total_max_block_weights(first_sub_block, first_invalid_sub_block)
+      << " into " << max_block_weights[0] << " and " << max_block_weights[1];
+
+  PartitionContext p_ctx;
+
+  // @todo: how to adapt the inferred epsilon when dealing with arbitrary block weights?
+  if (input_ctx.partition.has_uniform_block_weights() &&
+      input_ctx.initial_partitioning.use_adaptive_epsilon) {
+    // It can be beneficial to artifically "restrict" the maximum block weights of *this*
+    // bipartition, ensuring that there is enough wiggle room for further bipartitioning of the
+    // sub-blocks: this is based on the "adapted epsilon" strategy of KaHyPar.
+    const double base = (1.0 + input_ctx.partition.inferred_epsilon()) * num_sub_blocks *
+                        input_ctx.partition.total_node_weight / input_ctx.partition.k /
+                        graph.total_node_weight();
+    const double exponent = 1.0 / math::ceil_log2(num_sub_blocks);
+    const double epsilon_prime = std::pow(base, exponent) - 1.0;
+    const double adapted_eps = std::max(epsilon_prime, 0.0001);
+
+    const BlockWeight total_max_weight = max_block_weights[0] + max_block_weights[1];
+    std::array<double, 2> max_weight_ratios = {
+        1.0 * max_block_weights[0] / total_max_weight, 1.0 * max_block_weights[1] / total_max_weight
+    };
+
+    for (const BlockID b : {0, 1}) {
+      max_block_weights[b] = (1.0 + adapted_eps) * graph.total_node_weight() * max_weight_ratios[b];
+    }
+
+    DBG << "[" << current_block << "/" << current_k << "]-> adapted epsilon from "
+        << input_ctx.partition.epsilon() << " to " << adapted_eps << ", changing max block weights to "
+        << max_block_weights[0] << " + " << max_block_weights[1]
+        << ", will be relaxed with parameters max node weight " << graph.max_node_weight();
+
+    p_ctx.setup(graph, std::move(max_block_weights), true);
+  } else {
+    DBG << "[" << current_block << "/" << current_k
+        << "]-> using original epsilon: " << input_ctx.partition.epsilon()
+        << ", inferred from max block weights " << max_block_weights[0] << " and "
+        << max_block_weights[1];
+
+    p_ctx.setup(graph, std::move(max_block_weights), true);
+  }
+
+  return p_ctx;
 }
 
 void extend_partition_recursive(
