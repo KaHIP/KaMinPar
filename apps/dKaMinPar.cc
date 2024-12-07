@@ -69,8 +69,7 @@ struct ApplicationContext {
 
   BlockID k = 0;
 
-  bool quiet = false;
-  bool experiment = false;
+  int verbosity = 0;
   bool check_input_graph = false;
 
   IOKind io_kind = IOKind::KAGEN;
@@ -129,7 +128,14 @@ The output should be stored in a file and can be used by the -C,--config option.
   // Application options
   cli.add_option("-s,--seed", app.seed, "Seed for random number generation.")
       ->default_val(app.seed);
-  cli.add_flag("-q,--quiet", app.quiet, "Suppress all console output.");
+
+  cli.add_flag_function("-q,--quiet", [&](auto) { app.verbosity = -1; }, "Suppress all output.");
+  cli.add_flag_function(
+      "-v,--verbose",
+      [&](const auto count) { app.verbosity = count; },
+      "Increase output verbosity; can be specified multiple times."
+  );
+
   cli.add_option("-t,--threads", app.num_threads, "Number of threads to be used.")
       ->check(CLI::NonNegativeNumber)
       ->default_val(app.num_threads);
@@ -166,7 +172,6 @@ The output should be stored in a file and can be used by the -C,--config option.
       ->description("The options used for generating the graph");
   cli.add_option("--io-skagen-chunks", app.io_skagen_chunks_per_pe)
       ->description("The number of chunks per PE that generation will be split into");
-  cli.add_flag("-E,--experiment", app.experiment, "Use an output format that is easier to parse.");
   cli.add_option(
       "--max-timer-depth", app.max_timer_depth, "Set maximum timer depth shown in result summary."
   );
@@ -265,7 +270,7 @@ NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
   if (app.check_input_graph) {
     generator.EnableUndirectedGraphVerification();
   }
-  if (app.experiment) {
+  if (app.verbosity > 1) {
     generator.EnableBasicStatistics();
     generator.EnableOutput(true);
   }
@@ -409,7 +414,7 @@ void run_partitioner(
 
   if (app.repetitions == 0) {
     partitioner.compute_partition(app.k, partition.data());
-    if (!app.quiet) {
+    if (app.verbosity >= 0) {
       report_max_rss();
     }
     return;
@@ -430,7 +435,7 @@ void run_partitioner(
       best_cut = cut;
     }
 
-    if (!app.quiet) {
+    if (app.verbosity >= 0) {
       report_max_rss();
     }
   }
@@ -486,9 +491,9 @@ int main(int argc, char *argv[]) {
   dKaMinPar partitioner(MPI_COMM_WORLD, app.num_threads, ctx);
   dKaMinPar::reseed(app.seed);
 
-  if (app.quiet) {
+  if (app.verbosity < 0) {
     partitioner.set_output_level(OutputLevel::QUIET);
-  } else if (app.experiment) {
+  } else if (app.verbosity == 1) {
     partitioner.set_output_level(OutputLevel::EXPERIMENT);
   }
 

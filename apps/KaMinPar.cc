@@ -60,10 +60,8 @@ struct ApplicationContext {
   std::vector<BlockWeight> max_block_weights = {};
   std::vector<double> max_block_weight_factors = {};
 
-  bool quiet = false;
-  bool experiment = false;
+  int verbosity = 0;
   bool validate = false;
-  bool debug = false;
 
   std::string graph_filename = "";
   io::GraphFileFormat input_graph_file_format = io::GraphFileFormat::METIS;
@@ -147,17 +145,18 @@ The output should be stored in a file and can be used by the -C,--config option.
 
   cli.add_option("-s,--seed", app.seed, "Seed for random number generation.")
       ->default_val(app.seed);
-  cli.add_flag("-q,--quiet", app.quiet, "Suppress all console output.");
+
+  cli.add_flag_function("-q,--quiet", [&](auto) { app.verbosity = -1; }, "Suppress all output.");
+  cli.add_flag_function(
+      "-v,--verbose",
+      [&](const auto count) { app.verbosity = count; },
+      "Increase output verbosity; can be specified multiple times."
+  );
+
   cli.add_option("-t,--threads", app.num_threads, "Number of threads to be used.")
       ->check(CLI::PositiveNumber)
       ->default_val(app.num_threads);
-  cli.add_flag("-E,--experiment", app.experiment, "Use an output format that is easier to parse.");
-  cli.add_flag(
-      "-D,--debug",
-      app.debug,
-      "Same as -E, but print additional debug information (that might impose a running time "
-      "penalty)."
-  );
+
   cli.add_option(
       "--max-timer-depth", app.max_timer_depth, "Set maximum timer depth shown in result summary."
   );
@@ -327,7 +326,7 @@ output_rearranged_graph(const ApplicationContext &app, const std::vector<BlockID
 }
 
 inline void print_rss(const ApplicationContext &app) {
-  if (!app.quiet) {
+  if (app.verbosity >= 0) {
     std::cout << "\n";
 
 #if defined(__linux__)
@@ -384,12 +383,12 @@ int main(int argc, char *argv[]) {
   KaMinPar partitioner(app.num_threads, ctx);
   KaMinPar::reseed(app.seed);
 
-  if (app.quiet) {
+  if (app.verbosity < 0) {
     partitioner.set_output_level(OutputLevel::QUIET);
-  } else if (app.debug) {
-    partitioner.set_output_level(OutputLevel::DEBUG);
-  } else if (app.experiment) {
+  } else if (app.verbosity == 1) {
     partitioner.set_output_level(OutputLevel::EXPERIMENT);
+  } else if (app.verbosity == 2) {
+    partitioner.set_output_level(OutputLevel::DEBUG);
   }
 
   partitioner.context().debug.graph_name = str::extract_basename(app.graph_filename);
