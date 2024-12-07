@@ -215,8 +215,8 @@ void KaMinPar::borrow_and_mutate_graph(
   const NodeID n = xadj.size() - 1;
   const EdgeID m = xadj[n];
 
-  RECORD("nodes") StaticArray<EdgeID> nodes(n + 1, xadj);
-  RECORD("edges") StaticArray<NodeID> edges(m, adjncy);
+  RECORD("nodes") StaticArray<EdgeID> nodes(n + 1, xadj.data());
+  RECORD("edges") StaticArray<NodeID> edges(m, adjncy.data());
   RECORD("node_weights")
   StaticArray<NodeWeight> node_weights =
       vwgt.empty() ? StaticArray<NodeWeight>(0) : StaticArray<NodeWeight>(n, vwgt.data());
