@@ -95,6 +95,7 @@ Context create_default_context() {
               .use_lazy_subgraph_memory = true,
               .vcycles = {},
               .restrict_vcycle_refinement = false,
+              .rb_enable_kway_toplevel_refinement = false,
           },
       .partition = {},
       .coarsening =
