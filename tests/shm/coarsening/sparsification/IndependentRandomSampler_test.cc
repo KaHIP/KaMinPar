@@ -41,9 +41,9 @@ TEST(IRTest, Testgraph) {
 }
 
 TEST(IRTest, NormalizationFactorForSmallGraph1) {
-  EXPECT_NEAR(ir_weight.normalizationFactor(testgraph, testgraph.raw_edge_weights(), 6), 0.2, 1e-6);
+  EXPECT_NEAR(ir_weight.exactNormalizationFactor(testgraph, testgraph.raw_edge_weights(), 6), 0.2, 1e-6);
 }
 TEST(IRTest, NormalizationFactorForSmallGraph2) {
-  EXPECT_NEAR(ir_weight.normalizationFactor(testgraph, testgraph.raw_edge_weights(), 4), 0.1, 1e-6);
+  EXPECT_NEAR(ir_weight.exactNormalizationFactor(testgraph, testgraph.raw_edge_weights(), 4), 0.1, 1e-6);
 }
 } // namespace kaminpar::shm::testing

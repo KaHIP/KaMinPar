@@ -107,6 +107,7 @@ enum class ScoreFunctionSection {
   WEIGHT,
   EFFECTIVE_RESISTANCE,
   FOREST_FIRE,
+  NETWORKIT_WEIGHTED_FOREST_FIRE,
   WEIGHTED_FOREST_FIRE,
 };
 
@@ -241,6 +242,7 @@ struct SparsificationContext {
   SparsificationTargetSelection target;
   float target_factor;
 
+  bool no_approx;
 };
 
 //

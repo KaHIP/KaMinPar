@@ -55,8 +55,8 @@ kaminpar_add_shm_test(test_shm_partition_utils shm/graphutils/partition_utils_te
 # KaMinPar -> Coarsening
 kaminpar_add_shm_test(test_shm_cluster_contraction shm/coarsening/cluster_contraction_test.cc)
 
-# Sparsification
-kaminpar_add_shm_test(test_shm_sparsification shm/coarsening/sparsification/IndependentRandomSampler_test.cc)
+# KaMinPar -> Coarsening
+kaminpar_add_shm_test(test_shm_sparsification_utils shm/coarsening/sparsification/sparsfication_utils_test.cc)
 
 # KaMinPar -> Data structures
 kaminpar_add_shm_test(test_shm_graph shm/datastructures/graph_test.cc)

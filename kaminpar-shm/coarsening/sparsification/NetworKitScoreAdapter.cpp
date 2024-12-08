@@ -6,8 +6,8 @@
 
 #include <networkit/graph/Graph.hpp>
 #include <networkit/sparsification/ForestFireScore.hpp>
-#include "WeightedForestFireScore.hpp"
 
+#include "NetworKitWeightedForestFireScore.hpp"
 #include "networkit_utils.h"
 #include "sparsification_utils.h"
 
@@ -38,6 +38,6 @@ StaticArray<Score> NetworKitScoreAdapter<EdgeScore, Score>::scores(const CSRGrap
   return scores;
 }
 template class NetworKitScoreAdapter<NetworKit::ForestFireScore, double>;
-template class NetworKitScoreAdapter<WeightedForestFireScore, double>;
+template class NetworKitScoreAdapter<NetworKitWeightedForestFireScore, double>;
 
 } // namespace kaminpar::shm::sparsification
