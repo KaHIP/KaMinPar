@@ -76,6 +76,11 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
   partitioning
       ->add_flag("--p-refine-after-extending", ctx.partitioning.refine_after_extending_partition)
       ->capture_default_str();
+  partitioning
+      ->add_flag(
+          "--p-rb-kway-toplevel-refinement", ctx.partitioning.rb_enable_kway_toplevel_refinement
+      )
+      ->capture_default_str();
 
   partitioning->add_option("--p-vcycles", ctx.partitioning.vcycles)->capture_default_str();
   partitioning

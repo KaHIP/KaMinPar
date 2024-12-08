@@ -35,6 +35,14 @@ PartitionedGraph RBMultilevelPartitioner::partition() {
   DISABLE_TIMERS();
   PartitionedGraph p_graph = partition_recursive(_input_graph, 0, 1);
   ENABLE_TIMERS();
+
+  if (_input_ctx.partitioning.rb_enable_kway_toplevel_refinement) {
+    SCOPED_TIMER("Toplevel Refinement");
+    auto refiner = factory::create_refiner(_input_ctx);
+    refiner->initialize(p_graph);
+    refiner->refine(p_graph, _input_ctx.partition);
+  }
+
   return p_graph;
 }
 
