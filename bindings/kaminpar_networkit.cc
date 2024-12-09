@@ -18,8 +18,13 @@
 
 namespace kaminpar {
 
+KaMinParNetworKit::KaMinParNetworKit(const int num_threads)
+    : KaMinParNetworKit(num_threads, shm::create_default_context()) {}
+
 KaMinParNetworKit::KaMinParNetworKit(const int num_threads, const shm::Context &ctx)
-    : KaMinPar(num_threads, ctx) {}
+    : KaMinPar(num_threads, ctx) {
+  set_output_level(kaminpar::OutputLevel::QUIET);
+}
 
 void KaMinParNetworKit::copy_graph(const NetworKit::Graph &graph) {
   using namespace kaminpar::shm;
