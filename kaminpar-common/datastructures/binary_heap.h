@@ -798,12 +798,12 @@ class DynamicBinaryMinMaxForest {
     DynamicBinaryForest(DynamicBinaryForest &&) noexcept = default;
     DynamicBinaryForest &operator=(DynamicBinaryForest &&) noexcept = default;
 
-    std::vector<HeapElement> *init(const std::size_t num_heaps) {
+    Container<HeapElement> *init(const std::size_t num_heaps) {
       _heaps.resize(num_heaps);
       return _heaps.data();
     }
 
-    void init_complementary_data(std::vector<HeapElement> *complementary_heaps) {
+    void init_complementary_data(Container<HeapElement> *complementary_heaps) {
       _complementary_heaps = complementary_heaps;
     }
 
@@ -917,8 +917,8 @@ class DynamicBinaryMinMaxForest {
       std::swap(_heaps[heap][a], _heaps[heap][b]);
     }
 
-    std::vector<std::vector<HeapElement>> _heaps;
-    std::vector<HeapElement> *_complementary_heaps;
+    Container<Container<HeapElement>> _heaps;
+    Container<HeapElement> *_complementary_heaps;
     Comparator<Key> _comparator{};
   };
 
@@ -1035,7 +1035,12 @@ private:
 };
 
 //! Dynamic binary heap, not addressable
-template <typename ID, typename Key, template <typename> typename Comparator>
+template <
+    typename ID,
+    typename Key,
+    template <typename>
+    typename Comparator,
+    template <typename...> typename Container = std::vector>
 class DynamicBinaryHeap {
   static constexpr std::size_t kTreeArity = 4;
 
@@ -1123,13 +1128,15 @@ private:
     }
   }
 
-  std::vector<HeapElement> _heap{};
+  Container<HeapElement> _heap{};
   Comparator<Key> _comparator{};
 };
 
-template <typename ID, typename Key>
-using DynamicBinaryMaxHeap = DynamicBinaryHeap<ID, Key, binary_heap::max_heap_comparator>;
+template <typename ID, typename Key, template <typename...> typename Container = std::vector>
+using DynamicBinaryMaxHeap =
+    DynamicBinaryHeap<ID, Key, binary_heap::max_heap_comparator, Container>;
 
-template <typename ID, typename Key>
-using DynamicBinaryMinHeap = DynamicBinaryHeap<ID, Key, binary_heap::min_heap_comparator>;
+template <typename ID, typename Key, template <typename...> typename Container = std::vector>
+using DynamicBinaryMinHeap =
+    DynamicBinaryHeap<ID, Key, binary_heap::min_heap_comparator, Container>;
 } // namespace kaminpar

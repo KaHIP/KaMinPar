@@ -15,6 +15,7 @@
 
 #include "kaminpar-common/datastructures/binary_heap.h"
 #include "kaminpar-common/datastructures/rating_map.h"
+#include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm {
@@ -23,7 +24,7 @@ using RelativeGain = double;
 template <typename Graph> class GreedyBalancerImpl;
 
 struct GreedyBalancerMemoryContext {
-  DynamicBinaryMinMaxForest<NodeID, RelativeGain, StaticArray> pq;
+  DynamicBinaryMinMaxForest<NodeID, RelativeGain, ScalableVector> pq;
   tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> rating_map;
   tbb::enumerable_thread_specific<std::vector<BlockID>> feasible_target_blocks;
   StaticArray<std::uint8_t> moved_nodes;

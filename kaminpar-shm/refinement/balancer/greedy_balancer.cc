@@ -264,12 +264,14 @@ private:
 
     const BlockID k = _p_graph->k();
 
-    using PQs = std::vector<DynamicBinaryMinHeap<NodeID, RelativeGain>>;
+    using PQs = std::vector<DynamicBinaryMinHeap<NodeID, RelativeGain, ScalableVector>>;
     tbb::enumerable_thread_specific<PQs> local_pq{[&] {
       return PQs(k);
     }};
-    tbb::enumerable_thread_specific<std::vector<NodeWeight>> local_pq_weight{[&] {
-      return std::vector<NodeWeight>(k);
+
+    using PQWeights = std::vector<NodeWeight>;
+    tbb::enumerable_thread_specific<PQWeights> local_pq_weight{[&] {
+      return PQWeights(k);
     }};
 
     // build thread-local PQs: one PQ for each thread and block, each PQ for block
@@ -438,7 +440,7 @@ private:
   PartitionedGraph *_p_graph;
   const Graph *_graph;
 
-  DynamicBinaryMinMaxForest<NodeID, RelativeGain, StaticArray> _pq;
+  DynamicBinaryMinMaxForest<NodeID, RelativeGain, ScalableVector> _pq;
   mutable tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> _rating_map;
   tbb::enumerable_thread_specific<std::vector<BlockID>> _feasible_target_blocks;
   StaticArray<std::uint8_t> _moved_nodes;
