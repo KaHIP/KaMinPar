@@ -162,7 +162,7 @@ private:
 
         const NodeID u = _pq.peek_max_id(from);
         const NodeWeight u_weight = _graph->node_weight(u);
-        const double expected_relative_gain = _pq.peek_max_key(from);
+        const RelativeGain expected_relative_gain = _pq.peek_max_key(from);
         _pq.pop_max(from);
         _pq_weight[from] -= u_weight;
         KASSERT(_moved_nodes[u] == 1);
@@ -232,8 +232,9 @@ private:
     return add_to_pq(b, u, _graph->node_weight(u), rel_gain);
   }
 
-  bool
-  add_to_pq(const BlockID b, const NodeID u, const NodeWeight u_weight, const double rel_gain) {
+  bool add_to_pq(
+      const BlockID b, const NodeID u, const NodeWeight u_weight, const RelativeGain rel_gain
+  ) {
     KASSERT(u_weight == _graph->node_weight(u));
     KASSERT(b == _p_graph->block(u));
 
@@ -263,11 +264,10 @@ private:
 
     const BlockID k = _p_graph->k();
 
-    tbb::enumerable_thread_specific<std::vector<DynamicBinaryMinHeap<NodeID, double>>> local_pq{
-        [&] {
-          return std::vector<DynamicBinaryMinHeap<NodeID, double>>(k);
-        }
-    };
+    using PQs = std::vector<DynamicBinaryMinHeap<NodeID, RelativeGain>>;
+    tbb::enumerable_thread_specific<PQs> local_pq{[&] {
+      return PQs(k);
+    }};
     tbb::enumerable_thread_specific<std::vector<NodeWeight>> local_pq_weight{[&] {
       return std::vector<NodeWeight>(k);
     }};
@@ -327,7 +327,7 @@ private:
     _stats.total_pq_sizes = _pq.size();
   }
 
-  [[nodiscard]] std::pair<BlockID, double>
+  [[nodiscard]] std::pair<BlockID, RelativeGain>
   compute_gain(const NodeID u, const BlockID u_block) const {
     const NodeWeight u_weight = _graph->node_weight(u);
     BlockID max_gainer = u_block;
@@ -362,7 +362,7 @@ private:
 
     // compute absolute and relative gain based on internal degree / external gain
     const EdgeWeight gain = max_external_gain - internal_degree;
-    const double relative_gain = compute_relative_gain(gain, u_weight);
+    const RelativeGain relative_gain = compute_relative_gain(gain, u_weight);
     return {max_gainer, relative_gain};
   }
 
@@ -425,12 +425,12 @@ private:
     return std::max<BlockWeight>(0, _p_graph->block_weight(b) - _p_ctx->max_block_weight(b));
   }
 
-  [[nodiscard]] static inline double
+  [[nodiscard]] static inline RelativeGain
   compute_relative_gain(const EdgeWeight absolute_gain, const NodeWeight weight) {
     if (absolute_gain >= 0) {
       return absolute_gain * weight;
     } else {
-      return 1.0 * absolute_gain / weight;
+      return static_cast<RelativeGain>(absolute_gain) / weight;
     }
   }
 
@@ -438,7 +438,7 @@ private:
   PartitionedGraph *_p_graph;
   const Graph *_graph;
 
-  DynamicBinaryMinMaxForest<NodeID, double, StaticArray> _pq;
+  DynamicBinaryMinMaxForest<NodeID, RelativeGain, StaticArray> _pq;
   mutable tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> _rating_map;
   tbb::enumerable_thread_specific<std::vector<BlockID>> _feasible_target_blocks;
   StaticArray<std::uint8_t> _moved_nodes;

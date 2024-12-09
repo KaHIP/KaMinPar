@@ -18,11 +18,12 @@
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm {
+using RelativeGain = double;
 
 template <typename Graph> class GreedyBalancerImpl;
 
 struct GreedyBalancerMemoryContext {
-  DynamicBinaryMinMaxForest<NodeID, double, StaticArray> pq;
+  DynamicBinaryMinMaxForest<NodeID, RelativeGain, StaticArray> pq;
   tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> rating_map;
   tbb::enumerable_thread_specific<std::vector<BlockID>> feasible_target_blocks;
   StaticArray<std::uint8_t> moved_nodes;
