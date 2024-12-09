@@ -39,11 +39,11 @@ void KaMinParNetworKit::copy_graph(const NetworKit::Graph &graph) {
   const bool has_edge_weights = graph.isWeighted();
   StaticArray<EdgeWeight> adjwgt(has_edge_weights ? m : 0);
 
-  StaticArray<NodeID> adjncy(m);
+  StaticArray<NodeID> adjncy(2 * m);
   graph.parallelForEdges(
       [&](const NetworKit::node u, const NetworKit::node v, const NetworKit::edgeweight weight) {
-        const std::size_t u_pos = __atomic_sub_fetch(&xadj[u], 1, __ATOMIC_RELAXED) - 1;
-        const std::size_t v_pos = __atomic_sub_fetch(&xadj[v], 1, __ATOMIC_RELAXED) - 1;
+        const std::size_t u_pos = __atomic_sub_fetch(&xadj[u], 1, __ATOMIC_RELAXED);
+        const std::size_t v_pos = __atomic_sub_fetch(&xadj[v], 1, __ATOMIC_RELAXED);
         adjncy[u_pos] = v;
         adjncy[v_pos] = u;
         if (has_edge_weights) {
@@ -52,6 +52,7 @@ void KaMinParNetworKit::copy_graph(const NetworKit::Graph &graph) {
         }
       }
   );
+  xadj.back() = 2 * m;
 
   this->set_graph({std::make_unique<CSRGraph>(
       std::move(xadj), std::move(adjncy), StaticArray<NodeWeight>{}, std::move(adjwgt)

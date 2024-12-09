@@ -384,14 +384,14 @@ if (KAMINPAR_BUILD_TESTS)
     add_subdirectory(tests)
 endif ()
 
-# Examples
-if (KAMINPAR_BUILD_EXAMPLES)
-    add_subdirectory(examples)
-endif ()
-
 # Bindings 
 if (KAMINPAR_BUILD_BINDINGS)
     add_subdirectory(bindings)
+endif ()
+
+# Examples
+if (KAMINPAR_BUILD_EXAMPLES)
+    add_subdirectory(examples)
 endif ()
 
 ################################################################################
