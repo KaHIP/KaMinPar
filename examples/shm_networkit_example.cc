@@ -6,7 +6,8 @@
 
 int main(int argc, char *argv[]) {
   if (argc != 3) {
-    std::cerr << "usage: ./ShmNetworKitExample <graph.metis> <k>\n";
+    std::cerr << "This example uses NetworKit to load a graph, then partition it using KaMinPar.\n";
+    std::cerr << "Usage: ./ShmNetworKitExample <graph.metis> <k>\n";
     return 1;
   }
 
@@ -17,10 +18,9 @@ int main(int argc, char *argv[]) {
   std::vector<kaminpar::shm::BlockID> partition(graph.numberOfNodes());
 
   kaminpar::KaMinParNetworKit kaminpar(4, kaminpar::shm::create_default_context());
-  kaminpar.set_output_level(kaminpar::OutputLevel::DEBUG);
+  kaminpar.set_output_level(kaminpar::OutputLevel::QUIET);
   kaminpar.copy_graph(graph);
   const kaminpar::shm::EdgeWeight cut = kaminpar.compute_partition(k, 0.03, partition);
 
-  std::cout << std::endl;
   std::cout << "Edge cut: " << cut << std::endl;
 }
