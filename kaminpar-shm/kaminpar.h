@@ -770,7 +770,7 @@ public:
 
   const shm::Graph *graph();
 
-private:
+protected:
   shm::EdgeWeight compute_partition(std::span<shm::BlockID> partition);
 
   int _num_threads;
