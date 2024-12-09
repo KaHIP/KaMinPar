@@ -25,6 +25,7 @@ option(KAMINPAR_BUILD_APPS "Build binaries." ON)
 option(KAMINPAR_BUILD_BENCHMARKS "Build benchmark binaries." OFF)
 option(KAMINPAR_BUILD_TOOLS "Build tool binaries." OFF)
 option(KAMINPAR_BUILD_EXAMPLES "Build examples." OFF)
+option(KAMINPAR_BUILD_BINDINGS "Build language and framework bindings." OFF)
 
 option(KAMINPAR_BUILD_EXPERIMENTAL_FEATURES "Include experimental features in the build. This might increase compile times drastically." OFF)
 
@@ -386,6 +387,11 @@ endif ()
 # Examples
 if (KAMINPAR_BUILD_EXAMPLES)
     add_subdirectory(examples)
+endif ()
+
+# Bindings 
+if (KAMINPAR_BUILD_BINDINGS)
+    add_subdirectory(bindings)
 endif ()
 
 ################################################################################
