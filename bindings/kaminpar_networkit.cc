@@ -18,11 +18,10 @@
 
 namespace kaminpar {
 
-KaMinParNetworKit::KaMinParNetworKit(const int num_threads, const kaminpar::shm::Context &ctx)
+KaMinParNetworKit::KaMinParNetworKit(const int num_threads, const shm::Context &ctx)
     : KaMinPar(num_threads, ctx) {}
 
 void KaMinParNetworKit::copy_graph(const NetworKit::Graph &graph) {
-  using namespace kaminpar;
   using namespace kaminpar::shm;
 
   if (graph.isDirected()) {
@@ -57,6 +56,49 @@ void KaMinParNetworKit::copy_graph(const NetworKit::Graph &graph) {
   this->set_graph({std::make_unique<CSRGraph>(
       std::move(xadj), std::move(adjncy), StaticArray<NodeWeight>{}, std::move(adjwgt)
   )});
+}
+
+namespace {
+
+template <typename Lambda>
+NetworKit::Partition compute_partition_generic(KaMinParNetworKit &shm, Lambda &&lambda) {
+  using namespace kaminpar::shm;
+
+  NetworKit::Partition partition(shm.graph()->n());
+  StaticArray<BlockID> partition_vec(shm.graph()->n());
+
+  lambda(partition_vec);
+  shm.graph()->pfor_nodes([&](const NodeID u) { partition[u] = partition_vec[u]; });
+
+  return partition;
+}
+
+} // namespace
+
+NetworKit::Partition KaMinParNetworKit::compute_partition(shm::BlockID k) {
+  return compute_partition_generic(*this, [&](StaticArray<shm::BlockID> &vec) {
+    this->compute_partition(k, vec);
+  });
+}
+
+NetworKit::Partition KaMinParNetworKit::compute_partition(shm::BlockID k, double epsilon) {
+  return compute_partition_generic(*this, [&](StaticArray<shm::BlockID> &vec) {
+    this->compute_partition(k, epsilon, vec);
+  });
+}
+
+NetworKit::Partition
+KaMinParNetworKit::compute_partition(std::vector<double> max_block_weight_factors) {
+  return compute_partition_generic(*this, [&](StaticArray<shm::BlockID> &vec) {
+    this->compute_partition(std::move(max_block_weight_factors), vec);
+  });
+}
+
+NetworKit::Partition
+KaMinParNetworKit::compute_partition(std::vector<shm::BlockWeight> max_block_weights) {
+  return compute_partition_generic(*this, [&](StaticArray<shm::BlockID> &vec) {
+    this->compute_partition(std::move(max_block_weights), vec);
+  });
 }
 
 } // namespace kaminpar
