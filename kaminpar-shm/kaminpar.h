@@ -7,6 +7,7 @@
  ******************************************************************************/
 #pragma once
 
+#ifdef __cplusplus
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -19,11 +20,16 @@
 #include <vector>
 
 #include <tbb/global_control.h>
+#endif // __cplusplus
+
+#include <stdbool.h>
+#include <stdint.h>
 
 #define KAMINPAR_VERSION_MAJOR 3
 #define KAMINPAR_VERSION_MINOR 0
 #define KAMINPAR_VERSION_PATCH 0
 
+#ifdef __cplusplus
 namespace kaminpar {
 
 enum class OutputLevel : std::uint8_t {
@@ -35,8 +41,20 @@ enum class OutputLevel : std::uint8_t {
 };
 
 } // namespace kaminpar
+#endif // __cplusplus
 
+// C interface:
+typedef enum {
+  KAMINPAR_OUTPUT_LEVEL_QUIET = 0,
+  KAMINPAR_OUTPUT_LEVEL_PROGRESS = 1,
+  KAMINPAR_OUTPUT_LEVEL_APPLICATION = 2,
+  KAMINPAR_OUTPUT_LEVEL_EXPERIMENT = 3,
+  KAMINPAR_OUTPUT_LEVEL_DEBUG = 4,
+} kaminpar_output_level_t;
+
+#ifdef __cplusplus
 namespace kaminpar::shm {
+
 #ifdef KAMINPAR_64BIT_NODE_IDS
 using NodeID = std::uint64_t;
 #else  // KAMINPAR_64BIT_NODE_IDS
@@ -70,6 +88,40 @@ constexpr EdgeID kInvalidEdgeID = std::numeric_limits<EdgeID>::max();
 constexpr NodeWeight kInvalidNodeWeight = std::numeric_limits<NodeWeight>::max();
 constexpr EdgeWeight kInvalidEdgeWeight = std::numeric_limits<EdgeWeight>::max();
 constexpr BlockWeight kInvalidBlockWeight = std::numeric_limits<BlockWeight>::max();
+
+} // namespace kaminpar::shm
+#endif // __cplusplus
+
+// C interface:
+#ifdef KAMINPAR_64BIT_NODE_IDS
+typedef uint64_t kaminpar_node_id_t;
+#else  // KAMINPAR_64BIT_NODE_IDS
+typedef uint32_t kaminpar_node_id_t;
+#endif // KAMINPAR_64BIT_NODE_IDS
+
+#ifdef KAMINPAR_64BIT_EDGE_IDS
+typedef uint64_t kaminpar_edge_id_t;
+#else  // KAMINPAR_64BIT_EDGE_IDS
+typedef uint32_t kaminpar_edge_id_t;
+#endif // KAMINPAR_64BIT_EDGE_IDS
+
+#ifdef KAMINPAR_64BIT_WEIGHTS
+typedef int64_t kaminpar_node_weight_t;
+typedef int64_t kaminpar_edge_weight_t;
+typedef uint64_t kaminpar_unsigned_edge_weight_t;
+typedef uint64_t kaminpar_unsigned_node_weight_t;
+#else  // KAMINPAR_64BIT_WEIGHTS
+typedef int32_t kaminpar_node_weight_t;
+typedef int32_t kaminpar_edge_weight_t;
+typedef uint32_t kaminpar_unsigned_edge_weight_t;
+typedef uint32_t kaminpar_unsigned_node_weight_t;
+#endif // KAMINPAR_64BIT_WEIGHTS
+
+typedef uint32_t kaminpar_block_id_t;
+typedef kaminpar_node_weight_t kaminpar_block_weight_t;
+
+#ifdef __cplusplus
+namespace kaminpar::shm {
 
 enum class NodeOrdering {
   NATURAL,
@@ -520,11 +572,13 @@ struct Context {
 };
 
 } // namespace kaminpar::shm
+#endif // __cplusplus
 
 //
 // Configuration presets
 //
 
+#ifdef __cplusplus
 namespace kaminpar::shm {
 
 std::unordered_set<std::string> get_preset_names();
@@ -549,11 +603,31 @@ Context create_noref_context();
 Context create_vcycle_context(bool restrict_refinement = false);
 
 } // namespace kaminpar::shm
+#endif // __cplusplus
+
+// C interface
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
+
+typedef struct kaminpar_context_t kaminpar_context_t;
+kaminpar_context_t *kaminpar_create_context_by_preset_name(const char *name);
+kaminpar_context_t *kaminpar_create_default_context();
+kaminpar_context_t *kaminpar_create_strong_context();
+kaminpar_context_t *kaminpar_create_terapart_context();
+kaminpar_context_t *kaminpar_create_largek_context();
+kaminpar_context_t *kaminpar_create_vcycle_context(bool restrict_refinement);
+void kaminpar_context_free(kaminpar_context_t *ctx);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif // __cplusplus
 
 //
 // Shared-memory partitioner interface
 //
 
+#ifdef __cplusplus
 namespace kaminpar {
 
 namespace shm {
@@ -712,3 +786,61 @@ private:
 };
 
 } // namespace kaminpar
+#endif // __cplusplus
+
+// C interface
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
+
+typedef struct kaminpar_t kaminpar_t;
+
+kaminpar_t *kaminpar_create(int num_threads, kaminpar_context_t *ctx);
+void kaminpar_free(kaminpar_t *kaminpar);
+
+void kaminpar_set_output_level(kaminpar_t *kaminpar, kaminpar_output_level_t output_level);
+void kaminpar_set_max_timer_depth(kaminpar_t *kaminpar, int max_timer_depth);
+
+void kaminpar_copy_graph(
+    kaminpar_t *kaminpar,
+    kaminpar_node_id_t n,
+    const kaminpar_edge_id_t *xadj,
+    const kaminpar_node_id_t *adjncy,
+    const kaminpar_node_weight_t *vwgt,
+    const kaminpar_edge_weight_t *adjwgt
+);
+
+void kaminpar_borrow_and_mutate_graph(
+    kaminpar_t *kaminpar,
+    kaminpar_node_id_t n,
+    kaminpar_edge_id_t *xadj,
+    kaminpar_node_id_t *adjncy,
+    kaminpar_node_weight_t *vwgt,
+    kaminpar_edge_weight_t *adjwgt
+);
+
+kaminpar_edge_weight_t kaminpar_compute_partition(
+    kaminpar_t *kaminpar, kaminpar_block_id_t k, kaminpar_block_id_t *partition
+);
+
+kaminpar_edge_weight_t kaminpar_compute_partition_with_epsilon(
+    kaminpar_t *kaminpar, kaminpar_block_id_t k, double epsilon, kaminpar_block_id_t *partition
+);
+
+kaminpar_edge_weight_t kaminpar_compute_partition_with_max_block_weight_factors(
+    kaminpar_t *kaminpar,
+    kaminpar_block_id_t k,
+    const double *max_block_weight_factors,
+    kaminpar_block_id_t *partition
+);
+
+kaminpar_edge_weight_t kaminpar_compute_partition_with_max_block_weights(
+    kaminpar_t *kaminpar,
+    kaminpar_block_id_t k,
+    const kaminpar_block_weight_t *max_block_weights,
+    kaminpar_block_id_t *partition
+);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif // __cplusplus
