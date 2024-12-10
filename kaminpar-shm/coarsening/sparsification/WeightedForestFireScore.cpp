@@ -16,6 +16,8 @@ StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
   tbb::parallel_for(0ul, burnt.size(), [&](auto i) { burnt[i] = 0; });
   EdgeID edges_burnt = 0;
 
+  tbb::concurrent_vector<EdgeID> numbers_of_edges_burnt;
+
   int number_of_fires = 0;
   tbb::parallel_for(0, tbb::this_task_arena::max_concurrency(), [&](auto) {
     while (edges_burnt < _targetBurnRatio * g.m()) {
@@ -59,19 +61,43 @@ StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
           visited[x] = true;
         }
       }
-
       __atomic_add_fetch(&edges_burnt, localEdgesBurnt, __ATOMIC_RELAXED);
+      numbers_of_edges_burnt.push_back(localEdgesBurnt);
     }
   });
-  printf(
-      " **[ %d fires have burned %d edges with the target being %f ]** \n",
-      number_of_fires,
-      edges_burnt,
-      _targetBurnRatio * g.m()
-  );
+
+  print_fire_statistics(g, edges_burnt, number_of_fires, numbers_of_edges_burnt);
 
   // Not normalized unlike in the NetworKit implementation
   return burnt;
+}
+
+void WeightedForestFireScore::print_fire_statistics(
+    const CSRGraph &g,
+    EdgeID edges_burnt,
+    int number_of_fires,
+    tbb::concurrent_vector<EdgeID> numbers_of_edges_burnt
+) {
+  const auto default_precision{std::cout.precision()};
+  std::cout << std::setprecision(4);
+
+  double average = static_cast<double>(edges_burnt) / number_of_fires;
+  double variance = 0;
+  for (auto x : numbers_of_edges_burnt) {
+    double local_burnt = static_cast<double>(x);
+    variance += (local_burnt - average) * (local_burnt - average) / (number_of_fires - 1);
+  }
+
+  std::cout << "** targetBurntRatio=" << _targetBurnRatio << ", pf=" << _pf << "\n";
+  std::cout << "** m=" << g.m() << ", n=" << g.n() << "\n";
+  std::cout << "** " << number_of_fires << " fires have burned " << edges_burnt << " edges\n";
+  std::cout << "** edges burnt per fire: avg=" << average << ", var=" << variance << " min="
+            << *std::min_element(numbers_of_edges_burnt.begin(), numbers_of_edges_burnt.end())
+            << ", max="
+            << *std::max_element(numbers_of_edges_burnt.begin(), numbers_of_edges_burnt.end())
+            << "\n";
+
+  std::cout << std::setprecision(default_precision);
 }
 
 } // namespace kaminpar::shm::sparsification
