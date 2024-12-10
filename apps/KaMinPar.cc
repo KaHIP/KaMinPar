@@ -153,8 +153,7 @@ The output should be stored in a file and can be used by the -C,--config option.
       "Increase output verbosity; can be specified multiple times."
   );
 
-  cli.add_option("-t,--threads", app.num_threads, "Number of threads to be used.")
-      ->check(CLI::PositiveNumber)
+  cli.add_option("-t,--threads", app.num_threads, "Number of threads to be used. Set 0 to use all.")
       ->default_val(app.num_threads);
 
   cli.add_option(

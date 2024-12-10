@@ -181,9 +181,9 @@ void print_statistics(
 using namespace shm;
 
 KaMinPar::KaMinPar(const int num_threads, Context ctx)
-    : _num_threads(num_threads),
+    : _num_threads(num_threads == 0 ? tbb::this_task_arena::max_concurrency() : num_threads),
       _ctx(std::move(ctx)),
-      _gc(tbb::global_control::max_allowed_parallelism, num_threads) {
+      _gc(tbb::global_control::max_allowed_parallelism, _num_threads) {
 #ifdef KAMINPAR_ENABLE_TIMERS
   GLOBAL_TIMER.reset();
 #endif // KAMINPAR_ENABLE_TIMERS
