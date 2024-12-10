@@ -82,27 +82,27 @@ NetworKit::Partition compute_partition_generic(KaMinParNetworKit &shm, Lambda &&
 
 NetworKit::Partition KaMinParNetworKit::compute_partition(shm::BlockID k) {
   return compute_partition_generic(*this, [&](StaticArray<shm::BlockID> &vec) {
-    this->compute_partition(k, vec);
+    KaMinPar::compute_partition(k, vec);
   });
 }
 
 NetworKit::Partition KaMinParNetworKit::compute_partition(shm::BlockID k, double epsilon) {
   return compute_partition_generic(*this, [&](StaticArray<shm::BlockID> &vec) {
-    this->compute_partition(k, epsilon, vec);
+    KaMinPar::compute_partition(k, epsilon, vec);
   });
 }
 
 NetworKit::Partition
 KaMinParNetworKit::compute_partition(std::vector<double> max_block_weight_factors) {
   return compute_partition_generic(*this, [&](StaticArray<shm::BlockID> &vec) {
-    this->compute_partition(std::move(max_block_weight_factors), vec);
+    KaMinPar::compute_partition(std::move(max_block_weight_factors), vec);
   });
 }
 
 NetworKit::Partition
 KaMinParNetworKit::compute_partition(std::vector<shm::BlockWeight> max_block_weights) {
   return compute_partition_generic(*this, [&](StaticArray<shm::BlockID> &vec) {
-    this->compute_partition(std::move(max_block_weights), vec);
+    KaMinPar::compute_partition(std::move(max_block_weights), vec);
   });
 }
 

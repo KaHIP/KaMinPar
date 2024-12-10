@@ -14,8 +14,6 @@
 namespace kaminpar {
 
 class KaMinParNetworKit : public KaMinPar {
-  using KaMinPar::compute_partition;
-
 public:
   KaMinParNetworKit(int num_threads);
   KaMinParNetworKit(int num_threads, const kaminpar::shm::Context &ctx);
