@@ -4,8 +4,7 @@ import kaminpar as ka
 G = nk.readGraph("~/Graphs/144.metis", nk.Format.METIS)
 nk.overview(G)
 
-shm = ka.KaMinPar(6)
-shm.copy_graph(G)
-part = shm.compute_partition(4)
+shm = ka.KaMinPar(G)
+part = shm.computePartitionWithFactors([0.53, 0.253, 0.253])
 
 print("Edge cut: ", nk.community.EdgeCut().getQuality(part, G))

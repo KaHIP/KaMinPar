@@ -18,41 +18,39 @@
 
 namespace kaminpar {
 
-KaMinParNetworKit::KaMinParNetworKit(const int num_threads)
-    : KaMinParNetworKit(num_threads, shm::create_default_context()) {}
-
-KaMinParNetworKit::KaMinParNetworKit(const int num_threads, const shm::Context &ctx)
-    : KaMinPar(num_threads, ctx) {
-  set_output_level(kaminpar::OutputLevel::QUIET);
+KaMinParNetworKit::KaMinParNetworKit(const NetworKit::Graph &G)
+    : KaMinPar(0, shm::create_default_context()) {
+  KaMinPar::set_output_level(kaminpar::OutputLevel::QUIET);
+  copyGraph(G);
 }
 
-void KaMinParNetworKit::copy_graph(const NetworKit::Graph &graph) {
+void KaMinParNetworKit::copyGraph(const NetworKit::Graph &G) {
   using namespace kaminpar::shm;
 
-  if (graph.isDirected()) {
+  if (G.isDirected()) {
     throw std::invalid_argument("KaMinParNetworKit only supports undirected graphs.");
   }
 
-  const NodeID n = graph.numberOfNodes();
-  const EdgeID m = graph.numberOfEdges();
+  const NodeID n = G.numberOfNodes();
+  const EdgeID m = G.numberOfEdges();
 
   StaticArray<EdgeID> xadj(n + 1);
-  graph.parallelForNodes([&](const NodeID u) { xadj[u] = graph.degree(u); });
+  G.parallelForNodes([&](const NodeID u) { xadj[u] = G.degree(u); });
   parallel::prefix_sum(xadj.begin(), xadj.end(), xadj.begin());
 
-  const bool has_edge_weights = graph.isWeighted();
-  StaticArray<EdgeWeight> adjwgt(has_edge_weights ? m : 0);
+  const bool hasEdgeWeights = G.isWeighted();
+  StaticArray<EdgeWeight> adjwgt(hasEdgeWeights ? m : 0);
 
   StaticArray<NodeID> adjncy(2 * m);
-  graph.parallelForEdges(
+  G.parallelForEdges(
       [&](const NetworKit::node u, const NetworKit::node v, const NetworKit::edgeweight weight) {
-        const std::size_t u_pos = __atomic_sub_fetch(&xadj[u], 1, __ATOMIC_RELAXED);
-        const std::size_t v_pos = __atomic_sub_fetch(&xadj[v], 1, __ATOMIC_RELAXED);
-        adjncy[u_pos] = v;
-        adjncy[v_pos] = u;
-        if (has_edge_weights) {
-          adjwgt[u_pos] = weight;
-          adjwgt[v_pos] = weight;
+        const std::size_t uPos = __atomic_sub_fetch(&xadj[u], 1, __ATOMIC_RELAXED);
+        const std::size_t vPos = __atomic_sub_fetch(&xadj[v], 1, __ATOMIC_RELAXED);
+        adjncy[uPos] = v;
+        adjncy[vPos] = u;
+        if (hasEdgeWeights) {
+          adjwgt[uPos] = weight;
+          adjwgt[vPos] = weight;
         }
       }
   );
@@ -66,43 +64,44 @@ void KaMinParNetworKit::copy_graph(const NetworKit::Graph &graph) {
 namespace {
 
 template <typename Lambda>
-NetworKit::Partition compute_partition_generic(KaMinParNetworKit &shm, Lambda &&lambda) {
+NetworKit::Partition computePartitionGeneric(KaMinParNetworKit &shm, Lambda &&lambda) {
   using namespace kaminpar::shm;
 
   NetworKit::Partition partition(shm.graph()->n());
-  StaticArray<BlockID> partition_vec(shm.graph()->n());
+  StaticArray<BlockID> partitionVec(shm.graph()->n());
 
-  lambda(partition_vec);
-  shm.graph()->pfor_nodes([&](const NodeID u) { partition[u] = partition_vec[u]; });
+  lambda(partitionVec);
+  shm.graph()->pfor_nodes([&](const NodeID u) { partition[u] = partitionVec[u]; });
 
   return partition;
 }
 
 } // namespace
 
-NetworKit::Partition KaMinParNetworKit::compute_partition(shm::BlockID k) {
-  return compute_partition_generic(*this, [&](StaticArray<shm::BlockID> &vec) {
+NetworKit::Partition KaMinParNetworKit::computePartition(shm::BlockID k) {
+  return computePartitionGeneric(*this, [&](StaticArray<shm::BlockID> &vec) {
     KaMinPar::compute_partition(k, vec);
   });
 }
 
-NetworKit::Partition KaMinParNetworKit::compute_partition(shm::BlockID k, double epsilon) {
-  return compute_partition_generic(*this, [&](StaticArray<shm::BlockID> &vec) {
+NetworKit::Partition
+KaMinParNetworKit::computePartitionWithEpsilon(shm::BlockID k, double epsilon) {
+  return computePartitionGeneric(*this, [&](StaticArray<shm::BlockID> &vec) {
     KaMinPar::compute_partition(k, epsilon, vec);
   });
 }
 
 NetworKit::Partition
-KaMinParNetworKit::compute_partition(std::vector<double> max_block_weight_factors) {
-  return compute_partition_generic(*this, [&](StaticArray<shm::BlockID> &vec) {
-    KaMinPar::compute_partition(std::move(max_block_weight_factors), vec);
+KaMinParNetworKit::computePartitionWithFactors(std::vector<double> maxBlockWeightFactors) {
+  return computePartitionGeneric(*this, [&](StaticArray<shm::BlockID> &vec) {
+    KaMinPar::compute_partition(std::move(maxBlockWeightFactors), vec);
   });
 }
 
 NetworKit::Partition
-KaMinParNetworKit::compute_partition(std::vector<shm::BlockWeight> max_block_weights) {
-  return compute_partition_generic(*this, [&](StaticArray<shm::BlockID> &vec) {
-    KaMinPar::compute_partition(std::move(max_block_weights), vec);
+KaMinParNetworKit::computePartitionWithWeights(std::vector<shm::BlockWeight> maxBlockWeights) {
+  return computePartitionGeneric(*this, [&](StaticArray<shm::BlockID> &vec) {
+    KaMinPar::compute_partition(std::move(maxBlockWeights), vec);
   });
 }
 

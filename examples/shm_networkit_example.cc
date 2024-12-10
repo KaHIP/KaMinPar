@@ -17,11 +17,8 @@ int main(int argc, char *argv[]) {
 
   NetworKit::Graph graph = NetworKit::METISGraphReader().read(graph_filename);
 
-  kaminpar::KaMinParNetworKit kaminpar(4, kaminpar::shm::create_default_context());
-  kaminpar.set_output_level(kaminpar::OutputLevel::QUIET);
-  kaminpar.copy_graph(graph);
-
-  NetworKit::Partition partition = kaminpar.compute_partition(k);
+  kaminpar::KaMinParNetworKit kaminpar(graph);
+  NetworKit::Partition partition = kaminpar.computePartition(k);
 
   const double cut = NetworKit::EdgeCut().getQuality(partition, graph);
   std::cout << "Edge cut via NetworKit::EdgeCut::getQuality(): " << cut << std::endl;
