@@ -243,6 +243,9 @@ struct SparsificationContext {
   float target_factor;
 
   bool no_approx;
+
+  float wff_target_burnt_ratio;
+  float wff_pf;
 };
 
 //

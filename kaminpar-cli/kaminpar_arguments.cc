@@ -169,6 +169,13 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
       ->description("Disables some approximations of sparsification algorithms.")
       ->default_val(false);
 
+  coarsening->add_option("--s-wff-tbr", ctx.sparsification.wff_target_burnt_ratio)
+      ->description("Target burn ratio of the Weighted Forest Fire (WFF) score")
+      ->default_val(5);
+  coarsening->add_option("--s-wff-pf", ctx.sparsification.wff_pf)
+      ->description("The probability which parameterizes the geometrically distributed number of "
+                    "neighbors to burn")
+      ->default_val(.95);
   coarsening
       ->add_option(
           "--c-contraction-limit",

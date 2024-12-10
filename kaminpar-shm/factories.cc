@@ -148,13 +148,17 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
       return std::make_unique<sparsification::RandomWithReplacementSampler<double>>(
           std::make_unique<sparsification::NetworKitScoreAdapter<
               sparsification::NetworKitWeightedForestFireScore,
-              double>>([](const NetworKit::Graph &g) {
-            return sparsification::NetworKitWeightedForestFireScore(g, 0.95, 5);
+              double>>([&](const NetworKit::Graph &g) {
+            return sparsification::NetworKitWeightedForestFireScore(
+                g, ctx.sparsification.wff_pf, ctx.sparsification.wff_target_burnt_ratio
+            );
           })
       );
     case ScoreFunctionSection::WEIGHTED_FOREST_FIRE:
       return std::make_unique<sparsification::RandomWithReplacementSampler<EdgeID>>(
-          std::make_unique<sparsification::WeightedForestFireScore>(0.95, 5)
+          std::make_unique<sparsification::WeightedForestFireScore>(
+              ctx.sparsification.wff_pf, ctx.sparsification.wff_target_burnt_ratio
+          )
       );
     case ScoreFunctionSection::EFFECTIVE_RESISTANCE:
       return std::make_unique<sparsification::RandomWithReplacementSampler<double>>(
@@ -179,13 +183,17 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
       return std::make_unique<sparsification::RandomWithoutReplacementSampler<double>>(
           std::make_unique<sparsification::NetworKitScoreAdapter<
               sparsification::NetworKitWeightedForestFireScore,
-              double>>([](const NetworKit::Graph &g) {
-            return sparsification::NetworKitWeightedForestFireScore(g, 0.95, 5);
+              double>>([&](const NetworKit::Graph &g) {
+            return sparsification::NetworKitWeightedForestFireScore(
+                g, ctx.sparsification.wff_pf, ctx.sparsification.wff_target_burnt_ratio
+            );
           })
       );
     case ScoreFunctionSection::WEIGHTED_FOREST_FIRE:
       return std::make_unique<sparsification::RandomWithoutReplacementSampler<EdgeID>>(
-          std::make_unique<sparsification::WeightedForestFireScore>(0.95, 5)
+          std::make_unique<sparsification::WeightedForestFireScore>(
+              ctx.sparsification.wff_pf, ctx.sparsification.wff_target_burnt_ratio
+          )
       );
     case ScoreFunctionSection::EFFECTIVE_RESISTANCE:
       return std::make_unique<sparsification::RandomWithoutReplacementSampler<double>>(
@@ -211,14 +219,18 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
       return std::make_unique<sparsification::IndependentRandomSampler<double>>(
           std::make_unique<sparsification::NetworKitScoreAdapter<
               sparsification::NetworKitWeightedForestFireScore,
-              double>>([](const NetworKit::Graph &g) {
-            return sparsification::NetworKitWeightedForestFireScore(g, 0.95, 5);
+              double>>([&](const NetworKit::Graph &g) {
+            return sparsification::NetworKitWeightedForestFireScore(
+                g, ctx.sparsification.wff_pf, ctx.sparsification.wff_target_burnt_ratio
+            );
           }),
           ctx.sparsification.no_approx
       );
     case ScoreFunctionSection::WEIGHTED_FOREST_FIRE:
       return std::make_unique<sparsification::IndependentRandomSampler<EdgeID>>(
-          std::make_unique<sparsification::WeightedForestFireScore>(0.95, 5),
+          std::make_unique<sparsification::WeightedForestFireScore>(
+              ctx.sparsification.wff_pf, ctx.sparsification.wff_target_burnt_ratio
+          ),
           ctx.sparsification.no_approx
       );
     case ScoreFunctionSection::EFFECTIVE_RESISTANCE:
@@ -245,13 +257,17 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
       return std::make_unique<sparsification::ThresholdSampler<double>>(
           std::make_unique<sparsification::NetworKitScoreAdapter<
               sparsification::NetworKitWeightedForestFireScore,
-              double>>([](const NetworKit::Graph &g) {
-            return sparsification::NetworKitWeightedForestFireScore(g, 0.95, 5);
+              double>>([&](const NetworKit::Graph &g) {
+            return sparsification::NetworKitWeightedForestFireScore(
+                g, ctx.sparsification.wff_pf, ctx.sparsification.wff_target_burnt_ratio
+            );
           })
       );
     case ScoreFunctionSection::WEIGHTED_FOREST_FIRE:
       return std::make_unique<sparsification::ThresholdSampler<EdgeID>>(
-          std::make_unique<sparsification::WeightedForestFireScore>(0.95, 5)
+          std::make_unique<sparsification::WeightedForestFireScore>(
+              ctx.sparsification.wff_pf, ctx.sparsification.wff_target_burnt_ratio
+          )
       );
     case ScoreFunctionSection::EFFECTIVE_RESISTANCE:
       return std::make_unique<sparsification::ThresholdSampler<double>>(
