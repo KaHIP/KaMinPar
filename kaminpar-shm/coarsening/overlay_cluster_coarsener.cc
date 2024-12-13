@@ -55,6 +55,8 @@ bool OverlayClusteringCoarsener::coarsen() {
 
   START_HEAP_PROFILER("Allocation");
   RECORD("clustering") StaticArray<NodeID> clustering(current().n(), static_array::noinit);
+  RECORD("clustering") StaticArray<NodeID> clustering_1(current().n(), static_array::noinit);
+  RECORD("clustering") StaticArray<NodeID> clustering_2(current().n(), static_array::noinit);
   STOP_HEAP_PROFILER();
 
   const bool free_allocated_memory = !keep_allocated_memory();
@@ -98,9 +100,23 @@ bool OverlayClusteringCoarsener::coarsen() {
     _clustering_algorithm->set_desired_cluster_count(desired_cluster_count);
   }
 
-  _clustering_algorithm->compute_clustering(clustering, current(), free_allocated_memory);
+  _clustering_algorithm->compute_clustering(clustering_1, current(), free_allocated_memory);
+  _clustering_algorithm->compute_clustering(clustering_2, current(), free_allocated_memory);
   STOP_TIMER();
   STOP_HEAP_PROFILER();
+
+  TIMED_SCOPE("Overlay clusters") {
+    NodeID next_cluster_id = 0;
+    std::unordered_map<std::uint64_t, NodeID> mapping;
+    for (NodeID i = 0; i < current().n(); ++i) {
+      const std::uint64_t key =
+          (static_cast<std::uint64_t>(clustering_1[i]) << 32) | clustering_2[i];
+      if (!mapping.contains(key)) {
+        mapping[key] = next_cluster_id++;
+      }
+      clustering[i] = mapping[key];
+    }
+  };
 
   START_HEAP_PROFILER("Contract graph");
   START_TIMER("Contract graph");
