@@ -109,7 +109,7 @@ Context create_default_context() {
                       .lp =
                           {
                               // Context -> Coarsening -> Clustering -> Label Propagation
-                              .num_iterations = 5,
+                              .num_iterations = 3,
                               .large_degree_threshold = std::numeric_limits<NodeID>::max(),
                               .max_num_neighbors = std::numeric_limits<NodeID>::max(),
                               .impl = LabelPropagationImplementation::TWO_PHASE,
