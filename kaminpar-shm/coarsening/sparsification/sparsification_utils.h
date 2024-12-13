@@ -3,12 +3,14 @@
 #include <functional>
 
 #include <oneapi/tbb/concurrent_vector.h>
+#include <oneapi/tbb/enumerable_thread_specific.h>
 #include <oneapi/tbb/parallel_sort.h>
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
+#include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::shm::sparsification::utils {
@@ -44,7 +46,6 @@ inline void parallel_for_downward_edges(const CSRGraph &g, Lambda function) {
   });
 }
 
-template <typename T, typename Iterator> T medians_of_medians(Iterator begin, Iterator end);
 
 template <typename T, typename Iterator>
 T sortselect_k_smallest(size_t k, Iterator begin, Iterator end) {
@@ -57,40 +58,15 @@ T sortselect_k_smallest(size_t k, Iterator begin, Iterator end) {
   return sorted[k - 1];
 }
 
-template <typename T, typename Iterator>
-T quickselect_k_smallest(size_t k, Iterator begin, Iterator end) {
-  size_t size = std::distance(begin, end);
-  if (size <= 20)
-    return sortselect_k_smallest<T, Iterator>(k, begin, end);
-  T pivot = medians_of_medians<T, Iterator>(begin, end);
-  tbb::concurrent_vector<T> less = {}, greater = {};
-  size_t number_equal_to_pivot = 0;
-  tbb::parallel_for(0ul, size, [&](size_t i) {
-    T x = begin[i];
-    if (x < pivot)
-      less.push_back(x);
-    else if (x > pivot)
-      greater.push_back(x);
-    else // equal
-      __atomic_add_fetch(&number_equal_to_pivot, 1, __ATOMIC_RELAXED);
-  });
 
-  KASSERT(
-      less.size() <= 0.7 * size + 2 && greater.size() <= 0.7 * size + 2,
-      "median of medians privot guarantee does not hold",
-      assert::always
-  );
-  if (k <= less.size())
-    return quickselect_k_smallest<T, typename tbb::concurrent_vector<T>::iterator>(
-        k, less.begin(), less.end()
-    );
-  else if (less.size() + number_equal_to_pivot < k)
-    return quickselect_k_smallest<T, typename tbb::concurrent_vector<T>::iterator>(
-        k - number_equal_to_pivot - less.size(), greater.begin(), greater.end()
-    );
-  else
-    return pivot;
-}
+template <typename T>
+struct K_SmallestInfo {
+  T value;
+  size_t number_of_elements_smaller;
+  size_t number_of_elemtns_equal;
+};
+template <typename T, typename Iterator>
+K_SmallestInfo<T> quickselect_k_smallest(size_t k, Iterator begin, Iterator end) ;
 
 template <typename T, typename Iterator> T median(Iterator begin, Iterator end) {
   size_t size = std::distance(begin, end);
@@ -106,7 +82,7 @@ template <typename T, typename Iterator> T median(Iterator begin, Iterator end) 
   }
 }
 
-template <typename T, typename Iterator> T medians_of_medians(Iterator begin, Iterator end) {
+template <typename T, typename Iterator> T median_of_medians(Iterator begin, Iterator end) {
   size_t size = std::distance(begin, end);
   if (size <= 10)
     return median<T, Iterator>(begin, end);
@@ -119,7 +95,76 @@ template <typename T, typename Iterator> T medians_of_medians(Iterator begin, It
 
   return quickselect_k_smallest<T, typename StaticArray<T>::iterator>(
       (number_of_sections + 1) / 2, medians.begin(), medians.end()
-  );
+  ).value;
+}
+
+template <typename T, typename Iterator>
+K_SmallestInfo<T> quickselect_k_smallest(size_t k, Iterator begin, Iterator end) {
+  size_t size = std::distance(begin, end);
+  if (size <= 20) {
+    T k_smallest = sortselect_k_smallest<T, Iterator>(k, begin, end);
+    size_t number_equal = 0; size_t number_less;
+    for (auto x = begin; x != end; x++) {
+      if (*x == k_smallest)
+        number_equal++;
+      else if (*x < k_smallest) {
+        number_less++;
+      }
+    }
+    return {k_smallest, number_less, number_equal};
+  }
+  T pivot = median_of_medians<T,Iterator>(begin,end);
+
+  StaticArray<size_t> less(size);
+  StaticArray<size_t> greater(size);
+  tbb::enumerable_thread_specific<size_t> thread_specific_number_equal;
+  tbb::enumerable_thread_specific<size_t> thread_specific_number_less;
+  tbb::parallel_for(0ul, size, [&](size_t i) {
+    if (begin[i] < pivot) {
+      less[i] = 1;
+      thread_specific_number_less.local()++;
+    } else if (begin[i] > pivot) {
+      greater[i] = 1;
+    } else {
+      thread_specific_number_equal.local()++;
+    }
+  });
+
+  auto add = [](size_t a, size_t b) {
+    return a + b;
+  };
+  size_t number_equal = thread_specific_number_equal.combine(add);
+  size_t number_less = thread_specific_number_less.combine(add);
+
+  if (k <= number_less) {
+    parallel::prefix_sum(less.begin(), less.end(), less.begin());
+    KASSERT(less[size-1] == number_less, "prefix sum does not work", assert::always);
+
+    StaticArray<T> elements_less(number_less);
+    tbb::parallel_for(0ul, size, [&](auto i) {
+      if (begin[i] < pivot) {
+        elements_less[less[i] - 1] = begin[i];
+      }
+    });
+
+    return quickselect_k_smallest<T>(k, elements_less.begin(), elements_less.end());
+  } else if (k > number_less + number_equal) {
+    parallel::prefix_sum(greater.begin(), greater.end(), greater.begin());
+    KASSERT(greater[size - 1] == size-number_equal-number_less, "prefix sum does not work", assert::always);
+
+    StaticArray<T> elements_greater(size - number_equal - number_less);
+    tbb::parallel_for(0ul, size, [&](auto i) {
+      if (begin[i] > pivot) {
+        elements_greater[greater[i] - 1] = begin[i];
+      }
+    });
+
+    return quickselect_k_smallest<T>(
+        k - number_equal - number_less, elements_greater.begin(), elements_greater.end()
+    );
+  } else {
+    return {pivot, number_less, number_equal};
+  }
 }
 
 template <typename WeightIterator>
@@ -132,7 +177,7 @@ sample_k_without_replacement(WeightIterator weights_begin, WeightIterator weight
   tbb::parallel_for(0ul, size, [&](auto i) {
     keys[i] = -std::log(Random::instance().random_double()) / weights_begin[i];
   });
-  double x = quickselect_k_smallest<double>(k, keys.begin(), keys.end());
+  double x = quickselect_k_smallest<double>(k, keys.begin(), keys.end()).value;
 
   StaticArray<size_t> selected(k);
   size_t back = 0;
@@ -146,5 +191,6 @@ sample_k_without_replacement(WeightIterator weights_begin, WeightIterator weight
   });
   return selected;
 }
+
 
 } // namespace kaminpar::shm::sparsification::utils
