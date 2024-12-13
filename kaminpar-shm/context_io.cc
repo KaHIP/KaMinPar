@@ -195,6 +195,7 @@ std::ostream &operator<<(std::ostream &out, const FMStoppingRule rule) {
 std::unordered_map<std::string, PartitioningMode> get_partitioning_modes() {
   return {
       {"deep", PartitioningMode::DEEP},
+      {"vcycle", PartitioningMode::VCYCLE},
       {"rb", PartitioningMode::RB},
       {"kway", PartitioningMode::KWAY},
   };
@@ -204,6 +205,8 @@ std::ostream &operator<<(std::ostream &out, const PartitioningMode mode) {
   switch (mode) {
   case PartitioningMode::DEEP:
     return out << "deep";
+  case PartitioningMode::VCYCLE:
+    return out << "vcycle";
   case PartitioningMode::RB:
     return out << "rb";
   case PartitioningMode::KWAY:
@@ -218,6 +221,7 @@ std::unordered_map<std::string, InitialPartitioningMode> get_initial_partitionin
       {"sequential", InitialPartitioningMode::SEQUENTIAL},
       {"async-parallel", InitialPartitioningMode::ASYNCHRONOUS_PARALLEL},
       {"sync-parallel", InitialPartitioningMode::SYNCHRONOUS_PARALLEL},
+      {"communities", InitialPartitioningMode::COMMUNITIES},
   };
 }
 
@@ -229,6 +233,8 @@ std::ostream &operator<<(std::ostream &out, const InitialPartitioningMode mode) 
     return out << "async-parallel";
   case InitialPartitioningMode::SYNCHRONOUS_PARALLEL:
     return out << "sync-parallel";
+  case InitialPartitioningMode::COMMUNITIES:
+    return out << "communities";
   }
 
   return out << "<invalid>";

@@ -85,6 +85,8 @@ public:
    */
   PartitionedCSRGraph partition(InitialPartitionerTimings *timings = nullptr);
 
+  const PartitionContext &p_ctx() const;
+
 private:
   const CSRGraph *coarsen(InitialPartitionerTimings *timings);
   PartitionedCSRGraph uncoarsen(PartitionedCSRGraph p_graph);

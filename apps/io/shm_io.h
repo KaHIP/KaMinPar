@@ -86,4 +86,10 @@ void write_block_sizes(const std::string &filename, BlockID k, std::span<const B
 
 } // namespace partition
 
+namespace remapping {
+
+void write(const std::string &filename, std::span<const NodeID> partition);
+
+} // namespace partition
+
 } // namespace kaminpar::shm::io

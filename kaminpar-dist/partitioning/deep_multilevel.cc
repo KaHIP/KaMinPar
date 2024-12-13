@@ -7,7 +7,6 @@
  ******************************************************************************/
 #include "kaminpar-dist/partitioning/deep_multilevel.h"
 
-#include <cmath>
 #include <iomanip>
 
 #include <mpi.h>

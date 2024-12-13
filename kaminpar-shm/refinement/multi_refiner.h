@@ -35,6 +35,8 @@ public:
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
+  void set_communities(std::span<const NodeID> communities) final;
+
 private:
   std::unordered_map<RefinementAlgorithm, std::unique_ptr<Refiner>> _refiners;
   std::vector<RefinementAlgorithm> _order;

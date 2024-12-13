@@ -180,11 +180,11 @@ Context &dKaMinPar::context() {
 }
 
 void dKaMinPar::import_graph(
-    GlobalNodeID *vtxdist,
-    GlobalEdgeID *xadj,
-    GlobalNodeID *adjncy,
-    GlobalNodeWeight *vwgt,
-    GlobalEdgeWeight *adjwgt
+    std::span<GlobalNodeID> vtxdist,
+    std::span<GlobalEdgeID> xadj,
+    std::span<GlobalNodeID> adjncy,
+    std::span<GlobalNodeWeight> vwgt,
+    std::span<GlobalEdgeWeight> adjwgt
 ) {
   SCOPED_TIMER("IO");
 
@@ -196,7 +196,7 @@ void dKaMinPar::import_graph(
   const GlobalNodeID to = vtxdist[rank + 1];
   const EdgeID m = static_cast<EdgeID>(xadj[n]);
 
-  StaticArray<GlobalNodeID> node_distribution(vtxdist, vtxdist + size + 1);
+  StaticArray<GlobalNodeID> node_distribution(vtxdist.begin(), vtxdist.begin() + size + 1);
   StaticArray<GlobalEdgeID> edge_distribution(size + 1);
   edge_distribution[rank] = m;
   MPI_Allgather(
@@ -242,7 +242,7 @@ void dKaMinPar::import_graph(
         });
       },
       [&] {
-        if (adjwgt == nullptr) {
+        if (adjwgt.empty()) {
           return;
         }
         edge_weights.resize(m);
@@ -250,7 +250,7 @@ void dKaMinPar::import_graph(
       }
   );
 
-  if (vwgt != nullptr) {
+  if (!vwgt.empty()) {
     // Allocate enough room for ghost nodes; we fill them in after constructing the graph
     node_weights.resize(n + mapper.next_ghost_node());
     tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) { node_weights[u] = vwgt[u]; });
@@ -273,7 +273,7 @@ void dKaMinPar::import_graph(
   )});
 
   // Fill in ghost node weights
-  bool has_vwgt = vwgt != nullptr;
+  bool has_vwgt = !vwgt.empty();
   MPI_Allreduce(MPI_IN_PLACE, &has_vwgt, 1, MPI_C_BOOL, MPI_LOR, _comm);
   if (has_vwgt) {
     graph::synchronize_ghost_node_weights(*_graph_ptr);
