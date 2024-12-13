@@ -142,6 +142,7 @@ enum class EdgeOrdering {
 enum class CoarseningAlgorithm {
   NOOP,
   CLUSTERING,
+  OVERLAY_CLUSTERING,
 };
 
 enum class ClusteringAlgorithm {

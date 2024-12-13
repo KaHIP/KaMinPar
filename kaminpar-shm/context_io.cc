@@ -69,6 +69,7 @@ std::unordered_map<std::string, CoarseningAlgorithm> get_coarsening_algorithms()
   return {
       {"noop", CoarseningAlgorithm::NOOP},
       {"clustering", CoarseningAlgorithm::CLUSTERING},
+      {"overlay-clustering", CoarseningAlgorithm::OVERLAY_CLUSTERING},
   };
 }
 
@@ -78,6 +79,8 @@ std::ostream &operator<<(std::ostream &out, const CoarseningAlgorithm algorithm)
     return out << "noop";
   case CoarseningAlgorithm::CLUSTERING:
     return out << "clustering";
+  case CoarseningAlgorithm::OVERLAY_CLUSTERING:
+    return out << "overlay-clustering";
   }
 
   return out << "<invalid>";

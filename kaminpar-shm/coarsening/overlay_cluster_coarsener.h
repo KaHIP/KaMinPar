@@ -1,9 +1,10 @@
 /*******************************************************************************
- * Coarsener that is optimized to contract clusterings.
+ * Coarsener that computes multiple clusterings, overlays and contracts them to
+ * coarsen the graph.
  *
- * @file:   cluster_coarsener.h
+ * @file:   overlay_cluster_coarsener.h
  * @author: Daniel Seemaier
- * @date:   29.09.2021
+ * @date:   13.12.2024
  ******************************************************************************/
 #pragma once
 
@@ -16,15 +17,15 @@
 
 namespace kaminpar::shm {
 
-class ClusteringCoarsener : public Coarsener {
+class OverlayClusteringCoarsener : public Coarsener {
 public:
-  ClusteringCoarsener(const Context &ctx, const PartitionContext &p_ctx);
+  OverlayClusteringCoarsener(const Context &ctx, const PartitionContext &p_ctx);
 
-  ClusteringCoarsener(const ClusteringCoarsener &) = delete;
-  ClusteringCoarsener &operator=(const ClusteringCoarsener) = delete;
+  OverlayClusteringCoarsener(const OverlayClusteringCoarsener &) = delete;
+  OverlayClusteringCoarsener &operator=(const OverlayClusteringCoarsener) = delete;
 
-  ClusteringCoarsener(ClusteringCoarsener &&) = delete;
-  ClusteringCoarsener &operator=(ClusteringCoarsener &&) = delete;
+  OverlayClusteringCoarsener(OverlayClusteringCoarsener &&) = delete;
+  OverlayClusteringCoarsener &operator=(OverlayClusteringCoarsener &&) = delete;
 
   void initialize(const Graph *graph) final;
 
@@ -65,3 +66,4 @@ private:
 };
 
 } // namespace kaminpar::shm
+
