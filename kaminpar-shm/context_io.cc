@@ -433,7 +433,8 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
   out << "Contraction limit:            " << c_ctx.contraction_limit << "\n";
   out << "Coarsening algorithm:         " << c_ctx.algorithm << "\n";
 
-  if (c_ctx.algorithm == CoarseningAlgorithm::CLUSTERING) {
+  if (c_ctx.algorithm == CoarseningAlgorithm::CLUSTERING ||
+      c_ctx.algorithm == CoarseningAlgorithm::OVERLAY_CLUSTERING) {
     out << "  Cluster weight limit:       " << c_ctx.clustering.cluster_weight_limit << " x "
         << c_ctx.clustering.cluster_weight_multiplier << "\n";
     out << "  Shrink factor:              " << c_ctx.clustering.shrink_factor << "\n";
@@ -449,6 +450,10 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
                                                                                      : "")
         << "(leeway: U=" << c_ctx.clustering.forced_level_upper_factor
         << ", L=" << c_ctx.clustering.forced_level_lower_factor << ")\n";
+  }
+  if (c_ctx.algorithm == CoarseningAlgorithm::OVERLAY_CLUSTERING) {
+    out << "  Overlays:" << "\n";
+    out << "    Number of overlays:       " << (2 << c_ctx.overlay_clustering.num_levels) << "\n";
   }
 
   out << "Contraction algorithm:        " << c_ctx.contraction.algorithm << '\n';

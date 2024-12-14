@@ -46,6 +46,8 @@ public:
   void release_allocated_memory() final;
 
 private:
+  StaticArray<NodeID> overlay(StaticArray<NodeID> a, const StaticArray<NodeID> &b);
+
   std::unique_ptr<CoarseGraph> pop_hierarchy(PartitionedGraph &&p_graph);
 
   [[nodiscard]] bool keep_allocated_memory() const;

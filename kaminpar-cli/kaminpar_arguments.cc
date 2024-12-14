@@ -203,6 +203,9 @@ Options are:
       )
       ->capture_default_str();
 
+  coarsening->add_option("--c-overlay-levels", ctx.coarsening.overlay_clustering.num_levels)
+      ->capture_default_str();
+
   create_lp_coarsening_options(app, ctx);
   create_contraction_coarsening_options(app, ctx);
 

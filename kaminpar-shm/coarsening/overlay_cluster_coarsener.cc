@@ -11,6 +11,7 @@
 #include <algorithm>
 
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"
+#include "kaminpar-shm/coarsening/contraction/cluster_contraction_preprocessing.h"
 #include "kaminpar-shm/coarsening/max_cluster_weights.h"
 #include "kaminpar-shm/factories.h"
 #include "kaminpar-shm/kaminpar.h"
@@ -54,9 +55,11 @@ bool OverlayClusteringCoarsener::coarsen() {
   SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
 
   START_HEAP_PROFILER("Allocation");
-  RECORD("clustering") StaticArray<NodeID> clustering(current().n(), static_array::noinit);
-  RECORD("clustering") StaticArray<NodeID> clustering_1(current().n(), static_array::noinit);
-  RECORD("clustering") StaticArray<NodeID> clustering_2(current().n(), static_array::noinit);
+  const int num_overlays = 2 << _c_ctx.overlay_clustering.num_levels;
+  std::vector<StaticArray<NodeID>> clusterings;
+  for (int i = 0; i < num_overlays; ++i) {
+    clusterings.emplace_back(current().n(), static_array::noinit);
+  }
   STOP_HEAP_PROFILER();
 
   const bool free_allocated_memory = !keep_allocated_memory();
@@ -100,29 +103,27 @@ bool OverlayClusteringCoarsener::coarsen() {
     _clustering_algorithm->set_desired_cluster_count(desired_cluster_count);
   }
 
-  _clustering_algorithm->compute_clustering(clustering_1, current(), free_allocated_memory);
-  _clustering_algorithm->compute_clustering(clustering_2, current(), free_allocated_memory);
+  for (auto &clustering : clusterings) {
+    _clustering_algorithm->compute_clustering(clustering, current(), free_allocated_memory);
+  }
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 
   TIMED_SCOPE("Overlay clusters") {
-    NodeID next_cluster_id = 0;
-    std::unordered_map<std::uint64_t, NodeID> mapping;
-    for (NodeID i = 0; i < current().n(); ++i) {
-      const std::uint64_t key =
-          (static_cast<std::uint64_t>(clustering_1[i]) << 32) | clustering_2[i];
-      if (!mapping.contains(key)) {
-        mapping[key] = next_cluster_id++;
+    for (int level = _c_ctx.overlay_clustering.num_levels; level > 0; --level) {
+      const int num_overlays_in_level = 2 << level;
+      for (int pair = 0; pair < num_overlays_in_level / 2; ++pair) {
+        clusterings[pair] =
+            overlay(std::move(clusterings[pair]), clusterings[num_overlays_in_level / 2 + pair]);
       }
-      clustering[i] = mapping[key];
     }
   };
 
   START_HEAP_PROFILER("Contract graph");
   START_TIMER("Contract graph");
-  _hierarchy.push_back(
-      contract_clustering(current(), std::move(clustering), _c_ctx.contraction, _contraction_m_ctx)
-  );
+  _hierarchy.push_back(contract_clustering(
+      current(), std::move(clusterings.front()), _c_ctx.contraction, _contraction_m_ctx
+  ));
 
   if (!_communities_hierarchy.empty()) {
     _communities_hierarchy.emplace_back(current().n());
@@ -147,6 +148,72 @@ bool OverlayClusteringCoarsener::coarsen() {
   }
 
   return !converged;
+}
+
+StaticArray<NodeID>
+OverlayClusteringCoarsener::overlay(StaticArray<NodeID> a, const StaticArray<NodeID> &b) {
+#if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
+  StaticArray<NodeID> a_copy(a.begin(), a.end());
+#endif
+
+  const Graph &graph = current();
+  const NodeID n = graph.n();
+
+  StaticArray<NodeID> index, buckets, leader_mapping;
+  contraction::fill_leader_mapping(graph, a, leader_mapping);
+  const NodeID c_n = leader_mapping[n - 1];
+  auto mapping = contraction::compute_mapping(graph, std::move(a), leader_mapping);
+  contraction::fill_cluster_buckets(c_n, graph, mapping, index, buckets);
+
+  tbb::parallel_for<NodeID>(0, c_n, [&](const NodeID c_u) {
+    std::sort(
+        buckets.begin() + index[c_u],
+        buckets.begin() + index[c_u + 1],
+        [&](const NodeID u, const NodeID v) { return b[u] < b[v]; }
+    );
+
+    NodeID prev_b = kInvalidNodeID;
+    NodeID cur_id = index[c_u] - 1;
+    for (std::size_t i = index[c_u]; i < index[c_u + 1]; ++i) {
+      const NodeID u = buckets[i];
+      const NodeID cur_b = b[u];
+      if (cur_b != prev_b) {
+        ++cur_id;
+      }
+      mapping[u] = cur_id;
+      prev_b = cur_b;
+    }
+  });
+
+#if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
+  KASSERT(
+      [&] {
+        for (NodeID u = 0; u < n; ++u) {
+          bool failed = false;
+          graph.adjacent_nodes(u, [&](const NodeID v) {
+            if (a_copy[u] == a_copy[v] && b[u] == b[v]) {
+              if (mapping[u] != mapping[v]) {
+                failed = true;
+              }
+            }
+            if (a_copy[u] != a_copy[v] || b[u] != b[v]) {
+              if (mapping[u] == mapping[v]) {
+                failed = true;
+              }
+            }
+          });
+          if (failed) {
+            return false;
+          }
+        }
+        return true;
+      }(),
+      "Overlaying clusters failed",
+      assert::heavy
+  );
+#endif
+
+  return mapping;
 }
 
 PartitionedGraph OverlayClusteringCoarsener::uncoarsen(PartitionedGraph &&p_graph) {

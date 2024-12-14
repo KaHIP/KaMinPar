@@ -237,10 +237,15 @@ struct ClusterCoarseningContext {
   double forced_level_lower_factor;
 };
 
+struct OverlayClusterCoarseningContext {
+  int num_levels;
+};
+
 struct CoarseningContext {
   CoarseningAlgorithm algorithm;
 
   ClusterCoarseningContext clustering;
+  OverlayClusterCoarseningContext overlay_clustering;
   ContractionCoarseningContext contraction;
 
   NodeID contraction_limit;
