@@ -463,8 +463,7 @@ template <typename Key> using BinaryMinHeap = BinaryHeap<Key, binary_heap::min_h
 template <
     typename ID,
     typename Key,
-    template <typename>
-    typename Comparator,
+    template <typename> typename Comparator,
     template <typename...> typename Container = std::vector>
 class DynamicBinaryForest {
   static constexpr std::size_t kTreeArity = 4;
@@ -841,6 +840,11 @@ class DynamicBinaryMinMaxForest {
     }
 
     void pop(const std::size_t heap) {
+      if (size(heap) == 1) [[unlikely]] {
+        _heaps[heap].clear();
+        return;
+      }
+
       swap<true>(heap, size(heap) - 1, 0);
       _heaps[heap].pop_back();
       sift_down(heap, 0);
@@ -1012,6 +1016,7 @@ public:
   }
 
   void pop_max(const std::size_t heap) {
+    KASSERT(heap < _num_heaps);
     KASSERT(!_min_forest.empty(heap));
     KASSERT(!_max_forest.empty(heap));
 
@@ -1038,8 +1043,7 @@ private:
 template <
     typename ID,
     typename Key,
-    template <typename>
-    typename Comparator,
+    template <typename> typename Comparator,
     template <typename...> typename Container = std::vector>
 class DynamicBinaryHeap {
   static constexpr std::size_t kTreeArity = 4;
