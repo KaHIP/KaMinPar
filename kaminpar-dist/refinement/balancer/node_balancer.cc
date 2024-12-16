@@ -223,7 +223,7 @@ private:
     // Build global PQ: one PQ per block, block-level parallelism
     _pq.clear();
     if (_pq.capacity() < _graph.n()) {
-      _pq = DynamicBinaryMinMaxForest<NodeID, double>(_graph.n(), _ctx.partition.k);
+      _pq = AddressableDynamicBinaryMinMaxForest<NodeID, double>(_graph.n(), _ctx.partition.k);
     }
 
     _p_graph.pfor_blocks([&](const BlockID block) {
@@ -739,7 +739,7 @@ private:
   const NodeBalancerContext &_nb_ctx;
   const PartitionContext &_p_ctx;
 
-  DynamicBinaryMinMaxForest<NodeID, double> _pq;
+  AddressableDynamicBinaryMinMaxForest<NodeID, double> _pq;
   std::vector<BlockWeight> _pq_weight;
   Marker<> _marker;
 
