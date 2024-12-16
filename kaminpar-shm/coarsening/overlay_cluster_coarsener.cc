@@ -55,7 +55,7 @@ bool OverlayClusteringCoarsener::coarsen() {
   SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
 
   START_HEAP_PROFILER("Allocation");
-  const int num_overlays = 2 << _c_ctx.overlay_clustering.num_levels;
+  const int num_overlays = 1 << _c_ctx.overlay_clustering.num_levels;
   std::vector<StaticArray<NodeID>> clusterings;
   for (int i = 0; i < num_overlays; ++i) {
     clusterings.emplace_back(current().n(), static_array::noinit);
@@ -111,7 +111,7 @@ bool OverlayClusteringCoarsener::coarsen() {
 
   TIMED_SCOPE("Overlay clusters") {
     for (int level = _c_ctx.overlay_clustering.num_levels; level > 0; --level) {
-      const int num_overlays_in_level = 2 << level;
+      const int num_overlays_in_level = 1 << level;
       for (int pair = 0; pair < num_overlays_in_level / 2; ++pair) {
         clusterings[pair] =
             overlay(std::move(clusterings[pair]), clusterings[num_overlays_in_level / 2 + pair]);
