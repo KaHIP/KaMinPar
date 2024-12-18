@@ -133,6 +133,10 @@ Context create_default_context() {
                       .forced_level_upper_factor = 10.0,
                       .forced_level_lower_factor = 1.1,
                   },
+              .overlay_clustering =
+                  {
+                      .num_levels = 1,
+                  },
               .contraction =
                   {
                       // Context -> Coarsening -> Contraction
