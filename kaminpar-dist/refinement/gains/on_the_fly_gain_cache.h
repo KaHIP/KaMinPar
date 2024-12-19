@@ -1,7 +1,7 @@
 /*******************************************************************************
  * On-the-fly gain calculator.
  *
- * @file:   gain_calculator.h
+ * @file:   on_the_fly_gain_cache.h
  * @author: Daniel Seemaier
  * @date:   03.07.2023
  ******************************************************************************/
@@ -19,9 +19,9 @@
 
 namespace kaminpar::dist {
 
-template <typename Graph, bool randomize = true> class GainCalculator {
+template <typename Graph, bool randomize = true> class OnTheFlyGainCache {
 public:
-  GainCalculator(const BlockID max_k)
+  OnTheFlyGainCache(const BlockID max_k)
       : _rating_map_ets([max_k] { return RatingMap<EdgeWeight, BlockID>(max_k); }) {}
 
   struct MaxGainer {
@@ -123,7 +123,7 @@ private:
   mutable tbb::enumerable_thread_specific<RatingMap<EdgeWeight, BlockID>> _rating_map_ets;
 };
 
-template <typename Graph> using DeterministicGainCalculator = GainCalculator<Graph, false>;
-template <typename Graph> using RandomizedGainCalculator = GainCalculator<Graph, true>;
+template <typename Graph> using DeterministicOnTheFlyGainCache = OnTheFlyGainCache<Graph, false>;
+template <typename Graph> using RandomizedOnTheFlyGainCache = OnTheFlyGainCache<Graph, true>;
 
 } // namespace kaminpar::dist

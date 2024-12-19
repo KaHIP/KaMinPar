@@ -17,16 +17,19 @@
 #include "kaminpar-dist/graphutils/communication.h"
 #include "kaminpar-dist/logger.h"
 #include "kaminpar-dist/metrics.h"
-#include "kaminpar-dist/refinement/gain_calculator.h"
+#include "kaminpar-dist/refinement/gains/on_the_fly_gain_cache.h"
 #include "kaminpar-dist/refinement/snapshooter.h"
 #include "kaminpar-dist/timer.h"
 
 #define HEAVY assert::heavy
 
 namespace kaminpar::dist {
+
 namespace {
+
 SET_STATISTICS_FROM_GLOBAL();
 SET_DEBUG(false);
+
 } // namespace
 
 //
@@ -411,7 +414,7 @@ private:
   const PartitionContext &_p_ctx;
 
   BestPartitionSnapshooter _snapshooter;
-  RandomizedGainCalculator<Graph> _gain_calculator;
+  RandomizedOnTheFlyGainCache<Graph> _gain_calculator;
   StaticArray<std::pair<EdgeWeight, BlockID>> _gains_and_targets;
   StaticArray<BlockWeight> _block_weight_deltas;
   StaticArray<std::uint8_t> _locked;

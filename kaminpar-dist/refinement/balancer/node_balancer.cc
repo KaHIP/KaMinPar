@@ -15,7 +15,7 @@
 #include "kaminpar-dist/metrics.h"
 #include "kaminpar-dist/refinement/balancer/reductions.h"
 #include "kaminpar-dist/refinement/balancer/weight_buckets.h"
-#include "kaminpar-dist/refinement/gain_calculator.h"
+#include "kaminpar-dist/refinement/gains/on_the_fly_gain_cache.h"
 #include "kaminpar-dist/timer.h"
 
 #include "kaminpar-common/datastructures/binary_heap.h"
@@ -25,9 +25,12 @@
 #define HEAVY assert::heavy
 
 namespace kaminpar::dist {
+
 namespace {
+
 SET_STATISTICS_FROM_GLOBAL();
 SET_DEBUG(false);
+
 } // namespace
 
 //
@@ -744,7 +747,7 @@ private:
   Marker<> _marker;
 
   Buckets _buckets;
-  RandomizedGainCalculator<Graph> _gain_calculator;
+  RandomizedOnTheFlyGainCache<Graph> _gain_calculator;
 
   bool _stalled = false;
 
