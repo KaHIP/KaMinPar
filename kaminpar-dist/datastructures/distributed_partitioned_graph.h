@@ -10,6 +10,7 @@
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 
 namespace kaminpar::dist {
+
 class DistributedPartitionedGraph {
 public:
   using NodeID = DistributedGraph::NodeID;
@@ -216,6 +217,7 @@ private:
 };
 
 namespace debug {
+
 /**
  * Validates the distributed graph partition:
  * - check the block assignment of interface and ghost nodes
@@ -225,5 +227,7 @@ namespace debug {
  * @return whether the graph partition is consistent.
  */
 bool validate_partition(const DistributedPartitionedGraph &p_graph);
+
 } // namespace debug
+
 } // namespace kaminpar::dist

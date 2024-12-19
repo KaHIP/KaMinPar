@@ -17,6 +17,7 @@
 #include "kaminpar-common/parallel/vector_ets.h"
 
 namespace kaminpar::dist {
+
 void DistributedPartitionedGraph::init_block_weights() {
   parallel::vector_ets<BlockWeight> local_block_weights_ets(k());
 
@@ -42,6 +43,7 @@ void DistributedPartitionedGraph::init_block_weights() {
 }
 
 namespace debug {
+
 bool validate_partition(const DistributedPartitionedGraph &p_graph) {
   MPI_Comm comm = p_graph.communicator();
   const PEID size = mpi::get_comm_size(comm);
@@ -166,5 +168,7 @@ bool validate_partition(const DistributedPartitionedGraph &p_graph) {
   mpi::barrier(comm);
   return true;
 }
+
 } // namespace debug
+
 } // namespace kaminpar::dist

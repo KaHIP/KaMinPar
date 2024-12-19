@@ -396,6 +396,104 @@ public:
     }
   }
 
+  template <typename Lambda> inline void adjacent_ghost_nodes(const NodeID u, Lambda &&l) const {
+    KASSERT(u < n());
+
+    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID>;
+    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID, EdgeWeight>;
+    static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
+
+    using LambdaReturnType = std::conditional_t<
+        kDecodeEdgeWeights,
+        std::invoke_result<Lambda, NodeID, EdgeWeight>,
+        std::invoke_result<Lambda, NodeID>>::type;
+    constexpr bool kNonStoppable = std::is_void_v<LambdaReturnType>;
+
+    const auto decode_adjacent_nodes = [&](auto &&decode_edge_weight) {
+      const auto invoke_caller = [&](const NodeID v, const EdgeID edge) {
+        if constexpr (kDecodeEdgeWeights) {
+          return l(v, decode_edge_weight(edge));
+        } else {
+          return l(v);
+        }
+      };
+
+      const EdgeID from = _nodes[u];
+      const EdgeID to = _nodes[u + 1];
+      for (EdgeID edge = from; edge < to; ++edge) {
+        const NodeID v = _edges[edge];
+
+        if (!is_ghost_node(v)) {
+          continue;
+        }
+
+        if constexpr (kNonStoppable) {
+          invoke_caller(v, edge);
+        } else {
+          const bool stop = invoke_caller(v, edge);
+          if (stop) {
+            return;
+          }
+        }
+      }
+    };
+
+    if (is_edge_weighted()) {
+      decode_adjacent_nodes([&](const EdgeID edge) { return _edge_weights[edge]; });
+    } else {
+      decode_adjacent_nodes([](const EdgeID) { return 1; });
+    }
+  }
+
+  template <typename Lambda> inline void adjacent_owned_nodes(const NodeID u, Lambda &&l) const {
+    KASSERT(u < n());
+
+    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID>;
+    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID, EdgeWeight>;
+    static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
+
+    using LambdaReturnType = std::conditional_t<
+        kDecodeEdgeWeights,
+        std::invoke_result<Lambda, NodeID, EdgeWeight>,
+        std::invoke_result<Lambda, NodeID>>::type;
+    constexpr bool kNonStoppable = std::is_void_v<LambdaReturnType>;
+
+    const auto decode_adjacent_nodes = [&](auto &&decode_edge_weight) {
+      const auto invoke_caller = [&](const NodeID v, const EdgeID edge) {
+        if constexpr (kDecodeEdgeWeights) {
+          return l(v, decode_edge_weight(edge));
+        } else {
+          return l(v);
+        }
+      };
+
+      const EdgeID from = _nodes[u];
+      const EdgeID to = _nodes[u + 1];
+      for (EdgeID edge = from; edge < to; ++edge) {
+        const NodeID v = _edges[edge];
+
+        if (is_ghost_node(v)) {
+          continue;
+        }
+
+        if constexpr (kNonStoppable) {
+          invoke_caller(v, edge);
+        } else {
+          const bool stop = invoke_caller(v, edge);
+          if (stop) {
+            return;
+          }
+        }
+      }
+    };
+
+    if (is_edge_weighted()) {
+      decode_adjacent_nodes([&](const EdgeID edge) { return _edge_weights[edge]; });
+    } else {
+      decode_adjacent_nodes([](const EdgeID) { return 1; });
+    }
+  }
+
   template <typename Lambda> inline void neighbors(const NodeID u, Lambda &&l) const {
     KASSERT(u < n());
 

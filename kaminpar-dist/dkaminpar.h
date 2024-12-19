@@ -42,11 +42,17 @@ using shm::EdgeID;
 using shm::NodeID;
 
 #ifdef KAMINPAR_64BIT_LOCAL_WEIGHTS
+
 using NodeWeight = std::int64_t;
 using EdgeWeight = std::int64_t;
+using UnsignedEdgeWeight = std::uint64_t;
+
 #else // KAMINPAR_64BIT_LOCAL_WEIGHTS
+
 using NodeWeight = std::int32_t;
 using EdgeWeight = std::int32_t;
+using UnsignedEdgeWeight = std::uint32_t;
+
 #endif
 
 constexpr NodeID kInvalidNodeID = std::numeric_limits<NodeID>::max();
@@ -59,9 +65,11 @@ constexpr EdgeWeight kInvalidEdgeWeight = std::numeric_limits<EdgeWeight>::max()
 constexpr GlobalEdgeWeight kInvalidGlobalEdgeWeight = std::numeric_limits<GlobalEdgeWeight>::max();
 constexpr BlockID kInvalidBlockID = std::numeric_limits<BlockID>::max();
 constexpr BlockWeight kInvalidBlockWeight = std::numeric_limits<BlockWeight>::max();
+
 } // namespace kaminpar::dist
 
 namespace kaminpar::dist {
+
 enum class PartitioningMode {
   KWAY,
   DEEP,

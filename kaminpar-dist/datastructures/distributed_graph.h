@@ -260,6 +260,14 @@ public:
     });
   }
 
+  template <typename Lambda> inline void adjacent_ghost_nodes(const NodeID u, Lambda &&l) const {
+    reified([&](auto &graph) { graph.adjacent_ghost_nodes(u, std::forward<Lambda>(l)); });
+  }
+
+  template <typename Lambda> inline void adjacent_owned_nodes(const NodeID u, Lambda &&l) const {
+    reified([&](auto &graph) { graph.adjacent_owned_nodes(u, std::forward<Lambda>(l)); });
+  }
+
   //
   // Parallel iteration
   //
