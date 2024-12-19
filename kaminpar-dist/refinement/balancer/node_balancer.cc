@@ -68,7 +68,7 @@ public:
         _cached_cutoff_buckets(_p_graph.k()),
         _target_blocks(_graph.n()),
         _tmp_gains(!_nb_ctx.par_update_pq_gains * _graph.n()) {
-    _gain_calculator.init(_p_graph, _graph);
+    _gain_calculator.init(_graph, _p_graph);
   }
 
   NodeBalancer(const NodeBalancer &) = delete;

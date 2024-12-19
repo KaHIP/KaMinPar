@@ -11,7 +11,9 @@
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
+#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
+#include "kaminpar-dist/refinement/gains/max_gainer.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/compact_hash_map.h"
@@ -145,18 +147,78 @@ public:
     });
   }
 
-  [[nodiscard]] KAMINPAR_INLINE EdgeWeight
-  gain(const NodeID node, const BlockID block_from, const BlockID block_to) const {
-    return conn(node, block_to) - conn(node, block_from);
+  MaxGainer compute_max_gainer(const NodeID u, const PartitionContext &p_ctx) const {
+    return compute_max_gainer_impl(
+        u,
+        [&p_ctx](const BlockID block, const BlockWeight weight_after_move) {
+          return weight_after_move <= p_ctx.graph->max_block_weight(block);
+        }
+    );
   }
 
-  [[nodiscard]] KAMINPAR_INLINE std::pair<EdgeWeight, EdgeWeight>
-  gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) {
-    return {gain(node, b_node, targets.first), gain(node, b_node, targets.second)};
+  MaxGainer compute_max_gainer(const NodeID u, const BlockWeight max_block_weight) const {
+    return compute_max_gainer_impl(
+        u,
+        [max_block_weight](BlockID /* block */, const BlockWeight weight_after_move) {
+          return weight_after_move <= max_block_weight;
+        }
+    );
   }
 
-  [[nodiscard]] KAMINPAR_INLINE EdgeWeight conn(const NodeID node, const BlockID block) const {
-    return use_hash_table(node) ? conn_hash_table(node, block) : conn_full_table(node, block);
+  MaxGainer compute_max_gainer(const NodeID u) const {
+    return compute_max_gainer_impl(u, [](BlockID /* block */, BlockWeight /* weight_after_move */) {
+      return true;
+    });
+  }
+
+  KAMINPAR_INLINE void move(const NodeID node, const BlockID block_from, const BlockID block_to) {
+    if (_graph->is_ghost_node(node)) {
+      _prev_ghost_node_blocks[node - _n] = block_from;
+      return;
+    }
+
+    _graph->adjacent_owned_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
+      if (use_hash_table(v)) {
+        lock(v);
+        with_hash_table(v, [&](auto &&hash_table) {
+          hash_table.decrease_by(block_from, weight);
+          hash_table.increase_by(block_to, weight);
+        });
+        unlock(v);
+      } else {
+        with_full_table(v, [&](auto *full_table) {
+          __atomic_fetch_sub(full_table + block_from, weight, __ATOMIC_RELAXED);
+          __atomic_fetch_add(full_table + block_to, weight, __ATOMIC_RELAXED);
+        });
+      }
+    });
+  }
+
+private:
+  template <typename WeightChecker>
+  MaxGainer compute_max_gainer_impl(const NodeID u, WeightChecker &&weight_checker) const {
+    const NodeWeight w_u = _graph->node_weight(u);
+    const BlockID b_u = _p_graph->block(u);
+
+    EdgeWeight int_conn = 0;
+    EdgeWeight max_ext_conn = 0;
+    BlockID max_target = b_u;
+
+    gains(u, b_u, [&](const BlockID to, const EdgeWeight conn) {
+      if (b_u == to) {
+        int_conn = conn;
+      } else if (conn > max_ext_conn && weight_checker(to, _p_graph->block_weight(to) + w_u)) {
+        max_target = to;
+        max_ext_conn = conn;
+      }
+    });
+
+    return {
+        .int_degree = int_conn,
+        .ext_degree = max_ext_conn,
+        .block = max_target,
+        .weight = w_u,
+    };
   }
 
   // Forcing inlining here seems to be very important
@@ -189,18 +251,14 @@ public:
         });
 
         for (BlockID to = 0; to < _k; ++to) {
-          if (from != to) {
-            lambda(to, [&] { return buffer.get(to) - conn_from; });
-          }
+          lambda(to, [&] { return buffer.get(to) - conn_from; });
         }
 
         buffer.clear();
       } else {
         with_hash_table(node, [&](const auto &&ht) {
           ht.for_each([&](const BlockID to, const EdgeWeight conn_to) {
-            if (to != from) {
-              lambda(to, [&] { return conn_to - conn_from; });
-            }
+            lambda(to, [&] { return conn_to - conn_from; });
           });
         });
       }
@@ -208,10 +266,6 @@ public:
       const EdgeWeight conn_from = kIteratesExactGains ? conn_full_table(node, from) : 0;
 
       for (BlockID to = 0; to < _k; ++to) {
-        if (from == to) {
-          continue;
-        }
-
         if constexpr (kIteratesNonadjacentBlocks) {
           lambda(to, [&] { return conn_full_table(node, to) - conn_from; });
         } else {
@@ -224,40 +278,26 @@ public:
     }
   }
 
-  KAMINPAR_INLINE void move(const NodeID node, const BlockID block_from, const BlockID block_to) {
-    if (_graph->is_ghost_node(node)) {
-      _prev_ghost_node_blocks[node - _n] = block_from;
-      return;
-    }
-
-    _graph->adjacent_owned_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
-      if (use_hash_table(v)) {
-        lock(v);
-        with_hash_table(v, [&](auto &&hash_table) {
-          hash_table.decrease_by(block_from, weight);
-          hash_table.increase_by(block_to, weight);
-        });
-        unlock(v);
-      } else {
-        with_full_table(v, [&](auto *full_table) {
-          __atomic_fetch_sub(full_table + block_from, weight, __ATOMIC_RELAXED);
-          __atomic_fetch_add(full_table + block_to, weight, __ATOMIC_RELAXED);
-        });
-      }
-    });
-  }
-
   [[nodiscard]] KAMINPAR_INLINE bool
   is_border_node(const NodeID node, const BlockID block_of_node) const {
     KASSERT(_graph->is_owned_node(node));
     return weighted_degree(node) != conn(node, block_of_node);
   }
 
-  void print_statistics() const {
-    // Nothing to do
+  [[nodiscard]] KAMINPAR_INLINE EdgeWeight
+  gain(const NodeID node, const BlockID block_from, const BlockID block_to) const {
+    return conn(node, block_to) - conn(node, block_from);
   }
 
-private:
+  [[nodiscard]] KAMINPAR_INLINE std::pair<EdgeWeight, EdgeWeight>
+  gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) {
+    return {gain(node, b_node, targets.first), gain(node, b_node, targets.second)};
+  }
+
+  [[nodiscard]] KAMINPAR_INLINE EdgeWeight conn(const NodeID node, const BlockID block) const {
+    return use_hash_table(node) ? conn_hash_table(node, block) : conn_full_table(node, block);
+  }
+
   KAMINPAR_INLINE void lazy_update_after_ghost_move(
       const NodeID v, const EdgeWeight weight, const BlockID block_from, const BlockID block_to
   ) {

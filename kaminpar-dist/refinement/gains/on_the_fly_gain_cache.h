@@ -12,6 +12,7 @@
 #include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
+#include "kaminpar-dist/refinement/gains/max_gainer.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/rating_map.h"
@@ -24,26 +25,7 @@ public:
   OnTheFlyGainCache(const BlockID max_k)
       : _rating_map_ets([max_k] { return RatingMap<EdgeWeight, BlockID>(max_k); }) {}
 
-  struct MaxGainer {
-    EdgeWeight int_degree;
-    EdgeWeight ext_degree;
-    BlockID block;
-    NodeWeight weight;
-
-    [[nodiscard]] EdgeWeight absolute_gain() const {
-      return ext_degree - int_degree;
-    }
-
-    [[nodiscard]] double relative_gain() const {
-      if (ext_degree >= int_degree) {
-        return 1.0 * absolute_gain() * weight;
-      } else {
-        return 1.0 * absolute_gain() / weight;
-      }
-    }
-  };
-
-  void init(const DistributedPartitionedGraph &p_graph, const Graph &graph) {
+  void init(const Graph &graph, const DistributedPartitionedGraph &p_graph) {
     _p_graph = &p_graph;
     _graph = &graph;
   }

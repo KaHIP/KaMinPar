@@ -76,7 +76,7 @@ public:
       }
     }
 
-    _gain_calculator.init(_p_graph, _graph);
+    _gain_calculator.init(_graph, _p_graph);
     reset();
 
     TIMER_BARRIER(_graph.communicator());
