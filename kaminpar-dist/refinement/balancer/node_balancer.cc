@@ -167,8 +167,6 @@ public:
 
 private:
   void reinit() {
-    // debug::print_local_graph_stats(_p_graph.graph());
-
     // Only initialize the balancer is the partition is actually imbalanced
     if (metrics::is_feasible(_p_graph, _p_ctx)) {
       return;
@@ -403,6 +401,7 @@ private:
         });
       }
 
+      _gain_calculator.move(u, from, to);
       if (update_block_weights) {
         _p_graph.set_block(u, to);
       } else {
@@ -695,6 +694,9 @@ private:
               tbb::parallel_for<std::size_t>(0, recv_buffer.size(), [&](const std::size_t i) {
                 const auto [their_lnode, to] = recv_buffer[i];
                 const NodeID lnode = _graph.map_remote_node(their_lnode, pe);
+                const BlockID from = _p_graph.block(lnode);
+
+                _gain_calculator.move(lnode, from, to);
                 _p_graph.set_block<false>(lnode, to);
               });
             }

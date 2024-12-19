@@ -140,10 +140,12 @@ public:
     _weighted_degrees.free();
   }
 
-  void advance_epoch() {
+  void consolidate() {
     _graph->pfor_nodes([&](const NodeID node) {
-      KASSERT(_node_epoch[node] == _epoch);
-      ++_node_epoch[node];
+      if (_node_epoch[node] == _epoch) {
+        return;
+      }
+      _node_epoch[node] = _epoch;
 
       _graph->adjacent_ghost_nodes(node, [&](const NodeID ghost, const EdgeWeight weight) {
         const BlockID prev = _prev_ghost_node_blocks[ghost - _n];
@@ -157,8 +159,6 @@ public:
     _graph->pfor_ghost_nodes([&](const NodeID ghost) {
       _prev_ghost_node_blocks[ghost - _n] = _p_graph->block(ghost);
     });
-
-    ++_epoch;
   }
 
   MaxGainer compute_max_gainer(const NodeID u, const PartitionContext &p_ctx) const {
@@ -187,7 +187,9 @@ public:
 
   void move(const NodeID node, const BlockID block_from, const BlockID block_to) {
     if (_graph->is_ghost_node(node)) {
+      KASSERT(_prev_ghost_node_blocks[node - _n] == block_from);
       _prev_ghost_node_blocks[node - _n] = block_from;
+      ++_epoch;
       return;
     }
 
@@ -239,6 +241,18 @@ private:
   template <typename Lambda>
   KAMINPAR_INLINE void gains(const NodeID node, const BlockID from, Lambda &&lambda) {
     KASSERT(_graph->is_owned_node(node));
+
+    if (_node_epoch[node] != _epoch) {
+      _node_epoch[node] = _epoch;
+
+      _graph->adjacent_ghost_nodes(node, [&](const NodeID ghost, const EdgeWeight weight) {
+        const BlockID prev = _prev_ghost_node_blocks[ghost - _n];
+        const BlockID cur = _p_graph->block(ghost);
+        if (prev != cur) {
+          lazy_update_after_ghost_move(node, weight, prev, cur);
+        }
+      });
+    }
 
     if (use_hash_table(node)) {
       const EdgeWeight conn_from = kIteratesExactGains ? conn_hash_table(node, from) : 0;
@@ -578,7 +592,7 @@ private:
   const DistributedGraph *_graph = nullptr;
   const DistributedPartitionedGraph *_p_graph = nullptr;
 
-  int _epoch = 0;
+  std::atomic<int> _epoch = 0;
 
   NodeID _n = kInvalidNodeID;
   BlockID _k = kInvalidBlockID;

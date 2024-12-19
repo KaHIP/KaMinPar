@@ -76,7 +76,6 @@ public:
       }
     }
 
-    _gain_calculator.init(_graph, _p_graph);
     reset();
 
     TIMER_BARRIER(_graph.communicator());
@@ -156,9 +155,14 @@ public:
         find_moves();
         synchronize_ghost_node_move_candidates();
         filter_bad_moves();
+
+        _gain_calculator.consolidate();
+
         move_locked_nodes();
         synchronize_ghost_node_labels();
         apply_block_weight_deltas();
+
+        _gain_calculator.consolidate();
 
         KASSERT(
             debug::validate_partition(_p_graph),
@@ -216,6 +220,7 @@ public:
 
 private:
   void reset() {
+    _gain_calculator.init(_graph, _p_graph);
     _snapshooter.init(_p_graph, _p_ctx);
 
     KASSERT(_locked.size() >= _graph.n(), "locked vector is too small", assert::light);
@@ -317,6 +322,8 @@ private:
 
       const BlockID from = _p_graph.block(u);
       const BlockID to = _gains_and_targets[u].second;
+
+      _gain_calculator.move(u, from, to);
       _p_graph.set_block<false>(u, to);
 
       const NodeWeight w_u = _graph.node_weight(u);
@@ -359,6 +366,7 @@ private:
         }
     );
   }
+
   void synchronize_ghost_node_labels() {
     TIMER_BARRIER(_graph.communicator());
     SCOPED_TIMER("Synchronize ghost node labels");
@@ -380,9 +388,12 @@ private:
         },
         [&](const auto &recv_buffer, const PEID pe) {
           tbb::parallel_for<std::size_t>(0, recv_buffer.size(), [&](const std::size_t i) {
-            const auto [their_lnode, block] = recv_buffer[i];
+            const auto [their_lnode, to] = recv_buffer[i];
             const NodeID lnode = _graph.map_remote_node(their_lnode, pe);
-            _p_graph.set_block<false>(lnode, block);
+
+            const BlockID from = _p_graph.block(lnode);
+            _gain_calculator.move(lnode, from, to);
+            _p_graph.set_block<false>(lnode, to);
           });
         }
     );

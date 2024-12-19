@@ -34,7 +34,7 @@ public:
     // Nothing to do
   }
 
-  void advance_epoch() {
+  void consolidate() {
     // Nothing to do
   }
 
