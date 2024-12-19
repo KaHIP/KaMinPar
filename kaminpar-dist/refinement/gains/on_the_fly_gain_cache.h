@@ -30,6 +30,14 @@ public:
     _graph = &graph;
   }
 
+  void free() {
+    // Nothing to do
+  }
+
+  void advance_epoch() {
+    // Nothing to do
+  }
+
   MaxGainer compute_max_gainer(const NodeID u, const PartitionContext &p_ctx) const {
     return compute_max_gainer_impl(
         u,
@@ -52,6 +60,10 @@ public:
     return compute_max_gainer_impl(u, [](BlockID /* block */, BlockWeight /* weight_after_move */) {
       return true;
     });
+  }
+
+  void move(NodeID, BlockID, BlockID) {
+    // Nothing to do
   }
 
 private:
