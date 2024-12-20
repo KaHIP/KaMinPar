@@ -67,7 +67,7 @@ public:
     if (_weighted_degrees.size() < _n) {
       SCOPED_TIMER("Allocation");
       _weighted_degrees.resize(_n);
-      _node_epoch.resize(_n);
+      _node_epoch.resize(_graph->total_n());
     }
 
     recompute_weighted_degrees();
@@ -145,19 +145,23 @@ public:
       if (_node_epoch[node] == _epoch) {
         return;
       }
-      _node_epoch[node] = _epoch;
 
       _graph->adjacent_ghost_nodes(node, [&](const NodeID ghost, const EdgeWeight weight) {
-        const BlockID prev = _prev_ghost_node_blocks[ghost - _n];
-        const BlockID cur = _p_graph->block(ghost);
-        if (prev != cur) {
-          lazy_update_after_ghost_move(node, weight, prev, cur);
+        if (_node_epoch[ghost] > _node_epoch[node]) {
+          const BlockID prev = _prev_ghost_node_blocks[ghost - _n];
+          const BlockID cur = _p_graph->block(ghost);
+          if (prev != cur) {
+            lazy_update_after_ghost_move(node, weight, prev, cur);
+          }
         }
       });
+
+      _node_epoch[node] = _epoch;
     });
 
     _graph->pfor_ghost_nodes([&](const NodeID ghost) {
       _prev_ghost_node_blocks[ghost - _n] = _p_graph->block(ghost);
+      _node_epoch[ghost] = _epoch;
     });
   }
 
@@ -189,7 +193,7 @@ public:
     if (_graph->is_ghost_node(node)) {
       KASSERT(_prev_ghost_node_blocks[node - _n] == block_from);
       _prev_ghost_node_blocks[node - _n] = block_from;
-      ++_epoch;
+      _node_epoch[node] = ++_epoch;
       return;
     }
 
@@ -243,16 +247,18 @@ private:
   KAMINPAR_INLINE void gains(const NodeID node, const BlockID from, Lambda &&lambda) {
     KASSERT(_graph->is_owned_node(node));
 
-    if (_node_epoch[node] != _epoch) {
-      _node_epoch[node] = _epoch;
-
+    if (_node_epoch[node] < _epoch) {
       _graph->adjacent_ghost_nodes(node, [&](const NodeID ghost, const EdgeWeight weight) {
-        const BlockID prev = _prev_ghost_node_blocks[ghost - _n];
-        const BlockID cur = _p_graph->block(ghost);
-        if (prev != cur) {
-          lazy_update_after_ghost_move(node, weight, prev, cur);
+        if (_node_epoch[ghost] > _node_epoch[node]) {
+          const BlockID prev = _prev_ghost_node_blocks[ghost - _n];
+          const BlockID cur = _p_graph->block(ghost);
+          if (prev != cur) {
+            lazy_update_after_ghost_move(node, weight, prev, cur);
+          }
         }
       });
+
+      _node_epoch[node] = _epoch;
     }
 
     if (use_hash_table(node)) {
