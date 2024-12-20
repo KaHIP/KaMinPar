@@ -307,6 +307,8 @@ struct JetRefinementContext {
   double final_negative_gain_factor;
 
   RefinementAlgorithm balancing_algorithm;
+
+  bool use_gain_cache;
 };
 
 struct RefinementContext {

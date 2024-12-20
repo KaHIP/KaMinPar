@@ -616,6 +616,8 @@ CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {
       )
       ->capture_default_str();
 
+  jet->add_flag("--r-jet-use-gain-cache", ctx.refinement.jet.use_gain_cache)->capture_default_str();
+
   return jet;
 }
 

@@ -223,6 +223,7 @@ Context create_default_context() {
                       .initial_negative_gain_factor = 0.75,
                       .final_negative_gain_factor = 0.25,
                       .balancing_algorithm = RefinementAlgorithm::HYBRID_NODE_BALANCER,
+                      .use_gain_cache = false,
                   },
               .mtkahypar =
                   {

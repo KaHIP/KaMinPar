@@ -22,8 +22,8 @@ namespace kaminpar::dist {
 
 template <typename Graph, bool randomize = true> class OnTheFlyGainCache {
 public:
-  OnTheFlyGainCache(const BlockID max_k)
-      : _rating_map_ets([max_k] { return RatingMap<EdgeWeight, BlockID>(max_k); }) {}
+  OnTheFlyGainCache(const Context &ctx)
+      : _rating_map_ets([&] { return RatingMap<EdgeWeight, BlockID>(ctx.partition.k); }) {}
 
   void init(const Graph &graph, const DistributedPartitionedGraph &p_graph) {
     _p_graph = &p_graph;

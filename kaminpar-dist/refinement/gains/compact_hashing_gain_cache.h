@@ -29,7 +29,7 @@ namespace kaminpar::dist {
 
 template <
     typename DistributedGraphType,
-    bool iterate_nonadjacent_blocks,
+    bool iterate_nonadjacent_blocks = false,
     bool iterate_exact_gains = false>
 class CompactHashingGainCache {
   SET_DEBUG(false);
@@ -56,7 +56,7 @@ public:
 
   CompactHashingGainCache(const Context &ctx) : _ctx(ctx) {}
 
-  void initialize(const DistributedGraph &graph, const DistributedPartitionedGraph &p_graph) {
+  void init(const DistributedGraph &graph, const DistributedPartitionedGraph &p_graph) {
     _graph = &graph;
     _p_graph = &p_graph;
 
@@ -161,7 +161,7 @@ public:
     });
   }
 
-  MaxGainer compute_max_gainer(const NodeID u, const PartitionContext &p_ctx) const {
+  MaxGainer compute_max_gainer(const NodeID u, const PartitionContext &p_ctx) {
     return compute_max_gainer_impl(
         u,
         [&p_ctx](const BlockID block, const BlockWeight weight_after_move) {
@@ -170,7 +170,7 @@ public:
     );
   }
 
-  MaxGainer compute_max_gainer(const NodeID u, const BlockWeight max_block_weight) const {
+  MaxGainer compute_max_gainer(const NodeID u, const BlockWeight max_block_weight) {
     return compute_max_gainer_impl(
         u,
         [max_block_weight](BlockID /* block */, const BlockWeight weight_after_move) {
@@ -179,7 +179,7 @@ public:
     );
   }
 
-  MaxGainer compute_max_gainer(const NodeID u) const {
+  MaxGainer compute_max_gainer(const NodeID u) {
     return compute_max_gainer_impl(u, [](BlockID /* block */, BlockWeight /* weight_after_move */) {
       return true;
     });
@@ -212,7 +212,7 @@ public:
 
 private:
   template <typename WeightChecker>
-  MaxGainer compute_max_gainer_impl(const NodeID u, WeightChecker &&weight_checker) const {
+  MaxGainer compute_max_gainer_impl(const NodeID u, WeightChecker &&weight_checker) {
     const NodeWeight w_u = _graph->node_weight(u);
     const BlockID b_u = _p_graph->block(u);
 
@@ -220,7 +220,8 @@ private:
     EdgeWeight max_ext_conn = 0;
     BlockID max_target = b_u;
 
-    gains(u, b_u, [&](const BlockID to, const EdgeWeight conn) {
+    gains(u, b_u, [&](const BlockID to, const auto compute_conn) {
+      auto conn = compute_conn();
       if (b_u == to) {
         int_conn = conn;
       } else if (conn > max_ext_conn && weight_checker(to, _p_graph->block_weight(to) + w_u)) {

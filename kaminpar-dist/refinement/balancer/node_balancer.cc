@@ -15,6 +15,7 @@
 #include "kaminpar-dist/metrics.h"
 #include "kaminpar-dist/refinement/balancer/reductions.h"
 #include "kaminpar-dist/refinement/balancer/weight_buckets.h"
+#include "kaminpar-dist/refinement/gains/compact_hashing_gain_cache.h"
 #include "kaminpar-dist/refinement/gains/on_the_fly_gain_cache.h"
 #include "kaminpar-dist/timer.h"
 
@@ -51,7 +52,8 @@ public:
       const Context &ctx,
       DistributedPartitionedGraph &p_graph,
       const Graph &graph,
-      const PartitionContext &p_ctx
+      const PartitionContext &p_ctx,
+      CompactHashingGainCache<Graph> *primary_gain_cache = nullptr
   )
       : _p_graph(p_graph),
         _graph(graph),
@@ -64,11 +66,14 @@ public:
         _buckets(
             p_graph, p_ctx, _nb_ctx.par_enable_positive_gain_buckets, _nb_ctx.par_gain_bucket_base
         ),
-        _gain_calculator(_p_ctx.k),
+        _primary_gain_cache(primary_gain_cache),
+        _secondary_gain_cache(ctx),
         _cached_cutoff_buckets(_p_graph.k()),
         _target_blocks(_graph.n()),
         _tmp_gains(!_nb_ctx.par_update_pq_gains * _graph.n()) {
-    _gain_calculator.init(_graph, _p_graph);
+    if (primary_gain_cache == nullptr) {
+      _secondary_gain_cache.init(_graph, _p_graph);
+    }
   }
 
   NodeBalancer(const NodeBalancer &) = delete;
@@ -202,7 +207,10 @@ private:
       const BlockWeight overload = block_overload(from);
 
       if (overload > 0) { // Node in overloaded block
-        const auto max_gainer = _gain_calculator.compute_max_gainer(u, _p_ctx);
+        const auto max_gainer = _primary_gain_cache == nullptr
+                                    ? _secondary_gain_cache.compute_max_gainer(u, _p_ctx)
+                                    : _primary_gain_cache->compute_max_gainer(u, _p_ctx);
+
         const double rel_gain = max_gainer.relative_gain();
         _target_blocks[u] = max_gainer.block;
 
@@ -337,7 +345,10 @@ private:
         _pq.pop_max(from);
         _pq_weight[from] -= u_weight;
 
-        const auto max_gainer = _gain_calculator.compute_max_gainer(u, _p_ctx);
+        const auto max_gainer = _primary_gain_cache == nullptr
+                                    ? _secondary_gain_cache.compute_max_gainer(u, _p_ctx)
+                                    : _primary_gain_cache->compute_max_gainer(u, _p_ctx);
+
         const double actual_relative_gain = max_gainer.relative_gain();
         const BlockID to = max_gainer.block;
         _target_blocks[u] = to;
@@ -401,7 +412,12 @@ private:
         });
       }
 
-      _gain_calculator.move(u, from, to);
+      if (_primary_gain_cache == nullptr) {
+        _secondary_gain_cache.move(u, from, to);
+      } else {
+        _primary_gain_cache->move(u, from, to);
+      }
+
       if (update_block_weights) {
         _p_graph.set_block(u, to);
       } else {
@@ -440,7 +456,10 @@ private:
       return false;
     }
 
-    const auto max_gainer = _gain_calculator.compute_max_gainer(u, _p_ctx);
+    const auto max_gainer = _primary_gain_cache == nullptr
+                                ? _secondary_gain_cache.compute_max_gainer(u, _p_ctx)
+                                : _primary_gain_cache->compute_max_gainer(u, _p_ctx);
+
     _target_blocks[u] = max_gainer.block;
     return try_pq_insertion(b_u, u, _graph.node_weight(u), max_gainer.relative_gain());
   }
@@ -497,7 +516,10 @@ private:
         }
 
         // For low-degree nodes, recalculate gain and update PQ
-        const auto max_gainer = _gain_calculator.compute_max_gainer(node, _p_ctx);
+        const auto max_gainer = _primary_gain_cache == nullptr
+                                    ? _secondary_gain_cache.compute_max_gainer(node, _p_ctx)
+                                    : _primary_gain_cache->compute_max_gainer(node, _p_ctx);
+
         const double actual_gain = max_gainer.relative_gain();
         const BlockID to = max_gainer.block;
 
@@ -547,7 +569,9 @@ private:
 
         KASSERT(
             [&] {
-              const auto max_gainer = _gain_calculator.compute_max_gainer(node, _p_ctx);
+              const auto max_gainer = _primary_gain_cache == nullptr
+                                          ? _secondary_gain_cache.compute_max_gainer(node, _p_ctx)
+                                          : _primary_gain_cache->compute_max_gainer(node, _p_ctx);
 
               if (gain != max_gainer.relative_gain()) {
                 LOG_WARNING << "bad relative gain for node " << node << ": " << gain
@@ -696,7 +720,11 @@ private:
                 const NodeID lnode = _graph.map_remote_node(their_lnode, pe);
                 const BlockID from = _p_graph.block(lnode);
 
-                _gain_calculator.move(lnode, from, to);
+                if (_primary_gain_cache == nullptr) {
+                  _secondary_gain_cache.move(lnode, from, to);
+                } else {
+                  _primary_gain_cache->move(lnode, from, to);
+                }
                 _p_graph.set_block<false>(lnode, to);
               });
             }
@@ -749,7 +777,8 @@ private:
   Marker<> _marker;
 
   Buckets _buckets;
-  RandomizedOnTheFlyGainCache<Graph> _gain_calculator;
+  CompactHashingGainCache<Graph> *_primary_gain_cache;
+  RandomizedOnTheFlyGainCache<Graph> _secondary_gain_cache;
 
   bool _stalled = false;
 
@@ -765,22 +794,24 @@ private:
 
 NodeBalancerFactory::NodeBalancerFactory(const Context &ctx) : _ctx(ctx) {}
 
+void NodeBalancerFactory::use_gain_cache(CompactHashingGainCache<DistributedCSRGraph> &gain_cache) {
+  _gain_cache = &gain_cache;
+}
+
 std::unique_ptr<GlobalRefiner>
 NodeBalancerFactory::create(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
-  return p_graph.graph().reified(
-      [&](const DistributedCSRGraph &csr_graph) {
-        std::unique_ptr<GlobalRefiner> refiner =
-            std::make_unique<NodeBalancer<DistributedCSRGraph>>(_ctx, p_graph, csr_graph, p_ctx);
-        return refiner;
-      },
-      [&](const DistributedCompressedGraph &compressed_graph) {
-        std::unique_ptr<GlobalRefiner> refiner =
-            std::make_unique<NodeBalancer<DistributedCompressedGraph>>(
-                _ctx, p_graph, compressed_graph, p_ctx
-            );
-        return refiner;
-      }
-  );
+  return p_graph.graph().reified([&](const auto &graph) {
+    std::unique_ptr<GlobalRefiner> refiner;
+
+    using Graph = std::decay_t<decltype(graph)>;
+    if constexpr (std::is_same_v<Graph, DistributedCSRGraph>) {
+      refiner = std::make_unique<NodeBalancer<Graph>>(_ctx, p_graph, graph, p_ctx, _gain_cache);
+    } else {
+      refiner = std::make_unique<NodeBalancer<Graph>>(_ctx, p_graph, graph, p_ctx);
+    }
+
+    return refiner;
+  });
 }
 
 } // namespace kaminpar::dist
