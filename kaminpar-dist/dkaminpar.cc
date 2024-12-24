@@ -29,7 +29,6 @@
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/console_io.h"
-#include "kaminpar-common/environment.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/random.h"
 
@@ -78,7 +77,7 @@ void print_partition_summary(
     }
 
 #ifdef KAMINPAR_ENABLE_TIMERS
-    Timer::global().print_human_readable(std::cout, max_timer_depth);
+    Timer::global().print_human_readable(std::cout, true, max_timer_depth);
 #else  // KAMINPAR_ENABLE_TIMERS
     LOG << "Global Timers: disabled";
 #endif // KAMINPAR_ENABLE_TIMERS

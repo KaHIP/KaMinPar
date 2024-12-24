@@ -127,7 +127,7 @@ void print_statistics(
   }
 
 #ifdef KAMINPAR_ENABLE_TIMERS
-  Timer::global().print_human_readable(std::cout, max_timer_depth);
+  Timer::global().print_human_readable(std::cout, false, max_timer_depth);
 #else  // KAMINPAR_ENABLE_TIMERS
   LOG << "Global Timers: disabled";
 #endif // KAMINPAR_ENABLE_TIMERS

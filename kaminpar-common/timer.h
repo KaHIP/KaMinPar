@@ -148,17 +148,17 @@ public:
 
   struct TimerTreeNode {
     std::string_view name;
-    std::string description;
+    std::string description{};
 
     std::size_t restarts = 0;
-    Duration elapsed;
-    TimePoint start;
+    Duration elapsed{};
+    TimePoint start{};
 
     TimerTreeNode *parent = nullptr;
-    std::map<std::string_view, TimerTreeNode *> children_tbl;
-    std::vector<std::unique_ptr<TimerTreeNode>> children;
+    std::map<std::string_view, TimerTreeNode *> children_tbl{};
+    std::vector<std::unique_ptr<TimerTreeNode>> children{};
 
-    std::string annotation;
+    std::string annotation{};
 
     [[nodiscard]] std::string build_display_name_mr() const;
     [[nodiscard]] std::string build_display_name_hr() const;
@@ -279,7 +279,11 @@ public:
 
   void print_machine_readable(std::ostream &out, int max_depth = std::numeric_limits<int>::max());
 
-  void print_human_readable(std::ostream &out, int max_depth = std::numeric_limits<int>::max());
+  void print_human_readable(
+      std::ostream &out,
+      bool show_discrepancy = false,
+      int max_depth = std::numeric_limits<int>::max()
+  );
 
   void reset();
 
@@ -306,7 +310,11 @@ private:
   print_padded_timing(std::ostream &out, std::size_t start_col, const TimerTreeNode *node) const;
 
   void print_children_hr(
-      std::ostream &out, const std::string &base_prefix, const TimerTreeNode *node, int max_depth
+      std::ostream &out,
+      const std::string &base_prefix,
+      const TimerTreeNode *node,
+      bool show_discrepancy,
+      int max_depth
   ) const;
 
   void print_node_mr(

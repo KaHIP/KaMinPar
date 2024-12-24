@@ -167,13 +167,19 @@ public:
         synchronize_ghost_node_move_candidates();
         filter_bad_moves();
 
-        _gain_cache.consolidate();
+        TIMER_BARRIER(_graph.communicator());
+        TIMED_SCOPE("Consolidate gain cache") {
+          _gain_cache.consolidate();
+        };
 
         move_locked_nodes();
         synchronize_ghost_node_labels();
         apply_block_weight_deltas();
 
-        _gain_cache.consolidate();
+        TIMER_BARRIER(_graph.communicator());
+        TIMED_SCOPE("Consolidate gain cache") {
+          _gain_cache.consolidate();
+        };
 
         KASSERT(
             debug::validate_partition(_p_graph),
