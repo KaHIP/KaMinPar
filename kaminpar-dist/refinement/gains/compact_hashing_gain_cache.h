@@ -141,6 +141,12 @@ public:
   }
 
   void consolidate() {
+    if (_epoch == _prev_epoch) {
+      return;
+    }
+
+    _prev_epoch = _epoch;
+
     _graph->pfor_nodes([&](const NodeID node) {
       if (_node_epoch[node] == _epoch) {
         return;
@@ -599,6 +605,7 @@ private:
   const DistributedGraph *_graph = nullptr;
   const DistributedPartitionedGraph *_p_graph = nullptr;
 
+  int _prev_epoch = 0;
   std::atomic<int> _epoch = 0;
 
   NodeID _n = kInvalidNodeID;
