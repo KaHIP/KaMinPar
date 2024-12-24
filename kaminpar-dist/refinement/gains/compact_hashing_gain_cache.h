@@ -68,6 +68,8 @@ public:
       SCOPED_TIMER("Allocation");
       _weighted_degrees.resize(_n);
       _node_epoch.resize(_graph->total_n());
+      _prev_ghost_node_blocks.resize(_graph->ghost_n());
+      _offsets.resize(_n + 1);
     }
 
     recompute_weighted_degrees();
@@ -75,11 +77,6 @@ public:
     _graph->pfor_ghost_nodes([&](const NodeID ghost) {
       _prev_ghost_node_blocks[ghost - _n] = _p_graph->block(ghost);
     });
-
-    if (_offsets.size() < _n + 1) {
-      SCOPED_TIMER("Allocation");
-      _offsets.resize(_n + 1);
-    }
 
     START_TIMER("Compute gain cache offsets");
     const std::size_t total_nbytes =
@@ -385,6 +382,8 @@ private:
 
   // Computes the number of bytes (0, 1, 2, 4, 8) required to store the entries for the given node
   KAMINPAR_INLINE int compute_entry_width(const NodeID node, const bool with_key) const {
+    KASSERT(_graph->is_owned_node(node));
+
     const auto max_value = static_cast<std::uint64_t>(weighted_degree(node));
     if (max_value == 0) {
       return 0;
