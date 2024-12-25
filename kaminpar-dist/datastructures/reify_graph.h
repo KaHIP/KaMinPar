@@ -11,6 +11,8 @@
 #include "kaminpar-dist/datastructures/distributed_compressed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_csr_graph.h"
 
+#include "kaminpar-common/assert.h"
+
 namespace kaminpar::dist::graph {
 
 template <typename Lambda1, typename Lambda2>
@@ -43,12 +45,16 @@ template <typename ConcretizedGraph> [[nodiscard]] bool is(const AbstractDistrib
 
 template <typename ConcretizedGraph>
 [[nodiscard]] ConcretizedGraph &concretize(const AbstractDistributedGraph &graph) {
-  KASSERT(is<ConcretizedGraph>(), "underlying graph is not a " << typeid(ConcretizedGraph).name());
+  KASSERT(
+      is<ConcretizedGraph>(graph), "underlying graph is not a " << typeid(ConcretizedGraph).name()
+  );
   return *static_cast<ConcretizedGraph *>(&graph);
 }
 
 template <typename ConcretizedGraph> ConcretizedGraph &concretize(AbstractDistributedGraph &graph) {
-  KASSERT(is<ConcretizedGraph>(), "underlying graph is not a " << typeid(ConcretizedGraph).name());
+  KASSERT(
+      is<ConcretizedGraph>(graph), "underlying graph is not a " << typeid(ConcretizedGraph).name()
+  );
   return dynamic_cast<ConcretizedGraph &>(graph);
 }
 
