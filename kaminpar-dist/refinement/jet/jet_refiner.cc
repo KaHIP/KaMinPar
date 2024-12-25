@@ -18,13 +18,13 @@
 #include "kaminpar-dist/graphutils/communication.h"
 #include "kaminpar-dist/logger.h"
 #include "kaminpar-dist/metrics.h"
-#include "kaminpar-dist/refinement/gains/compact_hashing_gain_cache.h"
+#include "kaminpar-dist/refinement/gains/on_the_fly_gain_cache.h"
 #include "kaminpar-dist/refinement/snapshooter.h"
 #include "kaminpar-dist/timer.h"
 
 #ifdef KAMINPAR_EXPERIMENTAL
+#include "kaminpar-dist/refinement/gains/compact_hashing_gain_cache.h"
 #include "kaminpar-dist/refinement/gains/lazy_compact_hashing_gain_cache.h"
-#include "kaminpar-dist/refinement/gains/on_the_fly_gain_cache.h"
 #endif // KAMINPAR_EXPERIMENTAL
 
 #define HEAVY assert::heavy
