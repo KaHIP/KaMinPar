@@ -15,26 +15,37 @@
 #include "kaminpar-dist/timer.h"
 
 namespace kaminpar::dist {
-void print_input_graph(const DistributedGraph &graph) {
+
+void print_input_graph(const DistributedGraph &graph, const bool verbose) {
   TIMER_BARRIER(graph.communicator());
   SCOPED_TIMER("Print graph statistics");
 
   LOG << "Input graph:";
-  print_graph_summary(graph);
+  if (verbose) {
+    print_extended_graph_summary(graph);
+  } else {
+    print_graph_summary(graph);
+  }
   LOG;
 
   TIMER_BARRIER(graph.communicator());
 }
 
 void print_coarsened_graph(
-    const DistributedGraph &graph, const int level, const GlobalNodeWeight max_cluster_weight
+    const DistributedGraph &graph,
+    const int level,
+    const GlobalNodeWeight max_cluster_weight,
+    const bool verbose
 ) {
   TIMER_BARRIER(graph.communicator());
   SCOPED_TIMER("Print graph statistics");
 
-  LOG << "Coarsening -> Level " << level << ":";
-  print_graph_summary(graph);
-  LOG << "    <= " << max_cluster_weight;
+  LOG << "Coarsening -> Level " << level << " [max cluster weight: " << max_cluster_weight << "]:";
+  if (verbose) {
+    print_extended_graph_summary(graph);
+  } else {
+    print_graph_summary(graph);
+  }
   LOG;
 
   TIMER_BARRIER(graph.communicator());
@@ -66,4 +77,5 @@ void print_initial_partitioning_result(
   LOG << "  Imbalance:        " << imbalance;
   LOG << "  Feasible:         " << (feasible ? "yes" : "no");
 }
+
 } // namespace kaminpar::dist

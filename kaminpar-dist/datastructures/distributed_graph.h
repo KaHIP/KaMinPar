@@ -458,12 +458,18 @@ private:
 };
 
 /**
- * Prints verbose statistics on the distribution of the graph across PEs and the
- * number of ghost nodes, but only if verbose statistics are enabled as build
- * option.
+ * Prints basic statistics on the distribution of the graph.
+ * Computing these statistics requires communication, but is computationally cheap.
  * @param graph Graph for which statistics are printed.
  */
 void print_graph_summary(const DistributedGraph &graph);
+
+/**
+ * Prints more verbose statistics on the distribution of the graph.
+ * These statistics require more computation than the basic statistics.
+ * @param graph Graph for which statistics are printed.
+ */
+void print_extended_graph_summary(const DistributedGraph &graph);
 
 namespace debug {
 
