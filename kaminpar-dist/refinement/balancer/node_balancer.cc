@@ -15,9 +15,13 @@
 #include "kaminpar-dist/metrics.h"
 #include "kaminpar-dist/refinement/balancer/reductions.h"
 #include "kaminpar-dist/refinement/balancer/weight_buckets.h"
-#include "kaminpar-dist/refinement/gains/lazy_compact_hashing_gain_cache.h"
 #include "kaminpar-dist/refinement/gains/on_the_fly_gain_cache.h"
 #include "kaminpar-dist/timer.h"
+
+#ifdef KAMINPAR_EXPERIMENTAL
+#include "kaminpar-dist/refinement/gains/compact_hashing_gain_cache.h"
+#include "kaminpar-dist/refinement/gains/lazy_compact_hashing_gain_cache.h"
+#endif // KAMINPAR_EXPERIMENTAL
 
 #include "kaminpar-common/datastructures/binary_heap.h"
 #include "kaminpar-common/datastructures/marker.h"
@@ -812,7 +816,13 @@ std::unique_ptr<GlobalRefiner> NodeBalancerWithDecoupledGainCacheFactory<GainCac
 }
 
 template class NodeBalancerWithDecoupledGainCacheFactory<OnTheFlyGainCache<DistributedCSRGraph>>;
+
+#ifdef KAMINPAR_EXPERIMENTAL
+template class NodeBalancerWithDecoupledGainCacheFactory<
+    CompactHashingGainCache<DistributedCSRGraph>>;
+
 template class NodeBalancerWithDecoupledGainCacheFactory<
     LazyCompactHashingGainCache<DistributedCSRGraph>>;
+#endif // KAMINPAR_EXPERIMENTAL
 
 } // namespace kaminpar::dist

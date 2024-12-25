@@ -286,6 +286,8 @@ std::ostream &operator<<(std::ostream &out, GainCacheStrategy strategy) {
   switch (strategy) {
   case GainCacheStrategy::ON_THE_FLY:
     return out << "on-the-fly";
+  case GainCacheStrategy::COMPACT_HASHING:
+    return out << "compact-hashing";
   case GainCacheStrategy::LAZY_COMPACT_HASHING:
     return out << "lazy-compact-hashing";
   }
@@ -296,6 +298,7 @@ std::ostream &operator<<(std::ostream &out, GainCacheStrategy strategy) {
 std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies() {
   return {
       {"on-the-fly", GainCacheStrategy::ON_THE_FLY},
+      {"compact-hashing", GainCacheStrategy::COMPACT_HASHING},
       {"lazy-compact-hashing", GainCacheStrategy::LAZY_COMPACT_HASHING},
   };
 }

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * @file:   lazy_compact_hashing_gain_cache.h
+ * @file:   compact_hashing_gain_cache.h
  * @author: Daniel Seemaier
  * @date:   19.12.2024
  ******************************************************************************/
@@ -13,6 +13,7 @@
 
 #include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
+#include "kaminpar-dist/datastructures/ghost_graph.h"
 #include "kaminpar-dist/refinement/gains/max_gainer.h"
 
 #include "kaminpar-common/assert.h"
@@ -27,7 +28,7 @@
 
 namespace kaminpar::dist {
 
-template <typename DistributedGraphType> class LazyCompactHashingGainCache {
+template <typename DistributedGraphType> class CompactHashingGainCache {
   SET_DEBUG(false);
 
   // Abuse MSB bit in the _weighted_degrees[] array for locking
@@ -37,7 +38,7 @@ template <typename DistributedGraphType> class LazyCompactHashingGainCache {
 
 public:
   using DistributedGraph = DistributedGraphType;
-  using Self = LazyCompactHashingGainCache<DistributedGraphType>;
+  using Self = CompactHashingGainCache<DistributedGraphType>;
 
   // If set to true, gains() will iterate over all blocks, including those not adjacent to the
   // node.
@@ -47,11 +48,15 @@ public:
   // the gain consumer with the total edge weight between the node and nodes in the specific block.
   constexpr static bool kIteratesExactGains = false;
 
-  LazyCompactHashingGainCache(const Context &ctx) : _ctx(ctx) {}
+  CompactHashingGainCache(const Context &ctx) : _ctx(ctx) {}
 
   void init(const DistributedGraph &graph, const DistributedPartitionedGraph &p_graph) {
     _graph = &graph;
     _p_graph = &p_graph;
+
+    TIMED_SCOPE("Initialize ghost graph") {
+      _ghost_graph.initialize(p_graph.graph());
+    };
 
     _n = _graph->n();
     _k = _p_graph->k();
@@ -60,16 +65,10 @@ public:
     if (_weighted_degrees.size() < _n) {
       SCOPED_TIMER("Allocation");
       _weighted_degrees.resize(_n);
-      _node_epoch.resize(_graph->total_n());
-      _prev_ghost_node_blocks.resize(_graph->ghost_n());
       _offsets.resize(_n + 1);
     }
 
     recompute_weighted_degrees();
-
-    _graph->pfor_ghost_nodes([&](const NodeID ghost) {
-      _prev_ghost_node_blocks[ghost - _n] = _p_graph->block(ghost);
-    });
 
     START_TIMER("Compute gain cache offsets");
     const std::size_t total_nbytes =
@@ -131,34 +130,7 @@ public:
   }
 
   void consolidate() {
-    if (_epoch == _prev_epoch) {
-      return;
-    }
-
-    _prev_epoch = _epoch;
-
-    _graph->pfor_nodes([&](const NodeID node) {
-      if (_node_epoch[node] == _epoch) {
-        return;
-      }
-
-      _graph->adjacent_ghost_nodes(node, [&](const NodeID ghost, const EdgeWeight weight) {
-        if (_node_epoch[ghost] > _node_epoch[node]) {
-          const BlockID prev = _prev_ghost_node_blocks[ghost - _n];
-          const BlockID cur = _p_graph->block(ghost);
-          if (prev != cur) {
-            lazy_update_after_ghost_move(node, weight, prev, cur);
-          }
-        }
-      });
-
-      _node_epoch[node] = _epoch;
-    });
-
-    _graph->pfor_ghost_nodes([&](const NodeID ghost) {
-      _prev_ghost_node_blocks[ghost - _n] = _p_graph->block(ghost);
-      _node_epoch[ghost] = _epoch;
-    });
+    // Nothing to do
   }
 
   MaxGainer compute_max_gainer(const NodeID u, const PartitionContext &p_ctx) {
@@ -187,30 +159,36 @@ public:
 
   void move(const NodeID node, const BlockID block_from, const BlockID block_to) {
     if (_graph->is_ghost_node(node)) {
-      KASSERT(_prev_ghost_node_blocks[node - _n] == block_from);
-      _prev_ghost_node_blocks[node - _n] = block_from;
-      _node_epoch[node] = ++_epoch;
+      _ghost_graph.adjacent_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
+        update_affinity_values(v, weight, block_from, block_to);
+      });
       return;
     }
 
     _graph->adjacent_owned_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
-      if (use_hash_table(v)) {
-        lock(v);
-        with_hash_table(v, [&](auto &&hash_table) {
-          hash_table.decrease_by(block_from, weight);
-          hash_table.increase_by(block_to, weight);
-        });
-        unlock(v);
-      } else {
-        with_full_table(v, [&](auto *full_table) {
-          __atomic_fetch_sub(full_table + block_from, weight, __ATOMIC_RELAXED);
-          __atomic_fetch_add(full_table + block_to, weight, __ATOMIC_RELAXED);
-        });
-      }
+      update_affinity_values(v, weight, block_from, block_to);
     });
   }
 
 private:
+  KAMINPAR_INLINE void update_affinity_values(
+      const NodeID node, const EdgeWeight weight, const BlockID from, const BlockID to
+  ) {
+    if (use_hash_table(node)) {
+      lock(node);
+      with_hash_table(node, [&](auto &&hash_table) {
+        hash_table.decrease_by(from, weight);
+        hash_table.increase_by(to, weight);
+      });
+      unlock(node);
+    } else {
+      with_full_table(node, [&](auto *full_table) {
+        __atomic_fetch_sub(full_table + from, weight, __ATOMIC_RELAXED);
+        __atomic_fetch_add(full_table + to, weight, __ATOMIC_RELAXED);
+      });
+    }
+  }
+
   template <typename WeightChecker>
   MaxGainer compute_max_gainer_impl(const NodeID u, WeightChecker &&weight_checker) {
     const NodeWeight w_u = _graph->node_weight(u);
@@ -242,20 +220,6 @@ private:
   template <typename Lambda>
   KAMINPAR_INLINE void gains(const NodeID node, const BlockID from, Lambda &&lambda) {
     KASSERT(_graph->is_owned_node(node));
-
-    if (_node_epoch[node] < _epoch) {
-      _graph->adjacent_ghost_nodes(node, [&](const NodeID ghost, const EdgeWeight weight) {
-        if (_node_epoch[ghost] > _node_epoch[node]) {
-          const BlockID prev = _prev_ghost_node_blocks[ghost - _n];
-          const BlockID cur = _p_graph->block(ghost);
-          if (prev != cur) {
-            lazy_update_after_ghost_move(node, weight, prev, cur);
-          }
-        }
-      });
-
-      _node_epoch[node] = _epoch;
-    }
 
     if (use_hash_table(node)) {
       const EdgeWeight conn_from = kIteratesExactGains ? conn_hash_table(node, from) : 0;
@@ -596,9 +560,7 @@ private:
 
   const DistributedGraph *_graph = nullptr;
   const DistributedPartitionedGraph *_p_graph = nullptr;
-
-  int _prev_epoch = 0;
-  std::atomic<int> _epoch = 0;
+  GhostGraph _ghost_graph;
 
   NodeID _n = kInvalidNodeID;
   BlockID _k = kInvalidBlockID;
@@ -608,10 +570,8 @@ private:
   // Number of bits reserved in hash table cells to store the key (i.e., block ID) of the entry
   int _bits_for_key = 0;
 
-  StaticArray<int> _node_epoch;
   StaticArray<std::uint64_t> _gain_cache;
   StaticArray<UnsignedEdgeWeight> _weighted_degrees;
-  StaticArray<BlockID> _prev_ghost_node_blocks;
 
   mutable tbb::enumerable_thread_specific<FastResetArray<EdgeWeight>> _sparse_buffer_ets{[&] {
     return FastResetArray<EdgeWeight>(_k);

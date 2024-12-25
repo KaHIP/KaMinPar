@@ -135,6 +135,7 @@ enum class ClusterStrategy {
 
 enum class GainCacheStrategy {
   ON_THE_FLY,
+  COMPACT_HASHING,
   LAZY_COMPACT_HASHING,
 };
 

@@ -54,4 +54,10 @@ void print(const CoarseningContext &ctx, const ParallelContext &parallel, std::o
 void print(const InitialPartitioningContext &ctx, std::ostream &out);
 void print(const RefinementContext &ctx, const ParallelContext &parallel, std::ostream &out);
 
+template <typename T> std::string stringify_enum(const T val) {
+  std::stringstream ss;
+  ss << val;
+  return ss.str();
+}
+
 } // namespace kaminpar::dist

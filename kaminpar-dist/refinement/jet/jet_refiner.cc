@@ -12,16 +12,20 @@
 #include <tbb/parallel_invoke.h>
 
 #include "kaminpar-dist/context.h"
+#include "kaminpar-dist/context_io.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/factories.h"
 #include "kaminpar-dist/graphutils/communication.h"
 #include "kaminpar-dist/logger.h"
 #include "kaminpar-dist/metrics.h"
-#include "kaminpar-dist/refinement/balancer/node_balancer.h"
-#include "kaminpar-dist/refinement/gains/lazy_compact_hashing_gain_cache.h"
-#include "kaminpar-dist/refinement/gains/on_the_fly_gain_cache.h"
+#include "kaminpar-dist/refinement/gains/compact_hashing_gain_cache.h"
 #include "kaminpar-dist/refinement/snapshooter.h"
 #include "kaminpar-dist/timer.h"
+
+#ifdef KAMINPAR_EXPERIMENTAL
+#include "kaminpar-dist/refinement/gains/lazy_compact_hashing_gain_cache.h"
+#include "kaminpar-dist/refinement/gains/on_the_fly_gain_cache.h"
+#endif // KAMINPAR_EXPERIMENTAL
 
 #define HEAVY assert::heavy
 
@@ -464,15 +468,31 @@ JetRefinerFactory::create(DistributedPartitionedGraph &p_graph, const PartitionC
   const DistributedCSRGraph &csr_graph = p_graph.graph().concretize<DistributedCSRGraph>();
 
   switch (_ctx.refinement.jet.gain_cache_strategy) {
-  case GainCacheStrategy::ON_THE_FLY:
+#ifdef KAMINPAR_EXPERIMENTAL
+  case GainCacheStrategy::COMPACT_HASHING:
     return std::make_unique<
-        JetRefiner<DistributedCSRGraph, OnTheFlyGainCache<DistributedCSRGraph>>>(
+        JetRefiner<DistributedCSRGraph, CompactHashingGainCache<DistributedCSRGraph>>>(
         _ctx, p_graph, csr_graph, p_ctx
     );
 
   case GainCacheStrategy::LAZY_COMPACT_HASHING:
     return std::make_unique<
         JetRefiner<DistributedCSRGraph, LazyCompactHashingGainCache<DistributedCSRGraph>>>(
+        _ctx, p_graph, csr_graph, p_ctx
+    );
+#endif // KAMINPAR_EXPERIMENTAL
+
+  default:
+    LOG_WARNING << "The selected gain cache strategy '"
+                << stringify_enum(_ctx.refinement.jet.gain_cache_strategy)
+                << "' is not available in this build. Rebuild with experimental features enabled.";
+    LOG_WARNING << "Using the default gain cache strategy '"
+                << stringify_enum(GainCacheStrategy::ON_THE_FLY) << "' instead.";
+    [[fallthrough]];
+
+  case GainCacheStrategy::ON_THE_FLY:
+    return std::make_unique<
+        JetRefiner<DistributedCSRGraph, OnTheFlyGainCache<DistributedCSRGraph>>>(
         _ctx, p_graph, csr_graph, p_ctx
     );
   }

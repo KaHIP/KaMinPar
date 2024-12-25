@@ -26,13 +26,19 @@
 #include "kaminpar-dist/refinement/adapters/mtkahypar_refiner.h"
 #include "kaminpar-dist/refinement/balancer/cluster_balancer.h"
 #include "kaminpar-dist/refinement/balancer/node_balancer.h"
-#include "kaminpar-dist/refinement/gains/lazy_compact_hashing_gain_cache.h"
-#include "kaminpar-dist/refinement/gains/on_the_fly_gain_cache.h"
 #include "kaminpar-dist/refinement/jet/jet_refiner.h"
 #include "kaminpar-dist/refinement/lp/clp_refiner.h"
 #include "kaminpar-dist/refinement/lp/lp_refiner.h"
 #include "kaminpar-dist/refinement/multi_refiner.h"
 #include "kaminpar-dist/refinement/noop_refiner.h"
+
+// Gain caches
+#include "kaminpar-dist/refinement/gains/on_the_fly_gain_cache.h"
+
+#ifdef KAMINPAR_EXPERIMENTAL
+#include "kaminpar-dist/refinement/gains/compact_hashing_gain_cache.h"
+#include "kaminpar-dist/refinement/gains/lazy_compact_hashing_gain_cache.h"
+#endif // KAMINPAR_EXPERIMENTAL
 
 // Coarsening
 #include "kaminpar-dist/coarsening/global_cluster_coarsener.h"
@@ -140,17 +146,28 @@ std::unique_ptr<GlobalRefinerFactory> create_refiner_with_decoupled_gain_cache(
   __builtin_unreachable();
 }
 
-template std::unique_ptr<GlobalRefinerFactory> create_refiner_with_decoupled_gain_cache(
+template std::unique_ptr<GlobalRefinerFactory>
+create_refiner_with_decoupled_gain_cache<OnTheFlyGainCache<DistributedCSRGraph>>(
     const Context &ctx,
     const RefinementAlgorithm algorithm,
     OnTheFlyGainCache<DistributedCSRGraph> &gain_cache
 );
 
-template std::unique_ptr<GlobalRefinerFactory> create_refiner_with_decoupled_gain_cache(
+#ifdef KAMINPAR_EXPERIMENTAL
+template std::unique_ptr<GlobalRefinerFactory>
+create_refiner_with_decoupled_gain_cache<CompactHashingGainCache<DistributedCSRGraph>>(
+    const Context &ctx,
+    const RefinementAlgorithm algorithm,
+    CompactHashingGainCache<DistributedCSRGraph> &gain_cache
+);
+
+template std::unique_ptr<GlobalRefinerFactory>
+create_refiner_with_decoupled_gain_cache<LazyCompactHashingGainCache<DistributedCSRGraph>>(
     const Context &ctx,
     const RefinementAlgorithm algorithm,
     LazyCompactHashingGainCache<DistributedCSRGraph> &gain_cache
 );
+#endif // KAMINPAR_EXPERIMENTAL
 
 std::unique_ptr<Coarsener> create_coarsener(const Context &ctx) {
   return std::make_unique<GlobalClusterCoarsener>(ctx);
