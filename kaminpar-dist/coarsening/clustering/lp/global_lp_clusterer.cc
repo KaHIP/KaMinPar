@@ -27,10 +27,9 @@ struct GlobalLPClusteringConfig : public LabelPropagationConfig {
   using ClusterID = GlobalNodeID;
   using ClusterWeight = GlobalNodeWeight;
 
-  static constexpr bool kTrackClusterCount = false;         // NOLINT
-  static constexpr bool kUseTwoHopClustering = false;       // NOLINT
-  static constexpr bool kUseActiveSetStrategy = false;      // NOLINT
-  static constexpr bool kUseLocalActiveSetStrategy = false; // NOLINT
+  static constexpr bool kTrackClusterCount = false;   // NOLINT
+  static constexpr bool kUseTwoHopClustering = false; // NOLINT
+  static constexpr bool kUseActiveSetStrategy = true; // NOLINT
 };
 
 } // namespace
@@ -70,6 +69,13 @@ public:
     set_max_num_iterations(_c_ctx.global_lp.num_iterations);
     Base::set_max_degree(_c_ctx.global_lp.active_high_degree_threshold);
     Base::set_max_num_neighbors(_c_ctx.global_lp.max_num_neighbors);
+
+    if (_c_ctx.global_lp.active_set_strategy == ActiveSetStrategy::LOCAL) {
+      Base::enable_local_active_set();
+    }
+    if (_c_ctx.global_lp.active_set_strategy == ActiveSetStrategy::GLOBAL) {
+      Base::enable_active_set();
+    }
   }
 
   void setup(GlobalLPClusteringMemoryContext &memory_context) {
@@ -598,6 +604,8 @@ private:
                   weight_delta_handle.find(new_gcluster + 1) == weight_delta_handle.end()) {
                 change_cluster_weight(new_gcluster, weight, false);
               }
+
+              Base::activate_neighbors_of_ghost_node(lnode);
             }
           });
         }

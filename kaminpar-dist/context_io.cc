@@ -303,6 +303,27 @@ std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies() {
   };
 }
 
+std::ostream &operator<<(std::ostream &out, ActiveSetStrategy strategy) {
+  switch (strategy) {
+  case ActiveSetStrategy::NONE:
+    return out << "none";
+  case ActiveSetStrategy::LOCAL:
+    return out << "local";
+  case ActiveSetStrategy::GLOBAL:
+    return out << "global";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, ActiveSetStrategy> get_active_set_strategies() {
+  return {
+      {"none", ActiveSetStrategy::NONE},
+      {"local", ActiveSetStrategy::LOCAL},
+      {"global", ActiveSetStrategy::GLOBAL},
+  };
+}
+
 void print(const Context &ctx, const bool root, std::ostream &out, MPI_Comm comm) {
   if (root) {
     out << "Seed:                         " << Random::get_seed() << "\n";
@@ -494,9 +515,7 @@ void print(const CoarseningContext &ctx, const ParallelContext &parallel, std::o
           << " (passive), " << ctx.global_lp.active_high_degree_threshold << " (active)\n";
       out << "  Max degree:                 " << ctx.global_lp.max_num_neighbors << "\n";
       print(ctx.global_lp.chunks, parallel, out);
-      out << "  Active set:                 "
-          << (ctx.global_clustering_algorithm == ClusteringAlgorithm::GLOBAL_LP ? "no" : "yes")
-          << "\n";
+      out << "  Active set:                 " << ctx.global_lp.active_set_strategy << "\n";
       out << "  Cluster weights:            "
           << (ctx.global_lp.sync_cluster_weights ? "sync" : "no-sync") << "+"
           << (ctx.global_lp.enforce_cluster_weights ? "enforce" : "no-enforce") << " "

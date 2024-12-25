@@ -87,6 +87,7 @@ Context create_default_context() {
                       .cheap_toplevel = false,
                       .prevent_cyclic_moves = false,
                       .enforce_legacy_weight = false,
+                      .active_set_strategy = ActiveSetStrategy::NONE,
                   },
               .hem =
                   {
