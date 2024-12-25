@@ -21,6 +21,12 @@ namespace kaminpar::dist {
 
 namespace {
 
+SET_DEBUG(true);
+
+}
+
+namespace {
+
 struct GlobalLPClusteringConfig : public LabelPropagationConfig {
   using RatingMap = ::kaminpar::RatingMap<EdgeWeight, GlobalNodeID, rm_backyard::Sparsehash>;
 
@@ -50,8 +56,6 @@ class GlobalLPClusteringImpl final : public ChunkRandomdLabelPropagation<
                                          GlobalLPClusteringConfig,
                                          Graph>,
                                      public NonatomicClusterVectorRef<NodeID, GlobalNodeID> {
-  SET_DEBUG(false);
-
   using Base =
       ChunkRandomdLabelPropagation<GlobalLPClusteringImpl<Graph>, GlobalLPClusteringConfig, Graph>;
   using ClusterBase = NonatomicClusterVectorRef<NodeID, GlobalNodeID>;
@@ -159,6 +163,23 @@ public:
         const auto [from, to] = math::compute_local_range<NodeID>(_graph->n(), num_chunks, chunk);
         global_num_moved_nodes += process_chunk(from, to);
       }
+
+      if constexpr (kDebug) {
+        GlobalNodeID global_num_skipped_nodes = Base::_num_skipped_nodes_ets.combine(std::plus{});
+        MPI_Allreduce(
+            MPI_IN_PLACE,
+            &global_num_skipped_nodes,
+            1,
+            mpi::type::get<GlobalNodeID>(),
+            MPI_SUM,
+            _graph->communicator()
+        );
+
+        DBG0 << "Iteration " << iteration << ": " << global_num_moved_nodes << " nodes moved, "
+             << global_num_skipped_nodes << " nodes skipped";
+        Base::_num_skipped_nodes_ets.clear();
+      }
+
       if (global_num_moved_nodes == 0) {
         break;
       }
@@ -356,7 +377,7 @@ private:
     TIMER_BARRIER(_graph->communicator());
 
     const NodeID local_num_moved_nodes = TIMED_SCOPE("Local work") {
-      return Base::perform_iteration(from, to);
+      return Base::perform_iteration(from, to, kDebug);
     };
 
     const GlobalNodeID global_num_moved_nodes =

@@ -1052,8 +1052,11 @@ protected:
    * @param to First node that is not part of the iteration range.
    * @return Number of nodes that where moved to new blocks / clusters.
    */
-  NodeID
-  perform_iteration(const NodeID from = 0, const NodeID to = std::numeric_limits<NodeID>::max()) {
+  NodeID perform_iteration(
+      const NodeID from = 0,
+      const NodeID to = std::numeric_limits<NodeID>::max(),
+      const bool count_skipped_nodes = false
+  ) {
     if (from != 0 || to != std::numeric_limits<NodeID>::max()) {
       _chunks.clear();
     }
@@ -1075,6 +1078,8 @@ protected:
       auto &local_rating_map = _rating_map_ets.local();
       NodeID num_removed_clusters = 0;
 
+      auto &local_num_skipped_nodes = _num_skipped_nodes_ets.local();
+
       const auto chunk_id = next_chunk.fetch_add(1, std::memory_order_relaxed);
       const auto &chunk = _chunks[chunk_id];
       const auto &permutation = _random_permutations.get(local_rand);
@@ -1090,6 +1095,13 @@ protected:
           const NodeID u = chunk.start +
                            Config::kPermutationSize * sub_chunk_permutation[sub_chunk] +
                            permutation[i % Config::kPermutationSize];
+
+          if (count_skipped_nodes && u < chunk.end && _graph->degree(u) < _max_degree &&
+              Config::kUseActiveSetStrategy && (_use_active_set || _use_local_active_set) &&
+              !__atomic_load_n(&_active[u], __ATOMIC_RELAXED)) {
+            ++local_num_skipped_nodes;
+          }
+
           if (u < chunk.end && _graph->degree(u) < _max_degree &&
               (!Config::kUseActiveSetStrategy || (!_use_active_set && !_use_local_active_set) ||
                __atomic_load_n(&_active[u], __ATOMIC_RELAXED))) {
@@ -1263,6 +1275,8 @@ protected:
       _random_permutations{};
   std::vector<Chunk> _chunks;
   std::vector<Bucket> _buckets;
+
+  tbb::enumerable_thread_specific<NodeID> _num_skipped_nodes_ets;
 };
 
 template <typename ClusterID, typename ClusterWeight> class OwnedRelaxedClusterWeightVector {
