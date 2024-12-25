@@ -458,16 +458,26 @@ private:
 
 JetRefinerFactory::JetRefinerFactory(const Context &ctx) : _ctx(ctx) {}
 
+namespace {
+
+template <typename Graph> using JetCompactHashingGainCache = CompactHashingGainCache<Graph>;
+
+template <typename Graph> using JetOnTheFlyGainCache = OnTheFlyGainCache<Graph>;
+
+} // namespace
+
 std::unique_ptr<GlobalRefiner>
 JetRefinerFactory::create(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
   return p_graph.graph().reified([&](const auto &graph) {
     using Graph = std::decay_t<decltype(graph)>;
     std::unique_ptr<GlobalRefiner> refiner;
     if (_ctx.refinement.jet.use_gain_cache) {
-      refiner =
-          std::make_unique<JetRefiner<Graph, CompactHashingGainCache>>(_ctx, p_graph, graph, p_ctx);
+      refiner = std::make_unique<JetRefiner<Graph, JetCompactHashingGainCache>>(
+          _ctx, p_graph, graph, p_ctx
+      );
     } else {
-      refiner = std::make_unique<JetRefiner<Graph, OnTheFlyGainCache>>(_ctx, p_graph, graph, p_ctx);
+      refiner =
+          std::make_unique<JetRefiner<Graph, JetOnTheFlyGainCache>>(_ctx, p_graph, graph, p_ctx);
     }
     return refiner;
   });
