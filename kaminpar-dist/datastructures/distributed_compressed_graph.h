@@ -288,7 +288,7 @@ public:
     });
   }
 
-   template <typename Lambda>
+  template <typename Lambda>
   inline void adjacent_nodes(const NodeID u, const NodeID max_num_neighbors, Lambda &&l) const {
     constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID>;
     constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID, EdgeWeight>;
@@ -302,6 +302,62 @@ public:
             return l(v);
           }
         });
+  }
+
+  template <typename Lambda> inline void adjacent_ghost_nodes(const NodeID u, Lambda &&l) const {
+    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID>;
+    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID, EdgeWeight>;
+    static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
+
+    using LambdaReturnType = std::conditional_t<
+        kDecodeEdgeWeights,
+        std::invoke_result<Lambda, NodeID, EdgeWeight>,
+        std::invoke_result<Lambda, NodeID>>::type;
+    constexpr bool kNonStoppable = std::is_void_v<LambdaReturnType>;
+
+    _compressed_neighborhoods.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+      if (!is_ghost_node(v)) {
+        if constexpr (kNonStoppable) {
+          return;
+        } else {
+          return false;
+        }
+      }
+
+      if constexpr (kDecodeEdgeWeights) {
+        return l(v, w);
+      } else {
+        return l(v);
+      }
+    });
+  }
+
+  template <typename Lambda> inline void adjacent_owned_nodes(const NodeID u, Lambda &&l) const {
+    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID>;
+    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID, EdgeWeight>;
+    static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
+
+    using LambdaReturnType = std::conditional_t<
+        kDecodeEdgeWeights,
+        std::invoke_result<Lambda, NodeID, EdgeWeight>,
+        std::invoke_result<Lambda, NodeID>>::type;
+    constexpr bool kNonStoppable = std::is_void_v<LambdaReturnType>;
+
+    _compressed_neighborhoods.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+      if (is_ghost_node(v)) {
+        if constexpr (kNonStoppable) {
+          return;
+        } else {
+          return false;
+        }
+      }
+
+      if constexpr (kDecodeEdgeWeights) {
+        return l(v, w);
+      } else {
+        return l(v);
+      }
+    });
   }
 
   //

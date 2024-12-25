@@ -23,6 +23,7 @@ std::ostream &operator<<(std::ostream &out, LabelPropagationMoveExecutionStrateg
 std::ostream &operator<<(std::ostream &out, GraphOrdering ordering);
 std::ostream &operator<<(std::ostream &out, ClusterSizeStrategy strategy);
 std::ostream &operator<<(std::ostream &out, ClusterStrategy strategy);
+std::ostream &operator<<(std::ostream &out, GainCacheStrategy strategy);
 
 std::unordered_map<std::string, PartitioningMode> get_partitioning_modes();
 std::unordered_map<std::string, ClusteringAlgorithm> get_clustering_algorithms();
@@ -35,6 +36,7 @@ std::unordered_map<std::string, GraphOrdering> get_graph_orderings();
 std::unordered_map<std::string, GraphDistribution> get_graph_distributions();
 std::unordered_map<std::string, ClusterSizeStrategy> get_move_set_size_strategies();
 std::unordered_map<std::string, ClusterStrategy> get_move_set_strategies();
+std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies();
 
 std::string get_refinement_algorithms_description();
 std::string get_balancing_algorithms_description();
@@ -51,5 +53,11 @@ void print(
 void print(const CoarseningContext &ctx, const ParallelContext &parallel, std::ostream &out);
 void print(const InitialPartitioningContext &ctx, std::ostream &out);
 void print(const RefinementContext &ctx, const ParallelContext &parallel, std::ostream &out);
+
+template <typename T> std::string stringify_enum(const T val) {
+  std::stringstream ss;
+  ss << val;
+  return ss.str();
+}
 
 } // namespace kaminpar::dist

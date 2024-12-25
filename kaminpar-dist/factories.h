@@ -33,6 +33,11 @@ create_refiner(const Context &ctx, RefinementAlgorithm algorithm);
 
 std::unique_ptr<GlobalRefinerFactory> create_refiner(const Context &ctx);
 
+template <typename GainCache>
+std::unique_ptr<GlobalRefinerFactory> create_refiner_with_decoupled_gain_cache(
+    const Context &ctx, RefinementAlgorithm algorithm, GainCache &gain_cache
+);
+
 std::unique_ptr<Coarsener> create_coarsener(const Context &ctx);
 
 std::unique_ptr<Clusterer> create_clusterer(const Context &ctx, ClusteringAlgorithm algorithm);

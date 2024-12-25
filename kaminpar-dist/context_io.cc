@@ -282,6 +282,27 @@ std::unordered_map<std::string, ClusterStrategy> get_move_set_strategies() {
   };
 }
 
+std::ostream &operator<<(std::ostream &out, GainCacheStrategy strategy) {
+  switch (strategy) {
+  case GainCacheStrategy::ON_THE_FLY:
+    return out << "on-the-fly";
+  case GainCacheStrategy::COMPACT_HASHING:
+    return out << "compact-hashing";
+  case GainCacheStrategy::LAZY_COMPACT_HASHING:
+    return out << "lazy-compact-hashing";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies() {
+  return {
+      {"on-the-fly", GainCacheStrategy::ON_THE_FLY},
+      {"compact-hashing", GainCacheStrategy::COMPACT_HASHING},
+      {"lazy-compact-hashing", GainCacheStrategy::LAZY_COMPACT_HASHING},
+  };
+}
+
 void print(const Context &ctx, const bool root, std::ostream &out, MPI_Comm comm) {
   if (root) {
     out << "Seed:                         " << Random::get_seed() << "\n";
@@ -544,6 +565,7 @@ void print(const RefinementContext &ctx, const ParallelContext &parallel, std::o
     out << "  Dynamic factors:            initial " << ctx.jet.initial_negative_gain_factor
         << ", final " << ctx.jet.final_negative_gain_factor << "\n";
     out << "  Balancing algorithm:        " << ctx.jet.balancing_algorithm << "\n";
+    out << "  Gain cache strategy:        " << ctx.jet.gain_cache_strategy << "\n";
   }
   if (ctx.includes_algorithm(RefinementAlgorithm::HYBRID_NODE_BALANCER) ||
       (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER) &&

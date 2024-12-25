@@ -31,8 +31,11 @@
 #define HEAVY assert::heavy
 
 namespace kaminpar::dist {
+
 namespace {
+
 SET_DEBUG(false);
+
 }
 
 Clusters::Clusters(
@@ -622,4 +625,5 @@ Clusters build_clusters(
 
   __builtin_unreachable();
 }
+
 } // namespace kaminpar::dist

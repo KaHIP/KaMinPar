@@ -260,6 +260,14 @@ public:
     });
   }
 
+  template <typename Lambda> inline void adjacent_ghost_nodes(const NodeID u, Lambda &&l) const {
+    reified([&](auto &graph) { graph.adjacent_ghost_nodes(u, std::forward<Lambda>(l)); });
+  }
+
+  template <typename Lambda> inline void adjacent_owned_nodes(const NodeID u, Lambda &&l) const {
+    reified([&](auto &graph) { graph.adjacent_owned_nodes(u, std::forward<Lambda>(l)); });
+  }
+
   //
   // Parallel iteration
   //
@@ -445,17 +453,43 @@ public:
     return reified(std::forward<Lambda>(l), std::forward<Lambda>(l));
   }
 
+  template <typename ConcretizedGraph> [[nodiscard]] bool is() const {
+    return dynamic_cast<const ConcretizedGraph *>(underlying_graph()) != nullptr;
+  }
+
+  template <typename ConcretizedGraph> [[nodiscard]] ConcretizedGraph &concretize() {
+    KASSERT(
+        is<ConcretizedGraph>(), "underlying graph is not a " << typeid(ConcretizedGraph).name()
+    );
+
+    return *static_cast<ConcretizedGraph *>(underlying_graph());
+  }
+
+  template <typename ConcretizedGraph> [[nodiscard]] const ConcretizedGraph &concretize() const {
+    KASSERT(
+        is<ConcretizedGraph>(), "underlying graph is not a " << typeid(ConcretizedGraph).name()
+    );
+
+    return *static_cast<const ConcretizedGraph *>(underlying_graph());
+  }
+
 private:
   std::unique_ptr<AbstractDistributedGraph> _underlying_graph;
 };
 
 /**
- * Prints verbose statistics on the distribution of the graph across PEs and the
- * number of ghost nodes, but only if verbose statistics are enabled as build
- * option.
+ * Prints basic statistics on the distribution of the graph.
+ * Computing these statistics requires communication, but is computationally cheap.
  * @param graph Graph for which statistics are printed.
  */
 void print_graph_summary(const DistributedGraph &graph);
+
+/**
+ * Prints more verbose statistics on the distribution of the graph.
+ * These statistics require more computation than the basic statistics.
+ * @param graph Graph for which statistics are printed.
+ */
+void print_extended_graph_summary(const DistributedGraph &graph);
 
 namespace debug {
 

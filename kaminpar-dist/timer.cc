@@ -273,7 +273,10 @@ void annotate_timer_tree(
       }
   }
   */
+
   node.annotation = ss.str();
+  node.elapsed =
+      std::chrono::duration_cast<Timer::Duration>(std::chrono::duration<double>(entry.max));
 
   for (const auto &child : node.children) {
     annotate_timer_tree(*child, pos, statistics, table);

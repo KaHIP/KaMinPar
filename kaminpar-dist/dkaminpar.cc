@@ -29,7 +29,6 @@
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/console_io.h"
-#include "kaminpar-common/environment.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/random.h"
 
@@ -78,7 +77,7 @@ void print_partition_summary(
     }
 
 #ifdef KAMINPAR_ENABLE_TIMERS
-    Timer::global().print_human_readable(std::cout, max_timer_depth);
+    Timer::global().print_human_readable(std::cout, true, max_timer_depth);
 #else  // KAMINPAR_ENABLE_TIMERS
     LOG << "Global Timers: disabled";
 #endif // KAMINPAR_ENABLE_TIMERS
@@ -313,7 +312,7 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const BlockID k, BlockID *partitio
   // Initialize console output
   Logger::set_quiet_mode(_output_level == OutputLevel::QUIET);
   if (_output_level >= OutputLevel::APPLICATION) {
-    print_input_summary(_ctx, graph, _output_level == OutputLevel::EXPERIMENT, root);
+    print_input_summary(_ctx, graph, _output_level >= OutputLevel::EXPERIMENT, root);
   }
 
   START_HEAP_PROFILER("Partitioning");
@@ -334,7 +333,13 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const BlockID k, BlockID *partitio
 
     _was_rearranged = true;
   }
-  auto p_graph = factory::create_partitioner(_ctx, graph)->partition();
+  auto p_graph = [&] {
+    auto partitioner = factory::create_partitioner(_ctx, graph);
+    if (_output_level >= OutputLevel::DEBUG) {
+      partitioner->enable_graph_stats_output();
+    }
+    return partitioner->partition();
+  }();
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 
@@ -362,7 +367,7 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const BlockID k, BlockID *partitio
   STOP_TIMER(); // stop root timer
   if (_output_level >= OutputLevel::APPLICATION) {
     print_partition_summary(
-        _ctx, p_graph, _max_timer_depth, _output_level == OutputLevel::EXPERIMENT, root
+        _ctx, p_graph, _max_timer_depth, _output_level >= OutputLevel::EXPERIMENT, root
     );
   }
 

@@ -12,28 +12,37 @@
 #include <tbb/parallel_invoke.h>
 
 #include "kaminpar-dist/context.h"
+#include "kaminpar-dist/context_io.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/factories.h"
 #include "kaminpar-dist/graphutils/communication.h"
 #include "kaminpar-dist/logger.h"
 #include "kaminpar-dist/metrics.h"
-#include "kaminpar-dist/refinement/gain_calculator.h"
+#include "kaminpar-dist/refinement/gains/on_the_fly_gain_cache.h"
 #include "kaminpar-dist/refinement/snapshooter.h"
 #include "kaminpar-dist/timer.h"
+
+#ifdef KAMINPAR_EXPERIMENTAL
+#include "kaminpar-dist/refinement/gains/compact_hashing_gain_cache.h"
+#include "kaminpar-dist/refinement/gains/lazy_compact_hashing_gain_cache.h"
+#endif // KAMINPAR_EXPERIMENTAL
 
 #define HEAVY assert::heavy
 
 namespace kaminpar::dist {
+
 namespace {
+
 SET_STATISTICS_FROM_GLOBAL();
 SET_DEBUG(false);
+
 } // namespace
 
 //
 // Implementation
 //
 
-template <typename Graph> class JetRefiner : public GlobalRefiner {
+template <typename Graph, typename GainCache> class JetRefiner : public GlobalRefiner {
 public:
   JetRefiner(
       const Context &ctx,
@@ -47,12 +56,15 @@ public:
         _graph(graph),
         _p_ctx(p_ctx),
         _snapshooter(p_graph.total_n(), p_graph.k()),
-        _gain_calculator(p_graph.k()),
+        _gain_cache(ctx),
         _gains_and_targets(p_graph.total_n()),
         _block_weight_deltas(p_graph.k()),
-        _locked(p_graph.n()),
-        _balancer(factory::create_refiner(_ctx, _ctx.refinement.jet.balancing_algorithm)
-                      ->create(_p_graph, _p_ctx)) {}
+        _locked(p_graph.n()) {
+    _balancer_factory = factory::create_refiner_with_decoupled_gain_cache<GainCache>(
+        _ctx, _ctx.refinement.jet.balancing_algorithm, _gain_cache
+    );
+    _balancer = _balancer_factory->create(_p_graph, _p_ctx);
+  }
 
   JetRefiner(const JetRefiner &) = delete;
   JetRefiner &operator=(const JetRefiner &) = delete;
@@ -73,7 +85,6 @@ public:
       }
     }
 
-    _gain_calculator.init(_p_graph, _graph);
     reset();
 
     TIMER_BARRIER(_graph.communicator());
@@ -153,9 +164,20 @@ public:
         find_moves();
         synchronize_ghost_node_move_candidates();
         filter_bad_moves();
+
+        TIMER_BARRIER(_graph.communicator());
+        TIMED_SCOPE("Consolidate gain cache") {
+          _gain_cache.consolidate();
+        };
+
         move_locked_nodes();
         synchronize_ghost_node_labels();
         apply_block_weight_deltas();
+
+        TIMER_BARRIER(_graph.communicator());
+        TIMED_SCOPE("Consolidate gain cache") {
+          _gain_cache.consolidate();
+        };
 
         KASSERT(
             debug::validate_partition(_p_graph),
@@ -213,6 +235,7 @@ public:
 
 private:
   void reset() {
+    _gain_cache.init(_graph, _p_graph);
     _snapshooter.init(_p_graph, _p_ctx);
 
     KASSERT(_locked.size() >= _graph.n(), "locked vector is too small", assert::light);
@@ -250,7 +273,7 @@ private:
         return;
       }
 
-      const auto max_gainer = _gain_calculator.compute_max_gainer(u);
+      const auto max_gainer = _gain_cache.compute_max_gainer(u);
 
       if ( // Is a border node ...
         max_gainer.block != b_u &&
@@ -314,6 +337,8 @@ private:
 
       const BlockID from = _p_graph.block(u);
       const BlockID to = _gains_and_targets[u].second;
+
+      _gain_cache.move(u, from, to);
       _p_graph.set_block<false>(u, to);
 
       const NodeWeight w_u = _graph.node_weight(u);
@@ -356,6 +381,7 @@ private:
         }
     );
   }
+
   void synchronize_ghost_node_labels() {
     TIMER_BARRIER(_graph.communicator());
     SCOPED_TIMER("Synchronize ghost node labels");
@@ -377,9 +403,12 @@ private:
         },
         [&](const auto &recv_buffer, const PEID pe) {
           tbb::parallel_for<std::size_t>(0, recv_buffer.size(), [&](const std::size_t i) {
-            const auto [their_lnode, block] = recv_buffer[i];
+            const auto [their_lnode, to] = recv_buffer[i];
             const NodeID lnode = _graph.map_remote_node(their_lnode, pe);
-            _p_graph.set_block<false>(lnode, block);
+
+            const BlockID from = _p_graph.block(lnode);
+            _gain_cache.move(lnode, from, to);
+            _p_graph.set_block<false>(lnode, to);
           });
         }
     );
@@ -411,14 +440,15 @@ private:
   const PartitionContext &_p_ctx;
 
   BestPartitionSnapshooter _snapshooter;
-  RandomizedGainCalculator<Graph> _gain_calculator;
+  GainCache _gain_cache;
   StaticArray<std::pair<EdgeWeight, BlockID>> _gains_and_targets;
   StaticArray<BlockWeight> _block_weight_deltas;
   StaticArray<std::uint8_t> _locked;
 
-  std::unique_ptr<GlobalRefiner> _balancer;
+  std::unique_ptr<GlobalRefinerFactory> _balancer_factory = nullptr;
+  std::unique_ptr<GlobalRefiner> _balancer = nullptr;
 
-  double _negative_gain_factor;
+  double _negative_gain_factor = 0.0;
 };
 
 //
@@ -429,20 +459,45 @@ JetRefinerFactory::JetRefinerFactory(const Context &ctx) : _ctx(ctx) {}
 
 std::unique_ptr<GlobalRefiner>
 JetRefinerFactory::create(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
-  return p_graph.graph().reified(
-      [&](const DistributedCSRGraph &csr_graph) {
-        std::unique_ptr<GlobalRefiner> refiner =
-            std::make_unique<JetRefiner<DistributedCSRGraph>>(_ctx, p_graph, csr_graph, p_ctx);
-        return refiner;
-      },
-      [&](const DistributedCompressedGraph &compressed_graph) {
-        std::unique_ptr<GlobalRefiner> refiner =
-            std::make_unique<JetRefiner<DistributedCompressedGraph>>(
-                _ctx, p_graph, compressed_graph, p_ctx
-            );
-        return refiner;
-      }
+  KASSERT(
+      p_graph.graph().is<DistributedCSRGraph>(),
+      "refiner only supports uncompressed CSR graphs",
+      assert::always
   );
+
+  const DistributedCSRGraph &csr_graph = p_graph.graph().concretize<DistributedCSRGraph>();
+
+  switch (_ctx.refinement.jet.gain_cache_strategy) {
+#ifdef KAMINPAR_EXPERIMENTAL
+  case GainCacheStrategy::COMPACT_HASHING:
+    return std::make_unique<
+        JetRefiner<DistributedCSRGraph, CompactHashingGainCache<DistributedCSRGraph>>>(
+        _ctx, p_graph, csr_graph, p_ctx
+    );
+
+  case GainCacheStrategy::LAZY_COMPACT_HASHING:
+    return std::make_unique<
+        JetRefiner<DistributedCSRGraph, LazyCompactHashingGainCache<DistributedCSRGraph>>>(
+        _ctx, p_graph, csr_graph, p_ctx
+    );
+#endif // KAMINPAR_EXPERIMENTAL
+
+  default:
+    LOG_WARNING << "The selected gain cache strategy '"
+                << stringify_enum(_ctx.refinement.jet.gain_cache_strategy)
+                << "' is not available in this build. Rebuild with experimental features enabled.";
+    LOG_WARNING << "Using the default gain cache strategy '"
+                << stringify_enum(GainCacheStrategy::ON_THE_FLY) << "' instead.";
+    [[fallthrough]];
+
+  case GainCacheStrategy::ON_THE_FLY:
+    return std::make_unique<
+        JetRefiner<DistributedCSRGraph, OnTheFlyGainCache<DistributedCSRGraph>>>(
+        _ctx, p_graph, csr_graph, p_ctx
+    );
+  }
+
+  __builtin_unreachable();
 }
 
 } // namespace kaminpar::dist

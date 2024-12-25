@@ -14,6 +14,7 @@
 #include "kaminpar-common/ranges.h"
 
 namespace kaminpar::dist {
+
 struct ClustersMemoryContext {
   //! Maps a node ID to its move set ID.
   NoinitVector<NodeID> node_to_cluster;
@@ -245,4 +246,5 @@ Clusters build_clusters(
     NodeWeight max_move_cluster_size,
     ClustersMemoryContext m_ctx
 );
+
 } // namespace kaminpar::dist
