@@ -616,7 +616,12 @@ CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {
       )
       ->capture_default_str();
 
-  jet->add_flag("--r-jet-use-gain-cache", ctx.refinement.jet.use_gain_cache)->capture_default_str();
+  jet->add_option("--r-jet-gc", ctx.refinement.jet.gain_cache_strategy)
+      ->transform(CLI::CheckedTransformer(get_gain_cache_strategies()).description(""))
+      ->description(R"(Determines how gains are computed:
+  - on-the-fly:           Recompute gains whenever they are needed
+  - lazy-compact-hashing: Cache gains using small hash tables, only for local neighbors")")
+      ->capture_default_str();
 
   return jet;
 }

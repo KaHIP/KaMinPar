@@ -15,7 +15,7 @@
 #include "kaminpar-dist/metrics.h"
 #include "kaminpar-dist/refinement/balancer/reductions.h"
 #include "kaminpar-dist/refinement/balancer/weight_buckets.h"
-#include "kaminpar-dist/refinement/gains/compact_hashing_gain_cache.h"
+#include "kaminpar-dist/refinement/gains/lazy_compact_hashing_gain_cache.h"
 #include "kaminpar-dist/refinement/gains/on_the_fly_gain_cache.h"
 #include "kaminpar-dist/timer.h"
 
@@ -38,7 +38,9 @@ SET_DEBUG(false);
 // Implementation
 //
 
-template <typename Graph> class NodeBalancer : public GlobalRefiner {
+template <typename Graph, typename GainCache> class NodeBalancer : public GlobalRefiner {
+  using DefaultGainCache = OnTheFlyGainCache<Graph>;
+
   struct Candidate {
     GlobalNodeID id;
     BlockID from;
@@ -53,28 +55,23 @@ public:
       DistributedPartitionedGraph &p_graph,
       const Graph &graph,
       const PartitionContext &p_ctx,
-      CompactHashingGainCache<Graph> *primary_gain_cache = nullptr
+      GainCache &gain_cache
   )
       : _p_graph(p_graph),
         _graph(graph),
         _ctx(ctx),
         _nb_ctx(ctx.refinement.node_balancer),
         _p_ctx(p_ctx),
+        _gain_cache(gain_cache),
         _pq(_graph.n(), p_graph.k()),
         _pq_weight(p_graph.k()),
         _marker(p_graph.n()),
         _buckets(
             p_graph, p_ctx, _nb_ctx.par_enable_positive_gain_buckets, _nb_ctx.par_gain_bucket_base
         ),
-        _primary_gain_cache(primary_gain_cache),
-        _secondary_gain_cache(ctx),
         _cached_cutoff_buckets(_p_graph.k()),
         _target_blocks(_graph.n()),
-        _tmp_gains(!_nb_ctx.par_update_pq_gains * _graph.n()) {
-    if (primary_gain_cache == nullptr) {
-      _secondary_gain_cache.init(_graph, _p_graph);
-    }
-  }
+        _tmp_gains(!_nb_ctx.par_update_pq_gains * _graph.n()) {}
 
   NodeBalancer(const NodeBalancer &) = delete;
   NodeBalancer &operator=(const NodeBalancer &) = delete;
@@ -207,9 +204,7 @@ private:
       const BlockWeight overload = block_overload(from);
 
       if (overload > 0) { // Node in overloaded block
-        const auto max_gainer = _primary_gain_cache == nullptr
-                                    ? _secondary_gain_cache.compute_max_gainer(u, _p_ctx)
-                                    : _primary_gain_cache->compute_max_gainer(u, _p_ctx);
+        const auto max_gainer = gain_cache().compute_max_gainer(u, _p_ctx);
 
         const double rel_gain = max_gainer.relative_gain();
         _target_blocks[u] = max_gainer.block;
@@ -345,9 +340,7 @@ private:
         _pq.pop_max(from);
         _pq_weight[from] -= u_weight;
 
-        const auto max_gainer = _primary_gain_cache == nullptr
-                                    ? _secondary_gain_cache.compute_max_gainer(u, _p_ctx)
-                                    : _primary_gain_cache->compute_max_gainer(u, _p_ctx);
+        const auto max_gainer = gain_cache().compute_max_gainer(u, _p_ctx);
 
         const double actual_relative_gain = max_gainer.relative_gain();
         const BlockID to = max_gainer.block;
@@ -412,11 +405,7 @@ private:
         });
       }
 
-      if (_primary_gain_cache == nullptr) {
-        _secondary_gain_cache.move(u, from, to);
-      } else {
-        _primary_gain_cache->move(u, from, to);
-      }
+      gain_cache().move(u, from, to);
 
       if (update_block_weights) {
         _p_graph.set_block(u, to);
@@ -456,9 +445,7 @@ private:
       return false;
     }
 
-    const auto max_gainer = _primary_gain_cache == nullptr
-                                ? _secondary_gain_cache.compute_max_gainer(u, _p_ctx)
-                                : _primary_gain_cache->compute_max_gainer(u, _p_ctx);
+    const auto max_gainer = gain_cache().compute_max_gainer(u, _p_ctx);
 
     _target_blocks[u] = max_gainer.block;
     return try_pq_insertion(b_u, u, _graph.node_weight(u), max_gainer.relative_gain());
@@ -516,9 +503,7 @@ private:
         }
 
         // For low-degree nodes, recalculate gain and update PQ
-        const auto max_gainer = _primary_gain_cache == nullptr
-                                    ? _secondary_gain_cache.compute_max_gainer(node, _p_ctx)
-                                    : _primary_gain_cache->compute_max_gainer(node, _p_ctx);
+        const auto max_gainer = gain_cache().compute_max_gainer(node, _p_ctx);
 
         const double actual_gain = max_gainer.relative_gain();
         const BlockID to = max_gainer.block;
@@ -569,9 +554,7 @@ private:
 
         KASSERT(
             [&] {
-              const auto max_gainer = _primary_gain_cache == nullptr
-                                          ? _secondary_gain_cache.compute_max_gainer(node, _p_ctx)
-                                          : _primary_gain_cache->compute_max_gainer(node, _p_ctx);
+              const auto max_gainer = gain_cache().compute_max_gainer(node, _p_ctx);
 
               if (gain != max_gainer.relative_gain()) {
                 LOG_WARNING << "bad relative gain for node " << node << ": " << gain
@@ -720,11 +703,7 @@ private:
                 const NodeID lnode = _graph.map_remote_node(their_lnode, pe);
                 const BlockID from = _p_graph.block(lnode);
 
-                if (_primary_gain_cache == nullptr) {
-                  _secondary_gain_cache.move(lnode, from, to);
-                } else {
-                  _primary_gain_cache->move(lnode, from, to);
-                }
+                gain_cache().move(lnode, from, to);
                 _p_graph.set_block<false>(lnode, to);
               });
             }
@@ -765,20 +744,23 @@ private:
     TIMER_BARRIER(_graph.communicator());
   }
 
+  GainCache &gain_cache() {
+    return _gain_cache;
+  }
+
   DistributedPartitionedGraph &_p_graph;
   const Graph &_graph;
 
   const Context &_ctx;
   const NodeBalancerContext &_nb_ctx;
   const PartitionContext &_p_ctx;
+  GainCache &_gain_cache;
 
   DynamicBinaryMinMaxForest<NodeID, double> _pq;
   std::vector<BlockWeight> _pq_weight;
   Marker<> _marker;
 
   Buckets _buckets;
-  CompactHashingGainCache<Graph> *_primary_gain_cache;
-  RandomizedOnTheFlyGainCache<Graph> _secondary_gain_cache;
 
   bool _stalled = false;
 
@@ -794,24 +776,43 @@ private:
 
 NodeBalancerFactory::NodeBalancerFactory(const Context &ctx) : _ctx(ctx) {}
 
-void NodeBalancerFactory::use_gain_cache(CompactHashingGainCache<DistributedCSRGraph> &gain_cache) {
-  _gain_cache = &gain_cache;
-}
-
 std::unique_ptr<GlobalRefiner>
 NodeBalancerFactory::create(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
-  return p_graph.graph().reified([&](const auto &graph) {
-    std::unique_ptr<GlobalRefiner> refiner;
+  return p_graph.graph().reified(
+      [&]<typename Graph>(const Graph &graph) -> std::unique_ptr<GlobalRefiner> {
+        using GainCache = OnTheFlyGainCache<Graph>;
 
-    using Graph = std::decay_t<decltype(graph)>;
-    if constexpr (std::is_same_v<Graph, DistributedCSRGraph>) {
-      refiner = std::make_unique<NodeBalancer<Graph>>(_ctx, p_graph, graph, p_ctx, _gain_cache);
-    } else {
-      refiner = std::make_unique<NodeBalancer<Graph>>(_ctx, p_graph, graph, p_ctx);
-    }
+        _gain_cache.emplace<GainCache>(_ctx);
 
-    return refiner;
-  });
+        return std::make_unique<NodeBalancer<Graph, GainCache>>(
+            _ctx, p_graph, graph, p_ctx, std::get<GainCache>(_gain_cache)
+        );
+      }
+  );
 }
+
+template <typename GainCache>
+NodeBalancerWithDecoupledGainCacheFactory<GainCache>::NodeBalancerWithDecoupledGainCacheFactory(
+    const Context &ctx, GainCache &gain_cache
+)
+    : _ctx(ctx),
+      _gain_cache(gain_cache) {}
+
+template <typename GainCache>
+std::unique_ptr<GlobalRefiner> NodeBalancerWithDecoupledGainCacheFactory<GainCache>::create(
+    DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx
+) {
+  return p_graph.graph().reified(
+      [&]<typename Graph>(const Graph &graph) -> std::unique_ptr<GlobalRefiner> {
+        return std::make_unique<NodeBalancer<Graph, GainCache>>(
+            _ctx, p_graph, graph, p_ctx, _gain_cache
+        );
+      }
+  );
+}
+
+template class NodeBalancerWithDecoupledGainCacheFactory<OnTheFlyGainCache<DistributedCSRGraph>>;
+template class NodeBalancerWithDecoupledGainCacheFactory<
+    LazyCompactHashingGainCache<DistributedCSRGraph>>;
 
 } // namespace kaminpar::dist

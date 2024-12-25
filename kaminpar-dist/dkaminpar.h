@@ -133,6 +133,11 @@ enum class ClusterStrategy {
   GREEDY_BATCH_PREFIX,
 };
 
+enum class GainCacheStrategy {
+  ON_THE_FLY,
+  LAZY_COMPACT_HASHING,
+};
+
 struct ParallelContext {
   std::size_t num_threads;
   std::size_t num_mpis;
@@ -308,7 +313,7 @@ struct JetRefinementContext {
 
   RefinementAlgorithm balancing_algorithm;
 
-  bool use_gain_cache;
+  GainCacheStrategy gain_cache_strategy;
 };
 
 struct RefinementContext {

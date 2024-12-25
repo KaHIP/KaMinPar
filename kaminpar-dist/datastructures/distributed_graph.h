@@ -453,6 +453,26 @@ public:
     return reified(std::forward<Lambda>(l), std::forward<Lambda>(l));
   }
 
+  template <typename ConcretizedGraph> [[nodiscard]] bool is() const {
+    return dynamic_cast<const ConcretizedGraph *>(underlying_graph()) != nullptr;
+  }
+
+  template <typename ConcretizedGraph> [[nodiscard]] ConcretizedGraph &concretize() {
+    KASSERT(
+        is<ConcretizedGraph>(), "underlying graph is not a " << typeid(ConcretizedGraph).name()
+    );
+
+    return *static_cast<ConcretizedGraph *>(underlying_graph());
+  }
+
+  template <typename ConcretizedGraph> [[nodiscard]] const ConcretizedGraph &concretize() const {
+    KASSERT(
+        is<ConcretizedGraph>(), "underlying graph is not a " << typeid(ConcretizedGraph).name()
+    );
+
+    return *static_cast<const ConcretizedGraph *>(underlying_graph());
+  }
+
 private:
   std::unique_ptr<AbstractDistributedGraph> _underlying_graph;
 };

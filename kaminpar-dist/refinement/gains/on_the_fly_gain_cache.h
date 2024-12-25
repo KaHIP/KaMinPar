@@ -20,8 +20,10 @@
 
 namespace kaminpar::dist {
 
-template <typename Graph, bool randomize = true> class OnTheFlyGainCache {
+template <typename Graph> class OnTheFlyGainCache {
 public:
+  constexpr static bool kRandomized = true;
+
   OnTheFlyGainCache(const Context &ctx)
       : _rating_map_ets([&] { return RatingMap<EdgeWeight, BlockID>(ctx.partition.k); }) {}
 
@@ -91,7 +93,7 @@ private:
       });
 
       for (const auto [target, conn] : map.entries()) {
-        if (conn > max_ext_conn || (randomize && conn == max_ext_conn && rand.random_bool())) {
+        if (conn > max_ext_conn || (kRandomized && conn == max_ext_conn && rand.random_bool())) {
           max_target = target;
           max_ext_conn = conn;
         }
@@ -116,8 +118,5 @@ private:
   const Graph *_graph = nullptr;
   mutable tbb::enumerable_thread_specific<RatingMap<EdgeWeight, BlockID>> _rating_map_ets;
 };
-
-template <typename Graph> using DeterministicOnTheFlyGainCache = OnTheFlyGainCache<Graph, false>;
-template <typename Graph> using RandomizedOnTheFlyGainCache = OnTheFlyGainCache<Graph, true>;
 
 } // namespace kaminpar::dist

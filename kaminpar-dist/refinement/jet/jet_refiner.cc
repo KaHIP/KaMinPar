@@ -18,7 +18,7 @@
 #include "kaminpar-dist/logger.h"
 #include "kaminpar-dist/metrics.h"
 #include "kaminpar-dist/refinement/balancer/node_balancer.h"
-#include "kaminpar-dist/refinement/gains/compact_hashing_gain_cache.h"
+#include "kaminpar-dist/refinement/gains/lazy_compact_hashing_gain_cache.h"
 #include "kaminpar-dist/refinement/gains/on_the_fly_gain_cache.h"
 #include "kaminpar-dist/refinement/snapshooter.h"
 #include "kaminpar-dist/timer.h"
@@ -38,8 +38,7 @@ SET_DEBUG(false);
 // Implementation
 //
 
-template <typename Graph, template <typename> typename GainCache>
-class JetRefiner : public GlobalRefiner {
+template <typename Graph, typename GainCache> class JetRefiner : public GlobalRefiner {
 public:
   JetRefiner(
       const Context &ctx,
@@ -57,15 +56,10 @@ public:
         _gains_and_targets(p_graph.total_n()),
         _block_weight_deltas(p_graph.k()),
         _locked(p_graph.n()) {
-    auto balancer_factory = factory::create_refiner(_ctx, _ctx.refinement.jet.balancing_algorithm);
-    if (NodeBalancerFactory *node_balancer_factory =
-            dynamic_cast<NodeBalancerFactory *>(balancer_factory.get())) {
-      if constexpr (std::is_same_v<Graph, DistributedCSRGraph> &&
-                    std::is_same_v<GainCache<Graph>, CompactHashingGainCache<Graph>>) {
-        node_balancer_factory->use_gain_cache(_gain_cache);
-      }
-    }
-    _balancer = balancer_factory->create(_p_graph, _p_ctx);
+    _balancer_factory = factory::create_refiner_with_decoupled_gain_cache<GainCache>(
+        _ctx, _ctx.refinement.jet.balancing_algorithm, _gain_cache
+    );
+    _balancer = _balancer_factory->create(_p_graph, _p_ctx);
   }
 
   JetRefiner(const JetRefiner &) = delete;
@@ -442,11 +436,12 @@ private:
   const PartitionContext &_p_ctx;
 
   BestPartitionSnapshooter _snapshooter;
-  GainCache<Graph> _gain_cache;
+  GainCache _gain_cache;
   StaticArray<std::pair<EdgeWeight, BlockID>> _gains_and_targets;
   StaticArray<BlockWeight> _block_weight_deltas;
   StaticArray<std::uint8_t> _locked;
 
+  std::unique_ptr<GlobalRefinerFactory> _balancer_factory = nullptr;
   std::unique_ptr<GlobalRefiner> _balancer = nullptr;
 
   double _negative_gain_factor = 0.0;
@@ -458,29 +453,31 @@ private:
 
 JetRefinerFactory::JetRefinerFactory(const Context &ctx) : _ctx(ctx) {}
 
-namespace {
-
-template <typename Graph> using JetCompactHashingGainCache = CompactHashingGainCache<Graph>;
-
-template <typename Graph> using JetOnTheFlyGainCache = OnTheFlyGainCache<Graph>;
-
-} // namespace
-
 std::unique_ptr<GlobalRefiner>
 JetRefinerFactory::create(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
-  return p_graph.graph().reified([&](const auto &graph) {
-    using Graph = std::decay_t<decltype(graph)>;
-    std::unique_ptr<GlobalRefiner> refiner;
-    if (_ctx.refinement.jet.use_gain_cache) {
-      refiner = std::make_unique<JetRefiner<Graph, JetCompactHashingGainCache>>(
-          _ctx, p_graph, graph, p_ctx
-      );
-    } else {
-      refiner =
-          std::make_unique<JetRefiner<Graph, JetOnTheFlyGainCache>>(_ctx, p_graph, graph, p_ctx);
-    }
-    return refiner;
-  });
+  KASSERT(
+      p_graph.graph().is<DistributedCSRGraph>(),
+      "refiner only supports uncompressed CSR graphs",
+      assert::always
+  );
+
+  const DistributedCSRGraph &csr_graph = p_graph.graph().concretize<DistributedCSRGraph>();
+
+  switch (_ctx.refinement.jet.gain_cache_strategy) {
+  case GainCacheStrategy::ON_THE_FLY:
+    return std::make_unique<
+        JetRefiner<DistributedCSRGraph, OnTheFlyGainCache<DistributedCSRGraph>>>(
+        _ctx, p_graph, csr_graph, p_ctx
+    );
+
+  case GainCacheStrategy::LAZY_COMPACT_HASHING:
+    return std::make_unique<
+        JetRefiner<DistributedCSRGraph, LazyCompactHashingGainCache<DistributedCSRGraph>>>(
+        _ctx, p_graph, csr_graph, p_ctx
+    );
+  }
+
+  __builtin_unreachable();
 }
 
 } // namespace kaminpar::dist

@@ -27,11 +27,7 @@
 
 namespace kaminpar::dist {
 
-template <
-    typename DistributedGraphType,
-    bool iterate_nonadjacent_blocks = false,
-    bool iterate_exact_gains = false>
-class CompactHashingGainCache {
+template <typename DistributedGraphType> class LazyCompactHashingGainCache {
   SET_DEBUG(false);
 
   // Abuse MSB bit in the _weighted_degrees[] array for locking
@@ -41,20 +37,17 @@ class CompactHashingGainCache {
 
 public:
   using DistributedGraph = DistributedGraphType;
+  using Self = LazyCompactHashingGainCache<DistributedGraphType>;
 
-  using Self = CompactHashingGainCache<
-      DistributedGraphType,
-      iterate_nonadjacent_blocks,
-      iterate_exact_gains>;
-
-  // If set to true, gains() will iterate over all blocks, including those not adjacent to the node.
-  constexpr static bool kIteratesNonadjacentBlocks = iterate_nonadjacent_blocks;
+  // If set to true, gains() will iterate over all blocks, including those not adjacent to the
+  // node.
+  constexpr static bool kIteratesNonadjacentBlocks = false;
 
   // If set to true, gains() will call the gain consumer with exact gains; otherwise, it will call
   // the gain consumer with the total edge weight between the node and nodes in the specific block.
-  constexpr static bool kIteratesExactGains = iterate_exact_gains;
+  constexpr static bool kIteratesExactGains = false;
 
-  CompactHashingGainCache(const Context &ctx) : _ctx(ctx) {}
+  LazyCompactHashingGainCache(const Context &ctx) : _ctx(ctx) {}
 
   void init(const DistributedGraph &graph, const DistributedPartitionedGraph &p_graph) {
     _graph = &graph;

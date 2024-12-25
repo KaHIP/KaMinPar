@@ -26,6 +26,8 @@
 #include "kaminpar-dist/refinement/adapters/mtkahypar_refiner.h"
 #include "kaminpar-dist/refinement/balancer/cluster_balancer.h"
 #include "kaminpar-dist/refinement/balancer/node_balancer.h"
+#include "kaminpar-dist/refinement/gains/lazy_compact_hashing_gain_cache.h"
+#include "kaminpar-dist/refinement/gains/on_the_fly_gain_cache.h"
 #include "kaminpar-dist/refinement/jet/jet_refiner.h"
 #include "kaminpar-dist/refinement/lp/clp_refiner.h"
 #include "kaminpar-dist/refinement/lp/lp_refiner.h"
@@ -123,6 +125,32 @@ std::unique_ptr<GlobalRefinerFactory> create_refiner(const Context &ctx) {
 
   return std::make_unique<MultiRefinerFactory>(std::move(factories), ctx.refinement.algorithms);
 }
+
+template <typename GainCache>
+std::unique_ptr<GlobalRefinerFactory> create_refiner_with_decoupled_gain_cache(
+    const Context &ctx, const RefinementAlgorithm algorithm, GainCache &gain_cache
+) {
+  switch (algorithm) {
+  case RefinementAlgorithm::HYBRID_NODE_BALANCER:
+    return std::make_unique<NodeBalancerWithDecoupledGainCacheFactory<GainCache>>(ctx, gain_cache);
+  default:
+    throw std::runtime_error("Decoupled gain cache not supported for this algorithm.");
+  }
+
+  __builtin_unreachable();
+}
+
+template std::unique_ptr<GlobalRefinerFactory> create_refiner_with_decoupled_gain_cache(
+    const Context &ctx,
+    const RefinementAlgorithm algorithm,
+    OnTheFlyGainCache<DistributedCSRGraph> &gain_cache
+);
+
+template std::unique_ptr<GlobalRefinerFactory> create_refiner_with_decoupled_gain_cache(
+    const Context &ctx,
+    const RefinementAlgorithm algorithm,
+    LazyCompactHashingGainCache<DistributedCSRGraph> &gain_cache
+);
 
 std::unique_ptr<Coarsener> create_coarsener(const Context &ctx) {
   return std::make_unique<GlobalClusterCoarsener>(ctx);
