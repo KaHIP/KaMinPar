@@ -117,6 +117,11 @@ public:
   void initialize(const Graph &graph) {
     _graph = &graph;
 
+    if (_c_ctx.global_lp.active_set_strategy == ActiveSetStrategy::GLOBAL) {
+      // Dummy access to initialize the ghost graph
+      _graph->ghost_graph();
+    }
+
     START_TIMER("Initialize high-degree node info");
     if (_passive_high_degree_threshold > 0) {
       SCOPED_HEAP_PROFILER("Initialize high-degree node info");
