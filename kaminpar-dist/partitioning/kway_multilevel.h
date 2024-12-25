@@ -13,12 +13,14 @@
 #include "kaminpar-dist/partitioning/partitioner.h"
 
 namespace kaminpar::dist {
+
 class KWayMultilevelPartitioner : public Partitioner {
 public:
   KWayMultilevelPartitioner(const DistributedGraph &graph, const Context &ctx);
 
   KWayMultilevelPartitioner(const KWayMultilevelPartitioner &) = delete;
   KWayMultilevelPartitioner &operator=(const KWayMultilevelPartitioner &) = delete;
+
   KWayMultilevelPartitioner(KWayMultilevelPartitioner &&) noexcept = default;
   KWayMultilevelPartitioner &operator=(KWayMultilevelPartitioner &&) = delete;
 
@@ -28,4 +30,5 @@ private:
   const DistributedGraph &_graph;
   const Context &_ctx;
 };
+
 } // namespace kaminpar::dist

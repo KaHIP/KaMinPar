@@ -22,6 +22,7 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::dist {
+
 SET_DEBUG(false);
 
 using ColorID = EdgeID;

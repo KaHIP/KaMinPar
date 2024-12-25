@@ -17,6 +17,7 @@
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::dist {
+
 shm::PartitionedGraph RandomInitialPartitioner::initial_partition(
     const shm::Graph &graph, const PartitionContext &p_ctx
 ) {
@@ -31,4 +32,5 @@ shm::PartitionedGraph RandomInitialPartitioner::initial_partition(
 
   return {graph, p_ctx.k, std::move(partition)};
 }
+
 } // namespace kaminpar::dist

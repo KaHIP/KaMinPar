@@ -12,6 +12,7 @@
 #include "kaminpar-dist/refinement/refiner.h"
 
 namespace kaminpar::dist {
+
 class MtKaHyParRefinerFactory : public GlobalRefinerFactory {
 public:
   MtKaHyParRefinerFactory(const Context &ctx);
@@ -49,4 +50,5 @@ private:
   DistributedPartitionedGraph &_p_graph [[maybe_unused]];
   const PartitionContext &_p_ctx [[maybe_unused]];
 };
+
 } // namespace kaminpar::dist

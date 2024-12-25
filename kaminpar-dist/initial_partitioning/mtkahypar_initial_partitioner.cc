@@ -24,6 +24,7 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::dist {
+
 shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
     [[maybe_unused]] const shm::Graph &graph, [[maybe_unused]] const PartitionContext &p_ctx
 ) {
@@ -99,4 +100,5 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
   __builtin_unreachable();
 #endif // KAMINPAR_HAVE_MTKAHYPAR_LIB
 }
+
 } // namespace kaminpar::dist

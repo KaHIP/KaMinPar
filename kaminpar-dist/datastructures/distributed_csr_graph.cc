@@ -7,13 +7,11 @@
  ******************************************************************************/
 #include "kaminpar-dist/datastructures/distributed_csr_graph.h"
 
-#include <iomanip>
 #include <numeric>
 
 #include "kaminpar-mpi/wrapper.h"
 
 #include "kaminpar-dist/graphutils/communication.h"
-#include "kaminpar-dist/logger.h"
 
 #include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
@@ -22,6 +20,7 @@
 #include "kaminpar-common/parallel/vector_ets.h"
 
 namespace kaminpar::dist {
+
 void DistributedCSRGraph::init_high_degree_info(const EdgeID high_degree_threshold) const {
   if (_high_degree_threshold == high_degree_threshold) {
     return;

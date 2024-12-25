@@ -12,7 +12,6 @@
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 
 #include <iomanip>
-#include <numeric>
 
 #include "kaminpar-mpi/wrapper.h"
 

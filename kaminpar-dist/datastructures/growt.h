@@ -36,14 +36,17 @@
 #endif
 
 namespace kaminpar::dist::growt {
+
 using DefaultHasherType = utils_tm::hash_tm::murmur2_hash;
 using DefaultAllocatorType = ::growt::AlignedAllocator<>;
 
 namespace internal {
-// workaround 32 bit value bug in growt
+
+// Workaround 32 bit value bug in growt
 template <typename Type>
 using Ensure64BitType =
     std::conditional_t<std::numeric_limits<Type>::is_signed, GlobalNodeWeight, GlobalNodeID>;
+
 } // namespace internal
 
 template <typename Value>
@@ -92,4 +95,5 @@ template <typename Handles, typename Lambda> void pfor_handles(Handles &handles,
     }
   });
 }
+
 } // namespace kaminpar::dist::growt

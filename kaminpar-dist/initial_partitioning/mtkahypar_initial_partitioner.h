@@ -15,12 +15,14 @@
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 
 namespace kaminpar::dist {
+
 class MtKaHyParInitialPartitioner : public InitialPartitioner {
 public:
   MtKaHyParInitialPartitioner(const Context &ctx) : _ctx{ctx} {}
 
   MtKaHyParInitialPartitioner(const MtKaHyParInitialPartitioner &) = delete;
   MtKaHyParInitialPartitioner &operator=(const MtKaHyParInitialPartitioner &) = delete;
+
   MtKaHyParInitialPartitioner(MtKaHyParInitialPartitioner &&) noexcept = default;
   MtKaHyParInitialPartitioner &operator=(MtKaHyParInitialPartitioner &&) = delete;
 
@@ -30,4 +32,5 @@ public:
 private:
   const Context &_ctx;
 };
+
 } // namespace kaminpar::dist

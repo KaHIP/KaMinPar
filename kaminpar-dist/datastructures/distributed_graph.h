@@ -16,6 +16,7 @@
 #include "kaminpar-dist/datastructures/abstract_distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_compressed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_csr_graph.h"
+#include "kaminpar-dist/datastructures/reify_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
@@ -415,62 +416,40 @@ public:
   }
 
   [[nodiscard]] inline DistributedCSRGraph &csr_graph() {
-    AbstractDistributedGraph *abstract_graph = _underlying_graph.get();
-    return *dynamic_cast<DistributedCSRGraph *>(abstract_graph);
+    return graph::concretize<DistributedCSRGraph>(*_underlying_graph);
   }
 
   [[nodiscard]] inline const DistributedCSRGraph &csr_graph() const {
-    const AbstractDistributedGraph *abstract_graph = _underlying_graph.get();
-    return *dynamic_cast<const DistributedCSRGraph *>(abstract_graph);
+    return graph::concretize<DistributedCSRGraph>(*_underlying_graph);
   }
 
   [[nodiscard]] inline DistributedCompressedGraph &compressed_graph() {
-    AbstractDistributedGraph *abstract_graph = _underlying_graph.get();
-    return *dynamic_cast<DistributedCompressedGraph *>(abstract_graph);
+    return graph::concretize<DistributedCompressedGraph>(*_underlying_graph);
   }
 
   [[nodiscard]] inline const DistributedCompressedGraph &compressed_graph() const {
-    const AbstractDistributedGraph *abstract_graph = _underlying_graph.get();
-    return *dynamic_cast<const DistributedCompressedGraph *>(abstract_graph);
+    return graph::concretize<DistributedCompressedGraph>(*_underlying_graph);
   }
 
   template <typename Lambda1, typename Lambda2>
   inline decltype(auto) reified(Lambda1 &&l1, Lambda2 &&l2) const {
-    const AbstractDistributedGraph *abstract_graph = _underlying_graph.get();
-
-    if (const auto *graph = dynamic_cast<const DistributedCSRGraph *>(abstract_graph);
-        graph != nullptr) {
-      return l1(*graph);
-    } else if (const auto *graph = dynamic_cast<const DistributedCompressedGraph *>(abstract_graph);
-               graph != nullptr) {
-      return l2(*graph);
-    }
-
-    __builtin_unreachable();
+    return graph::reified(*_underlying_graph, std::forward<Lambda1>(l1), std::forward<Lambda2>(l2));
   }
 
   template <typename Lambda> inline decltype(auto) reified(Lambda &&l) const {
-    return reified(std::forward<Lambda>(l), std::forward<Lambda>(l));
+    return graph::reified(*_underlying_graph, std::forward<Lambda>(l));
   }
 
   template <typename ConcretizedGraph> [[nodiscard]] bool is() const {
-    return dynamic_cast<const ConcretizedGraph *>(underlying_graph()) != nullptr;
+    return graph::is<ConcretizedGraph>(*_underlying_graph);
   }
 
   template <typename ConcretizedGraph> [[nodiscard]] ConcretizedGraph &concretize() {
-    KASSERT(
-        is<ConcretizedGraph>(), "underlying graph is not a " << typeid(ConcretizedGraph).name()
-    );
-
-    return *static_cast<ConcretizedGraph *>(underlying_graph());
+    return graph::concretize<ConcretizedGraph>(*_underlying_graph);
   }
 
   template <typename ConcretizedGraph> [[nodiscard]] const ConcretizedGraph &concretize() const {
-    KASSERT(
-        is<ConcretizedGraph>(), "underlying graph is not a " << typeid(ConcretizedGraph).name()
-    );
-
-    return *static_cast<const ConcretizedGraph *>(underlying_graph());
+    return graph::concretize<ConcretizedGraph>(*_underlying_graph);
   }
 
 private:

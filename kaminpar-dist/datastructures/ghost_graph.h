@@ -10,7 +10,6 @@
 
 #include <tbb/parallel_for.h>
 
-#include "kaminpar-dist/datastructures/abstract_distributed_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
 
 #include "kaminpar-common/assert.h"
@@ -22,7 +21,7 @@ class GhostGraph {
 public:
   GhostGraph();
 
-  GhostGraph(const DistributedGraph &graph);
+  GhostGraph(const class AbstractDistributedGraph &graph);
 
   GhostGraph(const GhostGraph &) = delete;
   GhostGraph &operator=(const GhostGraph &) = delete;
@@ -30,7 +29,11 @@ public:
   GhostGraph(GhostGraph &&) = default;
   GhostGraph &operator=(GhostGraph &&) = default;
 
-  void initialize(const DistributedGraph &graph);
+  [[nodiscard]] bool initialized() const {
+    return _n != kInvalidNodeID;
+  }
+
+  void initialize(const class AbstractDistributedGraph &graph);
 
   [[nodiscard]] NodeID n() const {
     return static_cast<NodeID>(_xadj.size() - 1);
@@ -44,11 +47,11 @@ public:
     return !_adjwgt.empty();
   }
 
-  template <typename Lambda> void pfor_nodes(Lambda &&lambda) {
+  template <typename Lambda> void pfor_nodes(Lambda &&lambda) const {
     tbb::parallel_for<NodeID>(0, n(), [&](const NodeID u) { lambda(u); });
   }
 
-  template <typename Lambda> void adjacent_nodes(const NodeID u, Lambda &&lambda) {
+  template <typename Lambda> void adjacent_nodes(const NodeID u, Lambda &&lambda) const {
     KASSERT(u >= _n && u < _n + _ghost_n, "node " << u << " is not a ghost node");
 
     constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID>;
@@ -65,7 +68,7 @@ public:
   }
 
 private:
-  NodeID _n = 0;
+  NodeID _n = kInvalidNodeID;
   NodeID _ghost_n = 0;
 
   StaticArray<EdgeID> _xadj;
