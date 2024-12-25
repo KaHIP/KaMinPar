@@ -8,7 +8,9 @@
  ******************************************************************************/
 #include "kaminpar-dist/datastructures/ghost_graph.h"
 
-#include "kaminpar-dist/datastructures/distributed_graph.h"
+#include "kaminpar-dist/datastructures/abstract_distributed_graph.h"
+#include "kaminpar-dist/datastructures/reify_graph.h"
+#include "kaminpar-dist/timer.h"
 
 #include "kaminpar-common/parallel/algorithm.h"
 
@@ -23,6 +25,9 @@ void construct(
     StaticArray<NodeID> &adjncy,
     StaticArray<EdgeWeight> &adjwgt
 ) {
+  TIMER_BARRIER(graph.communicator());
+  SCOPED_TIMER("Construct ghost graph");
+
   xadj.resize(graph.ghost_n() + 1);
 
   graph.pfor_nodes([&](const NodeID u) {
@@ -60,12 +65,12 @@ void construct(
 
 GhostGraph::GhostGraph() = default;
 
-GhostGraph::GhostGraph(const DistributedGraph &graph) {
+GhostGraph::GhostGraph(const AbstractDistributedGraph &graph) {
   initialize(graph);
 }
 
-void GhostGraph::initialize(const DistributedGraph &graph) {
-  graph.reified([&](const auto &graph) { construct(graph, _xadj, _adjncy, _adjwgt); });
+void GhostGraph::initialize(const AbstractDistributedGraph &graph) {
+  graph::reified(graph, [&](const auto &graph) { construct(graph, _xadj, _adjncy, _adjwgt); });
   _n = graph.n();
   _ghost_n = graph.ghost_n();
 }

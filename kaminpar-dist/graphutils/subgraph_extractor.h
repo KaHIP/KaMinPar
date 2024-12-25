@@ -16,13 +16,13 @@
 
 #include <vector>
 
-#include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 
 namespace kaminpar::dist::graph {
+
 struct ExtractedLocalSubgraphs {
   std::vector<EdgeID> shared_nodes;
   std::vector<NodeWeight> shared_node_weights;
@@ -107,4 +107,5 @@ private:
   PEID _min_pes_per_block;
   PEID _rem_pes;
 };
+
 } // namespace kaminpar::dist::graph

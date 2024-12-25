@@ -26,9 +26,12 @@
 #include "kaminpar-dist/logger.h"
 
 namespace kaminpar::dist {
+
 namespace {
+
 SET_STATISTICS_FROM_GLOBAL();
 SET_DEBUG(true);
+
 } // namespace
 
 MtKaHyParRefinerFactory::MtKaHyParRefinerFactory(const Context &ctx) : _ctx(ctx) {}
@@ -197,4 +200,5 @@ bool MtKaHyParRefiner::refine() {
   return false;
 #endif // KAMINPAR_HAVE_MTKAHYPAR_LIB
 }
+
 } // namespace kaminpar::dist

@@ -14,16 +14,19 @@
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 
 namespace kaminpar::dist {
+
 class RandomInitialPartitioner : public InitialPartitioner {
 public:
   RandomInitialPartitioner() {}
 
   RandomInitialPartitioner(const RandomInitialPartitioner &) = delete;
   RandomInitialPartitioner &operator=(const RandomInitialPartitioner &) = delete;
+
   RandomInitialPartitioner(RandomInitialPartitioner &&) noexcept = default;
   RandomInitialPartitioner &operator=(RandomInitialPartitioner &&) = delete;
 
   shm::PartitionedGraph
   initial_partition(const shm::Graph &graph, const PartitionContext &p_ctx) override;
 };
+
 } // namespace kaminpar::dist

@@ -13,6 +13,7 @@
 #include "kaminpar-dist/dkaminpar.h"
 
 namespace kaminpar::dist::graph {
+
 std::vector<NodeID> find_border_nodes(const DistributedPartitionedGraph &p_graph) {
   std::vector<NodeID> border_nodes;
 
@@ -31,4 +32,5 @@ std::vector<NodeID> find_border_nodes(const DistributedPartitionedGraph &p_graph
 
   return border_nodes;
 }
+
 } // namespace kaminpar::dist::graph

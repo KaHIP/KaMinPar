@@ -13,7 +13,6 @@
 
 #include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
-#include "kaminpar-dist/datastructures/ghost_graph.h"
 #include "kaminpar-dist/refinement/gains/max_gainer.h"
 
 #include "kaminpar-common/assert.h"
@@ -53,10 +52,6 @@ public:
   void init(const DistributedGraph &graph, const DistributedPartitionedGraph &p_graph) {
     _graph = &graph;
     _p_graph = &p_graph;
-
-    TIMED_SCOPE("Initialize ghost graph") {
-      _ghost_graph.initialize(p_graph.graph());
-    };
 
     _n = _graph->n();
     _k = _p_graph->k();
@@ -159,7 +154,7 @@ public:
 
   void move(const NodeID node, const BlockID block_from, const BlockID block_to) {
     if (_graph->is_ghost_node(node)) {
-      _ghost_graph.adjacent_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
+      _graph->ghost_graph().adjacent_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
         update_affinity_values(v, weight, block_from, block_to);
       });
       return;
@@ -560,7 +555,6 @@ private:
 
   const DistributedGraph *_graph = nullptr;
   const DistributedPartitionedGraph *_p_graph = nullptr;
-  GhostGraph _ghost_graph;
 
   NodeID _n = kInvalidNodeID;
   BlockID _k = kInvalidBlockID;

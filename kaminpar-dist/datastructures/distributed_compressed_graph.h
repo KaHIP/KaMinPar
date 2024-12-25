@@ -12,8 +12,8 @@
 #include "kaminpar-mpi/utils.h"
 
 #include "kaminpar-dist/datastructures/abstract_distributed_graph.h"
+#include "kaminpar-dist/datastructures/ghost_graph.h"
 #include "kaminpar-dist/datastructures/ghost_node_mapper.h"
-#include "kaminpar-dist/datastructures/growt.h"
 #include "kaminpar-dist/dkaminpar.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
@@ -622,9 +622,10 @@ private:
 
   CompactGhostNodeMapping _ghost_node_mapping;
 
-  // mutable for lazy initialization
+  // Mutable for lazy initialization
   mutable StaticArray<std::uint8_t> _high_degree_ghost_node{};
   mutable EdgeID _high_degree_threshold = 0;
+  mutable GhostGraph _ghost_graph{};
 
   std::vector<EdgeID> _edge_cut_to_pe{};
   std::vector<EdgeID> _comm_vol_to_pe{};

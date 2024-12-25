@@ -31,7 +31,12 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::dist::graph {
+
+namespace {
+
 SET_DEBUG(false);
+
+}
 
 BfsExtractor::BfsExtractor(const DistributedGraph &graph) : _graph(&graph) {}
 
@@ -606,4 +611,5 @@ BlockID BfsExtractor::map_pseudo_node_to_block(const GlobalNodeID node) {
 bool BfsExtractor::is_pseudo_block_node(const GlobalNodeID node) {
   return node >= _graph->global_n();
 }
+
 } // namespace kaminpar::dist::graph
