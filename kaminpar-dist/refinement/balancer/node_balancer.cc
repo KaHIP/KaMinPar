@@ -787,6 +787,7 @@ NodeBalancerFactory::create(DistributedPartitionedGraph &p_graph, const Partitio
         using GainCache = OnTheFlyGainCache<Graph>;
 
         _gain_cache.emplace<GainCache>(_ctx);
+        std::get<GainCache>(_gain_cache).init(graph, p_graph);
 
         return std::make_unique<NodeBalancer<Graph, GainCache>>(
             _ctx, p_graph, graph, p_ctx, std::get<GainCache>(_gain_cache)
