@@ -13,7 +13,9 @@
 #include "kaminpar-dist/context_io.h"
 
 namespace kaminpar::dist {
+
 namespace {
+
 void create_chunks_options(CLI::Option_group *cli, const std::string &prefix, ChunksContext &ctx) {
   cli->add_option(
          prefix + "-total-chunks",
@@ -40,6 +42,7 @@ void create_chunks_options(CLI::Option_group *cli, const std::string &prefix, Ch
   )
       ->capture_default_str();
 }
+
 } // namespace
 
 void create_all_options(CLI::App *app, Context &ctx) {
@@ -514,6 +517,14 @@ CLI::Option_group *create_global_lp_coarsening_options(CLI::App *app, Context &c
   lp->add_flag("--c-glp-prevent-cyclic-moves", ctx.coarsening.global_lp.prevent_cyclic_moves);
   lp->add_flag("--c-glp-enforce-legacy-weight", ctx.coarsening.global_lp.enforce_legacy_weight);
 
+  lp->add_option("--c-glp-active-set", ctx.coarsening.global_lp.active_set_strategy)
+      ->transform(CLI::CheckedTransformer(get_active_set_strategies()).description(""))
+      ->description(R"(Determines the active set strategy:
+  - none:   Do not use an active set
+  - local:  Only for non-interface nodes
+  - global: Full active set strategy (requires ghost graph)")
+      ->capture_default_str();
+
   return lp;
 }
 
@@ -641,4 +652,5 @@ CLI::Option_group *create_mtkahypar_refinement_options(CLI::App *app, Context &c
 
   return mtkahypar;
 }
+
 } // namespace kaminpar::dist

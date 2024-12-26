@@ -21,16 +21,21 @@ namespace kaminpar::dist {
 
 namespace {
 
+SET_DEBUG(true);
+
+}
+
+namespace {
+
 struct GlobalLPClusteringConfig : public LabelPropagationConfig {
   using RatingMap = ::kaminpar::RatingMap<EdgeWeight, GlobalNodeID, rm_backyard::Sparsehash>;
 
   using ClusterID = GlobalNodeID;
   using ClusterWeight = GlobalNodeWeight;
 
-  static constexpr bool kTrackClusterCount = false;         // NOLINT
-  static constexpr bool kUseTwoHopClustering = false;       // NOLINT
-  static constexpr bool kUseActiveSetStrategy = false;      // NOLINT
-  static constexpr bool kUseLocalActiveSetStrategy = false; // NOLINT
+  static constexpr bool kTrackClusterCount = false;   // NOLINT
+  static constexpr bool kUseTwoHopClustering = false; // NOLINT
+  static constexpr bool kUseActiveSetStrategy = true; // NOLINT
 };
 
 } // namespace
@@ -51,8 +56,6 @@ class GlobalLPClusteringImpl final : public ChunkRandomdLabelPropagation<
                                          GlobalLPClusteringConfig,
                                          Graph>,
                                      public NonatomicClusterVectorRef<NodeID, GlobalNodeID> {
-  SET_DEBUG(false);
-
   using Base =
       ChunkRandomdLabelPropagation<GlobalLPClusteringImpl<Graph>, GlobalLPClusteringConfig, Graph>;
   using ClusterBase = NonatomicClusterVectorRef<NodeID, GlobalNodeID>;
@@ -70,6 +73,13 @@ public:
     set_max_num_iterations(_c_ctx.global_lp.num_iterations);
     Base::set_max_degree(_c_ctx.global_lp.active_high_degree_threshold);
     Base::set_max_num_neighbors(_c_ctx.global_lp.max_num_neighbors);
+
+    if (_c_ctx.global_lp.active_set_strategy == ActiveSetStrategy::LOCAL) {
+      Base::enable_local_active_set();
+    }
+    if (_c_ctx.global_lp.active_set_strategy == ActiveSetStrategy::GLOBAL) {
+      Base::enable_active_set();
+    }
   }
 
   void setup(GlobalLPClusteringMemoryContext &memory_context) {
@@ -106,6 +116,11 @@ public:
 
   void initialize(const Graph &graph) {
     _graph = &graph;
+
+    if (_c_ctx.global_lp.active_set_strategy == ActiveSetStrategy::GLOBAL) {
+      // Dummy access to initialize the ghost graph
+      _graph->ghost_graph();
+    }
 
     START_TIMER("Initialize high-degree node info");
     if (_passive_high_degree_threshold > 0) {
@@ -153,6 +168,23 @@ public:
         const auto [from, to] = math::compute_local_range<NodeID>(_graph->n(), num_chunks, chunk);
         global_num_moved_nodes += process_chunk(from, to);
       }
+
+      if constexpr (kDebug) {
+        GlobalNodeID global_num_skipped_nodes = Base::_num_skipped_nodes_ets.combine(std::plus{});
+        MPI_Allreduce(
+            MPI_IN_PLACE,
+            &global_num_skipped_nodes,
+            1,
+            mpi::type::get<GlobalNodeID>(),
+            MPI_SUM,
+            _graph->communicator()
+        );
+
+        DBG0 << "Iteration " << iteration << ": " << global_num_moved_nodes << " nodes moved, "
+             << global_num_skipped_nodes << " nodes skipped";
+        Base::_num_skipped_nodes_ets.clear();
+      }
+
       if (global_num_moved_nodes == 0) {
         break;
       }
@@ -350,7 +382,7 @@ private:
     TIMER_BARRIER(_graph->communicator());
 
     const NodeID local_num_moved_nodes = TIMED_SCOPE("Local work") {
-      return Base::perform_iteration(from, to);
+      return Base::perform_iteration(from, to, kDebug);
     };
 
     const GlobalNodeID global_num_moved_nodes =
@@ -598,6 +630,8 @@ private:
                   weight_delta_handle.find(new_gcluster + 1) == weight_delta_handle.end()) {
                 change_cluster_weight(new_gcluster, weight, false);
               }
+
+              Base::activate_neighbors_of_ghost_node(lnode);
             }
           });
         }

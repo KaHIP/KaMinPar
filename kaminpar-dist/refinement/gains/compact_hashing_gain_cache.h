@@ -63,6 +63,9 @@ public:
       _offsets.resize(_n + 1);
     }
 
+    // Make sure that the ghost graph is initialized on all PEs
+    _graph->ghost_graph();
+
     recompute_weighted_degrees();
 
     START_TIMER("Compute gain cache offsets");

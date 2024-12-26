@@ -139,6 +139,12 @@ enum class GainCacheStrategy {
   LAZY_COMPACT_HASHING,
 };
 
+enum class ActiveSetStrategy {
+  NONE,
+  LOCAL,
+  GLOBAL,
+};
+
 struct ParallelContext {
   std::size_t num_threads;
   std::size_t num_mpis;
@@ -172,6 +178,8 @@ struct LabelPropagationCoarseningContext {
 
   bool prevent_cyclic_moves;
   bool enforce_legacy_weight;
+
+  ActiveSetStrategy active_set_strategy;
 
   [[nodiscard]] bool should_merge_nonadjacent_clusters(NodeID old_n, NodeID new_n) const;
 };
