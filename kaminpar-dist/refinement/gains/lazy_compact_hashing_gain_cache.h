@@ -619,4 +619,3 @@ private:
 };
 
 } // namespace kaminpar::dist
-

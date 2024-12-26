@@ -1015,7 +1015,9 @@ struct XXH3_state_s {
  * it's still necessary to use XXH3_NNbits_reset*() afterwards.
  */
 #define XXH3_INITSTATE(XXH3_state_ptr)                                                             \
-  { (XXH3_state_ptr)->seed = 0; }
+  {                                                                                                \
+    (XXH3_state_ptr)->seed = 0;                                                                    \
+  }
 
 /* ===   Experimental API   === */
 /* Symbols defined below must be considered tied to a specific library version. */

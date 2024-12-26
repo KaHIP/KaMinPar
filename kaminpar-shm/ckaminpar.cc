@@ -188,4 +188,3 @@ kaminpar_edge_weight_t kaminpar_compute_partition_with_max_block_weights(
       std::move(max_block_weights_vec), {partition, kaminpar->n}
   );
 }
-

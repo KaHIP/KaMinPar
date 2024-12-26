@@ -90,6 +90,6 @@ namespace remapping {
 
 void write(const std::string &filename, std::span<const NodeID> partition);
 
-} // namespace partition
+} // namespace remapping
 
 } // namespace kaminpar::shm::io

@@ -278,4 +278,3 @@ bool OverlayClusteringCoarsener::keep_allocated_memory() const {
 }
 
 } // namespace kaminpar::shm
-

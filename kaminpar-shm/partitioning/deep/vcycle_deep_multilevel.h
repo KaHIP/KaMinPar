@@ -20,8 +20,7 @@ public:
   VcycleDeepMultilevelPartitioner(const Graph &input_graph, const Context &input_ctx);
 
   VcycleDeepMultilevelPartitioner(const VcycleDeepMultilevelPartitioner &) = delete;
-  VcycleDeepMultilevelPartitioner &
-  operator=(const VcycleDeepMultilevelPartitioner &) = delete;
+  VcycleDeepMultilevelPartitioner &operator=(const VcycleDeepMultilevelPartitioner &) = delete;
 
   VcycleDeepMultilevelPartitioner(VcycleDeepMultilevelPartitioner &&) = delete;
   VcycleDeepMultilevelPartitioner &operator=(VcycleDeepMultilevelPartitioner &&) = delete;

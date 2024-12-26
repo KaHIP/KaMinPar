@@ -104,7 +104,7 @@ public:
   }
 
   [[nodiscard]] bool accept_neighbor(const NodeID u, const NodeID v) {
-      return _communities.empty() || _communities[u] == _communities[v];
+    return _communities.empty() || _communities[u] == _communities[v];
   }
 
   bool move_cluster_weight(
