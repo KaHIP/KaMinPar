@@ -149,6 +149,7 @@ enum class ContractionImbalanceCriteria {
   NONE,
   NODES,
   EDGES,
+  ADAPTIVE,
 };
 
 struct ParallelContext {

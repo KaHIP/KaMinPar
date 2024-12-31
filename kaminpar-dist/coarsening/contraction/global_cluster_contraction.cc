@@ -1585,6 +1585,7 @@ std::unique_ptr<CoarseGraph> contract_clustering(
     const bool migrate_cnode_prefix = false,
     const bool strict_rebalancing = true
 ) {
+  // First attempt: use rebalancing settings for cnode and cedge
   auto ans = contract_clustering_or_rebalance(
       fine_graph,
       graph,
@@ -1599,10 +1600,35 @@ std::unique_ptr<CoarseGraph> contract_clustering(
     return std::move(*ans);
   }
 
-  // If contraction failed, the current lnode_to_gcluster mapping would lead to an imbalanced coarse
-  // graph distribution. In this case, the attempt changed the mapping to achieve a better
-  // distribution: we now contract the graph with the new mapping.
-  ans = contract_clustering_or_rebalance(fine_graph, graph, lnode_to_gcluster);
+  // If the first attempt failed, lnode_to_gcluster was adapted to improve the distibution balance:
+  // try again
+  // In some edge cases, cnode balance is not possible -- thus, in the second attempt, ignore cnode
+  // balance
+  ans = contract_clustering_or_rebalance(
+      fine_graph,
+      graph,
+      lnode_to_gcluster,
+      std::numeric_limits<double>::max(),
+      max_cedge_imbalance,
+      migrate_cnode_prefix,
+      strict_rebalancing
+  );
+
+  if (ans) {
+    return std::move(*ans);
+  }
+
+  // A third attempt might be necessary: balanced cnodes first, then cedges, then contract.
+  ans = contract_clustering_or_rebalance(
+      fine_graph,
+      graph,
+      lnode_to_gcluster,
+      std::numeric_limits<double>::max(),
+      std::numeric_limits<double>::max(),
+      migrate_cnode_prefix,
+      strict_rebalancing
+  );
+
   KASSERT(ans.has_value(), "rebalancing cluster assignment failed");
   return std::move(*ans);
 }
@@ -1612,14 +1638,24 @@ std::unique_ptr<CoarseGraph> contract_clustering(
     StaticArray<GlobalNodeID> &clustering,
     const CoarseningContext &c_ctx
 ) {
+  bool rebalance_cnode_assignment = c_ctx.imbalance_criteria == ContractionImbalanceCriteria::NODES;
+  bool rebalance_cedge_assignment = c_ctx.imbalance_criteria == ContractionImbalanceCriteria::EDGES;
+
+  // Adaptive strategy: only attempt to balance cnode placement if the current distribution is
+  // sufficiently balanced: this is the happy case, where cnode balance might be a good proxy for
+  // cedge balance.
+  // Always balance cedges if they are imbalanced (hopefully, we do not always need this, and in
+  // particular, we should almost never need it on regular graphs).
+  if (c_ctx.imbalance_criteria == ContractionImbalanceCriteria::ADAPTIVE) {
+    rebalance_cnode_assignment =
+        compute_distribution_imbalance(graph.node_distribution()) > c_ctx.max_imbalance;
+    rebalance_cedge_assignment = true;
+  }
+
   const double max_cnode_imbalance =
-      (c_ctx.imbalance_criteria == ContractionImbalanceCriteria::NODES)
-          ? c_ctx.max_imbalance
-          : std::numeric_limits<double>::max();
+      rebalance_cnode_assignment ? c_ctx.max_imbalance : std::numeric_limits<double>::max();
   const double max_cedge_imbalance =
-      (c_ctx.imbalance_criteria == ContractionImbalanceCriteria::EDGES)
-          ? c_ctx.max_imbalance
-          : std::numeric_limits<double>::max();
+      rebalance_cedge_assignment ? c_ctx.max_imbalance : std::numeric_limits<double>::max();
 
   return contract_clustering(
       graph,

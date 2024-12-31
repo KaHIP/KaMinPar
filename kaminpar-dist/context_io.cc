@@ -332,6 +332,8 @@ std::ostream &operator<<(std::ostream &out, ContractionImbalanceCriteria criteri
     return out << "nodes";
   case ContractionImbalanceCriteria::EDGES:
     return out << "edges";
+  case ContractionImbalanceCriteria::ADAPTIVE:
+    return out << "adaptive";
   }
 
   return out << "<invalid>";
@@ -343,6 +345,7 @@ get_contraction_imbalance_criterias() {
       {"none", ContractionImbalanceCriteria::NONE},
       {"nodes", ContractionImbalanceCriteria::NODES},
       {"edges", ContractionImbalanceCriteria::EDGES},
+      {"adaptive", ContractionImbalanceCriteria::ADAPTIVE},
   };
 }
 

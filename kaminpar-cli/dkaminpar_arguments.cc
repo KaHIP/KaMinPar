@@ -484,7 +484,7 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
       "Migrate the first few nodes of overloaded PEs rather than the last few."
   );
   coarsening->add_flag(
-      "--c-rebalance-strictly",
+      "--c-rebalance-perfectly",
       ctx.coarsening.strict_rebalancing,
       "If imbalance threshold is exceeded, migrate nodes until perfectly "
       "balanced."
