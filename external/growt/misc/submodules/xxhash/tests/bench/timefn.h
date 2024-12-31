@@ -45,10 +45,7 @@ typedef unsigned long long PTime; /* does not support compilers without long lon
 
 #include <Windows.h> /* LARGE_INTEGER */
 typedef LARGE_INTEGER UTIL_time_t;
-#define UTIL_TIME_INITIALIZER                                                                      \
-  {                                                                                                \
-    { 0, 0 }                                                                                       \
-  }
+#define UTIL_TIME_INITIALIZER {{0, 0}}
 
 #elif defined(__APPLE__) && defined(__MACH__)
 

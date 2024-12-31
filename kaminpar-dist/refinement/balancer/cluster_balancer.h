@@ -18,6 +18,7 @@
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::dist {
+
 struct ClusterBalancerMemoryContext;
 
 class ClusterBalancerFactory : public GlobalRefinerFactory {
@@ -155,4 +156,5 @@ private:
 
   Statistics _stats;
 };
+
 } // namespace kaminpar::dist

@@ -20,8 +20,13 @@
 #define HEAVY assert::heavy
 
 namespace kaminpar::dist {
+
+namespace {
+
 SET_STATISTICS_FROM_GLOBAL();
 SET_DEBUG(false);
+
+} // namespace
 
 void ClusterBalancer::Statistics::reset() {
   num_rounds = 0;
@@ -1070,4 +1075,5 @@ ClusterStrategy ClusterBalancer::get_cluster_strategy() const {
 
   return _cb_ctx.cluster_strategy;
 }
+
 } // namespace kaminpar::dist

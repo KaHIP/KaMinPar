@@ -282,6 +282,48 @@ std::unordered_map<std::string, ClusterStrategy> get_move_set_strategies() {
   };
 }
 
+std::ostream &operator<<(std::ostream &out, GainCacheStrategy strategy) {
+  switch (strategy) {
+  case GainCacheStrategy::ON_THE_FLY:
+    return out << "on-the-fly";
+  case GainCacheStrategy::COMPACT_HASHING:
+    return out << "compact-hashing";
+  case GainCacheStrategy::LAZY_COMPACT_HASHING:
+    return out << "lazy-compact-hashing";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies() {
+  return {
+      {"on-the-fly", GainCacheStrategy::ON_THE_FLY},
+      {"compact-hashing", GainCacheStrategy::COMPACT_HASHING},
+      {"lazy-compact-hashing", GainCacheStrategy::LAZY_COMPACT_HASHING},
+  };
+}
+
+std::ostream &operator<<(std::ostream &out, ActiveSetStrategy strategy) {
+  switch (strategy) {
+  case ActiveSetStrategy::NONE:
+    return out << "none";
+  case ActiveSetStrategy::LOCAL:
+    return out << "local";
+  case ActiveSetStrategy::GLOBAL:
+    return out << "global";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, ActiveSetStrategy> get_active_set_strategies() {
+  return {
+      {"none", ActiveSetStrategy::NONE},
+      {"local", ActiveSetStrategy::LOCAL},
+      {"global", ActiveSetStrategy::GLOBAL},
+  };
+}
+
 void print(const Context &ctx, const bool root, std::ostream &out, MPI_Comm comm) {
   if (root) {
     out << "Seed:                         " << Random::get_seed() << "\n";
@@ -473,9 +515,7 @@ void print(const CoarseningContext &ctx, const ParallelContext &parallel, std::o
           << " (passive), " << ctx.global_lp.active_high_degree_threshold << " (active)\n";
       out << "  Max degree:                 " << ctx.global_lp.max_num_neighbors << "\n";
       print(ctx.global_lp.chunks, parallel, out);
-      out << "  Active set:                 "
-          << (ctx.global_clustering_algorithm == ClusteringAlgorithm::GLOBAL_LP ? "no" : "yes")
-          << "\n";
+      out << "  Active set:                 " << ctx.global_lp.active_set_strategy << "\n";
       out << "  Cluster weights:            "
           << (ctx.global_lp.sync_cluster_weights ? "sync" : "no-sync") << "+"
           << (ctx.global_lp.enforce_cluster_weights ? "enforce" : "no-enforce") << " "
@@ -544,6 +584,7 @@ void print(const RefinementContext &ctx, const ParallelContext &parallel, std::o
     out << "  Dynamic factors:            initial " << ctx.jet.initial_negative_gain_factor
         << ", final " << ctx.jet.final_negative_gain_factor << "\n";
     out << "  Balancing algorithm:        " << ctx.jet.balancing_algorithm << "\n";
+    out << "  Gain cache strategy:        " << ctx.jet.gain_cache_strategy << "\n";
   }
   if (ctx.includes_algorithm(RefinementAlgorithm::HYBRID_NODE_BALANCER) ||
       (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER) &&

@@ -17,6 +17,7 @@
 #include "kaminpar-common/asserting_cast.h"
 
 namespace kaminpar::dist {
+
 class Buckets {
 public:
   Buckets(
@@ -164,4 +165,5 @@ private:
   StaticArray<GlobalNodeWeight> _bucket_sizes;
   StaticArray<std::size_t> _cutoff_buckets;
 };
+
 } // namespace kaminpar::dist

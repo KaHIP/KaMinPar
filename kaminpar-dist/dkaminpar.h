@@ -42,11 +42,17 @@ using shm::EdgeID;
 using shm::NodeID;
 
 #ifdef KAMINPAR_64BIT_LOCAL_WEIGHTS
+
 using NodeWeight = std::int64_t;
 using EdgeWeight = std::int64_t;
+using UnsignedEdgeWeight = std::uint64_t;
+
 #else // KAMINPAR_64BIT_LOCAL_WEIGHTS
+
 using NodeWeight = std::int32_t;
 using EdgeWeight = std::int32_t;
+using UnsignedEdgeWeight = std::uint32_t;
+
 #endif
 
 constexpr NodeID kInvalidNodeID = std::numeric_limits<NodeID>::max();
@@ -59,9 +65,11 @@ constexpr EdgeWeight kInvalidEdgeWeight = std::numeric_limits<EdgeWeight>::max()
 constexpr GlobalEdgeWeight kInvalidGlobalEdgeWeight = std::numeric_limits<GlobalEdgeWeight>::max();
 constexpr BlockID kInvalidBlockID = std::numeric_limits<BlockID>::max();
 constexpr BlockWeight kInvalidBlockWeight = std::numeric_limits<BlockWeight>::max();
+
 } // namespace kaminpar::dist
 
 namespace kaminpar::dist {
+
 enum class PartitioningMode {
   KWAY,
   DEEP,
@@ -125,6 +133,18 @@ enum class ClusterStrategy {
   GREEDY_BATCH_PREFIX,
 };
 
+enum class GainCacheStrategy {
+  ON_THE_FLY,
+  COMPACT_HASHING,
+  LAZY_COMPACT_HASHING,
+};
+
+enum class ActiveSetStrategy {
+  NONE,
+  LOCAL,
+  GLOBAL,
+};
+
 struct ParallelContext {
   std::size_t num_threads;
   std::size_t num_mpis;
@@ -158,6 +178,8 @@ struct LabelPropagationCoarseningContext {
 
   bool prevent_cyclic_moves;
   bool enforce_legacy_weight;
+
+  ActiveSetStrategy active_set_strategy;
 
   [[nodiscard]] bool should_merge_nonadjacent_clusters(NodeID old_n, NodeID new_n) const;
 };
@@ -299,6 +321,8 @@ struct JetRefinementContext {
   double final_negative_gain_factor;
 
   RefinementAlgorithm balancing_algorithm;
+
+  GainCacheStrategy gain_cache_strategy;
 };
 
 struct RefinementContext {

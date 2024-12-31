@@ -204,7 +204,7 @@ public:
       std::sort(neighborhood.begin(), neighborhood.end());
     }
 
-    NodeID num_intervals;
+    NodeID num_intervals = 0;
     if constexpr (kIntervalEncoding) {
       bool has_intervals;
       if (kHighDegreeEncoding && degree >= kHighDegreeThreshold) {
@@ -244,7 +244,7 @@ public:
           NodeID *cur_part_ptr = reinterpret_cast<NodeID *>(part_ptr) + i;
           *cur_part_ptr = static_cast<NodeID>(_cur_compressed_edges - part_ptr);
 
-          NodeID num_intervals;
+          NodeID num_intervals = 0;
           if constexpr (kIntervalEncoding) {
             num_intervals = count_intervals(part_neighborhood);
 

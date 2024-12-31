@@ -18,6 +18,7 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::dist {
+
 template <typename Candidate>
 std::vector<Candidate> reduce_candidates(
     std::vector<Candidate> sendbuf,
@@ -205,4 +206,5 @@ reduce_buckets_mpireduce(const Buckets &buckets, const DistributedPartitionedGra
   }
   return compactified;
 }
+
 } // namespace kaminpar::dist

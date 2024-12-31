@@ -115,9 +115,10 @@ PartitionContext create_twoway_context(
     }
 
     DBG << "[" << current_block << "/" << current_k << "]-> adapted epsilon from "
-        << input_ctx.partition.epsilon() << " to " << adapted_eps << ", changing max block weights to "
-        << max_block_weights[0] << " + " << max_block_weights[1]
-        << ", will be relaxed with parameters max node weight " << graph.max_node_weight();
+        << input_ctx.partition.epsilon() << " to " << adapted_eps
+        << ", changing max block weights to " << max_block_weights[0] << " + "
+        << max_block_weights[1] << ", will be relaxed with parameters max node weight "
+        << graph.max_node_weight();
 
     p_ctx.setup(graph, std::move(max_block_weights), true);
   } else {

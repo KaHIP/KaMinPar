@@ -79,12 +79,7 @@ PartitionedGraph AsyncInitialPartitioner::partition_recursive(
 
   if (p_graph.k() < k_prime) {
     extend_partition(
-        p_graph,
-        k_prime,
-        _input_ctx,
-        _tmp_extraction_mem_pool_ets,
-        _bipartitioner_pool,
-        num_threads
+        p_graph, k_prime, _input_ctx, _tmp_extraction_mem_pool_ets, _bipartitioner_pool, num_threads
     );
     p_ctx = create_kway_context(_input_ctx, p_graph);
   }

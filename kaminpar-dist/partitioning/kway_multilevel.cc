@@ -21,8 +21,11 @@
 #include "kaminpar-shm/metrics.h"
 
 namespace kaminpar::dist {
+
 namespace {
+
 SET_DEBUG(false);
+
 }
 
 KWayMultilevelPartitioner::KWayMultilevelPartitioner(
@@ -186,4 +189,5 @@ DistributedPartitionedGraph KWayMultilevelPartitioner::partition() {
 
   return dist_p_graph;
 }
+
 } // namespace kaminpar::dist

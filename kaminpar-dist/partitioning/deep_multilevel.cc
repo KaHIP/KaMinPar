@@ -51,7 +51,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   auto *coarsener = get_current_coarsener();
   bool converged = false;
 
-  print_input_graph(_input_graph);
+  print_input_graph(_input_graph, _print_graph_stats);
 
   /*
    * Coarsening
@@ -98,7 +98,9 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     const DistributedGraph *c_graph = &coarsener->current();
 
     if (!converged) {
-      print_coarsened_graph(coarsener->current(), coarsener->level(), max_cluster_weight);
+      print_coarsened_graph(
+          coarsener->current(), coarsener->level(), max_cluster_weight, _print_graph_stats
+      );
       if (c_graph->global_n() <= desired_num_nodes) {
         print_coarsening_terminated(desired_num_nodes);
       }

@@ -27,9 +27,10 @@
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::dist {
-SET_DEBUG(false);
 
 namespace {
+
+SET_DEBUG(false);
 
 template <typename Graph> StaticArray<EdgeID> copy_raw_nodes(const Graph &graph) {
   constexpr bool kIsCompressedGraph = std::is_same_v<Graph, DistributedCompressedGraph>;
@@ -659,4 +660,5 @@ DistributedPartitionedGraph distribute_partition(
   graph::synchronize_ghost_node_block_ids(p_graph);
   return p_graph;
 }
+
 } // namespace kaminpar::dist

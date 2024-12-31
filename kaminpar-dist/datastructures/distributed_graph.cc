@@ -12,23 +12,20 @@
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 
 #include <iomanip>
-#include <numeric>
 
 #include "kaminpar-mpi/wrapper.h"
 
 #include "kaminpar-dist/graphutils/communication.h"
 #include "kaminpar-dist/logger.h"
 
-#include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
-#include "kaminpar-common/math.h"
-#include "kaminpar-common/parallel/algorithm.h"
-#include "kaminpar-common/parallel/vector_ets.h"
 
 namespace {
+
 template <typename R> bool all_equal(const R &r) {
   return std::adjacent_find(r.begin(), r.end(), std::not_equal_to{}) == r.end();
 }
+
 } // namespace
 
 namespace kaminpar::dist {
@@ -57,7 +54,35 @@ void print_graph_summary(const DistributedGraph &graph) {
       << " | Max=" << max_node_weight_max << "]";
 }
 
+void print_extended_graph_summary(const DistributedGraph &graph) {
+  print_graph_summary(graph);
+
+  tbb::enumerable_thread_specific<NodeID> num_ghost_neighbors_ets;
+  graph.pfor_nodes_range([&](const auto &r) {
+    auto &num_ghost_neighbors = num_ghost_neighbors_ets.local();
+    for (NodeID u = r.begin(); u != r.end(); ++u) {
+      graph.adjacent_nodes(u, [&](const NodeID v) {
+        num_ghost_neighbors += graph.is_owned_node(v) ? 0 : 1;
+      });
+    }
+  });
+
+  GlobalNodeID num_ghost_neighbors = num_ghost_neighbors_ets.combine(std::plus{});
+  MPI_Allreduce(
+      MPI_IN_PLACE,
+      &num_ghost_neighbors,
+      1,
+      mpi::type::get<GlobalNodeID>(),
+      MPI_SUM,
+      graph.communicator()
+  );
+
+  const double locality = 1.0 - 1.0 * num_ghost_neighbors / graph.global_m();
+  LOG << "  Graph locality:        " << locality;
+}
+
 namespace debug {
+
 void print_graph(const DistributedGraph &graph) {
   std::ostringstream buf;
 
@@ -355,5 +380,7 @@ bool validate_graph(const DistributedGraph &graph) {
   mpi::barrier(comm);
   return true;
 }
+
 } // namespace debug
+
 } // namespace kaminpar::dist

@@ -14,6 +14,7 @@
 #include "kaminpar-dist/context.h"
 
 namespace kaminpar::dist {
+
 void create_all_options(CLI::App *app, Context &ctx);
 
 CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx);
@@ -45,4 +46,5 @@ CLI::Option_group *create_local_lp_coarsening_options(CLI::App *app, Context &ct
 CLI::Option_group *create_global_lp_coarsening_options(CLI::App *app, Context &ctx);
 
 CLI::Option_group *create_hem_coarsening_options(CLI::App *app, Context &ctx);
+
 } // namespace kaminpar::dist

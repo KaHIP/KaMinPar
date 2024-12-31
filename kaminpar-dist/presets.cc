@@ -87,6 +87,7 @@ Context create_default_context() {
                       .cheap_toplevel = false,
                       .prevent_cyclic_moves = false,
                       .enforce_legacy_weight = false,
+                      .active_set_strategy = ActiveSetStrategy::NONE,
                   },
               .hem =
                   {
@@ -119,6 +120,7 @@ Context create_default_context() {
                       .cheap_toplevel = false,
                       .prevent_cyclic_moves = false,
                       .enforce_legacy_weight = false,
+                      .active_set_strategy = ActiveSetStrategy::NONE,
                   },
               .contraction_limit = 2000,
               .cluster_weight_limit = shm::ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
@@ -223,6 +225,7 @@ Context create_default_context() {
                       .initial_negative_gain_factor = 0.75,
                       .final_negative_gain_factor = 0.25,
                       .balancing_algorithm = RefinementAlgorithm::HYBRID_NODE_BALANCER,
+                      .gain_cache_strategy = GainCacheStrategy::ON_THE_FLY,
                   },
               .mtkahypar =
                   {

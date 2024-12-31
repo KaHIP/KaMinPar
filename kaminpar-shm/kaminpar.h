@@ -142,6 +142,7 @@ enum class EdgeOrdering {
 enum class CoarseningAlgorithm {
   NOOP,
   CLUSTERING,
+  OVERLAY_CLUSTERING,
 };
 
 enum class ClusteringAlgorithm {
@@ -236,10 +237,15 @@ struct ClusterCoarseningContext {
   double forced_level_lower_factor;
 };
 
+struct OverlayClusterCoarseningContext {
+  int num_levels;
+};
+
 struct CoarseningContext {
   CoarseningAlgorithm algorithm;
 
   ClusterCoarseningContext clustering;
+  OverlayClusterCoarseningContext overlay_clustering;
   ContractionCoarseningContext contraction;
 
   NodeID contraction_limit;

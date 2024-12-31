@@ -30,9 +30,9 @@
 
 namespace kaminpar::dist::graph {
 
-SET_DEBUG(false);
-
 namespace {
+
+SET_DEBUG(false);
 
 auto count_block_induced_subgraph_sizes(const DistributedPartitionedGraph &p_graph) {
   parallel::vector_ets<NodeID> num_nodes_per_block_ets(p_graph.k());
