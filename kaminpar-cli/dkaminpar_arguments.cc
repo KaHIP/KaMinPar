@@ -466,9 +466,16 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
   - hem-lp:         heavy edge matching + label propagation)")
 
       ->capture_default_str();
+  coarsening->add_option("--c-imbalance-criteria", ctx.coarsening.imbalance_criteria)
+      ->transform(CLI::CheckedTransformer(get_contraction_imbalance_criterias()).description(""))
+      ->description(R"(Criteria for determining the imbalance:
+  - none:  do not check for imbalance
+  - nodes: number of coarse nodes
+  - edges: number of coarse edges)")
+      ->capture_default_str();
   coarsening->add_option(
-      "--c-max-cnode-imbalance",
-      ctx.coarsening.max_cnode_imbalance,
+      "--c-max-imbalance",
+      ctx.coarsening.max_imbalance,
       "Maximum coarse node imbalance before rebalancing cluster assignment."
   );
   coarsening->add_flag(
@@ -477,8 +484,8 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
       "Migrate the first few nodes of overloaded PEs rather than the last few."
   );
   coarsening->add_flag(
-      "--c-force-perfect-cnode-balance",
-      ctx.coarsening.force_perfect_cnode_balance,
+      "--c-rebalance-strictly",
+      ctx.coarsening.strict_rebalancing,
       "If imbalance threshold is exceeded, migrate nodes until perfectly "
       "balanced."
   );

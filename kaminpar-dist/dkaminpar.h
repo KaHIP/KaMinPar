@@ -145,6 +145,12 @@ enum class ActiveSetStrategy {
   GLOBAL,
 };
 
+enum class ContractionImbalanceCriteria {
+  NONE,
+  NODES,
+  EDGES,
+};
+
 struct ParallelContext {
   std::size_t num_threads;
   std::size_t num_mpis;
@@ -244,9 +250,10 @@ struct CoarseningContext {
   double cluster_weight_multiplier;
 
   // Graph contraction
-  double max_cnode_imbalance;
+  ContractionImbalanceCriteria imbalance_criteria;
+  double max_imbalance;
   bool migrate_cnode_prefix;
-  bool force_perfect_cnode_balance;
+  bool strict_rebalancing;
 
   void setup(const ParallelContext &parallel);
 };

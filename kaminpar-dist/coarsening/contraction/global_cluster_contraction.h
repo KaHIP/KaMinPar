@@ -55,32 +55,13 @@ std::unique_ptr<CoarseGraph> contract_clustering(
     const CoarseningContext &c_ctx
 );
 
-/**
- * Constructs the coarse graph given a clustering of the fine graph.
- *
- * @param graph The fine graph.
- * @param clustering The clustering of the fine graph: this is an array of size `graph.total_n()`
- * (i.e., one entry for each owned node *and* ghost node). The assignment of ghost nodes must be
- * consistent with their assignment on other PEs. Cluster IDs can be arbitrary integers in the range
- * `0 <= ID < graph.global_n()`.
- * @param max_cnode_imbalance The maximum allowed imbalance of coarse nodes (per PE). If a PE would
- * end up with too many coarse nodes, the contraction algorithm will move coarse nodes to rebalance
- * the assignment.
- * @param migrate_cnode_prefix If `true`, the contraction algorithm will move a prefix of coarse
- * nodes if their assignment violates the maximum allowed imbalance factor; otherwise, it moves a
- * suffix.
- * @param force_perfect_cnode_balance If `true`, the contraction algorithm will perfectly balance
- * the coarse node assignment if their natural assignment would violate the given imbalance factor.
- *
- * @return The coarse graph along with information necessary to project a partition of the coarse to
- * the fine graph.
- */
 std::unique_ptr<CoarseGraph> contract_clustering(
     const DistributedGraph &graph,
     StaticArray<GlobalNodeID> &clustering,
     double max_cnode_imbalance = std::numeric_limits<double>::max(),
+    double max_cedge_imbalance = std::numeric_limits<double>::max(),
     bool migrate_cnode_prefix = false,
-    bool force_perfect_cnode_balance = true
+    bool strict_rebalancing = true
 );
 
 } // namespace kaminpar::dist

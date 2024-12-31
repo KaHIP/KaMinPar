@@ -1168,8 +1168,9 @@ std::optional<std::unique_ptr<CoarseGraph>> contract_clustering_or_rebalance(
     const Graph &graph,
     StaticArray<GlobalNodeID> &lnode_to_gcluster,
     const double max_cnode_imbalance = std::numeric_limits<double>::max(),
+    const double max_cedge_imbalance = std::numeric_limits<double>::max(),
     const bool migrate_cnode_prefix = false,
-    const bool force_perfect_cnode_balance = true
+    const bool strict_rebalancing = true
 ) {
   TIMER_BARRIER(graph.communicator());
 
@@ -1240,25 +1241,26 @@ std::optional<std::unique_ptr<CoarseGraph>> contract_clustering_or_rebalance(
 
   // If the "natural" assignment of coarse nodes to PEs has too much imbalance,
   // we remap the cluster IDs to achieve perfect coarse node balance
-  if (const double cnode_imbalance = compute_distribution_imbalance(c_node_distribution);
-      cnode_imbalance > max_cnode_imbalance) {
-    DBG << "Natural cluster assignment exceeds maximum coarse node imbalance: " << cnode_imbalance
-        << " > " << max_cnode_imbalance << " --> rebalancing cluster assignment";
+  if (max_cnode_imbalance < std::numeric_limits<double>::max()) {
+    if (const double cnode_imbalance = compute_distribution_imbalance(c_node_distribution);
+        cnode_imbalance > max_cnode_imbalance) {
+      DBG << "Natural cluster assignment exceeds maximum coarse node imbalance: " << cnode_imbalance
+          << " > " << max_cnode_imbalance << " --> rebalancing cluster assignment";
 
-    const double max_imbalance = force_perfect_cnode_balance ? 1.0 : max_cnode_imbalance;
+      const double max_imbalance = strict_rebalancing ? 1.0 : max_cnode_imbalance;
 
-    rebalance_cluster_placement(
-        graph,
-        cluster_mapper,
-        c_node_distribution,
-        lnode_to_gcluster, // <<< inout
-        max_imbalance,
-        migrate_cnode_prefix
-    );
+      rebalance_cluster_placement(
+          graph,
+          cluster_mapper,
+          c_node_distribution,
+          lnode_to_gcluster, // in + out
+          max_imbalance,
+          migrate_cnode_prefix
+      );
 
-    STOP_TIMER(); // Contract clustering timer
-
-    return std::nullopt;
+      STOP_TIMER(); // Contract clustering timer
+      return std::nullopt;
+    }
   }
 
   // Construct the mapping to coarse node IDs for our nodes (including ghost nodes)
@@ -1483,6 +1485,30 @@ std::optional<std::unique_ptr<CoarseGraph>> contract_clustering_or_rebalance(
   auto c_edge_distribution = build_distribution<GlobalEdgeID>(c_m, graph.communicator());
   DBG << "Coarse edge distribution: [" << c_edge_distribution << "]";
 
+  // Check balance of the coarse edge distribution: we might want to restart if its imbalance grew
+  // too large
+  if (max_cedge_imbalance < std::numeric_limits<double>::max()) {
+    if (const double cnode_imbalance = compute_distribution_imbalance(c_edge_distribution);
+        cnode_imbalance > max_cedge_imbalance) {
+      DBG << "Natural cluster assignment exceeds maximum coarse edge imbalance: " << cnode_imbalance
+          << " > " << max_cedge_imbalance << " --> rebalancing cluster assignment";
+      const double max_imbalance = strict_rebalancing ? 1.0 : max_cedge_imbalance;
+
+      // @TODO
+      rebalance_cluster_placement(
+          graph,
+          cluster_mapper,
+          c_node_distribution,
+          lnode_to_gcluster, // in + out
+          max_imbalance,
+          migrate_cnode_prefix
+      );
+
+      STOP_TIMER(); // Contract clustering timer
+      return std::nullopt;
+    }
+  }
+
   START_TIMER("Allocation");
   START_HEAP_PROFILER("Coarse edges allocation");
   RECORD("c_edges") StaticArray<NodeID> c_edges(c_m);
@@ -1555,16 +1581,18 @@ std::unique_ptr<CoarseGraph> contract_clustering(
     const Graph &graph,
     StaticArray<GlobalNodeID> &lnode_to_gcluster,
     const double max_cnode_imbalance = std::numeric_limits<double>::max(),
+    const double max_cedge_imbalance = std::numeric_limits<double>::max(),
     const bool migrate_cnode_prefix = false,
-    const bool force_perfect_cnode_balance = true
+    const bool strict_rebalancing = true
 ) {
   auto ans = contract_clustering_or_rebalance(
       fine_graph,
       graph,
       lnode_to_gcluster,
       max_cnode_imbalance,
+      max_cedge_imbalance,
       migrate_cnode_prefix,
-      force_perfect_cnode_balance
+      strict_rebalancing
   );
 
   if (ans) {
@@ -1584,21 +1612,32 @@ std::unique_ptr<CoarseGraph> contract_clustering(
     StaticArray<GlobalNodeID> &clustering,
     const CoarseningContext &c_ctx
 ) {
+  const double max_cnode_imbalance =
+      (c_ctx.imbalance_criteria == ContractionImbalanceCriteria::NODES)
+          ? c_ctx.max_imbalance
+          : std::numeric_limits<double>::max();
+  const double max_cedge_imbalance =
+      (c_ctx.imbalance_criteria == ContractionImbalanceCriteria::EDGES)
+          ? c_ctx.max_imbalance
+          : std::numeric_limits<double>::max();
+
   return contract_clustering(
       graph,
       clustering,
-      c_ctx.max_cnode_imbalance,
+      max_cnode_imbalance,
+      max_cedge_imbalance,
       c_ctx.migrate_cnode_prefix,
-      c_ctx.force_perfect_cnode_balance
+      c_ctx.strict_rebalancing
   );
 }
 
 std::unique_ptr<CoarseGraph> contract_clustering(
     const DistributedGraph &graph,
     StaticArray<GlobalNodeID> &clustering,
-    double max_cnode_imbalance,
-    bool migrate_cnode_prefix,
-    bool force_perfect_cnode_balance
+    const double max_cnode_imbalance,
+    const double max_cedge_imbalance,
+    const bool migrate_cnode_prefix,
+    const bool strict_rebalancing
 ) {
   return graph.reified(
       [&](const DistributedCSRGraph &csr_graph) {
@@ -1607,8 +1646,9 @@ std::unique_ptr<CoarseGraph> contract_clustering(
             csr_graph,
             clustering,
             max_cnode_imbalance,
+            max_cedge_imbalance,
             migrate_cnode_prefix,
-            force_perfect_cnode_balance
+            strict_rebalancing
         );
       },
       [&](const DistributedCompressedGraph &compressed_graph) {
@@ -1617,8 +1657,9 @@ std::unique_ptr<CoarseGraph> contract_clustering(
             compressed_graph,
             clustering,
             max_cnode_imbalance,
+            max_cedge_imbalance,
             migrate_cnode_prefix,
-            force_perfect_cnode_balance
+            strict_rebalancing
         );
       }
   );

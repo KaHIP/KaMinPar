@@ -324,6 +324,28 @@ std::unordered_map<std::string, ActiveSetStrategy> get_active_set_strategies() {
   };
 }
 
+std::ostream &operator<<(std::ostream &out, ContractionImbalanceCriteria criteria) {
+  switch (criteria) {
+  case ContractionImbalanceCriteria::NONE:
+    return out << "none";
+  case ContractionImbalanceCriteria::NODES:
+    return out << "nodes";
+  case ContractionImbalanceCriteria::EDGES:
+    return out << "edges";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, ContractionImbalanceCriteria>
+get_contraction_imbalance_criterias() {
+  return {
+      {"none", ContractionImbalanceCriteria::NONE},
+      {"nodes", ContractionImbalanceCriteria::NODES},
+      {"edges", ContractionImbalanceCriteria::EDGES},
+  };
+}
+
 void print(const Context &ctx, const bool root, std::ostream &out, MPI_Comm comm) {
   if (root) {
     out << "Seed:                         " << Random::get_seed() << "\n";
@@ -489,15 +511,15 @@ void print(const CoarseningContext &ctx, const ParallelContext &parallel, std::o
 
   if (ctx.max_global_clustering_levels > 0) {
     out << "Global clustering algorithm:  " << ctx.global_clustering_algorithm;
-    if (ctx.max_cnode_imbalance < std::numeric_limits<double>::max()) {
-      out << " [rebalance if >" << std::setprecision(2) << 100.0 * (ctx.max_cnode_imbalance - 1.0)
-          << "%";
+    if (ctx.imbalance_criteria != ContractionImbalanceCriteria::NONE) {
+      out << " [rebalance assignment if #" << ctx.imbalance_criteria << ">" << std::setprecision(2)
+          << 100.0 * (ctx.max_imbalance - 1.0) << "%";
       if (ctx.migrate_cnode_prefix) {
         out << ", prefix";
       } else {
         out << ", suffix";
       }
-      if (ctx.force_perfect_cnode_balance) {
+      if (ctx.strict_rebalancing) {
         out << ", strict";
       } else {
         out << ", relaxed";
