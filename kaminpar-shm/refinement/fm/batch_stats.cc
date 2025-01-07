@@ -17,6 +17,7 @@
 #include "kaminpar-common/logger.h"
 
 namespace kaminpar::shm::fm {
+
 void BatchStatsComputator::track(SeedNodesVec seed_nodes, MovesVec moves) {
   _current_iteration_batches.emplace_back(std::move(seed_nodes), std::move(moves));
 }
@@ -245,4 +246,5 @@ std::vector<NodeID> BatchStatsComputator::compute_batch_distances(
 
   return distances;
 }
+
 } // namespace kaminpar::shm::fm

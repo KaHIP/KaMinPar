@@ -21,6 +21,7 @@
 #include "kaminpar-common/parallel/atomic.h"
 
 namespace kaminpar::dist::testing {
+
 inline std::vector<NodeID> local_neighbors(const shm::Graph &graph, const NodeID u) {
   std::vector<NodeID> neighbors;
   graph.adjacent_nodes(u, [&](const NodeID v) { neighbors.push_back(v); });
@@ -208,4 +209,5 @@ inline DistributedGraph change_node_weights(
       graph.communicator()
   )};
 }
+
 } // namespace kaminpar::dist::testing

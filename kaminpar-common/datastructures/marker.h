@@ -18,6 +18,7 @@
 #include "kaminpar-common/heap_profiler.h"
 
 namespace kaminpar {
+
 template <
     std::size_t kNumConcurrentMarkers = 1,
     typename Value = std::size_t,
@@ -113,4 +114,5 @@ private:
 
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };
+
 } // namespace kaminpar

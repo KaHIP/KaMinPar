@@ -16,10 +16,9 @@
 #include "kaminpar-shm/refinement/gains/on_the_fly_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
 
+namespace {
 using namespace kaminpar::shm;
 using namespace kaminpar::shm::testing;
-
-namespace {
 
 template <typename GainCacheType> class GainCacheTest : public ::testing::Test {
 public:

@@ -14,6 +14,7 @@
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
+
 /**
  * Interface for the coarsening phase of multilevel graph partitioning.
  */
@@ -82,4 +83,5 @@ public:
    */
   virtual void release_allocated_memory() = 0;
 };
+
 } // namespace kaminpar::shm

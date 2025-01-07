@@ -13,6 +13,7 @@
 #include "kaminpar-common/math.h"
 
 namespace kaminpar {
+
 template <typename NodeID>
 static constexpr int kNumberOfDegreeBuckets = std::numeric_limits<NodeID>::digits + 1;
 
@@ -23,4 +24,5 @@ template <typename NodeID> inline NodeID lowest_degree_in_bucket(const int bucke
 template <typename NodeID> inline int degree_bucket(const NodeID degree) {
   return (degree == 0) ? 0 : math::floor_log2(degree) + 1;
 }
+
 } // namespace kaminpar

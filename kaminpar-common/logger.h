@@ -100,7 +100,9 @@
 #endif // KAMINPAR_ENABLE_STATISTISC
 
 namespace kaminpar {
+
 namespace logger {
+
 template <typename T, typename = void> struct is_iterable : std::false_type {};
 
 template <typename T>
@@ -223,6 +225,7 @@ extern Colorized RESET;
 extern CompactContainerFormatter DEFAULT_CONTAINER;
 extern CompactContainerFormatter COMPACT;
 extern Table TABLE;
+
 } // namespace logger
 
 class Logger {
@@ -333,4 +336,5 @@ public:
 private:
   Logger _logger;
 };
+
 } // namespace kaminpar

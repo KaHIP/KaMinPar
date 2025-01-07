@@ -9,6 +9,7 @@
 #include "kaminpar-mpi/grid_topology.h"
 
 namespace kaminpar::mpi {
+
 TEST(GridTopologyTest, size_1_rows) {
   GridTopology topo(1);
   EXPECT_EQ(topo.row(0), 0);
@@ -243,4 +244,5 @@ TEST(GridTopologyTest, size_21_virtual_elements) {
   EXPECT_EQ(topo.virtual_element(3, 4), 20);
   EXPECT_EQ(topo.virtual_element(4, 0), 5);
 }
+
 } // namespace kaminpar::mpi

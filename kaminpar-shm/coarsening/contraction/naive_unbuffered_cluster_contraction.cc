@@ -15,7 +15,9 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::contraction {
+
 namespace {
+
 template <typename Graph>
 std::unique_ptr<CoarseGraph> contract_clustering_unbuffered_naive(
     const Graph &graph,
@@ -174,6 +176,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered_naive(
       std::move(mapping)
   );
 }
+
 } // namespace
 
 std::unique_ptr<CoarseGraph> contract_clustering_unbuffered_naive(
@@ -188,4 +191,5 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered_naive(
     return contract_clustering_unbuffered_naive(graph, c_n, std::move(mapping), con_ctx, m_ctx);
   });
 }
+
 } // namespace kaminpar::shm::contraction

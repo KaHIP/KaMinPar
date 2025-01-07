@@ -27,7 +27,9 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::contraction {
+
 namespace {
+
 SET_DEBUG(false);
 
 class NeighborhoodsBuffer {
@@ -584,6 +586,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
       std::move(mapping)
   );
 }
+
 } // namespace
 
 std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
@@ -598,4 +601,5 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
     return contract_clustering_unbuffered(graph, c_n, std::move(mapping), con_ctx, m_ctx);
   });
 }
+
 } // namespace kaminpar::shm::contraction

@@ -14,6 +14,8 @@
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::dist {
+
 std::unique_ptr<CoarseGraph>
 contract_local_clustering(const DistributedGraph &graph, const StaticArray<NodeID> &clustering);
+
 } // namespace kaminpar::dist

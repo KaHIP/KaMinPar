@@ -2,9 +2,8 @@
 
 #include "kaminpar-common/datastructures/dynamic_map.h"
 
-using ::testing::ElementsAre;
-
 namespace kaminpar {
+
 TEST(DynamicMapTest, SmallInsertRetrieveNoGrowing) {
   DynamicFlatMap<int, int> map;
 
@@ -63,4 +62,5 @@ TEST(DynamicMapTest, ClearAfterFewInsertions) {
   EXPECT_FALSE(map.contains(100));
   EXPECT_FALSE(map.contains(200));
 }
+
 } // namespace kaminpar

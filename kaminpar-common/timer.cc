@@ -13,7 +13,9 @@
 using namespace std::literals;
 
 namespace kaminpar {
+
 namespace {
+
 [[nodiscard]] std::string string_make_machine_readable(std::string str) {
   std::transform(str.begin(), str.end(), str.begin(), [](const auto &ch) {
     return std::tolower(ch);
@@ -27,6 +29,7 @@ template <typename Value> [[nodiscard]] std::size_t get_printed_length(const Val
   ss << std::fixed << std::setprecision(3) << value;
   return ss.str().size();
 }
+
 } // namespace
 
 std::string Timer::TimerTreeNode::build_display_name_mr() const {
@@ -234,4 +237,5 @@ Timer::compute_time_col(const std::size_t parent_prefix_len, const TimerTreeNode
   }
   return space;
 }
+
 } // namespace kaminpar

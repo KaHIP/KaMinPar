@@ -3,6 +3,7 @@
 #include "kaminpar-common/datastructures/marker.h"
 
 namespace kaminpar {
+
 TEST(MarkerTests, ConcurrentMarkersWork) {
   Marker<3> marker(1);
   EXPECT_FALSE(marker.get(0, 0));
@@ -69,4 +70,5 @@ TEST(MarkerTests, MarkingAfterResetsWorks) {
   EXPECT_FALSE(marker.get(0, 0));
   EXPECT_FALSE(marker.get(0, 1));
 }
+
 } // namespace kaminpar

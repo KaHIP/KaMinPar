@@ -22,6 +22,7 @@
 #include "kaminpar-common/parallel/algorithm.h"
 
 namespace kaminpar::mpi {
+
 template <
     typename Message,
     typename Buffer,
@@ -398,4 +399,5 @@ void sparse_alltoall_grid(SendBuffers &&send_buffers, Receiver &&receiver, MPI_C
       std::move(dense_buffer), counts, std::forward<Receiver>(receiver), comm
   );
 }
+
 } // namespace kaminpar::mpi

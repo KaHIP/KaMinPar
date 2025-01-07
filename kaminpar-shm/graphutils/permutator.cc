@@ -7,14 +7,12 @@
 #include "kaminpar-shm/graphutils/permutator.h"
 
 #include <algorithm>
-#include <cmath>
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_invoke.h>
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/heap_profiler.h"
-#include "kaminpar-common/parallel/algorithm.h"
 
 namespace kaminpar::shm::graph {
 

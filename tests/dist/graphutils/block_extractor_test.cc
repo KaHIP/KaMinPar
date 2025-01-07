@@ -711,4 +711,5 @@ TEST(GlobalGraphExtractionTest, extract_one_block_with_many_pes) {
   ASSERT_EQ(subgraphs.size(), 1);
   expect_circle(subgraphs.front());
 }
+
 } // namespace kaminpar::dist

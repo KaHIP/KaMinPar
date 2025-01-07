@@ -19,6 +19,7 @@
 #endif
 
 namespace kaminpar::parallel {
+
 template <typename T> struct tbb_deleter {
   void operator()(T *p) {
     scalable_free(p);
@@ -58,4 +59,5 @@ tbb_unique_ptr<T> make_unique(const std::size_t size, [[maybe_unused]] const boo
 
   return tbb_unique_ptr<T>(ptr, tbb_deleter<T>{});
 }
+
 } // namespace kaminpar::parallel

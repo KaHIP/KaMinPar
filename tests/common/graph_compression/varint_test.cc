@@ -3,6 +3,7 @@
 #include "kaminpar-common/graph_compression/varint.h"
 
 namespace {
+
 using namespace kaminpar;
 
 template <typename Int> [[nodiscard]] std::vector<Int> generate_values() {

@@ -7,6 +7,7 @@ using ::testing::Eq;
 using ::testing::Pair;
 
 namespace kaminpar {
+
 TEST(MathTest, FloorLog2) {
   EXPECT_EQ(0, math::floor_log2(1u));
   EXPECT_EQ(1, math::floor_log2(2u));
@@ -334,4 +335,5 @@ TEST(MathTest, decode_4x4_grid) {
   EXPECT_EQ(math::decode_grid_position(14, 4), std::make_pair(3, 2));
   EXPECT_EQ(math::decode_grid_position(15, 4), std::make_pair(3, 3));
 }
+
 } // namespace kaminpar

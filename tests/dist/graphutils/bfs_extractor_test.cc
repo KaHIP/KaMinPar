@@ -157,4 +157,5 @@ TEST(BfsExtractor, one_hop_in_circle_graph) {
     EXPECT_EQ(bfs_graph->m(), 6);
   }
 }
+
 } // namespace kaminpar::dist::graph

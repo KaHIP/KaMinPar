@@ -24,6 +24,7 @@ namespace kaminpar::dist {
 using namespace kaminpar::dist::testing;
 
 namespace {
+
 template <typename Graph, typename Coloring>
 void validate_node_coloring(
     const Graph &graph,
@@ -36,6 +37,7 @@ void validate_node_coloring(
     graph.adjacent_nodes(u, [&](const NodeID v) { EXPECT_NE(coloring[u], coloring[v]); });
   }
 }
+
 } // namespace
 
 TEST(GreedyNodeColoringTest, colors_empty_graph) {
@@ -92,4 +94,5 @@ TEST(GreedyNodeColoringTest, colors_circle_clique_graph_5_many_steps) {
   const auto coloring = compute_node_coloring_sequentially(graph, kNumberOfSupersteps);
   validate_node_coloring(graph, coloring);
 }
+
 } // namespace kaminpar::dist

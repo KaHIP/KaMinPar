@@ -14,6 +14,7 @@
 #include "kaminpar-common/assert.h"
 
 namespace kaminpar {
+
 template <typename To, typename From> constexpr bool in_range(const From value) noexcept {
   static_assert(std::is_integral_v<From>);
   static_assert(std::is_integral_v<To>);
@@ -67,4 +68,5 @@ template <int assertion_level, typename To, typename From> To asserting_cast(con
   );
   return static_cast<To>(value);
 }
+
 } // namespace kaminpar

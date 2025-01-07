@@ -19,6 +19,7 @@
 #include "kaminpar-common/datastructures/scalable_vector.h"
 
 namespace kaminpar::dist {
+
 class Coarsener {
 public:
   Coarsener(const DistributedGraph &input_graph, const Context &input_ctx);
@@ -58,6 +59,7 @@ private:
 
   bool _local_clustering_converged = false;
 };
+
 } // namespace kaminpar::dist
 
 

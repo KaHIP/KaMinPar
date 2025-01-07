@@ -247,4 +247,5 @@ TEST(ClusterContractionTest, rotate_global_complete_graph) {
     EXPECT_EQ(c_graph.csr_graph().edge_weights(), graph.csr_graph().edge_weights());
   }
 }
+
 } // namespace kaminpar::dist

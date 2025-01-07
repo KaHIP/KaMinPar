@@ -18,6 +18,7 @@ namespace kaminpar::shm {
 Graph::Graph(std::unique_ptr<AbstractGraph> graph) : _underlying_graph(std::move(graph)) {}
 
 namespace debug {
+
 void print_graph(const Graph &graph) {
   for (const NodeID u : graph.nodes()) {
     LLOG << "L" << u << " NW" << graph.node_weight(u) << " | ";
@@ -27,6 +28,7 @@ void print_graph(const Graph &graph) {
     LOG;
   }
 }
+
 } // namespace debug
 
 } // namespace kaminpar::shm

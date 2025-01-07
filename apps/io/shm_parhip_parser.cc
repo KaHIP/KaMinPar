@@ -24,6 +24,7 @@
 #include "apps/io/binary_util.h"
 
 namespace {
+
 using namespace kaminpar::io;
 
 class ParHIPHeader {

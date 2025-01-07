@@ -19,9 +19,11 @@
 namespace kaminpar::shm {
 
 namespace {
+
 SET_DEBUG(false);
 
 namespace debug {
+
 using Duration = std::chrono::high_resolution_clock::duration;
 
 struct Stats {

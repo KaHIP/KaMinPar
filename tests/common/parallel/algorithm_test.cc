@@ -7,6 +7,7 @@
 using ::testing::ElementsAre;
 
 namespace kaminpar {
+
 TEST(ParallelAlgorithmTest, prefix_sum_with_multiple_elements) {
   std::vector<int> input{1, 2, 3, 4, 5};
   std::vector<int> output(input.size());
@@ -141,4 +142,5 @@ TEST(ParallelAlgorithmTest, max_difference_last_pair_is_max) {
   const int result = parallel::max_difference(data);
   EXPECT_EQ(result, 10);
 }
+
 } // namespace kaminpar

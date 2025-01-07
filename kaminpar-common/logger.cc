@@ -10,7 +10,9 @@
 #include <cmath>
 
 namespace kaminpar {
+
 namespace logger {
+
 void CompactContainerFormatter::print(const std::vector<std::string> &container, std::ostream &out)
     const {
   bool first{true};
@@ -96,6 +98,7 @@ Colorized RESET{logger::Colorized::Color::RESET};
 CompactContainerFormatter DEFAULT_CONTAINER{", "sv};
 CompactContainerFormatter COMPACT{","sv};
 Table TABLE{0};
+
 } // namespace logger
 
 std::atomic<std::uint8_t> Logger::_quiet = 0;
@@ -131,4 +134,5 @@ void Logger::set_quiet_mode(const bool quiet) {
 bool Logger::is_quiet() {
   return _quiet;
 }
+
 } // namespace kaminpar

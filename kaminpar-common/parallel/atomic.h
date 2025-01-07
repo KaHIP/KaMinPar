@@ -10,6 +10,7 @@
 #include <atomic>
 
 namespace kaminpar::parallel {
+
 template <typename T> class Atomic {
 public:
   Atomic() {
@@ -126,4 +127,5 @@ public:
 private:
   std::atomic<T> _value;
 };
+
 } // namespace kaminpar::parallel

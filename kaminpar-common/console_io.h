@@ -12,6 +12,7 @@
 #include "kaminpar-common/logger.h"
 
 namespace kaminpar::cio {
+
 void print_delimiter(const std::string &caption = "", char ch = '#');
 void print_kaminpar_banner();
 void print_dkaminpar_banner();
@@ -42,4 +43,5 @@ void print_build_datatypes() {
       << " bytes | Edge weights (Local): " << sizeof(LocalEdgeWeight)
       << " bytes | Edge weights (IP): " << sizeof(IPEdgeWeight) << " bytes";
 }
+
 } // namespace kaminpar::cio

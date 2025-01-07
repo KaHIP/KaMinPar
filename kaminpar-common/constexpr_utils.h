@@ -55,6 +55,7 @@ constexpr Value invoke_indirect2(Lambda &&l, Function &&fun) {
 // Utility functions for constexpr loops due to the following source:
 // https://stackoverflow.com/a/47563100
 namespace {
+
 template <std::size_t N> struct Number {
   static inline constexpr auto value = N;
 };
@@ -63,6 +64,7 @@ template <typename Lambda, std::size_t... Is>
 constexpr void constexpr_for(Lambda &&l, std::index_sequence<Is...>) {
   (l(Number<Is>::value), ...);
 }
+
 } // namespace
 
 /*!
@@ -79,6 +81,7 @@ template <std::size_t N, typename Lambda> constexpr void constexpr_for(Lambda &&
 // Utility functions for getting compile time type names due to the following source:
 // https://rodusek.com/posts/2021/03/09/getting-an-unmangled-type-name-at-compile-time/
 namespace {
+
 template <std::size_t... Is>
 consteval auto substring_as_array(std::string_view str, std::index_sequence<Is...>) {
   return std::array{str[Is]...};
@@ -116,6 +119,7 @@ template <typename T> consteval auto type_name_array() {
 template <typename T> struct TypeNameHolder {
   static inline constexpr auto value = type_name_array<T>();
 };
+
 } // namespace
 
 /**
@@ -138,4 +142,5 @@ template <typename T> consteval auto type_name() {
  */
 template <typename Tag, typename... Ts>
 constexpr bool contains_tag_v = (std::is_same_v<Tag, Ts> || ...);
+
 } // namespace kaminpar

@@ -21,6 +21,7 @@
 #include "apps/io/file_toker.h"
 
 namespace kaminpar::dist::io::metis {
+
 using namespace kaminpar::io;
 
 namespace {
