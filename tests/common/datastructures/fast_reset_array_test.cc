@@ -1,10 +1,9 @@
-#include <string>
-
 #include <gmock/gmock.h>
 
 #include "kaminpar-common/datastructures/fast_reset_array.h"
 
 namespace kaminpar {
+
 TEST(FastResetArrayTest, CapacityWorks) {
   FastResetArray<int> array(128);
   EXPECT_EQ(array.capacity(), 128);
@@ -97,19 +96,4 @@ TEST(FastResetArrayTest, HoldingAndResettingMultipleElementsWorks) {
   }
 }
 
-/*
-TEST(FastResetArrayTest, ComplexDatatypeWorks) {
-  FastResetArray<std::string> array(16);
-  for (std::size_t i = 0; i < array.size(); ++i) {
-    array.set(i, std::to_string(1000 + i));
-  }
-  for (std::size_t i = 0; i < array.size(); ++i) {
-    EXPECT_EQ(array.get(i), std::to_string(1000 + i));
-  }
-  array.clear();
-  for (std::size_t i = 0; i < array.size(); ++i) {
-    EXPECT_EQ(array.get(i), "");
-  }
-}
-*/
 } // namespace kaminpar

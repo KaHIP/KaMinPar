@@ -20,6 +20,7 @@
 #include "kaminpar-common/parallel/atomic.h"
 
 namespace kaminpar::dist::graph {
+
 [[nodiscard]] inline growt::StaticGhostNodeMapping
 build_static_ghost_node_mapping(std::unordered_map<GlobalNodeID, NodeID> global_to_ghost) {
   growt::StaticGhostNodeMapping static_mapping(global_to_ghost.size());
@@ -172,4 +173,5 @@ private:
 
   bool _unit_node_weights{true};
 };
+
 } // namespace kaminpar::dist::graph

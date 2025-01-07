@@ -12,6 +12,7 @@
 #include <tbb/task_arena.h>
 
 namespace kaminpar {
+
 std::mutex Random::_create_mutex;
 std::vector<std::unique_ptr<Random>> Random::_instances;
 int Random::_seed = 0;
@@ -59,4 +60,5 @@ void Random::precompute_bools() {
     _random_bools[i] = static_cast<bool>(_dist(_generator));
   }
 }
+
 } // namespace kaminpar

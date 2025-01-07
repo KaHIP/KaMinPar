@@ -34,6 +34,7 @@
 #include "kaminpar-common/heap_profiler.h"
 
 namespace kaminpar {
+
 template <typename Key, typename Value> class SparseMap {
   struct Element {
     Key key;
@@ -160,4 +161,5 @@ private:
 
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };
+
 } // namespace kaminpar

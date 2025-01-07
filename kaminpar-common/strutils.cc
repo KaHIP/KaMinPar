@@ -14,6 +14,7 @@
 #include <vector>
 
 namespace kaminpar::str {
+
 std::string extract_basename(const std::string &path, const bool keep_extension) {
   const std::size_t slash = path.find_last_of('/');
   const std::string name = path.substr(slash == std::string::npos ? 0 : slash + 1);
@@ -70,4 +71,5 @@ std::string &replace_all(
   }
   return str;
 }
+
 } // namespace kaminpar::str

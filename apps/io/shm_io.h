@@ -10,7 +10,6 @@
 #include <span>
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 #include "kaminpar-shm/datastructures/compressed_graph.h"
 #include "kaminpar-shm/datastructures/csr_graph.h"

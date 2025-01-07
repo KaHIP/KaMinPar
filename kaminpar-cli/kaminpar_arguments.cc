@@ -13,6 +13,7 @@
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
+
 void create_all_options(CLI::App *app, Context &ctx) {
   create_graph_compression_options(app, ctx);
   create_partitioning_options(app, ctx);
@@ -628,4 +629,5 @@ CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx) {
 
   return debug;
 }
+
 } // namespace kaminpar::shm

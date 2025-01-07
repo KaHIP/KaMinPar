@@ -10,6 +10,7 @@
 #include "kaminpar-common/parallel/tbb_malloc.h"
 
 namespace kaminpar {
+
 template <typename Key, typename Value, typename Derived> class DynamicMapBase {
   static constexpr std::size_t kTHPThreshold = 1024 * 1024 * 16;
 

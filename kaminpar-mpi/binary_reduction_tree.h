@@ -14,6 +14,7 @@
 #include "kaminpar-mpi/wrapper.h"
 
 namespace kaminpar::mpi {
+
 template <typename Buffer, typename Combiner>
 Buffer perform_binary_reduction(Buffer sendbuf, Buffer empty, Combiner &&combiner, MPI_Comm comm) {
   enum class Role {
@@ -62,4 +63,5 @@ Buffer perform_binary_reduction(Buffer sendbuf, Buffer empty, Combiner &&combine
 
   return sendbuf;
 }
+
 } // namespace kaminpar::mpi

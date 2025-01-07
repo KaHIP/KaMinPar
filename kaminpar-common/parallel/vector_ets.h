@@ -12,6 +12,7 @@
 #include "kaminpar-common/datastructures/cache_aligned_vector.h"
 
 namespace kaminpar::parallel {
+
 template <typename T> class vector_ets {
 public:
   using Container = CacheAlignedVector<T>;
@@ -46,4 +47,5 @@ private:
   std::size_t _size;
   tbb::combinable<Container> _ets;
 };
+
 } // namespace kaminpar::parallel

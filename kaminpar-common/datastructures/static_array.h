@@ -26,7 +26,9 @@
 #define KAMINPAR_THP_THRESHOLD 1024 * 1024 * 64
 
 namespace kaminpar {
+
 namespace static_array {
+
 //! Tag for allocating memory, but not touching it. Without this tag, memory is initialized to the
 //! default value for the given type.
 constexpr struct noinit_t {
@@ -44,6 +46,7 @@ constexpr struct overcommit_t {
 //! parallel loop. Has no effect in the presence of the noinit tag.
 constexpr struct seq_t {
 } seq;
+
 } // namespace static_array
 
 template <typename T> class StaticArray {
@@ -401,6 +404,7 @@ private:
 };
 
 namespace static_array {
+
 template <typename T> StaticArray<T> create(std::initializer_list<T> list) {
   return {list.begin(), list.end()};
 }
@@ -408,5 +412,7 @@ template <typename T> StaticArray<T> create(std::initializer_list<T> list) {
 template <typename T> StaticArray<T> create(const std::vector<T> &vec) {
   return {vec.begin(), vec.end()};
 }
+
 } // namespace static_array
+
 } // namespace kaminpar

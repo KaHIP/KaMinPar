@@ -18,6 +18,7 @@
 #include "kaminpar-common/logger.h"
 
 namespace kaminpar::dist {
+
 SET_DEBUG(false);
 
 Coarsener::Coarsener(const DistributedGraph &input_graph, const Context &input_ctx)
@@ -201,5 +202,6 @@ GlobalNodeWeight Coarsener::max_cluster_weight() const {
       graph->global_total_node_weight()
   );
 }
+
 } // namespace kaminpar::dist
 

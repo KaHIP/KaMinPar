@@ -12,6 +12,7 @@
 #include "kaminpar-shm/refinement/refiner.h"
 
 namespace kaminpar::shm {
+
 class MtKaHyParRefiner : public Refiner {
 public:
   MtKaHyParRefiner(const Context &ctx);
@@ -29,4 +30,5 @@ public:
 private:
   const Context &_ctx [[maybe_unused]];
 };
+
 } // namespace kaminpar::shm

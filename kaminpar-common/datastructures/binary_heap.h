@@ -15,7 +15,9 @@
 #include "kaminpar-common/datastructures/scalable_vector.h"
 
 namespace kaminpar {
+
 namespace binary_heap {
+
 template <typename Key> struct max_heap_comparator {
   constexpr static auto kMinValue = std::numeric_limits<Key>::max();
   bool operator()(Key a, Key b) {
@@ -29,6 +31,7 @@ template <typename Key> struct min_heap_comparator {
     return a > b;
   }
 };
+
 } // namespace binary_heap
 
 //! Addressable binary heap with fixed capacity.
@@ -872,4 +875,5 @@ using DynamicBinaryMaxHeap = DynamicBinaryHeap<ID, Key, binary_heap::max_heap_co
 
 template <typename ID, typename Key>
 using DynamicBinaryMinHeap = DynamicBinaryHeap<ID, Key, binary_heap::min_heap_comparator>;
+
 } // namespace kaminpar

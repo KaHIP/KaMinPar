@@ -13,6 +13,7 @@
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
+
 class NoopCoarsener : public Coarsener {
 public:
   void initialize(const Graph *graph) final {
@@ -40,4 +41,5 @@ public:
 private:
   const Graph *_graph = nullptr;
 };
+
 } // namespace kaminpar::shm

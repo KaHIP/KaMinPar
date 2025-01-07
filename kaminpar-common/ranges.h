@@ -11,6 +11,7 @@
 #include <type_traits>
 
 namespace kaminpar {
+
 template <typename Int> class IotaRange {
 public:
   class iterator {
@@ -196,4 +197,5 @@ private:
   iterator _begin;
   iterator _end;
 };
+
 } // namespace kaminpar

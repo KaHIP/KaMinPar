@@ -229,6 +229,7 @@ void CSRGraph::init_degree_buckets() {
 }
 
 namespace debug {
+
 bool validate_graph(
     const CSRGraph &graph, const bool check_undirected, const NodeID num_pseudo_nodes
 ) {
@@ -375,5 +376,7 @@ CSRGraph sort_neighbors(CSRGraph graph) {
 
   return sorted_graph;
 }
+
 } // namespace debug
+
 } // namespace kaminpar::shm

@@ -99,4 +99,5 @@ TEST(DistributeBestPartitionTest, triangle_cycle_graph_P) {
   ASSERT_TRUE(debug::validate_partition(p_graph));
   EXPECT_EQ(metrics::edge_cut(p_graph), 0);
 }
+
 } // namespace kaminpar::dist

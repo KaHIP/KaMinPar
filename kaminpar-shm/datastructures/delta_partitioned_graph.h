@@ -16,6 +16,7 @@
 #include "kaminpar-common/ranges.h"
 
 namespace kaminpar::shm {
+
 class DeltaPartitionedGraph : public GraphDelegate<Graph> {
 public:
   DeltaPartitionedGraph(const PartitionedGraph *p_graph)
@@ -85,4 +86,5 @@ private:
   ScalableVector<BlockWeight> _block_weights_delta;
   DynamicFlatMap<NodeID, BlockID> _partition_delta;
 };
+
 } // namespace kaminpar::shm

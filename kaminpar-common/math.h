@@ -245,4 +245,5 @@ auto find_min_mean_max(const Container &container)
 template <typename Int> Int create_mask(const int num_bits) {
   return (1 << num_bits) - 1;
 }
+
 } // namespace kaminpar::math
