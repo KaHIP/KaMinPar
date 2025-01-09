@@ -36,7 +36,7 @@ add_library(kaminpar_shm ${KAMINPAR_SHM_SOURCE_FILES}
         coarsening/sparsification/WeightedForestFireScore.h
         coarsening/sparsification/IndependentRandomSampler.cpp)
 target_include_directories(kaminpar_shm PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../" ${JL_SHARE}/../../include/julia/)
-target_link_libraries(kaminpar_shm PUBLIC kaminpar_common networkit ${JL_SHARE}/../../lib/libjulia.so)
+target_link_libraries(kaminpar_shm PUBLIC kaminpar_common networkit ${JL_SHARE}/../../lib/libjulia.so ips4o)
 target_compile_options(kaminpar_shm PRIVATE ${KAMINPAR_WARNING_FLAGS})
 
 if (Sparsehash_FOUND)

@@ -50,7 +50,7 @@ template <typename T> class StaticArray {
 public:
   template <bool is_const> class StaticArrayIterator {
   public:
-    using iterator_category = std::contiguous_iterator_tag;
+    using iterator_category = std::random_access_iterator_tag;
     using value_type = T;
     using reference = std::conditional_t<is_const, const T &, T &>;
     using pointer = std::conditional_t<is_const, const T *, T *>;

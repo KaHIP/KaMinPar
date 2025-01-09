@@ -398,6 +398,10 @@ include_directories(${PROJECT_SOURCE_DIR})
 include_directories(${PROJECT_SOURCE_DIR}/networkit/include ${PROJECT_SOURCE_DIR}/networkit/extlibs/tlx ${PROJECT_SOURCE_DIR}/networkit/extlibs/ttmath ${JL_SHARE}/../../include/julia/)
 add_subdirectory(networkit)
 
+# ips4o
+add_subdirectory(ips4o)
+add_definitions(-D_REENTRANT)
+
 
 # Shared memory components
 add_subdirectory(kaminpar-common)
@@ -433,6 +437,5 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
     add_library(KaMinPar::dKaMinPar ALIAS kaminpar_dist)
     add_library(KaMinPar::dKaMinParCLI ALIAS kaminpar_dist_cli)
 endif ()
-
 
 

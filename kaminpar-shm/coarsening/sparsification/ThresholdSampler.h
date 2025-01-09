@@ -1,8 +1,10 @@
 #pragma once
 #include <oneapi/tbb/parallel_sort.h>
+#include <utils/output.hpp>
 
 #include "Sampler.h"
 #include "ScoreBacedSampler.h"
+#include "ips4o.hpp"
 #include "sparsification_utils.h"
 
 #include "kaminpar-common/timer.h"
@@ -25,12 +27,12 @@ public:
 
       utils::K_SmallestInfo<Score> threshold;
       {
-        SCOPED_TIMER("Find Threshold with qselect");
+        SCOPED_TIMER("Find Threshold with iso4o sort");
         threshold =
-            utils::quickselect_k_smallest<Score>(target_edge_amount, scores.begin(), scores.end());
+          find_threshold(scores,target_edge_amount);
       }
 
-      double inclusion_probaility_if_equal = (target_edge_amount / 2 - threshold.number_of_elements_smaller) / threshold.number_of_elemtns_equal;
+      double inclusion_probaility_if_equal = (target_edge_amount / 2 - threshold.number_of_elements_smaller) / static_cast<double>(threshold.number_of_elemtns_equal);
       utils::parallel_for_upward_edges(g, [&](EdgeID e) {
         if (scores[e] < threshold.value || (scores[e] == threshold.value && Random::instance().random_bool(inclusion_probaility_if_equal))) {
           sample[e] = g.edge_weight(e);
@@ -41,20 +43,24 @@ public:
   }
 
 private:
-  std::pair<EdgeID, EdgeID>
+  utils::K_SmallestInfo<Score>
   find_threshold(const StaticArray<Score> &scores, EdgeID target_edge_amount) {
-    SCOPED_TIMER("Find Threshold");
-    std::vector<Score> sorted_scores(scores.size());
-    tbb::parallel_for(0ul, scores.size(), [&](auto e) { sorted_scores[e] = scores[e]; });
-    tbb::parallel_sort(sorted_scores.begin(), sorted_scores.end());
+    utils::K_SmallestInfo<Score> output;
+    StaticArray<Score> sorted_scores(scores.begin(), scores.end());
+    ips4o::parallel::sort(sorted_scores.begin(), sorted_scores.end());
 
     EdgeID indexOfThreshold = sorted_scores.size() - target_edge_amount;
-    Score threshold = sorted_scores[indexOfThreshold];
-    EdgeID indexOfFirstLagerScore =
-        std::upper_bound(sorted_scores.begin(), sorted_scores.end(), threshold) -
+    output.value = sorted_scores[indexOfThreshold];
+    EdgeID indexOfFirstLargerScore =
+        std::upper_bound(sorted_scores.begin(), sorted_scores.end(), output.value) -
         sorted_scores.begin();
-    EdgeID numEdgesAtThresholdScoreToInclude = indexOfFirstLagerScore - indexOfThreshold / 2;
-    return std::make_pair(threshold, numEdgesAtThresholdScoreToInclude);
+    EdgeID indexOfFirstEqualScore =
+        std::lower_bound(sorted_scores.begin(), sorted_scores.end(), output.value) -
+        sorted_scores.begin();
+    EdgeID numEdgesAtThresholdScoreToInclude = (indexOfFirstLargerScore - indexOfThreshold) / 2;
+    output.number_of_elemtns_equal = (indexOfFirstLargerScore - indexOfFirstEqualScore)/2;
+    output.number_of_elements_smaller = indexOfFirstEqualScore/2;
+    return output;
   };
 };
 } // namespace kaminpar::shm::sparsification
