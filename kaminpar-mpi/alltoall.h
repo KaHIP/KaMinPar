@@ -20,7 +20,9 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::mpi {
+
 namespace internal {
+
 template <typename Buffer, typename Receiver>
 void invoke_receiver(Buffer buffer, const PEID pe, const Receiver &receiver) {
   constexpr bool receiver_invocable_with_pe = std::is_invocable_r_v<void, Receiver, Buffer, PEID>;
@@ -55,6 +57,7 @@ void forward_self_buffer(SendBuffer &self_buffer, const PEID rank, const Receive
     }
   }
 }
+
 } // namespace internal
 
 template <typename Message, typename Buffer, typename SendBuffers, typename Receiver>
@@ -167,4 +170,5 @@ void sparse_alltoall_complete(SendBuffers &&send_buffers, Receiver &&receiver, M
 
   // STOP_TIMER();
 }
+
 } // namespace kaminpar::mpi

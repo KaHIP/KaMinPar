@@ -20,9 +20,11 @@ using namespace kaminpar::dist::testing;
 using namespace ::testing;
 
 namespace {
+
 StaticArray<GlobalNodeID> build_cnode_distribution(const GlobalNodeID n) {
   return mpi::build_distribution_from_local_count<GlobalNodeID, StaticArray>(n, MPI_COMM_WORLD);
 }
+
 } // namespace
 
 TEST(ClusterReassignmentTest, perfectly_balanced_case) {
@@ -119,4 +121,5 @@ TEST(ClusterReassignmentTest, twitter_2010_128pe_4copies_regression) {
     EXPECT_LE(my_size_after + my_underload, my_size_before) << V(pe);
   }
 }
+
 } // namespace kaminpar::dist

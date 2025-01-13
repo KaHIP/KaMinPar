@@ -5,6 +5,7 @@
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar {
+
 #if __cplusplus >= 202002L
 using StaticIntArray = StaticArray<int>;
 static_assert(std::random_access_iterator<StaticIntArray::iterator>);
@@ -35,4 +36,5 @@ TEST(StaticArrayTest, IteratorTest) {
     ++i;
   }
 }
+
 } // namespace kaminpar

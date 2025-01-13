@@ -22,11 +22,15 @@
 #include "kaminpar-common/datastructures/ts_navigable_linked_list.h"
 
 namespace kaminpar::dist {
+
 namespace {
+
 SET_DEBUG(false);
+
 }
 
 namespace {
+
 struct Edge {
   NodeID target;
   EdgeWeight weight;
@@ -61,6 +65,7 @@ private:
   DistributedGraph _c_graph;
   StaticArray<NodeID> _mapping;
 };
+
 } // namespace
 
 template <typename Graph>

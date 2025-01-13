@@ -14,10 +14,13 @@
 #include "kaminpar-dist/refinement/fm/move_conflict_resolver.h"
 
 namespace kaminpar::dist {
+
 namespace {
+
 GlobalMove create_dummy_move(const GlobalNodeID node, const NodeID group, const EdgeWeight gain) {
   return {node, group, 0, gain, 0, 0};
 }
+
 } // namespace
 
 TEST(GlobalMoveConflictResolver, empty_move_set) {
@@ -48,4 +51,5 @@ TEST(GlobalMoveConflictResolver, single_node_groups_with_rank_gain) {
     }
   }
 }
+
 } // namespace kaminpar::dist

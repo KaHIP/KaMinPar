@@ -13,6 +13,7 @@
 #include "kaminpar-common/heap_profiler.h"
 
 namespace kaminpar {
+
 /*!
  * Queue with fixed capacity. Add new elements to its tail and remove elements
  * from its head. Its capacity limits the number of push_head() calls without
@@ -135,4 +136,5 @@ private:
 
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };
+
 } // namespace kaminpar

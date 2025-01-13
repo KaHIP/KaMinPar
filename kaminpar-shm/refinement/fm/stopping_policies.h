@@ -8,11 +8,11 @@
 #pragma once
 
 #include <cmath>
-#include <iostream>
 
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
+
 struct AdaptiveStoppingPolicy {
   AdaptiveStoppingPolicy(const double alpha) : _factor(alpha / 2.0 - 0.25) {}
 
@@ -61,4 +61,5 @@ private:
   double _Sk = 0.0;
   double _SkMinus1 = 0.0;
 };
+
 } // namespace kaminpar::shm

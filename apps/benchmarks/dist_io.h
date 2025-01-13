@@ -16,6 +16,7 @@
 #include "apps/benchmarks/shm_io.h"
 
 namespace kaminpar::dist {
+
 struct DistributedGraphWrapper {
   std::unique_ptr<DistributedGraph> graph;
 };
@@ -205,4 +206,5 @@ load_partitioned_graph(const std::string &graph_name, const std::string &partiti
 
   return wrapper;
 }
+
 } // namespace kaminpar::dist

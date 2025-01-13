@@ -7,13 +7,14 @@
  ******************************************************************************/
 #pragma once
 
-#include <vector>
+#include <utility>
 
 #include <mpi.h>
 
 #include "kaminpar-mpi/definitions.h"
 
 namespace kaminpar::mpi {
+
 inline std::pair<PEID, PEID> get_comm_info(MPI_Comm comm) {
   int size;
   MPI_Comm_size(comm, &size);
@@ -43,4 +44,5 @@ template <typename Lambda> inline void sequentially(Lambda &&lambda, MPI_Comm co
     MPI_Barrier(comm);
   }
 }
+
 } // namespace kaminpar::mpi

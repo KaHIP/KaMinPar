@@ -13,6 +13,7 @@
 #include <vector>
 
 namespace kaminpar::str {
+
 std::string extract_basename(const std::string &path, bool keep_extension = false);
 std::string to_lower(std::string arg);
 std::vector<std::string> explode(const std::string &str, char del);
@@ -40,4 +41,5 @@ std::string &replace_all(std::string &str, const std::string &replace, const std
 
 std::string &
 replace_all(std::string &str, const std::vector<std::pair<std::string, std::string>> &replacements);
+
 } // namespace kaminpar::str

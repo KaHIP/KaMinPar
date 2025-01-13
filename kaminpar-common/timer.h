@@ -76,9 +76,11 @@
   )
 
 namespace kaminpar {
+
 class Timer;
 
 namespace timer {
+
 inline std::chrono::time_point<std::chrono::high_resolution_clock> now() {
   return std::chrono::high_resolution_clock::now();
 }
@@ -127,6 +129,7 @@ public:
 private:
   Timer *_timer;
 };
+
 } // namespace timer
 
 class Timer {
@@ -333,6 +336,7 @@ private:
 };
 
 namespace timer {
+
 ScopedTimer::~ScopedTimer() {
   _timer->stop_timer();
 }
@@ -358,5 +362,7 @@ private:
   std::string_view _name;
   String _description;
 };
+
 } // namespace timer
+
 } // namespace kaminpar

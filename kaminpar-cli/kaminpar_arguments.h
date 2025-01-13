@@ -14,6 +14,7 @@
 #include <kaminpar-shm/kaminpar.h>
 
 namespace kaminpar::shm {
+
 void create_all_options(CLI::App *app, Context &ctx);
 
 CLI::Option_group *create_graph_compression_options(CLI::App *app, Context &ctx);
@@ -41,4 +42,5 @@ CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx);
 CLI::Option_group *create_mtkahypar_refinement_options(CLI::App *app, Context &ctx);
 
 CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx);
+
 } // namespace kaminpar::shm

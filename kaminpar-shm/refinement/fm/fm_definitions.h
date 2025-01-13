@@ -10,6 +10,7 @@
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm::fm {
+
 struct Move {
   NodeID node;
   BlockID from;
@@ -20,4 +21,5 @@ struct AppliedMove {
   BlockID from;
   bool improvement;
 };
+
 } // namespace kaminpar::shm::fm

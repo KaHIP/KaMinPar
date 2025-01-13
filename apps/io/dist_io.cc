@@ -12,6 +12,7 @@
 #include "kaminpar-mpi/wrapper.h"
 
 namespace kaminpar::dist::io::partition {
+
 void write(const std::string &filename, const std::vector<BlockID> &partition) {
   const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
   const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
@@ -30,4 +31,5 @@ void write(const std::string &filename, const std::vector<BlockID> &partition) {
     mpi::barrier(MPI_COMM_WORLD);
   }
 }
+
 } // namespace kaminpar::dist::io::partition

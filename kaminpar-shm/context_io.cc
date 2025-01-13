@@ -18,6 +18,7 @@
 #include "kaminpar-common/strutils.h"
 
 namespace kaminpar::shm {
+
 using namespace std::string_literals;
 
 std::unordered_map<std::string, NodeOrdering> get_node_orderings() {
