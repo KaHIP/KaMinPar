@@ -61,7 +61,7 @@ CompressedGraph compressed_read(
     return metis::compress_read(filename, sorted);
   }
   case GraphFileFormat::PARHIP: {
-    return parhip::compressed_read_parallel(filename, ordering);
+    return parhip::compressed_read(filename, ordering);
   }
   default:
     __builtin_unreachable();

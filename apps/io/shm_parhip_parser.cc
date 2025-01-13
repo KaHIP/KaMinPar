@@ -10,29 +10,29 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <span>
 
+#include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
 
+#include "kaminpar-shm/datastructures/compressed_graph.h"
 #include "kaminpar-shm/graphutils/compressed_graph_builder.h"
-#include "kaminpar-shm/graphutils/parallel_compressed_graph_builder.h"
 #include "kaminpar-shm/graphutils/permutator.h"
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/logger.h"
+#include "kaminpar-common/timer.h"
 
 #include "apps/io/binary_util.h"
 
-namespace {
+namespace kaminpar::shm::io::parhip {
 
 using namespace kaminpar::io;
 
-class ParHIPHeader {
-  using NodeID = kaminpar::shm::NodeID;
-  using EdgeID = kaminpar::shm::EdgeID;
-  using NodeWeight = kaminpar::shm::NodeWeight;
-  using EdgeWeight = kaminpar::shm::EdgeWeight;
+namespace {
 
+class ParHIPHeader {
 public:
   static constexpr std::uint64_t kSize = 3 * sizeof(std::uint64_t);
 
@@ -140,30 +140,28 @@ private:
 };
 
 template <typename T, typename U = T, typename Transformer = std::identity>
-kaminpar::StaticArray<T> read(
+StaticArray<T> read(
     const BinaryReader &reader,
     const std::size_t offset,
     const std::size_t length,
     Transformer transformer = {}
 ) {
-  kaminpar::StaticArray<T> data(length, kaminpar::static_array::noinit);
+  StaticArray<T> data(length, static_array::noinit);
 
   const U *raw_data = reader.fetch<U>(offset);
-  tbb::parallel_for(tbb::blocked_range<std::size_t>(0, length), [&](const auto &r) {
-    for (std::size_t i = r.begin(); i != r.end(); ++i) {
-      data[i] = transformer(raw_data[i]);
-    }
+  tbb::parallel_for<std::size_t>(0, length, [&](const auto i) {
+    data[i] = transformer(raw_data[i]);
   });
 
   return data;
 }
 
 template <typename T, typename Transformer = std::identity>
-kaminpar::StaticArray<T> read(
-    const bool upcast,
+StaticArray<T> read(
     const BinaryReader &reader,
     const std::size_t offset,
     const std::size_t length,
+    const bool upcast,
     Transformer transformer = {}
 ) {
   if (upcast) {
@@ -173,11 +171,6 @@ kaminpar::StaticArray<T> read(
   }
 }
 
-} // namespace
-
-namespace kaminpar::shm::io::parhip {
-using namespace kaminpar::io;
-
 CSRGraph csr_read(const std::string &filename, const bool sorted) {
   try {
     const BinaryReader reader(filename);
@@ -186,22 +179,22 @@ CSRGraph csr_read(const std::string &filename, const bool sorted) {
 
     const bool upcast_edge_id = !header.has_64_bit_edge_id && sizeof(EdgeID) == 8;
     StaticArray<EdgeID> nodes = read<EdgeID>(
-        upcast_edge_id,
         reader,
         header.nodes_offset(),
         header.num_nodes + 1,
+        upcast_edge_id,
         [&](const EdgeID e) { return header.map_edge_offset(e); }
     );
 
     const bool upcast_node_id = !header.has_64_bit_node_id && sizeof(NodeID) == 8;
     StaticArray<NodeID> edges =
-        read<NodeID>(upcast_node_id, reader, header.edges_offset(), header.num_edges);
+        read<NodeID>(reader, header.edges_offset(), header.num_edges, upcast_node_id);
 
     StaticArray<NodeWeight> node_weights;
     if (header.has_node_weights) {
       const bool upcast_node_weight = !header.has_64_bit_node_weight && sizeof(NodeWeight) == 8;
       node_weights = read<NodeWeight>(
-          upcast_node_weight, reader, header.node_weights_offset(), header.num_nodes
+          reader, header.node_weights_offset(), header.num_nodes, upcast_node_weight
       );
     }
 
@@ -209,7 +202,7 @@ CSRGraph csr_read(const std::string &filename, const bool sorted) {
     if (header.has_edge_weights) {
       const bool upcast_edge_weight = !header.has_64_bit_edge_weight && sizeof(EdgeWeight) == 8;
       edge_weights = read<EdgeWeight>(
-          upcast_edge_weight, reader, header.edge_weights_offset(), header.num_edges
+          reader, header.edge_weights_offset(), header.num_edges, upcast_edge_weight
       );
     }
 
@@ -230,7 +223,7 @@ CSRGraph csr_read_deg_buckets(const std::string &filename) {
 
     const auto *raw_nodes = reader.fetch<void>(header.nodes_offset());
     const bool upcast_edge_id = !header.has_64_bit_edge_id && sizeof(EdgeID) == 8;
-    const auto node_mapper = [&](const NodeID u) -> EdgeID {
+    const auto fetch_edge_offset = [&](const NodeID u) -> EdgeID {
       if (upcast_edge_id) [[unlikely]] {
         return reinterpret_cast<const std::uint32_t *>(raw_nodes)[u];
       } else {
@@ -240,7 +233,7 @@ CSRGraph csr_read_deg_buckets(const std::string &filename) {
 
     const auto *raw_edges = reader.fetch<void>(header.edges_offset());
     const bool upcast_node_id = !header.has_64_bit_node_id && sizeof(NodeID) == 8;
-    const auto edge_mapper = [&](const EdgeID e) -> NodeID {
+    const auto fetch_adjacent_node = [&](const EdgeID e) -> NodeID {
       if (upcast_node_id) [[unlikely]] {
         return reinterpret_cast<const std::uint32_t *>(raw_edges)[e];
       } else {
@@ -250,7 +243,7 @@ CSRGraph csr_read_deg_buckets(const std::string &filename) {
 
     const auto *raw_node_weights = reader.fetch<void>(header.node_weights_offset());
     const bool upcast_node_weight = !header.has_64_bit_node_weight && sizeof(NodeWeight) == 8;
-    const auto node_weight_mapper = [&](const NodeID u) -> NodeWeight {
+    const auto fetch_node_weight = [&](const NodeID u) -> NodeWeight {
       if (upcast_node_weight) [[unlikely]] {
         return reinterpret_cast<const std::uint32_t *>(raw_node_weights)[u];
       } else {
@@ -260,7 +253,7 @@ CSRGraph csr_read_deg_buckets(const std::string &filename) {
 
     const auto *raw_edge_weights = reader.fetch<void>(header.edge_weights_offset());
     const bool upcast_edge_weight = !header.has_64_bit_edge_weight && sizeof(EdgeWeight) == 8;
-    const auto edge_weight_mapper = [&](const EdgeID e) -> EdgeWeight {
+    const auto fetch_edge_weight = [&](const EdgeID e) -> EdgeWeight {
       if (upcast_edge_weight) [[unlikely]] {
         return reinterpret_cast<const std::uint32_t *>(raw_edge_weights)[e];
       } else {
@@ -268,13 +261,15 @@ CSRGraph csr_read_deg_buckets(const std::string &filename) {
       }
     };
 
-    const auto degree = [&](const NodeID u) -> NodeID {
+    const auto fetch_degree = [&](const NodeID u) -> NodeID {
       return static_cast<NodeID>(
-          header.map_edge_offset(node_mapper(u + 1)) - header.map_edge_offset(node_mapper(u))
+          header.map_edge_offset(fetch_edge_offset(u + 1)) -
+          header.map_edge_offset(fetch_edge_offset(u))
       );
     };
+
     auto [perm, inv_perm] =
-        graph::compute_node_permutation_by_degree_buckets(header.num_nodes, degree);
+        graph::compute_node_permutation_by_degree_buckets(header.num_nodes, fetch_degree);
 
     StaticArray<EdgeID> nodes(header.num_nodes + 1, static_array::noinit);
     StaticArray<NodeWeight> node_weights;
@@ -283,22 +278,14 @@ CSRGraph csr_read_deg_buckets(const std::string &filename) {
     }
 
     TIMED_SCOPE("Read nodes") {
-      tbb::parallel_for(
-          tbb::blocked_range<NodeID>(0, header.num_nodes),
-          [&](const auto &local_nodes) {
-            const NodeID local_nodes_start = local_nodes.begin();
-            const NodeID local_nodes_end = local_nodes.end();
+      tbb::parallel_for<NodeID>(0, header.num_nodes, [&](const NodeID old_u) {
+        const NodeID new_u = perm[old_u];
 
-            for (NodeID u = local_nodes_start; u < local_nodes_end; ++u) {
-              const NodeID old_u = inv_perm[u];
-
-              nodes[u + 1] = degree(old_u);
-              if (header.has_node_weights) [[unlikely]] {
-                node_weights[u] = node_weight_mapper(old_u);
-              }
-            }
-          }
-      );
+        nodes[new_u + 1] = fetch_degree(old_u);
+        if (header.has_node_weights) [[unlikely]] {
+          node_weights[new_u] = fetch_node_weight(old_u);
+        }
+      });
     };
 
     TIMED_SCOPE("Compute prefix sum") {
@@ -313,45 +300,39 @@ CSRGraph csr_read_deg_buckets(const std::string &filename) {
     }
 
     TIMED_SCOPE("Read edges") {
-      tbb::parallel_for(
-          tbb::blocked_range<NodeID>(0, header.num_nodes),
-          [&](const auto &local_nodes) {
-            const NodeID local_nodes_start = local_nodes.begin();
-            const NodeID local_nodes_end = local_nodes.end();
+      tbb::parallel_for<NodeID>(0, header.num_nodes, [&](const NodeID old_u) {
+        const NodeID new_u = perm[old_u];
+        const EdgeID old_edge_start = header.map_edge_offset(fetch_edge_offset(old_u));
+        const EdgeID old_edge_end = header.map_edge_offset(fetch_edge_offset(old_u + 1));
 
-            for (NodeID u = local_nodes_start; u < local_nodes_end; ++u) {
-              const NodeID old_u = inv_perm[u];
-              const EdgeID old_edge_start = header.map_edge_offset(node_mapper(old_u));
-              const EdgeID old_edge_end = header.map_edge_offset(node_mapper(old_u + 1));
+        EdgeID cur_edge = nodes[new_u];
+        for (EdgeID old_edge = old_edge_start; old_edge < old_edge_end; ++old_edge) {
+          const NodeID old_v = fetch_adjacent_node(old_edge);
+          const NodeID v = perm[old_v];
 
-              EdgeID cur_edge = nodes[u];
-              for (EdgeID old_edge = old_edge_start; old_edge < old_edge_end; ++old_edge) {
-                const NodeID old_v = edge_mapper(old_edge);
-                const NodeID v = perm[old_v];
-
-                edges[cur_edge] = v;
-                if (header.has_edge_weights) [[unlikely]] {
-                  edge_weights[cur_edge] = edge_weight_mapper(old_edge);
-                }
-
-                cur_edge += 1;
-              }
-            }
+          edges[cur_edge] = v;
+          if (header.has_edge_weights) [[unlikely]] {
+            edge_weights[cur_edge] = fetch_edge_weight(old_edge);
           }
-      );
+
+          cur_edge += 1;
+        }
+      });
     };
 
     CSRGraph csr_graph = CSRGraph(
         std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), true
     );
-
     csr_graph.set_permutation(std::move(perm));
+
     return csr_graph;
   } catch (const BinaryReaderException &e) {
     LOG_ERROR << e.what();
     std::exit(EXIT_FAILURE);
   }
 }
+
+} // namespace
 
 CSRGraph csr_read(const std::string &filename, const NodeOrdering ordering) {
   if (ordering == NodeOrdering::EXTERNAL_DEGREE_BUCKETS) {
@@ -362,25 +343,38 @@ CSRGraph csr_read(const std::string &filename, const NodeOrdering ordering) {
   return csr_read(filename, sorted);
 }
 
+namespace {
+
 CompressedGraph compressed_read(const std::string &filename, const bool sorted) {
   try {
-    BinaryReader reader(filename);
-    ParHIPHeader header = ParHIPHeader::parse(reader);
+    const BinaryReader reader(filename);
+    const ParHIPHeader header = ParHIPHeader::parse(reader);
     header.validate();
 
-    const auto *nodes = reader.fetch<void>(header.nodes_offset());
     const bool upcast_edge_id = !header.has_64_bit_edge_id && sizeof(EdgeID) == 8;
-    const auto node = [&](const NodeID u) -> EdgeID {
-      if (upcast_edge_id) [[unlikely]] {
-        return reinterpret_cast<const std::uint32_t *>(nodes)[u];
-      } else {
-        return reinterpret_cast<const EdgeID *>(nodes)[u];
-      }
+    StaticArray<EdgeID> nodes = read<EdgeID>(
+        reader,
+        header.nodes_offset(),
+        header.num_nodes + 1,
+        upcast_edge_id,
+        [&](const EdgeID e) { return header.map_edge_offset(e); }
+    );
+
+    StaticArray<NodeWeight> node_weights;
+    if (header.has_node_weights) {
+      const bool upcast_node_weight = !header.has_64_bit_node_weight && sizeof(NodeWeight) == 8;
+      node_weights = read<NodeWeight>(
+          reader, header.node_weights_offset(), header.num_nodes, upcast_node_weight
+      );
+    }
+
+    const auto fetch_degree = [&](const NodeID u) {
+      return static_cast<NodeID>(nodes[u + 1] - nodes[u]);
     };
 
     const auto *edges = reader.fetch<void>(header.edges_offset());
     const bool upcast_node_id = !header.has_64_bit_node_id && sizeof(NodeID) == 8;
-    const auto edge = [&](const EdgeID e) -> NodeID {
+    const auto fetch_adjacent_node = [&](const EdgeID e) -> NodeID {
       if (upcast_node_id) [[unlikely]] {
         return reinterpret_cast<const std::uint32_t *>(edges)[e];
       } else {
@@ -388,19 +382,9 @@ CompressedGraph compressed_read(const std::string &filename, const bool sorted) 
       }
     };
 
-    const auto *node_weights = reader.fetch<void>(header.node_weights_offset());
-    const bool upcast_node_weight = !header.has_64_bit_node_weight && sizeof(NodeWeight) == 8;
-    const auto node_weight = [&](const NodeID u) -> NodeWeight {
-      if (upcast_node_weight) [[unlikely]] {
-        return reinterpret_cast<const std::uint32_t *>(node_weights)[u];
-      } else {
-        return reinterpret_cast<const NodeWeight *>(node_weights)[u];
-      }
-    };
-
     const auto *edge_weights = reader.fetch<void>(header.edge_weights_offset());
     const bool upcast_edge_weight = !header.has_64_bit_edge_weight && sizeof(EdgeWeight) == 8;
-    const auto edge_weight = [&](const EdgeID e) -> EdgeWeight {
+    const auto fetch_edge_weight = [&](const EdgeID e) -> EdgeWeight {
       if (upcast_edge_weight) [[unlikely]] {
         return reinterpret_cast<const std::uint32_t *>(edge_weights)[e];
       } else {
@@ -408,133 +392,188 @@ CompressedGraph compressed_read(const std::string &filename, const bool sorted) 
       }
     };
 
-    CompressedGraphBuilder builder(
-        header.num_nodes, header.num_edges, header.has_node_weights, header.has_edge_weights, sorted
-    );
+    if (header.has_edge_weights) {
+      using Edge = std::pair<NodeID, EdgeWeight>;
+      const auto fetch_neighborhood = [&](const NodeID u, std::span<Edge> neighborhood) {
+        const EdgeID first_edge = nodes[u];
+        const EdgeID last_edge = nodes[u + 1];
+        const NodeID degree = static_cast<NodeID>(last_edge - first_edge);
 
-    std::vector<std::pair<NodeID, EdgeWeight>> neighbourhood;
-    for (NodeID u = 0; u < header.num_nodes; ++u) {
-      const EdgeID offset = header.map_edge_offset(node(u));
-      const EdgeID next_offset = header.map_edge_offset(node(u + 1));
+        for (NodeID i = 0; i < degree; ++i) {
+          const EdgeID e = first_edge + i;
+          neighborhood[i] = std::make_pair(fetch_adjacent_node(e), fetch_edge_weight(e));
+        }
+      };
 
-      const auto degree = static_cast<NodeID>(next_offset - offset);
-      for (NodeID i = 0; i < degree; ++i) {
-        const EdgeID e = offset + i;
+      return parallel_compress_weighted(
+          header.num_nodes,
+          header.num_edges,
+          fetch_degree,
+          fetch_neighborhood,
+          std::move(node_weights),
+          sorted
+      );
+    } else {
+      const auto fetch_neighborhood = [&](const NodeID u, std::span<NodeID> neighborhood) {
+        const EdgeID first_edge = nodes[u];
+        const EdgeID last_edge = nodes[u + 1];
+        const NodeID degree = static_cast<NodeID>(last_edge - first_edge);
 
-        const NodeID adjacent_node = edge(e);
-        const EdgeWeight weight = header.has_edge_weights ? edge_weight(e) : 1;
+        for (NodeID i = 0; i < degree; ++i) {
+          const EdgeID e = first_edge + i;
+          neighborhood[i] = fetch_adjacent_node(e);
+        }
+      };
 
-        neighbourhood.emplace_back(adjacent_node, weight);
-      }
-
-      builder.add_node(u, neighbourhood);
-      if (header.has_node_weights) {
-        builder.add_node_weight(u, node_weight(u));
-      }
-
-      neighbourhood.clear();
+      return parallel_compress(
+          header.num_nodes,
+          header.num_edges,
+          fetch_degree,
+          fetch_neighborhood,
+          std::move(node_weights),
+          sorted
+      );
     }
-
-    return builder.build();
   } catch (const BinaryReaderException &e) {
     LOG_ERROR << e.what();
     std::exit(EXIT_FAILURE);
   }
 }
 
-CompressedGraph compressed_read_parallel(const std::string &filename, const NodeOrdering ordering) {
+CompressedGraph compressed_read_deg_buckets(const std::string &filename) {
   try {
     const BinaryReader reader(filename);
     const ParHIPHeader header = ParHIPHeader::parse(reader);
     header.validate();
 
-    const auto *nodes = reader.fetch<void>(header.nodes_offset());
+    const auto *raw_nodes = reader.fetch<void>(header.nodes_offset());
     const bool upcast_edge_id = !header.has_64_bit_edge_id && sizeof(EdgeID) == 8;
-    const auto node = [&](const NodeID u) -> EdgeID {
+    const auto fetch_edge_offset = [&](const NodeID u) -> EdgeID {
       if (upcast_edge_id) [[unlikely]] {
-        return reinterpret_cast<const std::uint32_t *>(nodes)[u];
+        return reinterpret_cast<const std::uint32_t *>(raw_nodes)[u];
       } else {
-        return reinterpret_cast<const EdgeID *>(nodes)[u];
+        return reinterpret_cast<const EdgeID *>(raw_nodes)[u];
       }
     };
 
-    const auto *edges = reader.fetch<void>(header.edges_offset());
+    const auto *raw_edges = reader.fetch<void>(header.edges_offset());
     const bool upcast_node_id = !header.has_64_bit_node_id && sizeof(NodeID) == 8;
-    const auto edge = [&](const EdgeID e) -> NodeID {
+    const auto fetch_adjacent_node = [&](const EdgeID e) -> NodeID {
       if (upcast_node_id) [[unlikely]] {
-        return reinterpret_cast<const std::uint32_t *>(edges)[e];
+        return reinterpret_cast<const std::uint32_t *>(raw_edges)[e];
       } else {
-        return reinterpret_cast<const NodeID *>(edges)[e];
+        return reinterpret_cast<const NodeID *>(raw_edges)[e];
       }
     };
 
-    const auto *node_weights = reader.fetch<void>(header.node_weights_offset());
+    const auto *raw_node_weights = reader.fetch<void>(header.node_weights_offset());
     const bool upcast_node_weight = !header.has_64_bit_node_weight && sizeof(NodeWeight) == 8;
-    const auto node_weight = [&](const NodeID u) -> NodeWeight {
+    const auto fetch_node_weight = [&](const NodeID u) -> NodeWeight {
       if (upcast_node_weight) [[unlikely]] {
-        return reinterpret_cast<const std::uint32_t *>(node_weights)[u];
+        return reinterpret_cast<const std::uint32_t *>(raw_node_weights)[u];
       } else {
-        return reinterpret_cast<const NodeWeight *>(node_weights)[u];
+        return reinterpret_cast<const NodeWeight *>(raw_node_weights)[u];
       }
     };
 
-    const auto *edge_weights = reader.fetch<void>(header.edge_weights_offset());
+    const auto *raw_edge_weights = reader.fetch<void>(header.edge_weights_offset());
     const bool upcast_edge_weight = !header.has_64_bit_edge_weight && sizeof(EdgeWeight) == 8;
-    const auto edge_weight = [&](const EdgeID e) -> EdgeWeight {
+    const auto fetch_edge_weight = [&](const EdgeID e) -> EdgeWeight {
       if (upcast_edge_weight) [[unlikely]] {
-        return reinterpret_cast<const std::uint32_t *>(edge_weights)[e];
+        return reinterpret_cast<const std::uint32_t *>(raw_edge_weights)[e];
       } else {
-        return reinterpret_cast<const EdgeWeight *>(edge_weights)[e];
+        return reinterpret_cast<const EdgeWeight *>(raw_edge_weights)[e];
       }
     };
 
-    const bool sort_by_degree_bucket = ordering == NodeOrdering::EXTERNAL_DEGREE_BUCKETS;
-    if (sort_by_degree_bucket) {
-      const auto degree = [&](const NodeID u) -> NodeID {
-        return static_cast<NodeID>(
-            header.map_edge_offset(node(u + 1)) - header.map_edge_offset(node(u))
-        );
-      };
-
-      auto [perm, inv_perm] =
-          graph::compute_node_permutation_by_degree_buckets(header.num_nodes, degree);
-      CompressedGraph compressed_graph = parallel_compress(
-          header.num_nodes,
-          header.num_edges,
-          header.has_node_weights,
-          header.has_edge_weights,
-          true,
-          [&](const NodeID u) { return inv_perm[u]; },
-          degree,
-          [&](const NodeID u) { return header.map_edge_offset(node(u)); },
-          [&](const EdgeID e) { return perm[edge(e)]; },
-          [&](const NodeID u) { return node_weight(u); },
-          [&](const EdgeID e) { return edge_weight(e); }
+    const auto fetch_degree = [&](const NodeID u) -> NodeID {
+      return static_cast<NodeID>(
+          header.map_edge_offset(fetch_edge_offset(u + 1)) -
+          header.map_edge_offset(fetch_edge_offset(u))
       );
+    };
 
-      compressed_graph.set_permutation(std::move(perm));
-      return compressed_graph;
-    } else {
-      return parallel_compress(
-          header.num_nodes,
-          header.num_edges,
-          header.has_node_weights,
-          header.has_edge_weights,
-          ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS,
-          [](const NodeID u) { return u; },
-          [&](const NodeID u) {
-            return header.map_edge_offset(node(u + 1)) - header.map_edge_offset(node(u));
-          },
-          [&](const NodeID u) { return header.map_edge_offset(node(u)); },
-          [&](const EdgeID e) { return edge(e); },
-          [&](const NodeID u) { return node_weight(u); },
-          [&](const EdgeID e) { return edge_weight(e); }
-      );
+    auto [perm, inv_perm] =
+        graph::compute_node_permutation_by_degree_buckets(header.num_nodes, fetch_degree);
+
+    ParallelCompressedGraphBuilder builder(
+        header.num_nodes, header.num_edges, header.has_node_weights, header.has_edge_weights, true
+    );
+
+    if (header.has_node_weights) {
+      SCOPED_TIMER("Read node weights");
+
+      tbb::parallel_for<NodeID>(0, header.num_nodes, [&](const NodeID old_u) {
+        const NodeID new_u = perm[old_u];
+        builder.add_node_weight(new_u, fetch_node_weight(old_u));
+      });
     }
+
+    tbb::enumerable_thread_specific<std::vector<std::pair<NodeID, EdgeWeight>>> neighbourhood_ets;
+
+    TIMED_SCOPE("First pass") {
+      tbb::parallel_for<NodeID>(0, header.num_nodes, [&](const NodeID old_u) {
+        auto &neighborhood = neighbourhood_ets.local();
+
+        const NodeID new_u = perm[old_u];
+        const EdgeID old_edge_start = header.map_edge_offset(fetch_edge_offset(old_u));
+        const EdgeID old_edge_end = header.map_edge_offset(fetch_edge_offset(old_u + 1));
+
+        for (EdgeID old_edge = old_edge_start; old_edge < old_edge_end; ++old_edge) {
+          const NodeID old_v = fetch_adjacent_node(old_edge);
+          const NodeID v = perm[old_v];
+          const EdgeWeight w = header.has_edge_weights ? fetch_edge_weight(old_edge) : 1;
+          neighborhood.emplace_back(v, w);
+        }
+
+        builder.register_neighborhood(new_u, neighborhood);
+        neighborhood.clear();
+      });
+    };
+
+    TIMED_SCOPE("Compute offsets") {
+      builder.compute_offsets();
+    };
+
+    TIMED_SCOPE("Second pass") {
+      tbb::parallel_for<NodeID>(0, header.num_nodes, [&](const NodeID old_u) {
+        auto &neighborhood = neighbourhood_ets.local();
+
+        const NodeID new_u = perm[old_u];
+        const EdgeID old_edge_start = header.map_edge_offset(fetch_edge_offset(old_u));
+        const EdgeID old_edge_end = header.map_edge_offset(fetch_edge_offset(old_u + 1));
+
+        for (EdgeID old_edge = old_edge_start; old_edge < old_edge_end; ++old_edge) {
+          const NodeID old_v = fetch_adjacent_node(old_edge);
+          const NodeID v = perm[old_v];
+          const EdgeWeight w = header.has_edge_weights ? fetch_edge_weight(old_edge) : 1;
+          neighborhood.emplace_back(v, w);
+        }
+
+        builder.add_neighborhood(new_u, neighborhood);
+        neighborhood.clear();
+      });
+    };
+
+    CompressedGraph compressed_graph = builder.build();
+    compressed_graph.set_permutation(std::move(perm));
+
+    return compressed_graph;
   } catch (const BinaryReaderException &e) {
     LOG_ERROR << e.what();
     std::exit(EXIT_FAILURE);
   }
+}
+
+} // namespace
+
+CompressedGraph compressed_read(const std::string &filename, const NodeOrdering ordering) {
+  if (ordering == NodeOrdering::EXTERNAL_DEGREE_BUCKETS) {
+    return compressed_read_deg_buckets(filename);
+  }
+
+  const bool sorted = ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS;
+  return compressed_read(filename, sorted);
 }
 
 void write(const std::string &filename, const CSRGraph &graph) {
@@ -557,10 +596,8 @@ void write(const std::string &filename, const CSRGraph &graph) {
   const StaticArray<EdgeID> &nodes = graph.raw_nodes();
 
   StaticArray<EdgeID> raw_nodes(num_total_nodes, static_array::noinit);
-  tbb::parallel_for(tbb::blocked_range<NodeID>(0, num_total_nodes), [&](const auto &r) {
-    for (NodeID u = r.begin(); u != r.end(); ++u) {
-      raw_nodes[u] = nodes_offset_base + nodes[u] * sizeof(NodeID);
-    }
+  tbb::parallel_for<NodeID>(0, num_total_nodes, [&](const NodeID u) {
+    raw_nodes[u] = nodes_offset_base + nodes[u] * sizeof(NodeID);
   });
 
   writer.write_raw_static_array(raw_nodes);

@@ -234,14 +234,6 @@ CompressedGraph compress_read(const std::string &filename, const bool sorted) {
   MappedFileToker toker(filename);
   const MetisHeader header = parse_header(toker);
 
-  /*
-  const std::size_t uncompressed_graph_size =
-      (header.num_nodes + 1) * sizeof(EdgeID) + header.num_edges * 2 * sizeof(NodeID) +
-      header.has_node_weights * header.num_nodes * sizeof(NodeWeight) +
-      header.has_edge_weights * header.num_edges * 2 * sizeof(EdgeID);
-  bool dismissed = false;
-  */
-
   CompressedGraphBuilder builder(
       header.num_nodes,
       header.num_edges * 2,
@@ -259,7 +251,7 @@ CompressedGraph compress_read(const std::string &filename, const bool sorted) {
       header,
       [&](const std::uint64_t weight) {
         if (node > 0) {
-          builder.add_node(node - 1, neighbourhood);
+          builder.add_node(neighbourhood);
           neighbourhood.clear();
         }
 
@@ -275,18 +267,8 @@ CompressedGraph compress_read(const std::string &filename, const bool sorted) {
         edge += 1;
       }
   );
-  builder.add_node(node - 1, neighbourhood);
+  builder.add_node(neighbourhood);
 
-  KASSERT(
-      builder.total_node_weight() <=
-          static_cast<std::int64_t>(std::numeric_limits<NodeWeight>::max()),
-      "total node weight does not fit into the node weight type"
-  );
-  KASSERT(
-      builder.total_edge_weight() <=
-          static_cast<std::int64_t>(std::numeric_limits<EdgeWeight>::max()),
-      "total edge weight does not fit into the edge weight type"
-  );
   IF_HEAP_PROFILING(neighbourhood_stats->size = neighbourhood.capacity() * sizeof(NodeID));
 
   return builder.build();

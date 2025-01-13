@@ -22,25 +22,17 @@ namespace kaminpar::shm::io::parhip {
  * @param sorted Whether the nodes of the graph to read are stored in degree-buckets order.
  * @return The graph that is stored in the file.
  */
-CSRGraph csr_read(const std::string &filename, const NodeOrdering ordering);
+CSRGraph csr_read(const std::string &filename, const NodeOrdering ordering = NodeOrdering::NATURAL);
 
 /*!
- * Reads and compresses a graph that is stored in a file in ParHiP format.
+ * Reads and compresses a graph that is stored in a file with ParHiP format.
  *
  * @param filename The name of the file to read.
  * @param sorted Whether the nodes of the graph to read are stored in degree-buckets order.
  * @return The graph that is stored in the file.
  */
-CompressedGraph compressed_read(const std::string &filename, const bool sorted);
-
-/*!
- * Reads and compresses a graph that is stored in a file in ParHiP format in parallel.
- *
- * @param filename The name of the file to read.
- * @param sorted Whether the nodes of the graph to read are stored in degree-buckets order.
- * @return The graph that is stored in the file.
- */
-CompressedGraph compressed_read_parallel(const std::string &filename, const NodeOrdering ordering);
+CompressedGraph
+compressed_read(const std::string &filename, const NodeOrdering ordering = NodeOrdering::NATURAL);
 
 /*!
  * Writes a graph to a file in ParHIP format.

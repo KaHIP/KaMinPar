@@ -16,6 +16,8 @@
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
+#include "kaminpar-common/datastructures/static_array.h"
+
 namespace kaminpar::shm::io {
 
 /*!
