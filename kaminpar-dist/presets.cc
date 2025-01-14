@@ -49,7 +49,7 @@ Context create_default_context() {
       .partition =
           {
               kInvalidBlockID, // k
-              128,             // initial_k
+              16,              // initial_k
               0,               // max_extension_k
               0.03,            // epsilon
           },
