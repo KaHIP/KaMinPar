@@ -340,8 +340,7 @@ void print(const Context &ctx, const bool root, std::ostream &out, MPI_Comm comm
       out << "  Initial K:                  "
           << (ctx.partition.initial_k > 0 ? ctx.partition.initial_k : 2) << "\n";
       out << "  Extension K:                "
-          << (ctx.partition.max_extension_k > 0 ? std::to_string(ctx.partition.max_extension_k)
-                                                : "inf")
+          << (ctx.partition.extension_k > 0 ? std::to_string(ctx.partition.extension_k) : "inf")
           << "\n";
       out << "  Simulate seq. hybrid exe.:  " << (ctx.simulate_singlethread ? "yes" : "no") << "\n";
     }

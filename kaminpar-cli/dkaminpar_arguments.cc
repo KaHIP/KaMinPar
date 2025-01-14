@@ -72,7 +72,7 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
   partitioning
       ->add_option(
           "--extension-k",
-          ctx.partition.max_extension_k,
+          ctx.partition.extension_k,
           "Maximum block count into which a single block is split before running k-way refinement "
           "and rebalancing."
       )

@@ -208,10 +208,8 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     }
     while (dist_p_graph.k() < desired_k) {
       const BlockID next_k =
-          _input_ctx.partition.max_extension_k > 0
-              ? std::min<BlockID>(
-                    desired_k, dist_p_graph.k() * _input_ctx.partition.max_extension_k
-                )
+          _input_ctx.partition.extension_k > 0
+              ? std::min<BlockID>(desired_k, dist_p_graph.k() * _input_ctx.partition.extension_k)
               : desired_k;
       const BlockID k_per_block = next_k / dist_p_graph.k();
 
