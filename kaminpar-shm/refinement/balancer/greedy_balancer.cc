@@ -202,7 +202,8 @@ private:
                 _moved_nodes[v] = 1;
               }
             });
-          } else {
+          } else if (to != from) {
+            // Only re-insert nodes that we tried to move to adjacent blocks
             add_to_pq(from, u, u_weight, actual_relative_gain);
           }
         } else { // gain changed after insertion --> try again with new gain
