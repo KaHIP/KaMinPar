@@ -711,7 +711,7 @@ DistributedPartitionedGraph copy_subgraph_partitions(
 
     const NodeID mapped_u = mapping[u]; // ID of u in its block-induced subgraph
 
-    KASSERT(owner < partition_recvbufs.size());
+    KASSERT(static_cast<std::size_t>(owner) < partition_recvbufs.size());
     KASSERT(mapped_u + block_offset < partition_recvbufs[owner].size());
     const BlockID new_b = block * k_multiplier + partition_recvbufs[owner][mapped_u + block_offset];
 
