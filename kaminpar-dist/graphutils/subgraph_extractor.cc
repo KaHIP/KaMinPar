@@ -25,14 +25,13 @@
 
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/parallel/algorithm.h"
-#include "kaminpar-common/parallel/atomic.h"
 #include "kaminpar-common/parallel/vector_ets.h"
 
 namespace kaminpar::dist::graph {
 
 namespace {
 
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 auto count_block_induced_subgraph_sizes(const DistributedPartitionedGraph &p_graph) {
   parallel::vector_ets<NodeID> num_nodes_per_block_ets(p_graph.k());
