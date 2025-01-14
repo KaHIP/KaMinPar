@@ -20,20 +20,25 @@ namespace kaminpar::dist {
 
 using namespace std::string_literals;
 
-PartitionContext::PartitionContext(const BlockID k, const BlockID K, const double epsilon)
+PartitionContext::PartitionContext(
+    const BlockID k, const BlockID initial_k, const BlockID max_extension_k, const double epsilon
+)
     : k(k),
-      K(K),
+      initial_k(initial_k),
+      max_extension_k(max_extension_k),
       epsilon(epsilon) {}
 
 PartitionContext::PartitionContext(const PartitionContext &other)
     : k(other.k),
-      K(other.K),
+      initial_k(other.initial_k),
+      max_extension_k(other.max_extension_k),
       epsilon(other.epsilon),
       graph(other.graph == nullptr ? nullptr : std::make_unique<GraphContext>(*other.graph)) {}
 
 PartitionContext &PartitionContext::operator=(const PartitionContext &other) {
   k = other.k;
-  K = other.K;
+  initial_k = other.initial_k;
+  max_extension_k = other.max_extension_k;
   epsilon = other.epsilon;
   graph = other.graph == nullptr ? nullptr : std::make_unique<GraphContext>(*other.graph);
   return *this;

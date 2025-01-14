@@ -57,7 +57,8 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
    * Coarsening
    */
   const BlockID first_step_k = std::min<BlockID>(
-      _input_ctx.partition.k, _input_ctx.partition.K > 0 ? _input_ctx.partition.K : 2
+      _input_ctx.partition.k,
+      _input_ctx.partition.initial_k > 0 ? _input_ctx.partition.initial_k : 2
   );
   const GlobalNodeID desired_num_nodes =
       (_input_ctx.simulate_singlethread ? 1 : _input_ctx.parallel.num_threads) *
@@ -207,8 +208,10 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     }
     while (dist_p_graph.k() < desired_k) {
       const BlockID next_k =
-          _input_ctx.partition.K > 0
-              ? std::min<BlockID>(desired_k, dist_p_graph.k() * _input_ctx.partition.K)
+          _input_ctx.partition.max_extension_k > 0
+              ? std::min<BlockID>(
+                    desired_k, dist_p_graph.k() * _input_ctx.partition.max_extension_k
+                )
               : desired_k;
       const BlockID k_per_block = next_k / dist_p_graph.k();
 

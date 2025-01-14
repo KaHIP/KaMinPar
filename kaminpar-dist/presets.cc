@@ -49,7 +49,8 @@ Context create_default_context() {
       .partition =
           {
               kInvalidBlockID, // k
-              0,               // K
+              128,             // initial_k
+              0,               // max_extension_k
               0.03,            // epsilon
           },
       .parallel =
@@ -269,14 +270,14 @@ Context create_jet_context() {
 
 Context create_europar23_fast_context() {
   Context ctx = create_default_context();
-  ctx.partition.K = 128;
+  ctx.partition.initial_k = 128;
+  ctx.partition.max_extension_k = 128;
   ctx.coarsening.global_lp.enforce_legacy_weight = true;
   return ctx;
 }
 
 Context create_europar23_strong_context() {
   Context ctx = create_europar23_fast_context();
-  ctx.partition.K = 128;
   ctx.initial_partitioning.algorithm = InitialPartitioningAlgorithm::MTKAHYPAR;
   ctx.coarsening.global_lp.num_iterations = 5;
   return ctx;

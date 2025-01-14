@@ -369,7 +369,7 @@ struct GraphCompressionContext {
 };
 
 struct PartitionContext {
-  PartitionContext(BlockID k, BlockID K, double epsilon);
+  PartitionContext(BlockID k, BlockID initial_k, BlockID max_extension_k, double epsilon);
 
   PartitionContext(const PartitionContext &other);
   PartitionContext &operator=(const PartitionContext &other);
@@ -381,7 +381,8 @@ struct PartitionContext {
   }
 
   BlockID k = kInvalidBlockID;
-  BlockID K = kInvalidBlockID;
+  BlockID initial_k = kInvalidBlockID;
+  BlockID max_extension_k = kInvalidBlockID;
   double epsilon;
 
   std::unique_ptr<struct GraphContext> graph;
