@@ -56,7 +56,10 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   /*
    * Coarsening
    */
-  const BlockID first_step_k = std::min<BlockID>(_input_ctx.partition.k, _input_ctx.partition.K);
+  const BlockID first_step_k = std::min<BlockID>(
+      _input_ctx.partition.k,
+      _input_ctx.partition.initial_k > 0 ? _input_ctx.partition.initial_k : 2
+  );
   const GlobalNodeID desired_num_nodes =
       (_input_ctx.simulate_singlethread ? 1 : _input_ctx.parallel.num_threads) *
       _input_ctx.coarsening.contraction_limit * first_step_k;
@@ -205,8 +208,11 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     }
     while (dist_p_graph.k() < desired_k) {
       const BlockID next_k =
-          std::min<BlockID>(desired_k, dist_p_graph.k() * _input_ctx.partition.K);
-      KASSERT(next_k % dist_p_graph.k() == 0u);
+          _input_ctx.partition.max_extension_k > 0
+              ? std::min<BlockID>(
+                    desired_k, dist_p_graph.k() * _input_ctx.partition.max_extension_k
+                )
+              : desired_k;
       const BlockID k_per_block = next_k / dist_p_graph.k();
 
       LOG << "  Extending partition from " << dist_p_graph.k() << " blocks to " << next_k

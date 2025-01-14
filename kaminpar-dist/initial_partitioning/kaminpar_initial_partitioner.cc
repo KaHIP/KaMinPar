@@ -26,7 +26,7 @@ shm::PartitionedGraph KaMinParInitialPartitioner::initial_partition(
 
   auto shm_ctx = _ctx.initial_partitioning.kaminpar;
   shm_ctx.refinement.lp.num_iterations = 1;
-  shm_ctx.partition.setup(graph, p_ctx.k, p_ctx.epsilon);
+  shm_ctx.partition.setup(graph, p_ctx.k, p_ctx.epsilon, true);
   shm_ctx.compression.setup(graph);
 
   DISABLE_TIMERS();

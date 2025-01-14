@@ -64,9 +64,17 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
   partitioning
       ->add_option(
-          "-K,--block-multiplier",
-          ctx.partition.K,
+          "--initial-k",
+          ctx.partition.initial_k,
           "Maximum block count with which the initial partitioner is called."
+      )
+      ->capture_default_str();
+  partitioning
+      ->add_option(
+          "--extension-K",
+          ctx.partition.max_extension_k,
+          "Maximum block count into which a single block is split before running k-way refinement "
+          "and rebalancing."
       )
       ->capture_default_str();
   partitioning->add_option("-m,--mode", ctx.mode)
