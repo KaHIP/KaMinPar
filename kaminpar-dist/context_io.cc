@@ -337,7 +337,9 @@ void print(const Context &ctx, const bool root, std::ostream &out, MPI_Comm comm
     out << "Partitioning mode:            " << ctx.mode << "\n";
     if (ctx.mode == PartitioningMode::DEEP) {
       out << "  Enable PE-splitting:        " << (ctx.enable_pe_splitting ? "yes" : "no") << "\n";
-      out << "  Partition extension factor: " << ctx.partition.K << "\n";
+      if (ctx.partition.K > 0) {
+        out << "  Partition extension factor: " << ctx.partition.K << "\n";
+      }
       out << "  Simulate seq. hybrid exe.:  " << (ctx.simulate_singlethread ? "yes" : "no") << "\n";
     }
     cio::print_delimiter("Graph Compression", '-');
