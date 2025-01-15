@@ -195,15 +195,20 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     );
   };
 
-  auto extend_partition = [&](DistributedPartitionedGraph &p_graph, PartitionContext &ref_p_ctx) {
+  auto extend_partition = [&](DistributedPartitionedGraph &p_graph,
+                              PartitionContext &ref_p_ctx,
+                              const bool almost_toplevel = false) {
     SCOPED_HEAP_PROFILER("Extending partition");
 
     BlockID desired_k = std::min<BlockID>(
         _input_ctx.partition.k,
         math::ceil2(dist_p_graph.global_n() / _input_ctx.coarsening.contraction_limit)
     );
-    if (_input_graph.global_n() == p_graph.global_n()) {
-      // If we work on the input graph, extend to final number of blocks
+    if (_input_graph.global_n() == p_graph.global_n() ||
+        (almost_toplevel &&
+         _input_graph.global_n() >
+             10 * _input_ctx.partition.k * _input_ctx.coarsening.contraction_limit)) {
+      // If we (almost) work on the input graph, extend to final number of blocks
       desired_k = _input_ctx.partition.k;
     }
     while (dist_p_graph.k() < desired_k) {
@@ -313,6 +318,8 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
       dist_p_graph = coarsener->uncoarsen(std::move(dist_p_graph));
     }
 
+    const bool almost_toplevel = coarsener->level() == 1;
+
     // Destroy coarsener before we run refinement on the finest level
     if (_coarseners.size() == 1 && coarsener->level() == 0) {
       LOG << "    Freeing toplevel coarsener";
@@ -320,7 +327,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     }
 
     // Extend partition
-    extend_partition(dist_p_graph, ref_p_ctx);
+    extend_partition(dist_p_graph, ref_p_ctx, almost_toplevel);
 
     // Run refinement
     LOG << "  Running refinement on " << dist_p_graph.k() << " blocks";
