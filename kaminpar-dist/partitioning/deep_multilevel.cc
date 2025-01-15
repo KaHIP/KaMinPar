@@ -197,7 +197,8 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
 
   auto extend_partition = [&](DistributedPartitionedGraph &p_graph,
                               PartitionContext &ref_p_ctx,
-                              const bool almost_toplevel = false) {
+                              const bool almost_toplevel = false,
+                              const std::string &prefix = "  ") {
     SCOPED_HEAP_PROFILER("Extending partition");
 
     BlockID desired_k = std::min<BlockID>(
@@ -218,7 +219,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
               : desired_k;
       const BlockID k_per_block = next_k / dist_p_graph.k();
 
-      LOG << "  Extending partition from " << dist_p_graph.k() << " blocks to " << next_k
+      LOG << prefix << "Extending partition from " << dist_p_graph.k() << " blocks to " << next_k
           << " blocks";
 
       // Extract blocks
@@ -263,13 +264,13 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
 
       const bool feasible = metrics::is_feasible(dist_p_graph, ip_p_ctx);
 
-      LOG << "    Cut:       " << cut;
-      LOG << "    Imbalance: " << std::setprecision(3) << imbalance;
-      LOG << "    Feasible:  " << (feasible ? "yes" : "no");
+      LOG << prefix << "  Cut:       " << cut;
+      LOG << prefix << "  Imbalance: " << std::setprecision(3) << imbalance;
+      LOG << prefix << "  Feasible:  " << (feasible ? "yes" : "no");
       STOP_TIMER();
 
       if (dist_p_graph.k() < desired_k) {
-        LOG << "  Running refinement on " << dist_p_graph.k() << " blocks";
+        LOG << prefix << "Running refinement on " << dist_p_graph.k() << " blocks";
         ref_p_ctx.k = dist_p_graph.k();
         ref_p_ctx.epsilon = _input_ctx.partition.epsilon;
         ref_p_ctx.graph = std::make_unique<GraphContext>(dist_p_graph.graph(), ref_p_ctx);
@@ -280,9 +281,9 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
         const auto cut = metrics::edge_cut(dist_p_graph);
         const auto imbalance = metrics::imbalance(dist_p_graph);
         const bool feasible = metrics::is_feasible(dist_p_graph, ref_p_ctx);
-        LOG << "    Cut:       " << cut;
-        LOG << "    Imbalance: " << imbalance;
-        LOG << "    Feasible:  " << (feasible ? "yes" : "no");
+        LOG << prefix << "  Cut:       " << cut;
+        LOG << prefix << "  Imbalance: " << imbalance;
+        LOG << prefix << "  Feasible:  " << (feasible ? "yes" : "no");
         STOP_TIMER();
       }
     }
@@ -292,7 +293,8 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   ref_p_ctx.graph = std::make_unique<GraphContext>(dist_p_graph.graph(), ref_p_ctx);
 
   if (!_coarseners.empty() && coarsener->level() == 1) {
-    extend_partition(dist_p_graph, ref_p_ctx, true);
+    LOG;
+    extend_partition(dist_p_graph, ref_p_ctx, true, "");
   }
 
   // Uncoarsen, partition blocks and refine
