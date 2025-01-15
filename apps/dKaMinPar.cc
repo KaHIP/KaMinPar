@@ -9,6 +9,7 @@
 #include "kaminpar-cli/dkaminpar_arguments.h"
 #include "kaminpar-dist/context_io.h"
 #include "kaminpar-dist/dkaminpar.h"
+#include "kaminpar-dist/timer.h"
 // clang-format on
 
 #include <kagen.h>
@@ -265,6 +266,7 @@ template <typename Lambda> [[noreturn]] void root_run_and_exit(Lambda &&l) {
 NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
   using namespace kagen;
 
+  START_TIMER("Load KaGen graph");
   KaGen generator(MPI_COMM_WORLD);
   generator.UseCSRRepresentation();
   if (app.check_input_graph) {
@@ -299,6 +301,7 @@ NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
   static_assert(sizeof(SInt) == sizeof(GlobalEdgeID));
   static_assert(sizeof(SSInt) == sizeof(GlobalNodeWeight));
   static_assert(sizeof(SSInt) == sizeof(GlobalEdgeWeight));
+  STOP_TIMER();
 
   // Pass the graph to the partitioner --
   partitioner.import_graph(
@@ -335,6 +338,7 @@ NodeID load_skagen_graph(const ApplicationContext &app, bool compression, dKaMin
 }
 
 NodeID load_csr_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
+  START_TIMER("Load uncompressed graph");
   const auto read_graph = [&] {
     switch (app.io_format) {
     case kagen::FileFormat::METIS:
@@ -350,12 +354,14 @@ NodeID load_csr_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
 
   DistributedGraph graph(std::make_unique<DistributedCSRGraph>(read_graph()));
   const NodeID n = graph.n();
+  STOP_TIMER();
 
   partitioner.import_graph(std::move(graph));
   return n;
 }
 
 NodeID load_compressed_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
+  START_TIMER("Load compressed graph");
   const auto read_graph = [&] {
     switch (app.io_format) {
     case kagen::FileFormat::METIS:
@@ -375,6 +381,7 @@ NodeID load_compressed_graph(const ApplicationContext &app, dKaMinPar &partition
 
   DistributedGraph graph(std::make_unique<DistributedCompressedGraph>(read_graph()));
   const NodeID n = graph.n();
+  STOP_TIMER();
 
   partitioner.import_graph(std::move(graph));
   return n;
@@ -517,6 +524,8 @@ int main(int argc, char *argv[]) {
   START_HEAP_PROFILER("Input Graph Allocation");
   // Load the graph via KaGen or via our graph compressor.
   const NodeID n = [&] {
+    SCOPED_TIMER("IO");
+
     if (app.io_kind == IOKind::KAMINPAR) {
       if (ctx.compression.enabled) {
         return load_compressed_graph(app, partitioner);
