@@ -97,7 +97,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     }
 
     // Coarsen graph
-    const GlobalNodeWeight max_cluster_weight = 0; // coarsener->max_cluster_weight();
+    const GlobalNodeWeight max_cluster_weight = coarsener->max_cluster_weight();
     converged = !coarsener->coarsen();
     const DistributedGraph *c_graph = &coarsener->current();
 

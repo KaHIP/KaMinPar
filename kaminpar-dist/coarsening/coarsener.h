@@ -31,6 +31,8 @@ public:
    */
   virtual void initialize(const DistributedGraph *graph) = 0;
 
+  virtual GlobalNodeWeight max_cluster_weight() const = 0;
+
   /**
    * Computes the next level of the graph hierarchy.
    *

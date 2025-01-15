@@ -25,6 +25,8 @@ public:
 
   void initialize(const DistributedGraph *graph) final;
 
+  GlobalNodeWeight max_cluster_weight() const final;
+
   bool coarsen() final;
 
   [[nodiscard]] virtual std::size_t level() const final;
@@ -35,7 +37,6 @@ public:
 
 private:
   bool has_converged(const DistributedGraph &before, const DistributedGraph &after) const;
-  GlobalNodeWeight max_cluster_weight() const;
 
   const Context &_input_ctx;
 
