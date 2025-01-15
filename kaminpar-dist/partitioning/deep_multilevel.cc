@@ -84,6 +84,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
       LOG << "Current graph (" << graph->global_n()
           << " nodes) is too small for the available parallelism (" << current_num_pes
           << "): duplicating the graph " << num_replications << " times";
+      LOG;
 
       _replicated_graphs.push_back(replicate_graph(*graph, num_replications));
       _coarseners.emplace(factory::create_coarsener(_input_ctx));
@@ -291,7 +292,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     SCOPED_HEAP_PROFILER("Level", std::to_string(coarsener->level()));
 
     LOG;
-    LOG << "Uncoarsening -> Level " << _coarseners.size() << "," << coarsener->level() << ":";
+    LOG << "Uncoarsening -> Level " << coarsener->level() << ":";
 
     // Join split PE groups and use best partition
     if (coarsener->level() == 0) {
