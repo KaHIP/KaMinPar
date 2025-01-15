@@ -85,9 +85,7 @@ Context create_default_context() {
                       .keep_ghost_clusters = false,
                       .sync_cluster_weights = true,
                       .enforce_cluster_weights = true,
-                      .cheap_toplevel = false,
                       .prevent_cyclic_moves = false,
-                      .enforce_legacy_weight = false,
                       .active_set_strategy = ActiveSetStrategy::NONE,
                   },
               .hem =
@@ -118,9 +116,7 @@ Context create_default_context() {
                       .keep_ghost_clusters = false,
                       .sync_cluster_weights = false,
                       .enforce_cluster_weights = false,
-                      .cheap_toplevel = false,
                       .prevent_cyclic_moves = false,
-                      .enforce_legacy_weight = false,
                       .active_set_strategy = ActiveSetStrategy::NONE,
                   },
               .contraction_limit = 2000,
@@ -272,7 +268,6 @@ Context create_europar23_fast_context() {
   Context ctx = create_default_context();
   ctx.partition.initial_k = 128;
   ctx.partition.extension_k = 128;
-  ctx.coarsening.global_lp.enforce_legacy_weight = true;
   return ctx;
 }
 
