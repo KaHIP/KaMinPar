@@ -298,7 +298,11 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     SCOPED_HEAP_PROFILER("Level", std::to_string(coarsener->level()));
 
     LOG;
-    LOG << "Uncoarsening -> Level " << coarsener->level() - 1 << ":";
+    if (coarsener->level() > 0) {
+      LOG << "Uncoarsening -> Level " << coarsener->level() - 1 << ":";
+    } else {
+      LOG << "Toplevel:";
+    }
 
     // Join split PE groups and use best partition
     if (coarsener->level() == 0) {
@@ -316,7 +320,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
 
     if (_input_ctx.avoid_toplevel_bipartitioning && _coarseners.size() == 1 &&
         coarsener->level() == 1) {
-      extend_partition(dist_p_graph, ref_p_ctx, true, "");
+      extend_partition(dist_p_graph, ref_p_ctx, true);
     }
 
     // Uncoarsen graph
