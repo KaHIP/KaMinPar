@@ -206,9 +206,9 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
         math::ceil2(dist_p_graph.global_n() / _input_ctx.coarsening.contraction_limit)
     );
     if (_input_graph.global_n() == p_graph.global_n() ||
-        (almost_toplevel && _input_graph.global_n() >
-                                2 * _input_ctx.partition.k * _input_ctx.coarsening.contraction_limit
-        )) {
+        (_input_ctx.avoid_toplevel_bipartitioning && almost_toplevel &&
+         _input_graph.global_n() >
+             2 * _input_ctx.partition.k * _input_ctx.coarsening.contraction_limit)) {
       // If we (almost) work on the input graph, extend to final number of blocks
       desired_k = _input_ctx.partition.k;
     }
@@ -292,7 +292,8 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   auto ref_p_ctx = _input_ctx.partition;
   ref_p_ctx.graph = std::make_unique<GraphContext>(dist_p_graph.graph(), ref_p_ctx);
 
-  if (_coarseners.size() == 1 && coarsener->level() == 1) {
+  if (_input_ctx.avoid_toplevel_bipartitioning && _coarseners.size() == 1 &&
+      coarsener->level() == 1) {
     LOG;
     extend_partition(dist_p_graph, ref_p_ctx, true, "");
   }

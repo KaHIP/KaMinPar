@@ -86,16 +86,23 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
   partitioning
       ->add_flag(
-          "--enable-pe-splitting",
-          ctx.enable_pe_splitting,
-          "Enable PE splitting and graph replication in deep MGP"
+          "--p-avoid-toplevel-bipartitioning",
+          ctx.avoid_toplevel_bipartitioning,
+          "Avoid running bipartitioning on the toplevel."
       )
       ->capture_default_str();
   partitioning
       ->add_flag(
-          "--simulate-singlethreaded",
+          "--p-deep-enable-pe-splitting",
+          ctx.enable_pe_splitting,
+          "Enable graph duplication during coarsening."
+      )
+      ->capture_default_str();
+  partitioning
+      ->add_flag(
+          "--p-deep-simulate-singlethreaded",
           ctx.simulate_singlethread,
-          "Simulate single-threaded execution during a hybrid run"
+          "Simulate single-threaded execution even when using multiple threads per MPI process."
       )
       ->capture_default_str();
   partitioning->add_option("--rearrange-by", ctx.rearrange_by)
