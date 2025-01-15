@@ -41,15 +41,15 @@ void print_graph_summary(const DistributedGraph &graph) {
   const auto [max_node_weight_min, max_node_weight_avg, max_node_weight_max, max_node_weight_sum] =
       mpi::gather_statistics(graph.max_node_weight(), graph.communicator());
 
-  LOG << "  Number of nodes: " << graph.global_n() << " | Number of edges: " << graph.global_m();
-  LOG << "  Number of local nodes: [Min=" << n_min << " | Mean=" << static_cast<NodeID>(n_avg)
+  LOG << " Number of nodes: " << graph.global_n() << " | Number of edges: " << graph.global_m();
+  LOG << " Number of local nodes: [Min=" << n_min << " | Mean=" << static_cast<NodeID>(n_avg)
       << " | Max=" << n_max << " | Imbalance=" << n_imbalance << "]";
-  LOG << "  Number of ghost nodes: [Min=" << ghost_n_min
+  LOG << " Number of ghost nodes: [Min=" << ghost_n_min
       << " | Mean=" << static_cast<NodeID>(ghost_n_avg) << " | Max=" << ghost_n_max
       << " | Imbalance=" << ghost_n_imbalance << "]";
-  LOG << "  Number of edges:       [Min=" << m_min << " | Mean=" << static_cast<EdgeID>(m_avg)
+  LOG << " Number of edges:       [Min=" << m_min << " | Mean=" << static_cast<EdgeID>(m_avg)
       << " | Max=" << m_max << " | Imbalance=" << m_imbalance << "]";
-  LOG << "  Maximum node weight:   [Min=" << max_node_weight_min
+  LOG << " Maximum node weight:   [Min=" << max_node_weight_min
       << " | Mean=" << static_cast<NodeWeight>(max_node_weight_avg)
       << " | Max=" << max_node_weight_max << "]";
 }
@@ -78,7 +78,7 @@ void print_extended_graph_summary(const DistributedGraph &graph) {
   );
 
   const double locality = 1.0 - 1.0 * num_ghost_neighbors / graph.global_m();
-  LOG << "  Graph locality:        " << locality;
+  LOG << " Graph locality:        " << locality;
 }
 
 namespace debug {

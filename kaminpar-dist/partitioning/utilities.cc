@@ -52,12 +52,12 @@ void print_coarsened_graph(
 }
 
 void print_coarsening_converged() {
-  LOG << "==> Coarsening converged.";
+  LOG << "==> Coarsening converged";
   LOG;
 }
 
 void print_coarsening_terminated(const GlobalNodeID desired_num_nodes) {
-  LOG << "==> Coarsening terminated with less than " << desired_num_nodes << " nodes.";
+  LOG << "==> Coarsening terminated with less than " << desired_num_nodes << " nodes";
   LOG;
 }
 
@@ -72,10 +72,10 @@ void print_initial_partitioning_result(
   const bool feasible = metrics::is_feasible(p_graph, p_ctx);
 
   LOG << "Initial partition:";
-  LOG << "  Number of blocks: " << p_graph.k();
-  LOG << "  Cut:              " << cut;
-  LOG << "  Imbalance:        " << imbalance;
-  LOG << "  Feasible:         " << (feasible ? "yes" : "no");
+  LOG << " Number of blocks: " << p_graph.k();
+  LOG << " Cut:              " << cut;
+  LOG << " Imbalance:        " << imbalance;
+  LOG << " Feasible:         " << (feasible ? "yes" : "no");
 }
 
 } // namespace kaminpar::dist

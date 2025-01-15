@@ -78,6 +78,11 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
   bool shrunk = true;
   bool search_subgraph_memory_size = true;
 
+  LOG << "Input graph:";
+  LOG << " Number of nodes: " << c_graph->n() << " | Number of edges: " << c_graph->m();
+  LOG << " Maximum node weight: " << c_graph->max_node_weight();
+  LOG;
+
   while (shrunk && c_graph->n() > initial_partitioning_threshold()) {
     // If requested, dump graph before each coarsening step + after coarsening
     // converged. This way, we also have a dump of the (reordered) input graph,
@@ -126,15 +131,13 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
     DBG << "Using inferred epsilon: "
         << _current_p_ctx.infer_epsilon(prev_c_graph_total_node_weight);
 
-    LOG << "Coarsening -> Level " << _coarsener->level();
+    const NodeWeight max_cluster_weight = compute_max_cluster_weight<NodeWeight>(
+        _input_ctx.coarsening, _input_ctx.partition, prev_c_graph_n, prev_c_graph_total_node_weight
+    );
+    LOG << "Coarsening -> Level " << _coarsener->level()
+        << " [max cluster weight: " << max_cluster_weight << "]:";
     LOG << " Number of nodes: " << c_graph->n() << " | Number of edges: " << c_graph->m();
-    LOG << " Maximum node weight: " << c_graph->max_node_weight() << " <= "
-        << compute_max_cluster_weight<NodeWeight>(
-               _input_ctx.coarsening,
-               _input_ctx.partition,
-               prev_c_graph_n,
-               prev_c_graph_total_node_weight
-           );
+    LOG << " Maximum node weight: " << c_graph->max_node_weight();
     LOG;
   }
 
