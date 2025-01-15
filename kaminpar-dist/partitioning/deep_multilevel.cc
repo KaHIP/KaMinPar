@@ -292,7 +292,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   auto ref_p_ctx = _input_ctx.partition;
   ref_p_ctx.graph = std::make_unique<GraphContext>(dist_p_graph.graph(), ref_p_ctx);
 
-  if (!_coarseners.empty() && coarsener->level() == 1) {
+  if (_coarseners.size() == 1 && coarsener->level() == 1) {
     LOG;
     extend_partition(dist_p_graph, ref_p_ctx, true, "");
   }
@@ -324,7 +324,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
       dist_p_graph = coarsener->uncoarsen(std::move(dist_p_graph));
     }
 
-    const bool almost_toplevel = coarsener->level() == 1;
+    const bool almost_toplevel = _coarseners.size() == 1 && coarsener->level() == 1;
 
     // Destroy coarsener before we run refinement on the finest level
     if (_coarseners.size() == 1 && coarsener->level() == 0) {
