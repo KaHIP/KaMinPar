@@ -327,7 +327,11 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     // Uncoarsen graph
     // If we replicated early, we might already be on the finest level
     if (coarsener->level() > 0) {
+      const GlobalNodeID prev_n = dist_p_graph.global_n();
+      const GlobalEdgeID prev_m = dist_p_graph.global_m();
       dist_p_graph = coarsener->uncoarsen(std::move(dist_p_graph));
+      LOG << " Uncoarsening graph: " << prev_n << " nodes, " << prev_m << " edges -> "
+          << dist_p_graph.global_n() << " nodes, " << dist_p_graph.global_m() << " edges";
     }
 
     // Destroy coarsener before we run refinement on the finest level
