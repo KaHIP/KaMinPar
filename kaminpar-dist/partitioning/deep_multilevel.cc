@@ -67,6 +67,8 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   const PEID initial_size = mpi::get_comm_size(_input_graph.communicator());
   PEID current_num_pes = initial_size;
 
+  int level = 0;
+
   START_HEAP_PROFILER("Coarsening");
   while (!converged && graph->global_n() > desired_num_nodes) {
     SCOPED_HEAP_PROFILER("Level", std::to_string(coarsener->level()));
@@ -102,9 +104,8 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     const DistributedGraph *c_graph = &coarsener->current();
 
     if (!converged) {
-      print_coarsened_graph(
-          coarsener->current(), coarsener->level(), max_cluster_weight, _print_graph_stats
-      );
+      ++level;
+      print_coarsened_graph(coarsener->current(), level, max_cluster_weight, _print_graph_stats);
       if (c_graph->global_n() <= desired_num_nodes) {
         print_coarsening_terminated(desired_num_nodes);
       }
@@ -293,18 +294,17 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   auto ref_p_ctx = _input_ctx.partition;
   ref_p_ctx.graph = std::make_unique<GraphContext>(dist_p_graph.graph(), ref_p_ctx);
 
-  if (_input_ctx.avoid_toplevel_bipartitioning && _coarseners.size() == 1 &&
-      coarsener->level() == 1) {
-    LOG;
-    extend_partition(dist_p_graph, ref_p_ctx, true, "");
-  }
-
   // Uncoarsen, partition blocks and refine
   while (_coarseners.size() > 1 || (!_coarseners.empty() && coarsener->level() > 0)) {
     SCOPED_HEAP_PROFILER("Level", std::to_string(coarsener->level()));
+    --level;
 
     LOG;
-    LOG << "Uncoarsening -> Level " << coarsener->level() - 1 << ":";
+    if (level > 0) {
+      LOG << "Uncoarsening -> Level " << level << ":";
+    } else {
+      LOG << "Toplevel:";
+    }
 
     // Join split PE groups and use best partition
     if (coarsener->level() == 0) {
@@ -320,13 +320,19 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
       _replicated_graphs.pop_back();
     }
 
+    if (_input_ctx.avoid_toplevel_bipartitioning && level == 0) {
+      extend_partition(dist_p_graph, ref_p_ctx, true);
+    }
+
     // Uncoarsen graph
     // If we replicated early, we might already be on the finest level
     if (coarsener->level() > 0) {
+      const GlobalNodeID prev_n = dist_p_graph.global_n();
+      const GlobalEdgeID prev_m = dist_p_graph.global_m();
       dist_p_graph = coarsener->uncoarsen(std::move(dist_p_graph));
+      LOG << " Uncoarsening graph: " << prev_n << " nodes, " << prev_m << " edges -> "
+          << dist_p_graph.global_n() << " nodes, " << dist_p_graph.global_m() << " edges";
     }
-
-    const bool almost_toplevel = _coarseners.size() == 1 && coarsener->level() == 1;
 
     // Destroy coarsener before we run refinement on the finest level
     if (_coarseners.size() == 1 && coarsener->level() == 0) {
@@ -334,7 +340,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     }
 
     // Extend partition
-    extend_partition(dist_p_graph, ref_p_ctx, almost_toplevel);
+    extend_partition(dist_p_graph, ref_p_ctx);
 
     // Run refinement
     LOG << " Running refinement on " << dist_p_graph.k() << " blocks";
