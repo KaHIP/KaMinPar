@@ -522,8 +522,7 @@ void print(const CoarseningContext &ctx, const ParallelContext &parallel, std::o
       out << "  Active set:                 " << ctx.global_lp.active_set_strategy << "\n";
       out << "  Cluster weights:            "
           << (ctx.global_lp.sync_cluster_weights ? "sync" : "no-sync") << "+"
-          << (ctx.global_lp.enforce_cluster_weights ? "enforce" : "no-enforce") << " "
-          << (ctx.global_lp.cheap_toplevel ? "(on level > 1)" : "(always)") << "\n";
+          << (ctx.global_lp.enforce_cluster_weights ? "enforce" : "no-enforce") << "\n";
     }
 
     if (ctx.global_clustering_algorithm == ClusteringAlgorithm::GLOBAL_HEM ||

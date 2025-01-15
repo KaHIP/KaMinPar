@@ -174,10 +174,8 @@ struct LabelPropagationCoarseningContext {
 
   bool sync_cluster_weights;
   bool enforce_cluster_weights;
-  bool cheap_toplevel;
 
   bool prevent_cyclic_moves;
-  bool enforce_legacy_weight;
 
   ActiveSetStrategy active_set_strategy;
 

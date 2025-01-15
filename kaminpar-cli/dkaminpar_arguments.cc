@@ -528,9 +528,7 @@ CLI::Option_group *create_global_lp_coarsening_options(CLI::App *app, Context &c
       ->capture_default_str();
   lp->add_flag("--c-glp-sync-cluster-weights", ctx.coarsening.global_lp.sync_cluster_weights);
   lp->add_flag("--c-glp-enforce-cluster-weights", ctx.coarsening.global_lp.enforce_cluster_weights);
-  lp->add_flag("--c-glp-cheap-toplevel", ctx.coarsening.global_lp.cheap_toplevel);
   lp->add_flag("--c-glp-prevent-cyclic-moves", ctx.coarsening.global_lp.prevent_cyclic_moves);
-  lp->add_flag("--c-glp-enforce-legacy-weight", ctx.coarsening.global_lp.enforce_legacy_weight);
 
   lp->add_option("--c-glp-active-set", ctx.coarsening.global_lp.active_set_strategy)
       ->transform(CLI::CheckedTransformer(get_active_set_strategies()).description(""))
