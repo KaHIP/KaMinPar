@@ -398,6 +398,7 @@ struct Context {
 
   PartitioningMode mode;
 
+  bool avoid_toplevel_bipartitioning;
   bool enable_pe_splitting;
   bool simulate_singlethread;
 

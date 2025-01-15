@@ -44,6 +44,7 @@ Context create_default_context() {
   return {
       .rearrange_by = GraphOrdering::DEGREE_BUCKETS,
       .mode = PartitioningMode::DEEP,
+      .avoid_toplevel_bipartitioning = true,
       .enable_pe_splitting = true,
       .simulate_singlethread = true,
       .partition =
