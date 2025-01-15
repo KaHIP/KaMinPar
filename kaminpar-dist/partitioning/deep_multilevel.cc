@@ -293,12 +293,6 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   auto ref_p_ctx = _input_ctx.partition;
   ref_p_ctx.graph = std::make_unique<GraphContext>(dist_p_graph.graph(), ref_p_ctx);
 
-  if (_input_ctx.avoid_toplevel_bipartitioning && _coarseners.size() == 1 &&
-      coarsener->level() == 1) {
-    LOG;
-    extend_partition(dist_p_graph, ref_p_ctx, true, "");
-  }
-
   // Uncoarsen, partition blocks and refine
   while (_coarseners.size() > 1 || (!_coarseners.empty() && coarsener->level() > 0)) {
     SCOPED_HEAP_PROFILER("Level", std::to_string(coarsener->level()));
@@ -318,6 +312,11 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
       dist_p_graph = distribute_best_partition(*new_graph, std::move(dist_p_graph));
 
       _replicated_graphs.pop_back();
+    }
+
+    if (_input_ctx.avoid_toplevel_bipartitioning && _coarseners.size() == 1 &&
+        coarsener->level() == 1) {
+      extend_partition(dist_p_graph, ref_p_ctx, true, "");
     }
 
     // Uncoarsen graph
