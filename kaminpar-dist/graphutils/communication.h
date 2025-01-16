@@ -126,8 +126,8 @@ void sparse_alltoall_interface_to_ghost_custom_range(
     Builder &&builder,
     Receiver &&receiver
 ) {
-  TIMER_BARRIER(graph.communicator());
-  SCOPED_TIMER("Sparse AllToAll");
+  //TIMER_BARRIER(graph.communicator());
+  //SCOPED_TIMER("Sparse AllToAll");
 
   constexpr bool builder_invocable_with_pe =
       std::is_invocable_r_v<Message, Builder, NodeID, NodeID, EdgeWeight, PEID>;
@@ -452,8 +452,8 @@ void sparse_alltoall_interface_to_pe_custom_range(
     Builder &&builder,
     Receiver &&receiver
 ) {
-  TIMER_BARRIER(graph.communicator());
-  SCOPED_TIMER("Sparse AllToAll");
+  //TIMER_BARRIER(graph.communicator());
+  //SCOPED_TIMER("Sparse AllToAll");
 
   constexpr bool builder_invocable_with_pe = std::is_invocable_r_v<Message, Builder, NodeID, PEID>;
   constexpr bool builder_invocable_with_pe_and_unmapped_node =

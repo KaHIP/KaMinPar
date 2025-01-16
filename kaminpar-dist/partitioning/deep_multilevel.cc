@@ -70,9 +70,10 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   int level = 0;
 
   START_HEAP_PROFILER("Coarsening");
+  START_TIMER("Coarsening");
   while (!converged && graph->global_n() > desired_num_nodes) {
-    SCOPED_HEAP_PROFILER("Level", std::to_string(coarsener->level()));
-    SCOPED_TIMER("Coarsening");
+    SCOPED_HEAP_PROFILER("Level", std::to_string(level));
+    SCOPED_TIMER("Level", std::to_string(level));
 
     // Replicate graph and split PEs when the graph becomes too small
     const BlockID num_blocks_on_this_level =
@@ -115,6 +116,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
 
     graph = c_graph;
   }
+  STOP_TIMER();
   STOP_HEAP_PROFILER();
   TIMER_BARRIER(_input_graph.communicator());
 
@@ -175,10 +177,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
    */
   START_TIMER("Uncoarsening");
   START_HEAP_PROFILER("Uncoarsening");
-  auto refiner_factory = TIMED_SCOPE("Allocation") {
-    SCOPED_HEAP_PROFILER("Allocation");
-    return factory::create_refiner(_input_ctx);
-  };
+  auto refiner_factory = factory::create_refiner(_input_ctx);
 
   auto run_refinement = [&](DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
     START_TIMER("Refinement");
@@ -296,7 +295,8 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
 
   // Uncoarsen, partition blocks and refine
   while (_coarseners.size() > 1 || (!_coarseners.empty() && coarsener->level() > 0)) {
-    SCOPED_HEAP_PROFILER("Level", std::to_string(coarsener->level()));
+    SCOPED_HEAP_PROFILER("Level", std::to_string(level));
+    SCOPED_TIMER("Level", std::to_string(level));
     --level;
 
     LOG;

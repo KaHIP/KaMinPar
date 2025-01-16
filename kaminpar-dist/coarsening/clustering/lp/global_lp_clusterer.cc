@@ -565,7 +565,7 @@ private:
     // VVV possibly diverged code paths, might not be executed on all PEs VVV
     //
 
-    START_TIMER("Enforce cluster weights");
+    //START_TIMER("Enforce cluster weights");
     _graph->pfor_nodes(from, to, [&](const NodeID u) {
       const GlobalNodeID old_label = _changed_label[u];
       if (old_label == kInvalidGlobalNodeID) {
@@ -579,7 +579,7 @@ private:
         move_cluster_weight(new_label, old_label, _graph->node_weight(u), 0, false);
       }
     });
-    STOP_TIMER();
+    //STOP_TIMER();
   }
 
   void synchronize_ghost_node_clusters(const NodeID from, const NodeID to) {
