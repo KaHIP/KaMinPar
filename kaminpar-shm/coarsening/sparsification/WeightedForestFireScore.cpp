@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <queue>
+#include <set>
 
 #include <oneapi/tbb/concurrent_vector.h>
 
@@ -20,11 +21,15 @@ StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
 
   int number_of_fires = 0;
   tbb::parallel_for(0, tbb::this_task_arena::max_concurrency(), [&](auto) {
+    // Preallocate everything here
+    std::queue<NodeID> activeNodes;
+    std::unordered_set<EdgeID> visited;
+    std::vector<std::pair<EdgeID, double>> validEdgesWithKeys;
+
     while (edges_burnt < _targetBurnRatio * g.m()) {
       __atomic_fetch_add(&number_of_fires, 1, __ATOMIC_RELAXED);
       // Start a new fire
-      std::queue<NodeID> activeNodes;
-      StaticArray<bool> visited(g.m(), false);
+      visited.clear();
       activeNodes.push(Random::instance().random_index(0, g.n()));
 
       EdgeID localEdgesBurnt = 0;
@@ -33,36 +38,49 @@ StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
         NodeID u = activeNodes.front();
         activeNodes.pop();
 
-        std::vector<EdgeID> validEdges;
-        std::vector<EdgeWeight> weights;
+        validEdgesWithKeys.clear();
+
+        // We sample neighbors without replacement and probailies propotional to the weight of the
+        // connecting edge using a version of the exponential clock method: Every incident edge
+        // leading to an unvisited vertex is assined a random key depending on its weight and the
+        // ones with the smallest keys are sampled.
         for (EdgeID e : g.incident_edges(u)) {
-          if (!visited[g.edge_target(e)]) {
-            weights.push_back(g.edge_weight(e));
-            validEdges.push_back(e);
+          if (!visited.contains(g.edge_target(e))) {
+            validEdgesWithKeys.emplace_back(
+                e,
+                // key for exponetial clock method
+                -std::log(Random::instance().random_double()) / g.edge_weight(e)
+            );
           }
         }
-
         EdgeID neighbours_to_sample = std::min(
             static_cast<EdgeID>(
                 std::ceil(std::log(Random::instance().random_double()) / std::log(_pf)) - 1
             ), // shifted geometric distribution
-            static_cast<EdgeID>(validEdges.size())
+            static_cast<EdgeID>(validEdgesWithKeys.size())
         );
-        auto sampled_neighbours_indices = utils::sample_k_without_replacement(
-            weights.begin(), weights.end(), neighbours_to_sample
+        auto end_of_samping_range = validEdgesWithKeys.begin() + neighbours_to_sample;
+        std::nth_element(
+            validEdgesWithKeys.begin(),
+            end_of_samping_range - 1,
+            validEdgesWithKeys.end(),
+            [](auto a, auto b) {
+              return std::get<1>(a) < std::get<1>(b);
+            } // comp keys
         );
-        for (auto i : sampled_neighbours_indices) {
+
+        for (auto p = validEdgesWithKeys.begin(); p != end_of_samping_range; ++p) {
           // mark NodeID as visited, burn edge
-          EdgeID e = validEdges[i];
-          NodeID x = g.edge_target(e);
-          activeNodes.push(x);
+          auto [e, _] = *p;
+          NodeID v = g.edge_target(e);
+          activeNodes.push(v);
           __atomic_add_fetch(&burnt[e], 1, __ATOMIC_RELAXED);
           localEdgesBurnt++;
-          visited[x] = true;
+          visited.insert(v);
         }
       }
       __atomic_add_fetch(&edges_burnt, localEdgesBurnt, __ATOMIC_RELAXED);
-      numbers_of_edges_burnt.push_back(localEdgesBurnt);
+      // numbers_of_edges_burnt.push_back(localEdgesBurnt);
     }
   });
 
@@ -91,11 +109,13 @@ void WeightedForestFireScore::print_fire_statistics(
   std::cout << "** targetBurntRatio=" << _targetBurnRatio << ", pf=" << _pf << "\n";
   std::cout << "** m=" << g.m() << ", n=" << g.n() << "\n";
   std::cout << "** " << number_of_fires << " fires have burned " << edges_burnt << " edges\n";
+  /*
   std::cout << "** edges burnt per fire: avg=" << average << ", var=" << variance << " min="
             << *std::min_element(numbers_of_edges_burnt.begin(), numbers_of_edges_burnt.end())
             << ", max="
             << *std::max_element(numbers_of_edges_burnt.begin(), numbers_of_edges_burnt.end())
             << "\n";
+  */
 
   std::cout << std::setprecision(default_precision);
 }
