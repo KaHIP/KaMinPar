@@ -31,7 +31,7 @@ namespace kaminpar::dist::graph {
 
 namespace {
 
-SET_DEBUG(false);
+SET_DEBUG(true);
 
 auto count_block_induced_subgraph_sizes(const DistributedPartitionedGraph &p_graph) {
   parallel::vector_ets<NodeID> num_nodes_per_block_ets(p_graph.k());
@@ -231,21 +231,23 @@ extract_local_block_induced_subgraphs(const DistributedPartitionedGraph &p_graph
 }
 
 BlockExtractionOffsets::BlockExtractionOffsets(const PEID size, const BlockID k)
-    : _size(size),
-      _k(k),
-      _min_blocks_per_pe(k / size),
-      _rem_blocks(k % size),
-      _min_pes_per_block(size / k),
-      _rem_pes(size % k) {}
+    : _size(size),                  // 3
+      _k(k),                        // 4
+      _min_blocks_per_pe(k / size), // 1
+      _rem_blocks(k % size),        // 1
+      _min_pes_per_block(size / k), // 0
+      _rem_pes(size % k) {}         // 3
 
-BlockID BlockExtractionOffsets::first_block_on_pe(const PEID pe) const {
+BlockID BlockExtractionOffsets::first_block_on_pe(const PEID pe) const { // pe = 4
   if (static_cast<BlockID>(_size) <= _k) {
     return pe * _min_blocks_per_pe + std::min<BlockID>(pe, _rem_blocks);
-  } else {
-    if (pe <= _rem_pes * _min_pes_per_block) {
-      return pe / (_min_pes_per_block + 1);
+  } else {                                          // V
+    if (pe < (_min_pes_per_block + 1) * _rem_pes) { // if (pe <= _rem_pes * _min_pes_per_block) { //
+      return pe / (_min_pes_per_block + 1);         // return pe / (_min_pes_per_block + 1);
     } else {
-      return _rem_pes + (pe - _rem_pes * (_min_pes_per_block + 1)) / _min_pes_per_block;
+      return (pe - _rem_pes) /
+             _min_pes_per_block; // _rem_pes + (pe - _rem_pes * (_min_pes_per_block + 1)) /
+                                 // _min_pes_per_block;
     }
   }
 }
@@ -590,7 +592,8 @@ std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>> gather_bloc
     DBG0 << "Block summary:";
     for (const BlockID block : p_graph.blocks()) {
       DBG0 << "- Block " << block << ": assigned to " << offsets.num_pes_with_block(block)
-           << " PEs [" << offsets.first_pe_with_block(block) << ", "
+           << " PEs [" << offsets.first_pe_with_block(block) << "/"
+           << offsets.first_pe_with_block2(block) << ", "
            << offsets.first_invalid_pe_with_block(block) << ")";
     }
   }
@@ -598,9 +601,9 @@ std::pair<std::vector<shm::Graph>, std::vector<std::vector<NodeID>>> gather_bloc
   NoinitVector<GraphSize> recv_subgraph_sizes = exchange_subgraph_sizes(p_graph, memory, offsets);
 
   IF_DBG0 {
-    DBG0 << "Received subgraph sizes:";
+    DBG0 << "Received subgraph sizes (from PE p to PE 0):";
     for (std::size_t i = 0; i < recv_subgraph_sizes.size(); ++i) {
-      DBG0 << "- PE " << i << ": " << recv_subgraph_sizes[i].n << " nodes, "
+      DBG0 << "- PE p=" << i << ": " << recv_subgraph_sizes[i].n << " nodes, "
            << recv_subgraph_sizes[i].m << " edges";
     }
   }
