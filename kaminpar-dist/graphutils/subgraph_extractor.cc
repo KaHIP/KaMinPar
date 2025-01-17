@@ -31,7 +31,7 @@ namespace kaminpar::dist::graph {
 
 namespace {
 
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 auto count_block_induced_subgraph_sizes(const DistributedPartitionedGraph &p_graph) {
   parallel::vector_ets<NodeID> num_nodes_per_block_ets(p_graph.k());
@@ -270,10 +270,19 @@ PEID BlockExtractionOffsets::first_pe_with_block(const BlockID block) const {
 //      const BlockID rem_blocks = p_graph.k() % size;
 //     return std::max<BlockID>(pe, pe * min_blocks_per_pe + std::min<BlockID>(pe, rem_blocks));
 //  };
+//
+// const BlockID min_blocks_per_pe = p_graph.k() / size; // 1
+// const BlockID rem_blocks = p_graph.k() % size;        // 1
+// return std::max<BlockID>(
+// pe, pe * (min_blocks_per_pe + (static_cast<BlockID>(rank) < rem_blocks))
+//);
 
 PEID BlockExtractionOffsets::first_pe_with_block2(const BlockID block) const {
   if (static_cast<BlockID>(_size) <= _k) {
-    return block / _min_blocks_per_pe;
+    if (block < (_min_blocks_per_pe + 1) * _rem_blocks) {
+      return block / (_min_blocks_per_pe + 1);
+    }
+    return _rem_blocks + ((block - (_min_blocks_per_pe + 1) * _rem_blocks) / _min_blocks_per_pe);
   }
   return std::max<BlockID>(block, block * _min_pes_per_block + std::min<BlockID>(block, _rem_pes));
 }
@@ -383,6 +392,7 @@ SharedGraphs exchange_subgraphs(
   SCOPED_TIMER("Exchange subgraphs");
 
   const PEID size = mpi::get_comm_size(p_graph.communicator());
+  const PEID rank = mpi::get_comm_rank(p_graph.communicator());
 
   std::vector<int> sendcounts_nodes(size);
   std::vector<int> sendcounts_edges(size);
@@ -413,14 +423,24 @@ SharedGraphs exchange_subgraphs(
 
     // Compute recvcounts + rdispls
     {
+      // rank = 2
+      // pe = 1
+
       auto compute_offset = [&](const BlockID pe) {
-        const BlockID min_blocks_per_pe = p_graph.k() / size;
-        const BlockID rem_blocks = p_graph.k() % size;
-        return std::max<BlockID>(pe, pe * min_blocks_per_pe + std::min<BlockID>(pe, rem_blocks));
+        const BlockID min_blocks_per_pe = p_graph.k() / size; // 1
+        const BlockID rem_blocks = p_graph.k() % size;        // 1
+        return std::max<BlockID>(
+            pe, pe * (min_blocks_per_pe + (static_cast<BlockID>(rank) < rem_blocks))
+        );
       };
 
       const BlockID first_block_on_pe = compute_offset(pe);
       const BlockID first_invalid_block_on_pe = compute_offset(pe + 1);
+
+      KASSERT(
+          first_invalid_block_on_pe < recv_subgraph_displs.size(),
+          V(mpi::get_comm_rank(p_graph.communicator())) << V(pe)
+      );
 
       recvcounts_nodes[pe] = recv_subgraph_displs[first_invalid_block_on_pe].n -
                              recv_subgraph_displs[first_block_on_pe].n;
