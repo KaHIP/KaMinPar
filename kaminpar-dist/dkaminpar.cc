@@ -185,7 +185,7 @@ void dKaMinPar::import_graph(
     std::span<GlobalNodeWeight> vwgt,
     std::span<GlobalEdgeWeight> adjwgt
 ) {
-  SCOPED_TIMER("IO");
+  SCOPED_TIMER("Import graph");
 
   const PEID size = mpi::get_comm_size(_comm);
   const PEID rank = mpi::get_comm_rank(_comm);
