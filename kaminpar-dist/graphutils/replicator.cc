@@ -30,7 +30,7 @@ namespace kaminpar::dist {
 
 namespace {
 
-SET_DEBUG(false);
+SET_DEBUG(true);
 
 template <typename Graph> StaticArray<EdgeID> copy_raw_nodes(const Graph &graph) {
   constexpr bool kIsCompressedGraph = std::is_same_v<Graph, DistributedCompressedGraph>;
@@ -407,7 +407,7 @@ DistributedGraph replicate_graph(const Graph &graph, const int num_replications)
       MPI_Bcast(
           tmp_global_edges.data() + edges_displs.back(),
           asserting_cast<int>(secondary_num_edges),
-          mpi::type::get<NodeID>(),
+          mpi::type::get<GlobalNodeID>(),
           secondary_root,
           secondary_comm
       );
@@ -438,9 +438,6 @@ DistributedGraph replicate_graph(const Graph &graph, const int num_replications)
   node_distribution.back() = graph.node_distribution().back();
   edge_distribution.back() = graph.edge_distribution().back();
 
-  DBG << "Node distribution: " << V(node_distribution);
-  DBG << "Edge distribution: " << V(edge_distribution);
-
   // Remap edges to local nodes
   const GlobalEdgeID n0 = graph.node_distribution(rank) - nodes_displs[primary_rank];
   const GlobalEdgeID nf = n0 + nodes_displs.back() + secondary_num_nodes;
@@ -451,7 +448,7 @@ DistributedGraph replicate_graph(const Graph &graph, const int num_replications)
     if (v >= n0 && v < nf) {
       edges[e] = static_cast<NodeID>(v - n0);
     } else {
-      DBG << "New edge to global node " << v;
+      // DBG << "New edge to global node " << v;
       edges[e] = ghost_node_mapper.new_ghost_node(v);
     }
   });
@@ -466,7 +463,7 @@ DistributedGraph replicate_graph(const Graph &graph, const int num_replications)
 
   if (is_node_weighted) {
     KASSERT(graph.is_node_weighted() || graph.n() == 0);
-    node_weights.resize(nodes_displs.back() + num_ghost_nodes);
+    node_weights.resize(nodes_displs.back() + secondary_num_nodes + num_ghost_nodes);
     mpi::allgatherv(
         graph.raw_node_weights().data(),
         asserting_cast<int>(graph.n()),
@@ -475,11 +472,26 @@ DistributedGraph replicate_graph(const Graph &graph, const int num_replications)
         nodes_displs.data(),
         primary_comm
     );
-  }
 
-  DBG << V(ghost_node_info.ghost_owner) << V(ghost_node_info.ghost_to_global);
-  for (const auto &[k, v] : ghost_node_info.global_to_ghost) {
-    DBG << "Have mapping " << k << " --> " << v;
+    if (is_secondary_participant) {
+      if (secondary_rank == secondary_root) {
+        MPI_Bcast(
+            node_weights.data(),
+            asserting_cast<int>(nodes.size() - 1),
+            mpi::type::get<EdgeID>(),
+            secondary_root,
+            secondary_comm
+        );
+      } else {
+        MPI_Bcast(
+            node_weights.data() + nodes_displs.back(),
+            asserting_cast<int>(secondary_num_nodes),
+            mpi::type::get<EdgeID>(),
+            secondary_root,
+            secondary_comm
+        );
+      }
+    }
   }
 
   DistributedGraph new_graph(std::make_unique<DistributedCSRGraph>(
