@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
 
     ctx.partition.k = input.p_graph->k();
     ctx.parallel.num_threads = num_threads;
-    ctx.setup(*input.graph);
+    ctx.partition.setup(*input.graph, ctx.partition.k, ctx.partition.epsilon());
 
     std::cout << "Running refinement algorithm ..." << std::endl;
 

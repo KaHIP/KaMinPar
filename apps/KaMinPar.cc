@@ -10,6 +10,7 @@
 #include "kaminpar-shm/kaminpar.h"
 // clang-format on
 
+#include <cstdlib>
 #include <iostream>
 #include <span>
 
@@ -19,17 +20,18 @@
 #include <numa.h>
 #endif // __has_include(<numa.h>)
 
+#include "kaminpar-io/io.h"
+#include "kaminpar-io/metis_parser.h"
+#include "kaminpar-io/parhip_parser.h"
+
 #include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/graphutils/graph_validator.h"
 #include "kaminpar-shm/graphutils/permutator.h"
 
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/strutils.h"
 #include "kaminpar-common/timer.h"
 
-#include "apps/io/shm_input_validator.h"
-#include "apps/io/shm_io.h"
-#include "apps/io/shm_metis_parser.h"
-#include "apps/io/shm_parhip_parser.h"
 #include "apps/version.h"
 
 #if defined(__linux__)
@@ -279,10 +281,14 @@ inline void output_partition(const ApplicationContext &app, const std::vector<Bl
 inline void
 output_rearranged_graph(const ApplicationContext &app, const std::vector<BlockID> &partition) {
   if (!app.rearranged_graph_filename.empty()) {
-    Graph graph =
+    auto graph =
         io::read(app.graph_filename, app.input_graph_file_format, NodeOrdering::NATURAL, false);
-    auto &csr_graph = graph.concretize<CSRGraph>();
+    if (!graph) {
+      LOG_ERROR << "Could not output rearranged graph as the input graph cannot be read.";
+      return;
+    }
 
+    auto &csr_graph = graph->concretize<CSRGraph>();
     auto permutations = shm::graph::compute_node_permutation_by_generic_buckets(
         csr_graph.n(), app.k, [&](const NodeID u) { return partition[u]; }
     );
@@ -409,9 +415,17 @@ int main(int argc, char *argv[]) {
   // Read the input graph and allocate memory for the partition
   START_HEAP_PROFILER("Input Graph Allocation");
   Graph graph = TIMED_SCOPE("Read input graph") {
-    return io::read(
-        app.graph_filename, app.input_graph_file_format, ctx.node_ordering, ctx.compression.enabled
-    );
+    if (auto graph = io::read(
+            app.graph_filename,
+            app.input_graph_file_format,
+            ctx.node_ordering,
+            ctx.compression.enabled
+        )) {
+      return std::move(*graph);
+    }
+
+    LOG_ERROR << "Failed to read the input graph.";
+    std::exit(EXIT_FAILURE);
   };
 
   if (app.ignore_edge_weights && !ctx.compression.enabled) {

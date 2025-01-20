@@ -15,13 +15,14 @@
 #include <mpi.h>
 #include <tbb/scalable_allocator.h>
 
+#include "kaminpar-io/dist_io.h"
+#include "kaminpar-io/dist_metis_parser.h"
+#include "kaminpar-io/dist_parhip_parser.h"
+#include "kaminpar-io/dist_skagen.h"
+
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/strutils.h"
 
-#include "apps/io/dist_io.h"
-#include "apps/io/dist_metis_parser.h"
-#include "apps/io/dist_parhip_parser.h"
-#include "apps/io/dist_skagen.h"
 #include "apps/version.h"
 
 #ifdef KAMINPAR_HAVE_BACKWARD

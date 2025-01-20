@@ -1,14 +1,15 @@
 /*******************************************************************************
  * IO utilities for the compressed graph binary.
  *
- * @file:   shm_compressed_graph_binary.cc
+ * @file:   graph_compression_binary.cc
  * @author: Daniel Salwasser
  * @date:   12.12.2023
  ******************************************************************************/
-#include "apps/io/shm_compressed_graph_binary.h"
+#include "kaminpar-io/graph_compression_binary.h"
 
 #include <filesystem>
 #include <fstream>
+#include <optional>
 
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/logger.h"
@@ -277,11 +278,16 @@ template <typename T> static StaticArray<T> read_static_array(std::ifstream &in)
   return array;
 }
 
-CompressedGraph read(const std::string &filename) {
+std::optional<CompressedGraph> read(const std::string &filename) {
   std::ifstream in(filename, std::ios::binary);
+  if (!in.is_open()) {
+    LOG_ERROR << "Could not open file " << filename;
+    return std::nullopt;
+  }
+
   if (kMagicNumber != read_int<std::uint64_t>(in)) {
     LOG_ERROR << "The magic number of the file is not correct!";
-    std::exit(EXIT_FAILURE);
+    return std::nullopt;
   }
 
   CompressedBinaryHeader header = read_header(in);

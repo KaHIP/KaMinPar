@@ -1,21 +1,22 @@
 /*******************************************************************************
  * IO utilities for the shared-memory partitioner.
  *
- * @file:   shm_io.cc
+ * @file:   io.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  ******************************************************************************/
-#include "apps/io/shm_io.h"
+#include "kaminpar-io/io.h"
 
 #include <fstream>
 #include <numeric>
+#include <optional>
+
+#include "kaminpar-io/graph_compression_binary.h"
+#include "kaminpar-io/metis_parser.h"
+#include "kaminpar-io/parhip_parser.h"
+#include "kaminpar-io/util/file_toker.h"
 
 #include "kaminpar-common/logger.h"
-
-#include "apps/io/file_toker.h"
-#include "apps/io/shm_compressed_graph_binary.h"
-#include "apps/io/shm_metis_parser.h"
-#include "apps/io/shm_parhip_parser.h"
 
 namespace kaminpar::shm::io {
 
@@ -26,7 +27,7 @@ std::unordered_map<std::string, GraphFileFormat> get_graph_file_formats() {
   };
 }
 
-CSRGraph csr_read(
+std::optional<CSRGraph> csr_read(
     const std::string &filename, const GraphFileFormat file_format, const NodeOrdering ordering
 ) {
   switch (file_format) {
@@ -39,15 +40,14 @@ CSRGraph csr_read(
     const bool sorted = ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS;
     return metis::csr_read(filename, sorted);
   }
-  case GraphFileFormat::PARHIP: {
+  case GraphFileFormat::PARHIP:
     return parhip::csr_read(filename, ordering);
-  }
   default:
-    __builtin_unreachable();
+    return std::nullopt;
   }
 }
 
-CompressedGraph compressed_read(
+std::optional<CompressedGraph> compressed_read(
     const std::string &filename, const GraphFileFormat file_format, const NodeOrdering ordering
 ) {
   switch (file_format) {
@@ -60,35 +60,36 @@ CompressedGraph compressed_read(
     const bool sorted = ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS;
     return metis::compress_read(filename, sorted);
   }
-  case GraphFileFormat::PARHIP: {
+  case GraphFileFormat::PARHIP:
     return parhip::compressed_read(filename, ordering);
-  }
   default:
-    __builtin_unreachable();
+    return std::nullopt;
   }
 }
 
-Graph read(
+std::optional<Graph> read(
     const std::string &filename,
     const GraphFileFormat file_format,
     const NodeOrdering ordering,
     const bool compress
 ) {
-  if (compressed_binary::is_compressed(filename)) {
-    if (!compress) {
-      LOG_ERROR << "The input graph is stored in a compressed format but graph compression is "
-                   "disabled!";
-      std::exit(EXIT_FAILURE);
-    }
-
-    return {std::make_unique<CompressedGraph>(compressed_binary::read(filename))};
-  }
-
   if (compress) {
-    return {std::make_unique<CompressedGraph>(compressed_read(filename, file_format, ordering))};
-  } else {
-    return {std::make_unique<CSRGraph>(csr_read(filename, file_format, ordering))};
+    if (compressed_binary::is_compressed(filename)) {
+      if (auto compressed_graph = compressed_binary::read(filename)) {
+        return Graph(std::make_unique<CompressedGraph>(std::move(*compressed_graph)));
+      }
+    } else {
+      if (auto compressed_graph = compressed_read(filename, file_format, ordering)) {
+        return Graph(std::make_unique<CompressedGraph>(std::move(*compressed_graph)));
+      }
+    }
   }
+
+  if (auto csr_graph = csr_read(filename, file_format, ordering)) {
+    return Graph(std::make_unique<CSRGraph>(std::move(*csr_graph)));
+  }
+
+  return std::nullopt;
 }
 
 namespace partition {

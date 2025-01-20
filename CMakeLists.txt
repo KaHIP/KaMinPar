@@ -368,6 +368,9 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
     add_subdirectory(kaminpar-dist)
 endif ()
 
+# Shared-memory and distributed IO components
+add_subdirectory(kaminpar-io)
+
 # Binaries
 add_subdirectory(kaminpar-cli)
 
@@ -391,10 +394,12 @@ endif ()
 ################################################################################
 
 add_library(KaMinPar::KaMinPar ALIAS kaminpar_shm)
+add_library(KaMinPar::KaMinParIO ALIAS kaminpar_io)
 add_library(KaMinPar::KaMinParCLI ALIAS kaminpar_cli)
 
 if (KAMINPAR_BUILD_DISTRIBUTED)
     add_library(KaMinPar::dKaMinPar ALIAS kaminpar_dist)
+    add_library(KaMinPar::dKaMinParIO ALIAS kaminpar_dist_io)
     add_library(KaMinPar::dKaMinParCLI ALIAS kaminpar_dist_cli)
 endif ()
 

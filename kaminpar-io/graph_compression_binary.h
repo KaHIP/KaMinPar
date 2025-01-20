@@ -1,12 +1,14 @@
 /*******************************************************************************
  * IO utilities for the compressed graph binary.
  *
- * @file:   shm_compressed_graph_binary.h
+ * @file:   graph_compression_binary.h
  * @author: Daniel Salwasser
  * @date:   12.12.2023
  ******************************************************************************/
 #pragma once
 
+#include <cstdint>
+#include <optional>
 #include <string>
 
 #include "kaminpar-shm/datastructures/compressed_graph.h"
@@ -31,7 +33,7 @@ void write(const std::string &filename, const CompressedGraph &graph);
  * @param filename The name of the file to read from.
  * @return The read compressed graph.
  */
-CompressedGraph read(const std::string &filename);
+[[nodiscard]] std::optional<CompressedGraph> read(const std::string &filename);
 
 /*!
  * Checks whether a graph is stored in compressed binary format.

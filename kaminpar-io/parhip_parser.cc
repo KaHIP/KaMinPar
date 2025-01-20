@@ -5,15 +5,18 @@
  * @author: Daniel Salwasser
  * @date:   15.02.2024
  ******************************************************************************/
-#include "apps/io/shm_parhip_parser.h"
+#include "kaminpar-io/parhip_parser.h"
 
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <span>
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
+
+#include "kaminpar-io/util/binary_util.h"
 
 #include "kaminpar-shm/datastructures/compressed_graph.h"
 #include "kaminpar-shm/graphutils/compressed_graph_builder.h"
@@ -23,8 +26,6 @@
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
-
-#include "apps/io/binary_util.h"
 
 namespace kaminpar::shm::io::parhip {
 
@@ -171,7 +172,7 @@ StaticArray<T> read(
   }
 }
 
-CSRGraph csr_read(const std::string &filename, const bool sorted) {
+std::optional<CSRGraph> csr_read(const std::string &filename, const bool sorted) {
   try {
     const BinaryReader reader(filename);
     const ParHIPHeader header = ParHIPHeader::parse(reader);
@@ -210,12 +211,11 @@ CSRGraph csr_read(const std::string &filename, const bool sorted) {
         std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), sorted
     );
   } catch (const BinaryReaderException &e) {
-    LOG_ERROR << e.what();
-    std::exit(EXIT_FAILURE);
+    return std::nullopt;
   }
 }
 
-CSRGraph csr_read_deg_buckets(const std::string &filename) {
+std::optional<CSRGraph> csr_read_deg_buckets(const std::string &filename) {
   try {
     const BinaryReader reader(filename);
     const ParHIPHeader header = ParHIPHeader::parse(reader);
@@ -327,14 +327,13 @@ CSRGraph csr_read_deg_buckets(const std::string &filename) {
 
     return csr_graph;
   } catch (const BinaryReaderException &e) {
-    LOG_ERROR << e.what();
-    std::exit(EXIT_FAILURE);
+    return std::nullopt;
   }
 }
 
 } // namespace
 
-CSRGraph csr_read(const std::string &filename, const NodeOrdering ordering) {
+std::optional<CSRGraph> csr_read(const std::string &filename, const NodeOrdering ordering) {
   if (ordering == NodeOrdering::EXTERNAL_DEGREE_BUCKETS) {
     return csr_read_deg_buckets(filename);
   }
@@ -345,7 +344,7 @@ CSRGraph csr_read(const std::string &filename, const NodeOrdering ordering) {
 
 namespace {
 
-CompressedGraph compressed_read(const std::string &filename, const bool sorted) {
+std::optional<CompressedGraph> compressed_read(const std::string &filename, const bool sorted) {
   try {
     const BinaryReader reader(filename);
     const ParHIPHeader header = ParHIPHeader::parse(reader);
@@ -435,12 +434,11 @@ CompressedGraph compressed_read(const std::string &filename, const bool sorted) 
       );
     }
   } catch (const BinaryReaderException &e) {
-    LOG_ERROR << e.what();
-    std::exit(EXIT_FAILURE);
+    return std::nullopt;
   }
 }
 
-CompressedGraph compressed_read_deg_buckets(const std::string &filename) {
+std::optional<CompressedGraph> compressed_read_deg_buckets(const std::string &filename) {
   try {
     const BinaryReader reader(filename);
     const ParHIPHeader header = ParHIPHeader::parse(reader);
@@ -560,14 +558,14 @@ CompressedGraph compressed_read_deg_buckets(const std::string &filename) {
 
     return compressed_graph;
   } catch (const BinaryReaderException &e) {
-    LOG_ERROR << e.what();
-    std::exit(EXIT_FAILURE);
+    return std::nullopt;
   }
 }
 
 } // namespace
 
-CompressedGraph compressed_read(const std::string &filename, const NodeOrdering ordering) {
+std::optional<CompressedGraph>
+compressed_read(const std::string &filename, const NodeOrdering ordering) {
   if (ordering == NodeOrdering::EXTERNAL_DEGREE_BUCKETS) {
     return compressed_read_deg_buckets(filename);
   }

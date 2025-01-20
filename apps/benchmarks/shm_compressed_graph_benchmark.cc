@@ -8,15 +8,14 @@
 #include <limits>
 
 #include "kaminpar-cli/CLI11.h"
+#include "kaminpar-io/io.h"
 
-#include "kaminpar-shm/graphutils/parallel_compressed_graph_builder.h"
+#include "kaminpar-shm/graphutils/compressed_graph_builder.h"
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
-
-#include "apps/io/shm_io.h"
 
 using namespace kaminpar;
 using namespace kaminpar::shm;
@@ -137,25 +136,30 @@ int main(int argc, char *argv[]) {
 
   // Read input graph
   LOG << "Reading the input graph...";
-  CSRGraph graph = io::csr_read(graph_filename, graph_file_format, NodeOrdering::NATURAL);
+  auto graph = io::csr_read(graph_filename, graph_file_format, NodeOrdering::NATURAL);
+  if (!graph) {
+    LOG_ERROR << "Failed to read the input graph";
+    return EXIT_FAILURE;
+  }
 
   LOG << "Compressing the input graph...";
-  CompressedGraph compressed_graph = parallel_compress(graph);
+  CompressedGraph compressed_graph = parallel_compress(*graph);
 
   // Run benchmarks
   LOG << "Running the benchmarks...";
   GLOBAL_TIMER.reset();
-  run_benchmark(graph, compressed_graph);
+  run_benchmark(*graph, compressed_graph);
   STOP_TIMER();
 
   // Print the result summary
   LOG;
   cio::print_delimiter("Result Summary");
 
-  LOG << "Input graph has " << graph.n() << " vertices and " << graph.m()
-      << " edges. Its density is " << ((graph.m()) / (float)(graph.n() * (graph.n() - 1))) << ".";
-  LOG << "Node weights: " << (graph.is_node_weighted() ? "yes" : "no")
-      << ", edge weights: " << (graph.is_edge_weighted() ? "yes" : "no");
+  LOG << "Input graph has " << graph->n() << " vertices and " << graph->m()
+      << " edges. Its density is " << ((graph->m()) / (float)(graph->n() * (graph->n() - 1)))
+      << ".";
+  LOG << "Node weights: " << (graph->is_node_weighted() ? "yes" : "no")
+      << ", edge weights: " << (graph->is_edge_weighted() ? "yes" : "no");
   LOG;
 
   Timer::global().print_human_readable(std::cout);

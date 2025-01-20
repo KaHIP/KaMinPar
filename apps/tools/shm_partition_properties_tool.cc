@@ -11,13 +11,13 @@
 
 #include <tbb/global_control.h>
 
+#include "kaminpar-io/io.h"
+
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/metrics.h"
 
 #include "kaminpar-common/strutils.h"
-
-#include "apps/io/shm_io.h"
 
 using namespace kaminpar;
 using namespace kaminpar::shm;
@@ -52,11 +52,15 @@ int main(int argc, char *argv[]) {
 
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, ctx.parallel.num_threads);
 
-  Graph graph =
+  auto graph =
       io::read(graph_filename, graph_file_format, NodeOrdering::NATURAL, ctx.compression.enabled);
+  if (!graph) {
+    LOG_ERROR << "Failed to read the input graph";
+    return EXIT_FAILURE;
+  }
 
   ctx.debug.graph_name = str::extract_basename(graph_filename);
-  ctx.compression.setup(graph);
+  ctx.compression.setup(*graph);
 
   LOG << "Graph:            " << ctx.debug.graph_name;
 
@@ -75,7 +79,7 @@ int main(int argc, char *argv[]) {
   }
 
   const BlockID k = *std::max_element(partition.begin(), partition.end()) + 1;
-  PartitionedGraph p_graph(graph, k, std::move(partition));
+  PartitionedGraph p_graph(*graph, k, std::move(partition));
 
   LOG << "Number of blocks: " << k;
   LOG << "Edge cut:         " << metrics::edge_cut(p_graph);

@@ -1,12 +1,13 @@
 /*******************************************************************************
  * IO utilities for the shared-memory partitioner.
  *
- * @file:   shm_io.h
+ * @file:   io.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  ******************************************************************************/
 #pragma once
 
+#include <optional>
 #include <span>
 #include <string>
 #include <unordered_map>
@@ -43,7 +44,7 @@ enum class GraphFileFormat {
  * @param ordering The node ordering of the graph to read.
  * @return The graph that is stored in the file.
  */
-CSRGraph csr_read(
+[[nodiscard]] std::optional<CSRGraph> csr_read(
     const std::string &filename, const GraphFileFormat file_format, const NodeOrdering ordering
 );
 
@@ -55,7 +56,7 @@ CSRGraph csr_read(
  * @param ordering The node ordering of the graph to read.
  * @return The graph that is stored in the file.
  */
-CompressedGraph compressed_read(
+[[nodiscard]] std::optional<CompressedGraph> compressed_read(
     const std::string &filename, const GraphFileFormat file_format, const NodeOrdering ordering
 );
 
@@ -68,7 +69,7 @@ CompressedGraph compressed_read(
  * @param compress Whether to compress the graph.
  * @return The graph that is stored in the file.
  */
-Graph read(
+[[nodiscard]] std::optional<Graph> read(
     const std::string &filename,
     const GraphFileFormat file_format,
     const NodeOrdering ordering,

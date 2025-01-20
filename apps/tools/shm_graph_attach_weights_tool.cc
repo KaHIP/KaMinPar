@@ -16,16 +16,16 @@
 #include <tbb/concurrent_hash_map.h>
 #include <tbb/global_control.h>
 
+#include "kaminpar-io/io.h"
+#include "kaminpar-io/metis_parser.h"
+#include "kaminpar-io/parhip_parser.h"
+
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/parallel/loops.h"
-
-#include "apps/io/shm_io.h"
-#include "apps/io/shm_metis_parser.h"
-#include "apps/io/shm_parhip_parser.h"
 
 using namespace kaminpar;
 using namespace kaminpar::shm;
@@ -242,16 +242,22 @@ int main(int argc, char *argv[]) {
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, num_threads);
 
   LOG << "Reading input graph...";
-  CSRGraph csr_graph = io::csr_read(graph_filename, graph_file_format, NodeOrdering::NATURAL);
+  auto csr_graph = io::csr_read(graph_filename, graph_file_format, NodeOrdering::NATURAL);
+  if (!csr_graph) {
+    LOG_ERROR << "Failed to read the input graph";
+    return EXIT_FAILURE;
+  }
 
   LOG << "Generating edge weights...";
   StaticArray<EdgeWeight> edge_weights = [&] {
     switch (distribution) {
     case WeightDistribution::UNIFORM:
-      return generate_uniform_edge_weights(csr_graph, seed, uniform_min_weight, uniform_max_weight);
+      return generate_uniform_edge_weights(
+          *csr_graph, seed, uniform_min_weight, uniform_max_weight
+      );
     case WeightDistribution::ALTERNATING:
       return generate_alternating_edge_weights(
-          csr_graph,
+          *csr_graph,
           seed,
           alt_min_small_weights,
           alt_max_small_weights,
@@ -259,16 +265,16 @@ int main(int argc, char *argv[]) {
           alt_max_large_weights
       );
     case WeightDistribution::EXPONENTIAL:
-      return generate_exponential_edge_weights(csr_graph, seed, lambda);
+      return generate_exponential_edge_weights(*csr_graph, seed, lambda);
     default:
       __builtin_unreachable();
     }
   }();
 
   Graph weighted_graph(std::make_unique<CSRGraph>(
-      csr_graph.take_raw_nodes(),
-      csr_graph.take_raw_edges(),
-      csr_graph.take_raw_node_weights(),
+      csr_graph->take_raw_nodes(),
+      csr_graph->take_raw_edges(),
+      csr_graph->take_raw_node_weights(),
       std::move(edge_weights)
   ));
 

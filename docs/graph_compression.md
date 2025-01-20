@@ -4,7 +4,7 @@ KaMinPar/TeraPart offers graph compression to store the input graph with a space
 
 ## Compress an Uncompressed Graph
 
-We offer both sequential and parallel interfaces for graph compression. While this method is the simplest to use, it is only practical if the input graph can fit in memory without compression, making it only useful in specific situations.
+We offer both sequential and parallel interfaces for compressing a graph stored in CSR format. While this method is the simplest to use, it is only practical if the input graph can fit in memory without compression, making it only useful in specific situations.
 
 ```cpp
 #include <kaminpar-shm/graphutils/compressed_graph_builder.h>
@@ -38,10 +38,10 @@ If the graph to compress is stored on disk in METIS or ParHIP format (see [Graph
 using namespace kaminpar::shm::io;
 
 // To read a graph stored in METIS format.
-CompressedGraph compressed_graph = metis::compressed_read(const std::string &filename);
+std::optional<CompressedGraph> compressed_graph = metis::compressed_read(const std::string &filename);
 
 // To read a graph stored in ParHIP format.
-CompressedGraph compressed_graph = parhip::compressed_read(const std::string &filename);
+std::optional<CompressedGraph> compressed_graph = parhip::compressed_read(const std::string &filename);
 ```
 
 If the graph is stored in compressed format on disk (see [Graph File Format Documentation](/docs/graph_file_format.md)), then it can be read directly.
@@ -52,7 +52,7 @@ If the graph is stored in compressed format on disk (see [Graph File Format Docu
 using namespace kaminpar::shm::io;
 
 // To read a graph stored in compressed format.
-CompressedGraph compressed_graph = compressed_binary::read(const std::string &filename);
+std::optional<CompressedGraph> compressed_graph = compressed_binary::read(const std::string &filename);
 ```
 
 ## Compress a Graph using the Builder Interface
@@ -142,9 +142,11 @@ CompressedGraph create_cycle(NodeID num_nodes, NodeWeight node_weight, EdgeWeigh
 
 ### Parallel Graph Builder
 
+We provide two parallel graph builders: a single-pass builder and a two-pass builder. The single-pass builder is faster, as it compresses the graph only once. However, it requires neighborhoods to be provided in a random-access manner. If this is not possible, the two-pass builder serves as a more flexible alternative.
+
 #### Single-Pass Builder
 
-The single-pass builder allows you to create a compressed graph in one pass. This approach is the most efficient for scenarios where you can provide the necessary information about the neighborhoods in a random-access fashion.
+The single-pass builder allows you to create a compressed graph in one pass. This approach is the most efficient for scenarios where you can provide the necessary information about the neighborhoods in a random-access fashion. Internally, we use Intel's Threading Building Blocks (TBB) as a parallelization library, allowing the use of `tbb::task_arena` or similar TBB constructs to configure the task scheduler.
 
 ```cpp
 #include <kaminpar-shm/graphutils/compressed_graph_builder.h>
@@ -162,21 +164,25 @@ auto fetch_degree = [&](NodeID u) -> NodeID {
 
 // Create a function object that fills a buffer with the adjacent nodes of
 // a node upon calling.
-auto fetch_neighborhood = [&](NodeID u, std::span<NodeID> adjacent_nodes) {
+auto fetch_neighborhood = [&](NodeID u, std::span<NodeID> adjacent_nodes) -> void {
     /* Fill adjacent_nodes with the neighbors of node u. */
 };
 
-// Create a wrapper around the node weights, if present. Note that the memory
-// pointed to has to outlive the compressed graph instance.
-NodeWeight *vwgt = ...;
-StaticArray<NodeWeight> node_weights(num_nodes, vwgt);
+// If present, store the node weights inside a StaticArray:
+StaticArray<NodeWeight> node_weights(num_nodes);
+for (NodeID node = 0; node < num_nodes; ++node) node_weights[node] = ...;
+// If the node weights are already in memory and you want to avoid making a copy,
+// you can wrap the existing node weights. Note that the memory referenced has to
+// remain valid for the lifetime of the compressed graph instance. For instance:
+//  NodeWeight *nwgt = ...;
+//  StaticArray<NodeWeight> node_weights(num_nodes, nwgt);
 
 CompressedGraph compressed_graph = parallel_compress(
     num_nodes,
     num_edges,
     fetch_degree,
     fetch_neighborhood,
-    node_weights
+    std::move(node_weights)
 );
 ```
 
@@ -184,7 +190,10 @@ To compress graphs with edge weights, use the `parallel_compress_weighted` metho
 
 #### Two-Pass Builder
 
-The two-pass builder allows you to create a compressed graph in two passes.
+The two-pass builder allows you to create a compressed graph in two passes, which is slower than the single-pass builder. However, this builder is useful when the neighborhood cannot be provided in a random-access fashion as required by the single-pass builder. Below, we outline how to use the two-pass builder. Note that the `register_neighborhood` and `add_neighborhood` methods are run sequentially and are thread-safe. To take advantage of task parallelism, you need to call these methods in parallel.
+
+To begin using the `ParallelCompressedGraphBuilder`, you must first instantiate the class by providing information about the graph to compress. The constructor requires the number of nodes and edges in the graph you intend to compress. Additionally, you need to specify whether the graph includes node or edge weights. There is also an option to indicate if the nodes are stored in degree-bucket order, which is not related to graph compression and can therefore be safely ignored, i.e., set to `false`.
+
 
 ```cpp
 #include <kaminpar-shm/graphutils/compressed_graph_builder.h>
@@ -200,44 +209,55 @@ ParallelCompressedGraphBuilder builder(
 );
 ```
 
-In the first pass, register the neighborhoods of each node by calling `register_neighborhood`. Note that the neighborhoods of the nodes can be registered in an arbitrary order.
+In the first pass, register the neighborhoods of each node by calling `register_neighborhood`, which can be called in an arbitrary node order. This method supports multiple formats for specifying neighborhoods:
 
 ```cpp
+// Register a node by specifying its adjacent nodes.
 builder.register_neighborhood(
     NodeID node,
     std::span<NodeID> neighbors
 );
 
+// Register a node specifying its adjacent nodes
+// and corresponding edge weights.
 builder.register_neighborhood(
     NodeID node,
     std::span<std::pair<NodeID, EdgeWeight>> neighborhood
 );
 
+// Register a node by separately specifying its adjacent
+// nodes and corresponding edge weights.
 builder.register_neighborhood(
     NodeID node,
     std::span<NodeID> neighbors,
     std::span<EdgeWeight> edge_weights
 );
 ```
-After registering all neighborhoods, the offsets into the edge array for each node can be computed.
+
+After registering all neighborhoods, compute the offsets into the edge array for each node by calling `compute_offsets`. This step is necessary to prepare the internal data structures for the second pass.
 
 ```cpp
 builder.compute_offsets();
 ```
 
-Then, you can add the neighborhoods of each node by calling `add_neighborhood`.
+In the second pass, add the neighborhoods of each node by calling `add_neighborhood`. This method populates the internal data structures with the actual neighborhood data. Similar to `register_neighborhood`, the method can be called in an arbitrary node order and there are multiple overloads:
 
 ```cpp
+// Add a node by specifying its adjacent nodes.
 builder.add_neighborhood(
     NodeID node,
     std::span<NodeID> neighbors
 );
 
+// Add a node specifying its adjacent nodes
+// and corresponding edge weights.
 builder.add_neighborhood(
     NodeID node,
     std::span<std::pair<NodeID, EdgeWeight>> neighborhood
 );
 
+// Add a node by separately specifying its adjacent
+// nodes and corresponding edge weights.
 builder.add_neighborhood(
     NodeID node,
     std::span<NodeID> neighbors,
@@ -245,20 +265,14 @@ builder.add_neighborhood(
 );
 ```
 
-After all nodes have been added, build the compressed graph. It is important to note that once `build()` is invoked, the `ParallelCompressedGraphBuilder` instance cannot be reused to create another compressed graph. If you need to compress a different graph, you must instantiate a new instance.
+In addition to adding nodes, you have the option to assign weights to individual nodes using the `add_node_weight` method. Note that this method can only be used if the `ParallelCompressedGraphBuilder` was constructed with `has_node_weights` set to `true`. Nodes that are not explicitly assigned a weight will default to a weight of one.
+
+```cpp
+builder.add_node_weight(NodeID node, NodeWeight weight);
+```
+
+After all nodes have been added, build the compressed graph by calling `build()`. This method finalizes the compressed graph and returns it. Note that once `build()` is invoked, the `ParallelCompressedGraphBuilder` instance cannot be reused to create another compressed graph. If you need to compress a different graph, you must instantiate a new instance.
 
 ```cpp
 CompressedGraph compressed_graph = builder.build();
-```
-
-##### Examples
-
-```cpp
-#include <kaminpar-shm/graphutils/compressed_graph_builder.h>
-
-using namespace kaminpar::shm;
-
-ParallelCompressedGraphBuilder builder(num_nodes, num_edges, has_node_weights, has_edge_weights);
-
-...
 ```

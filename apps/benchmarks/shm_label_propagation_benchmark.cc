@@ -11,6 +11,8 @@
 
 #include <tbb/global_control.h>
 
+#include "kaminpar-io/io.h"
+
 #include "kaminpar-shm/coarsening/clustering/lp_clusterer.h"
 #include "kaminpar-shm/coarsening/max_cluster_weights.h"
 #include "kaminpar-shm/context_io.h"
@@ -20,8 +22,6 @@
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/timer.h"
-
-#include "apps/io/shm_io.h"
 
 using namespace kaminpar;
 using namespace kaminpar::shm;
@@ -34,6 +34,7 @@ int main(int argc, char *argv[]) {
   std::string graph_filename;
   io::GraphFileFormat graph_file_format = io::GraphFileFormat::METIS;
   int seed = 0;
+  double epsilon = 0.03;
 
   CLI::App app("Shared-memory LP benchmark");
   app.add_option("-G,--graph", graph_filename, "Graph file")->required();
@@ -47,7 +48,7 @@ int main(int argc, char *argv[]) {
   app.add_option("-k,--k", ctx.partition.k, "Number of blocks in the partition.")->required();
   app.add_option(
          "-e,--epsilon",
-         ctx.partition.epsilon,
+         epsilon,
          "Maximum allowed imbalance, e.g. 0.03 for 3%. Must be strictly positive."
   )
       ->check(CLI::NonNegativeNumber)
@@ -60,29 +61,36 @@ int main(int argc, char *argv[]) {
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, ctx.parallel.num_threads);
   Random::reseed(seed);
 
-  Graph graph =
+  auto graph =
       io::read(graph_filename, graph_file_format, ctx.node_ordering, ctx.compression.enabled);
-  ctx.setup(graph);
+  if (!graph) {
+    LOG_ERROR << "Failed to read the input graph";
+    return EXIT_FAILURE;
+  }
 
-  const double original_epsilon = ctx.partition.epsilon;
+  ctx.partition.setup(*graph, ctx.partition.k, epsilon);
+
   if (ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
     if (ctx.compression.enabled) {
       LOG_WARNING << "A compressed graph cannot be rearranged by degree buckets. Disabling "
                      "degree bucket ordering!";
       ctx.node_ordering = NodeOrdering::NATURAL;
-    } else if (!graph.sorted()) {
-      CSRGraph &csr_graph = graph.csr_graph();
+    } else if (!graph->sorted()) {
+      CSRGraph &csr_graph = graph->csr_graph();
       graph = graph::rearrange_by_degree_buckets(csr_graph);
     }
   }
 
-  if (graph.sorted()) {
-    graph::remove_isolated_nodes(graph, ctx.partition);
+  if (graph->sorted()) {
+    const NodeID num_isolated_nodes = graph::count_isolated_nodes(*graph);
+    graph->remove_isolated_nodes(num_isolated_nodes);
+    ctx.partition.n = graph->n();
+    ctx.partition.total_node_weight = graph->total_node_weight();
   }
 
   LPClustering lp_clustering(ctx.coarsening);
   lp_clustering.set_max_cluster_weight(compute_max_cluster_weight<NodeWeight>(
-      ctx.coarsening, ctx.partition, graph.n(), graph.total_node_weight()
+      ctx.coarsening, ctx.partition, graph->n(), graph->total_node_weight()
   ));
   lp_clustering.set_desired_cluster_count(0);
 
@@ -90,19 +98,19 @@ int main(int argc, char *argv[]) {
 
   ENABLE_HEAP_PROFILER();
   START_HEAP_PROFILER("Allocation");
-  StaticArray<NodeID> clustering(graph.n());
+  StaticArray<NodeID> clustering(graph->n());
   STOP_HEAP_PROFILER();
   START_HEAP_PROFILER("Label Propagation");
   TIMED_SCOPE("Label Propagation") {
-    lp_clustering.compute_clustering(clustering, graph, false);
+    lp_clustering.compute_clustering(clustering, *graph, false);
   };
   STOP_HEAP_PROFILER();
   DISABLE_HEAP_PROFILER();
 
   STOP_TIMER();
 
-  if (graph.sorted()) {
-    graph.integrate_isolated_nodes();
+  if (graph->sorted()) {
+    graph->integrate_isolated_nodes();
   }
 
   cio::print_delimiter("Input Summary", '#');

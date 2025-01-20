@@ -36,7 +36,7 @@ template <typename T> static bool operator==(const IotaRange<T> &a, const IotaRa
 
 static void test_compressed_graph_size(const Graph &graph) {
   const auto &csr_graph = graph.csr_graph();
-  const auto compressed_graph = CompressedGraphBuilder::compress(csr_graph);
+  const auto compressed_graph = compress(csr_graph);
 
   EXPECT_EQ(csr_graph.n(), compressed_graph.n());
   EXPECT_EQ(csr_graph.m(), compressed_graph.m());
@@ -48,7 +48,7 @@ TEST(CompressedGraphTest, compressed_graph_size) {
 
 static void test_compressed_graph_nodes_operation(const Graph &graph) {
   const auto &csr_graph = graph.csr_graph();
-  const auto compressed_graph = CompressedGraphBuilder::compress(csr_graph);
+  const auto compressed_graph = compress(csr_graph);
 
   EXPECT_TRUE(csr_graph.nodes() == compressed_graph.nodes());
 }
@@ -59,7 +59,7 @@ TEST(CompressedGraphTest, compressed_graph_nodes_operation) {
 
 static void test_compressed_graph_edges_operation(const Graph &graph) {
   const auto &csr_graph = graph.csr_graph();
-  const auto compressed_graph = CompressedGraphBuilder::compress(csr_graph);
+  const auto compressed_graph = compress(csr_graph);
 
   EXPECT_TRUE(csr_graph.edges() == compressed_graph.edges());
 }
@@ -70,7 +70,7 @@ TEST(CompressedGraphTest, compressed_graph_edges_operation) {
 
 static void test_compressed_graph_degree_operation(const Graph &graph) {
   const auto &csr_graph = graph.csr_graph();
-  const auto compressed_graph = CompressedGraphBuilder::compress(csr_graph);
+  const auto compressed_graph = compress(csr_graph);
 
   for (const NodeID node : graph.nodes()) {
     EXPECT_EQ(csr_graph.degree(node), compressed_graph.degree(node));
@@ -83,7 +83,7 @@ TEST(CompressedGraphTest, compressed_graph_degree_operation) {
 
 template <bool kRearrange> static void test_compressed_graph_adjacent_nodes_operation(Graph graph) {
   auto &csr_graph = graph.csr_graph();
-  const auto compressed_graph = CompressedGraphBuilder::compress(csr_graph);
+  const auto compressed_graph = compress(csr_graph);
 
   if constexpr (kRearrange) {
     graph::reorder_edges_by_compression(csr_graph);
@@ -122,7 +122,7 @@ TEST(CompressedGraphTest, compressed_graph_adjacent_nodes_operation) {
 template <bool kRearrange>
 static void test_compressed_graph_weighted_adjacent_nodes_operation(Graph graph) {
   auto &csr_graph = graph.csr_graph();
-  const auto compressed_graph = CompressedGraphBuilder::compress(csr_graph);
+  const auto compressed_graph = compress(csr_graph);
 
   if constexpr (kRearrange) {
     graph::reorder_edges_by_compression(csr_graph);
@@ -160,7 +160,7 @@ TEST(CompressedGraphTest, compressed_graph_weighted_adjacent_nodes_operation) {
 
 static void test_compressed_graph_adjacent_nodes_limit_operation(Graph graph) {
   auto &csr_graph = graph.csr_graph();
-  const auto compressed_graph = CompressedGraphBuilder::compress(csr_graph);
+  const auto compressed_graph = compress(csr_graph);
 
   graph::reorder_edges_by_compression(csr_graph);
 
@@ -190,7 +190,7 @@ TEST(CompressedGraphTest, compressed_graph_adjacent_nodes_limit_operation) {
 
 static void test_compressed_graph_pfor_neighbors_operation(const Graph &graph) {
   const auto &csr_graph = graph.csr_graph();
-  const auto compressed_graph = CompressedGraphBuilder::compress(csr_graph);
+  const auto compressed_graph = compress(csr_graph);
 
   tbb::concurrent_vector<std::pair<NodeID, EdgeWeight>> graph_adjacent_node;
   tbb::concurrent_vector<std::pair<NodeID, EdgeWeight>> compressed_graph_adjacent_node;
@@ -226,7 +226,7 @@ TEST(CompressedGraphTest, compressed_graph_pfor_neighbors_operation) {
 
 static void test_compressed_graph_pfor_neighbors_indirect_operation(const Graph &graph) {
   const auto &csr_graph = graph.csr_graph();
-  const auto compressed_graph = CompressedGraphBuilder::compress(csr_graph);
+  const auto compressed_graph = compress(csr_graph);
 
   tbb::concurrent_vector<std::pair<NodeID, EdgeWeight>> graph_adjacent_node;
   tbb::concurrent_vector<std::pair<NodeID, EdgeWeight>> compressed_graph_adjacent_node;

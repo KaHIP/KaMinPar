@@ -5,17 +5,17 @@
  * @author: Daniel Seemaier
  * @date:   26.10.2022
  ******************************************************************************/
-#include "apps/io/shm_metis_parser.h"
+#include "kaminpar-io/metis_parser.h"
 
 #include <fstream>
+
+#include "kaminpar-io/util/file_toker.h"
 
 #include "kaminpar-shm/graphutils/compressed_graph_builder.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/logger.h"
-
-#include "apps/io/file_toker.h"
 
 namespace kaminpar::shm::io::metis {
 using namespace kaminpar::io;
@@ -151,127 +151,135 @@ void parse_graph(
 
 } // namespace
 
-CSRGraph csr_read(const std::string &filename, const bool sorted) {
-  MappedFileToker toker(filename);
-  const MetisHeader header = parse_header(toker);
+std::optional<CSRGraph> csr_read(const std::string &filename, const bool sorted) {
+  try {
+    MappedFileToker toker(filename);
+    const MetisHeader header = parse_header(toker);
 
-  RECORD("nodes") StaticArray<EdgeID> nodes(header.num_nodes + 1, static_array::noinit);
-  RECORD("edges") StaticArray<NodeID> edges(header.num_edges * 2, static_array::noinit);
+    RECORD("nodes") StaticArray<EdgeID> nodes(header.num_nodes + 1, static_array::noinit);
+    RECORD("edges") StaticArray<NodeID> edges(header.num_edges * 2, static_array::noinit);
 
-  RECORD("node_weights") StaticArray<NodeWeight> node_weights;
-  if (header.has_node_weights) {
-    node_weights.resize(header.num_nodes, static_array::noinit);
-  }
+    RECORD("node_weights") StaticArray<NodeWeight> node_weights;
+    if (header.has_node_weights) {
+      node_weights.resize(header.num_nodes, static_array::noinit);
+    }
 
-  RECORD("edge_weights") StaticArray<EdgeWeight> edge_weights;
-  if (header.has_edge_weights) {
-    edge_weights.resize(header.num_edges * 2, static_array::noinit);
-  }
+    RECORD("edge_weights") StaticArray<EdgeWeight> edge_weights;
+    if (header.has_edge_weights) {
+      edge_weights.resize(header.num_edges * 2, static_array::noinit);
+    }
 
-  NodeID u = 0;
-  EdgeID e = 0;
+    NodeID u = 0;
+    EdgeID e = 0;
 
-  std::int64_t total_node_weight = 0;
-  std::int64_t total_edge_weight = 0;
+    std::int64_t total_node_weight = 0;
+    std::int64_t total_edge_weight = 0;
 
-  parse_graph(
-      toker,
-      header,
-      [&](const std::uint64_t weight) {
-        nodes[u] = e;
+    parse_graph(
+        toker,
+        header,
+        [&](const std::uint64_t weight) {
+          nodes[u] = e;
 
-        if (header.has_node_weights) {
-          total_node_weight += weight;
-          node_weights[u] = static_cast<NodeWeight>(weight);
+          if (header.has_node_weights) {
+            total_node_weight += weight;
+            node_weights[u] = static_cast<NodeWeight>(weight);
+          }
+
+          u += 1;
+        },
+        [&](const std::uint64_t weight, const std::uint64_t v) {
+          edges[e] = static_cast<NodeID>(v);
+
+          if (header.has_edge_weights) {
+            total_edge_weight += weight;
+            edge_weights[e] = static_cast<EdgeWeight>(weight);
+          }
+
+          e += 1;
         }
+    );
 
-        u += 1;
-      },
-      [&](const std::uint64_t weight, const std::uint64_t v) {
-        edges[e] = static_cast<NodeID>(v);
+    KASSERT(u + 1 == nodes.size());
+    KASSERT(e == header.num_edges * 2);
+    nodes[u] = e;
 
-        if (header.has_edge_weights) {
-          total_edge_weight += weight;
-          edge_weights[e] = static_cast<EdgeWeight>(weight);
-        }
+    // Only keep weights if the graph is really weighted.
+    const bool unit_node_weights =
+        header.has_node_weights && (static_cast<NodeID>(total_node_weight + 1) == nodes.size());
+    if (unit_node_weights) {
+      node_weights.free();
+    }
 
-        e += 1;
-      }
-  );
+    const bool unit_edge_weights =
+        header.has_edge_weights && (static_cast<EdgeID>(total_edge_weight) == edges.size());
+    if (unit_edge_weights) {
+      edge_weights.free();
+    }
 
-  KASSERT(u + 1 == nodes.size());
-  KASSERT(e == header.num_edges * 2);
-  nodes[u] = e;
+    KASSERT(
+        total_node_weight <= static_cast<std::int64_t>(std::numeric_limits<NodeWeight>::max()),
+        "total node weight does not fit into the node weight type"
+    );
+    KASSERT(
+        total_edge_weight <= static_cast<std::int64_t>(std::numeric_limits<EdgeWeight>::max()),
+        "total edge weight does not fit into the edge weight type"
+    );
 
-  // Only keep weights if the graph is really weighted.
-  const bool unit_node_weights =
-      header.has_node_weights && (static_cast<NodeID>(total_node_weight + 1) == nodes.size());
-  if (unit_node_weights) {
-    node_weights.free();
+    return CSRGraph(
+        std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), sorted
+    );
+  } catch (const TokerException &e) {
+    return std::nullopt;
   }
-
-  const bool unit_edge_weights =
-      header.has_edge_weights && (static_cast<EdgeID>(total_edge_weight) == edges.size());
-  if (unit_edge_weights) {
-    edge_weights.free();
-  }
-
-  KASSERT(
-      total_node_weight <= static_cast<std::int64_t>(std::numeric_limits<NodeWeight>::max()),
-      "total node weight does not fit into the node weight type"
-  );
-  KASSERT(
-      total_edge_weight <= static_cast<std::int64_t>(std::numeric_limits<EdgeWeight>::max()),
-      "total edge weight does not fit into the edge weight type"
-  );
-
-  return CSRGraph(
-      std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), sorted
-  );
 }
 
-CompressedGraph compress_read(const std::string &filename, const bool sorted) {
-  MappedFileToker toker(filename);
-  const MetisHeader header = parse_header(toker);
+std::optional<CompressedGraph> compress_read(const std::string &filename, const bool sorted) {
+  try {
+    MappedFileToker toker(filename);
+    const MetisHeader header = parse_header(toker);
 
-  CompressedGraphBuilder builder(
-      header.num_nodes,
-      header.num_edges * 2,
-      header.has_node_weights,
-      header.has_edge_weights,
-      sorted
-  );
-  RECORD("neighbourhood") std::vector<std::pair<NodeID, EdgeWeight>> neighbourhood;
-  RECORD_LOCAL_DATA_STRUCT(neighbourhood, 0, neighbourhood_stats);
+    CompressedGraphBuilder builder(
+        header.num_nodes,
+        header.num_edges * 2,
+        header.has_node_weights,
+        header.has_edge_weights,
+        sorted
+    );
+    RECORD("neighbourhood") std::vector<std::pair<NodeID, EdgeWeight>> neighbourhood;
+    RECORD_LOCAL_DATA_STRUCT(neighbourhood, 0, neighbourhood_stats);
 
-  NodeID node = 0;
-  EdgeID edge = 0;
-  parse_graph(
-      toker,
-      header,
-      [&](const std::uint64_t weight) {
-        if (node > 0) {
-          builder.add_node(neighbourhood);
-          neighbourhood.clear();
+    NodeID node = 0;
+    EdgeID edge = 0;
+    parse_graph(
+        toker,
+        header,
+        [&](const std::uint64_t weight) {
+          if (node > 0) {
+            builder.add_node(neighbourhood);
+            neighbourhood.clear();
+          }
+
+          if (header.has_node_weights) {
+            builder.add_node_weight(node, static_cast<NodeWeight>(weight));
+          }
+
+          node += 1;
+          return false;
+        },
+        [&](const std::uint64_t weight, const std::uint64_t v) {
+          neighbourhood.emplace_back(static_cast<NodeID>(v), static_cast<EdgeWeight>(weight));
+          edge += 1;
         }
+    );
+    builder.add_node(neighbourhood);
 
-        if (header.has_node_weights) {
-          builder.add_node_weight(node, static_cast<NodeWeight>(weight));
-        }
+    IF_HEAP_PROFILING(neighbourhood_stats->size = neighbourhood.capacity() * sizeof(NodeID));
 
-        node += 1;
-        return false;
-      },
-      [&](const std::uint64_t weight, const std::uint64_t v) {
-        neighbourhood.emplace_back(static_cast<NodeID>(v), static_cast<EdgeWeight>(weight));
-        edge += 1;
-      }
-  );
-  builder.add_node(neighbourhood);
-
-  IF_HEAP_PROFILING(neighbourhood_stats->size = neighbourhood.capacity() * sizeof(NodeID));
-
-  return builder.build();
+    return builder.build();
+  } catch (const TokerException &e) {
+    return std::nullopt;
+  }
 }
 
 void write(const std::string &filename, const Graph &graph) {

@@ -11,13 +11,13 @@
 
 #include <tbb/global_control.h>
 
+#include "kaminpar-io/io.h"
+#include "kaminpar-io/metis_parser.h"
+#include "kaminpar-io/parhip_parser.h"
+
 #include "kaminpar-shm/graphutils/permutator.h"
 
 #include "kaminpar-common/logger.h"
-
-#include "apps/io/shm_io.h"
-#include "apps/io/shm_metis_parser.h"
-#include "apps/io/shm_parhip_parser.h"
 
 using namespace kaminpar;
 using namespace kaminpar::shm;
@@ -56,8 +56,13 @@ int main(int argc, char *argv[]) {
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, ctx.parallel.num_threads);
 
   LOG << "Reading input graph...";
-  CSRGraph input_graph = io::csr_read(graph_filename, graph_file_format, ctx.node_ordering);
-  Graph graph(std::make_unique<CSRGraph>(std::move(input_graph)));
+  auto input_graph = io::csr_read(graph_filename, graph_file_format, ctx.node_ordering);
+  if (!input_graph) {
+    LOG_ERROR << "Failed to read the input graph";
+    return EXIT_FAILURE;
+  }
+
+  Graph graph(std::make_unique<CSRGraph>(std::move(*input_graph)));
 
   LOG << "Rearranging graph...";
   if (ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
