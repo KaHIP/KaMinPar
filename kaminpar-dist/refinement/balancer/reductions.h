@@ -97,7 +97,7 @@ std::vector<Candidate> reduce_candidates(
 
             // Reject the move set candidate if it would overload the target block
             if (from != to && p_graph.block_weight(to) + block_weight_deltas[to] + weight >
-                                  p_ctx.graph->max_block_weight(to)) {
+                                  p_ctx.max_block_weight(to)) {
               candidates[i].id = kInvalidID;
               ++num_rejected_candidates;
             } else {
@@ -106,7 +106,7 @@ std::vector<Candidate> reduce_candidates(
               ++num_accepted_candidates;
 
               const BlockWeight overload =
-                  p_graph.block_weight(from) - p_ctx.graph->max_block_weight(from);
+                  p_graph.block_weight(from) - p_ctx.max_block_weight(from);
               if (total_weight >= overload || num_accepted_candidates >= max_nodes_per_block) {
                 break;
               }
@@ -139,7 +139,7 @@ std::vector<Candidate> reduce_candidates(
             const NodeWeight weight = vec[i].weight;
 
             if (from == to || p_graph.block_weight(to) + block_weight_deltas[to] + weight <=
-                                  p_ctx.graph->max_block_weight(to)) {
+                                  p_ctx.max_block_weight(to)) {
               winners.push_back(vec[i]);
               if (from != to) {
                 block_weight_deltas[to] += weight;

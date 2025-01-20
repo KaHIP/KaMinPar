@@ -44,7 +44,7 @@ public:
     return compute_max_gainer_impl(
         u,
         [&p_ctx](const BlockID block, const BlockWeight weight_after_move) {
-          return weight_after_move <= p_ctx.graph->max_block_weight(block);
+          return weight_after_move <= p_ctx.max_block_weight(block);
         }
     );
   }

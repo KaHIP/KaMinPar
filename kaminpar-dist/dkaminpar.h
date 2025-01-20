@@ -367,23 +367,111 @@ struct GraphCompressionContext {
 };
 
 struct PartitionContext {
-  PartitionContext(BlockID k, BlockID initial_k, BlockID extension_k, double epsilon);
-
-  PartitionContext(const PartitionContext &other);
-  PartitionContext &operator=(const PartitionContext &other);
-
-  ~PartitionContext();
-
-  [[nodiscard]] double inferred_epsilon() const {
-    return epsilon;
-  }
+  GlobalNodeID global_n = kInvalidGlobalNodeID;
+  NodeID n = kInvalidNodeID;
+  NodeID total_n = kInvalidNodeID;
+  GlobalEdgeID global_m = kInvalidGlobalEdgeID;
+  EdgeID m = kInvalidEdgeID;
+  GlobalNodeWeight global_total_node_weight = kInvalidGlobalNodeWeight;
+  NodeWeight total_node_weight = kInvalidNodeWeight;
+  GlobalNodeWeight global_max_node_weight = kInvalidGlobalNodeWeight;
+  GlobalEdgeWeight global_total_edge_weight = kInvalidGlobalEdgeWeight;
+  EdgeWeight total_edge_weight = kInvalidEdgeWeight;
 
   BlockID k = kInvalidBlockID;
-  BlockID initial_k = kInvalidBlockID;
-  BlockID extension_k = kInvalidBlockID;
-  double epsilon;
 
-  std::unique_ptr<struct GraphContext> graph;
+  [[nodiscard]] BlockWeight perfectly_balanced_block_weight(const BlockID block) const {
+    return std::ceil(1.0 * _unrelaxed_max_block_weights[block] / (1 + inferred_epsilon()));
+  }
+
+  [[nodiscard]] BlockWeight max_block_weight(const BlockID block) const {
+    return _max_block_weights[block];
+  }
+
+  [[nodiscard]] BlockWeight total_max_block_weights(const BlockID begin, const BlockID end) const {
+    if (_uniform_block_weights) {
+      return _max_block_weights[begin] * (end - begin);
+    }
+
+    return std::accumulate(
+        _max_block_weights.begin() + begin,
+        _max_block_weights.begin() + end,
+        static_cast<BlockWeight>(0)
+    );
+  }
+
+  [[nodiscard]] BlockWeight
+  total_unrelaxed_max_block_weights(const BlockID begin, const BlockID end) const {
+    if (_uniform_block_weights) {
+      return (1.0 + inferred_epsilon()) * std::ceil(1.0 * (end - begin) * total_node_weight / k);
+    }
+
+    return std::accumulate(
+        _unrelaxed_max_block_weights.begin() + begin,
+        _unrelaxed_max_block_weights.begin() + end,
+        static_cast<BlockWeight>(0)
+    );
+  }
+
+  [[nodiscard]] double epsilon() const {
+    return _epsilon < 0.0 ? inferred_epsilon() : _epsilon;
+  }
+
+  [[nodiscard]] double infer_epsilon() const {
+    if (_uniform_block_weights) {
+      return _epsilon;
+    }
+
+    return 1.0 * _total_max_block_weights / global_total_node_weight - 1.0;
+  }
+
+  [[nodiscard]] double inferred_epsilon() const {
+    return infer_epsilon();
+  }
+
+  void set_epsilon(const double eps) {
+    _epsilon = eps;
+  }
+
+  [[nodiscard]] bool has_epsilon() const {
+    return _epsilon > 0.0;
+  }
+
+  [[nodiscard]] bool has_uniform_block_weights() const {
+    return _uniform_block_weights;
+  }
+
+  void setup(
+      const class AbstractGraph &graph,
+      BlockID k,
+      double epsilon,
+      bool relax_max_block_weights = false
+  );
+
+  void setup(
+      const class AbstractGraph &graph,
+      std::vector<BlockWeight> max_block_weights,
+      bool relax_max_block_weights = false
+  );
+
+private:
+  std::vector<BlockWeight> _max_block_weights{};
+  std::vector<BlockWeight> _unrelaxed_max_block_weights{};
+
+  BlockWeight _total_max_block_weights = 0;
+  double _epsilon = -1.0;
+  bool _uniform_block_weights = false;
+};
+
+struct PartitioningContext {
+  PartitioningMode mode;
+
+  BlockID initial_k;
+  BlockID extension_k;
+
+  bool avoid_toplevel_bipartitioning;
+  bool enable_pe_splitting;
+  bool simulate_singlethread;
 };
 
 struct DebugContext {
@@ -396,13 +484,9 @@ struct DebugContext {
 struct Context {
   GraphOrdering rearrange_by;
 
-  PartitioningMode mode;
-
-  bool avoid_toplevel_bipartitioning;
-  bool enable_pe_splitting;
-  bool simulate_singlethread;
-
+  PartitioningContext partitioning;
   PartitionContext partition;
+
   ParallelContext parallel;
   GraphCompressionContext compression;
   CoarseningContext coarsening;

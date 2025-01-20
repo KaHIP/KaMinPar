@@ -286,8 +286,8 @@ private:
 
         if (from == to) {
           // Look for next block that can take node
-          while (cur == from ||
-                 _p_graph.block_weight(cur) + weight > _p_ctx.graph->max_block_weight(cur)) {
+          while (cur == from || _p_graph.block_weight(cur) + weight > _p_ctx.max_block_weight(cur)
+          ) {
             ++cur;
             if (cur >= _p_ctx.k) {
               cur = 0;
@@ -429,7 +429,7 @@ private:
         "block weights!"
     );
     KASSERT(b < _p_graph.k());
-    return std::max<BlockWeight>(0, _p_graph.block_weight(b) - _p_ctx.graph->max_block_weight(b));
+    return std::max<BlockWeight>(0, _p_graph.block_weight(b) - _p_ctx.max_block_weight(b));
   }
 
   BlockWeight block_underload(BlockID b) const {
@@ -439,7 +439,7 @@ private:
         "block weights!"
     );
     KASSERT(b < _p_graph.k());
-    return std::max<BlockWeight>(0, _p_ctx.graph->max_block_weight(b) - _p_graph.block_weight(b));
+    return std::max<BlockWeight>(0, _p_ctx.max_block_weight(b) - _p_graph.block_weight(b));
   }
 
   bool try_pq_insertion(BlockID b_u, NodeID u) {
@@ -594,7 +594,6 @@ private:
                 "could not find a feasible target block for node "
                     << candidate.id << ", weight " << candidate.weight << ", deltas: ["
                     << block_weight_deltas_to << "]"
-                    << ", max block weights: " << _p_ctx.graph->max_block_weights
                     << ", block weights: "
                     << std::vector<BlockWeight>(
                            _p_graph.block_weights().begin(), _p_graph.block_weights().end()

@@ -62,49 +62,50 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
       ->check(CLI::NonNegativeNumber)
       ->configurable(false)
       ->capture_default_str();
+
+  partitioning->add_option("-m,--mode", ctx.partitioning.mode)
+      ->transform(CLI::CheckedTransformer(get_partitioning_modes()).description(""))
+      ->description(R"(Partitioning scheme, possible options are:
+  - deep: distributed deep multilevel graph partitioning
+  - kway: direct k-way multilevel graph partitioning)")
+      ->capture_default_str();
   partitioning
       ->add_option(
           "--initial-k",
-          ctx.partition.initial_k,
+          ctx.partitioning.initial_k,
           "Maximum block count with which the initial partitioner is called."
       )
       ->capture_default_str();
   partitioning
       ->add_option(
           "--extension-k",
-          ctx.partition.extension_k,
+          ctx.partitioning.extension_k,
           "Maximum block count into which a single block is split before running k-way refinement "
           "and rebalancing."
       )
       ->capture_default_str();
-  partitioning->add_option("-m,--mode", ctx.mode)
-      ->transform(CLI::CheckedTransformer(get_partitioning_modes()).description(""))
-      ->description(R"(Partitioning scheme, possible options are:
-  - deep: distributed deep multilevel graph partitioning
-  - deeper: distributed deep multilevel graph partitioning with optional PE splitting and graph replication
-  - kway: direct k-way multilevel graph partitioning)")
-      ->capture_default_str();
   partitioning
       ->add_flag(
           "--p-avoid-toplevel-bipartitioning",
-          ctx.avoid_toplevel_bipartitioning,
+          ctx.partitioning.avoid_toplevel_bipartitioning,
           "Avoid running bipartitioning on the toplevel."
       )
       ->capture_default_str();
   partitioning
       ->add_flag(
           "--p-deep-enable-pe-splitting",
-          ctx.enable_pe_splitting,
+          ctx.partitioning.enable_pe_splitting,
           "Enable graph duplication during coarsening."
       )
       ->capture_default_str();
   partitioning
       ->add_flag(
           "--p-deep-simulate-singlethreaded",
-          ctx.simulate_singlethread,
+          ctx.partitioning.simulate_singlethread,
           "Simulate single-threaded execution even when using multiple threads per MPI process."
       )
       ->capture_default_str();
+
   partitioning->add_option("--rearrange-by", ctx.rearrange_by)
       ->transform(CLI::CheckedTransformer(get_graph_orderings()).description(""))
       ->description(R"(Criteria by which the graph is sorted and rearrange:

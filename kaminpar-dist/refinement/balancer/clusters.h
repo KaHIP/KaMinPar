@@ -187,7 +187,7 @@ public:
     const BlockID set_b = block(cluster);
     for (const BlockID b : _p_graph->blocks()) {
       if (b != set_b && conn(cluster, b) > max_conn &&
-          _p_graph->block_weight(b) + weight(cluster) <= _p_ctx->graph->max_block_weight(b)) {
+          _p_graph->block_weight(b) + weight(cluster) <= _p_ctx->max_block_weight(b)) {
         max_conn = conn(cluster, b);
         max_gainer = b;
       }

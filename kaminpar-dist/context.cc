@@ -20,32 +20,6 @@ namespace kaminpar::dist {
 
 using namespace std::string_literals;
 
-PartitionContext::PartitionContext(
-    const BlockID k, const BlockID initial_k, const BlockID extension_k, const double epsilon
-)
-    : k(k),
-      initial_k(initial_k),
-      extension_k(extension_k),
-      epsilon(epsilon) {}
-
-PartitionContext::PartitionContext(const PartitionContext &other)
-    : k(other.k),
-      initial_k(other.initial_k),
-      extension_k(other.extension_k),
-      epsilon(other.epsilon),
-      graph(other.graph == nullptr ? nullptr : std::make_unique<GraphContext>(*other.graph)) {}
-
-PartitionContext &PartitionContext::operator=(const PartitionContext &other) {
-  k = other.k;
-  initial_k = other.initial_k;
-  extension_k = other.extension_k;
-  epsilon = other.epsilon;
-  graph = other.graph == nullptr ? nullptr : std::make_unique<GraphContext>(*other.graph);
-  return *this;
-}
-
-PartitionContext::~PartitionContext() = default;
-
 GraphContext::GraphContext(const DistributedGraph &graph, const PartitionContext &p_ctx)
     : global_n(graph.global_n()),
       n(graph.n()),
@@ -58,7 +32,7 @@ GraphContext::GraphContext(const DistributedGraph &graph, const PartitionContext
       global_total_edge_weight(graph.global_total_edge_weight()),
       total_edge_weight(graph.total_edge_weight()) {
   setup_perfectly_balanced_block_weights(p_ctx.k);
-  setup_max_block_weights(p_ctx.k, p_ctx.epsilon);
+  setup_max_block_weights(p_ctx.k, /* epsilon = */ 0.0);
 }
 
 GraphContext::GraphContext(const shm::Graph &graph, const PartitionContext &p_ctx)
@@ -73,7 +47,7 @@ GraphContext::GraphContext(const shm::Graph &graph, const PartitionContext &p_ct
       global_total_edge_weight(graph.total_edge_weight()),
       total_edge_weight(graph.total_edge_weight()) {
   setup_perfectly_balanced_block_weights(p_ctx.k);
-  setup_max_block_weights(p_ctx.k, p_ctx.epsilon);
+  setup_max_block_weights(p_ctx.k, /* epsilon = */ 0.0);
 }
 
 void GraphContext::setup_perfectly_balanced_block_weights(const BlockID k) {

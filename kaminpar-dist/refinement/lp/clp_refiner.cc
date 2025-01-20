@@ -450,7 +450,7 @@ auto ColoredLPRefiner::reduce_move_candidates(
   auto try_add_candidate = [&](std::vector<MoveCandidate> &ans, const MoveCandidate &candidate) {
     if (_p_graph.block_weight(candidate.to) + _block_weight_deltas[candidate.to] +
             candidate.weight <=
-        _p_ctx.graph->max_block_weight(candidate.to)) {
+        _p_ctx.max_block_weight(candidate.to)) {
       ans.push_back(candidate);
       _block_weight_deltas[candidate.to] += candidate.weight;
     }
@@ -661,7 +661,7 @@ ColoredLPRefiner::try_probabilistic_moves(const ColorID c, const BlockGainsConta
         const double gain_prob =
             (block_gains[to] == 0) ? 1.0 : 1.0 * _gains[seq_u] / block_gains[to];
         const BlockWeight residual_block_weight =
-            _p_ctx.graph->max_block_weight(to) - _p_graph.block_weight(to);
+            _p_ctx.max_block_weight(to) - _p_graph.block_weight(to);
         return gain_prob * residual_block_weight / _p_graph.node_weight(u);
       }();
 
@@ -704,7 +704,7 @@ ColoredLPRefiner::try_probabilistic_moves(const ColorID c, const BlockGainsConta
     // feasible if their weight did not increase (i.e., delta is <= 0) == first
     // part of this if condition
     if (block_weight_deltas[b] > 0 &&
-        _p_graph.block_weight(b) + block_weight_deltas[b] > _p_ctx.graph->max_block_weight(b)) {
+        _p_graph.block_weight(b) + block_weight_deltas[b] > _p_ctx.max_block_weight(b)) {
       feasible = 0;
     }
   });
@@ -841,9 +841,9 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
           if (block != u_block) {
             if ((_ctx.track_local_block_weights &&
                  _p_graph.block_weight(block) + _block_weight_deltas[block] + u_weight >
-                     _p_ctx.graph->max_block_weight(block)) ||
+                     _p_ctx.max_block_weight(block)) ||
                 (!_ctx.track_local_block_weights &&
-                 _p_graph.block_weight(block) + u_weight > _p_ctx.graph->max_block_weight(block))) {
+                 _p_graph.block_weight(block) + u_weight > _p_ctx.max_block_weight(block))) {
               continue;
             }
           }

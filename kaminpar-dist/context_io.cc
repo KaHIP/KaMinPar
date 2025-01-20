@@ -334,15 +334,18 @@ void print(const Context &ctx, const bool root, std::ostream &out, MPI_Comm comm
   if (root) {
     cio::print_delimiter("Partitioning Scheme", '-');
 
-    out << "Partitioning mode:            " << ctx.mode << "\n";
-    if (ctx.mode == PartitioningMode::DEEP) {
-      out << "  Enable PE-splitting:        " << (ctx.enable_pe_splitting ? "yes" : "no") << "\n";
+    out << "Partitioning mode:            " << ctx.partitioning.mode << "\n";
+    if (ctx.partitioning.mode == PartitioningMode::DEEP) {
+      out << "  Enable PE-splitting:        "
+          << (ctx.partitioning.enable_pe_splitting ? "yes" : "no") << "\n";
       out << "  Initial K:                  "
-          << (ctx.partition.initial_k > 0 ? ctx.partition.initial_k : 2) << "\n";
+          << (ctx.partitioning.initial_k > 0 ? ctx.partitioning.initial_k : 2) << "\n";
       out << "  Extension K:                "
-          << (ctx.partition.extension_k > 0 ? std::to_string(ctx.partition.extension_k) : "inf")
+          << (ctx.partitioning.extension_k > 0 ? std::to_string(ctx.partitioning.extension_k)
+                                               : "inf")
           << "\n";
-      out << "  Simulate seq. hybrid exe.:  " << (ctx.simulate_singlethread ? "yes" : "no") << "\n";
+      out << "  Simulate seq. hybrid exe.:  "
+          << (ctx.partitioning.simulate_singlethread ? "yes" : "no") << "\n";
     }
     cio::print_delimiter("Graph Compression", '-');
     print(ctx.compression, ctx.parallel, ctx.debug.print_compression_details, out);
@@ -356,40 +359,34 @@ void print(const Context &ctx, const bool root, std::ostream &out, MPI_Comm comm
 }
 
 void print(const PartitionContext &ctx, const bool root, std::ostream &out, MPI_Comm comm) {
-  // If the graph context has not been initialized with a graph, be silent
-  // (This should never happen)
-  if (ctx.graph == nullptr) {
-    return;
-  }
-
   const auto size = std::max<std::uint64_t>({
-      static_cast<std::uint64_t>(ctx.graph->global_n),
-      static_cast<std::uint64_t>(ctx.graph->global_m),
-      static_cast<std::uint64_t>(ctx.graph->max_block_weight(0)),
+      static_cast<std::uint64_t>(ctx.global_n),
+      static_cast<std::uint64_t>(ctx.global_m),
+      static_cast<std::uint64_t>(ctx.max_block_weight(0)),
   });
   const auto width = std::ceil(std::log10(size)) + 1;
 
-  const auto num_global_total_nodes =
-      mpi::allreduce<GlobalNodeID>(ctx.graph->total_n, MPI_SUM, comm);
+  const auto num_global_total_nodes = mpi::allreduce<GlobalNodeID>(ctx.total_n, MPI_SUM, comm);
 
   if (root) {
-    out << "  Number of global nodes:    " << std::setw(width) << ctx.graph->global_n;
-    if (static_cast<GlobalNodeWeight>(ctx.graph->global_n) == ctx.graph->global_total_node_weight) {
+    out << "  Number of global nodes:    " << std::setw(width) << ctx.global_n;
+    if (static_cast<GlobalNodeWeight>(ctx.global_n) == ctx.global_total_node_weight) {
       out << " (unweighted)\n";
     } else {
-      out << " (total weight: " << ctx.graph->global_total_node_weight << ")\n";
+      out << " (total weight: " << ctx.global_total_node_weight << ")\n";
     }
     out << "    + ghost nodes:           " << std::setw(width)
-        << num_global_total_nodes - ctx.graph->global_n << "\n";
-    out << "  Number of global edges:    " << std::setw(width) << ctx.graph->global_m;
-    if (static_cast<GlobalEdgeWeight>(ctx.graph->global_m) == ctx.graph->global_total_edge_weight) {
+        << num_global_total_nodes - ctx.global_n << "\n";
+    out << "  Number of global edges:    " << std::setw(width) << ctx.global_m;
+    if (static_cast<GlobalEdgeWeight>(ctx.global_m) == ctx.global_total_edge_weight) {
       out << " (unweighted)\n";
     } else {
-      out << " (total weight: " << ctx.graph->global_total_edge_weight << ")\n";
+      out << " (total weight: " << ctx.global_total_edge_weight << ")\n";
     }
     out << "Number of blocks:             " << ctx.k << "\n";
-    out << "Maximum block weight:         " << ctx.graph->max_block_weight(0) << " ("
-        << ctx.graph->perfectly_balanced_block_weight(0) << " + " << 100 * ctx.epsilon << "%)\n";
+    out << "Maximum block weight:         " << ctx.max_block_weight(0) << " ("
+        << ctx.perfectly_balanced_block_weight(0) << " + " << 100 * ctx.inferred_epsilon()
+        << "%)\n";
   }
 }
 

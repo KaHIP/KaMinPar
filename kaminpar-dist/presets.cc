@@ -43,17 +43,17 @@ std::unordered_set<std::string> get_preset_names() {
 Context create_default_context() {
   return {
       .rearrange_by = GraphOrdering::DEGREE_BUCKETS,
-      .mode = PartitioningMode::DEEP,
-      .avoid_toplevel_bipartitioning = true,
-      .enable_pe_splitting = true,
-      .simulate_singlethread = true,
-      .partition =
+      .partitioning =
           {
-              kInvalidBlockID, // k
-              16,              // initial_k
-              0,               // extension_k
-              0.03,            // epsilon
+
+              .mode = PartitioningMode::DEEP,
+              .initial_k = 16,
+              .extension_k = 0,
+              .avoid_toplevel_bipartitioning = true,
+              .enable_pe_splitting = true,
+              .simulate_singlethread = true,
           },
+      .partition = {},
       .parallel =
           {
               .num_threads = 1,

@@ -58,10 +58,10 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
    */
   const BlockID first_step_k = std::min<BlockID>(
       _input_ctx.partition.k,
-      _input_ctx.partition.initial_k > 0 ? _input_ctx.partition.initial_k : 2
+      _input_ctx.partitioning.initial_k > 0 ? _input_ctx.partitioning.initial_k : 2
   );
   const GlobalNodeID desired_num_nodes =
-      (_input_ctx.simulate_singlethread ? 1 : _input_ctx.parallel.num_threads) *
+      (_input_ctx.partitioning.simulate_singlethread ? 1 : _input_ctx.parallel.num_threads) *
       _input_ctx.coarsening.contraction_limit * first_step_k;
   const PEID initial_rank = mpi::get_comm_rank(_input_graph.communicator());
   const PEID initial_size = mpi::get_comm_size(_input_graph.communicator());
@@ -78,7 +78,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     const BlockID num_blocks_on_this_level =
         math::ceil2(graph->global_n() / _input_ctx.coarsening.contraction_limit);
 
-    if (_input_ctx.enable_pe_splitting && current_num_pes > 1 &&
+    if (_input_ctx.partitioning.enable_pe_splitting && current_num_pes > 1 &&
         num_blocks_on_this_level < static_cast<BlockID>(current_num_pes)) {
       const PEID num_replications = current_num_pes / num_blocks_on_this_level;
       // const PEID remaining_pes = current_num_pes % num_blocks_on_this_level;
@@ -136,7 +136,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   ip_p_ctx.graph = std::make_unique<GraphContext>(shm_graph, ip_p_ctx);
 
   shm::PartitionedGraph shm_p_graph{};
-  if (_input_ctx.simulate_singlethread) {
+  if (_input_ctx.partitioning.simulate_singlethread) {
     shm_p_graph = initial_partitioner->initial_partition(shm_graph, ip_p_ctx);
     EdgeWeight best_cut = shm::metrics::edge_cut(shm_p_graph);
 
@@ -208,7 +208,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
         math::ceil2(dist_p_graph.global_n() / _input_ctx.coarsening.contraction_limit)
     );
     if (_input_graph.global_n() == p_graph.global_n() ||
-        (_input_ctx.avoid_toplevel_bipartitioning && almost_toplevel &&
+        (_input_ctx.partitioning.avoid_toplevel_bipartitioning && almost_toplevel &&
          _input_graph.global_n() >
              2 * _input_ctx.partition.k * _input_ctx.coarsening.contraction_limit)) {
       // If we (almost) work on the input graph, extend to final number of blocks
@@ -216,8 +216,8 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     }
     while (dist_p_graph.k() < desired_k) {
       const BlockID next_k =
-          _input_ctx.partition.extension_k > 0
-              ? std::min<BlockID>(desired_k, dist_p_graph.k() * _input_ctx.partition.extension_k)
+          _input_ctx.partitioning.extension_k > 0
+              ? std::min<BlockID>(desired_k, dist_p_graph.k() * _input_ctx.partitioning.extension_k)
               : desired_k;
       const BlockID k_per_block = next_k / dist_p_graph.k();
 
@@ -233,8 +233,8 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
       START_TIMER("Initial partitioning");
       std::vector<shm::PartitionedGraph> p_subgraphs;
       for (const auto &subgraph : subgraphs) {
-        const double target_max_block_weight =
-            (1.0 + _input_ctx.partition.epsilon) * _input_graph.global_total_node_weight() / next_k;
+        const double target_max_block_weight = (1.0 + _input_ctx.partition.epsilon()) *
+                                               _input_graph.global_total_node_weight() / next_k;
         const double next_epsilon =
             1.0 * target_max_block_weight / subgraph.total_node_weight() * k_per_block - 1.0;
         ip_p_ctx.k = k_per_block;
@@ -261,7 +261,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
       const auto imbalance = metrics::imbalance(dist_p_graph);
 
       ip_p_ctx.k = next_k;
-      ip_p_ctx.epsilon = _input_ctx.partition.epsilon;
+      ip_p_ctx.epsilon = _input_ctx.partition.epsilon();
       ip_p_ctx.graph = std::make_unique<GraphContext>(dist_p_graph.graph(), ip_p_ctx);
 
       const bool feasible = metrics::is_feasible(dist_p_graph, ip_p_ctx);
@@ -320,7 +320,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
       _replicated_graphs.pop_back();
     }
 
-    if (_input_ctx.avoid_toplevel_bipartitioning && level == 0) {
+    if (_input_ctx.partitioning.avoid_toplevel_bipartitioning && level == 0) {
       extend_partition(dist_p_graph, ref_p_ctx, true);
     }
 

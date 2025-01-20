@@ -424,7 +424,7 @@ public:
   }
 
   [[nodiscard]] BlockWeight max_cluster_weight(const BlockID b) {
-    return _p_ctx->graph->max_block_weight(b);
+    return _p_ctx->max_block_weight(b);
   }
 
   [[nodiscard]] bool move_cluster_weight(
