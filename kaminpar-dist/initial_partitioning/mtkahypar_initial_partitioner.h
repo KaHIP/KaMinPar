@@ -8,7 +8,7 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar-dist/context.h"
+#include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/initial_partitioning/initial_partitioner.h"
 
 #include "kaminpar-shm/datastructures/graph.h"

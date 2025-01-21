@@ -24,9 +24,14 @@ shm::PartitionedGraph KaMinParInitialPartitioner::initial_partition(
     return {graph, p_ctx.k, StaticArray<BlockID>(graph.n())};
   }
 
+  std::vector<shm::BlockWeight> max_block_weights(p_ctx.k);
+  for (BlockID b = 0; b < p_ctx.k; ++b) {
+    max_block_weights[b] = p_ctx.max_block_weight(b);
+  }
+
   auto shm_ctx = _ctx.initial_partitioning.kaminpar;
   shm_ctx.refinement.lp.num_iterations = 1;
-  shm_ctx.partition.setup(graph, p_ctx.k, p_ctx.epsilon, true);
+  shm_ctx.partition.setup(graph, std::move(max_block_weights));
   shm_ctx.compression.setup(graph);
 
   DISABLE_TIMERS();

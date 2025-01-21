@@ -16,6 +16,8 @@
 #include <mpi.h>
 #include <tbb/scalable_allocator.h>
 
+#include "kaminpar-dist/datastructures/distributed_graph.h"
+
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/strutils.h"
 

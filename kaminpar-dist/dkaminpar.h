@@ -605,7 +605,7 @@ public:
       std::vector<double> max_block_weight_factors, std::span<dist::BlockID> partition
   );
 
-  const dist::DistributedGraph *graph();
+  const dist::DistributedGraph *graph() const;
 
 private:
   dist::GlobalEdgeWeight compute_partition(std::span<dist::BlockID> partition);

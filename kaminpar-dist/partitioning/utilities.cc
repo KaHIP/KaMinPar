@@ -14,7 +14,47 @@
 #include "kaminpar-dist/metrics.h"
 #include "kaminpar-dist/timer.h"
 
+#include "kaminpar-shm/partitioning/partition_utils.h"
+
 namespace kaminpar::dist {
+
+PartitionContext create_refinement_context(
+    const Context &input_ctx, const DistributedGraph &graph, const BlockID current_k, bool toplevel
+) {
+  const BlockID input_k = input_ctx.partition.k;
+
+  std::vector<BlockWeight> max_block_weights(current_k);
+  BlockID cur_fine_block = 0;
+  for (BlockID coarse_block = 0; coarse_block < current_k; ++coarse_block) {
+    const BlockID num = shm::partitioning::compute_final_k(coarse_block, current_k, input_k);
+    const BlockID begin = cur_fine_block;
+    const BlockID end = cur_fine_block + num;
+    cur_fine_block += num;
+
+    max_block_weights[coarse_block] =
+        input_ctx.partition.total_unrelaxed_max_block_weights(begin, end);
+  }
+
+  PartitionContext new_p_ctx;
+  new_p_ctx.setup(graph, std::move(max_block_weights), !toplevel);
+
+  // @todo
+  if (input_ctx.partition.has_epsilon()) {
+    new_p_ctx.set_epsilon(input_ctx.partition.epsilon());
+  }
+
+  return new_p_ctx;
+}
+
+PartitionContext create_initial_partitioning_context(
+    const Context &input_ctx,
+    const shm::Graph &graph,
+    const BlockID current_block,
+    const BlockID current_k,
+    const BlockID desired_k
+) {
+  return {};
+}
 
 void print_input_graph(const DistributedGraph &graph, const bool verbose) {
   TIMER_BARRIER(graph.communicator());

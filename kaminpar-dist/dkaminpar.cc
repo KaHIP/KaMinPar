@@ -405,6 +405,10 @@ void dKaMinPar::set_graph(DistributedGraph graph) {
   _graph_ptr = std::make_unique<DistributedGraph>(std::move(graph));
 }
 
+const DistributedGraph *dKaMinPar::graph() const {
+  return _graph_ptr.get();
+}
+
 GlobalEdgeWeight dKaMinPar::compute_partition(const BlockID k, const std::span<BlockID> partition) {
   return compute_partition(k, 0.03, partition);
 }

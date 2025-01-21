@@ -16,7 +16,7 @@ namespace kaminpar::dist {
 
 class KWayMultilevelPartitioner : public Partitioner {
 public:
-  KWayMultilevelPartitioner(const DistributedGraph &graph, const Context &ctx);
+  KWayMultilevelPartitioner(const DistributedGraph &input_graph, const Context &input_ctx);
 
   KWayMultilevelPartitioner(const KWayMultilevelPartitioner &) = delete;
   KWayMultilevelPartitioner &operator=(const KWayMultilevelPartitioner &) = delete;
@@ -27,8 +27,8 @@ public:
   DistributedPartitionedGraph partition() final;
 
 private:
-  const DistributedGraph &_graph;
-  const Context &_ctx;
+  const DistributedGraph &_input_graph;
+  const Context &_input_ctx;
 };
 
 } // namespace kaminpar::dist

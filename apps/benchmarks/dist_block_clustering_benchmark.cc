@@ -13,7 +13,6 @@
 
 #include <mpi.h>
 
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/context_io.h"
 #include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/factories.h"

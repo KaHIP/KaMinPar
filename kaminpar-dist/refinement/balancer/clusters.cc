@@ -295,7 +295,7 @@ public:
 
     for (const NodeID u : _p_graph.nodes()) {
       const BlockID bu = _p_graph.block(u);
-      if (_p_graph.block_weight(bu) > _p_ctx.graph->max_block_weight(bu) &&
+      if (_p_graph.block_weight(bu) > _p_ctx.max_block_weight(bu) &&
           _node_to_cluster[u] == kInvalidNodeID) {
         grow_cluster(u, max_cluster_weight);
       }
@@ -349,7 +349,7 @@ public:
         const BlockID bv = _p_graph.block(v);
         if (bv == _cur_block) {
           _cur_block_conn += w;
-        } else if (_p_graph.block_weight(bv) + _cur_weight <= _p_ctx.graph->max_block_weight(bv)) {
+        } else if (_p_graph.block_weight(bv) + _cur_weight <= _p_ctx.max_block_weight(bv)) {
           _cur_conns.change_priority(bv, _cur_conns.key(bv) + w);
         } else if (_cur_conns.key(bv) > 0) { // no longer a viable target
           _cur_conns.change_priority(bv, -1);
@@ -474,7 +474,7 @@ Clusters build_singleton_clusters(
   for (const NodeID u : p_graph.nodes()) {
     const BlockID bu = p_graph.block(u);
 
-    if (p_graph.block_weight(bu) > p_ctx.graph->max_block_weight(bu)) {
+    if (p_graph.block_weight(bu) > p_ctx.max_block_weight(bu)) {
       m_ctx.node_to_cluster.push_back(cur_move_set);
       m_ctx.cluster_indices.push_back(cur_move_set);
       m_ctx.clusters.push_back(u);
@@ -500,7 +500,7 @@ Clusters build_singleton_clusters(
       [&] {
         for (const NodeID u : p_graph.nodes()) {
           const BlockID bu = p_graph.block(u);
-          if (p_graph.block_weight(bu) <= p_ctx.graph->max_block_weight(bu) &&
+          if (p_graph.block_weight(bu) <= p_ctx.max_block_weight(bu) &&
               m_ctx.node_to_cluster[u] != kInvalidNodeID) {
             LOG_ERROR << "node " << u << " is in block " << bu
                       << ", which is not overloaded, yet assigned to a move set";
@@ -533,7 +533,7 @@ Clusters build_local_clusters(
   std::vector<NodeID> cluster_sizes(p_graph.n());
   for (const NodeID u : p_graph.nodes()) {
     const BlockID bu = p_graph.block(u);
-    if (p_graph.block_weight(bu) > p_ctx.graph->max_block_weight(bu)) {
+    if (p_graph.block_weight(bu) > p_ctx.max_block_weight(bu)) {
       KASSERT(clustering[u] < p_graph.n());
       cluster_to_move_set[clustering[u]] = 1;
       cluster_sizes[clustering[u]]++;
@@ -551,7 +551,7 @@ Clusters build_local_clusters(
 
   for (const NodeID u : p_graph.nodes()) {
     const BlockID bu = p_graph.block(u);
-    if (p_graph.block_weight(bu) > p_ctx.graph->max_block_weight(bu)) {
+    if (p_graph.block_weight(bu) > p_ctx.max_block_weight(bu)) {
       const NodeID ms = cluster_to_move_set[clustering[u]] - 1;
 
       m_ctx.node_to_cluster[u] = ms;
@@ -575,7 +575,7 @@ Clusters build_local_clusters(
       [&] {
         for (const NodeID u : p_graph.nodes()) {
           const BlockID bu = p_graph.block(u);
-          if (p_graph.block_weight(bu) <= p_ctx.graph->max_block_weight(bu) &&
+          if (p_graph.block_weight(bu) <= p_ctx.max_block_weight(bu) &&
               m_ctx.node_to_cluster[u] != kInvalidNodeID) {
             LOG_ERROR << "node " << u << " is in block " << bu
                       << ", which is not overloaded, yet assigned to a move set";

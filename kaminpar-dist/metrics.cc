@@ -67,7 +67,7 @@ num_imbalanced_blocks(const DistributedPartitionedGraph &p_graph, const Partitio
   BlockID num_imbalanced_blocks = 0;
 
   for (const BlockID b : p_graph.blocks()) {
-    if (p_graph.block_weight(b) > p_ctx.graph->max_block_weight(b)) {
+    if (p_graph.block_weight(b) > p_ctx.max_block_weight(b)) {
       ++num_imbalanced_blocks;
     }
   }
@@ -78,9 +78,9 @@ num_imbalanced_blocks(const DistributedPartitionedGraph &p_graph, const Partitio
 double imbalance_l2(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
   double distance = 0.0;
   for (const BlockID b : p_graph.blocks()) {
-    if (p_graph.block_weight(b) > p_ctx.graph->max_block_weight(b)) {
+    if (p_graph.block_weight(b) > p_ctx.max_block_weight(b)) {
       const BlockWeight diff =
-          std::max<BlockWeight>(0, p_graph.block_weight(b) - p_ctx.graph->max_block_weight(b));
+          std::max<BlockWeight>(0, p_graph.block_weight(b) - p_ctx.max_block_weight(b));
       distance += 1.0 * diff * diff;
     }
   }
@@ -90,8 +90,8 @@ double imbalance_l2(const DistributedPartitionedGraph &p_graph, const PartitionC
 double imbalance_l1(const DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
   double distance = 0.0;
   for (const BlockID b : p_graph.blocks()) {
-    if (p_graph.block_weight(b) > p_ctx.graph->max_block_weight(b)) {
-      distance += std::max<double>(0, p_graph.block_weight(b) - p_ctx.graph->max_block_weight(b));
+    if (p_graph.block_weight(b) > p_ctx.max_block_weight(b)) {
+      distance += std::max<double>(0, p_graph.block_weight(b) - p_ctx.max_block_weight(b));
     }
   }
   return distance;

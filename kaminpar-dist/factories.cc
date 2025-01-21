@@ -65,7 +65,7 @@ create_partitioner(const Context &ctx, const DistributedGraph &graph, const Part
 }
 
 std::unique_ptr<Partitioner> create_partitioner(const Context &ctx, const DistributedGraph &graph) {
-  return create_partitioner(ctx, graph, ctx.mode);
+  return create_partitioner(ctx, graph, ctx.partitioning.mode);
 }
 
 std::unique_ptr<InitialPartitioner>

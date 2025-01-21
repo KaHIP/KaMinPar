@@ -16,6 +16,7 @@
 #include "kaminpar-dist/graphutils/replicator.h"
 #include "kaminpar-dist/logger.h"
 #include "kaminpar-dist/metrics.h"
+#include "kaminpar-dist/partitioning/utilities.h"
 #include "kaminpar-dist/timer.h"
 
 #include "kaminpar-shm/metrics.h"
@@ -29,16 +30,16 @@ SET_DEBUG(false);
 }
 
 KWayMultilevelPartitioner::KWayMultilevelPartitioner(
-    const DistributedGraph &graph, const Context &ctx
+    const DistributedGraph &input_graph, const Context &input_ctx
 )
-    : _graph(graph),
-      _ctx(ctx) {}
+    : _input_graph(input_graph),
+      _input_ctx(input_ctx) {}
 
 DistributedPartitionedGraph KWayMultilevelPartitioner::partition() {
-  auto coarsener = factory::create_coarsener(_ctx);
-  coarsener->initialize(&_graph);
+  auto coarsener = factory::create_coarsener(_input_ctx);
+  coarsener->initialize(&_input_graph);
 
-  const DistributedGraph *graph = &_graph;
+  const DistributedGraph *graph = &_input_graph;
 
   ////////////////////////////////////////////////////////////////////////////////
   // Step 1: Coarsening
@@ -47,12 +48,10 @@ DistributedPartitionedGraph KWayMultilevelPartitioner::partition() {
     SCOPED_TIMER("Coarsening");
 
     const GlobalNodeID threshold =
-        (_ctx.partitioning.simulate_singlethread ? 1 : _ctx.parallel.num_threads) *
-        _ctx.partition.k * _ctx.coarsening.contraction_limit;
+        (_input_ctx.partitioning.simulate_singlethread ? 1 : _input_ctx.parallel.num_threads) *
+        _input_ctx.partition.k * _input_ctx.coarsening.contraction_limit;
     while (graph->global_n() > threshold) {
       SCOPED_TIMER("Coarsening", std::string("Level ") + std::to_string(coarsener->level()));
-      const GlobalNodeWeight max_cluster_weight = 0; // coarsener->max_cluster_weight();
-
       const bool converged = !coarsener->coarsen();
 
       if (!converged) {
@@ -74,8 +73,7 @@ DistributedPartitionedGraph KWayMultilevelPartitioner::partition() {
             << "n=[" << n_str << "] "
             << "ghost_n=[" << ghost_n_str << "] "
             << "m=[" << m_str << "] "
-            << "max_node_weight=[" << max_node_weight_str << "] "
-            << "max_cluster_weight=" << max_cluster_weight;
+            << "max_node_weight=[" << max_node_weight_str << "]";
 
         // Human readable
         LOG << "Level " << coarsener->level() << ":";
@@ -92,31 +90,33 @@ DistributedPartitionedGraph KWayMultilevelPartitioner::partition() {
   ////////////////////////////////////////////////////////////////////////////////
   // Step 2: Initial Partitioning
   ////////////////////////////////////////////////////////////////////////////////
-  auto initial_partitioner = TIMED_SCOPE("Allocation") {
-    return factory::create_initial_partitioner(_ctx);
-  };
+  DistributedPartitionedGraph dist_p_graph = TIMED_SCOPE("Initial partitioning") {
+    auto initial_partitioner = TIMED_SCOPE("Allocation") {
+      return factory::create_initial_partitioner(_input_ctx);
+    };
 
-  START_TIMER("Initial Partitioning");
-  auto shm_graph = replicate_graph_everywhere(*graph);
-  shm::PartitionedGraph shm_p_graph{};
-  if (_ctx.partitioning.simulate_singlethread) {
-    shm_p_graph = initial_partitioner->initial_partition(shm_graph, _ctx.partition);
-    EdgeWeight best_cut = shm::metrics::edge_cut(shm_p_graph);
+    const PartitionContext p_ctx =
+        create_refinement_context(_input_ctx, *graph, _input_ctx.partition.k, coarsener->empty());
 
-    for (std::size_t rep = 1; rep < _ctx.parallel.num_threads; ++rep) {
-      auto partition = initial_partitioner->initial_partition(shm_graph, _ctx.partition);
-      const auto cut = shm::metrics::edge_cut(partition);
-      if (cut < best_cut) {
-        best_cut = cut;
-        shm_p_graph = std::move(partition);
+    shm::Graph shm_graph = replicate_graph_everywhere(*graph);
+    shm::PartitionedGraph shm_p_graph = initial_partitioner->initial_partition(shm_graph, p_ctx);
+
+    if (_input_ctx.partitioning.simulate_singlethread) {
+      shm::EdgeWeight shm_cut = shm::metrics::edge_cut(shm_p_graph);
+      for (std::size_t rep = 1; rep < _input_ctx.parallel.num_threads; ++rep) {
+        shm::PartitionedGraph next_shm_p_graph =
+            initial_partitioner->initial_partition(shm_graph, p_ctx);
+        const shm::EdgeWeight next_cut = shm::metrics::edge_cut(next_shm_p_graph);
+
+        if (next_cut < shm_cut) {
+          shm_cut = next_cut;
+          shm_p_graph = std::move(next_shm_p_graph);
+        }
       }
     }
-  } else {
-    shm_p_graph = initial_partitioner->initial_partition(shm_graph, _ctx.partition);
-  }
-  DistributedPartitionedGraph dist_p_graph =
-      distribute_best_partition(*graph, std::move(shm_p_graph));
-  STOP_TIMER();
+
+    return distribute_best_partition(*graph, std::move(shm_p_graph));
+  };
 
   KASSERT(
       debug::validate_partition(dist_p_graph),
@@ -134,19 +134,22 @@ DistributedPartitionedGraph KWayMultilevelPartitioner::partition() {
   ////////////////////////////////////////////////////////////////////////////////
   {
     SCOPED_TIMER("Uncoarsening");
-    auto ref_p_ctx = _ctx.partition;
-    ref_p_ctx.graph = std::make_unique<GraphContext>(dist_p_graph.graph(), ref_p_ctx);
 
     auto refiner_factory = TIMED_SCOPE("Allocation") {
-      return factory::create_refiner(_ctx);
+      return factory::create_refiner(_input_ctx);
     };
 
     auto refine = [&](DistributedPartitionedGraph &p_graph) {
       SCOPED_TIMER("Refinement");
       LOG << "-> Refining partition ...";
-      auto refiner = refiner_factory->create(p_graph, _ctx.partition);
+      const PartitionContext ref_p_ctx = create_refinement_context(
+          _input_ctx, dist_p_graph.graph(), _input_ctx.partition.k, coarsener->empty()
+      );
+
+      auto refiner = refiner_factory->create(p_graph, ref_p_ctx);
       refiner->initialize();
       refiner->refine();
+
       KASSERT(
           debug::validate_partition(p_graph),
           "graph partition verification failed after refinement",
@@ -154,15 +157,14 @@ DistributedPartitionedGraph KWayMultilevelPartitioner::partition() {
       );
     };
 
-    // special case: graph too small for multilevel, still run refinement
-    if (_ctx.refinement.refine_coarsest_level) {
+    // Special case: graph too small for multilevel, still run refinement
+    if (_input_ctx.refinement.refine_coarsest_level) {
       SCOPED_TIMER("Uncoarsening", std::string("Level ") + std::to_string(coarsener->level()));
-      ref_p_ctx.graph = std::make_unique<GraphContext>(dist_p_graph.graph(), ref_p_ctx);
       refine(dist_p_graph);
 
       // Output refinement statistics
-      const auto current_cut = metrics::edge_cut(dist_p_graph);
-      const auto current_imbalance = metrics::imbalance(dist_p_graph);
+      const GlobalEdgeWeight current_cut = metrics::edge_cut(dist_p_graph);
+      const double current_imbalance = metrics::imbalance(dist_p_graph);
 
       LOG << "=> level=" << coarsener->level() << " cut=" << current_cut
           << " imbalance=" << current_imbalance;
@@ -175,13 +177,12 @@ DistributedPartitionedGraph KWayMultilevelPartitioner::partition() {
       dist_p_graph = TIMED_SCOPE("Uncontraction") {
         return coarsener->uncoarsen(std::move(dist_p_graph));
       };
-      ref_p_ctx.graph = std::make_unique<GraphContext>(dist_p_graph.graph(), ref_p_ctx);
 
       refine(dist_p_graph);
 
       // Output refinement statistics
-      const auto current_cut = metrics::edge_cut(dist_p_graph);
-      const auto current_imbalance = metrics::imbalance(dist_p_graph);
+      const GlobalEdgeWeight current_cut = metrics::edge_cut(dist_p_graph);
+      const double current_imbalance = metrics::imbalance(dist_p_graph);
 
       LOG << "=> level=" << coarsener->level() << " cut=" << current_cut
           << " imbalance=" << current_imbalance;

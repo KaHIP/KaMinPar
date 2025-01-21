@@ -57,12 +57,6 @@ void create_all_options(CLI::App *app, Context &ctx) {
 CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
   auto *partitioning = app->add_option_group("Partitioning");
 
-  partitioning
-      ->add_option("-e,--epsilon", ctx.partition.epsilon, "Maximum allowed block imbalance.")
-      ->check(CLI::NonNegativeNumber)
-      ->configurable(false)
-      ->capture_default_str();
-
   partitioning->add_option("-m,--mode", ctx.partitioning.mode)
       ->transform(CLI::CheckedTransformer(get_partitioning_modes()).description(""))
       ->description(R"(Partitioning scheme, possible options are:

@@ -267,8 +267,8 @@ Context create_jet_context() {
 
 Context create_europar23_fast_context() {
   Context ctx = create_default_context();
-  ctx.partition.initial_k = 128;
-  ctx.partition.extension_k = 128;
+  ctx.partitioning.initial_k = 128;
+  ctx.partitioning.extension_k = 128;
   return ctx;
 }
 
