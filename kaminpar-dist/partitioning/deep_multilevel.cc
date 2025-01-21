@@ -233,14 +233,13 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
       LOG << prefix << "Extending partition from " << dist_p_graph.k() << " blocks to " << next_k
           << " blocks";
 
-      ref_p_ctx = create_refinement_context(_input_ctx, dist_p_graph.graph(), next_k, level == 0);
-
       // Extract blocks
       auto block_extraction_result =
           graph::extract_and_scatter_block_induced_subgraphs(dist_p_graph);
       const std::vector<shm::Graph> &subgraphs = block_extraction_result.subgraphs;
 
       // Partition block-induced subgraphs
+      TIMER_BARRIER(dist_p_graph.communicator());
       START_TIMER("Initial partitioning");
       std::vector<shm::PartitionedGraph> p_subgraphs;
       for (const BlockID block : dist_p_graph.blocks()) {
@@ -257,6 +256,8 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
       dist_p_graph = graph::copy_subgraph_partitions(
           std::move(dist_p_graph), p_subgraphs, block_extraction_result
       );
+
+      ref_p_ctx = create_refinement_context(_input_ctx, dist_p_graph.graph(), next_k, level == 0);
 
       // Print statistics
       TIMER_BARRIER(dist_p_graph.communicator());

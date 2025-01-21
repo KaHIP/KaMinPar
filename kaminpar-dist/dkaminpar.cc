@@ -8,8 +8,10 @@
 #include "kaminpar-dist/dkaminpar.h"
 
 #include <algorithm>
+#include <iomanip>
 #include <memory>
 #include <numeric>
+#include <sstream>
 #include <utility>
 
 #include <mpi.h>
@@ -223,6 +225,32 @@ void print_partition_summary(
       LOG << "  Feasible:         yes";
     } else {
       LOG << logger::RED << "  Feasible:         no";
+    }
+
+    LOG;
+    LOG << "Block weights:";
+
+    constexpr BlockID max_displayed_weights = 128;
+
+    const int block_id_width = std::log10(std::min(max_displayed_weights, p_graph.k())) + 1;
+    const int block_weight_width = std::log10(ctx.partition.global_total_node_weight) + 1;
+
+    for (BlockID b = 0; b < std::min<BlockID>(p_graph.k(), max_displayed_weights); ++b) {
+      std::stringstream ss;
+      ss << "  w(" << std::left << std::setw(block_id_width) << b
+         << ") = " << std::setw(block_weight_width) << p_graph.block_weight(b);
+      if (p_graph.block_weight(b) > ctx.partition.max_block_weight(b)) {
+        LLOG << logger::RED << ss.str() << " ";
+      } else {
+        LLOG << ss.str() << " ";
+      }
+      if ((b % 4) == 3) {
+        LOG;
+      }
+    }
+    if (p_graph.k() > max_displayed_weights) {
+      LOG << "(only showing the first " << max_displayed_weights << " of " << p_graph.k()
+          << " blocks)";
     }
   }
 }
