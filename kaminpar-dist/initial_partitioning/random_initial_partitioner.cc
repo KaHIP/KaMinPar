@@ -10,7 +10,6 @@
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/dkaminpar.h"
 
 #include "kaminpar-common/datastructures/static_array.h"

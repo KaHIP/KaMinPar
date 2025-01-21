@@ -14,8 +14,8 @@
 
 #include "kaminpar-mpi/wrapper.h"
 
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_compressed_graph.h"
+#include "kaminpar-dist/dkaminpar.h"
 
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/random.h"

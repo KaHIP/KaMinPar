@@ -8,7 +8,6 @@
 #pragma once
 
 #include "kaminpar-dist/coarsening/clusterer.h"
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/dkaminpar.h"
 
 namespace kaminpar::dist {

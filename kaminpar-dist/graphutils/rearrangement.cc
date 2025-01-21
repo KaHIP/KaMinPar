@@ -10,8 +10,8 @@
 #include "communication.h"
 
 #include "kaminpar-dist/algorithms/greedy_node_coloring.h"
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_csr_graph.h"
+#include "kaminpar-dist/dkaminpar.h"
 
 #include "kaminpar-shm/graphutils/permutator.h"
 

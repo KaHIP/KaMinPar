@@ -11,8 +11,8 @@
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
+#include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/refinement/gains/max_gainer.h"
 
 #include "kaminpar-common/assert.h"

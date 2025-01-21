@@ -9,7 +9,6 @@
 
 #include <variant>
 
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_compressed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_csr_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"

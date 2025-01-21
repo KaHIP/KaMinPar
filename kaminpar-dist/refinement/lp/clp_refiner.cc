@@ -17,9 +17,9 @@
 #include "kaminpar-mpi/wrapper.h"
 
 #include "kaminpar-dist/algorithms/greedy_node_coloring.h"
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
+#include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/graphutils/communication.h"
 #include "kaminpar-dist/logger.h"
 #include "kaminpar-dist/timer.h"

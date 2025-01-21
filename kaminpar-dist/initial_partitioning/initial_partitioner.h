@@ -7,7 +7,6 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/dkaminpar.h"
 
 #include "kaminpar-shm/datastructures/graph.h"

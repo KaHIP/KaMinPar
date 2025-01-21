@@ -442,14 +442,14 @@ struct PartitionContext {
   }
 
   void setup(
-      const class AbstractGraph &graph,
+      const class AbstractDistributedGraph &graph,
       BlockID k,
       double epsilon,
       bool relax_max_block_weights = false
   );
 
   void setup(
-      const class AbstractGraph &graph,
+      const class AbstractDistributedGraph &graph,
       std::vector<BlockWeight> max_block_weights,
       bool relax_max_block_weights = false
   );
@@ -510,29 +510,106 @@ class dKaMinPar {
 public:
   dKaMinPar(MPI_Comm comm, int num_threads, dist::Context ctx);
 
+  dKaMinPar(const dKaMinPar &) = delete;
+  dKaMinPar &operator=(const dKaMinPar &) = delete;
+
+  dKaMinPar(dKaMinPar &&) noexcept = default;
+  dKaMinPar &operator=(dKaMinPar &&) noexcept = default;
+
   ~dKaMinPar();
 
   static void reseed(int seed);
 
+  /*!
+   * Sets the verbosity of the partitioner.
+   *
+   * @param output_level Integer verbosity level, higher values mean more output.
+   */
   void set_output_level(OutputLevel output_level);
 
+  /*!
+   * Sets the maximum depth of the timer tree. Only meaningful if the output level is set to
+   * `APPLICATION` or `EXPERIMENT`.
+   *
+   * @param max_timer_depth The maximum depth of the timer stack.
+   */
   void set_max_timer_depth(int max_timer_depth);
 
+  /*!
+   * Returns a non-const reference to the context object, which can be used to configure the
+   * partitioning process.
+   *
+   * @return Reference to the context object.
+   */
   dist::Context &context();
 
-  void import_graph(
-      std::span<dist::GlobalNodeID> node_distribution,
-      std::span<dist::GlobalEdgeID> nodes,
-      std::span<dist::GlobalNodeID> edges,
-      std::span<dist::GlobalNodeWeight> node_weights = {},
-      std::span<dist::GlobalEdgeWeight> edge_weights = {}
+  void copy_graph(
+      std::span<const dist::GlobalNodeID> node_distribution,
+      std::span<const dist::GlobalEdgeID> nodes,
+      std::span<const dist::GlobalNodeID> edges,
+      std::span<const dist::GlobalNodeWeight> node_weights = {},
+      std::span<const dist::GlobalEdgeWeight> edge_weights = {}
   );
 
-  void import_graph(dist::DistributedGraph graph);
+  void set_graph(dist::DistributedGraph graph);
 
-  dist::GlobalEdgeWeight compute_partition(dist::BlockID k, dist::BlockID *partition);
+  /*!
+   * Partitions the graph set by `copy_graph()` or `set_graph()` into `k` blocks with
+   * a maximum imbalance of 3%.
+   *
+   * @param k Number of blocks.
+   * @param[out] partition Span of length `n` to store the partitioning.
+   *
+   * @return Expected edge cut of the partition.
+   */
+  dist::GlobalEdgeWeight compute_partition(dist::BlockID k, std::span<dist::BlockID> partition);
+
+  /*!
+   * Partitions the graph set by `copy_graph()` or `set_graph()` into `k` blocks with
+   * a maximum imbalance of `epsilon`.
+   *
+   * @param k Number of blocks.
+   * @param epsilon Balance constraint (e.g., 0.03 for max 3% imbalance).
+   * @param[out] partition Span of length `n` to store the partitioning.
+   *
+   * @return Expected edge cut of the partition.
+   */
+  dist::GlobalEdgeWeight
+  compute_partition(dist::BlockID k, double epsilon, std::span<dist::BlockID> partition);
+
+  /*!
+   * Partitions the graph set by `copy_graph()` or `set_graph()` such that the
+   * weight of each block is upper bounded by `max_block_weights`. The number of blocks is given
+   * implicitly by the size of the vector.
+   *
+   * @param max_block_weights Maximum weight for each block of the partition.
+   * @param[out] partition Span of length `n` to store the partitioning.
+   *
+   * @return Expected edge cut of the partition.
+   */
+  dist::GlobalEdgeWeight compute_partition(
+      std::vector<dist::BlockWeight> max_block_weights, std::span<dist::BlockID> partition
+  );
+
+  /*!
+   * Partitions the graph set by `copy_graph()` or `set_graph()` such that the
+   * weight of each block is upper bounded by `max_block_weight_factors` times the total node weigh
+   * of the graph. The number of blocks is given implicitly by the size of the vector.
+   *
+   * @param max_block_weight_factors Maximum weight factor for each block of the partition.
+   * @param[out] partition Span of length `n` to store the partitioning.
+   *
+   * @return Expected edge cut of the partition.
+   */
+  dist::GlobalEdgeWeight compute_partition(
+      std::vector<double> max_block_weight_factors, std::span<dist::BlockID> partition
+  );
+
+  const dist::DistributedGraph *graph();
 
 private:
+  dist::GlobalEdgeWeight compute_partition(std::span<dist::BlockID> partition);
+
   MPI_Comm _comm;
   int _num_threads;
 

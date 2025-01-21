@@ -9,7 +9,6 @@
 
 #include <tbb/enumerable_thread_specific.h>
 
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/refinement/gains/max_gainer.h"

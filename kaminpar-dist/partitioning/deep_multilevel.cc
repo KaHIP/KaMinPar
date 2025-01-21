@@ -11,10 +11,10 @@
 
 #include <mpi.h>
 
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/debug.h"
+#include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/factories.h"
 #include "kaminpar-dist/graphutils/replicator.h"
 #include "kaminpar-dist/graphutils/subgraph_extractor.h"

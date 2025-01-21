@@ -14,7 +14,6 @@
 #include <tbb/parallel_invoke.h>
 
 #include "kaminpar-dist/coarsening/clusterer.h"
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/factories.h"
 #include "kaminpar-dist/logger.h"

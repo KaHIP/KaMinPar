@@ -11,7 +11,7 @@
 
 #include "kaminpar-dist/coarsening/clusterer.h"
 #include "kaminpar-dist/coarsening/coarsener.h"
-#include "kaminpar-dist/context.h"
+#include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/initial_partitioning/initial_partitioner.h"
 #include "kaminpar-dist/partitioning/partitioner.h"
 #include "kaminpar-dist/refinement/refiner.h"

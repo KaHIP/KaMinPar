@@ -9,7 +9,7 @@
 
 #include <stdexcept>
 
-#include "kaminpar-dist/context.h"
+#include "kaminpar-dist/dkaminpar.h"
 
 #include "kaminpar-shm/presets.h"
 

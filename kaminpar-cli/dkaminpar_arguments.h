@@ -11,7 +11,7 @@
 #include "kaminpar-cli/CLI11.h"
 // clang-format on
 
-#include "kaminpar-dist/context.h"
+#include "kaminpar-dist/dkaminpar.h"
 
 namespace kaminpar::dist {
 

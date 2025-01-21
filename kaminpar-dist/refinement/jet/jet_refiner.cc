@@ -11,9 +11,9 @@
 #include <tbb/concurrent_vector.h>
 #include <tbb/parallel_invoke.h>
 
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/context_io.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
+#include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/factories.h"
 #include "kaminpar-dist/graphutils/communication.h"
 #include "kaminpar-dist/logger.h"

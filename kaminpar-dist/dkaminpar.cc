@@ -7,14 +7,20 @@
  ******************************************************************************/
 #include "kaminpar-dist/dkaminpar.h"
 
+#include <algorithm>
 #include <memory>
+#include <numeric>
 #include <utility>
 
 #include <mpi.h>
 #include <tbb/global_control.h>
+#include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
+#include "kaminpar-mpi/wrapper.h"
+
 #include "kaminpar-dist/context_io.h"
+#include "kaminpar-dist/datastructures/distributed_compressed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_csr_graph.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/ghost_node_mapper.h"
@@ -34,7 +40,118 @@
 
 namespace kaminpar {
 
-using namespace dist;
+namespace dist {
+
+void PartitionContext::setup(
+    const AbstractDistributedGraph &graph,
+    const BlockID k,
+    const double epsilon,
+    const bool relax_max_block_weights
+) {
+  _epsilon = epsilon;
+
+  // this->global_total_node_weight not yet initialized: use graph.total_node_weight instead
+  const BlockWeight perfectly_balanced_block_weight =
+      std::ceil(1.0 * graph.global_total_node_weight() / k);
+  std::vector<BlockWeight> max_block_weights(k, (1.0 + epsilon) * perfectly_balanced_block_weight);
+  setup(graph, std::move(max_block_weights), relax_max_block_weights);
+
+  _uniform_block_weights = true;
+}
+
+void PartitionContext::setup(
+    const AbstractDistributedGraph &graph,
+    std::vector<BlockWeight> max_block_weights,
+    const bool relax_max_block_weights
+) {
+  global_n = graph.global_n();
+  n = graph.n();
+  total_n = graph.total_n();
+  global_m = graph.global_m();
+  m = graph.m();
+  global_total_node_weight = graph.global_total_node_weight();
+  total_node_weight = graph.total_node_weight();
+  global_max_node_weight = graph.global_max_node_weight();
+  global_total_edge_weight = graph.global_total_edge_weight();
+  total_edge_weight = graph.total_edge_weight();
+
+  k = static_cast<BlockID>(max_block_weights.size());
+  _max_block_weights = std::move(max_block_weights);
+  _unrelaxed_max_block_weights = _max_block_weights;
+  _total_max_block_weights = std::accumulate(
+      _max_block_weights.begin(), _max_block_weights.end(), static_cast<BlockWeight>(0)
+  );
+  _uniform_block_weights = false;
+
+  if (relax_max_block_weights) {
+    const double eps = inferred_epsilon();
+    for (BlockWeight &max_block_weight : _max_block_weights) {
+      max_block_weight = std::max<BlockWeight>(
+          max_block_weight, std::ceil(1.0 * max_block_weight / (1.0 + eps)) + global_max_node_weight
+      );
+    }
+  }
+}
+
+int ChunksContext::compute(const ParallelContext &parallel) const {
+  if (fixed_num_chunks > 0) {
+    return fixed_num_chunks;
+  }
+  const PEID num_pes =
+      scale_chunks_with_threads ? parallel.num_threads * parallel.num_mpis : parallel.num_mpis;
+  return std::max<std::size_t>(min_num_chunks, total_num_chunks / num_pes);
+}
+
+bool LabelPropagationCoarseningContext::should_merge_nonadjacent_clusters(
+    const NodeID old_n, const NodeID new_n
+) const {
+  return (1.0 - 1.0 * new_n / old_n) <= merge_nonadjacent_clusters_threshold;
+}
+
+bool RefinementContext::includes_algorithm(const RefinementAlgorithm algorithm) const {
+  return std::find(algorithms.begin(), algorithms.end(), algorithm) != algorithms.end();
+}
+
+void GraphCompressionContext::setup(const DistributedCompressedGraph &graph) {
+  constexpr int kRoot = 0;
+  const MPI_Comm comm = graph.communicator();
+  const int rank = mpi::get_comm_rank(comm);
+
+  compressed_graph_sizes =
+      mpi::gather<std::size_t, std::vector<std::size_t>>(graph.memory_space(), kRoot, comm);
+  uncompressed_graph_sizes = mpi::gather<std::size_t, std::vector<std::size_t>>(
+      graph.uncompressed_memory_space(), kRoot, comm
+  );
+  num_nodes = mpi::gather<NodeID, std::vector<NodeID>>(graph.n(), kRoot, comm);
+  num_edges = mpi::gather<EdgeID, std::vector<EdgeID>>(graph.m(), kRoot, comm);
+
+  const auto compression_ratios = mpi::gather(graph.compression_ratio(), kRoot, comm);
+  if (rank == kRoot) {
+    const auto size = static_cast<double>(compression_ratios.size());
+    avg_compression_ratio =
+        std::reduce(compression_ratios.begin(), compression_ratios.end()) / size;
+    min_compression_ratio = *std::min_element(compression_ratios.begin(), compression_ratios.end());
+    max_compression_ratio = *std::max_element(compression_ratios.begin(), compression_ratios.end());
+
+    const auto largest_compressed_graph_it =
+        std::max_element(compressed_graph_sizes.begin(), compressed_graph_sizes.end());
+    largest_compressed_graph = *largest_compressed_graph_it;
+
+    const auto largest_compressed_graph_rank =
+        std::distance(compressed_graph_sizes.begin(), largest_compressed_graph_it);
+    largest_compressed_graph_prev_size =
+        largest_compressed_graph * compression_ratios[largest_compressed_graph_rank];
+
+    const auto largest_uncompressed_graph_it =
+        std::max_element(uncompressed_graph_sizes.begin(), uncompressed_graph_sizes.end());
+    largest_uncompressed_graph = *largest_uncompressed_graph_it;
+
+    const auto largest_uncompressed_graph_rank =
+        std::distance(uncompressed_graph_sizes.begin(), largest_uncompressed_graph_it);
+    largest_uncompressed_graph_after_size =
+        largest_uncompressed_graph / compression_ratios[largest_uncompressed_graph_rank];
+  }
+}
 
 namespace {
 
@@ -150,6 +267,10 @@ void print_input_summary(
 
 } // namespace
 
+} // namespace dist
+
+using namespace dist;
+
 dKaMinPar::dKaMinPar(MPI_Comm comm, const int num_threads, const Context ctx)
     : _comm(comm),
       _num_threads(num_threads),
@@ -178,12 +299,12 @@ Context &dKaMinPar::context() {
   return _ctx;
 }
 
-void dKaMinPar::import_graph(
-    std::span<GlobalNodeID> vtxdist,
-    std::span<GlobalEdgeID> xadj,
-    std::span<GlobalNodeID> adjncy,
-    std::span<GlobalNodeWeight> vwgt,
-    std::span<GlobalEdgeWeight> adjwgt
+void dKaMinPar::copy_graph(
+    const std::span<const GlobalNodeID> vtxdist,
+    const std::span<const GlobalEdgeID> xadj,
+    const std::span<const GlobalNodeID> adjncy,
+    const std::span<const GlobalNodeWeight> vwgt,
+    const std::span<const GlobalEdgeWeight> adjwgt
 ) {
   SCOPED_TIMER("Import graph");
 
@@ -257,7 +378,7 @@ void dKaMinPar::import_graph(
 
   auto [global_to_ghost, ghost_to_global, ghost_owner] = mapper.finalize();
 
-  import_graph({std::make_unique<DistributedCSRGraph>(
+  set_graph({std::make_unique<DistributedCSRGraph>(
       std::move(node_distribution),
       std::move(edge_distribution),
       std::move(nodes),
@@ -279,12 +400,44 @@ void dKaMinPar::import_graph(
   }
 }
 
-void dKaMinPar::import_graph(DistributedGraph graph) {
+void dKaMinPar::set_graph(DistributedGraph graph) {
   _was_rearranged = false;
   _graph_ptr = std::make_unique<DistributedGraph>(std::move(graph));
 }
 
-GlobalEdgeWeight dKaMinPar::compute_partition(const BlockID k, BlockID *partition) {
+GlobalEdgeWeight dKaMinPar::compute_partition(const BlockID k, const std::span<BlockID> partition) {
+  return compute_partition(k, 0.03, partition);
+}
+
+GlobalEdgeWeight dKaMinPar::compute_partition(
+    const BlockID k, const double epsilon, const std::span<BlockID> partition
+) {
+  _ctx.partition.setup(*_graph_ptr, k, epsilon);
+  return compute_partition(partition);
+}
+
+GlobalEdgeWeight dKaMinPar::compute_partition(
+    std::vector<BlockWeight> max_block_weights, const std::span<BlockID> partition
+) {
+  _ctx.partition.setup(*_graph_ptr, std::move(max_block_weights));
+  return compute_partition(partition);
+}
+
+GlobalEdgeWeight dKaMinPar::compute_partition(
+    std::vector<double> max_block_weight_factors, const std::span<dist::BlockID> partition
+) {
+  std::vector<BlockWeight> max_block_weights(max_block_weight_factors.size());
+  const GlobalNodeWeight total_node_weight = _graph_ptr->global_total_node_weight();
+  std::transform(
+      max_block_weight_factors.begin(),
+      max_block_weight_factors.end(),
+      max_block_weights.begin(),
+      [total_node_weight](const double factor) { return std::ceil(factor * total_node_weight); }
+  );
+  return compute_partition(std::move(max_block_weights), partition);
+}
+
+GlobalEdgeWeight dKaMinPar::compute_partition(const std::span<BlockID> partition) {
   DistributedGraph &graph = *_graph_ptr;
 
   const PEID size = mpi::get_comm_size(_comm);
@@ -303,8 +456,6 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const BlockID k, BlockID *partitio
   _ctx.parallel.num_mpis = size;
   _ctx.parallel.num_threads = _num_threads;
   _ctx.initial_partitioning.kaminpar.parallel.num_threads = _ctx.parallel.num_threads;
-  _ctx.partition.k = k;
-  _ctx.partition.graph = std::make_unique<GraphContext>(graph, _ctx.partition);
   if (_ctx.compression.enabled) {
     _ctx.compression.setup(_graph_ptr->compressed_graph());
   }

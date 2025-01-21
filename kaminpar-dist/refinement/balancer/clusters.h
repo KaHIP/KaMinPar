@@ -7,8 +7,8 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
+#include "kaminpar-dist/dkaminpar.h"
 
 #include "kaminpar-common/datastructures/noinit_vector.h"
 #include "kaminpar-common/ranges.h"

@@ -11,7 +11,7 @@
 #include <ostream>
 #include <unordered_map>
 
-#include "kaminpar-dist/context.h"
+#include "kaminpar-dist/dkaminpar.h"
 
 namespace kaminpar::dist {
 
