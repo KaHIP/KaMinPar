@@ -7,12 +7,27 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
 
+#include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/kaminpar.h"
+
 namespace kaminpar::dist {
+
+PartitionContext create_refinement_context(
+    const Context &input_ctx, const DistributedGraph &graph, BlockID current_k, bool toplevel
+);
+
+shm::PartitionContext create_initial_partitioning_context(
+    const Context &input_ctx,
+    const shm::Graph &graph,
+    BlockID current_block,
+    BlockID current_k,
+    BlockID desired_k,
+    bool toplevel
+);
 
 void print_input_graph(const DistributedGraph &graph, bool verbose = false);
 

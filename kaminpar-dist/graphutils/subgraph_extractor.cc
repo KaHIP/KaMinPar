@@ -22,6 +22,7 @@
 
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/metrics.h"
+#include "kaminpar-shm/partitioning/partition_utils.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/parallel/algorithm.h"
@@ -662,10 +663,37 @@ extract_and_scatter_block_induced_subgraphs(const DistributedPartitionedGraph &p
   };
 }
 
+namespace {
+
+struct PartitionMapper {
+  PartitionMapper(const BlockID current_k, const BlockID new_k) {
+    if ((new_k % current_k) == 0) {
+      _static_multiplier = new_k / current_k;
+    } else {
+      _dynamic_offsets.resize(current_k);
+      tbb::parallel_for<BlockID>(0, current_k, [&](const BlockID b) {
+        _dynamic_offsets[b] = shm::partitioning::compute_first_sub_block(b, current_k, new_k);
+      });
+    }
+  }
+
+  BlockID map(const BlockID block, const BlockID sub_block) {
+    return (_static_multiplier > 0 ? block * _static_multiplier : _dynamic_offsets[block]) +
+           sub_block;
+  }
+
+private:
+  BlockID _static_multiplier = 0;
+  StaticArray<BlockID> _dynamic_offsets{};
+};
+
+} // namespace
+
 DistributedPartitionedGraph copy_subgraph_partitions(
     DistributedPartitionedGraph p_graph,
     const std::vector<shm::PartitionedGraph> &p_subgraphs,
-    ExtractedSubgraphs &extracted_subgraphs
+    ExtractedSubgraphs &extracted_subgraphs,
+    const BlockID new_k
 ) {
   TIMER_BARRIER(p_graph.communicator());
   SCOPED_TIMER("Projecting subgraph partitions");
@@ -679,7 +707,7 @@ DistributedPartitionedGraph copy_subgraph_partitions(
   // case.
   if (static_cast<BlockID>(size) > p_graph.k()) {
     return copy_duplicated_subgraph_partitions(
-        std::move(p_graph), p_subgraphs, extracted_subgraphs
+        std::move(p_graph), p_subgraphs, extracted_subgraphs, new_k
     );
   }
 
@@ -687,9 +715,6 @@ DistributedPartitionedGraph copy_subgraph_partitions(
 
   const auto &subgraph_offsets = extracted_subgraphs.subgraph_offsets;
   const auto &mapping = extracted_subgraphs.mapping;
-
-  const PEID k_multiplier = p_subgraphs.front().k();
-  const PEID new_k = p_graph.k() * k_multiplier;
 
   // Send new block IDs to the right PE
   std::vector<std::vector<BlockID>> partition_sendbufs(size);
@@ -724,6 +749,7 @@ DistributedPartitionedGraph copy_subgraph_partitions(
 
   // Assign nodes in p_graph to new blocks
   StaticArray<BlockID> partition = p_graph.take_partition(); // NOTE: do not use p_graph after this
+  PartitionMapper mapper(p_graph.k(), new_k);
 
   p_graph.pfor_nodes([&](const NodeID u) {
     const BlockID block = partition[u];
@@ -736,9 +762,7 @@ DistributedPartitionedGraph copy_subgraph_partitions(
 
     KASSERT(static_cast<std::size_t>(owner) < partition_recvbufs.size());
     KASSERT(mapped_u + block_offset < partition_recvbufs[owner].size());
-    const BlockID new_b = block * k_multiplier + partition_recvbufs[owner][mapped_u + block_offset];
-
-    partition[u] = new_b;
+    partition[u] = mapper.map(block, partition_recvbufs[owner][mapped_u + block_offset]);
   });
 
   // Create partitioned graph with the new partition
@@ -756,12 +780,13 @@ DistributedPartitionedGraph copy_subgraph_partitions(
 DistributedPartitionedGraph copy_duplicated_subgraph_partitions(
     DistributedPartitionedGraph p_graph,
     const std::vector<shm::PartitionedGraph> &p_subgraphs,
-    ExtractedSubgraphs &extracted_subgraphs
+    ExtractedSubgraphs &extracted_subgraphs,
+    const BlockID new_k
 ) {
   KASSERT(!p_subgraphs.empty());
 
   if (p_subgraphs.size() > 1) {
-    return copy_subgraph_partitions(std::move(p_graph), p_subgraphs, extracted_subgraphs);
+    return copy_subgraph_partitions(std::move(p_graph), p_subgraphs, extracted_subgraphs, new_k);
   }
 
   SCOPED_TIMER("Projecting subgraph partitions");
@@ -773,9 +798,6 @@ DistributedPartitionedGraph copy_duplicated_subgraph_partitions(
 
   const auto &subgraph_offsets = extracted_subgraphs.subgraph_offsets;
   const auto &mapping = extracted_subgraphs.mapping;
-
-  const PEID k_multiplier = p_subgraph.k();
-  const PEID new_k = p_graph.k() * k_multiplier;
 
   // Let all PEs know all cuts
   const GlobalEdgeWeight my_cut = shm::metrics::edge_cut(p_subgraph);
@@ -828,7 +850,8 @@ DistributedPartitionedGraph copy_duplicated_subgraph_partitions(
   });
 
   // Assign nodes in p_graph to new blocks
-  auto partition = p_graph.take_partition(); // NOTE: do not use p_graph after this
+  StaticArray<BlockID> partition = p_graph.take_partition(); // NOTE: do not use p_graph after this
+  PartitionMapper mapper(p_graph.k(), new_k);
 
   p_graph.pfor_nodes([&](const NodeID u) {
     const BlockID block = partition[u];
@@ -836,8 +859,7 @@ DistributedPartitionedGraph copy_duplicated_subgraph_partitions(
     const BlockID first_block_on_owner = offsets.first_block_on_pe(owner);
     const BlockID block_offset = block_offsets[block] - block_offsets[first_block_on_owner];
     const NodeID mapped_u = mapping[u]; // ID of u in its block-induced subgraph
-    const BlockID new_b = block * k_multiplier + partition_recvbufs[owner][mapped_u + block_offset];
-    partition[u] = new_b;
+    partition[u] = mapper.map(block, partition_recvbufs[owner][mapped_u + block_offset]);
   });
 
   // Create partitioned graph with the new partition

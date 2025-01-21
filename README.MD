@@ -103,8 +103,10 @@ shm.compute_partition(BlockID number_of_blocks, double epsilon, std::span<BlockI
 // Call the distributed partitioner:
 dKaMinPar dist(MPI_Comm comm, int num_threads, dist::create_default_context());
 // dKaMinPar::reseed(int seed); 
-dist.import_graph(GlobalNodeID *vtxdist, GlobalEdgeID *xadj, GlobalNodeID *adjncy, GlobalNodeWeight *vwvgt = nullptr, GlobalEdgeWeight *adjwgt = nullptr);
-dist.compute_partition(BlockID number_of_blocks, BlockID *out_partition);
+dist.copy_graph(GlobalNodeID *vtxdist, GlobalEdgeID *xadj, GlobalNodeID *adjncy, GlobalNodeWeight *vwvgt = nullptr, GlobalEdgeWeight *adjwgt = nullptr);
+dist.compute_partition(BlockID number_of_blocks, double epsilon, std::span<BlockID> out_partition);
+// alternatively: dist.compute_partition(std::vector<BlockWeight> max_block_weights, std::span<BlockID> out_partition);
+// Note: you must ensure that the total max block weight is larger than the total node weight of the graph
 ```
 
 More examples can be found in the `examples/` directory. 

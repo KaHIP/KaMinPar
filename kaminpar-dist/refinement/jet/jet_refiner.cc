@@ -11,9 +11,9 @@
 #include <tbb/concurrent_vector.h>
 #include <tbb/parallel_invoke.h>
 
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/context_io.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
+#include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/factories.h"
 #include "kaminpar-dist/graphutils/communication.h"
 #include "kaminpar-dist/logger.h"
@@ -116,7 +116,7 @@ public:
         HEAVY
     );
 
-    const bool toplevel = (_graph.global_n() == _ctx.partition.graph->global_n);
+    const bool toplevel = (_graph.global_n() == _ctx.partition.global_n);
     const int max_num_rounds =
         toplevel ? _ctx.refinement.jet.num_fine_rounds : _ctx.refinement.jet.num_coarse_rounds;
     const int max_num_fruitless_iterations = (_ctx.refinement.jet.num_fruitless_iterations == 0)

@@ -18,8 +18,6 @@
 
 #include "kaminpar-shm/datastructures/graph.h"
 
-#include "kaminpar-common/parallel/atomic.h"
-
 namespace kaminpar::dist::testing {
 
 inline std::vector<NodeID> local_neighbors(const shm::Graph &graph, const NodeID u) {

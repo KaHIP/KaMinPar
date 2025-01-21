@@ -658,6 +658,8 @@ public:
 
   /*!
    * Sets the verbosity of the partitioner.
+   *
+   * @param output_level Integer verbosity level, higher values mean more output.
    */
   void set_output_level(OutputLevel output_level);
 

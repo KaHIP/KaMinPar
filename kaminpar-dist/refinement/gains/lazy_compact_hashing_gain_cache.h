@@ -11,8 +11,8 @@
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
 
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
+#include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/refinement/gains/max_gainer.h"
 
 #include "kaminpar-common/assert.h"
@@ -165,7 +165,7 @@ public:
     return compute_max_gainer_impl(
         u,
         [&p_ctx](const BlockID block, const BlockWeight weight_after_move) {
-          return weight_after_move <= p_ctx.graph->max_block_weight(block);
+          return weight_after_move <= p_ctx.max_block_weight(block);
         }
     );
   }

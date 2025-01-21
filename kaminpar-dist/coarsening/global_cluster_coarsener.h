@@ -12,7 +12,6 @@
 #include "kaminpar-dist/coarsening/clusterer.h"
 #include "kaminpar-dist/coarsening/coarsener.h"
 #include "kaminpar-dist/coarsening/contraction.h"
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/dkaminpar.h"

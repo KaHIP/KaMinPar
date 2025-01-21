@@ -81,13 +81,15 @@ extract_and_scatter_block_induced_subgraphs(const DistributedPartitionedGraph &p
 DistributedPartitionedGraph copy_subgraph_partitions(
     DistributedPartitionedGraph p_graph,
     const std::vector<shm::PartitionedGraph> &p_subgraphs,
-    ExtractedSubgraphs &subgraphs
+    ExtractedSubgraphs &subgraphs,
+    BlockID new_k
 );
 
 DistributedPartitionedGraph copy_duplicated_subgraph_partitions(
     DistributedPartitionedGraph p_graph,
     const std::vector<shm::PartitionedGraph> &p_subgraphs,
-    ExtractedSubgraphs &extracted_subgraphs
+    ExtractedSubgraphs &extracted_subgraphs,
+    BlockID new_k
 );
 
 class BlockExtractionOffsets {
