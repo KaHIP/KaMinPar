@@ -10,15 +10,19 @@
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/dkaminpar.h"
+
+#include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/datastructures/partitioned_graph.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::dist {
+
 shm::PartitionedGraph RandomInitialPartitioner::initial_partition(
-    const shm::Graph &graph, const PartitionContext &p_ctx
+    const shm::Graph &graph, const shm::PartitionContext &p_ctx
 ) {
   StaticArray<BlockID> partition(graph.n());
 
@@ -31,4 +35,5 @@ shm::PartitionedGraph RandomInitialPartitioner::initial_partition(
 
   return {graph, p_ctx.k, std::move(partition)};
 }
+
 } // namespace kaminpar::dist

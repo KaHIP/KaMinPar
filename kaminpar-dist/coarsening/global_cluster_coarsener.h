@@ -12,7 +12,6 @@
 #include "kaminpar-dist/coarsening/clusterer.h"
 #include "kaminpar-dist/coarsening/coarsener.h"
 #include "kaminpar-dist/coarsening/contraction.h"
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
@@ -25,6 +24,8 @@ public:
 
   void initialize(const DistributedGraph *graph) final;
 
+  GlobalNodeWeight max_cluster_weight() const final;
+
   bool coarsen() final;
 
   [[nodiscard]] virtual std::size_t level() const final;
@@ -35,7 +36,6 @@ public:
 
 private:
   bool has_converged(const DistributedGraph &before, const DistributedGraph &after) const;
-  GlobalNodeWeight max_cluster_weight() const;
 
   const Context &_input_ctx;
 

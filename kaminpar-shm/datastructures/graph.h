@@ -299,7 +299,9 @@ private:
 };
 
 namespace debug {
+
 void print_graph(const Graph &graph);
+
 } // namespace debug
 
 } // namespace kaminpar::shm

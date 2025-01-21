@@ -9,9 +9,9 @@
 
 #include <string>
 
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
+#include "kaminpar-dist/dkaminpar.h"
 
 namespace kaminpar::dist::debug {
 
@@ -26,7 +26,7 @@ void write_coarsest_partition(
 void write_partition(
     const std::string &filename,
     const DistributedPartitionedGraph &p_graph,
-    const bool use_original_node_order = true
+    bool use_original_node_order = true
 );
 
 } // namespace kaminpar::dist::debug

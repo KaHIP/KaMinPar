@@ -11,7 +11,6 @@
 
 #include "kaminpar-dist/coarsening/clustering/clusterer.h"
 #include "kaminpar-dist/coarsening/contraction/cluster_contraction.h"
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
@@ -19,6 +18,7 @@
 #include "kaminpar-common/datastructures/scalable_vector.h"
 
 namespace kaminpar::dist {
+
 class Coarsener {
 public:
   Coarsener(const DistributedGraph &input_graph, const Context &input_ctx);
@@ -58,6 +58,7 @@ private:
 
   bool _local_clustering_converged = false;
 };
+
 } // namespace kaminpar::dist
 
 

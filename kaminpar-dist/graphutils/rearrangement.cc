@@ -10,8 +10,8 @@
 #include "communication.h"
 
 #include "kaminpar-dist/algorithms/greedy_node_coloring.h"
-#include "kaminpar-dist/context.h"
-#include "kaminpar-dist/datastructures/distributed_graph.h"
+#include "kaminpar-dist/datastructures/distributed_csr_graph.h"
+#include "kaminpar-dist/dkaminpar.h"
 
 #include "kaminpar-shm/graphutils/permutator.h"
 
@@ -19,9 +19,10 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::dist::graph {
+
 DistributedCSRGraph rearrange(DistributedCSRGraph graph, const Context &ctx) {
   if (ctx.rearrange_by == GraphOrdering::NATURAL) {
-    // nothing to do
+    // Nothing to do
   } else if (ctx.rearrange_by == GraphOrdering::DEGREE_BUCKETS) {
     graph = graph::rearrange_by_degree_buckets(std::move(graph));
   } else if (ctx.rearrange_by == GraphOrdering::COLORING) {
@@ -176,4 +177,5 @@ DistributedCSRGraph rearrange_by_permutation(
   new_graph.set_permutation(std::move(permutations.old_to_new));
   return new_graph;
 }
+
 } // namespace kaminpar::dist::graph

@@ -56,7 +56,6 @@ struct LabelPropagationConfig {
   static constexpr bool kUseActualGain = false;
 
   static constexpr bool kUseActiveSetStrategy = true;
-  static constexpr bool kUseLocalActiveSetStrategy = false;
 };
 
 template <typename RatingMap, typename ClusterID> struct LabelPropagationMemoryContext {
@@ -88,6 +87,20 @@ protected:
   using ClusterWeight = typename Config::ClusterWeight;
 
 public:
+  void enable_active_set() {
+    if constexpr (!Config::kUseActiveSetStrategy) {
+      LOG_WARNING << "Active set enabled, but feature is not included in this build";
+    }
+    _use_active_set = true;
+  }
+
+  void enable_local_active_set() {
+    if constexpr (!Config::kUseActiveSetStrategy) {
+      LOG_WARNING << "Active set enabled, but feature is not included in this build";
+    }
+    _use_local_active_set = true;
+  }
+
   void set_max_degree(const NodeID max_degree) {
     _max_degree = max_degree;
   }
@@ -163,14 +176,11 @@ protected:
    * (Re)allocates memory to run label propagation on. Must be called after \c preinitialize().
    */
   void allocate() {
-    if constexpr (Config::kUseLocalActiveSetStrategy) {
-      if (_active.size() < _num_nodes) {
+    if constexpr (Config::kUseActiveSetStrategy) {
+      if (_use_local_active_set && _active.size() < _num_nodes) {
         _active.resize(_num_nodes);
       }
-    }
-
-    if constexpr (Config::kUseActiveSetStrategy) {
-      if (_active.size() < _num_active_nodes) {
+      if (_use_active_set && _active.size() < _num_active_nodes) {
         _active.resize(_num_active_nodes);
       }
     }
@@ -321,7 +331,7 @@ protected:
           const ClusterID v_cluster = derived_cluster(v);
           map[v_cluster] += w;
 
-          if constexpr (Config::kUseLocalActiveSetStrategy) {
+          if (Config::kUseActiveSetStrategy && _use_local_active_set) {
             is_interface_node |= v >= _num_active_nodes;
           }
         }
@@ -337,9 +347,10 @@ protected:
       }
 
       if constexpr (Config::kUseActiveSetStrategy) {
-        _active[u] = 0;
-      } else if constexpr (Config::kUseLocalActiveSetStrategy) {
-        if (!is_interface_node) {
+        if (_use_active_set) {
+          _active[u] = 0;
+        }
+        if (_use_local_active_set && !is_interface_node) {
           _active[u] = 0;
         }
       }
@@ -396,14 +407,30 @@ protected:
    * @param u Node that was moved.
    */
   void activate_neighbors(const NodeID u) {
+    if (!Config::kUseActiveSetStrategy || (!_use_active_set && !_use_local_active_set)) {
+      return;
+    }
+
     _graph->adjacent_nodes(u, [&](const NodeID v) {
-      // call derived_activate_neighbor() even if we do not use the active set
-      // strategy since the function might have side effects; the compiler
-      // should remove it if it does not side effects
       if (derived_activate_neighbor(v)) {
-        if constexpr (Config::kUseActiveSetStrategy || Config::kUseLocalActiveSetStrategy) {
-          __atomic_store_n(&_active[v], 1, __ATOMIC_RELAXED);
-        }
+        __atomic_store_n(&_active[v], 1, __ATOMIC_RELAXED);
+      }
+    });
+  }
+
+  void activate_neighbors_of_ghost_node(const NodeID u) {
+    KASSERT(_graph->is_ghost_node(u));
+
+    if constexpr (!Config::kUseActiveSetStrategy) {
+      return;
+    }
+    if (!_use_active_set) {
+      return;
+    }
+
+    _graph->ghost_graph().adjacent_nodes(u, [&](const NodeID v) {
+      if (derived_activate_neighbor(v)) {
+        __atomic_store_n(&_active[v], 1, __ATOMIC_RELAXED);
       }
     });
   }
@@ -712,7 +739,7 @@ private:
     tbb::parallel_invoke(
         [&] {
           tbb::parallel_for<NodeID>(0, _graph->n(), [&](const NodeID u) {
-            if constexpr (Config::kUseActiveSetStrategy || Config::kUseLocalActiveSetStrategy) {
+            if (Config::kUseActiveSetStrategy && (_use_active_set || _use_local_active_set)) {
               _active[u] = 1;
             }
 
@@ -876,6 +903,9 @@ protected: // Members
   //! reduction of the edge cut.
   parallel::Atomic<EdgeWeight> _expected_total_gain;
 
+  bool _use_active_set = false;
+  bool _use_local_active_set = false;
+
 private:
   NodeID _num_nodes = 0;
   NodeID _num_active_nodes = 0;
@@ -928,7 +958,7 @@ protected:
               continue;
             }
 
-            if constexpr (Config::kUseActiveSetStrategy || Config::kUseLocalActiveSetStrategy) {
+            if (Config::kUseActiveSetStrategy && (_use_active_set || _use_local_active_set)) {
               if (!__atomic_load_n(&_active[u], __ATOMIC_RELAXED)) {
                 continue;
               }
@@ -964,6 +994,8 @@ protected:
   using Base::_graph;
   using Base::_max_degree;
   using Base::_rating_map_ets;
+  using Base::_use_active_set;
+  using Base::_use_local_active_set;
 };
 
 /*!
@@ -1020,8 +1052,11 @@ protected:
    * @param to First node that is not part of the iteration range.
    * @return Number of nodes that where moved to new blocks / clusters.
    */
-  NodeID
-  perform_iteration(const NodeID from = 0, const NodeID to = std::numeric_limits<NodeID>::max()) {
+  NodeID perform_iteration(
+      const NodeID from = 0,
+      const NodeID to = std::numeric_limits<NodeID>::max(),
+      const bool count_skipped_nodes = false
+  ) {
     if (from != 0 || to != std::numeric_limits<NodeID>::max()) {
       _chunks.clear();
     }
@@ -1043,6 +1078,8 @@ protected:
       auto &local_rating_map = _rating_map_ets.local();
       NodeID num_removed_clusters = 0;
 
+      auto &local_num_skipped_nodes = _num_skipped_nodes_ets.local();
+
       const auto chunk_id = next_chunk.fetch_add(1, std::memory_order_relaxed);
       const auto &chunk = _chunks[chunk_id];
       const auto &permutation = _random_permutations.get(local_rand);
@@ -1058,8 +1095,15 @@ protected:
           const NodeID u = chunk.start +
                            Config::kPermutationSize * sub_chunk_permutation[sub_chunk] +
                            permutation[i % Config::kPermutationSize];
+
+          if (count_skipped_nodes && u < chunk.end && _graph->degree(u) < _max_degree &&
+              Config::kUseActiveSetStrategy && (_use_active_set || _use_local_active_set) &&
+              !__atomic_load_n(&_active[u], __ATOMIC_RELAXED)) {
+            ++local_num_skipped_nodes;
+          }
+
           if (u < chunk.end && _graph->degree(u) < _max_degree &&
-              ((!Config::kUseActiveSetStrategy && !Config::kUseLocalActiveSetStrategy) ||
+              (!Config::kUseActiveSetStrategy || (!_use_active_set && !_use_local_active_set) ||
                __atomic_load_n(&_active[u], __ATOMIC_RELAXED))) {
             const auto [moved_node, emptied_cluster] = handle_node(u, local_rand, local_rating_map);
             if (moved_node) {
@@ -1224,11 +1268,15 @@ protected:
   using Base::_graph;
   using Base::_max_degree;
   using Base::_rating_map_ets;
+  using Base::_use_active_set;
+  using Base::_use_local_active_set;
 
   RandomPermutations<NodeID, Config::kPermutationSize, Config::kNumberOfNodePermutations>
       _random_permutations{};
   std::vector<Chunk> _chunks;
   std::vector<Bucket> _buckets;
+
+  tbb::enumerable_thread_specific<NodeID> _num_skipped_nodes_ets;
 };
 
 template <typename ClusterID, typename ClusterWeight> class OwnedRelaxedClusterWeightVector {

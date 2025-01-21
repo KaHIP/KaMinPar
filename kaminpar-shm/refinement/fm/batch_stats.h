@@ -16,6 +16,7 @@
 #include "kaminpar-shm/refinement/fm/fm_definitions.h"
 
 namespace kaminpar::shm::fm {
+
 class BatchStatsComputator {
   struct Stats {
     NodeID size;
@@ -62,4 +63,5 @@ private:
   Batches _current_iteration_batches;
   std::vector<std::vector<Stats>> _per_iteration_per_batch_stats;
 };
+
 } // namespace kaminpar::shm::fm

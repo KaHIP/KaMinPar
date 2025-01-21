@@ -24,6 +24,7 @@
 #include "kaminpar-common/datastructures/noinit_vector.h"
 
 namespace kaminpar::dist::graph {
+
 class BfsExtractor {
 public:
   struct Result {
@@ -146,4 +147,5 @@ private:
     return FastResetArray<EdgeWeight>(_p_graph->k());
   }};
 };
+
 } // namespace kaminpar::dist::graph

@@ -12,23 +12,20 @@
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 
 #include <iomanip>
-#include <numeric>
 
 #include "kaminpar-mpi/wrapper.h"
 
 #include "kaminpar-dist/graphutils/communication.h"
 #include "kaminpar-dist/logger.h"
 
-#include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
-#include "kaminpar-common/math.h"
-#include "kaminpar-common/parallel/algorithm.h"
-#include "kaminpar-common/parallel/vector_ets.h"
 
 namespace {
+
 template <typename R> bool all_equal(const R &r) {
   return std::adjacent_find(r.begin(), r.end(), std::not_equal_to{}) == r.end();
 }
+
 } // namespace
 
 namespace kaminpar::dist {
@@ -44,20 +41,48 @@ void print_graph_summary(const DistributedGraph &graph) {
   const auto [max_node_weight_min, max_node_weight_avg, max_node_weight_max, max_node_weight_sum] =
       mpi::gather_statistics(graph.max_node_weight(), graph.communicator());
 
-  LOG << "  Number of nodes: " << graph.global_n() << " | Number of edges: " << graph.global_m();
-  LOG << "  Number of local nodes: [Min=" << n_min << " | Mean=" << static_cast<NodeID>(n_avg)
+  LOG << " Number of nodes: " << graph.global_n() << " | Number of edges: " << graph.global_m();
+  LOG << " Number of local nodes: [Min=" << n_min << " | Mean=" << static_cast<NodeID>(n_avg)
       << " | Max=" << n_max << " | Imbalance=" << n_imbalance << "]";
-  LOG << "  Number of ghost nodes: [Min=" << ghost_n_min
+  LOG << " Number of ghost nodes: [Min=" << ghost_n_min
       << " | Mean=" << static_cast<NodeID>(ghost_n_avg) << " | Max=" << ghost_n_max
       << " | Imbalance=" << ghost_n_imbalance << "]";
-  LOG << "  Number of edges:       [Min=" << m_min << " | Mean=" << static_cast<EdgeID>(m_avg)
+  LOG << " Number of edges:       [Min=" << m_min << " | Mean=" << static_cast<EdgeID>(m_avg)
       << " | Max=" << m_max << " | Imbalance=" << m_imbalance << "]";
-  LOG << "  Maximum node weight:   [Min=" << max_node_weight_min
+  LOG << " Maximum node weight:   [Min=" << max_node_weight_min
       << " | Mean=" << static_cast<NodeWeight>(max_node_weight_avg)
       << " | Max=" << max_node_weight_max << "]";
 }
 
+void print_extended_graph_summary(const DistributedGraph &graph) {
+  print_graph_summary(graph);
+
+  tbb::enumerable_thread_specific<NodeID> num_ghost_neighbors_ets;
+  graph.pfor_nodes_range([&](const auto &r) {
+    auto &num_ghost_neighbors = num_ghost_neighbors_ets.local();
+    for (NodeID u = r.begin(); u != r.end(); ++u) {
+      graph.adjacent_nodes(u, [&](const NodeID v) {
+        num_ghost_neighbors += graph.is_owned_node(v) ? 0 : 1;
+      });
+    }
+  });
+
+  GlobalNodeID num_ghost_neighbors = num_ghost_neighbors_ets.combine(std::plus{});
+  MPI_Allreduce(
+      MPI_IN_PLACE,
+      &num_ghost_neighbors,
+      1,
+      mpi::type::get<GlobalNodeID>(),
+      MPI_SUM,
+      graph.communicator()
+  );
+
+  const double locality = 1.0 - 1.0 * num_ghost_neighbors / graph.global_m();
+  LOG << " Graph locality:        " << locality;
+}
+
 namespace debug {
+
 void print_graph(const DistributedGraph &graph) {
   std::ostringstream buf;
 
@@ -355,5 +380,7 @@ bool validate_graph(const DistributedGraph &graph) {
   mpi::barrier(comm);
   return true;
 }
+
 } // namespace debug
+
 } // namespace kaminpar::dist

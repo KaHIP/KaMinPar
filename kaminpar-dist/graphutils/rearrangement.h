@@ -13,6 +13,7 @@
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::dist::graph {
+
 DistributedCSRGraph rearrange(DistributedCSRGraph graph, const Context &ctx);
 
 DistributedCSRGraph rearrange_by_degree_buckets(DistributedCSRGraph graph);
@@ -25,4 +26,5 @@ DistributedCSRGraph rearrange_by_permutation(
     StaticArray<NodeID> new_to_old,
     bool degree_sorted
 );
+
 } // namespace kaminpar::dist::graph

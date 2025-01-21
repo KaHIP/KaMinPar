@@ -23,6 +23,7 @@
 #include "kaminpar-common/ranges.h"
 
 namespace kaminpar::shm {
+
 struct CSRGraphMemory {
   StaticArray<EdgeID> nodes;
   StaticArray<NodeID> edges;
@@ -478,6 +479,7 @@ private:
 };
 
 namespace debug {
+
 bool validate_graph(const CSRGraph &graph, bool undirected = true, NodeID num_pseudo_nodes = 0);
 
 bool validate_graph(
@@ -491,5 +493,7 @@ bool validate_graph(
 );
 
 CSRGraph sort_neighbors(CSRGraph graph);
+
 } // namespace debug
+
 } // namespace kaminpar::shm

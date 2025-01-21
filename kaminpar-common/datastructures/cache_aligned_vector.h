@@ -12,9 +12,11 @@
 #include <tbb/cache_aligned_allocator.h>
 
 namespace kaminpar {
+
 #ifdef KAMINPAR_ENABLE_HEAP_PROFILING
 template <typename T> using CacheAlignedVector = std::vector<T>;
 #else
 template <typename T> using CacheAlignedVector = std::vector<T, tbb::cache_aligned_allocator<T>>;
 #endif
+
 } // namespace kaminpar

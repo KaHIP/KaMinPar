@@ -18,6 +18,7 @@
 #include "kaminpar-common/strutils.h"
 
 namespace kaminpar::shm {
+
 using namespace std::string_literals;
 
 std::unordered_map<std::string, NodeOrdering> get_node_orderings() {
@@ -69,6 +70,7 @@ std::unordered_map<std::string, CoarseningAlgorithm> get_coarsening_algorithms()
   return {
       {"noop", CoarseningAlgorithm::NOOP},
       {"clustering", CoarseningAlgorithm::CLUSTERING},
+      {"overlay-clustering", CoarseningAlgorithm::OVERLAY_CLUSTERING},
   };
 }
 
@@ -78,6 +80,8 @@ std::ostream &operator<<(std::ostream &out, const CoarseningAlgorithm algorithm)
     return out << "noop";
   case CoarseningAlgorithm::CLUSTERING:
     return out << "clustering";
+  case CoarseningAlgorithm::OVERLAY_CLUSTERING:
+    return out << "overlay-clustering";
   }
 
   return out << "<invalid>";
@@ -430,7 +434,8 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
   out << "Contraction limit:            " << c_ctx.contraction_limit << "\n";
   out << "Coarsening algorithm:         " << c_ctx.algorithm << "\n";
 
-  if (c_ctx.algorithm == CoarseningAlgorithm::CLUSTERING) {
+  if (c_ctx.algorithm == CoarseningAlgorithm::CLUSTERING ||
+      c_ctx.algorithm == CoarseningAlgorithm::OVERLAY_CLUSTERING) {
     out << "  Cluster weight limit:       " << c_ctx.clustering.cluster_weight_limit << " x "
         << c_ctx.clustering.cluster_weight_multiplier << "\n";
     out << "  Shrink factor:              " << c_ctx.clustering.shrink_factor << "\n";
@@ -446,6 +451,10 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
                                                                                      : "")
         << "(leeway: U=" << c_ctx.clustering.forced_level_upper_factor
         << ", L=" << c_ctx.clustering.forced_level_lower_factor << ")\n";
+  }
+  if (c_ctx.algorithm == CoarseningAlgorithm::OVERLAY_CLUSTERING) {
+    out << "  Overlays:" << "\n";
+    out << "    Number of overlays:       " << (2 << c_ctx.overlay_clustering.num_levels) << "\n";
   }
 
   out << "Contraction algorithm:        " << c_ctx.contraction.algorithm << '\n';

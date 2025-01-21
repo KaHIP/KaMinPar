@@ -3,6 +3,7 @@
 #include "kaminpar-common/graph_compression/streamvbyte.h"
 
 namespace {
+
 using namespace kaminpar::streamvbyte;
 
 template <typename Int> [[nodiscard]] Int generate_value(const std::size_t byte_width = 1) {

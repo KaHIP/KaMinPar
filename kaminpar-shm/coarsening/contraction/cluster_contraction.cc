@@ -22,6 +22,7 @@
 #include "kaminpar-shm/coarsening/contraction/unbuffered_cluster_contraction.h"
 
 namespace kaminpar::shm {
+
 using namespace contraction;
 
 std::unique_ptr<CoarseGraph> contract_clustering(
@@ -50,4 +51,5 @@ std::unique_ptr<CoarseGraph> contract_clustering(
 
   __builtin_unreachable();
 }
+
 } // namespace kaminpar::shm

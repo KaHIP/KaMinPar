@@ -13,6 +13,7 @@
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
+
 void create_all_options(CLI::App *app, Context &ctx) {
   create_graph_compression_options(app, ctx);
   create_partitioning_options(app, ctx);
@@ -201,6 +202,9 @@ Options are:
       ->add_option(
           "--c-forced-level-lower-factor", ctx.coarsening.clustering.forced_level_lower_factor
       )
+      ->capture_default_str();
+
+  coarsening->add_option("--c-overlay-levels", ctx.coarsening.overlay_clustering.num_levels)
       ->capture_default_str();
 
   create_lp_coarsening_options(app, ctx);
@@ -625,4 +629,5 @@ CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx) {
 
   return debug;
 }
+
 } // namespace kaminpar::shm

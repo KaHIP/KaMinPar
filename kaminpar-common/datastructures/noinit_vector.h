@@ -11,6 +11,7 @@
 #include <vector>
 
 namespace kaminpar {
+
 // https://hackingcpp.com/cpp/recipe/uninitialized_numeric_array.html
 template <typename T, typename Allocator = std::allocator<T>>
 class NoinitAllocator : public Allocator {
@@ -35,4 +36,5 @@ public:
 };
 
 template <typename T> using NoinitVector = std::vector<T, NoinitAllocator<T>>;
+
 } // namespace kaminpar

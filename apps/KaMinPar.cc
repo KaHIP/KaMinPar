@@ -386,7 +386,7 @@ int main(int argc, char *argv[]) {
     partitioner.set_output_level(OutputLevel::QUIET);
   } else if (app.verbosity == 1) {
     partitioner.set_output_level(OutputLevel::EXPERIMENT);
-  } else if (app.verbosity == 2) {
+  } else if (app.verbosity >= 2) {
     partitioner.set_output_level(OutputLevel::DEBUG);
   }
 

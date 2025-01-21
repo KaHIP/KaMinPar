@@ -19,6 +19,7 @@ namespace kaminpar::shm {
 using Queues = std::array<Queue<NodeID>, 2>;
 
 namespace bfs {
+
 /*! Always selects the inactive block, i.e., switches blocks after each step. */
 struct alternating {
   BlockID
@@ -66,6 +67,7 @@ struct shorter_queue {
     return (queues[0].size() < queues[1].size()) ? 0 : 1;
   }
 };
+
 } // namespace bfs
 
 template <typename BlockSelectionStrategy>

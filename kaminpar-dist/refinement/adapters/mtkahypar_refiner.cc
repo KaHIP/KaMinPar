@@ -26,9 +26,12 @@
 #include "kaminpar-dist/logger.h"
 
 namespace kaminpar::dist {
+
 namespace {
+
 SET_STATISTICS_FROM_GLOBAL();
 SET_DEBUG(true);
+
 } // namespace
 
 MtKaHyParRefinerFactory::MtKaHyParRefinerFactory(const Context &ctx) : _ctx(ctx) {}
@@ -66,7 +69,7 @@ bool MtKaHyParRefiner::refine() {
   if (participate) {
     mt_kahypar_context_t *mt_kahypar_ctx = mt_kahypar_context_new();
     if (_ctx.refinement.mtkahypar.config_filename.empty()) {
-      const bool toplevel = _p_graph.global_n() == _ctx.partition.graph->global_n;
+      const bool toplevel = _p_graph.global_n() == _ctx.partition.global_n;
       if (toplevel && !_ctx.refinement.mtkahypar.fine_config_filename.empty()) {
         mt_kahypar_configure_context_from_file(
             mt_kahypar_ctx, _ctx.refinement.mtkahypar.fine_config_filename.c_str()
@@ -91,7 +94,7 @@ bool MtKaHyParRefiner::refine() {
     StaticArray<mt_kahypar_hypernode_weight_t> block_weights(_p_ctx.k, static_array::noinit);
     shm_p_graph->pfor_blocks([&](const BlockID b) {
       block_weights[b] =
-          asserting_cast<mt_kahypar_hypernode_weight_t>(_p_ctx.graph->max_block_weight(b));
+          asserting_cast<mt_kahypar_hypernode_weight_t>(_p_ctx.max_block_weight(b));
     });
     mt_kahypar_set_individual_target_block_weights(
         mt_kahypar_ctx, asserting_cast<mt_kahypar_partition_id_t>(_p_ctx.k), block_weights.data()
@@ -197,4 +200,5 @@ bool MtKaHyParRefiner::refine() {
   return false;
 #endif // KAMINPAR_HAVE_MTKAHYPAR_LIB
 }
+
 } // namespace kaminpar::dist

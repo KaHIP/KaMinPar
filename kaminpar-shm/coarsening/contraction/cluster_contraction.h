@@ -18,6 +18,7 @@
 #include "kaminpar-common/datastructures/ts_navigable_linked_list.h"
 
 namespace kaminpar::shm {
+
 class CoarseGraph {
 public:
   virtual ~CoarseGraph() = default;
@@ -31,6 +32,7 @@ public:
 };
 
 namespace contraction {
+
 struct Edge {
   NodeID target;
   EdgeWeight weight;
@@ -42,6 +44,7 @@ struct MemoryContext {
   StaticArray<NodeID> leader_mapping;
   StaticArray<NavigationMarker<NodeID, Edge, ScalableVector>> all_buffered_nodes;
 };
+
 } // namespace contraction
 
 std::unique_ptr<CoarseGraph> contract_clustering(
@@ -54,4 +57,5 @@ std::unique_ptr<CoarseGraph> contract_clustering(
     const ContractionCoarseningContext &con_ctx,
     contraction::MemoryContext &m_ctx
 );
+
 } // namespace kaminpar::shm

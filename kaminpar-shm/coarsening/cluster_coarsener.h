@@ -15,6 +15,7 @@
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
+
 class ClusteringCoarsener : public Coarsener {
 public:
   ClusteringCoarsener(const Context &ctx, const PartitionContext &p_ctx);
@@ -62,4 +63,5 @@ private:
 
   contraction::MemoryContext _contraction_m_ctx{};
 };
+
 } // namespace kaminpar::shm

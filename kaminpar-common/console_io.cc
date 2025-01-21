@@ -12,6 +12,7 @@
 #include "kaminpar-common/logger.h"
 
 namespace kaminpar::cio {
+
 void print_delimiter(const std::string &caption, const char ch) {
   if (caption.empty()) {
     LOG << std::string(80, ch);
@@ -90,4 +91,5 @@ void print_build_identifier() {
   LOG << "Built on:                     "
       << (Environment::HOSTNAME.empty() ? "<not available>" : Environment::HOSTNAME);
 }
+
 } // namespace kaminpar::cio

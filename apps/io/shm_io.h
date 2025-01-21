@@ -10,7 +10,6 @@
 #include <span>
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 #include "kaminpar-shm/datastructures/compressed_graph.h"
 #include "kaminpar-shm/datastructures/csr_graph.h"
@@ -90,6 +89,6 @@ namespace remapping {
 
 void write(const std::string &filename, std::span<const NodeID> partition);
 
-} // namespace partition
+} // namespace remapping
 
 } // namespace kaminpar::shm::io

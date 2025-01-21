@@ -16,6 +16,7 @@
 #include "kaminpar-common/datastructures/scalable_vector.h"
 
 namespace kaminpar::shm::graph {
+
 struct SubgraphMemoryStartPosition {
   std::size_t nodes_start_pos = 0;
   std::size_t edges_start_pos = 0;
@@ -191,4 +192,5 @@ PartitionedGraph copy_subgraph_partitions(
     BlockID input_k,
     const StaticArray<NodeID> &mapping
 );
+
 } // namespace kaminpar::shm::graph

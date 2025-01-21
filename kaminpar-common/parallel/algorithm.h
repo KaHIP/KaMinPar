@@ -15,6 +15,7 @@
 #include <tbb/parallel_scan.h>
 
 namespace kaminpar::parallel {
+
 template <typename Container>
 typename Container::value_type
 accumulate(const Container &r, typename Container::value_type initial) {
@@ -238,4 +239,5 @@ void prefix_sum(InputIterator first, InputIterator last, OutputIterator result) 
       [](Value left, Value right) noexcept { return left + right; }
   );
 }
+
 } // namespace kaminpar::parallel

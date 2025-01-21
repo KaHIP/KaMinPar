@@ -7,7 +7,11 @@
  ******************************************************************************/
 #include "kaminpar-dist/graphutils/synchronization.h"
 
+#include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
+#include "kaminpar-dist/graphutils/communication.h"
+
 namespace kaminpar::dist::graph {
+
 void synchronize_ghost_node_block_ids(DistributedPartitionedGraph &p_graph) {
   struct Message {
     NodeID node;
@@ -28,4 +32,5 @@ void synchronize_ghost_node_block_ids(DistributedPartitionedGraph &p_graph) {
       }
   );
 }
+
 } // namespace kaminpar::dist::graph

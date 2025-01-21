@@ -23,7 +23,12 @@
 #endif // KAMINPAR_HAVE_MTKAHYPAR_LIB
 
 namespace kaminpar::shm {
+
+namespace {
+
 SET_DEBUG(true);
+
+}
 
 MtKaHyParRefiner::MtKaHyParRefiner(const Context &ctx) : _ctx(ctx) {}
 
@@ -137,4 +142,5 @@ bool MtKaHyParRefiner::refine(
   return false;
 #endif // KAMINPAR_HAVE_MTKAHYPAR_LIB
 }
+
 } // namespace kaminpar::shm

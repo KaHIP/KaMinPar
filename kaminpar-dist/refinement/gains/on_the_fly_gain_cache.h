@@ -1,7 +1,7 @@
 /*******************************************************************************
  * On-the-fly gain calculator.
  *
- * @file:   gain_calculator.h
+ * @file:   on_the_fly_gain_cache.h
  * @author: Daniel Seemaier
  * @date:   03.07.2023
  ******************************************************************************/
@@ -9,9 +9,9 @@
 
 #include <tbb/enumerable_thread_specific.h>
 
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
+#include "kaminpar-dist/refinement/gains/max_gainer.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/rating_map.h"
@@ -19,40 +19,31 @@
 
 namespace kaminpar::dist {
 
-template <typename Graph, bool randomize = true> class GainCalculator {
+template <typename Graph> class OnTheFlyGainCache {
 public:
-  GainCalculator(const BlockID max_k)
-      : _rating_map_ets([max_k] { return RatingMap<EdgeWeight, BlockID>(max_k); }) {}
+  constexpr static bool kRandomized = true;
 
-  struct MaxGainer {
-    EdgeWeight int_degree;
-    EdgeWeight ext_degree;
-    BlockID block;
-    NodeWeight weight;
+  OnTheFlyGainCache(const Context &ctx)
+      : _rating_map_ets([&] { return RatingMap<EdgeWeight, BlockID>(ctx.partition.k); }) {}
 
-    [[nodiscard]] EdgeWeight absolute_gain() const {
-      return ext_degree - int_degree;
-    }
-
-    [[nodiscard]] double relative_gain() const {
-      if (ext_degree >= int_degree) {
-        return 1.0 * absolute_gain() * weight;
-      } else {
-        return 1.0 * absolute_gain() / weight;
-      }
-    }
-  };
-
-  void init(const DistributedPartitionedGraph &p_graph, const Graph &graph) {
+  void init(const Graph &graph, const DistributedPartitionedGraph &p_graph) {
     _p_graph = &p_graph;
     _graph = &graph;
+  }
+
+  void free() {
+    // Nothing to do
+  }
+
+  void consolidate() {
+    // Nothing to do
   }
 
   MaxGainer compute_max_gainer(const NodeID u, const PartitionContext &p_ctx) const {
     return compute_max_gainer_impl(
         u,
         [&p_ctx](const BlockID block, const BlockWeight weight_after_move) {
-          return weight_after_move <= p_ctx.graph->max_block_weight(block);
+          return weight_after_move <= p_ctx.max_block_weight(block);
         }
     );
   }
@@ -70,6 +61,10 @@ public:
     return compute_max_gainer_impl(u, [](BlockID /* block */, BlockWeight /* weight_after_move */) {
       return true;
     });
+  }
+
+  void move(NodeID, BlockID, BlockID) {
+    // Nothing to do
   }
 
 private:
@@ -97,7 +92,7 @@ private:
       });
 
       for (const auto [target, conn] : map.entries()) {
-        if (conn > max_ext_conn || (randomize && conn == max_ext_conn && rand.random_bool())) {
+        if (conn > max_ext_conn || (kRandomized && conn == max_ext_conn && rand.random_bool())) {
           max_target = target;
           max_ext_conn = conn;
         }
@@ -122,8 +117,5 @@ private:
   const Graph *_graph = nullptr;
   mutable tbb::enumerable_thread_specific<RatingMap<EdgeWeight, BlockID>> _rating_map_ets;
 };
-
-template <typename Graph> using DeterministicGainCalculator = GainCalculator<Graph, false>;
-template <typename Graph> using RandomizedGainCalculator = GainCalculator<Graph, true>;
 
 } // namespace kaminpar::dist

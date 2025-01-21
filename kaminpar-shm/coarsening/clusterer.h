@@ -15,6 +15,7 @@
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm {
+
 class Clusterer {
 public:
   Clusterer() = default;
@@ -44,4 +45,5 @@ public:
       StaticArray<NodeID> &clustering, const Graph &graph, bool free_memory_afterwards
   ) = 0;
 };
+
 } // namespace kaminpar::shm

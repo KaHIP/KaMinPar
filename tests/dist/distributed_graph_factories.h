@@ -12,13 +12,14 @@
 
 #include "tests/dist/distributed_graph_builder.h"
 
-#include "kaminpar-mpi/wrapper.h"
+#include "kaminpar-mpi/utils.h"
 
 #include "kaminpar-dist/datastructures/distributed_csr_graph.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
 
 namespace kaminpar::dist::testing {
+
 /*!
  * Creates a distributed path with `num_nodes_per_pe` nodes per PE.
  *
@@ -362,4 +363,5 @@ inline DistributedCSRGraph make_csr_cut_edge_graph(const NodeID num_nodes_per_pe
 inline DistributedGraph make_cut_edge_graph(const NodeID num_nodes_per_pe) {
   return {std::make_unique<DistributedCSRGraph>(make_csr_cut_edge_graph(num_nodes_per_pe))};
 }
+
 } // namespace kaminpar::dist::testing

@@ -15,6 +15,7 @@
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm::contraction {
+
 class CoarseGraphImpl : public CoarseGraph {
 public:
   CoarseGraphImpl(Graph graph, StaticArray<NodeID> mapping)
@@ -64,4 +65,5 @@ void fill_cluster_buckets(
     StaticArray<NodeID> &buckets_index,
     StaticArray<NodeID> &buckets
 );
+
 } // namespace kaminpar::shm::contraction

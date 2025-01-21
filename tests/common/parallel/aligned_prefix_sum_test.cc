@@ -1,4 +1,3 @@
-#include <numeric>
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -6,11 +5,8 @@
 
 #include "kaminpar-common/parallel/aligned_prefix_sum.h"
 
-using namespace kaminpar;
-
-using ::testing::ElementsAre;
-
 namespace {
+using namespace kaminpar;
 
 TEST(ParallelAlignedPrefixSumTest, works_with_zero_elements) {
   std::vector<int> storage(0);

@@ -7,7 +7,6 @@
  ******************************************************************************/
 #include "kaminpar-dist/algorithms/independent_set.h"
 
-#include <algorithm>
 #include <limits>
 #include <random>
 
@@ -20,9 +19,15 @@
 #include "kaminpar-common/logger.h"
 
 namespace kaminpar::dist::graph {
-SET_DEBUG(false);
 
 namespace {
+
+SET_DEBUG(false);
+
+}
+
+namespace {
+
 template <typename Generator, typename ScoreType = std::int64_t>
 ScoreType compute_score(Generator &generator, const GlobalNodeID node, const int seed) {
   // @todo replace with something efficient / use communication
@@ -30,6 +35,7 @@ ScoreType compute_score(Generator &generator, const GlobalNodeID node, const int
   return std::uniform_int_distribution<
       ScoreType>(ScoreType(), std::numeric_limits<ScoreType>::max() - 1)(generator);
 }
+
 } // namespace
 
 std::vector<NodeID>
@@ -85,4 +91,5 @@ find_independent_border_set(const DistributedPartitionedGraph &p_graph, const in
 
   return std::vector<NodeID>(seed_nodes.begin(), seed_nodes.end());
 }
+
 } // namespace kaminpar::dist::graph

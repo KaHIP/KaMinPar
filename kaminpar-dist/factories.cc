@@ -9,7 +9,6 @@
 
 #include <memory>
 
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
 
@@ -31,6 +30,14 @@
 #include "kaminpar-dist/refinement/lp/lp_refiner.h"
 #include "kaminpar-dist/refinement/multi_refiner.h"
 #include "kaminpar-dist/refinement/noop_refiner.h"
+
+// Gain caches
+#include "kaminpar-dist/refinement/gains/on_the_fly_gain_cache.h"
+
+#ifdef KAMINPAR_EXPERIMENTAL
+#include "kaminpar-dist/refinement/gains/compact_hashing_gain_cache.h"
+#include "kaminpar-dist/refinement/gains/lazy_compact_hashing_gain_cache.h"
+#endif // KAMINPAR_EXPERIMENTAL
 
 // Coarsening
 #include "kaminpar-dist/coarsening/global_cluster_coarsener.h"
@@ -58,7 +65,7 @@ create_partitioner(const Context &ctx, const DistributedGraph &graph, const Part
 }
 
 std::unique_ptr<Partitioner> create_partitioner(const Context &ctx, const DistributedGraph &graph) {
-  return create_partitioner(ctx, graph, ctx.mode);
+  return create_partitioner(ctx, graph, ctx.partitioning.mode);
 }
 
 std::unique_ptr<InitialPartitioner>
@@ -123,6 +130,43 @@ std::unique_ptr<GlobalRefinerFactory> create_refiner(const Context &ctx) {
 
   return std::make_unique<MultiRefinerFactory>(std::move(factories), ctx.refinement.algorithms);
 }
+
+template <typename GainCache>
+std::unique_ptr<GlobalRefinerFactory> create_refiner_with_decoupled_gain_cache(
+    const Context &ctx, const RefinementAlgorithm algorithm, GainCache &gain_cache
+) {
+  switch (algorithm) {
+  case RefinementAlgorithm::HYBRID_NODE_BALANCER:
+    return std::make_unique<NodeBalancerWithDecoupledGainCacheFactory<GainCache>>(ctx, gain_cache);
+  default:
+    throw std::runtime_error("Decoupled gain cache not supported for this algorithm.");
+  }
+
+  __builtin_unreachable();
+}
+
+template std::unique_ptr<GlobalRefinerFactory>
+create_refiner_with_decoupled_gain_cache<OnTheFlyGainCache<DistributedCSRGraph>>(
+    const Context &ctx,
+    const RefinementAlgorithm algorithm,
+    OnTheFlyGainCache<DistributedCSRGraph> &gain_cache
+);
+
+#ifdef KAMINPAR_EXPERIMENTAL
+template std::unique_ptr<GlobalRefinerFactory>
+create_refiner_with_decoupled_gain_cache<CompactHashingGainCache<DistributedCSRGraph>>(
+    const Context &ctx,
+    const RefinementAlgorithm algorithm,
+    CompactHashingGainCache<DistributedCSRGraph> &gain_cache
+);
+
+template std::unique_ptr<GlobalRefinerFactory>
+create_refiner_with_decoupled_gain_cache<LazyCompactHashingGainCache<DistributedCSRGraph>>(
+    const Context &ctx,
+    const RefinementAlgorithm algorithm,
+    LazyCompactHashingGainCache<DistributedCSRGraph> &gain_cache
+);
+#endif // KAMINPAR_EXPERIMENTAL
 
 std::unique_ptr<Coarsener> create_coarsener(const Context &ctx) {
   return std::make_unique<GlobalClusterCoarsener>(ctx);

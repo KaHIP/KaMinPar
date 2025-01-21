@@ -41,4 +41,5 @@ TEST(GraphRearrangementTest, sort_path_by_degree_buckets) {
     }
   }
 }
+
 } // namespace kaminpar::dist

@@ -11,7 +11,7 @@
 
 #include "kaminpar-dist/coarsening/clusterer.h"
 #include "kaminpar-dist/coarsening/coarsener.h"
-#include "kaminpar-dist/context.h"
+#include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/initial_partitioning/initial_partitioner.h"
 #include "kaminpar-dist/partitioning/partitioner.h"
 #include "kaminpar-dist/refinement/refiner.h"
@@ -32,6 +32,11 @@ std::unique_ptr<GlobalRefinerFactory>
 create_refiner(const Context &ctx, RefinementAlgorithm algorithm);
 
 std::unique_ptr<GlobalRefinerFactory> create_refiner(const Context &ctx);
+
+template <typename GainCache>
+std::unique_ptr<GlobalRefinerFactory> create_refiner_with_decoupled_gain_cache(
+    const Context &ctx, RefinementAlgorithm algorithm, GainCache &gain_cache
+);
 
 std::unique_ptr<Coarsener> create_coarsener(const Context &ctx);
 

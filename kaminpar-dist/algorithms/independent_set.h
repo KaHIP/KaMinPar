@@ -13,6 +13,8 @@
 #include "kaminpar-dist/dkaminpar.h"
 
 namespace kaminpar::dist::graph {
+
 std::vector<NodeID>
 find_independent_border_set(const DistributedPartitionedGraph &p_graph, int seed);
+
 } // namespace kaminpar::dist::graph

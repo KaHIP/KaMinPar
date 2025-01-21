@@ -26,7 +26,7 @@
 #include <stdint.h>
 
 #define KAMINPAR_VERSION_MAJOR 3
-#define KAMINPAR_VERSION_MINOR 0
+#define KAMINPAR_VERSION_MINOR 1
 #define KAMINPAR_VERSION_PATCH 0
 
 #ifdef __cplusplus
@@ -142,6 +142,7 @@ enum class EdgeOrdering {
 enum class CoarseningAlgorithm {
   NOOP,
   CLUSTERING,
+  OVERLAY_CLUSTERING,
 };
 
 enum class ClusteringAlgorithm {
@@ -236,10 +237,15 @@ struct ClusterCoarseningContext {
   double forced_level_lower_factor;
 };
 
+struct OverlayClusterCoarseningContext {
+  int num_levels;
+};
+
 struct CoarseningContext {
   CoarseningAlgorithm algorithm;
 
   ClusterCoarseningContext clustering;
+  OverlayClusterCoarseningContext overlay_clustering;
   ContractionCoarseningContext contraction;
 
   NodeID contraction_limit;
@@ -652,6 +658,8 @@ public:
 
   /*!
    * Sets the verbosity of the partitioner.
+   *
+   * @param output_level Integer verbosity level, higher values mean more output.
    */
   void set_output_level(OutputLevel output_level);
 

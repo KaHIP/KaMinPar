@@ -8,11 +8,12 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
+#include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/refinement/refiner.h"
 
 namespace kaminpar::dist {
+
 class JetRefinerFactory : public GlobalRefinerFactory {
 public:
   JetRefinerFactory(const Context &ctx);
@@ -29,4 +30,5 @@ public:
 private:
   const Context &_ctx;
 };
+
 } // namespace kaminpar::dist

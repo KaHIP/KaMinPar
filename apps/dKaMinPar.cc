@@ -9,11 +9,14 @@
 #include "kaminpar-cli/dkaminpar_arguments.h"
 #include "kaminpar-dist/context_io.h"
 #include "kaminpar-dist/dkaminpar.h"
+#include "kaminpar-dist/timer.h"
 // clang-format on
 
 #include <kagen.h>
 #include <mpi.h>
 #include <tbb/scalable_allocator.h>
+
+#include "kaminpar-dist/datastructures/distributed_graph.h"
 
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/strutils.h"
@@ -68,9 +71,12 @@ struct ApplicationContext {
   float heap_profiler_min_struct_size = 10;
 
   BlockID k = 0;
+  double epsilon = 0.03;
+  std::vector<BlockWeight> max_block_weights = {};
+  std::vector<double> max_block_weight_factors = {};
 
   int verbosity = 0;
-  bool check_input_graph = false;
+  bool validate = false;
 
   IOKind io_kind = IOKind::KAGEN;
   GraphDistribution io_distribution = GraphDistribution::BALANCED_EDGES;
@@ -113,9 +119,6 @@ The output should be stored in a file and can be used by the -C,--config option.
 
   // Mandatory -> ... or partition a graph
   auto *gp_group = mandatory->add_option_group("Partitioning")->silent();
-  gp_group->add_option("-k,--k", app.k, "Number of blocks in the partition.")
-      ->configurable(false)
-      ->required();
   gp_group
       ->add_option(
           "-G,--graph",
@@ -125,7 +128,41 @@ The output should be stored in a file and can be used by the -C,--config option.
       )
       ->configurable(false);
 
+  auto *partition_group = gp_group->add_option_group("Partition settings")->require_option(1);
+  partition_group
+      ->add_option(
+          "-k,--k",
+          app.k,
+          "Number of blocks in the partition. This option will be ignored if explicit block "
+          "weights are specified via --block-weights or --block-weight-factors."
+      )
+      ->check(CLI::Range(static_cast<BlockID>(2), std::numeric_limits<BlockID>::max()));
+  partition_group
+      ->add_option(
+          "-B,--block-weights",
+          app.max_block_weights,
+          "Absolute max block weights, one weight for each block of the partition. If this "
+          "option is set, --epsilon will be ignored."
+      )
+      ->check(CLI::NonNegativeNumber)
+      ->capture_default_str();
+  partition_group->add_option(
+      "-b,--block-weight-factors",
+      app.max_block_weight_factors,
+      "Max block weights relative to the total node weight of the input graph, one factor for each "
+      "block of the partition. If this option is set, --epsilon will be ignored."
+  );
+
   // Application options
+  cli.add_option(
+         "-e,--epsilon",
+         app.epsilon,
+         "Maximum allowed imbalance, e.g. 0.03 for 3%. Must be greater than 0%. If maximum block "
+         "weights are specified explicitly via the --block-weights, this option will be ignored."
+  )
+      ->check(CLI::NonNegativeNumber)
+      ->capture_default_str();
+
   cli.add_option("-s,--seed", app.seed, "Seed for random number generation.")
       ->default_val(app.seed);
 
@@ -139,6 +176,14 @@ The output should be stored in a file and can be used by the -C,--config option.
   cli.add_option("-t,--threads", app.num_threads, "Number of threads to be used.")
       ->check(CLI::NonNegativeNumber)
       ->default_val(app.num_threads);
+
+  cli.add_option(
+      "--max-timer-depth", app.max_timer_depth, "Set maximum timer depth shown in result summary."
+  );
+  cli.add_flag_function("-T,--all-timers", [&](auto) {
+    app.max_timer_depth = std::numeric_limits<int>::max();
+  });
+
   cli.add_option("--io-format", app.io_format)
       ->transform(CLI::CheckedTransformer(kagen::GetInputFormatMap()).description(""))
       ->description(
@@ -172,31 +217,6 @@ The output should be stored in a file and can be used by the -C,--config option.
       ->description("The options used for generating the graph");
   cli.add_option("--io-skagen-chunks", app.io_skagen_chunks_per_pe)
       ->description("The number of chunks per PE that generation will be split into");
-  cli.add_option(
-      "--max-timer-depth", app.max_timer_depth, "Set maximum timer depth shown in result summary."
-  );
-  cli.add_flag_function("-T,--all-timers", [&](auto) {
-    app.max_timer_depth = std::numeric_limits<int>::max();
-  });
-  cli.add_option("-o,--output", app.partition_filename, "Output filename for the graph partition.")
-      ->capture_default_str();
-  cli.add_flag("--check-input-graph", app.check_input_graph, "Check input graph for errors.");
-
-  cli.add_flag("--no-huge-pages", app.no_huge_pages, "Do not use huge pages via TBBmalloc.");
-
-  cli.add_option(
-         "--max-overcommitment-factor",
-         heap_profiler::max_overcommitment_factor,
-         "Limit memory overcommitment to this factor times the total available system memory."
-  )
-      ->capture_default_str();
-  cli.add_flag(
-         "--bruteforce-max-overcommitment-factor",
-         heap_profiler::bruteforce_max_overcommitment_factor,
-         "If enabled, the maximum overcommitment factor is slowly decreased until memory "
-         "overcommitment succeeded."
-  )
-      ->capture_default_str();
 
   // Heap profiler options
   if constexpr (kHeapProfiling) {
@@ -233,6 +253,25 @@ The output should be stored in a file and can be used by the -C,--config option.
         ->check(CLI::NonNegativeNumber);
   }
 
+  cli.add_option("-o,--output", app.partition_filename, "Output filename for the graph partition.")
+      ->capture_default_str();
+  cli.add_flag("--validate", app.validate, "Check input graph for errors.");
+
+  cli.add_flag("--no-huge-pages", app.no_huge_pages, "Do not use huge pages via TBBmalloc.");
+
+  cli.add_option(
+         "--max-overcommitment-factor",
+         heap_profiler::max_overcommitment_factor,
+         "Limit memory overcommitment to this factor times the total available system memory."
+  )
+      ->capture_default_str();
+  cli.add_flag(
+         "--bruteforce-max-overcommitment-factor",
+         heap_profiler::bruteforce_max_overcommitment_factor,
+         "If enabled, the maximum overcommitment factor is slowly decreased until memory "
+         "overcommitment succeeded."
+  )
+      ->capture_default_str();
   cli.add_flag(
       "--dry-run",
       app.dry_run,
@@ -265,9 +304,10 @@ template <typename Lambda> [[noreturn]] void root_run_and_exit(Lambda &&l) {
 NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
   using namespace kagen;
 
+  START_TIMER("Load KaGen graph");
   KaGen generator(MPI_COMM_WORLD);
   generator.UseCSRRepresentation();
-  if (app.check_input_graph) {
+  if (app.validate) {
     generator.EnableUndirectedGraphVerification();
   }
   if (app.verbosity > 1) {
@@ -299,9 +339,10 @@ NodeID load_kagen_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
   static_assert(sizeof(SInt) == sizeof(GlobalEdgeID));
   static_assert(sizeof(SSInt) == sizeof(GlobalNodeWeight));
   static_assert(sizeof(SSInt) == sizeof(GlobalEdgeWeight));
+  STOP_TIMER();
 
   // Pass the graph to the partitioner --
-  partitioner.import_graph(
+  partitioner.copy_graph(
       vtxdist,
       {reinterpret_cast<GlobalEdgeID *>(xadj.data()), xadj.size()},
       {reinterpret_cast<GlobalNodeID *>(adjncy.data()), adjncy.size()},
@@ -330,11 +371,12 @@ NodeID load_skagen_graph(const ApplicationContext &app, bool compression, dKaMin
   }();
   const NodeID n = graph.n();
 
-  partitioner.import_graph(std::move(graph));
+  partitioner.set_graph(std::move(graph));
   return n;
 }
 
 NodeID load_csr_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
+  START_TIMER("Load uncompressed graph");
   const auto read_graph = [&] {
     switch (app.io_format) {
     case kagen::FileFormat::METIS:
@@ -350,12 +392,14 @@ NodeID load_csr_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
 
   DistributedGraph graph(std::make_unique<DistributedCSRGraph>(read_graph()));
   const NodeID n = graph.n();
+  STOP_TIMER();
 
-  partitioner.import_graph(std::move(graph));
+  partitioner.set_graph(std::move(graph));
   return n;
 }
 
 NodeID load_compressed_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
+  START_TIMER("Load compressed graph");
   const auto read_graph = [&] {
     switch (app.io_format) {
     case kagen::FileFormat::METIS:
@@ -375,8 +419,9 @@ NodeID load_compressed_graph(const ApplicationContext &app, dKaMinPar &partition
 
   DistributedGraph graph(std::make_unique<DistributedCompressedGraph>(read_graph()));
   const NodeID n = graph.n();
+  STOP_TIMER();
 
-  partitioner.import_graph(std::move(graph));
+  partitioner.set_graph(std::move(graph));
   return n;
 }
 
@@ -405,6 +450,41 @@ void report_max_rss() {
   }
 }
 
+GlobalEdgeWeight run_partitioner_once(
+    dKaMinPar &partitioner, std::vector<BlockID> &partition, const ApplicationContext &app
+) {
+  if (!app.max_block_weight_factors.empty()) {
+    const double total_factor = std::accumulate(
+        app.max_block_weight_factors.begin(), app.max_block_weight_factors.end(), 0.0
+    );
+    if (total_factor <= 1.0) {
+      LOG_ERROR << "Error: total block weights must be greater than the total node weight; "
+                << "this is not the case with the given factors.";
+      std::exit(1);
+    }
+
+    return partitioner.compute_partition(
+        app.max_block_weight_factors, {partition.data(), partition.size()}
+    );
+  } else if (!app.max_block_weights.empty()) {
+    const BlockWeight total_block_weight = std::accumulate(
+        app.max_block_weights.begin(), app.max_block_weights.end(), static_cast<BlockWeight>(0)
+    );
+    const NodeWeight total_node_weight = partitioner.graph()->global_total_node_weight();
+    if (total_node_weight >= total_block_weight) {
+      LOG_ERROR << "Error: total max block weights (" << total_block_weight
+                << ") must be greater than the total node weight (" << total_node_weight << ").";
+      std::exit(1);
+    }
+
+    return partitioner.compute_partition(
+        app.max_block_weights, {partition.data(), partition.size()}
+    );
+  } else {
+    return partitioner.compute_partition(app.k, app.epsilon, {partition.data(), partition.size()});
+  }
+}
+
 void run_partitioner(
     dKaMinPar &partitioner, std::vector<BlockID> &partition, const ApplicationContext &app
 ) {
@@ -414,7 +494,7 @@ void run_partitioner(
 #endif // KAMINPAR_HAVE_BACKWARD
 
   if (app.repetitions == 0) {
-    partitioner.compute_partition(app.k, partition.data());
+    run_partitioner_once(partitioner, partition, app);
     if (app.verbosity >= 0) {
       report_max_rss();
     }
@@ -428,7 +508,7 @@ void run_partitioner(
   STOP_HEAP_PROFILER();
 
   for (int repetition = 0; repetition < app.repetitions; ++repetition) {
-    const GlobalEdgeWeight cut = partitioner.compute_partition(app.k, partition.data());
+    const GlobalEdgeWeight cut = run_partitioner_once(partitioner, partition, app);
     cuts.push_back(cut);
 
     if (cut < best_cut) {
@@ -496,6 +576,8 @@ int main(int argc, char *argv[]) {
     partitioner.set_output_level(OutputLevel::QUIET);
   } else if (app.verbosity == 1) {
     partitioner.set_output_level(OutputLevel::EXPERIMENT);
+  } else if (app.verbosity >= 2) {
+    partitioner.set_output_level(OutputLevel::DEBUG);
   }
 
   partitioner.context().debug.graph_filename = str::extract_basename(app.graph_filename);
@@ -515,6 +597,8 @@ int main(int argc, char *argv[]) {
   START_HEAP_PROFILER("Input Graph Allocation");
   // Load the graph via KaGen or via our graph compressor.
   const NodeID n = [&] {
+    SCOPED_TIMER("IO");
+
     if (app.io_kind == IOKind::KAMINPAR) {
       if (ctx.compression.enabled) {
         return load_compressed_graph(app, partitioner);

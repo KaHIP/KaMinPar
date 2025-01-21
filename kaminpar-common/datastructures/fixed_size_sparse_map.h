@@ -34,6 +34,7 @@
 #include "kaminpar-common/math.h"
 
 namespace kaminpar {
+
 /*!
  * Sparse map implementation that uses a fixed size.
  * In contrast to the implementation in KaHyPar (see
@@ -224,4 +225,5 @@ private:
 
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };
+
 } // namespace kaminpar

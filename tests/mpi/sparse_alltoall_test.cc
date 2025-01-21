@@ -7,6 +7,7 @@
 #include "kaminpar-common/math.h"
 
 namespace kaminpar::mpi {
+
 template <typename Implementation> struct SparseAlltoallTest : public ::testing::Test {
   Implementation impl;
 };
@@ -202,4 +203,5 @@ TEST(DefaultSparseAlltoallTest, does_not_move_lvalue_reference) {
     EXPECT_EQ(sendbufs[pe].front(), pe);
   }
 }
+
 } // namespace kaminpar::mpi

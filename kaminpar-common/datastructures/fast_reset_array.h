@@ -17,6 +17,7 @@
 #include "kaminpar-common/ranges.h"
 
 namespace kaminpar {
+
 template <typename Value, typename Size = std::size_t> class FastResetArray {
 public:
   using value_type = Value;
@@ -122,4 +123,5 @@ private:
 
   IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };
+
 } // namespace kaminpar

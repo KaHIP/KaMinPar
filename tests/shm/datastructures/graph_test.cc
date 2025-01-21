@@ -5,6 +5,7 @@
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 
 namespace kaminpar::shm::testing {
+
 class AWeightedGridGraph : public ::testing::Test {
 public:
   // 0|1--- 1|2--- 2|4--- 3|8
@@ -184,4 +185,5 @@ TEST(GraphTest, LowestDegreeInBucketWorks) {
   EXPECT_EQ(lowest_degree_in_bucket<NodeID>(2), 2);
   EXPECT_EQ(lowest_degree_in_bucket<NodeID>(3), 4);
 }
+
 } // namespace kaminpar::shm::testing
