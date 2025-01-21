@@ -18,6 +18,12 @@
 
 namespace kaminpar::dist {
 
+namespace {
+
+SET_DEBUG(true);
+
+}
+
 PartitionContext create_refinement_context(
     const Context &input_ctx, const DistributedGraph &graph, const BlockID current_k, bool toplevel
 ) {
@@ -78,8 +84,15 @@ shm::PartitionContext create_initial_partitioning_context(
     cur_begin += num_subblocks;
   }
 
+  DBG << "Requested shm::PartitionContext for " << current_k << " -> " << desired_k
+      << " initial / recursive partitioning, thus splitting the block-induced graph with"
+      << " n=" << graph.n() << " nodes and m=" << graph.m() << " edges into " << k
+      << " sub-graphs with max_block_weights=[" << max_block_weights
+      << "]; further relax weights: " << (!toplevel ? "yes" : "no");
+
   shm::PartitionContext p_ctx;
   p_ctx.setup(graph, std::move(max_block_weights), !toplevel);
+
   return p_ctx;
 }
 

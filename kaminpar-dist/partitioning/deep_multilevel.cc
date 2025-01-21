@@ -129,9 +129,8 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   };
 
   shm::Graph shm_graph = replicate_graph_everywhere(*graph);
-  const shm::PartitionContext shm_p_ctx = create_initial_partitioning_context(
-      _input_ctx, shm_graph, 0, first_step_k, _input_ctx.partition.k, level == 0
-  );
+  const shm::PartitionContext shm_p_ctx =
+      create_initial_partitioning_context(_input_ctx, shm_graph, 0, 1, first_step_k, level == 0);
   shm::PartitionedGraph shm_p_graph = initial_partitioner->initial_partition(shm_graph, shm_p_ctx);
 
   if (_input_ctx.partitioning.simulate_singlethread) {
