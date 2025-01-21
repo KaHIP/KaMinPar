@@ -21,7 +21,7 @@ namespace kaminpar::dist {
 shm::PartitionedGraph KaMinParInitialPartitioner::initial_partition(
     const shm::Graph &graph, const shm::PartitionContext &p_ctx
 ) {
-  if (graph.n() <= 1) {
+  if (graph.n() <= 1 || p_ctx.k == 1) {
     return {graph, p_ctx.k, StaticArray<BlockID>(graph.n())};
   }
 

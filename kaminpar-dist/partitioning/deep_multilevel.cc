@@ -244,8 +244,14 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
       TIMER_BARRIER(dist_p_graph.communicator());
       START_TIMER("Initial partitioning");
       std::vector<shm::PartitionedGraph> p_subgraphs;
-      for (const BlockID block : dist_p_graph.blocks()) {
-        const shm::Graph &shm_graph = subgraphs[block];
+
+      const PEID size = mpi::get_comm_size(dist_p_graph.communicator());
+      const PEID rank = mpi::get_comm_rank(dist_p_graph.communicator());
+      const graph::BlockExtractionOffsets offsets(size, dist_p_graph.k());
+
+      for (std::size_t i = 0; i < subgraphs.size(); ++i) {
+        const BlockID block = offsets.first_block_on_pe(rank) + i;
+        const shm::Graph &shm_graph = subgraphs[i];
         const shm::PartitionContext shm_p_ctx = create_initial_partitioning_context(
             _input_ctx, shm_graph, block, dist_p_graph.k(), desired_k, level == 0
         );
@@ -256,7 +262,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
 
       // Project subgraph partitions onto dist_p_graph
       dist_p_graph = graph::copy_subgraph_partitions(
-          std::move(dist_p_graph), p_subgraphs, block_extraction_result
+          std::move(dist_p_graph), p_subgraphs, block_extraction_result, next_k
       );
 
       ref_p_ctx = create_refinement_context(_input_ctx, dist_p_graph.graph(), next_k, level == 0);

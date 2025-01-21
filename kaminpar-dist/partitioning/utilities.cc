@@ -85,7 +85,8 @@ shm::PartitionContext create_initial_partitioning_context(
   }
 
   DBG << "Requested shm::PartitionContext for " << current_k << " -> " << desired_k
-      << " initial / recursive partitioning, thus splitting the block-induced graph with"
+      << " initial / recursive partitioning, thus splitting the " << current_block << "-th of "
+      << current_k << " block-induced graph with"
       << " n=" << graph.n() << " nodes and m=" << graph.m() << " edges into " << k
       << " sub-graphs with max_block_weights=[" << max_block_weights
       << "]; further relax weights: " << (!toplevel ? "yes" : "no");
