@@ -128,18 +128,18 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
     return factory::create_initial_partitioner(_input_ctx);
   };
 
-  const PartitionContext ip_p_ctx =
-      create_refinement_context(_input_ctx, *graph, first_step_k, level == 0);
-
   shm::Graph shm_graph = replicate_graph_everywhere(*graph);
-  shm::PartitionedGraph shm_p_graph = initial_partitioner->initial_partition(shm_graph, ip_p_ctx);
+  const shm::PartitionContext shm_p_ctx = create_initial_partitioning_context(
+      _input_ctx, shm_graph, 0, first_step_k, _input_ctx.partition.k, level == 0
+  );
+  shm::PartitionedGraph shm_p_graph = initial_partitioner->initial_partition(shm_graph, shm_p_ctx);
 
   if (_input_ctx.partitioning.simulate_singlethread) {
     shm::EdgeWeight shm_cut = shm::metrics::edge_cut(shm_p_graph);
 
     for (std::size_t rep = 1; rep < _input_ctx.parallel.num_threads; ++rep) {
       shm::PartitionedGraph next_shm_p_graph =
-          initial_partitioner->initial_partition(shm_graph, ip_p_ctx);
+          initial_partitioner->initial_partition(shm_graph, shm_p_ctx);
       const shm::EdgeWeight next_cut = shm::metrics::edge_cut(next_shm_p_graph);
 
       if (next_cut < shm_cut) {
@@ -158,7 +158,10 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
       assert::heavy
   );
 
-  print_initial_partitioning_result(dist_p_graph, ip_p_ctx);
+  print_initial_partitioning_result(
+      dist_p_graph,
+      create_refinement_context(_input_ctx, dist_p_graph.graph(), dist_p_graph.k(), level == 0)
+  );
 
   STOP_HEAP_PROFILER();
   STOP_TIMER();
@@ -243,12 +246,12 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
       START_TIMER("Initial partitioning");
       std::vector<shm::PartitionedGraph> p_subgraphs;
       for (const BlockID block : dist_p_graph.blocks()) {
-        const shm::Graph &subgraph = subgraphs[block];
-        const PartitionContext ip_p_ctx = create_initial_partitioning_context(
-            _input_ctx, subgraph, block, dist_p_graph.k(), desired_k
+        const shm::Graph &shm_graph = subgraphs[block];
+        const shm::PartitionContext shm_p_ctx = create_initial_partitioning_context(
+            _input_ctx, shm_graph, block, dist_p_graph.k(), desired_k, level == 0
         );
 
-        p_subgraphs.push_back(initial_partitioner->initial_partition(subgraph, ip_p_ctx));
+        p_subgraphs.push_back(initial_partitioner->initial_partition(shm_graph, shm_p_ctx));
       }
       STOP_TIMER();
 

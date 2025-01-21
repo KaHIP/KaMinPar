@@ -95,17 +95,18 @@ DistributedPartitionedGraph KWayMultilevelPartitioner::partition() {
       return factory::create_initial_partitioner(_input_ctx);
     };
 
-    const PartitionContext p_ctx =
-        create_refinement_context(_input_ctx, *graph, _input_ctx.partition.k, coarsener->empty());
-
     shm::Graph shm_graph = replicate_graph_everywhere(*graph);
-    shm::PartitionedGraph shm_p_graph = initial_partitioner->initial_partition(shm_graph, p_ctx);
+    const shm::PartitionContext shm_p_ctx = create_initial_partitioning_context(
+        _input_ctx, shm_graph, 0, 1, _input_ctx.partition.k, coarsener->empty()
+    );
+    shm::PartitionedGraph shm_p_graph =
+        initial_partitioner->initial_partition(shm_graph, shm_p_ctx);
 
     if (_input_ctx.partitioning.simulate_singlethread) {
       shm::EdgeWeight shm_cut = shm::metrics::edge_cut(shm_p_graph);
       for (std::size_t rep = 1; rep < _input_ctx.parallel.num_threads; ++rep) {
         shm::PartitionedGraph next_shm_p_graph =
-            initial_partitioner->initial_partition(shm_graph, p_ctx);
+            initial_partitioner->initial_partition(shm_graph, shm_p_ctx);
         const shm::EdgeWeight next_cut = shm::metrics::edge_cut(next_shm_p_graph);
 
         if (next_cut < shm_cut) {

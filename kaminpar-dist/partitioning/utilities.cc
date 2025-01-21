@@ -46,14 +46,41 @@ PartitionContext create_refinement_context(
   return new_p_ctx;
 }
 
-PartitionContext create_initial_partitioning_context(
+shm::PartitionContext create_initial_partitioning_context(
     const Context &input_ctx,
     const shm::Graph &graph,
     const BlockID current_block,
     const BlockID current_k,
-    const BlockID desired_k
+    const BlockID desired_k,
+    const bool toplevel
 ) {
-  return {};
+  const BlockID k = (desired_k == input_ctx.partition.k)
+                        ? shm::partitioning::compute_final_k(current_block, current_k, desired_k)
+                        : desired_k / current_k;
+
+  std::vector<shm::BlockWeight> max_block_weights(k);
+  BlockID cur_begin =
+      shm::partitioning::compute_first_sub_block(current_block, current_k, input_ctx.partition.k);
+
+  for (BlockID b = 0; b < k; ++b) {
+    const BlockID num_subblocks = [&]() -> BlockID {
+      if (desired_k == input_ctx.partition.k) {
+        return 1;
+      } else {
+        return shm::partitioning::compute_final_k(
+            current_block * k + b, desired_k, input_ctx.partition.k
+        );
+      }
+    }();
+
+    max_block_weights[b] =
+        input_ctx.partition.total_unrelaxed_max_block_weights(cur_begin, cur_begin + num_subblocks);
+    cur_begin += num_subblocks;
+  }
+
+  shm::PartitionContext p_ctx;
+  p_ctx.setup(graph, std::move(max_block_weights), !toplevel);
+  return p_ctx;
 }
 
 void print_input_graph(const DistributedGraph &graph, const bool verbose) {

@@ -12,12 +12,13 @@
 
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
+#include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::dist {
 
 class KaMinParInitialPartitioner : public InitialPartitioner {
 public:
-  KaMinParInitialPartitioner(const Context &ctx) : _ctx{ctx} {}
+  KaMinParInitialPartitioner(const Context &ctx) : _ctx(ctx) {}
 
   KaMinParInitialPartitioner(const KaMinParInitialPartitioner &) = delete;
   KaMinParInitialPartitioner &operator=(const KaMinParInitialPartitioner &) = delete;
@@ -26,7 +27,7 @@ public:
   KaMinParInitialPartitioner &operator=(KaMinParInitialPartitioner &&) = delete;
 
   shm::PartitionedGraph
-  initial_partition(const shm::Graph &graph, const PartitionContext &p_ctx) override;
+  initial_partition(const shm::Graph &graph, const shm::PartitionContext &p_ctx) override;
 
 private:
   const Context &_ctx;

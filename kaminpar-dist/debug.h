@@ -26,7 +26,7 @@ void write_coarsest_partition(
 void write_partition(
     const std::string &filename,
     const DistributedPartitionedGraph &p_graph,
-    const bool use_original_node_order = true
+    bool use_original_node_order = true
 );
 
 } // namespace kaminpar::dist::debug

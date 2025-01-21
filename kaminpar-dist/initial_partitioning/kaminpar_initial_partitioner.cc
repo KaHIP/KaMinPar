@@ -9,6 +9,7 @@
 
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/factories.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/datastructures/static_array.h"
@@ -18,28 +19,25 @@
 namespace kaminpar::dist {
 
 shm::PartitionedGraph KaMinParInitialPartitioner::initial_partition(
-    const shm::Graph &graph, const PartitionContext &p_ctx
+    const shm::Graph &graph, const shm::PartitionContext &p_ctx
 ) {
   if (graph.n() <= 1) {
     return {graph, p_ctx.k, StaticArray<BlockID>(graph.n())};
   }
 
-  std::vector<shm::BlockWeight> max_block_weights(p_ctx.k);
-  for (BlockID b = 0; b < p_ctx.k; ++b) {
-    max_block_weights[b] = p_ctx.max_block_weight(b);
-  }
-
   auto shm_ctx = _ctx.initial_partitioning.kaminpar;
   shm_ctx.refinement.lp.num_iterations = 1;
-  shm_ctx.partition.setup(graph, std::move(max_block_weights));
+  shm_ctx.partition = p_ctx;
   shm_ctx.compression.setup(graph);
 
   DISABLE_TIMERS();
   START_HEAP_PROFILER("KaMinPar");
+
   const bool was_quiet = Logger::is_quiet();
   Logger::set_quiet_mode(true);
   auto p_graph = shm::factory::create_partitioner(graph, shm_ctx)->partition();
   Logger::set_quiet_mode(was_quiet);
+
   STOP_HEAP_PROFILER();
   ENABLE_TIMERS();
 
