@@ -403,7 +403,8 @@ struct PartitionContext {
   [[nodiscard]] BlockWeight
   total_unrelaxed_max_block_weights(const BlockID begin, const BlockID end) const {
     if (_uniform_block_weights) {
-      return (1.0 + inferred_epsilon()) * std::ceil(1.0 * (end - begin) * total_node_weight / k);
+      return (1.0 + inferred_epsilon()) *
+             std::ceil(1.0 * (end - begin) * global_total_node_weight / k);
     }
 
     return std::accumulate(

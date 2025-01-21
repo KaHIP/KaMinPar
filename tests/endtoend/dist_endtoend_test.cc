@@ -70,8 +70,8 @@ TEST(DistEndToEndTest, partitions_empty_unweighted_graph) {
   std::vector<BlockID> partition{};
   dKaMinPar dist(MPI_COMM_WORLD, 1, create_default_context());
   dist.set_output_level(OutputLevel::QUIET);
-  dist.import_graph(vtxdist, xadj, adjncy);
-  EXPECT_EQ(dist.compute_partition(16, partition.data()), 0);
+  dist.copy_graph(vtxdist, xadj, adjncy);
+  EXPECT_EQ(dist.compute_partition(16, partition), 0);
 }
 
 TEST(DistEndToEndTest, partitions_empty_weighted_graph) {
@@ -86,8 +86,8 @@ TEST(DistEndToEndTest, partitions_empty_weighted_graph) {
   std::vector<BlockID> partition{};
   dKaMinPar dist(MPI_COMM_WORLD, 1, create_default_context());
   dist.set_output_level(OutputLevel::QUIET);
-  dist.import_graph(vtxdist, xadj, adjncy, vwgt, adjwgt);
-  EXPECT_EQ(dist.compute_partition(16, partition.data()), 0);
+  dist.copy_graph(vtxdist, xadj, adjncy, vwgt, adjwgt);
+  EXPECT_EQ(dist.compute_partition(16, partition), 0);
 }
 
 TEST(DistEndToEndTest, partitions_unweighted_walshaw_data_graph) {
@@ -106,8 +106,10 @@ TEST(DistEndToEndTest, partitions_unweighted_walshaw_data_graph) {
   dKaMinPar::reseed(0);
   dKaMinPar dist(MPI_COMM_WORLD, 1, create_default_context()); // 1 thread: deterministic
   dist.set_output_level(OutputLevel::QUIET);
-  dist.import_graph(vtxdist, xadj, {adjncy_ptr, m});
-  const EdgeWeight reported_cut = dist.compute_partition(16, partition.data() + vtxdist[rank]);
+  dist.copy_graph(vtxdist, xadj, {adjncy_ptr, m});
+  const EdgeWeight reported_cut = dist.compute_partition(
+      16, {partition.data() + vtxdist[rank], vtxdist[rank + 1] - vtxdist[rank]}
+  );
 
   // Cut should be around 1200 -- 1300
   EXPECT_LE(reported_cut, 2000);
@@ -164,16 +166,16 @@ TEST(
   dKaMinPar::reseed(0);
   dKaMinPar dist(MPI_COMM_WORLD, 1, create_default_context()); // 1 thread: deterministic
   dist.set_output_level(OutputLevel::QUIET);
-  dist.import_graph(vtxdist, xadj, {adjncy_ptr, m});
-  dist.compute_partition(16, seed0_partition.data());
+  dist.copy_graph(vtxdist, xadj, {adjncy_ptr, m});
+  dist.compute_partition(16, seed0_partition);
 
   for (const int seed : {1, 2, 3}) {
     std::vector<BlockID> partition(n);
     dKaMinPar::reseed(seed);
     dKaMinPar dist(MPI_COMM_WORLD, 1, create_default_context()); // 1 thread: deterministic
     dist.set_output_level(OutputLevel::QUIET);
-    dist.import_graph(vtxdist, xadj, {adjncy_ptr, m});
-    dist.compute_partition(16, partition.data());
+    dist.copy_graph(vtxdist, xadj, {adjncy_ptr, m});
+    dist.compute_partition(16, partition);
     EXPECT_NE(partition, seed0_partition);
   }
 }
@@ -193,8 +195,8 @@ TEST(DistEndToEndTest, partitions_unweighted_walshaw_data_graph_with_three_threa
   dKaMinPar::reseed(0);
   dKaMinPar dist(MPI_COMM_WORLD, 3, create_default_context());
   dist.set_output_level(OutputLevel::QUIET);
-  dist.import_graph(vtxdist, xadj, {adjncy_ptr, m});
-  dist.compute_partition(16, seed0_partition.data());
+  dist.copy_graph(vtxdist, xadj, {adjncy_ptr, m});
+  dist.compute_partition(16, seed0_partition);
 }
 
 } // namespace kaminpar::dist

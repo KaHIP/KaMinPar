@@ -389,6 +389,7 @@ private:
       const std::size_t n = feasible_target_blocks.size();
       const std::size_t i = Random::instance().random_index(0, n);
       const BlockID b = feasible_target_blocks[i];
+      KASSERT(u_block != b);
 
       // try to move node to that block, if possible, operation succeeded
       if (move_node_if_possible(u, u_block, b)) {

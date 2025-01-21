@@ -7,17 +7,16 @@
 #pragma once
 
 #include <unordered_map>
+#include <vector>
 
 #include <tbb/concurrent_hash_map.h>
 
 #include "kaminpar-dist/datastructures/distributed_csr_graph.h"
-#include "kaminpar-dist/datastructures/ghost_node_mapper.h"
 #include "kaminpar-dist/datastructures/growt.h"
 #include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/graphutils/communication.h"
 
 #include "kaminpar-common/datastructures/scalable_vector.h"
-#include "kaminpar-common/parallel/atomic.h"
 
 namespace kaminpar::dist::graph {
 
@@ -34,7 +33,7 @@ class Builder {
   SET_DEBUG(false);
 
 public:
-  Builder(MPI_Comm const comm) : _comm{comm} {}
+  Builder(MPI_Comm const comm) : _comm(comm) {}
 
   template <typename T> using vec = std::vector<T>;
   Builder &initialize(const NodeID n) {
@@ -171,7 +170,7 @@ private:
   std::vector<GlobalNodeID> _ghost_to_global{};
   std::unordered_map<GlobalNodeID, NodeID> _global_to_ghost{};
 
-  bool _unit_node_weights{true};
+  bool _unit_node_weights = true;
 };
 
 } // namespace kaminpar::dist::graph

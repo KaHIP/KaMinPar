@@ -20,7 +20,7 @@ namespace kaminpar::dist {
 
 namespace {
 
-SET_DEBUG(false);
+SET_DEBUG(true);
 
 }
 
