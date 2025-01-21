@@ -9,6 +9,7 @@
 #pragma once
 
 #include <ostream>
+#include <sstream>
 #include <unordered_map>
 
 #include "kaminpar-dist/dkaminpar.h"
