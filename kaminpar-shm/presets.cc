@@ -54,6 +54,12 @@ Context create_context_by_preset_name(const std::string &name) {
     return create_vcycle_context(true);
   }
 
+  if (name == "esa21" || name == "esa21-smallk") {
+    return create_esa21_smallk_context();
+  } else if (name == "esa21-largek") {
+    return create_esa21_largek_context();
+  }
+
   throw std::runtime_error("invalid preset name");
 }
 
@@ -74,6 +80,8 @@ std::unordered_set<std::string> get_preset_names() {
       "fm",
       "vcycle",
       "restricted-vcycle",
+      "esa21-smallk",
+      "esa21-largek"
   };
 }
 
@@ -391,6 +399,25 @@ Context create_vcycle_context(const bool restrict_refinement) {
         RefinementAlgorithm::LABEL_PROPAGATION,
     };
   }
+
+  return ctx;
+}
+
+Context create_esa21_smallk_context() {
+  Context ctx = create_default_context();
+
+  ctx.coarsening.contraction.algorithm = ContractionAlgorithm::BUFFERED;
+  ctx.coarsening.clustering.lp.impl = LabelPropagationImplementation::SINGLE_PHASE;
+
+  return ctx;
+}
+
+Context create_esa21_largek_context() {
+  Context ctx = create_esa21_smallk_context();
+
+  ctx.initial_partitioning.pool.min_num_repetitions = 4;
+  ctx.initial_partitioning.pool.min_num_non_adaptive_repetitions = 2;
+  ctx.initial_partitioning.pool.max_num_repetitions = 4;
 
   return ctx;
 }
