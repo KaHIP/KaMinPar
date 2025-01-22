@@ -81,13 +81,24 @@ shm::PartitionContext create_initial_partitioning_context(
 
     max_block_weights[b] =
         input_ctx.partition.total_unrelaxed_max_block_weights(cur_begin, cur_begin + num_subblocks);
+    /*const double target_max_block_weight = (1.0 + input_ctx.partition.epsilon()) *
+                                           input_ctx.partition.global_total_node_weight / desired_k;
+    const double next_epsilon = 1.0 * target_max_block_weight / graph.total_node_weight() * k - 1.0;
+    const double eps = std::max(0.001, next_epsilon);
+
+    max_block_weights[b] = std::max<BlockWeight>(
+        (1.0 + eps) * std::ceil(1.0 * graph.total_node_weight() / k),
+        toplevel ? 0 : std::ceil(1.0 * graph.total_node_weight() / k) + graph.max_node_weight()
+    );*/
+
     cur_begin += num_subblocks;
   }
 
   DBG << "Requested shm::PartitionContext for " << current_k << " -> " << desired_k
       << " initial / recursive partitioning, thus splitting the " << current_block << "-th of "
       << current_k << " block-induced graph with"
-      << " n=" << graph.n() << " nodes and m=" << graph.m() << " edges into " << k
+      << " total_node_weight=" << graph.total_node_weight() << ", n=" << graph.n()
+      << " nodes and m=" << graph.m() << " edges into " << k
       << " sub-graphs with max_block_weights=[" << max_block_weights
       << "]; further relax weights: " << (!toplevel ? "yes" : "no");
 

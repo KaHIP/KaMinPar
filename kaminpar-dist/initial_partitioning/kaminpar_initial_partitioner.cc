@@ -7,16 +7,23 @@
  ******************************************************************************/
 #include "kaminpar-dist/initial_partitioning/kaminpar_initial_partitioner.h"
 
+#include "kaminpar-dist/logger.h"
+
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/factories.h"
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/datastructures/static_array.h"
-#include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::dist {
+
+namespace {
+
+SET_DEBUG(true);
+
+}
 
 shm::PartitionedGraph KaMinParInitialPartitioner::initial_partition(
     const shm::Graph &graph, const shm::PartitionContext &p_ctx
@@ -29,6 +36,15 @@ shm::PartitionedGraph KaMinParInitialPartitioner::initial_partition(
   shm_ctx.refinement.lp.num_iterations = 1;
   shm_ctx.partition = p_ctx;
   shm_ctx.compression.setup(graph);
+
+  if (false) {
+    std::vector<BlockWeight> max_block_weights;
+    for (BlockID b = 0; b < shm_ctx.partition.k; ++b) {
+      max_block_weights.push_back(shm_ctx.partition.max_block_weight(b));
+    }
+    DBG << "Max block weights for initial partitioning: " << max_block_weights
+        << ", total node weight of our subgraph: " << graph.total_node_weight();
+  }
 
   DISABLE_TIMERS();
   START_HEAP_PROFILER("KaMinPar");
