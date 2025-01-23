@@ -16,6 +16,8 @@
 
 #include "kaminpar-shm/partitioning/partition_utils.h"
 
+#include "kaminpar-common/math.h"
+
 namespace kaminpar::dist {
 
 namespace {
@@ -57,42 +59,58 @@ shm::PartitionContext create_initial_partitioning_context(
     const shm::Graph &graph,
     const BlockID current_block,
     const BlockID current_k,
-    const BlockID desired_k,
-    const bool toplevel
+    const BlockID desired_k
 ) {
-  const BlockID k = (desired_k == input_ctx.partition.k)
-                        ? shm::partitioning::compute_final_k(current_block, current_k, desired_k)
-                        : desired_k / current_k;
 
-  std::vector<shm::BlockWeight> max_block_weights(k);
-  BlockID cur_begin =
-      shm::partitioning::compute_first_sub_block(current_block, current_k, input_ctx.partition.k);
+  shm::PartitionContext p_ctx;
 
-  for (BlockID b = 0; b < k; ++b) {
-    const BlockID num_subblocks = [&]() -> BlockID {
-      if (desired_k == input_ctx.partition.k) {
-        return 1;
+  if (math::is_power_of_2(input_ctx.partition.k)) {
+    const BlockID even_k_per_block = desired_k / current_k;
+
+    const double epsilon = [&] {
+      if (current_k == 1) {
+        return input_ctx.partition.epsilon();
       } else {
-        return shm::partitioning::compute_final_k(
-            current_block * k + b, desired_k, input_ctx.partition.k
+        const double target_max_block_weight = (1.0 + input_ctx.partition.epsilon()) *
+                                               input_ctx.partition.global_total_node_weight /
+                                               desired_k;
+        return std::max(
+            0.001,
+            1.0 * target_max_block_weight / graph.total_node_weight() * even_k_per_block - 1.0
         );
       }
     }();
 
-    max_block_weights[b] =
-        input_ctx.partition.total_unrelaxed_max_block_weights(cur_begin, cur_begin + num_subblocks);
-    cur_begin += num_subblocks;
+    p_ctx.setup(graph, even_k_per_block, epsilon, true);
+  } else {
+    const BlockID k = (desired_k == input_ctx.partition.k)
+                          ? shm::partitioning::compute_final_k(current_block, current_k, desired_k)
+                          : desired_k / current_k;
+
+    std::vector<shm::BlockWeight> max_block_weights(k);
+    BlockID cur_begin =
+        shm::partitioning::compute_first_sub_block(current_block, current_k, input_ctx.partition.k);
+
+    for (BlockID b = 0; b < k; ++b) {
+      const BlockID num_subblocks = [&]() -> BlockID {
+        if (desired_k == input_ctx.partition.k) {
+          return 1;
+        } else {
+          return shm::partitioning::compute_final_k(
+              current_block * k + b, desired_k, input_ctx.partition.k
+          );
+        }
+      }();
+
+      max_block_weights[b] = input_ctx.partition.total_unrelaxed_max_block_weights(
+          cur_begin, cur_begin + num_subblocks
+      );
+
+      cur_begin += num_subblocks;
+    }
+
+    p_ctx.setup(graph, std::move(max_block_weights), true);
   }
-
-  DBG << "Requested shm::PartitionContext for " << current_k << " -> " << desired_k
-      << " initial / recursive partitioning, thus splitting the " << current_block << "-th of "
-      << current_k << " block-induced graph with"
-      << " n=" << graph.n() << " nodes and m=" << graph.m() << " edges into " << k
-      << " sub-graphs with max_block_weights=[" << max_block_weights
-      << "]; further relax weights: " << (!toplevel ? "yes" : "no");
-
-  shm::PartitionContext p_ctx;
-  p_ctx.setup(graph, std::move(max_block_weights), !toplevel);
 
   return p_ctx;
 }
