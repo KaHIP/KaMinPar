@@ -14,6 +14,7 @@ namespace kaminpar::shm::sparsification {
 class Sampler {
 public:
   virtual StaticArray<EdgeWeight> sample(const CSRGraph &g, EdgeID target_edge_amount) = 0;
+  virtual ~Sampler() = default;
 };
 
 } // kaminpar::shm
