@@ -298,6 +298,22 @@ Options are:
   )")
       ->capture_default_str();
 
+  lp->add_option(
+        "--c-lp-neighborhood-sampling-strategy",
+        ctx.coarsening.clustering.lp.neighborhood_sampling_strategy
+  )
+      ->transform(CLI::CheckedTransformer(get_neighborhood_sampling_strategies()).description(""))
+      ->description(R"(Determines the strategy for sampling neighborhoods during label propagation.
+Options are:
+  - all:      Sample all neighbors
+  )")
+      ->capture_default_str();
+  lp->add_option(
+        "--c-lp-neighborhood-sampling-avg-degree-threshold",
+        ctx.coarsening.clustering.lp.neighborhood_sampling_avg_degree_threshold
+  )
+      ->capture_default_str();
+
   return lp;
 }
 

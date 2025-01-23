@@ -20,38 +20,72 @@ namespace kaminpar::shm {
 // Actual implementation -- not exposed in header
 //
 
-struct LPClusteringConfig : public LabelPropagationConfig {
+template <typename NeighborhoodSampler_> struct LPClusteringConfig : public LabelPropagationConfig {
   using ClusterID = NodeID;
   using ClusterWeight = BlockWeight;
   static constexpr bool kTrackClusterCount = true;
   static constexpr bool kUseTwoHopClustering = true;
+  using NeighborhoodSampler = NeighborhoodSampler_;
 };
 
-template <typename Graph>
-class LPClusteringImpl final
-    : public ChunkRandomLabelPropagation<LPClusteringImpl<Graph>, LPClusteringConfig, Graph>,
-      public OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>,
-      public NonatomicClusterVectorRef<NodeID, NodeID> {
-  SET_DEBUG(false);
+struct AllNeighborsSampler {
+  void init(const Context &, const auto *) {}
 
-  using Base = ChunkRandomLabelPropagation<LPClusteringImpl, LPClusteringConfig, Graph>;
+  bool accept(NodeID, NodeID, EdgeWeight) {
+    return true;
+  }
+};
+
+struct AvgDegreeSampler {
+  void init(const Context &ctx, const auto *graph) {
+    _graph = graph;
+    _avg_deg = _graph->m() / _graph->n();
+    _target = _avg_deg * ctx.coarsening.clustering.lp.neighborhood_sampling_avg_degree_threshold;
+  }
+
+  bool accept(const NodeID u, NodeID, EdgeWeight) {
+    const EdgeID degree = _graph->degree(u);
+    if (degree <= _target) {
+      return true;
+    }
+
+    return Random::instance().random_bool(1.0 * _target / degree);
+  }
+
+  const CSRGraph *_graph;
+  EdgeID _avg_deg = kInvalidEdgeID;
+  EdgeID _target = kInvalidEdgeID;
+  NodeID _last_u = kInvalidNodeID;
+};
+
+template <typename Graph, typename NeighborhoodSampler = void>
+class LPClusteringImpl final : public ChunkRandomLabelPropagation<
+                                   LPClusteringImpl<Graph, NeighborhoodSampler>,
+                                   LPClusteringConfig<NeighborhoodSampler>,
+                                   Graph>,
+                               public OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>,
+                               public NonatomicClusterVectorRef<NodeID, NodeID> {
+  SET_DEBUG(false);
+  SET_STATISTICS_FROM_GLOBAL();
+
+  using Base =
+      ChunkRandomLabelPropagation<LPClusteringImpl, LPClusteringConfig<NeighborhoodSampler>, Graph>;
   using ClusterWeightBase = OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>;
   using ClusterBase = NonatomicClusterVectorRef<NodeID, NodeID>;
 
-  using Config = LPClusteringConfig;
+  using Config = LPClusteringConfig<NeighborhoodSampler>;
   using ClusterID = Config::ClusterID;
 
 public:
   using Permutations = Base::Permutations;
 
-  LPClusteringImpl(const CoarseningContext &c_ctx, Permutations &permutations)
-      : Base(permutations),
-        _lp_ctx(c_ctx.clustering.lp) {
-    Base::set_max_degree(_lp_ctx.large_degree_threshold);
-    Base::set_max_num_neighbors(_lp_ctx.max_num_neighbors);
-    Base::set_implementation(_lp_ctx.impl);
-    Base::set_tie_breaking_strategy(_lp_ctx.tie_breaking_strategy);
-    Base::set_relabel_before_second_phase(_lp_ctx.relabel_before_second_phase);
+  LPClusteringImpl(const Context &ctx, Permutations &permutations) : Base(permutations), _ctx(ctx) {
+    Base::set_max_degree(_ctx.coarsening.clustering.lp.large_degree_threshold);
+    Base::set_max_num_neighbors(_ctx.coarsening.clustering.lp.max_num_neighbors);
+    Base::set_implementation(_ctx.coarsening.clustering.lp.impl);
+    Base::set_tie_breaking_strategy(_ctx.coarsening.clustering.lp.tie_breaking_strategy);
+    Base::set_relabel_before_second_phase(_ctx.coarsening.clustering.lp.relabel_before_second_phase
+    );
   }
 
   void set_max_cluster_weight(const NodeWeight max_cluster_weight) {
@@ -89,9 +123,10 @@ public:
   void compute_clustering(StaticArray<NodeID> &clustering, const Graph &graph) {
     ClusterWeightBase::reset_cluster_weights();
     ClusterBase::init_clusters_ref(clustering);
-    Base::initialize(&graph, graph.n());
+    Base::initialize(_ctx, &graph, graph.n());
 
-    for (std::size_t iteration = 0; iteration < _lp_ctx.num_iterations; ++iteration) {
+    for (std::size_t iteration = 0; iteration < _ctx.coarsening.clustering.lp.num_iterations;
+         ++iteration) {
       SCOPED_TIMER("Iteration", std::to_string(iteration));
       if (Base::perform_iteration() == 0) {
         break;
@@ -106,6 +141,10 @@ public:
 
     cluster_isolated_nodes();
     cluster_two_hop_nodes();
+
+    STATS << "Followed " << Base::num_accessed_neighbors() << " out of " << graph.m() << " edges ("
+          << 100.0 * Base::num_accessed_neighbors() * graph.m() << "%) and skipped "
+          << graph.m() - Base::num_accessed_neighbors() << " edges.";
   }
 
 private:
@@ -117,7 +156,7 @@ private:
       return;
     }
 
-    switch (_lp_ctx.two_hop_strategy) {
+    switch (_ctx.coarsening.clustering.lp.two_hop_strategy) {
     case TwoHopStrategy::MATCH:
       Base::match_two_hop_nodes();
       break;
@@ -139,7 +178,7 @@ private:
     SCOPED_HEAP_PROFILER("Handle isolated nodes");
     SCOPED_TIMER("Handle isolated nodes");
 
-    switch (_lp_ctx.isolated_nodes_strategy) {
+    switch (_ctx.coarsening.clustering.lp.isolated_nodes_strategy) {
     case IsolatedNodesClusteringStrategy::MATCH:
       Base::match_isolated_nodes();
       break;
@@ -162,7 +201,8 @@ private:
   }
 
   [[nodiscard]] bool should_handle_two_hop_nodes() const {
-    return (1.0 - 1.0 * _current_num_clusters / _graph->n()) <= _lp_ctx.two_hop_threshold;
+    return (1.0 - 1.0 * _current_num_clusters / _graph->n()) <=
+           _ctx.coarsening.clustering.lp.two_hop_threshold;
   }
 
 public:
@@ -283,7 +323,7 @@ public:
   using Base::_graph;
   using Base::_tie_breaking_strategy;
 
-  const LabelPropagationCoarseningContext &_lp_ctx;
+  const Context &_ctx;
   NodeWeight _max_cluster_weight = kInvalidBlockWeight;
 
   std::span<const NodeID> _communities;
@@ -291,10 +331,16 @@ public:
 
 class LPClusteringImplWrapper {
 public:
-  LPClusteringImplWrapper(const CoarseningContext &c_ctx)
-      : _csr_impl(std::make_unique<LPClusteringImpl<CSRGraph>>(c_ctx, _permutations)),
-        _compressed_impl(std::make_unique<LPClusteringImpl<CompressedGraph>>(c_ctx, _permutations)
-        ) {}
+  LPClusteringImplWrapper(const Context &ctx)
+      : _ctx(ctx),
+        _csr_impl(std::make_unique<LPClusteringImpl<CSRGraph>>(ctx, _permutations)),
+        _csr_all_impl(
+            std::make_unique<LPClusteringImpl<CSRGraph, AllNeighborsSampler>>(ctx, _permutations)
+        ),
+        _csr_avg_degree_impl(
+            std::make_unique<LPClusteringImpl<CSRGraph, AvgDegreeSampler>>(ctx, _permutations)
+        ),
+        _compressed_impl(std::make_unique<LPClusteringImpl<CompressedGraph>>(ctx, _permutations)) {}
 
   void set_max_cluster_weight(const NodeWeight max_cluster_weight) {
     _csr_impl->set_max_cluster_weight(max_cluster_weight);
@@ -342,12 +388,22 @@ public:
 
     graph.reified(
         [&](const auto &csr_graph) {
-          LPClusteringImpl<CSRGraph> &impl = *_csr_impl;
-          compute_clustering(impl, csr_graph);
+          switch (_ctx.coarsening.clustering.lp.neighborhood_sampling_strategy) {
+          case NeighborhoodSamplingStrategy::DISABLED:
+            compute_clustering(*_csr_impl, csr_graph);
+            break;
+
+          case NeighborhoodSamplingStrategy::ALL:
+            compute_clustering(*_csr_all_impl, csr_graph);
+            break;
+
+          case NeighborhoodSamplingStrategy::AVG_DEGREE:
+            compute_clustering(*_csr_avg_degree_impl, csr_graph);
+            break;
+          }
         },
         [&](const auto &compressed_graph) {
-          LPClusteringImpl<CompressedGraph> &impl = *_compressed_impl;
-          compute_clustering(impl, compressed_graph);
+          compute_clustering(*_compressed_impl, compressed_graph);
         }
     );
 
@@ -357,7 +413,12 @@ public:
   }
 
 private:
+  const Context &_ctx;
+
   std::unique_ptr<LPClusteringImpl<CSRGraph>> _csr_impl;
+  std::unique_ptr<LPClusteringImpl<CSRGraph, AllNeighborsSampler>> _csr_all_impl;
+  std::unique_ptr<LPClusteringImpl<CSRGraph, AvgDegreeSampler>> _csr_avg_degree_impl;
+
   std::unique_ptr<LPClusteringImpl<CompressedGraph>> _compressed_impl;
 
   // The data structures that are used by the LP clusterer and are shared between the
@@ -372,8 +433,8 @@ private:
 // Exposed wrapper
 //
 
-LPClustering::LPClustering(const CoarseningContext &c_ctx)
-    : _impl_wrapper(std::make_unique<LPClusteringImplWrapper>(c_ctx)) {}
+LPClustering::LPClustering(const Context &ctx)
+    : _impl_wrapper(std::make_unique<LPClusteringImplWrapper>(ctx)) {}
 
 // we must declare the destructor explicitly here, otherwise, it is implicitly
 // generated before LPClusteringImplWrapper is complete

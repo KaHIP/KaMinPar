@@ -8,6 +8,7 @@
 #pragma once
 
 #include <atomic>
+#include <functional>
 #include <limits>
 #include <optional>
 #include <type_traits>
@@ -76,7 +77,7 @@ struct LabelPropagationConfig {
 };
 
 template <typename Sampler, bool = std::is_void_v<Sampler>> struct NeighborhoodSamplerWrapper {
-  inline void init(auto * /* graph */) {}
+  inline void init(const shm::Context &, auto * /* graph */) {}
 
   inline bool accept(auto, auto, auto) {
     return true;
@@ -86,8 +87,8 @@ template <typename Sampler, bool = std::is_void_v<Sampler>> struct NeighborhoodS
 template <typename Sampler> struct NeighborhoodSamplerWrapper<Sampler, false> {
   Sampler sampler;
 
-  inline void init(const auto *graph) {
-    sampler.init(graph);
+  inline void init(const shm::Context &ctx, const auto *graph) {
+    sampler.init(ctx, graph);
   }
 
   inline bool accept(const auto u, const auto v, const auto w) {
@@ -171,6 +172,10 @@ public:
     return _expected_total_gain;
   }
 
+  [[nodiscard]] NodeID num_accessed_neighbors() {
+    return _num_accessed_neighbors_ets.combine(std::plus{});
+  }
+
 protected:
   /*!
    * Selects the number of nodes \c num_nodes of the graph for which a clustering is to be
@@ -201,6 +206,8 @@ protected:
     _num_active_nodes = num_active_nodes;
     _prev_num_clusters = _num_clusters;
     _num_clusters = num_clusters;
+
+    IFSTATS(_num_accessed_neighbors_ets.clear());
   }
 
   /*!
@@ -261,7 +268,7 @@ protected:
    * usually the number of blocks. When using as for clustering, it is usually
    * the number of nodes.
    */
-  void initialize(const Graph *graph, const ClusterID num_clusters) {
+  void initialize(const shm::Context &ctx, const Graph *graph, const ClusterID num_clusters) {
     KASSERT(
         graph->n() == 0u || (_num_nodes > 0u && _num_active_nodes > 0u),
         "you must call allocate() before initialize()"
@@ -273,7 +280,7 @@ protected:
     _local_cluster_selection_states.resize(tbb::this_task_arena::max_concurrency(), {-1, 0, -1, 0});
     reset_state();
 
-    _neighborhood_sampler.init(graph);
+    _neighborhood_sampler.init(ctx, graph);
   }
 
   /*!
@@ -510,6 +517,8 @@ protected:
     bool is_interface_node = false;
     const auto add_to_rating_map = [&](const NodeID v, const EdgeWeight w) {
       if (derived_accept_neighbor(u, v) && _neighborhood_sampler.accept(u, v, w)) {
+        IFSTATS(++_num_accessed_neighbors_ets.local());
+
         const ClusterID v_cluster = derived_cluster(v);
         map[v_cluster] += w;
 
@@ -594,6 +603,8 @@ protected:
     bool is_second_phase_node = false;
     const auto add_to_rating_map = [&](const NodeID v, const EdgeWeight w) -> bool {
       if (derived_accept_neighbor(u, v) && _neighborhood_sampler.accept(u, v, w)) {
+        IFSTATS(++_num_accessed_neighbors_ets.local());
+
         const ClusterID v_cluster = derived_cluster(v);
         map[v_cluster] += w;
 
@@ -689,6 +700,8 @@ protected:
 
       pfor_adjacent_nodes([&](const NodeID v, const EdgeWeight w) {
         if (derived_accept_neighbor(u, v) && _neighborhood_sampler.accept(u, v, w)) {
+          IFSTATS(++_num_accessed_neighbors_ets.local());
+
           const ClusterID v_cluster = derived_cluster(v);
           local_rating_map[v_cluster] += w;
 
@@ -1438,6 +1451,7 @@ protected: // Members
   parallel::Atomic<EdgeWeight> _expected_total_gain;
 
   NeighborhoodSamplerWrapper<typename Config::NeighborhoodSampler> _neighborhood_sampler;
+  tbb::enumerable_thread_specific<NodeID> _num_accessed_neighbors_ets;
 
 private:
   NodeID _num_nodes = 0;
@@ -1670,8 +1684,8 @@ protected:
     _concurrent_rating_map.free();
   }
 
-  void initialize(const Graph *graph, const ClusterID num_clusters) {
-    Base::initialize(graph, num_clusters);
+  void initialize(const shm::Context &ctx, const Graph *graph, const ClusterID num_clusters) {
+    Base::initialize(ctx, graph, num_clusters);
     _chunks.clear();
     _buckets.clear();
   }

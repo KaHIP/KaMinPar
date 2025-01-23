@@ -43,6 +43,7 @@ public:
 
   LPRefinerImpl(const Context &ctx, Permutations &permutations)
       : Base(permutations),
+        _ctx(ctx),
         _r_ctx(ctx.refinement) {
     Base::preinitialize(ctx.partition.n, ctx.partition.k);
     Base::set_max_degree(_r_ctx.lp.large_degree_threshold);
@@ -71,7 +72,7 @@ public:
     _p_graph = &p_graph;
     _p_ctx = &p_ctx;
 
-    Base::initialize(_graph, _p_ctx->k);
+    Base::initialize(_ctx, _graph, _p_ctx->k);
 
     const std::size_t max_iterations =
         _r_ctx.lp.num_iterations == 0 ? kInfiniteIterations : _r_ctx.lp.num_iterations;
@@ -275,6 +276,7 @@ public:
   const Graph *_graph = nullptr;
   PartitionedGraph *_p_graph = nullptr;
 
+  const Context &_ctx;
   const PartitionContext *_p_ctx;
   const RefinementContext &_r_ctx;
 

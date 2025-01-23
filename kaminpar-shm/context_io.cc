@@ -430,6 +430,28 @@ std::unordered_map<std::string, ContractionImplementation> get_contraction_imple
   };
 }
 
+std::ostream &operator<<(std::ostream &out, const NeighborhoodSamplingStrategy strategy) {
+  switch (strategy) {
+  case NeighborhoodSamplingStrategy::DISABLED:
+    return out << "disabled";
+  case NeighborhoodSamplingStrategy::ALL:
+    return out << "all";
+  case NeighborhoodSamplingStrategy::AVG_DEGREE:
+    return out << "avg-degree";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, NeighborhoodSamplingStrategy>
+get_neighborhood_sampling_strategies() {
+  return {
+      {"disabled", NeighborhoodSamplingStrategy::DISABLED},
+      {"all", NeighborhoodSamplingStrategy::ALL},
+      {"avg-degree", NeighborhoodSamplingStrategy::AVG_DEGREE},
+  };
+}
+
 void print(const CoarseningContext &c_ctx, std::ostream &out) {
   out << "Contraction limit:            " << c_ctx.contraction_limit << "\n";
   out << "Coarsening algorithm:         " << c_ctx.algorithm << "\n";

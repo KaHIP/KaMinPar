@@ -197,6 +197,12 @@ enum class ContractionImplementation {
   GROWING_HASH_TABLES
 };
 
+enum class NeighborhoodSamplingStrategy {
+  DISABLED,
+  ALL,
+  AVG_DEGREE,
+};
+
 struct LabelPropagationCoarseningContext {
   std::size_t num_iterations;
   NodeID large_degree_threshold;
@@ -211,6 +217,9 @@ struct LabelPropagationCoarseningContext {
   IsolatedNodesClusteringStrategy isolated_nodes_strategy;
 
   TieBreakingStrategy tie_breaking_strategy;
+
+  NeighborhoodSamplingStrategy neighborhood_sampling_strategy;
+  double neighborhood_sampling_avg_degree_threshold;
 };
 
 struct ContractionCoarseningContext {

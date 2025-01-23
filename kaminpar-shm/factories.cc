@@ -61,7 +61,7 @@ std::unique_ptr<Clusterer> create_clusterer(const Context &ctx) {
     return std::make_unique<NoopClusterer>();
 
   case ClusteringAlgorithm::LABEL_PROPAGATION:
-    return std::make_unique<LPClustering>(ctx.coarsening);
+    return std::make_unique<LPClustering>(ctx);
   }
 
   __builtin_unreachable();
