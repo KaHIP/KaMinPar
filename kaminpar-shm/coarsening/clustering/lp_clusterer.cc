@@ -37,10 +37,18 @@ struct AllNeighborsSampler {
 };
 
 struct AvgDegreeSampler {
+  AvgDegreeSampler() {
+    _precomputed_doubles.resize(1024);
+    for (double &d : _precomputed_doubles) {
+      d = _rand.random_real();
+    }
+  }
+
   void init(const Context &ctx, const CSRGraph &graph) {
     _graph = &graph;
     _avg_deg = _graph->m() / _graph->n();
     _target = _avg_deg * ctx.coarsening.clustering.lp.neighborhood_sampling_avg_degree_threshold;
+    _next = 0;
   }
 
   bool accept(const NodeID u, NodeID, EdgeWeight) {
@@ -49,8 +57,12 @@ struct AvgDegreeSampler {
       return true;
     }
 
-    return _rand.random_bool(1.0 * _target / degree);
+    // return _rand.random_bool(1.0 * _target / degree);
+    return _precomputed_doubles[_next++ & 1023] <= 1.0 * _target / degree;
   }
+
+  std::vector<double> _precomputed_doubles;
+  std::size_t _next = 0;
 
   Random &_rand = Random::instance();
 

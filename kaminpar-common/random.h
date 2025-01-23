@@ -52,6 +52,10 @@ public:
     return _real_dist(_generator) <= prob;
   }
 
+  double random_real() {
+    return _real_dist(_generator);
+  }
+
   template <typename Container> void shuffle(Container &&vec) {
     std::shuffle(vec.begin(), vec.end(), _generator);
   }
