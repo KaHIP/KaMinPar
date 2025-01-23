@@ -37,8 +37,10 @@ struct AllNeighborsSampler {
 };
 
 struct AvgDegreeSampler {
+  constexpr static std::size_t kPeriode = 1024;
+
   AvgDegreeSampler() {
-    _precomputed_doubles.resize(1024);
+    _precomputed_doubles.resize(kPeriode);
     for (double &d : _precomputed_doubles) {
       d = _rand.random_real();
     }
@@ -58,7 +60,7 @@ struct AvgDegreeSampler {
     }
 
     // return _rand.random_bool(1.0 * _target / degree);
-    return _precomputed_doubles[_next++ & 1023] <= 1.0 * _target / degree;
+    return _precomputed_doubles[_next++ & (kPeriode - 1)] <= 1.0 * _target / degree;
   }
 
   std::vector<double> _precomputed_doubles;
