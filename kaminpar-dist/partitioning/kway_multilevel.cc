@@ -96,9 +96,8 @@ DistributedPartitionedGraph KWayMultilevelPartitioner::partition() {
     };
 
     shm::Graph shm_graph = replicate_graph_everywhere(*graph);
-    const shm::PartitionContext shm_p_ctx = create_initial_partitioning_context(
-        _input_ctx, shm_graph, 0, 1, _input_ctx.partition.k, coarsener->empty()
-    );
+    const shm::PartitionContext shm_p_ctx =
+        create_initial_partitioning_context(_input_ctx, shm_graph, 0, 1, _input_ctx.partition.k);
     shm::PartitionedGraph shm_p_graph =
         initial_partitioner->initial_partition(shm_graph, shm_p_ctx);
 

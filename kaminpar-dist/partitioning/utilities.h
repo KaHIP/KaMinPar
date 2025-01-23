@@ -25,8 +25,7 @@ shm::PartitionContext create_initial_partitioning_context(
     const shm::Graph &graph,
     BlockID current_block,
     BlockID current_k,
-    BlockID desired_k,
-    bool toplevel
+    BlockID desired_k
 );
 
 void print_input_graph(const DistributedGraph &graph, bool verbose = false);

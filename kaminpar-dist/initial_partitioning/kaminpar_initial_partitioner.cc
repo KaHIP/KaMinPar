@@ -21,7 +21,7 @@ namespace kaminpar::dist {
 
 namespace {
 
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 }
 
@@ -37,14 +37,14 @@ shm::PartitionedGraph KaMinParInitialPartitioner::initial_partition(
   shm_ctx.partition = p_ctx;
   shm_ctx.compression.setup(graph);
 
-  if (true) {
-    std::vector<BlockWeight> max_block_weights;
-    for (BlockID b = 0; b < shm_ctx.partition.k; ++b) {
-      max_block_weights.push_back(shm_ctx.partition.max_block_weight(b));
-    }
-    DBG << "Max block weights for initial partitioning: " << max_block_weights
-        << ", total node weight of our subgraph: " << graph.total_node_weight();
+  /*
+  std::vector<BlockWeight> max_block_weights;
+  for (BlockID b = 0; b < shm_ctx.partition.k; ++b) {
+    max_block_weights.push_back(shm_ctx.partition.max_block_weight(b));
   }
+  DBG << "Max block weights for initial partitioning: " << max_block_weights
+      << ", total node weight of our subgraph: " << graph.total_node_weight();
+  */
 
   DISABLE_TIMERS();
   START_HEAP_PROFILER("KaMinPar");

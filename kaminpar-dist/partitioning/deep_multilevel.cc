@@ -128,9 +128,8 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
   };
 
   shm::Graph shm_graph = replicate_graph_everywhere(*graph);
-  const shm::PartitionContext shm_p_ctx = create_initial_partitioning_context(
-      _input_ctx, shm_graph, 0, 1, first_step_k, graph == &_input_graph
-  );
+  const shm::PartitionContext shm_p_ctx =
+      create_initial_partitioning_context(_input_ctx, shm_graph, 0, 1, first_step_k);
   shm::PartitionedGraph shm_p_graph = initial_partitioner->initial_partition(shm_graph, shm_p_ctx);
 
   if (_input_ctx.partitioning.simulate_singlethread) {
@@ -256,12 +255,7 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
         const BlockID block = offsets.first_block_on_pe(rank) + i;
         const shm::Graph &shm_graph = subgraphs[i];
         const shm::PartitionContext shm_p_ctx = create_initial_partitioning_context(
-            _input_ctx,
-            shm_graph,
-            block,
-            dist_p_graph.k(),
-            desired_k,
-            &dist_p_graph.graph() == &_input_graph
+            _input_ctx, shm_graph, block, dist_p_graph.k(), desired_k
         );
 
         p_subgraphs.push_back(initial_partitioner->initial_partition(shm_graph, shm_p_ctx));
