@@ -77,7 +77,7 @@ struct LabelPropagationConfig {
 };
 
 template <typename Sampler, bool = std::is_void_v<Sampler>> struct NeighborhoodSamplerWrapper {
-  inline void init(const shm::Context &, const auto * /* graph */) {}
+  inline void init(const shm::Context &, const auto & /* graph */) {}
 
   inline bool accept(auto, auto, auto) {
     return true;
@@ -87,7 +87,7 @@ template <typename Sampler, bool = std::is_void_v<Sampler>> struct NeighborhoodS
 template <typename Sampler> struct NeighborhoodSamplerWrapper<Sampler, false> {
   Sampler sampler;
 
-  inline void init(const shm::Context &ctx, const auto *graph) {
+  inline void init(const shm::Context &ctx, const auto &graph) {
     sampler.init(ctx, graph);
   }
 
@@ -124,6 +124,8 @@ protected:
 
   using LabelPropagationImplementation = shm::LabelPropagationImplementation;
   using TieBreakingStrategy = shm::TieBreakingStrategy;
+
+  using Sampler = NeighborhoodSamplerWrapper<typename Config::NeighborhoodSampler>;
 
 public:
   void set_max_degree(const NodeID max_degree) {
@@ -278,13 +280,15 @@ protected:
         "you must call allocate() before initialize()"
     );
 
+    _ctx = &ctx;
     _graph = graph;
+
     _initial_num_clusters = num_clusters;
     _current_num_clusters = num_clusters;
     _local_cluster_selection_states.resize(tbb::this_task_arena::max_concurrency(), {-1, 0, -1, 0});
-    reset_state();
 
-    _neighborhood_sampler.init(ctx, graph);
+    reset_state();
+    _neighborhood_sampler.clear();
   }
 
   /*!
@@ -368,7 +372,8 @@ protected:
       Random &rand,
       RatingMap &map,
       ScalableVector<ClusterID> &tie_breaking_clusters,
-      ScalableVector<ClusterID> &tie_breaking_favored_clusters
+      ScalableVector<ClusterID> &tie_breaking_favored_clusters,
+      Sampler &sampler
   ) {
     if (derived_skip_node(u)) {
       return {false, false};
@@ -380,7 +385,14 @@ protected:
     const auto [best_cluster, gain] = [&] {
       if constexpr (std::is_same_v<RatingMap, GrowingRatingMap>) {
         return find_best_cluster(
-            u, u_weight, u_cluster, rand, map, tie_breaking_clusters, tie_breaking_favored_clusters
+            u,
+            u_weight,
+            u_cluster,
+            rand,
+            map,
+            tie_breaking_clusters,
+            tie_breaking_favored_clusters,
+            sampler
         );
       } else {
         const std::size_t upper_bound_size =
@@ -393,7 +405,8 @@ protected:
               rand,
               actual_map,
               tie_breaking_clusters,
-              tie_breaking_favored_clusters
+              tie_breaking_favored_clusters,
+              sampler
           );
         });
       }
@@ -416,7 +429,8 @@ protected:
       Random &rand,
       RatingMap &map,
       ScalableVector<ClusterID> &tie_breaking_clusters,
-      ScalableVector<ClusterID> &tie_breaking_favored_clusters
+      ScalableVector<ClusterID> &tie_breaking_favored_clusters,
+      Sampler &sampler
   ) {
     if (!derived_skip_node(u)) {
       const NodeWeight u_weight = _graph->node_weight(u);
@@ -434,7 +448,8 @@ protected:
             rand,
             actual_map,
             tie_breaking_clusters,
-            tie_breaking_favored_clusters
+            tie_breaking_favored_clusters,
+            sampler
         );
       });
 
@@ -500,7 +515,8 @@ protected:
       Random &rand,
       RatingMap &map,
       ScalableVector<ClusterID> &tie_breaking_clusters,
-      ScalableVector<ClusterID> &tie_breaking_favored_clusters
+      ScalableVector<ClusterID> &tie_breaking_favored_clusters,
+      Sampler &sampler
   ) {
     const ClusterWeight initial_cluster_weight = derived_cluster_weight(u_cluster);
     ClusterSelectionState state{
@@ -521,7 +537,7 @@ protected:
     bool is_interface_node = false;
     const auto add_to_rating_map = [&](const NodeID v, const EdgeWeight w) {
       if (derived_accept_neighbor(u, v)) {
-        if (_neighborhood_sampler.accept(u, v, w)) {
+        if (sampler.accept(u, v, w)) {
           IFSTATS(++_num_accessed_neighbors_ets.local());
 
           const ClusterID v_cluster = derived_cluster(v);
@@ -589,7 +605,8 @@ protected:
       Random &rand,
       RatingMap &map,
       ScalableVector<ClusterID> &tie_breaking_clusters,
-      ScalableVector<ClusterID> &tie_breaking_favored_clusters
+      ScalableVector<ClusterID> &tie_breaking_favored_clusters,
+      Sampler &sampler
   ) {
     const ClusterWeight initial_cluster_weight = derived_cluster_weight(u_cluster);
     ClusterSelectionState state{
@@ -611,7 +628,7 @@ protected:
     bool is_second_phase_node = false;
     const auto add_to_rating_map = [&](const NodeID v, const EdgeWeight w) -> bool {
       if (derived_accept_neighbor(u, v)) {
-        if (_neighborhood_sampler.accept(u, v, w)) {
+        if (sampler.accept(u, v, w)) {
           IFSTATS(++_num_accessed_neighbors_ets.local());
 
           const ClusterID v_cluster = derived_cluster(v);
@@ -709,10 +726,11 @@ protected:
     _graph->pfor_adjacent_nodes(u, _max_num_neighbors, 2000, [&](auto &&pfor_adjacent_nodes) {
       auto &local_used_entries = map.local_used_entries();
       auto &local_rating_map = _rating_map_ets.local().small_map();
+      auto &local_sampler = _neighborhood_sampler.local();
 
       pfor_adjacent_nodes([&](const NodeID v, const EdgeWeight w) {
         if (derived_accept_neighbor(u, v)) {
-          if (_neighborhood_sampler.accept(u, v, w)) {
+          if (local_sampler.accept(u, v, w)) {
             IFSTATS(++_num_accessed_neighbors_ets.local());
 
             const ClusterID v_cluster = derived_cluster(v);
@@ -1391,6 +1409,8 @@ protected: // Default implementations
   }
 
 protected: // Members
+  const shm::Context *_ctx = nullptr;
+
   //! Graph we operate on, or \c nullptr if \c initialize has not been called yet.
   const Graph *_graph = nullptr;
 
@@ -1466,7 +1486,11 @@ protected: // Members
   //! reduction of the edge cut.
   parallel::Atomic<EdgeWeight> _expected_total_gain;
 
-  NeighborhoodSamplerWrapper<typename Config::NeighborhoodSampler> _neighborhood_sampler;
+  tbb::enumerable_thread_specific<Sampler> _neighborhood_sampler{[&] {
+    Sampler sampler;
+    sampler.init(*_ctx, *_graph);
+    return sampler;
+  }};
   tbb::enumerable_thread_specific<NodeID> _num_accessed_neighbors_ets;
   tbb::enumerable_thread_specific<NodeID> _num_skipped_neighbors_ets;
 
@@ -1929,6 +1953,7 @@ private:
       auto &local_rating_map = rating_map_ets.local();
       auto &tie_breaking_clusters = _tie_breaking_clusters_ets.local();
       auto &tie_breaking_favored_clusters = _tie_breaking_favored_clusters_ets.local();
+      auto &local_sampler = _neighborhood_sampler.local();
       NodeID num_removed_clusters = 0;
 
       const auto chunk_id = next_chunk.fetch_add(1, std::memory_order_relaxed);
@@ -1970,7 +1995,8 @@ private:
                 local_rand,
                 local_rating_map,
                 tie_breaking_clusters,
-                tie_breaking_favored_clusters
+                tie_breaking_favored_clusters,
+                local_sampler
             );
 
             ++local_num_processed_nodes;
@@ -2004,6 +2030,7 @@ private:
       auto &local_rating_map = _rating_map_ets.local();
       auto &tie_breaking_clusters = _tie_breaking_clusters_ets.local();
       auto &tie_breaking_favored_clusters = _tie_breaking_favored_clusters_ets.local();
+      auto &local_sampler = _neighborhood_sampler.local();
       NodeID num_removed_clusters = 0;
 
       const auto chunk_id = next_chunk.fetch_add(1, std::memory_order_relaxed);
@@ -2047,7 +2074,8 @@ private:
                 local_rand,
                 local_rating_map,
                 tie_breaking_clusters,
-                tie_breaking_favored_clusters
+                tie_breaking_favored_clusters,
+                local_sampler
             );
             if (moved_node) {
               ++local_num_moved_nodes;
@@ -2112,6 +2140,7 @@ protected:
   using Base::_initial_num_clusters;
   using Base::_max_degree;
   using Base::_moved;
+  using Base::_neighborhood_sampler;
   using Base::_rating_map_ets;
   using Base::_relabel_before_second_phase;
   using Base::_relabeled;

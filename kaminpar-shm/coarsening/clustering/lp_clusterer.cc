@@ -29,7 +29,7 @@ template <typename NeighborhoodSampler_> struct LPClusteringConfig : public Labe
 };
 
 struct AllNeighborsSampler {
-  void init(const Context &, const auto *) {}
+  void init(const Context &, const CSRGraph &) {}
 
   bool accept(NodeID, NodeID, EdgeWeight) {
     return true;
@@ -37,8 +37,8 @@ struct AllNeighborsSampler {
 };
 
 struct AvgDegreeSampler {
-  void init(const Context &ctx, const auto *graph) {
-    _graph = graph;
+  void init(const Context &ctx, const CSRGraph &graph) {
+    _graph = &graph;
     _avg_deg = _graph->m() / _graph->n();
     _target = _avg_deg * ctx.coarsening.clustering.lp.neighborhood_sampling_avg_degree_threshold;
   }
@@ -49,8 +49,10 @@ struct AvgDegreeSampler {
       return true;
     }
 
-    return Random::instance().random_bool(1.0 * _target / degree);
+    return _rand.random_bool(1.0 * _target / degree);
   }
+
+  Random &_rand = Random::instance();
 
   const CSRGraph *_graph;
   EdgeID _avg_deg = kInvalidEdgeID;
