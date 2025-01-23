@@ -13,8 +13,7 @@
 
 namespace kaminpar::shm::sparsification {
 StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
-  StaticArray<EdgeID> burnt(g.m());
-  tbb::parallel_for(0ul, burnt.size(), [&](auto i) { burnt[i] = 0; });
+  StaticArray<EdgeID> burnt(g.m(), 0);
   EdgeID edges_burnt = 0;
 
   tbb::concurrent_vector<EdgeID> numbers_of_edges_burnt;
@@ -31,11 +30,12 @@ StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
       // Start a new fire
       visited.clear();
       activeNodes.push(Random::instance().random_index(0, g.n()));
+      visited.insert(activeNodes.front());
 
       EdgeID localEdgesBurnt = 0;
 
       while (!activeNodes.empty()) {
-        NodeID u = activeNodes.front();
+        const NodeID u = activeNodes.front();
         activeNodes.pop();
 
         validEdgesWithKeys.clear();
@@ -53,12 +53,16 @@ StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
             );
           }
         }
-        EdgeID neighbours_to_sample = std::min(
+        const EdgeID neighbours_to_sample = std::min(
             static_cast<EdgeID>(
                 std::ceil(std::log(Random::instance().random_double()) / std::log(_pf)) - 1
             ), // shifted geometric distribution
             static_cast<EdgeID>(validEdgesWithKeys.size())
         );
+        KASSERT(neighbours_to_sample <= validEdgesWithKeys.size());
+        if (neighbours_to_sample == 0)
+          continue;
+
         auto end_of_samping_range = validEdgesWithKeys.begin() + neighbours_to_sample;
         std::nth_element(
             validEdgesWithKeys.begin(),
@@ -100,11 +104,13 @@ void WeightedForestFireScore::print_fire_statistics(
   std::cout << std::setprecision(4);
 
   double average = static_cast<double>(edges_burnt) / number_of_fires;
+  /*
   double variance = 0;
   for (auto x : numbers_of_edges_burnt) {
     double local_burnt = static_cast<double>(x);
     variance += (local_burnt - average) * (local_burnt - average) / (number_of_fires - 1);
   }
+  */
 
   std::cout << "** targetBurntRatio=" << _targetBurnRatio << ", pf=" << _pf << "\n";
   std::cout << "** m=" << g.m() << ", n=" << g.n() << "\n";
