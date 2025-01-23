@@ -13,6 +13,7 @@ namespace sparsification {
 class SparsificationTarget {
 public:
   virtual EdgeID computeTarget(const Graph &oldGraph, NodeID newVertexAmount) = 0;
+  virtual ~SparsificationTarget();
 };
 
 } // namespace sparsification
