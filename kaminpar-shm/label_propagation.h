@@ -77,7 +77,7 @@ struct LabelPropagationConfig {
 };
 
 template <typename Sampler, bool = std::is_void_v<Sampler>> struct NeighborhoodSamplerWrapper {
-  inline void init(const shm::Context &, auto * /* graph */) {}
+  inline void init(const shm::Context &, const auto * /* graph */) {}
 
   inline bool accept(auto, auto, auto) {
     return true;
@@ -175,6 +175,9 @@ public:
   [[nodiscard]] NodeID num_accessed_neighbors() {
     return _num_accessed_neighbors_ets.combine(std::plus{});
   }
+  [[nodiscard]] NodeID num_skipped_neighbors() {
+    return _num_skipped_neighbors_ets.combine(std::plus{});
+  }
 
 protected:
   /*!
@@ -208,6 +211,7 @@ protected:
     _num_clusters = num_clusters;
 
     IFSTATS(_num_accessed_neighbors_ets.clear());
+    IFSTATS(_num_skipped_neighbors_ets.clear());
   }
 
   /*!
@@ -516,14 +520,18 @@ protected:
 
     bool is_interface_node = false;
     const auto add_to_rating_map = [&](const NodeID v, const EdgeWeight w) {
-      if (derived_accept_neighbor(u, v) && _neighborhood_sampler.accept(u, v, w)) {
-        IFSTATS(++_num_accessed_neighbors_ets.local());
+      if (derived_accept_neighbor(u, v)) {
+        if (_neighborhood_sampler.accept(u, v, w)) {
+          IFSTATS(++_num_accessed_neighbors_ets.local());
 
-        const ClusterID v_cluster = derived_cluster(v);
-        map[v_cluster] += w;
+          const ClusterID v_cluster = derived_cluster(v);
+          map[v_cluster] += w;
 
-        if constexpr (Config::kUseLocalActiveSetStrategy) {
-          is_interface_node |= v >= _num_active_nodes;
+          if constexpr (Config::kUseLocalActiveSetStrategy) {
+            is_interface_node |= v >= _num_active_nodes;
+          }
+        } else {
+          IFSTATS(++_num_skipped_neighbors_ets.local());
         }
       }
     };
@@ -602,19 +610,23 @@ protected:
     bool is_interface_node = false;
     bool is_second_phase_node = false;
     const auto add_to_rating_map = [&](const NodeID v, const EdgeWeight w) -> bool {
-      if (derived_accept_neighbor(u, v) && _neighborhood_sampler.accept(u, v, w)) {
-        IFSTATS(++_num_accessed_neighbors_ets.local());
+      if (derived_accept_neighbor(u, v)) {
+        if (_neighborhood_sampler.accept(u, v, w)) {
+          IFSTATS(++_num_accessed_neighbors_ets.local());
 
-        const ClusterID v_cluster = derived_cluster(v);
-        map[v_cluster] += w;
+          const ClusterID v_cluster = derived_cluster(v);
+          map[v_cluster] += w;
 
-        if (map.size() >= Config::kRatingMapThreshold) [[unlikely]] {
-          is_second_phase_node = true;
-          return true;
-        }
+          if (map.size() >= Config::kRatingMapThreshold) [[unlikely]] {
+            is_second_phase_node = true;
+            return true;
+          }
 
-        if constexpr (Config::kUseLocalActiveSetStrategy) {
-          is_interface_node |= v >= _num_active_nodes;
+          if constexpr (Config::kUseLocalActiveSetStrategy) {
+            is_interface_node |= v >= _num_active_nodes;
+          }
+        } else {
+          IFSTATS(++_num_skipped_neighbors_ets.local());
         }
       }
 
@@ -699,18 +711,22 @@ protected:
       auto &local_rating_map = _rating_map_ets.local().small_map();
 
       pfor_adjacent_nodes([&](const NodeID v, const EdgeWeight w) {
-        if (derived_accept_neighbor(u, v) && _neighborhood_sampler.accept(u, v, w)) {
-          IFSTATS(++_num_accessed_neighbors_ets.local());
+        if (derived_accept_neighbor(u, v)) {
+          if (_neighborhood_sampler.accept(u, v, w)) {
+            IFSTATS(++_num_accessed_neighbors_ets.local());
 
-          const ClusterID v_cluster = derived_cluster(v);
-          local_rating_map[v_cluster] += w;
+            const ClusterID v_cluster = derived_cluster(v);
+            local_rating_map[v_cluster] += w;
 
-          if (local_rating_map.size() >= Config::kRatingMapThreshold) [[unlikely]] {
-            flush_local_rating_map(local_used_entries, local_rating_map);
-          }
+            if (local_rating_map.size() >= Config::kRatingMapThreshold) [[unlikely]] {
+              flush_local_rating_map(local_used_entries, local_rating_map);
+            }
 
-          if constexpr (Config::kUseLocalActiveSetStrategy) {
-            is_interface_node |= v >= _num_active_nodes;
+            if constexpr (Config::kUseLocalActiveSetStrategy) {
+              is_interface_node |= v >= _num_active_nodes;
+            }
+          } else {
+            IFSTATS(++_num_skipped_neighbors_ets.local());
           }
         }
       });
@@ -1452,6 +1468,7 @@ protected: // Members
 
   NeighborhoodSamplerWrapper<typename Config::NeighborhoodSampler> _neighborhood_sampler;
   tbb::enumerable_thread_specific<NodeID> _num_accessed_neighbors_ets;
+  tbb::enumerable_thread_specific<NodeID> _num_skipped_neighbors_ets;
 
 private:
   NodeID _num_nodes = 0;

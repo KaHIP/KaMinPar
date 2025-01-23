@@ -142,9 +142,8 @@ public:
     cluster_isolated_nodes();
     cluster_two_hop_nodes();
 
-    STATS << "Followed " << Base::num_accessed_neighbors() << " out of " << graph.m() << " edges ("
-          << 100.0 * Base::num_accessed_neighbors() * graph.m() << "%) and skipped "
-          << graph.m() - Base::num_accessed_neighbors() << " edges.";
+    STATS << "Visited " << Base::num_accessed_neighbors() << " neighbors and skipped "
+          << Base::num_skipped_neighbors();
   }
 
 private:
@@ -384,6 +383,8 @@ public:
 
     const NodeID num_nodes = graph.n();
     _csr_impl->preinitialize(num_nodes);
+    _csr_all_impl->preinitialize(num_nodes);
+    _csr_avg_degree_impl->preinitialize(num_nodes);
     _compressed_impl->preinitialize(num_nodes);
 
     graph.reified(
