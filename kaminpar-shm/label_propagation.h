@@ -71,6 +71,28 @@ struct LabelPropagationConfig {
 
   static constexpr bool kUseActiveSetStrategy = true;
   static constexpr bool kUseLocalActiveSetStrategy = false;
+
+  using NeighborhoodSampler = void;
+};
+
+template <typename Sampler, bool = std::is_void_v<Sampler>> struct NeighborhoodSamplerWrapper {
+  inline void init(auto * /* graph */) {}
+
+  inline bool accept(auto, auto, auto) {
+    return true;
+  }
+};
+
+template <typename Sampler> struct NeighborhoodSamplerWrapper<Sampler, false> {
+  Sampler sampler;
+
+  inline void init(const auto *graph) {
+    sampler.init(graph);
+  }
+
+  inline bool accept(const auto u, const auto v, const auto w) {
+    return sampler.accept(u, v, w);
+  }
 };
 
 /*!
@@ -250,6 +272,8 @@ protected:
     _current_num_clusters = num_clusters;
     _local_cluster_selection_states.resize(tbb::this_task_arena::max_concurrency(), {-1, 0, -1, 0});
     reset_state();
+
+    _neighborhood_sampler.init(graph);
   }
 
   /*!
@@ -485,7 +509,7 @@ protected:
 
     bool is_interface_node = false;
     const auto add_to_rating_map = [&](const NodeID v, const EdgeWeight w) {
-      if (derived_accept_neighbor(u, v)) {
+      if (derived_accept_neighbor(u, v) && _neighborhood_sampler.accept(u, v, w)) {
         const ClusterID v_cluster = derived_cluster(v);
         map[v_cluster] += w;
 
@@ -569,7 +593,7 @@ protected:
     bool is_interface_node = false;
     bool is_second_phase_node = false;
     const auto add_to_rating_map = [&](const NodeID v, const EdgeWeight w) -> bool {
-      if (derived_accept_neighbor(u, v)) {
+      if (derived_accept_neighbor(u, v) && _neighborhood_sampler.accept(u, v, w)) {
         const ClusterID v_cluster = derived_cluster(v);
         map[v_cluster] += w;
 
@@ -664,7 +688,7 @@ protected:
       auto &local_rating_map = _rating_map_ets.local().small_map();
 
       pfor_adjacent_nodes([&](const NodeID v, const EdgeWeight w) {
-        if (derived_accept_neighbor(u, v)) {
+        if (derived_accept_neighbor(u, v) && _neighborhood_sampler.accept(u, v, w)) {
           const ClusterID v_cluster = derived_cluster(v);
           local_rating_map[v_cluster] += w;
 
@@ -1412,6 +1436,8 @@ protected: // Members
   //! were performed. If executed single-thread, this should be equal to the
   //! reduction of the edge cut.
   parallel::Atomic<EdgeWeight> _expected_total_gain;
+
+  NeighborhoodSamplerWrapper<typename Config::NeighborhoodSampler> _neighborhood_sampler;
 
 private:
   NodeID _num_nodes = 0;
