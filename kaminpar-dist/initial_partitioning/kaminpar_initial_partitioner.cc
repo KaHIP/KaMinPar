@@ -37,7 +37,7 @@ shm::PartitionedGraph KaMinParInitialPartitioner::initial_partition(
   shm_ctx.partition = p_ctx;
   shm_ctx.compression.setup(graph);
 
-  if (false) {
+  if (true) {
     std::vector<BlockWeight> max_block_weights;
     for (BlockID b = 0; b < shm_ctx.partition.k; ++b) {
       max_block_weights.push_back(shm_ctx.partition.max_block_weight(b));
