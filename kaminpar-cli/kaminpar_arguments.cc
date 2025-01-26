@@ -351,6 +351,12 @@ CLI::Option_group *create_initial_partitioning_options(CLI::App *app, Context &c
         "Use adaptive epsilon."
   )
       ->capture_default_str();
+  ip->add_option("--i-r-num-iterations", ctx.initial_partitioning.refinement.num_iterations)
+      ->capture_default_str();
+  ip->add_option("--i-r-num-min-repetitions", ctx.initial_partitioning.pool.min_num_repetitions)
+      ->capture_default_str();
+  ip->add_option("--i-r-num-max-repetitions", ctx.initial_partitioning.pool.max_num_repetitions)
+      ->capture_default_str();
 
   return ip;
 }
