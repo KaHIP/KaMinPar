@@ -341,6 +341,13 @@ Options are:
 CLI::Option_group *create_initial_partitioning_options(CLI::App *app, Context &ctx) {
   auto *ip = app->add_option_group("Initial Partitioning");
 
+  // Pool
+  ip->add_option("--i-p-min-num-repetitions", ctx.initial_partitioning.pool.min_num_repetitions)
+      ->capture_default_str();
+  ip->add_option("--i-p-max-num-repetitions", ctx.initial_partitioning.pool.max_num_repetitions)
+      ->capture_default_str();
+
+  // Refinement
   ip->add_flag(
         "--i-r-disable", ctx.initial_partitioning.refinement.disabled, "Disable initial refinement."
   )
@@ -352,10 +359,6 @@ CLI::Option_group *create_initial_partitioning_options(CLI::App *app, Context &c
   )
       ->capture_default_str();
   ip->add_option("--i-r-num-iterations", ctx.initial_partitioning.refinement.num_iterations)
-      ->capture_default_str();
-  ip->add_option("--i-r-num-min-repetitions", ctx.initial_partitioning.pool.min_num_repetitions)
-      ->capture_default_str();
-  ip->add_option("--i-r-num-max-repetitions", ctx.initial_partitioning.pool.max_num_repetitions)
       ->capture_default_str();
 
   return ip;
