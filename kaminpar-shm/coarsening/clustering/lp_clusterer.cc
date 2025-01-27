@@ -158,8 +158,16 @@ public:
     cluster_isolated_nodes();
     cluster_two_hop_nodes();
 
-    STATS << "Visited " << Base::num_accessed_neighbors() << " neighbors and skipped "
-          << Base::num_skipped_neighbors();
+    // STATS << "Visited " << Base::num_accessed_neighbors() << " neighbors and skipped "
+    //       << Base::num_skipped_neighbors();
+  }
+
+  NodeID num_skipped() {
+    return Base::num_skipped_neighbors();
+  }
+
+  NodeID num_visited() {
+    return Base::num_accessed_neighbors();
   }
 
 private:
@@ -429,6 +437,16 @@ public:
     _compressed_impl->set_relabel_before_second_phase(false);
   }
 
+  NodeID num_skipped() {
+    return _csr_avg_degree_impl->num_skipped() + _csr_impl->num_skipped() +
+           _csr_all_impl->num_skipped();
+  }
+
+  NodeID num_visited() {
+    return _csr_avg_degree_impl->num_visited() + _csr_impl->num_visited() +
+           _csr_all_impl->num_visited();
+  }
+
 private:
   const Context &_ctx;
 
@@ -467,6 +485,14 @@ void LPClustering::set_desired_cluster_count(const NodeID count) {
 
 void LPClustering::set_communities(std::span<const NodeID> communities) {
   _impl_wrapper->set_communities(communities);
+}
+
+NodeID LPClustering::num_skipped() {
+  return _impl_wrapper->num_skipped();
+}
+
+NodeID LPClustering::num_visited() {
+  return _impl_wrapper->num_visited();
 }
 
 void LPClustering::compute_clustering(

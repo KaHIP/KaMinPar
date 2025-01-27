@@ -35,6 +35,9 @@ public:
       StaticArray<NodeID> &clustering, const Graph &graph, bool free_memory_afterwards
   ) final;
 
+  NodeID num_skipped();
+  NodeID num_visited();
+
 private:
   std::unique_ptr<class LPClusteringImplWrapper> _impl_wrapper;
 };

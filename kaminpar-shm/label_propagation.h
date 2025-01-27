@@ -26,6 +26,7 @@
 #include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/heap_profiler.h"
+#include "kaminpar-common/inline.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/parallel/atomic.h"
@@ -77,9 +78,9 @@ struct LabelPropagationConfig {
 };
 
 template <typename Sampler, bool = std::is_void_v<Sampler>> struct NeighborhoodSamplerWrapper {
-  inline void init(const shm::Context &, const auto & /* graph */) {}
+  KAMINPAR_INLINE void init(const shm::Context &, const auto & /* graph */) {}
 
-  inline bool accept(auto, auto, auto) {
+  KAMINPAR_INLINE bool accept(auto, auto, auto) {
     return true;
   }
 };
@@ -87,11 +88,11 @@ template <typename Sampler, bool = std::is_void_v<Sampler>> struct NeighborhoodS
 template <typename Sampler> struct NeighborhoodSamplerWrapper<Sampler, false> {
   Sampler sampler;
 
-  inline void init(const shm::Context &ctx, const auto &graph) {
+  KAMINPAR_INLINE void init(const shm::Context &ctx, const auto &graph) {
     sampler.init(ctx, graph);
   }
 
-  inline bool accept(const auto u, const auto v, const auto w) {
+  KAMINPAR_INLINE bool accept(const auto u, const auto v, const auto w) {
     return sampler.accept(u, v, w);
   }
 };

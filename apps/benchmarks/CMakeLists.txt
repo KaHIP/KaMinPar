@@ -12,6 +12,7 @@ endfunction()
 # Shared-memory benchmarks
 add_shm_benchmark(shm_input_benchmark shm_input_benchmark.cc)
 add_shm_benchmark(shm_label_propagation_benchmark shm_label_propagation_benchmark.cc)
+add_shm_benchmark(shm_sparsified_label_propagation_benchmark shm_sparsified_label_propagation_benchmark.cc)
 add_shm_benchmark(shm_refinement_benchmark shm_refinement_benchmark.cc)
 #add_shm_benchmark(shm_gain_cache_benchmark shm_gain_cache_benchmark.cc)
 add_shm_benchmark(shm_compressed_graph_benchmark shm_compressed_graph_benchmark.cc)
