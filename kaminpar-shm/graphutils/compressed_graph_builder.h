@@ -68,7 +68,8 @@ private:
     std::span<EdgeID> nodes,
     std::span<NodeID> edges,
     std::span<NodeWeight> node_weights = {},
-    std::span<NodeWeight> edge_weights = {}
+    std::span<NodeWeight> edge_weights = {},
+    bool sorted = false
 );
 
 class ParallelCompressedGraphBuilder {
@@ -299,7 +300,8 @@ template <bool kHasEdgeWeights, typename DegreeFetcher, typename NeighborhoodFet
     std::span<EdgeID> nodes,
     std::span<NodeID> edges,
     std::span<NodeWeight> node_weights = {},
-    std::span<NodeWeight> edge_weights = {}
+    std::span<NodeWeight> edge_weights = {},
+    bool sorted = false
 );
 
 template <typename DegreeFetcher, typename NeighborhoodFetcher>

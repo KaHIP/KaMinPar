@@ -126,6 +126,43 @@ CompressedGraph compress(const CSRGraph &graph) {
   return builder.build();
 }
 
+CompressedGraph compress(
+    std::span<EdgeID> nodes,
+    std::span<NodeID> edges,
+    std::span<NodeWeight> node_weights,
+    std::span<NodeWeight> edge_weights,
+    bool sorted
+) {
+  const NodeID n = nodes.size() - 1;
+  const EdgeID m = edges.size();
+
+  const bool store_node_weights = !node_weights.empty();
+  const bool store_edge_weights = !edge_weights.empty();
+
+  CompressedGraphBuilder builder(n, m, store_node_weights, store_edge_weights, sorted);
+
+  std::vector<std::pair<NodeID, EdgeWeight>> neighbourhood;
+  for (NodeID u = 0; u < n; ++u) {
+    const EdgeID begin = nodes[u];
+    const EdgeID end = nodes[u + 1];
+
+    for (EdgeID e = begin; e < end; ++e) {
+      const NodeID v = edges[e];
+      const EdgeWeight w = store_edge_weights ? edge_weights[e] : 1;
+      neighbourhood.emplace_back(v, w);
+    }
+
+    builder.add_node(neighbourhood);
+    if (store_node_weights) {
+      builder.add_node_weight(u, node_weights[u]);
+    }
+
+    neighbourhood.clear();
+  }
+
+  return builder.build();
+}
+
 ParallelCompressedGraphBuilder::ParallelCompressedGraphBuilder(
     const NodeID num_nodes,
     const EdgeID num_edges,
@@ -432,10 +469,6 @@ CompressedGraph ParallelCompressedGraphBuilder::build() {
 }
 
 CompressedGraph parallel_compress(const CSRGraph &graph) {
-  const auto fetch_degree = [&](const NodeID u) {
-    return graph.degree(u);
-  };
-
   StaticArray<NodeWeight> node_weights;
   if (graph.is_node_weighted()) {
     node_weights.resize(graph.n(), static_array::noinit);
@@ -444,6 +477,10 @@ CompressedGraph parallel_compress(const CSRGraph &graph) {
       node_weights[u] = graph.node_weight(u);
     });
   }
+
+  const auto fetch_degree = [&](const NodeID u) {
+    return graph.degree(u);
+  };
 
   if (graph.is_edge_weighted()) {
     using Edge = std::pair<NodeID, EdgeWeight>;
@@ -472,7 +509,9 @@ CompressedGraph parallel_compress(const CSRGraph &graph) {
       //
 
       const NodeID *raw_edges = graph.raw_edges().data();
-      std::memcpy(neighborhood.data(), raw_edges + graph.first_edge(u), graph.degree(u));
+      std::memcpy(
+          neighborhood.data(), raw_edges + graph.first_edge(u), graph.degree(u) * sizeof(NodeID)
+      );
     };
 
     return parallel_compress(
@@ -482,6 +521,49 @@ CompressedGraph parallel_compress(const CSRGraph &graph) {
         fetch_neighborhood,
         std::move(node_weights),
         graph.sorted()
+    );
+  }
+}
+
+[[nodiscard]] CompressedGraph parallel_compress(
+    std::span<EdgeID> nodes,
+    std::span<NodeID> edges,
+    std::span<NodeWeight> node_weights,
+    std::span<NodeWeight> edge_weights,
+    bool sorted
+) {
+  const NodeID n = nodes.size() - 1;
+  const EdgeID m = edges.size();
+
+  const auto fetch_degree = [&](const NodeID u) {
+    return nodes[u + 1] - nodes[u];
+  };
+
+  const bool store_edge_weights = !edge_weights.empty();
+  if (store_edge_weights) {
+    using Edge = std::pair<NodeID, EdgeWeight>;
+    const auto fetch_neighborhood = [&](const NodeID u, std::span<Edge> neighborhood) {
+      NodeID i = 0;
+
+      const EdgeID begin = nodes[u];
+      const EdgeID end = nodes[u + 1];
+      for (EdgeID e = begin; e < end; ++e) {
+        neighborhood[i++] = {edges[e], edge_weights[e]};
+      }
+    };
+
+    return parallel_compress_weighted(
+        n, m, fetch_degree, fetch_neighborhood, {node_weights.begin(), node_weights.end()}, sorted
+    );
+  } else {
+    const auto fetch_neighborhood = [&](const NodeID u, std::span<NodeID> neighborhood) {
+      const EdgeID begin = nodes[u];
+      const EdgeID end = nodes[u + 1];
+      std::memcpy(neighborhood.data(), edges.data() + begin, (end - begin) * sizeof(NodeID));
+    };
+
+    return parallel_compress(
+        n, m, fetch_degree, fetch_neighborhood, {node_weights.begin(), node_weights.end()}, sorted
     );
   }
 }

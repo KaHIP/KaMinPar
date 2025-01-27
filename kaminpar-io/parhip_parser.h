@@ -20,7 +20,7 @@ namespace kaminpar::shm::io::parhip {
  * Reads a graph that is stored in a file with ParHIP format.
  *
  * @param filename The name of the file to read.
- * @param sorted Whether the nodes of the graph to read are stored in degree-buckets order.
+ * @param ordering The node ordering of the graph to read.
  * @return The graph that is stored in the file.
  */
 [[nodiscard]] std::optional<CSRGraph>
@@ -30,7 +30,7 @@ csr_read(const std::string &filename, const NodeOrdering ordering = NodeOrdering
  * Reads and compresses a graph that is stored in a file with ParHiP format.
  *
  * @param filename The name of the file to read.
- * @param sorted Whether the nodes of the graph to read are stored in degree-buckets order.
+ * @param ordering The node ordering of the graph to read.
  * @return The graph that is stored in the file.
  */
 [[nodiscard]] std::optional<CompressedGraph>

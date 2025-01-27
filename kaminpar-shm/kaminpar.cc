@@ -276,6 +276,10 @@ void KaMinPar::set_graph(Graph graph) {
   _graph_ptr = std::make_unique<Graph>(std::move(graph));
 }
 
+shm::Graph KaMinPar::take_graph() {
+  return std::move(*_graph_ptr);
+}
+
 void KaMinPar::reseed(int seed) {
   Random::reseed(seed);
 }

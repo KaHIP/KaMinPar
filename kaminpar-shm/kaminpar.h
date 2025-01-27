@@ -723,6 +723,13 @@ public:
   void set_graph(shm::Graph graph);
 
   /*!
+    * Takes ownership of the graph set to be partitioned.
+    *
+    * @return The graph set to be partitioned.
+   */
+  shm::Graph take_graph();
+
+  /*!
    * Partitions the graph set by `borrow_and_mutate_graph()` or `copy_graph()` into `k` blocks with
    * a maximum imbalance of 3%.
    *

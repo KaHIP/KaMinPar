@@ -28,13 +28,13 @@ The ParHIP graph file format is a binary format to represent graphs. The format 
 
 The header is 24 bytes long and contains three 8-byte fields: a version, number of nodes, and number of edges. The version field is a bit-field that encodes information about the presence of edge weights, node weights, and the bit-width of IDs:
 - The least significant bit indicates whether edge weights are present (0) or not (1).
-- The next bit indicates whether vertex weights are present (0) or not (1).
+- The next bit indicates whether node weights are present (0) or not (1).
 - The next bit indicates whether edge IDs are 32-bit (1) or 64-bit (0).
 - The next bit indicates whether node IDs are 32-bit (1) or 64-bit (0).
 - The next bit indicates whether node weights are 32-bit (1) or 64-bit (0).
 - The most significant bit indicates whether edge weights are 32-bit (1) or 64-bit (0).
 
-The offsets section contains addresses relative to the start of the file, such that each offset points to the first neighbor of a node in the adjacency lists. The adjacency lists section contains the adjacent nodes for each node. The node weights section contains the weights of the vertices, if present. The edge weights section contains the weights of the edges, if present.
+The offsets section contains addresses relative to the start of the file, such that each offset points to the first neighbor of a node in the adjacency lists. The adjacency lists section contains the adjacent nodes for each node. The node weights section contains the weights of the nodes, if present. The edge weights section contains the weights of the edges, if present.
 ```
 +------------------------------------+
 | Header (24 bytes)                  |
@@ -51,4 +51,16 @@ The offsets section contains addresses relative to the start of the file, such t
 
 ## Compressed Graph File Format
 
-TODO...
+The compressed graph file format is a binary format to represent compressed graphs. This format includes several sections: a header, offsets, compressed adjacency lists, and optional node weights. The header starts with a magic number and contains metadata about the graph, such as the number of nodes and edges, whether the graph is weighted, whether 64-bit IDs are used, and additional information about the compression format. The offsets section contains the starting position (in bytes) of each node's adjacency list in the compressed adjacency lists section. The compressed adjacency lists section contains the adjacency lists of all nodes in a compressed form. If node weights are present, this section also stores the weights of adjacent nodes for each node.
+
+To read and write a compresed graph, you can use the methods provided in KaMinPar's I/O module. For information on how to obtain a compressed graph for storing, please refer to the [Graph Compression Documentation](/docs/graph_compression.md).
+
+```cpp
+#include <kaminpar-io/graph_compression_binary.h>
+
+using namespace kaminpar::shm::io;
+
+std::optional<CompressedGraph> compressed_binary::read(const std::string &filename);
+
+void compressed_binary::write(const std::string &filename, const CompressedGraph &graph);
+```
