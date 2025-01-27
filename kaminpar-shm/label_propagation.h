@@ -83,6 +83,10 @@ template <typename Sampler, bool = std::is_void_v<Sampler>> struct NeighborhoodS
   KAMINPAR_INLINE bool accept(auto, auto, auto) {
     return true;
   }
+
+  KAMINPAR_INLINE shm::NodeID skip(auto, auto, auto) {
+    return 1;
+  }
 };
 
 template <typename Sampler> struct NeighborhoodSamplerWrapper<Sampler, false> {
@@ -94,6 +98,10 @@ template <typename Sampler> struct NeighborhoodSamplerWrapper<Sampler, false> {
 
   KAMINPAR_INLINE bool accept(const auto u, const auto v, const auto w) {
     return sampler.accept(u, v, w);
+  }
+
+  KAMINPAR_INLINE shm::NodeID skip(const auto u, const auto v, const auto w) {
+    return sampler.skip(u, v, w);
   }
 };
 
@@ -535,39 +543,28 @@ protected:
         .current_cluster_weight = 0,
     };
 
-    bool is_interface_node = false;
-    const auto add_to_rating_map = [&](const NodeID v, const EdgeWeight w) {
-      if (derived_accept_neighbor(u, v)) {
-        if (sampler.accept(u, v, w)) {
-          IFSTATS(++_num_accessed_neighbors_ets.local());
-
-          const ClusterID v_cluster = derived_cluster(v);
-          map[v_cluster] += w;
-
-          if constexpr (Config::kUseLocalActiveSetStrategy) {
-            is_interface_node |= v >= _num_active_nodes;
-          }
-        } else {
-          IFSTATS(++_num_skipped_neighbors_ets.local());
-        }
-      }
-    };
-
     // As the compressed graph data structure has some overhead when imposing a limit on the number
     // of neighbors visited, we make a case distinction here, as the general case is not to restrict
     // the number of neighbors visited
-    if (_max_num_neighbors == std::numeric_limits<NodeID>::max()) [[likely]] {
-      _graph->adjacent_nodes(u, add_to_rating_map);
-    } else {
-      _graph->adjacent_nodes(u, _max_num_neighbors, add_to_rating_map);
+    for (EdgeID e = _graph->first_edge(u); e < _graph->first_invalid_edge(u);) {
+      const NodeID v = _graph->edge_target(e);
+      if (sampler.accept(u, e, v)) {
+        IFSTATS(++_num_accessed_neighbors_ets.local());
+        const ClusterID v_cluster = derived_cluster(v);
+        map[v_cluster] += _graph->edge_weight(e);
+      } else {
+        IFSTATS(++_num_skipped_neighbors_ets.local());
+      }
+      const NodeID skip = sampler.skip(u, e, v);
+      IFSTATS(
+          _num_skipped_neighbors_ets.local() +=
+          std::min(skip - 1, _graph->first_invalid_edge(u) - e - 1)
+      );
+      e += skip;
     }
 
     if constexpr (Config::kUseActiveSetStrategy) {
       __atomic_store_n(&_active[u], 0, __ATOMIC_RELAXED);
-    } else if constexpr (Config::kUseLocalActiveSetStrategy) {
-      if (!is_interface_node) {
-        __atomic_store_n(&_active[u], 0, __ATOMIC_RELAXED);
-      }
     }
 
     // After LP, we might want to use 2-hop clustering to merge nodes that could not find any
@@ -625,39 +622,31 @@ protected:
         .current_cluster_weight = 0,
     };
 
-    bool is_interface_node = false;
     bool is_second_phase_node = false;
-    const auto add_to_rating_map = [&](const NodeID v, const EdgeWeight w) -> bool {
-      if (derived_accept_neighbor(u, v)) {
-        if (sampler.accept(u, v, w)) {
-          IFSTATS(++_num_accessed_neighbors_ets.local());
-
-          const ClusterID v_cluster = derived_cluster(v);
-          map[v_cluster] += w;
-
-          if (map.size() >= Config::kRatingMapThreshold) [[unlikely]] {
-            is_second_phase_node = true;
-            return true;
-          }
-
-          if constexpr (Config::kUseLocalActiveSetStrategy) {
-            is_interface_node |= v >= _num_active_nodes;
-          }
-        } else {
-          IFSTATS(++_num_skipped_neighbors_ets.local());
-        }
-      }
-
-      return false;
-    };
 
     // As the compressed graph data structure has some overhead when imposing a limit on the number
     // of neighbors visited, we make a case distinction here, as the general case is not to restrict
     // the number of neighbors visited
-    if (_max_num_neighbors == std::numeric_limits<NodeID>::max()) [[likely]] {
-      _graph->adjacent_nodes(u, add_to_rating_map);
-    } else {
-      _graph->adjacent_nodes(u, _max_num_neighbors, add_to_rating_map);
+    for (EdgeID e = _graph->first_edge(u); e < _graph->first_invalid_edge(u);) {
+      const NodeID v = _graph->edge_target(e);
+      if (sampler.accept(u, e, v)) {
+        IFSTATS(++_num_accessed_neighbors_ets.local());
+        const ClusterID v_cluster = derived_cluster(v);
+        map[v_cluster] += _graph->edge_weight(e);
+
+        if (map.size() >= Config::kRatingMapThreshold) [[unlikely]] {
+          is_second_phase_node = true;
+          break;
+        }
+      } else {
+        IFSTATS(++_num_skipped_neighbors_ets.local());
+      }
+      const NodeID skip = sampler.skip(u, e, v);
+      IFSTATS(
+          _num_skipped_neighbors_ets.local() +=
+          std::min(skip - 1, _graph->first_invalid_edge(u) - e - 1)
+      );
+      e += skip;
     }
 
     if (is_second_phase_node) [[unlikely]] {
@@ -668,10 +657,6 @@ protected:
 
     if constexpr (Config::kUseActiveSetStrategy) {
       __atomic_store_n(&_active[u], 0, __ATOMIC_RELAXED);
-    } else if constexpr (Config::kUseLocalActiveSetStrategy) {
-      if (!is_interface_node) {
-        __atomic_store_n(&_active[u], 0, __ATOMIC_RELAXED);
-      }
     }
 
     // After LP, we might want to use 2-hop clustering to merge nodes that could not find any
@@ -723,30 +708,23 @@ protected:
       local_rating_map.clear();
     };
 
-    bool is_interface_node = false;
     _graph->pfor_adjacent_nodes(u, _max_num_neighbors, 2000, [&](auto &&pfor_adjacent_nodes) {
       auto &local_used_entries = map.local_used_entries();
       auto &local_rating_map = _rating_map_ets.local().small_map();
       auto &local_sampler = _neighborhood_sampler.local();
 
       pfor_adjacent_nodes([&](const NodeID v, const EdgeWeight w) {
-        if (derived_accept_neighbor(u, v)) {
-          if (local_sampler.accept(u, v, w)) {
-            IFSTATS(++_num_accessed_neighbors_ets.local());
+        if (local_sampler.accept(u, v, w)) {
+          IFSTATS(++_num_accessed_neighbors_ets.local());
 
-            const ClusterID v_cluster = derived_cluster(v);
-            local_rating_map[v_cluster] += w;
+          const ClusterID v_cluster = derived_cluster(v);
+          local_rating_map[v_cluster] += w;
 
-            if (local_rating_map.size() >= Config::kRatingMapThreshold) [[unlikely]] {
-              flush_local_rating_map(local_used_entries, local_rating_map);
-            }
-
-            if constexpr (Config::kUseLocalActiveSetStrategy) {
-              is_interface_node |= v >= _num_active_nodes;
-            }
-          } else {
-            IFSTATS(++_num_skipped_neighbors_ets.local());
+          if (local_rating_map.size() >= Config::kRatingMapThreshold) [[unlikely]] {
+            flush_local_rating_map(local_used_entries, local_rating_map);
           }
+        } else {
+          IFSTATS(++_num_skipped_neighbors_ets.local());
         }
       });
     });
@@ -761,10 +739,6 @@ protected:
 
     if constexpr (Config::kUseActiveSetStrategy) {
       __atomic_store_n(&_active[u], 0, __ATOMIC_RELAXED);
-    } else if constexpr (Config::kUseLocalActiveSetStrategy) {
-      if (!is_interface_node) {
-        __atomic_store_n(&_active[u], 0, __ATOMIC_RELAXED);
-      }
     }
 
     // After LP, we might want to use 2-hop clustering to merge nodes that could not find any

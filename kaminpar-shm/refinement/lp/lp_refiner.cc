@@ -286,13 +286,11 @@ public:
 class LPRefinerImplWrapper {
 public:
   LPRefinerImplWrapper(const Context &ctx)
-      : _csr_impl(std::make_unique<LPRefinerImpl<CSRGraph>>(ctx, _permutations)),
-        _compressed_impl(std::make_unique<LPRefinerImpl<CompressedGraph>>(ctx, _permutations)) {}
+      : _csr_impl(std::make_unique<LPRefinerImpl<CSRGraph>>(ctx, _permutations)) {}
 
   void initialize(const PartitionedGraph &p_graph) {
     p_graph.graph().reified(
-        [&](const auto &graph) { _csr_impl->initialize(&graph); },
-        [&](const auto &graph) { _compressed_impl->initialize(&graph); }
+        [&](const auto &graph) { _csr_impl->initialize(&graph); }, [&](const auto &) {}
     );
   }
 
@@ -315,18 +313,16 @@ public:
 
     return p_graph.graph().reified(
         [&](const auto &) { return refine(*_csr_impl); },
-        [&](const auto &) { return refine(*_compressed_impl); }
+        [&](const auto &) { return false; }
     );
   }
 
   void set_communities(std::span<const NodeID> communities) {
     _csr_impl->set_communities(communities);
-    _compressed_impl->set_communities(communities);
   }
 
 private:
   std::unique_ptr<LPRefinerImpl<CSRGraph>> _csr_impl;
-  std::unique_ptr<LPRefinerImpl<CompressedGraph>> _compressed_impl;
 
   // The data structures which are used by the LP refiner and are shared between the
   // different implementations.

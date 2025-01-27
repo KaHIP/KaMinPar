@@ -31,16 +31,20 @@ template <typename NeighborhoodSampler_> struct LPClusteringConfig : public Labe
 struct AllNeighborsSampler {
   void init(const Context &, const CSRGraph &) {}
 
-  bool accept(NodeID, NodeID, EdgeWeight) {
+  bool accept(NodeID, EdgeID, NodeID) {
     return true;
+  }
+
+  NodeID skip(NodeID, EdgeID, NodeID) {
+    return 1;
   }
 };
 
 struct AvgDegreeSampler {
-  constexpr static std::size_t kPeriode = 1024;
+  constexpr static std::size_t kPeriode = 1023;
 
   AvgDegreeSampler() {
-    _precomputed_doubles.resize(kPeriode);
+    _precomputed_doubles.resize(kPeriode + 1);
     for (double &d : _precomputed_doubles) {
       d = _rand.random_real();
     }
@@ -48,19 +52,43 @@ struct AvgDegreeSampler {
 
   void init(const Context &ctx, const CSRGraph &graph) {
     _graph = &graph;
-    _avg_deg = _graph->m() / _graph->n();
+    _avg_deg = 1.0 * _graph->m() / _graph->n();
     _target = _avg_deg * ctx.coarsening.clustering.lp.neighborhood_sampling_avg_degree_threshold;
     _next = 0;
   }
 
-  bool accept(const NodeID u, NodeID, EdgeWeight) {
+  bool accept(NodeID, EdgeID, NodeID) {
+    /*
     const EdgeID degree = _graph->degree(u);
     if (degree <= _target) {
       return true;
     }
 
     // return _rand.random_bool(1.0 * _target / degree);
-    return _precomputed_doubles[_next++ & (kPeriode - 1)] <= 1.0 * _target / degree;
+    return _precomputed_doubles[_next++ & kPeriode)] <= 1.0 * _target / degree;
+    */
+
+    return true;
+  }
+
+  NodeID skip(const NodeID u, EdgeID, NodeID) {
+    const EdgeID degree = _graph->degree(u);
+    if (degree <= _target) {
+      return 1;
+    }
+
+    std::geometric_distribution<> gd(1.0 - 1.0 * _target / degree);
+    return 1 + gd(*this);
+  }
+
+  double min() {
+    return 0;
+  }
+  double max() {
+    return 1;
+  }
+  double operator()() {
+    return _precomputed_doubles[_next++ & kPeriode];
   }
 
   std::vector<double> _precomputed_doubles;
@@ -362,22 +390,20 @@ public:
         ),
         _csr_avg_degree_impl(
             std::make_unique<LPClusteringImpl<CSRGraph, AvgDegreeSampler>>(ctx, _permutations)
-        ),
-        _compressed_impl(std::make_unique<LPClusteringImpl<CompressedGraph>>(ctx, _permutations)) {}
+        ) {}
 
   void set_max_cluster_weight(const NodeWeight max_cluster_weight) {
     _csr_impl->set_max_cluster_weight(max_cluster_weight);
-    _compressed_impl->set_max_cluster_weight(max_cluster_weight);
+    _csr_all_impl->set_max_cluster_weight(max_cluster_weight);
+    _csr_avg_degree_impl->set_max_cluster_weight(max_cluster_weight);
   }
 
   void set_desired_cluster_count(const NodeID count) {
     _csr_impl->set_desired_num_clusters(count);
-    _compressed_impl->set_desired_num_clusters(count);
   }
 
   void set_communities(std::span<const NodeID> communities) {
     _csr_impl->set_communities(communities);
-    _compressed_impl->set_communities(communities);
   }
 
   void compute_clustering(
@@ -409,7 +435,7 @@ public:
     _csr_impl->preinitialize(num_nodes);
     _csr_all_impl->preinitialize(num_nodes);
     _csr_avg_degree_impl->preinitialize(num_nodes);
-    _compressed_impl->preinitialize(num_nodes);
+    //_compressed_impl->preinitialize(num_nodes);
 
     graph.reified(
         [&](const auto &csr_graph) {
@@ -427,14 +453,11 @@ public:
             break;
           }
         },
-        [&](const auto &compressed_graph) {
-          compute_clustering(*_compressed_impl, compressed_graph);
-        }
+        [&](const auto &) {}
     );
 
     // Only relabel clusters for the first iteration
     _csr_impl->set_relabel_before_second_phase(false);
-    _compressed_impl->set_relabel_before_second_phase(false);
   }
 
   NodeID num_skipped() {
@@ -453,8 +476,6 @@ private:
   std::unique_ptr<LPClusteringImpl<CSRGraph>> _csr_impl;
   std::unique_ptr<LPClusteringImpl<CSRGraph, AllNeighborsSampler>> _csr_all_impl;
   std::unique_ptr<LPClusteringImpl<CSRGraph, AvgDegreeSampler>> _csr_avg_degree_impl;
-
-  std::unique_ptr<LPClusteringImpl<CompressedGraph>> _compressed_impl;
 
   // The data structures that are used by the LP clusterer and are shared between the
   // different implementations.

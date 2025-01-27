@@ -54,10 +54,12 @@ int main(int argc, char *argv[]) {
   const std::string graph_name = str::extract_basename(graph_filename);
 
   for (const double avg_degree :
-       {0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.5, 2.0, 2.5, 3.0}) {
+       {0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.5, 2.0, 2.5, 3.0, 1000.0}) {
     ctx.coarsening.clustering.lp.neighborhood_sampling_strategy =
         NeighborhoodSamplingStrategy::AVG_DEGREE;
     ctx.coarsening.clustering.lp.neighborhood_sampling_avg_degree_threshold = avg_degree;
+    ctx.coarsening.clustering.lp.num_iterations = 1;
+    ctx.coarsening.clustering.lp.impl = LabelPropagationImplementation::SINGLE_PHASE;
 
     LPClustering lp_clustering(ctx);
     lp_clustering.set_max_cluster_weight(compute_max_cluster_weight<NodeWeight>(
@@ -68,6 +70,7 @@ int main(int argc, char *argv[]) {
     timer.reset();
     lp_clustering.compute_clustering(clustering, graph, false);
     const double elapsed_s = timer.elapsed() / 1000.0 / 1000.0 / 1000.0;
+
     LOG << graph_name << "," << graph.n() << "," << graph.m() << "," << ctx.parallel.num_threads
         << "," << avg_degree << "," << lp_clustering.num_visited() << ","
         << lp_clustering.num_skipped() << "," << elapsed_s;
