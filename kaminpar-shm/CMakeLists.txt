@@ -2,6 +2,8 @@ file(GLOB_RECURSE KAMINPAR_SHM_SOURCE_FILES CONFIGURE_DEPENDS
 	*.cc *.h)
 
 add_library(kaminpar_shm ${KAMINPAR_SHM_SOURCE_FILES})
+add_library(KaMinPar::KaMinPar ALIAS kaminpar_shm)
+
 target_include_directories(kaminpar_shm PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../")
 target_link_libraries(kaminpar_shm PUBLIC kaminpar_common)
 target_compile_options(kaminpar_shm PRIVATE ${KAMINPAR_WARNING_FLAGS})

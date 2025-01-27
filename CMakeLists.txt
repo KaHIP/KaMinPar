@@ -19,12 +19,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Control what to build
 #######################
-option(KAMINPAR_BUILD_TESTS "Build unit tests" ON)
-option(KAMINPAR_BUILD_DISTRIBUTED "Build distributed partitioner." OFF)
 option(KAMINPAR_BUILD_APPS "Build binaries." ON)
-option(KAMINPAR_BUILD_BENCHMARKS "Build benchmark binaries." OFF)
+option(KAMINPAR_BUILD_DISTRIBUTED "Build distributed partitioner." OFF)
+option(KAMINPAR_BUILD_TESTS "Build unit tests" OFF)
 option(KAMINPAR_BUILD_TOOLS "Build tool binaries." OFF)
+option(KAMINPAR_BUILD_BENCHMARKS "Build benchmark binaries." OFF)
 option(KAMINPAR_BUILD_EXAMPLES "Build examples." OFF)
+option(KAMINPAR_BUILD_BINDINGS_C "Build C bindings." OFF)
+option(KAMINPAR_BUILD_BINDINGS_PYTHON "Build Python bindings." OFF)
 
 option(KAMINPAR_BUILD_EXPERIMENTAL_FEATURES "Include experimental features in the build. This might increase compile times drastically." OFF)
 
@@ -383,18 +385,20 @@ if (KAMINPAR_BUILD_TESTS)
     add_subdirectory(tests)
 endif ()
 
+# Bindings
+if (KAMINPAR_BUILD_BINDINGS_C)
+    add_subdirectory(bindings/c)
+endif ()
+
+if (KAMINPAR_BUILD_BINDINGS_PYTHON)
+    add_subdirectory(bindings/python)
+endif ()
+
 # Examples
 if (KAMINPAR_BUILD_EXAMPLES)
-    add_subdirectory(examples)
+    add_subdirectory(examples/kaminpar)
+
+    if (KAMINPAR_BUILD_BINDINGS_C)
+        add_subdirectory(examples/bindings-c)
+    endif ()
 endif ()
-
-################################################################################
-
-add_library(KaMinPar::KaMinPar ALIAS kaminpar_shm)
-add_library(KaMinPar::KaMinParCLI ALIAS kaminpar_cli)
-
-if (KAMINPAR_BUILD_DISTRIBUTED)
-    add_library(KaMinPar::dKaMinPar ALIAS kaminpar_dist)
-    add_library(KaMinPar::dKaMinParCLI ALIAS kaminpar_dist_cli)
-endif ()
-

@@ -1,15 +1,17 @@
 /*******************************************************************************
- * C interface for KaMinPar.
+ * Public C library interface of KaMinPar.
  *
  * @file:   ckaminpar.cc
  * @author: Daniel Seemaier
  * @date:   09.12.2024
  ******************************************************************************/
+#include "ckaminpar.h"
+
 #include <span>
 #include <string>
 #include <vector>
 
-#include "kaminpar-shm/kaminpar.h"
+#include <kaminpar-shm/kaminpar.h>
 
 struct kaminpar_context_t {
   kaminpar::shm::Context ctx;

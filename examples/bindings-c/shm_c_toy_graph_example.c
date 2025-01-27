@@ -1,6 +1,7 @@
-#include <kaminpar-shm/kaminpar.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#include <ckaminpar.h>
 
 void print_node_id(const kaminpar_node_id_t id, const kaminpar_block_id_t *partition) {
   const char *colors[] = {"\033[0;31m", "\033[0;32m", "\033[0;33m", "\033[0;34m"};
