@@ -84,6 +84,9 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
   LOG;
 
   while (shrunk && c_graph->n() > initial_partitioning_threshold()) {
+    SCOPED_HEAP_PROFILER("Level", std::to_string(_hierarchy->level()));
+    SCOPED_TIMER("Level", std::to_string(_coarsener->level()));
+
     // If requested, dump graph before each coarsening step + after coarsening
     // converged. This way, we also have a dump of the (reordered) input graph,
     // which makes it easier to use the final partition (before reordering it).
@@ -267,10 +270,12 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition_by_communities(con
 
 PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) {
   SCOPED_HEAP_PROFILER("Uncoarsening");
+  SCOPED_TIMER("Uncoarsening");
 
   bool refined = false;
   while (!_coarsener->empty()) {
     SCOPED_HEAP_PROFILER("Level", std::to_string(_coarsener->level() - 1));
+    SCOPED_TIMER("Level", std::to_string(_coarsener->level() - 1));
 
     LOG;
     LOG << "Uncoarsening -> Level " << (_coarsener->level() - 1);
