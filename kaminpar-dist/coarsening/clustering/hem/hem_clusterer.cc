@@ -158,8 +158,8 @@ private:
 
     TIMED_SCOPE("Compute color blacklist") {
       if (_ctx.small_color_blacklist == 0 ||
-          (_ctx.only_blacklist_input_level &&
-           _graph->global_n() != _input_ctx.partition.graph->global_n)) {
+          (_ctx.only_blacklist_input_level && _graph->global_n() != _input_ctx.partition.global_n
+          )) {
         return;
       }
 

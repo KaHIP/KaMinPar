@@ -21,16 +21,19 @@
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 
+#include "kaminpar-common/datastructures/static_array.h"
+
 namespace kaminpar::dist::graph {
 
 struct ExtractedLocalSubgraphs {
-  std::vector<EdgeID> shared_nodes;
-  std::vector<NodeWeight> shared_node_weights;
-  std::vector<NodeID> shared_edges;
-  std::vector<EdgeWeight> shared_edge_weights;
-  std::vector<std::size_t> nodes_offset;
-  std::vector<std::size_t> edges_offset;
-  std::vector<NodeID> mapping;
+  StaticArray<EdgeID> shared_nodes;
+  StaticArray<NodeWeight> shared_node_weights;
+  StaticArray<NodeID> shared_edges;
+  StaticArray<EdgeWeight> shared_edge_weights;
+  StaticArray<std::size_t> nodes_offset;
+  StaticArray<std::size_t> edges_offset;
+
+  StaticArray<NodeID> mapping;
 };
 
 /*!
@@ -51,7 +54,7 @@ struct ExtractedSubgraphs {
   std::vector<shm::Graph> subgraphs;
 
   /*!
-   * For each subgraph b, subgraph_offsets[b] is an array indicated which part
+   * For each subgraph b, subgraph_offsets[b] is an array indicating which part
    * of the subgraphs is owned by which PE in the distributed graph. I.e., nodes
    * [subgraph_offset[b][i], subgraph_offset[b][i + 1]) of subgraph b are owned
    * by PE i.
@@ -61,7 +64,7 @@ struct ExtractedSubgraphs {
   /*!
    * Mapping from nodes in the distributed graph to node IDs in the subgraph.
    */
-  std::vector<NodeID> mapping;
+  StaticArray<NodeID> mapping;
 };
 
 /*!
@@ -78,13 +81,15 @@ extract_and_scatter_block_induced_subgraphs(const DistributedPartitionedGraph &p
 DistributedPartitionedGraph copy_subgraph_partitions(
     DistributedPartitionedGraph p_graph,
     const std::vector<shm::PartitionedGraph> &p_subgraphs,
-    ExtractedSubgraphs &subgraphs
+    ExtractedSubgraphs &subgraphs,
+    BlockID new_k
 );
 
 DistributedPartitionedGraph copy_duplicated_subgraph_partitions(
     DistributedPartitionedGraph p_graph,
     const std::vector<shm::PartitionedGraph> &p_subgraphs,
-    ExtractedSubgraphs &extracted_subgraphs
+    ExtractedSubgraphs &extracted_subgraphs,
+    BlockID new_k
 );
 
 class BlockExtractionOffsets {
@@ -96,6 +101,7 @@ public:
   BlockID num_blocks_on_pe(PEID pe) const;
 
   PEID first_pe_with_block(BlockID block) const;
+  PEID first_pe_with_block2(BlockID block) const;
   PEID first_invalid_pe_with_block(BlockID block) const;
   PEID num_pes_with_block(BlockID block) const;
 

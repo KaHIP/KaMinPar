@@ -47,9 +47,6 @@ void ClusteringCoarsener::use_communities(std::span<const NodeID> communities) {
 }
 
 bool ClusteringCoarsener::coarsen() {
-  SCOPED_HEAP_PROFILER("Level", std::to_string(_hierarchy.size()));
-  SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
-
   START_HEAP_PROFILER("Allocation");
   RECORD("clustering") StaticArray<NodeID> clustering(current().n(), static_array::noinit);
   STOP_HEAP_PROFILER();
@@ -131,8 +128,6 @@ bool ClusteringCoarsener::coarsen() {
 }
 
 PartitionedGraph ClusteringCoarsener::uncoarsen(PartitionedGraph &&p_graph) {
-  SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
-
   const BlockID p_graph_k = p_graph.k();
   const auto p_graph_partition = p_graph.take_raw_partition();
 

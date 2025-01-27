@@ -397,6 +397,8 @@ DistributedGraph replicate_graph(const Graph &graph, const int num_replications)
           secondary_comm
       );
     } else {
+      DBG << "Broadcasting additional " << secondary_num_nodes << " nodes and "
+          << secondary_num_edges << " edges";
       MPI_Bcast(
           nodes.data() + nodes_displs.back(),
           asserting_cast<int>(secondary_num_nodes),
@@ -407,7 +409,7 @@ DistributedGraph replicate_graph(const Graph &graph, const int num_replications)
       MPI_Bcast(
           tmp_global_edges.data() + edges_displs.back(),
           asserting_cast<int>(secondary_num_edges),
-          mpi::type::get<NodeID>(),
+          mpi::type::get<GlobalNodeID>(),
           secondary_root,
           secondary_comm
       );
@@ -438,9 +440,6 @@ DistributedGraph replicate_graph(const Graph &graph, const int num_replications)
   node_distribution.back() = graph.node_distribution().back();
   edge_distribution.back() = graph.edge_distribution().back();
 
-  DBG << "Node distribution: " << V(node_distribution);
-  DBG << "Edge distribution: " << V(edge_distribution);
-
   // Remap edges to local nodes
   const GlobalEdgeID n0 = graph.node_distribution(rank) - nodes_displs[primary_rank];
   const GlobalEdgeID nf = n0 + nodes_displs.back() + secondary_num_nodes;
@@ -451,7 +450,7 @@ DistributedGraph replicate_graph(const Graph &graph, const int num_replications)
     if (v >= n0 && v < nf) {
       edges[e] = static_cast<NodeID>(v - n0);
     } else {
-      DBG << "New edge to global node " << v;
+      // DBG << "New edge to global node " << v;
       edges[e] = ghost_node_mapper.new_ghost_node(v);
     }
   });
@@ -466,7 +465,7 @@ DistributedGraph replicate_graph(const Graph &graph, const int num_replications)
 
   if (is_node_weighted) {
     KASSERT(graph.is_node_weighted() || graph.n() == 0);
-    node_weights.resize(nodes_displs.back() + num_ghost_nodes);
+    node_weights.resize(nodes_displs.back() + secondary_num_nodes + num_ghost_nodes);
     mpi::allgatherv(
         graph.raw_node_weights().data(),
         asserting_cast<int>(graph.n()),
@@ -475,11 +474,26 @@ DistributedGraph replicate_graph(const Graph &graph, const int num_replications)
         nodes_displs.data(),
         primary_comm
     );
-  }
 
-  DBG << V(ghost_node_info.ghost_owner) << V(ghost_node_info.ghost_to_global);
-  for (const auto &[k, v] : ghost_node_info.global_to_ghost) {
-    DBG << "Have mapping " << k << " --> " << v;
+    if (is_secondary_participant) {
+      if (secondary_rank == secondary_root) {
+        MPI_Bcast(
+            node_weights.data(),
+            asserting_cast<int>(nodes.size() - 1),
+            mpi::type::get<EdgeID>(),
+            secondary_root,
+            secondary_comm
+        );
+      } else {
+        MPI_Bcast(
+            node_weights.data() + nodes_displs.back(),
+            asserting_cast<int>(secondary_num_nodes),
+            mpi::type::get<EdgeID>(),
+            secondary_root,
+            secondary_comm
+        );
+      }
+    }
   }
 
   DistributedGraph new_graph(std::make_unique<DistributedCSRGraph>(
@@ -524,46 +538,119 @@ distribute_best_partition(const DistributedGraph &dist_graph, DistributedPartiti
   const PEID group_rank = mpi::get_comm_rank(p_graph.communicator());
   const PEID size = mpi::get_comm_size(dist_graph.communicator());
   const PEID rank = mpi::get_comm_rank(dist_graph.communicator());
-  const PEID num_replications = size / group_size;
 
   MPI_Comm inter_group_comm = MPI_COMM_NULL;
   MPI_Comm_split(dist_graph.communicator(), group_rank, rank, &inter_group_comm);
   const PEID inter_group_rank = mpi::get_comm_rank(inter_group_comm);
+  const PEID inter_group_size = mpi::get_comm_size(inter_group_comm);
 
-  // Find best partition
+  // Use the root PEs of each group to determine which group has the best partition
   const GlobalEdgeWeight my_cut = metrics::edge_cut(p_graph);
   struct ReductionMessage {
     long cut;
     int rank;
-  };
-  ReductionMessage best_cut_loc{my_cut, inter_group_rank};
-  MPI_Allreduce(MPI_IN_PLACE, &best_cut_loc, 1, MPI_LONG_INT, MPI_MINLOC, inter_group_comm);
+  } best_cut_loc;
+
+  if (group_rank == 0) {
+    best_cut_loc.cut = my_cut;
+    best_cut_loc.rank = inter_group_rank;
+    MPI_Allreduce(MPI_IN_PLACE, &best_cut_loc, 1, MPI_LONG_INT, MPI_MINLOC, inter_group_comm);
+  }
+
+  // Then broadcast the winner to all PEs: from root to other group members within each PE group
+  MPI_Bcast(&best_cut_loc, 1, MPI_LONG_INT, 0, p_graph.communicator());
+
+  // Broadcast the number of groups
+  const PEID num_replications = [&] {
+    PEID inter_group_comm_size = mpi::get_comm_size(inter_group_comm);
+    MPI_Bcast(&inter_group_comm_size, 1, MPI_INT, 0, p_graph.communicator());
+    return inter_group_comm_size;
+  }();
+
+  auto partition = p_graph.take_partition();
+  RECORD("new_partition") StaticArray<BlockID> new_partition(dist_graph.total_n());
 
   // Compute partition distribution for p_graph --> dist_graph
   NoinitVector<int> send_counts(num_replications);
-  for (PEID pe = group_rank * num_replications; pe < (group_rank + 1) * num_replications; ++pe) {
-    const PEID first_pe = group_rank * num_replications;
+  std::fill(send_counts.begin(), send_counts.end(), 0);
+
+  const PEID first_pe = group_rank * num_replications;
+  for (PEID pe = group_rank * num_replications;
+       pe < std::min(size, (group_rank + 1) * num_replications);
+       ++pe) {
     send_counts[pe - first_pe] = asserting_cast<int>(
         dist_graph.node_distribution(pe + 1) - dist_graph.node_distribution(pe)
     );
   }
+
   NoinitVector<int> send_displs = mpi::build_displs_from_counts(send_counts);
-  int recv_count = asserting_cast<int>(dist_graph.n());
+  const int recv_count = asserting_cast<int>(dist_graph.n());
 
   // Scatter best partition
-  auto partition = p_graph.take_partition();
-  RECORD("new_partition") StaticArray<BlockID> new_partition(dist_graph.total_n());
-  MPI_Scatterv(
-      partition.data(),
-      send_counts.data(),
-      send_displs.data(),
-      mpi::type::get<BlockID>(),
-      new_partition.data(),
-      recv_count,
-      mpi::type::get<BlockID>(),
-      best_cut_loc.rank,
-      inter_group_comm
-  );
+  if (best_cut_loc.rank < inter_group_size) {
+    MPI_Scatterv(
+        partition.data(),
+        send_counts.data(),
+        send_displs.data(),
+        mpi::type::get<BlockID>(),
+        new_partition.data(),
+        recv_count,
+        mpi::type::get<BlockID>(),
+        best_cut_loc.rank,
+        inter_group_comm
+    );
+  }
+
+  // If a large subgroup won the tournament, there is nothing further to do -- the extra PEs already
+  // exchanged their part of the winning partition
+  // If a small group won, we have to exchange the second part of their last PE to the extra PEs
+  const bool large_group_won = best_cut_loc.rank < size % num_replications;
+  const bool small_group_won = !large_group_won;
+
+  const PEID num_large_groups = size % num_replications;
+  if (num_large_groups > 0 && small_group_won) {
+    const PEID is_secondary_participant =
+        (group_size == size / num_replications + 1 && group_rank + 1 == group_size) ||
+        (inter_group_rank == best_cut_loc.rank && group_rank + 1 == group_size);
+    MPI_Comm secondary_comm = MPI_COMM_NULL;
+    MPI_Comm_split(dist_graph.communicator(), is_secondary_participant, rank, &secondary_comm);
+    PEID secondary_size = mpi::get_comm_size(secondary_comm);
+    PEID secondary_rank = mpi::get_comm_rank(secondary_comm);
+    PEID secondary_root = 0;
+
+    if (is_secondary_participant) {
+      NoinitVector<int> secondary_send_counts(secondary_size);
+      secondary_send_counts.front() = 0;
+      for (PEID pe = 0; pe < num_large_groups; ++pe) {
+        secondary_send_counts[pe + 1] = dist_graph.n(size - num_large_groups + pe);
+      }
+      NoinitVector<int> secondary_send_displs =
+          mpi::build_displs_from_counts(secondary_send_counts);
+
+      DBG << "Participating in second communication round as PE " << secondary_rank << ": group of "
+          << secondary_size << " PEs, " << num_large_groups << " large groups, group root is PE "
+          << secondary_root << ", send counts: " << secondary_send_counts
+          << ", send displs: " << secondary_send_displs << ", partition size: " << partition.size()
+          << " for " << p_graph.n() << " real nodes"
+          << ", new partition size: " << new_partition.size() << " for " << dist_graph.n()
+          << " real nodes"
+          << ", previous send displs: " << send_displs << ", recv count: " << recv_count;
+
+      MPI_Scatterv(
+          partition.data() + send_displs.back(),
+          secondary_send_counts.data(),
+          secondary_send_displs.data(),
+          mpi::type::get<BlockID>(),
+          new_partition.data(),
+          recv_count,
+          mpi::type::get<BlockID>(),
+          secondary_root,
+          secondary_comm
+      );
+    }
+
+    MPI_Comm_free(&secondary_comm);
+  }
 
   // Create partitioned dist_graph
   DistributedPartitionedGraph p_dist_graph(&dist_graph, p_graph.k(), std::move(new_partition));
@@ -571,7 +658,11 @@ distribute_best_partition(const DistributedGraph &dist_graph, DistributedPartiti
   // Synchronize ghost node assignment
   graph::synchronize_ghost_node_block_ids(p_dist_graph);
 
+  DBG << "Finished distributing best partition with edge cut " << best_cut_loc.cut
+      << ", edge cut: " << metrics::edge_cut(p_dist_graph);
+
   MPI_Comm_free(&inter_group_comm);
+
   return p_dist_graph;
 }
 

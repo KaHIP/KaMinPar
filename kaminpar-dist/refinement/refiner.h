@@ -7,8 +7,8 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
+#include "kaminpar-dist/dkaminpar.h"
 
 namespace kaminpar::dist {
 

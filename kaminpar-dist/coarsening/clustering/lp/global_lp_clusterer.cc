@@ -543,14 +543,9 @@ private:
           const GlobalNodeWeight increase_by_me = (*it).second;
 
           violation = 1;
-          if (_c_ctx.global_lp.enforce_legacy_weight) {
-            new_weight = _max_cluster_weight + (1.0 * increase_by_me / increase_by_others) *
-                                                   (new_weight - _max_cluster_weight);
-          } else {
-            new_weight =
-                _max_cluster_weight + (1.0 * increase_by_me / (increase_by_others + increase_by_me)
-                                      ) * (new_weight - _max_cluster_weight);
-          }
+          new_weight =
+              _max_cluster_weight + (1.0 * increase_by_me / (increase_by_others + increase_by_me)) *
+                                        (new_weight - _max_cluster_weight);
         }
         change_cluster_weight(cluster, -old_weight + new_weight, true);
       });
@@ -684,15 +679,11 @@ private:
   }
 
   [[nodiscard]] bool should_sync_cluster_weights() const {
-    return _ctx.coarsening.global_lp.sync_cluster_weights &&
-           (!_ctx.coarsening.global_lp.cheap_toplevel ||
-            _graph->global_n() != _ctx.partition.graph->global_n);
+    return _ctx.coarsening.global_lp.sync_cluster_weights;
   }
 
   [[nodiscard]] bool should_enforce_cluster_weights() const {
-    return _ctx.coarsening.global_lp.enforce_cluster_weights &&
-           (!_ctx.coarsening.global_lp.cheap_toplevel ||
-            _graph->global_n() != _ctx.partition.graph->global_n);
+    return _ctx.coarsening.global_lp.enforce_cluster_weights;
   }
 
   using Base::_graph;

@@ -448,7 +448,7 @@ TEST(GlobalGraphExtractionTest, project_isolated_nodes_1_partition) {
   p_subgraphs.emplace_back(subgraph, 1, std::move(partition));
 
   // Copy back to p_graph
-  p_graph = graph::copy_subgraph_partitions(std::move(p_graph), p_subgraphs, result);
+  p_graph = graph::copy_subgraph_partitions(std::move(p_graph), p_subgraphs, result, size);
 
   EXPECT_EQ(p_graph.k(), size); // k should not have changed
   ASSERT_EQ(p_graph.n(), 1);
@@ -475,7 +475,7 @@ TEST(GlobalGraphExtractionTest, project_isolated_nodes_2_partition) {
   p_subgraphs.emplace_back(subgraph, 2, std::move(partition));
 
   // Copy back to p_graph
-  p_graph = graph::copy_subgraph_partitions(std::move(p_graph), p_subgraphs, result);
+  p_graph = graph::copy_subgraph_partitions(std::move(p_graph), p_subgraphs, result, 2 * size);
 
   EXPECT_EQ(p_graph.k(), 2 * size); // k should not have doubled
   ASSERT_EQ(p_graph.n(), 2);
@@ -516,7 +516,7 @@ TEST(GlobalGraphExtractionTest, project_circle_clique_partition) {
   p_subgraphs.emplace_back(subgraph, static_cast<BlockID>(size), std::move(partition));
 
   // Copy back to p_graph
-  p_graph = graph::copy_subgraph_partitions(std::move(p_graph), p_subgraphs, result);
+  p_graph = graph::copy_subgraph_partitions(std::move(p_graph), p_subgraphs, result, size * size);
 
   // Should have size * (size / 2) blocks now
   ASSERT_EQ(p_graph.k(), size * size);
@@ -691,7 +691,7 @@ TEST(GlobalGraphExtractionTest, project_from_circle_clique_graph_less_pes_than_b
   p_subgraphs.push_back(std::move(p_subgraph));
 
   // Project back
-  p_graph = graph::copy_subgraph_partitions(std::move(p_graph), p_subgraphs, result);
+  p_graph = graph::copy_subgraph_partitions(std::move(p_graph), p_subgraphs, result, size);
 
   EXPECT_EQ(p_graph.k(), size);
 

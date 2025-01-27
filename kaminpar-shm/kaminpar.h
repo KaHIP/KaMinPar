@@ -26,7 +26,7 @@
 #include <stdint.h>
 
 #define KAMINPAR_VERSION_MAJOR 3
-#define KAMINPAR_VERSION_MINOR 0
+#define KAMINPAR_VERSION_MINOR 1
 #define KAMINPAR_VERSION_PATCH 0
 
 #ifdef __cplusplus
@@ -608,6 +608,9 @@ Context create_noref_context();
 
 Context create_vcycle_context(bool restrict_refinement = false);
 
+Context create_esa21_smallk_context();
+Context create_esa21_largek_context();
+
 } // namespace kaminpar::shm
 #endif // __cplusplus
 
@@ -658,6 +661,8 @@ public:
 
   /*!
    * Sets the verbosity of the partitioner.
+   *
+   * @param output_level Integer verbosity level, higher values mean more output.
    */
   void set_output_level(OutputLevel output_level);
 

@@ -12,7 +12,7 @@
 #include <mpi.h>
 
 #include "kaminpar-dist/coarsening/coarsener.h"
-#include "kaminpar-dist/context.h"
+#include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/factories.h"
 
 #include "kaminpar-common/logger.h"

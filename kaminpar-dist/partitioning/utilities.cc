@@ -7,14 +7,113 @@
  ******************************************************************************/
 #include "kaminpar-dist/partitioning/utilities.h"
 
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
+#include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/logger.h"
 #include "kaminpar-dist/metrics.h"
 #include "kaminpar-dist/timer.h"
 
+#include "kaminpar-shm/partitioning/partition_utils.h"
+
+#include "kaminpar-common/math.h"
+
 namespace kaminpar::dist {
+
+namespace {
+
+SET_DEBUG(false);
+
+}
+
+PartitionContext create_refinement_context(
+    const Context &input_ctx, const DistributedGraph &graph, const BlockID current_k, bool toplevel
+) {
+  const BlockID input_k = input_ctx.partition.k;
+
+  std::vector<BlockWeight> max_block_weights(current_k);
+  BlockID cur_fine_block = 0;
+  for (BlockID coarse_block = 0; coarse_block < current_k; ++coarse_block) {
+    const BlockID num = shm::partitioning::compute_final_k(coarse_block, current_k, input_k);
+    const BlockID begin = cur_fine_block;
+    const BlockID end = cur_fine_block + num;
+    cur_fine_block += num;
+
+    max_block_weights[coarse_block] =
+        input_ctx.partition.total_unrelaxed_max_block_weights(begin, end);
+  }
+
+  PartitionContext new_p_ctx;
+  new_p_ctx.setup(graph, std::move(max_block_weights), !toplevel);
+
+  // @todo
+  if (input_ctx.partition.has_epsilon()) {
+    new_p_ctx.set_epsilon(input_ctx.partition.epsilon());
+  }
+
+  return new_p_ctx;
+}
+
+shm::PartitionContext create_initial_partitioning_context(
+    const Context &input_ctx,
+    const shm::Graph &graph,
+    const BlockID current_block,
+    const BlockID current_k,
+    const BlockID desired_k
+) {
+
+  shm::PartitionContext p_ctx;
+
+  if (math::is_power_of_2(input_ctx.partition.k)) {
+    const BlockID even_k_per_block = desired_k / current_k;
+
+    const double epsilon = [&] {
+      if (current_k == 1) {
+        return input_ctx.partition.epsilon();
+      } else {
+        const double target_max_block_weight = (1.0 + input_ctx.partition.epsilon()) *
+                                               input_ctx.partition.global_total_node_weight /
+                                               desired_k;
+        return std::max(
+            0.001,
+            1.0 * target_max_block_weight / graph.total_node_weight() * even_k_per_block - 1.0
+        );
+      }
+    }();
+
+    p_ctx.setup(graph, even_k_per_block, epsilon, true);
+  } else {
+    const BlockID k = (desired_k == input_ctx.partition.k)
+                          ? shm::partitioning::compute_final_k(current_block, current_k, desired_k)
+                          : desired_k / current_k;
+
+    std::vector<shm::BlockWeight> max_block_weights(k);
+    BlockID cur_begin =
+        shm::partitioning::compute_first_sub_block(current_block, current_k, input_ctx.partition.k);
+
+    for (BlockID b = 0; b < k; ++b) {
+      const BlockID num_subblocks = [&]() -> BlockID {
+        if (desired_k == input_ctx.partition.k) {
+          return 1;
+        } else {
+          return shm::partitioning::compute_final_k(
+              current_block * k + b, desired_k, input_ctx.partition.k
+          );
+        }
+      }();
+
+      max_block_weights[b] = input_ctx.partition.total_unrelaxed_max_block_weights(
+          cur_begin, cur_begin + num_subblocks
+      );
+
+      cur_begin += num_subblocks;
+    }
+
+    p_ctx.setup(graph, std::move(max_block_weights), true);
+  }
+
+  return p_ctx;
+}
 
 void print_input_graph(const DistributedGraph &graph, const bool verbose) {
   TIMER_BARRIER(graph.communicator());
@@ -52,12 +151,12 @@ void print_coarsened_graph(
 }
 
 void print_coarsening_converged() {
-  LOG << "==> Coarsening converged.";
+  LOG << "==> Coarsening converged";
   LOG;
 }
 
 void print_coarsening_terminated(const GlobalNodeID desired_num_nodes) {
-  LOG << "==> Coarsening terminated with less than " << desired_num_nodes << " nodes.";
+  LOG << "==> Coarsening terminated with less than " << desired_num_nodes << " nodes";
   LOG;
 }
 
@@ -72,10 +171,10 @@ void print_initial_partitioning_result(
   const bool feasible = metrics::is_feasible(p_graph, p_ctx);
 
   LOG << "Initial partition:";
-  LOG << "  Number of blocks: " << p_graph.k();
-  LOG << "  Cut:              " << cut;
-  LOG << "  Imbalance:        " << imbalance;
-  LOG << "  Feasible:         " << (feasible ? "yes" : "no");
+  LOG << " Number of blocks: " << p_graph.k();
+  LOG << " Cut:              " << cut;
+  LOG << " Imbalance:        " << imbalance;
+  LOG << " Feasible:         " << (feasible ? "yes" : "no");
 }
 
 } // namespace kaminpar::dist
