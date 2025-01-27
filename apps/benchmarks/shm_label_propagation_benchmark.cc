@@ -34,6 +34,8 @@ int main(int argc, char *argv[]) {
   std::string graph_filename;
   io::GraphFileFormat graph_file_format = io::GraphFileFormat::METIS;
   int seed = 0;
+  double epsilon = 0.03;
+  BlockID k = 2;
 
   CLI::App app("Shared-memory LP benchmark");
   app.add_option("-G,--graph", graph_filename, "Graph file")->required();
@@ -44,10 +46,10 @@ int main(int argc, char *argv[]) {
   - parhip)");
   app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads");
   app.add_option("-s,--seed", seed, "Seed for random number generation.")->default_val(seed);
-  app.add_option("-k,--k", ctx.partition.k, "Number of blocks in the partition.")->required();
+  app.add_option("-k,--k", k, "Number of blocks in the partition.")->required();
   app.add_option(
          "-e,--epsilon",
-         ctx.partition.epsilon,
+         epsilon,
          "Maximum allowed imbalance, e.g. 0.03 for 3%. Must be strictly positive."
   )
       ->check(CLI::NonNegativeNumber)
@@ -62,9 +64,9 @@ int main(int argc, char *argv[]) {
 
   Graph graph =
       io::read(graph_filename, graph_file_format, ctx.node_ordering, ctx.compression.enabled);
-  ctx.setup(graph);
+  ctx.compression.setup(graph);
+  ctx.partition.setup(graph, k, epsilon);
 
-  const double original_epsilon = ctx.partition.epsilon;
   if (ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
     if (ctx.compression.enabled) {
       LOG_WARNING << "A compressed graph cannot be rearranged by degree buckets. Disabling "
@@ -76,11 +78,12 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  if (graph.sorted()) {
-    graph::remove_isolated_nodes(graph, ctx.partition);
+  if (ctx.edge_ordering == EdgeOrdering::COMPRESSION && !ctx.compression.enabled) {
+    CSRGraph &csr_graph = graph.csr_graph();
+    graph::reorder_edges_by_compression(csr_graph);
   }
 
-  LPClustering lp_clustering(ctx.coarsening);
+  LPClustering lp_clustering(ctx);
   lp_clustering.set_max_cluster_weight(compute_max_cluster_weight<NodeWeight>(
       ctx.coarsening, ctx.partition, graph.n(), graph.total_node_weight()
   ));
