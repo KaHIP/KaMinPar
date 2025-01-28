@@ -50,6 +50,12 @@ int main(int argc, char *argv[]) {
   StaticArray<NodeID> clustering(graph.n());
   timer::LocalTimer timer;
 
+  NodeID num_deg0_nodes = 0;
+  for (const NodeID u : graph.nodes()) {
+    num_deg0_nodes += graph.degree(u) == 0;
+  }
+  LOG << "Number of deg0 nodes: " << num_deg0_nodes;
+
   LOG << "Graph,N,M,Threads,Threshold,NumVisited,NumSkipped,Time";
   const std::string graph_name = str::extract_basename(graph_filename);
 

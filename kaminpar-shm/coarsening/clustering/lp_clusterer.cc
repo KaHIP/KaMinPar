@@ -73,14 +73,25 @@ struct AvgDegreeSampler {
 
   NodeID skip(const NodeID u, EdgeID, NodeID) {
     const EdgeID degree = _graph->degree(u);
+
     if (degree <= _target) {
       return 1;
     }
 
-    std::geometric_distribution<> gd(1.0 - 1.0 * _target / degree);
-    return 1 + gd(*this);
+    const double p = 1.0 * _target / degree; 
+    if (p == 0.0) {
+      return _graph->n();
+    }
+
+    const double logp = std::log(1.0 - p); 
+    return 1 + static_cast<NodeID>(std::ceil(std::log(1.0 - next()) / logp));
   }
 
+  double next() {
+    return _precomputed_doubles[_next++ & kPeriode];
+  }
+
+  // Make *this a random generator:
   double min() {
     return 0;
   }
@@ -88,7 +99,7 @@ struct AvgDegreeSampler {
     return 1;
   }
   double operator()() {
-    return _precomputed_doubles[_next++ & kPeriode];
+    return next();
   }
 
   std::vector<double> _precomputed_doubles;
@@ -97,9 +108,10 @@ struct AvgDegreeSampler {
   Random &_rand = Random::instance();
 
   const CSRGraph *_graph;
-  EdgeID _avg_deg = kInvalidEdgeID;
-  EdgeID _target = kInvalidEdgeID;
-  NodeID _last_u = kInvalidNodeID;
+  double _avg_deg = kInvalidEdgeID;
+  double _target = kInvalidEdgeID;
+  //NodeID _last_deg = kInvalidNodeID;
+  //NodeID _last_u = kInvalidNodeID;
 };
 
 template <typename Graph, typename NeighborhoodSampler = void>
