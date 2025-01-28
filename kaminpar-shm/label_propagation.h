@@ -84,6 +84,10 @@ template <typename Sampler, bool = std::is_void_v<Sampler>> struct NeighborhoodS
     return true;
   }
 
+  KAMINPAR_INLINE bool next(auto) {
+    return false;
+  }
+
   KAMINPAR_INLINE shm::NodeID skip(auto, auto, auto) {
     return 1;
   }
@@ -94,6 +98,10 @@ template <typename Sampler> struct NeighborhoodSamplerWrapper<Sampler, false> {
 
   KAMINPAR_INLINE void init(const shm::Context &ctx, const auto &graph) {
     sampler.init(ctx, graph);
+  }
+
+  KAMINPAR_INLINE bool next(const auto u) {
+    return sampler.next(u);
   }
 
   KAMINPAR_INLINE bool accept(const auto u, const auto v, const auto w) {
@@ -546,21 +554,31 @@ protected:
     // As the compressed graph data structure has some overhead when imposing a limit on the number
     // of neighbors visited, we make a case distinction here, as the general case is not to restrict
     // the number of neighbors visited
-    for (EdgeID e = _graph->first_edge(u); e < _graph->first_invalid_edge(u);) {
-      const NodeID v = _graph->edge_target(e);
-      if (sampler.accept(u, e, v)) {
+    const bool use_sampling = sampler.next(u);
+    if (use_sampling) {
+      for (EdgeID e = _graph->first_edge(u); e < _graph->first_invalid_edge(u);) {
+        const NodeID v = _graph->edge_target(e);
+        if (sampler.accept(u, e, v)) {
+          IFSTATS(++_num_accessed_neighbors_ets.local());
+          const ClusterID v_cluster = derived_cluster(v);
+          map[v_cluster] += _graph->edge_weight(e);
+        } else {
+          IFSTATS(++_num_skipped_neighbors_ets.local());
+        }
+        const NodeID skip = sampler.skip(u, e, v);
+        IFSTATS(
+            _num_skipped_neighbors_ets.local() +=
+            std::min(skip - 1, _graph->first_invalid_edge(u) - e - 1)
+        );
+        e += skip;
+      }
+    } else {
+      for (EdgeID e = _graph->first_edge(u); e < _graph->first_invalid_edge(u); ++e) {
+        const NodeID v = _graph->edge_target(e);
         IFSTATS(++_num_accessed_neighbors_ets.local());
         const ClusterID v_cluster = derived_cluster(v);
         map[v_cluster] += _graph->edge_weight(e);
-      } else {
-        IFSTATS(++_num_skipped_neighbors_ets.local());
       }
-      const NodeID skip = sampler.skip(u, e, v);
-      IFSTATS(
-          _num_skipped_neighbors_ets.local() +=
-          std::min(skip - 1, _graph->first_invalid_edge(u) - e - 1)
-      );
-      e += skip;
     }
 
     if constexpr (Config::kUseActiveSetStrategy) {
@@ -627,9 +645,32 @@ protected:
     // As the compressed graph data structure has some overhead when imposing a limit on the number
     // of neighbors visited, we make a case distinction here, as the general case is not to restrict
     // the number of neighbors visited
-    for (EdgeID e = _graph->first_edge(u); e < _graph->first_invalid_edge(u);) {
-      const NodeID v = _graph->edge_target(e);
-      if (sampler.accept(u, e, v)) {
+    const bool use_sampling = sampler.next(u);
+    if (use_sampling) {
+      for (EdgeID e = _graph->first_edge(u); e < _graph->first_invalid_edge(u);) {
+        const NodeID v = _graph->edge_target(e);
+        if (sampler.accept(u, e, v)) {
+          IFSTATS(++_num_accessed_neighbors_ets.local());
+          const ClusterID v_cluster = derived_cluster(v);
+          map[v_cluster] += _graph->edge_weight(e);
+
+          if (map.size() >= Config::kRatingMapThreshold) [[unlikely]] {
+            is_second_phase_node = true;
+            break;
+          }
+        } else {
+          IFSTATS(++_num_skipped_neighbors_ets.local());
+        }
+        const NodeID skip = sampler.skip(u, e, v);
+        IFSTATS(
+            _num_skipped_neighbors_ets.local() +=
+            std::min(skip - 1, _graph->first_invalid_edge(u) - e - 1)
+        );
+        e += skip;
+      }
+    } else {
+      for (EdgeID e = _graph->first_edge(u); e < _graph->first_invalid_edge(u); ++e) {
+        const NodeID v = _graph->edge_target(e);
         IFSTATS(++_num_accessed_neighbors_ets.local());
         const ClusterID v_cluster = derived_cluster(v);
         map[v_cluster] += _graph->edge_weight(e);
@@ -638,15 +679,7 @@ protected:
           is_second_phase_node = true;
           break;
         }
-      } else {
-        IFSTATS(++_num_skipped_neighbors_ets.local());
       }
-      const NodeID skip = sampler.skip(u, e, v);
-      IFSTATS(
-          _num_skipped_neighbors_ets.local() +=
-          std::min(skip - 1, _graph->first_invalid_edge(u) - e - 1)
-      );
-      e += skip;
     }
 
     if (is_second_phase_node) [[unlikely]] {
@@ -1101,12 +1134,12 @@ protected:
       return true;
     };
 
-    // There could be edge cases where the favorite cluster of a node is itself a singleton cluster
-    // (for instance, if a node joins another cluster during the first round, but moves out of the
-    // cluster in the next round)
-    // Since the following code is based on the ansumption that the favorite cluster of a node that
-    // is considered for two-hop clustering it itself not considere for two-hop clustering, we fix
-    // this situation by moving the nodes to their favorite cluster, if possible, here.
+    // There could be edge cases where the favorite cluster of a node is itself a singleton
+    // cluster (for instance, if a node joins another cluster during the first round, but moves
+    // out of the cluster in the next round) Since the following code is based on the ansumption
+    // that the favorite cluster of a node that is considered for two-hop clustering it itself not
+    // considere for two-hop clustering, we fix this situation by moving the nodes to their
+    // favorite cluster, if possible, here.
     tbb::parallel_for(from, std::min(to, _graph->n()), [&](const NodeID u) {
       if (is_considered_for_two_hop_clustering(u)) {
         const NodeID cluster = _favored_clusters[u];
@@ -1141,7 +1174,8 @@ protected:
           }
           return true;
         }(),
-        "precondition for two-hop clustering violated: found favored clusters that could be joined",
+        "precondition for two-hop clustering violated: found favored clusters that could be "
+        "joined",
         assert::heavy
     );
 
@@ -1440,8 +1474,8 @@ protected: // Members
   //! be considered in the next iteration.
   StaticArray<std::uint8_t> _active;
 
-  //! Flags nodes that joined another cluster. This information is used during 2-hop clustering when
-  //! we relabel the clusters.
+  //! Flags nodes that joined another cluster. This information is used during 2-hop clustering
+  //! when we relabel the clusters.
   StaticArray<std::uint8_t> _moved;
 
   //! Store whether we relabeled the clusters and thus have to use the information of the _moved
@@ -1627,8 +1661,8 @@ public:
       std::vector<Bucket>>;
 
   /*!
-   * Sets the data structures to use, which can save memory space when (unused) data structures are
-   * already in memory.
+   * Sets the data structures to use, which can save memory space when (unused) data structures
+   * are already in memory.
    *
    * @param structs The data structures to use.
    */

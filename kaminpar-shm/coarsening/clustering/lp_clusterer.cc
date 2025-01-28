@@ -35,6 +35,10 @@ struct AllNeighborsSampler {
     return true;
   }
 
+  bool next(NodeID) {
+    return false;
+  }
+
   NodeID skip(NodeID, EdgeID, NodeID) {
     return 1;
   }
@@ -71,20 +75,32 @@ struct AvgDegreeSampler {
     return true;
   }
 
-  NodeID skip(const NodeID u, EdgeID, NodeID) {
+  bool next(const NodeID u) {
     const EdgeID degree = _graph->degree(u);
+    if (degree <= _target) {
+      return false;
+    }
+
+    const double p = 1.0 * _target / degree;
+    _log_1mp = std::log(1.0 - p);
+    return true;
+  }
+
+  NodeID skip(NodeID, EdgeID, NodeID) {
+    /*const EdgeID degree = _graph->degree(u);
 
     if (degree <= _target) {
       return 1;
     }
 
-    const double p = 1.0 * _target / degree; 
+    const double p = 1.0 * _target / degree;
     if (p == 0.0) {
       return _graph->n();
     }
 
-    const double logp = std::log(1.0 - p); 
-    return 1 + static_cast<NodeID>(std::ceil(next() / logp));
+    const double logp = std::log(1.0 - p);
+    return 1 + static_cast<NodeID>(std::ceil(next() / logp));*/
+    return _log_1mp == 0.0 ? _graph->n() : 1 + static_cast<NodeID>(std::ceil(next() / _log_1mp));
   }
 
   double next() {
@@ -110,8 +126,9 @@ struct AvgDegreeSampler {
   const CSRGraph *_graph;
   double _avg_deg = kInvalidEdgeID;
   double _target = kInvalidEdgeID;
-  //NodeID _last_deg = kInvalidNodeID;
-  //NodeID _last_u = kInvalidNodeID;
+  double _log_1mp = 0.0;
+  // NodeID _last_deg = kInvalidNodeID;
+  // NodeID _last_u = kInvalidNodeID;
 };
 
 template <typename Graph, typename NeighborhoodSampler = void>
