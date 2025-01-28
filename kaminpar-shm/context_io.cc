@@ -430,25 +430,21 @@ std::unordered_map<std::string, ContractionImplementation> get_contraction_imple
   };
 }
 
-std::ostream &operator<<(std::ostream &out, const NeighborhoodSamplingStrategy strategy) {
+std::ostream &operator<<(std::ostream &out, const SamplingStrategy strategy) {
   switch (strategy) {
-  case NeighborhoodSamplingStrategy::DISABLED:
-    return out << "disabled";
-  case NeighborhoodSamplingStrategy::ALL:
+  case SamplingStrategy::ALL:
     return out << "all";
-  case NeighborhoodSamplingStrategy::AVG_DEGREE:
+  case SamplingStrategy::AVG_DEGREE:
     return out << "avg-degree";
   }
 
   return out << "<invalid>";
 }
 
-std::unordered_map<std::string, NeighborhoodSamplingStrategy>
-get_neighborhood_sampling_strategies() {
+std::unordered_map<std::string, SamplingStrategy> get_sampling_strategies() {
   return {
-      {"disabled", NeighborhoodSamplingStrategy::DISABLED},
-      {"all", NeighborhoodSamplingStrategy::ALL},
-      {"avg-degree", NeighborhoodSamplingStrategy::AVG_DEGREE},
+      {"all", SamplingStrategy::ALL},
+      {"avg-degree", SamplingStrategy::AVG_DEGREE},
   };
 }
 

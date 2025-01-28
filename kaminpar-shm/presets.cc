@@ -127,9 +127,10 @@ Context create_default_context() {
                               .isolated_nodes_strategy =
                                   IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP,
                               .tie_breaking_strategy = TieBreakingStrategy::UNIFORM,
-                              .neighborhood_sampling_strategy =
-                                  NeighborhoodSamplingStrategy::DISABLED,
-                              .neighborhood_sampling_avg_degree_threshold = 1.0,
+                              .sampling_strategy = SamplingStrategy::ALL,
+                              .sample_only_toplevel = false,
+                              .sample_only_first_iteration = false,
+                              .avg_degree_threshold = 1.0,
                           },
 
                       .cluster_weight_limit = ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,

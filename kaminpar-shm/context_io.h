@@ -81,10 +81,9 @@ std::ostream &operator<<(std::ostream &out, const ContractionImplementation mode
 
 std::unordered_map<std::string, ContractionImplementation> get_contraction_implementations();
 
-std::ostream &operator<<(std::ostream &out, const NeighborhoodSamplingStrategy strategy);
+std::ostream &operator<<(std::ostream &out, const SamplingStrategy strategy);
 
-std::unordered_map<std::string, NeighborhoodSamplingStrategy>
-get_neighborhood_sampling_strategies();
+std::unordered_map<std::string, SamplingStrategy> get_sampling_strategies();
 
 void print(const Context &ctx, std::ostream &out);
 void print(const GraphCompressionContext &c_ctx, std::ostream &out);

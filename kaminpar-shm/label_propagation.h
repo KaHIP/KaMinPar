@@ -198,6 +198,14 @@ public:
     return _num_skipped_neighbors_ets.combine(std::plus{});
   }
 
+  void disable_sampling() {
+    _use_neighborhood_sampler = false;
+  }
+
+  void enable_sampling() {
+    _use_neighborhood_sampler = true;
+  }
+
 protected:
   /*!
    * Selects the number of nodes \c num_nodes of the graph for which a clustering is to be
@@ -554,7 +562,7 @@ protected:
     // As the compressed graph data structure has some overhead when imposing a limit on the number
     // of neighbors visited, we make a case distinction here, as the general case is not to restrict
     // the number of neighbors visited
-    const bool use_sampling = sampler.next(u);
+    const bool use_sampling = _use_neighborhood_sampler && sampler.next(u);
     if (use_sampling) {
       for (EdgeID e = _graph->first_edge(u); e < _graph->first_invalid_edge(u);) {
         const NodeID v = _graph->edge_target(e);
@@ -645,7 +653,7 @@ protected:
     // As the compressed graph data structure has some overhead when imposing a limit on the number
     // of neighbors visited, we make a case distinction here, as the general case is not to restrict
     // the number of neighbors visited
-    const bool use_sampling = sampler.next(u);
+    const bool use_sampling = _use_neighborhood_sampler && sampler.next(u);
     if (use_sampling) {
       for (EdgeID e = _graph->first_edge(u); e < _graph->first_invalid_edge(u);) {
         const NodeID v = _graph->edge_target(e);
@@ -1494,6 +1502,8 @@ protected: // Members
   //! were performed. If executed single-thread, this should be equal to the
   //! reduction of the edge cut.
   parallel::Atomic<EdgeWeight> _expected_total_gain;
+
+  bool _use_neighborhood_sampler = true;
 
   tbb::enumerable_thread_specific<Sampler> _neighborhood_sampler{[&] {
     Sampler sampler;

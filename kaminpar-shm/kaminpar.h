@@ -197,8 +197,7 @@ enum class ContractionImplementation {
   GROWING_HASH_TABLES
 };
 
-enum class NeighborhoodSamplingStrategy {
-  DISABLED,
+enum class SamplingStrategy {
   ALL,
   AVG_DEGREE,
 };
@@ -218,8 +217,10 @@ struct LabelPropagationCoarseningContext {
 
   TieBreakingStrategy tie_breaking_strategy;
 
-  NeighborhoodSamplingStrategy neighborhood_sampling_strategy;
-  double neighborhood_sampling_avg_degree_threshold;
+  SamplingStrategy sampling_strategy;
+  bool sample_only_toplevel;
+  bool sample_only_first_iteration;
+  double avg_degree_threshold;
 };
 
 struct ContractionCoarseningContext {

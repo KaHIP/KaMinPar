@@ -298,20 +298,22 @@ Options are:
   )")
       ->capture_default_str();
 
-  lp->add_option(
-        "--c-lp-neighborhood-sampling-strategy",
-        ctx.coarsening.clustering.lp.neighborhood_sampling_strategy
-  )
-      ->transform(CLI::CheckedTransformer(get_neighborhood_sampling_strategies()).description(""))
+  lp->add_option("--c-lp-sampling-strategy", ctx.coarsening.clustering.lp.sampling_strategy)
+      ->transform(CLI::CheckedTransformer(get_sampling_strategies()).description(""))
       ->description(R"(Determines the strategy for sampling neighborhoods during label propagation.
 Options are:
-  - all:      Sample all neighbors
+  - all:        Always visit all neighbors
+  - avg_degree: Sample neighbors s.t. we visit at most average degree times some factor neighbors from each node
   )")
       ->capture_default_str();
-  lp->add_option(
-        "--c-lp-neighborhood-sampling-avg-degree-threshold",
-        ctx.coarsening.clustering.lp.neighborhood_sampling_avg_degree_threshold
+  lp->add_flag("--c-lp-sample-only-toplevel", ctx.coarsening.clustering.lp.sample_only_toplevel)
+      ->capture_default_str();
+  lp->add_flag(
+        "--c-lp-sample-only-first-iteration",
+        ctx.coarsening.clustering.lp.sample_only_first_iteration
   )
+      ->capture_default_str();
+  lp->add_option("--c-lp-avg-degree-threshold", ctx.coarsening.clustering.lp.avg_degree_threshold)
       ->capture_default_str();
 
   return lp;

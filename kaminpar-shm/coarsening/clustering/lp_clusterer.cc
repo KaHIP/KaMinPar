@@ -28,7 +28,7 @@ template <typename NeighborhoodSampler_> struct LPClusteringConfig : public Labe
   using NeighborhoodSampler = NeighborhoodSampler_;
 };
 
-struct AllNeighborsSampler {
+struct AllSampler {
   void init(const Context &, const CSRGraph &) {}
 
   bool accept(NodeID, EdgeID, NodeID) {
@@ -48,30 +48,23 @@ struct AvgDegreeSampler {
   constexpr static std::size_t kPeriode = 1023;
 
   AvgDegreeSampler() {
+    Random &rand = Random::instance();
+
     _precomputed_doubles.resize(kPeriode + 1);
     for (double &d : _precomputed_doubles) {
-      d = std::log(1.0 - _rand.random_real());
+      d = std::log(1.0 - rand.random_real());
     }
   }
 
   void init(const Context &ctx, const CSRGraph &graph) {
     _graph = &graph;
-    _avg_deg = 1.0 * _graph->m() / _graph->n();
-    _target = _avg_deg * ctx.coarsening.clustering.lp.neighborhood_sampling_avg_degree_threshold;
     _next = 0;
+
+    const double avg_deg = 1.0 * _graph->m() / _graph->n();
+    _target = avg_deg * ctx.coarsening.clustering.lp.avg_degree_threshold;
   }
 
   bool accept(NodeID, EdgeID, NodeID) {
-    /*
-    const EdgeID degree = _graph->degree(u);
-    if (degree <= _target) {
-      return true;
-    }
-
-    // return _rand.random_bool(1.0 * _target / degree);
-    return _precomputed_doubles[_next++ & kPeriode)] <= 1.0 * _target / degree;
-    */
-
     return true;
   }
 
@@ -87,19 +80,6 @@ struct AvgDegreeSampler {
   }
 
   NodeID skip(NodeID, EdgeID, NodeID) {
-    /*const EdgeID degree = _graph->degree(u);
-
-    if (degree <= _target) {
-      return 1;
-    }
-
-    const double p = 1.0 * _target / degree;
-    if (p == 0.0) {
-      return _graph->n();
-    }
-
-    const double logp = std::log(1.0 - p);
-    return 1 + static_cast<NodeID>(std::ceil(next() / logp));*/
     return _log_1mp == 0.0 ? _graph->n() : 1 + static_cast<NodeID>(std::ceil(next() / _log_1mp));
   }
 
@@ -107,28 +87,12 @@ struct AvgDegreeSampler {
     return _precomputed_doubles[_next++ & kPeriode];
   }
 
-  // Make *this a random generator:
-  double min() {
-    return 0;
-  }
-  double max() {
-    return 1;
-  }
-  double operator()() {
-    return next();
-  }
+  const CSRGraph *_graph;
 
   std::vector<double> _precomputed_doubles;
   std::size_t _next = 0;
-
-  Random &_rand = Random::instance();
-
-  const CSRGraph *_graph;
-  double _avg_deg = kInvalidEdgeID;
   double _target = kInvalidEdgeID;
   double _log_1mp = 0.0;
-  // NodeID _last_deg = kInvalidNodeID;
-  // NodeID _last_u = kInvalidNodeID;
 };
 
 template <typename Graph, typename NeighborhoodSampler = void>
@@ -198,8 +162,18 @@ public:
     ClusterBase::init_clusters_ref(clustering);
     Base::initialize(_ctx, &graph, graph.n());
 
+    const bool is_toplevel = graph.n() == _ctx.partition.n;
+    const bool sample = !_ctx.coarsening.clustering.lp.sample_only_toplevel || is_toplevel;
+
     for (std::size_t iteration = 0; iteration < _ctx.coarsening.clustering.lp.num_iterations;
          ++iteration) {
+      if (sample &&
+          (!_ctx.coarsening.clustering.lp.sample_only_first_iteration || iteration == 0)) {
+        Base::enable_sampling();
+      } else {
+        Base::disable_sampling();
+      }
+
       SCOPED_TIMER("Iteration", std::to_string(iteration));
       if (Base::perform_iteration() == 0) {
         break;
@@ -413,26 +387,25 @@ class LPClusteringImplWrapper {
 public:
   LPClusteringImplWrapper(const Context &ctx)
       : _ctx(ctx),
-        _csr_impl(std::make_unique<LPClusteringImpl<CSRGraph>>(ctx, _permutations)),
-        _csr_all_impl(
-            std::make_unique<LPClusteringImpl<CSRGraph, AllNeighborsSampler>>(ctx, _permutations)
+        _sample_all_impl(
+            std::make_unique<LPClusteringImpl<CSRGraph, AllSampler>>(ctx, _permutations)
         ),
-        _csr_avg_degree_impl(
+        _sample_avg_degree_impl(
             std::make_unique<LPClusteringImpl<CSRGraph, AvgDegreeSampler>>(ctx, _permutations)
         ) {}
 
   void set_max_cluster_weight(const NodeWeight max_cluster_weight) {
-    _csr_impl->set_max_cluster_weight(max_cluster_weight);
-    _csr_all_impl->set_max_cluster_weight(max_cluster_weight);
-    _csr_avg_degree_impl->set_max_cluster_weight(max_cluster_weight);
+    _sample_all_impl->set_max_cluster_weight(max_cluster_weight);
+    _sample_avg_degree_impl->set_max_cluster_weight(max_cluster_weight);
   }
 
   void set_desired_cluster_count(const NodeID count) {
-    _csr_impl->set_desired_num_clusters(count);
+    _sample_all_impl->set_desired_num_clusters(count);
+    _sample_avg_degree_impl->set_desired_num_clusters(count);
   }
 
-  void set_communities(std::span<const NodeID> communities) {
-    _csr_impl->set_communities(communities);
+  void set_communities(std::span<const NodeID>) {
+    // not implemented
   }
 
   void compute_clustering(
@@ -461,24 +434,18 @@ public:
     };
 
     const NodeID num_nodes = graph.n();
-    _csr_impl->preinitialize(num_nodes);
-    _csr_all_impl->preinitialize(num_nodes);
-    _csr_avg_degree_impl->preinitialize(num_nodes);
-    //_compressed_impl->preinitialize(num_nodes);
+    _sample_all_impl->preinitialize(num_nodes);
+    _sample_avg_degree_impl->preinitialize(num_nodes);
 
     graph.reified(
         [&](const auto &csr_graph) {
-          switch (_ctx.coarsening.clustering.lp.neighborhood_sampling_strategy) {
-          case NeighborhoodSamplingStrategy::DISABLED:
-            compute_clustering(*_csr_impl, csr_graph);
+          switch (_ctx.coarsening.clustering.lp.sampling_strategy) {
+          case SamplingStrategy::ALL:
+            compute_clustering(*_sample_all_impl, csr_graph);
             break;
 
-          case NeighborhoodSamplingStrategy::ALL:
-            compute_clustering(*_csr_all_impl, csr_graph);
-            break;
-
-          case NeighborhoodSamplingStrategy::AVG_DEGREE:
-            compute_clustering(*_csr_avg_degree_impl, csr_graph);
+          case SamplingStrategy::AVG_DEGREE:
+            compute_clustering(*_sample_avg_degree_impl, csr_graph);
             break;
           }
         },
@@ -486,25 +453,23 @@ public:
     );
 
     // Only relabel clusters for the first iteration
-    _csr_impl->set_relabel_before_second_phase(false);
+    _sample_all_impl->set_relabel_before_second_phase(false);
+    _sample_avg_degree_impl->set_relabel_before_second_phase(false);
   }
 
   NodeID num_skipped() {
-    return _csr_avg_degree_impl->num_skipped() + _csr_impl->num_skipped() +
-           _csr_all_impl->num_skipped();
+    return _sample_all_impl->num_skipped() + _sample_avg_degree_impl->num_skipped();
   }
 
   NodeID num_visited() {
-    return _csr_avg_degree_impl->num_visited() + _csr_impl->num_visited() +
-           _csr_all_impl->num_visited();
+    return _sample_all_impl->num_visited() + _sample_avg_degree_impl->num_visited();
   }
 
 private:
   const Context &_ctx;
 
-  std::unique_ptr<LPClusteringImpl<CSRGraph>> _csr_impl;
-  std::unique_ptr<LPClusteringImpl<CSRGraph, AllNeighborsSampler>> _csr_all_impl;
-  std::unique_ptr<LPClusteringImpl<CSRGraph, AvgDegreeSampler>> _csr_avg_degree_impl;
+  std::unique_ptr<LPClusteringImpl<CSRGraph, AllSampler>> _sample_all_impl;
+  std::unique_ptr<LPClusteringImpl<CSRGraph, AvgDegreeSampler>> _sample_avg_degree_impl;
 
   // The data structures that are used by the LP clusterer and are shared between the
   // different implementations.
