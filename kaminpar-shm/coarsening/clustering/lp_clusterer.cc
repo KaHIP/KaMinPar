@@ -46,7 +46,7 @@ struct AvgDegreeSampler {
   AvgDegreeSampler() {
     _precomputed_doubles.resize(kPeriode + 1);
     for (double &d : _precomputed_doubles) {
-      d = _rand.random_real();
+      d = std::log(1.0 - _rand.random_real());
     }
   }
 
@@ -84,7 +84,7 @@ struct AvgDegreeSampler {
     }
 
     const double logp = std::log(1.0 - p); 
-    return 1 + static_cast<NodeID>(std::ceil(std::log(1.0 - next()) / logp));
+    return 1 + static_cast<NodeID>(std::ceil(next() / logp));
   }
 
   double next() {
