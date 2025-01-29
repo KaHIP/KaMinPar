@@ -24,9 +24,5 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
     endfunction()
 
     # Distributed benchmarks
-    add_dist_benchmark(dist_coloring_benchmark dist_coloring_benchmark.cc)
-    add_dist_benchmark(dist_contraction_benchmark dist_contraction_benchmark.cc)
-    add_dist_benchmark(dist_refinement_benchmark dist_refinement_benchmark.cc)
-    add_dist_benchmark(dist_coarsening_benchmark dist_coarsening_benchmark.cc)
-    add_dist_benchmark(dist_block_clustering_benchmark dist_block_clustering_benchmark.cc)
+    # <...>
 endif ()
