@@ -17,7 +17,6 @@
 
 // ... configurable contraction algorithms:
 #include "kaminpar-shm/coarsening/contraction/buffered_cluster_contraction.h"
-#include "kaminpar-shm/coarsening/contraction/legacy_buffered_cluster_contraction.h"
 #include "kaminpar-shm/coarsening/contraction/naive_unbuffered_cluster_contraction.h"
 #include "kaminpar-shm/coarsening/contraction/unbuffered_cluster_contraction.h"
 
@@ -41,8 +40,6 @@ std::unique_ptr<CoarseGraph> contract_clustering(
   switch (con_ctx.algorithm) {
   case ContractionAlgorithm::BUFFERED:
     return contract_clustering_buffered(graph, std::move(clustering), con_ctx, m_ctx);
-  case ContractionAlgorithm::BUFFERED_LEGACY:
-    return contract_clustering_buffered_legacy(graph, std::move(clustering), con_ctx, m_ctx);
   case ContractionAlgorithm::UNBUFFERED:
     return contract_clustering_unbuffered(graph, std::move(clustering), con_ctx, m_ctx);
   case ContractionAlgorithm::UNBUFFERED_NAIVE:
