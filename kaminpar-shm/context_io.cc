@@ -389,8 +389,6 @@ std::ostream &operator<<(std::ostream &out, const ContractionAlgorithm mode) {
   switch (mode) {
   case ContractionAlgorithm::BUFFERED:
     return out << "buffered";
-  case ContractionAlgorithm::BUFFERED_LEGACY:
-    return out << "buffered-legacy";
   case ContractionAlgorithm::UNBUFFERED:
     return out << "unbuffered";
   case ContractionAlgorithm::UNBUFFERED_NAIVE:
@@ -403,7 +401,6 @@ std::ostream &operator<<(std::ostream &out, const ContractionAlgorithm mode) {
 std::unordered_map<std::string, ContractionAlgorithm> get_contraction_algorithms() {
   return {
       {"buffered", ContractionAlgorithm::BUFFERED},
-      {"buffered-legacy", ContractionAlgorithm::BUFFERED_LEGACY},
       {"unbuffered", ContractionAlgorithm::UNBUFFERED},
       {"unbuffered-naive", ContractionAlgorithm::UNBUFFERED_NAIVE},
   };
