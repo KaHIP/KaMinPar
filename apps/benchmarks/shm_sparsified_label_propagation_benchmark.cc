@@ -50,20 +50,12 @@ int main(int argc, char *argv[]) {
   StaticArray<NodeID> clustering(graph.n());
   timer::LocalTimer timer;
 
-  NodeID num_deg0_nodes = 0;
-  for (const NodeID u : graph.nodes()) {
-    num_deg0_nodes += graph.degree(u) == 0;
-  }
-  LOG << "Number of deg0 nodes: " << num_deg0_nodes;
-
   LOG << "Graph,N,M,Threads,Threshold,NumVisited,NumSkipped,Time";
   const std::string graph_name = str::extract_basename(graph_filename);
 
-  for (const double avg_degree :
-       {0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.5, 2.0, 2.5, 3.0, 1000.0}) {
-    ctx.coarsening.clustering.lp.neighborhood_sampling_strategy =
-        NeighborhoodSamplingStrategy::AVG_DEGREE;
-    ctx.coarsening.clustering.lp.neighborhood_sampling_avg_degree_threshold = avg_degree;
+  for (const double avg_degree : {0.0, 0.125, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 5.0, 1000.0}) {
+    ctx.coarsening.clustering.lp.sampling_strategy = SamplingStrategy::AVG_DEGREE;
+    ctx.coarsening.clustering.lp.avg_degree_threshold = avg_degree;
     ctx.coarsening.clustering.lp.num_iterations = 1;
     ctx.coarsening.clustering.lp.impl = LabelPropagationImplementation::SINGLE_PHASE;
 
