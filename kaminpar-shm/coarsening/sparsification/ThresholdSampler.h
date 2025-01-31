@@ -23,29 +23,20 @@ public:
       scores = this->_score_function->scores(g);
     }
 
-      Score threshold;
+      utils::K_SmallestInfo<Score> threshold;
       {
         SCOPED_TIMER("Find Threshold with qselect");
         threshold =
             utils::quickselect_k_smallest<Score>(target_edge_amount, scores.begin(), scores.end());
       }
-      EdgeID edges_less_than_threshold = 0;
+
+      double inclusion_probaility_if_equal = (target_edge_amount / 2 - threshold.number_of_elements_smaller) / threshold.number_of_elemtns_equal;
       utils::parallel_for_upward_edges(g, [&](EdgeID e) {
-        if (scores[e] < threshold) {
+        if (scores[e] < threshold.value || (scores[e] == threshold.value && Random::instance().random_bool(inclusion_probaility_if_equal))) {
           sample[e] = g.edge_weight(e);
-          __atomic_fetch_add(&edges_less_than_threshold, 1, __ATOMIC_RELAXED);
         }
       });
 
-      std::atomic_int64_t edges_at_thresholds_to_include = target_edge_amount / 2 - edges_less_than_threshold;
-
-      utils::parallel_for_upward_edges(g, [&](EdgeID e) {
-        if (scores[e] == threshold) {
-          if (edges_at_thresholds_to_include-- > 0) {
-            sample[e] = g.edge_weight(e);
-          }
-        }
-      });
     return sample;
   }
 

@@ -98,7 +98,7 @@ TEST(SparsificationUtils, MedianOfMedians) {
       42      // median 42
   };
   ASSERT_EQ(
-      sparsification::utils::medians_of_medians<int>(
+      sparsification::utils::median_of_medians<int>(
           numbers_with_mom_2.begin(), numbers_with_mom_2.end()
       ),
       2
