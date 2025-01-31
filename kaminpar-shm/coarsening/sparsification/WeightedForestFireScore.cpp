@@ -16,8 +16,6 @@ StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
   StaticArray<EdgeID> burnt(g.m(), 0);
   EdgeID edges_burnt = 0;
 
-  tbb::concurrent_vector<EdgeID> numbers_of_edges_burnt;
-
   int number_of_fires = 0;
   tbb::parallel_for(0, tbb::this_task_arena::max_concurrency(), [&](auto) {
     // Preallocate everything here
@@ -84,44 +82,24 @@ StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
         }
       }
       __atomic_add_fetch(&edges_burnt, localEdgesBurnt, __ATOMIC_RELAXED);
-      // numbers_of_edges_burnt.push_back(localEdgesBurnt);
     }
   });
 
-  print_fire_statistics(g, edges_burnt, number_of_fires, numbers_of_edges_burnt);
+  print_fire_statistics(g, edges_burnt, number_of_fires);
 
   // Not normalized unlike in the NetworKit implementation
   return burnt;
 }
 
 void WeightedForestFireScore::print_fire_statistics(
-    const CSRGraph &g,
-    EdgeID edges_burnt,
-    int number_of_fires,
-    tbb::concurrent_vector<EdgeID> numbers_of_edges_burnt
+    const CSRGraph &g, EdgeID edges_burnt, int number_of_fires
 ) {
   const auto default_precision{std::cout.precision()};
   std::cout << std::setprecision(4);
 
-  double average = static_cast<double>(edges_burnt) / number_of_fires;
-  /*
-  double variance = 0;
-  for (auto x : numbers_of_edges_burnt) {
-    double local_burnt = static_cast<double>(x);
-    variance += (local_burnt - average) * (local_burnt - average) / (number_of_fires - 1);
-  }
-  */
-
   std::cout << "** targetBurntRatio=" << _targetBurnRatio << ", pf=" << _pf << "\n";
   std::cout << "** m=" << g.m() << ", n=" << g.n() << "\n";
   std::cout << "** " << number_of_fires << " fires have burned " << edges_burnt << " edges\n";
-  /*
-  std::cout << "** edges burnt per fire: avg=" << average << ", var=" << variance << " min="
-            << *std::min_element(numbers_of_edges_burnt.begin(), numbers_of_edges_burnt.end())
-            << ", max="
-            << *std::max_element(numbers_of_edges_burnt.begin(), numbers_of_edges_burnt.end())
-            << "\n";
-  */
 
   std::cout << std::setprecision(default_precision);
 }

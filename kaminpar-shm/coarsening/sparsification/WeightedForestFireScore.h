@@ -15,11 +15,6 @@ private:
   double _pf;
   double _targetBurnRatio;
 
-  void print_fire_statistics(
-      const CSRGraph &g,
-      EdgeID edges_burnt,
-      int number_of_fires,
-      tbb::concurrent_vector<EdgeID> numbers_of_edges_burnt
-  );
+  void print_fire_statistics(const CSRGraph &g, EdgeID edges_burnt, int number_of_fires);
 };
 } // namespace kaminpar::shm::sparsification
