@@ -135,7 +135,6 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
   - k-neighbour-spanning-tree, kn-st: k-Neighbour sampling with spanning tree
   - unbiased-threshold, ut: sample edges above a threshold T, and other edges with probability w(e)/T
   - weight-threshold, wt: sample edges with weights above threshold
-  - effective-resistance, er: sample edges with relative effective-resistance above threshold
   - independent-random, ir: sample edges indepently with probabilites proportional to scores
   - random-with-replacement, rw/r: draw random edges WITH replacment and probailites proportinal to scores
   - random-without-replacement, rw/or: draw random edges WITHOUT replacment and probailites proportinal to scores)"
@@ -146,7 +145,7 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
       ->transform(CLI::CheckedTransformer(get_score_function()))
       ->description(R"(How the scores for sampling are calculated:
   - weight, w: use edge weights as scores
-  - effective-restistance, er: effective resistance relativ to the resistance of an edge
+  - wff: weighted forest fire
   - forest-fire, ff)")
       ->capture_default_str();
 

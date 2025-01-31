@@ -30,7 +30,6 @@
 
 #include "coarsening/sparsification/DensitySparsificationTarget.h"
 #include "coarsening/sparsification/EdgeReductionSparsificationTarget.h"
-#include "coarsening/sparsification/EffectiveResistanceScore.h"
 #include "coarsening/sparsification/IndependentRandomSampler.h"
 #include "coarsening/sparsification/NetworKitScoreAdapter.h"
 #include "coarsening/sparsification/NetworKitWeightedForestFireScore.hpp"
@@ -131,10 +130,6 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
         std::make_unique<WeightFunction>()
 
     );
-  case SparsificationAlgorithm::EFFECTIVE_RESISTANCE:
-    return std::make_unique<sparsification::ThresholdSampler<double>>(
-        std::make_unique<sparsification::EffectiveResistanceScore>(4)
-    );
   case SparsificationAlgorithm::RANDOM_WITH_REPLACEMENT:
     switch (ctx.sparsification.score_function) {
     case ScoreFunctionSection::FOREST_FIRE:
@@ -159,10 +154,6 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
           std::make_unique<sparsification::WeightedForestFireScore>(
               ctx.sparsification.wff_pf, ctx.sparsification.wff_target_burnt_ratio
           )
-      );
-    case ScoreFunctionSection::EFFECTIVE_RESISTANCE:
-      return std::make_unique<sparsification::RandomWithReplacementSampler<double>>(
-          std::make_unique<sparsification::EffectiveResistanceScore>(4)
       );
     case ScoreFunctionSection::WEIGHT:
       return std::make_unique<sparsification::RandomWithReplacementSampler<EdgeWeight>>(
@@ -194,10 +185,6 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
           std::make_unique<sparsification::WeightedForestFireScore>(
               ctx.sparsification.wff_pf, ctx.sparsification.wff_target_burnt_ratio
           )
-      );
-    case ScoreFunctionSection::EFFECTIVE_RESISTANCE:
-      return std::make_unique<sparsification::RandomWithoutReplacementSampler<double>>(
-          std::make_unique<sparsification::EffectiveResistanceScore>(4)
       );
     case ScoreFunctionSection::WEIGHT:
       return std::make_unique<sparsification::RandomWithoutReplacementSampler<EdgeWeight>>(
@@ -233,11 +220,6 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
           ),
           ctx.sparsification.no_approx
       );
-    case ScoreFunctionSection::EFFECTIVE_RESISTANCE:
-      return std::make_unique<sparsification::IndependentRandomSampler<double>>(
-          std::make_unique<sparsification::EffectiveResistanceScore>(4),
-          ctx.sparsification.no_approx
-      );
     case ScoreFunctionSection::WEIGHT:
       return std::make_unique<sparsification::IndependentRandomSampler<EdgeWeight>>(
           std::make_unique<WeightFunction>(), ctx.sparsification.no_approx
@@ -268,10 +250,6 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
           std::make_unique<sparsification::WeightedForestFireScore>(
               ctx.sparsification.wff_pf, ctx.sparsification.wff_target_burnt_ratio
           )
-      );
-    case ScoreFunctionSection::EFFECTIVE_RESISTANCE:
-      return std::make_unique<sparsification::ThresholdSampler<double>>(
-          std::make_unique<sparsification::EffectiveResistanceScore>(4)
       );
     case ScoreFunctionSection::WEIGHT:
       return std::make_unique<sparsification::ThresholdSampler<EdgeWeight>>(

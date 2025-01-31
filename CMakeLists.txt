@@ -367,25 +367,6 @@ if ((KAMINPAR_BUILD_DISTRIBUTED AND KAMINPAR_BUILD_APPS) OR KAMINPAR_BUILD_BENCH
     add_subdirectory(external/KaGen EXCLUDE_FROM_ALL)
 endif ()
 
-################################################################################
-## Julia                                                                      ##
-################################################################################
-
-# Copied from https://github.com/kahypar/mt-kahypar/commit/8a1681fe670f8af0d4af078dcdde6c032be0eaba
-if(DEFINED ENV{JL_DIR})
-    set(JL_SHARE $ENV{JL_DIR})
-else()
-    execute_process(COMMAND julia -e "print(joinpath(Sys.BINDIR, Base.DATAROOTDIR, \"julia\"))" OUTPUT_VARIABLE JL_SHARE)
-endif()
-
-message(STATUS "JL_SHARE: ${JL_SHARE}")
-execute_process(COMMAND $(JL_SHARE)/julia-config.jl --cflags OUTPUT_VARIABLE JL_CFLAGS)
-execute_process(COMMAND $(JL_SHARE)/julia-config.jl --ldflags OUTPUT_VARIABLE JL_LDFLAGS)
-execute_process(COMMAND $(JL_SHARE)/julia-config.jl --ldlibs OUTPUT_VARIABLE JL_LDLIBS)
-set(CFLAGS "${CFLAGS} ${JL_CFLAGS}")
-set(CXXFLAGS "${CXXFLAGS} ${JL_CFLAGS}")
-set(LDFLAGS "${LDFLAGS} ${JL_LDFLAGS}")
-set(LDLIBS "${LDLIBS} ${JL_LDLIBS}")
 
 
 ################################################################################
@@ -395,7 +376,7 @@ set(LDLIBS "${LDLIBS} ${JL_LDLIBS}")
 # Start include paths on project root
 include_directories(${PROJECT_SOURCE_DIR})
 
-include_directories(${PROJECT_SOURCE_DIR}/networkit/include ${PROJECT_SOURCE_DIR}/networkit/extlibs/tlx ${PROJECT_SOURCE_DIR}/networkit/extlibs/ttmath ${JL_SHARE}/../../include/julia/)
+include_directories(${PROJECT_SOURCE_DIR}/networkit/include ${PROJECT_SOURCE_DIR}/networkit/extlibs/tlx ${PROJECT_SOURCE_DIR}/networkit/extlibs/ttmath )
 add_subdirectory(networkit)
 
 

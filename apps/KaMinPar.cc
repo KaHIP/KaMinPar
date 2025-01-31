@@ -18,7 +18,6 @@
 #include <numa.h>
 #endif // __has_include(<numa.h>)
 
-#include "kaminpar-shm/coarsening/sparsification/EffectiveResistanceScore.h"
 #include "kaminpar-shm/coarsening/sparsification/sparsification_utils.h"
 #include "kaminpar-shm/datastructures/graph.h"
 
@@ -225,11 +224,6 @@ int main(int argc, char *argv[]) {
     std::exit(0);
   }
 
-  if (ctx.sparsification.algorithm == SparsificationAlgorithm::EFFECTIVE_RESISTANCE ||
-      ctx.sparsification.score_function == ScoreFunctionSection::EFFECTIVE_RESISTANCE) {
-    sparsification::EffectiveResistanceScore::init_julia();
-  }
-
   // If available, use huge pages for large allocations
   scalable_allocation_mode(TBBMALLOC_USE_HUGE_PAGES, !app.no_huge_pages);
 
@@ -288,10 +282,6 @@ int main(int argc, char *argv[]) {
 
   DISABLE_HEAP_PROFILER();
 
-    if (ctx.sparsification.algorithm == SparsificationAlgorithm::EFFECTIVE_RESISTANCE ||
-      ctx.sparsification.score_function == ScoreFunctionSection::EFFECTIVE_RESISTANCE) {
-    sparsification::EffectiveResistanceScore::finalize_julia();
-  }
 
   if (!app.quiet) {
     std::cout << "\n";
