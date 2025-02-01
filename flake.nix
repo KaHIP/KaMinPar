@@ -11,13 +11,13 @@
       pkgs = import nixpkgs { inherit system; };
 
       inputs = builtins.attrValues {
-        inherit (pkgs) cmake ninja python3 gcc14 tbb_2021_11 sparsehash mpi numactl pkg-config;
+        inherit (pkgs) python3 gcc14 ninja cmake tbb_2021_11 sparsehash mpi numactl pkg-config git;
         inherit (pkgs.llvmPackages_19) openmp;
         inherit mt-kahypar;
       };
 
       devShellInputs = builtins.attrValues {
-        inherit (pkgs) fish ccache mold-wrapped gdb;
+        inherit (pkgs) ccache mold-wrapped gdb;
       };
 
       mt-kahypar = pkgs.stdenv.mkDerivation {
@@ -61,42 +61,83 @@
 
         gcc = pkgs.mkShell {
           packages = inputs ++ devShellInputs;
-
-          shellHook = ''
-            exec fish
-          '';
         };
 
         clang = (pkgs.mkShell.override { stdenv = pkgs.llvmPackages_19.stdenv; }) {
           packages = (pkgs.lib.lists.remove pkgs.gcc14 inputs) ++ devShellInputs;
+        };
+      };
 
-          shellHook = ''
-            exec fish
+      packages.default =
+        let
+          mkSourceDerivation = { pname, version, owner, repo, rev, hash, patches }:
+            pkgs.stdenvNoCC.mkDerivation {
+              inherit pname version;
+
+              src = pkgs.fetchFromGitHub {
+                inherit owner repo rev hash;
+                fetchSubmodules = true;
+              };
+              patches = patches;
+
+              installPhase = ''
+                runHook preInstall
+
+                mkdir -p $out
+                cp -r . $out
+
+                runHook postInstall
+              '';
+            };
+
+          kassert-src = mkSourceDerivation {
+            pname = "kassert-src";
+            version = "0.1.0";
+
+            owner = "kamping-site";
+            repo = "kassert";
+            rev = "a1aa9eb4ece3b57ef7d989aa56fd1f64162d5ea0";
+            hash = "sha256-EGfsGclAFDaPTqAXCrRgqUeHT2HYpV/ZAaRq8LbsxoI=";
+
+            patches = [ "${self}/scripts/KAssert.patch" ];
+          };
+
+          kagen-src = mkSourceDerivation {
+            pname = "kagen-src";
+            version = "1.0.3";
+
+            owner = "KarlsruheGraphGeneration";
+            repo = "KaGen";
+            rev = "bda1e9718a4e91f81c922d566a47acfbc35ecf54";
+            hash = "sha256-2FYeWW1IMxV9mxlIRzv/Boi02TqeJDNSwEynkl5AelI=";
+
+            patches = [ "${self}/scripts/KaGen.patch" ];
+          };
+        in
+        pkgs.stdenv.mkDerivation {
+          pname = "KaMinPar";
+          version = "3.1.0";
+
+          src = self;
+          nativeBuildInputs = inputs;
+
+          cmakeFlags = [
+            "-DKAMINPAR_BUILD_DISTRIBUTED=On"
+            "-DFETCHCONTENT_FULLY_DISCONNECTED=On"
+            "-DFETCHCONTENT_SOURCE_DIR_KASSERT=${kassert-src}"
+            "-DFETCHCONTENT_SOURCE_DIR_KAGEN=${kagen-src}"
+          ];
+
+          installPhase = ''
+            exit -1
           '';
+
+          meta = {
+            description = "A shared-memory and distributed-memory parallel graph partitioner";
+            homepage = "https://github.com/KaHIP/KaMinPar";
+            license = pkgs.lib.licenses.mit;
+          };
         };
-      };
-
-      packages.default = pkgs.stdenv.mkDerivation {
-        pname = "KaMinPar";
-        version = "3.0";
-
-        src = self;
-        nativeBuildInputs = inputs;
-
-        cmakeFlags = [
-          "-DKAMINPAR_BUILD_DISTRIBUTED=On"
-          "-DKAMINPAR_BUILD_WITH_MTKAHYPAR=On"
-          "-DKAMINPAR_BUILD_TESTS=Off"
-          "-DKAMINPAR_BUILD_WITH_CCACHE=Off"
-        ];
-        enableParallelBuilding = true;
-
-        meta = {
-          description = "A shared-memory and distributed-memory parallel graph partitioner.";
-          homepage = "https://github.com/KaHIP/KaMinPar";
-          license = pkgs.lib.licenses.mit;
-        };
-      };
     }
   );
 }
