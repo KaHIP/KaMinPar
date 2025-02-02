@@ -128,10 +128,6 @@
             "-DFETCHCONTENT_SOURCE_DIR_KAGEN=${kagen-src}"
           ];
 
-          installPhase = ''
-            exit -1
-          '';
-
           meta = {
             description = "A shared-memory and distributed-memory parallel graph partitioner";
             homepage = "https://github.com/KaHIP/KaMinPar";
