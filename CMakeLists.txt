@@ -368,15 +368,14 @@ if ((KAMINPAR_BUILD_DISTRIBUTED AND KAMINPAR_BUILD_APPS) OR KAMINPAR_BUILD_BENCH
     FetchContent_Declare(
         KaGen
         GIT_REPOSITORY https://github.com/KarlsruheGraphGeneration/KaGen.git
-        GIT_TAG bda1e9718a4e91f81c922d566a47acfbc35ecf54
-        # The patch is necessary as KaGen installs itself by default without an option to disable it
-        PATCH_COMMAND ${GIT_EXECUTABLE} apply ${PROJECT_SOURCE_DIR}/scripts/KaGen.patch
+        GIT_TAG 70386f48e513051656f020360c482ce6bff9a24f 
         UPDATE_DISCONNECTED TRUE
     )
     set(KAGEN_NODEPS ON CACHE BOOL "" FORCE)
     set(KAGEN_BUILD_APPS OFF CACHE BOOL "" FORCE)
     set(KAGEN_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     set(KAGEN_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(INSTALL_KAGEN OFF CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(KaGen)
 endif ()
 
