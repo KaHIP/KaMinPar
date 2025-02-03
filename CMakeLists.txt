@@ -305,9 +305,9 @@ include(FindGit)
 FetchContent_Declare(
     kassert
     GIT_REPOSITORY https://github.com/kamping-site/kassert.git
-    GIT_TAG a1aa9eb4ece3b57ef7d989aa56fd1f64162d5ea0
+    GIT_TAG 4021b69ff9b2c0594ce467c6eb6ab734e7040a53
     # The patch is necessary as KAssert fails to set its include directory correctly
-    PATCH_COMMAND ${GIT_EXECUTABLE} apply ${PROJECT_SOURCE_DIR}/scripts/KAssert.patch
+    #PATCH_COMMAND ${GIT_EXECUTABLE} apply ${PROJECT_SOURCE_DIR}/scripts/KAssert.patch
     UPDATE_DISCONNECTED TRUE
 )
 FetchContent_MakeAvailable(kassert)
