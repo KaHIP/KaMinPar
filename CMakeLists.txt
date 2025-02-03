@@ -51,7 +51,7 @@ option(KAMINPAR_BUILD_WITH_BACKWARD "Build with backward-cpp for stack traces (d
 
 # Control whether to install KaMinPar
 #####################################
-option(KAMINPAR_INSTALL "Install KaMinPar." ON)
+option(INSTALL_KAMINPAR "Install KaMinPar." ON)
 
 # Control data type sizes
 #########################
@@ -427,7 +427,7 @@ endif ()
 ################################################################################
 ## Install targets                                                            ##
 ################################################################################
-if (NOT KAMINPAR_INSTALL)
+if (NOT INSTALL_KAMINPAR)
     return()
 endif ()
 
