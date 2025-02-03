@@ -4,7 +4,6 @@ file(GLOB_RECURSE KAMINPAR_DIST_SOURCE_FILES CONFIGURE_DEPENDS
 add_library(kaminpar_dist ${KAMINPAR_DIST_SOURCE_FILES})
 add_library(KaMinPar::dKaMinPar ALIAS kaminpar_dist)
 
-target_include_directories(kaminpar_dist PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../")
 target_link_libraries(kaminpar_dist PUBLIC kaminpar_shm kaminpar_mpi growt)
 target_compile_options(kaminpar_dist PRIVATE ${KAMINPAR_WARNING_FLAGS})
 

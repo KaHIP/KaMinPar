@@ -60,8 +60,6 @@ int main(int argc, char *argv[]) {
   app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads")
       ->capture_default_str();
   app.add_option("-s,--seed", seed, "Seed for random number generation")->capture_default_str();
-  app.add_option("-k,--k", ctx.partition.k);
-  app.add_option("-e,--epsilon", ctx.partition.epsilon);
   create_graph_compression_options(&app, ctx);
   CLI11_PARSE(app, argc, argv);
 
@@ -87,15 +85,15 @@ int main(int argc, char *argv[]) {
       if (sequential_compression) {
         Graph graph =
             Graph(std::make_unique<CompressedGraph>(CompressedGraphBuilder::compress(csr_graph)));
-        ctx.setup(graph);
+        ctx.compression.setup(graph);
       } else {
         Graph graph = Graph(std::make_unique<CompressedGraph>(parallel_compress(csr_graph)));
-        ctx.setup(graph);
+        ctx.compression.setup(graph);
       }
     } else {
       Graph graph =
           io::read(graph_filename, graph_file_format, ctx.node_ordering, ctx.compression.enabled);
-      ctx.setup(graph);
+      ctx.compression.setup(graph);
     }
   };
 

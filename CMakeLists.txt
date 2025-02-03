@@ -1,15 +1,16 @@
 cmake_minimum_required(VERSION 3.21)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules)
 
-include(FetchContent)
-include(CheckCXXCompilerFlag)
-
-project(KaMinPar
-        DESCRIPTION "Shared-memory and distributed-memory Graph Partitioner"
-        LANGUAGES C CXX)
+project(
+    KaMinPar
+    VERSION 3.1.0
+    DESCRIPTION "Shared-memory and distributed-memory Graph Partitioner"
+    LANGUAGES C CXX
+)
 
 set(PROJECT_VENDOR "Daniel Seemaier")
 set(PROJECT_CONTACT "daniel.seemaier@kit.edu")
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -46,10 +47,13 @@ option(KAMINPAR_BUILD_WITH_MTUNE_NATIVE "Build with -mtune=native." ON)
 option(KAMINPAR_BUILD_WITH_CCACHE "Use ccache to build." ON)
 option(KAMINPAR_BUILD_WITH_DEBUG_SYMBOLS "Always build with debug symbols, even in Release mode." ON)
 option(KAMINPAR_BUILD_WITH_MTKAHYPAR "If Mt-KaHyPar can be found, build the Mt-KaHyPar initial partitioner." OFF)
-option(KAMINPAR_BUILD_WITH_GROWT "Build the shared-memory partitioner with Growt." ON)
 option(KAMINPAR_BUILD_WITH_SPARSEHASH "Build with Google Sparsehash." ON)
 option(KAMINPAR_BUILD_WITH_PG "Build with the -pg option for profiling." OFF)
 option(KAMINPAR_BUILD_WITH_BACKWARD "Build with backward-cpp for stack traces (distributed partitioner only)." OFF)
+
+# Control whether to install KaMinPar
+#####################################
+option(INSTALL_KAMINPAR "Install KaMinPar." ON)
 
 # Control data type sizes
 #########################
@@ -86,10 +90,23 @@ endif ()
 ################################################################################
 ## Declare dependencies                                                       ##
 ################################################################################
+include(CheckCXXCompilerFlag)
 
 set(KAMINPAR_ASSERTION_LEVEL "light" CACHE STRING "Assertion level.")
 set_property(CACHE KAMINPAR_ASSERTION_LEVEL PROPERTY STRINGS none light normal heavy)
 message(STATUS "KAssertion level: ${KAMINPAR_ASSERTION_LEVEL}")
+
+if (KAMINPAR_ASSERTION_LEVEL STREQUAL "none")
+    set(KASSERT_ASSERTION_LEVEL 0)
+elseif (KAMINPAR_ASSERTION_LEVEL STREQUAL "light")
+    set(KASSERT_ASSERTION_LEVEL 10)
+elseif (KAMINPAR_ASSERTION_LEVEL STREQUAL "normal")
+    set(KASSERT_ASSERTION_LEVEL 30)
+elseif (KAMINPAR_ASSERTION_LEVEL STREQUAL "heavy")
+    set(KASSERT_ASSERTION_LEVEL 40)
+else ()
+    message(WARNING "Invalid assertion level: ${KAMINPAR_ASSERTION_LEVEL}")
+endif ()
 
 # Export compile commands
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -280,8 +297,23 @@ message("  dist::{Node, Edge}Weight: ${KAMINPAR_DIST_WEIGHT_STR}")
 ################################################################################
 ## Search and fetch dependencies                                              ##
 ################################################################################
+if (CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+    include(CTest)
+endif()
+include(FetchContent)
+include(FindGit)
 
-# Google Sparsehash 
+# Fetch KAssert for assertions
+FetchContent_Declare(
+    kassert
+    GIT_REPOSITORY https://github.com/kamping-site/kassert.git
+    GIT_TAG 988b7d54b79ae6634f2fcc53a0314fb1cf2c6a23
+    EXCLUDE_FROM_ALL
+    UPDATE_DISCONNECTED TRUE
+)
+FetchContent_MakeAvailable(kassert)
+
+# Google Sparsehash
 if (KAMINPAR_BUILD_WITH_SPARSEHASH)
     find_package(Sparsehash REQUIRED)
     list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_SPARSEHASH_FOUND")
@@ -294,16 +326,6 @@ if (KAMINPAR_BUILD_WITH_CCACHE)
     endif ()
 endif ()
 
-if (KAMINPAR_BUILD_WITH_GROWT)
-    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_USES_GROWT")
-endif ()
-
-if (TRUE) 
-    add_subdirectory(external/growt EXCLUDE_FROM_ALL)
-    add_library(growt INTERFACE)
-    target_include_directories(growt SYSTEM INTERFACE "external/growt")
-endif ()
-
 if (KAMINPAR_BUILD_DISTRIBUTED)
     # MPI
     set(MPI_DETERMINE_LIBRARY_VERSION TRUE)
@@ -313,25 +335,22 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
         set(KAMINPAR_BUILD_DISTRIBUTED OFF)
     endif ()
 
+    # Growt
+    add_subdirectory(external/growt EXCLUDE_FROM_ALL)
+    add_library(growt INTERFACE)
+    target_include_directories(growt SYSTEM INTERFACE "external/growt")
+
     if (KAMINPAR_BUILD_WITH_BACKWARD)
-        add_subdirectory(external/bakward-mpi EXCLUDE_FROM_ALL)
+        FetchContent_Declare(
+            Backward
+            GIT_REPOSITORY https://github.com/kamping-site/bakward-mpi.git
+            GIT_TAG 89de1132cdccb60aa4994d00396cc30d47402f95
+            EXCLUDE_FROM_ALL
+            UPDATE_DISCONNECTED TRUE
+        )
+        FetchContent_MakeAvailable(Backward)
     endif ()
 endif ()
-
-if (KAMINPAR_ASSERTION_LEVEL STREQUAL "none")
-    set(KASSERT_ASSERTION_LEVEL 0)
-elseif (KAMINPAR_ASSERTION_LEVEL STREQUAL "light")
-    set(KASSERT_ASSERTION_LEVEL 10)
-elseif (KAMINPAR_ASSERTION_LEVEL STREQUAL "normal")
-    set(KASSERT_ASSERTION_LEVEL 30)
-elseif (KAMINPAR_ASSERTION_LEVEL STREQUAL "heavy")
-    set(KASSERT_ASSERTION_LEVEL 40)
-else ()
-    message(WARNING "Invalid assertion level: ${KAMINPAR_ASSERTION_LEVEL}")
-endif ()
-
-# Add KAssert
-add_subdirectory(external/kassert EXCLUDE_FROM_ALL)
 
 # If we can find Mt-KaHyPar, make it available for initial partitioning and refinement
 if (KAMINPAR_BUILD_WITH_MTKAHYPAR)
@@ -346,11 +365,32 @@ endif ()
 
 # Fetch minimal KaGen for graph IO
 if ((KAMINPAR_BUILD_DISTRIBUTED AND KAMINPAR_BUILD_APPS) OR KAMINPAR_BUILD_BENCHMARKS)
-    set(KAGEN_NODEPS ON CACHE BOOL "")
-    set(KAGEN_BUILD_APPS OFF CACHE BOOL "")
-    set(KAGEN_BUILD_EXAMPLES OFF CACHE BOOL "")
-    set(KAGEN_BUILD_TESTS OFF CACHE BOOL "")
-    add_subdirectory(external/KaGen EXCLUDE_FROM_ALL)
+    FetchContent_Declare(
+        KaGen
+        GIT_REPOSITORY https://github.com/KarlsruheGraphGeneration/KaGen.git
+        GIT_TAG 70386f48e513051656f020360c482ce6bff9a24f 
+        EXCLUDE_FROM_ALL
+        UPDATE_DISCONNECTED TRUE
+    )
+    set(KAGEN_NODEPS ON CACHE BOOL "" FORCE)
+    set(KAGEN_BUILD_APPS OFF CACHE BOOL "" FORCE)
+    set(KAGEN_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(KAGEN_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(INSTALL_KAGEN OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(KaGen)
+endif ()
+
+# Fetch Google Test for unit tests
+if ((CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME OR KAMINPAR_BUILD_TESTS) AND BUILD_TESTING)
+    FetchContent_Declare(
+        googletest
+        GIT_REPOSITORY https://github.com/google/googletest.git
+        GIT_TAG 5a37b517ad4ab6738556f0284c256cae1466c5b4
+        EXCLUDE_FROM_ALL
+        UPDATE_DISCONNECTED TRUE
+    )
+    set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(googletest)
 endif ()
 
 ################################################################################
@@ -378,10 +418,7 @@ if (KAMINPAR_BUILD_APPS)
 endif ()
 
 # Unit tests
-if (KAMINPAR_BUILD_TESTS)
-    add_subdirectory(external/googletest EXCLUDE_FROM_ALL SYSTEM)
-
-    enable_testing()
+if ((CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME OR KAMINPAR_BUILD_TESTS) AND BUILD_TESTING)
     add_subdirectory(tests)
 endif ()
 
@@ -402,3 +439,62 @@ if (KAMINPAR_BUILD_EXAMPLES)
         add_subdirectory(examples/bindings-c)
     endif ()
 endif ()
+
+################################################################################
+## Install targets                                                            ##
+################################################################################
+if (NOT INSTALL_KAMINPAR)
+    return()
+endif ()
+
+include(CMakePackageConfigHelpers)
+include(GNUInstallDirs)
+
+install(
+    FILES kaminpar-shm/kaminpar.h
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+    COMPONENT KaMinPar_Development
+)
+
+install(
+    TARGETS kassert_base kassert kaminpar_common kaminpar_shm
+    EXPORT KaMinParTargets
+    RUNTIME COMPONENT KaMinPar_Runtime
+    LIBRARY COMPONENT KaMinPar_Runtime NAMELINK_COMPONENT KaMinPar_Development
+    ARCHIVE COMPONENT KaMinPar_Development
+    INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+)
+
+write_basic_package_version_file(
+    "KaMinParConfigVersion.cmake"
+    VERSION ${PACKAGE_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+
+# Allow package maintainers to freely override the path for the configs
+set(
+    KAMINPAR_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/${package}"
+    CACHE STRING "CMake package config location relative to the install prefix"
+)
+set_property(CACHE KAMINPAR_INSTALL_CMAKEDIR PROPERTY TYPE PATH)
+mark_as_advanced(KAMINPAR_INSTALL_CMAKEDIR)
+
+install(
+    FILES cmake/install-config.cmake
+    DESTINATION "${KAMINPAR_INSTALL_CMAKEDIR}"
+    RENAME "KaMinParConfig.cmake"
+    COMPONENT KaMinPar_Development
+)
+
+install(
+    FILES "${PROJECT_BINARY_DIR}/KaMinParConfigVersion.cmake"
+    DESTINATION "${KAMINPAR_INSTALL_CMAKEDIR}"
+    COMPONENT KaMinPar_Development
+)
+
+install(
+    EXPORT KaMinParTargets
+    NAMESPACE KaMinPar::
+    DESTINATION "${KAMINPAR_INSTALL_CMAKEDIR}"
+    COMPONENT KaMinPar_Development
+)

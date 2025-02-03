@@ -135,7 +135,6 @@ enum class TieBreakingStrategy {
 
 enum class ContractionAlgorithm {
   BUFFERED,
-  BUFFERED_LEGACY,
   UNBUFFERED,
   UNBUFFERED_NAIVE,
 };
