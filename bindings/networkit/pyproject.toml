@@ -1,0 +1,17 @@
+[project]
+name = "kaminpar_networkit"
+version = "3.1.0"
+description = "NetworKit bindings for KaMinPar"
+requires-python = ">=3.9"
+dependencies = ["networkit"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[build-system]
+requires = ["scikit-build-core>=0.10", "cython", "cython-cmake", "networkit"]
+build-backend = "scikit_build_core.build"
+
+[tool.scikit-build]
+minimum-version = "build-system.requires"
+build-dir = "build/{wheel_tag}"
