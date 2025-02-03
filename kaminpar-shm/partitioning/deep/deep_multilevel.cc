@@ -84,7 +84,7 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
   LOG;
 
   while (shrunk && c_graph->n() > initial_partitioning_threshold()) {
-    SCOPED_HEAP_PROFILER("Level", std::to_string(_hierarchy->level()));
+    SCOPED_HEAP_PROFILER("Level", std::to_string(_coarsener->level()));
     SCOPED_TIMER("Level", std::to_string(_coarsener->level()));
 
     // If requested, dump graph before each coarsening step + after coarsening
