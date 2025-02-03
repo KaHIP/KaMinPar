@@ -306,8 +306,7 @@ FetchContent_Declare(
     kassert
     GIT_REPOSITORY https://github.com/kamping-site/kassert.git
     GIT_TAG 4021b69ff9b2c0594ce467c6eb6ab734e7040a53
-    # The patch is necessary as KAssert fails to set its include directory correctly
-    #PATCH_COMMAND ${GIT_EXECUTABLE} apply ${PROJECT_SOURCE_DIR}/scripts/KAssert.patch
+    EXCLUDE_FROM_ALL
     UPDATE_DISCONNECTED TRUE
 )
 FetchContent_MakeAvailable(kassert)
@@ -344,9 +343,8 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
             Backward
             GIT_REPOSITORY https://github.com/kamping-site/bakward-mpi.git
             GIT_TAG 89de1132cdccb60aa4994d00396cc30d47402f95
-            # The patch is necessary as Backward installs itself by default without an option to disable it
-            PATCH_COMMAND ${GIT_EXECUTABLE} apply ${PROJECT_SOURCE_DIR}/scripts/Backward.patch
             UPDATE_DISCONNECTED TRUE
+            EXCLUDE_FROM_ALL
         )
         FetchContent_MakeAvailable(Backward)
     endif ()
@@ -369,6 +367,7 @@ if ((KAMINPAR_BUILD_DISTRIBUTED AND KAMINPAR_BUILD_APPS) OR KAMINPAR_BUILD_BENCH
         KaGen
         GIT_REPOSITORY https://github.com/KarlsruheGraphGeneration/KaGen.git
         GIT_TAG 70386f48e513051656f020360c482ce6bff9a24f 
+        EXCLUDE_FROM_ALL
         UPDATE_DISCONNECTED TRUE
     )
     set(KAGEN_NODEPS ON CACHE BOOL "" FORCE)
@@ -385,6 +384,7 @@ if ((CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME OR KAMINPAR_BUILD_TESTS) AND BUILD
         googletest
         GIT_REPOSITORY https://github.com/google/googletest.git
         GIT_TAG 5a37b517ad4ab6738556f0284c256cae1466c5b4
+        EXCLUDE_FROM_ALL
     )
     set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googletest)
