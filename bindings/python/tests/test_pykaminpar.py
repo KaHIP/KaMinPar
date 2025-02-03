@@ -3,6 +3,12 @@ from __future__ import annotations
 import pytest
 import kaminpar
 
+graphs = [
+    ("misc/rgg2d.metis", kaminpar.GraphFileFormat.METIS),
+]
+if not kaminpar.__64bit__:
+    graphs.append(("misc/rgg2d-32bit.parhip", kaminpar.GraphFileFormat.PARHIP))
+
 
 def test_version():
     assert kaminpar.__version__ == "3.1.0"
@@ -61,13 +67,7 @@ def test_load_graph():
     )
 
 
-@pytest.mark.parametrize(
-    "filename,file_format",
-    [
-        ("misc/rgg2d.metis", kaminpar.GraphFileFormat.METIS),
-        # ("misc/rgg2d.parhip", kaminpar.GraphFileFormat.PARHIP),
-    ],
-)
+@pytest.mark.parametrize("filename,file_format", graphs)
 def test_graph_interface(filename, file_format):
     graph = kaminpar.load_graph(filename, file_format)
 
@@ -87,13 +87,7 @@ def test_graph_interface(filename, file_format):
     assert all(len(graph.neighbors(u)) == graph.degree(u) for u in graph.nodes())
 
 
-@pytest.mark.parametrize(
-    "filename,file_format",
-    [
-        ("misc/rgg2d.metis", kaminpar.GraphFileFormat.METIS),
-        # ("misc/rgg2d.parhip", kaminpar.GraphFileFormat.PARHIP),
-    ],
-)
+@pytest.mark.parametrize("filename,file_format", graphs)
 def test_partitioning(filename, file_format):
     ctx = kaminpar.default_context()
     instance = kaminpar.KaMinPar(num_threads=1, ctx=ctx)

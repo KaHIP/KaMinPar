@@ -1,3 +1,10 @@
+/*******************************************************************************
+ * Python bindings for shared-memory KaMinPar.
+ *
+ * @file:   PyKaMinPar.cpp
+ * @author: Daniel Salwasser
+ * @date:   03.02.2025
+ ******************************************************************************/
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -28,6 +35,12 @@ PYBIND11_MODULE(kaminpar_python, m) {
   m.attr("__version__") = MACRO_STRINGIFY(VERSION_INFO);
 #else
   m.attr("__version__") = "dev";
+#endif
+
+#ifdef KAMINPAR_64BIT_IDS
+  m.attr("__64bit__") = true;
+#else
+  m.attr("__64bit__") = false;
 #endif
 
   m.def("seed", &Random::get_seed, "The seed for the random number generator");

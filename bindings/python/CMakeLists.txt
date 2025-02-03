@@ -33,5 +33,5 @@ pybind11_add_module(kaminpar_python src/PyKaMinPar.cpp)
 target_compile_definitions(kaminpar_python PRIVATE VERSION_INFO=${PROJECT_VERSION})
 target_link_libraries(kaminpar_python PRIVATE KaMinPar::KaMinPar KaMinPar::KaMinParIO)
 
-install(TARGETS kaminpar_python DESTINATION kaminpar)
 add_library(KaMinPar::PyKaMinPar ALIAS kaminpar_python)
+install(TARGETS kaminpar_python DESTINATION kaminpar)

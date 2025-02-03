@@ -3,6 +3,7 @@ from __future__ import annotations
 from kaminpar.kaminpar_python import (
     __doc__,
     __version__,
+    __64bit__,
     reseed,
     seed,
     Context,
@@ -27,6 +28,7 @@ from kaminpar.kaminpar_python import (
 __all__ = [
     "__doc__",
     "__version__",
+    "__64bit__",
     "reseed",
     "seed",
     "Context",

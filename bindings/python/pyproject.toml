@@ -4,13 +4,13 @@ version = "3.1.0"
 description = "Python Bindings for KaMinPar"
 requires-python = ">=3.9"
 
-[tool.scikit-build]
-minimum-version = "build-system.requires"
-build-dir = "build/{wheel_tag}"
+[project.optional-dependencies]
+test = ["pytest"]
 
 [build-system]
 requires = ["scikit-build-core>=0.10", "pybind11"]
 build-backend = "scikit_build_core.build"
 
-[dependency-groups]
-test = ["pytest"]
+[tool.scikit-build]
+minimum-version = "build-system.requires"
+build-dir = "build/{wheel_tag}"
