@@ -305,7 +305,7 @@ include(FindGit)
 FetchContent_Declare(
     kassert
     GIT_REPOSITORY https://github.com/kamping-site/kassert.git
-    GIT_TAG 4021b69ff9b2c0594ce467c6eb6ab734e7040a53
+    GIT_TAG 988b7d54b79ae6634f2fcc53a0314fb1cf2c6a23
     EXCLUDE_FROM_ALL
     UPDATE_DISCONNECTED TRUE
 )
