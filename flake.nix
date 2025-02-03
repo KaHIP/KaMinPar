@@ -70,48 +70,22 @@
 
       packages.default =
         let
-          mkSourceDerivation = { pname, version, owner, repo, rev, hash, patches }:
-            pkgs.stdenvNoCC.mkDerivation {
-              inherit pname version;
-
-              src = pkgs.fetchFromGitHub {
-                inherit owner repo rev hash;
-                fetchSubmodules = true;
-              };
-              patches = patches;
-
-              installPhase = ''
-                runHook preInstall
-
-                mkdir -p $out
-                cp -r . $out
-
-                runHook postInstall
-              '';
-            };
-
-          kassert-src = mkSourceDerivation {
-            pname = "kassert-src";
-            version = "0.1.0";
-
+          kassert-src = pkgs.fetchFromGitHub {
             owner = "kamping-site";
             repo = "kassert";
-            rev = "a1aa9eb4ece3b57ef7d989aa56fd1f64162d5ea0";
-            hash = "sha256-EGfsGclAFDaPTqAXCrRgqUeHT2HYpV/ZAaRq8LbsxoI=";
+            rev = "988b7d54b79ae6634f2fcc53a0314fb1cf2c6a23";
 
-            patches = [ "${self}/scripts/KAssert.patch" ];
+            fetchSubmodules = true;
+            hash = "sha256-CBglUfVl9lgEa1t95G0mG4CCj0OWnIBwk7ep62rwIAA=";
           };
 
-          kagen-src = mkSourceDerivation {
-            pname = "kagen-src";
-            version = "1.0.3";
-
+          kagen-src = pkgs.fetchFromGitHub {
             owner = "KarlsruheGraphGeneration";
             repo = "KaGen";
-            rev = "bda1e9718a4e91f81c922d566a47acfbc35ecf54";
-            hash = "sha256-2FYeWW1IMxV9mxlIRzv/Boi02TqeJDNSwEynkl5AelI=";
+            rev = "70386f48e513051656f020360c482ce6bff9a24f";
 
-            patches = [ "${self}/scripts/KaGen.patch" ];
+            fetchSubmodules = true;
+            hash = "sha256-5EvRPpjUZpmAIEgybXjNU/mO0+gsAyhlwbT+syDUr48=";
           };
         in
         pkgs.stdenv.mkDerivation {
@@ -129,7 +103,7 @@
           ];
 
           meta = {
-            description = "A shared-memory and distributed-memory parallel graph partitioner";
+            description = "Shared-memory and distributed-memory parallel graph partitioner";
             homepage = "https://github.com/KaHIP/KaMinPar";
             license = pkgs.lib.licenses.mit;
           };

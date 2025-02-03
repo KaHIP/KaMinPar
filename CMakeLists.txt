@@ -343,8 +343,8 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
             Backward
             GIT_REPOSITORY https://github.com/kamping-site/bakward-mpi.git
             GIT_TAG 89de1132cdccb60aa4994d00396cc30d47402f95
-            UPDATE_DISCONNECTED TRUE
             EXCLUDE_FROM_ALL
+            UPDATE_DISCONNECTED TRUE
         )
         FetchContent_MakeAvailable(Backward)
     endif ()
@@ -385,6 +385,7 @@ if ((CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME OR KAMINPAR_BUILD_TESTS) AND BUILD
         GIT_REPOSITORY https://github.com/google/googletest.git
         GIT_TAG 5a37b517ad4ab6738556f0284c256cae1466c5b4
         EXCLUDE_FROM_ALL
+        UPDATE_DISCONNECTED TRUE
     )
     set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googletest)
