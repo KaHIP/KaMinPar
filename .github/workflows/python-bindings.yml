@@ -1,0 +1,40 @@
+name: Build and test Python bindings
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    name: ubuntu-latest build using Python ${{ matrix.python-version }} and with 64-bit IDs set to ${{ matrix.kaminpar-64bit }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.13", "pypy-3.10"]
+        kaminpar-64bit: ["OFF", "ON"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libtbb-dev libhwloc-dev libsparsehash-dev
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Build and install
+      run: |
+        pip install --verbose \
+          --config-settings=cmake.define.KAMINPAR_64BIT_IDS=${{ matrix.kaminpar-64bit }} \
+          --config-settings=cmake.define.KAMINPAR_64BIT_WEIGHTS=${{ matrix.kaminpar-64bit }} \
+          ./bindings/python[test]
+
+    - name: Run tests
+      run: pytest ./bindings/python/tests
