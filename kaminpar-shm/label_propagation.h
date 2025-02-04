@@ -487,7 +487,7 @@ protected:
     bool is_interface_node = false;
     const auto add_to_rating_map = [&](const NodeID v, const EdgeWeight w) {
       if (derived_accept_neighbor(u, v)) {
-        const ClusterID v_cluster = (_iteration == 0 && u < v) ? v : derived_cluster(v);
+        const ClusterID v_cluster = (_graph->sorted() && _iteration == 0 && u < v) ? v : derived_cluster(v);
         map[v_cluster] += w;
 
         if constexpr (Config::kUseLocalActiveSetStrategy) {
