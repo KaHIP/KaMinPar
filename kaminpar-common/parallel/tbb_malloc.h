@@ -64,8 +64,19 @@ tbb_unique_ptr<T> make_unique(const std::size_t size, [[maybe_unused]] const boo
 
 } // namespace parallel
 
+template <typename T> struct deleter {
+  void operator()(T *p) {
+    free(p);
+
+    if constexpr (kHeapProfiling && !kPageProfiling) {
+      heap_profiler::HeapProfiler::global().record_free(p);
+    }
+  }
+};
+
 template <typename T>
-std::unique_ptr<T> make_unique(const std::size_t size, [[maybe_unused]] const bool thp) {
+std::unique_ptr<T, deleter<T>>
+make_unique(const std::size_t size, [[maybe_unused]] const bool thp) {
   auto nbytes = sizeof(T) * size;
   T *ptr = nullptr;
 
@@ -88,7 +99,7 @@ std::unique_ptr<T> make_unique(const std::size_t size, [[maybe_unused]] const bo
     heap_profiler::HeapProfiler::global().record_alloc(ptr, sizeof(T) * size);
   }
 
-  return std::unique_ptr<T>(ptr);
+  return std::unique_ptr<T, deleter<T>>(ptr);
 }
 
 } // namespace kaminpar

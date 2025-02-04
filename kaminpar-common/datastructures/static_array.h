@@ -386,6 +386,9 @@ private:
     if (_owned_data != nullptr) {
       _owned_data.reset();
     }
+    if (_owned_data_std != nullptr) {
+      _owned_data_std.reset();
+    }
     if (_overcommited_data != nullptr) {
       _overcommited_data.reset();
     }
@@ -412,7 +415,7 @@ private:
   size_type _size = 0;
   size_type _unrestricted_size = 0;
   parallel::tbb_unique_ptr<value_type> _owned_data = nullptr;
-  std::unique_ptr<value_type> _owned_data_std = nullptr;
+  std::unique_ptr<value_type, deleter<value_type>> _owned_data_std = nullptr;
   heap_profiler::unique_ptr<value_type> _overcommited_data = nullptr;
   value_type *_data = nullptr;
 
