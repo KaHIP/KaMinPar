@@ -25,7 +25,8 @@ public:
   using const_reference = const Value &;
   using size_type = Size;
 
-  explicit FastResetArray(const std::size_t capacity = 0) : _data(capacity, static_array::seq) {
+  explicit FastResetArray(const std::size_t capacity = 0)
+      : _data(capacity, static_array::seq, static_array::std_alloc) {
     RECORD_DATA_STRUCT(capacity * sizeof(value_type), _struct);
   }
 
@@ -107,7 +108,7 @@ public:
   }
 
   void resize(const std::size_t capacity) {
-    _data.resize(capacity, static_array::seq);
+    _data.resize(capacity, static_array::seq, static_array::std_alloc);
 
     IF_HEAP_PROFILING(
         _struct->size = std::max(
