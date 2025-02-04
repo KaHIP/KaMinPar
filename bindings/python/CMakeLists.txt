@@ -11,6 +11,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+find_package(KaMinPar QUIET)
 if(NOT TARGET KaMinPar::KaMinPar)
   include(FetchContent)
 
@@ -31,7 +35,7 @@ find_package(pybind11 CONFIG REQUIRED)
 
 pybind11_add_module(kaminpar_python src/PyKaMinPar.cpp)
 target_compile_definitions(kaminpar_python PRIVATE VERSION_INFO=${PROJECT_VERSION})
-target_link_libraries(kaminpar_python PRIVATE KaMinPar::KaMinPar KaMinPar::KaMinParIO)
+target_link_libraries(kaminpar_python PUBLIC KaMinPar::KaMinPar KaMinPar::KaMinParIO)
 
 add_library(KaMinPar::PyKaMinPar ALIAS kaminpar_python)
 install(TARGETS kaminpar_python DESTINATION kaminpar)
