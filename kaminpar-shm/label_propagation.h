@@ -179,6 +179,7 @@ protected:
     _num_active_nodes = num_active_nodes;
     _prev_num_clusters = _num_clusters;
     _num_clusters = num_clusters;
+    _iteration = 0;
   }
 
   /*!
@@ -486,7 +487,7 @@ protected:
     bool is_interface_node = false;
     const auto add_to_rating_map = [&](const NodeID v, const EdgeWeight w) {
       if (derived_accept_neighbor(u, v)) {
-        const ClusterID v_cluster = u < v ? v : derived_cluster(v);
+        const ClusterID v_cluster = (_iteration == 0 && u < v) ? v : derived_cluster(v);
         map[v_cluster] += w;
 
         if constexpr (Config::kUseLocalActiveSetStrategy) {
@@ -1218,6 +1219,7 @@ private:
     IFSTATS(_expected_total_gain = 0);
     _current_num_clusters = _initial_num_clusters;
     _relabeled = false;
+    _iteration = 0;
   }
 
 private: // CRTP calls
@@ -1337,6 +1339,10 @@ protected: // Default implementations
     return false;
   }
 
+  void next_iteration() {
+    ++_iteration;
+  }
+
 protected: // Members
   //! Graph we operate on, or \c nullptr if \c initialize has not been called yet.
   const Graph *_graph = nullptr;
@@ -1412,6 +1418,8 @@ protected: // Members
   //! were performed. If executed single-thread, this should be equal to the
   //! reduction of the edge cut.
   parallel::Atomic<EdgeWeight> _expected_total_gain;
+
+  NodeID _iteration = 0;
 
 private:
   NodeID _num_nodes = 0;
@@ -1681,6 +1689,8 @@ protected:
       init_chunks(from, to);
     }
     shuffle_chunks();
+
+    Base::next_iteration();
 
     switch (_impl) {
     case LabelPropagationImplementation::GROWING_HASH_TABLES:
