@@ -74,9 +74,9 @@ using UnsignedEdgeWeight = std::uint64_t;
 using UnsignedNodeWeight = std::uint64_t;
 #else  // KAMINPAR_64BIT_WEIGHTS
 using NodeWeight = std::int32_t;
+using UnsignedNodeWeight = std::uint32_t;
 using EdgeWeight = std::int32_t;
 using UnsignedEdgeWeight = std::uint32_t;
-using UnsignedNodeWeight = std::uint32_t;
 #endif // KAMINPAR_64BIT_WEIGHTS
 
 using BlockID = std::uint32_t;
@@ -112,9 +112,9 @@ typedef uint64_t kaminpar_unsigned_edge_weight_t;
 typedef uint64_t kaminpar_unsigned_node_weight_t;
 #else  // KAMINPAR_64BIT_WEIGHTS
 typedef int32_t kaminpar_node_weight_t;
+typedef uint32_t kaminpar_unsigned_node_weight_t;
 typedef int32_t kaminpar_edge_weight_t;
 typedef uint32_t kaminpar_unsigned_edge_weight_t;
-typedef uint32_t kaminpar_unsigned_node_weight_t;
 #endif // KAMINPAR_64BIT_WEIGHTS
 
 typedef uint32_t kaminpar_block_id_t;
