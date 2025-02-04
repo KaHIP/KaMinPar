@@ -206,7 +206,8 @@ public:
       for (const auto [cluster, rating] : map.entries()) {
         state.current_cluster = cluster;
         state.current_gain = rating - gain_delta;
-        state.current_cluster_weight = cluster_weight(cluster);
+        state.current_cluster_weight =
+            rating == 1 ? _graph->node_weight(cluster) : cluster_weight(cluster);
 
         if (store_favored_cluster) {
           if (state.current_gain > state.overall_best_gain) {
@@ -261,7 +262,8 @@ public:
       for (const auto [cluster, rating] : map.entries()) {
         state.current_cluster = cluster;
         state.current_gain = rating - gain_delta;
-        state.current_cluster_weight = cluster_weight(cluster);
+        state.current_cluster_weight =
+            rating == 1 ? _graph->node_weight(cluster) : cluster_weight(cluster);
 
         if (store_favored_cluster && state.current_gain > state.overall_best_gain) {
           state.overall_best_gain = state.current_gain;
