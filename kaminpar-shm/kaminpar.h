@@ -21,7 +21,7 @@
 #include <tbb/global_control.h>
 
 #define KAMINPAR_VERSION_MAJOR 3
-#define KAMINPAR_VERSION_MINOR 1
+#define KAMINPAR_VERSION_MINOR 2
 #define KAMINPAR_VERSION_PATCH 0
 
 namespace kaminpar {
@@ -57,9 +57,9 @@ using UnsignedEdgeWeight = std::uint64_t;
 using UnsignedNodeWeight = std::uint64_t;
 #else  // KAMINPAR_64BIT_WEIGHTS
 using NodeWeight = std::int32_t;
+using UnsignedNodeWeight = std::uint32_t;
 using EdgeWeight = std::int32_t;
 using UnsignedEdgeWeight = std::uint32_t;
-using UnsignedNodeWeight = std::uint32_t;
 #endif // KAMINPAR_64BIT_WEIGHTS
 
 using BlockID = std::uint32_t;
@@ -556,6 +556,7 @@ Context create_vcycle_context(bool restrict_refinement = false);
 
 Context create_esa21_smallk_context();
 Context create_esa21_largek_context();
+Context create_esa21_strong_context();
 
 } // namespace kaminpar::shm
 
