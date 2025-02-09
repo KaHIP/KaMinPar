@@ -19,6 +19,9 @@
 #include <unordered_set>
 #include <vector>
 
+#include <kaminpar-common/datastructures/static_array.h>
+#include <kaminpar-common/graph_compression/compressed_neighborhoods_builder.h>
+#include <tbb/enumerable_thread_specific.h>
 #include <tbb/global_control.h>
 #endif // __cplusplus
 
@@ -614,6 +617,163 @@ Context create_esa21_strong_context();
 } // namespace kaminpar::shm
 #endif // __cplusplus
 
+//
+// Graph compression interface
+//
+
+#ifdef __cplusplus
+namespace kaminpar::shm {
+class CompressedGraph;
+
+[[nodiscard]] CompressedGraph compress(
+    std::span<EdgeID> nodes,
+    std::span<NodeID> edges,
+    std::span<NodeWeight> node_weights = {},
+    std::span<NodeWeight> edge_weights = {},
+    bool sorted = false
+);
+
+[[nodiscard]] CompressedGraph parallel_compress(
+    std::span<EdgeID> nodes,
+    std::span<NodeID> edges,
+    std::span<NodeWeight> node_weights = {},
+    std::span<NodeWeight> edge_weights = {},
+    bool sorted = false
+);
+
+template <typename DegreeFetcher, typename NeighborhoodFetcher>
+[[nodiscard]] CompressedGraph parallel_compress(
+    const NodeID num_nodes,
+    const EdgeID num_edges,
+    DegreeFetcher &&fetch_degree,
+    NeighborhoodFetcher &&fetch_neighborhood,
+    StaticArray<NodeWeight> node_weights = {},
+    const bool sorted = false
+);
+
+template <typename DegreeFetcher, typename NeighborhoodFetcher>
+[[nodiscard]] CompressedGraph parallel_compress_weighted(
+    const NodeID num_nodes,
+    const EdgeID num_edges,
+    DegreeFetcher &&fetch_degree,
+    NeighborhoodFetcher &&fetch_neighborhood,
+    StaticArray<NodeWeight> node_weights = {},
+    const bool sorted = false
+);
+
+class CompressedGraphBuilder {
+public:
+  CompressedGraphBuilder(
+      NodeID num_nodes,
+      EdgeID num_edges,
+      bool has_node_weights,
+      bool has_edge_weights,
+      bool sorted = false
+  );
+
+  void add_node(std::span<NodeID> neighbors);
+
+  void add_node(std::span<std::pair<NodeID, EdgeWeight>> neighborhood);
+
+  void add_node(std::span<NodeID> neighbors, std::span<EdgeWeight> edge_weights);
+
+  void add_node_weight(NodeID node, NodeWeight weight);
+
+  CompressedGraph build();
+
+private:
+  NodeID _num_nodes;
+  EdgeID _num_edges;
+  bool _has_node_weights;
+  bool _has_edge_weights;
+  bool _sorted;
+
+  // Types and data structures used for compression
+  using CompressedNeighborhoodsBuilder =
+      kaminpar::CompressedNeighborhoodsBuilder<NodeID, EdgeID, EdgeWeight>;
+  NodeID _cur_node;
+  EdgeID _cur_edge;
+  CompressedNeighborhoodsBuilder _compressed_neighborhoods_builder;
+  std::vector<std::pair<NodeID, EdgeWeight>> _neighborhood;
+  NodeWeight _total_node_weight;
+  StaticArray<NodeWeight> _node_weights;
+};
+
+class ParallelCompressedGraphBuilder {
+public:
+  ParallelCompressedGraphBuilder(
+      NodeID num_nodes,
+      EdgeID num_edges,
+      bool has_node_weights,
+      bool has_edge_weights,
+      bool sorted = false
+  );
+
+  void register_neighborhood(NodeID node, std::span<NodeID> neighbors);
+
+  void register_neighborhood(NodeID node, std::span<std::pair<NodeID, EdgeWeight>> neighborhood);
+
+  void register_neighborhood(
+      NodeID node, std::span<NodeID> neighbors, std::span<EdgeWeight> edge_weights
+  );
+
+  void register_neighborhoods(
+      NodeID node, std::span<EdgeID> nodes, std::span<std::pair<NodeID, EdgeWeight>> neighborhoods
+  );
+
+  void register_neighborhoods(
+      NodeID node,
+      std::span<EdgeID> nodes,
+      std::span<NodeID> neighbors,
+      std::span<EdgeWeight> edge_weights
+  );
+
+  void compute_offsets();
+
+  void add_neighborhood(NodeID node, std::span<NodeID> neighbors);
+
+  void add_neighborhood(NodeID node, std::span<std::pair<NodeID, EdgeWeight>> neighborhood);
+
+  void
+  add_neighborhood(NodeID node, std::span<NodeID> neighbors, std::span<EdgeWeight> edge_weights);
+
+  void add_neighborhoods(
+      NodeID node, std::span<EdgeID> nodes, std::span<std::pair<NodeID, EdgeWeight>> neighborhoods
+  );
+
+  void add_neighborhoods(
+      NodeID node,
+      std::span<EdgeID> nodes,
+      std::span<NodeID> neighbors,
+      std::span<EdgeWeight> edge_weights
+  );
+
+  void add_node_weight(NodeID node, NodeWeight weight);
+
+  CompressedGraph build();
+
+private:
+  NodeID _num_nodes;
+  EdgeID _num_edges;
+  bool _has_node_weights;
+  bool _has_edge_weights;
+  bool _sorted;
+
+  // Types and data structures used for compression
+  using CompressedEdgesBuilder = kaminpar::CompressedEdgesBuilder<NodeID, EdgeID, EdgeWeight>;
+  using ParallelCompressedNeighborhoodsBuilder =
+      kaminpar::ParallelCompressedNeighborhoodsBuilder<NodeID, EdgeID, EdgeWeight>;
+  bool _computed_offsets;
+  StaticArray<EdgeID> _offsets;
+  StaticArray<NodeWeight> _node_weights;
+  ParallelCompressedNeighborhoodsBuilder _builder;
+  tbb::enumerable_thread_specific<CompressedEdgesBuilder> _edges_builder_ets;
+  tbb::enumerable_thread_specific<std::vector<std::pair<NodeID, EdgeWeight>>> _neighborhood_ets;
+};
+
+} // namespace kaminpar::shm
+#endif // __cplusplus
+
 // C interface
 #ifdef __cplusplus
 extern "C" {
@@ -728,9 +888,9 @@ public:
   void set_graph(shm::Graph graph);
 
   /*!
-    * Takes ownership of the graph set to be partitioned.
-    *
-    * @return The graph set to be partitioned.
+   * Takes ownership of the graph set to be partitioned.
+   *
+   * @return The graph set to be partitioned.
    */
   shm::Graph take_graph();
 

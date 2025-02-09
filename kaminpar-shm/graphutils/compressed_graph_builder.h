@@ -27,124 +27,6 @@
 
 namespace kaminpar::shm {
 
-class CompressedGraphBuilder {
-  using CompressedNeighborhoodsBuilder =
-      kaminpar::CompressedNeighborhoodsBuilder<NodeID, EdgeID, EdgeWeight>;
-
-public:
-  CompressedGraphBuilder(
-      NodeID num_nodes, EdgeID num_edges, bool has_node_weights, bool has_edge_weights, bool sorted
-  );
-
-  void add_node(std::span<NodeID> neighbors);
-
-  void add_node(std::span<std::pair<NodeID, EdgeWeight>> neighborhood);
-
-  void add_node(std::span<NodeID> neighbors, std::span<EdgeWeight> edge_weights);
-
-  void add_node_weight(NodeID node, NodeWeight weight);
-
-  CompressedGraph build();
-
-private:
-  const NodeID _num_nodes;
-  const EdgeID _num_edges;
-  const bool _has_node_weights;
-  const bool _has_edge_weights;
-  const bool _sorted;
-
-  NodeID _cur_node;
-  EdgeID _cur_edge;
-  CompressedNeighborhoodsBuilder _compressed_neighborhoods_builder;
-  std::vector<std::pair<NodeID, EdgeWeight>> _neighborhood;
-
-  NodeWeight _total_node_weight;
-  StaticArray<NodeWeight> _node_weights;
-};
-
-[[nodiscard]] CompressedGraph compress(const CSRGraph &graph);
-
-[[nodiscard]] CompressedGraph compress(
-    std::span<EdgeID> nodes,
-    std::span<NodeID> edges,
-    std::span<NodeWeight> node_weights = {},
-    std::span<NodeWeight> edge_weights = {},
-    bool sorted = false
-);
-
-class ParallelCompressedGraphBuilder {
-  using CompressedEdgesBuilder = kaminpar::CompressedEdgesBuilder<NodeID, EdgeID, EdgeWeight>;
-  using ParallelCompressedNeighborhoodsBuilder =
-      kaminpar::ParallelCompressedNeighborhoodsBuilder<NodeID, EdgeID, EdgeWeight>;
-
-public:
-  ParallelCompressedGraphBuilder(
-      NodeID num_nodes,
-      EdgeID num_edges,
-      bool has_node_weights,
-      bool has_edge_weights,
-      bool sorted = false
-  );
-
-  void register_neighborhood(NodeID node, std::span<NodeID> neighbors);
-
-  void register_neighborhood(NodeID node, std::span<std::pair<NodeID, EdgeWeight>> neighborhood);
-
-  void register_neighborhood(
-      NodeID node, std::span<NodeID> neighbors, std::span<EdgeWeight> edge_weights
-  );
-
-  void register_neighborhoods(
-      NodeID node, std::span<EdgeID> nodes, std::span<std::pair<NodeID, EdgeWeight>> neighborhoods
-  );
-
-  void register_neighborhoods(
-      NodeID node,
-      std::span<EdgeID> nodes,
-      std::span<NodeID> neighbors,
-      std::span<EdgeWeight> edge_weights
-  );
-
-  void compute_offsets();
-
-  void add_neighborhood(NodeID node, std::span<NodeID> neighbors);
-
-  void add_neighborhood(NodeID node, std::span<std::pair<NodeID, EdgeWeight>> neighborhood);
-
-  void
-  add_neighborhood(NodeID node, std::span<NodeID> neighbors, std::span<EdgeWeight> edge_weights);
-
-  void add_neighborhoods(
-      NodeID node, std::span<EdgeID> nodes, std::span<std::pair<NodeID, EdgeWeight>> neighborhoods
-  );
-
-  void add_neighborhoods(
-      NodeID node,
-      std::span<EdgeID> nodes,
-      std::span<NodeID> neighbors,
-      std::span<EdgeWeight> edge_weights
-  );
-
-  void add_node_weight(NodeID node, NodeWeight weight);
-
-  CompressedGraph build();
-
-private:
-  const NodeID _num_nodes;
-  const EdgeID _num_edges;
-  const bool _has_node_weights;
-  const bool _has_edge_weights;
-  const bool _sorted;
-
-  bool _computed_offsets;
-  StaticArray<EdgeID> _offsets;
-  StaticArray<NodeWeight> _node_weights;
-
-  ParallelCompressedNeighborhoodsBuilder _builder;
-  tbb::enumerable_thread_specific<CompressedEdgesBuilder> _edges_builder_ets;
-  tbb::enumerable_thread_specific<std::vector<std::pair<NodeID, EdgeWeight>>> _neighborhood_ets;
-};
-
 namespace {
 
 template <bool kHasEdgeWeights, typename DegreeFetcher, typename NeighborhoodFetcher>
@@ -294,15 +176,9 @@ template <bool kHasEdgeWeights, typename DegreeFetcher, typename NeighborhoodFet
 
 } // namespace
 
-[[nodiscard]] CompressedGraph parallel_compress(const CSRGraph &graph);
+[[nodiscard]] CompressedGraph compress(const CSRGraph &graph);
 
-[[nodiscard]] CompressedGraph parallel_compress(
-    std::span<EdgeID> nodes,
-    std::span<NodeID> edges,
-    std::span<NodeWeight> node_weights = {},
-    std::span<NodeWeight> edge_weights = {},
-    bool sorted = false
-);
+[[nodiscard]] CompressedGraph parallel_compress(const CSRGraph &graph);
 
 template <typename DegreeFetcher, typename NeighborhoodFetcher>
 [[nodiscard]] CompressedGraph parallel_compress(
@@ -310,8 +186,8 @@ template <typename DegreeFetcher, typename NeighborhoodFetcher>
     const EdgeID num_edges,
     DegreeFetcher &&fetch_degree,
     NeighborhoodFetcher &&fetch_neighborhood,
-    StaticArray<NodeWeight> node_weights = {},
-    const bool sorted = false
+    StaticArray<NodeWeight> node_weights,
+    const bool sorted
 ) {
   constexpr bool kHasEdgeWeights = false;
   return compress_graph<kHasEdgeWeights, DegreeFetcher, NeighborhoodFetcher>(
@@ -330,8 +206,8 @@ template <typename DegreeFetcher, typename NeighborhoodFetcher>
     const EdgeID num_edges,
     DegreeFetcher &&fetch_degree,
     NeighborhoodFetcher &&fetch_neighborhood,
-    StaticArray<NodeWeight> node_weights = {},
-    const bool sorted = false
+    StaticArray<NodeWeight> node_weights,
+    const bool sorted
 ) {
   constexpr bool kHasEdgeWeights = true;
   return compress_graph<kHasEdgeWeights, DegreeFetcher, NeighborhoodFetcher>(
