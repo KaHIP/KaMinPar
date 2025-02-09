@@ -7,4 +7,4 @@ project(
 )
 
 add_executable(ShmCToyGraphExample shm_c_toy_graph_example.c)
-target_link_libraries(ShmCToyGraphExample PRIVATE KaMinPar::CKaMinPar)
+target_link_libraries(ShmCToyGraphExample PRIVATE KaMinPar::KaMinPar)

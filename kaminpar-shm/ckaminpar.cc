@@ -5,13 +5,13 @@
  * @author: Daniel Seemaier
  * @date:   09.12.2024
  ******************************************************************************/
-#include "ckaminpar.h"
+#include "kaminpar-shm/ckaminpar.h"
 
 #include <span>
 #include <string>
 #include <vector>
 
-#include <kaminpar-shm/kaminpar.h>
+#include "kaminpar-shm/kaminpar.h"
 
 struct kaminpar_context_t {
   kaminpar::shm::Context ctx;
