@@ -1,7 +1,7 @@
 /*******************************************************************************
  * IO utilities for the shared-memory partitioner.
  *
- * @file:   io.h
+ * @file:   kaminpar-io.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  ******************************************************************************/
@@ -75,6 +75,41 @@ enum class GraphFileFormat {
     const NodeOrdering ordering,
     const bool compress
 );
+
+namespace metis {
+
+[[nodiscard]] std::optional<CSRGraph> csr_read(const std::string &filename, const bool sorted);
+
+[[nodiscard]] std::optional<CompressedGraph>
+compress_read(const std::string &filename, const bool sorted);
+
+void write(const std::string &filename, const Graph &graph);
+
+} // namespace metis
+
+namespace parhip {
+
+[[nodiscard]] std::optional<CSRGraph>
+csr_read(const std::string &filename, const NodeOrdering ordering = NodeOrdering::NATURAL);
+
+[[nodiscard]] std::optional<CompressedGraph>
+compressed_read(const std::string &filename, const NodeOrdering ordering = NodeOrdering::NATURAL);
+
+void write(const std::string &filename, const CSRGraph &graph);
+
+} // namespace parhip
+
+namespace compressed_binary {
+//! Magic number to identify a compressed graph binary file.
+constexpr std::uint64_t kMagicNumber = 0x434F4D5052455353;
+
+void write(const std::string &filename, const CompressedGraph &graph);
+
+[[nodiscard]] std::optional<CompressedGraph> read(const std::string &filename);
+
+bool is_compressed(const std::string &filename);
+
+} // namespace compressed_binary
 
 namespace partition {
 

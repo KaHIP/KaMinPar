@@ -1,11 +1,11 @@
 /*******************************************************************************
  * IO utilities for the shared-memory partitioner.
  *
- * @file:   io.cc
+ * @file:   kaminpar-io.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  ******************************************************************************/
-#include "kaminpar-io/io.h"
+#include "kaminpar-io/kaminpar_io.h"
 
 #include <fstream>
 #include <numeric>

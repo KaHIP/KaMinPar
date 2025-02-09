@@ -439,13 +439,13 @@ include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
 
 install(
-    FILES kaminpar-shm/kaminpar.h
+    FILES kaminpar-shm/kaminpar.h kaminpar-io/kaminpar_io.h
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
     COMPONENT KaMinPar_Development
 )
 
 install(
-    TARGETS kassert_base kassert kaminpar_common kaminpar_shm
+    TARGETS kassert_base kassert kaminpar_common kaminpar_shm kaminpar_io
     EXPORT KaMinParTargets
     RUNTIME COMPONENT KaMinPar_Runtime
     LIBRARY COMPONENT KaMinPar_Runtime NAMELINK_COMPONENT KaMinPar_Development

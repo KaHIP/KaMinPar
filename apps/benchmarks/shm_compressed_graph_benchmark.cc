@@ -8,7 +8,7 @@
 #include <limits>
 
 #include "kaminpar-cli/CLI11.h"
-#include "kaminpar-io/io.h"
+#include "kaminpar-io/kaminpar_io.h"
 
 #include "kaminpar-shm/graphutils/compressed_graph_builder.h"
 #include "kaminpar-shm/kaminpar.h"

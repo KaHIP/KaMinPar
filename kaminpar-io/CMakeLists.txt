@@ -3,7 +3,7 @@ set(COMMON_IO_SOURCE_FILES
     util/binary_util.h)
 
 set(KAMINPAR_IO_SOURCE_FILES
-    io.h io.cc
+    kaminpar_io.h kaminpar_io.cc
     metis_parser.h metis_parser.cc
     parhip_parser.h parhip_parser.cc
     graph_compression_binary.h graph_compression_binary.cc

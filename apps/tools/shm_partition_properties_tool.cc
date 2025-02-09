@@ -11,7 +11,7 @@
 
 #include <tbb/global_control.h>
 
-#include "kaminpar-io/io.h"
+#include "kaminpar-io/kaminpar_io.h"
 
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"

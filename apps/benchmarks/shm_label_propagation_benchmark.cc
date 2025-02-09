@@ -11,7 +11,7 @@
 
 #include <tbb/global_control.h>
 
-#include "kaminpar-io/io.h"
+#include "kaminpar-io/kaminpar_io.h"
 
 #include "kaminpar-shm/coarsening/clustering/lp_clusterer.h"
 #include "kaminpar-shm/coarsening/max_cluster_weights.h"

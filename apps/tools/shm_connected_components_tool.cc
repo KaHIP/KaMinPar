@@ -16,9 +16,7 @@
 #include <utility>
 #include <vector>
 
-#include "kaminpar-io/io.h"
-#include "kaminpar-io/metis_parser.h"
-#include "kaminpar-io/parhip_parser.h"
+#include "kaminpar-io/kaminpar_io.h"
 
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/kaminpar.h"

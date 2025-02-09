@@ -20,9 +20,7 @@
 #include <numa.h>
 #endif // __has_include(<numa.h>)
 
-#include "kaminpar-io/io.h"
-#include "kaminpar-io/metis_parser.h"
-#include "kaminpar-io/parhip_parser.h"
+#include "kaminpar-io/kaminpar_io.h"
 
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/graphutils/graph_validator.h"

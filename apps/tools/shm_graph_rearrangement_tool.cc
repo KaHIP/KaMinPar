@@ -11,9 +11,7 @@
 
 #include <tbb/global_control.h>
 
-#include "kaminpar-io/io.h"
-#include "kaminpar-io/metis_parser.h"
-#include "kaminpar-io/parhip_parser.h"
+#include "kaminpar-io/kaminpar_io.h"
 
 #include "kaminpar-shm/graphutils/permutator.h"
 
