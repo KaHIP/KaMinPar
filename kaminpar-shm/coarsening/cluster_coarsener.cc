@@ -102,14 +102,46 @@ bool ClusteringCoarsener::coarsen() {
       contract_clustering(current(), std::move(clustering), _c_ctx.contraction, _contraction_m_ctx)
   );
 
+  auto project_communities = [&](const std::size_t fine_n,
+                                 const NodeID *fine_ptr,
+                                 const std::size_t coarse_n,
+                                 NodeID *coarse_ptr) {
+    if constexpr (std::is_same_v<BlockID, NodeID>) {
+      const BlockID *fine = reinterpret_cast<const BlockID *>(fine_ptr);
+      BlockID *coarse = reinterpret_cast<BlockID *>(coarse_ptr);
+      _hierarchy.back()->project_down({fine, fine_n}, {coarse, coarse_n});
+    } else {
+      StaticArray<BlockID> fine(fine_n);
+      StaticArray<BlockID> coarse(coarse_n);
+
+      tbb::parallel_for<std::size_t>(0, fine_n, [&](const std::size_t i) {
+        fine[i] = static_cast<BlockID>(fine_ptr[i]);
+      });
+      _hierarchy.back()->project_down(fine, coarse);
+      tbb::parallel_for<std::size_t>(0, coarse_n, [&](const std::size_t i) {
+        coarse_ptr[i] = static_cast<NodeID>(coarse[i]);
+      });
+    }
+  };
+
   if (!_communities_hierarchy.empty()) {
     _communities_hierarchy.emplace_back(current().n());
-    _hierarchy.back()->project_down(
-        _communities_hierarchy[_communities_hierarchy.size() - 2], _communities_hierarchy.back()
-    );
+
+    const std::size_t fine_n = _communities_hierarchy[_communities_hierarchy.size() - 2].size();
+    NodeID *fine_ptr = _communities_hierarchy[_communities_hierarchy.size() - 2].data();
+    const std::size_t coarse_n = _communities_hierarchy.back().size();
+    NodeID *coarse_ptr = _communities_hierarchy.back().data();
+
+    project_communities(fine_n, fine_ptr, coarse_n, coarse_ptr);
   } else if (!_input_communities.empty()) {
     _communities_hierarchy.emplace_back(current().n());
-    _hierarchy.back()->project_down(_input_communities, _communities_hierarchy.back());
+
+    const std::size_t fine_n = _input_communities.size();
+    const NodeID *fine_ptr = _input_communities.data();
+    const std::size_t coarse_n = _communities_hierarchy.back().size();
+    NodeID *coarse_ptr = _communities_hierarchy.back().data();
+
+    project_communities(fine_n, fine_ptr, coarse_n, coarse_ptr);
   }
 
   STOP_TIMER();

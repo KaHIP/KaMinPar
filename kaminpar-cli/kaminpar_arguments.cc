@@ -271,7 +271,6 @@ Options are:
   - disable: Do not merge two-hop singleton clusters
   - match:   Join two-hop singleton clusters pairwise
   - cluster: Cluster two-hop singleton clusters into a single cluster (respecting the maximum cluster weight limit)
-  - legacy:  Use v2.1 default behaviour
   )")
       ->capture_default_str();
   lp->add_option(
@@ -309,7 +308,6 @@ CLI::Option_group *create_contraction_coarsening_options(CLI::App *app, Context 
       ->description(R"(The algorithm used for contraction.
 Options are:
   - buffered:         Use an edge buffer that is partially filled
-  - buffered-legacy:  Use an edge buffer
   - unbuffered:       Use no edge buffer by remapping the coarse nodes
   - unbuffered-naive: Use no edge buffer by computing twice
   )")

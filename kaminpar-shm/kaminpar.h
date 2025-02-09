@@ -26,7 +26,7 @@
 #include <stdint.h>
 
 #define KAMINPAR_VERSION_MAJOR 3
-#define KAMINPAR_VERSION_MINOR 1
+#define KAMINPAR_VERSION_MINOR 2
 #define KAMINPAR_VERSION_PATCH 0
 
 #ifdef __cplusplus
@@ -74,9 +74,9 @@ using UnsignedEdgeWeight = std::uint64_t;
 using UnsignedNodeWeight = std::uint64_t;
 #else  // KAMINPAR_64BIT_WEIGHTS
 using NodeWeight = std::int32_t;
+using UnsignedNodeWeight = std::uint32_t;
 using EdgeWeight = std::int32_t;
 using UnsignedEdgeWeight = std::uint32_t;
-using UnsignedNodeWeight = std::uint32_t;
 #endif // KAMINPAR_64BIT_WEIGHTS
 
 using BlockID = std::uint32_t;
@@ -112,9 +112,9 @@ typedef uint64_t kaminpar_unsigned_edge_weight_t;
 typedef uint64_t kaminpar_unsigned_node_weight_t;
 #else  // KAMINPAR_64BIT_WEIGHTS
 typedef int32_t kaminpar_node_weight_t;
+typedef uint32_t kaminpar_unsigned_node_weight_t;
 typedef int32_t kaminpar_edge_weight_t;
 typedef uint32_t kaminpar_unsigned_edge_weight_t;
-typedef uint32_t kaminpar_unsigned_node_weight_t;
 #endif // KAMINPAR_64BIT_WEIGHTS
 
 typedef uint32_t kaminpar_block_id_t;
@@ -186,7 +186,6 @@ enum class TieBreakingStrategy {
 
 enum class ContractionAlgorithm {
   BUFFERED,
-  BUFFERED_LEGACY,
   UNBUFFERED,
   UNBUFFERED_NAIVE,
 };
@@ -610,6 +609,7 @@ Context create_vcycle_context(bool restrict_refinement = false);
 
 Context create_esa21_smallk_context();
 Context create_esa21_largek_context();
+Context create_esa21_strong_context();
 
 } // namespace kaminpar::shm
 #endif // __cplusplus

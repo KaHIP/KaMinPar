@@ -34,10 +34,21 @@ int main(int argc, char *argv[]) {
   std::string graph_filename;
   io::GraphFileFormat graph_file_format = io::GraphFileFormat::METIS;
   int seed = 0;
+
   double epsilon = 0.03;
+  BlockID k = 2;
 
   CLI::App app("Shared-memory LP benchmark");
   app.add_option("-G,--graph", graph_filename, "Graph file")->required();
+  app.add_option("-k,--k", k, "Number of blocks in the partition.")->required();
+  app.add_option(
+         "-e,--epsilon",
+         epsilon,
+         "Maximum allowed imbalance, e.g., 0.03 for 3%. Must be strictly positive."
+  )
+      ->check(CLI::NonNegativeNumber)
+      ->capture_default_str();
+
   app.add_option("-f,--graph-file-format", graph_file_format)
       ->transform(CLI::CheckedTransformer(io::get_graph_file_formats()).description(""))
       ->description(R"(Graph file formats:
@@ -45,14 +56,7 @@ int main(int argc, char *argv[]) {
   - parhip)");
   app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads");
   app.add_option("-s,--seed", seed, "Seed for random number generation.")->default_val(seed);
-  app.add_option("-k,--k", ctx.partition.k, "Number of blocks in the partition.")->required();
-  app.add_option(
-         "-e,--epsilon",
-         epsilon,
-         "Maximum allowed imbalance, e.g. 0.03 for 3%. Must be strictly positive."
-  )
-      ->check(CLI::NonNegativeNumber)
-      ->capture_default_str();
+
   create_lp_coarsening_options(&app, ctx);
   create_partitioning_rearrangement_options(&app, ctx);
   create_graph_compression_options(&app, ctx);
@@ -68,7 +72,8 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  ctx.partition.setup(*graph, ctx.partition.k, epsilon);
+  ctx.compression.setup(*graph);
+  ctx.partition.setup(*graph, k, epsilon);
 
   if (ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
     if (ctx.compression.enabled) {
@@ -76,16 +81,11 @@ int main(int argc, char *argv[]) {
                      "degree bucket ordering!";
       ctx.node_ordering = NodeOrdering::NATURAL;
     } else if (!graph->sorted()) {
-      CSRGraph &csr_graph = graph->csr_graph();
-      graph = graph::rearrange_by_degree_buckets(csr_graph);
+      graph = graph::rearrange_by_degree_buckets(graph->csr_graph());
     }
   }
-
   if (graph->sorted()) {
-    const NodeID num_isolated_nodes = graph::count_isolated_nodes(*graph);
-    graph->remove_isolated_nodes(num_isolated_nodes);
-    ctx.partition.n = graph->n();
-    ctx.partition.total_node_weight = graph->total_node_weight();
+    graph->remove_isolated_nodes(graph::count_isolated_nodes(*graph));
   }
 
   LPClustering lp_clustering(ctx.coarsening);

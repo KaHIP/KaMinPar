@@ -1861,7 +1861,9 @@ private:
 
   template <typename RatingMapETS> void perform(RatingMapETS &rating_map_ets) {
     parallel::Atomic<std::size_t> next_chunk = 0;
-    tbb::parallel_for(static_cast<std::size_t>(0), _chunks.size(), [&](const std::size_t) {
+    DBG << "Number of chunks: " << _chunks.size();
+
+    tbb::parallel_for(static_cast<std::size_t>(0), _chunks.size(), [&](std::size_t) {
       if (should_stop()) {
         return;
       }
@@ -1877,6 +1879,8 @@ private:
       const auto chunk_id = next_chunk.fetch_add(1, std::memory_order_relaxed);
       const auto &chunk = _chunks[chunk_id];
       const auto &permutation = _random_permutations.get(local_rand);
+
+      DBG << chunk_id << " of " << _chunks.size() << " for " << sched_getcpu();
 
       const std::size_t num_sub_chunks =
           std::ceil(1.0 * (chunk.end - chunk.start) / Config::kPermutationSize);

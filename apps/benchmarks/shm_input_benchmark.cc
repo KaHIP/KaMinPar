@@ -34,7 +34,6 @@ int main(int argc, char *argv[]) {
   io::GraphFileFormat graph_file_format = io::GraphFileFormat::METIS;
   bool compress_in_memory = false;
   int seed = 0;
-  double epsilon = 0.03;
 
   CLI::App app("Shared-memory input benchmark");
   app.add_option("-G,--graph", graph_filename, "Graph file")->required();
@@ -60,8 +59,6 @@ int main(int argc, char *argv[]) {
   app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads")
       ->capture_default_str();
   app.add_option("-s,--seed", seed, "Seed for random number generation")->capture_default_str();
-  app.add_option("-k,--k", ctx.partition.k);
-  app.add_option("-e,--epsilon", epsilon)->capture_default_str();
   create_graph_compression_options(&app, ctx);
   CLI11_PARSE(app, argc, argv);
 
@@ -90,10 +87,10 @@ int main(int argc, char *argv[]) {
       const bool sequential_compression = ctx.parallel.num_threads <= 1;
       if (sequential_compression) {
         Graph graph = Graph(std::make_unique<CompressedGraph>(compress(*csr_graph)));
-        ctx.partition.setup(graph, ctx.partition.k, epsilon);
+        ctx.compression.setup(graph);
       } else {
         Graph graph = Graph(std::make_unique<CompressedGraph>(parallel_compress(*csr_graph)));
-        ctx.partition.setup(graph, ctx.partition.k, epsilon);
+        ctx.compression.setup(graph);
       }
     } else {
       auto graph =
@@ -103,7 +100,7 @@ int main(int argc, char *argv[]) {
         std::exit(EXIT_FAILURE);
       }
 
-      ctx.partition.setup(*graph, ctx.partition.k, epsilon);
+      ctx.compression.setup(*graph);
     }
   };
 
