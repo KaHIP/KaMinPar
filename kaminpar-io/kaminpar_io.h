@@ -12,12 +12,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "kaminpar-shm/datastructures/compressed_graph.h"
-#include "kaminpar-shm/datastructures/csr_graph.h"
-#include "kaminpar-shm/datastructures/graph.h"
-#include "kaminpar-shm/kaminpar.h"
-
-#include "kaminpar-common/datastructures/static_array.h"
+#include <kaminpar-shm/kaminpar.h>
 
 namespace kaminpar::shm::io {
 
@@ -113,9 +108,9 @@ bool is_compressed(const std::string &filename);
 
 namespace partition {
 
-StaticArray<BlockID> read(const std::string &filename);
+std::vector<BlockID> read(const std::string &filename);
 
-StaticArray<BlockID> read_block_sizes(const std::string &filename);
+std::vector<BlockID> read_block_sizes(const std::string &filename);
 
 void write(const std::string &filename, std::span<const BlockID> partition);
 

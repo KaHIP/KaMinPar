@@ -11,6 +11,8 @@
 #include <fstream>
 #include <optional>
 
+#include "kaminpar-shm/datastructures/compressed_graph.h"
+
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/logger.h"
 

@@ -15,6 +15,7 @@
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/factories.h"
 #include "kaminpar-shm/graphutils/permutator.h"
+#include "kaminpar-shm/graphutils/compressed_graph_builder.h"
 #include "kaminpar-shm/metrics.h"
 
 #include "kaminpar-common/console_io.h"

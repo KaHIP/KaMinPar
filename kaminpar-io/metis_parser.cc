@@ -11,6 +11,9 @@
 
 #include "kaminpar-io/util/file_toker.h"
 
+#include "kaminpar-shm/datastructures/compressed_graph.h"
+#include "kaminpar-shm/datastructures/csr_graph.h"
+#include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/graphutils/compressed_graph_builder.h"
 
 #include "kaminpar-common/assert.h"

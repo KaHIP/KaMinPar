@@ -19,9 +19,6 @@
 #include <unordered_set>
 #include <vector>
 
-#include <kaminpar-common/datastructures/static_array.h>
-#include <kaminpar-common/graph_compression/compressed_neighborhoods_builder.h>
-#include <tbb/enumerable_thread_specific.h>
 #include <tbb/global_control.h>
 #endif // __cplusplus
 
@@ -623,7 +620,12 @@ Context create_esa21_strong_context();
 
 #ifdef __cplusplus
 namespace kaminpar::shm {
+class CSRGraph;
 class CompressedGraph;
+
+[[nodiscard]] CompressedGraph compress(const CSRGraph &graph);
+
+[[nodiscard]] CompressedGraph parallel_compress(const CSRGraph &graph);
 
 [[nodiscard]] CompressedGraph compress(
     std::span<EdgeID> nodes,
@@ -647,7 +649,7 @@ template <typename DegreeFetcher, typename NeighborhoodFetcher>
     const EdgeID num_edges,
     DegreeFetcher &&fetch_degree,
     NeighborhoodFetcher &&fetch_neighborhood,
-    StaticArray<NodeWeight> node_weights = {},
+    std::span<const NodeWeight> node_weights = {},
     const bool sorted = false
 );
 
@@ -657,7 +659,7 @@ template <typename DegreeFetcher, typename NeighborhoodFetcher>
     const EdgeID num_edges,
     DegreeFetcher &&fetch_degree,
     NeighborhoodFetcher &&fetch_neighborhood,
-    StaticArray<NodeWeight> node_weights = {},
+    std::span<const NodeWeight> node_weights = {},
     const bool sorted = false
 );
 
@@ -682,21 +684,8 @@ public:
   CompressedGraph build();
 
 private:
-  NodeID _num_nodes;
-  EdgeID _num_edges;
-  bool _has_node_weights;
-  bool _has_edge_weights;
-  bool _sorted;
-
-  // Types and data structures used for compression
-  using CompressedNeighborhoodsBuilder =
-      kaminpar::CompressedNeighborhoodsBuilder<NodeID, EdgeID, EdgeWeight>;
-  NodeID _cur_node;
-  EdgeID _cur_edge;
-  CompressedNeighborhoodsBuilder _compressed_neighborhoods_builder;
-  std::vector<std::pair<NodeID, EdgeWeight>> _neighborhood;
-  NodeWeight _total_node_weight;
-  StaticArray<NodeWeight> _node_weights;
+  struct Impl;
+  std::unique_ptr<Impl> _impl;
 };
 
 class ParallelCompressedGraphBuilder {
@@ -753,22 +742,8 @@ public:
   CompressedGraph build();
 
 private:
-  NodeID _num_nodes;
-  EdgeID _num_edges;
-  bool _has_node_weights;
-  bool _has_edge_weights;
-  bool _sorted;
-
-  // Types and data structures used for compression
-  using CompressedEdgesBuilder = kaminpar::CompressedEdgesBuilder<NodeID, EdgeID, EdgeWeight>;
-  using ParallelCompressedNeighborhoodsBuilder =
-      kaminpar::ParallelCompressedNeighborhoodsBuilder<NodeID, EdgeID, EdgeWeight>;
-  bool _computed_offsets;
-  StaticArray<EdgeID> _offsets;
-  StaticArray<NodeWeight> _node_weights;
-  ParallelCompressedNeighborhoodsBuilder _builder;
-  tbb::enumerable_thread_specific<CompressedEdgesBuilder> _edges_builder_ets;
-  tbb::enumerable_thread_specific<std::vector<std::pair<NodeID, EdgeWeight>>> _neighborhood_ets;
+  struct Impl;
+  std::unique_ptr<Impl> _impl;
 };
 
 } // namespace kaminpar::shm

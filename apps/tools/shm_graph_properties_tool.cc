@@ -14,6 +14,7 @@
 #include "kaminpar-io/kaminpar_io.h"
 
 #include "kaminpar-shm/context_io.h"
+#include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/console_io.h"

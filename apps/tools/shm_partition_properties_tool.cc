@@ -17,6 +17,7 @@
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/metrics.h"
 
+#include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/strutils.h"
 
 using namespace kaminpar;
@@ -64,7 +65,7 @@ int main(int argc, char *argv[]) {
 
   LOG << "Graph:            " << ctx.debug.graph_name;
 
-  StaticArray<BlockID> partition;
+  std::vector<BlockID> partition;
   if (!partition_filename.empty()) {
     LOG << "Partition:        " << str::extract_basename(partition_filename);
 
@@ -79,7 +80,7 @@ int main(int argc, char *argv[]) {
   }
 
   const BlockID k = *std::max_element(partition.begin(), partition.end()) + 1;
-  PartitionedGraph p_graph(*graph, k, std::move(partition));
+  PartitionedGraph p_graph(*graph, k, StaticArray<BlockID>(partition.size(), partition.data()));
 
   LOG << "Number of blocks: " << k;
   LOG << "Edge cut:         " << metrics::edge_cut(p_graph);

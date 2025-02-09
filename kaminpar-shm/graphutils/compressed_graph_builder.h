@@ -15,7 +15,6 @@
 #include <tbb/parallel_for.h>
 
 #include "kaminpar-shm/datastructures/compressed_graph.h"
-#include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/assert.h"
@@ -23,6 +22,7 @@
 #include "kaminpar-common/datastructures/maxsize_vector.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/graph_compression/compressed_neighborhoods_builder.h"
+#include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
@@ -35,8 +35,8 @@ template <bool kHasEdgeWeights, typename DegreeFetcher, typename NeighborhoodFet
     const EdgeID num_edges,
     DegreeFetcher &&fetch_degree,
     NeighborhoodFetcher &&fetch_neighborhood,
-    StaticArray<NodeWeight> node_weights = {},
-    const bool sorted = false
+    std::span<const NodeWeight> node_weights,
+    const bool sorted
 ) {
   using NeighbourhoodView = std::
       conditional_t<kHasEdgeWeights, std::span<std::pair<NodeID, EdgeWeight>>, std::span<NodeID>>;
@@ -171,14 +171,15 @@ template <bool kHasEdgeWeights, typename DegreeFetcher, typename NeighborhoodFet
     );
   });
 
-  return CompressedGraph(builder.build(), std::move(node_weights), sorted);
+  StaticArray<NodeWeight> node_weights_array;
+  if (!node_weights.empty()) {
+    node_weights_array = StaticArray<NodeWeight>(node_weights.begin(), node_weights.end());
+  }
+
+  return CompressedGraph(builder.build(), std::move(node_weights_array), sorted);
 }
 
 } // namespace
-
-[[nodiscard]] CompressedGraph compress(const CSRGraph &graph);
-
-[[nodiscard]] CompressedGraph parallel_compress(const CSRGraph &graph);
 
 template <typename DegreeFetcher, typename NeighborhoodFetcher>
 [[nodiscard]] CompressedGraph parallel_compress(
@@ -186,7 +187,7 @@ template <typename DegreeFetcher, typename NeighborhoodFetcher>
     const EdgeID num_edges,
     DegreeFetcher &&fetch_degree,
     NeighborhoodFetcher &&fetch_neighborhood,
-    StaticArray<NodeWeight> node_weights,
+    std::span<const NodeWeight> node_weights,
     const bool sorted
 ) {
   constexpr bool kHasEdgeWeights = false;
@@ -195,7 +196,7 @@ template <typename DegreeFetcher, typename NeighborhoodFetcher>
       num_edges,
       std::forward<DegreeFetcher>(fetch_degree),
       std::forward<NeighborhoodFetcher>(fetch_neighborhood),
-      std::move(node_weights),
+      node_weights,
       sorted
   );
 }
@@ -206,7 +207,7 @@ template <typename DegreeFetcher, typename NeighborhoodFetcher>
     const EdgeID num_edges,
     DegreeFetcher &&fetch_degree,
     NeighborhoodFetcher &&fetch_neighborhood,
-    StaticArray<NodeWeight> node_weights,
+    std::span<const NodeWeight> node_weights,
     const bool sorted
 ) {
   constexpr bool kHasEdgeWeights = true;
@@ -215,9 +216,440 @@ template <typename DegreeFetcher, typename NeighborhoodFetcher>
       num_edges,
       std::forward<DegreeFetcher>(fetch_degree),
       std::forward<NeighborhoodFetcher>(fetch_neighborhood),
-      std::move(node_weights),
+      node_weights,
       sorted
   );
 }
+
+struct CompressedGraphBuilder::Impl {
+  using CompressedNeighborhoodsBuilder =
+      kaminpar::CompressedNeighborhoodsBuilder<NodeID, EdgeID, EdgeWeight>;
+
+public:
+  Impl(
+      const NodeID num_nodes,
+      const EdgeID num_edges,
+      const bool has_node_weights,
+      const bool has_edge_weights,
+      const bool sorted
+  )
+      : _num_nodes(num_nodes),
+        _num_edges(num_edges),
+        _has_node_weights(has_node_weights),
+        _has_edge_weights(has_edge_weights),
+        _sorted(sorted),
+        _cur_node(0),
+        _cur_edge(0),
+        _compressed_neighborhoods_builder(num_nodes, num_edges, has_edge_weights),
+        _total_node_weight(0) {
+    if (has_node_weights) {
+      _node_weights.resize(num_nodes, 1, static_array::seq);
+    }
+  }
+
+  void add_node(std::span<NodeID> neighbors) {
+    KASSERT(_cur_node < _num_nodes, "Node ID out of bounds");
+    KASSERT((_cur_edge += neighbors.size()) <= _num_edges, "Too many edges added");
+
+    _compressed_neighborhoods_builder.add(_cur_node++, neighbors);
+  }
+
+  void add_node(std::span<std::pair<NodeID, EdgeWeight>> neighborhood) {
+    KASSERT(_cur_node < _num_nodes, "Node ID out of bounds");
+    KASSERT((_cur_edge += neighborhood.size()) <= _num_edges, "Too many edges added");
+
+    _compressed_neighborhoods_builder.add(_cur_node, neighborhood);
+    _cur_node++;
+  }
+
+  void add_node(std::span<NodeID> neighbors, std::span<EdgeWeight> edge_weights) {
+    KASSERT(_cur_node < _num_nodes, "Node ID out of bounds");
+    KASSERT((_cur_edge += neighbors.size()) <= _num_edges, "Too many edges added");
+    KASSERT(
+        neighbors.size() == edge_weights.size(), "Unequal number of neighbors and edge weights"
+    );
+
+    if (!_has_edge_weights || edge_weights.empty()) {
+      _compressed_neighborhoods_builder.add(_cur_node, neighbors);
+    } else {
+      const std::size_t num_neighbors = neighbors.size();
+      if (_neighborhood.size() < num_neighbors) {
+        _neighborhood.resize(num_neighbors);
+      }
+
+      for (std::size_t i = 0; i < num_neighbors; ++i) {
+        _neighborhood[i] = std::make_pair(neighbors[i], edge_weights[i]);
+      }
+
+      _compressed_neighborhoods_builder.add(
+          _cur_node, std::span<std::pair<NodeID, EdgeWeight>>(_neighborhood)
+      );
+    }
+
+    _cur_node++;
+  }
+
+  void add_node_weight(const NodeID node, const NodeWeight weight) {
+    KASSERT(_has_node_weights, "Node weights are not stored");
+    KASSERT(node < _num_nodes, "Node ID out of bounds");
+    KASSERT(weight > 0, "Node weight must be positive");
+
+    _total_node_weight += weight;
+    _node_weights[node] = weight;
+  }
+
+  CompressedGraph build() {
+    KASSERT(_cur_node == _num_nodes, "Not all nodes have been added");
+    KASSERT(_cur_edge == _num_edges, "Not all edges have been added");
+
+    const bool unit_node_weights = std::cmp_equal(_total_node_weight, _num_nodes);
+    if (unit_node_weights) {
+      _node_weights.free();
+    }
+
+    return CompressedGraph(
+        _compressed_neighborhoods_builder.build(), std::move(_node_weights), _sorted
+    );
+  }
+
+private:
+  NodeID _num_nodes;
+  EdgeID _num_edges;
+  bool _has_node_weights;
+  bool _has_edge_weights;
+  bool _sorted;
+
+  NodeID _cur_node;
+  EdgeID _cur_edge;
+  CompressedNeighborhoodsBuilder _compressed_neighborhoods_builder;
+  std::vector<std::pair<NodeID, EdgeWeight>> _neighborhood;
+  NodeWeight _total_node_weight;
+  StaticArray<NodeWeight> _node_weights;
+};
+
+struct ParallelCompressedGraphBuilder::Impl {
+  using CompressedEdgesBuilder = kaminpar::CompressedEdgesBuilder<NodeID, EdgeID, EdgeWeight>;
+  using ParallelCompressedNeighborhoodsBuilder =
+      kaminpar::ParallelCompressedNeighborhoodsBuilder<NodeID, EdgeID, EdgeWeight>;
+
+public:
+  Impl(
+      const NodeID num_nodes,
+      const EdgeID num_edges,
+      const bool has_node_weights,
+      const bool has_edge_weights,
+      const bool sorted
+  )
+      : _num_nodes(num_nodes),
+        _num_edges(num_edges),
+        _has_node_weights(has_node_weights),
+        _has_edge_weights(has_edge_weights),
+        _sorted(sorted),
+        _computed_offsets(false),
+        _offsets(num_nodes + 1, static_array::noinit),
+        _builder(num_nodes, num_edges, has_edge_weights),
+        _edges_builder_ets([=] {
+          return CompressedEdgesBuilder(
+              CompressedEdgesBuilder::num_edges_tag, num_nodes, num_edges, has_edge_weights
+          );
+        }) {
+    if (has_node_weights) {
+      _node_weights.resize(num_nodes, static_array::noinit);
+    }
+  }
+
+  void register_neighborhood(const NodeID node, std::span<NodeID> neighbors) {
+    KASSERT(node < _num_nodes, "Node ID out of bounds");
+    KASSERT(!_computed_offsets, "Offsets have already been computed");
+
+    auto &edges_builder = _edges_builder_ets.local();
+    edges_builder.reset();
+
+    edges_builder.add(node, neighbors);
+    _offsets[node + 1] = edges_builder.size();
+  }
+
+  void
+  register_neighborhood(const NodeID node, std::span<std::pair<NodeID, EdgeWeight>> neighborhood) {
+    KASSERT(node < _num_nodes, "Node ID out of bounds");
+    KASSERT(!_computed_offsets, "Offsets have already been computed");
+
+    auto &edges_builder = _edges_builder_ets.local();
+    edges_builder.reset();
+
+    edges_builder.add(node, neighborhood);
+    _offsets[node + 1] = edges_builder.size();
+  }
+
+  void register_neighborhood(
+      const NodeID node, std::span<NodeID> neighbors, std::span<EdgeWeight> edge_weights
+  ) {
+    KASSERT(node < _num_nodes, "Node ID out of bounds");
+    KASSERT(!_computed_offsets, "Offsets have already been computed");
+    KASSERT(
+        neighbors.size() == edge_weights.size(), "Unequal number of neighbors and edge weights"
+    );
+
+    auto &edges_builder = _edges_builder_ets.local();
+    edges_builder.reset();
+
+    if (!_has_edge_weights || edge_weights.empty()) {
+      edges_builder.add(node, neighbors);
+    } else {
+      auto &neighborhood = _neighborhood_ets.local();
+
+      const std::size_t num_neighbors = neighbors.size();
+      if (neighborhood.size() < num_neighbors) {
+        neighborhood.resize(num_neighbors);
+      }
+
+      for (std::size_t i = 0; i < num_neighbors; ++i) {
+        neighborhood[i] = std::make_pair(neighbors[i], edge_weights[i]);
+      }
+
+      edges_builder.add(node, std::span<std::pair<NodeID, EdgeWeight>>(neighborhood));
+    }
+
+    _offsets[node + 1] = edges_builder.size();
+  }
+
+  void register_neighborhoods(
+      const NodeID node,
+      std::span<EdgeID> nodes,
+      std::span<std::pair<NodeID, EdgeWeight>> neighborhoods
+  ) {
+    KASSERT(node < _num_nodes, "Node ID out of bounds");
+    KASSERT(!_computed_offsets, "Offsets have already been computed");
+
+    auto &edges_builder = _edges_builder_ets.local();
+
+    const std::size_t num_nodes = nodes.size();
+    for (std::size_t i = 0; i < num_nodes; ++i) {
+      const EdgeID begin = nodes[i];
+      const EdgeID end = (i + 1 == num_nodes) ? neighborhoods.size() : nodes[i + 1];
+      const EdgeID length = end - begin;
+      auto neighborhood = neighborhoods.subspan(begin, length);
+
+      const NodeID cur_node = node + i;
+      edges_builder.reset();
+
+      edges_builder.add(cur_node, neighborhood);
+      _offsets[cur_node + 1] = edges_builder.size();
+    }
+  }
+
+  void compute_offsets() {
+    KASSERT(!_computed_offsets, "Offsets have already been computed");
+    _computed_offsets = true;
+
+    _offsets[0] = 0;
+    parallel::prefix_sum(_offsets.begin(), _offsets.end(), _offsets.begin());
+
+    tbb::parallel_for<NodeID>(0, _num_nodes, [&](const NodeID node) {
+      _builder.add_node(node, _offsets[node]);
+    });
+  }
+
+  void add_neighborhood(const NodeID node, std::span<NodeID> neighbors) {
+    KASSERT(node < _num_nodes, "Node ID out of bounds");
+    KASSERT(_computed_offsets, "Offsets have not been computed");
+
+    auto &edges_builder = _edges_builder_ets.local();
+
+    edges_builder.reset();
+    edges_builder.add(node, neighbors);
+
+    _builder.add_compressed_edges(
+        _offsets[node], edges_builder.size(), edges_builder.compressed_data()
+    );
+    _builder.record_local_statistics(
+        edges_builder.max_degree(),
+        edges_builder.total_edge_weight(),
+        edges_builder.num_high_degree_nodes(),
+        edges_builder.num_high_degree_parts(),
+        edges_builder.num_interval_nodes(),
+        edges_builder.num_intervals()
+    );
+  }
+
+  void add_neighborhood(const NodeID node, std::span<std::pair<NodeID, EdgeWeight>> neighborhood) {
+    KASSERT(node < _num_nodes, "Node ID out of bounds");
+    KASSERT(_computed_offsets, "Offsets have not been computed");
+
+    auto &edges_builder = _edges_builder_ets.local();
+
+    edges_builder.reset();
+    edges_builder.add(node, neighborhood);
+
+    _builder.add_compressed_edges(
+        _offsets[node], edges_builder.size(), edges_builder.compressed_data()
+    );
+    _builder.record_local_statistics(
+        edges_builder.max_degree(),
+        edges_builder.total_edge_weight(),
+        edges_builder.num_high_degree_nodes(),
+        edges_builder.num_high_degree_parts(),
+        edges_builder.num_interval_nodes(),
+        edges_builder.num_intervals()
+    );
+  }
+
+  void add_neighborhood(
+      const NodeID node, std::span<NodeID> neighbors, std::span<EdgeWeight> edge_weights
+  ) {
+    KASSERT(node < _num_nodes, "Node ID out of bounds");
+    KASSERT(_computed_offsets, "Offsets have not been computed");
+    KASSERT(
+        neighbors.size() == edge_weights.size(), "Unequal number of neighbors and edge weights"
+    );
+
+    auto &edges_builder = _edges_builder_ets.local();
+    edges_builder.reset();
+
+    if (!_has_edge_weights || edge_weights.empty()) {
+      edges_builder.add(node, neighbors);
+    } else {
+      auto &neighborhood = _neighborhood_ets.local();
+
+      const std::size_t num_neighbors = neighbors.size();
+      if (neighborhood.size() < num_neighbors) {
+        neighborhood.resize(num_neighbors);
+      }
+
+      for (std::size_t i = 0; i < num_neighbors; ++i) {
+        neighborhood[i] = std::make_pair(neighbors[i], edge_weights[i]);
+      }
+
+      edges_builder.add(node, std::span<std::pair<NodeID, EdgeWeight>>(neighborhood));
+    }
+
+    _builder.add_compressed_edges(
+        _offsets[node], edges_builder.size(), edges_builder.compressed_data()
+    );
+    _builder.record_local_statistics(
+        edges_builder.max_degree(),
+        edges_builder.total_edge_weight(),
+        edges_builder.num_high_degree_nodes(),
+        edges_builder.num_high_degree_parts(),
+        edges_builder.num_interval_nodes(),
+        edges_builder.num_intervals()
+    );
+  }
+
+  void add_neighborhoods(
+      const NodeID node,
+      std::span<EdgeID> nodes,
+      std::span<std::pair<NodeID, EdgeWeight>> neighborhoods
+  ) {
+    KASSERT(node < _num_nodes, "Node ID out of bounds");
+    KASSERT(_computed_offsets, "Offsets have not been computed");
+
+    auto &edges_builder = _edges_builder_ets.local();
+    edges_builder.reset();
+
+    const std::size_t num_nodes = nodes.size();
+    for (std::size_t i = 0; i < num_nodes; ++i) {
+      const EdgeID begin = nodes[i];
+      const EdgeID end = (i + 1 == num_nodes) ? neighborhoods.size() : nodes[i + 1];
+      const EdgeID length = end - begin;
+      auto neighborhood = neighborhoods.subspan(begin, length);
+
+      const NodeID cur_node = node + i;
+      edges_builder.add(cur_node, neighborhood);
+    }
+
+    _builder.add_compressed_edges(
+        _offsets[node], edges_builder.size(), edges_builder.compressed_data()
+    );
+    _builder.record_local_statistics(
+        edges_builder.max_degree(),
+        edges_builder.total_edge_weight(),
+        edges_builder.num_high_degree_nodes(),
+        edges_builder.num_high_degree_parts(),
+        edges_builder.num_interval_nodes(),
+        edges_builder.num_intervals()
+    );
+  }
+
+  void add_neighborhoods(
+      const NodeID node,
+      std::span<EdgeID> nodes,
+      std::span<NodeID> neighbors,
+      std::span<EdgeWeight> edge_weights
+  ) {
+    KASSERT(node < _num_nodes, "Node ID out of bounds");
+    KASSERT(_computed_offsets, "Offsets have not been computed");
+    KASSERT(
+        neighbors.size() == edge_weights.size(), "Unequal number of neighbors and edge weights"
+    );
+
+    auto &neighborhood = _neighborhood_ets.local();
+    auto &edges_builder = _edges_builder_ets.local();
+    edges_builder.reset();
+
+    const std::size_t num_nodes = nodes.size();
+    for (std::size_t i = 0; i < num_nodes; ++i) {
+      const EdgeID begin = nodes[i];
+      const EdgeID end = (i + 1 == num_nodes) ? neighbors.size() : nodes[i + 1];
+      const EdgeID length = end - begin;
+
+      auto local_neighbors = neighbors.subspan(begin, length);
+      auto local_edge_weights = edge_weights.subspan(begin, length);
+
+      const NodeID cur_node = node + i;
+      if (!_has_edge_weights || edge_weights.empty()) {
+        edges_builder.add(cur_node, local_neighbors);
+      } else {
+        if (neighborhood.size() < length) {
+          neighborhood.resize(length);
+        }
+
+        for (std::size_t i = 0; i < length; ++i) {
+          neighborhood[i] = std::make_pair(local_neighbors[i], local_edge_weights[i]);
+        }
+
+        edges_builder.add(cur_node, std::span<std::pair<NodeID, EdgeWeight>>(neighborhood));
+      }
+    }
+
+    _builder.add_compressed_edges(
+        _offsets[node], edges_builder.size(), edges_builder.compressed_data()
+    );
+    _builder.record_local_statistics(
+        edges_builder.max_degree(),
+        edges_builder.total_edge_weight(),
+        edges_builder.num_high_degree_nodes(),
+        edges_builder.num_high_degree_parts(),
+        edges_builder.num_interval_nodes(),
+        edges_builder.num_intervals()
+    );
+  }
+
+  void add_node_weight(const NodeID node, const NodeWeight weight) {
+    KASSERT(_has_node_weights, "Node weights are not stored");
+    KASSERT(node < _num_nodes, "Node ID out of bounds");
+    KASSERT(weight > 0, "Node weight must be positive");
+
+    _node_weights[node] = weight;
+  }
+
+  CompressedGraph build() {
+    return CompressedGraph(_builder.build(), std::move(_node_weights), _sorted);
+  }
+
+private:
+  NodeID _num_nodes;
+  EdgeID _num_edges;
+  bool _has_node_weights;
+  bool _has_edge_weights;
+  bool _sorted;
+
+  bool _computed_offsets;
+  StaticArray<EdgeID> _offsets;
+  StaticArray<NodeWeight> _node_weights;
+  ParallelCompressedNeighborhoodsBuilder _builder;
+  tbb::enumerable_thread_specific<CompressedEdgesBuilder> _edges_builder_ets;
+  tbb::enumerable_thread_specific<std::vector<std::pair<NodeID, EdgeWeight>>> _neighborhood_ets;
+};
 
 } // namespace kaminpar::shm

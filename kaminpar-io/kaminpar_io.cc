@@ -16,6 +16,10 @@
 #include "kaminpar-io/parhip_parser.h"
 #include "kaminpar-io/util/file_toker.h"
 
+#include "kaminpar-shm/datastructures/compressed_graph.h"
+#include "kaminpar-shm/datastructures/csr_graph.h"
+#include "kaminpar-shm/datastructures/graph.h"
+
 #include "kaminpar-common/logger.h"
 
 namespace kaminpar::shm::io {
@@ -101,7 +105,7 @@ void write(const std::string &filename, const std::span<const BlockID> partition
   }
 }
 
-StaticArray<BlockID> read(const std::string &filename) {
+std::vector<BlockID> read(const std::string &filename) {
   using namespace kaminpar::io;
   MappedFileToker toker(filename);
 
@@ -117,7 +121,7 @@ StaticArray<BlockID> read(const std::string &filename) {
 void write_block_sizes(
     const std::string &filename, const BlockID k, const std::span<const BlockID> partition
 ) {
-  std::vector<NodeID> block_sizes(k);
+  std::vector<NodeID> block_sizes(k, 0);
   for (const BlockID block : partition) {
     block_sizes[block]++;
   }
@@ -128,7 +132,7 @@ void write_block_sizes(
   }
 }
 
-StaticArray<BlockID> read_block_sizes(const std::string &filename) {
+std::vector<BlockID> read_block_sizes(const std::string &filename) {
   using namespace kaminpar::io;
   MappedFileToker toker(filename);
 
@@ -140,7 +144,7 @@ StaticArray<BlockID> read_block_sizes(const std::string &filename) {
 
   const NodeID n = std::accumulate(block_sizes.begin(), block_sizes.end(), 0);
 
-  StaticArray<BlockID> partition(n);
+  std::vector<BlockID> partition(n);
   NodeID cur = 0;
   BlockID block = 0;
 

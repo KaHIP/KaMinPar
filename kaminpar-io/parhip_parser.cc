@@ -19,6 +19,7 @@
 #include "kaminpar-io/util/binary_util.h"
 
 #include "kaminpar-shm/datastructures/compressed_graph.h"
+#include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/graphutils/compressed_graph_builder.h"
 #include "kaminpar-shm/graphutils/permutator.h"
 #include "kaminpar-shm/kaminpar.h"
