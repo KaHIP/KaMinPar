@@ -17,13 +17,15 @@ set(DKAMINPAR_IO_SOURCE_FILES
     ${COMMON_IO_SOURCE_FILES})
 
 add_library(kaminpar_io ${KAMINPAR_IO_SOURCE_FILES})
-target_include_directories(kaminpar_io PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../")
+add_library(KaMinPar::KaMinParIO ALIAS kaminpar_io)
+
 target_link_libraries(kaminpar_io PUBLIC kaminpar_shm)
 target_compile_options(kaminpar_io PRIVATE ${KAMINPAR_WARNING_FLAGS})
 
 if (TARGET kaminpar_dist)
     add_library(kaminpar_dist_io ${DKAMINPAR_IO_SOURCE_FILES})
-    target_include_directories(kaminpar_dist_io PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../")
+    add_library(KaMinPar::dKaMinParIO ALIAS kaminpar_dist_io)
+
     target_link_libraries(kaminpar_dist_io PUBLIC kaminpar_dist KaGen::KaGen)
     target_compile_options(kaminpar_dist_io PRIVATE ${KAMINPAR_WARNING_FLAGS})
 endif ()
