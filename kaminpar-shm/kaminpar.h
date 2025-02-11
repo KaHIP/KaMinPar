@@ -609,6 +609,7 @@ Context create_vcycle_context(bool restrict_refinement = false);
 
 Context create_esa21_smallk_context();
 Context create_esa21_largek_context();
+Context create_esa21_largek_fast_context();
 Context create_esa21_strong_context();
 
 } // namespace kaminpar::shm
