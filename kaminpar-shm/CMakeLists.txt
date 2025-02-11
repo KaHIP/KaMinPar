@@ -8,8 +8,6 @@ add_library(kaminpar_shm ${KAMINPAR_SHM_SOURCE_FILES}
         coarsening/sparsifing_cluster_coarsener.h
         coarsening/sparsification/networkit_utils.cpp
         coarsening/sparsification/networkit_utils.h
-        coarsening/sparsification/SparsificationTarget.h
-        coarsening/sparsification/DensitySparsificationTarget.h
         coarsening/sparsification/EdgeReductionSparsificationTarget.h
         coarsening/sparsification/kNeighbourSampler.cpp
         coarsening/sparsification/kNeighbourSampler.h
@@ -33,7 +31,8 @@ add_library(kaminpar_shm ${KAMINPAR_SHM_SOURCE_FILES}
         coarsening/sparsification/UnbiasedThesholdSampler.h
         coarsening/sparsification/WeightedForestFireScore.cpp
         coarsening/sparsification/WeightedForestFireScore.h
-        coarsening/sparsification/IndependentRandomSampler.cpp)
+        coarsening/sparsification/IndependentRandomSampler.cpp
+)
 target_include_directories(kaminpar_shm PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../")
 target_link_libraries(kaminpar_shm PUBLIC kaminpar_common networkit)
 target_compile_options(kaminpar_shm PRIVATE ${KAMINPAR_WARNING_FLAGS})

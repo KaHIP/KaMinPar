@@ -30,9 +30,9 @@ public:
             utils::quickselect_k_smallest<Score>(target_edge_amount, scores.begin(), scores.end());
       }
 
-      double inclusion_probaility_if_equal = (target_edge_amount / 2 - threshold.number_of_elements_smaller) / threshold.number_of_elemtns_equal;
+      double inclusion_probability_if_equal = (target_edge_amount - threshold.number_of_elements_smaller) / static_cast<double>(threshold.number_of_elemtns_equal);
       utils::parallel_for_upward_edges(g, [&](EdgeID e) {
-        if (scores[e] < threshold.value || (scores[e] == threshold.value && Random::instance().random_bool(inclusion_probaility_if_equal))) {
+        if (scores[e] < threshold.value || (scores[e] == threshold.value && Random::instance().random_bool(inclusion_probability_if_equal))) {
           sample[e] = g.edge_weight(e);
         }
       });

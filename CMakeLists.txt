@@ -314,7 +314,8 @@ endif ()
 
 if (TRUE) 
     add_subdirectory(external/growt EXCLUDE_FROM_ALL)
-    add_library(growt INTERFACE)
+    add_library(growt INTERFACE
+            tests/shm/coarsening/sparsification/sparisfng_cluster_coarsener_test.cpp)
     target_include_directories(growt SYSTEM INTERFACE "external/growt")
 endif ()
 

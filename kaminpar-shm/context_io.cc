@@ -94,10 +94,10 @@ std::unordered_map<std::string, SparsificationAlgorithm> get_sparsification_algo
       {"rw/or", SparsificationAlgorithm::RANDOM_WITHOUT_REPLACEMENT},
       {"independent-random", SparsificationAlgorithm::INDEPENDENT_RANDOM},
       {"ir", SparsificationAlgorithm::INDEPENDENT_RANDOM},
-    {"threshold", SparsificationAlgorithm::THRESHOLD},
-    {"t", SparsificationAlgorithm::THRESHOLD},
-    {"unbiased-threshold", SparsificationAlgorithm::UNBIASED_THRESHOLD},
-    {"ut", SparsificationAlgorithm::UNBIASED_THRESHOLD},
+      {"threshold", SparsificationAlgorithm::THRESHOLD},
+      {"t", SparsificationAlgorithm::THRESHOLD},
+      {"unbiased-threshold", SparsificationAlgorithm::UNBIASED_THRESHOLD},
+      {"ut", SparsificationAlgorithm::UNBIASED_THRESHOLD},
   };
 }
 std::unordered_map<std::string, ScoreFunctionSection> get_score_function() {
@@ -110,14 +110,6 @@ std::unordered_map<std::string, ScoreFunctionSection> get_score_function() {
       {"wff", ScoreFunctionSection::WEIGHTED_FOREST_FIRE},
       {"netwokit-weighted-forest-fire", ScoreFunctionSection::NETWORKIT_WEIGHTED_FOREST_FIRE},
       {"nk-wff", ScoreFunctionSection::NETWORKIT_WEIGHTED_FOREST_FIRE},
-  };
-}
-
-std::unordered_map<std::string, SparsificationTargetSelection>
-get_sparsification_target_selection() {
-  return {
-      {"density", SparsificationTargetSelection::DENSITY},
-      {"edge-reduction", SparsificationTargetSelection::EDGE_REDUCTION}
   };
 }
 
@@ -470,7 +462,8 @@ void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
     }
 
     out << "Compresion Ratio:             " << c_ctx.compression_ratio
-        << " [size reduction: " << (c_ctx.size_reduction / (float)(1024 * 1024)) << " mb]" << "\n";
+        << " [size reduction: " << (c_ctx.size_reduction / (float)(1024 * 1024)) << " mb]"
+        << "\n";
     out << "  High Degree Node Count:     " << c_ctx.num_high_degree_nodes << "\n";
     out << "  High Degree Part Count:     " << c_ctx.num_high_degree_parts << "\n";
     out << "  Interval Node Count:        " << c_ctx.num_interval_nodes << "\n";
@@ -607,8 +600,8 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
         << r_ctx.jet.num_fruitless_iterations << " fruitless (improvement < "
         << 100.0 * (1 - r_ctx.jet.fruitless_threshold) << "%)\n";
     out << "  Gain temperature:           coarse [" << r_ctx.jet.initial_gain_temp_on_coarse_level
-        << ", " << r_ctx.jet.final_gain_temp_on_coarse_level << "], " << "fine ["
-        << r_ctx.jet.initial_gain_temp_on_fine_level << ", "
+        << ", " << r_ctx.jet.final_gain_temp_on_coarse_level << "], "
+        << "fine [" << r_ctx.jet.initial_gain_temp_on_fine_level << ", "
         << r_ctx.jet.final_gain_temp_on_fine_level << "]\n";
     out << "  Balancing algorithm:        " << r_ctx.jet.balancing_algorithm << "\n";
   }
@@ -652,8 +645,8 @@ void print(const Context &ctx, std::ostream &out) {
   out << "Execution mode:               " << ctx.parallel.num_threads << "\n";
   out << "Seed:                         " << Random::get_seed() << "\n";
   out << "Graph:                        " << ctx.debug.graph_name
-      << " [node ordering: " << ctx.node_ordering << "]" << " [edge ordering: " << ctx.edge_ordering
-      << "]\n";
+      << " [node ordering: " << ctx.node_ordering << "]"
+      << " [edge ordering: " << ctx.edge_ordering << "]\n";
   print(ctx.partition, out);
   cio::print_delimiter("Graph Compression", '-');
   print(ctx.compression, out);

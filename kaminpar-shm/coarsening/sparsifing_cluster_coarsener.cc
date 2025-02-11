@@ -8,7 +8,6 @@
 #include "kaminpar-shm/coarsening/sparsifing_cluster_coarsener.h"
 
 #include "contraction/cluster_contraction_preprocessing.h"
-#include "sparsification/DensitySparsificationTarget.h"
 #include "sparsification/UniformRandomSampler.h"
 #include "sparsification/sparsification_utils.h"
 
@@ -30,9 +29,9 @@ SparsifyingClusteringCoarsener::SparsifyingClusteringCoarsener(
 )
     : _clustering_algorithm(factory::create_clusterer(ctx)),
       _sampling_algorithm(factory::create_sampler(ctx)),
-      _sparsification_target(factory::create_sparsification_target(ctx)),
       _c_ctx(ctx.coarsening),
-      _p_ctx(p_ctx) {}
+      _p_ctx(p_ctx),
+      _s_ctx(ctx.sparsification) {}
 
 void SparsifyingClusteringCoarsener::initialize(const Graph *graph) {
   _hierarchy.clear();
@@ -52,8 +51,8 @@ SparsifyingClusteringCoarsener::sparsify(const CSRGraph &g, StaticArray<EdgeWeig
   auto nodes = StaticArray<EdgeID>(g.n() + 1);
   sparsification::utils::parallel_for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
     if (u < v && sample[e]) {
-      __atomic_add_fetch(&nodes[u+1],1,__ATOMIC_RELAXED);
-      __atomic_add_fetch(&nodes[v+1],1,__ATOMIC_RELAXED);
+      __atomic_add_fetch(&nodes[u + 1], 1, __ATOMIC_RELAXED);
+      __atomic_add_fetch(&nodes[v + 1], 1, __ATOMIC_RELAXED);
     }
   });
   parallel::prefix_sum(nodes.begin(), nodes.end(), nodes.begin());
@@ -64,8 +63,8 @@ SparsifyingClusteringCoarsener::sparsify(const CSRGraph &g, StaticArray<EdgeWeig
 
   sparsification::utils::parallel_for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
     if (u < v && sample[e]) {
-      auto v_edges_added = __atomic_fetch_add(&edges_added[v],1,__ATOMIC_RELAXED);
-      auto u_edges_added = __atomic_fetch_add(&edges_added[u],1,__ATOMIC_RELAXED);
+      auto v_edges_added = __atomic_fetch_add(&edges_added[v], 1, __ATOMIC_RELAXED);
+      auto u_edges_added = __atomic_fetch_add(&edges_added[u], 1, __ATOMIC_RELAXED);
       edges[nodes[v] + v_edges_added] = u;
       edges[nodes[u] + u_edges_added] = v;
       edge_weights[nodes[v] + v_edges_added] = sample[e];
@@ -80,6 +79,14 @@ SparsifyingClusteringCoarsener::sparsify(const CSRGraph &g, StaticArray<EdgeWeig
       std::move(edge_weights),
       g.sorted()
   );
+}
+
+EdgeID
+SparsifyingClusteringCoarsener::sparsificationTarget(EdgeID old_m, NodeID old_n, EdgeID new_n) {
+  double target = std::min(
+      _s_ctx.reduction_target_factor * old_m, _s_ctx.density_target_factor * old_m / old_n * new_n
+  );
+  return target < old_m ? static_cast<EdgeID>(target) : old_m;
 }
 
 bool SparsifyingClusteringCoarsener::coarsen() {
@@ -111,9 +118,16 @@ bool SparsifyingClusteringCoarsener::coarsen() {
     );
   };
 
-  auto target_edge_amount = _sparsification_target->computeTarget(
-      _hierarchy.empty() ? *_input_graph : _hierarchy.back()->get(), coarsened->get().n()
-  );
+  EdgeID target_edge_amount;
+  if (_hierarchy.empty()) {
+    target_edge_amount =
+        sparsificationTarget(_input_graph->m(), _input_graph->n(), coarsened->get().n());
+  } else {
+    target_edge_amount = sparsificationTarget(
+        _hierarchy.back()->get().m(), _hierarchy.back()->get().n(), coarsened->get().n()
+    );
+  }
+
   if (coarsened->get().m() > target_edge_amount) { // sparsify
     KASSERT(coarsened->get().m() % 2 == 0, "graph should be undirected", assert::always);
 

@@ -10,7 +10,6 @@
 
 #include "coarsening/sparsification/Sampler.h"
 #include "coarsening/sparsification/ScoreBacedSampler.h"
-#include "coarsening/sparsification/SparsificationTarget.h"
 
 #include "kaminpar-shm/coarsening/clusterer.h"
 #include "kaminpar-shm/coarsening/coarsener.h"
@@ -29,8 +28,6 @@ std::unique_ptr<Coarsener> create_coarsener(const Context &ctx, const PartitionC
 std::unique_ptr<Coarsener> create_coarsener(const Context &ctx);
 
 std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx);
-std::unique_ptr<sparsification::SparsificationTarget>
-create_sparsification_target(const Context &ctx);
 
 std::unique_ptr<Refiner> create_refiner(const Context &ctx);
 

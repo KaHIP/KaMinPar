@@ -28,8 +28,6 @@
 #include <networkit/auxiliary/Multiprecision.hpp>
 #include <networkit/sparsification/ForestFireScore.hpp>
 
-#include "coarsening/sparsification/DensitySparsificationTarget.h"
-#include "coarsening/sparsification/EdgeReductionSparsificationTarget.h"
 #include "coarsening/sparsification/IndependentRandomSampler.h"
 #include "coarsening/sparsification/NetworKitScoreAdapter.h"
 #include "coarsening/sparsification/NetworKitWeightedForestFireScore.hpp"
@@ -160,6 +158,7 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
           std::make_unique<WeightFunction>()
 
       );
+      __builtin_unreachable();
     }
   case SparsificationAlgorithm::RANDOM_WITHOUT_REPLACEMENT:
     switch (ctx.sparsification.score_function) {
@@ -223,7 +222,6 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
     case ScoreFunctionSection::WEIGHT:
       return std::make_unique<sparsification::IndependentRandomSampler<EdgeWeight>>(
           std::make_unique<WeightFunction>(), ctx.sparsification.no_approx
-
       );
     }
   case SparsificationAlgorithm::THRESHOLD:
@@ -257,22 +255,6 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
 
       );
     }
-  }
-
-  __builtin_unreachable();
-}
-
-std::unique_ptr<sparsification::SparsificationTarget>
-create_sparsification_target(const Context &ctx) {
-  switch (ctx.sparsification.target) {
-  case SparsificationTargetSelection::DENSITY:
-    return std::make_unique<sparsification::DensitySparsificationTarget>(
-        ctx.sparsification.target_factor
-    );
-  case SparsificationTargetSelection::EDGE_REDUCTION:
-    return std::make_unique<sparsification::EdgeReductionSparsificationTarget>(
-        ctx.sparsification.target_factor
-    );
   }
 
   __builtin_unreachable();

@@ -8,7 +8,6 @@
 #pragma once
 
 #include "sparsification/Sampler.h"
-#include "sparsification/SparsificationTarget.h"
 
 #include "kaminpar-shm/coarsening/clusterer.h"
 #include "kaminpar-shm/coarsening/coarsener.h"
@@ -31,6 +30,7 @@ public:
   void initialize(const Graph *graph) final;
 
   CSRGraph sparsify(const CSRGraph &csr, StaticArray<EdgeWeight> sample);
+  EdgeID sparsificationTarget(EdgeID old_m, NodeID old_n, EdgeID new_m);
 
   bool coarsen() final;
   PartitionedGraph uncoarsen(PartitionedGraph &&p_graph) final;
@@ -52,13 +52,13 @@ private:
 
   const CoarseningContext &_c_ctx;
   const PartitionContext &_p_ctx;
+  const SparsificationContext &_s_ctx;
 
   const Graph *_input_graph;
   std::vector<std::unique_ptr<CoarseGraph>> _hierarchy;
 
   std::unique_ptr<Clusterer> _clustering_algorithm;
   std::unique_ptr<sparsification::Sampler> _sampling_algorithm;
-  std::unique_ptr<sparsification::SparsificationTarget> _sparsification_target;
 
   contraction::MemoryContext _contraction_m_ctx{};
 };

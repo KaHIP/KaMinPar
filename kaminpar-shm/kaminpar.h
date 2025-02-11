@@ -109,11 +109,6 @@ enum class ScoreFunctionSection {
   WEIGHTED_FOREST_FIRE,
 };
 
-enum class SparsificationTargetSelection {
-  DENSITY,
-  EDGE_REDUCTION
-};
-
 enum class ClusteringAlgorithm {
   NOOP,
   LABEL_PROPAGATION,
@@ -237,8 +232,8 @@ struct SparsificationContext {
   SparsificationAlgorithm algorithm;
   ScoreFunctionSection score_function;
 
-  SparsificationTargetSelection target;
-  float target_factor;
+  float density_target_factor;
+  float reduction_target_factor;
 
   bool no_approx;
 

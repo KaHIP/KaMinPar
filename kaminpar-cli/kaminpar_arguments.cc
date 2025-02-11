@@ -149,21 +149,21 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
   - forest-fire, ff)")
       ->capture_default_str();
 
-  coarsening->add_option("--s-target", ctx.sparsification.target)
-      ->transform(CLI::CheckedTransformer(get_sparsification_target_selection(), CLI::ignore_case)
-                      .description(""))
-      ->description(
-          R"(The target of the sparsification in every coarsening Step. The factor c is supplied with --s-factor.
-  One of the following options:
-  - density: the density should increase by at most a factor of c
-  - edge-reduction c: the amount of edges should be reduced by at least a factor of c)"
-      )
-      ->capture_default_str();
+  coarsening->add_option("--s-density-factor", ctx.sparsification.density_target_factor)
+  ->default_val(std::numeric_limits<double>::infinity())
+  ->description(R"(By which factor the density should at least be reduced from one level to the next:
+      new density <= factor * old density
+      The default is infinity.)"
+    );
 
-  coarsening->add_option("--s-factor", ctx.sparsification.target_factor)
-      ->check(CLI::PositiveNumber)
-      ->description(R"(The factor c for the sparsification target, supplied with --s-target.)")
-      ->default_val(1);
+  coarsening->add_option("--s-reduction-factor", ctx.sparsification.reduction_target_factor)
+  ->default_val(std::numeric_limits<double>::infinity())
+  ->description(R"(By which factor the number of edges should at least be reduced from one level to the next:
+      new number of edges <= factor * old number of edges
+      The default is infinity.)"
+    );
+
+
   coarsening->add_flag("--s-no-approx", ctx.sparsification.no_approx)
       ->description("Disables some approximations of sparsification algorithms.")
       ->default_val(false);
