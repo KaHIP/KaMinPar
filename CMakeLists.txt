@@ -26,6 +26,7 @@ option(KAMINPAR_BUILD_TESTS "Build unit tests" OFF)
 option(KAMINPAR_BUILD_TOOLS "Build tool binaries." OFF)
 option(KAMINPAR_BUILD_BENCHMARKS "Build benchmark binaries." OFF)
 option(KAMINPAR_BUILD_EXAMPLES "Build examples." OFF)
+option(KAMINPAR_BUILD_BINDINGS "Build language and framework bindings." OFF)
 
 option(KAMINPAR_BUILD_EXPERIMENTAL_FEATURES "Include experimental features in the build. This might increase compile times drastically." OFF)
 
@@ -418,6 +419,11 @@ endif ()
 # Unit tests
 if ((CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME OR KAMINPAR_BUILD_TESTS) AND BUILD_TESTING)
     add_subdirectory(tests)
+endif ()
+
+# Bindings 
+if (KAMINPAR_BUILD_BINDINGS)
+    add_subdirectory(bindings)
 endif ()
 
 # Examples
