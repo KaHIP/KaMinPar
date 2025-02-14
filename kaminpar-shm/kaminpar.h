@@ -234,6 +234,7 @@ struct SparsificationContext {
 
   float density_target_factor;
   float reduction_target_factor;
+  float laziness_factor;
 
   bool no_approx;
 

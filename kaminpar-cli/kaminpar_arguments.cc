@@ -162,6 +162,10 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
       new number of edges <= factor * old number of edges
       The default is infinity.)"
     );
+  coarsening->add_option("--s-laziness-factor", ctx.sparsification.laziness_factor)
+  ->default_val(1.)
+  ->description(R"(Only sparsify if the number of edges times the laziness factor are less than the target.
+      Thus greater laziness leads to less sparsification. The default is 1.)");
 
 
   coarsening->add_flag("--s-no-approx", ctx.sparsification.no_approx)

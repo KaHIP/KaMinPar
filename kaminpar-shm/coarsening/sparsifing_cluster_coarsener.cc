@@ -128,7 +128,7 @@ bool SparsifyingClusteringCoarsener::coarsen() {
     );
   }
 
-  if (coarsened->get().m() > target_edge_amount) { // sparsify
+  if (coarsened->get().m() > _s_ctx.laziness_factor * target_edge_amount) { // sparsify
     KASSERT(coarsened->get().m() % 2 == 0, "graph should be undirected", assert::always);
 
     const CSRGraph *csr = dynamic_cast<const CSRGraph *>(coarsened->get().underlying_graph());
