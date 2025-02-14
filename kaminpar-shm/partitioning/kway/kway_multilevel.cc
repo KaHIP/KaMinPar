@@ -46,6 +46,7 @@ PartitionedGraph KWayMultilevelPartitioner::partition() {
 
 void KWayMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
   SCOPED_HEAP_PROFILER("Refinement");
+  SCOPED_TIMER("Refinement");
 
   // If requested, dump the current partition to disk before refinement ...
   debug::dump_partition_hierarchy(p_graph, _coarsener->level(), "pre-refinement", _input_ctx);
@@ -67,10 +68,13 @@ void KWayMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
 
 PartitionedGraph KWayMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) {
   SCOPED_HEAP_PROFILER("Uncoarsening");
+  SCOPED_TIMER("Uncoarsening");
 
   refine(p_graph);
 
   while (!_coarsener->empty()) {
+    SCOPED_TIMER("Level", std::to_string(_coarsener->level() - 1));
+
     LOG;
     LOG << "Uncoarsening -> Level " << _coarsener->level() - 1;
 
@@ -85,6 +89,7 @@ PartitionedGraph KWayMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) 
 
 const Graph *KWayMultilevelPartitioner::coarsen() {
   SCOPED_HEAP_PROFILER("Coarsening");
+  SCOPED_TIMER("Coarsening");
 
   const Graph *c_graph = &_input_graph;
   bool shrunk = true;
@@ -95,6 +100,8 @@ const Graph *KWayMultilevelPartitioner::coarsen() {
   LOG;
 
   while (shrunk && c_graph->n() > initial_partitioning_threshold()) {
+    SCOPED_TIMER("Level", std::to_string(_coarsener->level()));
+
     // If requested, dump graph before each coarsening step + after coarsening
     // converged. This way, we also have a dump of the (reordered) input graph,
     // which makes it easier to use the final partition (before reordering it).
