@@ -391,7 +391,9 @@ Context create_terapart_strong_context() {
 }
 
 Context create_terapart_largek_context() {
-  return terapartify_context(create_largek_context());
+  Context ctx = terapartify_context(create_largek_context());
+  ctx.coarsening.clustering.forced_kc_level = true;
+  return ctx;
 }
 
 Context create_vcycle_context(const bool restrict_refinement) {
