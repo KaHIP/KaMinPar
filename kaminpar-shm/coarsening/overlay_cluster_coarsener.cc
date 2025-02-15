@@ -103,7 +103,8 @@ bool OverlayClusteringCoarsener::coarsen() {
     _clustering_algorithm->set_desired_cluster_count(desired_cluster_count);
   }
 
-  const bool compute_overlays = level() <= _c_ctx.overlay_clustering.max_level;
+  const bool compute_overlays =
+      level() <= static_cast<std::size_t>(_c_ctx.overlay_clustering.max_level);
 
   if (compute_overlays) {
     for (auto &clustering : clusterings) {
