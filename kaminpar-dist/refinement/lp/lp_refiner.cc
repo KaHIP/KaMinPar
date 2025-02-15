@@ -634,6 +634,44 @@ private:
     if (!use_distributed_weight_tracking()) {
       return;
     }
+
+    const PEID size = mpi::get_comm_size(_graph->communicator());
+    const PEID rank = mpi::get_comm_rank(_graph->communicator());
+
+    struct Message {
+      BlockID block;
+      BlockWeight weight;
+    };
+
+    std::vector<Message> sendbuf;
+    std::vector<Message> recvbuf;
+
+    std::vector<int> recvcounts(size);
+    std::vector<int> recvdispls(size + 1);
+
+    for (const BlockID b : _p_graph->blocks()) {
+      ++recvcounts[_block_mapping[b]];
+      if (_block_mapping[b] == rank) {
+        sendbuf.push_back({b, _p_graph->block_weight(b)});
+      }
+    }
+
+    std::partial_sum(recvcounts.begin(), recvcounts.end(), recvdispls.begin() + 1);
+
+    MPI_Allgatherv(
+        sendbuf.data(),
+        static_cast<int>(sendbuf.size()),
+        mpi::type::get<Message>(),
+        recvbuf.data(),
+        recvcounts.data(),
+        recvdispls.data(),
+        mpi::type::get<Message>(),
+        _graph->communicator()
+    );
+
+    for (const auto &[block, weight] : recvbuf) {
+      _p_graph->set_block_weight(block, weight);
+    }
   }
 
   [[nodiscard]] bool use_distributed_weight_tracking() const {
@@ -669,7 +707,7 @@ private:
   StaticArray<EdgeWeight> _gains;
   StaticArray<BlockWeight> _block_weights;
 
-  StaticArray<BlockID> _block_mapping;
+  StaticArray<PEID> _block_mapping;
 
   lp::RefinerStatistics _stats;
 };
