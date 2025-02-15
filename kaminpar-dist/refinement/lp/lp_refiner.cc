@@ -296,123 +296,6 @@ private:
     });
 
     // Compute global block weights after moves
-    mpi::inplace_sparse_allreduce(block_weight_deltas, _p_ctx->k, MPI_SUM, _graph->communicator());
-
-    // Check for balance violations
-    std::atomic<std::uint8_t> feasible = 1;
-    if (!_lp_ctx.ignore_probabilities) {
-      _p_graph->pfor_blocks([&](const BlockID b) {
-        if (_p_graph->block_weight(b) + block_weight_deltas[b] > max_cluster_weight(b) &&
-            block_weight_deltas[b] > 0) {
-          feasible = 0;
-        }
-      });
-    }
-
-    // Record statistics
-    if constexpr (kStatistics) {
-      if (!feasible) {
-        _stats.num_rollbacks += 1;
-      } else {
-        _stats.num_successful_moves += 1;
-      }
-    }
-
-    // Revert moves if resulting partition is infeasible
-    if (!feasible) {
-      tbb::parallel_for(moves.range(), [&](const auto r) {
-        for (auto it = r.begin(); it != r.end(); ++it) {
-          const auto &move = *it;
-          _next_partition[move.u] = _p_graph->block(move.u);
-          _p_graph->set_block<false>(move.u, move.from);
-
-          IFSTATS(_stats.rollback_gain += _gains[move.u]);
-        }
-      });
-    } else { // Otherwise, update block weights
-      _p_graph->pfor_blocks([&](const BlockID b) {
-        _p_graph->set_block_weight(b, _p_graph->block_weight(b) + block_weight_deltas[b]);
-      });
-    }
-
-    // Update block weights used by LP
-    _p_graph->pfor_blocks([&](const BlockID b) { _block_weights[b] = _p_graph->block_weight(b); });
-
-    return feasible;
-  }
-
-  bool perform_moves_distributed(
-      const NodeID from,
-      const NodeID to,
-      const std::vector<BlockWeight> &residual_block_weights,
-      const std::vector<EdgeWeight> &total_gains_to_block
-  ) {
-    TIMER_BARRIER(_graph->communicator());
-    SCOPED_TIMER("Perform moves");
-
-#if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
-    KASSERT(debug::validate_partition(*_p_graph), "", assert::heavy);
-#endif
-
-    struct Move {
-      Move(const NodeID u, const BlockID from) : u(u), from(from) {}
-      NodeID u;
-      BlockID from;
-    };
-
-    // Perform probabilistic moves, but keep track of moves in case we need to roll back
-    StaticArray<BlockWeight> block_weight_deltas(_p_ctx->k);
-    tbb::concurrent_vector<Move> moves;
-
-    _graph->pfor_nodes_range(from, to, [&](const auto &r) {
-      auto &rand = Random::instance();
-
-      for (NodeID u = r.begin(); u < r.end(); ++u) {
-        // Only iterate over nodes that changed block
-        if (_next_partition[u] == _p_graph->block(u) || _next_partition[u] == kInvalidBlockID) {
-          continue;
-        }
-
-        // Compute move probability
-        const BlockID b = _next_partition[u];
-        const double gain_prob =
-            _lp_ctx.ignore_probabilities
-                ? 1.0
-                : ((total_gains_to_block[b] == 0) ? 1.0 : 1.0 * _gains[u] / total_gains_to_block[b]
-                  );
-        const double probability =
-            _lp_ctx.ignore_probabilities
-                ? 1.0
-                : gain_prob *
-                      (static_cast<double>(residual_block_weights[b]) / _graph->node_weight(u));
-        IFSTATS(_stats.expected_gain += probability * _gains[u]);
-
-        // Perform move with probability
-        if (_lp_ctx.ignore_probabilities || rand.random_bool(probability)) {
-          IFSTATS(_stats.num_tentatively_moved_nodes++);
-
-          const BlockID from = _p_graph->block(u);
-          const BlockID to = _next_partition[u];
-          const NodeWeight u_weight = _graph->node_weight(u);
-
-          moves.emplace_back(u, from);
-          __atomic_fetch_sub(&block_weight_deltas[from], u_weight, __ATOMIC_RELAXED);
-          __atomic_fetch_add(&block_weight_deltas[to], u_weight, __ATOMIC_RELAXED);
-          _p_graph->set_block<false>(u, to);
-
-          // Temporary mark that this node was actually move, we will revert this during
-          // synchronization or on rollback
-          _next_partition[u] = kInvalidBlockID;
-
-          IFSTATS(_stats.realized_gain += _gains[u]);
-        } else {
-          IFSTATS(_stats.num_tentatively_rejected_nodes++);
-          IFSTATS(_stats.rejected_gain += _gains[u]);
-        }
-      }
-    });
-
-    // Compute global block weights after moves
     if (use_distributed_weight_tracking()) {
       struct Message {
         BlockID block;
@@ -424,7 +307,7 @@ private:
       std::vector<std::vector<Message>> sendbufs(size);
       for (const BlockID b : _p_graph->blocks()) {
         if (block_weight_deltas[b] != 0) {
-          sendbufs[_block_mapping[b]] = block_weight_deltas[b];
+          sendbufs[_block_mapping[b]].push_back({b, block_weight_deltas[b]});
         }
       }
 
@@ -433,7 +316,7 @@ private:
 
       for (const auto &recvbuf : recvbufs) {
         for (const auto &[block, delta] : recvbuf) {
-          _p_graph->set_block_weight(_p_graph->block_weight(block) + delta);
+          _p_graph->set_block_weight(block, _p_graph->block_weight(block) + delta);
         }
       }
       for (auto &recvbuf : recvbufs) {
@@ -448,7 +331,7 @@ private:
       for (const auto &recvbuf : recvbufs) {
         for (const auto &[block, delta] : recvbuf) {
           // Delta is now the new weight, no longer a delta
-          _p_graph->set_block_weight(delta);
+          _p_graph->set_block_weight(block, delta);
         }
       }
     } else {
