@@ -238,6 +238,7 @@ struct ClusterCoarseningContext {
 
 struct OverlayClusterCoarseningContext {
   int num_levels;
+  int max_level;
 };
 
 struct CoarseningContext {

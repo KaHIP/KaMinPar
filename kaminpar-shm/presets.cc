@@ -150,6 +150,7 @@ Context create_default_context() {
               .overlay_clustering =
                   {
                       .num_levels = 1,
+                      .max_level = std::numeric_limits<int>::max(),
                   },
               .contraction =
                   {
