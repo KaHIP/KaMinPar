@@ -627,13 +627,79 @@ private:
       return;
     }
 
+    TIMER_BARRIER(_p_graph->communicator());
+    SCOPED_TIMER("Initialize block weight responsibility distribution");
+
+    const PEID size = mpi::get_comm_size(_graph->communicator());
+    //const PEID rank = mpi::get_comm_rank(_graph->communicator());
+
     _block_mapping.resize(_p_graph->k());
+
+    StaticArray<BlockWeight> local_block_weights(_p_graph->k());
+    StaticArray<BlockWeight> exclusive_block_weight_offsets(_p_graph->k());
+
+    for (const NodeID u : _p_graph->nodes()) {
+      local_block_weights[_p_graph->block(u)] += _p_graph->node_weight(u);
+    }
+
+    MPI_Exscan(
+        local_block_weights.data(),
+        exclusive_block_weight_offsets.data(),
+        static_cast<int>(_p_graph->k()),
+        mpi::type::get<BlockWeight>(),
+        MPI_SUM,
+        _graph->communicator()
+    );
+
+    int seed = Random::instance().random_index(0, std::numeric_limits<int>::max());
+    MPI_Bcast(&seed, 1, MPI_INT, 0, _graph->communicator());
+
+    std::vector<BlockID> mine;
+
+    std::mt19937 gen(seed);
+    for (const BlockID b : _p_graph->blocks()) {
+      std::uniform_int_distribution<std::size_t> dist(0, _p_graph->block_weight(b));
+      const BlockWeight draw = static_cast<BlockWeight>(dist(gen));
+      if (exclusive_block_weight_offsets[b] <= draw &&
+          draw < exclusive_block_weight_offsets[b] + local_block_weights[b]) {
+        mine.push_back(b);
+      }
+    }
+
+    const int sendcount = static_cast<int>(mine.size());
+    std::vector<int> recvcounts(size);
+    MPI_Allgather(&sendcount, 1, MPI_INT, recvcounts.data(), 1, MPI_INT, _graph->communicator());
+
+    std::vector<int> recvdispls(size + 1);
+    std::partial_sum(recvcounts.begin(), recvcounts.end(), recvdispls.begin() + 1);
+
+    std::vector<BlockID> flat(_p_graph->k());
+
+    MPI_Allgatherv(
+        mine.data(),
+        sendcount,
+        mpi::type::get<BlockID>(),
+        flat.data(),
+        recvcounts.data(),
+        recvdispls.data(),
+        mpi::type::get<BlockID>(),
+        _graph->communicator()
+    );
+
+    for (PEID rank = 0; rank < size; ++rank) {
+      for (int i = recvdispls[rank]; i < recvdispls[rank] + recvcounts[rank]; ++i) {
+        _block_mapping[flat[i]] = rank;
+      }
+    }
   }
 
   void finalize_block_weights() {
     if (!use_distributed_weight_tracking()) {
       return;
     }
+
+    TIMER_BARRIER(_p_graph->communicator());
+    SCOPED_TIMER("Finalize block weights");
 
     const PEID size = mpi::get_comm_size(_graph->communicator());
     const PEID rank = mpi::get_comm_rank(_graph->communicator());
@@ -658,16 +724,19 @@ private:
 
     std::partial_sum(recvcounts.begin(), recvcounts.end(), recvdispls.begin() + 1);
 
-    MPI_Allgatherv(
-        sendbuf.data(),
-        static_cast<int>(sendbuf.size()),
-        mpi::type::get<Message>(),
-        recvbuf.data(),
-        recvcounts.data(),
-        recvdispls.data(),
-        mpi::type::get<Message>(),
-        _graph->communicator()
-    );
+    TIMER_BARRIER(_p_graph->communicator());
+    TIMED_SCOPE("Allgatherv") {
+      MPI_Allgatherv(
+          sendbuf.data(),
+          static_cast<int>(sendbuf.size()),
+          mpi::type::get<Message>(),
+          recvbuf.data(),
+          recvcounts.data(),
+          recvdispls.data(),
+          mpi::type::get<Message>(),
+          _graph->communicator()
+      );
+    };
 
     for (const auto &[block, weight] : recvbuf) {
       _p_graph->set_block_weight(block, weight);
