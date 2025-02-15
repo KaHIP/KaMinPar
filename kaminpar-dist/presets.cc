@@ -154,6 +154,8 @@ Context create_default_context() {
                           },
                       .num_move_attempts = 2,
                       .ignore_probabilities = true,
+                      .distributed_weight_tracking = true,
+                      .distributed_weight_tracking_threshold = 1,
                   },
               .colored_lp =
                   {

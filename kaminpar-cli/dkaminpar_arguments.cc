@@ -199,6 +199,13 @@ CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx) {
         "--r-lp-ignore-probabilities", ctx.refinement.lp.ignore_probabilities, "Always move nodes."
   )
       ->capture_default_str();
+  lp->add_flag("--r-lp-distributed-weight-tracking", ctx.refinement.lp.distributed_weight_tracking)
+      ->capture_default_str();
+  lp->add_option(
+        "--r-lp-distributed-weight-tracking-threshold",
+        ctx.refinement.lp.distributed_weight_tracking_threshold
+  )
+      ->capture_default_str();
 
   return lp;
 }

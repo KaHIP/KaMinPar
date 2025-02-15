@@ -547,6 +547,8 @@ void print(const RefinementContext &ctx, const ParallelContext &parallel, std::o
     print(ctx.lp.chunks, parallel, out);
     out << "  Use probabilistic moves:    " << (ctx.lp.ignore_probabilities ? "no" : "yes") << "\n";
     out << "  Number of retries:          " << ctx.lp.num_move_attempts << "\n";
+    out << "  Distr. weight tracking:     " << (ctx.lp.distributed_weight_tracking ? "yes" : "no")
+        << ", x" << ctx.lp.distributed_weight_tracking_threshold << "\n";
   }
   if (ctx.includes_algorithm(RefinementAlgorithm::COLORED_LP_REFINER)) {
     out << "Colored Label Propagation:    " << RefinementAlgorithm::COLORED_LP_REFINER << "\n";

@@ -638,7 +638,8 @@ private:
 
   [[nodiscard]] bool use_distributed_weight_tracking() const {
     const PEID size = mpi::get_comm_size(_graph->communicator());
-    return _p_graph->k() > std::sqrt(size) * size;
+    return _lp_ctx.distributed_weight_tracking &&
+           (_p_graph->k() > _lp_ctx.distributed_weight_tracking_threshold * std::sqrt(size) * size);
   }
 
 #if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)

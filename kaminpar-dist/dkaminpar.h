@@ -215,6 +215,9 @@ struct LabelPropagationRefinementContext {
 
   int num_move_attempts;
   bool ignore_probabilities;
+
+  bool distributed_weight_tracking;
+  NodeID distributed_weight_tracking_threshold;
 };
 
 struct MtKaHyParRefinementContext {
