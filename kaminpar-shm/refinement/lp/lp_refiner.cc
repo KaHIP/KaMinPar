@@ -71,6 +71,15 @@ public:
     _p_graph = &p_graph;
     _p_ctx = &p_ctx;
 
+    if (_p_graph->k() < 1024) {
+      _aligned_block_weights.resize(_p_graph->k());
+      _p_graph->pfor_blocks([&](const BlockID b) {
+        _aligned_block_weights[b].value = _p_graph->block_weight(b);
+      });
+    } else {
+      _aligned_block_weights.resize(0);
+    }
+
     Base::initialize(_graph, _p_ctx->k);
 
     const std::size_t max_iterations =
@@ -81,6 +90,12 @@ public:
       if (Base::perform_iteration() == 0) {
         return false;
       }
+    }
+
+    if (!_aligned_block_weights.empty()) {
+      _p_graph->pfor_blocks([&](const BlockID b) {
+        _p_graph->set_block_weight(b, _aligned_block_weights[b].value);
+      });
     }
 
     return true;
@@ -96,11 +111,15 @@ public:
   }
 
   [[nodiscard]] BlockWeight initial_cluster_weight(const BlockID b) {
-    return _p_graph->block_weight(b);
+    return _aligned_block_weights.empty()
+               ? _p_graph->block_weight(b)
+               : __atomic_load_n(&_aligned_block_weights[b].value, __ATOMIC_RELAXED);
   }
 
   [[nodiscard]] BlockWeight cluster_weight(const BlockID b) {
-    return _p_graph->block_weight(b);
+    return _aligned_block_weights.empty()
+               ? _p_graph->block_weight(b)
+               : __atomic_load_n(&_aligned_block_weights[b].value, __ATOMIC_RELAXED);
   }
 
   [[nodiscard]] bool accept_neighbor(const NodeID u, const NodeID v) {
@@ -113,7 +132,27 @@ public:
       const BlockWeight delta,
       const BlockWeight max_weight
   ) {
-    return _p_graph->move_block_weight(old_block, new_block, delta, max_weight);
+    if (_aligned_block_weights.empty()) {
+      return _p_graph->move_block_weight(old_block, new_block, delta, max_weight);
+    } else {
+      for (BlockWeight new_weight =
+               __atomic_load_n(&_aligned_block_weights[new_block].value, __ATOMIC_RELAXED);
+           new_weight + delta <= max_weight;) {
+        if (__atomic_compare_exchange_n(
+                &_aligned_block_weights[new_block].value,
+                &new_weight,
+                new_weight + delta,
+                false,
+                __ATOMIC_RELAXED,
+                __ATOMIC_RELAXED
+            )) {
+          __atomic_fetch_sub(&_aligned_block_weights[old_block].value, delta, __ATOMIC_RELAXED);
+          return true;
+        }
+      }
+
+      return false;
+    }
   }
 
   void reassign_cluster_weights(
@@ -279,6 +318,12 @@ public:
   const RefinementContext &_r_ctx;
 
   std::span<const NodeID> _communities;
+
+  struct alignas(64) AlignedBlockWeight {
+    BlockWeight value;
+  };
+
+  StaticArray<AlignedBlockWeight> _aligned_block_weights;
 };
 
 class LPRefinerImplWrapper {
