@@ -59,10 +59,22 @@ PartitionedGraph RBMultilevelPartitioner::partition_recursive(
     const auto &mapping = extraction.node_mapping;
 
     PartitionedGraph p_graph1, p_graph2;
-    tbb::parallel_invoke(
-        [&] { p_graph1 = partition_recursive(subgraphs[0], 2 * current_block, current_k * 2); },
-        [&] { p_graph2 = partition_recursive(subgraphs[1], 2 * current_block + 1, current_k * 2); }
-    );
+    if (_input_ctx.partitioning.rb_switch_to_seq_factor == 0 ||
+        current_k >
+            static_cast<BlockID>(
+                _input_ctx.parallel.num_threads * _input_ctx.partitioning.rb_switch_to_seq_factor
+            )) {
+      tbb::parallel_invoke(
+          [&] { p_graph1 = partition_recursive(subgraphs[0], 2 * current_block, current_k * 2); },
+          [&] {
+            p_graph2 = partition_recursive(subgraphs[1], 2 * current_block + 1, current_k * 2);
+          }
+      );
+    } else {
+      p_graph1 = partition_recursive(subgraphs[0], 2 * current_block, current_k * 2);
+      p_graph2 = partition_recursive(subgraphs[1], 2 * current_block + 1, current_k * 2);
+    }
+
     ScalableVector<StaticArray<BlockID>> subgraph_partitions(2);
     subgraph_partitions[0] = p_graph1.take_raw_partition();
     subgraph_partitions[1] = p_graph2.take_raw_partition();
