@@ -110,6 +110,7 @@ Context create_default_context() {
               .vcycles = {},
               .restrict_vcycle_refinement = false,
               .rb_enable_kway_toplevel_refinement = false,
+              .kway_parallel_rb = false,
           },
       .partition = {},
       .coarsening =

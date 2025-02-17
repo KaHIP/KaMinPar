@@ -145,7 +145,7 @@ void extend_partition_recursive(
     graph::SubgraphMemory &subgraph_memory,
     graph::TemporarySubgraphMemory &tmp_extraction_mem_pool,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
-    BipartitionTimingInfo *timings = nullptr
+    BipartitionTimingInfo *timings
 ) {
   KASSERT(num_subblocks > 1u);
 

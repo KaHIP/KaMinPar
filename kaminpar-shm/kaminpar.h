@@ -541,6 +541,8 @@ struct PartitioningContext {
   bool restrict_vcycle_refinement;
 
   bool rb_enable_kway_toplevel_refinement;
+
+  bool kway_parallel_rb;
 };
 
 struct GraphCompressionContext {

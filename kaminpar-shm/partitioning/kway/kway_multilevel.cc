@@ -11,6 +11,7 @@
 #include "kaminpar-shm/factories.h"
 #include "kaminpar-shm/partitioning/debug.h"
 #include "kaminpar-shm/partitioning/helper.h"
+#include "kaminpar-shm/partitioning/rb/rb_multilevel.h"
 
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/heap_profiler.h"
@@ -41,7 +42,11 @@ KWayMultilevelPartitioner::KWayMultilevelPartitioner(
 
 PartitionedGraph KWayMultilevelPartitioner::partition() {
   cio::print_delimiter("Partitioning");
-  return uncoarsen(initial_partition(coarsen()));
+  if (_input_ctx.partitioning.kway_parallel_rb) {
+    return uncoarsen(parallel_initial_partition(coarsen()));
+  } else {
+    return uncoarsen(initial_partition(coarsen()));
+  }
 }
 
 void KWayMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
@@ -160,21 +165,92 @@ PartitionedGraph KWayMultilevelPartitioner::initial_partition(const Graph *graph
   // Since timers are not multi-threaded, we disable them during (parallel)
   // initial partitioning.
   DISABLE_TIMERS();
-  PartitionedGraph p_graph = _bipartitioner_pool.bipartition(graph, 0, 1, true);
 
-  graph::SubgraphMemory subgraph_memory(p_graph.n(), _input_ctx.partition.k, p_graph.m());
-  partitioning::TemporarySubgraphMemoryEts ip_extraction_pool_ets;
+  std::vector<StaticArray<BlockID>> initial_partitions(_input_ctx.parallel.num_threads);
+  std::vector<std::pair<bool, EdgeWeight>> initial_cuts(_input_ctx.parallel.num_threads);
 
-  partitioning::extend_partition(
-      p_graph,
-      _input_ctx.partition.k,
-      _input_ctx,
-      subgraph_memory,
-      ip_extraction_pool_ets,
-      _bipartitioner_pool,
-      _input_ctx.parallel.num_threads
-  );
+  tbb::parallel_for<int>(0, _input_ctx.parallel.num_threads, [&](const int t) {
+    graph::SubgraphMemory subgraph_memory(graph->n(), _input_ctx.partition.k, graph->m());
+    graph::TemporarySubgraphMemory ip_extraction_pool;
 
+    StaticArray<BlockID> partition(graph->n());
+
+    partitioning::extend_partition_recursive(
+        *graph,
+        partition,
+        0,
+        0,
+        _input_ctx.partition.k,
+        1,
+        _input_ctx,
+        {.nodes_start_pos = 0, .edges_start_pos = 0},
+        subgraph_memory,
+        ip_extraction_pool,
+        _bipartitioner_pool,
+        nullptr
+    );
+
+    PartitionedGraph p_graph(*graph, _input_ctx.partition.k, std::move(partition));
+    PartitionContext p_ctx = create_kway_context(_input_ctx, p_graph);
+    initial_cuts[t] = {metrics::is_feasible(p_graph, p_ctx), metrics::edge_cut_seq(p_graph)};
+    initial_partitions[t] = std::move(p_graph.take_raw_partition());
+  });
+
+  StaticArray<BlockID> initial_partition;
+  EdgeWeight best_initial_cut = std::numeric_limits<EdgeWeight>::max();
+  bool best_initial_cut_feasible = false;
+
+  for (int t = 0; t < _input_ctx.parallel.num_threads; ++t) {
+    const auto [feasible, cut] = initial_cuts[t];
+    if ((feasible && cut < best_initial_cut) ||
+        (!feasible && !best_initial_cut_feasible && cut < best_initial_cut) ||
+        (feasible && !best_initial_cut_feasible)) {
+      initial_partition = std::move(initial_partitions[t]);
+      best_initial_cut_feasible = feasible;
+    }
+  }
+
+  PartitionedGraph p_graph(*graph, _input_ctx.partition.k, std::move(initial_partition));
+  _current_p_ctx = create_kway_context(_input_ctx, p_graph);
+
+  ENABLE_TIMERS();
+
+  // Print some metrics for the initial partition.
+  LOG << "  Number of blocks: " << p_graph.k();
+  if (_print_metrics) {
+    SCOPED_TIMER("Partition metrics");
+    LOG << "  Cut:              " << metrics::edge_cut(p_graph);
+    LOG << "  Imbalance:        " << metrics::imbalance(p_graph);
+    LOG << "  Feasible:         " << (metrics::is_feasible(p_graph, _current_p_ctx) ? "yes" : "no");
+  }
+
+  // If requested, dump the coarsest partition -- as noted above, this is not
+  // actually the coarsest partition when using deep multilevel.
+  debug::dump_coarsest_partition(p_graph, _input_ctx);
+  debug::dump_partition_hierarchy(p_graph, _coarsener->level(), "post-refinement", _input_ctx);
+
+  return p_graph;
+}
+
+PartitionedGraph KWayMultilevelPartitioner::parallel_initial_partition(const Graph *graph) {
+  SCOPED_HEAP_PROFILER("Initial partitioning");
+  SCOPED_TIMER("Initial partitioning");
+  LOG << "Initial partitioning:";
+
+  // If requested, dump the coarsest graph to disk. Note that in the context of
+  // deep multilevel, this is not actually the coarsest graph, but rather the
+  // coarsest graph before splitting PEs and duplicating the graph.
+  // Disable worker splitting with --p-deep-initial-partitioning-mode=sequential to obtain coarser
+  // graphs.
+  debug::dump_coarsest_graph(*graph, _input_ctx);
+  debug::dump_graph_hierarchy(*graph, _coarsener->level(), _input_ctx);
+
+  // Since timers are not multi-threaded, we disable them during (parallel)
+  // initial partitioning.
+  DISABLE_TIMERS();
+
+  RBMultilevelPartitioner rb(*graph, _input_ctx);
+  PartitionedGraph p_graph = rb.partition();
   _current_p_ctx = create_kway_context(_input_ctx, p_graph);
 
   ENABLE_TIMERS();
