@@ -71,12 +71,8 @@ PartitionedGraph RBMultilevelPartitioner::partition_recursive(
           }
       );
     } else {
-      tbb::this_task_arena::isolate([&] {
-        p_graph1 = partition_recursive(subgraphs[0], 2 * current_block, current_k * 2);
-      });
-      tbb::this_task_arena::isolate([&] {
-        p_graph2 = partition_recursive(subgraphs[1], 2 * current_block + 1, current_k * 2);
-      });
+      p_graph1 = partition_recursive(subgraphs[0], 2 * current_block, current_k * 2);
+      p_graph2 = partition_recursive(subgraphs[1], 2 * current_block + 1, current_k * 2);
     }
 
     ScalableVector<StaticArray<BlockID>> subgraph_partitions(2);
