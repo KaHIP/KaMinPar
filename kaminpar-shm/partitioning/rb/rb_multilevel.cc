@@ -60,7 +60,7 @@ PartitionedGraph RBMultilevelPartitioner::partition_recursive(
 
     PartitionedGraph p_graph1, p_graph2;
     if (_input_ctx.partitioning.rb_switch_to_seq_factor == 0 ||
-        current_k >
+        current_k <=
             static_cast<BlockID>(
                 _input_ctx.parallel.num_threads * _input_ctx.partitioning.rb_switch_to_seq_factor
             )) {
