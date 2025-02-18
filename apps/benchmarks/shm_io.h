@@ -17,6 +17,7 @@
 #include <kaminpar-shm/metrics.h>
 
 namespace kaminpar {
+
 inline auto invoke_kagen(const std::string &options) {
   kagen::KaGen generator(MPI_COMM_WORLD);
   generator.UseCSRRepresentation();
@@ -32,9 +33,11 @@ inline auto invoke_kagen(const std::string &options) {
     );
   }
 }
+
 } // namespace kaminpar
 
 namespace kaminpar::shm {
+
 struct GraphWrapper {
   std::vector<EdgeID> xadj;
   std::vector<NodeID> adjncy;
@@ -98,4 +101,5 @@ inline PartitionedGraphWrapper load_partitioned_graph(
 
   return wrapper;
 }
+
 } // namespace kaminpar::shm

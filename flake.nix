@@ -1,5 +1,5 @@
 {
-  description = "Shared-memory and distributed graph partitioner for large k partitioning.";
+  description = "A Shared-Memory and Distributed-Memory Parallel Graph Partitioner";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -11,13 +11,13 @@
       pkgs = import nixpkgs { inherit system; };
 
       inputs = builtins.attrValues {
-        inherit (pkgs) cmake ninja python3 gcc14 tbb_2021_11 sparsehash mpi numactl pkg-config;
-        inherit (pkgs.llvmPackages_18) openmp;
+        inherit (pkgs) python3 gcc14 ninja cmake tbb_2021_11 sparsehash mpi numactl pkg-config git;
+        inherit (pkgs.llvmPackages_19) openmp;
         inherit mt-kahypar;
       };
 
       devShellInputs = builtins.attrValues {
-        inherit (pkgs) fish ccache mold-wrapped gdb;
+        inherit (pkgs) ccache mold-wrapped gdb;
       };
 
       mt-kahypar = pkgs.stdenv.mkDerivation {
@@ -61,42 +61,53 @@
 
         gcc = pkgs.mkShell {
           packages = inputs ++ devShellInputs;
-
-          shellHook = ''
-            exec fish
-          '';
         };
 
-        clang = (pkgs.mkShell.override { stdenv = pkgs.llvmPackages_18.stdenv; }) {
+        clang = (pkgs.mkShell.override { stdenv = pkgs.llvmPackages_19.stdenv; }) {
           packages = (pkgs.lib.lists.remove pkgs.gcc14 inputs) ++ devShellInputs;
-
-          shellHook = ''
-            exec fish
-          '';
         };
       };
 
-      packages.default = pkgs.stdenv.mkDerivation {
-        pname = "KaMinPar";
-        version = "2.1.0";
+      packages.default =
+        let
+          kassert-src = pkgs.fetchFromGitHub {
+            owner = "kamping-site";
+            repo = "kassert";
+            rev = "988b7d54b79ae6634f2fcc53a0314fb1cf2c6a23";
 
-        src = self;
-        nativeBuildInputs = inputs;
+            fetchSubmodules = true;
+            hash = "sha256-CBglUfVl9lgEa1t95G0mG4CCj0OWnIBwk7ep62rwIAA=";
+          };
 
-        cmakeFlags = [
-          "-DKAMINPAR_BUILD_DISTRIBUTED=On"
-          "-DKAMINPAR_BUILD_WITH_MTKAHYPAR=On"
-          "-DKAMINPAR_BUILD_TESTS=Off"
-          "-DKAMINPAR_BUILD_WITH_CCACHE=Off"
-        ];
-        enableParallelBuilding = true;
+          kagen-src = pkgs.fetchFromGitHub {
+            owner = "KarlsruheGraphGeneration";
+            repo = "KaGen";
+            rev = "70386f48e513051656f020360c482ce6bff9a24f";
 
-        meta = {
-          description = "Shared-memory and distributed graph partitioner for large k partitioning.";
-          homepage = "https://github.com/KaHIP/KaMinPar";
-          license = pkgs.lib.licenses.mit;
+            fetchSubmodules = true;
+            hash = "sha256-5EvRPpjUZpmAIEgybXjNU/mO0+gsAyhlwbT+syDUr48=";
+          };
+        in
+        pkgs.stdenv.mkDerivation {
+          pname = "KaMinPar";
+          version = "3.1.0";
+
+          src = self;
+          nativeBuildInputs = inputs;
+
+          cmakeFlags = [
+            "-DKAMINPAR_BUILD_DISTRIBUTED=On"
+            "-DFETCHCONTENT_FULLY_DISCONNECTED=On"
+            "-DFETCHCONTENT_SOURCE_DIR_KASSERT=${kassert-src}"
+            "-DFETCHCONTENT_SOURCE_DIR_KAGEN=${kagen-src}"
+          ];
+
+          meta = {
+            description = "Shared-memory and distributed-memory parallel graph partitioner";
+            homepage = "https://github.com/KaHIP/KaMinPar";
+            license = pkgs.lib.licenses.mit;
+          };
         };
-      };
     }
   );
 }

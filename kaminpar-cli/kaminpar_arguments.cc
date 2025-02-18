@@ -13,6 +13,7 @@
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
+
 void create_all_options(CLI::App *app, Context &ctx) {
   create_graph_compression_options(app, ctx);
   create_partitioning_options(app, ctx);
@@ -33,16 +34,6 @@ CLI::Option_group *create_graph_compression_options(CLI::App *app, Context &ctx)
 
 CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
   auto *partitioning = app->add_option_group("Partitioning");
-
-  partitioning
-      ->add_option(
-          "-e,--epsilon",
-          ctx.partition.epsilon,
-          "Maximum allowed imbalance, e.g. 0.03 for 3%. Must be strictly "
-          "positive."
-      )
-      ->check(CLI::NonNegativeNumber)
-      ->capture_default_str();
 
   // Partitioning options
   partitioning->add_option("-m,--p-mode", ctx.partitioning.mode)
@@ -85,6 +76,16 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
   partitioning
       ->add_flag("--p-refine-after-extending", ctx.partitioning.refine_after_extending_partition)
+      ->capture_default_str();
+  partitioning
+      ->add_flag(
+          "--p-rb-kway-toplevel-refinement", ctx.partitioning.rb_enable_kway_toplevel_refinement
+      )
+      ->capture_default_str();
+
+  partitioning->add_option("--p-vcycles", ctx.partitioning.vcycles)->capture_default_str();
+  partitioning
+      ->add_flag("--p-restrict-vcycle-refinement", ctx.partitioning.restrict_vcycle_refinement)
       ->capture_default_str();
 
   create_partitioning_rearrangement_options(app, ctx);
@@ -257,6 +258,11 @@ Options are:
       )
       ->capture_default_str();
 
+  coarsening->add_option("--c-overlay-levels", ctx.coarsening.overlay_clustering.num_levels)
+      ->capture_default_str();
+  coarsening->add_option("--c-overlay-max-level", ctx.coarsening.overlay_clustering.max_level)
+      ->capture_default_str();
+
   create_lp_coarsening_options(app, ctx);
   create_contraction_coarsening_options(app, ctx);
 
@@ -308,34 +314,6 @@ Options are:
       ->capture_default_str();
 
   lp->add_option(
-        "--c-lp-second-phase-selection-strategy",
-        ctx.coarsening.clustering.lp.second_phase_selection_strategy
-  )
-      ->transform(CLI::CheckedTransformer(get_second_phase_selection_strategies()).description(""))
-      ->description(
-          R"(Determines the strategy for selecting nodes for the second phase of label propagation.
-Options are:
-  - high-degree:     Select nodes with high degree
-  - full-rating-map: Select nodes that have a full rating map in the first phase
-  )"
-      )
-      ->capture_default_str();
-  lp->add_option(
-        "--c-lp-second-phase-aggregation-strategy",
-        ctx.coarsening.clustering.lp.second_phase_aggregation_strategy
-  )
-      ->transform(CLI::CheckedTransformer(get_second_phase_aggregation_strategies()).description("")
-      )
-      ->description(
-          R"(Determines the strategy for aggregating ratings in the second phase of label propagation.
-Options are:
-  - none:     Skip the second phase
-  - direct:   Write the ratings directly into the global vector (shared between threads)
-  - buffered: Write the ratings into a thread-local buffer and then copy them into the global vector when the buffer is full
-  )"
-      )
-      ->capture_default_str();
-  lp->add_option(
         "--c-lp-second-phase-relabel",
         ctx.coarsening.clustering.lp.relabel_before_second_phase,
         "Relabel the clusters before running the second phase"
@@ -349,7 +327,6 @@ Options are:
   - disable: Do not merge two-hop singleton clusters
   - match:   Join two-hop singleton clusters pairwise
   - cluster: Cluster two-hop singleton clusters into a single cluster (respecting the maximum cluster weight limit)
-  - legacy:  Use v2.1 default behaviour
   )")
       ->capture_default_str();
   lp->add_option(
@@ -387,7 +364,6 @@ CLI::Option_group *create_contraction_coarsening_options(CLI::App *app, Context 
       ->description(R"(The algorithm used for contraction.
 Options are:
   - buffered:         Use an edge buffer that is partially filled
-  - buffered-legacy:  Use an edge buffer
   - unbuffered:       Use no edge buffer by remapping the coarse nodes
   - unbuffered-naive: Use no edge buffer by computing twice
   )")
@@ -419,9 +395,24 @@ Options are:
 CLI::Option_group *create_initial_partitioning_options(CLI::App *app, Context &ctx) {
   auto *ip = app->add_option_group("Initial Partitioning");
 
+  // Pool
+  ip->add_option("--i-p-min-num-repetitions", ctx.initial_partitioning.pool.min_num_repetitions)
+      ->capture_default_str();
+  ip->add_option("--i-p-max-num-repetitions", ctx.initial_partitioning.pool.max_num_repetitions)
+      ->capture_default_str();
+
+  // Refinement
   ip->add_flag(
         "--i-r-disable", ctx.initial_partitioning.refinement.disabled, "Disable initial refinement."
   )
+      ->capture_default_str();
+  ip->add_flag(
+        "--i-adaptive-epsilon",
+        ctx.initial_partitioning.use_adaptive_epsilon,
+        "Use adaptive epsilon."
+  )
+      ->capture_default_str();
+  ip->add_option("--i-r-num-iterations", ctx.initial_partitioning.refinement.num_iterations)
       ->capture_default_str();
 
   return ip;
@@ -496,32 +487,6 @@ Options are:
   )"
       )
       ->capture_default_str();
-  lp->add_option(
-        "--r-lp-second-phase-selection-strategy", ctx.refinement.lp.second_phase_selection_strategy
-  )
-      ->transform(CLI::CheckedTransformer(get_second_phase_selection_strategies()).description(""))
-      ->description(
-          R"(Determines the strategy for selecting nodes for the second phase of label propagation.
-Options are:
-  - high-degree:     Select nodes with high degree
-  - full-rating-map: Select nodes that have a full rating map in the first phase
-  )"
-      )
-      ->capture_default_str();
-  lp->add_option(
-        "--r-lp-second-phase-aggregation-strategy",
-        ctx.refinement.lp.second_phase_aggregation_strategy
-  )
-      ->transform(CLI::CheckedTransformer(get_second_phase_aggregation_strategies()).description("")
-      )
-      ->description(
-          R"(Determines the strategy for aggregating ratings in the second phase of label propagation.
-Options are:
-  - none:     Skip the second phase
-  - direct:   Write the ratings directly into the global vector (shared between threads)
-  - buffered: Write the ratings into a thread-local buffer and then copy them into the global vector when the buffer is full
-  )"
-      );
 
   return lp;
 }
@@ -727,4 +692,5 @@ CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx) {
 
   return debug;
 }
+
 } // namespace kaminpar::shm

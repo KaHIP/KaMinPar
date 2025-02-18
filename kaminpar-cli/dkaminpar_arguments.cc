@@ -9,11 +9,13 @@
 
 #include "kaminpar-cli/CLI11.h"
 
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/context_io.h"
+#include "kaminpar-dist/dkaminpar.h"
 
 namespace kaminpar::dist {
+
 namespace {
+
 void create_chunks_options(CLI::Option_group *cli, const std::string &prefix, ChunksContext &ctx) {
   cli->add_option(
          prefix + "-total-chunks",
@@ -40,6 +42,7 @@ void create_chunks_options(CLI::Option_group *cli, const std::string &prefix, Ch
   )
       ->capture_default_str();
 }
+
 } // namespace
 
 void create_all_options(CLI::App *app, Context &ctx) {
@@ -54,39 +57,49 @@ void create_all_options(CLI::App *app, Context &ctx) {
 CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
   auto *partitioning = app->add_option_group("Partitioning");
 
-  partitioning
-      ->add_option("-e,--epsilon", ctx.partition.epsilon, "Maximum allowed block imbalance.")
-      ->check(CLI::NonNegativeNumber)
-      ->configurable(false)
-      ->capture_default_str();
-  partitioning
-      ->add_option(
-          "-K,--block-multiplier",
-          ctx.partition.K,
-          "Maximum block count with which the initial partitioner is called."
-      )
-      ->capture_default_str();
-  partitioning->add_option("-m,--mode", ctx.mode)
+  partitioning->add_option("-m,--mode", ctx.partitioning.mode)
       ->transform(CLI::CheckedTransformer(get_partitioning_modes()).description(""))
       ->description(R"(Partitioning scheme, possible options are:
   - deep: distributed deep multilevel graph partitioning
-  - deeper: distributed deep multilevel graph partitioning with optional PE splitting and graph replication
   - kway: direct k-way multilevel graph partitioning)")
       ->capture_default_str();
   partitioning
-      ->add_flag(
-          "--enable-pe-splitting",
-          ctx.enable_pe_splitting,
-          "Enable PE splitting and graph replication in deep MGP"
+      ->add_option(
+          "--initial-k",
+          ctx.partitioning.initial_k,
+          "Maximum block count with which the initial partitioner is called."
+      )
+      ->capture_default_str();
+  partitioning
+      ->add_option(
+          "--extension-k",
+          ctx.partitioning.extension_k,
+          "Maximum block count into which a single block is split before running k-way refinement "
+          "and rebalancing."
       )
       ->capture_default_str();
   partitioning
       ->add_flag(
-          "--simulate-singlethreaded",
-          ctx.simulate_singlethread,
-          "Simulate single-threaded execution during a hybrid run"
+          "--p-avoid-toplevel-bipartitioning",
+          ctx.partitioning.avoid_toplevel_bipartitioning,
+          "Avoid running bipartitioning on the toplevel."
       )
       ->capture_default_str();
+  partitioning
+      ->add_flag(
+          "--p-deep-enable-pe-splitting",
+          ctx.partitioning.enable_pe_splitting,
+          "Enable graph duplication during coarsening."
+      )
+      ->capture_default_str();
+  partitioning
+      ->add_flag(
+          "--p-deep-simulate-singlethreaded",
+          ctx.partitioning.simulate_singlethread,
+          "Simulate single-threaded execution even when using multiple threads per MPI process."
+      )
+      ->capture_default_str();
+
   partitioning->add_option("--rearrange-by", ctx.rearrange_by)
       ->transform(CLI::CheckedTransformer(get_graph_orderings()).description(""))
       ->description(R"(Criteria by which the graph is sorted and rearrange:
@@ -510,9 +523,15 @@ CLI::Option_group *create_global_lp_coarsening_options(CLI::App *app, Context &c
       ->capture_default_str();
   lp->add_flag("--c-glp-sync-cluster-weights", ctx.coarsening.global_lp.sync_cluster_weights);
   lp->add_flag("--c-glp-enforce-cluster-weights", ctx.coarsening.global_lp.enforce_cluster_weights);
-  lp->add_flag("--c-glp-cheap-toplevel", ctx.coarsening.global_lp.cheap_toplevel);
   lp->add_flag("--c-glp-prevent-cyclic-moves", ctx.coarsening.global_lp.prevent_cyclic_moves);
-  lp->add_flag("--c-glp-enforce-legacy-weight", ctx.coarsening.global_lp.enforce_legacy_weight);
+
+  lp->add_option("--c-glp-active-set", ctx.coarsening.global_lp.active_set_strategy)
+      ->transform(CLI::CheckedTransformer(get_active_set_strategies()).description(""))
+      ->description(R"(Determines the active set strategy:
+  - none:   Do not use an active set
+  - local:  Only for non-interface nodes
+  - global: Full active set strategy (requires ghost graph)")
+      ->capture_default_str();
 
   return lp;
 }
@@ -616,6 +635,13 @@ CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {
       )
       ->capture_default_str();
 
+  jet->add_option("--r-jet-gc", ctx.refinement.jet.gain_cache_strategy)
+      ->transform(CLI::CheckedTransformer(get_gain_cache_strategies()).description(""))
+      ->description(R"(Determines how gains are computed:
+  - on-the-fly:           Recompute gains whenever they are needed
+  - lazy-compact-hashing: Cache gains using small hash tables, only for local neighbors")")
+      ->capture_default_str();
+
   return jet;
 }
 
@@ -634,4 +660,5 @@ CLI::Option_group *create_mtkahypar_refinement_options(CLI::App *app, Context &c
 
   return mtkahypar;
 }
+
 } // namespace kaminpar::dist

@@ -8,6 +8,8 @@
  ******************************************************************************/
 #pragma once
 
+#include <span>
+
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
@@ -16,6 +18,7 @@
 #include "kaminpar-common/datastructures/ts_navigable_linked_list.h"
 
 namespace kaminpar::shm {
+
 class CoarseGraph {
 public:
   virtual ~CoarseGraph() = default;
@@ -23,10 +26,13 @@ public:
   [[nodiscard]] virtual const Graph &get() const = 0;
   virtual Graph &get() = 0;
 
-  virtual void project(const StaticArray<BlockID> &array, StaticArray<BlockID> &onto) = 0;
+  virtual void project_up(std::span<const BlockID> coarse, std::span<BlockID> fine) = 0;
+
+  virtual void project_down(std::span<const BlockID> fine, std::span<BlockID> coarse) = 0;
 };
 
 namespace contraction {
+
 struct Edge {
   NodeID target;
   EdgeWeight weight;
@@ -38,6 +44,7 @@ struct MemoryContext {
   StaticArray<NodeID> leader_mapping;
   StaticArray<NavigationMarker<NodeID, Edge, ScalableVector>> all_buffered_nodes;
 };
+
 } // namespace contraction
 
 std::unique_ptr<CoarseGraph> contract_clustering(
@@ -50,4 +57,5 @@ std::unique_ptr<CoarseGraph> contract_clustering(
     const ContractionCoarseningContext &con_ctx,
     contraction::MemoryContext &m_ctx
 );
+
 } // namespace kaminpar::shm

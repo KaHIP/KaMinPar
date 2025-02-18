@@ -17,10 +17,13 @@
 #include "kaminpar-common/math.h"
 
 namespace kaminpar::dist {
+
 namespace data {
+
 static std::vector<GlobalEdgeID> global_xadj = {
 #include "data.graph.xadj"
 };
+
 static std::vector<GlobalNodeID> global_adjncy = {
 #include "data.graph.adjncy"
 };
@@ -54,6 +57,7 @@ std::vector<GlobalEdgeID> create_xadj() {
 
   return xadj;
 }
+
 } // namespace data
 
 TEST(DistEndToEndTest, partitions_empty_unweighted_graph) {
@@ -66,8 +70,8 @@ TEST(DistEndToEndTest, partitions_empty_unweighted_graph) {
   std::vector<BlockID> partition{};
   dKaMinPar dist(MPI_COMM_WORLD, 1, create_default_context());
   dist.set_output_level(OutputLevel::QUIET);
-  dist.import_graph(vtxdist.data(), xadj.data(), adjncy.data(), nullptr, nullptr);
-  EXPECT_EQ(dist.compute_partition(16, partition.data()), 0);
+  dist.copy_graph(vtxdist, xadj, adjncy);
+  EXPECT_EQ(dist.compute_partition(16, partition), 0);
 }
 
 TEST(DistEndToEndTest, partitions_empty_weighted_graph) {
@@ -82,8 +86,8 @@ TEST(DistEndToEndTest, partitions_empty_weighted_graph) {
   std::vector<BlockID> partition{};
   dKaMinPar dist(MPI_COMM_WORLD, 1, create_default_context());
   dist.set_output_level(OutputLevel::QUIET);
-  dist.import_graph(vtxdist.data(), xadj.data(), adjncy.data(), vwgt.data(), adjwgt.data());
-  EXPECT_EQ(dist.compute_partition(16, partition.data()), 0);
+  dist.copy_graph(vtxdist, xadj, adjncy, vwgt, adjwgt);
+  EXPECT_EQ(dist.compute_partition(16, partition), 0);
 }
 
 TEST(DistEndToEndTest, partitions_unweighted_walshaw_data_graph) {
@@ -95,16 +99,17 @@ TEST(DistEndToEndTest, partitions_unweighted_walshaw_data_graph) {
 
   const GlobalNodeID global_n = data::global_xadj.size() - 1;
 
-  GlobalNodeID *vtxdist_ptr = vtxdist.data();
-  GlobalEdgeID *xadj_ptr = xadj.data();
   GlobalNodeID *adjncy_ptr = data::global_adjncy.data() + data::global_xadj[vtxdist[rank]];
+  const GlobalEdgeID m = data::global_xadj[vtxdist[rank + 1]] - data::global_xadj[vtxdist[rank]];
 
   std::vector<BlockID> partition(global_n);
   dKaMinPar::reseed(0);
   dKaMinPar dist(MPI_COMM_WORLD, 1, create_default_context()); // 1 thread: deterministic
   dist.set_output_level(OutputLevel::QUIET);
-  dist.import_graph(vtxdist_ptr, xadj_ptr, adjncy_ptr, nullptr, nullptr);
-  const EdgeWeight reported_cut = dist.compute_partition(16, partition.data() + vtxdist[rank]);
+  dist.copy_graph(vtxdist, xadj, {adjncy_ptr, m});
+  const EdgeWeight reported_cut = dist.compute_partition(
+      16, {partition.data() + vtxdist[rank], vtxdist[rank + 1] - vtxdist[rank]}
+  );
 
   // Cut should be around 1200 -- 1300
   EXPECT_LE(reported_cut, 2000);
@@ -144,42 +149,6 @@ TEST(DistEndToEndTest, partitions_unweighted_walshaw_data_graph) {
   EXPECT_EQ(reported_cut, actual_cut / 2);
 }
 
-// Disabled: can fail since we offset the PRNG seed by the thread ID, and not all calls are made by
-// the same threads across multiple runs
-/*
-TEST(DistEndToEndTest, partitions_unweighted_walshaw_data_graph_multiple_times_with_same_seed) {
-  const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
-  const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
-
-  auto vtxdist = data::create_vtxdist();
-  auto xadj = data::create_xadj();
-
-  const GlobalNodeID global_n = data::global_xadj.size() - 1;
-  const NodeID n = xadj.size() - 1;
-
-  GlobalNodeID *vtxdist_ptr = vtxdist.data();
-  GlobalEdgeID *xadj_ptr = xadj.data();
-  GlobalNodeID *adjncy_ptr = data::global_adjncy.data() + data::global_xadj[vtxdist[rank]];
-
-  std::vector<BlockID> seed0_partition(n);
-  dKaMinPar::reseed(0);
-  dKaMinPar dist(MPI_COMM_WORLD, 1, create_default_context()); // 1 thread: deterministic
-  dist.set_output_level(OutputLevel::QUIET);
-  dist.import_graph(vtxdist_ptr, xadj_ptr, adjncy_ptr, nullptr, nullptr);
-  const EdgeWeight reported_cut = dist.compute_partition(16, seed0_partition.data());
-
-  for (const int seed : {0, 0, 0}) {
-    std::vector<BlockID> partition(n);
-    dKaMinPar::reseed(seed);
-    dKaMinPar dist(MPI_COMM_WORLD, 1, create_default_context()); // 1 thread: deterministic
-    dist.set_output_level(OutputLevel::QUIET);
-    dist.import_graph(vtxdist_ptr, xadj_ptr, adjncy_ptr, nullptr, nullptr);
-    dist.compute_partition(16, partition.data());
-    EXPECT_EQ(partition, seed0_partition);
-  }
-}
-*/
-
 TEST(
     DistEndToEndTest, partitions_unweighted_walshaw_data_graph_multiple_times_with_different_seeds
 ) {
@@ -190,24 +159,44 @@ TEST(
 
   const NodeID n = xadj.size() - 1;
 
-  GlobalNodeID *vtxdist_ptr = vtxdist.data();
-  GlobalEdgeID *xadj_ptr = xadj.data();
   GlobalNodeID *adjncy_ptr = data::global_adjncy.data() + data::global_xadj[vtxdist[rank]];
+  const GlobalEdgeID m = data::global_xadj[vtxdist[rank + 1]] - data::global_xadj[vtxdist[rank]];
 
   std::vector<BlockID> seed0_partition(n);
   dKaMinPar::reseed(0);
   dKaMinPar dist(MPI_COMM_WORLD, 1, create_default_context()); // 1 thread: deterministic
   dist.set_output_level(OutputLevel::QUIET);
-  dist.import_graph(vtxdist_ptr, xadj_ptr, adjncy_ptr, nullptr, nullptr);
+  dist.copy_graph(vtxdist, xadj, {adjncy_ptr, m});
+  dist.compute_partition(16, seed0_partition);
 
   for (const int seed : {1, 2, 3}) {
     std::vector<BlockID> partition(n);
     dKaMinPar::reseed(seed);
     dKaMinPar dist(MPI_COMM_WORLD, 1, create_default_context()); // 1 thread: deterministic
     dist.set_output_level(OutputLevel::QUIET);
-    dist.import_graph(vtxdist_ptr, xadj_ptr, adjncy_ptr, nullptr, nullptr);
-    dist.compute_partition(16, partition.data());
+    dist.copy_graph(vtxdist, xadj, {adjncy_ptr, m});
+    dist.compute_partition(16, partition);
     EXPECT_NE(partition, seed0_partition);
   }
 }
+
+TEST(DistEndToEndTest, partitions_unweighted_walshaw_data_graph_with_three_threads_per_mpi) {
+  const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
+
+  auto vtxdist = data::create_vtxdist();
+  auto xadj = data::create_xadj();
+
+  const NodeID n = xadj.size() - 1;
+
+  GlobalNodeID *adjncy_ptr = data::global_adjncy.data() + data::global_xadj[vtxdist[rank]];
+  const GlobalEdgeID m = data::global_xadj[vtxdist[rank + 1]] - data::global_xadj[vtxdist[rank]];
+
+  std::vector<BlockID> seed0_partition(n);
+  dKaMinPar::reseed(0);
+  dKaMinPar dist(MPI_COMM_WORLD, 3, create_default_context());
+  dist.set_output_level(OutputLevel::QUIET);
+  dist.copy_graph(vtxdist, xadj, {adjncy_ptr, m});
+  dist.compute_partition(16, seed0_partition);
+}
+
 } // namespace kaminpar::dist

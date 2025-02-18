@@ -16,13 +16,17 @@
 #include "kaminpar-common/logger.h"
 
 namespace kaminpar::shm {
+
 namespace {
+
 SET_DEBUG(false);
+
 }
 
 using Queues = std::array<BinaryMinHeap<EdgeWeight>, 2>;
 
 namespace fm {
+
 void SimpleStoppingPolicy::init(const CSRGraph *) {
   reset();
 }
@@ -83,8 +87,8 @@ struct MaxWeightSelectionPolicy {
       const Queues &,
       Random &rand
   ) {
-    const auto weight0 = p_graph.block_weight(0) - context.block_weights.perfectly_balanced(0);
-    const auto weight1 = p_graph.block_weight(1) - context.block_weights.perfectly_balanced(1);
+    const auto weight0 = p_graph.block_weight(0) - context.perfectly_balanced_block_weight(0);
+    const auto weight1 = p_graph.block_weight(1) - context.perfectly_balanced_block_weight(1);
     return weight1 > weight0 || (weight0 == weight1 && rand.random_bool());
   }
 };
@@ -118,9 +122,9 @@ struct MaxOverloadSelectionPolicy {
       Random &rand
   ) {
     const NodeWeight overload0 =
-        std::max<NodeWeight>(0, p_graph.block_weight(0) - context.block_weights.max(0));
+        std::max<NodeWeight>(0, p_graph.block_weight(0) - context.max_block_weight(0));
     const NodeWeight overload1 =
-        std::max<NodeWeight>(0, p_graph.block_weight(1) - context.block_weights.max(1));
+        std::max<NodeWeight>(0, p_graph.block_weight(1) - context.max_block_weight(1));
 
     if (overload0 == 0 && overload1 == 0) {
       return MaxGainSelectionPolicy()(p_graph, context, queues, rand);
@@ -348,7 +352,7 @@ void InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>
   const NodeID num_chunks = _graph->n() / kChunkSize + 1;
 
   _chunks.clear();
-  if (_chunks.capacity() < num_chunks) {
+  if (_chunks.size() < num_chunks) {
     _chunks.resize(num_chunks);
   }
 
@@ -458,4 +462,5 @@ template class InitialFMRefiner<
     fm::MaxOverloadSelectionPolicy,
     fm::BalancedMinCutAcceptancePolicy,
     fm::AdaptiveStoppingPolicy>;
+
 } // namespace kaminpar::shm

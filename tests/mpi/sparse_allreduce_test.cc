@@ -7,6 +7,7 @@
 using namespace ::testing;
 
 namespace kaminpar::mpi {
+
 template <typename Implementation> struct InplaceSparseAllreduceTest : public ::testing::Test {
   Implementation impl;
 };
@@ -51,4 +52,5 @@ TYPED_TEST(InplaceSparseAllreduceTest, one_per_pe) {
   EXPECT_EQ(buf.size(), size);
   EXPECT_THAT(buf, Each(Eq(1)));
 }
+
 } // namespace kaminpar::mpi

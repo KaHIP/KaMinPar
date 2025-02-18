@@ -15,6 +15,7 @@
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm::contraction {
+
 class CoarseGraphImpl : public CoarseGraph {
 public:
   CoarseGraphImpl(Graph graph, StaticArray<NodeID> mapping)
@@ -33,9 +34,15 @@ public:
     return _mapping;
   }
 
-  void project(const StaticArray<BlockID> &array, StaticArray<BlockID> &onto) final {
-    tbb::parallel_for<std::size_t>(0, onto.size(), [&](const std::size_t i) {
-      onto[i] = array[_mapping[i]];
+  void project_up(const std::span<const BlockID> coarse, const std::span<BlockID> fine) final {
+    tbb::parallel_for<std::size_t>(0, fine.size(), [&](const std::size_t i) {
+      fine[i] = coarse[_mapping[i]];
+    });
+  }
+
+  void project_down(std::span<const BlockID> fine, const std::span<BlockID> coarse) final {
+    tbb::parallel_for<std::size_t>(0, fine.size(), [&](const std::size_t i) {
+      __atomic_store_n(&coarse[_mapping[i]], fine[i], __ATOMIC_RELAXED);
     });
   }
 
@@ -62,4 +69,5 @@ void fill_cluster_buckets(
     StaticArray<NodeID> &buckets_index,
     StaticArray<NodeID> &buckets
 );
+
 } // namespace kaminpar::shm::contraction

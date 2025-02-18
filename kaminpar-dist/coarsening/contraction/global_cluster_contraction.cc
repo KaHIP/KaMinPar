@@ -152,9 +152,11 @@ private:
   StaticArray<GlobalNodeID> _lnode_to_gcnode;
   MigratedNodes _migration;
 };
+
 } // namespace
 
 namespace {
+
 struct AssignmentShifts {
   StaticArray<GlobalNodeID> overload;
   StaticArray<GlobalNodeID> underload;
@@ -311,11 +313,13 @@ find_nonlocal_nodes(const Graph &graph, const StaticArray<GlobalNodeID> &lnode_t
   std::unordered_map<GlobalNodeID, NodeWeight> nonlocal_nodes;
   std::atomic<std::size_t> size = 0;
 
-  graph.pfor_all_nodes([&](const NodeID lnode) {
+  for (NodeID lnode : graph.all_nodes()) {
+    // graph.pfor_all_nodes([&](const NodeID lnode) {
     const GlobalNodeID gcluster = lnode_to_gcluster[lnode];
 
     if (graph.is_owned_global_node(gcluster)) {
-      return;
+      // return;
+      continue;
     }
 
     const NodeWeight weight = graph.is_owned_node(lnode) ? graph.node_weight(lnode) : 0;
@@ -333,7 +337,8 @@ find_nonlocal_nodes(const Graph &graph, const StaticArray<GlobalNodeID> &lnode_t
       size.fetch_add(1, std::memory_order_relaxed);
       nonlocal_nodes[gcluster + 1] = weight;
     }
-  });
+    //});
+  }
 
   RECORD("nonlocal_nodes") StaticArray<GlobalNode> dense_nonlocal_nodes(size);
   std::size_t i = 0;
@@ -1158,7 +1163,7 @@ bool validate_clustering(
 } // namespace debug
 
 template <typename Graph>
-std::unique_ptr<CoarseGraph> contract_clustering(
+std::optional<std::unique_ptr<CoarseGraph>> contract_clustering_or_rebalance(
     const DistributedGraph &fine_graph,
     const Graph &graph,
     StaticArray<GlobalNodeID> &lnode_to_gcluster,
@@ -1253,10 +1258,7 @@ std::unique_ptr<CoarseGraph> contract_clustering(
 
     STOP_TIMER(); // Contract clustering timer
 
-    // In some edge cases, rebalance_cluster_placement() might fail to balance the clusters to
-    // max_imbalance (this is because the subgraph of a PE cannot grow in size during coarsening).
-    // Thus, we accept any imbalance for the "rebalanced try" to avoid an infinite loop.
-    return contract_clustering(fine_graph, graph, lnode_to_gcluster);
+    return std::nullopt;
   }
 
   // Construct the mapping to coarse node IDs for our nodes (including ghost nodes)
@@ -1545,6 +1547,36 @@ std::unique_ptr<CoarseGraph> contract_clustering(
           .rdispls = std::move(migration_result_nodes.sdispls),
       }
   );
+}
+
+template <typename Graph>
+std::unique_ptr<CoarseGraph> contract_clustering(
+    const DistributedGraph &fine_graph,
+    const Graph &graph,
+    StaticArray<GlobalNodeID> &lnode_to_gcluster,
+    const double max_cnode_imbalance = std::numeric_limits<double>::max(),
+    const bool migrate_cnode_prefix = false,
+    const bool force_perfect_cnode_balance = true
+) {
+  auto ans = contract_clustering_or_rebalance(
+      fine_graph,
+      graph,
+      lnode_to_gcluster,
+      max_cnode_imbalance,
+      migrate_cnode_prefix,
+      force_perfect_cnode_balance
+  );
+
+  if (ans) {
+    return std::move(*ans);
+  }
+
+  // If contraction failed, the current lnode_to_gcluster mapping would lead to an imbalanced coarse
+  // graph distribution. In this case, the attempt changed the mapping to achieve a better
+  // distribution: we now contract the graph with the new mapping.
+  ans = contract_clustering_or_rebalance(fine_graph, graph, lnode_to_gcluster);
+  KASSERT(ans.has_value(), "rebalancing cluster assignment failed");
+  return std::move(*ans);
 }
 
 std::unique_ptr<CoarseGraph> contract_clustering(

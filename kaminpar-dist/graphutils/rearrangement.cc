@@ -10,8 +10,8 @@
 #include "communication.h"
 
 #include "kaminpar-dist/algorithms/greedy_node_coloring.h"
-#include "kaminpar-dist/context.h"
-#include "kaminpar-dist/datastructures/distributed_graph.h"
+#include "kaminpar-dist/datastructures/distributed_csr_graph.h"
+#include "kaminpar-dist/dkaminpar.h"
 
 #include "kaminpar-shm/graphutils/permutator.h"
 
@@ -19,9 +19,10 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::dist::graph {
+
 DistributedCSRGraph rearrange(DistributedCSRGraph graph, const Context &ctx) {
   if (ctx.rearrange_by == GraphOrdering::NATURAL) {
-    // nothing to do
+    // Nothing to do
   } else if (ctx.rearrange_by == GraphOrdering::DEGREE_BUCKETS) {
     graph = graph::rearrange_by_degree_buckets(std::move(graph));
   } else if (ctx.rearrange_by == GraphOrdering::COLORING) {
@@ -40,7 +41,8 @@ DistributedCSRGraph rearrange(DistributedCSRGraph graph, const Context &ctx) {
 
 DistributedCSRGraph rearrange_by_degree_buckets(DistributedCSRGraph graph) {
   SCOPED_TIMER("Rearrange graph", "By degree buckets");
-  auto permutations = shm::graph::sort_by_degree_buckets<false>(graph.raw_nodes());
+  auto permutations =
+      shm::graph::compute_node_permutation_by_degree_buckets(graph.raw_nodes(), false);
   return rearrange_by_permutation(
       std::move(graph),
       std::move(permutations.old_to_new),
@@ -95,9 +97,7 @@ DistributedCSRGraph rearrange_by_permutation(
     StaticArray<NodeID> new_to_old,
     const bool degree_sorted
 ) {
-  shm::graph::NodePermutations<StaticArray> permutations{
-      std::move(old_to_new), std::move(new_to_old)
-  };
+  shm::graph::NodePermutations permutations{std::move(old_to_new), std::move(new_to_old)};
 
   const auto &old_nodes = graph.raw_nodes();
   const auto &old_edges = graph.raw_edges();
@@ -113,7 +113,7 @@ DistributedCSRGraph rearrange_by_permutation(
   StaticArray<EdgeWeight> new_edge_weights(old_edge_weights.size());
   STOP_TIMER();
 
-  shm::graph::build_permuted_graph<StaticArray, true, NodeID, EdgeID, NodeWeight, EdgeWeight>(
+  shm::graph::build_permuted_graph<true, NodeID, EdgeID, NodeWeight, EdgeWeight>(
       old_nodes,
       old_edges,
       old_node_weights,
@@ -177,4 +177,5 @@ DistributedCSRGraph rearrange_by_permutation(
   new_graph.set_permutation(std::move(permutations.old_to_new));
   return new_graph;
 }
+
 } // namespace kaminpar::dist::graph

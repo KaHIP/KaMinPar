@@ -31,7 +31,12 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::dist::graph {
+
+namespace {
+
 SET_DEBUG(false);
+
+}
 
 BfsExtractor::BfsExtractor(const DistributedGraph &graph) : _graph(&graph) {}
 
@@ -408,14 +413,10 @@ void BfsExtractor::explore_outgoing_edges(const NodeID node, Lambda &&lambda) {
       return abort;
     });
   } else if (_high_degree_strategy == HighDegreeStrategy::CUT) {
-    _graph->neighbors(
-        node,
-        _high_degree_threshold,
-        [&](const EdgeID, const NodeID v, const EdgeWeight w) {
-          const bool abort = !lambda(v, w);
-          return abort;
-        }
-    );
+    _graph->adjacent_nodes(node, _high_degree_threshold, [&](const NodeID v, const EdgeWeight w) {
+      const bool abort = !lambda(v, w);
+      return abort;
+    });
   } else if (_high_degree_strategy == HighDegreeStrategy::SAMPLE) {
     const double skip_prob = 1.0 * _high_degree_threshold / _graph->degree(node);
     std::geometric_distribution<EdgeID> skip_dist(skip_prob);
@@ -610,4 +611,5 @@ BlockID BfsExtractor::map_pseudo_node_to_block(const GlobalNodeID node) {
 bool BfsExtractor::is_pseudo_block_node(const GlobalNodeID node) {
   return node >= _graph->global_n();
 }
+
 } // namespace kaminpar::dist::graph

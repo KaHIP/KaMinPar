@@ -28,15 +28,18 @@
 #include "kaminpar-shm/initial_partitioning/initial_pool_bipartitioner.h"
 #include "kaminpar-shm/initial_partitioning/initial_refiner.h"
 #include "kaminpar-shm/kaminpar.h"
-#include "kaminpar-shm/metrics.h"
+#include "kaminpar-shm/partitioning/helper.h"
 #include "kaminpar-shm/partitioning/partition_utils.h"
 
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
+
 namespace {
+
 SET_DEBUG(false);
+
 }
 
 InitialMultilevelBipartitioner::InitialMultilevelBipartitioner(const Context &ctx)
@@ -46,22 +49,30 @@ InitialMultilevelBipartitioner::InitialMultilevelBipartitioner(const Context &ct
       _bipartitioner(std::make_unique<InitialPoolBipartitioner>(_i_ctx.pool)),
       _refiner(create_initial_refiner(_i_ctx.refinement)) {}
 
-void InitialMultilevelBipartitioner::initialize(const CSRGraph &graph, const BlockID final_k) {
-  KASSERT(final_k > 0u);
+// Note: `graph` is the `current_block`-th block-induced subgraph of some graph which is already
+// partitioned into `current_k` blocks.
+void InitialMultilevelBipartitioner::initialize(
+    const CSRGraph &graph, const BlockID current_block, const BlockID current_k
+) {
   KASSERT(graph.n() > 0u);
-
   _graph = &graph;
-
-  const auto [final_k1, final_k2] = math::split_integral(final_k);
-  _p_ctx =
-      partitioning::create_bipartition_context(graph, final_k1, final_k2, _ctx.partition, false);
+  _p_ctx = partitioning::create_twoway_context(_ctx, current_block, current_k, graph);
 
   _coarsener->init(graph);
   _refiner->init(graph);
 
-  const std::size_t num_bipartition_repetitions =
-      std::ceil(_i_ctx.pool.repetition_multiplier * final_k / math::ceil_log2(_ctx.partition.k));
+  const BlockID num_sub_blocks =
+      partitioning::compute_final_k(current_block, current_k, _ctx.partition.k);
+  const int num_bipartition_repetitions = std::ceil(
+      _i_ctx.pool.repetition_multiplier * num_sub_blocks / math::ceil_log2(_ctx.partition.k)
+  );
   _bipartitioner->set_num_repetitions(num_bipartition_repetitions);
+
+  DBG << "[" << current_block << "/" << current_k
+      << "]--> max block weights: " << _p_ctx.max_block_weight(0) << " + "
+      << _p_ctx.max_block_weight(1)
+      << ", perfect block weights: " << _p_ctx.perfectly_balanced_block_weight(0) << " + "
+      << _p_ctx.perfectly_balanced_block_weight(1) << ", reps: " << num_bipartition_repetitions;
 }
 
 PartitionedCSRGraph InitialMultilevelBipartitioner::partition(InitialPartitionerTimings *timings) {
@@ -92,6 +103,9 @@ PartitionedCSRGraph InitialMultilevelBipartitioner::partition(InitialPartitioner
     timings->uncoarsening_ms += timer.elapsed();
   }
 
+  DBG << " -> obtained bipartition with block weights " << p_graph.block_weight(0) << " + "
+      << p_graph.block_weight(1);
+
   return p_graph;
 }
 
@@ -107,7 +121,7 @@ const CSRGraph *InitialMultilevelBipartitioner::coarsen(InitialPartitionerTiming
   const CSRGraph *c_graph = _graph;
 
   bool shrunk = true;
-  DBG << "Coarsen: n=" << c_graph->n() << " m=" << c_graph->m();
+  DBG << "Initial coarsening: n=" << c_graph->n() << " m=" << c_graph->m();
   if (timings) {
     timings->coarsening_misc_ms += timer.elapsed();
   }
@@ -121,11 +135,11 @@ const CSRGraph *InitialMultilevelBipartitioner::coarsen(InitialPartitionerTiming
 
     shrunk = new_c_graph != c_graph;
 
-    DBG << "-> "                                              //
-        << "n=" << new_c_graph->n() << " "                    //
-        << "m=" << new_c_graph->m() << " "                    //
-        << "max_cluster_weight=" << max_cluster_weight << " " //
-        << ((shrunk) ? "" : "==> terminate");                 //
+    // DBG << "-> "                                              //
+    //<< "n=" << new_c_graph->n() << " "                    //
+    //<< "m=" << new_c_graph->m() << " "                    //
+    //<< "max_cluster_weight=" << max_cluster_weight << " " //
+    //<< ((shrunk) ? "" : "==> terminate");                 //
 
     if (shrunk) {
       c_graph = new_c_graph;
@@ -140,7 +154,7 @@ const CSRGraph *InitialMultilevelBipartitioner::coarsen(InitialPartitionerTiming
 }
 
 PartitionedCSRGraph InitialMultilevelBipartitioner::uncoarsen(PartitionedCSRGraph p_graph) {
-  DBG << "Uncoarsen: n=" << p_graph.n() << " m=" << p_graph.m();
+  DBG << "Initial uncoarsening: n=" << p_graph.n() << " m=" << p_graph.m();
 
   while (!_coarsener->empty()) {
     p_graph = _coarsener->uncoarsen(std::move(p_graph));
@@ -148,14 +162,19 @@ PartitionedCSRGraph InitialMultilevelBipartitioner::uncoarsen(PartitionedCSRGrap
     _refiner->init(p_graph.graph());
     _refiner->refine(p_graph, _p_ctx);
 
-    DBG << "-> "                                                 //
-        << "n=" << p_graph.n() << " "                            //
-        << "m=" << p_graph.m() << " "                            //
-        << "cut=" << metrics::edge_cut_seq(p_graph) << " "       //
-        << "imbalance=" << metrics::imbalance(p_graph) << " "    //
-        << "feasible=" << metrics::is_feasible(p_graph, _p_ctx); //
+    // DBG << "-> "                                                 //
+    //<< "n=" << p_graph.n() << " "                            //
+    //<< "m=" << p_graph.m() << " "                            //
+    //<< "cut=" << metrics::edge_cut_seq(p_graph) << " "       //
+    //<< "imbalance=" << metrics::imbalance(p_graph) << " "    //
+    //<< "feasible=" << metrics::is_feasible(p_graph, _p_ctx); //
   }
 
   return p_graph;
 }
+
+const PartitionContext &InitialMultilevelBipartitioner::p_ctx() const {
+  return _p_ctx;
+}
+
 } // namespace kaminpar::shm

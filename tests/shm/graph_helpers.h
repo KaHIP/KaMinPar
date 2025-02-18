@@ -53,16 +53,6 @@ inline PartitionedGraph make_p_graph(const Graph &graph, const BlockID k) {
   return PartitionedGraph(graph, k);
 }
 
-inline EdgeID find_edge_by_endpoints(const Graph &graph, const NodeID u, const NodeID v) {
-  EdgeID ans = kInvalidEdgeID;
-  graph.neighbors(u, [&](const EdgeID e, const NodeID v_prime) {
-    if (ans == kInvalidEdgeID && v == v_prime) {
-      ans = e;
-    }
-  });
-  return ans;
-}
-
 inline std::vector<NodeID> degrees(const Graph &graph) {
   std::vector<NodeID> degrees(graph.n());
   for (const NodeID u : graph.nodes()) {

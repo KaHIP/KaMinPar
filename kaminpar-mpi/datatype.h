@@ -18,6 +18,7 @@
 #include <mpi.h>
 
 namespace kaminpar::mpi::type {
+
 template <std::size_t N> inline MPI_Datatype custom() {
   static MPI_Datatype type = MPI_DATATYPE_NULL;
   if (type == MPI_DATATYPE_NULL) {

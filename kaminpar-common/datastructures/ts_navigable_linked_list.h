@@ -14,6 +14,7 @@
 #include "kaminpar-common/parallel/atomic.h"
 
 namespace kaminpar {
+
 template <typename Key, typename Element, template <typename> typename Container>
 class LocalNavigableLinkedList {
   using Self = LocalNavigableLinkedList<Key, Element, Container>;
@@ -91,13 +92,12 @@ template <typename Key, typename Element, template <typename> typename Container
 using NavigationMarker = typename LocalNavigableLinkedList<Key, Element, Container>::Marker;
 
 namespace ts_navigable_list {
+
 template <
     typename Key,
     typename Element,
-    template <typename>
-    typename Container,
-    template <typename>
-    typename GlobalContainer>
+    template <typename> typename Container,
+    template <typename> typename GlobalContainer>
 GlobalContainer<NavigationMarker<Key, Element, Container>> combine(
     NavigableLinkedList<Key, Element, Container> &list,
     GlobalContainer<NavigationMarker<Key, Element, Container>> global_markers = {}
@@ -132,5 +132,7 @@ GlobalContainer<NavigationMarker<Key, Element, Container>> combine(
 
   return global_markers;
 }
+
 } // namespace ts_navigable_list
+
 } // namespace kaminpar

@@ -26,6 +26,7 @@ namespace kaminpar::dist::graph {
 using namespace kaminpar::dist::testing;
 
 namespace {
+
 template <typename Container>
 std::vector<GlobalNodeID>
 allgather_independent_set(const DistributedPartitionedGraph &p_graph, const Container &is) {
@@ -80,6 +81,7 @@ void expect_nonempty_independent_set(
     p_graph.adjacent_nodes(u, [&](const NodeID v) { EXPECT_FALSE(is_in_independent_set[v]); });
   }
 }
+
 } // namespace
 
 TEST(IndependentBorderSetTest, select_in_empty_graph) {
@@ -139,4 +141,5 @@ TEST(IndependentBorderSetTest, randomization_works) {
     EXPECT_NE(a_global_is, b_global_is);
   }
 }
+
 } // namespace kaminpar::dist::graph

@@ -10,6 +10,7 @@
 #include <tbb/concurrent_vector.h>
 #include <tbb/task_arena.h>
 
+#include "kaminpar-shm/context_io.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/refinement/fm/batch_stats.h"
@@ -164,7 +165,7 @@ public:
 
       // Accept the move if the target block does not get overloaded
       const NodeWeight node_weight = _graph.node_weight(node);
-      if (_d_graph.block_weight(block_to) + node_weight <= _p_ctx.block_weights.max(block_to)) {
+      if (_d_graph.block_weight(block_to) + node_weight <= _p_ctx.max_block_weight(block_to)) {
         current_total_gain += actual_gain;
 
         // If we found a new local minimum, apply the moves to the global
@@ -320,7 +321,7 @@ private:
       // In this case, old_target_block got even better
       // We only need to consider other blocks if old_target_block is full now
       if (_d_graph.block_weight(old_target_block) + _d_graph.node_weight(node) <=
-          _p_ctx.block_weights.max(old_target_block)) {
+          _p_ctx.max_block_weight(old_target_block)) {
         _node_pqs[old_block].change_priority(
             node, _d_gain_cache.gain(node, old_block, old_target_block)
         );
@@ -349,7 +350,7 @@ private:
 
       if (gain_moved_to > gain_old_target_block &&
           _d_graph.block_weight(moved_to) + _d_graph.node_weight(node) <=
-              _p_ctx.block_weights.max(moved_to)) {
+              _p_ctx.max_block_weight(moved_to)) {
         _shared.target_blocks[node] = moved_to;
         _node_pqs[old_block].change_priority(node, gain_moved_to);
       } else {
@@ -370,11 +371,11 @@ private:
     EdgeWeight best_gain = std::numeric_limits<EdgeWeight>::min();
     BlockID best_target_block = from;
     NodeWeight best_target_block_weight_gap =
-        _p_ctx.block_weights.max(from) - p_graph.block_weight(from);
+        _p_ctx.max_block_weight(from) - p_graph.block_weight(from);
 
     gain_cache.gains(u, from, [&](const BlockID to, auto &&compute_gain) {
       const NodeWeight target_block_weight = p_graph.block_weight(to) + weight;
-      const NodeWeight max_block_weight = _p_ctx.block_weights.max(to);
+      const NodeWeight max_block_weight = _p_ctx.max_block_weight(to);
       const NodeWeight block_weight_gap = max_block_weight - target_block_weight;
       if (block_weight_gap < std::min<EdgeWeight>(best_target_block_weight_gap, 0)) {
         return;
@@ -597,10 +598,6 @@ std::string FMRefiner::name() const {
 void FMRefiner::initialize(const PartitionedGraph &p_graph) {
   p_graph.reified([&]<typename Graph>(Graph &) {
     switch (_ctx.refinement.kway_fm.gain_cache_strategy) {
-    case GainCacheStrategy::COMPACT_HASHING:
-      _core = std::make_unique<FMRefinerCore<Graph, NormalCompactHashingGainCache>>(_ctx);
-      break;
-
     case GainCacheStrategy::SPARSE:
       _core = std::make_unique<FMRefinerCore<Graph, NormalSparseGainCache>>(_ctx);
       break;
@@ -636,8 +633,17 @@ void FMRefiner::initialize(const PartitionedGraph &p_graph) {
 #endif // KAMINPAR_EXPERIMENTAL
 
     default:
-      LOG_ERROR << "invalid gain cache strategy: requires build with experimental features enabled";
-      std::exit(1);
+      LOG_WARNING
+          << "The selected gain cache strategy '"
+          << stringify_enum(_ctx.refinement.kway_fm.gain_cache_strategy)
+          << "' is not available in this build. Rebuild with experimental features enabled.";
+      LOG_WARNING << "Using the default gain cache strategy '"
+                  << stringify_enum(GainCacheStrategy::COMPACT_HASHING) << "' instead.";
+      [[fallthrough]];
+
+    case GainCacheStrategy::COMPACT_HASHING:
+      _core = std::make_unique<FMRefinerCore<Graph, NormalCompactHashingGainCache>>(_ctx);
+      break;
     }
   });
 

@@ -8,30 +8,36 @@
  ******************************************************************************/
 #include "kaminpar-dist/initial_partitioning/mtkahypar_initial_partitioner.h"
 
+#ifdef KAMINPAR_HAVE_MTKAHYPAR_LIB
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
 
-#ifdef KAMINPAR_HAVE_MTKAHYPAR_LIB
 #include <libmtkahypar.h>
-#endif // KAMINPAR_HAVE_MTKAHYPAR_LIB
 
-#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/noinit_vector.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/timer.h"
+#endif // KAMINPAR_HAVE_MTKAHYPAR_LIB
+
+#include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/datastructures/partitioned_graph.h"
+#include "kaminpar-shm/kaminpar.h"
+
+#include "kaminpar-common/assert.h"
 
 namespace kaminpar::dist {
+
 shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
-    [[maybe_unused]] const shm::Graph &graph, [[maybe_unused]] const PartitionContext &p_ctx
+    [[maybe_unused]] const shm::Graph &graph, [[maybe_unused]] const shm::PartitionContext &p_ctx
 ) {
 #ifdef KAMINPAR_HAVE_MTKAHYPAR_LIB
   mt_kahypar_context_t *mt_kahypar_ctx = mt_kahypar_context_new();
   mt_kahypar_load_preset(mt_kahypar_ctx, DEFAULT);
   mt_kahypar_set_partitioning_parameters(
-      mt_kahypar_ctx, static_cast<mt_kahypar_partition_id_t>(p_ctx.k), p_ctx.epsilon, KM1
+      mt_kahypar_ctx, static_cast<mt_kahypar_partition_id_t>(p_ctx.k), p_ctx.epsilon(), KM1
   );
   mt_kahypar_set_seed(Random::get_seed());
   mt_kahypar_set_context_parameter(mt_kahypar_ctx, VERBOSE, "0");
@@ -94,9 +100,9 @@ shm::PartitionedGraph MtKaHyParInitialPartitioner::initial_partition(
 
   return {graph, p_ctx.k, std::move(partition_cpy)};
 #else  // KAMINPAR_HAVE_MTKAHYPAR_LIB
-  ((void)_ctx);
   KASSERT(false, "Mt-KaHyPar initial partitioner is not available.", assert::always);
   __builtin_unreachable();
 #endif // KAMINPAR_HAVE_MTKAHYPAR_LIB
 }
+
 } // namespace kaminpar::dist

@@ -40,7 +40,7 @@ public:
       throw TokerException("Cannot open input file");
     }
 
-    struct stat file_info {};
+    struct stat file_info{};
     if (fstat(_fd, &file_info) == -1) {
       close(_fd);
       throw TokerException("Cannot get input file status");

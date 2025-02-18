@@ -13,6 +13,7 @@
 #include "kaminpar-mpi/wrapper.h"
 
 namespace kaminpar::mpi {
+
 class GridTopology {
 public:
   GridTopology(const PEID size) : _size(size), _sqrt(static_cast<PEID>(std::sqrt(size))) {}
@@ -142,4 +143,5 @@ private:
 };
 
 GridCommunicator &get_grid_communicator(MPI_Comm comm);
+
 } // namespace kaminpar::mpi

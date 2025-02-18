@@ -28,8 +28,7 @@ namespace kaminpar::shm {
 
 template <
     typename GraphType,
-    template <typename>
-    typename DeltaGainCacheType,
+    template <typename> typename DeltaGainCacheType,
     bool iterate_nonadjacent_blocks,
     bool iterate_exact_gains = false>
 class CompactHashingGainCache {
@@ -87,16 +86,13 @@ public:
     }
 
     START_TIMER("Compute gain cache offsets");
-    const std::size_t total_nbytes = parallel::aligned_prefix_sum(
-        _offsets.begin(),
-        _offsets.begin() + _n,
-        [&](const NodeID u) {
+    const std::size_t total_nbytes =
+        parallel::aligned_prefix_sum(_offsets.begin(), _offsets.begin() + _n, [&](const NodeID u) {
           const EdgeID deg = math::ceil2(_graph->degree(u));
           const unsigned width = compute_entry_width(u, deg < _k);
           const unsigned nbytes = (deg < _k) ? width * deg : width * _k;
           return std::make_pair(width, nbytes);
-        }
-    );
+        });
     STOP_TIMER();
 
     if (_n > 0) {

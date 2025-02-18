@@ -9,9 +9,10 @@
 #include "tests/dist/distributed_graph_factories.h"
 
 #include "kaminpar-dist/datastructures/distributed_compressed_graph.h"
+#include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/graphutils/synchronization.h"
 
-#include "kaminpar-common/graph-compression/compressed_neighborhoods_builder.h"
+#include "kaminpar-common/graph_compression/compressed_neighborhoods_builder.h"
 
 #define TEST_ON_ALL_GRAPHS(test_function)                                                          \
   test_function(testing::make_csr_empty_graph());                                                  \
@@ -53,9 +54,7 @@ template <typename T>
 
   std::vector<std::pair<NodeID, EdgeWeight>> neighbourhood;
   for (const NodeID u : graph.nodes()) {
-    graph.neighbors(u, [&](const EdgeID e, const NodeID adjacent_node) {
-      const EdgeWeight edge_weight = graph.is_edge_weighted() ? graph.edge_weight(e) : 1;
-
+    graph.adjacent_nodes(u, [&](const NodeID adjacent_node, const EdgeWeight edge_weight) {
       if (graph.is_owned_node(adjacent_node)) {
         neighbourhood.emplace_back(adjacent_node, edge_weight);
       } else {
@@ -170,11 +169,7 @@ static void test_compressed_graph_iterators(const DistributedCSRGraph &graph) {
   EXPECT_TRUE(graph.nodes() == compressed_graph.nodes());
   EXPECT_TRUE(graph.ghost_nodes() == compressed_graph.ghost_nodes());
   EXPECT_TRUE(graph.all_nodes() == compressed_graph.all_nodes());
-
   EXPECT_TRUE(graph.edges() == compressed_graph.edges());
-  for (const NodeID u : graph.nodes()) {
-    EXPECT_TRUE(graph.incident_edges(u) == compressed_graph.incident_edges(u));
-  }
 }
 
 TEST(DistributedCompressedGraphTest, compressed_graph_iterators) {
@@ -236,66 +231,28 @@ TEST(DistributedCompressedGraphTest, compressed_graph_adjacent_nodes_operation) 
   TEST_ON_ALL_GRAPHS(test_compressed_graph_adjacent_nodes_operation);
 }
 
-static void test_compressed_graph_neighbors_operation(const DistributedCSRGraph &graph) {
+static void test_compressed_graph_adjacent_nodes_limit_operation(const DistributedCSRGraph &graph) {
   const auto compressed_graph = compress(graph);
 
-  std::vector<EdgeID> graph_incident_edges;
-  std::vector<NodeID> graph_adjacent_node;
-  std::vector<EdgeID> compressed_graph_incident_edges;
-  std::vector<NodeID> compressed_graph_adjacent_node;
-  for (const NodeID u : graph.nodes()) {
-    graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
-      graph_incident_edges.push_back(e);
-      graph_adjacent_node.push_back(v);
-    });
-
-    compressed_graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
-      compressed_graph_incident_edges.push_back(e);
-      compressed_graph_adjacent_node.push_back(v);
-    });
-
-    EXPECT_EQ(graph_incident_edges.size(), compressed_graph_incident_edges.size());
-
-    std::sort(graph_incident_edges.begin(), graph_incident_edges.end());
-    std::sort(graph_adjacent_node.begin(), graph_adjacent_node.end());
-    std::sort(compressed_graph_incident_edges.begin(), compressed_graph_incident_edges.end());
-    std::sort(compressed_graph_adjacent_node.begin(), compressed_graph_adjacent_node.end());
-    EXPECT_TRUE(graph_incident_edges == compressed_graph_incident_edges);
-    EXPECT_TRUE(graph_adjacent_node == compressed_graph_adjacent_node);
-
-    graph_incident_edges.clear();
-    graph_adjacent_node.clear();
-    compressed_graph_incident_edges.clear();
-    compressed_graph_adjacent_node.clear();
-  }
-}
-
-TEST(DistributedCompressedGraphTest, compressed_graph_neighbors_operation) {
-  TEST_ON_ALL_GRAPHS(test_compressed_graph_neighbors_operation);
-}
-
-static void test_compressed_graph_neighbors_limit_operation(const DistributedCSRGraph &graph) {
-  const auto compressed_graph = compress(graph);
-
-  for (const NodeID u : graph.nodes()) {
-    const NodeID max_neighbor_count = std::max<NodeID>(1, graph.degree(u) / 2);
+  for (const NodeID node : graph.nodes()) {
+    const NodeID max_num_neighbors = std::max<NodeID>(1, graph.degree(node) / 2);
 
     NodeID graph_num_neighbors_visited = 0;
-    graph.neighbors(u, max_neighbor_count, [&](EdgeID, NodeID) {
+    graph.adjacent_nodes(node, max_num_neighbors, [&]([[maybe_unused]] const NodeID) {
       graph_num_neighbors_visited += 1;
     });
 
     NodeID compressed_graph_num_neighbors_visited = 0;
-    compressed_graph.neighbors(u, max_neighbor_count, [&](EdgeID, NodeID) {
+    compressed_graph.adjacent_nodes(node, max_num_neighbors, [&]([[maybe_unused]] const NodeID) {
       compressed_graph_num_neighbors_visited += 1;
     });
 
-    EXPECT_EQ(graph_num_neighbors_visited, compressed_graph_num_neighbors_visited);
+    EXPECT_TRUE(graph_num_neighbors_visited == compressed_graph_num_neighbors_visited);
   }
 }
 
-TEST(CompressedGraphTest, compressed_graph_neighbors_limit_operation) {
-  TEST_ON_ALL_GRAPHS(test_compressed_graph_neighbors_limit_operation);
+TEST(CompressedGraphTest, compressed_graph_adjacent_nodes_limit_operation) {
+  TEST_ON_ALL_GRAPHS(test_compressed_graph_adjacent_nodes_limit_operation);
 }
 
 } // namespace kaminpar::dist

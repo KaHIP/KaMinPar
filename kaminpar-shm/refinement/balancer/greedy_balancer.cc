@@ -12,6 +12,7 @@
 #include "kaminpar-shm/metrics.h"
 
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/parallel/atomic.h"
 #include "kaminpar-common/random.h"
@@ -86,7 +87,7 @@ public:
     _pq = std::move(memory_context.pq);
     _rating_map = std::move(memory_context.rating_map);
     _feasible_target_blocks = std::move(memory_context.feasible_target_blocks);
-    _marker = std::move(memory_context.marker);
+    _moved_nodes = std::move(memory_context.moved_nodes);
     _pq_weight = std::move(memory_context.pq_weight);
     _gain_cache = memory_context.gain_cache;
   }
@@ -96,7 +97,7 @@ public:
         std::move(_pq),
         std::move(_rating_map),
         std::move(_feasible_target_blocks),
-        std::move(_marker),
+        std::move(_moved_nodes),
         std::move(_pq_weight),
         _gain_cache
     };
@@ -108,13 +109,12 @@ public:
     _graph = graph;
 
     TIMED_SCOPE("Allocation") {
-      SCOPED_HEAP_PROFILER("Greedy Balancer Allocation");
-      _marker.resize(_graph->n());
-      _pq.init(_graph->n(), _p_graph->k());
+      SCOPED_HEAP_PROFILER("Allocation");
+      _moved_nodes.resize(_graph->n());
+      _pq.init(_p_graph->k());
       _pq_weight.resize(_p_graph->k());
     };
 
-    _marker.reset();
     _stats.reset();
 
     const NodeWeight initial_overload = metrics::total_overload(p_graph, p_ctx);
@@ -143,6 +143,7 @@ private:
     tbb::enumerable_thread_specific<BlockWeight> overload_delta;
 
     START_TIMER("Main loop");
+    SCOPED_HEAP_PROFILER("Main loop");
     tbb::parallel_for(static_cast<BlockID>(0), _p_graph->k(), [&](const BlockID from) {
       BlockWeight current_overload = block_overload(from);
 
@@ -156,19 +157,18 @@ private:
       while (current_overload > 0 && !_pq.empty(from)) {
         KASSERT(
             current_overload ==
-            std::max<BlockWeight>(0, _p_graph->block_weight(from) - _p_ctx->block_weights.max(from))
+            std::max<BlockWeight>(0, _p_graph->block_weight(from) - _p_ctx->max_block_weight(from))
         );
 
         const NodeID u = _pq.peek_max_id(from);
         const NodeWeight u_weight = _graph->node_weight(u);
-        const double expected_relative_gain = _pq.peek_max_key(from);
+        const RelativeGain expected_relative_gain = _pq.peek_max_key(from);
         _pq.pop_max(from);
         _pq_weight[from] -= u_weight;
-        KASSERT(_marker.get(u));
+        KASSERT(_moved_nodes[u] == 1);
 
         auto [to, actual_relative_gain] = compute_gain(u, from);
-        if (expected_relative_gain ==
-            actual_relative_gain) { // gain still correct --> try to move it
+        if (expected_relative_gain <= actual_relative_gain) {
           bool moved_node = false;
 
           if (to == from) { // internal node --> move to random underloaded block
@@ -196,12 +196,13 @@ private:
 
             // try to add neighbors of moved node to PQ
             _graph->adjacent_nodes(u, [&](const NodeID v) {
-              if (!_marker.get(v) && _p_graph->block(v) == from) {
+              if (_moved_nodes[v] == 0 && _p_graph->block(v) == from) {
                 add_to_pq(from, v);
+                _moved_nodes[v] = 1;
               }
-              _marker.set(v);
             });
-          } else {
+          } else if (to != from) {
+            // Only re-insert nodes that we tried to move to adjacent blocks
             add_to_pq(from, u, u_weight, actual_relative_gain);
           }
         } else { // gain changed after insertion --> try again with new gain
@@ -212,7 +213,7 @@ private:
 
       KASSERT(
           current_overload ==
-          std::max<BlockWeight>(0, _p_graph->block_weight(from) - _p_ctx->block_weights.max(from))
+          std::max<BlockWeight>(0, _p_graph->block_weight(from) - _p_ctx->max_block_weight(from))
       );
     });
     STOP_TIMER();
@@ -231,8 +232,9 @@ private:
     return add_to_pq(b, u, _graph->node_weight(u), rel_gain);
   }
 
-  bool
-  add_to_pq(const BlockID b, const NodeID u, const NodeWeight u_weight, const double rel_gain) {
+  bool add_to_pq(
+      const BlockID b, const NodeID u, const NodeWeight u_weight, const RelativeGain rel_gain
+  ) {
     KASSERT(u_weight == _graph->node_weight(u));
     KASSERT(b == _p_graph->block(u));
 
@@ -258,19 +260,19 @@ private:
 
   void init_pq() {
     SCOPED_TIMER("Initialize balancer PQ");
+    SCOPED_HEAP_PROFILER("Initialize balancer PQ");
 
     const BlockID k = _p_graph->k();
 
-    tbb::enumerable_thread_specific<std::vector<DynamicBinaryMinHeap<NodeID, double>>> local_pq{
-        [&] {
-          return std::vector<DynamicBinaryMinHeap<NodeID, double>>(k);
-        }
-    };
-    tbb::enumerable_thread_specific<std::vector<NodeWeight>> local_pq_weight{[&] {
-      return std::vector<NodeWeight>(k);
+    using PQs = std::vector<DynamicBinaryMinHeap<NodeID, RelativeGain, ScalableVector>>;
+    tbb::enumerable_thread_specific<PQs> local_pq{[&] {
+      return PQs(k);
     }};
 
-    _marker.reset();
+    using PQWeights = std::vector<NodeWeight>;
+    tbb::enumerable_thread_specific<PQWeights> local_pq_weight{[&] {
+      return PQWeights(k);
+    }};
 
     // build thread-local PQs: one PQ for each thread and block, each PQ for block
     // b has at most roughly |overload[b]| weight
@@ -294,7 +296,7 @@ private:
             }
           }
           pq[b].push(u, rel_gain);
-          _marker.set(u);
+          _moved_nodes[u] = 1;
         }
       }
     });
@@ -327,7 +329,7 @@ private:
     _stats.total_pq_sizes = _pq.size();
   }
 
-  [[nodiscard]] std::pair<BlockID, double>
+  [[nodiscard]] std::pair<BlockID, RelativeGain>
   compute_gain(const NodeID u, const BlockID u_block) const {
     const NodeWeight u_weight = _graph->node_weight(u);
     BlockID max_gainer = u_block;
@@ -340,7 +342,7 @@ private:
       _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeID w) {
         const BlockID v_block = _p_graph->block(v);
         if (u_block != v_block &&
-            _p_graph->block_weight(v_block) + u_weight <= _p_ctx->block_weights.max(v_block)) {
+            _p_graph->block_weight(v_block) + u_weight <= _p_ctx->max_block_weight(v_block)) {
           map[v_block] += w;
         } else if (u_block == v_block) {
           internal_degree += w;
@@ -362,12 +364,12 @@ private:
 
     // compute absolute and relative gain based on internal degree / external gain
     const EdgeWeight gain = max_external_gain - internal_degree;
-    const double relative_gain = compute_relative_gain(gain, u_weight);
+    const RelativeGain relative_gain = compute_relative_gain(gain, u_weight);
     return {max_gainer, relative_gain};
   }
 
   bool move_node_if_possible(const NodeID u, const BlockID from, const BlockID to) {
-    if (_p_graph->move(u, from, to, _p_ctx->block_weights.max(to))) {
+    if (_p_graph->move(u, from, to, _p_ctx->max_block_weight(to))) {
       if (_gain_cache != nullptr) {
         _gain_cache->move(u, from, to);
       }
@@ -386,6 +388,7 @@ private:
       const std::size_t n = feasible_target_blocks.size();
       const std::size_t i = Random::instance().random_index(0, n);
       const BlockID b = feasible_target_blocks[i];
+      KASSERT(u_block != b);
 
       // try to move node to that block, if possible, operation succeeded
       if (move_node_if_possible(u, u_block, b)) {
@@ -409,7 +412,7 @@ private:
     auto &blocks = _feasible_target_blocks.local();
     blocks.clear();
     for (const BlockID b : _p_graph->blocks()) {
-      if (_p_graph->block_weight(b) < _p_ctx->block_weights.perfectly_balanced(b)) {
+      if (_p_graph->block_weight(b) < _p_ctx->perfectly_balanced_block_weight(b)) {
         blocks.push_back(b);
       }
     }
@@ -422,15 +425,15 @@ private:
         "block weights!"
     );
 
-    return std::max<BlockWeight>(0, _p_graph->block_weight(b) - _p_ctx->block_weights.max(b));
+    return std::max<BlockWeight>(0, _p_graph->block_weight(b) - _p_ctx->max_block_weight(b));
   }
 
-  [[nodiscard]] static inline double
+  [[nodiscard]] static inline RelativeGain
   compute_relative_gain(const EdgeWeight absolute_gain, const NodeWeight weight) {
     if (absolute_gain >= 0) {
       return absolute_gain * weight;
     } else {
-      return 1.0 * absolute_gain / weight;
+      return static_cast<RelativeGain>(absolute_gain) / weight;
     }
   }
 
@@ -438,10 +441,10 @@ private:
   PartitionedGraph *_p_graph;
   const Graph *_graph;
 
-  DynamicBinaryMinMaxForest<NodeID, double, StaticArray> _pq;
+  DynamicBinaryMinMaxForest<NodeID, RelativeGain, ScalableVector> _pq;
   mutable tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> _rating_map;
   tbb::enumerable_thread_specific<std::vector<BlockID>> _feasible_target_blocks;
-  Marker<1, std::size_t, StaticArray> _marker;
+  StaticArray<std::uint8_t> _moved_nodes;
   std::vector<BlockWeight> _pq_weight;
 
   Statistics _stats;
@@ -467,6 +470,7 @@ void GreedyBalancer::initialize(const PartitionedGraph &) {}
 
 bool GreedyBalancer::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
   SCOPED_TIMER("Greedy Balancer");
+  SCOPED_HEAP_PROFILER("Greedy Balancer");
 
   const NodeWeight initial_overload = metrics::total_overload(p_graph, p_ctx);
   if (initial_overload == 0) {

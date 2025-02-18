@@ -7,25 +7,28 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
+#include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/partitioning/partitioner.h"
 
 namespace kaminpar::dist {
+
 class KWayMultilevelPartitioner : public Partitioner {
 public:
-  KWayMultilevelPartitioner(const DistributedGraph &graph, const Context &ctx);
+  KWayMultilevelPartitioner(const DistributedGraph &input_graph, const Context &input_ctx);
 
   KWayMultilevelPartitioner(const KWayMultilevelPartitioner &) = delete;
   KWayMultilevelPartitioner &operator=(const KWayMultilevelPartitioner &) = delete;
+
   KWayMultilevelPartitioner(KWayMultilevelPartitioner &&) noexcept = default;
   KWayMultilevelPartitioner &operator=(KWayMultilevelPartitioner &&) = delete;
 
   DistributedPartitionedGraph partition() final;
 
 private:
-  const DistributedGraph &_graph;
-  const Context &_ctx;
+  const DistributedGraph &_input_graph;
+  const Context &_input_ctx;
 };
+
 } // namespace kaminpar::dist

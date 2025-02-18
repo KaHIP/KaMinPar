@@ -17,6 +17,7 @@
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 
 namespace kaminpar::dist {
+
 std::unique_ptr<shm::Graph> allgather_graph(const DistributedGraph &graph);
 
 std::pair<std::unique_ptr<shm::Graph>, std::unique_ptr<shm::PartitionedGraph>>
@@ -38,4 +39,5 @@ DistributedPartitionedGraph distribute_partition(
     const StaticArray<shm::BlockID> &global_partition,
     PEID root
 );
+
 } // namespace kaminpar::dist

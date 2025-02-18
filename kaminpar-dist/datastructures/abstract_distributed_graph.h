@@ -7,6 +7,7 @@
  ******************************************************************************/
 #pragma once
 
+#include "kaminpar-dist/datastructures/ghost_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
@@ -87,7 +88,6 @@ public:
   [[nodiscard]] virtual IotaRange<NodeID> all_nodes() const = 0;
 
   [[nodiscard]] virtual IotaRange<EdgeID> edges() const = 0;
-  [[nodiscard]] virtual IotaRange<EdgeID> incident_edges(const NodeID u) const = 0;
 
   // Access methods
   [[nodiscard]] virtual NodeID degree(const NodeID u) const = 0;
@@ -130,6 +130,18 @@ public:
   [[nodiscard]] virtual std::size_t number_of_colors() const = 0;
   [[nodiscard]] virtual NodeID color_size(const std::size_t c) const = 0;
   [[nodiscard]] virtual const StaticArray<NodeID> &get_color_sizes() const = 0;
+
+  // Access to ghost edges
+  const GhostGraph &ghost_graph() const {
+    if (!_ghost_graph.initialized()) {
+      _ghost_graph.initialize(*this);
+    }
+
+    return _ghost_graph;
+  }
+
+protected:
+  mutable GhostGraph _ghost_graph;
 };
 
 } // namespace kaminpar::dist

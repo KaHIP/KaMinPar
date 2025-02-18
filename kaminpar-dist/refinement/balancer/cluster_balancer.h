@@ -18,6 +18,7 @@
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::dist {
+
 struct ClusterBalancerMemoryContext;
 
 class ClusterBalancerFactory : public GlobalRefinerFactory {
@@ -142,7 +143,7 @@ private:
   DistributedPartitionedGraph &_p_graph;
   const PartitionContext &_p_ctx;
 
-  DynamicBinaryMinMaxForest<NodeID, double> _pqs;
+  AddressableDynamicBinaryMinMaxForest<NodeID, double> _pqs;
   NoinitVector<BlockWeight> _pq_weights;
   Marker<> _moved_marker;
 
@@ -155,4 +156,5 @@ private:
 
   Statistics _stats;
 };
+
 } // namespace kaminpar::dist

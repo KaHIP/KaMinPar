@@ -158,8 +158,8 @@ private:
 
     TIMED_SCOPE("Compute color blacklist") {
       if (_ctx.small_color_blacklist == 0 ||
-          (_ctx.only_blacklist_input_level &&
-           _graph->global_n() != _input_ctx.partition.graph->global_n)) {
+          (_ctx.only_blacklist_input_level && _graph->global_n() != _input_ctx.partition.global_n
+          )) {
         return;
       }
 
@@ -278,10 +278,10 @@ private:
             seq_from,
             seq_to,
             [&](const NodeID seq_u) { return _color_sorted_nodes[seq_u]; },
-            [&](const NodeID u, EdgeID, const NodeID v, EdgeWeight) {
+            [&](const NodeID u, const NodeID v, EdgeWeight) {
               return _matching[u] == _graph->local_to_global_node(v);
             },
-            [&](const NodeID u, EdgeID, const NodeID v, const EdgeWeight w, const PEID pe) {
+            [&](const NodeID u, const NodeID v, const EdgeWeight w, const PEID pe) {
               const GlobalNodeID v_global = _graph->local_to_global_node(v);
               const NodeID their_v = static_cast<NodeID>(v_global - _graph->offset_n(pe));
               return MatchRequest(u, their_v, w);
@@ -378,7 +378,7 @@ private:
 
     auto add_node = [&](const NodeID u) {
       marked.reset();
-      _graph->neighbors(u, [&](EdgeID, const NodeID v) {
+      _graph->adjacent_nodes(u, [&](const NodeID v) {
         if (!_graph->is_ghost_node(v)) {
           return;
         }
@@ -453,10 +453,10 @@ private:
     };
     mpi::graph::sparse_alltoall_interface_to_ghost<MatchedEdge>(
         *_graph,
-        [&](const NodeID u, EdgeID, const NodeID v, EdgeWeight) -> bool {
+        [&](const NodeID u, const NodeID v, EdgeWeight) -> bool {
           return _matching[u] == _graph->local_to_global_node(v);
         },
-        [&](const NodeID u, EdgeID, NodeID, EdgeWeight) -> MatchedEdge {
+        [&](const NodeID u, NodeID, EdgeWeight) -> MatchedEdge {
           return {_graph->local_to_global_node(u), _matching[u]};
         },
         [&](const auto &r, const PEID pe) {

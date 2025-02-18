@@ -100,10 +100,6 @@ public:
     return _underlying_graph->edges();
   }
 
-  [[nodiscard]] inline IotaRange<EdgeID> incident_edges(const NodeID u) const final {
-    return _underlying_graph->incident_edges(u);
-  }
-
   //
   // Node degree
   //
@@ -124,20 +120,20 @@ public:
     reified([&](auto &graph) { graph.adjacent_nodes(u, std::forward<Lambda>(l)); });
   }
 
-  template <typename Lambda> inline void neighbors(const NodeID u, Lambda &&l) const {
-    reified([&](const auto &graph) { graph.neighbors(u, std::forward<Lambda>(l)); });
-  }
-
   template <typename Lambda>
-  inline void neighbors(const NodeID u, const NodeID max_num_neighbors, Lambda &&l) const {
-    reified([&](const auto &graph) {
-      graph.neighbors(u, max_num_neighbors, std::forward<Lambda>(l));
+  inline void adjacent_nodes(const NodeID u, const NodeID max_num_neighbors, Lambda &&l) const {
+    reified([&](auto &graph) {
+      graph.adjacent_nodes(u, max_num_neighbors, std::forward<Lambda>(l));
     });
   }
 
   //
   // Parallel iteration
   //
+
+  template <typename Lambda> inline void pfor_nodes_range(Lambda &&l) const {
+    reified([&](auto &graph) { graph.pfor_nodes_range(std::forward<Lambda>(l)); });
+  }
 
   template <typename Lambda> inline void pfor_nodes(Lambda &&l) const {
     reified([&](auto &graph) { graph.pfor_nodes(std::forward<Lambda>(l)); });
@@ -148,11 +144,11 @@ public:
   }
 
   template <typename Lambda>
-  inline void pfor_neighbors(
+  inline void pfor_adjacent_nodes(
       const NodeID u, const NodeID max_num_neighbors, const NodeID grainsize, Lambda &&l
   ) const {
     reified([&](const auto &graph) {
-      graph.pfor_neighbors(u, max_num_neighbors, grainsize, std::forward<Lambda>(l));
+      graph.pfor_adjacent_nodes(u, max_num_neighbors, grainsize, std::forward<Lambda>(l));
     });
   }
 
@@ -198,6 +194,14 @@ public:
 
   [[nodiscard]] inline NodeID first_invalid_node_in_bucket(const std::size_t bucket) const final {
     return _underlying_graph->first_invalid_node_in_bucket(bucket);
+  }
+
+  void remove_isolated_nodes(const NodeID num_isolated_nodes) final {
+    _underlying_graph->remove_isolated_nodes(num_isolated_nodes);
+  }
+
+  NodeID integrate_isolated_nodes() final {
+    return _underlying_graph->integrate_isolated_nodes();
   }
 
   //
@@ -295,7 +299,9 @@ private:
 };
 
 namespace debug {
+
 void print_graph(const Graph &graph);
+
 } // namespace debug
 
 } // namespace kaminpar::shm

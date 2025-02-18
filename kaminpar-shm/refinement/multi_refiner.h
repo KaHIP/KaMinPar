@@ -11,7 +11,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "kaminpar-shm/context.h"
+#include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/refinement/refiner.h"
 
 namespace kaminpar::shm {
@@ -34,6 +34,8 @@ public:
   void initialize(const PartitionedGraph &p_graph) final;
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
+
+  void set_communities(std::span<const NodeID> communities) final;
 
 private:
   std::unordered_map<RefinementAlgorithm, std::unique_ptr<Refiner>> _refiners;

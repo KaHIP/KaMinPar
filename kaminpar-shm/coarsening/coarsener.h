@@ -7,11 +7,14 @@
  ******************************************************************************/
 #pragma once
 
+#include <span>
+
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
+
 /**
  * Interface for the coarsening phase of multilevel graph partitioning.
  */
@@ -56,6 +59,12 @@ public:
     return level() == 0;
   }
 
+  virtual void use_communities(std::span<const NodeID>) {}
+
+  [[nodiscard]] virtual std::span<const NodeID> current_communities() const {
+    return {};
+  }
+
   /**
    * Projects a partition of the currently coarsest graph onto the next finer
    * graph and frees the currently coarsest graph, i.e., unrolls one level of
@@ -74,4 +83,5 @@ public:
    */
   virtual void release_allocated_memory() = 0;
 };
+
 } // namespace kaminpar::shm

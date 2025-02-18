@@ -16,6 +16,7 @@
 #include "kaminpar-common/datastructures/scalable_vector.h"
 
 namespace kaminpar::shm::graph {
+
 struct SubgraphMemoryStartPosition {
   std::size_t nodes_start_pos = 0;
   std::size_t edges_start_pos = 0;
@@ -66,10 +67,10 @@ struct SubgraphMemory {
       const bool is_node_weighted = true,
       const bool is_edge_weighted = true
   ) {
-    resize2(n, k, m, is_node_weighted ? n : 0, is_edge_weighted ? m : 0);
+    weighted_resize(n, k, m, is_node_weighted ? n : 0, is_edge_weighted ? m : 0);
   }
 
-  void resize2(
+  void weighted_resize(
       const NodeID n,
       const BlockID k,
       const EdgeID m,
@@ -80,6 +81,13 @@ struct SubgraphMemory {
     edges.resize(m);
     node_weights.resize((n_weights == 0) ? 0 : (n_weights + k));
     edge_weights.resize(m_weights);
+  }
+
+  void free() {
+    nodes.free();
+    edges.free();
+    node_weights.free();
+    edge_weights.free();
   }
 
   [[nodiscard]] bool empty() const {
@@ -184,4 +192,5 @@ PartitionedGraph copy_subgraph_partitions(
     BlockID input_k,
     const StaticArray<NodeID> &mapping
 );
+
 } // namespace kaminpar::shm::graph

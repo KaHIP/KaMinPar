@@ -7,9 +7,9 @@
  ******************************************************************************/
 #pragma once
 
+#include <span>
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 #include "kaminpar-shm/datastructures/compressed_graph.h"
 #include "kaminpar-shm/datastructures/csr_graph.h"
@@ -75,10 +75,20 @@ Graph read(
 
 namespace partition {
 
-std::vector<BlockID> read(const std::string &filename);
+StaticArray<BlockID> read(const std::string &filename);
 
-void write(const std::string &filename, const std::vector<BlockID> &partition);
+StaticArray<BlockID> read_block_sizes(const std::string &filename);
+
+void write(const std::string &filename, std::span<const BlockID> partition);
+
+void write_block_sizes(const std::string &filename, BlockID k, std::span<const BlockID> partition);
 
 } // namespace partition
+
+namespace remapping {
+
+void write(const std::string &filename, std::span<const NodeID> partition);
+
+} // namespace remapping
 
 } // namespace kaminpar::shm::io

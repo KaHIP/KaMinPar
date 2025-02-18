@@ -7,8 +7,8 @@
  ******************************************************************************/
 #include "kaminpar-shm/refinement/adapters/mtkahypar_refiner.h"
 
-#include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
+#include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/logger.h"
 
@@ -23,7 +23,12 @@
 #endif // KAMINPAR_HAVE_MTKAHYPAR_LIB
 
 namespace kaminpar::shm {
+
+namespace {
+
 SET_DEBUG(true);
+
+}
 
 MtKaHyParRefiner::MtKaHyParRefiner(const Context &ctx) : _ctx(ctx) {}
 
@@ -137,4 +142,5 @@ bool MtKaHyParRefiner::refine(
   return false;
 #endif // KAMINPAR_HAVE_MTKAHYPAR_LIB
 }
+
 } // namespace kaminpar::shm

@@ -7,7 +7,6 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
@@ -30,6 +29,8 @@ public:
    * Initializes the coarsener with a new toplevel graph.
    */
   virtual void initialize(const DistributedGraph *graph) = 0;
+
+  virtual GlobalNodeWeight max_cluster_weight() const = 0;
 
   /**
    * Computes the next level of the graph hierarchy.

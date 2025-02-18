@@ -19,8 +19,11 @@
 #include "kaminpar-common/logger.h"
 
 namespace kaminpar::shm {
+
 namespace {
+
 SET_DEBUG(false);
+
 }
 
 std::pair<double, double> InitialPoolBipartitioner::RunningVariance::get() const {
@@ -228,4 +231,5 @@ void InitialPoolBipartitioner::run_bipartitioner(const std::size_t i) {
     std::swap(_current_block_weights, _best_block_weights);
   }
 }
+
 } // namespace kaminpar::shm

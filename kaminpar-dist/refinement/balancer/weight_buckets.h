@@ -9,7 +9,6 @@
 
 #include <algorithm>
 
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/metrics.h"
@@ -17,6 +16,7 @@
 #include "kaminpar-common/asserting_cast.h"
 
 namespace kaminpar::dist {
+
 class Buckets {
 public:
   Buckets(
@@ -83,7 +83,7 @@ public:
 
     BlockID cb = 0;
     for (const BlockID b : _p_graph.blocks()) {
-      if (_p_graph.block_weight(b) > _p_ctx.graph->max_block_weight(b)) {
+      if (_p_graph.block_weight(b) > _p_ctx.max_block_weight(b)) {
         std::copy(
             _bucket_sizes.begin() + b * _num_buckets,
             _bucket_sizes.begin() + (b + 1) * _num_buckets,
@@ -106,7 +106,7 @@ public:
     if (BlockID compactified_block = 0; mpi::get_comm_rank(_p_graph.communicator()) == 0) {
       for (const BlockID block : _p_graph.blocks()) {
         BlockWeight current_weight = _p_graph.block_weight(block);
-        const BlockWeight max_weight = _p_ctx.graph->max_block_weight(block);
+        const BlockWeight max_weight = _p_ctx.max_block_weight(block);
 
         if (current_weight > max_weight) {
           std::size_t cutoff_bucket = 0;
@@ -132,7 +132,7 @@ public:
 
     for (BlockID compactified_block = 0, block = 0; block < _p_graph.k(); ++block) {
       BlockWeight current_weight = _p_graph.block_weight(block);
-      const BlockWeight max_weight = _p_ctx.graph->max_block_weight(block);
+      const BlockWeight max_weight = _p_ctx.max_block_weight(block);
       if (current_weight > max_weight) {
         _cutoff_buckets[block] = compactified_cutoff_buckets[compactified_block++];
       } else {
@@ -164,4 +164,5 @@ private:
   StaticArray<GlobalNodeWeight> _bucket_sizes;
   StaticArray<std::size_t> _cutoff_buckets;
 };
+
 } // namespace kaminpar::dist

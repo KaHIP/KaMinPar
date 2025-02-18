@@ -242,8 +242,7 @@ private:
 
 LocalLPClusterer::LocalLPClusterer(const Context &ctx)
     : _impl(std::make_unique<LocalLPClusteringImplWrapper>(
-          ctx.coarsening.local_lp.ignore_ghost_nodes ? ctx.partition.graph->n
-                                                     : ctx.partition.graph->total_n,
+          ctx.coarsening.local_lp.ignore_ghost_nodes ? ctx.partition.n : ctx.partition.total_n,
           ctx.coarsening
       )) {}
 

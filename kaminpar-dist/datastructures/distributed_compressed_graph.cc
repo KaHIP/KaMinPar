@@ -51,9 +51,11 @@ void DistributedCompressedGraph::init_high_degree_info(const EdgeID high_degree_
 }
 
 namespace {
+
 inline EdgeID degree_bucket(const EdgeID degree) {
   return (degree == 0) ? 0 : math::floor_log2(degree) + 1;
 }
+
 } // namespace
 
 void DistributedCompressedGraph::init_degree_buckets() {

@@ -6,6 +6,7 @@
 using ::testing::AnyOf;
 
 namespace kaminpar::shm::testing {
+
 Graph make_weighted_grid_graph() {
   return make_graph(
       {0, 2, 6, 10, 13, 16, 20, 24, 26},
@@ -161,4 +162,5 @@ TEST(SubgraphExtractionTest, ComplexTrianglesWeightedExampleWorks) {
   EXPECT_THAT(result.subgraphs[2], HasEdgeWithWeightedEndpoints(7, 9));
   EXPECT_THAT(result.subgraphs[2], HasEdgeWithWeightedEndpoints(8, 9));
 }
+
 } // namespace kaminpar::shm::testing

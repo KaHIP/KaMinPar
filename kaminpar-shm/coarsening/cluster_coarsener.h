@@ -15,6 +15,7 @@
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
+
 class ClusteringCoarsener : public Coarsener {
 public:
   ClusteringCoarsener(const Context &ctx, const PartitionContext &p_ctx);
@@ -38,6 +39,9 @@ public:
     return _hierarchy.size();
   }
 
+  void use_communities(std::span<const NodeID> communities) final;
+  [[nodiscard]] std::span<const NodeID> current_communities() const final;
+
   void release_allocated_memory() final;
 
 private:
@@ -52,8 +56,12 @@ private:
   const Graph *_input_graph;
   std::vector<std::unique_ptr<CoarseGraph>> _hierarchy;
 
+  std::span<const NodeID> _input_communities;
+  std::vector<StaticArray<NodeID>> _communities_hierarchy;
+
   std::unique_ptr<Clusterer> _clustering_algorithm;
 
   contraction::MemoryContext _contraction_m_ctx{};
 };
+
 } // namespace kaminpar::shm

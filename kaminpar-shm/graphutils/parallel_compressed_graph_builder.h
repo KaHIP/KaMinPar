@@ -12,16 +12,18 @@
 
 #include "kaminpar-common/datastructures/concurrent_circular_vector.h"
 #include "kaminpar-common/datastructures/maxsize_vector.h"
-#include "kaminpar-common/graph-compression/compressed_neighborhoods_builder.h"
+#include "kaminpar-common/graph_compression/compressed_neighborhoods_builder.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
 
 namespace {
+
 SET_DEBUG(false);
 
 namespace debug {
+
 using Duration = std::chrono::high_resolution_clock::duration;
 
 struct Stats {
@@ -212,11 +214,7 @@ template <
   using CompressedEdgesBuilder = kaminpar::CompressedEdgesBuilder<NodeID, EdgeID, EdgeWeight>;
   tbb::enumerable_thread_specific<CompressedEdgesBuilder> edges_builder_ets([&] {
     return CompressedEdgesBuilder(
-        CompressedEdgesBuilder::degree_tag,
-        num_nodes,
-        max_degree,
-        kHasEdgeWeights,
-        builder.edge_weights()
+        CompressedEdgesBuilder::degree_tag, num_nodes, max_degree, kHasEdgeWeights
     );
   });
 

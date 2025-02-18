@@ -11,7 +11,7 @@
 #include <string>
 #include <unordered_set>
 
-#include "kaminpar-shm/context.h"
+#include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
 
@@ -26,16 +26,18 @@ Context create_context_by_preset_name(const std::string &name) {
 
   if (name == "largek") {
     return create_largek_context();
-  } else if (name == "fast-largek") {
-    return create_fast_largek_context();
-  } else if (name == "strong-largek") {
-    return create_strong_largek_context();
+  } else if (name == "largek-fast") {
+    return create_largek_fast_context();
+  } else if (name == "largek-strong") {
+    return create_largek_strong_context();
   }
 
-  if (name == "memory") {
-    return create_memory_context();
-  } else if (name == "strong-memory") {
-    return create_strong_memory_context();
+  if (name == "terapart") {
+    return create_terapart_context();
+  } else if (name == "terapart-strong") {
+    return create_terapart_strong_context();
+  } else if (name == "terapart-largek") {
+    return create_terapart_largek_context();
   }
 
   if (name == "jet") {
@@ -44,6 +46,22 @@ Context create_context_by_preset_name(const std::string &name) {
     return create_jet_context(4);
   } else if (name == "noref") {
     return create_noref_context();
+  }
+
+  if (name == "vcycle") {
+    return create_vcycle_context(false);
+  } else if (name == "restricted-vcycle") {
+    return create_vcycle_context(true);
+  }
+
+  if (name == "esa21" || name == "esa21-smallk" || name == "diss" || name == "diss-smallk") {
+    return create_esa21_smallk_context();
+  } else if (name == "esa21-largek" || name == "diss-largek") {
+    return create_esa21_largek_context();
+  } else if (name == "esa21-largek-fast" || name == "diss-largek-fast") {
+    return create_esa21_largek_fast_context();
+  } else if (name == "esa21-strong" || name == "diss-strong") {
+    return create_esa21_strong_context();
   }
 
   throw std::runtime_error("invalid preset name");
@@ -55,14 +73,21 @@ std::unordered_set<std::string> get_preset_names() {
       "fast",
       "strong",
       "largek",
-      "fast-largek",
-      "strong-largek",
-      "memory",
-      "strong-memory",
+      "terapart",
+      "terapart-strong",
+      "terapart-largek",
+      "largek-fast",
+      "largek-strong",
       "jet",
       "4xjet",
       "noref",
       "fm",
+      "vcycle",
+      "restricted-vcycle",
+      "esa21-smallk",
+      "esa21-largek",
+      "esa21-largek-fast",
+      "esa21-strong"
   };
 }
 
@@ -82,13 +107,11 @@ Context create_default_context() {
               .min_consecutive_seq_bipartitioning_levels = 1,
               .refine_after_extending_partition = false,
               .use_lazy_subgraph_memory = true,
+              .vcycles = {},
+              .restrict_vcycle_refinement = false,
+              .rb_enable_kway_toplevel_refinement = false,
           },
-      .partition =
-          {
-              // Context -> Partition
-              .epsilon = 0.03,
-              .k = kInvalidBlockID /* must be set */,
-          },
+      .partition = {},
       .coarsening =
           {
               // Context -> Coarsening
@@ -104,10 +127,6 @@ Context create_default_context() {
                               .large_degree_threshold = std::numeric_limits<NodeID>::max(),
                               .max_num_neighbors = std::numeric_limits<NodeID>::max(),
                               .impl = LabelPropagationImplementation::TWO_PHASE,
-                              .second_phase_selection_strategy =
-                                  SecondPhaseSelectionStrategy::FULL_RATING_MAP,
-                              .second_phase_aggregation_strategy =
-                                  SecondPhaseAggregationStrategy::BUFFERED,
                               .relabel_before_second_phase = false,
                               .two_hop_strategy = TwoHopStrategy::MATCH_THREADWISE,
                               .two_hop_threshold = 0.5,
@@ -127,6 +146,11 @@ Context create_default_context() {
                       .forced_pc_level = false,
                       .forced_level_upper_factor = 10.0,
                       .forced_level_lower_factor = 1.1,
+                  },
+              .overlay_clustering =
+                  {
+                      .num_levels = 1,
+                      .max_level = std::numeric_limits<int>::max(),
                   },
               .contraction =
                   {
@@ -179,6 +203,7 @@ Context create_default_context() {
                       .improvement_abortion_threshold = 0.0001,
                   },
               .refine_pool_partition = false,
+              .use_adaptive_epsilon = true,
           },
       .refinement =
           {
@@ -196,9 +221,6 @@ Context create_default_context() {
                       .max_num_neighbors = std::numeric_limits<NodeID>::max(),
                       .impl = LabelPropagationImplementation::SINGLE_PHASE,
                       .tie_breaking_strategy = TieBreakingStrategy::UNIFORM,
-                      .second_phase_selection_strategy =
-                          SecondPhaseSelectionStrategy::FULL_RATING_MAP,
-                      .second_phase_aggregation_strategy = SecondPhaseAggregationStrategy::BUFFERED,
                   },
               .kway_fm =
                   {
@@ -275,7 +297,7 @@ Context create_strong_context() {
 
   ctx.refinement.algorithms = {
       RefinementAlgorithm::GREEDY_BALANCER,
-      RefinementAlgorithm::LEGACY_LABEL_PROPAGATION,
+      RefinementAlgorithm::LABEL_PROPAGATION,
       RefinementAlgorithm::KWAY_FM,
       RefinementAlgorithm::GREEDY_BALANCER,
   };
@@ -293,7 +315,7 @@ Context create_largek_context() {
   return ctx;
 }
 
-Context create_fast_largek_context() {
+Context create_largek_fast_context() {
   Context ctx = create_largek_context();
 
   ctx.initial_partitioning.pool.min_num_repetitions = 2;
@@ -311,50 +333,17 @@ Context create_fast_largek_context() {
   return ctx;
 }
 
-Context create_strong_largek_context() {
+Context create_largek_strong_context() {
   Context ctx = create_largek_context();
 
   ctx.refinement.algorithms = {
       RefinementAlgorithm::GREEDY_BALANCER,
-      RefinementAlgorithm::LEGACY_LABEL_PROPAGATION,
+      RefinementAlgorithm::LABEL_PROPAGATION,
       RefinementAlgorithm::KWAY_FM,
       RefinementAlgorithm::GREEDY_BALANCER,
   };
 
   ctx.refinement.kway_fm.gain_cache_strategy = GainCacheStrategy::COMPACT_HASHING_LARGE_K;
-
-  return ctx;
-}
-
-Context create_memory_context() {
-  Context ctx = create_default_context();
-  ctx.node_ordering = NodeOrdering::EXTERNAL_DEGREE_BUCKETS;
-  ctx.compression.enabled = true;
-  ctx.partitioning.deep_initial_partitioning_mode = InitialPartitioningMode::SEQUENTIAL;
-  ctx.partitioning.use_lazy_subgraph_memory = true;
-  ctx.coarsening.clustering.max_mem_free_coarsening_level = 1;
-  ctx.coarsening.clustering.lp.impl = LabelPropagationImplementation::TWO_PHASE;
-  ctx.coarsening.contraction.algorithm = ContractionAlgorithm::UNBUFFERED;
-  ctx.coarsening.contraction.unbuffered_implementation = ContractionImplementation::TWO_PHASE;
-  ctx.refinement.kway_fm.gain_cache_strategy = GainCacheStrategy::COMPACT_HASHING;
-
-  ctx.refinement.algorithms = {
-      RefinementAlgorithm::GREEDY_BALANCER,
-      RefinementAlgorithm::LABEL_PROPAGATION,
-  };
-
-  return ctx;
-}
-
-Context create_strong_memory_context() {
-  Context ctx = create_memory_context();
-
-  ctx.refinement.algorithms = {
-      RefinementAlgorithm::GREEDY_BALANCER,
-      RefinementAlgorithm::LABEL_PROPAGATION,
-      RefinementAlgorithm::KWAY_FM,
-      RefinementAlgorithm::GREEDY_BALANCER,
-  };
 
   return ctx;
 }
@@ -380,7 +369,96 @@ Context create_jet_context(const int rounds) {
 
 Context create_noref_context() {
   Context ctx = create_default_context();
-  ctx.refinement.algorithms.clear();
+  ctx.refinement.algorithms = {};
+  return ctx;
+}
+
+namespace {
+
+inline Context terapartify_context(Context ctx) {
+  ctx.compression.enabled = true;
+  ctx.partitioning.deep_initial_partitioning_mode = InitialPartitioningMode::SEQUENTIAL;
+  return ctx;
+}
+
+} // namespace
+
+Context create_terapart_context() {
+  return terapartify_context(create_default_context());
+}
+
+Context create_terapart_strong_context() {
+  return terapartify_context(create_strong_context());
+}
+
+Context create_terapart_largek_context() {
+  Context ctx = terapartify_context(create_largek_context());
+  ctx.coarsening.clustering.forced_kc_level = true;
+  return ctx;
+}
+
+Context create_vcycle_context(const bool restrict_refinement) {
+  Context ctx = create_default_context();
+  ctx.partitioning.mode = PartitioningMode::VCYCLE;
+
+  if (restrict_refinement) {
+    ctx.partitioning.restrict_vcycle_refinement = true;
+    ctx.refinement.algorithms = {
+        // GREEDY_BALANCER does not respect the community structure
+        RefinementAlgorithm::LABEL_PROPAGATION,
+    };
+  }
+
+  return ctx;
+}
+
+Context create_esa21_smallk_context() {
+  Context ctx = create_default_context();
+
+  ctx.coarsening.contraction.algorithm = ContractionAlgorithm::BUFFERED;
+  ctx.coarsening.clustering.lp.impl = LabelPropagationImplementation::SINGLE_PHASE;
+
+  return ctx;
+}
+
+Context create_esa21_largek_context() {
+  Context ctx = create_esa21_smallk_context();
+
+  ctx.initial_partitioning.pool.min_num_repetitions = 4;
+  ctx.initial_partitioning.pool.min_num_non_adaptive_repetitions = 2;
+  ctx.initial_partitioning.pool.max_num_repetitions = 4;
+
+  return ctx;
+}
+
+Context create_esa21_largek_fast_context() {
+  Context ctx = create_esa21_largek_context();
+
+  ctx.initial_partitioning.pool.min_num_repetitions = 2;
+  ctx.initial_partitioning.pool.min_num_non_adaptive_repetitions = 1;
+  ctx.initial_partitioning.pool.max_num_repetitions = 2;
+  ctx.initial_partitioning.pool.enable_bfs_bipartitioner = true;
+  ctx.initial_partitioning.pool.enable_ggg_bipartitioner = false;
+  ctx.initial_partitioning.pool.enable_random_bipartitioner = true;
+
+  ctx.initial_partitioning.pool.refinement.disabled = true;
+  ctx.initial_partitioning.pool.refinement.num_iterations = 1;
+
+  ctx.initial_partitioning.refine_pool_partition = true;
+
+  return ctx;
+}
+
+Context create_esa21_strong_context() {
+  Context ctx = create_esa21_smallk_context();
+
+  ctx.refinement.algorithms = {
+      RefinementAlgorithm::GREEDY_BALANCER,
+      RefinementAlgorithm::LABEL_PROPAGATION,
+      RefinementAlgorithm::KWAY_FM,
+      RefinementAlgorithm::GREEDY_BALANCER,
+  };
+
   return ctx;
 }
 

@@ -14,7 +14,9 @@
 #include "kaminpar-mpi/wrapper.h"
 
 namespace kaminpar::mpi {
+
 namespace tag {
+
 struct complete_send_recv_tag {};
 struct alltoallv_tag {};
 struct grid_tag {};
@@ -25,6 +27,7 @@ constexpr static grid_tag grid;
 
 // Used if no other implementation has priority
 constexpr static auto default_sparse_alltoall = complete_send_recv;
+
 } // namespace tag
 
 constexpr static int SPARSE_GRID_ALLTOALL_THRESHOLD = 500;
@@ -64,6 +67,7 @@ void sparse_alltoall(
  */
 
 namespace internal {
+
 template <typename SendBuffers>
 bool use_sparse_grid_alltoall(const SendBuffers &send_buffers, MPI_Comm comm) {
   const std::size_t local_num_elements = parallel::accumulate(
@@ -78,6 +82,7 @@ bool use_sparse_grid_alltoall(const SendBuffers &send_buffers, MPI_Comm comm) {
   const PEID size = get_comm_size(comm);
   return global_num_elements / size / size <= SPARSE_GRID_ALLTOALL_THRESHOLD;
 }
+
 } // namespace internal
 
 template <typename Message, typename Buffer = NoinitVector<Message>, typename Receiver>
@@ -156,4 +161,5 @@ void sparse_alltoallv(
     std::copy(recv[pe].begin(), recv[pe].end(), recvbuf + rdispls[pe]);
   }
 }
+
 } // namespace kaminpar::mpi

@@ -49,7 +49,6 @@ public:
   // Iterators for nodes / edges
   [[nodiscard]] virtual IotaRange<NodeID> nodes() const = 0;
   [[nodiscard]] virtual IotaRange<EdgeID> edges() const = 0;
-  [[nodiscard]] virtual IotaRange<EdgeID> incident_edges(const NodeID u) const = 0;
 
   // Node degree
   [[nodiscard]] virtual NodeID max_degree() const = 0;
@@ -67,6 +66,9 @@ public:
   [[nodiscard]] virtual std::size_t bucket_size(const std::size_t bucket) const = 0;
   [[nodiscard]] virtual NodeID first_node_in_bucket(const std::size_t bucket) const = 0;
   [[nodiscard]] virtual NodeID first_invalid_node_in_bucket(const std::size_t bucket) const = 0;
+
+  virtual void remove_isolated_nodes(const NodeID num_isolated_nodes) = 0;
+  virtual NodeID integrate_isolated_nodes() = 0;
 };
 
 } // namespace kaminpar::shm

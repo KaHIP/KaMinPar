@@ -26,7 +26,9 @@
 #define KAMINPAR_THP_THRESHOLD 1024 * 1024 * 64
 
 namespace kaminpar {
+
 namespace static_array {
+
 //! Tag for allocating memory, but not touching it. Without this tag, memory is initialized to the
 //! default value for the given type.
 constexpr struct noinit_t {
@@ -44,6 +46,10 @@ constexpr struct overcommit_t {
 //! parallel loop. Has no effect in the presence of the noinit tag.
 constexpr struct seq_t {
 } seq;
+
+constexpr struct std_alloc_t {
+} std_alloc;
+
 } // namespace static_array
 
 template <typename T> class StaticArray {
@@ -320,7 +326,8 @@ public:
   template <typename... Tags>
   void resize(const std::size_t size, const value_type init_value, Tags...) {
     KASSERT(
-        _data == _owned_data.get() || _data == _overcommited_data.get(),
+        _data == _owned_data.get() || _data == _owned_data_std.get() ||
+            _data == _overcommited_data.get(),
         "cannot resize span",
         assert::always
     );
@@ -329,7 +336,7 @@ public:
     const bool use_thp =
         size >= KAMINPAR_THP_THRESHOLD && !contains_tag_v<static_array::small_t, Tags...>;
 
-    allocate_data(size, overcommit, use_thp);
+    allocate_data(size, overcommit, use_thp, contains_tag_v<static_array::std_alloc_t, Tags...>);
 
     if constexpr (!contains_tag_v<static_array::noinit_t, Tags...>) {
       if constexpr (contains_tag_v<static_array::seq_t, Tags...>) {
@@ -363,15 +370,24 @@ public:
     _data = nullptr;
 
     _owned_data.reset();
+    _owned_data_std.reset();
     _overcommited_data.reset();
   }
 
 private:
-  void allocate_data(const std::size_t size, const bool overcommit, const bool thp) {
+  void allocate_data(
+      const std::size_t size,
+      const bool overcommit,
+      const bool thp,
+      const bool use_std_alloc = false
+  ) {
     // Before allocating the new memory, free the old memory to prevent both from being held in
     // memory at the same time
     if (_owned_data != nullptr) {
       _owned_data.reset();
+    }
+    if (_owned_data_std != nullptr) {
+      _owned_data_std.reset();
     }
     if (_overcommited_data != nullptr) {
       _overcommited_data.reset();
@@ -381,8 +397,13 @@ private:
       _overcommited_data = heap_profiler::overcommit_memory<value_type>(size);
       _data = _overcommited_data.get();
     } else {
-      _owned_data = parallel::make_unique<value_type>(size, thp);
-      _data = _owned_data.get();
+      if (use_std_alloc) {
+        _owned_data_std = make_unique<value_type>(size, thp);
+        _data = _owned_data_std.get();
+      } else {
+        _owned_data = parallel::make_unique<value_type>(size, thp);
+        _data = _owned_data.get();
+      }
     }
 
     _size = size;
@@ -394,6 +415,7 @@ private:
   size_type _size = 0;
   size_type _unrestricted_size = 0;
   parallel::tbb_unique_ptr<value_type> _owned_data = nullptr;
+  std::unique_ptr<value_type, deleter<value_type>> _owned_data_std = nullptr;
   heap_profiler::unique_ptr<value_type> _overcommited_data = nullptr;
   value_type *_data = nullptr;
 
@@ -401,6 +423,7 @@ private:
 };
 
 namespace static_array {
+
 template <typename T> StaticArray<T> create(std::initializer_list<T> list) {
   return {list.begin(), list.end()};
 }
@@ -408,5 +431,7 @@ template <typename T> StaticArray<T> create(std::initializer_list<T> list) {
 template <typename T> StaticArray<T> create(const std::vector<T> &vec) {
   return {vec.begin(), vec.end()};
 }
+
 } // namespace static_array
+
 } // namespace kaminpar

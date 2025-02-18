@@ -20,8 +20,13 @@
 #define HEAVY assert::heavy
 
 namespace kaminpar::dist {
+
+namespace {
+
 SET_STATISTICS_FROM_GLOBAL();
 SET_DEBUG(false);
+
+} // namespace
 
 void ClusterBalancer::Statistics::reset() {
   num_rounds = 0;
@@ -207,7 +212,7 @@ void ClusterBalancer::init_clusters() {
           if (is_overloaded(_p_graph.block(node)) && _clusters.cluster_of(node) == kInvalidNodeID) {
             LOG_ERROR << "node " << node << " is in block " << _p_graph.block(node)
                       << " with weight " << _p_graph.block_weight(_p_graph.block(node)) << " > "
-                      << _p_ctx.graph->max_block_weight(_p_graph.block(node))
+                      << _p_ctx.max_block_weight(_p_graph.block(node))
                       << ", but the node is not contained in any move set";
             return false;
           }
@@ -378,11 +383,6 @@ bool ClusterBalancer::refine() {
     );
   }
 
-  KASSERT(
-      debug::validate_partition(_p_graph),
-      "partition is in an inconsistent state after round " << round,
-      HEAVY
-  );
   IFSTATS(_stats.print());
   return prev_imbalance_distance > 0;
 }
@@ -416,9 +416,9 @@ void ClusterBalancer::perform_parallel_round() {
     // We use a "fake" max_weight that only becomes the actual maximum block weight after a few
     // rounds This slows down rebalancing, but gives nodes in high-gain buckets a better chance for
     // being moved
-    const BlockWeight max_weight = _p_ctx.graph->max_block_weight(block) +
-                                   (1.0 - _current_parallel_rebalance_fraction) *
-                                       (current_weight - _p_ctx.graph->max_block_weight(block));
+    const BlockWeight max_weight =
+        _p_ctx.max_block_weight(block) + (1.0 - _current_parallel_rebalance_fraction) *
+                                             (current_weight - _p_ctx.max_block_weight(block));
 
     if (current_weight > max_weight) {
       if (rank == 0) {
@@ -511,7 +511,7 @@ void ClusterBalancer::perform_parallel_round() {
   );
 
   Random &rand = Random::instance();
-  std::size_t num_rejected_candidates;
+  std::size_t num_rejected_candidates = 0;
   std::vector<BlockWeight> actual_block_weight_deltas;
   bool balanced_moves = false;
 
@@ -631,9 +631,9 @@ void ClusterBalancer::perform_sequential_round() {
   KASSERT(
       [&] {
         for (const BlockID block : _p_graph.blocks()) {
-          if (_p_graph.block_weight(block) <= _p_ctx.graph->max_block_weight(block) &&
+          if (_p_graph.block_weight(block) <= _p_ctx.max_block_weight(block) &&
               _p_graph.block_weight(block) + tmp_block_weight_deltas[block] >
-                  _p_ctx.graph->max_block_weight(block)) {
+                  _p_ctx.max_block_weight(block)) {
             LOG_WARNING << "block " << block
                         << " was not overloaded before picking move candidates, but after adding "
                         << tmp_block_weight_deltas[block] << " weight to it, it is overloaded";
@@ -734,7 +734,7 @@ void ClusterBalancer::perform_moves(
         // @todo set blocks before updating other data structures to avoid max gainer changes?
         _p_graph.set_block<false>(u, candidate.to);
 
-        _p_graph.neighbors(u, [&](EdgeID, const NodeID v) {
+        _p_graph.adjacent_nodes(u, [&](const NodeID v) {
           if (_p_graph.is_ghost_node(v)) {
             const PEID pe = _p_graph.ghost_owner(v);
             if (!created_message_for_pe.get(pe)) {
@@ -851,16 +851,12 @@ std::vector<ClusterBalancer::MoveCandidate> ClusterBalancer::pick_sequential_can
 
 BlockWeight ClusterBalancer::overload(const BlockID block) const {
   static_assert(std::is_signed_v<BlockWeight>);
-  return std::max<BlockWeight>(
-      0, _p_graph.block_weight(block) - _p_ctx.graph->max_block_weight(block)
-  );
+  return std::max<BlockWeight>(0, _p_graph.block_weight(block) - _p_ctx.max_block_weight(block));
 }
 
 BlockWeight ClusterBalancer::underload(const BlockID block) const {
   static_assert(std::is_signed_v<BlockWeight>);
-  return std::max<BlockWeight>(
-      0, _p_ctx.graph->max_block_weight(block) - _p_graph.block_weight(block)
-  );
+  return std::max<BlockWeight>(0, _p_ctx.max_block_weight(block) - _p_graph.block_weight(block));
 }
 
 bool ClusterBalancer::is_overloaded(const BlockID block) const {
@@ -1075,4 +1071,5 @@ ClusterStrategy ClusterBalancer::get_cluster_strategy() const {
 
   return _cb_ctx.cluster_strategy;
 }
+
 } // namespace kaminpar::dist

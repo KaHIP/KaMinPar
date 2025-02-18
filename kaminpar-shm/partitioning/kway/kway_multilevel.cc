@@ -17,10 +17,15 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
+
 namespace {
+
 SET_DEBUG(false);
 SET_STATISTICS_FROM_GLOBAL();
+
 } // namespace
+
+using namespace partitioning;
 
 KWayMultilevelPartitioner::KWayMultilevelPartitioner(
     const Graph &input_graph, const Context &input_ctx
@@ -41,16 +46,20 @@ PartitionedGraph KWayMultilevelPartitioner::partition() {
 
 void KWayMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
   SCOPED_HEAP_PROFILER("Refinement");
+  SCOPED_TIMER("Refinement");
 
   // If requested, dump the current partition to disk before refinement ...
   debug::dump_partition_hierarchy(p_graph, _coarsener->level(), "pre-refinement", _input_ctx);
 
-  partitioning::refine(_refiner.get(), p_graph, _current_p_ctx);
+  LOG << "  Running refinement on " << p_graph.k() << " blocks";
+  _refiner->initialize(p_graph);
+  _refiner->refine(p_graph, _current_p_ctx);
+
   if (_print_metrics) {
     SCOPED_TIMER("Partition metrics");
-    LOG << "  Cut:       " << metrics::edge_cut(p_graph);
-    LOG << "  Imbalance: " << metrics::imbalance(p_graph);
-    LOG << "  Feasible:  " << metrics::is_feasible(p_graph, _current_p_ctx);
+    LOG << "   Cut:       " << metrics::edge_cut(p_graph);
+    LOG << "   Imbalance: " << metrics::imbalance(p_graph);
+    LOG << "   Feasible:  " << metrics::is_feasible(p_graph, _current_p_ctx);
   }
 
   // ... and dump it after refinement.
@@ -59,16 +68,19 @@ void KWayMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
 
 PartitionedGraph KWayMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) {
   SCOPED_HEAP_PROFILER("Uncoarsening");
+  SCOPED_TIMER("Uncoarsening");
 
   refine(p_graph);
 
   while (!_coarsener->empty()) {
-    LOG;
-    LOG << "Uncoarsening -> Level " << _coarsener->level();
+    SCOPED_TIMER("Level", std::to_string(_coarsener->level() - 1));
 
-    p_graph = partitioning::uncoarsen_once(
-        _coarsener.get(), std::move(p_graph), _current_p_ctx, _input_ctx.partition
-    );
+    LOG;
+    LOG << "Uncoarsening -> Level " << _coarsener->level() - 1;
+
+    p_graph = _coarsener->uncoarsen(std::move(p_graph));
+    _current_p_ctx = create_kway_context(_input_ctx, p_graph);
+
     refine(p_graph);
   }
 
@@ -77,42 +89,51 @@ PartitionedGraph KWayMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) 
 
 const Graph *KWayMultilevelPartitioner::coarsen() {
   SCOPED_HEAP_PROFILER("Coarsening");
+  SCOPED_TIMER("Coarsening");
 
   const Graph *c_graph = &_input_graph;
   bool shrunk = true;
 
+  LOG << "Input graph:";
+  LOG << " Number of nodes: " << c_graph->n() << " | Number of edges: " << c_graph->m();
+  LOG << " Maximum node weight: " << c_graph->max_node_weight();
+  LOG;
+
   while (shrunk && c_graph->n() > initial_partitioning_threshold()) {
+    SCOPED_TIMER("Level", std::to_string(_coarsener->level()));
+
     // If requested, dump graph before each coarsening step + after coarsening
     // converged. This way, we also have a dump of the (reordered) input graph,
     // which makes it easier to use the final partition (before reordering it).
     // We dump the coarsest graph in ::initial_partitioning().
     debug::dump_graph_hierarchy(*c_graph, _coarsener->level(), _input_ctx);
 
+    const NodeID prev_c_graph_n = c_graph->n();
+    const NodeWeight prev_c_graph_total_node_weight = c_graph->total_node_weight();
+
     // Build next coarse graph
-    shrunk = partitioning::coarsen_once(_coarsener.get(), c_graph, _current_p_ctx);
+    shrunk = _coarsener->coarsen();
     c_graph = &_coarsener->current();
 
     // Print some metrics for the coarse graphs
-    LOG << "Coarsening -> Level " << _coarsener->level();
+    const NodeWeight max_cluster_weight = compute_max_cluster_weight<NodeWeight>(
+        _input_ctx.coarsening, _input_ctx.partition, prev_c_graph_n, prev_c_graph_total_node_weight
+    );
+    LOG << "Coarsening -> Level " << _coarsener->level()
+        << " [max cluster weight: " << max_cluster_weight << "]:";
     LOG << "  Number of nodes: " << c_graph->n() << " | Number of edges: " << c_graph->m();
-    LLOG << "  Maximum node weight: " << c_graph->max_node_weight() << " ";
-    LLOG << "<= "
-         << compute_max_cluster_weight<NodeWeight>(
-                _input_ctx.coarsening,
-                _input_ctx.partition,
-                c_graph->n(),
-                c_graph->total_node_weight()
-            );
-    LOG;
+    LOG << "  Maximum node weight: " << c_graph->max_node_weight() << " ";
     LOG;
   }
 
+  _coarsener->release_allocated_memory();
+
   if (shrunk) {
     LOG << "==> Coarsening terminated with less than " << initial_partitioning_threshold()
-        << " nodes.";
+        << " nodes";
     LOG;
   } else {
-    LOG << "==> Coarsening converged.";
+    LOG << "==> Coarsening converged";
     LOG;
   }
 
@@ -139,9 +160,7 @@ PartitionedGraph KWayMultilevelPartitioner::initial_partition(const Graph *graph
   // Since timers are not multi-threaded, we disable them during (parallel)
   // initial partitioning.
   DISABLE_TIMERS();
-  PartitionedGraph p_graph =
-      partitioning::bipartition(graph, _input_ctx.partition.k, _bipartitioner_pool, true);
-  partitioning::update_partition_context(_current_p_ctx, p_graph, _input_ctx.partition.k);
+  PartitionedGraph p_graph = _bipartitioner_pool.bipartition(graph, 0, 1, true);
 
   graph::SubgraphMemory subgraph_memory(p_graph.n(), _input_ctx.partition.k, p_graph.m());
   partitioning::TemporarySubgraphMemoryEts ip_extraction_pool_ets;
@@ -150,17 +169,18 @@ PartitionedGraph KWayMultilevelPartitioner::initial_partition(const Graph *graph
       p_graph,
       _input_ctx.partition.k,
       _input_ctx,
-      _current_p_ctx,
       subgraph_memory,
       ip_extraction_pool_ets,
       _bipartitioner_pool,
       _input_ctx.parallel.num_threads
   );
 
-  partitioning::update_partition_context(_current_p_ctx, p_graph, _input_ctx.partition.k);
+  _current_p_ctx = create_kway_context(_input_ctx, p_graph);
+
   ENABLE_TIMERS();
 
   // Print some metrics for the initial partition.
+  LOG << "  Number of blocks: " << p_graph.k();
   if (_print_metrics) {
     SCOPED_TIMER("Partition metrics");
     LOG << "  Cut:              " << metrics::edge_cut(p_graph);
@@ -175,4 +195,5 @@ PartitionedGraph KWayMultilevelPartitioner::initial_partition(const Graph *graph
 
   return p_graph;
 }
+
 } // namespace kaminpar::shm

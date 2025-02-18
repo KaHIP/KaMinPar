@@ -12,17 +12,18 @@
 
 // Partitioning schemes
 #include "kaminpar-shm/partitioning/deep/deep_multilevel.h"
+#include "kaminpar-shm/partitioning/deep/vcycle_deep_multilevel.h"
 #include "kaminpar-shm/partitioning/kway/kway_multilevel.h"
 #include "kaminpar-shm/partitioning/rb/rb_multilevel.h"
 
 // Clusterings
-#include "kaminpar-shm/coarsening/clustering/legacy_lp_clusterer.h"
 #include "kaminpar-shm/coarsening/clustering/lp_clusterer.h"
 #include "kaminpar-shm/coarsening/clustering/noop_clusterer.h"
 
 // Coarsening
 #include "kaminpar-shm/coarsening/cluster_coarsener.h"
 #include "kaminpar-shm/coarsening/noop_coarsener.h"
+#include "kaminpar-shm/coarsening/overlay_cluster_coarsener.h"
 
 // Refinement
 #include <networkit/auxiliary/Multiprecision.hpp>
@@ -42,7 +43,6 @@
 #include "kaminpar-shm/refinement/balancer/greedy_balancer.h"
 #include "kaminpar-shm/refinement/fm/fm_refiner.h"
 #include "kaminpar-shm/refinement/jet/jet_refiner.h"
-#include "kaminpar-shm/refinement/lp/legacy_lp_refiner.h"
 #include "kaminpar-shm/refinement/lp/lp_refiner.h"
 #include "kaminpar-shm/refinement/multi_refiner.h"
 
@@ -54,6 +54,9 @@ std::unique_ptr<Partitioner> create_partitioner(const Graph &graph, const Contex
   switch (ctx.partitioning.mode) {
   case PartitioningMode::DEEP:
     return std::make_unique<DeepMultilevelPartitioner>(graph, ctx);
+
+  case PartitioningMode::VCYCLE:
+    return std::make_unique<VcycleDeepMultilevelPartitioner>(graph, ctx);
 
   case PartitioningMode::RB:
     return std::make_unique<RBMultilevelPartitioner>(graph, ctx);
@@ -72,9 +75,6 @@ std::unique_ptr<Clusterer> create_clusterer(const Context &ctx) {
 
   case ClusteringAlgorithm::LABEL_PROPAGATION:
     return std::make_unique<LPClustering>(ctx.coarsening);
-
-  case ClusteringAlgorithm::LEGACY_LABEL_PROPAGATION:
-    return std::make_unique<LegacyLPClustering>(ctx.coarsening);
   }
 
   __builtin_unreachable();
@@ -91,6 +91,9 @@ std::unique_ptr<Coarsener> create_coarsener(const Context &ctx, const PartitionC
 
   case CoarseningAlgorithm::CLUSTERING:
     return std::make_unique<ClusteringCoarsener>(ctx, p_ctx);
+
+  case CoarseningAlgorithm::OVERLAY_CLUSTERING:
+    return std::make_unique<OverlayClusteringCoarsener>(ctx, p_ctx);
 
   case CoarseningAlgorithm::SPARSIFYING_CLUSTERING:
     return std::make_unique<SparsifyingClusteringCoarsener>(ctx, p_ctx);
@@ -190,9 +193,6 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
 
   case RefinementAlgorithm::LABEL_PROPAGATION:
     return std::make_unique<LabelPropagationRefiner>(ctx);
-
-  case RefinementAlgorithm::LEGACY_LABEL_PROPAGATION:
-    return std::make_unique<LegacyLabelPropagationRefiner>(ctx);
 
   case RefinementAlgorithm::GREEDY_BALANCER:
     return std::make_unique<GreedyBalancer>(ctx);

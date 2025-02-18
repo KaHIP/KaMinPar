@@ -21,7 +21,9 @@
 #include "kaminpar-common/math.h"
 
 namespace kaminpar::mpi {
+
 namespace tag {
+
 struct mpi_allreduce_tag {};
 struct doubling_allreduce_tag {};
 
@@ -30,6 +32,7 @@ constexpr static doubling_allreduce_tag doubling_allreduce;
 
 // Used if no other implementation has priority
 constexpr static auto default_sparse_allreduce = mpi_allreduce; // doubling_allreduce;
+
 } // namespace tag
 
 template <typename Buffer>
@@ -110,4 +113,5 @@ void inplace_sparse_allreduce(
 ) {
   inplace_sparse_allreduce<Buffer>(tag::default_sparse_allreduce, buffer, buffer_size, op, comm);
 }
+
 } // namespace kaminpar::mpi

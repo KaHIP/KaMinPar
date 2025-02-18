@@ -7,7 +7,7 @@
  ******************************************************************************/
 #include "kaminpar-shm/refinement/multi_refiner.h"
 
-#include "kaminpar-shm/context.h"
+#include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/refinement/refiner.h"
 
@@ -60,11 +60,18 @@ bool MultiRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_c
 
       imbalance_before = imbalance_after;
       cut_before = cut_after;
+      feasible_before = feasible_after;
     } else if (_output_level >= OutputLevel::INFO) {
       LOG;
     }
   }
   return found_improvement;
+}
+
+void MultiRefiner::set_communities(std::span<const NodeID> communities) {
+  for (auto &[_, refiner] : _refiners) {
+    refiner->set_communities(communities);
+  }
 }
 
 } // namespace kaminpar::shm

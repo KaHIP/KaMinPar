@@ -4,10 +4,10 @@
 
 #include "kaminpar-shm/partitioning/partition_utils.h"
 
+namespace {
 using namespace kaminpar::shm;
 using namespace kaminpar::shm::partitioning;
 
-namespace {
 TEST(PartitionUtilsTest, TwoBlocks) {
   EXPECT_EQ(compute_final_k(0, 1, 2), 2);
 }
@@ -72,4 +72,5 @@ TEST(PartitionUtilsTest, TwoToTenThousendBlocks) {
     }
   }
 }
+
 } // namespace

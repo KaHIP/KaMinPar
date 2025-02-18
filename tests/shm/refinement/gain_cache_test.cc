@@ -16,16 +16,14 @@
 #include "kaminpar-shm/refinement/gains/on_the_fly_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
 
+namespace {
 using namespace kaminpar::shm;
 using namespace kaminpar::shm::testing;
-
-namespace {
 
 template <typename GainCacheType> class GainCacheTest : public ::testing::Test {
 public:
   void init(const PartitionedGraph &p_graph) {
-    _ctx.partition.k = p_graph.k();
-    _ctx.setup(p_graph.graph());
+    _ctx.partition.setup(p_graph.graph(), p_graph.k(), 0.03);
 
     this->_gain_cache = std::make_unique<GainCacheType>(this->_ctx, p_graph.n(), p_graph.k());
     this->_gain_cache->initialize(p_graph.graph(), p_graph);
@@ -46,10 +44,10 @@ public:
 };
 
 using GainCacheTypes = ::testing::Types<
-    //NormalDenseGainCache<Graph>,
-    //NormalHashingGainCache<Graph>,
-    //OnTheFlyGainCache<Graph>,
-    //NormalSparseGainCache<Graph>,
+    NormalDenseGainCache<Graph>,
+    NormalHashingGainCache<Graph>,
+    OnTheFlyGainCache<Graph>,
+    NormalSparseGainCache<Graph>,
     NormalCompactHashingGainCache<Graph>>;
 
 TYPED_TEST_SUITE(GainCacheTest, GainCacheTypes);
@@ -63,6 +61,18 @@ TYPED_TEST(GainCacheTest, InitWorksOnEmptyGraphWith0Nodes) {
   auto p_empty = make_p_graph(empty, 2, {});
 
   this->init(p_empty);
+  this->free();
+}
+
+TYPED_TEST(GainCacheTest, InitWorksOnGraphWithSingleNode) {
+  auto single_node_graph = make_empty_graph(1);
+  auto p_single_node_graph = make_p_graph(single_node_graph, 1, {0});
+
+  this->init(p_single_node_graph);
+
+  EXPECT_EQ(this->_gain_cache->conn(0, 0), 0);
+  EXPECT_EQ(this->_gain_cache->gain(0, 0, 0), 0);
+
   this->free();
 }
 
@@ -142,6 +152,20 @@ TYPED_TEST(GainCacheTest, InitWorksOn4PartiteStarGraphWith4Nodes) {
   this->free();
 }
 
+TYPED_TEST(GainCacheTest, InitWorksOnGraphWithTwoConnectedNodes) {
+  auto two_node_graph = make_path_graph(2);
+  auto p_two_node_graph = make_p_graph(two_node_graph, 2, {0, 1});
+
+  this->init(p_two_node_graph);
+
+  EXPECT_EQ(this->_gain_cache->conn(0, 0), 0);
+  EXPECT_EQ(this->_gain_cache->conn(0, 1), 1);
+  EXPECT_EQ(this->_gain_cache->conn(1, 0), 1);
+  EXPECT_EQ(this->_gain_cache->conn(1, 1), 0);
+
+  this->free();
+}
+
 TYPED_TEST(GainCacheTest, MoveWorksOn4PartiteStarGraphWith4Nodes) {
   auto star = make_star_graph(3);
   EXPECT_EQ(star.degree(0), 3); // Node 0 is the center of the star
@@ -164,6 +188,94 @@ TYPED_TEST(GainCacheTest, MoveWorksOn4PartiteStarGraphWith4Nodes) {
     EXPECT_EQ(this->_gain_cache->conn(leaf, 2), 0);
     EXPECT_EQ(this->_gain_cache->conn(leaf, 3), 0);
   }
+
+  this->free();
+}
+
+TYPED_TEST(GainCacheTest, MoveWorksOnGraphWithTwoConnectedNodes) {
+  auto two_node_graph = make_path_graph(2);
+  auto p_two_node_graph = make_p_graph(two_node_graph, 2, {0, 1});
+
+  this->init(p_two_node_graph);
+
+  this->move(p_two_node_graph, 0, 1);
+
+  EXPECT_EQ(this->_gain_cache->conn(0, 0), 0);
+  EXPECT_EQ(this->_gain_cache->conn(0, 1), 1);
+  EXPECT_EQ(this->_gain_cache->conn(1, 0), 0);
+  EXPECT_EQ(this->_gain_cache->conn(1, 1), 1);
+
+  this->free();
+}
+
+TYPED_TEST(GainCacheTest, MoveWorksOnGraphWithDisconnectedNodes) {
+  auto disconnected_graph = make_empty_graph(4);
+  auto p_disconnected_graph = make_p_graph(disconnected_graph, 4, {0, 1, 2, 3});
+
+  this->init(p_disconnected_graph);
+
+  this->move(p_disconnected_graph, 0, 1);
+
+  EXPECT_EQ(this->_gain_cache->conn(0, 0), 0);
+  EXPECT_EQ(this->_gain_cache->conn(0, 1), 0);
+  EXPECT_EQ(this->_gain_cache->conn(0, 2), 0);
+  EXPECT_EQ(this->_gain_cache->conn(0, 3), 0);
+
+  this->free();
+}
+
+TYPED_TEST(GainCacheTest, InitWorksOnCompleteGraph) {
+  auto complete_graph = make_complete_graph(5); // Create a complete graph with 5 nodes
+  auto p_complete_graph = make_p_graph(complete_graph, 3, {0, 1, 2, 0, 1});
+
+  this->init(p_complete_graph);
+
+  EXPECT_EQ(this->_gain_cache->conn(0, 0), 1);
+  EXPECT_EQ(this->_gain_cache->conn(0, 1), 2);
+  EXPECT_EQ(this->_gain_cache->conn(0, 2), 1);
+  EXPECT_EQ(this->_gain_cache->conn(1, 0), 2);
+  EXPECT_EQ(this->_gain_cache->conn(1, 1), 1);
+  EXPECT_EQ(this->_gain_cache->conn(1, 2), 1);
+  EXPECT_EQ(this->_gain_cache->conn(2, 0), 2);
+  EXPECT_EQ(this->_gain_cache->conn(2, 1), 2);
+  EXPECT_EQ(this->_gain_cache->conn(2, 2), 0);
+  EXPECT_EQ(this->_gain_cache->conn(3, 0), 1);
+  EXPECT_EQ(this->_gain_cache->conn(3, 1), 2);
+  EXPECT_EQ(this->_gain_cache->conn(3, 2), 1);
+  EXPECT_EQ(this->_gain_cache->conn(4, 0), 2);
+  EXPECT_EQ(this->_gain_cache->conn(4, 1), 1);
+  EXPECT_EQ(this->_gain_cache->conn(4, 2), 1);
+
+  this->free();
+}
+
+TYPED_TEST(GainCacheTest, MoveWorksOnCompleteGraph) {
+  auto complete_graph = make_complete_graph(5); // Create a complete graph with 5 nodes
+  auto p_complete_graph = make_p_graph(complete_graph, 3, {0, 1, 2, 0, 1});
+
+  this->init(p_complete_graph);
+
+  this->move(p_complete_graph, 0, 1);
+  this->move(p_complete_graph, 1, 2);
+  this->move(p_complete_graph, 2, 0);
+  this->move(p_complete_graph, 3, 1);
+  this->move(p_complete_graph, 4, 2);
+
+  EXPECT_EQ(this->_gain_cache->conn(0, 0), 1);
+  EXPECT_EQ(this->_gain_cache->conn(0, 1), 1);
+  EXPECT_EQ(this->_gain_cache->conn(0, 2), 2);
+  EXPECT_EQ(this->_gain_cache->conn(1, 0), 1);
+  EXPECT_EQ(this->_gain_cache->conn(1, 1), 2);
+  EXPECT_EQ(this->_gain_cache->conn(1, 2), 1);
+  EXPECT_EQ(this->_gain_cache->conn(2, 0), 0);
+  EXPECT_EQ(this->_gain_cache->conn(2, 1), 2);
+  EXPECT_EQ(this->_gain_cache->conn(2, 2), 2);
+  EXPECT_EQ(this->_gain_cache->conn(3, 0), 1);
+  EXPECT_EQ(this->_gain_cache->conn(3, 1), 1);
+  EXPECT_EQ(this->_gain_cache->conn(3, 2), 2);
+  EXPECT_EQ(this->_gain_cache->conn(4, 0), 1);
+  EXPECT_EQ(this->_gain_cache->conn(4, 1), 2);
+  EXPECT_EQ(this->_gain_cache->conn(4, 2), 1);
 
   this->free();
 }

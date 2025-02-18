@@ -16,6 +16,7 @@
 #include "kaminpar-dist/datastructures/abstract_distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_compressed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_csr_graph.h"
+#include "kaminpar-dist/datastructures/reify_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
@@ -209,10 +210,6 @@ public:
     return _underlying_graph->edges();
   }
 
-  [[nodiscard]] inline IotaRange<EdgeID> incident_edges(const NodeID u) const final {
-    return _underlying_graph->incident_edges(u);
-  }
-
   //
   // Access methods
   //
@@ -257,13 +254,19 @@ public:
     reified([&](auto &graph) { graph.adjacent_nodes(u, std::forward<Lambda>(l)); });
   }
 
-  template <typename Lambda> inline void neighbors(const NodeID u, Lambda &&l) const {
-    reified([&](auto &graph) { graph.neighbors(u, std::forward<Lambda>(l)); });
+  template <typename Lambda>
+  inline void adjacent_nodes(const NodeID u, const NodeID max_num_neighbors, Lambda &&l) const {
+    reified([&](auto &graph) {
+      graph.adjacent_nodes(u, max_num_neighbors, std::forward<Lambda>(l));
+    });
   }
 
-  template <typename Lambda>
-  inline void neighbors(const NodeID u, const NodeID max_num_neighbors, Lambda &&l) const {
-    reified([&](auto &graph) { graph.neighbors(u, max_num_neighbors, std::forward<Lambda>(l)); });
+  template <typename Lambda> inline void adjacent_ghost_nodes(const NodeID u, Lambda &&l) const {
+    reified([&](auto &graph) { graph.adjacent_ghost_nodes(u, std::forward<Lambda>(l)); });
+  }
+
+  template <typename Lambda> inline void adjacent_owned_nodes(const NodeID u, Lambda &&l) const {
+    reified([&](auto &graph) { graph.adjacent_owned_nodes(u, std::forward<Lambda>(l)); });
   }
 
   //
@@ -413,42 +416,40 @@ public:
   }
 
   [[nodiscard]] inline DistributedCSRGraph &csr_graph() {
-    AbstractDistributedGraph *abstract_graph = _underlying_graph.get();
-    return *dynamic_cast<DistributedCSRGraph *>(abstract_graph);
+    return graph::concretize<DistributedCSRGraph>(*_underlying_graph);
   }
 
   [[nodiscard]] inline const DistributedCSRGraph &csr_graph() const {
-    const AbstractDistributedGraph *abstract_graph = _underlying_graph.get();
-    return *dynamic_cast<const DistributedCSRGraph *>(abstract_graph);
+    return graph::concretize<DistributedCSRGraph>(*_underlying_graph);
   }
 
   [[nodiscard]] inline DistributedCompressedGraph &compressed_graph() {
-    AbstractDistributedGraph *abstract_graph = _underlying_graph.get();
-    return *dynamic_cast<DistributedCompressedGraph *>(abstract_graph);
+    return graph::concretize<DistributedCompressedGraph>(*_underlying_graph);
   }
 
   [[nodiscard]] inline const DistributedCompressedGraph &compressed_graph() const {
-    const AbstractDistributedGraph *abstract_graph = _underlying_graph.get();
-    return *dynamic_cast<const DistributedCompressedGraph *>(abstract_graph);
+    return graph::concretize<DistributedCompressedGraph>(*_underlying_graph);
   }
 
   template <typename Lambda1, typename Lambda2>
   inline decltype(auto) reified(Lambda1 &&l1, Lambda2 &&l2) const {
-    const AbstractDistributedGraph *abstract_graph = _underlying_graph.get();
-
-    if (const auto *graph = dynamic_cast<const DistributedCSRGraph *>(abstract_graph);
-        graph != nullptr) {
-      return l1(*graph);
-    } else if (const auto *graph = dynamic_cast<const DistributedCompressedGraph *>(abstract_graph);
-               graph != nullptr) {
-      return l2(*graph);
-    }
-
-    __builtin_unreachable();
+    return graph::reified(*_underlying_graph, std::forward<Lambda1>(l1), std::forward<Lambda2>(l2));
   }
 
   template <typename Lambda> inline decltype(auto) reified(Lambda &&l) const {
-    return reified(std::forward<Lambda>(l), std::forward<Lambda>(l));
+    return graph::reified(*_underlying_graph, std::forward<Lambda>(l));
+  }
+
+  template <typename ConcretizedGraph> [[nodiscard]] bool is() const {
+    return graph::is<ConcretizedGraph>(*_underlying_graph);
+  }
+
+  template <typename ConcretizedGraph> [[nodiscard]] ConcretizedGraph &concretize() {
+    return graph::concretize<ConcretizedGraph>(*_underlying_graph);
+  }
+
+  template <typename ConcretizedGraph> [[nodiscard]] const ConcretizedGraph &concretize() const {
+    return graph::concretize<ConcretizedGraph>(*_underlying_graph);
   }
 
 private:
@@ -456,12 +457,18 @@ private:
 };
 
 /**
- * Prints verbose statistics on the distribution of the graph across PEs and the
- * number of ghost nodes, but only if verbose statistics are enabled as build
- * option.
+ * Prints basic statistics on the distribution of the graph.
+ * Computing these statistics requires communication, but is computationally cheap.
  * @param graph Graph for which statistics are printed.
  */
 void print_graph_summary(const DistributedGraph &graph);
+
+/**
+ * Prints more verbose statistics on the distribution of the graph.
+ * These statistics require more computation than the basic statistics.
+ * @param graph Graph for which statistics are printed.
+ */
+void print_extended_graph_summary(const DistributedGraph &graph);
 
 namespace debug {
 

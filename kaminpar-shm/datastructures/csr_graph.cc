@@ -34,9 +34,11 @@ CSRGraph::CSRGraph(const Graph &graph)
     parallel::prefix_sum(_nodes.begin(), _nodes.end(), _nodes.begin());
 
     graph.pfor_nodes([&](const NodeID u) {
-      graph.neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
+      EdgeID e = _nodes[u];
+      graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
         _edges[e] = v;
         _edge_weights[e] = w;
+        e += 1;
       });
     });
 
@@ -152,7 +154,7 @@ void CSRGraph::remove_isolated_nodes(const NodeID num_isolated_nodes) {
   }
 }
 
-void CSRGraph::integrate_isolated_nodes() {
+NodeID CSRGraph::integrate_isolated_nodes() {
   KASSERT(sorted());
 
   const NodeID nonisolated_nodes = n();
@@ -171,6 +173,8 @@ void CSRGraph::integrate_isolated_nodes() {
   if (_number_of_buckets == 0) {
     _number_of_buckets = 1;
   }
+
+  return isolated_nodes;
 }
 
 void CSRGraph::init_degree_buckets() {
@@ -225,6 +229,7 @@ void CSRGraph::init_degree_buckets() {
 }
 
 namespace debug {
+
 bool validate_graph(
     const CSRGraph &graph, const bool check_undirected, const NodeID num_pseudo_nodes
 ) {
@@ -295,7 +300,6 @@ bool validate_graph(
       for (EdgeID e_prime = xadj[v]; e_prime < xadj[v + 1]; ++e_prime) {
         if (e_prime >= m) {
           LOG_WARNING << "Edge " << e_prime << " of " << v << " is out-of-graph";
-          std::exit(1);
           return false;
         }
 
@@ -372,5 +376,7 @@ CSRGraph sort_neighbors(CSRGraph graph) {
 
   return sorted_graph;
 }
+
 } // namespace debug
+
 } // namespace kaminpar::shm

@@ -5,6 +5,7 @@
 using ::testing::ElementsAre;
 
 namespace kaminpar {
+
 TEST(BinaryHeapTest, SizeAndEmptyWork) {
   BinaryMinHeap<int> heap(10);
   EXPECT_TRUE(heap.empty());
@@ -583,7 +584,7 @@ TEST(DynamicBinaryForestTest, RemoveWorksWithTwoHeaps) {
 }
 
 TEST(DynamicBinaryMinMaxForestTest, SequenceOfPushAndPopWorks) {
-  DynamicBinaryMinMaxForest<int, int> heap(10, 1);
+  AddressableDynamicBinaryMinMaxForest<int, int> heap(10, 1);
 
   heap.push(0, 0, 10);
   heap.push(0, 1, 0);
@@ -623,4 +624,5 @@ TEST(DynamicBinaryMinMaxForestTest, SequenceOfPushAndPopWorks) {
     EXPECT_FALSE(heap.contains(i));
   }
 }
+
 } // namespace kaminpar

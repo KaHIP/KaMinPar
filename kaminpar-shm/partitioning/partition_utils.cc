@@ -17,36 +17,6 @@
 #include "kaminpar-common/math.h"
 
 namespace kaminpar::shm::partitioning {
-double compute_2way_adaptive_epsilon(
-    const NodeWeight total_node_weight, const BlockID k, const PartitionContext &p_ctx
-) {
-  KASSERT(p_ctx.k > 0u);
-  KASSERT(total_node_weight > 0);
-
-  const double base =
-      (1.0 + p_ctx.epsilon) * k * p_ctx.total_node_weight / p_ctx.k / total_node_weight;
-  const double exponent = 1.0 / math::ceil_log2(k);
-  const double epsilon_prime = std::pow(base, exponent) - 1.0;
-  const double adaptive_epsilon = std::max(epsilon_prime, 0.0001);
-
-  return adaptive_epsilon;
-}
-
-PartitionContext create_bipartition_context(
-    const AbstractGraph &subgraph,
-    const BlockID k1,
-    const BlockID k2,
-    const PartitionContext &kway_p_ctx,
-    const bool parallel
-) {
-  PartitionContext twoway_p_ctx;
-  twoway_p_ctx.k = 2;
-  twoway_p_ctx.setup(subgraph, false);
-  twoway_p_ctx.epsilon =
-      compute_2way_adaptive_epsilon(subgraph.total_node_weight(), k1 + k2, kway_p_ctx);
-  twoway_p_ctx.block_weights.setup(twoway_p_ctx, k1 + k2, parallel);
-  return twoway_p_ctx;
-}
 
 BlockID compute_final_k(const BlockID block, const BlockID current_k, const BlockID input_k) {
   if (current_k == input_k) {
@@ -77,6 +47,46 @@ BlockID compute_final_k(const BlockID block, const BlockID current_k, const Bloc
       (32 - level);
 
   return base + (reversed_block < num_plus_one_blocks);
+}
+
+// @todo optimize
+BlockID
+compute_first_sub_block(const BlockID block, const BlockID current_k, const BlockID input_k) {
+  if (current_k == 1) {
+    return 0;
+  }
+
+  int level = math::ceil_log2(current_k);
+  int mask = 1 << (level - 1);
+
+  BlockID width = 1;
+  BlockID current_value = input_k;
+  BlockID ans = 0;
+  while (width <= current_k) {
+    width *= 2;
+    auto [lhs, rhs] = math::split_integral(current_value);
+    if (block & mask) {
+      current_value = rhs;
+      ans += lhs;
+    } else {
+      current_value = lhs;
+    }
+    mask >>= 1;
+  }
+  return ans;
+
+  // BlockID first_sub_block = 0;
+  // for (BlockID b = 0; b < block; ++b) {
+  // first_sub_block += compute_final_k(b, current_k, input_k);
+  //}
+  // return first_sub_block;
+}
+
+BlockID compute_first_invalid_sub_block(
+    const BlockID block, const BlockID current_k, const BlockID input_k
+) {
+  return compute_first_sub_block(block, current_k, input_k) +
+         compute_final_k(block, current_k, input_k);
 }
 
 BlockID compute_k_for_n(const NodeID n, const Context &input_ctx) {
@@ -117,4 +127,9 @@ int compute_num_threads_for_parallel_ip(const Context &input_ctx) {
       1.0 * input_ctx.parallel.num_threads * input_ctx.partitioning.deep_initial_partitioning_load
   ));
 }
+
+BlockID compute_next_k(const BlockID current_k, const Context &input_ctx) {
+  return std::min<BlockID>(current_k * 2, input_ctx.partition.k);
+}
+
 } // namespace kaminpar::shm::partitioning

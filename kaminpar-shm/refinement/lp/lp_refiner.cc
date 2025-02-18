@@ -49,8 +49,6 @@ public:
     Base::set_max_num_neighbors(_r_ctx.lp.max_num_neighbors);
     Base::set_implementation(_r_ctx.lp.impl);
     Base::set_tie_breaking_strategy(_r_ctx.lp.tie_breaking_strategy);
-    Base::set_second_phase_selection_strategy(_r_ctx.lp.second_phase_selection_strategy);
-    Base::set_second_phase_aggregation_strategy(_r_ctx.lp.second_phase_aggregation_strategy);
     Base::set_relabel_before_second_phase(false);
   }
 
@@ -73,6 +71,15 @@ public:
     _p_graph = &p_graph;
     _p_ctx = &p_ctx;
 
+    if (_p_graph->k() < 1024) {
+      _aligned_block_weights.resize(_p_graph->k());
+      _p_graph->pfor_blocks([&](const BlockID b) {
+        _aligned_block_weights[b].value = _p_graph->block_weight(b);
+      });
+    } else {
+      _aligned_block_weights.resize(0);
+    }
+
     Base::initialize(_graph, _p_ctx->k);
 
     const std::size_t max_iterations =
@@ -85,7 +92,17 @@ public:
       }
     }
 
+    if (!_aligned_block_weights.empty()) {
+      _p_graph->pfor_blocks([&](const BlockID b) {
+        _p_graph->set_block_weight(b, _aligned_block_weights[b].value);
+      });
+    }
+
     return true;
+  }
+
+  void set_communities(std::span<const NodeID> communities) {
+    _communities = communities;
   }
 
 public:
@@ -94,11 +111,19 @@ public:
   }
 
   [[nodiscard]] BlockWeight initial_cluster_weight(const BlockID b) {
-    return _p_graph->block_weight(b);
+    return _aligned_block_weights.empty()
+               ? _p_graph->block_weight(b)
+               : __atomic_load_n(&_aligned_block_weights[b].value, __ATOMIC_RELAXED);
   }
 
   [[nodiscard]] BlockWeight cluster_weight(const BlockID b) {
-    return _p_graph->block_weight(b);
+    return _aligned_block_weights.empty()
+               ? _p_graph->block_weight(b)
+               : __atomic_load_n(&_aligned_block_weights[b].value, __ATOMIC_RELAXED);
+  }
+
+  [[nodiscard]] bool accept_neighbor(const NodeID u, const NodeID v) {
+    return _communities.empty() || _communities[u] == _communities[v];
   }
 
   bool move_cluster_weight(
@@ -107,7 +132,27 @@ public:
       const BlockWeight delta,
       const BlockWeight max_weight
   ) {
-    return _p_graph->move_block_weight(old_block, new_block, delta, max_weight);
+    if (_aligned_block_weights.empty()) {
+      return _p_graph->move_block_weight(old_block, new_block, delta, max_weight);
+    } else {
+      for (BlockWeight new_weight =
+               __atomic_load_n(&_aligned_block_weights[new_block].value, __ATOMIC_RELAXED);
+           new_weight + delta <= max_weight;) {
+        if (__atomic_compare_exchange_n(
+                &_aligned_block_weights[new_block].value,
+                &new_weight,
+                new_weight + delta,
+                false,
+                __ATOMIC_RELAXED,
+                __ATOMIC_RELAXED
+            )) {
+          __atomic_fetch_sub(&_aligned_block_weights[old_block].value, delta, __ATOMIC_RELAXED);
+          return true;
+        }
+      }
+
+      return false;
+    }
   }
 
   void reassign_cluster_weights(
@@ -128,7 +173,7 @@ public:
     return _p_graph->k();
   }
   [[nodiscard]] BlockWeight max_cluster_weight(const BlockID block) {
-    return _p_ctx->block_weights.max(block);
+    return _p_ctx->max_block_weight(block);
   }
 
   template <typename RatingMap>
@@ -271,6 +316,14 @@ public:
 
   const PartitionContext *_p_ctx;
   const RefinementContext &_r_ctx;
+
+  std::span<const NodeID> _communities;
+
+  struct alignas(64) AlignedBlockWeight {
+    BlockWeight value;
+  };
+
+  StaticArray<AlignedBlockWeight> _aligned_block_weights;
 };
 
 class LPRefinerImplWrapper {
@@ -309,6 +362,11 @@ public:
     );
   }
 
+  void set_communities(std::span<const NodeID> communities) {
+    _csr_impl->set_communities(communities);
+    _compressed_impl->set_communities(communities);
+  }
+
 private:
   std::unique_ptr<LPRefinerImpl<CSRGraph>> _csr_impl;
   std::unique_ptr<LPRefinerImpl<CompressedGraph>> _compressed_impl;
@@ -339,6 +397,10 @@ void LabelPropagationRefiner::initialize(const PartitionedGraph &p_graph) {
 
 bool LabelPropagationRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
   return _impl_wrapper->refine(p_graph, p_ctx);
+}
+
+void LabelPropagationRefiner::set_communities(std::span<const NodeID> communities) {
+  _impl_wrapper->set_communities(communities);
 }
 
 } // namespace kaminpar::shm

@@ -15,6 +15,7 @@
 #include "kaminpar-shm/refinement/refiner.h"
 
 namespace kaminpar::shm {
+
 class KWayMultilevelPartitioner : public Partitioner {
 public:
   KWayMultilevelPartitioner(const Graph &input_graph, const Context &input_ctx);
@@ -47,4 +48,5 @@ private:
 
   InitialBipartitionerWorkerPool _bipartitioner_pool;
 };
+
 } // namespace kaminpar::shm

@@ -10,12 +10,13 @@
 #include <stack>
 
 #include "kaminpar-dist/coarsening/coarsener.h"
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
+#include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/partitioning/partitioner.h"
 
 namespace kaminpar::dist {
+
 class DeepMultilevelPartitioner : public Partitioner {
 public:
   DeepMultilevelPartitioner(const DistributedGraph &input_graph, const Context &input_ctx);
@@ -37,4 +38,5 @@ private:
   std::list<DistributedGraph> _replicated_graphs;
   std::stack<std::unique_ptr<Coarsener>> _coarseners;
 };
+
 } // namespace kaminpar::dist

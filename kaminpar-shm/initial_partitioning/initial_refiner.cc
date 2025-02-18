@@ -12,6 +12,7 @@
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
+
 std::unique_ptr<InitialRefiner> create_initial_refiner(const InitialRefinementContext &r_ctx) {
   if (r_ctx.disabled) {
     return std::make_unique<InitialNoopRefiner>();
@@ -27,4 +28,5 @@ std::unique_ptr<InitialRefiner> create_initial_refiner(const InitialRefinementCo
 
   __builtin_unreachable();
 }
+
 } // namespace kaminpar::shm

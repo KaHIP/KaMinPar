@@ -9,8 +9,8 @@
 #pragma once
 
 #include "kaminpar-dist/algorithms/greedy_node_coloring.h"
-#include "kaminpar-dist/context.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
+#include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/refinement/refiner.h"
 
 #include "kaminpar-common/parallel/vector_ets.h"
@@ -79,8 +79,8 @@ private:
   NodeID try_probabilistic_moves(ColorID c, const BlockGainsContainer &block_gains);
   void synchronize_state(ColorID c);
 
-  auto reduce_move_candidates(std::vector<MoveCandidate> &&candidates
-  ) -> std::vector<MoveCandidate>;
+  auto reduce_move_candidates(std::vector<MoveCandidate> &&candidates)
+      -> std::vector<MoveCandidate>;
   auto reduce_move_candidates(std::vector<MoveCandidate> &&a, std::vector<MoveCandidate> &&b)
       -> std::vector<MoveCandidate>;
 

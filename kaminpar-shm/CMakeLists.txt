@@ -27,7 +27,8 @@ add_library(kaminpar_shm ${KAMINPAR_SHM_SOURCE_FILES}
         coarsening/sparsification/WeightedForestFireScore.h
         coarsening/sparsification/IndependentRandomSampler.cpp
 )
-target_include_directories(kaminpar_shm PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../")
+# target_include_directories(kaminpar_shm PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../")
+add_library(KaMinPar::KaMinPar ALIAS kaminpar_shm)
 target_link_libraries(kaminpar_shm PUBLIC kaminpar_common)
 target_compile_options(kaminpar_shm PRIVATE ${KAMINPAR_WARNING_FLAGS})
 

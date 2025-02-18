@@ -17,11 +17,16 @@
 
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/heap_profiler.h"
+#include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
+
 namespace {
+
 SET_DEBUG(false);
+constexpr static bool kDebugBlockWeights = false;
+
 } // namespace
 
 using namespace partitioning;
@@ -40,6 +45,13 @@ DeepMultilevelPartitioner::DeepMultilevelPartitioner(
   _refiner->set_output_prefix("   ");
 }
 
+void DeepMultilevelPartitioner::use_communities(
+    const std::span<const NodeID> communities, const PartitionContext &community_p_ctx
+) {
+  _coarsener->use_communities(communities);
+  _community_p_ctx = community_p_ctx;
+}
+
 PartitionedGraph DeepMultilevelPartitioner::partition() {
   cio::print_delimiter("Partitioning");
 
@@ -48,123 +60,15 @@ PartitionedGraph DeepMultilevelPartitioner::partition() {
     _refiner->set_output_prefix("    ");
   }
 
-  const Graph *c_graph = coarsen();
-  PartitionedGraph p_graph = initial_partition(c_graph);
+  DBGC(kDebugBlockWeights) << "Initial partition context:";
+  DBGC(kDebugBlockWeights) << debug::describe_partition_context(_input_ctx.partition);
 
-  SCOPED_HEAP_PROFILER("Uncoarsening");
-  bool refined = false;
-  p_graph = uncoarsen(std::move(p_graph), refined);
-  if (!refined || p_graph.k() < _input_ctx.partition.k) {
-    SCOPED_HEAP_PROFILER("Toplevel");
-
-    LOG;
-    LOG << "Toplevel:";
-    LOG << " Number of nodes: " << p_graph.n() << " | Number of edges: " << p_graph.m();
-
-    if (!refined) {
-      refine(p_graph);
-    }
-    if (p_graph.k() < _input_ctx.partition.k) {
-      extend_partition(p_graph, _input_ctx.partition.k);
-      refine(p_graph);
-    }
-  }
-
-  return p_graph;
-}
-
-PartitionedGraph DeepMultilevelPartitioner::uncoarsen_once(PartitionedGraph p_graph) {
-  return partitioning::uncoarsen_once(
-      _coarsener.get(), std::move(p_graph), _current_p_ctx, _input_ctx.partition
-  );
-}
-
-void DeepMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
-  SCOPED_HEAP_PROFILER("Refinement");
-
-  // If requested, dump the current partition to disk before refinement ...
-  debug::dump_partition_hierarchy(p_graph, _coarsener->level(), "pre-refinement", _input_ctx);
-
-  LOG << "  Running refinement on " << p_graph.k() << " blocks";
-  partitioning::refine(_refiner.get(), p_graph, _current_p_ctx);
-
-  if (_print_metrics) {
-    SCOPED_TIMER("Partition metrics");
-    LOG << "   Cut:       " << metrics::edge_cut(p_graph);
-    LOG << "   Imbalance: " << metrics::imbalance(p_graph);
-    LOG << "   Feasible:  " << metrics::is_feasible(p_graph, _current_p_ctx);
-  }
-
-  // ... and dump it after refinement.
-  debug::dump_partition_hierarchy(p_graph, _coarsener->level(), "post-refinement", _input_ctx);
-}
-
-void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, const BlockID k_prime) {
-  SCOPED_HEAP_PROFILER("Extending partition");
-  LOG << "  Extending partition from " << p_graph.k() << " blocks to " << k_prime << " blocks";
-
-  if (_input_ctx.partitioning.use_lazy_subgraph_memory) {
-    partitioning::extend_partition_lazy_extraction(
-        p_graph,
-        k_prime,
-        _input_ctx,
-        _current_p_ctx,
-        _extraction_mem_pool_ets,
-        _tmp_extraction_mem_pool_ets,
-        _bipartitioner_pool,
-        _input_ctx.parallel.num_threads
-    );
-  } else {
-    partitioning::extend_partition(
-        p_graph,
-        k_prime,
-        _input_ctx,
-        _current_p_ctx,
-        _subgraph_memory,
-        _tmp_extraction_mem_pool_ets,
-        _bipartitioner_pool,
-        _input_ctx.parallel.num_threads
-    );
-  }
-
-  if (_print_metrics) {
-    SCOPED_TIMER("Partition metrics");
-    LOG << "   Cut:       " << metrics::edge_cut(p_graph);
-    LOG << "   Imbalance: " << metrics::imbalance(p_graph);
-  }
-}
-
-PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph, bool &refined) {
-  while (!_coarsener->empty()) {
-    SCOPED_HEAP_PROFILER("Level", std::to_string(_coarsener->level() - 1));
-
-    LOG;
-    LOG << "Uncoarsening -> Level " << (_coarsener->level() - 1);
-
-    p_graph = uncoarsen_once(std::move(p_graph));
-
-    LOG << " Number of nodes: " << p_graph.n() << " | Number of edges: " << p_graph.m();
-
-    refine(p_graph);
-    refined = true;
-
-    const BlockID desired_k = partitioning::compute_k_for_n(p_graph.n(), _input_ctx);
-    if (p_graph.k() < desired_k) {
-      extend_partition(p_graph, desired_k);
-      refined = false;
-
-      if (_input_ctx.partitioning.refine_after_extending_partition) {
-        refine(p_graph);
-        refined = true;
-      }
-    }
-  }
-
-  return p_graph;
+  return uncoarsen(initial_partition(coarsen()));
 }
 
 const Graph *DeepMultilevelPartitioner::coarsen() {
   SCOPED_HEAP_PROFILER("Coarsening");
+  SCOPED_TIMER("Coarsening");
 
   const Graph *c_graph = &_input_graph;
   NodeID prev_c_graph_n = c_graph->n();
@@ -172,9 +76,17 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
   NodeWeight prev_c_graph_total_node_weight = c_graph->total_node_weight();
 
   bool shrunk = true;
-  bool search_subgraph_memory_size = !_input_ctx.partitioning.use_lazy_subgraph_memory;
+  bool search_subgraph_memory_size = true;
+
+  LOG << "Input graph:";
+  LOG << " Number of nodes: " << c_graph->n() << " | Number of edges: " << c_graph->m();
+  LOG << " Maximum node weight: " << c_graph->max_node_weight();
+  LOG;
 
   while (shrunk && c_graph->n() > initial_partitioning_threshold()) {
+    SCOPED_HEAP_PROFILER("Level", std::to_string(_coarsener->level()));
+    SCOPED_TIMER("Level", std::to_string(_coarsener->level()));
+
     // If requested, dump graph before each coarsening step + after coarsening
     // converged. This way, we also have a dump of the (reordered) input graph,
     // which makes it easier to use the final partition (before reordering it).
@@ -188,7 +100,7 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
     prev_c_graph_total_node_weight = c_graph->total_node_weight();
 
     // Build next coarse graph
-    shrunk = partitioning::coarsen_once(_coarsener.get(), c_graph, _current_p_ctx);
+    shrunk = _coarsener->coarsen();
     c_graph = &_coarsener->current();
 
     // _subgraph_memory stores the block-induced subgraphs of the partitioned graph during recursive
@@ -198,6 +110,8 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
     if (search_subgraph_memory_size &&
         partitioning::compute_k_for_n(c_graph->n(), _input_ctx) < _input_ctx.partition.k) {
       search_subgraph_memory_size = false;
+
+      _last_initial_partitioning_level = _coarsener->level() - 1;
 
       _subgraph_memory_n = prev_c_graph_n;
       _subgraph_memory_m = prev_c_graph_m;
@@ -217,17 +131,17 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
     }
 
     // Print some metrics for the coarse graphs
-    LOG << "Coarsening -> Level " << _coarsener->level();
-    LOG << " Number of nodes: " << c_graph->n() << " | Number of edges: " << c_graph->m();
-    LLOG << " Maximum node weight: " << c_graph->max_node_weight() << " ";
-    LLOG << "<= "
-         << compute_max_cluster_weight<NodeWeight>(
-                _input_ctx.coarsening,
-                _input_ctx.partition,
-                prev_c_graph_n,
-                prev_c_graph_total_node_weight
-            );
-    LOG;
+    DBG << "Using inferred epsilon: "
+        << _current_p_ctx.infer_epsilon(prev_c_graph_total_node_weight);
+
+    const NodeWeight max_cluster_weight = compute_max_cluster_weight<NodeWeight>(
+        _input_ctx.coarsening, _input_ctx.partition, prev_c_graph_n, prev_c_graph_total_node_weight
+    );
+    LOG << "Coarsening -> Level " << _coarsener->level()
+        << " [max cluster weight: " << max_cluster_weight << "]:";
+    LOG << " Total edge weight:   " << static_cast<std::uint64_t>(c_graph->total_edge_weight());
+    LOG << " Number of nodes:     " << c_graph->n() << " | Number of edges: " << c_graph->m();
+    LOG << " Maximum node weight: " << c_graph->max_node_weight();
     LOG;
   }
 
@@ -236,16 +150,14 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
     _subgraph_memory_m = _subgraph_memory_m_weights = prev_c_graph_m;
   }
 
-  TIMED_SCOPE("Coarsening") {
-    _coarsener->release_allocated_memory();
-  };
+  _coarsener->release_allocated_memory();
 
   if (shrunk) {
     LOG << "==> Coarsening terminated with less than " << initial_partitioning_threshold()
-        << " nodes.";
+        << " nodes";
     LOG;
   } else {
-    LOG << "==> Coarsening converged.";
+    LOG << "==> Coarsening converged";
     LOG;
   }
 
@@ -253,10 +165,17 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
 }
 
 NodeID DeepMultilevelPartitioner::initial_partitioning_threshold() {
-  if (partitioning::parallel_ip_mode(_input_ctx.partitioning.deep_initial_partitioning_mode)) {
-    return _input_ctx.parallel.num_threads * _input_ctx.coarsening.contraction_limit; // p * C
-  } else {
-    return 2 * _input_ctx.coarsening.contraction_limit; // 2 * C
+  const auto mode = _input_ctx.partitioning.deep_initial_partitioning_mode;
+  const bool is_parallel_mode =
+      (mode == InitialPartitioningMode::SYNCHRONOUS_PARALLEL ||
+       mode == InitialPartitioningMode::ASYNCHRONOUS_PARALLEL);
+
+  if (is_parallel_mode) { // Parallel: copy for each thread once n <= p * C
+    return _input_ctx.parallel.num_threads * _input_ctx.coarsening.contraction_limit;
+  } else if (mode == InitialPartitioningMode::COMMUNITIES) {
+    return _input_ctx.coarsening.contraction_limit * _community_p_ctx.k;
+  } else { // Sequential: coarsen until until n <= 2 * C
+    return 2 * _input_ctx.coarsening.contraction_limit;
   }
 }
 
@@ -269,7 +188,7 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
     SCOPED_HEAP_PROFILER("SubgraphMemory resize");
     SCOPED_TIMER("Allocation");
 
-    _subgraph_memory.resize2(
+    _subgraph_memory.weighted_resize(
         _subgraph_memory_n,
         _input_ctx.partition.k,
         _subgraph_memory_m,
@@ -292,7 +211,7 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
   PartitionedGraph p_graph = [&] {
     switch (_input_ctx.partitioning.deep_initial_partitioning_mode) {
     case InitialPartitioningMode::SEQUENTIAL:
-      return partitioning::bipartition(graph, _input_ctx.partition.k, _bipartitioner_pool, true);
+      return _bipartitioner_pool.bipartition(graph, 0, 1, true);
 
     case InitialPartitioningMode::SYNCHRONOUS_PARALLEL:
       return SyncInitialPartitioner(_input_ctx, _bipartitioner_pool, _tmp_extraction_mem_pool_ets)
@@ -301,12 +220,24 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
     case InitialPartitioningMode::ASYNCHRONOUS_PARALLEL:
       return AsyncInitialPartitioner(_input_ctx, _bipartitioner_pool, _tmp_extraction_mem_pool_ets)
           .partition(_coarsener.get(), _current_p_ctx);
+
+    case InitialPartitioningMode::COMMUNITIES:
+      return initial_partition_by_communities(graph);
     }
 
     __builtin_unreachable();
   }();
   ENABLE_TIMERS();
-  partitioning::update_partition_context(_current_p_ctx, p_graph, _input_ctx.partition.k);
+
+  if (_input_ctx.partitioning.deep_initial_partitioning_mode ==
+      InitialPartitioningMode::COMMUNITIES) {
+    _current_p_ctx = _community_p_ctx;
+  } else {
+    _current_p_ctx = create_kway_context(_input_ctx, p_graph);
+  }
+
+  DBGC(kDebugBlockWeights) << "Initial partition context:";
+  DBGC(kDebugBlockWeights) << debug::describe_partition_state(p_graph, _current_p_ctx);
 
   // Print some metrics for the initial partition.
   LOG << " Number of blocks: " << p_graph.k();
@@ -324,4 +255,174 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
 
   return p_graph;
 }
+
+StaticArray<BlockID> DeepMultilevelPartitioner::copy_coarsest_communities() {
+  std::span<const NodeID> communities = _coarsener->current_communities();
+  return {communities.begin(), communities.end()};
+}
+
+PartitionedGraph DeepMultilevelPartitioner::initial_partition_by_communities(const Graph *graph) {
+  StaticArray<BlockID> partition = copy_coarsest_communities();
+  KASSERT(partition.size() == graph->n());
+
+  PartitionedGraph p_graph(*graph, static_cast<BlockID>(_community_p_ctx.k), std::move(partition));
+  return p_graph;
+}
+
+PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) {
+  SCOPED_HEAP_PROFILER("Uncoarsening");
+  SCOPED_TIMER("Uncoarsening");
+
+  bool refined = false;
+  while (!_coarsener->empty()) {
+    SCOPED_HEAP_PROFILER("Level", std::to_string(_coarsener->level() - 1));
+    SCOPED_TIMER("Level", std::to_string(_coarsener->level() - 1));
+
+    LOG;
+    LOG << "Uncoarsening -> Level " << (_coarsener->level() - 1);
+
+    p_graph = _coarsener->uncoarsen(std::move(p_graph));
+    _current_p_ctx = create_kway_context(_input_ctx, p_graph);
+
+    LOG << " Number of nodes: " << p_graph.n() << " | Number of edges: " << p_graph.m();
+
+    refine(p_graph);
+    refined = true;
+
+    const BlockID desired_k = partitioning::compute_k_for_n(p_graph.n(), _input_ctx);
+    if (p_graph.k() < desired_k) {
+      extend_partition(p_graph, desired_k);
+      refined = false;
+
+      if (_input_ctx.partitioning.refine_after_extending_partition) {
+        refine(p_graph);
+        refined = true;
+      }
+    }
+  }
+
+  _current_p_ctx = create_kway_context(_input_ctx, p_graph);
+
+  if (!refined || p_graph.k() < _input_ctx.partition.k) {
+    SCOPED_HEAP_PROFILER("Toplevel");
+
+    LOG;
+    LOG << "Toplevel:";
+    LOG << " Number of nodes: " << p_graph.n() << " | Number of edges: " << p_graph.m();
+
+    if (!refined) {
+      refine(p_graph);
+    }
+    if (p_graph.k() < _input_ctx.partition.k) {
+      extend_partition(p_graph, _input_ctx.partition.k);
+      refine(p_graph);
+    }
+  }
+
+  return p_graph;
+}
+
+void DeepMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
+  SCOPED_HEAP_PROFILER("Refinement");
+  SCOPED_TIMER("Refinement");
+
+  if (_input_ctx.partitioning.restrict_vcycle_refinement && _community_p_ctx.k > 0) {
+    // If we are not allowed to move nodes between communities, and we only have one block per
+    // community, refinement is pointless
+    if (p_graph.k() == _community_p_ctx.k) {
+      return;
+    }
+
+    _refiner->set_communities(_coarsener->current_communities());
+  }
+
+  DBGC(kDebugBlockWeights) << "Partition context for refinement:";
+  DBGC(kDebugBlockWeights) << debug::describe_partition_state(p_graph, _current_p_ctx);
+
+  // If requested, dump the current partition to disk before refinement ...
+  debug::dump_partition_hierarchy(p_graph, _coarsener->level(), "pre-refinement", _input_ctx);
+
+  LOG << "  Running refinement on " << p_graph.k() << " blocks";
+  _refiner->initialize(p_graph);
+  _refiner->refine(p_graph, _current_p_ctx);
+
+  if (_print_metrics) {
+    SCOPED_TIMER("Partition metrics");
+    LOG << "   Cut:       " << metrics::edge_cut(p_graph);
+    LOG << "   Imbalance: " << metrics::imbalance(p_graph);
+    LOG << "   Feasible:  " << metrics::is_feasible(p_graph, _current_p_ctx);
+  }
+
+  // ... and dump it after refinement.
+  debug::dump_partition_hierarchy(p_graph, _coarsener->level(), "post-refinement", _input_ctx);
+}
+
+void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, const BlockID k_prime) {
+  SCOPED_HEAP_PROFILER("Extending partition");
+  LOG << "  Extending partition from " << p_graph.k() << " blocks to " << k_prime << " blocks";
+
+  DBG << "Partition state before extending partition from " << p_graph.k() << " to " << k_prime
+      << " blocks:";
+  DBG << debug::describe_partition_state(p_graph, _current_p_ctx);
+
+  // If we are in a v-cycle, we might have a partition whose number of blocks is not a power of two
+  // -- something on which the other extend_* functions rely. In this case, first "complete" the
+  // current level of the recursion tree to obtain a power-of-two block count.
+  if (_input_ctx.partitioning.deep_initial_partitioning_mode ==
+      InitialPartitioningMode::COMMUNITIES) {
+    [[maybe_unused]] const BlockID extended_from = p_graph.k();
+    partitioning::complete_partial_extend_partition(
+        p_graph,
+        _input_ctx,
+        _extraction_mem_pool_ets,
+        _tmp_extraction_mem_pool_ets,
+        _bipartitioner_pool
+    );
+    _current_p_ctx = create_kway_context(_input_ctx, p_graph);
+    DBG << "Partition state after completing partial partition extend from " << extended_from
+        << " to " << p_graph.k() << " blocks:";
+    DBG << debug::describe_partition_state(p_graph, _current_p_ctx);
+  }
+
+  if (_input_ctx.partitioning.use_lazy_subgraph_memory) {
+    partitioning::extend_partition_lazy_extraction(
+        p_graph,
+        k_prime,
+        _input_ctx,
+        _extraction_mem_pool_ets,
+        _tmp_extraction_mem_pool_ets,
+        _bipartitioner_pool,
+        _input_ctx.parallel.num_threads
+    );
+  } else {
+    partitioning::extend_partition(
+        p_graph,
+        k_prime,
+        _input_ctx,
+        _subgraph_memory,
+        _tmp_extraction_mem_pool_ets,
+        _bipartitioner_pool,
+        _input_ctx.parallel.num_threads
+    );
+  }
+
+  if (_last_initial_partitioning_level == _coarsener->level()) {
+    SCOPED_TIMER("Deallocation");
+    _subgraph_memory.free();
+    _extraction_mem_pool_ets.clear();
+    _tmp_extraction_mem_pool_ets.clear();
+    _bipartitioner_pool.free();
+  }
+
+  if (_print_metrics) {
+    SCOPED_TIMER("Partition metrics");
+    LOG << "   Cut:       " << metrics::edge_cut(p_graph);
+    LOG << "   Imbalance: " << metrics::imbalance(p_graph);
+  }
+
+  _current_p_ctx = create_kway_context(_input_ctx, p_graph);
+  DBG << "Partition state after extending partition to " << k_prime << " blocks:";
+  DBG << debug::describe_partition_state(p_graph, _current_p_ctx);
+}
+
 } // namespace kaminpar::shm

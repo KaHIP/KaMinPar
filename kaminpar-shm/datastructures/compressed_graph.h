@@ -16,7 +16,7 @@
 
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/degree_buckets.h"
-#include "kaminpar-common/graph-compression/compressed_neighborhoods.h"
+#include "kaminpar-common/graph_compression/compressed_neighborhoods.h"
 #include "kaminpar-common/ranges.h"
 
 namespace kaminpar::shm {
@@ -35,11 +35,6 @@ public:
   using AbstractGraph::EdgeWeight;
   using AbstractGraph::NodeID;
   using AbstractGraph::NodeWeight;
-
-  /*!
-   * Whether edge weights are compressed.
-   */
-  static constexpr bool kCompressEdgeWeights = CompressedNeighborhoods::kCompressEdgeWeights;
 
   /*!
    * Whether high degree encoding is used.
@@ -67,11 +62,6 @@ public:
    */
   static constexpr NodeID kIntervalLengthTreshold =
       CompressedNeighborhoods::kIntervalLengthTreshold;
-
-  /*!
-   * Whether run-length encoding is used.
-   */
-  static constexpr bool kRunLengthEncoding = CompressedNeighborhoods::kRunLengthEncoding;
 
   /*!
    * Whether StreamVByte encoding is used.
@@ -152,10 +142,6 @@ public:
     return {static_cast<EdgeID>(0), m()};
   }
 
-  [[nodiscard]] inline IotaRange<EdgeID> incident_edges(const NodeID node) const final {
-    return _compressed_neighborhoods.incident_edges(node);
-  }
-
   //
   // Node degree
   //
@@ -186,32 +172,18 @@ public:
     });
   }
 
-  template <typename Lambda> inline void neighbors(const NodeID u, Lambda &&l) const {
-    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID>;
-    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID, EdgeWeight>;
-    static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
-
-    _compressed_neighborhoods.neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
-      if constexpr (kDecodeEdgeWeights) {
-        return l(e, v, w);
-      } else {
-        return l(e, v);
-      }
-    });
-  }
-
   template <typename Lambda>
-  inline void neighbors(const NodeID u, const NodeID max_num_neighbors, Lambda &&l) const {
-    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID>;
-    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID, EdgeWeight>;
+  inline void adjacent_nodes(const NodeID u, const NodeID max_num_neighbors, Lambda &&l) const {
+    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID>;
+    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID, EdgeWeight>;
     static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
 
     _compressed_neighborhoods
-        .neighbors(u, max_num_neighbors, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
+        .adjacent_nodes(u, max_num_neighbors, [&](const NodeID v, const EdgeWeight w) {
           if constexpr (kDecodeEdgeWeights) {
-            return l(e, v, w);
+            return l(v, w);
           } else {
-            return l(e, v);
+            return l(v);
           }
         });
   }
@@ -220,16 +192,20 @@ public:
   // Parallel iteration
   //
 
+  template <typename Lambda> inline void pfor_nodes_range(Lambda &&l) const {
+    tbb::parallel_for(tbb::blocked_range<NodeID>(0, n()), std::forward<Lambda>(l));
+  }
+
   template <typename Lambda> inline void pfor_nodes(Lambda &&l) const {
-    tbb::parallel_for(static_cast<NodeID>(0), n(), std::forward<Lambda>(l));
+    tbb::parallel_for<NodeID>(0, n(), std::forward<Lambda>(l));
   }
 
   template <typename Lambda> inline void pfor_edges(Lambda &&l) const {
-    tbb::parallel_for(static_cast<EdgeID>(0), m(), std::forward<Lambda>(l));
+    tbb::parallel_for<EdgeID>(0, m(), std::forward<Lambda>(l));
   }
 
   template <typename Lambda>
-  inline void pfor_neighbors(
+  inline void pfor_adjacent_nodes(
       const NodeID u,
       [[maybe_unused]] const NodeID max_num_neighbors,
       [[maybe_unused]] const NodeID grainsize,
@@ -237,7 +213,7 @@ public:
   ) const {
     // The compressed graph does not allow for arbitrary grainsize. It is also not supported
     // to only visit a subrange of neighbors.
-    _compressed_neighborhoods.parallel_neighbors(u, std::forward<Lambda>(l));
+    _compressed_neighborhoods.parallel_adjacent_nodes(u, std::forward<Lambda>(l));
   }
 
   //
@@ -288,9 +264,9 @@ public:
   // Isolated nodes
   //
 
-  void remove_isolated_nodes(const NodeID num_isolated_nodes);
+  void remove_isolated_nodes(NodeID num_isolated_nodes) final;
 
-  void integrate_isolated_nodes();
+  NodeID integrate_isolated_nodes() final;
 
   //
   // Compressions statistics
@@ -413,10 +389,6 @@ public:
 
   [[nodiscard]] const StaticArray<std::uint8_t> &raw_compressed_edges() const {
     return _compressed_neighborhoods.raw_compressed_edges();
-  }
-
-  [[nodiscard]] inline const StaticArray<NodeWeight> &raw_edge_weights() const {
-    return _compressed_neighborhoods.raw_edge_weights();
   }
 
 private:

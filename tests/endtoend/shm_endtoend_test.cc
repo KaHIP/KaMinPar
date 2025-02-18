@@ -12,13 +12,17 @@
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
+
 namespace data {
+
 static std::vector<EdgeID> xadj = {
 #include "data.graph.xadj"
 };
+
 static std::vector<NodeID> adjncy = {
 #include "data.graph.adjncy"
 };
+
 } // namespace data
 
 TEST(ShmEndToEndTest, partitions_empty_unweighted_graph) {
@@ -29,16 +33,16 @@ TEST(ShmEndToEndTest, partitions_empty_unweighted_graph) {
     std::vector<BlockID> partition{};
     KaMinPar shm(4, create_default_context());
     shm.set_output_level(OutputLevel::QUIET);
-    shm.copy_graph(0, xadj.data(), adjncy.data(), nullptr, nullptr);
-    EXPECT_EQ(shm.compute_partition(16, partition.data()), 0);
+    shm.copy_graph(xadj, adjncy);
+    EXPECT_EQ(shm.compute_partition(16, partition), 0);
   }
 
   { // take ownership of graph
     std::vector<BlockID> partition{};
     KaMinPar shm(4, create_default_context());
     shm.set_output_level(OutputLevel::QUIET);
-    shm.borrow_and_mutate_graph(0, xadj.data(), adjncy.data(), nullptr, nullptr);
-    EXPECT_EQ(shm.compute_partition(16, partition.data()), 0);
+    shm.borrow_and_mutate_graph(xadj, adjncy);
+    EXPECT_EQ(shm.compute_partition(16, partition), 0);
   }
 }
 
@@ -52,16 +56,16 @@ TEST(ShmEndToEndTest, partitions_empty_weighted_graph) {
     std::vector<BlockID> partition{};
     KaMinPar shm(4, create_default_context());
     shm.set_output_level(OutputLevel::QUIET);
-    shm.copy_graph(0, xadj.data(), adjncy.data(), vwgt.data(), adjwgt.data());
-    EXPECT_EQ(shm.compute_partition(16, partition.data()), 0);
+    shm.copy_graph(xadj, adjncy, vwgt, adjwgt);
+    EXPECT_EQ(shm.compute_partition(16, partition), 0);
   }
 
   { // take ownership of graph
     std::vector<BlockID> partition{};
     KaMinPar shm(4, create_default_context());
     shm.set_output_level(OutputLevel::QUIET);
-    shm.borrow_and_mutate_graph(0, xadj.data(), adjncy.data(), vwgt.data(), adjwgt.data());
-    EXPECT_EQ(shm.compute_partition(16, partition.data()), 0);
+    shm.borrow_and_mutate_graph(xadj, adjncy, vwgt, adjwgt);
+    EXPECT_EQ(shm.compute_partition(16, partition), 0);
   }
 }
 
@@ -76,8 +80,8 @@ TEST(ShmEndToEndTest, partitions_empty_graph_repeatedly_with_separate_partitione
     KaMinPar::reseed(seed);
     KaMinPar shm(4, create_default_context());
     shm.set_output_level(OutputLevel::QUIET);
-    shm.borrow_and_mutate_graph(0, xadj.data(), adjncy.data(), vwgt.data(), adjwgt.data());
-    EXPECT_EQ(shm.compute_partition(16, partition.data()), 0);
+    shm.borrow_and_mutate_graph(xadj, adjncy, vwgt, adjwgt);
+    EXPECT_EQ(shm.compute_partition(16, partition), 0);
   }
 }
 
@@ -93,8 +97,8 @@ TEST(ShmEndToEndTest, partitions_empty_graph_repeatedly_with_one_partitioner_ins
     std::vector<BlockID> partition{};
 
     KaMinPar::reseed(seed);
-    shm.borrow_and_mutate_graph(0, xadj.data(), adjncy.data(), vwgt.data(), adjwgt.data());
-    EXPECT_EQ(shm.compute_partition(16, partition.data()), 0);
+    shm.borrow_and_mutate_graph(xadj, adjncy, vwgt, adjwgt);
+    EXPECT_EQ(shm.compute_partition(16, partition), 0);
   }
 }
 
@@ -106,12 +110,12 @@ TEST(ShmEndToEndTest, partitions_empty_graph_repeatedly_after_borrow) {
   std::vector<BlockID> partition{};
 
   KaMinPar shm(4, create_default_context());
-  shm.borrow_and_mutate_graph(0, xadj.data(), adjncy.data(), vwgt.data(), adjwgt.data());
+  shm.borrow_and_mutate_graph(xadj, adjncy, vwgt, adjwgt);
   shm.set_output_level(OutputLevel::QUIET);
 
   for (const int seed : {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}) {
     KaMinPar::reseed(seed);
-    EXPECT_EQ(shm.compute_partition(16, partition.data()), 0);
+    EXPECT_EQ(shm.compute_partition(16, partition), 0);
   }
 }
 
@@ -127,8 +131,8 @@ TEST(ShmEndToEndTest, partitions_unweighted_walshaw_data_graph) {
     KaMinPar::reseed(0);
     KaMinPar shm(1, create_default_context()); // 1 thread: deterministic
     shm.set_output_level(OutputLevel::QUIET);
-    shm.copy_graph(n, xadj.data(), adjncy.data(), nullptr, nullptr);
-    reported_cut = shm.compute_partition(16, partition.data());
+    shm.copy_graph(xadj, adjncy);
+    reported_cut = shm.compute_partition(16, partition);
 
     // Cut should be around 1200 -- 1300
     EXPECT_LE(reported_cut, 2000);
@@ -150,10 +154,10 @@ TEST(ShmEndToEndTest, partitions_unweighted_walshaw_data_graph) {
     KaMinPar::reseed(0);
     KaMinPar shm(1, create_default_context()); // 1 thread: deterministic
     shm.set_output_level(OutputLevel::QUIET);
-    shm.borrow_and_mutate_graph(n, xadj.data(), adjncy.data(), nullptr, nullptr);
+    shm.borrow_and_mutate_graph(xadj, adjncy);
 
     // Cut should be the same as before
-    EXPECT_EQ(shm.compute_partition(16, partition.data()), reported_cut);
+    EXPECT_EQ(shm.compute_partition(16, partition), reported_cut);
   }
 }
 
@@ -166,8 +170,8 @@ TEST(ShmEndToEndTest, partitions_unweighted_walshaw_graph_multiple_times_with_sa
   KaMinPar::reseed(0);
   KaMinPar shm(1, create_default_context()); // 1 thread: deterministic
   shm.set_output_level(OutputLevel::QUIET);
-  shm.copy_graph(n, xadj.data(), adjncy.data(), nullptr, nullptr);
-  shm.compute_partition(16, seed0_partition.data());
+  shm.copy_graph(xadj, adjncy);
+  shm.compute_partition(16, seed0_partition);
 
   // Partition with the same seed multiple times: result should stay the same
   for (const int seed : {0, 0, 0}) {
@@ -175,8 +179,8 @@ TEST(ShmEndToEndTest, partitions_unweighted_walshaw_graph_multiple_times_with_sa
     KaMinPar::reseed(seed);
     KaMinPar shm(1, create_default_context()); // 1 thread: deterministic
     shm.set_output_level(OutputLevel::QUIET);
-    shm.copy_graph(n, xadj.data(), adjncy.data(), nullptr, nullptr);
-    shm.compute_partition(16, partition.data());
+    shm.copy_graph(xadj, adjncy);
+    shm.compute_partition(16, partition);
     EXPECT_EQ(seed0_partition, partition);
   }
 }
@@ -190,8 +194,8 @@ TEST(ShmEndToEndTest, partitions_unweighted_walshaw_graph_multiple_times_with_di
   KaMinPar::reseed(0);
   KaMinPar shm(1, create_default_context()); // 1 thread: deterministic
   shm.set_output_level(OutputLevel::QUIET);
-  shm.copy_graph(n, xadj.data(), adjncy.data(), nullptr, nullptr);
-  shm.compute_partition(16, seed0_partition.data());
+  shm.copy_graph(xadj, adjncy);
+  shm.compute_partition(16, seed0_partition);
 
   // Partition with the different seeds: result should change
   for (const int seed : {1, 2, 3}) {
@@ -199,9 +203,10 @@ TEST(ShmEndToEndTest, partitions_unweighted_walshaw_graph_multiple_times_with_di
     KaMinPar::reseed(seed);
     KaMinPar shm(1, create_default_context()); // 1 thread: deterministic
     shm.set_output_level(OutputLevel::QUIET);
-    shm.copy_graph(n, xadj.data(), adjncy.data(), nullptr, nullptr);
-    shm.compute_partition(16, partition.data());
+    shm.copy_graph(xadj, adjncy);
+    shm.compute_partition(16, partition);
     EXPECT_NE(seed0_partition, partition);
   }
 }
+
 } // namespace kaminpar::shm

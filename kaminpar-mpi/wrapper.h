@@ -7,12 +7,9 @@
  ******************************************************************************/
 #pragma once
 
-#include <utility>
-
 #include <mpi.h>
 
 #include "kaminpar-mpi/datatype.h"
-#include "kaminpar-mpi/definitions.h"
 #include "kaminpar-mpi/utils.h"
 
 #include "kaminpar-common/assert.h"
@@ -21,6 +18,7 @@
 #include "kaminpar-common/parallel/algorithm.h"
 
 namespace kaminpar::mpi {
+
 //
 // Pointer interface for collective operations
 //
@@ -463,4 +461,5 @@ template <typename T> std::string gather_statistics_str(const T value, MPI_Comm 
   os << "min=" << min << "|avg=" << avg << "|max=" << max << "|sum=" << sum;
   return os.str();
 }
+
 } // namespace kaminpar::mpi

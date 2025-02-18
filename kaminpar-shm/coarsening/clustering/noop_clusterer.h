@@ -14,6 +14,7 @@
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm {
+
 class NoopClusterer : public Clusterer {
 public:
   NoopClusterer() = default;
@@ -43,4 +44,5 @@ public:
     tbb::parallel_for<NodeID>(0, graph.n(), [&](const NodeID i) { clustering[i] = i; });
   }
 };
+
 } // namespace kaminpar::shm

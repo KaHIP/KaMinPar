@@ -9,7 +9,7 @@
 
 #include <stdexcept>
 
-#include "kaminpar-dist/context.h"
+#include "kaminpar-dist/dkaminpar.h"
 
 #include "kaminpar-shm/presets.h"
 
@@ -35,6 +35,8 @@ std::unordered_set<std::string> get_preset_names() {
   return {
       "default",
       "strong",
+      "jet",
+      "4xjet",
       "europar23-fast",
       "europar23-strong",
   };
@@ -43,15 +45,17 @@ std::unordered_set<std::string> get_preset_names() {
 Context create_default_context() {
   return {
       .rearrange_by = GraphOrdering::DEGREE_BUCKETS,
-      .mode = PartitioningMode::DEEP,
-      .enable_pe_splitting = true,
-      .simulate_singlethread = true,
-      .partition =
+      .partitioning =
           {
-              kInvalidBlockID, // k
-              128,             // K
-              0.03,            // epsilon
+
+              .mode = PartitioningMode::DEEP,
+              .initial_k = 2,
+              .extension_k = 0,
+              .avoid_toplevel_bipartitioning = true,
+              .enable_pe_splitting = true,
+              .simulate_singlethread = true,
           },
+      .partition = {},
       .parallel =
           {
               .num_threads = 1,
@@ -84,9 +88,8 @@ Context create_default_context() {
                       .keep_ghost_clusters = false,
                       .sync_cluster_weights = true,
                       .enforce_cluster_weights = true,
-                      .cheap_toplevel = false,
                       .prevent_cyclic_moves = false,
-                      .enforce_legacy_weight = false,
+                      .active_set_strategy = ActiveSetStrategy::NONE,
                   },
               .hem =
                   {
@@ -116,9 +119,8 @@ Context create_default_context() {
                       .keep_ghost_clusters = false,
                       .sync_cluster_weights = false,
                       .enforce_cluster_weights = false,
-                      .cheap_toplevel = false,
                       .prevent_cyclic_moves = false,
-                      .enforce_legacy_weight = false,
+                      .active_set_strategy = ActiveSetStrategy::NONE,
                   },
               .contraction_limit = 2000,
               .cluster_weight_limit = shm::ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
@@ -223,6 +225,7 @@ Context create_default_context() {
                       .initial_negative_gain_factor = 0.75,
                       .final_negative_gain_factor = 0.25,
                       .balancing_algorithm = RefinementAlgorithm::HYBRID_NODE_BALANCER,
+                      .gain_cache_strategy = GainCacheStrategy::ON_THE_FLY,
                   },
               .mtkahypar =
                   {
@@ -266,7 +269,8 @@ Context create_jet_context() {
 
 Context create_europar23_fast_context() {
   Context ctx = create_default_context();
-  ctx.coarsening.global_lp.enforce_legacy_weight = true;
+  ctx.partitioning.initial_k = 128;
+  ctx.partitioning.extension_k = 128;
   return ctx;
 }
 

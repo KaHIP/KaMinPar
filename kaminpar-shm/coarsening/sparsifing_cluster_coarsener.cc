@@ -3,7 +3,6 @@
  *
  * @file:   cluster_coarsener.cc
  * @author: Dominik Rosch
- * @date:   29.09.2021
  ******************************************************************************/
 #include "kaminpar-shm/coarsening/sparsifing_cluster_coarsener.h"
 
@@ -181,7 +180,7 @@ PartitionedGraph SparsifyingClusteringCoarsener::uncoarsen(PartitionedGraph &&p_
   STOP_HEAP_PROFILER();
 
   START_TIMER("Project partition");
-  coarsened->project(p_graph_partition, partition);
+  coarsened->project_up(p_graph_partition, partition);
   STOP_TIMER();
 
   SCOPED_HEAP_PROFILER("Create graph");

@@ -8,11 +8,14 @@
 #pragma once
 
 #include <iostream>
+#include <sstream>
+#include <string>
 #include <unordered_map>
 
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
+
 std::ostream &operator<<(std::ostream &out, NodeOrdering ordering);
 
 std::unordered_map<std::string, NodeOrdering> get_node_orderings();
@@ -62,16 +65,6 @@ std::unordered_map<std::string, TieBreakingStrategy> get_tie_breaking_strategies
 
 std::ostream &operator<<(std::ostream &out, TieBreakingStrategy strategy);
 
-std::ostream &operator<<(std::ostream &out, SecondPhaseSelectionStrategy strategy);
-
-std::unordered_map<std::string, SecondPhaseSelectionStrategy>
-get_second_phase_selection_strategies();
-
-std::ostream &operator<<(std::ostream &out, SecondPhaseAggregationStrategy strategy);
-
-std::unordered_map<std::string, SecondPhaseAggregationStrategy>
-get_second_phase_aggregation_strategies();
-
 std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies();
 
 std::ostream &operator<<(std::ostream &out, TwoHopStrategy strategy);
@@ -99,4 +92,11 @@ void print(const RefinementContext &r_ctx, std::ostream &out);
 void print(const CoarseningContext &c_ctx, std::ostream &out);
 void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out);
 void print(const InitialPartitioningContext &i_ctx, std::ostream &out);
+
+template <typename T> std::string stringify_enum(const T val) {
+  std::stringstream ss;
+  ss << val;
+  return ss.str();
+}
+
 } // namespace kaminpar::shm

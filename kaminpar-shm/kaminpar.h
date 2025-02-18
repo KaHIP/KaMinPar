@@ -7,21 +7,31 @@
  ******************************************************************************/
 #pragma once
 
+#ifdef __cplusplus
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <numeric>
+#include <span>
 #include <string>
 #include <unordered_set>
 #include <vector>
 
 #include <tbb/global_control.h>
+#endif // __cplusplus
+
+#include <stdbool.h>
+#include <stdint.h>
 
 #define KAMINPAR_VERSION_MAJOR 3
-#define KAMINPAR_VERSION_MINOR 0
+#define KAMINPAR_VERSION_MINOR 2
 #define KAMINPAR_VERSION_PATCH 0
 
+#ifdef __cplusplus
 namespace kaminpar {
+
 enum class OutputLevel : std::uint8_t {
   QUIET,       //! Disable all output to stdout.
   PROGRESS,    //! Continuously output progress information while partitioning.
@@ -29,9 +39,22 @@ enum class OutputLevel : std::uint8_t {
   EXPERIMENT,  //! Also output information only relevant for benchmarking.
   DEBUG,       //! Also output (a sane amount) of debug information.
 };
-} // namespace kaminpar
 
+} // namespace kaminpar
+#endif // __cplusplus
+
+// C interface:
+typedef enum {
+  KAMINPAR_OUTPUT_LEVEL_QUIET = 0,
+  KAMINPAR_OUTPUT_LEVEL_PROGRESS = 1,
+  KAMINPAR_OUTPUT_LEVEL_APPLICATION = 2,
+  KAMINPAR_OUTPUT_LEVEL_EXPERIMENT = 3,
+  KAMINPAR_OUTPUT_LEVEL_DEBUG = 4,
+} kaminpar_output_level_t;
+
+#ifdef __cplusplus
 namespace kaminpar::shm {
+
 #ifdef KAMINPAR_64BIT_NODE_IDS
 using NodeID = std::uint64_t;
 #else  // KAMINPAR_64BIT_NODE_IDS
@@ -51,9 +74,9 @@ using UnsignedEdgeWeight = std::uint64_t;
 using UnsignedNodeWeight = std::uint64_t;
 #else  // KAMINPAR_64BIT_WEIGHTS
 using NodeWeight = std::int32_t;
+using UnsignedNodeWeight = std::uint32_t;
 using EdgeWeight = std::int32_t;
 using UnsignedEdgeWeight = std::uint32_t;
-using UnsignedNodeWeight = std::uint32_t;
 #endif // KAMINPAR_64BIT_WEIGHTS
 
 using BlockID = std::uint32_t;
@@ -65,6 +88,40 @@ constexpr EdgeID kInvalidEdgeID = std::numeric_limits<EdgeID>::max();
 constexpr NodeWeight kInvalidNodeWeight = std::numeric_limits<NodeWeight>::max();
 constexpr EdgeWeight kInvalidEdgeWeight = std::numeric_limits<EdgeWeight>::max();
 constexpr BlockWeight kInvalidBlockWeight = std::numeric_limits<BlockWeight>::max();
+
+} // namespace kaminpar::shm
+#endif // __cplusplus
+
+// C interface:
+#ifdef KAMINPAR_64BIT_NODE_IDS
+typedef uint64_t kaminpar_node_id_t;
+#else  // KAMINPAR_64BIT_NODE_IDS
+typedef uint32_t kaminpar_node_id_t;
+#endif // KAMINPAR_64BIT_NODE_IDS
+
+#ifdef KAMINPAR_64BIT_EDGE_IDS
+typedef uint64_t kaminpar_edge_id_t;
+#else  // KAMINPAR_64BIT_EDGE_IDS
+typedef uint32_t kaminpar_edge_id_t;
+#endif // KAMINPAR_64BIT_EDGE_IDS
+
+#ifdef KAMINPAR_64BIT_WEIGHTS
+typedef int64_t kaminpar_node_weight_t;
+typedef int64_t kaminpar_edge_weight_t;
+typedef uint64_t kaminpar_unsigned_edge_weight_t;
+typedef uint64_t kaminpar_unsigned_node_weight_t;
+#else  // KAMINPAR_64BIT_WEIGHTS
+typedef int32_t kaminpar_node_weight_t;
+typedef uint32_t kaminpar_unsigned_node_weight_t;
+typedef int32_t kaminpar_edge_weight_t;
+typedef uint32_t kaminpar_unsigned_edge_weight_t;
+#endif // KAMINPAR_64BIT_WEIGHTS
+
+typedef uint32_t kaminpar_block_id_t;
+typedef kaminpar_node_weight_t kaminpar_block_weight_t;
+
+#ifdef __cplusplus
+namespace kaminpar::shm {
 
 enum class NodeOrdering {
   NATURAL,
@@ -85,6 +142,7 @@ enum class EdgeOrdering {
 enum class CoarseningAlgorithm {
   NOOP,
   CLUSTERING,
+  OVERLAY_CLUSTERING,
   SPARSIFYING_CLUSTERING,
 };
 
@@ -109,7 +167,6 @@ enum class ScoreFunctionSection {
 enum class ClusteringAlgorithm {
   NOOP,
   LABEL_PROPAGATION,
-  LEGACY_LABEL_PROPAGATION,
 };
 
 enum class ClusterWeightLimit {
@@ -125,24 +182,12 @@ enum class LabelPropagationImplementation {
   GROWING_HASH_TABLES
 };
 
-enum class SecondPhaseSelectionStrategy {
-  HIGH_DEGREE,
-  FULL_RATING_MAP
-};
-
-enum class SecondPhaseAggregationStrategy {
-  NONE,
-  DIRECT,
-  BUFFERED
-};
-
 enum class TwoHopStrategy {
   DISABLE,
   MATCH,
   MATCH_THREADWISE,
   CLUSTER,
   CLUSTER_THREADWISE,
-  LEGACY,
 };
 
 enum class IsolatedNodesClusteringStrategy {
@@ -160,7 +205,6 @@ enum class TieBreakingStrategy {
 
 enum class ContractionAlgorithm {
   BUFFERED,
-  BUFFERED_LEGACY,
   UNBUFFERED,
   UNBUFFERED_NAIVE,
 };
@@ -177,9 +221,6 @@ struct LabelPropagationCoarseningContext {
   NodeID max_num_neighbors;
 
   LabelPropagationImplementation impl;
-
-  SecondPhaseSelectionStrategy second_phase_selection_strategy;
-  SecondPhaseAggregationStrategy second_phase_aggregation_strategy;
   bool relabel_before_second_phase;
 
   TwoHopStrategy two_hop_strategy;
@@ -214,10 +255,16 @@ struct ClusterCoarseningContext {
   double forced_level_lower_factor;
 };
 
+struct OverlayClusterCoarseningContext {
+  int num_levels;
+  int max_level;
+};
+
 struct CoarseningContext {
   CoarseningAlgorithm algorithm;
 
   ClusterCoarseningContext clustering;
+  OverlayClusterCoarseningContext overlay_clustering;
   ContractionCoarseningContext contraction;
 
   NodeID contraction_limit;
@@ -245,7 +292,6 @@ struct SparsificationContext {
 
 enum class RefinementAlgorithm {
   LABEL_PROPAGATION,
-  LEGACY_LABEL_PROPAGATION,
   KWAY_FM,
   GREEDY_BALANCER,
   JET,
@@ -278,9 +324,6 @@ struct LabelPropagationRefinementContext {
   LabelPropagationImplementation impl;
 
   TieBreakingStrategy tie_breaking_strategy;
-
-  SecondPhaseSelectionStrategy second_phase_selection_strategy;
-  SecondPhaseAggregationStrategy second_phase_aggregation_strategy;
 };
 
 struct KwayFMRefinementContext {
@@ -344,6 +387,7 @@ enum class InitialPartitioningMode {
   SEQUENTIAL,
   ASYNCHRONOUS_PARALLEL,
   SYNCHRONOUS_PARALLEL,
+  COMMUNITIES,
 };
 
 struct InitialCoarseningContext {
@@ -389,51 +433,106 @@ struct InitialPartitioningContext {
   InitialRefinementContext refinement;
 
   bool refine_pool_partition;
+  bool use_adaptive_epsilon;
 };
 
 //
 // Application level
 //
 
-class AbstractGraph;
-class Graph;
-struct PartitionContext;
-
-struct BlockWeightsContext {
-  void setup(const PartitionContext &ctx, const bool parallel = true);
-  void setup(const PartitionContext &ctx, const BlockID input_k, const bool parallel = true);
-
-  [[nodiscard]] BlockWeight max(BlockID b) const {
-    return _max_block_weights[b];
-  }
-
-  [[nodiscard]] const std::vector<BlockWeight> &all_max() const;
-
-  [[nodiscard]] BlockWeight perfectly_balanced(BlockID b) const {
-    return _perfectly_balanced_block_weights[b];
-  }
-
-  [[nodiscard]] const std::vector<BlockWeight> &all_perfectly_balanced() const;
-
-private:
-  std::vector<BlockWeight> _perfectly_balanced_block_weights;
-  std::vector<BlockWeight> _max_block_weights;
-};
-
 struct PartitionContext {
-  double epsilon;
-  BlockID k;
-
-  BlockWeightsContext block_weights{};
-  void setup_block_weights();
-
+  NodeID original_n = kInvalidNodeID;
   NodeID n = kInvalidNodeID;
   EdgeID m = kInvalidEdgeID;
+  NodeWeight original_total_node_weight = kInvalidNodeWeight;
   NodeWeight total_node_weight = kInvalidNodeWeight;
   EdgeWeight total_edge_weight = kInvalidEdgeWeight;
   NodeWeight max_node_weight = kInvalidNodeWeight;
 
-  void setup(const AbstractGraph &graph, const bool setup_block_weights = true);
+  BlockID k;
+
+  [[nodiscard]] BlockWeight perfectly_balanced_block_weight(const BlockID block) const {
+    return std::ceil(1.0 * _unrelaxed_max_block_weights[block] / (1 + inferred_epsilon()));
+  }
+
+  [[nodiscard]] BlockWeight max_block_weight(const BlockID block) const {
+    return _max_block_weights[block];
+  }
+
+  [[nodiscard]] BlockWeight total_max_block_weights(const BlockID begin, const BlockID end) const {
+    if (_uniform_block_weights) {
+      return _max_block_weights[begin] * (end - begin);
+    }
+
+    return std::accumulate(
+        _max_block_weights.begin() + begin,
+        _max_block_weights.begin() + end,
+        static_cast<BlockWeight>(0)
+    );
+  }
+
+  [[nodiscard]] BlockWeight
+  total_unrelaxed_max_block_weights(const BlockID begin, const BlockID end) const {
+    if (_uniform_block_weights) {
+      return (1.0 + inferred_epsilon()) * std::ceil(1.0 * (end - begin) * total_node_weight / k);
+    }
+
+    return std::accumulate(
+        _unrelaxed_max_block_weights.begin() + begin,
+        _unrelaxed_max_block_weights.begin() + end,
+        static_cast<BlockWeight>(0)
+    );
+  }
+
+  [[nodiscard]] double epsilon() const {
+    return _epsilon < 0.0 ? inferred_epsilon() : _epsilon;
+  }
+
+  [[nodiscard]] double infer_epsilon(const NodeWeight actual_total_node_weight) const {
+    if (_uniform_block_weights) {
+      const double max = (1.0 + _epsilon) * std::ceil(1.0 * original_total_node_weight / k);
+      return max / std::ceil(1.0 * actual_total_node_weight / k) - 1.0;
+    }
+
+    return 1.0 * _total_max_block_weights / actual_total_node_weight - 1.0;
+  }
+
+  [[nodiscard]] double inferred_epsilon() const {
+    return infer_epsilon(total_node_weight);
+  }
+
+  void set_epsilon(const double eps) {
+    _epsilon = eps;
+  }
+
+  [[nodiscard]] bool has_epsilon() const {
+    return _epsilon > 0.0;
+  }
+
+  [[nodiscard]] bool has_uniform_block_weights() const {
+    return _uniform_block_weights;
+  }
+
+  void setup(
+      const class AbstractGraph &graph,
+      BlockID k,
+      double epsilon,
+      bool relax_max_block_weights = false
+  );
+
+  void setup(
+      const class AbstractGraph &graph,
+      std::vector<BlockWeight> max_block_weights,
+      bool relax_max_block_weights = false
+  );
+
+private:
+  std::vector<BlockWeight> _max_block_weights{};
+  std::vector<BlockWeight> _unrelaxed_max_block_weights{};
+
+  BlockWeight _total_max_block_weights = 0;
+  double _epsilon = -1.0;
+  bool _uniform_block_weights = false;
 };
 
 struct ParallelContext {
@@ -456,6 +555,7 @@ struct DebugContext {
 
 enum class PartitioningMode {
   DEEP,
+  VCYCLE,
   RB,
   KWAY,
 };
@@ -469,18 +569,21 @@ struct PartitioningContext {
   bool refine_after_extending_partition;
 
   bool use_lazy_subgraph_memory;
+
+  std::vector<BlockID> vcycles;
+  bool restrict_vcycle_refinement;
+
+  bool rb_enable_kway_toplevel_refinement;
 };
 
 struct GraphCompressionContext {
   bool enabled;
 
-  bool compressed_edge_weights = false;
   bool high_degree_encoding = false;
   NodeID high_degree_threshold = kInvalidNodeID;
   NodeID high_degree_part_length = kInvalidNodeID;
   bool interval_encoding = false;
   NodeID interval_length_treshold = kInvalidNodeID;
-  bool run_length_encoding = false;
   bool streamvbyte_encoding = false;
 
   double compression_ratio = -1;
@@ -490,7 +593,7 @@ struct GraphCompressionContext {
   std::size_t num_interval_nodes = std::numeric_limits<std::size_t>::max();
   std::size_t num_intervals = std::numeric_limits<std::size_t>::max();
 
-  void setup(const Graph &graph);
+  void setup(const class Graph &graph);
 };
 
 struct Context {
@@ -506,39 +609,78 @@ struct Context {
   RefinementContext refinement;
   ParallelContext parallel;
   DebugContext debug;
-
-  void setup(const Graph &graph);
 };
+
 } // namespace kaminpar::shm
+#endif // __cplusplus
 
 //
 // Configuration presets
 //
 
+#ifdef __cplusplus
 namespace kaminpar::shm {
+
 std::unordered_set<std::string> get_preset_names();
+
 Context create_context_by_preset_name(const std::string &name);
 
 Context create_default_context();
 Context create_fast_context();
 Context create_strong_context();
 
-Context create_largek_context();
-Context create_fast_largek_context();
-Context create_strong_largek_context();
+Context create_terapart_context();
+Context create_terapart_strong_context();
+Context create_terapart_largek_context();
 
-Context create_memory_context();
-Context create_strong_memory_context();
+Context create_largek_context();
+Context create_largek_fast_context();
+Context create_largek_strong_context();
 
 Context create_jet_context(int rounds = 1);
 Context create_noref_context();
+
+Context create_vcycle_context(bool restrict_refinement = false);
+
+Context create_esa21_smallk_context();
+Context create_esa21_largek_context();
+Context create_esa21_largek_fast_context();
+Context create_esa21_strong_context();
+
 } // namespace kaminpar::shm
+#endif // __cplusplus
+
+// C interface
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
+
+typedef struct kaminpar_context_t kaminpar_context_t;
+kaminpar_context_t *kaminpar_create_context_by_preset_name(const char *name);
+kaminpar_context_t *kaminpar_create_default_context();
+kaminpar_context_t *kaminpar_create_strong_context();
+kaminpar_context_t *kaminpar_create_terapart_context();
+kaminpar_context_t *kaminpar_create_largek_context();
+kaminpar_context_t *kaminpar_create_vcycle_context(bool restrict_refinement);
+void kaminpar_context_free(kaminpar_context_t *ctx);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif // __cplusplus
 
 //
 // Shared-memory partitioner interface
 //
 
+#ifdef __cplusplus
 namespace kaminpar {
+
+namespace shm {
+
+class Graph;
+
+} // namespace shm
+
 class KaMinPar {
 public:
   KaMinPar(int num_threads, shm::Context ctx);
@@ -555,6 +697,8 @@ public:
 
   /*!
    * Sets the verbosity of the partitioner.
+   *
+   * @param output_level Integer verbosity level, higher values mean more output.
    */
   void set_output_level(OutputLevel output_level);
 
@@ -579,7 +723,6 @@ public:
    * particular, the partitioner might modify the data pointed to. The caller is responsible for
    * free'ing the memory.
    *
-   * @param n The number of nodes in the graph.
    * @param xadj Array of length `n + 1`, where `xadj[u]` points to the first neighbor of node `u`
    * in `adjncy`. In other words, the neighbors of `u` are `adjncy[xadj[u]..xadj[u+1]-1]`.
    * @param adjncy Array of length `xadj[n]` storing the neighbors of all nodes.
@@ -589,17 +732,15 @@ public:
    * edges must be assigned the same weight. If the edges are unweighted, pass `nullptr`.
    */
   void borrow_and_mutate_graph(
-      shm::NodeID n,
-      shm::EdgeID *xadj,
-      shm::NodeID *adjncy,
-      shm::NodeWeight *vwgt,
-      shm::EdgeWeight *adjwgt
+      std::span<shm::EdgeID> xadj,
+      std::span<shm::NodeID> adjncy,
+      std::span<shm::NodeWeight> vwgt = {},
+      std::span<shm::EdgeWeight> adjwgt = {}
   );
 
   /*!
    * Sets the graph to be partitioned by copying the data pointed to by the given pointers.
    *
-   * @param n The number of nodes in the graph.
    * @param xadj Array of length `n + 1`, where `xadj[u]` points to the first neighbor of node `u`
    * in `adjncy`. In other words, the neighbors of `u` are `adjncy[xadj[u]..xadj[u+1]-1]`.
    * @param adjncy Array of length `xadj[n]` storing the neighbors of all nodes.
@@ -609,11 +750,10 @@ public:
    * edges must be assigned the same weight. If the edges are unweighted, pass `nullptr`.
    */
   void copy_graph(
-      shm::NodeID n,
-      const shm::EdgeID *const xadj,
-      const shm::NodeID *const adjncy,
-      const shm::NodeWeight *const vwgt,
-      const shm::EdgeWeight *const adjwgt
+      std::span<const shm::EdgeID> xadj,
+      std::span<const shm::NodeID> adjncy,
+      std::span<const shm::NodeWeight> vwgt = {},
+      std::span<const shm::EdgeWeight> adjwgt = {}
   );
 
   /*!
@@ -624,17 +764,62 @@ public:
   void set_graph(shm::Graph graph);
 
   /*!
-   * Partitions the graph set by `borrow_and_mutate_graph()` or `copy_graph()` into `k` blocks.
+   * Partitions the graph set by `borrow_and_mutate_graph()` or `copy_graph()` into `k` blocks with
+   * a maximum imbalance of 3%.
    *
-   * @param k The number of blocks to partition the graph into.
-   * @param partition Array of length `n` for storing the partition. The caller is reponsible for
-   * allocating and freeing the memory.
+   * @param k Number of blocks.
+   * @param[out] partition Span of length `n` to store the partitioning.
    *
-   * @return The edge-cut of the partition.
+   * @return Expected edge cut of the partition.
    */
-  shm::EdgeWeight compute_partition(shm::BlockID k, shm::BlockID *partition);
+  shm::EdgeWeight compute_partition(shm::BlockID k, std::span<shm::BlockID> partition);
+
+  /*!
+   * Partitions the graph set by `borrow_and_mutate_graph()` or `copy_graph()` into `k` blocks with
+   * a maximum imbalance of `epsilon`.
+   *
+   * @param k Number of blocks.
+   * @param epsilon Balance constraint (e.g., 0.03 for max 3% imbalance).
+   * @param[out] partition Span of length `n` to store the partitioning.
+   *
+   * @return Expected edge cut of the partition.
+   */
+  shm::EdgeWeight
+  compute_partition(shm::BlockID k, double epsilon, std::span<shm::BlockID> partition);
+
+  /*!
+   * Partitions the graph set by `borrow_and_mutate_graph()` or `copy_graph()` such that the
+   * weight of each block is upper bounded by `max_block_weights`. The number of blocks is given
+   * implicitly by the size of the vector.
+   *
+   * @param max_block_weights Maximum weight for each block of the partition.
+   * @param[out] partition Span of length `n` to store the partitioning.
+   *
+   * @return Expected edge cut of the partition.
+   */
+  shm::EdgeWeight compute_partition(
+      std::vector<shm::BlockWeight> max_block_weights, std::span<shm::BlockID> partition
+  );
+
+  /*!
+   * Partitions the graph set by `borrow_and_mutate_graph()` or `copy_graph()` such that the
+   * weight of each block is upper bounded by `max_block_weight_factors` times the total node weigh
+   * of the graph. The number of blocks is given implicitly by the size of the vector.
+   *
+   * @param max_block_weight_factors Maximum weight factor for each block of the partition.
+   * @param[out] partition Span of length `n` to store the partitioning.
+   *
+   * @return Expected edge cut of the partition.
+   */
+  shm::EdgeWeight compute_partition(
+      std::vector<double> max_block_weight_factors, std::span<shm::BlockID> partition
+  );
+
+  const shm::Graph *graph();
 
 private:
+  shm::EdgeWeight compute_partition(std::span<shm::BlockID> partition);
+
   int _num_threads;
 
   int _max_timer_depth = std::numeric_limits<int>::max();
@@ -646,4 +831,63 @@ private:
 
   bool _was_rearranged = false;
 };
+
 } // namespace kaminpar
+#endif // __cplusplus
+
+// C interface
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
+
+typedef struct kaminpar_t kaminpar_t;
+
+kaminpar_t *kaminpar_create(int num_threads, kaminpar_context_t *ctx);
+void kaminpar_free(kaminpar_t *kaminpar);
+
+void kaminpar_set_output_level(kaminpar_t *kaminpar, kaminpar_output_level_t output_level);
+void kaminpar_set_max_timer_depth(kaminpar_t *kaminpar, int max_timer_depth);
+
+void kaminpar_copy_graph(
+    kaminpar_t *kaminpar,
+    kaminpar_node_id_t n,
+    const kaminpar_edge_id_t *xadj,
+    const kaminpar_node_id_t *adjncy,
+    const kaminpar_node_weight_t *vwgt,
+    const kaminpar_edge_weight_t *adjwgt
+);
+
+void kaminpar_borrow_and_mutate_graph(
+    kaminpar_t *kaminpar,
+    kaminpar_node_id_t n,
+    kaminpar_edge_id_t *xadj,
+    kaminpar_node_id_t *adjncy,
+    kaminpar_node_weight_t *vwgt,
+    kaminpar_edge_weight_t *adjwgt
+);
+
+kaminpar_edge_weight_t kaminpar_compute_partition(
+    kaminpar_t *kaminpar, kaminpar_block_id_t k, kaminpar_block_id_t *partition
+);
+
+kaminpar_edge_weight_t kaminpar_compute_partition_with_epsilon(
+    kaminpar_t *kaminpar, kaminpar_block_id_t k, double epsilon, kaminpar_block_id_t *partition
+);
+
+kaminpar_edge_weight_t kaminpar_compute_partition_with_max_block_weight_factors(
+    kaminpar_t *kaminpar,
+    kaminpar_block_id_t k,
+    const double *max_block_weight_factors,
+    kaminpar_block_id_t *partition
+);
+
+kaminpar_edge_weight_t kaminpar_compute_partition_with_max_block_weights(
+    kaminpar_t *kaminpar,
+    kaminpar_block_id_t k,
+    const kaminpar_block_weight_t *max_block_weights,
+    kaminpar_block_id_t *partition
+);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif // __cplusplus

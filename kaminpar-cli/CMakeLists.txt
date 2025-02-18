@@ -8,12 +8,14 @@ set(DKAMINPAR_CLI_SOURCE_FILES
     dkaminpar_arguments.h)
 
 add_library(kaminpar_cli ${KAMINPAR_CLI_SOURCE_FILES})
-target_include_directories(kaminpar_cli PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../")
+add_library(KaMinPar::KaMinParCLI ALIAS kaminpar_cli)
+
 target_link_libraries(kaminpar_cli PUBLIC kaminpar_shm)
 target_compile_options(kaminpar_cli PRIVATE ${KAMINPAR_WARNING_FLAGS})
 
 if (TARGET kaminpar_dist)
     add_library(kaminpar_dist_cli ${DKAMINPAR_CLI_SOURCE_FILES})
-    target_include_directories(kaminpar_dist_cli PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../")
+    add_library(KaMinPar::dKaMinParCLI ALIAS kaminpar_dist_cli)
+
     target_link_libraries(kaminpar_dist_cli PUBLIC kaminpar_dist)
 endif ()

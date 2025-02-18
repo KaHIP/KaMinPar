@@ -12,13 +12,13 @@
 #include "kaminpar-mpi/utils.h"
 
 #include "kaminpar-dist/datastructures/abstract_distributed_graph.h"
+#include "kaminpar-dist/datastructures/ghost_graph.h"
 #include "kaminpar-dist/datastructures/ghost_node_mapper.h"
-#include "kaminpar-dist/datastructures/growt.h"
 #include "kaminpar-dist/dkaminpar.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/degree_buckets.h"
-#include "kaminpar-common/graph-compression/compressed_neighborhoods.h"
+#include "kaminpar-common/graph_compression/compressed_neighborhoods.h"
 
 namespace kaminpar::dist {
 
@@ -270,10 +270,6 @@ public:
     return {static_cast<EdgeID>(0), m()};
   }
 
-  [[nodiscard]] inline IotaRange<EdgeID> incident_edges(const NodeID u) const final {
-    return _compressed_neighborhoods.incident_edges(u);
-  }
-
   //
   // Graph operations
   //
@@ -292,34 +288,76 @@ public:
     });
   }
 
-  template <typename Lambda> inline void neighbors(const NodeID u, Lambda &&l) const {
-    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID>;
-    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID, EdgeWeight>;
+  template <typename Lambda>
+  inline void adjacent_nodes(const NodeID u, const NodeID max_num_neighbors, Lambda &&l) const {
+    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID>;
+    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID, EdgeWeight>;
     static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
 
-    _compressed_neighborhoods.neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
+    _compressed_neighborhoods
+        .adjacent_nodes(u, max_num_neighbors, [&](const NodeID v, const EdgeWeight w) {
+          if constexpr (kDecodeEdgeWeights) {
+            return l(v, w);
+          } else {
+            return l(v);
+          }
+        });
+  }
+
+  template <typename Lambda> inline void adjacent_ghost_nodes(const NodeID u, Lambda &&l) const {
+    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID>;
+    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID, EdgeWeight>;
+    static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
+
+    using LambdaReturnType = std::conditional_t<
+        kDecodeEdgeWeights,
+        std::invoke_result<Lambda, NodeID, EdgeWeight>,
+        std::invoke_result<Lambda, NodeID>>::type;
+    constexpr bool kNonStoppable = std::is_void_v<LambdaReturnType>;
+
+    _compressed_neighborhoods.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+      if (!is_ghost_node(v)) {
+        if constexpr (kNonStoppable) {
+          return;
+        } else {
+          return false;
+        }
+      }
+
       if constexpr (kDecodeEdgeWeights) {
-        return l(e, v, w);
+        return l(v, w);
       } else {
-        return l(e, v);
+        return l(v);
       }
     });
   }
 
-  template <typename Lambda>
-  inline void neighbors(const NodeID u, const NodeID max_num_neighbors, Lambda &&l) const {
-    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID>;
-    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID, EdgeWeight>;
+  template <typename Lambda> inline void adjacent_owned_nodes(const NodeID u, Lambda &&l) const {
+    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID>;
+    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID, EdgeWeight>;
     static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
 
-    _compressed_neighborhoods
-        .neighbors(u, max_num_neighbors, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
-          if constexpr (kDecodeEdgeWeights) {
-            return l(e, v, w);
-          } else {
-            return l(e, v);
-          }
-        });
+    using LambdaReturnType = std::conditional_t<
+        kDecodeEdgeWeights,
+        std::invoke_result<Lambda, NodeID, EdgeWeight>,
+        std::invoke_result<Lambda, NodeID>>::type;
+    constexpr bool kNonStoppable = std::is_void_v<LambdaReturnType>;
+
+    _compressed_neighborhoods.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+      if (is_ghost_node(v)) {
+        if constexpr (kNonStoppable) {
+          return;
+        } else {
+          return false;
+        }
+      }
+
+      if constexpr (kDecodeEdgeWeights) {
+        return l(v, w);
+      } else {
+        return l(v);
+      }
+    });
   }
 
   //
@@ -357,7 +395,7 @@ public:
   }
 
   template <typename Lambda> inline void pfor_edges(Lambda &&l) const {
-    pfor_nodes([&](const NodeID u) { neighbors(u, std::forward<Lambda>(l)); });
+    pfor_nodes([&](const NodeID u) { adjacent_nodes(u, std::forward<Lambda>(l)); });
   }
 
   //
@@ -584,9 +622,10 @@ private:
 
   CompactGhostNodeMapping _ghost_node_mapping;
 
-  // mutable for lazy initialization
+  // Mutable for lazy initialization
   mutable StaticArray<std::uint8_t> _high_degree_ghost_node{};
   mutable EdgeID _high_degree_threshold = 0;
+  mutable GhostGraph _ghost_graph{};
 
   std::vector<EdgeID> _edge_cut_to_pe{};
   std::vector<EdgeID> _comm_vol_to_pe{};

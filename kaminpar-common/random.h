@@ -17,6 +17,7 @@
 #include "kaminpar-common/math.h"
 
 namespace kaminpar {
+
 class Random {
   static constexpr std::size_t kPrecomputedBools = 1024;
   static_assert(math::is_power_of_2(kPrecomputedBools), "not a power of 2");
@@ -116,4 +117,5 @@ private:
   Random &_rand;
   std::array<std::array<ValueType, size>, count> _permutations{};
 };
+
 } // namespace kaminpar

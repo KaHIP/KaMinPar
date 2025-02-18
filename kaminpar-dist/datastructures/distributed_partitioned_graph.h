@@ -8,8 +8,10 @@
 #pragma once
 
 #include "kaminpar-dist/datastructures/distributed_graph.h"
+#include "kaminpar-dist/dkaminpar.h"
 
 namespace kaminpar::dist {
+
 class DistributedPartitionedGraph {
 public:
   using NodeID = DistributedGraph::NodeID;
@@ -119,10 +121,8 @@ public:
   [[nodiscard]] inline auto ghost_nodes() const { return _graph->ghost_nodes(); }
   [[nodiscard]] inline auto all_nodes() const { return _graph->all_nodes(); }
   [[nodiscard]] inline auto edges() const { return _graph->edges(); }
-  [[nodiscard]] inline auto incident_edges(const NodeID u) const { return _graph->incident_edges(u); }
   template <typename Lambda> inline void adjacent_nodes(const NodeID u, Lambda &&l) const { _graph->adjacent_nodes(u, std::forward<Lambda>(l)); }
-  template <typename Lambda> inline void neighbors(const NodeID u, Lambda &&l) const { _graph->neighbors(u, std::forward<Lambda>(l)); }
-  template <typename Lambda> inline void neighbors(const NodeID u, NodeID max_num_neighbors, const Lambda &&l) const { _graph->neighbors(u, max_num_neighbors, std::forward<Lambda>(l)); }
+  template <typename Lambda> inline void adjacent_nodes(const NodeID u, const NodeID max_num_neighbors, Lambda &&l) const { _graph->adjacent_nodes(u, max_num_neighbors, std::forward<Lambda>(l)); }
   [[nodiscard]] inline std::size_t bucket_size(const std::size_t bucket) const { return _graph->bucket_size(bucket); }
   [[nodiscard]] inline NodeID first_node_in_bucket(const std::size_t bucket) const { return _graph->first_node_in_bucket(bucket); }
   [[nodiscard]] inline NodeID first_invalid_node_in_bucket(const std::size_t bucket) const { return _graph->first_invalid_node_in_bucket(bucket); }
@@ -218,6 +218,7 @@ private:
 };
 
 namespace debug {
+
 /**
  * Validates the distributed graph partition:
  * - check the block assignment of interface and ghost nodes
@@ -227,5 +228,7 @@ namespace debug {
  * @return whether the graph partition is consistent.
  */
 bool validate_partition(const DistributedPartitionedGraph &p_graph);
+
 } // namespace debug
+
 } // namespace kaminpar::dist

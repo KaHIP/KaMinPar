@@ -21,7 +21,9 @@
 #include "kaminpar-common/datastructures/sparse_map.h"
 
 namespace kaminpar {
+
 namespace rm_backyard {
+
 template <typename Key, typename Value>
 using FastResetArray = ::kaminpar::FastResetArray<Value, Key>;
 
@@ -82,6 +84,7 @@ private:
 #else  // KAMINPAR_SPARSEHASH_FOUND
 template <typename Key, typename Value> using Sparsehash = SparseMap<Key, Value>;
 #endif // KAMINPAR_SPARSEHASH_FOUND
+
 } // namespace rm_backyard
 
 template <

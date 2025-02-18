@@ -23,6 +23,7 @@
 #include "kaminpar-common/ranges.h"
 
 namespace kaminpar::shm {
+
 struct CSRGraphMemory {
   StaticArray<EdgeID> nodes;
   StaticArray<NodeID> edges;
@@ -130,7 +131,7 @@ public:
     return {static_cast<EdgeID>(0), m()};
   }
 
-  [[nodiscard]] inline IotaRange<EdgeID> incident_edges(const NodeID u) const final {
+  [[nodiscard]] inline IotaRange<EdgeID> incident_edges(const NodeID u) const {
     KASSERT(u + 1 < _nodes.size());
     return {_nodes[u], _nodes[u + 1]};
   }
@@ -210,6 +211,51 @@ public:
     }
   }
 
+  template <typename Lambda>
+  inline void adjacent_nodes(const NodeID u, const NodeID max_num_neighbors, Lambda &&l) const {
+    KASSERT(u < n());
+
+    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID>;
+    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, NodeID, EdgeWeight>;
+    static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
+
+    using LambdaReturnType = std::conditional_t<
+        kDecodeEdgeWeights,
+        std::invoke_result<Lambda, NodeID, EdgeWeight>,
+        std::invoke_result<Lambda, NodeID>>::type;
+    constexpr bool kNonStoppable = std::is_void_v<LambdaReturnType>;
+
+    const auto decode_adjacent_nodes = [&](auto &&decode_edge_weight) {
+      const auto invoke_caller = [&](const EdgeID edge) {
+        if constexpr (kDecodeEdgeWeights) {
+          return l(_edges[edge], decode_edge_weight(edge));
+        } else {
+          return l(_edges[edge]);
+        }
+      };
+
+      const EdgeID from = _nodes[u];
+      const NodeID degree = static_cast<NodeID>(_nodes[u + 1] - from);
+      const EdgeID to = from + std::min(degree, max_num_neighbors);
+      for (EdgeID edge = from; edge < to; ++edge) {
+        if constexpr (kNonStoppable) {
+          invoke_caller(edge);
+        } else {
+          const bool stop = invoke_caller(edge);
+          if (stop) {
+            return;
+          }
+        }
+      }
+    };
+
+    if (is_edge_weighted()) {
+      decode_adjacent_nodes([&](const EdgeID edge) { return _edge_weights[edge]; });
+    } else {
+      decode_adjacent_nodes([](const EdgeID) { return 1; });
+    }
+  }
+
   template <typename Lambda> inline void neighbors(const NodeID u, Lambda &&l) const {
     KASSERT(u < n());
 
@@ -253,69 +299,28 @@ public:
     }
   }
 
-  template <typename Lambda>
-  inline void neighbors(const NodeID u, const NodeID max_neighbor_count, Lambda &&l) const {
-    KASSERT(u < n());
-
-    constexpr bool kDontDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID>;
-    constexpr bool kDecodeEdgeWeights = std::is_invocable_v<Lambda, EdgeID, NodeID, EdgeWeight>;
-    static_assert(kDontDecodeEdgeWeights || kDecodeEdgeWeights);
-
-    using LambdaReturnType = std::conditional_t<
-        kDecodeEdgeWeights,
-        std::invoke_result<Lambda, EdgeID, NodeID, EdgeWeight>,
-        std::invoke_result<Lambda, EdgeID, NodeID>>::type;
-    constexpr bool kNonStoppable = std::is_void_v<LambdaReturnType>;
-
-    const auto decode_neighbors = [&](auto &&decode_edge_weight) {
-      const auto invoke_caller = [&](const EdgeID edge) {
-        if constexpr (kDecodeEdgeWeights) {
-          return l(edge, _edges[edge], decode_edge_weight(edge));
-        } else {
-          return l(edge, _edges[edge]);
-        }
-      };
-
-      const EdgeID from = _nodes[u];
-      const NodeID degree = static_cast<NodeID>(_nodes[u + 1] - from);
-      const EdgeID to = from + std::min(degree, max_neighbor_count);
-      for (EdgeID edge = from; edge < to; ++edge) {
-        if constexpr (kNonStoppable) {
-          invoke_caller(edge);
-        } else {
-          const bool stop = invoke_caller(edge);
-          if (stop) {
-            return;
-          }
-        }
-      }
-    };
-
-    if (is_edge_weighted()) {
-      decode_neighbors([&](const EdgeID edge) { return _edge_weights[edge]; });
-    } else {
-      decode_neighbors([](const EdgeID) { return 1; });
-    }
-  }
-
   //
   // Parallel iteration
   //
 
+  template <typename Lambda> inline void pfor_nodes_range(Lambda &&l) const {
+    tbb::parallel_for(tbb::blocked_range<NodeID>(0, n()), std::forward<Lambda>(l));
+  }
+
   template <typename Lambda> inline void pfor_nodes(Lambda &&l) const {
-    tbb::parallel_for(static_cast<NodeID>(0), n(), std::forward<Lambda>(l));
+    tbb::parallel_for<NodeID>(0, n(), std::forward<Lambda>(l));
   }
 
   template <typename Lambda> inline void pfor_edges(Lambda &&l) const {
-    tbb::parallel_for(static_cast<EdgeID>(0), m(), std::forward<Lambda>(l));
+    tbb::parallel_for<EdgeID>(0, m(), std::forward<Lambda>(l));
   }
 
   template <typename Lambda>
-  inline void pfor_neighbors(
+  inline void pfor_adjacent_nodes(
       const NodeID u, const NodeID max_num_neighbors, const NodeID grainsize, Lambda &&l
   ) const {
     KASSERT(u < n());
-    constexpr bool kInvokeDirectly = std::is_invocable_v<Lambda, EdgeID, NodeID, EdgeWeight>;
+    constexpr bool kInvokeDirectly = std::is_invocable_v<Lambda, NodeID, EdgeWeight>;
 
     const EdgeID from = _nodes[u];
     const NodeID degree = static_cast<NodeID>(_nodes[u + 1] - from);
@@ -327,7 +332,7 @@ public:
 
         invoke_indirect<kInvokeDirectly>(std::forward<Lambda>(l), [&](auto &&l2) {
           for (EdgeID e = range.begin(); e < end; ++e) {
-            l2(e, _edges[e], decode_edge_weight(e));
+            l2(_edges[e], decode_edge_weight(e));
           }
         });
       });
@@ -389,9 +394,9 @@ public:
   // Isolated nodes
   //
 
-  void remove_isolated_nodes(const NodeID num_isolated_nodes);
+  void remove_isolated_nodes(NodeID num_isolated_nodes) final;
 
-  void integrate_isolated_nodes();
+  NodeID integrate_isolated_nodes() final;
 
   //
   // Direct member access -- used for some "low level" operations
@@ -474,6 +479,7 @@ private:
 };
 
 namespace debug {
+
 bool validate_graph(const CSRGraph &graph, bool undirected = true, NodeID num_pseudo_nodes = 0);
 
 bool validate_graph(
@@ -487,5 +493,7 @@ bool validate_graph(
 );
 
 CSRGraph sort_neighbors(CSRGraph graph);
+
 } // namespace debug
+
 } // namespace kaminpar::shm

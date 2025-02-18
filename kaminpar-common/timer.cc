@@ -13,7 +13,9 @@
 using namespace std::literals;
 
 namespace kaminpar {
+
 namespace {
+
 [[nodiscard]] std::string string_make_machine_readable(std::string str) {
   std::transform(str.begin(), str.end(), str.begin(), [](const auto &ch) {
     return std::tolower(ch);
@@ -27,6 +29,7 @@ template <typename Value> [[nodiscard]] std::size_t get_printed_length(const Val
   ss << std::fixed << std::setprecision(3) << value;
   return ss.str().size();
 }
+
 } // namespace
 
 std::string Timer::TimerTreeNode::build_display_name_mr() const {
@@ -107,7 +110,9 @@ void Timer::print_node_mr(
 // Human-readable output
 //
 
-void Timer::print_human_readable(std::ostream &out, const int max_depth) {
+void Timer::print_human_readable(
+    std::ostream &out, const bool show_discrepancy, const int max_depth
+) {
   if (max_depth < 0) {
     return;
   }
@@ -122,13 +127,14 @@ void Timer::print_human_readable(std::ostream &out, const int max_depth) {
   }
   out << std::endl;
 
-  print_children_hr(out, "", &_tree.root, max_depth - 1);
+  print_children_hr(out, "", &_tree.root, show_discrepancy, max_depth - 1);
 }
 
 void Timer::print_children_hr(
     std::ostream &out,
     const std::string &base_prefix,
     const TimerTreeNode *node,
+    const bool show_discrepancy,
     const int max_depth
 ) const {
   if (max_depth < 0) {
@@ -140,8 +146,15 @@ void Timer::print_children_hr(
   const std::string prefix_end = base_prefix + std::string(kTailBranch);
   const std::string child_prefix_end = base_prefix + std::string(kTailEdge);
 
+  constexpr double discrepancy_threshold = 0.05; // 5%
+  auto remaining_time = node->elapsed;
+
   for (const auto &child : node->children) {
-    const bool is_last = (child == node->children.back());
+    remaining_time -= child->elapsed;
+
+    const bool is_last =
+        (child == node->children.back()) &&
+        (!show_discrepancy || remaining_time < discrepancy_threshold * node->elapsed);
     const auto &prefix = is_last ? prefix_end : prefix_mid;
     const auto &child_prefix = is_last ? child_prefix_end : child_prefix_mid;
 
@@ -152,7 +165,19 @@ void Timer::print_children_hr(
       out << std::string(kSpaceBetweenRestartsAndAnnotation, ' ') << child->annotation;
     }
     out << std::endl;
-    print_children_hr(out, child_prefix, child.get(), max_depth - 1);
+    print_children_hr(out, child_prefix, child.get(), show_discrepancy, max_depth - 1);
+  }
+
+  if (!node->children.empty() && show_discrepancy &&
+      remaining_time > discrepancy_threshold * node->elapsed) {
+    const std::string_view label = "Discrepancy";
+    out << "\u001b[31m" << prefix_end << label;
+    TimerTreeNode node{
+        .name = {},
+        .elapsed = remaining_time,
+    };
+    print_padded_timing(out, prefix_end.size() + label.length(), &node);
+    out << "\u001b[0m" << std::endl;
   }
 }
 
@@ -212,4 +237,5 @@ Timer::compute_time_col(const std::size_t parent_prefix_len, const TimerTreeNode
   }
   return space;
 }
+
 } // namespace kaminpar

@@ -12,6 +12,7 @@
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
+
 class InitialRefiner {
 public:
   virtual ~InitialRefiner() = default;
@@ -21,4 +22,5 @@ public:
 };
 
 std::unique_ptr<InitialRefiner> create_initial_refiner(const InitialRefinementContext &r_ctx);
+
 } // namespace kaminpar::shm

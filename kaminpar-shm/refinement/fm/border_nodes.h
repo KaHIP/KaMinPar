@@ -5,8 +5,6 @@
  ******************************************************************************/
 #pragma once
 
-#include <cmath>
-
 #include <tbb/concurrent_vector.h>
 
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
