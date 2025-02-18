@@ -6,7 +6,6 @@
 
 #include <ranges>
 
-#include <networkit/auxiliary/Random.hpp>
 #include <sys/stat.h>
 
 #include "IndexDistributionWithReplacement.h"
