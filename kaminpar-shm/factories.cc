@@ -26,7 +26,6 @@
 #include "kaminpar-shm/coarsening/overlay_cluster_coarsener.h"
 
 // Refinement
-#include <networkit/sparsification/ForestFireScore.hpp>
 
 #include "coarsening/sparsification/IndependentRandomSampler.h"
 #include "coarsening/sparsification/RandomWithReplacementSampler.h"
