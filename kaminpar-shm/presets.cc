@@ -110,7 +110,7 @@ Context create_default_context() {
               .vcycles = {},
               .restrict_vcycle_refinement = false,
               .rb_enable_kway_toplevel_refinement = false,
-              .rb_switch_to_seq_factor = 0,
+              .rb_switch_to_seq_factor = 1,
               .kway_parallel_rb = false,
           },
       .partition = {},
