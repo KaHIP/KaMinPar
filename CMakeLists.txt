@@ -377,9 +377,6 @@ endif ()
 # Start include paths on project root
 include_directories(${PROJECT_SOURCE_DIR})
 
-include_directories(${PROJECT_SOURCE_DIR}/networkit/include ${PROJECT_SOURCE_DIR}/networkit/extlibs/tlx ${PROJECT_SOURCE_DIR}/networkit/extlibs/ttmath )
-add_subdirectory(networkit)
-
 
 # Shared memory components
 add_subdirectory(kaminpar-common)

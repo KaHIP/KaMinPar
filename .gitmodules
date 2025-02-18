@@ -10,6 +10,3 @@
 [submodule "external/bakward-mpi"]
 	path = external/bakward-mpi
 	url = https://github.com/kamping-site/bakward-mpi.git
-[submodule "networkit"]
-	path = networkit
-	url = https://github.com/networkit/networkit

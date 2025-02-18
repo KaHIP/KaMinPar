@@ -78,8 +78,6 @@ std::unordered_map<std::string, CoarseningAlgorithm> get_coarsening_algorithms()
 
 std::unordered_map<std::string, SparsificationAlgorithm> get_sparsification_algorithms() {
   return {
-      {"forest-fire", SparsificationAlgorithm::FOREST_FIRE},
-      {"ff", SparsificationAlgorithm::FOREST_FIRE},
       {"uniform-random", SparsificationAlgorithm::UNIFORM_RANDOM_SAMPLING},
       {"ur", SparsificationAlgorithm::UNIFORM_RANDOM_SAMPLING},
       {"k-neighbour", SparsificationAlgorithm::K_NEIGHBOUR},
@@ -104,12 +102,8 @@ std::unordered_map<std::string, ScoreFunctionSection> get_score_function() {
   return {
       {"weight", ScoreFunctionSection::WEIGHT},
       {"w", ScoreFunctionSection::WEIGHT},
-      {"forest-fire", ScoreFunctionSection::FOREST_FIRE},
-      {"ff", ScoreFunctionSection::FOREST_FIRE},
       {"weighted-forest-fire", ScoreFunctionSection::WEIGHTED_FOREST_FIRE},
       {"wff", ScoreFunctionSection::WEIGHTED_FOREST_FIRE},
-      {"netwokit-weighted-forest-fire", ScoreFunctionSection::NETWORKIT_WEIGHTED_FOREST_FIRE},
-      {"nk-wff", ScoreFunctionSection::NETWORKIT_WEIGHTED_FOREST_FIRE},
   };
 }
 
