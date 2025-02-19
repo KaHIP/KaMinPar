@@ -547,6 +547,17 @@ void print(const PartitioningContext &p_ctx, std::ostream &out) {
   if (p_ctx.mode == PartitioningMode::DEEP) {
     out << "  Deep initial part. mode:    " << p_ctx.deep_initial_partitioning_mode << "\n";
     out << "  Deep initial part. load:    " << p_ctx.deep_initial_partitioning_load << "\n";
+  } else if (p_ctx.mode == PartitioningMode::KWAY) {
+    out << "  Initial partitioning mode:  "
+        << (p_ctx.kway_parallel_rb ? "parallel [1 x P]" : "sequential [P x 1]") << "\n";
+  } else if (p_ctx.mode == PartitioningMode::RB) {
+    out << "  Use flat k-way refinement:  "
+        << (p_ctx.rb_enable_kway_toplevel_refinement ? "yes" : "no") << "\n";
+    out << "  Switch to seq. part.:       "
+        << (p_ctx.rb_switch_to_seq_factor == 0
+                ? "never"
+                : "when k' > p * " + std::to_string(p_ctx.rb_switch_to_seq_factor))
+        << "\n";
   }
   out << "Subgraph memory:              " << (p_ctx.use_lazy_subgraph_memory ? "Lazy" : "Default")
       << "\n";

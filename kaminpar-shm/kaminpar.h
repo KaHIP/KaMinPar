@@ -541,6 +541,9 @@ struct PartitioningContext {
   bool restrict_vcycle_refinement;
 
   bool rb_enable_kway_toplevel_refinement;
+  int rb_switch_to_seq_factor;
+
+  bool kway_parallel_rb;
 };
 
 struct GraphCompressionContext {
