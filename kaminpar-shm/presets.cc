@@ -58,6 +58,8 @@ Context create_context_by_preset_name(const std::string &name) {
     return create_esa21_smallk_context();
   } else if (name == "esa21-largek" || name == "diss-largek") {
     return create_esa21_largek_context();
+  } else if (name == "esa21-largek-fast" || name == "diss-largek-fast") {
+    return create_esa21_largek_fast_context();
   } else if (name == "esa21-strong" || name == "diss-strong") {
     return create_esa21_strong_context();
   }
@@ -84,6 +86,7 @@ std::unordered_set<std::string> get_preset_names() {
       "restricted-vcycle",
       "esa21-smallk",
       "esa21-largek",
+      "esa21-largek-fast",
       "esa21-strong"
   };
 }
@@ -107,6 +110,8 @@ Context create_default_context() {
               .vcycles = {},
               .restrict_vcycle_refinement = false,
               .rb_enable_kway_toplevel_refinement = false,
+              .rb_switch_to_seq_factor = 1,
+              .kway_parallel_rb = false,
           },
       .partition = {},
       .coarsening =
@@ -147,6 +152,7 @@ Context create_default_context() {
               .overlay_clustering =
                   {
                       .num_levels = 1,
+                      .max_level = std::numeric_limits<int>::max(),
                   },
               .contraction =
                   {
@@ -388,7 +394,9 @@ Context create_terapart_strong_context() {
 }
 
 Context create_terapart_largek_context() {
-  return terapartify_context(create_largek_context());
+  Context ctx = terapartify_context(create_largek_context());
+  ctx.coarsening.clustering.forced_kc_level = true;
+  return ctx;
 }
 
 Context create_vcycle_context(const bool restrict_refinement) {
@@ -421,6 +429,24 @@ Context create_esa21_largek_context() {
   ctx.initial_partitioning.pool.min_num_repetitions = 4;
   ctx.initial_partitioning.pool.min_num_non_adaptive_repetitions = 2;
   ctx.initial_partitioning.pool.max_num_repetitions = 4;
+
+  return ctx;
+}
+
+Context create_esa21_largek_fast_context() {
+  Context ctx = create_esa21_largek_context();
+
+  ctx.initial_partitioning.pool.min_num_repetitions = 2;
+  ctx.initial_partitioning.pool.min_num_non_adaptive_repetitions = 1;
+  ctx.initial_partitioning.pool.max_num_repetitions = 2;
+  ctx.initial_partitioning.pool.enable_bfs_bipartitioner = true;
+  ctx.initial_partitioning.pool.enable_ggg_bipartitioner = false;
+  ctx.initial_partitioning.pool.enable_random_bipartitioner = true;
+
+  ctx.initial_partitioning.pool.refinement.disabled = true;
+  ctx.initial_partitioning.pool.refinement.num_iterations = 1;
+
+  ctx.initial_partitioning.refine_pool_partition = true;
 
   return ctx;
 }

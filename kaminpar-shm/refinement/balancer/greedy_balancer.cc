@@ -168,8 +168,7 @@ private:
         KASSERT(_moved_nodes[u] == 1);
 
         auto [to, actual_relative_gain] = compute_gain(u, from);
-        if (expected_relative_gain ==
-            actual_relative_gain) { // gain still correct --> try to move it
+        if (expected_relative_gain <= actual_relative_gain) {
           bool moved_node = false;
 
           if (to == from) { // internal node --> move to random underloaded block

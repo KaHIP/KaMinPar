@@ -82,6 +82,10 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
           "--p-rb-kway-toplevel-refinement", ctx.partitioning.rb_enable_kway_toplevel_refinement
       )
       ->capture_default_str();
+  partitioning->add_option("--p-rb-switch-to-seq-factor", ctx.partitioning.rb_switch_to_seq_factor)
+      ->capture_default_str();
+  partitioning->add_flag("--p-kway-parallel-rb", ctx.partitioning.kway_parallel_rb)
+      ->capture_default_str();
 
   partitioning->add_option("--p-vcycles", ctx.partitioning.vcycles)->capture_default_str();
   partitioning
@@ -205,6 +209,8 @@ Options are:
       ->capture_default_str();
 
   coarsening->add_option("--c-overlay-levels", ctx.coarsening.overlay_clustering.num_levels)
+      ->capture_default_str();
+  coarsening->add_option("--c-overlay-max-level", ctx.coarsening.overlay_clustering.max_level)
       ->capture_default_str();
 
   create_lp_coarsening_options(app, ctx);

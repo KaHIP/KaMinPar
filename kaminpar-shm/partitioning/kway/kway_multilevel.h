@@ -38,6 +38,7 @@ private:
   NodeID initial_partitioning_threshold();
 
   PartitionedGraph initial_partition(const Graph *graph);
+  PartitionedGraph parallel_initial_partition(const Graph *graph);
 
   const Graph &_input_graph;
   const Context &_input_ctx;

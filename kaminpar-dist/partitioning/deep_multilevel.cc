@@ -11,6 +11,8 @@
 
 #include <mpi.h>
 
+#include "kaminpar-mpi/datatype.h"
+
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/debug.h"
@@ -205,20 +207,23 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
 
   auto extend_partition = [&](DistributedPartitionedGraph &p_graph,
                               const bool almost_toplevel = false,
-                              const std::string &prefix = " ") -> PartitionContext {
+                              const std::string &prefix = " ",
+                              BlockID desired_k = 0) -> PartitionContext {
     SCOPED_HEAP_PROFILER("Extending partition");
 
-    BlockID desired_k = std::min<BlockID>(
-        _input_ctx.partition.k,
-        math::ceil2(dist_p_graph.global_n() / _input_ctx.coarsening.contraction_limit)
-    );
+    if (desired_k == 0) {
+      desired_k = std::min<BlockID>(
+          _input_ctx.partition.k,
+          math::ceil2(dist_p_graph.global_n() / _input_ctx.coarsening.contraction_limit)
+      );
 
-    // If we (almost) work on the input graph, extend to final number of blocks
-    if (_input_graph.global_n() == p_graph.global_n() ||
-        (_input_ctx.partitioning.avoid_toplevel_bipartitioning && almost_toplevel &&
-         _input_graph.global_n() >
-             2 * _input_ctx.partition.k * _input_ctx.coarsening.contraction_limit)) {
-      desired_k = _input_ctx.partition.k;
+      // If we (almost) work on the input graph, extend to final number of blocks
+      if (_input_graph.global_n() == p_graph.global_n() ||
+          (_input_ctx.partitioning.avoid_toplevel_bipartitioning && almost_toplevel &&
+           _input_graph.global_n() >
+               2 * _input_ctx.partition.k * _input_ctx.coarsening.contraction_limit)) {
+        desired_k = _input_ctx.partition.k;
+      }
     }
 
     PartitionContext ref_p_ctx;
@@ -327,6 +332,16 @@ DistributedPartitionedGraph DeepMultilevelPartitioner::partition() {
       coarsener = get_current_coarsener();
 
       const DistributedGraph *new_graph = &coarsener->current();
+
+      // Before we join the branches, make sure we're on the same page (... k)
+      BlockID k = dist_p_graph.k();
+      MPI_Allreduce(
+          MPI_IN_PLACE, &k, 1, mpi::type::get<BlockID>(), MPI_MAX, new_graph->communicator()
+      );
+      if (dist_p_graph.k() < k) {
+        extend_partition(dist_p_graph, false, " ", k);
+      }
+
       dist_p_graph = distribute_best_partition(*new_graph, std::move(dist_p_graph));
 
       _replicated_graphs.pop_back();
