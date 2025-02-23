@@ -7,6 +7,7 @@
  ******************************************************************************/
 #include "kaminpar-shm/partitioning/deep/vcycle_deep_multilevel.h"
 
+#include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/partitioning/deep/deep_multilevel.h"
 #include "kaminpar-shm/partitioning/partition_utils.h"
 
@@ -131,16 +132,18 @@ PartitionedGraph VcycleDeepMultilevelPartitioner::partition() {
     KASSERT(
         !ctx.partitioning.restrict_vcycle_refinement || communities.empty() ||
             [&] {
-              for (const NodeID u : p_graph.nodes()) {
-                p_graph.adjacent_nodes(u, [&](const NodeID v) {
-                  KASSERT(
-                      p_graph.block(u) != p_graph.block(v) || communities[u] == communities[v],
-                      "Node " << u << " and " << v
-                              << " are in the same block, but in different communities",
-                      assert::always
-                  );
-                });
-              }
+              reified(p_graph, [&](const auto &graph) {
+                for (const NodeID u : graph.nodes()) {
+                  graph.adjacent_nodes(u, [&](const NodeID v) {
+                    KASSERT(
+                        p_graph.block(u) != p_graph.block(v) || communities[u] == communities[v],
+                        "Node " << u << " and " << v
+                                << " are in the same block, but in different communities",
+                        assert::always
+                    );
+                  });
+                }
+              });
               return true;
             }(),
         "",
@@ -148,10 +151,10 @@ PartitionedGraph VcycleDeepMultilevelPartitioner::partition() {
     );
 
     if (communities.empty()) {
-      communities.resize(p_graph.n());
+      communities.resize(p_graph.graph().n());
     }
 
-    p_graph.pfor_nodes([&](const NodeID u) {
+    tbb::parallel_for<NodeID>(0, p_graph.graph().n(), [&](const NodeID u) {
       communities[u] = p_graph.block(u);
       partition[u] = p_graph.block(u);
     });

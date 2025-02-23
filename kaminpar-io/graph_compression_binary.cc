@@ -9,6 +9,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <optional>
 
 #include "kaminpar-shm/datastructures/compressed_graph.h"
@@ -280,7 +281,7 @@ template <typename T> static StaticArray<T> read_static_array(std::ifstream &in)
   return array;
 }
 
-std::optional<CompressedGraph> read(const std::string &filename) {
+std::optional<Graph> read(const std::string &filename) {
   std::ifstream in(filename, std::ios::binary);
   if (!in.is_open()) {
     LOG_ERROR << "Could not open file " << filename;
@@ -316,9 +317,9 @@ std::optional<CompressedGraph> read(const std::string &filename) {
       header.num_intervals
   );
 
-  return CompressedGraph(
+  return Graph(std::make_unique<CompressedGraph>(
       std::move(compressed_neighborhoods), std::move(node_weights), header.use_degree_bucket_order
-  );
+  ));
 }
 
 bool is_compressed(const std::string &filename) {

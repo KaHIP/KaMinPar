@@ -439,7 +439,7 @@ include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
 
 install(
-    FILES kaminpar-shm/kaminpar.h kaminpar-io/kaminpar_io.h
+    DIRECTORY include/
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
     COMPONENT KaMinPar_Development
 )

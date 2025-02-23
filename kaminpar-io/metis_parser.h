@@ -7,5 +7,19 @@
  ******************************************************************************/
 #pragma once
 
-// Part of this header is defined in the public library header:
-#include "kaminpar-io/kaminpar_io.h" // IWYU pragma: export
+#include <optional>
+#include <string>
+
+#include "kaminpar.h"
+
+namespace kaminpar::shm::io::metis {
+
+[[nodiscard]] std::optional<Graph> read_graph(
+    const std::string &filename,
+    bool compress = false,
+    NodeOrdering ordering = NodeOrdering::NATURAL
+);
+
+void write_graph(const std::string &filename, const Graph &graph);
+
+} // namespace kaminpar::shm::io::metis

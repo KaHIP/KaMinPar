@@ -19,7 +19,10 @@ set(DKAMINPAR_IO_SOURCE_FILES
 add_library(kaminpar_io ${KAMINPAR_IO_SOURCE_FILES})
 add_library(KaMinPar::KaMinParIO ALIAS kaminpar_io)
 
-target_include_directories(kaminpar_io PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../>)
+target_include_directories(kaminpar_io PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include/>
+)
 target_link_libraries(kaminpar_io PUBLIC kaminpar_shm)
 target_compile_options(kaminpar_io PRIVATE ${KAMINPAR_WARNING_FLAGS})
 

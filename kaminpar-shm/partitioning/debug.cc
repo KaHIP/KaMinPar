@@ -77,20 +77,22 @@ void dump_graph(const Graph &graph, const std::string &filename) {
   }
   out << "\n";
 
-  for (const NodeID u : graph.nodes()) {
-    if (graph.is_node_weighted()) {
-      out << graph.node_weight(u) << " ";
-    }
-
-    graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
-      out << v + 1 << " ";
-      if (graph.is_edge_weighted()) {
-        out << w << " ";
+  reified(graph, [&](const auto &graph) {
+    for (const NodeID u : graph.nodes()) {
+      if (graph.is_node_weighted()) {
+        out << graph.node_weight(u) << " ";
       }
-    });
 
-    out << "\n";
-  }
+      graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+        out << v + 1 << " ";
+        if (graph.is_edge_weighted()) {
+          out << w << " ";
+        }
+      });
+
+      out << "\n";
+    }
+  });
 }
 
 void dump_coarsest_partition(const PartitionedGraph &p_graph, const Context &ctx) {
@@ -119,7 +121,7 @@ void dump_partition_hierarchy(
 
 void dump_partition(const PartitionedGraph &p_graph, const std::string &filename) {
   std::ofstream out(filename, std::ios::trunc);
-  for (const NodeID u : p_graph.nodes()) {
+  for (NodeID u = 0, n = p_graph.graph().n(); u < n; ++u) {
     out << p_graph.block(u) << "\n";
   }
 }
@@ -150,10 +152,10 @@ describe_partition_state(const PartitionedGraph &p_graph, const PartitionContext
 
   ss << p_graph.k() << "-way partition with " << p_ctx.k
      << "-way context (inferred epsilon = " << p_ctx.inferred_epsilon() << "):\n";
-  ss << "  Total node weight: " << p_graph.total_node_weight() << " (graph) <-> "
+  ss << "  Total node weight: " << p_graph.graph().total_node_weight() << " (graph) <-> "
      << p_ctx.total_node_weight << " (ctx)\n";
-  ss << "  Number of nodes:   " << p_graph.n() << " (graph) <-> " << p_ctx.n << " (ctx)\n";
-  ss << "  Number of edges:   " << p_graph.m() << " (graph) <-> " << p_ctx.m << " (ctx)\n";
+  ss << "  Number of nodes:   " << p_graph.graph().n() << " (graph) <-> " << p_ctx.n << " (ctx)\n";
+  ss << "  Number of edges:   " << p_graph.graph().m() << " (graph) <-> " << p_ctx.m << " (ctx)\n";
   if (p_graph.k() == p_ctx.k) {
     ss << "  Block weights:     [";
     for (BlockID block : p_graph.blocks()) {

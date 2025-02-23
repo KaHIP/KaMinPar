@@ -11,6 +11,7 @@
 #include <cstring>
 #include <initializer_list>
 #include <iterator>
+#include <span>
 #include <thread>
 #include <vector>
 
@@ -259,6 +260,14 @@ public:
   const value_type *data() const {
     KASSERT(_data || _size == 0);
     return _data;
+  }
+
+  std::span<value_type> view() {
+    return std::span<value_type>(_data, _size);
+  }
+
+  std::span<const value_type> view() const {
+    return std::span<const value_type>(_data, _size);
   }
 
   //

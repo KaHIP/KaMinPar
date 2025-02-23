@@ -7,5 +7,20 @@
  ******************************************************************************/
 #pragma once
 
-// Part of this header is defined in the public library header:
-#include "kaminpar-io/kaminpar_io.h" // IWYU pragma: export
+#include <cstdint>
+#include <optional>
+#include <string>
+
+#include "kaminpar-shm/datastructures/compressed_graph.h"
+
+namespace kaminpar::shm::io::compressed_binary {
+//! Magic number to identify a compressed graph binary file.
+constexpr std::uint64_t kMagicNumber = 0x434F4D5052455353;
+
+void write(const std::string &filename, const CompressedGraph &graph);
+
+[[nodiscard]] std::optional<Graph> read(const std::string &filename);
+
+bool is_compressed(const std::string &filename);
+
+} // namespace kaminpar::shm::io::compressed_binary

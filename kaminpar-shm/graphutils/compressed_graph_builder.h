@@ -181,8 +181,12 @@ template <bool kHasEdgeWeights, typename DegreeFetcher, typename NeighborhoodFet
 
 } // namespace
 
+[[nodiscard]] Graph compress(const CSRGraph &graph);
+
+[[nodiscard]] Graph parallel_compress(const CSRGraph &graph);
+
 template <typename DegreeFetcher, typename NeighborhoodFetcher>
-[[nodiscard]] CompressedGraph parallel_compress(
+[[nodiscard]] Graph parallel_compress(
     const NodeID num_nodes,
     const EdgeID num_edges,
     DegreeFetcher &&fetch_degree,
@@ -191,18 +195,20 @@ template <typename DegreeFetcher, typename NeighborhoodFetcher>
     const bool sorted
 ) {
   constexpr bool kHasEdgeWeights = false;
-  return compress_graph<kHasEdgeWeights, DegreeFetcher, NeighborhoodFetcher>(
-      num_nodes,
-      num_edges,
-      std::forward<DegreeFetcher>(fetch_degree),
-      std::forward<NeighborhoodFetcher>(fetch_neighborhood),
-      node_weights,
-      sorted
-  );
+  return Graph(std::make_unique<CompressedGraph>(
+      compress_graph<kHasEdgeWeights, DegreeFetcher, NeighborhoodFetcher>(
+          num_nodes,
+          num_edges,
+          std::forward<DegreeFetcher>(fetch_degree),
+          std::forward<NeighborhoodFetcher>(fetch_neighborhood),
+          node_weights,
+          sorted
+      )
+  ));
 }
 
 template <typename DegreeFetcher, typename NeighborhoodFetcher>
-[[nodiscard]] CompressedGraph parallel_compress_weighted(
+[[nodiscard]] Graph parallel_compress_weighted(
     const NodeID num_nodes,
     const EdgeID num_edges,
     DegreeFetcher &&fetch_degree,
@@ -211,14 +217,16 @@ template <typename DegreeFetcher, typename NeighborhoodFetcher>
     const bool sorted
 ) {
   constexpr bool kHasEdgeWeights = true;
-  return compress_graph<kHasEdgeWeights, DegreeFetcher, NeighborhoodFetcher>(
-      num_nodes,
-      num_edges,
-      std::forward<DegreeFetcher>(fetch_degree),
-      std::forward<NeighborhoodFetcher>(fetch_neighborhood),
-      node_weights,
-      sorted
-  );
+  return Graph(std::make_unique<CompressedGraph>(
+      compress_graph<kHasEdgeWeights, DegreeFetcher, NeighborhoodFetcher>(
+          num_nodes,
+          num_edges,
+          std::forward<DegreeFetcher>(fetch_degree),
+          std::forward<NeighborhoodFetcher>(fetch_neighborhood),
+          node_weights,
+          sorted
+      )
+  ));
 }
 
 struct CompressedGraphBuilder::Impl {
@@ -298,7 +306,7 @@ public:
     _node_weights[node] = weight;
   }
 
-  CompressedGraph build() {
+  Graph build() {
     KASSERT(_cur_node == _num_nodes, "Not all nodes have been added");
     KASSERT(_cur_edge == _num_edges, "Not all edges have been added");
 
@@ -307,9 +315,9 @@ public:
       _node_weights.free();
     }
 
-    return CompressedGraph(
+    return Graph(std::make_unique<CompressedGraph>(
         _compressed_neighborhoods_builder.build(), std::move(_node_weights), _sorted
-    );
+    ));
   }
 
 private:
@@ -341,7 +349,6 @@ public:
       const bool sorted
   )
       : _num_nodes(num_nodes),
-        _num_edges(num_edges),
         _has_node_weights(has_node_weights),
         _has_edge_weights(has_edge_weights),
         _sorted(sorted),
@@ -633,13 +640,14 @@ public:
     _node_weights[node] = weight;
   }
 
-  CompressedGraph build() {
-    return CompressedGraph(_builder.build(), std::move(_node_weights), _sorted);
+  Graph build() {
+    return Graph(
+        std::make_unique<CompressedGraph>(_builder.build(), std::move(_node_weights), _sorted)
+    );
   }
 
 private:
   NodeID _num_nodes;
-  EdgeID _num_edges;
   bool _has_node_weights;
   bool _has_edge_weights;
   bool _sorted;

@@ -16,96 +16,53 @@
 #include "kaminpar-io/parhip_parser.h"
 #include "kaminpar-io/util/file_toker.h"
 
-#include "kaminpar-shm/datastructures/compressed_graph.h"
-#include "kaminpar-shm/datastructures/csr_graph.h"
-#include "kaminpar-shm/datastructures/graph.h"
-
-#include "kaminpar-common/logger.h"
-
 namespace kaminpar::shm::io {
 
-std::unordered_map<std::string, GraphFileFormat> get_graph_file_formats() {
-  return {
-      {"metis", GraphFileFormat::METIS},
-      {"parhip", GraphFileFormat::PARHIP},
-  };
-}
-
-std::optional<CSRGraph> csr_read(
-    const std::string &filename, const GraphFileFormat file_format, const NodeOrdering ordering
-) {
-  switch (file_format) {
-  case GraphFileFormat::METIS: {
-    if (ordering == NodeOrdering::EXTERNAL_DEGREE_BUCKETS) {
-      LOG_WARNING << "A graph stored in METIS format cannot be rearranged by degree buckets during "
-                     "IO.";
-    }
-
-    const bool sorted = ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS;
-    return metis::csr_read(filename, sorted);
-  }
-  case GraphFileFormat::PARHIP:
-    return parhip::csr_read(filename, ordering);
-  default:
-    return std::nullopt;
-  }
-}
-
-std::optional<CompressedGraph> compressed_read(
-    const std::string &filename, const GraphFileFormat file_format, const NodeOrdering ordering
-) {
-  switch (file_format) {
-  case GraphFileFormat::METIS: {
-    if (ordering == NodeOrdering::EXTERNAL_DEGREE_BUCKETS) {
-      LOG_WARNING << "A graph stored in METIS format cannot be rearranged by degree buckets during "
-                     "IO.";
-    }
-
-    const bool sorted = ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS;
-    return metis::compress_read(filename, sorted);
-  }
-  case GraphFileFormat::PARHIP:
-    return parhip::compressed_read(filename, ordering);
-  default:
-    return std::nullopt;
-  }
-}
-
-std::optional<Graph> read(
+std::optional<Graph> read_graph(
     const std::string &filename,
     const GraphFileFormat file_format,
-    const NodeOrdering ordering,
-    const bool compress
+    const bool compress,
+    const NodeOrdering ordering
 ) {
-  if (compress) {
-    if (compressed_binary::is_compressed(filename)) {
-      if (auto compressed_graph = compressed_binary::read(filename)) {
-        return Graph(std::make_unique<CompressedGraph>(std::move(*compressed_graph)));
-      }
-    } else {
-      if (auto compressed_graph = compressed_read(filename, file_format, ordering)) {
-        return Graph(std::make_unique<CompressedGraph>(std::move(*compressed_graph)));
-      }
-    }
+  switch (file_format) {
+  case GraphFileFormat::METIS:
+    return metis::read_graph(filename, compress, ordering);
+  case GraphFileFormat::PARHIP:
+    return parhip::read_graph(filename, compress, ordering);
+    break;
+  case GraphFileFormat::COMPRESSED:
+    return compressed_binary::read(filename);
+  default:
+    return std::nullopt;
   }
-
-  if (auto csr_graph = csr_read(filename, file_format, ordering)) {
-    return Graph(std::make_unique<CSRGraph>(std::move(*csr_graph)));
-  }
-
-  return std::nullopt;
 }
 
-namespace partition {
+void write_graph(
+    const std::string &filename, const GraphFileFormat file_format, const Graph &graph
+) {
+  switch (file_format) {
+  case GraphFileFormat::METIS:
+    metis::write_graph(filename, graph);
+    break;
+  case GraphFileFormat::PARHIP:
+    parhip::write_graph(filename, graph);
+    break;
+  case GraphFileFormat::COMPRESSED:
+    if (graph.is_compressed()) {
+      compressed_binary::write(filename, graph.compressed_graph());
+    }
+    break;
+  }
+}
 
-void write(const std::string &filename, const std::span<const BlockID> partition) {
+void write_partition(const std::string &filename, const std::span<const BlockID> partition) {
   std::ofstream out(filename);
   for (const BlockID block : partition) {
     out << block << "\n";
   }
 }
 
-std::vector<BlockID> read(const std::string &filename) {
+std::vector<BlockID> read_partition(const std::string &filename) {
   using namespace kaminpar::io;
   MappedFileToker toker(filename);
 
@@ -157,17 +114,11 @@ std::vector<BlockID> read_block_sizes(const std::string &filename) {
   return partition;
 }
 
-} // namespace partition
-
-namespace remapping {
-
-void write(const std::string &filename, std::span<const NodeID> remapping) {
+void write_remapping(const std::string &filename, std::span<const NodeID> remapping) {
   std::ofstream out(filename);
   for (const NodeID new_id : remapping) {
     out << new_id << "\n";
   }
 }
-
-} // namespace remapping
 
 } // namespace kaminpar::shm::io

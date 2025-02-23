@@ -17,32 +17,36 @@ namespace kaminpar::shm::contraction {
 void fill_leader_mapping(
     const Graph &graph, const StaticArray<NodeID> &clustering, StaticArray<NodeID> &leader_mapping
 ) {
-  TIMED_SCOPE("Allocation") {
-    if (leader_mapping.size() < graph.n()) {
-      RECORD("leader_mapping") leader_mapping.resize(graph.n(), static_array::noinit);
-      RECORD_LOCAL_DATA_STRUCT(leader_mapping, leader_mapping.size() * sizeof(NodeID));
-    }
-  };
+  reified(graph, [&](const auto &graph) {
+    TIMED_SCOPE("Allocation") {
+      if (leader_mapping.size() < graph.n()) {
+        RECORD("leader_mapping") leader_mapping.resize(graph.n(), static_array::noinit);
+        RECORD_LOCAL_DATA_STRUCT(leader_mapping, leader_mapping.size() * sizeof(NodeID));
+      }
+    };
 
-  TIMED_SCOPE("Preprocessing") {
-    graph.pfor_nodes([&](const NodeID u) { leader_mapping[u] = 0; });
-    graph.pfor_nodes([&](const NodeID u) {
-      __atomic_store_n(&leader_mapping[clustering[u]], 1, __ATOMIC_RELAXED);
-    });
-    parallel::prefix_sum(
-        leader_mapping.begin(), leader_mapping.begin() + graph.n(), leader_mapping.begin()
-    );
-  };
+    TIMED_SCOPE("Preprocessing") {
+      graph.pfor_nodes([&](const NodeID u) { leader_mapping[u] = 0; });
+      graph.pfor_nodes([&](const NodeID u) {
+        __atomic_store_n(&leader_mapping[clustering[u]], 1, __ATOMIC_RELAXED);
+      });
+      parallel::prefix_sum(
+          leader_mapping.begin(), leader_mapping.begin() + graph.n(), leader_mapping.begin()
+      );
+    };
+  });
 }
 
 StaticArray<NodeID> compute_mapping(
     const Graph &graph, StaticArray<NodeID> clustering, const StaticArray<NodeID> &leader_mapping
 ) {
-  TIMED_SCOPE("Preprocessing") {
-    graph.pfor_nodes([&](const NodeID u) {
-      clustering[u] = __atomic_load_n(&leader_mapping[clustering[u]], __ATOMIC_RELAXED) - 1;
-    });
-  };
+  reified(graph, [&](const auto &graph) {
+    TIMED_SCOPE("Preprocessing") {
+      graph.pfor_nodes([&](const NodeID u) {
+        clustering[u] = __atomic_load_n(&leader_mapping[clustering[u]], __ATOMIC_RELAXED) - 1;
+      });
+    };
+  });
 
   return clustering;
 }
@@ -85,14 +89,16 @@ void fill_cluster_buckets(
 
   TIMED_SCOPE("Preprocessing") {
     tbb::parallel_for<NodeID>(0, c_n + 1, [&](const NodeID i) { buckets_index[i] = 0; });
-    graph.pfor_nodes([&](const NodeID u) {
-      __atomic_fetch_add(&buckets_index[mapping[u]], 1, __ATOMIC_RELAXED);
-    });
-    parallel::prefix_sum(
-        buckets_index.begin(), buckets_index.begin() + c_n + 1, buckets_index.begin()
-    );
-    graph.pfor_nodes([&](const NodeID u) {
-      buckets[__atomic_sub_fetch(&buckets_index[mapping[u]], 1, __ATOMIC_RELAXED)] = u;
+    reified(graph, [&](const auto &graph) {
+      graph.pfor_nodes([&](const NodeID u) {
+        __atomic_fetch_add(&buckets_index[mapping[u]], 1, __ATOMIC_RELAXED);
+      });
+      parallel::prefix_sum(
+          buckets_index.begin(), buckets_index.begin() + c_n + 1, buckets_index.begin()
+      );
+      graph.pfor_nodes([&](const NodeID u) {
+        buckets[__atomic_sub_fetch(&buckets_index[mapping[u]], 1, __ATOMIC_RELAXED)] = u;
+      });
     });
   };
 }

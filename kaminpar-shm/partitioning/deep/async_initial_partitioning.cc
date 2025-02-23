@@ -64,8 +64,8 @@ PartitionedGraph AsyncInitialPartitioner::partition_recursive(
   // Since this refiner is never used for the finest graph, we need to adjust the context to
   // prevent overallocation
   Context small_ctx = _input_ctx;
-  small_ctx.partition.n = p_graph.n();
-  small_ctx.partition.m = p_graph.m();
+  small_ctx.partition.n = p_graph.graph().n();
+  small_ctx.partition.m = p_graph.graph().m();
 
   p_ctx = create_kway_context(_input_ctx, p_graph);
   auto refiner = factory::create_refiner(small_ctx);
@@ -74,7 +74,7 @@ PartitionedGraph AsyncInitialPartitioner::partition_recursive(
 
   const BlockID k_prime = std::min(
       _input_ctx.partition.k,
-      std::max<BlockID>(compute_k_for_n(p_graph.n(), _input_ctx), num_threads)
+      std::max<BlockID>(compute_k_for_n(p_graph.graph().n(), _input_ctx), num_threads)
   );
 
   if (p_graph.k() < k_prime) {

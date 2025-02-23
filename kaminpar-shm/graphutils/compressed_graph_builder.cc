@@ -11,7 +11,7 @@
 
 namespace kaminpar::shm {
 
-CompressedGraph compress(const CSRGraph &graph) {
+Graph compress(const CSRGraph &graph) {
   const bool store_node_weights = graph.is_node_weighted();
   const bool store_edge_weights = graph.is_edge_weighted();
 
@@ -38,7 +38,7 @@ CompressedGraph compress(const CSRGraph &graph) {
   return builder.build();
 }
 
-CompressedGraph parallel_compress(const CSRGraph &graph) {
+Graph parallel_compress(const CSRGraph &graph) {
   const auto fetch_degree = [&](const NodeID u) {
     return graph.degree(u);
   };
@@ -86,12 +86,12 @@ CompressedGraph parallel_compress(const CSRGraph &graph) {
   }
 }
 
-CompressedGraph compress(
-    std::span<EdgeID> nodes,
-    std::span<NodeID> edges,
-    std::span<NodeWeight> node_weights,
-    std::span<NodeWeight> edge_weights,
-    bool sorted
+Graph compress(
+    std::span<const EdgeID> nodes,
+    std::span<const NodeID> edges,
+    std::span<const NodeWeight> node_weights,
+    std::span<const NodeWeight> edge_weights,
+    const bool sorted
 ) {
   const NodeID n = nodes.size() - 1;
   const EdgeID m = edges.size();
@@ -123,12 +123,12 @@ CompressedGraph compress(
   return builder.build();
 }
 
-[[nodiscard]] CompressedGraph parallel_compress(
-    std::span<EdgeID> nodes,
-    std::span<NodeID> edges,
-    std::span<NodeWeight> node_weights,
-    std::span<NodeWeight> edge_weights,
-    bool sorted
+Graph parallel_compress(
+    std::span<const EdgeID> nodes,
+    std::span<const NodeID> edges,
+    std::span<const NodeWeight> node_weights,
+    std::span<const NodeWeight> edge_weights,
+    const bool sorted
 ) {
   const NodeID n = nodes.size() - 1;
   const EdgeID m = edges.size();
@@ -194,7 +194,7 @@ void CompressedGraphBuilder::add_node_weight(const NodeID node, const NodeWeight
   _impl->add_node_weight(node, weight);
 }
 
-CompressedGraph CompressedGraphBuilder::build() {
+Graph CompressedGraphBuilder::build() {
   return _impl->build();
 }
 
@@ -277,7 +277,7 @@ void ParallelCompressedGraphBuilder::add_node_weight(const NodeID node, const No
   _impl->add_node_weight(node, weight);
 }
 
-CompressedGraph ParallelCompressedGraphBuilder::build() {
+Graph ParallelCompressedGraphBuilder::build() {
   return _impl->build();
 }
 

@@ -1,8 +1,7 @@
 #include <gmock/gmock.h>
 
-#include <span>
-
 #include <kaminpar-common/datastructures/static_array.h>
+
 #include <kaminpar-shm/datastructures/csr_graph.h>
 #include <kaminpar-shm/graphutils/compressed_graph_builder.h>
 
@@ -75,7 +74,7 @@ template <typename Compressor> void test_graph_compression(Compressor &&compress
     auto &csr_graph = graph.csr_graph();
     const auto compressed_graph = compressor(csr_graph);
 
-    is_correctly_compressed(csr_graph, compressed_graph);
+    is_correctly_compressed(csr_graph, compressed_graph.compressed_graph());
   });
 }
 

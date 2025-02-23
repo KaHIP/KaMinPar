@@ -8,6 +8,7 @@
 #include "kaminpar-io/metis_parser.h"
 
 #include <fstream>
+#include <memory>
 
 #include "kaminpar-io/util/file_toker.h"
 
@@ -154,7 +155,7 @@ void parse_graph(
 
 } // namespace
 
-std::optional<CSRGraph> csr_read(const std::string &filename, const bool sorted) {
+std::optional<Graph> csr_read(const std::string &filename, const bool sorted) {
   try {
     MappedFileToker toker(filename);
     const MetisHeader header = parse_header(toker);
@@ -229,15 +230,15 @@ std::optional<CSRGraph> csr_read(const std::string &filename, const bool sorted)
         "total edge weight does not fit into the edge weight type"
     );
 
-    return CSRGraph(
+    return Graph(std::make_unique<CSRGraph>(
         std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), sorted
-    );
+    ));
   } catch (const TokerException &e) {
     return std::nullopt;
   }
 }
 
-std::optional<CompressedGraph> compress_read(const std::string &filename, const bool sorted) {
+std::optional<Graph> compress_read(const std::string &filename, const bool sorted) {
   try {
     MappedFileToker toker(filename);
     const MetisHeader header = parse_header(toker);
@@ -285,36 +286,48 @@ std::optional<CompressedGraph> compress_read(const std::string &filename, const 
   }
 }
 
-void write(const std::string &filename, const Graph &graph) {
+std::optional<Graph>
+read_graph(const std::string &filename, const bool compress, const NodeOrdering ordering) {
+  const bool sorted = ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS;
+  if (compress) {
+    return compress_read(filename, sorted);
+  } else {
+    return csr_read(filename, sorted);
+  }
+}
+
+void write_graph(const std::string &filename, const Graph &graph) {
   std::ofstream out(filename);
 
-  out << graph.n() << ' ' << (graph.m() / 2);
-  if (graph.is_node_weighted() || graph.is_edge_weighted()) {
-    out << ' ';
+  reified(graph, [&](const auto &graph) {
+    out << graph.n() << ' ' << (graph.m() / 2);
+    if (graph.is_node_weighted() || graph.is_edge_weighted()) {
+      out << ' ';
 
-    if (graph.is_node_weighted()) {
-      out << '1';
-    }
-
-    out << (graph.is_edge_weighted() ? '1' : '0');
-  }
-  out << '\n';
-
-  for (const NodeID node : graph.nodes()) {
-    if (graph.is_node_weighted()) {
-      out << graph.node_weight(node) << ' ';
-    }
-
-    graph.adjacent_nodes(node, [&](const NodeID adjacent_node, const EdgeWeight weight) {
-      out << (adjacent_node + 1) << ' ';
-
-      if (graph.is_edge_weighted()) {
-        out << weight << ' ';
+      if (graph.is_node_weighted()) {
+        out << '1';
       }
-    });
 
+      out << (graph.is_edge_weighted() ? '1' : '0');
+    }
     out << '\n';
-  }
+
+    for (const NodeID node : graph.nodes()) {
+      if (graph.is_node_weighted()) {
+        out << graph.node_weight(node) << ' ';
+      }
+
+      graph.adjacent_nodes(node, [&](const NodeID adjacent_node, const EdgeWeight weight) {
+        out << (adjacent_node + 1) << ' ';
+
+        if (graph.is_edge_weighted()) {
+          out << weight << ' ';
+        }
+      });
+
+      out << '\n';
+    }
+  });
 }
 
 } // namespace kaminpar::shm::io::metis

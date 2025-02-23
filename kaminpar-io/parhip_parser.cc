@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <span>
 
@@ -20,12 +21,14 @@
 
 #include "kaminpar-shm/datastructures/compressed_graph.h"
 #include "kaminpar-shm/datastructures/csr_graph.h"
+#include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/graphutils/compressed_graph_builder.h"
 #include "kaminpar-shm/graphutils/permutator.h"
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/logger.h"
+#include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::io::parhip {
@@ -173,7 +176,7 @@ StaticArray<T> read(
   }
 }
 
-std::optional<CSRGraph> csr_read(const std::string &filename, const bool sorted) {
+std::optional<Graph> csr_read(const std::string &filename, const bool sorted) {
   try {
     const BinaryReader reader(filename);
     const ParHIPHeader header = ParHIPHeader::parse(reader);
@@ -208,15 +211,15 @@ std::optional<CSRGraph> csr_read(const std::string &filename, const bool sorted)
       );
     }
 
-    return CSRGraph(
+    return Graph(std::make_unique<CSRGraph>(
         std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), sorted
-    );
+    ));
   } catch (const BinaryReaderException &e) {
     return std::nullopt;
   }
 }
 
-std::optional<CSRGraph> csr_read_deg_buckets(const std::string &filename) {
+std::optional<Graph> csr_read_deg_buckets(const std::string &filename) {
   try {
     const BinaryReader reader(filename);
     const ParHIPHeader header = ParHIPHeader::parse(reader);
@@ -326,7 +329,7 @@ std::optional<CSRGraph> csr_read_deg_buckets(const std::string &filename) {
     );
     csr_graph.set_permutation(std::move(perm));
 
-    return csr_graph;
+    return Graph(std::make_unique<CSRGraph>(std::move(csr_graph)));
   } catch (const BinaryReaderException &e) {
     return std::nullopt;
   }
@@ -334,7 +337,7 @@ std::optional<CSRGraph> csr_read_deg_buckets(const std::string &filename) {
 
 } // namespace
 
-std::optional<CSRGraph> csr_read(const std::string &filename, const NodeOrdering ordering) {
+std::optional<Graph> csr_read(const std::string &filename, const NodeOrdering ordering) {
   if (ordering == NodeOrdering::EXTERNAL_DEGREE_BUCKETS) {
     return csr_read_deg_buckets(filename);
   }
@@ -345,7 +348,7 @@ std::optional<CSRGraph> csr_read(const std::string &filename, const NodeOrdering
 
 namespace {
 
-std::optional<CompressedGraph> compressed_read(const std::string &filename, const bool sorted) {
+std::optional<Graph> compressed_read(const std::string &filename, const bool sorted) {
   try {
     const BinaryReader reader(filename);
     const ParHIPHeader header = ParHIPHeader::parse(reader);
@@ -439,7 +442,7 @@ std::optional<CompressedGraph> compressed_read(const std::string &filename, cons
   }
 }
 
-std::optional<CompressedGraph> compressed_read_deg_buckets(const std::string &filename) {
+std::optional<Graph> compressed_read_deg_buckets(const std::string &filename) {
   try {
     const BinaryReader reader(filename);
     const ParHIPHeader header = ParHIPHeader::parse(reader);
@@ -554,10 +557,10 @@ std::optional<CompressedGraph> compressed_read_deg_buckets(const std::string &fi
       });
     };
 
-    CompressedGraph compressed_graph = builder.build();
-    compressed_graph.set_permutation(std::move(perm));
+    Graph graph = builder.build();
+    graph.compressed_graph().set_permutation(std::move(perm));
 
-    return compressed_graph;
+    return graph;
   } catch (const BinaryReaderException &e) {
     return std::nullopt;
   }
@@ -565,8 +568,7 @@ std::optional<CompressedGraph> compressed_read_deg_buckets(const std::string &fi
 
 } // namespace
 
-std::optional<CompressedGraph>
-compressed_read(const std::string &filename, const NodeOrdering ordering) {
+std::optional<Graph> compressed_read(const std::string &filename, const NodeOrdering ordering) {
   if (ordering == NodeOrdering::EXTERNAL_DEGREE_BUCKETS) {
     return compressed_read_deg_buckets(filename);
   }
@@ -575,7 +577,16 @@ compressed_read(const std::string &filename, const NodeOrdering ordering) {
   return compressed_read(filename, sorted);
 }
 
-void write(const std::string &filename, const CSRGraph &graph) {
+std::optional<Graph>
+read_graph(const std::string &filename, const bool compress, const NodeOrdering ordering) {
+  if (compress) {
+    return compressed_read(filename, ordering);
+  } else {
+    return csr_read(filename, ordering);
+  }
+}
+
+void write_graph(const std::string &filename, const Graph &graph) {
   BinaryWriter writer(filename);
 
   const bool has_node_weights = graph.is_node_weighted();
@@ -590,25 +601,50 @@ void write(const std::string &filename, const CSRGraph &graph) {
   const std::uint64_t num_edges = graph.m();
   writer.write_int(num_edges);
 
-  const NodeID num_total_nodes = num_nodes + 1;
-  const EdgeID nodes_offset_base = ParHIPHeader::kSize + num_total_nodes * sizeof(EdgeID);
-  const StaticArray<EdgeID> &nodes = graph.raw_nodes();
+  reified(graph, [&](const auto &graph) {
+    const NodeID num_total_nodes = num_nodes + 1;
+    const EdgeID nodes_offset_base = ParHIPHeader::kSize + num_total_nodes * sizeof(EdgeID);
 
-  StaticArray<EdgeID> raw_nodes(num_total_nodes, static_array::noinit);
-  tbb::parallel_for<NodeID>(0, num_total_nodes, [&](const NodeID u) {
-    raw_nodes[u] = nodes_offset_base + nodes[u] * sizeof(NodeID);
+    StaticArray<EdgeID> raw_nodes(num_total_nodes, static_array::noinit);
+    tbb::parallel_for<NodeID>(0, num_nodes, [&](const NodeID u) {
+      raw_nodes[u + 1] = graph.degree(u);
+    });
+    parallel::prefix_sum(raw_nodes.begin(), raw_nodes.end(), raw_nodes.begin());
+
+    StaticArray<NodeID> raw_edges(num_edges, static_array::noinit);
+    StaticArray<EdgeWeight> raw_edge_weights;
+    if (has_edge_weights) {
+      raw_edge_weights.resize(num_edges, static_array::noinit);
+    }
+
+    tbb::parallel_for<NodeID>(0, num_nodes, [&](const NodeID u) {
+      EdgeID edge = raw_nodes[u];
+      graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+        raw_edges[edge] = v;
+
+        if (has_edge_weights) {
+          raw_edge_weights[edge] = w;
+        }
+
+        edge += 1;
+      });
+    });
+
+    tbb::parallel_for<NodeID>(0, num_total_nodes, [&](const NodeID u) {
+      raw_nodes[u] = nodes_offset_base + raw_nodes[u] * sizeof(NodeID);
+    });
+
+    writer.write_raw_static_array(raw_nodes);
+    writer.write_raw_static_array(raw_edges);
+
+    if (has_node_weights) {
+      writer.write_raw_static_array(graph.raw_node_weights());
+    }
+
+    if (has_edge_weights) {
+      writer.write_raw_static_array(raw_edge_weights);
+    }
   });
-
-  writer.write_raw_static_array(raw_nodes);
-  writer.write_raw_static_array(graph.raw_edges());
-
-  if (has_node_weights) {
-    writer.write_raw_static_array(graph.raw_node_weights());
-  }
-
-  if (has_edge_weights) {
-    writer.write_raw_static_array(graph.raw_edge_weights());
-  }
 }
 
 } // namespace kaminpar::shm::io::parhip
