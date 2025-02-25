@@ -13,7 +13,9 @@
 #include <iostream>
 #include <span>
 
+#ifdef KAMINPAR_ENABLE_TBB_MALLOC
 #include <tbb/scalable_allocator.h>
+#endif // KAMINPAR_ENABLE_TBB_MALLOC
 
 #if __has_include(<numa.h>)
 #include <numa.h>
@@ -374,8 +376,10 @@ int main(int argc, char *argv[]) {
     std::exit(0);
   }
 
+#ifdef KAMINPAR_ENABLE_TBB_MALLOC
   // If available, use huge pages for large allocations
   scalable_allocation_mode(TBBMALLOC_USE_HUGE_PAGES, !app.no_huge_pages);
+#endif // KAMINPAR_ENABLE_TBB_MALLOC
 
   ENABLE_HEAP_PROFILER();
 

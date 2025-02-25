@@ -14,7 +14,10 @@
 
 #include <kagen.h>
 #include <mpi.h>
+
+#ifdef KAMINPAR_ENABLE_TBB_MALLOC
 #include <tbb/scalable_allocator.h>
+#endif // KAMINPAR_ENABLE_TBB_MALLOC
 
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 
@@ -564,8 +567,10 @@ int main(int argc, char *argv[]) {
     std::exit(MPI_Finalize());
   }
 
+#ifdef KAMINPAR_ENABLE_TBB_MALLOC
   // If available, use huge pages for large allocations
   scalable_allocation_mode(TBBMALLOC_USE_HUGE_PAGES, !app.no_huge_pages);
+#endif // KAMINPAR_ENABLE_TBB_MALLOC
 
   ENABLE_HEAP_PROFILER();
 

@@ -9,7 +9,9 @@
 
 #include <memory>
 
+#ifdef KAMINPAR_ENABLE_TBB_MALLOC
 #include <tbb/scalable_allocator.h>
+#endif // KAMINPAR_ENABLE_TBB_MALLOC
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/heap_profiler.h"
@@ -24,7 +26,11 @@ namespace parallel {
 
 template <typename T> struct tbb_deleter {
   void operator()(T *p) {
+#ifdef KAMINPAR_ENABLE_TBB_MALLOC
     scalable_free(p);
+#else
+    free(p);
+#endif
 
     if constexpr (kHeapProfiling && !kPageProfiling) {
       heap_profiler::HeapProfiler::global().record_free(p);
@@ -33,23 +39,35 @@ template <typename T> struct tbb_deleter {
 };
 
 template <typename T> using tbb_unique_ptr = std::unique_ptr<T, tbb_deleter<T>>;
-// template <typename T> using tbb_unique_ptr = std::unique_ptr<T>;
 
 template <typename T>
 tbb_unique_ptr<T> make_unique(const std::size_t size, [[maybe_unused]] const bool thp) {
   auto nbytes = sizeof(T) * size;
   T *ptr = nullptr;
 
+#ifdef KAMINPAR_ENABLE_TBB_MALLOC
 #if defined(__linux__) && defined(KAMINPAR_ENABLE_THP)
   if (thp) {
     scalable_posix_memalign(reinterpret_cast<void **>(&ptr), 1 << 21, nbytes);
     madvise(ptr, nbytes, MADV_HUGEPAGE);
   } else {
-#endif
+#endif // KAMINPAR_ENABLE_THP
     ptr = static_cast<T *>(scalable_malloc(nbytes));
 #if defined(__linux__) && defined(KAMINPAR_ENABLE_THP)
   }
-#endif
+#endif // KAMINPAR_ENABLE_THP
+#else  // KAMINPAR_ENABLE_TBB_MALLOC
+#if defined(__linux__) && defined(KAMINPAR_ENABLE_THP)
+  if (thp) {
+    posix_memalign(reinterpret_cast<void **>(&ptr), 1 << 21, nbytes);
+    madvise(ptr, nbytes, MADV_HUGEPAGE);
+  } else {
+#endif // KAMINPAR_ENABLE_THP
+    ptr = static_cast<T *>(malloc(nbytes));
+#if defined(__linux__) && defined(KAMINPAR_ENABLE_THP)
+  }
+#endif // KAMINPAR_ENABLE_THP
+#endif // KAMINPAR_ENABLE_TBB_MALLOC
 
   KASSERT(
       ptr != nullptr, "out of memory: could not allocate " << nbytes << " bytes", assert::light
