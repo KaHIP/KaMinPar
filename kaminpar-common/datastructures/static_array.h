@@ -58,7 +58,7 @@ public:
   template <bool is_const> class StaticArrayIterator {
   public:
     using iterator_category = std::contiguous_iterator_tag;
-    using value_type = T;
+    using element_type = std::conditional_t<is_const, const T, T>;
     using reference = std::conditional_t<is_const, const T &, T &>;
     using pointer = std::conditional_t<is_const, const T *, T *>;
     using difference_type = std::ptrdiff_t;

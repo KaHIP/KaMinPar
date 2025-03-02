@@ -66,11 +66,11 @@ tbb_unique_ptr<T> make_unique(const std::size_t size, [[maybe_unused]] const boo
 
 template <typename T> struct deleter {
   void operator()(T *p) {
-    free(p);
-
     if constexpr (kHeapProfiling && !kPageProfiling) {
       heap_profiler::HeapProfiler::global().record_free(p);
     }
+
+    free(p);
   }
 };
 
