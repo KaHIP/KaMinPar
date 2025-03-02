@@ -321,6 +321,7 @@ if (KAMINPAR_DOWNLOAD_TBB)
         EXCLUDE_FROM_ALL
         UPDATE_DISCONNECTED TRUE
     )
+    set(TBB_TEST OFF CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(TBB)
 else ()
     find_package(TBB REQUIRED)
