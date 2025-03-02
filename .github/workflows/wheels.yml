@@ -26,7 +26,7 @@ jobs:
       uses: pypa/cibuildwheel@6cccd09a31908ffd175b012fb8bf4e1dbda3bc6c # v2.23.0
       env:
         CIBW_BUILD: ${{ matrix.python }}-manylinux_x86_64
-        CIBW_ENVIRONMENT: SKBUILD_CMAKE_DEFINE="KAMINPAR_PYTHON_64BIT=${{ matrix.bit64 }}"
+        CIBW_ENVIRONMENT: SKBUILD_CMAKE_DEFINE="KAMINPAR_PYTHON_INSTALL_TBB=On;KAMINPAR_PYTHON_64BIT=${{ matrix.bit64 }}"
       with:
         package-dir: bindings/python
 
