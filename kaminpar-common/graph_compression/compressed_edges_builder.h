@@ -110,6 +110,8 @@ public:
     _compressed_edges = heap_profiler::overcommit_memory<std::uint8_t>(max_size);
     _cur_compressed_edges = _compressed_edges.get();
     _compressed_data_max_size = 0;
+
+    reset();
   }
 
   /*!
@@ -129,6 +131,8 @@ public:
     _compressed_edges = heap_profiler::overcommit_memory<std::uint8_t>(max_size);
     _cur_compressed_edges = _compressed_edges.get();
     _compressed_data_max_size = 0;
+
+    reset();
   }
 
   /*!
@@ -156,19 +160,15 @@ public:
   CompressedEdgesBuilder &operator=(CompressedEdgesBuilder &&) noexcept = delete;
 
   /*!
-   * Initializes the builder.
-   *
-   * @param first_edge The first edge ID of the first node to be added.
+   * Resets the builder.
    */
-  void init(const EdgeID first_edge) {
+  void reset() {
     const auto prev_compressed_data_size = size();
     _compressed_data_max_size = std::max(_compressed_data_max_size, prev_compressed_data_size);
     _cur_compressed_edges = _compressed_edges.get();
 
-    _cur_edge = first_edge;
     _max_degree = 0;
     _total_edge_weight = 0;
-    _cur_edge_weight = first_edge;
 
     _num_high_degree_nodes = 0;
     _num_high_degree_parts = 0;
@@ -184,14 +184,13 @@ public:
    * @param neighbourhood The neighbourhood of the node to add.
    * @return The offset into the compressed edge array of the node.
    */
-  template <typename Container> EdgeID add(const NodeID node, Container &neighborhood) {
-    using Neighbor = std::remove_reference_t<Container>::value_type;
-    constexpr bool kIsNeighbor = std::is_same_v<Neighbor, NodeID>;
+  template <typename Neighbor> EdgeID add(const NodeID node, std::span<Neighbor> neighborhood) {
+    constexpr bool kIsUnweightedNeighbor = std::is_same_v<Neighbor, NodeID>;
     constexpr bool kIsWeightedNeighbor = std::is_same_v<Neighbor, std::pair<NodeID, EdgeWeight>>;
-    static_assert(kIsNeighbor || kIsWeightedNeighbor);
+    static_assert(kIsUnweightedNeighbor || kIsWeightedNeighbor, "Invalid neighbor type");
 
     const EdgeID offset = current_offset();
-    NodeID degree = neighborhood.size();
+    const NodeID degree = neighborhood.size();
     if (degree == 0) [[unlikely]] {
       return offset;
     }
@@ -219,8 +218,6 @@ public:
     } else {
       varint_encode(degree, &_cur_compressed_edges);
     }
-
-    _cur_edge += degree;
 
     if constexpr (kHighDegreeEncoding) {
       const bool split_neighbourhood = degree >= kHighDegreeThreshold;
@@ -354,10 +351,10 @@ private:
     return static_cast<std::uint64_t>(_cur_compressed_edges - _compressed_edges.get());
   }
 
-  template <typename Container>
-  static void
-  set_adjacent_node(Container &neighborhood, const NodeID num_neighbor, const NodeID value) {
-    using Neighbor = std::remove_reference_t<Container>::value_type;
+  template <typename Neighbor>
+  static void set_adjacent_node(
+      std::span<Neighbor> neighborhood, const NodeID num_neighbor, const NodeID value
+  ) {
     constexpr bool kIsWeightedNeighbor = std::is_same_v<Neighbor, std::pair<NodeID, EdgeWeight>>;
 
     if constexpr (kIsWeightedNeighbor) {
@@ -367,10 +364,9 @@ private:
     }
   }
 
-  template <typename Container>
+  template <typename Neighbor>
   [[nodiscard]] static NodeID
-  get_adjacent_node(const Container &neighborhood, const NodeID num_neighbor) {
-    using Neighbor = std::remove_reference_t<Container>::value_type;
+  get_adjacent_node(std::span<Neighbor> neighborhood, const NodeID num_neighbor) {
     constexpr bool kIsWeightedNeighbor = std::is_same_v<Neighbor, std::pair<NodeID, EdgeWeight>>;
 
     if constexpr (kIsWeightedNeighbor) {
@@ -380,21 +376,19 @@ private:
     }
   }
 
-  template <typename Container>
+  template <typename Neighbor>
   [[nodiscard]] static EdgeWeight
-  get_edge_weight(const Container &neighborhood, const NodeID num_neighbor) {
-    using Neighbor = std::remove_reference_t<Container>::value_type;
+  get_edge_weight(std::span<Neighbor> &neighborhood, const NodeID num_neighbor) {
     constexpr bool kIsWeightedNeighbor = std::is_same_v<Neighbor, std::pair<NodeID, EdgeWeight>>;
-    static_assert(kIsWeightedNeighbor);
 
-    return neighborhood[num_neighbor].second;
+    if constexpr (kIsWeightedNeighbor) {
+      return neighborhood[num_neighbor].second;
+    } else {
+      return 1;
+    }
   }
 
   void encode_edge_weight(const EdgeWeight edge_weight, EdgeWeight &prev_edge_weight) {
-    if (!_has_edge_weights) {
-      return;
-    }
-
     const SignedEdgeWeight edge_weight_gap =
         edge_weight - static_cast<SignedEdgeWeight>(prev_edge_weight);
     signed_varint_encode(edge_weight_gap, &_cur_compressed_edges);
@@ -403,8 +397,8 @@ private:
     _total_edge_weight += edge_weight;
   }
 
-  template <typename Container>
-  void add_edges(const NodeID node, const NodeID num_intervals, Container &neighborhood) {
+  template <typename Neighbor>
+  void add_edges(const NodeID node, const NodeID num_intervals, std::span<Neighbor> neighborhood) {
     NodeID degree = neighborhood.size();
     EdgeWeight prev_edge_weight = 0;
 
@@ -417,8 +411,8 @@ private:
     encode_gaps(node, degree, prev_edge_weight, neighborhood);
   }
 
-  template <bool kInvalidate = false, typename Container, typename Lambda>
-  void parse_intervals(const Container &neighborhood, Lambda &&l) const {
+  template <bool kInvalidate = false, typename Neighbor, typename Lambda>
+  void parse_intervals(std::span<Neighbor> neighborhood, Lambda &&l) const {
     const NodeID degree = neighborhood.size();
     if (degree < kIntervalLengthTreshold) {
       return;
@@ -450,8 +444,8 @@ private:
     }
   }
 
-  template <typename Container>
-  [[nodiscard]] NodeID count_intervals(const Container &neighborhood) const {
+  template <typename Neighbor>
+  [[nodiscard]] NodeID count_intervals(std::span<Neighbor> neighborhood) const {
     NodeID num_intervals = 0;
 
     parse_intervals(neighborhood, [&](const NodeID, const NodeID, const NodeID, const NodeID) {
@@ -461,14 +455,12 @@ private:
     return num_intervals;
   }
 
-  template <typename Container>
+  template <typename Neighbor>
   NodeID encode_intervals(
-      const NodeID num_intervals, EdgeWeight &prev_edge_weight, Container &neighborhood
+      const NodeID num_intervals, EdgeWeight &prev_edge_weight, std::span<Neighbor> neighborhood
   ) {
-    using Neighbor = std::remove_reference_t<Container>::value_type;
-    constexpr bool kHasEdgeWeights = std::is_same_v<Neighbor, std::pair<NodeID, EdgeWeight>>;
-
     NodeID num_remaining_nodes = neighborhood.size();
+
     if (num_intervals > 0) {
       varint_encode(num_intervals - 1, &_cur_compressed_edges);
       _num_intervals += num_intervals;
@@ -495,7 +487,7 @@ private:
               // that the node has been encoded through an interval.
               set_adjacent_node(neighborhood, pos, kInvalidNodeID);
 
-              if constexpr (kHasEdgeWeights) {
+              if (_has_edge_weights) {
                 const EdgeWeight edge_weight = get_edge_weight(neighborhood, pos);
                 encode_edge_weight(edge_weight, prev_edge_weight);
               }
@@ -507,11 +499,13 @@ private:
     return num_remaining_nodes;
   }
 
-  template <typename Container>
+  template <typename Neighbor>
   void encode_gaps(
-      const NodeID node, const NodeID degree, EdgeWeight &prev_edge_weight, Container &neighborhood
+      const NodeID node,
+      const NodeID degree,
+      EdgeWeight &prev_edge_weight,
+      std::span<Neighbor> neighborhood
   ) {
-    using Neighbor = std::remove_reference_t<Container>::value_type;
     constexpr bool kHasEdgeWeights = std::is_same_v<Neighbor, std::pair<NodeID, EdgeWeight>>;
 
     if (degree == 0) {
@@ -526,7 +520,7 @@ private:
     const NodeID first_adjacent_node = get_adjacent_node(neighborhood, i);
     const SignedNodeID first_gap = first_adjacent_node - static_cast<SignedNodeID>(node);
     signed_varint_encode(first_gap, &_cur_compressed_edges);
-    if constexpr (kHasEdgeWeights) {
+    if (_has_edge_weights) {
       const EdgeWeight edge_weight = get_edge_weight(neighborhood, i);
       encode_edge_weight(edge_weight, prev_edge_weight);
     }
@@ -587,7 +581,7 @@ private:
       prev_adjacent_node = adjacent_node;
 
       varint_encode(gap, &_cur_compressed_edges);
-      if constexpr (kHasEdgeWeights) {
+      if (_has_edge_weights) {
         const EdgeWeight edge_weight = get_edge_weight(neighborhood, i);
         encode_edge_weight(edge_weight, prev_edge_weight);
       }
@@ -597,16 +591,14 @@ private:
   }
 
 private:
+  const bool _has_edge_weights;
+
   heap_profiler::unique_ptr<std::uint8_t> _compressed_edges;
   std::uint8_t *_cur_compressed_edges;
   std::size_t _compressed_data_max_size;
 
-  bool _has_edge_weights;
-  EdgeWeight _total_edge_weight;
-  EdgeID _cur_edge_weight;
-
-  EdgeID _cur_edge;
   NodeID _max_degree;
+  EdgeWeight _total_edge_weight;
 
   // Graph compression statistics
   std::size_t _num_high_degree_nodes;

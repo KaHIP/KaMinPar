@@ -2,7 +2,6 @@
 
 #include "tests/shm/graph_helpers.h"
 
-#include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/metrics.h"
 
 namespace kaminpar::shm::testing {

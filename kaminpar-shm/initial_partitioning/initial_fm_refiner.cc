@@ -221,8 +221,8 @@ template <typename QueueSelectionPolicy, typename CutAcceptancePolicy, typename 
 EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>::round(
     PartitionedCSRGraph &p_graph
 ) {
-  DBG << "Initial refiner initialized with n=" << p_graph.n() << ", m=" << p_graph.m()
-      << ", k=" << p_graph.k();
+  DBG << "Initial refiner initialized with n=" << p_graph.graph().n()
+      << ", m=" << p_graph.graph().m() << ", k=" << p_graph.k();
 
   KASSERT(
       p_graph.k() == 2u,
@@ -395,7 +395,7 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
     compute_gain_from_scratch(const PartitionedCSRGraph &p_graph, const NodeID u) {
   const BlockID u_block = p_graph.block(u);
   EdgeWeight weighted_external_degree = 0;
-  p_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+  p_graph.graph().adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
     weighted_external_degree += (p_graph.block(v) != u_block) * weight;
   });
   const EdgeWeight weighted_internal_degree = _weighted_degrees[u] - weighted_external_degree;
@@ -419,7 +419,7 @@ bool InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>
     const PartitionedCSRGraph &p_graph, const NodeID u
 ) {
   bool boundary_node = false;
-  p_graph.adjacent_nodes(u, [&](const NodeID v) {
+  p_graph.graph().adjacent_nodes(u, [&](const NodeID v) {
     if (p_graph.block(u) != p_graph.block(v)) {
       boundary_node = true;
       return true;
@@ -435,7 +435,7 @@ template <typename QueueSelectionPolicy, typename CutAcceptancePolicy, typename 
 bool InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>::validate_pqs(
     const PartitionedCSRGraph &p_graph
 ) {
-  for (const NodeID u : p_graph.nodes()) {
+  for (const NodeID u : p_graph.graph().nodes()) {
     if (is_boundary_node(p_graph, u)) {
       if (_marker.get(u)) {
         KASSERT(!_queues[0].contains(u));

@@ -87,9 +87,7 @@ void HeapProfiler::stop_profile() {
   }
 }
 
-void HeapProfiler::record_data_struct(
-    std::string_view var_name, const std::source_location location
-) {
+void HeapProfiler::record_data_struct(std::string_view var_name, const source_location location) {
   if (_enabled) {
     _var_name = var_name;
     _file_name = location.file_name();

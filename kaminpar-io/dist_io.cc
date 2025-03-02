@@ -5,7 +5,7 @@
  * @author: Daniel Seemaier
  * @date:   13.06.2023
  ******************************************************************************/
-#include "apps/io/dist_io.h"
+#include "kaminpar-io/dist_io.h"
 
 #include <fstream>
 

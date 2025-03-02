@@ -6,6 +6,7 @@
 #pragma once
 
 #include <tbb/concurrent_vector.h>
+#include <tbb/parallel_for.h>
 
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
@@ -24,7 +25,7 @@ public:
 
   void init(const PartitionedGraph &p_graph) {
     _border_nodes.clear();
-    p_graph.pfor_nodes([&](const NodeID u) {
+    tbb::parallel_for<NodeID>(0, p_graph.graph().n(), [&](const NodeID u) {
       if (_gain_cache.is_border_node(u, p_graph.block(u))) {
         _border_nodes.push_back(u);
       }
@@ -39,7 +40,9 @@ public:
     for (const auto &u : border_nodes) {
       _border_nodes.push_back(u);
     }
-    p_graph.pfor_nodes([&](const NodeID u) { _node_tracker.set(u, 0); });
+    tbb::parallel_for<NodeID>(0, p_graph.graph().n(), [&](const NodeID u) {
+      _node_tracker.set(u, 0);
+    });
     _next_border_node = 0;
   }
 

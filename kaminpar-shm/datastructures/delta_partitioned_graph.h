@@ -7,7 +7,8 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar-shm/datastructures/graph_delegate.h"
+#include <span>
+
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
@@ -17,16 +18,23 @@
 
 namespace kaminpar::shm {
 
-class DeltaPartitionedGraph : public GraphDelegate<Graph> {
+class DeltaPartitionedGraph {
 public:
-  DeltaPartitionedGraph(const PartitionedGraph *p_graph)
-      : GraphDelegate<Graph>(&p_graph->graph()),
-        _p_graph(p_graph) {
+  DeltaPartitionedGraph(const PartitionedGraph *p_graph) : _p_graph(p_graph) {
+    _node_weights = reified(*_p_graph, [&](const auto &g) { return g.raw_node_weights().view(); });
     _block_weights_delta.resize(_p_graph->k());
   }
 
   [[nodiscard]] const PartitionedGraph &p_graph() const {
     return *_p_graph;
+  }
+
+  [[nodiscard]] inline const Graph &graph() const {
+    return _p_graph->graph();
+  }
+
+  [[nodiscard]] inline NodeWeight node_weight(const NodeID u) const {
+    return _node_weights.empty() ? 1 : _node_weights[u];
   }
 
   [[nodiscard]] inline BlockID k() const {
@@ -48,16 +56,16 @@ public:
 
   template <bool update_block_weight = true>
   void set_block(const NodeID node, const BlockID new_block) {
-    KASSERT(node < this->n(), "invalid node id " << node);
+    KASSERT(node < _p_graph->graph().n(), "invalid node id " << node);
     KASSERT(new_block < k(), "invalid block id " << new_block << " for node " << node);
 
     if constexpr (update_block_weight) {
       const BlockID old_block = block(node);
       KASSERT(old_block < k());
 
-      const NodeWeight w = this->node_weight(node);
+      const NodeWeight w = node_weight(node);
       _block_weights_delta[old_block] -= w;
-      _block_weights_delta[new_block] += this->node_weight(node);
+      _block_weights_delta[new_block] += w;
     }
 
     _partition_delta[node] = new_block;
@@ -82,9 +90,19 @@ public:
 
 private:
   const PartitionedGraph *_p_graph;
+  std::span<const NodeWeight> _node_weights;
 
   ScalableVector<BlockWeight> _block_weights_delta;
   DynamicFlatMap<NodeID, BlockID> _partition_delta;
 };
+
+template <typename Lambda> decltype(auto) reified(DeltaPartitionedGraph &p_graph, Lambda &&l) {
+  return reified(p_graph.graph(), std::forward<Lambda>(l));
+}
+
+template <typename Lambda>
+decltype(auto) reified(const DeltaPartitionedGraph &p_graph, Lambda &&l) {
+  return reified(p_graph.graph(), std::forward<Lambda>(l));
+}
 
 } // namespace kaminpar::shm

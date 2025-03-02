@@ -11,6 +11,7 @@
 #include <cstring>
 #include <initializer_list>
 #include <iterator>
+#include <span>
 #include <thread>
 #include <vector>
 
@@ -57,7 +58,7 @@ public:
   template <bool is_const> class StaticArrayIterator {
   public:
     using iterator_category = std::contiguous_iterator_tag;
-    using value_type = T;
+    using element_type = std::conditional_t<is_const, const T, T>;
     using reference = std::conditional_t<is_const, const T &, T &>;
     using pointer = std::conditional_t<is_const, const T *, T *>;
     using difference_type = std::ptrdiff_t;
@@ -259,6 +260,14 @@ public:
   const value_type *data() const {
     KASSERT(_data || _size == 0);
     return _data;
+  }
+
+  std::span<value_type> view() {
+    return std::span<value_type>(_data, _size);
+  }
+
+  std::span<const value_type> view() const {
+    return std::span<const value_type>(_data, _size);
   }
 
   //
