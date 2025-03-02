@@ -74,17 +74,14 @@ def test_graph_interface(filename, file_format):
     assert graph.n() == 1024
     assert graph.m() == 8226
 
-    assert all(u == i for i, u in enumerate(graph.nodes()))
-    assert all(e == i for i, e in enumerate(graph.edges()))
-
     assert graph.is_node_weighted() is False
     assert graph.is_edge_weighted() is False
 
-    assert all(graph.node_weight(u) == 1 for u in graph.nodes())
+    assert all(graph.node_weight(u) == 1 for u in range(graph.n()))
 
     assert sum(graph.degree(u) for u in range(graph.n())) == graph.m()
 
-    assert all(len(graph.neighbors(u)) == graph.degree(u) for u in graph.nodes())
+    assert all(len(graph.neighbors(u)) == graph.degree(u) for u in range(graph.n()))
 
 
 @pytest.mark.parametrize("filename,file_format", graphs)

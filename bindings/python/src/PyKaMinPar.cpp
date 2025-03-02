@@ -15,9 +15,7 @@
 #include <pybind11/stl.h>
 
 #include <kaminpar-common/random.h>
-
 #include <kaminpar-io/kaminpar_io.h>
-
 #include <kaminpar-shm/datastructures/graph.h>
 #include <kaminpar-shm/kaminpar.h>
 
@@ -99,34 +97,30 @@ PYBIND11_MODULE(kaminpar_python, m) {
   pybind11::class_<Graph>(m, "Graph")
       .def("n", &Graph::n, "Number of nodes")
       .def("m", &Graph::m, "Number of edges")
-      .def(
-          "nodes",
-          [](const Graph &self) {
-            auto range = self.nodes();
-            return pybind11::make_iterator(range.begin(), range.end());
-          },
-          ""
-      )
-      .def(
-          "edges",
-          [](const Graph &self) {
-            auto range = self.edges();
-            return pybind11::make_iterator(range.begin(), range.end());
-          },
-          ""
-      )
       .def("is_node_weighted", &Graph::is_node_weighted, "Whether the graph has node weights")
       .def("is_edge_weighted", &Graph::is_edge_weighted, "Whether the graph has edge weights")
-      .def("node_weight", &Graph::node_weight, "The weight of a node")
-      .def("degree", &Graph::degree, "The degree of a node")
+      .def(
+          "node_weight",
+          [](const Graph &self, NodeID u) -> NodeWeight {
+            return self.underlying_graph()->node_weight(u);
+          },
+          "The weight of a node"
+      )
+      .def(
+          "degree",
+          [](const Graph &self, NodeID u) -> NodeID { return self.underlying_graph()->degree(u); },
+          "The degree of a node"
+      )
       .def(
           "neighbors",
           [](const Graph &self, NodeID u) {
             std::vector<std::pair<NodeID, EdgeWeight>> neighbors;
-            neighbors.reserve(self.degree(u));
 
-            self.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
-              neighbors.emplace_back(v, w);
+            reified(self, [&](const auto &graph) {
+              neighbors.reserve(graph.degree(u));
+              graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+                neighbors.emplace_back(v, w);
+              });
             });
 
             return neighbors;
@@ -140,7 +134,7 @@ PYBIND11_MODULE(kaminpar_python, m) {
   m.def(
       "load_graph",
       [](const std::string &filename, io::GraphFileFormat format) -> Graph {
-        if (auto graph = io::read(filename, format, NodeOrdering::NATURAL, false)) {
+        if (auto graph = io::read_graph(filename, format)) {
           return std::move(*graph);
         }
 

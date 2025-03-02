@@ -1,0 +1,49 @@
+name: Wheel builder
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build_python_wheels:
+    name: Build KaMinPar Python wheel for ${{ matrix.python }}  with 64-bit IDs set to ${{ matrix.bit64 }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["cp311", "cp312", "cp313", "cp313t", "pp310", "pp311"]
+        bit64: ["Off", "On"]
+    steps:
+    - name: Checkout KaMinPar
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+    - name: Build wheels
+      uses: pypa/cibuildwheel@6cccd09a31908ffd175b012fb8bf4e1dbda3bc6c # v2.23.0
+      env:
+        CIBW_BUILD: ${{ matrix.python }}-manylinux_x86_64
+        CIBW_ENVIRONMENT: SKBUILD_CMAKE_DEFINE="KAMINPAR_PYTHON_64BIT=${{ matrix.bit64 }}"
+      with:
+        package-dir: bindings/python
+
+  build_networkit_wheels:
+    name: Build KaMinPar NetworKit wheel for ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["cp311", "cp312", "pp310", "pp311"]
+    steps:
+    - name: Checkout KaMinPar
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+    - name: Build wheels
+      uses: pypa/cibuildwheel@6cccd09a31908ffd175b012fb8bf4e1dbda3bc6c # v2.23.0
+      env:
+        CIBW_BUILD: ${{ matrix.python }}-manylinux_x86_64
+      with:
+        package-dir: bindings/networkit

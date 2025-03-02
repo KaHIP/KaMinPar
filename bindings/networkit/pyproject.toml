@@ -2,10 +2,10 @@
 name = "kaminpar_networkit"
 version = "3.1.0"
 description = "NetworKit bindings for KaMinPar"
-requires-python = ">=3.9"
 dependencies = ["networkit"]
+requires-python = ">=3.9"
 
-[project.optional-dependencies]
+[dependency-groups]
 test = ["pytest"]
 
 [build-system]
@@ -15,3 +15,24 @@ build-backend = "scikit_build_core.build"
 [tool.scikit-build]
 minimum-version = "build-system.requires"
 build-dir = "build/{wheel_tag}"
+
+[tool.cibuildwheel]
+build-verbosity = 1
+before-build = "yum install -y sparsehash-devel"
+test-groups = ["test"]
+test-command = """
+  mkdir misc
+  cp {project}/misc/* misc/
+  pytest {package}/tests
+"""
+
+[tool.cibuildwheel.linux]
+archs = ["x86_64"]
+environment = { "CMAKE_ARGS" = "-DKAMINPAR_PYTHON_INSTALL_TBB=On" }
+environment-pass = ["CMAKE_ARGS", "SKBUILD_CMAKE_DEFINE"]
+repair-wheel-command = """
+  pip install networkit
+  NETWORKIT_DIR=$(python -c "import networkit, os; print(os.path.dirname(networkit.__file__))")
+  export LD_LIBRARY_PATH="/tmp/tbb/:$NETWORKIT_DIR/..:$LD_LIBRARY_PATH"
+  auditwheel repair -w {dest_dir} {wheel}
+"""

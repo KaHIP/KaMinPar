@@ -68,7 +68,7 @@ NetworKit::Partition computePartitionGeneric(KaMinParNetworKit &shm, Lambda &&la
   StaticArray<BlockID> partitionVec(shm.graph()->n());
 
   lambda(partitionVec);
-  shm.graph()->pfor_nodes([&](const NodeID u) { partition[u] = partitionVec[u]; });
+  shm.graph()->csr_graph().pfor_nodes([&](const NodeID u) { partition[u] = partitionVec[u]; });
 
   return partition;
 }

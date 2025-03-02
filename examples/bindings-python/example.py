@@ -4,7 +4,7 @@ import kaminpar
 def edge_cut(graph, partition):
     cut = 0
 
-    for u in graph.nodes():
+    for u in range(graph.n()):
         for v, w in graph.neighbors(u):
             if partition[u] != partition[v]:
                 cut += w
@@ -18,4 +18,4 @@ graph = kaminpar.load_graph("misc/rgg2d.metis", kaminpar.GraphFileFormat.METIS)
 instance = kaminpar.KaMinPar(num_threads=1, ctx=kaminpar.default_context())
 
 partition = instance.compute_partition(graph, k=4)
-print("Computed a partition with edge cut of", edge_cut(graph, partition))
+print("Computed a partition with edge cut of ", edge_cut(graph, partition))

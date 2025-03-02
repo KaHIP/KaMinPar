@@ -11,25 +11,33 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+option(KAMINPAR_PYTHON_INSTALL_TBB "Install TBB with the package" OFF)
+message(STATUS "Installing TBB with the package: ${KAMINPAR_PYTHON_INSTALL_TBB}")
+
 find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
 find_package(Cython MODULE REQUIRED VERSION 3.0)
+
+execute_process(
+  COMMAND "${Python_EXECUTABLE}" -c "import networkit, os; print(os.path.dirname(networkit.__file__))"
+  OUTPUT_VARIABLE NETWORKIT_DIR
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+set(NETWORKIT_LIB "${NETWORKIT_DIR}/../libnetworkit.so")
+set(NETWORKIT_INCLUDE "${NETWORKIT_DIR}/../include")
 
 include(UseCython)
 include(FetchContent)
 
 FetchContent_Declare(
-  networkit
-  GIT_REPOSITORY https://github.com/networkit/networkit.git
-  GIT_TAG f720ba9678943c771ed04e540946a9ea1f221fd5
-)
-FetchContent_MakeAvailable(networkit)
-
-FetchContent_Declare(
   KaMinPar
   GIT_REPOSITORY https://github.com/dsalwasser/KaMinPar.git
   GIT_TAG shm/feat/graph-compression-interface
+  EXCLUDE_FROM_ALL
 )
-set(KAMINPAR_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(KAMINPAR_DOWNLOAD_TBB ${KAMINPAR_PYTHON_INSTALL_TBB} CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(KaMinPar)
 
 cython_transpile(src/kaminpar_networkit/nkkaminpar.pyx
@@ -38,8 +46,12 @@ cython_transpile(src/kaminpar_networkit/nkkaminpar.pyx
 )
 
 python_add_library(nkkaminpar MODULE "${nkkaminpar_cpp}" src/kaminpar_networkit.h src/kaminpar_networkit.cc WITH_SOABI)
-target_link_libraries(nkkaminpar PUBLIC KaMinPar::KaMinPar networkit)
-target_include_directories(nkkaminpar PUBLIC "${networkit_SOURCE_DIR}/networkit" "src/")
+target_link_libraries(nkkaminpar PUBLIC KaMinPar::KaMinPar "${NETWORKIT_LIB}")
+target_include_directories(nkkaminpar PUBLIC "${NETWORKIT_INCLUDE}" "${NETWORKIT_DIR}" "src/")
 
 add_library(KaMinPar::NetworKitKaMinPar ALIAS nkkaminpar)
 install(TARGETS nkkaminpar DESTINATION kaminpar_networkit)
+
+if(KAMINPAR_PYTHON_INSTALL_TBB)
+  install(TARGETS tbb tbbmalloc DESTINATION /tmp/tbb)
+endif()
