@@ -115,7 +115,7 @@ void setup_context(CLI::App &cli, ApplicationContext &app, Context &ctx) {
       ->configurable(false)
       ->description(R"(Print the current configuration and exit.
 The output should be stored in a file and can be used by the -C,--config option.)");
-  mandatory->add_flag("-v,--version", app.show_version, "Show version and exit.");
+  mandatory->add_flag("--version", app.show_version, "Show version and exit.");
 
   // Mandatory -> ... or partition a graph
   auto *gp_group = mandatory->add_option_group("Partitioning")->silent();
