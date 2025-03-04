@@ -51,7 +51,7 @@ Context create_default_context() {
               .mode = PartitioningMode::DEEP,
               .initial_k = 2,
               .extension_k = 0,
-              .avoid_toplevel_bipartitioning = true,
+              .avoid_toplevel_bipartitioning = false,
               .enable_pe_splitting = true,
               .simulate_singlethread = true,
           },
