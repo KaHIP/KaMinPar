@@ -422,7 +422,8 @@ endif ()
 
 # Examples
 if (KAMINPAR_BUILD_EXAMPLES)
-    add_subdirectory(examples)
+    add_subdirectory(examples/kaminpar)
+    add_subdirectory(examples/bindings-c)
 endif ()
 
 ################################################################################
@@ -436,7 +437,7 @@ include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
 
 install(
-    FILES kaminpar-shm/kaminpar.h
+    FILES kaminpar-shm/kaminpar.h kaminpar-shm/ckaminpar.h
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
     COMPONENT KaMinPar_Development
 )
