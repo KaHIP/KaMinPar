@@ -9,17 +9,20 @@ project(
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-option(DOWNLOAD_KAMINPAR "Download KaMinPar from GitHub" ON)
-if(DOWNLOAD_KAMINPAR)
+find_package(KaMinPar 3.2.0 QUIET)
+if(NOT KaMinPar_FOUND)
+  message(STATUS "KaMinPar not found, downloading it from GitHub")
+
   include(FetchContent)
-  # TODO: change source when merged
   FetchContent_Declare(
     KaMinPar
-    SOURCE_DIR ../../../
+    GIT_REPOSITORY https://github.com/dsalwasser/KaMinPar.git
+    GIT_TAG shm/feat/graph-compression-interface # TODO: Update when merged
+    GIT_SHALLOW TRUE
+    UPDATE_DISCONNECTED TRUE
   )
+  set(KAMINPAR_BUILD_APPS OFF CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(KaMinPar)
-else()
-  find_package(KaMinPar 3.2.0 REQUIRED)
 endif()
 
 add_executable(KaMinParExample main.cc)
