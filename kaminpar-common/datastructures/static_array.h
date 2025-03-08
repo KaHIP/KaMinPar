@@ -334,6 +334,17 @@ public:
 
   template <typename... Tags>
   void resize(const std::size_t size, const value_type init_value, Tags...) {
+    static_assert(
+        tag::are_all_contained<Tags...>(
+            static_array::noinit,
+            static_array::small,
+            static_array::overcommit,
+            static_array::seq,
+            static_array::std_alloc
+        ),
+        "invalid tags"
+    );
+
     KASSERT(
         _data == _owned_data.get() || _data == _owned_data_std.get() ||
             _data == _overcommited_data.get(),
