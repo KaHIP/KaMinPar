@@ -55,8 +55,8 @@ inline PartitionedGraph make_p_graph(const Graph &graph, const BlockID k) {
 
 inline std::vector<NodeID> degrees(const Graph &graph) {
   std::vector<NodeID> degrees(graph.n());
-  for (const NodeID u : graph.nodes()) {
-    degrees[u] = graph.degree(u);
+  for (const NodeID u : graph.csr_graph().nodes()) {
+    degrees[u] = graph.csr_graph().degree(u);
   }
   return degrees;
 }

@@ -52,11 +52,14 @@ InitialMultilevelBipartitioner::InitialMultilevelBipartitioner(const Context &ct
 // Note: `graph` is the `current_block`-th block-induced subgraph of some graph which is already
 // partitioned into `current_k` blocks.
 void InitialMultilevelBipartitioner::initialize(
-    const CSRGraph &graph, const BlockID current_block, const BlockID current_k
+    const Graph &abstract_graph,
+    const CSRGraph &graph,
+    const BlockID current_block,
+    const BlockID current_k
 ) {
   KASSERT(graph.n() > 0u);
   _graph = &graph;
-  _p_ctx = partitioning::create_twoway_context(_ctx, current_block, current_k, graph);
+  _p_ctx = partitioning::create_twoway_context(_ctx, current_block, current_k, abstract_graph);
 
   _coarsener->init(graph);
   _refiner->init(graph);
@@ -154,7 +157,7 @@ const CSRGraph *InitialMultilevelBipartitioner::coarsen(InitialPartitionerTiming
 }
 
 PartitionedCSRGraph InitialMultilevelBipartitioner::uncoarsen(PartitionedCSRGraph p_graph) {
-  DBG << "Initial uncoarsening: n=" << p_graph.n() << " m=" << p_graph.m();
+  DBG << "Initial uncoarsening: n=" << p_graph.graph().n() << " m=" << p_graph.graph().m();
 
   while (!_coarsener->empty()) {
     p_graph = _coarsener->uncoarsen(std::move(p_graph));

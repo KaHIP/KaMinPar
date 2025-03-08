@@ -64,9 +64,11 @@ public:
   }
 
   KAMINPAR_INLINE void move(const NodeID u, const BlockID block_from, const BlockID block_to) {
-    _d_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
-      _gain_cache_delta[index(v, block_from)] -= weight;
-      _gain_cache_delta[index(v, block_to)] += weight;
+    reified(_d_graph, [&](const auto &graph) {
+      graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+        _gain_cache_delta[index(v, block_from)] -= weight;
+        _gain_cache_delta[index(v, block_to)] += weight;
+      });
     });
   }
 
@@ -150,19 +152,21 @@ public:
   }
 
   KAMINPAR_INLINE void move(const NodeID u, const BlockID block_from, const BlockID block_to) {
-    _d_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
-      _gain_cache_delta[index(v, block_from)] -= weight;
+    reified(_d_graph, [&](const auto &graph) {
+      graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+        _gain_cache_delta[index(v, block_from)] -= weight;
 
-      if (_gain_cache.conn(v, block_to) == 0 && conn_delta(v, block_to) == 0) {
-        auto &additional_adjacent_blocks = _adjacent_blocks_delta[v];
-        if (std::find(
-                additional_adjacent_blocks.begin(), additional_adjacent_blocks.end(), block_to
-            ) == additional_adjacent_blocks.end()) {
-          additional_adjacent_blocks.push_back(block_to);
+        if (_gain_cache.conn(v, block_to) == 0 && conn_delta(v, block_to) == 0) {
+          auto &additional_adjacent_blocks = _adjacent_blocks_delta[v];
+          if (std::find(
+                  additional_adjacent_blocks.begin(), additional_adjacent_blocks.end(), block_to
+              ) == additional_adjacent_blocks.end()) {
+            additional_adjacent_blocks.push_back(block_to);
+          }
         }
-      }
 
-      _gain_cache_delta[index(v, block_to)] += weight;
+        _gain_cache_delta[index(v, block_to)] += weight;
+      });
     });
   }
 

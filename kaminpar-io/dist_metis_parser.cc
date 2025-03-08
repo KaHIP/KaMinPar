@@ -5,9 +5,11 @@
  * @author: Daniel Salwasser
  * @date:   22.06.2024
  ******************************************************************************/
-#include "apps/io/dist_metis_parser.h"
+#include "kaminpar-io/dist_metis_parser.h"
 
 #include <numeric>
+
+#include "kaminpar-io/util/file_toker.h"
 
 #include "kaminpar-mpi/datatype.h"
 #include "kaminpar-mpi/utils.h"
@@ -17,8 +19,6 @@
 #include "kaminpar-dist/graphutils/synchronization.h"
 
 #include "kaminpar-common/graph_compression/compressed_neighborhoods_builder.h"
-
-#include "apps/io/file_toker.h"
 
 namespace kaminpar::dist::io::metis {
 
@@ -500,7 +500,7 @@ DistributedCompressedGraph compress_read(
         header,
         [&](const auto weight) {
           if (node > 0) {
-            builder.add(node - 1, neighbourhood);
+            builder.add(node - 1, std::span<std::pair<NodeID, EdgeWeight>>(neighbourhood));
             neighbourhood.clear();
           }
 
@@ -523,7 +523,7 @@ DistributedCompressedGraph compress_read(
         }
     );
 
-    builder.add(node - 1, neighbourhood);
+    builder.add(node - 1, std::span<std::pair<NodeID, EdgeWeight>>(neighbourhood));
     neighbourhood.clear();
     neighbourhood.shrink_to_fit();
   }
