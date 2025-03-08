@@ -19,7 +19,7 @@ After the header, each subsequent line represents a node and lists its adjacent 
 | Node 2     | [node_weight] first_neighbor [first_edge_weight] ... last_neighbor [last_edge_weight] |
 | ...        | ...                                                                                   |
 | Node n     | [node_weight] first_neighbor [first_edge_weight] ... last_neighbor [last_edge_weight] |
-+--------+-------------------------------------------------------------------------------------------+
++------------+---------------------------------------------------------------------------------------+
 ```
 
 ## ParHIP Graph File Format
@@ -54,13 +54,3 @@ The offsets section contains addresses relative to the start of the file, such t
 The compressed graph file format is a binary format to represent compressed graphs. This format includes several sections: a header, offsets, compressed adjacency lists, and optional node weights. The header starts with a magic number and contains metadata about the graph, such as the number of nodes and edges, whether the graph is weighted, whether 64-bit IDs are used, and additional information about the compression format. The offsets section contains the starting position (in bytes) of each node's adjacency list in the compressed adjacency lists section. The compressed adjacency lists section contains the adjacency lists of all nodes in a compressed form. If node weights are present, this section also stores the weights of adjacent nodes for each node.
 
 To read and write a compresed graph, you can use the methods provided in KaMinPar's I/O module. For information on how to obtain a compressed graph for storing, please refer to the [Graph Compression Documentation](/docs/graph_compression.md).
-
-```cpp
-#include <kaminpar-io/graph_compression_binary.h>
-
-using namespace kaminpar::shm::io;
-
-std::optional<CompressedGraph> compressed_binary::read(const std::string &filename);
-
-void compressed_binary::write(const std::string &filename, const CompressedGraph &graph);
-```

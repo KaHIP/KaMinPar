@@ -7,52 +7,44 @@ KaMinPar/TeraPart offers graph compression to store the input graph with a space
 We offer both sequential and parallel interfaces for compressing a graph stored in CSR format. While this method is the simplest to use, it is only practical if the input graph can fit in memory without compression, making it only useful in specific situations.
 
 ```cpp
-#include <kaminpar-shm/graphutils/compressed_graph_builder.h>
+#include <kaminpar.h>
 
 using namespace kaminpar::shm;
 
 // To compress a graph in CSR format sequentially.
-CompressedGraph compressed_graph = compress(
+Graph graph = compress(
     std::span<EdgeID> nodes,
-    std::span<NodeID> edges,
-    std::span<NodeWeight> node_weights = {},
-    std::span<EdgeWeight> edge_weights = {}
+    std::span<const NodeID> edges,
+    std::span<const NodeWeight> node_weights = {},
+    std::span<const EdgeWeight> edge_weights = {}
 );
 
 // To compress a graph in CSR format in parallel.
-CompressedGraph compressed_graph = parallel_compress(
-    std::span<EdgeID> nodes,
-    std::span<NodeID> edges,
-    std::span<NodeWeight> node_weights = {},
-    std::span<EdgeWeight> edge_weights = {}
+Graph graph = parallel_compress(
+    std::span<const EdgeID> nodes,
+    std::span<const NodeID> edges,
+    std::span<const NodeWeight> node_weights = {},
+    std::span<const EdgeWeight> edge_weights = {}
 );
 ```
 
 ## Compress a Graph during I/O
 
-If the graph to compress is stored on disk in METIS or ParHIP format (see [Graph File Format Documentation](/docs/graph_file_format.md)), you can obtain the graph in compressed format by using the graph compression I/O interface.
+If the graph to compress is stored on disk in METIS or ParHIP format (see [Graph File Format Documentation](/docs/graph_file_format.md)), you can obtain the graph in compressed format by using the graph compression I/O interface. If the graph is stored in compressed format on disk (see [Graph File Format Documentation](/docs/graph_file_format.md)), then it can also be read directly.
+
+To read a graph from disk, invoke the `read_graph` method with the desired file format, such as `GraphFileFormat::METIS`, `GraphFileFormat::PARHIP`, or `GraphFileFormat::COMPRESSED`, and set the `compress` flag to `true`. The method also accepts a fourth parameter that controls the node ordering in memory. This is unrelated to graph compression, and can be safely ignored by leaving it as `NodeOrdering::NATURAL`.
 
 ```cpp
-#include <kaminpar-io/parhip_parser.h>
+#include <kaminpar_io.h>
 
 using namespace kaminpar::shm::io;
 
-// To read a graph stored in METIS format.
-std::optional<CompressedGraph> compressed_graph = metis::compressed_read(const std::string &filename);
-
-// To read a graph stored in ParHIP format.
-std::optional<CompressedGraph> compressed_graph = parhip::compressed_read(const std::string &filename);
-```
-
-If the graph is stored in compressed format on disk (see [Graph File Format Documentation](/docs/graph_file_format.md)), then it can be read directly.
-
-```cpp
-#include <kaminpar-io/compressed_graph_binary.h>
-
-using namespace kaminpar::shm::io;
-
-// To read a graph stored in compressed format.
-std::optional<CompressedGraph> compressed_graph = compressed_binary::read(const std::string &filename);
+std::optional<Graph> graph = read_graph(
+    const std::string &filename,
+    GraphFileFormat file_format,
+    bool compress = false,
+    NodeOrdering ordering = NodeOrdering::NATURAL
+);
 ```
 
 ## Compress a Graph using the Builder Interface
@@ -66,7 +58,7 @@ This section outlines how to use the sequential builder to compress graphs. For 
 To begin using the `CompressedGraphBuilder`, you must first instantiate the class by providing information about the graph to compress. The constructor requires the number of nodes and edges in the graph you intend to compress. Additionally, you need to specify whether the graph includes node or edge weights. There is also an option to indicate if the nodes are stored in degree-bucket order, which is not related to graph compression and can therefore be safely ignored, i.e., set to `false`.
 
 ```cpp
-#include <kaminpar-shm/graphutils/compressed_graph_builder.h>
+#include <kaminpar.h>
 
 using namespace kaminpar::shm;
 
@@ -110,17 +102,17 @@ builder.add_node_weight(NodeID node, NodeWeight weight);
 After all nodes and optionally their weights have been added, you finalize the compression process by calling the `build()` method. This method constructs and returns the `CompressedGraph` object. It is important to note that once `build()` is invoked, the `CompressedGraphBuilder` instance cannot be reused to create another compressed graph. If you need to compress a different graph, you must instantiate a new `CompressedGraphBuilder`.
 
 ```cpp
-CompressedGraph compressed_graph = builder.build();
+Graph compressed_graph = builder.build();
 ```
 
 #### Example Usage
 
 ```cpp
-#include <kaminpar-shm/graphutils/compressed_graph_builder.h>
+#include <kaminpar.h>
 
 using namespace kaminpar::shm;
 
-CompressedGraph create_cycle(NodeID num_nodes, NodeWeight node_weight, EdgeWeight edge_weight) {
+Graph create_cycle(NodeID num_nodes, NodeWeight node_weight, EdgeWeight edge_weight) {
     CompressedGraphBuilder builder(num_nodes, 2 * num_nodes, true, true);
 
     std::vector<std::pair<NodeID, EdgeWeight>> neighborhood;
@@ -146,10 +138,10 @@ We provide two parallel graph builders: a single-pass builder and a two-pass bui
 
 #### Single-Pass Builder
 
-The single-pass builder allows you to create a compressed graph in one pass. This approach is the most efficient for scenarios where you can provide the necessary information about the neighborhoods in a random-access fashion. Internally, we use Intel's Threading Building Blocks (TBB) as a parallelization library, allowing the use of `tbb::task_arena` or similar TBB constructs to configure the task scheduler.
+The single-pass builder allows you to create a compressed graph in one pass. This approach is the most efficient for scenarios where you can provide the necessary information about the neighborhoods in a random-access fashion. Internally, we use Intel's Threading Building Blocks (TBB) as a parallelization library, allowing the use of `tbb::task_arena` or similar TBB constructs to configure the task scheduler. There is also an option to indicate if the nodes are stored in degree-bucket order, which is not related to graph compression and can therefore be safely ignored, i.e., set to `false`.
 
 ```cpp
-#include <kaminpar-shm/graphutils/compressed_graph_builder.h>
+#include <kaminpar.h>
 
 using namespace kaminpar::shm;
 
@@ -168,21 +160,13 @@ auto fetch_neighborhood = [&](NodeID u, std::span<NodeID> adjacent_nodes) -> voi
     /* Fill adjacent_nodes with the neighbors of node u. */
 };
 
-// If present, store the node weights inside a StaticArray:
-StaticArray<NodeWeight> node_weights(num_nodes);
-for (NodeID node = 0; node < num_nodes; ++node) node_weights[node] = ...;
-// If the node weights are already in memory and you want to avoid making a copy,
-// you can wrap the existing node weights. Note that the memory referenced has to
-// remain valid for the lifetime of the compressed graph instance. For instance:
-//  NodeWeight *nwgt = ...;
-//  StaticArray<NodeWeight> node_weights(num_nodes, nwgt);
-
-CompressedGraph compressed_graph = parallel_compress(
+Graph graph = parallel_compress(
     num_nodes,
     num_edges,
     fetch_degree,
     fetch_neighborhood,
-    std::move(node_weights)
+    std::span<const NodeWeight> node_weights = {},
+    bool sorted = false
 );
 ```
 
@@ -196,7 +180,7 @@ To begin using the `ParallelCompressedGraphBuilder`, you must first instantiate 
 
 
 ```cpp
-#include <kaminpar-shm/graphutils/compressed_graph_builder.h>
+#include <kaminpar.h>
 
 using namespace kaminpar::shm;
 
@@ -274,5 +258,5 @@ builder.add_node_weight(NodeID node, NodeWeight weight);
 After all nodes have been added, build the compressed graph by calling `build()`. This method finalizes the compressed graph and returns it. Note that once `build()` is invoked, the `ParallelCompressedGraphBuilder` instance cannot be reused to create another compressed graph. If you need to compress a different graph, you must instantiate a new instance.
 
 ```cpp
-CompressedGraph compressed_graph = builder.build();
+Graph graph = builder.build();
 ```
