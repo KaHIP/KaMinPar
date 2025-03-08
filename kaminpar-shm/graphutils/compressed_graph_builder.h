@@ -186,6 +186,9 @@ template <bool kHasEdgeWeights, typename DegreeFetcher, typename NeighborhoodFet
 [[nodiscard]] Graph parallel_compress(const CSRGraph &graph);
 
 template <typename DegreeFetcher, typename NeighborhoodFetcher>
+  requires std::invocable<DegreeFetcher, NodeID> &&
+           std::convertible_to<std::invoke_result_t<DegreeFetcher, NodeID>, NodeID> &&
+           std::invocable<NeighborhoodFetcher, NodeID, std::span<NodeID>>
 [[nodiscard]] Graph parallel_compress(
     const NodeID num_nodes,
     const EdgeID num_edges,
@@ -208,6 +211,9 @@ template <typename DegreeFetcher, typename NeighborhoodFetcher>
 }
 
 template <typename DegreeFetcher, typename NeighborhoodFetcher>
+  requires std::invocable<DegreeFetcher, NodeID> &&
+           std::convertible_to<std::invoke_result_t<DegreeFetcher, NodeID>, NodeID> &&
+           std::invocable<NeighborhoodFetcher, NodeID, std::span<std::pair<NodeID, EdgeWeight>>>
 [[nodiscard]] Graph parallel_compress_weighted(
     const NodeID num_nodes,
     const EdgeID num_edges,
@@ -248,10 +254,10 @@ public:
         _sorted(sorted),
         _cur_node(0),
         _cur_edge(0),
-        _compressed_neighborhoods_builder(num_nodes, num_edges, has_edge_weights),
-        _total_node_weight(0) {
+        _compressed_neighborhoods_builder(num_nodes, num_edges, has_edge_weights) {
     if (has_node_weights) {
-      _node_weights.resize(num_nodes, 1, static_array::seq);
+      _total_node_weight = num_nodes;
+      _node_weights.resize(num_nodes, static_cast<NodeWeight>(1), static_array::seq);
     }
   }
 
@@ -302,6 +308,9 @@ public:
     KASSERT(node < _num_nodes, "Node ID out of bounds");
     KASSERT(weight > 0, "Node weight must be positive");
 
+    // Node weights are initialized with 1, so we need to subtract 1 from the total node weight
+    _total_node_weight -= 1;
+
     _total_node_weight += weight;
     _node_weights[node] = weight;
   }
@@ -310,9 +319,11 @@ public:
     KASSERT(_cur_node == _num_nodes, "Not all nodes have been added");
     KASSERT(_cur_edge == _num_edges, "Not all edges have been added");
 
-    const bool unit_node_weights = std::cmp_equal(_total_node_weight, _num_nodes);
-    if (unit_node_weights) {
-      _node_weights.free();
+    if (_has_node_weights) {
+      const bool unit_node_weights = std::cmp_equal(_total_node_weight, _num_nodes);
+      if (unit_node_weights) {
+        _node_weights.free();
+      }
     }
 
     return Graph(std::make_unique<CompressedGraph>(

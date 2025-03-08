@@ -17,7 +17,9 @@
 #include <numeric>
 #include <span>
 #include <string>
+#include <type_traits>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include <tbb/global_control.h>
@@ -688,6 +690,9 @@ private:
 );
 
 template <typename DegreeFetcher, typename NeighborhoodFetcher>
+  requires std::invocable<DegreeFetcher, NodeID> &&
+           std::convertible_to<std::invoke_result_t<DegreeFetcher, NodeID>, NodeID> &&
+           std::invocable<NeighborhoodFetcher, NodeID, std::span<NodeID>>
 [[nodiscard]] Graph parallel_compress(
     NodeID num_nodes,
     EdgeID num_edges,
@@ -698,6 +703,9 @@ template <typename DegreeFetcher, typename NeighborhoodFetcher>
 );
 
 template <typename DegreeFetcher, typename NeighborhoodFetcher>
+  requires std::invocable<DegreeFetcher, NodeID> &&
+           std::convertible_to<std::invoke_result_t<DegreeFetcher, NodeID>, NodeID> &&
+           std::invocable<NeighborhoodFetcher, NodeID, std::span<std::pair<NodeID, EdgeWeight>>>
 [[nodiscard]] Graph parallel_compress_weighted(
     NodeID num_nodes,
     EdgeID num_edges,
