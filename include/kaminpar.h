@@ -29,7 +29,7 @@
 #include <stdint.h>
 
 #define KAMINPAR_VERSION_MAJOR 3
-#define KAMINPAR_VERSION_MINOR 2
+#define KAMINPAR_VERSION_MINOR 3
 #define KAMINPAR_VERSION_PATCH 0
 
 #ifdef __cplusplus

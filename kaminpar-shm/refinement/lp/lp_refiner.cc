@@ -88,7 +88,7 @@ public:
       SCOPED_TIMER("Iteration", std::to_string(iteration));
 
       if (Base::perform_iteration() == 0) {
-        return false;
+        break;
       }
     }
 
