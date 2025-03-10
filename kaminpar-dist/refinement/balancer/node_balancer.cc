@@ -73,9 +73,7 @@ public:
         _buckets(
             p_graph, p_ctx, _nb_ctx.par_enable_positive_gain_buckets, _nb_ctx.par_gain_bucket_base
         ),
-        _cached_cutoff_buckets(_p_graph.k()),
-        _target_blocks(_graph.n()),
-        _tmp_gains(!_nb_ctx.par_update_pq_gains * _graph.n()) {}
+        _target_blocks(_graph.n()) {}
 
   NodeBalancer(const NodeBalancer &) = delete;
   NodeBalancer &operator=(const NodeBalancer &) = delete;
@@ -90,6 +88,7 @@ public:
     TIMED_SCOPE("Initialize") {
       if (_nb_ctx.enable_parallel_balancing) {
         _buckets.initialize();
+        _tmp_gains.resize(!_nb_ctx.par_update_pq_gains * _graph.n());
       }
 
       reinit();
@@ -764,13 +763,11 @@ private:
 
   AddressableDynamicBinaryMinMaxForest<NodeID, double> _pq;
   std::vector<BlockWeight> _pq_weight;
-  Marker<> _marker;
+  Marker<1, std::uint8_t> _marker;
 
   Buckets _buckets;
 
   bool _stalled = false;
-
-  std::vector<std::size_t> _cached_cutoff_buckets;
 
   StaticArray<BlockID> _target_blocks;
   StaticArray<double> _tmp_gains;
