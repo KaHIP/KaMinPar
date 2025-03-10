@@ -525,9 +525,8 @@ Clusters build_local_clusters(
 ) {
   clusterer->set_max_cluster_weight(max_weight);
 
-  StaticArray<NodeID> clustering(p_graph.total_n());
-  StaticArray<GlobalNodeID> casted(std::ceil(1.0 * p_graph.total_n() / 2), clustering.data());
-  clusterer->cluster(casted, p_graph.graph());
+  StaticArray<GlobalNodeID> clustering(p_graph.total_n());
+  clusterer->cluster(clustering, p_graph.graph());
 
   std::vector<NodeID> cluster_to_move_set(p_graph.n());
   std::vector<NodeID> cluster_sizes(p_graph.n());
