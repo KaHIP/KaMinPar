@@ -789,6 +789,7 @@ public:
 private:
   shm::EdgeWeight compute_partition(std::span<shm::BlockID> partition);
 
+protected:
   int _num_threads;
 
   int _max_timer_depth = std::numeric_limits<int>::max();
