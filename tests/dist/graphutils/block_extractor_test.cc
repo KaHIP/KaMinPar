@@ -183,8 +183,8 @@ TEST(GlobalGraphExtractionTest, extract_local_edge) {
   // the block should contain a single edge
   const auto &subgraph = subgraphs.front();
   ASSERT_EQ(subgraph.n(), 2);
-  EXPECT_EQ(subgraph.degree(0), 1);
-  EXPECT_EQ(subgraph.degree(1), 1);
+  EXPECT_EQ(subgraph.csr_graph().degree(0), 1);
+  EXPECT_EQ(subgraph.csr_graph().degree(1), 1);
   EXPECT_EQ(subgraph.m(), 2);
 }
 
@@ -205,10 +205,10 @@ TEST(GlobalGraphExtractionTest, extract_local_edges) {
   auto csr_subgraph = dynamic_cast<const shm::CSRGraph *>(subgraph.underlying_graph());
   ASSERT_NE(csr_subgraph, nullptr);
 
-  for (const NodeID u : subgraph.nodes()) {
-    EXPECT_EQ(subgraph.degree(u), 1);
+  for (const NodeID u : subgraph.csr_graph().nodes()) {
+    EXPECT_EQ(subgraph.csr_graph().degree(u), 1);
     const NodeID neighbor = csr_subgraph->edge_target(csr_subgraph->first_edge(u));
-    EXPECT_EQ(subgraph.degree(neighbor), 1);
+    EXPECT_EQ(subgraph.csr_graph().degree(neighbor), 1);
     const NodeID neighbor_neighbor = csr_subgraph->edge_target(csr_subgraph->first_edge(neighbor));
     EXPECT_EQ(neighbor_neighbor, u);
   }
@@ -257,8 +257,8 @@ void expect_circle(const shm::Graph &graph) {
 
   // Catch special case with just 2 nodes: expect a single edge between the two nodes
   if (graph.n() == 2) {
-    EXPECT_EQ(graph.degree(0), 1);
-    EXPECT_EQ(graph.degree(1), 1);
+    EXPECT_EQ(graph.csr_graph().degree(0), 1);
+    EXPECT_EQ(graph.csr_graph().degree(1), 1);
     EXPECT_EQ(csr_graph->edge_target(csr_graph->first_edge(0)), 1);
     EXPECT_EQ(csr_graph->edge_target(csr_graph->first_edge(1)), 0);
     return;
@@ -268,10 +268,10 @@ void expect_circle(const shm::Graph &graph) {
   NodeID start = 0;
   NodeID prev = start;
   NodeID cur =
-      graph.degree(start) > 0 ? csr_graph->edge_target(csr_graph->first_edge(start)) : start;
+      graph.csr_graph().degree(start) > 0 ? csr_graph->edge_target(csr_graph->first_edge(start)) : start;
 
   while (cur != start) {
-    EXPECT_EQ(graph.degree(cur), 2);
+    EXPECT_EQ(graph.csr_graph().degree(cur), 2);
 
     const NodeID neighbor1 = csr_graph->edge_target(csr_graph->first_edge(cur));
     const NodeID neighbor2 = csr_graph->edge_target(csr_graph->first_edge(cur) + 1);
@@ -391,8 +391,8 @@ TEST(GlobalGraphExtractionTest, extract_node_weights_in_circle_clique_graph) {
   std::vector<int> weights(size + 1);
 
   for (const auto &subgraph : subgraphs) {
-    for (const NodeID u : subgraph.nodes()) {
-      const NodeWeight weight = subgraph.node_weight(u);
+    for (const NodeID u : subgraph.csr_graph().nodes()) {
+      const NodeWeight weight = subgraph.csr_graph().node_weight(u);
       EXPECT_LT(weight, size + 1);
       EXPECT_LE(weights[weight], 2);
       ++weights[weight];
@@ -510,7 +510,7 @@ TEST(GlobalGraphExtractionTest, project_circle_clique_partition) {
   // Assign 2 nodes to a new block
   std::vector<shm::PartitionedGraph> p_subgraphs;
   StaticArray<BlockID> partition(2 * size);
-  for (const NodeID u : subgraph.nodes()) {
+  for (const NodeID u : subgraph.csr_graph().nodes()) {
     partition[u] = u / 2;
   }
   p_subgraphs.emplace_back(subgraph, static_cast<BlockID>(size), std::move(partition));
@@ -627,8 +627,8 @@ TEST(GlobalGraphExtractionTest, extract_from_circle_clique_graph_fewer_blocks_th
     const BlockID my_block = offsets.first_block_on_pe(rank);
     std::vector<bool> seen_weight(graph.global_n());
     NodeID seen_weights = 0;
-    for (const NodeID u : subgraph.nodes()) {
-      const NodeWeight weight = subgraph.node_weight(u);
+    for (const NodeID u : subgraph.csr_graph().nodes()) {
+      const NodeWeight weight = subgraph.csr_graph().node_weight(u);
       ASSERT_LT(weight - 1, graph.global_n());
       EXPECT_FALSE(seen_weight[weight - 1]);
       seen_weight[weight - 1] = true;
@@ -677,7 +677,7 @@ TEST(GlobalGraphExtractionTest, project_from_circle_clique_graph_less_pes_than_b
                         // min cut (ignore balance)
     std::fill(partition.begin(), partition.end(), 0);
   } else { // Bad partition: alternate between blocks
-    for (const NodeID u : subgraph.nodes()) {
+    for (const NodeID u : subgraph.csr_graph().nodes()) {
       partition[u] = u % 2;
     }
   }

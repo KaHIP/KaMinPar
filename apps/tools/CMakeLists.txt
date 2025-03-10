@@ -1,6 +1,6 @@
 function(add_shm_tool target)
     add_executable(${target} ${ARGN})
-    target_link_libraries(${target} PRIVATE KaMinPar::KaMinPar KaMinPar::KaMinParIO)
+    target_link_libraries(${target} PRIVATE KaMinPar::KaMinPar KaMinPar::KaMinParCLI KaMinPar::KaMinParIO)
     target_compile_options(${target} PRIVATE ${KAMINPAR_WARNING_FLAGS})
     message(STATUS "Enabled tool: ${target}")
 endfunction()

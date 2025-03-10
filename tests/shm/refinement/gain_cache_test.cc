@@ -26,7 +26,7 @@ public:
     _ctx.partition.setup(p_graph.graph(), p_graph.k(), 0.03);
 
     this->_gain_cache = std::make_unique<GainCacheType>(this->_ctx, p_graph.n(), p_graph.k());
-    this->_gain_cache->initialize(p_graph.graph(), p_graph);
+    this->_gain_cache->initialize(p_graph.graph().csr_graph(), p_graph);
   }
 
   void free() {
@@ -44,11 +44,11 @@ public:
 };
 
 using GainCacheTypes = ::testing::Types<
-    NormalDenseGainCache<Graph>,
-    NormalHashingGainCache<Graph>,
-    OnTheFlyGainCache<Graph>,
-    NormalSparseGainCache<Graph>,
-    NormalCompactHashingGainCache<Graph>>;
+    NormalDenseGainCache<CSRGraph>,
+    NormalHashingGainCache<CSRGraph>,
+    OnTheFlyGainCache<CSRGraph>,
+    NormalSparseGainCache<CSRGraph>,
+    NormalCompactHashingGainCache<CSRGraph>>;
 
 TYPED_TEST_SUITE(GainCacheTest, GainCacheTypes);
 
@@ -102,10 +102,11 @@ TYPED_TEST(GainCacheTest, InitWorksOnEmptyGraphWith4Nodes) {
 }
 
 TYPED_TEST(GainCacheTest, InitWorksOnBipartiteStarGraphWith4Nodes) {
-  auto star = make_star_graph(3);
+  const Graph abstract_graph = make_star_graph(3);
+  const CSRGraph &star = abstract_graph.csr_graph();
   EXPECT_EQ(star.degree(0), 3); // Node 0 is the center of the star
 
-  auto p_star = make_p_graph(star, 2, {0, 1, 1, 1});
+  auto p_star = make_p_graph(abstract_graph, 2, {0, 1, 1, 1});
 
   this->init(p_star);
 
@@ -123,10 +124,11 @@ TYPED_TEST(GainCacheTest, InitWorksOnBipartiteStarGraphWith4Nodes) {
 }
 
 TYPED_TEST(GainCacheTest, InitWorksOn4PartiteStarGraphWith4Nodes) {
-  auto star = make_star_graph(3);
+  const Graph abstract_graph = make_star_graph(3);
+  const CSRGraph &star = abstract_graph.csr_graph();
   EXPECT_EQ(star.degree(0), 3); // Node 0 is the center of the star
 
-  auto p_star = make_p_graph(star, 4, {0, 1, 2, 3});
+  auto p_star = make_p_graph(abstract_graph, 4, {0, 1, 2, 3});
 
   this->init(p_star);
 
@@ -167,10 +169,11 @@ TYPED_TEST(GainCacheTest, InitWorksOnGraphWithTwoConnectedNodes) {
 }
 
 TYPED_TEST(GainCacheTest, MoveWorksOn4PartiteStarGraphWith4Nodes) {
-  auto star = make_star_graph(3);
+  const Graph abstract_graph = make_star_graph(3);
+  const CSRGraph &star = abstract_graph.csr_graph();
   EXPECT_EQ(star.degree(0), 3); // Node 0 is the center of the star
 
-  auto p_star = make_p_graph(star, 4, {0, 1, 2, 3});
+  auto p_star = make_p_graph(abstract_graph, 4, {0, 1, 2, 3});
 
   this->init(p_star);
 

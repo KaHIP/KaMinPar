@@ -22,7 +22,7 @@ namespace kaminpar::dist::testing {
 
 inline std::vector<NodeID> local_neighbors(const shm::Graph &graph, const NodeID u) {
   std::vector<NodeID> neighbors;
-  graph.adjacent_nodes(u, [&](const NodeID v) { neighbors.push_back(v); });
+  graph.csr_graph().adjacent_nodes(u, [&](const NodeID v) { neighbors.push_back(v); });
   return neighbors;
 }
 

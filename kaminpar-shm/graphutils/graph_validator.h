@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Validator for undirected input graphs.
  *
- * @file:   shm_input_validator.h
+ * @file:   graph_validator.h
  * @author: Daniel Seemaier
  * @date:   26.10.2022
  ******************************************************************************/

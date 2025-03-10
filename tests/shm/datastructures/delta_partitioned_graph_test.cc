@@ -53,7 +53,7 @@ TEST(DeltaPartitionedGraphTest, two_node_graph_delta_returns_modified_block_weig
   d_graph.set_block(1, 1);
 
   EXPECT_EQ(d_graph.block_weight(0), 0);
-  EXPECT_EQ(d_graph.block_weight(1), p_graph.total_node_weight());
+  EXPECT_EQ(d_graph.block_weight(1), p_graph.graph().total_node_weight());
 }
 
 } // namespace kaminpar::shm::testing

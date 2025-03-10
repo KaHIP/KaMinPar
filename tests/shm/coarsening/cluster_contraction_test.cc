@@ -37,7 +37,7 @@ TEST(ClusterContractionTest, ContractingToSingleNodeWorks) {
     const auto &c_graph = coarsened->get();
     EXPECT_THAT(c_graph.n(), 1);
     EXPECT_THAT(c_graph.m(), 0);
-    EXPECT_THAT(c_graph.node_weight(0), graph.total_node_weight());
+    EXPECT_THAT(c_graph.csr_graph().node_weight(0), graph.total_node_weight());
   }
 }
 
@@ -48,7 +48,7 @@ TEST(ClusterContractionTest, ContractingToSingletonsWorks) {
   change_node_weight(graph, 1, 2);
   change_node_weight(graph, 2, 3);
   change_node_weight(graph, 3, 4);
-  graph.update_total_node_weight();
+  graph.csr_graph().update_total_node_weight();
 
   StaticArray<NodeID> clustering = static_array::create<NodeID>({0, 1, 2, 3});
   auto coarsened = contract_clustering(
@@ -109,7 +109,7 @@ TEST(ClusterContractionTest, ContractingGridHorizontallyWorks) {
   change_node_weight(graph, 5, 20);
   change_node_weight(graph, 6, 30);
   change_node_weight(graph, 7, 40);
-  graph.update_total_node_weight();
+  graph.csr_graph().update_total_node_weight();
 
   StaticArray<NodeID> clustering = static_array::create<NodeID>({0, 1, 2, 3, 0, 1, 2, 3});
   auto coarsened = contract_clustering(
@@ -144,7 +144,7 @@ TEST(ClusterContractionTest, ContractingGridVerticallyWorks) {
   change_node_weight(graph, 5, 30);
   change_node_weight(graph, 6, 4);
   change_node_weight(graph, 7, 40);
-  graph.update_total_node_weight();
+  graph.csr_graph().update_total_node_weight();
 
   StaticArray<NodeID> clustering = static_array::create<NodeID>({0, 0, 2, 2, 4, 4, 6, 6});
   auto coarsened = contract_clustering(
@@ -228,7 +228,7 @@ TEST(
    */
   Graph graph = make_graph({0, 0, 1, 3, 4, 5, 5, 5, 7, 8, 8, 8, 8}, {2, 1, 3, 2, 7, 4, 8, 7});
   graph = graph::rearrange_by_degree_buckets(*dynamic_cast<CSRGraph *>(graph.underlying_graph()));
-  graph.remove_isolated_nodes(graph::count_isolated_nodes(graph));
+  graph.csr_graph().remove_isolated_nodes(graph::count_isolated_nodes(graph));
 
   EXPECT_EQ(graph.n(), 6);
   EXPECT_EQ(graph.m(), 8);

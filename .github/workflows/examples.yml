@@ -1,0 +1,35 @@
+name: Example Builder
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build_simple_example:
+    name: Build simple example
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: ["gcc", "clang"]
+    steps:
+      - name: Checkout KaMinPar
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build libtbb-dev libhwloc-dev libsparsehash-dev
+
+      - name: Configure
+        working-directory: ${{github.workspace}}/examples/simple
+        run: cmake --preset=ci-${{matrix.compiler}}-linux
+
+      - name: Build
+        working-directory: ${{github.workspace}}/examples/simple
+        run: cmake --build --preset=ci-${{matrix.compiler}}-linux
