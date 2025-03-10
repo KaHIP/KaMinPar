@@ -18,6 +18,8 @@ namespace kaminpar::dist {
 Context create_context_by_preset_name(const std::string &name) {
   if (name == "default" || name == "fast") {
     return create_default_context();
+  } else if (name == "largek") {
+    return create_largek_context();
   } else if (name == "strong" || name == "4xjet") {
     return create_strong_context();
   } else if (name == "jet") {
@@ -34,6 +36,7 @@ Context create_context_by_preset_name(const std::string &name) {
 std::unordered_set<std::string> get_preset_names() {
   return {
       "default",
+      "largek",
       "strong",
       "jet",
       "4xjet",
@@ -278,6 +281,12 @@ Context create_europar23_strong_context() {
   Context ctx = create_europar23_fast_context();
   ctx.initial_partitioning.algorithm = InitialPartitioningAlgorithm::MTKAHYPAR;
   ctx.coarsening.global_lp.num_iterations = 5;
+  return ctx;
+}
+
+Context create_largek_context() {
+  Context ctx = create_default_context();
+  ctx.refinement.node_balancer.enable_parallel_balancing = false;
   return ctx;
 }
 
