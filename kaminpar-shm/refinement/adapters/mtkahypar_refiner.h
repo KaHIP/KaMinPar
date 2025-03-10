@@ -23,9 +23,11 @@ public:
   MtKaHyParRefiner(MtKaHyParRefiner &&) noexcept = default;
   MtKaHyParRefiner &operator=(MtKaHyParRefiner &&) = delete;
 
-  void initialize(const PartitionedGraph &) final {}
+  [[nodiscard]] std::string name() const override final;
 
-  bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
+  void initialize(const PartitionedGraph &p_graph) override final;
+
+  bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) override final;
 
 private:
   const Context &_ctx [[maybe_unused]];
