@@ -346,6 +346,8 @@ void print(const Context &ctx, const bool root, std::ostream &out, MPI_Comm comm
           << "\n";
       out << "  Simulate seq. hybrid exe.:  "
           << (ctx.partitioning.simulate_singlethread ? "yes" : "no") << "\n";
+      out << "  Avoid toplevel:             "
+          << (ctx.partitioning.avoid_toplevel_bipartitioning ? "yes" : "no") << "\n";
     }
     cio::print_delimiter("Graph Compression", '-');
     print(ctx.compression, ctx.parallel, ctx.debug.print_compression_details, out);

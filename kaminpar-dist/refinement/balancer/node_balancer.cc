@@ -87,10 +87,13 @@ public:
     TIMER_BARRIER(_graph.communicator());
     SCOPED_TIMER("Node balancer");
 
-    START_TIMER("Initialization");
-    reinit();
-    STOP_TIMER();
-    TIMER_BARRIER(_graph.communicator());
+    TIMED_SCOPE("Initialize") {
+      if (_nb_ctx.enable_parallel_balancing) {
+        _buckets.initialize();
+      }
+
+      reinit();
+    };
   }
 
   bool refine() final {
@@ -268,8 +271,8 @@ private:
         _p_ctx
     );
     STOP_TIMER();
-    TIMER_BARRIER(_graph.communicator());
 
+    TIMER_BARRIER(_graph.communicator());
     START_TIMER("Perform moves on root PE");
     if (rank == 0) {
       // Move nodes that already have a target block
@@ -300,16 +303,16 @@ private:
       }
     }
     STOP_TIMER();
-    TIMER_BARRIER(_graph.communicator());
 
     // Broadcast winners
+    TIMER_BARRIER(_graph.communicator());
     START_TIMER("Broadcast winners");
     const std::size_t num_winners = mpi::bcast(candidates.size(), 0, _graph.communicator());
     candidates.resize(num_winners);
     mpi::bcast(candidates.data(), num_winners, 0, _graph.communicator());
     STOP_TIMER();
-    TIMER_BARRIER(_graph.communicator());
 
+    TIMER_BARRIER(_graph.communicator());
     START_TIMER("Perform moves");
     if (rank != 0) {
       perform_moves(candidates, true);
