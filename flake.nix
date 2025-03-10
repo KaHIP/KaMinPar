@@ -11,8 +11,8 @@
       pkgs = import nixpkgs { inherit system; };
 
       inputs = builtins.attrValues {
-        inherit (pkgs) python3 gcc14 ninja cmake tbb_2021_11 sparsehash mpi numactl pkg-config git;
-        inherit (pkgs.llvmPackages_19) openmp;
+        inherit (pkgs) cmake ninja python3 tbb_2022_0 sparsehash mpi numactl pkg-config;
+        inherit (pkgs.llvmPackages_20) openmp;
         inherit mt-kahypar;
       };
 
@@ -20,52 +20,77 @@
         inherit (pkgs) ccache mold-wrapped gdb;
       };
 
-      mt-kahypar = pkgs.stdenv.mkDerivation {
-        pname = "Mt-KaHyPar";
-        version = "1.4";
+      mt-kahypar =
+        let
+          kahypar-shared-resources-src = pkgs.fetchFromGitHub {
+            owner = "kahypar";
+            repo = "kahypar-shared-resources";
+            rev = "6d5c8e2444e4310667ec1925e995f26179d7ee88";
+            hash = "sha256-K3tQ9nSJrANdJPf7v/ko2etQLDq2f7Z0V/kvDuWKExM=";
+          };
 
-        src = pkgs.fetchFromGitHub {
-          owner = "kahypar";
-          repo = "mt-kahypar";
-          rev = "c51ffeaa3b1040530bf821b7f323e3790b147b33";
+          whfc-src = pkgs.fetchFromGitHub {
+            owner = "larsgottesbueren";
+            repo = "WHFC";
+            rev = "5ae2e3664391ca0db7fab2c82973e98c48937a08";
+            hash = "sha256-Oyz6u1uAgQUTOjSWBC9hLbupmQwbzcZJcyxNnj7+qxo=";
+          };
 
-          fetchSubmodules = true;
-          hash = "sha256-MlF6ZGsqtGQxzDJHbvo5uFj+6w8ehr9V4Ul5oBIGzws=";
+          growt-src = pkgs.fetchFromGitHub {
+            owner = "TooBiased";
+            repo = "growt";
+            rev = "0c1148ebcdfd4c04803be79706533ad09cc81d37";
+            hash = "sha256-4Vm4EiwmwCs3nyBdRg/MAk8SUWtX6kTukj8gJ7HfJNY=";
+          };
+        in
+        pkgs.stdenv.mkDerivation {
+          pname = "Mt-KaHyPar";
+          version = "1.5";
+
+          src = pkgs.fetchFromGitHub {
+            owner = "kahypar";
+            repo = "mt-kahypar";
+            rev = "a4a97ff2b9037c215c533a2889f2eebeb1504662";
+            hash = "sha256-6j43kzCEsm/7VEyq3tOEHyQVlBG+uwBAsS0cSBFAp2E=";
+          };
+
+          nativeBuildInputs = builtins.attrValues {
+            inherit (pkgs) cmake ninja python3 boost tbb_2022_0 hwloc;
+          };
+
+          preConfigure = ''
+            # Remove the FetchContent_Populate calls in CMakeLists.txt
+            sed -i '266,284d' CMakeLists.txt
+
+            # Replace the target_include_directories with custom paths
+            substituteInPlace CMakeLists.txt \
+              --replace ''\'''${CMAKE_CURRENT_BINARY_DIR}/external_tools/kahypar-shared-resources' '${kahypar-shared-resources-src}'
+            substituteInPlace CMakeLists.txt \
+              --replace ''\'''${CMAKE_CURRENT_BINARY_DIR}/external_tools/growt' '${growt-src}'
+            substituteInPlace CMakeLists.txt \
+              --replace ''\'''${CMAKE_CURRENT_BINARY_DIR}/external_tools/WHFC' '${whfc-src}'
+          '';
+
+          cmakeFlags = [
+            # The cmake package does not handle absolute CMAKE_INSTALL_INCLUDEDIR
+            # correctly (setting it to an absolute path causes include files to go to
+            # $out/$out/include, because the absolute path is interpreted with root
+            # at $out).
+            # See: https://github.com/NixOS/nixpkgs/issues/144170
+            "-DCMAKE_INSTALL_INCLUDEDIR=include"
+            "-DCMAKE_INSTALL_LIBDIR=lib"
+          ];
+
+          meta = {
+            description = "A shared-memory multilevel graph and hypergraph partitioner.";
+            homepage = "https://github.com/kahypar/mt-kahypar";
+            license = pkgs.lib.licenses.mit;
+          };
         };
-
-        nativeBuildInputs = builtins.attrValues {
-          inherit (pkgs) cmake ninja python3 gcc14 boost tbb_2021_11 hwloc;
-        };
-
-        cmakeFlags = [
-          # The cmake package does not handle absolute CMAKE_INSTALL_INCLUDEDIR
-          # correctly (setting it to an absolute path causes include files to go to
-          # $out/$out/include, because the absolute path is interpreted with root
-          # at $out).
-          # See: https://github.com/NixOS/nixpkgs/issues/144170
-          "-DCMAKE_INSTALL_INCLUDEDIR=include"
-          "-DCMAKE_INSTALL_LIBDIR=lib"
-        ];
-        enableParallelBuilding = true;
-
-        meta = {
-          description = "A shared-memory multilevel graph and hypergraph partitioner.";
-          homepage = "https://github.com/kahypar/mt-kahypar";
-          license = pkgs.lib.licenses.mit;
-        };
-      };
     in
     {
-      devShells = rec {
-        default = gcc;
-
-        gcc = pkgs.mkShell {
-          packages = inputs ++ devShellInputs;
-        };
-
-        clang = (pkgs.mkShell.override { stdenv = pkgs.llvmPackages_19.stdenv; }) {
-          packages = (pkgs.lib.lists.remove pkgs.gcc14 inputs) ++ devShellInputs;
-        };
+      devShells.default = pkgs.mkShell {
+        packages = inputs ++ devShellInputs;
       };
 
       packages.default =
