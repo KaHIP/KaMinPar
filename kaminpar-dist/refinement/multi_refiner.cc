@@ -10,6 +10,7 @@
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/refinement/refiner.h"
+#include "kaminpar-dist/timer.h"
 
 namespace kaminpar::dist {
 
@@ -22,6 +23,9 @@ MultiRefinerFactory::MultiRefinerFactory(
 
 std::unique_ptr<GlobalRefiner>
 MultiRefinerFactory::create(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
+  TIMER_BARRIER(p_graph.communicator());
+  SCOPED_TIMER("Allocation");
+
   std::unordered_map<RefinementAlgorithm, std::unique_ptr<GlobalRefiner>> refiners;
   for (const auto &[algorithm, factory] : _factories) {
     refiners[algorithm] = factory->create(p_graph, p_ctx);

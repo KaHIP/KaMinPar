@@ -28,11 +28,13 @@ public:
       : _p_graph(p_graph),
         _p_ctx(p_ctx),
         _positive_buckets(positive_buckets),
-        _base(base),
-        _num_buckets(compute_num_buckets(positive_buckets, base)),
-        _bucket_sizes(p_graph.k() * _num_buckets),
-        _cutoff_buckets(p_graph.k()) {
+        _base(base) {}
+
+  void initialize() {
     clear();
+    _num_buckets = compute_num_buckets(_positive_buckets, _base);
+    _bucket_sizes.resize(_p_graph.k() * _num_buckets);
+    _cutoff_buckets.resize(_p_graph.k());
   }
 
   [[nodiscard]] std::size_t compute_bucket(const double gain) const {
@@ -159,8 +161,8 @@ private:
 
   bool _positive_buckets;
   double _base;
-  std::size_t _num_buckets;
 
+  std::size_t _num_buckets = 0;
   StaticArray<GlobalNodeWeight> _bucket_sizes;
   StaticArray<std::size_t> _cutoff_buckets;
 };
