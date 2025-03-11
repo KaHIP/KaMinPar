@@ -17,13 +17,7 @@ Moreover, for large values of k, it is an order of magnitude faster than competi
 
 ### Quickstart
 
-After cloning the repository, make sure to initialize the submodules:
-
-```shell
-git submodule update --init --recursive
-```
-
-Then, follow the standard CMake build procedure:
+After cloning the repository, follow the standard CMake build procedure:
 
 ```shell
 cmake -B build --preset=default
@@ -46,8 +40,8 @@ There are multiple configuration presets that tune the algorithm for different s
 
 * `-P default`: fast partitioning with quality comparable to Metis
 * `-P terapart`: same partition quality as `default`, but with reduced memory consumption (slightly slower)
-* `-P strong`: better quality than `default` at the cost of increased runtime
-* `-P largek`: faster for large values of k (e.g., k > 1024); may reduce partition quality for smaller k
+* `-P strong`: better quality than `default` through additional FM refinement at the cost of increased runtime
+* `-P largek`: faster for large values of k (e.g., k > 1024); reduces partition quality slightly for smaller k
 
 Configuration presets can be inspected using the `--dump-config` flag.
 To build a custom configuration, dump one of the presets to a file, modify it and load it using `-C <filename>`:
@@ -83,30 +77,73 @@ target_link_libraries(<your-target> PUBLIC KaMinPar::KaMinPar)  # Shared-memory 
 target_link_libraries(<your-target> PUBLIC KaMinPar::dKaMinPar) # Distributed partitioning
 ```
 
-Then, call the libraries as follows:
+The shared-memory partitioner can be used as follows:
 
 ```c++
 #include <kaminpar-shm/kaminpar.h>
-#include <kaminpar-dist/dkaminpar.h>
-
 using namespace kaminpar;
 
-// Call the shared-memory partitioner:
 KaMinPar shm(int num_threads, shm::create_default_context());
-// KaMinPar::reseed(int seed);
-shm.borrow_and_mutate_graph(NodeID n, EdgeID *xadj, NodeID *adjncy, NodeWeight *vwgt = nullptr, EdgeWeight *adjwgt = nullptr);
-// alternatively: shm.copy_graph(n, xadj, adjncy, vwgt, adjwgt); will work on a copy of the graph
-shm.compute_partition(BlockID number_of_blocks, double epsilon, std::span<BlockID> out_partition);
-// alternatively: shm.compute_partition(std::vector<BlockWeight> max_block_weights, std::span<BlockID> out_partition);
-// Note: you must ensure that the total max block weight is larger than the total node weight of the graph
 
-// Call the distributed partitioner:
+// Pass a copy of the graph:
+shm.copy_graph(
+  std::span<const EdgeID> xadj, 
+  std::span<const NodeID> adjncy, 
+  std::span<const NodeWeight> vwgt = {}, 
+  std::span<const EdgeWeight> adjwgt = {}
+);
+
+// Alternatively, let KaMinPar borrow the graph: this avoids the copy, but the
+// spans must stay valid throughout partitioning and KaMinPar might modify the 
+// data:
+shm.borrow_and_mutate_graph(
+  std::span<EdgeID> xadj, 
+  std::span<NodeID> adjncy, 
+  std::span<NodeWeight> vwgt = {}, 
+  std::span<EdgeWeight> adjwgt = {}
+);
+
+// Compute a `k`-way partition where each block weight is bounded by 
+// `(1 + epsilon) * average`:
+shm.compute_partition(BlockID k, double epsilon, std::span<BlockID> out_partition);
+
+// Compute a `max_block_weights.size()`-way partition where the `i`-th block 
+// weight is bounded by `max_block_weights[i]`:
+shm.compute_partition(std::vector<BlockWeight> max_block_weights, std::span<BlockID> out_partition);
+
+// Compute a `max_block_weight_factors.size()`-way partition where the `i`-th 
+// block weight is bounded by `max_block_weight_factors[i] * total_weight`:
+shm.compute_partition(std::vector<double> max_block_weight_factors, std::span<BlockID> out_partition);
+```
+
+The distributed-memory partitioner can be used as follows:
+
+```c++
+#include <kaminpar-dist/dkaminpar.h>
+using namespace kaminpar;
+
 dKaMinPar dist(MPI_Comm comm, int num_threads, dist::create_default_context());
-// dKaMinPar::reseed(int seed); 
-dist.copy_graph(GlobalNodeID *vtxdist, GlobalEdgeID *xadj, GlobalNodeID *adjncy, GlobalNodeWeight *vwvgt = nullptr, GlobalEdgeWeight *adjwgt = nullptr);
-dist.compute_partition(BlockID number_of_blocks, double epsilon, std::span<BlockID> out_partition);
-// alternatively: dist.compute_partition(std::vector<BlockWeight> max_block_weights, std::span<BlockID> out_partition);
-// Note: you must ensure that the total max block weight is larger than the total node weight of the graph
+
+// Pass a copy of the graph:
+dist.copy_graph(
+  std::span<GlobalNodeID> vtxdist, 
+  std::span<GlobalEdgeID> xadj, 
+  std::span<GlobalNodeID> adjncy, 
+  std::span<GlobalNodeWeight> vwvgt = {}, 
+  std::span<GlobalEdgeWeight> adjwgt = {}
+);
+
+// Compute a `k`-way partition where each block weight is bounded by 
+// `(1 + epsilon) * average`:
+dist.compute_partition(BlockID k, double epsilon, std::span<BlockID> out_partition);
+
+// Compute a `max_block_weights.size()`-way partition where the `i`-th block 
+// weight is bounded by `max_block_weights[i]`:
+dist.compute_partition(std::vector<BlockWeight> max_block_weights, std::span<BlockID> out_partition);
+
+// Compute a `max_block_weight_factors.size()`-way partition where the `i`-th 
+// block weight is bounded by `max_block_weight_factors[i] * total_weight`:
+dist.compute_partition(std::vector<double> max_block_weight_factors, std::span<BlockID> out_partition);
 ```
 
 More examples can be found in the `examples/` directory. 
