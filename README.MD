@@ -34,7 +34,7 @@ To partition a graph in METIS format (see, e.g., the [KaHIP manual](https://gith
 mpirun -n <nproc> ./build/apps/dKaMinPar [-P default|strong|xterapart] -G <graph filename> -k <number of blocks> [-o <output partition>]
 ```
 
-The computed partition is written to a text file, where the n-th line contains the block ID (0-based) of the n-th vertex.
+The computed partition is written to a text file (controlled via `-o <filename>`), where the n-th line contains the block ID (0-based) of the n-th node.
 
 There are multiple configuration presets that tune the algorithm for different scenarios:
 
@@ -51,6 +51,29 @@ To build a custom configuration, dump one of the presets to a file, modify it an
 # ... modify custom.ini ...
 ./build/KaMinPar -C custom.ini <...>
 ```
+
+Important command line arguments include:
+
+* `-G <graph filename>`: Points to the input graph in METIS format
+* `-t <nproc>`: Controls the number of threads to be used, **defaults to single-threaded execution**
+* `-k <k>`: Controls the number of blocks in the partition (if all blocks should be subject to the same maximum block weight controlled by `-e`)
+* `-e <epsilon>`: Controls the maximum imbalance, e.g., `-e 0.03` to allow 3% imbalance, **defaults to 3%**
+* `-B <W0> <W2> ... <Wk-1>`: Explicitly specifies the maximum block weights, i.e., the weight of the i-th block should be bounded by `Wi`
+* `-b <w0> <w2> ... <wk-1>`: Same as `-B`, but specifies the maximum weights as fractions of the total node weight, i.e., the weight of the i-th block should be bounded by `wi * total node weight`
+
+Important command line arguments currently only available for the shared-memory partitioner include:
+
+* `--output-rearranged-graph=<filename>`: After partitioning, rearranges the input graph such that nodes are sorted by their block ID and writes it to the specified file in METIS format
+* `--output-rearranged-graph-mapping=<filename>`: Writes the corresponding old-to-new node ID mapping to a text file
+* `--output-block-sizes=<filename>`: Writes the number of nodes in each block to a text file
+
+General command line arguments:
+
+* `--version`: Prints the build configuration and current version
+* `-q`: Quiet mode, suppresses all console output
+* `-v`: Verbose mode, output more info during partitioning; pass `-v` multiple times to increase verbosity
+* `-T`: Outputs the full timer tree
+* `--validate`: Enables basic input graph validation
 
 ## Using the Library Interface
 
