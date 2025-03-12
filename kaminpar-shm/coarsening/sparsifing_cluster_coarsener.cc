@@ -23,11 +23,17 @@
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
+
+namespace {
+SET_DEBUG(false);
+}
+
 SparsifyingClusteringCoarsener::SparsifyingClusteringCoarsener(
     const Context &ctx, const PartitionContext &p_ctx
 )
     : _clustering_algorithm(factory::create_clusterer(ctx)),
       _sampling_algorithm(factory::create_sampler(ctx)),
+      _ctx(ctx),
       _c_ctx(ctx.coarsening),
       _p_ctx(p_ctx),
       _s_ctx(ctx.sparsification) {}
@@ -105,7 +111,31 @@ bool SparsifyingClusteringCoarsener::coarsen() {
   _clustering_algorithm->set_max_cluster_weight(
       compute_max_cluster_weight<NodeWeight>(_c_ctx, _p_ctx, prev_n, total_node_weight)
   );
-  _clustering_algorithm->set_desired_cluster_count(0);
+
+  {
+    NodeID desired_cluster_count = prev_n / _c_ctx.clustering.shrink_factor;
+
+    const double U = _c_ctx.clustering.forced_level_upper_factor;
+    const double L = _c_ctx.clustering.forced_level_lower_factor;
+    const BlockID k = _p_ctx.k;
+    const int p = _ctx.parallel.num_threads;
+    const NodeID C = _c_ctx.contraction_limit;
+
+    if (_c_ctx.clustering.forced_kc_level) {
+      if (prev_n > U * C * k) {
+        desired_cluster_count = std::max<NodeID>(desired_cluster_count, L * C * k);
+      }
+    }
+    if (_c_ctx.clustering.forced_pc_level) {
+      if (prev_n > U * C * p) {
+        desired_cluster_count = std::max<NodeID>(desired_cluster_count, L * C * p);
+      }
+    }
+
+    DBG << "Desired cluster count: " << desired_cluster_count;
+    _clustering_algorithm->set_desired_cluster_count(desired_cluster_count);
+  }
+
   _clustering_algorithm->compute_clustering(clustering, current(), free_allocated_memory);
   STOP_TIMER();
   STOP_HEAP_PROFILER();

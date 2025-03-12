@@ -16,6 +16,17 @@
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
+#include <algorithm>
+
+#include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"
+#include "kaminpar-shm/coarsening/max_cluster_weights.h"
+#include "kaminpar-shm/factories.h"
+#include "kaminpar-shm/kaminpar.h"
+
+#include "kaminpar-common/assert.h"
+#include "kaminpar-common/heap_profiler.h"
+#include "kaminpar-common/timer.h"
+
 namespace kaminpar::shm {
 class SparsifyingClusteringCoarsener : public Coarsener {
 public:
@@ -50,6 +61,7 @@ private:
 
   [[nodiscard]] bool keep_allocated_memory() const;
 
+  const Context _ctx;
   const CoarseningContext &_c_ctx;
   const PartitionContext &_p_ctx;
   const SparsificationContext &_s_ctx;
