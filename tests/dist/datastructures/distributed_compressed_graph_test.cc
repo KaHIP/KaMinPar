@@ -63,7 +63,7 @@ template <typename T>
       }
     });
 
-    builder.add(u, neighbourhood);
+    builder.add(u, std::span<std::pair<NodeID, EdgeWeight>>(neighbourhood));
     neighbourhood.clear();
   }
 

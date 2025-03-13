@@ -14,6 +14,7 @@
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/factories.h"
+#include "kaminpar-shm/graphutils/compressed_graph_builder.h" // IWYU pragma: export
 #include "kaminpar-shm/graphutils/permutator.h"
 #include "kaminpar-shm/metrics.h"
 
@@ -28,10 +29,7 @@ namespace kaminpar {
 namespace shm {
 
 void PartitionContext::setup(
-    const AbstractGraph &graph,
-    const BlockID k,
-    const double epsilon,
-    const bool relax_max_block_weights
+    const Graph &graph, const BlockID k, const double epsilon, const bool relax_max_block_weights
 ) {
   _epsilon = epsilon;
 
@@ -45,7 +43,7 @@ void PartitionContext::setup(
 }
 
 void PartitionContext::setup(
-    const AbstractGraph &graph,
+    const Graph &graph,
     std::vector<BlockWeight> max_block_weights,
     const bool relax_max_block_weights
 ) {
@@ -180,6 +178,9 @@ void print_statistics(
 
 using namespace shm;
 
+KaMinPar::KaMinPar()
+    : KaMinPar(tbb::this_task_arena::max_concurrency(), create_default_context()) {}
+
 KaMinPar::KaMinPar(const int num_threads, Context ctx)
     : _num_threads(num_threads),
       _ctx(std::move(ctx)),
@@ -276,6 +277,10 @@ void KaMinPar::set_graph(Graph graph) {
   _graph_ptr = std::make_unique<Graph>(std::move(graph));
 }
 
+Graph KaMinPar::take_graph() {
+  return std::move(*_graph_ptr);
+}
+
 void KaMinPar::reseed(int seed) {
   Random::reseed(seed);
 }
@@ -356,9 +361,11 @@ EdgeWeight KaMinPar::compute_partition(std::span<BlockID> partition) {
   // at the end.
   if (_graph_ptr->sorted()) {
     const NodeID num_isolated_nodes = graph::count_isolated_nodes(*_graph_ptr);
-    _graph_ptr->remove_isolated_nodes(num_isolated_nodes);
-    _ctx.partition.n = _graph_ptr->n();
-    _ctx.partition.total_node_weight = _graph_ptr->total_node_weight();
+    reified(*_graph_ptr, [&](auto &graph) {
+      graph.remove_isolated_nodes(num_isolated_nodes);
+      _ctx.partition.n = graph.n();
+      _ctx.partition.total_node_weight = graph.total_node_weight();
+    });
 
     cio::print_delimiter("Preprocessing");
     LOG << "Removed " << num_isolated_nodes << " isolated nodes";
@@ -386,23 +393,28 @@ EdgeWeight KaMinPar::compute_partition(std::span<BlockID> partition) {
     SCOPED_HEAP_PROFILER("Re-integrate isolated nodes");
     SCOPED_TIMER("Re-integrate isolated nodes");
 
-    const NodeID num_isolated_nodes = _graph_ptr->integrate_isolated_nodes();
-    p_graph = graph::assign_isolated_nodes(std::move(p_graph), num_isolated_nodes, _ctx.partition);
+    reified(*_graph_ptr, [&](auto &graph) {
+      const NodeID num_isolated_nodes = graph.integrate_isolated_nodes();
+      p_graph =
+          graph::assign_isolated_nodes(std::move(p_graph), num_isolated_nodes, _ctx.partition);
+    });
   }
 
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 
   START_TIMER("IO");
-  if (_graph_ptr->permuted()) {
-    tbb::parallel_for<NodeID>(0, p_graph.n(), [&](const NodeID u) {
-      partition[u] = p_graph.block(_graph_ptr->map_original_node(u));
-    });
-  } else {
-    tbb::parallel_for<NodeID>(0, p_graph.n(), [&](const NodeID u) {
-      partition[u] = p_graph.block(u);
-    });
-  }
+  reified(*_graph_ptr, [&](const auto &graph) {
+    if (graph.permuted()) {
+      tbb::parallel_for<NodeID>(0, graph.n(), [&](const NodeID u) {
+        partition[u] = p_graph.block(graph.map_original_node(u));
+      });
+    } else {
+      tbb::parallel_for<NodeID>(0, graph.n(), [&](const NodeID u) {
+        partition[u] = p_graph.block(u);
+      });
+    }
+  });
   STOP_TIMER();
 
   // Print some statistics

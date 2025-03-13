@@ -13,6 +13,7 @@
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction_preprocessing.h"
 #include "kaminpar-shm/coarsening/max_cluster_weights.h"
+#include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/factories.h"
 #include "kaminpar-shm/kaminpar.h"
 
@@ -231,25 +232,30 @@ OverlayClusteringCoarsener::overlay(StaticArray<NodeID> a, const StaticArray<Nod
 #if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
   KASSERT(
       [&] {
-        for (NodeID u = 0; u < n; ++u) {
-          bool failed = false;
-          graph.adjacent_nodes(u, [&](const NodeID v) {
-            if (a_copy[u] == a_copy[v] && b[u] == b[v]) {
-              if (mapping[u] != mapping[v]) {
-                failed = true;
+        return reified(graph, [&](const auto &graph) {
+          for (NodeID u = 0; u < n; ++u) {
+            bool failed = false;
+
+            graph.adjacent_nodes(u, [&](const NodeID v) {
+              if (a_copy[u] == a_copy[v] && b[u] == b[v]) {
+                if (mapping[u] != mapping[v]) {
+                  failed = true;
+                }
               }
-            }
-            if (a_copy[u] != a_copy[v] || b[u] != b[v]) {
-              if (mapping[u] == mapping[v]) {
-                failed = true;
+              if (a_copy[u] != a_copy[v] || b[u] != b[v]) {
+                if (mapping[u] == mapping[v]) {
+                  failed = true;
+                }
               }
+            });
+
+            if (failed) {
+              return false;
             }
-          });
-          if (failed) {
-            return false;
           }
-        }
-        return true;
+
+          return true;
+        });
       }(),
       "Overlaying clusters failed",
       assert::heavy

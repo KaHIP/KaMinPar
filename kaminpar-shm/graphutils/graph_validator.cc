@@ -1,16 +1,22 @@
 /*******************************************************************************
  * Validator for undirected input graphs.
  *
- * @file:   shm_input_validator.cc
+ * @file:   graph_validator.cc
  * @author: Daniel Seemaier
  * @date:   26.10.2022
  ******************************************************************************/
-#include "apps/io/shm_input_validator.h"
+#include "kaminpar-shm/graphutils/graph_validator.h"
 
 #include <algorithm>
 #include <iostream>
 #include <tuple>
 
+#include <tbb/parallel_for.h>
+
+#include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/kaminpar.h"
+
+#include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/timer.h"
 

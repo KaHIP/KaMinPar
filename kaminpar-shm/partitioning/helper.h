@@ -21,7 +21,7 @@ namespace kaminpar::shm::partitioning {
 PartitionContext create_kway_context(const Context &input_ctx, const PartitionedGraph &p_graph);
 
 PartitionContext create_twoway_context(
-    const Context &input_ctx, BlockID current_block, BlockID current_k, const AbstractGraph &graph
+    const Context &input_ctx, BlockID current_block, BlockID current_k, const Graph &graph
 );
 
 using SubgraphMemoryEts = tbb::enumerable_thread_specific<graph::SubgraphMemory>;
