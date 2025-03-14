@@ -150,7 +150,7 @@ TEST(ClusterContractionTest, contract_global_complete_graph_to_single_node) {
 
   for (const NodeID nodes_per_pe : {1}) {
     const auto graph = make_global_complete_graph(nodes_per_pe);
-    StaticArray<GlobalNodeID> clustering(graph.total_n(), 0);
+    StaticArray<GlobalNodeID> clustering(graph.total_n());
     const auto wrapped = contract_clustering(graph, clustering);
     const auto &c_graph = wrapped->get();
 

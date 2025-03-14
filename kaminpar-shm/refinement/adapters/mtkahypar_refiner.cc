@@ -13,7 +13,7 @@
 #include "kaminpar-common/logger.h"
 
 #ifdef KAMINPAR_HAVE_MTKAHYPAR_LIB
-#include <libmtkahypar.h>
+#include <mtkahypar.h>
 
 #include "kaminpar-shm/metrics.h"
 
@@ -25,58 +25,71 @@
 namespace kaminpar::shm {
 
 namespace {
-
-SET_DEBUG(true);
-
+SET_DEBUG(false);
 }
 
 MtKaHyParRefiner::MtKaHyParRefiner(const Context &ctx) : _ctx(ctx) {}
+
+std::string MtKaHyParRefiner::name() const {
+  return "Mt-KaHyPar";
+}
+
+void MtKaHyParRefiner::initialize([[maybe_unused]] const PartitionedGraph &p_graph) {}
 
 bool MtKaHyParRefiner::refine(
     [[maybe_unused]] PartitionedGraph &p_graph, [[maybe_unused]] const PartitionContext &p_ctx
 ) {
 #ifdef KAMINPAR_HAVE_MTKAHYPAR_LIB
-  mt_kahypar_context_t *mt_kahypar_ctx = mt_kahypar_context_new();
+  mt_kahypar_error_t error{};
+
+  mt_kahypar_context_t *mt_kahypar_ctx;
   if (_ctx.refinement.mtkahypar.config_filename.empty()) {
     const bool toplevel = (p_graph.n() == _ctx.partition.n);
 
     if (toplevel && !_ctx.refinement.mtkahypar.fine_config_filename.empty()) {
-      mt_kahypar_configure_context_from_file(
-          mt_kahypar_ctx, _ctx.refinement.mtkahypar.fine_config_filename.c_str()
+      mt_kahypar_ctx = mt_kahypar_context_from_file(
+          _ctx.refinement.mtkahypar.fine_config_filename.c_str(), &error
       );
     } else if (!toplevel && !_ctx.refinement.mtkahypar.coarse_config_filename.empty()) {
-      mt_kahypar_configure_context_from_file(
-          mt_kahypar_ctx, _ctx.refinement.mtkahypar.coarse_config_filename.c_str()
+      mt_kahypar_ctx = mt_kahypar_context_from_file(
+          _ctx.refinement.mtkahypar.coarse_config_filename.c_str(), &error
       );
     } else {
-      mt_kahypar_load_preset(mt_kahypar_ctx, DEFAULT);
+      mt_kahypar_ctx = mt_kahypar_context_from_preset(DEFAULT);
     }
   } else {
-    mt_kahypar_configure_context_from_file(
-        mt_kahypar_ctx, _ctx.refinement.mtkahypar.config_filename.c_str()
-    );
+    mt_kahypar_ctx =
+        mt_kahypar_context_from_file(_ctx.refinement.mtkahypar.config_filename.c_str(), &error);
   }
   mt_kahypar_set_partitioning_parameters(
-      mt_kahypar_ctx, static_cast<mt_kahypar_partition_id_t>(p_ctx.k), p_ctx.epsilon, KM1
+      mt_kahypar_ctx, static_cast<mt_kahypar_partition_id_t>(p_ctx.k), p_ctx.epsilon(), KM1
   );
   mt_kahypar_set_seed(Random::get_seed());
 
   StaticArray<mt_kahypar_hypernode_weight_t> block_weights(p_ctx.k, static_array::noinit);
-  p_graph.pfor_blocks([&](const BlockID b) { block_weights[b] = p_ctx.block_weights.max(b); });
+  p_graph.pfor_blocks([&](const BlockID b) { block_weights[b] = p_ctx.max_block_weight(b); });
   mt_kahypar_set_individual_target_block_weights(
       mt_kahypar_ctx, static_cast<mt_kahypar_partition_id_t>(p_ctx.k), block_weights.data()
   );
 
-  mt_kahypar_set_context_parameter(mt_kahypar_ctx, VERBOSE, "1");
-  mt_kahypar_initialize_thread_pool(_ctx.parallel.num_threads, true);
+  mt_kahypar_set_context_parameter(mt_kahypar_ctx, VERBOSE, "1", &error);
+  mt_kahypar_initialize(_ctx.parallel.num_threads, true);
 
   const mt_kahypar_hypernode_id_t num_vertices = p_graph.n();
   const mt_kahypar_hyperedge_id_t num_edges = p_graph.m() / 2; // Only need one direction
 
+  StaticArray<EdgeID> node_offsets(num_vertices + 1, static_array::noinit);
+  p_graph.reified([&](const auto &graph) {
+    graph.pfor_nodes([&](const NodeID u) { node_offsets[u + 1] = graph.degree(u); });
+  });
+  node_offsets[0] = 0;
+  parallel::prefix_sum(node_offsets.begin(), node_offsets.end(), node_offsets.begin());
+
   StaticArray<EdgeID> edge_position(2 * num_edges, static_array::noinit);
   p_graph.reified([&](const auto &graph) {
     graph.pfor_nodes([&](const NodeID u) {
-      graph.neighbors(u, [&](const EdgeID e, const NodeID v) { edge_position[e] = u < v; });
+      EdgeID e = node_offsets[u];
+      graph.adjacent_nodes(u, [&](const NodeID v) { edge_position[e++] = u < v; });
     });
   });
   parallel::prefix_sum(edge_position.begin(), edge_position.end(), edge_position.begin());
@@ -89,21 +102,33 @@ bool MtKaHyParRefiner::refine(
     graph.pfor_nodes([&](const NodeID u) {
       vertex_weights[u] = static_cast<mt_kahypar_hypernode_weight_t>(graph.node_weight(u));
 
-      graph.neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
-        if (v < u) { // Only need edges in one direction
-          return;
+      EdgeID e = node_offsets[u];
+      graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+        // Only need edges in one direction
+        if (u < v) {
+          const EdgeID position = edge_position[e] - 1;
+          edges[2 * position] = static_cast<mt_kahypar_hypernode_id_t>(u);
+          edges[2 * position + 1] = static_cast<mt_kahypar_hypernode_id_t>(v);
+          edge_weights[position] = static_cast<mt_kahypar_hypernode_weight_t>(w);
         }
 
-        EdgeID position = edge_position[e] - 1;
-        edges[2 * position] = static_cast<mt_kahypar_hypernode_id_t>(u);
-        edges[2 * position + 1] = static_cast<mt_kahypar_hypernode_id_t>(v);
-        edge_weights[position] = static_cast<mt_kahypar_hypernode_weight_t>(w);
+        e += 1;
       });
     });
   });
 
+  // Node offsets and edge positions are not needed anymore; thus, free them to save memory.
+  node_offsets.free();
+  edge_position.free();
+
   mt_kahypar_hypergraph_t mt_kahypar_graph = mt_kahypar_create_graph(
-      DEFAULT, num_vertices, num_edges, edges.data(), edge_weights.data(), vertex_weights.data()
+      mt_kahypar_ctx,
+      num_vertices,
+      num_edges,
+      edges.data(),
+      edge_weights.data(),
+      vertex_weights.data(),
+      &error
   );
 
   DBG << "Partition metrics before Mt-KaHyPar refinement: cut=" << metrics::edge_cut(p_graph)
@@ -115,13 +140,14 @@ bool MtKaHyParRefiner::refine(
   mt_kahypar_partitioned_hypergraph_t mt_kahypar_partitioned_graph =
       mt_kahypar_create_partitioned_hypergraph(
           mt_kahypar_graph,
-          DEFAULT,
+          mt_kahypar_ctx,
           static_cast<mt_kahypar_partition_id_t>(p_ctx.k),
-          partition.data()
+          partition.data(),
+          &error
       );
 
   // Run refinement
-  mt_kahypar_improve_partition(mt_kahypar_partitioned_graph, mt_kahypar_ctx, 1);
+  mt_kahypar_improve_partition(mt_kahypar_partitioned_graph, mt_kahypar_ctx, 1, &error);
 
   // Copy partition back to our graph
   StaticArray<mt_kahypar_partition_id_t> improved_partition(num_vertices, static_array::noinit);

@@ -346,6 +346,8 @@ void print(const Context &ctx, const bool root, std::ostream &out, MPI_Comm comm
           << "\n";
       out << "  Simulate seq. hybrid exe.:  "
           << (ctx.partitioning.simulate_singlethread ? "yes" : "no") << "\n";
+      out << "  Avoid toplevel:             "
+          << (ctx.partitioning.avoid_toplevel_bipartitioning ? "yes" : "no") << "\n";
     }
     cio::print_delimiter("Graph Compression", '-');
     print(ctx.compression, ctx.parallel, ctx.debug.print_compression_details, out);
@@ -592,24 +594,29 @@ void print(const RefinementContext &ctx, const ParallelContext &parallel, std::o
     out << "Node balancer:                " << RefinementAlgorithm::HYBRID_NODE_BALANCER << "\n";
     out << "  Number of rounds:           " << ctx.node_balancer.max_num_rounds << "\n";
     out << "  Sequential balancing:       "
-        << (ctx.node_balancer.enable_sequential_balancing ? "yes" : "no") << "\n";
-    out << "    Nodes per block:          " << ctx.node_balancer.seq_num_nodes_per_block << "\n";
+        << (ctx.node_balancer.enable_sequential_balancing ? "enabled" : "disabled") << "\n";
+    if (ctx.node_balancer.enable_sequential_balancing) {
+      out << "    Nodes per block:          " << ctx.node_balancer.seq_num_nodes_per_block << "\n";
+    }
     out << "  Parallel balancing:         "
-        << (ctx.node_balancer.enable_parallel_balancing ? "yes" : "no") << "\n";
-    out << "    Threshold:                " << ctx.node_balancer.par_threshold << "\n";
-    out << "    # of dicing attempts:     " << ctx.node_balancer.par_num_dicing_attempts << " --> "
-        << (ctx.node_balancer.par_accept_imbalanced_moves ? "accept" : "reject") << "\n";
-    out << "    Gain buckets:             base " << ctx.node_balancer.par_gain_bucket_base
-        << ", positive gain buckets: "
-        << (ctx.node_balancer.par_enable_positive_gain_buckets ? "yes" : "no") << "\n";
-    out << "    Partial buckets:          "
-        << (ctx.node_balancer.par_partial_buckets ? "yes" : "no") << "\n";
-    out << "    Update PQ during build:   "
-        << (ctx.node_balancer.par_update_pq_gains ? "yes" : "no") << "\n";
-    out << "    High degree thresholds:   insertions = "
-        << ctx.node_balancer.par_high_degree_insertion_threshold
-        << ", updates = " << ctx.node_balancer.par_high_degree_update_thresold
-        << " [interval: " << ctx.node_balancer.par_high_degree_update_interval << "]\n";
+        << (ctx.node_balancer.enable_parallel_balancing ? "enabled" : "disabled") << "\n";
+    if (ctx.node_balancer.enable_parallel_balancing) {
+      out << "    Threshold:                " << ctx.node_balancer.par_threshold << "\n";
+      out << "    # of dicing attempts:     " << ctx.node_balancer.par_num_dicing_attempts
+          << " --> " << (ctx.node_balancer.par_accept_imbalanced_moves ? "accept" : "reject")
+          << "\n";
+      out << "    Gain buckets:             base " << ctx.node_balancer.par_gain_bucket_base
+          << ", positive gain buckets: "
+          << (ctx.node_balancer.par_enable_positive_gain_buckets ? "yes" : "no") << "\n";
+      out << "    Partial buckets:          "
+          << (ctx.node_balancer.par_partial_buckets ? "yes" : "no") << "\n";
+      out << "    Update PQ during build:   "
+          << (ctx.node_balancer.par_update_pq_gains ? "yes" : "no") << "\n";
+      out << "    High degree thresholds:   insertions = "
+          << ctx.node_balancer.par_high_degree_insertion_threshold
+          << ", updates = " << ctx.node_balancer.par_high_degree_update_thresold
+          << " [interval: " << ctx.node_balancer.par_high_degree_update_interval << "]\n";
+    }
   }
   if (ctx.includes_algorithm(RefinementAlgorithm::HYBRID_CLUSTER_BALANCER) ||
       (ctx.includes_algorithm(RefinementAlgorithm::JET_REFINER) &&

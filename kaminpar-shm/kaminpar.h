@@ -21,7 +21,7 @@
 #include <tbb/global_control.h>
 
 #define KAMINPAR_VERSION_MAJOR 3
-#define KAMINPAR_VERSION_MINOR 2
+#define KAMINPAR_VERSION_MINOR 4
 #define KAMINPAR_VERSION_PATCH 0
 
 namespace kaminpar {
@@ -187,6 +187,7 @@ struct ClusterCoarseningContext {
 
 struct OverlayClusterCoarseningContext {
   int num_levels;
+  int max_level;
 };
 
 struct CoarseningContext {
@@ -489,6 +490,9 @@ struct PartitioningContext {
   bool restrict_vcycle_refinement;
 
   bool rb_enable_kway_toplevel_refinement;
+  int rb_switch_to_seq_factor;
+
+  bool kway_parallel_rb;
 };
 
 struct GraphCompressionContext {
@@ -556,6 +560,7 @@ Context create_vcycle_context(bool restrict_refinement = false);
 
 Context create_esa21_smallk_context();
 Context create_esa21_largek_context();
+Context create_esa21_largek_fast_context();
 Context create_esa21_strong_context();
 
 } // namespace kaminpar::shm

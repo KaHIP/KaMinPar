@@ -103,18 +103,29 @@ bool OverlayClusteringCoarsener::coarsen() {
     _clustering_algorithm->set_desired_cluster_count(desired_cluster_count);
   }
 
-  for (auto &clustering : clusterings) {
-    _clustering_algorithm->compute_clustering(clustering, current(), free_allocated_memory);
+  const bool compute_overlays =
+      level() <= static_cast<std::size_t>(_c_ctx.overlay_clustering.max_level);
+
+  if (compute_overlays) {
+    for (auto &clustering : clusterings) {
+      _clustering_algorithm->compute_clustering(clustering, current(), free_allocated_memory);
+    }
+  } else {
+    _clustering_algorithm->compute_clustering(
+        clusterings.front(), current(), free_allocated_memory
+    );
   }
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 
   TIMED_SCOPE("Overlay clusters") {
-    for (int level = _c_ctx.overlay_clustering.num_levels; level > 0; --level) {
-      const int num_overlays_in_level = 1 << level;
-      for (int pair = 0; pair < num_overlays_in_level / 2; ++pair) {
-        clusterings[pair] =
-            overlay(std::move(clusterings[pair]), clusterings[num_overlays_in_level / 2 + pair]);
+    if (compute_overlays) {
+      for (int level = _c_ctx.overlay_clustering.num_levels; level > 0; --level) {
+        const int num_overlays_in_level = 1 << level;
+        for (int pair = 0; pair < num_overlays_in_level / 2; ++pair) {
+          clusterings[pair] =
+              overlay(std::move(clusterings[pair]), clusterings[num_overlays_in_level / 2 + pair]);
+        }
       }
     }
   };
