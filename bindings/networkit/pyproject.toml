@@ -60,7 +60,7 @@ archs = ["x86_64"]
 environment = { "CMAKE_ARGS" = "-DKAMINPAR_PYTHON_INSTALL_TBB=On" }
 environment-pass = ["CMAKE_ARGS", "SKBUILD_CMAKE_DEFINE"]
 repair-wheel-command = """
-  pip install networkit
+  pip install networkit==11.0.1
   NETWORKIT_DIR=$(python -c "import networkit, os; print(os.path.dirname(networkit.__file__))")
   export LD_LIBRARY_PATH="/tmp/tbb/:$NETWORKIT_DIR/..:$LD_LIBRARY_PATH"
   auditwheel repair -w {dest_dir} {wheel}
