@@ -30,14 +30,19 @@ FetchContent_Declare(
   EXCLUDE_FROM_ALL
 )
 set(KAMINPAR_DOWNLOAD_TBB ${KAMINPAR_PYTHON_INSTALL_TBB} CACHE BOOL "" FORCE)
+set(KAMINPAR_64BIT_IDS ${KAMINPAR_PYTHON_64BIT} CACHE BOOL "" FORCE)
+set(KAMINPAR_64BIT_WEIGHTS ${KAMINPAR_PYTHON_64BIT} CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(KaMinPar)
 
 set(PYBIND11_FINDPYTHON ON)
 find_package(pybind11 CONFIG REQUIRED)
 
 pybind11_add_module(kaminpar_python src/PyKaMinPar.cpp)
-target_compile_definitions(kaminpar_python PRIVATE VERSION_INFO=${PROJECT_VERSION})
 target_link_libraries(kaminpar_python PUBLIC KaMinPar::KaMinPar KaMinPar::KaMinParIO)
+target_compile_definitions(kaminpar_python PRIVATE VERSION_INFO=${PROJECT_VERSION})
+if(KAMINPAR_PYTHON_64BIT)
+  target_compile_definitions(kaminpar_python PRIVATE KAMINPAR_PYTHON_64BIT)
+endif()
 
 add_library(KaMinPar::PyKaMinPar ALIAS kaminpar_python)
 install(TARGETS kaminpar_python DESTINATION kaminpar)

@@ -21,7 +21,8 @@
       };
 
       devShellInputs = builtins.attrValues {
-        inherit (pkgs) ccache mold-wrapped gdb ruff;
+        inherit (pkgs) ccache mold-wrapped gdb act;
+        inherit (pkgs.python3Packages) build pybind11 ruff mypy;
       };
 
       kaminpar = pkgs.stdenv.mkDerivation {
@@ -183,20 +184,20 @@
 
       networkit-python = pkgs.python3Packages.buildPythonPackage {
         pname = "networkit";
-        version = "11.0";
+        version = "11.0.1";
         pyproject = true;
 
         src = pkgs.fetchFromGitHub {
           owner = "networkit";
           repo = "networkit";
-          rev = "f720ba9678943c771ed04e540946a9ea1f221fd5";
+          rev = "b8dc4e05ce894ab0e1d7f75cad75ae40d82cac31";
 
           fetchSubmodules = true;
-          hash = "sha256-JsHIkUIVNq8ZwpAzgLkfHna/Xhu12XCpV3M2hQyZZVs=";
+          hash = "sha256-5/RMB0F4SS+QjQCa83TQaqRnU9U5fdanxflSiA7lrXc=";
         };
 
         build-system = builtins.attrValues {
-          inherit (pkgs.python3Packages) cython setuptools wheel;
+          inherit (pkgs.python3Packages) cython_0 setuptools wheel;
         };
 
         nativeBuildInputs = builtins.attrValues {
@@ -251,7 +252,6 @@
 
       packages = {
         default = kaminpar;
-
         inherit kaminpar kaminpar-python kaminpar-networkit;
       };
     }

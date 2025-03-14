@@ -35,7 +35,7 @@ PYBIND11_MODULE(kaminpar_python, m) {
   m.attr("__version__") = "dev";
 #endif
 
-#ifdef KAMINPAR_64BIT_IDS
+#ifdef KAMINPAR_PYTHON_64BIT
   m.attr("__64bit__") = true;
 #else
   m.attr("__64bit__") = false;
@@ -133,14 +133,38 @@ PYBIND11_MODULE(kaminpar_python, m) {
       .value("PARHIP", io::GraphFileFormat::PARHIP);
   m.def(
       "load_graph",
-      [](const std::string &filename, io::GraphFileFormat format) -> Graph {
-        if (auto graph = io::read_graph(filename, format)) {
+      [](const std::string &filename, io::GraphFileFormat format, bool compress) {
+        if (auto graph = io::read_graph(filename, format, compress)) {
           return std::move(*graph);
         }
 
         throw std::invalid_argument("Failed to load graph");
       },
-      "Loads a graph from a file"
+      "Load a graph from a file",
+      "filename"_a,
+      "format"_a,
+      "compress"_a = false
+  );
+
+  m.def(
+      "edge_cut",
+      [](const Graph &graph, const std::vector<BlockID> &partition) {
+        std::int64_t cut = 0;
+
+        reified(graph, [&](const auto &graph) {
+          for (const NodeID u : graph.nodes()) {
+            graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+              cut += (partition[u] != partition[v]) ? w : 0;
+            });
+          }
+        });
+
+        KASSERT(cut % 2 == 0u, "inconsistent cut", assert::always);
+        return cut / 2;
+      },
+      "Compute the edge cut of a partition",
+      "graph"_a,
+      "partition"_a
   );
 
   pybind11::class_<KaMinPar>(m, "KaMinPar")
@@ -148,12 +172,14 @@ PYBIND11_MODULE(kaminpar_python, m) {
       .def(
           "compute_partition",
           [](KaMinPar &self, Graph &graph, const BlockID k, const double epsilon) {
+            self.set_output_level(OutputLevel::QUIET);
+
             // Disable node ordering as the graph is modified in the process.
             self.context().node_ordering = NodeOrdering::NATURAL;
 
             std::vector<BlockID> partition(graph.n());
             self.set_graph(std::move(graph));
-            self.compute_partition(k, partition);
+            self.compute_partition(k, epsilon, partition);
 
             graph = self.take_graph();
             return partition;
@@ -162,6 +188,44 @@ PYBIND11_MODULE(kaminpar_python, m) {
           "graph"_a,
           "k"_a,
           "eps"_a = 0.03
+      )
+      .def(
+          "compute_partition",
+          [](KaMinPar &self, Graph &graph, std::vector<BlockWeight> max_block_weights) {
+            self.set_output_level(OutputLevel::QUIET);
+
+            // Disable node ordering as the graph is modified in the process.
+            self.context().node_ordering = NodeOrdering::NATURAL;
+
+            std::vector<BlockID> partition(graph.n());
+            self.set_graph(std::move(graph));
+            self.compute_partition(std::move(max_block_weights), partition);
+
+            graph = self.take_graph();
+            return partition;
+          },
+          "Compute a partition",
+          "graph"_a,
+          "max_block_weights"_a
+      )
+      .def(
+          "compute_partition",
+          [](KaMinPar &self, Graph &graph, std::vector<double> max_block_weight_factors) {
+            self.set_output_level(OutputLevel::QUIET);
+
+            // Disable node ordering as the graph is modified in the process.
+            self.context().node_ordering = NodeOrdering::NATURAL;
+
+            std::vector<BlockID> partition(graph.n());
+            self.set_graph(std::move(graph));
+            self.compute_partition(std::move(max_block_weight_factors), partition);
+
+            graph = self.take_graph();
+            return partition;
+          },
+          "Compute a partition",
+          "graph"_a,
+          "max_block_weight_factors"_a
       );
 }
 

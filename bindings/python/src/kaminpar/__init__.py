@@ -1,29 +1,29 @@
 from __future__ import annotations
 
 from kaminpar.kaminpar_python import (
+    Context,
+    Graph,
+    GraphFileFormat,
+    KaMinPar,
+    __64bit__,
     __doc__,
     __version__,
-    __64bit__,
-    reseed,
-    seed,
-    Context,
-    context_names,
     context_by_name,
+    context_names,
     default_context,
+    edge_cut,
     fast_context,
-    strong_context,
-    terapart_context,
-    terapart_strong_context,
-    terapart_largek_context,
     largek_context,
     largek_fast_context,
     largek_strong_context,
-    Graph,
-    GraphFileFormat,
     load_graph,
-    KaMinPar,
+    reseed,
+    seed,
+    strong_context,
+    terapart_context,
+    terapart_largek_context,
+    terapart_strong_context,
 )
-
 
 __all__ = [
     "__doc__",
@@ -46,5 +46,6 @@ __all__ = [
     "Graph",
     "GraphFileFormat",
     "load_graph",
+    "edge_cut",
     "KaMinPar",
 ]

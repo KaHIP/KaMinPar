@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import pytest
+
 import kaminpar
 
 graphs = [
     ("misc/rgg2d.metis", kaminpar.GraphFileFormat.METIS),
 ]
-if not kaminpar.__64bit__:
+if kaminpar.__64bit__:
+    graphs.append(("misc/rgg2d-64bit.parhip", kaminpar.GraphFileFormat.PARHIP))
+else:
     graphs.append(("misc/rgg2d-32bit.parhip", kaminpar.GraphFileFormat.PARHIP))
 
 
@@ -85,7 +88,7 @@ def test_graph_interface(filename, file_format):
 
 
 @pytest.mark.parametrize("filename,file_format", graphs)
-def test_partitioning(filename, file_format):
+def test_partitioning_k_eps_interface(filename, file_format):
     ctx = kaminpar.default_context()
     instance = kaminpar.KaMinPar(num_threads=1, ctx=ctx)
 
@@ -94,3 +97,34 @@ def test_partitioning(filename, file_format):
 
     assert len(partition) == graph.n()
     assert all(0 <= block < 4 for block in partition)
+    assert type(kaminpar.edge_cut(graph, partition)) is int
+
+
+@pytest.mark.parametrize("filename,file_format", graphs)
+def test_partitioning_max_block_weights_interface(filename, file_format):
+    ctx = kaminpar.default_context()
+    instance = kaminpar.KaMinPar(num_threads=1, ctx=ctx)
+
+    graph = kaminpar.load_graph(filename, file_format)
+    max_block_weights = [graph.n() // 4] * 4
+    partition = instance.compute_partition(graph=graph, max_block_weights=max_block_weights)
+
+    assert len(partition) == graph.n()
+    assert all(0 <= block < 4 for block in partition)
+    assert type(kaminpar.edge_cut(graph, partition)) is int
+
+
+@pytest.mark.parametrize("filename,file_format", graphs)
+def test_partitioning_max_block_weight_factors_interface(filename, file_format):
+    ctx = kaminpar.default_context()
+    instance = kaminpar.KaMinPar(num_threads=1, ctx=ctx)
+
+    graph = kaminpar.load_graph(filename, file_format)
+    max_block_weight_factors = [0.25] * 4
+    partition = instance.compute_partition(
+        graph=graph, max_block_weight_factors=max_block_weight_factors
+    )
+
+    assert len(partition) == graph.n()
+    assert all(0 <= block < 4 for block in partition)
+    assert type(kaminpar.edge_cut(graph, partition)) is int

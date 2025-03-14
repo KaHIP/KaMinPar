@@ -1,5 +1,6 @@
-import pytest
 import networkit as nk
+import pytest
+
 import kaminpar_networkit as ka
 
 

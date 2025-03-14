@@ -20,6 +20,8 @@ message(STATUS "Installing TBB with the package: ${KAMINPAR_PYTHON_INSTALL_TBB}"
 find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
 find_package(Cython MODULE REQUIRED VERSION 3.0)
 
+# To link against the NetworKit library, we need to find its location on the system. We do
+# this by running a Python script that imports the NetworKit module and prints its directory.
 execute_process(
   COMMAND "${Python_EXECUTABLE}" -c "import networkit, os; print(os.path.dirname(networkit.__file__))"
   OUTPUT_VARIABLE NETWORKIT_DIR
@@ -31,6 +33,7 @@ set(NETWORKIT_INCLUDE "${NETWORKIT_DIR}/../include")
 include(UseCython)
 include(FetchContent)
 
+# TODO: Update when the branch is merged
 FetchContent_Declare(
   KaMinPar
   GIT_REPOSITORY https://github.com/dsalwasser/KaMinPar.git
