@@ -59,7 +59,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
       with:
-        python-version: '3.13'
+        python-version: '3.12'
 
     - name: Build source distribution
       run: |
@@ -67,7 +67,7 @@ jobs:
         python -m build --sdist bindings/python/
 
   build_networkit_sdist:
-    name: Build KaMinPar Python source distribution
+    name: Build KaMinPar NetworKit source distribution
     runs-on: ubuntu-latest
     steps:
     - name: Checkout KaMinPar
@@ -76,7 +76,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
       with:
-        python-version: '3.13'
+        python-version: '3.12'
 
     - name: Build source distribution
       run: |
