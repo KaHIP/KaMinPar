@@ -113,15 +113,15 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
       // hierarchy Since this refiner is never used for the finest graph, we need to adjust the
       // context to prevent overallocation
       Context small_ctx = _input_ctx;
-      small_ctx.partition.n = p_graph.n();
-      small_ctx.partition.m = p_graph.m();
+      small_ctx.partition.n = p_graph.graph().n();
+      small_ctx.partition.m = p_graph.graph().m();
 
       auto refiner = factory::create_refiner(small_ctx);
       refiner->initialize(p_graph);
       refiner->refine(p_graph, p_ctx);
 
       // extend partition
-      const BlockID k_prime = compute_k_for_n(p_graph.n(), _input_ctx);
+      const BlockID k_prime = compute_k_for_n(p_graph.graph().n(), _input_ctx);
       if (p_graph.k() < k_prime) {
         extend_partition(
             p_graph,

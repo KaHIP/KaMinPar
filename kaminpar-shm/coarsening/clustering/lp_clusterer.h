@@ -10,7 +10,7 @@
 #include <memory>
 
 #include "kaminpar-shm/coarsening/clusterer.h"
-#include "kaminpar-shm/datastructures/graph.h"
+#include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
 

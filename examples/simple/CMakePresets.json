@@ -1,0 +1,56 @@
+{
+  "version": 2,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "gcc-linux",
+      "hidden": true,
+      "description": "Build using GCC compiler",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/gcc-linux",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "gcc",
+        "CMAKE_CXX_COMPILER": "g++"
+      }
+    },
+    {
+      "name": "clang-linux",
+      "hidden": true,
+      "description": "Build using Clang compiler",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/clang-linux",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++"
+      }
+    },
+    {
+      "name": "ci-gcc-linux",
+      "inherits": [
+        "gcc-linux"
+      ]
+    },
+    {
+      "name": "ci-clang-linux",
+      "inherits": [
+        "clang-linux"
+      ]
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "ci-gcc-linux",
+      "configurePreset": "ci-gcc-linux",
+      "jobs": 2
+    },
+    {
+      "name": "ci-clang-linux",
+      "configurePreset": "ci-clang-linux",
+      "jobs": 2
+    }
+  ]
+}

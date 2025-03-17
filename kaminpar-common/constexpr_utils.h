@@ -143,4 +143,17 @@ template <typename T> consteval auto type_name() {
 template <typename Tag, typename... Ts>
 constexpr bool contains_tag_v = (std::is_same_v<Tag, Ts> || ...);
 
+namespace tag {
+
+template <typename Tag, typename... Tags> [[nodiscard]] consteval bool is_contained() {
+  return (std::is_same_v<Tag, Tags> || ...);
+}
+
+template <typename... Tags1, typename... Tags2>
+[[nodiscard]] consteval bool are_all_contained(Tags2...) {
+  return (is_contained<Tags1, Tags2...>() && ...);
+}
+
+} // namespace tag
+
 } // namespace kaminpar

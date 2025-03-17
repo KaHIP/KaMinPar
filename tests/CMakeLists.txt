@@ -51,6 +51,7 @@ kaminpar_add_shm_test(test_shm_endtoend endtoend/shm_endtoend_test.cc)
 kaminpar_add_shm_test(test_shm_metrics shm/metrics_test.cc)
 kaminpar_add_shm_test(test_shm_subgraph_extraction shm/graphutils/subgraph_extraction_test.cc)
 kaminpar_add_shm_test(test_shm_partition_utils shm/graphutils/partition_utils_test.cc)
+kaminpar_add_shm_test(test_compressed_graph_builder shm/graphutils/compressed_graph_builder_test.cc)
 
 # KaMinPar -> Coarsening
 kaminpar_add_shm_test(test_shm_cluster_contraction shm/coarsening/cluster_contraction_test.cc)

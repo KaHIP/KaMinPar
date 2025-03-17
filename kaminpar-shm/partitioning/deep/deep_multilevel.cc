@@ -284,12 +284,13 @@ PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) 
     p_graph = _coarsener->uncoarsen(std::move(p_graph));
     _current_p_ctx = create_kway_context(_input_ctx, p_graph);
 
-    LOG << " Number of nodes: " << p_graph.n() << " | Number of edges: " << p_graph.m();
+    LOG << " Number of nodes: " << p_graph.graph().n()
+        << " | Number of edges: " << p_graph.graph().m();
 
     refine(p_graph);
     refined = true;
 
-    const BlockID desired_k = partitioning::compute_k_for_n(p_graph.n(), _input_ctx);
+    const BlockID desired_k = partitioning::compute_k_for_n(p_graph.graph().n(), _input_ctx);
     if (p_graph.k() < desired_k) {
       extend_partition(p_graph, desired_k);
       refined = false;
@@ -308,7 +309,8 @@ PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) 
 
     LOG;
     LOG << "Toplevel:";
-    LOG << " Number of nodes: " << p_graph.n() << " | Number of edges: " << p_graph.m();
+    LOG << " Number of nodes: " << p_graph.graph().n()
+        << " | Number of edges: " << p_graph.graph().m();
 
     if (!refined) {
       refine(p_graph);
