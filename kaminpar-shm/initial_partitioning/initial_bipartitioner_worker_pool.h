@@ -71,7 +71,7 @@ public:
       }
 
       InitialMultilevelBipartitioner bipartitioner = get();
-      bipartitioner.initialize(*csr, current_block, current_k);
+      bipartitioner.initialize(*graph, *csr, current_block, current_k);
       auto bipartition = bipartitioner.partition(nullptr).take_raw_partition();
 
       if (partition_lifespan) {

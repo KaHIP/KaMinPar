@@ -86,11 +86,12 @@ Graph rearrange_by_degree_buckets(CSRGraph &old_graph) {
       assert::heavy
   );
 
-  Graph new_graph(std::make_unique<CSRGraph>(
+  CSRGraph new_graph(
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), true
-  ));
+  );
   new_graph.set_permutation(std::move(node_permutations.old_to_new));
-  return new_graph;
+
+  return Graph(std::make_unique<CSRGraph>(std::move(new_graph)));
 }
 
 // See https://devblogs.microsoft.com/oldnewthing/20170102-00/?p=95095
@@ -257,11 +258,11 @@ PartitionedGraph assign_isolated_nodes(
   BlockID b = 0;
 
   for (NodeID u = num_nonisolated_nodes; u < num_nonisolated_nodes + num_isolated_nodes; ++u) {
-    while (b + 1 < k && block_weights[b] + graph.node_weight(u) > p_ctx.max_block_weight(b)) {
+    while (b + 1 < k && block_weights[b] + p_graph.node_weight(u) > p_ctx.max_block_weight(b)) {
       ++b;
     }
     partition[u] = b;
-    block_weights[b] += graph.node_weight(u);
+    block_weights[b] += p_graph.node_weight(u);
   }
 
   return {graph, k, std::move(partition)};
@@ -270,14 +271,16 @@ PartitionedGraph assign_isolated_nodes(
 NodeID count_isolated_nodes(const Graph &graph) {
   tbb::enumerable_thread_specific<NodeID> isolated_nodes_ets;
 
-  graph.pfor_nodes_range([&](const auto &range) {
-    auto &isolated_nodes = isolated_nodes_ets.local();
+  reified(graph, [&](const auto &graph) {
+    graph.pfor_nodes_range([&](const auto &range) {
+      auto &isolated_nodes = isolated_nodes_ets.local();
 
-    for (NodeID u = range.begin(); u != range.end(); ++u) {
-      if (graph.degree(u) == 0) {
-        ++isolated_nodes;
+      for (NodeID u = range.begin(); u != range.end(); ++u) {
+        if (graph.degree(u) == 0) {
+          ++isolated_nodes;
+        }
       }
-    }
+    });
   });
 
   return isolated_nodes_ets.combine(std::plus{});

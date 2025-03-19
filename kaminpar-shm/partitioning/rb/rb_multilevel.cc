@@ -44,7 +44,9 @@ PartitionedGraph RBMultilevelPartitioner::partition() {
       );
 
       if (parallel_k < _input_ctx.partition.k) {
-        graph::SubgraphMemory _extraction_mem_pool_ets(p_graph.n(), _input_ctx.partition.k, p_graph.m());
+        graph::SubgraphMemory _extraction_mem_pool_ets(
+            p_graph.graph().n(), _input_ctx.partition.k, p_graph.graph().m()
+        );
         partitioning::TemporarySubgraphMemoryEts _tmp_extraction_mem_pool_ets;
         InitialBipartitionerWorkerPool _bipartitioner_pool(_input_ctx);
 

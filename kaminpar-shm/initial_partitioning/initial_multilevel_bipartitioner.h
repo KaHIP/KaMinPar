@@ -68,12 +68,14 @@ public:
    * on the `ctx.partition` context.
    *
    * After initialization, the `partition()` method can be called to perform the bipartitioning.
-   *
+   *.
    * @param graph Subgraph extracted from a specific block of an already partitioned graph.
    * @param current_block Block ID of the block from which the subgraph was extracted.
    * @param current_k Number of blocks in the already partitioned graph.
    */
-  void initialize(const CSRGraph &graph, BlockID current_block, BlockID current_k);
+  void initialize(
+      const Graph &abstract_graph, const CSRGraph &graph, BlockID current_block, BlockID current_k
+  );
 
   /**
    * Bipartitions the graph initialized by `initialize()`.

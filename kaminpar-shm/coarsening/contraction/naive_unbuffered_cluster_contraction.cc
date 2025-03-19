@@ -187,7 +187,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered_naive(
 ) {
   auto [c_n, mapping] = compute_mapping(graph, std::move(clustering), m_ctx);
   fill_cluster_buckets(c_n, graph, mapping, m_ctx.buckets_index, m_ctx.buckets);
-  return graph.reified([&](auto &graph) {
+  return reified(graph, [&](auto &graph) {
     return contract_clustering_unbuffered_naive(graph, c_n, std::move(mapping), con_ctx, m_ctx);
   });
 }
