@@ -20,17 +20,16 @@ option(KAMINPAR_PYTHON_INSTALL_TBB "Install TBB with the package" OFF)
 message(STATUS "Building with 64-bit IDs: ${KAMINPAR_PYTHON_64BIT}")
 message(STATUS "Installing TBB with the package: ${KAMINPAR_PYTHON_INSTALL_TBB}")
 
-# This is a somewhat ugly workaround to include the main project as a source
-# from the Python bindings directory.
 include(FetchContent)
 FetchContent_Declare(
   KaMinPar
-  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../..
+  GIT_REPOSITORY https://github.com/KaHIP/KaMinPar.git
+  GIT_TAG main
   EXCLUDE_FROM_ALL
 )
-set(KAMINPAR_DOWNLOAD_TBB ${KAMINPAR_PYTHON_INSTALL_TBB} CACHE BOOL "" FORCE)
 set(KAMINPAR_64BIT_IDS ${KAMINPAR_PYTHON_64BIT} CACHE BOOL "" FORCE)
 set(KAMINPAR_64BIT_WEIGHTS ${KAMINPAR_PYTHON_64BIT} CACHE BOOL "" FORCE)
+set(KAMINPAR_DOWNLOAD_TBB ${KAMINPAR_PYTHON_INSTALL_TBB} CACHE BOOL "" FORCE)
 set(KAMINPAR_BUILD_WITH_MTUNE_NATIVE OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(KaMinPar)
 

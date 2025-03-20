@@ -30,12 +30,11 @@ execute_process(
 set(NETWORKIT_LIB "${NETWORKIT_DIR}/../libnetworkit.so")
 set(NETWORKIT_INCLUDE "${NETWORKIT_DIR}/../include")
 
-# This is a somewhat ugly workaround to include the main project as a source
-# from the Python bindings directory.
 include(FetchContent)
 FetchContent_Declare(
   KaMinPar
-  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../..
+  GIT_REPOSITORY https://github.com/KaHIP/KaMinPar.git
+  GIT_TAG main
   EXCLUDE_FROM_ALL
 )
 set(KAMINPAR_DOWNLOAD_TBB ${KAMINPAR_PYTHON_INSTALL_TBB} CACHE BOOL "" FORCE)
