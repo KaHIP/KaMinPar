@@ -41,6 +41,7 @@ FetchContent_Declare(
   EXCLUDE_FROM_ALL
 )
 set(KAMINPAR_DOWNLOAD_TBB ${KAMINPAR_PYTHON_INSTALL_TBB} CACHE BOOL "" FORCE)
+set(KAMINPAR_BUILD_WITH_MTUNE_NATIVE OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(KaMinPar)
 
 cython_transpile(src/kaminpar_networkit/nkkaminpar.pyx
