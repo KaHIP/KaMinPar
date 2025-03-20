@@ -1,0 +1,91 @@
+name: Wheel builder for NetworKit bindings
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build_networkit_wheels:
+    name: Build KaMinPar NetworKit wheel for ${{ matrix.python }}
+
+    strategy:
+      matrix:
+        python: ["cp310", "cp311", "cp312", "cp313"]
+      fail-fast: false
+
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout KaMinPar
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+    - name: Build wheels
+      uses: pypa/cibuildwheel@6cccd09a31908ffd175b012fb8bf4e1dbda3bc6c # v2.23.0
+      env:
+        CIBW_BUILD: ${{ matrix.python }}-manylinux_x86_64
+      with:
+        package-dir: bindings/networkit
+        output-dir: bindings/networkit/dist
+
+    - name: Store wheels
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: kaminpar-networkit-wheel-${{ matrix.python }}
+        path: bindings/networkit/dist/
+        if-no-files-found: error
+
+  build_networkit_sdist:
+    name: Build KaMinPar NetworKit source distribution
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout KaMinPar
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+    - name: Set up Python
+      uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+      with:
+        python-version: '3.13'
+
+    - name: Build source distribution
+      run: |
+        python -m pip install build
+        python -m build --sdist bindings/networkit/
+
+    - name: Store sdist
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: kaminpar-networkit-sdist
+        path: bindings/networkit/dist/
+        if-no-files-found: error
+
+  publish_networkit_to_testpypi:
+    name: Publish KaMinPar NetworKit distribution to TestPyPI
+    if: github.repository_owner == 'KaHIP'
+    needs:
+    - build_networkit_wheels
+    - build_networkit_sdist
+
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/kaminpar_networkit
+    permissions:
+      id-token: write
+
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download all the dists
+      uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+      with:
+        pattern: kaminpar-networkit-*
+        merge-multiple: true
+        path: dist/
+        print-hash: true
+
+    - name: Publish distribution to TestPyPI
+      uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc # v1.12.4
+      with:
+        repository-url: https://test.pypi.org/legacy/
