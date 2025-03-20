@@ -14,19 +14,18 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-option(KAMINPAR_PYTHON_64BIT "Build with 64-bit IDs" OFF)
+option(KAMINPAR_PYTHON_64BIT "Build with 64-bit IDs" ON)
 option(KAMINPAR_PYTHON_INSTALL_TBB "Install TBB with the package" OFF)
 
 message(STATUS "Building with 64-bit IDs: ${KAMINPAR_PYTHON_64BIT}")
 message(STATUS "Installing TBB with the package: ${KAMINPAR_PYTHON_INSTALL_TBB}")
 
+# This is a somewhat ugly workaround to include the main project as a source
+# from the Python bindings directory.
 include(FetchContent)
-
-# TODO: Update when the branch is merged
 FetchContent_Declare(
   KaMinPar
-  GIT_REPOSITORY https://github.com/dsalwasser/KaMinPar.git
-  GIT_TAG shm/feat/graph-compression-interface
+  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../..
   EXCLUDE_FROM_ALL
 )
 set(KAMINPAR_DOWNLOAD_TBB ${KAMINPAR_PYTHON_INSTALL_TBB} CACHE BOOL "" FORCE)

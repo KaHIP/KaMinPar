@@ -30,20 +30,19 @@ execute_process(
 set(NETWORKIT_LIB "${NETWORKIT_DIR}/../libnetworkit.so")
 set(NETWORKIT_INCLUDE "${NETWORKIT_DIR}/../include")
 
-include(UseCython)
+# This is a somewhat ugly workaround to include the main project as a source
+# from the Python bindings directory.
 include(FetchContent)
-
-# TODO: Update when the branch is merged
 FetchContent_Declare(
   KaMinPar
-  GIT_REPOSITORY https://github.com/dsalwasser/KaMinPar.git
-  GIT_TAG shm/feat/graph-compression-interface
+  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../..
   EXCLUDE_FROM_ALL
 )
 set(KAMINPAR_DOWNLOAD_TBB ${KAMINPAR_PYTHON_INSTALL_TBB} CACHE BOOL "" FORCE)
 set(KAMINPAR_BUILD_WITH_MTUNE_NATIVE OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(KaMinPar)
 
+include(UseCython)
 cython_transpile(src/kaminpar_networkit/nkkaminpar.pyx
   LANGUAGE CXX
   OUTPUT_VARIABLE nkkaminpar_cpp

@@ -10,7 +10,7 @@ You can install the Python bindings for KaMinPar via pip:
 pip install kaminpar
 ```
 
-Alternatively, you can build the bindings from source. By default, the Python bindings are built with 32-bit node and edge IDs and node and edge weigths. To build the Python bindings with 64-bit IDs and weights, you can additionally pass the configuration flag `--config-settings=cmake.define.KAMINPAR_PYTHON_64BIT=On` to `pip install`.
+Alternatively, you can build the bindings from source. By default, the Python bindings are built with 64-bit node and edge IDs and node and edge weigths. To build the Python bindings with 32-bit IDs and weights, you can additionally pass the configuration flag `--config-settings=cmake.define.KAMINPAR_PYTHON_64BIT=OFF` to `pip install`.
 
 ```sh
 git clone https://github.com/KaHiP/KaMinPar.git
