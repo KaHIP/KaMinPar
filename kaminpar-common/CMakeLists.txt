@@ -23,7 +23,11 @@ target_compile_options(kaminpar_common PRIVATE ${KAMINPAR_WARNING_FLAGS})
 # Link libraries
 find_library(NUMA_LIB numa) # optional 
 
-target_link_libraries(kaminpar_common PUBLIC TBB::tbb TBB::tbbmalloc kassert::kassert)
+target_link_libraries(kaminpar_common PUBLIC TBB::tbb kassert::kassert)
+if (KAMINPAR_ENABLE_TBB_MALLOC)
+    target_link_libraries(kaminpar_common PUBLIC TBB::tbbmalloc)
+endif ()
+
 if (NUMA_LIB) 
     target_link_libraries(kaminpar_common PUBLIC ${NUMA_LIB})
 endif ()
