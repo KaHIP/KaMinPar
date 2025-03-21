@@ -5,7 +5,7 @@
  * @author: Daniel Salwasser
  * @date:   13.07.2024
  ******************************************************************************/
-#include "apps/io/dist_skagen.h"
+#include "kaminpar-io/dist_skagen.h"
 
 #include <limits>
 #include <numeric>
@@ -234,12 +234,12 @@ DistributedCompressedGraph compressed_streaming_generate(
 
   const auto compress_neighborhood = [&] {
     num_local_edges += neighbourhood.size();
-    builder.add(current_node - first_node, neighbourhood);
+    builder.add(current_node - first_node, std::span<NodeID>(neighbourhood));
     neighbourhood.clear();
   };
 
   const auto add_isolated_node = [&] {
-    builder.add(current_node - first_node, empty_neighbourhood);
+    builder.add(current_node - first_node, std::span<NodeID>(empty_neighbourhood));
   };
 
   while (gen.Continue()) {

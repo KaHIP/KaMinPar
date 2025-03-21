@@ -29,6 +29,8 @@ option(KAMINPAR_BUILD_EXAMPLES "Build examples." OFF)
 
 option(KAMINPAR_BUILD_EXPERIMENTAL_FEATURES "Include experimental features in the build. This might increase compile times drastically." OFF)
 
+option(KAMINPAR_DOWNLOAD_TBB "Download TBB instead of requiring it to be installed." OFF)
+
 # Control how to build
 ######################
 option(KAMINPAR_ENABLE_HEAP_PROFILING "Profile and output heap memory usage." OFF)
@@ -307,7 +309,6 @@ if (CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     include(CTest)
 endif()
 include(FetchContent)
-include(FindGit)
 
 # Fetch KAssert for assertions
 FetchContent_Declare(
@@ -318,6 +319,21 @@ FetchContent_Declare(
     UPDATE_DISCONNECTED TRUE
 )
 FetchContent_MakeAvailable(kassert)
+
+# Intel TBB
+if (KAMINPAR_DOWNLOAD_TBB)
+    FetchContent_Declare(
+        TBB
+        GIT_REPOSITORY https://github.com/uxlfoundation/oneTBB.git
+        GIT_TAG 0c0ff192a2304e114bc9e6557582dfba101360ff # v2022.0.0
+        EXCLUDE_FROM_ALL
+        UPDATE_DISCONNECTED TRUE
+    )
+    set(TBB_TEST OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(TBB)
+else ()
+    find_package(TBB REQUIRED)
+endif ()
 
 # Google Sparsehash
 if (KAMINPAR_BUILD_WITH_SPARSEHASH)
@@ -416,6 +432,9 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
     add_subdirectory(kaminpar-dist)
 endif ()
 
+# Shared-memory and distributed IO components
+add_subdirectory(kaminpar-io)
+
 # Binaries
 add_subdirectory(kaminpar-cli)
 
@@ -444,13 +463,13 @@ include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
 
 install(
-    FILES kaminpar-shm/kaminpar.h
+    DIRECTORY include/
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
     COMPONENT KaMinPar_Development
 )
 
 install(
-    TARGETS kassert_base kassert kaminpar_common kaminpar_shm
+    TARGETS kassert_base kassert kaminpar_common kaminpar_shm kaminpar_io
     EXPORT KaMinParTargets
     RUNTIME COMPONENT KaMinPar_Runtime
     LIBRARY COMPONENT KaMinPar_Runtime NAMELINK_COMPONENT KaMinPar_Development

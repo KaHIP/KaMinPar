@@ -16,16 +16,14 @@
 #include <utility>
 #include <vector>
 
+#include "kaminpar-io/kaminpar_io.h"
+
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/bitvector_rank.h"
 #include "kaminpar-common/logger.h"
-
-#include "apps/io/shm_io.h"
-#include "apps/io/shm_metis_parser.h"
-#include "apps/io/shm_parhip_parser.h"
 
 using namespace kaminpar;
 using namespace kaminpar::shm;
@@ -241,9 +239,14 @@ int main(int argc, char *argv[]) {
   CLI11_PARSE(app, argc, argv);
 
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, num_threads);
-  const auto graph = io::read(graph_filename, graph_file_format, NodeOrdering::NATURAL, compress);
 
-  auto stats = graph.reified([](const auto &graph) { return connected_components_stats(graph); });
+  const auto graph = io::read(graph_filename, graph_file_format, NodeOrdering::NATURAL, compress);
+  if (!graph) {
+    LOG_ERROR << "Failed to read the input graph";
+    return EXIT_FAILURE;
+  }
+
+  auto stats = graph->reified([](const auto &graph) { return connected_components_stats(graph); });
   LOG << "Number of connected components: " << stats.num_connected_component;
   LOG << "Largest connected component: " << stats.largest_connected_component_order;
 
@@ -260,7 +263,7 @@ int main(int argc, char *argv[]) {
 
   if (!out_graph_filename.empty()) {
     LOG << "Extracting largest connected component...";
-    auto largest_connected_component = graph.reified([&](const auto &graph) {
+    auto largest_connected_component = graph->reified([&](const auto &graph) {
       return extract_largest_connected_component(
           stats.largest_connected_component_initial_node,
           stats.largest_connected_component_order,

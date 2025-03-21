@@ -5,7 +5,7 @@
  * @author: Daniel Salwasser
  * @date:   11.05.2024
  ******************************************************************************/
-#include "apps/io/dist_parhip_parser.h"
+#include "kaminpar-io/dist_parhip_parser.h"
 
 #include <numeric>
 
@@ -19,7 +19,7 @@
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/graph_compression/compressed_neighborhoods_builder.h"
 
-#include "apps/io/binary_util.h"
+#include "kaminpar-io/util/binary_util.h"
 
 namespace {
 
@@ -446,7 +446,7 @@ DistributedCompressedGraph compressed_read(
       neighbourhood.emplace_back(adjacent_node, edge_weight);
     }
 
-    builder.add(u - first_node, neighbourhood);
+    builder.add(u - first_node, std::span<std::pair<NodeID, EdgeWeight>>(neighbourhood));
     neighbourhood.clear();
   }
 

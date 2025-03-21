@@ -93,8 +93,8 @@ private:
   StaticArray<BlockID> _best_partition{0, static_array::small, static_array::seq};
   StaticArray<BlockID> _current_partition{0, static_array::small, static_array::seq};
 
-  StaticArray<BlockWeight> _best_block_weights{2, 0, static_array::small, static_array::seq};
-  StaticArray<BlockWeight> _current_block_weights{2, 0, static_array::small, static_array::seq};
+  StaticArray<BlockWeight> _best_block_weights{2, static_array::small, static_array::seq};
+  StaticArray<BlockWeight> _current_block_weights{2, static_array::small, static_array::seq};
 
   EdgeWeight _best_cut = std::numeric_limits<EdgeWeight>::max();
   bool _best_feasible = false;

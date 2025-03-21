@@ -39,7 +39,7 @@ PartitionContext create_kway_context(const Context &input_ctx, const Partitioned
         input_ctx.partition.total_unrelaxed_max_block_weights(begin, end);
   }
 
-  const bool is_toplevel_ctx = (p_graph.n() == input_ctx.partition.n);
+  const bool is_toplevel_ctx = (p_graph.graph().n() == input_ctx.partition.n);
   const bool relax_max_block_weights = !is_toplevel_ctx;
 
   PartitionContext new_p_ctx;
@@ -57,7 +57,7 @@ PartitionContext create_twoway_context(
     const Context &input_ctx,
     const BlockID current_block,
     const BlockID current_k,
-    const AbstractGraph &graph
+    const Graph &graph
 ) {
   // Through recursive bipartitioning, `current_block` (i.e., `graph`) will be subdivided further
   // into a range of sub-blocks: R = [first_sub_block, first_invalid_sub_block).
@@ -145,7 +145,7 @@ void extend_partition_recursive(
     graph::SubgraphMemory &subgraph_memory,
     graph::TemporarySubgraphMemory &tmp_extraction_mem_pool,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
-    BipartitionTimingInfo *timings 
+    BipartitionTimingInfo *timings
 ) {
   KASSERT(num_subblocks > 1u);
 
@@ -285,7 +285,7 @@ void extend_partition_lazy_extraction(
       if (subgraph_memory.nodes.size() < subgraph_memory_n) {
         subgraph_memory.nodes.resize(subgraph_memory_n, static_array::seq, static_array::noinit);
 
-        if (p_graph.is_node_weighted()) {
+        if (p_graph.graph().is_node_weighted()) {
           subgraph_memory.node_weights.resize(
               subgraph_memory_n, static_array::seq, static_array::noinit
           );
@@ -295,7 +295,7 @@ void extend_partition_lazy_extraction(
       if (subgraph_memory.edges.size() < num_block_edges) {
         subgraph_memory.edges.resize(num_block_edges, static_array::seq, static_array::noinit);
 
-        if (p_graph.is_edge_weighted()) {
+        if (p_graph.graph().is_edge_weighted()) {
           subgraph_memory.edge_weights.resize(
               num_block_edges, static_array::seq, static_array::noinit
           );
@@ -449,9 +449,9 @@ void extend_partition(
   graph::SubgraphMemory memory;
 
   memory.resize(
-      p_graph.n(),
+      p_graph.graph().n(),
       input_ctx.partition.k,
-      p_graph.m(),
+      p_graph.graph().m(),
       p_graph.graph().is_node_weighted(),
       p_graph.graph().is_edge_weighted()
   );
@@ -532,7 +532,7 @@ void complete_partial_extend_partition(
       if (subgraph_memory.nodes.size() < subgraph_memory_n) {
         subgraph_memory.nodes.resize(subgraph_memory_n, static_array::seq, static_array::noinit);
 
-        if (p_graph.is_node_weighted()) {
+        if (p_graph.graph().is_node_weighted()) {
           subgraph_memory.node_weights.resize(
               subgraph_memory_n, static_array::seq, static_array::noinit
           );
@@ -542,7 +542,7 @@ void complete_partial_extend_partition(
       if (subgraph_memory.edges.size() < num_block_edges) {
         subgraph_memory.edges.resize(num_block_edges, static_array::seq, static_array::noinit);
 
-        if (p_graph.is_edge_weighted()) {
+        if (p_graph.graph().is_edge_weighted()) {
           subgraph_memory.edge_weights.resize(
               num_block_edges, static_array::seq, static_array::noinit
           );
@@ -596,10 +596,12 @@ void complete_partial_extend_partition(
     parallel::prefix_sum(k0.begin(), k0.end(), k0.begin());
 
     StaticArray<BlockID> partition = p_graph.take_raw_partition();
-    p_graph.pfor_nodes([&](const NodeID u) {
-      const BlockID b = partition[u];
-      const NodeID s_u = mapping[u];
-      partition[u] = k0[b] + subgraph_partitions[b][s_u];
+    reified(p_graph.graph(), [&](const auto &graph) {
+      graph.pfor_nodes([&](const NodeID u) {
+        const BlockID b = partition[u];
+        const NodeID s_u = mapping[u];
+        partition[u] = k0[b] + subgraph_partitions[b][s_u];
+      });
     });
 
     p_graph = PartitionedGraph(p_graph.graph(), desired_k, std::move(partition));

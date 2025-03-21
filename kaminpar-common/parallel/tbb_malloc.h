@@ -84,11 +84,11 @@ tbb_unique_ptr<T> make_unique(const std::size_t size, [[maybe_unused]] const boo
 
 template <typename T> struct deleter {
   void operator()(T *p) {
-    free(p);
-
     if constexpr (kHeapProfiling && !kPageProfiling) {
       heap_profiler::HeapProfiler::global().record_free(p);
     }
+
+    free(p);
   }
 };
 
@@ -100,7 +100,8 @@ make_unique(const std::size_t size, [[maybe_unused]] const bool thp) {
 
 #if defined(__linux__) && defined(KAMINPAR_ENABLE_THP)
   if (thp) {
-    posix_memalign(reinterpret_cast<void **>(&ptr), 1 << 21, nbytes);
+    [[maybe_unused]] int result = posix_memalign(reinterpret_cast<void **>(&ptr), 1 << 21, nbytes);
+    KASSERT(result == 0, "posix_memalign failed", assert::light);
     madvise(ptr, nbytes, MADV_HUGEPAGE);
   } else {
 #endif

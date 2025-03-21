@@ -88,18 +88,18 @@ public:
     START_TIMER("Compute gain cache offsets");
     const std::size_t total_nbytes =
         parallel::aligned_prefix_sum(_offsets.begin(), _offsets.begin() + _n, [&](const NodeID u) {
-          const EdgeID deg = math::ceil2(_graph->degree(u));
-          const unsigned width = compute_entry_width(u, deg < _k);
-          const unsigned nbytes = (deg < _k) ? width * deg : width * _k;
+          const std::uint64_t deg = math::ceil2(_graph->degree(u));
+          const std::uint64_t width = compute_entry_width(u, deg < _k);
+          const std::uint64_t nbytes = (deg < _k) ? width * deg : width * _k;
           return std::make_pair(width, nbytes);
         });
     STOP_TIMER();
 
     if (_n > 0) {
       const NodeID u = _n - 1;
-      const EdgeID deg = math::ceil2(_graph->degree(u));
-      const unsigned width = compute_entry_width(u, deg < _k);
-      const unsigned nbytes = (deg < _k) ? width * deg : width * _k;
+      const std::uint64_t deg = math::ceil2(_graph->degree(u));
+      const std::uint64_t width = compute_entry_width(u, deg < _k);
+      const std::uint64_t nbytes = (deg < _k) ? width * deg : width * _k;
 
       if (width > 0) {
         _offsets[u] += (width - (_offsets[u] % width)) % width;
@@ -110,15 +110,22 @@ public:
     }
 
     KASSERT([&] {
-      _graph->pfor_nodes([&](const NodeID u) {
+      for (NodeID u : _graph->nodes()) {
         const EdgeID deg = math::ceil2(_graph->degree(u));
         const unsigned alignment = compute_entry_width(u, deg < _k);
         const unsigned nbytes = (deg < _k) ? alignment * deg : alignment * _k;
-        KASSERT((alignment == 0u) || (_offsets[u] % alignment == 0u));
+        KASSERT((alignment == 0u) || (_offsets[u] % alignment == 0u), "", assert::always);
         KASSERT(
-            _offsets[u + 1] - _offsets[u] >= nbytes, "bad entry for " << u << " (n: " << _n << ")"
+            (_offsets[u + 1] - _offsets[u]) >= nbytes,
+            "bad entry for " << u << " (n: " << _n << ")",
+            assert::always
         );
-      });
+        KASSERT(
+            _offsets[u] <= _offsets[u + 1],
+            "bad entry for " << u << " (n: " << _n << ")",
+            assert::always
+        );
+      }
       return true;
     }());
 
@@ -341,7 +348,11 @@ private:
         width == 0 || (start % width) == 0,
         V(width) << V(start) << V(_offsets[node]) << V(_offsets[node + 1])
     );
-    KASSERT(width == 0 || (_offsets[node + 1] - start) % width == 0);
+    KASSERT(
+        width == 0 || (_offsets[node + 1] - start) % width == 0,
+        V(node) << V(weighted_degree(node)) << V(width) << V(compute_entry_width(node, false))
+                << V(_offsets[node + 1]) << V(_offsets[node])
+    );
     KASSERT(
         math::is_power_of_2(size),
         "not a power of 2: " << size << "; start: " << start << "; width: " << width
@@ -480,7 +491,7 @@ private:
   NodeID _n = kInvalidNodeID;
   BlockID _k = kInvalidBlockID;
 
-  StaticArray<EdgeID> _offsets;
+  StaticArray<std::uint64_t> _offsets;
 
   // Number of bits reserved in hash table cells to store the key (i.e., block ID) of the entry
   int _bits_for_key = 0;

@@ -87,6 +87,7 @@ std::unique_ptr<Coarsener> create_coarsener(const Context &ctx, const PartitionC
 }
 
 namespace {
+
 std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgorithm algorithm) {
   switch (algorithm) {
   case RefinementAlgorithm::NOOP:
@@ -110,12 +111,11 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
 
   __builtin_unreachable();
 }
+
 } // namespace
 
 std::unique_ptr<Refiner> create_refiner(const Context &ctx) {
   SCOPED_HEAP_PROFILER("Refiner Allocation");
-  SCOPED_TIMER("Refinement");
-  SCOPED_TIMER("Allocation");
 
   if (ctx.refinement.algorithms.empty()) {
     return std::make_unique<NoopRefiner>();

@@ -7,6 +7,8 @@
  ******************************************************************************/
 #pragma once
 
+#include <span>
+
 #include "kaminpar-common/datastructures/compact_static_array.h"
 #include "kaminpar-common/graph_compression/compressed_edges_builder.h"
 #include "kaminpar-common/graph_compression/compressed_neighborhoods.h"
@@ -39,7 +41,6 @@ public:
         num_nodes, num_edges, has_edge_weights
     );
     _nodes.resize(math::byte_width(max_size), num_nodes + 1);
-    _compressed_edges_builder.init(0);
   }
 
   /**
@@ -58,7 +59,7 @@ public:
    * @param node The node whose neighborhood to add.
    * @param neighbourhood The neighbourhood of the node to add.
    */
-  template <typename Container> void add(const NodeID node, Container &neighbourhood) {
+  template <typename Neighbor> void add(const NodeID node, std::span<Neighbor> neighbourhood) {
     KASSERT(node + 1 < _nodes.size());
 
     const EdgeID offset = _compressed_edges_builder.add(node, neighbourhood);

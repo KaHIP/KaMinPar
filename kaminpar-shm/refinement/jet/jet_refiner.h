@@ -14,9 +14,15 @@
 
 namespace kaminpar::shm {
 
+template <typename Graph> class JetRefinerImpl;
+
 class JetRefiner : public Refiner {
+  using JetRefinerCSRImpl = JetRefinerImpl<CSRGraph>;
+  using JetRefinerCompressedImpl = JetRefinerImpl<CompressedGraph>;
+
 public:
   JetRefiner(const Context &ctx);
+  ~JetRefiner() override;
 
   JetRefiner(const JetRefiner &) = delete;
   JetRefiner &operator=(const JetRefiner &) = delete;
@@ -31,13 +37,8 @@ public:
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
 private:
-  [[nodiscard]] double compute_gain_temp(int round) const;
-
-  const Context &_ctx;
-
-  int _num_rounds = 0;
-  double _initial_gain_temp = 0.0;
-  double _final_gain_temp = 0.0;
+  std::unique_ptr<JetRefinerCSRImpl> _csr_impl;
+  std::unique_ptr<JetRefinerCompressedImpl> _compressed_impl;
 };
 
 } // namespace kaminpar::shm

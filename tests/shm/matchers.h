@@ -17,7 +17,7 @@ public:
     bool found_u_v = false;
     bool found_v_u = false;
 
-    graph.adjacent_nodes(_u, [&](const NodeID v_prime) {
+    graph.csr_graph().adjacent_nodes(_u, [&](const NodeID v_prime) {
       if (_v == v_prime) {
         found_u_v = true;
         return true;
@@ -26,7 +26,7 @@ public:
       return false;
     });
 
-    graph.adjacent_nodes(_v, [&](const NodeID u_prime) {
+    graph.csr_graph().adjacent_nodes(_v, [&](const NodeID u_prime) {
       if (_u == u_prime) {
         found_v_u = true;
         return true;
@@ -65,11 +65,12 @@ public:
         _v_weight(v_weight) {}
 
   bool MatchAndExplain(const Graph &graph, MatchResultListener *) const override {
-    for (const NodeID u : graph.nodes()) {
-      if (graph.node_weight(u) == _u_weight) {
+    for (const NodeID u : graph.csr_graph().nodes()) {
+      if (graph.csr_graph().node_weight(u) == _u_weight) {
         bool aborted = false;
-        graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
-          aborted = (_e_weight == 0 || weight == _e_weight) && graph.node_weight(v) == _v_weight;
+        graph.csr_graph().adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+          aborted = (_e_weight == 0 || weight == _e_weight) &&
+                    graph.csr_graph().node_weight(v) == _v_weight;
           return aborted;
         });
 

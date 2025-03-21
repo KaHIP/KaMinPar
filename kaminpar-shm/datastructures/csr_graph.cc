@@ -25,7 +25,7 @@ CSRGraph::CSRGraph(const Graph &graph)
       _node_weights(graph.n()),
       _edge_weights(graph.m()),
       _buckets(kNumberOfDegreeBuckets<NodeID> + 1) {
-  graph.reified([&](const auto &graph) {
+  reified(graph, [&](const auto &graph) {
     _nodes.front() = 0;
     graph.pfor_nodes([&](const NodeID u) {
       _nodes[u + 1] = graph.degree(u);

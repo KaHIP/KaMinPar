@@ -88,7 +88,7 @@ public:
       SCOPED_TIMER("Iteration", std::to_string(iteration));
 
       if (Base::perform_iteration() == 0) {
-        return false;
+        break;
       }
     }
 
@@ -333,7 +333,8 @@ public:
         _compressed_impl(std::make_unique<LPRefinerImpl<CompressedGraph>>(ctx, _permutations)) {}
 
   void initialize(const PartitionedGraph &p_graph) {
-    p_graph.graph().reified(
+    reified(
+        p_graph,
         [&](const auto &graph) { _csr_impl->initialize(&graph); },
         [&](const auto &graph) { _compressed_impl->initialize(&graph); }
     );
@@ -356,7 +357,8 @@ public:
       return found_improvement;
     };
 
-    return p_graph.graph().reified(
+    return reified(
+        p_graph,
         [&](const auto &) { return refine(*_csr_impl); },
         [&](const auto &) { return refine(*_compressed_impl); }
     );
