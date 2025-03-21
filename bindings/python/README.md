@@ -36,7 +36,7 @@ graph = kaminpar.load_graph("hyperlink.metis", kaminpar.GraphFileFormat.METIS, c
 # Partition the graph into four blocks using imbalance factor 3%
 partition = instance.compute_partition(graph, k=4, eps=0.03)
 edge_cut = kaminpar.edge_cut(graph, partition)
-print("Computed a partition with an edge cut of ", edge_cut)
+print("Computed a partition with an edge cut of", edge_cut)
 ```
 
 ## License
