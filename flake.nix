@@ -76,8 +76,8 @@
           src = pkgs.fetchFromGitHub {
             owner = "kahypar";
             repo = "mt-kahypar";
-            rev = "a4a97ff2b9037c215c533a2889f2eebeb1504662";
-            hash = "sha256-6j43kzCEsm/7VEyq3tOEHyQVlBG+uwBAsS0cSBFAp2E=";
+            rev = "73e11ecbd078382b935fd7c72bb47c23b7afcb57";
+            hash = "sha256-TlgFNiwrUQFSXzsGtLBNdZZSIZubN4nn1D6m9VJt1Pw=";
           };
 
           nativeBuildInputs = builtins.attrValues {
@@ -132,105 +132,85 @@
         hash = "sha256-5EvRPpjUZpmAIEgybXjNU/mO0+gsAyhlwbT+syDUr48=";
       };
 
-      kaminpar-python =
-        let
-          # TODO: use $self when merged
-          upstream-kaminpar-src = pkgs.fetchFromGitHub {
-            owner = "dsalwasser";
-            repo = "KaMinPar";
-            rev = "a6dd12fb212e235583ab602f8be1c4e31d190ac7";
-            hash = "sha256-RK8sPFxSyiyPzx6SsqM9ubAFKeEUGtDQC8qOYjZb2+Y=";
-          };
-        in
-        pkgs.python3Packages.buildPythonPackage {
-          pname = "kaminpar";
-          version = "3.1.0";
-          pyproject = true;
+      kaminpar-python = pkgs.python3Packages.buildPythonPackage {
+        pname = "kaminpar";
+        version = "3.1.0";
+        pyproject = true;
 
-          src = "${self}/bindings/python";
+        src = "${self}/bindings/python";
 
-          build-system = builtins.attrValues {
-            inherit (pkgs.python3Packages) scikit-build-core pybind11;
-          };
-
-          nativeBuildInputs = builtins.attrValues {
-            inherit (pkgs) cmake ninja;
-          };
-
-          dependencies = kaminparInputs;
-
-          dontUseCmakeConfigure = true;
-          CMAKE_ARGS = [
-            "-DFETCHCONTENT_FULLY_DISCONNECTED=On"
-            "-DFETCHCONTENT_SOURCE_DIR_KAMINPAR=${upstream-kaminpar-src}"
-            "-DFETCHCONTENT_SOURCE_DIR_KASSERT=${kassert-src}"
-          ];
-
-          meta = {
-            description = "Python Bindings for KaMinPar";
-            homepage = "https://github.com/KaHIP/KaMinPar";
-            license = pkgs.lib.licenses.mit;
-          };
+        build-system = builtins.attrValues {
+          inherit (pkgs.python3Packages) scikit-build-core pybind11;
         };
 
-      kaminpar-networkit =
-        let
-          # TODO: use $self when merged
-          upstream-kaminpar-src = pkgs.fetchFromGitHub {
-            owner = "dsalwasser";
-            repo = "KaMinPar";
-            rev = "a6dd12fb212e235583ab602f8be1c4e31d190ac7";
-            hash = "sha256-RK8sPFxSyiyPzx6SsqM9ubAFKeEUGtDQC8qOYjZb2+Y=";
-          };
-        in
-        pkgs.python3Packages.buildPythonPackage {
-          pname = "kaminpar-networkit";
-          version = "3.1.0";
-          pyproject = true;
-
-          src = "${self}/bindings/networkit";
-
-          build-system = builtins.attrValues {
-            inherit (pkgs.python3Packages) scikit-build-core cython;
-            inherit cython-cmake;
-          };
-
-          nativeBuildInputs = builtins.attrValues {
-            inherit (pkgs) cmake ninja;
-          };
-
-          dependencies = kaminparInputs ++ [ networkit-python ];
-
-          dontUseCmakeConfigure = true;
-          CMAKE_ARGS = [
-            "-DFETCHCONTENT_FULLY_DISCONNECTED=On"
-            "-DFETCHCONTENT_SOURCE_DIR_KAMINPAR=${upstream-kaminpar-src}"
-            "-DFETCHCONTENT_SOURCE_DIR_KASSERT=${kassert-src}"
-          ];
-
-          meta = {
-            description = "NetworKit Bindings for KaMinPar";
-            homepage = "https://github.com/KaHIP/KaMinPar";
-            license = pkgs.lib.licenses.mit;
-          };
+        nativeBuildInputs = builtins.attrValues {
+          inherit (pkgs) cmake ninja;
         };
+
+        dependencies = kaminparInputs;
+
+        dontUseCmakeConfigure = true;
+        CMAKE_ARGS = [
+          "-DFETCHCONTENT_FULLY_DISCONNECTED=On"
+          "-DFETCHCONTENT_SOURCE_DIR_KAMINPAR=${self}"
+          "-DFETCHCONTENT_SOURCE_DIR_KASSERT=${kassert-src}"
+        ];
+
+        meta = {
+          description = "Python Bindings for KaMinPar";
+          homepage = "https://github.com/KaHIP/KaMinPar";
+          license = pkgs.lib.licenses.mit;
+        };
+      };
+
+      kaminpar-networkit = pkgs.python3Packages.buildPythonPackage {
+        pname = "kaminpar-networkit";
+        version = "3.1.0";
+        pyproject = true;
+
+        src = "${self}/bindings/networkit";
+
+        build-system = builtins.attrValues {
+          inherit (pkgs.python3Packages) scikit-build-core cython;
+          inherit cython-cmake;
+        };
+
+        nativeBuildInputs = builtins.attrValues {
+          inherit (pkgs) cmake ninja;
+        };
+
+        dependencies = kaminparInputs ++ [ networkit-python ];
+
+        dontUseCmakeConfigure = true;
+        CMAKE_ARGS = [
+          "-DFETCHCONTENT_FULLY_DISCONNECTED=On"
+          "-DFETCHCONTENT_SOURCE_DIR_KAMINPAR=${self}"
+          "-DFETCHCONTENT_SOURCE_DIR_KASSERT=${kassert-src}"
+        ];
+
+        meta = {
+          description = "NetworKit Bindings for KaMinPar";
+          homepage = "https://github.com/KaHIP/KaMinPar";
+          license = pkgs.lib.licenses.mit;
+        };
+      };
 
       networkit-python = pkgs.python3Packages.buildPythonPackage {
         pname = "networkit";
-        version = "11.0.1";
+        version = "11.1.post1";
         pyproject = true;
 
         src = pkgs.fetchFromGitHub {
           owner = "networkit";
           repo = "networkit";
-          rev = "b8dc4e05ce894ab0e1d7f75cad75ae40d82cac31";
+          rev = "39ef1be566b82e9afe4d98de3a272d1f255375fb";
 
           fetchSubmodules = true;
-          hash = "sha256-5/RMB0F4SS+QjQCa83TQaqRnU9U5fdanxflSiA7lrXc=";
+          hash = "sha256-D1scYeu4irbKZu4rtDATwJ6gMWFGPZZ5IO4O/2ZY8fA=";
         };
 
         build-system = builtins.attrValues {
-          inherit (pkgs.python3Packages) cython_0 setuptools wheel;
+          inherit (pkgs.python3Packages) cython setuptools wheel;
         };
 
         nativeBuildInputs = builtins.attrValues {
