@@ -1,6 +1,6 @@
 import networkit
 
-from . import nkkaminpar
-from .nkkaminpar import KaMinPar
+from kaminpar_networkit import nkkaminpar
+from kaminpar_networkit.nkkaminpar import KaMinPar
 
 __all__ = ["KaMinPar"]

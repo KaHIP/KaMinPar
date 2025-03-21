@@ -7,7 +7,7 @@
 You can install the NetworKit bindings for KaMinPar via pip:
 
 ```sh
-pip install kaminpar_networkit
+pip install kaminpar-networkit
 ```
 
 Alternatively, you can build the bindings from source:
@@ -17,23 +17,27 @@ git clone https://github.com/KaHiP/KaMinPar.git
 pip install KaMinPar/bindings/networkit
 ```
 
+> [!NOTE]
+> When building the NetworKit bindings from source, the dependencies of KaMinPar must be available on the system. These include CMake, Intel TBB and Sparsehash. Additionally, if you install the package via pip on a target system and Python version where no pre-built wheel is available, the package will fall back to building from the source distribution. In this case, you must also ensure that the required dependencies are installed on your system.
+
 ## Usage
 
-The following is a basic example of how to use the KaMinPar bindings.
+The following is a basic example of how to use the KaMinPar bindings. For the full API documentation, refer to the [documentation file](https://github.com/dsalwasser/KaMinPar/blob/shm/feat/bindings/bindings/networkit/src/kaminpar_networkit/__init__.pyi).
 
 ```python
-import networkit
 import kaminpar_networkit as kaminpar
+import networkit
 
-
-graph = networkit.readGraph("graph.metis", networkit.Format.METIS)
+# Use NetworKit to read a graph from disk stored in METIS format and output statistics for the graph.
+graph = networkit.readGraph("hyperlink.metis", networkit.Format.METIS)
 networkit.overview(graph)
 
+# Create a KaMinPar instance and compute a partition of the graph into four blocks using imbalance factor 3%
 shm = kaminpar.KaMinPar(graph)
-partition = shm.computePartitionWithFactors([0.53, 0.253, 0.253])
+partition = shm.computePartitionWithEpsilon(4, 0.03)
 
 edge_cut = networkit.community.EdgeCut().getQuality(partition, graph)
-print("Computed a partition with an edge cut of ", edge_cut)
+print("Computed a partition with an edge cut of", edge_cut)
 ```
 
 ## License
