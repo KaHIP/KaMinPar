@@ -62,16 +62,42 @@ jobs:
         path: bindings/networkit/dist/
         if-no-files-found: error
 
+  publish_networkit_to_pypi:
+    name: Publish KaMinPar NetworKit distribution to PyPI
+    if: github.repository_owner == 'KaHIP' && startsWith(github.ref, 'refs/tags/')
+    needs:
+    - build_networkit_wheels
+    - build_networkit_sdist
+
+    environment:
+      name: pypi
+      url: https://pypi.org/p/kaminpar-networkit
+    permissions:
+      id-token: write
+
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download all the dists
+      uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+      with:
+        pattern: kaminpar-networkit-*
+        merge-multiple: true
+        path: dist/
+        print-hash: true
+
+    - name: Publish distribution to PyPI
+      uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc # v1.12.4
+
   publish_networkit_to_testpypi:
     name: Publish KaMinPar NetworKit distribution to TestPyPI
-    if: github.repository_owner == 'KaHIP'
+    if: github.repository_owner == 'KaHIP' && github.ref == 'refs/heads/main
     needs:
     - build_networkit_wheels
     - build_networkit_sdist
 
     environment:
       name: testpypi
-      url: https://test.pypi.org/p/kaminpar_networkit
+      url: https://test.pypi.org/p/kaminpar-networkit
     permissions:
       id-token: write
 
