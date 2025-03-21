@@ -1,5 +1,10 @@
 [build-system]
-requires = ["scikit-build-core>=0.10", "cython", "cython-cmake", "networkit==11.1.post1"]
+requires = [
+  "scikit-build-core>=0.10",
+  "cython",
+  "cython-cmake",
+  "networkit==11.1.post1",
+]
 build-backend = "scikit_build_core.build"
 
 [project]
@@ -9,9 +14,7 @@ description = "NetworKit bindings for KaMinPar"
 dependencies = ["networkit==11.1.post1"]
 requires-python = ">=3.9"
 readme = "README.md"
-authors = [
-  { name = "Daniel Seemaier", email = "daniel.seemaier@kit.edu" },
-]
+authors = [{ name = "Daniel Seemaier", email = "daniel.seemaier@kit.edu" }]
 maintainers = [
   { name = "Daniel Salwasser", email = "daniel.salwasser@outlook.com" },
 ]

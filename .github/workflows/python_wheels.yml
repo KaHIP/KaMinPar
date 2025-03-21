@@ -17,8 +17,8 @@ jobs:
       matrix:
         python: ["cp39", "cp310", "cp311", "cp312", "cp313", "cp313t", "pp39", "pp310", "pp311"]
         platform:
-          - [ubuntu-latest, manylinux_x86_64]
-          - [ubuntu-latest-arm, manylinux_aarch64]
+          - [ubuntu-24.04, manylinux_x86_64]
+          - [ubuntu-24.04-arm, manylinux_aarch64]
       fail-fast: false
 
     runs-on: ${{ matrix.platform[0] }}
@@ -45,7 +45,7 @@ jobs:
 
   build-python-sdist:
     name: Build KaMinPar Python source distribution
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout KaMinPar
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -80,7 +80,7 @@ jobs:
     permissions:
       id-token: write
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Download all the dists
         uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
@@ -106,7 +106,7 @@ jobs:
     permissions:
       id-token: write
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Download all the dists
         uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
