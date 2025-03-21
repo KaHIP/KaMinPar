@@ -17,7 +17,7 @@ jobs:
       matrix:
         python: ["cp39", "cp310", "cp311", "cp312", "cp313", "cp313t", "pp39", "pp310", "pp311"]
         platform:
-          - [ubuntu-latest, musllinux_x86_64]
+          - [ubuntu-latest, manylinux_x86_64]
           - [ubuntu-latest-arm, manylinux_aarch64]
       fail-fast: false
 
