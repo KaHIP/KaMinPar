@@ -19,6 +19,7 @@ jobs:
         platform:
           - [ubuntu-24.04, manylinux_x86_64]
           - [ubuntu-24.04-arm, manylinux_aarch64]
+          - [macos-15, macosx_arm64]
       fail-fast: false
 
     runs-on: ${{ matrix.platform[0] }}
