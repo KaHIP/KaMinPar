@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build-python-wheels:
-    name: Build KaMinPar Python wheel for ${{ matrix.python }}
+    name: Build KaMinPar Python wheel for ${{ matrix.python }}-${{ matrix.platform[1] }}
 
     strategy:
       matrix:
@@ -21,7 +21,7 @@ jobs:
           - [ubuntu-latest-arm, manylinux_aarch64]
       fail-fast: false
 
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.platform[0] }}
     steps:
       - name: Checkout KaMinPar
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -29,7 +29,7 @@ jobs:
       - name: Build wheels
         uses: pypa/cibuildwheel@6cccd09a31908ffd175b012fb8bf4e1dbda3bc6c # v2.23.0
         env:
-          CIBW_BUILD: ${{ matrix.python }}-${{ matrix.platform }}
+          CIBW_BUILD: ${{ matrix.python }}-${{ matrix.platform[1] }}
           CIBW_ENVIRONMENT: SKBUILD_CMAKE_DEFINE="KAMINPAR_PYTHON_INSTALL_TBB=On"
           CIBW_FREE_THREADED_SUPPORT: True
         with:
@@ -39,7 +39,7 @@ jobs:
       - name: Store wheels
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: kaminpar-python-wheel-${{ matrix.python }}-${{ matrix.platform }}
+          name: kaminpar-python-wheel-${{ matrix.python }}-${{ matrix.platform[1] }}
           path: bindings/python/dist/
           if-no-files-found: error
 
