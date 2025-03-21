@@ -49,7 +49,7 @@ build-dir = "build/{wheel_tag}"
 
 [tool.cibuildwheel]
 build-verbosity = 1
-before-build = "yum install -y sparsehash-devel hwloc-devel"
+before-build = "yum install -y hwloc-devel"
 test-groups = ["test"]
 test-command = """
   mkdir misc
