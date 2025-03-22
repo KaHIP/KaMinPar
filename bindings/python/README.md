@@ -17,8 +17,7 @@ git clone https://github.com/KaHiP/KaMinPar.git
 pip install KaMinPar/bindings/python
 ```
 
-> [!NOTE]
-> When building the Python bindings from source, the dependencies of KaMinPar must be available on the system. These include CMake, Intel TBB and Sparsehash. Additionally, if you install the package via pip on a target system and Python version where no pre-built wheel is available, the package will fall back to building from the source distribution. In this case, you must also ensure that the required dependencies are installed on your system.
+When building the Python bindings from source, the dependencies of KaMinPar must be available on the system. These include CMake, Intel TBB and Sparsehash. Additionally, if you install the package via pip on a target system and Python version where no pre-built wheel is available, the package will fall back to building from the source distribution. In this case, you must also ensure that the required dependencies are installed on your system.
 
 ## Usage
 
@@ -33,7 +32,7 @@ instance = kaminpar.KaMinPar(num_threads=1, ctx=kaminpar.default_context())
 # Load a graph stored in METIS format from disk, which can be optionally compressed during IO.
 graph = kaminpar.load_graph("hyperlink.metis", kaminpar.GraphFileFormat.METIS, compress=False)
 
-# Partition the graph into four blocks using imbalance factor 3%
+# Partition the graph into four blocks using imbalance factor 3%.
 partition = instance.compute_partition(graph, k=4, eps=0.03)
 edge_cut = kaminpar.edge_cut(graph, partition)
 print("Computed a partition with an edge cut of", edge_cut)

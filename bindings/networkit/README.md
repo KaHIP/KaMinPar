@@ -17,8 +17,7 @@ git clone https://github.com/KaHiP/KaMinPar.git
 pip install KaMinPar/bindings/networkit
 ```
 
-> [!NOTE]
-> When building the NetworKit bindings from source, the dependencies of KaMinPar must be available on the system. These include CMake, Intel TBB and Sparsehash. Additionally, if you install the package via pip on a target system and Python version where no pre-built wheel is available, the package will fall back to building from the source distribution. In this case, you must also ensure that the required dependencies are installed on your system.
+When building the NetworKit bindings from source, the dependencies of KaMinPar must be available on the system. These include CMake, Intel TBB and Sparsehash. Additionally, if you install the package via pip on a target system and Python version where no pre-built wheel is available, the package will fall back to building from the source distribution. In this case, you must also ensure that the required dependencies are installed on your system.
 
 ## Usage
 
@@ -32,7 +31,7 @@ import networkit
 graph = networkit.readGraph("hyperlink.metis", networkit.Format.METIS)
 networkit.overview(graph)
 
-# Create a KaMinPar instance and compute a partition of the graph into four blocks using imbalance factor 3%
+# Create a KaMinPar instance and compute a partition of the graph into four blocks using imbalance factor 3%.
 shm = kaminpar.KaMinPar(graph)
 partition = shm.computePartitionWithEpsilon(4, 0.03)
 
