@@ -449,7 +449,8 @@ endif ()
 
 # Examples
 if (KAMINPAR_BUILD_EXAMPLES)
-    add_subdirectory(examples)
+    add_subdirectory(examples/kaminpar)
+    add_subdirectory(examples/bindings-c)
 endif ()
 
 ################################################################################

@@ -1,10 +1,12 @@
 /*******************************************************************************
- * C interface for KaMinPar.
+ * Public C library interface of KaMinPar.
  *
  * @file:   ckaminpar.cc
  * @author: Daniel Seemaier
  * @date:   09.12.2024
  ******************************************************************************/
+#include "kaminpar-shm/ckaminpar.h"
+
 #include <span>
 #include <string>
 #include <vector>
