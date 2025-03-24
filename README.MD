@@ -46,7 +46,7 @@ fig = nk.vizbridges.widgetFromGraph(
 fig.write_image("partitioned_hyperbolic.png")
 ```
 
-Refer to our [document](bindings/networkit/README.md) and [examples](examples/bindings-networkit/) to get started.
+Refer to our [documentation](bindings/networkit/README.md) and [examples](examples/bindings-networkit/) to get started.
 
 ## Installation Notes (C/C++)
 
