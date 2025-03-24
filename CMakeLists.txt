@@ -39,6 +39,7 @@ option(KAMINPAR_ENABLE_STATISTICS "Generate and output detailed statistics." OFF
 option(KAMINPAR_ENABLE_TIMERS "Measure running times. Must be set to 'OFF' if the library interface is used from multiple threads simulatinously." ON)
 option(KAMINPAR_ENABLE_TIMER_BARRIERS "Add additional MPI_Barrier() instructions for more accurate time measurements." ON)
 
+option(KAMINPAR_ENABLE_TBB_MALLOC "Use tbb malloc for (some) allocations." ON)
 option(KAMINPAR_ENABLE_THP "Use transparent huge pages for large memory allocations (Linux only)." ON)
 
 option(KAMINPAR_BUILD_WITH_ASAN "Enable address sanitizer." OFF)
@@ -211,6 +212,13 @@ if (KAMINPAR_ENABLE_TIMER_BARRIERS)
     message(STATUS "Timer barriers: enabled")
 else ()
     message(STATUS "Timer barriers: disabled")
+endif ()
+
+if (KAMINPAR_ENABLE_TBB_MALLOC)
+    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_ENABLE_TBB_MALLOC")
+    message(STATUS "TBB malloc: enabled")
+else ()
+    message(STATUS "TBB malloc: disabled")
 endif ()
 
 if (KAMINPAR_ENABLE_THP)
