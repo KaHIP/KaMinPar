@@ -16,8 +16,8 @@ KaMinPar offers bindings for Python (only available on Linux and macOS), which c
 pip install kaminpar
 ```
 
-Check out our (documentation)[bindings/python/README.md) and (examples)[examples/bindings-python/] to get started.
-Additionally, we offer bindings for (NetworKit)[https://networkit.github.io/], which can also be installed via `pip`:
+Check out our [documentation](bindings/python/README.md) and [examples](examples/bindings-python/) to get started.
+Additionally, we offer bindings for [NetworKit](https://networkit.github.io/), which can also be installed via `pip`:
 
 ```shell
 pip install kaminpar-networkit
@@ -46,7 +46,7 @@ fig = nk.vizbridges.widgetFromGraph(
 fig.write_image("partitioned_hyperbolic.png")
 ```
 
-Refer to our (document)[bindings/networkit/README.md) and (examples)[examples/bindings-networkit/) to get started.
+Refer to our [document](bindings/networkit/README.md) and [examples](examples/bindings-networkit/) to get started.
 
 ## Installation Notes (C/C++)
 
