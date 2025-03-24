@@ -167,7 +167,7 @@ shm.compute_partition(std::vector<double> max_block_weight_factors, std::span<Bl
 ```
 
 > [!TIP]
-> If you want to partition a graph that does not fit into memory, you can use our [Builder interface](docs/graph_compression.md) to construct a graph and compress it on-the-fly.
+> If you want to partition a graph that does not fit into memory, you can use our [Builder interface](docs/graph_compression.md) to construct a graph while compressing it on-the-fly.
 
 The distributed-memory partitioner can be used as follows:
 
