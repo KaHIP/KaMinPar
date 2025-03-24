@@ -64,7 +64,7 @@ After cloning the repository, follow the standard CMake build procedure:
 cmake -B build --preset=default && cmake --build build --parallel
 ```
 
-:grey_exclamation: **Note:** Use `--preset=distributed` to build the distributed-memory components.
+**:grey_exclamation: Note:** Use `--preset=distributed` to build the distributed-memory components.
 
 ### Using the Command Line Binaries 
 
