@@ -7,7 +7,39 @@ For example, it can partition the massive [hyperlink-2012](https://webdatacommon
 Notably, KaMinPar is also optimized for large k, where it often achieves an order-of-magnitude speedup over competing partitioners.
 For unweighted input graphs, it guarantees strict adherence to the balance constraint.
 
-## Installation Notes
+## Installation Nodes (Python and NetworKit)
+
+KaMinPar offers bindings for Python (only available for Linux and macOS), which can be installed via `pip`:
+
+```shell
+pip install kaminpar
+```
+
+To get started, refer to our (quick-start documentation)[bindings/python/README.md] and basic (examples)[examples/bindings-python].
+
+Additionally, we offer bindings for (NetworKit)[https://networkit.github.io/], which can also be installed via `pip`:
+
+```shell
+pip install kaminpar-networkit
+```
+
+For instance, these allow you to generate, partition and visualize a graph in just a few lines of Python:
+
+```python
+import networkit as nk
+import kaminpar_networkit as kaminpar
+from networkit import vizbridges
+
+graph = nk.generators.HyperbolicGenerator(100, k = 16, gamma = 2.7, T = 0).generate()
+partition = kaminpar.KaMinPar(graph).computePartitionWithEpsilon(4, 0.03)
+
+fig = nk.vizbridges.widgetFromGraph(graph, dimension = nk.vizbridges.Dimension.Three, nodePartition = partition, nodePalette = [(0, 0, 0), (255, 0, 0), (0, 255, 0), (0, 0, 255)])
+fig.write_image("partitioned_hyperbolic.png")
+```
+
+Refer to our (quick-start guide)[bindings/networkit/README.md) and basic (examples)[examples/bindings-networkit/) to get started.
+
+## Installation Notes (C/C++)
 
 ### Requirements
 
@@ -15,16 +47,15 @@ For unweighted input graphs, it guarantees strict adherence to the balance const
 * **Dependencies:** CMake, oneAPI TBB, MPI (optional)
 * **System:** Linux (x86, ARM) or macOS (ARM)
 
-### Quickstart
+### Installation
 
 After cloning the repository, follow the standard CMake build procedure:
 
 ```shell
-cmake -B build --preset=default
-cmake --build build --parallel
+cmake -B build --preset=default && cmake --build build --parallel
 ```
 
-To partition a graph in METIS format (see, e.g., the [KaHIP manual](https://github.com/KaHIP/KaHIP/raw/master/manual/kahip.pdf)), run:
+To partition a graph in [Metis](docs/graph_file_format.md) format, run:
 
 ```shell
 # KaMinPar: shared-memory partitioning
@@ -38,36 +69,27 @@ The computed partition is written to a text file (controlled via `-o <filename>`
 
 There are multiple configuration presets that tune the algorithm for different scenarios:
 
-* `-P default`: fast partitioning with quality comparable to Metis
-* `-P terapart`: same partition quality as `default`, but with reduced memory consumption (slightly slower)
-* `-P strong`: better quality than `default` through additional FM refinement at the cost of increased runtime
-* `-P largek`: faster for large values of k (e.g., k > 1024); reduces partition quality slightly for smaller k
+* `-P default`: fast partitioning with quality comparable to Metis.
+* `-P terapart`: same partition quality as `default`, but with reduced memory consumption (slightly slower).
+* `-P strong`: better quality than `default` through additional FM refinement at the cost of increased runtime.
+* `-P largek`: faster for large values of k (e.g., k > 1024); reduces partition quality slightly for smaller k.
 
-Configuration presets can be inspected using the `--dump-config` flag.
-To build a custom configuration, dump one of the presets to a file, modify it and load it using `-C <filename>`:
+If all blocks should have roughly the same way, use the `-k` and `-e` options to parameterize the partition:
 
-```shell
-./build/KaMinPar -P terapart --dump-config > custom.ini
-# ... modify custom.ini ...
-./build/KaMinPar -C custom.ini <...>
-```
-
-Important command line arguments include:
-
-* `-G <graph filename>`: Points to the input graph in METIS format
-* `-t <nproc>`: Controls the number of threads to be used, **defaults to single-threaded execution**
 * `-k <k>`: Controls the number of blocks in the partition (if all blocks should be subject to the same maximum block weight controlled by `-e`)
 * `-e <epsilon>`: Controls the maximum imbalance, e.g., `-e 0.03` to allow 3% imbalance, **defaults to 3%**
-* `-B <W0> <W2> ... <Wk-1>`: Explicitly specifies the maximum block weights, i.e., the weight of the i-th block should be bounded by `Wi`
-* `-b <w0> <w2> ... <wk-1>`: Same as `-B`, but specifies the maximum weights as fractions of the total node weight, i.e., the weight of the i-th block should be bounded by `wi * total node weight`
 
-General command line arguments:
+Alternatively, specify the maximum weight for each block explicitly:
 
-* `--version`: Prints the build configuration and current version
-* `-q`: Quiet mode, suppresses all console output
-* `-v`: Verbose mode, output more info during partitioning; pass `-v` multiple times to increase verbosity
-* `-T`: Outputs the full timer tree
-* `--validate`: Enables basic input graph validation
+* `-B <W0> <W2> ... <Wk-1>`: Explicitly specifies the maximum block weights, i.e., the weight of the i-th block should be bounded by `Wi`.
+* `-b <w0> <w2> ... <wk-1>`: Same as `-B`, but specifies the maximum weights as fractions of the total node weight, i.e., the weight of the i-th block should be bounded by `wi * total node weight`.
+
+Other command line options include:
+
+* `--help`: Prints all command line options.
+* `--version`: Prints the build configuration and current version.
+* `--validate`: Enables basic input graph validation.
+* `-q`: Quiet mode, suppresses all console output.
 
 ## Using the C++ Library Interface
 
