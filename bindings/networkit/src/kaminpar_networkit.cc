@@ -7,16 +7,16 @@
  ******************************************************************************/
 #include "kaminpar_networkit.h"
 
-#include <kaminpar-shm/datastructures/csr_graph.h>
-#include <kaminpar-shm/datastructures/graph.h>
-
 #include <kaminpar-common/datastructures/static_array.h>
 #include <kaminpar-common/parallel/algorithm.h>
+#include <kaminpar-shm/datastructures/csr_graph.h>
+#include <kaminpar-shm/datastructures/graph.h>
+#include <tbb/task_arena.h>
 
 namespace kaminpar {
 
 KaMinParNetworKit::KaMinParNetworKit(const NetworKit::Graph &G)
-    : KaMinPar(1, shm::create_default_context()) {
+    : KaMinPar(tbb::this_task_arena::max_concurrency(), shm::create_default_context()) {
   KaMinPar::set_output_level(kaminpar::OutputLevel::QUIET);
   copyGraph(G);
 }
