@@ -1,59 +1,72 @@
 # KaMinPar
 
-**KaMinPar** is a parallel heuristic solver for the balanced k-way graph partitioning problem.
+This is **KaMinPar**, a parallel heuristic solver for the balanced k-way graph partitioning problem.
+
 Given a graph, it aims to divide its vertices into k disjoint blocks of approximately equal weight, minimizing the number of edges crossing between blocks.
 KaMinPar offers high efficiency and low memory overheads while achieving partitions of similar quality as the widely used Metis algorithm.
 For example, it can partition the massive [hyperlink-2012](https://webdatacommons.org/hyperlinkgraph/index.html) graph (approx. 3.5 billion vertices and 112 billion edges) into 30,000 blocks in under 6 minutes on 96 cores, using around 300 GiB RAM.
 Notably, KaMinPar is also optimized for large k, where it often achieves an order-of-magnitude speedup over competing partitioners.
 For unweighted input graphs, it guarantees strict adherence to the balance constraint.
 
-## Installation Nodes (Python and NetworKit)
+## Quick-Start (Python and NetworKit)
 
-KaMinPar offers bindings for Python (only available for Linux and macOS), which can be installed via `pip`:
+KaMinPar offers bindings for Python (only available on Linux and macOS), which can be installed via `pip`:
 
 ```shell
 pip install kaminpar
 ```
 
-To get started, refer to our (quick-start documentation)[bindings/python/README.md] and basic (examples)[examples/bindings-python].
-
+Check out our (documentation)[bindings/python/README.md) and (examples)[examples/bindings-python/] to get started.
 Additionally, we offer bindings for (NetworKit)[https://networkit.github.io/], which can also be installed via `pip`:
 
 ```shell
 pip install kaminpar-networkit
 ```
 
-For instance, these allow you to generate, partition and visualize a graph in just a few lines of Python:
+For instance, these allow you to generate, partition and visualize a graph in just a few lines of code:
 
 ```python
 import networkit as nk
 import kaminpar_networkit as kaminpar
 from networkit import vizbridges
 
+# Generate a random hyperbolic graph with 100 vertices, average degree 16 and power-law exponent 2.7
 graph = nk.generators.HyperbolicGenerator(100, k = 16, gamma = 2.7, T = 0).generate()
+
+# Partition the graph into 4 blocks with a maximum imbalance of 3%
 partition = kaminpar.KaMinPar(graph).computePartitionWithEpsilon(4, 0.03)
 
-fig = nk.vizbridges.widgetFromGraph(graph, dimension = nk.vizbridges.Dimension.Three, nodePartition = partition, nodePalette = [(0, 0, 0), (255, 0, 0), (0, 255, 0), (0, 0, 255)])
+# Draw the graph and the partition
+fig = nk.vizbridges.widgetFromGraph(
+    graph, 
+    dimension = nk.vizbridges.Dimension.Three, 
+    nodePartition = partition, 
+    nodePalette = [(0, 0, 0), (255, 0, 0), (0, 255, 0), (0, 0, 255)]
+)
 fig.write_image("partitioned_hyperbolic.png")
 ```
 
-Refer to our (quick-start guide)[bindings/networkit/README.md) and basic (examples)[examples/bindings-networkit/) to get started.
+Refer to our (document)[bindings/networkit/README.md) and (examples)[examples/bindings-networkit/) to get started.
 
 ## Installation Notes (C/C++)
 
 ### Requirements
 
 * **Compiler:** C++20-ready GCC or Clang compiler
-* **Dependencies:** CMake, oneAPI TBB, MPI (optional)
+* **Dependencies:** CMake, oneAPI TBB, Google Sparsehash (optional), MPI (optional)
 * **System:** Linux (x86, ARM) or macOS (ARM)
 
-### Installation
+### Building from Source
 
 After cloning the repository, follow the standard CMake build procedure:
 
 ```shell
 cmake -B build --preset=default && cmake --build build --parallel
 ```
+
+**Note:** If you do not have Sparsehash installed on your system and do not wish to use it, you can disable it by passing `-DKAMINPAR_BUILD_WITH_SPARSEHASH=Off` to CMake.
+
+### Using the Command Line Binaries 
 
 To partition a graph in [Metis](docs/graph_file_format.md) format, run:
 
@@ -155,6 +168,8 @@ shm.compute_partition(std::vector<BlockWeight> max_block_weights, std::span<Bloc
 shm.compute_partition(std::vector<double> max_block_weight_factors, std::span<BlockID> out_partition);
 ```
 
+**Graph Compression:** If you want to partition a graph that does not fit into memory, you can use our (Builder interface)[docs/graph_compression.md] to construct a graph and compress it on-the-fly.
+
 The distributed-memory partitioner can be used as follows:
 
 ```c++
@@ -185,7 +200,7 @@ dist.compute_partition(std::vector<BlockWeight> max_block_weights, std::span<Blo
 dist.compute_partition(std::vector<double> max_block_weight_factors, std::span<BlockID> out_partition);
 ```
 
-More examples can be found in the (examples/)[examples/] directory. 
+Check out our (examples/)[examples/] to see the library interface in action.
 
 ## Licensing
 
