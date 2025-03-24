@@ -65,7 +65,7 @@ cmake -B build --preset=default && cmake --build build --parallel
 ```
 
 > [!NOTE]
-> Use `--preset=distributed` instead if you want to use the distributed-memory components.
+> Use `--preset=distributed` instead if you want to build the distributed-memory components.
 
 ### Using the Command Line Binaries 
 
@@ -166,7 +166,8 @@ shm.compute_partition(std::vector<BlockWeight> max_block_weights, std::span<Bloc
 shm.compute_partition(std::vector<double> max_block_weight_factors, std::span<BlockID> out_partition);
 ```
 
-**Graph Compression:** If you want to partition a graph that does not fit into memory, you can use our (Builder interface)[docs/graph_compression.md] to construct a graph and compress it on-the-fly.
+> [!TIP]
+> If you want to partition a graph that does not fit into memory, you can use our (Builder interface)[docs/graph_compression.md] to construct a graph and compress it on-the-fly.
 
 The distributed-memory partitioner can be used as follows:
 
