@@ -34,7 +34,6 @@ classifiers = [
   "Programming Language :: Cython",
   "Programming Language :: C++",
   "Operating System :: POSIX :: Linux",
-  "Operating System :: MacOS",
   "License :: OSI Approved :: MIT License",
 ]
 
