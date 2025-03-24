@@ -64,7 +64,8 @@ After cloning the repository, follow the standard CMake build procedure:
 cmake -B build --preset=default && cmake --build build --parallel
 ```
 
-**:grey_exclamation:Note:** Use `--preset=distributed` to build the distributed-memory components.
+> [!NOTE]
+> Use `--preset=distributed` instead if you want to use the distributed-memory components.
 
 ### Using the Command Line Binaries 
 
@@ -72,10 +73,10 @@ To partition a graph in [Metis](docs/graph_file_format.md) format, run:
 
 ```shell
 # KaMinPar: shared-memory partitioning
-./build/apps/KaMinPar [-P default|terapart|strong|largek] -G <graph filename> -k <number of blocks> -t <nproc> [-o <output partition>]
+./build/apps/KaMinPar [-P default|terapart|strong|largek] -t <nproc> -G <graph filename> -k <number of blocks> [-e 0.03] [-o <output partition>]
 
 # dKaMinPar: distributed partitioning
-mpirun -n <nproc> ./build/apps/dKaMinPar [-P default|strong|xterapart] -G <graph filename> -k <number of blocks> [-o <output partition>]
+mpirun -n <nproc> ./build/apps/dKaMinPar [-P default|strong|xterapart] -G <graph filename> -k <number of blocks> [-e 0.03] [-o <output partition>]
 ```
 
 The computed partition is written to a text file (controlled via `-o <filename>`), where the n-th line contains the block ID (0-based) of the n-th node.
@@ -87,12 +88,8 @@ There are multiple configuration presets that tune the algorithm for different s
 * `-P strong`: better quality than `default` through additional FM refinement at the cost of increased runtime.
 * `-P largek`: faster for large values of k (e.g., k > 1024); reduces partition quality slightly for smaller k.
 
-If all blocks should have roughly the same way, use the `-k` and `-e` options to parameterize the partition:
-
-* `-k <k>`: Controls the number of blocks in the partition (if all blocks should be subject to the same maximum block weight controlled by `-e`)
-* `-e <epsilon>`: Controls the maximum imbalance, e.g., `-e 0.03` to allow 3% imbalance, **defaults to 3%**
-
-Alternatively, specify the maximum weight for each block explicitly:
+The `-k <k>` option directs (d)KaMinPar to partition the graph into k blocks of roughly equal weight (use `-e <eps>` to control the maximum allowed imbalance, e.g., `-e 0.03` for 3%).
+Alternatively, you can specify the maximum weight for each block explicitly through one of the following options:
 
 * `-B <W0> <W2> ... <Wk-1>`: Explicitly specifies the maximum block weights, i.e., the weight of the i-th block should be bounded by `Wi`.
 * `-b <w0> <w2> ... <wk-1>`: Same as `-B`, but specifies the maximum weights as fractions of the total node weight, i.e., the weight of the i-th block should be bounded by `wi * total node weight`.
@@ -100,6 +97,7 @@ Alternatively, specify the maximum weight for each block explicitly:
 Other command line options include:
 
 * `--help`: Prints all command line options.
+* `-e <epsilon>`: Controls the maximum imbalance, e.g., `-e 0.03` to allow 3% imbalance, **defaults to 3%**
 * `--version`: Prints the build configuration and current version.
 * `--validate`: Enables basic input graph validation.
 * `-q`: Quiet mode, suppresses all console output.
