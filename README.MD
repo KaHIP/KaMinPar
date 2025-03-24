@@ -1,18 +1,18 @@
 # KaMinPar
 
-KaMinPar is a shared-memory parallel tool to heuristically solve the graph partitioning problem: divide a graph into k disjoint blocks of roughly equal weight while
-minimizing the number of edges between blocks.
-Competing algorithms are mostly evaluated for small values of k. If k is large, they often compute highly imbalance solutions, solutions of low quality or suffer excessive running time.
-KaMinPar substantially mitigates these problems.
-It computes partitions of comparable quality to other high-quality graph partitioning tools while guaranteeing the balance constraint for unweighted input graphs.
-Moreover, for large values of k, it is an order of magnitude faster than competing algorithms.
+**KaMinPar** is a parallel heuristic solver for the balanced k-way graph partitioning problem.
+Given a graph, it aims to divide its vertices into k disjoint blocks of approximately equal weight, minimizing the number of edges crossing between blocks.
+KaMinPar offers high efficiency and low memory overheads while achieving partitions of similar quality as the widely used Metis algorithm.
+For example, it can partition the massive [hyperlink-2012](https://webdatacommons.org/hyperlinkgraph/index.html) graph (approx. 3.5 billion vertices and 112 billion edges) into 30,000 blocks in under 6 minutes on 96 cores, using around 300 GiB RAM.
+Notably, KaMinPar is optimized for large k, where it often achieves an order-of-magnitude speedup over competing partitioners.
+For unweighted input graphs, it guarantees strict adherence to the balance constraint.
 
 ## Installation Notes
 
 ### Requirements
 
 * **Compiler:** C++20-ready GCC or Clang compiler
-* **Dependencies:** CMake, Intel TBB, MPI (optional)
+* **Dependencies:** CMake, oneAPI TBB, MPI (optional)
 * **System:** Linux (x86, ARM) or macOS (ARM)
 
 ### Quickstart
@@ -61,12 +61,6 @@ Important command line arguments include:
 * `-B <W0> <W2> ... <Wk-1>`: Explicitly specifies the maximum block weights, i.e., the weight of the i-th block should be bounded by `Wi`
 * `-b <w0> <w2> ... <wk-1>`: Same as `-B`, but specifies the maximum weights as fractions of the total node weight, i.e., the weight of the i-th block should be bounded by `wi * total node weight`
 
-Important command line arguments currently only available for the shared-memory partitioner include:
-
-* `--output-rearranged-graph=<filename>`: After partitioning, rearranges the input graph such that nodes are sorted by their block ID and writes it to the specified file in METIS format
-* `--output-rearranged-graph-mapping=<filename>`: Writes the corresponding old-to-new node ID mapping to a text file
-* `--output-block-sizes=<filename>`: Writes the number of nodes in each block to a text file
-
 General command line arguments:
 
 * `--version`: Prints the build configuration and current version
@@ -75,7 +69,7 @@ General command line arguments:
 * `-T`: Outputs the full timer tree
 * `--validate`: Enables basic input graph validation
 
-## Using the Library Interface
+## Using the C++ Library Interface
 
 If you are using CMake, you can use the partitioners as libraries by adding this repository as a Git submodule to your project and including it in your CMake configuration:
 
@@ -169,7 +163,7 @@ dist.compute_partition(std::vector<BlockWeight> max_block_weights, std::span<Blo
 dist.compute_partition(std::vector<double> max_block_weight_factors, std::span<BlockID> out_partition);
 ```
 
-More examples can be found in the `examples/` directory. 
+More examples can be found in the (examples/)[examples/] directory. 
 
 ## Licensing
 
