@@ -1,0 +1,131 @@
+name: Wheel builder for Python bindings
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  build-python-wheels:
+    name: Build KaMinPar Python wheel for ${{ matrix.python }}-${{ matrix.platform[1] }}
+
+    strategy:
+      matrix:
+        python: ["cp39", "cp310", "cp311", "cp312", "cp313", "cp313t", "pp39", "pp310", "pp311"]
+        platform:
+          - [ubuntu-24.04, manylinux_x86_64]
+          - [ubuntu-24.04-arm, manylinux_aarch64]
+          - [macos-15, macosx_arm64]
+      fail-fast: false
+
+    runs-on: ${{ matrix.platform[0] }}
+    steps:
+      - name: Checkout KaMinPar
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@6cccd09a31908ffd175b012fb8bf4e1dbda3bc6c # v2.23.0
+        env:
+          CIBW_BUILD: ${{ matrix.python }}-${{ matrix.platform[1] }}
+          CIBW_ENVIRONMENT: SKBUILD_CMAKE_DEFINE="KAMINPAR_PYTHON_INSTALL_TBB=On"
+          CIBW_FREE_THREADED_SUPPORT: True
+        with:
+          package-dir: bindings/python
+          output-dir: bindings/python/dist
+
+      - name: Store wheels
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: kaminpar-python-wheel-${{ matrix.python }}-${{ matrix.platform[1] }}
+          path: bindings/python/dist/
+          if-no-files-found: error
+
+  build-python-sdist:
+    name: Build KaMinPar Python source distribution
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout KaMinPar
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: "3.13"
+
+      - name: Build source distribution
+        run: |
+          # Create a requirements file with pinned versions and hashes for security
+          echo "build==1.2.2.post1 --hash=sha256:1d61c0887fa860c01971625baae8bdd338e517b836a2f70dd1f7aa3a6b2fc5b5" > build-requirements.txt
+          echo "packaging==24.2 --hash=sha256:09abb1bccd265c01f4a3aa3f7a7db064b36514d2cba19a2f694fe6150451a759" >> build-requirements.txt
+          echo "pyproject_hooks==1.2.0 --hash=sha256:9e5c6bfa8dcc30091c74b0cf803c81fdd29d94f01992a7707bc97babb1141913" >> build-requirements.txt
+          # Install the required build dependencies using the requirements file and build the sdist
+          python -m pip install --require-hashes -r build-requirements.txt
+          python -m build --sdist bindings/python/
+
+      - name: Store sdist
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: kaminpar-python-sdist
+          path: bindings/python/dist/
+          if-no-files-found: error
+
+  publish-python-to-pypi:
+    name: Publish KaMinPar Python distribution to PyPI
+    if: github.repository_owner == 'KaHIP' && startsWith(github.ref, 'refs/tags/')
+    needs:
+      - build-python-wheels
+      - build-python-sdist
+
+    environment:
+      name: pypi
+      url: https://pypi.org/p/kaminpar
+    permissions:
+      id-token: write
+
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download all the dists
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        with:
+          pattern: kaminpar-python-*
+          merge-multiple: true
+          path: dist/
+
+      - name: Publish distribution to PyPI
+        uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc # v1.12.4
+        with:
+          print-hash: true
+          verbose: true
+
+  publish-python-to-testpypi:
+    name: Publish KaMinPar Python distribution to TestPyPI
+    if: github.repository_owner == 'KaHIP' && startsWith(github.ref, 'refs/tags/')
+    needs:
+      - build-python-wheels
+      - build-python-sdist
+
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/kaminpar
+    permissions:
+      id-token: write
+
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download all the dists
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        with:
+          pattern: kaminpar-python-*
+          merge-multiple: true
+          path: dist/
+
+      - name: Publish distribution to TestPyPI
+        uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc # v1.12.4
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          print-hash: true
+          verbose: true

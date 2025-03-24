@@ -18,4 +18,5 @@ if (TARGET kaminpar_dist)
     add_library(KaMinPar::dKaMinParCLI ALIAS kaminpar_dist_cli)
 
     target_link_libraries(kaminpar_dist_cli PUBLIC kaminpar_dist)
+    target_compile_options(kaminpar_dist_cli PRIVATE ${KAMINPAR_WARNING_FLAGS})
 endif ()
