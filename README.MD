@@ -64,7 +64,7 @@ After cloning the repository, follow the standard CMake build procedure:
 cmake -B build --preset=default && cmake --build build --parallel
 ```
 
-**Note:** If you do not have Sparsehash installed on your system and do not wish to use it, you can disable it by passing `-DKAMINPAR_BUILD_WITH_SPARSEHASH=Off` to CMake.
+:grey_exclamation: **Note:** Use `--preset=distributed` to build the distributed-memory components.
 
 ### Using the Command Line Binaries 
 
