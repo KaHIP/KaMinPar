@@ -4,7 +4,7 @@
 Given a graph, it aims to divide its vertices into k disjoint blocks of approximately equal weight, minimizing the number of edges crossing between blocks.
 KaMinPar offers high efficiency and low memory overheads while achieving partitions of similar quality as the widely used Metis algorithm.
 For example, it can partition the massive [hyperlink-2012](https://webdatacommons.org/hyperlinkgraph/index.html) graph (approx. 3.5 billion vertices and 112 billion edges) into 30,000 blocks in under 6 minutes on 96 cores, using around 300 GiB RAM.
-Notably, KaMinPar is optimized for large k, where it often achieves an order-of-magnitude speedup over competing partitioners.
+Notably, KaMinPar is also optimized for large k, where it often achieves an order-of-magnitude speedup over competing partitioners.
 For unweighted input graphs, it guarantees strict adherence to the balance constraint.
 
 ## Installation Notes
