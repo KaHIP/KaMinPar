@@ -132,17 +132,15 @@ public:
 
     _stats.reset();
 
-    const NodeWeight initial_overload = metrics::total_overload(p_graph, p_ctx);
     const EdgeWeight initial_cut = IFDBG(metrics::edge_cut(*_p_graph));
 
     init_pq();
-    const BlockWeight delta = perform_round();
-    const NodeWeight new_overload = initial_overload - delta;
+    perform_round();
 
     DBG << "-> Balancer: cut=" << C(initial_cut, metrics::edge_cut(*_p_graph));
     IFSTATS(_stats.print());
 
-    return new_overload == 0;
+    return true;
   }
 
   void track_moves(NormalSparseGainCache<Graph> *gain_cache) {

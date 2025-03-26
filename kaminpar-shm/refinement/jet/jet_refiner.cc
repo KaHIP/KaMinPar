@@ -23,7 +23,7 @@ template <typename Graph> class JetRefinerImpl {
   SET_STATISTICS_FROM_GLOBAL();
 
 public:
-  JetRefinerImpl(const Context &ctx) : _ctx(ctx) {};
+  JetRefinerImpl(const Context &ctx) : _ctx(ctx) {}
 
   JetRefinerImpl(const JetRefinerImpl &) = delete;
   JetRefinerImpl &operator=(const JetRefinerImpl &) = delete;
