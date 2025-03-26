@@ -31,7 +31,7 @@ bool GreedyBalancer::refine(PartitionedGraph &p_graph, const PartitionContext &p
 
   const NodeWeight initial_overload = metrics::total_overload(p_graph, p_ctx);
   if (initial_overload == 0) {
-    return true;
+    return false;
   }
 
   const auto balance = [&](auto &impl) {
