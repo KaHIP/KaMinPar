@@ -89,15 +89,14 @@ There are multiple configuration presets that tune the algorithm for different s
 * `-P largek`: faster for large values of k (e.g., k > 1024); reduces partition quality slightly for smaller k.
 
 The `-k <k>` option directs (d)KaMinPar to partition the graph into k blocks of roughly equal weight (use `-e <eps>` to control the maximum allowed imbalance, e.g., `-e 0.03` for 3%).
-Alternatively, you can specify the maximum weight for each block explicitly through one of the following options:
+Alternatively, one can specify the maximum weight for each block explicitly through one of the following options:
 
 * `-B <W0> <W2> ... <Wk-1>`: Explicitly specifies the maximum block weights, i.e., the weight of the i-th block should be bounded by `Wi`.
 * `-b <w0> <w2> ... <wk-1>`: Same as `-B`, but specifies the maximum weights as fractions of the total node weight, i.e., the weight of the i-th block should be bounded by `wi * total node weight`.
 
-Other command line options include:
+Other common command line options include:
 
 * `--help`: Prints all command line options.
-* `-e <epsilon>`: Controls the maximum imbalance, e.g., `-e 0.03` to allow 3% imbalance, **defaults to 3%**
 * `--version`: Prints the build configuration and current version.
 * `--validate`: Enables basic input graph validation.
 * `-q`: Quiet mode, suppresses all console output.
