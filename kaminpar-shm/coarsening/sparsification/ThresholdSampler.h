@@ -16,26 +16,27 @@ public:
 
   StaticArray<EdgeWeight> sample(const CSRGraph &g, EdgeID target_edge_amount) override {
     SCOPED_TIMER("Threshold Sampling");
-    auto sample = StaticArray<EdgeWeight>(g.m(), 0);
-    StaticArray<Score> scores;
-    {
-      SCOPED_TIMER("Calculate Scores");
-      scores = this->_score_function->scores(g);
-    }
 
-      utils::K_SmallestInfo<Score> threshold;
-      {
-        SCOPED_TIMER("Find Threshold with qselect");
-        threshold =
-            utils::quickselect_k_smallest<Score>(target_edge_amount, scores.begin(), scores.end());
+    StaticArray<Score> scores = TIMED_SCOPE("Score calculation") {
+      return this->_score_function->scores(g);
+    };
+
+    const utils::K_SmallestInfo<Score> threshold = TIMED_SCOPE("Threshold selection") {
+      return utils::quickselect_k_smallest<Score>(target_edge_amount, scores.begin(), scores.end());
+    };
+
+    const double inclusion_probability_if_equal =
+        (target_edge_amount - threshold.number_of_elements_smaller) /
+        static_cast<double>(threshold.number_of_elemtns_equal);
+
+    StaticArray<EdgeWeight> sample(g.m());
+    utils::parallel_for_upward_edges(g, [&](const EdgeID e) {
+      if (scores[e] < threshold.value ||
+          (scores[e] == threshold.value &&
+           Random::instance().random_bool(inclusion_probability_if_equal))) {
+        sample[e] = g.edge_weight(e);
       }
-
-      double inclusion_probability_if_equal = (target_edge_amount - threshold.number_of_elements_smaller) / static_cast<double>(threshold.number_of_elemtns_equal);
-      utils::parallel_for_upward_edges(g, [&](EdgeID e) {
-        if (scores[e] < threshold.value || (scores[e] == threshold.value && Random::instance().random_bool(inclusion_probability_if_equal))) {
-          sample[e] = g.edge_weight(e);
-        }
-      });
+    });
 
     return sample;
   }

@@ -81,19 +81,18 @@ template <typename T, typename Iterator> T median(Iterator begin, Iterator end) 
 }
 
 template <typename T, typename Iterator> T median_of_medians(Iterator begin, Iterator end) {
-  size_t size = std::distance(begin, end);
-  if (size <= 10)
+  const std::size_t size = std::distance(begin, end);
+  if (size <= 10) {
     return median<T, Iterator>(begin, end);
+  }
 
-  size_t number_of_sections = (size + 4) / 5;
+  const std::size_t number_of_sections = (size + 4) / 5;
   StaticArray<T> medians(number_of_sections);
   tbb::parallel_for(0ul, number_of_sections, [&](auto i) {
     medians[i] = median<T, Iterator>(begin + 5 * i, begin + std::min(5 * (i + 1), size));
   });
 
-  return quickselect_k_smallest<T, typename StaticArray<T>::iterator>(
-             (number_of_sections + 1) / 2, medians.begin(), medians.end()
-  )
+  return quickselect_k_smallest<T>((number_of_sections + 1) / 2, medians.begin(), medians.end())
       .value;
 }
 
@@ -122,8 +121,7 @@ K_SmallestInfo<T> quickselect_k_smallest_iter(std::size_t k, Iterator begin, Ite
   const std::size_t initial_size = std::distance(begin, end);
 
   bool aux_zeroed = true;
-  StaticArray<std::size_t> less(initial_size);
-  StaticArray<std::size_t> greater(initial_size);
+  StaticArray<std::size_t> remap(initial_size);
 
   tbb::enumerable_thread_specific<std::size_t> thread_specific_number_equal;
   tbb::enumerable_thread_specific<std::size_t> thread_specific_number_less;
@@ -136,16 +134,13 @@ K_SmallestInfo<T> quickselect_k_smallest_iter(std::size_t k, Iterator begin, Ite
     if (aux_zeroed) [[unlikely]] {
       aux_zeroed = false;
     } else {
-      tbb::parallel_for<std::size_t>(0, size, [&](const std::size_t i) {
-        less[i] = 0;
-        greater[i] = 0;
-      });
+      tbb::parallel_for<std::size_t>(0, size, [&](const std::size_t i) { remap[i] = 0; });
 
       thread_specific_number_equal.clear();
       thread_specific_number_less.clear();
     }
 
-    const T pivot = median_of_medians<T>(begin, end);
+    const T pivot = *begin; // median_of_medians<T>(begin, end);
 
     tbb::parallel_for(tbb::blocked_range<std::size_t>(0, size), [&](const auto &r) {
       std::size_t &less_counter = thread_specific_number_less.local();
@@ -153,11 +148,8 @@ K_SmallestInfo<T> quickselect_k_smallest_iter(std::size_t k, Iterator begin, Ite
 
       for (std::size_t i = r.begin(); i != r.end(); ++i) {
         if (begin[i] < pivot) {
-          less[i] = 1;
           ++less_counter;
-        } else if (begin[i] > pivot) {
-          greater[i] = 1;
-        } else {
+        } else if (begin[i] == pivot) {
           ++equal_counter;
         }
       }
@@ -167,16 +159,24 @@ K_SmallestInfo<T> quickselect_k_smallest_iter(std::size_t k, Iterator begin, Ite
     const std::size_t number_less = thread_specific_number_less.combine(std::plus{});
 
     if (k <= number_less) {
-      parallel::prefix_sum(less.begin(), less.begin() + size, less.begin());
-      KASSERT(less[size - 1] == number_less, "prefix sum does not work", assert::always);
+      tbb::parallel_for(tbb::blocked_range<std::size_t>(0, size), [&](const auto &r) {
+        for (std::size_t i = r.begin(); i != r.end(); ++i) {
+          if (begin[i] < pivot) {
+            remap[i] = 1;
+          }
+        }
+      });
+
+      parallel::prefix_sum(remap.begin(), remap.begin() + size, remap.begin());
+      KASSERT(remap[size - 1] == number_less, "prefix sum does not work", assert::always);
 
       if (next_elements.size() < number_less) {
-        next_elements.resize(number_less);
+        next_elements.resize(number_less, static_array::noinit);
       }
 
       tbb::parallel_for<std::size_t>(0, size, [&](const std::size_t i) {
         if (begin[i] < pivot) {
-          next_elements[less[i] - 1] = begin[i];
+          next_elements[remap[i] - 1] = begin[i];
         }
       });
 
@@ -185,21 +185,29 @@ K_SmallestInfo<T> quickselect_k_smallest_iter(std::size_t k, Iterator begin, Ite
       begin = current_elements.begin();
       end = current_elements.begin() + number_less;
     } else if (k > number_less + number_equal) {
-      parallel::prefix_sum(greater.begin(), greater.begin() + size, greater.begin());
+      tbb::parallel_for(tbb::blocked_range<std::size_t>(0, size), [&](const auto &r) {
+        for (std::size_t i = r.begin(); i != r.end(); ++i) {
+          if (begin[i] > pivot) {
+            remap[i] = 1;
+          }
+        }
+      });
+
+      parallel::prefix_sum(remap.begin(), remap.begin() + size, remap.begin());
       KASSERT(
-          greater[size - 1] == size - number_equal - number_less,
+          remap[size - 1] == size - number_equal - number_less,
           "prefix sum does not work",
           assert::always
       );
 
       const std::size_t number_greater = size - number_less - number_equal;
       if (next_elements.size() < number_greater) {
-        next_elements.resize(number_greater);
+        next_elements.resize(number_greater, static_array::noinit);
       }
 
       tbb::parallel_for<std::size_t>(0, size, [&](const std::size_t i) {
         if (begin[i] > pivot) {
-          next_elements[greater[i] - 1] = begin[i];
+          next_elements[remap[i] - 1] = begin[i];
         }
       });
 
@@ -292,7 +300,7 @@ K_SmallestInfo<T> quickselect_k_smallest(const std::size_t k, Iterator begin, It
     return quickselect_k_smallest_base<T>(k, begin, end);
   }
 
-  //return quickselect_k_smallest_rec<T>(k, begin, end);
+  // return quickselect_k_smallest_rec<T>(k, begin, end);
   return quickselect_k_smallest_iter<T>(k, begin, end);
 }
 
