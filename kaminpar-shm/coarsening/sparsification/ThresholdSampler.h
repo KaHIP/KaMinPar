@@ -31,13 +31,11 @@ public:
         (target_edge_amount - threshold.number_of_elements_smaller) /
         static_cast<double>(threshold.number_of_elemtns_equal);
 
-    StaticArray<std::uint8_t> sample(g.m());
+    StaticArray<std::uint8_t> sample(g.m(), static_array::noinit);
     utils::parallel_for_upward_edges(g, [&](const EdgeID e) {
-      if (g.edge_weight(e) < threshold.value ||
-          (g.edge_weight(e) == threshold.value &&
-           Random::instance().random_bool(inclusion_probability_if_equal))) {
-        sample[e] = 1;
-      }
+      sample[e] = g.edge_weight(e) < threshold.value ||
+                  (g.edge_weight(e) == threshold.value &&
+                   Random::instance().random_bool(inclusion_probability_if_equal));
     });
 
     return sample;
