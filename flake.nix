@@ -21,7 +21,7 @@
       };
 
       devShellInputs = builtins.attrValues {
-        inherit (pkgs) ccache mold-wrapped gdb act;
+        inherit (pkgs) ccache mold-wrapped gdb act dpkg rpm;
         inherit (pkgs.python3Packages) build pybind11 ruff mypy;
       };
 
