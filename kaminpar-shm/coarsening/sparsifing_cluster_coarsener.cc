@@ -51,7 +51,7 @@ void SparsifyingClusteringCoarsener::initialize(const Graph *graph) {
  * @param edges_kept how many edges are samples, i.e., how many entries in sample are not 0
  */
 CSRGraph
-SparsifyingClusteringCoarsener::sparsify(const CSRGraph &g, StaticArray<EdgeWeight> sample) {
+SparsifyingClusteringCoarsener::sparsify(const CSRGraph &g, StaticArray<std::uint8_t> sample) {
   SCOPED_TIMER("Build Sparsifier");
   auto nodes = StaticArray<EdgeID>(g.n() + 1);
   sparsification::utils::parallel_for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
@@ -72,15 +72,15 @@ SparsifyingClusteringCoarsener::sparsify(const CSRGraph &g, StaticArray<EdgeWeig
       auto u_edges_added = __atomic_fetch_add(&edges_added[u], 1, __ATOMIC_RELAXED);
       edges[nodes[v] + v_edges_added] = u;
       edges[nodes[u] + u_edges_added] = v;
-      edge_weights[nodes[v] + v_edges_added] = sample[e];
-      edge_weights[nodes[u] + u_edges_added] = sample[e];
+      edge_weights[nodes[v] + v_edges_added] = g.edge_weight(e);
+      edge_weights[nodes[u] + u_edges_added] = g.edge_weight(e);
     }
   });
 
   return CSRGraph(
       std::move(nodes),
       std::move(edges),
-      std::move(StaticArray<NodeWeight>(g.raw_node_weights().begin(), g.raw_node_weights().end())),
+      StaticArray<NodeWeight>(g.raw_node_weights().begin(), g.raw_node_weights().end()),
       std::move(edge_weights),
       g.sorted()
   );
@@ -163,8 +163,12 @@ bool SparsifyingClusteringCoarsener::coarsen() {
     const CSRGraph *csr = dynamic_cast<const CSRGraph *>(coarsened->get().underlying_graph());
     KASSERT(csr != nullptr, "can only be used with a CSRGraph", assert::always);
 
-    auto sample = _sampling_algorithm->sample(*csr, target_edge_amount);
+    START_HEAP_PROFILER("Sampling");
+    auto sample = _sampling_algorithm->sample2(*csr, target_edge_amount);
+    STOP_HEAP_PROFILER();
+    START_HEAP_PROFILER("Sparsified Graph");
     CSRGraph sparsified = sparsify(*csr, std::move(sample));
+    STOP_HEAP_PROFILER();
 
     _hierarchy.push_back(std::make_unique<contraction::CoarseGraphImpl>(
         Graph(std::make_unique<CSRGraph>(std::move(sparsified))),

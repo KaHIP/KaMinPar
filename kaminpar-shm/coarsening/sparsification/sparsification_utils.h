@@ -10,6 +10,7 @@
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
+#include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/inline.h"
 #include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/random.h"
@@ -118,16 +119,18 @@ quickselect_k_smallest_base(const std::size_t k, Iterator begin, Iterator end) {
 
 template <typename T, typename Iterator>
 K_SmallestInfo<T> quickselect_k_smallest_iter(std::size_t k, Iterator begin, Iterator end) {
+  SCOPED_HEAP_PROFILER("Quickselect");
+
   const std::size_t initial_size = std::distance(begin, end);
 
   bool aux_zeroed = true;
-  StaticArray<std::size_t> remap(initial_size);
+  RECORD("remap") StaticArray<EdgeID> remap(initial_size);
 
   tbb::enumerable_thread_specific<std::size_t> thread_specific_number_equal;
   tbb::enumerable_thread_specific<std::size_t> thread_specific_number_less;
 
-  StaticArray<T> current_elements;
-  StaticArray<T> next_elements;
+  RECORD("current_elements") StaticArray<T> current_elements;
+  RECORD("next_elements") StaticArray<T> next_elements;
 
   for (std::size_t size = initial_size; size > QUICKSELECT_BASE_CASE_SIZE;
        size = std::distance(begin, end)) {
@@ -182,8 +185,8 @@ K_SmallestInfo<T> quickselect_k_smallest_iter(std::size_t k, Iterator begin, Ite
 
       std::swap(next_elements, current_elements);
 
-      begin = current_elements.begin();
-      end = current_elements.begin() + number_less;
+      begin = current_elements.cbegin();
+      end = current_elements.cbegin() + number_less;
     } else if (k > number_less + number_equal) {
       tbb::parallel_for(tbb::blocked_range<std::size_t>(0, size), [&](const auto &r) {
         for (std::size_t i = r.begin(); i != r.end(); ++i) {
@@ -214,8 +217,8 @@ K_SmallestInfo<T> quickselect_k_smallest_iter(std::size_t k, Iterator begin, Ite
       std::swap(next_elements, current_elements);
 
       k -= number_equal + number_less;
-      begin = current_elements.begin();
-      end = current_elements.begin() + number_greater;
+      begin = current_elements.cbegin();
+      end = current_elements.cbegin() + number_greater;
     } else {
       return {pivot, number_less, number_equal};
     }
