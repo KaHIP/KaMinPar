@@ -9,15 +9,15 @@ project(
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(KaMinPar 3.2.0 QUIET)
+find_package(KaMinPar QUIET)
 if(NOT KaMinPar_FOUND)
   message(STATUS "KaMinPar not found, downloading it from GitHub")
 
   include(FetchContent)
   FetchContent_Declare(
     KaMinPar
-    GIT_REPOSITORY https://github.com/dsalwasser/KaMinPar.git
-    GIT_TAG shm/feat/graph-compression-interface # TODO: Update when merged
+    GIT_REPOSITORY https://github.com/KaHIP/KaMinPar.git
+    GIT_TAG main
     GIT_SHALLOW TRUE
     UPDATE_DISCONNECTED TRUE
   )

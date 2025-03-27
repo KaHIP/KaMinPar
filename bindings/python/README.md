@@ -21,7 +21,7 @@ When building the Python bindings from source, the dependencies of KaMinPar must
 
 ## Usage
 
-The following is a basic example of using the KaMinPar bindings. For the full API documentation, refer to the [documentation file](https://github.com/dsalwasser/KaMinPar/blob/shm/feat/bindings/bindings/python/src/kaminpar/__init__.pyi).
+The following is a basic example of using the KaMinPar bindings. For the full API documentation, refer to the [documentation file](https://github.com/KaHIP/KaMinPar/blob/main/bindings/python/src/kaminpar/__init__.pyi).
 
 ```python
 import kaminpar
