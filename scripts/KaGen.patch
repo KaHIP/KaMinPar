@@ -1,0 +1,35 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 3e7aa1f..e859dca 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -124,7 +124,7 @@ endif ()
+ # libmorton
+ ###############################################################################
+ add_library(morton INTERFACE)
+-target_include_directories(morton SYSTEM INTERFACE extlib/libmorton/include)
++target_include_directories(morton SYSTEM INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/extlib/libmorton/include>)
+ list(APPEND KAGEN_LINK_LIBRARIES morton)
+ 
+ ###############################################################################
+diff --git a/kagen/CMakeLists.txt b/kagen/CMakeLists.txt
+index 57a0b40..6a08a0b 100644
+--- a/kagen/CMakeLists.txt
++++ b/kagen/CMakeLists.txt
+@@ -24,12 +24,14 @@ endif ()
+ add_library(kagen OBJECT ${KAGEN_SOURCE_FILES})
+ target_compile_features(kagen PRIVATE cxx_std_17)
+ target_link_libraries(kagen PUBLIC ${KAGEN_LINK_LIBRARIES})
+-target_include_directories(kagen PUBLIC ${PROJECT_SOURCE_DIR})
+-target_include_directories(kagen PRIVATE ${KAGEN_INCLUDE_DIRS})
++target_include_directories(kagen
++    PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
++    PRIVATE ${KAGEN_INCLUDE_DIRS}
++)
+ target_compile_options(kagen PRIVATE ${KAGEN_WARNING_FLAGS})
+ 
+ # Allow library users to include kagen.h without kagen/ prefix
+-target_include_directories(kagen INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
++target_include_directories(kagen INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
+ 
+ if (INSTALL_KAGEN)
+     install(TARGETS kagen DESTINATION lib)

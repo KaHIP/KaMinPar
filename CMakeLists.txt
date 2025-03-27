@@ -3,8 +3,9 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules)
 
 project(
     KaMinPar
-    VERSION 3.1.0
+    VERSION 3.4.0
     DESCRIPTION "Shared-memory and distributed-memory Graph Partitioner"
+    HOMEPAGE_URL "https://github.com/KaHIP/KaMinPar"
     LANGUAGES C CXX
 )
 
@@ -15,7 +16,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 ################################################################################
-## Options                                                                    ##
+## Declare Options                                                            ##
 ################################################################################
 
 # Control what to build
@@ -308,7 +309,11 @@ message("  dist::{Node, Edge}Weight: ${KAMINPAR_DIST_WEIGHT_STR}")
 if (CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     include(CTest)
 endif()
+
+include(FindGit)
 include(FetchContent)
+
+find_library(NUMA_LIB numa)
 
 # Fetch KAssert for assertions
 FetchContent_Declare(
@@ -360,7 +365,7 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
     # Growt
     add_subdirectory(external/growt EXCLUDE_FROM_ALL)
     add_library(growt INTERFACE)
-    target_include_directories(growt SYSTEM INTERFACE "external/growt")
+    target_include_directories(growt SYSTEM INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/external/growt>)
 
     if (KAMINPAR_BUILD_WITH_BACKWARD)
         FetchContent_Declare(
@@ -390,7 +395,8 @@ if ((KAMINPAR_BUILD_DISTRIBUTED AND KAMINPAR_BUILD_APPS) OR KAMINPAR_BUILD_BENCH
     FetchContent_Declare(
         KaGen
         GIT_REPOSITORY https://github.com/KarlsruheGraphGeneration/KaGen.git
-        GIT_TAG 70386f48e513051656f020360c482ce6bff9a24f 
+        GIT_TAG 70386f48e513051656f020360c482ce6bff9a24f
+        PATCH_COMMAND ${GIT_EXECUTABLE} apply ${CMAKE_CURRENT_SOURCE_DIR}/scripts/KaGen.patch
         EXCLUDE_FROM_ALL
         UPDATE_DISCONNECTED TRUE
     )
@@ -460,17 +466,33 @@ if (NOT INSTALL_KAMINPAR)
     return()
 endif ()
 
+# If the installation prefix is not set by the user for Unix builds,
+# assign a default value to ensure GNUInstallDirs selects the correct paths.
+if (UNIX AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+    set(CMAKE_INSTALL_PREFIX "/usr/" CACHE STRING "" FORCE)
+endif ()
+
 include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
 
+set(KAMINPAR_INSTALL_INCLUDE_DIRS include/kaminpar-io/ include/kaminpar-shm/)
+if (KAMINPAR_BUILD_DISTRIBUTED)
+    list(APPEND KAMINPAR_INSTALL_INCLUDE_DIRS include/kaminpar-dist/)
+endif ()
+
 install(
-    DIRECTORY include/
+    DIRECTORY ${KAMINPAR_INSTALL_INCLUDE_DIRS}
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
     COMPONENT KaMinPar_Development
 )
 
+set(KAMINPAR_INSTALL_TARGETS kassert_base kassert KaMinParCommon KaMinParIO KaMinPar KaMinParCLI KaMinParApp)
+if (KAMINPAR_BUILD_DISTRIBUTED)
+    list(APPEND KAMINPAR_INSTALL_TARGETS morton kagen growt KaMinParMPI dKaMinParIO dKaMinPar dKaMinParCLI dKaMinParApp)
+endif ()
+
 install(
-    TARGETS kassert_base kassert kaminpar_common kaminpar_shm kaminpar_io
+    TARGETS ${KAMINPAR_INSTALL_TARGETS}
     EXPORT KaMinParTargets
     RUNTIME COMPONENT KaMinPar_Runtime
     LIBRARY COMPONENT KaMinPar_Runtime NAMELINK_COMPONENT KaMinPar_Development
@@ -478,36 +500,41 @@ install(
     INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
 )
 
-write_basic_package_version_file(
-    "KaMinParConfigVersion.cmake"
-    VERSION ${PACKAGE_VERSION}
-    COMPATIBILITY SameMajorVersion
-)
-
 # Allow package maintainers to freely override the path for the configs
 set(
-    KAMINPAR_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/${package}"
+    KAMINPAR_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/KaMinPar"
     CACHE STRING "CMake package config location relative to the install prefix"
 )
 set_property(CACHE KAMINPAR_INSTALL_CMAKEDIR PROPERTY TYPE PATH)
 mark_as_advanced(KAMINPAR_INSTALL_CMAKEDIR)
 
 install(
-    FILES cmake/install-config.cmake
-    DESTINATION "${KAMINPAR_INSTALL_CMAKEDIR}"
-    RENAME "KaMinParConfig.cmake"
+    FILES ${PROJECT_SOURCE_DIR}/cmake/modules/FindSparsehash.cmake
+    DESTINATION ${KAMINPAR_INSTALL_CMAKEDIR}
     COMPONENT KaMinPar_Development
 )
 
+configure_file(cmake/KaMinParConfig.cmake.in KaMinParConfig.cmake @ONLY)
 install(
-    FILES "${PROJECT_BINARY_DIR}/KaMinParConfigVersion.cmake"
-    DESTINATION "${KAMINPAR_INSTALL_CMAKEDIR}"
+    FILES ${PROJECT_BINARY_DIR}/KaMinParConfig.cmake
+    DESTINATION ${KAMINPAR_INSTALL_CMAKEDIR}
+    COMPONENT KaMinPar_Development
+)
+
+write_basic_package_version_file(
+    "KaMinParConfigVersion.cmake"
+    VERSION ${PACKAGE_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+install(
+    FILES ${PROJECT_BINARY_DIR}/KaMinParConfigVersion.cmake
+    DESTINATION ${KAMINPAR_INSTALL_CMAKEDIR}
     COMPONENT KaMinPar_Development
 )
 
 install(
     EXPORT KaMinParTargets
     NAMESPACE KaMinPar::
-    DESTINATION "${KAMINPAR_INSTALL_CMAKEDIR}"
+    DESTINATION ${KAMINPAR_INSTALL_CMAKEDIR}
     COMPONENT KaMinPar_Development
 )

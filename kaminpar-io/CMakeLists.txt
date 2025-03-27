@@ -16,20 +16,17 @@ set(DKAMINPAR_IO_SOURCE_FILES
     dist_skagen.h dist_skagen.cc
     ${COMMON_IO_SOURCE_FILES})
 
-add_library(kaminpar_io ${KAMINPAR_IO_SOURCE_FILES})
-add_library(KaMinPar::KaMinParIO ALIAS kaminpar_io)
+add_library(KaMinParIO ${KAMINPAR_IO_SOURCE_FILES})
+add_library(KaMinPar::KaMinParIO ALIAS KaMinParIO)
 
-target_include_directories(kaminpar_io PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include/>
-)
-target_link_libraries(kaminpar_io PUBLIC kaminpar_shm)
-target_compile_options(kaminpar_io PRIVATE ${KAMINPAR_WARNING_FLAGS})
+target_include_directories(KaMinParIO PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include/kaminpar-io/>)
+target_link_libraries(KaMinParIO PUBLIC KaMinPar::KaMinPar)
+target_compile_options(KaMinParIO PRIVATE ${KAMINPAR_WARNING_FLAGS})
 
-if (TARGET kaminpar_dist)
-    add_library(kaminpar_dist_io ${DKAMINPAR_IO_SOURCE_FILES})
-    add_library(KaMinPar::dKaMinParIO ALIAS kaminpar_dist_io)
+if (TARGET dKaMinPar)
+    add_library(dKaMinParIO ${DKAMINPAR_IO_SOURCE_FILES})
+    add_library(KaMinPar::dKaMinParIO ALIAS dKaMinParIO)
 
-    target_link_libraries(kaminpar_dist_io PUBLIC kaminpar_dist KaGen::KaGen)
-    target_compile_options(kaminpar_dist_io PRIVATE ${KAMINPAR_WARNING_FLAGS})
+    target_link_libraries(dKaMinParIO PUBLIC KaMinPar::dKaMinPar KaGen::KaGen)
+    target_compile_options(dKaMinParIO PRIVATE ${KAMINPAR_WARNING_FLAGS})
 endif ()

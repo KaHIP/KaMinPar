@@ -5,8 +5,7 @@ function(kaminpar_add_shm_test target)
     target_link_libraries(${target} PRIVATE 
         GTest::gtest_main 
         GTest::gmock_main
-        kaminpar_common
-        kaminpar_shm)
+        KaMinPar::KaMinPar)
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_compile_options(${target} PRIVATE ${KAMINPAR_WARNING_FLAGS})
     gtest_discover_tests(${target})
@@ -19,7 +18,7 @@ function(kaminpar_add_common_test target)
     target_link_libraries(${target} PRIVATE 
         GTest::gtest_main
         GTest::gmock_main
-        kaminpar_common)
+        KaMinPar::KaMinParCommon)
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_compile_options(${target} PRIVATE ${KAMINPAR_WARNING_FLAGS})
     gtest_discover_tests(${target})
@@ -78,9 +77,8 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
         katestrophe_add_test_executable(${KAMINPAR_TARGET_NAME} FILES ${KAMINPAR_FILES})
         target_link_libraries(${KAMINPAR_TARGET_NAME} PRIVATE
                 mpi-gtest-main
-                kaminpar_common
-                kaminpar_shm
-                kaminpar_mpi)
+                KaMinPar::KaMinPar
+                KaMinPar::KaMinParMPI)
         target_include_directories(${KAMINPAR_TARGET_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
         target_compile_options(${KAMINPAR_TARGET_NAME} PRIVATE ${KAMINPAR_WARNING_FLAGS})
         katestrophe_add_mpi_test(${KAMINPAR_TARGET_NAME} CORES ${KAMINPAR_CORES})
@@ -99,10 +97,7 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
         katestrophe_add_test_executable(${KAMINPAR_TARGET_NAME} FILES ${KAMINPAR_FILES})
         target_link_libraries(${KAMINPAR_TARGET_NAME} PRIVATE 
             mpi-gtest-main
-            kaminpar_common
-            kaminpar_shm
-            kaminpar_mpi
-            kaminpar_dist)
+            KaMinPar::dKaMinPar)
         target_include_directories(${KAMINPAR_TARGET_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
         target_compile_options(${KAMINPAR_TARGET_NAME} PRIVATE ${KAMINPAR_WARNING_FLAGS})
         katestrophe_add_mpi_test(${KAMINPAR_TARGET_NAME} CORES ${KAMINPAR_CORES})

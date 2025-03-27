@@ -1,22 +1,19 @@
 file(GLOB_RECURSE KAMINPAR_SHM_SOURCE_FILES CONFIGURE_DEPENDS
 	*.cc *.h)
 
-add_library(kaminpar_shm ${KAMINPAR_SHM_SOURCE_FILES})
-add_library(KaMinPar::KaMinPar ALIAS kaminpar_shm)
+add_library(KaMinPar ${KAMINPAR_SHM_SOURCE_FILES})
+add_library(KaMinPar::KaMinPar ALIAS KaMinPar)
 
-target_include_directories(kaminpar_shm PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include/>
-)
-target_link_libraries(kaminpar_shm PUBLIC kaminpar_common)
-target_compile_options(kaminpar_shm PRIVATE ${KAMINPAR_WARNING_FLAGS})
+target_include_directories(KaMinPar PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include/kaminpar-shm/>)
+target_link_libraries(KaMinPar PUBLIC KaMinPar::KaMinParCommon)
+target_compile_options(KaMinPar PRIVATE ${KAMINPAR_WARNING_FLAGS})
 
 if (Sparsehash_FOUND)
-    target_link_libraries(kaminpar_shm PUBLIC Sparsehash::Sparsehash)
+    target_link_libraries(KaMinPar PUBLIC Sparsehash::Sparsehash)
 endif ()
 
 # If we can find Mt-KaHyPar, make it available as an option for refinement
 if (KAMINPAR_BUILD_WITH_MTKAHYPAR)
-    target_compile_definitions(kaminpar_shm PRIVATE -DKAMINPAR_HAVE_MTKAHYPAR_LIB)
-    target_link_libraries(kaminpar_shm PUBLIC mtkahypar)
+    target_compile_definitions(KaMinPar PRIVATE -DKAMINPAR_HAVE_MTKAHYPAR_LIB)
+    target_link_libraries(KaMinPar PUBLIC mtkahypar)
 endif ()
