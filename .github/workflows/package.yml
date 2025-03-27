@@ -52,8 +52,14 @@ jobs:
         run: |
           if [ "${{ matrix.package }}" = "RPM" ]; then
             source /etc/profile.d/modules.sh
-            module load mpi/openmpi-x86_64
+
+            if [ "${{ matrix.platform[0] }}" = "AMD64" ]; then
+              module load mpi/openmpi-x86_64
+            elif [ "${{ matrix.platform[0] }}" = "ARM64" ]; then
+              module load mpi/openmpi-aarch64
+            fi
           fi
+
           cmake -B build \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_TESTING=Off \
@@ -72,7 +78,6 @@ jobs:
         run: cpack --config build/CPackConfig.cmake -G ${{ matrix.package }} -V
 
       - name: Upload package artifact
-        if: github.repository_owner == 'KaHIP' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: KaMinPar-${{ matrix.package }}-${{ matrix.platform[0] }}
