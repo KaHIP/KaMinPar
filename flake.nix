@@ -27,7 +27,7 @@
 
       kaminpar = pkgs.stdenv.mkDerivation {
         pname = "KaMinPar";
-        version = "3.4.0";
+        version = "3.4.1";
 
         src = self;
         nativeBuildInputs = kaminparInputs ++ dkaminparInputs;
@@ -134,7 +134,7 @@
 
       kaminpar-python = pkgs.python3Packages.buildPythonPackage {
         pname = "kaminpar";
-        version = "3.4.0";
+        version = "3.4.1";
         pyproject = true;
 
         src = "${self}/bindings/python";
@@ -165,7 +165,7 @@
 
       kaminpar-networkit = pkgs.python3Packages.buildPythonPackage {
         pname = "kaminpar-networkit";
-        version = "3.4.0";
+        version = "3.4.1";
         pyproject = true;
 
         src = "${self}/bindings/networkit";

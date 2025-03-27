@@ -25,7 +25,7 @@
 
 #define KAMINPAR_VERSION_MAJOR 3
 #define KAMINPAR_VERSION_MINOR 4
-#define KAMINPAR_VERSION_PATCH 0
+#define KAMINPAR_VERSION_PATCH 1
 
 namespace kaminpar {
 
