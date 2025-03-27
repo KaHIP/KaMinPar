@@ -7,19 +7,16 @@
  ******************************************************************************/
 #pragma once
 
+#include <algorithm>
+
 #include "sparsification/Sampler.h"
 
 #include "kaminpar-shm/coarsening/clusterer.h"
 #include "kaminpar-shm/coarsening/coarsener.h"
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"
+#include "kaminpar-shm/coarsening/max_cluster_weights.h"
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
-#include "kaminpar-shm/kaminpar.h"
-
-#include <algorithm>
-
-#include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"
-#include "kaminpar-shm/coarsening/max_cluster_weights.h"
 #include "kaminpar-shm/factories.h"
 #include "kaminpar-shm/kaminpar.h"
 
@@ -40,7 +37,7 @@ public:
 
   void initialize(const Graph *graph) final;
 
-  CSRGraph sparsify(const CSRGraph &csr, StaticArray<std::uint8_t> sample);
+  CSRGraph sparsify(CSRGraph csr, StaticArray<std::uint8_t> sample);
   EdgeID sparsificationTarget(EdgeID old_m, NodeID old_n, EdgeID new_m);
 
   bool coarsen() final;

@@ -50,8 +50,7 @@ void SparsifyingClusteringCoarsener::initialize(const Graph *graph) {
  * @param sample for every edge 0, if it should be removed, its (new) weight otherwise
  * @param edges_kept how many edges are samples, i.e., how many entries in sample are not 0
  */
-CSRGraph
-SparsifyingClusteringCoarsener::sparsify(const CSRGraph &g, StaticArray<std::uint8_t> sample) {
+CSRGraph SparsifyingClusteringCoarsener::sparsify(CSRGraph g, StaticArray<std::uint8_t> sample) {
   SCOPED_TIMER("Build Sparsifier");
   auto nodes = StaticArray<EdgeID>(g.n() + 1);
   sparsification::utils::parallel_for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
@@ -80,7 +79,7 @@ SparsifyingClusteringCoarsener::sparsify(const CSRGraph &g, StaticArray<std::uin
   return CSRGraph(
       std::move(nodes),
       std::move(edges),
-      StaticArray<NodeWeight>(g.raw_node_weights().begin(), g.raw_node_weights().end()),
+      g.take_raw_node_weights(),
       std::move(edge_weights),
       g.sorted()
   );
@@ -160,14 +159,14 @@ bool SparsifyingClusteringCoarsener::coarsen() {
   if (coarsened->get().m() > _s_ctx.laziness_factor * target_edge_amount) { // sparsify
     KASSERT(coarsened->get().m() % 2 == 0, "graph should be undirected", assert::always);
 
-    const CSRGraph *csr = dynamic_cast<const CSRGraph *>(coarsened->get().underlying_graph());
+    CSRGraph *csr = dynamic_cast<CSRGraph *>(coarsened->get().underlying_graph());
     KASSERT(csr != nullptr, "can only be used with a CSRGraph", assert::always);
 
     START_HEAP_PROFILER("Sampling");
     auto sample = _sampling_algorithm->sample2(*csr, target_edge_amount);
     STOP_HEAP_PROFILER();
     START_HEAP_PROFILER("Sparsified Graph");
-    CSRGraph sparsified = sparsify(*csr, std::move(sample));
+    CSRGraph sparsified = sparsify(std::move(*csr), std::move(sample));
     STOP_HEAP_PROFILER();
 
     _hierarchy.push_back(std::make_unique<contraction::CoarseGraphImpl>(
