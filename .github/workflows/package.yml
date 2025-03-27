@@ -35,7 +35,8 @@ jobs:
         if: ${{ matrix.package == 'DEB' }}
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake \
+          sudo apt-get install -y \
+            gcc-11 g++-11 cmake \
             libnuma-dev libtbb-dev libsparsehash-dev \
             libopenmpi-dev mpi
 
@@ -50,7 +51,10 @@ jobs:
 
       - name: Configure CMake build
         run: |
-          if [ "${{ matrix.package }}" = "RPM" ]; then
+          if [ "${{ matrix.package }}" = "DEB" ]; then
+            export CC=gcc-11
+            export CXX=g++-11
+          elif [ "${{ matrix.package }}" = "RPM" ]; then
             source /etc/profile.d/modules.sh
 
             if [ "${{ matrix.platform[0] }}" = "AMD64" ]; then
@@ -65,7 +69,7 @@ jobs:
             -DBUILD_TESTING=Off \
             -DBUILD_SHARED_LIBS=On \
             -DCMAKE_POSITION_INDEPENDENT_CODE=On \
-            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=Off \
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=On \
             -DKAMINPAR_BUILD_WITH_MTUNE_NATIVE=Off \
             -DKAMINPAR_BUILD_DISTRIBUTED=On \
             -DKAMINPAR_64BIT_IDS=On \
