@@ -13,6 +13,7 @@
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/inline.h"
 #include "kaminpar-common/parallel/algorithm.h"
+#include "kaminpar-common/parallel/loops.h"
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/timer.h"
 
@@ -121,13 +122,21 @@ template <typename T, typename Iterator>
 K_SmallestInfo<T> quickselect_k_smallest_iter(std::size_t k, Iterator begin, Iterator end) {
   SCOPED_HEAP_PROFILER("Quickselect");
 
+  constexpr static bool kUseBuffers = true;
+  constexpr static bool kUseTrivialPivot = true;
+
   const std::size_t initial_size = std::distance(begin, end);
 
   bool aux_zeroed = true;
-  RECORD("remap") StaticArray<EdgeID> remap(initial_size);
+  RECORD("remap") StaticArray<EdgeID> remap;
+
+  if constexpr (!kUseBuffers) {
+    remap.resize(initial_size);
+  }
 
   tbb::enumerable_thread_specific<std::size_t> thread_specific_number_equal;
   tbb::enumerable_thread_specific<std::size_t> thread_specific_number_less;
+  tbb::enumerable_thread_specific<std::vector<T>> thread_specific_buffers;
 
   RECORD("current_elements") StaticArray<T> current_elements;
   RECORD("next_elements") StaticArray<T> next_elements;
@@ -137,13 +146,15 @@ K_SmallestInfo<T> quickselect_k_smallest_iter(std::size_t k, Iterator begin, Ite
     if (aux_zeroed) [[unlikely]] {
       aux_zeroed = false;
     } else {
-      tbb::parallel_for<std::size_t>(0, size, [&](const std::size_t i) { remap[i] = 0; });
+      if constexpr (!kUseBuffers) {
+        tbb::parallel_for<std::size_t>(0, size, [&](const std::size_t i) { remap[i] = 0; });
+      }
 
       thread_specific_number_equal.clear();
       thread_specific_number_less.clear();
     }
 
-    const T pivot = *begin; // median_of_medians<T>(begin, end);
+    const T pivot = kUseTrivialPivot ? *begin : median_of_medians<T>(begin, end);
 
     tbb::parallel_for(tbb::blocked_range<std::size_t>(0, size), [&](const auto &r) {
       std::size_t &less_counter = thread_specific_number_less.local();
@@ -162,57 +173,111 @@ K_SmallestInfo<T> quickselect_k_smallest_iter(std::size_t k, Iterator begin, Ite
     const std::size_t number_less = thread_specific_number_less.combine(std::plus{});
 
     if (k <= number_less) {
-      tbb::parallel_for(tbb::blocked_range<std::size_t>(0, size), [&](const auto &r) {
-        for (std::size_t i = r.begin(); i != r.end(); ++i) {
-          if (begin[i] < pivot) {
-            remap[i] = 1;
-          }
-        }
-      });
+      if constexpr (kUseBuffers) {
+        parallel::deterministic_for<std::size_t>(
+            0,
+            size,
+            [&](const std::size_t from, const std::size_t to, int) {
+              auto &buffer = thread_specific_buffers.local();
+              buffer.clear();
 
-      parallel::prefix_sum(remap.begin(), remap.begin() + size, remap.begin());
-      KASSERT(remap[size - 1] == number_less, "prefix sum does not work", assert::always);
+              for (std::size_t i = from; i < to; ++i) {
+                if (begin[i] < pivot) {
+                  buffer.push_back(begin[i]);
+                }
+              }
+            }
+        );
+      } else {
+        tbb::parallel_for(tbb::blocked_range<std::size_t>(0, size), [&](const auto &r) {
+          for (std::size_t i = r.begin(); i != r.end(); ++i) {
+            if (begin[i] < pivot) {
+              remap[i] = 1;
+            }
+          }
+        });
+
+        parallel::prefix_sum(remap.begin(), remap.begin() + size, remap.begin());
+        KASSERT(remap[size - 1] == number_less, "prefix sum does not work", assert::always);
+      }
 
       if (next_elements.size() < number_less) {
         next_elements.resize(number_less, static_array::noinit);
       }
 
-      tbb::parallel_for<std::size_t>(0, size, [&](const std::size_t i) {
-        if (begin[i] < pivot) {
-          next_elements[remap[i] - 1] = begin[i];
+      if constexpr (kUseBuffers) {
+        std::size_t start = 0;
+        for (const auto &buffer : thread_specific_buffers) {
+          tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
+            next_elements[start + i] = buffer[i];
+          });
+          start += buffer.size();
         }
-      });
+      } else {
+        tbb::parallel_for<std::size_t>(0, size, [&](const std::size_t i) {
+          if (begin[i] < pivot) {
+            next_elements[remap[i] - 1] = begin[i];
+          }
+        });
+      }
 
       std::swap(next_elements, current_elements);
 
       begin = current_elements.cbegin();
       end = current_elements.cbegin() + number_less;
     } else if (k > number_less + number_equal) {
-      tbb::parallel_for(tbb::blocked_range<std::size_t>(0, size), [&](const auto &r) {
-        for (std::size_t i = r.begin(); i != r.end(); ++i) {
-          if (begin[i] > pivot) {
-            remap[i] = 1;
-          }
-        }
-      });
+      if constexpr (kUseBuffers) {
+        parallel::deterministic_for<std::size_t>(
+            0,
+            size,
+            [&](const std::size_t from, const std::size_t to, int) {
+              auto &buffer = thread_specific_buffers.local();
+              buffer.clear();
 
-      parallel::prefix_sum(remap.begin(), remap.begin() + size, remap.begin());
-      KASSERT(
-          remap[size - 1] == size - number_equal - number_less,
-          "prefix sum does not work",
-          assert::always
-      );
+              for (std::size_t i = from; i < to; ++i) {
+                if (begin[i] > pivot) {
+                  buffer.push_back(begin[i]);
+                }
+              }
+            }
+        );
+      } else {
+        tbb::parallel_for(tbb::blocked_range<std::size_t>(0, size), [&](const auto &r) {
+          for (std::size_t i = r.begin(); i != r.end(); ++i) {
+            if (begin[i] > pivot) {
+              remap[i] = 1;
+            }
+          }
+        });
+
+        parallel::prefix_sum(remap.begin(), remap.begin() + size, remap.begin());
+        KASSERT(
+            remap[size - 1] == size - number_equal - number_less,
+            "prefix sum does not work",
+            assert::always
+        );
+      }
 
       const std::size_t number_greater = size - number_less - number_equal;
       if (next_elements.size() < number_greater) {
         next_elements.resize(number_greater, static_array::noinit);
       }
 
-      tbb::parallel_for<std::size_t>(0, size, [&](const std::size_t i) {
-        if (begin[i] > pivot) {
-          next_elements[remap[i] - 1] = begin[i];
+      if constexpr (kUseBuffers) {
+        std::size_t start = 0;
+        for (const auto &buffer : thread_specific_buffers) {
+          tbb::parallel_for<std::size_t>(0, buffer.size(), [&](const std::size_t i) {
+            next_elements[start + i] = buffer[i];
+          });
+          start += buffer.size();
         }
-      });
+      } else {
+        tbb::parallel_for<std::size_t>(0, size, [&](const std::size_t i) {
+          if (begin[i] > pivot) {
+            next_elements[remap[i] - 1] = begin[i];
+          }
+        });
+      }
 
       std::swap(next_elements, current_elements);
 
