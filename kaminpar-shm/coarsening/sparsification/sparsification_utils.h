@@ -10,8 +10,10 @@
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
+#include "kaminpar-common/inline.h"
 #include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/random.h"
+#include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::sparsification::utils {
 
@@ -27,9 +29,7 @@ template <typename Lambda>
 inline void parallel_for_edges_with_endpoints(const CSRGraph &g, Lambda function) {
   g.pfor_nodes([&](NodeID u) {
     // TODO: make parallel again
-    g.neighbors(u,  [&](EdgeID e, NodeID v, EdgeWeight e_weight) {
-      function(e, u, v);
-    });
+    g.neighbors(u, [&](EdgeID e, NodeID v, EdgeWeight e_weight) { function(e, u, v); });
   });
 }
 template <typename Lambda>
@@ -47,7 +47,6 @@ inline void parallel_for_downward_edges(const CSRGraph &g, Lambda function) {
   });
 }
 
-
 template <typename T, typename Iterator>
 T sortselect_k_smallest(size_t k, Iterator begin, Iterator end) {
   size_t size = std::distance(begin, end);
@@ -59,15 +58,13 @@ T sortselect_k_smallest(size_t k, Iterator begin, Iterator end) {
   return sorted[k - 1];
 }
 
-
-template <typename T>
-struct K_SmallestInfo {
+template <typename T> struct K_SmallestInfo {
   T value;
   size_t number_of_elements_smaller;
   size_t number_of_elemtns_equal;
 };
 template <typename T, typename Iterator>
-K_SmallestInfo<T> quickselect_k_smallest(size_t k, Iterator begin, Iterator end) ;
+K_SmallestInfo<T> quickselect_k_smallest(size_t k, Iterator begin, Iterator end);
 
 template <typename T, typename Iterator> T median(Iterator begin, Iterator end) {
   size_t size = std::distance(begin, end);
@@ -95,77 +92,208 @@ template <typename T, typename Iterator> T median_of_medians(Iterator begin, Ite
   });
 
   return quickselect_k_smallest<T, typename StaticArray<T>::iterator>(
-      (number_of_sections + 1) / 2, medians.begin(), medians.end()
-  ).value;
+             (number_of_sections + 1) / 2, medians.begin(), medians.end()
+  )
+      .value;
+}
+
+constexpr static std::size_t QUICKSELECT_BASE_CASE_SIZE = 20;
+
+template <typename T, typename Iterator>
+KAMINPAR_INLINE K_SmallestInfo<T>
+quickselect_k_smallest_base(const std::size_t k, Iterator begin, Iterator end) {
+  const T k_smallest = sortselect_k_smallest<T>(k, begin, end);
+
+  std::size_t number_equal = 0;
+  std::size_t number_less = 0;
+  for (auto x = begin; x != end; x++) {
+    if (*x == k_smallest)
+      number_equal++;
+    else if (*x < k_smallest) {
+      number_less++;
+    }
+  }
+
+  return {k_smallest, number_less, number_equal};
 }
 
 template <typename T, typename Iterator>
-K_SmallestInfo<T> quickselect_k_smallest(size_t k, Iterator begin, Iterator end) {
-  size_t size = std::distance(begin, end);
-  if (size <= 20) {
-    T k_smallest = sortselect_k_smallest<T, Iterator>(k, begin, end);
-    size_t number_equal = 0; size_t number_less;
-    for (auto x = begin; x != end; x++) {
-      if (*x == k_smallest)
-        number_equal++;
-      else if (*x < k_smallest) {
-        number_less++;
-      }
-    }
-    return {k_smallest, number_less, number_equal};
-  }
-  T pivot = median_of_medians<T,Iterator>(begin,end);
+K_SmallestInfo<T> quickselect_k_smallest_iter(std::size_t k, Iterator begin, Iterator end) {
+  const std::size_t initial_size = std::distance(begin, end);
 
-  StaticArray<size_t> less(size);
-  StaticArray<size_t> greater(size);
-  tbb::enumerable_thread_specific<size_t> thread_specific_number_equal;
-  tbb::enumerable_thread_specific<size_t> thread_specific_number_less;
-  tbb::parallel_for(0ul, size, [&](size_t i) {
-    if (begin[i] < pivot) {
-      less[i] = 1;
-      thread_specific_number_less.local()++;
-    } else if (begin[i] > pivot) {
-      greater[i] = 1;
+  bool aux_zeroed = true;
+  StaticArray<std::size_t> less(initial_size);
+  StaticArray<std::size_t> greater(initial_size);
+
+  tbb::enumerable_thread_specific<std::size_t> thread_specific_number_equal;
+  tbb::enumerable_thread_specific<std::size_t> thread_specific_number_less;
+
+  StaticArray<T> current_elements;
+  StaticArray<T> next_elements;
+
+  for (std::size_t size = initial_size; size > QUICKSELECT_BASE_CASE_SIZE;
+       size = std::distance(begin, end)) {
+    if (aux_zeroed) [[unlikely]] {
+      aux_zeroed = false;
     } else {
-      thread_specific_number_equal.local()++;
+      tbb::parallel_for<std::size_t>(0, size, [&](const std::size_t i) {
+        less[i] = 0;
+        greater[i] = 0;
+      });
+
+      thread_specific_number_equal.clear();
+      thread_specific_number_less.clear();
+    }
+
+    const T pivot = median_of_medians<T>(begin, end);
+
+    tbb::parallel_for(tbb::blocked_range<std::size_t>(0, size), [&](const auto &r) {
+      std::size_t &less_counter = thread_specific_number_less.local();
+      std::size_t &equal_counter = thread_specific_number_equal.local();
+
+      for (std::size_t i = r.begin(); i != r.end(); ++i) {
+        if (begin[i] < pivot) {
+          less[i] = 1;
+          ++less_counter;
+        } else if (begin[i] > pivot) {
+          greater[i] = 1;
+        } else {
+          ++equal_counter;
+        }
+      }
+    });
+
+    const std::size_t number_equal = thread_specific_number_equal.combine(std::plus{});
+    const std::size_t number_less = thread_specific_number_less.combine(std::plus{});
+
+    if (k <= number_less) {
+      parallel::prefix_sum(less.begin(), less.begin() + size, less.begin());
+      KASSERT(less[size - 1] == number_less, "prefix sum does not work", assert::always);
+
+      if (next_elements.size() < number_less) {
+        next_elements.resize(number_less);
+      }
+
+      tbb::parallel_for<std::size_t>(0, size, [&](const std::size_t i) {
+        if (begin[i] < pivot) {
+          next_elements[less[i] - 1] = begin[i];
+        }
+      });
+
+      std::swap(next_elements, current_elements);
+
+      begin = current_elements.begin();
+      end = current_elements.begin() + number_less;
+    } else if (k > number_less + number_equal) {
+      parallel::prefix_sum(greater.begin(), greater.begin() + size, greater.begin());
+      KASSERT(
+          greater[size - 1] == size - number_equal - number_less,
+          "prefix sum does not work",
+          assert::always
+      );
+
+      const std::size_t number_greater = size - number_less - number_equal;
+      if (next_elements.size() < number_greater) {
+        next_elements.resize(number_greater);
+      }
+
+      tbb::parallel_for<std::size_t>(0, size, [&](const std::size_t i) {
+        if (begin[i] > pivot) {
+          next_elements[greater[i] - 1] = begin[i];
+        }
+      });
+
+      std::swap(next_elements, current_elements);
+
+      k -= number_equal + number_less;
+      begin = current_elements.begin();
+      end = current_elements.begin() + number_greater;
+    } else {
+      return {pivot, number_less, number_equal};
+    }
+  }
+
+  return quickselect_k_smallest_base<T>(k, begin, end);
+}
+
+template <typename T, typename Iterator>
+K_SmallestInfo<T> quickselect_k_smallest_rec(const std::size_t k, Iterator begin, Iterator end) {
+  const std::size_t size = std::distance(begin, end);
+  if (size <= QUICKSELECT_BASE_CASE_SIZE) {
+    return quickselect_k_smallest_base<T>(k, begin, end);
+  }
+
+  StaticArray<std::size_t> less(size);
+  StaticArray<std::size_t> greater(size);
+
+  const T pivot = median_of_medians<T>(begin, end);
+
+  tbb::enumerable_thread_specific<std::size_t> thread_specific_number_equal;
+  tbb::enumerable_thread_specific<std::size_t> thread_specific_number_less;
+
+  tbb::parallel_for(tbb::blocked_range<std::size_t>(0, size), [&](const auto &r) {
+    std::size_t &less_counter = thread_specific_number_less.local();
+    std::size_t &equal_counter = thread_specific_number_equal.local();
+
+    for (std::size_t i = r.begin(); i != r.end(); ++i) {
+      if (begin[i] < pivot) {
+        less[i] = 1;
+        ++less_counter;
+      } else if (begin[i] > pivot) {
+        greater[i] = 1;
+      } else {
+        ++equal_counter;
+      }
     }
   });
 
-  auto add = [](size_t a, size_t b) {
-    return a + b;
-  };
-  size_t number_equal = thread_specific_number_equal.combine(add);
-  size_t number_less = thread_specific_number_less.combine(add);
+  const std::size_t number_equal = thread_specific_number_equal.combine(std::plus{});
+  const std::size_t number_less = thread_specific_number_less.combine(std::plus{});
 
   if (k <= number_less) {
-    parallel::prefix_sum(less.begin(), less.end(), less.begin());
-    KASSERT(less[size-1] == number_less, "prefix sum does not work", assert::always);
+    parallel::prefix_sum(less.begin(), less.begin() + size, less.begin());
+    KASSERT(less[size - 1] == number_less, "prefix sum does not work", assert::always);
 
     StaticArray<T> elements_less(number_less);
-    tbb::parallel_for(0ul, size, [&](auto i) {
+    tbb::parallel_for<std::size_t>(0, size, [&](const std::size_t i) {
       if (begin[i] < pivot) {
         elements_less[less[i] - 1] = begin[i];
       }
     });
 
-    return quickselect_k_smallest<T>(k, elements_less.begin(), elements_less.end());
+    return quickselect_k_smallest_rec<T>(k, elements_less.begin(), elements_less.end());
   } else if (k > number_less + number_equal) {
-    parallel::prefix_sum(greater.begin(), greater.end(), greater.begin());
-    KASSERT(greater[size - 1] == size-number_equal-number_less, "prefix sum does not work", assert::always);
+    parallel::prefix_sum(greater.begin(), greater.begin() + size, greater.begin());
+    KASSERT(
+        greater[size - 1] == size - number_equal - number_less,
+        "prefix sum does not work",
+        assert::always
+    );
 
     StaticArray<T> elements_greater(size - number_equal - number_less);
-    tbb::parallel_for(0ul, size, [&](auto i) {
+    tbb::parallel_for<std::size_t>(0, size, [&](const std::size_t i) {
       if (begin[i] > pivot) {
         elements_greater[greater[i] - 1] = begin[i];
       }
     });
 
-    return quickselect_k_smallest<T>(
+    return quickselect_k_smallest_rec<T>(
         k - number_equal - number_less, elements_greater.begin(), elements_greater.end()
     );
   } else {
     return {pivot, number_less, number_equal};
   }
+}
+
+template <typename T, typename Iterator>
+K_SmallestInfo<T> quickselect_k_smallest(const std::size_t k, Iterator begin, Iterator end) {
+  const std::size_t size = std::distance(begin, end);
+  if (size <= QUICKSELECT_BASE_CASE_SIZE) {
+    return quickselect_k_smallest_base<T>(k, begin, end);
+  }
+
+  //return quickselect_k_smallest_rec<T>(k, begin, end);
+  return quickselect_k_smallest_iter<T>(k, begin, end);
 }
 
 } // namespace kaminpar::shm::sparsification::utils
