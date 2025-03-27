@@ -13,7 +13,7 @@ using namespace kaminpar::shm;
 
 // To compress a graph in CSR format sequentially.
 Graph graph = compress(
-    std::span<EdgeID> nodes,
+    std::span<const EdgeID> nodes,
     std::span<const NodeID> edges,
     std::span<const NodeWeight> node_weights = {},
     std::span<const EdgeWeight> edge_weights = {}
