@@ -25,7 +25,7 @@ jobs:
       fail-fast: false
 
     runs-on: ${{ matrix.platform[1] }}
-    container: ${{ matrix.package == 'RPM' && 'almalinux:9' || '' }}
+    container: ${{ matrix.package == 'DEB' && 'debian:12' || 'almalinux:9' }}
 
     steps:
       - name: Checkout KaMinPar
@@ -34,9 +34,9 @@ jobs:
       - name: Install Debian build dependencies
         if: ${{ matrix.package == 'DEB' }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            gcc-11 g++-11 cmake \
+          apt-get update
+          apt-get install -y gcc-11 g++-11 nodejs \
+            git cmake \
             libnuma-dev libtbb-dev libsparsehash-dev \
             libopenmpi-dev mpi
 
