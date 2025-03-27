@@ -50,11 +50,11 @@ void SparsifyingClusteringCoarsener::initialize(const Graph *graph) {
  * @param sample for every edge 0, if it should be removed, its (new) weight otherwise
  * @param edges_kept how many edges are samples, i.e., how many entries in sample are not 0
  */
-CSRGraph SparsifyingClusteringCoarsener::sparsify(CSRGraph g, StaticArray<std::uint8_t> sample) {
+CSRGraph SparsifyingClusteringCoarsener::sparsify(CSRGraph g) {
   SCOPED_TIMER("Build Sparsifier");
   auto nodes = StaticArray<EdgeID>(g.n() + 1);
   sparsification::utils::parallel_for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
-    if (u < v && sample[e]) {
+    if (g.edge_weight(e) < 0) {
       __atomic_add_fetch(&nodes[u + 1], 1, __ATOMIC_RELAXED);
       __atomic_add_fetch(&nodes[v + 1], 1, __ATOMIC_RELAXED);
     }
@@ -66,13 +66,13 @@ CSRGraph SparsifyingClusteringCoarsener::sparsify(CSRGraph g, StaticArray<std::u
   auto edge_weights = StaticArray<EdgeWeight>(nodes[g.n()]);
 
   sparsification::utils::parallel_for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
-    if (u < v && sample[e]) {
+    if (g.edge_weight(e) < 0) {
       auto v_edges_added = __atomic_fetch_add(&edges_added[v], 1, __ATOMIC_RELAXED);
       auto u_edges_added = __atomic_fetch_add(&edges_added[u], 1, __ATOMIC_RELAXED);
       edges[nodes[v] + v_edges_added] = u;
       edges[nodes[u] + u_edges_added] = v;
-      edge_weights[nodes[v] + v_edges_added] = g.edge_weight(e);
-      edge_weights[nodes[u] + u_edges_added] = g.edge_weight(e);
+      edge_weights[nodes[v] + v_edges_added] = -g.edge_weight(e);
+      edge_weights[nodes[u] + u_edges_added] = -g.edge_weight(e);
     }
   });
 
@@ -163,10 +163,10 @@ bool SparsifyingClusteringCoarsener::coarsen() {
     KASSERT(csr != nullptr, "can only be used with a CSRGraph", assert::always);
 
     START_HEAP_PROFILER("Sampling");
-    auto sample = _sampling_algorithm->sample2(*csr, target_edge_amount);
+    _sampling_algorithm->sample2(*csr, target_edge_amount);
     STOP_HEAP_PROFILER();
     START_HEAP_PROFILER("Sparsified Graph");
-    CSRGraph sparsified = sparsify(std::move(*csr), std::move(sample));
+    CSRGraph sparsified = sparsify(std::move(*csr));
     STOP_HEAP_PROFILER();
 
     _hierarchy.push_back(std::make_unique<contraction::CoarseGraphImpl>(

@@ -37,7 +37,7 @@ public:
 
   void initialize(const Graph *graph) final;
 
-  CSRGraph sparsify(CSRGraph csr, StaticArray<std::uint8_t> sample);
+  CSRGraph sparsify(CSRGraph csr);
   EdgeID sparsificationTarget(EdgeID old_m, NodeID old_n, EdgeID new_m);
 
   bool coarsen() final;

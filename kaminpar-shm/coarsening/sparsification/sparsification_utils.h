@@ -223,8 +223,8 @@ K_SmallestInfo<T> quickselect_k_smallest_iter(std::size_t k, Iterator begin, Ite
 
       std::swap(next_elements, current_elements);
 
-      begin = current_elements.cbegin();
-      end = current_elements.cbegin() + number_less;
+      begin = current_elements.begin();
+      end = current_elements.begin() + number_less;
     } else if (k > number_less + number_equal) {
       if constexpr (kUseBuffers) {
         parallel::deterministic_for<std::size_t>(
@@ -282,8 +282,8 @@ K_SmallestInfo<T> quickselect_k_smallest_iter(std::size_t k, Iterator begin, Ite
       std::swap(next_elements, current_elements);
 
       k -= number_equal + number_less;
-      begin = current_elements.cbegin();
-      end = current_elements.cbegin() + number_greater;
+      begin = current_elements.begin();
+      end = current_elements.begin() + number_greater;
     } else {
       return {pivot, number_less, number_equal};
     }
