@@ -450,15 +450,14 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
     target_link_libraries(KaMinParFull INTERFACE dKaMinParIO dKaMinPar)
 endif ()
 
-# Add CLI tools and applications
-add_subdirectory(kaminpar-cli)
-if (KAMINPAR_BUILD_APPS)
-    add_subdirectory(apps)
-endif ()
-
 # Tests are built either when running as the main project or when explicitly enabled
 if ((CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME OR KAMINPAR_BUILD_TESTS) AND BUILD_TESTING)
     add_subdirectory(tests)
+endif ()
+
+if (KAMINPAR_BUILD_APPS)
+    add_subdirectory(kaminpar-cli)
+    add_subdirectory(apps)
 endif ()
 
 if (KAMINPAR_BUILD_EXAMPLES)
@@ -493,9 +492,17 @@ install(
     COMPONENT KaMinPar_Development
 )
 
-set(KAMINPAR_INSTALL_TARGETS kassert_base kassert KaMinParCommon KaMinParIO KaMinPar KaMinParCLI KaMinParApp)
+set(KAMINPAR_INSTALL_TARGETS kassert_base kassert KaMinParCommon KaMinParIO KaMinPar)
+if (KAMINPAR_BUILD_APPS)
+    list(APPEND KAMINPAR_INSTALL_TARGETS KaMinParCLI KaMinParApp)
+endif ()
+
 if (KAMINPAR_BUILD_DISTRIBUTED)
-    list(APPEND KAMINPAR_INSTALL_TARGETS morton kagen growt KaMinParMPI dKaMinParIO dKaMinPar dKaMinParCLI dKaMinParApp)
+    list(APPEND KAMINPAR_INSTALL_TARGETS morton kagen growt KaMinParMPI dKaMinParIO dKaMinPar)
+
+    if (KAMINPAR_BUILD_APPS)
+        list(APPEND KAMINPAR_INSTALL_TARGETS dKaMinParCLI dKaMinParApp)
+    endif ()
 endif ()
 
 install(

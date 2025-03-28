@@ -20,7 +20,6 @@ if(NOT KaMinPar_FOUND)
     GIT_TAG main
     EXCLUDE_FROM_ALL
   )
-  set(KAMINPAR_BUILD_APPS OFF CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(KaMinPar)
 endif()
 
