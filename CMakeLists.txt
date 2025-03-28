@@ -428,32 +428,39 @@ endif ()
 # Start include paths on project root
 include_directories(${PROJECT_SOURCE_DIR})
 
-# Shared memory components
-add_subdirectory(kaminpar-common)
-add_subdirectory(kaminpar-shm)
+# Add core library targets
+add_subdirectory(kaminpar-common) # Common utilities shared across the project
+add_subdirectory(kaminpar-shm) # Shared-memory components
 
-# Distributed components
 if (KAMINPAR_BUILD_DISTRIBUTED)
-    add_subdirectory(kaminpar-mpi)
-    add_subdirectory(kaminpar-dist)
+    add_subdirectory(kaminpar-mpi) # MPI-related utilities
+    add_subdirectory(kaminpar-dist) # Distributed components
 endif ()
 
-# Shared-memory and distributed IO components
-add_subdirectory(kaminpar-io)
+add_subdirectory(kaminpar-io) # IO components
 
-# Binaries
+# Create an interface library that groups all core components and ensures the full
+# project include path is available to dependent targets
+add_library(KaMinParFull INTERFACE)
+add_library(KaMinPar::KaMinParFull ALIAS KaMinParFull)
+
+target_include_directories(KaMinParFull INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(KaMinParFull INTERFACE KaMinParIO KaMinPar)
+if (KAMINPAR_BUILD_DISTRIBUTED)
+    target_link_libraries(KaMinParFull INTERFACE dKaMinParIO dKaMinPar)
+endif ()
+
+# Add CLI tools and applications
 add_subdirectory(kaminpar-cli)
-
 if (KAMINPAR_BUILD_APPS)
     add_subdirectory(apps)
 endif ()
 
-# Unit tests
+# Tests are built either when running as the main project or when explicitly enabled
 if ((CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME OR KAMINPAR_BUILD_TESTS) AND BUILD_TESTING)
     add_subdirectory(tests)
 endif ()
 
-# Examples
 if (KAMINPAR_BUILD_EXAMPLES)
     add_subdirectory(examples/kaminpar)
     add_subdirectory(examples/bindings-c)
