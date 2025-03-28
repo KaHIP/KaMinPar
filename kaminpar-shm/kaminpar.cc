@@ -285,6 +285,10 @@ void KaMinPar::reseed(int seed) {
   Random::reseed(seed);
 }
 
+int KaMinPar::get_seed() {
+  return Random::get_seed();
+}
+
 EdgeWeight KaMinPar::compute_partition(const BlockID k, std::span<BlockID> partition) {
   return compute_partition(k, 0.03, partition);
 }

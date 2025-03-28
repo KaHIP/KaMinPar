@@ -18,10 +18,8 @@ if(NOT KaMinPar_FOUND)
     KaMinPar
     GIT_REPOSITORY https://github.com/KaHIP/KaMinPar.git
     GIT_TAG main
-    GIT_SHALLOW TRUE
-    UPDATE_DISCONNECTED TRUE
+    EXCLUDE_FROM_ALL
   )
-  set(KAMINPAR_BUILD_APPS OFF CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(KaMinPar)
 endif()
 

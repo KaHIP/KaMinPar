@@ -48,7 +48,7 @@ cython_transpile(src/kaminpar_networkit/nkkaminpar.pyx
 )
 
 python_add_library(nkkaminpar MODULE "${nkkaminpar_cpp}" src/kaminpar_networkit.h src/kaminpar_networkit.cc WITH_SOABI)
-target_link_libraries(nkkaminpar PUBLIC KaMinPar::KaMinPar "${NETWORKIT_LIB}")
+target_link_libraries(nkkaminpar PUBLIC KaMinPar::KaMinParFull "${NETWORKIT_LIB}")
 target_include_directories(nkkaminpar PUBLIC "${NETWORKIT_INCLUDE}" "${NETWORKIT_DIR}" "src/")
 
 add_library(KaMinPar::NetworKitKaMinPar ALIAS nkkaminpar)

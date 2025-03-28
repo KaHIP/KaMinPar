@@ -14,7 +14,6 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#include <kaminpar-common/random.h>
 #include <kaminpar-io/kaminpar_io.h>
 #include <kaminpar-shm/datastructures/graph.h>
 #include <kaminpar-shm/kaminpar.h>
@@ -41,8 +40,8 @@ PYBIND11_MODULE(kaminpar_python, m) {
   m.attr("__64bit__") = false;
 #endif
 
-  m.def("seed", &Random::get_seed, "The seed for the random number generator");
-  m.def("reseed", &Random::reseed, "Reseed the random number generator");
+  m.def("seed", &KaMinPar::get_seed, "The seed for the random number generator");
+  m.def("reseed", &KaMinPar::reseed, "Reseed the random number generator");
 
   pybind11::class_<Context>(m, "Context");
   m.def("context_names", &get_preset_names, "All available context names");

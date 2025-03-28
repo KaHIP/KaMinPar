@@ -759,6 +759,8 @@ public:
 
   static void reseed(int seed);
 
+  static int get_seed();
+
   /*!
    * Sets the verbosity of the partitioner.
    *
