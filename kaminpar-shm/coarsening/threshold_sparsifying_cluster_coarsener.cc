@@ -217,6 +217,9 @@ CSRGraph ThresholdSparsifyingClusteringCoarsener::sparsify_and_make_negative_edg
         (target_m - threshold.number_of_elements_smaller) /
         static_cast<double>(threshold.number_of_elemtns_equal);
 
+    DBG << "Threshold weight: " << threshold.value;
+    DBG << "Threshold probability: " << inclusion_probability_if_equal;
+
     utils::parallel_for_upward_edges(csr, [&](const EdgeID e) {
       if (csr.edge_weight(e) < threshold.value ||
           (csr.edge_weight(e) == threshold.value &&
