@@ -34,8 +34,21 @@ jobs:
       - name: Modify CMakeLists.txt for PR builds
         if: github.event_name == 'pull_request'
         run: |
-          sed -i.bak "s|GIT_REPOSITORY .*|GIT_REPOSITORY https://github.com/${{ github.event.pull_request.head.repo.full_name }}.git|" bindings/python/CMakeLists.txt
-          sed -i.bak "s|GIT_TAG .*|GIT_TAG ${{ github.event.pull_request.head.ref }}|" bindings/python/CMakeLists.txt
+          REPO_NAME="${{ github.event.pull_request.head.repo.full_name }}"
+          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+
+          if [[ ! "$REPO_NAME" =~ ^[a-zA-Z0-9._/-]+$ ]]; then
+              echo "Invalid repository name: $REPO_NAME" >&2
+            exit 1
+          fi
+
+          if [[ ! "$BRANCH_NAME" =~ ^[a-zA-Z0-9._/-]+$ ]]; then
+            echo "Invalid branch name: $BRANCH_NAME" >&2
+            exit 1
+          fi
+
+          sed -i.bak "s|GIT_REPOSITORY .*|GIT_REPOSITORY https://github.com/${REPO_NAME}.git|" bindings/python/CMakeLists.txt
+          sed -i.bak "s|GIT_TAG .*|GIT_TAG ${BRANCH_NAME}|" bindings/python/CMakeLists.txt
 
       - name: Build wheels
         uses: pypa/cibuildwheel@6cccd09a31908ffd175b012fb8bf4e1dbda3bc6c # v2.23.0
@@ -64,8 +77,21 @@ jobs:
       - name: Modify CMakeLists.txt for PR builds
         if: github.event_name == 'pull_request'
         run: |
-          sed -i.bak "s|GIT_REPOSITORY .*|GIT_REPOSITORY https://github.com/${{ github.event.pull_request.head.repo.full_name }}.git|" bindings/python/CMakeLists.txt
-          sed -i.bak "s|GIT_TAG .*|GIT_TAG ${{ github.event.pull_request.head.ref }}|" bindings/python/CMakeLists.txt
+          REPO_NAME="${{ github.event.pull_request.head.repo.full_name }}"
+          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+
+          if [[ ! "$REPO_NAME" =~ ^[a-zA-Z0-9._/-]+$ ]]; then
+              echo "Invalid repository name: $REPO_NAME" >&2
+            exit 1
+          fi
+
+          if [[ ! "$BRANCH_NAME" =~ ^[a-zA-Z0-9._/-]+$ ]]; then
+            echo "Invalid branch name: $BRANCH_NAME" >&2
+            exit 1
+          fi
+
+          sed -i.bak "s|GIT_REPOSITORY .*|GIT_REPOSITORY https://github.com/${REPO_NAME}.git|" bindings/python/CMakeLists.txt
+          sed -i.bak "s|GIT_TAG .*|GIT_TAG ${BRANCH_NAME}|" bindings/python/CMakeLists.txt
 
       - name: Set up Python
         uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
