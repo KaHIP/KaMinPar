@@ -47,7 +47,7 @@ struct ApplicationContext {
   bool show_version = false;
 
   int seed = 0;
-  int num_threads = 1;
+  int num_threads = tbb::this_task_arena::max_concurrency();
 
   int max_timer_depth = 3;
 
