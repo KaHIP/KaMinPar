@@ -25,7 +25,7 @@ namespace kaminpar::shm {
 
 namespace {
 
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 }
 
@@ -118,29 +118,38 @@ bool ThresholdSparsifyingClusteringCoarsener::coarsen() {
   const EdgeID unsparsified_m = coarsened->get().m();
 
   DBG << "Sparsify from " << unsparsified_m << " to " << target_sparsified_m
-      << " edges, but only if we get at least factor " << _s_ctx.laziness_factor;
+      << " edges, but only if the factor is >=" << _s_ctx.laziness_factor;
 
   if (unsparsified_m > _s_ctx.laziness_factor * target_sparsified_m) {
-    StaticArray<NodeID> mapping =
-        std::move(dynamic_cast<contraction::CoarseGraphImpl *>(coarsened.get())->get_mapping());
-    Graph graph = std::move(coarsened->get());
+    using namespace sparsification;
+    using namespace contraction;
+
+    auto *coarsened_downcast = dynamic_cast<CoarseGraphImpl *>(coarsened.get());
+    StaticArray<NodeID> mapping = std::move(coarsened_downcast->get_mapping());
+    Graph graph = std::move(coarsened_downcast->get());
     CSRGraph &csr = graph.concretize<CSRGraph>();
+
+    const NodeID c_n = csr.n();
+    const EdgeID c_m = csr.m();
 
     CSRGraph sparsified = [&] {
       if (_s_ctx.recontract) {
-        using namespace sparsification;
-
-        const NodeID c_n = csr.n();
-        const EdgeID c_m = csr.m();
         StaticArray<EdgeWeight> edge_weights = csr.take_raw_edge_weights();
+
+        // Free the contracted, unsparsified graph before we determine the threshold edge weight
+        // This reduces overall peak memory.
+        // !! This invalidates the `csr` reference !!
         {
           ((void)std::move(graph));
         }
+
         const utils::K_SmallestInfo<EdgeWeight> threshold = TIMED_SCOPE("Threshold selection") {
           return utils::quickselect_k_smallest<EdgeWeight>(
               c_m - target_sparsified_m, edge_weights.begin(), edge_weights.end()
           );
         };
+
+        // Free the old edge weights before we re-contract the graph to reduce peak memory.
         edge_weights.free();
 
         const EdgeWeight threshold_weight = threshold.value;
@@ -148,42 +157,48 @@ bool ThresholdSparsifyingClusteringCoarsener::coarsen() {
             (target_sparsified_m -
              (c_m - threshold.number_of_elements_smaller - threshold.number_of_elemtns_equal)) /
             static_cast<double>(threshold.number_of_elemtns_equal);
-
         DBG << "Threshold weight: " << threshold_weight;
         DBG << "Threshold probability: " << threshold_probability;
 
-        START_TIMER("Recontract and sparsify graph");
-        contraction::fill_cluster_buckets(
-            c_n, current(), mapping, _contraction_m_ctx.buckets_index, _contraction_m_ctx.buckets
-        );
-        auto ans = contraction::contract_and_sparsify_clustering(
-            current().concretize<CSRGraph>(),
-            std::move(mapping),
-            c_n,
-            threshold_weight,
-            threshold_probability,
-            _c_ctx.contraction,
-            _contraction_m_ctx
-        );
-        mapping = std::move(dynamic_cast<contraction::CoarseGraphImpl *>(ans.get())->get_mapping());
-        CSRGraph sparsifier = std::move(ans->get().concretize<CSRGraph>());
-        STOP_TIMER();
+        auto recoarsened = TIMED_SCOPE("Recontract and sparsify") {
+          // Contraction internals: we can re-use the mapping[] array from the previous contraction
+          // step, but have to re-sort vertices accordingly
+          fill_cluster_buckets(
+              c_n, current(), mapping, _contraction_m_ctx.buckets_index, _contraction_m_ctx.buckets
+          );
 
-        return sparsifier;
+          return contract_and_sparsify_clustering(
+              current().concretize<CSRGraph>(),
+              std::move(mapping),
+              c_n,
+              threshold_weight,
+              threshold_probability,
+              _c_ctx.contraction,
+              _contraction_m_ctx
+          );
+        };
+
+        auto *recoarsened_downcast = dynamic_cast<CoarseGraphImpl *>(recoarsened.get());
+
+        // Contraction code is racy: mapping might change
+        mapping = std::move(recoarsened_downcast->get_mapping());
+        return std::move(recoarsened->get().concretize<CSRGraph>());
       } else {
         return remove_negative_edges(
             sparsify_and_make_negative_edges(std::move(csr), target_sparsified_m)
         );
       }
     }();
+
     const EdgeID sparsified_m = sparsified.m();
 
     _hierarchy.push_back(std::make_unique<contraction::CoarseGraphImpl>(
         Graph(std::make_unique<CSRGraph>(std::move(sparsified))), std::move(mapping)
     ));
 
-    DBG << "Sparsified from " << unsparsified_m << " to " << sparsified_m
+    LOG << "Sparsified from " << unsparsified_m << " to " << sparsified_m
         << " edges (target: " << target_sparsified_m << ")";
+    LOG;
   } else {
     DBG << "Coarse graph does not require sparsification";
     _hierarchy.push_back(std::move(coarsened));
