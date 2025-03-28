@@ -104,7 +104,7 @@ bool ThresholdSparsifyingClusteringCoarsener::coarsen() {
         current(), std::move(clustering), _c_ctx.contraction, _contraction_m_ctx
     );
   };
-  KASSERT(coarsened->get().m() % 2 == 0, "graph should be undirected", assert::always);
+  KASSERT(coarsened->get().m() % 2 == 0u, "graph should be undirected", assert::always);
 
   const EdgeID target_sparsified_m = [&] {
     if (_hierarchy.empty()) {
@@ -116,6 +116,9 @@ bool ThresholdSparsifyingClusteringCoarsener::coarsen() {
     }
   }();
   const EdgeID unsparsified_m = coarsened->get().m();
+
+  DBG << "Sparsify from " << unsparsified_m << " to " << target_sparsified_m
+      << " edges, but only if we get at least factor " << _s_ctx.laziness_factor;
 
   if (unsparsified_m > _s_ctx.laziness_factor * target_sparsified_m) {
     StaticArray<NodeID> mapping =
@@ -197,7 +200,7 @@ CSRGraph ThresholdSparsifyingClusteringCoarsener::sparsify_and_make_negative_edg
         target_m, csr.raw_edge_weights().begin(), csr.raw_edge_weights().end()
     );
   };
-    
+
   TIMED_SCOPE("Edge selection") {
     const double inclusion_probability_if_equal =
         (target_m - threshold.number_of_elements_smaller) /

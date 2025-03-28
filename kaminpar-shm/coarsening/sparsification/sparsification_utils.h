@@ -31,7 +31,7 @@ template <typename Lambda>
 inline void parallel_for_edges_with_endpoints(const CSRGraph &g, Lambda function) {
   g.pfor_nodes([&](NodeID u) {
     // TODO: make parallel again
-    g.neighbors(u, [&](EdgeID e, NodeID v, EdgeWeight e_weight) { function(e, u, v); });
+    g.neighbors(u, [&](EdgeID e, NodeID v, EdgeWeight) { function(e, u, v); });
   });
 }
 template <typename Lambda>
@@ -71,7 +71,7 @@ K_SmallestInfo<T> quickselect_k_smallest(size_t k, Iterator begin, Iterator end)
 template <typename T, typename Iterator> T median(Iterator begin, Iterator end) {
   size_t size = std::distance(begin, end);
   std::vector<T> sorted(size);
-  for (auto i = 0; i != size; i++) {
+  for (std::size_t i = 0; i != size; i++) {
     sorted[i] = begin[i];
   }
   std::sort(sorted.begin(), sorted.end());

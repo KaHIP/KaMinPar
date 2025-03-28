@@ -131,4 +131,4 @@ double IndependentRandomSampler<Score>::exactNormalizationFactor(
 
   return factor;
 }
-}; // namespace kaminpar::shm::sparsification
+} // namespace kaminpar::shm::sparsification
