@@ -4,7 +4,7 @@ file(GLOB_RECURSE KAMINPAR_SHM_SOURCE_FILES CONFIGURE_DEPENDS
 add_library(KaMinPar ${KAMINPAR_SHM_SOURCE_FILES})
 add_library(KaMinPar::KaMinPar ALIAS KaMinPar)
 
-target_include_directories(KaMinPar PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include/kaminpar-shm/>)
+target_include_directories(KaMinPar PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include/kaminpar-shm/>)
 target_link_libraries(KaMinPar PUBLIC KaMinPar::KaMinParCommon)
 target_compile_options(KaMinPar PRIVATE ${KAMINPAR_WARNING_FLAGS})
 
