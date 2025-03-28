@@ -73,10 +73,10 @@ To partition a graph in [Metis](docs/graph_file_format.md) format, run:
 
 ```shell
 # KaMinPar: shared-memory partitioning
-./build/apps/KaMinPar [-P default|terapart|strong|largek] -t <nproc> -G <graph filename> -k <number of blocks> [-e 0.03] [-o <output partition>]
+./build/apps/KaMinPar <graph filename> <number of blocks> [-P default|terapart|strong|largek] [-t <nproc>] [-e <eps, e.g., 0.03 for 3%>] [-o <output partition>]
 
 # dKaMinPar: distributed partitioning
-mpirun -n <nproc> ./build/apps/dKaMinPar [-P default|strong|xterapart] -G <graph filename> -k <number of blocks> [-e 0.03] [-o <output partition>]
+mpirun -n <nproc> ./build/apps/dKaMinPar <graph filename> <number of blocks> [-P default|strong|xterapart] [-e <eps, e.g., 0.03 for 3%>] [-o <output partition>]
 ```
 
 The computed partition is written to a text file (controlled via `-o <filename>`), where the n-th line contains the block ID (0-based) of the n-th node.
