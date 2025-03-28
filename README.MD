@@ -118,9 +118,10 @@ Alternatively, you can use `FetchContent`:
 include(FetchContent)
 FetchContent_Declare(KaMinPar
   GIT_REPOSITORY https://github.com/KaHIP/KaMinPar.git
-  GIT_TAG main)
+  GIT_TAG main
+  EXCLUDE_FROM_ALL)
+set(KAMINPAR_BUILD_DISTRIBUTED ON CACHE BOOL "" FORCE) # optional, required for dKaMinPar
 FetchContent_MakeAvailable(KaMinPar)
-set_property(DIRECTORY "${KaMinPar_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL YES) # optional
 
 target_link_libraries(<your-target> PUBLIC KaMinPar::KaMinPar)  # Shared-memory partitioning
 target_link_libraries(<your-target> PUBLIC KaMinPar::dKaMinPar) # Distributed partitioning
@@ -129,7 +130,7 @@ target_link_libraries(<your-target> PUBLIC KaMinPar::dKaMinPar) # Distributed pa
 The shared-memory partitioner can be used as follows:
 
 ```c++
-#include <kaminpar-shm/kaminpar.h>
+#include <kaminpar.h>
 using namespace kaminpar;
 
 KaMinPar shm(int num_threads, shm::create_default_context());
@@ -171,7 +172,7 @@ shm.compute_partition(std::vector<double> max_block_weight_factors, std::span<Bl
 The distributed-memory partitioner can be used as follows:
 
 ```c++
-#include <kaminpar-dist/dkaminpar.h>
+#include <dkaminpar.h>
 using namespace kaminpar;
 
 dKaMinPar dist(MPI_Comm comm, int num_threads, dist::create_default_context());

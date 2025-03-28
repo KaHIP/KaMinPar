@@ -8,4 +8,4 @@
 #pragma once
 
 // Part of this header is defined in the public library header:
-#include "../include/kaminpar_io.h" // IWYU pragma: export
+#include "include/kaminpar-io/kaminpar_io.h" // IWYU pragma: export

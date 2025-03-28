@@ -1,0 +1,124 @@
+name: Package Builder
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+    tags:
+      - v*
+
+permissions:
+  contents: read
+
+jobs:
+  build-package:
+    name: Build ${{ matrix.package }}-${{ matrix.platform[0] }} package
+    strategy:
+      matrix:
+        package: [DEB, RPM]
+        platform:
+          - ["AMD64", ubuntu-24.04]
+          - ["ARM64", ubuntu-24.04-arm]
+      fail-fast: false
+
+    runs-on: ${{ matrix.platform[1] }}
+    container: ${{ matrix.package == 'DEB' && 'debian:12' || 'almalinux:9' }}
+
+    steps:
+      - name: Checkout KaMinPar
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Debian build dependencies
+        if: ${{ matrix.package == 'DEB' }}
+        run: |
+          apt-get update
+          apt-get install -y gcc-11 g++-11 nodejs \
+            git cmake \
+            libnuma-dev libtbb-dev libsparsehash-dev \
+            libopenmpi-dev mpi
+
+      - name: Install RPM build dependencies
+        if: ${{ matrix.package == 'RPM' }}
+        run: |
+          dnf install -y epel-release
+          dnf install -y make gcc gcc-c++ nodejs \
+            rpm-build git cmake \
+            numactl-devel tbb-devel sparsehash-devel \
+            openmpi-devel openmpi
+
+      - name: Configure CMake build
+        run: |
+          if [ "${{ matrix.package }}" = "DEB" ]; then
+            export CC=gcc-11
+            export CXX=g++-11
+          elif [ "${{ matrix.package }}" = "RPM" ]; then
+            source /etc/profile.d/modules.sh
+
+            if [ "${{ matrix.platform[0] }}" = "AMD64" ]; then
+              module load mpi/openmpi-x86_64
+            elif [ "${{ matrix.platform[0] }}" = "ARM64" ]; then
+              module load mpi/openmpi-aarch64
+            fi
+          fi
+
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=Off \
+            -DBUILD_SHARED_LIBS=On \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=On \
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=On \
+            -DKAMINPAR_BUILD_WITH_MTUNE_NATIVE=Off \
+            -DKAMINPAR_BUILD_DISTRIBUTED=On \
+            -DKAMINPAR_64BIT_IDS=On \
+            -DKAMINPAR_64BIT_WEIGHTS=On
+
+      - name: Build the project
+        run: cmake --build build --parallel
+
+      - name: Create the package
+        run: cpack --config build/CPackConfig.cmake -G ${{ matrix.package }} -V
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: KaMinPar-${{ matrix.package }}-${{ matrix.platform[0] }}
+          path: |
+            build/packages/*.deb
+            build/packages/*.rpm
+          if-no-files-found: error
+
+  github-release:
+    name: Upload the Debian and RPM packages to GitHub Release
+    if: github.repository_owner == 'KaHIP' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs:
+      - build-package
+
+    permissions:
+      contents: write
+
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download Debian packages
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        with:
+          pattern: KaMinPar-DEB-*
+          merge-multiple: true
+          path: dist/
+
+      - name: Download RPM packages
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        with:
+          pattern: KaMinPar-RPM-*
+          merge-multiple: true
+          path: dist/
+
+      - name: Upload all packages
+        uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2.2.1
+        with:
+          files: dist/**
+          append_body: true
+          draft: true
+          fail_on_unmatched_files: true

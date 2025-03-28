@@ -21,13 +21,13 @@
       };
 
       devShellInputs = builtins.attrValues {
-        inherit (pkgs) ccache mold-wrapped gdb act;
+        inherit (pkgs) ccache mold-wrapped gdb act dpkg rpm;
         inherit (pkgs.python3Packages) build pybind11 ruff mypy;
       };
 
       kaminpar = pkgs.stdenv.mkDerivation {
         pname = "KaMinPar";
-        version = "3.4.0";
+        version = "3.4.1";
 
         src = self;
         nativeBuildInputs = kaminparInputs ++ dkaminparInputs;
@@ -134,7 +134,7 @@
 
       kaminpar-python = pkgs.python3Packages.buildPythonPackage {
         pname = "kaminpar";
-        version = "3.4.0";
+        version = "3.4.1";
         pyproject = true;
 
         src = "${self}/bindings/python";
@@ -165,7 +165,7 @@
 
       kaminpar-networkit = pkgs.python3Packages.buildPythonPackage {
         pname = "kaminpar-networkit";
-        version = "3.4.0";
+        version = "3.4.1";
         pyproject = true;
 
         src = "${self}/bindings/networkit";
