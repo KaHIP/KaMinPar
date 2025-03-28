@@ -1,11 +1,8 @@
 file(GLOB_RECURSE MPI_SOURCE_FILES CONFIGURE_DEPENDS
         *.cc *.h)
 
-add_library(kaminpar_mpi OBJECT ${MPI_SOURCE_FILES}
-        definitions.h)
-target_include_directories(kaminpar_mpi PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../")
-target_compile_options(kaminpar_mpi PRIVATE ${KAMINPAR_WARNING_FLAGS})
+add_library(KaMinParMPI OBJECT ${MPI_SOURCE_FILES})
+add_library(KaMinPar::KaMinParMPI ALIAS KaMinParMPI)
 
-find_library(NUMA_LIB numa) # optional
-
-target_link_libraries(kaminpar_mpi PUBLIC kaminpar_common MPI::MPI_CXX)
+target_link_libraries(KaMinParMPI PUBLIC KaMinParCommon MPI::MPI_CXX)
+target_compile_options(KaMinParMPI PRIVATE ${KAMINPAR_WARNING_FLAGS})
