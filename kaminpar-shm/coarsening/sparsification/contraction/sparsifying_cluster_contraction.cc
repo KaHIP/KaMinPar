@@ -19,9 +19,7 @@
 
 #include "kaminpar-common/datastructures/compact_static_array.h"
 #include "kaminpar-common/datastructures/concurrent_fast_reset_array.h"
-#include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/datastructures/fixed_size_sparse_map.h"
-#include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/random.h"
@@ -153,7 +151,7 @@ std::unique_ptr<CoarseGraph> contract_and_sparsify_clustering(
     return hash < threshold_probability * 16384;
   };
   auto sample_edge = [&](const NodeID u, const EdgeWeight w, const NodeID v) {
-    return w > threshold_weight || (w == threshold_weight && !throw_dice(u, v));
+    return w > threshold_weight || (w == threshold_weight && throw_dice(u, v));
   };
 
   // To contract the graph, we iterate over the coarse nodes in parallel and aggregate the

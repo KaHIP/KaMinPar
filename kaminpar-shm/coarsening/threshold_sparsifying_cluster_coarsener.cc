@@ -98,6 +98,8 @@ bool ThresholdSparsifyingClusteringCoarsener::coarsen() {
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 
+  StaticArray<NodeID> clustering2(clustering.begin(), clustering.end());
+
   START_HEAP_PROFILER("Contract graph");
   auto coarsened = TIMED_SCOPE("Contract graph") {
     return contract_clustering(
@@ -150,10 +152,14 @@ bool ThresholdSparsifyingClusteringCoarsener::coarsen() {
         DBG << "Threshold weight: " << threshold_weight;
         DBG << "Threshold probability: " << threshold_probability;
 
+        auto [c_n2, mapping2] = compute_mapping(current(), std::move(clustering2), _contraction_m_ctx);
+        contraction::fill_cluster_buckets(
+            c_n2, current(), mapping2, _contraction_m_ctx.buckets_index, _contraction_m_ctx.buckets
+        );
         auto ans = contraction::contract_and_sparsify_clustering(
             current().concretize<CSRGraph>(),
-            std::move(mapping),
-            c_n,
+            std::move(mapping2),
+            c_n2,
             threshold_weight,
             threshold_probability,
             _c_ctx.contraction,
