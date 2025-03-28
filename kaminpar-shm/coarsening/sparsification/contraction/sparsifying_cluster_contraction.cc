@@ -138,50 +138,22 @@ std::unique_ptr<CoarseGraph> contract_and_sparsify_clustering(
   const std::size_t seed =
       Random::instance().random_index(0, std::numeric_limits<std::size_t>::max());
 
-  auto murmur64 = [&](std::size_t key) {
-    key ^= key >> 33;
-    key *= 0xff51afd7ed558ccdL;
-    key ^= key >> 33;
-    key *= 0xc4ceb9fe1a85ec53L;
-    key ^= key >> 33;
-    return key;
+  auto throw_dice = [&](const NodeID u, const NodeID v) {
+    std::size_t hash = ((static_cast<std::size_t>(std::max(u, v)) << 32) |
+                        static_cast<std::size_t>(std::min(u, v))) +
+                       seed;
+
+    hash ^= hash >> 33;
+    hash *= 0xff51afd7ed558ccdL;
+    hash ^= hash >> 33;
+    hash *= 0xc4ceb9fe1a85ec53L;
+    hash ^= hash >> 33;
+    hash %= 16384;
+
+    return hash < threshold_probability * 16384;
   };
-  auto throw_dice = [&](NodeID u, NodeID v) {
-    if (u < v) {
-      std::swap(u, v);
-    }
-    const std::size_t key =
-        ((static_cast<std::size_t>(u) << 32) | static_cast<std::size_t>(v)) + seed;
-    const std::size_t hk = murmur64(key);
-    return hk <
-           (threshold_probability * static_cast<double>(std::numeric_limits<std::size_t>::max()));
-  };
-  auto sample_edge = [&](NodeID u, const EdgeWeight w, NodeID v) {
-    if (u < v) {
-      std::swap(u, v);
-    }
-
-    if (w < threshold_weight || (w == threshold_weight && throw_dice(u, v))) {
-      return false;
-    }
-    return true;
-
-    /*
-    if (w > threshold_weight) {
-      return true;
-    }
-    if (w < threshold_weight) {
-      return false;
-    }
-    return false;
-
-    const std::size_t key =
-        ((static_cast<std::size_t>(u) << 32) | static_cast<std::size_t>(v)) + seed;
-    const std::size_t hk = murmur64(key);
-    std::default_random_engine engine(hk);
-    std::uniform_real_distribution<> distribution;
-    return !(distribution(engine) <= threshold_probability);
-    */
+  auto sample_edge = [&](const NodeID u, const EdgeWeight w, const NodeID v) {
+    return w > threshold_weight || (w == threshold_weight && !throw_dice(u, v));
   };
 
   // To contract the graph, we iterate over the coarse nodes in parallel and aggregate the
@@ -506,13 +478,13 @@ std::unique_ptr<CoarseGraph> contract_and_sparsify_clustering(
       edge_collector.iterate_and_reset([&](const auto, const auto &local_neighbors) {
         std::size_t degree = 0;
         for (const auto [c_v, w] : local_neighbors) {
-          degree += sample_edge(c_u, w, c_u);
+          degree += sample_edge(c_u, w, c_v);
         }
 
         EdgeID local_cur_edge = __atomic_fetch_add(&cur_edge, degree, __ATOMIC_RELAXED);
 
         for (const auto [c_v, w] : local_neighbors) {
-          if (sample_edge(c_u, w, c_u)) {
+          if (sample_edge(c_u, w, c_v)) {
             c_edges[local_cur_edge] = c_v;
             c_edge_weights[local_cur_edge] = w;
             local_cur_edge += 1;
