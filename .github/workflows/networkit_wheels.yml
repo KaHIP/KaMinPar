@@ -30,8 +30,11 @@ jobs:
       - name: Modify CMakeLists.txt for PR builds
         if: github.event_name == 'pull_request'
         run: |
-          sed -i "s|GIT_REPOSITORY .*|GIT_REPOSITORY https://github.com/${{ github.repository }}.git|" bindings/networkit/CMakeLists.txt
-          sed -i "s|GIT_TAG .*|GIT_TAG ${{ github.ref_name }}|" bindings/networkit/CMakeLists.txt
+          echo ${{ github.event.pull_request.head.repo.full_name }}
+          echo ${{ github.event.pull_request.head.ref }}
+          echo ${{ github.head.ref }}
+          sed -i "s|GIT_REPOSITORY .*|GIT_REPOSITORY https://github.com/${{ github.event.pull_request.head.repo.full_name }}.git|" bindings/networkit/CMakeLists.txt
+          sed -i "s|GIT_TAG .*|GIT_TAG ${{ github.head_ref }}|" bindings/networkit/CMakeLists.txt
 
       - name: Build wheels
         uses: pypa/cibuildwheel@6cccd09a31908ffd175b012fb8bf4e1dbda3bc6c # v2.23.0
@@ -58,8 +61,8 @@ jobs:
       - name: Modify CMakeLists.txt for PR builds
         if: github.event_name == 'pull_request'
         run: |
-          sed -i "s|GIT_REPOSITORY .*|GIT_REPOSITORY https://github.com/${{ github.repository }}.git|" bindings/networkit/CMakeLists.txt
-          sed -i "s|GIT_TAG .*|GIT_TAG ${{ github.ref_name }}|" bindings/networkit/CMakeLists.txt
+          sed -i "s|GIT_REPOSITORY .*|GIT_REPOSITORY https://github.com/${{ github.event.pull_request.head.repo.full_name }}.git|" bindings/networkit/CMakeLists.txt
+          sed -i "s|GIT_TAG .*|GIT_TAG ${{ github.head_ref }}|" bindings/networkit/CMakeLists.txt
 
       - name: Set up Python
         uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
