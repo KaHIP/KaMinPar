@@ -38,7 +38,7 @@ set(PYBIND11_FINDPYTHON ON)
 find_package(pybind11 CONFIG REQUIRED)
 
 pybind11_add_module(kaminpar_python src/PyKaMinPar.cpp)
-target_link_libraries(kaminpar_python PUBLIC KaMinPar::KaMinPar KaMinPar::KaMinParIO)
+target_link_libraries(kaminpar_python PUBLIC KaMinPar::KaMinParFull)
 target_compile_definitions(kaminpar_python PRIVATE VERSION_INFO=${PROJECT_VERSION})
 if(KAMINPAR_PYTHON_64BIT)
   target_compile_definitions(kaminpar_python PRIVATE KAMINPAR_PYTHON_64BIT)
