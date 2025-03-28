@@ -146,12 +146,13 @@ std::unique_ptr<CoarseGraph> contract_and_sparsify_clustering(
     hash ^= hash >> 33;
     hash *= 0xc4ceb9fe1a85ec53L;
     hash ^= hash >> 33;
-    hash %= 16384;
 
-    return hash < threshold_probability * 16384;
+    hash &= (1ul << 32) - 1;
+    return 1.0 * hash / ((1ul << 32) - 1) < threshold_probability;
   };
+
   auto sample_edge = [&](const NodeID u, const EdgeWeight w, const NodeID v) {
-    return w > threshold_weight || (w == threshold_weight && throw_dice(u, v));
+    return w < threshold_weight || (w == threshold_weight && throw_dice(u, v));
   };
 
   // To contract the graph, we iterate over the coarse nodes in parallel and aggregate the

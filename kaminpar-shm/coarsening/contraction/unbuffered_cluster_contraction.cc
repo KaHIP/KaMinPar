@@ -128,8 +128,8 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
     const ContractionCoarseningContext &con_ctx,
     MemoryContext &m_ctx
 ) {
-  auto &buckets_index = m_ctx.buckets_index;
-  auto &buckets = m_ctx.buckets;
+  const auto &buckets_index = m_ctx.buckets_index;
+  const auto &buckets = m_ctx.buckets;
 
   // To contract the graph, we iterate over the coarse nodes in parallel and aggregate the
   // neighborhood of the coarse nodes. The neighborhoods are aggregated by iterating over the
