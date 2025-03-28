@@ -131,21 +131,22 @@ bool ThresholdSparsifyingClusteringCoarsener::coarsen() {
         using namespace sparsification;
 
         const NodeID c_n = csr.n();
+        const EdgeID c_m = csr.m();
         StaticArray<EdgeWeight> edge_weights = csr.take_raw_edge_weights();
         {
           ((void)std::move(graph));
         }
-
         const utils::K_SmallestInfo<EdgeWeight> threshold = TIMED_SCOPE("Threshold selection") {
           return utils::quickselect_k_smallest<EdgeWeight>(
-              target_sparsified_m, edge_weights.begin(), edge_weights.end()
+              c_m - target_sparsified_m, edge_weights.begin(), edge_weights.end()
           );
         };
         edge_weights.free();
 
         const EdgeWeight threshold_weight = threshold.value;
         const double threshold_probability =
-            (target_sparsified_m - threshold.number_of_elements_smaller) /
+            (target_sparsified_m -
+             (c_m - threshold.number_of_elements_smaller - threshold.number_of_elemtns_equal)) /
             static_cast<double>(threshold.number_of_elemtns_equal);
 
         DBG << "Threshold weight: " << threshold_weight;
@@ -208,20 +209,21 @@ CSRGraph ThresholdSparsifyingClusteringCoarsener::sparsify_and_make_negative_edg
 
   const utils::K_SmallestInfo<EdgeWeight> threshold = TIMED_SCOPE("Threshold selection") {
     return utils::quickselect_k_smallest<EdgeWeight>(
-        target_m, csr.raw_edge_weights().begin(), csr.raw_edge_weights().end()
+        csr.m() - target_m, csr.raw_edge_weights().begin(), csr.raw_edge_weights().end()
     );
   };
 
   TIMED_SCOPE("Edge selection") {
     const double inclusion_probability_if_equal =
-        (target_m - threshold.number_of_elements_smaller) /
+        (target_m -
+         (csr.m() - threshold.number_of_elements_smaller - threshold.number_of_elemtns_equal)) /
         static_cast<double>(threshold.number_of_elemtns_equal);
 
     DBG << "Threshold weight: " << threshold.value;
     DBG << "Threshold probability: " << inclusion_probability_if_equal;
 
     utils::parallel_for_upward_edges(csr, [&](const EdgeID e) {
-      if (csr.edge_weight(e) < threshold.value ||
+      if (csr.edge_weight(e) > threshold.value ||
           (csr.edge_weight(e) == threshold.value &&
            Random::instance().random_bool(inclusion_probability_if_equal))) {
         csr.raw_edge_weights()[e] *= -1;

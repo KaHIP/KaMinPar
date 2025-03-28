@@ -152,7 +152,7 @@ std::unique_ptr<CoarseGraph> contract_and_sparsify_clustering(
   };
 
   auto sample_edge = [&](const NodeID u, const EdgeWeight w, const NodeID v) {
-    return w < threshold_weight || (w == threshold_weight && throw_dice(u, v));
+    return w > threshold_weight || (w == threshold_weight && throw_dice(u, v));
   };
 
   // To contract the graph, we iterate over the coarse nodes in parallel and aggregate the
