@@ -137,6 +137,7 @@ std::unique_ptr<CoarseGraph> contract_and_sparsify_clustering(
 
   const std::size_t seed =
       Random::instance().random_index(0, std::numeric_limits<std::size_t>::max());
+
   auto murmur64 = [&](std::size_t key) {
     key ^= key >> 33;
     key *= 0xff51afd7ed558ccdL;
@@ -156,10 +157,22 @@ std::unique_ptr<CoarseGraph> contract_and_sparsify_clustering(
            (threshold_probability * static_cast<double>(std::numeric_limits<std::size_t>::max()));
   };
   auto sample_edge = [&](const NodeID u, const EdgeWeight w, const NodeID v) {
-    if (w < threshold_weight || (w == threshold_weight && throw_dice(u, v))) {
+    // if (w < threshold_weight || (w == threshold_weight && throw_dice(u, v))) {
+    //   return false;
+    // }
+    if (w > threshold_weight) {
+      return true;
+    }
+    if (w < threshold_weight) {
       return false;
     }
-    return true;
+
+    const std::size_t key =
+        ((static_cast<std::size_t>(u) << 32) | static_cast<std::size_t>(v)) + seed;
+    const std::size_t hk = murmur64(key);
+    std::default_random_engine engine(hk);
+    std::uniform_real_distribution<> distribution;
+    return !(distribution(engine) <= threshold_probability);
   };
 
   // To contract the graph, we iterate over the coarse nodes in parallel and aggregate the
@@ -259,7 +272,12 @@ std::unique_ptr<CoarseGraph> contract_and_sparsify_clustering(
                                   const NodeWeight c_u_weight,
                                   auto &edge_collector,
                                   auto &neighborhood_buffer) {
-    const std::size_t degree = edge_collector.size();
+    // const std::size_t degree = edge_collector.size();
+
+    std::size_t degree = 0;
+    for (const auto [c_v, weight] : edge_collector.entries()) {
+      degree += sample_edge(c_u, weight, c_v);
+    }
 
     if (NeighborhoodsBuffer::exceeds_capacity(degree)) {
       auto [new_c_u, edge] = atomic_fetch_next_coarse_node_info(1, degree);
@@ -302,30 +320,6 @@ std::unique_ptr<CoarseGraph> contract_and_sparsify_clustering(
     auto [new_c_u, edge] =
         atomic_fetch_next_coarse_node_info(num_buffered_nodes, num_buffered_edges);
     neighborhood_buffer.flush(new_c_u, edge);
-  };
-
-  // To aggregate the edges of a coarse node for the growing hash tables and single-phase
-  // implementation, we simply iterate over the fine edges of the nodes that are contracted to the
-  // coarse node and meanwhile compute the coarse node weight.
-  const auto aggregate_edges = [&](const NodeID c_u,
-                                   const NodeID bucket_start,
-                                   const NodeID bucket_end,
-                                   auto &local_edge_collector) {
-    NodeWeight c_u_weight = 0;
-
-    for (NodeID i = bucket_start; i < bucket_end; ++i) {
-      const NodeID u = buckets[i];
-      c_u_weight += graph.node_weight(u);
-
-      graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
-        const NodeID c_v = mapping[v];
-        if (c_u != c_v) {
-          local_edge_collector[c_v] += w;
-        }
-      });
-    }
-
-    return c_u_weight;
   };
 
   tbb::enumerable_thread_specific<NeighborhoodsBuffer> neighborhoods_buffer_ets{[&] {
@@ -501,8 +495,12 @@ std::unique_ptr<CoarseGraph> contract_and_sparsify_clustering(
       cur_c_u += 1;
 
       edge_collector.iterate_and_reset([&](const auto, const auto &local_neighbors) {
-        EdgeID local_cur_edge =
-            __atomic_fetch_add(&cur_edge, local_neighbors.size(), __ATOMIC_RELAXED);
+        std::size_t degree = 0;
+        for (const auto [c_v, w] : local_neighbors) {
+          degree += sample_edge(c_u, w, c_u);
+        }
+
+        EdgeID local_cur_edge = __atomic_fetch_add(&cur_edge, degree, __ATOMIC_RELAXED);
 
         for (const auto [c_v, w] : local_neighbors) {
           if (sample_edge(c_u, w, c_u)) {
