@@ -125,7 +125,7 @@ The output should be stored in a file and can be used by the -C,--config option.
   auto *gp_group = mandatory->add_option_group("Partitioning")->silent();
   gp_group
       ->add_option(
-          "-G,--graph",
+          "graph,-G,--graph",
           app.graph_filename,
           "Input graph in METIS (file extension *.graph or *.metis) "
           "or binary format (file extension *.bgf)."
@@ -135,7 +135,7 @@ The output should be stored in a file and can be used by the -C,--config option.
   auto *partition_group = gp_group->add_option_group("Partition settings")->require_option(1);
   partition_group
       ->add_option(
-          "-k,--k",
+          "k,-k,--k",
           app.k,
           "Number of blocks in the partition. This option will be ignored if explicit block "
           "weights are specified via --block-weights or --block-weight-factors."
