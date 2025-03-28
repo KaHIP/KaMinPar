@@ -135,7 +135,7 @@ bool ThresholdSparsifyingClusteringCoarsener::coarsen() {
         const NodeID c_n = csr.n();
         StaticArray<EdgeWeight> edge_weights = csr.take_raw_edge_weights();
         {
-          ((void)std::move(csr));
+          ((void)std::move(graph));
         }
 
         const utils::K_SmallestInfo<EdgeWeight> threshold = TIMED_SCOPE("Threshold selection") {
@@ -143,6 +143,7 @@ bool ThresholdSparsifyingClusteringCoarsener::coarsen() {
               target_sparsified_m, edge_weights.begin(), edge_weights.end()
           );
         };
+        edge_weights.free();
 
         const EdgeWeight threshold_weight = threshold.value;
         const double threshold_probability =
@@ -152,7 +153,8 @@ bool ThresholdSparsifyingClusteringCoarsener::coarsen() {
         DBG << "Threshold weight: " << threshold_weight;
         DBG << "Threshold probability: " << threshold_probability;
 
-        auto [c_n2, mapping2] = compute_mapping(current(), std::move(clustering2), _contraction_m_ctx);
+        auto [c_n2, mapping2] =
+            compute_mapping(current(), std::move(clustering2), _contraction_m_ctx);
         contraction::fill_cluster_buckets(
             c_n2, current(), mapping2, _contraction_m_ctx.buckets_index, _contraction_m_ctx.buckets
         );
