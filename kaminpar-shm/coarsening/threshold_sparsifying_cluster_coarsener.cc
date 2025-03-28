@@ -130,8 +130,8 @@ bool ThresholdSparsifyingClusteringCoarsener::coarsen() {
       if (_s_ctx.recontract) {
         using namespace sparsification;
 
-        StaticArray<EdgeWeight> edge_weights = csr.take_raw_edge_weights();
         const NodeID c_n = csr.n();
+        StaticArray<EdgeWeight> edge_weights = csr.take_raw_edge_weights();
         {
           ((void)std::move(csr));
         }
@@ -147,6 +147,9 @@ bool ThresholdSparsifyingClusteringCoarsener::coarsen() {
             (target_sparsified_m - threshold.number_of_elements_smaller) /
             static_cast<double>(threshold.number_of_elemtns_equal);
 
+        DBG << "Threshold weight: " << threshold_weight;
+        DBG << "Threshold probability: " << threshold_probability;
+
         auto ans = contraction::contract_and_sparsify_clustering(
             current().concretize<CSRGraph>(),
             std::move(mapping),
@@ -157,7 +160,15 @@ bool ThresholdSparsifyingClusteringCoarsener::coarsen() {
             _contraction_m_ctx
         );
         mapping = std::move(dynamic_cast<contraction::CoarseGraphImpl *>(ans.get())->get_mapping());
-        return std::move(coarsened->get().concretize<CSRGraph>());
+        CSRGraph sparsifier = std::move(ans->get().concretize<CSRGraph>());
+
+        EdgeWeight minw = kInvalidEdgeWeight;
+        for (EdgeID e = 0; e < sparsifier.m(); ++e) {
+          minw = std::min(minw, sparsifier.edge_weight(e));
+        }
+        DBG << "Min edge weight in sparsifier: " << minw;
+
+        return sparsifier;
       } else {
         return remove_negative_edges(
             sparsify_and_make_negative_edges(std::move(csr), target_sparsified_m)
