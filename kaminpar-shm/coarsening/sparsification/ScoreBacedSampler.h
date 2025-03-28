@@ -24,7 +24,7 @@ public:
   ScoreBacedSampler(
       std::unique_ptr<ScoreFunction<Score>> scoreFunction
   )
-      : _score_function(std::move(scoreFunction)){};
+      : _score_function(std::move(scoreFunction)){}
   virtual ~ScoreBacedSampler() = default;
 
 protected:

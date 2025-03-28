@@ -11,8 +11,6 @@
 #include <cmath>
 #include <iomanip>
 
-#include "coarsening/sparsification/ThresholdSampler.h"
-
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/console_io.h"
@@ -73,7 +71,8 @@ std::unordered_map<std::string, CoarseningAlgorithm> get_coarsening_algorithms()
       {"noop", CoarseningAlgorithm::NOOP},
       {"clustering", CoarseningAlgorithm::CLUSTERING},
       {"overlay-clustering", CoarseningAlgorithm::OVERLAY_CLUSTERING},
-      {"sparsifying-clustering", CoarseningAlgorithm::SPARSIFYING_CLUSTERING}
+      {"sparsifying-clustering", CoarseningAlgorithm::SPARSIFYING_CLUSTERING},
+      {"threshold-sparsifying-clustering", CoarseningAlgorithm::THRESHOLD_SPARSIFYING_CLUSTERING},
   };
 }
 
@@ -116,6 +115,10 @@ std::ostream &operator<<(std::ostream &out, const CoarseningAlgorithm algorithm)
     return out << "clustering";
   case CoarseningAlgorithm::OVERLAY_CLUSTERING:
     return out << "overlay-clustering";
+  case CoarseningAlgorithm::SPARSIFYING_CLUSTERING:
+    return out << "sparsifying-clustering";
+  case CoarseningAlgorithm::THRESHOLD_SPARSIFYING_CLUSTERING:
+    return out << "threshold-sparsifying-clustering";
   }
 
   return out << "<invalid>";

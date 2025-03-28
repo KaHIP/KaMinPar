@@ -162,6 +162,18 @@ Context create_default_context() {
               .contraction_limit = 2000,
               .convergence_threshold = 0.05,
           },
+      .sparsification =
+          {
+              .algorithm = SparsificationAlgorithm::THRESHOLD,
+              .score_function = ScoreFunctionSection::WEIGHT,
+              .density_target_factor = 1.0,
+              .reduction_target_factor = 0.25,
+              .laziness_factor = 3,
+              .no_approx = false,
+              .wff_target_burnt_ratio = 5,
+              .wff_pf = 0.95,
+              .recontract = false,
+          },
       .initial_partitioning =
           {
               .coarsening =

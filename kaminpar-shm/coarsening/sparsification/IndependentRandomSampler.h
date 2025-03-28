@@ -35,4 +35,4 @@ private:
 template class IndependentRandomSampler<EdgeWeight>;
 template class IndependentRandomSampler<EdgeID>;
 template class IndependentRandomSampler<double>;
-}; // namespace kaminpar::shm::sparsification
+} // namespace kaminpar::shm::sparsification

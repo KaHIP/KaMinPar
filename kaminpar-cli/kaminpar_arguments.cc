@@ -151,35 +151,46 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
 
   coarsening->add_option("--s-density-factor", ctx.sparsification.density_target_factor)
-  ->default_val(std::numeric_limits<double>::infinity())
-  ->description(R"(By which factor the density should at least be reduced from one level to the next:
+      ->description(
+          R"(By which factor the density should at least be reduced from one level to the next:
       new density <= factor * old density
       The default is infinity.)"
-    );
+      )
+      ->capture_default_str();
 
   coarsening->add_option("--s-reduction-factor", ctx.sparsification.reduction_target_factor)
-  ->default_val(std::numeric_limits<double>::infinity())
-  ->description(R"(By which factor the number of edges should at least be reduced from one level to the next:
+      ->description(
+          R"(By which factor the number of edges should at least be reduced from one level to the next:
       new number of edges <= factor * old number of edges
       The default is infinity.)"
-    );
-  coarsening->add_option("--s-laziness-factor", ctx.sparsification.laziness_factor)
-  ->default_val(1.)
-  ->description(R"(Only sparsify if the number of edges times the laziness factor are less than the target.
-      Thus greater laziness leads to less sparsification. The default is 1.)");
+      )
+      ->capture_default_str();
 
+  coarsening->add_option("--s-laziness-factor", ctx.sparsification.laziness_factor)
+      ->description(
+          R"(Only sparsify if the number of edges times the laziness factor are less than the target.
+      Thus greater laziness leads to less sparsification. The default is 1.)"
+      )
+      ->capture_default_str();
 
   coarsening->add_flag("--s-no-approx", ctx.sparsification.no_approx)
       ->description("Disables some approximations of sparsification algorithms.")
-      ->default_val(false);
+      ->capture_default_str();
 
   coarsening->add_option("--s-wff-tbr", ctx.sparsification.wff_target_burnt_ratio)
       ->description("Target burn ratio of the Weighted Forest Fire (WFF) score")
-      ->default_val(5);
+      ->capture_default_str();
+
   coarsening->add_option("--s-wff-pf", ctx.sparsification.wff_pf)
       ->description("The probability which parameterizes the geometrically distributed number of "
                     "neighbors to burn")
-      ->default_val(.95);
+      ->capture_default_str();
+
+  coarsening->add_flag("--s-recontract", ctx.sparsification.recontract)
+      ->description("[--c-algorithm=threshold-sparsifying-clustering] Construct sparsifier by "
+                    "re-contracting the uncoarsened graph.")
+      ->capture_default_str();
+
   coarsening
       ->add_option(
           "--c-contraction-limit",

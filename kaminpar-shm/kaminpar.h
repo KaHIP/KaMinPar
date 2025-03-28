@@ -144,11 +144,11 @@ enum class CoarseningAlgorithm {
   CLUSTERING,
   OVERLAY_CLUSTERING,
   SPARSIFYING_CLUSTERING,
+  THRESHOLD_SPARSIFYING_CLUSTERING,
 };
 
 enum class SparsificationAlgorithm {
   UNIFORM_RANDOM_SAMPLING,
-  WEIGHTED_FOREST_FIRE,
   K_NEIGHBOUR,
   K_NEIGHBOUR_SPANNING_TREE,
   WEIGHT_THRESHOLD,
@@ -284,6 +284,8 @@ struct SparsificationContext {
 
   float wff_target_burnt_ratio;
   float wff_pf;
+
+  bool recontract;
 };
 
 //
