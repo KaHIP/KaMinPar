@@ -25,26 +25,57 @@
         inherit (pkgs.python3Packages) build pybind11 ruff mypy;
       };
 
-      kaminpar = pkgs.stdenv.mkDerivation {
-        pname = "KaMinPar";
-        version = "3.4.1";
+      kaminpar =
+        let
+          google-test-src = pkgs.fetchFromGitHub {
+            owner = "google";
+            repo = "googletest";
+            rev = "5a37b517ad4ab6738556f0284c256cae1466c5b4";
+            hash = "sha256-uwdRrw79be2N1bBILeVa6q/hzx8MXUG8dcR4DU/cskw=";
+          };
+        in
+        pkgs.stdenv.mkDerivation (finalAttrs: {
+          pname = "kaminpar";
+          version = "3.4.1";
 
-        src = self;
-        nativeBuildInputs = kaminparInputs ++ dkaminparInputs;
+          src = self;
 
-        cmakeFlags = [
-          "-DKAMINPAR_BUILD_DISTRIBUTED=On"
-          "-DFETCHCONTENT_FULLY_DISCONNECTED=On"
-          "-DFETCHCONTENT_SOURCE_DIR_KASSERT=${kassert-src}"
-          "-DFETCHCONTENT_SOURCE_DIR_KAGEN=${kagen-src}"
-        ];
+          doCheck = true;
+          strictDeps = true;
 
-        meta = {
-          description = "Shared-memory and distributed-memory parallel graph partitioner";
-          homepage = "https://github.com/KaHIP/KaMinPar";
-          license = pkgs.lib.licenses.mit;
-        };
-      };
+          nativeBuildInputs = builtins.attrValues {
+            inherit (pkgs) git pkg-config cmake mpi;
+          };
+
+          propagatedBuildInputs = builtins.attrValues {
+            inherit (pkgs) tbb_2022_0 sparsehash mpi;
+            inherit mt-kahypar;
+          };
+
+          buildInputs = builtins.attrValues {
+            inherit (pkgs) numactl;
+          };
+
+          cmakeFlags = [
+            "-DKAMINPAR_BUILD_DISTRIBUTED=On"
+            "-DKAMINPAR_BUILD_WITH_MTKAHYPAR=On"
+            "-DKAMINPAR_BUILD_WITH_MTUNE_NATIVE=Off"
+            "-DFETCHCONTENT_FULLY_DISCONNECTED=On"
+            "-DFETCHCONTENT_SOURCE_DIR_KASSERT=${kassert-src}"
+            "-DFETCHCONTENT_SOURCE_DIR_KAGEN=${kagen-src}"
+            "-DFETCHCONTENT_SOURCE_DIR_GOOGLETEST=${google-test-src}"
+          ];
+
+          meta = {
+            description = "Shared-memory and distributed-memory parallel graph partitioner";
+            homepage = "https://github.com/KaHIP/KaMinPar";
+            changelog = "https://github.com/KaHIP/KaMinPar/releases/tag/v${finalAttrs.version}";
+            license = pkgs.lib.licenses.mit;
+            sourceProvenance = [ pkgs.lib.sourceTypes.fromSource ];
+            platforms = pkgs.lib.platforms.linux ++ [ "aarch64-darwin" ];
+            mainProgram = "KaMinPar";
+          };
+        });
 
       mt-kahypar =
         let
@@ -160,6 +191,9 @@
           description = "Python Bindings for KaMinPar";
           homepage = "https://github.com/KaHIP/KaMinPar";
           license = pkgs.lib.licenses.mit;
+          sourceProvenance = [ pkgs.lib.sourceTypes.fromSource ];
+          platforms = pkgs.lib.platforms.linux ++ [ "aarch64-darwin" ];
+          mainProgram = "KaMinPar";
         };
       };
 
@@ -192,6 +226,9 @@
           description = "NetworKit Bindings for KaMinPar";
           homepage = "https://github.com/KaHIP/KaMinPar";
           license = pkgs.lib.licenses.mit;
+          sourceProvenance = [ pkgs.lib.sourceTypes.fromSource ];
+          platforms = pkgs.lib.platforms.linux ++ [ "aarch64-darwin" ];
+          mainProgram = "KaMinPar";
         };
       };
 
