@@ -1,0 +1,45 @@
+name: Nix Package Build Tester
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build-nix-package:
+    name: Build Packages for ${{ matrix.platform[0] }} target
+    strategy:
+      matrix:
+        platform:
+          - ["x86_64-linux", ubuntu-24.04]
+          - ["aarch64-linux", ubuntu-24.04-arm]
+          - ["aarch64-darwin", macos-15]
+      fail-fast: false
+
+    runs-on: ${{ matrix.platform[1] }}
+    container:
+      image: nixos/nix
+      env:
+        NIX_CONFIG: "experimental-features = nix-command flakes"
+
+    steps:
+      - name: Update Nix-channel
+        run: nix-channel --update
+
+      - name: Checkout KaMinPar
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Build KaMinPar
+        run: nix build --print-build-logs .#kaminpar
+
+      - name: Build Python bindings for KaMinPar
+        run: nix build --print-build-logs .#kaminpar-python
+
+      - name: Build NetworKit bindings for KaMinPar
+        run: nix build --print-build-logs .#kaminpar-networkit
