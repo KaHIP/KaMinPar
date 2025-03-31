@@ -52,9 +52,7 @@
             inherit mt-kahypar;
           };
 
-          buildInputs = builtins.attrValues {
-            inherit (pkgs) numactl;
-          };
+          buildInputs = pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.numactl;
 
           cmakeFlags = [
             "-DKAMINPAR_BUILD_DISTRIBUTED=On"
