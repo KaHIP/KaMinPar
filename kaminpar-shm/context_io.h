@@ -52,9 +52,13 @@ std::ostream &operator<<(std::ostream &out, PartitioningMode mode);
 
 std::unordered_map<std::string, PartitioningMode> get_partitioning_modes();
 
-std::ostream &operator<<(std::ostream &out, InitialPartitioningMode mode);
+std::ostream &operator<<(std::ostream &out, DeepInitialPartitioningMode mode);
 
-std::unordered_map<std::string, InitialPartitioningMode> get_initial_partitioning_modes();
+std::unordered_map<std::string, DeepInitialPartitioningMode> get_deep_initial_partitioning_modes();
+
+std::ostream &operator<<(std::ostream &out, KwayInitialPartitioningMode mode);
+
+std::unordered_map<std::string, KwayInitialPartitioningMode> get_kway_initial_partitioning_modes();
 
 std::ostream &operator<<(std::ostream &out, GainCacheStrategy strategy);
 

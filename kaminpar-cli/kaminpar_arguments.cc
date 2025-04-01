@@ -47,7 +47,7 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
       ->add_option(
           "--p-deep-initial-partitioning-mode", ctx.partitioning.deep_initial_partitioning_mode
       )
-      ->transform(CLI::CheckedTransformer(get_initial_partitioning_modes()).description(""))
+      ->transform(CLI::CheckedTransformer(get_deep_initial_partitioning_modes()).description(""))
       ->description(R"(Chooses the initial partitioning mode:
   - sequential:     do not diversify initial partitioning by replicating coarse graphs
   - async-parallel: diversify initial partitioning by replicating coarse graphs each branch of the replication tree asynchronously
@@ -84,7 +84,15 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
   partitioning->add_option("--p-rb-switch-to-seq-factor", ctx.partitioning.rb_switch_to_seq_factor)
       ->capture_default_str();
-  partitioning->add_flag("--p-kway-parallel-rb", ctx.partitioning.kway_parallel_rb)
+  partitioning
+      ->add_flag(
+          "--p-kway-initial-partitioning-mode", ctx.partitioning.kway_initial_partitioning_mode
+      )
+      ->transform(CLI::CheckedTransformer(get_kway_initial_partitioning_modes()).description(""))
+      ->description(R"(Chooses the initial partitioning mode:
+  - sequential
+  - parallel
+  - legacy)")
       ->capture_default_str();
 
   partitioning->add_option("--p-vcycles", ctx.partitioning.vcycles)->capture_default_str();
