@@ -1,7 +1,6 @@
 #pragma once
-#include <oneapi/tbb/concurrent_vector.h>
 
-#include "ScoreBacedSampler.h"
+#include "kaminpar-shm/coarsening/sparsification/score_based_sampler.h"
 
 namespace kaminpar::shm::sparsification {
 class WeightedForestFireScore : public ScoreFunction<EdgeID> {

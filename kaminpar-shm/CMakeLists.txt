@@ -1,33 +1,8 @@
 file(GLOB_RECURSE KAMINPAR_SHM_SOURCE_FILES CONFIGURE_DEPENDS
 	*.cc *.h)
 
-add_library(kaminpar_shm ${KAMINPAR_SHM_SOURCE_FILES}
-        coarsening/sparsification/Sampler.h
-        coarsening/sparsification/UniformRandomSampler.cpp
-        coarsening/sparsification/UniformRandomSampler.h
-        coarsening/sparsifing_cluster_coarsener.h
-        coarsening/sparsification/EdgeReductionSparsificationTarget.h
-        coarsening/sparsification/kNeighbourSampler.cpp
-        coarsening/sparsification/kNeighbourSampler.h
-        coarsening/sparsification/UnionFind.cpp
-        coarsening/sparsification/UnionFind.h
-        coarsening/sparsification/sparsification_utils.cpp
-        coarsening/sparsification/sparsification_utils.h
-        coarsening/sparsification/ThresholdSampler.h
-        coarsening/sparsification/ScoreBacedSampler.h
-        coarsening/sparsification/RandomWithReplacementSampler.h
-        coarsening/sparsification/IndexDistributionWithoutReplacement.h
-        coarsening/sparsification/IndexDistributionWithReplacement.h
-        coarsening/sparsification/RandomWithoutReplacementSampler.h
-        coarsening/sparsification/IndependentRandomSampler.h
-        coarsening/sparsification/DistributionDecorator.h
-        coarsening/sparsification/UnbiasedThesholdSampler.cpp
-        coarsening/sparsification/UnbiasedThesholdSampler.h
-        coarsening/sparsification/WeightedForestFireScore.cpp
-        coarsening/sparsification/WeightedForestFireScore.h
-        coarsening/sparsification/IndependentRandomSampler.cpp
-)
-# target_include_directories(kaminpar_shm PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../")
+add_library(kaminpar_shm ${KAMINPAR_SHM_SOURCE_FILES})
+
 add_library(KaMinPar::KaMinPar ALIAS kaminpar_shm)
 target_link_libraries(kaminpar_shm PUBLIC kaminpar_common)
 target_compile_options(kaminpar_shm PRIVATE ${KAMINPAR_WARNING_FLAGS})

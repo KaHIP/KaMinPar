@@ -1,7 +1,9 @@
 #pragma once
+
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm::sparsification {
+
 template <typename T> class UnionFind {
 public:
   UnionFind(T size);
@@ -9,7 +11,8 @@ public:
   void unionNodes(T x, T y);
 
 private:
-  kaminpar::StaticArray<T> _parent;
-  kaminpar::StaticArray<T> _rank;
+  StaticArray<T> _parent;
+  StaticArray<T> _rank;
 };
+
 } // namespace kaminpar::shm::sparsification

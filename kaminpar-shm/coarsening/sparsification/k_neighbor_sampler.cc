@@ -1,24 +1,18 @@
-//
-// Created by badger on 5/23/24.
-//
-
-#include "kNeighbourSampler.h"
+#include "kaminpar-shm/coarsening/sparsification/k_neighbor_sampler.h"
 
 #include <ranges>
 
 #include <sys/stat.h>
 
-#include "IndexDistributionWithReplacement.h"
-#include "IndexDistributionWithoutReplacement.h"
-#include "UnionFind.h"
-#include "sparsification_utils.h"
+#include "kaminpar-shm/coarsening/sparsification/index_distribution_with_replacement.h"
+#include "kaminpar-shm/coarsening/sparsification/sparsification_utils.h"
+#include "kaminpar-shm/coarsening/sparsification/union_find.h"
 
 #include "kaminpar-common/parallel/algorithm.h"
-#include "kaminpar-common/random.h"
 
 namespace kaminpar::shm::sparsification {
 
-StaticArray<EdgeWeight> kNeighbourSampler::sample(const CSRGraph &g, EdgeID target_edge_amount) {
+StaticArray<EdgeWeight> kNeighborSampler::sample(const CSRGraph &g, EdgeID target_edge_amount) {
   int k = compute_k(g, target_edge_amount);
   auto sample = StaticArray<EdgeWeight>(g.m(), 0);
   if (_sample_spanning_tree)
@@ -31,9 +25,9 @@ StaticArray<EdgeWeight> kNeighbourSampler::sample(const CSRGraph &g, EdgeID targ
 /*
  * compute max k s.t. the number of sampled edges is at most target_edge_amount
  */
-EdgeID kNeighbourSampler::compute_k(const CSRGraph &g, EdgeID target_edge_amount) {
+EdgeID kNeighborSampler::compute_k(const CSRGraph &g, EdgeID target_edge_amount) {
   StaticArray<EdgeID> incidences_to_leq_degree(g.n(), 0);
-  utils::for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
+  utils::for_edges_with_endpoints(g, [&](EdgeID /* e */, NodeID u, NodeID v) {
     incidences_to_leq_degree[std::min(g.degree(u), g.degree(v))]++;
   });
   parallel::prefix_sum(
@@ -77,12 +71,13 @@ EdgeID kNeighbourSampler::compute_k(const CSRGraph &g, EdgeID target_edge_amount
       target_edge_amount,
       [&](EdgeID target, NodeID possible_k) {
         KASSERT(target == target_edge_amount, "foo", assert::always);
-        KASSERT(1 <= possible_k && possible_k < g.n(), "foo", assert::always);
+        KASSERT(1u <= possible_k && possible_k < g.n(), "", assert::always);
         return target <= expected_m(possible_k);
       }
   );
   printf(
-      ">>> k is %d and the expected number of edges is %f. incidences to vetecies with deg <= k: %d.\n"
+      ">>> k is %d and the expected number of edges is %f. incidences to vetecies with deg <= k: "
+      "%d.\n"
       ">>> n = %d and expected_m(n-1) = %f\n",
       k,
       expected_m(k),
@@ -93,7 +88,7 @@ EdgeID kNeighbourSampler::compute_k(const CSRGraph &g, EdgeID target_edge_amount
   return k;
 }
 
-void kNeighbourSampler::sample_directed(
+void kNeighborSampler::sample_directed(
     const CSRGraph &g, EdgeID k, StaticArray<EdgeWeight> &sample
 ) {
   // First choose locally at evey node how much of each incident edge to sample
@@ -115,14 +110,14 @@ void kNeighbourSampler::sample_directed(
           std::plus<>()
       );
 
-      for (int i = 0; i < k; ++i) {
+      for (EdgeID i = 0; i < k; ++i) {
         sample[g.raw_nodes()[u] + distribution()] += total_weight / k;
       }
     }
   }
 }
 
-void kNeighbourSampler::make_sample_symmetric(const CSRGraph &g, StaticArray<EdgeWeight> &sample) {
+void kNeighborSampler::make_sample_symmetric(const CSRGraph &g, StaticArray<EdgeWeight> &sample) {
   // Then combine the sample of each edge at both endpoints
   StaticArray<EdgeID> sorted_by_target_permutation = utils::sort_by_traget(g);
 
@@ -139,7 +134,7 @@ void kNeighbourSampler::make_sample_symmetric(const CSRGraph &g, StaticArray<Edg
   });
 }
 
-void kNeighbourSampler::sample_spanning_tree(const CSRGraph &g, StaticArray<EdgeWeight> &sample) {
+void kNeighborSampler::sample_spanning_tree(const CSRGraph &g, StaticArray<EdgeWeight> &sample) {
   // Kruskal's algorithm
   auto edges = StaticArray<std::tuple<NodeID, EdgeID>>(g.m());
   for (NodeID u : g.nodes()) {

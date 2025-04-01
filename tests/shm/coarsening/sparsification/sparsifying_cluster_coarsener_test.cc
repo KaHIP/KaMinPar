@@ -1,16 +1,19 @@
-#include <external/googletest/googletest/include/gtest/gtest.h>
-#include <gmock/internal/gmock-internal-utils.h>
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 
-#include "kaminpar-shm/coarsening/sparsifing_cluster_coarsener.h"
+#include "kaminpar-shm/coarsening/sparsifying_cluster_coarsener.h"
 
 namespace kaminpar::shm::testing {
-std::unique_ptr<SparsifyingClusteringCoarsener> make_scc(float density_factor, float reduction_factor) {
+
+std::unique_ptr<SparsifyingClusteringCoarsener>
+make_scc(float density_factor, float reduction_factor) {
   Context ctx = kaminpar::shm::create_default_context();
   ctx.sparsification.density_target_factor = density_factor;
   ctx.sparsification.reduction_target_factor = reduction_factor;
 
   return std::make_unique<SparsifyingClusteringCoarsener>(ctx, ctx.partition);
 }
+
 TEST(SparsifingClusterCoasener, SparsificationTargetTest) {
   const float infinity = std::numeric_limits<float>::infinity();
 
@@ -23,9 +26,9 @@ TEST(SparsifingClusterCoasener, SparsificationTargetTest) {
   auto no_density_inc = make_scc(1, infinity);
   ASSERT_EQ(no_density_inc->sparsificationTarget(10000, 12300, 123), 100);
 
-  auto d2_r70_percent = make_scc(2,.7);
-  ASSERT_EQ(d2_r70_percent->sparsificationTarget(1000, 100,25), 500);
+  auto d2_r70_percent = make_scc(2, .7);
+  ASSERT_EQ(d2_r70_percent->sparsificationTarget(1000, 100, 25), 500);
   ASSERT_EQ(d2_r70_percent->sparsificationTarget(1000, 100, 80), 700);
 }
 
-}
+} // namespace kaminpar::shm::testing

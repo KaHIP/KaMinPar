@@ -1,16 +1,22 @@
 #pragma once
 
+#include <vector>
+
+#include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::shm::sparsification {
+
 class IndexDistributionWithoutReplacement {
 public:
   IndexDistributionWithoutReplacement(std::vector<double> values) {
     IndexDistributionWithoutReplacement(values.begin(), values.end());
   }
+
   IndexDistributionWithoutReplacement(StaticArray<double> values) {
     IndexDistributionWithoutReplacement(values.begin(), values.end());
   }
+
   template <typename Iterator>
   IndexDistributionWithoutReplacement(Iterator values_begin, Iterator values_end)
       : remaining_objects(values_end - values_begin) {
@@ -18,7 +24,7 @@ public:
       return;
 
     // size of a complete binary tree, where all values can be in the leaves
-    size_t size = 1;
+    std::size_t size = 1;
     while (size <= 2 * remaining_objects) {
       size *= 2;
     }
@@ -26,21 +32,21 @@ public:
     segment_tree.resize(size, 0);
 
     // initalize leafs
-    const size_t first_leaf = firstLeaf();
-    for (size_t leaf = first_leaf; leaf < first_leaf + remaining_objects; leaf++) {
+    const std::size_t first_leaf = firstLeaf();
+    for (std::size_t leaf = first_leaf; leaf < first_leaf + remaining_objects; leaf++) {
       segment_tree[leaf] = *(values_begin + (leaf - first_leaf));
     }
 
     // calculate sum of subtrees
-    for (size_t node = segment_tree.size() - 1; node != 0; node--) {
+    for (std::size_t node = segment_tree.size() - 1; node != 0; node--) {
       segment_tree[parent(node)] += segment_tree[node];
     }
   }
 
-  size_t operator()() {
+  std::size_t operator()() {
     double r = Random::instance().random_double() * segment_tree[0];
 
-    size_t current_subtree = 0;
+    std::size_t current_subtree = 0;
     while (not isLeaf(current_subtree)) {
       if (r <= segment_tree[leftChild(current_subtree)]) {
         current_subtree = leftChild(current_subtree);
@@ -50,7 +56,7 @@ public:
       }
     }
 
-    size_t index = to_index(current_subtree);
+    std::size_t index = to_index(current_subtree);
     double value = segment_tree[current_subtree];
 
     // delete
@@ -64,7 +70,7 @@ public:
     return index;
   }
 
-  size_t size() {
+  std::size_t size() {
     return remaining_objects;
   }
   bool empty() {
@@ -72,25 +78,26 @@ public:
   }
 
 private:
-  bool isLeaf(size_t i) {
+  bool isLeaf(std::size_t i) {
     return i >= firstLeaf();
   }
-  size_t parent(size_t i) {
+  std::size_t parent(std::size_t i) {
     return (i - 1) / 2;
   }
-  size_t leftChild(size_t i) {
+  std::size_t leftChild(std::size_t i) {
     return 2 * i + 1;
   }
-  size_t rightChild(size_t i) {
+  std::size_t rightChild(std::size_t i) {
     return 2 * i + 2;
   }
-  size_t firstLeaf() {
+  std::size_t firstLeaf() {
     return segment_tree.size() / 2;
   }
-  size_t to_index(size_t leaf) {
+  std::size_t to_index(std::size_t leaf) {
     return leaf - firstLeaf();
   }
   std::vector<double> segment_tree;
-  size_t remaining_objects;
+  std::size_t remaining_objects;
 };
+
 } // namespace kaminpar::shm::sparsification

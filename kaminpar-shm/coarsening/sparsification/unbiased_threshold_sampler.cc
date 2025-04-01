@@ -1,12 +1,11 @@
-#include "UnbiasedThesholdSampler.h"
+#include "kaminpar-shm/coarsening/sparsification/unbiased_threshold_sampler.h"
 
 #include <ranges>
+#include <vector>
 
-#include <kassert/internal/expression_decomposition.hpp>
+#include "kaminpar-shm/coarsening/sparsification/sparsification_utils.h"
 
-#include "sparsification_utils.h"
-
-#include "kaminpar-common/parallel/algorithm.h"
+#include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::shm::sparsification {
@@ -79,7 +78,7 @@ double UnbiasedThesholdSampler::find_threshold(const CSRGraph &g, EdgeID target_
       possible_indices.end(),
       target_edge_amount / 2,
       [&](EdgeID target, EdgeID index) {
-        KASSERT(target_edge_amount/2 == target, "tmp", assert::always);
+        KASSERT(target_edge_amount / 2 == target, "tmp", assert::always);
         // > since decending
         return target > g.m() / 2 - number_of_lighter_edges[index] +
                             weight_of_lighter_edges[index] /

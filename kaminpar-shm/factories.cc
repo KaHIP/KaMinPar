@@ -26,15 +26,15 @@
 #include "kaminpar-shm/coarsening/overlay_cluster_coarsener.h"
 
 // Sparsification
-#include "kaminpar-shm/coarsening/sparsification/IndependentRandomSampler.h"
-#include "kaminpar-shm/coarsening/sparsification/RandomWithReplacementSampler.h"
-#include "kaminpar-shm/coarsening/sparsification/RandomWithoutReplacementSampler.h"
-#include "kaminpar-shm/coarsening/sparsification/ThresholdSampler.h"
-#include "kaminpar-shm/coarsening/sparsification/UnbiasedThesholdSampler.h"
-#include "kaminpar-shm/coarsening/sparsification/UniformRandomSampler.h"
-#include "kaminpar-shm/coarsening/sparsification/WeightedForestFireScore.h"
-#include "kaminpar-shm/coarsening/sparsification/kNeighbourSampler.h"
-#include "kaminpar-shm/coarsening/sparsifing_cluster_coarsener.h"
+#include "kaminpar-shm/coarsening/sparsification/independent_random_sampler.h"
+#include "kaminpar-shm/coarsening/sparsification/k_neighbor_sampler.h"
+#include "kaminpar-shm/coarsening/sparsification/random_with_replacement_sampler.h"
+#include "kaminpar-shm/coarsening/sparsification/random_without_replacement_sampler.h"
+#include "kaminpar-shm/coarsening/sparsification/threshold_sampler.h"
+#include "kaminpar-shm/coarsening/sparsification/unbiased_threshold_sampler.h"
+#include "kaminpar-shm/coarsening/sparsification/uniform_random_sampler.h"
+#include "kaminpar-shm/coarsening/sparsification/weighted_forest_fire_score.h"
+#include "kaminpar-shm/coarsening/sparsifying_cluster_coarsener.h"
 #include "kaminpar-shm/coarsening/threshold_sparsifying_cluster_coarsener.h"
 
 // Refinement
@@ -117,10 +117,10 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
     return std::make_unique<sparsification::UniformRandomSampler>();
 
   case SparsificationAlgorithm::K_NEIGHBOUR:
-    return std::make_unique<sparsification::kNeighbourSampler>();
+    return std::make_unique<sparsification::kNeighborSampler>();
 
   case SparsificationAlgorithm::K_NEIGHBOUR_SPANNING_TREE:
-    return std::make_unique<sparsification::kNeighbourSampler>(true);
+    return std::make_unique<sparsification::kNeighborSampler>(true);
 
   case SparsificationAlgorithm::UNBIASED_THRESHOLD:
     return std::make_unique<sparsification::UnbiasedThesholdSampler>();

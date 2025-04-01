@@ -1,18 +1,15 @@
 /*******************************************************************************
- * cluster corsener with included sparsification
+ * Cluster corsener with included sparsification
  *
  * @file:   cluster_coarsener.cc
  * @author: Dominik Rosch
  ******************************************************************************/
-#include "kaminpar-shm/coarsening/sparsifing_cluster_coarsener.h"
-
-#include "contraction/cluster_contraction_preprocessing.h"
-#include "sparsification/UniformRandomSampler.h"
-#include "sparsification/sparsification_utils.h"
+#include "kaminpar-shm/coarsening/sparsifying_cluster_coarsener.h"
 
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"
+#include "kaminpar-shm/coarsening/contraction/cluster_contraction_preprocessing.h"
 #include "kaminpar-shm/coarsening/max_cluster_weights.h"
-#include "kaminpar-shm/context_io.h"
+#include "kaminpar-shm/coarsening/sparsification/sparsification_utils.h"
 #include "kaminpar-shm/factories.h"
 #include "kaminpar-shm/kaminpar.h"
 
@@ -25,7 +22,9 @@
 namespace kaminpar::shm {
 
 namespace {
+
 SET_DEBUG(false);
+
 }
 
 SparsifyingClusteringCoarsener::SparsifyingClusteringCoarsener(
@@ -157,7 +156,7 @@ bool SparsifyingClusteringCoarsener::coarsen() {
   }
 
   if (coarsened->get().m() > _s_ctx.laziness_factor * target_edge_amount) { // sparsify
-    KASSERT(coarsened->get().m() % 2 == 0, "graph should be undirected", assert::always);
+    KASSERT(coarsened->get().m() % 2 == 0u, "graph should be undirected", assert::always);
 
     CSRGraph *csr = dynamic_cast<CSRGraph *>(coarsened->get().underlying_graph());
     KASSERT(csr != nullptr, "can only be used with a CSRGraph", assert::always);
@@ -256,4 +255,5 @@ SparsifyingClusteringCoarsener::pop_hierarchy(PartitionedGraph &&p_graph) {
 bool SparsifyingClusteringCoarsener::keep_allocated_memory() const {
   return level() >= _c_ctx.clustering.max_mem_free_coarsening_level;
 }
+
 } // namespace kaminpar::shm

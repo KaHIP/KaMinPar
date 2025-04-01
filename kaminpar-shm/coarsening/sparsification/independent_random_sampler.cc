@@ -1,6 +1,17 @@
-#include "IndependentRandomSampler.h"
+#include "kaminpar-shm/coarsening/sparsification/independent_random_sampler.h"
+
+#include <ranges>
+
+#include "kaminpar-shm/coarsening/sparsification/sparsification_utils.h"
+#include "kaminpar-shm/datastructures/csr_graph.h"
+#include "kaminpar-shm/kaminpar.h"
+
+#include "kaminpar-common/datastructures/static_array.h"
+#include "kaminpar-common/parallel/algorithm.h"
+#include "kaminpar-common/random.h"
 
 namespace kaminpar::shm::sparsification {
+
 template <typename Score>
 StaticArray<EdgeWeight>
 IndependentRandomSampler<Score>::sample(const CSRGraph &g, EdgeID target_edge_amount) {
@@ -13,24 +24,29 @@ IndependentRandomSampler<Score>::sample(const CSRGraph &g, EdgeID target_edge_am
   });
   return sample;
 }
+
 template <>
 double IndependentRandomSampler<EdgeWeight>::normalizationFactor(
     const CSRGraph &g, const StaticArray<EdgeWeight> &scores, EdgeID target
 ) {
-  if (_noApprox)
+  if (_no_approx) {
     return exactNormalizationFactor(g, scores, target);
-  else
+  } else {
     return approxNormalizationFactor(g, scores, target);
+  }
 }
+
 template <>
 double IndependentRandomSampler<EdgeID>::normalizationFactor(
     const CSRGraph &g, const StaticArray<EdgeID> &scores, EdgeID target
 ) {
-  if (_noApprox)
+  if (_no_approx) {
     return exactNormalizationFactor(g, scores, target);
-  else
+  } else {
     return approxNormalizationFactor(g, scores, target);
+  }
 }
+
 template <>
 double IndependentRandomSampler<double>::normalizationFactor(
     const CSRGraph &g, const StaticArray<double> &scores, EdgeID target
@@ -86,7 +102,7 @@ double IndependentRandomSampler<Score>::approxNormalizationFactor(
 
 template <>
 double IndependentRandomSampler<double>::approxNormalizationFactor(
-    const CSRGraph &g, const StaticArray<double> &scores, EdgeID target
+    const CSRGraph & /* g */, const StaticArray<double> & /* scores */, EdgeID /* target */
 ) {
   throw std::logic_error(
       "no implementation for of approxNormalizationFactor exists for Score=double."
@@ -131,4 +147,5 @@ double IndependentRandomSampler<Score>::exactNormalizationFactor(
 
   return factor;
 }
+
 } // namespace kaminpar::shm::sparsification

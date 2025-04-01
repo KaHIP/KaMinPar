@@ -1,20 +1,44 @@
-#include <gmock/internal/gmock-internal-utils.h>
+#include <vector>
+
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include "kaminpar-shm/coarsening/sparsification/sparsification_utils.h"
+
+#include "kaminpar-common/datastructures/static_array.h"
+#include "kaminpar-common/random.h"
+
 namespace kaminpar::shm::testing {
+
 TEST(SparsificationUtils, QselectStupidTests) {
-  std::vector<int> three_nums = {1, 2, 42};
+  StaticArray<int> three_nums(3);
+  three_nums[0] = 1;
+  three_nums[1] = 2;
+  three_nums[2] = 42;
+
   ASSERT_EQ(
       sparsification::utils::quickselect_k_smallest<int>(2, three_nums.begin(), three_nums.end())
           .value,
       2
   );
 }
+
 TEST(SparsificationUtils, QselctOnPermutation) {
-  std::vector<int> permutation_of_1_to_10 = {8, 1, 3, 5, 7, 9, 2, 10, 6, 4};
+  StaticArray<int> permutation_of_1_to_10(10);
+  permutation_of_1_to_10[0] = 8;
+  permutation_of_1_to_10[1] = 1;
+  permutation_of_1_to_10[2] = 3;
+  permutation_of_1_to_10[3] = 5;
+  permutation_of_1_to_10[4] = 7;
+  permutation_of_1_to_10[5] = 9;
+  permutation_of_1_to_10[6] = 2;
+  permutation_of_1_to_10[7] = 10;
+  permutation_of_1_to_10[8] = 6;
+  permutation_of_1_to_10[9] = 4;
+
   ASSERT_EQ(permutation_of_1_to_10.size(), 10);
   ASSERT_EQ(std::distance(permutation_of_1_to_10.begin(), permutation_of_1_to_10.end()), 10);
+
   for (size_t k = 1; k <= permutation_of_1_to_10.size(); k++) {
     ASSERT_EQ(
         kaminpar::shm::sparsification::utils::quickselect_k_smallest<int>(
@@ -40,7 +64,7 @@ TEST(SparsificationUtils, QselectOnRandomNumbers) {
     }
     std::sort(sorted_numbers.begin(), sorted_numbers.end());
 
-    size_t number_of_ks =  42;
+    size_t number_of_ks = 42;
     std::vector<size_t> ks(number_of_ks);
     for (size_t i = 0; i != number_of_ks; i++)
       ks[i] = Random::instance().random_index(1, size + 1);
@@ -102,6 +126,7 @@ TEST(SparsificationUtils, Median) {
       (two_elements[0] + two_elements[1]) / 2
   );
 }
+
 TEST(SparsificationUtils, MedianOfMedians) {
   std::vector<int> numbers_with_mom_2 = {
       2,
@@ -123,4 +148,5 @@ TEST(SparsificationUtils, MedianOfMedians) {
       2
   );
 }
+
 } // namespace kaminpar::shm::testing

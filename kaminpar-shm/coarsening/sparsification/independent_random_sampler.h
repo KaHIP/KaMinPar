@@ -1,24 +1,22 @@
 #pragma once
-#include <ranges>
 
-#include "ScoreBacedSampler.h"
-#include "sparsification_utils.h"
-
-#include "kaminpar-common/parallel/algorithm.h"
-#include "kaminpar-common/random.h"
+#include "kaminpar-shm/coarsening/sparsification/score_based_sampler.h"
 
 namespace kaminpar::shm::sparsification {
-template <typename Score> class IndependentRandomSampler : public ScoreBacedSampler<Score> {
+
+template <typename Score> class IndependentRandomSampler : public ScoreBasedSampler<Score> {
 public:
   IndependentRandomSampler(
-      std::unique_ptr<ScoreFunction<Score>> scoreFunction, bool noApprox = false
+      std::unique_ptr<ScoreFunction<Score>> score_function, const bool no_approx = false
   )
-      : ScoreBacedSampler<Score>(std::move(scoreFunction)),
-        _noApprox(noApprox) {}
+      : ScoreBasedSampler<Score>(std::move(score_function)),
+        _no_approx(no_approx) {}
 
   double normalizationFactor(const CSRGraph &g, const StaticArray<Score> &scores, EdgeID target);
+
   double
   exactNormalizationFactor(const CSRGraph &g, const StaticArray<Score> &scores, EdgeID target);
+
   double
   approxNormalizationFactor(const CSRGraph &g, const StaticArray<Score> &scores, EdgeID target);
 
@@ -29,10 +27,11 @@ public:
   }
 
 private:
-  bool _noApprox;
+  bool _no_approx;
 };
 
 template class IndependentRandomSampler<EdgeWeight>;
 template class IndependentRandomSampler<EdgeID>;
 template class IndependentRandomSampler<double>;
+
 } // namespace kaminpar::shm::sparsification

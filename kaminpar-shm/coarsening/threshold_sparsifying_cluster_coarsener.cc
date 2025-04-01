@@ -20,6 +20,7 @@
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/timer.h"
+#include "kaminpar-common/random.h"
 
 namespace kaminpar::shm {
 

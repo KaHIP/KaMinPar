@@ -1,13 +1,17 @@
 // A random distribution over {0, ..., n-1} with probailies propotional to given values
 // Implemented using the alias Method
+#pragma once
 
+#include <vector>
 
 #include "kaminpar-common/random.h"
+
 namespace kaminpar::shm::sparsification {
+
 class IndexDistributionWithReplacement {
 public:
   template <class Iterator> IndexDistributionWithReplacement(Iterator begin, Iterator end) {
-    size_t size = end - begin;
+    std::size_t size = end - begin;
     _probabilities.resize(size);
     _aliases.resize(size);
     double sum = 0;
@@ -16,8 +20,8 @@ public:
       _probabilities[current - begin] = *current;
     }
 
-    std::vector<size_t> too_small, too_large;
-    for (size_t i = 0; i != _probabilities.size(); i++) {
+    std::vector<std::size_t> too_small, too_large;
+    for (std::size_t i = 0; i != _probabilities.size(); i++) {
       _probabilities[i] *= size / sum;
       if (_probabilities[i] < 1)
         too_small.push_back(i);
@@ -39,17 +43,17 @@ public:
         too_small.push_back(large);
       if (_probabilities[large] > 1)
         too_large.push_back(large);
-
     }
   }
 
-  size_t operator()() {
-    size_t i = Random::instance().random_index(0, _probabilities.size());
+  std::size_t operator()() {
+    std::size_t i = Random::instance().random_index(0, _probabilities.size());
     return Random::instance().random_bool(_probabilities[i]) ? i : _aliases[i];
   }
 
 private:
   std::vector<double> _probabilities;
-  std::vector<size_t> _aliases;
+  std::vector<std::size_t> _aliases;
 };
+
 } // namespace kaminpar::shm::sparsification

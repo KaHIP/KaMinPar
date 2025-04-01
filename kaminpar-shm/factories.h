@@ -8,11 +8,9 @@
  ******************************************************************************/
 #pragma once
 
-#include "coarsening/sparsification/Sampler.h"
-#include "coarsening/sparsification/ScoreBacedSampler.h"
-
 #include "kaminpar-shm/coarsening/clusterer.h"
 #include "kaminpar-shm/coarsening/coarsener.h"
+#include "kaminpar-shm/coarsening/sparsification/sampler.h"
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/partitioning/partitioner.h"

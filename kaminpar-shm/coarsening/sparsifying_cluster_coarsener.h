@@ -7,24 +7,16 @@
  ******************************************************************************/
 #pragma once
 
-#include <algorithm>
-
-#include "sparsification/Sampler.h"
-
 #include "kaminpar-shm/coarsening/clusterer.h"
 #include "kaminpar-shm/coarsening/coarsener.h"
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"
-#include "kaminpar-shm/coarsening/max_cluster_weights.h"
+#include "kaminpar-shm/coarsening/sparsification/sampler.h"
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
-#include "kaminpar-shm/factories.h"
 #include "kaminpar-shm/kaminpar.h"
 
-#include "kaminpar-common/assert.h"
-#include "kaminpar-common/heap_profiler.h"
-#include "kaminpar-common/timer.h"
-
 namespace kaminpar::shm {
+
 class SparsifyingClusteringCoarsener : public Coarsener {
 public:
   SparsifyingClusteringCoarsener(const Context &ctx, const PartitionContext &p_ctx);
@@ -58,6 +50,9 @@ private:
 
   [[nodiscard]] bool keep_allocated_memory() const;
 
+  std::unique_ptr<Clusterer> _clustering_algorithm;
+  std::unique_ptr<sparsification::Sampler> _sampling_algorithm;
+
   const Context _ctx;
   const CoarseningContext &_c_ctx;
   const PartitionContext &_p_ctx;
@@ -66,9 +61,7 @@ private:
   const Graph *_input_graph;
   std::vector<std::unique_ptr<CoarseGraph>> _hierarchy;
 
-  std::unique_ptr<Clusterer> _clustering_algorithm;
-  std::unique_ptr<sparsification::Sampler> _sampling_algorithm;
-
   contraction::MemoryContext _contraction_m_ctx{};
 };
+
 } // namespace kaminpar::shm

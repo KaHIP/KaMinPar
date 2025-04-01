@@ -14,8 +14,6 @@
 #include "kaminpar-common/inline.h"
 #include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/parallel/loops.h"
-#include "kaminpar-common/random.h"
-#include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::sparsification::utils {
 
@@ -49,8 +47,8 @@ inline void parallel_for_downward_edges(const CSRGraph &g, Lambda function) {
 }
 
 template <typename T, typename Iterator>
-T sortselect_k_smallest(size_t k, Iterator begin, Iterator end) {
-  size_t size = std::distance(begin, end);
+T sortselect_k_smallest(const std::size_t k, Iterator begin, Iterator end) {
+  std::size_t size = std::distance(begin, end);
   std::vector<T> sorted(size);
   for (size_t i = 0; i < size; i++) {
     sorted[i] = begin[i];

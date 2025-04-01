@@ -1,13 +1,11 @@
-#include "WeightedForestFireScore.h"
+#include "kaminpar-shm/coarsening/sparsification/weighted_forest_fire_score.h"
 
-#include <functional>
+#include <cmath>
+#include <iomanip>
 #include <queue>
-#include <set>
+#include <unordered_set>
 
-#include <oneapi/tbb/concurrent_vector.h>
-
-#include "DistributionDecorator.h"
-#include "sparsification_utils.h"
+#include <tbb/concurrent_vector.h>
 
 #include "kaminpar-common/random.h"
 
