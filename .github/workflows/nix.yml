@@ -37,4 +37,5 @@ jobs:
         run: nix build --print-build-logs .#kaminpar-python
 
       - name: Build NetworKit bindings for KaMinPar
+        if: ${{ matrix.platform[0] != 'aarch64-darwin' }}
         run: nix build --print-build-logs .#kaminpar-networkit

@@ -10,21 +10,6 @@
     let
       pkgs = import nixpkgs { inherit system; };
 
-      kaminparInputs = builtins.attrValues {
-        inherit (pkgs) cmake ninja python3 tbb_2022_0 sparsehash numactl pkg-config;
-        inherit mt-kahypar;
-      };
-
-      dkaminparInputs = builtins.attrValues {
-        inherit (pkgs) mpi;
-        inherit (pkgs.llvmPackages_20) openmp;
-      };
-
-      devShellInputs = builtins.attrValues {
-        inherit (pkgs) ccache mold-wrapped gdb act dpkg rpm;
-        inherit (pkgs.python3Packages) build pybind11 ruff mypy;
-      };
-
       kaminpar =
         let
           google-test-src = pkgs.fetchFromGitHub {
@@ -39,9 +24,10 @@
           version = "3.4.1";
 
           src = self;
+          strictDeps = true;
 
           doCheck = true;
-          strictDeps = true;
+          enableParallelChecking = false;
 
           nativeBuildInputs = builtins.attrValues {
             inherit (pkgs) git pkg-config cmake mpi;
@@ -54,6 +40,9 @@
 
           buildInputs = pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.numactl;
 
+          __darwinAllowLocalNetworking = true;
+          nativeCheckInputs = [ pkgs.mpiCheckPhaseHook ];
+
           cmakeFlags = [
             "-DKAMINPAR_BUILD_DISTRIBUTED=On"
             "-DKAMINPAR_BUILD_WITH_MTKAHYPAR=On"
@@ -65,7 +54,7 @@
           ];
 
           meta = {
-            description = "Shared-memory and distributed-memory parallel graph partitioner";
+            description = "Parallel heuristic solver for the balanced k-way graph partitioning problem";
             homepage = "https://github.com/KaHIP/KaMinPar";
             changelog = "https://github.com/KaHIP/KaMinPar/releases/tag/v${finalAttrs.version}";
             license = pkgs.lib.licenses.mit;
@@ -110,7 +99,15 @@
           };
 
           nativeBuildInputs = builtins.attrValues {
-            inherit (pkgs) cmake ninja python3 boost tbb_2022_0 hwloc;
+            inherit (pkgs) cmake ninja;
+          };
+
+          propagatedBuildInputs = builtins.attrValues {
+            inherit (pkgs) tbb_2022_0;
+          };
+
+          buildInputs = builtins.attrValues {
+            inherit (pkgs) boost hwloc;
           };
 
           preConfigure = ''
@@ -137,9 +134,12 @@
           ];
 
           meta = {
-            description = "A shared-memory multilevel graph and hypergraph partitioner.";
+            description = "Shared-memory multilevel graph and hypergraph partitioner";
             homepage = "https://github.com/kahypar/mt-kahypar";
             license = pkgs.lib.licenses.mit;
+            sourceProvenance = [ pkgs.lib.sourceTypes.fromSource ];
+            platforms = pkgs.lib.platforms.linux ++ [ "aarch64-darwin" ];
+            mainProgram = "mt-kahypar";
           };
         };
 
@@ -173,10 +173,14 @@
         };
 
         nativeBuildInputs = builtins.attrValues {
-          inherit (pkgs) cmake ninja;
+          inherit (pkgs) git pkg-config cmake ninja;
         };
 
-        dependencies = kaminparInputs;
+        buildInputs = [ pkgs.tbb_2022_0 ] ++ pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.numactl;
+
+        preBuild = pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isDarwin ''
+          export CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_CXX_COMPILER_AR=$AR -DCMAKE_CXX_COMPILER_RANLIB=$RANLIB"
+        '';
 
         dontUseCmakeConfigure = true;
         CMAKE_ARGS = [
@@ -208,10 +212,16 @@
         };
 
         nativeBuildInputs = builtins.attrValues {
-          inherit (pkgs) cmake ninja;
+          inherit (pkgs) git pkg-config cmake ninja;
         };
 
-        dependencies = kaminparInputs ++ [ networkit-python ];
+        buildInputs = [ pkgs.tbb_2022_0 pkgs.sparsehash ] ++ pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.numactl;
+
+        dependencies = [ networkit-python ];
+
+        preBuild = pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isDarwin ''
+          export CMAKE_ARGS="-DCMAKE_CXX_COMPILER_AR=$AR -DCMAKE_CXX_COMPILER_RANLIB=$RANLIB"
+        '';
 
         dontUseCmakeConfigure = true;
         CMAKE_ARGS = [
@@ -225,7 +235,7 @@
           homepage = "https://github.com/KaHIP/KaMinPar";
           license = pkgs.lib.licenses.mit;
           sourceProvenance = [ pkgs.lib.sourceTypes.fromSource ];
-          platforms = pkgs.lib.platforms.linux ++ [ "aarch64-darwin" ];
+          platforms = pkgs.lib.platforms.linux;
           mainProgram = "KaMinPar";
         };
       };
@@ -261,6 +271,8 @@
           description = "Toolbox for high-performance network analysis";
           homepage = "https://networkit.github.io";
           license = pkgs.lib.licenses.mit;
+          sourceProvenance = [ pkgs.lib.sourceTypes.fromSource ];
+          platforms = pkgs.lib.platforms.linux;
         };
       };
 
@@ -290,7 +302,15 @@
     {
       devShells = {
         default = pkgs.mkShell {
-          packages = kaminparInputs ++ dkaminparInputs ++ devShellInputs;
+          packages = builtins.attrValues {
+            # (d)KaMinPar inputs
+            inherit (pkgs) git pkg-config cmake tbb_2022_0 sparsehash numactl mpi;
+            inherit mt-kahypar;
+
+            # Development inputs
+            inherit (pkgs) ccache ninja mold-wrapped gdb dpkg rpm;
+            inherit (pkgs.python3Packages) build pybind11 ruff mypy;
+          };
         };
 
         python = pkgs.mkShell {
