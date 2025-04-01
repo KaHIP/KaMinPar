@@ -79,14 +79,14 @@ bool MtKaHyParRefiner::refine(
   const mt_kahypar_hyperedge_id_t num_edges = p_graph.m() / 2; // Only need one direction
 
   StaticArray<EdgeID> node_offsets(num_vertices + 1, static_array::noinit);
-  p_graph.reified([&](const auto &graph) {
+  reified(p_graph, [&](const auto &graph) {
     graph.pfor_nodes([&](const NodeID u) { node_offsets[u + 1] = graph.degree(u); });
   });
   node_offsets[0] = 0;
   parallel::prefix_sum(node_offsets.begin(), node_offsets.end(), node_offsets.begin());
 
   StaticArray<EdgeID> edge_position(2 * num_edges, static_array::noinit);
-  p_graph.reified([&](const auto &graph) {
+  reified(p_graph, [&](const auto &graph) {
     graph.pfor_nodes([&](const NodeID u) {
       EdgeID e = node_offsets[u];
       graph.adjacent_nodes(u, [&](const NodeID v) { edge_position[e++] = u < v; });
@@ -98,7 +98,7 @@ bool MtKaHyParRefiner::refine(
   StaticArray<mt_kahypar_hypernode_weight_t> edge_weights(num_edges, static_array::noinit);
   StaticArray<mt_kahypar_hypernode_weight_t> vertex_weights(num_vertices, static_array::noinit);
 
-  p_graph.reified([&](const auto &graph) {
+  reified(p_graph, [&](const auto &graph) {
     graph.pfor_nodes([&](const NodeID u) {
       vertex_weights[u] = static_cast<mt_kahypar_hypernode_weight_t>(graph.node_weight(u));
 
@@ -135,7 +135,9 @@ bool MtKaHyParRefiner::refine(
       << " imbalance=" << metrics::imbalance(p_graph);
 
   StaticArray<mt_kahypar_partition_id_t> partition(num_vertices, static_array::noinit);
-  p_graph.pfor_nodes([&](const NodeID u) { partition[u] = p_graph.block(u); });
+  reified(p_graph, [&](const auto &graph) {
+    graph.pfor_nodes([&](const NodeID u) { partition[u] = p_graph.block(u); });
+  });
 
   mt_kahypar_partitioned_hypergraph_t mt_kahypar_partitioned_graph =
       mt_kahypar_create_partitioned_hypergraph(
@@ -152,7 +154,9 @@ bool MtKaHyParRefiner::refine(
   // Copy partition back to our graph
   StaticArray<mt_kahypar_partition_id_t> improved_partition(num_vertices, static_array::noinit);
   mt_kahypar_get_partition(mt_kahypar_partitioned_graph, improved_partition.data());
-  p_graph.pfor_nodes([&](const NodeID u) { p_graph.set_block(u, improved_partition[u]); });
+  reified(p_graph, [&](const auto &graph) {
+    graph.pfor_nodes([&](const NodeID u) { p_graph.set_block(u, improved_partition[u]); });
+  });
 
   DBG << "Partition metrics after Mt-KaHyPar refinement: cut=" << metrics::edge_cut(p_graph)
       << " imbalance=" << metrics::imbalance(p_graph);
