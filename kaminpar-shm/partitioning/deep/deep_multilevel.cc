@@ -167,12 +167,12 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
 NodeID DeepMultilevelPartitioner::initial_partitioning_threshold() {
   const auto mode = _input_ctx.partitioning.deep_initial_partitioning_mode;
   const bool is_parallel_mode =
-      (mode == InitialPartitioningMode::SYNCHRONOUS_PARALLEL ||
-       mode == InitialPartitioningMode::ASYNCHRONOUS_PARALLEL);
+      (mode == DeepInitialPartitioningMode::SYNCHRONOUS_PARALLEL ||
+       mode == DeepInitialPartitioningMode::ASYNCHRONOUS_PARALLEL);
 
   if (is_parallel_mode) { // Parallel: copy for each thread once n <= p * C
     return _input_ctx.parallel.num_threads * _input_ctx.coarsening.contraction_limit;
-  } else if (mode == InitialPartitioningMode::COMMUNITIES) {
+  } else if (mode == DeepInitialPartitioningMode::COMMUNITIES) {
     return _input_ctx.coarsening.contraction_limit * _community_p_ctx.k;
   } else { // Sequential: coarsen until until n <= 2 * C
     return 2 * _input_ctx.coarsening.contraction_limit;
@@ -210,18 +210,18 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
   DISABLE_TIMERS();
   PartitionedGraph p_graph = [&] {
     switch (_input_ctx.partitioning.deep_initial_partitioning_mode) {
-    case InitialPartitioningMode::SEQUENTIAL:
+    case DeepInitialPartitioningMode::SEQUENTIAL:
       return _bipartitioner_pool.bipartition(graph, 0, 1, true);
 
-    case InitialPartitioningMode::SYNCHRONOUS_PARALLEL:
+    case DeepInitialPartitioningMode::SYNCHRONOUS_PARALLEL:
       return SyncInitialPartitioner(_input_ctx, _bipartitioner_pool, _tmp_extraction_mem_pool_ets)
           .partition(_coarsener.get(), _current_p_ctx);
 
-    case InitialPartitioningMode::ASYNCHRONOUS_PARALLEL:
+    case DeepInitialPartitioningMode::ASYNCHRONOUS_PARALLEL:
       return AsyncInitialPartitioner(_input_ctx, _bipartitioner_pool, _tmp_extraction_mem_pool_ets)
           .partition(_coarsener.get(), _current_p_ctx);
 
-    case InitialPartitioningMode::COMMUNITIES:
+    case DeepInitialPartitioningMode::COMMUNITIES:
       return initial_partition_by_communities(graph);
     }
 
@@ -230,7 +230,7 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
   ENABLE_TIMERS();
 
   if (_input_ctx.partitioning.deep_initial_partitioning_mode ==
-      InitialPartitioningMode::COMMUNITIES) {
+      DeepInitialPartitioningMode::COMMUNITIES) {
     _current_p_ctx = _community_p_ctx;
   } else {
     _current_p_ctx = create_kway_context(_input_ctx, p_graph);
@@ -371,7 +371,7 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
   // -- something on which the other extend_* functions rely. In this case, first "complete" the
   // current level of the recursion tree to obtain a power-of-two block count.
   if (_input_ctx.partitioning.deep_initial_partitioning_mode ==
-      InitialPartitioningMode::COMMUNITIES) {
+      DeepInitialPartitioningMode::COMMUNITIES) {
     [[maybe_unused]] const BlockID extended_from = p_graph.k();
     partitioning::complete_partial_extend_partition(
         p_graph,

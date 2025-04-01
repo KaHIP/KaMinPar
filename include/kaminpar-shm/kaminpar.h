@@ -302,7 +302,7 @@ struct RefinementContext {
 // Initial Partitioning
 //
 
-enum class InitialPartitioningMode {
+enum class DeepInitialPartitioningMode {
   SEQUENTIAL,
   ASYNCHRONOUS_PARALLEL,
   SYNCHRONOUS_PARALLEL,
@@ -475,10 +475,16 @@ enum class PartitioningMode {
   KWAY,
 };
 
+enum class KwayInitialPartitioningMode {
+  SEQUENTIAL,
+  PARALLEL,
+  LEGACY
+};
+
 struct PartitioningContext {
   PartitioningMode mode;
 
-  InitialPartitioningMode deep_initial_partitioning_mode;
+  DeepInitialPartitioningMode deep_initial_partitioning_mode;
   double deep_initial_partitioning_load;
   int min_consecutive_seq_bipartitioning_levels;
   bool refine_after_extending_partition;
@@ -491,7 +497,7 @@ struct PartitioningContext {
   bool rb_enable_kway_toplevel_refinement;
   int rb_switch_to_seq_factor;
 
-  bool kway_parallel_rb;
+  KwayInitialPartitioningMode kway_initial_partitioning_mode;
 };
 
 struct GraphCompressionContext {
