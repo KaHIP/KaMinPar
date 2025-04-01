@@ -220,25 +220,46 @@ std::ostream &operator<<(std::ostream &out, const PartitioningMode mode) {
   return out << "<invalid>";
 }
 
-std::unordered_map<std::string, InitialPartitioningMode> get_initial_partitioning_modes() {
+std::unordered_map<std::string, DeepInitialPartitioningMode> get_deep_initial_partitioning_modes() {
   return {
-      {"sequential", InitialPartitioningMode::SEQUENTIAL},
-      {"async-parallel", InitialPartitioningMode::ASYNCHRONOUS_PARALLEL},
-      {"sync-parallel", InitialPartitioningMode::SYNCHRONOUS_PARALLEL},
-      {"communities", InitialPartitioningMode::COMMUNITIES},
+      {"sequential", DeepInitialPartitioningMode::SEQUENTIAL},
+      {"async-parallel", DeepInitialPartitioningMode::ASYNCHRONOUS_PARALLEL},
+      {"sync-parallel", DeepInitialPartitioningMode::SYNCHRONOUS_PARALLEL},
+      {"communities", DeepInitialPartitioningMode::COMMUNITIES},
   };
 }
 
-std::ostream &operator<<(std::ostream &out, const InitialPartitioningMode mode) {
+std::ostream &operator<<(std::ostream &out, const DeepInitialPartitioningMode mode) {
   switch (mode) {
-  case InitialPartitioningMode::SEQUENTIAL:
+  case DeepInitialPartitioningMode::SEQUENTIAL:
     return out << "sequential";
-  case InitialPartitioningMode::ASYNCHRONOUS_PARALLEL:
+  case DeepInitialPartitioningMode::ASYNCHRONOUS_PARALLEL:
     return out << "async-parallel";
-  case InitialPartitioningMode::SYNCHRONOUS_PARALLEL:
+  case DeepInitialPartitioningMode::SYNCHRONOUS_PARALLEL:
     return out << "sync-parallel";
-  case InitialPartitioningMode::COMMUNITIES:
+  case DeepInitialPartitioningMode::COMMUNITIES:
     return out << "communities";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, KwayInitialPartitioningMode> get_kway_initial_partitioning_modes() {
+  return {
+      {"sequential", KwayInitialPartitioningMode::SEQUENTIAL},
+      {"parallel", KwayInitialPartitioningMode::PARALLEL},
+      {"legacy", KwayInitialPartitioningMode::LEGACY},
+  };
+}
+
+std::ostream &operator<<(std::ostream &out, const KwayInitialPartitioningMode mode) {
+  switch (mode) {
+  case KwayInitialPartitioningMode::SEQUENTIAL:
+    return out << "sequential";
+  case KwayInitialPartitioningMode::PARALLEL:
+    return out << "parallel";
+  case KwayInitialPartitioningMode::LEGACY:
+    return out << "legacy";
   }
 
   return out << "<invalid>";
@@ -548,8 +569,7 @@ void print(const PartitioningContext &p_ctx, std::ostream &out) {
     out << "  Deep initial part. mode:    " << p_ctx.deep_initial_partitioning_mode << "\n";
     out << "  Deep initial part. load:    " << p_ctx.deep_initial_partitioning_load << "\n";
   } else if (p_ctx.mode == PartitioningMode::KWAY) {
-    out << "  Initial partitioning mode:  "
-        << (p_ctx.kway_parallel_rb ? "parallel [1 x P]" : "sequential [P x 1]") << "\n";
+    out << "  Initial partitioning mode:  " << p_ctx.kway_initial_partitioning_mode << "\n";
   } else if (p_ctx.mode == PartitioningMode::RB) {
     out << "  Use flat k-way refinement:  "
         << (p_ctx.rb_enable_kway_toplevel_refinement ? "yes" : "no") << "\n";

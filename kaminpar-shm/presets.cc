@@ -102,7 +102,7 @@ Context create_default_context() {
       .partitioning =
           {
               .mode = PartitioningMode::DEEP,
-              .deep_initial_partitioning_mode = InitialPartitioningMode::ASYNCHRONOUS_PARALLEL,
+              .deep_initial_partitioning_mode = DeepInitialPartitioningMode::ASYNCHRONOUS_PARALLEL,
               .deep_initial_partitioning_load = 1.0,
               .min_consecutive_seq_bipartitioning_levels = 1,
               .refine_after_extending_partition = false,
@@ -111,7 +111,7 @@ Context create_default_context() {
               .restrict_vcycle_refinement = false,
               .rb_enable_kway_toplevel_refinement = false,
               .rb_switch_to_seq_factor = 1,
-              .kway_parallel_rb = false,
+              .kway_initial_partitioning_mode = KwayInitialPartitioningMode::PARALLEL,
           },
       .partition = {},
       .coarsening =
@@ -379,7 +379,7 @@ namespace {
 
 inline Context terapartify_context(Context ctx) {
   ctx.compression.enabled = true;
-  ctx.partitioning.deep_initial_partitioning_mode = InitialPartitioningMode::SEQUENTIAL;
+  ctx.partitioning.deep_initial_partitioning_mode = DeepInitialPartitioningMode::SEQUENTIAL;
   return ctx;
 }
 

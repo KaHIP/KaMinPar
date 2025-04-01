@@ -110,9 +110,9 @@ PartitionedGraph VcycleDeepMultilevelPartitioner::partition() {
 
     if (communities.empty()) {
       ctx.partitioning.deep_initial_partitioning_mode =
-          InitialPartitioningMode::ASYNCHRONOUS_PARALLEL;
+          DeepInitialPartitioningMode::ASYNCHRONOUS_PARALLEL;
     } else {
-      ctx.partitioning.deep_initial_partitioning_mode = InitialPartitioningMode::COMMUNITIES;
+      ctx.partitioning.deep_initial_partitioning_mode = DeepInitialPartitioningMode::COMMUNITIES;
     }
 
     DeepMultilevelPartitioner partitioner(_input_graph, ctx);
