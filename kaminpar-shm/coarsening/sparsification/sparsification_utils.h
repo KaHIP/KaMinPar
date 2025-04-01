@@ -27,9 +27,7 @@ template <typename Lambda>
 inline void parallel_for_edges_with_endpoints(const CSRGraph &g, Lambda function) {
   g.pfor_nodes([&](NodeID u) {
     // TODO: make parallel again
-    g.neighbors(u,  [&](EdgeID e, NodeID v, EdgeWeight e_weight) {
-      function(e, u, v);
-    });
+    g.neighbors(u, [&](EdgeID e, NodeID v, EdgeWeight e_weight) { function(e, u, v); });
   });
 }
 template <typename Lambda>
@@ -47,7 +45,6 @@ inline void parallel_for_downward_edges(const CSRGraph &g, Lambda function) {
   });
 }
 
-
 template <typename T, typename Iterator>
 T sortselect_k_smallest(size_t k, Iterator begin, Iterator end) {
   size_t size = std::distance(begin, end);
@@ -59,15 +56,15 @@ T sortselect_k_smallest(size_t k, Iterator begin, Iterator end) {
   return sorted[k - 1];
 }
 
-
-template <typename T>
-struct K_SmallestInfo {
+template <typename T> struct K_SmallestInfo {
   T value;
   size_t number_of_elements_smaller;
-  size_t number_of_elemtns_equal;
+  size_t number_of_elements_equal;
 };
 template <typename T, typename Iterator>
-K_SmallestInfo<T> quickselect_k_smallest(size_t k, Iterator begin, Iterator end) ;
+K_SmallestInfo<T> quickselect_k_smallest(
+    size_t k, Iterator begin, Iterator end, size_t number_of_smaller_elements_outside_partition = 0
+);
 
 template <typename T, typename Iterator> T median(Iterator begin, Iterator end) {
   size_t size = std::distance(begin, end);
@@ -95,16 +92,20 @@ template <typename T, typename Iterator> T median_of_medians(Iterator begin, Ite
   });
 
   return quickselect_k_smallest<T, typename StaticArray<T>::iterator>(
-      (number_of_sections + 1) / 2, medians.begin(), medians.end()
-  ).value;
+             (number_of_sections + 1) / 2, medians.begin(), medians.end()
+  )
+      .value;
 }
 
 template <typename T, typename Iterator>
-K_SmallestInfo<T> quickselect_k_smallest(size_t k, Iterator begin, Iterator end) {
+K_SmallestInfo<T> quickselect_k_smallest(
+    size_t k, Iterator begin, Iterator end, size_t number_of_smaller_elements_outside_partition
+) {
   size_t size = std::distance(begin, end);
   if (size <= 20) {
     T k_smallest = sortselect_k_smallest<T, Iterator>(k, begin, end);
-    size_t number_equal = 0; size_t number_less;
+    size_t number_equal = 0;
+    size_t number_less = 0;
     for (auto x = begin; x != end; x++) {
       if (*x == k_smallest)
         number_equal++;
@@ -112,9 +113,9 @@ K_SmallestInfo<T> quickselect_k_smallest(size_t k, Iterator begin, Iterator end)
         number_less++;
       }
     }
-    return {k_smallest, number_less, number_equal};
+    return {k_smallest, number_less + number_of_smaller_elements_outside_partition, number_equal};
   }
-  T pivot = median_of_medians<T,Iterator>(begin,end);
+  T pivot = median_of_medians<T, Iterator>(begin, end);
 
   StaticArray<size_t> less(size);
   StaticArray<size_t> greater(size);
@@ -139,7 +140,7 @@ K_SmallestInfo<T> quickselect_k_smallest(size_t k, Iterator begin, Iterator end)
 
   if (k <= number_less) {
     parallel::prefix_sum(less.begin(), less.end(), less.begin());
-    KASSERT(less[size-1] == number_less, "prefix sum does not work", assert::always);
+    KASSERT(less[size - 1] == number_less, "prefix sum does not work", assert::always);
 
     StaticArray<T> elements_less(number_less);
     tbb::parallel_for(0ul, size, [&](auto i) {
@@ -148,10 +149,16 @@ K_SmallestInfo<T> quickselect_k_smallest(size_t k, Iterator begin, Iterator end)
       }
     });
 
-    return quickselect_k_smallest<T>(k, elements_less.begin(), elements_less.end());
+    return quickselect_k_smallest<T>(
+        k, elements_less.begin(), elements_less.end(), number_of_smaller_elements_outside_partition
+    );
   } else if (k > number_less + number_equal) {
     parallel::prefix_sum(greater.begin(), greater.end(), greater.begin());
-    KASSERT(greater[size - 1] == size-number_equal-number_less, "prefix sum does not work", assert::always);
+    KASSERT(
+        greater[size - 1] == size - number_equal - number_less,
+        "prefix sum does not work",
+        assert::always
+    );
 
     StaticArray<T> elements_greater(size - number_equal - number_less);
     tbb::parallel_for(0ul, size, [&](auto i) {
@@ -161,10 +168,13 @@ K_SmallestInfo<T> quickselect_k_smallest(size_t k, Iterator begin, Iterator end)
     });
 
     return quickselect_k_smallest<T>(
-        k - number_equal - number_less, elements_greater.begin(), elements_greater.end()
+        k - number_equal - number_less,
+        elements_greater.begin(),
+        elements_greater.end(),
+        number_of_smaller_elements_outside_partition + number_less + number_equal
     );
   } else {
-    return {pivot, number_less, number_equal};
+    return {pivot, number_less + number_of_smaller_elements_outside_partition, number_equal};
   }
 }
 

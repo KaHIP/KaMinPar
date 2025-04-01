@@ -6,7 +6,9 @@ namespace kaminpar::shm::testing {
 TEST(SparsificationUtils, QselectStupidTests) {
   std::vector<int> three_nums = {1, 2, 42};
   ASSERT_EQ(
-      sparsification::utils::quickselect_k_smallest<int>(2, three_nums.begin(), three_nums.end()), 2
+      sparsification::utils::quickselect_k_smallest<int>(2, three_nums.begin(), three_nums.end())
+          .value,
+      2
   );
 }
 TEST(SparsificationUtils, QselctOnPermutation) {
@@ -17,16 +19,18 @@ TEST(SparsificationUtils, QselctOnPermutation) {
     ASSERT_EQ(
         kaminpar::shm::sparsification::utils::quickselect_k_smallest<int>(
             k, permutation_of_1_to_10.begin(), permutation_of_1_to_10.end()
-        ),
+        )
+            .value,
         k
     );
   }
 }
 
 TEST(SparsificationUtils, QselectOnRandomNumbers) {
-  size_t times = 1 << 5;
+  size_t times = 1 << 4;
+  size_t size = 1 << 12;
+
   for (size_t i = 0; i < times; i++) {
-    size_t size = 1024;
     StaticArray<double> numbers(size);
     StaticArray<double> sorted_numbers(size);
     for (size_t i = 0; i != size; i++) {
@@ -36,15 +40,29 @@ TEST(SparsificationUtils, QselectOnRandomNumbers) {
     }
     std::sort(sorted_numbers.begin(), sorted_numbers.end());
 
-    size_t number_of_ks = 42;
+    size_t number_of_ks =  42;
     std::vector<size_t> ks(number_of_ks);
     for (size_t i = 0; i != number_of_ks; i++)
       ks[i] = Random::instance().random_index(1, size + 1);
     for (size_t k : ks) {
-      ASSERT_EQ(
-          sparsification::utils::quickselect_k_smallest<double>(k, numbers.begin(), numbers.end()),
-          sorted_numbers[k - 1]
-      );
+      auto info =
+          sparsification::utils::quickselect_k_smallest<double>(k, numbers.begin(), numbers.end());
+
+      size_t number_eq = 0;
+      size_t number_lt = 0;
+      size_t number_gt = 0;
+      for (double x : sorted_numbers) {
+        if (x == info.value)
+          number_eq++;
+        else if (x < info.value)
+          number_lt++;
+        else
+          number_gt++;
+      }
+      ASSERT_LE(number_gt, size - k);
+      ASSERT_EQ(info.value, sorted_numbers[k - 1]);
+      ASSERT_EQ(info.number_of_elements_equal, number_eq);
+      ASSERT_EQ(info.number_of_elements_smaller, number_lt);
     }
   }
 }
@@ -52,12 +70,13 @@ TEST(SparsificationUtils, QselectOnRandomNumbers) {
 TEST(SparsificationUtils, QselectAllEqual) {
   size_t n = 1 << 20;
   StaticArray<int> numbers(n, 42);
-  ASSERT_EQ(
+  sparsification::utils::K_SmallestInfo<int> info =
       sparsification::utils::quickselect_k_smallest<int>(
           std::round(.23 * n), numbers.begin(), numbers.end()
-      ),
-      42
-  );
+      );
+  ASSERT_EQ(info.value, 42);
+  ASSERT_EQ(info.number_of_elements_equal, n);
+  ASSERT_EQ(info.number_of_elements_smaller, 0);
 }
 
 TEST(SparsificationUtils, Median) {

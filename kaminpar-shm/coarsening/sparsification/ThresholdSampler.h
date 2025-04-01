@@ -27,12 +27,15 @@ public:
       {
         SCOPED_TIMER("Find Threshold with qselect");
         threshold =
-            utils::quickselect_k_smallest<Score>(target_edge_amount, scores.begin(), scores.end());
+            utils::quickselect_k_smallest<Score>(g.m() - target_edge_amount + 1, scores.begin(), scores.end());
       }
+      EdgeID number_of_elements_larger = g.m() - threshold.number_of_elements_equal - threshold.number_of_elements_smaller;
+      KASSERT(number_of_elements_larger <= target_edge_amount, "quickselect failed", assert::always);
+      EdgeID number_of_equal_elements_to_include = target_edge_amount - number_of_elements_larger;
+      double inclusion_probability_if_equal = number_of_equal_elements_to_include / static_cast<double>(threshold.number_of_elements_equal);
 
-      double inclusion_probability_if_equal = (target_edge_amount - threshold.number_of_elements_smaller) / static_cast<double>(threshold.number_of_elemtns_equal);
       utils::parallel_for_upward_edges(g, [&](EdgeID e) {
-        if (scores[e] < threshold.value || (scores[e] == threshold.value && Random::instance().random_bool(inclusion_probability_if_equal))) {
+        if (scores[e] > threshold.value || (scores[e] == threshold.value && Random::instance().random_bool(inclusion_probability_if_equal))) {
           sample[e] = g.edge_weight(e);
         }
       });
