@@ -172,6 +172,12 @@ K_SmallestInfo<T> quickselect_k_smallest_iter(std::size_t k, Iterator begin, Ite
     const std::size_t number_equal = thread_specific_number_equal.combine(std::plus{});
     const std::size_t number_less = thread_specific_number_less.combine(std::plus{});
 
+    if constexpr (kUseBuffers) {
+      for (auto &buffer : thread_specific_buffers) {
+        buffer.clear();
+      }
+    }
+
     if (k <= number_less) {
       if constexpr (kUseBuffers) {
         parallel::deterministic_for<std::size_t>(
@@ -179,7 +185,6 @@ K_SmallestInfo<T> quickselect_k_smallest_iter(std::size_t k, Iterator begin, Ite
             size,
             [&](const std::size_t from, const std::size_t to, int) {
               auto &buffer = thread_specific_buffers.local();
-              buffer.clear();
 
               for (std::size_t i = from; i < to; ++i) {
                 if (begin[i] < pivot) {
@@ -232,7 +237,6 @@ K_SmallestInfo<T> quickselect_k_smallest_iter(std::size_t k, Iterator begin, Ite
             size,
             [&](const std::size_t from, const std::size_t to, int) {
               auto &buffer = thread_specific_buffers.local();
-              buffer.clear();
 
               for (std::size_t i = from; i < to; ++i) {
                 if (begin[i] > pivot) {
