@@ -145,7 +145,7 @@ bool ThresholdSparsifyingClusteringCoarsener::coarsen() {
 
         const utils::K_SmallestInfo<EdgeWeight> threshold = TIMED_SCOPE("Threshold selection") {
           return utils::quickselect_k_smallest<EdgeWeight>(
-              c_m - target_sparsified_m, edge_weights.begin(), edge_weights.end()
+              c_m - target_sparsified_m + 1, edge_weights.begin(), edge_weights.end()
           );
         };
 
@@ -153,10 +153,17 @@ bool ThresholdSparsifyingClusteringCoarsener::coarsen() {
         edge_weights.free();
 
         const EdgeWeight threshold_weight = threshold.value;
+        const EdgeID number_of_elements_larger =
+            c_m - threshold.number_of_elements_equal - threshold.number_of_elements_smaller;
+        KASSERT(
+            number_of_elements_larger <= target_sparsified_m, "quickselect failed", assert::always
+        );
+
+        const EdgeID number_of_equal_elements_to_include =
+            target_sparsified_m - number_of_elements_larger;
         const double threshold_probability =
-            (target_sparsified_m -
-             (c_m - threshold.number_of_elements_smaller - threshold.number_of_elemtns_equal)) /
-            static_cast<double>(threshold.number_of_elemtns_equal);
+            1.0 * number_of_equal_elements_to_include / threshold.number_of_elements_equal;
+
         DBG << "Threshold weight: " << threshold_weight;
         DBG << "Threshold probability: " << threshold_probability;
 
@@ -192,9 +199,11 @@ bool ThresholdSparsifyingClusteringCoarsener::coarsen() {
 
     const EdgeID sparsified_m = sparsified.m();
 
-    _hierarchy.push_back(std::make_unique<contraction::CoarseGraphImpl>(
-        Graph(std::make_unique<CSRGraph>(std::move(sparsified))), std::move(mapping)
-    ));
+    _hierarchy.push_back(
+        std::make_unique<contraction::CoarseGraphImpl>(
+            Graph(std::make_unique<CSRGraph>(std::move(sparsified))), std::move(mapping)
+        )
+    );
 
     LOG << "Sparsified from " << unsparsified_m << " to " << sparsified_m
         << " edges (target: " << target_sparsified_m << ")";
@@ -224,15 +233,18 @@ CSRGraph ThresholdSparsifyingClusteringCoarsener::sparsify_and_make_negative_edg
 
   const utils::K_SmallestInfo<EdgeWeight> threshold = TIMED_SCOPE("Threshold selection") {
     return utils::quickselect_k_smallest<EdgeWeight>(
-        csr.m() - target_m, csr.raw_edge_weights().begin(), csr.raw_edge_weights().end()
+        csr.m() - target_m + 1, csr.raw_edge_weights().begin(), csr.raw_edge_weights().end()
     );
   };
 
   TIMED_SCOPE("Edge selection") {
+    const EdgeID number_of_elements_larger =
+        csr.m() - threshold.number_of_elements_equal - threshold.number_of_elements_smaller;
+    KASSERT(number_of_elements_larger <= target_m, "quickselect failed", assert::always);
+
+    const EdgeID number_of_equal_elements_to_include = target_m - number_of_elements_larger;
     const double inclusion_probability_if_equal =
-        (target_m -
-         (csr.m() - threshold.number_of_elements_smaller - threshold.number_of_elemtns_equal)) /
-        static_cast<double>(threshold.number_of_elemtns_equal);
+        1.0 * number_of_equal_elements_to_include / threshold.number_of_elements_equal;
 
     DBG << "Threshold weight: " << threshold.value;
     DBG << "Threshold probability: " << inclusion_probability_if_equal;

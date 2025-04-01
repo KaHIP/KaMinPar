@@ -58,6 +58,8 @@ kaminpar_add_shm_test(test_shm_cluster_contraction shm/coarsening/cluster_contra
 # KaMinPar -> Coarsening
 kaminpar_add_shm_test(test_shm_sparsification_utils shm/coarsening/sparsification/sparsfication_utils_test.cc)
 kaminpar_add_shm_test(test_shm_sparsifing_cluster_coarsener shm/coarsening/sparsification/sparisfng_cluster_coarsener_test.cpp)
+kaminpar_add_shm_test(test_shm_independend_random_sampler shm/coarsening/sparsification/IndependentRandomSampler_test.cc)
+kaminpar_add_shm_test(test_shm_threshold_sampler shm/coarsening/sparsification/ThresholdSampler_test.cpp)
 
 # KaMinPar -> Data structures
 kaminpar_add_shm_test(test_shm_graph shm/datastructures/graph_test.cc)

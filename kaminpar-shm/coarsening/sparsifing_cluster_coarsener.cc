@@ -50,11 +50,11 @@ void SparsifyingClusteringCoarsener::initialize(const Graph *graph) {
  * @param sample for every edge 0, if it should be removed, its (new) weight otherwise
  * @param edges_kept how many edges are samples, i.e., how many entries in sample are not 0
  */
-CSRGraph SparsifyingClusteringCoarsener::sparsify(CSRGraph g) {
+CSRGraph SparsifyingClusteringCoarsener::sparsify(CSRGraph g, StaticArray<EdgeWeight> sample) {
   SCOPED_TIMER("Build Sparsifier");
   auto nodes = StaticArray<EdgeID>(g.n() + 1);
   sparsification::utils::parallel_for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
-    if (g.edge_weight(e) < 0) {
+    if (u < v && sample[e]) {
       __atomic_add_fetch(&nodes[u + 1], 1, __ATOMIC_RELAXED);
       __atomic_add_fetch(&nodes[v + 1], 1, __ATOMIC_RELAXED);
     }
@@ -66,7 +66,7 @@ CSRGraph SparsifyingClusteringCoarsener::sparsify(CSRGraph g) {
   auto edge_weights = StaticArray<EdgeWeight>(nodes[g.n()]);
 
   sparsification::utils::parallel_for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
-    if (g.edge_weight(e) < 0) {
+    if (u < v && sample[e]) {
       auto v_edges_added = __atomic_fetch_add(&edges_added[v], 1, __ATOMIC_RELAXED);
       auto u_edges_added = __atomic_fetch_add(&edges_added[u], 1, __ATOMIC_RELAXED);
       edges[nodes[v] + v_edges_added] = u;
@@ -163,16 +163,18 @@ bool SparsifyingClusteringCoarsener::coarsen() {
     KASSERT(csr != nullptr, "can only be used with a CSRGraph", assert::always);
 
     START_HEAP_PROFILER("Sampling");
-    _sampling_algorithm->sample2(*csr, target_edge_amount);
+    auto sample = _sampling_algorithm->sample(*csr, target_edge_amount);
     STOP_HEAP_PROFILER();
     START_HEAP_PROFILER("Sparsified Graph");
-    CSRGraph sparsified = sparsify(std::move(*csr));
+    CSRGraph sparsified = sparsify(std::move(*csr), std::move(sample));
     STOP_HEAP_PROFILER();
 
-    _hierarchy.push_back(std::make_unique<contraction::CoarseGraphImpl>(
-        Graph(std::make_unique<CSRGraph>(std::move(sparsified))),
-        std::move(dynamic_cast<contraction::CoarseGraphImpl *>(coarsened.get())->get_mapping())
-    ));
+    _hierarchy.push_back(
+        std::make_unique<contraction::CoarseGraphImpl>(
+            Graph(std::make_unique<CSRGraph>(std::move(sparsified))),
+            std::move(dynamic_cast<contraction::CoarseGraphImpl *>(coarsened.get())->get_mapping())
+        )
+    );
     printf(
         "Sparsifying from %d to %d edges (target: %d)\n",
         coarsened->get().m(),

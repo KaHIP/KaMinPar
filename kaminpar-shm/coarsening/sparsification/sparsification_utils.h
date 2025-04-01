@@ -30,7 +30,6 @@ void for_downward_edges(const CSRGraph &g, std::function<void(EdgeID)>);
 template <typename Lambda>
 inline void parallel_for_edges_with_endpoints(const CSRGraph &g, Lambda function) {
   g.pfor_nodes([&](NodeID u) {
-    // TODO: make parallel again
     g.neighbors(u, [&](EdgeID e, NodeID v, EdgeWeight) { function(e, u, v); });
   });
 }
@@ -62,11 +61,17 @@ T sortselect_k_smallest(size_t k, Iterator begin, Iterator end) {
 
 template <typename T> struct K_SmallestInfo {
   T value;
-  size_t number_of_elements_smaller;
-  size_t number_of_elemtns_equal;
+  std::size_t number_of_elements_smaller;
+  std::size_t number_of_elements_equal;
 };
+
 template <typename T, typename Iterator>
-K_SmallestInfo<T> quickselect_k_smallest(size_t k, Iterator begin, Iterator end);
+K_SmallestInfo<T> quickselect_k_smallest(
+    std::size_t k,
+    Iterator begin,
+    Iterator end,
+    std::size_t number_of_smaller_elements_outside_partition = 0
+);
 
 template <typename T, typename Iterator> T median(Iterator begin, Iterator end) {
   size_t size = std::distance(begin, end);
@@ -101,8 +106,12 @@ template <typename T, typename Iterator> T median_of_medians(Iterator begin, Ite
 constexpr static std::size_t QUICKSELECT_BASE_CASE_SIZE = 20;
 
 template <typename T, typename Iterator>
-KAMINPAR_INLINE K_SmallestInfo<T>
-quickselect_k_smallest_base(const std::size_t k, Iterator begin, Iterator end) {
+KAMINPAR_INLINE K_SmallestInfo<T> quickselect_k_smallest_base(
+    const std::size_t k,
+    Iterator begin,
+    Iterator end,
+    const std::size_t number_of_elements_outside_partition
+) {
   const T k_smallest = sortselect_k_smallest<T>(k, begin, end);
 
   std::size_t number_equal = 0;
@@ -115,11 +124,13 @@ quickselect_k_smallest_base(const std::size_t k, Iterator begin, Iterator end) {
     }
   }
 
-  return {k_smallest, number_less, number_equal};
+  return {k_smallest, number_less + number_of_elements_outside_partition, number_equal};
 }
 
 template <typename T, typename Iterator>
-K_SmallestInfo<T> quickselect_k_smallest_iter(std::size_t k, Iterator begin, Iterator end) {
+K_SmallestInfo<T> quickselect_k_smallest_iter(
+    std::size_t k, Iterator begin, Iterator end, std::size_t number_of_elements_outside_partition
+) {
   SCOPED_HEAP_PROFILER("Quickselect");
 
   constexpr static bool kUseBuffers = true;
@@ -288,92 +299,28 @@ K_SmallestInfo<T> quickselect_k_smallest_iter(std::size_t k, Iterator begin, Ite
       k -= number_equal + number_less;
       begin = current_elements.begin();
       end = current_elements.begin() + number_greater;
+      number_of_elements_outside_partition += number_less + number_equal;
     } else {
-      return {pivot, number_less, number_equal};
+      return {pivot, number_less + number_of_elements_outside_partition, number_equal};
     }
   }
 
-  return quickselect_k_smallest_base<T>(k, begin, end);
+  return quickselect_k_smallest_base<T>(k, begin, end, number_of_elements_outside_partition);
 }
 
 template <typename T, typename Iterator>
-K_SmallestInfo<T> quickselect_k_smallest_rec(const std::size_t k, Iterator begin, Iterator end) {
+K_SmallestInfo<T> quickselect_k_smallest(
+    const std::size_t k,
+    Iterator begin,
+    Iterator end,
+    const std::size_t number_of_elements_outside_partition
+) {
   const std::size_t size = std::distance(begin, end);
   if (size <= QUICKSELECT_BASE_CASE_SIZE) {
-    return quickselect_k_smallest_base<T>(k, begin, end);
+    return quickselect_k_smallest_base<T>(k, begin, end, number_of_elements_outside_partition);
   }
 
-  StaticArray<std::size_t> less(size);
-  StaticArray<std::size_t> greater(size);
-
-  const T pivot = median_of_medians<T>(begin, end);
-
-  tbb::enumerable_thread_specific<std::size_t> thread_specific_number_equal;
-  tbb::enumerable_thread_specific<std::size_t> thread_specific_number_less;
-
-  tbb::parallel_for(tbb::blocked_range<std::size_t>(0, size), [&](const auto &r) {
-    std::size_t &less_counter = thread_specific_number_less.local();
-    std::size_t &equal_counter = thread_specific_number_equal.local();
-
-    for (std::size_t i = r.begin(); i != r.end(); ++i) {
-      if (begin[i] < pivot) {
-        less[i] = 1;
-        ++less_counter;
-      } else if (begin[i] > pivot) {
-        greater[i] = 1;
-      } else {
-        ++equal_counter;
-      }
-    }
-  });
-
-  const std::size_t number_equal = thread_specific_number_equal.combine(std::plus{});
-  const std::size_t number_less = thread_specific_number_less.combine(std::plus{});
-
-  if (k <= number_less) {
-    parallel::prefix_sum(less.begin(), less.begin() + size, less.begin());
-    KASSERT(less[size - 1] == number_less, "prefix sum does not work", assert::always);
-
-    StaticArray<T> elements_less(number_less);
-    tbb::parallel_for<std::size_t>(0, size, [&](const std::size_t i) {
-      if (begin[i] < pivot) {
-        elements_less[less[i] - 1] = begin[i];
-      }
-    });
-
-    return quickselect_k_smallest_rec<T>(k, elements_less.begin(), elements_less.end());
-  } else if (k > number_less + number_equal) {
-    parallel::prefix_sum(greater.begin(), greater.begin() + size, greater.begin());
-    KASSERT(
-        greater[size - 1] == size - number_equal - number_less,
-        "prefix sum does not work",
-        assert::always
-    );
-
-    StaticArray<T> elements_greater(size - number_equal - number_less);
-    tbb::parallel_for<std::size_t>(0, size, [&](const std::size_t i) {
-      if (begin[i] > pivot) {
-        elements_greater[greater[i] - 1] = begin[i];
-      }
-    });
-
-    return quickselect_k_smallest_rec<T>(
-        k - number_equal - number_less, elements_greater.begin(), elements_greater.end()
-    );
-  } else {
-    return {pivot, number_less, number_equal};
-  }
-}
-
-template <typename T, typename Iterator>
-K_SmallestInfo<T> quickselect_k_smallest(const std::size_t k, Iterator begin, Iterator end) {
-  const std::size_t size = std::distance(begin, end);
-  if (size <= QUICKSELECT_BASE_CASE_SIZE) {
-    return quickselect_k_smallest_base<T>(k, begin, end);
-  }
-
-  // return quickselect_k_smallest_rec<T>(k, begin, end);
-  return quickselect_k_smallest_iter<T>(k, begin, end);
+  return quickselect_k_smallest_iter<T>(k, begin, end, number_of_elements_outside_partition);
 }
 
 } // namespace kaminpar::shm::sparsification::utils
