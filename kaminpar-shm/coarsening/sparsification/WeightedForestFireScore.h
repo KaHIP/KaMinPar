@@ -11,6 +11,8 @@ public:
         _targetBurnRatio(targetBurnRatio) {}
   StaticArray<EdgeID> scores(const CSRGraph &g) override;
 
+  static void make_scores_symetric(const CSRGraph &g, StaticArray<EdgeID> &scores);
+
 private:
   double _pf;
   double _targetBurnRatio;

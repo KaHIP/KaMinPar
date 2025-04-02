@@ -4,8 +4,6 @@
 #include <queue>
 #include <set>
 
-#include <oneapi/tbb/concurrent_vector.h>
-
 #include "DistributionDecorator.h"
 #include "sparsification_utils.h"
 
@@ -87,8 +85,59 @@ StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
 
   print_fire_statistics(g, edges_burnt, number_of_fires);
 
+  make_scores_symetric(g, burnt);
+
   // Not normalized unlike in the NetworKit implementation
   return burnt;
+}
+
+void WeightedForestFireScore::make_scores_symetric(const CSRGraph &g, StaticArray<EdgeID> &scores) {
+  const EdgeID average_edes_per_bucket = 100; // TODO what's a suitable constant?
+
+  // TODO use static arrays after figuring out how to initalize them when they are nested
+  std::vector<std::vector<std::vector<EdgeID>>> buckets(g.n());
+  std::vector<std::vector<EdgeID>> edges_done(g.n());
+  StaticArray<EdgeID> number_of_buckets(g.n());
+
+  // TODO use actual hash fuction
+  auto hash = [&](NodeID source, NodeID target) {
+    return target % number_of_buckets[source];
+  };
+
+  //g.pfor_nodes([&](NodeID v) {
+  for (NodeID v =0; v < g.n(); v++){
+    number_of_buckets[v] = (g.degree(v) + average_edes_per_bucket - 1) / average_edes_per_bucket;
+
+    buckets[v] = std::vector<std::vector<EdgeID>>(number_of_buckets[v]);
+
+    for (EdgeID e : g.incident_edges(v)) {
+      EdgeID bucket_index = hash(v, g.edge_target(e));
+      KASSERT(bucket_index < number_of_buckets[v], "", assert::always);
+      KASSERT(number_of_buckets[v] == buckets[v].size(), "", assert::always);
+      buckets[v][bucket_index].push_back(e);
+    }
+
+    for (size_t i = 0; i < number_of_buckets[v]; i++) {
+      std::sort(buckets[v][i].begin(), buckets[v][i].end(), [&](EdgeID e1, EdgeID e2) {
+        return g.edge_target(e1) <= g.edge_target(e2);
+      });
+    }
+
+    edges_done[v] = std::vector<EdgeID>(number_of_buckets[v],0);
+  }//);
+
+  for (NodeID u : g.nodes()) { // TODO can this be parallel without breaking the algo
+    for (EdgeID e : g.incident_edges(u)) {
+      NodeID v = g.edge_target(e);
+      EdgeID bucket_index = hash(v, u);
+      EdgeID counter_edge = buckets[v][bucket_index][edges_done[v][bucket_index]++];
+      KASSERT(u == g.edge_target(counter_edge), "not the real counter edge", assert::always);
+
+      EdgeID combined_scores = scores[e] + scores[counter_edge];
+      scores[e] = combined_scores;
+      scores[counter_edge] = combined_scores;
+    }
+  }
 }
 
 void WeightedForestFireScore::print_fire_statistics(
