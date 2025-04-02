@@ -7,7 +7,9 @@
 #include "DistributionDecorator.h"
 #include "sparsification_utils.h"
 
+#include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/random.h"
+#include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::sparsification {
 StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
@@ -92,52 +94,74 @@ StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
 }
 
 void WeightedForestFireScore::make_scores_symetric(const CSRGraph &g, StaticArray<EdgeID> &scores) {
-  const EdgeID average_edes_per_bucket = 100; // TODO what's a suitable constant?
+  SCOPED_TIMER("Make Scores Symetric");
+  // TODO tune these constants
+  const EdgeID AVERAGE_EDGES_PER_BUCKET = 1000;
+  const EdgeID HASHING_THRESHOLD = 20 * AVERAGE_EDGES_PER_BUCKET;
 
-  // TODO use static arrays after figuring out how to initalize them when they are nested
-  std::vector<std::vector<std::vector<EdgeID>>> buckets(g.n());
-  std::vector<std::vector<EdgeID>> edges_done(g.n());
-  StaticArray<EdgeID> number_of_buckets(g.n());
+  const EdgeID number_of_buckets =
+      std::max(g.m() / AVERAGE_EDGES_PER_BUCKET, static_cast<EdgeID>(1));
 
-  // TODO use actual hash fuction
-  auto hash = [&](NodeID source, NodeID target) {
-    return target % number_of_buckets[source];
-  };
+  std::vector<std::vector<EdgeWithEndpoints>> buckets(number_of_buckets);
+  std::vector<tbb::spin_mutex> bucket_locks(number_of_buckets);
 
-  //g.pfor_nodes([&](NodeID v) {
-  for (NodeID v =0; v < g.n(); v++){
-    number_of_buckets[v] = (g.degree(v) + average_edes_per_bucket - 1) / average_edes_per_bucket;
+  sparsification::utils::parallel_for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
+    EdgeWithEndpoints edge_with_endpoints =
+        u < v ? EdgeWithEndpoints{e, u, v} : EdgeWithEndpoints{e, v, u};
+    EdgeID bucket_index = hash(edge_with_endpoints) % number_of_buckets;
 
-    buckets[v] = std::vector<std::vector<EdgeID>>(number_of_buckets[v]);
+    bucket_locks[bucket_index].lock();
+    buckets[bucket_index].push_back(edge_with_endpoints);
+    bucket_locks[bucket_index].unlock();
+  });
 
-    for (EdgeID e : g.incident_edges(v)) {
-      EdgeID bucket_index = hash(v, g.edge_target(e));
-      KASSERT(bucket_index < number_of_buckets[v], "", assert::always);
-      KASSERT(number_of_buckets[v] == buckets[v].size(), "", assert::always);
-      buckets[v][bucket_index].push_back(e);
+  tbb::parallel_for<EdgeID>(0, number_of_buckets, [&](auto bucket_index) {
+    KASSERT(buckets[bucket_index].size() % 2 == 0, "odd size of bucket", assert::always);
+    if (buckets[bucket_index].size() < HASHING_THRESHOLD) {
+      std::sort(
+          buckets[bucket_index].begin(),
+          buckets[bucket_index].end(),
+          [](const EdgeWithEndpoints &e1, const EdgeWithEndpoints &e2) {
+            if (e1.smaller_endpoint != e2.smaller_endpoint)
+              return e1.smaller_endpoint < e2.smaller_endpoint;
+            return e1.larger_endpoint < e2.larger_endpoint;
+          }
+      );
+
+      for (EdgeID i = 0; i < buckets[bucket_index].size(); i += 2) {
+        KASSERT(
+            buckets[bucket_index][i].smaller_endpoint ==
+                    buckets[bucket_index][i + 1].smaller_endpoint &&
+                buckets[bucket_index][i].larger_endpoint ==
+                    buckets[bucket_index][i + 1].larger_endpoint,
+            "the wrong edges were matched",
+            assert::always
+        );
+
+        EdgeID e1 = buckets[bucket_index][i].edge_id;
+        EdgeID e2 = buckets[bucket_index][i + 1].edge_id;
+        EdgeID combined_score = scores[e1] + scores[e2];
+        scores[e1] = combined_score;
+        scores[e2] = combined_score;
+      }
+    } else { // use hashed data structue
+      std::unordered_set<EdgeWithEndpoints, EdgeWithEndpointHasher, EdgeWithEnpointComparator> set;
+      for (EdgeID i = 0; i <= buckets[bucket_index].size(); i++) {
+        EdgeWithEndpoints edge;
+        auto possible_counter_edge = set.extract(edge);
+
+        if (possible_counter_edge.empty()) {
+          set.insert(edge);
+        } else {
+          KASSERT(EdgeWithEnpointComparator()(edge, possible_counter_edge.value()), "counter edge does not match", assert::always);
+          EdgeID counter_edge_id = possible_counter_edge.value().edge_id;
+          EdgeID combined_score = scores[edge.edge_id] + scores[counter_edge_id];
+          scores[edge.edge_id] = combined_score;
+          scores[counter_edge_id] = combined_score;
+        }
+      }
     }
-
-    for (size_t i = 0; i < number_of_buckets[v]; i++) {
-      std::sort(buckets[v][i].begin(), buckets[v][i].end(), [&](EdgeID e1, EdgeID e2) {
-        return g.edge_target(e1) <= g.edge_target(e2);
-      });
-    }
-
-    edges_done[v] = std::vector<EdgeID>(number_of_buckets[v],0);
-  }//);
-
-  for (NodeID u : g.nodes()) { // TODO can this be parallel without breaking the algo
-    for (EdgeID e : g.incident_edges(u)) {
-      NodeID v = g.edge_target(e);
-      EdgeID bucket_index = hash(v, u);
-      EdgeID counter_edge = buckets[v][bucket_index][edges_done[v][bucket_index]++];
-      KASSERT(u == g.edge_target(counter_edge), "not the real counter edge", assert::always);
-
-      EdgeID combined_scores = scores[e] + scores[counter_edge];
-      scores[e] = combined_scores;
-      scores[counter_edge] = combined_scores;
-    }
-  }
+  });
 }
 
 void WeightedForestFireScore::print_fire_statistics(
