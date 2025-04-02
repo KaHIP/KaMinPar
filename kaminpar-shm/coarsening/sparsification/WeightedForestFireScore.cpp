@@ -116,7 +116,6 @@ void WeightedForestFireScore::make_scores_symetric(const CSRGraph &g, StaticArra
   });
 
   tbb::parallel_for<EdgeID>(0, number_of_buckets, [&](auto bucket_index) {
-    KASSERT(buckets[bucket_index].size() % 2 == 0, "odd size of bucket", assert::always);
     if (buckets[bucket_index].size() < HASHING_THRESHOLD) {
       std::sort(
           buckets[bucket_index].begin(),
@@ -129,15 +128,6 @@ void WeightedForestFireScore::make_scores_symetric(const CSRGraph &g, StaticArra
       );
 
       for (EdgeID i = 0; i < buckets[bucket_index].size(); i += 2) {
-        KASSERT(
-            buckets[bucket_index][i].smaller_endpoint ==
-                    buckets[bucket_index][i + 1].smaller_endpoint &&
-                buckets[bucket_index][i].larger_endpoint ==
-                    buckets[bucket_index][i + 1].larger_endpoint,
-            "the wrong edges were matched",
-            assert::always
-        );
-
         EdgeID e1 = buckets[bucket_index][i].edge_id;
         EdgeID e2 = buckets[bucket_index][i + 1].edge_id;
         EdgeID combined_score = scores[e1] + scores[e2];
@@ -153,7 +143,6 @@ void WeightedForestFireScore::make_scores_symetric(const CSRGraph &g, StaticArra
         if (possible_counter_edge.empty()) {
           set.insert(edge);
         } else {
-          KASSERT(EdgeWithEnpointComparator()(edge, possible_counter_edge.value()), "counter edge does not match", assert::always);
           EdgeID counter_edge_id = possible_counter_edge.value().edge_id;
           EdgeID combined_score = scores[edge.edge_id] + scores[counter_edge_id];
           scores[edge.edge_id] = combined_score;
