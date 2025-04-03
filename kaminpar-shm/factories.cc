@@ -21,9 +21,11 @@
 #include "kaminpar-shm/coarsening/clustering/noop_clusterer.h"
 
 // Coarsening
-#include "kaminpar-shm/coarsening/cluster_coarsener.h"
+#include "kaminpar-shm/coarsening/basic_cluster_coarsener.h"
 #include "kaminpar-shm/coarsening/noop_coarsener.h"
 #include "kaminpar-shm/coarsening/overlay_cluster_coarsener.h"
+#include "kaminpar-shm/coarsening/sparsifying_cluster_coarsener.h"
+#include "kaminpar-shm/coarsening/threshold_sparsifying_cluster_coarsener.h"
 
 // Sparsification
 #include "kaminpar-shm/coarsening/sparsification/independent_random_sampler.h"
@@ -34,8 +36,6 @@
 #include "kaminpar-shm/coarsening/sparsification/unbiased_threshold_sampler.h"
 #include "kaminpar-shm/coarsening/sparsification/uniform_random_sampler.h"
 #include "kaminpar-shm/coarsening/sparsification/weighted_forest_fire_score.h"
-#include "kaminpar-shm/coarsening/sparsifying_cluster_coarsener.h"
-#include "kaminpar-shm/coarsening/threshold_sparsifying_cluster_coarsener.h"
 
 // Refinement
 #include "kaminpar-shm/refinement/adapters/mtkahypar_refiner.h"
@@ -88,17 +88,17 @@ std::unique_ptr<Coarsener> create_coarsener(const Context &ctx, const PartitionC
   case CoarseningAlgorithm::NOOP:
     return std::make_unique<NoopCoarsener>();
 
-  case CoarseningAlgorithm::CLUSTERING:
-    return std::make_unique<ClusteringCoarsener>(ctx, p_ctx);
+  case CoarseningAlgorithm::BASIC_CLUSTERING:
+    return std::make_unique<BasicClusterCoarsener>(ctx, p_ctx);
 
   case CoarseningAlgorithm::OVERLAY_CLUSTERING:
-    return std::make_unique<OverlayClusteringCoarsener>(ctx, p_ctx);
+    return std::make_unique<OverlayClusterCoarsener>(ctx, p_ctx);
 
   case CoarseningAlgorithm::SPARSIFYING_CLUSTERING:
-    return std::make_unique<SparsifyingClusteringCoarsener>(ctx, p_ctx);
+    return std::make_unique<SparsifyingClusterCoarsener>(ctx, p_ctx);
 
   case CoarseningAlgorithm::THRESHOLD_SPARSIFYING_CLUSTERING:
-    return std::make_unique<ThresholdSparsifyingClusteringCoarsener>(ctx, p_ctx);
+    return std::make_unique<ThresholdSparsifyingClusterCoarsener>(ctx, p_ctx);
   }
 
   __builtin_unreachable();

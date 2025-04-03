@@ -115,7 +115,7 @@ Context create_default_context() {
       .coarsening =
           {
               // Context -> Coarsening
-              .algorithm = CoarseningAlgorithm::CLUSTERING,
+              .algorithm = CoarseningAlgorithm::BASIC_CLUSTERING,
               .clustering =
                   {
                       // Context -> Coarsening -> Clustering
@@ -278,19 +278,18 @@ Context create_default_context() {
               // Context -> Parallel
               .num_threads = 1,
           },
-      .debug =
-          {
-              .graph_name = "",
-              .dump_graph_filename = "n%n_m%m_k%k_seed%seed.metis",
-              .dump_partition_filename = "n%n_m%m_k%k_seed%seed.part",
+      .debug = {
+          .graph_name = "",
+          .dump_graph_filename = "n%n_m%m_k%k_seed%seed.metis",
+          .dump_partition_filename = "n%n_m%m_k%k_seed%seed.part",
 
-              .dump_toplevel_graph = false,
-              .dump_toplevel_partition = false,
-              .dump_coarsest_graph = false,
-              .dump_coarsest_partition = false,
-              .dump_graph_hierarchy = false,
-              .dump_partition_hierarchy = false,
-          },
+          .dump_toplevel_graph = false,
+          .dump_toplevel_partition = false,
+          .dump_coarsest_graph = false,
+          .dump_coarsest_partition = false,
+          .dump_graph_hierarchy = false,
+          .dump_partition_hierarchy = false,
+      },
   };
 }
 

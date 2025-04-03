@@ -27,7 +27,7 @@ SET_DEBUG(false);
 
 }
 
-SparsifyingClusteringCoarsener::SparsifyingClusteringCoarsener(
+SparsifyingClusterCoarsener::SparsifyingClusterCoarsener(
     const Context &ctx, const PartitionContext &p_ctx
 )
     : _clustering_algorithm(factory::create_clusterer(ctx)),
@@ -37,7 +37,7 @@ SparsifyingClusteringCoarsener::SparsifyingClusteringCoarsener(
       _p_ctx(p_ctx),
       _s_ctx(ctx.sparsification) {}
 
-void SparsifyingClusteringCoarsener::initialize(const Graph *graph) {
+void SparsifyingClusterCoarsener::initialize(const Graph *graph) {
   _hierarchy.clear();
   _input_graph = graph;
 }
@@ -49,7 +49,7 @@ void SparsifyingClusteringCoarsener::initialize(const Graph *graph) {
  * @param sample for every edge 0, if it should be removed, its (new) weight otherwise
  * @param edges_kept how many edges are samples, i.e., how many entries in sample are not 0
  */
-CSRGraph SparsifyingClusteringCoarsener::sparsify(CSRGraph g, StaticArray<EdgeWeight> sample) {
+CSRGraph SparsifyingClusterCoarsener::sparsify(CSRGraph g, StaticArray<EdgeWeight> sample) {
   SCOPED_TIMER("Build Sparsifier");
   auto nodes = StaticArray<EdgeID>(g.n() + 1);
   sparsification::utils::parallel_for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
@@ -84,15 +84,14 @@ CSRGraph SparsifyingClusteringCoarsener::sparsify(CSRGraph g, StaticArray<EdgeWe
   );
 }
 
-EdgeID
-SparsifyingClusteringCoarsener::sparsificationTarget(EdgeID old_m, NodeID old_n, EdgeID new_n) {
+EdgeID SparsifyingClusterCoarsener::sparsificationTarget(EdgeID old_m, NodeID old_n, EdgeID new_n) {
   double target = std::min(
       _s_ctx.reduction_target_factor * old_m, _s_ctx.density_target_factor * old_m / old_n * new_n
   );
   return target < old_m ? static_cast<EdgeID>(target) : old_m;
 }
 
-bool SparsifyingClusteringCoarsener::coarsen() {
+bool SparsifyingClusterCoarsener::coarsen() {
   SCOPED_HEAP_PROFILER("Level", std::to_string(_hierarchy.size()));
   SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
 
@@ -197,7 +196,7 @@ bool SparsifyingClusteringCoarsener::coarsen() {
   return !converged;
 }
 
-PartitionedGraph SparsifyingClusteringCoarsener::uncoarsen(PartitionedGraph &&p_graph) {
+PartitionedGraph SparsifyingClusterCoarsener::uncoarsen(PartitionedGraph &&p_graph) {
   SCOPED_HEAP_PROFILER("Level", std::to_string(_hierarchy.size()));
   SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
 
@@ -222,7 +221,7 @@ PartitionedGraph SparsifyingClusteringCoarsener::uncoarsen(PartitionedGraph &&p_
   return {current(), p_graph_k, std::move(partition)};
 }
 
-void SparsifyingClusteringCoarsener::release_allocated_memory() {
+void SparsifyingClusterCoarsener::release_allocated_memory() {
   SCOPED_HEAP_PROFILER("Deallocation");
   SCOPED_TIMER("Deallocation");
 
@@ -235,7 +234,7 @@ void SparsifyingClusteringCoarsener::release_allocated_memory() {
 }
 
 std::unique_ptr<CoarseGraph>
-SparsifyingClusteringCoarsener::pop_hierarchy(PartitionedGraph &&p_graph) {
+SparsifyingClusterCoarsener::pop_hierarchy(PartitionedGraph &&p_graph) {
   KASSERT(!empty(), "cannot pop from an empty graph hierarchy", assert::light);
 
   auto coarsened = std::move(_hierarchy.back());
@@ -252,7 +251,7 @@ SparsifyingClusteringCoarsener::pop_hierarchy(PartitionedGraph &&p_graph) {
   return coarsened;
 }
 
-bool SparsifyingClusteringCoarsener::keep_allocated_memory() const {
+bool SparsifyingClusterCoarsener::keep_allocated_memory() const {
   return level() >= _c_ctx.clustering.max_mem_free_coarsening_level;
 }
 

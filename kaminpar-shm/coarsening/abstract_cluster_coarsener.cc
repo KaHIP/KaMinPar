@@ -1,11 +1,12 @@
 /*******************************************************************************
- * Coarsener that is optimized to contract clusterings.
+ * Provides common functionality for coarseners optimized for cluster
+ * contraction.
  *
- * @file:   cluster_coarsener.cc
+ * @file:   abstract_cluster_coarsener.cc
  * @author: Daniel Seemaier
- * @date:   29.09.2021
+ * @date:   03.04.2025
  ******************************************************************************/
-#include "kaminpar-shm/coarsening/cluster_coarsener.h"
+#include "kaminpar-shm/coarsening/abstract_cluster_coarsener.h"
 
 #include <algorithm>
 
@@ -26,31 +27,76 @@ SET_DEBUG(false);
 
 }
 
-ClusteringCoarsener::ClusteringCoarsener(const Context &ctx, const PartitionContext &p_ctx)
+AbstractClusterCoarsener::AbstractClusterCoarsener(
+    const Context &ctx, const PartitionContext &p_ctx
+)
     : _ctx(ctx),
       _c_ctx(ctx.coarsening),
       _p_ctx(p_ctx),
       _clustering_algorithm(factory::create_clusterer(ctx)) {}
 
-void ClusteringCoarsener::initialize(const Graph *graph) {
+void AbstractClusterCoarsener::initialize(const Graph *graph) {
   _hierarchy.clear();
   _input_graph = graph;
 }
 
-void ClusteringCoarsener::use_communities(std::span<const NodeID> communities) {
+const Graph &AbstractClusterCoarsener::current() const {
+  return _hierarchy.empty() ? *_input_graph : _hierarchy.back()->get();
+}
+
+std::size_t AbstractClusterCoarsener::level() const {
+  return _hierarchy.size();
+}
+
+void AbstractClusterCoarsener::use_communities(std::span<const NodeID> communities) {
   _input_communities = communities;
   _communities_hierarchy.clear();
 }
 
-[[nodiscard]] std::span<const NodeID> ClusteringCoarsener::current_communities() const {
+[[nodiscard]] std::span<const NodeID> AbstractClusterCoarsener::current_communities() const {
   return _communities_hierarchy.empty() ? _input_communities : _communities_hierarchy.back();
 }
 
-bool ClusteringCoarsener::coarsen() {
-  START_HEAP_PROFILER("Allocation");
-  RECORD("clustering") StaticArray<NodeID> clustering(current().n(), static_array::noinit);
-  STOP_HEAP_PROFILER();
+void AbstractClusterCoarsener::release_allocated_memory() {
+  SCOPED_HEAP_PROFILER("Deallocation");
+  SCOPED_TIMER("Deallocation");
 
+  _clustering_algorithm.reset();
+
+  _contraction_m_ctx.buckets.free();
+  _contraction_m_ctx.buckets_index.free();
+  _contraction_m_ctx.leader_mapping.free();
+  _contraction_m_ctx.all_buffered_nodes.free();
+}
+
+std::unique_ptr<CoarseGraph> AbstractClusterCoarsener::pop_hierarchy(PartitionedGraph &&p_graph) {
+  KASSERT(!empty(), "cannot pop from an empty graph hierarchy", assert::light);
+
+  auto coarsened = std::move(_hierarchy.back());
+  _hierarchy.pop_back();
+
+  KASSERT(
+      &coarsened->get() == &p_graph.graph(),
+      "p_graph wraps a different graph (ptr="
+          << &p_graph.graph() << ") than the one that was coarsened (ptr=" << &coarsened->get()
+          << ")",
+      assert::light
+  );
+
+  if (!_communities_hierarchy.empty()) {
+    _communities_hierarchy.pop_back();
+  }
+
+  return coarsened;
+}
+
+bool AbstractClusterCoarsener::keep_allocated_memory() const {
+  return level() >= _c_ctx.clustering.max_mem_free_coarsening_level;
+}
+
+void AbstractClusterCoarsener::compute_clustering_for_current_graph(
+    StaticArray<NodeID> &clustering
+) {
   const bool free_allocated_memory = !keep_allocated_memory();
   const NodeWeight total_node_weight = current().total_node_weight();
   const NodeID prev_n = current().n();
@@ -68,6 +114,8 @@ bool ClusteringCoarsener::coarsen() {
       compute_max_cluster_weight<NodeWeight>(_c_ctx, _p_ctx, prev_n, total_node_weight)
   );
 
+  // Implement maximum shrink factors and forced levels by setting the desired cluster count
+  // This must also be supported by the clustering algorithm to have any effect
   {
     NodeID desired_cluster_count = prev_n / _c_ctx.clustering.shrink_factor;
 
@@ -95,9 +143,36 @@ bool ClusteringCoarsener::coarsen() {
   _clustering_algorithm->compute_clustering(clustering, current(), free_allocated_memory);
   STOP_TIMER();
   STOP_HEAP_PROFILER();
+}
 
+PartitionedGraph AbstractClusterCoarsener::uncoarsen(PartitionedGraph &&p_graph) {
+  SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
+
+  const BlockID p_graph_k = p_graph.k();
+  const auto p_graph_partition = p_graph.take_raw_partition();
+
+  auto coarsened = pop_hierarchy(std::move(p_graph));
+  const NodeID next_n = current().n();
+
+  START_HEAP_PROFILER("Allocation");
+  START_TIMER("Allocation");
+  RECORD("partition") StaticArray<BlockID> partition(next_n);
+  STOP_TIMER();
+  STOP_HEAP_PROFILER();
+
+  START_TIMER("Project partition");
+  coarsened->project_up(p_graph_partition, partition);
+  STOP_TIMER();
+
+  SCOPED_HEAP_PROFILER("Create graph");
+  SCOPED_TIMER("Create graph");
+  return {current(), p_graph_k, std::move(partition)};
+}
+
+void AbstractClusterCoarsener::contract_current_graph_and_push(StaticArray<NodeID> &clustering) {
   START_HEAP_PROFILER("Contract graph");
   START_TIMER("Contract graph");
+
   _hierarchy.push_back(
       contract_clustering(current(), std::move(clustering), _c_ctx.contraction, _contraction_m_ctx)
   );
@@ -146,76 +221,12 @@ bool ClusteringCoarsener::coarsen() {
 
   STOP_TIMER();
   STOP_HEAP_PROFILER();
+}
 
+[[nodiscard]] bool AbstractClusterCoarsener::has_not_converged(const NodeID prev_n) const {
   const NodeID next_n = current().n();
   const bool converged = (1.0 - 1.0 * next_n / prev_n) <= _c_ctx.convergence_threshold;
-
-  if (free_allocated_memory) {
-    _contraction_m_ctx.buckets.free();
-    _contraction_m_ctx.buckets_index.free();
-    _contraction_m_ctx.all_buffered_nodes.free();
-  }
-
   return !converged;
-}
-
-PartitionedGraph ClusteringCoarsener::uncoarsen(PartitionedGraph &&p_graph) {
-  const BlockID p_graph_k = p_graph.k();
-  const auto p_graph_partition = p_graph.take_raw_partition();
-
-  auto coarsened = pop_hierarchy(std::move(p_graph));
-  const NodeID next_n = current().n();
-
-  START_HEAP_PROFILER("Allocation");
-  START_TIMER("Allocation");
-  RECORD("partition") StaticArray<BlockID> partition(next_n);
-  STOP_TIMER();
-  STOP_HEAP_PROFILER();
-
-  START_TIMER("Project partition");
-  coarsened->project_up(p_graph_partition, partition);
-  STOP_TIMER();
-
-  SCOPED_HEAP_PROFILER("Create graph");
-  SCOPED_TIMER("Create graph");
-  return {current(), p_graph_k, std::move(partition)};
-}
-
-void ClusteringCoarsener::release_allocated_memory() {
-  SCOPED_HEAP_PROFILER("Deallocation");
-  SCOPED_TIMER("Deallocation");
-
-  _clustering_algorithm.reset();
-
-  _contraction_m_ctx.buckets.free();
-  _contraction_m_ctx.buckets_index.free();
-  _contraction_m_ctx.leader_mapping.free();
-  _contraction_m_ctx.all_buffered_nodes.free();
-}
-
-std::unique_ptr<CoarseGraph> ClusteringCoarsener::pop_hierarchy(PartitionedGraph &&p_graph) {
-  KASSERT(!empty(), "cannot pop from an empty graph hierarchy", assert::light);
-
-  auto coarsened = std::move(_hierarchy.back());
-  _hierarchy.pop_back();
-
-  KASSERT(
-      &coarsened->get() == &p_graph.graph(),
-      "p_graph wraps a different graph (ptr="
-          << &p_graph.graph() << ") than the one that was coarsened (ptr=" << &coarsened->get()
-          << ")",
-      assert::light
-  );
-
-  if (!_communities_hierarchy.empty()) {
-    _communities_hierarchy.pop_back();
-  }
-
-  return coarsened;
-}
-
-bool ClusteringCoarsener::keep_allocated_memory() const {
-  return level() >= _c_ctx.clustering.max_mem_free_coarsening_level;
 }
 
 } // namespace kaminpar::shm

@@ -17,15 +17,15 @@
 
 namespace kaminpar::shm {
 
-class SparsifyingClusteringCoarsener : public Coarsener {
+class SparsifyingClusterCoarsener : public Coarsener {
 public:
-  SparsifyingClusteringCoarsener(const Context &ctx, const PartitionContext &p_ctx);
+  SparsifyingClusterCoarsener(const Context &ctx, const PartitionContext &p_ctx);
 
-  SparsifyingClusteringCoarsener(const SparsifyingClusteringCoarsener &) = delete;
-  SparsifyingClusteringCoarsener &operator=(const SparsifyingClusteringCoarsener) = delete;
+  SparsifyingClusterCoarsener(const SparsifyingClusterCoarsener &) = delete;
+  SparsifyingClusterCoarsener &operator=(const SparsifyingClusterCoarsener) = delete;
 
-  SparsifyingClusteringCoarsener(SparsifyingClusteringCoarsener &&) = delete;
-  SparsifyingClusteringCoarsener &operator=(SparsifyingClusteringCoarsener &&) = delete;
+  SparsifyingClusterCoarsener(SparsifyingClusterCoarsener &&) = delete;
+  SparsifyingClusterCoarsener &operator=(SparsifyingClusterCoarsener &&) = delete;
 
   void initialize(const Graph *graph) final;
 

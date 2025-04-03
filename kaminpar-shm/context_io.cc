@@ -69,7 +69,8 @@ std::ostream &operator<<(std::ostream &out, const EdgeOrdering ordering) {
 std::unordered_map<std::string, CoarseningAlgorithm> get_coarsening_algorithms() {
   return {
       {"noop", CoarseningAlgorithm::NOOP},
-      {"clustering", CoarseningAlgorithm::CLUSTERING},
+      {"clustering", CoarseningAlgorithm::BASIC_CLUSTERING},
+      {"basic-clustering", CoarseningAlgorithm::BASIC_CLUSTERING},
       {"overlay-clustering", CoarseningAlgorithm::OVERLAY_CLUSTERING},
       {"sparsifying-clustering", CoarseningAlgorithm::SPARSIFYING_CLUSTERING},
       {"threshold-sparsifying-clustering", CoarseningAlgorithm::THRESHOLD_SPARSIFYING_CLUSTERING},
@@ -111,8 +112,8 @@ std::ostream &operator<<(std::ostream &out, const CoarseningAlgorithm algorithm)
   switch (algorithm) {
   case CoarseningAlgorithm::NOOP:
     return out << "noop";
-  case CoarseningAlgorithm::CLUSTERING:
-    return out << "clustering";
+  case CoarseningAlgorithm::BASIC_CLUSTERING:
+    return out << "basic-clustering";
   case CoarseningAlgorithm::OVERLAY_CLUSTERING:
     return out << "overlay-clustering";
   case CoarseningAlgorithm::SPARSIFYING_CLUSTERING:
@@ -468,7 +469,7 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
   out << "Contraction limit:            " << c_ctx.contraction_limit << "\n";
   out << "Coarsening algorithm:         " << c_ctx.algorithm << "\n";
 
-  if (c_ctx.algorithm == CoarseningAlgorithm::CLUSTERING ||
+  if (c_ctx.algorithm == CoarseningAlgorithm::BASIC_CLUSTERING ||
       c_ctx.algorithm == CoarseningAlgorithm::OVERLAY_CLUSTERING) {
     out << "  Cluster weight limit:       " << c_ctx.clustering.cluster_weight_limit << " x "
         << c_ctx.clustering.cluster_weight_multiplier << "\n";

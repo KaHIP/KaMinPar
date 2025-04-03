@@ -7,20 +7,20 @@
  ******************************************************************************/
 #include "kaminpar-shm/coarsening/threshold_sparsifying_cluster_coarsener.h"
 
+#include <stdexcept>
+
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction_preprocessing.h"
-#include "kaminpar-shm/coarsening/max_cluster_weights.h"
 #include "kaminpar-shm/coarsening/sparsification/contraction/sparsifying_cluster_contraction.h"
 #include "kaminpar-shm/coarsening/sparsification/sparsification_utils.h"
-#include "kaminpar-shm/factories.h"
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/parallel/algorithm.h"
-#include "kaminpar-common/timer.h"
 #include "kaminpar-common/random.h"
+#include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
 
@@ -30,21 +30,17 @@ SET_DEBUG(false);
 
 }
 
-ThresholdSparsifyingClusteringCoarsener::ThresholdSparsifyingClusteringCoarsener(
+ThresholdSparsifyingClusterCoarsener::ThresholdSparsifyingClusterCoarsener(
     const Context &ctx, const PartitionContext &p_ctx
 )
-    : _clustering_algorithm(factory::create_clusterer(ctx)),
-      _ctx(ctx),
-      _c_ctx(ctx.coarsening),
-      _p_ctx(p_ctx),
+    : AbstractClusterCoarsener(ctx, p_ctx),
       _s_ctx(ctx.sparsification) {}
 
-void ThresholdSparsifyingClusteringCoarsener::initialize(const Graph *graph) {
-  _hierarchy.clear();
-  _input_graph = graph;
+void ThresholdSparsifyingClusterCoarsener::use_communities(std::span<const NodeID>) {
+  throw std::logic_error("not implemented");
 }
 
-EdgeID ThresholdSparsifyingClusteringCoarsener::sparsification_target(
+EdgeID ThresholdSparsifyingClusterCoarsener::sparsification_target(
     const EdgeID old_m, const NodeID old_n, const EdgeID new_n
 ) const {
   const double target = std::min(
@@ -53,7 +49,7 @@ EdgeID ThresholdSparsifyingClusteringCoarsener::sparsification_target(
   return target < old_m ? static_cast<EdgeID>(target) : old_m;
 }
 
-bool ThresholdSparsifyingClusteringCoarsener::coarsen() {
+bool ThresholdSparsifyingClusterCoarsener::coarsen() {
   SCOPED_HEAP_PROFILER("Level", std::to_string(_hierarchy.size()));
   SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
 
@@ -62,42 +58,9 @@ bool ThresholdSparsifyingClusteringCoarsener::coarsen() {
   STOP_HEAP_PROFILER();
 
   const bool free_allocated_memory = !keep_allocated_memory();
-  const NodeWeight total_node_weight = current().total_node_weight();
   const NodeID prev_n = current().n();
 
-  START_HEAP_PROFILER("Label Propagation");
-  START_TIMER("Label Propagation");
-  _clustering_algorithm->set_max_cluster_weight(
-      compute_max_cluster_weight<NodeWeight>(_c_ctx, _p_ctx, prev_n, total_node_weight)
-  );
-
-  {
-    NodeID desired_cluster_count = prev_n / _c_ctx.clustering.shrink_factor;
-
-    const double U = _c_ctx.clustering.forced_level_upper_factor;
-    const double L = _c_ctx.clustering.forced_level_lower_factor;
-    const BlockID k = _p_ctx.k;
-    const int p = _ctx.parallel.num_threads;
-    const NodeID C = _c_ctx.contraction_limit;
-
-    if (_c_ctx.clustering.forced_kc_level) {
-      if (prev_n > U * C * k) {
-        desired_cluster_count = std::max<NodeID>(desired_cluster_count, L * C * k);
-      }
-    }
-    if (_c_ctx.clustering.forced_pc_level) {
-      if (prev_n > U * C * p) {
-        desired_cluster_count = std::max<NodeID>(desired_cluster_count, L * C * p);
-      }
-    }
-
-    DBG << "Desired cluster count: " << desired_cluster_count;
-    _clustering_algorithm->set_desired_cluster_count(desired_cluster_count);
-  }
-
-  _clustering_algorithm->compute_clustering(clustering, current(), free_allocated_memory);
-  STOP_TIMER();
-  STOP_HEAP_PROFILER();
+  compute_clustering_for_current_graph(clustering);
 
   START_HEAP_PROFILER("Contract graph");
   auto coarsened = TIMED_SCOPE("Contract graph") {
@@ -227,7 +190,7 @@ bool ThresholdSparsifyingClusteringCoarsener::coarsen() {
   return !converged;
 }
 
-CSRGraph ThresholdSparsifyingClusteringCoarsener::sparsify_and_make_negative_edges(
+CSRGraph ThresholdSparsifyingClusterCoarsener::sparsify_and_make_negative_edges(
     CSRGraph csr, const NodeID target_m
 ) const {
   using namespace sparsification;
@@ -262,57 +225,7 @@ CSRGraph ThresholdSparsifyingClusteringCoarsener::sparsify_and_make_negative_edg
   return csr;
 }
 
-PartitionedGraph ThresholdSparsifyingClusteringCoarsener::uncoarsen(PartitionedGraph &&p_graph) {
-  SCOPED_HEAP_PROFILER("Level", std::to_string(_hierarchy.size()));
-  SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
-
-  const BlockID p_graph_k = p_graph.k();
-  const auto p_graph_partition = p_graph.take_raw_partition();
-
-  auto coarsened = pop_hierarchy(std::move(p_graph));
-  const NodeID next_n = current().n();
-
-  START_HEAP_PROFILER("Allocation");
-  START_TIMER("Allocation");
-  RECORD("partition") StaticArray<BlockID> partition(next_n);
-  STOP_TIMER();
-  STOP_HEAP_PROFILER();
-
-  START_TIMER("Project partition");
-  coarsened->project_up(p_graph_partition, partition);
-  STOP_TIMER();
-
-  SCOPED_HEAP_PROFILER("Create graph");
-  SCOPED_TIMER("Create graph");
-  return {current(), p_graph_k, std::move(partition)};
-}
-
-bool ThresholdSparsifyingClusteringCoarsener::keep_allocated_memory() const {
-  return level() >= _c_ctx.clustering.max_mem_free_coarsening_level;
-}
-
-void ThresholdSparsifyingClusteringCoarsener::release_allocated_memory() {
-  SCOPED_HEAP_PROFILER("Deallocation");
-  SCOPED_TIMER("Deallocation");
-  _clustering_algorithm.reset();
-  _contraction_m_ctx.buckets.free();
-  _contraction_m_ctx.buckets_index.free();
-  _contraction_m_ctx.leader_mapping.free();
-  _contraction_m_ctx.all_buffered_nodes.free();
-}
-
-std::unique_ptr<CoarseGraph>
-ThresholdSparsifyingClusteringCoarsener::pop_hierarchy(PartitionedGraph &&p_graph) {
-  KASSERT(!empty(), "cannot pop from an empty graph hierarchy", assert::light);
-  KASSERT(&_hierarchy.back()->get() == &p_graph.graph());
-
-  auto coarsened = std::move(_hierarchy.back());
-  _hierarchy.pop_back();
-
-  return coarsened;
-}
-
-CSRGraph ThresholdSparsifyingClusteringCoarsener::remove_negative_edges(CSRGraph g) const {
+CSRGraph ThresholdSparsifyingClusterCoarsener::remove_negative_edges(CSRGraph g) const {
   SCOPED_TIMER("Build Sparsifier");
   auto nodes = StaticArray<EdgeID>(g.n() + 1);
   sparsification::utils::parallel_for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
