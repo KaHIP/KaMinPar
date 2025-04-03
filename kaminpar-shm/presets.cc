@@ -172,7 +172,7 @@ Context create_default_context() {
               .no_approx = false,
               .wff_target_burnt_ratio = 5,
               .wff_pf = 0.95,
-              .recontract = false,
+              .recontract = true,
           },
       .initial_partitioning =
           {
