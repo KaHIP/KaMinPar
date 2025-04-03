@@ -8,7 +8,8 @@ class WeightedForestFireScore : public ScoreFunction<EdgeID> {
 public:
   WeightedForestFireScore(double pf, double targetBurnRatio, bool ignore_weights = false)
       : _pf(pf),
-        _targetBurnRatio(targetBurnRatio), _ignore_weights() {}
+        _targetBurnRatio(targetBurnRatio),
+        _ignore_weights(ignore_weights) {}
   StaticArray<EdgeID> scores(const CSRGraph &g) override;
 
   static void make_scores_symetric(const CSRGraph &g, StaticArray<EdgeID> &scores);

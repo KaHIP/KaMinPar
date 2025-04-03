@@ -172,6 +172,12 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
               ctx.sparsification.wff_pf, ctx.sparsification.wff_target_burnt_ratio
           )
       );
+    case ScoreFunctionSection::FOREST_FIRE:
+      return std::make_unique<sparsification::ThresholdSampler<EdgeID>>(
+          std::make_unique<sparsification::WeightedForestFireScore>(
+              ctx.sparsification.wff_pf, ctx.sparsification.wff_target_burnt_ratio, true
+          )
+      );
     case ScoreFunctionSection::WEIGHT:
       return std::make_unique<sparsification::ThresholdSampler<EdgeWeight>>(
           std::make_unique<WeightFunction>()

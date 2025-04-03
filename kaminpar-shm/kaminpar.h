@@ -162,6 +162,7 @@ enum class SparsificationAlgorithm {
 enum class ScoreFunctionSection {
   WEIGHT,
   WEIGHTED_FOREST_FIRE,
+  FOREST_FIRE,
 };
 
 enum class ClusteringAlgorithm {
