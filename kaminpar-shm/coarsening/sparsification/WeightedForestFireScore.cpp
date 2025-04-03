@@ -47,7 +47,8 @@ StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
             validEdgesWithKeys.emplace_back(
                 e,
                 // key for exponetial clock method
-                -std::log(Random::instance().random_double()) / g.edge_weight(e)
+                -std::log(Random::instance().random_double()) /
+                    (_ignore_weights ? 1 : g.edge_weight(e))
             );
           }
         }
