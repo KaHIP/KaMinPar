@@ -9,6 +9,12 @@
 
 #include <kassert/kassert.hpp> // IWYU pragma: export
 
+#define KAMINPAR_NOT_IMPLEMENTED_ERROR(message)                                                    \
+  {                                                                                                \
+    KASSERT(false, message, assert::always);                                                       \
+    __builtin_unreachable();                                                                       \
+  }
+
 namespace kaminpar::assert {
 
 #define ASSERTION_LEVEL_ALWAYS 0

@@ -5,13 +5,13 @@
 
 namespace kaminpar::shm::testing {
 
-std::unique_ptr<SparsifyingClusteringCoarsener>
+std::unique_ptr<SparsifyingClusterCoarsener>
 make_scc(float density_factor, float reduction_factor) {
   Context ctx = kaminpar::shm::create_default_context();
   ctx.sparsification.density_target_factor = density_factor;
   ctx.sparsification.reduction_target_factor = reduction_factor;
 
-  return std::make_unique<SparsifyingClusteringCoarsener>(ctx, ctx.partition);
+  return std::make_unique<SparsifyingClusterCoarsener>(ctx, ctx.partition);
 }
 
 TEST(SparsifingClusterCoasener, SparsificationTargetTest) {
