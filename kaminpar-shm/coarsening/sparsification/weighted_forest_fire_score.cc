@@ -1,13 +1,12 @@
 #include "kaminpar-shm/coarsening/sparsification/weighted_forest_fire_score.h"
 
-#include <cmath>
-#include <iomanip>
 #include <queue>
 #include <unordered_set>
 
-#include <tbb/concurrent_vector.h>
-
 #include "kaminpar-common/random.h"
+#include "kaminpar-common/timer.h"
+
+#include "sparsification_utils.h"
 
 namespace kaminpar::shm::sparsification {
 StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
@@ -45,7 +44,8 @@ StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
             validEdgesWithKeys.emplace_back(
                 e,
                 // key for exponetial clock method
-                -std::log(Random::instance().random_double()) / g.edge_weight(e)
+                -std::log(Random::instance().random_double()) /
+                    (_ignore_weights ? 1 : g.edge_weight(e))
             );
           }
         }
@@ -85,8 +85,70 @@ StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
 
   print_fire_statistics(g, edges_burnt, number_of_fires);
 
+  make_scores_symmetric(g, burnt);
+
   // Not normalized unlike in the NetworKit implementation
   return burnt;
+}
+
+void WeightedForestFireScore::make_scores_symmetric(const CSRGraph &g, StaticArray<EdgeID> &scores) {
+  SCOPED_TIMER("Make Scores Symetric");
+  // TODO tune these constants
+  const EdgeID AVERAGE_EDGES_PER_BUCKET = 1000;
+  const EdgeID HASHING_THRESHOLD = 20 * AVERAGE_EDGES_PER_BUCKET;
+
+  const EdgeID number_of_buckets =
+      std::max(g.m() / AVERAGE_EDGES_PER_BUCKET, static_cast<EdgeID>(1));
+
+  std::vector<std::vector<EdgeWithEndpoints>> buckets(number_of_buckets);
+  std::vector<tbb::spin_mutex> bucket_locks(number_of_buckets);
+
+  sparsification::utils::parallel_for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
+    EdgeWithEndpoints edge_with_endpoints =
+        u < v ? EdgeWithEndpoints{e, u, v} : EdgeWithEndpoints{e, v, u};
+    EdgeID bucket_index = hash(edge_with_endpoints) % number_of_buckets;
+
+    bucket_locks[bucket_index].lock();
+    buckets[bucket_index].push_back(edge_with_endpoints);
+    bucket_locks[bucket_index].unlock();
+  });
+
+  tbb::parallel_for<EdgeID>(0, number_of_buckets, [&](auto bucket_index) {
+    if (buckets[bucket_index].size() < HASHING_THRESHOLD) {
+      std::sort(
+          buckets[bucket_index].begin(),
+          buckets[bucket_index].end(),
+          [](const EdgeWithEndpoints &e1, const EdgeWithEndpoints &e2) {
+            if (e1.smaller_endpoint != e2.smaller_endpoint)
+              return e1.smaller_endpoint < e2.smaller_endpoint;
+            return e1.larger_endpoint < e2.larger_endpoint;
+          }
+      );
+
+      for (EdgeID i = 0; i < buckets[bucket_index].size(); i += 2) {
+        EdgeID e1 = buckets[bucket_index][i].edge_id;
+        EdgeID e2 = buckets[bucket_index][i + 1].edge_id;
+        EdgeID combined_score = scores[e1] + scores[e2];
+        scores[e1] = combined_score;
+        scores[e2] = combined_score;
+      }
+    } else { // use hashed data structue
+      std::unordered_set<EdgeWithEndpoints, EdgeWithEndpointHasher, EdgeWithEnpointComparator> set;
+      for (EdgeID i = 0; i <= buckets[bucket_index].size(); i++) {
+        EdgeWithEndpoints edge;
+        auto possible_counter_edge = set.extract(edge);
+
+        if (possible_counter_edge.empty()) {
+          set.insert(edge);
+        } else {
+          EdgeID counter_edge_id = possible_counter_edge.value().edge_id;
+          EdgeID combined_score = scores[edge.edge_id] + scores[counter_edge_id];
+          scores[edge.edge_id] = combined_score;
+          scores[counter_edge_id] = combined_score;
+        }
+      }
+    }
+  });
 }
 
 void WeightedForestFireScore::print_fire_statistics(
