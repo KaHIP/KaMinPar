@@ -47,7 +47,7 @@ private:
 
   CSRGraph sparsify_and_recontract(CSRGraph csr, NodeID target_m) const;
   CSRGraph sparsify_and_make_negative_edges(CSRGraph csr, NodeID target_m) const;
-  CSRGraph remove_negative_edges(CSRGraph csr) const;
+  CSRGraph keep_only_negative_edges(CSRGraph csr) const;
 
   EdgeID sparsification_target(EdgeID old_m, NodeID old_n, EdgeID new_m) const;
 

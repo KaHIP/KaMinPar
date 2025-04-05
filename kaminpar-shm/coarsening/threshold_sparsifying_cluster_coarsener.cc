@@ -131,7 +131,7 @@ bool ThresholdSparsifyingClusterCoarsener::coarsen() {
       } else {
         if (_s_ctx.algorithm == SparsificationAlgorithm::THRESHOLD &&
             _s_ctx.score_function == ScoreFunctionSection::WEIGHT) {
-          return remove_negative_edges(
+          return keep_only_negative_edges(
               sparsify_and_make_negative_edges(std::move(csr), target_sparsified_m)
           );
         }
@@ -204,7 +204,7 @@ CSRGraph ThresholdSparsifyingClusterCoarsener::sparsify_and_make_negative_edges(
   return csr;
 }
 
-CSRGraph ThresholdSparsifyingClusterCoarsener::remove_negative_edges(CSRGraph g) const {
+CSRGraph ThresholdSparsifyingClusterCoarsener::keep_only_negative_edges(CSRGraph g) const {
   SCOPED_TIMER("Build Sparsifier");
   auto nodes = StaticArray<EdgeID>(g.n() + 1);
   sparsification::utils::parallel_for_edges_with_endpoints(g, [&](EdgeID e, NodeID u, NodeID v) {
