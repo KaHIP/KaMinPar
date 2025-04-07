@@ -135,7 +135,7 @@ void WeightedForestFireScore::make_scores_symmetric(const CSRGraph &g, StaticArr
     } else { // use hashed data structue
       std::unordered_set<EdgeWithEndpoints, EdgeWithEndpointHasher, EdgeWithEnpointComparator> set;
       for (EdgeID i = 0; i <= buckets[bucket_index].size(); i++) {
-        EdgeWithEndpoints edge;
+        EdgeWithEndpoints edge{};
         auto possible_counter_edge = set.extract(edge);
 
         if (possible_counter_edge.empty()) {
