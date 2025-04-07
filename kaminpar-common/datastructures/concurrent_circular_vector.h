@@ -91,7 +91,7 @@ public:
     const Size _value = _counter++;
 
     const Size pos = _value % _buffer.size();
-    const bool success = _buffer_mutexes[pos].try_lock();
+    [[maybe_unused]] const bool success = _buffer_mutexes[pos].try_lock();
     KASSERT(success);
 
     return _value;
