@@ -650,6 +650,8 @@ Context create_esa21_largek_context();
 Context create_esa21_largek_fast_context();
 Context create_esa21_strong_context();
 
+Context create_mtkahypar_kway_coarsening();
+
 } // namespace kaminpar::shm
 #endif // __cplusplus
 
