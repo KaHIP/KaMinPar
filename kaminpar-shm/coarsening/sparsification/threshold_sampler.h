@@ -18,6 +18,10 @@ public:
     SCOPED_TIMER("Threshold Sampling");
 
     StaticArray<EdgeWeight> sample(g.m());
+
+    if (target_edge_amount < 2)
+      return sample;
+
     StaticArray<Score> scores = TIMED_SCOPE("Calculate scores") {
       return this->_score_function->scores(g);
     };

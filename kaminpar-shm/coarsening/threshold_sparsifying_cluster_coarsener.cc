@@ -100,9 +100,7 @@ bool ThresholdSparsifyingClusterCoarsener::coarsen() {
         // This reduces overall peak memory.
         // !! This invalidates the `csr` reference !!
         StaticArray<EdgeWeight> c_edge_weights = csr.take_raw_edge_weights();
-        {
-          ((void)std::move(graph));
-        }
+        { ((void)std::move(graph)); }
 
         // Sorted cluster buckets might have changed due to the node remapping --> re-do
         // preprocessing for cluster contraction
@@ -252,6 +250,17 @@ ThresholdSparsifyingClusterCoarsener::recontract_with_threshold_sparsification(
     const EdgeID target_m
 ) {
   using namespace sparsification;
+
+  if (target_m < 2) {
+    return contract_and_sparsify_clustering(
+        current().concretize<CSRGraph>(),
+        std::move(mapping),
+        c_n,
+        [](const NodeID, const EdgeWeight, const NodeID) { return false; },
+        _c_ctx.contraction,
+        _contraction_m_ctx
+    );
+  }
 
   const utils::K_SmallestInfo<EdgeWeight> threshold = TIMED_SCOPE("Threshold selection") {
     return utils::quickselect_k_smallest<EdgeWeight>(
