@@ -9,7 +9,7 @@
 
 #include <algorithm>
 
-#include <kassert/kassert.hpp>
+#include "kaminpar-common/assert.h"
 
 #ifdef __linux__
 #include <unistd.h>

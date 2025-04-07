@@ -10,13 +10,13 @@
 #include <utility>
 #include <vector>
 
-#include <kassert/kassert.hpp>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 
 #include "kaminpar-shm/datastructures/abstract_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/constexpr_utils.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/degree_buckets.h"
