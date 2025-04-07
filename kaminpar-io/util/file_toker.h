@@ -123,7 +123,7 @@ public:
     }
   }
 
-  inline void consume_char(const char ch) {
+  inline void consume_char([[maybe_unused]] const char ch) {
     KASSERT(
         valid_position() && current() == ch,
         "unexpected symbol: " << current() << ", but expected " << ch
