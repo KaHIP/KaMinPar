@@ -137,6 +137,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
         "-Winit-self"
         "-Woverloaded-virtual"
         "-Wredundant-decls"
+        "-Wno-psabi"
         )
 endif ()
 
