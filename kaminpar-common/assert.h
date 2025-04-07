@@ -7,7 +7,20 @@
  ******************************************************************************/
 #pragma once
 
+#ifdef KAMINPAR_KASSERT_FOUND
+
 #include <kassert/kassert.hpp> // IWYU pragma: export
+
+#else
+
+// If this is a build without KASSERT, turn all KASSERT()'s into assert()'s
+// and ignore the assertion level + custom error message
+#include <cassert>
+#define KASSERT(x, ...) assert((x))
+#define KASSERT_ENABLED(x) 0
+#define KASSERT_ASSERTION_LEVEL 0
+
+#endif
 
 namespace kaminpar::assert {
 
