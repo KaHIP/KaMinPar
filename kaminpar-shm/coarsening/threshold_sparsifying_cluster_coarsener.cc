@@ -104,6 +104,12 @@ bool ThresholdSparsifyingClusterCoarsener::coarsen() {
           ((void)std::move(graph));
         }
 
+        // Sorted cluster buckets might have changed due to the node remapping --> re-do
+        // preprocessing for cluster contraction
+        fill_cluster_buckets(
+            c_n, current(), mapping, _contraction_m_ctx.buckets_index, _contraction_m_ctx.buckets
+        );
+
         auto recontracted = [&]() {
           if (_s_ctx.algorithm == SparsificationAlgorithm::THRESHOLD) {
             KASSERT(
@@ -142,11 +148,9 @@ bool ThresholdSparsifyingClusterCoarsener::coarsen() {
 
     const EdgeID sparsified_m = sparsified.m();
 
-    _hierarchy.push_back(
-        std::make_unique<contraction::CoarseGraphImpl>(
-            Graph(std::make_unique<CSRGraph>(std::move(sparsified))), std::move(mapping)
-        )
-    );
+    _hierarchy.push_back(std::make_unique<contraction::CoarseGraphImpl>(
+        Graph(std::make_unique<CSRGraph>(std::move(sparsified))), std::move(mapping)
+    ));
 
     LOG << "Sparsified from " << unsparsified_m << " to " << sparsified_m
         << " edges (target: " << target_sparsified_m << ")";
@@ -309,6 +313,7 @@ std::unique_ptr<CoarseGraph> ThresholdSparsifyingClusterCoarsener::recontract_wi
     StaticArray<NodeID> mapping,
     const EdgeID target_m
 ) {
+  using namespace contraction;
   using namespace sparsification;
 
   // We do not need them any longer, so free them now to reduce peak memory
