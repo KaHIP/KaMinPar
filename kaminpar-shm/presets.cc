@@ -487,6 +487,7 @@ Context create_mtkahypar_kway_coarsening() {
   ctx.coarsening.clustering.cluster_weight_multiplier = 1.0 / 160.0;
   ctx.coarsening.clustering.shrink_factor = 2.5;
   ctx.coarsening.contraction_limit = 160;
+  ctx.coarsening.clustering.lp.two_hop_strategy = TwoHopStrategy::CLUSTER;
   ctx.partitioning.mode = PartitioningMode::KWAY;
 
   return ctx;
