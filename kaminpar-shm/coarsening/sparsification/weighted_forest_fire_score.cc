@@ -23,6 +23,9 @@ StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
     Random &rand = Random::instance();
     DynamicBinaryMaxHeap<EdgeID, double> sample;
 
+    std::vector<std::pair<EdgeID, double>> valid_edges_with_keys;
+
+    constexpr EdgeID kNthElementCutoff = 1 << 10;
     constexpr std::size_t kPeriod = 1 << 14;
 
     std::vector<double> precomputed_log_doubles(kPeriod);
@@ -59,33 +62,76 @@ StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
           continue;
         }
 
-        // We sample neighbors without replacement and probailies propotional to the weight of the
-        // connecting edge using a version of the exponential clock method: Every incident edge
-        // leading to an unvisited vertex is assined a random key depending on its weight and the
-        // ones with the smallest keys are sampled.
-        g.neighbors(u, [&](const EdgeID e, const NodeID v) {
-          if (!visited.get(v)) {
-            // Key for exponetial clock method
-            const double key = -get_next_log_double() / (_ignore_weights ? 1 : g.edge_weight(e));
+        if (neighbours_to_sample < kNthElementCutoff) {
+          // We sample neighbors without replacement and probailies propotional to the weight of the
+          // connecting edge using a version of the exponential clock method: Every incident edge
+          // leading to an unvisited vertex is assined a random key depending on its weight and the
+          // ones with the smallest keys are sampled.
+          g.neighbors(u, [&](const EdgeID e, const NodeID v) {
+            if (!visited.get(v)) {
+              // Key for exponetial clock method
+              const double key = -get_next_log_double() / (_ignore_weights ? 1 : g.edge_weight(e));
 
-            if (sample.size() < neighbours_to_sample) {
-              sample.push(e, key);
-            } else if (key < sample.peek_key()) {
-              sample.pop();
-              sample.push(e, key);
+              if (sample.size() < neighbours_to_sample) {
+                sample.push(e, key);
+              } else if (key < sample.peek_key()) {
+                sample.pop();
+                sample.push(e, key);
+              }
             }
+          });
+
+          for (const auto &entry : sample.elements()) {
+            // Mark node as visited, burn edge
+            const EdgeID e = entry.id;
+            const NodeID v = g.edge_target(e);
+
+            active_nodes.push(v);
+            __atomic_add_fetch(&burnt[e], 1, __ATOMIC_RELAXED);
+            local_edges_burnt++;
+            visited[v] = true;
           }
-        });
+        } else {
+          valid_edges_with_keys.clear();
 
-        for (const auto &entry : sample.elements()) {
-          // Mark node as visited, burn edge
-          const EdgeID e = entry.id;
-          const NodeID v = g.edge_target(e);
+          // We sample neighbors without replacement and probailies propotional to the weight of the
+          // connecting edge using a version of the exponential clock method: Every incident edge
+          // leading to an unvisited vertex is assined a random key depending on its weight and the
+          // ones with the smallest keys are sampled.
+          g.neighbors(u, [&](const EdgeID e, const NodeID v) {
+            if (!visited.get(v)) {
+              // Key for exponetial clock method
+              valid_edges_with_keys.emplace_back(
+                  e, -get_next_log_double() / (_ignore_weights ? 1 : g.edge_weight(e))
+              );
+            }
+          });
 
-          active_nodes.push(v);
-          __atomic_add_fetch(&burnt[e], 1, __ATOMIC_RELAXED);
-          local_edges_burnt++;
-          visited[v] = true;
+          if (valid_edges_with_keys.empty()) {
+            continue;
+          }
+
+          const auto end_of_samping_range =
+              valid_edges_with_keys.begin() +
+              std::min<EdgeID>(neighbours_to_sample, valid_edges_with_keys.size());
+
+          std::nth_element(
+              valid_edges_with_keys.begin(),
+              end_of_samping_range - 1,
+              valid_edges_with_keys.end(),
+              [](auto a, auto b) { return std::get<1>(a) < std::get<1>(b); }
+          );
+
+          for (auto p = valid_edges_with_keys.begin(); p != end_of_samping_range; ++p) {
+            // Mark node as visited, burn edge
+            const EdgeID e = p->first;
+            const NodeID v = g.edge_target(e);
+
+            active_nodes.push(v);
+            __atomic_add_fetch(&burnt[e], 1, __ATOMIC_RELAXED);
+            local_edges_burnt++;
+            visited[v] = true;
+          }
         }
       }
 
