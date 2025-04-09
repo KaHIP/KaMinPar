@@ -781,6 +781,7 @@ private:
 
 template <typename ID, typename Key, template <typename...> typename Container = std::vector>
 class DynamicBinaryMinMaxForest {
+public:
   struct HeapElement {
     ID complementary_pos;
     ID id;
@@ -863,6 +864,10 @@ class DynamicBinaryMinMaxForest {
       for (std::size_t heap = 0; heap < _heaps.size(); ++heap) {
         _heaps[heap].clear();
       }
+    }
+
+    const auto &data(const std::size_t heap) const {
+      return _heaps[heap];
     }
 
   private:
@@ -1032,6 +1037,10 @@ public:
     _min_forest.clear();
     _max_forest.clear();
     _size = 0;
+  }
+
+  const auto &data(const std::size_t heap) const {
+    return _min_forest.data(heap);
   }
 
 private:
