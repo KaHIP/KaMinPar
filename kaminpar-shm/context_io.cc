@@ -472,7 +472,9 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
   out << "Coarsening algorithm:         " << c_ctx.algorithm << "\n";
 
   if (c_ctx.algorithm == CoarseningAlgorithm::BASIC_CLUSTERING ||
-      c_ctx.algorithm == CoarseningAlgorithm::OVERLAY_CLUSTERING) {
+      c_ctx.algorithm == CoarseningAlgorithm::OVERLAY_CLUSTERING ||
+      c_ctx.algorithm == CoarseningAlgorithm::SPARSIFYING_CLUSTERING ||
+      c_ctx.algorithm == CoarseningAlgorithm::THRESHOLD_SPARSIFYING_CLUSTERING) {
     out << "  Cluster weight limit:       " << c_ctx.clustering.cluster_weight_limit << " x "
         << c_ctx.clustering.cluster_weight_multiplier << "\n";
     out << "  Shrink factor:              " << c_ctx.clustering.shrink_factor << "\n";

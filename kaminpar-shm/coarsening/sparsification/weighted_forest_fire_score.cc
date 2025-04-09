@@ -3,17 +3,17 @@
 #include <queue>
 #include <unordered_set>
 
+#include "sparsification_utils.h"
+
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/timer.h"
-
-#include "sparsification_utils.h"
 
 namespace kaminpar::shm::sparsification {
 StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
   StaticArray<EdgeID> burnt(g.m(), 0);
-  EdgeID edges_burnt = 0;
+  std::atomic<EdgeID> edges_burnt = 0;
+  std::atomic<int> number_of_fires = 0;
 
-  int number_of_fires = 0;
   tbb::parallel_for(0, tbb::this_task_arena::max_concurrency(), [&](auto) {
     // Preallocate everything here
     std::queue<NodeID> activeNodes;
@@ -21,7 +21,8 @@ StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
     std::vector<std::pair<EdgeID, double>> validEdgesWithKeys;
 
     while (edges_burnt < _targetBurnRatio * g.m()) {
-      __atomic_fetch_add(&number_of_fires, 1, __ATOMIC_RELAXED);
+      number_of_fires++;
+
       // Start a new fire
       visited.clear();
       activeNodes.push(Random::instance().random_index(0, g.n()));
@@ -79,7 +80,7 @@ StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
           visited.insert(v);
         }
       }
-      __atomic_add_fetch(&edges_burnt, localEdgesBurnt, __ATOMIC_RELAXED);
+      edges_burnt += localEdgesBurnt;
     }
   });
 
@@ -91,7 +92,9 @@ StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
   return burnt;
 }
 
-void WeightedForestFireScore::make_scores_symmetric(const CSRGraph &g, StaticArray<EdgeID> &scores) {
+void WeightedForestFireScore::make_scores_symmetric(
+    const CSRGraph &g, StaticArray<EdgeID> &scores
+) {
   SCOPED_TIMER("Make Scores Symetric");
   // TODO tune these constants
   const EdgeID AVERAGE_EDGES_PER_BUCKET = 1000;

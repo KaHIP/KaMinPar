@@ -70,8 +70,8 @@ CSRGraph SparsifyingClusterCoarsener::sparsify(CSRGraph g, StaticArray<EdgeWeigh
       auto u_edges_added = __atomic_fetch_add(&edges_added[u], 1, __ATOMIC_RELAXED);
       edges[nodes[v] + v_edges_added] = u;
       edges[nodes[u] + u_edges_added] = v;
-      edge_weights[nodes[v] + v_edges_added] = -g.edge_weight(e);
-      edge_weights[nodes[u] + u_edges_added] = -g.edge_weight(e);
+      edge_weights[nodes[v] + v_edges_added] = g.edge_weight(e);
+      edge_weights[nodes[u] + u_edges_added] = g.edge_weight(e);
     }
   });
 
