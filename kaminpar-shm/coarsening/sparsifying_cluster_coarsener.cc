@@ -173,12 +173,14 @@ bool SparsifyingClusterCoarsener::coarsen() {
             std::move(dynamic_cast<contraction::CoarseGraphImpl *>(coarsened.get())->get_mapping())
         )
     );
-    printf(
-        "Sparsifying from %d to %d edges (target: %d)\n",
-        coarsened->get().m(),
-        sparsified.m(),
-        target_edge_amount
-    );
+
+    LOG << "Sparsifying from " << coarsened->get().m() << " to " << sparsified.m() << " edges (target: " << target_edge_amount << ")";
+    //printf(
+        //"Sparsifying from %d to %d edges (target: %d)\n",
+        //coarsened->get().m(),
+        //sparsified.m(),
+        //target_edge_amount
+    //);
   } else { // don't sparsify
     _hierarchy.push_back(std::move(coarsened));
   }
