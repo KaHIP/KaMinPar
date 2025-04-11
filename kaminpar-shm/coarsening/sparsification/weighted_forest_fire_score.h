@@ -49,6 +49,6 @@ private:
   double _targetBurnRatio;
   bool _ignore_weights;
 
-  void print_fire_statistics(const CSRGraph &g, EdgeID edges_burnt, int number_of_fires);
+  void print_fire_statistics(const CSRGraph &g, std::uint64_t edges_burnt, std::uint64_t number_of_fires);
 };
 } // namespace kaminpar::shm::sparsification

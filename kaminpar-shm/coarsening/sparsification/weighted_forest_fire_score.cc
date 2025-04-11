@@ -13,8 +13,8 @@ namespace kaminpar::shm::sparsification {
 StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
   StaticArray<EdgeID> burnt(g.m());
 
-  std::atomic<EdgeID> edges_burnt = 0;
-  std::atomic<int> number_of_fires = 0;
+  std::atomic<std::uint64_t> edges_burnt = 0;
+  std::atomic<std::uint64_t> number_of_fires = 0;
 
   tbb::parallel_for(0, tbb::this_task_arena::max_concurrency(), [&](auto) {
     std::queue<NodeID> activeNodes;
@@ -22,7 +22,7 @@ StaticArray<EdgeID> WeightedForestFireScore::scores(const CSRGraph &g) {
     FastResetArray<bool> visited(g.n());
     Random &rand = Random::instance();
 
-    while (edges_burnt < _targetBurnRatio * g.m()) {
+    while (edges_burnt < _targetBurnRatio * static_cast<std::uint64_t>(g.m())) {
       number_of_fires++;
 
       // Start a new fire
@@ -155,7 +155,7 @@ void WeightedForestFireScore::make_scores_symmetric(
 }
 
 void WeightedForestFireScore::print_fire_statistics(
-    const CSRGraph &g, EdgeID edges_burnt, int number_of_fires
+    const CSRGraph &g, const std::uint64_t edges_burnt, const std::uint64_t number_of_fires
 ) {
   const auto default_precision{std::cout.precision()};
   std::cout << std::setprecision(4);
