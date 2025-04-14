@@ -210,12 +210,25 @@ struct CoarseningContext {
 //
 
 enum class RefinementAlgorithm {
+  NOOP,
+  GREEDY_BALANCER,
   LABEL_PROPAGATION,
   KWAY_FM,
-  GREEDY_BALANCER,
+  TWOWAY_FLOW,
+  MULTIWAY_FLOW,
   JET,
   MTKAHYPAR,
-  NOOP,
+};
+
+struct BalancerRefinementContext {};
+
+struct LabelPropagationRefinementContext {
+  std::size_t num_iterations;
+  NodeID large_degree_threshold;
+  NodeID max_num_neighbors;
+
+  LabelPropagationImplementation impl;
+  TieBreakingStrategy tie_breaking_strategy;
 };
 
 enum class FMStoppingRule {
@@ -233,16 +246,6 @@ enum class GainCacheStrategy {
   DENSE,
   DENSE_LARGE_K,
   ON_THE_FLY,
-};
-
-struct LabelPropagationRefinementContext {
-  std::size_t num_iterations;
-  NodeID large_degree_threshold;
-  NodeID max_num_neighbors;
-
-  LabelPropagationImplementation impl;
-
-  TieBreakingStrategy tie_breaking_strategy;
 };
 
 struct KwayFMRefinementContext {
@@ -264,6 +267,33 @@ struct KwayFMRefinementContext {
   bool dbg_report_progress;
 };
 
+enum class FlowAlgorithm {
+  EDMONDS_KARP,
+  PREFLOW_PUSH,
+};
+
+struct PreflowPushContext {
+  bool global_relabeling_heuristic;
+  double global_relabeling_frequency;
+
+  bool gap_heuristic;
+};
+
+struct TwowayFlowRefinementContext {
+  double border_region_scaling_factor;
+  NodeID max_border_distance;
+
+  FlowAlgorithm flow_algorithm;
+  PreflowPushContext preflow_push;
+
+  std::size_t max_num_rounds;
+  double min_round_improvement_factor;
+};
+
+struct MultiwayFlowRefinementContext {
+  NodeID max_border_distance;
+};
+
 struct JetRefinementContext {
   int num_iterations;
   int num_fruitless_iterations;
@@ -283,13 +313,14 @@ struct MtKaHyParRefinementContext {
   std::string fine_config_filename;
 };
 
-struct BalancerRefinementContext {};
-
 struct RefinementContext {
   std::vector<RefinementAlgorithm> algorithms;
+
+  BalancerRefinementContext balancer;
   LabelPropagationRefinementContext lp;
   KwayFMRefinementContext kway_fm;
-  BalancerRefinementContext balancer;
+  TwowayFlowRefinementContext twoway_flow;
+  MultiwayFlowRefinementContext multiway_flow;
   JetRefinementContext jet;
   MtKaHyParRefinementContext mtkahypar;
 

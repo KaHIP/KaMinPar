@@ -62,6 +62,7 @@ kaminpar_add_shm_test(test_shm_compressed_graph shm/datastructures/compressed_gr
 
 # KaMinPar -> Refinement
 kaminpar_add_shm_test(test_shm_gain_caches shm/refinement/gain_cache_test.cc)
+kaminpar_add_shm_test(test_max_flow_algorithm shm/refinement/flow/max_flow_algorithm_test.cc)
 
 if (KAMINPAR_BUILD_DISTRIBUTED)
     include(cmake/KaTestrophe.cmake)

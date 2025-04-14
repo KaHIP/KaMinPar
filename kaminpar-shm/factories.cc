@@ -28,6 +28,8 @@
 // Refinement
 #include "kaminpar-shm/refinement/adapters/mtkahypar_refiner.h"
 #include "kaminpar-shm/refinement/balancer/greedy_balancer.h"
+#include "kaminpar-shm/refinement/flow/multiway_flow_refiner.h"
+#include "kaminpar-shm/refinement/flow/twoway_flow_refiner.h"
 #include "kaminpar-shm/refinement/fm/fm_refiner.h"
 #include "kaminpar-shm/refinement/jet/jet_refiner.h"
 #include "kaminpar-shm/refinement/lp/lp_refiner.h"
@@ -93,14 +95,20 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
   case RefinementAlgorithm::NOOP:
     return std::make_unique<NoopRefiner>();
 
-  case RefinementAlgorithm::LABEL_PROPAGATION:
-    return std::make_unique<LabelPropagationRefiner>(ctx);
-
   case RefinementAlgorithm::GREEDY_BALANCER:
     return std::make_unique<GreedyBalancer>(ctx);
 
+  case RefinementAlgorithm::LABEL_PROPAGATION:
+    return std::make_unique<LabelPropagationRefiner>(ctx);
+
   case RefinementAlgorithm::KWAY_FM:
     return std::make_unique<FMRefiner>(ctx);
+
+  case RefinementAlgorithm::TWOWAY_FLOW:
+    return std::make_unique<TwowayFlowRefiner>(ctx);
+
+  case RefinementAlgorithm::MULTIWAY_FLOW:
+    return std::make_unique<MultiwayFlowRefiner>(ctx);
 
   case RefinementAlgorithm::JET:
     return std::make_unique<JetRefiner>(ctx);

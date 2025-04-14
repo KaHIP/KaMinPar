@@ -151,10 +151,12 @@ std::ostream &operator<<(std::ostream &out, const LabelPropagationImplementation
 std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorithms() {
   return {
       {"noop", RefinementAlgorithm::NOOP},
+      {"greedy-balancer", RefinementAlgorithm::GREEDY_BALANCER},
       {"lp", RefinementAlgorithm::LABEL_PROPAGATION},
       {"fm", RefinementAlgorithm::KWAY_FM},
+      {"twoway-flow", RefinementAlgorithm::TWOWAY_FLOW},
+      {"multiway-flow", RefinementAlgorithm::MULTIWAY_FLOW},
       {"jet", RefinementAlgorithm::JET},
-      {"greedy-balancer", RefinementAlgorithm::GREEDY_BALANCER},
       {"mtkahypar", RefinementAlgorithm::MTKAHYPAR},
   };
 }
@@ -163,12 +165,16 @@ std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm)
   switch (algorithm) {
   case RefinementAlgorithm::NOOP:
     return out << "noop";
-  case RefinementAlgorithm::KWAY_FM:
-    return out << "fm";
-  case RefinementAlgorithm::LABEL_PROPAGATION:
-    return out << "lp";
   case RefinementAlgorithm::GREEDY_BALANCER:
     return out << "greedy-balancer";
+  case RefinementAlgorithm::LABEL_PROPAGATION:
+    return out << "lp";
+  case RefinementAlgorithm::KWAY_FM:
+    return out << "fm";
+  case RefinementAlgorithm::TWOWAY_FLOW:
+    return out << "twoway-flow";
+  case RefinementAlgorithm::MULTIWAY_FLOW:
+    return out << "multiway-flow";
   case RefinementAlgorithm::JET:
     return out << "jet";
   case RefinementAlgorithm::MTKAHYPAR:

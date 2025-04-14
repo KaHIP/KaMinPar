@@ -115,6 +115,10 @@ public:
     return is_edge_weighted() ? _edge_weights[e] : 1;
   }
 
+  [[nodiscard]] inline EdgeWeight max_edge_weight() const {
+    return _max_edge_weight;
+  }
+
   [[nodiscard]] inline EdgeWeight total_edge_weight() const final {
     return _total_edge_weight;
   }
@@ -464,6 +468,7 @@ private:
 
   NodeWeight _max_node_weight = kInvalidNodeWeight;
   NodeWeight _total_node_weight = kInvalidNodeWeight;
+  EdgeWeight _max_edge_weight = kInvalidEdgeWeight;
   EdgeWeight _total_edge_weight = kInvalidEdgeWeight;
 
   NodeID _max_degree;

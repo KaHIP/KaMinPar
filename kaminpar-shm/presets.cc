@@ -7,6 +7,7 @@
  ******************************************************************************/
 #include "kaminpar-shm/presets.h"
 
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <unordered_set>
@@ -215,6 +216,7 @@ Context create_default_context() {
                       RefinementAlgorithm::GREEDY_BALANCER,
                       RefinementAlgorithm::LABEL_PROPAGATION,
                   },
+              .balancer = {},
               .lp =
                   {
                       // Context -> Refinement -> Label Propagation
@@ -242,7 +244,24 @@ Context create_default_context() {
                       .dbg_compute_batch_stats = false,
                       .dbg_report_progress = false,
                   },
-              .balancer = {},
+              .twoway_flow =
+                  {
+                      .border_region_scaling_factor = 16,
+                      .max_border_distance = 2,
+                      .flow_algorithm = FlowAlgorithm::PREFLOW_PUSH,
+                      .preflow_push =
+                          {
+                              .global_relabeling_heuristic = true,
+                              .global_relabeling_frequency = 1,
+                              .gap_heuristic = true,
+                          },
+                      .max_num_rounds = std::numeric_limits<std::size_t>::max(),
+                      .min_round_improvement_factor = 0.01,
+                  },
+              .multiway_flow =
+                  {
+                      .max_border_distance = 2,
+                  },
               .jet =
                   {
                       .num_iterations = 0,

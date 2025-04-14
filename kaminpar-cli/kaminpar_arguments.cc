@@ -8,6 +8,7 @@
 #include "kaminpar-cli/kaminpar_arguments.h"
 
 #include "kaminpar-cli/CLI11.h"
+#include "kaminpar.h"
 
 #include "kaminpar-shm/context_io.h"
 #include "kaminpar-shm/kaminpar.h"
@@ -385,14 +386,20 @@ CLI::Option_group *create_refinement_options(CLI::App *app, Context &ctx) {
           R"(This option can be used multiple times to define a sequence of refinement algorithms. 
 The following algorithms can be used:
   - noop:            disable k-way refinement
+  - greedy-balancer: greedy balancer
   - lp:              label propagation
   - fm:              FM
-  - greedy-balancer: greedy balancer)"
+  - twoway-flow:     two-way flow
+  - multiway-flow:   multi-way flow
+  - jet:             Jet
+  - mtkahypar:       Mt-KaHyPar)"
       )
       ->capture_default_str();
 
   create_lp_refinement_options(app, ctx);
   create_kway_fm_refinement_options(app, ctx);
+  create_twoway_flow_refinement_options(app, ctx);
+  create_multiway_flow_refinement_options(app, ctx);
   create_jet_refinement_options(app, ctx);
   create_mtkahypar_refinement_options(app, ctx);
 
@@ -520,6 +527,42 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
       ->capture_default_str();
 
   return fm;
+}
+
+CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context &ctx) {
+  auto *multiway_flow = app->add_option_group("Refinement -> two-way Flow");
+
+  multiway_flow
+      ->add_option(
+          "--r-twoway-flow-border-region-scaling-factor",
+          ctx.refinement.twoway_flow.border_region_scaling_factor
+      )
+      ->capture_default_str();
+
+  multiway_flow
+      ->add_option(
+          "--r-twoway-flow-max-border-distance", ctx.refinement.twoway_flow.max_border_distance
+      )
+      ->capture_default_str();
+
+  multiway_flow
+      ->add_option("--r-twoway-flow-max-flow-algorithm", ctx.refinement.twoway_flow.flow_algorithm)
+      ->transform(CLI::CheckedTransformer(
+          std::unordered_map<std::string, FlowAlgorithm>{
+              {"edmonds-karp", FlowAlgorithm::EDMONDS_KARP},
+              {"preflow-push", FlowAlgorithm::PREFLOW_PUSH},
+          },
+          CLI::ignore_case
+      ))
+      ->capture_default_str();
+
+  return multiway_flow;
+}
+
+CLI::Option_group *create_multiway_flow_refinement_options(CLI::App *app, Context &ctx) {
+  auto *multiway_flow = app->add_option_group("Refinement -> multi-way Flow");
+
+  return multiway_flow;
 }
 
 CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {

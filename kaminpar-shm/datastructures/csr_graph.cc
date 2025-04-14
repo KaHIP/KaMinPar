@@ -72,8 +72,10 @@ CSRGraph::CSRGraph(
 
   if (_edge_weights.empty()) {
     _total_edge_weight = static_cast<EdgeWeight>(m());
+    _max_edge_weight = 1;
   } else {
     _total_edge_weight = parallel::accumulate(_edge_weights, static_cast<EdgeWeight>(0));
+    _max_edge_weight = parallel::max_element(_edge_weights);
   }
 
   _max_degree = parallel::max_difference(_nodes.begin(), _nodes.end());
@@ -107,9 +109,11 @@ CSRGraph::CSRGraph(
 
   if (_edge_weights.empty()) {
     _total_edge_weight = static_cast<EdgeWeight>(m());
+    _max_edge_weight = 1;
   } else {
     _total_edge_weight =
         std::accumulate(_edge_weights.begin(), _edge_weights.end(), static_cast<EdgeWeight>(0));
+    _max_edge_weight = *std::max_element(_edge_weights.begin(), _edge_weights.end());
   }
 
   // TODO: Use a sequential routine to initialize degree buckets since work isolation can otherwise
