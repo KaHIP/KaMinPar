@@ -355,7 +355,8 @@ private:
 
     // To prevent integer overflow during max-flow computation use an upper bound
     // for the weights of edges connected to terminals. TOOD: improve solutions
-    const EdgeWeight terminal_edge_weight = _graph.max_edge_weight() * _graph.n();
+    const EdgeWeight terminal_edge_weight =
+        std::min<EdgeWeight>(_graph.total_edge_weight() / 2, _graph.max_edge_weight() * _graph.n());
 
     cur_node = kFirstNodeID;
     EdgeID cur_edge = nodes[kFirstNodeID];
