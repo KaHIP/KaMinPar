@@ -1,26 +1,44 @@
 #include "kaminpar-shm/refinement/flow/max_flow/preflow_push_algorithm.h"
 
 #include <algorithm>
-#include <limits>
 #include <queue>
 #include <utility>
 
-#include "kaminpar.h"
-
-#include "kaminpar-shm/refinement/flow/max_flow/max_flow_algorithm.h"
-
-#include "kaminpar-common/datastructures/static_array.h"
-#include "kaminpar-common/logger.h"
+#include "kaminpar-shm/refinement/flow/util/reverse_edge_index.h"
 
 namespace kaminpar::shm {
 
 PreflowPushAlgorithm::PreflowPushAlgorithm(const PreflowPushContext &ctx) : _ctx(ctx) {}
 
-void PreflowPushAlgorithm::compute(
-    const CSRGraph &graph,
-    const std::unordered_set<NodeID> &sources,
-    const std::unordered_set<NodeID> &sinks,
-    std::span<EdgeWeight> flow
+void PreflowPushAlgorithm::initialize(const CSRGraph &graph) {
+  _graph = &graph;
+  _reverse_edge_index = compute_reverse_edge_index(graph);
+
+  _grt = GlobalRelabelingThreshold(graph.m(), _ctx.global_relabeling_frequency);
+
+  if (_flow.size() != graph.m()) {
+    _flow.resize(graph.m());
+  }
+
+  if (_heights.size() < graph.n()) {
+    _heights.resize(graph.n(), static_array::noinit);
+  }
+
+  if (_excess.size() < graph.n()) {
+    _excess.resize(graph.n(), static_array::noinit);
+  }
+
+  if (_cur_edge_offsets.size() < graph.n()) {
+    _cur_edge_offsets.resize(graph.n(), static_array::noinit);
+  }
+
+  if (_levels.size() < graph.n() * 2) {
+    _levels.resize(graph.n() * 2);
+  }
+}
+
+std::span<const EdgeWeight> PreflowPushAlgorithm::compute_max_flow(
+    const std::unordered_set<NodeID> &sources, const std::unordered_set<NodeID> &sinks
 ) {
   KASSERT(
       debug::are_terminals_disjoint(sources, sinks),
@@ -29,29 +47,13 @@ void PreflowPushAlgorithm::compute(
   );
 
   KASSERT(
-      debug::is_valid_flow(graph, sources, sinks, flow),
+      debug::is_valid_flow(*_graph, sources, sinks, _flow),
       "given an invalid flow as basis",
       assert::heavy
   );
 
-  _graph = &graph;
   _sources = &sources;
   _sinks = &sinks;
-
-  _flow = flow;
-  _grt = GlobalRelabelingThreshold(graph.m(), _ctx.global_relabeling_frequency);
-
-  if (_heights.size() < graph.n()) {
-    _heights.resize(graph.n(), static_array::noinit);
-  }
-  if (_excess.size() < graph.n()) {
-    _excess.resize(graph.n(), static_array::noinit);
-  }
-  if (_cur_edge_offsets.size() < graph.n()) {
-    _cur_edge_offsets.resize(graph.n(), static_array::noinit);
-  }
-
-  create_reverse_edges_index();
 
   saturate_source_edges();
   compute_exact_heights();
@@ -76,19 +78,21 @@ void PreflowPushAlgorithm::compute(
     }
   }
 
-  IF_DBG debug::print_flow(graph, sources, sinks, flow);
+  IF_DBG debug::print_flow(*_graph, sources, sinks, _flow);
 
   KASSERT(
-      debug::is_valid_flow(graph, sources, sinks, flow),
+      debug::is_valid_flow(*_graph, sources, sinks, _flow),
       "computed an invalid flow using preflow-push",
       assert::heavy
   );
 
   KASSERT(
-      debug::is_max_flow(graph, sources, sinks, flow),
-      "computed a non-maximum flow using preflow-pushu",
+      debug::is_max_flow(*_graph, sources, sinks, _flow),
+      "computed a non-maximum flow using preflow-push",
       assert::heavy
   );
+
+  return _flow;
 }
 
 NodeID PreflowPushAlgorithm::global_relabel() {
@@ -103,41 +107,8 @@ NodeID PreflowPushAlgorithm::global_relabel() {
   return max_active_height;
 }
 
-void PreflowPushAlgorithm::create_reverse_edges_index() {
-  if (_reverse_edges.size() < _graph->m()) {
-    _reverse_edges.resize(_graph->m(), static_array::noinit);
-  }
-
-  struct EdgeHasher {
-    [[nodiscard]] std::size_t operator()(const std::pair<NodeID, NodeID> &edge) const noexcept {
-      return edge.first ^ (edge.second << 1);
-    }
-  };
-  std::unordered_map<std::pair<NodeID, NodeID>, EdgeID, EdgeHasher> edge_table;
-
-  for (NodeID u = 0; u < _graph->n(); u++) {
-    _graph->neighbors(u, [&](const EdgeID e, const NodeID v) {
-      if (u < v) {
-        edge_table.insert({{u, v}, e});
-      } else {
-        auto it = edge_table.find({v, u});
-        KASSERT(it != edge_table.end());
-
-        const EdgeID e_reverse = it->second;
-        _reverse_edges[e] = e_reverse;
-        _reverse_edges[e_reverse] = e;
-
-        edge_table.erase(it);
-      }
-    });
-  }
-}
-
 NodeID PreflowPushAlgorithm::initialize_levels() {
   const NodeID num_nodes = _graph->n();
-  if (_levels.size() < num_nodes * 2) {
-    _levels.resize(num_nodes * 2);
-  }
 
   NodeID max_active_height = 0;
   for (const NodeID u : _graph->nodes()) {
@@ -260,7 +231,7 @@ bool PreflowPushAlgorithm::push(
   }
 
   _flow[e] += flow;
-  _flow[_reverse_edges[e]] -= flow;
+  _flow[_reverse_edge_index[e]] -= flow;
 
   const EdgeWeight to_prev_excess = _excess[to];
   _excess[to] = to_prev_excess + flow;

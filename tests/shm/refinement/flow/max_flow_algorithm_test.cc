@@ -18,8 +18,6 @@
 #include "kaminpar-shm/refinement/flow/max_flow/max_flow_algorithm.h"
 #include "kaminpar-shm/refinement/flow/max_flow/preflow_push_algorithm.h"
 
-#include "kaminpar-common/datastructures/static_array.h"
-
 namespace kaminpar::shm::testing {
 
 class MaxFlowAlgorithmTest : public ::testing::TestWithParam<MaxFlowAlgorithm *> {
@@ -30,8 +28,11 @@ protected:
       const std::unordered_set<NodeID> &sinks,
       const EdgeWeight expected_cut_value
   ) const {
+    MaxFlowAlgorithm &max_flow_algorithm = *GetParam();
     const CSRGraph &csr_graph = graph.csr_graph();
-    StaticArray<EdgeWeight> flow = GetParam()->compute(csr_graph, sources, sinks);
+
+    max_flow_algorithm.initialize(csr_graph);
+    std::span<const EdgeWeight> flow = max_flow_algorithm.compute_max_flow(sources, sinks);
 
     ASSERT_TRUE(debug::is_valid_flow(csr_graph, sources, sinks, flow));
     ASSERT_TRUE(debug::is_max_flow(csr_graph, sources, sinks, flow));

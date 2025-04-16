@@ -95,7 +95,8 @@ public:
         flow_network.graph, border_region1.nodes(), border_region2.nodes()
     );
 
-    StaticArray<EdgeWeight> flow(flow_network.graph.m());
+    _max_flow_algorithm->initialize(flow_network.graph);
+
     std::unordered_set<NodeID> source_side_nodes{flow_network.source};
     std::unordered_set<NodeID> sink_side_nodes{flow_network.sink};
 
@@ -104,8 +105,8 @@ public:
     const NodeWeight max_block2_weight = _p_ctx.max_block_weight(block2);
 
     while (true) {
-      TIMED_SCOPE("Compute Max Flow") {
-        _max_flow_algorithm->compute(flow_network.graph, source_side_nodes, sink_side_nodes, flow);
+      std::span<const EdgeWeight> flow = TIMED_SCOPE("Compute Max Flow") {
+        return _max_flow_algorithm->compute_max_flow(source_side_nodes, sink_side_nodes);
       };
 
       Cut source_cut = compute_source_cut(flow_network.graph, source_side_nodes, flow);
@@ -116,10 +117,8 @@ public:
           assert::heavy
       );
 
-      const NodeWeight source_cut_weight_prime = total_weight - source_cut.weight;
-      const bool is_source_cut_balanced =
-          source_cut.weight <= max_block1_weight && source_cut_weight_prime <= max_block2_weight;
-
+      const bool is_source_cut_balanced = source_cut.weight <= max_block1_weight &&
+                                          (total_weight - source_cut.weight) <= max_block2_weight;
       if (is_source_cut_balanced) {
         DBG << "Found balanced source-side cut";
 
@@ -132,10 +131,8 @@ public:
         );
       }
 
-      const NodeWeight sink_cut_weight_prime = total_weight - sink_cut.weight;
-      const bool is_sink_cut_balanced =
-          sink_cut.weight <= max_block2_weight && sink_cut_weight_prime <= max_block1_weight;
-
+      const bool is_sink_cut_balanced = sink_cut.weight <= max_block2_weight &&
+                                        (total_weight - sink_cut.weight) <= max_block1_weight;
       if (is_sink_cut_balanced) {
         DBG << "Found balanced sink-side cut";
 
@@ -151,7 +148,7 @@ public:
       SCOPED_TIMER("Compute Piercing Node");
       if (source_cut.weight <= sink_cut.weight) {
         DBG << "Piercing on source-side (" << source_cut.weight << "/" << max_block1_weight << ", "
-            << source_cut_weight_prime << "/" << max_block2_weight << ")";
+            << (total_weight - source_cut.weight) << "/" << max_block2_weight << ")";
 
         const NodeWeight max_piercing_node_weight = max_block1_weight - source_cut.weight;
         const NodeID piercing_node = piercing_heuristic.pierce_on_source_side(
@@ -173,7 +170,7 @@ public:
         }
       } else {
         DBG << "Piercing on sink-side (" << sink_cut.weight << "/" << max_block2_weight << ", "
-            << sink_cut_weight_prime << "/" << max_block1_weight << ")";
+            << (total_weight - sink_cut.weight) << "/" << max_block1_weight << ")";
 
         const NodeWeight max_piercing_node_weight = max_block2_weight - sink_cut.weight;
         const NodeID piercing_node = piercing_heuristic.pierce_on_sink_side(
@@ -555,8 +552,8 @@ public:
 
       const double relative_improvement =
           (prev_cut_value - cut_value) / static_cast<double>(prev_cut_value);
-
       DBG << "Finished round with a relative improvement of " << relative_improvement;
+
       if (num_round == _f_ctx.max_num_rounds ||
           relative_improvement < _f_ctx.min_round_improvement_factor) {
         break;

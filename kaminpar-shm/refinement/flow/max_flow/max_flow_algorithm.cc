@@ -10,19 +10,7 @@
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/logger.h"
 
-namespace kaminpar::shm {
-
-StaticArray<EdgeWeight> MaxFlowAlgorithm::compute(
-    const CSRGraph &graph,
-    const std::unordered_set<NodeID> &sources,
-    const std::unordered_set<NodeID> &sinks
-) {
-  StaticArray<EdgeWeight> flow(graph.m());
-  compute(graph, sources, sinks, flow);
-  return flow;
-}
-
-namespace debug {
+namespace kaminpar::shm::debug {
 
 bool are_terminals_disjoint(
     const std::unordered_set<NodeID> &sources, const std::unordered_set<NodeID> &sinks
@@ -156,11 +144,9 @@ void print_flow(
         std::cout << " (sink)";
       }
 
-      std::cout << '\n';
+      std::cout << "\n";
     });
   }
 }
 
-} // namespace debug
-
-} // namespace kaminpar::shm
+} // namespace kaminpar::shm::debug

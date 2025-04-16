@@ -12,17 +12,10 @@ class MaxFlowAlgorithm {
 public:
   virtual ~MaxFlowAlgorithm() = default;
 
-  [[nodiscard]] StaticArray<EdgeWeight> compute(
-      const CSRGraph &graph,
-      const std::unordered_set<NodeID> &sources,
-      const std::unordered_set<NodeID> &sinks
-  );
+  virtual void initialize(const CSRGraph &graph) = 0;
 
-  virtual void compute(
-      const CSRGraph &graph,
-      const std::unordered_set<NodeID> &sources,
-      const std::unordered_set<NodeID> &sinks,
-      std::span<EdgeWeight> flow
+  virtual std::span<const EdgeWeight> compute_max_flow(
+      const std::unordered_set<NodeID> &sources, const std::unordered_set<NodeID> &sinks
   ) = 0;
 };
 

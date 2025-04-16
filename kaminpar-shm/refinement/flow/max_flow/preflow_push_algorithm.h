@@ -90,16 +90,13 @@ public:
   PreflowPushAlgorithm(const PreflowPushContext &ctx);
   ~PreflowPushAlgorithm() override = default;
 
-  void compute(
-      const CSRGraph &graph,
-      const std::unordered_set<NodeID> &sources,
-      const std::unordered_set<NodeID> &sinks,
-      std::span<EdgeWeight> flow
+  void initialize(const CSRGraph &graph) override;
+
+  std::span<const EdgeWeight> compute_max_flow(
+      const std::unordered_set<NodeID> &sources, const std::unordered_set<NodeID> &sinks
   ) override;
 
 private:
-  void create_reverse_edges_index();
-
   NodeID global_relabel();
 
   NodeID initialize_levels();
@@ -118,13 +115,13 @@ private:
   const PreflowPushContext _ctx;
 
   const CSRGraph *_graph;
+  StaticArray<EdgeID> _reverse_edge_index;
+
   const std::unordered_set<NodeID> *_sources;
   const std::unordered_set<NodeID> *_sinks;
 
-  std::span<EdgeWeight> _flow;
   GlobalRelabelingThreshold _grt;
-
-  StaticArray<EdgeID> _reverse_edges;
+  StaticArray<EdgeWeight> _flow;
   StaticArray<NodeID> _heights;
   StaticArray<EdgeWeight> _excess;
   StaticArray<NodeID> _cur_edge_offsets;
