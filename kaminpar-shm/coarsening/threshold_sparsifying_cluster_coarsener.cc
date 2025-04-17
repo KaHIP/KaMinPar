@@ -109,6 +109,7 @@ bool ThresholdSparsifyingClusterCoarsener::coarsen() {
         );
 
         auto recontracted = [&]() {
+          SCOPED_TIMER("Sparsification");
           if (_s_ctx.algorithm == SparsificationAlgorithm::THRESHOLD) {
             KASSERT(
                 _s_ctx.score_function == ScoreFunctionSection::WEIGHT,
