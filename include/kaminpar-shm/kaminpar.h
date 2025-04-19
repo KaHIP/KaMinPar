@@ -286,6 +286,7 @@ struct TwowayFlowRefinementContext {
   FlowAlgorithm flow_algorithm;
   PreflowPushContext preflow_push;
 
+  bool parallel_scheduling;
   std::size_t max_num_rounds;
   double min_round_improvement_factor;
 };

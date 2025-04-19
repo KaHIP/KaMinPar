@@ -255,6 +255,7 @@ Context create_default_context() {
                               .global_relabeling_frequency = 1,
                               .gap_heuristic = true,
                           },
+                      .parallel_scheduling = true,
                       .max_num_rounds = std::numeric_limits<std::size_t>::max(),
                       .min_round_improvement_factor = 0.01,
                   },

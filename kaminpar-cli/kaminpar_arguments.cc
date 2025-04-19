@@ -538,7 +538,6 @@ CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context 
           ctx.refinement.twoway_flow.border_region_scaling_factor
       )
       ->capture_default_str();
-
   multiway_flow
       ->add_option(
           "--r-twoway-flow-max-border-distance", ctx.refinement.twoway_flow.max_border_distance
@@ -554,6 +553,21 @@ CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context 
           },
           CLI::ignore_case
       ))
+      ->capture_default_str();
+
+  multiway_flow
+      ->add_option(
+          "--r-twoway-flow-parallel-scheduling", ctx.refinement.twoway_flow.parallel_scheduling
+      )
+      ->capture_default_str();
+  multiway_flow
+      ->add_option("--r-twoway-flow-max-num-rounds", ctx.refinement.twoway_flow.max_num_rounds)
+      ->capture_default_str();
+  multiway_flow
+      ->add_option(
+          "--r-twoway-flow-min-round-improvement",
+          ctx.refinement.twoway_flow.min_round_improvement_factor
+      )
       ->capture_default_str();
 
   return multiway_flow;

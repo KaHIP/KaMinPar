@@ -7,6 +7,7 @@
  ******************************************************************************/
 #pragma once
 
+#include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/refinement/refiner.h"
@@ -30,8 +31,10 @@ public:
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) override;
 
+  bool refine(PartitionedGraph &p_graph, const CSRGraph &graph, const PartitionContext &p_ctx);
+
 private:
-  const Context &_ctx;
+  const TwowayFlowRefinementContext &_f_ctx;
 };
 
 } // namespace kaminpar::shm

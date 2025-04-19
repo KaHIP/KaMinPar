@@ -17,6 +17,9 @@
 #include <utility>
 #include <vector>
 
+#include <tbb/enumerable_thread_specific.h>
+#include <tbb/parallel_for.h>
+
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/refinement/flow/max_flow/edmond_karp_algorithm.h"
@@ -27,6 +30,7 @@
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/static_array.h"
+#include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 
@@ -494,36 +498,18 @@ class SequentialBlockPairScheduler {
   using Move = BipartitionFlowRefiner::Move;
 
 public:
-  SequentialBlockPairScheduler(
-      const PartitionContext &p_ctx, const TwowayFlowRefinementContext &f_ctx
-  )
-      : _p_ctx(p_ctx),
-        _f_ctx(f_ctx) {}
+  SequentialBlockPairScheduler(const TwowayFlowRefinementContext &f_ctx) : _f_ctx(f_ctx) {}
 
-  bool refine(PartitionedGraph &p_graph, const CSRGraph &graph) {
+  bool refine(PartitionedGraph &p_graph, const CSRGraph &graph, const PartitionContext &p_ctx) {
     _p_graph = &p_graph;
     _graph = &graph;
 
-    const BlockID k = p_graph.k();
-    if (_active_blocks.size() < k) {
-      _active_blocks.resize(k, static_array::noinit);
-    }
+    activate_all_blocks();
+    BipartitionFlowRefiner refiner(p_ctx, _f_ctx, p_graph, graph);
 
-    std::fill(_active_blocks.begin(), _active_blocks.end(), false);
-    _block_pairs = {};
-    _next_block_pairs = {};
-
-    for (BlockID block2 = 0; block2 < k; ++block2) {
-      for (BlockID block1 = 0; block1 < block2; ++block1) {
-        _block_pairs.emplace(block1, block2);
-      }
-    }
-
-    BipartitionFlowRefiner refiner(_p_ctx, _f_ctx, p_graph, graph);
-    EdgeWeight prev_cut_value = metrics::edge_cut_seq(p_graph);
-
-    std::size_t num_round = 0;
     bool found_improvement = false;
+    std::size_t num_round = 0;
+    EdgeWeight prev_cut_value = metrics::edge_cut_seq(p_graph);
     while (true) {
       num_round += 1;
       DBG << "Starting round " << num_round;
@@ -539,13 +525,12 @@ public:
 
         const EdgeWeight new_cut_value = metrics::edge_cut_seq(p_graph);
         const EdgeWeight gain = cut_value - new_cut_value;
-        DBG << "Found balanced cut with gain " << gain << " (" << cut_value << " -> "
-            << new_cut_value << ")";
+        DBG << "Found balanced cut with gain " << gain;
 
         if (gain > 0) {
           cut_value = new_cut_value;
-          activate_block(block1);
-          activate_block(block2);
+          _active_blocks[block1] = true;
+          _active_blocks[block2] = true;
         } else {
           revert_moves(moves);
         }
@@ -560,8 +545,7 @@ public:
         break;
       }
 
-      std::fill(_active_blocks.begin(), _active_blocks.end(), false);
-      std::swap(_block_pairs, _next_block_pairs);
+      activate_blocks();
 
       found_improvement = true;
       prev_cut_value = cut_value;
@@ -571,6 +555,35 @@ public:
   }
 
 private:
+  void activate_all_blocks() {
+    if (_active_blocks.size() < _p_graph->k()) {
+      _active_blocks.resize(_p_graph->k(), static_array::noinit);
+    }
+
+    _block_pairs = {}; // std::queue is missing a clear function
+    for (BlockID block2 = 0, k = _p_graph->k(); block2 < k; ++block2) {
+      for (BlockID block1 = 0; block1 < block2; ++block1) {
+        _block_pairs.emplace(block1, block2);
+      }
+    }
+
+    std::fill(_active_blocks.begin(), _active_blocks.end(), false);
+  }
+
+  void activate_blocks() {
+    for (BlockID block2 = 0, k = _p_graph->k(); block2 < k; ++block2) {
+      if (_active_blocks[block2]) {
+        for (BlockID block1 = 0; block1 < block2; ++block1) {
+          if (_active_blocks[block1]) {
+            _block_pairs.emplace(block1, block2);
+          }
+        }
+      }
+    }
+
+    std::fill(_active_blocks.begin(), _active_blocks.end(), false);
+  }
+
   void apply_moves(const std::vector<Move> &moves) {
     for (const Move &move : moves) {
       _p_graph->set_block(move.node, move.new_block);
@@ -583,26 +596,7 @@ private:
     }
   }
 
-  void activate_block(const BlockID block) {
-    const bool was_active = _active_blocks[block];
-    _active_blocks[block] = true;
-
-    if (was_active) {
-      return;
-    }
-
-    const BlockID k = _p_graph->k();
-    for (BlockID other_block = 0; other_block < k; ++other_block) {
-      if (block == other_block || _active_blocks[other_block]) {
-        continue;
-      }
-
-      _next_block_pairs.emplace(block, other_block);
-    }
-  }
-
 private:
-  const PartitionContext &_p_ctx;
   const TwowayFlowRefinementContext &_f_ctx;
 
   PartitionedGraph *_p_graph;
@@ -610,10 +604,158 @@ private:
 
   StaticArray<bool> _active_blocks;
   std::queue<std::pair<BlockID, BlockID>> _block_pairs;
-  std::queue<std::pair<BlockID, BlockID>> _next_block_pairs;
 };
 
-TwowayFlowRefiner::TwowayFlowRefiner(const Context &ctx) : _ctx(ctx) {}
+class ParallelBlockPairScheduler {
+  SET_DEBUG(true);
+
+  using Move = BipartitionFlowRefiner::Move;
+
+public:
+  ParallelBlockPairScheduler(const TwowayFlowRefinementContext &f_ctx) : _f_ctx(f_ctx) {}
+
+  bool refine(PartitionedGraph &p_graph, const CSRGraph &graph, const PartitionContext &p_ctx) {
+    _p_graph = &p_graph;
+    _graph = &graph;
+
+    activate_all_blocks();
+    auto refiner_ets = tbb::enumerable_thread_specific<BipartitionFlowRefiner>([&]() {
+      return BipartitionFlowRefiner(p_ctx, _f_ctx, p_graph, graph);
+    });
+
+    // Since timers are not multi-threaded, we disable them during parallel refinement.
+    DISABLE_TIMERS();
+
+    bool found_improvement = false;
+    std::size_t num_round = 0;
+    EdgeWeight prev_cut_value = metrics::edge_cut_seq(p_graph);
+    while (true) {
+      num_round += 1;
+      DBG << "Starting round " << num_round;
+
+      EdgeWeight cut_value = prev_cut_value;
+      tbb::parallel_for<BlockID>(0, _block_pairs.size(), [&](const BlockID i) {
+        const auto [block1, block2] = _block_pairs[i];
+        auto &refiner = refiner_ets.local();
+
+        std::vector<Move> moves = refiner.refine(block1, block2);
+
+        const std::unique_lock lock(_apply_moves_mutex);
+        apply_moves(moves);
+
+        const bool imbalance_conflict = !metrics::is_balanced(p_graph, p_ctx);
+        if (imbalance_conflict) {
+          DBG << "Block pair " << block1 << " and " << block2 << " has an imbalance conflict";
+          revert_moves(moves);
+          return;
+        }
+
+        const EdgeWeight new_cut_value = metrics::edge_cut_seq(p_graph);
+        const EdgeWeight gain = cut_value - new_cut_value;
+        DBG << "Found balanced cut for bock pair " << block1 << " and " << block2 << " with gain "
+            << gain;
+
+        if (gain <= 0) {
+          revert_moves(moves);
+          return;
+        }
+
+        cut_value = new_cut_value;
+        _active_blocks[block1] = true;
+        _active_blocks[block2] = true;
+      });
+
+      const double relative_improvement =
+          (prev_cut_value - cut_value) / static_cast<double>(prev_cut_value);
+      DBG << "Finished round with a relative improvement of " << relative_improvement;
+
+      if (num_round == _f_ctx.max_num_rounds ||
+          relative_improvement < _f_ctx.min_round_improvement_factor) {
+        break;
+      }
+
+      activate_blocks();
+
+      found_improvement = true;
+      prev_cut_value = cut_value;
+    }
+
+    ENABLE_TIMERS();
+
+    return found_improvement;
+  }
+
+private:
+  void activate_all_blocks() {
+    if (_active_blocks.size() < _p_graph->k()) {
+      _active_blocks.resize(_p_graph->k(), static_array::noinit);
+    }
+
+    _block_pairs.clear();
+    for (BlockID block2 = 0, k = _p_graph->k(); block2 < k; ++block2) {
+      for (BlockID block1 = 0; block1 < block2; ++block1) {
+        _block_pairs.emplace_back(block1, block2);
+      }
+    }
+
+    std::fill(_active_blocks.begin(), _active_blocks.end(), false);
+  }
+
+  void activate_blocks() {
+    _block_pairs.clear();
+
+    for (BlockID block2 = 0, k = _p_graph->k(); block2 < k; ++block2) {
+      if (_active_blocks[block2]) {
+        for (BlockID block1 = 0; block1 < block2; ++block1) {
+          if (_active_blocks[block1]) {
+            _block_pairs.emplace_back(block1, block2);
+          }
+        }
+      }
+    }
+
+    std::fill(_active_blocks.begin(), _active_blocks.end(), false);
+  }
+
+  void apply_moves(std::vector<Move> &moves) {
+    for (Move &move : moves) {
+      const NodeID u = move.node;
+
+      const BlockID invalid_block_conflict = _p_graph->block(u) != move.old_block;
+      if (invalid_block_conflict) {
+        move.old_block = kInvalidBlockID;
+        continue;
+      }
+
+      _p_graph->set_block(u, move.new_block);
+    }
+  }
+
+  void revert_moves(const std::vector<Move> &moves) {
+    for (const Move &move : moves) {
+      const BlockID old_block = move.old_block;
+
+      const BlockID invalid_block_conflict = old_block == kInvalidBlockID;
+      if (invalid_block_conflict) {
+        continue;
+      }
+
+      _p_graph->set_block(move.node, old_block);
+    }
+  }
+
+private:
+  const TwowayFlowRefinementContext &_f_ctx;
+
+  PartitionedGraph *_p_graph;
+  const CSRGraph *_graph;
+
+  StaticArray<bool> _active_blocks;
+  std::vector<std::pair<BlockID, BlockID>> _block_pairs;
+  std::mutex _apply_moves_mutex;
+};
+
+TwowayFlowRefiner::TwowayFlowRefiner(const Context &ctx) : _f_ctx(ctx.refinement.twoway_flow) {}
 
 TwowayFlowRefiner::~TwowayFlowRefiner() = default;
 
@@ -628,16 +770,27 @@ bool TwowayFlowRefiner::refine(
 ) {
   return reified(
       p_graph,
-      [&](const auto &csr_graph) {
-        SCOPED_TIMER("Two-Way Flow Refinement");
-        SequentialBlockPairScheduler scheduler(_ctx.partition, _ctx.refinement.twoway_flow);
-        return scheduler.refine(p_graph, csr_graph);
-      },
+      [&](const auto &csr_graph) { return refine(p_graph, csr_graph, p_ctx); },
       [&]([[maybe_unused]] const auto &compressed_graph) {
         LOG_WARNING << "Cannot refine a compressed graph using the two-way flow refiner.";
         return false;
       }
   );
+}
+
+bool TwowayFlowRefiner::refine(
+    PartitionedGraph &p_graph, const CSRGraph &graph, const PartitionContext &p_ctx
+) {
+  SCOPED_TIMER("Two-Way Flow Refinement");
+  SCOPED_HEAP_PROFILER("Two-Way Flow Refinement");
+
+  if (_f_ctx.parallel_scheduling) {
+    ParallelBlockPairScheduler scheduler(_f_ctx);
+    return scheduler.refine(p_graph, graph, p_ctx);
+  } else {
+    SequentialBlockPairScheduler scheduler(_f_ctx);
+    return scheduler.refine(p_graph, graph, p_ctx);
+  }
 }
 
 } // namespace kaminpar::shm
