@@ -3,12 +3,13 @@
 #include <limits>
 #include <span>
 #include <unordered_set>
-#include <vector>
 
+#include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/refinement/flow/max_flow/max_flow_algorithm.h"
 
+#include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm {
@@ -18,10 +19,8 @@ class PreflowPushAlgorithm : public MaxFlowAlgorithm {
 
   class Level {
   public:
-    Level() : _num_nodes(0) {}
-
     bool emtpy() const {
-      return _num_nodes == 0;
+      return _active_nodes.empty() && _inactive_nodes.empty();
     }
 
     bool has_active_node() const {
@@ -29,36 +28,52 @@ class PreflowPushAlgorithm : public MaxFlowAlgorithm {
     }
 
     NodeID pop_activate_node() {
-      const NodeID u = _active_nodes.back();
-      _active_nodes.pop_back();
+      KASSERT(has_active_node());
+
+      auto it = _active_nodes.begin();
+      const NodeID u = *it;
+
+      _active_nodes.erase(it);
+      _inactive_nodes.insert(u);
+
       return u;
     }
 
     void activate(const NodeID u) {
-      _active_nodes.push_back(u);
+      KASSERT(_inactive_nodes.contains(u));
+
+      _inactive_nodes.erase(u);
+      _active_nodes.insert(u);
     }
 
     void add_active_node(const NodeID u) {
-      _num_nodes += 1;
-      activate(u);
+      KASSERT(!_active_nodes.contains(u));
+      KASSERT(!_inactive_nodes.contains(u));
+
+      _active_nodes.insert(u);
     }
 
-    void add_inactive_node([[maybe_unused]] const NodeID u) {
-      _num_nodes += 1;
+    void add_inactive_node(const NodeID u) {
+      KASSERT(!_active_nodes.contains(u));
+      KASSERT(!_inactive_nodes.contains(u));
+
+      _inactive_nodes.insert(u);
     }
 
-    void remove([[maybe_unused]] const NodeID u) {
-      _num_nodes -= 1;
+    void remove_inactive_node(const NodeID u) {
+      KASSERT(_inactive_nodes.contains(u));
+
+      _inactive_nodes.erase(u);
     }
 
     void clear() {
-      _num_nodes = 0;
       _active_nodes.clear();
+      _inactive_nodes.clear();
     }
 
   private:
-    NodeID _num_nodes;
-    std::vector<NodeID> _active_nodes;
+    std::unordered_set<NodeID> _active_nodes;
+    std::unordered_set<NodeID> _inactive_nodes;
   };
 
   class GlobalRelabelingThreshold {
@@ -105,11 +120,11 @@ private:
 
   void compute_exact_heights();
 
-  NodeID discharge(NodeID u);
+  NodeID discharge(NodeID u, NodeID u_height);
 
   bool push(NodeID from, NodeID to, EdgeID e, EdgeWeight residual_capacity);
 
-  NodeID relabel(NodeID u);
+  NodeID relabel(NodeID u, NodeID u_height);
 
 private:
   const PreflowPushContext _ctx;
@@ -125,7 +140,7 @@ private:
   StaticArray<NodeID> _heights;
   StaticArray<EdgeWeight> _excess;
   StaticArray<NodeID> _cur_edge_offsets;
-  StaticArray<Level> _levels;
+  ScalableVector<Level> _levels;
 };
 
 } // namespace kaminpar::shm

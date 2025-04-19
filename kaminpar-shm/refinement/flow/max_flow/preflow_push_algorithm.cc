@@ -17,8 +17,9 @@ void PreflowPushAlgorithm::initialize(const CSRGraph &graph) {
   _grt = GlobalRelabelingThreshold(graph.m(), _ctx.global_relabeling_frequency);
 
   if (_flow.size() != graph.m()) {
-    _flow.resize(graph.m());
+    _flow.resize(graph.m(), static_array::noinit);
   }
+  std::fill(_flow.begin(), _flow.end(), 0);
 
   if (_heights.size() < graph.n()) {
     _heights.resize(graph.n(), static_array::noinit);
@@ -32,9 +33,7 @@ void PreflowPushAlgorithm::initialize(const CSRGraph &graph) {
     _cur_edge_offsets.resize(graph.n(), static_array::noinit);
   }
 
-  if (_levels.size() < graph.n() * 2) {
-    _levels.resize(graph.n() * 2);
-  }
+  _levels.resize(graph.n() * 2);
 }
 
 std::span<const EdgeWeight> PreflowPushAlgorithm::compute_max_flow(
@@ -43,12 +42,6 @@ std::span<const EdgeWeight> PreflowPushAlgorithm::compute_max_flow(
   KASSERT(
       debug::are_terminals_disjoint(sources, sinks),
       "source and sink nodes are not disjoint",
-      assert::heavy
-  );
-
-  KASSERT(
-      debug::is_valid_flow(*_graph, sources, sinks, _flow),
-      "given an invalid flow as basis",
       assert::heavy
   );
 
@@ -68,7 +61,7 @@ std::span<const EdgeWeight> PreflowPushAlgorithm::compute_max_flow(
       }
 
       const NodeID u = level.pop_activate_node();
-      const NodeID u_height = discharge(u);
+      const NodeID u_height = discharge(u, height);
 
       if (_ctx.global_relabeling_heuristic && _grt.is_reached()) {
         height = global_relabel();
@@ -99,9 +92,6 @@ NodeID PreflowPushAlgorithm::global_relabel() {
   _grt.clear();
 
   compute_exact_heights();
-  for (Level &level : _levels) {
-    level.clear();
-  }
 
   const NodeID max_active_height = initialize_levels();
   return max_active_height;
@@ -109,6 +99,10 @@ NodeID PreflowPushAlgorithm::global_relabel() {
 
 NodeID PreflowPushAlgorithm::initialize_levels() {
   const NodeID num_nodes = _graph->n();
+
+  for (Level &level : _levels) {
+    level.clear();
+  }
 
   NodeID max_active_height = 0;
   for (const NodeID u : _graph->nodes()) {
@@ -142,7 +136,6 @@ void PreflowPushAlgorithm::saturate_source_edges() {
   std::fill(_excess.begin(), _excess.end(), 0);
 
   for (const NodeID source : *_sources) {
-    _excess[source] = std::numeric_limits<EdgeWeight>::max();
     _graph->neighbors(source, [&](const EdgeID e, const NodeID v, const EdgeWeight c) {
       const EdgeWeight residual_capacity = c - _flow[e];
       push(source, v, e, residual_capacity);
@@ -180,16 +173,17 @@ void PreflowPushAlgorithm::compute_exact_heights() {
   }
 }
 
-NodeID PreflowPushAlgorithm::discharge(const NodeID u) {
+NodeID PreflowPushAlgorithm::discharge(const NodeID u, NodeID u_height) {
   const EdgeID first_edge = _graph->first_edge(u);
   const NodeID degree = _graph->degree(u);
 
-  NodeID u_height = _heights[u];
   while (_excess[u] > 0) {
     const EdgeID cur_edge_offset = _cur_edge_offsets[u];
 
     if (cur_edge_offset == degree) {
-      u_height = relabel(u);
+      _grt.add_work(degree);
+
+      u_height = relabel(u, u_height);
       _cur_edge_offsets[u] = 0;
     } else {
       const EdgeID e = first_edge + cur_edge_offset;
@@ -241,15 +235,13 @@ bool PreflowPushAlgorithm::push(
   return to_was_inactive;
 }
 
-NodeID PreflowPushAlgorithm::relabel(const NodeID u) {
-  _grt.add_work(_graph->degree(u));
-
-  const NodeID old_height = _heights[u];
-  _levels[old_height].remove(u);
+NodeID PreflowPushAlgorithm::relabel(const NodeID u, const NodeID u_height) {
+  _levels[u_height].remove_inactive_node(u);
 
   NodeID min_neighboring_height = std::numeric_limits<NodeID>::max();
   _graph->neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight c) {
-    if (_flow[e] < c) {
+    const bool has_residual_capacity = _flow[e] < c;
+    if (has_residual_capacity) {
       min_neighboring_height = std::min(min_neighboring_height, _heights[v]);
     }
   });
