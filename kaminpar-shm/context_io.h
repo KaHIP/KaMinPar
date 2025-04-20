@@ -36,37 +36,9 @@ std::ostream &operator<<(std::ostream &out, ClusterWeightLimit limit);
 
 std::unordered_map<std::string, ClusterWeightLimit> get_cluster_weight_limits();
 
-std::ostream &operator<<(std::ostream &out, RefinementAlgorithm algorithm);
-
-std::unordered_map<std::string, LabelPropagationImplementation> get_lp_implementations();
-
 std::ostream &operator<<(std::ostream &out, const LabelPropagationImplementation impl);
 
-std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorithms();
-
-std::ostream &operator<<(std::ostream &out, FMStoppingRule rule);
-
-std::unordered_map<std::string, FMStoppingRule> get_fm_stopping_rules();
-
-std::ostream &operator<<(std::ostream &out, PartitioningMode mode);
-
-std::unordered_map<std::string, PartitioningMode> get_partitioning_modes();
-
-std::ostream &operator<<(std::ostream &out, DeepInitialPartitioningMode mode);
-
-std::unordered_map<std::string, DeepInitialPartitioningMode> get_deep_initial_partitioning_modes();
-
-std::ostream &operator<<(std::ostream &out, KwayInitialPartitioningMode mode);
-
-std::unordered_map<std::string, KwayInitialPartitioningMode> get_kway_initial_partitioning_modes();
-
-std::ostream &operator<<(std::ostream &out, GainCacheStrategy strategy);
-
-std::unordered_map<std::string, TieBreakingStrategy> get_tie_breaking_strategies();
-
-std::ostream &operator<<(std::ostream &out, TieBreakingStrategy strategy);
-
-std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies();
+std::unordered_map<std::string, LabelPropagationImplementation> get_lp_implementations();
 
 std::ostream &operator<<(std::ostream &out, TwoHopStrategy strategy);
 
@@ -77,6 +49,10 @@ std::ostream &operator<<(std::ostream &out, IsolatedNodesClusteringStrategy stra
 std::unordered_map<std::string, IsolatedNodesClusteringStrategy>
 get_isolated_nodes_clustering_strategies();
 
+std::ostream &operator<<(std::ostream &out, TieBreakingStrategy strategy);
+
+std::unordered_map<std::string, TieBreakingStrategy> get_tie_breaking_strategies();
+
 std::ostream &operator<<(std::ostream &out, const ContractionAlgorithm algorithm);
 
 std::unordered_map<std::string, ContractionAlgorithm> get_contraction_algorithms();
@@ -85,14 +61,42 @@ std::ostream &operator<<(std::ostream &out, const ContractionImplementation mode
 
 std::unordered_map<std::string, ContractionImplementation> get_contraction_implementations();
 
-void print(const Context &ctx, std::ostream &out);
-void print(const GraphCompressionContext &c_ctx, std::ostream &out);
-void print(const PartitioningContext &p_ctx, std::ostream &out);
-void print(const PartitionContext &p_ctx, std::ostream &out);
-void print(const RefinementContext &r_ctx, std::ostream &out);
+std::ostream &operator<<(std::ostream &out, RefinementAlgorithm algorithm);
+
+std::unordered_map<std::string, RefinementAlgorithm> get_refinement_algorithms();
+
+std::ostream &operator<<(std::ostream &out, GainCacheStrategy strategy);
+
+std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies();
+
+std::ostream &operator<<(std::ostream &out, FlowAlgorithm algorithm);
+
+std::unordered_map<std::string, FlowAlgorithm> get_flow_algorithms();
+
+std::ostream &operator<<(std::ostream &out, InitialRefinementAlgorithm algorithm);
+
+std::unordered_map<std::string, InitialRefinementAlgorithm> get_initial_refinement_algorithms();
+
+std::ostream &operator<<(std::ostream &out, DeepInitialPartitioningMode mode);
+
+std::unordered_map<std::string, DeepInitialPartitioningMode> get_deep_initial_partitioning_modes();
+
+std::ostream &operator<<(std::ostream &out, KwayInitialPartitioningMode mode);
+
+std::unordered_map<std::string, KwayInitialPartitioningMode> get_kway_initial_partitioning_modes();
+
+std::ostream &operator<<(std::ostream &out, PartitioningMode mode);
+
+std::unordered_map<std::string, PartitioningMode> get_partitioning_modes();
+
 void print(const CoarseningContext &c_ctx, std::ostream &out);
 void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out);
 void print(const InitialPartitioningContext &i_ctx, std::ostream &out);
+void print(const RefinementContext &r_ctx, std::ostream &out);
+void print(const PartitioningContext &p_ctx, std::ostream &out);
+void print(const GraphCompressionContext &c_ctx, std::ostream &out);
+void print(const PartitionContext &p_ctx, std::ostream &out);
+void print(const Context &ctx, std::ostream &out);
 
 template <typename T> std::string stringify_enum(const T val) {
   std::stringstream ss;

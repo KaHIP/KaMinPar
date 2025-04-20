@@ -355,23 +355,44 @@ CLI::Option_group *create_initial_partitioning_options(CLI::App *app, Context &c
   auto *ip = app->add_option_group("Initial Partitioning");
 
   // Pool
+  ip->add_option("--i-p-r-algorithms", ctx.initial_partitioning.pool.refinement.algorithms)
+      ->transform(CLI::CheckedTransformer(get_initial_refinement_algorithms()).description(""))
+      ->description(
+          R"(This option can be used multiple times to define a sequence of initial refinement algorithms. 
+The following algorithms can be used:
+- noop:            disable initial refinement
+- simple-fm:       2-way FM with a simple stopping rule
+- adaptive-fm:     2-way FM with an adaptive stopping rule
+- twoway-flow:     2-way flow)"
+      )
+      ->capture_default_str();
+
   ip->add_option("--i-p-min-num-repetitions", ctx.initial_partitioning.pool.min_num_repetitions)
       ->capture_default_str();
   ip->add_option("--i-p-max-num-repetitions", ctx.initial_partitioning.pool.max_num_repetitions)
       ->capture_default_str();
 
   // Refinement
-  ip->add_flag(
-        "--i-r-disable", ctx.initial_partitioning.refinement.disabled, "Disable initial refinement."
-  )
+  ip->add_option("--i-r-algorithms", ctx.initial_partitioning.refinement.algorithms)
+      ->transform(CLI::CheckedTransformer(get_initial_refinement_algorithms()).description(""))
+      ->description(
+          R"(This option can be used multiple times to define a sequence of initial refinement algorithms. 
+The following algorithms can be used:
+- noop:            disable initial refinement
+- simple-fm:       2-way FM with a simple stopping rule
+- adaptive-fm:     2-way FM with an adaptive stopping rule
+- twoway-flow:     2-way flow)"
+      )
       ->capture_default_str();
+
+  ip->add_option("--i-r-fm-num-iterations", ctx.initial_partitioning.refinement.fm.num_iterations)
+      ->capture_default_str();
+
   ip->add_flag(
         "--i-adaptive-epsilon",
         ctx.initial_partitioning.use_adaptive_epsilon,
         "Use adaptive epsilon."
   )
-      ->capture_default_str();
-  ip->add_option("--i-r-num-iterations", ctx.initial_partitioning.refinement.num_iterations)
       ->capture_default_str();
 
   return ip;
@@ -381,7 +402,7 @@ CLI::Option_group *create_refinement_options(CLI::App *app, Context &ctx) {
   auto *refinement = app->add_option_group("Refinement");
 
   refinement->add_option("--r-algorithms", ctx.refinement.algorithms)
-      ->transform(CLI::CheckedTransformer(get_kway_refinement_algorithms()).description(""))
+      ->transform(CLI::CheckedTransformer(get_refinement_algorithms()).description(""))
       ->description(
           R"(This option can be used multiple times to define a sequence of refinement algorithms. 
 The following algorithms can be used:

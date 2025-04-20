@@ -5,10 +5,10 @@
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  ******************************************************************************/
-#include "kaminpar-shm/initial_partitioning/initial_bfs_bipartitioner.h"
+#include "kaminpar-shm/initial_partitioning/bipartitioning/initial_bfs_bipartitioner.h"
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
-#include "kaminpar-shm/initial_partitioning/seed_node_utils.h"
+#include "kaminpar-shm/initial_partitioning/util/seed_node_utils.h"
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/marker.h"

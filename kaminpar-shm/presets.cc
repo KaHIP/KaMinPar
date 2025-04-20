@@ -179,12 +179,32 @@ Context create_default_context() {
                   {
                       .refinement =
                           {
-                              .disabled = false,
-                              .stopping_rule = FMStoppingRule::SIMPLE,
-                              .num_fruitless_moves = 100,
-                              .alpha = 1.0,
-                              .num_iterations = 5,
-                              .improvement_abortion_threshold = 0.0001,
+                              .algorithms =
+                                  {
+                                      InitialRefinementAlgorithm::TWOWAY_SIMPLE_FM,
+                                  },
+                              .fm =
+                                  {
+                                      .num_fruitless_moves = 100,
+                                      .alpha = 1.0,
+                                      .num_iterations = 5,
+                                      .improvement_abortion_threshold = 0.0001,
+                                  },
+                              .twoway_flow =
+                                  {
+                                      .border_region_scaling_factor = 16,
+                                      .max_border_distance = 2,
+                                      .flow_algorithm = FlowAlgorithm::PREFLOW_PUSH,
+                                      .preflow_push =
+                                          {
+                                              .global_relabeling_heuristic = true,
+                                              .global_relabeling_frequency = 1,
+                                              .gap_heuristic = true,
+                                          },
+                                      .parallel_scheduling = false,
+                                      .max_num_rounds = std::numeric_limits<std::size_t>::max(),
+                                      .min_round_improvement_factor = 0.01,
+                                  },
                           },
                       .repetition_multiplier = 1.0,
                       .min_num_repetitions = 10,
@@ -198,12 +218,32 @@ Context create_default_context() {
                   },
               .refinement =
                   {
-                      .disabled = false,
-                      .stopping_rule = FMStoppingRule::SIMPLE,
-                      .num_fruitless_moves = 100,
-                      .alpha = 1.0,
-                      .num_iterations = 5,
-                      .improvement_abortion_threshold = 0.0001,
+                      .algorithms =
+                          {
+                              InitialRefinementAlgorithm::TWOWAY_SIMPLE_FM,
+                          },
+                      .fm =
+                          {
+                              .num_fruitless_moves = 100,
+                              .alpha = 1.0,
+                              .num_iterations = 5,
+                              .improvement_abortion_threshold = 0.0001,
+                          },
+                      .twoway_flow =
+                          {
+                              .border_region_scaling_factor = 16,
+                              .max_border_distance = 2,
+                              .flow_algorithm = FlowAlgorithm::PREFLOW_PUSH,
+                              .preflow_push =
+                                  {
+                                      .global_relabeling_heuristic = true,
+                                      .global_relabeling_frequency = 1,
+                                      .gap_heuristic = true,
+                                  },
+                              .parallel_scheduling = false,
+                              .max_num_rounds = std::numeric_limits<std::size_t>::max(),
+                              .min_round_improvement_factor = 0.01,
+                          },
                   },
               .refine_pool_partition = false,
               .use_adaptive_epsilon = true,
@@ -347,8 +387,8 @@ Context create_largek_fast_context() {
   ctx.initial_partitioning.pool.enable_ggg_bipartitioner = false;
   ctx.initial_partitioning.pool.enable_random_bipartitioner = true;
 
-  ctx.initial_partitioning.pool.refinement.disabled = true;
-  ctx.initial_partitioning.pool.refinement.num_iterations = 1;
+  ctx.initial_partitioning.pool.refinement.algorithms = {InitialRefinementAlgorithm::NOOP};
+  ctx.initial_partitioning.pool.refinement.fm.num_iterations = 1;
 
   ctx.initial_partitioning.refine_pool_partition = true;
 
@@ -463,8 +503,8 @@ Context create_esa21_largek_fast_context() {
   ctx.initial_partitioning.pool.enable_ggg_bipartitioner = false;
   ctx.initial_partitioning.pool.enable_random_bipartitioner = true;
 
-  ctx.initial_partitioning.pool.refinement.disabled = true;
-  ctx.initial_partitioning.pool.refinement.num_iterations = 1;
+  ctx.initial_partitioning.pool.refinement.algorithms = {InitialRefinementAlgorithm::NOOP};
+  ctx.initial_partitioning.pool.refinement.fm.num_iterations = 1;
 
   ctx.initial_partitioning.refine_pool_partition = true;
 

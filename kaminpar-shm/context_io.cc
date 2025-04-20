@@ -21,18 +21,6 @@ namespace kaminpar::shm {
 
 using namespace std::string_literals;
 
-std::unordered_map<std::string, NodeOrdering> get_node_orderings() {
-  return {
-      {"natural", NodeOrdering::NATURAL},
-      {"deg-buckets", NodeOrdering::DEGREE_BUCKETS},
-      {"degree-buckets", NodeOrdering::DEGREE_BUCKETS},
-      {"external-deg-buckets", NodeOrdering::EXTERNAL_DEGREE_BUCKETS},
-      {"external-degree-buckets", NodeOrdering::EXTERNAL_DEGREE_BUCKETS},
-      {"implicit-deg-buckets", NodeOrdering::IMPLICIT_DEGREE_BUCKETS},
-      {"implicit-degree-buckets", NodeOrdering::IMPLICIT_DEGREE_BUCKETS},
-  };
-}
-
 std::ostream &operator<<(std::ostream &out, const NodeOrdering ordering) {
   switch (ordering) {
   case NodeOrdering::NATURAL:
@@ -48,10 +36,15 @@ std::ostream &operator<<(std::ostream &out, const NodeOrdering ordering) {
   return out << "<invalid>";
 }
 
-std::unordered_map<std::string, EdgeOrdering> get_edge_orderings() {
+std::unordered_map<std::string, NodeOrdering> get_node_orderings() {
   return {
-      {"natural", EdgeOrdering::NATURAL},
-      {"compression", EdgeOrdering::COMPRESSION},
+      {"natural", NodeOrdering::NATURAL},
+      {"deg-buckets", NodeOrdering::DEGREE_BUCKETS},
+      {"degree-buckets", NodeOrdering::DEGREE_BUCKETS},
+      {"external-deg-buckets", NodeOrdering::EXTERNAL_DEGREE_BUCKETS},
+      {"external-degree-buckets", NodeOrdering::EXTERNAL_DEGREE_BUCKETS},
+      {"implicit-deg-buckets", NodeOrdering::IMPLICIT_DEGREE_BUCKETS},
+      {"implicit-degree-buckets", NodeOrdering::IMPLICIT_DEGREE_BUCKETS},
   };
 }
 
@@ -66,11 +59,10 @@ std::ostream &operator<<(std::ostream &out, const EdgeOrdering ordering) {
   return out << "<invalid>";
 }
 
-std::unordered_map<std::string, CoarseningAlgorithm> get_coarsening_algorithms() {
+std::unordered_map<std::string, EdgeOrdering> get_edge_orderings() {
   return {
-      {"noop", CoarseningAlgorithm::NOOP},
-      {"clustering", CoarseningAlgorithm::CLUSTERING},
-      {"overlay-clustering", CoarseningAlgorithm::OVERLAY_CLUSTERING},
+      {"natural", EdgeOrdering::NATURAL},
+      {"compression", EdgeOrdering::COMPRESSION},
   };
 }
 
@@ -87,10 +79,11 @@ std::ostream &operator<<(std::ostream &out, const CoarseningAlgorithm algorithm)
   return out << "<invalid>";
 }
 
-std::unordered_map<std::string, ClusteringAlgorithm> get_clustering_algorithms() {
+std::unordered_map<std::string, CoarseningAlgorithm> get_coarsening_algorithms() {
   return {
-      {"noop", ClusteringAlgorithm::NOOP},
-      {"lp", ClusteringAlgorithm::LABEL_PROPAGATION},
+      {"noop", CoarseningAlgorithm::NOOP},
+      {"clustering", CoarseningAlgorithm::CLUSTERING},
+      {"overlay-clustering", CoarseningAlgorithm::OVERLAY_CLUSTERING},
   };
 }
 
@@ -105,12 +98,10 @@ std::ostream &operator<<(std::ostream &out, const ClusteringAlgorithm algorithm)
   return out << "<invalid>";
 }
 
-std::unordered_map<std::string, ClusterWeightLimit> get_cluster_weight_limits() {
+std::unordered_map<std::string, ClusteringAlgorithm> get_clustering_algorithms() {
   return {
-      {"epsilon-block-weight", ClusterWeightLimit::EPSILON_BLOCK_WEIGHT},
-      {"static-block-weight", ClusterWeightLimit::BLOCK_WEIGHT},
-      {"one", ClusterWeightLimit::ONE},
-      {"zero", ClusterWeightLimit::ZERO},
+      {"noop", ClusteringAlgorithm::NOOP},
+      {"lp", ClusteringAlgorithm::LABEL_PROPAGATION},
   };
 }
 
@@ -128,11 +119,12 @@ std::ostream &operator<<(std::ostream &out, const ClusterWeightLimit limit) {
   return out << "<invalid>";
 }
 
-std::unordered_map<std::string, LabelPropagationImplementation> get_lp_implementations() {
+std::unordered_map<std::string, ClusterWeightLimit> get_cluster_weight_limits() {
   return {
-      {"single-phase", LabelPropagationImplementation::SINGLE_PHASE},
-      {"two-phase", LabelPropagationImplementation::TWO_PHASE},
-      {"growing-hash-tables", LabelPropagationImplementation::GROWING_HASH_TABLES},
+      {"epsilon-block-weight", ClusterWeightLimit::EPSILON_BLOCK_WEIGHT},
+      {"static-block-weight", ClusterWeightLimit::BLOCK_WEIGHT},
+      {"one", ClusterWeightLimit::ONE},
+      {"zero", ClusterWeightLimit::ZERO},
   };
 }
 
@@ -148,184 +140,12 @@ std::ostream &operator<<(std::ostream &out, const LabelPropagationImplementation
   return out << "<invalid>";
 }
 
-std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorithms() {
+std::unordered_map<std::string, LabelPropagationImplementation> get_lp_implementations() {
   return {
-      {"noop", RefinementAlgorithm::NOOP},
-      {"greedy-balancer", RefinementAlgorithm::GREEDY_BALANCER},
-      {"lp", RefinementAlgorithm::LABEL_PROPAGATION},
-      {"fm", RefinementAlgorithm::KWAY_FM},
-      {"twoway-flow", RefinementAlgorithm::TWOWAY_FLOW},
-      {"multiway-flow", RefinementAlgorithm::MULTIWAY_FLOW},
-      {"jet", RefinementAlgorithm::JET},
-      {"mtkahypar", RefinementAlgorithm::MTKAHYPAR},
+      {"single-phase", LabelPropagationImplementation::SINGLE_PHASE},
+      {"two-phase", LabelPropagationImplementation::TWO_PHASE},
+      {"growing-hash-tables", LabelPropagationImplementation::GROWING_HASH_TABLES},
   };
-}
-
-std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm) {
-  switch (algorithm) {
-  case RefinementAlgorithm::NOOP:
-    return out << "noop";
-  case RefinementAlgorithm::GREEDY_BALANCER:
-    return out << "greedy-balancer";
-  case RefinementAlgorithm::LABEL_PROPAGATION:
-    return out << "lp";
-  case RefinementAlgorithm::KWAY_FM:
-    return out << "fm";
-  case RefinementAlgorithm::TWOWAY_FLOW:
-    return out << "twoway-flow";
-  case RefinementAlgorithm::MULTIWAY_FLOW:
-    return out << "multiway-flow";
-  case RefinementAlgorithm::JET:
-    return out << "jet";
-  case RefinementAlgorithm::MTKAHYPAR:
-    return out << "mtkahypar";
-  }
-
-  return out << "<invalid>";
-}
-
-std::unordered_map<std::string, FMStoppingRule> get_fm_stopping_rules() {
-  return {
-      {"simple", FMStoppingRule::SIMPLE},
-      {"adaptive", FMStoppingRule::ADAPTIVE},
-  };
-}
-
-std::ostream &operator<<(std::ostream &out, const FMStoppingRule rule) {
-  switch (rule) {
-  case FMStoppingRule::SIMPLE:
-    return out << "simple";
-  case FMStoppingRule::ADAPTIVE:
-    return out << "adaptive";
-  }
-
-  return out << "<invalid>";
-}
-
-std::unordered_map<std::string, PartitioningMode> get_partitioning_modes() {
-  return {
-      {"deep", PartitioningMode::DEEP},
-      {"vcycle", PartitioningMode::VCYCLE},
-      {"rb", PartitioningMode::RB},
-      {"kway", PartitioningMode::KWAY},
-  };
-}
-
-std::ostream &operator<<(std::ostream &out, const PartitioningMode mode) {
-  switch (mode) {
-  case PartitioningMode::DEEP:
-    return out << "deep";
-  case PartitioningMode::VCYCLE:
-    return out << "vcycle";
-  case PartitioningMode::RB:
-    return out << "rb";
-  case PartitioningMode::KWAY:
-    return out << "kway";
-  }
-
-  return out << "<invalid>";
-}
-
-std::unordered_map<std::string, DeepInitialPartitioningMode> get_deep_initial_partitioning_modes() {
-  return {
-      {"sequential", DeepInitialPartitioningMode::SEQUENTIAL},
-      {"async-parallel", DeepInitialPartitioningMode::ASYNCHRONOUS_PARALLEL},
-      {"sync-parallel", DeepInitialPartitioningMode::SYNCHRONOUS_PARALLEL},
-      {"communities", DeepInitialPartitioningMode::COMMUNITIES},
-  };
-}
-
-std::ostream &operator<<(std::ostream &out, const DeepInitialPartitioningMode mode) {
-  switch (mode) {
-  case DeepInitialPartitioningMode::SEQUENTIAL:
-    return out << "sequential";
-  case DeepInitialPartitioningMode::ASYNCHRONOUS_PARALLEL:
-    return out << "async-parallel";
-  case DeepInitialPartitioningMode::SYNCHRONOUS_PARALLEL:
-    return out << "sync-parallel";
-  case DeepInitialPartitioningMode::COMMUNITIES:
-    return out << "communities";
-  }
-
-  return out << "<invalid>";
-}
-
-std::unordered_map<std::string, KwayInitialPartitioningMode> get_kway_initial_partitioning_modes() {
-  return {
-      {"sequential", KwayInitialPartitioningMode::SEQUENTIAL},
-      {"parallel", KwayInitialPartitioningMode::PARALLEL},
-      {"legacy", KwayInitialPartitioningMode::LEGACY},
-  };
-}
-
-std::ostream &operator<<(std::ostream &out, const KwayInitialPartitioningMode mode) {
-  switch (mode) {
-  case KwayInitialPartitioningMode::SEQUENTIAL:
-    return out << "sequential";
-  case KwayInitialPartitioningMode::PARALLEL:
-    return out << "parallel";
-  case KwayInitialPartitioningMode::LEGACY:
-    return out << "legacy";
-  }
-
-  return out << "<invalid>";
-}
-
-std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies() {
-  return {
-      {"compact-hashing", GainCacheStrategy::COMPACT_HASHING},
-      {"compact-hashing-largek", GainCacheStrategy::COMPACT_HASHING_LARGE_K},
-      {"sparse", GainCacheStrategy::SPARSE},
-      {"sparse-largek", GainCacheStrategy::SPARSE_LARGE_K},
-      {"hashing", GainCacheStrategy::HASHING},
-      {"hashing-largek", GainCacheStrategy::HASHING_LARGE_K},
-      {"dense", GainCacheStrategy::DENSE},
-      {"dense-largek", GainCacheStrategy::DENSE_LARGE_K},
-      {"on-the-fly", GainCacheStrategy::ON_THE_FLY},
-  };
-}
-
-std::ostream &operator<<(std::ostream &out, const GainCacheStrategy strategy) {
-  switch (strategy) {
-  case GainCacheStrategy::COMPACT_HASHING:
-    return out << "compact-hashing";
-  case GainCacheStrategy::COMPACT_HASHING_LARGE_K:
-    return out << "compact-hashing-largek";
-  case GainCacheStrategy::SPARSE:
-    return out << "sparse";
-  case GainCacheStrategy::SPARSE_LARGE_K:
-    return out << "sparse-largek";
-  case GainCacheStrategy::HASHING:
-    return out << "hashing";
-  case GainCacheStrategy::HASHING_LARGE_K:
-    return out << "hashing-largek";
-  case GainCacheStrategy::DENSE:
-    return out << "dense";
-  case GainCacheStrategy::DENSE_LARGE_K:
-    return out << "dense-largek";
-  case GainCacheStrategy::ON_THE_FLY:
-    return out << "on-the-fly";
-  }
-
-  return out << "<invalid>";
-}
-
-std::unordered_map<std::string, TieBreakingStrategy> get_tie_breaking_strategies() {
-  return {
-      {"geometric", TieBreakingStrategy::GEOMETRIC},
-      {"uniform", TieBreakingStrategy::UNIFORM},
-  };
-}
-
-std::ostream &operator<<(std::ostream &out, const TieBreakingStrategy strategy) {
-  switch (strategy) {
-  case TieBreakingStrategy::GEOMETRIC:
-    return out << "geometric";
-  case TieBreakingStrategy::UNIFORM:
-    return out << "uniform";
-  }
-
-  return out << "<invalid>";
 }
 
 std::ostream &operator<<(std::ostream &out, const TwoHopStrategy strategy) {
@@ -383,33 +203,22 @@ get_isolated_nodes_clustering_strategies() {
   };
 }
 
-void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
-  out << "Enabled:                      " << (c_ctx.enabled ? "yes" : "no") << "\n";
-  if (c_ctx.enabled) {
-    out << "Compression Scheme:           Gap Encoding + ";
-    if (c_ctx.streamvbyte_encoding) {
-      out << "StreamVByte Encoding\n";
-    } else {
-      out << "VarInt Encoding\n";
-    }
-
-    out << "  High Degree Encoding:       " << (c_ctx.high_degree_encoding ? "yes" : "no") << "\n";
-    if (c_ctx.high_degree_encoding) {
-      out << "    Threshold:                " << c_ctx.high_degree_threshold << "\n";
-      out << "    Part Length:              " << c_ctx.high_degree_part_length << "\n";
-    }
-    out << "  Interval Encoding:          " << (c_ctx.interval_encoding ? "yes" : "no") << "\n";
-    if (c_ctx.interval_encoding) {
-      out << "    Length Threshold:         " << c_ctx.interval_length_treshold << "\n";
-    }
-
-    out << "Compresion Ratio:             " << c_ctx.compression_ratio
-        << " [size reduction: " << (c_ctx.size_reduction / (float)(1024 * 1024)) << " mb]" << "\n";
-    out << "  High Degree Node Count:     " << c_ctx.num_high_degree_nodes << "\n";
-    out << "  High Degree Part Count:     " << c_ctx.num_high_degree_parts << "\n";
-    out << "  Interval Node Count:        " << c_ctx.num_interval_nodes << "\n";
-    out << "  Interval Count:             " << c_ctx.num_intervals << "\n";
+std::ostream &operator<<(std::ostream &out, const TieBreakingStrategy strategy) {
+  switch (strategy) {
+  case TieBreakingStrategy::GEOMETRIC:
+    return out << "geometric";
+  case TieBreakingStrategy::UNIFORM:
+    return out << "uniform";
   }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, TieBreakingStrategy> get_tie_breaking_strategies() {
+  return {
+      {"geometric", TieBreakingStrategy::GEOMETRIC},
+      {"uniform", TieBreakingStrategy::UNIFORM},
+  };
 }
 
 std::ostream &operator<<(std::ostream &out, const ContractionAlgorithm mode) {
@@ -451,6 +260,192 @@ std::unordered_map<std::string, ContractionImplementation> get_contraction_imple
       {"single-phase", ContractionImplementation::SINGLE_PHASE},
       {"two-phase", ContractionImplementation::TWO_PHASE},
       {"growing-hash-tables", ContractionImplementation::GROWING_HASH_TABLES},
+  };
+}
+
+std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm) {
+  switch (algorithm) {
+  case RefinementAlgorithm::NOOP:
+    return out << "noop";
+  case RefinementAlgorithm::GREEDY_BALANCER:
+    return out << "greedy-balancer";
+  case RefinementAlgorithm::LABEL_PROPAGATION:
+    return out << "lp";
+  case RefinementAlgorithm::KWAY_FM:
+    return out << "fm";
+  case RefinementAlgorithm::TWOWAY_FLOW:
+    return out << "twoway-flow";
+  case RefinementAlgorithm::MULTIWAY_FLOW:
+    return out << "multiway-flow";
+  case RefinementAlgorithm::JET:
+    return out << "jet";
+  case RefinementAlgorithm::MTKAHYPAR:
+    return out << "mtkahypar";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, RefinementAlgorithm> get_refinement_algorithms() {
+  return {
+      {"noop", RefinementAlgorithm::NOOP},
+      {"greedy-balancer", RefinementAlgorithm::GREEDY_BALANCER},
+      {"lp", RefinementAlgorithm::LABEL_PROPAGATION},
+      {"fm", RefinementAlgorithm::KWAY_FM},
+      {"twoway-flow", RefinementAlgorithm::TWOWAY_FLOW},
+      {"multiway-flow", RefinementAlgorithm::MULTIWAY_FLOW},
+      {"jet", RefinementAlgorithm::JET},
+      {"mtkahypar", RefinementAlgorithm::MTKAHYPAR},
+  };
+}
+
+std::ostream &operator<<(std::ostream &out, const GainCacheStrategy strategy) {
+  switch (strategy) {
+  case GainCacheStrategy::COMPACT_HASHING:
+    return out << "compact-hashing";
+  case GainCacheStrategy::COMPACT_HASHING_LARGE_K:
+    return out << "compact-hashing-largek";
+  case GainCacheStrategy::SPARSE:
+    return out << "sparse";
+  case GainCacheStrategy::SPARSE_LARGE_K:
+    return out << "sparse-largek";
+  case GainCacheStrategy::HASHING:
+    return out << "hashing";
+  case GainCacheStrategy::HASHING_LARGE_K:
+    return out << "hashing-largek";
+  case GainCacheStrategy::DENSE:
+    return out << "dense";
+  case GainCacheStrategy::DENSE_LARGE_K:
+    return out << "dense-largek";
+  case GainCacheStrategy::ON_THE_FLY:
+    return out << "on-the-fly";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies() {
+  return {
+      {"compact-hashing", GainCacheStrategy::COMPACT_HASHING},
+      {"compact-hashing-largek", GainCacheStrategy::COMPACT_HASHING_LARGE_K},
+      {"sparse", GainCacheStrategy::SPARSE},
+      {"sparse-largek", GainCacheStrategy::SPARSE_LARGE_K},
+      {"hashing", GainCacheStrategy::HASHING},
+      {"hashing-largek", GainCacheStrategy::HASHING_LARGE_K},
+      {"dense", GainCacheStrategy::DENSE},
+      {"dense-largek", GainCacheStrategy::DENSE_LARGE_K},
+      {"on-the-fly", GainCacheStrategy::ON_THE_FLY},
+  };
+}
+
+std::ostream &operator<<(std::ostream &out, FlowAlgorithm algorithm) {
+  switch (algorithm) {
+  case FlowAlgorithm::EDMONDS_KARP:
+    return out << "edmonds-karp";
+  case FlowAlgorithm::PREFLOW_PUSH:
+    return out << "preflow-push";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, FlowAlgorithm> get_flow_algorithms() {
+  return {
+      {"edmonds-karp", FlowAlgorithm::EDMONDS_KARP},
+      {"preflow-push", FlowAlgorithm::PREFLOW_PUSH},
+  };
+}
+
+std::ostream &operator<<(std::ostream &out, InitialRefinementAlgorithm algorithm) {
+  switch (algorithm) {
+  case InitialRefinementAlgorithm::NOOP:
+    return out << "noop";
+  case InitialRefinementAlgorithm::TWOWAY_SIMPLE_FM:
+    return out << "simple-fm";
+  case InitialRefinementAlgorithm::TWOWAY_ADAPTIVE_FM:
+    return out << "adaptive-fm";
+  case InitialRefinementAlgorithm::TWOWAY_FLOW:
+    return out << "twoway-flow";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, InitialRefinementAlgorithm> get_initial_refinement_algorithms() {
+  return {
+      {"noop", InitialRefinementAlgorithm::NOOP},
+      {"simple-fm", InitialRefinementAlgorithm::TWOWAY_SIMPLE_FM},
+      {"adaptive-fm", InitialRefinementAlgorithm::TWOWAY_ADAPTIVE_FM},
+      {"twoway-flow", InitialRefinementAlgorithm::TWOWAY_FLOW},
+  };
+}
+
+std::ostream &operator<<(std::ostream &out, const PartitioningMode mode) {
+  switch (mode) {
+  case PartitioningMode::DEEP:
+    return out << "deep";
+  case PartitioningMode::VCYCLE:
+    return out << "vcycle";
+  case PartitioningMode::RB:
+    return out << "rb";
+  case PartitioningMode::KWAY:
+    return out << "kway";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, PartitioningMode> get_partitioning_modes() {
+  return {
+      {"deep", PartitioningMode::DEEP},
+      {"vcycle", PartitioningMode::VCYCLE},
+      {"rb", PartitioningMode::RB},
+      {"kway", PartitioningMode::KWAY},
+  };
+}
+
+std::ostream &operator<<(std::ostream &out, const DeepInitialPartitioningMode mode) {
+  switch (mode) {
+  case DeepInitialPartitioningMode::SEQUENTIAL:
+    return out << "sequential";
+  case DeepInitialPartitioningMode::ASYNCHRONOUS_PARALLEL:
+    return out << "async-parallel";
+  case DeepInitialPartitioningMode::SYNCHRONOUS_PARALLEL:
+    return out << "sync-parallel";
+  case DeepInitialPartitioningMode::COMMUNITIES:
+    return out << "communities";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, DeepInitialPartitioningMode> get_deep_initial_partitioning_modes() {
+  return {
+      {"sequential", DeepInitialPartitioningMode::SEQUENTIAL},
+      {"async-parallel", DeepInitialPartitioningMode::ASYNCHRONOUS_PARALLEL},
+      {"sync-parallel", DeepInitialPartitioningMode::SYNCHRONOUS_PARALLEL},
+      {"communities", DeepInitialPartitioningMode::COMMUNITIES},
+  };
+}
+
+std::ostream &operator<<(std::ostream &out, const KwayInitialPartitioningMode mode) {
+  switch (mode) {
+  case KwayInitialPartitioningMode::SEQUENTIAL:
+    return out << "sequential";
+  case KwayInitialPartitioningMode::PARALLEL:
+    return out << "parallel";
+  case KwayInitialPartitioningMode::LEGACY:
+    return out << "legacy";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, KwayInitialPartitioningMode> get_kway_initial_partitioning_modes() {
+  return {
+      {"sequential", KwayInitialPartitioningMode::SEQUENTIAL},
+      {"parallel", KwayInitialPartitioningMode::PARALLEL},
+      {"legacy", KwayInitialPartitioningMode::LEGACY},
   };
 }
 
@@ -511,12 +506,14 @@ void print(const InitialPartitioningContext &i_ctx, std::ostream &out) {
 
 void print(const RefinementContext &r_ctx, std::ostream &out) {
   out << "Refinement algorithms:        [" << str::implode(r_ctx.algorithms, " -> ") << "]\n";
+
   if (r_ctx.includes_algorithm(RefinementAlgorithm::LABEL_PROPAGATION)) {
     out << "Label propagation:\n";
     out << "  Number of iterations:       " << r_ctx.lp.num_iterations << "\n";
     out << "  Tie breaking strategy:      " << r_ctx.lp.tie_breaking_strategy << "\n";
     out << "  Implementation:             " << r_ctx.lp.impl << "\n";
   }
+
   if (r_ctx.includes_algorithm(RefinementAlgorithm::KWAY_FM)) {
     out << "k-way FM:\n";
     out << "  Number of iterations:       " << r_ctx.kway_fm.num_iterations
@@ -528,6 +525,30 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
         << (r_ctx.kway_fm.unlock_locally_moved_nodes ? "unlock" : "lock") << "\n";
     out << "  Gain cache:                 " << r_ctx.kway_fm.gain_cache_strategy << "\n";
   }
+
+  if (r_ctx.includes_algorithm(RefinementAlgorithm::TWOWAY_FLOW)) {
+    out << "Two-way flow:\n";
+    out << "  Border region scaling:      " << r_ctx.twoway_flow.border_region_scaling_factor
+        << "\n";
+    out << "  Max border distance:        " << r_ctx.twoway_flow.max_border_distance << "\n";
+
+    out << "  Flow algorithm:             " << r_ctx.twoway_flow.flow_algorithm << "\n";
+    if (r_ctx.twoway_flow.flow_algorithm == FlowAlgorithm::PREFLOW_PUSH) {
+      out << "    Global relabeling:        "
+          << (r_ctx.twoway_flow.preflow_push.global_relabeling_heuristic ? "yes" : "no") << "\n";
+      out << "    Global relabeling freq.:  "
+          << r_ctx.twoway_flow.preflow_push.global_relabeling_frequency << "\n";
+      out << "    Gap heuristic:            "
+          << (r_ctx.twoway_flow.preflow_push.gap_heuristic ? "yes" : "no") << "\n";
+    }
+
+    out << "  Parallel scheduling:        "
+        << (r_ctx.twoway_flow.parallel_scheduling ? "yes" : "no") << "\n";
+    out << "  Max num rounds:             " << r_ctx.twoway_flow.max_num_rounds << "\n";
+    out << "  Min round improvement:      " << r_ctx.twoway_flow.min_round_improvement_factor
+        << "\n";
+  }
+
   if (r_ctx.includes_algorithm(RefinementAlgorithm::JET)) {
     out << "Jet refinement:               " << RefinementAlgorithm::JET << "\n";
     out << "  Number of rounds:           coarse " << r_ctx.jet.num_rounds_on_coarse_level
@@ -540,6 +561,55 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
         << r_ctx.jet.initial_gain_temp_on_fine_level << ", "
         << r_ctx.jet.final_gain_temp_on_fine_level << "]\n";
     out << "  Balancing algorithm:        " << r_ctx.jet.balancing_algorithm << "\n";
+  }
+}
+
+void print(const PartitioningContext &p_ctx, std::ostream &out) {
+  out << "Partitioning mode:            " << p_ctx.mode << "\n";
+  if (p_ctx.mode == PartitioningMode::DEEP) {
+    out << "  Deep initial part. mode:    " << p_ctx.deep_initial_partitioning_mode << "\n";
+    out << "  Deep initial part. load:    " << p_ctx.deep_initial_partitioning_load << "\n";
+  } else if (p_ctx.mode == PartitioningMode::KWAY) {
+    out << "  Initial partitioning mode:  " << p_ctx.kway_initial_partitioning_mode << "\n";
+  } else if (p_ctx.mode == PartitioningMode::RB) {
+    out << "  Use flat k-way refinement:  "
+        << (p_ctx.rb_enable_kway_toplevel_refinement ? "yes" : "no") << "\n";
+    out << "  Switch to seq. part.:       "
+        << (p_ctx.rb_switch_to_seq_factor == 0
+                ? "never"
+                : "when k' > p * " + std::to_string(p_ctx.rb_switch_to_seq_factor))
+        << "\n";
+  }
+  out << "Subgraph memory:              " << (p_ctx.use_lazy_subgraph_memory ? "Lazy" : "Default")
+      << "\n";
+}
+
+void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
+  out << "Enabled:                      " << (c_ctx.enabled ? "yes" : "no") << "\n";
+  if (c_ctx.enabled) {
+    out << "Compression Scheme:           Gap Encoding + ";
+    if (c_ctx.streamvbyte_encoding) {
+      out << "StreamVByte Encoding\n";
+    } else {
+      out << "VarInt Encoding\n";
+    }
+
+    out << "  High Degree Encoding:       " << (c_ctx.high_degree_encoding ? "yes" : "no") << "\n";
+    if (c_ctx.high_degree_encoding) {
+      out << "    Threshold:                " << c_ctx.high_degree_threshold << "\n";
+      out << "    Part Length:              " << c_ctx.high_degree_part_length << "\n";
+    }
+    out << "  Interval Encoding:          " << (c_ctx.interval_encoding ? "yes" : "no") << "\n";
+    if (c_ctx.interval_encoding) {
+      out << "    Length Threshold:         " << c_ctx.interval_length_treshold << "\n";
+    }
+
+    out << "Compresion Ratio:             " << c_ctx.compression_ratio
+        << " [size reduction: " << (c_ctx.size_reduction / (float)(1024 * 1024)) << " mb]" << "\n";
+    out << "  High Degree Node Count:     " << c_ctx.num_high_degree_nodes << "\n";
+    out << "  High Degree Part Count:     " << c_ctx.num_high_degree_parts << "\n";
+    out << "  Interval Node Count:        " << c_ctx.num_interval_nodes << "\n";
+    out << "  Interval Count:             " << c_ctx.num_intervals << "\n";
   }
 }
 
@@ -569,26 +639,6 @@ void print(const PartitionContext &p_ctx, std::ostream &out) {
       << 100 * p_ctx.inferred_epsilon() << "%)\n";
 }
 
-void print(const PartitioningContext &p_ctx, std::ostream &out) {
-  out << "Partitioning mode:            " << p_ctx.mode << "\n";
-  if (p_ctx.mode == PartitioningMode::DEEP) {
-    out << "  Deep initial part. mode:    " << p_ctx.deep_initial_partitioning_mode << "\n";
-    out << "  Deep initial part. load:    " << p_ctx.deep_initial_partitioning_load << "\n";
-  } else if (p_ctx.mode == PartitioningMode::KWAY) {
-    out << "  Initial partitioning mode:  " << p_ctx.kway_initial_partitioning_mode << "\n";
-  } else if (p_ctx.mode == PartitioningMode::RB) {
-    out << "  Use flat k-way refinement:  "
-        << (p_ctx.rb_enable_kway_toplevel_refinement ? "yes" : "no") << "\n";
-    out << "  Switch to seq. part.:       "
-        << (p_ctx.rb_switch_to_seq_factor == 0
-                ? "never"
-                : "when k' > p * " + std::to_string(p_ctx.rb_switch_to_seq_factor))
-        << "\n";
-  }
-  out << "Subgraph memory:              " << (p_ctx.use_lazy_subgraph_memory ? "Lazy" : "Default")
-      << "\n";
-}
-
 void print(const Context &ctx, std::ostream &out) {
   out << "Execution mode:               " << ctx.parallel.num_threads << "\n";
   out << "Seed:                         " << Random::get_seed() << "\n";
@@ -596,14 +646,19 @@ void print(const Context &ctx, std::ostream &out) {
       << " [node ordering: " << ctx.node_ordering << "]" << " [edge ordering: " << ctx.edge_ordering
       << "]\n";
   print(ctx.partition, out);
+
   cio::print_delimiter("Graph Compression", '-');
   print(ctx.compression, out);
+
   cio::print_delimiter("Partitioning Scheme", '-');
   print(ctx.partitioning, out);
+
   cio::print_delimiter("Coarsening", '-');
   print(ctx.coarsening, out);
+
   cio::print_delimiter("Initial Partitioning", '-');
   print(ctx.initial_partitioning, out);
+
   cio::print_delimiter("Refinement", '-');
   print(ctx.refinement, out);
 }

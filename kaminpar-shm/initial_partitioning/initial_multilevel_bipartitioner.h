@@ -25,9 +25,9 @@
 
 #include <memory>
 
-#include "kaminpar-shm/initial_partitioning/initial_coarsener.h"
-#include "kaminpar-shm/initial_partitioning/initial_pool_bipartitioner.h"
-#include "kaminpar-shm/initial_partitioning/initial_refiner.h"
+#include "kaminpar-shm/initial_partitioning/bipartitioning/initial_pool_bipartitioner.h"
+#include "kaminpar-shm/initial_partitioning/coarsening/initial_coarsener.h"
+#include "kaminpar-shm/initial_partitioning/refinement/initial_refiner.h"
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {

@@ -5,7 +5,7 @@
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  ******************************************************************************/
-#include "kaminpar-shm/initial_partitioning/initial_fm_refiner.h"
+#include "kaminpar-shm/initial_partitioning/refinement/initial_fm_refiner.h"
 
 #include <algorithm>
 
@@ -31,7 +31,7 @@ void SimpleStoppingPolicy::init(const CSRGraph *) {
   reset();
 }
 
-bool SimpleStoppingPolicy::should_stop(const InitialRefinementContext &fm_ctx) {
+bool SimpleStoppingPolicy::should_stop(const InitialFMRefinementContext &fm_ctx) {
   return _num_steps > fm_ctx.num_fruitless_moves;
 }
 
@@ -48,7 +48,7 @@ void AdaptiveStoppingPolicy::init(const CSRGraph *graph) {
   reset();
 }
 
-bool AdaptiveStoppingPolicy::should_stop(const InitialRefinementContext &fm_ctx) {
+bool AdaptiveStoppingPolicy::should_stop(const InitialFMRefinementContext &fm_ctx) {
   const double factor = (fm_ctx.alpha / 2.0) - 0.25;
   return (_num_steps > _beta) && ((_Mk == 0) || (_num_steps >= (_variance / (_Mk * _Mk)) * factor));
 }

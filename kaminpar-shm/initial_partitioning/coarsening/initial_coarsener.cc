@@ -5,7 +5,7 @@
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  ******************************************************************************/
-#include "kaminpar-shm/initial_partitioning/initial_coarsener.h"
+#include "kaminpar-shm/initial_partitioning/coarsening/initial_coarsener.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/logger.h"

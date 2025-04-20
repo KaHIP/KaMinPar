@@ -5,7 +5,7 @@
  * @author: Daniel Seemaier
  * @date:   21.09.21
  ******************************************************************************/
-#include "kaminpar-shm/initial_partitioning/seed_node_utils.h"
+#include "kaminpar-shm/initial_partitioning/util/seed_node_utils.h"
 
 #include "kaminpar-shm/kaminpar.h"
 

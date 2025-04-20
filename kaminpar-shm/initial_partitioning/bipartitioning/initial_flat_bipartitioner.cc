@@ -5,7 +5,7 @@
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  ******************************************************************************/
-#include "kaminpar-shm/initial_partitioning/initial_flat_bipartitioner.h"
+#include "kaminpar-shm/initial_partitioning/bipartitioning/initial_flat_bipartitioner.h"
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"

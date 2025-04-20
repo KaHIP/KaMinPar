@@ -9,7 +9,7 @@
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
-#include "kaminpar-shm/initial_partitioning/initial_refiner.h"
+#include "kaminpar-shm/initial_partitioning/refinement/initial_refiner.h"
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/binary_heap.h"
@@ -22,7 +22,7 @@ namespace fm {
 
 struct SimpleStoppingPolicy {
   void init(const CSRGraph *graph);
-  [[nodiscard]] bool should_stop(const InitialRefinementContext &fm_ctx);
+  [[nodiscard]] bool should_stop(const InitialFMRefinementContext &fm_ctx);
   void reset();
   void update(EdgeWeight gain);
 
@@ -35,7 +35,7 @@ private:
 // Copyright (C) Sebastian Schlag
 struct AdaptiveStoppingPolicy {
   void init(const CSRGraph *graph);
-  [[nodiscard]] bool should_stop(const InitialRefinementContext &fm_ctx);
+  [[nodiscard]] bool should_stop(const InitialFMRefinementContext &fm_ctx);
   void reset();
   void update(EdgeWeight gain);
 
@@ -70,7 +70,7 @@ class InitialFMRefiner : public InitialRefiner {
   static constexpr std::size_t kNumberOfNodePermutations = 32;
 
 public:
-  explicit InitialFMRefiner(const InitialRefinementContext &r_ctx) : _r_ctx(r_ctx) {}
+  explicit InitialFMRefiner(const InitialFMRefinementContext &r_ctx) : _r_ctx(r_ctx) {}
 
   void init(const CSRGraph &graph) final;
 
@@ -95,7 +95,7 @@ private:
 
   const CSRGraph *_graph;
   const PartitionContext *_p_ctx;
-  const InitialRefinementContext &_r_ctx;
+  const InitialFMRefinementContext &_r_ctx;
 
   std::array<BinaryMinHeap<EdgeWeight>, 2> _queues{
       BinaryMinHeap<EdgeWeight>{0}, BinaryMinHeap<EdgeWeight>{0}

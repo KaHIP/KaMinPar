@@ -14,8 +14,8 @@
 #include <memory>
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
-#include "kaminpar-shm/initial_partitioning/initial_flat_bipartitioner.h"
-#include "kaminpar-shm/initial_partitioning/initial_refiner.h"
+#include "kaminpar-shm/initial_partitioning/bipartitioning/initial_flat_bipartitioner.h"
+#include "kaminpar-shm/initial_partitioning/refinement/initial_refiner.h"
 
 #include "kaminpar-common/assert.h"
 

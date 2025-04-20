@@ -27,18 +27,6 @@
 #define KAMINPAR_VERSION_MINOR 4
 #define KAMINPAR_VERSION_PATCH 1
 
-namespace kaminpar {
-
-enum class OutputLevel : std::uint8_t {
-  QUIET,       //! Disable all output to stdout.
-  PROGRESS,    //! Continuously output progress information while partitioning.
-  APPLICATION, //! Also output the application banner and context summary.
-  EXPERIMENT,  //! Also output information only relevant for benchmarking.
-  DEBUG,       //! Also output (a sane amount) of debug information.
-};
-
-} // namespace kaminpar
-
 namespace kaminpar::shm {
 
 #ifdef KAMINPAR_64BIT_NODE_IDS
@@ -231,11 +219,6 @@ struct LabelPropagationRefinementContext {
   TieBreakingStrategy tie_breaking_strategy;
 };
 
-enum class FMStoppingRule {
-  SIMPLE,
-  ADAPTIVE,
-};
-
 enum class GainCacheStrategy {
   COMPACT_HASHING,
   COMPACT_HASHING_LARGE_K,
@@ -334,13 +317,6 @@ struct RefinementContext {
 // Initial Partitioning
 //
 
-enum class DeepInitialPartitioningMode {
-  SEQUENTIAL,
-  ASYNCHRONOUS_PARALLEL,
-  SYNCHRONOUS_PARALLEL,
-  COMMUNITIES,
-};
-
 struct InitialCoarseningContext {
   NodeID contraction_limit;
   double convergence_threshold;
@@ -350,15 +326,26 @@ struct InitialCoarseningContext {
   double cluster_weight_multiplier;
 };
 
-struct InitialRefinementContext {
-  bool disabled;
+enum class InitialRefinementAlgorithm {
+  NOOP,
+  TWOWAY_SIMPLE_FM,
+  TWOWAY_ADAPTIVE_FM,
+  TWOWAY_FLOW,
+};
 
-  FMStoppingRule stopping_rule;
+struct InitialFMRefinementContext {
   NodeID num_fruitless_moves;
   double alpha;
 
   std::size_t num_iterations;
   double improvement_abortion_threshold;
+};
+
+struct InitialRefinementContext {
+  std::vector<InitialRefinementAlgorithm> algorithms;
+
+  InitialFMRefinementContext fm;
+  TwowayFlowRefinementContext twoway_flow;
 };
 
 struct InitialPoolPartitionerContext {
@@ -505,6 +492,13 @@ enum class PartitioningMode {
   VCYCLE,
   RB,
   KWAY,
+};
+
+enum class DeepInitialPartitioningMode {
+  SEQUENTIAL,
+  ASYNCHRONOUS_PARALLEL,
+  SYNCHRONOUS_PARALLEL,
+  COMMUNITIES,
 };
 
 enum class KwayInitialPartitioningMode {
@@ -781,6 +775,14 @@ private:
 //
 
 namespace kaminpar {
+
+enum class OutputLevel : std::uint8_t {
+  QUIET,       //! Disable all output to stdout.
+  PROGRESS,    //! Continuously output progress information while partitioning.
+  APPLICATION, //! Also output the application banner and context summary.
+  EXPERIMENT,  //! Also output information only relevant for benchmarking.
+  DEBUG,       //! Also output (a sane amount) of debug information.
+};
 
 class KaMinPar {
 public:

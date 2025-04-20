@@ -5,7 +5,7 @@
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  ******************************************************************************/
-#include "kaminpar-shm/initial_partitioning/initial_ggg_bipartitioner.h"
+#include "kaminpar-shm/initial_partitioning/bipartitioning/initial_ggg_bipartitioner.h"
 
 #include <algorithm>
 

@@ -7,7 +7,7 @@
  ******************************************************************************/
 #pragma once
 
-#include "kaminpar-shm/initial_partitioning/initial_flat_bipartitioner.h"
+#include "kaminpar-shm/initial_partitioning/bipartitioning/initial_flat_bipartitioner.h"
 
 #include "kaminpar-common/random.h"
 

@@ -226,11 +226,19 @@ public:
     return _partition;
   }
 
+  [[nodiscard]] inline StaticArray<BlockID> &raw_partition() {
+    return _partition;
+  }
+
   [[nodiscard]] inline StaticArray<BlockID> &&take_raw_partition() {
     return std::move(_partition);
   }
 
   [[nodiscard]] inline const StaticArray<BlockWeight> &raw_block_weights() const {
+    return _block_weights;
+  }
+
+  [[nodiscard]] inline StaticArray<BlockWeight> &raw_block_weights() {
     return _block_weights;
   }
 

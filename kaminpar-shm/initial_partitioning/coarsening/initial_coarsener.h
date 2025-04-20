@@ -11,7 +11,7 @@
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
-#include "kaminpar-shm/initial_partitioning/sequential_graph_hierarchy.h"
+#include "kaminpar-shm/initial_partitioning/util/sequential_graph_hierarchy.h"
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/assert.h"
