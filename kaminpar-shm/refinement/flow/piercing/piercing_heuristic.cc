@@ -19,26 +19,37 @@ PiercingHeuristic::PiercingHeuristic(
 NodeID PiercingHeuristic::pierce_on_source_side(
     const std::unordered_set<NodeID> &source_side_cut,
     const std::unordered_set<NodeID> &sink_side_cut,
+    const std::unordered_set<NodeID> &sink_side_nodes,
     NodeWeight max_piercing_node_weight
 ) {
   return find_piercing_node(
-      source_side_cut, sink_side_cut, _initial_source_side_nodes, max_piercing_node_weight
+      source_side_cut,
+      sink_side_cut,
+      sink_side_nodes,
+      _initial_source_side_nodes,
+      max_piercing_node_weight
   );
 }
 
 NodeID PiercingHeuristic::pierce_on_sink_side(
-    const std::unordered_set<NodeID> &source_side_cut,
     const std::unordered_set<NodeID> &sink_side_cut,
+    const std::unordered_set<NodeID> &source_side_cut,
+    const std::unordered_set<NodeID> &source_side_nodes,
     NodeWeight max_piercing_node_weight
 ) {
   return find_piercing_node(
-      sink_side_cut, source_side_cut, _initial_sink_side_nodes, max_piercing_node_weight
+      sink_side_cut,
+      source_side_cut,
+      source_side_nodes,
+      _initial_sink_side_nodes,
+      max_piercing_node_weight
   );
 }
 
 NodeID PiercingHeuristic::find_piercing_node(
     const std::unordered_set<NodeID> &terminal_cut,
     const std::unordered_set<NodeID> &other_terminal_cut,
+    const std::unordered_set<NodeID> &other_terminal_side_nodes,
     const std::unordered_set<NodeID> &initial_terminal_side_nodes,
     const NodeWeight max_piercing_node_weight
 ) {
@@ -52,7 +63,7 @@ NodeID PiercingHeuristic::find_piercing_node(
     }
 
     _graph.adjacent_nodes(u, [&](const NodeID v) {
-      if (terminal_cut.contains(v)) {
+      if (terminal_cut.contains(v) || other_terminal_side_nodes.contains(v)) {
         return;
       }
 

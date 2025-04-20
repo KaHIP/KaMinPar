@@ -23,12 +23,14 @@ public:
   NodeID pierce_on_source_side(
       const std::unordered_set<NodeID> &source_side_cut,
       const std::unordered_set<NodeID> &sink_side_cut,
+      const std::unordered_set<NodeID> &sink_side_nodes,
       NodeWeight max_piercing_node_weight
   );
 
   NodeID pierce_on_sink_side(
-      const std::unordered_set<NodeID> &source_side_cut,
       const std::unordered_set<NodeID> &sink_side_cut,
+      const std::unordered_set<NodeID> &source_side_cut,
+      const std::unordered_set<NodeID> &source_side_nodes,
       NodeWeight max_piercing_node_weight
   );
 
@@ -36,6 +38,7 @@ private:
   NodeID find_piercing_node(
       const std::unordered_set<NodeID> &terminal_cut,
       const std::unordered_set<NodeID> &other_terminal_cut,
+      const std::unordered_set<NodeID> &other_terminal_side_nodes,
       const std::unordered_set<NodeID> &initial_terminal_side_nodes,
       const NodeWeight max_piercing_node_weight
   );

@@ -156,7 +156,7 @@ public:
 
         const NodeWeight max_piercing_node_weight = max_block1_weight - source_cut.weight;
         const NodeID piercing_node = piercing_heuristic.pierce_on_source_side(
-            source_cut.nodes, sink_cut.nodes, max_piercing_node_weight
+            source_cut.nodes, sink_cut.nodes, sink_side_nodes, max_piercing_node_weight
         );
 
         if (piercing_node == kInvalidNodeID) {
@@ -168,17 +168,13 @@ public:
 
         source_side_nodes = std::move(source_cut.nodes);
         source_side_nodes.insert(piercing_node);
-
-        if (sink_side_nodes.contains(piercing_node)) {
-          sink_side_nodes.erase(piercing_node);
-        }
       } else {
         DBG << "Piercing on sink-side (" << sink_cut.weight << "/" << max_block2_weight << ", "
             << (total_weight - sink_cut.weight) << "/" << max_block1_weight << ")";
 
         const NodeWeight max_piercing_node_weight = max_block2_weight - sink_cut.weight;
         const NodeID piercing_node = piercing_heuristic.pierce_on_sink_side(
-            source_cut.nodes, sink_cut.nodes, max_piercing_node_weight
+            sink_cut.nodes, source_cut.nodes, source_side_nodes, max_piercing_node_weight
         );
 
         if (piercing_node == kInvalidNodeID) {
