@@ -63,7 +63,7 @@ public:
   BipartitionFlowRefiner(
       const PartitionContext &p_ctx,
       const TwowayFlowRefinementContext &f_ctx,
-      const PartitionedGraph &p_graph,
+      const PartitionedCSRGraph &p_graph,
       const CSRGraph &graph
   )
       : _p_ctx(p_ctx),
@@ -190,10 +190,6 @@ public:
 
         sink_side_nodes = std::move(sink_cut.nodes);
         sink_side_nodes.insert(piercing_node);
-
-        if (source_side_nodes.contains(piercing_node)) {
-          source_side_nodes.erase(piercing_node);
-        }
       }
 
       KASSERT(
@@ -209,18 +205,16 @@ private:
   compute_border_regions(const BlockID block1, const BlockID block2) {
     SCOPED_TIMER("Compute Border Regions");
 
-    const NodeWeight max_border_region_weight1 = std::min<NodeWeight>(
-        _f_ctx.border_region_scaling_factor * _p_ctx.max_block_weight(block2) -
-            _p_graph.block_weight(block2),
-        _p_graph.block_weight(block1)
-    );
+    const NodeWeight max_border_region_weight1 =
+        (1 + _f_ctx.border_region_scaling_factor * _p_ctx.epsilon()) *
+            _p_ctx.perfectly_balanced_block_weight(block2) -
+        _p_graph.block_weight(block2);
     BorderRegion border_region1(block1, max_border_region_weight1);
 
-    const NodeWeight max_border_region_weight2 = std::min<NodeWeight>(
-        _f_ctx.border_region_scaling_factor * _p_ctx.max_block_weight(block1) -
-            _p_graph.block_weight(block1),
-        _p_graph.block_weight(block2)
-    );
+    const NodeWeight max_border_region_weight2 =
+        (1 + _f_ctx.border_region_scaling_factor * _p_ctx.epsilon()) *
+            _p_ctx.perfectly_balanced_block_weight(block1) -
+        _p_graph.block_weight(block1);
     BorderRegion border_region2(block2, max_border_region_weight2);
 
     for (NodeID u : _graph.nodes()) {
@@ -486,7 +480,7 @@ private:
   const PartitionContext &_p_ctx;
   const TwowayFlowRefinementContext &_f_ctx;
 
-  const PartitionedGraph &_p_graph;
+  const PartitionedCSRGraph &_p_graph;
   const CSRGraph &_graph;
 
   std::unique_ptr<MaxFlowAlgorithm> _max_flow_algorithm;
@@ -500,7 +494,7 @@ class SequentialBlockPairScheduler {
 public:
   SequentialBlockPairScheduler(const TwowayFlowRefinementContext &f_ctx) : _f_ctx(f_ctx) {}
 
-  bool refine(PartitionedGraph &p_graph, const CSRGraph &graph, const PartitionContext &p_ctx) {
+  bool refine(PartitionedCSRGraph &p_graph, const CSRGraph &graph, const PartitionContext &p_ctx) {
     _p_graph = &p_graph;
     _graph = &graph;
 
@@ -536,8 +530,12 @@ public:
         }
       }
 
-      const double relative_improvement =
-          (prev_cut_value - cut_value) / static_cast<double>(prev_cut_value);
+      const EdgeWeight gain = prev_cut_value - cut_value;
+      if (gain > 0) {
+        found_improvement = true;
+      }
+
+      const double relative_improvement = gain / static_cast<double>(prev_cut_value);
       DBG << "Finished round with a relative improvement of " << relative_improvement;
 
       if (num_round == _f_ctx.max_num_rounds ||
@@ -546,8 +544,6 @@ public:
       }
 
       activate_blocks();
-
-      found_improvement = true;
       prev_cut_value = cut_value;
     }
 
@@ -599,7 +595,7 @@ private:
 private:
   const TwowayFlowRefinementContext &_f_ctx;
 
-  PartitionedGraph *_p_graph;
+  PartitionedCSRGraph *_p_graph;
   const CSRGraph *_graph;
 
   StaticArray<bool> _active_blocks;
@@ -614,7 +610,7 @@ class ParallelBlockPairScheduler {
 public:
   ParallelBlockPairScheduler(const TwowayFlowRefinementContext &f_ctx) : _f_ctx(f_ctx) {}
 
-  bool refine(PartitionedGraph &p_graph, const CSRGraph &graph, const PartitionContext &p_ctx) {
+  bool refine(PartitionedCSRGraph &p_graph, const CSRGraph &graph, const PartitionContext &p_ctx) {
     _p_graph = &p_graph;
     _graph = &graph;
 
@@ -665,8 +661,12 @@ public:
         _active_blocks[block2] = true;
       });
 
-      const double relative_improvement =
-          (prev_cut_value - cut_value) / static_cast<double>(prev_cut_value);
+      const EdgeWeight gain = prev_cut_value - cut_value;
+      if (gain > 0) {
+        found_improvement = true;
+      }
+
+      const double relative_improvement = gain / static_cast<double>(prev_cut_value);
       DBG << "Finished round with a relative improvement of " << relative_improvement;
 
       if (num_round == _f_ctx.max_num_rounds ||
@@ -675,8 +675,6 @@ public:
       }
 
       activate_blocks();
-
-      found_improvement = true;
       prev_cut_value = cut_value;
     }
 
@@ -747,7 +745,7 @@ private:
 private:
   const TwowayFlowRefinementContext &_f_ctx;
 
-  PartitionedGraph *_p_graph;
+  PartitionedCSRGraph *_p_graph;
   const CSRGraph *_graph;
 
   StaticArray<bool> _active_blocks;
@@ -755,7 +753,7 @@ private:
   std::mutex _apply_moves_mutex;
 };
 
-TwowayFlowRefiner::TwowayFlowRefiner(const Context &ctx) : _f_ctx(ctx.refinement.twoway_flow) {}
+TwowayFlowRefiner::TwowayFlowRefiner(const TwowayFlowRefinementContext &f_ctx) : _f_ctx(f_ctx) {}
 
 TwowayFlowRefiner::~TwowayFlowRefiner() = default;
 
@@ -770,7 +768,18 @@ bool TwowayFlowRefiner::refine(
 ) {
   return reified(
       p_graph,
-      [&](const auto &csr_graph) { return refine(p_graph, csr_graph, p_ctx); },
+      [&](const auto &csr_graph) {
+        StaticArray<BlockID> &partition = p_graph.raw_partition();
+        StaticArray<BlockID> partition_span(partition.size(), partition.data());
+
+        StaticArray<BlockWeight> &block_weights = p_graph.raw_block_weights();
+        StaticArray<BlockWeight> block_weights_span(block_weights.size(), block_weights.data());
+
+        PartitionedCSRGraph p_csr_graph(
+            csr_graph, p_graph.k(), std::move(partition_span), std::move(block_weights_span)
+        );
+        return refine(p_csr_graph, csr_graph, p_ctx);
+      },
       [&]([[maybe_unused]] const auto &compressed_graph) {
         LOG_WARNING << "Cannot refine a compressed graph using the two-way flow refiner.";
         return false;
@@ -779,7 +788,7 @@ bool TwowayFlowRefiner::refine(
 }
 
 bool TwowayFlowRefiner::refine(
-    PartitionedGraph &p_graph, const CSRGraph &graph, const PartitionContext &p_ctx
+    PartitionedCSRGraph &p_graph, const CSRGraph &graph, const PartitionContext &p_ctx
 ) {
   SCOPED_TIMER("Two-Way Flow Refinement");
   SCOPED_HEAP_PROFILER("Two-Way Flow Refinement");

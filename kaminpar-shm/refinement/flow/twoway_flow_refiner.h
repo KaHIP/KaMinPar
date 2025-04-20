@@ -16,7 +16,7 @@ namespace kaminpar::shm {
 
 class TwowayFlowRefiner : public Refiner {
 public:
-  TwowayFlowRefiner(const Context &ctx);
+  TwowayFlowRefiner(const TwowayFlowRefinementContext &f_ctx);
   ~TwowayFlowRefiner() override;
 
   TwowayFlowRefiner(const TwowayFlowRefiner &) = delete;
@@ -31,7 +31,7 @@ public:
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) override;
 
-  bool refine(PartitionedGraph &p_graph, const CSRGraph &graph, const PartitionContext &p_ctx);
+  bool refine(PartitionedCSRGraph &p_graph, const CSRGraph &graph, const PartitionContext &p_ctx);
 
 private:
   const TwowayFlowRefinementContext &_f_ctx;
