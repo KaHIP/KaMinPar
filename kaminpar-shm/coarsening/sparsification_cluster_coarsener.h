@@ -9,7 +9,6 @@
 
 #include "kaminpar-shm/coarsening/abstract_cluster_coarsener.h"
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"
-#include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
@@ -27,6 +26,8 @@ public:
 
   bool coarsen() final;
 
+  std::string explain() final;
+
 private:
   std::unique_ptr<CoarseGraph> recontract_with_threshold_sparsification(
       NodeID c_n,
@@ -36,13 +37,13 @@ private:
       EdgeID target_m
   );
 
-  CSRGraph sparsify_and_recontract(CSRGraph csr, NodeID target_m) const;
-  CSRGraph sparsify_and_make_negative_edges(CSRGraph csr, NodeID target_m) const;
-  CSRGraph keep_only_negative_edges(CSRGraph csr) const;
-
   EdgeID sparsification_target(EdgeID old_m, NodeID old_n, EdgeID new_m) const;
 
   const SparsificationClusterCoarseningContext &_s_ctx;
+
+  EdgeID _prev_unsparsified_m = 0;
+  EdgeID _prev_sparsified_m = 0;
+  EdgeID _prev_sparsification_target_m = 0;
 };
 
 } // namespace kaminpar::shm

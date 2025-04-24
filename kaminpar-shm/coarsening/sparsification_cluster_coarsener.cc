@@ -26,7 +26,7 @@ namespace {
 
 SET_DEBUG(false);
 
-}
+} // namespace
 
 SparsificationClusterCoarsener::SparsificationClusterCoarsener(
     const Context &ctx, const PartitionContext &p_ctx
@@ -125,17 +125,18 @@ bool SparsificationClusterCoarsener::coarsen() {
       return std::move(concretize<CSRGraph>(recontracted->get()));
     }();
 
-    const EdgeID sparsified_m = sparsified.m();
+    _prev_sparsification_target_m = target_sparsified_m;
+    _prev_sparsified_m = sparsified.m();
+    _prev_unsparsified_m = unsparsified_m;
+
+    DBG << "Sparsified from " << unsparsified_m << " to " << sparsified.m()
+        << " edges (target: " << target_sparsified_m << ")";
 
     _hierarchy.push_back(
         std::make_unique<contraction::CoarseGraphImpl>(
             Graph(std::make_unique<CSRGraph>(std::move(sparsified))), std::move(mapping)
         )
     );
-
-    LOG << "Sparsified from " << unsparsified_m << " to " << sparsified_m
-        << " edges (target: " << target_sparsified_m << ")";
-    LOG;
   } else {
     DBG << "Coarse graph does not require sparsification";
     _hierarchy.push_back(std::move(coarsened));
@@ -224,6 +225,13 @@ SparsificationClusterCoarsener::recontract_with_threshold_sparsification(
       _c_ctx.contraction,
       _contraction_m_ctx
   );
+}
+
+std::string SparsificationClusterCoarsener::explain() {
+  std::stringstream ss;
+  ss << "Sparsified from " << _prev_unsparsified_m << " to " << _prev_sparsified_m
+     << " edges (target: " << _prev_sparsification_target_m << ")";
+  return ss.str();
 }
 
 } // namespace kaminpar::shm
