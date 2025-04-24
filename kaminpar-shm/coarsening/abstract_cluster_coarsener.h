@@ -14,7 +14,6 @@
 #include "kaminpar-shm/coarsening/clusterer.h"
 #include "kaminpar-shm/coarsening/coarsener.h"
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"
-#include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
@@ -25,12 +24,6 @@ namespace kaminpar::shm {
 class AbstractClusterCoarsener : public Coarsener {
 public:
   AbstractClusterCoarsener(const Context &ctx, const PartitionContext &p_ctx);
-
-  AbstractClusterCoarsener(const AbstractClusterCoarsener &) = delete;
-  AbstractClusterCoarsener &operator=(const AbstractClusterCoarsener) = delete;
-
-  AbstractClusterCoarsener(AbstractClusterCoarsener &&) = delete;
-  AbstractClusterCoarsener &operator=(AbstractClusterCoarsener &&) = delete;
 
   void initialize(const Graph *graph) override;
 
