@@ -29,6 +29,10 @@ public:
     return _graph;
   }
 
+  StaticArray<NodeID> &get_mapping() {
+    return _mapping;
+  }
+
   void project_up(const std::span<const BlockID> coarse, const std::span<BlockID> fine) final {
     tbb::parallel_for<std::size_t>(0, fine.size(), [&](const std::size_t i) {
       fine[i] = coarse[_mapping[i]];

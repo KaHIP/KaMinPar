@@ -9,7 +9,6 @@
 
 #include <span>
 
-#include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
@@ -41,6 +40,10 @@ public:
    * @return whether coarsening has *not* yet converged.
    */
   virtual bool coarsen() = 0;
+
+  virtual std::string explain() {
+    return "";
+  }
 
   /**
    * @return the coarsest graph in the hierarchy.

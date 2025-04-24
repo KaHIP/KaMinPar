@@ -21,9 +21,10 @@
 #include "kaminpar-shm/coarsening/clustering/noop_clusterer.h"
 
 // Coarsening
-#include "kaminpar-shm/coarsening/cluster_coarsener.h"
+#include "kaminpar-shm/coarsening/basic_cluster_coarsener.h"
 #include "kaminpar-shm/coarsening/noop_coarsener.h"
 #include "kaminpar-shm/coarsening/overlay_cluster_coarsener.h"
+#include "kaminpar-shm/coarsening/sparsification_cluster_coarsener.h"
 
 // Refinement
 #include "kaminpar-shm/refinement/adapters/mtkahypar_refiner.h"
@@ -76,11 +77,14 @@ std::unique_ptr<Coarsener> create_coarsener(const Context &ctx, const PartitionC
   case CoarseningAlgorithm::NOOP:
     return std::make_unique<NoopCoarsener>();
 
-  case CoarseningAlgorithm::CLUSTERING:
-    return std::make_unique<ClusteringCoarsener>(ctx, p_ctx);
+  case CoarseningAlgorithm::BASIC_CLUSTERING:
+    return std::make_unique<BasicClusterCoarsener>(ctx, p_ctx);
 
   case CoarseningAlgorithm::OVERLAY_CLUSTERING:
-    return std::make_unique<OverlayClusteringCoarsener>(ctx, p_ctx);
+    return std::make_unique<OverlayClusterCoarsener>(ctx, p_ctx);
+
+  case CoarseningAlgorithm::SPARSIFICATION_CLUSTERING:
+    return std::make_unique<SparsificationClusterCoarsener>(ctx, p_ctx);
   }
 
   __builtin_unreachable();

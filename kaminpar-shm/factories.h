@@ -10,7 +10,6 @@
 
 #include "kaminpar-shm/coarsening/clusterer.h"
 #include "kaminpar-shm/coarsening/coarsener.h"
-#include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/partitioning/partitioner.h"
 #include "kaminpar-shm/refinement/refiner.h"
@@ -22,6 +21,7 @@ std::unique_ptr<Partitioner> create_partitioner(const Graph &graph, const Contex
 std::unique_ptr<Clusterer> create_clusterer(const Context &ctx);
 
 std::unique_ptr<Coarsener> create_coarsener(const Context &ctx, const PartitionContext &p_ctx);
+
 std::unique_ptr<Coarsener> create_coarsener(const Context &ctx);
 
 std::unique_ptr<Refiner> create_refiner(const Context &ctx);
