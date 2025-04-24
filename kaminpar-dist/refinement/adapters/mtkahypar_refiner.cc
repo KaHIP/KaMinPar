@@ -87,10 +87,16 @@ bool MtKaHyParRefiner::refine() {
       mt_kahypar_ctx =
           mt_kahypar_context_from_file(_ctx.refinement.mtkahypar.config_filename.c_str(), &error);
     }
+    KASSERT(error.status == SUCCESS);
+
     mt_kahypar_set_partitioning_parameters(
         mt_kahypar_ctx, static_cast<mt_kahypar_partition_id_t>(_p_ctx.k), _p_ctx.epsilon(), CUT
     );
     mt_kahypar_set_seed(Random::get_seed());
+    mt_kahypar_set_context_parameter(mt_kahypar_ctx, VERBOSE, "1", &error);
+    KASSERT(error.status == SUCCESS);
+
+    mt_kahypar_initialize(_ctx.parallel.num_threads, true);
 
     StaticArray<mt_kahypar_hypernode_weight_t> block_weights(_p_ctx.k, static_array::noinit);
     shm_p_graph->pfor_blocks([&](const BlockID b) {
@@ -99,9 +105,6 @@ bool MtKaHyParRefiner::refine() {
     mt_kahypar_set_individual_target_block_weights(
         mt_kahypar_ctx, asserting_cast<mt_kahypar_partition_id_t>(_p_ctx.k), block_weights.data()
     );
-
-    mt_kahypar_set_context_parameter(mt_kahypar_ctx, VERBOSE, "1", &error);
-    mt_kahypar_initialize(_ctx.parallel.num_threads, true);
 
     const auto num_vertices = asserting_cast<mt_kahypar_hypernode_id_t>(shm_graph->n());
     const auto num_edges = asserting_cast<mt_kahypar_hyperedge_id_t>(shm_graph->m() / 2);
@@ -158,6 +161,7 @@ bool MtKaHyParRefiner::refine() {
         vertex_weights.data(),
         &error
     );
+    KASSERT(error.status == SUCCESS);
 
     DBG << "Partition metrics before Mt-KaHyPar refinement: cut="
         << shm::metrics::edge_cut(*shm_p_graph)
@@ -181,9 +185,11 @@ bool MtKaHyParRefiner::refine() {
             mt_kahypar_original_partition.data(),
             &error
         );
+    KASSERT(error.status == SUCCESS);
 
     // Run refinement
     mt_kahypar_improve_partition(mt_kahypar_partitioned_graph, mt_kahypar_ctx, 1, &error);
+    KASSERT(error.status == SUCCESS);
 
     // Copy partition back to our graph
     StaticArray<mt_kahypar_partition_id_t> mt_kahypar_improved_partition(
