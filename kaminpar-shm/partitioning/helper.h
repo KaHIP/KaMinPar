@@ -21,7 +21,7 @@ namespace kaminpar::shm::partitioning {
 PartitionContext create_kway_context(const Context &input_ctx, const PartitionedGraph &p_graph);
 
 PartitionContext create_twoway_context(
-    const Context &input_ctx, BlockID current_block, BlockID current_k, const AbstractGraph &graph
+    const Context &input_ctx, BlockID current_block, BlockID current_k, const Graph &graph
 );
 
 using SubgraphMemoryEts = tbb::enumerable_thread_specific<graph::SubgraphMemory>;
@@ -77,6 +77,21 @@ void extend_partition(
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
     int num_active_threads
+);
+
+void extend_partition_recursive(
+    const Graph &graph,
+    StaticArray<BlockID> &partition,
+    const BlockID current_rel_block,
+    const BlockID current_abs_block,
+    const BlockID num_subblocks,
+    const BlockID current_k,
+    const Context &input_ctx,
+    const graph::SubgraphMemoryStartPosition position,
+    graph::SubgraphMemory &subgraph_memory,
+    graph::TemporarySubgraphMemory &tmp_extraction_mem_pool,
+    InitialBipartitionerWorkerPool &bipartitioner_pool,
+    BipartitionTimingInfo *timings = nullptr
 );
 
 void complete_partial_extend_partition(

@@ -107,7 +107,7 @@ Context create_default_context() {
       .partitioning =
           {
               .mode = PartitioningMode::DEEP,
-              .deep_initial_partitioning_mode = InitialPartitioningMode::ASYNCHRONOUS_PARALLEL,
+              .deep_initial_partitioning_mode = DeepInitialPartitioningMode::ASYNCHRONOUS_PARALLEL,
               .deep_initial_partitioning_load = 1.0,
               .min_consecutive_seq_bipartitioning_levels = 1,
               .refine_after_extending_partition = false,
@@ -115,6 +115,8 @@ Context create_default_context() {
               .vcycles = {},
               .restrict_vcycle_refinement = false,
               .rb_enable_kway_toplevel_refinement = false,
+              .rb_switch_to_seq_factor = 1,
+              .kway_initial_partitioning_mode = KwayInitialPartitioningMode::PARALLEL,
           },
       .partition = {},
       .coarsening =
@@ -157,6 +159,12 @@ Context create_default_context() {
                       .num_levels = 1,
                       .max_level = std::numeric_limits<int>::max(),
                   },
+              .sparsification_clustering =
+                  {
+                      .density_target_factor = 0.5,
+                      .edge_target_factor = 0.5,
+                      .laziness_factor = 4,
+                  },
               .contraction =
                   {
                       // Context -> Coarsening -> Contraction
@@ -166,18 +174,6 @@ Context create_default_context() {
                   },
               .contraction_limit = 2000,
               .convergence_threshold = 0.05,
-          },
-      .sparsification =
-          {
-              .algorithm = SparsificationAlgorithm::THRESHOLD,
-              .score_function = ScoreFunctionSection::WEIGHT,
-              .density_target_factor = 1.0,
-              .reduction_target_factor = 0.25,
-              .laziness_factor = 3,
-              .no_approx = false,
-              .wff_target_burnt_ratio = 5,
-              .wff_pf = 0.95,
-              .recontract = true,
           },
       .initial_partitioning =
           {
@@ -283,19 +279,18 @@ Context create_default_context() {
               // Context -> Parallel
               .num_threads = 1,
           },
-      .debug =
-          {
-              .graph_name = "",
-              .dump_graph_filename = "n%n_m%m_k%k_seed%seed.metis",
-              .dump_partition_filename = "n%n_m%m_k%k_seed%seed.part",
+      .debug = {
+          .graph_name = "",
+          .dump_graph_filename = "n%n_m%m_k%k_seed%seed.metis",
+          .dump_partition_filename = "n%n_m%m_k%k_seed%seed.part",
 
-              .dump_toplevel_graph = false,
-              .dump_toplevel_partition = false,
-              .dump_coarsest_graph = false,
-              .dump_coarsest_partition = false,
-              .dump_graph_hierarchy = false,
-              .dump_partition_hierarchy = false,
-          },
+          .dump_toplevel_graph = false,
+          .dump_toplevel_partition = false,
+          .dump_coarsest_graph = false,
+          .dump_coarsest_partition = false,
+          .dump_graph_hierarchy = false,
+          .dump_partition_hierarchy = false,
+      },
   };
 }
 
@@ -394,7 +389,7 @@ namespace {
 
 inline Context terapartify_context(Context ctx) {
   ctx.compression.enabled = true;
-  ctx.partitioning.deep_initial_partitioning_mode = InitialPartitioningMode::SEQUENTIAL;
+  ctx.partitioning.deep_initial_partitioning_mode = DeepInitialPartitioningMode::SEQUENTIAL;
   return ctx;
 }
 

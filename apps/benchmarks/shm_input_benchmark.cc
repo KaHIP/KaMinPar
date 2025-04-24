@@ -11,16 +11,17 @@
 
 #include <tbb/global_control.h>
 
+#include "kaminpar-io/kaminpar_io.h"
+
 #include "kaminpar-shm/context_io.h"
-#include "kaminpar-shm/graphutils/compressed_graph_builder.h"
-#include "kaminpar-shm/graphutils/parallel_compressed_graph_builder.h"
+#include "kaminpar-shm/datastructures/compressed_graph.h"
+#include "kaminpar-shm/datastructures/csr_graph.h"
+#include "kaminpar-shm/datastructures/graph.h"
 
 #include "kaminpar-common/console_io.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/timer.h"
-
-#include "apps/io/shm_io.h"
 
 using namespace kaminpar;
 using namespace kaminpar::shm;
@@ -73,27 +74,35 @@ int main(int argc, char *argv[]) {
     SCOPED_HEAP_PROFILER("Read Input Graph");
 
     if (ctx.compression.enabled && compress_in_memory) {
-      CSRGraph csr_graph = TIMED_SCOPE("Read CSR Graph") {
+      auto csr_graph = TIMED_SCOPE("Read CSR Graph") {
         SCOPED_HEAP_PROFILER("Read CSR Graph");
         return io::csr_read(graph_filename, graph_file_format, ctx.node_ordering);
       };
+      if (!csr_graph) {
+        LOG_ERROR << "Failed to read and compress the input graph";
+        std::exit(EXIT_FAILURE);
+      }
 
       SCOPED_TIMER("Compress CSR Graph");
       SCOPED_HEAP_PROFILER("Compress CSR Graph");
 
       const bool sequential_compression = ctx.parallel.num_threads <= 1;
       if (sequential_compression) {
-        Graph graph =
-            Graph(std::make_unique<CompressedGraph>(CompressedGraphBuilder::compress(csr_graph)));
+        Graph graph = Graph(std::make_unique<CompressedGraph>(compress(*csr_graph)));
         ctx.compression.setup(graph);
       } else {
-        Graph graph = Graph(std::make_unique<CompressedGraph>(parallel_compress(csr_graph)));
+        Graph graph = Graph(std::make_unique<CompressedGraph>(parallel_compress(*csr_graph)));
         ctx.compression.setup(graph);
       }
     } else {
-      Graph graph =
+      auto graph =
           io::read(graph_filename, graph_file_format, ctx.node_ordering, ctx.compression.enabled);
-      ctx.compression.setup(graph);
+      if (!graph) {
+        LOG_ERROR << "Failed to read the input graph";
+        std::exit(EXIT_FAILURE);
+      }
+
+      ctx.compression.setup(*graph);
     }
   };
 

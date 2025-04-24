@@ -52,11 +52,11 @@ struct SubgraphMemory {
 
   void resize(const PartitionedGraph &p_graph) {
     resize(
-        p_graph.n(),
+        p_graph.graph().n(),
         p_graph.k(),
-        p_graph.m(),
-        p_graph.is_node_weighted(),
-        p_graph.is_edge_weighted()
+        p_graph.graph().m(),
+        p_graph.graph().is_node_weighted(),
+        p_graph.graph().is_edge_weighted()
     );
   }
 

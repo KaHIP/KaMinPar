@@ -9,7 +9,6 @@
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
 
-#include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/partitioning/partition_utils.h"
@@ -172,7 +171,7 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential(
     SubgraphMemory &subgraph_memory,
     TemporarySubgraphMemory &tmp_subgraph_memory
 ) {
-  return p_graph.reified([&](const auto &graph) {
+  return reified(p_graph, [&](const auto &graph) {
     return extract_subgraphs_sequential_generic_graph(
         p_graph, graph, final_ks, memory_position, subgraph_memory, tmp_subgraph_memory
     );
@@ -181,7 +180,7 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential(
 
 SubgraphMemoryPreprocessingResult
 lazy_extract_subgraphs_preprocessing(const PartitionedGraph &p_graph) {
-  const NodeID n = p_graph.n();
+  const NodeID n = p_graph.graph().n();
   const BlockID k = p_graph.k();
 
   StaticArray<NodeID> mapping(n, static_array::noinit);
@@ -195,7 +194,7 @@ lazy_extract_subgraphs_preprocessing(const PartitionedGraph &p_graph) {
   tbb::enumerable_thread_specific<ScalableVector<EdgeID>> tl_num_edges_in_block{[&] {
     return ScalableVector<EdgeID>(k);
   }};
-  p_graph.reified([&](const auto &graph) {
+  reified(p_graph, [&](const auto &graph) {
     tbb::parallel_for(tbb::blocked_range<NodeID>(0, n), [&](auto &local_nodes) {
       auto &num_nodes_in_block = tl_num_nodes_in_block.local();
       auto &num_edges_in_block = tl_num_edges_in_block.local();
@@ -317,7 +316,7 @@ Graph extract_subgraph(
     const StaticArray<NodeID> &mapping,
     graph::SubgraphMemory &subgraph_memory
 ) {
-  return p_graph.reified([&](const auto &concrete_graph) {
+  return reified(p_graph, [&](const auto &concrete_graph) {
     return extract_subgraph_generic_graph(
         p_graph, concrete_graph, block, block_nodes, mapping, subgraph_memory
     );
@@ -339,8 +338,10 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
     const BlockID input_k,
     SubgraphMemory &subgraph_memory
 ) {
+  const NodeID n = p_graph.graph().n();
+
   START_TIMER("Allocation");
-  StaticArray<NodeID> mapping(p_graph.n());
+  StaticArray<NodeID> mapping(n);
   StaticArray<SubgraphMemoryStartPosition> start_positions(p_graph.k() + 1);
   StaticArray<NodeID> bucket_index(p_graph.k());
   ScalableVector<shm::Graph> subgraphs(p_graph.k());
@@ -391,7 +392,7 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
 
   // build temporary bucket array in nodes array
   START_TIMER("Build bucket array");
-  tbb::parallel_for<NodeID>(0, p_graph.n(), [&](const NodeID u) {
+  tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
     const BlockID b = p_graph.block(u);
     const NodeID pos_in_subgraph = __atomic_fetch_add(&bucket_index[b], 1, __ATOMIC_RELAXED);
     const NodeID pos = start_positions[b].nodes_start_pos + pos_in_subgraph;
@@ -483,7 +484,7 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
 SubgraphExtractionResult extract_subgraphs(
     const PartitionedGraph &p_graph, const BlockID input_k, SubgraphMemory &subgraph_memory
 ) {
-  return p_graph.reified([&](const auto &concrete_graph) {
+  return reified(p_graph, [&](const auto &concrete_graph) {
     return extract_subgraphs_generic_graph(p_graph, concrete_graph, input_k, subgraph_memory);
   });
 }
@@ -517,7 +518,7 @@ PartitionedGraph copy_subgraph_partitions(
 
   StaticArray<BlockID> partition = p_graph.take_raw_partition();
 
-  p_graph.pfor_nodes([&](const NodeID u) {
+  tbb::parallel_for<NodeID>(0, p_graph.graph().n(), [&](const NodeID u) {
     const BlockID b = partition[u];
     const NodeID s_u = mapping[u];
     partition[u] = k0[b] + p_subgraph_partitions[b][s_u];

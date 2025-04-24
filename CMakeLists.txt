@@ -3,8 +3,9 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules)
 
 project(
     KaMinPar
-    VERSION 3.1.0
+    VERSION 3.4.1
     DESCRIPTION "Shared-memory and distributed-memory Graph Partitioner"
+    HOMEPAGE_URL "https://github.com/KaHIP/KaMinPar"
     LANGUAGES C CXX
 )
 
@@ -15,7 +16,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 ################################################################################
-## Options                                                                    ##
+## Declare Options                                                            ##
 ################################################################################
 
 # Control what to build
@@ -29,6 +30,8 @@ option(KAMINPAR_BUILD_EXAMPLES "Build examples." OFF)
 
 option(KAMINPAR_BUILD_EXPERIMENTAL_FEATURES "Include experimental features in the build. This might increase compile times drastically." OFF)
 
+option(KAMINPAR_DOWNLOAD_TBB "Download TBB instead of requiring it to be installed." OFF)
+
 # Control how to build
 ######################
 option(KAMINPAR_ENABLE_HEAP_PROFILING "Profile and output heap memory usage." OFF)
@@ -37,6 +40,7 @@ option(KAMINPAR_ENABLE_STATISTICS "Generate and output detailed statistics." OFF
 option(KAMINPAR_ENABLE_TIMERS "Measure running times. Must be set to 'OFF' if the library interface is used from multiple threads simulatinously." ON)
 option(KAMINPAR_ENABLE_TIMER_BARRIERS "Add additional MPI_Barrier() instructions for more accurate time measurements." ON)
 
+option(KAMINPAR_ENABLE_TBB_MALLOC "Use tbb malloc for (some) allocations." ON)
 option(KAMINPAR_ENABLE_THP "Use transparent huge pages for large memory allocations (Linux only)." ON)
 
 option(KAMINPAR_BUILD_WITH_ASAN "Enable address sanitizer." OFF)
@@ -48,6 +52,7 @@ option(KAMINPAR_BUILD_WITH_MTKAHYPAR "If Mt-KaHyPar can be found, build the Mt-K
 option(KAMINPAR_BUILD_WITH_SPARSEHASH "Build with Google Sparsehash." ON)
 option(KAMINPAR_BUILD_WITH_PG "Build with the -pg option for profiling." OFF)
 option(KAMINPAR_BUILD_WITH_BACKWARD "Build with backward-cpp for stack traces (distributed partitioner only)." OFF)
+option(KAMINPAR_BUILD_WITH_KASSERT "Use KASSERT for assertions. If disabled, the assertion level is ignored." ON)
 
 # Control whether to install KaMinPar
 #####################################
@@ -133,6 +138,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
         "-Winit-self"
         "-Woverloaded-virtual"
         "-Wredundant-decls"
+        "-Wno-psabi"
         )
 endif ()
 
@@ -209,6 +215,13 @@ if (KAMINPAR_ENABLE_TIMER_BARRIERS)
     message(STATUS "Timer barriers: enabled")
 else ()
     message(STATUS "Timer barriers: disabled")
+endif ()
+
+if (KAMINPAR_ENABLE_TBB_MALLOC)
+    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_ENABLE_TBB_MALLOC")
+    message(STATUS "TBB malloc: enabled")
+else ()
+    message(STATUS "TBB malloc: disabled")
 endif ()
 
 if (KAMINPAR_ENABLE_THP)
@@ -298,18 +311,40 @@ message("  dist::{Node, Edge}Weight: ${KAMINPAR_DIST_WEIGHT_STR}")
 if (CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     include(CTest)
 endif()
-include(FetchContent)
+
 include(FindGit)
+include(FetchContent)
+
+find_library(NUMA_LIB numa)
 
 # Fetch KAssert for assertions
-FetchContent_Declare(
-    kassert
-    GIT_REPOSITORY https://github.com/kamping-site/kassert.git
-    GIT_TAG 988b7d54b79ae6634f2fcc53a0314fb1cf2c6a23
-    EXCLUDE_FROM_ALL
-    UPDATE_DISCONNECTED TRUE
-)
-FetchContent_MakeAvailable(kassert)
+if (KAMINPAR_BUILD_WITH_KASSERT)
+    FetchContent_Declare(
+        kassert
+        GIT_REPOSITORY https://github.com/kamping-site/kassert.git
+        GIT_TAG 988b7d54b79ae6634f2fcc53a0314fb1cf2c6a23
+        EXCLUDE_FROM_ALL
+        UPDATE_DISCONNECTED TRUE
+    )
+    FetchContent_MakeAvailable(kassert)
+
+    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_KASSERT_FOUND")
+endif ()
+
+# Intel TBB
+if (KAMINPAR_DOWNLOAD_TBB)
+    FetchContent_Declare(
+        TBB
+        GIT_REPOSITORY https://github.com/uxlfoundation/oneTBB.git
+        GIT_TAG 0c0ff192a2304e114bc9e6557582dfba101360ff # v2022.0.0
+        EXCLUDE_FROM_ALL
+        UPDATE_DISCONNECTED TRUE
+    )
+    set(TBB_TEST OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(TBB)
+else ()
+    find_package(TBB REQUIRED)
+endif ()
 
 # Google Sparsehash
 if (KAMINPAR_BUILD_WITH_SPARSEHASH)
@@ -336,7 +371,7 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
     # Growt
     add_subdirectory(external/growt EXCLUDE_FROM_ALL)
     add_library(growt INTERFACE)
-    target_include_directories(growt SYSTEM INTERFACE "external/growt")
+    target_include_directories(growt SYSTEM INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/external/growt>)
 
     if (KAMINPAR_BUILD_WITH_BACKWARD)
         FetchContent_Declare(
@@ -367,6 +402,7 @@ if ((KAMINPAR_BUILD_DISTRIBUTED AND KAMINPAR_BUILD_APPS) OR KAMINPAR_BUILD_BENCH
         KaGen
         GIT_REPOSITORY https://github.com/KarlsruheGraphGeneration/KaGen.git
         GIT_TAG 70386f48e513051656f020360c482ce6bff9a24f
+        PATCH_COMMAND ${GIT_EXECUTABLE} apply ${CMAKE_CURRENT_SOURCE_DIR}/scripts/KaGen.patch
         EXCLUDE_FROM_ALL
         UPDATE_DISCONNECTED TRUE
     )
@@ -398,31 +434,41 @@ endif ()
 # Start include paths on project root
 include_directories(${PROJECT_SOURCE_DIR})
 
-# Shared memory components
-add_subdirectory(kaminpar-common)
-add_subdirectory(kaminpar-shm)
+# Add core library targets
+add_subdirectory(kaminpar-common) # Common utilities shared across the project
+add_subdirectory(kaminpar-shm) # Shared-memory components
 
-# Distributed components
 if (KAMINPAR_BUILD_DISTRIBUTED)
-    add_subdirectory(kaminpar-mpi)
-    add_subdirectory(kaminpar-dist)
+    add_subdirectory(kaminpar-mpi) # MPI-related utilities
+    add_subdirectory(kaminpar-dist) # Distributed components
 endif ()
 
-# Binaries
-add_subdirectory(kaminpar-cli)
+add_subdirectory(kaminpar-io) # IO components
 
-if (KAMINPAR_BUILD_APPS)
-    add_subdirectory(apps)
+# Create an interface library that groups all core components and ensures the full
+# project include path is available to dependent targets
+add_library(KaMinParFull INTERFACE)
+add_library(KaMinPar::KaMinParFull ALIAS KaMinParFull)
+
+target_include_directories(KaMinParFull INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(KaMinParFull INTERFACE KaMinParIO KaMinPar)
+if (KAMINPAR_BUILD_DISTRIBUTED)
+    target_link_libraries(KaMinParFull INTERFACE dKaMinParIO dKaMinPar)
 endif ()
 
-# Unit tests
+# Tests are built either when running as the main project or when explicitly enabled
 if ((CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME OR KAMINPAR_BUILD_TESTS) AND BUILD_TESTING)
     add_subdirectory(tests)
 endif ()
 
-# Examples
+if (KAMINPAR_BUILD_APPS)
+    add_subdirectory(kaminpar-cli)
+    add_subdirectory(apps)
+endif ()
+
 if (KAMINPAR_BUILD_EXAMPLES)
-    add_subdirectory(examples)
+    add_subdirectory(examples/kaminpar)
+    add_subdirectory(examples/bindings-c)
 endif ()
 
 ################################################################################
@@ -432,17 +478,44 @@ if (NOT INSTALL_KAMINPAR)
     return()
 endif ()
 
+# If the installation prefix is not set by the user for Unix builds,
+# assign a default value to ensure GNUInstallDirs selects the correct paths.
+if (UNIX AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+    set(CMAKE_INSTALL_PREFIX "/usr/" CACHE STRING "" FORCE)
+endif ()
+
 include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
 
+set(KAMINPAR_INSTALL_INCLUDE_DIRS include/kaminpar-io/ include/kaminpar-shm/)
+if (KAMINPAR_BUILD_DISTRIBUTED)
+    list(APPEND KAMINPAR_INSTALL_INCLUDE_DIRS include/kaminpar-dist/)
+endif ()
+
 install(
-    FILES kaminpar-shm/kaminpar.h
+    DIRECTORY ${KAMINPAR_INSTALL_INCLUDE_DIRS}
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
     COMPONENT KaMinPar_Development
 )
 
+set(KAMINPAR_INSTALL_TARGETS KaMinParCommon KaMinParIO KaMinPar)
+if (KAMINPAR_BUILD_WITH_KASSERT)
+    list(APPEND KAMINPAR_INSTALL_TARGETS kassert_base kassert)
+endif ()
+if (KAMINPAR_BUILD_APPS)
+    list(APPEND KAMINPAR_INSTALL_TARGETS KaMinParCLI KaMinParApp)
+endif ()
+
+if (KAMINPAR_BUILD_DISTRIBUTED)
+    list(APPEND KAMINPAR_INSTALL_TARGETS morton kagen growt KaMinParMPI dKaMinParIO dKaMinPar)
+
+    if (KAMINPAR_BUILD_APPS)
+        list(APPEND KAMINPAR_INSTALL_TARGETS dKaMinParCLI dKaMinParApp)
+    endif ()
+endif ()
+
 install(
-    TARGETS kassert_base kassert kaminpar_common kaminpar_shm
+    TARGETS ${KAMINPAR_INSTALL_TARGETS}
     EXPORT KaMinParTargets
     RUNTIME COMPONENT KaMinPar_Runtime
     LIBRARY COMPONENT KaMinPar_Runtime NAMELINK_COMPONENT KaMinPar_Development
@@ -450,36 +523,92 @@ install(
     INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
 )
 
-write_basic_package_version_file(
-    "KaMinParConfigVersion.cmake"
-    VERSION ${PACKAGE_VERSION}
-    COMPATIBILITY SameMajorVersion
-)
-
 # Allow package maintainers to freely override the path for the configs
 set(
-    KAMINPAR_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/${package}"
+    KAMINPAR_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/KaMinPar"
     CACHE STRING "CMake package config location relative to the install prefix"
 )
 set_property(CACHE KAMINPAR_INSTALL_CMAKEDIR PROPERTY TYPE PATH)
 mark_as_advanced(KAMINPAR_INSTALL_CMAKEDIR)
 
 install(
-    FILES cmake/install-config.cmake
-    DESTINATION "${KAMINPAR_INSTALL_CMAKEDIR}"
-    RENAME "KaMinParConfig.cmake"
+    FILES ${PROJECT_SOURCE_DIR}/cmake/modules/FindSparsehash.cmake
+    DESTINATION ${KAMINPAR_INSTALL_CMAKEDIR}
     COMPONENT KaMinPar_Development
 )
 
+configure_file(cmake/KaMinParConfig.cmake.in KaMinParConfig.cmake @ONLY)
 install(
-    FILES "${PROJECT_BINARY_DIR}/KaMinParConfigVersion.cmake"
-    DESTINATION "${KAMINPAR_INSTALL_CMAKEDIR}"
+    FILES ${PROJECT_BINARY_DIR}/KaMinParConfig.cmake
+    DESTINATION ${KAMINPAR_INSTALL_CMAKEDIR}
+    COMPONENT KaMinPar_Development
+)
+
+write_basic_package_version_file(
+    "KaMinParConfigVersion.cmake"
+    VERSION ${PACKAGE_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+install(
+    FILES ${PROJECT_BINARY_DIR}/KaMinParConfigVersion.cmake
+    DESTINATION ${KAMINPAR_INSTALL_CMAKEDIR}
     COMPONENT KaMinPar_Development
 )
 
 install(
     EXPORT KaMinParTargets
     NAMESPACE KaMinPar::
-    DESTINATION "${KAMINPAR_INSTALL_CMAKEDIR}"
+    DESTINATION ${KAMINPAR_INSTALL_CMAKEDIR}
     COMPONENT KaMinPar_Development
 )
+
+################################################################################
+## Package targets                                                            ##
+################################################################################
+set(CPACK_THREADS 0) # Given 0 CPack will try to use all available CPU cores.
+set(CPACK_VERBATIM_VARIABLES ON)
+
+set(CPACK_PACKAGE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/packages")
+set(CPACK_PACKAGING_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX} CACHE STRING "")
+
+set(CPACK_PACKAGE_VENDOR ${PROJECT_VENDOR})
+set(CPACK_PACKAGE_CONTACT "${PROJECT_VENDOR} <${PROJECT_CONTACT}>")
+
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/README.MD")
+
+set(CPACK_STRIP_FILES ON)
+set(CPACK_COMPONENTS_GROUPING ALL_COMPONENTS_IN_ONE)
+set(
+    CPACK_INSTALL_DEFAULT_DIRECTORY_PERMISSIONS
+    OWNER_READ OWNER_WRITE OWNER_EXECUTE
+    GROUP_READ GROUP_EXECUTE
+    WORLD_READ WORLD_EXECUTE
+)
+
+set(CPACK_DEB_COMPONENT_INSTALL ON)
+set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+set(CPACK_DEBIAN_PACKAGE_RELEASE 1)
+set(CPACK_DEBIAN_PACKAGE_GENERATE_SHLIBS ON)
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6 (>= 2.34), libgcc-s1 (>= 3.0), libstdc++6 (>= 10.2), libtbb-dev (>= 2018~U6-4), libsparsehash-dev (>= 2.0.2-1)")
+if (NUMA_LIB)
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS "${CPACK_DEBIAN_PACKAGE_DEPENDS}, libnuma-dev (>= 2.0.12-1)")
+endif ()
+if (KAMINPAR_BUILD_DISTRIBUTED)
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS "${CPACK_DEBIAN_PACKAGE_DEPENDS}, libopenmpi-dev (>= 3.1.3-11)")
+endif ()
+
+set(CPACK_RPM_COMPONENT_INSTALL ON)
+set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
+set(CPACK_RPM_PACKAGE_LICENSE "MIT")
+set(CPACK_RPM_PACKAGE_RELEASE 1)
+set(CPACK_RPM_PACKAGE_AUTOREQ OFF)
+set(CPACK_RPM_PACKAGE_REQUIRES "tbb-devel, sparsehash-devel")
+if (NUMA_LIB)
+    set(CPACK_RPM_PACKAGE_REQUIRES "${CPACK_RPM_PACKAGE_REQUIRES}, numactl-devel")
+endif ()
+if (KAMINPAR_BUILD_DISTRIBUTED)
+    set(CPACK_RPM_PACKAGE_REQUIRES "${CPACK_RPM_PACKAGE_REQUIRES}, openmpi-devel")
+endif ()
+
+include(CPack)

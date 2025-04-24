@@ -11,17 +11,24 @@
 #include <iomanip>
 #include <memory>
 #include <mutex>
-#include <source_location>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <unordered_map>
 
-#include "kaminpar-common/constexpr_utils.h"
+#if defined(__cpp_lib_source_location) && __cpp_lib_source_location >= 201907
+#include <source_location>
+#define KAMINPAR_USE_SOURCE_LOCATION std
+#elif __has_include(<experimental/source_location>)
+#include <experimental/source_location>
+#define KAMINPAR_USE_SOURCE_LOCATION std::experimental
+#endif
+
 #include "kaminpar-common/libc_memory_override.h"
 #include "kaminpar-common/logger.h"
 
 #ifdef KAMINPAR_ENABLE_HEAP_PROFILING
+#include "kaminpar-common/constexpr_utils.h"
 
 #define GET_MACRO(X, Y, Z, FUNC, ...) FUNC
 
@@ -107,6 +114,8 @@ namespace kaminpar::heap_profiler {
 
 extern double max_overcommitment_factor;
 extern bool bruteforce_max_overcommitment_factor;
+
+using source_location = KAMINPAR_USE_SOURCE_LOCATION::source_location;
 
 /*!
  * A minimal allocator that uses memory allocation functions that bypass the heap profiler.
@@ -387,8 +396,7 @@ public:
    * @param location The locataion of the variable storing the data structure.
    */
   void record_data_struct(
-      std::string_view var_name,
-      const std::source_location location = std::source_location::current()
+      std::string_view var_name, const source_location location = source_location::current()
   );
 
   /*!

@@ -28,9 +28,6 @@ std::ostream &operator<<(std::ostream &out, CoarseningAlgorithm algorithm);
 
 std::unordered_map<std::string, CoarseningAlgorithm> get_coarsening_algorithms();
 
-std::unordered_map<std::string, SparsificationAlgorithm> get_sparsification_algorithms();
-std::unordered_map<std::string, ScoreFunctionSection> get_score_function();
-
 std::ostream &operator<<(std::ostream &out, ClusteringAlgorithm algorithm);
 
 std::unordered_map<std::string, ClusteringAlgorithm> get_clustering_algorithms();
@@ -55,9 +52,13 @@ std::ostream &operator<<(std::ostream &out, PartitioningMode mode);
 
 std::unordered_map<std::string, PartitioningMode> get_partitioning_modes();
 
-std::ostream &operator<<(std::ostream &out, InitialPartitioningMode mode);
+std::ostream &operator<<(std::ostream &out, DeepInitialPartitioningMode mode);
 
-std::unordered_map<std::string, InitialPartitioningMode> get_initial_partitioning_modes();
+std::unordered_map<std::string, DeepInitialPartitioningMode> get_deep_initial_partitioning_modes();
+
+std::ostream &operator<<(std::ostream &out, KwayInitialPartitioningMode mode);
+
+std::unordered_map<std::string, KwayInitialPartitioningMode> get_kway_initial_partitioning_modes();
 
 std::ostream &operator<<(std::ostream &out, GainCacheStrategy strategy);
 

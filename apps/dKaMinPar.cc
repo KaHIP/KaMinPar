@@ -14,17 +14,21 @@
 
 #include <kagen.h>
 #include <mpi.h>
+
+#ifdef KAMINPAR_ENABLE_TBB_MALLOC
 #include <tbb/scalable_allocator.h>
+#endif // KAMINPAR_ENABLE_TBB_MALLOC
+
+#include "kaminpar-io/dist_io.h"
+#include "kaminpar-io/dist_metis_parser.h"
+#include "kaminpar-io/dist_parhip_parser.h"
+#include "kaminpar-io/dist_skagen.h"
 
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/strutils.h"
 
-#include "apps/io/dist_io.h"
-#include "apps/io/dist_metis_parser.h"
-#include "apps/io/dist_parhip_parser.h"
-#include "apps/io/dist_skagen.h"
 #include "apps/version.h"
 
 #ifdef KAMINPAR_HAVE_BACKWARD
@@ -115,13 +119,13 @@ void setup_context(CLI::App &cli, ApplicationContext &app, Context &ctx) {
       ->configurable(false)
       ->description(R"(Print the current configuration and exit.
 The output should be stored in a file and can be used by the -C,--config option.)");
-  mandatory->add_flag("-v,--version", app.show_version, "Show version and exit.");
+  mandatory->add_flag("--version", app.show_version, "Show version and exit.");
 
   // Mandatory -> ... or partition a graph
   auto *gp_group = mandatory->add_option_group("Partitioning")->silent();
   gp_group
       ->add_option(
-          "-G,--graph",
+          "graph,-G,--graph",
           app.graph_filename,
           "Input graph in METIS (file extension *.graph or *.metis) "
           "or binary format (file extension *.bgf)."
@@ -131,7 +135,7 @@ The output should be stored in a file and can be used by the -C,--config option.
   auto *partition_group = gp_group->add_option_group("Partition settings")->require_option(1);
   partition_group
       ->add_option(
-          "-k,--k",
+          "k,-k,--k",
           app.k,
           "Number of blocks in the partition. This option will be ignored if explicit block "
           "weights are specified via --block-weights or --block-weight-factors."
@@ -564,8 +568,10 @@ int main(int argc, char *argv[]) {
     std::exit(MPI_Finalize());
   }
 
+#ifdef KAMINPAR_ENABLE_TBB_MALLOC
   // If available, use huge pages for large allocations
   scalable_allocation_mode(TBBMALLOC_USE_HUGE_PAGES, !app.no_huge_pages);
+#endif // KAMINPAR_ENABLE_TBB_MALLOC
 
   ENABLE_HEAP_PROFILER();
 

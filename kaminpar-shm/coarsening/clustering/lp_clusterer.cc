@@ -340,7 +340,8 @@ public:
     _csr_impl->preinitialize(num_nodes);
     _compressed_impl->preinitialize(num_nodes);
 
-    graph.reified(
+    reified(
+        graph,
         [&](const auto &csr_graph) {
           LPClusteringImpl<CSRGraph> &impl = *_csr_impl;
           compute_clustering(impl, csr_graph);

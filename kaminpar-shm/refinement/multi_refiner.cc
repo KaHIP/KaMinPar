@@ -44,7 +44,9 @@ bool MultiRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_c
     }
 
     _refiners[algorithm]->initialize(p_graph);
-    found_improvement |= _refiners[algorithm]->refine(p_graph, p_ctx);
+
+    const bool current_refiner_found_improvement = _refiners[algorithm]->refine(p_graph, p_ctx);
+    found_improvement |= current_refiner_found_improvement;
 
     if (_output_level >= OutputLevel::DEBUG) {
       const double imbalance_after = metrics::imbalance(p_graph);
@@ -62,9 +64,14 @@ bool MultiRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_c
       cut_before = cut_after;
       feasible_before = feasible_after;
     } else if (_output_level >= OutputLevel::INFO) {
-      LOG;
+      if (!current_refiner_found_improvement) {
+        LOG << ": (no effect)";
+      } else {
+        LOG;
+      }
     }
   }
+
   return found_improvement;
 }
 

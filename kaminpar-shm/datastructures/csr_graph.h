@@ -10,13 +10,13 @@
 #include <utility>
 #include <vector>
 
-#include <kassert/kassert.hpp>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 
 #include "kaminpar-shm/datastructures/abstract_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/constexpr_utils.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/degree_buckets.h"
@@ -401,10 +401,6 @@ public:
   //
   // Direct member access -- used for some "low level" operations
   //
-
-  template <typename Lambda> decltype(auto) reified(Lambda &&l) const {
-    return l(*this);
-  }
 
   [[nodiscard]] inline StaticArray<EdgeID> &raw_nodes() {
     return _nodes;

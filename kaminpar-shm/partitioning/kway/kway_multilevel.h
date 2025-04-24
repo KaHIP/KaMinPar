@@ -8,7 +8,6 @@
 #pragma once
 
 #include "kaminpar-shm/coarsening/coarsener.h"
-#include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/initial_partitioning/initial_bipartitioner_worker_pool.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/partitioning/partitioner.h"
@@ -38,6 +37,9 @@ private:
   NodeID initial_partitioning_threshold();
 
   PartitionedGraph initial_partition(const Graph *graph);
+  PartitionedGraph sequential_initial_partition(const Graph *graph);
+  PartitionedGraph parallel_initial_partition(const Graph *graph);
+  PartitionedGraph legacy_initial_partition(const Graph *graph);
 
   const Graph &_input_graph;
   const Context &_input_ctx;

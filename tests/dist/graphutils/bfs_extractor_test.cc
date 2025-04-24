@@ -135,9 +135,9 @@ TEST(BfsExtractor, one_hop_in_circle_graph) {
     EXPECT_NE(p_bfs_graph->block(0), p_bfs_graph->block(1));
     EXPECT_NE(p_bfs_graph->block(0), p_bfs_graph->block(2));
     EXPECT_NE(p_bfs_graph->block(1), p_bfs_graph->block(2));
-    ASSERT_EQ(bfs_graph->degree(0), 2);
-    ASSERT_EQ(bfs_graph->degree(1), 2);
-    ASSERT_EQ(bfs_graph->degree(2), 2);
+    ASSERT_EQ(bfs_graph->csr_graph().degree(0), 2);
+    ASSERT_EQ(bfs_graph->csr_graph().degree(1), 2);
+    ASSERT_EQ(bfs_graph->csr_graph().degree(2), 2);
     EXPECT_THAT(local_neighbors(*bfs_graph, 0), ::testing::UnorderedElementsAre(1, 2));
     EXPECT_THAT(local_neighbors(*bfs_graph, 1), ::testing::UnorderedElementsAre(0, 2));
     EXPECT_THAT(local_neighbors(*bfs_graph, 2), ::testing::UnorderedElementsAre(0, 1));

@@ -1,64 +1,107 @@
 # KaMinPar
 
-KaMinPar is a shared-memory parallel tool to heuristically solve the graph partitioning problem: divide a graph into k disjoint blocks of roughly equal weight while
-minimizing the number of edges between blocks.
-Competing algorithms are mostly evaluated for small values of k. If k is large, they often compute highly imbalance solutions, solutions of low quality or suffer excessive running time.
-KaMinPar substantially mitigates these problems.
-It computes partitions of comparable quality to other high-quality graph partitioning tools while guaranteeing the balance constraint for unweighted input graphs.
-Moreover, for large values of k, it is an order of magnitude faster than competing algorithms.
+This is **KaMinPar**, a parallel heuristic solver for the balanced k-way graph partitioning problem.
 
-## Installation Notes
+Given a graph, it aims to divide its vertices into k disjoint blocks of approximately equal weight, minimizing the number of edges crossing between blocks.
+KaMinPar offers high efficiency and low memory overheads while achieving partitions of similar quality as the widely used Metis algorithm.
+For example, it can partition the massive [hyperlink-2012](https://webdatacommons.org/hyperlinkgraph/index.html) graph (approx. 3.5 billion vertices and 112 billion edges) into 30,000 blocks in under 6 minutes on 96 cores, using around 300 GiB RAM.
+Notably, KaMinPar is also optimized for large k, where it often achieves an order-of-magnitude speedup over competing partitioners.
+For unweighted input graphs, it guarantees strict adherence to the balance constraint.
+
+## Quick-Start (Python and NetworKit)
+
+KaMinPar offers bindings for Python (only available on Linux and macOS), which can be installed via `pip`:
+
+```shell
+pip install kaminpar
+```
+
+Check out our [documentation](bindings/python/README.md) and [examples](examples/bindings-python/) to get started.
+Additionally, we offer bindings for [NetworKit](https://networkit.github.io/), which can also be installed via `pip`:
+
+```shell
+pip install kaminpar-networkit
+```
+
+For instance, these allow you to generate, partition and visualize a graph in just a few lines of code:
+
+```python
+import networkit as nk
+import kaminpar_networkit as kaminpar
+from networkit import vizbridges
+
+# Generate a random hyperbolic graph with 100 vertices, average degree 16 and power-law exponent 2.7
+graph = nk.generators.HyperbolicGenerator(100, k = 16, gamma = 2.7, T = 0).generate()
+
+# Partition the graph into 4 blocks with a maximum imbalance of 3%
+partition = kaminpar.KaMinPar(graph).computePartitionWithEpsilon(4, 0.03)
+
+# Draw the graph and the partition
+fig = nk.vizbridges.widgetFromGraph(
+    graph, 
+    dimension = nk.vizbridges.Dimension.Three, 
+    nodePartition = partition, 
+    nodePalette = [(0, 0, 0), (255, 0, 0), (0, 255, 0), (0, 0, 255)]
+)
+fig.write_image("partitioned_hyperbolic.png")
+```
+
+Refer to our [documentation](bindings/networkit/README.md) and [examples](examples/bindings-networkit/) to get started.
+
+## Installation Notes (C/C++)
 
 ### Requirements
 
 * **Compiler:** C++20-ready GCC or Clang compiler
-* **Dependencies:** CMake, Intel TBB, MPI (optional)
+* **Dependencies:** CMake, oneAPI TBB, Google Sparsehash (optional), MPI (optional)
 * **System:** Linux (x86, ARM) or macOS (ARM)
 
-### Quickstart
+### Building from Source
 
-After cloning the repository, make sure to initialize the submodules:
-
-```shell
-git submodule update --init --recursive
-```
-
-Then, follow the standard CMake build procedure:
+After cloning the repository, follow the standard CMake build procedure:
 
 ```shell
-cmake -B build --preset=default
-cmake --build build --parallel
+cmake -B build --preset=default && cmake --build build --parallel
 ```
 
-To partition a graph in METIS format (see, e.g., the [KaHIP manual](https://github.com/KaHIP/KaHIP/raw/master/manual/kahip.pdf)), run:
+> [!NOTE]
+> Use `--preset=distributed` instead if you want to build the distributed-memory components.
+
+### Using the Command Line Binaries 
+
+To partition a graph in [Metis](docs/graph_file_format.md) format, run:
 
 ```shell
 # KaMinPar: shared-memory partitioning
-./build/apps/KaMinPar [-P default|terapart|strong|largek] -G <graph filename> -k <number of blocks> -t <nproc> [-o <output partition>]
+./build/apps/KaMinPar <graph filename> <number of blocks> [-P default|terapart|strong|largek] [-t <nproc>] [-e <eps, e.g., 0.03 for 3%>] [-o <output partition>]
 
 # dKaMinPar: distributed partitioning
-mpirun -n <nproc> ./build/apps/dKaMinPar [-P default|strong|xterapart] -G <graph filename> -k <number of blocks> [-o <output partition>]
+mpirun -n <nproc> ./build/apps/dKaMinPar <graph filename> <number of blocks> [-P default|strong|xterapart] [-e <eps, e.g., 0.03 for 3%>] [-o <output partition>]
 ```
 
-The computed partition is written to a text file, where the n-th line contains the block ID (0-based) of the n-th vertex.
+The computed partition is written to a text file (controlled via `-o <filename>`), where the n-th line contains the block ID (0-based) of the n-th node.
 
 There are multiple configuration presets that tune the algorithm for different scenarios:
 
-* `-P default`: fast partitioning with quality comparable to Metis
-* `-P terapart`: same partition quality as `default`, but with reduced memory consumption (slightly slower)
-* `-P strong`: better quality than `default` at the cost of increased runtime
-* `-P largek`: faster for large values of k (e.g., k > 1024); may reduce partition quality for smaller k
+* `-P default`: fast partitioning with quality comparable to Metis.
+* `-P terapart`: same partition quality as `default`, but with reduced memory consumption (slightly slower).
+* `-P strong`: better quality than `default` through additional FM refinement at the cost of increased runtime.
+* `-P largek`: faster for large values of k (e.g., k > 1024); reduces partition quality slightly for smaller k.
 
-Configuration presets can be inspected using the `--dump-config` flag.
-To build a custom configuration, dump one of the presets to a file, modify it and load it using `-C <filename>`:
+The `-k <k>` option directs (d)KaMinPar to partition the graph into k blocks of roughly equal weight (use `-e <eps>` to control the maximum allowed imbalance, e.g., `-e 0.03` for 3%).
+Alternatively, one can specify the maximum weight for each block explicitly through one of the following options:
 
-```shell
-./build/KaMinPar -P terapart --dump-config > custom.ini
-# ... modify custom.ini ...
-./build/KaMinPar -C custom.ini <...>
-```
+* `-B <W0> <W2> ... <Wk-1>`: Explicitly specifies the maximum block weights, i.e., the weight of the i-th block should be bounded by `Wi`.
+* `-b <w0> <w2> ... <wk-1>`: Same as `-B`, but specifies the maximum weights as fractions of the total node weight, i.e., the weight of the i-th block should be bounded by `wi * total node weight`.
 
-## Using the Library Interface
+Other common command line options include:
+
+* `--help`: Prints all command line options.
+* `--version`: Prints the build configuration and current version.
+* `--validate`: Enables basic input graph validation.
+* `-q`: Quiet mode, suppresses all console output.
+
+## Using the C++ Library Interface
 
 If you are using CMake, you can use the partitioners as libraries by adding this repository as a Git submodule to your project and including it in your CMake configuration:
 
@@ -75,41 +118,88 @@ Alternatively, you can use `FetchContent`:
 include(FetchContent)
 FetchContent_Declare(KaMinPar
   GIT_REPOSITORY https://github.com/KaHIP/KaMinPar.git
-  GIT_TAG main)
+  GIT_TAG main
+  EXCLUDE_FROM_ALL)
+set(KAMINPAR_BUILD_DISTRIBUTED ON CACHE BOOL "" FORCE) # optional, required for dKaMinPar
 FetchContent_MakeAvailable(KaMinPar)
-set_property(DIRECTORY "${KaMinPar_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL YES) # optional
 
 target_link_libraries(<your-target> PUBLIC KaMinPar::KaMinPar)  # Shared-memory partitioning
 target_link_libraries(<your-target> PUBLIC KaMinPar::dKaMinPar) # Distributed partitioning
 ```
 
-Then, call the libraries as follows:
+The shared-memory partitioner can be used as follows:
 
 ```c++
-#include <kaminpar-shm/kaminpar.h>
-#include <kaminpar-dist/dkaminpar.h>
-
+#include <kaminpar.h>
 using namespace kaminpar;
 
-// Call the shared-memory partitioner:
 KaMinPar shm(int num_threads, shm::create_default_context());
-// KaMinPar::reseed(int seed);
-shm.borrow_and_mutate_graph(NodeID n, EdgeID *xadj, NodeID *adjncy, NodeWeight *vwgt = nullptr, EdgeWeight *adjwgt = nullptr);
-// alternatively: shm.copy_graph(n, xadj, adjncy, vwgt, adjwgt); will work on a copy of the graph
-shm.compute_partition(BlockID number_of_blocks, double epsilon, std::span<BlockID> out_partition);
-// alternatively: shm.compute_partition(std::vector<BlockWeight> max_block_weights, std::span<BlockID> out_partition);
-// Note: you must ensure that the total max block weight is larger than the total node weight of the graph
 
-// Call the distributed partitioner:
-dKaMinPar dist(MPI_Comm comm, int num_threads, dist::create_default_context());
-// dKaMinPar::reseed(int seed); 
-dist.copy_graph(GlobalNodeID *vtxdist, GlobalEdgeID *xadj, GlobalNodeID *adjncy, GlobalNodeWeight *vwvgt = nullptr, GlobalEdgeWeight *adjwgt = nullptr);
-dist.compute_partition(BlockID number_of_blocks, double epsilon, std::span<BlockID> out_partition);
-// alternatively: dist.compute_partition(std::vector<BlockWeight> max_block_weights, std::span<BlockID> out_partition);
-// Note: you must ensure that the total max block weight is larger than the total node weight of the graph
+// Pass a copy of the graph:
+shm.copy_graph(
+  std::span<const EdgeID> xadj, 
+  std::span<const NodeID> adjncy, 
+  std::span<const NodeWeight> vwgt = {}, 
+  std::span<const EdgeWeight> adjwgt = {}
+);
+
+// Alternatively, let KaMinPar borrow the graph: this avoids the copy, but the
+// spans must stay valid throughout partitioning and KaMinPar might modify the 
+// data:
+shm.borrow_and_mutate_graph(
+  std::span<EdgeID> xadj, 
+  std::span<NodeID> adjncy, 
+  std::span<NodeWeight> vwgt = {}, 
+  std::span<EdgeWeight> adjwgt = {}
+);
+
+// Compute a `k`-way partition where each block weight is bounded by 
+// `(1 + epsilon) * average`:
+shm.compute_partition(BlockID k, double epsilon, std::span<BlockID> out_partition);
+
+// Compute a `max_block_weights.size()`-way partition where the `i`-th block 
+// weight is bounded by `max_block_weights[i]`:
+shm.compute_partition(std::vector<BlockWeight> max_block_weights, std::span<BlockID> out_partition);
+
+// Compute a `max_block_weight_factors.size()`-way partition where the `i`-th 
+// block weight is bounded by `max_block_weight_factors[i] * total_weight`:
+shm.compute_partition(std::vector<double> max_block_weight_factors, std::span<BlockID> out_partition);
 ```
 
-More examples can be found in the `examples/` directory. 
+> [!TIP]
+> If you want to partition a graph that does not fit into memory, you can use our [Builder interface](docs/graph_compression.md) to construct a graph while compressing it on-the-fly.
+
+The distributed-memory partitioner can be used as follows:
+
+```c++
+#include <dkaminpar.h>
+using namespace kaminpar;
+
+dKaMinPar dist(MPI_Comm comm, int num_threads, dist::create_default_context());
+
+// Pass a copy of the graph:
+dist.copy_graph(
+  std::span<GlobalNodeID> vtxdist, 
+  std::span<GlobalEdgeID> xadj, 
+  std::span<GlobalNodeID> adjncy, 
+  std::span<GlobalNodeWeight> vwvgt = {}, 
+  std::span<GlobalEdgeWeight> adjwgt = {}
+);
+
+// Compute a `k`-way partition where each block weight is bounded by 
+// `(1 + epsilon) * average`:
+dist.compute_partition(BlockID k, double epsilon, std::span<BlockID> out_partition);
+
+// Compute a `max_block_weights.size()`-way partition where the `i`-th block 
+// weight is bounded by `max_block_weights[i]`:
+dist.compute_partition(std::vector<BlockWeight> max_block_weights, std::span<BlockID> out_partition);
+
+// Compute a `max_block_weight_factors.size()`-way partition where the `i`-th 
+// block weight is bounded by `max_block_weight_factors[i] * total_weight`:
+dist.compute_partition(std::vector<double> max_block_weight_factors, std::span<BlockID> out_partition);
+```
+
+Check out our [examples](examples/) to see the library interface in action.
 
 ## Licensing
 

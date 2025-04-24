@@ -24,18 +24,7 @@
 #include "kaminpar-shm/coarsening/basic_cluster_coarsener.h"
 #include "kaminpar-shm/coarsening/noop_coarsener.h"
 #include "kaminpar-shm/coarsening/overlay_cluster_coarsener.h"
-#include "kaminpar-shm/coarsening/sparsifying_cluster_coarsener.h"
-#include "kaminpar-shm/coarsening/threshold_sparsifying_cluster_coarsener.h"
-
-// Sparsification
-#include "kaminpar-shm/coarsening/sparsification/independent_random_sampler.h"
-#include "kaminpar-shm/coarsening/sparsification/k_neighbor_sampler.h"
-#include "kaminpar-shm/coarsening/sparsification/random_with_replacement_sampler.h"
-#include "kaminpar-shm/coarsening/sparsification/random_without_replacement_sampler.h"
-#include "kaminpar-shm/coarsening/sparsification/threshold_sampler.h"
-#include "kaminpar-shm/coarsening/sparsification/unbiased_threshold_sampler.h"
-#include "kaminpar-shm/coarsening/sparsification/uniform_random_sampler.h"
-#include "kaminpar-shm/coarsening/sparsification/weighted_forest_fire_score.h"
+#include "kaminpar-shm/coarsening/sparsification_cluster_coarsener.h"
 
 // Refinement
 #include "kaminpar-shm/refinement/adapters/mtkahypar_refiner.h"
@@ -94,139 +83,15 @@ std::unique_ptr<Coarsener> create_coarsener(const Context &ctx, const PartitionC
   case CoarseningAlgorithm::OVERLAY_CLUSTERING:
     return std::make_unique<OverlayClusterCoarsener>(ctx, p_ctx);
 
-  case CoarseningAlgorithm::SPARSIFYING_CLUSTERING:
-    return std::make_unique<SparsifyingClusterCoarsener>(ctx, p_ctx);
-
-  case CoarseningAlgorithm::THRESHOLD_SPARSIFYING_CLUSTERING:
-    return std::make_unique<ThresholdSparsifyingClusterCoarsener>(ctx, p_ctx);
-  }
-
-  __builtin_unreachable();
-}
-
-std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
-  class WeightFunction : public sparsification::ScoreFunction<EdgeWeight> {
-  public:
-    StaticArray<EdgeWeight> scores(const CSRGraph &g) override {
-      return StaticArray<EdgeWeight>(g.raw_edge_weights().begin(), g.raw_edge_weights().end());
-    }
-  };
-
-  switch (ctx.sparsification.algorithm) {
-  case SparsificationAlgorithm::UNIFORM_RANDOM_SAMPLING:
-    return std::make_unique<sparsification::UniformRandomSampler>();
-
-  case SparsificationAlgorithm::K_NEIGHBOUR:
-    return std::make_unique<sparsification::kNeighborSampler>();
-
-  case SparsificationAlgorithm::K_NEIGHBOUR_SPANNING_TREE:
-    return std::make_unique<sparsification::kNeighborSampler>(true);
-
-  case SparsificationAlgorithm::UNBIASED_THRESHOLD:
-    return std::make_unique<sparsification::UnbiasedThesholdSampler>();
-
-  case SparsificationAlgorithm::WEIGHT_THRESHOLD:
-    return std::make_unique<sparsification::ThresholdSampler<EdgeWeight>>(
-        std::make_unique<WeightFunction>()
-    );
-
-  case SparsificationAlgorithm::RANDOM_WITH_REPLACEMENT:
-    switch (ctx.sparsification.score_function) {
-    case ScoreFunctionSection::WEIGHTED_FOREST_FIRE:
-      return std::make_unique<sparsification::RandomWithReplacementSampler<EdgeID>>(
-          std::make_unique<sparsification::WeightedForestFireScore>(
-              ctx.sparsification.wff_pf, ctx.sparsification.wff_target_burnt_ratio
-          )
-      );
-
-    case ScoreFunctionSection::FOREST_FIRE:
-      return std::make_unique<sparsification::ThresholdSampler<EdgeID>>(
-          std::make_unique<sparsification::WeightedForestFireScore>(
-              ctx.sparsification.wff_pf, ctx.sparsification.wff_target_burnt_ratio, true
-          )
-      );
-    case ScoreFunctionSection::WEIGHT:
-      return std::make_unique<sparsification::RandomWithReplacementSampler<EdgeWeight>>(
-          std::make_unique<WeightFunction>()
-
-      );
-    }
-    break;
-
-  case SparsificationAlgorithm::RANDOM_WITHOUT_REPLACEMENT:
-    switch (ctx.sparsification.score_function) {
-    case ScoreFunctionSection::WEIGHTED_FOREST_FIRE:
-      return std::make_unique<sparsification::RandomWithoutReplacementSampler<EdgeID>>(
-          std::make_unique<sparsification::WeightedForestFireScore>(
-              ctx.sparsification.wff_pf, ctx.sparsification.wff_target_burnt_ratio
-          )
-      );
-
-    case ScoreFunctionSection::FOREST_FIRE:
-      return std::make_unique<sparsification::ThresholdSampler<EdgeID>>(
-          std::make_unique<sparsification::WeightedForestFireScore>(
-              ctx.sparsification.wff_pf, ctx.sparsification.wff_target_burnt_ratio, true
-          )
-      );
-    case ScoreFunctionSection::WEIGHT:
-      return std::make_unique<sparsification::RandomWithoutReplacementSampler<EdgeWeight>>(
-          std::make_unique<WeightFunction>()
-
-      );
-    }
-    break;
-
-  case SparsificationAlgorithm::INDEPENDENT_RANDOM:
-    switch (ctx.sparsification.score_function) {
-    case ScoreFunctionSection::WEIGHTED_FOREST_FIRE:
-      return std::make_unique<sparsification::IndependentRandomSampler<EdgeID>>(
-          std::make_unique<sparsification::WeightedForestFireScore>(
-              ctx.sparsification.wff_pf, ctx.sparsification.wff_target_burnt_ratio
-          ),
-          ctx.sparsification.no_approx
-      );
-
-    case ScoreFunctionSection::FOREST_FIRE:
-      return std::make_unique<sparsification::ThresholdSampler<EdgeID>>(
-          std::make_unique<sparsification::WeightedForestFireScore>(
-              ctx.sparsification.wff_pf, ctx.sparsification.wff_target_burnt_ratio, true
-          )
-      );
-    case ScoreFunctionSection::WEIGHT:
-      return std::make_unique<sparsification::IndependentRandomSampler<EdgeWeight>>(
-          std::make_unique<WeightFunction>(), ctx.sparsification.no_approx
-      );
-    }
-    break;
-
-  case SparsificationAlgorithm::THRESHOLD:
-    switch (ctx.sparsification.score_function) {
-    case ScoreFunctionSection::WEIGHTED_FOREST_FIRE:
-      return std::make_unique<sparsification::ThresholdSampler<EdgeID>>(
-          std::make_unique<sparsification::WeightedForestFireScore>(
-              ctx.sparsification.wff_pf, ctx.sparsification.wff_target_burnt_ratio
-          )
-      );
-
-    case ScoreFunctionSection::FOREST_FIRE:
-      return std::make_unique<sparsification::ThresholdSampler<EdgeID>>(
-          std::make_unique<sparsification::WeightedForestFireScore>(
-              ctx.sparsification.wff_pf, ctx.sparsification.wff_target_burnt_ratio, true
-          )
-      );
-    case ScoreFunctionSection::WEIGHT:
-      return std::make_unique<sparsification::ThresholdSampler<EdgeWeight>>(
-          std::make_unique<WeightFunction>()
-
-      );
-    }
-    break;
+  case CoarseningAlgorithm::SPARSIFICATION_CLUSTERING:
+    return std::make_unique<SparsificationClusterCoarsener>(ctx, p_ctx);
   }
 
   __builtin_unreachable();
 }
 
 namespace {
+
 std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgorithm algorithm) {
   switch (algorithm) {
   case RefinementAlgorithm::NOOP:
@@ -250,12 +115,11 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
 
   __builtin_unreachable();
 }
+
 } // namespace
 
 std::unique_ptr<Refiner> create_refiner(const Context &ctx) {
   SCOPED_HEAP_PROFILER("Refiner Allocation");
-  SCOPED_TIMER("Refinement");
-  SCOPED_TIMER("Allocation");
 
   if (ctx.refinement.algorithms.empty()) {
     return std::make_unique<NoopRefiner>();

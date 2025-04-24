@@ -15,16 +15,20 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/environment.cc.in" "${CMAKE_CURRENT_
 file(GLOB_RECURSE KAMINPAR_COMMON_SOURCE_FILES CONFIGURE_DEPENDS
 	*.cc *.h)
 
-add_library(kaminpar_common OBJECT ${KAMINPAR_COMMON_SOURCE_FILES} "${CMAKE_CURRENT_BINARY_DIR}/environment.cc")
-target_compile_definitions(kaminpar_common PUBLIC ${KAMINPAR_DEFINITIONS})
-target_compile_options(kaminpar_common PRIVATE ${KAMINPAR_WARNING_FLAGS})
+add_library(KaMinParCommon OBJECT ${KAMINPAR_COMMON_SOURCE_FILES} "${CMAKE_CURRENT_BINARY_DIR}/environment.cc")
+add_library(KaMinPar::KaMinParCommon ALIAS KaMinParCommon)
 
-# Link libraries
-find_package(TBB REQUIRED) 
-find_library(NUMA_LIB numa) # optional 
+target_compile_definitions(KaMinParCommon PUBLIC ${KAMINPAR_DEFINITIONS})
+target_compile_options(KaMinParCommon PRIVATE ${KAMINPAR_WARNING_FLAGS})
 
-target_link_libraries(kaminpar_common PUBLIC TBB::tbb TBB::tbbmalloc kassert::kassert)
-if (NUMA_LIB) 
-    target_link_libraries(kaminpar_common PUBLIC ${NUMA_LIB})
+target_link_libraries(KaMinParCommon PUBLIC TBB::tbb)
+if (KAMINPAR_BUILD_WITH_KASSERT)
+    target_link_libraries(KaMinParCommon PUBLIC kassert::kassert)
+endif ()
+if (KAMINPAR_ENABLE_TBB_MALLOC)
+    target_link_libraries(KaMinParCommon PUBLIC TBB::tbbmalloc)
 endif ()
 
+if (NUMA_LIB)
+    target_link_libraries(KaMinParCommon PUBLIC ${NUMA_LIB})
+endif ()

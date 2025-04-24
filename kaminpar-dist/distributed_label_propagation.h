@@ -13,7 +13,6 @@
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_invoke.h>
-#include <tbb/scalable_allocator.h>
 
 #include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/logger.h"

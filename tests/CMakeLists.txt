@@ -5,8 +5,7 @@ function(kaminpar_add_shm_test target)
     target_link_libraries(${target} PRIVATE 
         GTest::gtest_main 
         GTest::gmock_main
-        kaminpar_common
-        kaminpar_shm)
+        KaMinPar::KaMinPar)
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_compile_options(${target} PRIVATE ${KAMINPAR_WARNING_FLAGS})
     gtest_discover_tests(${target})
@@ -19,7 +18,7 @@ function(kaminpar_add_common_test target)
     target_link_libraries(${target} PRIVATE 
         GTest::gtest_main
         GTest::gmock_main
-        kaminpar_common)
+        KaMinPar::KaMinParCommon)
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_compile_options(${target} PRIVATE ${KAMINPAR_WARNING_FLAGS})
     gtest_discover_tests(${target})
@@ -51,6 +50,7 @@ kaminpar_add_shm_test(test_shm_endtoend endtoend/shm_endtoend_test.cc)
 kaminpar_add_shm_test(test_shm_metrics shm/metrics_test.cc)
 kaminpar_add_shm_test(test_shm_subgraph_extraction shm/graphutils/subgraph_extraction_test.cc)
 kaminpar_add_shm_test(test_shm_partition_utils shm/graphutils/partition_utils_test.cc)
+kaminpar_add_shm_test(test_compressed_graph_builder shm/graphutils/compressed_graph_builder_test.cc)
 
 # KaMinPar -> Coarsening
 kaminpar_add_shm_test(test_shm_cluster_contraction shm/coarsening/cluster_contraction_test.cc)
@@ -83,9 +83,8 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
         katestrophe_add_test_executable(${KAMINPAR_TARGET_NAME} FILES ${KAMINPAR_FILES})
         target_link_libraries(${KAMINPAR_TARGET_NAME} PRIVATE
                 mpi-gtest-main
-                kaminpar_common
-                kaminpar_shm
-                kaminpar_mpi)
+                KaMinPar::KaMinPar
+                KaMinPar::KaMinParMPI)
         target_include_directories(${KAMINPAR_TARGET_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
         target_compile_options(${KAMINPAR_TARGET_NAME} PRIVATE ${KAMINPAR_WARNING_FLAGS})
         katestrophe_add_mpi_test(${KAMINPAR_TARGET_NAME} CORES ${KAMINPAR_CORES})
@@ -104,10 +103,7 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
         katestrophe_add_test_executable(${KAMINPAR_TARGET_NAME} FILES ${KAMINPAR_FILES})
         target_link_libraries(${KAMINPAR_TARGET_NAME} PRIVATE 
             mpi-gtest-main
-            kaminpar_common
-            kaminpar_shm
-            kaminpar_mpi
-            kaminpar_dist)
+            KaMinPar::dKaMinPar)
         target_include_directories(${KAMINPAR_TARGET_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
         target_compile_options(${KAMINPAR_TARGET_NAME} PRIVATE ${KAMINPAR_WARNING_FLAGS})
         katestrophe_add_mpi_test(${KAMINPAR_TARGET_NAME} CORES ${KAMINPAR_CORES})

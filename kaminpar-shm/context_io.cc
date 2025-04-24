@@ -72,41 +72,7 @@ std::unordered_map<std::string, CoarseningAlgorithm> get_coarsening_algorithms()
       {"clustering", CoarseningAlgorithm::BASIC_CLUSTERING},
       {"basic-clustering", CoarseningAlgorithm::BASIC_CLUSTERING},
       {"overlay-clustering", CoarseningAlgorithm::OVERLAY_CLUSTERING},
-      {"sparsifying-clustering", CoarseningAlgorithm::SPARSIFYING_CLUSTERING},
-      {"threshold-sparsifying-clustering", CoarseningAlgorithm::THRESHOLD_SPARSIFYING_CLUSTERING},
-  };
-}
-
-std::unordered_map<std::string, SparsificationAlgorithm> get_sparsification_algorithms() {
-  return {
-      {"uniform-random", SparsificationAlgorithm::UNIFORM_RANDOM_SAMPLING},
-      {"ur", SparsificationAlgorithm::UNIFORM_RANDOM_SAMPLING},
-      {"k-neighbour", SparsificationAlgorithm::K_NEIGHBOUR},
-      {"kn", SparsificationAlgorithm::K_NEIGHBOUR},
-      {"k-neighbour-spanning-tree", SparsificationAlgorithm::K_NEIGHBOUR_SPANNING_TREE},
-      {"kn-st", SparsificationAlgorithm::K_NEIGHBOUR_SPANNING_TREE},
-      {"weight-threshold", SparsificationAlgorithm::WEIGHT_THRESHOLD},
-      {"wt", SparsificationAlgorithm::WEIGHT_THRESHOLD},
-      {"random-with-replacement", SparsificationAlgorithm::RANDOM_WITH_REPLACEMENT},
-      {"rw/r", SparsificationAlgorithm::RANDOM_WITH_REPLACEMENT},
-      {"random-without-replacement", SparsificationAlgorithm::RANDOM_WITHOUT_REPLACEMENT},
-      {"rw/or", SparsificationAlgorithm::RANDOM_WITHOUT_REPLACEMENT},
-      {"independent-random", SparsificationAlgorithm::INDEPENDENT_RANDOM},
-      {"ir", SparsificationAlgorithm::INDEPENDENT_RANDOM},
-      {"threshold", SparsificationAlgorithm::THRESHOLD},
-      {"t", SparsificationAlgorithm::THRESHOLD},
-      {"unbiased-threshold", SparsificationAlgorithm::UNBIASED_THRESHOLD},
-      {"ut", SparsificationAlgorithm::UNBIASED_THRESHOLD},
-  };
-}
-std::unordered_map<std::string, ScoreFunctionSection> get_score_function() {
-  return {
-      {"weight", ScoreFunctionSection::WEIGHT},
-      {"w", ScoreFunctionSection::WEIGHT},
-      {"weighted-forest-fire", ScoreFunctionSection::WEIGHTED_FOREST_FIRE},
-      {"wff", ScoreFunctionSection::WEIGHTED_FOREST_FIRE},
-      {"forest-fire", ScoreFunctionSection::FOREST_FIRE},
-      {"ff", ScoreFunctionSection::FOREST_FIRE},
+      {"sparsification-clustering", CoarseningAlgorithm::SPARSIFICATION_CLUSTERING},
   };
 }
 
@@ -118,10 +84,8 @@ std::ostream &operator<<(std::ostream &out, const CoarseningAlgorithm algorithm)
     return out << "basic-clustering";
   case CoarseningAlgorithm::OVERLAY_CLUSTERING:
     return out << "overlay-clustering";
-  case CoarseningAlgorithm::SPARSIFYING_CLUSTERING:
-    return out << "sparsifying-clustering";
-  case CoarseningAlgorithm::THRESHOLD_SPARSIFYING_CLUSTERING:
-    return out << "threshold-sparsifying-clustering";
+  case CoarseningAlgorithm::SPARSIFICATION_CLUSTERING:
+    return out << "sparsification-clustering";
   }
 
   return out << "<invalid>";
@@ -260,25 +224,46 @@ std::ostream &operator<<(std::ostream &out, const PartitioningMode mode) {
   return out << "<invalid>";
 }
 
-std::unordered_map<std::string, InitialPartitioningMode> get_initial_partitioning_modes() {
+std::unordered_map<std::string, DeepInitialPartitioningMode> get_deep_initial_partitioning_modes() {
   return {
-      {"sequential", InitialPartitioningMode::SEQUENTIAL},
-      {"async-parallel", InitialPartitioningMode::ASYNCHRONOUS_PARALLEL},
-      {"sync-parallel", InitialPartitioningMode::SYNCHRONOUS_PARALLEL},
-      {"communities", InitialPartitioningMode::COMMUNITIES},
+      {"sequential", DeepInitialPartitioningMode::SEQUENTIAL},
+      {"async-parallel", DeepInitialPartitioningMode::ASYNCHRONOUS_PARALLEL},
+      {"sync-parallel", DeepInitialPartitioningMode::SYNCHRONOUS_PARALLEL},
+      {"communities", DeepInitialPartitioningMode::COMMUNITIES},
   };
 }
 
-std::ostream &operator<<(std::ostream &out, const InitialPartitioningMode mode) {
+std::ostream &operator<<(std::ostream &out, const DeepInitialPartitioningMode mode) {
   switch (mode) {
-  case InitialPartitioningMode::SEQUENTIAL:
+  case DeepInitialPartitioningMode::SEQUENTIAL:
     return out << "sequential";
-  case InitialPartitioningMode::ASYNCHRONOUS_PARALLEL:
+  case DeepInitialPartitioningMode::ASYNCHRONOUS_PARALLEL:
     return out << "async-parallel";
-  case InitialPartitioningMode::SYNCHRONOUS_PARALLEL:
+  case DeepInitialPartitioningMode::SYNCHRONOUS_PARALLEL:
     return out << "sync-parallel";
-  case InitialPartitioningMode::COMMUNITIES:
+  case DeepInitialPartitioningMode::COMMUNITIES:
     return out << "communities";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, KwayInitialPartitioningMode> get_kway_initial_partitioning_modes() {
+  return {
+      {"sequential", KwayInitialPartitioningMode::SEQUENTIAL},
+      {"parallel", KwayInitialPartitioningMode::PARALLEL},
+      {"legacy", KwayInitialPartitioningMode::LEGACY},
+  };
+}
+
+std::ostream &operator<<(std::ostream &out, const KwayInitialPartitioningMode mode) {
+  switch (mode) {
+  case KwayInitialPartitioningMode::SEQUENTIAL:
+    return out << "sequential";
+  case KwayInitialPartitioningMode::PARALLEL:
+    return out << "parallel";
+  case KwayInitialPartitioningMode::LEGACY:
+    return out << "legacy";
   }
 
   return out << "<invalid>";
@@ -473,8 +458,7 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
 
   if (c_ctx.algorithm == CoarseningAlgorithm::BASIC_CLUSTERING ||
       c_ctx.algorithm == CoarseningAlgorithm::OVERLAY_CLUSTERING ||
-      c_ctx.algorithm == CoarseningAlgorithm::SPARSIFYING_CLUSTERING ||
-      c_ctx.algorithm == CoarseningAlgorithm::THRESHOLD_SPARSIFYING_CLUSTERING) {
+      c_ctx.algorithm == CoarseningAlgorithm::SPARSIFICATION_CLUSTERING) {
     out << "  Cluster weight limit:       " << c_ctx.clustering.cluster_weight_limit << " x "
         << c_ctx.clustering.cluster_weight_multiplier << "\n";
     out << "  Shrink factor:              " << c_ctx.clustering.shrink_factor << "\n";
@@ -589,6 +573,16 @@ void print(const PartitioningContext &p_ctx, std::ostream &out) {
   if (p_ctx.mode == PartitioningMode::DEEP) {
     out << "  Deep initial part. mode:    " << p_ctx.deep_initial_partitioning_mode << "\n";
     out << "  Deep initial part. load:    " << p_ctx.deep_initial_partitioning_load << "\n";
+  } else if (p_ctx.mode == PartitioningMode::KWAY) {
+    out << "  Initial partitioning mode:  " << p_ctx.kway_initial_partitioning_mode << "\n";
+  } else if (p_ctx.mode == PartitioningMode::RB) {
+    out << "  Use flat k-way refinement:  "
+        << (p_ctx.rb_enable_kway_toplevel_refinement ? "yes" : "no") << "\n";
+    out << "  Switch to seq. part.:       "
+        << (p_ctx.rb_switch_to_seq_factor == 0
+                ? "never"
+                : "when k' > p * " + std::to_string(p_ctx.rb_switch_to_seq_factor))
+        << "\n";
   }
   out << "Subgraph memory:              " << (p_ctx.use_lazy_subgraph_memory ? "Lazy" : "Default")
       << "\n";

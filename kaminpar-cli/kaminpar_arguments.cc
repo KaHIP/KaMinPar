@@ -47,7 +47,7 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
       ->add_option(
           "--p-deep-initial-partitioning-mode", ctx.partitioning.deep_initial_partitioning_mode
       )
-      ->transform(CLI::CheckedTransformer(get_initial_partitioning_modes()).description(""))
+      ->transform(CLI::CheckedTransformer(get_deep_initial_partitioning_modes()).description(""))
       ->description(R"(Chooses the initial partitioning mode:
   - sequential:     do not diversify initial partitioning by replicating coarse graphs
   - async-parallel: diversify initial partitioning by replicating coarse graphs each branch of the replication tree asynchronously
@@ -82,6 +82,18 @@ CLI::Option_group *create_partitioning_options(CLI::App *app, Context &ctx) {
           "--p-rb-kway-toplevel-refinement", ctx.partitioning.rb_enable_kway_toplevel_refinement
       )
       ->capture_default_str();
+  partitioning->add_option("--p-rb-switch-to-seq-factor", ctx.partitioning.rb_switch_to_seq_factor)
+      ->capture_default_str();
+  partitioning
+      ->add_flag(
+          "--p-kway-initial-partitioning-mode", ctx.partitioning.kway_initial_partitioning_mode
+      )
+      ->transform(CLI::CheckedTransformer(get_kway_initial_partitioning_modes()).description(""))
+      ->description(R"(Chooses the initial partitioning mode:
+  - sequential
+  - parallel
+  - legacy)")
+      ->capture_default_str();
 
   partitioning->add_option("--p-vcycles", ctx.partitioning.vcycles)->capture_default_str();
   partitioning
@@ -106,7 +118,8 @@ CLI::Option_group *create_partitioning_rearrangement_options(CLI::App *app, Cont
       ->capture_default_str();
   rearrangement->add_option("--edge-order", ctx.edge_ordering)
       ->transform(CLI::CheckedTransformer(get_edge_orderings()).description(""))
-      ->description(R"(Criteria by which the edges of the graph are sorted and rearranged:
+      ->description(
+          R"(Criteria by which the edges of the graph are sorted and rearranged:
   - natural:     keep edge order of the graph (do not rearrange)
   - compression: sort the edges of each neighbourhood with the ordering of the corresponding compressed graph)"
       )
@@ -121,74 +134,13 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
   // Coarsening options:
   coarsening->add_option("--c-algorithm", ctx.coarsening.algorithm)
       ->transform(CLI::CheckedTransformer(get_coarsening_algorithms()).description(""))
-      ->description(R"(One of the following options:
-  - noop:       disable coarsening
-  - clustering: coarsening by clustering and contracting
-  - sparsifying-clustering: like clustering with additionale edge sparsification)")
-      ->capture_default_str();
-
-  coarsening->add_option("--c-sparsification", ctx.sparsification.algorithm)
-      ->transform(CLI::CheckedTransformer(get_sparsification_algorithms()))
-      ->description(R"(One of the following options:
-  - random, rn: uniform random sampling
-  - forest-fire, ff: sampling by forest fire scores
-  - k-neighbour, kn: k-Neighbour sampling
-  - k-neighbour-spanning-tree, kn-st: k-Neighbour sampling with spanning tree
-  - unbiased-threshold, ut: sample edges above a threshold T, and other edges with probability w(e)/T
-  - weight-threshold, wt: sample edges with weights above threshold
-  - independent-random, ir: sample edges indepently with probabilites proportional to scores
-  - random-with-replacement, rw/r: draw random edges WITH replacment and probailites proportinal to scores
-  - random-without-replacement, rw/or: draw random edges WITHOUT replacment and probailites proportinal to scores)"
-      )
-      ->capture_default_str();
-
-  coarsening->add_option("--s-score", ctx.sparsification.score_function)
-      ->transform(CLI::CheckedTransformer(get_score_function()))
-      ->description(R"(How the scores for sampling are calculated:
-  - weight, w: use edge weights as scores
-  - wff: weighted forest fire
-  - forest-fire, ff)")
-      ->capture_default_str();
-
-  coarsening->add_option("--s-density-factor", ctx.sparsification.density_target_factor)
       ->description(
-          R"(By which factor the density should at least be reduced from one level to the next:
-      new density <= factor * old density
-      The default is infinity.)"
+          R"(One of the following options:
+  - noop:                      disable coarsening
+  - clustering:                coarsening via cluster contraction
+  - overlay-clustering:        coarsening via contracting an ensemble of clusterings
+  - sparsification-clustering: coarsening via cluster contraction with additional edge sparsification)"
       )
-      ->capture_default_str();
-
-  coarsening->add_option("--s-reduction-factor", ctx.sparsification.reduction_target_factor)
-      ->description(
-          R"(By which factor the number of edges should at least be reduced from one level to the next:
-      new number of edges <= factor * old number of edges
-      The default is infinity.)"
-      )
-      ->capture_default_str();
-
-  coarsening->add_option("--s-laziness-factor", ctx.sparsification.laziness_factor)
-      ->description(
-          R"(Only sparsify if the number of edges times the laziness factor are less than the target.
-      Thus greater laziness leads to less sparsification. The default is 1.)"
-      )
-      ->capture_default_str();
-
-  coarsening->add_flag("--s-no-approx", ctx.sparsification.no_approx)
-      ->description("Disables some approximations of sparsification algorithms.")
-      ->capture_default_str();
-
-  coarsening->add_option("--s-wff-tbr", ctx.sparsification.wff_target_burnt_ratio)
-      ->description("Target burn ratio of the Weighted Forest Fire (WFF) score")
-      ->capture_default_str();
-
-  coarsening->add_option("--s-wff-pf", ctx.sparsification.wff_pf)
-      ->description("The probability which parameterizes the geometrically distributed number of "
-                    "neighbors to burn")
-      ->capture_default_str();
-
-  coarsening->add_flag("--s-recontract", ctx.sparsification.recontract)
-      ->description("[--c-algorithm=threshold-sparsifying-clustering] Construct sparsifier by "
-                    "re-contracting the uncoarsened graph.")
       ->capture_default_str();
 
   coarsening
@@ -203,8 +155,7 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
       ->add_option(
           "--c-convergence-threshold",
           ctx.coarsening.convergence_threshold,
-          "Coarsening converges once the size of the graph shrinks by "
-          "less than this factor."
+          "Coarsening converges once the size of the graph shrinks by less than this factor."
       )
       ->capture_default_str();
 
@@ -219,7 +170,7 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
 
   coarsening->add_option("--c-clustering-algorithm", ctx.coarsening.clustering.algorithm)
       ->transform(CLI::CheckedTransformer(get_clustering_algorithms()).description(""))
-      ->description(R"(One of the following options:
+      ->description(R"(Algorithm for computing node clusters. One of the following options:
   - noop: disable coarsening
   - lp:   size-constrained label propagation)")
       ->capture_default_str();
@@ -254,10 +205,22 @@ Options are:
       )
       ->capture_default_str();
 
-  coarsening->add_flag("--c-forced-kc-level", ctx.coarsening.clustering.forced_kc_level)
+  coarsening
+      ->add_flag(
+          "--c-forced-kc-level",
+          ctx.coarsening.clustering.forced_kc_level,
+          "Forces a coarsening level with roughly kC nodes."
+      )
       ->capture_default_str();
-  coarsening->add_flag("--c-forced-pc-level", ctx.coarsening.clustering.forced_pc_level)
+
+  coarsening
+      ->add_flag(
+          "--c-forced-pc-level",
+          ctx.coarsening.clustering.forced_pc_level,
+          "Forces a coarsening level with roughly pC nodes."
+      )
       ->capture_default_str();
+
   coarsening
       ->add_option(
           "--c-forced-level-upper-factor", ctx.coarsening.clustering.forced_level_upper_factor
@@ -269,9 +232,54 @@ Options are:
       )
       ->capture_default_str();
 
-  coarsening->add_option("--c-overlay-levels", ctx.coarsening.overlay_clustering.num_levels)
+  coarsening
+      ->add_option(
+          "--c-overlay-levels",
+          ctx.coarsening.overlay_clustering.num_levels,
+          "[--c-algorithm=overlay-clustering] Use 2^<arg> clusterings in the ensemble"
+      )
       ->capture_default_str();
-  coarsening->add_option("--c-overlay-max-level", ctx.coarsening.overlay_clustering.max_level)
+
+  coarsening
+      ->add_option(
+          "--c-overlay-max-level",
+          ctx.coarsening.overlay_clustering.max_level,
+          "[--c-algorithm=overlay-clustering] Only use cluster ensembles on the first <arg> "
+          "coarsening levels"
+      )
+      ->capture_default_str();
+
+  coarsening
+      ->add_option(
+          "--c-s-density-factor", ctx.coarsening.sparsification_clustering.density_target_factor
+      )
+      ->description(
+          "[--c-algorithm=sparsification-clustering] By which factor the density should at least "
+          "be reduced from one level to the next: new density <= factor * old density. The default "
+          "is infinity."
+      )
+      ->capture_default_str();
+
+  coarsening
+      ->add_option(
+          "--c-s-reduction-factor", ctx.coarsening.sparsification_clustering.edge_target_factor
+      )
+      ->description(
+          "[--c-algorithm=sparsification-clustering] By which factor the number of edges should at "
+          "least be reduced from one level to the next: new number of edges <= factor * old number "
+          "of edges The default is infinity."
+      )
+      ->capture_default_str();
+
+  coarsening
+      ->add_option(
+          "--c-s-laziness-factor", ctx.coarsening.sparsification_clustering.laziness_factor
+      )
+      ->description(
+          "[--c-algorithm=sparsification-clustering] Only sparsify if the number of edges times "
+          "the laziness factor are less than the target. Thus greater laziness leads to less "
+          "sparsification. The default is 1."
+      )
       ->capture_default_str();
 
   create_lp_coarsening_options(app, ctx);

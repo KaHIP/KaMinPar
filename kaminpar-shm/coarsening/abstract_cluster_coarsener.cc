@@ -69,7 +69,8 @@ void AbstractClusterCoarsener::release_allocated_memory() {
   _contraction_m_ctx.all_buffered_nodes.free();
 }
 
-std::unique_ptr<CoarseGraph> AbstractClusterCoarsener::pop_hierarchy(PartitionedGraph &&p_graph) {
+std::unique_ptr<CoarseGraph>
+AbstractClusterCoarsener::pop_hierarchy([[maybe_unused]] PartitionedGraph &&p_graph) {
   KASSERT(!empty(), "cannot pop from an empty graph hierarchy", assert::light);
 
   auto coarsened = std::move(_hierarchy.back());

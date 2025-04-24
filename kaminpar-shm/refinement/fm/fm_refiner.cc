@@ -455,7 +455,8 @@ public:
   void initialize([[maybe_unused]] const PartitionedGraph &p_graph) final {
     if (_uninitialized) {
       SCOPED_HEAP_PROFILER("FM Allocation");
-      _shared = std::make_unique<fm::SharedData<GainCache>>(_ctx, p_graph.n(), _ctx.partition.k);
+      _shared =
+          std::make_unique<fm::SharedData<GainCache>>(_ctx, p_graph.graph().n(), _ctx.partition.k);
       _uninitialized = false;
     }
   }
@@ -464,7 +465,7 @@ public:
     SCOPED_HEAP_PROFILER("FM");
     SCOPED_TIMER("FM");
 
-    const Graph &graph = p_graph.concretize<Graph>();
+    const Graph &graph = concretize<Graph>(p_graph.graph());
 
     TIMED_SCOPE("Initialize gain cache") {
       _shared->gain_cache.initialize(graph, p_graph);
@@ -509,7 +510,7 @@ public:
           << " border nodes and " << _ctx.parallel.num_threads << " worker threads";
 
       // Start one worker per thread
-      if (p_graph.n() == _ctx.partition.n) {
+      if (graph.n() == _ctx.partition.n) {
         START_TIMER("Localized searches, fine level");
       } else {
         START_TIMER("Localized searches, coarse level");
@@ -596,7 +597,7 @@ std::string FMRefiner::name() const {
 }
 
 void FMRefiner::initialize(const PartitionedGraph &p_graph) {
-  p_graph.reified([&]<typename Graph>(Graph &) {
+  reified(p_graph, [&]<typename Graph>(Graph &) {
     switch (_ctx.refinement.kway_fm.gain_cache_strategy) {
     case GainCacheStrategy::SPARSE:
       _core = std::make_unique<FMRefinerCore<Graph, NormalSparseGainCache>>(_ctx);

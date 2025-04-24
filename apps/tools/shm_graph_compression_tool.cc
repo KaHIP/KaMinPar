@@ -11,13 +11,14 @@
 
 #include <tbb/global_control.h>
 
+#include "kaminpar-io/graph_compression_binary.h"
+#include "kaminpar-io/kaminpar_io.h"
+
 #include "kaminpar-shm/context_io.h"
+#include "kaminpar-shm/datastructures/compressed_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/logger.h"
-
-#include "apps/io/shm_compressed_graph_binary.h"
-#include "apps/io/shm_io.h"
 
 using namespace kaminpar;
 using namespace kaminpar::shm;
@@ -56,10 +57,14 @@ int main(int argc, char *argv[]) {
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, num_threads);
 
   LOG << "Reading input graph...";
-  CompressedGraph graph = compressed_read(graph_filename, graph_file_format, node_ordering);
+  auto graph = compressed_read(graph_filename, graph_file_format, node_ordering);
+  if (!graph) {
+    LOG_ERROR << "Failed to read and compress the input graph";
+    return EXIT_FAILURE;
+  }
 
   LOG << "Writing compressed graph...";
-  io::compressed_binary::write(compressed_graph_filename, graph);
+  io::compressed_binary::write(compressed_graph_filename, *graph);
 
   return EXIT_SUCCESS;
 }

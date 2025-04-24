@@ -117,9 +117,10 @@ auto BatchStatsComputator::compute_batch_stats(
 
 // Computes the partition *before* any moves of the given batches where applied to it
 // Changes the batches to store the blocks to which the nodes where moved to
-auto BatchStatsComputator::build_prev_p_graph(const PartitionedGraph &p_graph, Batches batches)
-    const -> std::pair<PartitionedGraph, Batches> {
-  StaticArray<BlockID> prev_partition(p_graph.n());
+auto BatchStatsComputator::build_prev_p_graph(
+    const PartitionedGraph &p_graph, Batches batches
+) const -> std::pair<PartitionedGraph, Batches> {
+  StaticArray<BlockID> prev_partition(p_graph.graph().n());
   auto &next_partition = p_graph.raw_partition();
   std::copy(next_partition.begin(), next_partition.end(), prev_partition.begin());
 
@@ -143,7 +144,7 @@ auto BatchStatsComputator::build_prev_p_graph(const PartitionedGraph &p_graph, B
 // This function also applies the moves of the current batch to the given partition
 auto BatchStatsComputator::compute_single_batch_stats_in_sequence(
     PartitionedGraph &p_graph,
-    const std::vector<NodeID> &seeds,
+    [[maybe_unused]] const std::vector<NodeID> &seeds,
     const std::vector<fm::AppliedMove> &moves,
     const std::vector<NodeID> &distances
 ) const -> Stats {
@@ -167,12 +168,14 @@ auto BatchStatsComputator::compute_single_batch_stats_in_sequence(
     // Compute the gain of the move
     EdgeWeight int_degree = 0;
     EdgeWeight ext_degree = 0;
-    p_graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
-      if (p_graph.block(v) == p_graph.block(u)) {
-        int_degree += weight;
-      } else if (p_graph.block(v) == block) {
-        ext_degree += weight;
-      }
+    reified(p_graph, [&](const auto &graph) {
+      graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+        if (p_graph.block(v) == p_graph.block(u)) {
+          int_degree += weight;
+        } else if (p_graph.block(v) == block) {
+          ext_degree += weight;
+        }
+      });
     });
 
     KASSERT(i < distances.size());
@@ -236,11 +239,13 @@ std::vector<NodeID> BatchStatsComputator::compute_batch_distances(
     }
 
     // Expand search to its neighbors
-    graph.adjacent_nodes(u, [&](const NodeID v) {
-      if (visited.count(v) == 0) {
-        visited.insert(v);
-        frontier.push(v);
-      }
+    reified(graph, [&](const auto &graph) {
+      graph.adjacent_nodes(u, [&](const NodeID v) {
+        if (visited.count(v) == 0) {
+          visited.insert(v);
+          frontier.push(v);
+        }
+      });
     });
   }
 

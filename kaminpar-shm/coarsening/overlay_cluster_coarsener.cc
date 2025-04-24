@@ -117,25 +117,30 @@ OverlayClusterCoarsener::overlay(StaticArray<NodeID> a, const StaticArray<NodeID
 #if KASSERT_ENABLED(ASSERTION_LEVEL_HEAVY)
   KASSERT(
       [&] {
-        for (NodeID u = 0; u < n; ++u) {
-          bool failed = false;
-          graph.adjacent_nodes(u, [&](const NodeID v) {
-            if (a_copy[u] == a_copy[v] && b[u] == b[v]) {
-              if (mapping[u] != mapping[v]) {
-                failed = true;
+        return reified(graph, [&](const auto &graph) {
+          for (NodeID u = 0; u < n; ++u) {
+            bool failed = false;
+
+            graph.adjacent_nodes(u, [&](const NodeID v) {
+              if (a_copy[u] == a_copy[v] && b[u] == b[v]) {
+                if (mapping[u] != mapping[v]) {
+                  failed = true;
+                }
               }
-            }
-            if (a_copy[u] != a_copy[v] || b[u] != b[v]) {
-              if (mapping[u] == mapping[v]) {
-                failed = true;
+              if (a_copy[u] != a_copy[v] || b[u] != b[v]) {
+                if (mapping[u] == mapping[v]) {
+                  failed = true;
+                }
               }
+            });
+
+            if (failed) {
+              return false;
             }
-          });
-          if (failed) {
-            return false;
           }
-        }
-        return true;
+
+          return true;
+        });
       }(),
       "Overlaying clusters failed",
       assert::heavy
