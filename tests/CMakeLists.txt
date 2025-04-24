@@ -40,6 +40,7 @@ kaminpar_add_common_test(test_common_math common/math_test.cc)
 kaminpar_add_common_test(test_common_string common/strutils_test.cc)
 kaminpar_add_common_test(test_common_parallel_algorithm common/parallel/algorithm_test.cc)
 kaminpar_add_common_test(test_common_parallel_aligned_prefix_sum common/parallel/aligned_prefix_sum_test.cc)
+kaminpar_add_common_test(test_common_parallel_quickselect common/parallel/quickselect_test.cc)
 kaminpar_add_common_test(test_common_varint common/graph_compression/varint_test.cc)
 kaminpar_add_common_test(test_common_streamvbyte common/graph_compression/streamvbyte_test.cc)
 
@@ -54,12 +55,6 @@ kaminpar_add_shm_test(test_compressed_graph_builder shm/graphutils/compressed_gr
 
 # KaMinPar -> Coarsening
 kaminpar_add_shm_test(test_shm_cluster_contraction shm/coarsening/cluster_contraction_test.cc)
-
-# KaMinPar -> Coarsening
-kaminpar_add_shm_test(test_shm_sparsification_utils shm/coarsening/sparsification/sparsification_utils_test.cc)
-kaminpar_add_shm_test(test_shm_sparsifing_cluster_coarsener shm/coarsening/sparsification/sparsifying_cluster_coarsener_test.cc)
-kaminpar_add_shm_test(test_shm_independend_random_sampler shm/coarsening/sparsification/independent_random_sampler_test.cc)
-kaminpar_add_shm_test(test_shm_threshold_sampler shm/coarsening/sparsification/threshold_sampler_test.cc)
 
 # KaMinPar -> Data structures
 kaminpar_add_shm_test(test_shm_graph shm/datastructures/graph_test.cc)
