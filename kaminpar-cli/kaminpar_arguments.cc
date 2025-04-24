@@ -262,7 +262,7 @@ Options are:
 
   coarsening
       ->add_option(
-          "--c-s-reduction-factor", ctx.coarsening.sparsification_clustering.edge_target_factor
+          "--c-s-edge-factor", ctx.coarsening.sparsification_clustering.edge_target_factor
       )
       ->description(
           "[--c-algorithm=sparsification-clustering] By which factor the number of edges should at "
