@@ -13,10 +13,11 @@
 #include <string>
 
 #include <fcntl.h>
-#include <kassert/kassert.hpp>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
+#include "kaminpar-common/assert.h"
 
 namespace kaminpar::io {
 
@@ -122,7 +123,7 @@ public:
     }
   }
 
-  inline void consume_char(const char ch) {
+  inline void consume_char([[maybe_unused]] const char ch) {
     KASSERT(
         valid_position() && current() == ch,
         "unexpected symbol: " << current() << ", but expected " << ch

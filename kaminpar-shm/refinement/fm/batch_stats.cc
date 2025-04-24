@@ -117,8 +117,9 @@ auto BatchStatsComputator::compute_batch_stats(
 
 // Computes the partition *before* any moves of the given batches where applied to it
 // Changes the batches to store the blocks to which the nodes where moved to
-auto BatchStatsComputator::build_prev_p_graph(const PartitionedGraph &p_graph, Batches batches)
-    const -> std::pair<PartitionedGraph, Batches> {
+auto BatchStatsComputator::build_prev_p_graph(
+    const PartitionedGraph &p_graph, Batches batches
+) const -> std::pair<PartitionedGraph, Batches> {
   StaticArray<BlockID> prev_partition(p_graph.graph().n());
   auto &next_partition = p_graph.raw_partition();
   std::copy(next_partition.begin(), next_partition.end(), prev_partition.begin());
@@ -143,7 +144,7 @@ auto BatchStatsComputator::build_prev_p_graph(const PartitionedGraph &p_graph, B
 // This function also applies the moves of the current batch to the given partition
 auto BatchStatsComputator::compute_single_batch_stats_in_sequence(
     PartitionedGraph &p_graph,
-    const std::vector<NodeID> &seeds,
+    [[maybe_unused]] const std::vector<NodeID> &seeds,
     const std::vector<fm::AppliedMove> &moves,
     const std::vector<NodeID> &distances
 ) const -> Stats {
