@@ -120,5 +120,4 @@ jobs:
         with:
           files: dist/**
           append_body: true
-          draft: true
           fail_on_unmatched_files: true
