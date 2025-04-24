@@ -13,12 +13,6 @@
 #include "kaminpar-shm/coarsening/abstract_cluster_coarsener.h"
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction_preprocessing.h"
-<<<<<<< HEAD
-=======
-#include "kaminpar-shm/coarsening/max_cluster_weights.h"
-#include "kaminpar-shm/datastructures/graph.h"
-#include "kaminpar-shm/factories.h"
->>>>>>> main
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/assert.h"
