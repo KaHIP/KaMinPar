@@ -51,6 +51,9 @@ public:
   bool random_bool(const double prob) {
     return _real_dist(_generator) <= prob;
   }
+  double random_double() {
+    return _real_dist(_generator);
+  }
 
   template <typename Container> void shuffle(Container &&vec) {
     std::shuffle(vec.begin(), vec.end(), _generator);

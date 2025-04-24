@@ -165,14 +165,16 @@ The output should be stored in a file and can be used by the -C,--config option.
     app.max_timer_depth = std::numeric_limits<int>::max();
   });
   cli.add_option("-f,--graph-file-format,--input-graph-file-format", app.input_graph_file_format)
-      ->transform(CLI::CheckedTransformer(
-          std::unordered_map<std::string, io::GraphFileFormat>{
-              {"metis", io::GraphFileFormat::METIS},
-              {"parhip", io::GraphFileFormat::PARHIP},
-              {"compressed", io::GraphFileFormat::PARHIP},
-          },
-          CLI::ignore_case
-      ))
+      ->transform(
+          CLI::CheckedTransformer(
+              std::unordered_map<std::string, io::GraphFileFormat>{
+                  {"metis", io::GraphFileFormat::METIS},
+                  {"parhip", io::GraphFileFormat::PARHIP},
+                  {"compressed", io::GraphFileFormat::PARHIP},
+              },
+              CLI::ignore_case
+          )
+      )
       ->description(R"(Graph file formats:
   - metis
   - parhip)")
@@ -231,14 +233,16 @@ The output should be stored in a file and can be used by the -C,--config option.
   )
       ->capture_default_str();
   cli.add_option("--output-graph-file-format", app.output_graph_file_format)
-      ->transform(CLI::CheckedTransformer(
-          std::unordered_map<std::string, io::GraphFileFormat>{
-              {"metis", io::GraphFileFormat::METIS},
-              {"parhip", io::GraphFileFormat::PARHIP},
-              {"compressed", io::GraphFileFormat::PARHIP},
-          },
-          CLI::ignore_case
-      ))
+      ->transform(
+          CLI::CheckedTransformer(
+              std::unordered_map<std::string, io::GraphFileFormat>{
+                  {"metis", io::GraphFileFormat::METIS},
+                  {"parhip", io::GraphFileFormat::PARHIP},
+                  {"compressed", io::GraphFileFormat::PARHIP},
+              },
+              CLI::ignore_case
+          )
+      )
       ->description(R"(Graph file formats:
   - metis
   - parhip)")
@@ -431,12 +435,14 @@ int main(int argc, char *argv[]) {
 
   if (app.ignore_edge_weights && !ctx.compression.enabled) {
     auto &csr_graph = graph.csr_graph();
-    graph = Graph(std::make_unique<CSRGraph>(
-        csr_graph.take_raw_nodes(),
-        csr_graph.take_raw_edges(),
-        csr_graph.take_raw_node_weights(),
-        StaticArray<EdgeWeight>()
-    ));
+    graph = Graph(
+        std::make_unique<CSRGraph>(
+            csr_graph.take_raw_nodes(),
+            csr_graph.take_raw_edges(),
+            csr_graph.take_raw_node_weights(),
+            StaticArray<EdgeWeight>()
+        )
+    );
   } else if (app.ignore_edge_weights) {
     LOG_WARNING << "Ignoring edge weights is currently only supported for uncompressed graphs; "
                    "ignoring option.";

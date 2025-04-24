@@ -1166,6 +1166,7 @@ protected:
             );
 
             derived_move_node(u, cluster);
+            --_current_num_clusters;
 
             // We are done: build a cluster with "cluster", reset "sync" to C
             break;
@@ -1177,6 +1178,7 @@ protected:
                   u, cluster, derived_cluster_weight(u), derived_max_cluster_weight(cluster)
               )) {
             derived_move_node(u, cluster);
+            --_current_num_clusters;
 
             // We are done: joined cluster "cluster"
             break;
