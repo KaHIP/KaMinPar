@@ -32,7 +32,14 @@ int main(int argc, char *argv[]) {
   GraphFileFormat graph_file_format = io::GraphFileFormat::METIS;
   app.add_option("-G,--graph", graph_filename, "Input graph in METIS format")->required();
   app.add_option("-f,--graph-file-format", graph_file_format)
-      ->transform(CLI::CheckedTransformer(io::get_graph_file_formats()).description(""))
+      ->transform(CLI::CheckedTransformer(
+          std::unordered_map<std::string, io::GraphFileFormat>{
+              {"metis", io::GraphFileFormat::METIS},
+              {"parhip", io::GraphFileFormat::PARHIP},
+              {"compressed", io::GraphFileFormat::COMPRESSED},
+          },
+          CLI::ignore_case
+      ))
       ->description(R"(Graph file format of the input graph:
   - metis
   - parhip)");
@@ -42,7 +49,13 @@ int main(int argc, char *argv[]) {
   app.add_option("-O,--out", out_graph_filename, "Ouput file for saving the rearranged graph")
       ->required();
   app.add_option("--out-f,--out-graph-file-format", out_graph_file_format)
-      ->transform(CLI::CheckedTransformer(io::get_graph_file_formats()).description(""))
+      ->transform(CLI::CheckedTransformer(
+          std::unordered_map<std::string, io::GraphFileFormat>{
+              {"metis", io::GraphFileFormat::METIS},
+              {"parhip", io::GraphFileFormat::PARHIP},
+          },
+          CLI::ignore_case
+      ))
       ->description(R"(Graph file format used for storing the rearranged graph:
   - metis
   - parhip)");
@@ -54,7 +67,7 @@ int main(int argc, char *argv[]) {
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, ctx.parallel.num_threads);
 
   LOG << "Reading input graph...";
-  auto input_graph = io::csr_read(graph_filename, graph_file_format, ctx.node_ordering);
+  auto input_graph = io::read_graph(graph_filename, graph_file_format, false, ctx.node_ordering);
   if (!input_graph) {
     LOG_ERROR << "Failed to read the input graph";
     return EXIT_FAILURE;
@@ -65,7 +78,6 @@ int main(int argc, char *argv[]) {
   LOG << "Rearranging graph...";
   if (ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
     graph = graph::rearrange_by_degree_buckets(graph.csr_graph());
-    graph.integrate_isolated_nodes();
   }
 
   if (ctx.edge_ordering == EdgeOrdering::COMPRESSION) {
@@ -73,14 +85,7 @@ int main(int argc, char *argv[]) {
   }
 
   LOG << "Writing rearanged graph...";
-  switch (out_graph_file_format) {
-  case GraphFileFormat::METIS:
-    io::metis::write(out_graph_filename, graph);
-    break;
-  case GraphFileFormat::PARHIP:
-    io::parhip::write(out_graph_filename, graph.csr_graph());
-    break;
-  }
+  io::write_graph(out_graph_filename, out_graph_file_format, graph);
 
   return EXIT_SUCCESS;
 }

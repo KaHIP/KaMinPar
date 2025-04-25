@@ -15,7 +15,6 @@
 #include "kaminpar-io/kaminpar_io.h"
 
 #include "kaminpar-shm/context_io.h"
-#include "kaminpar-shm/datastructures/compressed_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/logger.h"
@@ -32,7 +31,13 @@ int main(int argc, char *argv[]) {
 
   GraphFileFormat graph_file_format = io::GraphFileFormat::METIS;
   app.add_option("-f,--graph-file-format", graph_file_format)
-      ->transform(CLI::CheckedTransformer(io::get_graph_file_formats()).description(""))
+      ->transform(CLI::CheckedTransformer(
+          std::unordered_map<std::string, io::GraphFileFormat>{
+              {"metis", io::GraphFileFormat::METIS},
+              {"parhip", io::GraphFileFormat::PARHIP},
+          },
+          CLI::ignore_case
+      ))
       ->description(R"(Graph file formats:
   - metis
   - parhip)");
@@ -46,8 +51,7 @@ int main(int argc, char *argv[]) {
       ->transform(CLI::CheckedTransformer(get_node_orderings()).description(""))
       ->description(R"(Criteria by which the nodes of the graph are sorted and rearranged:
   - natural:     keep node order of the graph (do not rearrange)
-  - external-deg-buckets: sort nodes by degree bucket and rearrange accordingly during IO
-  - implicit-deg-buckets: nodes of the input graph are sorted by deg-buckets order)")
+  - external-deg-buckets: sort nodes by degree bucket and rearrange accordingly during IO)")
       ->capture_default_str();
 
   int num_threads = 1;
@@ -57,14 +61,14 @@ int main(int argc, char *argv[]) {
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, num_threads);
 
   LOG << "Reading input graph...";
-  auto graph = compressed_read(graph_filename, graph_file_format, node_ordering);
+  auto graph = io::read_graph(graph_filename, graph_file_format, true, node_ordering);
   if (!graph) {
     LOG_ERROR << "Failed to read and compress the input graph";
     return EXIT_FAILURE;
   }
 
   LOG << "Writing compressed graph...";
-  io::compressed_binary::write(compressed_graph_filename, *graph);
+  io::compressed_binary::write(compressed_graph_filename, graph->compressed_graph());
 
   return EXIT_SUCCESS;
 }

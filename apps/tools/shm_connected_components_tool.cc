@@ -212,7 +212,13 @@ int main(int argc, char *argv[]) {
   bool compress = false;
   app.add_option("-G,--graph", graph_filename, "Input graph in METIS/ParHIP format")->required();
   app.add_option("-f,--graph-file-format", graph_file_format)
-      ->transform(CLI::CheckedTransformer(io::get_graph_file_formats()).description(""))
+      ->transform(CLI::CheckedTransformer(
+        std::unordered_map<std::string, io::GraphFileFormat>{
+            {"metis", io::GraphFileFormat::METIS},
+            {"parhip", io::GraphFileFormat::PARHIP},
+        },
+        CLI::ignore_case
+    ))
       ->description(R"(Graph file format of the input graph:
   - metis
   - parhip)")
@@ -228,7 +234,13 @@ int main(int argc, char *argv[]) {
       "Ouput file for storing the largest connected component of the input graph"
   );
   app.add_option("--out-f,--out-graph-file-format", out_graph_file_format)
-      ->transform(CLI::CheckedTransformer(io::get_graph_file_formats()).description(""))
+      ->transform(CLI::CheckedTransformer(
+          std::unordered_map<std::string, io::GraphFileFormat>{
+              {"metis", io::GraphFileFormat::METIS},
+              {"parhip", io::GraphFileFormat::PARHIP},
+          },
+          CLI::ignore_case
+      ))
       ->description(R"(Graph file format used for storing the largest connected component:
   - metis
   - parhip)");
@@ -240,13 +252,14 @@ int main(int argc, char *argv[]) {
 
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, num_threads);
 
-  const auto graph = io::read(graph_filename, graph_file_format, NodeOrdering::NATURAL, compress);
+  const auto graph =
+      io::read_graph(graph_filename, graph_file_format, compress, NodeOrdering::NATURAL);
   if (!graph) {
     LOG_ERROR << "Failed to read the input graph";
     return EXIT_FAILURE;
   }
 
-  auto stats = graph->reified([](const auto &graph) { return connected_components_stats(graph); });
+  auto stats = reified(*graph, [](const auto &graph) { return connected_components_stats(graph); });
   LOG << "Number of connected components: " << stats.num_connected_component;
   LOG << "Largest connected component: " << stats.largest_connected_component_order;
 
@@ -263,7 +276,7 @@ int main(int argc, char *argv[]) {
 
   if (!out_graph_filename.empty()) {
     LOG << "Extracting largest connected component...";
-    auto largest_connected_component = graph->reified([&](const auto &graph) {
+    auto largest_connected_component = reified(*graph, [&](const auto &graph) {
       return extract_largest_connected_component(
           stats.largest_connected_component_initial_node,
           stats.largest_connected_component_order,
@@ -273,17 +286,11 @@ int main(int argc, char *argv[]) {
     });
 
     LOG << "Writing largest connected component...";
-    switch (out_graph_file_format) {
-    case GraphFileFormat::METIS:
-      io::metis::write(
-          out_graph_filename,
-          Graph(std::make_unique<CSRGraph>(std::move(largest_connected_component)))
-      );
-      break;
-    case GraphFileFormat::PARHIP:
-      io::parhip::write(out_graph_filename, largest_connected_component);
-      break;
-    }
+    io::write_graph(
+        out_graph_filename,
+        out_graph_file_format,
+        Graph(std::make_unique<CSRGraph>(std::move(largest_connected_component)))
+    );
   }
 
   return EXIT_SUCCESS;
