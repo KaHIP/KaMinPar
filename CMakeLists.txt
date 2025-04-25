@@ -52,6 +52,7 @@ option(KAMINPAR_BUILD_WITH_MTKAHYPAR "If Mt-KaHyPar can be found, build the Mt-K
 option(KAMINPAR_BUILD_WITH_SPARSEHASH "Build with Google Sparsehash." ON)
 option(KAMINPAR_BUILD_WITH_PG "Build with the -pg option for profiling." OFF)
 option(KAMINPAR_BUILD_WITH_BACKWARD "Build with backward-cpp for stack traces (distributed partitioner only)." OFF)
+option(KAMINPAR_BUILD_WITH_KASSERT "Use KASSERT for assertions. If disabled, the assertion level is ignored." ON)
 
 # Control whether to install KaMinPar
 #####################################
@@ -137,6 +138,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
         "-Winit-self"
         "-Woverloaded-virtual"
         "-Wredundant-decls"
+        "-Wno-psabi"
         )
 endif ()
 
@@ -151,7 +153,7 @@ if (KAMINPAR_BUILD_WITH_DEBUG_SYMBOLS)
 endif ()
 
 # Set compile flags
-set(CMAKE_REQUIRED_FLAGS -Werror) # otherwise the check fails for Apple Clang 
+set(CMAKE_REQUIRED_FLAGS -Werror) # otherwise the check fails for Apple Clang
 check_cxx_compiler_flag(-msse4.1 COMPILER_SUPPORTS_MSSE41)
 if (COMPILER_SUPPORTS_MSSE41)
     add_compile_options(-msse4.1)
@@ -316,14 +318,18 @@ include(FetchContent)
 find_library(NUMA_LIB numa)
 
 # Fetch KAssert for assertions
-FetchContent_Declare(
-    kassert
-    GIT_REPOSITORY https://github.com/kamping-site/kassert.git
-    GIT_TAG 988b7d54b79ae6634f2fcc53a0314fb1cf2c6a23
-    EXCLUDE_FROM_ALL
-    UPDATE_DISCONNECTED TRUE
-)
-FetchContent_MakeAvailable(kassert)
+if (KAMINPAR_BUILD_WITH_KASSERT)
+    FetchContent_Declare(
+        kassert
+        GIT_REPOSITORY https://github.com/kamping-site/kassert.git
+        GIT_TAG 988b7d54b79ae6634f2fcc53a0314fb1cf2c6a23
+        EXCLUDE_FROM_ALL
+        UPDATE_DISCONNECTED TRUE
+    )
+    FetchContent_MakeAvailable(kassert)
+
+    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_KASSERT_FOUND")
+endif ()
 
 # Intel TBB
 if (KAMINPAR_DOWNLOAD_TBB)
@@ -492,7 +498,10 @@ install(
     COMPONENT KaMinPar_Development
 )
 
-set(KAMINPAR_INSTALL_TARGETS kassert_base kassert KaMinParCommon KaMinParIO KaMinPar)
+set(KAMINPAR_INSTALL_TARGETS KaMinParCommon KaMinParIO KaMinPar)
+if (KAMINPAR_BUILD_WITH_KASSERT)
+    list(APPEND KAMINPAR_INSTALL_TARGETS kassert_base kassert)
+endif ()
 if (KAMINPAR_BUILD_APPS)
     list(APPEND KAMINPAR_INSTALL_TARGETS KaMinParCLI KaMinParApp)
 endif ()

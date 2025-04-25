@@ -81,8 +81,9 @@ enum class EdgeOrdering {
 
 enum class CoarseningAlgorithm {
   NOOP,
-  CLUSTERING,
+  BASIC_CLUSTERING,
   OVERLAY_CLUSTERING,
+  SPARSIFICATION_CLUSTERING,
 };
 
 enum class ClusteringAlgorithm {
@@ -181,15 +182,22 @@ struct OverlayClusterCoarseningContext {
   int max_level;
 };
 
+struct SparsificationClusterCoarseningContext {
+  double density_target_factor;
+  double edge_target_factor;
+  double laziness_factor;
+};
+
 struct CoarseningContext {
   CoarseningAlgorithm algorithm;
 
   ClusterCoarseningContext clustering;
   OverlayClusterCoarseningContext overlay_clustering;
+  SparsificationClusterCoarseningContext sparsification_clustering;
+
   ContractionCoarseningContext contraction;
 
   NodeID contraction_limit;
-
   double convergence_threshold;
 };
 
@@ -589,6 +597,8 @@ Context create_esa21_smallk_context();
 Context create_esa21_largek_context();
 Context create_esa21_largek_fast_context();
 Context create_esa21_strong_context();
+
+Context create_mtkahypar_kway_coarsening();
 
 //
 // Graph compression interface

@@ -139,6 +139,9 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
     );
     LOG << "Coarsening -> Level " << _coarsener->level()
         << " [max cluster weight: " << max_cluster_weight << "]:";
+    if (const std::string explanation = _coarsener->explain(); !explanation.empty()) {
+      LOG << " " << explanation;
+    }
     LOG << " Total edge weight:   " << static_cast<std::uint64_t>(c_graph->total_edge_weight());
     LOG << " Number of nodes:     " << c_graph->n() << " | Number of edges: " << c_graph->m();
     LOG << " Maximum node weight: " << c_graph->max_node_weight();

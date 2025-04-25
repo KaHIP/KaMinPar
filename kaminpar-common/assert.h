@@ -7,7 +7,34 @@
  ******************************************************************************/
 #pragma once
 
+#ifdef KAMINPAR_KASSERT_FOUND
+
 #include <kassert/kassert.hpp> // IWYU pragma: export
+
+#define KAMINPAR_NOT_IMPLEMENTED_ERROR(message)                                                    \
+  {                                                                                                \
+    KASSERT(false, message, assert::always);                                                       \
+    __builtin_unreachable();                                                                       \
+  }
+
+#else
+
+// If this is a build without KASSERT, turn all KASSERT()'s into assert()'s
+// and ignore the assertion level + custom error message
+#include <cassert>
+#include <iostream>
+
+#define KASSERT(x, ...) assert((x))
+#define KASSERT_ENABLED(x) 0
+#define KASSERT_ASSERTION_LEVEL 0
+
+#define KAMINPAR_NOT_IMPLEMENTED_ERROR(message)                                                    \
+  {                                                                                                \
+    std::cerr << message << std::endl;                                                             \
+    std::exit(1);                                                                                  \
+  }
+
+#endif
 
 namespace kaminpar::assert {
 

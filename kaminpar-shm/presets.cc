@@ -65,6 +65,10 @@ Context create_context_by_preset_name(const std::string &name) {
     return create_esa21_strong_context();
   }
 
+  if (name == "mtkahypar-kway") {
+    return create_mtkahypar_kway_coarsening();
+  }
+
   throw std::runtime_error("invalid preset name");
 }
 
@@ -88,7 +92,8 @@ std::unordered_set<std::string> get_preset_names() {
       "esa21-smallk",
       "esa21-largek",
       "esa21-largek-fast",
-      "esa21-strong"
+      "esa21-strong",
+      "mtkahypar-kway",
   };
 }
 
@@ -118,7 +123,7 @@ Context create_default_context() {
       .coarsening =
           {
               // Context -> Coarsening
-              .algorithm = CoarseningAlgorithm::CLUSTERING,
+              .algorithm = CoarseningAlgorithm::BASIC_CLUSTERING,
               .clustering =
                   {
                       // Context -> Coarsening -> Clustering
@@ -154,6 +159,12 @@ Context create_default_context() {
                   {
                       .num_levels = 1,
                       .max_level = std::numeric_limits<int>::max(),
+                  },
+              .sparsification_clustering =
+                  {
+                      .density_target_factor = 0.5,
+                      .edge_target_factor = 0.5,
+                      .laziness_factor = 4,
                   },
               .contraction =
                   {
@@ -328,19 +339,18 @@ Context create_default_context() {
               // Context -> Parallel
               .num_threads = 1,
           },
-      .debug =
-          {
-              .graph_name = "",
-              .dump_graph_filename = "n%n_m%m_k%k_seed%seed.metis",
-              .dump_partition_filename = "n%n_m%m_k%k_seed%seed.part",
+      .debug = {
+          .graph_name = "",
+          .dump_graph_filename = "n%n_m%m_k%k_seed%seed.metis",
+          .dump_partition_filename = "n%n_m%m_k%k_seed%seed.part",
 
-              .dump_toplevel_graph = false,
-              .dump_toplevel_partition = false,
-              .dump_coarsest_graph = false,
-              .dump_coarsest_partition = false,
-              .dump_graph_hierarchy = false,
-              .dump_partition_hierarchy = false,
-          },
+          .dump_toplevel_graph = false,
+          .dump_toplevel_partition = false,
+          .dump_coarsest_graph = false,
+          .dump_coarsest_partition = false,
+          .dump_graph_hierarchy = false,
+          .dump_partition_hierarchy = false,
+      },
   };
 }
 
@@ -520,6 +530,20 @@ Context create_esa21_strong_context() {
       RefinementAlgorithm::KWAY_FM,
       RefinementAlgorithm::GREEDY_BALANCER,
   };
+
+  return ctx;
+}
+
+Context create_mtkahypar_kway_coarsening() {
+  Context ctx = create_default_context();
+
+  ctx.coarsening.clustering.lp.num_iterations = 1;
+  ctx.coarsening.clustering.cluster_weight_limit = ClusterWeightLimit::BLOCK_WEIGHT;
+  ctx.coarsening.clustering.cluster_weight_multiplier = 1.0 / 160.0;
+  ctx.coarsening.clustering.shrink_factor = 2.5;
+  ctx.coarsening.contraction_limit = 160;
+  ctx.coarsening.clustering.lp.two_hop_strategy = TwoHopStrategy::CLUSTER;
+  ctx.partitioning.mode = PartitioningMode::KWAY;
 
   return ctx;
 }

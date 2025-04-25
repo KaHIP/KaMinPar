@@ -169,13 +169,14 @@ The output should be stored in a file and can be used by the -C,--config option.
           std::unordered_map<std::string, io::GraphFileFormat>{
               {"metis", io::GraphFileFormat::METIS},
               {"parhip", io::GraphFileFormat::PARHIP},
-              {"compressed", io::GraphFileFormat::PARHIP},
+              {"compressed", io::GraphFileFormat::COMPRESSED},
           },
           CLI::ignore_case
       ))
       ->description(R"(Graph file formats:
   - metis
-  - parhip)")
+  - parhip
+  - compressed)")
       ->capture_default_str();
   cli.add_flag("--ignore-edge-weights", app.ignore_edge_weights, "Ignore edge weights.");
 
@@ -235,13 +236,14 @@ The output should be stored in a file and can be used by the -C,--config option.
           std::unordered_map<std::string, io::GraphFileFormat>{
               {"metis", io::GraphFileFormat::METIS},
               {"parhip", io::GraphFileFormat::PARHIP},
-              {"compressed", io::GraphFileFormat::PARHIP},
+              {"compressed", io::GraphFileFormat::COMPRESSED},
           },
           CLI::ignore_case
       ))
       ->description(R"(Graph file formats:
   - metis
-  - parhip)")
+  - parhip
+  - compressed)")
       ->capture_default_str();
   cli.add_option(
          "--output-block-sizes",
