@@ -12,7 +12,7 @@ namespace kaminpar::shm {
   const NodeID num_nodes = graph.n();
   const NodeID num_edges = graph.m();
 
-  StaticArray<NodeID> index(num_edges, static_array::noinit);
+  StaticArray<EdgeID> index(num_edges, static_array::noinit);
 
   struct EdgeHasher {
     [[nodiscard]] std::size_t operator()(const std::pair<NodeID, NodeID> &edge) const noexcept {
