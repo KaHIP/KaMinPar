@@ -23,17 +23,7 @@
 using namespace kaminpar;
 using namespace kaminpar::shm;
 
-float average_degree(const Graph &graph) {
-  std::size_t total_degree = 0;
-
-  for (const NodeID node : graph.nodes()) {
-    total_degree += graph.degree(node);
-  }
-
-  return total_degree / static_cast<float>(graph.n());
-}
-
-NodeID isolated_nodes(const Graph &graph) {
+template <typename Graph> NodeID isolated_nodes(const Graph &graph) {
   NodeID num_isolated_nodes = 0;
 
   for (const NodeID node : graph.nodes()) {
@@ -45,8 +35,9 @@ NodeID isolated_nodes(const Graph &graph) {
   return num_isolated_nodes;
 }
 
+template <typename Graph>
 void print_graph_properties(const Graph &graph, const Context ctx, std::ostream &out) {
-  const float avg_deg = average_degree(graph);
+  const float avg_deg = graph.m() / static_cast<float>(graph.n());
   const NodeID num_isolated_nodes = isolated_nodes(graph);
   const std::size_t width = std::ceil(std::log10(
       std::max<std::size_t>({graph.n(), graph.m(), graph.max_degree(), num_isolated_nodes})
@@ -83,17 +74,24 @@ int main(int argc, char *argv[]) {
   app.add_option("-G,--graph", graph_filename, "Input graph in METIS format")->required();
   app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads");
   app.add_option("-f,--graph-file-format", graph_file_format)
-      ->transform(CLI::CheckedTransformer(io::get_graph_file_formats()).description(""))
+      ->transform(CLI::CheckedTransformer(
+          std::unordered_map<std::string, io::GraphFileFormat>{
+              {"metis", io::GraphFileFormat::METIS},
+              {"parhip", io::GraphFileFormat::PARHIP},
+              {"compressed", io::GraphFileFormat::COMPRESSED},
+          },
+          CLI::ignore_case
+      ))
       ->description(R"(Graph file formats:
   - metis
-  - parhip)");
+  - parhip
+  - compressed)");
   create_graph_compression_options(&app, ctx);
   CLI11_PARSE(app, argc, argv);
 
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, ctx.parallel.num_threads);
 
-  auto graph =
-      io::read(graph_filename, graph_file_format, NodeOrdering::NATURAL, ctx.compression.enabled);
+  auto graph = io::read_graph(graph_filename, graph_file_format, ctx.compression.enabled);
   if (!graph) {
     LOG_ERROR << "Failed to read the input graph";
     return EXIT_FAILURE;
@@ -102,7 +100,6 @@ int main(int argc, char *argv[]) {
   ctx.debug.graph_name = str::extract_basename(graph_filename);
   ctx.compression.setup(*graph);
 
-  print_graph_properties(*graph, ctx, std::cout);
-
-  return 0;
+  reified(*graph, [&](const auto &graph) { print_graph_properties(graph, ctx, std::cout); });
+  return EXIT_SUCCESS;
 }

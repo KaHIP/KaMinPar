@@ -44,17 +44,24 @@ int main(int argc, char *argv[]) {
 
   app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads");
   app.add_option("-f,--graph-file-format", graph_file_format)
-      ->transform(CLI::CheckedTransformer(io::get_graph_file_formats()).description(""))
+      ->transform(CLI::CheckedTransformer(
+          std::unordered_map<std::string, io::GraphFileFormat>{
+              {"metis", io::GraphFileFormat::METIS},
+              {"parhip", io::GraphFileFormat::PARHIP},
+              {"compressed", io::GraphFileFormat::COMPRESSED},
+          },
+          CLI::ignore_case
+      ))
       ->description(R"(Graph file formats:
   - metis
-  - parhip)");
+  - parhip
+  - compressed)");
   create_graph_compression_options(&app, ctx);
   CLI11_PARSE(app, argc, argv);
 
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, ctx.parallel.num_threads);
 
-  auto graph =
-      io::read(graph_filename, graph_file_format, NodeOrdering::NATURAL, ctx.compression.enabled);
+  auto graph = io::read_graph(graph_filename, graph_file_format, ctx.compression.enabled);
   if (!graph) {
     LOG_ERROR << "Failed to read the input graph";
     return EXIT_FAILURE;
@@ -69,14 +76,14 @@ int main(int argc, char *argv[]) {
   if (!partition_filename.empty()) {
     LOG << "Partition:        " << str::extract_basename(partition_filename);
 
-    partition = io::partition::read(partition_filename);
+    partition = io::read_partition(partition_filename);
   } else if (!block_sizes_filename.empty()) {
     LOG << "Block sizes:      " << str::extract_basename(block_sizes_filename);
 
-    partition = io::partition::read_block_sizes(block_sizes_filename);
+    partition = io::read_block_sizes(block_sizes_filename);
   } else {
     LOG_ERROR << "No partition or block sizes provided";
-    return 1;
+    return EXIT_FAILURE;
   }
 
   const BlockID k = *std::max_element(partition.begin(), partition.end()) + 1;
@@ -86,5 +93,5 @@ int main(int argc, char *argv[]) {
   LOG << "Edge cut:         " << metrics::edge_cut(p_graph);
   LOG << "Imbalance:        " << metrics::imbalance(p_graph);
 
-  return 0;
+  return EXIT_SUCCESS;
 }
