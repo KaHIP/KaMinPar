@@ -160,7 +160,7 @@ public:
         );
 
         if (piercing_node == kInvalidNodeID) {
-          LOG_WARNING << "Failed to find a suitable pierce node; "
+          LOG_WARNING << "Failed to find a suitable piercing node; "
                          "aborting refinement for block pair "
                       << block1 << " and " << block2;
           return std::vector<Move>();
@@ -178,7 +178,7 @@ public:
         );
 
         if (piercing_node == kInvalidNodeID) {
-          LOG_WARNING << "Failed to find a suitable pierce node; "
+          LOG_WARNING << "Failed to find a suitable piercing node; "
                          "aborting refinement for block pair "
                       << block1 << " and " << block2;
           return std::vector<Move>();
@@ -389,7 +389,11 @@ private:
     KASSERT(cur_source_edge == nodes[kFirstNodeID]);
 
     CSRGraph graph(
-        std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights)
+        CSRGraph::seq(),
+        std::move(nodes),
+        std::move(edges),
+        std::move(node_weights),
+        std::move(edge_weights)
     );
     KASSERT(debug::validate_graph(graph), "constructed invalid flow network", assert::heavy);
 
@@ -483,7 +487,7 @@ private:
 };
 
 class SequentialBlockPairScheduler {
-  SET_DEBUG(true);
+  SET_DEBUG(false);
 
   using Move = BipartitionFlowRefiner::Move;
 
@@ -515,7 +519,8 @@ public:
 
         const EdgeWeight new_cut_value = metrics::edge_cut_seq(p_graph);
         const EdgeWeight gain = cut_value - new_cut_value;
-        DBG << "Found balanced cut with gain " << gain;
+        DBG << "Found balanced cut for bock pair " << block1 << " and " << block2 << " with gain "
+            << gain << "(" << cut_value << " -> " << new_cut_value << ")";
 
         if (gain > 0) {
           cut_value = new_cut_value;
@@ -645,7 +650,7 @@ public:
         const EdgeWeight new_cut_value = metrics::edge_cut_seq(p_graph);
         const EdgeWeight gain = cut_value - new_cut_value;
         DBG << "Found balanced cut for bock pair " << block1 << " and " << block2 << " with gain "
-            << gain;
+            << gain << "(" << cut_value << " -> " << new_cut_value << ")";
 
         if (gain <= 0) {
           revert_moves(moves);
