@@ -65,9 +65,10 @@ std::span<const EdgeWeight> PreflowPushAlgorithm::compute_max_flow(
 
       if (_ctx.global_relabeling_heuristic && _grt.is_reached()) {
         height = global_relabel();
-      } else {
-        height = u_height;
+        break;
       }
+
+      height = u_height;
     }
   }
 

@@ -11,6 +11,7 @@
 
 #include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/datastructures/static_array.h"
+#include "kaminpar-common/logger.h"
 
 namespace kaminpar::shm {
 
