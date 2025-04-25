@@ -50,10 +50,18 @@ int main(int argc, char *argv[]) {
       ->capture_default_str();
 
   app.add_option("-f,--graph-file-format", graph_file_format)
-      ->transform(CLI::CheckedTransformer(io::get_graph_file_formats()).description(""))
+      ->transform(CLI::CheckedTransformer(
+          std::unordered_map<std::string, io::GraphFileFormat>{
+              {"metis", io::GraphFileFormat::METIS},
+              {"parhip", io::GraphFileFormat::PARHIP},
+              {"compressed", io::GraphFileFormat::COMPRESSED},
+          },
+          CLI::ignore_case
+      ))
       ->description(R"(Graph file formats:
   - metis
-  - parhip)");
+  - parhip
+  - compressed)");
   app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads");
   app.add_option("-s,--seed", seed, "Seed for random number generation.")->default_val(seed);
 
@@ -66,7 +74,7 @@ int main(int argc, char *argv[]) {
   Random::reseed(seed);
 
   auto graph =
-      io::read(graph_filename, graph_file_format, ctx.node_ordering, ctx.compression.enabled);
+      io::read_graph(graph_filename, graph_file_format, ctx.compression.enabled, ctx.node_ordering);
   if (!graph) {
     LOG_ERROR << "Failed to read the input graph";
     return EXIT_FAILURE;
@@ -85,7 +93,12 @@ int main(int argc, char *argv[]) {
     }
   }
   if (graph->sorted()) {
-    graph->remove_isolated_nodes(graph::count_isolated_nodes(*graph));
+    const NodeID num_isolated_nodes = graph::count_isolated_nodes(*graph);
+    reified(*graph, [&](auto &graph) {
+      graph.remove_isolated_nodes(num_isolated_nodes);
+      ctx.partition.n = graph.n();
+      ctx.partition.total_node_weight = graph.total_node_weight();
+    });
   }
 
   LPClustering lp_clustering(ctx.coarsening);
@@ -108,10 +121,6 @@ int main(int argc, char *argv[]) {
   DISABLE_HEAP_PROFILER();
 
   STOP_TIMER();
-
-  if (graph->sorted()) {
-    graph->integrate_isolated_nodes();
-  }
 
   cio::print_delimiter("Input Summary", '#');
   std::cout << "Execution mode:               " << ctx.parallel.num_threads << "\n";
