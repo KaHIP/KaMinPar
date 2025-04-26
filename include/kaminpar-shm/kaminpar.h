@@ -572,7 +572,8 @@ Context create_esa21_largek_context();
 Context create_esa21_largek_fast_context();
 Context create_esa21_strong_context();
 
-Context create_mtkahypar_kway_coarsening();
+Context create_mtkahypar_kway_context();
+Context create_linear_time_kway_context();
 
 //
 // Graph compression interface

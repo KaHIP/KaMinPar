@@ -65,7 +65,9 @@ Context create_context_by_preset_name(const std::string &name) {
   }
 
   if (name == "mtkahypar-kway") {
-    return create_mtkahypar_kway_coarsening();
+    return create_mtkahypar_kway_context();
+  } else if (name == "linear-time-kway") {
+    return create_linear_time_kway_context();
   }
 
   throw std::runtime_error("invalid preset name");
@@ -93,6 +95,7 @@ std::unordered_set<std::string> get_preset_names() {
       "esa21-largek-fast",
       "esa21-strong",
       "mtkahypar-kway",
+      "linear-time-kway",
   };
 }
 
@@ -474,9 +477,10 @@ Context create_esa21_strong_context() {
   return ctx;
 }
 
-Context create_mtkahypar_kway_coarsening() {
+// Configures the coarsening phase similar to Mt-KaHyPar, plus configures direct k-way initial
+// partitioning instead of deep MGP.
+Context create_mtkahypar_kway_context() {
   Context ctx = create_default_context();
-
   ctx.coarsening.clustering.lp.num_iterations = 1;
   ctx.coarsening.clustering.cluster_weight_limit = ClusterWeightLimit::BLOCK_WEIGHT;
   ctx.coarsening.clustering.cluster_weight_multiplier = 1.0 / 160.0;
@@ -484,7 +488,13 @@ Context create_mtkahypar_kway_coarsening() {
   ctx.coarsening.contraction_limit = 160;
   ctx.coarsening.clustering.lp.two_hop_strategy = TwoHopStrategy::CLUSTER;
   ctx.partitioning.mode = PartitioningMode::KWAY;
+  return ctx;
+}
 
+// Based on Mt-KaHyPar coarsening, uses edge sparsification for worst-case linear-time running time.
+Context create_linear_time_kway_context() {
+  Context ctx = create_mtkahypar_kway_context();
+  ctx.coarsening.algorithm = CoarseningAlgorithm::SPARSIFICATION_CLUSTERING;
   return ctx;
 }
 
