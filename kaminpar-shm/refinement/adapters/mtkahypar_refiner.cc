@@ -18,8 +18,10 @@
 #include "kaminpar-shm/metrics.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
+#include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/random.h"
+#include "kaminpar-common/timer.h"
 #endif // KAMINPAR_HAVE_MTKAHYPAR_LIB
 
 namespace kaminpar::shm {
@@ -40,6 +42,9 @@ bool MtKaHyParRefiner::refine(
     [[maybe_unused]] PartitionedGraph &p_graph, [[maybe_unused]] const PartitionContext &p_ctx
 ) {
 #ifdef KAMINPAR_HAVE_MTKAHYPAR_LIB
+  SCOPED_TIMER("Mt-KaHyPar");
+  SCOPED_HEAP_PROFILER("Mt-KaHyPar");
+
   mt_kahypar_error_t error{};
 
   mt_kahypar_context_t *mt_kahypar_ctx;
