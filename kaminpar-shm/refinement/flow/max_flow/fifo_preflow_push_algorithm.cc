@@ -1,4 +1,4 @@
-#include "kaminpar-shm/refinement/flow/max_flow/preflow_push_algorithm.h"
+#include "kaminpar-shm/refinement/flow/max_flow/fifo_preflow_push_algorithm.h"
 
 #include <algorithm>
 #include <queue>
@@ -8,13 +8,13 @@
 
 namespace kaminpar::shm {
 
-PreflowPushAlgorithm::PreflowPushAlgorithm(const PreflowPushContext &ctx) : _ctx(ctx) {}
+FIFOPreflowPushAlgorithm::FIFOPreflowPushAlgorithm(const FIFOPreflowPushContext &ctx) : _ctx(ctx) {}
 
-void PreflowPushAlgorithm::initialize(const CSRGraph &graph) {
+void FIFOPreflowPushAlgorithm::initialize(const CSRGraph &graph) {
   _graph = &graph;
   _reverse_edge_index = compute_reverse_edge_index(graph);
 
-  _grt = GlobalRelabelingThreshold(graph.m(), _ctx.global_relabeling_frequency);
+  _grt = GlobalRelabelingThreshold(graph.n(), graph.m(), _ctx.global_relabeling_frequency);
 
   if (_flow.size() != graph.m()) {
     _flow.resize(graph.m(), static_array::noinit);
@@ -32,11 +32,9 @@ void PreflowPushAlgorithm::initialize(const CSRGraph &graph) {
   if (_cur_edge_offsets.size() < graph.n()) {
     _cur_edge_offsets.resize(graph.n(), static_array::noinit);
   }
-
-  _levels.resize(graph.n() * 2);
 }
 
-std::span<const EdgeWeight> PreflowPushAlgorithm::compute_max_flow(
+std::span<const EdgeWeight> FIFOPreflowPushAlgorithm::compute_max_flow(
     const std::unordered_set<NodeID> &sources, const std::unordered_set<NodeID> &sinks
 ) {
   KASSERT(
@@ -48,27 +46,22 @@ std::span<const EdgeWeight> PreflowPushAlgorithm::compute_max_flow(
   _sources = &sources;
   _sinks = &sinks;
 
+  const NodeID num_nodes = _graph->n();
+  for (const NodeID source : sources) {
+    _heights[source] = num_nodes;
+  }
+
   saturate_source_edges();
-  compute_exact_heights();
+  global_relabel();
 
-  NodeID height = initialize_levels();
-  while (height > 0) {
-    while (true) {
-      Level &level = _levels[height];
-      if (!level.has_active_node()) {
-        height -= 1;
-        break;
-      }
+  while (!_active_nodes.empty()) {
+    const NodeID u = _active_nodes.front();
+    _active_nodes.pop();
 
-      const NodeID u = level.pop_activate_node();
-      const NodeID u_height = discharge(u, height);
+    discharge(u);
 
-      if (_ctx.global_relabeling_heuristic && _grt.is_reached()) {
-        height = global_relabel();
-        break;
-      }
-
-      height = u_height;
+    if (_ctx.global_relabeling_heuristic && _grt.is_reached()) {
+      global_relabel();
     }
   }
 
@@ -89,52 +82,9 @@ std::span<const EdgeWeight> PreflowPushAlgorithm::compute_max_flow(
   return _flow;
 }
 
-NodeID PreflowPushAlgorithm::global_relabel() {
-  _grt.clear();
-
-  compute_exact_heights();
-
-  const NodeID max_active_height = initialize_levels();
-  return max_active_height;
-}
-
-NodeID PreflowPushAlgorithm::initialize_levels() {
-  const NodeID num_nodes = _graph->n();
-
-  for (Level &level : _levels) {
-    level.clear();
-  }
-
-  NodeID max_active_height = 0;
-  for (const NodeID u : _graph->nodes()) {
-    if (_sources->contains(u) || _sinks->contains(u)) {
-      continue;
-    }
-
-    NodeID height = _heights[u];
-
-    const bool is_unreachable_from_sink = height == kInvalidNodeID;
-    if (is_unreachable_from_sink) {
-      height = num_nodes + 1;
-      _heights[u] = height;
-    }
-
-    const bool is_active = _excess[u] > 0;
-    Level &level = _levels[height];
-    if (is_active) {
-      max_active_height = std::max(max_active_height, height);
-      level.add_active_node(u);
-    } else {
-      level.add_inactive_node(u);
-    }
-  }
-
-  return max_active_height;
-}
-
-void PreflowPushAlgorithm::saturate_source_edges() {
-  std::fill(_cur_edge_offsets.begin(), _cur_edge_offsets.end(), 0);
-  std::fill(_excess.begin(), _excess.end(), 0);
+void FIFOPreflowPushAlgorithm::saturate_source_edges() {
+  std::fill_n(_cur_edge_offsets.begin(), _graph->n(), 0);
+  std::fill_n(_excess.begin(), _graph->n(), 0);
 
   for (const NodeID source : *_sources) {
     _graph->neighbors(source, [&](const EdgeID e, const NodeID v, const EdgeWeight c) {
@@ -144,13 +94,16 @@ void PreflowPushAlgorithm::saturate_source_edges() {
   }
 }
 
-void PreflowPushAlgorithm::compute_exact_heights() {
-  std::fill(_heights.begin(), _heights.end(), kInvalidNodeID);
+void FIFOPreflowPushAlgorithm::global_relabel() {
+  _grt.clear();
+
+  const NodeID max_level = 2 * _graph->n();
+  std::fill_n(_heights.begin(), _graph->n(), max_level);
 
   std::queue<std::pair<NodeID, NodeID>> bfs_queue;
-  for (const NodeID sink : *_sinks) {
-    _heights[sink] = 0;
-    bfs_queue.emplace(sink, 0);
+  for (const NodeID terminal : *_sinks) {
+    _heights[terminal] = 0;
+    bfs_queue.emplace(terminal, 0);
   }
 
   while (!bfs_queue.empty()) {
@@ -159,7 +112,8 @@ void PreflowPushAlgorithm::compute_exact_heights() {
 
     const NodeID v_height = u_height + 1;
     _graph->neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight c) {
-      if (_heights[v] != kInvalidNodeID || -_flow[e] == c) {
+      if (_sources->contains(v) || _sinks->contains(v) || _heights[v] != max_level ||
+          -_flow[e] == c) {
         return;
       }
 
@@ -167,62 +121,45 @@ void PreflowPushAlgorithm::compute_exact_heights() {
       bfs_queue.emplace(v, v_height);
     });
   }
-
-  const NodeID num_nodes = _graph->n();
-  for (const NodeID source : *_sources) {
-    _heights[source] = num_nodes;
-  }
 }
 
-NodeID PreflowPushAlgorithm::discharge(const NodeID u, NodeID u_height) {
+void FIFOPreflowPushAlgorithm::discharge(const NodeID u) {
   const EdgeID first_edge = _graph->first_edge(u);
   const NodeID degree = _graph->degree(u);
 
+  NodeID u_height = _heights[u];
   while (_excess[u] > 0) {
     const EdgeID cur_edge_offset = _cur_edge_offsets[u];
 
     if (cur_edge_offset == degree) {
       _grt.add_work(degree);
 
-      u_height = relabel(u, u_height);
       _cur_edge_offsets[u] = 0;
+      u_height = relabel(u);
     } else {
       const EdgeID e = first_edge + cur_edge_offset;
       const NodeID v = _graph->edge_target(e);
-      const EdgeWeight e_capacity = _graph->edge_weight(e);
 
       const EdgeWeight e_flow = _flow[e];
-      const EdgeWeight residual_capacity = // Prevent overflow, TODO: different solution?
-          (e_capacity == std::numeric_limits<EdgeWeight>::max() && e_flow < 0)
-              ? std::numeric_limits<EdgeWeight>::max()
-              : e_capacity - e_flow;
+      const EdgeWeight e_capacity = _graph->edge_weight(e);
 
-      if (residual_capacity > 0) {
-        const NodeID v_height = _heights[v];
-
-        if (u_height > v_height) {
-          const bool v_was_inactive = push(u, v, e, residual_capacity);
-
-          if (v_was_inactive && !_sources->contains(v) && !_sinks->contains(v)) {
-            _levels[v_height].activate(v);
-          }
-        }
+      const EdgeWeight residual_capacity = e_capacity - e_flow;
+      if (residual_capacity > 0 && u_height > _heights[v]) {
+        push(u, v, e, residual_capacity);
       }
 
       _cur_edge_offsets[u] += 1;
     }
   }
-
-  return u_height;
 }
 
-bool PreflowPushAlgorithm::push(
+void FIFOPreflowPushAlgorithm::push(
     const NodeID from, const NodeID to, const EdgeID e, const EdgeWeight residual_capacity
 ) {
   const EdgeWeight flow =
       _sources->contains(from) ? residual_capacity : std::min(_excess[from], residual_capacity);
   if (flow == 0) {
-    return false;
+    return;
   }
 
   _flow[e] += flow;
@@ -233,12 +170,12 @@ bool PreflowPushAlgorithm::push(
   _excess[from] -= flow;
 
   const bool to_was_inactive = to_prev_excess == 0;
-  return to_was_inactive;
+  if (to_was_inactive && !_sources->contains(to) && !_sinks->contains(to)) {
+    _active_nodes.push(to);
+  }
 }
 
-NodeID PreflowPushAlgorithm::relabel(const NodeID u, const NodeID u_height) {
-  _levels[u_height].remove_inactive_node(u);
-
+NodeID FIFOPreflowPushAlgorithm::relabel(const NodeID u) {
   NodeID min_neighboring_height = std::numeric_limits<NodeID>::max();
   _graph->neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight c) {
     const bool has_residual_capacity = _flow[e] < c;
@@ -251,8 +188,6 @@ NodeID PreflowPushAlgorithm::relabel(const NodeID u, const NodeID u_height) {
   const NodeID new_height = min_neighboring_height + 1;
 
   _heights[u] = new_height;
-  _levels[new_height].add_inactive_node(u);
-
   return new_height;
 }
 

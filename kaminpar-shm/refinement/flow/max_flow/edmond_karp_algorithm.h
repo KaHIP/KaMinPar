@@ -32,15 +32,16 @@ public:
   ) override;
 
 private:
-  std::pair<NodeID, EdgeWeight> find_augmenting_path(
-      const std::unordered_set<NodeID> &sources, const std::unordered_set<NodeID> &sinks
-  );
+  std::pair<NodeID, EdgeWeight> find_augmenting_path();
 
   void augment_flow(NodeID sink, EdgeWeight net_flow);
 
 private:
   const CSRGraph *_graph;
   StaticArray<EdgeID> _reverse_edge_index;
+
+  const std::unordered_set<NodeID> *_sources;
+  const std::unordered_set<NodeID> *_sinks;
 
   StaticArray<EdgeWeight> _flow;
   StaticArray<PathEdge> _predecessor;

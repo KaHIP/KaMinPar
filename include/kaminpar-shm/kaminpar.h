@@ -260,14 +260,22 @@ struct KwayFMRefinementContext {
 
 enum class FlowAlgorithm {
   EDMONDS_KARP,
-  PREFLOW_PUSH,
+  FIFO_PREFLOW_PUSH,
+  HIGHEST_LEVEL_PREFLOW_PUSH,
 };
 
-struct PreflowPushContext {
+struct FIFOPreflowPushContext {
   bool global_relabeling_heuristic;
   double global_relabeling_frequency;
+};
+
+struct HighestLevelPreflowPushContext {
+  bool two_phase;
 
   bool gap_heuristic;
+
+  bool global_relabeling_heuristic;
+  double global_relabeling_frequency;
 };
 
 struct TwowayFlowRefinementContext {
@@ -275,15 +283,25 @@ struct TwowayFlowRefinementContext {
   NodeID max_border_distance;
 
   FlowAlgorithm flow_algorithm;
-  PreflowPushContext preflow_push;
+  FIFOPreflowPushContext fifo_preflow_push;
+  HighestLevelPreflowPushContext highest_level_preflow_push;
 
   bool parallel_scheduling;
   std::size_t max_num_rounds;
   double min_round_improvement_factor;
 };
 
+struct IsolatingCutHeuristicContext {
+  FlowAlgorithm flow_algorithm;
+  FIFOPreflowPushContext fifo_preflow_push;
+  HighestLevelPreflowPushContext highest_level_preflow_push;
+};
+
 struct MultiwayFlowRefinementContext {
+  double border_region_scaling_factor;
   NodeID max_border_distance;
+
+  IsolatingCutHeuristicContext isolating_cut_heuristic;
 };
 
 struct JetRefinementContext {

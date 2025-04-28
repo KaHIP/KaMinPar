@@ -15,8 +15,9 @@
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/refinement/flow/max_flow/edmond_karp_algorithm.h"
+#include "kaminpar-shm/refinement/flow/max_flow/fifo_preflow_push_algorithm.h"
+#include "kaminpar-shm/refinement/flow/max_flow/highest_level_preflow_push_algorithm.h"
 #include "kaminpar-shm/refinement/flow/max_flow/max_flow_algorithm.h"
-#include "kaminpar-shm/refinement/flow/max_flow/preflow_push_algorithm.h"
 
 namespace kaminpar::shm::testing {
 
@@ -91,9 +92,6 @@ private:
   }
 };
 
-using MaxFlowAlgorithms = ::testing::Types<EdmondsKarpAlgorithm, PreflowPushAlgorithm>;
-TYPED_TEST_SUITE(MaxFlowAlgorithmTest, MaxFlowAlgorithms);
-
 TEST_P(MaxFlowAlgorithmTest, Graph1) {
   EdgeBasedGraphBuilder graph_builder;
   graph_builder.add_edge(0, 1, 1);
@@ -147,26 +145,80 @@ static const std::unique_ptr<MaxFlowAlgorithm> edmond_karp =
 
 INSTANTIATE_TEST_SUITE_P(EdmondKarp, MaxFlowAlgorithmTest, ::testing::Values(edmond_karp.get()));
 
-static const std::unique_ptr<MaxFlowAlgorithm> preflow_push =
-    std::make_unique<PreflowPushAlgorithm>(PreflowPushContext(false, 1, false));
+static const std::unique_ptr<MaxFlowAlgorithm> fifo_preflow_push =
+    std::make_unique<FIFOPreflowPushAlgorithm>(FIFOPreflowPushContext(false, 1));
 
-static const std::unique_ptr<MaxFlowAlgorithm> preflow_push_with_global_relabeling_heurstic =
-    std::make_unique<PreflowPushAlgorithm>(PreflowPushContext(true, 1, true));
-
-static const std::unique_ptr<MaxFlowAlgorithm> preflow_push_with_gap_heurstic =
-    std::make_unique<PreflowPushAlgorithm>(PreflowPushContext(false, 1, true));
-
-static const std::unique_ptr<MaxFlowAlgorithm> preflow_push_with_all =
-    std::make_unique<PreflowPushAlgorithm>(PreflowPushContext(true, 1, true));
+static const std::unique_ptr<MaxFlowAlgorithm> fifo_preflow_push_with_global_relabeling_heurstic =
+    std::make_unique<FIFOPreflowPushAlgorithm>(FIFOPreflowPushContext(true, 1));
 
 INSTANTIATE_TEST_SUITE_P(
-    PreflowPush,
+    FIFOPreflowPush,
+    MaxFlowAlgorithmTest,
+    ::testing::Values(
+        fifo_preflow_push.get(), fifo_preflow_push_with_global_relabeling_heurstic.get()
+    )
+);
+
+static const std::unique_ptr<MaxFlowAlgorithm> preflow_push =
+    std::make_unique<HighestLevelPreflowPushAlgorithm>(
+        HighestLevelPreflowPushContext(false, false, false, 1)
+    );
+
+static const std::unique_ptr<MaxFlowAlgorithm> preflow_push_with_global_relabeling_heurstic =
+    std::make_unique<HighestLevelPreflowPushAlgorithm>(
+        HighestLevelPreflowPushContext(false, false, true, 1)
+    );
+
+static const std::unique_ptr<MaxFlowAlgorithm> preflow_push_with_gap_heurstic =
+    std::make_unique<HighestLevelPreflowPushAlgorithm>(
+        HighestLevelPreflowPushContext(false, true, false, 1)
+    );
+
+static const std::unique_ptr<MaxFlowAlgorithm> preflow_push_with_all =
+    std::make_unique<HighestLevelPreflowPushAlgorithm>(
+        HighestLevelPreflowPushContext(false, true, true, 1)
+    );
+
+INSTANTIATE_TEST_SUITE_P(
+    HighestLevelPreflowPush,
     MaxFlowAlgorithmTest,
     ::testing::Values(
         preflow_push.get(),
         preflow_push_with_global_relabeling_heurstic.get(),
         preflow_push_with_gap_heurstic.get(),
         preflow_push_with_all.get()
+    )
+);
+
+static const std::unique_ptr<MaxFlowAlgorithm> two_phase_preflow_push =
+    std::make_unique<HighestLevelPreflowPushAlgorithm>(
+        HighestLevelPreflowPushContext(true, false, false, 1)
+    );
+
+static const std::unique_ptr<MaxFlowAlgorithm>
+    two_phase_preflow_push_with_global_relabeling_heurstic =
+        std::make_unique<HighestLevelPreflowPushAlgorithm>(
+            HighestLevelPreflowPushContext(true, false, true, 1)
+        );
+
+static const std::unique_ptr<MaxFlowAlgorithm> two_phase_preflow_push_with_gap_heurstic =
+    std::make_unique<HighestLevelPreflowPushAlgorithm>(
+        HighestLevelPreflowPushContext(true, true, false, 1)
+    );
+
+static const std::unique_ptr<MaxFlowAlgorithm> two_phase_preflow_push_with_all =
+    std::make_unique<HighestLevelPreflowPushAlgorithm>(
+        HighestLevelPreflowPushContext(true, true, true, 1)
+    );
+
+INSTANTIATE_TEST_SUITE_P(
+    TwoPhaseHighestLevelPreflowPush,
+    MaxFlowAlgorithmTest,
+    ::testing::Values(
+        two_phase_preflow_push.get(),
+        two_phase_preflow_push_with_global_relabeling_heurstic.get(),
+        two_phase_preflow_push_with_gap_heurstic.get(),
+        two_phase_preflow_push_with_all.get()
     )
 );
 

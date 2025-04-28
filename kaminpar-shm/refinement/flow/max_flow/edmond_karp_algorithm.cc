@@ -32,14 +32,11 @@ std::span<const EdgeWeight> EdmondsKarpAlgorithm::compute_max_flow(
       assert::heavy
   );
 
-  KASSERT(
-      debug::is_valid_flow(*_graph, sources, sinks, _flow),
-      "given an invalid flow as basis",
-      assert::heavy
-  );
+  _sources = &sources;
+  _sinks = &sinks;
 
   while (true) {
-    auto [sink, net_flow] = find_augmenting_path(sources, sinks);
+    auto [sink, net_flow] = find_augmenting_path();
 
     if (net_flow == 0) {
       break;
@@ -65,15 +62,13 @@ std::span<const EdgeWeight> EdmondsKarpAlgorithm::compute_max_flow(
   return _flow;
 }
 
-std::pair<NodeID, EdgeWeight> EdmondsKarpAlgorithm::find_augmenting_path(
-    const std::unordered_set<NodeID> &sources, const std::unordered_set<NodeID> &sinks
-) {
+std::pair<NodeID, EdgeWeight> EdmondsKarpAlgorithm::find_augmenting_path() {
   for (NodeID i = 0; i < _graph->n(); i++) {
     _predecessor[i] = {kInvalidNodeID, kInvalidEdgeID};
   }
 
   std::queue<std::pair<NodeID, EdgeWeight>> bfs_queue;
-  for (const NodeID source : sources) {
+  for (const NodeID source : *_sources) {
     bfs_queue.emplace(source, std::numeric_limits<EdgeWeight>::max());
     _predecessor[source] = {source, kInvalidEdgeID};
   }
@@ -90,15 +85,12 @@ std::pair<NodeID, EdgeWeight> EdmondsKarpAlgorithm::find_augmenting_path(
         return false;
       }
 
-      const EdgeWeight residual_capacity = // Prevent overflow, TODO: different solution?
-          (w == std::numeric_limits<EdgeWeight>::max() && _flow[e] < 0)
-              ? std::numeric_limits<EdgeWeight>::max()
-              : w - _flow[e];
+      const EdgeWeight residual_capacity = w - _flow[e];
       if (residual_capacity > 0) {
         _predecessor[v] = {u, e};
 
         const EdgeWeight v_flow = std::min(u_flow, residual_capacity);
-        if (sinks.contains(v)) {
+        if (_sinks->contains(v)) {
           net_flow = v_flow;
           sink = v;
           return true;

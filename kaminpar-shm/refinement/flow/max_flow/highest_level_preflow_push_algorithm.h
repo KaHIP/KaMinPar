@@ -15,7 +15,7 @@
 
 namespace kaminpar::shm {
 
-class PreflowPushAlgorithm : public MaxFlowAlgorithm {
+class HighestLevelPreflowPushAlgorithm : public MaxFlowAlgorithm {
   SET_DEBUG(false);
 
   class Level {
@@ -67,6 +67,14 @@ class PreflowPushAlgorithm : public MaxFlowAlgorithm {
       _inactive_nodes.erase(u);
     }
 
+    [[nodiscard]] const std::unordered_set<NodeID> &active_nodes() const {
+      return _active_nodes;
+    }
+
+    [[nodiscard]] const std::unordered_set<NodeID> &inactive_nodes() const {
+      return _inactive_nodes;
+    }
+
     void clear() {
       _active_nodes.clear();
       _inactive_nodes.clear();
@@ -103,8 +111,8 @@ class PreflowPushAlgorithm : public MaxFlowAlgorithm {
   };
 
 public:
-  PreflowPushAlgorithm(const PreflowPushContext &ctx);
-  ~PreflowPushAlgorithm() override = default;
+  HighestLevelPreflowPushAlgorithm(const HighestLevelPreflowPushContext &ctx);
+  ~HighestLevelPreflowPushAlgorithm() override = default;
 
   void initialize(const CSRGraph &graph) override;
 
@@ -113,22 +121,30 @@ public:
   ) override;
 
 private:
-  NodeID global_relabel();
-
-  NodeID initialize_levels();
-
   void saturate_source_edges();
 
-  void compute_exact_heights();
+  void find_maximum_preflow();
 
-  NodeID discharge(NodeID u, NodeID u_height);
+  void convert_maximum_preflow();
+
+  void find_maximum_flow();
+
+  template <bool kFirstPhase> NodeID global_relabel();
+
+  void compute_exact_heights(const std::unordered_set<NodeID> &terminals);
+
+  template <bool kFirstPhase> NodeID initialize_levels();
+
+  void employ_gap_heuristic(NodeID height);
+
+  template <bool kFirstPhase> NodeID discharge(NodeID u, NodeID u_height);
 
   bool push(NodeID from, NodeID to, EdgeID e, EdgeWeight residual_capacity);
 
   NodeID relabel(NodeID u, NodeID u_height);
 
 private:
-  const PreflowPushContext _ctx;
+  const HighestLevelPreflowPushContext _ctx;
 
   const CSRGraph *_graph;
   StaticArray<EdgeID> _reverse_edge_index;

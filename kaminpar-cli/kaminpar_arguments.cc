@@ -262,9 +262,7 @@ Options are:
       ->capture_default_str();
 
   coarsening
-      ->add_option(
-          "--c-s-edge-factor", ctx.coarsening.sparsification_clustering.edge_target_factor
-      )
+      ->add_option("--c-s-edge-factor", ctx.coarsening.sparsification_clustering.edge_target_factor)
       ->description(
           "[--c-algorithm=sparsification-clustering] By which factor the number of edges should at "
           "least be reduced from one level to the next: new number of edges <= factor * old number "
@@ -631,7 +629,8 @@ CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context 
       ->transform(CLI::CheckedTransformer(
           std::unordered_map<std::string, FlowAlgorithm>{
               {"edmonds-karp", FlowAlgorithm::EDMONDS_KARP},
-              {"preflow-push", FlowAlgorithm::PREFLOW_PUSH},
+              {"fifo-preflow-push", FlowAlgorithm::FIFO_PREFLOW_PUSH},
+              {"highest-level-preflow-push", FlowAlgorithm::HIGHEST_LEVEL_PREFLOW_PUSH},
           },
           CLI::ignore_case
       ))
