@@ -54,16 +54,18 @@ NodeID PiercingHeuristic::find_piercing_node(
     const NodeWeight max_piercing_node_weight
 ) {
   NodeID piercing_node = kInvalidNodeID;
-  NodeID cur_distance = 0;
 
+  NodeWeight cur_weight = 0;
+  NodeID cur_distance = 0;
   bool avoided_augmenting_path = false;
   for (const NodeID u : terminal_cut) {
-    if (_graph.node_weight(u) > max_piercing_node_weight) {
-      continue;
-    }
-
     _graph.adjacent_nodes(u, [&](const NodeID v) {
       if (terminal_cut.contains(v) || other_terminal_side_nodes.contains(v)) {
+        return;
+      }
+
+      const NodeWeight v_weight = _graph.node_weight(v);
+      if (v_weight > max_piercing_node_weight) {
         return;
       }
 
@@ -72,25 +74,29 @@ NodeID PiercingHeuristic::find_piercing_node(
 
       if (piercing_node == kInvalidNodeID) {
         piercing_node = v;
+        cur_weight = v_weight;
         cur_distance = distance;
         avoided_augmenting_path = avoids_augmenting_path;
         return;
       }
 
       if (avoided_augmenting_path) {
-        if (!avoids_augmenting_path) {
-          return;
+        if (avoids_augmenting_path && v_weight > cur_weight) {
+          piercing_node = v;
+          cur_weight = v_weight;
+          cur_distance = distance;
         }
-      } else if (avoids_augmenting_path) {
-        piercing_node = v;
-        cur_distance = distance;
-        avoided_augmenting_path = true;
-        return;
-      }
-
-      if (cur_distance < distance) {
-        piercing_node = v;
-        cur_distance = distance;
+      } else {
+        if (avoids_augmenting_path) {
+          piercing_node = v;
+          cur_weight = v_weight;
+          cur_distance = distance;
+          avoided_augmenting_path = true;
+        } else if (cur_distance < distance) {
+          piercing_node = v;
+          cur_weight = v_weight;
+          cur_distance = distance;
+        }
       }
     });
   }
