@@ -1,0 +1,29 @@
+#pragma once
+
+#include <unordered_set>
+#include <vector>
+
+#include "kaminpar-shm/datastructures/csr_graph.h"
+#include "kaminpar-shm/kaminpar.h"
+
+namespace kaminpar::shm {
+
+class MultiwayCutAlgorithm {
+public:
+  virtual ~MultiwayCutAlgorithm() = default;
+
+  [[nodiscard]] virtual std::unordered_set<EdgeID>
+  compute(const CSRGraph &graph, const std::vector<std::unordered_set<NodeID>> &terminal_sets) = 0;
+};
+
+namespace debug {
+
+[[nodiscard]] bool is_valid_multiway_cut(
+    const CSRGraph &graph,
+    const std::vector<std::unordered_set<NodeID>> &terminal_sets,
+    const std::unordered_set<EdgeID> &cut_edges
+);
+
+}
+
+} // namespace kaminpar::shm
