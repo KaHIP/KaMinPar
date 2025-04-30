@@ -1051,7 +1051,7 @@ void rebalance_cluster_placement(
       graph.node_distribution(), current_cnode_distribution, max_cnode_imbalance
   );
 
-  const PEID size = mpi::get_comm_size(graph.communicator());
+  [[maybe_unused]] const PEID size = mpi::get_comm_size(graph.communicator());
   const PEID rank = mpi::get_comm_rank(graph.communicator());
 
   graph.pfor_nodes_range([&](const auto &r) {

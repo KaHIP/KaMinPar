@@ -435,8 +435,8 @@ private:
 
       KASSERT(_graph->contains_global_node(u_partner), "invalid matching partner for node " << u);
       if (_graph->is_owned_global_node(u_partner)) {
-        const NodeID local_partner = _graph->global_to_local_node(u_partner);
-        const GlobalNodeID u_global = _graph->local_to_global_node(u);
+        [[maybe_unused]] const NodeID local_partner = _graph->global_to_local_node(u_partner);
+        [[maybe_unused]] const GlobalNodeID u_global = _graph->local_to_global_node(u);
         KASSERT(
             u == local_partner || _matching[local_partner] == u_partner,
             "invalid clustering structure for node "
@@ -459,14 +459,14 @@ private:
         [&](const NodeID u, NodeID, EdgeWeight) -> MatchedEdge {
           return {_graph->local_to_global_node(u), _matching[u]};
         },
-        [&](const auto &r, const PEID pe) {
+        [&](const auto &r, [[maybe_unused]] const PEID pe) {
           for (const auto &[u, v] : r) {
             KASSERT(_graph->contains_global_node(u));
             KASSERT(
                 _graph->is_owned_global_node(v), "PE " << pe << " thinks that this PE owns " << v
             );
-            const NodeID local_u = _graph->global_to_local_node(u);
-            const NodeID local_v = _graph->global_to_local_node(v);
+            [[maybe_unused]] const NodeID local_u = _graph->global_to_local_node(u);
+            [[maybe_unused]] const NodeID local_v = _graph->global_to_local_node(v);
 
             KASSERT(
                 _matching[local_v] == v,
