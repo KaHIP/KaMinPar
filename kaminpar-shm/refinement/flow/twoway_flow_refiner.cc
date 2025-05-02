@@ -53,6 +53,23 @@ class BipartitionFlowRefiner {
     std::unordered_set<NodeID> nodes;
   };
 
+  static EdgeWeight
+  compute_cut_value(const CSRGraph &graph, const std::unordered_set<NodeID> &terminals) {
+    EdgeWeight cut_value = 0;
+
+    for (const NodeID u : terminals) {
+      graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+        if (terminals.contains(v)) {
+          return;
+        }
+
+        cut_value += w;
+      });
+    }
+
+    return cut_value;
+  }
+
 public:
   struct Move {
     NodeID node;
@@ -127,7 +144,7 @@ public:
           assert::heavy
       );
 
-      const EdgeWeight cut_value = compute_source_side_cut_value(flow_network, source_cut);
+      const EdgeWeight cut_value = compute_cut_value(flow_network.graph, source_side_nodes);
       DBG << "Found cut with value " << cut_value;
 
       if (cut_value >= _initial_cut_value) {
@@ -365,11 +382,6 @@ private:
     StaticArray<NodeID> edges(num_edges, static_array::noinit);
     StaticArray<EdgeWeight> edge_weights(num_edges, static_array::noinit);
 
-    // To prevent integer overflow during max-flow computation use an upper bound
-    // for the weights of edges connected to terminals. TOOD: improve solutions
-    const EdgeWeight terminal_edge_weight =
-        std::min<EdgeWeight>(_graph.total_edge_weight() / 2, _graph.max_edge_weight() * _graph.n());
-
     cur_node = kFirstNodeID;
     EdgeID cur_edge = nodes[kFirstNodeID];
     EdgeID cur_source_edge = 0;
@@ -377,6 +389,7 @@ private:
       const BorderRegion &border_region = (terminal == 0) ? border_region1 : border_region2;
 
       for (const NodeID u : border_region.nodes()) {
+        EdgeWeight terminal_edge_weight = 0;
         _graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
           if (auto it = global_to_local_mapping.find(v); it != global_to_local_mapping.end()) {
             const NodeID v_local = it->second;
@@ -384,6 +397,8 @@ private:
             edges[cur_edge] = v_local;
             edge_weights[cur_edge] = w;
             cur_edge += 1;
+          } else {
+            terminal_edge_weight += w;
           }
         });
 
@@ -418,28 +433,28 @@ private:
     return FlowNetwork(kSource, kSink, std::move(graph), std::move(global_to_local_mapping));
   }
 
-  Cut compute_source_cut(
+  static Cut compute_source_cut(
       const CSRGraph &graph,
       const std::unordered_set<NodeID> &sources,
       std::span<const EdgeWeight> flow
-  ) const {
+  ) {
     return compute_cut(graph, sources, flow, true);
   }
 
-  Cut compute_sink_cut(
+  static Cut compute_sink_cut(
       const CSRGraph &graph,
       const std::unordered_set<NodeID> &sinks,
       std::span<const EdgeWeight> flow
-  ) const {
+  ) {
     return compute_cut(graph, sinks, flow, false);
   }
 
-  Cut compute_cut(
+  static Cut compute_cut(
       const CSRGraph &graph,
       const std::unordered_set<NodeID> &terminals,
       std::span<const EdgeWeight> flow,
       const bool source_side
-  ) const {
+  ) {
     SCOPED_TIMER("Compute Reachable Nodes");
 
     NodeWeight cut_weight = 0;
@@ -474,33 +489,13 @@ private:
     return Cut(cut_weight, std::move(cut_nodes));
   }
 
-  EdgeWeight compute_source_side_cut_value(const FlowNetwork &flow_network, const Cut &cut) const {
-    EdgeWeight cut_value = 0;
-
-    for (const NodeID u : cut.nodes) {
-      if (u == flow_network.source) {
-        continue;
-      }
-
-      flow_network.graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
-        if (cut.nodes.contains(v)) {
-          return;
-        }
-
-        cut_value += w;
-      });
-    }
-
-    return cut_value;
-  }
-
-  std::vector<Move> compute_moves(
+  static std::vector<Move> compute_moves(
       const std::unordered_map<NodeID, NodeID> &global_to_local_mapping,
       const std::unordered_set<NodeID> &initial_terminal_side_nodes,
       const std::unordered_set<NodeID> &terminal_side_nodes,
       const BlockID block,
       const BlockID other_block
-  ) const {
+  ) {
     SCOPED_TIMER("Compute Moves");
 
     std::vector<Move> assignments;
