@@ -6,11 +6,13 @@
 namespace kaminpar::shm {
 
 PiercingHeuristic::PiercingHeuristic(
+    const PiercingHeuristicContext &ctx,
     const CSRGraph &graph,
     const std::unordered_set<NodeID> &initial_source_side_nodes,
     const std::unordered_set<NodeID> &initial_sink_side_nodes
 )
-    : _graph(graph),
+    : _ctx(ctx),
+      _graph(graph),
       _initial_source_side_nodes(initial_source_side_nodes),
       _initial_sink_side_nodes(initial_sink_side_nodes) {
   compute_distances();
@@ -61,12 +63,12 @@ std::vector<NodeID> PiercingHeuristic::find_piercing_node(
   for (const NodeID u : terminal_cut) {
     _graph.adjacent_nodes(u, [&](const NodeID v) {
       if (terminal_cut.contains(v) || other_terminal_side_nodes.contains(v)) {
-        return;
+        return false;
       }
 
       const NodeWeight v_weight = _graph.node_weight(v);
       if (cur_weight + v_weight > max_piercing_node_weight) {
-        return;
+        return false;
       }
 
       const bool avoids_augmenting_path = !other_terminal_cut.contains(v);
@@ -78,7 +80,7 @@ std::vector<NodeID> PiercingHeuristic::find_piercing_node(
 
         cur_distance = distance;
         avoided_augmenting_path = avoids_augmenting_path;
-        return;
+        return false;
       }
 
       if (avoided_augmenting_path) {
@@ -91,7 +93,11 @@ std::vector<NodeID> PiercingHeuristic::find_piercing_node(
           piercing_nodes[0] = v;
           cur_weight = v_weight;
 
-          avoided_augmenting_path = true;
+          if (_ctx.pierce_all_viable) {
+            avoided_augmenting_path = true;
+          } else {
+            return true;
+          }
         } else if (cur_distance < distance) {
           piercing_nodes[0] = v;
           cur_weight = v_weight;
@@ -99,6 +105,8 @@ std::vector<NodeID> PiercingHeuristic::find_piercing_node(
           cur_distance = distance;
         }
       }
+
+      return false;
     });
   }
 

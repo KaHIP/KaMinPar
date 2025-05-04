@@ -15,6 +15,7 @@ class PiercingHeuristic {
 
 public:
   PiercingHeuristic(
+      const PiercingHeuristicContext &_ctx,
       const CSRGraph &graph,
       const std::unordered_set<NodeID> &initial_source_side_nodes,
       const std::unordered_set<NodeID> &initial_sink_side_nodes
@@ -48,6 +49,8 @@ private:
   [[nodiscard]] StaticArray<NodeID> compute_distances(NodeID terminal);
 
 private:
+  const PiercingHeuristicContext &_ctx;
+
   const CSRGraph &_graph;
   const std::unordered_set<NodeID> &_initial_source_side_nodes;
   const std::unordered_set<NodeID> &_initial_sink_side_nodes;

@@ -219,6 +219,11 @@ Context create_default_context() {
                                               .global_relabeling_heuristic = true,
                                               .global_relabeling_frequency = 1,
                                           },
+                                      .piercing =
+                                          {
+                                              .pierce_all_viable = true,
+                                          },
+                                      .unconstrained = false,
                                       .parallel_scheduling = false,
                                       .max_num_rounds = std::numeric_limits<std::size_t>::max(),
                                       .min_round_improvement_factor = 0.01,
@@ -265,6 +270,11 @@ Context create_default_context() {
                                       .global_relabeling_heuristic = true,
                                       .global_relabeling_frequency = 1,
                                   },
+                              .piercing =
+                                  {
+                                      .pierce_all_viable = true,
+                                  },
+                              .unconstrained = false,
                               .parallel_scheduling = false,
                               .max_num_rounds = std::numeric_limits<std::size_t>::max(),
                               .min_round_improvement_factor = 0.01,
@@ -327,6 +337,11 @@ Context create_default_context() {
                               .global_relabeling_heuristic = true,
                               .global_relabeling_frequency = 1,
                           },
+                      .piercing =
+                          {
+                              .pierce_all_viable = true,
+                          },
+                      .unconstrained = false,
                       .parallel_scheduling = true,
                       .max_num_rounds = std::numeric_limits<std::size_t>::max(),
                       .min_round_improvement_factor = 0.01,

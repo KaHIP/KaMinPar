@@ -638,6 +638,19 @@ CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context 
 
   multiway_flow
       ->add_option(
+          "--r-twoway-flow-piercing-all-viable",
+          ctx.refinement.twoway_flow.piercing.pierce_all_viable
+      )
+      ->capture_default_str();
+
+  multiway_flow
+      ->add_option(
+          "--r-twoway-flow-unconstrained", ctx.refinement.twoway_flow.unconstrained
+      )
+      ->capture_default_str();
+
+  multiway_flow
+      ->add_option(
           "--r-twoway-flow-parallel-scheduling", ctx.refinement.twoway_flow.parallel_scheduling
       )
       ->capture_default_str();

@@ -278,6 +278,10 @@ struct HighestLevelPreflowPushContext {
   double global_relabeling_frequency;
 };
 
+struct PiercingHeuristicContext {
+  bool pierce_all_viable;
+};
+
 struct TwowayFlowRefinementContext {
   double border_region_scaling_factor;
   NodeID max_border_distance;
@@ -285,6 +289,10 @@ struct TwowayFlowRefinementContext {
   FlowAlgorithm flow_algorithm;
   FIFOPreflowPushContext fifo_preflow_push;
   HighestLevelPreflowPushContext highest_level_preflow_push;
+
+  PiercingHeuristicContext piercing;
+
+  bool unconstrained;
 
   bool parallel_scheduling;
   std::size_t max_num_rounds;
@@ -417,6 +425,10 @@ struct PartitionContext {
 
   [[nodiscard]] BlockWeight perfectly_balanced_block_weight(const BlockID block) const {
     return std::ceil(1.0 * _unrelaxed_max_block_weights[block] / (1 + inferred_epsilon()));
+  }
+
+  [[nodiscard]] std::span<const BlockWeight> max_block_weights() const {
+    return _max_block_weights;
   }
 
   [[nodiscard]] BlockWeight max_block_weight(const BlockID block) const {
