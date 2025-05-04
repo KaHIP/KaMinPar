@@ -90,6 +90,10 @@ void FIFOPreflowPushAlgorithm::saturate_source_edges() {
 
   for (const NodeID source : *_sources) {
     _graph->neighbors(source, [&](const EdgeID e, const NodeID v, const EdgeWeight c) {
+      if (_sources->contains(v)) {
+        return;
+      }
+
       const EdgeWeight residual_capacity = c - _flow[e];
       push(source, v, e, residual_capacity);
     });
@@ -175,7 +179,8 @@ void FIFOPreflowPushAlgorithm::push(
 
   if (from_source) {
     _flow_value += flow;
-  } else if (_sources->contains(to)) {
+  }
+  if (_sources->contains(to)) {
     _flow_value -= flow;
   }
 
