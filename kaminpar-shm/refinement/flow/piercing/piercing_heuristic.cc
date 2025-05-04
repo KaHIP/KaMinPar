@@ -16,7 +16,7 @@ PiercingHeuristic::PiercingHeuristic(
   compute_distances();
 }
 
-NodeID PiercingHeuristic::pierce_on_source_side(
+std::vector<NodeID> PiercingHeuristic::pierce_on_source_side(
     const std::unordered_set<NodeID> &source_side_cut,
     const std::unordered_set<NodeID> &sink_side_cut,
     const std::unordered_set<NodeID> &sink_side_nodes,
@@ -31,7 +31,7 @@ NodeID PiercingHeuristic::pierce_on_source_side(
   );
 }
 
-NodeID PiercingHeuristic::pierce_on_sink_side(
+std::vector<NodeID> PiercingHeuristic::pierce_on_sink_side(
     const std::unordered_set<NodeID> &sink_side_cut,
     const std::unordered_set<NodeID> &source_side_cut,
     const std::unordered_set<NodeID> &source_side_nodes,
@@ -46,16 +46,16 @@ NodeID PiercingHeuristic::pierce_on_sink_side(
   );
 }
 
-NodeID PiercingHeuristic::find_piercing_node(
+std::vector<NodeID> PiercingHeuristic::find_piercing_node(
     const std::unordered_set<NodeID> &terminal_cut,
     const std::unordered_set<NodeID> &other_terminal_cut,
     const std::unordered_set<NodeID> &other_terminal_side_nodes,
     const std::unordered_set<NodeID> &initial_terminal_side_nodes,
     const NodeWeight max_piercing_node_weight
 ) {
-  NodeID piercing_node = kInvalidNodeID;
-
+  std::vector<NodeID> piercing_nodes;
   NodeWeight cur_weight = 0;
+
   NodeID cur_distance = 0;
   bool avoided_augmenting_path = false;
   for (const NodeID u : terminal_cut) {
@@ -65,43 +65,44 @@ NodeID PiercingHeuristic::find_piercing_node(
       }
 
       const NodeWeight v_weight = _graph.node_weight(v);
-      if (v_weight > max_piercing_node_weight) {
+      if (cur_weight + v_weight > max_piercing_node_weight) {
         return;
       }
 
       const bool avoids_augmenting_path = !other_terminal_cut.contains(v);
       const NodeID distance = initial_terminal_side_nodes.contains(v) ? _distance[v] : 0;
 
-      if (piercing_node == kInvalidNodeID) {
-        piercing_node = v;
+      if (piercing_nodes.empty()) {
+        piercing_nodes.push_back(v);
         cur_weight = v_weight;
+
         cur_distance = distance;
         avoided_augmenting_path = avoids_augmenting_path;
         return;
       }
 
       if (avoided_augmenting_path) {
-        if (avoids_augmenting_path && v_weight > cur_weight) {
-          piercing_node = v;
-          cur_weight = v_weight;
-          cur_distance = distance;
+        if (avoids_augmenting_path) {
+          piercing_nodes.push_back(v);
+          cur_weight += v_weight;
         }
       } else {
         if (avoids_augmenting_path) {
-          piercing_node = v;
+          piercing_nodes[0] = v;
           cur_weight = v_weight;
-          cur_distance = distance;
+
           avoided_augmenting_path = true;
         } else if (cur_distance < distance) {
-          piercing_node = v;
+          piercing_nodes[0] = v;
           cur_weight = v_weight;
+
           cur_distance = distance;
         }
       }
     });
   }
 
-  return piercing_node;
+  return piercing_nodes;
 }
 
 void PiercingHeuristic::compute_distances() {

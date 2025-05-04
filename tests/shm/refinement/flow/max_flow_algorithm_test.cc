@@ -33,13 +33,14 @@ protected:
     const CSRGraph &csr_graph = graph.csr_graph();
 
     max_flow_algorithm.initialize(csr_graph);
-    std::span<const EdgeWeight> flow = max_flow_algorithm.compute_max_flow(sources, sinks);
+    const auto [flow_value, flow] = max_flow_algorithm.compute_max_flow(sources, sinks);
 
     ASSERT_TRUE(debug::is_valid_flow(csr_graph, sources, sinks, flow));
     ASSERT_TRUE(debug::is_max_flow(csr_graph, sources, sinks, flow));
 
     std::unordered_set<NodeID> reachable_nodes = compute_reachable_nodes(csr_graph, sources, flow);
     const EdgeWeight cut_value = compute_cut_value(csr_graph, reachable_nodes);
+    ASSERT_EQ(flow_value, cut_value);
     ASSERT_EQ(cut_value, expected_cut_value);
   }
 

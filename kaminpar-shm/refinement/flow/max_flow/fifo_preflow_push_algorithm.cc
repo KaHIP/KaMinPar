@@ -14,27 +14,30 @@ void FIFOPreflowPushAlgorithm::initialize(const CSRGraph &graph) {
   _graph = &graph;
   _reverse_edge_index = compute_reverse_edge_index(graph);
 
-  _grt = GlobalRelabelingThreshold(graph.n(), graph.m(), _ctx.global_relabeling_frequency);
+  _flow_value = 0;
 
   if (_flow.size() != graph.m()) {
     _flow.resize(graph.m(), static_array::noinit);
   }
   std::fill(_flow.begin(), _flow.end(), 0);
 
-  if (_heights.size() < graph.n()) {
-    _heights.resize(graph.n(), static_array::noinit);
-  }
+  _grt = GlobalRelabelingThreshold(graph.n(), graph.m(), _ctx.global_relabeling_frequency);
 
   if (_excess.size() < graph.n()) {
     _excess.resize(graph.n(), static_array::noinit);
   }
+  std::fill_n(_excess.begin(), graph.n(), 0);
 
   if (_cur_edge_offsets.size() < graph.n()) {
     _cur_edge_offsets.resize(graph.n(), static_array::noinit);
   }
+
+  if (_heights.size() < graph.n()) {
+    _heights.resize(graph.n(), static_array::noinit);
+  }
 }
 
-std::span<const EdgeWeight> FIFOPreflowPushAlgorithm::compute_max_flow(
+MaxFlowAlgorithm::Result FIFOPreflowPushAlgorithm::compute_max_flow(
     const std::unordered_set<NodeID> &sources, const std::unordered_set<NodeID> &sinks
 ) {
   KASSERT(
@@ -79,12 +82,11 @@ std::span<const EdgeWeight> FIFOPreflowPushAlgorithm::compute_max_flow(
       assert::heavy
   );
 
-  return _flow;
+  return Result(_flow_value, _flow);
 }
 
 void FIFOPreflowPushAlgorithm::saturate_source_edges() {
   std::fill_n(_cur_edge_offsets.begin(), _graph->n(), 0);
-  std::fill_n(_excess.begin(), _graph->n(), 0);
 
   for (const NodeID source : *_sources) {
     _graph->neighbors(source, [&](const EdgeID e, const NodeID v, const EdgeWeight c) {
@@ -156,8 +158,10 @@ void FIFOPreflowPushAlgorithm::discharge(const NodeID u) {
 void FIFOPreflowPushAlgorithm::push(
     const NodeID from, const NodeID to, const EdgeID e, const EdgeWeight residual_capacity
 ) {
+  const bool from_source = _sources->contains(from);
   const EdgeWeight flow =
-      _sources->contains(from) ? residual_capacity : std::min(_excess[from], residual_capacity);
+      from_source ? residual_capacity : std::min(_excess[from], residual_capacity);
+
   if (flow == 0) {
     return;
   }
@@ -168,6 +172,12 @@ void FIFOPreflowPushAlgorithm::push(
   const EdgeWeight to_prev_excess = _excess[to];
   _excess[to] = to_prev_excess + flow;
   _excess[from] -= flow;
+
+  if (from_source) {
+    _flow_value += flow;
+  } else if (_sources->contains(to)) {
+    _flow_value -= flow;
+  }
 
   const bool to_was_inactive = to_prev_excess == 0;
   if (to_was_inactive && !_sources->contains(to) && !_sinks->contains(to)) {

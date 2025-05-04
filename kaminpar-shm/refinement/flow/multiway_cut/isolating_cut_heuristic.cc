@@ -53,11 +53,13 @@ std::unordered_set<EdgeID> IsolatingCutHeuristic::compute(
       other_terminals.erase(terminal);
     }
 
-    std::span<const EdgeWeight> flow = TIMED_SCOPE("Compute Max Flow") {
+    auto [flow_value, flow] = TIMED_SCOPE("Compute Max Flow") {
       return _max_flow_algorithm->compute_max_flow(terminals, other_terminals);
     };
 
     Cut cut = compute_cut(terminals, flow);
+    KASSERT(flow_value == cut.value);
+
     if (cut.value > cur_max_weighted_cut.value) {
       std::swap(cut, cur_max_weighted_cut);
     }

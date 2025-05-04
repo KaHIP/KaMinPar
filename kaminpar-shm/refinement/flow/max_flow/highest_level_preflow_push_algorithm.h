@@ -1,7 +1,6 @@
 #pragma once
 
 #include <limits>
-#include <span>
 #include <unordered_set>
 
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction.h"
@@ -116,7 +115,7 @@ public:
 
   void initialize(const CSRGraph &graph) override;
 
-  std::span<const EdgeWeight> compute_max_flow(
+  Result compute_max_flow(
       const std::unordered_set<NodeID> &sources, const std::unordered_set<NodeID> &sinks
   ) override;
 
@@ -152,11 +151,13 @@ private:
   const std::unordered_set<NodeID> *_sources;
   const std::unordered_set<NodeID> *_sinks;
 
-  GlobalRelabelingThreshold _grt;
+  EdgeWeight _flow_value;
   StaticArray<EdgeWeight> _flow;
-  StaticArray<NodeID> _heights;
+
+  GlobalRelabelingThreshold _grt;
   StaticArray<EdgeWeight> _excess;
   StaticArray<NodeID> _cur_edge_offsets;
+  StaticArray<NodeID> _heights;
   ScalableVector<Level> _levels;
 };
 

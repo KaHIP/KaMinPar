@@ -14,6 +14,8 @@ void EdmondsKarpAlgorithm::initialize(const CSRGraph &graph) {
   _graph = &graph;
   _reverse_edge_index = compute_reverse_edge_index(graph);
 
+  _flow_value = 0;
+
   if (_flow.size() != graph.m()) {
     _flow.resize(graph.m());
   }
@@ -23,7 +25,7 @@ void EdmondsKarpAlgorithm::initialize(const CSRGraph &graph) {
   }
 }
 
-std::span<const EdgeWeight> EdmondsKarpAlgorithm::compute_max_flow(
+MaxFlowAlgorithm::Result EdmondsKarpAlgorithm::compute_max_flow(
     const std::unordered_set<NodeID> &sources, const std::unordered_set<NodeID> &sinks
 ) {
   KASSERT(
@@ -59,7 +61,7 @@ std::span<const EdgeWeight> EdmondsKarpAlgorithm::compute_max_flow(
       assert::heavy
   );
 
-  return _flow;
+  return Result(_flow_value, _flow);
 }
 
 std::pair<NodeID, EdgeWeight> EdmondsKarpAlgorithm::find_augmenting_path() {
@@ -121,6 +123,8 @@ void EdmondsKarpAlgorithm::augment_flow(const NodeID sink, const EdgeWeight net_
 
     cur = prev;
   }
+
+  _flow_value += net_flow;
 }
 
 } // namespace kaminpar::shm

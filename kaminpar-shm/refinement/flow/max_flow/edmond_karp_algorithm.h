@@ -1,6 +1,5 @@
 #pragma once
 
-#include <span>
 #include <unordered_set>
 #include <utility>
 
@@ -27,7 +26,7 @@ public:
 
   void initialize(const CSRGraph &graph) override;
 
-  std::span<const EdgeWeight> compute_max_flow(
+  Result compute_max_flow(
       const std::unordered_set<NodeID> &sources, const std::unordered_set<NodeID> &sinks
   ) override;
 
@@ -43,7 +42,9 @@ private:
   const std::unordered_set<NodeID> *_sources;
   const std::unordered_set<NodeID> *_sinks;
 
+  EdgeWeight _flow_value;
   StaticArray<EdgeWeight> _flow;
+
   StaticArray<PathEdge> _predecessor;
 };
 

@@ -10,11 +10,16 @@ namespace kaminpar::shm {
 
 class MaxFlowAlgorithm {
 public:
+  struct Result {
+    EdgeWeight flow_value;
+    std::span<const EdgeWeight> flow;
+  };
+
   virtual ~MaxFlowAlgorithm() = default;
 
   virtual void initialize(const CSRGraph &graph) = 0;
 
-  virtual std::span<const EdgeWeight> compute_max_flow(
+  virtual Result compute_max_flow(
       const std::unordered_set<NodeID> &sources, const std::unordered_set<NodeID> &sinks
   ) = 0;
 };
