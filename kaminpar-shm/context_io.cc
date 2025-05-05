@@ -271,6 +271,8 @@ std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm)
   switch (algorithm) {
   case RefinementAlgorithm::NOOP:
     return out << "noop";
+  case RefinementAlgorithm::SEQUENTIAL_GREEDY_BALANCER:
+    return out << "sequential-greedy-balancer";
   case RefinementAlgorithm::GREEDY_BALANCER:
     return out << "greedy-balancer";
   case RefinementAlgorithm::LABEL_PROPAGATION:
@@ -293,6 +295,7 @@ std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm)
 std::unordered_map<std::string, RefinementAlgorithm> get_refinement_algorithms() {
   return {
       {"noop", RefinementAlgorithm::NOOP},
+      {"sequential-greedy-balancer", RefinementAlgorithm::SEQUENTIAL_GREEDY_BALANCER},
       {"greedy-balancer", RefinementAlgorithm::GREEDY_BALANCER},
       {"lp", RefinementAlgorithm::LABEL_PROPAGATION},
       {"fm", RefinementAlgorithm::KWAY_FM},
@@ -559,6 +562,9 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
       out << "    Global relabeling freq.:  "
           << r_ctx.twoway_flow.highest_level_preflow_push.global_relabeling_frequency << "\n";
     }
+
+    out << "  Unconstrained:              " << (r_ctx.twoway_flow.unconstrained ? "yes" : "no")
+        << "\n";
 
     out << "  Parallel scheduling:        "
         << (r_ctx.twoway_flow.parallel_scheduling ? "yes" : "no") << "\n";

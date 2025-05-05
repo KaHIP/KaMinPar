@@ -43,7 +43,9 @@ public:
   // Tag for the sequential ctor.
   struct seq {};
 
-  explicit CSRGraph(const class Graph &graph);
+  CSRGraph();
+
+  CSRGraph(const Graph &graph);
 
   CSRGraph(
       StaticArray<EdgeID> nodes,
@@ -63,13 +65,13 @@ public:
       std::vector<NodeID> buckets = std::vector<NodeID>(kNumberOfDegreeBuckets<NodeID> + 1)
   );
 
+  ~CSRGraph() override = default;
+
   CSRGraph(const CSRGraph &) = delete;
   CSRGraph &operator=(const CSRGraph &) = delete;
 
   CSRGraph(CSRGraph &&) noexcept = default;
   CSRGraph &operator=(CSRGraph &&) noexcept = default;
-
-  ~CSRGraph() override = default;
 
   //
   // Size of the graph

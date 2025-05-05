@@ -8,7 +8,6 @@
 #include "kaminpar-cli/kaminpar_arguments.h"
 
 #include "kaminpar-cli/CLI11.h"
-#include "kaminpar.h"
 
 #include "kaminpar-shm/context_io.h"
 #include "kaminpar-shm/kaminpar.h"
@@ -465,14 +464,15 @@ CLI::Option_group *create_refinement_options(CLI::App *app, Context &ctx) {
       ->description(
           R"(This option can be used multiple times to define a sequence of refinement algorithms. 
 The following algorithms can be used:
-  - noop:            disable k-way refinement
-  - greedy-balancer: greedy balancer
-  - lp:              label propagation
-  - fm:              FM
-  - twoway-flow:     two-way flow
-  - multiway-flow:   multi-way flow
-  - jet:             Jet
-  - mtkahypar:       Mt-KaHyPar)"
+  - noop:                       disable k-way refinement
+  - sequential-greedy-balancer: sequential greedy balancer
+  - greedy-balancer:            greedy balancer
+  - lp:                         label propagation
+  - fm:                         FM
+  - twoway-flow:                two-way flow
+  - multiway-flow:              multi-way flow
+  - jet:                        Jet
+  - mtkahypar:                  Mt-KaHyPar)"
       )
       ->capture_default_str();
 
@@ -610,21 +610,21 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
 }
 
 CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context &ctx) {
-  auto *multiway_flow = app->add_option_group("Refinement -> two-way Flow");
+  auto *twoway_flow = app->add_option_group("Refinement -> two-way Flow");
 
-  multiway_flow
+  twoway_flow
       ->add_option(
           "--r-twoway-flow-border-region-scaling-factor",
           ctx.refinement.twoway_flow.border_region_scaling_factor
       )
       ->capture_default_str();
-  multiway_flow
+  twoway_flow
       ->add_option(
           "--r-twoway-flow-max-border-distance", ctx.refinement.twoway_flow.max_border_distance
       )
       ->capture_default_str();
 
-  multiway_flow
+  twoway_flow
       ->add_option("--r-twoway-flow-max-flow-algorithm", ctx.refinement.twoway_flow.flow_algorithm)
       ->transform(CLI::CheckedTransformer(
           std::unordered_map<std::string, FlowAlgorithm>{
@@ -636,39 +636,63 @@ CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context 
       ))
       ->capture_default_str();
 
-  multiway_flow
+  twoway_flow
       ->add_option(
           "--r-twoway-flow-piercing-all-viable",
           ctx.refinement.twoway_flow.piercing.pierce_all_viable
       )
       ->capture_default_str();
 
-  multiway_flow
-      ->add_option(
-          "--r-twoway-flow-unconstrained", ctx.refinement.twoway_flow.unconstrained
-      )
+  twoway_flow->add_option("--r-twoway-flow-unconstrained", ctx.refinement.twoway_flow.unconstrained)
       ->capture_default_str();
 
-  multiway_flow
+  twoway_flow
       ->add_option(
           "--r-twoway-flow-parallel-scheduling", ctx.refinement.twoway_flow.parallel_scheduling
       )
       ->capture_default_str();
-  multiway_flow
+  twoway_flow
       ->add_option("--r-twoway-flow-max-num-rounds", ctx.refinement.twoway_flow.max_num_rounds)
       ->capture_default_str();
-  multiway_flow
+  twoway_flow
       ->add_option(
           "--r-twoway-flow-min-round-improvement",
           ctx.refinement.twoway_flow.min_round_improvement_factor
       )
       ->capture_default_str();
 
-  return multiway_flow;
+  return twoway_flow;
 }
 
 CLI::Option_group *create_multiway_flow_refinement_options(CLI::App *app, Context &ctx) {
   auto *multiway_flow = app->add_option_group("Refinement -> multi-way Flow");
+
+  multiway_flow
+      ->add_option(
+          "--r-multiway-flow-border-region-scaling-factor",
+          ctx.refinement.multiway_flow.border_region_scaling_factor
+      )
+      ->capture_default_str();
+  multiway_flow
+      ->add_option(
+          "--r-multiway-flow-max-border-distance", ctx.refinement.multiway_flow.max_border_distance
+      )
+      ->capture_default_str();
+
+  multiway_flow
+      ->add_option("--r-multiway-flow-cut-algorithm", ctx.refinement.multiway_flow.cut_algorithm)
+      ->transform(CLI::CheckedTransformer(
+          std::unordered_map<std::string, CutAlgorithm>{
+              {"isolating-cut", CutAlgorithm::ISOLATING_CUT_HEURISTIC},
+              {"labelling-function", CutAlgorithm::LABELLING_FUNCTION_HEURISTIC},
+          },
+          CLI::ignore_case
+      ))
+      ->capture_default_str();
+
+  multiway_flow
+      ->add_option("--r-multiway-flow-rebalance", ctx.refinement.multiway_flow.rebalance)
+      ->capture_default_str();
 
   return multiway_flow;
 }

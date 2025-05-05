@@ -23,6 +23,11 @@ namespace kaminpar::shm {
 class MultiwayFlowRefiner : public Refiner {
   SET_DEBUG(true);
 
+  struct BorderRegions {
+    EdgeWeight cut_value;
+    std::vector<BorderRegion> regions;
+  };
+
   struct FlowNetwork {
     CSRGraph graph;
     std::unordered_map<NodeID, NodeID> global_to_local_mapping;
@@ -50,11 +55,11 @@ public:
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) override;
 
 private:
-  bool refine(PartitionedGraph &p_graph, const CSRGraph &graph);
+  bool refine(PartitionedGraph &p_graph, const CSRGraph &graph, const PartitionContext &p_ctx);
 
-  std::vector<BorderRegion> compute_border_regions();
+  BorderRegions compute_border_regions(const PartitionContext &p_ctx) const;
 
-  void expand_border_region(BorderRegion &border_region);
+  void expand_border_region(BorderRegion &border_region) const;
 
   FlowNetwork construct_flow_network(const std::vector<BorderRegion> &border_regions);
 
@@ -65,7 +70,6 @@ private:
   );
 
 private:
-  const PartitionContext &_p_ctx;
   const MultiwayFlowRefinementContext &_f_ctx;
 
   PartitionedGraph *_p_graph;

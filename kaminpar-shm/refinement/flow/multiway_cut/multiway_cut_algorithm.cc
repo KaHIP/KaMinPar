@@ -3,7 +3,17 @@
 #include <queue>
 #include <unordered_set>
 
-namespace kaminpar::shm::debug {
+namespace kaminpar::shm {
+
+[[nodiscard]] std::unordered_set<EdgeID> MultiwayCutAlgorithm::compute(
+    [[maybe_unused]] const PartitionedCSRGraph &p_graph,
+    const CSRGraph &graph,
+    const std::vector<std::unordered_set<NodeID>> &terminal_sets
+) {
+  return compute(graph, terminal_sets);
+}
+
+namespace debug {
 
 bool is_valid_multiway_cut(
     const CSRGraph &graph,
@@ -62,4 +72,6 @@ bool is_valid_multiway_cut(
   return true;
 }
 
-} // namespace kaminpar::shm::debug
+} // namespace debug
+
+} // namespace kaminpar::shm

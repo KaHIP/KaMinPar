@@ -22,7 +22,7 @@ SequentialGreedyBalancer::SequentialGreedyBalancer([[maybe_unused]] const Contex
 SequentialGreedyBalancer::~SequentialGreedyBalancer() = default;
 
 [[nodiscard]] std::string SequentialGreedyBalancer::name() const {
-  return "Greedy Balancer (Sequential)";
+  return "Sequential Greedy Balancer";
 }
 
 void SequentialGreedyBalancer::initialize([[maybe_unused]] const PartitionedGraph &p_graph) {}

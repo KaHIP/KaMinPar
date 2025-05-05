@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
+#include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
@@ -14,6 +15,12 @@ public:
 
   [[nodiscard]] virtual std::unordered_set<EdgeID>
   compute(const CSRGraph &graph, const std::vector<std::unordered_set<NodeID>> &terminal_sets) = 0;
+
+  [[nodiscard]] virtual std::unordered_set<EdgeID> compute(
+      const PartitionedCSRGraph &p_graph,
+      const CSRGraph &graph,
+      const std::vector<std::unordered_set<NodeID>> &terminal_sets
+  );
 };
 
 namespace debug {

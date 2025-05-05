@@ -207,6 +207,7 @@ struct CoarseningContext {
 
 enum class RefinementAlgorithm {
   NOOP,
+  SEQUENTIAL_GREEDY_BALANCER,
   GREEDY_BALANCER,
   LABEL_PROPAGATION,
   KWAY_FM,
@@ -299,17 +300,43 @@ struct TwowayFlowRefinementContext {
   double min_round_improvement_factor;
 };
 
+enum class CutAlgorithm {
+  ISOLATING_CUT_HEURISTIC,
+  LABELLING_FUNCTION_HEURISTIC,
+};
+
 struct IsolatingCutHeuristicContext {
   FlowAlgorithm flow_algorithm;
   FIFOPreflowPushContext fifo_preflow_push;
   HighestLevelPreflowPushContext highest_level_preflow_push;
 };
 
+enum class LabellingFunctionInitializationStrategy {
+  ZERO,
+  RANDOM,
+  EXISTING_PARTITION
+};
+
+struct LabellingFunctionHeuristicContext {
+  LabellingFunctionInitializationStrategy initialization_strategy;
+
+  FlowAlgorithm flow_algorithm;
+  FIFOPreflowPushContext fifo_preflow_push;
+  HighestLevelPreflowPushContext highest_level_preflow_push;
+
+  double epsilon;
+  std::size_t max_num_rounds;
+};
+
 struct MultiwayFlowRefinementContext {
   double border_region_scaling_factor;
   NodeID max_border_distance;
 
+  CutAlgorithm cut_algorithm;
   IsolatingCutHeuristicContext isolating_cut_heuristic;
+  LabellingFunctionHeuristicContext labelling_function_heuristic;
+
+  bool rebalance;
 };
 
 struct JetRefinementContext {

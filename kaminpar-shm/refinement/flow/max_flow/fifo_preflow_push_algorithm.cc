@@ -94,7 +94,10 @@ void FIFOPreflowPushAlgorithm::saturate_source_edges() {
         return;
       }
 
-      const EdgeWeight residual_capacity = c - _flow[e];
+      const EdgeWeight residual_capacity = // Prevent overflow, TODO: different solution?
+          (c == std::numeric_limits<EdgeWeight>::max() && _flow[e] < 0)
+              ? std::numeric_limits<EdgeWeight>::max()
+              : c - _flow[e];
       push(source, v, e, residual_capacity);
     });
   }
@@ -149,7 +152,10 @@ void FIFOPreflowPushAlgorithm::discharge(const NodeID u) {
       const EdgeWeight e_flow = _flow[e];
       const EdgeWeight e_capacity = _graph->edge_weight(e);
 
-      const EdgeWeight residual_capacity = e_capacity - e_flow;
+      const EdgeWeight residual_capacity = // Prevent overflow, TODO: different solution?
+          (e_capacity == std::numeric_limits<EdgeWeight>::max() && e_flow < 0)
+              ? std::numeric_limits<EdgeWeight>::max()
+              : e_capacity - e_flow;
       if (residual_capacity > 0 && u_height > _heights[v]) {
         push(u, v, e, residual_capacity);
       }
