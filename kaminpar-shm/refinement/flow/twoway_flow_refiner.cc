@@ -42,12 +42,6 @@ namespace kaminpar::shm {
 class BipartitionFlowRefiner {
   SET_DEBUG(false);
 
-  struct BorderRegions {
-    EdgeWeight cut_value;
-    BorderRegion region1;
-    BorderRegion region2;
-  };
-
   struct FlowNetwork {
     NodeID source;
     NodeID sink;
@@ -102,46 +96,52 @@ public:
   }
 
   [[nodiscard]] Result refine(const BlockID block1, const BlockID block2) {
-    auto [initial_cut_value, border_region1, border_region2] =
-        compute_border_regions(block1, block2);
-    expand_border_region(border_region1);
-    expand_border_region(border_region2);
+    _block1 = block1;
+    _block2 = block2;
 
-    const FlowNetwork flow_network = construct_flow_network(border_region1, border_region2);
-    border_region1.project(flow_network.global_to_local_mapping);
-    border_region2.project(flow_network.global_to_local_mapping);
+    compute_border_regions();
+    expand_border_region(_border_region1);
+    expand_border_region(_border_region2);
+
+    construct_flow_network();
+    _border_region1.project(_flow_network.global_to_local_mapping);
+    _border_region2.project(_flow_network.global_to_local_mapping);
 
     const NodeWeight total_weight = _p_graph.block_weight(block1) + _p_graph.block_weight(block2);
     const NodeWeight max_block1_weight = _p_ctx.max_block_weight(block1);
     const NodeWeight max_block2_weight = _p_ctx.max_block_weight(block2);
 
-    std::unordered_set<NodeID> source_side_nodes{flow_network.source};
-    std::unordered_set<NodeID> sink_side_nodes{flow_network.sink};
+    _constrained_cut_value = _initial_cut_value;
+    _unconstrained_cut_value = _initial_cut_value;
+
+    std::unordered_set<NodeID> source_side_nodes{_flow_network.source};
+    std::unordered_set<NodeID> sink_side_nodes{_flow_network.sink};
     TIMED_SCOPE("Initialize Max Flow Algorithm") {
-      _max_flow_algorithm->initialize(flow_network.graph);
+      _max_flow_algorithm->initialize(_flow_network.graph);
     };
 
     PiercingHeuristic piercing_heuristic(
-        _f_ctx.piercing, flow_network.graph, border_region1.nodes(), border_region2.nodes()
+        _f_ctx.piercing, _flow_network.graph, _border_region1.nodes(), _border_region2.nodes()
     );
 
-    _constrained_cut_value = initial_cut_value;
-    _unconstrained_cut_value = initial_cut_value;
+    DBG << "Starting refinement for block pair " << block1 << " and " << block2
+        << " with an initial cut of " << _initial_cut_value;
 
     while (true) {
       const auto [cut_value, flow] = TIMED_SCOPE("Compute Max Flow") {
         return _max_flow_algorithm->compute_max_flow(source_side_nodes, sink_side_nodes);
       };
-      DBG << "Found cut with value " << cut_value;
+      DBG << "Found a cut for block pair " << block1 << " and " << block2 << " with value "
+          << cut_value;
 
-      if (cut_value >= initial_cut_value) {
-        DBG << "Cut is worse than the initial cut (" << initial_cut_value << "); "
+      if (cut_value >= _initial_cut_value) {
+        DBG << "Cut is worse than the initial cut (" << _initial_cut_value << "); "
             << "aborting refinement for block pair " << block1 << " and " << block2;
         break;
       }
 
-      Cut source_cut = compute_source_cut(flow_network.graph, source_side_nodes, flow);
-      Cut sink_cut = compute_sink_cut(flow_network.graph, sink_side_nodes, flow);
+      Cut source_cut = compute_source_cut(source_side_nodes, flow);
+      Cut sink_cut = compute_sink_cut(sink_side_nodes, flow);
       KASSERT(
           debug::are_terminals_disjoint(source_cut.nodes, sink_cut.nodes),
           "source and sink nodes are not disjoint",
@@ -151,63 +151,28 @@ public:
       const bool is_source_cut_balanced = source_cut.weight <= max_block1_weight &&
                                           (total_weight - source_cut.weight) <= max_block2_weight;
       if (is_source_cut_balanced) {
-        DBG << "Cut is a balanced source-side cut";
-
+        DBG << "Found cut for block pair " << block1 << " and " << block2
+            << " is a balanced source-side cut";
         _constrained_cut_value = cut_value;
-        compute_moves(
-            flow_network.global_to_local_mapping,
-            border_region1.nodes(),
-            source_cut.nodes,
-            block1,
-            block2
-        );
 
+        compute_moves(source_cut.nodes, true);
         break;
       }
 
       const bool is_sink_cut_balanced = sink_cut.weight <= max_block2_weight &&
                                         (total_weight - sink_cut.weight) <= max_block1_weight;
       if (is_sink_cut_balanced) {
-        DBG << "Cut is a balanced sink-side cut";
-
+        DBG << "Found cut for block pair " << block1 << " and " << block2
+            << " is a balanced sink-side cut";
         _constrained_cut_value = cut_value;
-        compute_moves(
-            flow_network.global_to_local_mapping,
-            border_region2.nodes(),
-            sink_cut.nodes,
-            block2,
-            block1
-        );
 
+        compute_moves(sink_cut.nodes, false);
         break;
       }
 
       if (_f_ctx.unconstrained) {
-        SCOPED_TIMER("Rebalancing");
-
-        const std::vector<BlockWeight> max_block_weights{max_block1_weight, max_block2_weight};
-
-        rebalance(
-            cut_value,
-            max_block_weights,
-            compute_partitioned_graph(flow_network.graph, source_cut.nodes, 0, 1),
-            flow_network.graph,
-            flow_network.global_to_local_mapping,
-            border_region1,
-            block1,
-            block2
-        );
-
-        rebalance(
-            cut_value,
-            max_block_weights,
-            compute_partitioned_graph(flow_network.graph, sink_cut.nodes, 1, 0),
-            flow_network.graph,
-            flow_network.global_to_local_mapping,
-            border_region1,
-            block2,
-            block1
-        );
+        rebalance(cut_value, source_cut.nodes, true);
+        rebalance(cut_value, sink_cut.nodes, false);
       }
 
       SCOPED_TIMER("Compute Piercing Node");
@@ -257,29 +222,32 @@ public:
     }
 
     if (_unconstrained_cut_value < _constrained_cut_value) {
-      const EdgeWeight gain = initial_cut_value - _unconstrained_cut_value;
+      const EdgeWeight gain = _initial_cut_value - _unconstrained_cut_value;
       return Result(gain, std::move(_unconstrained_moves));
     } else {
-      const EdgeWeight gain = initial_cut_value - _constrained_cut_value;
+      const EdgeWeight gain = _initial_cut_value - _constrained_cut_value;
       return Result(gain, std::move(_constrained_moves));
     }
   }
 
 private:
-  BorderRegions compute_border_regions(const BlockID block1, const BlockID block2) const {
+  void compute_border_regions() {
     SCOPED_TIMER("Compute Border Regions");
+
+    const BlockID block1 = _block1;
+    const BlockID block2 = _block2;
 
     const NodeWeight max_border_region_weight1 =
         (1 + _f_ctx.border_region_scaling_factor * _p_ctx.epsilon()) *
             _p_ctx.perfectly_balanced_block_weight(block2) -
         _p_graph.block_weight(block2);
-    BorderRegion border_region1(block1, max_border_region_weight1);
+    _border_region1.reset(block1, max_border_region_weight1);
 
     const NodeWeight max_border_region_weight2 =
         (1 + _f_ctx.border_region_scaling_factor * _p_ctx.epsilon()) *
             _p_ctx.perfectly_balanced_block_weight(block1) -
         _p_graph.block_weight(block1);
-    BorderRegion border_region2(block2, max_border_region_weight2);
+    _border_region2.reset(block2, max_border_region_weight2);
 
     EdgeWeight cut_value = 0;
     for (NodeID u : _graph.nodes()) {
@@ -288,7 +256,7 @@ private:
       }
 
       const NodeWeight u_weight = _graph.node_weight(u);
-      if (!border_region1.fits(u_weight)) {
+      if (!_border_region1.fits(u_weight)) {
         continue;
       }
 
@@ -298,26 +266,28 @@ private:
           return;
         }
 
-        if (border_region2.contains(v)) {
+        if (_border_region2.contains(v)) {
           is_border_region_node = true;
+
           cut_value += w;
           return;
         }
 
         const NodeWeight v_weight = _graph.node_weight(v);
-        if (border_region2.fits(v_weight)) {
+        if (_border_region2.fits(v_weight)) {
           is_border_region_node = true;
-          border_region2.insert(v, v_weight);
+          _border_region2.insert(v, v_weight);
+
           cut_value += w;
         }
       });
 
       if (is_border_region_node) {
-        border_region1.insert(u, u_weight);
+        _border_region1.insert(u, u_weight);
       }
     }
 
-    return BorderRegions(cut_value, std::move(border_region1), std::move(border_region2));
+    _initial_cut_value = cut_value;
   }
 
   void expand_border_region(BorderRegion &border_region) const {
@@ -350,32 +320,30 @@ private:
     }
   }
 
-  FlowNetwork construct_flow_network(
-      const BorderRegion &border_region1, const BorderRegion &border_region2
-  ) const {
+  void construct_flow_network() {
     SCOPED_TIMER("Construct Flow Network");
 
-    NodeID kSource = 0;
-    NodeID kSink = 1;
+    constexpr NodeID kSource = 0;
+    constexpr NodeID kSink = 1;
     constexpr NodeID kFirstNodeID = 2;
 
     NodeID cur_node = kFirstNodeID;
 
     std::unordered_map<NodeID, NodeID> global_to_local_mapping;
     for (const BorderRegion &border_region :
-         {std::cref(border_region1), std::cref(border_region2)}) {
+         {std::cref(_border_region1), std::cref(_border_region2)}) {
       for (const NodeID u : border_region.nodes()) {
         global_to_local_mapping.emplace(u, cur_node++);
       }
     }
 
-    const NodeID num_nodes = 2 + border_region1.num_nodes() + border_region2.num_nodes();
+    const NodeID num_nodes = 2 + _border_region1.num_nodes() + _border_region2.num_nodes();
     StaticArray<EdgeID> nodes(num_nodes + 1, static_array::noinit);
     StaticArray<NodeWeight> node_weights(num_nodes, static_array::noinit);
 
     cur_node = kFirstNodeID;
     for (BlockID terminal = 0; terminal < 2; ++terminal) {
-      const BorderRegion &border_region = (terminal == 0) ? border_region1 : border_region2;
+      const BorderRegion &border_region = (terminal == 0) ? _border_region1 : _border_region2;
 
       NodeWeight border_region_weight = 0;
       EdgeID num_terminal_edges = 0;
@@ -415,7 +383,7 @@ private:
     EdgeID cur_edge = nodes[kFirstNodeID];
     EdgeID cur_source_edge = 0;
     for (BlockID terminal = 0; terminal < 2; ++terminal) {
-      const BorderRegion &border_region = (terminal == 0) ? border_region1 : border_region2;
+      const BorderRegion &border_region = (terminal == 0) ? _border_region1 : _border_region2;
 
       for (const NodeID u : border_region.nodes()) {
         EdgeWeight terminal_edge_weight = 0;
@@ -459,32 +427,29 @@ private:
     );
     KASSERT(debug::validate_graph(graph), "constructed invalid flow network", assert::heavy);
 
-    return FlowNetwork(kSource, kSink, std::move(graph), std::move(global_to_local_mapping));
+    _flow_network =
+        FlowNetwork(kSource, kSink, std::move(graph), std::move(global_to_local_mapping));
   }
 
-  static Cut compute_source_cut(
-      const CSRGraph &graph,
-      const std::unordered_set<NodeID> &sources,
-      std::span<const EdgeWeight> flow
-  ) {
-    return compute_cut(graph, sources, flow, true);
+  Cut compute_source_cut(
+      const std::unordered_set<NodeID> &sources, std::span<const EdgeWeight> flow
+  ) const {
+    return compute_cut(sources, flow, true);
   }
 
-  static Cut compute_sink_cut(
-      const CSRGraph &graph,
-      const std::unordered_set<NodeID> &sinks,
-      std::span<const EdgeWeight> flow
-  ) {
-    return compute_cut(graph, sinks, flow, false);
+  Cut compute_sink_cut(const std::unordered_set<NodeID> &sinks, std::span<const EdgeWeight> flow)
+      const {
+    return compute_cut(sinks, flow, false);
   }
 
-  static Cut compute_cut(
-      const CSRGraph &graph,
+  Cut compute_cut(
       const std::unordered_set<NodeID> &terminals,
       std::span<const EdgeWeight> flow,
       const bool source_side
-  ) {
+  ) const {
     SCOPED_TIMER("Compute Reachable Nodes");
+
+    const CSRGraph &graph = _flow_network.graph;
 
     NodeWeight cut_weight = 0;
     std::unordered_set<NodeID> cut_nodes;
@@ -518,70 +483,122 @@ private:
     return Cut(cut_weight, std::move(cut_nodes));
   }
 
-  void compute_moves(
-      const std::unordered_map<NodeID, NodeID> &global_to_local_mapping,
-      const std::unordered_set<NodeID> &initial_terminal_side_nodes,
-      const std::unordered_set<NodeID> &terminal_side_nodes,
-      const BlockID block,
-      const BlockID other_block
-  ) {
+  void compute_moves(const std::unordered_set<NodeID> &cut_nodes, bool source_side) {
     SCOPED_TIMER("Compute Moves");
 
     _constrained_moves.clear();
-    for (const auto &[u, u_local] : global_to_local_mapping) {
-      const BlockID old_block = initial_terminal_side_nodes.contains(u) ? block : other_block;
-      const BlockID new_block = terminal_side_nodes.contains(u_local) ? block : other_block;
 
-      if (old_block != new_block) {
-        _constrained_moves.emplace_back(u, old_block, new_block);
+    const BlockID block = source_side ? _block1 : _block2;
+    const BlockID other_block = source_side ? _block2 : _block1;
+
+    const bool swap_artificial_node = source_side ? !cut_nodes.contains(_flow_network.source)
+                                                  : !cut_nodes.contains(_flow_network.sink);
+    const bool swap_other_artificial_node = source_side ? cut_nodes.contains(_flow_network.sink)
+                                                        : cut_nodes.contains(_flow_network.source);
+
+    const std::unordered_set<NodeID> &initial_cut_nodes =
+        source_side ? _border_region1.nodes() : _border_region2.nodes();
+
+    const std::unordered_map<NodeID, NodeID> &mapping = _flow_network.global_to_local_mapping;
+    for (const NodeID u : _graph.nodes()) {
+      if (auto it = mapping.find(u); it != mapping.end()) {
+        const NodeID u_local = it->second;
+
+        const BlockID old_block = initial_cut_nodes.contains(u) ? block : other_block;
+        const BlockID new_block = cut_nodes.contains(u_local) ? block : other_block;
+
+        if (old_block != new_block) {
+          _constrained_moves.emplace_back(u, old_block, new_block);
+        }
+
+        continue;
+      }
+
+      const BlockID u_block = _p_graph.block(u);
+      if (u_block == block) {
+        if (swap_artificial_node) {
+          _constrained_moves.emplace_back(u, block, other_block);
+        }
+      } else if (u_block == other_block) {
+        if (swap_other_artificial_node) {
+          _constrained_moves.emplace_back(u, other_block, block);
+        }
       }
     }
   }
 
-  static PartitionedCSRGraph compute_partitioned_graph(
-      const CSRGraph &graph,
-      const std::unordered_set<NodeID> &cut_nodes,
-      const BlockID block,
-      const BlockID other_block
-  ) {
-    PartitionedCSRGraph p_graph(PartitionedCSRGraph::seq(), graph, 2);
-
-    for (const NodeID u : graph.nodes()) {
-      const BlockID u_block = cut_nodes.contains(u) ? block : other_block;
-      p_graph.set_block(u, u_block);
-    }
-
-    return p_graph;
-  }
-
   void rebalance(
       const EdgeWeight cut_value,
-      std::span<const BlockWeight> max_block_weights,
-      PartitionedCSRGraph p_graph,
-      const CSRGraph &graph,
-      const std::unordered_map<NodeID, NodeID> &global_to_local_mapping,
-      const BorderRegion &border_region,
-      const BlockID block,
-      const BlockID other_block
+      const std::unordered_set<NodeID> &cut_nodes,
+      const bool source_side
   ) {
-    const auto [rebalanced, gain] = _balancer.balance(p_graph, graph, max_block_weights);
-    const EdgeWeight rebalanced_cut_value = cut_value - gain;
+    SCOPED_TIMER("Rebalancing");
 
-    if (rebalanced && rebalanced_cut_value < _unconstrained_cut_value) {
+    PartitionedCSRGraph p_graph = copy_partitioned_graph(cut_nodes, source_side);
+    const auto [rebalanced, gain] = _balancer.balance(p_graph, _graph, _p_ctx.max_block_weights());
+    if (!rebalanced) {
+      return;
+    }
+
+    const EdgeWeight rebalanced_cut_value = cut_value - gain;
+    DBG << "Rebalanced imbalanced " << (source_side ? "source-side" : "sink-side")
+        << " cut with resulting value " << rebalanced_cut_value;
+
+    if (rebalanced_cut_value < _unconstrained_cut_value) {
       _unconstrained_cut_value = rebalanced_cut_value;
       _unconstrained_moves.clear();
 
-      for (const auto &[u, u_local] : global_to_local_mapping) {
-        const BlockID old_block = border_region.contains(u) ? block : other_block;
-        const BlockID new_block = p_graph.block(u_local) == 0 ? block : other_block;
+      for (const NodeID u : _graph.nodes()) {
+        const BlockID old_block = _p_graph.block(u);
+        const BlockID new_block = p_graph.block(u);
 
         if (old_block != new_block) {
           _unconstrained_moves.emplace_back(u, old_block, new_block);
         }
       }
     }
+  }
 
-    DBG << "Rebalanced imbalanced partition with resulting cut " << rebalanced_cut_value;
+  PartitionedCSRGraph copy_partitioned_graph(
+      const std::unordered_set<NodeID> &cut_nodes, const bool source_side
+  ) const {
+    PartitionedCSRGraph p_graph(PartitionedCSRGraph::seq(), _graph, _p_graph.k());
+
+    const BlockID block = source_side ? _block1 : _block2;
+    const BlockID other_block = source_side ? _block2 : _block1;
+
+    const bool swap_artificial_node = source_side ? !cut_nodes.contains(_flow_network.source)
+                                                  : !cut_nodes.contains(_flow_network.sink);
+    const bool swap_other_artificial_node = source_side ? cut_nodes.contains(_flow_network.sink)
+                                                        : cut_nodes.contains(_flow_network.source);
+
+    const std::unordered_map<NodeID, NodeID> &mapping = _flow_network.global_to_local_mapping;
+    for (const NodeID u : _graph.nodes()) {
+      if (auto it = mapping.find(u); it != mapping.end()) {
+        const NodeID u_local = it->second;
+        const BlockID u_block = cut_nodes.contains(u_local) ? block : other_block;
+
+        p_graph.set_block(u, u_block);
+        continue;
+      }
+
+      const BlockID u_block = _p_graph.block(u);
+      if (u_block == block) {
+        if (swap_artificial_node) {
+          p_graph.set_block(u, other_block);
+          continue;
+        }
+      } else if (u_block == other_block) {
+        if (swap_other_artificial_node) {
+          p_graph.set_block(u, block);
+          continue;
+        }
+      }
+
+      p_graph.set_block(u, u_block);
+    }
+
+    return p_graph;
   }
 
 private:
@@ -594,6 +611,14 @@ private:
   std::unique_ptr<MaxFlowAlgorithm> _max_flow_algorithm;
   SequentialGreedyBalancerImpl<PartitionedCSRGraph, CSRGraph> _balancer;
 
+  BlockID _block1;
+  BlockID _block2;
+  EdgeWeight _initial_cut_value;
+
+  BorderRegion _border_region1;
+  BorderRegion _border_region2;
+  FlowNetwork _flow_network;
+
   EdgeWeight _constrained_cut_value;
   std::vector<Move> _constrained_moves;
 
@@ -602,7 +627,7 @@ private:
 };
 
 class SequentialBlockPairScheduler {
-  SET_DEBUG(true);
+  SET_DEBUG(false);
 
   using Move = BipartitionFlowRefiner::Move;
 
@@ -612,6 +637,9 @@ public:
   bool refine(PartitionedCSRGraph &p_graph, const CSRGraph &graph, const PartitionContext &p_ctx) {
     _p_graph = &p_graph;
     _graph = &graph;
+
+    // Since the timers have a significant running time overhead, we disable them usually.
+    IF_NOT_DBG DISABLE_TIMERS();
 
     activate_all_blocks();
 
@@ -636,8 +664,14 @@ public:
             << gain << " (" << cut_value << " -> " << (cut_value - gain) << ")";
 
         if (gain > 0) {
-          apply_moves(moves);
           cut_value -= gain;
+
+          apply_moves(moves);
+          KASSERT(
+              metrics::is_balanced(p_graph, p_ctx),
+              "Computed an imbalanced move sequence",
+              assert::heavy
+          );
 
           _active_blocks[block1] = true;
           _active_blocks[block2] = true;
@@ -660,6 +694,8 @@ public:
       activate_blocks();
       prev_cut_value = cut_value;
     }
+
+    IF_NOT_DBG ENABLE_TIMERS();
 
     return found_improvement;
   }
@@ -702,6 +738,12 @@ private:
     SCOPED_TIMER("Apply Moves");
 
     for (const Move &move : moves) {
+      KASSERT(
+          _p_graph->block(move.node) == move.old_block,
+          "Move sequence contains invalid old block ids",
+          assert::heavy
+      );
+
       _p_graph->set_block(move.node, move.new_block);
     }
   }
@@ -717,7 +759,7 @@ private:
 };
 
 class ParallelBlockPairScheduler {
-  SET_DEBUG(true);
+  SET_DEBUG(false);
 
   using Move = BipartitionFlowRefiner::Move;
 
@@ -728,15 +770,15 @@ public:
     _p_graph = &p_graph;
     _graph = &graph;
 
+    // Since timers are not multi-threaded, we disable them during parallel refinement.
+    DISABLE_TIMERS();
+
     activate_all_blocks();
 
     const EdgeWeight initial_cut_value = metrics::edge_cut_seq(p_graph);
     auto refiner_ets = tbb::enumerable_thread_specific<BipartitionFlowRefiner>([&]() {
       return BipartitionFlowRefiner(p_ctx, _f_ctx, p_graph, graph);
     });
-
-    // Since timers are not multi-threaded, we disable them during parallel refinement.
-    DISABLE_TIMERS();
 
     bool found_improvement = false;
     std::size_t num_round = 0;
@@ -840,6 +882,8 @@ private:
     for (Move &move : moves) {
       const NodeID u = move.node;
 
+      // Remove all nodes from the move sequence that are not in their expected block.
+      // Use the old block variable to mark the move as such, which is used during reverting.
       const BlockID invalid_block_conflict = _p_graph->block(u) != move.old_block;
       if (invalid_block_conflict) {
         move.old_block = kInvalidBlockID;
@@ -854,6 +898,8 @@ private:
     for (const Move &move : moves) {
       const BlockID old_block = move.old_block;
 
+      // If the node was not in its expected block, it has not been moved.
+      // Thus, the move must not be reverted.
       const BlockID invalid_block_conflict = old_block == kInvalidBlockID;
       if (invalid_block_conflict) {
         continue;
@@ -890,6 +936,8 @@ bool TwowayFlowRefiner::refine(
   return reified(
       p_graph,
       [&](const auto &csr_graph) {
+        // The bipartition refiner works with PartitionedCSRGraph instead of PartitionedGraph.
+        // Intead of copying the partition, use a span to access the partition.
         StaticArray<BlockID> &partition = p_graph.raw_partition();
         StaticArray<BlockID> partition_span(partition.size(), partition.data());
 
