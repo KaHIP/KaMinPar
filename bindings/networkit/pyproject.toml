@@ -9,7 +9,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "kaminpar_networkit"
-version = "3.4.1"
+version = "3.5.1"
 description = "NetworKit bindings for KaMinPar"
 dependencies = ["networkit==11.1.post1"]
 requires-python = ">=3.9"
