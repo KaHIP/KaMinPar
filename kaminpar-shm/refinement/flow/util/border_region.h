@@ -75,7 +75,7 @@ public:
       _new_nodes.insert(mapping.at(u));
     }
 
-    std::swap(_new_nodes, _new_nodes);
+    std::swap(_nodes, _new_nodes);
   }
 
 private:

@@ -1,0 +1,22 @@
+diff --git a/algorithm/sequential_push_relabel.h b/algorithm/sequential_push_relabel.h
+index 9d36935..d9780e6 100644
+--- a/algorithm/sequential_push_relabel.h
++++ b/algorithm/sequential_push_relabel.h
+@@ -138,7 +138,7 @@ namespace whfc {
+             Node e_out = edgeToOutNode(e);
+ 
+             while (my_excess > 0 && my_level < max_level) {
+-                int new_level = max_level = -1;
++                int new_level = max_level - 1;
+ 
+                 // push through bridge edge
+                 if (my_level == level[e_out] + 1) {
+@@ -210,7 +210,7 @@ namespace whfc {
+             assert(my_excess <= hg.capacity(e));
+ 
+             while (my_excess > 0 && my_level < max_level) {
+-                int new_level = max_level = -1;
++                int new_level = max_level - 1;
+ 
+                 // push out to pins
+                 for (const auto& p : hg.pinsOf(e)) {

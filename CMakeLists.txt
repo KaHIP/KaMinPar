@@ -43,16 +43,19 @@ option(KAMINPAR_ENABLE_TIMER_BARRIERS "Add additional MPI_Barrier() instructions
 option(KAMINPAR_ENABLE_TBB_MALLOC "Use tbb malloc for (some) allocations." ON)
 option(KAMINPAR_ENABLE_THP "Use transparent huge pages for large memory allocations (Linux only)." ON)
 
+option(KAMINPAR_BUILD_WITH_DEBUG_SYMBOLS "Always build with debug symbols, even in Release mode." ON)
 option(KAMINPAR_BUILD_WITH_ASAN "Enable address sanitizer." OFF)
 option(KAMINPAR_BUILD_WITH_UBSAN "Enable undefined behaviour sanitizer." OFF)
-option(KAMINPAR_BUILD_WITH_MTUNE_NATIVE "Build with -mtune=native." ON)
-option(KAMINPAR_BUILD_WITH_CCACHE "Use ccache to build." ON)
-option(KAMINPAR_BUILD_WITH_DEBUG_SYMBOLS "Always build with debug symbols, even in Release mode." ON)
-option(KAMINPAR_BUILD_WITH_MTKAHYPAR "If Mt-KaHyPar can be found, build the Mt-KaHyPar initial partitioner." OFF)
-option(KAMINPAR_BUILD_WITH_SPARSEHASH "Build with Google Sparsehash." ON)
 option(KAMINPAR_BUILD_WITH_PG "Build with the -pg option for profiling." OFF)
-option(KAMINPAR_BUILD_WITH_BACKWARD "Build with backward-cpp for stack traces (distributed partitioner only)." OFF)
+
+option(KAMINPAR_BUILD_WITH_CCACHE "Use Ccache as a compiler cache." ON)
+option(KAMINPAR_BUILD_WITH_MTUNE_NATIVE "Build with -mtune=native." ON)
+
 option(KAMINPAR_BUILD_WITH_KASSERT "Use KASSERT for assertions. If disabled, the assertion level is ignored." ON)
+option(KAMINPAR_BUILD_WITH_SPARSEHASH "Build with Google Sparsehash." ON)
+option(KAMINPAR_BUILD_WITH_WHFC "Build with Weighted HyperFlowCutter." OFF)
+option(KAMINPAR_BUILD_WITH_MTKAHYPAR "If Mt-KaHyPar can be found, build the Mt-KaHyPar initial partitioner." OFF)
+option(KAMINPAR_BUILD_WITH_BACKWARD "Build with backward-cpp for stack traces (distributed partitioner only)." OFF)
 
 # Control whether to install KaMinPar
 #####################################
@@ -317,21 +320,13 @@ include(FetchContent)
 
 find_library(NUMA_LIB numa)
 
-# Fetch KAssert for assertions
-if (KAMINPAR_BUILD_WITH_KASSERT)
-    FetchContent_Declare(
-        kassert
-        GIT_REPOSITORY https://github.com/kamping-site/kassert.git
-        GIT_TAG 988b7d54b79ae6634f2fcc53a0314fb1cf2c6a23
-        EXCLUDE_FROM_ALL
-        UPDATE_DISCONNECTED TRUE
-    )
-    FetchContent_MakeAvailable(kassert)
-
-    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_KASSERT_FOUND")
+if (KAMINPAR_BUILD_WITH_CCACHE)
+    find_program(CCACHE_PROGRAM ccache)
+    if (CCACHE_PROGRAM)
+        set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+    endif ()
 endif ()
 
-# Intel TBB
 if (KAMINPAR_DOWNLOAD_TBB)
     FetchContent_Declare(
         TBB
@@ -346,16 +341,47 @@ else ()
     find_package(TBB REQUIRED)
 endif ()
 
-# Google Sparsehash
+if (KAMINPAR_BUILD_WITH_KASSERT)
+    FetchContent_Declare(
+        kassert
+        GIT_REPOSITORY https://github.com/kamping-site/kassert.git
+        GIT_TAG 988b7d54b79ae6634f2fcc53a0314fb1cf2c6a23
+        EXCLUDE_FROM_ALL
+        UPDATE_DISCONNECTED TRUE
+    )
+    FetchContent_MakeAvailable(kassert)
+
+    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_KASSERT_FOUND")
+endif ()
+
 if (KAMINPAR_BUILD_WITH_SPARSEHASH)
     find_package(Sparsehash REQUIRED)
     list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_SPARSEHASH_FOUND")
 endif ()
 
-if (KAMINPAR_BUILD_WITH_CCACHE)
-    find_program(CCACHE_PROGRAM ccache)
-    if (CCACHE_PROGRAM)
-        set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+if (KAMINPAR_BUILD_WITH_WHFC)
+    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_WHFC_FOUND")
+
+    FetchContent_Declare(
+        WHFC
+        GIT_REPOSITORY https://github.com/larsgottesbueren/WHFC.git
+        GIT_TAG 5ae2e3664391ca0db7fab2c82973e98c48937a08
+        PATCH_COMMAND ${GIT_EXECUTABLE} apply ${CMAKE_CURRENT_SOURCE_DIR}/scripts/WHFC.patch
+        EXCLUDE_FROM_ALL
+        UPDATE_DISCONNECTED TRUE
+    )
+    FetchContent_MakeAvailable(WHFC)
+endif ()
+
+# If we can find Mt-KaHyPar, make it available for initial partitioning and refinement
+if (KAMINPAR_BUILD_WITH_MTKAHYPAR)
+    find_library(LIB_MTKAHYPAR_GRAPH mtkahypar)
+
+    if (NOT LIB_MTKAHYPAR_GRAPH)
+        message(STATUS "Mt-KaHyPar initial partitioning not available: library could not be found on this system")
+        set(KAMINPAR_BUILD_WITH_MTKAHYPAR OFF)
+    else ()
+        message(STATUS "Found Mt-KaHyPar at ${LIB_MTKAHYPAR_GRAPH}")
     endif ()
 endif ()
 
@@ -382,17 +408,6 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
             UPDATE_DISCONNECTED TRUE
         )
         FetchContent_MakeAvailable(Backward)
-    endif ()
-endif ()
-
-# If we can find Mt-KaHyPar, make it available for initial partitioning and refinement
-if (KAMINPAR_BUILD_WITH_MTKAHYPAR)
-    find_library(LIB_MTKAHYPAR_GRAPH mtkahypar)
-    if (NOT LIB_MTKAHYPAR_GRAPH)
-        message(STATUS "Mt-KaHyPar initial partitioning not available: library could not be found on this system")
-        set(KAMINPAR_BUILD_WITH_MTKAHYPAR OFF)
-    else ()
-        message(STATUS "Found Mt-KaHyPar at ${LIB_MTKAHYPAR_GRAPH}")
     endif ()
 endif ()
 

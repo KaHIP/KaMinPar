@@ -295,6 +295,8 @@ struct TwowayFlowRefinementContext {
 
   bool unconstrained;
 
+  bool use_whfc;
+
   bool parallel_scheduling;
   std::size_t max_num_rounds;
   double min_round_improvement_factor;

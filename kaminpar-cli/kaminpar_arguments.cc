@@ -646,6 +646,9 @@ CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context 
   twoway_flow->add_option("--r-twoway-flow-unconstrained", ctx.refinement.twoway_flow.unconstrained)
       ->capture_default_str();
 
+  twoway_flow->add_option("--r-twoway-flow-whfc", ctx.refinement.twoway_flow.use_whfc)
+      ->capture_default_str();
+
   twoway_flow
       ->add_option(
           "--r-twoway-flow-parallel-scheduling", ctx.refinement.twoway_flow.parallel_scheduling
@@ -690,8 +693,7 @@ CLI::Option_group *create_multiway_flow_refinement_options(CLI::App *app, Contex
       ))
       ->capture_default_str();
 
-  multiway_flow
-      ->add_option("--r-multiway-flow-rebalance", ctx.refinement.multiway_flow.rebalance)
+  multiway_flow->add_option("--r-multiway-flow-rebalance", ctx.refinement.multiway_flow.rebalance)
       ->capture_default_str();
 
   return multiway_flow;
