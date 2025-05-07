@@ -204,9 +204,6 @@ private:
         _border_region1.insert(u, u_weight);
       }
     }
-
-    DBG << "Block pair " << _block1 << " and " << _block2 << ": " << _border_region1.num_nodes()
-        << ' ' << _border_region2.num_nodes();
   }
 
   void expand_border_region(BorderRegion &border_region) const {
@@ -400,9 +397,6 @@ private:
         std::move(edge_weights)
     );
     KASSERT(debug::validate_graph(graph), "constructed invalid flow network", assert::heavy);
-
-    DBG << "Block pair " << _block1 << " and " << _block2 << ":2 " << graph.n() << ' ' << graph.m()
-        << ' ' << _border_region1.num_nodes() << ' ' << _border_region2.num_nodes();
 
     _initial_cut_value = cut_value / 2;
     _flow_network =
