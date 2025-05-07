@@ -49,11 +49,6 @@ MaxFlowAlgorithm::Result FIFOPreflowPushAlgorithm::compute_max_flow(
   _sources = &sources;
   _sinks = &sinks;
 
-  const NodeID num_nodes = _graph->n();
-  for (const NodeID source : sources) {
-    _heights[source] = num_nodes;
-  }
-
   saturate_source_edges();
   global_relabel();
 
@@ -94,10 +89,12 @@ void FIFOPreflowPushAlgorithm::saturate_source_edges() {
         return;
       }
 
+      const EdgeWeight e_flow = _flow[e];
       const EdgeWeight residual_capacity = // Prevent overflow, TODO: different solution?
-          (c == std::numeric_limits<EdgeWeight>::max() && _flow[e] < 0)
+          (c == std::numeric_limits<EdgeWeight>::max() && e_flow < 0)
               ? std::numeric_limits<EdgeWeight>::max()
-              : c - _flow[e];
+              : c - e_flow;
+
       push(source, v, e, residual_capacity);
     });
   }
@@ -106,8 +103,9 @@ void FIFOPreflowPushAlgorithm::saturate_source_edges() {
 void FIFOPreflowPushAlgorithm::global_relabel() {
   _grt.clear();
 
-  const NodeID max_level = 2 * _graph->n();
-  std::fill_n(_heights.begin(), _graph->n(), max_level);
+  const NodeID num_nodes = _graph->n();
+  const NodeID max_level = 2 * num_nodes;
+  std::fill_n(_heights.begin(), num_nodes, max_level);
 
   std::queue<std::pair<NodeID, NodeID>> bfs_queue;
   for (const NodeID terminal : *_sinks) {
@@ -129,6 +127,10 @@ void FIFOPreflowPushAlgorithm::global_relabel() {
       _heights[v] = v_height;
       bfs_queue.emplace(v, v_height);
     });
+  }
+
+  for (const NodeID source : *_sources) {
+    _heights[source] = num_nodes;
   }
 }
 
