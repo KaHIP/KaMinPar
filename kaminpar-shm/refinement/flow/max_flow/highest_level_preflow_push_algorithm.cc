@@ -44,6 +44,13 @@ void HighestLevelPreflowPushAlgorithm::initialize(const CSRGraph &graph) {
   _levels.resize(graph.n() * 2);
 }
 
+void HighestLevelPreflowPushAlgorithm::reset() {
+  _flow_value = 0;
+  std::fill(_flow.begin(), _flow.end(), 0);
+
+  std::fill(_excess.begin(), _excess.end(), 0);
+}
+
 MaxFlowAlgorithm::Result HighestLevelPreflowPushAlgorithm::compute_max_flow(
     const std::unordered_set<NodeID> &sources, const std::unordered_set<NodeID> &sinks
 ) {
@@ -80,6 +87,12 @@ MaxFlowAlgorithm::Result HighestLevelPreflowPushAlgorithm::compute_max_flow(
   KASSERT(
       debug::is_max_flow(*_graph, *_sources, *_sinks, _flow),
       "computed a non-maximum flow using preflow-push",
+      assert::heavy
+  );
+
+  KASSERT(
+      _flow_value == debug::flow_value(*_graph, sources, _flow),
+      "computed an invalid flow value using preflow-push",
       assert::heavy
   );
 

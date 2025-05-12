@@ -392,7 +392,6 @@ Context create_default_context() {
                               .epsilon = 0.01,
                               .max_num_rounds = std::numeric_limits<std::size_t>::max(),
                           },
-                      .rebalance = false,
                   },
               .jet =
                   {

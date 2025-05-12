@@ -7,6 +7,7 @@
  ******************************************************************************/
 #include "kaminpar-shm/refinement/flow/multiway_flow_refiner.h"
 
+#include <algorithm>
 #include <memory>
 #include <queue>
 #include <unordered_map>
@@ -15,7 +16,7 @@
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
-#include "kaminpar-shm/refinement/balancer/sequential_greedy_balancer.h"
+#include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/refinement/flow/multiway_cut/isolating_cut_heuristic.h"
 #include "kaminpar-shm/refinement/flow/multiway_cut/labelling_function_heuristic.h"
 #include "kaminpar-shm/refinement/flow/util/border_region.h"
@@ -29,7 +30,6 @@ namespace kaminpar::shm {
 MultiwayFlowRefiner::MultiwayFlowRefiner(const Context &ctx)
     : _f_ctx(ctx.refinement.multiway_flow) {
   switch (_f_ctx.cut_algorithm) {
-
   case CutAlgorithm::ISOLATING_CUT_HEURISTIC:
     _multiway_cut_algorithm =
         std::make_unique<IsolatingCutHeuristic>(_f_ctx.isolating_cut_heuristic);
@@ -71,7 +71,9 @@ bool MultiwayFlowRefiner::refine(
   _p_graph = &p_graph;
   _graph = &graph;
 
-  auto [initial_cut_value, border_regions] = compute_border_regions(p_ctx);
+  const EdgeWeight initial_cut_value = metrics::edge_cut(p_graph);
+
+  std::vector<BorderRegion> border_regions = compute_border_regions(p_ctx);
   for (BorderRegion &border_region : border_regions) {
     expand_border_region(border_region);
   }
@@ -88,18 +90,31 @@ bool MultiwayFlowRefiner::refine(
     local_p_graph.set_block(u_local, p_graph.block(u));
   }
 
-  const std::unordered_set<EdgeID> cut_edges = TIMED_SCOPE("Compute Multi-Way Cut") {
+  const auto [cut_value, cut_edges] = TIMED_SCOPE("Compute Multi-Way Cut") {
     return _multiway_cut_algorithm->compute(local_p_graph, flow_network.graph, terminal_sets);
   };
+
+  if (cut_edges.empty()) {
+    DBG << "Failed to compute a multi-way cut";
+    return false;
+  }
+
+  const EdgeWeight gain = initial_cut_value - cut_value;
+  DBG << "Found an cut with value gain " << gain << " (" << initial_cut_value << " -> " << cut_value
+      << ")";
+  if (gain <= 0) {
+    return false;
+  }
 
   std::unordered_map<NodeID, BlockID> local_to_block_mapping;
   std::unordered_set<NodeID> nodes;
   for (BlockID block = 0; block < _p_graph->k(); ++block) {
     Cut cut = compute_cut_nodes(flow_network.graph, terminal_sets[block], cut_edges);
-    DBG << "Block " << block << " has weight " << cut.weight
-        << "; max: " << p_ctx.max_block_weight(block);
+    DBG << "Block " << block << " has weight " << cut.weight << "/"
+        << p_ctx.max_block_weight(block);
 
     for (const NodeID u : cut.nodes) {
+      KASSERT(!local_to_block_mapping.contains(u));
       local_to_block_mapping.emplace(u, block);
     }
   }
@@ -109,18 +124,17 @@ bool MultiwayFlowRefiner::refine(
     p_graph.set_block(u, new_block);
   }
 
-  if (_f_ctx.rebalance) {
-    SequentialGreedyBalancerImpl<PartitionedGraph, CSRGraph> balancer;
-    const auto [rebalanced, gain] = balancer.balance(p_graph, graph, p_ctx.max_block_weights());
+  KASSERT(
+      cut_value == metrics::edge_cut(p_graph),
+      "cut value does not equal the actual cut value",
+      assert::heavy
+  );
 
-    DBG << "Rebalanced partition with gain " << gain;
-  }
-
-  return false;
+  return true;
 }
 
-MultiwayFlowRefiner::BorderRegions
-MultiwayFlowRefiner::compute_border_regions(const PartitionContext &p_ctx) const {
+std::vector<BorderRegion> MultiwayFlowRefiner::compute_border_regions(const PartitionContext &p_ctx
+) const {
   SCOPED_TIMER("Compute border regions");
 
   std::vector<BorderRegion> border_regions;
@@ -134,7 +148,6 @@ MultiwayFlowRefiner::compute_border_regions(const PartitionContext &p_ctx) const
     border_regions.emplace_back(block, max_border_region_weight);
   }
 
-  EdgeWeight cut_value = 0;
   for (const NodeID u : _graph->nodes()) {
     const BlockID u_block = _p_graph->block(u);
 
@@ -149,7 +162,7 @@ MultiwayFlowRefiner::compute_border_regions(const PartitionContext &p_ctx) const
     }
 
     bool is_border_region_node = false;
-    _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+    _graph->adjacent_nodes(u, [&](const NodeID v) {
       const BlockID v_block = _p_graph->block(v);
       if (u_block == v_block) {
         return;
@@ -158,7 +171,6 @@ MultiwayFlowRefiner::compute_border_regions(const PartitionContext &p_ctx) const
       BorderRegion &v_border_region = border_regions[v_block];
       if (v_border_region.contains(v)) {
         is_border_region_node = true;
-        cut_value += w;
         return;
       }
 
@@ -166,7 +178,6 @@ MultiwayFlowRefiner::compute_border_regions(const PartitionContext &p_ctx) const
       if (v_border_region.fits(v_weight)) {
         v_border_region.insert(v, v_weight);
         is_border_region_node = true;
-        cut_value += w;
       }
     });
 
@@ -175,7 +186,7 @@ MultiwayFlowRefiner::compute_border_regions(const PartitionContext &p_ctx) const
     }
   }
 
-  return BorderRegions(cut_value, std::move(border_regions));
+  return border_regions;
 }
 
 void MultiwayFlowRefiner::expand_border_region(BorderRegion &border_region) const {
@@ -225,37 +236,45 @@ MultiwayFlowRefiner::construct_flow_network(const std::vector<BorderRegion> &bor
   StaticArray<EdgeID> nodes(num_nodes + 1, static_array::noinit);
   StaticArray<NodeWeight> node_weights(num_nodes, static_array::noinit);
 
+  std::vector<bool> adjacency(_p_graph->k());
+  std::vector<EdgeID> num_terminal_edges(_p_graph->k(), 0);
+
   cur_node = _p_graph->k();
   for (BlockID block = 0; block < _p_graph->k(); ++block) {
-    NodeWeight border_region_weight = 0;
-    EdgeID num_terminal_edges = 0;
-
     for (const NodeID u : border_regions[block].nodes()) {
+      std::fill(adjacency.begin(), adjacency.end(), false);
+
       EdgeID num_neighbors = 0;
       _graph->adjacent_nodes(u, [&](const NodeID v) {
-        num_neighbors += global_to_local_mapping.contains(v) ? 1 : 0;
+        if (global_to_local_mapping.contains(v)) {
+          num_neighbors += 1;
+          return;
+        }
+
+        const BlockID v_block = _p_graph->block(v);
+        adjacency[v_block] = true;
       });
 
-      const bool has_non_border_region_neighbor = num_neighbors != _graph->degree(u);
-      if (has_non_border_region_neighbor) { // Node has an edge to its corresponding terminal
-        num_neighbors += 1;
-        num_terminal_edges += 1;
+      for (BlockID adjacent_block = 0; adjacent_block < _p_graph->k(); ++adjacent_block) {
+        if (adjacency[adjacent_block]) {
+          num_neighbors += 1;
+          num_terminal_edges[adjacent_block] += 1;
+        }
       }
 
       const NodeWeight u_weight = _graph->node_weight(u);
       nodes[cur_node + 1] = num_neighbors;
       node_weights[cur_node] = u_weight;
 
-      border_region_weight += u_weight;
       cur_node += 1;
     }
-
-    KASSERT(num_terminal_edges > static_cast<EdgeID>(0), assert::light);
-
-    nodes[block + 1] = num_terminal_edges;
-    node_weights[block] = _p_graph->block_weight(block) - border_region_weight;
   }
   KASSERT(cur_node == num_nodes);
+
+  for (BlockID block = 0; block < _p_graph->k(); ++block) {
+    nodes[block + 1] = num_terminal_edges[block];
+    node_weights[block] = _p_graph->block_weight(block) - border_regions[block].weight();
+  }
 
   nodes[0] = 0;
   std::partial_sum(nodes.begin(), nodes.end(), nodes.begin());
@@ -264,34 +283,45 @@ MultiwayFlowRefiner::construct_flow_network(const std::vector<BorderRegion> &bor
   StaticArray<NodeID> edges(num_edges, static_array::noinit);
   StaticArray<EdgeWeight> edge_weights(num_edges, static_array::noinit);
 
+  std::vector<EdgeID> cur_terminal_edge(_p_graph->k());
+  for (BlockID block = 0; block < _p_graph->k(); ++block) {
+    cur_terminal_edge[block] = nodes[block];
+  }
+  std::vector<EdgeWeight> terminal_edge_weight(_p_graph->k(), 0);
+
   cur_node = _p_graph->k();
   EdgeID cur_edge = nodes[_p_graph->k()];
-  EdgeID cur_source_edge = 0;
   for (BlockID block = 0; block < _p_graph->k(); ++block) {
     for (const NodeID u : border_regions[block].nodes()) {
-      EdgeWeight terminal_edge_weight = 0;
+      std::fill(adjacency.begin(), adjacency.end(), false);
+      std::fill(terminal_edge_weight.begin(), terminal_edge_weight.end(), 0);
+
       _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
         if (auto it = global_to_local_mapping.find(v); it != global_to_local_mapping.end()) {
           const NodeID v_local = it->second;
 
           edges[cur_edge] = v_local;
           edge_weights[cur_edge] = w;
+
           cur_edge += 1;
-        } else {
-          terminal_edge_weight += w;
+          return;
         }
+
+        const BlockID v_block = _p_graph->block(v);
+        adjacency[v_block] = true;
+        terminal_edge_weight[v_block] += w;
       });
 
-      const NodeID u_degree = cur_edge - nodes[cur_node];
-      const bool has_non_border_region_neighbor = u_degree != _graph->degree(u);
-      if (has_non_border_region_neighbor) { // Connect node to its corresponding terminal
-        edges[cur_edge] = block;
-        edge_weights[cur_edge] = terminal_edge_weight;
-        cur_edge += 1;
+      for (BlockID adjacent_block = 0; adjacent_block < _p_graph->k(); ++adjacent_block) {
+        if (adjacency[adjacent_block]) {
+          edges[cur_edge] = block;
+          edge_weights[cur_edge] = terminal_edge_weight[adjacent_block];
+          cur_edge += 1;
 
-        edges[cur_source_edge] = cur_node;
-        edge_weights[cur_source_edge] = terminal_edge_weight;
-        cur_source_edge += 1;
+          edges[cur_terminal_edge[adjacent_block]] = cur_node;
+          edge_weights[cur_terminal_edge[adjacent_block]] = terminal_edge_weight[adjacent_block];
+          cur_terminal_edge[adjacent_block] += 1;
+        }
       }
 
       cur_node += 1;
@@ -299,7 +329,6 @@ MultiwayFlowRefiner::construct_flow_network(const std::vector<BorderRegion> &bor
   }
   KASSERT(cur_node == num_nodes);
   KASSERT(cur_edge == num_edges);
-  KASSERT(cur_source_edge == nodes[_p_graph->k()]);
 
   CSRGraph graph(
       CSRGraph::seq(),

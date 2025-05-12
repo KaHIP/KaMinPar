@@ -337,8 +337,6 @@ struct MultiwayFlowRefinementContext {
   CutAlgorithm cut_algorithm;
   IsolatingCutHeuristicContext isolating_cut_heuristic;
   LabellingFunctionHeuristicContext labelling_function_heuristic;
-
-  bool rebalance;
 };
 
 struct JetRefinementContext {

@@ -37,6 +37,13 @@ void FIFOPreflowPushAlgorithm::initialize(const CSRGraph &graph) {
   }
 }
 
+void FIFOPreflowPushAlgorithm::reset() {
+  _flow_value = 0;
+  std::fill(_flow.begin(), _flow.end(), 0);
+
+  std::fill_n(_excess.begin(), _graph->n(), 0);
+}
+
 MaxFlowAlgorithm::Result FIFOPreflowPushAlgorithm::compute_max_flow(
     const std::unordered_set<NodeID> &sources, const std::unordered_set<NodeID> &sinks
 ) {
@@ -74,6 +81,12 @@ MaxFlowAlgorithm::Result FIFOPreflowPushAlgorithm::compute_max_flow(
   KASSERT(
       debug::is_max_flow(*_graph, sources, sinks, _flow),
       "computed a non-maximum flow using preflow-push",
+      assert::heavy
+  );
+
+  KASSERT(
+      _flow_value == debug::flow_value(*_graph, sources, _flow),
+      "computed an invalid flow value using preflow-push",
       assert::heavy
   );
 

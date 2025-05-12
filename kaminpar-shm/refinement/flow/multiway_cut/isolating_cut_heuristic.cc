@@ -30,7 +30,7 @@ IsolatingCutHeuristic::IsolatingCutHeuristic(const IsolatingCutHeuristicContext 
   }
 }
 
-std::unordered_set<EdgeID> IsolatingCutHeuristic::compute(
+MultiwayCutAlgorithm::Result IsolatingCutHeuristic::compute(
     const CSRGraph &graph, const std::vector<std::unordered_set<NodeID>> &terminal_sets
 ) {
   _graph = &graph;
@@ -53,7 +53,8 @@ std::unordered_set<EdgeID> IsolatingCutHeuristic::compute(
       other_terminals.erase(terminal);
     }
 
-    auto [flow_value, flow] = TIMED_SCOPE("Compute Max Flow") {
+    _max_flow_algorithm->reset();
+    const auto [flow_value, flow] = TIMED_SCOPE("Compute Max Flow") {
       return _max_flow_algorithm->compute_max_flow(terminals, other_terminals);
     };
 
@@ -79,18 +80,20 @@ std::unordered_set<EdgeID> IsolatingCutHeuristic::compute(
       assert::heavy
   );
 
-  return cut_edges;
+  const EdgeWeight cut_value = compute_cut_value(cut_edges);
+  return Result(cut_value, std::move(cut_edges));
 }
 
 IsolatingCutHeuristic::Cut IsolatingCutHeuristic::compute_cut(
     const std::unordered_set<NodeID> &terminals, std::span<const EdgeWeight> flow
 ) {
+  std::unordered_set<NodeID> terminal_side_nodes;
   std::queue<NodeID> bfs_queue;
   for (const NodeID terminal : terminals) {
+    terminal_side_nodes.insert(terminal);
     bfs_queue.push(terminal);
   }
 
-  std::unordered_set<NodeID> terminal_side_nodes;
   while (!bfs_queue.empty()) {
     const NodeID u = bfs_queue.front();
     bfs_queue.pop();
@@ -120,6 +123,18 @@ IsolatingCutHeuristic::Cut IsolatingCutHeuristic::compute_cut(
   }
 
   return Cut(cut_value, std::move(cut_edges));
+}
+
+EdgeWeight IsolatingCutHeuristic::compute_cut_value(const std::unordered_set<EdgeID> &cut_edges) {
+  EdgeWeight cut_value = 0;
+
+  for (const NodeID u : _graph->nodes()) {
+    _graph->neighbors(u, [&](const EdgeID e, [[maybe_unused]] const NodeID v, const EdgeWeight w) {
+      cut_value += cut_edges.contains(e) ? w : 0;
+    });
+  }
+
+  return cut_value / 2;
 }
 
 } // namespace kaminpar::shm

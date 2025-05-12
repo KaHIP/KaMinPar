@@ -693,9 +693,6 @@ CLI::Option_group *create_multiway_flow_refinement_options(CLI::App *app, Contex
       ))
       ->capture_default_str();
 
-  multiway_flow->add_option("--r-multiway-flow-rebalance", ctx.refinement.multiway_flow.rebalance)
-      ->capture_default_str();
-
   return multiway_flow;
 }
 

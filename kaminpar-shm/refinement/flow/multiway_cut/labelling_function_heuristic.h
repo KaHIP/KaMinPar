@@ -28,11 +28,11 @@ class LabellingFunctionHeuristic : public MultiwayCutAlgorithm {
 public:
   LabellingFunctionHeuristic(const LabellingFunctionHeuristicContext &ctx);
 
-  [[nodiscard]] std::unordered_set<EdgeID> compute(
+  [[nodiscard]] MultiwayCutAlgorithm::Result compute(
       const CSRGraph &graph, const std::vector<std::unordered_set<NodeID>> &terminal_sets
   ) override;
 
-  [[nodiscard]] std::unordered_set<EdgeID> compute(
+  [[nodiscard]] MultiwayCutAlgorithm::Result compute(
       const PartitionedCSRGraph &p_graph,
       const CSRGraph &graph,
       const std::vector<std::unordered_set<NodeID>> &terminal_sets
@@ -45,6 +45,7 @@ private:
   std::unordered_set<NodeID> _terminals;
   std::unordered_map<NodeID, BlockID> _terminal_labels;
 
+  EdgeWeight _labelling_function_cost;
   StaticArray<BlockID> _labelling_function;
 
   std::unique_ptr<MaxFlowAlgorithm> _max_flow_algorithm;

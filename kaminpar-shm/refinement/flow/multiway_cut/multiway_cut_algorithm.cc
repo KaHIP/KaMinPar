@@ -5,7 +5,7 @@
 
 namespace kaminpar::shm {
 
-[[nodiscard]] std::unordered_set<EdgeID> MultiwayCutAlgorithm::compute(
+[[nodiscard]] MultiwayCutAlgorithm::Result MultiwayCutAlgorithm::compute(
     [[maybe_unused]] const PartitionedCSRGraph &p_graph,
     const CSRGraph &graph,
     const std::vector<std::unordered_set<NodeID>> &terminal_sets

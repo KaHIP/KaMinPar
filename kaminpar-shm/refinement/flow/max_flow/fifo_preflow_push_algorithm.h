@@ -50,6 +50,8 @@ public:
 
   void initialize(const CSRGraph &graph) override;
 
+  void reset() override;
+
   Result compute_max_flow(
       const std::unordered_set<NodeID> &sources, const std::unordered_set<NodeID> &sinks
   ) override;

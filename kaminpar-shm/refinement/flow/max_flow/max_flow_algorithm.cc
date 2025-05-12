@@ -86,6 +86,26 @@ bool is_valid_flow(
   return is_valid;
 }
 
+EdgeWeight flow_value(
+    const CSRGraph &graph,
+    const std::unordered_set<NodeID> &sources,
+    std::span<const EdgeWeight> flow
+) {
+  EdgeWeight flow_value = 0;
+
+  for (const NodeID source : sources) {
+    graph.neighbors(source, [&](const EdgeID e, const NodeID v) {
+      if (sources.contains(v)) {
+        return;
+      }
+
+      flow_value += flow[e];
+    });
+  }
+
+  return flow_value;
+}
+
 bool is_max_flow(
     const CSRGraph &graph,
     const std::unordered_set<NodeID> &sources,

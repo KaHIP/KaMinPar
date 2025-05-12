@@ -32,7 +32,7 @@ LabellingFunctionHeuristic::LabellingFunctionHeuristic(const LabellingFunctionHe
   }
 }
 
-std::unordered_set<EdgeID> LabellingFunctionHeuristic::compute(
+MultiwayCutAlgorithm::Result LabellingFunctionHeuristic::compute(
     const CSRGraph &graph, const std::vector<std::unordered_set<NodeID>> &terminal_sets
 ) {
   _graph = &graph;
@@ -54,10 +54,10 @@ std::unordered_set<EdgeID> LabellingFunctionHeuristic::compute(
       assert::heavy
   );
 
-  return cut_edges;
+  return Result(_labelling_function_cost, std::move(cut_edges));
 }
 
-std::unordered_set<EdgeID> LabellingFunctionHeuristic::compute(
+MultiwayCutAlgorithm::Result LabellingFunctionHeuristic::compute(
     const PartitionedCSRGraph &p_graph,
     const CSRGraph &graph,
     const std::vector<std::unordered_set<NodeID>> &terminal_sets
@@ -85,7 +85,7 @@ std::unordered_set<EdgeID> LabellingFunctionHeuristic::compute(
       assert::heavy
   );
 
-  return cut_edges;
+  return Result(_labelling_function_cost, std::move(cut_edges));
 }
 
 void LabellingFunctionHeuristic::initialize_labelling_function() {
@@ -161,7 +161,7 @@ void LabellingFunctionHeuristic::improve_labelling_function() {
         _max_flow_algorithm->initialize(flow_network.graph);
       };
 
-      auto [cost, flow] = TIMED_SCOPE("Compute Max Flow") {
+      const auto [cost, flow] = TIMED_SCOPE("Compute Max Flow") {
         return _max_flow_algorithm->compute_max_flow(sources, sinks);
       };
       DBG << "Computed a labelling function with cost " << cost;
@@ -172,7 +172,7 @@ void LabellingFunctionHeuristic::improve_labelling_function() {
 
         derive_labelling_function(terminal, flow_network, flow);
 
-        KASSERT(is_valid_labelling_function(), "invalid labelling function");
+        KASSERT(is_valid_labelling_function(), "invalid labelling function", assert::heavy);
         KASSERT(
             cost == compute_labelling_function_cost(),
             "invalid labelling function cost",
@@ -185,6 +185,8 @@ void LabellingFunctionHeuristic::improve_labelling_function() {
       break;
     }
   }
+
+  _labelling_function_cost = cur_cost;
 }
 
 EdgeWeight LabellingFunctionHeuristic::compute_labelling_function_cost() const {

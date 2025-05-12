@@ -19,6 +19,8 @@ public:
 
   virtual void initialize(const CSRGraph &graph) = 0;
 
+  virtual void reset() = 0;
+
   virtual Result compute_max_flow(
       const std::unordered_set<NodeID> &sources, const std::unordered_set<NodeID> &sinks
   ) = 0;
@@ -41,6 +43,12 @@ namespace debug {
     const CSRGraph &graph,
     const std::unordered_set<NodeID> &sources,
     const std::unordered_set<NodeID> &sinks,
+    std::span<const EdgeWeight> flow
+);
+
+[[nodiscard]] EdgeWeight flow_value(
+    const CSRGraph &graph,
+    const std::unordered_set<NodeID> &sources,
     std::span<const EdgeWeight> flow
 );
 

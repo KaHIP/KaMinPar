@@ -17,12 +17,18 @@ void EdmondsKarpAlgorithm::initialize(const CSRGraph &graph) {
   _flow_value = 0;
 
   if (_flow.size() != graph.m()) {
-    _flow.resize(graph.m());
+    _flow.resize(graph.m(), static_array::noinit);
   }
+  std::fill(_flow.begin(), _flow.end(), 0);
 
   if (_predecessor.size() < graph.n()) {
     _predecessor.resize(graph.n(), static_array::noinit);
   }
+}
+
+void EdmondsKarpAlgorithm::reset() {
+  _flow_value = 0;
+  std::fill(_flow.begin(), _flow.end(), 0);
 }
 
 MaxFlowAlgorithm::Result EdmondsKarpAlgorithm::compute_max_flow(
@@ -58,6 +64,12 @@ MaxFlowAlgorithm::Result EdmondsKarpAlgorithm::compute_max_flow(
   KASSERT(
       debug::is_max_flow(*_graph, sources, sinks, _flow),
       "computed a non-maximum flow using edmond-karp",
+      assert::heavy
+  );
+
+  KASSERT(
+      _flow_value == debug::flow_value(*_graph, sources, _flow),
+      "computed an invalid flow value using edmond-karp",
       assert::heavy
   );
 

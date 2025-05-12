@@ -11,12 +11,17 @@ namespace kaminpar::shm {
 
 class MultiwayCutAlgorithm {
 public:
+  struct Result {
+    EdgeWeight cut_value;
+    std::unordered_set<EdgeID> cut_edges;
+  };
+
   virtual ~MultiwayCutAlgorithm() = default;
 
-  [[nodiscard]] virtual std::unordered_set<EdgeID>
+  [[nodiscard]] virtual Result
   compute(const CSRGraph &graph, const std::vector<std::unordered_set<NodeID>> &terminal_sets) = 0;
 
-  [[nodiscard]] virtual std::unordered_set<EdgeID> compute(
+  [[nodiscard]] virtual Result compute(
       const PartitionedCSRGraph &p_graph,
       const CSRGraph &graph,
       const std::vector<std::unordered_set<NodeID>> &terminal_sets

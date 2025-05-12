@@ -21,14 +21,18 @@ class IsolatingCutHeuristic : public MultiwayCutAlgorithm {
   };
 
 public:
+  using MultiwayCutAlgorithm::compute;
+
   IsolatingCutHeuristic(const IsolatingCutHeuristicContext &ctx);
 
-  std::unordered_set<EdgeID> compute(
+  [[nodiscard]] MultiwayCutAlgorithm::Result compute(
       const CSRGraph &graph, const std::vector<std::unordered_set<NodeID>> &terminal_sets
   ) override;
 
 private:
   Cut compute_cut(const std::unordered_set<NodeID> &terminals, std::span<const EdgeWeight> flow);
+
+  EdgeWeight compute_cut_value(const std::unordered_set<EdgeID> &cut_edges);
 
 private:
   const IsolatingCutHeuristicContext &_ctx;
