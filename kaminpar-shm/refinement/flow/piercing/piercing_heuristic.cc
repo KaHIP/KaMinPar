@@ -110,6 +110,26 @@ std::vector<NodeID> PiercingHeuristic::find_piercing_node(
     });
   }
 
+  if (piercing_nodes.empty()) {
+    NodeID cur_piercing_node = kInvalidNodeID;
+
+    for (const NodeID u : _graph.nodes()) {
+      if (terminal_cut.contains(u) || other_terminal_side_nodes.contains(u)) {
+        continue;
+      }
+
+      const NodeID distance = initial_terminal_side_nodes.contains(u) ? _distance[u] : 0;
+      if (cur_piercing_node == kInvalidNodeID || cur_distance < distance) {
+        cur_piercing_node = u;
+        cur_distance = distance;
+      }
+    }
+
+    if (cur_piercing_node != kInvalidNodeID) {
+      piercing_nodes.push_back(cur_piercing_node);
+    }
+  }
+
   return piercing_nodes;
 }
 
