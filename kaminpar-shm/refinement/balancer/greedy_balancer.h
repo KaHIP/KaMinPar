@@ -75,9 +75,9 @@ template <typename Graph> class GreedyBalancerImpl : public Refiner {
 
     void print() {
       STATS << "Greedy Node Balancer:";
-      STATS << "  * Changed cut: " << C(initial_cut, final_cut);
+      STATS << "  * Changed cut: " << initial_cut << " -> " << final_cut;
       STATS << "  * # overloaded blocks: " << num_overloaded_blocks;
-      STATS << "  * # overload change: " << C(initial_overload, final_overload);
+      STATS << "  * # overload change: " << initial_overload << " -> " << final_overload;
       STATS << "  * # moved nodes: " << num_moved_border_nodes + num_moved_internal_nodes << " "
             << "(border nodes: " << num_moved_border_nodes
             << ", internal nodes: " << num_moved_internal_nodes << ")";
@@ -137,7 +137,7 @@ public:
     init_pq();
     perform_round();
 
-    DBG << "-> Balancer: cut=" << C(initial_cut, metrics::edge_cut(*_p_graph));
+    DBG << "-> Balancer: cut=" << initial_cut << " -> " << metrics::edge_cut(*_p_graph);
     IFSTATS(_stats.print());
 
     return true;

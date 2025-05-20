@@ -70,12 +70,6 @@
 #define LOG_WARNING (kaminpar::Logger(std::cout) << kaminpar::logger::ORANGE << "[Warning] ")
 #define LOG_LWARNING (kaminpar::Logger(std::cout, "") << kaminpar::logger::ORANGE)
 
-// V(x) prints x<space><value of x><space>, e.g., use LOG << V(a) << V(b) <<
-// V(c); to quickly print the values of variables a, b, c C(x, y) prints [<value
-// of x> --> <value of y>]
-#define V(x) std::string(#x "=") << (x) << " "
-#define C(x, y) "[" << (x) << " --> " << (y) << "] "
-
 // Macros for statistics
 //
 // SET_STATISTICS(false or true): disable or enable statistics for the given
