@@ -33,7 +33,7 @@ std::size_t aligned_prefix_sum_seq(OutputIt begin, OutputIt end, AlignedValueLam
 
     if (i > 0 && alignment > 0) {
       *(begin + i) += (alignment - (*(begin + i) % alignment)) % alignment;
-      KASSERT(*(begin + i) % alignment == 0u);
+      KASSERT(static_cast<std::uint64_t>(*(begin + i) % alignment) == 0u);
     }
 
     *(begin + i + 1) = (i > 0 ? *(begin + i) : 0) + value;
@@ -65,9 +65,7 @@ std::size_t aligned_prefix_sum(OutputIt begin, OutputIt end, AlignedValueLambda 
   };
 
   const int ncpus = parallel::deterministic_for<std::size_t>(
-      0,
-      n,
-      [&](const std::size_t from, const std::size_t to, int) {
+      0, n, [&](const std::size_t from, const std::size_t to, int) {
         aligned_prefix_sum_seq(begin + from, begin + to + 1, [&](const std::size_t i) {
           return l(from + i);
         });
@@ -87,9 +85,7 @@ std::size_t aligned_prefix_sum(OutputIt begin, OutputIt end, AlignedValueLambda 
   }
 
   parallel::deterministic_for<std::size_t>(
-      0,
-      n,
-      [&](const std::size_t from, const std::size_t to, const int cpu) {
+      0, n, [&](const std::size_t from, const std::size_t to, const int cpu) {
         for (std::size_t i = from + 1; i < to + 1; ++i) {
           *(begin + i) += prefix_sums[cpu];
         }
