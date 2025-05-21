@@ -1,7 +1,6 @@
+#include <kaminpar-shm/ckaminpar.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#include <kaminpar-shm/ckaminpar.h>
 
 void print_node_id(const kaminpar_node_id_t id, const kaminpar_block_id_t *partition) {
   const char *colors[] = {"\033[0;31m", "\033[0;32m", "\033[0;33m", "\033[0;34m"};
@@ -95,12 +94,12 @@ int main() {
   kaminpar_edge_weight_t cut = 0;
 
   cut = kaminpar_compute_partition(shm, 2, partition);
-  printf("Balanced 2-way partition: %d edges cut\n", cut);
+  printf("Balanced 2-way partition: %lld edges cut\n", (long long)cut);
   render_graph(partition);
   printf("\n");
 
   cut = kaminpar_compute_partition(shm, 4, partition);
-  printf("Balanced 4-way partition: %d edges cut\n", cut);
+  printf("Balanced 4-way partition: %lld edges cut\n", (long long)cut);
   render_graph(partition);
   printf("\n");
 
@@ -108,13 +107,13 @@ int main() {
   cut = kaminpar_compute_partition_with_max_block_weight_factors(
       shm, 3, max_block_weight_factors, partition
   );
-  printf("Relative max block weights {0.5, 0.25, 0.25} + 0.01: %d edges cut\n", cut);
+  printf("Relative max block weights {0.5, 0.25, 0.25} + 0.01: %lld edges cut\n", (long long)cut);
   render_graph(partition);
   printf("\n");
 
   kaminpar_block_weight_t max_block_weights[] = {2, 3, 3, 10};
   cut = kaminpar_compute_partition_with_max_block_weights(shm, 4, max_block_weights, partition);
-  printf("Absolute max block weights {2, 3, 3, 10}: %d edges cut\n", cut);
+  printf("Absolute max block weights {2, 3, 3, 10}: %lld edges cut\n", (long long)cut);
   render_graph(partition);
   printf("\n");
 
