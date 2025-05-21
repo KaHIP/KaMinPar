@@ -258,8 +258,8 @@ private:
         const double gain_prob =
             _lp_ctx.ignore_probabilities
                 ? 1.0
-                : ((total_gains_to_block[b] == 0) ? 1.0 : 1.0 * _gains[u] / total_gains_to_block[b]
-                  );
+                : ((total_gains_to_block[b] == 0) ? 1.0
+                                                  : 1.0 * _gains[u] / total_gains_to_block[b]);
         const double probability =
             _lp_ctx.ignore_probabilities
                 ? 1.0
@@ -368,9 +368,7 @@ private:
         // move ghost nodes
         [&](const auto recv_buffer, const PEID pe) {
           tbb::parallel_for(
-              static_cast<std::size_t>(0),
-              recv_buffer.size(),
-              [&](const std::size_t i) {
+              static_cast<std::size_t>(0), recv_buffer.size(), [&](const std::size_t i) {
                 const auto [local_node_on_pe, new_block] = recv_buffer[i];
                 const auto global_node =
                     static_cast<GlobalNodeID>(_graph->offset_n(pe) + local_node_on_pe);
@@ -461,8 +459,7 @@ private:
     mpi::barrier(_p_graph->communicator());
     for (const NodeID u : _p_graph->nodes()) {
       if (_p_graph->block(u) != _next_partition[u]) {
-        LOG_ERROR << "Invalid _next_partition[] state for node " << u << ": "
-                  << V(_p_graph->block(u)) << V(_next_partition[u]);
+        LOG_ERROR << "Invalid _next_partition[] state for node " << u;
         return false;
       }
     }
@@ -494,7 +491,8 @@ class LPRefinerImplWrapper {
 public:
   LPRefinerImplWrapper(const Context &ctx, DistributedPartitionedGraph &p_graph)
       : _csr_impl(std::make_unique<LPRefinerImpl<DistributedCSRGraph>>(ctx, p_graph)),
-        _compressed_impl(std::make_unique<LPRefinerImpl<DistributedCompressedGraph>>(ctx, p_graph)
+        _compressed_impl(
+            std::make_unique<LPRefinerImpl<DistributedCompressedGraph>>(ctx, p_graph)
         ) {}
 
   void refine(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
