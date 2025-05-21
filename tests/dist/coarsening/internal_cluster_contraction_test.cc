@@ -78,7 +78,7 @@ TEST(ClusterReassignmentTest, twitter_2010_64pe_2copy_regression) {
     const GlobalNodeID my_underload = shifts.underload[pe + 1] - shifts.underload[pe];
     const GlobalNodeID my_size_before = node_distribution[pe + 1] - node_distribution[pe];
     const GlobalNodeID my_size_after = cnode_distribution[pe + 1] - cnode_distribution[pe];
-    EXPECT_LE(my_size_after + my_underload, my_size_before) << V(pe);
+    EXPECT_LE(my_size_after + my_underload, my_size_before);
   }
 }
 
@@ -118,7 +118,7 @@ TEST(ClusterReassignmentTest, twitter_2010_128pe_4copies_regression) {
     const GlobalNodeID my_underload = shifts.underload[pe + 1] - shifts.underload[pe];
     const GlobalNodeID my_size_before = node_distribution[pe + 1] - node_distribution[pe];
     const GlobalNodeID my_size_after = cnode_distribution[pe + 1] - cnode_distribution[pe];
-    EXPECT_LE(my_size_after + my_underload, my_size_before) << V(pe);
+    EXPECT_LE(my_size_after + my_underload, my_size_before);
   }
 }
 

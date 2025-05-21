@@ -454,8 +454,6 @@ auto BfsExtractor::combine_fragments(tbb::concurrent_vector<GraphFragment> &frag
         return fragment.edges.size();
       });
 
-  DBG << "Graph size: " << V(real_n) << V(pseudo_n) << V(m);
-
   // Allocate arrays for combined graph
   NoinitVector<GlobalNodeID> node_mapping(real_n);
   StaticArray<shm::EdgeID> nodes(pseudo_n + 1);

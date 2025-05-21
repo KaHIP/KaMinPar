@@ -1144,10 +1144,7 @@ protected:
         }
 
         // Invariant: cluster is a node with favored cluster C
-        KASSERT(
-            __atomic_load_n(&_favored_clusters[cluster], __ATOMIC_RELAXED) == C,
-            "invariant violated by: " << V(u) << V(cluster) << V(C) << V(_favored_clusters[C])
-        );
+        KASSERT(__atomic_load_n(&_favored_clusters[cluster], __ATOMIC_RELAXED) == C);
 
         // Try to join the cluster:
         if constexpr (match) {
@@ -1841,10 +1838,7 @@ private:
           }
 
           for (NodeID u = 0; u < to - from; ++u) {
-            KASSERT(
-                _graph->degree(u) == 0u || hit[u],
-                V(_graph->degree(u)) << V(from) << V(u + from) << V(to)
-            );
+            KASSERT(_graph->degree(u) == 0u || hit[u]);
           }
 
           return true;
