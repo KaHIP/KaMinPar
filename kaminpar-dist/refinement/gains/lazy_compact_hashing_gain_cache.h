@@ -445,10 +445,7 @@ private:
     const std::size_t size = width > 0 ? math::floor2((_offsets[node + 1] - start) / width) : 0;
 
     KASSERT(use_hash_table(node));
-    KASSERT(
-        width == 0 || (start % width) == 0,
-        V(width) << V(start) << V(_offsets[node]) << V(_offsets[node + 1])
-    );
+    KASSERT(width == 0 || (start % width) == 0);
     KASSERT(width == 0 || (_offsets[node + 1] - start) % width == 0);
     KASSERT(
         math::is_power_of_2(size),
@@ -529,10 +526,7 @@ private:
     const int width = compute_entry_width(node, false);
     const std::size_t start = _offsets[node];
 
-    KASSERT(
-        width == 0 || (start % width) == 0,
-        V(start) << V(width) << V(_offsets[node]) << V(_offsets[node + 1])
-    );
+    KASSERT(width == 0 || (start % width) == 0);
 
     switch (width) {
     case 1:
