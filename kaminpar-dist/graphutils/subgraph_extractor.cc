@@ -438,11 +438,6 @@ SharedGraphs exchange_subgraphs(
       const BlockID first_block_on_pe = compute_offset(pe);
       const BlockID first_invalid_block_on_pe = compute_offset(pe + 1);
 
-      KASSERT(
-          first_invalid_block_on_pe < recv_subgraph_displs.size(),
-          V(mpi::get_comm_rank(p_graph.communicator())) << V(pe)
-      );
-
       recvcounts_nodes[pe] = recv_subgraph_displs[first_invalid_block_on_pe].n -
                              recv_subgraph_displs[first_block_on_pe].n;
       recvcounts_edges[pe] = recv_subgraph_displs[first_invalid_block_on_pe].m -

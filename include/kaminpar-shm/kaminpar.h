@@ -24,7 +24,7 @@
 #include <tbb/global_control.h>
 
 #define KAMINPAR_VERSION_MAJOR 3
-#define KAMINPAR_VERSION_MINOR 4
+#define KAMINPAR_VERSION_MINOR 5
 #define KAMINPAR_VERSION_PATCH 1
 
 namespace kaminpar::shm {
@@ -654,7 +654,8 @@ Context create_esa21_largek_context();
 Context create_esa21_largek_fast_context();
 Context create_esa21_strong_context();
 
-Context create_mtkahypar_kway_coarsening();
+Context create_mtkahypar_kway_context();
+Context create_linear_time_kway_context();
 
 //
 // Graph compression interface

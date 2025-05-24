@@ -277,7 +277,10 @@ Container gather(const T &element, const int root, MPI_Comm comm) {
 
 template <typename Container>
 int gather(
-    const typename Container::value_type &element, Container &ans, const int root, MPI_Comm comm
+    const typename Container::value_type &element,
+    Container &ans,
+    [[maybe_unused]] const int root,
+    MPI_Comm comm
 ) {
   KASSERT(
       mpi::get_comm_rank(comm) != root || std::size(ans) == mpi::get_comm_size(comm),

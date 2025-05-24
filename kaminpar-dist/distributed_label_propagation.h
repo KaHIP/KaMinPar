@@ -690,10 +690,7 @@ protected:
         }
 
         // Invariant: cluster is a node with favored cluster C
-        KASSERT(
-            _favored_clusters[cluster] == C,
-            "invariant violated by: " << V(u) << V(cluster) << V(C) << V(_favored_clusters[C])
-        );
+        KASSERT(_favored_clusters[cluster] == C);
 
         // Try to join the cluster:
         if constexpr (match) {
@@ -943,8 +940,7 @@ protected:
     tbb::enumerable_thread_specific<NodeID> num_moved_nodes_ets;
 
     tbb::parallel_for(
-        tbb::blocked_range<NodeID>(from, std::min(_graph->n(), to)),
-        [&](const auto &r) {
+        tbb::blocked_range<NodeID>(from, std::min(_graph->n(), to)), [&](const auto &r) {
           EdgeID work_since_update = 0;
           NodeID num_removed_clusters = 0;
 
@@ -1175,9 +1171,7 @@ private:
       const std::size_t bucket_start = std::max(_graph->first_node_in_bucket(bucket), from);
 
       tbb::parallel_for(
-          static_cast<int>(0),
-          tbb::this_task_arena::max_concurrency(),
-          [&](const int) {
+          static_cast<int>(0), tbb::this_task_arena::max_concurrency(), [&](const int) {
             auto &chunks = chunks_ets.local();
             auto &num_chunks = num_chunks_ets.local();
 
@@ -1248,10 +1242,7 @@ private:
           }
 
           for (NodeID u = 0; u < to - from; ++u) {
-            KASSERT(
-                _graph->degree(u) == 0u || hit[u],
-                V(_graph->degree(u)) << V(from) << V(u + from) << V(to)
-            );
+            KASSERT(_graph->degree(u) == 0u || hit[u]);
           }
 
           return true;

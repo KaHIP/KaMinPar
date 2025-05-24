@@ -325,7 +325,7 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
       // node mapping points to the next coarse graph, hence we've seen all
       // nodes in the last cluster we now add it to the coarse graph
       if (node_mapping[u] != c_u) {
-        KASSERT(node_mapping[u] == c_u + 1, V(u) << V(node_mapping[u]) << V(c_u));
+        KASSERT(node_mapping[u] == c_u + 1);
 
         interleaved_handle_node(c_u, c_node_weights[c_u]);
         for (const auto c_v : _edge_weight_collector.used_entry_ids()) {

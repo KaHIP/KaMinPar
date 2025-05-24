@@ -696,7 +696,7 @@ TEST(GlobalGraphExtractionTest, project_from_circle_clique_graph_less_pes_than_b
   EXPECT_EQ(p_graph.k(), size);
 
   for (const NodeID u : p_graph.nodes()) {
-    EXPECT_TRUE(p_graph.block(u) % 2 == 0) << V(u) << V(p_graph.block(u));
+    EXPECT_TRUE(p_graph.block(u) % 2 == 0);
   }
 }
 

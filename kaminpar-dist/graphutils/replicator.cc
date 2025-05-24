@@ -368,7 +368,6 @@ DistributedGraph replicate_graph(const Graph &graph, const int num_replications)
     KASSERT(static_cast<std::size_t>(p + 1) < nodes_displs.size());
 
     tbb::parallel_for<NodeID>(nodes_displs[p], nodes_displs[p + 1], [&](const NodeID u) {
-      KASSERT(u < nodes.size(), V(p) << V(nodes_displs) << V(nodes.size()));
       nodes[u] += offset;
     });
   });

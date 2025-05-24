@@ -138,7 +138,7 @@ public:
           } else {
             auto &gcnode_to_block_handle = gcnode_to_block_handle_ets.local();
             auto it = gcnode_to_block_handle.find(gcnode + 1);
-            KASSERT(it != gcnode_to_block_handle.end(), V(gcnode));
+            KASSERT(it != gcnode_to_block_handle.end());
             f_partition[lnode] = (*it).second;
           }
         });
@@ -1018,9 +1018,6 @@ AssignmentShifts compute_assignment_shifts(
   KASSERT(
       [&] {
         if (pe_underload.back() != pe_overload.back()) {
-          LOG_WARNING << V(pe_underload) << V(pe_overload) << V(total_overload)
-                      << V(avg_cnode_count) << V(max_cnode_count) << V(min_load)
-                      << V(current_node_distribution) << V(current_cnode_distribution);
           return false;
         }
         return true;
@@ -1051,7 +1048,7 @@ void rebalance_cluster_placement(
       graph.node_distribution(), current_cnode_distribution, max_cnode_imbalance
   );
 
-  const PEID size = mpi::get_comm_size(graph.communicator());
+  [[maybe_unused]] const PEID size = mpi::get_comm_size(graph.communicator());
   const PEID rank = mpi::get_comm_rank(graph.communicator());
 
   graph.pfor_nodes_range([&](const auto &r) {

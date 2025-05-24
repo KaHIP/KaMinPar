@@ -41,7 +41,7 @@ std::vector<Candidate> reduce_candidates(
       std::vector<Candidate>{},
       [&](std::vector<Candidate> lhs, std::vector<Candidate> rhs) {
         // Precondition: candidates must be sorted by their from blocks
-        auto check_sorted_by_from = [](const auto &candidates) {
+        [[maybe_unused]] auto check_sorted_by_from = [](const auto &candidates) {
           for (std::size_t i = 1; i < candidates.size(); ++i) {
             if (candidates[i].from < candidates[i - 1].from) {
               return false;

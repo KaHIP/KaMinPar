@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "kaminpar"
-version = "3.4.1"
+version = "3.5.1"
 description = "Python Bindings for KaMinPar"
 requires-python = ">=3.9"
 readme = "README.md"

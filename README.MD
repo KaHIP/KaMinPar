@@ -246,5 +246,16 @@ If you use KaMinPar in an academic setting, please cite the appropriate publicat
       primaryClass={cs.DS},
       url={https://arxiv.org/abs/2410.19119}, 
 }
+
+// Worst-Case Linear-Time Multilevel Graph Partitioning
+@misc{LinearTimeMGP,
+      title={Linear-Time Multilevel Graph Partitioning via Edge Sparsification}, 
+      author={Lars Gottesbüren and Nikolai Maas and Dominik Rosch and Peter Sanders and Daniel Seemaier},
+      year={2025},
+      eprint={2504.17615},
+      archivePrefix={arXiv},
+      primaryClass={cs.DS},
+      url={https://arxiv.org/abs/2504.17615}, 
+}
 ```
 
