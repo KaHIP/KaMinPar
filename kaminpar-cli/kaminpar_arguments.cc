@@ -630,7 +630,6 @@ CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context 
           std::unordered_map<std::string, FlowAlgorithm>{
               {"edmonds-karp", FlowAlgorithm::EDMONDS_KARP},
               {"fifo-preflow-push", FlowAlgorithm::FIFO_PREFLOW_PUSH},
-              {"highest-level-preflow-push", FlowAlgorithm::HIGHEST_LEVEL_PREFLOW_PUSH},
           },
           CLI::ignore_case
       ))

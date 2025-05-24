@@ -18,60 +18,53 @@ PiercingHeuristic::PiercingHeuristic(
   compute_distances();
 }
 
-std::vector<NodeID> PiercingHeuristic::pierce_on_source_side(
-    const std::unordered_set<NodeID> &source_side_cut,
-    const std::unordered_set<NodeID> &sink_side_cut,
-    const std::unordered_set<NodeID> &sink_side_nodes,
-    NodeWeight max_piercing_node_weight
+ScalableVector<NodeID> PiercingHeuristic::pierce_on_source_side(
+    const NodeStatus &cut_status, const NodeStatus &terminal_status, NodeWeight max_weight
 ) {
   return find_piercing_node(
-      source_side_cut,
-      sink_side_cut,
-      sink_side_nodes,
-      _initial_source_side_nodes,
-      max_piercing_node_weight
+      cut_status, terminal_status, _initial_source_side_nodes, max_weight, true
   );
 }
 
-std::vector<NodeID> PiercingHeuristic::pierce_on_sink_side(
-    const std::unordered_set<NodeID> &sink_side_cut,
-    const std::unordered_set<NodeID> &source_side_cut,
-    const std::unordered_set<NodeID> &source_side_nodes,
-    NodeWeight max_piercing_node_weight
+ScalableVector<NodeID> PiercingHeuristic::pierce_on_sink_side(
+    const NodeStatus &cut_status, const NodeStatus &terminal_status, NodeWeight max_weight
 ) {
   return find_piercing_node(
-      sink_side_cut,
-      source_side_cut,
-      source_side_nodes,
-      _initial_sink_side_nodes,
-      max_piercing_node_weight
+      cut_status, terminal_status, _initial_sink_side_nodes, max_weight, false
   );
 }
 
-std::vector<NodeID> PiercingHeuristic::find_piercing_node(
-    const std::unordered_set<NodeID> &terminal_cut,
-    const std::unordered_set<NodeID> &other_terminal_cut,
-    const std::unordered_set<NodeID> &other_terminal_side_nodes,
+ScalableVector<NodeID> PiercingHeuristic::find_piercing_node(
+    const NodeStatus &cut_status,
+    const NodeStatus &terminal_status,
     const std::unordered_set<NodeID> &initial_terminal_side_nodes,
-    const NodeWeight max_piercing_node_weight
+    const NodeWeight max_weight,
+    const bool source_side
 ) {
-  std::vector<NodeID> piercing_nodes;
+  ScalableVector<NodeID> piercing_nodes;
   NodeWeight cur_weight = 0;
+
+  std::span<const NodeID> cut_nodes =
+      source_side ? cut_status.source_nodes() : cut_status.sink_nodes();
+
+  const std::uint8_t side_status = source_side ? NodeStatus::kSource : NodeStatus::kSink;
+  const std::uint8_t other_side_status = source_side ? NodeStatus::kSink : NodeStatus::kSource;
 
   NodeID cur_distance = 0;
   bool avoided_augmenting_path = false;
-  for (const NodeID u : terminal_cut) {
+  for (const NodeID u : cut_nodes) {
     _graph.adjacent_nodes(u, [&](const NodeID v) {
-      if (terminal_cut.contains(v) || other_terminal_side_nodes.contains(v)) {
+      if (cut_status.has_status(v, side_status) ||
+          terminal_status.has_status(v, other_side_status)) {
         return false;
       }
 
       const NodeWeight v_weight = _graph.node_weight(v);
-      if (cur_weight + v_weight > max_piercing_node_weight) {
+      if (cur_weight + v_weight > max_weight) {
         return false;
       }
 
-      const bool avoids_augmenting_path = !other_terminal_cut.contains(v);
+      const bool avoids_augmenting_path = !cut_status.has_status(v, other_side_status);
       const NodeID distance = initial_terminal_side_nodes.contains(v) ? _distance[v] : 0;
 
       if (piercing_nodes.empty()) {
@@ -114,7 +107,8 @@ std::vector<NodeID> PiercingHeuristic::find_piercing_node(
     NodeID cur_piercing_node = kInvalidNodeID;
 
     for (const NodeID u : _graph.nodes()) {
-      if (terminal_cut.contains(u) || other_terminal_side_nodes.contains(u)) {
+      if (cut_status.has_status(u, side_status) ||
+          terminal_status.has_status(u, other_side_status)) {
         continue;
       }
 

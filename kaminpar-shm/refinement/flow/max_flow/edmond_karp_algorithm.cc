@@ -4,15 +4,22 @@
 #include <limits>
 #include <queue>
 
-#include "kaminpar-shm/refinement/flow/util/reverse_edge_index.h"
-
 #include "kaminpar-common/assert.h"
 
 namespace kaminpar::shm {
 
-void EdmondsKarpAlgorithm::initialize(const CSRGraph &graph) {
+void EdmondsKarpAlgorithm::initialize(
+    const CSRGraph &graph,
+    std::span<const NodeID> reverse_edges,
+    const NodeID source,
+    const NodeID sink
+) {
   _graph = &graph;
-  _reverse_edge_index = compute_reverse_edge_index(graph);
+  _reverse_edges = reverse_edges;
+
+  _node_status.initialize(graph.n());
+  _node_status.add_source(source);
+  _node_status.add_sink(sink);
 
   _flow_value = 0;
 
@@ -26,23 +33,35 @@ void EdmondsKarpAlgorithm::initialize(const CSRGraph &graph) {
   }
 }
 
-void EdmondsKarpAlgorithm::reset() {
-  _flow_value = 0;
-  std::fill(_flow.begin(), _flow.end(), 0);
+void EdmondsKarpAlgorithm::add_sources([[maybe_unused]] std::span<const NodeID> sources) {
+  for (const NodeID u : sources) {
+    KASSERT(!_node_status.is_sink(u));
+
+    if (_node_status.is_unknown(u)) {
+      _node_status.add_source(u);
+    }
+  }
 }
 
-MaxFlowAlgorithm::Result EdmondsKarpAlgorithm::compute_max_flow(
-    const std::unordered_set<NodeID> &sources, const std::unordered_set<NodeID> &sinks
-) {
-  KASSERT(
-      debug::are_terminals_disjoint(sources, sinks),
-      "source and sink nodes are not disjoint",
-      assert::heavy
-  );
+void EdmondsKarpAlgorithm::add_sinks([[maybe_unused]] std::span<const NodeID> sinks) {
+  for (const NodeID u : sinks) {
+    KASSERT(!_node_status.is_source(u));
 
-  _sources = &sources;
-  _sinks = &sinks;
+    if (_node_status.is_unknown(u)) {
+      _node_status.add_sink(u);
+    }
+  }
+}
 
+void EdmondsKarpAlgorithm::pierce_nodes(std::span<const NodeID> nodes, const bool source_side) {
+  if (source_side) {
+    add_sources(nodes);
+  } else {
+    add_sinks(nodes);
+  }
+}
+
+MaxFlowAlgorithm::Result EdmondsKarpAlgorithm::compute_max_flow() {
   while (true) {
     auto [sink, net_flow] = find_augmenting_path();
 
@@ -53,27 +72,31 @@ MaxFlowAlgorithm::Result EdmondsKarpAlgorithm::compute_max_flow(
     augment_flow(sink, net_flow);
   }
 
-  IF_DBG debug::print_flow(*_graph, sources, sinks, _flow);
+  IF_DBG debug::print_flow(*_graph, _node_status, _flow);
 
   KASSERT(
-      debug::is_valid_flow(*_graph, sources, sinks, _flow),
+      debug::is_valid_flow(*_graph, _node_status, _flow),
       "computed an invalid flow using edmond-karp",
       assert::heavy
   );
 
   KASSERT(
-      debug::is_max_flow(*_graph, sources, sinks, _flow),
+      debug::is_max_flow(*_graph, _node_status, _flow),
       "computed a non-maximum flow using edmond-karp",
       assert::heavy
   );
 
   KASSERT(
-      _flow_value == debug::flow_value(*_graph, sources, _flow),
+      _flow_value == debug::flow_value(*_graph, _node_status, _flow),
       "computed an invalid flow value using edmond-karp",
       assert::heavy
   );
 
   return Result(_flow_value, _flow);
+}
+
+const NodeStatus &EdmondsKarpAlgorithm::node_status() const {
+  return _node_status;
 }
 
 std::pair<NodeID, EdgeWeight> EdmondsKarpAlgorithm::find_augmenting_path() {
@@ -82,7 +105,7 @@ std::pair<NodeID, EdgeWeight> EdmondsKarpAlgorithm::find_augmenting_path() {
   }
 
   std::queue<std::pair<NodeID, EdgeWeight>> bfs_queue;
-  for (const NodeID source : *_sources) {
+  for (const NodeID source : _node_status.source_nodes()) {
     bfs_queue.emplace(source, std::numeric_limits<EdgeWeight>::max());
     _predecessor[source] = {source, kInvalidEdgeID};
   }
@@ -104,7 +127,7 @@ std::pair<NodeID, EdgeWeight> EdmondsKarpAlgorithm::find_augmenting_path() {
         _predecessor[v] = {u, e};
 
         const EdgeWeight v_flow = std::min(u_flow, residual_capacity);
-        if (_sinks->contains(v)) {
+        if (_node_status.is_sink(v)) {
           net_flow = v_flow;
           sink = v;
           return true;
@@ -131,7 +154,7 @@ void EdmondsKarpAlgorithm::augment_flow(const NodeID sink, const EdgeWeight net_
     const auto [prev, edge] = _predecessor[cur];
 
     _flow[edge] += net_flow;
-    _flow[_reverse_edge_index[edge]] -= net_flow;
+    _flow[_reverse_edges[edge]] -= net_flow;
 
     cur = prev;
   }

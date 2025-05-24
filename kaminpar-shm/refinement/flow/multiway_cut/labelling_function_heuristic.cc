@@ -6,7 +6,7 @@
 
 #include "kaminpar-shm/refinement/flow/max_flow/edmond_karp_algorithm.h"
 #include "kaminpar-shm/refinement/flow/max_flow/fifo_preflow_push_algorithm.h"
-#include "kaminpar-shm/refinement/flow/max_flow/highest_level_preflow_push_algorithm.h"
+#include "kaminpar-shm/refinement/flow/util/reverse_edge_index.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/static_array.h"
@@ -25,10 +25,6 @@ LabellingFunctionHeuristic::LabellingFunctionHeuristic(const LabellingFunctionHe
   case FlowAlgorithm::FIFO_PREFLOW_PUSH:
     _max_flow_algorithm = std::make_unique<FIFOPreflowPushAlgorithm>(ctx.fifo_preflow_push);
     break;
-  case FlowAlgorithm::HIGHEST_LEVEL_PREFLOW_PUSH:
-    _max_flow_algorithm =
-        std::make_unique<HighestLevelPreflowPushAlgorithm>(ctx.highest_level_preflow_push);
-    break;
   }
 }
 
@@ -36,6 +32,7 @@ MultiwayCutAlgorithm::Result LabellingFunctionHeuristic::compute(
     const CSRGraph &graph, const std::vector<std::unordered_set<NodeID>> &terminal_sets
 ) {
   _graph = &graph;
+  _reverse_edge_index = compute_reverse_edge_index(graph);
 
   _terminals.clear();
   for (const auto &terminals : terminal_sets) {
@@ -63,6 +60,7 @@ MultiwayCutAlgorithm::Result LabellingFunctionHeuristic::compute(
     const std::vector<std::unordered_set<NodeID>> &terminal_sets
 ) {
   _graph = &graph;
+  _reverse_edge_index = compute_reverse_edge_index(graph);
 
   _terminals.clear();
   for (const auto &terminals : terminal_sets) {
@@ -151,18 +149,18 @@ void LabellingFunctionHeuristic::improve_labelling_function() {
 
     for (BlockID terminal = 0; terminal < num_terminals; ++terminal) {
       FlowNetwork flow_network = construct_flow_network(terminal);
-      std::unordered_set<NodeID> sources{flow_network.source};
-      std::unordered_set<NodeID> sinks{flow_network.sink};
 
       DBG << "Constructed a flow network with n=" << flow_network.graph.n()
           << " and m=" << flow_network.graph.m();
 
       TIMED_SCOPE("Initialize Max Flow Algorithm") {
-        _max_flow_algorithm->initialize(flow_network.graph);
+        _max_flow_algorithm->initialize(
+            flow_network.graph, _reverse_edge_index, flow_network.source, flow_network.sink
+        );
       };
 
       const auto [cost, flow] = TIMED_SCOPE("Compute Max Flow") {
-        return _max_flow_algorithm->compute_max_flow(sources, sinks);
+        return _max_flow_algorithm->compute_max_flow();
       };
       DBG << "Computed a labelling function with cost " << cost;
 

@@ -4,15 +4,22 @@
 #include <queue>
 #include <utility>
 
-#include "kaminpar-shm/refinement/flow/util/reverse_edge_index.h"
-
 namespace kaminpar::shm {
 
 FIFOPreflowPushAlgorithm::FIFOPreflowPushAlgorithm(const FIFOPreflowPushContext &ctx) : _ctx(ctx) {}
 
-void FIFOPreflowPushAlgorithm::initialize(const CSRGraph &graph) {
+void FIFOPreflowPushAlgorithm::initialize(
+    const CSRGraph &graph,
+    std::span<const NodeID> reverse_edges,
+    const NodeID source,
+    const NodeID sink
+) {
   _graph = &graph;
-  _reverse_edge_index = compute_reverse_edge_index(graph);
+  _reverse_edges = reverse_edges;
+
+  _node_status.initialize(graph.n());
+  _node_status.add_source(source);
+  _node_status.add_sink(sink);
 
   _flow_value = 0;
 
@@ -31,34 +38,51 @@ void FIFOPreflowPushAlgorithm::initialize(const CSRGraph &graph) {
   if (_cur_edge_offsets.size() < graph.n()) {
     _cur_edge_offsets.resize(graph.n(), static_array::noinit);
   }
+  std::fill_n(_cur_edge_offsets.begin(), graph.n(), 0);
 
   if (_heights.size() < graph.n()) {
     _heights.resize(graph.n(), static_array::noinit);
   }
-}
 
-void FIFOPreflowPushAlgorithm::reset() {
-  _flow_value = 0;
-  std::fill(_flow.begin(), _flow.end(), 0);
-
-  std::fill_n(_excess.begin(), _graph->n(), 0);
-}
-
-MaxFlowAlgorithm::Result FIFOPreflowPushAlgorithm::compute_max_flow(
-    const std::unordered_set<NodeID> &sources, const std::unordered_set<NodeID> &sinks
-) {
-  KASSERT(
-      debug::are_terminals_disjoint(sources, sinks),
-      "source and sink nodes are not disjoint",
-      assert::heavy
-  );
-
-  _sources = &sources;
-  _sinks = &sinks;
-
-  saturate_source_edges();
+  saturate_source_edges(_node_status.source_nodes());
   global_relabel();
+}
 
+void FIFOPreflowPushAlgorithm::add_sources(std::span<const NodeID> sources) {
+  for (const NodeID u : sources) {
+    KASSERT(!_node_status.is_sink(u));
+
+    if (_node_status.is_unknown(u)) {
+      _node_status.add_source(u);
+    }
+  }
+}
+
+void FIFOPreflowPushAlgorithm::add_sinks(std::span<const NodeID> sinks) {
+  for (const NodeID u : sinks) {
+    KASSERT(!_node_status.is_source(u));
+
+    if (_node_status.is_unknown(u)) {
+      _node_status.add_sink(u);
+    }
+  }
+}
+
+void FIFOPreflowPushAlgorithm::pierce_nodes(std::span<const NodeID> nodes, const bool source_side) {
+  if (source_side) {
+    add_sources(nodes);
+
+    constexpr bool kSetSourceHeight = true;
+    saturate_source_edges<kSetSourceHeight>(nodes);
+  } else {
+    add_sinks(nodes);
+
+    saturate_source_edges(_node_status.source_nodes());
+    global_relabel();
+  }
+}
+
+MaxFlowAlgorithm::Result FIFOPreflowPushAlgorithm::compute_max_flow() {
   while (!_active_nodes.empty()) {
     const NodeID u = _active_nodes.front();
     _active_nodes.pop();
@@ -70,22 +94,22 @@ MaxFlowAlgorithm::Result FIFOPreflowPushAlgorithm::compute_max_flow(
     }
   }
 
-  IF_DBG debug::print_flow(*_graph, sources, sinks, _flow);
+  IF_DBG debug::print_flow(*_graph, _node_status, _flow);
 
   KASSERT(
-      debug::is_valid_flow(*_graph, sources, sinks, _flow),
+      debug::is_valid_flow(*_graph, _node_status, _flow),
       "computed an invalid flow using preflow-push",
       assert::heavy
   );
 
   KASSERT(
-      debug::is_max_flow(*_graph, sources, sinks, _flow),
+      debug::is_max_flow(*_graph, _node_status, _flow),
       "computed a non-maximum flow using preflow-push",
       assert::heavy
   );
 
   KASSERT(
-      _flow_value == debug::flow_value(*_graph, sources, _flow),
+      _flow_value == debug::flow_value(*_graph, _node_status, _flow),
       "computed an invalid flow value using preflow-push",
       assert::heavy
   );
@@ -93,22 +117,27 @@ MaxFlowAlgorithm::Result FIFOPreflowPushAlgorithm::compute_max_flow(
   return Result(_flow_value, _flow);
 }
 
-void FIFOPreflowPushAlgorithm::saturate_source_edges() {
-  std::fill_n(_cur_edge_offsets.begin(), _graph->n(), 0);
+const NodeStatus &FIFOPreflowPushAlgorithm::node_status() const {
+  return _node_status;
+}
 
-  for (const NodeID source : *_sources) {
+template <bool kSetSourceHeight>
+void FIFOPreflowPushAlgorithm::saturate_source_edges(std::span<const NodeID> sources) {
+  for (const NodeID source : sources) {
+    if constexpr (kSetSourceHeight) {
+      _heights[source] = _graph->n();
+    }
+
     _graph->neighbors(source, [&](const EdgeID e, const NodeID v, const EdgeWeight c) {
-      if (_sources->contains(v)) {
+      if (_node_status.is_source(v)) {
         return;
       }
 
       const EdgeWeight e_flow = _flow[e];
-      const EdgeWeight residual_capacity = // Prevent overflow, TODO: different solution?
-          (c == std::numeric_limits<EdgeWeight>::max() && e_flow < 0)
-              ? std::numeric_limits<EdgeWeight>::max()
-              : c - e_flow;
+      const EdgeWeight residual_capacity = c - e_flow;
 
-      push(source, v, e, residual_capacity);
+      constexpr bool kFromSource = true;
+      push<kFromSource>(source, v, e, residual_capacity);
     });
   }
 }
@@ -121,7 +150,7 @@ void FIFOPreflowPushAlgorithm::global_relabel() {
   std::fill_n(_heights.begin(), num_nodes, max_level);
 
   std::queue<std::pair<NodeID, NodeID>> bfs_queue;
-  for (const NodeID terminal : *_sinks) {
+  for (const NodeID terminal : _node_status.sink_nodes()) {
     _heights[terminal] = 0;
     bfs_queue.emplace(terminal, 0);
   }
@@ -132,8 +161,7 @@ void FIFOPreflowPushAlgorithm::global_relabel() {
 
     const NodeID v_height = u_height + 1;
     _graph->neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight c) {
-      if (_sources->contains(v) || _sinks->contains(v) || _heights[v] != max_level ||
-          -_flow[e] == c) {
+      if (_node_status.is_terminal(v) || _heights[v] != max_level || -_flow[e] == c) {
         return;
       }
 
@@ -142,7 +170,7 @@ void FIFOPreflowPushAlgorithm::global_relabel() {
     });
   }
 
-  for (const NodeID source : *_sources) {
+  for (const NodeID source : _node_status.source_nodes()) {
     _heights[source] = num_nodes;
   }
 }
@@ -167,10 +195,7 @@ void FIFOPreflowPushAlgorithm::discharge(const NodeID u) {
       const EdgeWeight e_flow = _flow[e];
       const EdgeWeight e_capacity = _graph->edge_weight(e);
 
-      const EdgeWeight residual_capacity = // Prevent overflow, TODO: different solution?
-          (e_capacity == std::numeric_limits<EdgeWeight>::max() && e_flow < 0)
-              ? std::numeric_limits<EdgeWeight>::max()
-              : e_capacity - e_flow;
+      const EdgeWeight residual_capacity = e_capacity - e_flow;
       if (residual_capacity > 0 && u_height > _heights[v]) {
         push(u, v, e, residual_capacity);
       }
@@ -180,10 +205,11 @@ void FIFOPreflowPushAlgorithm::discharge(const NodeID u) {
   }
 }
 
+template <bool kFromSource>
 void FIFOPreflowPushAlgorithm::push(
     const NodeID from, const NodeID to, const EdgeID e, const EdgeWeight residual_capacity
 ) {
-  const bool from_source = _sources->contains(from);
+  const bool from_source = kFromSource ? true : _node_status.is_source(from);
   const EdgeWeight flow =
       from_source ? residual_capacity : std::min(_excess[from], residual_capacity);
 
@@ -192,7 +218,7 @@ void FIFOPreflowPushAlgorithm::push(
   }
 
   _flow[e] += flow;
-  _flow[_reverse_edge_index[e]] -= flow;
+  _flow[_reverse_edges[e]] -= flow;
 
   const EdgeWeight to_prev_excess = _excess[to];
   _excess[to] = to_prev_excess + flow;
@@ -201,12 +227,12 @@ void FIFOPreflowPushAlgorithm::push(
   if (from_source) {
     _flow_value += flow;
   }
-  if (_sources->contains(to)) {
+  if (_node_status.is_source(to)) {
     _flow_value -= flow;
   }
 
   const bool to_was_inactive = to_prev_excess == 0;
-  if (to_was_inactive && !_sources->contains(to) && !_sinks->contains(to)) {
+  if (to_was_inactive && !_node_status.is_terminal(to)) {
     _active_nodes.push(to);
   }
 }

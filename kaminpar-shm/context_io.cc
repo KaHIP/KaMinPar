@@ -351,8 +351,6 @@ std::ostream &operator<<(std::ostream &out, FlowAlgorithm algorithm) {
     return out << "edmonds-karp";
   case FlowAlgorithm::FIFO_PREFLOW_PUSH:
     return out << "fifo-preflow-push";
-  case FlowAlgorithm::HIGHEST_LEVEL_PREFLOW_PUSH:
-    return out << "highest-level-preflow-push";
   }
 
   return out << "<invalid>";
@@ -362,7 +360,6 @@ std::unordered_map<std::string, FlowAlgorithm> get_flow_algorithms() {
   return {
       {"edmonds-karp", FlowAlgorithm::EDMONDS_KARP},
       {"fifo-preflow-push", FlowAlgorithm::FIFO_PREFLOW_PUSH},
-      {"highest-level-preflow-push", FlowAlgorithm::HIGHEST_LEVEL_PREFLOW_PUSH},
   };
 }
 
@@ -550,17 +547,6 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
           << "\n";
       out << "    Global relabeling freq.:  "
           << r_ctx.twoway_flow.fifo_preflow_push.global_relabeling_frequency << "\n";
-    } else if (r_ctx.twoway_flow.flow_algorithm == FlowAlgorithm::HIGHEST_LEVEL_PREFLOW_PUSH) {
-      out << "    Two Phase:                "
-          << (r_ctx.twoway_flow.highest_level_preflow_push.two_phase ? "yes" : "no") << "\n";
-      out << "    Gap heuristic:            "
-          << (r_ctx.twoway_flow.highest_level_preflow_push.gap_heuristic ? "yes" : "no") << "\n";
-      out << "    Global relabeling:        "
-          << (r_ctx.twoway_flow.highest_level_preflow_push.global_relabeling_heuristic ? "yes"
-                                                                                       : "no")
-          << "\n";
-      out << "    Global relabeling freq.:  "
-          << r_ctx.twoway_flow.highest_level_preflow_push.global_relabeling_frequency << "\n";
     }
 
     out << "  Unconstrained:              " << (r_ctx.twoway_flow.unconstrained ? "yes" : "no")

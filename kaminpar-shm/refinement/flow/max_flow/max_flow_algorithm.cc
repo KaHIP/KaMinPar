@@ -12,19 +12,8 @@
 
 namespace kaminpar::shm::debug {
 
-bool are_terminals_disjoint(
-    const std::unordered_set<NodeID> &sources, const std::unordered_set<NodeID> &sinks
-) {
-  return std::all_of(sources.begin(), sources.end(), [&](const NodeID u) {
-    return !sinks.contains(u);
-  });
-}
-
 bool is_valid_flow(
-    const CSRGraph &graph,
-    const std::unordered_set<NodeID> &sources,
-    const std::unordered_set<NodeID> &sinks,
-    std::span<const EdgeWeight> flow
+    const CSRGraph &graph, const NodeStatus &node_status, std::span<const EdgeWeight> flow
 ) {
   if (graph.m() != flow.size()) {
     LOG_WARNING << "Flow size does not equal the number of edges";
@@ -73,7 +62,7 @@ bool is_valid_flow(
   }
 
   for (const NodeID u : graph.nodes()) {
-    if (sources.contains(u) || sinks.contains(u)) {
+    if (node_status.is_terminal(u)) {
       continue;
     }
 
@@ -86,16 +75,13 @@ bool is_valid_flow(
   return is_valid;
 }
 
-EdgeWeight flow_value(
-    const CSRGraph &graph,
-    const std::unordered_set<NodeID> &sources,
-    std::span<const EdgeWeight> flow
-) {
+EdgeWeight
+flow_value(const CSRGraph &graph, const NodeStatus &node_status, std::span<const EdgeWeight> flow) {
   EdgeWeight flow_value = 0;
 
-  for (const NodeID source : sources) {
+  for (const NodeID source : node_status.source_nodes()) {
     graph.neighbors(source, [&](const EdgeID e, const NodeID v) {
-      if (sources.contains(v)) {
+      if (node_status.is_source(v)) {
         return;
       }
 
@@ -107,10 +93,7 @@ EdgeWeight flow_value(
 }
 
 bool is_max_flow(
-    const CSRGraph &graph,
-    const std::unordered_set<NodeID> &sources,
-    const std::unordered_set<NodeID> &sinks,
-    std::span<const EdgeWeight> flow
+    const CSRGraph &graph, const NodeStatus &node_status, std::span<const EdgeWeight> flow
 ) {
   if (graph.m() != flow.size()) {
     LOG_WARNING << "Flow size does not equal the number of edges";
@@ -119,7 +102,7 @@ bool is_max_flow(
 
   std::unordered_set<NodeID> visited;
   std::queue<NodeID> bfs_queue;
-  for (const NodeID source : sources) {
+  for (const NodeID source : node_status.source_nodes()) {
     bfs_queue.push(source);
     visited.insert(source);
   }
@@ -128,7 +111,7 @@ bool is_max_flow(
     const NodeID u = bfs_queue.front();
     bfs_queue.pop();
 
-    if (sinks.contains(u)) {
+    if (node_status.is_sink(u)) {
       return false;
     }
 
@@ -149,18 +132,15 @@ bool is_max_flow(
 }
 
 void print_flow(
-    const CSRGraph &graph,
-    const std::unordered_set<NodeID> &sources,
-    const std::unordered_set<NodeID> &sinks,
-    std::span<const EdgeWeight> flow
+    const CSRGraph &graph, const NodeStatus &node_status, std::span<const EdgeWeight> flow
 ) {
   for (const NodeID u : graph.nodes()) {
     graph.neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight c) {
       std::cout << u << " -> " << v << ": " << flow[e] << "/" << c;
 
-      if (sources.contains(u)) {
+      if (node_status.is_source(u)) {
         std::cout << " (source)";
-      } else if (sinks.contains(u)) {
+      } else if (node_status.is_sink(u)) {
         std::cout << " (sink)";
       }
 

@@ -42,6 +42,8 @@ private:
   const LabellingFunctionHeuristicContext &_ctx;
 
   const CSRGraph *_graph;
+  StaticArray<EdgeID> _reverse_edge_index;
+
   std::unordered_set<NodeID> _terminals;
   std::unordered_map<NodeID, BlockID> _terminal_labels;
 

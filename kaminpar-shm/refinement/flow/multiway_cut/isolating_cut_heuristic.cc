@@ -7,7 +7,6 @@
 
 #include "kaminpar-shm/refinement/flow/max_flow/edmond_karp_algorithm.h"
 #include "kaminpar-shm/refinement/flow/max_flow/fifo_preflow_push_algorithm.h"
-#include "kaminpar-shm/refinement/flow/max_flow/highest_level_preflow_push_algorithm.h"
 #include "kaminpar-shm/refinement/flow/util/reverse_edge_index.h"
 
 #include "kaminpar-common/assert.h"
@@ -22,10 +21,6 @@ IsolatingCutHeuristic::IsolatingCutHeuristic(const IsolatingCutHeuristicContext 
     break;
   case FlowAlgorithm::FIFO_PREFLOW_PUSH:
     _max_flow_algorithm = std::make_unique<FIFOPreflowPushAlgorithm>(ctx.fifo_preflow_push);
-    break;
-  case FlowAlgorithm::HIGHEST_LEVEL_PREFLOW_PUSH:
-    _max_flow_algorithm =
-        std::make_unique<HighestLevelPreflowPushAlgorithm>(ctx.highest_level_preflow_push);
     break;
   }
 }
@@ -47,15 +42,14 @@ MultiwayCutAlgorithm::Result IsolatingCutHeuristic::compute(
 
   Cut cur_max_weighted_cut(std::numeric_limits<EdgeWeight>::min(), {});
 
-  _max_flow_algorithm->initialize(graph);
   for (const std::unordered_set<NodeID> &terminals : terminal_sets) {
     for (const NodeID terminal : terminals) {
       other_terminals.erase(terminal);
     }
 
-    _max_flow_algorithm->reset();
+    // _max_flow_algorithm->initialize(graph, _reverse_edge_index); TODO
     const auto [flow_value, flow] = TIMED_SCOPE("Compute Max Flow") {
-      return _max_flow_algorithm->compute_max_flow(terminals, other_terminals);
+      return _max_flow_algorithm->compute_max_flow();
     };
 
     Cut cut = compute_cut(terminals, flow);

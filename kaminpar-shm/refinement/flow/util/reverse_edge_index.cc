@@ -38,7 +38,42 @@ namespace kaminpar::shm {
     });
   }
 
+  KASSERT(
+      debug::is_valid_reverse_edge_index(graph, index),
+      "constructed an invalid reverse edge index",
+      assert::heavy
+  );
+
   return index;
 }
+
+namespace debug {
+
+bool is_valid_reverse_edge_index(const CSRGraph &graph, std::span<const NodeID> reverse_edges) {
+  bool is_valid = true;
+
+  for (const NodeID u : graph.nodes()) {
+    graph.neighbors(u, [&](const EdgeID e, const NodeID v) {
+      const EdgeID e_start = graph.first_edge(v);
+      const EdgeID e_last = graph.first_invalid_edge(v);
+      const EdgeID e_reverse = reverse_edges[e];
+
+      if (e_reverse < e_start || e_reverse >= e_last) {
+        LOG_WARNING << "Reverse edge of " << u << " -> " << v << " does not start from " << v;
+        is_valid = false;
+        return;
+      }
+
+      if (graph.edge_target(e_reverse) != u) {
+        LOG_WARNING << "Reverse edge of " << u << " -> " << v << " does not end in " << u;
+        is_valid = false;
+      }
+    });
+  }
+
+  return is_valid;
+}
+
+} // namespace debug
 
 } // namespace kaminpar::shm

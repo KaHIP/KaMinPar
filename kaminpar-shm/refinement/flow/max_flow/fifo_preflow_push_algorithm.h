@@ -2,11 +2,14 @@
 
 #include <limits>
 #include <queue>
-#include <unordered_set>
+#include <span>
+
+#include "kaminpar.h"
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/refinement/flow/max_flow/max_flow_algorithm.h"
+#include "kaminpar-shm/refinement/flow/util/node_status.h"
 
 #include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/datastructures/static_array.h"
@@ -48,21 +51,29 @@ public:
   FIFOPreflowPushAlgorithm(const FIFOPreflowPushContext &ctx);
   ~FIFOPreflowPushAlgorithm() override = default;
 
-  void initialize(const CSRGraph &graph) override;
-
-  void reset() override;
-
-  Result compute_max_flow(
-      const std::unordered_set<NodeID> &sources, const std::unordered_set<NodeID> &sinks
+  void initialize(
+      const CSRGraph &graph, std::span<const NodeID> reverse_edges, NodeID source, NodeID sink
   ) override;
 
+  void add_sources(std::span<const NodeID> sources) override;
+
+  void add_sinks(std::span<const NodeID> sinks) override;
+
+  void pierce_nodes(std::span<const NodeID> nodes, bool source_side) override;
+
+  Result compute_max_flow() override;
+
+  const NodeStatus &node_status() const override;
+
 private:
-  void saturate_source_edges();
+  template <bool kSetSourceHeight = false>
+  void saturate_source_edges(std::span<const NodeID> sources);
 
   void global_relabel();
 
   void discharge(NodeID u);
 
+  template <bool kFromSource = false>
   void push(NodeID from, NodeID to, EdgeID e, EdgeWeight residual_capacity);
 
   NodeID relabel(NodeID u);
@@ -71,10 +82,9 @@ private:
   const FIFOPreflowPushContext _ctx;
 
   const CSRGraph *_graph;
-  StaticArray<EdgeID> _reverse_edge_index;
+  std::span<const NodeID> _reverse_edges;
 
-  const std::unordered_set<NodeID> *_sources;
-  const std::unordered_set<NodeID> *_sinks;
+  NodeStatus _node_status;
 
   EdgeWeight _flow_value;
   StaticArray<EdgeWeight> _flow;

@@ -262,7 +262,6 @@ struct KwayFMRefinementContext {
 enum class FlowAlgorithm {
   EDMONDS_KARP,
   FIFO_PREFLOW_PUSH,
-  HIGHEST_LEVEL_PREFLOW_PUSH,
 };
 
 struct FIFOPreflowPushContext {
