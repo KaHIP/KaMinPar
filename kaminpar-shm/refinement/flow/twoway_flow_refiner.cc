@@ -20,8 +20,9 @@
 #include <tbb/parallel_for.h>
 
 #ifdef KAMINPAR_WHFC_FOUND
+#include "assert.h"
 #include "algorithm/hyperflowcutter.h"
-#include "algorithm/parallel_push_relabel.h"
+#include "algorithm/sequential_push_relabel.h"
 #include "datastructure/flow_hypergraph_builder.h"
 #include "definitions.h"
 #endif
@@ -456,7 +457,7 @@ private:
     STOP_TIMER();
 
     START_TIMER("Run HyperFlowCutter");
-    whfc::HyperFlowCutter<whfc::ParallelPushRelabel> flow_cutter(hypergraph, 1);
+    whfc::HyperFlowCutter<whfc::SequentialPushRelabel> flow_cutter(hypergraph, 1);
     flow_cutter.forceSequential(true);
     flow_cutter.setBulkPiercing(false);
 
