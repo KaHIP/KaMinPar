@@ -31,6 +31,7 @@ option(KAMINPAR_BUILD_EXAMPLES "Build examples." OFF)
 option(KAMINPAR_BUILD_EXPERIMENTAL_FEATURES "Include experimental features in the build. This might increase compile times drastically." OFF)
 
 option(KAMINPAR_DOWNLOAD_TBB "Download TBB instead of requiring it to be installed." OFF)
+option(KAMINPAR_DOWNLOAD_GTEST "Download GoogleTest instead of requiring it to be installed." OFF)
 
 # Control how to build
 ######################
@@ -317,21 +318,14 @@ include(FetchContent)
 
 find_library(NUMA_LIB numa)
 
-# Fetch KAssert for assertions
-if (KAMINPAR_BUILD_WITH_KASSERT)
-    FetchContent_Declare(
-        kassert
-        GIT_REPOSITORY https://github.com/kamping-site/kassert.git
-        GIT_TAG 988b7d54b79ae6634f2fcc53a0314fb1cf2c6a23
-        EXCLUDE_FROM_ALL
-        UPDATE_DISCONNECTED TRUE
-    )
-    FetchContent_MakeAvailable(kassert)
-
-    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_KASSERT_FOUND")
+if (KAMINPAR_BUILD_WITH_CCACHE)
+    find_program(CCACHE_PROGRAM ccache)
+    if (CCACHE_PROGRAM)
+        set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+    endif ()
 endif ()
 
-# Intel TBB
+# We use Intel' TBB as a parallelization library
 if (KAMINPAR_DOWNLOAD_TBB)
     FetchContent_Declare(
         TBB
@@ -346,21 +340,39 @@ else ()
     find_package(TBB REQUIRED)
 endif ()
 
-# Google Sparsehash
+# We use Google Sparsehash for hash tables
 if (KAMINPAR_BUILD_WITH_SPARSEHASH)
     find_package(Sparsehash REQUIRED)
     list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_SPARSEHASH_FOUND")
 endif ()
 
-if (KAMINPAR_BUILD_WITH_CCACHE)
-    find_program(CCACHE_PROGRAM ccache)
-    if (CCACHE_PROGRAM)
-        set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+# We use KAssert for assertions
+if (KAMINPAR_BUILD_WITH_KASSERT)
+    FetchContent_Declare(
+        kassert
+        GIT_REPOSITORY https://github.com/kamping-site/kassert.git
+        GIT_TAG 988b7d54b79ae6634f2fcc53a0314fb1cf2c6a23
+        EXCLUDE_FROM_ALL
+        UPDATE_DISCONNECTED TRUE
+    )
+    FetchContent_MakeAvailable(kassert)
+
+    list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_KASSERT_FOUND")
+endif ()
+
+# We optionally use Mt-KaHyPar as an initial partitioner and refiner
+if (KAMINPAR_BUILD_WITH_MTKAHYPAR)
+    find_library(LIB_MTKAHYPAR_GRAPH mtkahypar)
+    if (NOT LIB_MTKAHYPAR_GRAPH)
+        message(STATUS "Mt-KaHyPar initial partitioning not available: library could not be found on this system")
+        set(KAMINPAR_BUILD_WITH_MTKAHYPAR OFF)
+    else ()
+        message(STATUS "Found Mt-KaHyPar at ${LIB_MTKAHYPAR_GRAPH}")
     endif ()
 endif ()
 
 if (KAMINPAR_BUILD_DISTRIBUTED)
-    # MPI
+    # We use MPI for message passing
     set(MPI_DETERMINE_LIBRARY_VERSION TRUE)
     find_package(MPI)
     if (NOT MPI_FOUND) 
@@ -368,11 +380,12 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
         set(KAMINPAR_BUILD_DISTRIBUTED OFF)
     endif ()
 
-    # Growt
+    # We use Growt for dynamically growing concurrent hash tables
     add_subdirectory(external/growt EXCLUDE_FROM_ALL)
     add_library(growt INTERFACE)
     target_include_directories(growt SYSTEM INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/external/growt>)
 
+    # We optionally use Backward for pretty-printing stack traces
     if (KAMINPAR_BUILD_WITH_BACKWARD)
         FetchContent_Declare(
             Backward
@@ -385,18 +398,7 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
     endif ()
 endif ()
 
-# If we can find Mt-KaHyPar, make it available for initial partitioning and refinement
-if (KAMINPAR_BUILD_WITH_MTKAHYPAR)
-    find_library(LIB_MTKAHYPAR_GRAPH mtkahypar)
-    if (NOT LIB_MTKAHYPAR_GRAPH)
-        message(STATUS "Mt-KaHyPar initial partitioning not available: library could not be found on this system")
-        set(KAMINPAR_BUILD_WITH_MTKAHYPAR OFF)
-    else ()
-        message(STATUS "Found Mt-KaHyPar at ${LIB_MTKAHYPAR_GRAPH}")
-    endif ()
-endif ()
-
-# Fetch minimal KaGen for graph IO
+# We use KaGen for distributed graph IO
 if ((KAMINPAR_BUILD_DISTRIBUTED AND KAMINPAR_BUILD_APPS) OR KAMINPAR_BUILD_BENCHMARKS)
     FetchContent_Declare(
         KaGen
@@ -414,17 +416,22 @@ if ((KAMINPAR_BUILD_DISTRIBUTED AND KAMINPAR_BUILD_APPS) OR KAMINPAR_BUILD_BENCH
     FetchContent_MakeAvailable(KaGen)
 endif ()
 
-# Fetch Google Test for unit tests
+# We use GoogleTest for unit tests
 if ((CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME OR KAMINPAR_BUILD_TESTS) AND BUILD_TESTING)
-    FetchContent_Declare(
-        googletest
-        GIT_REPOSITORY https://github.com/google/googletest.git
-        GIT_TAG 5a37b517ad4ab6738556f0284c256cae1466c5b4
-        EXCLUDE_FROM_ALL
-        UPDATE_DISCONNECTED TRUE
-    )
-    set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
-    FetchContent_MakeAvailable(googletest)
+    if (KAMINPAR_DOWNLOAD_GTEST)
+        FetchContent_Declare(
+            googletest
+            GIT_REPOSITORY https://github.com/google/googletest.git
+            GIT_TAG 5a37b517ad4ab6738556f0284c256cae1466c5b4
+            EXCLUDE_FROM_ALL
+            UPDATE_DISCONNECTED TRUE
+        )
+        set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+        FetchContent_MakeAvailable(googletest)
+    else ()
+        find_package(GTest REQUIRED)
+        include(GoogleTest)
+    endif ()
 endif ()
 
 ################################################################################

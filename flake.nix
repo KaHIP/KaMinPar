@@ -11,56 +11,45 @@
       pkgs = import nixpkgs { inherit system; };
       lib = pkgs.lib;
 
-      kaminpar =
-        let
-          google-test-src = pkgs.fetchFromGitHub {
-            owner = "google";
-            repo = "googletest";
-            rev = "5a37b517ad4ab6738556f0284c256cae1466c5b4";
-            hash = "sha256-uwdRrw79be2N1bBILeVa6q/hzx8MXUG8dcR4DU/cskw=";
-          };
-        in
-        pkgs.stdenv.mkDerivation (finalAttrs: {
-          pname = "kaminpar";
-          version = "3.5.1";
+      kaminpar = pkgs.stdenv.mkDerivation (finalAttrs: {
+        pname = "kaminpar";
+        version = "3.5.1";
 
-          src = self;
+        src = self;
+        strictDeps = true;
 
-          doCheck = true;
-          strictDeps = true;
+        nativeBuildInputs = builtins.attrValues {
+          inherit (pkgs) cmake mpi;
+        };
 
-          nativeBuildInputs = builtins.attrValues {
-            inherit (pkgs) git pkg-config cmake mpi;
-          };
+        buildInputs = [ pkgs.gtest ] ++ pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.numactl;
 
-          propagatedBuildInputs = builtins.attrValues {
-            inherit (pkgs) tbb_2022_0 sparsehash mpi;
-            inherit mt-kahypar;
-          };
+        propagatedBuildInputs = builtins.attrValues {
+          inherit (pkgs) mpi tbb_2022_0 sparsehash;
+          inherit mt-kahypar;
+        };
 
-          buildInputs = pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.numactl;
+        cmakeFlags = [
+          (lib.cmakeBool "KAMINPAR_BUILD_DISTRIBUTED" true)
+          (lib.cmakeBool "KAMINPAR_BUILD_WITH_MTUNE_NATIVE" false)
+          (lib.cmakeBool "FETCHCONTENT_FULLY_DISCONNECTED" true)
+          (lib.cmakeFeature "FETCHCONTENT_SOURCE_DIR_KASSERT" "${kassert-src}")
+          (lib.cmakeFeature "FETCHCONTENT_SOURCE_DIR_KAGEN" "${kagen-src}")
+        ];
 
-          __darwinAllowLocalNetworking = true;
-          nativeCheckInputs = [ pkgs.mpiCheckPhaseHook ];
+        doCheck = true;
+        __darwinAllowLocalNetworking = true;
+        nativeCheckInputs = [ pkgs.mpiCheckPhaseHook ];
 
-          cmakeFlags = [
-            (lib.cmakeBool "KAMINPAR_BUILD_DISTRIBUTED" true)
-            (lib.cmakeBool "KAMINPAR_BUILD_WITH_MTUNE_NATIVE" false)
-            (lib.cmakeBool "FETCHCONTENT_FULLY_DISCONNECTED" true)
-            (lib.cmakeFeature "FETCHCONTENT_SOURCE_DIR_KASSERT" "${kassert-src}")
-            (lib.cmakeFeature "FETCHCONTENT_SOURCE_DIR_KAGEN" "${kagen-src}")
-            (lib.cmakeFeature "FETCHCONTENT_SOURCE_DIR_GOOGLETEST" "${google-test-src}")
-          ];
-
-          meta = {
-            description = "Parallel heuristic solver for the balanced k-way graph partitioning problem";
-            homepage = "https://github.com/KaHIP/KaMinPar";
-            changelog = "https://github.com/KaHIP/KaMinPar/releases/tag/v${finalAttrs.version}";
-            license = lib.licenses.mit;
-            platforms = lib.platforms.linux ++ [ "aarch64-darwin" ];
-            mainProgram = "KaMinPar";
-          };
-        });
+        meta = {
+          description = "Parallel heuristic solver for the balanced k-way graph partitioning problem";
+          homepage = "https://github.com/KaHIP/KaMinPar";
+          changelog = "https://github.com/KaHIP/KaMinPar/releases/tag/v${finalAttrs.version}";
+          license = lib.licenses.mit;
+          platforms = lib.platforms.unix;
+          mainProgram = "KaMinPar";
+        };
+      });
 
       mt-kahypar =
         let
@@ -299,7 +288,7 @@
         default = pkgs.mkShell {
           packages = builtins.attrValues {
             # (d)KaMinPar inputs
-            inherit (pkgs) git pkg-config cmake tbb_2022_0 sparsehash numactl mpi;
+            inherit (pkgs) git cmake tbb_2022_0 sparsehash numactl mpi gtest;
             inherit mt-kahypar;
 
             # Additional MT-KaHyPar inputs if build from source for KaMinPar
