@@ -828,7 +828,7 @@ public:
     std::size_t num_round = 0;
     bool found_improvement = false;
     EdgeWeight prev_cut_value = metrics::edge_cut_seq(p_graph);
-    while (true) {
+    while (prev_cut_value > 0) {
       num_round += 1;
       DBG << "Starting round " << num_round;
 
@@ -968,7 +968,7 @@ public:
     bool found_improvement = false;
     std::size_t num_round = 0;
     EdgeWeight prev_cut_value = metrics::edge_cut_seq(p_graph);
-    while (true) {
+    while (prev_cut_value > 0) {
       num_round += 1;
       DBG << "Starting round " << num_round;
 
