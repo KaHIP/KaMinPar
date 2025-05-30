@@ -31,6 +31,7 @@ option(KAMINPAR_BUILD_EXAMPLES "Build examples." OFF)
 option(KAMINPAR_BUILD_EXPERIMENTAL_FEATURES "Include experimental features in the build. This might increase compile times drastically." OFF)
 
 option(KAMINPAR_DOWNLOAD_TBB "Download TBB instead of requiring it to be installed." OFF)
+option(KAMINPAR_DOWNLOAD_MTKAHYPAR "Download MT-KaHyPar instead of requiring it to be installed." OFF)
 option(KAMINPAR_DOWNLOAD_GTEST "Download GoogleTest instead of requiring it to be installed." OFF)
 
 # Control how to build
@@ -362,12 +363,30 @@ endif ()
 
 # We optionally use Mt-KaHyPar as an initial partitioner and refiner
 if (KAMINPAR_BUILD_WITH_MTKAHYPAR)
-    find_library(LIB_MTKAHYPAR_GRAPH mtkahypar)
-    if (NOT LIB_MTKAHYPAR_GRAPH)
-        message(STATUS "Mt-KaHyPar initial partitioning not available: library could not be found on this system")
-        set(KAMINPAR_BUILD_WITH_MTKAHYPAR OFF)
+    if (KAMINPAR_DOWNLOAD_MTKAHYPAR)
+        FetchContent_Declare(
+            MtKaHyPar
+            GIT_REPOSITORY https://github.com/kahypar/mt-kahypar.git
+            GIT_TAG 8d90c765a0a9f81b917bffab84cb5e3ab45c082b # v1.5.1
+            EXCLUDE_FROM_ALL
+            UPDATE_DISCONNECTED TRUE
+        )
+
+        set(KAHYPAR_ENABLE_ARCH_COMPILE_OPTIMIZATIONS ${KAMINPAR_BUILD_WITH_MTUNE_NATIVE} CACHE BOOL "" FORCE)
+        if (KAMINPAR_64BIT_IDS OR KAMINPAR_64BIT_NODE_IDS OR KAMINPAR_64BIT_EDGE_IDS)
+            set(KAHYPAR_USE_64_BIT_IDS ON CACHE BOOL "" FORCE)
+        endif ()
+
+        FetchContent_MakeAvailable(MtKaHyPar)
     else ()
-        message(STATUS "Found Mt-KaHyPar at ${LIB_MTKAHYPAR_GRAPH}")
+        find_library(LIB_MTKAHYPAR_GRAPH mtkahypar)
+
+        if (NOT LIB_MTKAHYPAR_GRAPH)
+            message(STATUS "Mt-KaHyPar initial partitioning not available: library could not be found on this system")
+            set(KAMINPAR_BUILD_WITH_MTKAHYPAR OFF)
+        else ()
+            message(STATUS "Found Mt-KaHyPar at ${LIB_MTKAHYPAR_GRAPH}")
+        endif ()
     endif ()
 endif ()
 
@@ -508,6 +527,9 @@ install(
 set(KAMINPAR_INSTALL_TARGETS KaMinParCommon KaMinParIO KaMinPar)
 if (KAMINPAR_BUILD_WITH_KASSERT)
     list(APPEND KAMINPAR_INSTALL_TARGETS kassert_base kassert)
+endif ()
+if (KAMINPAR_BUILD_WITH_MTKAHYPAR AND KAMINPAR_DOWNLOAD_MTKAHYPAR)
+    list(APPEND KAMINPAR_INSTALL_TARGETS mtkahypar)
 endif ()
 if (KAMINPAR_BUILD_APPS)
     list(APPEND KAMINPAR_INSTALL_TARGETS KaMinParCLI KaMinParApp)
