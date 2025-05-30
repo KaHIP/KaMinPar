@@ -7,13 +7,12 @@ add_library(KaMinPar::dKaMinPar ALIAS dKaMinPar)
 target_include_directories(dKaMinPar PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include/kaminpar-dist/>)
 target_link_libraries(dKaMinPar PUBLIC KaMinPar::KaMinPar KaMinPar::KaMinParMPI growt)
 target_compile_options(dKaMinPar PRIVATE ${KAMINPAR_WARNING_FLAGS})
+set_target_properties(dKaMinPar PROPERTIES KASSERT_ASSERTION_LEVEL ${KAMINPAR_ASSERTION_LEVEL_CODE})
 
-if (Sparsehash_FOUND)
-    target_link_libraries(dKaMinPar PUBLIC Sparsehash::Sparsehash)
+if (KAMINPAR_BUILD_WITH_SPARSEHASH)
+    target_link_libraries(dKaMinPar PRIVATE Sparsehash::Sparsehash)
 endif ()
 
-# If we can find Mt-KaHyPar, make it available as an option for initial partitioning
 if (KAMINPAR_BUILD_WITH_MTKAHYPAR)
-    target_compile_definitions(dKaMinPar PRIVATE -DKAMINPAR_HAVE_MTKAHYPAR_LIB)
-    target_link_libraries(dKaMinPar PUBLIC mtkahypar)
+    target_link_libraries(dKaMinPar PRIVATE MtKaHyPar::mtkahypar)
 endif ()

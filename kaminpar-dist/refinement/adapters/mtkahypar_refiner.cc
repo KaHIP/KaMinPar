@@ -7,7 +7,7 @@
  ******************************************************************************/
 #include "kaminpar-dist/refinement/adapters/mtkahypar_refiner.h"
 
-#ifdef KAMINPAR_HAVE_MTKAHYPAR_LIB
+#ifdef KAMINPAR_MTKAHYPAR_FOUND
 #include <mtkahypar.h>
 
 #include "kaminpar-mpi/wrapper.h"
@@ -20,7 +20,7 @@
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/random.h"
-#endif // KAMINPAR_HAVE_MTKAHYPAR_LIB
+#endif // KAMINPAR_MTKAHYPAR_FOUND
 
 #include "kaminpar-dist/logger.h"
 
@@ -51,7 +51,7 @@ MtKaHyParRefiner::MtKaHyParRefiner(
 void MtKaHyParRefiner::initialize() {}
 
 bool MtKaHyParRefiner::refine() {
-#ifdef KAMINPAR_HAVE_MTKAHYPAR_LIB
+#ifdef KAMINPAR_MTKAHYPAR_FOUND
   auto shm_graph_pair = allgather_graph(_p_graph);
   auto &shm_graph = shm_graph_pair.first;
   auto &shm_p_graph = shm_graph_pair.second;
@@ -225,10 +225,10 @@ bool MtKaHyParRefiner::refine() {
   }
 
   return false;
-#else  // KAMINPAR_HAVE_MTKAHYPAR_LIB
+#else  // KAMINPAR_MTKAHYPAR_FOUND
   LOG_WARNING << "Mt-KaHyPar is not available; skipping refinement";
   return false;
-#endif // KAMINPAR_HAVE_MTKAHYPAR_LIB
+#endif // KAMINPAR_MTKAHYPAR_FOUND
 }
 
 } // namespace kaminpar::dist

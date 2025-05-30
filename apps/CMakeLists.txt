@@ -7,6 +7,7 @@ set_property(TARGET KaMinParApp PROPERTY OUTPUT_NAME KaMinPar)
 
 target_link_libraries(KaMinParApp PRIVATE KaMinPar::KaMinPar KaMinPar::KaMinParCLI KaMinPar::KaMinParIO)
 target_compile_options(KaMinParApp PRIVATE ${KAMINPAR_WARNING_FLAGS})
+set_target_properties(KaMinParApp PROPERTIES KASSERT_ASSERTION_LEVEL ${KAMINPAR_ASSERTION_LEVEL_CODE})
 message(STATUS "Enabled app: KaMinPar")
 
 if (TARGET dKaMinPar)
@@ -15,6 +16,7 @@ if (TARGET dKaMinPar)
 
     target_link_libraries(dKaMinParApp PRIVATE KaMinPar::dKaMinPar KaMinPar::dKaMinParCLI KaMinPar::dKaMinParIO)
     target_compile_options(dKaMinParApp PRIVATE ${KAMINPAR_WARNING_FLAGS})
+    set_target_properties(dKaMinParApp PROPERTIES KASSERT_ASSERTION_LEVEL ${KAMINPAR_ASSERTION_LEVEL_CODE})
 
     if (KAMINPAR_BUILD_WITH_BACKWARD)
         target_link_libraries(dKaMinParApp PRIVATE Backward::Backward)

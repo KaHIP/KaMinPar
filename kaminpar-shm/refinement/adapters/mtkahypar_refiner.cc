@@ -12,7 +12,7 @@
 
 #include "kaminpar-common/logger.h"
 
-#ifdef KAMINPAR_HAVE_MTKAHYPAR_LIB
+#ifdef KAMINPAR_MTKAHYPAR_FOUND
 #include <mtkahypar.h>
 
 #include "kaminpar-shm/metrics.h"
@@ -20,7 +20,7 @@
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/random.h"
-#endif // KAMINPAR_HAVE_MTKAHYPAR_LIB
+#endif // KAMINPAR_MTKAHYPAR_FOUND
 
 namespace kaminpar::shm {
 
@@ -39,7 +39,7 @@ void MtKaHyParRefiner::initialize([[maybe_unused]] const PartitionedGraph &p_gra
 bool MtKaHyParRefiner::refine(
     [[maybe_unused]] PartitionedGraph &p_graph, [[maybe_unused]] const PartitionContext &p_ctx
 ) {
-#ifdef KAMINPAR_HAVE_MTKAHYPAR_LIB
+#ifdef KAMINPAR_MTKAHYPAR_FOUND
   mt_kahypar_error_t error{};
 
   mt_kahypar_context_t *mt_kahypar_ctx;
@@ -173,10 +173,10 @@ bool MtKaHyParRefiner::refine(
   mt_kahypar_free_context(mt_kahypar_ctx);
 
   return false;
-#else  // KAMINPAR_HAVE_MTKAHYPAR_LIB
+#else  // KAMINPAR_MTKAHYPAR_FOUND
   LOG_WARNING << "Mt-KaHyPar is not available; skipping refinement";
   return false;
-#endif // KAMINPAR_HAVE_MTKAHYPAR_LIB
+#endif // KAMINPAR_MTKAHYPAR_FOUND
 }
 
 } // namespace kaminpar::shm

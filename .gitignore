@@ -1,6 +1,9 @@
 # Build directory
 build/
 
+# Install directory
+install/
+
 # Zellij
 layout.kdl
 

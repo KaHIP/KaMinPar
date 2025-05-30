@@ -6,6 +6,7 @@ function(add_shm_benchmark target)
         KaMinPar::KaMinParIO
         KaGen::KaGen)
     target_compile_options(${target} PRIVATE ${KAMINPAR_WARNING_FLAGS})
+    set_target_properties(${target} PROPERTIES KASSERT_ASSERTION_LEVEL ${KAMINPAR_ASSERTION_LEVEL_CODE})
     message(STATUS "Enabled benchmark: ${target}")
 endfunction()
 
@@ -20,6 +21,7 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
             KaMinPar::dKaMinPar
             KaMinPar::dKaMinParCLI
             KaMinPar::dKaMinParIO)
+        set_target_properties(${target} PROPERTIES KASSERT_ASSERTION_LEVEL ${KAMINPAR_ASSERTION_LEVEL_CODE})
     endfunction()
 
     # Distributed benchmarks

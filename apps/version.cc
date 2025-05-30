@@ -120,7 +120,7 @@ void print_version() {
 #else
   std::cout << "    Backward: not found or disabled\n";
 #endif
-#ifdef KAMINPAR_HAVE_MTKAHYPAR_LIB
+#ifdef KAMINPAR_MTKAHYPAR_FOUND
   std::cout << "    Mt-KaHyPar: found and enabled\n";
 #else
   std::cout << "    Mt-KaHyPar: not found or disabled\n";
