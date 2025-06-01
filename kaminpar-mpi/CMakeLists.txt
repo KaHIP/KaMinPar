@@ -6,3 +6,4 @@ add_library(KaMinPar::KaMinParMPI ALIAS KaMinParMPI)
 
 target_link_libraries(KaMinParMPI PUBLIC KaMinParCommon MPI::MPI_CXX)
 target_compile_options(KaMinParMPI PRIVATE ${KAMINPAR_WARNING_FLAGS})
+set_target_properties(KaMinParMPI PROPERTIES KASSERT_ASSERTION_LEVEL ${KAMINPAR_ASSERTION_LEVEL_CODE})

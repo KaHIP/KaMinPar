@@ -22,6 +22,7 @@ add_library(KaMinPar::KaMinParIO ALIAS KaMinParIO)
 target_include_directories(KaMinParIO PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include/kaminpar-io/>)
 target_link_libraries(KaMinParIO PUBLIC KaMinPar::KaMinPar)
 target_compile_options(KaMinParIO PRIVATE ${KAMINPAR_WARNING_FLAGS})
+set_target_properties(KaMinParIO PROPERTIES KASSERT_ASSERTION_LEVEL ${KAMINPAR_ASSERTION_LEVEL_CODE})
 
 if (TARGET dKaMinPar)
     add_library(dKaMinParIO ${DKAMINPAR_IO_SOURCE_FILES})
@@ -29,4 +30,5 @@ if (TARGET dKaMinPar)
 
     target_link_libraries(dKaMinParIO PUBLIC KaMinPar::dKaMinPar KaGen::KaGen)
     target_compile_options(dKaMinParIO PRIVATE ${KAMINPAR_WARNING_FLAGS})
+    set_target_properties(dKaMinParIO PROPERTIES KASSERT_ASSERTION_LEVEL ${KAMINPAR_ASSERTION_LEVEL_CODE})
 endif ()
