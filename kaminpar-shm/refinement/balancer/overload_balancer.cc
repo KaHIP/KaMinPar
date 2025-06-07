@@ -1,15 +1,15 @@
 /*******************************************************************************
  * Greedy balancing algorithms that uses one thread per overloaded block.
  *
- * @file:   greedy_balancer.cc
+ * @file:   overload_balancer.cc
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  ******************************************************************************/
-#include "kaminpar-shm/refinement/balancer/greedy_balancer.h"
+#include "kaminpar-shm/refinement/balancer/overload_balancer.h"
 
 namespace kaminpar::shm {
 
-GreedyBalancer::GreedyBalancer(const Context &ctx)
+OverloadBalancer::OverloadBalancer(const Context &ctx)
     : _csr_impl(std::make_unique<GreedyBalancerCSRImpl>(ctx)),
       _compressed_impl(std::make_unique<GreedyBalancerCompressedImpl>(ctx)) {
   _memory_context.rating_map = tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>>{[&] {
@@ -17,15 +17,15 @@ GreedyBalancer::GreedyBalancer(const Context &ctx)
   }};
 }
 
-GreedyBalancer::~GreedyBalancer() = default;
+OverloadBalancer::~OverloadBalancer() = default;
 
-std::string GreedyBalancer::name() const {
+std::string OverloadBalancer::name() const {
   return "Greedy Balancer";
 }
 
-void GreedyBalancer::initialize(const PartitionedGraph &) {}
+void OverloadBalancer::initialize(const PartitionedGraph &) {}
 
-bool GreedyBalancer::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
+bool OverloadBalancer::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
   SCOPED_TIMER("Greedy Balancer");
   SCOPED_HEAP_PROFILER("Greedy Balancer");
 

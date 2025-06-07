@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Greedy balancing algorithms that uses one thread per overloaded block.
  *
- * @file:   greedy_balancer.h
+ * @file:   overload_balancer.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  ******************************************************************************/
@@ -28,7 +28,7 @@
 namespace kaminpar::shm {
 using RelativeGain = double;
 
-struct GreedyBalancerMemoryContext {
+struct OverloadBalancerMemoryContext {
   DynamicBinaryMinMaxForest<NodeID, RelativeGain, ScalableVector> pq;
   tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> rating_map;
   tbb::enumerable_thread_specific<std::vector<BlockID>> feasible_target_blocks;
@@ -36,7 +36,7 @@ struct GreedyBalancerMemoryContext {
   std::vector<BlockWeight> pq_weight;
 };
 
-template <typename Graph> class GreedyBalancerImpl : public Refiner {
+template <typename Graph> class OverloadBalancerImpl : public Refiner {
   SET_DEBUG(false);
   SET_STATISTICS_FROM_GLOBAL();
 
@@ -95,10 +95,10 @@ template <typename Graph> class GreedyBalancerImpl : public Refiner {
   };
 
 public:
-  GreedyBalancerImpl(const Context &ctx)
+  OverloadBalancerImpl(const Context &ctx)
       : _rating_map([=] { return RatingMap<EdgeWeight, NodeID>{ctx.partition.k}; }) {}
 
-  void setup(GreedyBalancerMemoryContext memory_context) {
+  void setup(OverloadBalancerMemoryContext memory_context) {
     _pq = std::move(memory_context.pq);
     _rating_map = std::move(memory_context.rating_map);
     _feasible_target_blocks = std::move(memory_context.feasible_target_blocks);
@@ -106,7 +106,7 @@ public:
     _pq_weight = std::move(memory_context.pq_weight);
   }
 
-  GreedyBalancerMemoryContext release() {
+  OverloadBalancerMemoryContext release() {
     return {
         std::move(_pq),
         std::move(_rating_map),
@@ -469,19 +469,19 @@ private:
   NormalSparseGainCache<Graph> *_gain_cache = nullptr;
 };
 
-class GreedyBalancer : public Refiner {
-  using GreedyBalancerCSRImpl = GreedyBalancerImpl<CSRGraph>;
-  using GreedyBalancerCompressedImpl = GreedyBalancerImpl<CompressedGraph>;
+class OverloadBalancer : public Refiner {
+  using GreedyBalancerCSRImpl = OverloadBalancerImpl<CSRGraph>;
+  using GreedyBalancerCompressedImpl = OverloadBalancerImpl<CompressedGraph>;
 
 public:
-  GreedyBalancer(const Context &ctx);
-  ~GreedyBalancer() override;
+  explicit OverloadBalancer(const Context &ctx);
+  ~OverloadBalancer() override;
 
-  GreedyBalancer &operator=(const GreedyBalancer &) = delete;
-  GreedyBalancer(const GreedyBalancer &) = delete;
+  OverloadBalancer &operator=(const OverloadBalancer &) = delete;
+  OverloadBalancer(const OverloadBalancer &) = delete;
 
-  GreedyBalancer &operator=(GreedyBalancer &&) = default;
-  GreedyBalancer(GreedyBalancer &&) noexcept = default;
+  OverloadBalancer &operator=(OverloadBalancer &&) = delete;
+  OverloadBalancer(OverloadBalancer &&) noexcept = default;
 
   [[nodiscard]] std::string name() const final;
 
@@ -493,7 +493,7 @@ private:
   std::unique_ptr<GreedyBalancerCSRImpl> _csr_impl;
   std::unique_ptr<GreedyBalancerCompressedImpl> _compressed_impl;
 
-  GreedyBalancerMemoryContext _memory_context;
+  OverloadBalancerMemoryContext _memory_context;
 };
 
 } // namespace kaminpar::shm
