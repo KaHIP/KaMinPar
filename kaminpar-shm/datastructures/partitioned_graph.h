@@ -17,6 +17,7 @@
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/ranges.h"
 
@@ -43,84 +44,63 @@ public:
   using BlockID = ::kaminpar::shm::BlockID;
   using BlockWeight = ::kaminpar::shm::BlockWeight;
 
-  // Tag for the sequential ctor.
+  // Tags for sequential vs parallel initialization
   struct seq {};
+  struct par {};
+
+  // Maximum k for which block weights are spreaded to individual cache lines
+  constexpr static BlockID kDenseBlockWeightsThreshold = 256;
 
   // Parallel ctor: use parallel loops to compute block weights.
-  GenericPartitionedGraph(const Graph &graph, BlockID k, StaticArray<BlockID> partition = {})
-      : _graph(&graph),
-        _k(k),
-        _partition(std::move(partition)),
-        _block_weights(k) {
-    KASSERT(_partition.empty() || _partition.size() >= graph.n());
-
-    if constexpr (std::is_same_v<Graph, CSRGraph>) {
-      _node_weights = graph.raw_node_weights().view();
-    } else {
-      _node_weights = reified(graph, [&](const auto &g) { return g.raw_node_weights().view(); });
-    }
-
-    if (graph.n() > 0 && _partition.empty()) {
-      _partition.resize(graph.n(), kInvalidBlockID);
-    }
-
-    init_block_weights_par();
-  }
-
-  // Sequential ctor: use sequential loops to compute block weights.
   GenericPartitionedGraph(
-      seq,
       const Graph &graph,
-      BlockID k,
+      const BlockID k,
       StaticArray<BlockID> partition = {},
       StaticArray<BlockWeight> block_weights = {}
   )
       : _graph(&graph),
         _k(k),
         _partition(std::move(partition)),
-        _block_weights(std::move(block_weights)) {
+        _dense_block_weights(std::move(block_weights)) {
     KASSERT(_partition.empty() || _partition.size() >= graph.n());
-    KASSERT(_block_weights.empty() || _block_weights.size() >= k);
+    KASSERT(_dense_block_weights.empty() || _dense_block_weights.size() >= k);
 
-    if constexpr (std::is_same_v<Graph, CSRGraph>) {
-      _node_weights = graph.raw_node_weights().view();
-    } else {
-      _node_weights = reified(graph, [&](const auto &g) { return g.raw_node_weights().view(); });
-    }
+    init_node_weights();
 
     if (graph.n() > 0 && _partition.empty()) {
-      _partition.resize(graph.n(), kInvalidBlockID, static_array::seq);
+      _partition.resize(graph.n(), kInvalidBlockID);
+      init_block_weights(/* seq = */ false, /* empty = */ true);
+    } else {
+      init_block_weights(/* seq = */ false, /* empty = */ false);
     }
-
-    if (k > 0 && _block_weights.empty()) {
-      _block_weights.resize(k, static_array::seq);
-    }
-
-    init_block_weights_seq();
   }
 
-  // Parallel + sequential ctor: take all data as input, do not initialize anything ourself.
+  // Sequential ctor: use sequential loops to compute block weights.
   GenericPartitionedGraph(
+      seq,
       const Graph &graph,
-      BlockID k,
-      StaticArray<BlockID> partition,
-      StaticArray<BlockWeight> block_weights
+      const BlockID k,
+      StaticArray<BlockID> partition = {},
+      StaticArray<BlockWeight> block_weights = {}
   )
       : _graph(&graph),
         _k(k),
         _partition(std::move(partition)),
-        _block_weights(std::move(block_weights)) {
-    KASSERT(_partition.size() >= graph.n());
+        _dense_block_weights(std::move(block_weights)) {
+    KASSERT(_partition.empty() || _partition.size() >= graph.n());
+    KASSERT(_dense_block_weights.empty() || _dense_block_weights.size() >= k);
 
-    if constexpr (std::is_same_v<Graph, CSRGraph>) {
-      _node_weights = graph.raw_node_weights().view();
+    init_node_weights();
+
+    if (graph.n() > 0 && _partition.empty()) {
+      _partition.resize(graph.n(), kInvalidBlockID, static_array::seq);
+      init_block_weights(/* seq = */ true, /* empty = */ true);
     } else {
-      _node_weights = reified(graph, [&](const auto &g) { return g.raw_node_weights().view(); });
+      init_block_weights(/* seq = */ true, /* empty = */ false);
     }
   }
 
   // Dummy ctor to make the class default-constructible for convenience.
-  // @todo Should we get rid of this ctor?
   GenericPartitionedGraph() {}
 
   GenericPartitionedGraph(const GenericPartitionedGraph &) = delete;
@@ -130,27 +110,34 @@ public:
   GenericPartitionedGraph &operator=(GenericPartitionedGraph &&other) noexcept = default;
 
   /**
-   * Attempts to move node `u` from block `from` to block `to` while preserving the balance
+   * Attempt to move node `u` from block `from` to block `to` while preserving the balance
    * constraint, i.e., the move will fail if it would increase the weight of `to` beyond
-   * `max_weight`.
+   * `max_to_weight`, or the weight of `from` below `min_from_weight`.
    *
-   * This operation is thread-safe.
+   * This operation is thread-safe and guarantees that the `to` block will not be overloaded.
+   * The `to` block might become underloaded due to race conditions.
    *
    * @param u Node to be moved.
    * @param from Block the node is moved from (must be the current block of `u`).
    * @param to Block the node is moved to.
-   * @param max_weight Maximum weight limit for block `to`.
+   * @param max_to_weight Maximum weight for block `to`.
+   * @param min_from_weight Minimum weight for block `from`.
+   *
    * @return Whether the node could be moved; if `false`, no change occurred.
    */
-  [[nodiscard]] bool
-  move(const NodeID u, const BlockID from, const BlockID to, const BlockWeight max_to_weight) {
+  [[nodiscard]] bool move(
+      const NodeID u,
+      const BlockID from,
+      const BlockID to,
+      const BlockWeight max_to_weight,
+      const BlockWeight min_from_weight = 0
+  ) {
     KASSERT(u < _graph->n());
-    KASSERT(from < k());
-    KASSERT(to < k());
-    KASSERT(block(u) == from);
     KASSERT(from != to);
+    KASSERT(from < k() && to < k());
+    KASSERT(block(u) == from);
 
-    if (move_block_weight(from, to, node_weight(u), max_to_weight)) {
+    if (move_block_weight(from, to, node_weight(u), max_to_weight, min_from_weight)) {
       set_block<false>(u, to);
       return true;
     }
@@ -159,63 +146,82 @@ public:
   }
 
   /**
-   * Move node `u` to block `to` (or assign it to the block if it does not
-   * already belong to a different block) and optionally update block weights to reflect the move.
-   *
-   * In contrast to move(), this operation does not check whether the node move would lead to
-   * violations of the balance constraint and might also be called for unassigned nodes.
+   * Move node `u` to block `to` and update block weights to reflect the move (optionally). In
+   * contrast to `move()`, this operation does not enforce balance constraints. Thus, it will always
+   * succeed.
    *
    * This operation is thread-safe.
    *
    * @tparam update_block_weight If set, atomically update the block weights.
    * @param u Node to be moved.
-   * @param new_b Block the node is moved to.
+   * @param to Block the node is moved to.
    */
   template <bool update_block_weights = true> void set_block(const NodeID u, const BlockID to) {
     KASSERT(u < _graph->n(), "invalid node id " << u);
     KASSERT(to < k(), "invalid block id " << to << " for node " << u);
+    KASSERT(block(u) != kInvalidBlockID);
 
     if constexpr (update_block_weights) {
+      const BlockID from = block(u);
       const NodeWeight weight = node_weight(u);
-      if (const BlockID from = block(u); from != kInvalidBlockID) {
-        decrease_block_weight(from, weight);
+
+      if (use_dense_block_weights()) {
+        __atomic_fetch_sub(&_dense_block_weights[from], weight, __ATOMIC_RELAXED);
+        __atomic_fetch_add(&_dense_block_weights[to], weight, __ATOMIC_RELAXED);
+      } else {
+        _diverged_block_weights = true;
+        __atomic_fetch_sub(&_aligned_block_weights[from].value, weight, __ATOMIC_RELAXED);
+        __atomic_fetch_add(&_aligned_block_weights[to].value, weight, __ATOMIC_RELAXED);
       }
-      increase_block_weight(to, weight);
     }
 
     __atomic_store_n(&_partition[u], to, __ATOMIC_RELAXED);
   }
 
   /**
-   * Shift weight from block `from` to block `to`. This operation will fail if the weight shift
-   * would overload `to`.
+   * Shift the given weight delta from block `from` to block `to`. This operation will fail if the
+   * weight shift would overload block `to` or underload block `from`.
    *
-   * This operation is thread-safe.
+   * This operation is thread-safe. In case of failure, it is possible that block `to` becomes
+   * underloaded due to race conditions.
    *
    * @param from Block to move weight from.
    * @param to Block to move weight to.
    * @param delta Amount of weight to be moved.
-   * @param max_weight Maximum weight limit for block `to`.
+   * @param max_to_weight Maximum weight for block `to`.
+   * @param min_from_weight Minimum weight for block `from`.
+   *
    * @return Whether the weight could be moved; if `false`, no change occurred.
    */
   [[nodiscard]] bool move_block_weight(
-      const BlockID from, const BlockID to, const BlockWeight delta, const BlockWeight max_to_weight
+      const BlockID from,
+      const BlockID to,
+      const BlockWeight delta,
+      const BlockWeight max_to_weight,
+      const BlockWeight min_from_weight = 0
   ) {
-    for (BlockWeight new_weight = block_weight(to); new_weight + delta <= max_to_weight;) {
-      if (__atomic_compare_exchange_n(
-              &_block_weights[to],
-              &new_weight,
-              new_weight + delta,
-              false,
-              __ATOMIC_RELAXED,
-              __ATOMIC_RELAXED
-          )) {
-        decrease_block_weight(from, delta);
-        return true;
-      }
+    if (use_dense_block_weights()) {
+      return move_block_weight_impl(
+          _dense_block_weights,
+          [](auto &entry) { return &entry; },
+          from,
+          to,
+          delta,
+          max_to_weight,
+          min_from_weight
+      );
+    } else {
+      _diverged_block_weights = true;
+      return move_block_weight_impl(
+          _aligned_block_weights,
+          [](auto &entry) { return &entry.value; },
+          from,
+          to,
+          delta,
+          max_to_weight,
+          min_from_weight
+      );
     }
-
-    return false;
   }
 
   //
@@ -231,11 +237,13 @@ public:
   }
 
   [[nodiscard]] inline const StaticArray<BlockWeight> &raw_block_weights() const {
-    return _block_weights;
+    sync_dense_and_aligned_block_weights();
+    return _dense_block_weights;
   }
 
   [[nodiscard]] inline StaticArray<BlockWeight> &&take_raw_block_weights() {
-    return std::move(_block_weights);
+    sync_dense_and_aligned_block_weights();
+    return std::move(_dense_block_weights);
   }
 
   //
@@ -244,22 +252,12 @@ public:
 
   [[nodiscard]] inline BlockWeight block_weight(const BlockID b) const {
     KASSERT(b < k());
-    return __atomic_load_n(&_block_weights[b], __ATOMIC_RELAXED);
-  }
 
-  void set_block_weight(const BlockID b, const BlockWeight weight) {
-    KASSERT(b < k());
-    __atomic_store_n(&_block_weights[b], weight, __ATOMIC_RELAXED);
-  }
-
-  void increase_block_weight(const BlockID b, const BlockWeight by) {
-    KASSERT(b < k());
-    __atomic_fetch_add(&_block_weights[b], by, __ATOMIC_RELAXED);
-  }
-
-  void decrease_block_weight(const BlockID b, const BlockWeight by) {
-    KASSERT(b < k());
-    __atomic_fetch_sub(&_block_weights[b], by, __ATOMIC_RELAXED);
+    if (use_dense_block_weights()) {
+      return __atomic_load_n(&_dense_block_weights[b], __ATOMIC_RELAXED);
+    } else {
+      return __atomic_load_n(&_aligned_block_weights[b].value, __ATOMIC_RELAXED);
+    }
   }
 
   //
@@ -267,7 +265,7 @@ public:
   //
 
   template <typename Lambda> inline void pfor_blocks(Lambda &&l) const {
-    tbb::parallel_for(static_cast<BlockID>(0), k(), std::forward<Lambda>(l));
+    tbb::parallel_for<BlockID>(0, k(), std::forward<Lambda>(l));
   }
 
   //
@@ -288,6 +286,7 @@ public:
 
   [[nodiscard]] inline BlockID block(const NodeID u) const {
     KASSERT(u < _graph->n());
+
     return __atomic_load_n(&_partition[u], __ATOMIC_RELAXED);
   }
 
@@ -308,55 +307,171 @@ public:
   }
 
 private:
-  void init_block_weights_par() {
-    if (k() >= 65536) {
-      tbb::parallel_for<NodeID>(0, _graph->n(), [&](const NodeID u) {
-        if (const BlockID b = block(u); b != kInvalidBlockID) {
-          __atomic_fetch_add(&_block_weights[b], node_weight(u), __ATOMIC_RELAXED);
+  template <typename ValuePtrGetter>
+  [[nodiscard]] bool move_block_weight_impl(
+      auto &block_weights_vec,
+      ValuePtrGetter &&ptr,
+      const BlockID from,
+      const BlockID to,
+      const BlockWeight delta,
+      const BlockWeight max_to_weight,
+      const BlockWeight min_from_weight
+  ) {
+    for (BlockWeight new_weight = block_weight(to); new_weight + delta <= max_to_weight;) {
+      if (__atomic_compare_exchange_n(
+              ptr(block_weights_vec[to]),
+              &new_weight,
+              new_weight + delta,
+              false,
+              __ATOMIC_RELAXED,
+              __ATOMIC_RELAXED
+          )) {
+        if (__atomic_sub_fetch(ptr(block_weights_vec[from]), delta, __ATOMIC_RELAXED) >=
+            min_from_weight) {
+          return true;
+        } else {
+          __atomic_fetch_add(ptr(block_weights_vec[from]), delta, __ATOMIC_RELAXED);
+          __atomic_fetch_sub(ptr(block_weights_vec[to]), delta, __ATOMIC_RELAXED);
+          return false;
         }
-      });
+      }
+    }
+
+    return false;
+  }
+
+  void sync_dense_and_aligned_block_weights() const {
+    if (!_diverged_block_weights) {
       return;
     }
 
+    // Avoid parallelism in the bipartite case (often used by sequential initial bipartitioning)
+    if (_k == 2) {
+      _dense_block_weights[0] = _aligned_block_weights[0].value;
+      _dense_block_weights[1] = _aligned_block_weights[1].value;
+    } else {
+      tbb::parallel_for<BlockID>(0, _k, [&](const BlockID b) {
+        _dense_block_weights[b] = _aligned_block_weights[b].value;
+      });
+    }
+
+    _diverged_block_weights = false;
+  }
+
+  void init_node_weights() {
+    if constexpr (std::is_same_v<Graph, CSRGraph>) {
+      _node_weights = _graph->raw_node_weights().view();
+    } else {
+      _node_weights =
+          reified(*_graph, [&](const auto &graph) { return graph.raw_node_weights().view(); });
+    }
+  }
+
+  [[nodiscard]] bool use_dense_block_weights() const {
+    return _k <= kDenseBlockWeightsThreshold;
+  }
+
+  void init_block_weights(const bool seq, const bool empty) {
+    if (_dense_block_weights.empty()) {
+      if (seq) {
+        _dense_block_weights.resize(_k, static_array::seq);
+        if (!empty) {
+          reinit_dense_block_weights_seq();
+        }
+      } else {
+        _dense_block_weights.resize(_k);
+        if (!empty) {
+          reinit_dense_block_weights_par();
+        }
+      }
+    }
+
+    if (!use_dense_block_weights()) {
+      if (seq) {
+        _aligned_block_weights.resize(_k, static_array::seq);
+
+        if (!empty) {
+          for (const BlockID b : blocks()) {
+            _aligned_block_weights[b].value = _dense_block_weights[b];
+          }
+        }
+      } else {
+        _aligned_block_weights.resize(_k);
+
+        if (!empty) {
+          pfor_blocks([&](const BlockID b) {
+            _aligned_block_weights[b].value = _dense_block_weights[b];
+          });
+        }
+      }
+    }
+  }
+
+  void reinit_dense_block_weights_seq() {
+    for (NodeID u = 0, n = _graph->n(); u < n; ++u) {
+      const BlockID b = block(u);
+      KASSERT(b < _k);
+
+      _dense_block_weights[b] += node_weight(u);
+    }
+  }
+
+  void reinit_dense_block_weights_par() {
+    static constexpr BlockID kLowContentionThreshold = 65536;
+
+    // If there are lots of block, assume we can sum block weights directly without causing too much
+    // contention
+    if (k() >= kLowContentionThreshold) {
+      tbb::parallel_for<NodeID>(0, _graph->n(), [&](const NodeID u) {
+        const BlockID b = block(u);
+        KASSERT(b != kInvalidBlockID);
+
+        __atomic_fetch_add(&_dense_block_weights[b], node_weight(u), __ATOMIC_RELAXED);
+      });
+
+      return;
+    }
+
+    // Otherwise, aggregate in thread-local buffers and accumulate afterwards to avoid contention
     tbb::enumerable_thread_specific<StaticArray<BlockWeight>> block_weights_ets([&] {
       return StaticArray<BlockWeight>(k());
     });
 
-    tbb::parallel_for(
-        tbb::blocked_range<NodeID>(0, _graph->n()),
-        [&](const tbb::blocked_range<NodeID> &r) {
-          auto &block_weights = block_weights_ets.local();
-          for (NodeID u = r.begin(); u != r.end(); ++u) {
-            if (const BlockID b = block(u); b != kInvalidBlockID) {
-              block_weights[b] += node_weight(u);
-            }
-          }
-        }
-    );
+    tbb::parallel_for(tbb::blocked_range<NodeID>(0, _graph->n()), [&](const auto &r) {
+      StaticArray<BlockWeight> &block_weights = block_weights_ets.local();
+
+      for (NodeID u = r.begin(); u != r.end(); ++u) {
+        const BlockID b = block(u);
+        KASSERT(b != kInvalidBlockID);
+
+        block_weights[b] += node_weight(u);
+      }
+    });
 
     tbb::parallel_for<BlockID>(0, k(), [&](const BlockID b) {
       BlockWeight sum = 0;
+
       for (const StaticArray<BlockWeight> &block_weights : block_weights_ets) {
         sum += block_weights[b];
       }
-      _block_weights[b] = sum;
+
+      _dense_block_weights[b] = sum;
     });
   }
 
-  void init_block_weights_seq() {
-    for (NodeID u = 0, n = _graph->n(); u < n; ++u) {
-      if (const BlockID b = block(u); b != kInvalidBlockID) {
-        _block_weights[b] += node_weight(u);
-      }
-    }
-  }
-
-  const Graph *_graph;
-  std::span<const NodeWeight> _node_weights;
+  const Graph *_graph = nullptr;
+  std::span<const NodeWeight> _node_weights = {};
 
   BlockID _k = 0;
-  StaticArray<BlockID> _partition;
-  StaticArray<BlockWeight> _block_weights;
+  StaticArray<BlockID> _partition = {};
+
+  struct alignas(64) AlignedBlockWeight {
+    BlockWeight value;
+  };
+
+  mutable bool _diverged_block_weights = false;
+  mutable StaticArray<BlockWeight> _dense_block_weights = {};
+  StaticArray<AlignedBlockWeight> _aligned_block_weights = {};
 };
 
 using PartitionedGraph = GenericPartitionedGraph<Graph>;

@@ -378,6 +378,10 @@ struct PartitionContext {
 
   BlockID k;
 
+  [[nodiscard]] BlockWeight min_block_weight(const BlockID block) const {
+    return _min_block_weights[block];
+  }
+
   [[nodiscard]] BlockWeight perfectly_balanced_block_weight(const BlockID block) const {
     return std::ceil(1.0 * _unrelaxed_max_block_weights[block] / (1 + inferred_epsilon()));
   }
@@ -450,6 +454,8 @@ struct PartitionContext {
   );
 
 private:
+  std::vector<BlockWeight> _min_block_weights{};
+
   std::vector<BlockWeight> _max_block_weights{};
   std::vector<BlockWeight> _unrelaxed_max_block_weights{};
 
