@@ -89,6 +89,8 @@ void kaminpar_borrow_and_mutate_graph(
     kaminpar_edge_weight_t *adjwgt
 );
 
+void kaminpar_enable_balanced_minimum_block_weights(kaminpar_t *kaminpar, int enable);
+
 kaminpar_edge_weight_t kaminpar_compute_partition(
     kaminpar_t *kaminpar, kaminpar_block_id_t k, kaminpar_block_id_t *partition
 );

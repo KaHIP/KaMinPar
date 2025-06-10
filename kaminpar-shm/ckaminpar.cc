@@ -151,6 +151,10 @@ void kaminpar_borrow_and_mutate_graph(
   );
 }
 
+void kaminpar_enable_balanced_minimum_block_weights(kaminpar_t *kaminpar, const int enable) {
+  kaminpar->kaminpar.enable_balanced_minimum_block_weights(enable);
+}
+
 kaminpar_edge_weight_t kaminpar_compute_partition(
     kaminpar_t *kaminpar, kaminpar_block_id_t k, kaminpar_block_id_t *partition
 ) {
