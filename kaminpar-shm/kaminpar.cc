@@ -73,6 +73,17 @@ void PartitionContext::setup(
   }
 }
 
+void PartitionContext::enable_minimum_block_weights() {
+  _min_block_weights.resize(_max_block_weights.size());
+  for (BlockID b = 0; b < _max_block_weights.size(); ++b) {
+    _min_block_weights[b] = 2 * perfectly_balanced_block_weight(b) - _max_block_weights[b];
+  }
+}
+
+void PartitionContext::disable_minimum_block_weights() {
+  _min_block_weights.clear();
+}
+
 void GraphCompressionContext::setup(const Graph &graph) {
   high_degree_encoding = CompressedGraph::kHighDegreeEncoding;
   high_degree_threshold = CompressedGraph::kHighDegreeThreshold;
@@ -289,6 +300,10 @@ int KaMinPar::get_seed() {
   return Random::get_seed();
 }
 
+void KaMinPar::enable_balanced_minimum_block_weights(const bool enable) {
+  _balance_min_block_weights = enable;
+}
+
 EdgeWeight KaMinPar::compute_partition(const BlockID k, std::span<BlockID> partition) {
   return compute_partition(k, 0.03, partition);
 }
@@ -332,6 +347,12 @@ EdgeWeight KaMinPar::compute_partition(std::span<BlockID> partition) {
 
   _ctx.compression.setup(*_graph_ptr);
   _ctx.parallel.num_threads = _num_threads;
+
+  if (_balance_min_block_weights) {
+    _ctx.partition.enable_minimum_block_weights();
+  } else {
+    _ctx.partition.disable_minimum_block_weights();
+  }
 
   // Initialize console output
   if (_output_level >= OutputLevel::APPLICATION) {

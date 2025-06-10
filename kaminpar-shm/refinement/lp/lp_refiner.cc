@@ -129,15 +129,19 @@ public:
   [[nodiscard]] BlockID cluster(const NodeID u) {
     return _p_graph->block(u);
   }
+
   void move_node(const NodeID u, const BlockID block) {
     _p_graph->set_block<false>(u, block);
   }
+
   [[nodiscard]] BlockID num_clusters() {
     return _p_graph->k();
   }
+
   [[nodiscard]] BlockWeight max_cluster_weight(const BlockID block) {
     return _p_ctx->max_block_weight(block);
   }
+
   [[nodiscard]] BlockWeight min_cluster_weight(const BlockID block) const {
     return _p_ctx->min_block_weight(block);
   }

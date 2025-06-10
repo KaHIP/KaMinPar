@@ -379,7 +379,7 @@ struct PartitionContext {
   BlockID k;
 
   [[nodiscard]] BlockWeight min_block_weight(const BlockID block) const {
-    return _min_block_weights[block];
+    return _min_block_weights.empty() ? 0 : _min_block_weights[block];
   }
 
   [[nodiscard]] BlockWeight perfectly_balanced_block_weight(const BlockID block) const {
@@ -453,15 +453,18 @@ struct PartitionContext {
       bool relax_max_block_weights = false
   );
 
-private:
-  std::vector<BlockWeight> _min_block_weights{};
+  void enable_minimum_block_weights();
+  void disable_minimum_block_weights();
 
+private:
   std::vector<BlockWeight> _max_block_weights{};
   std::vector<BlockWeight> _unrelaxed_max_block_weights{};
 
   BlockWeight _total_max_block_weights = 0;
   double _epsilon = -1.0;
   bool _uniform_block_weights = false;
+
+  std::vector<BlockWeight> _min_block_weights{};
 };
 
 struct ParallelContext {
@@ -860,6 +863,19 @@ public:
   shm::Graph take_graph();
 
   /*!
+   * Control whether the balance constraint is also applied to the minimum block weight.
+   *
+   * When enabled, the minimum block weight for block b is set to:
+   * ```
+   * avg_block_weight - (max_block_weight[b] - avg_block_weight)
+   * ```
+   *
+   * @param enable Whether the balance constraint is also applied to the minimum block weight or
+   * just to the maximum block weight.
+   */
+  void enable_balanced_minimum_block_weights(bool enable);
+
+  /*!
    * Partitions the graph set by `borrow_and_mutate_graph()` or `copy_graph()` into `k` blocks with
    * a maximum imbalance of 3%.
    *
@@ -926,6 +942,7 @@ private:
   tbb::global_control _gc;
 
   bool _was_rearranged = false;
+  bool _balance_min_block_weights = false;
 };
 
 } // namespace kaminpar
