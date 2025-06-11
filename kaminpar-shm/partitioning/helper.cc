@@ -46,6 +46,9 @@ PartitionContext create_kway_context(const Context &input_ctx, const Partitioned
   new_p_ctx.setup(p_graph.graph(), std::move(max_block_weights), relax_max_block_weights);
 
   // @todo
+  if (current_k == input_k && input_ctx.partition.has_min_block_weights()) {
+    new_p_ctx.enable_minimum_block_weights();
+  }
   if (input_ctx.partition.has_epsilon()) {
     new_p_ctx.set_epsilon(input_ctx.partition.epsilon());
   }

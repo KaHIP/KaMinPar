@@ -29,6 +29,7 @@
 // Refinement
 #include "kaminpar-shm/refinement/adapters/mtkahypar_refiner.h"
 #include "kaminpar-shm/refinement/balancer/overload_balancer.h"
+#include "kaminpar-shm/refinement/balancer/underload_balancer.h"
 #include "kaminpar-shm/refinement/fm/fm_refiner.h"
 #include "kaminpar-shm/refinement/jet/jet_refiner.h"
 #include "kaminpar-shm/refinement/lp/lp_refiner.h"
@@ -100,8 +101,11 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
   case RefinementAlgorithm::LABEL_PROPAGATION:
     return std::make_unique<LabelPropagationRefiner>(ctx);
 
-  case RefinementAlgorithm::GREEDY_BALANCER:
+  case RefinementAlgorithm::OVERLOAD_BALANCER:
     return std::make_unique<OverloadBalancer>(ctx);
+
+  case RefinementAlgorithm::UNDERLOAD_BALANCER:
+    return std::make_unique<UnderloadBalancer>(ctx);
 
   case RefinementAlgorithm::KWAY_FM:
     return std::make_unique<FMRefiner>(ctx);
