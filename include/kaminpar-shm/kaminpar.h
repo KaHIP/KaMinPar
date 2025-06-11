@@ -220,7 +220,8 @@ struct CoarseningContext {
 enum class RefinementAlgorithm {
   LABEL_PROPAGATION,
   KWAY_FM,
-  GREEDY_BALANCER,
+  OVERLOAD_BALANCER,
+  UNDERLOAD_BALANCER,
   JET,
   MTKAHYPAR,
   NOOP,
@@ -380,6 +381,10 @@ struct PartitionContext {
 
   [[nodiscard]] BlockWeight min_block_weight(const BlockID block) const {
     return _min_block_weights.empty() ? 0 : _min_block_weights[block];
+  }
+
+  [[nodiscard]] bool has_min_block_weights() const {
+    return !_min_block_weights.empty();
   }
 
   [[nodiscard]] BlockWeight perfectly_balanced_block_weight(const BlockID block) const {

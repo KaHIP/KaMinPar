@@ -12,6 +12,7 @@
 #pragma once
 
 #include <utility>
+#include <variant>
 
 #include "kaminpar-shm/datastructures/abstract_graph.h"
 #include "kaminpar-shm/datastructures/compressed_graph.h"
@@ -19,6 +20,9 @@
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
+
+template <template <typename> typename Component>
+using GraphVariant = std::variant<Component<CSRGraph>, Component<CompressedGraph>>;
 
 template <typename Lambda1, typename Lambda2>
 decltype(auto) reified(Graph &graph, Lambda1 &&l1, Lambda2 &&l2) {

@@ -51,6 +51,13 @@ bool is_balanced(const PartitionedGraph &p_graph, const PartitionContext &p_ctx)
 }
 
 template <typename PartitionedGraph>
+bool is_min_balanced(const PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
+  return std::all_of(p_graph.blocks().begin(), p_graph.blocks().end(), [&](const BlockID b) {
+    return p_graph.block_weight(b) >= p_ctx.min_block_weight(b);
+  });
+}
+
+template <typename PartitionedGraph>
 bool is_feasible(const PartitionedGraph &p_graph, const BlockID input_k, const double eps) {
   const double max_block_weight = std::ceil((1.0 + eps) * p_graph.total_node_weight() / input_k);
 
