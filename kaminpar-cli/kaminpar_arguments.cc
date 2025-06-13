@@ -642,6 +642,8 @@ CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context 
 
   twoway_flow->add_option("--r-twoway-flow-unconstrained", ctx.refinement.twoway_flow.unconstrained)
       ->capture_default_str();
+  twoway_flow->add_option("--r-twoway-flow-dynamic-rebalancer", ctx.refinement.twoway_flow.dynamic_rebalancer)
+      ->capture_default_str();
 
   twoway_flow->add_option("--r-twoway-flow-whfc", ctx.refinement.twoway_flow.use_whfc)
       ->capture_default_str();

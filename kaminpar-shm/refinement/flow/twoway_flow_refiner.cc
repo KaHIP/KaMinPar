@@ -8,7 +8,6 @@
 #include "kaminpar-shm/refinement/flow/twoway_flow_refiner.h"
 
 #include <algorithm>
-#include <functional>
 #include <memory>
 #include <numeric>
 #include <queue>
@@ -20,9 +19,9 @@
 #include <tbb/parallel_for.h>
 
 #ifdef KAMINPAR_WHFC_FOUND
-#include "assert.h"
 #include "algorithm/hyperflowcutter.h"
 #include "algorithm/sequential_push_relabel.h"
+#include "assert.h"
 #include "datastructure/flow_hypergraph_builder.h"
 #include "definitions.h"
 #endif
@@ -30,11 +29,12 @@
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/metrics.h"
-#include "kaminpar-shm/refinement/balancer/sequential_greedy_balancer.h"
 #include "kaminpar-shm/refinement/flow/max_flow/edmond_karp_algorithm.h"
 #include "kaminpar-shm/refinement/flow/max_flow/fifo_preflow_push_algorithm.h"
 #include "kaminpar-shm/refinement/flow/max_flow/max_flow_algorithm.h"
 #include "kaminpar-shm/refinement/flow/piercing/piercing_heuristic.h"
+#include "kaminpar-shm/refinement/flow/rebalancer/dynamic_greedy_balancer.h"
+#include "kaminpar-shm/refinement/flow/rebalancer/static_greedy_balancer.h"
 #include "kaminpar-shm/refinement/flow/util/border_region.h"
 #include "kaminpar-shm/refinement/flow/util/node_status.h"
 #include "kaminpar-shm/refinement/flow/util/reverse_edge_index.h"
@@ -49,10 +49,6 @@ namespace kaminpar::shm {
 
 class BipartitionFlowRefiner {
   SET_DEBUG(false);
-
-  static constexpr std::uint8_t kStatusUnknown = 0;
-  static constexpr std::uint8_t kStatusSourceReachable = 1;
-  static constexpr std::uint8_t kStatusSinkReachable = 2;
 
   struct FlowNetwork {
     NodeID source;
@@ -89,7 +85,11 @@ public:
         _f_ctx(f_ctx),
         _p_graph(p_graph),
         _graph(graph),
-        _partition(graph.n(), static_array::noinit) {
+        _dynamic_balancer(p_ctx.max_block_weights()),
+        _source_side_balancer(p_ctx.max_block_weights()),
+        _sink_side_balancer(p_ctx.max_block_weights()),
+        _partition(graph.n(), static_array::noinit),
+        _block_weights(p_graph.k(), static_array::noinit) {
     switch (_f_ctx.flow_algorithm) {
     case FlowAlgorithm::EDMONDS_KARP:
       _max_flow_algorithm = std::make_unique<EdmondsKarpAlgorithm>();
@@ -97,6 +97,10 @@ public:
     case FlowAlgorithm::FIFO_PREFLOW_PUSH:
       _max_flow_algorithm = std::make_unique<FIFOPreflowPushAlgorithm>(_f_ctx.fifo_preflow_push);
       break;
+    }
+
+    if (_f_ctx.unconstrained) {
+      _p_graph_copy = PartitionedCSRGraph(PartitionedCSRGraph::seq(), graph, p_graph.k());
     }
   }
 
@@ -122,6 +126,10 @@ public:
     DBG << "Starting refinement for block pair " << _block1 << " and " << _block2
         << " with an initial cut of " << _initial_cut_value << " (global: " << cut_value << ")";
 
+    if (_f_ctx.unconstrained) {
+      initialize_rebalancer();
+    }
+
     if (_f_ctx.use_whfc) {
       run_hyper_flow_cutter();
     } else {
@@ -141,19 +149,15 @@ private:
   void initialize_block_data() {
     SCOPED_TIMER("Initialize Block Data");
 
-    BlockWeight block1_weight = 0;
-    BlockWeight block2_weight = 0;
+    std::fill(_block_weights.begin(), _block_weights.end(), 0);
+
     for (const NodeID u : _graph.nodes()) {
       const BlockID u_block = _p_graph.block(u);
-      _partition[u] = u_block;
-
       const NodeWeight u_weight = _graph.node_weight(u);
-      block1_weight += (u_block == _block1) ? u_weight : 0;
-      block2_weight += (u_block == _block2) ? u_weight : 0;
-    }
 
-    _block1_weight = block1_weight;
-    _block2_weight = block2_weight;
+      _partition[u] = u_block;
+      _block_weights[u_block] += u_weight;
+    }
   }
 
   void compute_border_regions() {
@@ -165,13 +169,13 @@ private:
     const NodeWeight max_border_region_weight1 =
         (1 + _f_ctx.border_region_scaling_factor * _p_ctx.epsilon()) *
             _p_ctx.perfectly_balanced_block_weight(block2) -
-        _block2_weight;
+        _block_weights[_block2];
     _border_region1.reset(block1, max_border_region_weight1);
 
     const NodeWeight max_border_region_weight2 =
         (1 + _f_ctx.border_region_scaling_factor * _p_ctx.epsilon()) *
             _p_ctx.perfectly_balanced_block_weight(block1) -
-        _block1_weight;
+        _block_weights[_block1];
     _border_region2.reset(block2, max_border_region_weight2);
 
     for (const NodeID u : _graph.nodes()) {
@@ -303,10 +307,10 @@ private:
     }
 
     nodes[kSource] = num_source_edges;
-    node_weights[kSource] = _block1_weight - _border_region1.weight();
+    node_weights[kSource] = _block_weights[_block1] - _border_region1.weight();
 
     nodes[kSink] = num_sink_edges;
-    node_weights[kSink] = _block2_weight - _border_region2.weight();
+    node_weights[kSink] = _block_weights[_block2] - _border_region2.weight();
 
     nodes.back() = 0;
     std::partial_sum(nodes.begin(), nodes.end(), nodes.begin());
@@ -470,13 +474,24 @@ private:
         const EdgeWeight gain = _initial_cut_value - flow_cutter.cs.flow_algo.flow_value;
         const EdgeWeight cut_value = _global_cut_value - gain;
 
-        const auto fetch_block = [&](const NodeID u) {
-          const bool is_on_source_side = flow_cutter.cs.flow_algo.isSourceReachable(whfc::Node(u));
-          return is_on_source_side ? _block1 : _block2;
+        TIMED_SCOPE("Rebalance source-side cut") {
+          const auto fetch_block = [&](const NodeID u) {
+            const bool is_on_source_side =
+                flow_cutter.cs.flow_algo.isSourceReachable(whfc::Node(u));
+            return is_on_source_side ? _block1 : _block2;
+          };
+
+          rebalance(true, cut_value, fetch_block);
         };
 
-        PartitionedCSRGraph p_graph = copy_partitioned_graph(fetch_block);
-        rebalance(cut_value, p_graph);
+        TIMED_SCOPE("Rebalance sink-side cut") {
+          const auto fetch_block = [&](const NodeID u) {
+            const bool is_on_sink_side = flow_cutter.cs.flow_algo.isTargetReachable(whfc::Node(u));
+            return is_on_sink_side ? _block1 : _block2;
+          };
+
+          rebalance(false, cut_value, fetch_block);
+        };
       }
 
       return true;
@@ -511,7 +526,7 @@ private:
   void run_flow_cutter() {
     SCOPED_TIMER("Run FlowCutter");
 
-    const NodeWeight total_weight = _block1_weight + _block2_weight;
+    const NodeWeight total_weight = _block_weights[_block1] + _block_weights[_block2];
     const NodeWeight max_block1_weight = _p_ctx.max_block_weight(_block1);
     const NodeWeight max_block2_weight = _p_ctx.max_block_weight(_block2);
 
@@ -578,28 +593,23 @@ private:
       }
 
       if (_f_ctx.unconstrained) {
-        TIMED_SCOPE("Rebalance source-side cut") {
-          const EdgeWeight gain = _initial_cut_value - cut_value;
-          const EdgeWeight cut_value = _global_cut_value - gain;
+        const EdgeWeight gain = _initial_cut_value - cut_value;
+        const EdgeWeight cut_value = _global_cut_value - gain;
 
+        TIMED_SCOPE("Rebalance source-side cut") {
           const auto fetch_block = [&](const NodeID u) {
             return _node_status.is_source(u) ? _block1 : _block2;
           };
 
-          PartitionedCSRGraph source_cut_induced_p_graph = copy_partitioned_graph(fetch_block);
-          rebalance(cut_value, source_cut_induced_p_graph);
+          rebalance(true, cut_value, fetch_block);
         };
 
         TIMED_SCOPE("Rebalance sink-side cut") {
-          const EdgeWeight gain = _initial_cut_value - cut_value;
-          const EdgeWeight cut_value = _global_cut_value - gain;
-
           const auto fetch_block = [&](const NodeID u) {
             return _node_status.is_sink(u) ? _block2 : _block1;
           };
 
-          PartitionedCSRGraph sink_cut_induced_p_graph = copy_partitioned_graph(fetch_block);
-          rebalance(cut_value, sink_cut_induced_p_graph);
+          rebalance(false, cut_value, fetch_block);
         };
       }
 
@@ -719,57 +729,69 @@ private:
     }
   }
 
-  template <typename BlockFetcher>
-  PartitionedCSRGraph copy_partitioned_graph(BlockFetcher &&fetch_block) const {
-    SCOPED_TIMER("Copy Partitioned Graph");
+  void initialize_rebalancer() {
+    SCOPED_TIMER("Initialize Rebalancer");
 
-    PartitionedCSRGraph p_graph(PartitionedCSRGraph::seq(), _graph, _p_graph.k());
-
-    const std::unordered_map<NodeID, NodeID> &mapping = _flow_network.global_to_local_mapping;
     for (const NodeID u : _graph.nodes()) {
-      if (auto it = mapping.find(u); it != mapping.end()) {
-        const NodeID u_local = it->second;
-        const BlockID u_block = fetch_block(u_local);
-
-        p_graph.set_block(u, u_block);
-        continue;
-      }
-
-      const BlockID u_block = _partition[u];
-      p_graph.set_block(u, u_block);
+      _p_graph_copy.set_block(u, _partition[u]);
     }
 
-    return p_graph;
+    if (!_f_ctx.dynamic_rebalancer) {
+      _source_side_balancer.initialize(
+          _p_graph_copy, _graph, _flow_network.global_to_local_mapping, _block1
+      );
+
+      _sink_side_balancer.initialize(
+          _p_graph_copy, _graph, _flow_network.global_to_local_mapping, _block2
+      );
+    }
   }
 
-  void rebalance(EdgeWeight cut_value, PartitionedCSRGraph &p_graph) {
+  template <typename BlockFetcher>
+  void rebalance(bool source_side, EdgeWeight cut_value, BlockFetcher &&fetch_block) {
     SCOPED_TIMER("Rebalancing");
 
+    for (const auto [u, u_local] : _flow_network.global_to_local_mapping) {
+      _p_graph_copy.set_block(u, fetch_block(u_local));
+    }
+
     KASSERT(
-        metrics::edge_cut_seq(p_graph) == cut_value,
+        metrics::edge_cut_seq(_p_graph_copy) == cut_value,
         "Given an incorrect cut value for partitioned graph",
         assert::heavy
     );
 
-    const auto [rebalanced, gain] = _balancer.balance(p_graph, _graph, _p_ctx.max_block_weights());
-    if (!rebalanced) {
+    const auto [balanced, gain] = [&] {
+      if (_f_ctx.dynamic_rebalancer) {
+        return _dynamic_balancer.rebalance(_p_graph_copy, _graph, source_side ? _block1 : _block2);
+      } else {
+        if (source_side) {
+          return _source_side_balancer.rebalance(_p_graph_copy);
+        } else {
+          return _sink_side_balancer.rebalance(_p_graph_copy);
+        }
+      }
+    }();
+
+    if (!balanced) {
       return;
     }
 
-    const EdgeWeight rebalanced_cut_value = cut_value - gain;
+    const EdgeWeight rebalanced_cut_value =
+        _f_ctx.dynamic_rebalancer ? cut_value - gain : metrics::edge_cut_seq(_p_graph_copy);
     DBG << "Rebalanced imbalanced cut with resulting global value " << rebalanced_cut_value;
 
     if (rebalanced_cut_value < _unconstrained_cut_value) {
       _unconstrained_cut_value = rebalanced_cut_value;
       _unconstrained_moves.clear();
 
-      for (const NodeID u : _graph.nodes()) {
+      for (const auto [u, _] : _flow_network.global_to_local_mapping) {
         const BlockID old_block = _partition[u];
-        const BlockID new_block = p_graph.block(u);
+        const BlockID new_block = _p_graph_copy.block(u);
 
         if (old_block != new_block) {
           _unconstrained_moves.emplace_back(u, old_block, new_block);
-        }
+        };
       }
     }
   }
@@ -782,16 +804,18 @@ private:
   const CSRGraph &_graph;
 
   std::unique_ptr<MaxFlowAlgorithm> _max_flow_algorithm;
-  SequentialGreedyBalancerImpl<PartitionedCSRGraph, CSRGraph> _balancer;
+
+  PartitionedCSRGraph _p_graph_copy;
+  DynamicGreedyBalancer<PartitionedCSRGraph, CSRGraph> _dynamic_balancer;
+  StaticGreedyBalancer<PartitionedCSRGraph, CSRGraph> _source_side_balancer;
+  StaticGreedyBalancer<PartitionedCSRGraph, CSRGraph> _sink_side_balancer;
 
   StaticArray<BlockID> _partition;
+  StaticArray<BlockWeight> _block_weights;
   NodeStatus _node_status;
 
   BlockID _block1;
   BlockID _block2;
-
-  BlockWeight _block1_weight;
-  BlockWeight _block2_weight;
 
   BorderRegion _border_region1;
   BorderRegion _border_region2;

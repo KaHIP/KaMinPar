@@ -292,6 +292,7 @@ struct TwowayFlowRefinementContext {
   PiercingHeuristicContext piercing;
 
   bool unconstrained;
+  bool dynamic_rebalancer;
 
   bool use_whfc;
 

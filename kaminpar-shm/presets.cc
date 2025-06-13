@@ -347,6 +347,7 @@ Context create_default_context() {
                               .pierce_all_viable = true,
                           },
                       .unconstrained = false,
+                      .dynamic_rebalancer = true,
                       .use_whfc = false,
                       .parallel_scheduling = true,
                       .max_num_rounds = std::numeric_limits<std::size_t>::max(),
