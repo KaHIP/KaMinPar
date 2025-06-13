@@ -1,11 +1,12 @@
 #pragma once
 
 #include <span>
-#include <utility>
+#include <tuple>
 
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/binary_heap.h"
+#include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm {
@@ -79,6 +80,10 @@ template <typename PartitionedGraph, typename Graph> class DynamicGreedyBalancer
   using PriorityQueue = BinaryMaxHeap<RelativeGain>;
   using GainCache = SequentialDenseGainCache<PartitionedGraph, Graph>;
 
+  using Result = std::tuple<BlockID, RelativeGain, std::span<const NodeID>>;
+
+  static constexpr Result kInvalidResult{false, 0, {}};
+
   struct Move {
     BlockID block;
     RelativeGain relative_gain;
@@ -94,13 +99,12 @@ public:
   DynamicGreedyBalancer(std::span<const BlockWeight> max_block_weights)
       : _max_block_weights(max_block_weights) {};
 
-  std::pair<BlockID, RelativeGain>
-  rebalance(PartitionedGraph &p_graph, const Graph &graph, BlockID overloaded_block) {
+  Result rebalance(PartitionedGraph &p_graph, const Graph &graph, BlockID overloaded_block) {
     _p_graph = &p_graph;
     _graph = &graph;
 
-    _max_block_weights = p_graph.raw_block_weights();
     _overloaded_block = overloaded_block;
+    _moved_nodes.clear();
 
     _gain_cache.initialize(p_graph, graph, overloaded_block);
 
@@ -128,13 +132,13 @@ private:
     }
   }
 
-  std::pair<BlockID, RelativeGain> move_nodes() {
+  Result move_nodes() {
     EdgeWeight gain = 0;
 
     while (_p_graph->block_weight(_overloaded_block) > _max_block_weights[_overloaded_block]) {
       while (true) {
         if (_priority_queue.empty()) {
-          return {false, 0};
+          return kInvalidResult;
         }
 
         const NodeID u = _priority_queue.peek_id();
@@ -152,11 +156,13 @@ private:
 
         _p_graph->set_block(u, target_block);
         _graph->adjacent_nodes(u, [&](const NodeID v) { update_node(v); });
+
+        _moved_nodes.push_back(u);
         break;
       }
     }
 
-    return {true, gain};
+    return {true, gain, _moved_nodes};
   }
 
   void insert_node(const NodeID u) {
@@ -224,11 +230,13 @@ private:
   }
 
 private:
+  std::span<const BlockWeight> _max_block_weights;
+
   PartitionedGraph *_p_graph;
   const Graph *_graph;
 
   BlockID _overloaded_block;
-  std::span<const BlockWeight> _max_block_weights;
+  ScalableVector<NodeID> _moved_nodes;
 
   PriorityQueue _priority_queue;
   StaticArray<BlockID> _target_blocks;

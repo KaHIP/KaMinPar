@@ -100,7 +100,8 @@ public:
     }
 
     if (_f_ctx.unconstrained) {
-      _p_graph_copy = PartitionedCSRGraph(PartitionedCSRGraph::seq(), graph, p_graph.k());
+      _p_graph_rebalancing_copy =
+          PartitionedCSRGraph(PartitionedCSRGraph::seq(), graph, p_graph.k());
     }
   }
 
@@ -596,21 +597,25 @@ private:
         const EdgeWeight gain = _initial_cut_value - cut_value;
         const EdgeWeight cut_value = _global_cut_value - gain;
 
-        TIMED_SCOPE("Rebalance source-side cut") {
+        if (source_cut_weight > max_block1_weight) {
+          SCOPED_TIMER("Rebalance source-side cut");
+
           const auto fetch_block = [&](const NodeID u) {
             return _node_status.is_source(u) ? _block1 : _block2;
           };
 
           rebalance(true, cut_value, fetch_block);
-        };
+        }
 
-        TIMED_SCOPE("Rebalance sink-side cut") {
+        if (sink_cut_weight > max_block2_weight) {
+          SCOPED_TIMER("Rebalance sink-side cut");
+
           const auto fetch_block = [&](const NodeID u) {
             return _node_status.is_sink(u) ? _block2 : _block1;
           };
 
           rebalance(false, cut_value, fetch_block);
-        };
+        }
       }
 
       SCOPED_TIMER("Compute Piercing Node");
@@ -733,16 +738,16 @@ private:
     SCOPED_TIMER("Initialize Rebalancer");
 
     for (const NodeID u : _graph.nodes()) {
-      _p_graph_copy.set_block(u, _partition[u]);
+      _p_graph_rebalancing_copy.set_block(u, _partition[u]);
     }
 
     if (!_f_ctx.dynamic_rebalancer) {
       _source_side_balancer.initialize(
-          _p_graph_copy, _graph, _flow_network.global_to_local_mapping, _block1
+          _p_graph_rebalancing_copy, _graph, _flow_network.global_to_local_mapping, _block1
       );
 
       _sink_side_balancer.initialize(
-          _p_graph_copy, _graph, _flow_network.global_to_local_mapping, _block2
+          _p_graph_rebalancing_copy, _graph, _flow_network.global_to_local_mapping, _block2
       );
     }
   }
@@ -752,47 +757,69 @@ private:
     SCOPED_TIMER("Rebalancing");
 
     for (const auto [u, u_local] : _flow_network.global_to_local_mapping) {
-      _p_graph_copy.set_block(u, fetch_block(u_local));
+      _p_graph_rebalancing_copy.set_block(u, fetch_block(u_local));
     }
 
     KASSERT(
-        metrics::edge_cut_seq(_p_graph_copy) == cut_value,
+        metrics::edge_cut_seq(_p_graph_rebalancing_copy) == cut_value,
         "Given an incorrect cut value for partitioned graph",
         assert::heavy
     );
 
-    const auto [balanced, gain] = [&] {
+    const BlockID overloaded_block = source_side ? _block1 : _block2;
+
+    const auto [balanced, gain, moved_nodes] = [&] {
       if (_f_ctx.dynamic_rebalancer) {
-        return _dynamic_balancer.rebalance(_p_graph_copy, _graph, source_side ? _block1 : _block2);
+        return _dynamic_balancer.rebalance(_p_graph_rebalancing_copy, _graph, overloaded_block);
       } else {
         if (source_side) {
-          return _source_side_balancer.rebalance(_p_graph_copy);
+          return _source_side_balancer.rebalance(_p_graph_rebalancing_copy);
         } else {
-          return _sink_side_balancer.rebalance(_p_graph_copy);
+          return _sink_side_balancer.rebalance(_p_graph_rebalancing_copy);
         }
       }
     }();
 
     if (!balanced) {
-      return;
+      DBG << "Rebalancing failed to produce a balanced cut";
+    } else {
+      KASSERT(
+          metrics::is_balanced(_p_graph_rebalancing_copy, _p_ctx),
+          "Rebalancing resulted in an inbalanced partition",
+          assert::heavy
+      );
+
+      const EdgeWeight rebalanced_cut_value =
+          _f_ctx.dynamic_rebalancer ? cut_value - gain
+                                    : metrics::edge_cut_seq(_p_graph_rebalancing_copy);
+      DBG << "Rebalanced imbalanced cut with resulting global value " << rebalanced_cut_value;
+
+      if (rebalanced_cut_value < _unconstrained_cut_value) {
+        _unconstrained_cut_value = rebalanced_cut_value;
+        _unconstrained_moves.clear();
+
+        for (const auto [u, _] : _flow_network.global_to_local_mapping) {
+          const BlockID old_block = _partition[u];
+          const BlockID new_block = _p_graph_rebalancing_copy.block(u);
+
+          if (old_block != new_block) {
+            _unconstrained_moves.emplace_back(u, old_block, new_block);
+          };
+        }
+
+        for (const NodeID u : moved_nodes) {
+          if (_flow_network.global_to_local_mapping.contains(u)) {
+            continue;
+          }
+
+          const BlockID new_block = _p_graph_rebalancing_copy.block(u);
+          _unconstrained_moves.emplace_back(u, overloaded_block, new_block);
+        }
+      }
     }
 
-    const EdgeWeight rebalanced_cut_value =
-        _f_ctx.dynamic_rebalancer ? cut_value - gain : metrics::edge_cut_seq(_p_graph_copy);
-    DBG << "Rebalanced imbalanced cut with resulting global value " << rebalanced_cut_value;
-
-    if (rebalanced_cut_value < _unconstrained_cut_value) {
-      _unconstrained_cut_value = rebalanced_cut_value;
-      _unconstrained_moves.clear();
-
-      for (const auto [u, _] : _flow_network.global_to_local_mapping) {
-        const BlockID old_block = _partition[u];
-        const BlockID new_block = _p_graph_copy.block(u);
-
-        if (old_block != new_block) {
-          _unconstrained_moves.emplace_back(u, old_block, new_block);
-        };
-      }
+    for (const NodeID u : moved_nodes) {
+      _p_graph_rebalancing_copy.set_block(u, overloaded_block);
     }
   }
 
@@ -805,7 +832,7 @@ private:
 
   std::unique_ptr<MaxFlowAlgorithm> _max_flow_algorithm;
 
-  PartitionedCSRGraph _p_graph_copy;
+  PartitionedCSRGraph _p_graph_rebalancing_copy;
   DynamicGreedyBalancer<PartitionedCSRGraph, CSRGraph> _dynamic_balancer;
   StaticGreedyBalancer<PartitionedCSRGraph, CSRGraph> _source_side_balancer;
   StaticGreedyBalancer<PartitionedCSRGraph, CSRGraph> _sink_side_balancer;

@@ -2,7 +2,6 @@
 
 #include <span>
 #include <unordered_map>
-#include <utility>
 
 #include "kaminpar-shm/kaminpar.h"
 
@@ -14,6 +13,10 @@ namespace kaminpar::shm {
 template <typename PartitionedGraph, typename Graph> class StaticGreedyBalancer {
   using RelativeGain = float;
   using PriorityQueue = BinaryMaxHeap<RelativeGain>;
+
+  using Result = std::tuple<BlockID, RelativeGain, std::span<const NodeID>>;
+
+  static constexpr Result kInvalidResult{false, 0, {}};
 
   struct Move {
     BlockID block;
@@ -40,18 +43,19 @@ public:
     _graph = &graph;
     _global_to_local_mapping = &global_to_local_mapping;
 
-    _max_block_weights = p_graph.raw_block_weights();
     _overloaded_block = overloaded_block;
 
     compute_moves();
   }
 
-  std::pair<BlockID, RelativeGain> rebalance(PartitionedGraph &p_graph) {
+  Result rebalance(PartitionedGraph &p_graph) {
+    _moved_nodes.clear();
+
     std::size_t cur_move = 0;
     while (p_graph.block_weight(_overloaded_block) > _max_block_weights[_overloaded_block]) {
       while (true) {
         if (cur_move >= _num_valid_moves) {
-          return {false, 0};
+          return kInvalidResult;
         }
 
         const NodeID u = _moves[cur_move++];
@@ -66,11 +70,12 @@ public:
         }
 
         p_graph.set_block(u, target_block);
+        _moved_nodes.push_back(u);
         break;
       }
     }
 
-    return {true, kInvalidEdgeWeight}; // TODO: compute gain
+    return {true, kInvalidEdgeWeight, _moved_nodes}; // TODO: compute gain
   }
 
 private:
@@ -171,12 +176,13 @@ private:
   }
 
 private:
+  std::span<const BlockWeight> _max_block_weights;
   PartitionedGraph *_p_graph;
   const Graph *_graph;
   const std::unordered_map<NodeID, NodeID> *_global_to_local_mapping;
 
   BlockID _overloaded_block;
-  std::span<const BlockWeight> _max_block_weights;
+  ScalableVector<NodeID> _moved_nodes;
 
   NodeID _num_valid_moves;
   StaticArray<NodeID> _moves;
