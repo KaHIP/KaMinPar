@@ -470,7 +470,6 @@ The following algorithms can be used:
   - lp:                         label propagation
   - fm:                         FM
   - twoway-flow:                two-way flow
-  - multiway-flow:              multi-way flow
   - jet:                        Jet
   - mtkahypar:                  Mt-KaHyPar)"
       )
@@ -479,7 +478,6 @@ The following algorithms can be used:
   create_lp_refinement_options(app, ctx);
   create_kway_fm_refinement_options(app, ctx);
   create_twoway_flow_refinement_options(app, ctx);
-  create_multiway_flow_refinement_options(app, ctx);
   create_jet_refinement_options(app, ctx);
   create_mtkahypar_refinement_options(app, ctx);
 
@@ -664,35 +662,6 @@ CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context 
       ->capture_default_str();
 
   return twoway_flow;
-}
-
-CLI::Option_group *create_multiway_flow_refinement_options(CLI::App *app, Context &ctx) {
-  auto *multiway_flow = app->add_option_group("Refinement -> multi-way Flow");
-
-  multiway_flow
-      ->add_option(
-          "--r-multiway-flow-border-region-scaling-factor",
-          ctx.refinement.multiway_flow.border_region_scaling_factor
-      )
-      ->capture_default_str();
-  multiway_flow
-      ->add_option(
-          "--r-multiway-flow-max-border-distance", ctx.refinement.multiway_flow.max_border_distance
-      )
-      ->capture_default_str();
-
-  multiway_flow
-      ->add_option("--r-multiway-flow-cut-algorithm", ctx.refinement.multiway_flow.cut_algorithm)
-      ->transform(CLI::CheckedTransformer(
-          std::unordered_map<std::string, CutAlgorithm>{
-              {"isolating-cut", CutAlgorithm::ISOLATING_CUT_HEURISTIC},
-              {"labelling-function", CutAlgorithm::LABELLING_FUNCTION_HEURISTIC},
-          },
-          CLI::ignore_case
-      ))
-      ->capture_default_str();
-
-  return multiway_flow;
 }
 
 CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {

@@ -212,7 +212,6 @@ enum class RefinementAlgorithm {
   LABEL_PROPAGATION,
   KWAY_FM,
   TWOWAY_FLOW,
-  MULTIWAY_FLOW,
   JET,
   MTKAHYPAR,
 };
@@ -329,15 +328,6 @@ struct LabellingFunctionHeuristicContext {
   std::size_t max_num_rounds;
 };
 
-struct MultiwayFlowRefinementContext {
-  double border_region_scaling_factor;
-  NodeID max_border_distance;
-
-  CutAlgorithm cut_algorithm;
-  IsolatingCutHeuristicContext isolating_cut_heuristic;
-  LabellingFunctionHeuristicContext labelling_function_heuristic;
-};
-
 struct JetRefinementContext {
   int num_iterations;
   int num_fruitless_iterations;
@@ -364,7 +354,6 @@ struct RefinementContext {
   LabelPropagationRefinementContext lp;
   KwayFMRefinementContext kway_fm;
   TwowayFlowRefinementContext twoway_flow;
-  MultiwayFlowRefinementContext multiway_flow;
   JetRefinementContext jet;
   MtKaHyParRefinementContext mtkahypar;
 

@@ -281,8 +281,6 @@ std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm)
     return out << "fm";
   case RefinementAlgorithm::TWOWAY_FLOW:
     return out << "twoway-flow";
-  case RefinementAlgorithm::MULTIWAY_FLOW:
-    return out << "multiway-flow";
   case RefinementAlgorithm::JET:
     return out << "jet";
   case RefinementAlgorithm::MTKAHYPAR:
@@ -300,7 +298,6 @@ std::unordered_map<std::string, RefinementAlgorithm> get_refinement_algorithms()
       {"lp", RefinementAlgorithm::LABEL_PROPAGATION},
       {"fm", RefinementAlgorithm::KWAY_FM},
       {"twoway-flow", RefinementAlgorithm::TWOWAY_FLOW},
-      {"multiway-flow", RefinementAlgorithm::MULTIWAY_FLOW},
       {"jet", RefinementAlgorithm::JET},
       {"mtkahypar", RefinementAlgorithm::MTKAHYPAR},
   };

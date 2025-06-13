@@ -30,7 +30,6 @@
 #include "kaminpar-shm/refinement/adapters/mtkahypar_refiner.h"
 #include "kaminpar-shm/refinement/balancer/greedy_balancer.h"
 #include "kaminpar-shm/refinement/balancer/sequential_greedy_balancer.h"
-#include "kaminpar-shm/refinement/flow/multiway_flow_refiner.h"
 #include "kaminpar-shm/refinement/flow/twoway_flow_refiner.h"
 #include "kaminpar-shm/refinement/fm/fm_refiner.h"
 #include "kaminpar-shm/refinement/jet/jet_refiner.h"
@@ -114,9 +113,6 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
 
   case RefinementAlgorithm::TWOWAY_FLOW:
     return std::make_unique<TwowayFlowRefiner>(ctx.refinement.twoway_flow);
-
-  case RefinementAlgorithm::MULTIWAY_FLOW:
-    return std::make_unique<MultiwayFlowRefiner>(ctx);
 
   case RefinementAlgorithm::JET:
     return std::make_unique<JetRefiner>(ctx);

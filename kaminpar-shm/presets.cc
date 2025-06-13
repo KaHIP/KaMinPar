@@ -352,50 +352,6 @@ Context create_default_context() {
                       .max_num_rounds = std::numeric_limits<std::size_t>::max(),
                       .min_round_improvement_factor = 0.01,
                   },
-              .multiway_flow =
-                  {
-                      .border_region_scaling_factor = 16,
-                      .max_border_distance = 2,
-                      .cut_algorithm = CutAlgorithm::ISOLATING_CUT_HEURISTIC,
-                      .isolating_cut_heuristic =
-                          {
-                              .flow_algorithm = FlowAlgorithm::FIFO_PREFLOW_PUSH,
-                              .fifo_preflow_push =
-                                  {
-
-                                      .global_relabeling_heuristic = true,
-                                      .global_relabeling_frequency = 1,
-                                  },
-                              .highest_level_preflow_push =
-                                  {
-                                      .two_phase = true,
-                                      .gap_heuristic = true,
-                                      .global_relabeling_heuristic = true,
-                                      .global_relabeling_frequency = 1,
-                                  },
-                          },
-                      .labelling_function_heuristic =
-                          {
-                              .initialization_strategy =
-                                  LabellingFunctionInitializationStrategy::ZERO,
-                              .flow_algorithm = FlowAlgorithm::FIFO_PREFLOW_PUSH,
-                              .fifo_preflow_push =
-                                  {
-
-                                      .global_relabeling_heuristic = true,
-                                      .global_relabeling_frequency = 1,
-                                  },
-                              .highest_level_preflow_push =
-                                  {
-                                      .two_phase = true,
-                                      .gap_heuristic = true,
-                                      .global_relabeling_heuristic = true,
-                                      .global_relabeling_frequency = 1,
-                                  },
-                              .epsilon = 0.01,
-                              .max_num_rounds = std::numeric_limits<std::size_t>::max(),
-                          },
-                  },
               .jet =
                   {
                       .num_iterations = 0,
