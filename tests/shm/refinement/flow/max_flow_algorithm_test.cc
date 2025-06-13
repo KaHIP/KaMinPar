@@ -17,6 +17,7 @@
 #include "kaminpar-shm/refinement/flow/max_flow/edmond_karp_algorithm.h"
 #include "kaminpar-shm/refinement/flow/max_flow/fifo_preflow_push_algorithm.h"
 #include "kaminpar-shm/refinement/flow/max_flow/max_flow_algorithm.h"
+#include "kaminpar-shm/refinement/flow/util/node_status.h"
 #include "kaminpar-shm/refinement/flow/util/reverse_edge_index.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
@@ -38,12 +39,16 @@ protected:
     max_flow_algorithm.initialize(csr_graph, reverse_edges, source, sink);
     const auto [flow_value, flow] = max_flow_algorithm.compute_max_flow();
 
-    const std::unordered_set<NodeID> sources{source};
-    const std::unordered_set<NodeID> sinks{sink};
-    ASSERT_TRUE(debug::is_valid_flow(csr_graph, sources, sinks, flow));
-    ASSERT_TRUE(debug::is_max_flow(csr_graph, sources, sinks, flow));
+    NodeStatus node_status;
+    node_status.initialize(csr_graph.n());
+    node_status.add_source(source);
+    node_status.add_sink(sink);
 
-    std::unordered_set<NodeID> reachable_nodes = compute_reachable_nodes(csr_graph, sources, flow);
+    ASSERT_TRUE(debug::is_valid_flow(csr_graph, node_status, flow));
+    ASSERT_TRUE(debug::is_max_flow(csr_graph, node_status, flow));
+
+    std::unordered_set<NodeID> reachable_nodes =
+        compute_reachable_nodes(csr_graph, node_status, flow);
     const EdgeWeight cut_value = compute_cut_value(csr_graph, reachable_nodes);
     ASSERT_EQ(flow_value, cut_value);
     ASSERT_EQ(cut_value, expected_cut_value);
@@ -51,14 +56,12 @@ protected:
 
 private:
   [[nodiscard]] static std::unordered_set<NodeID> compute_reachable_nodes(
-      const CSRGraph &graph,
-      const std::unordered_set<NodeID> &terminals,
-      std::span<const EdgeWeight> flow
+      const CSRGraph &graph, const NodeStatus &node_status, std::span<const EdgeWeight> flow
   ) {
     std::unordered_set<NodeID> reachable_nodes;
 
     std::queue<NodeID> bfs_queue;
-    for (const NodeID terminal : terminals) {
+    for (const NodeID terminal : node_status.source_nodes()) {
       reachable_nodes.insert(terminal);
       bfs_queue.push(terminal);
     }
