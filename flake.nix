@@ -10,57 +10,136 @@
     let
       pkgs = import nixpkgs { inherit system; };
       lib = pkgs.lib;
+      stdenv = pkgs.stdenv;
 
-      kaminpar =
-        let
-          google-test-src = pkgs.fetchFromGitHub {
-            owner = "google";
-            repo = "googletest";
-            rev = "5a37b517ad4ab6738556f0284c256cae1466c5b4";
-            hash = "sha256-uwdRrw79be2N1bBILeVa6q/hzx8MXUG8dcR4DU/cskw=";
-          };
-        in
-        pkgs.stdenv.mkDerivation (finalAttrs: {
-          pname = "kaminpar";
-          version = "3.5.1";
+      kaminpar = stdenv.mkDerivation (finalAttrs: {
+        pname = "kaminpar";
+        version = "3.5.1";
 
-          src = self;
+        src = self;
+        strictDeps = true;
 
-          doCheck = true;
-          strictDeps = true;
+        nativeBuildInputs = builtins.attrValues {
+          inherit (pkgs) cmake mpi;
+        };
 
-          nativeBuildInputs = builtins.attrValues {
-            inherit (pkgs) git pkg-config cmake mpi;
-          };
+        buildInputs = [ pkgs.gtest ] ++ lib.optional stdenv.hostPlatform.isLinux pkgs.numactl;
 
-          propagatedBuildInputs = builtins.attrValues {
-            inherit (pkgs) tbb_2022_0 sparsehash mpi;
-            inherit mt-kahypar;
-          };
+        propagatedBuildInputs = builtins.attrValues {
+          inherit (pkgs) mpi sparsehash tbb_2022_0;
+          inherit kagen kassert mt-kahypar;
+        };
 
-          buildInputs = pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.numactl;
+        cmakeFlags = [
+          (lib.cmakeBool "KAMINPAR_BUILD_DISTRIBUTED" true)
+          (lib.cmakeBool "KAMINPAR_BUILD_WITH_MTUNE_NATIVE" false)
+        ];
 
-          __darwinAllowLocalNetworking = true;
-          nativeCheckInputs = [ pkgs.mpiCheckPhaseHook ];
+        doCheck = true;
+        __darwinAllowLocalNetworking = true;
+        nativeCheckInputs = [ pkgs.mpiCheckPhaseHook ];
 
-          cmakeFlags = [
-            (lib.cmakeBool "KAMINPAR_BUILD_DISTRIBUTED" true)
-            (lib.cmakeBool "KAMINPAR_BUILD_WITH_MTUNE_NATIVE" false)
-            (lib.cmakeBool "FETCHCONTENT_FULLY_DISCONNECTED" true)
-            (lib.cmakeFeature "FETCHCONTENT_SOURCE_DIR_KASSERT" "${kassert-src}")
-            (lib.cmakeFeature "FETCHCONTENT_SOURCE_DIR_KAGEN" "${kagen-src}")
-            (lib.cmakeFeature "FETCHCONTENT_SOURCE_DIR_GOOGLETEST" "${google-test-src}")
+        meta = {
+          description = "Parallel heuristic solver for the balanced k-way graph partitioning problem";
+          homepage = "https://github.com/KaHIP/KaMinPar";
+          changelog = "https://github.com/KaHIP/KaMinPar/releases/tag/v${finalAttrs.version}";
+          mainProgram = "KaMinPar";
+          license = lib.licenses.mit;
+          platforms = lib.platforms.unix;
+        };
+      });
+
+      kagen = stdenv.mkDerivation (finalAttrs: {
+        pname = "kagen";
+        version = "1.1.0";
+
+        # TODO: Update to main repo when installation fix is merged
+        src = pkgs.fetchFromGitHub {
+          owner = "dsalwasser";
+          repo = "KaGen";
+          rev = "8f810facc264105db3dbd8cd7b2c6b812096dbc1";
+
+          fetchSubmodules = true;
+          hash = "sha256-rG7cTsVvr2gSrZGdvxXo7MHCGFGJD2Ih70XB2NuqE6I=";
+        };
+
+        nativeBuildInputs = builtins.attrValues {
+          inherit (pkgs) cmake pkg-config;
+        };
+
+        buildInputs = builtins.attrValues {
+          inherit (pkgs) imagemagick;
+        };
+
+        propagatedBuildInputs = builtins.attrValues {
+          inherit (pkgs) boost cgal gmp mpfr mpi sparsehash;
+        };
+
+        cmakeFlags = [
+          (lib.cmakeBool "KAGEN_BUILD_EXAMPLES" false)
+          (lib.cmakeBool "KAGEN_BUILD_TESTS" finalAttrs.finalPackage.doCheck)
+          (lib.cmakeBool "KAGEN_USE_BUNDLED_GTEST" false)
+        ];
+
+        doCheck = false;
+        __darwinAllowLocalNetworking = true;
+        nativeCheckInputs = with pkgs; [
+          gtest
+          ctestCheckHook
+          mpiCheckPhaseHook
+        ];
+
+        disabledTests = lib.optionals (stdenv.hostPlatform.isDarwin && stdenv.hostPlatform.isAarch64) [
+          # flaky tests on aarch64-darwin
+          "test_rgg2d.2cores"
+          "test_rgg2d.4cores"
+        ];
+
+        meta = {
+          description = "Communication-free Massively Distributed Graph Generators";
+          homepage = "https://github.com/KarlsruheGraphGeneration/KaGen";
+          changelog = "https://github.com/KarlsruheGraphGeneration/KaGen/releases/tag/v${finalAttrs.version}";
+          mainProgram = "KaGen";
+          license = with lib.licenses; [
+            bsd2
+            mit
+            lib.licenses.boost
           ];
+          platforms = lib.platforms.unix;
+        };
+      });
 
-          meta = {
-            description = "Parallel heuristic solver for the balanced k-way graph partitioning problem";
-            homepage = "https://github.com/KaHIP/KaMinPar";
-            changelog = "https://github.com/KaHIP/KaMinPar/releases/tag/v${finalAttrs.version}";
-            license = lib.licenses.mit;
-            platforms = lib.platforms.linux ++ [ "aarch64-darwin" ];
-            mainProgram = "KaMinPar";
-          };
-        });
+      kassert = stdenv.mkDerivation (finalAttrs: {
+        pname = "kassert";
+        version = "0.2.2";
+
+        src = pkgs.fetchFromGitHub {
+          owner = "kamping-site";
+          repo = "kassert";
+          tag = "v${finalAttrs.version}";
+          hash = "sha256-5UndFUhKtHPFPLfYP0EI/r+eoAptcQBheznALfxh27s=";
+        };
+
+        nativeBuildInputs = [ pkgs.cmake ];
+
+        cmakeFlags = [
+          # doc generation require git clone doxygen-awesome-css
+          (lib.cmakeBool "KASSERT_BUILD_DOCS" false)
+          (lib.cmakeBool "KASSERT_BUILD_TESTS" finalAttrs.finalPackage.doCheck)
+          (lib.cmakeBool "KASSERT_USE_BUNDLED_GTEST" false)
+        ];
+
+        doCheck = true;
+        nativeCheckInputs = [ pkgs.gtest ];
+
+        meta = {
+          description = "Karlsruhe assertion library for C++";
+          homepage = "https://kamping-site.github.io/kassert/";
+          changelog = "https://github.com/kamping-site/kasser/releases/tag/v${finalAttrs.version}";
+          license = with lib.licenses; [ mit ];
+          platforms = lib.platforms.unix;
+        };
+      });
 
       mt-kahypar =
         let
@@ -85,27 +164,15 @@
             hash = "sha256-4Vm4EiwmwCs3nyBdRg/MAk8SUWtX6kTukj8gJ7HfJNY=";
           };
         in
-        pkgs.stdenv.mkDerivation {
+        stdenv.mkDerivation {
           pname = "Mt-KaHyPar";
-          version = "1.5";
+          version = "1.5.1";
 
           src = pkgs.fetchFromGitHub {
             owner = "kahypar";
             repo = "mt-kahypar";
-            rev = "73e11ecbd078382b935fd7c72bb47c23b7afcb57";
-            hash = "sha256-TlgFNiwrUQFSXzsGtLBNdZZSIZubN4nn1D6m9VJt1Pw=";
-          };
-
-          nativeBuildInputs = builtins.attrValues {
-            inherit (pkgs) cmake ninja;
-          };
-
-          propagatedBuildInputs = builtins.attrValues {
-            inherit (pkgs) tbb_2022_0;
-          };
-
-          buildInputs = builtins.attrValues {
-            inherit (pkgs) boost hwloc;
+            rev = "8d90c765a0a9f81b917bffab84cb5e3ab45c082b";
+            hash = "sha256-2USu34LV60boup+hDftMPpAWdrFyimZA6q5Rx40xW7s=";
           };
 
           preConfigure = ''
@@ -121,6 +188,18 @@
               --replace ''\'''${CMAKE_CURRENT_BINARY_DIR}/external_tools/WHFC' '${whfc-src}'
           '';
 
+          nativeBuildInputs = builtins.attrValues {
+            inherit (pkgs) cmake ninja;
+          };
+
+          buildInputs = builtins.attrValues {
+            inherit (pkgs) boost hwloc;
+          };
+
+          propagatedBuildInputs = builtins.attrValues {
+            inherit (pkgs) tbb_2022_0;
+          };
+
           cmakeFlags = [
             # The cmake package does not handle absolute CMAKE_INSTALL_INCLUDEDIR
             # correctly (setting it to an absolute path causes include files to go to
@@ -135,28 +214,9 @@
             description = "Shared-memory multilevel graph and hypergraph partitioner";
             homepage = "https://github.com/kahypar/mt-kahypar";
             license = lib.licenses.mit;
-            platforms = lib.platforms.linux ++ [ "aarch64-darwin" ];
-            mainProgram = "mt-kahypar";
+            platforms = lib.platforms.unix;
           };
         };
-
-      kassert-src = pkgs.fetchFromGitHub {
-        owner = "kamping-site";
-        repo = "kassert";
-        rev = "988b7d54b79ae6634f2fcc53a0314fb1cf2c6a23";
-
-        fetchSubmodules = true;
-        hash = "sha256-CBglUfVl9lgEa1t95G0mG4CCj0OWnIBwk7ep62rwIAA=";
-      };
-
-      kagen-src = pkgs.fetchFromGitHub {
-        owner = "KarlsruheGraphGeneration";
-        repo = "KaGen";
-        rev = "70386f48e513051656f020360c482ce6bff9a24f";
-
-        fetchSubmodules = true;
-        hash = "sha256-5EvRPpjUZpmAIEgybXjNU/mO0+gsAyhlwbT+syDUr48=";
-      };
 
       kaminpar-python = pkgs.python3Packages.buildPythonPackage {
         pname = "kaminpar";
@@ -173,25 +233,23 @@
           inherit (pkgs) git pkg-config cmake ninja;
         };
 
-        buildInputs = [ pkgs.tbb_2022_0 ] ++ pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.numactl;
-
-        preBuild = pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isDarwin ''
+        preBuild = lib.optionalString stdenv.hostPlatform.isDarwin ''
           export CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_CXX_COMPILER_AR=$AR -DCMAKE_CXX_COMPILER_RANLIB=$RANLIB"
         '';
+
+        buildInputs = [ kassert pkgs.tbb_2022_0 ] ++ lib.optional stdenv.hostPlatform.isLinux pkgs.numactl;
 
         dontUseCmakeConfigure = true;
         CMAKE_ARGS = [
           (lib.cmakeBool "FETCHCONTENT_FULLY_DISCONNECTED" true)
           (lib.cmakeFeature "FETCHCONTENT_SOURCE_DIR_KAMINPAR" "${self}")
-          (lib.cmakeFeature "FETCHCONTENT_SOURCE_DIR_KASSERT" "${kassert-src}")
         ];
 
         meta = {
           description = "Python Bindings for KaMinPar";
           homepage = "https://github.com/KaHIP/KaMinPar";
           license = lib.licenses.mit;
-          platforms = lib.platforms.linux ++ [ "aarch64-darwin" ];
-          mainProgram = "KaMinPar";
+          platforms = lib.platforms.unix;
         };
       };
 
@@ -211,27 +269,25 @@
           inherit (pkgs) git pkg-config cmake ninja;
         };
 
-        buildInputs = [ pkgs.tbb_2022_0 pkgs.sparsehash ] ++ pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.numactl;
-
-        dependencies = [ networkit-python ];
-
-        preBuild = pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isDarwin ''
+        preBuild = lib.optionalString stdenv.hostPlatform.isDarwin ''
           export CMAKE_ARGS="-DCMAKE_CXX_COMPILER_AR=$AR -DCMAKE_CXX_COMPILER_RANLIB=$RANLIB"
         '';
+
+        buildInputs = [ pkgs.tbb_2022_0 pkgs.sparsehash ] ++ lib.optional stdenv.hostPlatform.isLinux pkgs.numactl;
+
+        dependencies = [ kassert networkit-python ];
 
         dontUseCmakeConfigure = true;
         CMAKE_ARGS = [
           (lib.cmakeBool "FETCHCONTENT_FULLY_DISCONNECTED" true)
           (lib.cmakeFeature "FETCHCONTENT_SOURCE_DIR_KAMINPAR" "${self}")
-          (lib.cmakeFeature "FETCHCONTENT_SOURCE_DIR_KASSERT" "${kassert-src}")
         ];
 
         meta = {
           description = "NetworKit Bindings for KaMinPar";
           homepage = "https://github.com/KaHIP/KaMinPar";
           license = lib.licenses.mit;
-          platforms = lib.platforms.linux;
-          mainProgram = "KaMinPar";
+          platforms = lib.platforms.unix;
         };
       };
 
@@ -299,14 +355,15 @@
         default = pkgs.mkShell {
           packages = builtins.attrValues {
             # (d)KaMinPar inputs
-            inherit (pkgs) git pkg-config cmake tbb_2022_0 sparsehash numactl mpi;
-            inherit mt-kahypar;
+            inherit (pkgs) cmake gtest mpi numactl sparsehash tbb_2022_0;
+            inherit kagen kassert mt-kahypar;
 
-            # Additional MT-KaHyPar inputs if build from source for KaMinPar
+            # Additional Mt-KaHyPar inputs if build from source for KaMinPar
             inherit (pkgs) boost hwloc;
 
             # Development inputs
-            inherit (pkgs) ccache ninja mold-wrapped gdb dpkg rpm;
+            inherit (pkgs) ccache ninja mold-wrapped gdb dpkg rpm pre-commit gersemi;
+            inherit (pkgs.llvmPackages_20) clang-tools;
             inherit (pkgs.python3Packages) build pybind11 ruff mypy;
           };
         };

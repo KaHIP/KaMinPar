@@ -2,6 +2,7 @@ function(add_shm_tool target)
     add_executable(${target} ${ARGN})
     target_link_libraries(${target} PRIVATE KaMinPar::KaMinPar KaMinPar::KaMinParCLI KaMinPar::KaMinParIO)
     target_compile_options(${target} PRIVATE ${KAMINPAR_WARNING_FLAGS})
+    set_target_properties(${target} PROPERTIES KASSERT_ASSERTION_LEVEL ${KAMINPAR_ASSERTION_LEVEL_CODE})
     message(STATUS "Enabled tool: ${target}")
 endfunction()
 

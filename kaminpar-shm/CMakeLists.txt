@@ -8,17 +8,16 @@ target_include_directories(KaMinPar PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOU
 
 target_link_libraries(KaMinPar PUBLIC KaMinPar::KaMinParCommon)
 target_compile_options(KaMinPar PRIVATE ${KAMINPAR_WARNING_FLAGS})
+set_target_properties(KaMinPar PROPERTIES KASSERT_ASSERTION_LEVEL ${KAMINPAR_ASSERTION_LEVEL_CODE})
 
-if (Sparsehash_FOUND)
-    target_link_libraries(KaMinPar PUBLIC Sparsehash::Sparsehash)
+if (KAMINPAR_BUILD_WITH_SPARSEHASH)
+    target_link_libraries(KaMinPar PRIVATE Sparsehash::Sparsehash)
 endif ()
 
 if (KAMINPAR_BUILD_WITH_WHFC)
     target_include_directories(KaMinPar PRIVATE $<BUILD_INTERFACE:${whfc_SOURCE_DIR}>)
 endif ()
 
-# If we can find Mt-KaHyPar, make it available as an option for refinement
 if (KAMINPAR_BUILD_WITH_MTKAHYPAR)
-    target_compile_definitions(KaMinPar PRIVATE -DKAMINPAR_HAVE_MTKAHYPAR_LIB)
-    target_link_libraries(KaMinPar PUBLIC mtkahypar)
+    target_link_libraries(KaMinPar PRIVATE MtKaHyPar::mtkahypar)
 endif ()
