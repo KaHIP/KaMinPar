@@ -417,17 +417,18 @@ endif()
 
 # We optionally use WHFC for flow refinement
 if(KAMINPAR_BUILD_WITH_WHFC)
-  list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_WHFC_FOUND")
+  message(STATUS "Using FetchContent to get WHFC...")
 
   FetchContent_Declare(
     WHFC
     GIT_REPOSITORY https://github.com/larsgottesbueren/WHFC.git
-    GIT_TAG 5ae2e3664391ca0db7fab2c82973e98c48937a08
-    PATCH_COMMAND ${GIT_EXECUTABLE} apply ${CMAKE_CURRENT_SOURCE_DIR}/scripts/WHFC.patch
+    GIT_TAG 30b0eeb0e49577d06c3deb09a44b035d81c529d2
     EXCLUDE_FROM_ALL
     UPDATE_DISCONNECTED TRUE
   )
   FetchContent_MakeAvailable(WHFC)
+
+  list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_WHFC_FOUND")
 endif()
 
 if(KAMINPAR_BUILD_DISTRIBUTED)
