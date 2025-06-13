@@ -475,7 +475,9 @@ private:
         const EdgeWeight gain = _initial_cut_value - flow_cutter.cs.flow_algo.flow_value;
         const EdgeWeight cut_value = _global_cut_value - gain;
 
-        TIMED_SCOPE("Rebalance source-side cut") {
+        if (flow_cutter.cs.source_reachable_weight > _p_ctx.max_block_weight(_block1)) {
+          SCOPED_TIMER("Rebalance source-side cut");
+
           const auto fetch_block = [&](const NodeID u) {
             const bool is_on_source_side =
                 flow_cutter.cs.flow_algo.isSourceReachable(whfc::Node(u));
@@ -483,16 +485,18 @@ private:
           };
 
           rebalance(true, cut_value, fetch_block);
-        };
+        }
 
-        TIMED_SCOPE("Rebalance sink-side cut") {
+        if (flow_cutter.cs.target_reachable_weight > _p_ctx.max_block_weight(_block2)) {
+          SCOPED_TIMER("Rebalance sink-side cut");
+
           const auto fetch_block = [&](const NodeID u) {
             const bool is_on_sink_side = flow_cutter.cs.flow_algo.isTargetReachable(whfc::Node(u));
-            return is_on_sink_side ? _block1 : _block2;
+            return is_on_sink_side ? _block2 : _block1;
           };
 
           rebalance(false, cut_value, fetch_block);
-        };
+        }
       }
 
       return true;
