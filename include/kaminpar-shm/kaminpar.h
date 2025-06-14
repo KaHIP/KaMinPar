@@ -268,15 +268,6 @@ struct FIFOPreflowPushContext {
   double global_relabeling_frequency;
 };
 
-struct HighestLevelPreflowPushContext {
-  bool two_phase;
-
-  bool gap_heuristic;
-
-  bool global_relabeling_heuristic;
-  double global_relabeling_frequency;
-};
-
 struct PiercingHeuristicContext {
   bool pierce_all_viable;
 };
@@ -287,12 +278,13 @@ struct TwowayFlowRefinementContext {
 
   FlowAlgorithm flow_algorithm;
   FIFOPreflowPushContext fifo_preflow_push;
-  HighestLevelPreflowPushContext highest_level_preflow_push;
 
   PiercingHeuristicContext piercing;
 
   bool unconstrained;
   bool dynamic_rebalancer;
+  bool abort_on_candidate_cut;
+  bool abort_on_good_candidate_cut;
 
   bool use_whfc;
 
@@ -309,7 +301,6 @@ enum class CutAlgorithm {
 struct IsolatingCutHeuristicContext {
   FlowAlgorithm flow_algorithm;
   FIFOPreflowPushContext fifo_preflow_push;
-  HighestLevelPreflowPushContext highest_level_preflow_push;
 };
 
 enum class LabellingFunctionInitializationStrategy {
@@ -323,7 +314,6 @@ struct LabellingFunctionHeuristicContext {
 
   FlowAlgorithm flow_algorithm;
   FIFOPreflowPushContext fifo_preflow_push;
-  HighestLevelPreflowPushContext highest_level_preflow_push;
 
   double epsilon;
   std::size_t max_num_rounds;

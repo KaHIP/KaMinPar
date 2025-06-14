@@ -624,13 +624,15 @@ CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context 
 
   twoway_flow
       ->add_option("--r-twoway-flow-max-flow-algorithm", ctx.refinement.twoway_flow.flow_algorithm)
-      ->transform(CLI::CheckedTransformer(
-          std::unordered_map<std::string, FlowAlgorithm>{
-              {"edmonds-karp", FlowAlgorithm::EDMONDS_KARP},
-              {"fifo-preflow-push", FlowAlgorithm::FIFO_PREFLOW_PUSH},
-          },
-          CLI::ignore_case
-      ))
+      ->transform(
+          CLI::CheckedTransformer(
+              std::unordered_map<std::string, FlowAlgorithm>{
+                  {"edmonds-karp", FlowAlgorithm::EDMONDS_KARP},
+                  {"fifo-preflow-push", FlowAlgorithm::FIFO_PREFLOW_PUSH},
+              },
+              CLI::ignore_case
+          )
+      )
       ->capture_default_str();
 
   twoway_flow
@@ -642,7 +644,22 @@ CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context 
 
   twoway_flow->add_option("--r-twoway-flow-unconstrained", ctx.refinement.twoway_flow.unconstrained)
       ->capture_default_str();
-  twoway_flow->add_option("--r-twoway-flow-dynamic-rebalancer", ctx.refinement.twoway_flow.dynamic_rebalancer)
+  twoway_flow
+      ->add_option(
+          "--r-twoway-flow-dynamic-rebalancer", ctx.refinement.twoway_flow.dynamic_rebalancer
+      )
+      ->capture_default_str();
+  twoway_flow
+      ->add_option(
+          "--r-twoway-flow-abort-on-candidate-cut",
+          ctx.refinement.twoway_flow.abort_on_candidate_cut
+      )
+      ->capture_default_str();
+  twoway_flow
+      ->add_option(
+          "--r-twoway-flow-abort-on-good-candidate-cut",
+          ctx.refinement.twoway_flow.abort_on_good_candidate_cut
+      )
       ->capture_default_str();
 
   twoway_flow->add_option("--r-twoway-flow-whfc", ctx.refinement.twoway_flow.use_whfc)

@@ -215,19 +215,14 @@ Context create_default_context() {
                                               .global_relabeling_heuristic = true,
                                               .global_relabeling_frequency = 1,
                                           },
-                                      .highest_level_preflow_push =
-                                          {
-                                              .two_phase = true,
-                                              .gap_heuristic = true,
-                                              .global_relabeling_heuristic = true,
-                                              .global_relabeling_frequency = 1,
-                                          },
                                       .piercing =
                                           {
                                               .pierce_all_viable = true,
                                           },
                                       .unconstrained = false,
                                       .dynamic_rebalancer = true,
+                                      .abort_on_candidate_cut = false,
+                                      .abort_on_good_candidate_cut = false,
                                       .use_whfc = false,
                                       .parallel_scheduling = false,
                                       .max_num_rounds = std::numeric_limits<std::size_t>::max(),
@@ -268,19 +263,14 @@ Context create_default_context() {
                                       .global_relabeling_heuristic = true,
                                       .global_relabeling_frequency = 1,
                                   },
-                              .highest_level_preflow_push =
-                                  {
-                                      .two_phase = true,
-                                      .gap_heuristic = true,
-                                      .global_relabeling_heuristic = true,
-                                      .global_relabeling_frequency = 1,
-                                  },
                               .piercing =
                                   {
                                       .pierce_all_viable = true,
                                   },
                               .unconstrained = false,
                               .dynamic_rebalancer = true,
+                              .abort_on_candidate_cut = false,
+                              .abort_on_good_candidate_cut = false,
                               .use_whfc = false,
                               .parallel_scheduling = false,
                               .max_num_rounds = std::numeric_limits<std::size_t>::max(),
@@ -337,19 +327,14 @@ Context create_default_context() {
                               .global_relabeling_heuristic = true,
                               .global_relabeling_frequency = 1,
                           },
-                      .highest_level_preflow_push =
-                          {
-                              .two_phase = true,
-                              .gap_heuristic = true,
-                              .global_relabeling_heuristic = true,
-                              .global_relabeling_frequency = 1,
-                          },
                       .piercing =
                           {
                               .pierce_all_viable = true,
                           },
                       .unconstrained = false,
                       .dynamic_rebalancer = true,
+                      .abort_on_candidate_cut = false,
+                      .abort_on_good_candidate_cut = false,
                       .use_whfc = false,
                       .parallel_scheduling = true,
                       .max_num_rounds = std::numeric_limits<std::size_t>::max(),
@@ -380,19 +365,18 @@ Context create_default_context() {
               // Context -> Parallel
               .num_threads = 1,
           },
-      .debug =
-          {
-              .graph_name = "",
-              .dump_graph_filename = "n%n_m%m_k%k_seed%seed.metis",
-              .dump_partition_filename = "n%n_m%m_k%k_seed%seed.part",
+      .debug = {
+          .graph_name = "",
+          .dump_graph_filename = "n%n_m%m_k%k_seed%seed.metis",
+          .dump_partition_filename = "n%n_m%m_k%k_seed%seed.part",
 
-              .dump_toplevel_graph = false,
-              .dump_toplevel_partition = false,
-              .dump_coarsest_graph = false,
-              .dump_coarsest_partition = false,
-              .dump_graph_hierarchy = false,
-              .dump_partition_hierarchy = false,
-          },
+          .dump_toplevel_graph = false,
+          .dump_toplevel_partition = false,
+          .dump_coarsest_graph = false,
+          .dump_coarsest_partition = false,
+          .dump_graph_hierarchy = false,
+          .dump_partition_hierarchy = false,
+      },
   };
 }
 
