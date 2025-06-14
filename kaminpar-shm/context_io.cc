@@ -548,6 +548,14 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
 
     out << "  Unconstrained:              " << (r_ctx.twoway_flow.unconstrained ? "yes" : "no")
         << "\n";
+    if (r_ctx.twoway_flow.unconstrained) {
+      out << "    Rebalancing:              "
+          << (r_ctx.twoway_flow.dynamic_rebalancer ? "dynamic" : "static") << "\n";
+      out << "    Abort on candidate cut:   "
+          << (r_ctx.twoway_flow.abort_on_candidate_cut ? "yes" : "no") << "\n";
+      out << "      Require best cut:       "
+          << (r_ctx.twoway_flow.abort_on_good_candidate_cut ? "yes" : "no") << "\n";
+    }
 
     out << "  Parallel scheduling:        "
         << (r_ctx.twoway_flow.parallel_scheduling ? "yes" : "no") << "\n";
