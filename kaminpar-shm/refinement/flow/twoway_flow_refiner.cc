@@ -771,11 +771,11 @@ private:
 
     if (!_f_ctx.dynamic_rebalancer) {
       _source_side_balancer.initialize(
-          _p_graph_rebalancing_copy, _graph, _flow_network.global_to_local_mapping, _block1
+          _block1, _p_graph_rebalancing_copy, _graph, _flow_network.global_to_local_mapping
       );
 
       _sink_side_balancer.initialize(
-          _p_graph_rebalancing_copy, _graph, _flow_network.global_to_local_mapping, _block2
+          _block2, _p_graph_rebalancing_copy, _graph, _flow_network.global_to_local_mapping
       );
     }
   }
@@ -798,7 +798,7 @@ private:
 
     const auto [balanced, gain, moved_nodes] = [&] {
       if (_f_ctx.dynamic_rebalancer) {
-        return _dynamic_balancer.rebalance(_p_graph_rebalancing_copy, _graph, overloaded_block);
+        return _dynamic_balancer.rebalance(overloaded_block, _p_graph_rebalancing_copy, _graph);
       } else {
         if (source_side) {
           return _source_side_balancer.rebalance(_p_graph_rebalancing_copy);

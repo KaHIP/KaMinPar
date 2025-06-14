@@ -4,66 +4,71 @@
 #include <unordered_map>
 
 #include "kaminpar-shm/kaminpar.h"
+#include "kaminpar-shm/refinement/flow/rebalancer/gain_cache.h"
+#include "kaminpar-shm/refinement/flow/rebalancer/greedy_balancer_base.h"
 
-#include "kaminpar-common/datastructures/binary_heap.h"
-#include "kaminpar-common/datastructures/static_array.h"
+#include "kaminpar-common/datastructures/scalable_vector.h"
 
 namespace kaminpar::shm {
 
-template <typename PartitionedGraph, typename Graph> class StaticGreedyBalancer {
-  using RelativeGain = float;
-  using PriorityQueue = BinaryMaxHeap<RelativeGain>;
+template <typename PartitionedGraph, typename Graph>
+class StaticGreedyBalancer : GreedyBalancerBase<
+                                 PartitionedGraph,
+                                 Graph,
+                                 PinnedNonConcurrentDenseGainCache<
+                                     PartitionedGraph,
+                                     Graph,
+                                     std::unordered_map<NodeID, NodeID>>> {
+  using Base = GreedyBalancerBase<
+      PartitionedGraph,
+      Graph,
+      PinnedNonConcurrentDenseGainCache<
+          PartitionedGraph,
+          Graph,
+          std::unordered_map<NodeID, NodeID>>>;
 
-  using Result = std::tuple<BlockID, RelativeGain, std::span<const NodeID>>;
-
-  static constexpr Result kInvalidResult{false, 0, {}};
+  using Base::_gain_cache;
+  using Base::_graph;
+  using Base::_max_block_weights;
+  using Base::_overloaded_block;
+  using Base::_p_graph;
 
   struct Move {
-    BlockID block;
-    RelativeGain relative_gain;
+    NodeID node;
+    BlockID target_block;
   };
 
-  [[nodiscard]] static RelativeGain
-  compute_relative_gain(const EdgeWeight absolute_gain, const NodeWeight weight) {
-    return (absolute_gain >= 0) ? (absolute_gain * weight)
-                                : (absolute_gain / static_cast<RelativeGain>(weight));
-  }
-
 public:
-  StaticGreedyBalancer(std::span<const BlockWeight> max_block_weights)
-      : _max_block_weights(max_block_weights) {};
+  StaticGreedyBalancer(std::span<const BlockWeight> max_block_weights) : Base(max_block_weights) {};
 
   void initialize(
+      BlockID overloaded_block,
       PartitionedGraph &p_graph,
       const Graph &graph,
-      const std::unordered_map<NodeID, NodeID> &global_to_local_mapping,
-      BlockID overloaded_block
+      const std::unordered_map<NodeID, NodeID> &global_to_local_mapping
   ) {
-    _p_graph = &p_graph;
-    _graph = &graph;
-    _global_to_local_mapping = &global_to_local_mapping;
+    Base::initialize(overloaded_block, p_graph, graph);
 
-    _overloaded_block = overloaded_block;
-
-    compute_moves();
+    _gain_cache.initialize(overloaded_block, global_to_local_mapping, p_graph, graph);
+    compute_moves(global_to_local_mapping);
   }
 
-  Result rebalance(PartitionedGraph &p_graph) {
+  RebalancerResult rebalance(PartitionedGraph &p_graph) {
     _moved_nodes.clear();
 
-    std::size_t cur_move = 0;
+    const NodeID num_moves = _moves.size();
+    NodeID cur_move = 0;
     while (p_graph.block_weight(_overloaded_block) > _max_block_weights[_overloaded_block]) {
       while (true) {
-        if (cur_move >= _num_valid_moves) {
-          return kInvalidResult;
+        if (cur_move >= num_moves) {
+          return RebalancerResult(false, 0, _moved_nodes);
         }
 
-        const NodeID u = _moves[cur_move++];
+        const auto [u, target_block] = _moves[cur_move++];
         if (p_graph.block(u) != _overloaded_block) {
           continue;
         }
 
-        const BlockID target_block = _target_blocks[u];
         if (p_graph.block_weight(target_block) + _graph->node_weight(u) >
             _max_block_weights[target_block]) {
           continue;
@@ -75,122 +80,29 @@ public:
       }
     }
 
-    return {true, kInvalidEdgeWeight, _moved_nodes}; // TODO: compute gain
+    return RebalancerResult(true, kInvalidEdgeWeight, _moved_nodes); // TODO: compute gain
   }
 
 private:
-  void compute_moves() {
-    const NodeID num_nodes = _graph->n();
-    if (_moves.size() < num_nodes) {
-      _moves.resize(num_nodes, static_array::noinit);
-    }
-    if (_target_blocks.size() < num_nodes) {
-      _target_blocks.resize(num_nodes, static_array::noinit);
-    }
-    if (_priority_queue.capacity() < num_nodes) {
-      _priority_queue.resize(num_nodes);
-    }
-
-    const BlockID num_blocks = _p_graph->k();
-    if (_local_connection.size() < num_blocks) {
-      _local_connection.resize(num_blocks, static_array::noinit);
-    }
+  void compute_moves(const std::unordered_map<NodeID, NodeID> &global_to_local_mapping) {
+    _moves.clear();
+    _moved_nodes.clear();
 
     for (const NodeID u : _graph->nodes()) {
-      if (_p_graph->block(u) != _overloaded_block && !_global_to_local_mapping->contains(u)) {
-        continue;
-      }
-
-      insert_node(u);
-    }
-
-    _num_valid_moves = 0;
-    while (!_priority_queue.empty()) {
-      const NodeID u = _priority_queue.peek_id();
-      _priority_queue.pop();
-
-      _moves[_num_valid_moves++] = u;
-    }
-  }
-
-  void insert_node(const NodeID u) {
-    compute_local_connections(u);
-
-    const auto [target_block, relative_gain] = compute_best_move(u);
-    if (target_block == kInvalidBlockID) {
-      return;
-    }
-
-    _priority_queue.push(u, relative_gain);
-    _target_blocks[u] = target_block;
-  }
-
-  void compute_local_connections(const NodeID u) {
-    std::fill_n(_local_connection.begin(), _p_graph->k(), 0);
-
-    _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
-      // TODO: should we assume that nodes of the other border region are also overloaded?
-      const BlockID v_block =
-          _global_to_local_mapping->contains(v) ? _overloaded_block : _p_graph->block(v);
-      _local_connection[v_block] += w;
-    });
-  }
-
-  [[nodiscard]] Move compute_best_move(const NodeID u) const {
-    const BlockID u_block = _overloaded_block;
-    const NodeWeight u_weight = _graph->node_weight(u);
-
-    BlockID target_block = kInvalidBlockID;
-    BlockWeight target_block_weight = std::numeric_limits<BlockWeight>::max();
-    EdgeWeight target_block_connection = std::numeric_limits<RelativeGain>::min();
-
-    const BlockID num_blocks = _p_graph->k();
-    for (BlockID block = 0; block < num_blocks; ++block) {
-      if (block == u_block) {
-        continue;
-      }
-
-      const BlockWeight block_weight = _p_graph->block_weight(block);
-      if (block_weight + u_weight > _max_block_weights[block]) {
-        continue;
-      }
-
-      const EdgeWeight block_connection = _local_connection[block];
-      if (block_connection > target_block_connection ||
-          (block_connection == target_block_connection && block_weight < target_block_weight)) {
-        target_block = block;
-        target_block_weight = block_weight;
-        target_block_connection = block_connection;
+      if (_p_graph->block(u) == _overloaded_block || global_to_local_mapping.contains(u)) {
+        Base::insert_node(u);
       }
     }
 
-    if (target_block == kInvalidBlockID) {
-      return {kInvalidBlockID, 0};
+    while (Base::has_next_node()) {
+      const auto [u, target_block] = Base::next_node();
+      _moves.emplace_back(u, target_block);
     }
-
-    const EdgeWeight from_connection = _local_connection[u_block];
-    const EdgeWeight absolute_gain = target_block_connection - from_connection;
-
-    const RelativeGain relative_gain = compute_relative_gain(absolute_gain, u_weight);
-    return {target_block, relative_gain};
   }
 
 private:
-  std::span<const BlockWeight> _max_block_weights;
-  PartitionedGraph *_p_graph;
-  const Graph *_graph;
-  const std::unordered_map<NodeID, NodeID> *_global_to_local_mapping;
-
-  BlockID _overloaded_block;
+  ScalableVector<Move> _moves;
   ScalableVector<NodeID> _moved_nodes;
-
-  NodeID _num_valid_moves;
-  StaticArray<NodeID> _moves;
-
-  PriorityQueue _priority_queue;
-  StaticArray<BlockID> _target_blocks;
-
-  StaticArray<EdgeWeight> _local_connection;
 };
 
 } // namespace kaminpar::shm
