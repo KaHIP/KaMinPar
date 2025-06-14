@@ -8,6 +8,8 @@
 #include "kaminpar-shm/refinement/flow/twoway_flow_refiner.h"
 
 #include <algorithm>
+#include <chrono>
+#include <cstddef>
 #include <memory>
 #include <numeric>
 #include <queue>
@@ -17,6 +19,7 @@
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
+#include <tbb/task.h>
 
 #ifdef KAMINPAR_WHFC_FOUND
 #include "algorithm/hyperflowcutter.h"
@@ -60,6 +63,9 @@ class BipartitionFlowRefiner {
   };
 
 public:
+  using Clock = std::chrono::high_resolution_clock;
+  using TimePoint = std::chrono::time_point<Clock>;
+
   struct Move {
     NodeID node;
     BlockID old_block;
@@ -67,11 +73,20 @@ public:
   };
 
   struct Result {
+    bool time_limit_exceeded;
+
     EdgeWeight gain;
     std::vector<Move> moves;
 
-    Result() : gain(0) {};
-    Result(EdgeWeight gain, std::vector<Move> moves) : gain(gain), moves(std::move(moves)) {};
+    Result(bool time_limit_exceeded = false) : time_limit_exceeded(time_limit_exceeded), gain(0) {};
+    Result(EdgeWeight gain, std::vector<Move> moves)
+        : time_limit_exceeded(false),
+          gain(gain),
+          moves(std::move(moves)) {};
+
+    [[nodiscard]] static Result TimeLimitExceeded() {
+      return Result(true);
+    }
   };
 
 public:
@@ -79,12 +94,14 @@ public:
       const PartitionContext &p_ctx,
       const TwowayFlowRefinementContext &f_ctx,
       const PartitionedCSRGraph &p_graph,
-      const CSRGraph &graph
+      const CSRGraph &graph,
+      const TimePoint &start_time
   )
       : _p_ctx(p_ctx),
         _f_ctx(f_ctx),
         _p_graph(p_graph),
         _graph(graph),
+        _start_time(start_time),
         _dynamic_balancer(p_ctx.max_block_weights()),
         _source_side_balancer(p_ctx.max_block_weights()),
         _sink_side_balancer(p_ctx.max_block_weights()),
@@ -107,6 +124,7 @@ public:
 
   Result refine(const EdgeWeight cut_value, const BlockID block1, const BlockID block2) {
     KASSERT(block1 != block2, "Only different block pairs can be refined");
+    _time_limit_exceeded = false;
 
     _block1 = block1;
     _block2 = block2;
@@ -135,6 +153,10 @@ public:
       run_hyper_flow_cutter();
     } else {
       run_flow_cutter();
+    }
+
+    if (_time_limit_exceeded) {
+      return Result::TimeLimitExceeded();
     }
 
     if (_unconstrained_cut_value < _constrained_cut_value) {
@@ -511,6 +533,11 @@ private:
         }
       }
 
+      if (time_limit_exceeded()) {
+        _time_limit_exceeded = true;
+        return false;
+      }
+
       return true;
     };
 
@@ -684,6 +711,11 @@ private:
         _max_flow_algorithm->add_sinks(_node_status.sink_nodes());
         _max_flow_algorithm->pierce_nodes(piercing_nodes, false);
       }
+
+      if (time_limit_exceeded()) {
+        _time_limit_exceeded = true;
+        break;
+      }
     }
   }
 
@@ -851,12 +883,24 @@ private:
     }
   }
 
+  [[nodiscard]] bool time_limit_exceeded() const {
+    using namespace std::chrono;
+
+    TimePoint current_time = Clock::now();
+    std::size_t time_elapsed = duration_cast<milliseconds>(current_time - _start_time).count();
+
+    return time_elapsed >= _f_ctx.time_limit * 60 * 1000;
+  }
+
 private:
   const PartitionContext &_p_ctx;
   const TwowayFlowRefinementContext &_f_ctx;
 
   const PartitionedCSRGraph &_p_graph;
   const CSRGraph &_graph;
+
+  const TimePoint &_start_time;
+  bool _time_limit_exceeded;
 
   std::unique_ptr<MaxFlowAlgorithm> _max_flow_algorithm;
 
@@ -889,6 +933,8 @@ private:
 class SequentialBlockPairScheduler {
   SET_DEBUG(true);
 
+  using Clock = BipartitionFlowRefiner::Clock;
+  using TimePoint = BipartitionFlowRefiner::TimePoint;
   using Move = BipartitionFlowRefiner::Move;
 
 public:
@@ -903,7 +949,8 @@ public:
 
     activate_all_blocks();
 
-    BipartitionFlowRefiner refiner(p_ctx, _f_ctx, p_graph, graph);
+    TimePoint start_time = Clock::now();
+    BipartitionFlowRefiner refiner(p_ctx, _f_ctx, p_graph, graph, start_time);
 
     std::size_t num_round = 0;
     bool found_improvement = false;
@@ -918,7 +965,13 @@ public:
         _block_pairs.pop();
 
         DBG << "Scheduling block pair " << block1 << " and " << block2;
-        const auto [gain, moves] = refiner.refine(cut_value, block1, block2);
+        const auto [time_limit_exceeded, gain, moves] = refiner.refine(cut_value, block1, block2);
+
+        if (time_limit_exceeded) {
+          LOG_WARNING << "Time limit exceeded during flow refinement";
+          num_round = _f_ctx.max_num_rounds;
+          break;
+        }
 
         DBG << "Found balanced cut for bock pair " << block1 << " and " << block2 << " with gain "
             << gain << " (" << cut_value << " -> " << (cut_value - gain) << ")";
@@ -1027,6 +1080,8 @@ private:
 class ParallelBlockPairScheduler {
   SET_DEBUG(true);
 
+  using Clock = BipartitionFlowRefiner::Clock;
+  using TimePoint = BipartitionFlowRefiner::TimePoint;
   using Move = BipartitionFlowRefiner::Move;
 
 public:
@@ -1041,8 +1096,9 @@ public:
 
     activate_all_blocks();
 
+    TimePoint start_time = Clock::now();
     auto refiner_ets = tbb::enumerable_thread_specific<BipartitionFlowRefiner>([&]() {
-      return BipartitionFlowRefiner(p_ctx, _f_ctx, p_graph, graph);
+      return BipartitionFlowRefiner(p_ctx, _f_ctx, p_graph, graph, start_time);
     });
 
     bool found_improvement = false;
@@ -1058,9 +1114,18 @@ public:
         auto &refiner = refiner_ets.local();
 
         DBG << "Scheduling block pair " << block1 << " and " << block2;
-        auto [expected_gain, moves] = refiner.refine(cut_value, block1, block2);
+        auto [time_limit_exceeded, gain, moves] = refiner.refine(cut_value, block1, block2);
 
-        if (expected_gain <= 0) {
+        if (time_limit_exceeded) {
+          if (tbb::task::current_context()->cancel_group_execution()) {
+            LOG_WARNING << "Time limit exceeded during flow refinement";
+            num_round = _f_ctx.max_num_rounds;
+          }
+
+          return;
+        }
+
+        if (gain <= 0) {
           return;
         }
 
@@ -1075,11 +1140,11 @@ public:
         }
 
         const EdgeWeight new_cut_value = metrics::edge_cut_seq(p_graph);
-        const EdgeWeight gain = cut_value - new_cut_value;
+        const EdgeWeight actual_gain = cut_value - new_cut_value;
         DBG << "Found balanced cut for bock pair " << block1 << " and " << block2 << " with gain "
-            << gain << " (" << cut_value << " -> " << new_cut_value << ")";
+            << actual_gain << " (" << cut_value << " -> " << new_cut_value << ")";
 
-        if (gain <= 0) {
+        if (actual_gain <= 0) {
           revert_moves(moves);
           return;
         }
