@@ -30,24 +30,34 @@ public:
   DynamicGreedyBalancer(std::span<const BlockWeight> max_block_weights)
       : Base(max_block_weights) {};
 
-  RebalancerResult rebalance(BlockID overloaded_block, PartitionedGraph &p_graph, const Graph &graph) {
-    Base::initialize(overloaded_block, p_graph, graph);
-    _moved_nodes.clear();
+  void setup(BlockID overloaded_block, PartitionedGraph &p_graph, const Graph &graph) {
+    Base::setup(overloaded_block, p_graph, graph);
+    _initialized = false;
+  }
 
-    _gain_cache.initialize(overloaded_block, p_graph, graph);
+  RebalancerResult rebalance() {
+    if (!_initialized) {
+      initialize();
+    }
+
+    _gain_cache.initialize(_overloaded_block, *_p_graph, *_graph);
     insert_nodes();
 
+    _moved_nodes.clear();
     return move_nodes();
   }
 
 private:
+  void initialize() {
+    Base::initialize();
+    _initialized = true;
+  }
+
   void insert_nodes() {
     for (const NodeID u : _graph->nodes()) {
-      if (_p_graph->block(u) != _overloaded_block) {
-        continue;
+      if (_p_graph->block(u) == _overloaded_block) {
+        Base::insert_node(u);
       }
-
-      Base::insert_node(u);
     }
   }
 
@@ -78,6 +88,8 @@ private:
   }
 
 private:
+  bool _initialized;
+
   ScalableVector<NodeID> _moved_nodes;
 };
 

@@ -29,18 +29,20 @@ protected:
   GreedyBalancerBase(std::span<const BlockWeight> max_block_weights)
       : _max_block_weights(max_block_weights) {};
 
-  void initialize(BlockID overloaded_block, PartitionedGraph &p_graph, const Graph &graph) {
+  void setup(BlockID overloaded_block, PartitionedGraph &p_graph, const Graph &graph) {
     _overloaded_block = overloaded_block;
     _p_graph = &p_graph;
     _graph = &graph;
+  }
 
-    if (_priority_queue.capacity() < graph.n()) {
-      _priority_queue.resize(graph.n());
+  void initialize() {
+    if (_priority_queue.capacity() < _graph->n()) {
+      _priority_queue.resize(_graph->n());
     }
     _priority_queue.clear();
 
-    if (_target_blocks.size() < graph.n()) {
-      _target_blocks.resize(graph.n(), static_array::noinit);
+    if (_target_blocks.size() < _graph->n()) {
+      _target_blocks.resize(_graph->n(), static_array::noinit);
     }
   }
 
