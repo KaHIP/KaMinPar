@@ -557,6 +557,7 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
           << (r_ctx.twoway_flow.abort_on_good_candidate_cut ? "yes" : "no") << "\n";
     }
 
+    out << "  Time Limit:                 " << r_ctx.twoway_flow.time_limit << " minutes" << "\n";
     out << "  Parallel scheduling:        "
         << (r_ctx.twoway_flow.parallel_scheduling ? "yes" : "no") << "\n";
     out << "  Max num rounds:             " << r_ctx.twoway_flow.max_num_rounds << "\n";
