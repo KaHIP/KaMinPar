@@ -50,6 +50,8 @@ private:
   }
 
   void insert_nodes() {
+    Base::clear_nodes();
+
     for (const NodeID u : _graph->nodes()) {
       if (_p_graph->block(u) == _overloaded_block) {
         Base::insert_node(u);

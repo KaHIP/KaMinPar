@@ -35,7 +35,6 @@ protected:
     if (_priority_queue.capacity() < _graph->n()) {
       _priority_queue.resize(_graph->n());
     }
-    _priority_queue.clear();
 
     if (_target_blocks.size() < _graph->n()) {
       _target_blocks.resize(_graph->n(), static_array::noinit);
@@ -52,6 +51,11 @@ protected:
 
     const BlockID target_block = _target_blocks[u];
     return {u, target_block};
+  }
+
+
+  void clear_nodes() {
+    _priority_queue.clear();
   }
 
   void insert_node(const NodeID u) {
