@@ -802,7 +802,7 @@ private:
     }
 
     if (_f_ctx.dynamic_rebalancer) {
-      _dynamic_balancer.setup(_block1, _p_graph_rebalancing_copy, _graph);
+      _dynamic_balancer.setup(_p_graph_rebalancing_copy, _graph);
     } else {
       _source_side_balancer.setup(
           _block1, _p_graph_rebalancing_copy, _graph, _flow_network.global_to_local_mapping
@@ -831,7 +831,7 @@ private:
 
     const auto [balanced, gain, moved_nodes] = [&] {
       if (_f_ctx.dynamic_rebalancer) {
-        return _dynamic_balancer.rebalance();
+        return _dynamic_balancer.rebalance(overloaded_block);
       } else {
         if (source_side) {
           return _source_side_balancer.rebalance();

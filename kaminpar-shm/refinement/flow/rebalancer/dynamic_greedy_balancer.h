@@ -30,12 +30,15 @@ public:
   DynamicGreedyBalancer(std::span<const BlockWeight> max_block_weights)
       : Base(max_block_weights) {};
 
-  void setup(BlockID overloaded_block, PartitionedGraph &p_graph, const Graph &graph) {
-    Base::setup(overloaded_block, p_graph, graph);
+  void setup(PartitionedGraph &p_graph, const Graph &graph) {
+    _p_graph = &p_graph;
+    _graph = &graph;
+
     _initialized = false;
   }
 
-  RebalancerResult rebalance() {
+  RebalancerResult rebalance(const BlockID overloaded_block) {
+    _overloaded_block = overloaded_block;
     if (!_initialized) {
       initialize();
     }

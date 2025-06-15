@@ -47,7 +47,10 @@ public:
       const Graph &graph,
       const std::unordered_map<NodeID, NodeID> &global_to_local_mapping
   ) {
-    Base::setup(overloaded_block, p_graph, graph);
+    _overloaded_block = overloaded_block;
+    _p_graph = &p_graph;
+    _graph = &graph;
+
     _initialized = false;
     _global_to_local_mapping = &global_to_local_mapping;
   }
