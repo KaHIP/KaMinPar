@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "kaminpar-shm/kaminpar.h"
+#include "kaminpar-shm/refinement/flow/rebalancer/gain_cache.h"
 
 #include "kaminpar-common/datastructures/binary_heap.h"
 #include "kaminpar-common/datastructures/static_array.h"
@@ -16,9 +17,10 @@ struct RebalancerResult {
   std::span<const NodeID> moved_nodes;
 };
 
-template <typename PartitionedGraph, typename Graph, typename GainCache> class GreedyBalancerBase {
+template <typename PartitionedGraph, typename Graph> class GreedyBalancerBase {
   using RelativeGain = float;
   using PriorityQueue = BinaryMaxHeap<RelativeGain>;
+  using GainCache = NonConcurrentDenseGainCache<PartitionedGraph, Graph>;
 
   struct Move {
     BlockID block;

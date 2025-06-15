@@ -3,7 +3,6 @@
 #include <span>
 
 #include "kaminpar-shm/kaminpar.h"
-#include "kaminpar-shm/refinement/flow/rebalancer/gain_cache.h"
 #include "kaminpar-shm/refinement/flow/rebalancer/greedy_balancer_base.h"
 
 #include "kaminpar-common/datastructures/scalable_vector.h"
@@ -11,14 +10,8 @@
 namespace kaminpar::shm {
 
 template <typename PartitionedGraph, typename Graph>
-class DynamicGreedyBalancer : GreedyBalancerBase<
-                                  PartitionedGraph,
-                                  Graph,
-                                  NonConcurrentDenseGainCache<PartitionedGraph, Graph>> {
-  using Base = GreedyBalancerBase<
-      PartitionedGraph,
-      Graph,
-      NonConcurrentDenseGainCache<PartitionedGraph, Graph>>;
+class DynamicGreedyBalancer : GreedyBalancerBase<PartitionedGraph, Graph> {
+  using Base = GreedyBalancerBase<PartitionedGraph, Graph>;
 
   using Base::_gain_cache;
   using Base::_graph;
