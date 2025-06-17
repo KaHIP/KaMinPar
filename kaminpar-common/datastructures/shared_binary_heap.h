@@ -1,42 +1,21 @@
 /*******************************************************************************
- * Hand rolled priority queues.
+ * Addressable binary heap with fixed capacity. Storage for handles are provided
+ * by the user, which can be used to share handles between threads.
  *
- * @file:   binary_heap.h
+ * @file:   shared_binary_heap.h
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  ******************************************************************************/
 #pragma once
 
+#include <cstdlib>
 #include <limits>
-#include <utility>
-#include <vector>
 
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/datastructures/binary_heap.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
 
 namespace kaminpar {
-
-namespace binary_heap {
-
-template <typename Key> struct max_heap_comparator {
-  constexpr static auto kMinValue = std::numeric_limits<Key>::max();
-  constexpr static auto kMaxValue = std::numeric_limits<Key>::lowest();
-
-  bool operator()(Key a, Key b) {
-    return b > a;
-  }
-};
-
-template <typename Key> struct min_heap_comparator {
-  constexpr static auto kMinValue = std::numeric_limits<Key>::lowest();
-  constexpr static auto kMaxValue = std::numeric_limits<Key>::max();
-
-  bool operator()(Key a, Key b) {
-    return a > b;
-  }
-};
-
-} // namespace binary_heap
 
 //! Addressable binary heap with fixed capacity.
 /*
@@ -51,8 +30,8 @@ template <typename Key> struct min_heap_comparator {
  * Redistributions of source code must retain the above copyright notice, this
  * list of conditions and the following disclaimer. Redistributions in binary
  * form must reproduce the above copyright notice, this list of conditions and
- * the following disclaimer in the documentation and/or other materials
- * provided with the distribution.
+ * the following disclaimer in the documentation and/or other materials provided
+ * with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -66,93 +45,76 @@ template <typename Key> struct min_heap_comparator {
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-template <typename Key, template <typename> typename Comparator> class BinaryHeap {
+template <typename Key, template <typename> typename Comparator> class SharedBinaryHeap {
   using ID = std::size_t;
-
-  static constexpr ID kInvalidID = std::numeric_limits<ID>::max();
   static constexpr std::size_t kTreeArity = 4;
 
 public:
-  explicit BinaryHeap(const std::size_t capacity)
-      : _heap(capacity),
-        _id_pos(capacity, kInvalidID),
-        _size(0) {}
+  static constexpr ID kInvalidID = std::numeric_limits<ID>::max();
 
-  BinaryHeap(const BinaryHeap &) = delete;
-  BinaryHeap &operator=(const BinaryHeap &) = delete;
+  explicit SharedBinaryHeap(const ID shared_capacity, std::size_t *handles) noexcept
+      : _capacity(shared_capacity),
+        _heap(),
+        _id_pos(handles) {}
 
-  BinaryHeap(BinaryHeap &&) noexcept = default;
-  BinaryHeap &operator=(BinaryHeap &&) noexcept = default;
+  SharedBinaryHeap(const SharedBinaryHeap &) = delete;
+  SharedBinaryHeap &operator=(const SharedBinaryHeap &) = delete;
+
+  SharedBinaryHeap(SharedBinaryHeap &&) noexcept = default;
+  SharedBinaryHeap &operator=(SharedBinaryHeap &&) noexcept = default;
 
   [[nodiscard]] bool empty() const {
-    return _size == 0;
+    return _heap.empty();
   }
 
   [[nodiscard]] std::size_t size() const {
-    return _size;
-  }
-
-  [[nodiscard]] std::size_t capacity() const {
     return _heap.size();
   }
 
-  [[nodiscard]] bool contains(const ID id) const {
-    KASSERT(id < capacity());
+  [[nodiscard]] std::size_t shared_capacity() const {
+    return _capacity;
+  }
 
+  [[nodiscard]] bool contains(const ID id) const {
+    KASSERT(id < shared_capacity());
     return _id_pos[id] != kInvalidID;
   }
 
   Key key(const ID id) const {
     KASSERT(contains(id));
-
     return _heap[_id_pos[id]].key;
   }
 
   [[nodiscard]] ID peek_id() const {
     KASSERT(!empty());
-
     return _heap.front().id;
   }
 
   Key peek_key() const {
     KASSERT(!empty());
-
     return _heap.front().key;
   }
 
   void remove(const ID id) {
     KASSERT(contains(id));
-
     decrease_priority(id, Comparator<Key>::kMinValue);
     pop();
-
     KASSERT(!contains(id));
-  }
-
-  void clear() {
-    for (std::size_t i = 0; i < _size; ++i) {
-      _id_pos[_heap[i].id] = kInvalidID;
-    }
-    _size = 0;
   }
 
   void pop() {
     KASSERT(!empty());
-
-    --_size;
-    std::swap(_heap.front(), _heap[_size]);
-    _id_pos[_heap[0].id] = 0;
-    _id_pos[_heap[_size].id] = kInvalidID;
+    std::swap(_heap.front(), _heap.back());
+    _id_pos[_heap.front().id] = 0;
+    _id_pos[_heap.back().id] = kInvalidID;
+    _heap.pop_back();
     sift_down(0);
   }
 
   void push(const ID id, const Key &key) {
     KASSERT(!contains(id));
-    KASSERT(size() < _heap.size());
-
-    const std::size_t pos = _size;
-    ++_size;
-    _heap[pos] = {id, key};
+    const std::size_t pos = size();
+    _heap.emplace_back(id, key);
     _id_pos[id] = pos;
     sift_up(pos);
   }
@@ -172,6 +134,13 @@ public:
     } else if (_comparator(old_key, new_key)) {
       decrease_priority(id, new_key);
     }
+  }
+
+  void clear() {
+    for (const auto &entry : _heap) {
+      _id_pos[entry.id] = kInvalidID;
+    }
+    _heap.clear();
   }
 
   // *NOTE*: "decrease" is in respect to the priority
@@ -202,15 +171,8 @@ public:
     sift_down(_id_pos[id]);
   }
 
-  void resize(const std::size_t capacity) {
-    KASSERT(empty(), "heap should be empty when resizing it");
-
-    _id_pos.resize(capacity, kInvalidID);
-    _heap.resize(capacity);
-  }
-
-  [[nodiscard]] std::size_t memory_in_kb() const {
-    return _id_pos.size() * sizeof(std::size_t) / 1000 + _heap.size() * sizeof(HeapElement) / 1000;
+  void resize(std::size_t) {
+    throw std::runtime_error("cannot be resized");
   }
 
 private:
@@ -235,11 +197,12 @@ private:
   void sift_down(std::size_t pos) {
     while (true) {
       const std::size_t first_child = kTreeArity * pos + 1;
-      if (first_child >= _size)
+      if (first_child >= size()) {
         return;
+      }
 
       std::size_t smallest_child = first_child;
-      for (std::size_t c = first_child + 1; c < std::min(kTreeArity * pos + kTreeArity + 1, _size);
+      for (std::size_t c = first_child + 1; c < std::min(kTreeArity * pos + kTreeArity + 1, size());
            ++c) {
         if (_comparator(_heap[smallest_child].key, _heap[c].key)) {
           smallest_child = c;
@@ -257,14 +220,16 @@ private:
     }
   }
 
-  std::vector<HeapElement> _heap;
-  std::vector<std::size_t> _id_pos;
-  std::size_t _size;
+  ID _capacity;
+  ScalableVector<HeapElement> _heap;
+  std::size_t *_id_pos;
   Comparator<Key> _comparator{};
 };
 
-template <typename Key> using BinaryMaxHeap = BinaryHeap<Key, binary_heap::max_heap_comparator>;
+template <typename Key>
+using SharedBinaryMaxHeap = SharedBinaryHeap<Key, binary_heap::max_heap_comparator>;
 
-template <typename Key> using BinaryMinHeap = BinaryHeap<Key, binary_heap::min_heap_comparator>;
+template <typename Key>
+using SharedBinaryMinHeap = SharedBinaryHeap<Key, binary_heap::min_heap_comparator>;
 
 } // namespace kaminpar

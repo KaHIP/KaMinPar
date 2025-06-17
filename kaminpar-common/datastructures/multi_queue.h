@@ -8,13 +8,12 @@
 #pragma once
 
 #include <cstdint>
-#include <optional>
 #include <random>
 #include <vector>
 
 #include <tbb/enumerable_thread_specific.h>
 
-#include "kaminpar-common/datastructures/binary_heap.h"
+#include "kaminpar-common/datastructures/dynamic_binary_heap.h"
 
 namespace kaminpar {
 

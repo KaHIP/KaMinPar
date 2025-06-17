@@ -1,6 +1,9 @@
 #include <gmock/gmock.h>
 
+#include "kaminpar-common/datastructures/addressable_dynamic_de_heap.h"
 #include "kaminpar-common/datastructures/binary_heap.h"
+#include "kaminpar-common/datastructures/dynamic_binary_forest.h"
+#include "kaminpar-common/datastructures/dynamic_binary_heap.h"
 
 using ::testing::ElementsAre;
 
