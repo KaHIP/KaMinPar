@@ -7,6 +7,8 @@
  ******************************************************************************/
 #pragma once
 
+#include <vector>
+
 #include <tbb/enumerable_thread_specific.h>
 
 #include "kaminpar-shm/datastructures/graph.h"
@@ -16,7 +18,8 @@
 #include "kaminpar-shm/refinement/refiner.h"
 
 #include "kaminpar-common/assert.h"
-#include "kaminpar-common/datastructures/binary_heap.h"
+#include "kaminpar-common/datastructures/dynamic_binary_heap.h"
+#include "kaminpar-common/datastructures/dynamic_de_heap.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/datastructures/static_array.h"
