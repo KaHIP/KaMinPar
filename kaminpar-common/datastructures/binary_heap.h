@@ -20,6 +20,8 @@ namespace binary_heap {
 
 template <typename Key> struct max_heap_comparator {
   constexpr static auto kMinValue = std::numeric_limits<Key>::max();
+  constexpr static auto kMaxValue = std::numeric_limits<Key>::lowest();
+
   bool operator()(Key a, Key b) {
     return b > a;
   }
@@ -27,6 +29,8 @@ template <typename Key> struct max_heap_comparator {
 
 template <typename Key> struct min_heap_comparator {
   constexpr static auto kMinValue = std::numeric_limits<Key>::lowest();
+  constexpr static auto kMaxValue = std::numeric_limits<Key>::max();
+
   bool operator()(Key a, Key b) {
     return a > b;
   }
