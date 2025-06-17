@@ -80,7 +80,7 @@ private:
   // StaticArray<PQIndex> _node_pq;
   StaticArray<BlockID> _node_target;
 
-  ConcretizedGraphComponent<GainCache> _gain_cache;
+  AnyGraphComponent<GainCache> _gain_cache;
 };
 
 } // namespace kaminpar::shm

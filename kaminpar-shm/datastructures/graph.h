@@ -87,7 +87,7 @@ template <typename ConcretizedGraph>
  *
  * `Component` may only take one template argument: the concretized graph class.
  */
-template <template <typename> typename Component> struct ConcretizedGraphComponent {
+template <template <typename> typename Component> struct AnyGraphComponent {
   std::variant<std::monostate, Component<CSRGraph>, Component<CompressedGraph>> obj;
 
   /*!
