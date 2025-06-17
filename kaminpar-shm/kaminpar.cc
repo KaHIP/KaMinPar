@@ -113,6 +113,7 @@ void print_statistics(
 ) {
   const EdgeWeight cut = metrics::edge_cut(p_graph);
   const double imbalance = metrics::imbalance(p_graph);
+  const double min_imbalance = metrics::min_imbalance(p_graph);
   const bool feasible = metrics::is_feasible(p_graph, ctx.partition);
 
   cio::print_delimiter("Result Summary");
@@ -150,6 +151,7 @@ void print_statistics(
   }
   LOG << "  Edge cut:         " << cut;
   LOG << "  Imbalance:        " << imbalance;
+  LOG << "  Imbalance (min):  " << min_imbalance;
   if (feasible) {
     LOG << "  Feasible:         yes";
   } else {

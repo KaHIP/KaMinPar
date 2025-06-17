@@ -12,11 +12,14 @@
 
 #include "kaminpar-shm/metrics.h"
 
+#include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
 
 namespace {
+
+SET_DEBUG(true);
 
 float compute_relative_gain(const EdgeWeight gain, const NodeWeight weight) {
   return gain > 0 ? 1.0f * gain * weight : 1.0f * gain / weight;
@@ -41,11 +44,14 @@ void UnderloadBalancer::initialize(const PartitionedGraph &p_graph) {
 
   _mq.reset(_ctx.parallel.num_threads, /* seed = */ 42);
 
-  //_node_pq.resize(p_graph.n());
   _node_target.resize(p_graph.n());
 
   _block_locks.clear();
   _block_locks.resize(p_graph.k());
+
+  reified(p_graph, [&]<typename Graph>(const Graph &graph) {
+    _gain_cache.emplace<Graph>(_ctx, p_graph.k(), p_graph.k()).initialize(graph, p_graph);
+  });
 }
 
 bool UnderloadBalancer::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
@@ -57,6 +63,9 @@ bool UnderloadBalancer::refine(PartitionedGraph &p_graph, const PartitionContext
 
   // Terminate immediately if there is nothing to do
   if (!_p_ctx->has_min_block_weights() || metrics::is_min_balanced(*_p_graph, *_p_ctx)) {
+    DBG << "Minimum block weights already enforced: has_min_block_weights()="
+        << _p_ctx->has_min_block_weights()
+        << ", is_min_balanced()=" << metrics::is_min_balanced(*_p_graph, *_p_ctx);
     return false;
   }
 
@@ -140,10 +149,14 @@ void UnderloadBalancer::init_underloaded_blocks() {
       _underloaded_blocks.push_back(b);
     }
   }
+
+  DBG << "Underloaded blocks: " << _underloaded_blocks;
 }
 
 template <typename Graph> void UnderloadBalancer::init_pqs(const Graph &graph) {
-  GainCache<Graph> &gain_cache = _gain_cache.emplace<Graph>(_ctx, _p_graph->k(), _p_graph->k());
+  GainCache<Graph> &gain_cache = _gain_cache.get<Graph>();
+
+  [[maybe_unused]] std::atomic<NodeID> num_initial_nodes = 0;
 
   graph.pfor_nodes([&](const NodeID node) {
     const BlockID from = _p_graph->block(node);
@@ -152,14 +165,16 @@ template <typename Graph> void UnderloadBalancer::init_pqs(const Graph &graph) {
     if (is_movable_from(from, weight)) {
       const auto [to, gain] = compute_best_gain(graph, gain_cache, node, from);
       insert_node_into_pq(node, to, gain);
+      IFDBG(++num_initial_nodes);
     }
   });
+
+  DBG << "Initialized with " << num_initial_nodes << " nodes";
 }
 
 void UnderloadBalancer::insert_node_into_pq(const NodeID node, const BlockID to, const float gain) {
   auto pq = _mq.lock_push_pq();
   pq->push(node, gain);
-  //_node_pq[node] = static_cast<PQIndex>(pq.index());
   _node_target[node] = to;
   _mq.unlock(std::move(pq));
 }

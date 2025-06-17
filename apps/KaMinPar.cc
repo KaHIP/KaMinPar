@@ -146,7 +146,7 @@ The output should be stored in a file and can be used by the -C,--config option.
       ->capture_default_str();
 
   cli.add_flag(
-         "--balance-minimum-block-weights",
+         "--balance-min-block-weights",
          app.balance_min_block_weights,
          "Enforce the balance constraint on the minimum block weight."
   )
@@ -477,6 +477,8 @@ int main(int argc, char *argv[]) {
 
   // Compute partition
   partitioner.set_graph(std::move(graph));
+
+  partitioner.enable_balanced_minimum_block_weights(app.balance_min_block_weights);
 
   if (!app.max_block_weight_factors.empty()) {
     const double total_factor = std::accumulate(
