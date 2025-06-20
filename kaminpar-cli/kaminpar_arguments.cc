@@ -655,12 +655,6 @@ CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context 
           ctx.refinement.twoway_flow.abort_on_candidate_cut
       )
       ->capture_default_str();
-  twoway_flow
-      ->add_option(
-          "--r-twoway-flow-abort-on-good-candidate-cut",
-          ctx.refinement.twoway_flow.abort_on_good_candidate_cut
-      )
-      ->capture_default_str();
 
   twoway_flow->add_option("--r-twoway-flow-whfc", ctx.refinement.twoway_flow.use_whfc)
       ->capture_default_str();

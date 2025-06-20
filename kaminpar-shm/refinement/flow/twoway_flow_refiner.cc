@@ -521,12 +521,9 @@ private:
         }
 
         if (_f_ctx.abort_on_candidate_cut && _unconstrained_cut_value < _global_cut_value) {
-          if (!_f_ctx.abort_on_good_candidate_cut) {
-            return false;
-          }
-
           const EdgeWeight current_gain = _initial_cut_value - cut_value;
           const EdgeWeight current_cut_value = _global_cut_value - current_gain;
+
           if (_unconstrained_cut_value < current_cut_value) {
             return false;
           }
@@ -661,12 +658,9 @@ private:
         }
 
         if (_f_ctx.abort_on_candidate_cut && _unconstrained_cut_value < _global_cut_value) {
-          if (!_f_ctx.abort_on_good_candidate_cut) {
-            break;
-          }
-
           const EdgeWeight current_gain = _initial_cut_value - cut_value;
           const EdgeWeight current_cut_value = _global_cut_value - current_gain;
+
           if (_unconstrained_cut_value < current_cut_value) {
             break;
           }

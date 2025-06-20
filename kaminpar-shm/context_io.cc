@@ -553,10 +553,9 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
           << (r_ctx.twoway_flow.dynamic_rebalancer ? "dynamic" : "static") << "\n";
       out << "    Abort on candidate cut:   "
           << (r_ctx.twoway_flow.abort_on_candidate_cut ? "yes" : "no") << "\n";
-      out << "      Require best cut:       "
-          << (r_ctx.twoway_flow.abort_on_good_candidate_cut ? "yes" : "no") << "\n";
     }
 
+    out << "  Flow Cutter:                " << (r_ctx.twoway_flow.use_whfc ? "WHFC" : "Built-in") << "\n";
     out << "  Time Limit:                 " << r_ctx.twoway_flow.time_limit << " minutes" << "\n";
     out << "  Parallel scheduling:        "
         << (r_ctx.twoway_flow.parallel_scheduling ? "yes" : "no") << "\n";
