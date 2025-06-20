@@ -102,6 +102,7 @@ public:
         _p_graph(p_graph),
         _graph(graph),
         _start_time(start_time),
+        _piercing_heuristic(f_ctx.piercing),
         _dynamic_balancer(p_ctx.max_block_weights()),
         _source_side_balancer(p_ctx.max_block_weights()),
         _sink_side_balancer(p_ctx.max_block_weights()),
@@ -124,6 +125,7 @@ public:
 
   Result refine(const EdgeWeight cut_value, const BlockID block1, const BlockID block2) {
     KASSERT(block1 != block2, "Only different block pairs can be refined");
+    SCOPED_TIMER("Refine Block Pair");
     _time_limit_exceeded = false;
 
     _block1 = block1;
@@ -573,9 +575,11 @@ private:
 
     _node_status.initialize(_flow_network.graph.n());
 
-    PiercingHeuristic piercing_heuristic(
-        _f_ctx.piercing, _flow_network.graph, _border_region1.nodes(), _border_region2.nodes()
-    );
+    TIMED_SCOPE("Initialize Piercing Heuristic") {
+      _piercing_heuristic.initialize(
+          _flow_network.graph, _border_region1.nodes(), _border_region2.nodes()
+      );
+    };
 
     TIMED_SCOPE("Initialize Max Flow Algorithm") {
       _max_flow_algorithm->initialize(
@@ -667,15 +671,16 @@ private:
         }
       }
 
-      SCOPED_TIMER("Compute Piercing Node");
       if (source_cut_weight <= sink_cut_weight) {
         DBG << "Piercing on source-side (" << source_cut_weight << "/" << max_block1_weight << ", "
             << (total_weight - source_cut_weight) << "/" << max_block2_weight << ")";
 
         const NodeWeight max_piercing_node_weight = max_block1_weight - source_cut_weight;
-        const auto piercing_nodes = piercing_heuristic.pierce_on_source_side(
-            _node_status, _max_flow_algorithm->node_status(), max_piercing_node_weight
-        );
+        const auto piercing_nodes = TIMED_SCOPE("Compute Piercing Nodes") {
+          return _piercing_heuristic.pierce_on_source_side(
+              _node_status, _max_flow_algorithm->node_status(), max_piercing_node_weight
+          );
+        };
 
         if (piercing_nodes.empty()) {
           LOG_WARNING << "Failed to find a suitable piercing node; "
@@ -684,16 +689,20 @@ private:
           break;
         }
 
-        _max_flow_algorithm->add_sources(_node_status.source_nodes());
-        _max_flow_algorithm->pierce_nodes(piercing_nodes, true);
+        TIMED_SCOPE("Update Max-Flow Algorithm State") {
+          _max_flow_algorithm->add_sources(_node_status.source_nodes());
+          _max_flow_algorithm->pierce_nodes(piercing_nodes, true);
+        };
       } else {
         DBG << "Piercing on sink-side (" << sink_cut_weight << "/" << max_block2_weight << ", "
             << (total_weight - sink_cut_weight) << "/" << max_block1_weight << ")";
 
         const NodeWeight max_piercing_node_weight = max_block2_weight - sink_cut_weight;
-        const auto piercing_nodes = piercing_heuristic.pierce_on_sink_side(
-            _node_status, _max_flow_algorithm->node_status(), max_piercing_node_weight
-        );
+        const auto piercing_nodes = TIMED_SCOPE("Compute Piercing Nodes") {
+          return _piercing_heuristic.pierce_on_sink_side(
+              _node_status, _max_flow_algorithm->node_status(), max_piercing_node_weight
+          );
+        };
 
         if (piercing_nodes.empty()) {
           LOG_WARNING << "Failed to find a suitable piercing node; "
@@ -702,8 +711,10 @@ private:
           break;
         }
 
-        _max_flow_algorithm->add_sinks(_node_status.sink_nodes());
-        _max_flow_algorithm->pierce_nodes(piercing_nodes, false);
+        TIMED_SCOPE("Update Max-Flow Algorithm State") {
+          _max_flow_algorithm->add_sinks(_node_status.sink_nodes());
+          _max_flow_algorithm->pierce_nodes(piercing_nodes, false);
+        };
       }
 
       if (time_limit_exceeded()) {
@@ -809,11 +820,11 @@ private:
 
   template <typename BlockFetcher>
   void rebalance(const bool source_side, const EdgeWeight cut_value, BlockFetcher &&fetch_block) {
-    SCOPED_TIMER("Rebalancing");
-
-    for (const auto [u, u_local] : _flow_network.global_to_local_mapping) {
-      _p_graph_rebalancing_copy.set_block(u, fetch_block(u_local));
-    }
+    TIMED_SCOPE("Initialize Partitioned Graph") {
+      for (const auto [u, u_local] : _flow_network.global_to_local_mapping) {
+        _p_graph_rebalancing_copy.set_block(u, fetch_block(u_local));
+      }
+    };
 
     KASSERT(
         metrics::edge_cut_seq(_p_graph_rebalancing_copy) == cut_value,
@@ -823,6 +834,8 @@ private:
 
     const BlockID overloaded_block = source_side ? _block1 : _block2;
     const auto [balanced, gain, moved_nodes] = [&] {
+      SCOPED_TIMER("Rebalance");
+
       if (_f_ctx.dynamic_rebalancer) {
         return _dynamic_balancer.rebalance(overloaded_block);
       } else {
@@ -842,6 +855,7 @@ private:
           "Rebalancing resulted in an inbalanced partition",
           assert::heavy
       );
+      SCOPED_TIMER("Compute Moves");
 
       const EdgeWeight rebalanced_cut_value = cut_value - gain;
       DBG << "Rebalanced imbalanced cut with resulting global value " << rebalanced_cut_value;
@@ -876,9 +890,11 @@ private:
       }
     }
 
-    for (const NodeID u : moved_nodes) {
-      _p_graph_rebalancing_copy.set_block(u, overloaded_block);
-    }
+    TIMED_SCOPE("Reset Partitioned Graph") {
+      for (const NodeID u : moved_nodes) {
+        _p_graph_rebalancing_copy.set_block(u, overloaded_block);
+      }
+    };
   }
 
   [[nodiscard]] bool time_limit_exceeded() const {
@@ -901,6 +917,7 @@ private:
   bool _time_limit_exceeded;
 
   std::unique_ptr<MaxFlowAlgorithm> _max_flow_algorithm;
+  PiercingHeuristic _piercing_heuristic;
 
   PartitionedCSRGraph _p_graph_rebalancing_copy;
   DynamicGreedyBalancer<PartitionedCSRGraph, CSRGraph> _dynamic_balancer;

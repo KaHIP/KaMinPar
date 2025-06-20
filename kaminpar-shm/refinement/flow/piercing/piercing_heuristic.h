@@ -7,6 +7,7 @@
 #include "kaminpar-shm/refinement/flow/util/node_status.h"
 
 #include "kaminpar-common/datastructures/binary_heap.h"
+#include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/logger.h"
 
@@ -16,8 +17,9 @@ class PiercingHeuristic {
   SET_DEBUG(false);
 
 public:
-  PiercingHeuristic(
-      const PiercingHeuristicContext &_ctx,
+  PiercingHeuristic(const PiercingHeuristicContext &_ctx);
+
+  void initialize(
       const CSRGraph &graph,
       const std::unordered_set<NodeID> &initial_source_side_nodes,
       const std::unordered_set<NodeID> &initial_sink_side_nodes
@@ -47,10 +49,11 @@ private:
 private:
   const PiercingHeuristicContext &_ctx;
 
-  const CSRGraph &_graph;
-  const std::unordered_set<NodeID> &_initial_source_side_nodes;
-  const std::unordered_set<NodeID> &_initial_sink_side_nodes;
+  const CSRGraph *_graph;
+  const std::unordered_set<NodeID> *_initial_source_side_nodes;
+  const std::unordered_set<NodeID> *_initial_sink_side_nodes;
 
+  Marker<> _marker;
   StaticArray<NodeID> _distance;
 };
 
