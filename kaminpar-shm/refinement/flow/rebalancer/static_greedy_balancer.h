@@ -70,6 +70,9 @@ private:
     _gain_cache.initialize(_overloaded_block, *_p_graph, *_graph);
     compute_moves();
 
+    for (const NodeID u : _moved_nodes) {
+      _p_graph->set_block(u, _overloaded_block);
+    }
     for (const auto &[u, u_block] : _virtual_moves) {
       _p_graph->set_block(u, u_block);
     }
@@ -77,6 +80,7 @@ private:
 
   void compute_moves() {
     _moves.clear();
+    _moved_nodes.clear();
 
     Base::clear_nodes();
     for (const NodeID u : _graph->nodes()) {
@@ -87,7 +91,17 @@ private:
 
     while (Base::has_next_node()) {
       const auto [u, target_block] = Base::next_node();
+
+      if (_p_graph->block_weight(target_block) + _graph->node_weight(u) >
+          _max_block_weights[target_block]) {
+        Base::insert_node(u);
+        continue;
+      }
+
+      Base::move_node(u, target_block);
       _moves.emplace_back(u, target_block);
+
+      _moved_nodes.push_back(u);
     }
   }
 
