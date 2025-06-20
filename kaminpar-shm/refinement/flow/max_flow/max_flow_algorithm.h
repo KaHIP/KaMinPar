@@ -1,7 +1,6 @@
 #pragma once
 
 #include <span>
-#include <unordered_set>
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/kaminpar.h"

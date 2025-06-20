@@ -1,5 +1,6 @@
 #pragma once
 
+#include <span>
 #include <unordered_set>
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
@@ -7,7 +8,6 @@
 #include "kaminpar-shm/refinement/flow/util/node_status.h"
 
 #include "kaminpar-common/datastructures/binary_heap.h"
-#include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/logger.h"
 
@@ -25,16 +25,23 @@ public:
       const std::unordered_set<NodeID> &initial_sink_side_nodes
   );
 
-  ScalableVector<NodeID> pierce_on_source_side(
-      const NodeStatus &cut_status, const NodeStatus &terminal_status, NodeWeight max_weight
+  std::span<const NodeID> pierce_on_source_side(
+      std::span<const NodeID> piercing_nodes_candidates,
+      const NodeStatus &cut_status,
+      const NodeStatus &terminal_status,
+      NodeWeight max_weight
   );
 
-  ScalableVector<NodeID> pierce_on_sink_side(
-      const NodeStatus &cut_status, const NodeStatus &terminal_status, NodeWeight max_weight
+  std::span<const NodeID> pierce_on_sink_side(
+      std::span<const NodeID> piercing_nodes_candidates,
+      const NodeStatus &cut_status,
+      const NodeStatus &terminal_status,
+      NodeWeight max_weight
   );
 
 private:
-  ScalableVector<NodeID> find_piercing_node(
+  std::span<const NodeID> find_piercing_node(
+      std::span<const NodeID> piercing_nodes_candidates,
       const NodeStatus &cut_status,
       const NodeStatus &terminal_status,
       const std::unordered_set<NodeID> &initial_terminal_side_nodes,
@@ -53,7 +60,7 @@ private:
   const std::unordered_set<NodeID> *_initial_source_side_nodes;
   const std::unordered_set<NodeID> *_initial_sink_side_nodes;
 
-  Marker<> _marker;
+  ScalableVector<NodeID> _piercing_nodes;
   StaticArray<NodeID> _distance;
 };
 

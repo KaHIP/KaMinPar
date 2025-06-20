@@ -43,6 +43,7 @@
 #include "kaminpar-shm/refinement/flow/util/reverse_edge_index.h"
 
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/logger.h"
@@ -62,6 +63,9 @@ class BipartitionFlowRefiner {
     std::unordered_map<NodeID, NodeID> global_to_local_mapping;
   };
 
+  static constexpr bool kSourceTag = true;
+  static constexpr bool kSinkTag = false;
+
 public:
   using Clock = std::chrono::high_resolution_clock;
   using TimePoint = std::chrono::time_point<Clock>;
@@ -76,10 +80,10 @@ public:
     bool time_limit_exceeded;
 
     EdgeWeight gain;
-    std::vector<Move> moves;
+    ScalableVector<Move> moves;
 
     Result(bool time_limit_exceeded = false) : time_limit_exceeded(time_limit_exceeded), gain(0) {};
-    Result(EdgeWeight gain, std::vector<Move> moves)
+    Result(EdgeWeight gain, ScalableVector<Move> moves)
         : time_limit_exceeded(false),
           gain(gain),
           moves(std::move(moves)) {};
@@ -102,12 +106,13 @@ public:
         _p_graph(p_graph),
         _graph(graph),
         _start_time(start_time),
+        _partition(graph.n(), static_array::noinit),
+        _block_weights(p_graph.k(), static_array::noinit),
+        _piercing_nodes_candidates_marker(graph.n()),
         _piercing_heuristic(f_ctx.piercing),
         _dynamic_balancer(p_ctx.max_block_weights()),
         _source_side_balancer(p_ctx.max_block_weights()),
-        _sink_side_balancer(p_ctx.max_block_weights()),
-        _partition(graph.n(), static_array::noinit),
-        _block_weights(p_graph.k(), static_array::noinit) {
+        _sink_side_balancer(p_ctx.max_block_weights()) {
     switch (_f_ctx.flow_algorithm) {
     case FlowAlgorithm::EDMONDS_KARP:
       _max_flow_algorithm = std::make_unique<EdmondsKarpAlgorithm>();
@@ -569,11 +574,13 @@ private:
   void run_flow_cutter() {
     SCOPED_TIMER("Run FlowCutter");
 
-    const NodeWeight total_weight = _block_weights[_block1] + _block_weights[_block2];
-    const NodeWeight max_block1_weight = _p_ctx.max_block_weight(_block1);
-    const NodeWeight max_block2_weight = _p_ctx.max_block_weight(_block2);
-
     _node_status.initialize(_flow_network.graph.n());
+
+    _source_side_border_nodes.clear();
+    _source_side_border_nodes.push_back(_flow_network.source);
+
+    _sink_side_border_nodes.clear();
+    _sink_side_border_nodes.push_back(_flow_network.sink);
 
     TIMED_SCOPE("Initialize Piercing Heuristic") {
       _piercing_heuristic.initialize(
@@ -581,12 +588,18 @@ private:
       );
     };
 
-    TIMED_SCOPE("Initialize Max Flow Algorithm") {
+    TIMED_SCOPE("Initialize Max-Flow Algorithm") {
       _max_flow_algorithm->initialize(
           _flow_network.graph, _flow_network.reverse_edges, _flow_network.source, _flow_network.sink
       );
     };
 
+    const NodeWeight total_weight = _block_weights[_block1] + _block_weights[_block2];
+    const NodeWeight max_block1_weight = _p_ctx.max_block_weight(_block1);
+    const NodeWeight max_block2_weight = _p_ctx.max_block_weight(_block2);
+
+    NodeWeight prev_source_side_weight = _flow_network.graph.node_weight(_flow_network.source);
+    NodeWeight prev_sink_side_weight = _flow_network.graph.node_weight(_flow_network.sink);
     while (true) {
       const auto [cut_value, flow] = TIMED_SCOPE("Compute Max Flow") {
         return _max_flow_algorithm->compute_max_flow();
@@ -600,11 +613,12 @@ private:
         break;
       }
 
-      const auto [source_cut_weight, sink_cut_weight] =
-          compute_cuts(_max_flow_algorithm->node_status(), flow);
+      const auto [source_side_weight_increase, sink_side_weight_increase] = expand_cuts(flow);
+      NodeWeight source_side_weight = prev_source_side_weight + source_side_weight_increase;
+      NodeWeight sink_side_weight = prev_sink_side_weight + sink_side_weight_increase;
 
-      const bool is_source_cut_balanced = source_cut_weight <= max_block1_weight &&
-                                          (total_weight - source_cut_weight) <= max_block2_weight;
+      const bool is_source_cut_balanced = source_side_weight <= max_block1_weight &&
+                                          (total_weight - source_side_weight) <= max_block2_weight;
       if (is_source_cut_balanced) {
         DBG << "Found cut for block pair " << _block1 << " and " << _block2
             << " is a balanced source-side cut";
@@ -620,8 +634,8 @@ private:
         break;
       }
 
-      const bool is_sink_cut_balanced = sink_cut_weight <= max_block2_weight &&
-                                        (total_weight - sink_cut_weight) <= max_block1_weight;
+      const bool is_sink_cut_balanced = sink_side_weight <= max_block2_weight &&
+                                        (total_weight - sink_side_weight) <= max_block1_weight;
       if (is_sink_cut_balanced) {
         DBG << "Found cut for block pair " << _block1 << " and " << _block2
             << " is a balanced sink-side cut";
@@ -641,24 +655,24 @@ private:
         const EdgeWeight gain = _initial_cut_value - cut_value;
         const EdgeWeight cut_value = _global_cut_value - gain;
 
-        if (source_cut_weight > max_block1_weight) {
+        if (source_side_weight > max_block1_weight) {
           SCOPED_TIMER("Rebalance source-side cut");
 
           const auto fetch_block = [&](const NodeID u) {
             return _node_status.is_source(u) ? _block1 : _block2;
           };
 
-          rebalance(true, cut_value, fetch_block);
+          rebalance(kSourceTag, cut_value, fetch_block);
         }
 
-        if (sink_cut_weight > max_block2_weight) {
+        if (sink_side_weight > max_block2_weight) {
           SCOPED_TIMER("Rebalance sink-side cut");
 
           const auto fetch_block = [&](const NodeID u) {
             return _node_status.is_sink(u) ? _block2 : _block1;
           };
 
-          rebalance(false, cut_value, fetch_block);
+          rebalance(kSinkTag, cut_value, fetch_block);
         }
 
         if (_f_ctx.abort_on_candidate_cut && _unconstrained_cut_value < _global_cut_value) {
@@ -671,14 +685,21 @@ private:
         }
       }
 
-      if (source_cut_weight <= sink_cut_weight) {
-        DBG << "Piercing on source-side (" << source_cut_weight << "/" << max_block1_weight << ", "
-            << (total_weight - source_cut_weight) << "/" << max_block2_weight << ")";
+      if (source_side_weight <= sink_side_weight) {
+        DBG << "Piercing on source-side (" << source_side_weight << "/" << max_block1_weight << ", "
+            << (total_weight - source_side_weight) << "/" << max_block2_weight << ")";
 
-        const NodeWeight max_piercing_node_weight = max_block1_weight - source_cut_weight;
+        update_border_nodes(
+            kSourceTag, _source_side_border_nodes_candidates, _source_side_border_nodes
+        );
+
+        const NodeWeight max_piercing_node_weight = max_block1_weight - source_side_weight;
         const auto piercing_nodes = TIMED_SCOPE("Compute Piercing Nodes") {
           return _piercing_heuristic.pierce_on_source_side(
-              _node_status, _max_flow_algorithm->node_status(), max_piercing_node_weight
+              _piercing_nodes_candidates,
+              _node_status,
+              _max_flow_algorithm->node_status(),
+              max_piercing_node_weight
           );
         };
 
@@ -691,16 +712,30 @@ private:
 
         TIMED_SCOPE("Update Max-Flow Algorithm State") {
           _max_flow_algorithm->add_sources(_node_status.source_nodes());
-          _max_flow_algorithm->pierce_nodes(piercing_nodes, true);
+          _max_flow_algorithm->pierce_nodes(piercing_nodes, kSourceTag);
         };
-      } else {
-        DBG << "Piercing on sink-side (" << sink_cut_weight << "/" << max_block2_weight << ", "
-            << (total_weight - sink_cut_weight) << "/" << max_block1_weight << ")";
 
-        const NodeWeight max_piercing_node_weight = max_block2_weight - sink_cut_weight;
+        TIMED_SCOPE("Update Border Nodes") {
+          for (const NodeID piercing_node : piercing_nodes) {
+            source_side_weight += _flow_network.graph.node_weight(piercing_node);
+            _source_side_border_nodes.push_back(piercing_node);
+          }
+        };
+
+        prev_source_side_weight = source_side_weight;
+      } else {
+        DBG << "Piercing on sink-side (" << sink_side_weight << "/" << max_block2_weight << ", "
+            << (total_weight - sink_side_weight) << "/" << max_block1_weight << ")";
+
+        update_border_nodes(kSinkTag, _sink_side_border_nodes_candidates, _sink_side_border_nodes);
+
+        const NodeWeight max_piercing_node_weight = max_block2_weight - sink_side_weight;
         const auto piercing_nodes = TIMED_SCOPE("Compute Piercing Nodes") {
           return _piercing_heuristic.pierce_on_sink_side(
-              _node_status, _max_flow_algorithm->node_status(), max_piercing_node_weight
+              _piercing_nodes_candidates,
+              _node_status,
+              _max_flow_algorithm->node_status(),
+              max_piercing_node_weight
           );
         };
 
@@ -713,8 +748,17 @@ private:
 
         TIMED_SCOPE("Update Max-Flow Algorithm State") {
           _max_flow_algorithm->add_sinks(_node_status.sink_nodes());
-          _max_flow_algorithm->pierce_nodes(piercing_nodes, false);
+          _max_flow_algorithm->pierce_nodes(piercing_nodes, kSinkTag);
         };
+
+        TIMED_SCOPE("Update Border Nodes") {
+          for (const NodeID piercing_node : piercing_nodes) {
+            sink_side_weight += _flow_network.graph.node_weight(piercing_node);
+            _sink_side_border_nodes.push_back(piercing_node);
+          }
+        };
+
+        prev_sink_side_weight = sink_side_weight;
       }
 
       if (time_limit_exceeded()) {
@@ -724,39 +768,45 @@ private:
     }
   }
 
-  std::pair<NodeWeight, NodeWeight>
-  compute_cuts(const NodeStatus &cut_status, std::span<const EdgeWeight> flow) {
+  std::pair<NodeWeight, NodeWeight> expand_cuts(std::span<const EdgeWeight> flow) {
+    const NodeStatus &cut_status = _max_flow_algorithm->node_status();
+
     _node_status.reset();
-
-    const EdgeWeight source_cut_weight = compute_cut(cut_status, flow, true);
-    const EdgeWeight sink_cut_weight = compute_cut(cut_status, flow, false);
-
-    return {source_cut_weight, sink_cut_weight};
-  }
-
-  NodeWeight compute_cut(
-      const NodeStatus &cut_status, std::span<const EdgeWeight> flow, const bool source_side
-  ) {
-    SCOPED_TIMER("Compute Reachable Nodes");
-
-    NodeWeight cut_weight = 0;
-
-    const CSRGraph &graph = _flow_network.graph;
-    std::queue<NodeID> bfs_queue;
-
-    std::span<const NodeID> terminals =
-        source_side ? cut_status.source_nodes() : cut_status.sink_nodes();
-    for (const NodeID terminal : terminals) {
-      bfs_queue.push(terminal);
-
-      cut_weight += graph.node_weight(terminal);
-      if (source_side) {
-        _node_status.add_source(terminal);
-      } else {
-        _node_status.add_sink(terminal);
-      }
+    for (const NodeID source : cut_status.source_nodes()) {
+      _node_status.add_source(source);
+    }
+    for (const NodeID sink : cut_status.sink_nodes()) {
+      _node_status.add_sink(sink);
     }
 
+    _source_side_border_nodes_candidates.clear();
+    const NodeWeight source_side_weight_increase = expand_cut(
+        kSourceTag, flow, _source_side_border_nodes, _source_side_border_nodes_candidates
+    );
+
+    _sink_side_border_nodes_candidates.clear();
+    const NodeWeight sink_side_weight_increase =
+        expand_cut(kSinkTag, flow, _sink_side_border_nodes, _sink_side_border_nodes_candidates);
+
+    return {source_side_weight_increase, sink_side_weight_increase};
+  }
+
+  NodeWeight expand_cut(
+      const bool source_side,
+      std::span<const EdgeWeight> flow,
+      std::span<const NodeID> border_nodes,
+      ScalableVector<NodeID> &border_nodes_candidates
+  ) {
+    SCOPED_TIMER("Expand Cut");
+    const CSRGraph &graph = _flow_network.graph;
+
+    std::queue<NodeID> bfs_queue;
+    for (const NodeID border_node : border_nodes) {
+      bfs_queue.push(border_node);
+      border_nodes_candidates.push_back(border_node);
+    }
+
+    NodeWeight cut_weight_increase = 0;
     while (!bfs_queue.empty()) {
       const NodeID u = bfs_queue.front();
       bfs_queue.pop();
@@ -771,7 +821,9 @@ private:
         if (has_residual_capacity) {
           bfs_queue.push(v);
 
-          cut_weight += graph.node_weight(v);
+          cut_weight_increase += graph.node_weight(v);
+          border_nodes_candidates.push_back(v);
+
           if (source_side) {
             _node_status.add_source(v);
           } else {
@@ -781,14 +833,52 @@ private:
       });
     }
 
-    return cut_weight;
+    return cut_weight_increase;
+  }
+
+  void update_border_nodes(
+      const bool source_side,
+      const ScalableVector<NodeID> &potential_border_nodes,
+      ScalableVector<NodeID> &border_nodes
+  ) {
+    SCOPED_TIMER("Update Border Nodes");
+    const CSRGraph &graph = _flow_network.graph;
+
+    const std::uint8_t side_status = source_side ? NodeStatus::kSource : NodeStatus::kSink;
+    const std::uint8_t other_side_status = source_side ? NodeStatus::kSink : NodeStatus::kSource;
+
+    const NodeStatus &cut_status = _max_flow_algorithm->node_status();
+
+    border_nodes.clear();
+    _piercing_nodes_candidates.clear();
+    _piercing_nodes_candidates_marker.reset();
+
+    for (const NodeID u : potential_border_nodes) {
+      bool is_border_node = false;
+
+      graph.adjacent_nodes(u, [&](const NodeID v) {
+        if (_node_status.has_status(v, side_status) ||
+            cut_status.has_status(v, other_side_status)) {
+          return;
+        }
+
+        is_border_node = true;
+        if (!_piercing_nodes_candidates_marker.get(v)) {
+          _piercing_nodes_candidates_marker.set(v);
+          _piercing_nodes_candidates.push_back(v);
+        }
+      });
+
+      if (is_border_node) {
+        border_nodes.push_back(u);
+      }
+    }
   }
 
   template <typename BlockFetcher> void compute_moves(BlockFetcher &&fetch_block) {
     SCOPED_TIMER("Compute Moves");
 
     _constrained_moves.clear();
-
     for (const auto &[u, u_local] : _flow_network.global_to_local_mapping) {
       const BlockID old_block = _partition[u];
       const BlockID new_block = fetch_block(u_local);
@@ -916,6 +1006,36 @@ private:
   const TimePoint &_start_time;
   bool _time_limit_exceeded;
 
+  BlockID _block1;
+  BlockID _block2;
+
+  StaticArray<BlockID> _partition;
+  StaticArray<BlockWeight> _block_weights;
+
+  BorderRegion _border_region1;
+  BorderRegion _border_region2;
+  FlowNetwork _flow_network;
+
+  NodeStatus _node_status;
+
+  ScalableVector<NodeID> _source_side_border_nodes;
+  ScalableVector<NodeID> _source_side_border_nodes_candidates;
+
+  ScalableVector<NodeID> _sink_side_border_nodes;
+  ScalableVector<NodeID> _sink_side_border_nodes_candidates;
+
+  Marker<> _piercing_nodes_candidates_marker;
+  ScalableVector<NodeID> _piercing_nodes_candidates;
+
+  EdgeWeight _global_cut_value;
+  EdgeWeight _initial_cut_value;
+
+  EdgeWeight _constrained_cut_value;
+  ScalableVector<Move> _constrained_moves;
+
+  EdgeWeight _unconstrained_cut_value;
+  ScalableVector<Move> _unconstrained_moves;
+
   std::unique_ptr<MaxFlowAlgorithm> _max_flow_algorithm;
   PiercingHeuristic _piercing_heuristic;
 
@@ -923,26 +1043,6 @@ private:
   DynamicGreedyBalancer<PartitionedCSRGraph, CSRGraph> _dynamic_balancer;
   StaticGreedyBalancer<PartitionedCSRGraph, CSRGraph> _source_side_balancer;
   StaticGreedyBalancer<PartitionedCSRGraph, CSRGraph> _sink_side_balancer;
-
-  StaticArray<BlockID> _partition;
-  StaticArray<BlockWeight> _block_weights;
-  NodeStatus _node_status;
-
-  BlockID _block1;
-  BlockID _block2;
-
-  BorderRegion _border_region1;
-  BorderRegion _border_region2;
-  FlowNetwork _flow_network;
-
-  EdgeWeight _global_cut_value;
-  EdgeWeight _initial_cut_value;
-
-  EdgeWeight _constrained_cut_value;
-  std::vector<Move> _constrained_moves;
-
-  EdgeWeight _unconstrained_cut_value;
-  std::vector<Move> _unconstrained_moves;
 };
 
 class SequentialBlockPairScheduler {
@@ -1068,7 +1168,7 @@ private:
     std::fill(_active_blocks.begin(), _active_blocks.end(), false);
   }
 
-  void apply_moves(const std::vector<Move> &moves) {
+  void apply_moves(std::span<const Move> moves) {
     SCOPED_TIMER("Apply Moves");
 
     for (const Move &move : moves) {
@@ -1223,7 +1323,7 @@ private:
     std::fill(_active_blocks.begin(), _active_blocks.end(), false);
   }
 
-  void apply_moves(std::vector<Move> &moves) {
+  void apply_moves(std::span<Move> moves) {
     for (Move &move : moves) {
       const NodeID u = move.node;
 
@@ -1239,7 +1339,7 @@ private:
     }
   }
 
-  void revert_moves(const std::vector<Move> &moves) {
+  void revert_moves(std::span<const Move> moves) {
     for (const Move &move : moves) {
       const BlockID old_block = move.old_block;
 
