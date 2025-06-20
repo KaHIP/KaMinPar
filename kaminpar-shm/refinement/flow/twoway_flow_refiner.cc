@@ -808,7 +808,7 @@ private:
   }
 
   template <typename BlockFetcher>
-  void rebalance(bool source_side, EdgeWeight cut_value, BlockFetcher &&fetch_block) {
+  void rebalance(const bool source_side, const EdgeWeight cut_value, BlockFetcher &&fetch_block) {
     SCOPED_TIMER("Rebalancing");
 
     for (const auto [u, u_local] : _flow_network.global_to_local_mapping) {
@@ -822,7 +822,6 @@ private:
     );
 
     const BlockID overloaded_block = source_side ? _block1 : _block2;
-
     const auto [balanced, gain, moved_nodes] = [&] {
       if (_f_ctx.dynamic_rebalancer) {
         return _dynamic_balancer.rebalance(overloaded_block);
@@ -844,10 +843,14 @@ private:
           assert::heavy
       );
 
-      const EdgeWeight rebalanced_cut_value =
-          _f_ctx.dynamic_rebalancer ? cut_value - gain
-                                    : metrics::edge_cut_seq(_p_graph_rebalancing_copy);
+      const EdgeWeight rebalanced_cut_value = cut_value - gain;
       DBG << "Rebalanced imbalanced cut with resulting global value " << rebalanced_cut_value;
+
+      KASSERT(
+          metrics::edge_cut_seq(_p_graph_rebalancing_copy) == rebalanced_cut_value,
+          "Given an incorrect cut value for rebalanced partitioned graph",
+          assert::heavy
+      );
 
       if (rebalanced_cut_value < _unconstrained_cut_value) {
         _unconstrained_cut_value = rebalanced_cut_value;

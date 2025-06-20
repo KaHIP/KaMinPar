@@ -107,8 +107,9 @@ private:
 
   RebalancerResult move_nodes() {
     const NodeID num_moves = _moves.size();
-
     NodeID cur_move = 0;
+
+    EdgeWeight gain = 0;
     while (_p_graph->block_weight(_overloaded_block) > _max_block_weights[_overloaded_block]) {
       while (true) {
         if (cur_move >= num_moves) {
@@ -127,11 +128,21 @@ private:
 
         _p_graph->set_block(u, target_block);
         _moved_nodes.push_back(u);
+
+        EdgeWeight from_connection = 0;
+        EdgeWeight to_connection = 0;
+        _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+          const BlockID v_block = _p_graph->block(v);
+          from_connection += (v_block == _overloaded_block) ? w : 0;
+          to_connection += (v_block == target_block) ? w : 0;
+        });
+
+        gain += to_connection - from_connection;
         break;
       }
     }
 
-    return RebalancerResult(true, kInvalidEdgeWeight, _moved_nodes); // TODO: compute gain
+    return RebalancerResult(true, gain, _moved_nodes);
   }
 
 private:
