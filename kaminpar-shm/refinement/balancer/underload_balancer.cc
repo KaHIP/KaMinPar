@@ -40,7 +40,6 @@ void UnderloadBalancer::initialize(const PartitionedGraph &p_graph) {
   SCOPED_HEAP_PROFILER("Underload balancer");
 
   _is_underloaded.resize(p_graph.k());
-  _underloaded_blocks.clear();
 
   _mq.reset(_ctx.parallel.num_threads, /* seed = */ 42);
 
@@ -63,9 +62,7 @@ bool UnderloadBalancer::refine(PartitionedGraph &p_graph, const PartitionContext
 
   // Terminate immediately if there is nothing to do
   if (!_p_ctx->has_min_block_weights() || metrics::is_min_balanced(*_p_graph, *_p_ctx)) {
-    DBG << "Minimum block weights already enforced: has_min_block_weights()="
-        << _p_ctx->has_min_block_weights()
-        << ", is_min_balanced()=" << metrics::is_min_balanced(*_p_graph, *_p_ctx);
+    DBG << "Nothing to do: minimum block weights already satisfied.";
     return false;
   }
 
@@ -82,7 +79,35 @@ bool UnderloadBalancer::refine(PartitionedGraph &p_graph, const PartitionContext
   }
   tg.wait();
 
-  return false;
+  IF_DBG {
+    BlockID num_underloaded_blocks = 0;
+    BlockID num_overloaded_blocks = 0;
+    std::vector<std::pair<BlockID, BlockWeight>> underloads;
+    std::vector<std::pair<BlockID, BlockWeight>> overloads;
+
+    for (const BlockID b : _p_graph->blocks()) {
+      if (_p_graph->block_weight(b) < _p_ctx->min_block_weight(b)) {
+        ++num_underloaded_blocks;
+        underloads.emplace_back(b, _p_ctx->min_block_weight(b) - _p_graph->block_weight(b));
+      }
+      if (_p_graph->block_weight(b) > _p_ctx->max_block_weight(b)) {
+        ++num_overloaded_blocks;
+        overloads.emplace_back(b, _p_graph->block_weight(b) - _p_ctx->max_block_weight(b));
+      }
+    }
+    DBG << "Result: there are now " << num_underloaded_blocks << " underloaded blocks and "
+        << num_overloaded_blocks << " overloaded blocks";
+    DBG << "Underloaded blocks: " << (underloads.empty() ? "(none)" : "");
+    for (const auto &[b, delta] : underloads) {
+      DBG << "\t" << b << ": " << delta;
+    }
+    DBG << "Overloaded blocks: " << (overloads.empty() ? "(none)" : "");
+    for (const auto &[b, delta] : overloads) {
+      DBG << "\t" << b << ": " << delta;
+    }
+  }
+
+  return true;
 }
 
 template <typename Graph>
@@ -110,6 +135,9 @@ void UnderloadBalancer::rebalance_worker(const Graph &graph, int /*thread_id*/) 
     }
 
     const auto [actual_to, actual_gain] = compute_best_gain(graph, gain_cache, node, from);
+    if (actual_to == kInvalidBlockID) {
+      continue;
+    }
 
     if (is_movable_to(to, weight) && actual_to == to && actual_gain >= gain) {
       lock_block(from);
@@ -133,7 +161,6 @@ void UnderloadBalancer::rebalance_worker(const Graph &graph, int /*thread_id*/) 
         }
       } else {
         unlock_block(from);
-
         insert_node_into_pq(node, actual_to, actual_gain);
       }
     } else {
@@ -143,20 +170,21 @@ void UnderloadBalancer::rebalance_worker(const Graph &graph, int /*thread_id*/) 
 }
 
 void UnderloadBalancer::init_underloaded_blocks() {
+  [[maybe_unused]] BlockID num_underloaded_blocks = 0;
+
   for (const BlockID b : _p_graph->blocks()) {
     _is_underloaded[b] = (_p_graph->block_weight(b) < _p_ctx->min_block_weight(b));
-    if (_is_underloaded[b]) {
-      _underloaded_blocks.push_back(b);
-    }
+    IFDBG(num_underloaded_blocks += _is_underloaded[b]);
   }
 
-  DBG << "Underloaded blocks: " << _underloaded_blocks;
+  DBG << num_underloaded_blocks << " out of " << _p_graph->k() << " blocks are underloaded";
 }
 
 template <typename Graph> void UnderloadBalancer::init_pqs(const Graph &graph) {
   GainCache<Graph> &gain_cache = _gain_cache.get<Graph>();
 
   [[maybe_unused]] std::atomic<NodeID> num_initial_nodes = 0;
+  [[maybe_unused]] std::atomic<NodeID> num_rejected_nodes = 0;
 
   graph.pfor_nodes([&](const NodeID node) {
     const BlockID from = _p_graph->block(node);
@@ -164,15 +192,22 @@ template <typename Graph> void UnderloadBalancer::init_pqs(const Graph &graph) {
 
     if (is_movable_from(from, weight)) {
       const auto [to, gain] = compute_best_gain(graph, gain_cache, node, from);
-      insert_node_into_pq(node, to, gain);
-      IFDBG(++num_initial_nodes);
+      if (to != kInvalidBlockID) {
+        insert_node_into_pq(node, to, gain);
+        IFDBG(++num_initial_nodes);
+      } else {
+        IFDBG(++num_rejected_nodes);
+      }
     }
   });
 
-  DBG << "Initialized with " << num_initial_nodes << " nodes";
+  DBG << "Initialized multi-queue with " << num_initial_nodes << " nodes while skipping "
+      << num_rejected_nodes << " heavy nodes";
 }
 
 void UnderloadBalancer::insert_node_into_pq(const NodeID node, const BlockID to, const float gain) {
+  KASSERT(to != kInvalidBlockID);
+
   auto pq = _mq.lock_push_pq();
   pq->push(node, gain);
   _node_target[node] = to;
@@ -183,8 +218,8 @@ std::pair<BlockID, float> UnderloadBalancer::compute_best_gain(
     const auto &graph, auto &gain_cache, const NodeID node, const BlockID from
 ) {
   const NodeWeight weight = graph.node_weight(node);
-  BlockID best_block = _p_graph->block(node);
-  EdgeWeight best_gain = 0;
+  BlockID best_block = kInvalidBlockID;
+  EdgeWeight best_gain = std::numeric_limits<EdgeWeight>::min();
 
   gain_cache.gains(node, from, [&](const BlockID to, auto &&gain_fn) {
     if (is_movable_to(to, weight)) {
@@ -218,7 +253,7 @@ void UnderloadBalancer::lock_block(const BlockID block) {
   while (!__atomic_compare_exchange_n(
       &_block_locks[block], &zero, 1u, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED
   )) {
-    // Busy spinning
+    zero = 0u;
   }
 }
 

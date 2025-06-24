@@ -14,12 +14,15 @@
 #include <tbb/enumerable_thread_specific.h>
 
 #include "kaminpar-common/datastructures/dynamic_binary_heap.h"
+#include "kaminpar-common/logger.h"
 
 namespace kaminpar {
 
 template <typename ID, typename Key, template <typename> typename Comparator> class MultiQueue {
   constexpr static std::size_t kNumPQsPerThread = 2;
   constexpr static int kNumPopAttempts = 32;
+
+  SET_DEBUG(false);
 
   struct Token {
     Token(const int seed, const std::size_t num_pqs) : dist(0, num_pqs - 1) {
@@ -140,13 +143,17 @@ public:
     std::size_t pq = 0;
     do {
       pq = token.pick_random_pq();
-    } while (try_lock(pq));
+    } while (!try_lock(pq));
+
+    DBG << "Locked " << pq << ", state: " << _pq_locks;
 
     return {pq, &_pqs[pq]};
   }
 
   void unlock(const Handle handle) {
     KASSERT(!!handle);
+
+    DBG << "Unlock " << handle.index() << ", state: " << _pq_locks;
 
     unlock(handle.index());
   }
@@ -196,7 +203,7 @@ private:
     KASSERT(pq < _pq_locks.size());
 
     std::uint8_t zero = 0u;
-    return _pq_locks[pq] == zero &&
+    return !is_locked(pq) &&
            __atomic_compare_exchange_n(
                &_pq_locks[pq], &zero, 1u, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED
            );
@@ -204,14 +211,14 @@ private:
 
   void unlock(const std::size_t pq) {
     KASSERT(pq < _pq_locks.size());
-    KASSERT(is_locked(pq));
+    KASSERT(is_locked(pq), "PQ " << pq << " expected to be locked, but is unlocked");
 
     update_top_key(pq);
     __atomic_store_n(&_pq_locks[pq], 0u, __ATOMIC_RELAXED);
   }
 
   void update_top_key(const std::size_t pq) {
-    KASSERT(is_locked(pq));
+    KASSERT(is_locked(pq), "PQ " << pq << " expected to be locked, but is unlocked");
 
     if (!_pqs[pq].empty()) {
       _top_keys[pq] = _pqs[pq].peek_key();

@@ -72,7 +72,6 @@ private:
   PartitionedGraph *_p_graph;
 
   std::vector<std::uint8_t> _is_underloaded;
-  std::vector<BlockID> _underloaded_blocks;
   std::vector<std::uint8_t> _block_locks;
 
   MaxMultiQueue<NodeID, float> _mq;
