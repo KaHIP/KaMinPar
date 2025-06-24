@@ -458,8 +458,8 @@ struct PartitionContext {
       bool relax_max_block_weights = false
   );
 
-  void enable_minimum_block_weights();
-  void disable_minimum_block_weights();
+  void setup_min_block_weights(double min_epsilon);
+  void setup_min_block_weights(std::vector<BlockWeight> min_block_weights);
 
 private:
   std::vector<BlockWeight> _max_block_weights{};
@@ -777,6 +777,8 @@ namespace kaminpar {
 
 class KaMinPar {
 public:
+  constexpr static double kDefaultEpsilon = 0.03;
+
   KaMinPar();
   KaMinPar(int num_threads, shm::Context ctx);
 
@@ -861,24 +863,35 @@ public:
   void set_graph(shm::Graph graph);
 
   /*!
+   * Returns a non-owning pointer to the current graph, or `nullptr` if no graph was set.
+   *
+   * @return The graph set to be partitioned.
+   */
+  const shm::Graph *graph();
+
+  /*!
    * Takes ownership of the graph set to be partitioned.
    *
    * @return The graph set to be partitioned.
    */
   shm::Graph take_graph();
 
-  /*!
-   * Control whether the balance constraint is also applied to the minimum block weight.
-   *
-   * When enabled, the minimum block weight for block b is set to:
-   * ```
-   * avg_block_weight - (max_block_weight[b] - avg_block_weight)
-   * ```
-   *
-   * @param enable Whether the balance constraint is also applied to the minimum block weight or
-   * just to the maximum block weight.
-   */
-  void enable_balanced_minimum_block_weights(bool enable);
+  void set_k(shm::BlockID k);
+
+  void set_uniform_max_block_weights(double epsilon);
+  void set_absolute_max_block_weights(std::span<const shm::BlockWeight> absolute_max_block_weights);
+  void set_relative_max_block_weights(std::span<const double> relative_max_block_weights);
+  void clear_max_block_weights();
+
+  void set_uniform_min_block_weights(double min_epsilon);
+  void set_absolute_min_block_weights(std::span<const shm::BlockWeight> absolute_min_block_weights);
+  void set_relative_min_block_weights(std::span<const double> relative_min_block_weights);
+  void clear_min_block_weights();
+
+  shm::EdgeWeight compute_partition(std::span<shm::BlockID> partition);
+
+  // Convenience functions that combine set_*() and compute_*():
+  // VVV
 
   /*!
    * Partitions the graph set by `borrow_and_mutate_graph()` or `copy_graph()` into `k` blocks with
@@ -932,22 +945,29 @@ public:
       std::vector<double> max_block_weight_factors, std::span<shm::BlockID> partition
   );
 
-  const shm::Graph *graph();
-
 private:
-  shm::EdgeWeight compute_partition(std::span<shm::BlockID> partition);
+  void validate_partition_parameters();
 
   int _num_threads;
+  tbb::global_control _gc;
 
   int _max_timer_depth = std::numeric_limits<int>::max();
   OutputLevel _output_level = OutputLevel::APPLICATION;
-  shm::Context _ctx;
 
+  shm::Context _ctx;
   std::unique_ptr<shm::Graph> _graph_ptr;
-  tbb::global_control _gc;
+
+  shm::BlockID _k = 0;
+
+  double _epsilon = kDefaultEpsilon;
+  std::vector<shm::BlockWeight> _absolute_max_block_weights = {};
+  std::vector<double> _relative_max_block_weights = {};
+
+  double _min_epsilon = 0.0;
+  std::vector<shm::BlockWeight> _absolute_min_block_weights = {};
+  std::vector<double> _relative_min_block_weights = {};
 
   bool _was_rearranged = false;
-  bool _balance_min_block_weights = false;
 };
 
 } // namespace kaminpar

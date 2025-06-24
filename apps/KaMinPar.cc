@@ -60,7 +60,10 @@ struct ApplicationContext {
   double epsilon = 0.03;
   std::vector<BlockWeight> max_block_weights = {};
   std::vector<double> max_block_weight_factors = {};
-  bool balance_min_block_weights = false;
+
+  double min_epsilon = 0.0;
+  std::vector<BlockWeight> min_block_weights = {};
+  std::vector<double> min_block_weight_factors = {};
 
   int verbosity = 0;
   bool validate = false;
@@ -145,11 +148,31 @@ The output should be stored in a file and can be used by the -C,--config option.
       ->check(CLI::NonNegativeNumber)
       ->capture_default_str();
 
-  cli.add_flag(
-         "--balance-min-block-weights",
-         app.balance_min_block_weights,
-         "Enforce the balance constraint on the minimum block weight."
+  cli.add_option(
+         "--min-epsilon",
+         app.min_epsilon,
+         "Maximum allowed imbalance for minimum block weights, e.g., 0.03 for 3%. Minimum block "
+         "weight imbalance is ignored when set to 0% (default)."
   )
+      ->check(CLI::NonNegativeNumber)
+      ->capture_default_str();
+
+  cli.add_option(
+         "--min-block-weights",
+         app.min_block_weights,
+         "Absolute minimum block weights, one weight for each block of the partition. If this "
+         "option is set, --min-epsilon will be ignored."
+  )
+      ->check(CLI::NonNegativeNumber)
+      ->capture_default_str();
+
+  cli.add_option(
+         "--min-block-weight-factors",
+         app.min_block_weight_factors,
+         "Min block weights relative to the total node weight of the input graph, one factor for "
+         "each block of the partition. If this option is set, --min-epsilon will be ignored."
+  )
+      ->check(CLI::NonNegativeNumber)
       ->capture_default_str();
 
   cli.add_option("-s,--seed", app.seed, "Seed for random number generation.")
@@ -477,39 +500,69 @@ int main(int argc, char *argv[]) {
 
   // Compute partition
   partitioner.set_graph(std::move(graph));
+  partitioner.set_k(app.k);
 
-  partitioner.enable_balanced_minimum_block_weights(app.balance_min_block_weights);
+  if (!app.min_block_weight_factors.empty()) {
+    const double total_factor = std::accumulate(
+        app.min_block_weight_factors.begin(), app.min_block_weight_factors.end(), 0.0
+    );
+
+    if (total_factor >= 1.0) {
+      LOG_ERROR << "Error: total min block weights must be smaller than the total node weight; "
+                << "this is not the case with the given factors.";
+      std::exit(1);
+    }
+
+    partitioner.set_relative_min_block_weights(app.min_block_weight_factors);
+  } else if (!app.min_block_weights.empty()) {
+    const BlockWeight total_block_weight = std::accumulate(
+        app.min_block_weights.begin(), app.min_block_weights.end(), static_cast<BlockWeight>(0)
+    );
+
+    const NodeWeight total_node_weight = partitioner.graph()->total_node_weight();
+
+    if (total_node_weight <= total_block_weight) {
+      LOG_ERROR << "Error: total min block weights (" << total_block_weight
+                << ") must be smaller than the total node weight (" << total_node_weight << ").";
+      std::exit(1);
+    }
+
+    partitioner.set_absolute_min_block_weights(app.min_block_weights);
+  } else if (app.min_epsilon > 0.0) {
+    partitioner.set_uniform_min_block_weights(app.min_epsilon);
+  }
 
   if (!app.max_block_weight_factors.empty()) {
     const double total_factor = std::accumulate(
         app.max_block_weight_factors.begin(), app.max_block_weight_factors.end(), 0.0
     );
+
     if (total_factor <= 1.0) {
       LOG_ERROR << "Error: total block weights must be greater than the total node weight; "
                 << "this is not the case with the given factors.";
       std::exit(1);
     }
 
-    partitioner.compute_partition(
-        std::move(app.max_block_weight_factors), {partition.data(), partition.size()}
-    );
+    partitioner.set_relative_max_block_weights(app.max_block_weight_factors);
   } else if (!app.max_block_weights.empty()) {
     const BlockWeight total_block_weight = std::accumulate(
         app.max_block_weights.begin(), app.max_block_weights.end(), static_cast<BlockWeight>(0)
     );
+
     const NodeWeight total_node_weight = partitioner.graph()->total_node_weight();
+
     if (total_node_weight >= total_block_weight) {
       LOG_ERROR << "Error: total max block weights (" << total_block_weight
                 << ") must be greater than the total node weight (" << total_node_weight << ").";
       std::exit(1);
     }
 
-    partitioner.compute_partition(
-        std::move(app.max_block_weights), {partition.data(), partition.size()}
-    );
+    partitioner.set_absolute_max_block_weights(app.max_block_weights);
   } else {
-    partitioner.compute_partition(app.k, app.epsilon, {partition.data(), partition.size()});
+    partitioner.set_uniform_max_block_weights(app.epsilon);
   }
+
+  partitioner.compute_partition(partition);
 
   // Save graph partition
   if (!app.partition_filename.empty()) {

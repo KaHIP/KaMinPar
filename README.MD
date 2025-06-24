@@ -91,8 +91,14 @@ There are multiple configuration presets that tune the algorithm for different s
 The `-k <k>` option directs (d)KaMinPar to partition the graph into k blocks of roughly equal weight (use `-e <eps>` to control the maximum allowed imbalance, e.g., `-e 0.03` for 3%).
 Alternatively, one can specify the maximum weight for each block explicitly through one of the following options:
 
-* `-B <W0> <W2> ... <Wk-1>`: Explicitly specifies the maximum block weights, i.e., the weight of the i-th block should be bounded by `Wi`.
-* `-b <w0> <w2> ... <wk-1>`: Same as `-B`, but specifies the maximum weights as fractions of the total node weight, i.e., the weight of the i-th block should be bounded by `wi * total node weight`.
+* `-B <W0> ... <Wk-1>`: Explicitly specifies the maximum block weights, i.e., the weight of the i-th block should be bounded by `Wi`.
+* `-b <w0> ... <wk-1>`: Same as `-B`, but specifies the maximum weights as fractions of the total node weight, i.e., the weight of the i-th block should be bounded by `wi * total node weight`.
+
+KaMinPar also supports balanced minimum block weights via one of the following options:
+
+* `--min-epsilon=<e.g., 0.03 for 3%>`: mirrors `-e`
+* `--min-block-weights <W0> ... <Wk-1>`: mirrors `-B`
+* `--min-block-weight-factors <w0> ... <wk-1>`: mirrors `-b`
 
 Other common command line options include:
 

@@ -73,15 +73,20 @@ void PartitionContext::setup(
   }
 }
 
-void PartitionContext::enable_minimum_block_weights() {
+void PartitionContext::setup_min_block_weights(const double min_epsilon) {
+  KASSERT(!_max_block_weights.empty());
+
   _min_block_weights.resize(_max_block_weights.size());
   for (BlockID b = 0; b < _max_block_weights.size(); ++b) {
-    _min_block_weights[b] = 2 * perfectly_balanced_block_weight(b) - _max_block_weights[b];
+    _min_block_weights[b] = (1 - min_epsilon) * perfectly_balanced_block_weight(b);
   }
 }
 
-void PartitionContext::disable_minimum_block_weights() {
-  _min_block_weights.clear();
+void PartitionContext::setup_min_block_weights(std::vector<BlockWeight> min_block_weights) {
+  KASSERT(!_max_block_weights.empty());
+  KASSERT(min_block_weights.size() == _max_block_weights.size());
+
+  _min_block_weights = std::move(min_block_weights);
 }
 
 void GraphCompressionContext::setup(const Graph &graph) {
@@ -196,14 +201,22 @@ KaMinPar::KaMinPar()
 
 KaMinPar::KaMinPar(const int num_threads, Context ctx)
     : _num_threads(num_threads),
-      _ctx(std::move(ctx)),
-      _gc(tbb::global_control::max_allowed_parallelism, num_threads) {
+      _gc(tbb::global_control::max_allowed_parallelism, num_threads),
+      _ctx(std::move(ctx)) {
 #ifdef KAMINPAR_ENABLE_TIMERS
   GLOBAL_TIMER.reset();
 #endif // KAMINPAR_ENABLE_TIMERS
 }
 
 KaMinPar::~KaMinPar() = default;
+
+void KaMinPar::reseed(int seed) {
+  Random::reseed(seed);
+}
+
+int KaMinPar::get_seed() {
+  return Random::get_seed();
+}
 
 void KaMinPar::set_output_level(const OutputLevel output_level) {
   _output_level = output_level;
@@ -290,54 +303,79 @@ void KaMinPar::set_graph(Graph graph) {
   _graph_ptr = std::make_unique<Graph>(std::move(graph));
 }
 
+const shm::Graph *KaMinPar::graph() {
+  return _graph_ptr.get();
+}
+
 Graph KaMinPar::take_graph() {
   return std::move(*_graph_ptr);
 }
 
-void KaMinPar::reseed(int seed) {
-  Random::reseed(seed);
+void KaMinPar::set_k(shm::BlockID k) {
+  _k = k;
 }
 
-int KaMinPar::get_seed() {
-  return Random::get_seed();
+void KaMinPar::set_uniform_max_block_weights(const double epsilon) {
+  clear_max_block_weights();
+  _epsilon = epsilon;
 }
 
-void KaMinPar::enable_balanced_minimum_block_weights(const bool enable) {
-  _balance_min_block_weights = enable;
-}
-
-EdgeWeight KaMinPar::compute_partition(const BlockID k, std::span<BlockID> partition) {
-  return compute_partition(k, 0.03, partition);
-}
-
-EdgeWeight
-KaMinPar::compute_partition(const BlockID k, const double epsilon, std::span<BlockID> partition) {
-  _ctx.partition.setup(*_graph_ptr, k, epsilon);
-  return compute_partition(partition);
-}
-
-EdgeWeight KaMinPar::compute_partition(
-    std::vector<BlockWeight> max_block_weights, std::span<BlockID> partition
+void KaMinPar::set_absolute_max_block_weights(
+    const std::span<const shm::BlockWeight> absolute_max_block_weights
 ) {
-  _ctx.partition.setup(*_graph_ptr, std::move(max_block_weights));
-  return compute_partition(partition);
-}
-
-EdgeWeight KaMinPar::compute_partition(
-    std::vector<double> max_block_weight_factors, std::span<shm::BlockID> partition
-) {
-  std::vector<BlockWeight> max_block_weights(max_block_weight_factors.size());
-  const NodeWeight total_node_weight = _graph_ptr->total_node_weight();
-  std::transform(
-      max_block_weight_factors.begin(),
-      max_block_weight_factors.end(),
-      max_block_weights.begin(),
-      [total_node_weight](const double factor) { return std::ceil(factor * total_node_weight); }
+  clear_max_block_weights();
+  _absolute_max_block_weights.assign(
+      absolute_max_block_weights.begin(), absolute_max_block_weights.end()
   );
-  return compute_partition(std::move(max_block_weights), partition);
+}
+
+void KaMinPar::set_relative_max_block_weights(
+    const std::span<const double> relative_max_block_weights
+) {
+  clear_max_block_weights();
+  _relative_max_block_weights.assign(
+      relative_max_block_weights.begin(), relative_max_block_weights.end()
+  );
+}
+
+void KaMinPar::clear_max_block_weights() {
+  _epsilon = 0.0;
+  _absolute_max_block_weights.clear();
+  _relative_max_block_weights.clear();
+}
+
+void KaMinPar::set_uniform_min_block_weights(const double min_epsilon) {
+  clear_min_block_weights();
+  _min_epsilon = min_epsilon;
+}
+
+void KaMinPar::set_absolute_min_block_weights(
+    const std::span<const shm::BlockWeight> absolute_min_block_weights
+) {
+  clear_min_block_weights();
+  _absolute_min_block_weights.assign(
+      absolute_min_block_weights.begin(), absolute_min_block_weights.end()
+  );
+}
+
+void KaMinPar::set_relative_min_block_weights(
+    const std::span<const double> relative_min_block_weights
+) {
+  clear_min_block_weights();
+  _relative_min_block_weights.assign(
+      relative_min_block_weights.begin(), relative_min_block_weights.end()
+  );
+}
+
+void KaMinPar::clear_min_block_weights() {
+  _min_epsilon = 0.0;
+  _absolute_min_block_weights.clear();
+  _relative_min_block_weights.clear();
 }
 
 EdgeWeight KaMinPar::compute_partition(std::span<BlockID> partition) {
+  validate_partition_parameters();
+
   if (_output_level == OutputLevel::QUIET) {
     Logger::set_quiet_mode(true);
   }
@@ -347,14 +385,58 @@ EdgeWeight KaMinPar::compute_partition(std::span<BlockID> partition) {
   cio::print_build_datatypes<NodeID, EdgeID, NodeWeight, EdgeWeight>();
   cio::print_delimiter("Input Summary", '#');
 
+  KASSERT(
+      (_epsilon > 0.0) + (!_absolute_max_block_weights.empty()) +
+              (!_relative_max_block_weights.empty()) ==
+          1,
+      "unexpected state: max block weights must be configured either via epsilon, absolute or "
+      "relative weights"
+  );
+
+  if (_epsilon > 0.0) {
+    _ctx.partition.setup(*_graph_ptr, _k, _epsilon);
+  } else if (!_absolute_max_block_weights.empty()) {
+    _ctx.partition.setup(*_graph_ptr, _absolute_max_block_weights);
+  } else {
+    KASSERT(!_relative_max_block_weights.empty());
+
+    std::vector<BlockWeight> absolute_max_block_weights(_relative_max_block_weights.size());
+    const NodeWeight total_node_weight = _graph_ptr->total_node_weight();
+    std::transform(
+        _relative_max_block_weights.begin(),
+        _relative_max_block_weights.end(),
+        absolute_max_block_weights.begin(),
+        [total_node_weight](const double factor) { return std::ceil(factor * total_node_weight); }
+    );
+    _ctx.partition.setup(*_graph_ptr, std::move(absolute_max_block_weights));
+  }
+
+  KASSERT(
+      (_min_epsilon > 0.0) + (!_absolute_min_block_weights.empty()) +
+              (!_relative_min_block_weights.empty()) <=
+          1,
+      "unexpected state: min block weights must be cleared, or either configured via epsilon, "
+      "absolute or relative weights"
+  );
+
+  if (_min_epsilon > 0.0) {
+    _ctx.partition.setup_min_block_weights(_min_epsilon);
+  } else if (!_absolute_min_block_weights.empty()) {
+    _ctx.partition.setup_min_block_weights(_absolute_min_block_weights);
+  } else if (!_relative_min_block_weights.empty()) {
+    std::vector<BlockWeight> absolute_min_block_weights(_relative_min_block_weights.size());
+    const NodeWeight total_node_weight = _graph_ptr->total_node_weight();
+    std::transform(
+        _relative_min_block_weights.begin(),
+        _relative_min_block_weights.end(),
+        absolute_min_block_weights.begin(),
+        [total_node_weight](const double factor) { return std::ceil(factor * total_node_weight); }
+    );
+    _ctx.partition.setup_min_block_weights(std::move(absolute_min_block_weights));
+  }
+
   _ctx.compression.setup(*_graph_ptr);
   _ctx.parallel.num_threads = _num_threads;
-
-  if (_balance_min_block_weights) {
-    _ctx.partition.enable_minimum_block_weights();
-  } else {
-    _ctx.partition.disable_minimum_block_weights();
-  }
 
   // Initialize console output
   if (_output_level >= OutputLevel::APPLICATION) {
@@ -459,8 +541,86 @@ EdgeWeight KaMinPar::compute_partition(std::span<BlockID> partition) {
   return final_cut;
 }
 
-const shm::Graph *KaMinPar::graph() {
-  return _graph_ptr.get();
+void KaMinPar::validate_partition_parameters() {
+  if (_graph_ptr == nullptr) {
+    throw std::invalid_argument(
+        "Call KaMinPar::borrow_and_mutate_graph() or KaMinPar::copy_graph() before calling "
+        "KaMinPar::compute_partition()."
+    );
+  }
+
+  if (_k == 0) {
+    throw std::invalid_argument(
+        "Call KaMinPar::set_k() before calling KaMinPar::compute_partition()."
+    );
+  }
+
+  if (_epsilon == 0.0 && _absolute_max_block_weights.empty() &&
+      _relative_max_block_weights.empty()) {
+    throw std::invalid_argument(
+        "Call KaMinPar::set_uniform_max_block_weights(), "
+        "KaMinPar::set_absolute_max_block_weights() or KaMinPar::set_relative_max_block_weights() "
+        "before calling KaMinPar::compute_partition()."
+    );
+  }
+  if (!_absolute_max_block_weights.empty() &&
+      _absolute_max_block_weights.size() != static_cast<std::size_t>(_k)) {
+    throw std::invalid_argument(
+        "Length of the span passed to KaMinPar::set_absolute_max_block_weights() does not match "
+        "the number of blocks passed to KaMinPar::set_k()."
+    );
+  }
+  if (!_relative_max_block_weights.empty() &&
+      _relative_max_block_weights.size() != static_cast<std::size_t>(_k)) {
+    throw std::invalid_argument(
+        "Length of the span passed to KaMinPar::set_relative_max_block_weights() does not match "
+        "the number of blocks passed to KaMinPar::set_k()."
+    );
+  }
+
+  if (!_absolute_min_block_weights.empty() &&
+      _absolute_min_block_weights.size() != static_cast<std::size_t>(_k)) {
+    throw std::invalid_argument(
+        "Length of the span passed to KaMinPar::set_absolute_min_block_weights() does not match "
+        "the number of blocks passed to KaMinPar::set_k()."
+    );
+  }
+  if (!_relative_min_block_weights.empty() &&
+      _relative_min_block_weights.size() != static_cast<std::size_t>(_k)) {
+    throw std::invalid_argument(
+        "Length of the span passed to KaMinPar::set_relative_min_block_weights() does not match "
+        "the number of blocks passed to KaMinPar::set_k()."
+    );
+  }
+}
+
+EdgeWeight KaMinPar::compute_partition(const BlockID k, std::span<BlockID> partition) {
+  set_k(k);
+  set_uniform_max_block_weights(kDefaultEpsilon);
+  return compute_partition(partition);
+}
+
+EdgeWeight
+KaMinPar::compute_partition(const BlockID k, const double epsilon, std::span<BlockID> partition) {
+  set_k(k);
+  set_uniform_max_block_weights(epsilon);
+  return compute_partition(partition);
+}
+
+EdgeWeight KaMinPar::compute_partition(
+    std::vector<BlockWeight> max_block_weights, std::span<BlockID> partition
+) {
+  set_k(static_cast<BlockID>(max_block_weights.size()));
+  set_absolute_max_block_weights(max_block_weights);
+  return compute_partition(partition);
+}
+
+EdgeWeight KaMinPar::compute_partition(
+    std::vector<double> max_block_weight_factors, std::span<shm::BlockID> partition
+) {
+  set_k(static_cast<BlockID>(max_block_weight_factors.size()));
+  set_relative_max_block_weights(max_block_weight_factors);
+  return compute_partition(partition);
 }
 
 } // namespace kaminpar

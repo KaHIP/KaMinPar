@@ -89,11 +89,28 @@ void kaminpar_borrow_and_mutate_graph(
     kaminpar_edge_weight_t *adjwgt
 );
 
-void kaminpar_enable_balanced_minimum_block_weights(kaminpar_t *kaminpar, int enable);
+void kaminpar_set_k(kaminpar_t *kaminpar, kaminpar_block_id_t k);
 
-kaminpar_edge_weight_t kaminpar_compute_partition(
-    kaminpar_t *kaminpar, kaminpar_block_id_t k, kaminpar_block_id_t *partition
+void kaminpar_set_uniform_max_block_weights(kaminpar_t *kaminpar, double epsilon);
+void kaminpar_set_absolute_max_block_weights(
+    kaminpar_t *kaminpar, size_t k, const kaminpar_block_weight_t *absolute_max_block_weights
 );
+void kaminpar_set_relative_max_block_weights(
+    kaminpar_t *kaminpar, size_t k, const double *relative_max_block_weights
+);
+void kaminpar_clear_max_block_weights(kaminpar_t *kaminpar);
+
+void kaminpar_set_uniform_min_block_weights(kaminpar_t *kaminpar, double min_epsilon);
+void kaminpar_set_absolute_min_block_weights(
+    kaminpar_t *kaminpar, size_t k, const kaminpar_block_weight_t *absolute_min_block_weights
+);
+void kaminpar_set_relative_min_block_weights(
+    kaminpar_t *kaminpar, size_t k, const double *relative_min_block_weights
+);
+void kaminpar_clear_min_block_weights(kaminpar_t *kaminpar);
+
+kaminpar_edge_weight_t
+kaminpar_compute_partition(kaminpar_t *kaminpar, kaminpar_block_id_t *partition);
 
 kaminpar_edge_weight_t kaminpar_compute_partition_with_epsilon(
     kaminpar_t *kaminpar, kaminpar_block_id_t k, double epsilon, kaminpar_block_id_t *partition
