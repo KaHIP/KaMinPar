@@ -10,6 +10,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #define CKAMINPAR_VERSION_MAJOR 3
 #define CKAMINPAR_VERSION_MINOR 4
