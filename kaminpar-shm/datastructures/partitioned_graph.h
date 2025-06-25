@@ -69,9 +69,9 @@ public:
 
     if (graph.n() > 0 && _partition.empty()) {
       _partition.resize(graph.n(), kInvalidBlockID);
-      init_block_weights(/* seq = */ false, /* empty = */ true);
+      init_block_weights(/* seq = */ false);
     } else {
-      init_block_weights(/* seq = */ false, /* empty = */ false);
+      init_block_weights(/* seq = */ false);
     }
   }
 
@@ -94,9 +94,9 @@ public:
 
     if (graph.n() > 0 && _partition.empty()) {
       _partition.resize(graph.n(), kInvalidBlockID, static_array::seq);
-      init_block_weights(/* seq = */ true, /* empty = */ true);
+      init_block_weights(/* seq = */ true);
     } else {
-      init_block_weights(/* seq = */ true, /* empty = */ false);
+      init_block_weights(/* seq = */ true);
     }
   }
 
@@ -371,38 +371,32 @@ private:
     return _k <= kDenseBlockWeightsThreshold;
   }
 
-  void init_block_weights(const bool seq, const bool empty) {
-    if (_dense_block_weights.empty()) {
-      if (seq) {
+  void init_block_weights(const bool seq) {
+    if (seq) {
+      if (_dense_block_weights.empty()) {
         _dense_block_weights.resize(_k, static_array::seq);
-        if (!empty) {
-          reinit_dense_block_weights_seq();
-        }
-      } else {
-        _dense_block_weights.resize(_k);
-        if (!empty) {
-          reinit_dense_block_weights_par();
-        }
       }
+      reinit_dense_block_weights_seq();
+    } else {
+      if (_dense_block_weights.empty()) {
+        _dense_block_weights.resize(_k);
+      }
+      reinit_dense_block_weights_par();
     }
 
     if (!use_dense_block_weights()) {
       if (seq) {
         _aligned_block_weights.resize(_k, static_array::seq);
 
-        if (!empty) {
-          for (const BlockID b : blocks()) {
-            _aligned_block_weights[b].value = _dense_block_weights[b];
-          }
+        for (const BlockID b : blocks()) {
+          _aligned_block_weights[b].value = _dense_block_weights[b];
         }
       } else {
         _aligned_block_weights.resize(_k);
 
-        if (!empty) {
-          pfor_blocks([&](const BlockID b) {
-            _aligned_block_weights[b].value = _dense_block_weights[b];
-          });
-        }
+        pfor_blocks([&](const BlockID b) {
+          _aligned_block_weights[b].value = _dense_block_weights[b];
+        });
       }
     }
   }

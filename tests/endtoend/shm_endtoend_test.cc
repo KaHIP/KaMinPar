@@ -150,7 +150,7 @@ TEST(ShmEndToEndTest, partitions_unweighted_walshaw_data_graph) {
     std::vector<BlockID> partition(n);
     KaMinPar::reseed(0);
     KaMinPar shm(1, create_default_context()); // 1 thread: deterministic
-    shm.set_output_level(OutputLevel::DEBUG);
+    shm.set_output_level(OutputLevel::QUIET);
     shm.copy_graph(xadj, adjncy);
     shm.set_k(16);
     shm.set_uniform_max_block_weights(0.03);

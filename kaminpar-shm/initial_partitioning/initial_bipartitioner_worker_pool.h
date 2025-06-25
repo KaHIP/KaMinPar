@@ -40,7 +40,7 @@ struct BipartitionTimingInfo {
 };
 
 class InitialBipartitionerWorkerPool {
-  SET_DEBUG(true);
+  SET_DEBUG(false);
 
 public:
   explicit InitialBipartitionerWorkerPool(const Context &ctx) : _ctx(ctx) {}
