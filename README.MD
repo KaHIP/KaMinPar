@@ -94,11 +94,13 @@ Alternatively, one can specify the maximum weight for each block explicitly thro
 * `-B <W0> ... <Wk-1>`: Explicitly specifies the maximum block weights, i.e., the weight of the i-th block should be bounded by `Wi`.
 * `-b <w0> ... <wk-1>`: Same as `-B`, but specifies the maximum weights as fractions of the total node weight, i.e., the weight of the i-th block should be bounded by `wi * total node weight`.
 
-KaMinPar also supports balanced minimum block weights via one of the following options:
-
-* `--min-epsilon=<e.g., 0.03 for 3%>`: mirrors `-e`
-* `--min-block-weights <W0> ... <Wk-1>`: mirrors `-B`
-* `--min-block-weight-factors <w0> ... <wk-1>`: mirrors `-b`
+> [!TIP]
+> KaMinPar recently added support for balanced minimum block weights. 
+> These can be configured analogously to the maximum block weights via the following options:
+>
+> * `--min-epsilon=<e.g., 0.03 for 3%>`: mirrors `-e`
+> * `--min-block-weights <W0> ... <Wk-1>`: mirrors `-B`
+> * `--min-block-weight-factors <w0> ... <wk-1>`: mirrors `-b`
 
 Other common command line options include:
 
@@ -159,17 +161,21 @@ shm.borrow_and_mutate_graph(
   std::span<EdgeWeight> adjwgt = {}
 );
 
-// Compute a `k`-way partition where each block weight is bounded by 
-// `(1 + epsilon) * average`:
-shm.compute_partition(BlockID k, double epsilon, std::span<BlockID> out_partition);
+// Set the number of blocks:
+shm.set_k(BlockID k);
 
-// Compute a `max_block_weights.size()`-way partition where the `i`-th block 
-// weight is bounded by `max_block_weights[i]`:
-shm.compute_partition(std::vector<BlockWeight> max_block_weights, std::span<BlockID> out_partition);
+// Configure max block weights:
+shm.set_uniform_max_block_weights(double epsilon); // -e <...>
+// shm.set_absolute_max_block_weights(std::span<const BlockWeight> max_block_weights); // -B <...>
+// shm.set_relative_max_block_weights(std::span<const double> max_block_weight_factors); // -b <...>
 
-// Compute a `max_block_weight_factors.size()`-way partition where the `i`-th 
-// block weight is bounded by `max_block_weight_factors[i] * total_weight`:
-shm.compute_partition(std::vector<double> max_block_weight_factors, std::span<BlockID> out_partition);
+// Optionally, configure min block weights:
+// shm.set_uniform_min_block_weights(double epsilon); // --min-epsilon <...>
+// shm.set_absolute_min_block_weights(std::span<const BlockWeight> min_block_weights); // --min-block-weights <...>
+// shm.set_relative_min_block_weights(std::span<const double> min_block_weight_factors); // --min-block-weight-factors <...>
+
+// Compute the partition:
+EdgeWeight cut = shm.compute_partition(std::span<BlockID> out_partition);
 ```
 
 > [!TIP]
