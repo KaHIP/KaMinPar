@@ -93,26 +93,32 @@ int main() {
   kaminpar_block_id_t *partition = (kaminpar_block_id_t *)malloc(n * sizeof(kaminpar_block_id_t));
   kaminpar_edge_weight_t cut = 0;
 
-  cut = kaminpar_compute_partition(shm, 2, partition);
+  kaminpar_set_k(shm, 2);
+  kaminpar_set_uniform_max_block_weights(shm, 0.03);
+  cut = kaminpar_compute_partition(shm, partition);
   printf("Balanced 2-way partition: %lld edges cut\n", (long long)cut);
   render_graph(partition);
   printf("\n");
 
-  cut = kaminpar_compute_partition(shm, 4, partition);
+  kaminpar_set_k(shm, 4);
+  kaminpar_set_uniform_max_block_weights(shm, 0.03);
+  cut = kaminpar_compute_partition(shm, partition);
   printf("Balanced 4-way partition: %lld edges cut\n", (long long)cut);
   render_graph(partition);
   printf("\n");
 
   double max_block_weight_factors[] = {0.5, 0.25, 0.25};
-  cut = kaminpar_compute_partition_with_max_block_weight_factors(
-      shm, 3, max_block_weight_factors, partition
-  );
+  kaminpar_set_k(shm, 3);
+  kaminpar_set_relative_max_block_weights(shm, 3, max_block_weight_factors);
+  cut = kaminpar_compute_partition(shm, partition);
   printf("Relative max block weights {0.5, 0.25, 0.25} + 0.01: %lld edges cut\n", (long long)cut);
   render_graph(partition);
   printf("\n");
 
   kaminpar_block_weight_t max_block_weights[] = {2, 3, 3, 10};
-  cut = kaminpar_compute_partition_with_max_block_weights(shm, 4, max_block_weights, partition);
+  kaminpar_set_k(shm, 4);
+  kaminpar_set_absolute_max_block_weights(shm, 4, max_block_weights);
+  cut = kaminpar_compute_partition(shm, partition);
   printf("Absolute max block weights {2, 3, 3, 10}: %lld edges cut\n", (long long)cut);
   render_graph(partition);
   printf("\n");

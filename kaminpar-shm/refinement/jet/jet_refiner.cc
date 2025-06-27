@@ -10,7 +10,7 @@
 
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/metrics.h"
-#include "kaminpar-shm/refinement/balancer/greedy_balancer.h"
+#include "kaminpar-shm/refinement/balancer/overload_balancer.h"
 #include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
 
 #include "kaminpar-common/logger.h"
@@ -63,7 +63,7 @@ public:
     StaticArray<std::uint8_t> lock(p_graph.graph().n());
     graph.pfor_nodes([&](const NodeID u) { lock[u] = 0; });
 
-    GreedyBalancerImpl<Graph> balancer(_ctx);
+    OverloadBalancerImpl<Graph> balancer(_ctx);
     balancer.initialize(p_graph);
     balancer.track_moves(&gain_cache);
 

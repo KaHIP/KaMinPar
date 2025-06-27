@@ -4,13 +4,13 @@
 
 #include <gmock/gmock.h>
 
-#include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm::testing {
+
 //
 // Convenience functions to create Graph / PartitionedGraph from initializer
 // lists
@@ -19,13 +19,15 @@ namespace kaminpar::shm::testing {
 inline Graph make_graph(
     const std::vector<EdgeID> &nodes, const std::vector<NodeID> &edges, const bool sorted = false
 ) {
-  return Graph(std::make_unique<CSRGraph>(
-      static_array::create(nodes),
-      static_array::create(edges),
-      StaticArray<NodeWeight>(),
-      StaticArray<EdgeWeight>(),
-      sorted
-  ));
+  return Graph(
+      std::make_unique<CSRGraph>(
+          static_array::create(nodes),
+          static_array::create(edges),
+          StaticArray<NodeWeight>(),
+          StaticArray<EdgeWeight>(),
+          sorted
+      )
+  );
 }
 
 inline Graph make_graph(
@@ -35,13 +37,15 @@ inline Graph make_graph(
     const std::vector<EdgeWeight> &edge_weights,
     const bool sorted = false
 ) {
-  return Graph(std::make_unique<CSRGraph>(
-      static_array::create(nodes),
-      static_array::create(edges),
-      static_array::create(node_weights),
-      static_array::create(edge_weights),
-      sorted
-  ));
+  return Graph(
+      std::make_unique<CSRGraph>(
+          static_array::create(nodes),
+          static_array::create(edges),
+          static_array::create(node_weights),
+          static_array::create(edge_weights),
+          sorted
+      )
+  );
 }
 
 inline PartitionedGraph
@@ -50,7 +54,7 @@ make_p_graph(const Graph &graph, const BlockID k, const std::vector<BlockID> &pa
 }
 
 inline PartitionedGraph make_p_graph(const Graph &graph, const BlockID k) {
-  return PartitionedGraph(graph, k);
+  return PartitionedGraph(graph, k, StaticArray<BlockID>(k));
 }
 
 inline std::vector<NodeID> degrees(const Graph &graph) {
@@ -66,4 +70,5 @@ inline void change_node_weight(Graph &graph, const NodeID u, const NodeWeight ne
   auto &node_weights = raw_graph.raw_node_weights();
   node_weights[u] = new_node_weight;
 }
+
 } // namespace kaminpar::shm::testing

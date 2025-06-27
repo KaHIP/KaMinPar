@@ -226,8 +226,9 @@ Context create_default_context() {
               // Context -> Refinement
               .algorithms =
                   {
-                      RefinementAlgorithm::GREEDY_BALANCER,
+                      RefinementAlgorithm::OVERLOAD_BALANCER,
                       RefinementAlgorithm::LABEL_PROPAGATION,
+                      RefinementAlgorithm::UNDERLOAD_BALANCER,
                   },
               .lp =
                   {
@@ -268,7 +269,7 @@ Context create_default_context() {
                       .final_gain_temp_on_fine_level = 0.25,
                       .initial_gain_temp_on_coarse_level = 0.75,
                       .final_gain_temp_on_coarse_level = 0.75,
-                      .balancing_algorithm = RefinementAlgorithm::GREEDY_BALANCER,
+                      .balancing_algorithm = RefinementAlgorithm::OVERLOAD_BALANCER,
                   },
               .mtkahypar =
                   {
@@ -311,10 +312,12 @@ Context create_strong_context() {
   Context ctx = create_default_context();
 
   ctx.refinement.algorithms = {
-      RefinementAlgorithm::GREEDY_BALANCER,
+      RefinementAlgorithm::OVERLOAD_BALANCER,
+      RefinementAlgorithm::UNDERLOAD_BALANCER,
       RefinementAlgorithm::LABEL_PROPAGATION,
       RefinementAlgorithm::KWAY_FM,
-      RefinementAlgorithm::GREEDY_BALANCER,
+      RefinementAlgorithm::OVERLOAD_BALANCER,
+      RefinementAlgorithm::UNDERLOAD_BALANCER,
   };
 
   return ctx;
@@ -352,10 +355,12 @@ Context create_largek_strong_context() {
   Context ctx = create_largek_context();
 
   ctx.refinement.algorithms = {
-      RefinementAlgorithm::GREEDY_BALANCER,
+      RefinementAlgorithm::OVERLOAD_BALANCER,
+      RefinementAlgorithm::UNDERLOAD_BALANCER,
       RefinementAlgorithm::LABEL_PROPAGATION,
       RefinementAlgorithm::KWAY_FM,
-      RefinementAlgorithm::GREEDY_BALANCER,
+      RefinementAlgorithm::OVERLOAD_BALANCER,
+      RefinementAlgorithm::UNDERLOAD_BALANCER,
   };
 
   ctx.refinement.kway_fm.gain_cache_strategy = GainCacheStrategy::COMPACT_HASHING_LARGE_K;
@@ -366,7 +371,8 @@ Context create_largek_strong_context() {
 Context create_jet_context(const int rounds) {
   Context ctx = create_default_context();
   ctx.refinement.algorithms = {
-      RefinementAlgorithm::GREEDY_BALANCER,
+      RefinementAlgorithm::OVERLOAD_BALANCER,
+      RefinementAlgorithm::UNDERLOAD_BALANCER,
       RefinementAlgorithm::JET,
   };
 
@@ -468,10 +474,10 @@ Context create_esa21_strong_context() {
   Context ctx = create_esa21_smallk_context();
 
   ctx.refinement.algorithms = {
-      RefinementAlgorithm::GREEDY_BALANCER,
+      RefinementAlgorithm::OVERLOAD_BALANCER,
       RefinementAlgorithm::LABEL_PROPAGATION,
       RefinementAlgorithm::KWAY_FM,
-      RefinementAlgorithm::GREEDY_BALANCER,
+      RefinementAlgorithm::OVERLOAD_BALANCER,
   };
 
   return ctx;

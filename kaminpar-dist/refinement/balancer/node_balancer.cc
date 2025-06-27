@@ -23,7 +23,8 @@
 #include "kaminpar-dist/refinement/gains/lazy_compact_hashing_gain_cache.h"
 #endif // KAMINPAR_EXPERIMENTAL
 
-#include "kaminpar-common/datastructures/binary_heap.h"
+#include "kaminpar-common/datastructures/addressable_dynamic_de_heap.h"
+#include "kaminpar-common/datastructures/dynamic_binary_heap.h"
 #include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/random.h"
 
@@ -288,8 +289,8 @@ private:
 
         if (from == to) {
           // Look for next block that can take node
-          while (cur == from || _p_graph.block_weight(cur) + weight > _p_ctx.max_block_weight(cur)
-          ) {
+          while (cur == from ||
+                 _p_graph.block_weight(cur) + weight > _p_ctx.max_block_weight(cur)) {
             ++cur;
             if (cur >= _p_ctx.k) {
               cur = 0;

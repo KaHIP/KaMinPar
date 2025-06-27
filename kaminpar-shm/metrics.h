@@ -32,6 +32,18 @@ template <typename PartitionedGraph> double imbalance(const PartitionedGraph &p_
   return max_imbalance;
 }
 
+template <typename PartitionedGraph> double min_imbalance(const PartitionedGraph &p_graph) {
+  const double perfect_block_weight =
+      std::ceil(1.0 * p_graph.graph().total_node_weight() / p_graph.k());
+
+  double min_imbalance = 0.0;
+  for (const BlockID b : p_graph.blocks()) {
+    min_imbalance = std::min(min_imbalance, p_graph.block_weight(b) / perfect_block_weight - 1.0);
+  }
+
+  return min_imbalance;
+}
+
 template <typename PartitionedGraph>
 NodeWeight total_overload(const PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
   NodeWeight total_overload = 0;
@@ -47,6 +59,13 @@ template <typename PartitionedGraph>
 bool is_balanced(const PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
   return std::all_of(p_graph.blocks().begin(), p_graph.blocks().end(), [&](const BlockID b) {
     return p_graph.block_weight(b) <= p_ctx.max_block_weight(b);
+  });
+}
+
+template <typename PartitionedGraph>
+bool is_min_balanced(const PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
+  return std::all_of(p_graph.blocks().begin(), p_graph.blocks().end(), [&](const BlockID b) {
+    return p_graph.block_weight(b) >= p_ctx.min_block_weight(b);
   });
 }
 

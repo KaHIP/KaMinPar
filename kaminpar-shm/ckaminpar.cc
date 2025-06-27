@@ -151,10 +151,57 @@ void kaminpar_borrow_and_mutate_graph(
   );
 }
 
-kaminpar_edge_weight_t kaminpar_compute_partition(
-    kaminpar_t *kaminpar, kaminpar_block_id_t k, kaminpar_block_id_t *partition
+void kaminpar_set_k(kaminpar_t *kaminpar, const kaminpar_block_id_t k) {
+  kaminpar->kaminpar.set_k(k);
+}
+
+void kaminpar_set_uniform_max_block_weights(kaminpar_t *kaminpar, const double epsilon) {
+  kaminpar->kaminpar.set_uniform_max_block_weights(epsilon);
+}
+
+void kaminpar_set_absolute_max_block_weights(
+    kaminpar_t *kaminpar,
+    const size_t k,
+    const kaminpar_block_weight_t *const absolute_max_block_weights
 ) {
-  return kaminpar->kaminpar.compute_partition(k, {partition, kaminpar->n});
+  kaminpar->kaminpar.set_absolute_max_block_weights({absolute_max_block_weights, k});
+}
+
+void kaminpar_set_relative_max_block_weights(
+    kaminpar_t *kaminpar, const size_t k, const double *const relative_max_block_weights
+) {
+  kaminpar->kaminpar.set_relative_max_block_weights({relative_max_block_weights, k});
+}
+
+void kaminpar_clear_max_block_weights(kaminpar_t *kaminpar) {
+  kaminpar->kaminpar.clear_max_block_weights();
+}
+
+void kaminpar_set_uniform_min_block_weights(kaminpar_t *kaminpar, const double min_epsilon) {
+  kaminpar->kaminpar.set_uniform_min_block_weights(min_epsilon);
+}
+
+void kaminpar_set_absolute_min_block_weights(
+    kaminpar_t *kaminpar,
+    const size_t k,
+    const kaminpar_block_weight_t *const absolute_min_block_weights
+) {
+  kaminpar->kaminpar.set_absolute_min_block_weights({absolute_min_block_weights, k});
+}
+
+void kaminpar_set_relative_min_block_weights(
+    kaminpar_t *kaminpar, size_t k, const double *relative_min_block_weights
+) {
+  kaminpar->kaminpar.set_relative_min_block_weights({relative_min_block_weights, k});
+}
+
+void kaminpar_clear_min_block_weights(kaminpar_t *kaminpar) {
+  kaminpar->kaminpar.clear_min_block_weights();
+}
+
+kaminpar_edge_weight_t
+kaminpar_compute_partition(kaminpar_t *kaminpar, kaminpar_block_id_t *partition) {
+  return kaminpar->kaminpar.compute_partition({partition, kaminpar->n});
 }
 
 kaminpar_edge_weight_t kaminpar_compute_partition_with_epsilon(

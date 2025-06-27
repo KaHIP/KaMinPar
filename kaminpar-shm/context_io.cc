@@ -158,7 +158,9 @@ std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorit
       {"lp", RefinementAlgorithm::LABEL_PROPAGATION},
       {"fm", RefinementAlgorithm::KWAY_FM},
       {"jet", RefinementAlgorithm::JET},
-      {"greedy-balancer", RefinementAlgorithm::GREEDY_BALANCER},
+      {"greedy-balancer", RefinementAlgorithm::OVERLOAD_BALANCER},
+      {"overload-balancer", RefinementAlgorithm::OVERLOAD_BALANCER},
+      {"underload-balancer", RefinementAlgorithm::UNDERLOAD_BALANCER},
       {"mtkahypar", RefinementAlgorithm::MTKAHYPAR},
   };
 }
@@ -171,8 +173,10 @@ std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm)
     return out << "fm";
   case RefinementAlgorithm::LABEL_PROPAGATION:
     return out << "lp";
-  case RefinementAlgorithm::GREEDY_BALANCER:
-    return out << "greedy-balancer";
+  case RefinementAlgorithm::OVERLOAD_BALANCER:
+    return out << "overload-balancer";
+  case RefinementAlgorithm::UNDERLOAD_BALANCER:
+    return out << "underload-balancer";
   case RefinementAlgorithm::JET:
     return out << "jet";
   case RefinementAlgorithm::MTKAHYPAR:

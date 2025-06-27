@@ -1270,6 +1270,10 @@ private: // CRTP calls
     return static_cast<Derived *>(this)->max_cluster_weight(cluster);
   }
 
+  [[nodiscard]] ClusterWeight derived_min_cluster_weight(const ClusterID cluster) {
+    return static_cast<Derived *>(this)->min_cluster_weight(cluster);
+  }
+
   template <typename RatingMap>
   [[nodiscard]] ClusterID derived_select_best_cluster(
       const bool store_favored_cluster,
@@ -1334,6 +1338,10 @@ protected: // Default implementations
 
   [[nodiscard]] inline bool skip_node(const NodeID /* node */) {
     return false;
+  }
+
+  [[nodiscard]] inline ClusterWeight min_cluster_weight(const ClusterID /* cluster */) const {
+    return 0;
   }
 
 protected: // Members
@@ -1450,8 +1458,7 @@ protected:
     tbb::enumerable_thread_specific<NodeID> num_moved_nodes_ets;
 
     tbb::parallel_for(
-        tbb::blocked_range<NodeID>(from, std::min(_graph->n(), to)),
-        [&](const auto &r) {
+        tbb::blocked_range<NodeID>(from, std::min(_graph->n(), to)), [&](const auto &r) {
           EdgeID work_since_update = 0;
           NodeID num_removed_clusters = 0;
 
@@ -1760,9 +1767,7 @@ private:
       const std::size_t bucket_start = std::max(_graph->first_node_in_bucket(bucket), from);
 
       tbb::parallel_for(
-          static_cast<int>(0),
-          tbb::this_task_arena::max_concurrency(),
-          [&](const int) {
+          static_cast<int>(0), tbb::this_task_arena::max_concurrency(), [&](const int) {
             auto &chunks = _chunks_ets.local();
             auto &num_chunks = _num_chunks_ets.local();
 
@@ -2152,8 +2157,7 @@ public:
     RECORD("new_cluster_weights") ClusterWeights new_cluster_weights(num_new_clusters);
 
     tbb::parallel_for(
-        tbb::blocked_range<ClusterID>(0, _cluster_weights.size()),
-        [&](const auto &r) {
+        tbb::blocked_range<ClusterID>(0, _cluster_weights.size()), [&](const auto &r) {
           for (ClusterID u = r.begin(); u != r.end(); ++u) {
             ClusterWeight weight = _cluster_weights[u];
 
