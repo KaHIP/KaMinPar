@@ -1,10 +1,7 @@
-/*******************************************************************************
- * Dynamic partition wrapper for a static graph.
- *
- * @file:   partitioned_graph.h
- * @author: Daniel Seemaier
- * @date:   21.09.2021
- ******************************************************************************/
+/**
+ * @file partitioned_graph.cc
+ * @brief A dynamic graph partition on top of a static graph.
+ */
 #pragma once
 
 #include <span>

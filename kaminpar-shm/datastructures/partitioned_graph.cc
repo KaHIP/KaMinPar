@@ -25,17 +25,11 @@ GenericPartitionedGraph<Graph>::GenericPartitionedGraph(
       _k(k),
       _partition(std::move(partition)),
       _dense_block_weights(std::move(block_weights)) {
-  KASSERT(_partition.empty() || _partition.size() >= graph.n());
+  KASSERT(_partition.size() >= graph.n());
   KASSERT(_dense_block_weights.empty() || _dense_block_weights.size() >= k);
 
   init_node_weights();
-
-  if (graph.n() > 0 && _partition.empty()) {
-    _partition.resize(graph.n(), kInvalidBlockID);
-    init_block_weights(/* seq = */ false);
-  } else {
-    init_block_weights(/* seq = */ false);
-  }
+  init_block_weights(/* seq = */ false);
 }
 
 // Sequential ctor: use sequential loops to compute block weights.
@@ -51,17 +45,11 @@ GenericPartitionedGraph<Graph>::GenericPartitionedGraph(
       _k(k),
       _partition(std::move(partition)),
       _dense_block_weights(std::move(block_weights)) {
-  KASSERT(_partition.empty() || _partition.size() >= graph.n());
+  KASSERT(_partition.size() >= graph.n());
   KASSERT(_dense_block_weights.empty() || _dense_block_weights.size() >= k);
 
   init_node_weights();
-
-  if (graph.n() > 0 && _partition.empty()) {
-    _partition.resize(graph.n(), kInvalidBlockID, static_array::seq);
-    init_block_weights(/* seq = */ true);
-  } else {
-    init_block_weights(/* seq = */ true);
-  }
+  init_block_weights(/* seq = */ true);
 }
 
 template <typename Graph>
@@ -166,8 +154,6 @@ void GenericPartitionedGraph<Graph>::init_block_weights(const bool sequentially)
     if (use_aligned_block_weights()) {
       _aligned_block_weights.resize(_k, static_array::small, static_array::seq);
     }
-
-    reinit_block_weights(/* sequentially= */ true);
   } else {
     if (_dense_block_weights.empty()) {
       _dense_block_weights.resize(_k);
@@ -175,9 +161,8 @@ void GenericPartitionedGraph<Graph>::init_block_weights(const bool sequentially)
     if (use_aligned_block_weights()) {
       _aligned_block_weights.resize(_k);
     }
-
-    reinit_block_weights(/* sequentially= */ false);
   }
+  reinit_block_weights(sequentially);
 }
 
 template class GenericPartitionedGraph<Graph>;
