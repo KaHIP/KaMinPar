@@ -255,6 +255,7 @@ private:
       const auto [u, u_distance] = bfs_queue.front();
       bfs_queue.pop();
 
+      const NodeID v_distance = u_distance + 1;
       _graph.adjacent_nodes(u, [&](const NodeID v) {
         if (_partition[v] != block || border_region.contains(v)) {
           return;
@@ -264,8 +265,8 @@ private:
         if (border_region.fits(v_weight)) {
           border_region.insert(v, v_weight);
 
-          if (u_distance < _f_ctx.max_border_distance) {
-            bfs_queue.emplace(v, u_distance + 1);
+          if (v_distance <= _f_ctx.max_border_distance) {
+            bfs_queue.emplace(v, v_distance);
           }
         }
       });
@@ -490,17 +491,30 @@ private:
     hypergraph.finalize();
     STOP_TIMER();
 
+    const NodeWeight total_weight = _block_weights[_block1] + _block_weights[_block2];
+    const NodeWeight max_block1_weight = _p_ctx.max_block_weight(_block1);
+    const NodeWeight max_block2_weight = _p_ctx.max_block_weight(_block2);
+
     START_TIMER("Run HyperFlowCutter");
     whfc::HyperFlowCutter<whfc::SequentialPushRelabel> flow_cutter(hypergraph, 1);
     flow_cutter.forceSequential(true);
-    flow_cutter.setBulkPiercing(false);
+    flow_cutter.setBulkPiercing(_f_ctx.piercing.bulk_piercing);
 
     flow_cutter.setFlowBound(_initial_cut_value);
-    flow_cutter.cs.setMaxBlockWeight(0, _p_ctx.max_block_weight(_block1));
-    flow_cutter.cs.setMaxBlockWeight(1, _p_ctx.max_block_weight(_block2));
+    flow_cutter.cs.setMaxBlockWeight(0, max_block1_weight);
+    flow_cutter.cs.setMaxBlockWeight(1, max_block2_weight);
 
     const auto on_cut = [&]() {
-      if (_f_ctx.unconstrained && !flow_cutter.cs.isBalanced()) {
+      const EdgeWeight cut_value = flow_cutter.cs.flow_algo.flow_value;
+      DBG << "Found a cut for block pair " << _block1 << " and " << _block2 << " with value "
+          << cut_value;
+
+      if (flow_cutter.cs.isBalanced()) {
+        DBG << "Found cut for block pair " << _block1 << " and " << _block2 << " is a balanced cut";
+        return true;
+      }
+
+      if (_f_ctx.unconstrained) {
         const EdgeWeight gain = _initial_cut_value - flow_cutter.cs.flow_algo.flow_value;
         const EdgeWeight cut_value = _global_cut_value - gain;
 
@@ -537,6 +551,16 @@ private:
         }
       }
 
+      if (flow_cutter.cs.side_to_pierce == 0) {
+        const EdgeWeight source_side_weight = flow_cutter.cs.source_reachable_weight;
+        DBG << "Piercing on source-side (" << source_side_weight << "/" << max_block1_weight << ", "
+            << (total_weight - source_side_weight) << "/" << max_block2_weight << ")";
+      } else {
+        const EdgeWeight sink_side_weight = flow_cutter.cs.target_reachable_weight;
+        DBG << "Piercing on sink-side (" << sink_side_weight << "/" << max_block2_weight << ", "
+            << (total_weight - sink_side_weight) << "/" << max_block1_weight << ")";
+      }
+
       if (time_limit_exceeded()) {
         _time_limit_exceeded = true;
         return false;
@@ -551,6 +575,11 @@ private:
     STOP_TIMER();
 
     if (!success) {
+      if (flow_cutter.cs.flow_algo.flow_value >= _initial_cut_value) {
+        DBG << "Cut is worse than the initial cut (" << _initial_cut_value << "); "
+            << "aborting refinement for block pair " << _block1 << " and " << _block2;
+      }
+
       return;
     }
 
@@ -582,9 +611,20 @@ private:
     _sink_side_border_nodes.clear();
     _sink_side_border_nodes.push_back(_flow_network.sink);
 
+    const NodeWeight total_weight = _block_weights[_block1] + _block_weights[_block2];
+    const NodeWeight max_source_side_weight = _p_ctx.max_block_weight(_block1);
+    const NodeWeight max_sink_side_weight = _p_ctx.max_block_weight(_block2);
+
     TIMED_SCOPE("Initialize Piercing Heuristic") {
       _piercing_heuristic.initialize(
-          _flow_network.graph, _border_region1.nodes(), _border_region2.nodes()
+          _flow_network.graph,
+          _border_region1.nodes(),
+          _border_region2.nodes(),
+          _flow_network.graph.node_weight(_flow_network.source),
+          _flow_network.graph.node_weight(_flow_network.sink),
+          total_weight,
+          max_source_side_weight,
+          max_sink_side_weight
       );
     };
 
@@ -593,10 +633,6 @@ private:
           _flow_network.graph, _flow_network.reverse_edges, _flow_network.source, _flow_network.sink
       );
     };
-
-    const NodeWeight total_weight = _block_weights[_block1] + _block_weights[_block2];
-    const NodeWeight max_block1_weight = _p_ctx.max_block_weight(_block1);
-    const NodeWeight max_block2_weight = _p_ctx.max_block_weight(_block2);
 
     NodeWeight prev_source_side_weight = _flow_network.graph.node_weight(_flow_network.source);
     NodeWeight prev_sink_side_weight = _flow_network.graph.node_weight(_flow_network.sink);
@@ -617,8 +653,9 @@ private:
       NodeWeight source_side_weight = prev_source_side_weight + source_side_weight_increase;
       NodeWeight sink_side_weight = prev_sink_side_weight + sink_side_weight_increase;
 
-      const bool is_source_cut_balanced = source_side_weight <= max_block1_weight &&
-                                          (total_weight - source_side_weight) <= max_block2_weight;
+      const bool is_source_cut_balanced =
+          source_side_weight <= max_source_side_weight &&
+          (total_weight - source_side_weight) <= max_sink_side_weight;
       if (is_source_cut_balanced) {
         DBG << "Found cut for block pair " << _block1 << " and " << _block2
             << " is a balanced source-side cut";
@@ -634,8 +671,8 @@ private:
         break;
       }
 
-      const bool is_sink_cut_balanced = sink_side_weight <= max_block2_weight &&
-                                        (total_weight - sink_side_weight) <= max_block1_weight;
+      const bool is_sink_cut_balanced = sink_side_weight <= max_sink_side_weight &&
+                                        (total_weight - sink_side_weight) <= max_source_side_weight;
       if (is_sink_cut_balanced) {
         DBG << "Found cut for block pair " << _block1 << " and " << _block2
             << " is a balanced sink-side cut";
@@ -655,7 +692,7 @@ private:
         const EdgeWeight gain = _initial_cut_value - cut_value;
         const EdgeWeight cut_value = _global_cut_value - gain;
 
-        if (source_side_weight > max_block1_weight) {
+        if (source_side_weight > max_source_side_weight) {
           SCOPED_TIMER("Rebalance source-side cut");
 
           const auto fetch_block = [&](const NodeID u) {
@@ -665,7 +702,7 @@ private:
           rebalance(kSourceTag, cut_value, fetch_block);
         }
 
-        if (sink_side_weight > max_block2_weight) {
+        if (sink_side_weight > max_sink_side_weight) {
           SCOPED_TIMER("Rebalance sink-side cut");
 
           const auto fetch_block = [&](const NodeID u) {
@@ -686,19 +723,19 @@ private:
       }
 
       if (source_side_weight <= sink_side_weight) {
-        DBG << "Piercing on source-side (" << source_side_weight << "/" << max_block1_weight << ", "
-            << (total_weight - source_side_weight) << "/" << max_block2_weight << ")";
+        DBG << "Piercing on source-side (" << source_side_weight << "/" << max_source_side_weight
+            << ", " << (total_weight - source_side_weight) << "/" << max_sink_side_weight << ")";
 
         update_border_nodes(
             kSourceTag, _source_side_border_nodes_candidates, _source_side_border_nodes
         );
 
-        const NodeWeight max_piercing_node_weight = max_block1_weight - source_side_weight;
+        const NodeWeight max_piercing_node_weight = max_source_side_weight - source_side_weight;
         const auto piercing_nodes = TIMED_SCOPE("Compute Piercing Nodes") {
-          return _piercing_heuristic.pierce_on_source_side(
-              _piercing_nodes_candidates,
+          return _piercing_heuristic.find_piercing_nodes(
               _node_status,
               _max_flow_algorithm->node_status(),
+              source_side_weight,
               max_piercing_node_weight
           );
         };
@@ -724,17 +761,17 @@ private:
 
         prev_source_side_weight = source_side_weight;
       } else {
-        DBG << "Piercing on sink-side (" << sink_side_weight << "/" << max_block2_weight << ", "
-            << (total_weight - sink_side_weight) << "/" << max_block1_weight << ")";
+        DBG << "Piercing on sink-side (" << sink_side_weight << "/" << max_sink_side_weight << ", "
+            << (total_weight - sink_side_weight) << "/" << max_source_side_weight << ")";
 
         update_border_nodes(kSinkTag, _sink_side_border_nodes_candidates, _sink_side_border_nodes);
 
-        const NodeWeight max_piercing_node_weight = max_block2_weight - sink_side_weight;
+        const NodeWeight max_piercing_node_weight = max_sink_side_weight - sink_side_weight;
         const auto piercing_nodes = TIMED_SCOPE("Compute Piercing Nodes") {
-          return _piercing_heuristic.pierce_on_sink_side(
-              _piercing_nodes_candidates,
+          return _piercing_heuristic.find_piercing_nodes(
               _node_status,
               _max_flow_algorithm->node_status(),
+              sink_side_weight,
               max_piercing_node_weight
           );
         };
@@ -850,7 +887,7 @@ private:
     const NodeStatus &cut_status = _max_flow_algorithm->node_status();
 
     border_nodes.clear();
-    _piercing_nodes_candidates.clear();
+    _piercing_heuristic.reset(source_side);
     _piercing_nodes_candidates_marker.reset();
 
     for (const NodeID u : potential_border_nodes) {
@@ -865,7 +902,9 @@ private:
         is_border_node = true;
         if (!_piercing_nodes_candidates_marker.get(v)) {
           _piercing_nodes_candidates_marker.set(v);
-          _piercing_nodes_candidates.push_back(v);
+
+          const bool reachable = _node_status.has_status(v, other_side_status);
+          _piercing_heuristic.add_piercing_node_candidate(v, reachable);
         }
       });
 
@@ -1025,7 +1064,6 @@ private:
   ScalableVector<NodeID> _sink_side_border_nodes_candidates;
 
   Marker<> _piercing_nodes_candidates_marker;
-  ScalableVector<NodeID> _piercing_nodes_candidates;
 
   EdgeWeight _global_cut_value;
   EdgeWeight _initial_cut_value;

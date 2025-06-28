@@ -546,6 +546,19 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
           << r_ctx.twoway_flow.fifo_preflow_push.global_relabeling_frequency << "\n";
     }
 
+    out << "  Pierce all viable:          "
+        << (r_ctx.twoway_flow.piercing.pierce_all_viable ? "yes" : "no") << "\n";
+    out << "  Bulk Piercing:              "
+        << (r_ctx.twoway_flow.piercing.bulk_piercing ? "yes" : "no") << "\n";
+    if (r_ctx.twoway_flow.piercing.bulk_piercing) {
+      out << "    Round threshold:          "
+          << r_ctx.twoway_flow.piercing.bulk_piercing_round_threshold << "\n";
+      out << "    Shrinking factor:         "
+          << r_ctx.twoway_flow.piercing.bulk_piercing_shrinking_factor << "\n";
+    }
+    out << "  Fallback heuristic:         "
+        << (r_ctx.twoway_flow.piercing.fallback_heuristic ? "yes" : "no") << "\n";
+
     out << "  Unconstrained:              " << (r_ctx.twoway_flow.unconstrained ? "yes" : "no")
         << "\n";
     if (r_ctx.twoway_flow.unconstrained) {
@@ -555,7 +568,8 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
           << (r_ctx.twoway_flow.abort_on_candidate_cut ? "yes" : "no") << "\n";
     }
 
-    out << "  Flow Cutter:                " << (r_ctx.twoway_flow.use_whfc ? "WHFC" : "Built-in") << "\n";
+    out << "  Flow Cutter:                " << (r_ctx.twoway_flow.use_whfc ? "WHFC" : "Built-in")
+        << "\n";
     out << "  Time Limit:                 " << r_ctx.twoway_flow.time_limit << " minutes" << "\n";
     out << "  Parallel scheduling:        "
         << (r_ctx.twoway_flow.parallel_scheduling ? "yes" : "no") << "\n";

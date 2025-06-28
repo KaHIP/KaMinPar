@@ -218,6 +218,10 @@ Context create_default_context() {
                                       .piercing =
                                           {
                                               .pierce_all_viable = true,
+                                              .bulk_piercing = true,
+                                              .bulk_piercing_shrinking_factor = 0.55,
+                                              .bulk_piercing_round_threshold = 5,
+                                              .fallback_heuristic = true,
                                           },
                                       .unconstrained = false,
                                       .dynamic_rebalancer = false,
@@ -266,6 +270,10 @@ Context create_default_context() {
                               .piercing =
                                   {
                                       .pierce_all_viable = true,
+                                      .bulk_piercing = true,
+                                      .bulk_piercing_shrinking_factor = 0.55,
+                                      .bulk_piercing_round_threshold = 5,
+                                      .fallback_heuristic = true,
                                   },
                               .unconstrained = false,
                               .dynamic_rebalancer = false,
@@ -330,6 +338,10 @@ Context create_default_context() {
                       .piercing =
                           {
                               .pierce_all_viable = true,
+                              .bulk_piercing = true,
+                              .bulk_piercing_shrinking_factor = 0.55,
+                              .bulk_piercing_round_threshold = 5,
+                              .fallback_heuristic = true,
                           },
                       .unconstrained = false,
                       .dynamic_rebalancer = false,

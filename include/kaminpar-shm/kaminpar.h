@@ -270,6 +270,12 @@ struct FIFOPreflowPushContext {
 
 struct PiercingHeuristicContext {
   bool pierce_all_viable;
+
+  bool bulk_piercing;
+  double bulk_piercing_shrinking_factor;
+  NodeID bulk_piercing_round_threshold;
+
+  bool fallback_heuristic;
 };
 
 struct TwowayFlowRefinementContext {
@@ -292,32 +298,6 @@ struct TwowayFlowRefinementContext {
   bool parallel_scheduling;
   std::size_t max_num_rounds;
   double min_round_improvement_factor;
-};
-
-enum class CutAlgorithm {
-  ISOLATING_CUT_HEURISTIC,
-  LABELLING_FUNCTION_HEURISTIC,
-};
-
-struct IsolatingCutHeuristicContext {
-  FlowAlgorithm flow_algorithm;
-  FIFOPreflowPushContext fifo_preflow_push;
-};
-
-enum class LabellingFunctionInitializationStrategy {
-  ZERO,
-  RANDOM,
-  EXISTING_PARTITION
-};
-
-struct LabellingFunctionHeuristicContext {
-  LabellingFunctionInitializationStrategy initialization_strategy;
-
-  FlowAlgorithm flow_algorithm;
-  FIFOPreflowPushContext fifo_preflow_push;
-
-  double epsilon;
-  std::size_t max_num_rounds;
 };
 
 struct JetRefinementContext {

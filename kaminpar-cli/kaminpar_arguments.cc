@@ -637,8 +637,18 @@ CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context 
 
   twoway_flow
       ->add_option(
-          "--r-twoway-flow-piercing-all-viable",
-          ctx.refinement.twoway_flow.piercing.pierce_all_viable
+          "--r-twoway-flow-pierce-all-viable", ctx.refinement.twoway_flow.piercing.pierce_all_viable
+      )
+      ->capture_default_str();
+  twoway_flow
+      ->add_option(
+          "--r-twoway-flow-bulk-piercing", ctx.refinement.twoway_flow.piercing.bulk_piercing
+      )
+      ->capture_default_str();
+  twoway_flow
+      ->add_option(
+          "--r-twoway-flow-fallback-piercing-heuristic",
+          ctx.refinement.twoway_flow.piercing.fallback_heuristic
       )
       ->capture_default_str();
 
