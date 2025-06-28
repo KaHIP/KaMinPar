@@ -75,7 +75,9 @@ std::span<const NodeID> PiercingHeuristic::find_piercing_nodes(
           continue;
         }
 
+        cur_weight += u_weight;
         _piercing_nodes.push_back(u);
+
         if (_piercing_nodes.size() >= max_num_piercing_nodes) {
           return;
         }
