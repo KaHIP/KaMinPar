@@ -1,6 +1,7 @@
 #include "kaminpar-shm/refinement/flow/piercing/piercing_heuristic.h"
 
 #include <algorithm>
+#include <limits>
 #include <queue>
 #include <utility>
 
@@ -85,10 +86,10 @@ std::span<const NodeID> PiercingHeuristic::find_piercing_nodes(
     }
   };
 
-  const NodeID max_num_piercing_nodes = compute_max_num_piercing_nodes(side_weight);
+  const std::size_t max_num_piercing_nodes = compute_max_num_piercing_nodes(side_weight);
   add_piercing_nodes(
       _unreachable_candidates_buckets,
-      _ctx.pierce_all_viable ? kInvalidNodeID : max_num_piercing_nodes
+      _ctx.pierce_all_viable ? std::numeric_limits<std::size_t>::max() : max_num_piercing_nodes
   );
   add_piercing_nodes(_reachable_candidates_buckets, max_num_piercing_nodes);
 
@@ -188,7 +189,7 @@ NodeID PiercingHeuristic::compute_distances() {
   return max_distance;
 }
 
-NodeID PiercingHeuristic::compute_max_num_piercing_nodes(const NodeWeight side_weight) {
+std::size_t PiercingHeuristic::compute_max_num_piercing_nodes(const NodeWeight side_weight) {
   if (!_ctx.bulk_piercing) {
     return 1;
   }

@@ -24,9 +24,6 @@ class PiercingHeuristic {
     }
 
     void reset() {
-      _min_occupied_bucket = _candidates_buckets.size() - 1;
-      _max_occupied_bucket = 0;
-
       for (ScalableVector<NodeID> &candidates : _candidates_buckets) {
         candidates.clear();
       }
@@ -34,18 +31,15 @@ class PiercingHeuristic {
 
     void add_candidate(const NodeID u, const NodeID distance) {
       KASSERT(distance < _candidates_buckets.size());
-
-      _min_occupied_bucket = std::min(_min_occupied_bucket, distance);
-      _max_occupied_bucket = std::max(_max_occupied_bucket, distance);
       _candidates_buckets[distance].push_back(u);
     }
 
     [[nodiscard]] NodeID min_occupied_bucket() const {
-      return _min_occupied_bucket;
+      return 0;
     }
 
     [[nodiscard]] NodeID max_occupied_bucket() const {
-      return _max_occupied_bucket;
+      return _candidates_buckets.size() - 1;
     }
 
     [[nodiscard]] std::span<const NodeID> candidates(const NodeID bucket) const {
@@ -55,8 +49,6 @@ class PiercingHeuristic {
     }
 
   private:
-    NodeID _min_occupied_bucket;
-    NodeID _max_occupied_bucket;
     ScalableVector<ScalableVector<NodeID>> _candidates_buckets;
   };
 
@@ -115,7 +107,7 @@ public:
 private:
   NodeID compute_distances();
 
-  NodeID compute_max_num_piercing_nodes(NodeWeight side_weight);
+  std::size_t compute_max_num_piercing_nodes(NodeWeight side_weight);
 
   BulkPiercingContext &bulk_piercing_context();
 
