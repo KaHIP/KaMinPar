@@ -137,6 +137,11 @@ target_link_libraries(<your-target> PUBLIC KaMinPar::dKaMinPar) # Distributed pa
 
 The shared-memory partitioner can be used as follows:
 
+> [!CAUTION]
+> Only one thread can call `KaMinPar::compute_partition()` at a time (even on different `KaMinPar` objects).
+> This is because the performance timers are implemented as global singletons, which are inherently not thread-safe.
+> To compute multiple partitions in parallel, you must disable the timers by passing `-DKAMINPAR_ENABLE_TIMERS=Off` to CMake.
+
 ```c++
 #include <kaminpar.h>
 using namespace kaminpar;
