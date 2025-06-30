@@ -4,6 +4,8 @@
  */
 #pragma once
 
+#include <functional>
+#include <iostream>
 #include <span>
 #include <utility>
 
@@ -14,10 +16,21 @@
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/constexpr_utils.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/ranges.h"
 
 namespace kaminpar::shm {
+
+namespace partitioned_graph {
+
+constexpr struct seq_t {
+} seq;
+
+constexpr struct reinit_block_weights_t {
+} reinit_block_weights;
+
+} // namespace partitioned_graph
 
 /*!
  * Extends a static graph with a dynamic graph partition.
@@ -40,29 +53,79 @@ public:
   using BlockID = ::kaminpar::shm::BlockID;
   using BlockWeight = ::kaminpar::shm::BlockWeight;
 
-  // Tags for sequential vs parallel initialization
-  struct seq {};
-  struct par {};
-
   // Maximum k for which block weights are spreaded to individual cache lines
   constexpr static BlockID kDenseBlockWeightsThreshold = 256;
 
   // Parallel ctor: use parallel loops to compute block weights.
+  template <typename... Tags>
   GenericPartitionedGraph(
       const Graph &graph,
       const BlockID k,
       StaticArray<BlockID> partition,
-      StaticArray<BlockWeight> block_weights = {}
-  );
+      StaticArray<BlockWeight> block_weights = {},
+      Tags...
+  )
+      : _graph(&graph),
+        _k(k),
+        _partition(std::move(partition)),
+        _dense_block_weights(std::move(block_weights)) {
+    static_assert(
+        tag::are_all_contained<Tags...>(
+            partitioned_graph::seq, partitioned_graph::reinit_block_weights
+        ),
+        "invalid tags"
+    );
 
-  // Sequential ctor: use sequential loops to compute block weights.
-  GenericPartitionedGraph(
-      seq,
-      const Graph &graph,
-      const BlockID k,
-      StaticArray<BlockID> partition,
-      StaticArray<BlockWeight> block_weights = {}
-  );
+    KASSERT(_partition.size() >= graph.n(), "partition array too small");
+    KASSERT(
+        _dense_block_weights.empty() || _dense_block_weights.size() >= k,
+        "block weight array too small (may be empty)"
+    );
+    KASSERT(
+        std::all_of(
+            _partition.begin(),
+            _partition.end(),
+            std::bind(std::less<BlockID>(), std::placeholders::_1, _k)
+        ),
+        "invalid entries in the partition array",
+        assert::heavy
+    );
+
+    init_node_weights();
+
+    const bool init_block_weights_sequentially = contains_tag_v<partitioned_graph::seq_t, Tags...>;
+    const bool reinit_block_weights =
+        contains_tag_v<partitioned_graph::reinit_block_weights_t, Tags...> ||
+        _dense_block_weights.empty();
+
+    alloc_block_weights(init_block_weights_sequentially);
+    if (reinit_block_weights) {
+      reinit_dense_block_weights(init_block_weights_sequentially);
+    }
+    reinit_aligned_block_weights(init_block_weights_sequentially);
+
+    // Make sure that block weights are correct -- especially if they were precomputed and passed to
+    // the ctor
+    KASSERT(
+        [&] {
+          std::vector<BlockWeight> actual_block_weights(this->k());
+
+          for (NodeID u = 0; u < n(); ++u) {
+            actual_block_weights[block(u)] += node_weight(u);
+          }
+
+          for (const BlockID b : blocks()) {
+            if (block_weight(b) != actual_block_weights[b]) {
+              return false;
+            }
+          }
+
+          return true;
+        }(),
+        "invalid block weights",
+        assert::heavy
+    );
+  }
 
   // Dummy ctor to make the class default-constructible for convenience.
   GenericPartitionedGraph() {}
@@ -313,13 +376,11 @@ private:
     return !use_aligned_block_weights();
   }
 
-  void sync_dense_and_aligned_block_weights() const;
-
-  void init_block_weights(bool sequentially);
-
   void init_node_weights();
 
-  void reinit_block_weights(bool sequentially = false);
+  void sync_dense_and_aligned_block_weights() const;
+
+  void alloc_block_weights(bool sequentially);
 
   void reinit_dense_block_weights(bool sequentially);
 

@@ -147,11 +147,11 @@ PartitionedCSRGraph InitialPoolBipartitioner::bipartition() {
   StaticArray<BlockID> best_partition_view(_graph->n(), _best_partition.data());
   StaticArray<BlockWeight> best_block_weights_view(2, _best_block_weights.data());
   return {
-      PartitionedCSRGraph::seq{},
       *_graph,
       2,
       std::move(best_partition_view),
       std::move(best_block_weights_view),
+      partitioned_graph::seq
   };
 }
 

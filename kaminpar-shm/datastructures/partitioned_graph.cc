@@ -13,51 +13,6 @@
 
 namespace kaminpar::shm {
 
-// Parallel ctor: use parallel loops to compute block weights.
-template <typename Graph>
-GenericPartitionedGraph<Graph>::GenericPartitionedGraph(
-    const Graph &graph,
-    const BlockID k,
-    StaticArray<BlockID> partition,
-    StaticArray<BlockWeight> block_weights
-)
-    : _graph(&graph),
-      _k(k),
-      _partition(std::move(partition)),
-      _dense_block_weights(std::move(block_weights)) {
-  KASSERT(_partition.size() >= graph.n());
-  KASSERT(_dense_block_weights.empty() || _dense_block_weights.size() >= k);
-
-  init_node_weights();
-  init_block_weights(/* seq = */ false);
-}
-
-// Sequential ctor: use sequential loops to compute block weights.
-template <typename Graph>
-GenericPartitionedGraph<Graph>::GenericPartitionedGraph(
-    seq,
-    const Graph &graph,
-    const BlockID k,
-    StaticArray<BlockID> partition,
-    StaticArray<BlockWeight> block_weights
-)
-    : _graph(&graph),
-      _k(k),
-      _partition(std::move(partition)),
-      _dense_block_weights(std::move(block_weights)) {
-  KASSERT(_partition.size() >= graph.n());
-  KASSERT(_dense_block_weights.empty() || _dense_block_weights.size() >= k);
-
-  init_node_weights();
-  init_block_weights(/* seq = */ true);
-}
-
-template <typename Graph>
-void GenericPartitionedGraph<Graph>::reinit_block_weights(const bool sequentially) {
-  reinit_dense_block_weights(sequentially);
-  reinit_aligned_block_weights(sequentially);
-}
-
 template <typename Graph>
 void GenericPartitionedGraph<Graph>::reinit_dense_block_weights(const bool sequentially) {
   if (sequentially) {
@@ -163,9 +118,7 @@ template <typename Graph> void GenericPartitionedGraph<Graph>::init_node_weights
 }
 
 template <typename Graph>
-void GenericPartitionedGraph<Graph>::init_block_weights(const bool sequentially) {
-  const bool init_block_weights = _dense_block_weights.empty();
-
+void GenericPartitionedGraph<Graph>::alloc_block_weights(const bool sequentially) {
   if (sequentially) {
     if (_dense_block_weights.empty()) {
       _dense_block_weights.resize(_k, static_array::seq);
@@ -181,31 +134,6 @@ void GenericPartitionedGraph<Graph>::init_block_weights(const bool sequentially)
       _aligned_block_weights.resize(_k);
     }
   }
-
-  if (init_block_weights) {
-    reinit_block_weights(sequentially);
-  }
-  reinit_aligned_block_weights(sequentially);
-
-  // Make sure that block weights are correct -- especially if they were precomputed and passed to
-  // the ctor
-  KASSERT(
-      [&] {
-        std::vector<BlockWeight> actual_block_weights(k());
-        for (NodeID u = 0; u < n(); ++u) {
-          actual_block_weights[u] += node_weight(u);
-        }
-
-        for (const BlockID b : blocks()) {
-          if (block_weight(b) != actual_block_weights[b]) {
-            return false;
-          }
-        }
-        return true;
-      }(),
-      "invalid block weights",
-      assert::heavy
-  );
 }
 
 template class GenericPartitionedGraph<Graph>;
