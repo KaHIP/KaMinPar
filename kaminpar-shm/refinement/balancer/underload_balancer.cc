@@ -111,7 +111,9 @@ bool UnderloadBalancer::refine(PartitionedGraph &p_graph, const PartitionContext
 }
 
 template <typename Graph>
-void UnderloadBalancer::rebalance_worker(const Graph &graph, int /*thread_id*/) {
+void UnderloadBalancer::rebalance_worker(const Graph &graph, [[maybe_unused]] const int thread_id) {
+  DBG << "Worker " << thread_id << " started work";
+
   auto &gain_cache = _gain_cache.get<Graph>();
 
   while (auto pq = _mq.lock_pop_pq()) {
@@ -167,6 +169,8 @@ void UnderloadBalancer::rebalance_worker(const Graph &graph, int /*thread_id*/) 
       insert_node_into_pq(node, actual_to, actual_gain);
     }
   }
+
+  DBG << "Worker " << thread_id << " terminated";
 }
 
 void UnderloadBalancer::init_underloaded_blocks() {

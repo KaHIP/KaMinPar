@@ -155,6 +155,10 @@ public:
       ScalableVector<ClusterID> &tie_breaking_clusters,
       ScalableVector<ClusterID> &tie_breaking_favored_clusters
   ) {
+    if (state.initial_cluster_weight - state.u_weight < min_cluster_weight(state.initial_cluster)) {
+      return state.initial_cluster;
+    }
+
     const bool use_uniform_tie_breaking = _tie_breaking_strategy == TieBreakingStrategy::UNIFORM;
 
     ClusterID favored_cluster = state.initial_cluster;
@@ -182,9 +186,7 @@ public:
           const NodeWeight initial_overload =
               state.initial_cluster_weight - max_cluster_weight(state.initial_cluster);
 
-          if (((state.current_cluster_weight + state.u_weight < current_max_weight) &&
-               (state.initial_cluster_weight - state.u_weight >=
-                min_cluster_weight(state.initial_cluster))) ||
+          if (((state.current_cluster_weight + state.u_weight < current_max_weight)) ||
               current_overload < initial_overload ||
               state.current_cluster == state.initial_cluster) {
             tie_breaking_clusters.clear();
@@ -204,9 +206,7 @@ public:
             const NodeWeight initial_overload =
                 state.initial_cluster_weight - max_cluster_weight(state.initial_cluster);
 
-            if (((state.current_cluster_weight + state.u_weight < current_max_weight) &&
-                 (state.initial_cluster_weight - state.u_weight >=
-                  min_cluster_weight(state.initial_cluster))) ||
+            if (((state.current_cluster_weight + state.u_weight < current_max_weight)) ||
                 current_overload < initial_overload ||
                 state.current_cluster == state.initial_cluster) {
               tie_breaking_clusters.clear();
@@ -256,9 +256,7 @@ public:
                 (state.current_gain == state.best_gain &&
                  (current_overload < best_overload ||
                   (current_overload == best_overload && state.local_rand.random_bool())))) &&
-               (((state.current_cluster_weight + state.u_weight < current_max_weight) &&
-                 (state.initial_cluster_weight - state.u_weight >=
-                  min_cluster_weight(state.initial_cluster))) ||
+               (((state.current_cluster_weight + state.u_weight < current_max_weight)) ||
                 current_overload < initial_overload ||
                 state.current_cluster == state.initial_cluster);
       };

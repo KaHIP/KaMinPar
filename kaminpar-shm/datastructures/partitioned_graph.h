@@ -124,7 +124,7 @@ public:
   inline void set_block(const NodeID u, const BlockID to) {
     KASSERT(u < _graph->n(), "invalid node id " << u);
     KASSERT(to < k(), "invalid block id " << to << " for node " << u);
-    KASSERT(block(u) != kInvalidBlockID);
+    KASSERT(!update_block_weights || block(u) != kInvalidBlockID);
 
     if constexpr (update_block_weights) {
       const BlockID from = block(u);

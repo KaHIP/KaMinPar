@@ -162,6 +162,7 @@ void GenericPartitionedGraph<Graph>::init_block_weights(const bool sequentially)
       _aligned_block_weights.resize(_k);
     }
   }
+
   reinit_block_weights(sequentially);
 }
 
