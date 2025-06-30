@@ -30,7 +30,7 @@ PartitionedCSRGraph InitialFlatBipartitioner::bipartition(
     block_weights[0] = 0;
     block_weights[1] = 0;
 
-    return {*_graph, 2, std::move(partition), std::move(block_weights)};
+    return {PartitionedCSRGraph::seq{}, *_graph, 2, std::move(partition), std::move(block_weights)};
   }
 
   _partition = std::move(partition);

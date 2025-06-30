@@ -124,7 +124,7 @@ public:
   inline void set_block(const NodeID u, const BlockID to) {
     KASSERT(u < _graph->n(), "invalid node id " << u);
     KASSERT(to < k(), "invalid block id " << to << " for node " << u);
-    KASSERT(!update_block_weights || block(u) != kInvalidBlockID);
+    KASSERT(block(u) != kInvalidBlockID);
 
     if constexpr (update_block_weights) {
       const BlockID from = block(u);
@@ -271,8 +271,6 @@ public:
     return *_graph;
   }
 
-  void reinit_block_weights(bool sequentially = false);
-
 private:
   template <typename ValuePtrGetter>
   [[nodiscard]] bool move_block_weight_impl(
@@ -320,6 +318,12 @@ private:
   void init_block_weights(bool sequentially);
 
   void init_node_weights();
+
+  void reinit_block_weights(bool sequentially = false);
+
+  void reinit_dense_block_weights(bool sequentially);
+
+  void reinit_aligned_block_weights(bool sequentially);
 
   const Graph *_graph = nullptr;
   std::span<const NodeWeight> _node_weights = {};

@@ -54,6 +54,12 @@ GenericPartitionedGraph<Graph>::GenericPartitionedGraph(
 
 template <typename Graph>
 void GenericPartitionedGraph<Graph>::reinit_block_weights(const bool sequentially) {
+  reinit_dense_block_weights(sequentially);
+  reinit_aligned_block_weights(sequentially);
+}
+
+template <typename Graph>
+void GenericPartitionedGraph<Graph>::reinit_dense_block_weights(const bool sequentially) {
   if (sequentially) {
     for (const BlockID b : blocks()) {
       _dense_block_weights[b] = 0;
@@ -109,17 +115,22 @@ void GenericPartitionedGraph<Graph>::reinit_block_weights(const bool sequentiall
       _dense_block_weights[b] = sum;
     });
   }
+}
 
-  if (use_aligned_block_weights()) {
-    if (sequentially) {
-      for (const BlockID b : blocks()) {
-        _aligned_block_weights[b].value = _dense_block_weights[b];
-      }
-    } else {
-      pfor_blocks([&](const BlockID b) {
-        _aligned_block_weights[b].value = _dense_block_weights[b];
-      });
+template <typename Graph>
+void GenericPartitionedGraph<Graph>::reinit_aligned_block_weights(const bool sequentially) {
+  if (!use_aligned_block_weights()) {
+    return;
+  }
+
+  if (sequentially) {
+    for (const BlockID b : blocks()) {
+      _aligned_block_weights[b].value = _dense_block_weights[b];
     }
+  } else {
+    pfor_blocks([&](const BlockID b) {
+      _aligned_block_weights[b].value = _dense_block_weights[b];
+    });
   }
 }
 
@@ -153,6 +164,8 @@ template <typename Graph> void GenericPartitionedGraph<Graph>::init_node_weights
 
 template <typename Graph>
 void GenericPartitionedGraph<Graph>::init_block_weights(const bool sequentially) {
+  const bool init_block_weights = _dense_block_weights.empty();
+
   if (sequentially) {
     if (_dense_block_weights.empty()) {
       _dense_block_weights.resize(_k, static_array::seq);
@@ -169,7 +182,30 @@ void GenericPartitionedGraph<Graph>::init_block_weights(const bool sequentially)
     }
   }
 
-  reinit_block_weights(sequentially);
+  if (init_block_weights) {
+    reinit_block_weights(sequentially);
+  }
+  reinit_aligned_block_weights(sequentially);
+
+  // Make sure that block weights are correct -- especially if they were precomputed and passed to
+  // the ctor
+  KASSERT(
+      [&] {
+        std::vector<BlockWeight> actual_block_weights(k());
+        for (NodeID u = 0; u < n(); ++u) {
+          actual_block_weights[u] += node_weight(u);
+        }
+
+        for (const BlockID b : blocks()) {
+          if (block_weight(b) != actual_block_weights[b]) {
+            return false;
+          }
+        }
+        return true;
+      }(),
+      "invalid block weights",
+      assert::heavy
+  );
 }
 
 template class GenericPartitionedGraph<Graph>;
