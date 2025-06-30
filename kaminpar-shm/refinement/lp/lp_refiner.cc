@@ -38,6 +38,8 @@ class LPRefinerImpl final
 
   static constexpr std::size_t kInfiniteIterations = std::numeric_limits<std::size_t>::max();
 
+  SET_DEBUG(true);
+
 public:
   using Permutations = Base::Permutations;
 

@@ -55,6 +55,10 @@ GenericPartitionedGraph<Graph>::GenericPartitionedGraph(
 template <typename Graph>
 void GenericPartitionedGraph<Graph>::reinit_block_weights(const bool sequentially) {
   if (sequentially) {
+    for (const BlockID b : blocks()) {
+      _dense_block_weights[b] = 0;
+    }
+
     for (NodeID u = 0, n = _graph->n(); u < n; ++u) {
       const BlockID b = block(u);
       KASSERT(b < _k);
@@ -63,6 +67,8 @@ void GenericPartitionedGraph<Graph>::reinit_block_weights(const bool sequentiall
     }
   } else {
     static constexpr BlockID kLowContentionThreshold = 65536;
+
+    tbb::parallel_for<BlockID>(0, k(), [&](const BlockID b) { _dense_block_weights[b] = 0; });
 
     // If there are lots of block, assume we can sum block weights directly without causing too
     // much contention

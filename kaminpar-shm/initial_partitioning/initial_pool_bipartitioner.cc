@@ -201,6 +201,9 @@ void InitialPoolBipartitioner::print_statistics() {
 }
 
 void InitialPoolBipartitioner::run_bipartitioner(const std::size_t i) {
+  DBG << "Running " << _bipartitioner_names[i] << " on a graph with n=" << _graph->n()
+      << " and m=" << _graph->m();
+
   PartitionedCSRGraph p_graph = _bipartitioners[i]->bipartition(
       std::move(_current_partition), std::move(_current_block_weights)
   );
