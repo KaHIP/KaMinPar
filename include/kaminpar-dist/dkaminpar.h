@@ -497,10 +497,13 @@ struct Context {
   DebugContext debug;
 };
 
+std::unordered_set<std::string> get_preset_names();
+
 Context create_context_by_preset_name(const std::string &name);
 Context create_default_context();
 Context create_strong_context();
-std::unordered_set<std::string> get_preset_names();
+Context create_xterapart_context();
+
 } // namespace kaminpar::dist
 
 namespace kaminpar::dist {

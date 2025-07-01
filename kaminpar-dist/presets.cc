@@ -20,10 +20,10 @@ Context create_context_by_preset_name(const std::string &name) {
     return create_default_context();
   } else if (name == "largek") {
     return create_largek_context();
-  } else if (name == "strong" || name == "4xjet") {
+  } else if (name == "strong") {
     return create_strong_context();
-  } else if (name == "jet") {
-    return create_jet_context();
+  } else if (name == "xterapart") {
+    return create_xterapart_context();
   } else if (name == "europar23-fast") {
     return create_europar23_fast_context();
   } else if (name == "europar23-strong") {
@@ -38,8 +38,7 @@ std::unordered_set<std::string> get_preset_names() {
       "default",
       "largek",
       "strong",
-      "jet",
-      "4xjet",
+      "xterapart",
       "europar23-fast",
       "europar23-strong",
   };
@@ -238,13 +237,12 @@ Context create_default_context() {
                       .only_run_on_root = true,
                   },
           },
-      .debug =
-          {
-              .graph_filename = "<NA>",
-              .save_coarsest_graph = false,
-              .save_coarsest_partition = false,
-              .print_compression_details = false,
-          }
+      .debug = {
+          .graph_filename = "<NA>",
+          .save_coarsest_graph = false,
+          .save_coarsest_partition = false,
+          .print_compression_details = false,
+      }
   };
 }
 
@@ -253,17 +251,6 @@ Context create_strong_context() {
   ctx.refinement.jet.dynamic_negative_gain_factor = true;
   ctx.refinement.jet.num_coarse_rounds = 4;
   ctx.refinement.jet.num_fine_rounds = 4;
-  ctx.refinement.algorithms = {
-      RefinementAlgorithm::HYBRID_NODE_BALANCER, RefinementAlgorithm::JET_REFINER
-  };
-  return ctx;
-}
-
-Context create_jet_context() {
-  Context ctx = create_default_context();
-  ctx.refinement.jet.dynamic_negative_gain_factor = false;
-  ctx.refinement.jet.num_coarse_rounds = 1;
-  ctx.refinement.jet.num_fine_rounds = 1;
   ctx.refinement.algorithms = {
       RefinementAlgorithm::HYBRID_NODE_BALANCER, RefinementAlgorithm::JET_REFINER
   };
@@ -287,6 +274,12 @@ Context create_europar23_strong_context() {
 Context create_largek_context() {
   Context ctx = create_default_context();
   ctx.refinement.node_balancer.enable_parallel_balancing = false;
+  return ctx;
+}
+
+Context create_xterapart_context() {
+  Context ctx = create_default_context();
+  ctx.compression.enabled = true;
   return ctx;
 }
 

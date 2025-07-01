@@ -82,7 +82,7 @@ struct ApplicationContext {
   int verbosity = 0;
   bool validate = false;
 
-  IOKind io_kind = IOKind::KAGEN;
+  IOKind io_kind = IOKind::KAMINPAR;
   GraphDistribution io_distribution = GraphDistribution::BALANCED_EDGES;
   kagen::FileFormat io_format = kagen::FileFormat::EXTENSION;
   kagen::GraphDistribution io_kagen_distribution = kagen::GraphDistribution::BALANCE_EDGES;
@@ -104,9 +104,11 @@ void setup_context(CLI::App &cli, ApplicationContext &app, Context &ctx) {
          [&](const std::string preset) { ctx = create_context_by_preset_name(preset); }
   )
       ->check(CLI::IsMember(get_preset_names()))
-      ->description(R"(Use configuration preset:
+      ->description(
+          R"(Use configuration preset:
   - default, fast:    fastest, but lower quality
   - strong:           slower, but higher quality
+  - xterapart:        same as default, but use graph compression to reduce peak memory consumption
   - europar23-fast:   dKaMinPar-Fast configuration evaluated in the TR / Euro-Par'23 paper
   - europar23-strong: dKaMinPar-Strong configuration evaluated in the TR / Euro-Par'23 paper; requires MtKaHyPar)"
       );
@@ -205,7 +207,8 @@ The output should be stored in a file and can be used by the -C,--config option.
       ->capture_default_str();
   cli.add_option("--io-distribution", app.io_distribution)
       ->transform(CLI::CheckedTransformer(get_graph_distributions()).description(""))
-      ->description(R"(Graph distribution scheme used for KaMinPar IO, possible options are:
+      ->description(
+          R"(Graph distribution scheme used for KaMinPar IO, possible options are:
   - balanced-nodes:        distribute nodes such that each PE has roughly the same number of nodes
   - balanced-edges:        distribute edges such that each PE has roughly the same number of edges
   - balanced-memory-space: distribute graph such that each PE uses roughly the same memory space for the input graph)"
@@ -379,10 +382,26 @@ NodeID load_skagen_graph(const ApplicationContext &app, bool compression, dKaMin
   return n;
 }
 
+namespace {
+
+kagen::FileFormat map_kagen_format(const kagen::FileFormat format, const std::string &filename) {
+  if (format == kagen::FileFormat::EXTENSION) {
+    if (str::ends_with(filename, "metis") || str::ends_with(filename, "parhip")) {
+      return kagen::FileFormat::METIS;
+    } else if (str::ends_with(filename, "parhip") || str::ends_with(filename, "bgf")) {
+      return kagen::FileFormat::PARHIP;
+    }
+  }
+
+  return format;
+}
+
+} // namespace
+
 NodeID load_csr_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
   START_TIMER("Load uncompressed graph");
   const auto read_graph = [&] {
-    switch (app.io_format) {
+    switch (map_kagen_format(app.io_format, app.graph_filename)) {
     case kagen::FileFormat::METIS:
       return io::metis::csr_read(app.graph_filename, app.io_distribution, false, MPI_COMM_WORLD);
     case kagen::FileFormat::PARHIP:
@@ -405,7 +424,7 @@ NodeID load_csr_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
 NodeID load_compressed_graph(const ApplicationContext &app, dKaMinPar &partitioner) {
   START_TIMER("Load compressed graph");
   const auto read_graph = [&] {
-    switch (app.io_format) {
+    switch (map_kagen_format(app.io_format, app.graph_filename)) {
     case kagen::FileFormat::METIS:
       return io::metis::compress_read(
           app.graph_filename, app.io_distribution, false, MPI_COMM_WORLD
@@ -545,8 +564,10 @@ int main(int argc, char *argv[]) {
   MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  CLI::App cli("dKaMinPar: (Somewhat) Minimal Distributed Deep Multilevel "
-               "Graph Partitioner");
+  CLI::App cli(
+      "dKaMinPar: (Somewhat) Minimal Distributed Deep Multilevel "
+      "Graph Partitioner"
+  );
   ApplicationContext app;
   Context ctx = create_default_context();
   setup_context(cli, app, ctx);
@@ -619,6 +640,7 @@ int main(int argc, char *argv[]) {
       root_run([] {
         LOG_WARNING << "Disabling graph compression since it is not supported with KaGen-IO!";
       });
+      ctx.compression.enabled = false;
     }
 
     return load_kagen_graph(app, partitioner);
