@@ -12,6 +12,7 @@
 #include <kaminpar-common/assert.h>
 #include <kaminpar-common/environment.h>
 #include <kaminpar-shm/kaminpar.h>
+#include <tbb/version.h>
 
 namespace kaminpar {
 
@@ -125,6 +126,7 @@ void print_version() {
 #else
   std::cout << "    Mt-KaHyPar: not found or disabled\n";
 #endif
+  std::cout << "    TBB: " << TBB_VERSION_STRING << "\n";
   std::cout << "  Assertion levels: always";
 #if KASSERT_ENABLED(ASSERTION_LEVEL_LIGHT)
   std::cout << "+light";
