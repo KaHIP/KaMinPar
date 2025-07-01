@@ -106,11 +106,9 @@ void setup_context(CLI::App &cli, ApplicationContext &app, Context &ctx) {
       ->check(CLI::IsMember(get_preset_names()))
       ->description(
           R"(Use configuration preset:
-  - default, fast:    fastest, but lower quality
-  - strong:           slower, but higher quality
-  - xterapart:        same as default, but use graph compression to reduce peak memory consumption
-  - europar23-fast:   dKaMinPar-Fast configuration evaluated in the TR / Euro-Par'23 paper
-  - europar23-strong: dKaMinPar-Strong configuration evaluated in the TR / Euro-Par'23 paper; requires MtKaHyPar)"
+  - default, fast: fastest, but lower quality
+  - strong:        slower, but higher quality
+  - xterapart:     same as default, but use graph compression to reduce peak memory consumption)"
       );
 
   // Mandatory
