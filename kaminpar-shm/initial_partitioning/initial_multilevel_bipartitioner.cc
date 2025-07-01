@@ -157,20 +157,36 @@ const CSRGraph *InitialMultilevelBipartitioner::coarsen(InitialPartitionerTiming
 }
 
 PartitionedCSRGraph InitialMultilevelBipartitioner::uncoarsen(PartitionedCSRGraph p_graph) {
-  DBG << "Initial uncoarsening: n=" << p_graph.graph().n() << " m=" << p_graph.graph().m();
+  DBG << "IP uncoarsening starts: "                            //
+      << "n=" << p_graph.n() << " "                            //
+      << "m=" << p_graph.m() << " "                            //
+      << "c(V0)=" << p_graph.block_weight(0) << " "            //
+      << "c(V1)=" << p_graph.block_weight(1) << " "            //
+      << "cut=" << metrics::edge_cut_seq(p_graph) << " "       //
+      << "imbalance=" << metrics::imbalance(p_graph) << " "    //
+      << "feasible=" << metrics::is_feasible(p_graph, _p_ctx); //
 
   while (!_coarsener->empty()) {
     p_graph = _coarsener->uncoarsen(std::move(p_graph));
 
+    DBG << "Level " << _coarsener->level() << " before refinement: " //
+        << "n=" << p_graph.n() << " "                                //
+        << "m=" << p_graph.m() << " "                                //
+        << "c(V0)=" << p_graph.block_weight(0) << " "                //
+        << "c(V1)=" << p_graph.block_weight(1) << " "                //
+        << "cut=" << metrics::edge_cut_seq(p_graph) << " "           //
+        << "imbalance=" << metrics::imbalance(p_graph) << " "        //
+        << "feasible=" << metrics::is_feasible(p_graph, _p_ctx);     //
+
     _refiner->init(p_graph.graph());
     _refiner->refine(p_graph, _p_ctx);
 
-    // DBG << "-> "                                                 //
-    //<< "n=" << p_graph.n() << " "                            //
-    //<< "m=" << p_graph.m() << " "                            //
-    //<< "cut=" << metrics::edge_cut_seq(p_graph) << " "       //
-    //<< "imbalance=" << metrics::imbalance(p_graph) << " "    //
-    //<< "feasible=" << metrics::is_feasible(p_graph, _p_ctx); //
+    DBG << "Level " << _coarsener->level() << " after refinement: " //
+        << "c(V0)=" << p_graph.block_weight(0) << " "               //
+        << "c(V1)=" << p_graph.block_weight(1) << " "               //
+        << "cut=" << metrics::edge_cut_seq(p_graph) << " "          //
+        << "imbalance=" << metrics::imbalance(p_graph) << " "       //
+        << "feasible=" << metrics::is_feasible(p_graph, _p_ctx);    //
   }
 
   return p_graph;

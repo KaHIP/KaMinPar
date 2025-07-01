@@ -91,8 +91,16 @@ There are multiple configuration presets that tune the algorithm for different s
 The `-k <k>` option directs (d)KaMinPar to partition the graph into k blocks of roughly equal weight (use `-e <eps>` to control the maximum allowed imbalance, e.g., `-e 0.03` for 3%).
 Alternatively, one can specify the maximum weight for each block explicitly through one of the following options:
 
-* `-B <W0> <W2> ... <Wk-1>`: Explicitly specifies the maximum block weights, i.e., the weight of the i-th block should be bounded by `Wi`.
-* `-b <w0> <w2> ... <wk-1>`: Same as `-B`, but specifies the maximum weights as fractions of the total node weight, i.e., the weight of the i-th block should be bounded by `wi * total node weight`.
+* `-B <W0> ... <Wk-1>`: Explicitly specifies the maximum block weights, i.e., the weight of the i-th block should be bounded by `Wi`.
+* `-b <w0> ... <wk-1>`: Same as `-B`, but specifies the maximum weights as fractions of the total node weight, i.e., the weight of the i-th block should be bounded by `wi * total node weight`.
+
+> [!TIP]
+> KaMinPar recently added support for balanced minimum block weights. 
+> These can be configured analogously to the maximum block weights via the following options:
+>
+> * `--min-epsilon=<e.g., 0.03 for 3%>`: mirrors `-e`
+> * `--min-block-weights <W0> ... <Wk-1>`: mirrors `-B`
+> * `--min-block-weight-factors <w0> ... <wk-1>`: mirrors `-b`
 
 Other common command line options include:
 
@@ -129,6 +137,11 @@ target_link_libraries(<your-target> PUBLIC KaMinPar::dKaMinPar) # Distributed pa
 
 The shared-memory partitioner can be used as follows:
 
+> [!CAUTION]
+> Only one thread can call `KaMinPar::compute_partition()` at a time (even on different `KaMinPar` objects).
+> This is because the performance timers are implemented as global singletons, which are inherently not thread-safe.
+> To compute multiple partitions in parallel, you must disable the timers by passing `-DKAMINPAR_ENABLE_TIMERS=Off` to CMake.
+
 ```c++
 #include <kaminpar.h>
 using namespace kaminpar;
@@ -153,17 +166,21 @@ shm.borrow_and_mutate_graph(
   std::span<EdgeWeight> adjwgt = {}
 );
 
-// Compute a `k`-way partition where each block weight is bounded by 
-// `(1 + epsilon) * average`:
-shm.compute_partition(BlockID k, double epsilon, std::span<BlockID> out_partition);
+// Set the number of blocks:
+shm.set_k(BlockID k);
 
-// Compute a `max_block_weights.size()`-way partition where the `i`-th block 
-// weight is bounded by `max_block_weights[i]`:
-shm.compute_partition(std::vector<BlockWeight> max_block_weights, std::span<BlockID> out_partition);
+// Configure max block weights:
+shm.set_uniform_max_block_weights(double epsilon); // -e <...>
+// shm.set_absolute_max_block_weights(std::span<const BlockWeight> max_block_weights); // -B <...>
+// shm.set_relative_max_block_weights(std::span<const double> max_block_weight_factors); // -b <...>
 
-// Compute a `max_block_weight_factors.size()`-way partition where the `i`-th 
-// block weight is bounded by `max_block_weight_factors[i] * total_weight`:
-shm.compute_partition(std::vector<double> max_block_weight_factors, std::span<BlockID> out_partition);
+// Optionally, configure min block weights:
+// shm.set_uniform_min_block_weights(double epsilon); // --min-epsilon <...>
+// shm.set_absolute_min_block_weights(std::span<const BlockWeight> min_block_weights); // --min-block-weights <...>
+// shm.set_relative_min_block_weights(std::span<const double> min_block_weight_factors); // --min-block-weight-factors <...>
+
+// Compute the partition:
+EdgeWeight cut = shm.compute_partition(std::span<BlockID> out_partition);
 ```
 
 > [!TIP]

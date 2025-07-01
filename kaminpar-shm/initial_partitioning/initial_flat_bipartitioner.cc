@@ -30,7 +30,7 @@ PartitionedCSRGraph InitialFlatBipartitioner::bipartition(
     block_weights[0] = 0;
     block_weights[1] = 0;
 
-    return {*_graph, 2, std::move(partition), std::move(block_weights)};
+    return {*_graph, 2, std::move(partition), std::move(block_weights), partitioned_graph::seq};
   }
 
   _partition = std::move(partition);
@@ -54,7 +54,9 @@ PartitionedCSRGraph InitialFlatBipartitioner::bipartition(
   _final_block_weights[0] = _block_weights[0];
   _final_block_weights[1] = _block_weights[1];
 
-  return {*_graph, 2, std::move(_partition), std::move(_final_block_weights)};
+  return {
+      *_graph, 2, std::move(_partition), std::move(_final_block_weights), partitioned_graph::seq
+  };
 }
 
 } // namespace kaminpar::shm

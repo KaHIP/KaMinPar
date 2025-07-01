@@ -93,11 +93,12 @@ PartitionedCSRGraph SequentialGraphHierarchy::pop(PartitionedCSRGraph &&coarse_p
   _coarse_graphs.pop_back();
 
   return {
-      PartitionedCSRGraph::seq{},
       graph,
       coarse_p_graph.k(),
       std::move(partition),
-      std::move(block_weights)
+      std::move(block_weights),
+      partitioned_graph::seq,
+      partitioned_graph::reinit_block_weights
   };
 }
 
@@ -107,7 +108,8 @@ const CSRGraph &SequentialGraphHierarchy::get_second_coarsest_graph() const {
   return (_coarse_graphs.size() > 1) ? _coarse_graphs[_coarse_graphs.size() - 2] : *_finest_graph;
 }
 
-void SequentialGraphHierarchy::recover_block_weights_memory(StaticArray<BlockWeight> block_weights
+void SequentialGraphHierarchy::recover_block_weights_memory(
+    StaticArray<BlockWeight> block_weights
 ) {
   KASSERT(!block_weights.is_span(), "span should not be cached");
 
@@ -130,13 +132,15 @@ void SequentialGraphHierarchy::recover_graph_memory(CSRGraph graph) {
   KASSERT(!graph.raw_node_weights().is_span(), "span should not be cached");
   KASSERT(!graph.raw_edge_weights().is_span(), "span should not be cached");
 
-  _graph_memory_cache.push_back(CSRGraphMemory{
-      .nodes = graph.take_raw_nodes(),
-      .edges = graph.take_raw_edges(),
-      .node_weights = graph.take_raw_node_weights(),
-      .edge_weights = graph.take_raw_edge_weights(),
-      .buckets = graph.take_raw_buckets(),
-  });
+  _graph_memory_cache.push_back(
+      CSRGraphMemory{
+          .nodes = graph.take_raw_nodes(),
+          .edges = graph.take_raw_edges(),
+          .node_weights = graph.take_raw_node_weights(),
+          .edge_weights = graph.take_raw_edge_weights(),
+          .buckets = graph.take_raw_buckets(),
+      }
+  );
 }
 
 StaticArray<BlockWeight> SequentialGraphHierarchy::alloc_block_weights_memory(std::size_t size) {
@@ -171,13 +175,15 @@ StaticArray<NodeID> SequentialGraphHierarchy::alloc_mapping_memory() {
 
 CSRGraphMemory SequentialGraphHierarchy::alloc_graph_memory() {
   if (_graph_memory_cache.empty()) {
-    _graph_memory_cache.push_back(CSRGraphMemory{
-        StaticArray<EdgeID>{0, static_array::seq},
-        StaticArray<NodeID>{0, static_array::seq},
-        StaticArray<NodeWeight>{0, static_array::seq},
-        StaticArray<EdgeWeight>{0, static_array::seq},
-        std::vector<NodeID>(kNumberOfDegreeBuckets<NodeID> + 1)
-    });
+    _graph_memory_cache.push_back(
+        CSRGraphMemory{
+            StaticArray<EdgeID>{0, static_array::seq},
+            StaticArray<NodeID>{0, static_array::seq},
+            StaticArray<NodeWeight>{0, static_array::seq},
+            StaticArray<EdgeWeight>{0, static_array::seq},
+            std::vector<NodeID>(kNumberOfDegreeBuckets<NodeID> + 1)
+        }
+    );
   }
 
   auto memory = std::move(_graph_memory_cache.back());

@@ -40,7 +40,7 @@ struct BipartitionTimingInfo {
 };
 
 class InitialBipartitionerWorkerPool {
-  SET_DEBUG(true);
+  SET_DEBUG(false);
 
 public:
   explicit InitialBipartitionerWorkerPool(const Context &ctx) : _ctx(ctx) {}
@@ -87,8 +87,7 @@ public:
       }
     }();
 
-    PartitionedGraph p_graph(PartitionedGraph::seq{}, *graph, 2, std::move(bipartition));
-    return p_graph;
+    return {*graph, 2, std::move(bipartition), {}, partitioned_graph::seq};
   }
 
   void free() {

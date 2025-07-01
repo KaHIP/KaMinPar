@@ -19,7 +19,7 @@
 #include "kaminpar-shm/refinement/fm/node_tracker.h"
 #include "kaminpar-shm/refinement/fm/stopping_policies.h"
 
-#include "kaminpar-common/datastructures/binary_heap.h"
+#include "kaminpar-common/datastructures/shared_binary_heap.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 
@@ -184,11 +184,13 @@ public:
             // Thus, users of the _applied_moves vector may only depend on the order of moves that
             // found an improvement.
             if (_record_applied_moves) {
-              _applied_moves.push_back(fm::AppliedMove{
-                  .node = moved_node,
-                  .from = moved_from,
-                  .improvement = false,
-              });
+              _applied_moves.push_back(
+                  fm::AppliedMove{
+                      .node = moved_node,
+                      .from = moved_from,
+                      .improvement = false,
+                  }
+              );
             }
 
             _shared.gain_cache.move(moved_node, moved_from, moved_to);
@@ -198,11 +200,13 @@ public:
           });
 
           if (_record_applied_moves) {
-            _applied_moves.push_back(fm::AppliedMove{
-                .node = node,
-                .from = block_from,
-                .improvement = true,
-            });
+            _applied_moves.push_back(
+                fm::AppliedMove{
+                    .node = node,
+                    .from = block_from,
+                    .improvement = true,
+                }
+            );
           }
 
           // Flush local delta
