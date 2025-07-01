@@ -442,7 +442,7 @@ endif()
 # We use KaGen for distributed graph IO
 if((KAMINPAR_BUILD_DISTRIBUTED AND KAMINPAR_BUILD_APPS) OR KAMINPAR_BUILD_BENCHMARKS)
   if(NOT KAMINPAR_DOWNLOAD_KAGEN)
-    find_package(KaGen)
+    find_package(KaGen QUIET)
   endif()
 
   if(KaGen_FOUND)
