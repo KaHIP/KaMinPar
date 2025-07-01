@@ -64,6 +64,7 @@ struct ApplicationContext {
   double min_epsilon = 0.0;
   std::vector<BlockWeight> min_block_weights = {};
   std::vector<double> min_block_weight_factors = {};
+  bool no_empty_blocks = false;
 
   int verbosity = 0;
   bool validate = false;
@@ -174,6 +175,8 @@ The output should be stored in a file and can be used by the -C,--config option.
   )
       ->check(CLI::NonNegativeNumber)
       ->capture_default_str();
+
+  cli.add_flag("--no-empty-blocks", app.no_empty_blocks, "Forbid empty blocks.");
 
   cli.add_option("-s,--seed", app.seed, "Seed for random number generation.")
       ->default_val(app.seed);
@@ -530,6 +533,8 @@ int main(int argc, char *argv[]) {
     partitioner.set_absolute_min_block_weights(app.min_block_weights);
   } else if (app.min_epsilon > 0.0) {
     partitioner.set_uniform_min_block_weights(app.min_epsilon);
+  } else if (app.no_empty_blocks) {
+    partitioner.set_absolute_min_block_weights(std::vector<BlockWeight>(app.k, 1));
   }
 
   if (!app.max_block_weight_factors.empty()) {
