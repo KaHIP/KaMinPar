@@ -353,8 +353,7 @@ else()
     GIT_REPOSITORY https://github.com/uxlfoundation/oneTBB.git
     GIT_TAG 0c0ff192a2304e114bc9e6557582dfba101360ff # v2022.0.0
     EXCLUDE_FROM_ALL
-    SYSTEM
-    UPDATE_DISCONNECTED TRUE)
+    SYSTEM)
   set(TBB_TEST OFF CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(TBB)
 endif()
@@ -375,8 +374,7 @@ if(KAMINPAR_BUILD_WITH_KASSERT)
       kassert
       GIT_REPOSITORY https://github.com/kamping-site/kassert.git
       GIT_TAG 988b7d54b79ae6634f2fcc53a0314fb1cf2c6a23
-      EXCLUDE_FROM_ALL
-      UPDATE_DISCONNECTED TRUE)
+      EXCLUDE_FROM_ALL)
     FetchContent_MakeAvailable(kassert)
   endif()
 
@@ -399,8 +397,7 @@ if(KAMINPAR_BUILD_WITH_MTKAHYPAR)
       MtKaHyPar
       GIT_REPOSITORY https://github.com/kahypar/mt-kahypar.git
       GIT_TAG 8d90c765a0a9f81b917bffab84cb5e3ab45c082b # v1.5.1
-      EXCLUDE_FROM_ALL
-      UPDATE_DISCONNECTED TRUE)
+      EXCLUDE_FROM_ALL)
 
     set(KAHYPAR_ENABLE_ARCH_COMPILE_OPTIMIZATIONS ${KAMINPAR_BUILD_WITH_MTUNE_NATIVE} CACHE BOOL "" FORCE)
     if(KAMINPAR_64BIT_IDS OR KAMINPAR_64BIT_NODE_IDS OR KAMINPAR_64BIT_EDGE_IDS)
@@ -433,8 +430,7 @@ if(KAMINPAR_BUILD_DISTRIBUTED)
       Backward
       GIT_REPOSITORY https://github.com/kamping-site/bakward-mpi.git
       GIT_TAG 89de1132cdccb60aa4994d00396cc30d47402f95
-      EXCLUDE_FROM_ALL
-      UPDATE_DISCONNECTED TRUE)
+      EXCLUDE_FROM_ALL)
     FetchContent_MakeAvailable(Backward)
   endif()
 endif()
@@ -456,9 +452,7 @@ if((KAMINPAR_BUILD_DISTRIBUTED AND KAMINPAR_BUILD_APPS) OR KAMINPAR_BUILD_BENCHM
       GIT_REPOSITORY https://github.com/KarlsruheGraphGeneration/KaGen.git
       GIT_TAG 70386f48e513051656f020360c482ce6bff9a24f
       PATCH_COMMAND ${GIT_EXECUTABLE} apply ${CMAKE_CURRENT_SOURCE_DIR}/scripts/KaGen.patch
-      EXCLUDE_FROM_ALL
-      UPDATE_DISCONNECTED TRUE
-    )
+      EXCLUDE_FROM_ALL)
     set(KAGEN_NODEPS ON CACHE BOOL "" FORCE)
     set(KAGEN_BUILD_APPS OFF CACHE BOOL "" FORCE)
     set(KAGEN_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -482,9 +476,8 @@ if((CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME OR KAMINPAR_BUILD_TESTS) AND BUILD_
     FetchContent_Declare(
       googletest
       GIT_REPOSITORY https://github.com/google/googletest.git
-      GIT_TAG 5a37b517ad4ab6738556f0284c256cae1466c5b4
-      EXCLUDE_FROM_ALL
-      UPDATE_DISCONNECTED TRUE)
+      GIT_TAG 52eb8108c5bdec04579160ae17225d66034bd723
+      EXCLUDE_FROM_ALL)
     set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googletest)
   endif()
