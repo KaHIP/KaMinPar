@@ -19,7 +19,7 @@ namespace kaminpar::shm {
 
 namespace {
 
-SET_DEBUG(true);
+SET_DEBUG(false);
 
 float compute_relative_gain(const EdgeWeight gain, const NodeWeight weight) {
   return gain > 0 ? 1.0f * gain * weight : 1.0f * gain / weight;
