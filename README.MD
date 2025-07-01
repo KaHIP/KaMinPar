@@ -64,8 +64,15 @@ After cloning the repository, follow the standard CMake build procedure:
 cmake -B build --preset=default && cmake --build build --parallel
 ```
 
-> [!NOTE]
-> Use `--preset=distributed` instead if you want to build the distributed-memory components.
+> [!IMPORTANT]
+> Per default, node and edge IDs and weights use 32 bit data types. 
+> For larger graphs, use some of the following CMake flags:
+> 
+> * `-DKAMINPAR_64BIT_EDGE_IDS=On`: required for partitioning graphs with more than 2^31 undirected edges.
+> * `-DKAMINPAR_64BIT_NODE_IDS=On`: required for partitioning graphs with more than 2^32 nodes.
+> * `-DKAMINPAR_64BIT_WEIGHTS=On`: required for graphs with more than 2^31 undirected edges, or for graphs with non-unit edge weights whose sum cannot be represented in 32 bits.
+
+To build the distributed components, use `--preset=distributed` instead of the default preset.
 
 ### Using the Command Line Binaries 
 
@@ -101,6 +108,8 @@ Alternatively, one can specify the maximum weight for each block explicitly thro
 > * `--min-epsilon=<e.g., 0.03 for 3%>`: mirrors `-e`
 > * `--min-block-weights <W0> ... <Wk-1>`: mirrors `-B`
 > * `--min-block-weight-factors <w0> ... <wk-1>`: mirrors `-b`
+>
+> Use `--no-empty-blocks` if you need all blocks to be non-empty.
 
 Other common command line options include:
 
