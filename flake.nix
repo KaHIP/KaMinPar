@@ -14,7 +14,7 @@
 
       kaminpar = stdenv.mkDerivation (finalAttrs: {
         pname = "kaminpar";
-        version = "3.5.1";
+        version = "3.6.0";
 
         src = self;
         strictDeps = true;
@@ -220,7 +220,7 @@
 
       kaminpar-python = pkgs.python3Packages.buildPythonPackage {
         pname = "kaminpar";
-        version = "3.5.1";
+        version = "3.6.0";
 
         pyproject = true;
         src = "${self}/bindings/python";
@@ -255,7 +255,7 @@
 
       kaminpar-networkit = pkgs.python3Packages.buildPythonPackage {
         pname = "kaminpar-networkit";
-        version = "3.5.1";
+        version = "3.6.0";
 
         pyproject = true;
         src = "${self}/bindings/networkit";
