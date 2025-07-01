@@ -12,7 +12,16 @@
 #include <kaminpar-common/assert.h>
 #include <kaminpar-common/environment.h>
 #include <kaminpar-shm/kaminpar.h>
+
+#if defined __has_include
+#if __has_include(<tbb/version.h>)
 #include <tbb/version.h>
+#endif
+#endif
+
+#ifndef TBB_VERSION_STRING
+#define TBB_VERSION_STRING "<unavailable>"
+#endif
 
 namespace kaminpar {
 
