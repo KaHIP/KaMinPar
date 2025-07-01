@@ -353,6 +353,7 @@ else()
     GIT_REPOSITORY https://github.com/uxlfoundation/oneTBB.git
     GIT_TAG 0c0ff192a2304e114bc9e6557582dfba101360ff # v2022.0.0
     EXCLUDE_FROM_ALL
+    SYSTEM
     UPDATE_DISCONNECTED TRUE)
   set(TBB_TEST OFF CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(TBB)
