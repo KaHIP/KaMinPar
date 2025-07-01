@@ -72,6 +72,7 @@ struct ApplicationContext {
   std::string graph_filename = "";
   io::GraphFileFormat input_graph_file_format = io::GraphFileFormat::METIS;
 
+  bool ignore_node_weights = false;
   bool ignore_edge_weights = false;
 
   std::string partition_filename = "";
@@ -215,7 +216,17 @@ The output should be stored in a file and can be used by the -C,--config option.
   - parhip
   - compressed)")
       ->capture_default_str();
-  cli.add_flag("--ignore-edge-weights", app.ignore_edge_weights, "Ignore edge weights.");
+
+  cli.add_flag(
+      "--ignore-node-weights",
+      app.ignore_node_weights,
+      "Ignore the node weights of the input graph (replace with unit weights)."
+  );
+  cli.add_flag(
+      "--ignore-edge-weights",
+      app.ignore_edge_weights,
+      "Ignore the edge weights of the input graph (replace with unit weights)."
+  );
 
   if constexpr (kHeapProfiling) {
     auto *hp_group = cli.add_option_group("Heap Profiler");
@@ -470,6 +481,20 @@ int main(int argc, char *argv[]) {
     std::exit(EXIT_FAILURE);
   };
 
+  if (app.ignore_node_weights && !ctx.compression.enabled) {
+    auto &csr_graph = graph.csr_graph();
+    graph = Graph(
+        std::make_unique<CSRGraph>(
+            csr_graph.take_raw_nodes(),
+            csr_graph.take_raw_edges(),
+            StaticArray<NodeWeight>(),
+            csr_graph.take_raw_edge_weights()
+        )
+    );
+  } else if (app.ignore_node_weights) {
+    LOG_WARNING << "Cannot ignore node weights: only supported for uncompressed graphs.";
+  }
+
   if (app.ignore_edge_weights && !ctx.compression.enabled) {
     auto &csr_graph = graph.csr_graph();
     graph = Graph(
@@ -481,15 +506,13 @@ int main(int argc, char *argv[]) {
         )
     );
   } else if (app.ignore_edge_weights) {
-    LOG_WARNING << "Ignoring edge weights is currently only supported for uncompressed graphs; "
-                   "ignoring option.";
+    LOG_WARNING << "Cannot ignore edge weights: only supported for uncompressed graphs.";
   }
 
   if (app.validate && !ctx.compression.enabled) {
     shm::validate_undirected_graph(graph);
   } else if (app.validate) {
-    LOG_WARNING << "Validating the input graph is currently only supported for uncompressed "
-                   "graphs; ignoring option.";
+    LOG_WARNING << "Cannot validate the input graph: only supported for uncompressed graphs.";
   }
 
   if (static_cast<std::uint64_t>(graph.m()) >
