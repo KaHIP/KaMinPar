@@ -384,7 +384,7 @@ endif()
 # We optionally use Mt-KaHyPar as an initial partitioner and refiner
 if(KAMINPAR_BUILD_WITH_MTKAHYPAR)
   if(NOT KAMINPAR_DOWNLOAD_MTKAHYPAR)
-    find_package(MtKaHyPar)
+    find_package(MtKaHyPar QUIET)
   endif()
 
   if(MtKaHyPar_FOUND)
@@ -396,7 +396,7 @@ if(KAMINPAR_BUILD_WITH_MTKAHYPAR)
     FetchContent_Declare(
       MtKaHyPar
       GIT_REPOSITORY https://github.com/kahypar/mt-kahypar.git
-      GIT_TAG 8d90c765a0a9f81b917bffab84cb5e3ab45c082b # v1.5.1
+      GIT_TAG a0236788100facfce4ffae29263c4cf26c3cafcd # v1.5.2
       EXCLUDE_FROM_ALL)
 
     set(KAHYPAR_ENABLE_ARCH_COMPILE_OPTIMIZATIONS ${KAMINPAR_BUILD_WITH_MTUNE_NATIVE} CACHE BOOL "" FORCE)

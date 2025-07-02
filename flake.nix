@@ -162,29 +162,46 @@
             rev = "0c1148ebcdfd4c04803be79706533ad09cc81d37";
             hash = "sha256-4Vm4EiwmwCs3nyBdRg/MAk8SUWtX6kTukj8gJ7HfJNY=";
           };
+
+          parlay-src = pkgs.fetchFromGitHub {
+            owner = "cmuparlay";
+            repo = "parlaylib";
+            rev = "e1f1dc0ccf930492a2723f7fbef8510d35bf57f5";
+            hash = "sha256-Hg4OVHC1LDvBf1tFUMW7YAugnFk0ju1VzgEzT2OoT8Y=";
+          };
         in
         stdenv.mkDerivation {
           pname = "Mt-KaHyPar";
-          version = "1.5.1";
+          version = "1.5.2";
 
           src = pkgs.fetchFromGitHub {
             owner = "kahypar";
             repo = "mt-kahypar";
-            rev = "8d90c765a0a9f81b917bffab84cb5e3ab45c082b";
-            hash = "sha256-2USu34LV60boup+hDftMPpAWdrFyimZA6q5Rx40xW7s=";
+            rev = "a0236788100facfce4ffae29263c4cf26c3cafcd";
+            hash = "sha256-tVR+0I+/kqQVjF7J3bXuziEf9ldU7TDz5OuS4XVAjKA=";
           };
 
           preConfigure = ''
             # Remove the FetchContent_Populate calls in CMakeLists.txt
-            sed -i '266,284d' CMakeLists.txt
+            sed -i '346,358d' CMakeLists.txt
+            sed -i '362,367d' CMakeLists.txt
 
-            # Replace the target_include_directories with custom paths
+            # Set up WHFC dependency
+            mkdir -p external_tools
+            ln -s ${whfc-src} external_tools/WHFC
+
+            # Patch dependency paths to Nix sources
             substituteInPlace CMakeLists.txt \
               --replace ''\'''${CMAKE_CURRENT_BINARY_DIR}/external_tools/kahypar-shared-resources' '${kahypar-shared-resources-src}'
+
+            substituteInPlace CMakeLists.txt \
+              --replace ''\'''${CMAKE_CURRENT_BINARY_DIR}/external_tools)' 'external_tools)'
+
             substituteInPlace CMakeLists.txt \
               --replace ''\'''${CMAKE_CURRENT_BINARY_DIR}/external_tools/growt' '${growt-src}'
+
             substituteInPlace CMakeLists.txt \
-              --replace ''\'''${CMAKE_CURRENT_BINARY_DIR}/external_tools/WHFC' '${whfc-src}'
+              --replace ''\'''${CMAKE_CURRENT_BINARY_DIR}/external_tools/parlay' '${parlay-src}'
           '';
 
           nativeBuildInputs = builtins.attrValues {
