@@ -1,8 +1,17 @@
-# KaMinPar
+<h1 align="center">KaMinPar</h1>
 
-This is **KaMinPar**, a parallel heuristic solver for the balanced k-way graph partitioning problem.
+<h3 align="center">A Parallel Heuristic Solver for the Balanced k-Way Graph Partitioning Problem</h3>
 
-Given a graph, it aims to divide its vertices into k disjoint blocks of approximately equal weight, minimizing the number of edges crossing between blocks.
+<p align="center">
+  <a href="#quick-start-python-and-networkit">Python Quick Start</a> •
+  <a href="#installing-pre-built-binaries">Installing Pre-built Binaries</a> •
+  <a href="#building-from-source">Building from Source</a> •
+  <a href="#using-the-command-line-binaries">Using the CLI Application</a> •
+  <a href="#using-the-c-library-interface">Using the C/C++ Library</a> •
+  <a href="#licensing">Licensing</a>
+</p>
+
+Given a graph, KaMinPar aims to divide its vertices into k disjoint blocks of approximately equal weight, minimizing the number of edges crossing between blocks.
 KaMinPar offers high efficiency and low memory overheads while achieving partitions of similar quality as the widely used Metis algorithm.
 For example, it can partition the massive [hyperlink-2012](https://webdatacommons.org/hyperlinkgraph/index.html) graph (approx. 3.5 billion vertices and 112 billion edges) into 30,000 blocks in under 6 minutes on 96 cores, using around 300 GiB RAM.
 Notably, KaMinPar is also optimized for large k, where it often achieves an order-of-magnitude speedup over competing partitioners.
@@ -48,7 +57,91 @@ fig.write_image("partitioned_hyperbolic.png")
 
 Refer to our [documentation](bindings/networkit/README.md) and [examples](examples/bindings-networkit/) to get started.
 
-## Installation Notes (C/C++)
+## Installing Pre-built Binaries
+
+### Debian / Ubuntu
+
+KaMinPar is not available in the official Debian/Ubuntu repositories, but you can install it manually using the prebuilt `.deb` packages provided on the [GitHub Releases page](https://github.com/KaHIP/KaMinPar/releases/latest), as follows:
+
+```shell
+# For AMD64
+wget https://github.com/KaHIP/KaMinPar/releases/download/v3.6.0/kaminpar_3.6.0-1_amd64.deb
+sudo apt install ./kaminpar_3.6.0-1_amd64.deb
+
+# For ARM64
+wget https://github.com/KaHIP/KaMinPar/releases/download/v3.6.0/kaminpar_3.6.0-1_arm64.deb
+sudo apt install ./kaminpar_3.6.0-1_arm64.deb
+```
+
+> [!TIP]
+> Avoid using `dpkg -i` directly, as it doesn’t resolve dependencies. APT handles them automatically.
+
+### RHEL (AlmaLinux / CentOS / RockyLinux)
+
+An `.rpm` package is also available on the [GitHub Releases page](https://github.com/KaHIP/KaMinPar/releases/latest) for RHEL-compatible distributions:
+
+```shell
+# For AMD64
+sudo dnf install https://github.com/KaHIP/KaMinPar/releases/download/v3.6.0/kaminpar-3.6.0-1.x86_64.rpm
+
+# For ARM64
+sudo dnf install https://github.com/KaHIP/KaMinPar/releases/download/v3.6.0/kaminpar-3.6.0-1.aarch64.rpm
+```
+
+### ArchLinux (AUR)
+
+You can install the `kaminpar` package via the [Arch User Repository](https://aur.archlinux.org/packages/kaminpar). You can install it manually:
+
+```
+git clone https://aur.archlinux.org/kaminpar.git
+cd kaminpar
+makepkg -si
+```
+
+Or install it using your preferred [AUR helper](https://wiki.archlinux.org/title/AUR_helpers), for example:
+
+```
+paru -S kaminpar
+```
+
+### NixOS
+
+The package `kaminpar` is available via the Nix [unstable](https://search.nixos.org/packages?channel=unstable&show=kaminpar) channel. If you're using [Nix flakes](https://nixos.wiki/wiki/flakes), you can install or run KaMinPar directly from its GitHub repository:
+
+```shell
+# Add KaMinPar to your user profile
+nix profile install github:KaHIP/KaMinPar
+
+# Run KaMinPar / dKaMinPar directly
+nix run github:KaHIP/KaMinPar -- <graph filename> <number of blocks> ...
+nix run github:KaHIP/KaMinPar#dKaMinPar -- <graph filename> <number of blocks> ...
+
+# Enter a development shell with Python and NetworKit bindings
+nix develop github:KaHIP/KaMinPar#python
+```
+
+KaMinPar is also available as a flake in the project root. To use KaMinPar as an input in your own flake-based project, add the following to your `flake.nix`:
+
+```nix
+inputs = {
+  # Define your inputs ...
+
+  kaminpar = {
+    url = "github:KaHIP/KaMinPar";
+  };
+};
+
+outputs = { self, nixpkgs, kaminpar, ... }@inputs: {
+  # Define your outputs...
+
+  # You can access the KaMinPar packages like:
+  # kaminpar.packages.${system}.kaminpar
+  # kaminpar.packages.${system}.kaminpar-python
+  # kaminpar.packages.${system}.kaminpar-networkit
+};
+```
+
+## Building from Source
 
 ### Requirements
 
@@ -56,7 +149,7 @@ Refer to our [documentation](bindings/networkit/README.md) and [examples](exampl
 * **Dependencies:** CMake, oneAPI TBB, Google Sparsehash (optional), MPI (optional)
 * **System:** Linux (x86, ARM) or macOS (ARM)
 
-### Building from Source
+### Instructions
 
 After cloning the repository, follow the standard CMake build procedure:
 
@@ -74,7 +167,7 @@ cmake -B build --preset=default && cmake --build build --parallel
 
 To build the distributed components, use `--preset=distributed` instead of the default preset.
 
-### Using the Command Line Binaries 
+## Using the Command-Line Binaries
 
 To partition a graph in [Metis](docs/graph_file_format.md) format, run:
 
@@ -129,6 +222,15 @@ target_link_libraries(<your-target> PUBLIC KaMinPar::KaMinPar)  # Shared-memory 
 target_link_libraries(<your-target> PUBLIC KaMinPar::dKaMinPar) # Distributed partitioning
 ```
 
+Or, if KaMinPar is installed system-wide (see section on [Installing Pre-built Binaries](#installing-pre-built-binaries)), you can simply use:
+
+```cmake
+find_package(KaMinPar REQUIRED)
+
+target_link_libraries(<your-target> PUBLIC KaMinPar::KaMinPar)  # Shared-memory partitioning
+target_link_libraries(<your-target> PUBLIC KaMinPar::dKaMinPar) # Distributed partitioning
+```
+
 Alternatively, you can use `FetchContent`:
 
 ```cmake
@@ -143,6 +245,8 @@ FetchContent_MakeAvailable(KaMinPar)
 target_link_libraries(<your-target> PUBLIC KaMinPar::KaMinPar)  # Shared-memory partitioning
 target_link_libraries(<your-target> PUBLIC KaMinPar::dKaMinPar) # Distributed partitioning
 ```
+
+### Shared-Memory API
 
 The shared-memory partitioner can be used as follows:
 
@@ -194,6 +298,8 @@ EdgeWeight cut = shm.compute_partition(std::span<BlockID> out_partition);
 
 > [!TIP]
 > If you want to partition a graph that does not fit into memory, you can use our [Builder interface](docs/graph_compression.md) to construct a graph while compressing it on-the-fly.
+
+### Distributed-Memory API
 
 The distributed-memory partitioner can be used as follows:
 
@@ -264,24 +370,24 @@ If you use KaMinPar in an academic setting, please cite the appropriate publicat
 
 // [x]TeraPart (memory-efficient [d]KaMinPar)
 @misc{TeraPart,
-      title={Tera-Scale Multilevel Graph Partitioning}, 
+      title={Tera-Scale Multilevel Graph Partitioning},
       author={Daniel Salwasser and Daniel Seemaier and Lars Gottesbüren and Peter Sanders},
       year={2024},
       eprint={2410.19119},
       archivePrefix={arXiv},
       primaryClass={cs.DS},
-      url={https://arxiv.org/abs/2410.19119}, 
+      url={https://arxiv.org/abs/2410.19119},
 }
 
 // Worst-Case Linear-Time Multilevel Graph Partitioning
 @misc{LinearTimeMGP,
-      title={Linear-Time Multilevel Graph Partitioning via Edge Sparsification}, 
+      title={Linear-Time Multilevel Graph Partitioning via Edge Sparsification},
       author={Lars Gottesbüren and Nikolai Maas and Dominik Rosch and Peter Sanders and Daniel Seemaier},
       year={2025},
       eprint={2504.17615},
       archivePrefix={arXiv},
       primaryClass={cs.DS},
-      url={https://arxiv.org/abs/2504.17615}, 
+      url={https://arxiv.org/abs/2504.17615},
 }
 ```
 

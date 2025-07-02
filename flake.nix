@@ -367,6 +367,20 @@
       };
     in
     {
+      apps = rec {
+        default = KaMinPar;
+
+        KaMinPar = {
+          type = "app";
+          program = "${kaminpar}/bin/KaMinPar";
+        };
+
+        dKaMinPar = {
+          type = "app";
+          program = "${kaminpar}/bin/dKaMinPar";
+        };
+      };
+
       devShells = {
         default = pkgs.mkShell {
           packages = builtins.attrValues {
