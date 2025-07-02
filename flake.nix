@@ -53,14 +53,13 @@
         pname = "kagen";
         version = "1.1.0";
 
-        # TODO: Update to main repo when installation fix is merged
         src = pkgs.fetchFromGitHub {
-          owner = "dsalwasser";
+          owner = "KarlsruheGraphGeneration";
           repo = "KaGen";
-          rev = "8f810facc264105db3dbd8cd7b2c6b812096dbc1";
+          rev = "5442f30b37f1e3ffd006d510c96e86de43d8d196";
 
           fetchSubmodules = true;
-          hash = "sha256-rG7cTsVvr2gSrZGdvxXo7MHCGFGJD2Ih70XB2NuqE6I=";
+          hash = "sha256-bO0tLz9gZ10BidcxUEE2sRj6wWaBqhQb/87bopifTo4=";
         };
 
         nativeBuildInputs = builtins.attrValues {
