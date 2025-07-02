@@ -85,38 +85,41 @@ DistributedCSRGraph csr_streaming_generate(
   while (gen.Continue()) {
     const kagen::StreamedGraph graph = gen.Next();
 
-    graph.ForEachEdge([&](const kagen::SInt node, kagen::SInt adjacent_node) {
-      if (visited_node != node) [[unlikely]] {
-        if (visited_node == std::numeric_limits<NodeID>::max()) [[unlikely]] {
-          visited_node = first_node;
-        } else {
-          visited_node += 1;
-        }
+    graph.ForEachEdge(
+        [&](const kagen::SInt node, kagen::SInt adjacent_node) {
+          if (visited_node != node) [[unlikely]] {
+            if (visited_node == std::numeric_limits<NodeID>::max()) [[unlikely]] {
+              visited_node = first_node;
+            } else {
+              visited_node += 1;
+            }
 
-        KASSERT(current_node < nodes.size());
-        nodes[current_node++] = current_edge;
+            KASSERT(current_node < nodes.size());
+            nodes[current_node++] = current_edge;
 
-        while (visited_node < node) {
-          visited_node += 1;
+            while (visited_node < node) {
+              visited_node += 1;
 
-          KASSERT(current_node < nodes.size());
-          nodes[current_node++] = current_edge;
-        }
-      }
+              KASSERT(current_node < nodes.size());
+              nodes[current_node++] = current_edge;
+            }
+          }
 
-      if (adjacent_node >= first_node && adjacent_node < last_node) {
-        adjacent_node = adjacent_node - first_node;
-      } else {
-        adjacent_node = mapper.new_ghost_node(adjacent_node);
-      }
+          if (adjacent_node >= first_node && adjacent_node < last_node) {
+            adjacent_node = adjacent_node - first_node;
+          } else {
+            adjacent_node = mapper.new_ghost_node(adjacent_node);
+          }
 
-      KASSERT(current_edge < max_num_local_edges);
-      edges[current_edge++] = adjacent_node;
+          KASSERT(current_edge < max_num_local_edges);
+          edges[current_edge++] = adjacent_node;
 
-      if (node < first_node || node >= last_node) [[unlikely]] {
-        respects_esimated_vertex_range = false;
-      }
-    });
+          if (node < first_node || node >= last_node) [[unlikely]] {
+            respects_esimated_vertex_range = false;
+          }
+        },
+        kagen::StreamingMode::ALL
+    );
 
     LLOG << ".";
   }
@@ -245,38 +248,41 @@ DistributedCompressedGraph compressed_streaming_generate(
   while (gen.Continue()) {
     const kagen::StreamedGraph graph = gen.Next();
 
-    graph.ForEachEdge([&](const kagen::SInt node, kagen::SInt adjacent_node) {
-      if (current_node != node) [[unlikely]] {
-        if (current_node == std::numeric_limits<GlobalNodeID>::max()) [[unlikely]] {
-          current_node = first_node;
+    graph.ForEachEdge(
+        [&](const kagen::SInt node, kagen::SInt adjacent_node) {
+          if (current_node != node) [[unlikely]] {
+            if (current_node == std::numeric_limits<GlobalNodeID>::max()) [[unlikely]] {
+              current_node = first_node;
 
-          while (current_node < node) {
-            add_isolated_node();
-            current_node++;
+              while (current_node < node) {
+                add_isolated_node();
+                current_node++;
+              }
+            } else {
+              compress_neighborhood();
+              current_node++;
+
+              while (current_node < node) {
+                add_isolated_node();
+                current_node++;
+              }
+            }
           }
-        } else {
-          compress_neighborhood();
-          current_node++;
 
-          while (current_node < node) {
-            add_isolated_node();
-            current_node++;
+          if (adjacent_node >= first_node && adjacent_node < last_node) {
+            adjacent_node = adjacent_node - first_node;
+          } else {
+            adjacent_node = mapper.new_ghost_node(adjacent_node);
           }
-        }
-      }
 
-      if (adjacent_node >= first_node && adjacent_node < last_node) {
-        adjacent_node = adjacent_node - first_node;
-      } else {
-        adjacent_node = mapper.new_ghost_node(adjacent_node);
-      }
+          neighbourhood.push_back(adjacent_node);
 
-      neighbourhood.push_back(adjacent_node);
-
-      if (node < first_node || node >= last_node) [[unlikely]] {
-        respects_esimated_vertex_range = false;
-      }
-    });
+          if (node < first_node || node >= last_node) [[unlikely]] {
+            respects_esimated_vertex_range = false;
+          }
+        },
+        kagen::StreamingMode::ALL
+    );
 
     LLOG << ".";
   }
