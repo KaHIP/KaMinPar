@@ -15,7 +15,6 @@
 #include <queue>
 #include <span>
 #include <utility>
-#include <vector>
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
@@ -44,9 +43,11 @@
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/marker.h"
+#include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/logger.h"
+#include "kaminpar-common/random.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
@@ -1113,9 +1114,9 @@ public:
       DBG << "Starting round " << num_round;
 
       EdgeWeight cut_value = prev_cut_value;
-      while (!_block_pairs.empty()) {
-        const auto [block1, block2] = _block_pairs.front();
-        _block_pairs.pop();
+      while (!_active_block_pairs.empty()) {
+        const auto [block1, block2] = _active_block_pairs.back();
+        _active_block_pairs.pop_back();
 
         DBG << "Scheduling block pair " << block1 << " and " << block2;
         const auto [time_limit_exceeded, gain, moves] = refiner.refine(cut_value, block1, block2);
@@ -1180,12 +1181,14 @@ private:
       _active_blocks.resize(_p_graph->k(), static_array::noinit);
     }
 
-    _block_pairs = {}; // std::queue is missing a clear function
+    _active_block_pairs.clear();
     for (BlockID block2 = 0, k = _p_graph->k(); block2 < k; ++block2) {
       for (BlockID block1 = 0; block1 < block2; ++block1) {
-        _block_pairs.emplace(block1, block2);
+        _active_block_pairs.emplace_back(block1, block2);
       }
     }
+
+    Random::instance().shuffle(_active_block_pairs);
 
     std::fill(_active_blocks.begin(), _active_blocks.end(), false);
   }
@@ -1197,11 +1200,13 @@ private:
       if (_active_blocks[block2]) {
         for (BlockID block1 = 0; block1 < block2; ++block1) {
           if (_active_blocks[block1]) {
-            _block_pairs.emplace(block1, block2);
+            _active_block_pairs.emplace_back(block1, block2);
           }
         }
       }
     }
+
+    Random::instance().shuffle(_active_block_pairs);
 
     std::fill(_active_blocks.begin(), _active_blocks.end(), false);
   }
@@ -1227,7 +1232,7 @@ private:
   const CSRGraph *_graph;
 
   StaticArray<bool> _active_blocks;
-  std::queue<std::pair<BlockID, BlockID>> _block_pairs;
+  ScalableVector<std::pair<BlockID, BlockID>> _active_block_pairs;
 };
 
 class ParallelBlockPairScheduler {
@@ -1262,8 +1267,8 @@ public:
       DBG << "Starting round " << num_round;
 
       EdgeWeight cut_value = prev_cut_value;
-      tbb::parallel_for<std::size_t>(0, _block_pairs.size(), [&](const std::size_t i) {
-        const auto [block1, block2] = _block_pairs[i];
+      tbb::parallel_for<std::size_t>(0, _active_block_pairs.size(), [&](const std::size_t i) {
+        const auto [block1, block2] = _active_block_pairs[i];
         auto &refiner = refiner_ets.local();
 
         DBG << "Scheduling block pair " << block1 << " and " << block2;
@@ -1335,28 +1340,32 @@ private:
       _active_blocks.resize(_p_graph->k(), static_array::noinit);
     }
 
-    _block_pairs.clear();
+    _active_block_pairs.clear();
     for (BlockID block2 = 0, k = _p_graph->k(); block2 < k; ++block2) {
       for (BlockID block1 = 0; block1 < block2; ++block1) {
-        _block_pairs.emplace_back(block1, block2);
+        _active_block_pairs.emplace_back(block1, block2);
       }
     }
+
+    Random::instance().shuffle(_active_block_pairs);
 
     std::fill(_active_blocks.begin(), _active_blocks.end(), false);
   }
 
   void activate_blocks() {
-    _block_pairs.clear();
+    _active_block_pairs.clear();
 
     for (BlockID block2 = 0, k = _p_graph->k(); block2 < k; ++block2) {
       if (_active_blocks[block2]) {
         for (BlockID block1 = 0; block1 < block2; ++block1) {
           if (_active_blocks[block1]) {
-            _block_pairs.emplace_back(block1, block2);
+            _active_block_pairs.emplace_back(block1, block2);
           }
         }
       }
     }
+
+    Random::instance().shuffle(_active_block_pairs);
 
     std::fill(_active_blocks.begin(), _active_blocks.end(), false);
   }
@@ -1399,7 +1408,7 @@ private:
   const CSRGraph *_graph;
 
   StaticArray<bool> _active_blocks;
-  std::vector<std::pair<BlockID, BlockID>> _block_pairs;
+  ScalableVector<std::pair<BlockID, BlockID>> _active_block_pairs;
   std::mutex _apply_moves_mutex;
 };
 
