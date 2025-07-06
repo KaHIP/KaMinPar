@@ -80,6 +80,10 @@ public:
           gain(gain),
           moves(std::move(moves)) {};
 
+    [[nodiscard]] static Result Empty() {
+      return Result(0, {});
+    }
+
     [[nodiscard]] static Result TimeLimitExceeded() {
       return Result(true);
     }
@@ -134,6 +138,10 @@ public:
     initialize_block_data();
 
     compute_border_regions();
+    if (_border_region1.empty() || _border_region2.empty()) {
+      return Result::Empty();
+    }
+
     expand_border_region(_border_region1);
     expand_border_region(_border_region2);
 

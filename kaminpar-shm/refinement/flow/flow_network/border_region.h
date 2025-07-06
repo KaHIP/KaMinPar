@@ -65,6 +65,10 @@ public:
     return _nodes.size();
   }
 
+  [[nodiscard]] bool empty() const {
+    return _nodes.size() == 0;
+  }
+
   [[nodiscard]] NodeWeight weight() const {
     return _cur_weight;
   }
