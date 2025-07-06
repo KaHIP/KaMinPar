@@ -258,12 +258,7 @@ struct KwayFMRefinementContext {
   bool dbg_report_progress;
 };
 
-enum class FlowAlgorithm {
-  EDMONDS_KARP,
-  FIFO_PREFLOW_PUSH,
-};
-
-struct FIFOPreflowPushContext {
+struct PreflowPushContext {
   bool global_relabeling_heuristic;
   double global_relabeling_frequency;
 };
@@ -282,9 +277,7 @@ struct TwowayFlowRefinementContext {
   double border_region_scaling_factor;
   NodeID max_border_distance;
 
-  FlowAlgorithm flow_algorithm;
-  FIFOPreflowPushContext fifo_preflow_push;
-
+  PreflowPushContext flow;
   PiercingHeuristicContext piercing;
 
   bool unconstrained;

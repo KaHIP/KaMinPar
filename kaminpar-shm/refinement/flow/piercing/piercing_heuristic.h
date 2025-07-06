@@ -1,21 +1,23 @@
 #pragma once
 
 #include <algorithm>
+#include <cstdint>
 #include <span>
-#include <unordered_set>
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/kaminpar.h"
+#include "kaminpar-shm/refinement/flow/util/breadth_first_search.h"
 #include "kaminpar-shm/refinement/flow/util/node_status.h"
 
 #include "kaminpar-common/datastructures/binary_heap.h"
 #include "kaminpar-common/datastructures/static_array.h"
-#include "kaminpar-common/logger.h"
 
 namespace kaminpar::shm {
 
 class PiercingHeuristic {
-  SET_DEBUG(false);
+  static constexpr std::uint8_t kUnknown = 0;
+  static constexpr std::uint8_t kInitialSourceSide = 1;
+  static constexpr std::uint8_t kInitialSinkSide = 2;
 
   class PiercingNodeCandidatesBuckets {
   public:
@@ -84,14 +86,16 @@ public:
 
   void initialize(
       const CSRGraph &graph,
-      const std::unordered_set<NodeID> &initial_source_side_nodes,
-      const std::unordered_set<NodeID> &initial_sink_side_nodes,
       NodeWeight source_side_weight,
       NodeWeight sink_side_weight,
       NodeWeight total_weight,
       NodeWeight max_source_side_weight,
       NodeWeight max_sink_side_weight
   );
+
+  void set_initial_node_side(NodeID node, bool source_side);
+
+  void compute_distances();
 
   void reset(bool source_side);
 
@@ -105,8 +109,6 @@ public:
   );
 
 private:
-  NodeID compute_distances();
-
   std::size_t compute_max_num_piercing_nodes(NodeWeight side_weight);
 
   BulkPiercingContext &bulk_piercing_context();
@@ -115,14 +117,15 @@ private:
   const PiercingHeuristicContext &_ctx;
 
   const CSRGraph *_graph;
-  const std::unordered_set<NodeID> *_initial_source_side_nodes;
-  const std::unordered_set<NodeID> *_initial_sink_side_nodes;
-
   ScalableVector<NodeID> _piercing_nodes;
+
+  StaticArray<std::uint8_t> _initial_side_status;
   StaticArray<NodeID> _distance;
 
+  BFSRunner _source_side_bfs_runner;
+  BFSRunner _sink_side_bfs_runner;
+
   bool _source_side;
-  const std::unordered_set<NodeID> *_initial_side_nodes;
   PiercingNodeCandidatesBuckets _reachable_candidates_buckets;
   PiercingNodeCandidatesBuckets _unreachable_candidates_buckets;
 

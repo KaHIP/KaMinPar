@@ -623,19 +623,6 @@ CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context 
       ->capture_default_str();
 
   twoway_flow
-      ->add_option("--r-twoway-flow-max-flow-algorithm", ctx.refinement.twoway_flow.flow_algorithm)
-      ->transform(
-          CLI::CheckedTransformer(
-              std::unordered_map<std::string, FlowAlgorithm>{
-                  {"edmonds-karp", FlowAlgorithm::EDMONDS_KARP},
-                  {"fifo-preflow-push", FlowAlgorithm::FIFO_PREFLOW_PUSH},
-              },
-              CLI::ignore_case
-          )
-      )
-      ->capture_default_str();
-
-  twoway_flow
       ->add_option(
           "--r-twoway-flow-pierce-all-viable", ctx.refinement.twoway_flow.piercing.pierce_all_viable
       )

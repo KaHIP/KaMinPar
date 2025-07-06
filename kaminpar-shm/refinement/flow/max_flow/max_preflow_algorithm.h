@@ -8,14 +8,14 @@
 
 namespace kaminpar::shm {
 
-class MaxFlowAlgorithm {
+class MaxPreflowAlgorithm {
 public:
   struct Result {
     EdgeWeight flow_value;
     std::span<const EdgeWeight> flow;
   };
 
-  virtual ~MaxFlowAlgorithm() = default;
+  virtual ~MaxPreflowAlgorithm() = default;
 
   virtual void initialize(
       const CSRGraph &graph, std::span<const NodeID> reverse_edges, NodeID source, NodeID sink
@@ -25,16 +25,29 @@ public:
 
   virtual void add_sinks(std::span<const NodeID> sinks) = 0;
 
-  virtual void pierce_nodes(std::span<const NodeID> nodes, bool source_side) = 0;
+  virtual void pierce_nodes(bool source_side, std::span<const NodeID> nodes) = 0;
 
-  virtual Result compute_max_flow() = 0;
+  virtual Result compute_max_preflow() = 0;
+
+  virtual std::span<const NodeID> excess_nodes() = 0;
 
   virtual const NodeStatus &node_status() const = 0;
 };
 
 namespace debug {
 
+[[nodiscard]] bool is_valid_labeling(
+    const CSRGraph &graph,
+    const NodeStatus &node_status,
+    std::span<const EdgeWeight> flow,
+    std::span<const NodeID> labeling
+);
+
 [[nodiscard]] bool is_valid_flow(
+    const CSRGraph &graph, const NodeStatus &node_status, std::span<const EdgeWeight> flow
+);
+
+[[nodiscard]] bool is_valid_preflow(
     const CSRGraph &graph, const NodeStatus &node_status, std::span<const EdgeWeight> flow
 );
 

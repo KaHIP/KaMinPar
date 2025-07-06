@@ -14,9 +14,9 @@
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/kaminpar.h"
-#include "kaminpar-shm/refinement/flow/max_flow/edmond_karp_algorithm.h"
-#include "kaminpar-shm/refinement/flow/max_flow/fifo_preflow_push_algorithm.h"
-#include "kaminpar-shm/refinement/flow/max_flow/max_flow_algorithm.h"
+#include "kaminpar-shm/refinement/flow/max_flow/max_preflow_algorithm.h"
+#include "kaminpar-shm/refinement/flow/max_flow/parallel_preflow_push_algorithm.h"
+#include "kaminpar-shm/refinement/flow/max_flow/preflow_push_algorithm.h"
 #include "kaminpar-shm/refinement/flow/util/node_status.h"
 #include "kaminpar-shm/refinement/flow/util/reverse_edge_index.h"
 
@@ -24,7 +24,7 @@
 
 namespace kaminpar::shm::testing {
 
-class MaxFlowAlgorithmTest : public ::testing::TestWithParam<MaxFlowAlgorithm *> {
+class MaxFlowAlgorithmTest : public ::testing::TestWithParam<MaxPreflowAlgorithm *> {
 protected:
   void check_algorithm(
       const Graph &graph,
@@ -35,16 +35,16 @@ protected:
     const CSRGraph &csr_graph = graph.csr_graph();
     StaticArray<NodeID> reverse_edges = compute_reverse_edge_index(csr_graph);
 
-    MaxFlowAlgorithm &max_flow_algorithm = *GetParam();
+    MaxPreflowAlgorithm &max_flow_algorithm = *GetParam();
     max_flow_algorithm.initialize(csr_graph, reverse_edges, source, sink);
-    const auto [flow_value, flow] = max_flow_algorithm.compute_max_flow();
+    const auto [flow_value, flow] = max_flow_algorithm.compute_max_preflow();
 
     NodeStatus node_status;
     node_status.initialize(csr_graph.n());
     node_status.add_source(source);
     node_status.add_sink(sink);
 
-    ASSERT_TRUE(debug::is_valid_flow(csr_graph, node_status, flow));
+    ASSERT_TRUE(debug::is_valid_preflow(csr_graph, node_status, flow));
     ASSERT_TRUE(debug::is_max_flow(csr_graph, node_status, flow));
 
     std::unordered_set<NodeID> reachable_nodes =
@@ -61,7 +61,7 @@ private:
     std::unordered_set<NodeID> reachable_nodes;
 
     std::queue<NodeID> bfs_queue;
-    for (const NodeID terminal : node_status.source_nodes()) {
+    for (const NodeID terminal : node_status.sink_nodes()) {
       reachable_nodes.insert(terminal);
       bfs_queue.push(terminal);
     }
@@ -71,7 +71,7 @@ private:
       bfs_queue.pop();
 
       graph.neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight c) {
-        if (reachable_nodes.contains(v) || flow[e] == c) {
+        if (reachable_nodes.contains(v) || -flow[e] == c) {
           return;
         }
 
@@ -149,22 +149,30 @@ TEST_P(MaxFlowAlgorithmTest, Graph4) {
   this->check_algorithm(graph, 0, 5, 2);
 }
 
-static const std::unique_ptr<MaxFlowAlgorithm> edmond_karp =
-    std::make_unique<EdmondsKarpAlgorithm>();
+static const std::unique_ptr<MaxPreflowAlgorithm> preflow_push =
+    std::make_unique<PreflowPushAlgorithm>(PreflowPushContext(false, 1));
 
-INSTANTIATE_TEST_SUITE_P(EdmondKarp, MaxFlowAlgorithmTest, ::testing::Values(edmond_karp.get()));
-
-static const std::unique_ptr<MaxFlowAlgorithm> fifo_preflow_push =
-    std::make_unique<FIFOPreflowPushAlgorithm>(FIFOPreflowPushContext(false, 1));
-
-static const std::unique_ptr<MaxFlowAlgorithm> fifo_preflow_push_with_global_relabeling_heurstic =
-    std::make_unique<FIFOPreflowPushAlgorithm>(FIFOPreflowPushContext(true, 1));
+static const std::unique_ptr<MaxPreflowAlgorithm> preflow_push_with_global_relabeling_heurstic =
+    std::make_unique<PreflowPushAlgorithm>(PreflowPushContext(true, 1));
 
 INSTANTIATE_TEST_SUITE_P(
-    FIFOPreflowPush,
+    PreflowPush,
+    MaxFlowAlgorithmTest,
+    ::testing::Values(preflow_push.get(), preflow_push_with_global_relabeling_heurstic.get())
+);
+
+static const std::unique_ptr<MaxPreflowAlgorithm> parallel_preflow_push =
+    std::make_unique<ParallelPreflowPushAlgorithm>(PreflowPushContext(false, 1));
+
+static const std::unique_ptr<MaxPreflowAlgorithm>
+    parallel_preflow_push_with_global_relabeling_heurstic =
+        std::make_unique<ParallelPreflowPushAlgorithm>(PreflowPushContext(true, 1));
+
+INSTANTIATE_TEST_SUITE_P(
+    ParallelPreflowPush,
     MaxFlowAlgorithmTest,
     ::testing::Values(
-        fifo_preflow_push.get(), fifo_preflow_push_with_global_relabeling_heurstic.get()
+        parallel_preflow_push.get(), parallel_preflow_push_with_global_relabeling_heurstic.get()
     )
 );
 

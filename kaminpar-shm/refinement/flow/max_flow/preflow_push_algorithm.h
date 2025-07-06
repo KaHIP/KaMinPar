@@ -4,11 +4,10 @@
 #include <queue>
 #include <span>
 
-#include "kaminpar.h"
-
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/kaminpar.h"
-#include "kaminpar-shm/refinement/flow/max_flow/max_flow_algorithm.h"
+#include "kaminpar-shm/refinement/flow/max_flow/max_preflow_algorithm.h"
+#include "kaminpar-shm/refinement/flow/util/breadth_first_search.h"
 #include "kaminpar-shm/refinement/flow/util/node_status.h"
 
 #include "kaminpar-common/datastructures/scalable_vector.h"
@@ -17,7 +16,7 @@
 
 namespace kaminpar::shm {
 
-class FIFOPreflowPushAlgorithm : public MaxFlowAlgorithm {
+class PreflowPushAlgorithm : public MaxPreflowAlgorithm {
   SET_DEBUG(false);
 
   class GlobalRelabelingThreshold {
@@ -48,8 +47,8 @@ class FIFOPreflowPushAlgorithm : public MaxFlowAlgorithm {
   };
 
 public:
-  FIFOPreflowPushAlgorithm(const FIFOPreflowPushContext &ctx);
-  ~FIFOPreflowPushAlgorithm() override = default;
+  PreflowPushAlgorithm(const PreflowPushContext &ctx);
+  ~PreflowPushAlgorithm() override = default;
 
   void initialize(
       const CSRGraph &graph, std::span<const NodeID> reverse_edges, NodeID source, NodeID sink
@@ -59,39 +58,40 @@ public:
 
   void add_sinks(std::span<const NodeID> sinks) override;
 
-  void pierce_nodes(std::span<const NodeID> nodes, bool source_side) override;
+  void pierce_nodes(bool source_side, std::span<const NodeID> nodes) override;
 
-  Result compute_max_flow() override;
+  Result compute_max_preflow() override;
+
+  std::span<const NodeID> excess_nodes() override;
 
   const NodeStatus &node_status() const override;
 
 private:
-  template <bool kSetSourceHeight = false>
   void saturate_source_edges(std::span<const NodeID> sources);
 
-  void global_relabel();
+  template <bool kCollectActiveNodes = false> void global_relabel();
 
   void discharge(NodeID u);
-
-  template <bool kFromSource = false>
-  void push(NodeID from, NodeID to, EdgeID e, EdgeWeight residual_capacity);
 
   NodeID relabel(NodeID u);
 
 private:
-  const FIFOPreflowPushContext _ctx;
+  const PreflowPushContext _ctx;
 
   const CSRGraph *_graph;
   std::span<const NodeID> _reverse_edges;
 
   NodeStatus _node_status;
+  ScalableVector<NodeID> _excess_nodes;
 
   EdgeWeight _flow_value;
   StaticArray<EdgeWeight> _flow;
 
   GlobalRelabelingThreshold _grt;
-  StaticArray<EdgeWeight> _excess;
+  BFSRunner _bfs_runner;
+
   StaticArray<NodeID> _cur_edge_offsets;
+  StaticArray<EdgeWeight> _excess;
   StaticArray<NodeID> _heights;
   std::queue<NodeID> _active_nodes;
 };

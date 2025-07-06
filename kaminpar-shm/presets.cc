@@ -208,8 +208,7 @@ Context create_default_context() {
                                   {
                                       .border_region_scaling_factor = 16,
                                       .max_border_distance = 2,
-                                      .flow_algorithm = FlowAlgorithm::FIFO_PREFLOW_PUSH,
-                                      .fifo_preflow_push =
+                                      .flow =
                                           {
 
                                               .global_relabeling_heuristic = true,
@@ -260,8 +259,7 @@ Context create_default_context() {
                           {
                               .border_region_scaling_factor = 16,
                               .max_border_distance = 2,
-                              .flow_algorithm = FlowAlgorithm::FIFO_PREFLOW_PUSH,
-                              .fifo_preflow_push =
+                              .flow =
                                   {
 
                                       .global_relabeling_heuristic = true,
@@ -328,8 +326,7 @@ Context create_default_context() {
                   {
                       .border_region_scaling_factor = 16,
                       .max_border_distance = 2,
-                      .flow_algorithm = FlowAlgorithm::FIFO_PREFLOW_PUSH,
-                      .fifo_preflow_push =
+                      .flow =
                           {
 
                               .global_relabeling_heuristic = true,

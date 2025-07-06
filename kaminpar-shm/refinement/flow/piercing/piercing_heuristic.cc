@@ -2,8 +2,6 @@
 
 #include <algorithm>
 #include <limits>
-#include <queue>
-#include <utility>
 
 namespace kaminpar::shm {
 
@@ -11,8 +9,6 @@ PiercingHeuristic::PiercingHeuristic(const PiercingHeuristicContext &ctx) : _ctx
 
 void PiercingHeuristic::initialize(
     const CSRGraph &graph,
-    const std::unordered_set<NodeID> &initial_source_side_nodes,
-    const std::unordered_set<NodeID> &initial_sink_side_nodes,
     const NodeWeight source_side_weight,
     const NodeWeight sink_side_weight,
     const NodeWeight total_weight,
@@ -20,12 +16,16 @@ void PiercingHeuristic::initialize(
     const NodeWeight max_sink_side_weight
 ) {
   _graph = &graph;
-  _initial_source_side_nodes = &initial_source_side_nodes;
-  _initial_sink_side_nodes = &initial_sink_side_nodes;
 
-  const NodeID max_distance = compute_distances();
-  _reachable_candidates_buckets.initialize(max_distance);
-  _unreachable_candidates_buckets.initialize(max_distance);
+  if (_initial_side_status.size() < graph.n()) {
+    _initial_side_status.resize(graph.n(), static_array::noinit);
+  }
+  std::fill_n(_initial_side_status.begin(), graph.n(), kUnknown);
+
+  if (_distance.size() < _graph->n()) {
+    _distance.resize(_graph->n(), static_array::noinit);
+  }
+  std::fill_n(_distance.begin(), _graph->n(), kInvalidNodeID);
 
   const NodeWeight max_total_weight = max_source_side_weight + max_sink_side_weight;
   _source_side_bulk_piercing_ctx.initialize(
@@ -36,17 +36,73 @@ void PiercingHeuristic::initialize(
   );
 }
 
+void PiercingHeuristic::set_initial_node_side(const NodeID node, const bool source_side) {
+  _initial_side_status[node] = source_side ? kInitialSourceSide : kInitialSinkSide;
+}
+
 void PiercingHeuristic::reset(const bool source_side) {
   _source_side = source_side;
-
-  _initial_side_nodes = source_side ? _initial_source_side_nodes : _initial_sink_side_nodes;
 
   _reachable_candidates_buckets.reset();
   _unreachable_candidates_buckets.reset();
 }
 
+void PiercingHeuristic::compute_distances() {
+  _source_side_bfs_runner.reset();
+  _sink_side_bfs_runner.reset();
+
+  for (const NodeID u : _graph->nodes()) {
+    if (_initial_side_status[u] != kInitialSourceSide) {
+      continue;
+    }
+
+    bool has_cut_edge = false;
+    _graph->adjacent_nodes(u, [&](const NodeID v) {
+      if (_initial_side_status[v] != kInitialSinkSide) {
+        return;
+      }
+
+      has_cut_edge = true;
+      if (_distance[v] == kInvalidNodeID) {
+        _distance[v] = 1;
+        _sink_side_bfs_runner.add_seed(v);
+      }
+    });
+
+    if (has_cut_edge) {
+      _distance[u] = 1;
+      _source_side_bfs_runner.add_seed(u);
+    }
+  }
+
+  NodeID max_distance = 1;
+  const auto perform_bfs = [&](auto &bfs_runner, const auto side_status) {
+    bfs_runner.perform(1, [&](const NodeID u, const NodeID u_distance, auto &queue) {
+      const NodeID v_distance = u_distance + 1;
+
+      _graph->adjacent_nodes(u, [&](const NodeID v) {
+        if (_distance[v] != kInvalidNodeID || _initial_side_status[v] != side_status) {
+          return;
+        }
+
+        max_distance = std::max(max_distance, v_distance);
+        _distance[v] = v_distance;
+
+        queue.push_back(v);
+      });
+    });
+  };
+
+  perform_bfs(_source_side_bfs_runner, kInitialSourceSide);
+  perform_bfs(_sink_side_bfs_runner, kInitialSinkSide);
+
+  _reachable_candidates_buckets.initialize(max_distance);
+  _unreachable_candidates_buckets.initialize(max_distance);
+}
+
 void PiercingHeuristic::add_piercing_node_candidate(const NodeID node, const bool reachable) {
-  const NodeID distance = _initial_side_nodes->contains(node) ? _distance[node] : 0;
+  const std::uint8_t current_side = _source_side ? kInitialSourceSide : kInitialSinkSide;
+  const NodeID distance = (_initial_side_status[node] == current_side) ? _distance[node] : 0;
 
   if (reachable) {
     _reachable_candidates_buckets.add_candidate(node, distance);
@@ -99,16 +155,15 @@ std::span<const NodeID> PiercingHeuristic::find_piercing_nodes(
   }
 
   if (_ctx.fallback_heuristic && _piercing_nodes.empty()) {
-    const std::uint8_t side_status = _source_side ? NodeStatus::kSource : NodeStatus::kSink;
-    const std::uint8_t other_side_status = _source_side ? NodeStatus::kSink : NodeStatus::kSource;
-    const std::unordered_set<NodeID> &initial_terminal_side_nodes =
-        _source_side ? *_initial_source_side_nodes : *_initial_sink_side_nodes;
+    const std::uint8_t current_initial_side = _source_side ? kInitialSourceSide : kInitialSinkSide;
+
+    const std::uint8_t cut_side = _source_side ? NodeStatus::kSource : NodeStatus::kSink;
+    const std::uint8_t other_cut_side = _source_side ? NodeStatus::kSink : NodeStatus::kSource;
 
     NodeID cur_piercing_node = kInvalidNodeID;
     NodeID cur_distance = kInvalidNodeID;
     for (const NodeID u : _graph->nodes()) {
-      if (cut_status.has_status(u, side_status) ||
-          terminal_status.has_status(u, other_side_status)) {
+      if (cut_status.has_status(u, cut_side) || terminal_status.has_status(u, other_cut_side)) {
         continue;
       }
 
@@ -117,7 +172,7 @@ std::span<const NodeID> PiercingHeuristic::find_piercing_nodes(
         continue;
       }
 
-      const NodeID distance = initial_terminal_side_nodes.contains(u) ? _distance[u] : 0;
+      const NodeID distance = (_initial_side_status[u] == current_initial_side) ? _distance[u] : 0;
       if (cur_piercing_node == kInvalidNodeID || cur_distance < distance) {
         cur_piercing_node = u;
         cur_distance = distance;
@@ -130,63 +185,6 @@ std::span<const NodeID> PiercingHeuristic::find_piercing_nodes(
   }
 
   return _piercing_nodes;
-}
-
-NodeID PiercingHeuristic::compute_distances() {
-  if (_distance.size() < _graph->n()) {
-    _distance.resize(_graph->n(), static_array::noinit);
-  }
-  std::fill_n(_distance.begin(), _graph->n(), kInvalidNodeID);
-
-  std::queue<std::pair<NodeID, NodeID>> source_bfs_queue;
-  std::queue<std::pair<NodeID, NodeID>> sink_bfs_queue;
-  for (const NodeID u : _graph->nodes()) {
-    if (!_initial_source_side_nodes->contains(u)) {
-      continue;
-    }
-
-    bool has_cut_edge = false;
-    _graph->adjacent_nodes(u, [&](const NodeID v) {
-      if (!_initial_sink_side_nodes->contains(v)) {
-        return;
-      }
-
-      has_cut_edge = true;
-      if (_distance[v] == kInvalidNodeID) {
-        _distance[v] = 1;
-        sink_bfs_queue.emplace(v, 1);
-      }
-    });
-
-    if (has_cut_edge) {
-      _distance[u] = 1;
-      source_bfs_queue.emplace(u, 1);
-    }
-  }
-
-  NodeID max_distance = 1;
-  const auto perform_bfs = [&](auto &bfs_queue, const auto &nodes) {
-    while (!bfs_queue.empty()) {
-      const auto [u, u_distance] = bfs_queue.front();
-      bfs_queue.pop();
-
-      const NodeID v_distance = u_distance + 1;
-      _graph->adjacent_nodes(u, [&](const NodeID v) {
-        if (_distance[v] != kInvalidNodeID || !nodes.contains(v)) {
-          return;
-        }
-
-        max_distance = std::max(max_distance, v_distance);
-        _distance[v] = v_distance;
-        bfs_queue.emplace(v, v_distance);
-      });
-    }
-  };
-
-  perform_bfs(source_bfs_queue, *_initial_source_side_nodes);
-  perform_bfs(sink_bfs_queue, *_initial_sink_side_nodes);
-
-  return max_distance;
 }
 
 std::size_t PiercingHeuristic::compute_max_num_piercing_nodes(const NodeWeight side_weight) {

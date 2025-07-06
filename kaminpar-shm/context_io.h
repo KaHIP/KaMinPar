@@ -69,10 +69,6 @@ std::ostream &operator<<(std::ostream &out, GainCacheStrategy strategy);
 
 std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies();
 
-std::ostream &operator<<(std::ostream &out, FlowAlgorithm algorithm);
-
-std::unordered_map<std::string, FlowAlgorithm> get_flow_algorithms();
-
 std::ostream &operator<<(std::ostream &out, InitialRefinementAlgorithm algorithm);
 
 std::unordered_map<std::string, InitialRefinementAlgorithm> get_initial_refinement_algorithms();

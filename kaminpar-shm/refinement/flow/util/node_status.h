@@ -53,27 +53,32 @@ public:
     return _node_status[u] == status;
   }
 
-  bool is_unknown(const NodeID u) const {
+  [[nodiscard]] bool status(const NodeID u) const {
+    KASSERT(u < _num_nodes);
+    return _node_status[u];
+  }
+
+  [[nodiscard]] bool is_unknown(const NodeID u) const {
     return has_status(u, kUnknown);
   }
 
-  bool is_terminal(const NodeID u) const {
+  [[nodiscard]] bool is_terminal(const NodeID u) const {
     return !is_unknown(u);
   }
 
-  bool is_source(const NodeID u) const {
+  [[nodiscard]] bool is_source(const NodeID u) const {
     return has_status(u, kSource);
   }
 
-  bool is_sink(const NodeID u) const {
+  [[nodiscard]] bool is_sink(const NodeID u) const {
     return has_status(u, kSink);
   }
 
-  std::span<const NodeID> source_nodes() const {
+  [[nodiscard]] std::span<const NodeID> source_nodes() const {
     return _source_nodes;
   }
 
-  std::span<const NodeID> sink_nodes() const {
+  [[nodiscard]] std::span<const NodeID> sink_nodes() const {
     return _sink_nodes;
   }
 
