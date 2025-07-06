@@ -641,15 +641,19 @@ private:
       _bfs_runner.add_seed(border_node);
       _source_side_border_nodes_candidates.push_back(border_node);
     }
-    for (const NodeID excess_node : _max_flow_algorithm->excess_nodes()) {
-      KASSERT(!_node_status.is_source(excess_node));
-      _node_status.add_source(excess_node);
-
-      _bfs_runner.add_seed(excess_node);
-      _source_side_border_nodes_candidates.push_back(excess_node);
-    }
 
     NodeWeight cut_weight_increase = 0;
+    for (const NodeID excess_node : _max_flow_algorithm->excess_nodes()) {
+      KASSERT(!_node_status.is_source(excess_node));
+
+      _bfs_runner.add_seed(excess_node);
+
+      cut_weight_increase += graph.node_weight(excess_node);
+      _source_side_border_nodes_candidates.push_back(excess_node);
+
+      _node_status.add_source(excess_node);
+    }
+
     _bfs_runner.perform([&](const NodeID u, auto &queue) {
       graph.neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight c) {
         if (_node_status.is_terminal(v)) {
