@@ -51,7 +51,7 @@ TEST(ClusterContractionTest, contract_local_complete_graph) {
   for (const NodeID clique_size : {1, 5, 10}) {
     const auto graph = make_local_complete_graph(clique_size);
 
-    StaticArray<GlobalNodeID> clustering(clique_size, graph.offset_n());
+    StaticArray<GlobalNodeID> clustering(static_cast<std::size_t>(clique_size), graph.offset_n());
     const auto wrapped = contract_clustering(graph, clustering);
     const auto &c_graph = wrapped->get();
 
@@ -113,10 +113,9 @@ TEST(ClusterContractionTest, contract_local_complete_bipartite_graph_horizontall
     StaticArray<GlobalNodeID> clustering(2 * set_size);
     std::iota(clustering.begin(), clustering.end(), 0u);
     std::transform(
-        clustering.begin(),
-        clustering.end(),
-        clustering.begin(),
-        [&](const GlobalNodeID value) { return graph.offset_n() + value % set_size; }
+        clustering.begin(), clustering.end(), clustering.begin(), [&](const GlobalNodeID value) {
+          return graph.offset_n() + value % set_size;
+        }
     );
     const auto wrapped = contract_clustering(graph, clustering);
     const auto &c_graph = wrapped->get();

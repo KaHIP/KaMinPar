@@ -1,8 +1,17 @@
-# KaMinPar
+<h1 align="center">KaMinPar</h1>
 
-This is **KaMinPar**, a parallel heuristic solver for the balanced k-way graph partitioning problem.
+<h3 align="center">A Parallel Heuristic Solver for the Balanced k-Way Graph Partitioning Problem</h3>
 
-Given a graph, it aims to divide its vertices into k disjoint blocks of approximately equal weight, minimizing the number of edges crossing between blocks.
+<p align="center">
+  <a href="#quick-start-python-and-networkit">Python Quick Start</a> •
+  <a href="#installing-pre-built-binaries">Installing Pre-built Binaries</a> •
+  <a href="#building-from-source">Building from Source</a> •
+  <a href="#using-the-command-line-binaries">Using the CLI Application</a> •
+  <a href="#using-the-c-library-interface">Using the C/C++ Library</a> •
+  <a href="#licensing">Licensing</a>
+</p>
+
+Given a graph, KaMinPar aims to divide its vertices into k disjoint blocks of approximately equal weight, minimizing the number of edges crossing between blocks.
 KaMinPar offers high efficiency and low memory overheads while achieving partitions of similar quality as the widely used Metis algorithm.
 For example, it can partition the massive [hyperlink-2012](https://webdatacommons.org/hyperlinkgraph/index.html) graph (approx. 3.5 billion vertices and 112 billion edges) into 30,000 blocks in under 6 minutes on 96 cores, using around 300 GiB RAM.
 Notably, KaMinPar is also optimized for large k, where it often achieves an order-of-magnitude speedup over competing partitioners.
@@ -48,7 +57,91 @@ fig.write_image("partitioned_hyperbolic.png")
 
 Refer to our [documentation](bindings/networkit/README.md) and [examples](examples/bindings-networkit/) to get started.
 
-## Installation Notes (C/C++)
+## Installing Pre-built Binaries
+
+### Debian / Ubuntu
+
+KaMinPar is not available in the official Debian/Ubuntu repositories, but you can install it manually using the prebuilt `.deb` packages provided on the [GitHub Releases page](https://github.com/KaHIP/KaMinPar/releases/latest), as follows:
+
+```shell
+# For AMD64
+wget https://github.com/KaHIP/KaMinPar/releases/download/v3.6.0/kaminpar_3.6.0-1_amd64.deb
+sudo apt install ./kaminpar_3.6.0-1_amd64.deb
+
+# For ARM64
+wget https://github.com/KaHIP/KaMinPar/releases/download/v3.6.0/kaminpar_3.6.0-1_arm64.deb
+sudo apt install ./kaminpar_3.6.0-1_arm64.deb
+```
+
+> [!TIP]
+> Avoid using `dpkg -i` directly, as it doesn’t resolve dependencies. APT handles them automatically.
+
+### RHEL (AlmaLinux / CentOS / RockyLinux)
+
+An `.rpm` package is also available on the [GitHub Releases page](https://github.com/KaHIP/KaMinPar/releases/latest) for RHEL-compatible distributions:
+
+```shell
+# For AMD64
+sudo dnf install https://github.com/KaHIP/KaMinPar/releases/download/v3.6.0/kaminpar-3.6.0-1.x86_64.rpm
+
+# For ARM64
+sudo dnf install https://github.com/KaHIP/KaMinPar/releases/download/v3.6.0/kaminpar-3.6.0-1.aarch64.rpm
+```
+
+### ArchLinux (AUR)
+
+You can install the `kaminpar` package via the [Arch User Repository](https://aur.archlinux.org/packages/kaminpar). You can install it manually:
+
+```
+git clone https://aur.archlinux.org/kaminpar.git
+cd kaminpar
+makepkg -si
+```
+
+Or install it using your preferred [AUR helper](https://wiki.archlinux.org/title/AUR_helpers), for example:
+
+```
+paru -S kaminpar
+```
+
+### NixOS
+
+The package `kaminpar` is available via the Nix [unstable](https://search.nixos.org/packages?channel=unstable&show=kaminpar) channel. If you're using [Nix flakes](https://nixos.wiki/wiki/flakes), you can install or run KaMinPar directly from its GitHub repository:
+
+```shell
+# Add KaMinPar to your user profile
+nix profile install github:KaHIP/KaMinPar
+
+# Run KaMinPar / dKaMinPar directly
+nix run github:KaHIP/KaMinPar -- <graph filename> <number of blocks> ...
+nix run github:KaHIP/KaMinPar#dKaMinPar -- <graph filename> <number of blocks> ...
+
+# Enter a development shell with Python and NetworKit bindings
+nix develop github:KaHIP/KaMinPar#python
+```
+
+KaMinPar is also available as a flake in the project root. To use KaMinPar as an input in your own flake-based project, add the following to your `flake.nix`:
+
+```nix
+inputs = {
+  # Define your inputs ...
+
+  kaminpar = {
+    url = "github:KaHIP/KaMinPar";
+  };
+};
+
+outputs = { self, nixpkgs, kaminpar, ... }@inputs: {
+  # Define your outputs...
+
+  # You can access the KaMinPar packages like:
+  # kaminpar.packages.${system}.kaminpar
+  # kaminpar.packages.${system}.kaminpar-python
+  # kaminpar.packages.${system}.kaminpar-networkit
+};
+```
+
+## Building from Source
 
 ### Requirements
 
@@ -56,7 +149,7 @@ Refer to our [documentation](bindings/networkit/README.md) and [examples](exampl
 * **Dependencies:** CMake, oneAPI TBB, Google Sparsehash (optional), MPI (optional)
 * **System:** Linux (x86, ARM) or macOS (ARM)
 
-### Building from Source
+### Instructions
 
 After cloning the repository, follow the standard CMake build procedure:
 
@@ -64,10 +157,17 @@ After cloning the repository, follow the standard CMake build procedure:
 cmake -B build --preset=default && cmake --build build --parallel
 ```
 
-> [!NOTE]
-> Use `--preset=distributed` instead if you want to build the distributed-memory components.
+> [!IMPORTANT]
+> Per default, node and edge IDs and weights use 32 bit data types. 
+> For larger graphs, use some of the following CMake flags:
+> 
+> * `-DKAMINPAR_64BIT_EDGE_IDS=On`: required for partitioning graphs with more than 2^31 undirected edges.
+> * `-DKAMINPAR_64BIT_NODE_IDS=On`: required for partitioning graphs with more than 2^32 nodes.
+> * `-DKAMINPAR_64BIT_WEIGHTS=On`: required for graphs with more than 2^31 undirected edges, or for graphs with non-unit edge weights whose sum cannot be represented in 32 bits.
 
-### Using the Command Line Binaries 
+To build the distributed components, use `--preset=distributed` instead of the default preset.
+
+## Using the Command-Line Binaries
 
 To partition a graph in [Metis](docs/graph_file_format.md) format, run:
 
@@ -91,8 +191,18 @@ There are multiple configuration presets that tune the algorithm for different s
 The `-k <k>` option directs (d)KaMinPar to partition the graph into k blocks of roughly equal weight (use `-e <eps>` to control the maximum allowed imbalance, e.g., `-e 0.03` for 3%).
 Alternatively, one can specify the maximum weight for each block explicitly through one of the following options:
 
-* `-B <W0> <W2> ... <Wk-1>`: Explicitly specifies the maximum block weights, i.e., the weight of the i-th block should be bounded by `Wi`.
-* `-b <w0> <w2> ... <wk-1>`: Same as `-B`, but specifies the maximum weights as fractions of the total node weight, i.e., the weight of the i-th block should be bounded by `wi * total node weight`.
+* `-B <W0> ... <Wk-1>`: Explicitly specifies the maximum block weights, i.e., the weight of the i-th block should be bounded by `Wi`.
+* `-b <w0> ... <wk-1>`: Same as `-B`, but specifies the maximum weights as fractions of the total node weight, i.e., the weight of the i-th block should be bounded by `wi * total node weight`.
+
+> [!TIP]
+> KaMinPar recently added support for balanced minimum block weights. 
+> These can be configured analogously to the maximum block weights via the following options:
+>
+> * `--min-epsilon=<e.g., 0.03 for 3%>`: mirrors `-e`
+> * `--min-block-weights <W0> ... <Wk-1>`: mirrors `-B`
+> * `--min-block-weight-factors <w0> ... <wk-1>`: mirrors `-b`
+>
+> Use `--no-empty-blocks` if you need all blocks to be non-empty.
 
 Other common command line options include:
 
@@ -107,6 +217,15 @@ If you are using CMake, you can use the partitioners as libraries by adding this
 
 ```cmake
 add_subdirectory(external/KaMinPar)
+
+target_link_libraries(<your-target> PUBLIC KaMinPar::KaMinPar)  # Shared-memory partitioning
+target_link_libraries(<your-target> PUBLIC KaMinPar::dKaMinPar) # Distributed partitioning
+```
+
+Or, if KaMinPar is installed system-wide (see section on [Installing Pre-built Binaries](#installing-pre-built-binaries)), you can simply use:
+
+```cmake
+find_package(KaMinPar REQUIRED)
 
 target_link_libraries(<your-target> PUBLIC KaMinPar::KaMinPar)  # Shared-memory partitioning
 target_link_libraries(<your-target> PUBLIC KaMinPar::dKaMinPar) # Distributed partitioning
@@ -127,7 +246,14 @@ target_link_libraries(<your-target> PUBLIC KaMinPar::KaMinPar)  # Shared-memory 
 target_link_libraries(<your-target> PUBLIC KaMinPar::dKaMinPar) # Distributed partitioning
 ```
 
+### Shared-Memory API
+
 The shared-memory partitioner can be used as follows:
+
+> [!CAUTION]
+> Only one thread can call `KaMinPar::compute_partition()` at a time (even on different `KaMinPar` objects).
+> This is because the performance timers are implemented as global singletons, which are inherently not thread-safe.
+> To compute multiple partitions in parallel, you must disable the timers by passing `-DKAMINPAR_ENABLE_TIMERS=Off` to CMake.
 
 ```c++
 #include <kaminpar.h>
@@ -153,21 +279,27 @@ shm.borrow_and_mutate_graph(
   std::span<EdgeWeight> adjwgt = {}
 );
 
-// Compute a `k`-way partition where each block weight is bounded by 
-// `(1 + epsilon) * average`:
-shm.compute_partition(BlockID k, double epsilon, std::span<BlockID> out_partition);
+// Set the number of blocks:
+shm.set_k(BlockID k);
 
-// Compute a `max_block_weights.size()`-way partition where the `i`-th block 
-// weight is bounded by `max_block_weights[i]`:
-shm.compute_partition(std::vector<BlockWeight> max_block_weights, std::span<BlockID> out_partition);
+// Configure max block weights:
+shm.set_uniform_max_block_weights(double epsilon); // -e <...>
+// shm.set_absolute_max_block_weights(std::span<const BlockWeight> max_block_weights); // -B <...>
+// shm.set_relative_max_block_weights(std::span<const double> max_block_weight_factors); // -b <...>
 
-// Compute a `max_block_weight_factors.size()`-way partition where the `i`-th 
-// block weight is bounded by `max_block_weight_factors[i] * total_weight`:
-shm.compute_partition(std::vector<double> max_block_weight_factors, std::span<BlockID> out_partition);
+// Optionally, configure min block weights:
+// shm.set_uniform_min_block_weights(double epsilon); // --min-epsilon <...>
+// shm.set_absolute_min_block_weights(std::span<const BlockWeight> min_block_weights); // --min-block-weights <...>
+// shm.set_relative_min_block_weights(std::span<const double> min_block_weight_factors); // --min-block-weight-factors <...>
+
+// Compute the partition:
+EdgeWeight cut = shm.compute_partition(std::span<BlockID> out_partition);
 ```
 
 > [!TIP]
 > If you want to partition a graph that does not fit into memory, you can use our [Builder interface](docs/graph_compression.md) to construct a graph while compressing it on-the-fly.
+
+### Distributed-Memory API
 
 The distributed-memory partitioner can be used as follows:
 
@@ -238,24 +370,24 @@ If you use KaMinPar in an academic setting, please cite the appropriate publicat
 
 // [x]TeraPart (memory-efficient [d]KaMinPar)
 @misc{TeraPart,
-      title={Tera-Scale Multilevel Graph Partitioning}, 
+      title={Tera-Scale Multilevel Graph Partitioning},
       author={Daniel Salwasser and Daniel Seemaier and Lars Gottesbüren and Peter Sanders},
       year={2024},
       eprint={2410.19119},
       archivePrefix={arXiv},
       primaryClass={cs.DS},
-      url={https://arxiv.org/abs/2410.19119}, 
+      url={https://arxiv.org/abs/2410.19119},
 }
 
 // Worst-Case Linear-Time Multilevel Graph Partitioning
 @misc{LinearTimeMGP,
-      title={Linear-Time Multilevel Graph Partitioning via Edge Sparsification}, 
+      title={Linear-Time Multilevel Graph Partitioning via Edge Sparsification},
       author={Lars Gottesbüren and Nikolai Maas and Dominik Rosch and Peter Sanders and Daniel Seemaier},
       year={2025},
       eprint={2504.17615},
       archivePrefix={arXiv},
       primaryClass={cs.DS},
-      url={https://arxiv.org/abs/2504.17615}, 
+      url={https://arxiv.org/abs/2504.17615},
 }
 ```
 

@@ -61,12 +61,18 @@ struct ApplicationContext {
   std::vector<BlockWeight> max_block_weights = {};
   std::vector<double> max_block_weight_factors = {};
 
+  double min_epsilon = 0.0;
+  std::vector<BlockWeight> min_block_weights = {};
+  std::vector<double> min_block_weight_factors = {};
+  bool no_empty_blocks = false;
+
   int verbosity = 0;
   bool validate = false;
 
   std::string graph_filename = "";
   io::GraphFileFormat input_graph_file_format = io::GraphFileFormat::METIS;
 
+  bool ignore_node_weights = false;
   bool ignore_edge_weights = false;
 
   std::string partition_filename = "";
@@ -88,10 +94,11 @@ void setup_context(CLI::App &cli, ApplicationContext &app, Context &ctx) {
   )
       ->check(CLI::IsMember(get_preset_names()))
       ->description(R"(Use configuration preset:
-  - fast:    fastest (especially for small graphs), but lowest quality
-  - default: in-between
-  - strong:  slower, but higher quality (LP + FM)
-  - largek:  tuned for k > 1024-ish)");
+  - fast:     fastest (especially for small graphs), but lowest quality
+  - default:  in-between
+  - terapart: same as default, but use graph compression to reduce peak memory consumption
+  - strong:   slower, but higher quality (LP + FM)
+  - largek:   tuned for k > 1024-ish)");
 
   // Mandatory
   auto *mandatory = cli.add_option_group("Application")->require_option(1);
@@ -144,6 +151,35 @@ The output should be stored in a file and can be used by the -C,--config option.
       ->check(CLI::NonNegativeNumber)
       ->capture_default_str();
 
+  cli.add_option(
+         "--min-epsilon",
+         app.min_epsilon,
+         "Maximum allowed imbalance for minimum block weights, e.g., 0.03 for 3%. Minimum block "
+         "weight imbalance is ignored when set to 0% (default)."
+  )
+      ->check(CLI::NonNegativeNumber)
+      ->capture_default_str();
+
+  cli.add_option(
+         "--min-block-weights",
+         app.min_block_weights,
+         "Absolute minimum block weights, one weight for each block of the partition. If this "
+         "option is set, --min-epsilon will be ignored."
+  )
+      ->check(CLI::NonNegativeNumber)
+      ->capture_default_str();
+
+  cli.add_option(
+         "--min-block-weight-factors",
+         app.min_block_weight_factors,
+         "Min block weights relative to the total node weight of the input graph, one factor for "
+         "each block of the partition. If this option is set, --min-epsilon will be ignored."
+  )
+      ->check(CLI::NonNegativeNumber)
+      ->capture_default_str();
+
+  cli.add_flag("--no-empty-blocks", app.no_empty_blocks, "Forbid empty blocks.");
+
   cli.add_option("-s,--seed", app.seed, "Seed for random number generation.")
       ->default_val(app.seed);
 
@@ -165,20 +201,32 @@ The output should be stored in a file and can be used by the -C,--config option.
     app.max_timer_depth = std::numeric_limits<int>::max();
   });
   cli.add_option("-f,--graph-file-format,--input-graph-file-format", app.input_graph_file_format)
-      ->transform(CLI::CheckedTransformer(
-          std::unordered_map<std::string, io::GraphFileFormat>{
-              {"metis", io::GraphFileFormat::METIS},
-              {"parhip", io::GraphFileFormat::PARHIP},
-              {"compressed", io::GraphFileFormat::COMPRESSED},
-          },
-          CLI::ignore_case
-      ))
+      ->transform(
+          CLI::CheckedTransformer(
+              std::unordered_map<std::string, io::GraphFileFormat>{
+                  {"metis", io::GraphFileFormat::METIS},
+                  {"parhip", io::GraphFileFormat::PARHIP},
+                  {"compressed", io::GraphFileFormat::COMPRESSED},
+              },
+              CLI::ignore_case
+          )
+      )
       ->description(R"(Graph file formats:
   - metis
   - parhip
   - compressed)")
       ->capture_default_str();
-  cli.add_flag("--ignore-edge-weights", app.ignore_edge_weights, "Ignore edge weights.");
+
+  cli.add_flag(
+      "--ignore-node-weights",
+      app.ignore_node_weights,
+      "Ignore the node weights of the input graph (replace with unit weights)."
+  );
+  cli.add_flag(
+      "--ignore-edge-weights",
+      app.ignore_edge_weights,
+      "Ignore the edge weights of the input graph (replace with unit weights)."
+  );
 
   if constexpr (kHeapProfiling) {
     auto *hp_group = cli.add_option_group("Heap Profiler");
@@ -232,14 +280,16 @@ The output should be stored in a file and can be used by the -C,--config option.
   )
       ->capture_default_str();
   cli.add_option("--output-graph-file-format", app.output_graph_file_format)
-      ->transform(CLI::CheckedTransformer(
-          std::unordered_map<std::string, io::GraphFileFormat>{
-              {"metis", io::GraphFileFormat::METIS},
-              {"parhip", io::GraphFileFormat::PARHIP},
-              {"compressed", io::GraphFileFormat::COMPRESSED},
-          },
-          CLI::ignore_case
-      ))
+      ->transform(
+          CLI::CheckedTransformer(
+              std::unordered_map<std::string, io::GraphFileFormat>{
+                  {"metis", io::GraphFileFormat::METIS},
+                  {"parhip", io::GraphFileFormat::PARHIP},
+                  {"compressed", io::GraphFileFormat::COMPRESSED},
+              },
+              CLI::ignore_case
+          )
+      )
       ->description(R"(Graph file formats:
   - metis
   - parhip
@@ -431,24 +481,38 @@ int main(int argc, char *argv[]) {
     std::exit(EXIT_FAILURE);
   };
 
+  if (app.ignore_node_weights && !ctx.compression.enabled) {
+    auto &csr_graph = graph.csr_graph();
+    graph = Graph(
+        std::make_unique<CSRGraph>(
+            csr_graph.take_raw_nodes(),
+            csr_graph.take_raw_edges(),
+            StaticArray<NodeWeight>(),
+            csr_graph.take_raw_edge_weights()
+        )
+    );
+  } else if (app.ignore_node_weights) {
+    LOG_WARNING << "Cannot ignore node weights: only supported for uncompressed graphs.";
+  }
+
   if (app.ignore_edge_weights && !ctx.compression.enabled) {
     auto &csr_graph = graph.csr_graph();
-    graph = Graph(std::make_unique<CSRGraph>(
-        csr_graph.take_raw_nodes(),
-        csr_graph.take_raw_edges(),
-        csr_graph.take_raw_node_weights(),
-        StaticArray<EdgeWeight>()
-    ));
+    graph = Graph(
+        std::make_unique<CSRGraph>(
+            csr_graph.take_raw_nodes(),
+            csr_graph.take_raw_edges(),
+            csr_graph.take_raw_node_weights(),
+            StaticArray<EdgeWeight>()
+        )
+    );
   } else if (app.ignore_edge_weights) {
-    LOG_WARNING << "Ignoring edge weights is currently only supported for uncompressed graphs; "
-                   "ignoring option.";
+    LOG_WARNING << "Cannot ignore edge weights: only supported for uncompressed graphs.";
   }
 
   if (app.validate && !ctx.compression.enabled) {
     shm::validate_undirected_graph(graph);
   } else if (app.validate) {
-    LOG_WARNING << "Validating the input graph is currently only supported for uncompressed "
-                   "graphs; ignoring option.";
+    LOG_WARNING << "Cannot validate the input graph: only supported for uncompressed graphs.";
   }
 
   if (static_cast<std::uint64_t>(graph.m()) >
@@ -463,37 +527,71 @@ int main(int argc, char *argv[]) {
 
   // Compute partition
   partitioner.set_graph(std::move(graph));
+  partitioner.set_k(app.k);
+
+  if (!app.min_block_weight_factors.empty()) {
+    const double total_factor = std::accumulate(
+        app.min_block_weight_factors.begin(), app.min_block_weight_factors.end(), 0.0
+    );
+
+    if (total_factor >= 1.0) {
+      LOG_ERROR << "Error: total min block weights must be smaller than the total node weight; "
+                << "this is not the case with the given factors.";
+      std::exit(1);
+    }
+
+    partitioner.set_relative_min_block_weights(app.min_block_weight_factors);
+  } else if (!app.min_block_weights.empty()) {
+    const BlockWeight total_block_weight = std::accumulate(
+        app.min_block_weights.begin(), app.min_block_weights.end(), static_cast<BlockWeight>(0)
+    );
+
+    const NodeWeight total_node_weight = partitioner.graph()->total_node_weight();
+
+    if (total_node_weight <= total_block_weight) {
+      LOG_ERROR << "Error: total min block weights (" << total_block_weight
+                << ") must be smaller than the total node weight (" << total_node_weight << ").";
+      std::exit(1);
+    }
+
+    partitioner.set_absolute_min_block_weights(app.min_block_weights);
+  } else if (app.min_epsilon > 0.0) {
+    partitioner.set_uniform_min_block_weights(app.min_epsilon);
+  } else if (app.no_empty_blocks) {
+    partitioner.set_absolute_min_block_weights(std::vector<BlockWeight>(app.k, 1));
+  }
 
   if (!app.max_block_weight_factors.empty()) {
     const double total_factor = std::accumulate(
         app.max_block_weight_factors.begin(), app.max_block_weight_factors.end(), 0.0
     );
+
     if (total_factor <= 1.0) {
       LOG_ERROR << "Error: total block weights must be greater than the total node weight; "
                 << "this is not the case with the given factors.";
       std::exit(1);
     }
 
-    partitioner.compute_partition(
-        std::move(app.max_block_weight_factors), {partition.data(), partition.size()}
-    );
+    partitioner.set_relative_max_block_weights(app.max_block_weight_factors);
   } else if (!app.max_block_weights.empty()) {
     const BlockWeight total_block_weight = std::accumulate(
         app.max_block_weights.begin(), app.max_block_weights.end(), static_cast<BlockWeight>(0)
     );
+
     const NodeWeight total_node_weight = partitioner.graph()->total_node_weight();
+
     if (total_node_weight >= total_block_weight) {
       LOG_ERROR << "Error: total max block weights (" << total_block_weight
                 << ") must be greater than the total node weight (" << total_node_weight << ").";
       std::exit(1);
     }
 
-    partitioner.compute_partition(
-        std::move(app.max_block_weights), {partition.data(), partition.size()}
-    );
+    partitioner.set_absolute_max_block_weights(app.max_block_weights);
   } else {
-    partitioner.compute_partition(app.k, app.epsilon, {partition.data(), partition.size()});
+    partitioner.set_uniform_max_block_weights(app.epsilon);
   }
+
+  partitioner.compute_partition(partition);
 
   // Save graph partition
   if (!app.partition_filename.empty()) {

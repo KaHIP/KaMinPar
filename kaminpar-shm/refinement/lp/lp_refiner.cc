@@ -38,6 +38,8 @@ class LPRefinerImpl final
 
   static constexpr std::size_t kInfiniteIterations = std::numeric_limits<std::size_t>::max();
 
+  SET_DEBUG(true);
+
 public:
   using Permutations = Base::Permutations;
 
@@ -71,15 +73,6 @@ public:
     _p_graph = &p_graph;
     _p_ctx = &p_ctx;
 
-    if (_p_graph->k() < 1024) {
-      _aligned_block_weights.resize(_p_graph->k());
-      _p_graph->pfor_blocks([&](const BlockID b) {
-        _aligned_block_weights[b].value = _p_graph->block_weight(b);
-      });
-    } else {
-      _aligned_block_weights.resize(0);
-    }
-
     Base::initialize(_graph, _p_ctx->k);
 
     const std::size_t max_iterations =
@@ -90,12 +83,6 @@ public:
       if (Base::perform_iteration() == 0) {
         break;
       }
-    }
-
-    if (!_aligned_block_weights.empty()) {
-      _p_graph->pfor_blocks([&](const BlockID b) {
-        _p_graph->set_block_weight(b, _aligned_block_weights[b].value);
-      });
     }
 
     return true;
@@ -111,15 +98,11 @@ public:
   }
 
   [[nodiscard]] BlockWeight initial_cluster_weight(const BlockID b) {
-    return _aligned_block_weights.empty()
-               ? _p_graph->block_weight(b)
-               : __atomic_load_n(&_aligned_block_weights[b].value, __ATOMIC_RELAXED);
+    return _p_graph->block_weight(b);
   }
 
   [[nodiscard]] BlockWeight cluster_weight(const BlockID b) {
-    return _aligned_block_weights.empty()
-               ? _p_graph->block_weight(b)
-               : __atomic_load_n(&_aligned_block_weights[b].value, __ATOMIC_RELAXED);
+    return _p_graph->block_weight(b);
   }
 
   [[nodiscard]] bool accept_neighbor(const NodeID u, const NodeID v) {
@@ -132,27 +115,9 @@ public:
       const BlockWeight delta,
       const BlockWeight max_weight
   ) {
-    if (_aligned_block_weights.empty()) {
-      return _p_graph->move_block_weight(old_block, new_block, delta, max_weight);
-    } else {
-      for (BlockWeight new_weight =
-               __atomic_load_n(&_aligned_block_weights[new_block].value, __ATOMIC_RELAXED);
-           new_weight + delta <= max_weight;) {
-        if (__atomic_compare_exchange_n(
-                &_aligned_block_weights[new_block].value,
-                &new_weight,
-                new_weight + delta,
-                false,
-                __ATOMIC_RELAXED,
-                __ATOMIC_RELAXED
-            )) {
-          __atomic_fetch_sub(&_aligned_block_weights[old_block].value, delta, __ATOMIC_RELAXED);
-          return true;
-        }
-      }
-
-      return false;
-    }
+    return _p_graph->move_block_weight(
+        old_block, new_block, delta, max_weight, min_cluster_weight(old_block)
+    );
   }
 
   void reassign_cluster_weights(
@@ -166,14 +131,21 @@ public:
   [[nodiscard]] BlockID cluster(const NodeID u) {
     return _p_graph->block(u);
   }
+
   void move_node(const NodeID u, const BlockID block) {
     _p_graph->set_block<false>(u, block);
   }
+
   [[nodiscard]] BlockID num_clusters() {
     return _p_graph->k();
   }
+
   [[nodiscard]] BlockWeight max_cluster_weight(const BlockID block) {
     return _p_ctx->max_block_weight(block);
+  }
+
+  [[nodiscard]] BlockWeight min_cluster_weight(const BlockID block) const {
+    return _p_ctx->min_block_weight(block);
   }
 
   template <typename RatingMap>
@@ -185,6 +157,10 @@ public:
       ScalableVector<ClusterID> &tie_breaking_clusters,
       ScalableVector<ClusterID> &tie_breaking_favored_clusters
   ) {
+    if (state.initial_cluster_weight - state.u_weight < min_cluster_weight(state.initial_cluster)) {
+      return state.initial_cluster;
+    }
+
     const bool use_uniform_tie_breaking = _tie_breaking_strategy == TieBreakingStrategy::UNIFORM;
 
     ClusterID favored_cluster = state.initial_cluster;
@@ -212,7 +188,7 @@ public:
           const NodeWeight initial_overload =
               state.initial_cluster_weight - max_cluster_weight(state.initial_cluster);
 
-          if (state.current_cluster_weight + state.u_weight < current_max_weight ||
+          if (((state.current_cluster_weight + state.u_weight < current_max_weight)) ||
               current_overload < initial_overload ||
               state.current_cluster == state.initial_cluster) {
             tie_breaking_clusters.clear();
@@ -232,7 +208,7 @@ public:
             const NodeWeight initial_overload =
                 state.initial_cluster_weight - max_cluster_weight(state.initial_cluster);
 
-            if (state.current_cluster_weight + state.u_weight < current_max_weight ||
+            if (((state.current_cluster_weight + state.u_weight < current_max_weight)) ||
                 current_overload < initial_overload ||
                 state.current_cluster == state.initial_cluster) {
               tie_breaking_clusters.clear();
@@ -282,7 +258,7 @@ public:
                 (state.current_gain == state.best_gain &&
                  (current_overload < best_overload ||
                   (current_overload == best_overload && state.local_rand.random_bool())))) &&
-               (state.current_cluster_weight + state.u_weight < current_max_weight ||
+               (((state.current_cluster_weight + state.u_weight < current_max_weight)) ||
                 current_overload < initial_overload ||
                 state.current_cluster == state.initial_cluster);
       };
@@ -318,12 +294,6 @@ public:
   const RefinementContext &_r_ctx;
 
   std::span<const NodeID> _communities;
-
-  struct alignas(64) AlignedBlockWeight {
-    BlockWeight value;
-  };
-
-  StaticArray<AlignedBlockWeight> _aligned_block_weights;
 };
 
 class LPRefinerImplWrapper {

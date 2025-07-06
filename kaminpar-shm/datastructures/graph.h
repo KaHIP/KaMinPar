@@ -12,6 +12,7 @@
 #pragma once
 
 #include <utility>
+#include <variant>
 
 #include "kaminpar-shm/datastructures/abstract_graph.h"
 #include "kaminpar-shm/datastructures/compressed_graph.h"
@@ -79,5 +80,38 @@ template <typename ConcretizedGraph>
 
   return *static_cast<const ConcretizedGraph *>(graph.underlying_graph());
 }
+
+/*!
+ * Encapsulates an object of a class `Component` that should be instantiated the concrete graph
+ * classes, e.g., CSRGraph or CompressedGraph.
+ *
+ * `Component` may only take one template argument: the concretized graph class.
+ */
+template <template <typename> typename Component> struct AnyGraphComponent {
+  std::variant<std::monostate, Component<CSRGraph>, Component<CompressedGraph>> obj;
+
+  /*!
+   * Emplaces a `Component<ConcretizedGraph>` object.
+   *
+   * @param args Forwarded to the `Component` ctor.
+   * @tparam ConcretizedGraph The concretized graph class.
+   *
+   * @return Reference to the emplaced object.
+   */
+  template <typename ConcretizedGraph, typename... Args>
+  Component<ConcretizedGraph> &emplace(Args &&...args) {
+    return obj.template emplace<Component<ConcretizedGraph>>(std::forward<Args>(args)...);
+  }
+
+  /*!
+   * Returns a reference to the emplaced object. Must be compatible to the previous `emplace()`
+   * call.
+   *
+   * @return Reference to the emplaced object.
+   */
+  template <typename ConcretizedGraph> Component<ConcretizedGraph> &get() {
+    return std::get<Component<ConcretizedGraph>>(obj);
+  }
+};
 
 } // namespace kaminpar::shm

@@ -10,10 +10,11 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #define CKAMINPAR_VERSION_MAJOR 3
-#define CKAMINPAR_VERSION_MINOR 4
-#define CKAMINPAR_VERSION_PATCH 1
+#define CKAMINPAR_VERSION_MINOR 6
+#define CKAMINPAR_VERSION_PATCH 0
 
 typedef enum {
   KAMINPAR_OUTPUT_LEVEL_QUIET = 0,
@@ -89,9 +90,28 @@ void kaminpar_borrow_and_mutate_graph(
     kaminpar_edge_weight_t *adjwgt
 );
 
-kaminpar_edge_weight_t kaminpar_compute_partition(
-    kaminpar_t *kaminpar, kaminpar_block_id_t k, kaminpar_block_id_t *partition
+void kaminpar_set_k(kaminpar_t *kaminpar, kaminpar_block_id_t k);
+
+void kaminpar_set_uniform_max_block_weights(kaminpar_t *kaminpar, double epsilon);
+void kaminpar_set_absolute_max_block_weights(
+    kaminpar_t *kaminpar, size_t k, const kaminpar_block_weight_t *absolute_max_block_weights
 );
+void kaminpar_set_relative_max_block_weights(
+    kaminpar_t *kaminpar, size_t k, const double *relative_max_block_weights
+);
+void kaminpar_clear_max_block_weights(kaminpar_t *kaminpar);
+
+void kaminpar_set_uniform_min_block_weights(kaminpar_t *kaminpar, double min_epsilon);
+void kaminpar_set_absolute_min_block_weights(
+    kaminpar_t *kaminpar, size_t k, const kaminpar_block_weight_t *absolute_min_block_weights
+);
+void kaminpar_set_relative_min_block_weights(
+    kaminpar_t *kaminpar, size_t k, const double *relative_min_block_weights
+);
+void kaminpar_clear_min_block_weights(kaminpar_t *kaminpar);
+
+kaminpar_edge_weight_t
+kaminpar_compute_partition(kaminpar_t *kaminpar, kaminpar_block_id_t *partition);
 
 kaminpar_edge_weight_t kaminpar_compute_partition_with_epsilon(
     kaminpar_t *kaminpar, kaminpar_block_id_t k, double epsilon, kaminpar_block_id_t *partition

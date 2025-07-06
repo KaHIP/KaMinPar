@@ -3,7 +3,7 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules)
 
 project(
   KaMinPar
-  VERSION 3.5.1
+  VERSION 3.6.0
   DESCRIPTION "Shared-memory and distributed-memory Graph Partitioner"
   HOMEPAGE_URL "https://github.com/KaHIP/KaMinPar"
   LANGUAGES C CXX)
@@ -354,9 +354,9 @@ else()
 
   FetchContent_Declare(TBB
     GIT_REPOSITORY https://github.com/uxlfoundation/oneTBB.git
-    GIT_TAG 0c0ff192a2304e114bc9e6557582dfba101360ff # v2022.0.0
+    GIT_TAG 06ce6212da6710f4bb2d20a1904b018aa44069bf # v2022.2.0
     EXCLUDE_FROM_ALL
-    UPDATE_DISCONNECTED TRUE)
+    SYSTEM)
   set(TBB_TEST OFF CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(TBB)
 endif()
@@ -377,8 +377,7 @@ if(KAMINPAR_BUILD_WITH_KASSERT)
       kassert
       GIT_REPOSITORY https://github.com/kamping-site/kassert.git
       GIT_TAG 988b7d54b79ae6634f2fcc53a0314fb1cf2c6a23
-      EXCLUDE_FROM_ALL
-      UPDATE_DISCONNECTED TRUE)
+      EXCLUDE_FROM_ALL)
     FetchContent_MakeAvailable(kassert)
   endif()
 
@@ -388,7 +387,7 @@ endif()
 # We optionally use Mt-KaHyPar as an initial partitioner and refiner
 if(KAMINPAR_BUILD_WITH_MTKAHYPAR)
   if(NOT KAMINPAR_DOWNLOAD_MTKAHYPAR)
-    find_package(MtKaHyPar)
+    find_package(MtKaHyPar QUIET)
   endif()
 
   if(MtKaHyPar_FOUND)
@@ -400,9 +399,8 @@ if(KAMINPAR_BUILD_WITH_MTKAHYPAR)
     FetchContent_Declare(
       MtKaHyPar
       GIT_REPOSITORY https://github.com/kahypar/mt-kahypar.git
-      GIT_TAG 8d90c765a0a9f81b917bffab84cb5e3ab45c082b # v1.5.1
-      EXCLUDE_FROM_ALL
-      UPDATE_DISCONNECTED TRUE)
+      GIT_TAG a0236788100facfce4ffae29263c4cf26c3cafcd # v1.5.2
+      EXCLUDE_FROM_ALL)
 
     set(KAHYPAR_ENABLE_ARCH_COMPILE_OPTIMIZATIONS ${KAMINPAR_BUILD_WITH_MTUNE_NATIVE} CACHE BOOL "" FORCE)
     if(KAMINPAR_64BIT_IDS OR KAMINPAR_64BIT_NODE_IDS OR KAMINPAR_64BIT_EDGE_IDS)
@@ -451,8 +449,7 @@ if(KAMINPAR_BUILD_DISTRIBUTED)
       Backward
       GIT_REPOSITORY https://github.com/kamping-site/bakward-mpi.git
       GIT_TAG 89de1132cdccb60aa4994d00396cc30d47402f95
-      EXCLUDE_FROM_ALL
-      UPDATE_DISCONNECTED TRUE)
+      EXCLUDE_FROM_ALL)
     FetchContent_MakeAvailable(Backward)
   endif()
 endif()
@@ -460,7 +457,7 @@ endif()
 # We use KaGen for distributed graph IO
 if((KAMINPAR_BUILD_DISTRIBUTED AND KAMINPAR_BUILD_APPS) OR KAMINPAR_BUILD_BENCHMARKS)
   if(NOT KAMINPAR_DOWNLOAD_KAGEN)
-    find_package(KaGen)
+    find_package(KaGen QUIET)
   endif()
 
   if(KaGen_FOUND)
@@ -472,13 +469,12 @@ if((KAMINPAR_BUILD_DISTRIBUTED AND KAMINPAR_BUILD_APPS) OR KAMINPAR_BUILD_BENCHM
     FetchContent_Declare(
       KaGen
       GIT_REPOSITORY https://github.com/KarlsruheGraphGeneration/KaGen.git
-      GIT_TAG 70386f48e513051656f020360c482ce6bff9a24f
-      PATCH_COMMAND ${GIT_EXECUTABLE} apply ${CMAKE_CURRENT_SOURCE_DIR}/scripts/KaGen.patch
-      EXCLUDE_FROM_ALL
-      UPDATE_DISCONNECTED TRUE
-    )
+      GIT_TAG 77f2d17f09f10e876f10d2779c1d2ad9a2de12ba
+      EXCLUDE_FROM_ALL)
+    set(KAGEN_USE_MARCH_NATIVE ${KAMINPAR_BUILD_WITH_MTUNE_NATIVE} CACHE BOOL "" FORCE)
     set(KAGEN_NODEPS ON CACHE BOOL "" FORCE)
     set(KAGEN_BUILD_APPS OFF CACHE BOOL "" FORCE)
+    set(KAGEN_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
     set(KAGEN_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     set(KAGEN_BUILD_TESTS OFF CACHE BOOL "" FORCE)
     set(INSTALL_KAGEN OFF CACHE BOOL "" FORCE)
@@ -500,9 +496,8 @@ if((CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME OR KAMINPAR_BUILD_TESTS) AND BUILD_
     FetchContent_Declare(
       googletest
       GIT_REPOSITORY https://github.com/google/googletest.git
-      GIT_TAG 5a37b517ad4ab6738556f0284c256cae1466c5b4
-      EXCLUDE_FROM_ALL
-      UPDATE_DISCONNECTED TRUE)
+      GIT_TAG 52eb8108c5bdec04579160ae17225d66034bd723
+      EXCLUDE_FROM_ALL)
     set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googletest)
   endif()
@@ -597,7 +592,7 @@ if(KAMINPAR_BUILD_DISTRIBUTED)
   list(APPEND KAMINPAR_INSTALL_TARGETS growt KaMinParMPI dKaMinParIO dKaMinPar)
 
   if (KAMINPAR_DOWNLOAD_KAGEN)
-    list(APPEND KAMINPAR_INSTALL_TARGETS kagen morton)
+    list(APPEND KAMINPAR_INSTALL_TARGETS KaGen morton)
   endif ()
 
   if(KAMINPAR_BUILD_APPS)

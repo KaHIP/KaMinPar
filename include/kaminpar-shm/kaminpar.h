@@ -24,8 +24,8 @@
 #include <tbb/global_control.h>
 
 #define KAMINPAR_VERSION_MAJOR 3
-#define KAMINPAR_VERSION_MINOR 5
-#define KAMINPAR_VERSION_PATCH 1
+#define KAMINPAR_VERSION_MINOR 6
+#define KAMINPAR_VERSION_PATCH 0
 
 namespace kaminpar::shm {
 
@@ -208,7 +208,8 @@ struct CoarseningContext {
 enum class RefinementAlgorithm {
   NOOP,
   SEQUENTIAL_GREEDY_BALANCER,
-  GREEDY_BALANCER,
+  OVERLOAD_BALANCER,
+  UNDERLOAD_BALANCER,
   LABEL_PROPAGATION,
   KWAY_FM,
   TWOWAY_FLOW,
@@ -403,6 +404,14 @@ struct PartitionContext {
 
   BlockID k;
 
+  [[nodiscard]] BlockWeight min_block_weight(const BlockID block) const {
+    return _min_block_weights.empty() ? 0 : _min_block_weights[block];
+  }
+
+  [[nodiscard]] bool has_min_block_weights() const {
+    return !_min_block_weights.empty();
+  }
+
   [[nodiscard]] BlockWeight perfectly_balanced_block_weight(const BlockID block) const {
     return std::ceil(1.0 * _unrelaxed_max_block_weights[block] / (1 + inferred_epsilon()));
   }
@@ -478,6 +487,9 @@ struct PartitionContext {
       bool relax_max_block_weights = false
   );
 
+  void setup_min_block_weights(double min_epsilon);
+  void setup_min_block_weights(std::vector<BlockWeight> min_block_weights);
+
 private:
   std::vector<BlockWeight> _max_block_weights{};
   std::vector<BlockWeight> _unrelaxed_max_block_weights{};
@@ -485,6 +497,8 @@ private:
   BlockWeight _total_max_block_weights = 0;
   double _epsilon = -1.0;
   bool _uniform_block_weights = false;
+
+  std::vector<BlockWeight> _min_block_weights{};
 };
 
 struct ParallelContext {
@@ -807,6 +821,8 @@ enum class OutputLevel : std::uint8_t {
 
 class KaMinPar {
 public:
+  constexpr static double kDefaultEpsilon = 0.03;
+
   KaMinPar();
   KaMinPar(int num_threads, shm::Context ctx);
 
@@ -891,11 +907,35 @@ public:
   void set_graph(shm::Graph graph);
 
   /*!
+   * Returns a non-owning pointer to the current graph, or `nullptr` if no graph was set.
+   *
+   * @return The graph set to be partitioned.
+   */
+  const shm::Graph *graph();
+
+  /*!
    * Takes ownership of the graph set to be partitioned.
    *
    * @return The graph set to be partitioned.
    */
   shm::Graph take_graph();
+
+  void set_k(shm::BlockID k);
+
+  void set_uniform_max_block_weights(double epsilon);
+  void set_absolute_max_block_weights(std::span<const shm::BlockWeight> absolute_max_block_weights);
+  void set_relative_max_block_weights(std::span<const double> relative_max_block_weights);
+  void clear_max_block_weights();
+
+  void set_uniform_min_block_weights(double min_epsilon);
+  void set_absolute_min_block_weights(std::span<const shm::BlockWeight> absolute_min_block_weights);
+  void set_relative_min_block_weights(std::span<const double> relative_min_block_weights);
+  void clear_min_block_weights();
+
+  shm::EdgeWeight compute_partition(std::span<shm::BlockID> partition);
+
+  // Convenience functions that combine set_*() and compute_*():
+  // VVV
 
   /*!
    * Partitions the graph set by `borrow_and_mutate_graph()` or `copy_graph()` into `k` blocks with
@@ -949,19 +989,27 @@ public:
       std::vector<double> max_block_weight_factors, std::span<shm::BlockID> partition
   );
 
-  const shm::Graph *graph();
-
 private:
-  shm::EdgeWeight compute_partition(std::span<shm::BlockID> partition);
+  void validate_partition_parameters();
 
   int _num_threads;
+  tbb::global_control _gc;
 
   int _max_timer_depth = std::numeric_limits<int>::max();
   OutputLevel _output_level = OutputLevel::APPLICATION;
-  shm::Context _ctx;
 
+  shm::Context _ctx;
   std::unique_ptr<shm::Graph> _graph_ptr;
-  tbb::global_control _gc;
+
+  shm::BlockID _k = 0;
+
+  double _epsilon = kDefaultEpsilon;
+  std::vector<shm::BlockWeight> _absolute_max_block_weights = {};
+  std::vector<double> _relative_max_block_weights = {};
+
+  double _min_epsilon = 0.0;
+  std::vector<shm::BlockWeight> _absolute_min_block_weights = {};
+  std::vector<double> _relative_min_block_weights = {};
 
   bool _was_rearranged = false;
 };

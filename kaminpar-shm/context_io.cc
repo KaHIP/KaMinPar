@@ -273,8 +273,10 @@ std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm)
     return out << "noop";
   case RefinementAlgorithm::SEQUENTIAL_GREEDY_BALANCER:
     return out << "sequential-greedy-balancer";
-  case RefinementAlgorithm::GREEDY_BALANCER:
-    return out << "greedy-balancer";
+  case RefinementAlgorithm::OVERLOAD_BALANCER:
+    return out << "overload-balancer";
+  case RefinementAlgorithm::UNDERLOAD_BALANCER:
+    return out << "underload-balancer";
   case RefinementAlgorithm::LABEL_PROPAGATION:
     return out << "lp";
   case RefinementAlgorithm::KWAY_FM:
@@ -294,7 +296,9 @@ std::unordered_map<std::string, RefinementAlgorithm> get_refinement_algorithms()
   return {
       {"noop", RefinementAlgorithm::NOOP},
       {"sequential-greedy-balancer", RefinementAlgorithm::SEQUENTIAL_GREEDY_BALANCER},
-      {"greedy-balancer", RefinementAlgorithm::GREEDY_BALANCER},
+      {"greedy-balancer", RefinementAlgorithm::OVERLOAD_BALANCER},
+      {"overload-balancer", RefinementAlgorithm::OVERLOAD_BALANCER},
+      {"underload-balancer", RefinementAlgorithm::UNDERLOAD_BALANCER},
       {"lp", RefinementAlgorithm::LABEL_PROPAGATION},
       {"fm", RefinementAlgorithm::KWAY_FM},
       {"twoway-flow", RefinementAlgorithm::TWOWAY_FLOW},

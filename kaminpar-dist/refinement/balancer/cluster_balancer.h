@@ -13,7 +13,7 @@
 #include "kaminpar-dist/refinement/balancer/weight_buckets.h"
 #include "kaminpar-dist/refinement/refiner.h"
 
-#include "kaminpar-common/datastructures/binary_heap.h"
+#include "kaminpar-common/datastructures/addressable_dynamic_de_heap.h"
 #include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/random.h"
 

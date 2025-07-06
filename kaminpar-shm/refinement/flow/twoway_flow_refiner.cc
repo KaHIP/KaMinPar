@@ -108,8 +108,13 @@ public:
     _max_flow_algorithm = std::make_unique<PreflowPushAlgorithm>(_f_ctx.flow);
 
     if (_f_ctx.unconstrained) {
-      _p_graph_rebalancing_copy =
-          PartitionedCSRGraph(PartitionedCSRGraph::seq(), graph, p_graph.k());
+      _p_graph_rebalancing_copy = PartitionedCSRGraph(
+          graph,
+          p_graph.k(),
+          StaticArray<BlockID>(graph.n(), static_array::seq),
+          {},
+          partitioned_graph::seq
+      );
     }
   }
 

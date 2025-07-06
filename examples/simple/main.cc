@@ -31,7 +31,10 @@ int main(int argc, char **argv) {
 
   KaMinPar kaminpar;
   kaminpar.set_graph(std::move(graph.value()));
-  kaminpar.compute_partition(num_blocks, partition);
+  kaminpar.set_k(num_blocks);
+  kaminpar.set_uniform_max_block_weights(0.03);
+
+  kaminpar.compute_partition(partition);
 
   io::write_partition(output, partition);
 
