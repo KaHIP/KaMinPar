@@ -78,7 +78,7 @@ void PartitionContext::setup_min_block_weights(const double min_epsilon) {
 
   _min_block_weights.resize(_max_block_weights.size());
   for (BlockID b = 0; b < _max_block_weights.size(); ++b) {
-    _min_block_weights[b] = (1 - min_epsilon) * perfectly_balanced_block_weight(b);
+    _min_block_weights[b] = std::ceil((1 - min_epsilon) * perfectly_balanced_block_weight(b));
   }
 }
 
