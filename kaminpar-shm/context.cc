@@ -76,6 +76,8 @@ void PartitionContext::setup_min_block_weights(const double min_epsilon) {
   for (BlockID b = 0; b < _max_block_weights.size(); ++b) {
     _min_block_weights[b] = std::ceil((1 - min_epsilon) * perfectly_balanced_block_weight(b));
   }
+
+  _uniform_min_block_weights = true;
 }
 
 void PartitionContext::setup_min_block_weights(std::vector<BlockWeight> min_block_weights) {
@@ -83,6 +85,8 @@ void PartitionContext::setup_min_block_weights(std::vector<BlockWeight> min_bloc
   KASSERT(min_block_weights.size() == _max_block_weights.size());
 
   _min_block_weights = std::move(min_block_weights);
+
+  _uniform_min_block_weights = false;
 }
 
 void GraphCompressionContext::setup(const Graph &graph) {
@@ -588,7 +592,7 @@ std::ostream &operator<<(std::ostream &out, const CoarseningContext &c_ctx) {
     out << "    Number of overlays:       " << (2 << c_ctx.overlay_clustering.num_levels) << "\n";
   }
 
-  out << "Contraction algorithm:        " << c_ctx.contraction.algorithm << '\n';
+  out << "Contraction algorithm:        " << c_ctx.contraction.algorithm << "\n";
   if (c_ctx.contraction.algorithm == ContractionAlgorithm::BUFFERED) {
     out << "  Edge buffer fill fraction:  " << c_ctx.contraction.edge_buffer_fill_fraction << "\n";
   } else if (c_ctx.contraction.algorithm == ContractionAlgorithm::UNBUFFERED) {
@@ -605,8 +609,7 @@ std::ostream &operator<<(std::ostream &out, const LabelPropagationCoarseningCont
   out << "    Tie breaking strategy:    " << lp_ctx.tie_breaking_strategy << "\n";
   out << "    Implementation:           " << lp_ctx.impl << "\n";
   if (lp_ctx.impl == LabelPropagationImplementation::TWO_PHASE) {
-    out << "      Relabel:                " << (lp_ctx.relabel_before_second_phase ? "yes" : "no")
-        << '\n';
+    out << "      Relabel:                " << yn(lp_ctx.relabel_before_second_phase) << "\n";
   }
   out << "    2-hop clustering:         " << lp_ctx.two_hop_strategy << ", if |Vcoarse| > "
       << std::setw(2) << std::fixed << lp_ctx.two_hop_threshold << " * |V|\n";
@@ -616,20 +619,22 @@ std::ostream &operator<<(std::ostream &out, const LabelPropagationCoarseningCont
 }
 
 std::ostream &operator<<(std::ostream &out, const InitialPartitioningContext &i_ctx) {
-  out << "Adaptive algorithm selection: "
-      << (i_ctx.pool.use_adaptive_bipartitioner_selection ? "yes" : "no") << "\n";
+  out << "Adaptive algorithm selection: " << yn(i_ctx.pool.use_adaptive_bipartitioner_selection)
+      << "\n";
 
   return out;
 }
 
 std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
   out << "Refinement algorithms:        [" << str::implode(r_ctx.algorithms, " -> ") << "]\n";
+
   if (r_ctx.includes_algorithm(RefinementAlgorithm::LABEL_PROPAGATION)) {
     out << "Label propagation:\n";
     out << "  Number of iterations:       " << r_ctx.lp.num_iterations << "\n";
     out << "  Tie breaking strategy:      " << r_ctx.lp.tie_breaking_strategy << "\n";
     out << "  Implementation:             " << r_ctx.lp.impl << "\n";
   }
+
   if (r_ctx.includes_algorithm(RefinementAlgorithm::KWAY_FM)) {
     out << "k-way FM:\n";
     out << "  Number of iterations:       " << r_ctx.kway_fm.num_iterations
@@ -641,6 +646,7 @@ std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
         << (r_ctx.kway_fm.unlock_locally_moved_nodes ? "unlock" : "lock") << "\n";
     out << "  Gain cache:                 " << r_ctx.kway_fm.gain_cache_strategy << "\n";
   }
+
   if (r_ctx.includes_algorithm(RefinementAlgorithm::JET)) {
     out << "Jet refinement:               " << RefinementAlgorithm::JET << "\n";
     out << "  Number of rounds:           coarse " << r_ctx.jet.num_rounds_on_coarse_level
@@ -659,7 +665,6 @@ std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
 }
 
 std::ostream &operator<<(std::ostream &out, const PartitionContext &p_ctx) {
-  // @todo rework block weights output
   const auto max_block_weight = static_cast<std::int64_t>(p_ctx.max_block_weight(0));
   const auto size = std::max<std::int64_t>(
       {static_cast<std::int64_t>(p_ctx.n), static_cast<std::int64_t>(p_ctx.m), max_block_weight}
@@ -679,10 +684,20 @@ std::ostream &operator<<(std::ostream &out, const PartitionContext &p_ctx) {
     out << " (total weight: " << p_ctx.total_edge_weight << ")\n";
   }
   out << "Number of blocks:             " << p_ctx.k << "\n";
-  out << "Maximum block weight:         " << p_ctx.max_block_weight(0) << " ("
-      << p_ctx.perfectly_balanced_block_weight(0) << " + " << 100 * p_ctx.epsilon() << "% / "
-      << 100 * p_ctx.inferred_epsilon() << "%)\n";
-  out << "Minimum block weight:         " << p_ctx.min_block_weight(0) << "\n";
+
+  if (p_ctx.has_uniform_block_weights()) {
+    out << "  Maximum block weight:       " << p_ctx.max_block_weight(0) << " ("
+        << p_ctx.perfectly_balanced_block_weight(0) << " + " << 100 * p_ctx.epsilon() << "% / "
+        << 100 * p_ctx.inferred_epsilon() << "%)\n";
+  } else {
+    out << "  Maximum block weight:       variable\n";
+  }
+
+  if (p_ctx.has_uniform_min_block_weights()) {
+    out << "  Minimum block weight:       " << p_ctx.min_block_weight(0) << "\n";
+  } else {
+    out << "  Minimum block weight:       variable\n";
+  }
 
   return out;
 }
@@ -690,30 +705,27 @@ std::ostream &operator<<(std::ostream &out, const PartitionContext &p_ctx) {
 std::ostream &operator<<(std::ostream &out, const PartitioningContext &p_ctx) {
   out << "Partitioning mode:            " << p_ctx.mode << "\n";
   if (p_ctx.mode == PartitioningMode::DEEP) {
-    out << "  Deep initial part. mode:    " << p_ctx.deep_initial_partitioning_mode << "\n";
-    out << "  Deep initial part. load:    " << p_ctx.deep_initial_partitioning_load << "\n";
+    out << "  Initial partitioning mode:  " << p_ctx.deep_initial_partitioning_mode << " / "
+        << p_ctx.deep_initial_partitioning_load << "\n";
   } else if (p_ctx.mode == PartitioningMode::KWAY) {
     out << "  Initial partitioning mode:  " << p_ctx.kway_initial_partitioning_mode << "\n";
   } else if (p_ctx.mode == PartitioningMode::RB) {
-    out << "  Use flat k-way refinement:  "
-        << (p_ctx.rb_enable_kway_toplevel_refinement ? "yes" : "no") << "\n";
-    out << "  Switch to seq. part.:       "
+    out << "  k-way refinement:           " << yn(p_ctx.rb_enable_kway_toplevel_refinement) << "\n";
+    out << "  Sequential partitioning:    "
         << (p_ctx.rb_switch_to_seq_factor == 0
                 ? "never"
-                : "when k' > p * " + std::to_string(p_ctx.rb_switch_to_seq_factor))
+                : "k' > p * " + std::to_string(p_ctx.rb_switch_to_seq_factor))
         << "\n";
   }
-  out << "Subgraph memory:              " << (p_ctx.use_lazy_subgraph_memory ? "Lazy" : "Default")
-      << "\n";
 
   return out;
 }
 
 std::ostream &operator<<(std::ostream &out, const Context &ctx) {
-  out << "Execution mode:               " << ctx.parallel.num_threads << "\n";
+  out << "Threads:                      " << ctx.parallel.num_threads << "\n";
   out << "Seed:                         " << Random::get_seed() << "\n";
   out << "Graph:                        " << ctx.debug.graph_name
-      << " [node ordering: " << ctx.node_ordering << "]" << " [edge ordering: " << ctx.edge_ordering
+      << " [node ordering: " << ctx.node_ordering << "] [edge ordering: " << ctx.edge_ordering
       << "]\n";
   out << ctx.partition;
 
