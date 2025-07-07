@@ -15,10 +15,9 @@
 #include <string>
 #include <unordered_set>
 
+#include <kaminpar.h>
 #include <mpi.h>
 #include <tbb/global_control.h>
-
-#include <kaminpar.h>
 
 namespace kaminpar::mpi {
 
@@ -507,12 +506,21 @@ Context create_xterapart_context();
 } // namespace kaminpar::dist
 
 namespace kaminpar::dist {
+
 class DistributedGraph;
+
 }
 
 namespace kaminpar {
+
 class dKaMinPar {
 public:
+  // The default imbalance tolerance (epsilon) used for partitioning.
+  constexpr static double kDefaultEpsilon = KaMinPar::kDefaultEpsilon;
+
+  // @name Constructors and Lifecycle
+  // @{
+
   dKaMinPar(MPI_Comm comm, int num_threads, dist::Context ctx);
 
   dKaMinPar(const dKaMinPar &) = delete;
@@ -523,7 +531,17 @@ public:
 
   ~dKaMinPar();
 
+  // @}
+
+  // @name Seeding
+  // @{
+
   static void reseed(int seed);
+
+  // @}
+
+  // @name General Configuration
+  // @{
 
   /*!
    * Sets the verbosity of the partitioner.
@@ -548,6 +566,32 @@ public:
    */
   dist::Context &context();
 
+  // @}
+
+  // @name Graph Management
+  // @{
+
+  /*!
+   * Sets the graph to be partitioned by copying the data pointed to by the given pointers.
+   *
+   * @param[in] node_distribution An array of size `P + 1`, where `P` is the number of MPI ranks,
+   * such that the nodes assigned to PE 0 <= p < P are precisely node_distribution[p] <= * <
+   * node_distribution[p + 1].
+   *
+   * @param[in] xadj Array of length `n + 1`, where `n` is the number of nodes assigned to this PE,
+   * such that `xadj[u]` points to the first neighbor of node `u` in `adjncy`. In other words, the
+   * neighbors of `u` are `adjncy[xadj[u]..xadj[u+1]-1]`.
+   *
+   * @param[in] adjncy Array of length `xadj[n]` storing the neighbors of all nodes. The neighors
+   * may include nodes assigned to other PEs.
+   *
+   * @param[in] vwgt Array of length `n` storing a node weight for each node assigned to this PE.
+   * `nullptr` indicates that the nodes are unweighted (i.e., have unit weights).
+   *
+   * @param[in] adjwgt Array of length `xadj[n]` storing the weight of each edge. Note that reverse
+   * edges must be assigned the same weight. `nullptr` indicates that the edges are unweighted
+   * (i.e., have unit weights).
+   */
   void copy_graph(
       std::span<const dist::GlobalNodeID> node_distribution,
       std::span<const dist::GlobalEdgeID> nodes,
@@ -558,72 +602,75 @@ public:
 
   void set_graph(dist::DistributedGraph graph);
 
-  /*!
-   * Partitions the graph set by `copy_graph()` or `set_graph()` into `k` blocks with
-   * a maximum imbalance of 3%.
-   *
-   * @param k Number of blocks.
-   * @param[out] partition Span of length `n` to store the partitioning.
-   *
-   * @return Expected edge cut of the partition.
-   */
-  dist::GlobalEdgeWeight compute_partition(dist::BlockID k, std::span<dist::BlockID> partition);
+  const dist::DistributedGraph *graph() const;
+
+  dist::DistributedGraph take_graph();
+
+  // @}
+
+  // @name Partition Configuration
+  // @{
+
+  void set_k(dist::BlockID k);
+
+  void set_uniform_max_block_weights(double epsilon);
+
+  void
+  set_absolute_max_block_weights(std::span<const dist::BlockWeight> absolute_max_block_weights);
+
+  void set_relative_max_block_weights(std::span<const double> relative_max_block_weights);
+
+  void clear_max_block_weights();
+
+  // @}
+
+  // @name Computation
+  // @{
 
   /*!
-   * Partitions the graph set by `copy_graph()` or `set_graph()` into `k` blocks with
-   * a maximum imbalance of `epsilon`.
+   * Partitions the graph set by `copy_graph()` or `set_graph()`.
    *
-   * @param k Number of blocks.
-   * @param epsilon Balance constraint (e.g., 0.03 for max 3% imbalance).
-   * @param[out] partition Span of length `n` to store the partitioning.
+   * @param[out] partition Span of length `n` to store the computed partition.
    *
-   * @return Expected edge cut of the partition.
+   * @return Edge cut of the partition.
    */
+  dist::GlobalEdgeWeight compute_partition(std::span<dist::BlockID> partition);
+
+  // @}
+
+  // @name Deprecated
+  // @{
+
+  dist::GlobalEdgeWeight compute_partition(dist::BlockID k, std::span<dist::BlockID> partition);
   dist::GlobalEdgeWeight
   compute_partition(dist::BlockID k, double epsilon, std::span<dist::BlockID> partition);
-
-  /*!
-   * Partitions the graph set by `copy_graph()` or `set_graph()` such that the
-   * weight of each block is upper bounded by `max_block_weights`. The number of blocks is given
-   * implicitly by the size of the vector.
-   *
-   * @param max_block_weights Maximum weight for each block of the partition.
-   * @param[out] partition Span of length `n` to store the partitioning.
-   *
-   * @return Expected edge cut of the partition.
-   */
   dist::GlobalEdgeWeight compute_partition(
       std::vector<dist::BlockWeight> max_block_weights, std::span<dist::BlockID> partition
   );
-
-  /*!
-   * Partitions the graph set by `copy_graph()` or `set_graph()` such that the
-   * weight of each block is upper bounded by `max_block_weight_factors` times the total node weigh
-   * of the graph. The number of blocks is given implicitly by the size of the vector.
-   *
-   * @param max_block_weight_factors Maximum weight factor for each block of the partition.
-   * @param[out] partition Span of length `n` to store the partitioning.
-   *
-   * @return Expected edge cut of the partition.
-   */
   dist::GlobalEdgeWeight compute_partition(
       std::vector<double> max_block_weight_factors, std::span<dist::BlockID> partition
   );
 
-  const dist::DistributedGraph *graph() const;
+  // @}
 
 private:
-  dist::GlobalEdgeWeight compute_partition(std::span<dist::BlockID> partition);
+  void validate_partition_parameters() const;
 
   MPI_Comm _comm;
   int _num_threads;
+  tbb::global_control _gc;
 
   int _max_timer_depth = std::numeric_limits<int>::max();
   OutputLevel _output_level = OutputLevel::APPLICATION;
   dist::Context _ctx;
 
   std::unique_ptr<dist::DistributedGraph> _graph_ptr;
-  tbb::global_control _gc;
+
+  shm::BlockID _k = 0;
+
+  double _epsilon = kDefaultEpsilon;
+  std::vector<shm::BlockWeight> _absolute_max_block_weights = {};
+  std::vector<double> _relative_max_block_weights = {};
 
   bool _was_rearranged = false;
 };

@@ -474,36 +474,39 @@ void report_max_rss() {
 GlobalEdgeWeight run_partitioner_once(
     dKaMinPar &partitioner, std::vector<BlockID> &partition, const ApplicationContext &app
 ) {
+  partitioner.set_k(app.k);
+
   if (!app.max_block_weight_factors.empty()) {
     const double total_factor = std::accumulate(
         app.max_block_weight_factors.begin(), app.max_block_weight_factors.end(), 0.0
     );
+
     if (total_factor <= 1.0) {
       LOG_ERROR << "Error: total block weights must be greater than the total node weight; "
                 << "this is not the case with the given factors.";
       std::exit(1);
     }
 
-    return partitioner.compute_partition(
-        app.max_block_weight_factors, {partition.data(), partition.size()}
-    );
+    partitioner.set_relative_max_block_weights(std::move(app.max_block_weight_factors));
+
   } else if (!app.max_block_weights.empty()) {
     const BlockWeight total_block_weight = std::accumulate(
         app.max_block_weights.begin(), app.max_block_weights.end(), static_cast<BlockWeight>(0)
     );
     const NodeWeight total_node_weight = partitioner.graph()->global_total_node_weight();
+
     if (total_node_weight >= total_block_weight) {
       LOG_ERROR << "Error: total max block weights (" << total_block_weight
                 << ") must be greater than the total node weight (" << total_node_weight << ").";
       std::exit(1);
     }
 
-    return partitioner.compute_partition(
-        app.max_block_weights, {partition.data(), partition.size()}
-    );
+    partitioner.set_absolute_max_block_weights(std::move(app.max_block_weights));
   } else {
-    return partitioner.compute_partition(app.k, app.epsilon, {partition.data(), partition.size()});
+    partitioner.set_uniform_max_block_weights(app.epsilon);
   }
+
+  return partitioner.compute_partition(partition);
 }
 
 void run_partitioner(
