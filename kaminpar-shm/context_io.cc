@@ -570,6 +570,7 @@ void print(const PartitionContext &p_ctx, std::ostream &out) {
   out << "Maximum block weight:         " << p_ctx.max_block_weight(0) << " ("
       << p_ctx.perfectly_balanced_block_weight(0) << " + " << 100 * p_ctx.epsilon() << "% / "
       << 100 * p_ctx.inferred_epsilon() << "%)\n";
+  out << "Minimum block weight:         " << p_ctx.min_block_weight(0) << "\n";
 }
 
 void print(const PartitioningContext &p_ctx, std::ostream &out) {

@@ -177,6 +177,8 @@ void print_statistics(
        << ") = " << std::setw(block_weight_width) << p_graph.block_weight(b);
     if (p_graph.block_weight(b) > ctx.partition.max_block_weight(b)) {
       LLOG << logger::RED << ss.str() << " ";
+    } else if (p_graph.block_weight(b) < ctx.partition.min_block_weight(b)) {
+      LLOG << logger::ORANGE << ss.str() << " ";
     } else {
       LLOG << ss.str() << " ";
     }
