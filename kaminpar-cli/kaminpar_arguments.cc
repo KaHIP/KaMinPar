@@ -9,7 +9,7 @@
 
 #include "kaminpar-cli/CLI11.h"
 
-#include "kaminpar-shm/context_io.h"
+#include "kaminpar-shm/context.h"
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
@@ -261,9 +261,7 @@ Options are:
       ->capture_default_str();
 
   coarsening
-      ->add_option(
-          "--c-s-edge-factor", ctx.coarsening.sparsification_clustering.edge_target_factor
-      )
+      ->add_option("--c-s-edge-factor", ctx.coarsening.sparsification_clustering.edge_target_factor)
       ->description(
           "[--c-algorithm=sparsification-clustering] By which factor the number of edges should at "
           "least be reduced from one level to the next: new number of edges <= factor * old number "

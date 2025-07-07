@@ -1,7 +1,7 @@
 /*******************************************************************************
- * IO functions for the context structs.
+ * Context structs.
  *
- * @file:   context_io.h
+ * @file:   context.h
  * @author: Daniel Seemaier
  * @date:   13.03.2023
  ******************************************************************************/
@@ -12,9 +12,14 @@
 #include <string>
 #include <unordered_map>
 
+// Parts of this header are part of the public interace:
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
+
+//
+// String to enum to string conversion
+//
 
 std::ostream &operator<<(std::ostream &out, NodeOrdering ordering);
 
@@ -85,14 +90,29 @@ std::ostream &operator<<(std::ostream &out, const ContractionImplementation mode
 
 std::unordered_map<std::string, ContractionImplementation> get_contraction_implementations();
 
-void print(const Context &ctx, std::ostream &out);
-void print(const GraphCompressionContext &c_ctx, std::ostream &out);
-void print(const PartitioningContext &p_ctx, std::ostream &out);
-void print(const PartitionContext &p_ctx, std::ostream &out);
-void print(const RefinementContext &r_ctx, std::ostream &out);
-void print(const CoarseningContext &c_ctx, std::ostream &out);
-void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out);
-void print(const InitialPartitioningContext &i_ctx, std::ostream &out);
+//
+// Context structs
+//
+
+std::ostream &operator<<(std::ostream &out, const GraphCompressionContext &c_ctx);
+
+std::ostream &operator<<(std::ostream &out, const CoarseningContext &c_ctx);
+
+std::ostream &operator<<(std::ostream &out, const LabelPropagationCoarseningContext &lp_ctx);
+
+std::ostream &operator<<(std::ostream &out, const InitialPartitioningContext &i_ctx);
+
+std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx);
+
+std::ostream &operator<<(std::ostream &out, const PartitioningContext &p_ctx);
+
+std::ostream &operator<<(std::ostream &out, const PartitionContext &p_ctx);
+
+std::ostream &operator<<(std::ostream &out, const Context &ctx);
+
+//
+// Misc
+//
 
 template <typename T> std::string stringify_enum(const T val) {
   std::stringstream ss;

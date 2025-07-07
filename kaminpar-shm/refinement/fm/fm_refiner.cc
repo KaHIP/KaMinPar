@@ -10,7 +10,7 @@
 #include <tbb/concurrent_vector.h>
 #include <tbb/task_arena.h>
 
-#include "kaminpar-shm/context_io.h"
+#include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/refinement/fm/batch_stats.h"

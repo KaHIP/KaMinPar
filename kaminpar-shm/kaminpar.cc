@@ -10,7 +10,7 @@
 #include <algorithm>
 #include <cmath>
 
-#include "kaminpar-shm/context_io.h"
+#include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/factories.h"
@@ -26,87 +26,7 @@
 
 namespace kaminpar {
 
-namespace shm {
-
-void PartitionContext::setup(
-    const Graph &graph, const BlockID k, const double epsilon, const bool relax_max_block_weights
-) {
-  _epsilon = epsilon;
-
-  // this->total_node_weight not yet initialized: use graph.total_node_weight instead
-  const BlockWeight perfectly_balanced_block_weight =
-      std::ceil(1.0 * graph.total_node_weight() / k);
-  std::vector<BlockWeight> max_block_weights(k, (1.0 + epsilon) * perfectly_balanced_block_weight);
-  setup(graph, std::move(max_block_weights), relax_max_block_weights);
-
-  _uniform_block_weights = true;
-}
-
-void PartitionContext::setup(
-    const Graph &graph,
-    std::vector<BlockWeight> max_block_weights,
-    const bool relax_max_block_weights
-) {
-  original_n = graph.n();
-  n = graph.n();
-  m = graph.m();
-  original_total_node_weight = graph.total_node_weight();
-  total_node_weight = graph.total_node_weight();
-  total_edge_weight = graph.total_edge_weight();
-  max_node_weight = graph.max_node_weight();
-
-  k = static_cast<BlockID>(max_block_weights.size());
-  _max_block_weights = std::move(max_block_weights);
-  _unrelaxed_max_block_weights = _max_block_weights;
-  _total_max_block_weights = std::accumulate(
-      _max_block_weights.begin(), _max_block_weights.end(), static_cast<BlockWeight>(0)
-  );
-  _uniform_block_weights = false;
-
-  if (relax_max_block_weights) {
-    const double eps = inferred_epsilon();
-    for (BlockWeight &max_block_weight : _max_block_weights) {
-      max_block_weight = std::max<BlockWeight>(
-          max_block_weight, std::ceil(1.0 * max_block_weight / (1.0 + eps)) + max_node_weight
-      );
-    }
-  }
-}
-
-void PartitionContext::setup_min_block_weights(const double min_epsilon) {
-  KASSERT(!_max_block_weights.empty());
-
-  _min_block_weights.resize(_max_block_weights.size());
-  for (BlockID b = 0; b < _max_block_weights.size(); ++b) {
-    _min_block_weights[b] = std::ceil((1 - min_epsilon) * perfectly_balanced_block_weight(b));
-  }
-}
-
-void PartitionContext::setup_min_block_weights(std::vector<BlockWeight> min_block_weights) {
-  KASSERT(!_max_block_weights.empty());
-  KASSERT(min_block_weights.size() == _max_block_weights.size());
-
-  _min_block_weights = std::move(min_block_weights);
-}
-
-void GraphCompressionContext::setup(const Graph &graph) {
-  high_degree_encoding = CompressedGraph::kHighDegreeEncoding;
-  high_degree_threshold = CompressedGraph::kHighDegreeThreshold;
-  high_degree_part_length = CompressedGraph::kHighDegreePartLength;
-  interval_encoding = CompressedGraph::kIntervalEncoding;
-  interval_length_treshold = CompressedGraph::kIntervalLengthTreshold;
-  streamvbyte_encoding = CompressedGraph::kStreamVByteEncoding;
-
-  if (enabled) {
-    const auto &compressed_graph = graph.compressed_graph();
-    compression_ratio = compressed_graph.compression_ratio();
-    size_reduction = compressed_graph.size_reduction();
-    num_high_degree_nodes = compressed_graph.num_high_degree_nodes();
-    num_high_degree_parts = compressed_graph.num_high_degree_parts();
-    num_interval_nodes = compressed_graph.num_interval_nodes();
-    num_intervals = compressed_graph.num_intervals();
-  }
-}
+using namespace shm;
 
 namespace {
 
@@ -194,10 +114,6 @@ void print_statistics(
 
 } // namespace
 
-} // namespace shm
-
-using namespace shm;
-
 KaMinPar::KaMinPar()
     : KaMinPar(tbb::this_task_arena::max_concurrency(), create_default_context()) {}
 
@@ -246,6 +162,7 @@ void KaMinPar::borrow_and_mutate_graph(
 
   RECORD("nodes") StaticArray<EdgeID> nodes(n + 1, xadj.data());
   RECORD("edges") StaticArray<NodeID> edges(m, adjncy.data());
+
   RECORD("node_weights")
   StaticArray<NodeWeight> node_weights =
       vwgt.empty() ? StaticArray<NodeWeight>(0) : StaticArray<NodeWeight>(n, vwgt.data());
@@ -257,6 +174,7 @@ void KaMinPar::borrow_and_mutate_graph(
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), false
   );
   KASSERT(shm::debug::validate_graph(*csr_graph), "invalid input graph", assert::heavy);
+
   set_graph(Graph(std::move(csr_graph)));
 }
 
@@ -297,6 +215,7 @@ void KaMinPar::copy_graph(
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), false
   );
   KASSERT(shm::debug::validate_graph(*csr_graph), "invalid input graph", assert::heavy);
+
   set_graph(Graph(std::move(csr_graph)));
 }
 
@@ -442,7 +361,7 @@ EdgeWeight KaMinPar::compute_partition(std::span<BlockID> partition) {
 
   // Initialize console output
   if (_output_level >= OutputLevel::APPLICATION) {
-    print(_ctx, std::cout);
+    std::cout << _ctx;
   }
 
   START_HEAP_PROFILER("Partitioning");
