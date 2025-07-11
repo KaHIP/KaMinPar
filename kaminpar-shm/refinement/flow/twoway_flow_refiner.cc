@@ -1339,17 +1339,11 @@ bool TwowayFlowRefiner::refine(
       p_graph,
       [&](const auto &csr_graph) {
         // The bipartition refiner works with PartitionedCSRGraph instead of PartitionedGraph.
-        // Intead of copying the partition, use a span to access the partition.
-        StaticArray<BlockID> &partition = p_graph.raw_partition();
-        StaticArray<BlockID> partition_span(partition.size(), partition.data());
+        // Intead of copying the partition, use a view on it to access the partition.
+        PartitionedCSRGraph p_csr_graph = p_graph.csr_view();
 
-        StaticArray<BlockWeight> &block_weights = p_graph.raw_block_weights();
-        StaticArray<BlockWeight> block_weights_span(block_weights.size(), block_weights.data());
-
-        PartitionedCSRGraph p_csr_graph(
-            csr_graph, p_graph.k(), std::move(partition_span), std::move(block_weights_span)
-        );
-        return refine(p_csr_graph, csr_graph, p_ctx);
+        const bool found_improvement = refine(p_csr_graph, csr_graph, p_ctx);
+        return found_improvement;
       },
       [&]([[maybe_unused]] const auto &compressed_graph) {
         LOG_WARNING << "Cannot refine a compressed graph using the two-way flow refiner.";
