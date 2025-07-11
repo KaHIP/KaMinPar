@@ -70,7 +70,7 @@ void print_dkaminpar_banner() {
 }
 
 void print_build_identifier() {
-  LOG << "Current commit hash:          "
+  LOG << "Commit:                       "
       << (Environment::GIT_SHA1.empty() ? "<not available>" : Environment::GIT_SHA1);
   std::string assertion_level_name = "always";
   if (KASSERT_ASSERTION_LEVEL >= ASSERTION_LEVEL_LIGHT) {
@@ -83,13 +83,6 @@ void print_build_identifier() {
     assertion_level_name += "+heavy";
   }
   LOG << "Assertion level:              " << assertion_level_name;
-#ifdef KAMINPAR_ENABLE_STATISTICS
-  LOG << "Statistics:                   enabled";
-#else  // KAMINPAR_ENABLE_STATISTICS
-  LOG << "Statistics:                   disabled";
-#endif // KAMINPAR_ENABLE_STATISTICS
-  LOG << "Built on:                     "
-      << (Environment::HOSTNAME.empty() ? "<not available>" : Environment::HOSTNAME);
 }
 
 } // namespace kaminpar::cio

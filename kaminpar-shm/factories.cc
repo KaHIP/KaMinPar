@@ -29,7 +29,6 @@
 // Refinement
 #include "kaminpar-shm/refinement/adapters/mtkahypar_refiner.h"
 #include "kaminpar-shm/refinement/balancer/overload_balancer.h"
-#include "kaminpar-shm/refinement/balancer/sequential_greedy_balancer.h"
 #include "kaminpar-shm/refinement/balancer/underload_balancer.h"
 #include "kaminpar-shm/refinement/flow/twoway_flow_refiner.h"
 #include "kaminpar-shm/refinement/fm/fm_refiner.h"
@@ -99,9 +98,6 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
   switch (algorithm) {
   case RefinementAlgorithm::NOOP:
     return std::make_unique<NoopRefiner>();
-
-  case RefinementAlgorithm::SEQUENTIAL_GREEDY_BALANCER:
-    return std::make_unique<SequentialGreedyBalancer>(ctx);
 
   case RefinementAlgorithm::OVERLOAD_BALANCER:
     return std::make_unique<OverloadBalancer>(ctx);

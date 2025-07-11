@@ -207,7 +207,6 @@ struct CoarseningContext {
 
 enum class RefinementAlgorithm {
   NOOP,
-  SEQUENTIAL_GREEDY_BALANCER,
   OVERLOAD_BALANCER,
   UNDERLOAD_BALANCER,
   LABEL_PROPAGATION,
@@ -491,6 +490,10 @@ struct PartitionContext {
   void setup_min_block_weights(double min_epsilon);
   void setup_min_block_weights(std::vector<BlockWeight> min_block_weights);
 
+  [[nodiscard]] bool has_uniform_min_block_weights() const {
+    return _uniform_min_block_weights;
+  }
+
 private:
   std::vector<BlockWeight> _max_block_weights{};
   std::vector<BlockWeight> _unrelaxed_max_block_weights{};
@@ -500,6 +503,7 @@ private:
   bool _uniform_block_weights = false;
 
   std::vector<BlockWeight> _min_block_weights{};
+  bool _uniform_min_block_weights = true;
 };
 
 struct ParallelContext {

@@ -1,16 +1,17 @@
 /*******************************************************************************
- * IO functions for the context structs.
+ * Context structs.
  *
- * @file:   context_io.cc
+ * @file:   context.cc
  * @author: Daniel Seemaier
  * @date:   13.03.2023
  ******************************************************************************/
-#include "kaminpar-shm/context_io.h"
+#include "kaminpar-shm/context.h"
 
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
 
+#include "kaminpar-shm/datastructures/compressed_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/console_io.h"
@@ -19,7 +20,97 @@
 
 namespace kaminpar::shm {
 
-using namespace std::string_literals;
+//
+// Context setup
+//
+
+void PartitionContext::setup(
+    const Graph &graph, const BlockID k, const double epsilon, const bool relax_max_block_weights
+) {
+  _epsilon = epsilon;
+
+  // this->total_node_weight not yet initialized: use graph.total_node_weight instead
+  const BlockWeight perfectly_balanced_block_weight =
+      std::ceil(1.0 * graph.total_node_weight() / k);
+  std::vector<BlockWeight> max_block_weights(k, (1.0 + epsilon) * perfectly_balanced_block_weight);
+  setup(graph, std::move(max_block_weights), relax_max_block_weights);
+
+  _uniform_block_weights = true;
+}
+
+void PartitionContext::setup(
+    const Graph &graph,
+    std::vector<BlockWeight> max_block_weights,
+    const bool relax_max_block_weights
+) {
+  original_n = graph.n();
+  n = graph.n();
+  m = graph.m();
+  original_total_node_weight = graph.total_node_weight();
+  total_node_weight = graph.total_node_weight();
+  total_edge_weight = graph.total_edge_weight();
+  max_node_weight = graph.max_node_weight();
+
+  k = static_cast<BlockID>(max_block_weights.size());
+  _max_block_weights = std::move(max_block_weights);
+  _unrelaxed_max_block_weights = _max_block_weights;
+  _total_max_block_weights = std::accumulate(
+      _max_block_weights.begin(), _max_block_weights.end(), static_cast<BlockWeight>(0)
+  );
+  _uniform_block_weights = false;
+
+  if (relax_max_block_weights) {
+    const double eps = inferred_epsilon();
+    for (BlockWeight &max_block_weight : _max_block_weights) {
+      max_block_weight = std::max<BlockWeight>(
+          max_block_weight, std::ceil(1.0 * max_block_weight / (1.0 + eps)) + max_node_weight
+      );
+    }
+  }
+}
+
+void PartitionContext::setup_min_block_weights(const double min_epsilon) {
+  KASSERT(!_max_block_weights.empty());
+
+  _min_block_weights.resize(_max_block_weights.size());
+  for (BlockID b = 0; b < _max_block_weights.size(); ++b) {
+    _min_block_weights[b] = std::ceil((1 - min_epsilon) * perfectly_balanced_block_weight(b));
+  }
+
+  _uniform_min_block_weights = true;
+}
+
+void PartitionContext::setup_min_block_weights(std::vector<BlockWeight> min_block_weights) {
+  KASSERT(!_max_block_weights.empty());
+  KASSERT(min_block_weights.size() == _max_block_weights.size());
+
+  _min_block_weights = std::move(min_block_weights);
+
+  _uniform_min_block_weights = false;
+}
+
+void GraphCompressionContext::setup(const Graph &graph) {
+  high_degree_encoding = CompressedGraph::kHighDegreeEncoding;
+  high_degree_threshold = CompressedGraph::kHighDegreeThreshold;
+  high_degree_part_length = CompressedGraph::kHighDegreePartLength;
+  interval_encoding = CompressedGraph::kIntervalEncoding;
+  interval_length_treshold = CompressedGraph::kIntervalLengthTreshold;
+  streamvbyte_encoding = CompressedGraph::kStreamVByteEncoding;
+
+  if (enabled) {
+    const auto &compressed_graph = graph.compressed_graph();
+    compression_ratio = compressed_graph.compression_ratio();
+    size_reduction = compressed_graph.size_reduction();
+    num_high_degree_nodes = compressed_graph.num_high_degree_nodes();
+    num_high_degree_parts = compressed_graph.num_high_degree_parts();
+    num_interval_nodes = compressed_graph.num_interval_nodes();
+    num_intervals = compressed_graph.num_intervals();
+  }
+}
+
+//
+// String to enum to string converstion
+//
 
 std::ostream &operator<<(std::ostream &out, const NodeOrdering ordering) {
   switch (ordering) {
@@ -120,6 +211,7 @@ std::ostream &operator<<(std::ostream &out, const ClusterWeightLimit limit) {
   case ClusterWeightLimit::ZERO:
     return out << "zero";
   }
+
   return out << "<invalid>";
 }
 
@@ -141,6 +233,7 @@ std::ostream &operator<<(std::ostream &out, const LabelPropagationImplementation
   case LabelPropagationImplementation::GROWING_HASH_TABLES:
     return out << "growing-hash-tables";
   }
+
   return out << "<invalid>";
 }
 
@@ -267,12 +360,24 @@ std::unordered_map<std::string, ContractionImplementation> get_contraction_imple
   };
 }
 
+std::unordered_map<std::string, RefinementAlgorithm> get_refinement_algorithms() {
+  return {
+      {"noop", RefinementAlgorithm::NOOP},
+      {"greedy-balancer", RefinementAlgorithm::OVERLOAD_BALANCER},
+      {"overload-balancer", RefinementAlgorithm::OVERLOAD_BALANCER},
+      {"underload-balancer", RefinementAlgorithm::UNDERLOAD_BALANCER},
+      {"lp", RefinementAlgorithm::LABEL_PROPAGATION},
+      {"fm", RefinementAlgorithm::KWAY_FM},
+      {"twoway-flow", RefinementAlgorithm::TWOWAY_FLOW},
+      {"jet", RefinementAlgorithm::JET},
+      {"mtkahypar", RefinementAlgorithm::MTKAHYPAR},
+  };
+}
+
 std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm) {
   switch (algorithm) {
   case RefinementAlgorithm::NOOP:
     return out << "noop";
-  case RefinementAlgorithm::SEQUENTIAL_GREEDY_BALANCER:
-    return out << "sequential-greedy-balancer";
   case RefinementAlgorithm::OVERLOAD_BALANCER:
     return out << "overload-balancer";
   case RefinementAlgorithm::UNDERLOAD_BALANCER:
@@ -290,21 +395,6 @@ std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm)
   }
 
   return out << "<invalid>";
-}
-
-std::unordered_map<std::string, RefinementAlgorithm> get_refinement_algorithms() {
-  return {
-      {"noop", RefinementAlgorithm::NOOP},
-      {"sequential-greedy-balancer", RefinementAlgorithm::SEQUENTIAL_GREEDY_BALANCER},
-      {"greedy-balancer", RefinementAlgorithm::OVERLOAD_BALANCER},
-      {"overload-balancer", RefinementAlgorithm::OVERLOAD_BALANCER},
-      {"underload-balancer", RefinementAlgorithm::UNDERLOAD_BALANCER},
-      {"lp", RefinementAlgorithm::LABEL_PROPAGATION},
-      {"fm", RefinementAlgorithm::KWAY_FM},
-      {"twoway-flow", RefinementAlgorithm::TWOWAY_FLOW},
-      {"jet", RefinementAlgorithm::JET},
-      {"mtkahypar", RefinementAlgorithm::MTKAHYPAR},
-  };
 }
 
 std::ostream &operator<<(std::ostream &out, const GainCacheStrategy strategy) {
@@ -439,7 +529,134 @@ std::unordered_map<std::string, KwayInitialPartitioningMode> get_kway_initial_pa
   };
 }
 
-void print(const CoarseningContext &c_ctx, std::ostream &out) {
+//
+// Context struct summary
+//
+
+namespace {
+
+const char *yn(const bool value, const char *yes = "yes", const char *no = "no") {
+  return value ? yes : no;
+}
+
+} // namespace
+
+std::ostream &operator<<(std::ostream &out, const Context &ctx) {
+  out << "Threads:                      " << ctx.parallel.num_threads << "\n";
+  out << "Seed:                         " << Random::get_seed() << "\n";
+  out << "Graph:                        " << ctx.debug.graph_name
+      << " [node ordering: " << ctx.node_ordering << "] [edge ordering: " << ctx.edge_ordering
+      << "]\n";
+  out << ctx.partition;
+
+  cio::print_delimiter("Graph Compression", '-');
+  out << ctx.compression;
+
+  cio::print_delimiter("Partitioning Scheme", '-');
+  out << ctx.partitioning;
+
+  cio::print_delimiter("Coarsening", '-');
+  out << ctx.coarsening;
+
+  cio::print_delimiter("Initial Partitioning", '-');
+  out << ctx.initial_partitioning;
+
+  cio::print_delimiter("Refinement", '-');
+  out << ctx.refinement;
+
+  return out;
+}
+
+std::ostream &operator<<(std::ostream &out, const PartitionContext &p_ctx) {
+  const auto max_block_weight = static_cast<std::int64_t>(p_ctx.max_block_weight(0));
+  const auto size = std::max<std::int64_t>(
+      {static_cast<std::int64_t>(p_ctx.n), static_cast<std::int64_t>(p_ctx.m), max_block_weight}
+  );
+  const std::size_t width = size > 0 ? std::ceil(std::log10(size)) : 1;
+
+  out << "  Number of nodes:            " << std::setw(width) << p_ctx.n;
+  if (static_cast<NodeWeight>(p_ctx.n) == p_ctx.total_node_weight) {
+    out << " (unweighted)\n";
+  } else {
+    out << " (total weight: " << p_ctx.total_node_weight << ")\n";
+  }
+  out << "  Number of edges:            " << std::setw(width) << p_ctx.m;
+  if (static_cast<EdgeWeight>(p_ctx.m) == p_ctx.total_edge_weight) {
+    out << " (unweighted)\n";
+  } else {
+    out << " (total weight: " << p_ctx.total_edge_weight << ")\n";
+  }
+  out << "Number of blocks:             " << p_ctx.k << "\n";
+
+  if (p_ctx.has_uniform_block_weights()) {
+    out << "  Maximum block weight:       " << p_ctx.max_block_weight(0) << " ("
+        << p_ctx.perfectly_balanced_block_weight(0) << " + " << 100 * p_ctx.epsilon() << "% / "
+        << 100 * p_ctx.inferred_epsilon() << "%)\n";
+  } else {
+    out << "  Maximum block weight:       variable\n";
+  }
+
+  if (p_ctx.has_uniform_min_block_weights()) {
+    out << "  Minimum block weight:       " << p_ctx.min_block_weight(0) << "\n";
+  } else {
+    out << "  Minimum block weight:       variable\n";
+  }
+
+  return out;
+}
+
+std::ostream &operator<<(std::ostream &out, const PartitioningContext &p_ctx) {
+  out << "Partitioning mode:            " << p_ctx.mode << "\n";
+  if (p_ctx.mode == PartitioningMode::DEEP) {
+    out << "  Initial partitioning mode:  " << p_ctx.deep_initial_partitioning_mode << " / "
+        << p_ctx.deep_initial_partitioning_load << "\n";
+  } else if (p_ctx.mode == PartitioningMode::KWAY) {
+    out << "  Initial partitioning mode:  " << p_ctx.kway_initial_partitioning_mode << "\n";
+  } else if (p_ctx.mode == PartitioningMode::RB) {
+    out << "  k-way refinement:           " << yn(p_ctx.rb_enable_kway_toplevel_refinement) << "\n";
+    out << "  Sequential partitioning:    "
+        << (p_ctx.rb_switch_to_seq_factor == 0
+                ? "never"
+                : "k' > p * " + std::to_string(p_ctx.rb_switch_to_seq_factor))
+        << "\n";
+  }
+
+  return out;
+}
+
+std::ostream &operator<<(std::ostream &out, const GraphCompressionContext &c_ctx) {
+  out << "Enabled:                      " << yn(c_ctx.enabled) << "\n";
+
+  if (c_ctx.enabled) {
+    out << "Compression Scheme:           Gap Encoding + ";
+    if (c_ctx.streamvbyte_encoding) {
+      out << "StreamVByte Encoding\n";
+    } else {
+      out << "VarInt Encoding\n";
+    }
+
+    out << "  High Degree Encoding:       " << yn(c_ctx.high_degree_encoding) << "\n";
+    if (c_ctx.high_degree_encoding) {
+      out << "    Threshold:                " << c_ctx.high_degree_threshold << "\n";
+      out << "    Part Length:              " << c_ctx.high_degree_part_length << "\n";
+    }
+    out << "  Interval Encoding:          " << yn(c_ctx.interval_encoding) << "\n";
+    if (c_ctx.interval_encoding) {
+      out << "    Length Threshold:         " << c_ctx.interval_length_treshold << "\n";
+    }
+
+    out << "Compresion Ratio:             " << c_ctx.compression_ratio
+        << " [size reduction: " << (c_ctx.size_reduction / (float)(1024 * 1024)) << " MiB]" << "\n";
+    out << "  High Degree Node Count:     " << c_ctx.num_high_degree_nodes << "\n";
+    out << "  High Degree Part Count:     " << c_ctx.num_high_degree_parts << "\n";
+    out << "  Interval Node Count:        " << c_ctx.num_interval_nodes << "\n";
+    out << "  Interval Count:             " << c_ctx.num_intervals << "\n";
+  }
+
+  return out;
+}
+
+std::ostream &operator<<(std::ostream &out, const CoarseningContext &c_ctx) {
   out << "Contraction limit:            " << c_ctx.contraction_limit << "\n";
   out << "Coarsening algorithm:         " << c_ctx.algorithm << "\n";
 
@@ -453,7 +670,7 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
         << "\n";
     out << "  Clustering algorithm:       " << c_ctx.clustering.algorithm << "\n";
     if (c_ctx.clustering.algorithm == ClusteringAlgorithm::LABEL_PROPAGATION) {
-      print(c_ctx.clustering.lp, out);
+      out << c_ctx.clustering.lp;
     }
     out << "  Forced hierarchy levels:    " << (c_ctx.clustering.forced_kc_level ? "+kC " : "")
         << (c_ctx.clustering.forced_pc_level ? "+pC " : "")
@@ -467,35 +684,42 @@ void print(const CoarseningContext &c_ctx, std::ostream &out) {
     out << "    Number of overlays:       " << (2 << c_ctx.overlay_clustering.num_levels) << "\n";
   }
 
-  out << "Contraction algorithm:        " << c_ctx.contraction.algorithm << '\n';
+  out << "Contraction algorithm:        " << c_ctx.contraction.algorithm << "\n";
   if (c_ctx.contraction.algorithm == ContractionAlgorithm::BUFFERED) {
     out << "  Edge buffer fill fraction:  " << c_ctx.contraction.edge_buffer_fill_fraction << "\n";
   } else if (c_ctx.contraction.algorithm == ContractionAlgorithm::UNBUFFERED) {
     out << "  Implementation:             " << c_ctx.contraction.unbuffered_implementation << "\n";
   }
+
+  return out;
 }
 
-void print(const LabelPropagationCoarseningContext &lp_ctx, std::ostream &out) {
+std::ostream &operator<<(std::ostream &out, const LabelPropagationCoarseningContext &lp_ctx) {
   out << "    Number of iterations:     " << lp_ctx.num_iterations << "\n";
   out << "    High degree threshold:    " << lp_ctx.large_degree_threshold << "\n";
   out << "    Max degree:               " << lp_ctx.max_num_neighbors << "\n";
   out << "    Tie breaking strategy:    " << lp_ctx.tie_breaking_strategy << "\n";
   out << "    Implementation:           " << lp_ctx.impl << "\n";
   if (lp_ctx.impl == LabelPropagationImplementation::TWO_PHASE) {
-    out << "      Relabel:                " << (lp_ctx.relabel_before_second_phase ? "yes" : "no")
-        << '\n';
+    out << "      Relabel:                " << yn(lp_ctx.relabel_before_second_phase) << "\n";
   }
   out << "    2-hop clustering:         " << lp_ctx.two_hop_strategy << ", if |Vcoarse| > "
       << std::setw(2) << std::fixed << lp_ctx.two_hop_threshold << " * |V|\n";
   out << "    Isolated nodes:           " << lp_ctx.isolated_nodes_strategy << "\n";
+
+  return out;
 }
 
-void print(const InitialPartitioningContext &i_ctx, std::ostream &out) {
-  out << "Adaptive algorithm selection: "
-      << (i_ctx.pool.use_adaptive_bipartitioner_selection ? "yes" : "no") << "\n";
+std::ostream &operator<<(std::ostream &out, const InitialPartitioningContext &i_ctx) {
+  out << "Adaptive algorithm selection: " << yn(i_ctx.pool.use_adaptive_bipartitioner_selection)
+      << "\n";
+  out << "Refinement algorithms:        [" << str::implode(i_ctx.refinement.algorithms, " -> ")
+      << "]\n";
+
+  return out;
 }
 
-void print(const RefinementContext &r_ctx, std::ostream &out) {
+std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
   out << "Refinement algorithms:        [" << str::implode(r_ctx.algorithms, " -> ") << "]\n";
 
   if (r_ctx.includes_algorithm(RefinementAlgorithm::LABEL_PROPAGATION)) {
@@ -524,40 +748,37 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
     out << "  Max border distance:        " << r_ctx.twoway_flow.max_border_distance << "\n";
 
     out << "  Global relabeling:          "
-        << (r_ctx.twoway_flow.flow.global_relabeling_heuristic ? "yes" : "no") << "\n";
+        << yn(r_ctx.twoway_flow.flow.global_relabeling_heuristic) << "\n";
     out << "  Global relabeling freq.:    " << r_ctx.twoway_flow.flow.global_relabeling_frequency
         << "\n";
 
-    out << "  Pierce all viable:          "
-        << (r_ctx.twoway_flow.piercing.pierce_all_viable ? "yes" : "no") << "\n";
-    out << "  Bulk Piercing:              "
-        << (r_ctx.twoway_flow.piercing.bulk_piercing ? "yes" : "no") << "\n";
+    out << "  Pierce all viable:          " << yn(r_ctx.twoway_flow.piercing.pierce_all_viable)
+        << "\n";
+    out << "  Bulk Piercing:              " << yn(r_ctx.twoway_flow.piercing.bulk_piercing) << "\n";
     if (r_ctx.twoway_flow.piercing.bulk_piercing) {
       out << "    Round threshold:          "
           << r_ctx.twoway_flow.piercing.bulk_piercing_round_threshold << "\n";
       out << "    Shrinking factor:         "
           << r_ctx.twoway_flow.piercing.bulk_piercing_shrinking_factor << "\n";
     }
-    out << "  Fallback heuristic:         "
-        << (r_ctx.twoway_flow.piercing.fallback_heuristic ? "yes" : "no") << "\n";
-
-    out << "  Unconstrained:              " << (r_ctx.twoway_flow.unconstrained ? "yes" : "no")
+    out << "  Fallback heuristic:         " << yn(r_ctx.twoway_flow.piercing.fallback_heuristic)
         << "\n";
+
+    out << "  Unconstrained:              " << yn(r_ctx.twoway_flow.unconstrained) << "\n";
     if (r_ctx.twoway_flow.unconstrained) {
       out << "    Rebalancing:              "
-          << (r_ctx.twoway_flow.dynamic_rebalancer ? "dynamic" : "static") << "\n";
-      out << "    Abort on candidate cut:   "
-          << (r_ctx.twoway_flow.abort_on_candidate_cut ? "yes" : "no") << "\n";
+          << yn(r_ctx.twoway_flow.dynamic_rebalancer, "dynamic", "static") << "\n";
+      out << "    Abort on candidate cut:   " << yn(r_ctx.twoway_flow.abort_on_candidate_cut)
+          << "\n";
     }
 
-    out << "  Flow Cutter:                " << (r_ctx.twoway_flow.use_whfc ? "WHFC" : "Built-in")
+    out << "  Flow Cutter:                " << yn(r_ctx.twoway_flow.use_whfc, "WHFC", "Built-in")
         << "\n";
     out << "  Time Limit:                 " << r_ctx.twoway_flow.time_limit << " minutes" << "\n";
     out << "  Max num rounds:             " << r_ctx.twoway_flow.max_num_rounds << "\n";
     out << "  Min round improvement:      " << r_ctx.twoway_flow.min_round_improvement_factor
         << "\n";
-    out << "  Parallel scheduling:        "
-        << (r_ctx.twoway_flow.parallel_scheduling ? "yes" : "no") << "\n";
+    out << "  Parallel scheduling:        " << yn(r_ctx.twoway_flow.parallel_scheduling) << "\n";
     if (r_ctx.twoway_flow.parallel_scheduling) {
       out << "    Search multiplier:        " << r_ctx.twoway_flow.parallel_searches_multiplier
           << "\n";
@@ -577,105 +798,8 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
         << r_ctx.jet.final_gain_temp_on_fine_level << "]\n";
     out << "  Balancing algorithm:        " << r_ctx.jet.balancing_algorithm << "\n";
   }
-}
 
-void print(const PartitioningContext &p_ctx, std::ostream &out) {
-  out << "Partitioning mode:            " << p_ctx.mode << "\n";
-  if (p_ctx.mode == PartitioningMode::DEEP) {
-    out << "  Deep initial part. mode:    " << p_ctx.deep_initial_partitioning_mode << "\n";
-    out << "  Deep initial part. load:    " << p_ctx.deep_initial_partitioning_load << "\n";
-  } else if (p_ctx.mode == PartitioningMode::KWAY) {
-    out << "  Initial partitioning mode:  " << p_ctx.kway_initial_partitioning_mode << "\n";
-  } else if (p_ctx.mode == PartitioningMode::RB) {
-    out << "  Use flat k-way refinement:  "
-        << (p_ctx.rb_enable_kway_toplevel_refinement ? "yes" : "no") << "\n";
-    out << "  Switch to seq. part.:       "
-        << (p_ctx.rb_switch_to_seq_factor == 0
-                ? "never"
-                : "when k' > p * " + std::to_string(p_ctx.rb_switch_to_seq_factor))
-        << "\n";
-  }
-  out << "Subgraph memory:              " << (p_ctx.use_lazy_subgraph_memory ? "Lazy" : "Default")
-      << "\n";
-}
-
-void print(const GraphCompressionContext &c_ctx, std::ostream &out) {
-  out << "Enabled:                      " << (c_ctx.enabled ? "yes" : "no") << "\n";
-  if (c_ctx.enabled) {
-    out << "Compression Scheme:           Gap Encoding + ";
-    if (c_ctx.streamvbyte_encoding) {
-      out << "StreamVByte Encoding\n";
-    } else {
-      out << "VarInt Encoding\n";
-    }
-
-    out << "  High Degree Encoding:       " << (c_ctx.high_degree_encoding ? "yes" : "no") << "\n";
-    if (c_ctx.high_degree_encoding) {
-      out << "    Threshold:                " << c_ctx.high_degree_threshold << "\n";
-      out << "    Part Length:              " << c_ctx.high_degree_part_length << "\n";
-    }
-    out << "  Interval Encoding:          " << (c_ctx.interval_encoding ? "yes" : "no") << "\n";
-    if (c_ctx.interval_encoding) {
-      out << "    Length Threshold:         " << c_ctx.interval_length_treshold << "\n";
-    }
-
-    out << "Compresion Ratio:             " << c_ctx.compression_ratio
-        << " [size reduction: " << (c_ctx.size_reduction / (float)(1024 * 1024)) << " mb]" << "\n";
-    out << "  High Degree Node Count:     " << c_ctx.num_high_degree_nodes << "\n";
-    out << "  High Degree Part Count:     " << c_ctx.num_high_degree_parts << "\n";
-    out << "  Interval Node Count:        " << c_ctx.num_interval_nodes << "\n";
-    out << "  Interval Count:             " << c_ctx.num_intervals << "\n";
-  }
-}
-
-void print(const PartitionContext &p_ctx, std::ostream &out) {
-  // @todo rework block weights output
-  const auto max_block_weight = static_cast<std::int64_t>(p_ctx.max_block_weight(0));
-  const auto size = std::max<std::int64_t>(
-      {static_cast<std::int64_t>(p_ctx.n), static_cast<std::int64_t>(p_ctx.m), max_block_weight}
-  );
-  const std::size_t width = size > 0 ? std::ceil(std::log10(size)) : 1;
-
-  out << "  Number of nodes:            " << std::setw(width) << p_ctx.n;
-  if (static_cast<NodeWeight>(p_ctx.n) == p_ctx.total_node_weight) {
-    out << " (unweighted)\n";
-  } else {
-    out << " (total weight: " << p_ctx.total_node_weight << ")\n";
-  }
-  out << "  Number of edges:            " << std::setw(width) << p_ctx.m;
-  if (static_cast<EdgeWeight>(p_ctx.m) == p_ctx.total_edge_weight) {
-    out << " (unweighted)\n";
-  } else {
-    out << " (total weight: " << p_ctx.total_edge_weight << ")\n";
-  }
-  out << "Number of blocks:             " << p_ctx.k << "\n";
-  out << "Maximum block weight:         " << p_ctx.max_block_weight(0) << " ("
-      << p_ctx.perfectly_balanced_block_weight(0) << " + " << 100 * p_ctx.epsilon() << "% / "
-      << 100 * p_ctx.inferred_epsilon() << "%)\n";
-}
-
-void print(const Context &ctx, std::ostream &out) {
-  out << "Execution mode:               " << ctx.parallel.num_threads << "\n";
-  out << "Seed:                         " << Random::get_seed() << "\n";
-  out << "Graph:                        " << ctx.debug.graph_name
-      << " [node ordering: " << ctx.node_ordering << "]" << " [edge ordering: " << ctx.edge_ordering
-      << "]\n";
-  print(ctx.partition, out);
-
-  cio::print_delimiter("Graph Compression", '-');
-  print(ctx.compression, out);
-
-  cio::print_delimiter("Partitioning Scheme", '-');
-  print(ctx.partitioning, out);
-
-  cio::print_delimiter("Coarsening", '-');
-  print(ctx.coarsening, out);
-
-  cio::print_delimiter("Initial Partitioning", '-');
-  print(ctx.initial_partitioning, out);
-
-  cio::print_delimiter("Refinement", '-');
-  print(ctx.refinement, out);
+  return out;
 }
 
 } // namespace kaminpar::shm

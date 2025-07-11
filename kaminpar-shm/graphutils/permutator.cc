@@ -265,7 +265,7 @@ PartitionedGraph assign_isolated_nodes(
     block_weights[b] += p_graph.node_weight(u);
   }
 
-  return {graph, k, std::move(partition)};
+  return {graph, k, std::move(partition), std::move(block_weights)};
 }
 
 NodeID count_isolated_nodes(const Graph &graph) {

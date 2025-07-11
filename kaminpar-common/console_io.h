@@ -20,11 +20,8 @@ void print_build_identifier();
 
 template <typename NodeID, typename EdgeID, typename NodeWeight, typename EdgeWeight>
 void print_build_datatypes() {
-  LOG << "Data type sizes:";
-  LOG << "  Nodes IDs: " << sizeof(NodeID) << " bytes | Node weights: " << sizeof(NodeWeight)
-      << " bytes";
-  LOG << "  Edges IDs: " << sizeof(EdgeID) << " bytes | Edge weights: " << sizeof(EdgeWeight)
-      << " bytes";
+  LOG << "Types:                        NID: " << sizeof(NodeID) << ", EID: " << sizeof(EdgeID)
+      << ", NW: " << sizeof(NodeWeight) << ", EW: " << sizeof(EdgeWeight);
 }
 
 template <
@@ -35,13 +32,9 @@ template <
     typename IPNodeWeight,
     typename IPEdgeWeight>
 void print_build_datatypes() {
-  LOG << "Data type sizes:";
-  LOG << "  Nodes IDs: " << sizeof(NodeID)
-      << " bytes | Node weights (Local): " << sizeof(LocalNodeWeight)
-      << " bytes | Node weights (IP): " << sizeof(IPNodeWeight) << " bytes";
-  LOG << "  Edges IDs: " << sizeof(EdgeID)
-      << " bytes | Edge weights (Local): " << sizeof(LocalEdgeWeight)
-      << " bytes | Edge weights (IP): " << sizeof(IPEdgeWeight) << " bytes";
+  LOG << "Types:                        NID: " << sizeof(NodeID) << ", EID: " << sizeof(EdgeID)
+      << ", NW: " << sizeof(LocalNodeWeight) << "/" << sizeof(IPNodeWeight)
+      << ", EW: " << sizeof(LocalEdgeWeight) << "/" << sizeof(IPEdgeWeight);
 }
 
 } // namespace kaminpar::cio

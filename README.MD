@@ -299,6 +299,8 @@ EdgeWeight cut = shm.compute_partition(std::span<BlockID> out_partition);
 > [!TIP]
 > If you want to partition a graph that does not fit into memory, you can use our [Builder interface](docs/graph_compression.md) to construct a graph while compressing it on-the-fly.
 
+Check out our [examples](examples/) to see the library interface in action.
+
 ### Distributed-Memory API
 
 The distributed-memory partitioner can be used as follows:
@@ -318,20 +320,17 @@ dist.copy_graph(
   std::span<GlobalEdgeWeight> adjwgt = {}
 );
 
-// Compute a `k`-way partition where each block weight is bounded by 
-// `(1 + epsilon) * average`:
-dist.compute_partition(BlockID k, double epsilon, std::span<BlockID> out_partition);
+// Set the number of blocks:
+dist.set_k(BlockID k);
 
-// Compute a `max_block_weights.size()`-way partition where the `i`-th block 
-// weight is bounded by `max_block_weights[i]`:
-dist.compute_partition(std::vector<BlockWeight> max_block_weights, std::span<BlockID> out_partition);
+// Configure max block weights:
+dist.set_uniform_max_block_weights(double epsilon); // -e <...>
+// dist.set_absolute_max_block_weights(std::span<const BlockWeight> max_block_weights); // -B <...>
+// dist.set_relative_max_block_weights(std::span<const double> max_block_weight_factors); // -b <...>
 
-// Compute a `max_block_weight_factors.size()`-way partition where the `i`-th 
-// block weight is bounded by `max_block_weight_factors[i] * total_weight`:
-dist.compute_partition(std::vector<double> max_block_weight_factors, std::span<BlockID> out_partition);
+// Compute the partition:
+EdgeWeight cut = dist.compute_partition(std::span<BlockID> out_partition);
 ```
-
-Check out our [examples](examples/) to see the library interface in action.
 
 ## Licensing
 
