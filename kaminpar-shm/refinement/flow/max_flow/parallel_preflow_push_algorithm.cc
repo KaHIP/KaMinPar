@@ -5,7 +5,7 @@
 #include <functional>
 #include <utility>
 
-#include <oneapi/tbb/blocked_range.h>
+#include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 
 #include "kaminpar-shm/refinement/flow/util/buffered_vector.h"
@@ -257,12 +257,6 @@ template <bool kCollectActiveNodes> void ParallelPreflowPushAlgorithm::global_re
 
   for (const NodeID source : _node_status.source_nodes()) {
     _heights[source] = num_nodes;
-  }
-
-  for (const NodeID u : _graph->nodes()) {
-    if (_heights[u] == max_level) {
-      _heights[u] = num_nodes + 1;
-    }
   }
 }
 

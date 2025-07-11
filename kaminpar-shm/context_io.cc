@@ -523,9 +523,9 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
         << "\n";
     out << "  Max border distance:        " << r_ctx.twoway_flow.max_border_distance << "\n";
 
-    out << "  Global relabeling:        "
+    out << "  Global relabeling:          "
         << (r_ctx.twoway_flow.flow.global_relabeling_heuristic ? "yes" : "no") << "\n";
-    out << "  Global relabeling freq.:  " << r_ctx.twoway_flow.flow.global_relabeling_frequency
+    out << "  Global relabeling freq.:    " << r_ctx.twoway_flow.flow.global_relabeling_frequency
         << "\n";
 
     out << "  Pierce all viable:          "
@@ -553,11 +553,15 @@ void print(const RefinementContext &r_ctx, std::ostream &out) {
     out << "  Flow Cutter:                " << (r_ctx.twoway_flow.use_whfc ? "WHFC" : "Built-in")
         << "\n";
     out << "  Time Limit:                 " << r_ctx.twoway_flow.time_limit << " minutes" << "\n";
-    out << "  Parallel scheduling:        "
-        << (r_ctx.twoway_flow.parallel_scheduling ? "yes" : "no") << "\n";
     out << "  Max num rounds:             " << r_ctx.twoway_flow.max_num_rounds << "\n";
     out << "  Min round improvement:      " << r_ctx.twoway_flow.min_round_improvement_factor
         << "\n";
+    out << "  Parallel scheduling:        "
+        << (r_ctx.twoway_flow.parallel_scheduling ? "yes" : "no") << "\n";
+    if (r_ctx.twoway_flow.parallel_scheduling) {
+      out << "    Search multiplier:        " << r_ctx.twoway_flow.parallel_searches_multiplier
+          << "\n";
+    }
   }
 
   if (r_ctx.includes_algorithm(RefinementAlgorithm::JET)) {

@@ -1,22 +1,26 @@
-diff --git a/algorithm/sequential_push_relabel.h b/algorithm/sequential_push_relabel.h
-index 9d36935..d9780e6 100644
---- a/algorithm/sequential_push_relabel.h
-+++ b/algorithm/sequential_push_relabel.h
-@@ -138,7 +138,7 @@ namespace whfc {
-             Node e_out = edgeToOutNode(e);
+diff --git a/algorithm/cutter_state.h b/algorithm/cutter_state.h
+index 9c7f077..4b6a1a0 100644
+--- a/algorithm/cutter_state.h
++++ b/algorithm/cutter_state.h
+@@ -312,7 +312,7 @@ namespace whfc {
+             return imb_s <= imb_t ? 0 : 1;
+         }
  
-             while (my_excess > 0 && my_level < max_level) {
--                int new_level = max_level = -1;
-+                int new_level = max_level - 1;
+-        bool isBalanced() {
++        bool isBalanced() const {
+             assert(has_cut);
+             assert(!partition_written_to_node_set && "Cannot call isBalanced() once the partition has been written");
+             return (source_reachable_weight <= maxBlockWeight(0) && hg.totalNodeWeight() - source_reachable_weight <= maxBlockWeight(1)) ||
+diff --git a/algorithm/hyperflowcutter.h b/algorithm/hyperflowcutter.h
+index a08baff..faa65f7 100644
+--- a/algorithm/hyperflowcutter.h
++++ b/algorithm/hyperflowcutter.h
+@@ -78,7 +78,7 @@ namespace whfc {
+             cs.initialize(s, t);
+             piercer.initialize();
+             bool has_balanced_cut_below_flow_bound = false;
+-            while (!has_balanced_cut_below_flow_bound && findNextCut() && on_cut()) {
++            while (!has_balanced_cut_below_flow_bound && findNextCut() && on_cut(cs)) {
+                 has_balanced_cut_below_flow_bound |= cs.isBalanced();
+             }
  
-                 // push through bridge edge
-                 if (my_level == level[e_out] + 1) {
-@@ -210,7 +210,7 @@ namespace whfc {
-             assert(my_excess <= hg.capacity(e));
- 
-             while (my_excess > 0 && my_level < max_level) {
--                int new_level = max_level = -1;
-+                int new_level = max_level - 1;
- 
-                 // push out to pins
-                 for (const auto& p : hg.pinsOf(e)) {
