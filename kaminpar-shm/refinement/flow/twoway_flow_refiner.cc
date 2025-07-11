@@ -1078,11 +1078,9 @@ private:
     SCOPED_TIMER("Activate Blocks");
 
     for (BlockID block2 = 0, k = _p_graph->k(); block2 < k; ++block2) {
-      if (_active_blocks[block2]) {
-        for (BlockID block1 = 0; block1 < block2; ++block1) {
-          if (_active_blocks[block1]) {
-            _active_block_pairs.emplace_back(block1, block2);
-          }
+      for (BlockID block1 = 0; block1 < block2; ++block1) {
+        if (_active_blocks[block1] || _active_blocks[block2]) {
+          _active_block_pairs.emplace_back(block1, block2);
         }
       }
     }
@@ -1258,25 +1256,23 @@ private:
 
     Random::instance().shuffle(_active_block_pairs);
 
-    std::fill(_active_blocks.begin(), _active_blocks.end(), false);
+    std::fill_n(_active_blocks.begin(), _p_graph->k(), false);
   }
 
   void activate_blocks() {
     _active_block_pairs.clear();
 
     for (BlockID block2 = 0, k = _p_graph->k(); block2 < k; ++block2) {
-      if (_active_blocks[block2]) {
-        for (BlockID block1 = 0; block1 < block2; ++block1) {
-          if (_active_blocks[block1]) {
-            _active_block_pairs.emplace_back(block1, block2);
-          }
+      for (BlockID block1 = 0; block1 < block2; ++block1) {
+        if (_active_blocks[block1] || _active_blocks[block2]) {
+          _active_block_pairs.emplace_back(block1, block2);
         }
       }
     }
 
     Random::instance().shuffle(_active_block_pairs);
 
-    std::fill(_active_blocks.begin(), _active_blocks.end(), false);
+    std::fill_n(_active_blocks.begin(), _p_graph->k(), false);
   }
 
   void apply_moves(std::span<Move> moves) {
