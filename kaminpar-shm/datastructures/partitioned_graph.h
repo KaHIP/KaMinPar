@@ -390,6 +390,8 @@ private:
     KASSERT(partition.is_span());
     KASSERT(dense_block_weights.is_span());
     KASSERT(aligned_block_weights.is_span());
+
+    init_node_weights();
   }
 
   template <typename ValuePtrGetter>
