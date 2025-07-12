@@ -13,11 +13,10 @@
 namespace kaminpar::shm {
 
 std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
-    const CSRGraph &_graph,
-    const BorderRegion &_border_region1,
-    const BorderRegion &_border_region2,
-    std::span<const BlockID> _partition,
-    std::span<const BlockWeight> _block_weights
+    const CSRGraph &graph,
+    const PartitionedCSRGraph &p_graph,
+    const BorderRegion &border_region1,
+    const BorderRegion &border_region2
 ) {
   SCOPED_TIMER("Construct Flow Network");
 
@@ -25,19 +24,18 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
   constexpr NodeID kSink = 1;
   constexpr NodeID kFirstNodeID = 2;
 
-  const BlockID _block1 = _border_region1.block();
-  const BlockID _block2 = _border_region2.block();
+  const BlockID block1 = border_region1.block();
+  const BlockID block2 = border_region2.block();
 
   std::unordered_map<NodeID, NodeID> global_to_local_mapping;
   NodeID cur_node = kFirstNodeID;
-  for (const BorderRegion &border_region :
-       {std::cref(_border_region1), std::cref(_border_region2)}) {
+  for (const BorderRegion &border_region : {std::cref(border_region1), std::cref(border_region2)}) {
     for (const NodeID u : border_region.nodes()) {
       global_to_local_mapping.emplace(u, cur_node++);
     }
   }
 
-  const NodeID num_nodes = 2 + _border_region1.num_nodes() + _border_region2.num_nodes();
+  const NodeID num_nodes = 2 + border_region1.num_nodes() + border_region2.num_nodes();
   StaticArray<EdgeID> nodes(num_nodes + 1, static_array::noinit);
   StaticArray<NodeWeight> node_weights(num_nodes, static_array::noinit);
 
@@ -45,23 +43,23 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
   EdgeID num_source_edges = 0;
   EdgeID num_sink_edges = 0;
   for (BlockID terminal = 0; terminal < 2; ++terminal) {
-    const BorderRegion &border_region = (terminal == 0) ? _border_region1 : _border_region2;
+    const BorderRegion &border_region = (terminal == 0) ? border_region1 : border_region2;
 
     for (const NodeID u : border_region.nodes()) {
       EdgeID num_neighbors = 0;
       bool has_source_edge = false;
       bool has_sink_edge = false;
 
-      _graph.adjacent_nodes(u, [&](const NodeID v) {
+      graph.adjacent_nodes(u, [&](const NodeID v) {
         if (global_to_local_mapping.contains(v)) {
           num_neighbors += 1;
           return;
         }
 
-        const BlockID v_block = _partition[v];
-        if (v_block == _block1) {
+        const BlockID v_block = p_graph.block(v);
+        if (v_block == block1) {
           has_source_edge = true;
-        } else if (v_block == _block2) {
+        } else if (v_block == block2) {
           has_sink_edge = true;
         }
       });
@@ -76,7 +74,7 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
         num_sink_edges += 1;
       }
 
-      const NodeWeight u_weight = _graph.node_weight(u);
+      const NodeWeight u_weight = graph.node_weight(u);
       nodes[cur_node] = num_neighbors;
       node_weights[cur_node] = u_weight;
 
@@ -85,10 +83,10 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
   }
 
   nodes[kSource] = num_source_edges;
-  node_weights[kSource] = _block_weights[_block1] - _border_region1.weight();
+  node_weights[kSource] = p_graph.block_weight(block1) - border_region1.weight();
 
   nodes[kSink] = num_sink_edges;
-  node_weights[kSink] = _block_weights[_block2] - _border_region2.weight();
+  node_weights[kSink] = p_graph.block_weight(block2) - border_region2.weight();
 
   nodes.back() = 0;
   std::partial_sum(nodes.begin(), nodes.end(), nodes.begin());
@@ -107,7 +105,7 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
     const bool is_source_terminal = terminal == 0;
     const bool is_sink_terminal = terminal == 1;
 
-    const BorderRegion &border_region = is_source_terminal ? _border_region1 : _border_region2;
+    const BorderRegion &border_region = is_source_terminal ? border_region1 : border_region2;
     for (const NodeID u : border_region.nodes()) {
       const NodeID u_local = cur_node;
 
@@ -118,7 +116,7 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
       EdgeWeight sink_edge_weight = 0;
 
       EdgeID u_edge = nodes[u_local];
-      _graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+      graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
         if (auto it = global_to_local_mapping.find(v); it != global_to_local_mapping.end()) {
           const NodeID v_local = it->second;
           if (u_local >= v_local) {
@@ -136,18 +134,18 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
           reverse_edges[u_edge] = v_edge;
           reverse_edges[v_edge] = u_edge;
 
-          cut_value += (is_source_terminal && _border_region2.contains(v)) ? w : 0;
-          cut_value += (is_sink_terminal && _border_region1.contains(v)) ? w : 0;
+          cut_value += (is_source_terminal && border_region2.contains(v)) ? w : 0;
+          cut_value += (is_sink_terminal && border_region1.contains(v)) ? w : 0;
 
           return;
         }
 
-        const BlockID v_block = _partition[v];
-        if (v_block == _block1) {
+        const BlockID v_block = p_graph.block(v);
+        if (v_block == block1) {
           has_source_edge = true;
           source_edge_weight += w;
           cut_value += is_sink_terminal ? w : 0;
-        } else if (v_block == _block2) {
+        } else if (v_block == block2) {
           has_sink_edge = true;
           sink_edge_weight += w;
           cut_value += is_source_terminal ? w : 0;
@@ -187,7 +185,7 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
 
   nodes[kSource] = cur_source_edge;
   nodes[kSink] = cur_sink_edge;
-  CSRGraph graph(
+  CSRGraph flow_network_graph(
       CSRGraph::seq(),
       std::move(nodes),
       std::move(edges),
@@ -195,9 +193,13 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
       std::move(edge_weights)
   );
 
-  KASSERT(debug::validate_graph(graph), "constructed an invalid flow network", assert::heavy);
   KASSERT(
-      debug::is_valid_reverse_edge_index(graph, reverse_edges),
+      debug::validate_graph(flow_network_graph),
+      "constructed an invalid flow network",
+      assert::heavy
+  );
+  KASSERT(
+      debug::is_valid_reverse_edge_index(flow_network_graph, reverse_edges),
       "constructed an invalid reverse edge index",
       assert::heavy
   );
@@ -206,7 +208,7 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
       FlowNetwork(
           kSource,
           kSink,
-          std::move(graph),
+          std::move(flow_network_graph),
           std::move(reverse_edges),
           std::move(global_to_local_mapping)
       ),
@@ -282,11 +284,10 @@ private:
 } // namespace
 
 [[nodiscard]] std::pair<FlowNetwork, EdgeWeight> parallel_construct_flow_network(
-    const CSRGraph &_graph,
-    const BorderRegion &_border_region1,
-    const BorderRegion &_border_region2,
-    std::span<const BlockID> _partition,
-    std::span<const BlockWeight> _block_weights
+    const CSRGraph &graph,
+    const PartitionedCSRGraph &p_graph,
+    const BorderRegion &border_region1,
+    const BorderRegion &border_region2
 ) {
   SCOPED_TIMER("Construct Flow Network");
 
@@ -294,19 +295,18 @@ private:
   constexpr NodeID kSink = 1;
   constexpr NodeID kFirstNodeID = 2;
 
-  const BlockID _block1 = _border_region1.block();
-  const BlockID _block2 = _border_region2.block();
+  const BlockID block1 = border_region1.block();
+  const BlockID block2 = border_region2.block();
 
   std::unordered_map<NodeID, NodeID> global_to_local_mapping;
   NodeID cur_node = kFirstNodeID;
-  for (const BorderRegion &border_region :
-       {std::cref(_border_region1), std::cref(_border_region2)}) {
+  for (const BorderRegion &border_region : {std::cref(border_region1), std::cref(border_region2)}) {
     for (const NodeID u : border_region.nodes()) {
       global_to_local_mapping.emplace(u, cur_node++);
     }
   }
 
-  const NodeID num_nodes = 2 + _border_region1.num_nodes() + _border_region2.num_nodes();
+  const NodeID num_nodes = 2 + border_region1.num_nodes() + border_region2.num_nodes();
   StaticArray<EdgeID> nodes(num_nodes + 1, static_array::noinit);
   StaticArray<NodeWeight> node_weights(num_nodes, static_array::noinit);
 
@@ -314,9 +314,9 @@ private:
   tbb::enumerable_thread_specific<EdgeID> num_sink_edges_ets;
   for (BlockID terminal = 0; terminal < 2; ++terminal) {
     const bool source_side = terminal == 0;
-    const BorderRegion &border_region = source_side ? _border_region1 : _border_region2;
+    const BorderRegion &border_region = source_side ? border_region1 : border_region2;
 
-    const NodeID u_local_offset = kFirstNodeID + (source_side ? 0 : _border_region1.num_nodes());
+    const NodeID u_local_offset = kFirstNodeID + (source_side ? 0 : border_region1.num_nodes());
     const std::span<const NodeID> border_region_nodes = border_region.nodes();
     tbb::parallel_for<std::size_t>(0, border_region_nodes.size(), [&](const std::size_t i) {
       const NodeID u = border_region_nodes[i];
@@ -325,16 +325,16 @@ private:
       EdgeID num_neighbors = 0;
       bool has_source_edge = false;
       bool has_sink_edge = false;
-      _graph.adjacent_nodes(u, [&](const NodeID v) {
+      graph.adjacent_nodes(u, [&](const NodeID v) {
         if (global_to_local_mapping.contains(v)) {
           num_neighbors += 1;
           return;
         }
 
-        const BlockID v_block = _partition[v];
-        if (v_block == _block1) {
+        const BlockID v_block = p_graph.block(v);
+        if (v_block == block1) {
           has_source_edge = true;
-        } else if (v_block == _block2) {
+        } else if (v_block == block2) {
           has_sink_edge = true;
         }
       });
@@ -349,17 +349,17 @@ private:
         num_sink_edges_ets.local() += 1;
       }
 
-      const NodeWeight u_weight = _graph.node_weight(u);
+      const NodeWeight u_weight = graph.node_weight(u);
       nodes[u_local] = num_neighbors;
       node_weights[u_local] = u_weight;
     });
   }
 
   nodes[kSource] = num_source_edges_ets.combine(std::plus<>());
-  node_weights[kSource] = _block_weights[_block1] - _border_region1.weight();
+  node_weights[kSource] = p_graph.block_weight(block1) - border_region1.weight();
 
   nodes[kSink] = num_sink_edges_ets.combine(std::plus<>());
-  node_weights[kSink] = _block_weights[_block2] - _border_region2.weight();
+  node_weights[kSink] = p_graph.block_weight(block2) - border_region2.weight();
 
   nodes.back() = 0;
   parallel::prefix_sum(nodes.begin(), nodes.end(), nodes.begin());
@@ -384,11 +384,11 @@ private:
     const bool source_side = terminal == 0;
     const bool sink_side = terminal == 1;
 
-    const BorderRegion &border_region = source_side ? _border_region1 : _border_region2;
+    const BorderRegion &border_region = source_side ? border_region1 : border_region2;
     const std::span<const NodeID> border_region_nodes = border_region.nodes();
     const NodeID b_n = border_region_nodes.size();
 
-    const NodeID u_local_offset = kFirstNodeID + (source_side ? 0 : _border_region1.num_nodes());
+    const NodeID u_local_offset = kFirstNodeID + (source_side ? 0 : border_region1.num_nodes());
     tbb::parallel_for(tbb::blocked_range<std::size_t>(0, b_n), [&](const auto &range) {
       EdgeWeight local_cut_value = 0;
 
@@ -406,7 +406,7 @@ private:
         bool has_sink_edge = false;
         EdgeWeight sink_edge_weight = 0;
 
-        _graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+        graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
           if (auto it = global_to_local_mapping.find(v); it != global_to_local_mapping.end()) {
             const NodeID v_local = it->second;
             if (u_local >= v_local) {
@@ -422,17 +422,17 @@ private:
               buffer.flush(u_local);
             }
 
-            local_cut_value += (source_side && _border_region2.contains(v)) ? w : 0;
-            local_cut_value += (sink_side && _border_region1.contains(v)) ? w : 0;
+            local_cut_value += (source_side && border_region2.contains(v)) ? w : 0;
+            local_cut_value += (sink_side && border_region1.contains(v)) ? w : 0;
             return;
           }
 
-          const BlockID v_block = _partition[v];
-          if (v_block == _block1) {
+          const BlockID v_block = p_graph.block(v);
+          if (v_block == block1) {
             has_source_edge = true;
             source_edge_weight += w;
             local_cut_value += sink_side ? w : 0;
-          } else if (v_block == _block2) {
+          } else if (v_block == block2) {
             has_sink_edge = true;
             sink_edge_weight += w;
             local_cut_value += source_side ? w : 0;
@@ -485,13 +485,16 @@ private:
     }
   });
 
-  CSRGraph graph(
+  CSRGraph flow_network_graph(
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights)
   );
-
-  KASSERT(debug::validate_graph(graph), "constructed an invalid flow network", assert::heavy);
   KASSERT(
-      debug::is_valid_reverse_edge_index(graph, reverse_edges),
+      debug::validate_graph(flow_network_graph),
+      "constructed an invalid flow network",
+      assert::heavy
+  );
+  KASSERT(
+      debug::is_valid_reverse_edge_index(flow_network_graph, reverse_edges),
       "constructed an invalid reverse edge index",
       assert::heavy
   );
@@ -500,7 +503,7 @@ private:
       FlowNetwork(
           kSource,
           kSink,
-          std::move(graph),
+          std::move(flow_network_graph),
           std::move(reverse_edges),
           std::move(global_to_local_mapping)
       ),

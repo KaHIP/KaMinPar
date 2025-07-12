@@ -33,6 +33,7 @@
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/refinement/flow/flow_network/border_region.h"
 #include "kaminpar-shm/refinement/flow/flow_network/flow_network.h"
+#include "kaminpar-shm/refinement/flow/flow_network/quotient_graph.h"
 #include "kaminpar-shm/refinement/flow/max_flow/max_preflow_algorithm.h"
 #include "kaminpar-shm/refinement/flow/max_flow/parallel_preflow_push_algorithm.h"
 #include "kaminpar-shm/refinement/flow/max_flow/preflow_push_algorithm.h"
@@ -96,6 +97,7 @@ public:
       const PartitionContext &p_ctx,
       const TwowayFlowRefinementContext &f_ctx,
       const bool run_sequentially,
+      const QuotientGraph &q_graph,
       const PartitionedCSRGraph &p_graph,
       const CSRGraph &graph,
       const TimePoint &start_time
@@ -103,11 +105,10 @@ public:
       : _p_ctx(p_ctx),
         _f_ctx(f_ctx),
         _run_sequentially(run_sequentially),
+        _q_graph(q_graph),
         _p_graph(p_graph),
         _graph(graph),
         _start_time(start_time),
-        _partition(graph.n(), static_array::noinit),
-        _block_weights(p_graph.k(), static_array::noinit),
         _piercing_nodes_candidates_marker(graph.n()),
         _piercing_heuristic(f_ctx.piercing),
         _dynamic_balancer(p_ctx.max_block_weights()),
@@ -143,8 +144,6 @@ public:
     _constrained_cut_value = cut_value;
     _unconstrained_cut_value = cut_value;
 
-    initialize_block_data();
-
     compute_border_regions();
     if (_border_region1.empty() || _border_region2.empty()) {
       return Result::Empty();
@@ -154,13 +153,11 @@ public:
     expand_border_region(_border_region2);
 
     if (_run_sequentially) {
-      std::tie(_flow_network, _initial_cut_value) = construct_flow_network(
-          _graph, _border_region1, _border_region2, _partition, _block_weights
-      );
+      std::tie(_flow_network, _initial_cut_value) =
+          construct_flow_network(_graph, _p_graph, _border_region1, _border_region2);
     } else {
-      std::tie(_flow_network, _initial_cut_value) = parallel_construct_flow_network(
-          _graph, _border_region1, _border_region2, _partition, _block_weights
-      );
+      std::tie(_flow_network, _initial_cut_value) =
+          parallel_construct_flow_network(_graph, _p_graph, _border_region1, _border_region2);
     }
 
     DBG << "Starting refinement for block pair " << _block1 << " and " << _block2
@@ -190,20 +187,6 @@ public:
   }
 
 private:
-  void initialize_block_data() {
-    SCOPED_TIMER("Initialize Block Data");
-
-    std::fill(_block_weights.begin(), _block_weights.end(), 0);
-
-    for (const NodeID u : _graph.nodes()) {
-      const BlockID u_block = _p_graph.block(u);
-      const NodeWeight u_weight = _graph.node_weight(u);
-
-      _partition[u] = u_block;
-      _block_weights[u_block] += u_weight;
-    }
-  }
-
   void compute_border_regions() {
     SCOPED_TIMER("Compute Border Regions");
 
@@ -213,45 +196,42 @@ private:
     const NodeWeight max_border_region_weight1 =
         (1 + _f_ctx.border_region_scaling_factor * _p_ctx.epsilon()) *
             _p_ctx.perfectly_balanced_block_weight(block2) -
-        _block_weights[_block2];
+        _p_graph.block_weight(_block2);
     _border_region1.reset(block1, max_border_region_weight1, _graph.n());
 
     const NodeWeight max_border_region_weight2 =
         (1 + _f_ctx.border_region_scaling_factor * _p_ctx.epsilon()) *
             _p_ctx.perfectly_balanced_block_weight(block1) -
-        _block_weights[_block1];
+        _p_graph.block_weight(_block1);
     _border_region2.reset(block2, max_border_region_weight2, _graph.n());
 
-    for (const NodeID u : _graph.nodes()) {
-      if (_partition[u] != block1) {
+    for (const auto [u, v] : _q_graph.quotient_edge_cuts(block1, block2)) {
+      if (_p_graph.block(u) != _block1 || _p_graph.block(v) != _block2) [[unlikely]] {
+        continue;
+      }
+
+      const bool u_is_contained = _border_region1.contains(u);
+      const bool v_is_contained = _border_region2.contains(v);
+      if (u_is_contained && v_is_contained) {
         continue;
       }
 
       const NodeWeight u_weight = _graph.node_weight(u);
-      if (!_border_region1.fits(u_weight)) {
-        continue;
-      }
+      const NodeWeight v_weight = _graph.node_weight(v);
 
-      bool is_border_region_node = false;
-      _graph.adjacent_nodes(u, [&](const NodeID v) {
-        if (_partition[v] != block2) {
-          return;
-        }
-
-        if (_border_region2.contains(v)) {
-          is_border_region_node = true;
-          return;
-        }
-
-        const NodeWeight v_weight = _graph.node_weight(v);
-        if (_border_region2.fits(v_weight)) {
-          is_border_region_node = true;
+      const bool u_fits = _border_region1.fits(u_weight);
+      const bool v_fits = _border_region2.fits(v_weight);
+      if (u_is_contained) {
+        if (v_fits) {
           _border_region2.insert(v, v_weight);
         }
-      });
-
-      if (is_border_region_node) {
+      } else if (v_is_contained) {
+        if (u_fits) {
+          _border_region1.insert(u, u_weight);
+        }
+      } else if (u_fits && v_fits) {
         _border_region1.insert(u, u_weight);
+        _border_region2.insert(v, v_weight);
       }
     }
   }
@@ -267,7 +247,7 @@ private:
       const NodeID v_distance = u_distance + 1;
 
       _graph.adjacent_nodes(u, [&](const NodeID v) {
-        if (_partition[v] != block || border_region.contains(v)) {
+        if (_p_graph.block(v) != block || border_region.contains(v)) {
           return;
         }
 
@@ -308,7 +288,7 @@ private:
     hypergraph.finalize();
     STOP_TIMER();
 
-    const NodeWeight total_weight = _block_weights[_block1] + _block_weights[_block2];
+    const NodeWeight total_weight = _p_graph.block_weight(_block1) + _p_graph.block_weight(_block2);
     const NodeWeight max_block1_weight = _p_ctx.max_block_weight(_block1);
     const NodeWeight max_block2_weight = _p_ctx.max_block_weight(_block2);
 
@@ -445,7 +425,7 @@ private:
     _sink_side_border_nodes.clear();
     _sink_side_border_nodes.push_back(_flow_network.sink);
 
-    const NodeWeight total_weight = _block_weights[_block1] + _block_weights[_block2];
+    const NodeWeight total_weight = _p_graph.block_weight(_block1) + _p_graph.block_weight(_block2);
     const NodeWeight max_source_side_weight = _p_ctx.max_block_weight(_block1);
     const NodeWeight max_sink_side_weight = _p_ctx.max_block_weight(_block2);
 
@@ -798,7 +778,7 @@ private:
 
     _constrained_moves.clear();
     for (const auto &[u, u_local] : _flow_network.global_to_local_mapping) {
-      const BlockID old_block = _partition[u];
+      const BlockID old_block = _p_graph.block(u);
       const BlockID new_block = fetch_block(u_local);
 
       if (old_block != new_block) {
@@ -811,7 +791,7 @@ private:
     SCOPED_TIMER("Initialize Rebalancer");
 
     for (const NodeID u : _graph.nodes()) {
-      _p_graph_rebalancing_copy.set_block(u, _partition[u]);
+      _p_graph_rebalancing_copy.set_block(u, _p_graph.block(u));
     }
 
     if (_f_ctx.dynamic_rebalancer) {
@@ -879,7 +859,7 @@ private:
         _unconstrained_moves.clear();
 
         for (const auto [u, _] : _flow_network.global_to_local_mapping) {
-          const BlockID old_block = _partition[u];
+          const BlockID old_block = _p_graph.block(u);
           const BlockID new_block = _p_graph_rebalancing_copy.block(u);
 
           if (old_block != new_block) {
@@ -919,6 +899,7 @@ private:
   const TwowayFlowRefinementContext &_f_ctx;
   const bool _run_sequentially;
 
+  const QuotientGraph &_q_graph;
   const PartitionedCSRGraph &_p_graph;
   const CSRGraph &_graph;
 
@@ -927,9 +908,6 @@ private:
 
   BlockID _block1;
   BlockID _block2;
-
-  StaticArray<BlockID> _partition;
-  StaticArray<BlockWeight> _block_weights;
 
   BorderRegion _border_region1;
   BorderRegion _border_region2;
@@ -964,8 +942,35 @@ private:
   StaticGreedyBalancer<PartitionedCSRGraph, CSRGraph> _sink_side_balancer;
 };
 
+namespace {
+
+struct BlockPairSchedulerStatistics {
+  std::size_t num_searches;
+  std::size_t num_local_improvements;
+  std::size_t num_global_improvements;
+  std::size_t num_imbalance_conflicts;
+
+  void reset() {
+    num_searches = 0;
+    num_local_improvements = 0;
+    num_global_improvements = 0;
+    num_imbalance_conflicts = 0;
+  }
+
+  void print() const {
+    LOG_STATS << "Two-Way Flow Refiner:";
+    LOG_STATS << "*  # num searches: " << num_searches;
+    LOG_STATS << "*  # num local improvements: " << num_local_improvements;
+    LOG_STATS << "*  # num global improvements: " << num_global_improvements;
+    LOG_STATS << "*  # num imbalance conflicts: " << num_imbalance_conflicts;
+  }
+};
+
+} // namespace
+
 class SequentialBlockPairScheduler {
   SET_DEBUG(true);
+  SET_STATISTICS(true);
 
   using Clock = BipartitionFlowRefiner::Clock;
   using TimePoint = BipartitionFlowRefiner::TimePoint;
@@ -978,28 +983,37 @@ public:
     _p_graph = &p_graph;
     _graph = &graph;
 
+    if (_active_blocks.size() < _p_graph->k()) {
+      _active_blocks.resize(_p_graph->k(), static_array::noinit);
+    }
+
     // Since the timers have a significant running time overhead, we disable them usually.
     IF_NOT_DBG DISABLE_TIMERS();
+    IF_STATS _stats.reset();
 
     const TimePoint start_time = Clock::now();
-    activate_all_blocks();
+    QuotientGraph quotient_graph(p_graph);
+
+    constexpr bool kActivateAllBlockPairs = true;
+    activate_blocks(quotient_graph, kActivateAllBlockPairs);
 
     constexpr bool kRunSequentially = true;
-    BipartitionFlowRefiner refiner(p_ctx, _f_ctx, kRunSequentially, p_graph, graph, start_time);
+    BipartitionFlowRefiner refiner(
+        p_ctx, _f_ctx, kRunSequentially, quotient_graph, p_graph, graph, start_time
+    );
 
     std::size_t num_round = 0;
     bool found_improvement = false;
-    EdgeWeight prev_cut_value = metrics::edge_cut_seq(p_graph);
+    EdgeWeight prev_cut_value = quotient_graph.total_cut_weight();
     while (prev_cut_value > 0) {
       num_round += 1;
       DBG << "Starting round " << num_round;
 
       EdgeWeight cut_value = prev_cut_value;
-      while (!_active_block_pairs.empty()) {
-        const auto [block1, block2] = _active_block_pairs.back();
-        _active_block_pairs.pop_back();
-
+      for (const auto [block1, block2] : _active_block_pairs) {
         DBG << "Scheduling block pair " << block1 << " and " << block2;
+        IF_STATS _stats.num_searches += 1;
+
         const auto [time_limit_exceeded, gain, moves] = refiner.refine(cut_value, block1, block2);
 
         if (time_limit_exceeded) {
@@ -1008,8 +1022,9 @@ public:
           break;
         }
 
+        const EdgeWeight new_cut_value = cut_value - gain;
         DBG << "Found balanced cut for bock pair " << block1 << " and " << block2 << " with gain "
-            << gain << " (" << cut_value << " -> " << (cut_value - gain) << ")";
+            << gain << " (" << cut_value << " -> " << new_cut_value << ")";
 
         if (gain > 0) {
           apply_moves(moves);
@@ -1026,7 +1041,12 @@ public:
               assert::heavy
           );
 
-          cut_value -= gain;
+          IF_STATS _stats.num_local_improvements += 1;
+          IF_STATS _stats.num_global_improvements += 1;
+
+          quotient_graph.add_gain(block1, block2, gain);
+          cut_value = new_cut_value;
+
           _active_blocks[block1] = true;
           _active_blocks[block2] = true;
         }
@@ -1045,49 +1065,48 @@ public:
         break;
       }
 
-      activate_blocks();
+      quotient_graph.reconstruct();
+      activate_blocks(quotient_graph);
+
       prev_cut_value = cut_value;
     }
 
     IF_NOT_DBG ENABLE_TIMERS();
+    IF_STATS _stats.print();
 
     return found_improvement;
   }
 
 private:
-  void activate_all_blocks() {
+  void activate_blocks(const QuotientGraph &quotient_graph, const bool activate_all = false) {
     SCOPED_TIMER("Activate Blocks");
-
-    if (_active_blocks.size() < _p_graph->k()) {
-      _active_blocks.resize(_p_graph->k(), static_array::noinit);
-    }
 
     _active_block_pairs.clear();
     for (BlockID block2 = 0, k = _p_graph->k(); block2 < k; ++block2) {
       for (BlockID block1 = 0; block1 < block2; ++block1) {
-        _active_block_pairs.emplace_back(block1, block2);
-      }
-    }
-
-    Random::instance().shuffle(_active_block_pairs);
-
-    std::fill(_active_blocks.begin(), _active_blocks.end(), false);
-  }
-
-  void activate_blocks() {
-    SCOPED_TIMER("Activate Blocks");
-
-    for (BlockID block2 = 0, k = _p_graph->k(); block2 < k; ++block2) {
-      for (BlockID block1 = 0; block1 < block2; ++block1) {
-        if (_active_blocks[block1] || _active_blocks[block2]) {
+        if (quotient_graph.has_quotient_edge(block1, block2) &&
+            (activate_all || _active_blocks[block1] || _active_blocks[block2])) {
           _active_block_pairs.emplace_back(block1, block2);
         }
       }
     }
 
-    Random::instance().shuffle(_active_block_pairs);
+    if (activate_all) {
+      Random::instance().shuffle(_active_block_pairs);
+    } else {
+      std::sort(
+          _active_block_pairs.begin(),
+          _active_block_pairs.end(),
+          [&](const auto &pair1, const auto &pair2) {
+            const QuotientGraph::Edge &edge1 = quotient_graph.edge(pair1.first, pair1.second);
+            const QuotientGraph::Edge &edge2 = quotient_graph.edge(pair2.first, pair2.second);
+            return edge1.total_gain > edge2.total_gain ||
+                   (edge1.total_gain == edge2.total_gain && (edge1.cut_weight >= edge2.cut_weight));
+          }
+      );
+    }
 
-    std::fill(_active_blocks.begin(), _active_blocks.end(), false);
+    std::fill_n(_active_blocks.begin(), _p_graph->k(), false);
   }
 
   void apply_moves(std::span<const Move> moves) {
@@ -1099,6 +1118,11 @@ private:
           "Move sequence contains invalid old block ids",
           assert::heavy
       );
+      KASSERT(
+          move.old_block != move.new_block,
+          "Move sequence contains moves where node is already in target block",
+          assert::heavy
+      );
 
       _p_graph->set_block(move.node, move.new_block);
     }
@@ -1106,6 +1130,7 @@ private:
 
 private:
   const TwowayFlowRefinementContext &_f_ctx;
+  BlockPairSchedulerStatistics _stats;
 
   PartitionedCSRGraph *_p_graph;
   const CSRGraph *_graph;
@@ -1116,6 +1141,7 @@ private:
 
 class ParallelBlockPairScheduler {
   SET_DEBUG(true);
+  SET_STATISTICS(true);
 
   using Clock = BipartitionFlowRefiner::Clock;
   using TimePoint = BipartitionFlowRefiner::TimePoint;
@@ -1127,9 +1153,32 @@ public:
   bool refine(PartitionedCSRGraph &p_graph, const CSRGraph &graph, const PartitionContext &p_ctx) {
     _p_graph = &p_graph;
     _graph = &graph;
+    _p_ctx = &p_ctx;
+
+    if (_active_blocks.size() < p_graph.k()) {
+      _active_blocks.resize(p_graph.k(), static_array::noinit);
+    }
+    if (_block_weight_delta.size() < p_graph.k()) {
+      _block_weight_delta.resize(p_graph.k(), static_array::noinit);
+    }
+    if (_new_block_weights.size() < p_graph.k()) {
+      _new_block_weights.resize(p_graph.k(), static_array::noinit);
+    }
+    std::copy(
+        p_graph.raw_block_weights().begin(),
+        p_graph.raw_block_weights().end(),
+        _new_block_weights.begin()
+    );
+    if (_new_partition.size() < graph.n()) {
+      _new_partition.resize(graph.n(), static_array::noinit);
+    }
+    std::copy(
+        p_graph.raw_partition().begin(), p_graph.raw_partition().end(), _new_partition.begin()
+    );
 
     // Since timers are not multi-threaded, we disable them during parallel refinement.
     DISABLE_TIMERS();
+    IF_STATS _stats.reset();
 
     const std::size_t num_threads = tbb::this_task_arena::max_concurrency();
     const std::size_t max_num_quotient_graph_edges = p_graph.k() * (p_graph.k() - 1) / 2;
@@ -1139,13 +1188,16 @@ public:
     );
 
     const TimePoint start_time = Clock::now();
-    activate_all_blocks();
+    QuotientGraph quotient_graph(p_graph);
+
+    constexpr bool kActivateAllBlockPairs = true;
+    activate_blocks(quotient_graph, kActivateAllBlockPairs);
 
     const bool run_sequentially = true; // num_threads == num_parallel_searches;
     LazyVector<BipartitionFlowRefiner> refiners(
         [&] {
           return BipartitionFlowRefiner(
-              p_ctx, _f_ctx, run_sequentially, p_graph, graph, start_time
+              p_ctx, _f_ctx, run_sequentially, quotient_graph, p_graph, graph, start_time
           );
         },
         num_parallel_searches
@@ -1158,6 +1210,7 @@ public:
     while (prev_cut_value > 0) {
       num_round += 1;
       DBG << "Starting round " << num_round;
+      IF_STATS _stats.num_searches += _active_block_pairs.size();
 
       EdgeWeight cut_value = prev_cut_value;
 
@@ -1178,7 +1231,7 @@ public:
           const auto [block1, block2] = _active_block_pairs[block_pair];
           DBG << "Scheduling block pair " << block1 << " and " << block2;
 
-          auto [time_limit_exceeded, gain, moves] = refiner.refine(cut_value, block1, block2);
+          auto [time_limit_exceeded, gain, moves] = refiner.refine(prev_cut_value, block1, block2);
 
           if (time_limit_exceeded) {
             if (tbb::task::current_context()->cancel_group_execution()) {
@@ -1194,17 +1247,32 @@ public:
           }
 
           const std::unique_lock lock(_apply_moves_mutex);
-          apply_moves(moves);
+          IF_STATS _stats.num_local_improvements += 1;
 
-          const bool imbalance_conflict = !metrics::is_balanced(p_graph, p_ctx);
+          const bool imbalance_conflict = !is_feasible_move_sequence(moves);
           if (imbalance_conflict) {
             DBG << "Block pair " << block1 << " and " << block2 << " has an imbalance conflict";
-            revert_moves(moves);
+            IF_STATS _stats.num_imbalance_conflicts += 1;
+
+            _active_blocks[block1] = true;
+            _active_blocks[block2] = true;
             continue;
           }
 
-          const EdgeWeight new_cut_value = metrics::edge_cut_seq(p_graph);
-          const EdgeWeight actual_gain = cut_value - new_cut_value;
+          const EdgeWeight actual_gain = apply_moves(moves);
+          const EdgeWeight new_cut_value = cut_value - actual_gain;
+
+          KASSERT(
+              new_cut_value == metrics::edge_cut_seq(graph, _new_partition),
+              "computed an invalid new cut value",
+              assert::heavy
+          );
+          KASSERT(
+              metrics::are_weights_balanced(_new_block_weights, p_ctx),
+              "Computed an imbalanced move sequence",
+              assert::heavy
+          );
+
           DBG << "Found balanced cut for bock pair " << block1 << " and " << block2 << " with gain "
               << actual_gain << " (" << cut_value << " -> " << new_cut_value << ")";
 
@@ -1213,6 +1281,7 @@ public:
             continue;
           }
 
+          IF_STATS _stats.num_global_improvements += 1;
           cut_value = new_cut_value;
           _active_blocks[block1] = true;
           _active_blocks[block2] = true;
@@ -1222,6 +1291,21 @@ public:
       const EdgeWeight gain = prev_cut_value - cut_value;
       if (gain > 0) {
         found_improvement = true;
+
+        tbb::parallel_for<NodeID>(0, graph.n(), [&](const NodeID u) {
+          p_graph.set_block(u, _new_partition[u]);
+        });
+
+        KASSERT(
+            cut_value == metrics::edge_cut_seq(p_graph),
+            "computed an invalid new cut value",
+            assert::heavy
+        );
+        KASSERT(
+            metrics::is_balanced(p_graph, p_ctx),
+            "Computed an imbalanced move sequence",
+            assert::heavy
+        );
       }
 
       const double relative_improvement = gain / static_cast<double>(prev_cut_value);
@@ -1232,63 +1316,123 @@ public:
         break;
       }
 
-      activate_blocks();
+      quotient_graph.reconstruct();
+      activate_blocks(quotient_graph);
+
       prev_cut_value = cut_value;
     }
 
     ENABLE_TIMERS();
+    IF_STATS _stats.print();
 
     return found_improvement;
   }
 
 private:
-  void activate_all_blocks() {
-    if (_active_blocks.size() < _p_graph->k()) {
-      _active_blocks.resize(_p_graph->k(), static_array::noinit);
-    }
+  void activate_blocks(const QuotientGraph &quotient_graph, const bool activate_all = false) {
+    SCOPED_TIMER("Activate Blocks");
 
     _active_block_pairs.clear();
     for (BlockID block2 = 0, k = _p_graph->k(); block2 < k; ++block2) {
       for (BlockID block1 = 0; block1 < block2; ++block1) {
-        _active_block_pairs.emplace_back(block1, block2);
-      }
-    }
-
-    Random::instance().shuffle(_active_block_pairs);
-
-    std::fill_n(_active_blocks.begin(), _p_graph->k(), false);
-  }
-
-  void activate_blocks() {
-    _active_block_pairs.clear();
-
-    for (BlockID block2 = 0, k = _p_graph->k(); block2 < k; ++block2) {
-      for (BlockID block1 = 0; block1 < block2; ++block1) {
-        if (_active_blocks[block1] || _active_blocks[block2]) {
+        if (quotient_graph.has_quotient_edge(block1, block2) &&
+            (activate_all || _active_blocks[block1] || _active_blocks[block2])) {
           _active_block_pairs.emplace_back(block1, block2);
         }
       }
     }
 
-    Random::instance().shuffle(_active_block_pairs);
+    if (activate_all) {
+      Random::instance().shuffle(_active_block_pairs);
+    } else {
+      std::sort(
+          _active_block_pairs.begin(),
+          _active_block_pairs.end(),
+          [&](const auto &pair1, const auto &pair2) {
+            const QuotientGraph::Edge &edge1 = quotient_graph.edge(pair1.first, pair1.second);
+            const QuotientGraph::Edge &edge2 = quotient_graph.edge(pair2.first, pair2.second);
+            return edge1.total_gain > edge2.total_gain ||
+                   (edge1.total_gain == edge2.total_gain && (edge1.cut_weight >= edge2.cut_weight));
+          }
+      );
+    }
 
     std::fill_n(_active_blocks.begin(), _p_graph->k(), false);
   }
 
-  void apply_moves(std::span<Move> moves) {
+  bool is_feasible_move_sequence(std::span<Move> moves) {
+    std::fill_n(_block_weight_delta.begin(), _p_graph->k(), 0);
+
     for (Move &move : moves) {
       const NodeID u = move.node;
+      const BlockID old_block = move.old_block;
+      const BlockID new_block = move.new_block;
+
+      KASSERT(
+          _p_graph->block(u) == old_block,
+          "Move sequence contains invalid old block ids",
+          assert::heavy
+      );
+      KASSERT(
+          move.old_block != move.new_block,
+          "Move sequence contains moves where node is already in target block",
+          assert::heavy
+      );
 
       // Remove all nodes from the move sequence that are not in their expected block.
       // Use the old block variable to mark the move as such, which is used during reverting.
-      const BlockID invalid_block_conflict = _p_graph->block(u) != move.old_block;
+      const BlockID invalid_block_conflict = _new_partition[u] != old_block;
       if (invalid_block_conflict) {
         move.old_block = kInvalidBlockID;
         continue;
       }
 
-      _p_graph->set_block(u, move.new_block);
+      const NodeWeight u_weight = _graph->node_weight(u);
+      _block_weight_delta[old_block] -= u_weight;
+      _block_weight_delta[new_block] += u_weight;
     }
+
+    for (BlockID block = 0, k = _p_graph->k(); block < k; ++block) {
+      if (_new_block_weights[block] + _block_weight_delta[block] >
+          _p_ctx->max_block_weight(block)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  EdgeWeight apply_moves(std::span<const Move> moves) {
+    EdgeWeight gain = 0;
+
+    for (const Move &move : moves) {
+      const BlockID old_block = move.old_block;
+
+      // If the node was not in its expected block, it should not be moved.
+      const BlockID invalid_block_conflict = old_block == kInvalidBlockID;
+      if (invalid_block_conflict) {
+        continue;
+      }
+
+      const NodeID u = move.node;
+      const BlockID new_block = move.new_block;
+      _new_partition[u] = new_block;
+
+      EdgeWeight from_connection = 0;
+      EdgeWeight to_connection = 0;
+      _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+        const BlockID v_block = _new_partition[v];
+        from_connection += (v_block == old_block) ? w : 0;
+        to_connection += (v_block == new_block) ? w : 0;
+      });
+      gain += to_connection - from_connection;
+    }
+
+    for (BlockID block = 0, k = _p_graph->k(); block < k; ++block) {
+      _new_block_weights[block] += _block_weight_delta[block];
+    }
+
+    return gain;
   }
 
   void revert_moves(std::span<const Move> moves) {
@@ -1302,18 +1446,29 @@ private:
         continue;
       }
 
-      _p_graph->set_block(move.node, old_block);
+      const NodeID u = move.node;
+      _new_partition[u] = old_block;
+    }
+
+    for (BlockID block = 0, k = _p_graph->k(); block < k; ++block) {
+      _new_block_weights[block] -= _block_weight_delta[block];
     }
   }
 
 private:
   const TwowayFlowRefinementContext &_f_ctx;
+  BlockPairSchedulerStatistics _stats;
 
   PartitionedCSRGraph *_p_graph;
   const CSRGraph *_graph;
+  const PartitionContext *_p_ctx;
 
   StaticArray<bool> _active_blocks;
   ScalableVector<std::pair<BlockID, BlockID>> _active_block_pairs;
+
+  StaticArray<BlockWeight> _block_weight_delta;
+  StaticArray<BlockWeight> _new_block_weights;
+  StaticArray<BlockID> _new_partition;
 
   std::mutex _apply_moves_mutex;
 };
