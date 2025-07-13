@@ -636,6 +636,9 @@ CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context 
 
   twoway_flow->add_option("--r-twoway-flow-whfc", ctx.refinement.twoway_flow.use_whfc)
       ->capture_default_str();
+  twoway_flow
+      ->add_option("--r-twoway-flow-run-sequentially", ctx.refinement.twoway_flow.run_sequentially)
+      ->capture_default_str();
 
   twoway_flow->add_option("--r-twoway-flow-time-limit", ctx.refinement.twoway_flow.time_limit)
       ->capture_default_str();

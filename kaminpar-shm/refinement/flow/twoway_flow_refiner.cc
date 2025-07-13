@@ -50,7 +50,6 @@
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/logger.h"
-#include "kaminpar-common/random.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
@@ -1068,9 +1067,8 @@ public:
     constexpr bool kActivateAllBlockPairs = true;
     activate_blocks(quotient_graph, kActivateAllBlockPairs);
 
-    constexpr bool kRunSequentially = true;
     BipartitionFlowRefiner refiner(
-        p_ctx, _f_ctx, kRunSequentially, quotient_graph, p_graph, graph, start_time
+        p_ctx, _f_ctx, _f_ctx.run_sequentially, quotient_graph, p_graph, graph, start_time
     );
 
     std::size_t num_round = 0;
@@ -1162,20 +1160,16 @@ private:
       }
     }
 
-    if (activate_all) {
-      Random::instance().shuffle(_active_block_pairs);
-    } else {
-      std::sort(
-          _active_block_pairs.begin(),
-          _active_block_pairs.end(),
-          [&](const auto &pair1, const auto &pair2) {
-            const QuotientGraph::Edge &edge1 = quotient_graph.edge(pair1.first, pair1.second);
-            const QuotientGraph::Edge &edge2 = quotient_graph.edge(pair2.first, pair2.second);
-            return edge1.total_gain > edge2.total_gain ||
-                   (edge1.total_gain == edge2.total_gain && (edge1.cut_weight >= edge2.cut_weight));
-          }
-      );
-    }
+    std::sort(
+        _active_block_pairs.begin(),
+        _active_block_pairs.end(),
+        [&](const auto &pair1, const auto &pair2) {
+          const QuotientGraph::Edge &edge1 = quotient_graph.edge(pair1.first, pair1.second);
+          const QuotientGraph::Edge &edge2 = quotient_graph.edge(pair2.first, pair2.second);
+          return edge1.total_gain > edge2.total_gain ||
+                 (edge1.total_gain == edge2.total_gain && (edge1.cut_weight >= edge2.cut_weight));
+        }
+    );
 
     std::fill_n(_active_blocks.begin(), _p_graph->k(), false);
   }
@@ -1264,7 +1258,7 @@ public:
     constexpr bool kActivateAllBlockPairs = true;
     activate_blocks(quotient_graph, kActivateAllBlockPairs);
 
-    const bool run_sequentially = true; // num_threads == num_parallel_searches;
+    const bool run_sequentially = _f_ctx.run_sequentially || num_threads == num_parallel_searches;
     LazyVector<BipartitionFlowRefiner> refiners(
         [&] {
           return BipartitionFlowRefiner(
@@ -1413,20 +1407,16 @@ private:
       }
     }
 
-    if (activate_all) {
-      Random::instance().shuffle(_active_block_pairs);
-    } else {
-      std::sort(
-          _active_block_pairs.begin(),
-          _active_block_pairs.end(),
-          [&](const auto &pair1, const auto &pair2) {
-            const QuotientGraph::Edge &edge1 = quotient_graph.edge(pair1.first, pair1.second);
-            const QuotientGraph::Edge &edge2 = quotient_graph.edge(pair2.first, pair2.second);
-            return edge1.total_gain > edge2.total_gain ||
-                   (edge1.total_gain == edge2.total_gain && (edge1.cut_weight >= edge2.cut_weight));
-          }
-      );
-    }
+    std::sort(
+        _active_block_pairs.begin(),
+        _active_block_pairs.end(),
+        [&](const auto &pair1, const auto &pair2) {
+          const QuotientGraph::Edge &edge1 = quotient_graph.edge(pair1.first, pair1.second);
+          const QuotientGraph::Edge &edge2 = quotient_graph.edge(pair2.first, pair2.second);
+          return edge1.total_gain > edge2.total_gain ||
+                 (edge1.total_gain == edge2.total_gain && (edge1.cut_weight >= edge2.cut_weight));
+        }
+    );
 
     std::fill_n(_active_blocks.begin(), _p_graph->k(), false);
   }

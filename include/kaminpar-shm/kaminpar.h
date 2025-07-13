@@ -285,6 +285,7 @@ struct TwowayFlowRefinementContext {
   bool abort_on_candidate_cut;
 
   bool use_whfc;
+  bool run_sequentially;
 
   std::size_t time_limit;
   std::size_t max_num_rounds;
