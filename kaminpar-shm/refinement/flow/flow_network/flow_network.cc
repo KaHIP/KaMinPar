@@ -28,10 +28,13 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
   const BlockID block2 = border_region2.block();
 
   std::unordered_map<NodeID, NodeID> global_to_local_mapping;
+  std::unordered_map<NodeID, NodeID> local_to_global_mapping;
   NodeID cur_node = kFirstNodeID;
   for (const BorderRegion &border_region : {std::cref(border_region1), std::cref(border_region2)}) {
     for (const NodeID u : border_region.nodes()) {
-      global_to_local_mapping.emplace(u, cur_node++);
+      const NodeID u_local = cur_node++;
+      global_to_local_mapping.emplace(u, u_local);
+      local_to_global_mapping.emplace(u_local, u);
     }
   }
 
@@ -158,7 +161,7 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
         edge_weights[u_edge] = sink_edge_weight;
 
         cur_sink_edge -= 1;
-        edges[cur_sink_edge] = cur_node;
+        edges[cur_sink_edge] = u_local;
         edge_weights[cur_sink_edge] = sink_edge_weight;
 
         reverse_edges[u_edge] = cur_sink_edge;
@@ -171,14 +174,14 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
         edge_weights[u_edge] = source_edge_weight;
 
         cur_source_edge -= 1;
-        edges[cur_source_edge] = cur_node;
+        edges[cur_source_edge] = u_local;
         edge_weights[cur_source_edge] = source_edge_weight;
 
         reverse_edges[u_edge] = cur_source_edge;
         reverse_edges[cur_source_edge] = u_edge;
       }
 
-      nodes[cur_node] = u_edge;
+      nodes[u_local] = u_edge;
       cur_node += 1;
     }
   }
@@ -210,7 +213,8 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
           kSink,
           std::move(flow_network_graph),
           std::move(reverse_edges),
-          std::move(global_to_local_mapping)
+          std::move(global_to_local_mapping),
+          std::move(local_to_global_mapping)
       ),
       cut_value
   };
@@ -299,10 +303,13 @@ private:
   const BlockID block2 = border_region2.block();
 
   std::unordered_map<NodeID, NodeID> global_to_local_mapping;
+  std::unordered_map<NodeID, NodeID> local_to_global_mapping;
   NodeID cur_node = kFirstNodeID;
   for (const BorderRegion &border_region : {std::cref(border_region1), std::cref(border_region2)}) {
     for (const NodeID u : border_region.nodes()) {
-      global_to_local_mapping.emplace(u, cur_node++);
+      const NodeID u_local = cur_node++;
+      global_to_local_mapping.emplace(u, u_local);
+      local_to_global_mapping.emplace(u_local, u);
     }
   }
 
@@ -443,17 +450,6 @@ private:
           buffer.flush(u_local);
         }
 
-        if (has_source_edge) {
-          const EdgeID u_edge = __atomic_sub_fetch(&nodes[u_local], 1, __ATOMIC_RELAXED);
-          edges[u_edge] = kSource;
-          edge_weights[u_edge] = source_edge_weight;
-
-          source_buffer.add(u_local, u_edge, source_edge_weight);
-          if (source_buffer.full()) [[unlikely]] {
-            source_buffer.flush(kSource);
-          }
-        }
-
         if (has_sink_edge) {
           const EdgeID u_edge = __atomic_sub_fetch(&nodes[u_local], 1, __ATOMIC_RELAXED);
           edges[u_edge] = kSink;
@@ -462,6 +458,17 @@ private:
           sink_buffer.add(u_local, u_edge, sink_edge_weight);
           if (sink_buffer.full()) [[unlikely]] {
             sink_buffer.flush(kSink);
+          }
+        }
+
+        if (has_source_edge) {
+          const EdgeID u_edge = __atomic_sub_fetch(&nodes[u_local], 1, __ATOMIC_RELAXED);
+          edges[u_edge] = kSource;
+          edge_weights[u_edge] = source_edge_weight;
+
+          source_buffer.add(u_local, u_edge, source_edge_weight);
+          if (source_buffer.full()) [[unlikely]] {
+            source_buffer.flush(kSource);
           }
         }
       }
@@ -505,7 +512,8 @@ private:
           kSink,
           std::move(flow_network_graph),
           std::move(reverse_edges),
-          std::move(global_to_local_mapping)
+          std::move(global_to_local_mapping),
+          std::move(local_to_global_mapping)
       ),
       cut_value_ets.combine(std::plus<>())
   };

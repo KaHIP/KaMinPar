@@ -145,12 +145,17 @@ public:
     _unconstrained_cut_value = cut_value;
 
     compute_border_regions();
+    DBG << "Initial border region sizes: block " << _block1 << " = " << _border_region1.num_nodes()
+        << ", block " << _block2 << " = " << _border_region2.num_nodes();
+
     if (_border_region1.empty() || _border_region2.empty()) {
       return Result::Empty();
     }
 
     expand_border_region(_border_region1);
     expand_border_region(_border_region2);
+    DBG << "Expanded border region sizes: block " << _block1 << " = " << _border_region1.num_nodes()
+        << ", block " << _block2 << " = " << _border_region2.num_nodes();
 
     if (_run_sequentially) {
       std::tie(_flow_network, _initial_cut_value) =
@@ -205,7 +210,8 @@ private:
         _p_graph.block_weight(_block1);
     _border_region2.reset(block2, max_border_region_weight2, _graph.n());
 
-    for (const auto [u, v] : _q_graph.quotient_edge_cuts(block1, block2)) {
+    _border_nodes.clear();
+    for (const auto &[u, v] : _q_graph.quotient_edge_cuts(block1, block2)) {
       if (_p_graph.block(u) != _block1 || _p_graph.block(v) != _block2) [[unlikely]] {
         continue;
       }
@@ -224,20 +230,29 @@ private:
       if (u_is_contained) {
         if (v_fits) {
           _border_region2.insert(v, v_weight);
+          _border_nodes.push_back(v);
         }
       } else if (v_is_contained) {
         if (u_fits) {
           _border_region1.insert(u, u_weight);
+          _border_nodes.push_back(u);
         }
       } else if (u_fits && v_fits) {
         _border_region1.insert(u, u_weight);
+        _border_nodes.push_back(u);
+
         _border_region2.insert(v, v_weight);
+        _border_nodes.push_back(v);
       }
     }
   }
 
   void expand_border_region(BorderRegion &border_region) {
     SCOPED_TIMER("Expand Border Region");
+
+    if (_f_ctx.max_border_distance == 0) {
+      return;
+    }
 
     _bfs_runner.reset();
     _bfs_runner.add_seeds(border_region.nodes());
@@ -255,7 +270,7 @@ private:
         if (border_region.fits(v_weight)) {
           border_region.insert(v, v_weight);
 
-          if (v_distance <= _f_ctx.max_border_distance) {
+          if (v_distance < _f_ctx.max_border_distance) {
             queue.push_back(v);
           }
         }
@@ -293,6 +308,53 @@ private:
     const NodeWeight max_block2_weight = _p_ctx.max_block_weight(_block2);
 
     START_TIMER("Run HyperFlowCutter");
+    const auto initialize_distances = [&](auto &distances) {
+      distances.assign(hypergraph.numNodes(), whfc::HopDistance(0));
+
+      constexpr whfc::HopDistance kMaxDist(9);
+      whfc::HopDistance max_dist_source(0);
+      whfc::HopDistance max_dist_sink(0);
+
+      const BlockID block1 = _block1;
+      const BlockID block2 = _block2;
+
+      const NodeID source = _flow_network.source;
+      const NodeID sink = _flow_network.sink;
+
+      _bfs_runner.reset();
+      for (const NodeID border_node : _border_nodes) {
+        _bfs_runner.add_seed(_flow_network.global_to_local_mapping[border_node]);
+      }
+
+      Marker<> bfs_marker(_flow_network.graph.n());
+      _bfs_runner.perform([&](const NodeID u, const NodeID u_distance, auto &queue) {
+        const whfc::HopDistance dist = std::min(whfc::HopDistance(u_distance), kMaxDist);
+        const BlockID u_block = _p_graph.block(_flow_network.local_to_global_mapping[u]);
+
+        if (u_block == block1) {
+          distances[u] = -dist;
+          max_dist_source = std::max(max_dist_source, dist);
+        } else if (u_block == block2) {
+          distances[u] = dist;
+          max_dist_sink = std::max(max_dist_sink, dist);
+        }
+
+        _flow_network.graph.adjacent_nodes(u, [&](const NodeID v) {
+          if (v == source || v == sink) {
+            return;
+          }
+
+          if (!bfs_marker.get(v)) {
+            bfs_marker.set(v);
+            queue.push_back(v);
+          }
+        });
+      });
+
+      distances[source] = -(max_dist_source + 1);
+      distances[sink] = max_dist_sink + 1;
+    };
+
     const auto on_cut = [&](const auto &cutter_state) {
       const EdgeWeight cut_value = cutter_state.flow_algo.flow_value;
       DBG << "Found a cut for block pair " << _block1 << " and " << _block2 << " with value "
@@ -383,6 +445,8 @@ private:
 
     if (_run_sequentially) {
       whfc::HyperFlowCutter<whfc::SequentialPushRelabel> flow_cutter(hypergraph, 1);
+      flow_cutter.timer.active = false;
+
       flow_cutter.forceSequential(true);
       flow_cutter.setBulkPiercing(_f_ctx.piercing.bulk_piercing);
 
@@ -390,18 +454,24 @@ private:
       flow_cutter.cs.setMaxBlockWeight(0, max_block1_weight);
       flow_cutter.cs.setMaxBlockWeight(1, max_block2_weight);
 
+      initialize_distances(flow_cutter.cs.border_nodes.distance);
+
       const bool success = flow_cutter.enumerateCutsUntilBalancedOrFlowBoundExceeded(
           whfc::Node(_flow_network.source), whfc::Node(_flow_network.sink), on_cut
       );
       on_result(success, flow_cutter.cs);
     } else {
       whfc::HyperFlowCutter<whfc::ParallelPushRelabel> flow_cutter(hypergraph, 1);
+      flow_cutter.timer.active = false;
+
       flow_cutter.forceSequential(false);
       flow_cutter.setBulkPiercing(_f_ctx.piercing.bulk_piercing);
 
       flow_cutter.setFlowBound(_initial_cut_value);
       flow_cutter.cs.setMaxBlockWeight(0, max_block1_weight);
       flow_cutter.cs.setMaxBlockWeight(1, max_block2_weight);
+
+      initialize_distances(flow_cutter.cs.border_nodes.distance);
 
       const bool success = flow_cutter.enumerateCutsUntilBalancedOrFlowBoundExceeded(
           whfc::Node(_flow_network.source), whfc::Node(_flow_network.sink), on_cut
@@ -909,6 +979,7 @@ private:
   BlockID _block1;
   BlockID _block2;
 
+  ScalableVector<NodeID> _border_nodes;
   BorderRegion _border_region1;
   BorderRegion _border_region2;
   FlowNetwork _flow_network;
@@ -1010,7 +1081,7 @@ public:
       DBG << "Starting round " << num_round;
 
       EdgeWeight cut_value = prev_cut_value;
-      for (const auto [block1, block2] : _active_block_pairs) {
+      for (const auto &[block1, block2] : _active_block_pairs) {
         DBG << "Scheduling block pair " << block1 << " and " << block2;
         IF_STATS _stats.num_searches += 1;
 
@@ -1253,9 +1324,6 @@ public:
           if (imbalance_conflict) {
             DBG << "Block pair " << block1 << " and " << block2 << " has an imbalance conflict";
             IF_STATS _stats.num_imbalance_conflicts += 1;
-
-            _active_blocks[block1] = true;
-            _active_blocks[block2] = true;
             continue;
           }
 
@@ -1282,7 +1350,10 @@ public:
           }
 
           IF_STATS _stats.num_global_improvements += 1;
+
+          quotient_graph.add_gain(block1, block2, gain);
           cut_value = new_cut_value;
+
           _active_blocks[block1] = true;
           _active_blocks[block2] = true;
         }

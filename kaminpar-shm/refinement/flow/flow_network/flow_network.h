@@ -17,7 +17,9 @@ struct FlowNetwork {
 
   CSRGraph graph;
   StaticArray<NodeID> reverse_edges;
+
   std::unordered_map<NodeID, NodeID> global_to_local_mapping;
+  std::unordered_map<NodeID, NodeID> local_to_global_mapping;
 };
 
 [[nodiscard]] std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
