@@ -1167,7 +1167,7 @@ private:
           const QuotientGraph::Edge &edge1 = quotient_graph.edge(pair1.first, pair1.second);
           const QuotientGraph::Edge &edge2 = quotient_graph.edge(pair2.first, pair2.second);
           return edge1.total_gain > edge2.total_gain ||
-                 (edge1.total_gain == edge2.total_gain && (edge1.cut_weight >= edge2.cut_weight));
+                 (edge1.total_gain == edge2.total_gain && (edge1.cut_weight > edge2.cut_weight));
         }
     );
 
@@ -1414,7 +1414,7 @@ private:
           const QuotientGraph::Edge &edge1 = quotient_graph.edge(pair1.first, pair1.second);
           const QuotientGraph::Edge &edge2 = quotient_graph.edge(pair2.first, pair2.second);
           return edge1.total_gain > edge2.total_gain ||
-                 (edge1.total_gain == edge2.total_gain && (edge1.cut_weight >= edge2.cut_weight));
+                 (edge1.total_gain == edge2.total_gain && (edge1.cut_weight > edge2.cut_weight));
         }
     );
 
