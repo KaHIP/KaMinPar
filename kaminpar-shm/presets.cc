@@ -207,7 +207,7 @@ Context create_default_context() {
                               .twoway_flow =
                                   {
                                       .border_region_scaling_factor = 16,
-                                      .max_border_distance = 2,
+                                      .max_border_distance = 20,
                                       .flow =
                                           {
 
@@ -260,7 +260,7 @@ Context create_default_context() {
                       .twoway_flow =
                           {
                               .border_region_scaling_factor = 16,
-                              .max_border_distance = 2,
+                              .max_border_distance = 20,
                               .flow =
                                   {
 
@@ -330,7 +330,7 @@ Context create_default_context() {
               .twoway_flow =
                   {
                       .border_region_scaling_factor = 16,
-                      .max_border_distance = 2,
+                      .max_border_distance = 20,
                       .flow =
                           {
 
