@@ -332,6 +332,10 @@ dist.set_uniform_max_block_weights(double epsilon); // -e <...>
 EdgeWeight cut = dist.compute_partition(std::span<BlockID> out_partition);
 ```
 
+> [!NOTE]
+> The `num_threads` parameter controls the number of threads *per MPI process*. 
+> While the partitioner is mostly optimized for using one thread per MPI process (i.e., setting the parameter to `1`), applications that already use a hybrid MPI+X parallelization scheme might benefit from using multiple threads per MPI process.
+
 ## Licensing
 
 KaMinPar is free software provided under the MIT license.
