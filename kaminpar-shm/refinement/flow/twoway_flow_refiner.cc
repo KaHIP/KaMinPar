@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <span>
 #include <tuple>
@@ -139,6 +140,9 @@ public:
     _block1 = block1;
     _block2 = block2;
 
+    _block_weight1 = _p_graph.block_weight(block1);
+    _block_weight2 = _p_graph.block_weight(block2);
+
     _global_cut_value = cut_value;
     _constrained_cut_value = cut_value;
     _unconstrained_cut_value = cut_value;
@@ -157,11 +161,13 @@ public:
         << ", block " << _block2 << " = " << _border_region2.num_nodes();
 
     if (_run_sequentially) {
-      std::tie(_flow_network, _initial_cut_value) =
-          construct_flow_network(_graph, _p_graph, _border_region1, _border_region2);
+      std::tie(_flow_network, _initial_cut_value) = construct_flow_network(
+          _graph, _p_graph, _block_weight1, _block_weight2, _border_region1, _border_region2
+      );
     } else {
-      std::tie(_flow_network, _initial_cut_value) =
-          parallel_construct_flow_network(_graph, _p_graph, _border_region1, _border_region2);
+      std::tie(_flow_network, _initial_cut_value) = parallel_construct_flow_network(
+          _graph, _p_graph, _block_weight1, _block_weight2, _border_region1, _border_region2
+      );
     }
 
     DBG << "Starting refinement for block pair " << _block1 << " and " << _block2
@@ -200,13 +206,13 @@ private:
     const NodeWeight max_border_region_weight1 =
         (1 + _f_ctx.border_region_scaling_factor * _p_ctx.epsilon()) *
             _p_ctx.perfectly_balanced_block_weight(block2) -
-        _p_graph.block_weight(_block2);
+        _block_weight2;
     _border_region1.reset(block1, max_border_region_weight1, _graph.n());
 
     const NodeWeight max_border_region_weight2 =
         (1 + _f_ctx.border_region_scaling_factor * _p_ctx.epsilon()) *
             _p_ctx.perfectly_balanced_block_weight(block1) -
-        _p_graph.block_weight(_block1);
+        _block_weight1;
     _border_region2.reset(block2, max_border_region_weight2, _graph.n());
 
     _border_nodes.clear();
@@ -302,7 +308,7 @@ private:
     hypergraph.finalize();
     STOP_TIMER();
 
-    const NodeWeight total_weight = _p_graph.block_weight(_block1) + _p_graph.block_weight(_block2);
+    const NodeWeight total_weight = _block_weight1 + _block_weight2;
     const NodeWeight max_block1_weight = _p_ctx.max_block_weight(_block1);
     const NodeWeight max_block2_weight = _p_ctx.max_block_weight(_block2);
 
@@ -494,7 +500,7 @@ private:
     _sink_side_border_nodes.clear();
     _sink_side_border_nodes.push_back(_flow_network.sink);
 
-    const NodeWeight total_weight = _p_graph.block_weight(_block1) + _p_graph.block_weight(_block2);
+    const NodeWeight total_weight = _block_weight1 + _block_weight2;
     const NodeWeight max_source_side_weight = _p_ctx.max_block_weight(_block1);
     const NodeWeight max_sink_side_weight = _p_ctx.max_block_weight(_block2);
 
@@ -978,6 +984,9 @@ private:
   BlockID _block1;
   BlockID _block2;
 
+  BlockWeight _block_weight1;
+  BlockWeight _block_weight2;
+
   ScalableVector<NodeID> _border_nodes;
   BorderRegion _border_region1;
   BorderRegion _border_region2;
@@ -1070,6 +1079,7 @@ public:
     BipartitionFlowRefiner refiner(
         p_ctx, _f_ctx, _f_ctx.run_sequentially, quotient_graph, p_graph, graph, start_time
     );
+    ScalableVector<QuotientGraph::GraphEdge> new_cut_edges;
 
     std::size_t num_round = 0;
     bool found_improvement = false;
@@ -1096,10 +1106,10 @@ public:
             << gain << " (" << cut_value << " -> " << new_cut_value << ")";
 
         if (gain > 0) {
-          apply_moves(moves);
+          apply_moves(moves, new_cut_edges);
 
           KASSERT(
-              metrics::edge_cut_seq(p_graph) == cut_value - gain,
+              metrics::edge_cut_seq(p_graph) == new_cut_value,
               "Computed an invalid gain",
               assert::heavy
           );
@@ -1113,9 +1123,14 @@ public:
           IF_STATS _stats.num_local_improvements += 1;
           IF_STATS _stats.num_global_improvements += 1;
 
-          quotient_graph.add_gain(block1, block2, gain);
-          cut_value = new_cut_value;
+          quotient_graph.add_gain(block1, block2, gain, new_cut_edges);
+          KASSERT(
+              new_cut_value == quotient_graph.total_cut_weight(),
+              "computed an invalid new cut value",
+              assert::heavy
+          );
 
+          cut_value = new_cut_value;
           _active_blocks[block1] = true;
           _active_blocks[block2] = true;
         }
@@ -1174,9 +1189,12 @@ private:
     std::fill_n(_active_blocks.begin(), _p_graph->k(), false);
   }
 
-  void apply_moves(std::span<const Move> moves) {
+  void apply_moves(
+      std::span<const Move> moves, ScalableVector<QuotientGraph::GraphEdge> &new_cut_edges
+  ) {
     SCOPED_TIMER("Apply Moves");
 
+    new_cut_edges.clear();
     for (const Move &move : moves) {
       KASSERT(
           _p_graph->block(move.node) == move.old_block,
@@ -1189,7 +1207,18 @@ private:
           assert::heavy
       );
 
-      _p_graph->set_block(move.node, move.new_block);
+      const NodeID u = move.node;
+      const BlockID new_block = move.new_block;
+      _p_graph->set_block(u, new_block);
+
+      const BlockID old_block = move.old_block;
+      _graph->adjacent_nodes(u, [&](const NodeID v) {
+        const BlockID v_block = _p_graph->block(v);
+
+        if (v_block == old_block) {
+          new_cut_edges.emplace_back(u, v);
+        }
+      });
     }
   }
 
@@ -1226,20 +1255,6 @@ public:
     if (_block_weight_delta.size() < p_graph.k()) {
       _block_weight_delta.resize(p_graph.k(), static_array::noinit);
     }
-    if (_new_block_weights.size() < p_graph.k()) {
-      _new_block_weights.resize(p_graph.k(), static_array::noinit);
-    }
-    std::copy(
-        p_graph.raw_block_weights().begin(),
-        p_graph.raw_block_weights().end(),
-        _new_block_weights.begin()
-    );
-    if (_new_partition.size() < graph.n()) {
-      _new_partition.resize(graph.n(), static_array::noinit);
-    }
-    std::copy(
-        p_graph.raw_partition().begin(), p_graph.raw_partition().end(), _new_partition.begin()
-    );
 
     // Since timers are not multi-threaded, we disable them during parallel refinement.
     DISABLE_TIMERS();
@@ -1267,11 +1282,12 @@ public:
         },
         num_parallel_searches
     );
+    LazyVector<ScalableVector<QuotientGraph::GraphEdge>> new_cut_edges_ets;
     tbb::enumerable_thread_specific<bool> entered(false);
 
     bool found_improvement = false;
     std::size_t num_round = 0;
-    EdgeWeight prev_cut_value = metrics::edge_cut_seq(p_graph);
+    EdgeWeight prev_cut_value = quotient_graph.total_cut_weight();
     while (prev_cut_value > 0) {
       num_round += 1;
       DBG << "Starting round " << num_round;
@@ -1287,6 +1303,7 @@ public:
         entered.local() = true;
 
         BipartitionFlowRefiner &refiner = refiners[refiner_id];
+        ScalableVector<QuotientGraph::GraphEdge> &new_cut_edges = new_cut_edges_ets[refiner_id];
         while (true) {
           const std::size_t block_pair = __atomic_fetch_add(&cur_block_pair, 1, __ATOMIC_RELAXED);
           if (block_pair >= _active_block_pairs.size()) {
@@ -1321,16 +1338,16 @@ public:
             continue;
           }
 
-          const EdgeWeight actual_gain = apply_moves(moves);
+          const EdgeWeight actual_gain = apply_moves(moves, new_cut_edges);
           const EdgeWeight new_cut_value = cut_value - actual_gain;
 
           KASSERT(
-              new_cut_value == metrics::edge_cut_seq(graph, _new_partition),
+              new_cut_value == metrics::edge_cut_seq(*_p_graph),
               "computed an invalid new cut value",
               assert::heavy
           );
           KASSERT(
-              metrics::are_weights_balanced(_new_block_weights, p_ctx),
+              metrics::is_balanced(*_p_graph, p_ctx),
               "Computed an imbalanced move sequence",
               assert::heavy
           );
@@ -1345,9 +1362,14 @@ public:
 
           IF_STATS _stats.num_global_improvements += 1;
 
-          quotient_graph.add_gain(block1, block2, gain);
-          cut_value = new_cut_value;
+          quotient_graph.add_gain(block1, block2, actual_gain, new_cut_edges);
+          KASSERT(
+              new_cut_value == quotient_graph.total_cut_weight(),
+              "computed an invalid new cut value",
+              assert::heavy
+          );
 
+          cut_value = new_cut_value;
           _active_blocks[block1] = true;
           _active_blocks[block2] = true;
         }
@@ -1356,21 +1378,6 @@ public:
       const EdgeWeight gain = prev_cut_value - cut_value;
       if (gain > 0) {
         found_improvement = true;
-
-        tbb::parallel_for<NodeID>(0, graph.n(), [&](const NodeID u) {
-          p_graph.set_block(u, _new_partition[u]);
-        });
-
-        KASSERT(
-            cut_value == metrics::edge_cut_seq(p_graph),
-            "computed an invalid new cut value",
-            assert::heavy
-        );
-        KASSERT(
-            metrics::is_balanced(p_graph, p_ctx),
-            "Computed an imbalanced move sequence",
-            assert::heavy
-        );
       }
 
       const double relative_improvement = gain / static_cast<double>(prev_cut_value);
@@ -1430,11 +1437,6 @@ private:
       const BlockID new_block = move.new_block;
 
       KASSERT(
-          _p_graph->block(u) == old_block,
-          "Move sequence contains invalid old block ids",
-          assert::heavy
-      );
-      KASSERT(
           move.old_block != move.new_block,
           "Move sequence contains moves where node is already in target block",
           assert::heavy
@@ -1442,7 +1444,7 @@ private:
 
       // Remove all nodes from the move sequence that are not in their expected block.
       // Use the old block variable to mark the move as such, which is used during reverting.
-      const BlockID invalid_block_conflict = _new_partition[u] != old_block;
+      const BlockID invalid_block_conflict = _p_graph->block(u) != old_block;
       if (invalid_block_conflict) {
         move.old_block = kInvalidBlockID;
         continue;
@@ -1454,7 +1456,7 @@ private:
     }
 
     for (BlockID block = 0, k = _p_graph->k(); block < k; ++block) {
-      if (_new_block_weights[block] + _block_weight_delta[block] >
+      if (_p_graph->block_weight(block) + _block_weight_delta[block] >
           _p_ctx->max_block_weight(block)) {
         return false;
       }
@@ -1463,9 +1465,12 @@ private:
     return true;
   }
 
-  EdgeWeight apply_moves(std::span<const Move> moves) {
+  EdgeWeight apply_moves(
+      std::span<const Move> moves, ScalableVector<QuotientGraph::GraphEdge> &new_cut_edges
+  ) {
     EdgeWeight gain = 0;
 
+    new_cut_edges.clear();
     for (const Move &move : moves) {
       const BlockID old_block = move.old_block;
 
@@ -1477,20 +1482,20 @@ private:
 
       const NodeID u = move.node;
       const BlockID new_block = move.new_block;
-      _new_partition[u] = new_block;
+      _p_graph->set_block(u, new_block);
 
       EdgeWeight from_connection = 0;
       EdgeWeight to_connection = 0;
       _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
-        const BlockID v_block = _new_partition[v];
-        from_connection += (v_block == old_block) ? w : 0;
+        const BlockID v_block = _p_graph->block(v);
         to_connection += (v_block == new_block) ? w : 0;
+
+        if (v_block == old_block) {
+          from_connection += w;
+          new_cut_edges.emplace_back(u, v);
+        }
       });
       gain += to_connection - from_connection;
-    }
-
-    for (BlockID block = 0, k = _p_graph->k(); block < k; ++block) {
-      _new_block_weights[block] += _block_weight_delta[block];
     }
 
     return gain;
@@ -1508,11 +1513,7 @@ private:
       }
 
       const NodeID u = move.node;
-      _new_partition[u] = old_block;
-    }
-
-    for (BlockID block = 0, k = _p_graph->k(); block < k; ++block) {
-      _new_block_weights[block] -= _block_weight_delta[block];
+      _p_graph->set_block(u, old_block);
     }
   }
 
@@ -1527,11 +1528,8 @@ private:
   StaticArray<bool> _active_blocks;
   ScalableVector<std::pair<BlockID, BlockID>> _active_block_pairs;
 
-  StaticArray<BlockWeight> _block_weight_delta;
-  StaticArray<BlockWeight> _new_block_weights;
-  StaticArray<BlockID> _new_partition;
-
   std::mutex _apply_moves_mutex;
+  StaticArray<BlockWeight> _block_weight_delta;
 };
 
 TwowayFlowRefiner::TwowayFlowRefiner(const TwowayFlowRefinementContext &f_ctx) : _f_ctx(f_ctx) {}

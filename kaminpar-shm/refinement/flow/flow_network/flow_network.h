@@ -25,6 +25,8 @@ struct FlowNetwork {
 [[nodiscard]] std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
     const CSRGraph &graph,
     const PartitionedCSRGraph &p_graph,
+    const BlockWeight block1_weight,
+    const BlockWeight block2_weight,
     const BorderRegion &border_region1,
     const BorderRegion &border_region2
 );
@@ -32,6 +34,8 @@ struct FlowNetwork {
 [[nodiscard]] std::pair<FlowNetwork, EdgeWeight> parallel_construct_flow_network(
     const CSRGraph &graph,
     const PartitionedCSRGraph &p_graph,
+    const BlockWeight block1_weight,
+    const BlockWeight block2_weight,
     const BorderRegion &border_region1,
     const BorderRegion &border_region2
 );

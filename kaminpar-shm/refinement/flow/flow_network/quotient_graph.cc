@@ -52,4 +52,29 @@ void QuotientGraph::reconstruct() {
   _total_cut_weight = total_cut_weight;
 }
 
+void QuotientGraph::add_gain(
+    const BlockID b1,
+    const BlockID b2,
+    const EdgeWeight gain,
+    std::span<const GraphEdge> new_cut_edges
+) {
+  KASSERT(b1 != b2);
+
+  Edge &quotient_edge = edge(b1, b2);
+  quotient_edge.total_gain += gain;
+
+  for (const GraphEdge &cut_edge : new_cut_edges) {
+    const NodeID u = cut_edge.u;
+    const NodeID v = cut_edge.v;
+
+    const BlockID u_block = _p_graph.block(u);
+    const BlockID v_block = _p_graph.block(v);
+
+    const bool edge_order = u_block < v_block;
+    edge(u_block, v_block).cut_edges.emplace_back(edge_order ? u : v, edge_order ? v : u);
+  }
+
+  _total_cut_weight -= gain;
+}
+
 } // namespace kaminpar::shm

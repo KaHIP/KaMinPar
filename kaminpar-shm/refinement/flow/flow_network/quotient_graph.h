@@ -2,9 +2,12 @@
 
 #include <span>
 
+#include <tbb/concurrent_vector.h>
+
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
+#include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
 
 namespace kaminpar::shm {
@@ -25,7 +28,7 @@ public:
     Edge(Edge &&) noexcept = default;
     Edge &operator=(Edge &&) noexcept = default;
 
-    ScalableVector<GraphEdge> cut_edges;
+    tbb::concurrent_vector<GraphEdge> cut_edges;
     EdgeWeight cut_weight;
     EdgeWeight total_gain;
   };
@@ -43,10 +46,12 @@ public:
 
   void reconstruct();
 
-  void add_gain(const BlockID b1, const BlockID b2, const EdgeWeight gain) {
-    Edge &quotient_edge = edge(b1, b2);
-    quotient_edge.total_gain += gain;
-  }
+  void add_gain(
+      const BlockID b1,
+      const BlockID b2,
+      const EdgeWeight gain,
+      std::span<const GraphEdge> new_cut_edges
+  );
 
   [[nodiscard]] EdgeWeight total_cut_weight() const {
     return _total_cut_weight;
@@ -62,8 +67,10 @@ public:
     return quotient_edge.cut_weight;
   }
 
-  [[nodiscard]] std::span<const GraphEdge>
+  [[nodiscard]] const tbb::concurrent_vector<GraphEdge> &
   quotient_edge_cuts(const BlockID b1, const BlockID b2) const {
+    KASSERT(b1 < b2);
+
     const Edge &quotient_edge = edge(b1, b2);
     return quotient_edge.cut_edges;
   }
