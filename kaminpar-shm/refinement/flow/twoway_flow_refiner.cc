@@ -1282,7 +1282,7 @@ public:
         },
         num_parallel_searches
     );
-    LazyVector<ScalableVector<QuotientGraph::GraphEdge>> new_cut_edges_ets;
+    LazyVector<ScalableVector<QuotientGraph::GraphEdge>> new_cut_edges_ets(num_parallel_searches);
     tbb::enumerable_thread_specific<bool> entered(false);
 
     bool found_improvement = false;

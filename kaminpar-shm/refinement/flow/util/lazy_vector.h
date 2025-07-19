@@ -13,18 +13,12 @@ template <typename T> class LazyVector {
 public:
   using Factory = std::function<T()>;
 
-  LazyVector() : _factory([] { return T(); }) {}
+  LazyVector(const std::size_t capacity) : _factory([] { return T(); }), _data(capacity) {}
 
-  LazyVector(const std::size_t size) : _factory([] { return T(); }), _data(size) {}
-
-  LazyVector(Factory factory) : _factory(std::move(factory)) {}
-
-  LazyVector(Factory factory, const std::size_t size) : _factory(std::move(factory)), _data(size) {}
+  LazyVector(Factory factory, const std::size_t capacity) : _factory(std::move(factory)), _data(capacity) {}
 
   T &operator[](const std::size_t idx) {
-    if (idx >= _data.size()) {
-      _data.resize(idx + 1);
-    }
+    KASSERT(idx < _data.size());
 
     if (!_data[idx]) {
       _data[idx] = std::make_unique<T>(_factory());
