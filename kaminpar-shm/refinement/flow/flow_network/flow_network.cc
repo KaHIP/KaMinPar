@@ -69,16 +69,16 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
         sink_weight += (v_block == block2) ? w : 0;
       });
 
-      if (source_weight > 0) {
-        num_neighbors += 1;
-        num_source_edges += 1;
-        source_weights[cur_node] = source_weight;
-      }
-
       if (sink_weight > 0) {
         num_neighbors += 1;
         num_sink_edges += 1;
         sink_weights[cur_node] = sink_weight;
+      }
+
+      if (source_weight > 0) {
+        num_neighbors += 1;
+        num_source_edges += 1;
+        source_weights[cur_node] = source_weight;
       }
 
       const NodeWeight u_weight = graph.node_weight(u);
@@ -109,10 +109,10 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
   EdgeID cur_source_edge = nodes[kSource];
   EdgeID cur_sink_edge = nodes[kSink];
   for (BlockID terminal = 0; terminal < 2; ++terminal) {
-    const bool is_source_terminal = terminal == 0;
-    const bool is_sink_terminal = terminal == 1;
+    const bool source_side = terminal == 0;
+    const bool sink_side = terminal == 1;
 
-    const BorderRegion &border_region = is_source_terminal ? border_region1 : border_region2;
+    const BorderRegion &border_region = source_side ? border_region1 : border_region2;
     for (const NodeID u : border_region.nodes()) {
       const NodeID u_local = cur_node;
 
@@ -135,8 +135,11 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
           reverse_edges[u_edge] = v_edge;
           reverse_edges[v_edge] = u_edge;
 
-          cut_value += (is_source_terminal && border_region2.contains(v)) ? w : 0;
-          cut_value += (is_sink_terminal && border_region1.contains(v)) ? w : 0;
+          if (source_side) {
+            cut_value += border_region2.contains(v) ? w : 0;
+          } else if (sink_side) {
+            cut_value += border_region1.contains(v) ? w : 0;
+          }
         }
       });
 
@@ -153,7 +156,7 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
         reverse_edges[u_edge] = cur_sink_edge;
         reverse_edges[cur_sink_edge] = u_edge;
 
-        cut_value += is_source_terminal ? sink_edge_weight : 0;
+        cut_value += source_side ? sink_edge_weight : 0;
       }
 
       const EdgeWeight source_edge_weight = source_weights[u_local];
@@ -169,7 +172,7 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
         reverse_edges[u_edge] = cur_source_edge;
         reverse_edges[cur_source_edge] = u_edge;
 
-        cut_value += is_sink_terminal ? source_edge_weight : 0;
+        cut_value += sink_side ? source_edge_weight : 0;
       }
 
       nodes[u_local] = u_edge;

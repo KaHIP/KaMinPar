@@ -34,12 +34,12 @@ public:
       for (const NodeID u : _nodes) {
         _node_status[u] = 0;
       }
-
-      _nodes.clear();
     }
+
+    _nodes.clear();
   }
 
-  void insert(NodeID u, NodeWeight u_weight) {
+  void insert(const NodeID u, const NodeWeight u_weight) {
     KASSERT(!contains(u));
     KASSERT(fits(u_weight));
 
@@ -48,12 +48,11 @@ public:
     _cur_weight += u_weight;
   }
 
-  [[nodiscard]] bool fits(NodeWeight weight) const {
+  [[nodiscard]] bool fits(const NodeWeight weight) const {
     return _cur_weight + weight <= _max_weight;
   }
 
-  [[nodiscard]] bool contains(NodeID u) const {
-    KASSERT(u < _node_status.size());
+  [[nodiscard]] bool contains(const NodeID u) const {
     return _node_status[u] != 0;
   }
 

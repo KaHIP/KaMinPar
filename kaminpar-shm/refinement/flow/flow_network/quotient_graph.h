@@ -38,6 +38,7 @@ public:
       : _p_graph(p_graph),
         _edges(p_graph.k() * p_graph.k()) {
     for (Edge &edge : _edges) {
+      edge.cut_weight = 0;
       edge.total_gain = 0;
     }
 
@@ -46,12 +47,9 @@ public:
 
   void reconstruct();
 
-  void add_gain(
-      const BlockID b1,
-      const BlockID b2,
-      const EdgeWeight gain,
-      std::span<const GraphEdge> new_cut_edges
-  );
+  void add_gain(BlockID b1, BlockID b2, EdgeWeight gain);
+
+  void add_cut_edges(std::span<const GraphEdge> new_cut_edges);
 
   [[nodiscard]] EdgeWeight total_cut_weight() const {
     return _total_cut_weight;
@@ -76,6 +74,7 @@ public:
   }
 
   [[nodiscard]] const Edge &edge(const BlockID b1, const BlockID b2) const {
+    KASSERT(b1 != b2);
     KASSERT(b1 < _p_graph.k());
     KASSERT(b2 < _p_graph.k());
 
@@ -83,6 +82,7 @@ public:
   }
 
   [[nodiscard]] Edge &edge(const BlockID b1, const BlockID b2) {
+    KASSERT(b1 != b2);
     KASSERT(b1 < _p_graph.k());
     KASSERT(b2 < _p_graph.k());
 

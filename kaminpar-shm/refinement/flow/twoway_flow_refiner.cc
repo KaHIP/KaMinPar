@@ -119,16 +119,6 @@ public:
     } else {
       _max_flow_algorithm = std::make_unique<ParallelPreflowPushAlgorithm>(_f_ctx.flow);
     }
-
-    if (_f_ctx.unconstrained) {
-      _p_graph_rebalancing_copy = PartitionedCSRGraph(
-          graph,
-          p_graph.k(),
-          StaticArray<BlockID>(graph.n(), static_array::seq),
-          {},
-          partitioned_graph::seq
-      );
-    }
   }
 
   Result refine(const EdgeWeight cut_value, const BlockID block1, const BlockID block2) {
@@ -371,38 +361,23 @@ private:
       }
 
       if (_f_ctx.unconstrained) {
-        const EdgeWeight gain = _initial_cut_value - cutter_state.flow_algo.flow_value;
-        const EdgeWeight cut_value = _global_cut_value - gain;
+        SCOPED_TIMER("Rebalance cut");
 
-        if (cutter_state.source_reachable_weight > _p_ctx.max_block_weight(_block1)) {
-          SCOPED_TIMER("Rebalance source-side cut");
+        const EdgeWeight gain = _initial_cut_value - cut_value;
+        const EdgeWeight global_cut_value = _global_cut_value - gain;
 
-          const auto fetch_block = [&](const NodeID u) {
-            const bool is_on_source_side = cutter_state.flow_algo.isSourceReachable(whfc::Node(u));
-            return is_on_source_side ? _block1 : _block2;
-          };
+        const auto fetch_block = [&](const NodeID u) {
+          const bool is_on_source_side = cutter_state.flow_algo.isSourceReachable(whfc::Node(u));
+          return is_on_source_side ? _block1 : _block2;
+        };
 
-          rebalance(true, cut_value, fetch_block);
-        }
+        const bool rebalance_source_side =
+            cutter_state.source_reachable_weight > _p_ctx.max_block_weight(_block1);
+        rebalance(rebalance_source_side, global_cut_value, fetch_block);
 
-        if (cutter_state.target_reachable_weight > _p_ctx.max_block_weight(_block2)) {
-          SCOPED_TIMER("Rebalance sink-side cut");
-
-          const auto fetch_block = [&](const NodeID u) {
-            const bool is_on_sink_side = cutter_state.flow_algo.isTargetReachable(whfc::Node(u));
-            return is_on_sink_side ? _block2 : _block1;
-          };
-
-          rebalance(false, cut_value, fetch_block);
-        }
-
-        if (_f_ctx.abort_on_candidate_cut && _unconstrained_cut_value < _global_cut_value) {
-          const EdgeWeight current_gain = _initial_cut_value - cut_value;
-          const EdgeWeight current_cut_value = _global_cut_value - current_gain;
-
-          if (_unconstrained_cut_value < current_cut_value) {
-            return false;
-          }
+        if (_f_ctx.abort_on_candidate_cut && _unconstrained_cut_value < _global_cut_value &&
+            _unconstrained_cut_value < global_cut_value) {
+          return false;
         }
       }
 
@@ -425,8 +400,10 @@ private:
     };
 
     const auto on_result = [&](const bool success, const auto &cutter_state) {
+      const EdgeWeight cut_value = cutter_state.flow_algo.flow_value;
+
       if (!success) {
-        if (cutter_state.flow_algo.flow_value >= _initial_cut_value) {
+        if (cut_value >= _initial_cut_value) {
           DBG << "Cut is worse than the initial cut (" << _initial_cut_value << "); "
               << "aborting refinement for block pair " << _block1 << " and " << _block2;
         }
@@ -434,11 +411,11 @@ private:
         return;
       }
 
-      const EdgeWeight gain = _initial_cut_value - cutter_state.flow_algo.flow_value;
+      const EdgeWeight gain = _initial_cut_value - cut_value;
       _constrained_cut_value = _global_cut_value - gain;
 
       DBG << "Found a balanced cut for block pair " << _block1 << " and " << _block2
-          << " with value " << cutter_state.flow_algo.flow_value;
+          << " with value " << cut_value;
 
       const auto fetch_block = [&](const NodeID u) {
         const bool is_on_source_side = cutter_state.flow_algo.isSource(whfc::Node(u));
@@ -865,9 +842,17 @@ private:
   void initialize_rebalancer() {
     SCOPED_TIMER("Initialize Rebalancer");
 
+    StaticArray<BlockID> partition(_graph.n(), static_array::noinit);
+    StaticArray<BlockWeight> block_weights(_p_graph.k(), static_array::seq);
     for (const NodeID u : _graph.nodes()) {
-      _p_graph_rebalancing_copy.set_block(u, _p_graph.block(u));
+      const BlockID u_block = _p_graph.block(u);
+      partition[u] = u_block;
+      block_weights[u_block] += _graph.node_weight(u);
     }
+
+    _p_graph_rebalancing_copy = PartitionedCSRGraph(
+        _graph, _p_graph.k(), std::move(partition), std::move(block_weights), partitioned_graph::seq
+    );
 
     if (_f_ctx.dynamic_rebalancer) {
       _dynamic_balancer.setup(_p_graph_rebalancing_copy, _graph);
@@ -1079,7 +1064,6 @@ public:
     BipartitionFlowRefiner refiner(
         p_ctx, _f_ctx, _f_ctx.run_sequentially, quotient_graph, p_graph, graph, start_time
     );
-    ScalableVector<QuotientGraph::GraphEdge> new_cut_edges;
 
     std::size_t num_round = 0;
     bool found_improvement = false;
@@ -1106,7 +1090,7 @@ public:
             << gain << " (" << cut_value << " -> " << new_cut_value << ")";
 
         if (gain > 0) {
-          apply_moves(moves, new_cut_edges);
+          apply_moves(moves);
 
           KASSERT(
               metrics::edge_cut_seq(p_graph) == new_cut_value,
@@ -1123,12 +1107,8 @@ public:
           IF_STATS _stats.num_local_improvements += 1;
           IF_STATS _stats.num_global_improvements += 1;
 
-          quotient_graph.add_gain(block1, block2, gain, new_cut_edges);
-          KASSERT(
-              new_cut_value == quotient_graph.total_cut_weight(),
-              "computed an invalid new cut value",
-              assert::heavy
-          );
+          quotient_graph.add_cut_edges(_new_cut_edges);
+          quotient_graph.add_gain(block1, block2, gain);
 
           cut_value = new_cut_value;
           _active_blocks[block1] = true;
@@ -1166,7 +1146,7 @@ private:
     SCOPED_TIMER("Activate Blocks");
 
     _active_block_pairs.clear();
-    for (BlockID block2 = 0, k = _p_graph->k(); block2 < k; ++block2) {
+    for (BlockID block2 = 1, k = _p_graph->k(); block2 < k; ++block2) {
       for (BlockID block1 = 0; block1 < block2; ++block1) {
         if (quotient_graph.has_quotient_edge(block1, block2) &&
             (activate_all || _active_blocks[block1] || _active_blocks[block2])) {
@@ -1189,12 +1169,10 @@ private:
     std::fill_n(_active_blocks.begin(), _p_graph->k(), false);
   }
 
-  void apply_moves(
-      std::span<const Move> moves, ScalableVector<QuotientGraph::GraphEdge> &new_cut_edges
-  ) {
+  void apply_moves(std::span<const Move> moves) {
     SCOPED_TIMER("Apply Moves");
 
-    new_cut_edges.clear();
+    _new_cut_edges.clear();
     for (const Move &move : moves) {
       KASSERT(
           _p_graph->block(move.node) == move.old_block,
@@ -1216,7 +1194,7 @@ private:
         const BlockID v_block = _p_graph->block(v);
 
         if (v_block == old_block) {
-          new_cut_edges.emplace_back(u, v);
+          _new_cut_edges.emplace_back(u, v);
         }
       });
     }
@@ -1231,6 +1209,8 @@ private:
 
   StaticArray<bool> _active_blocks;
   ScalableVector<std::pair<BlockID, BlockID>> _active_block_pairs;
+
+  ScalableVector<QuotientGraph::GraphEdge> _new_cut_edges;
 };
 
 class ParallelBlockPairScheduler {
@@ -1283,7 +1263,6 @@ public:
         num_parallel_searches
     );
     LazyVector<ScalableVector<QuotientGraph::GraphEdge>> new_cut_edges_ets(num_parallel_searches);
-    tbb::enumerable_thread_specific<bool> entered(false);
 
     bool found_improvement = false;
     std::size_t num_round = 0;
@@ -1297,11 +1276,6 @@ public:
 
       std::size_t cur_block_pair = 0;
       tbb::parallel_for<std::size_t>(0, num_parallel_searches, [&](const std::size_t refiner_id) {
-        if (entered.local()) {
-          return;
-        }
-        entered.local() = true;
-
         BipartitionFlowRefiner &refiner = refiners[refiner_id];
         ScalableVector<QuotientGraph::GraphEdge> &new_cut_edges = new_cut_edges_ets[refiner_id];
         while (true) {
@@ -1313,7 +1287,7 @@ public:
           const auto [block1, block2] = _active_block_pairs[block_pair];
           DBG << "Scheduling block pair " << block1 << " and " << block2;
 
-          auto [time_limit_exceeded, gain, moves] = refiner.refine(prev_cut_value, block1, block2);
+          auto [time_limit_exceeded, gain, moves] = refiner.refine(cut_value, block1, block2);
 
           if (time_limit_exceeded) {
             if (tbb::task::current_context()->cancel_group_execution()) {
@@ -1342,7 +1316,7 @@ public:
           const EdgeWeight new_cut_value = cut_value - actual_gain;
 
           KASSERT(
-              new_cut_value == metrics::edge_cut_seq(*_p_graph),
+              metrics::edge_cut_seq(*_p_graph) == new_cut_value,
               "computed an invalid new cut value",
               assert::heavy
           );
@@ -1362,12 +1336,8 @@ public:
 
           IF_STATS _stats.num_global_improvements += 1;
 
-          quotient_graph.add_gain(block1, block2, actual_gain, new_cut_edges);
-          KASSERT(
-              new_cut_value == quotient_graph.total_cut_weight(),
-              "computed an invalid new cut value",
-              assert::heavy
-          );
+          quotient_graph.add_cut_edges(new_cut_edges);
+          quotient_graph.add_gain(block1, block2, actual_gain);
 
           cut_value = new_cut_value;
           _active_blocks[block1] = true;
@@ -1405,7 +1375,7 @@ private:
     SCOPED_TIMER("Activate Blocks");
 
     _active_block_pairs.clear();
-    for (BlockID block2 = 0, k = _p_graph->k(); block2 < k; ++block2) {
+    for (BlockID block2 = 1, k = _p_graph->k(); block2 < k; ++block2) {
       for (BlockID block1 = 0; block1 < block2; ++block1) {
         if (quotient_graph.has_quotient_edge(block1, block2) &&
             (activate_all || _active_blocks[block1] || _active_blocks[block2])) {
