@@ -870,7 +870,16 @@ private:
   void rebalance(const bool source_side, const EdgeWeight cut_value, BlockFetcher &&fetch_block) {
     TIMED_SCOPE("Initialize Partitioned Graph") {
       for (const auto [u, u_local] : _flow_network.global_to_local_mapping) {
-        _p_graph_rebalancing_copy.set_block(u, fetch_block(u_local));
+        const BlockID old_block = _p_graph_rebalancing_copy.block(u);
+        const BlockID new_block = fetch_block(u_local);
+        if (old_block == new_block) {
+          continue;
+        }
+
+        _p_graph_rebalancing_copy.set_block(u, new_block);
+        if (_f_ctx.dynamic_rebalancer) {
+          _dynamic_balancer.move_node(u, old_block, new_block);
+        }
       }
     };
 
@@ -940,7 +949,15 @@ private:
 
     TIMED_SCOPE("Reset Partitioned Graph") {
       for (const NodeID u : moved_nodes) {
+        const BlockID u_block = _p_graph_rebalancing_copy.block(u);
+        if (u_block == overloaded_block) {
+          continue;
+        }
+
         _p_graph_rebalancing_copy.set_block(u, overloaded_block);
+        if (_f_ctx.dynamic_rebalancer) {
+          _dynamic_balancer.move_node(u, u_block, overloaded_block);
+        }
       }
     };
   }

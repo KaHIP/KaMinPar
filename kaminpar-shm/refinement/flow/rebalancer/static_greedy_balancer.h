@@ -67,7 +67,7 @@ private:
       _p_graph->set_block(u, _overloaded_block);
     };
 
-    _gain_cache.initialize(_overloaded_block, *_p_graph, *_graph);
+    _gain_cache.initialize(*_p_graph, *_graph);
     compute_moves();
 
     for (const NodeID u : _moved_nodes) {

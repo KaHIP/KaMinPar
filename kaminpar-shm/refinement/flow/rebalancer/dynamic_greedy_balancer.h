@@ -27,16 +27,16 @@ public:
     _p_graph = &p_graph;
     _graph = &graph;
 
-    _initialized = false;
+    Base::initialize();
+    _gain_cache.initialize(*_p_graph, *_graph);
+  }
+
+  void move_node(const NodeID u, const BlockID from, const BlockID to) {
+    _gain_cache.move(u, from, to);
   }
 
   RebalancerResult rebalance(const BlockID overloaded_block) {
     _overloaded_block = overloaded_block;
-    if (!_initialized) {
-      initialize();
-    }
-
-    _gain_cache.initialize(_overloaded_block, *_p_graph, *_graph);
     insert_nodes();
 
     _moved_nodes.clear();
@@ -44,11 +44,6 @@ public:
   }
 
 private:
-  void initialize() {
-    Base::initialize();
-    _initialized = true;
-  }
-
   void insert_nodes() {
     Base::clear_nodes();
 
@@ -62,7 +57,8 @@ private:
   RebalancerResult move_nodes() {
     EdgeWeight gain = 0;
 
-    while (_p_graph->block_weight(_overloaded_block) > _max_block_weights[_overloaded_block]) {
+    const BlockWeight max_block_weight = _max_block_weights[_overloaded_block];
+    while (_p_graph->block_weight(_overloaded_block) > max_block_weight) {
       while (true) {
         if (!Base::has_next_node()) {
           return RebalancerResult(false, 0, _moved_nodes);
@@ -86,8 +82,6 @@ private:
   }
 
 private:
-  bool _initialized;
-
   ScalableVector<NodeID> _moved_nodes;
 };
 
