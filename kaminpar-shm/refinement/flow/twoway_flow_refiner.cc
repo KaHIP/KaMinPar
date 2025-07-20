@@ -433,8 +433,8 @@ private:
       flow_cutter.setBulkPiercing(_f_ctx.piercing.bulk_piercing);
 
       flow_cutter.setFlowBound(_initial_cut_value);
-      flow_cutter.cs.setMaxBlockWeight(0, max_block1_weight);
-      flow_cutter.cs.setMaxBlockWeight(1, max_block2_weight);
+      flow_cutter.cs.setMaxBlockWeight(0, std::max(_block_weight1, max_block1_weight));
+      flow_cutter.cs.setMaxBlockWeight(1, std::max(_block_weight2, max_block2_weight));
 
       initialize_distances(flow_cutter.cs.border_nodes.distance);
 
@@ -450,8 +450,8 @@ private:
       flow_cutter.setBulkPiercing(_f_ctx.piercing.bulk_piercing);
 
       flow_cutter.setFlowBound(_initial_cut_value);
-      flow_cutter.cs.setMaxBlockWeight(0, max_block1_weight);
-      flow_cutter.cs.setMaxBlockWeight(1, max_block2_weight);
+      flow_cutter.cs.setMaxBlockWeight(0, std::max(_block_weight1, max_block1_weight));
+      flow_cutter.cs.setMaxBlockWeight(1, std::max(_block_weight2, max_block2_weight));
 
       initialize_distances(flow_cutter.cs.border_nodes.distance);
 
