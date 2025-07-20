@@ -567,36 +567,21 @@ private:
       }
 
       if (_f_ctx.unconstrained) {
+        SCOPED_TIMER("Rebalance cut");
+
         const EdgeWeight gain = _initial_cut_value - cut_value;
-        const EdgeWeight cut_value = _global_cut_value - gain;
+        const EdgeWeight global_cut_value = _global_cut_value - gain;
 
-        if (source_side_weight > max_source_side_weight) {
-          SCOPED_TIMER("Rebalance source-side cut");
+        const auto fetch_block = [&](const NodeID u) {
+          return _node_status.is_source(u) ? _block1 : _block2;
+        };
 
-          const auto fetch_block = [&](const NodeID u) {
-            return _node_status.is_source(u) ? _block1 : _block2;
-          };
+        const bool rebalance_source_side = source_side_weight > max_source_side_weight;
+        rebalance(rebalance_source_side, global_cut_value, fetch_block);
 
-          rebalance(kSourceTag, cut_value, fetch_block);
-        }
-
-        if (sink_side_weight > max_sink_side_weight) {
-          SCOPED_TIMER("Rebalance sink-side cut");
-
-          const auto fetch_block = [&](const NodeID u) {
-            return _node_status.is_sink(u) ? _block2 : _block1;
-          };
-
-          rebalance(kSinkTag, cut_value, fetch_block);
-        }
-
-        if (_f_ctx.abort_on_candidate_cut && _unconstrained_cut_value < _global_cut_value) {
-          const EdgeWeight current_gain = _initial_cut_value - cut_value;
-          const EdgeWeight current_cut_value = _global_cut_value - current_gain;
-
-          if (_unconstrained_cut_value < current_cut_value) {
-            break;
-          }
+        if (_f_ctx.abort_on_candidate_cut && _unconstrained_cut_value < _global_cut_value &&
+            _unconstrained_cut_value < global_cut_value) {
+          break;
         }
       }
 
