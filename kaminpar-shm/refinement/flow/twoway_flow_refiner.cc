@@ -381,6 +381,10 @@ private:
         }
       }
 
+      if (_f_ctx.abort_on_first_cut) {
+        return false;
+      }
+
       if (cutter_state.side_to_pierce == 0) {
         const EdgeWeight source_side_weight = cutter_state.source_reachable_weight;
         DBG << "Piercing on source-side (" << source_side_weight << "/" << max_block1_weight << ", "
@@ -583,6 +587,10 @@ private:
             _unconstrained_cut_value < global_cut_value) {
           break;
         }
+      }
+
+      if (_f_ctx.abort_on_first_cut) {
+        break;
       }
 
       if (source_side_weight <= sink_side_weight) {
