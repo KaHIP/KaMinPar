@@ -72,7 +72,9 @@ bool MtKaHyParRefiner::refine(
       mt_kahypar_ctx, static_cast<mt_kahypar_partition_id_t>(p_ctx.k), p_ctx.epsilon(), CUT
   );
   mt_kahypar_set_seed(Random::get_seed());
-  mt_kahypar_set_context_parameter(mt_kahypar_ctx, VERBOSE, "1", &error);
+  if (!Logger::is_quiet()) {
+    mt_kahypar_set_context_parameter(mt_kahypar_ctx, VERBOSE, "1", &error);
+  }
   KASSERT(error.status == SUCCESS);
 
   mt_kahypar_initialize(_ctx.parallel.num_threads, true);
