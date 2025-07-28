@@ -152,8 +152,8 @@
           whfc-src = pkgs.fetchFromGitHub {
             owner = "larsgottesbueren";
             repo = "WHFC";
-            rev = "5ae2e3664391ca0db7fab2c82973e98c48937a08";
-            hash = "sha256-Oyz6u1uAgQUTOjSWBC9hLbupmQwbzcZJcyxNnj7+qxo=";
+            rev = "30b0eeb0e49577d06c3deb09a44b035d81c529d2";
+            hash = "sha256-2+l3PGOT3dqtL39OZHNQGNwrvEH75xXJOK5SaXmDk8A=";
           };
 
           growt-src = pkgs.fetchFromGitHub {
