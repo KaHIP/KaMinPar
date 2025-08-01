@@ -177,14 +177,14 @@
           src = pkgs.fetchFromGitHub {
             owner = "kahypar";
             repo = "mt-kahypar";
-            rev = "a0236788100facfce4ffae29263c4cf26c3cafcd";
-            hash = "sha256-tVR+0I+/kqQVjF7J3bXuziEf9ldU7TDz5OuS4XVAjKA=";
+            rev = "ba647033b3368bf5178d86ac1e52b042d57e4f2d";
+            hash = "sha256-VraSGYl6HoJ0ruBwN3p3kOM+BZU2dfbcRhHf/UY9wxI=";
           };
 
           preConfigure = ''
             # Remove the FetchContent_Populate calls in CMakeLists.txt
-            sed -i '346,358d' CMakeLists.txt
-            sed -i '362,367d' CMakeLists.txt
+            sed -i '347,359d' CMakeLists.txt
+            sed -i '363,368d' CMakeLists.txt
 
             # Set up WHFC dependency
             mkdir -p external_tools

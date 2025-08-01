@@ -399,7 +399,7 @@ if(KAMINPAR_BUILD_WITH_MTKAHYPAR)
     FetchContent_Declare(
       MtKaHyPar
       GIT_REPOSITORY https://github.com/kahypar/mt-kahypar.git
-      GIT_TAG a0236788100facfce4ffae29263c4cf26c3cafcd # v1.5.2
+      GIT_TAG ba647033b3368bf5178d86ac1e52b042d57e4f2d # v1.5.2
       EXCLUDE_FROM_ALL)
 
     set(KAHYPAR_ENABLE_ARCH_COMPILE_OPTIMIZATIONS ${KAMINPAR_BUILD_WITH_MTUNE_NATIVE} CACHE BOOL "" FORCE)
