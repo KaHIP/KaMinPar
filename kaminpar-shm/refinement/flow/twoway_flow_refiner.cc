@@ -197,13 +197,13 @@ private:
         (1 + _f_ctx.border_region_scaling_factor * _p_ctx.epsilon()) *
             _p_ctx.perfectly_balanced_block_weight(block2) -
         _block_weight2;
-    _border_region1.reset(block1, max_border_region_weight1, _graph.n());
+    _border_region1.reset(block1, std::min(max_border_region_weight1, _block_weight1), _graph.n());
 
     const NodeWeight max_border_region_weight2 =
         (1 + _f_ctx.border_region_scaling_factor * _p_ctx.epsilon()) *
             _p_ctx.perfectly_balanced_block_weight(block1) -
         _block_weight1;
-    _border_region2.reset(block2, max_border_region_weight2, _graph.n());
+    _border_region2.reset(block2, std::min(max_border_region_weight2, _block_weight2), _graph.n());
 
     _border_nodes.clear();
     for (const auto &[u, v] : _q_graph.quotient_edge_cuts(block1, block2)) {
@@ -278,8 +278,7 @@ private:
     SCOPED_TIMER("Run WHFC");
 
     START_TIMER("Build Hypergraph");
-    whfc::FlowHypergraphBuilder hypergraph;
-    hypergraph.reinitialize(_flow_network.graph.n());
+    whfc::FlowHypergraphBuilder hypergraph(_flow_network.graph.n());
 
     for (const NodeID u : _flow_network.graph.nodes()) {
       hypergraph.nodeWeight(whfc::Node(u)) = whfc::NodeWeight(_flow_network.graph.node_weight(u));
