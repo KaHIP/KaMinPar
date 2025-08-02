@@ -14,7 +14,7 @@ namespace kaminpar::shm {
 namespace debug {
 
 [[nodiscard]] bool
-is_valid_reverse_edge_index(const CSRGraph &graph, std::span<const NodeID> reverse_edges);
+is_valid_reverse_edge_index(const CSRGraph &graph, std::span<const EdgeID> reverse_edges);
 
 }
 

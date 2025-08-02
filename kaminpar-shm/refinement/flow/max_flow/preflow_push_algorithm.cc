@@ -8,7 +8,7 @@ PreflowPushAlgorithm::PreflowPushAlgorithm(const PreflowPushContext &ctx) : _ctx
 
 void PreflowPushAlgorithm::initialize(
     const CSRGraph &graph,
-    std::span<const NodeID> reverse_edges,
+    std::span<const EdgeID> reverse_edges,
     const NodeID source,
     const NodeID sink
 ) {

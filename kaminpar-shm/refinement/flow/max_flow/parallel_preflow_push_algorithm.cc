@@ -17,7 +17,7 @@ ParallelPreflowPushAlgorithm::ParallelPreflowPushAlgorithm(const PreflowPushCont
 
 void ParallelPreflowPushAlgorithm::initialize(
     const CSRGraph &graph,
-    std::span<const NodeID> reverse_edges,
+    std::span<const EdgeID> reverse_edges,
     const NodeID source,
     const NodeID sink
 ) {

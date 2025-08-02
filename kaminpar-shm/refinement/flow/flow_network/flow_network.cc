@@ -106,7 +106,7 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
   const EdgeID num_edges = nodes.back();
   StaticArray<NodeID> edges(num_edges, static_array::noinit);
   StaticArray<EdgeWeight> edge_weights(num_edges, static_array::noinit);
-  StaticArray<NodeID> reverse_edges(num_edges, static_array::noinit);
+  StaticArray<EdgeID> reverse_edges(num_edges, static_array::noinit);
 
   EdgeWeight cut_value = 0;
 
@@ -411,7 +411,7 @@ private:
 
   const EdgeID num_edges = nodes.back();
   StaticArray<NodeID> edges(num_edges, static_array::noinit);
-  StaticArray<NodeID> reverse_edges(num_edges, static_array::noinit);
+  StaticArray<EdgeID> reverse_edges(num_edges, static_array::noinit);
   StaticArray<EdgeWeight> edge_weights(num_edges, static_array::noinit);
 
   tbb::enumerable_thread_specific<EdgeID> cut_value_ets;

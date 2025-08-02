@@ -18,7 +18,7 @@ public:
   virtual ~MaxPreflowAlgorithm() = default;
 
   virtual void initialize(
-      const CSRGraph &graph, std::span<const NodeID> reverse_edges, NodeID source, NodeID sink
+      const CSRGraph &graph, std::span<const EdgeID> reverse_edges, NodeID source, NodeID sink
   ) = 0;
 
   virtual void add_sources(std::span<const NodeID> sources) = 0;

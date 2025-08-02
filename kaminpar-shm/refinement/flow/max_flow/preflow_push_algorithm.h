@@ -51,7 +51,7 @@ public:
   ~PreflowPushAlgorithm() override = default;
 
   void initialize(
-      const CSRGraph &graph, std::span<const NodeID> reverse_edges, NodeID source, NodeID sink
+      const CSRGraph &graph, std::span<const EdgeID> reverse_edges, NodeID source, NodeID sink
   ) override;
 
   void add_sources(std::span<const NodeID> sources) override;
@@ -79,7 +79,7 @@ private:
   const PreflowPushContext _ctx;
 
   const CSRGraph *_graph;
-  std::span<const NodeID> _reverse_edges;
+  std::span<const EdgeID> _reverse_edges;
 
   NodeStatus _node_status;
   ScalableVector<NodeID> _excess_nodes;
