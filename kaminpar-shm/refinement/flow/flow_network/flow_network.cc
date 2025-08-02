@@ -32,7 +32,10 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
   std::unordered_map<NodeID, NodeID> global_to_local_mapping;
   std::unordered_map<NodeID, NodeID> local_to_global_mapping;
   NodeID cur_node = kFirstNodeID;
-  for (const BorderRegion &border_region : {std::cref(border_region1), std::cref(border_region2)}) {
+
+  for (BlockID terminal = 0; terminal < 2; ++terminal) {
+    const BorderRegion &border_region = (terminal == 0) ? border_region1 : border_region2;
+
     for (const NodeID u : border_region.nodes()) {
       const NodeID u_local = cur_node++;
       global_to_local_mapping.emplace(u, u_local);
@@ -44,8 +47,8 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
   StaticArray<EdgeID> nodes(num_nodes + 1, static_array::noinit);
   StaticArray<NodeWeight> node_weights(num_nodes, static_array::noinit);
 
-  StaticArray<EdgeWeight> source_weights(num_nodes, static_array::seq);
-  StaticArray<EdgeWeight> sink_weights(num_nodes, static_array::seq);
+  StaticArray<EdgeWeight> source_weights(num_nodes, static_array::noinit);
+  StaticArray<EdgeWeight> sink_weights(num_nodes, static_array::noinit);
 
   cur_node = kFirstNodeID;
   EdgeID num_source_edges = 0;
@@ -54,10 +57,12 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
     const BorderRegion &border_region = (terminal == 0) ? border_region1 : border_region2;
 
     for (const NodeID u : border_region.nodes()) {
+      const NodeID u_local = cur_node;
+      KASSERT(u_local == global_to_local_mapping[u]);
+
       EdgeID num_neighbors = 0;
       EdgeWeight source_weight = 0;
       EdgeWeight sink_weight = 0;
-
       graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
         if (global_to_local_mapping.contains(v)) {
           num_neighbors += 1;
@@ -69,21 +74,21 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
         sink_weight += (v_block == block2) ? w : 0;
       });
 
+      sink_weights[u_local] = sink_weight;
       if (sink_weight > 0) {
         num_neighbors += 1;
         num_sink_edges += 1;
-        sink_weights[cur_node] = sink_weight;
       }
 
+      source_weights[u_local] = source_weight;
       if (source_weight > 0) {
         num_neighbors += 1;
         num_source_edges += 1;
-        source_weights[cur_node] = source_weight;
       }
 
       const NodeWeight u_weight = graph.node_weight(u);
-      nodes[cur_node] = num_neighbors;
-      node_weights[cur_node] = u_weight;
+      nodes[u_local] = num_neighbors;
+      node_weights[u_local] = u_weight;
 
       cur_node += 1;
     }
@@ -115,6 +120,7 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
     const BorderRegion &border_region = source_side ? border_region1 : border_region2;
     for (const NodeID u : border_region.nodes()) {
       const NodeID u_local = cur_node;
+      KASSERT(u_local == global_to_local_mapping[u]);
 
       EdgeID u_edge = nodes[u_local];
       graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
@@ -198,6 +204,40 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
   KASSERT(
       debug::is_valid_reverse_edge_index(flow_network_graph, reverse_edges),
       "constructed an invalid reverse edge index",
+      assert::heavy
+  );
+  KASSERT(
+      [&] {
+        for (const NodeID u : flow_network_graph.nodes()) {
+          if (u == kSource || u == kSink) {
+            continue;
+          }
+
+          if (global_to_local_mapping[local_to_global_mapping[u]] != u) {
+            return false;
+          }
+        }
+
+        return true;
+      }(),
+      "constructed an global to local mapping",
+      assert::heavy
+  );
+  KASSERT(
+      [&] {
+        for (BlockID terminal = 0; terminal < 2; ++terminal) {
+          const BorderRegion &border_region = (terminal == 0) ? border_region1 : border_region2;
+
+          for (const NodeID u : border_region.nodes()) {
+            if (local_to_global_mapping[global_to_local_mapping[u]] != u) {
+              return false;
+            }
+          }
+        }
+
+        return true;
+      }(),
+      "constructed an local to global mapping",
       assert::heavy
   );
 

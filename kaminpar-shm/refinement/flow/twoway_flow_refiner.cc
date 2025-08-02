@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <span>
 #include <tuple>
 #include <utility>
@@ -145,8 +146,8 @@ public:
       return Result::Empty();
     }
 
-    expand_border_region(_border_region1);
-    expand_border_region(_border_region2);
+    expand_border_region(_border_region1, _border_region2);
+    expand_border_region(_border_region2, _border_region1);
     DBG << "Expanded border region sizes: block " << _block1 << " = " << _border_region1.num_nodes()
         << ", block " << _block2 << " = " << _border_region2.num_nodes();
 
@@ -242,7 +243,7 @@ private:
     }
   }
 
-  void expand_border_region(BorderRegion &border_region) {
+  void expand_border_region(BorderRegion &border_region, BorderRegion &other_border_region) {
     SCOPED_TIMER("Expand Border Region");
 
     if (_f_ctx.max_border_distance == 0) {
@@ -257,7 +258,8 @@ private:
       const NodeID v_distance = u_distance + 1;
 
       _graph.adjacent_nodes(u, [&](const NodeID v) {
-        if (_p_graph.block(v) != block || border_region.contains(v)) {
+        if (_p_graph.block(v) != block || border_region.contains(v) ||
+            other_border_region.contains(v)) {
           return;
         }
 
@@ -1287,6 +1289,7 @@ public:
       tbb::parallel_for<std::size_t>(0, num_parallel_searches, [&](const std::size_t refiner_id) {
         BipartitionFlowRefiner &refiner = refiners[refiner_id];
         ScalableVector<QuotientGraph::GraphEdge> &new_cut_edges = new_cut_edges_ets[refiner_id];
+
         while (true) {
           const std::size_t block_pair = __atomic_fetch_add(&cur_block_pair, 1, __ATOMIC_RELAXED);
           if (block_pair >= _active_block_pairs.size()) {
@@ -1296,7 +1299,8 @@ public:
           const auto [block1, block2] = _active_block_pairs[block_pair];
           DBG << "Scheduling block pair " << block1 << " and " << block2;
 
-          auto [time_limit_exceeded, gain, moves] = refiner.refine(cut_value, block1, block2);
+          const EdgeWeight cur_cut_value = __atomic_load_n(&cut_value, __ATOMIC_RELAXED);
+          auto [time_limit_exceeded, gain, moves] = refiner.refine(cur_cut_value, block1, block2);
 
           if (time_limit_exceeded) {
             if (tbb::task::current_context()->cancel_group_execution()) {
@@ -1345,10 +1349,11 @@ public:
 
           IF_STATS _stats.num_global_improvements += 1;
 
+          __atomic_store_n(&cut_value, new_cut_value, __ATOMIC_RELAXED);
+
           quotient_graph.add_cut_edges(new_cut_edges);
           quotient_graph.add_gain(block1, block2, actual_gain);
 
-          cut_value = new_cut_value;
           _active_blocks[block1] = true;
           _active_blocks[block2] = true;
         }
