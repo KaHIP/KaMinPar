@@ -539,6 +539,11 @@ const char *yn(const bool value, const char *yes = "yes", const char *no = "no")
   return value ? yes : no;
 }
 
+template <typename Int>
+std::string unlimited(Int value, const char *unlimited_str = "<unlimited>") {
+  return value == std::numeric_limits<Int>::max() ? unlimited_str : std::to_string(value);
+}
+
 } // namespace
 
 std::ostream &operator<<(std::ostream &out, const Context &ctx) {
@@ -747,42 +752,47 @@ std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
         << "\n";
     out << "  Max border distance:        " << r_ctx.twoway_flow.max_border_distance << "\n";
 
-    out << "  Global relabeling:          "
-        << yn(r_ctx.twoway_flow.flow.global_relabeling_heuristic) << "\n";
-    out << "  Global relabeling freq.:    " << r_ctx.twoway_flow.flow.global_relabeling_frequency
+    out << "  Flow Cutter:                " << yn(r_ctx.twoway_flow.use_whfc, "WHFC", "Built-in")
         << "\n";
-
-    out << "  Pierce all viable:          " << yn(r_ctx.twoway_flow.piercing.pierce_all_viable)
-        << "\n";
-    out << "  Bulk Piercing:              " << yn(r_ctx.twoway_flow.piercing.bulk_piercing) << "\n";
-    if (r_ctx.twoway_flow.piercing.bulk_piercing) {
-      out << "    Round threshold:          "
-          << r_ctx.twoway_flow.piercing.bulk_piercing_round_threshold << "\n";
-      out << "    Shrinking factor:         "
-          << r_ctx.twoway_flow.piercing.bulk_piercing_shrinking_factor << "\n";
+    out << "    Bulk Piercing:            " << yn(r_ctx.twoway_flow.piercing.bulk_piercing) << "\n";
+    if (!r_ctx.twoway_flow.use_whfc) {
+      if (r_ctx.twoway_flow.piercing.bulk_piercing) {
+        out << "      Round threshold:        "
+            << r_ctx.twoway_flow.piercing.bulk_piercing_round_threshold << "\n";
+        out << "      Shrinking factor:       "
+            << r_ctx.twoway_flow.piercing.bulk_piercing_shrinking_factor << "\n";
+      }
+      out << "    Pierce all viable:        " << yn(r_ctx.twoway_flow.piercing.pierce_all_viable)
+          << "\n";
+      out << "    Fallback heuristic:       " << yn(r_ctx.twoway_flow.piercing.fallback_heuristic)
+          << "\n";
+      out << "    Global relabeling:        "
+          << yn(r_ctx.twoway_flow.flow.global_relabeling_heuristic) << "\n";
+      out << "    Global relabeling freq.:  " << r_ctx.twoway_flow.flow.global_relabeling_frequency
+          << "\n";
     }
-    out << "  Fallback heuristic:         " << yn(r_ctx.twoway_flow.piercing.fallback_heuristic)
-        << "\n";
 
     out << "  Unconstrained:              " << yn(r_ctx.twoway_flow.unconstrained) << "\n";
     if (r_ctx.twoway_flow.unconstrained) {
-      out << "    Rebalancing:              "
+      out << "    Rebalancer:               "
           << yn(r_ctx.twoway_flow.dynamic_rebalancer, "dynamic", "static") << "\n";
+      out << "    Abort on first cut:       " << yn(r_ctx.twoway_flow.abort_on_first_cut) << "\n";
       out << "    Abort on candidate cut:   " << yn(r_ctx.twoway_flow.abort_on_candidate_cut)
           << "\n";
     }
 
-    out << "  Flow Cutter:                " << yn(r_ctx.twoway_flow.use_whfc, "WHFC", "Built-in")
-        << "\n";
-    out << "  Time Limit:                 " << r_ctx.twoway_flow.time_limit << " minutes" << "\n";
-    out << "  Max num rounds:             " << r_ctx.twoway_flow.max_num_rounds << "\n";
-    out << "  Min round improvement:      " << r_ctx.twoway_flow.min_round_improvement_factor
-        << "\n";
-    out << "  Parallel scheduling:        " << yn(r_ctx.twoway_flow.parallel_scheduling) << "\n";
+    out << "  Scheduling:                 "
+        << yn(r_ctx.twoway_flow.parallel_scheduling, "Parallel", "Sequential") << "\n";
     if (r_ctx.twoway_flow.parallel_scheduling) {
       out << "    Search multiplier:        " << r_ctx.twoway_flow.parallel_searches_multiplier
           << "\n";
     }
+    out << "    Sequential computation:   " << yn(r_ctx.twoway_flow.run_sequentially) << "\n";
+    out << "    Time Limit:               " << unlimited(r_ctx.twoway_flow.time_limit)
+        << " minute(s)" << "\n";
+    out << "    Max num rounds:           " << unlimited(r_ctx.twoway_flow.max_num_rounds) << "\n";
+    out << "    Min round improvement:    " << r_ctx.twoway_flow.min_round_improvement_factor
+        << "\n";
   }
 
   if (r_ctx.includes_algorithm(RefinementAlgorithm::JET)) {
