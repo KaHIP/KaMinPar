@@ -1,12 +1,12 @@
 #pragma once
 
-#include <unordered_map>
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/refinement/flow/flow_network/border_region.h"
 
+#include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm {
@@ -18,8 +18,8 @@ struct FlowNetwork {
   CSRGraph graph;
   StaticArray<EdgeID> reverse_edges;
 
-  std::unordered_map<NodeID, NodeID> global_to_local_mapping;
-  std::unordered_map<NodeID, NodeID> local_to_global_mapping;
+  DynamicRememberingFlatMap<NodeID, NodeID> global_to_local_mapping;
+  DynamicRememberingFlatMap<NodeID, NodeID> local_to_global_mapping;
 };
 
 [[nodiscard]] std::pair<FlowNetwork, EdgeWeight> construct_flow_network(

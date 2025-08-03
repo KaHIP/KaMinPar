@@ -15,6 +15,10 @@ template <typename Key, typename Value, typename Derived> class DynamicMapBase {
   static constexpr std::size_t kTHPThreshold = 1024 * 1024 * 16;
 
 public:
+  static std::size_t required_capacity(const std::size_t size) {
+    return static_cast<std::size_t>(std::ceil((5.0 * size) / 2.0));
+  }
+
   DynamicMapBase(const DynamicMapBase &) = delete;
   DynamicMapBase &operator=(const DynamicMapBase &other) = delete;
 
@@ -253,6 +257,10 @@ class DynamicRememberingFlatMap final
 
 public:
   DynamicRememberingFlatMap() {
+    initialize_impl();
+  }
+
+  DynamicRememberingFlatMap(const std::size_t initial_capacity) : Base(initial_capacity) {
     initialize_impl();
   }
 

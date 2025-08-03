@@ -124,8 +124,11 @@ public:
 
   Result refine(const EdgeWeight cut_value, const BlockID block1, const BlockID block2) {
     KASSERT(block1 != block2, "Only different block pairs can be refined");
-
     SCOPED_TIMER("Refine Block Pair");
+
+    if (time_limit_exceeded()) {
+      return Result::TimeLimitExceeded();
+    }
     _time_limit_exceeded = false;
 
     _block1 = block1;
@@ -823,7 +826,7 @@ private:
     SCOPED_TIMER("Compute Moves");
 
     _constrained_moves.clear();
-    for (const auto &[u, u_local] : _flow_network.global_to_local_mapping) {
+    for (const auto &[u, u_local] : _flow_network.global_to_local_mapping.entries()) {
       const BlockID old_block = _p_graph.block(u);
       const BlockID new_block = fetch_block(u_local);
 
@@ -863,7 +866,7 @@ private:
   template <typename BlockFetcher>
   void rebalance(const bool source_side, const EdgeWeight cut_value, BlockFetcher &&fetch_block) {
     TIMED_SCOPE("Initialize Partitioned Graph") {
-      for (const auto [u, u_local] : _flow_network.global_to_local_mapping) {
+      for (const auto &[u, u_local] : _flow_network.global_to_local_mapping.entries()) {
         const BlockID old_block = _p_graph_rebalancing_copy.block(u);
         const BlockID new_block = fetch_block(u_local);
         if (old_block == new_block) {
@@ -921,7 +924,7 @@ private:
         _unconstrained_cut_value = rebalanced_cut_value;
         _unconstrained_moves.clear();
 
-        for (const auto [u, _] : _flow_network.global_to_local_mapping) {
+        for (const auto &[u, _] : _flow_network.global_to_local_mapping.entries()) {
           const BlockID old_block = _p_graph.block(u);
           const BlockID new_block = _p_graph_rebalancing_copy.block(u);
 

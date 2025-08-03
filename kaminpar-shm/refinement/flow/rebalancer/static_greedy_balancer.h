@@ -1,12 +1,13 @@
 #pragma once
 
 #include <span>
-#include <unordered_map>
 
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/refinement/flow/rebalancer/greedy_balancer_base.h"
 
+#include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
+#include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
 
@@ -32,7 +33,7 @@ public:
       BlockID overloaded_block,
       PartitionedGraph &p_graph,
       const Graph &graph,
-      const std::unordered_map<NodeID, NodeID> &global_to_local_mapping
+      const DynamicRememberingFlatMap<NodeID, NodeID> &global_to_local_mapping
   ) {
     _overloaded_block = overloaded_block;
     _p_graph = &p_graph;
@@ -53,11 +54,13 @@ public:
 
 private:
   void initialize() {
+    SCOPED_TIMER("Initialize");
+
     Base::initialize();
     _initialized = true;
 
     _virtual_moves.clear();
-    for (const auto &[u, _] : *_global_to_local_mapping) {
+    for (const auto &[u, _] : _global_to_local_mapping->entries()) {
       const BlockID u_block = _p_graph->block(u);
       if (u_block == _overloaded_block) {
         continue;
@@ -106,6 +109,8 @@ private:
   }
 
   RebalancerResult move_nodes() {
+    SCOPED_TIMER("Compute moves");
+
     const NodeID num_moves = _moves.size();
     NodeID cur_move = 0;
 
@@ -147,7 +152,7 @@ private:
 
 private:
   bool _initialized;
-  const std::unordered_map<NodeID, NodeID> *_global_to_local_mapping;
+  const DynamicRememberingFlatMap<NodeID, NodeID> *_global_to_local_mapping;
   ScalableVector<Move> _virtual_moves;
 
   ScalableVector<Move> _moves;

@@ -29,79 +29,89 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
   const BlockID block1 = border_region1.block();
   const BlockID block2 = border_region2.block();
 
-  std::unordered_map<NodeID, NodeID> global_to_local_mapping;
-  std::unordered_map<NodeID, NodeID> local_to_global_mapping;
-  NodeID cur_node = kFirstNodeID;
+  const NodeID num_border_region_nodes = border_region1.num_nodes() + border_region2.num_nodes();
 
-  for (BlockID terminal = 0; terminal < 2; ++terminal) {
-    const BorderRegion &border_region = (terminal == 0) ? border_region1 : border_region2;
+  using HashTable = DynamicRememberingFlatMap<NodeID, NodeID>;
+  const std::size_t mapping_capacity = HashTable::required_capacity(num_border_region_nodes);
+  HashTable global_to_local_mapping(mapping_capacity);
+  HashTable local_to_global_mapping(mapping_capacity);
 
-    for (const NodeID u : border_region.nodes()) {
-      const NodeID u_local = cur_node++;
-      global_to_local_mapping.emplace(u, u_local);
-      local_to_global_mapping.emplace(u_local, u);
+  TIMED_SCOPE("Initialize mappings") {
+    NodeID cur_node = kFirstNodeID;
+
+    for (BlockID terminal = 0; terminal < 2; ++terminal) {
+      const BorderRegion &border_region = (terminal == 0) ? border_region1 : border_region2;
+
+      for (const NodeID u : border_region.nodes()) {
+        const NodeID u_local = cur_node++;
+        global_to_local_mapping[u] = u_local;
+        local_to_global_mapping[u_local] = u;
+      }
     }
-  }
+  };
 
-  const NodeID num_nodes = 2 + border_region1.num_nodes() + border_region2.num_nodes();
+  const NodeID num_nodes = 2 + num_border_region_nodes;
   StaticArray<EdgeID> nodes(num_nodes + 1, static_array::noinit);
   StaticArray<NodeWeight> node_weights(num_nodes, static_array::noinit);
 
   StaticArray<EdgeWeight> source_weights(num_nodes, static_array::noinit);
   StaticArray<EdgeWeight> sink_weights(num_nodes, static_array::noinit);
 
-  cur_node = kFirstNodeID;
-  EdgeID num_source_edges = 0;
-  EdgeID num_sink_edges = 0;
-  for (BlockID terminal = 0; terminal < 2; ++terminal) {
-    const BorderRegion &border_region = (terminal == 0) ? border_region1 : border_region2;
+  TIMED_SCOPE("Compute node offsets") {
+    NodeID cur_node = kFirstNodeID;
 
-    for (const NodeID u : border_region.nodes()) {
-      const NodeID u_local = cur_node;
-      KASSERT(u_local == global_to_local_mapping[u]);
+    EdgeID num_source_edges = 0;
+    EdgeID num_sink_edges = 0;
+    for (BlockID terminal = 0; terminal < 2; ++terminal) {
+      const BorderRegion &border_region = (terminal == 0) ? border_region1 : border_region2;
 
-      EdgeID num_neighbors = 0;
-      EdgeWeight source_weight = 0;
-      EdgeWeight sink_weight = 0;
-      graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
-        if (global_to_local_mapping.contains(v)) {
+      for (const NodeID u : border_region.nodes()) {
+        const NodeID u_local = cur_node;
+        KASSERT(u_local == global_to_local_mapping[u]);
+
+        EdgeID num_neighbors = 0;
+        EdgeWeight source_weight = 0;
+        EdgeWeight sink_weight = 0;
+        graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+          if (global_to_local_mapping.contains(v)) {
+            num_neighbors += 1;
+            return;
+          }
+
+          const BlockID v_block = p_graph.block(v);
+          source_weight += (v_block == block1) ? w : 0;
+          sink_weight += (v_block == block2) ? w : 0;
+        });
+
+        sink_weights[u_local] = sink_weight;
+        if (sink_weight > 0) {
           num_neighbors += 1;
-          return;
+          num_sink_edges += 1;
         }
 
-        const BlockID v_block = p_graph.block(v);
-        source_weight += (v_block == block1) ? w : 0;
-        sink_weight += (v_block == block2) ? w : 0;
-      });
+        source_weights[u_local] = source_weight;
+        if (source_weight > 0) {
+          num_neighbors += 1;
+          num_source_edges += 1;
+        }
 
-      sink_weights[u_local] = sink_weight;
-      if (sink_weight > 0) {
-        num_neighbors += 1;
-        num_sink_edges += 1;
+        const NodeWeight u_weight = graph.node_weight(u);
+        nodes[u_local] = num_neighbors;
+        node_weights[u_local] = u_weight;
+
+        cur_node += 1;
       }
-
-      source_weights[u_local] = source_weight;
-      if (source_weight > 0) {
-        num_neighbors += 1;
-        num_source_edges += 1;
-      }
-
-      const NodeWeight u_weight = graph.node_weight(u);
-      nodes[u_local] = num_neighbors;
-      node_weights[u_local] = u_weight;
-
-      cur_node += 1;
     }
-  }
 
-  nodes[kSource] = num_source_edges;
-  node_weights[kSource] = block1_weight - border_region1.weight();
+    nodes[kSource] = num_source_edges;
+    node_weights[kSource] = block1_weight - border_region1.weight();
 
-  nodes[kSink] = num_sink_edges;
-  node_weights[kSink] = block2_weight - border_region2.weight();
+    nodes[kSink] = num_sink_edges;
+    node_weights[kSink] = block2_weight - border_region2.weight();
 
-  nodes.back() = 0;
-  std::partial_sum(nodes.begin(), nodes.end(), nodes.begin());
+    nodes.back() = 0;
+    std::partial_sum(nodes.begin(), nodes.end(), nodes.begin());
+  };
 
   const EdgeID num_edges = nodes.back();
   StaticArray<NodeID> edges(num_edges, static_array::noinit);
@@ -109,85 +119,89 @@ std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
   StaticArray<EdgeID> reverse_edges(num_edges, static_array::noinit);
 
   EdgeWeight cut_value = 0;
+  TIMED_SCOPE("Compute edges") {
+    NodeID cur_node = kFirstNodeID;
 
-  cur_node = kFirstNodeID;
-  EdgeID cur_source_edge = nodes[kSource];
-  EdgeID cur_sink_edge = nodes[kSink];
-  for (BlockID terminal = 0; terminal < 2; ++terminal) {
-    const bool source_side = terminal == 0;
-    const bool sink_side = terminal == 1;
+    EdgeID cur_source_edge = nodes[kSource];
+    EdgeID cur_sink_edge = nodes[kSink];
+    for (BlockID terminal = 0; terminal < 2; ++terminal) {
+      const bool source_side = terminal == 0;
+      const bool sink_side = terminal == 1;
 
-    const BorderRegion &border_region = source_side ? border_region1 : border_region2;
-    for (const NodeID u : border_region.nodes()) {
-      const NodeID u_local = cur_node;
-      KASSERT(u_local == global_to_local_mapping[u]);
+      const BorderRegion &border_region = source_side ? border_region1 : border_region2;
+      for (const NodeID u : border_region.nodes()) {
+        const NodeID u_local = cur_node;
+        KASSERT(u_local == global_to_local_mapping[u]);
 
-      EdgeID u_edge = nodes[u_local];
-      graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
-        if (auto it = global_to_local_mapping.find(v); it != global_to_local_mapping.end()) {
-          const NodeID v_local = it->second;
-          if (u_local >= v_local) {
-            return;
+        EdgeID u_edge = nodes[u_local];
+        graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+          if (auto it = global_to_local_mapping.get_if_contained(v);
+              it != global_to_local_mapping.end()) {
+            const NodeID v_local = *it;
+            if (u_local >= v_local) {
+              return;
+            }
+
+            u_edge -= 1;
+            edges[u_edge] = v_local;
+            edge_weights[u_edge] = w;
+
+            const EdgeID v_edge = --nodes[v_local];
+            edges[v_edge] = u_local;
+            edge_weights[v_edge] = w;
+
+            reverse_edges[u_edge] = v_edge;
+            reverse_edges[v_edge] = u_edge;
+
+            if (source_side) {
+              cut_value += border_region2.contains(v) ? w : 0;
+            } else if (sink_side) {
+              cut_value += border_region1.contains(v) ? w : 0;
+            }
           }
+        });
 
+        const EdgeWeight sink_edge_weight = sink_weights[u_local];
+        if (sink_edge_weight > 0) {
           u_edge -= 1;
-          edges[u_edge] = v_local;
-          edge_weights[u_edge] = w;
+          edges[u_edge] = kSink;
+          edge_weights[u_edge] = sink_edge_weight;
 
-          const EdgeID v_edge = --nodes[v_local];
-          edges[v_edge] = u_local;
-          edge_weights[v_edge] = w;
+          cur_sink_edge -= 1;
+          edges[cur_sink_edge] = u_local;
+          edge_weights[cur_sink_edge] = sink_edge_weight;
 
-          reverse_edges[u_edge] = v_edge;
-          reverse_edges[v_edge] = u_edge;
+          reverse_edges[u_edge] = cur_sink_edge;
+          reverse_edges[cur_sink_edge] = u_edge;
 
-          if (source_side) {
-            cut_value += border_region2.contains(v) ? w : 0;
-          } else if (sink_side) {
-            cut_value += border_region1.contains(v) ? w : 0;
-          }
+          cut_value += source_side ? sink_edge_weight : 0;
         }
-      });
 
-      const EdgeWeight sink_edge_weight = sink_weights[u_local];
-      if (sink_edge_weight > 0) {
-        u_edge -= 1;
-        edges[u_edge] = kSink;
-        edge_weights[u_edge] = sink_edge_weight;
+        const EdgeWeight source_edge_weight = source_weights[u_local];
+        if (source_edge_weight > 0) {
+          u_edge -= 1;
+          edges[u_edge] = kSource;
+          edge_weights[u_edge] = source_edge_weight;
 
-        cur_sink_edge -= 1;
-        edges[cur_sink_edge] = u_local;
-        edge_weights[cur_sink_edge] = sink_edge_weight;
+          cur_source_edge -= 1;
+          edges[cur_source_edge] = u_local;
+          edge_weights[cur_source_edge] = source_edge_weight;
 
-        reverse_edges[u_edge] = cur_sink_edge;
-        reverse_edges[cur_sink_edge] = u_edge;
+          reverse_edges[u_edge] = cur_source_edge;
+          reverse_edges[cur_source_edge] = u_edge;
 
-        cut_value += source_side ? sink_edge_weight : 0;
+          cut_value += sink_side ? source_edge_weight : 0;
+        }
+
+        nodes[u_local] = u_edge;
+        cur_node += 1;
       }
-
-      const EdgeWeight source_edge_weight = source_weights[u_local];
-      if (source_edge_weight > 0) {
-        u_edge -= 1;
-        edges[u_edge] = kSource;
-        edge_weights[u_edge] = source_edge_weight;
-
-        cur_source_edge -= 1;
-        edges[cur_source_edge] = u_local;
-        edge_weights[cur_source_edge] = source_edge_weight;
-
-        reverse_edges[u_edge] = cur_source_edge;
-        reverse_edges[cur_source_edge] = u_edge;
-
-        cut_value += sink_side ? source_edge_weight : 0;
-      }
-
-      nodes[u_local] = u_edge;
-      cur_node += 1;
     }
-  }
 
-  nodes[kSource] = cur_source_edge;
-  nodes[kSink] = cur_sink_edge;
+    nodes[kSource] = cur_source_edge;
+    nodes[kSink] = cur_sink_edge;
+  };
+
   CSRGraph flow_network_graph(
       CSRGraph::seq(),
       std::move(nodes),
@@ -338,14 +352,14 @@ private:
   const BlockID block1 = border_region1.block();
   const BlockID block2 = border_region2.block();
 
-  std::unordered_map<NodeID, NodeID> global_to_local_mapping;
-  std::unordered_map<NodeID, NodeID> local_to_global_mapping;
+  DynamicRememberingFlatMap<NodeID, NodeID> global_to_local_mapping;
+  DynamicRememberingFlatMap<NodeID, NodeID> local_to_global_mapping;
   NodeID cur_node = kFirstNodeID;
   for (const BorderRegion &border_region : {std::cref(border_region1), std::cref(border_region2)}) {
     for (const NodeID u : border_region.nodes()) {
       const NodeID u_local = cur_node++;
-      global_to_local_mapping.emplace(u, u_local);
-      local_to_global_mapping.emplace(u_local, u);
+      global_to_local_mapping[u] = u_local;
+      local_to_global_mapping[u_local] = u;
     }
   }
 
@@ -446,8 +460,9 @@ private:
         const NodeID u_local = u_local_offset + i;
 
         graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
-          if (auto it = global_to_local_mapping.find(v); it != global_to_local_mapping.end()) {
-            const NodeID v_local = it->second;
+          if (auto it = global_to_local_mapping.get_if_contained(v);
+              it != global_to_local_mapping.end()) {
+            const NodeID v_local = *it;
             if (u_local >= v_local) {
               return;
             }
