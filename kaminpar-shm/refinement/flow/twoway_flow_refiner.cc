@@ -11,6 +11,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <span>
@@ -1027,12 +1028,18 @@ struct BlockPairSchedulerStatistics {
   std::size_t num_local_improvements;
   std::size_t num_global_improvements;
   std::size_t num_imbalance_conflicts;
+  double min_imbalance;
+  double max_imbalance;
+  double average_imbalance;
 
   void reset() {
     num_searches = 0;
     num_local_improvements = 0;
     num_global_improvements = 0;
     num_imbalance_conflicts = 0;
+    min_imbalance = std::numeric_limits<double>::max();
+    max_imbalance = std::numeric_limits<double>::min();
+    average_imbalance = 0.0;
   }
 
   void print() const {
@@ -1041,6 +1048,8 @@ struct BlockPairSchedulerStatistics {
     LOG_STATS << "*  # num local improvements: " << num_local_improvements;
     LOG_STATS << "*  # num global improvements: " << num_global_improvements;
     LOG_STATS << "*  # num imbalance conflicts: " << num_imbalance_conflicts;
+    LOG_STATS << "*  # min / average / max imbalance: " << min_imbalance << " / "
+              << average_imbalance << " / " << max_imbalance;
   }
 };
 
@@ -1150,6 +1159,8 @@ public:
     }
 
     IF_NOT_DBG ENABLE_TIMERS();
+    IF_STATS _stats.min_imbalance = 0;
+    IF_STATS _stats.max_imbalance = 0;
     IF_STATS _stats.print();
 
     return found_improvement;
@@ -1321,10 +1332,13 @@ public:
           const std::unique_lock lock(_apply_moves_mutex);
           IF_STATS _stats.num_local_improvements += 1;
 
-          const bool imbalance_conflict = !is_feasible_move_sequence(moves);
-          if (imbalance_conflict) {
+          const auto [balanced, imbalance] = is_feasible_move_sequence(moves);
+          if (!balanced) {
             DBG << "Block pair " << block1 << " and " << block2 << " has an imbalance conflict";
             IF_STATS _stats.num_imbalance_conflicts += 1;
+            IF_STATS _stats.min_imbalance = std::min(_stats.min_imbalance, imbalance);
+            IF_STATS _stats.max_imbalance = std::max(_stats.max_imbalance, imbalance);
+            IF_STATS _stats.average_imbalance += imbalance;
             continue;
           }
 
@@ -1382,6 +1396,7 @@ public:
     }
 
     ENABLE_TIMERS();
+    IF_STATS _stats.average_imbalance /= _stats.num_imbalance_conflicts;
     IF_STATS _stats.print();
 
     return found_improvement;
@@ -1415,7 +1430,7 @@ private:
     std::fill_n(_active_blocks.begin(), _p_graph->k(), false);
   }
 
-  bool is_feasible_move_sequence(std::span<Move> moves) {
+  std::pair<bool, double> is_feasible_move_sequence(std::span<Move> moves) {
     std::fill_n(_block_weight_delta.begin(), _p_graph->k(), 0);
 
     for (Move &move : moves) {
@@ -1442,14 +1457,21 @@ private:
       _block_weight_delta[new_block] += u_weight;
     }
 
-    for (BlockID block = 0, k = _p_graph->k(); block < k; ++block) {
-      if (_p_graph->block_weight(block) + _block_weight_delta[block] >
-          _p_ctx->max_block_weight(block)) {
-        return false;
+    const double perfect_block_weight =
+        std::ceil(1.0 * _graph->total_node_weight() / _p_graph->k());
+
+    bool balanced = true;
+    double max_imbalance = 0.0;
+    for (const BlockID b : _p_graph->blocks()) {
+      const BlockWeight b_weight = _p_graph->block_weight(b) + _block_weight_delta[b];
+
+      if (b_weight > _p_ctx->max_block_weight(b)) {
+        balanced = false;
+        max_imbalance = std::max(max_imbalance, b_weight / perfect_block_weight - 1.0);
       }
     }
 
-    return true;
+    return {balanced, max_imbalance};
   }
 
   EdgeWeight apply_moves(
