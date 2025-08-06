@@ -786,6 +786,7 @@ std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
     if (r_ctx.twoway_flow.parallel_scheduling) {
       out << "    Search multiplier:        " << r_ctx.twoway_flow.parallel_searches_multiplier
           << "\n";
+      out << "    Reschedule imbalances:    " << yn(r_ctx.twoway_flow.reschedule_imbalance_conflicts) << "\n";
     }
     out << "    Sequential computation:   " << yn(r_ctx.twoway_flow.run_sequentially) << "\n";
     out << "    Time Limit:               " << unlimited(r_ctx.twoway_flow.time_limit)

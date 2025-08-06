@@ -1030,7 +1030,7 @@ struct BlockPairSchedulerStatistics {
   std::size_t num_imbalance_conflicts;
   double min_imbalance;
   double max_imbalance;
-  double average_imbalance;
+  double total_imbalance;
 
   void reset() {
     num_searches = 0;
@@ -1039,7 +1039,7 @@ struct BlockPairSchedulerStatistics {
     num_imbalance_conflicts = 0;
     min_imbalance = std::numeric_limits<double>::max();
     max_imbalance = std::numeric_limits<double>::min();
-    average_imbalance = 0.0;
+    total_imbalance = 0.0;
   }
 
   void print() const {
@@ -1048,8 +1048,10 @@ struct BlockPairSchedulerStatistics {
     LOG_STATS << "*  # num local improvements: " << num_local_improvements;
     LOG_STATS << "*  # num global improvements: " << num_global_improvements;
     LOG_STATS << "*  # num imbalance conflicts: " << num_imbalance_conflicts;
-    LOG_STATS << "*  # min / average / max imbalance: " << min_imbalance << " / "
-              << average_imbalance << " / " << max_imbalance;
+    LOG_STATS << "*  # min / average / max imbalance: "
+              << (num_imbalance_conflicts ? min_imbalance : 0) << " / "
+              << (num_imbalance_conflicts ? total_imbalance / num_imbalance_conflicts : 0) << " / "
+              << (num_imbalance_conflicts ? max_imbalance : 0);
   }
 };
 
@@ -1159,8 +1161,6 @@ public:
     }
 
     IF_NOT_DBG ENABLE_TIMERS();
-    IF_STATS _stats.min_imbalance = 0;
-    IF_STATS _stats.max_imbalance = 0;
     IF_STATS _stats.print();
 
     return found_improvement;
@@ -1338,7 +1338,12 @@ public:
             IF_STATS _stats.num_imbalance_conflicts += 1;
             IF_STATS _stats.min_imbalance = std::min(_stats.min_imbalance, imbalance);
             IF_STATS _stats.max_imbalance = std::max(_stats.max_imbalance, imbalance);
-            IF_STATS _stats.average_imbalance += imbalance;
+            IF_STATS _stats.total_imbalance += imbalance;
+
+            if (_f_ctx.reschedule_imbalance_conflicts) {
+              _rescheduled_block_pairs.emplace_back(block1, block2);
+            }
+
             continue;
           }
 
@@ -1396,7 +1401,6 @@ public:
     }
 
     ENABLE_TIMERS();
-    IF_STATS _stats.average_imbalance /= _stats.num_imbalance_conflicts;
     IF_STATS _stats.print();
 
     return found_improvement;
@@ -1415,6 +1419,16 @@ private:
         }
       }
     }
+
+    for (const auto [block1, block2] : _rescheduled_block_pairs) {
+      if (!quotient_graph.has_quotient_edge(block1, block2) || activate_all ||
+          _active_blocks[block1] || _active_blocks[block2]) {
+        continue;
+      }
+
+      _active_block_pairs.emplace_back(block1, block2);
+    }
+    _rescheduled_block_pairs.clear();
 
     std::sort(
         _active_block_pairs.begin(),
@@ -1536,6 +1550,7 @@ private:
 
   StaticArray<bool> _active_blocks;
   ScalableVector<std::pair<BlockID, BlockID>> _active_block_pairs;
+  ScalableVector<std::pair<BlockID, BlockID>> _rescheduled_block_pairs;
 
   std::mutex _apply_moves_mutex;
   StaticArray<BlockWeight> _block_weight_delta;
