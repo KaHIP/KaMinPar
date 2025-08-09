@@ -2,7 +2,7 @@
  * Sequential 2-way flow refinement used during initial bipartitioning.
  *
  * @file:   initial_twoway_flow_refiner.h
- * @author: Daniel Sallwasser
+ * @author: Daniel Salwasser
  * @date:   20.04.2025
  ******************************************************************************/
 #pragma once
@@ -24,6 +24,7 @@ public:
   bool refine(PartitionedCSRGraph &p_graph, const PartitionContext &p_ctx) final;
 
 private:
+  ParallelContext _par_ctx;
   TwowayFlowRefiner _refiner;
 
   const CSRGraph *_graph;

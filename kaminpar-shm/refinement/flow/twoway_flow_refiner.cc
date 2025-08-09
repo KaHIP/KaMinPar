@@ -1570,7 +1570,13 @@ private:
   StaticArray<BlockWeight> _block_weight_delta;
 };
 
-TwowayFlowRefiner::TwowayFlowRefiner(const TwowayFlowRefinementContext &f_ctx) : _f_ctx(f_ctx) {}
+TwowayFlowRefiner::TwowayFlowRefiner(
+    const ParallelContext &par_ctx, const TwowayFlowRefinementContext &f_ctx
+)
+    : _par_ctx(par_ctx),
+      _f_ctx(f_ctx),
+      _sequential_scheduler(std::make_unique<SequentialBlockPairScheduler>(f_ctx)),
+      _parallel_scheduler(std::make_unique<ParallelBlockPairScheduler>(f_ctx)) {}
 
 TwowayFlowRefiner::~TwowayFlowRefiner() = default;
 
@@ -1606,12 +1612,10 @@ bool TwowayFlowRefiner::refine(
   SCOPED_TIMER("Two-Way Flow Refinement");
   SCOPED_HEAP_PROFILER("Two-Way Flow Refinement");
 
-  if (_f_ctx.parallel_scheduling) {
-    ParallelBlockPairScheduler scheduler(_f_ctx);
-    return scheduler.refine(p_graph, graph, p_ctx);
+  if (_f_ctx.parallel_scheduling && _par_ctx.num_threads > 1 && p_ctx.k > 2) {
+    return _parallel_scheduler->refine(p_graph, graph, p_ctx);
   } else {
-    SequentialBlockPairScheduler scheduler(_f_ctx);
-    return scheduler.refine(p_graph, graph, p_ctx);
+    return _sequential_scheduler->refine(p_graph, graph, p_ctx);
   }
 }
 

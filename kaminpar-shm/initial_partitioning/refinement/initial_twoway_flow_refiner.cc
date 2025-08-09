@@ -3,7 +3,8 @@
 namespace kaminpar::shm {
 
 InitialTwowayFlowRefiner::InitialTwowayFlowRefiner(const TwowayFlowRefinementContext &f_ctx)
-    : _refiner(f_ctx) {}
+    : _par_ctx(1),
+      _refiner(_par_ctx, f_ctx) {}
 
 void InitialTwowayFlowRefiner::init(const CSRGraph &graph) {
   _graph = &graph;

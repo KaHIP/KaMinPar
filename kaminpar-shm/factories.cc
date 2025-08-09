@@ -112,7 +112,7 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
     return std::make_unique<FMRefiner>(ctx);
 
   case RefinementAlgorithm::TWOWAY_FLOW:
-    return std::make_unique<TwowayFlowRefiner>(ctx.refinement.twoway_flow);
+    return std::make_unique<TwowayFlowRefiner>(ctx.parallel, ctx.refinement.twoway_flow);
 
   case RefinementAlgorithm::JET:
     return std::make_unique<JetRefiner>(ctx);
