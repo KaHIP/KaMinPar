@@ -828,7 +828,7 @@ private:
 
     _constrained_moves.clear();
     for (const auto &[u, u_local] : _flow_network.global_to_local_mapping.entries()) {
-      const BlockID old_block = _p_graph.block(u);
+      const BlockID old_block = _border_region1.contains(u) ? _block1 : _block2;
       const BlockID new_block = fetch_block(u_local);
 
       if (old_block != new_block) {
@@ -925,12 +925,19 @@ private:
         _unconstrained_cut_value = rebalanced_cut_value;
         _unconstrained_moves.clear();
 
-        for (const auto &[u, _] : _flow_network.global_to_local_mapping.entries()) {
-          const BlockID old_block = _p_graph.block(u);
+        for (const NodeID u : _border_region1.nodes()) {
           const BlockID new_block = _p_graph_rebalancing_copy.block(u);
 
-          if (old_block != new_block) {
-            _unconstrained_moves.emplace_back(u, old_block, new_block);
+          if (new_block != _block1) {
+            _unconstrained_moves.emplace_back(u, _block1, new_block);
+          };
+        }
+
+        for (const NodeID u : _border_region2.nodes()) {
+          const BlockID new_block = _p_graph_rebalancing_copy.block(u);
+
+          if (new_block != _block2) {
+            _unconstrained_moves.emplace_back(u, _block2, new_block);
           };
         }
 
@@ -1027,6 +1034,7 @@ struct BlockPairSchedulerStatistics {
   std::size_t num_searches;
   std::size_t num_local_improvements;
   std::size_t num_global_improvements;
+  std::size_t num_move_conflicts;
   std::size_t num_imbalance_conflicts;
   double min_imbalance;
   double max_imbalance;
@@ -1036,6 +1044,7 @@ struct BlockPairSchedulerStatistics {
     num_searches = 0;
     num_local_improvements = 0;
     num_global_improvements = 0;
+    num_move_conflicts = 0;
     num_imbalance_conflicts = 0;
     min_imbalance = std::numeric_limits<double>::max();
     max_imbalance = std::numeric_limits<double>::min();
@@ -1047,6 +1056,7 @@ struct BlockPairSchedulerStatistics {
     LOG_STATS << "*  # num searches: " << num_searches;
     LOG_STATS << "*  # num local improvements: " << num_local_improvements;
     LOG_STATS << "*  # num global improvements: " << num_global_improvements;
+    LOG_STATS << "*  # num move conflicts: " << num_move_conflicts;
     LOG_STATS << "*  # num imbalance conflicts: " << num_imbalance_conflicts;
     LOG_STATS << "*  # min / average / max imbalance: "
               << (num_imbalance_conflicts ? min_imbalance : 0) << " / "
@@ -1096,11 +1106,11 @@ public:
     while (prev_cut_value > 0) {
       num_round += 1;
       DBG << "Starting round " << num_round;
+      IF_STATS _stats.num_searches += _active_block_pairs.size();
 
       EdgeWeight cut_value = prev_cut_value;
       for (const auto &[block1, block2] : _active_block_pairs) {
         DBG << "Scheduling block pair " << block1 << " and " << block2;
-        IF_STATS _stats.num_searches += 1;
 
         const auto [time_limit_exceeded, gain, moves] = refiner.refine(cut_value, block1, block2);
 
@@ -1132,10 +1142,11 @@ public:
           IF_STATS _stats.num_local_improvements += 1;
           IF_STATS _stats.num_global_improvements += 1;
 
+          cut_value = new_cut_value;
+
           quotient_graph.add_cut_edges(_new_cut_edges);
           quotient_graph.add_gain(block1, block2, gain);
 
-          cut_value = new_cut_value;
           _active_blocks[block1] = true;
           _active_blocks[block2] = true;
         }
@@ -1289,8 +1300,8 @@ public:
     );
     LazyVector<ScalableVector<QuotientGraph::GraphEdge>> new_cut_edges_ets(num_parallel_searches);
 
-    bool found_improvement = false;
     std::size_t num_round = 0;
+    bool found_improvement = false;
     EdgeWeight prev_cut_value = quotient_graph.total_cut_weight();
     while (prev_cut_value > 0) {
       num_round += 1;
@@ -1299,8 +1310,9 @@ public:
 
       EdgeWeight cut_value = prev_cut_value;
 
+      const std::size_t num_searches = std::min(num_parallel_searches, _active_block_pairs.size());
       std::size_t cur_block_pair = 0;
-      tbb::parallel_for<std::size_t>(0, num_parallel_searches, [&](const std::size_t refiner_id) {
+      tbb::parallel_for<std::size_t>(0, num_searches, [&](const std::size_t refiner_id) {
         BipartitionFlowRefiner &refiner = refiners[refiner_id];
         ScalableVector<QuotientGraph::GraphEdge> &new_cut_edges = new_cut_edges_ets[refiner_id];
 
@@ -1381,12 +1393,12 @@ public:
         }
       });
 
-      const EdgeWeight gain = prev_cut_value - cut_value;
-      if (gain > 0) {
+      const EdgeWeight round_gain = prev_cut_value - cut_value;
+      if (round_gain > 0) {
         found_improvement = true;
       }
 
-      const double relative_improvement = gain / static_cast<double>(prev_cut_value);
+      const double relative_improvement = round_gain / static_cast<double>(prev_cut_value);
       DBG << "Finished round with a relative improvement of " << relative_improvement;
 
       if (num_round == _f_ctx.max_num_rounds ||
@@ -1462,6 +1474,8 @@ private:
       // Use the old block variable to mark the move as such, which is used during reverting.
       const BlockID invalid_block_conflict = _p_graph->block(u) != old_block;
       if (invalid_block_conflict) {
+        IF_STATS _stats.num_move_conflicts += 1;
+
         move.old_block = kInvalidBlockID;
         continue;
       }
