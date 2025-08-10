@@ -9,6 +9,7 @@
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
+#include "kaminpar-common/random.h"
 
 namespace kaminpar::shm {
 
@@ -28,7 +29,7 @@ public:
     Edge(Edge &&) noexcept = default;
     Edge &operator=(Edge &&) noexcept = default;
 
-    tbb::concurrent_vector<GraphEdge> cut_edges;
+    mutable tbb::concurrent_vector<GraphEdge> cut_edges;
     EdgeWeight cut_weight;
     EdgeWeight total_gain;
   };
@@ -65,12 +66,21 @@ public:
     return quotient_edge.cut_weight;
   }
 
-  [[nodiscard]] const tbb::concurrent_vector<GraphEdge> &
-  quotient_edge_cuts(const BlockID b1, const BlockID b2) const {
+  template <typename Lambda>
+  void foreach_cut_edge_shuffled(const BlockID b1, const BlockID b2, Lambda &&l) const {
     KASSERT(b1 < b2);
 
     const Edge &quotient_edge = edge(b1, b2);
-    return quotient_edge.cut_edges;
+    const std::size_t num_cut_edges = quotient_edge.cut_edges.size();
+
+    Random::instance().shuffle(
+        quotient_edge.cut_edges.begin(), quotient_edge.cut_edges.begin() + num_cut_edges
+    );
+
+    for (std::size_t i = 0; i < num_cut_edges; ++i) {
+      QuotientGraph::GraphEdge edge = quotient_edge.cut_edges[i];
+      l(edge.u, edge.v);
+    }
   }
 
   [[nodiscard]] const Edge &edge(const BlockID b1, const BlockID b2) const {

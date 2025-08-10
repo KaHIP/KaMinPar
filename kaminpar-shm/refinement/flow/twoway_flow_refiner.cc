@@ -111,6 +111,7 @@ public:
         _p_graph(p_graph),
         _graph(graph),
         _start_time(start_time),
+        _has_time_limit(f_ctx.time_limit != std::numeric_limits<std::size_t>::max()),
         _piercing_nodes_candidates_marker(graph.n()),
         _piercing_heuristic(f_ctx.piercing),
         _dynamic_balancer(p_ctx.max_block_weights()),
@@ -211,15 +212,15 @@ private:
     _border_region2.reset(block2, std::min(max_border_region_weight2, _block_weight2), _graph.n());
 
     _border_nodes.clear();
-    for (const auto &[u, v] : _q_graph.quotient_edge_cuts(block1, block2)) {
+    _q_graph.foreach_cut_edge_shuffled(block1, block2, [&](const NodeID u, const NodeID v) {
       if (_p_graph.block(u) != _block1 || _p_graph.block(v) != _block2) [[unlikely]] {
-        continue;
+        return;
       }
 
       const bool u_is_contained = _border_region1.contains(u);
       const bool v_is_contained = _border_region2.contains(v);
       if (u_is_contained && v_is_contained) {
-        continue;
+        return;
       }
 
       const NodeWeight u_weight = _graph.node_weight(u);
@@ -244,7 +245,7 @@ private:
         _border_region2.insert(v, v_weight);
         _border_nodes.push_back(v);
       }
-    }
+    });
   }
 
   void expand_border_region(BorderRegion &border_region, BorderRegion &other_border_region) {
@@ -968,12 +969,16 @@ private:
   }
 
   [[nodiscard]] bool time_limit_exceeded() const {
-    using namespace std::chrono;
+    if (_has_time_limit) {
+      using namespace std::chrono;
 
-    TimePoint current_time = Clock::now();
-    std::size_t time_elapsed = duration_cast<milliseconds>(current_time - _start_time).count();
+      TimePoint current_time = Clock::now();
+      std::size_t time_elapsed = duration_cast<milliseconds>(current_time - _start_time).count();
 
-    return time_elapsed >= _f_ctx.time_limit * 60 * 1000;
+      return time_elapsed >= _f_ctx.time_limit * 60 * 1000;
+    }
+
+    return false;
   }
 
 private:
@@ -986,6 +991,7 @@ private:
   const CSRGraph &_graph;
 
   const TimePoint &_start_time;
+  const bool _has_time_limit;
   bool _time_limit_exceeded;
 
   BlockID _block1;
@@ -1432,7 +1438,7 @@ private:
       }
     }
 
-    for (const auto [block1, block2] : _rescheduled_block_pairs) {
+    for (const auto &[block1, block2] : _rescheduled_block_pairs) {
       if (!quotient_graph.has_quotient_edge(block1, block2) || activate_all ||
           _active_blocks[block1] || _active_blocks[block2]) {
         continue;
