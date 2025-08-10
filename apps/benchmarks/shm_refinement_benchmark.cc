@@ -52,14 +52,16 @@ int main(int argc, char *argv[]) {
       ->check(CLI::NonNegativeNumber)
       ->capture_default_str();
   app.add_option("-f,--graph-file-format", graph_file_format)
-      ->transform(CLI::CheckedTransformer(
-          std::unordered_map<std::string, io::GraphFileFormat>{
-              {"metis", io::GraphFileFormat::METIS},
-              {"parhip", io::GraphFileFormat::PARHIP},
-              {"compressed", io::GraphFileFormat::COMPRESSED},
-          },
-          CLI::ignore_case
-      ));
+      ->transform(
+          CLI::CheckedTransformer(
+              std::unordered_map<std::string, io::GraphFileFormat>{
+                  {"metis", io::GraphFileFormat::METIS},
+                  {"parhip", io::GraphFileFormat::PARHIP},
+                  {"compressed", io::GraphFileFormat::COMPRESSED},
+              },
+              CLI::ignore_case
+          )
+      );
   app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads");
   app.add_option("-s,--seed", seed, "Seed for random number generation.")->default_val(seed);
 
@@ -78,6 +80,12 @@ int main(int argc, char *argv[]) {
 
   std::vector<BlockID> partition = io::read_partition(partition_filename);
   const BlockID k = std::unordered_set<BlockID>(partition.begin(), partition.end()).size();
+
+  if (partition.size() != graph->n()) {
+    LOG_ERROR << "Partition size (" << partition.size()
+              << ") does not match number of nodes in graph (" << graph->n() << ")";
+    return EXIT_FAILURE;
+  }
 
   PartitionedGraph p_graph(*graph, k, StaticArray<BlockID>(partition.size(), partition.data()));
   ctx.compression.setup(*graph);

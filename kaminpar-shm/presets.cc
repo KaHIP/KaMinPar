@@ -380,6 +380,7 @@ Context create_default_context() {
                       .config_filename = "",
                       .coarse_config_filename = "",
                       .fine_config_filename = "",
+                      .disable_logging = false,
                   },
           },
       .parallel =

@@ -352,76 +352,87 @@ private:
   const BlockID block1 = border_region1.block();
   const BlockID block2 = border_region2.block();
 
-  DynamicRememberingFlatMap<NodeID, NodeID> global_to_local_mapping;
-  DynamicRememberingFlatMap<NodeID, NodeID> local_to_global_mapping;
-  NodeID cur_node = kFirstNodeID;
-  for (const BorderRegion &border_region : {std::cref(border_region1), std::cref(border_region2)}) {
-    for (const NodeID u : border_region.nodes()) {
-      const NodeID u_local = cur_node++;
-      global_to_local_mapping[u] = u_local;
-      local_to_global_mapping[u_local] = u;
-    }
-  }
+  const NodeID num_border_region_nodes = border_region1.num_nodes() + border_region2.num_nodes();
 
-  const NodeID num_nodes = 2 + border_region1.num_nodes() + border_region2.num_nodes();
+  using HashTable = DynamicRememberingFlatMap<NodeID, NodeID>;
+  const std::size_t mapping_capacity = HashTable::required_capacity(num_border_region_nodes);
+  HashTable global_to_local_mapping(mapping_capacity);
+  HashTable local_to_global_mapping(mapping_capacity);
+
+  TIMED_SCOPE("Initialize mappings") {
+    NodeID cur_node = kFirstNodeID;
+    for (BlockID terminal = 0; terminal < 2; ++terminal) {
+      const BorderRegion &border_region = (terminal == 0) ? border_region1 : border_region2;
+
+      for (const NodeID u : border_region.nodes()) {
+        const NodeID u_local = cur_node++;
+        global_to_local_mapping[u] = u_local;
+        local_to_global_mapping[u_local] = u;
+      }
+    }
+  };
+
+  const NodeID num_nodes = 2 + num_border_region_nodes;
   StaticArray<EdgeID> nodes(num_nodes + 1, static_array::noinit);
   StaticArray<NodeWeight> node_weights(num_nodes, static_array::noinit);
 
   StaticArray<EdgeWeight> source_weights(num_nodes, static_array::seq);
   StaticArray<EdgeWeight> sink_weights(num_nodes, static_array::seq);
 
-  tbb::enumerable_thread_specific<EdgeID> num_source_edges_ets;
-  tbb::enumerable_thread_specific<EdgeID> num_sink_edges_ets;
-  for (BlockID terminal = 0; terminal < 2; ++terminal) {
-    const bool source_side = terminal == 0;
-    const BorderRegion &border_region = source_side ? border_region1 : border_region2;
+  TIMED_SCOPE("Compute node offsets") {
+    tbb::enumerable_thread_specific<EdgeID> num_source_edges_ets;
+    tbb::enumerable_thread_specific<EdgeID> num_sink_edges_ets;
+    for (BlockID terminal = 0; terminal < 2; ++terminal) {
+      const bool source_side = terminal == 0;
+      const BorderRegion &border_region = source_side ? border_region1 : border_region2;
 
-    const NodeID u_local_offset = kFirstNodeID + (source_side ? 0 : border_region1.num_nodes());
-    const std::span<const NodeID> border_region_nodes = border_region.nodes();
-    tbb::parallel_for<std::size_t>(0, border_region_nodes.size(), [&](const std::size_t i) {
-      const NodeID u = border_region_nodes[i];
-      const NodeID u_local = u_local_offset + i;
+      const NodeID u_local_offset = kFirstNodeID + (source_side ? 0 : border_region1.num_nodes());
+      const std::span<const NodeID> border_region_nodes = border_region.nodes();
+      tbb::parallel_for<std::size_t>(0, border_region_nodes.size(), [&](const std::size_t i) {
+        const NodeID u = border_region_nodes[i];
+        const NodeID u_local = u_local_offset + i;
 
-      EdgeID num_neighbors = 0;
-      EdgeWeight source_weight = 0;
-      EdgeWeight sink_weight = 0;
-      graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
-        if (global_to_local_mapping.contains(v)) {
+        EdgeID num_neighbors = 0;
+        EdgeWeight source_weight = 0;
+        EdgeWeight sink_weight = 0;
+        graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+          if (global_to_local_mapping.contains(v)) {
+            num_neighbors += 1;
+            return;
+          }
+
+          const BlockID v_block = p_graph.block(v);
+          source_weight += (v_block == block1) ? w : 0;
+          sink_weight += (v_block == block2) ? w : 0;
+        });
+
+        if (sink_weight > 0) {
           num_neighbors += 1;
-          return;
+          num_sink_edges_ets.local() += 1;
+          sink_weights[u_local] = sink_weight;
         }
 
-        const BlockID v_block = p_graph.block(v);
-        source_weight += (v_block == block1) ? w : 0;
-        sink_weight += (v_block == block2) ? w : 0;
+        if (source_weight > 0) {
+          num_neighbors += 1;
+          num_source_edges_ets.local() += 1;
+          source_weights[u_local] = source_weight;
+        }
+
+        const NodeWeight u_weight = graph.node_weight(u);
+        nodes[u_local] = num_neighbors;
+        node_weights[u_local] = u_weight;
       });
+    }
 
-      if (source_weight > 0) {
-        num_neighbors += 1;
-        num_source_edges_ets.local() += 1;
-        source_weights[cur_node] = source_weight;
-      }
+    nodes[kSource] = num_source_edges_ets.combine(std::plus<>());
+    node_weights[kSource] = block1_weight - border_region1.weight();
 
-      if (sink_weight > 0) {
-        num_neighbors += 1;
-        num_sink_edges_ets.local() += 1;
-        sink_weights[cur_node] = sink_weight;
-      }
+    nodes[kSink] = num_sink_edges_ets.combine(std::plus<>());
+    node_weights[kSink] = block2_weight - border_region2.weight();
 
-      const NodeWeight u_weight = graph.node_weight(u);
-      nodes[u_local] = num_neighbors;
-      node_weights[u_local] = u_weight;
-    });
-  }
-
-  nodes[kSource] = num_source_edges_ets.combine(std::plus<>());
-  node_weights[kSource] = block1_weight - border_region1.weight();
-
-  nodes[kSink] = num_sink_edges_ets.combine(std::plus<>());
-  node_weights[kSink] = block2_weight - border_region2.weight();
-
-  nodes.back() = 0;
-  parallel::prefix_sum(nodes.begin(), nodes.end(), nodes.begin());
+    nodes.back() = 0;
+    parallel::prefix_sum(nodes.begin(), nodes.end(), nodes.begin());
+  };
 
   const EdgeID num_edges = nodes.back();
   StaticArray<NodeID> edges(num_edges, static_array::noinit);
@@ -429,108 +440,110 @@ private:
   StaticArray<EdgeWeight> edge_weights(num_edges, static_array::noinit);
 
   tbb::enumerable_thread_specific<EdgeID> cut_value_ets;
-  tbb::enumerable_thread_specific<NeighborhoodBuffer> source_neighborhood_buffer_ets([&] {
-    return NeighborhoodBuffer(nodes, edges, reverse_edges, edge_weights);
-  });
-  tbb::enumerable_thread_specific<NeighborhoodBuffer> sink_neighborhood_buffer_ets([&] {
-    return NeighborhoodBuffer(nodes, edges, reverse_edges, edge_weights);
-  });
-  tbb::enumerable_thread_specific<NeighborhoodBuffer> neighborhood_buffer_ets([&] {
-    return NeighborhoodBuffer(nodes, edges, reverse_edges, edge_weights);
-  });
-
-  for (BlockID terminal = 0; terminal < 2; ++terminal) {
-    const bool source_side = terminal == 0;
-    const bool sink_side = terminal == 1;
-
-    const BorderRegion &border_region = source_side ? border_region1 : border_region2;
-    const std::span<const NodeID> border_region_nodes = border_region.nodes();
-    const NodeID b_n = border_region_nodes.size();
-
-    const NodeID u_local_offset = kFirstNodeID + (source_side ? 0 : border_region1.num_nodes());
-    tbb::parallel_for(tbb::blocked_range<std::size_t>(0, b_n), [&](const auto &range) {
-      EdgeWeight local_cut_value = 0;
-
-      NeighborhoodBuffer &source_buffer = source_neighborhood_buffer_ets.local();
-      NeighborhoodBuffer &sink_buffer = sink_neighborhood_buffer_ets.local();
-
-      NeighborhoodBuffer &buffer = neighborhood_buffer_ets.local();
-      for (std::size_t i = range.begin(); i != range.end(); ++i) {
-        const NodeID u = border_region_nodes[i];
-        const NodeID u_local = u_local_offset + i;
-
-        graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
-          if (auto it = global_to_local_mapping.get_if_contained(v);
-              it != global_to_local_mapping.end()) {
-            const NodeID v_local = *it;
-            if (u_local >= v_local) {
-              return;
-            }
-
-            const EdgeID v_edge = __atomic_sub_fetch(&nodes[v_local], 1, __ATOMIC_RELAXED);
-            edges[v_edge] = u_local;
-            edge_weights[v_edge] = w;
-
-            buffer.add(v_local, v_edge, w);
-            if (buffer.full()) [[unlikely]] {
-              buffer.flush(u_local);
-            }
-
-            local_cut_value += (source_side && border_region2.contains(v)) ? w : 0;
-            local_cut_value += (sink_side && border_region1.contains(v)) ? w : 0;
-          }
-        });
-
-        if (!buffer.empty()) [[likely]] {
-          buffer.flush(u_local);
-        }
-
-        const EdgeWeight sink_edge_weight = sink_weights[u_local];
-        if (sink_edge_weight > 0) {
-          const EdgeID u_edge = __atomic_sub_fetch(&nodes[u_local], 1, __ATOMIC_RELAXED);
-          edges[u_edge] = kSink;
-          edge_weights[u_edge] = sink_edge_weight;
-
-          sink_buffer.add(u_local, u_edge, sink_edge_weight);
-          if (sink_buffer.full()) [[unlikely]] {
-            sink_buffer.flush(kSink);
-          }
-
-          local_cut_value += source_side ? sink_edge_weight : 0;
-        }
-
-        const EdgeWeight source_edge_weight = source_weights[u_local];
-        if (source_edge_weight > 0) {
-          const EdgeID u_edge = __atomic_sub_fetch(&nodes[u_local], 1, __ATOMIC_RELAXED);
-          edges[u_edge] = kSource;
-          edge_weights[u_edge] = source_edge_weight;
-
-          source_buffer.add(u_local, u_edge, source_edge_weight);
-          if (source_buffer.full()) [[unlikely]] {
-            source_buffer.flush(kSource);
-          }
-          local_cut_value += sink_side ? source_edge_weight : 0;
-        }
-      }
-
-      cut_value_ets.local() += local_cut_value;
+  TIMED_SCOPE("Compute edges") {
+    tbb::enumerable_thread_specific<NeighborhoodBuffer> source_neighborhood_buffer_ets([&] {
+      return NeighborhoodBuffer(nodes, edges, reverse_edges, edge_weights);
     });
-  }
+    tbb::enumerable_thread_specific<NeighborhoodBuffer> sink_neighborhood_buffer_ets([&] {
+      return NeighborhoodBuffer(nodes, edges, reverse_edges, edge_weights);
+    });
+    tbb::enumerable_thread_specific<NeighborhoodBuffer> neighborhood_buffer_ets([&] {
+      return NeighborhoodBuffer(nodes, edges, reverse_edges, edge_weights);
+    });
 
-  tbb::parallel_for(source_neighborhood_buffer_ets.range(), [&](const auto &local_buffers) {
-    for (auto &local_buffer : local_buffers) {
-      if (!local_buffer.empty()) {
-        local_buffer.flush(kSource);
-      }
+    for (BlockID terminal = 0; terminal < 2; ++terminal) {
+      const bool source_side = terminal == 0;
+      const bool sink_side = terminal == 1;
+
+      const BorderRegion &border_region = source_side ? border_region1 : border_region2;
+      const std::span<const NodeID> border_region_nodes = border_region.nodes();
+      const NodeID b_n = border_region_nodes.size();
+
+      const NodeID u_local_offset = kFirstNodeID + (source_side ? 0 : border_region1.num_nodes());
+      tbb::parallel_for(tbb::blocked_range<std::size_t>(0, b_n), [&](const auto &range) {
+        EdgeWeight local_cut_value = 0;
+
+        NeighborhoodBuffer &source_buffer = source_neighborhood_buffer_ets.local();
+        NeighborhoodBuffer &sink_buffer = sink_neighborhood_buffer_ets.local();
+
+        NeighborhoodBuffer &buffer = neighborhood_buffer_ets.local();
+        for (std::size_t i = range.begin(); i != range.end(); ++i) {
+          const NodeID u = border_region_nodes[i];
+          const NodeID u_local = u_local_offset + i;
+
+          graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+            if (auto it = global_to_local_mapping.get_if_contained(v);
+                it != global_to_local_mapping.end()) {
+              const NodeID v_local = *it;
+              if (u_local >= v_local) {
+                return;
+              }
+
+              const EdgeID v_edge = __atomic_sub_fetch(&nodes[v_local], 1, __ATOMIC_RELAXED);
+              edges[v_edge] = u_local;
+              edge_weights[v_edge] = w;
+
+              buffer.add(v_local, v_edge, w);
+              if (buffer.full()) [[unlikely]] {
+                buffer.flush(u_local);
+              }
+
+              local_cut_value += (source_side && border_region2.contains(v)) ? w : 0;
+              local_cut_value += (sink_side && border_region1.contains(v)) ? w : 0;
+            }
+          });
+
+          if (!buffer.empty()) [[likely]] {
+            buffer.flush(u_local);
+          }
+
+          const EdgeWeight sink_edge_weight = sink_weights[u_local];
+          if (sink_edge_weight > 0) {
+            const EdgeID u_edge = __atomic_sub_fetch(&nodes[u_local], 1, __ATOMIC_RELAXED);
+            edges[u_edge] = kSink;
+            edge_weights[u_edge] = sink_edge_weight;
+
+            sink_buffer.add(u_local, u_edge, sink_edge_weight);
+            if (sink_buffer.full()) [[unlikely]] {
+              sink_buffer.flush(kSink);
+            }
+
+            local_cut_value += source_side ? sink_edge_weight : 0;
+          }
+
+          const EdgeWeight source_edge_weight = source_weights[u_local];
+          if (source_edge_weight > 0) {
+            const EdgeID u_edge = __atomic_sub_fetch(&nodes[u_local], 1, __ATOMIC_RELAXED);
+            edges[u_edge] = kSource;
+            edge_weights[u_edge] = source_edge_weight;
+
+            source_buffer.add(u_local, u_edge, source_edge_weight);
+            if (source_buffer.full()) [[unlikely]] {
+              source_buffer.flush(kSource);
+            }
+            local_cut_value += sink_side ? source_edge_weight : 0;
+          }
+        }
+
+        cut_value_ets.local() += local_cut_value;
+      });
     }
-  });
-  tbb::parallel_for(sink_neighborhood_buffer_ets.range(), [&](const auto &local_buffers) {
-    for (auto &local_buffer : local_buffers) {
-      if (!local_buffer.empty()) {
-        local_buffer.flush(kSink);
+
+    tbb::parallel_for(source_neighborhood_buffer_ets.range(), [&](const auto &local_buffers) {
+      for (auto &local_buffer : local_buffers) {
+        if (!local_buffer.empty()) {
+          local_buffer.flush(kSource);
+        }
       }
-    }
-  });
+    });
+    tbb::parallel_for(sink_neighborhood_buffer_ets.range(), [&](const auto &local_buffers) {
+      for (auto &local_buffer : local_buffers) {
+        if (!local_buffer.empty()) {
+          local_buffer.flush(kSink);
+        }
+      }
+    });
+  };
 
   CSRGraph flow_network_graph(
       std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights)

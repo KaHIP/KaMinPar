@@ -737,6 +737,14 @@ CLI::Option_group *create_mtkahypar_refinement_options(CLI::App *app, Context &c
       )
       ->capture_default_str();
 
+  mtkahypar
+      ->add_option(
+          "--r-mtkahypar-disable-logging",
+          ctx.refinement.mtkahypar.disable_logging,
+          "Whether to disable logging for the Mt-KaHyPar refiner"
+      )
+      ->capture_default_str();
+
   return mtkahypar;
 }
 

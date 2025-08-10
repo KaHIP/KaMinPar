@@ -72,7 +72,7 @@ bool MtKaHyParRefiner::refine(
       mt_kahypar_ctx, static_cast<mt_kahypar_partition_id_t>(p_ctx.k), p_ctx.epsilon(), CUT
   );
   mt_kahypar_set_seed(Random::get_seed());
-  if (!Logger::is_quiet()) {
+  if (!Logger::is_quiet() && !_ctx.refinement.mtkahypar.disable_logging) {
     mt_kahypar_set_context_parameter(mt_kahypar_ctx, VERBOSE, "1", &error);
   }
   KASSERT(error.status == SUCCESS);
@@ -142,7 +142,8 @@ bool MtKaHyParRefiner::refine(
   );
   KASSERT(error.status == SUCCESS);
 
-  DBG << "Partition metrics before Mt-KaHyPar refinement: cut=" << metrics::edge_cut(p_graph)
+  const EdgeWeight cut_value_before = metrics::edge_cut(p_graph);
+  DBG << "Partition metrics before Mt-KaHyPar refinement: cut=" << cut_value_before
       << " imbalance=" << metrics::imbalance(p_graph);
 
   StaticArray<mt_kahypar_partition_id_t> partition(num_vertices, static_array::noinit);
@@ -171,7 +172,8 @@ bool MtKaHyParRefiner::refine(
     graph.pfor_nodes([&](const NodeID u) { p_graph.set_block(u, improved_partition[u]); });
   });
 
-  DBG << "Partition metrics after Mt-KaHyPar refinement: cut=" << metrics::edge_cut(p_graph)
+  const EdgeWeight cut_value_after = metrics::edge_cut(p_graph);
+  DBG << "Partition metrics after Mt-KaHyPar refinement: cut=" << cut_value_after
       << " imbalance=" << metrics::imbalance(p_graph);
 
   // Free Mt-KaHyPar structs
@@ -179,7 +181,9 @@ bool MtKaHyParRefiner::refine(
   mt_kahypar_free_hypergraph(mt_kahypar_graph);
   mt_kahypar_free_context(mt_kahypar_ctx);
 
-  return false;
+  KASSERT(cut_value_after <= cut_value_before);
+  const bool found_improvement = cut_value_after < cut_value_before;
+  return found_improvement;
 #else  // KAMINPAR_MTKAHYPAR_FOUND
   LOG_WARNING << "Mt-KaHyPar is not available; skipping refinement";
   return false;
