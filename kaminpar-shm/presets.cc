@@ -356,6 +356,7 @@ Context create_default_context() {
                       .use_whfc = false,
                       .run_sequentially = true,
                       .time_limit = std::numeric_limits<std::size_t>::max(),
+                      .parallel_scheduling = true,
                       .reschedule_imbalance_conflicts = false,
                       .parallel_searches_multiplier = 1,
                       .max_num_rounds = std::numeric_limits<std::size_t>::max(),
