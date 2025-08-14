@@ -291,8 +291,9 @@ struct TwowayFlowRefinementContext {
   std::size_t time_limit;
 
   bool parallel_scheduling;
-  bool reschedule_imbalance_conflicts;
   double parallel_searches_multiplier;
+  bool resolve_imbalance_conflicts;
+  bool reschedule_imbalance_conflicts;
 
   std::size_t max_num_rounds;
   double min_round_improvement_factor;

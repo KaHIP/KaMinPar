@@ -18,7 +18,6 @@ class StaticGreedyBalancer : GreedyBalancerBase<PartitionedGraph, Graph> {
   using Base::_gain_cache;
   using Base::_graph;
   using Base::_max_block_weights;
-  using Base::_overloaded_block;
   using Base::_p_graph;
 
   struct Move {
@@ -101,7 +100,7 @@ private:
         continue;
       }
 
-      Base::move_node(u, target_block);
+      Base::move_node(u, _overloaded_block, target_block);
       _moves.emplace_back(u, target_block);
 
       _moved_nodes.push_back(u);
@@ -155,6 +154,7 @@ private:
   const DynamicRememberingFlatMap<NodeID, NodeID> *_global_to_local_mapping;
   ScalableVector<Move> _virtual_moves;
 
+  BlockID _overloaded_block;
   ScalableVector<Move> _moves;
   ScalableVector<NodeID> _moved_nodes;
 };

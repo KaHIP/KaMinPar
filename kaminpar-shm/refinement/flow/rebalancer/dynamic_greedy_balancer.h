@@ -16,7 +16,6 @@ class DynamicGreedyBalancer : GreedyBalancerBase<PartitionedGraph, Graph> {
   using Base::_gain_cache;
   using Base::_graph;
   using Base::_max_block_weights;
-  using Base::_overloaded_block;
   using Base::_p_graph;
 
 public:
@@ -71,7 +70,7 @@ private:
           continue;
         }
 
-        gain += Base::move_node(u, target_block);
+        gain += Base::move_node(u, _overloaded_block, target_block);
         _moved_nodes.push_back(u);
 
         break;
@@ -82,7 +81,123 @@ private:
   }
 
 private:
+  BlockID _overloaded_block;
   ScalableVector<NodeID> _moved_nodes;
+};
+
+template <typename PartitionedGraph, typename Graph>
+class DynamicGreedyMultiBalancer : GreedyBalancerBase<PartitionedGraph, Graph> {
+  using Base = GreedyBalancerBase<PartitionedGraph, Graph>;
+
+  using Base::_gain_cache;
+  using Base::_graph;
+  using Base::_max_block_weights;
+  using Base::_p_graph;
+
+public:
+  struct Move {
+    NodeID node;
+    BlockID from;
+    BlockID to;
+  };
+
+  struct RebalancerResult {
+    bool balanced;
+    EdgeWeight gain;
+    std::span<const Move> moves;
+  };
+
+public:
+  DynamicGreedyMultiBalancer(std::span<const BlockWeight> max_block_weights)
+      : Base(max_block_weights) {};
+
+  RebalancerResult rebalance(PartitionedGraph &p_graph, const Graph &graph) {
+    _p_graph = &p_graph;
+    _graph = &graph;
+
+    init_overloaded_blocks();
+    if (_num_overloaded_blocks == 0) {
+      return RebalancerResult(true, 0, {});
+    }
+
+    Base::initialize();
+    _gain_cache.initialize(*_p_graph, *_graph);
+
+    insert_nodes();
+    const EdgeWeight gain = move_nodes();
+
+    const bool balanced = _num_overloaded_blocks == 0;
+    return RebalancerResult(balanced, gain, _moves);
+  }
+
+private:
+  void init_overloaded_blocks() {
+    const BlockID num_blocks = _p_graph->k();
+    if (_is_overloaded.size() < num_blocks) {
+      _is_overloaded.resize(num_blocks, static_array::noinit);
+    }
+
+    BlockID num_overloaded_blocks = 0;
+    for (BlockID block = 0; block < num_blocks; ++block) {
+      const bool is_overloaded = _p_graph->block_weight(block) > _max_block_weights[block];
+      _is_overloaded[block] = is_overloaded;
+
+      if (is_overloaded) {
+        num_overloaded_blocks += 1;
+      }
+    }
+
+    _num_overloaded_blocks = num_overloaded_blocks;
+  };
+
+  void insert_nodes() {
+    Base::clear_nodes();
+
+    for (const NodeID u : _graph->nodes()) {
+      if (_is_overloaded[_p_graph->block(u)]) {
+        Base::insert_node(u);
+      }
+    }
+  }
+
+  EdgeWeight move_nodes() {
+    EdgeWeight gain = 0;
+
+    _moves.clear();
+    while (_num_overloaded_blocks > 0) {
+      while (Base::has_next_node()) {
+        const auto [u, target_block] = Base::next_node();
+
+        const BlockID u_block = _p_graph->block(u);
+        if (!_is_overloaded[u_block]) {
+          continue;
+        }
+
+        if (_p_graph->block_weight(target_block) + _graph->node_weight(u) >
+            _max_block_weights[target_block]) {
+          Base::insert_node(u);
+          continue;
+        }
+
+        gain += Base::move_node(u, u_block, target_block);
+        _moves.emplace_back(u, u_block, target_block);
+
+        if (_p_graph->block_weight(u_block) <= _max_block_weights[u_block]) {
+          _num_overloaded_blocks -= 1;
+          _is_overloaded[u_block] = false;
+          break;
+        }
+      }
+    };
+
+    return gain;
+  }
+
+private:
+  StaticArray<bool> _is_overloaded;
+  BlockID _num_overloaded_blocks;
+
+  ScalableVector<Move> _moves;
 };
 
 } // namespace kaminpar::shm

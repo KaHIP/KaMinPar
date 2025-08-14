@@ -46,6 +46,12 @@ public:
     reconstruct();
   }
 
+  QuotientGraph(const QuotientGraph &) = delete;
+  QuotientGraph &operator=(const QuotientGraph &) = delete;
+
+  QuotientGraph(QuotientGraph &&) noexcept = default;
+  QuotientGraph &operator=(QuotientGraph &&) noexcept = default;
+
   void reconstruct();
 
   void add_gain(BlockID b1, BlockID b2, EdgeWeight gain);

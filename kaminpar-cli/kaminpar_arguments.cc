@@ -661,6 +661,12 @@ CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context 
       ->capture_default_str();
   twoway_flow
       ->add_option(
+          "--r-twoway-flow-resolve-imbalance-conflicts",
+          ctx.refinement.twoway_flow.resolve_imbalance_conflicts
+      )
+      ->capture_default_str();
+  twoway_flow
+      ->add_option(
           "--r-twoway-flow-reschedule-imbalance-conflicts",
           ctx.refinement.twoway_flow.reschedule_imbalance_conflicts
       )

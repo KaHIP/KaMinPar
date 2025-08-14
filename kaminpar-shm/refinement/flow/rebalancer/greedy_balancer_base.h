@@ -12,7 +12,7 @@
 namespace kaminpar::shm {
 
 struct RebalancerResult {
-  BlockID block;
+  bool balanced;
   EdgeWeight gain;
   std::span<const NodeID> moved_nodes;
 };
@@ -67,9 +67,9 @@ protected:
     _target_blocks[u] = target_block;
   }
 
-  EdgeWeight move_node(const NodeID u, const BlockID target_block) {
-    const EdgeWeight gain = _gain_cache.gain(u, _overloaded_block, target_block);
-    _gain_cache.move(u, _overloaded_block, target_block);
+  EdgeWeight move_node(const NodeID u, const BlockID source_block, const BlockID target_block) {
+    const EdgeWeight gain = _gain_cache.gain(u, source_block, target_block);
+    _gain_cache.move(u, source_block, target_block);
 
     _p_graph->set_block(u, target_block);
     _graph->adjacent_nodes(u, [&](const NodeID v) { update_node(v); });
@@ -94,7 +94,7 @@ private:
   }
 
   [[nodiscard]] Move compute_best_move(const NodeID u) const {
-    const BlockID u_block = _overloaded_block;
+    const BlockID u_block = _p_graph->block(u);
     const NodeWeight u_weight = _graph->node_weight(u);
 
     BlockID target_block = kInvalidBlockID;
@@ -141,7 +141,6 @@ private:
 protected:
   std::span<const BlockWeight> _max_block_weights;
 
-  BlockID _overloaded_block;
   PartitionedGraph *_p_graph;
   const Graph *_graph;
 

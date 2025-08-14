@@ -114,6 +114,7 @@ public:
         _has_time_limit(f_ctx.time_limit != std::numeric_limits<std::size_t>::max()),
         _piercing_nodes_candidates_marker(graph.n()),
         _piercing_heuristic(f_ctx.piercing),
+        _imbalance_conflict_balancer(p_ctx.max_block_weights()),
         _dynamic_balancer(p_ctx.max_block_weights()),
         _source_side_balancer(p_ctx.max_block_weights()),
         _sink_side_balancer(p_ctx.max_block_weights()) {
@@ -190,6 +191,88 @@ public:
       const EdgeWeight gain = _global_cut_value - _constrained_cut_value;
       return Result(gain, std::move(_constrained_moves));
     }
+  }
+
+  Result resolve_imbalance_conflict(
+      const EdgeWeight initial_cut_value, const std::span<const Move> moves
+  ) {
+    SCOPED_HEAP_PROFILER("Resolve Imbalance Conflict");
+
+    TIMED_SCOPE("Initialize") {
+      StaticArray<BlockID> partition(_graph.n(), static_array::noinit);
+      StaticArray<BlockWeight> block_weights(_p_graph.k(), static_array::seq);
+      for (const NodeID u : _graph.nodes()) {
+        const BlockID u_block = _p_graph.block(u);
+        partition[u] = u_block;
+        block_weights[u_block] += _graph.node_weight(u);
+      }
+
+      _p_graph_rebalancing_copy = PartitionedCSRGraph(
+          _graph,
+          _p_graph.k(),
+          std::move(partition),
+          std::move(block_weights),
+          partitioned_graph::seq
+      );
+
+      for (const Move &move : moves) {
+        const NodeID u = move.node;
+
+        if (_p_graph_rebalancing_copy.block(u) == move.old_block) {
+          _p_graph_rebalancing_copy.set_block(u, move.new_block);
+        }
+      }
+    };
+
+    const EdgeWeight cut_value = metrics::edge_cut_seq(_p_graph_rebalancing_copy);
+    const auto [balanced, gain, moved_nodes] = TIMED_SCOPE("Rebalance") {
+      return _imbalance_conflict_balancer.rebalance(_p_graph_rebalancing_copy, _graph);
+    };
+
+    if (balanced) {
+      KASSERT(
+          metrics::is_balanced(_p_graph_rebalancing_copy, _p_ctx),
+          "Rebalancing resulted in an inbalanced partition",
+          assert::heavy
+      );
+
+      const EdgeWeight rebalanced_cut_value = cut_value - gain;
+      DBG << "Rebalanced imbalanced cut with resulting global value " << rebalanced_cut_value;
+
+      KASSERT(
+          metrics::edge_cut_seq(_p_graph_rebalancing_copy) == rebalanced_cut_value,
+          "Given an incorrect cut value for rebalanced partitioned graph",
+          assert::heavy
+      );
+
+      if (rebalanced_cut_value < initial_cut_value) {
+        SCOPED_TIMER("Compute Moves");
+
+        StaticArray<NodeID> old_move_index(_graph.n(), kInvalidNodeID, static_array::seq);
+
+        _unconstrained_moves.clear();
+        for (std::size_t i = 0; i < moves.size(); ++i) {
+          const Move &move = moves[i];
+          _unconstrained_moves.push_back(move);
+
+          old_move_index[move.node] = i;
+        }
+        for (const auto &[u, old_block, new_block] : moved_nodes) {
+          if (old_move_index[u] != kInvalidNodeID) {
+            _unconstrained_moves[old_move_index[u]].new_block = new_block;
+          } else {
+            _unconstrained_moves.emplace_back(u, old_block, new_block);
+          }
+        }
+
+        const EdgeWeight total_gain = initial_cut_value - rebalanced_cut_value;
+        return Result(total_gain, std::move(_unconstrained_moves));
+      }
+    } else {
+      LOG_WARNING << "Rebalancing failed to produce a balanced cut";
+    }
+
+    return Result::Empty();
   }
 
 private:
@@ -908,7 +991,7 @@ private:
     }();
 
     if (!balanced) {
-      DBG << "Rebalancing failed to produce a balanced cut";
+      LOG_WARNING << "Rebalancing failed to produce a balanced cut";
     } else {
       KASSERT(
           metrics::is_balanced(_p_graph_rebalancing_copy, _p_ctx),
@@ -1033,6 +1116,7 @@ private:
   BFSRunner _bfs_runner;
 
   PartitionedCSRGraph _p_graph_rebalancing_copy;
+  DynamicGreedyMultiBalancer<PartitionedCSRGraph, CSRGraph> _imbalance_conflict_balancer;
   DynamicGreedyBalancer<PartitionedCSRGraph, CSRGraph> _dynamic_balancer;
   StaticGreedyBalancer<PartitionedCSRGraph, CSRGraph> _source_side_balancer;
   StaticGreedyBalancer<PartitionedCSRGraph, CSRGraph> _sink_side_balancer;
@@ -1046,6 +1130,7 @@ struct BlockPairSchedulerStatistics {
   std::size_t num_global_improvements;
   std::size_t num_move_conflicts;
   std::size_t num_imbalance_conflicts;
+  std::size_t num_failed_imbalance_resolutions;
   double min_imbalance;
   double max_imbalance;
   double total_imbalance;
@@ -1056,6 +1141,7 @@ struct BlockPairSchedulerStatistics {
     num_global_improvements = 0;
     num_move_conflicts = 0;
     num_imbalance_conflicts = 0;
+    num_failed_imbalance_resolutions = 0;
     min_imbalance = std::numeric_limits<double>::max();
     max_imbalance = std::numeric_limits<double>::min();
     total_imbalance = 0.0;
@@ -1068,6 +1154,7 @@ struct BlockPairSchedulerStatistics {
     LOG_STATS << "*  # num global improvements: " << num_global_improvements;
     LOG_STATS << "*  # num move conflicts: " << num_move_conflicts;
     LOG_STATS << "*  # num imbalance conflicts: " << num_imbalance_conflicts;
+    LOG_STATS << "*  # num failed imbalance resolutions: " << num_failed_imbalance_resolutions;
     LOG_STATS << "*  # min / average / max imbalance: "
               << (num_imbalance_conflicts ? min_imbalance : 0) << " / "
               << (num_imbalance_conflicts ? total_imbalance / num_imbalance_conflicts : 0) << " / "
@@ -1131,7 +1218,7 @@ public:
         }
 
         const EdgeWeight new_cut_value = cut_value - gain;
-        DBG << "Found balanced cut for bock pair " << block1 << " and " << block2 << " with gain "
+        DBG << "Found balanced cut for block pair " << block1 << " and " << block2 << " with gain "
             << gain << " (" << cut_value << " -> " << new_cut_value << ")";
 
         if (gain > 0) {
@@ -1267,6 +1354,31 @@ class ParallelBlockPairScheduler {
   using TimePoint = BipartitionFlowRefiner::TimePoint;
   using Move = BipartitionFlowRefiner::Move;
 
+  enum class MoveResult {
+    IMBALANCE_CONFLICT,
+    NEGATIVE_GAIN,
+    SUCCESS,
+  };
+
+  struct MoveAttempt {
+    MoveResult kind;
+    double imbalance;
+    EdgeWeight cut_value;
+    EdgeWeight gain;
+
+    MoveAttempt(MoveResult kind, double imbalance)
+        : kind(kind),
+          imbalance(imbalance),
+          cut_value(0),
+          gain(0) {}
+
+    MoveAttempt(MoveResult kind, EdgeWeight initial_cut_value, EdgeWeight gain)
+        : kind(kind),
+          imbalance(0.0),
+          cut_value(initial_cut_value),
+          gain(gain) {}
+  };
+
 public:
   ParallelBlockPairScheduler(const TwowayFlowRefinementContext &f_ctx) : _f_ctx(f_ctx) {}
 
@@ -1351,55 +1463,53 @@ public:
             continue;
           }
 
-          const std::unique_lock lock(_apply_moves_mutex);
           IF_STATS _stats.num_local_improvements += 1;
 
-          const auto [balanced, imbalance] = is_feasible_move_sequence(moves);
-          if (!balanced) {
-            DBG << "Block pair " << block1 << " and " << block2 << " has an imbalance conflict";
+          const auto result = commit_moves_if_feasible(
+              cut_value, block1, block2, moves, quotient_graph, new_cut_edges
+          );
+
+          if (result.kind == MoveResult::IMBALANCE_CONFLICT) {
             IF_STATS _stats.num_imbalance_conflicts += 1;
-            IF_STATS _stats.min_imbalance = std::min(_stats.min_imbalance, imbalance);
-            IF_STATS _stats.max_imbalance = std::max(_stats.max_imbalance, imbalance);
-            IF_STATS _stats.total_imbalance += imbalance;
+            IF_STATS _stats.min_imbalance = std::min(_stats.min_imbalance, result.imbalance);
+            IF_STATS _stats.max_imbalance = std::max(_stats.max_imbalance, result.imbalance);
+            IF_STATS _stats.total_imbalance += result.imbalance;
+            DBG << "Block pair " << block1 << " and " << block2 << " has an imbalance conflict";
+
+            if (_f_ctx.resolve_imbalance_conflicts) {
+              const EdgeWeight cur_cut_value = __atomic_load_n(&cut_value, __ATOMIC_RELAXED);
+              auto [_, gain2, moves2] = refiner.resolve_imbalance_conflict(cur_cut_value, moves);
+
+              if (gain2 > 0) {
+                const auto result2 = commit_moves_if_feasible(
+                    cut_value, block1, block2, moves2, quotient_graph, new_cut_edges
+                );
+
+                if (result2.kind == MoveResult::IMBALANCE_CONFLICT) {
+                  IF_STATS _stats.num_failed_imbalance_resolutions += 1;
+                  DBG << "Failed to resolve imbalance conflict for block pair " << block1 << " and "
+                      << block2;
+                } else {
+                  DBG << "Resolved imbalance conflict for block pair " << block1 << " and "
+                      << block2 << " with gain " << result2.gain << " ("
+                      << (result2.cut_value + result2.gain) << " -> " << result2.cut_value << ")";
+
+                  if (result2.kind == MoveResult::SUCCESS) {
+                    continue;
+                  }
+                }
+              }
+            }
 
             if (_f_ctx.reschedule_imbalance_conflicts) {
               _rescheduled_block_pairs.emplace_back(block1, block2);
             }
-
-            continue;
+          } else {
+            IF_STATS _stats.num_global_improvements += result.kind == MoveResult::SUCCESS ? 1 : 0;
+            DBG << "Found balanced cut for block pair " << block1 << " and " << block2
+                << " with gain " << result.gain << " (" << (result.cut_value + result.gain)
+                << " -> " << result.cut_value << ")";
           }
-
-          const EdgeWeight actual_gain = apply_moves(moves, new_cut_edges);
-          const EdgeWeight new_cut_value = cut_value - actual_gain;
-
-          KASSERT(
-              metrics::edge_cut_seq(*_p_graph) == new_cut_value,
-              "computed an invalid new cut value",
-              assert::heavy
-          );
-          KASSERT(
-              metrics::is_balanced(*_p_graph, p_ctx),
-              "Computed an imbalanced move sequence",
-              assert::heavy
-          );
-
-          DBG << "Found balanced cut for bock pair " << block1 << " and " << block2 << " with gain "
-              << actual_gain << " (" << cut_value << " -> " << new_cut_value << ")";
-
-          if (actual_gain <= 0) {
-            revert_moves(moves);
-            continue;
-          }
-
-          IF_STATS _stats.num_global_improvements += 1;
-
-          __atomic_store_n(&cut_value, new_cut_value, __ATOMIC_RELAXED);
-
-          quotient_graph.add_cut_edges(new_cut_edges);
-          quotient_graph.add_gain(block1, block2, actual_gain);
-
-          _active_blocks[block1] = true;
-          _active_blocks[block2] = true;
         }
       });
 
@@ -1464,6 +1574,51 @@ private:
     );
 
     std::fill_n(_active_blocks.begin(), _p_graph->k(), false);
+  }
+
+  MoveAttempt commit_moves_if_feasible(
+      EdgeWeight &cut_value,
+      const BlockID block1,
+      const BlockID block2,
+      const std::span<Move> moves,
+      QuotientGraph &quotient_graph,
+      ScalableVector<QuotientGraph::GraphEdge> &new_cut_edges
+  ) {
+    const std::unique_lock lock(_apply_moves_mutex);
+
+    const auto [balanced, imbalance] = is_feasible_move_sequence(moves);
+    if (!balanced) {
+      return MoveAttempt(MoveResult::IMBALANCE_CONFLICT, imbalance);
+    }
+
+    const EdgeWeight actual_gain = apply_moves(moves, new_cut_edges);
+    const EdgeWeight new_cut_value = cut_value - actual_gain;
+
+    KASSERT(
+        metrics::edge_cut_seq(*_p_graph) == new_cut_value,
+        "computed an invalid new cut value",
+        assert::heavy
+    );
+    KASSERT(
+        metrics::is_balanced(*_p_graph, *_p_ctx),
+        "Computed an imbalanced move sequence",
+        assert::heavy
+    );
+
+    if (actual_gain <= 0) {
+      revert_moves(moves);
+      return MoveAttempt(MoveResult::NEGATIVE_GAIN, new_cut_value, actual_gain);
+    }
+
+    __atomic_store_n(&cut_value, new_cut_value, __ATOMIC_RELAXED);
+
+    quotient_graph.add_cut_edges(new_cut_edges);
+    quotient_graph.add_gain(block1, block2, actual_gain);
+
+    _active_blocks[block1] = true;
+    _active_blocks[block2] = true;
+
+    return MoveAttempt(MoveResult::SUCCESS, new_cut_value, actual_gain);
   }
 
   std::pair<bool, double> is_feasible_move_sequence(std::span<Move> moves) {
