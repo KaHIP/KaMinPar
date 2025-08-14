@@ -436,7 +436,9 @@ private:
     };
 
     if (_run_sequentially) {
-      whfc::HyperFlowCutter<whfc::SequentialPushRelabel> flow_cutter(hypergraph, 1);
+      whfc::HyperFlowCutter<whfc::SequentialPushRelabel> flow_cutter(
+          hypergraph, 1, _f_ctx.piercing.deterministic
+      );
       flow_cutter.timer.active = false;
 
       flow_cutter.forceSequential(true);
@@ -453,7 +455,9 @@ private:
       );
       on_result(success, flow_cutter.cs);
     } else {
-      whfc::HyperFlowCutter<whfc::ParallelPushRelabel> flow_cutter(hypergraph, 1);
+      whfc::HyperFlowCutter<whfc::ParallelPushRelabel> flow_cutter(
+          hypergraph, 1, _f_ctx.piercing.deterministic
+      );
       flow_cutter.timer.active = false;
 
       flow_cutter.forceSequential(false);
