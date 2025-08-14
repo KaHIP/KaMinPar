@@ -400,7 +400,8 @@ void ParallelPreflowPushAlgorithm::atomic_discharge(
     excess -= flow;
     __atomic_fetch_add(&_excess_delta[v], flow, __ATOMIC_RELAXED);
 
-    if (_node_status.is_sink(v)) {
+    if (_node_status.is_sink(v) &&
+        __atomic_exchange_n(&_last_activated[v], _round, __ATOMIC_ACQ_REL) != _round) {
       _acitve_sink_nodes.push_back(v);
     }
 
