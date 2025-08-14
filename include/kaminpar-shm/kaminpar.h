@@ -271,6 +271,7 @@ struct PiercingHeuristicContext {
   NodeID bulk_piercing_round_threshold;
 
   bool fallback_heuristic;
+  bool deterministic;
 };
 
 struct TwowayFlowRefinementContext {

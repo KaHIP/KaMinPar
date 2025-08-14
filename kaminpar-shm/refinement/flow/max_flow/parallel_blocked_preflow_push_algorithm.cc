@@ -1,4 +1,4 @@
-#include "kaminpar-shm/refinement/flow/max_flow/parallel_preflow_push_algorithm.h"
+#include "kaminpar-shm/refinement/flow/max_flow/parallel_blocked_preflow_push_algorithm.h"
 
 #include <algorithm>
 #include <functional>
@@ -8,14 +8,15 @@
 #include <tbb/parallel_for.h>
 
 #include "kaminpar-common/assert.h"
-#include "kaminpar-common/logger.h"
 
 namespace kaminpar::shm {
 
-ParallelPreflowPushAlgorithm::ParallelPreflowPushAlgorithm(const PreflowPushContext &ctx)
+ParallelBlockedPreflowPushAlgorithm::ParallelBlockedPreflowPushAlgorithm(
+    const PreflowPushContext &ctx
+)
     : _ctx(ctx) {}
 
-void ParallelPreflowPushAlgorithm::initialize(
+void ParallelBlockedPreflowPushAlgorithm::initialize(
     const CSRGraph &graph,
     std::span<const EdgeID> reverse_edges,
     const NodeID source,
@@ -48,6 +49,11 @@ void ParallelPreflowPushAlgorithm::initialize(
   }
   std::fill_n(_cur_edge_offsets.begin(), graph.n(), 0);
 
+  if (_active_node_state.size() < graph.n()) {
+    _active_node_state.resize(graph.n(), static_array::noinit);
+  }
+  std::fill_n(_active_node_state.begin(), graph.n(), kNotModifiedState);
+
   if (_excess.size() < graph.n()) {
     _excess.resize(graph.n(), static_array::noinit);
     _excess_delta.resize(graph.n(), static_array::noinit);
@@ -69,7 +75,7 @@ void ParallelPreflowPushAlgorithm::initialize(
   _next_active_nodes.flush();
 }
 
-void ParallelPreflowPushAlgorithm::add_sources(std::span<const NodeID> sources) {
+void ParallelBlockedPreflowPushAlgorithm::add_sources(std::span<const NodeID> sources) {
   const NodeID num_nodes = _graph->n();
 
   for (const NodeID u : sources) {
@@ -82,7 +88,7 @@ void ParallelPreflowPushAlgorithm::add_sources(std::span<const NodeID> sources) 
   }
 }
 
-void ParallelPreflowPushAlgorithm::add_sinks(std::span<const NodeID> sinks) {
+void ParallelBlockedPreflowPushAlgorithm::add_sinks(std::span<const NodeID> sinks) {
   for (const NodeID u : sinks) {
     KASSERT(!_node_status.is_source(u));
 
@@ -93,7 +99,7 @@ void ParallelPreflowPushAlgorithm::add_sinks(std::span<const NodeID> sinks) {
   }
 }
 
-void ParallelPreflowPushAlgorithm::pierce_nodes(
+void ParallelBlockedPreflowPushAlgorithm::pierce_nodes(
     const bool source_side, std::span<const NodeID> nodes
 ) {
   KASSERT(_next_active_nodes.empty());
@@ -118,7 +124,7 @@ void ParallelPreflowPushAlgorithm::pierce_nodes(
   );
 }
 
-MaxPreflowAlgorithm::Result ParallelPreflowPushAlgorithm::compute_max_preflow() {
+MaxPreflowAlgorithm::Result ParallelBlockedPreflowPushAlgorithm::compute_max_preflow() {
   IF_STATS _stats.reset();
 
   while (!_next_active_nodes.empty()) {
@@ -148,8 +154,8 @@ MaxPreflowAlgorithm::Result ParallelPreflowPushAlgorithm::compute_max_preflow() 
       _grt.add_work(_work_ets.combine(std::plus<>()));
       _work_ets.clear();
 
-      if (_next_active_nodes.empty() || (_ctx.global_relabeling_heuristic && _grt.is_reached())) {
-        global_relabel<kCollectActiveNodes>();
+      if (_ctx.global_relabeling_heuristic && _grt.is_reached()) {
+        global_relabel();
       }
     }
   }
@@ -184,7 +190,7 @@ MaxPreflowAlgorithm::Result ParallelPreflowPushAlgorithm::compute_max_preflow() 
   return Result(_flow_value, _flow);
 }
 
-std::span<const NodeID> ParallelPreflowPushAlgorithm::excess_nodes() {
+std::span<const NodeID> ParallelBlockedPreflowPushAlgorithm::excess_nodes() {
   _excess_nodes.clear();
 
   for (const NodeID u : _graph->nodes()) {
@@ -196,11 +202,11 @@ std::span<const NodeID> ParallelPreflowPushAlgorithm::excess_nodes() {
   return _excess_nodes;
 }
 
-const NodeStatus &ParallelPreflowPushAlgorithm::node_status() const {
+const NodeStatus &ParallelBlockedPreflowPushAlgorithm::node_status() const {
   return _node_status;
 }
 
-void ParallelPreflowPushAlgorithm::saturate_source_edges(std::span<const NodeID> sources) {
+void ParallelBlockedPreflowPushAlgorithm::saturate_source_edges(std::span<const NodeID> sources) {
   tbb::parallel_for(tbb::blocked_range<NodeID>(0, sources.size()), [&](const auto &range) {
     BufferedVector<NodeID>::Buffer next_active_nodes = _next_active_nodes.local_buffer();
 
@@ -225,13 +231,11 @@ void ParallelPreflowPushAlgorithm::saturate_source_edges(std::span<const NodeID>
         _flow[e] += residual_capacity;
         _flow[e_reverse] -= residual_capacity;
 
+        __atomic_fetch_add(&_excess[v], residual_capacity, __ATOMIC_RELAXED);
+
         if (_node_status.is_sink(v)) {
           __atomic_fetch_add(&_flow_value, residual_capacity, __ATOMIC_RELAXED);
-          return;
-        }
-
-        __atomic_fetch_add(&_excess[v], residual_capacity, __ATOMIC_RELAXED);
-        if (__atomic_exchange_n(&_last_activated[v], _round, __ATOMIC_ACQ_REL) != _round) {
+        } else if (__atomic_exchange_n(&_last_activated[v], _round, __ATOMIC_ACQ_REL) != _round) {
           next_active_nodes.push_back(v);
         }
       });
@@ -239,7 +243,7 @@ void ParallelPreflowPushAlgorithm::saturate_source_edges(std::span<const NodeID>
   });
 }
 
-template <bool kCollectActiveNodes> void ParallelPreflowPushAlgorithm::global_relabel() {
+template <bool kCollectActiveNodes> void ParallelBlockedPreflowPushAlgorithm::global_relabel() {
   IF_STATS _stats.num_global_relabels += 1;
 
   _grt.clear();
@@ -257,8 +261,6 @@ template <bool kCollectActiveNodes> void ParallelPreflowPushAlgorithm::global_re
   _parallel_bfs_runner.perform([&](const NodeID u, const NodeID u_height, auto &queue) {
     if constexpr (kCollectActiveNodes) {
       if (!_node_status.is_terminal(u) && _excess[u] > 0 && _last_activated[u] != _round) {
-        IF_STATS _stats.num_invalid_labels_ets.local() += 1;
-
         _next_active_nodes.atomic_push_back(u);
       }
     }
@@ -280,7 +282,7 @@ template <bool kCollectActiveNodes> void ParallelPreflowPushAlgorithm::global_re
   }
 }
 
-void ParallelPreflowPushAlgorithm::discharge_active_nodes() {
+void ParallelBlockedPreflowPushAlgorithm::discharge_active_nodes() {
   IF_STATS _stats.num_rounds += 1;
   IF_STATS _stats.num_discharges += _active_nodes.size();
   IF_STATS _stats.num_parallel_discharges += _active_nodes.size();
@@ -298,10 +300,11 @@ void ParallelPreflowPushAlgorithm::discharge_active_nodes() {
   _next_active_nodes.flush();
 }
 
-void ParallelPreflowPushAlgorithm::apply_updates() {
+void ParallelBlockedPreflowPushAlgorithm::apply_updates() {
   tbb::parallel_for<std::size_t>(0, _active_nodes.size(), [&](const std::size_t i) {
     const NodeID u = _active_nodes[i];
 
+    _active_node_state[u] = kNotModifiedState;
     _heights[u] = _next_heights[u];
 
     _excess[u] += _excess_delta[u];
@@ -310,6 +313,8 @@ void ParallelPreflowPushAlgorithm::apply_updates() {
 
   tbb::parallel_for<std::size_t>(0, _next_active_nodes.size(), [&](const std::size_t i) {
     const NodeID u = _next_active_nodes[i];
+
+    _active_node_state[u] = kNotModifiedState;
 
     _excess[u] += _excess_delta[u];
     _excess_delta[u] = 0;
@@ -329,95 +334,7 @@ void ParallelPreflowPushAlgorithm::apply_updates() {
   _acitve_sink_nodes.clear();
 }
 
-void ParallelPreflowPushAlgorithm::atomic_discharge(
-    const NodeID u, BufferedVector<NodeID>::Buffer next_active_nodes, std::size_t &local_work_amount
-) {
-  const EdgeID first_edge = _graph->first_edge(u);
-  const NodeID degree = _graph->degree(u);
-  const NodeID num_nodes = _graph->n();
-
-  const EdgeWeight initial_excess = _excess[u];
-  EdgeWeight excess = initial_excess;
-
-  NodeID initial_edge_offset = _cur_edge_offsets[u];
-  NodeID edge_offset = initial_edge_offset;
-
-  const NodeID u_initial_height = _heights[u];
-  NodeID u_height = u_initial_height;
-
-  bool skipped = false;
-  while (excess > 0 && u_height < num_nodes) {
-    if (edge_offset == degree) {
-      if (skipped) {
-        if (__atomic_exchange_n(&_last_activated[u], _round, __ATOMIC_ACQ_REL) != _round) {
-          next_active_nodes.push_back(u);
-        }
-
-        break;
-      }
-
-      local_work_amount += degree;
-
-      u_height = relabel(u);
-      edge_offset = 0;
-      continue;
-    }
-
-    const EdgeID e = first_edge + edge_offset++;
-    const NodeID v = _graph->edge_target(e);
-
-    const NodeID v_height = _heights[v];
-    if (u_height != v_height + 1) {
-      continue;
-    }
-
-    const EdgeWeight e_flow = _flow[e];
-    const EdgeWeight e_capacity = _graph->edge_weight(e);
-
-    const EdgeWeight residual_capacity = e_capacity - e_flow;
-    const EdgeWeight flow = std::min(excess, residual_capacity);
-    if (flow <= 0) {
-      continue;
-    }
-
-    const bool winning_edge = (u_initial_height == v_height + 1) ||
-                              (u_initial_height < v_height - 1) ||
-                              (u_initial_height == v_height && u < v);
-    if (!winning_edge) {
-      if (!skipped) {
-        skipped = true;
-        initial_edge_offset = edge_offset - 1;
-      }
-
-      IF_STATS _stats.num_win_conflicts_ets.local() += 1;
-      continue;
-    }
-
-    const EdgeID e_reverse = _reverse_edges[e];
-    _flow[e] += flow;
-    _flow[e_reverse] -= flow;
-
-    excess -= flow;
-    __atomic_fetch_add(&_excess_delta[v], flow, __ATOMIC_RELAXED);
-
-    if (_node_status.is_sink(v)) {
-      _acitve_sink_nodes.push_back(v);
-    }
-
-    if (!_node_status.is_terminal(v) &&
-        __atomic_exchange_n(&_last_activated[v], _round, __ATOMIC_ACQ_REL) != _round) {
-      next_active_nodes.push_back(v);
-    }
-  }
-
-  _next_heights[u] = u_height;
-  _cur_edge_offsets[u] = skipped ? initial_edge_offset : edge_offset;
-
-  const EdgeWeight excess_delta = excess - initial_excess;
-  __atomic_fetch_add(&_excess_delta[u], excess_delta, __ATOMIC_RELAXED);
-}
-
-void ParallelPreflowPushAlgorithm::discharge(const NodeID u) {
+void ParallelBlockedPreflowPushAlgorithm::discharge(const NodeID u) {
   IF_STATS _stats.num_discharges += 1;
 
   const EdgeID first_edge = _graph->first_edge(u);
@@ -473,7 +390,92 @@ void ParallelPreflowPushAlgorithm::discharge(const NodeID u) {
   _heights[u] = u_height;
 }
 
-NodeID ParallelPreflowPushAlgorithm::relabel(const NodeID u) {
+void ParallelBlockedPreflowPushAlgorithm::atomic_discharge(
+    const NodeID u, BufferedVector<NodeID>::Buffer next_active_nodes, std::size_t &local_work_amount
+) {
+  const EdgeID first_edge = _graph->first_edge(u);
+  const NodeID degree = _graph->degree(u);
+  const NodeID num_nodes = _graph->n();
+
+  const EdgeWeight initial_excess = _excess[u];
+  EdgeWeight excess = initial_excess;
+
+  NodeID initial_edge_offset = _cur_edge_offsets[u];
+  NodeID edge_offset = initial_edge_offset;
+
+  bool skipped = false;
+  NodeID u_height = _heights[u];
+  while (excess > 0 && u_height < num_nodes) {
+    if (edge_offset == degree) {
+      if (skipped || !update_active_node(u, kRelabeledState)) {
+        if (__atomic_exchange_n(&_last_activated[u], _round, __ATOMIC_ACQ_REL) != _round) {
+          next_active_nodes.push_back(u);
+
+          IF_STATS _stats.num_relabel_conflicts.local() += 1;
+        }
+
+        break;
+      }
+
+      local_work_amount += degree;
+
+      u_height = relabel(u);
+      edge_offset = 0;
+      continue;
+    }
+
+    const EdgeID e = first_edge + edge_offset++;
+    const NodeID v = _graph->edge_target(e);
+
+    const NodeID v_height = _heights[v];
+    if (u_height <= v_height) {
+      continue;
+    }
+
+    const EdgeWeight e_flow = _flow[e];
+    const EdgeWeight e_capacity = _graph->edge_weight(e);
+
+    const EdgeWeight residual_capacity = e_capacity - e_flow;
+    const EdgeWeight flow = std::min(excess, residual_capacity);
+    if (flow <= 0) {
+      continue;
+    }
+
+    if (!update_active_node(v, kPushedState)) {
+      if (!skipped) {
+        skipped = true;
+        initial_edge_offset = edge_offset - 1;
+      }
+
+      IF_STATS _stats.num_push_conflicts.local() += 1;
+      continue;
+    }
+
+    const EdgeID e_reverse = _reverse_edges[e];
+    _flow[e] += flow;
+    _flow[e_reverse] -= flow;
+
+    excess -= flow;
+    __atomic_fetch_add(&_excess_delta[v], flow, __ATOMIC_RELAXED);
+
+    if (_node_status.is_sink(v)) {
+      _acitve_sink_nodes.push_back(v);
+    }
+
+    if (!_node_status.is_terminal(v) &&
+        __atomic_exchange_n(&_last_activated[v], _round, __ATOMIC_ACQ_REL) != _round) {
+      next_active_nodes.push_back(v);
+    }
+  }
+
+  _next_heights[u] = u_height;
+  _cur_edge_offsets[u] = skipped ? initial_edge_offset : edge_offset;
+
+  const EdgeWeight excess_delta = excess - initial_excess;
+  __atomic_fetch_add(&_excess_delta[u], excess_delta, __ATOMIC_RELAXED);
+}
+
+NodeID ParallelBlockedPreflowPushAlgorithm::relabel(const NodeID u) {
   NodeID min_neighboring_height = std::numeric_limits<NodeID>::max();
   _graph->neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight c) {
     const bool has_residual_capacity = _flow[e] < c;
@@ -484,6 +486,20 @@ NodeID ParallelPreflowPushAlgorithm::relabel(const NodeID u) {
 
   KASSERT(min_neighboring_height != std::numeric_limits<NodeID>::max());
   return min_neighboring_height + 1;
+}
+
+bool ParallelBlockedPreflowPushAlgorithm::update_active_node(
+    const NodeID u, const std::uint8_t desired_state
+) {
+  std::uint8_t expected = kNotModifiedState;
+  return _active_node_state[u] == desired_state || __atomic_compare_exchange_n(
+                                                       &_active_node_state[u],
+                                                       &expected,
+                                                       desired_state,
+                                                       false,
+                                                       __ATOMIC_ACQ_REL,
+                                                       __ATOMIC_RELAXED
+                                                   );
 }
 
 } // namespace kaminpar::shm

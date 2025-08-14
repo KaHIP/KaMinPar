@@ -84,6 +84,8 @@ void PreflowPushAlgorithm::pierce_nodes(const bool source_side, std::span<const 
 }
 
 MaxPreflowAlgorithm::Result PreflowPushAlgorithm::compute_max_preflow() {
+  IF_STATS _stats.reset();
+
   while (!_active_nodes.empty()) {
     const NodeID u = _active_nodes.front();
     _active_nodes.pop();
@@ -95,6 +97,7 @@ MaxPreflowAlgorithm::Result PreflowPushAlgorithm::compute_max_preflow() {
     }
   }
 
+  IF_STATS _stats.print();
   IF_DBG debug::print_flow(*_graph, _node_status, _flow);
 
   KASSERT(
@@ -174,6 +177,8 @@ void PreflowPushAlgorithm::saturate_source_edges(std::span<const NodeID> sources
 }
 
 template <bool kCollectActiveNodes> void PreflowPushAlgorithm::global_relabel() {
+  IF_STATS _stats.num_global_relabels += 1;
+
   _grt.clear();
 
   const NodeID num_nodes = _graph->n();
@@ -211,6 +216,8 @@ template <bool kCollectActiveNodes> void PreflowPushAlgorithm::global_relabel() 
 }
 
 void PreflowPushAlgorithm::discharge(const NodeID u) {
+  IF_STATS _stats.num_discharges += 1;
+
   const EdgeID first_edge = _graph->first_edge(u);
   const NodeID degree = _graph->degree(u);
   const NodeID num_nodes = _graph->n();

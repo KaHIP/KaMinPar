@@ -36,6 +36,10 @@ class PiercingHeuristic {
       _candidates_buckets[distance].push_back(u);
     }
 
+    void sort(const NodeID bucket) {
+      std::sort(_candidates_buckets[bucket].begin(), _candidates_buckets[bucket].end());
+    }
+
     [[nodiscard]] NodeID min_occupied_bucket() const {
       return 0;
     }
@@ -114,7 +118,7 @@ private:
   BulkPiercingContext &bulk_piercing_context();
 
 private:
-  const PiercingHeuristicContext &_ctx;
+  const PiercingHeuristicContext &_ph_ctx;
 
   const CSRGraph *_graph;
   ScalableVector<NodeID> _piercing_nodes;

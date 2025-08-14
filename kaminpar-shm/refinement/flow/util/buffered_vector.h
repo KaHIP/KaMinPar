@@ -81,6 +81,12 @@ public:
     }
   }
 
+  T pop_back() {
+    KASSERT(_size > 0);
+
+    return _data[--_size];
+  }
+
   void push_back(T t) {
     KASSERT(_size < _data.size());
 

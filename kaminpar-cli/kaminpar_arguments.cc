@@ -619,6 +619,12 @@ CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context 
           ctx.refinement.twoway_flow.piercing.fallback_heuristic
       )
       ->capture_default_str();
+  twoway_flow
+      ->add_option(
+          "--r-twoway-flow-deterministic-piercing",
+          ctx.refinement.twoway_flow.piercing.deterministic
+      )
+      ->capture_default_str();
 
   twoway_flow->add_option("--r-twoway-flow-unconstrained", ctx.refinement.twoway_flow.unconstrained)
       ->capture_default_str();

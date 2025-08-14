@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <limits>
 #include <span>
 
@@ -19,15 +20,15 @@
 
 namespace kaminpar::shm {
 
-struct ParallelPreflowPushAlgorithmStatistics {
+struct ParallelBlockedPreflowPushAlgorithmStatistics {
   std::size_t num_rounds;
   std::size_t num_sequential_rounds;
   std::size_t num_parallel_rounds;
   std::size_t num_discharges;
   std::size_t num_parallel_discharges;
   std::size_t num_global_relabels;
-  tbb::enumerable_thread_specific<std::size_t> num_win_conflicts_ets;
-  tbb::enumerable_thread_specific<std::size_t> num_invalid_labels_ets;
+  tbb::enumerable_thread_specific<std::size_t> num_push_conflicts;
+  tbb::enumerable_thread_specific<std::size_t> num_relabel_conflicts;
 
   void reset() {
     num_rounds = 0;
@@ -36,26 +37,26 @@ struct ParallelPreflowPushAlgorithmStatistics {
     num_discharges = 0;
     num_parallel_discharges = 0;
     num_global_relabels = 0;
-    num_win_conflicts_ets.clear();
-    num_invalid_labels_ets.clear();
+    num_push_conflicts.clear();
+    num_relabel_conflicts.clear();
   }
 
   void print() const {
-    LOG_STATS << "Parallel Preflow-Push Algorithm:";
+    LOG_STATS << "Parallel (Blocked) Preflow-Push Algorithm:";
     LOG_STATS << "*  # num rounds (sequential / parallel): " << num_rounds << " ("
               << num_sequential_rounds << " / " << num_parallel_rounds << ")";
     LOG_STATS << "*  # num discharges (sequential / parallel): " << num_discharges << " ("
               << (num_discharges - num_parallel_discharges) << " / " << num_parallel_discharges
               << ")";
     LOG_STATS << "*  # num global relabels: " << num_global_relabels;
-    LOG_STATS << "*  # num win conflicts: "
-              << std::accumulate(num_win_conflicts_ets.begin(), num_win_conflicts_ets.end(), 0);
-    LOG_STATS << "*  # num invalid labels: "
-              << std::accumulate(num_invalid_labels_ets.begin(), num_invalid_labels_ets.end(), 0);
+    LOG_STATS << "*  # num push conflicts: "
+              << std::accumulate(num_push_conflicts.begin(), num_push_conflicts.end(), 0);
+    LOG_STATS << "*  # num relabel labels: "
+              << std::accumulate(num_relabel_conflicts.begin(), num_relabel_conflicts.end(), 0);
   }
 };
 
-class ParallelPreflowPushAlgorithm : public MaxPreflowAlgorithm {
+class ParallelBlockedPreflowPushAlgorithm : public MaxPreflowAlgorithm {
   SET_DEBUG(false);
   SET_STATISTICS(false);
 
@@ -89,9 +90,13 @@ class ParallelPreflowPushAlgorithm : public MaxPreflowAlgorithm {
     std::size_t _work;
   };
 
+  static constexpr std::uint8_t kNotModifiedState = 0;
+  static constexpr std::uint8_t kPushedState = 1;
+  static constexpr std::uint8_t kRelabeledState = 2;
+
 public:
-  ParallelPreflowPushAlgorithm(const PreflowPushContext &ctx);
-  ~ParallelPreflowPushAlgorithm() override = default;
+  ParallelBlockedPreflowPushAlgorithm(const PreflowPushContext &ctx);
+  ~ParallelBlockedPreflowPushAlgorithm() override = default;
 
   void initialize(
       const CSRGraph &graph, std::span<const EdgeID> reverse_edges, NodeID source, NodeID sink
@@ -126,9 +131,11 @@ private:
 
   NodeID relabel(NodeID u);
 
+  bool update_active_node(NodeID u, std::uint8_t desired_state);
+
 private:
   const PreflowPushContext _ctx;
-  ParallelPreflowPushAlgorithmStatistics _stats;
+  ParallelBlockedPreflowPushAlgorithmStatistics _stats;
 
   const CSRGraph *_graph;
   std::span<const EdgeID> _reverse_edges;
@@ -147,6 +154,7 @@ private:
 
   StaticArray<NodeID> _last_activated;
   StaticArray<NodeID> _cur_edge_offsets;
+  StaticArray<std::uint8_t> _active_node_state;
 
   StaticArray<EdgeWeight> _excess;
   StaticArray<EdgeWeight> _excess_delta;

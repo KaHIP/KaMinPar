@@ -1,11 +1,10 @@
 #include "kaminpar-shm/refinement/flow/piercing/piercing_heuristic.h"
 
-#include <algorithm>
 #include <limits>
 
 namespace kaminpar::shm {
 
-PiercingHeuristic::PiercingHeuristic(const PiercingHeuristicContext &ctx) : _ctx(ctx) {}
+PiercingHeuristic::PiercingHeuristic(const PiercingHeuristicContext &ctx) : _ph_ctx(ctx) {}
 
 void PiercingHeuristic::initialize(
     const CSRGraph &graph,
@@ -120,12 +119,15 @@ std::span<const NodeID> PiercingHeuristic::find_piercing_nodes(
   _piercing_nodes.clear();
 
   NodeWeight cur_weight = 0;
-  const auto add_piercing_nodes = [&](const auto &candidates_buckets,
-                                      const auto max_num_piercing_nodes) {
+  const auto add_piercing_nodes = [&](auto &candidates_buckets, const auto max_num_piercing_nodes) {
     const std::int64_t max_bucket = _unreachable_candidates_buckets.max_occupied_bucket();
     const std::int64_t min_bucket = _unreachable_candidates_buckets.min_occupied_bucket();
 
     for (std::int64_t bucket = max_bucket; bucket >= min_bucket; --bucket) {
+      if (_ph_ctx.deterministic) {
+        candidates_buckets.sort(bucket);
+      }
+
       for (const NodeID u : candidates_buckets.candidates(bucket)) {
         const NodeWeight u_weight = _graph->node_weight(u);
         if (cur_weight + u_weight > max_weight) {
@@ -145,16 +147,16 @@ std::span<const NodeID> PiercingHeuristic::find_piercing_nodes(
   const std::size_t max_num_piercing_nodes = compute_max_num_piercing_nodes(side_weight);
   add_piercing_nodes(
       _unreachable_candidates_buckets,
-      _ctx.pierce_all_viable ? std::numeric_limits<std::size_t>::max() : max_num_piercing_nodes
+      _ph_ctx.pierce_all_viable ? std::numeric_limits<std::size_t>::max() : max_num_piercing_nodes
   );
   add_piercing_nodes(_reachable_candidates_buckets, max_num_piercing_nodes);
 
-  if (_ctx.bulk_piercing) {
+  if (_ph_ctx.bulk_piercing) {
     BulkPiercingContext &bp_ctx = bulk_piercing_context();
     bp_ctx.total_bulk_piercing_nodes += _piercing_nodes.size();
   }
 
-  if (_ctx.fallback_heuristic && _piercing_nodes.empty()) {
+  if (_ph_ctx.fallback_heuristic && _piercing_nodes.empty()) {
     const std::uint8_t current_initial_side = _source_side ? kInitialSourceSide : kInitialSinkSide;
 
     const std::uint8_t cut_side = _source_side ? NodeStatus::kSource : NodeStatus::kSink;
@@ -188,16 +190,16 @@ std::span<const NodeID> PiercingHeuristic::find_piercing_nodes(
 }
 
 std::size_t PiercingHeuristic::compute_max_num_piercing_nodes(const NodeWeight side_weight) {
-  if (!_ctx.bulk_piercing) {
+  if (!_ph_ctx.bulk_piercing) {
     return 1;
   }
 
   BulkPiercingContext &bp_ctx = bulk_piercing_context();
-  if (++bp_ctx.num_rounds <= _ctx.bulk_piercing_round_threshold) {
+  if (++bp_ctx.num_rounds <= _ph_ctx.bulk_piercing_round_threshold) {
     return 1;
   }
 
-  bp_ctx.current_weight_goal *= _ctx.bulk_piercing_shrinking_factor;
+  bp_ctx.current_weight_goal *= _ph_ctx.bulk_piercing_shrinking_factor;
   bp_ctx.current_weight_goal_remaining += bp_ctx.current_weight_goal;
 
   const NodeWeight added_weight =
