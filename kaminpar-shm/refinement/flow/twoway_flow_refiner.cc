@@ -1131,6 +1131,7 @@ struct BlockPairSchedulerStatistics {
   std::size_t num_move_conflicts;
   std::size_t num_imbalance_conflicts;
   std::size_t num_failed_imbalance_resolutions;
+  std::size_t num_successful_imbalance_resolutions;
   double min_imbalance;
   double max_imbalance;
   double total_imbalance;
@@ -1142,6 +1143,7 @@ struct BlockPairSchedulerStatistics {
     num_move_conflicts = 0;
     num_imbalance_conflicts = 0;
     num_failed_imbalance_resolutions = 0;
+    num_successful_imbalance_resolutions = 0;
     min_imbalance = std::numeric_limits<double>::max();
     max_imbalance = std::numeric_limits<double>::min();
     total_imbalance = 0.0;
@@ -1155,6 +1157,8 @@ struct BlockPairSchedulerStatistics {
     LOG_STATS << "*  # num move conflicts: " << num_move_conflicts;
     LOG_STATS << "*  # num imbalance conflicts: " << num_imbalance_conflicts;
     LOG_STATS << "*  # num failed imbalance resolutions: " << num_failed_imbalance_resolutions;
+    LOG_STATS << "*  # num successful imbalance resolutions: "
+              << num_successful_imbalance_resolutions;
     LOG_STATS << "*  # min / average / max imbalance: "
               << (num_imbalance_conflicts ? min_imbalance : 0) << " / "
               << (num_imbalance_conflicts ? total_imbalance / num_imbalance_conflicts : 0) << " / "
@@ -1495,6 +1499,7 @@ public:
                       << (result2.cut_value + result2.gain) << " -> " << result2.cut_value << ")";
 
                   if (result2.kind == MoveResult::SUCCESS) {
+                    IF_STATS _stats.num_successful_imbalance_resolutions += 1;
                     continue;
                   }
                 }
