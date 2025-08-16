@@ -472,6 +472,8 @@ private:
 
       if (_f_ctx.abort_on_first_cut) {
         return false;
+      } else if (_f_ctx.abort_on_improved_cut && _unconstrained_cut_value < _global_cut_value) {
+        return false;
       }
 
       if (cutter_state.side_to_pierce == 0) {
@@ -609,6 +611,7 @@ private:
       );
     };
 
+    EdgeWeight prev_unconstrained_cut_value = -1;
     NodeWeight prev_source_side_weight = _flow_network.graph.node_weight(_flow_network.source);
     NodeWeight prev_sink_side_weight = _flow_network.graph.node_weight(_flow_network.sink);
     while (true) {
@@ -674,15 +677,30 @@ private:
         };
 
         const bool rebalance_source_side = source_side_weight > max_source_side_weight;
-        rebalance(rebalance_source_side, global_cut_value, fetch_block);
+        const EdgeWeight unconstrained_cut_value =
+            rebalance(rebalance_source_side, global_cut_value, fetch_block);
 
         if (_f_ctx.abort_on_candidate_cut && _unconstrained_cut_value < _global_cut_value &&
             _unconstrained_cut_value < global_cut_value) {
           break;
         }
+
+        if (_f_ctx.use_abort_criterion && prev_unconstrained_cut_value >= 0) {
+          const double relative_rebalancing_improvement =
+              (prev_unconstrained_cut_value - unconstrained_cut_value) /
+              static_cast<double>(prev_unconstrained_cut_value);
+
+          if (relative_rebalancing_improvement < 0) {
+            break;
+          }
+        }
+
+        prev_unconstrained_cut_value = unconstrained_cut_value;
       }
 
       if (_f_ctx.abort_on_first_cut) {
+        break;
+      } else if (_f_ctx.abort_on_improved_cut && _unconstrained_cut_value < _global_cut_value) {
         break;
       }
 
@@ -953,7 +971,7 @@ private:
   }
 
   template <typename BlockFetcher>
-  void rebalance(const bool source_side, const EdgeWeight cut_value, BlockFetcher &&fetch_block) {
+  EdgeWeight rebalance(bool source_side, EdgeWeight cut_value, BlockFetcher &&fetch_block) {
     TIMED_SCOPE("Initialize Partitioned Graph") {
       for (const auto &[u, u_local] : _flow_network.global_to_local_mapping.entries()) {
         const BlockID old_block = _p_graph_rebalancing_copy.block(u);
@@ -990,6 +1008,7 @@ private:
       }
     }();
 
+    const EdgeWeight rebalanced_cut_value = cut_value - gain;
     if (!balanced) {
       LOG_WARNING << "Rebalancing failed to produce a balanced cut";
     } else {
@@ -1000,7 +1019,6 @@ private:
       );
       SCOPED_TIMER("Compute Moves");
 
-      const EdgeWeight rebalanced_cut_value = cut_value - gain;
       DBG << "Rebalanced imbalanced cut with resulting global value " << rebalanced_cut_value;
 
       KASSERT(
@@ -1053,6 +1071,8 @@ private:
         }
       }
     };
+
+    return rebalanced_cut_value;
   }
 
   [[nodiscard]] bool time_limit_exceeded() const {
@@ -1404,9 +1424,9 @@ public:
 
     const std::size_t num_threads = tbb::this_task_arena::max_concurrency();
     const std::size_t max_num_quotient_graph_edges = p_graph.k() * (p_graph.k() - 1) / 2;
-    const std::size_t num_parallel_searches = std::min<std::size_t>(
+    const std::size_t num_parallel_searches = std::min(
         std::min(num_threads, max_num_quotient_graph_edges),
-        _f_ctx.parallel_searches_multiplier * p_graph.k()
+        std::max<std::size_t>(1, _f_ctx.parallel_searches_multiplier * p_graph.k())
     );
 
     const TimePoint start_time = Clock::now();

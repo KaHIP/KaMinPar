@@ -283,7 +283,9 @@ struct TwowayFlowRefinementContext {
 
   bool unconstrained;
   bool dynamic_rebalancer;
+  bool use_abort_criterion;
   bool abort_on_first_cut;
+  bool abort_on_improved_cut;
   bool abort_on_candidate_cut;
 
   bool use_whfc;

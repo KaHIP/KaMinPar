@@ -635,7 +635,17 @@ CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context 
       ->capture_default_str();
   twoway_flow
       ->add_option(
+          "--r-twoway-flow-use-abort-criterion", ctx.refinement.twoway_flow.use_abort_criterion
+      )
+      ->capture_default_str();
+  twoway_flow
+      ->add_option(
           "--r-twoway-flow-abort-on-first-cut", ctx.refinement.twoway_flow.abort_on_first_cut
+      )
+      ->capture_default_str();
+  twoway_flow
+      ->add_option(
+          "--r-twoway-flow-abort-on-improved-cut", ctx.refinement.twoway_flow.abort_on_improved_cut
       )
       ->capture_default_str();
   twoway_flow
