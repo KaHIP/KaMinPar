@@ -18,6 +18,7 @@
 
 #include "kaminpar-io/kaminpar_io.h"
 
+#include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/factories.h"
 #include "kaminpar-shm/kaminpar.h"
@@ -91,6 +92,23 @@ int main(int argc, char *argv[]) {
   ctx.compression.setup(*graph);
   ctx.partition.setup(*graph, k, epsilon);
 
+  cio::print_kaminpar_banner();
+  cio::print_build_identifier();
+  cio::print_build_datatypes<NodeID, EdgeID, NodeWeight, EdgeWeight>();
+
+  cio::print_delimiter("Input Summary");
+  std::cout << "Threads:                      " << ctx.parallel.num_threads << "\n";
+  std::cout << "Seed:                         " << seed << "\n";
+  std::cout << "Graph:                        " << ctx.debug.graph_name
+            << " [node ordering: " << ctx.node_ordering << "] [edge ordering: " << ctx.edge_ordering
+            << "]\n";
+  std::cout << ctx.partition;
+
+  cio::print_delimiter("Refinement", '-');
+  std::cout << ctx.refinement;
+
+  cio::print_delimiter("Refinement");
+
   const auto print_statistics = [&]() {
     const EdgeWeight cut = metrics::edge_cut(p_graph);
     const double imbalance = metrics::imbalance(p_graph);
@@ -98,8 +116,6 @@ int main(int argc, char *argv[]) {
     LOG << "Cut=" << cut << ", Imbalance=" << imbalance
         << ", Feasible=" << (feasible ? "Yes" : "No") << ", k=" << p_graph.k();
   };
-
-  cio::print_delimiter("Input Summary");
   print_statistics();
   LOG;
 
