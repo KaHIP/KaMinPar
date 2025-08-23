@@ -206,38 +206,50 @@ Context create_default_context() {
                                   },
                               .twoway_flow =
                                   {
-                                      .border_region_scaling_factor = 16,
-                                      .max_border_distance = 20,
-                                      .flow =
-                                          {
-
-                                              .global_relabeling_heuristic = true,
-                                              .global_relabeling_frequency = 1,
-                                          },
-                                      .piercing =
-                                          {
-                                              .pierce_all_viable = true,
-                                              .bulk_piercing = true,
-                                              .bulk_piercing_shrinking_factor = 0.55,
-                                              .bulk_piercing_round_threshold = 5,
-                                              .fallback_heuristic = true,
-                                              .deterministic = false,
-                                          },
-                                      .unconstrained = false,
-                                      .dynamic_rebalancer = false,
-                                      .use_abort_criterion = false,
-                                      .abort_on_first_cut = false,
-                                      .abort_on_improved_cut = false,
-                                      .abort_on_candidate_cut = true,
-                                      .use_whfc = false,
-                                      .run_sequentially = true,
-                                      .time_limit = std::numeric_limits<std::size_t>::max(),
-                                      .parallel_scheduling = false,
-                                      .parallel_searches_multiplier = 1,
-                                      .resolve_imbalance_conflicts = false,
-                                      .reschedule_imbalance_conflicts = false,
-                                      .max_num_rounds = std::numeric_limits<std::size_t>::max(),
                                       .min_round_improvement_factor = 0.001,
+                                      .max_num_rounds = std::numeric_limits<std::size_t>::max(),
+                                      .time_limit = std::numeric_limits<std::size_t>::max(),
+                                      .run_sequentially = true,
+                                      .scheduler =
+                                          {
+                                              .parallel_scheduling = false,
+                                              .parallel_searches_multiplier = 1,
+                                              .resolve_imbalance_conflicts = false,
+                                              .reschedule_imbalance_conflicts = false,
+                                          },
+                                      .construction =
+                                          {
+                                              .border_region_scaling_factor = 16,
+                                              .max_border_distance = 20,
+                                          },
+                                      .flow_cutter =
+                                          {
+                                              .use_whfc = false,
+                                              .flow =
+                                                  {
+                                                      .global_relabeling_heuristic = true,
+                                                      .global_relabeling_frequency = 1,
+                                                  },
+                                              .piercing =
+                                                  {
+                                                      .deterministic = false,
+                                                      .determine_distance_from_cut = true,
+                                                      .fallback_heuristic = true,
+                                                      .bulk_piercing = true,
+                                                      .bulk_piercing_shrinking_factor = 0.55,
+                                                      .bulk_piercing_round_threshold = 5,
+                                                  },
+                                          },
+                                      .rebalancer =
+                                          {
+                                              .enabled = false,
+                                              .dynamic_rebalancer = false,
+                                              .use_abort_criterion = false,
+                                              .abort_on_first_cut = false,
+                                              .abort_on_improved_cut = false,
+                                              .abort_on_candidate_cut = true,
+
+                                          },
                                   },
                           },
                       .repetition_multiplier = 1.0,
@@ -265,38 +277,50 @@ Context create_default_context() {
                           },
                       .twoway_flow =
                           {
-                              .border_region_scaling_factor = 16,
-                              .max_border_distance = 20,
-                              .flow =
-                                  {
-
-                                      .global_relabeling_heuristic = true,
-                                      .global_relabeling_frequency = 1,
-                                  },
-                              .piercing =
-                                  {
-                                      .pierce_all_viable = true,
-                                      .bulk_piercing = true,
-                                      .bulk_piercing_shrinking_factor = 0.55,
-                                      .bulk_piercing_round_threshold = 5,
-                                      .fallback_heuristic = true,
-                                      .deterministic = false,
-                                  },
-                              .unconstrained = false,
-                              .dynamic_rebalancer = false,
-                              .use_abort_criterion = false,
-                              .abort_on_first_cut = false,
-                              .abort_on_improved_cut = false,
-                              .abort_on_candidate_cut = true,
-                              .use_whfc = false,
-                              .run_sequentially = true,
-                              .time_limit = std::numeric_limits<std::size_t>::max(),
-                              .parallel_scheduling = false,
-                              .parallel_searches_multiplier = 1,
-                              .resolve_imbalance_conflicts = false,
-                              .reschedule_imbalance_conflicts = false,
-                              .max_num_rounds = std::numeric_limits<std::size_t>::max(),
                               .min_round_improvement_factor = 0.001,
+                              .max_num_rounds = std::numeric_limits<std::size_t>::max(),
+                              .time_limit = std::numeric_limits<std::size_t>::max(),
+                              .run_sequentially = true,
+                              .scheduler =
+                                  {
+                                      .parallel_scheduling = false,
+                                      .parallel_searches_multiplier = 1,
+                                      .resolve_imbalance_conflicts = false,
+                                      .reschedule_imbalance_conflicts = false,
+                                  },
+                              .construction =
+                                  {
+                                      .border_region_scaling_factor = 16,
+                                      .max_border_distance = 20,
+                                  },
+                              .flow_cutter =
+                                  {
+                                      .use_whfc = false,
+                                      .flow =
+                                          {
+                                              .global_relabeling_heuristic = true,
+                                              .global_relabeling_frequency = 1,
+                                          },
+                                      .piercing =
+                                          {
+                                              .deterministic = false,
+                                              .determine_distance_from_cut = true,
+                                              .fallback_heuristic = true,
+                                              .bulk_piercing = true,
+                                              .bulk_piercing_shrinking_factor = 0.55,
+                                              .bulk_piercing_round_threshold = 5,
+                                          },
+                                  },
+                              .rebalancer =
+                                  {
+                                      .enabled = false,
+                                      .dynamic_rebalancer = false,
+                                      .use_abort_criterion = false,
+                                      .abort_on_first_cut = false,
+                                      .abort_on_improved_cut = false,
+                                      .abort_on_candidate_cut = true,
+
+                                  },
                           },
                   },
               .refine_pool_partition = false,
@@ -341,38 +365,50 @@ Context create_default_context() {
                   },
               .twoway_flow =
                   {
-                      .border_region_scaling_factor = 16,
-                      .max_border_distance = 20,
-                      .flow =
-                          {
-
-                              .global_relabeling_heuristic = true,
-                              .global_relabeling_frequency = 1,
-                          },
-                      .piercing =
-                          {
-                              .pierce_all_viable = true,
-                              .bulk_piercing = true,
-                              .bulk_piercing_shrinking_factor = 0.55,
-                              .bulk_piercing_round_threshold = 5,
-                              .fallback_heuristic = true,
-                              .deterministic = false,
-                          },
-                      .unconstrained = false,
-                      .dynamic_rebalancer = false,
-                      .use_abort_criterion = false,
-                      .abort_on_first_cut = false,
-                      .abort_on_improved_cut = false,
-                      .abort_on_candidate_cut = true,
-                      .use_whfc = false,
-                      .run_sequentially = true,
-                      .time_limit = std::numeric_limits<std::size_t>::max(),
-                      .parallel_scheduling = true,
-                      .parallel_searches_multiplier = 1,
-                      .resolve_imbalance_conflicts = false,
-                      .reschedule_imbalance_conflicts = false,
-                      .max_num_rounds = std::numeric_limits<std::size_t>::max(),
                       .min_round_improvement_factor = 0.001,
+                      .max_num_rounds = std::numeric_limits<std::size_t>::max(),
+                      .time_limit = std::numeric_limits<std::size_t>::max(),
+                      .run_sequentially = true,
+                      .scheduler =
+                          {
+                              .parallel_scheduling = true,
+                              .parallel_searches_multiplier = 1,
+                              .resolve_imbalance_conflicts = false,
+                              .reschedule_imbalance_conflicts = false,
+                          },
+                      .construction =
+                          {
+                              .border_region_scaling_factor = 16,
+                              .max_border_distance = 20,
+                          },
+                      .flow_cutter =
+                          {
+                              .use_whfc = false,
+                              .flow =
+                                  {
+                                      .global_relabeling_heuristic = true,
+                                      .global_relabeling_frequency = 1,
+                                  },
+                              .piercing =
+                                  {
+                                      .deterministic = false,
+                                      .determine_distance_from_cut = true,
+                                      .fallback_heuristic = true,
+                                      .bulk_piercing = true,
+                                      .bulk_piercing_shrinking_factor = 0.55,
+                                      .bulk_piercing_round_threshold = 5,
+                                  },
+                          },
+                      .rebalancer =
+                          {
+                              .enabled = false,
+                              .dynamic_rebalancer = false,
+                              .use_abort_criterion = false,
+                              .abort_on_first_cut = false,
+                              .abort_on_improved_cut = false,
+                              .abort_on_candidate_cut = true,
+
+                          },
                   },
               .jet =
                   {

@@ -1,19 +1,27 @@
 #pragma once
 
-#include <algorithm>
 #include <span>
 
+#include "kaminpar-shm/datastructures/csr_graph.h"
+#include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
+#include "kaminpar-shm/refinement/flow/flow_network/quotient_graph.h"
+#include "kaminpar-shm/refinement/flow/util/breadth_first_search.h"
+#include "kaminpar-shm/refinement/flow/util/node_status.h"
 
 #include "kaminpar-common/assert.h"
-#include "kaminpar-common/datastructures/scalable_vector.h"
-#include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm {
 
 class BorderRegion {
 public:
-  BorderRegion() : _block(kInvalidBlockID), _max_weight(0), _cur_weight(0) {};
+  BorderRegion()
+      : _block1(kInvalidBlockID),
+        _block2(kInvalidBlockID),
+        _max_weight1(0),
+        _max_weight2(0),
+        _cur_weight1(0),
+        _cur_weight2(0) {};
 
   BorderRegion(const BorderRegion &) = delete;
   BorderRegion &operator=(const BorderRegion &) = delete;
@@ -21,72 +29,196 @@ public:
   BorderRegion(BorderRegion &&) noexcept = default;
   BorderRegion &operator=(BorderRegion &&) noexcept = default;
 
-  void reset(const BlockID block, const NodeWeight max_weight, const NodeID max_num_nodes) {
-    _block = block;
-    _max_weight = max_weight;
+  void initialize(
+      const BlockID block1,
+      const BlockID block2,
+      const NodeWeight max_weight1,
+      const NodeWeight max_weight2,
+      const NodeID max_num_nodes
+  ) {
+    _block1 = block1;
+    _block2 = block2;
 
-    _cur_weight = 0;
+    _max_weight1 = max_weight1;
+    _max_weight2 = max_weight2;
 
-    if (_node_status.size() < max_num_nodes) {
-      _node_status.resize(max_num_nodes, static_array::noinit);
-      std::fill_n(_node_status.data(), max_num_nodes, 0);
-    } else {
-      for (const NodeID u : _nodes) {
-        _node_status[u] = 0;
-      }
-    }
+    _cur_weight1 = 0;
+    _cur_weight2 = 0;
 
-    _nodes.clear();
+    _node_status.initialize(max_num_nodes);
+    _initial_source_side_border_nodes.clear();
+    _initial_sink_side_border_nodes.clear();
   }
 
-  void insert(const NodeID u, const NodeWeight u_weight) {
+  void insert_into_region1(const NodeID u, const NodeWeight u_weight) {
     KASSERT(!contains(u));
-    KASSERT(fits(u_weight));
+    KASSERT(fits_in_region1(u_weight));
 
-    _node_status[u] = 1;
-    _nodes.push_back(u);
-    _cur_weight += u_weight;
+    _cur_weight1 += u_weight;
+    _node_status.add_source(u);
+    _initial_source_side_border_nodes.push_back(u);
   }
 
-  [[nodiscard]] bool fits(const NodeWeight weight) const {
-    return _cur_weight + weight <= _max_weight;
+  void insert_into_region2(const NodeID u, const NodeWeight u_weight) {
+    KASSERT(!contains(u));
+    KASSERT(fits_in_region2(u_weight));
+
+    _cur_weight2 += u_weight;
+    _node_status.add_sink(u);
+    _initial_sink_side_border_nodes.push_back(u);
+  }
+
+  void insert(const bool source_side, const NodeID u, const NodeWeight u_weight) {
+    KASSERT(!contains(u));
+    KASSERT(source_side ? fits_in_region1(u_weight) : fits_in_region2(u_weight));
+
+    if (source_side) {
+      _cur_weight1 += u_weight;
+      _node_status.add_source(u);
+    } else {
+      _cur_weight2 += u_weight;
+      _node_status.add_sink(u);
+    }
+  }
+
+  [[nodiscard]] bool fits_in_region1(const NodeWeight weight) const {
+    return _cur_weight1 + weight <= _max_weight1;
+  }
+
+  [[nodiscard]] bool fits_in_region2(const NodeWeight weight) const {
+    return _cur_weight2 + weight <= _max_weight2;
+  }
+
+  [[nodiscard]] bool fits(const bool source_side, const NodeWeight weight) const {
+    const NodeWeight cur_weight = source_side ? _cur_weight1 : _cur_weight2;
+    const NodeWeight max_weight = source_side ? _max_weight1 : _max_weight2;
+    return cur_weight + weight <= max_weight;
+  }
+
+  [[nodiscard]] bool region1_contains(const NodeID u) const {
+    return _node_status.is_source(u);
+  }
+
+  [[nodiscard]] bool region2_contains(const NodeID u) const {
+    return _node_status.is_sink(u);
   }
 
   [[nodiscard]] bool contains(const NodeID u) const {
-    return _node_status[u] != 0;
+    return !_node_status.is_unknown(u);
   }
 
-  [[nodiscard]] std::span<const NodeID> nodes() const {
-    return _nodes;
+  [[nodiscard]] BlockID empty() const {
+    return _cur_weight1 == 0 || _cur_weight2 == 0;
   }
 
-  [[nodiscard]] NodeID num_nodes() const {
-    return _nodes.size();
+  [[nodiscard]] BlockID size() const {
+    return _node_status.source_nodes().size() + _node_status.sink_nodes().size();
   }
 
-  [[nodiscard]] bool empty() const {
-    return _nodes.size() == 0;
+  [[nodiscard]] BlockID size_region1() const {
+    return _node_status.source_nodes().size();
   }
 
-  [[nodiscard]] NodeWeight weight() const {
-    return _cur_weight;
+  [[nodiscard]] BlockID size_region2() const {
+    return _node_status.sink_nodes().size();
   }
 
-  [[nodiscard]] NodeWeight max_weight() const {
-    return _max_weight;
+  [[nodiscard]] BlockID block1() const {
+    return _block1;
   }
 
-  [[nodiscard]] BlockID block() const {
-    return _block;
+  [[nodiscard]] BlockID block2() const {
+    return _block2;
+  }
+
+  [[nodiscard]] NodeWeight max_weight_region1() const {
+    return _max_weight1;
+  }
+
+  [[nodiscard]] NodeWeight max_weight_region2() const {
+    return _max_weight2;
+  }
+
+  [[nodiscard]] NodeWeight weight_region1() const {
+    return _cur_weight1;
+  }
+
+  [[nodiscard]] NodeWeight weight_region2() const {
+    return _cur_weight2;
+  }
+
+  [[nodiscard]] std::span<const NodeID> nodes_region1() const {
+    return _node_status.source_nodes();
+  }
+
+  [[nodiscard]] std::span<const NodeID> nodes_region2() const {
+    return _node_status.sink_nodes();
+  }
+
+  [[nodiscard]] std::span<const NodeID> initial_nodes_region1() const {
+    return _initial_source_side_border_nodes;
+  }
+
+  [[nodiscard]] std::span<const NodeID> initial_nodes_region2() const {
+    return _initial_sink_side_border_nodes;
   }
 
 private:
-  BlockID _block;
-  NodeWeight _max_weight;
+  BlockID _block1;
+  BlockID _block2;
 
-  NodeWeight _cur_weight;
-  StaticArray<std::uint8_t> _node_status;
-  ScalableVector<NodeID> _nodes;
+  NodeWeight _max_weight1;
+  NodeWeight _max_weight2;
+
+  NodeWeight _cur_weight1;
+  NodeWeight _cur_weight2;
+
+  NodeStatus _node_status;
+  ScalableVector<NodeID> _initial_source_side_border_nodes;
+  ScalableVector<NodeID> _initial_sink_side_border_nodes;
+};
+
+class BorderRegionConstructor {
+  static constexpr bool kSourceTag = true;
+  static constexpr bool kSinkTag = false;
+
+public:
+  BorderRegionConstructor(
+      const PartitionContext &p_ctx,
+      const FlowNetworkConstructionContext &c_ctx,
+      const QuotientGraph &q_graph,
+      const PartitionedCSRGraph &p_graph,
+      const CSRGraph &graph
+  )
+      : _p_ctx(p_ctx),
+        _c_ctx(c_ctx),
+        _q_graph(q_graph),
+        _p_graph(p_graph),
+        _graph(graph) {};
+
+  [[nodiscard]] const BorderRegion &
+  construct(BlockID block1, BlockID block2, BlockWeight block1_weight, BlockWeight block2_weight);
+
+private:
+  void compute_border_regions(
+      BlockID block1,
+      BlockID block2,
+      BlockWeight max_border_region_weight1,
+      BlockWeight max_border_region_weight2
+  );
+
+  void expand_border_regions();
+
+private:
+  const PartitionContext &_p_ctx;
+  const FlowNetworkConstructionContext &_c_ctx;
+
+  const QuotientGraph &_q_graph;
+  const PartitionedCSRGraph &_p_graph;
+  const CSRGraph &_graph;
+
+  BFSRunner _bfs_runner;
+  BorderRegion _border_region;
 };
 
 } // namespace kaminpar::shm

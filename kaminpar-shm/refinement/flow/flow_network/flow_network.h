@@ -1,6 +1,5 @@
 #pragma once
 
-
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
@@ -20,24 +19,35 @@ struct FlowNetwork {
 
   DynamicRememberingFlatMap<NodeID, NodeID> global_to_local_mapping;
   DynamicRememberingFlatMap<NodeID, NodeID> local_to_global_mapping;
+
+  BlockWeight block1_weight;
+  BlockWeight block2_weight;
+  EdgeWeight cut_value;
 };
 
-[[nodiscard]] std::pair<FlowNetwork, EdgeWeight> construct_flow_network(
-    const CSRGraph &graph,
-    const PartitionedCSRGraph &p_graph,
-    const BlockWeight block1_weight,
-    const BlockWeight block2_weight,
-    const BorderRegion &border_region1,
-    const BorderRegion &border_region2
-);
+class FlowNetworkConstructor {
+public:
+  FlowNetworkConstructor(const PartitionedCSRGraph &p_graph, const CSRGraph &graph);
 
-[[nodiscard]] std::pair<FlowNetwork, EdgeWeight> parallel_construct_flow_network(
-    const CSRGraph &graph,
-    const PartitionedCSRGraph &p_graph,
-    const BlockWeight block1_weight,
-    const BlockWeight block2_weight,
-    const BorderRegion &border_region1,
-    const BorderRegion &border_region2
-);
+  [[nodiscard]] FlowNetwork construct_flow_network(
+      const BorderRegion &border_region,
+      BlockWeight block1_weight,
+      BlockWeight block2_weight,
+      bool sequential_construction
+  );
+
+private:
+  [[nodiscard]] FlowNetwork construct_flow_network(
+      const BorderRegion &border_region, BlockWeight block1_weight, BlockWeight block2_weight
+  );
+
+  [[nodiscard]] FlowNetwork parallel_construct_flow_network(
+      const BorderRegion &border_region, BlockWeight block1_weight, BlockWeight block2_weight
+  );
+
+private:
+  const PartitionedCSRGraph &_p_graph;
+  const CSRGraph &_graph;
+};
 
 } // namespace kaminpar::shm

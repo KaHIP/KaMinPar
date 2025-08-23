@@ -1,28 +1,30 @@
 #pragma once
 
 #include <algorithm>
-#include <cstdint>
+#include <cstddef>
 #include <span>
 
-#include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/kaminpar.h"
+#include "kaminpar-shm/refinement/flow/flow_network/border_region.h"
+#include "kaminpar-shm/refinement/flow/flow_network/flow_network.h"
 #include "kaminpar-shm/refinement/flow/util/breadth_first_search.h"
 #include "kaminpar-shm/refinement/flow/util/node_status.h"
 
-#include "kaminpar-common/datastructures/binary_heap.h"
+#include "kaminpar-common/datastructures/marker.h"
+#include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm {
 
 class PiercingHeuristic {
-  static constexpr std::uint8_t kUnknown = 0;
-  static constexpr std::uint8_t kInitialSourceSide = 1;
-  static constexpr std::uint8_t kInitialSinkSide = 2;
+  static constexpr bool kReachableTag = true;
+  static constexpr bool kUnreachableTag = false;
 
   class PiercingNodeCandidatesBuckets {
   public:
     void initialize(const NodeID max_distance) {
       _candidates_buckets.resize(max_distance + 1);
+      reset();
     }
 
     void reset() {
@@ -36,8 +38,10 @@ class PiercingHeuristic {
       _candidates_buckets[distance].push_back(u);
     }
 
-    void sort(const NodeID bucket) {
-      std::sort(_candidates_buckets[bucket].begin(), _candidates_buckets[bucket].end());
+    [[nodiscard]] ScalableVector<NodeID> &candidates(const NodeID bucket) {
+      KASSERT(bucket < _candidates_buckets.size());
+
+      return _candidates_buckets[bucket];
     }
 
     [[nodiscard]] NodeID min_occupied_bucket() const {
@@ -46,12 +50,6 @@ class PiercingHeuristic {
 
     [[nodiscard]] NodeID max_occupied_bucket() const {
       return _candidates_buckets.size() - 1;
-    }
-
-    [[nodiscard]] std::span<const NodeID> candidates(const NodeID bucket) const {
-      KASSERT(bucket < _candidates_buckets.size());
-
-      return _candidates_buckets[bucket];
     }
 
   private:
@@ -89,49 +87,43 @@ public:
   PiercingHeuristic(const PiercingHeuristicContext &_ctx);
 
   void initialize(
-      const CSRGraph &graph,
-      NodeWeight source_side_weight,
-      NodeWeight sink_side_weight,
-      NodeWeight total_weight,
+      const BorderRegion &border_region,
+      const FlowNetwork &flow_network,
       NodeWeight max_source_side_weight,
       NodeWeight max_sink_side_weight
   );
 
-  void set_initial_node_side(NodeID node, bool source_side);
-
-  void compute_distances();
-
-  void reset(bool source_side);
-
-  void add_piercing_node_candidate(NodeID node, bool reachable);
+  void add_piercing_node_candidate(bool source_side, NodeID node, bool reachable);
 
   std::span<const NodeID> find_piercing_nodes(
+      bool source_side,
       const NodeStatus &cut_status,
-      const NodeStatus &terminal_status,
+      const Marker<> &reachable_oracle,
       NodeWeight side_weight,
       NodeWeight max_weight
   );
 
 private:
-  std::size_t compute_max_num_piercing_nodes(NodeWeight side_weight);
+  void compute_distances();
 
-  BulkPiercingContext &bulk_piercing_context();
+  std::size_t compute_max_num_piercing_nodes(bool source_side, NodeWeight side_weight);
 
 private:
   const PiercingHeuristicContext &_ph_ctx;
 
-  const CSRGraph *_graph;
+  const BorderRegion *_border_region;
+  const FlowNetwork *_flow_network;
+
   ScalableVector<NodeID> _piercing_nodes;
 
-  StaticArray<std::uint8_t> _initial_side_status;
-  StaticArray<NodeID> _distance;
+  BFSRunner _bfs_runner;
+  StaticArray<NodeWeight> _distance;
 
-  BFSRunner _source_side_bfs_runner;
-  BFSRunner _sink_side_bfs_runner;
+  PiercingNodeCandidatesBuckets _source_reachable_candidates_buckets;
+  PiercingNodeCandidatesBuckets _source_unreachable_candidates_buckets;
 
-  bool _source_side;
-  PiercingNodeCandidatesBuckets _reachable_candidates_buckets;
-  PiercingNodeCandidatesBuckets _unreachable_candidates_buckets;
+  PiercingNodeCandidatesBuckets _sink_reachable_candidates_buckets;
+  PiercingNodeCandidatesBuckets _sink_unreachable_candidates_buckets;
 
   BulkPiercingContext _source_side_bulk_piercing_ctx;
   BulkPiercingContext _sink_side_bulk_piercing_ctx;

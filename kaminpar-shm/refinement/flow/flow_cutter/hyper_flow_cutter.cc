@@ -1,0 +1,230 @@
+#include "kaminpar-shm/refinement/flow/flow_cutter/hyper_flow_cutter.h"
+
+#ifdef KAMINPAR_WHFC_FOUND
+#include "kaminpar-common/timer.h"
+
+namespace kaminpar::shm {
+
+HyperFlowCutter::HyperFlowCutter(
+    const PartitionContext &p_ctx, const FlowCutterContext &fc_ctx, const bool run_sequentially
+)
+    : _p_ctx(p_ctx),
+      _fc_ctx(fc_ctx),
+      _run_sequentially(run_sequentially),
+      _hypergraph(),
+      _sequential_flow_cutter(_hypergraph, 1, fc_ctx.piercing.deterministic),
+      _parallel_flow_cutter(_hypergraph, 1, fc_ctx.piercing.deterministic) {
+  _sequential_flow_cutter.timer.active = false;
+  _sequential_flow_cutter.forceSequential(true);
+  _sequential_flow_cutter.setBulkPiercing(fc_ctx.piercing.bulk_piercing);
+
+  _parallel_flow_cutter.timer.active = false;
+  _parallel_flow_cutter.forceSequential(false);
+  _parallel_flow_cutter.setBulkPiercing(fc_ctx.piercing.bulk_piercing);
+}
+
+HyperFlowCutter::Result
+HyperFlowCutter::compute_cut(const BorderRegion &border_region, const FlowNetwork &flow_network) {
+  SCOPED_TIMER("Run WHFC");
+
+  _time_limit_exceeded = false;
+  _moves.clear();
+
+  construct_hypergraph(flow_network);
+  return run_hyper_flow_cutter(border_region, flow_network);
+}
+
+void HyperFlowCutter::construct_hypergraph(const FlowNetwork &flow_network) {
+  SCOPED_TIMER("Construct Hypergraph");
+
+  _hypergraph.reinitialize(flow_network.graph.n());
+
+  const CSRGraph &graph = flow_network.graph;
+  for (const NodeID u : graph.nodes()) {
+    _hypergraph.nodeWeight(whfc::Node(u)) = whfc::NodeWeight(graph.node_weight(u));
+
+    graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight c) {
+      if (u < v) {
+        _hypergraph.startHyperedge(whfc::Flow(c));
+        _hypergraph.addPin(whfc::Node(u));
+        _hypergraph.addPin(whfc::Node(v));
+      }
+    });
+  }
+
+  _hypergraph.finalize();
+}
+
+HyperFlowCutter::Result HyperFlowCutter::run_hyper_flow_cutter(
+    const BorderRegion &border_region, const FlowNetwork &flow_network
+) {
+  SCOPED_TIMER("Run HyperFlowCutter");
+
+  const NodeWeight total_weight = flow_network.block1_weight + flow_network.block2_weight;
+  const NodeWeight max_block1_weight = _p_ctx.max_block_weight(border_region.block1());
+  const NodeWeight max_block2_weight = _p_ctx.max_block_weight(border_region.block2());
+
+  const auto on_cut = [&](const auto &cutter_state) {
+    const EdgeWeight cut_value = cutter_state.flow_algo.flow_value;
+    DBG << "Found a cut for block pair " << border_region.block1() << " and "
+        << border_region.block2() << " with value " << cut_value;
+
+    if (cutter_state.isBalanced()) {
+      DBG << "Found cut for block pair " << border_region.block1() << " and "
+          << border_region.block2() << " is a balanced cut";
+      return true;
+    }
+
+    if (cutter_state.side_to_pierce == 0) {
+      const EdgeWeight source_side_weight = cutter_state.source_reachable_weight;
+      DBG << "Piercing on source-side (" << source_side_weight << "/" << max_block1_weight << ", "
+          << (total_weight - source_side_weight) << "/" << max_block2_weight << ")";
+    } else {
+      const EdgeWeight sink_side_weight = cutter_state.target_reachable_weight;
+      DBG << "Piercing on sink-side (" << sink_side_weight << "/" << max_block2_weight << ", "
+          << (total_weight - sink_side_weight) << "/" << max_block1_weight << ")";
+    }
+
+    if (time_limit_exceeded()) {
+      _time_limit_exceeded = true;
+      return false;
+    }
+
+    return true;
+  };
+
+  EdgeWeight gain = 0;
+  bool improved_balance = false;
+  const auto on_result = [&](const bool success, const auto &cutter_state) {
+    const EdgeWeight cut_value = cutter_state.flow_algo.flow_value;
+
+    if (!success) {
+      if (cut_value > flow_network.cut_value) {
+        DBG << "Cut is worse than the initial cut (" << flow_network.cut_value << "); "
+            << "aborting refinement for block pair " << border_region.block1() << " and "
+            << border_region.block2();
+      }
+
+      return;
+    }
+
+    DBG << "Found a balanced cut for block pair " << border_region.block1() << " and "
+        << border_region.block2() << " with value " << cut_value;
+
+    gain = flow_network.cut_value - cut_value;
+    improved_balance = std::max(cutter_state.source_weight, cutter_state.target_weight) <
+                       std::max(flow_network.block1_weight, flow_network.block2_weight);
+    compute_moves(border_region, flow_network, cutter_state);
+  };
+
+  const auto run_flow_cutter = [&](auto &flow_cutter) {
+    flow_cutter.cs.setMaxBlockWeight(0, std::max(flow_network.block1_weight, max_block1_weight));
+    flow_cutter.cs.setMaxBlockWeight(1, std::max(flow_network.block2_weight, max_block2_weight));
+
+    flow_cutter.reset();
+    flow_cutter.setFlowBound(flow_network.cut_value);
+
+    if (_fc_ctx.piercing.determine_distance_from_cut) {
+      compute_distances(border_region, flow_network, flow_cutter.cs.border_nodes.distance);
+    }
+
+    const bool success = flow_cutter.enumerateCutsUntilBalancedOrFlowBoundExceeded(
+        whfc::Node(flow_network.source), whfc::Node(flow_network.sink), on_cut
+    );
+    on_result(success, flow_cutter.cs);
+  };
+
+  if (_run_sequentially) {
+    run_flow_cutter(_sequential_flow_cutter);
+  } else {
+    run_flow_cutter(_parallel_flow_cutter);
+  }
+
+  if (_time_limit_exceeded) {
+    return Result::TimeLimitExceeded();
+  }
+
+  return Result(gain, improved_balance, _moves);
+}
+
+void HyperFlowCutter::compute_distances(
+    const BorderRegion &border_region,
+    const FlowNetwork &flow_network,
+    std::vector<whfc::HopDistance> &distances
+) {
+  constexpr whfc::HopDistance kMaxDist(9);
+  whfc::HopDistance max_dist_source(0);
+  whfc::HopDistance max_dist_sink(0);
+
+  const NodeID source = flow_network.source;
+  const NodeID sink = flow_network.sink;
+  const CSRGraph &graph = flow_network.graph;
+
+  distances.assign(graph.n(), whfc::HopDistance(0));
+
+  _bfs_runner.reset();
+  _bfs_marker.resize(graph.n());
+
+  for (const NodeID u : border_region.initial_nodes_region1()) {
+    const NodeID u_local = flow_network.global_to_local_mapping.get(u);
+    _bfs_marker.set(u_local);
+    _bfs_runner.add_seed(u_local);
+  }
+  for (const NodeID u : border_region.initial_nodes_region2()) {
+    const NodeID u_local = flow_network.global_to_local_mapping.get(u);
+    _bfs_marker.set(u_local);
+    _bfs_runner.add_seed(u_local);
+  }
+
+  _bfs_runner.perform([&](const NodeID u, const NodeID u_distance, auto &queue) {
+    const whfc::HopDistance dist = std::min(whfc::HopDistance(u_distance), kMaxDist);
+
+    const NodeID u_global = flow_network.local_to_global_mapping.get(u);
+    const bool source_side = border_region.region1_contains(u_global);
+
+    if (source_side) {
+      distances[u] = -dist;
+      max_dist_source = std::max(max_dist_source, dist);
+    } else {
+      distances[u] = dist;
+      max_dist_sink = std::max(max_dist_sink, dist);
+    }
+
+    graph.adjacent_nodes(u, [&](const NodeID v) {
+      if (v == source || v == sink || _bfs_marker.get(v)) {
+        return;
+      }
+
+      _bfs_marker.set(v);
+      queue.push_back(v);
+    });
+  });
+
+  distances[source] = -(max_dist_source + 1);
+  distances[sink] = max_dist_sink + 1;
+}
+
+template <typename CutterState>
+void HyperFlowCutter::compute_moves(
+    const BorderRegion &border_region,
+    const FlowNetwork &flow_network,
+    const CutterState &cutter_state
+) {
+  const BlockID block1 = border_region.block1();
+  const BlockID block2 = border_region.block2();
+  const auto &flow_algorithm = cutter_state.flow_algo;
+
+  _moves.clear();
+  for (const auto &[u, u_local] : flow_network.global_to_local_mapping.entries()) {
+    const BlockID old_block = border_region.region1_contains(u) ? block1 : block2;
+    const BlockID new_block = flow_algorithm.isSource(whfc::Node(u_local)) ? block1 : block2;
+
+    if (old_block != new_block) {
+      _moves.emplace_back(u, old_block, new_block);
+    }
+  }
+}
+
+} // namespace kaminpar::shm
+
+#endif

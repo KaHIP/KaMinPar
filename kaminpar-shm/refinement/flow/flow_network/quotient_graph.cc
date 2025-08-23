@@ -22,15 +22,14 @@ void QuotientGraph::reconstruct() {
 
     graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
       const BlockID v_block = _p_graph.block(v);
-      if (u_block >= v_block) {
-        return;
+
+      if (u_block < v_block) {
+        Edge &quotient_edge = edge(u_block, v_block);
+        quotient_edge.cut_edges.emplace_back(u, v);
+        quotient_edge.cut_weight += w;
+
+        total_cut_weight += w;
       }
-
-      Edge &quotient_edge = edge(u_block, v_block);
-      quotient_edge.cut_edges.emplace_back(u, v);
-      quotient_edge.cut_weight += w;
-
-      total_cut_weight += w;
     });
   }
 

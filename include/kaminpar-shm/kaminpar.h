@@ -258,47 +258,59 @@ struct KwayFMRefinementContext {
   bool dbg_report_progress;
 };
 
+struct FlowSchedulerContext {
+  bool parallel_scheduling;
+  double parallel_searches_multiplier;
+  bool resolve_imbalance_conflicts;
+  bool reschedule_imbalance_conflicts;
+};
+
+struct FlowNetworkConstructionContext {
+  double border_region_scaling_factor;
+  NodeID max_border_distance;
+};
+
 struct PreflowPushContext {
   bool global_relabeling_heuristic;
   double global_relabeling_frequency;
 };
 
 struct PiercingHeuristicContext {
-  bool pierce_all_viable;
+  bool deterministic;
+  bool determine_distance_from_cut;
+  bool fallback_heuristic;
 
   bool bulk_piercing;
   double bulk_piercing_shrinking_factor;
   NodeID bulk_piercing_round_threshold;
-
-  bool fallback_heuristic;
-  bool deterministic;
 };
 
-struct TwowayFlowRefinementContext {
-  double border_region_scaling_factor;
-  NodeID max_border_distance;
+struct FlowCutterContext {
+  bool use_whfc;
 
   PreflowPushContext flow;
   PiercingHeuristicContext piercing;
+};
 
-  bool unconstrained;
+struct FlowRebalancerContext {
+  bool enabled;
   bool dynamic_rebalancer;
   bool use_abort_criterion;
   bool abort_on_first_cut;
   bool abort_on_improved_cut;
   bool abort_on_candidate_cut;
+};
 
-  bool use_whfc;
-  bool run_sequentially;
-  std::size_t time_limit;
-
-  bool parallel_scheduling;
-  double parallel_searches_multiplier;
-  bool resolve_imbalance_conflicts;
-  bool reschedule_imbalance_conflicts;
-
-  std::size_t max_num_rounds;
+struct TwowayFlowRefinementContext {
   double min_round_improvement_factor;
+  std::size_t max_num_rounds;
+  std::size_t time_limit;
+  bool run_sequentially;
+
+  FlowSchedulerContext scheduler;
+  FlowNetworkConstructionContext construction;
+  FlowCutterContext flow_cutter;
+  FlowRebalancerContext rebalancer;
 };
 
 struct JetRefinementContext {

@@ -748,52 +748,62 @@ std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
 
   if (r_ctx.includes_algorithm(RefinementAlgorithm::TWOWAY_FLOW)) {
     out << "Two-way flow:\n";
-    out << "  Border region scaling:      " << r_ctx.twoway_flow.border_region_scaling_factor
+    out << "  Min round improvement:      " << r_ctx.twoway_flow.min_round_improvement_factor
         << "\n";
-    out << "  Max border distance:        " << r_ctx.twoway_flow.max_border_distance << "\n";
-
-    out << "  Flow Cutter:                " << yn(r_ctx.twoway_flow.use_whfc, "WHFC", "Built-in")
-        << "\n";
-    out << "    Bulk Piercing:            " << yn(r_ctx.twoway_flow.piercing.bulk_piercing) << "\n";
-    if (!r_ctx.twoway_flow.use_whfc) {
-      if (r_ctx.twoway_flow.piercing.bulk_piercing) {
-        out << "      Round threshold:        "
-            << r_ctx.twoway_flow.piercing.bulk_piercing_round_threshold << "\n";
-        out << "      Shrinking factor:       "
-            << r_ctx.twoway_flow.piercing.bulk_piercing_shrinking_factor << "\n";
-      }
-      out << "    Pierce all viable:        " << yn(r_ctx.twoway_flow.piercing.pierce_all_viable)
-          << "\n";
-      out << "    Fallback heuristic:       " << yn(r_ctx.twoway_flow.piercing.fallback_heuristic)
-          << "\n";
-      out << "    Global relabeling:        "
-          << yn(r_ctx.twoway_flow.flow.global_relabeling_heuristic) << "\n";
-      out << "    Global relabeling freq.:  " << r_ctx.twoway_flow.flow.global_relabeling_frequency
-          << "\n";
-    }
-
-    out << "  Unconstrained:              " << yn(r_ctx.twoway_flow.unconstrained) << "\n";
-    if (r_ctx.twoway_flow.unconstrained) {
-      out << "    Rebalancer:               "
-          << yn(r_ctx.twoway_flow.dynamic_rebalancer, "dynamic", "static") << "\n";
-      out << "    Abort on first cut:       " << yn(r_ctx.twoway_flow.abort_on_first_cut) << "\n";
-      out << "    Abort on candidate cut:   " << yn(r_ctx.twoway_flow.abort_on_candidate_cut)
-          << "\n";
-    }
+    out << "  Max num rounds:             " << unlimited(r_ctx.twoway_flow.max_num_rounds) << "\n";
+    out << "  Time Limit:                 " << unlimited(r_ctx.twoway_flow.time_limit)
+        << " minute(s)" << "\n";
+    out << "  Sequential mode:            " << yn(r_ctx.twoway_flow.run_sequentially) << "\n";
 
     out << "  Scheduling:                 "
-        << yn(r_ctx.twoway_flow.parallel_scheduling, "Parallel", "Sequential") << "\n";
-    if (r_ctx.twoway_flow.parallel_scheduling) {
-      out << "    Search multiplier:        " << r_ctx.twoway_flow.parallel_searches_multiplier
-          << "\n";
-      out << "    Reschedule imbalances:    " << yn(r_ctx.twoway_flow.reschedule_imbalance_conflicts) << "\n";
+        << yn(r_ctx.twoway_flow.scheduler.parallel_scheduling, "Parallel", "Sequential") << "\n";
+    if (r_ctx.twoway_flow.scheduler.parallel_scheduling) {
+      out << "    Search multiplier:        "
+          << r_ctx.twoway_flow.scheduler.parallel_searches_multiplier << "\n";
+      out << "    Resolve imbalances:       "
+          << yn(r_ctx.twoway_flow.scheduler.resolve_imbalance_conflicts) << "\n";
+      out << "    Reschedule imbalances:    "
+          << yn(r_ctx.twoway_flow.scheduler.reschedule_imbalance_conflicts) << "\n";
     }
-    out << "    Sequential computation:   " << yn(r_ctx.twoway_flow.run_sequentially) << "\n";
-    out << "    Time Limit:               " << unlimited(r_ctx.twoway_flow.time_limit)
-        << " minute(s)" << "\n";
-    out << "    Max num rounds:           " << unlimited(r_ctx.twoway_flow.max_num_rounds) << "\n";
-    out << "    Min round improvement:    " << r_ctx.twoway_flow.min_round_improvement_factor
+
+    out << "  Flow network construction:  " << "\n";
+    out << "    Border region scaling:    "
+        << r_ctx.twoway_flow.construction.border_region_scaling_factor << "\n";
+    out << "    Max border distance:      " << r_ctx.twoway_flow.construction.max_border_distance
         << "\n";
+
+    out << "  Flow cutter:                "
+        << yn(r_ctx.twoway_flow.flow_cutter.use_whfc, "WHFC", "Built-in") << "\n";
+    out << "    Deterministic piercing:   "
+        << yn(r_ctx.twoway_flow.flow_cutter.piercing.deterministic) << "\n";
+    out << "    Determine cut-distance:   "
+        << yn(r_ctx.twoway_flow.flow_cutter.piercing.determine_distance_from_cut) << "\n";
+    out << "    Fallback heuristic:       "
+        << yn(r_ctx.twoway_flow.flow_cutter.piercing.fallback_heuristic) << "\n";
+    out << "    Bulk Piercing:            "
+        << yn(r_ctx.twoway_flow.flow_cutter.piercing.bulk_piercing) << "\n";
+    if (!r_ctx.twoway_flow.flow_cutter.use_whfc) {
+      if (r_ctx.twoway_flow.flow_cutter.piercing.bulk_piercing) {
+        out << "      Round threshold:        "
+            << r_ctx.twoway_flow.flow_cutter.piercing.bulk_piercing_round_threshold << "\n";
+        out << "      Shrinking factor:       "
+            << r_ctx.twoway_flow.flow_cutter.piercing.bulk_piercing_shrinking_factor << "\n";
+      }
+      out << "    Global relabeling:        "
+          << yn(r_ctx.twoway_flow.flow_cutter.flow.global_relabeling_heuristic) << "\n";
+      out << "    Global relabeling freq.:  "
+          << r_ctx.twoway_flow.flow_cutter.flow.global_relabeling_frequency << "\n";
+    }
+
+    out << "  Rebalancing:                " << yn(r_ctx.twoway_flow.rebalancer.enabled) << "\n";
+    if (r_ctx.twoway_flow.rebalancer.enabled) {
+      out << "    Rebalancer:               "
+          << yn(r_ctx.twoway_flow.rebalancer.dynamic_rebalancer, "dynamic", "static") << "\n";
+      out << "    Abort on first cut:       " << yn(r_ctx.twoway_flow.rebalancer.abort_on_first_cut)
+          << "\n";
+      out << "    Abort on candidate cut:   "
+          << yn(r_ctx.twoway_flow.rebalancer.abort_on_candidate_cut) << "\n";
+    }
   }
 
   if (r_ctx.includes_algorithm(RefinementAlgorithm::JET)) {

@@ -40,8 +40,8 @@ private:
   const ParallelContext &_par_ctx;
   const TwowayFlowRefinementContext &_f_ctx;
 
-  std::unique_ptr<class SequentialBlockPairScheduler> _sequential_scheduler;
-  std::unique_ptr<class ParallelBlockPairScheduler> _parallel_scheduler;
+  std::unique_ptr<class SequentialActiveBlockScheduler> _sequential_scheduler;
+  std::unique_ptr<class ParallelActiveBlockScheduler> _parallel_scheduler;
 };
 
 } // namespace kaminpar::shm
