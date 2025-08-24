@@ -84,7 +84,7 @@ public:
   const NodeStatus &node_status() const override;
 
 private:
-  void saturate_source_edges(std::span<const NodeID> sources);
+  void saturate_source_edges();
 
   template <bool kCollectActiveNodes = false> void global_relabel();
 
@@ -105,8 +105,11 @@ private:
   EdgeWeight _flow_value;
   StaticArray<EdgeWeight> _flow;
 
+  bool _force_global_relabel;
   GlobalRelabelingThreshold _grt;
   BFSRunner _bfs_runner;
+
+  ScalableVector<NodeID> _nodes_to_desaturate;
 
   StaticArray<NodeID> _cur_edge_offsets;
   StaticArray<EdgeWeight> _excess;

@@ -9,8 +9,6 @@
 #include "kaminpar-shm/refinement/flow/flow_network/border_region.h"
 #include "kaminpar-shm/refinement/flow/flow_network/flow_network.h"
 
-#include "kaminpar-common/datastructures/scalable_vector.h"
-
 namespace kaminpar::shm {
 
 class FlowCutterAlgorithm {

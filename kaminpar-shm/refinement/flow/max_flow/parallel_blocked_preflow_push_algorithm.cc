@@ -36,8 +36,13 @@ void ParallelBlockedPreflowPushAlgorithm::initialize(
   }
   std::fill(_flow.begin(), _flow.end(), 0);
 
-  _round = 1;
+  _round = 0;
+
+  _force_global_relabel = true;
   _grt = GlobalRelabelingThreshold(graph.n(), graph.m(), _ctx.global_relabeling_frequency);
+
+  _nodes_to_desaturate.clear();
+  _nodes_to_desaturate.push_back(source);
 
   if (_last_activated.size() < graph.n()) {
     _last_activated.resize(graph.n(), static_array::noinit);
@@ -69,10 +74,6 @@ void ParallelBlockedPreflowPushAlgorithm::initialize(
   _active_nodes.reserve(graph.n());
   _next_active_nodes.reserve(graph.n());
   _next_active_nodes.clear();
-
-  saturate_source_edges(_node_status.source_nodes());
-  global_relabel();
-  _next_active_nodes.flush();
 }
 
 void ParallelBlockedPreflowPushAlgorithm::add_sources(std::span<const NodeID> sources) {
@@ -94,6 +95,8 @@ void ParallelBlockedPreflowPushAlgorithm::add_sinks(std::span<const NodeID> sink
 
     if (_node_status.is_unknown(u)) {
       _node_status.add_sink(u);
+      _heights[u] = 0;
+
       _flow_value += _excess[u];
     }
   }
@@ -102,30 +105,27 @@ void ParallelBlockedPreflowPushAlgorithm::add_sinks(std::span<const NodeID> sink
 void ParallelBlockedPreflowPushAlgorithm::pierce_nodes(
     const bool source_side, std::span<const NodeID> nodes
 ) {
-  KASSERT(_next_active_nodes.empty());
-  _round += 1;
-
   if (source_side) {
     add_sources(nodes);
-    saturate_source_edges(nodes);
+    for (const NodeID node : nodes) {
+      _nodes_to_desaturate.push_back(node);
+    }
   } else {
     add_sinks(nodes);
-    saturate_source_edges(_node_status.source_nodes());
-
-    global_relabel<kCollectActiveNodes>();
+    _force_global_relabel = true;
   }
-
-  _next_active_nodes.flush();
-
-  KASSERT(
-      debug::is_valid_labeling(*_graph, _node_status, _flow, _heights),
-      "computed an invalid labeling using preflow-push",
-      assert::heavy
-  );
 }
 
 MaxPreflowAlgorithm::Result ParallelBlockedPreflowPushAlgorithm::compute_max_preflow() {
   IF_STATS _stats.reset();
+
+  _round += 1;
+  saturate_source_edges();
+
+  if (_force_global_relabel) {
+    constexpr bool kCollectActiveNodes = true;
+    global_relabel<kCollectActiveNodes>();
+  }
 
   while (!_next_active_nodes.empty()) {
     std::swap(_active_nodes, _next_active_nodes);
@@ -138,6 +138,7 @@ MaxPreflowAlgorithm::Result ParallelBlockedPreflowPushAlgorithm::compute_max_pre
       const NodeID u = _active_nodes.pop_back();
       _last_activated[u] = _round - 1;
 
+      KASSERT(!_node_status.is_terminal(u));
       discharge(u);
 
       if (_ctx.global_relabeling_heuristic && _grt.is_reached()) {
@@ -206,12 +207,17 @@ const NodeStatus &ParallelBlockedPreflowPushAlgorithm::node_status() const {
   return _node_status;
 }
 
-void ParallelBlockedPreflowPushAlgorithm::saturate_source_edges(std::span<const NodeID> sources) {
-  tbb::parallel_for(tbb::blocked_range<NodeID>(0, sources.size()), [&](const auto &range) {
+void ParallelBlockedPreflowPushAlgorithm::saturate_source_edges() {
+  if (_nodes_to_desaturate.empty()) {
+    return;
+  }
+
+  const NodeID num_nodes = _nodes_to_desaturate.size();
+  tbb::parallel_for(tbb::blocked_range<NodeID>(0, num_nodes), [&](const auto &range) {
     BufferedVector<NodeID>::Buffer next_active_nodes = _next_active_nodes.local_buffer();
 
     for (NodeID i = range.begin(), end = range.end(); i < end; ++i) {
-      const NodeID source = sources[i];
+      const NodeID source = _nodes_to_desaturate[i];
       KASSERT(_node_status.is_source(source));
 
       _graph->neighbors(source, [&](const EdgeID e, const NodeID v, const EdgeWeight w) {
@@ -231,22 +237,28 @@ void ParallelBlockedPreflowPushAlgorithm::saturate_source_edges(std::span<const 
         _flow[e] += residual_capacity;
         _flow[e_reverse] -= residual_capacity;
 
-        __atomic_fetch_add(&_excess[v], residual_capacity, __ATOMIC_RELAXED);
-
         if (_node_status.is_sink(v)) {
           __atomic_fetch_add(&_flow_value, residual_capacity, __ATOMIC_RELAXED);
-        } else if (__atomic_exchange_n(&_last_activated[v], _round, __ATOMIC_ACQ_REL) != _round) {
+          return;
+        }
+
+        __atomic_fetch_add(&_excess[v], residual_capacity, __ATOMIC_RELAXED);
+        if (__atomic_exchange_n(&_last_activated[v], _round, __ATOMIC_ACQ_REL) != _round) {
           next_active_nodes.push_back(v);
         }
       });
     }
   });
+  _next_active_nodes.flush();
+
+  _nodes_to_desaturate.clear();
 }
 
 template <bool kCollectActiveNodes> void ParallelBlockedPreflowPushAlgorithm::global_relabel() {
   IF_STATS _stats.num_global_relabels += 1;
 
   _grt.clear();
+  _force_global_relabel = false;
 
   const NodeID num_nodes = _graph->n();
   const NodeID max_level = 2 * num_nodes;
@@ -280,6 +292,12 @@ template <bool kCollectActiveNodes> void ParallelBlockedPreflowPushAlgorithm::gl
   for (const NodeID source : _node_status.source_nodes()) {
     _heights[source] = num_nodes;
   }
+
+  KASSERT(
+      debug::is_valid_labeling(*_graph, _node_status, _flow, _heights),
+      "computed an invalid labeling using preflow-push",
+      assert::heavy
+  );
 }
 
 void ParallelBlockedPreflowPushAlgorithm::discharge_active_nodes() {
@@ -293,6 +311,8 @@ void ParallelBlockedPreflowPushAlgorithm::discharge_active_nodes() {
 
     for (NodeID i = range.begin(), end = range.end(); i < end; ++i) {
       const NodeID u = _active_nodes[i];
+      KASSERT(!_node_status.is_terminal(u));
+
       atomic_discharge(u, next_active_nodes, local_work_amount);
     }
   });

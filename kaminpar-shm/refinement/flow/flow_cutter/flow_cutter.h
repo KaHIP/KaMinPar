@@ -38,14 +38,13 @@ public:
   compute_cut(const BorderRegion &border_region, const FlowNetwork &flow_network) override;
 
 private:
-  NodeWeight
-  derive_source_side_cut(const FlowNetwork &flow_network, std::span<const EdgeWeight> flow);
+  template <bool kCollectExcessNodes>
+  void derive_source_side_cut(const FlowNetwork &flow_network, std::span<const EdgeWeight> flow);
 
-  NodeWeight
-  derive_sink_side_cut(const FlowNetwork &flow_network, std::span<const EdgeWeight> flow);
+  void derive_sink_side_cut(const FlowNetwork &flow_network, std::span<const EdgeWeight> flow);
 
   void update_border_nodes(
-      const bool source_side,
+      bool source_side,
       const FlowNetwork &flow_network,
       const std::span<const NodeID> reachable_nodes,
       ScalableVector<NodeID> &border_nodes
@@ -66,6 +65,9 @@ private:
 
   ScalableVector<NodeID> _source_reachable_nodes;
   ScalableVector<NodeID> _sink_reachable_nodes;
+
+  NodeWeight _source_reachable_weight;
+  NodeWeight _sink_reachable_weight;
 
   BFSRunner _bfs_runner;
   Marker<> _source_reachable_nodes_marker;

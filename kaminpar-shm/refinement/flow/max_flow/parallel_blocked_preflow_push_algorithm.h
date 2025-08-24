@@ -115,7 +115,7 @@ public:
   const NodeStatus &node_status() const override;
 
 private:
-  void saturate_source_edges(std::span<const NodeID> sources);
+  void saturate_source_edges();
 
   template <bool kCollectActiveNodes = false> void global_relabel();
 
@@ -148,9 +148,12 @@ private:
 
   std::size_t _round;
 
-  GlobalRelabelingThreshold _grt;
+  bool _force_global_relabel;
   tbb::enumerable_thread_specific<std::size_t> _work_ets;
+  GlobalRelabelingThreshold _grt;
   ParallelBFSRunner _parallel_bfs_runner;
+
+  ScalableVector<NodeID> _nodes_to_desaturate;
 
   StaticArray<NodeID> _last_activated;
   StaticArray<NodeID> _cur_edge_offsets;

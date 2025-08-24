@@ -1,6 +1,5 @@
 #include "kaminpar-shm/refinement/flow/piercing/piercing_heuristic.h"
 
-#include <limits>
 #include <utility>
 
 #include "kaminpar-common/random.h"
@@ -168,57 +167,57 @@ std::span<const NodeID> PiercingHeuristic::find_piercing_nodes(
     }
   };
 
-  const std::size_t max_num_piercing_nodes =
-      compute_max_num_piercing_nodes(source_side, side_weight);
-
   add_piercing_nodes(
       source_side ? _source_unreachable_candidates_buckets : _sink_unreachable_candidates_buckets,
-      std::numeric_limits<std::size_t>::max(),
+      1ul,
       true
   );
 
   if (_piercing_nodes.empty()) {
+    const std::size_t max_num_piercing_nodes =
+        compute_max_num_piercing_nodes(source_side, side_weight);
+
     add_piercing_nodes(
         source_side ? _source_reachable_candidates_buckets : _sink_reachable_candidates_buckets,
         max_num_piercing_nodes,
         false
     );
-  }
 
-  if (_ph_ctx.bulk_piercing) {
-    BulkPiercingContext &bp_ctx =
-        source_side ? _source_side_bulk_piercing_ctx : _sink_side_bulk_piercing_ctx;
-    bp_ctx.total_bulk_piercing_nodes += _piercing_nodes.size();
-  }
-
-  if (_ph_ctx.fallback_heuristic && _piercing_nodes.empty()) {
-    NodeWeight cur_distance = -1;
-
-    for (const NodeID u : graph.nodes()) {
-      if (cut_status.is_terminal(u)) {
-        continue;
-      }
-
-      const NodeWeight u_weight = graph.node_weight(u);
-      if (u_weight > max_weight) {
-        continue;
-      }
-
-      const NodeWeight distance = std::max<NodeWeight>((source_side ? -1 : 1) * _distance[u], 0);
-      if (distance > cur_distance) {
-        cur_distance = distance;
-
-        _piercing_nodes.clear();
-        _piercing_nodes.push_back(u);
-      } else if (distance == cur_distance) {
-        _piercing_nodes.push_back(u);
-      }
+    if (_ph_ctx.bulk_piercing) {
+      BulkPiercingContext &bp_ctx =
+          source_side ? _source_side_bulk_piercing_ctx : _sink_side_bulk_piercing_ctx;
+      bp_ctx.total_bulk_piercing_nodes += _piercing_nodes.size();
     }
 
-    if (!_piercing_nodes.empty()) {
-      const std::size_t idx = random.random_index(0, _piercing_nodes.size());
-      std::swap(_piercing_nodes[0], _piercing_nodes[idx]);
-      _piercing_nodes.resize(1);
+    if (_ph_ctx.fallback_heuristic && _piercing_nodes.empty()) {
+      NodeWeight cur_distance = -1;
+
+      for (const NodeID u : graph.nodes()) {
+        if (cut_status.is_terminal(u)) {
+          continue;
+        }
+
+        const NodeWeight u_weight = graph.node_weight(u);
+        if (u_weight > max_weight) {
+          continue;
+        }
+
+        const NodeWeight distance = std::max<NodeWeight>((source_side ? -1 : 1) * _distance[u], 0);
+        if (distance > cur_distance) {
+          cur_distance = distance;
+
+          _piercing_nodes.clear();
+          _piercing_nodes.push_back(u);
+        } else if (distance == cur_distance) {
+          _piercing_nodes.push_back(u);
+        }
+      }
+
+      if (!_piercing_nodes.empty()) {
+        const std::size_t idx = random.random_index(0, _piercing_nodes.size());
+        std::swap(_piercing_nodes[0], _piercing_nodes[idx]);
+        _piercing_nodes.resize(1);
+      }
     }
   }
 
