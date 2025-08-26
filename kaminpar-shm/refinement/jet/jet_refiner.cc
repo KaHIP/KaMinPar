@@ -8,6 +8,8 @@
  ******************************************************************************/
 #include "kaminpar-shm/refinement/jet/jet_refiner.h"
 
+#include <functional>
+
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/refinement/balancer/overload_balancer.h"
@@ -63,9 +65,13 @@ public:
     StaticArray<std::uint8_t> lock(p_graph.graph().n());
     graph.pfor_nodes([&](const NodeID u) { lock[u] = 0; });
 
-    OverloadBalancerImpl<Graph> balancer(_ctx);
+    using namespace std::placeholders;
+
+    OverloadBalancer balancer(_ctx);
     balancer.initialize(p_graph);
-    balancer.track_moves(&gain_cache);
+    balancer.track_moves(
+        std::bind(&NormalSparseGainCache<Graph>::move, std::ref(gain_cache), _1, _2, _3)
+    );
 
     StaticArray<BlockID> best_partition(p_graph.graph().n());
     graph.pfor_nodes([&](const NodeID u) { best_partition[u] = p_graph.block(u); });
@@ -217,7 +223,11 @@ public:
           // Re-initialize gain cache and balancer after rollback
           gain_cache.initialize(graph, p_graph);
           balancer.initialize(p_graph);
-          balancer.track_moves(&gain_cache);
+
+          using namespace std::placeholders;
+          balancer.track_moves(
+              std::bind(&NormalSparseGainCache<Graph>::move, std::ref(gain_cache), _1, _2, _3)
+          );
         }
       };
     }

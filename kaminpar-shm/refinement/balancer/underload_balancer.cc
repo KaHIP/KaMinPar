@@ -11,6 +11,7 @@
 #include <tbb/task_group.h>
 
 #include "kaminpar-shm/metrics.h"
+#include "kaminpar-shm/refinement/balancer/relative_gain.h"
 
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
@@ -20,10 +21,6 @@ namespace kaminpar::shm {
 namespace {
 
 SET_DEBUG(false);
-
-float compute_relative_gain(const EdgeWeight gain, const NodeWeight weight) {
-  return gain > 0 ? 1.0f * gain * weight : 1.0f * gain / weight;
-}
 
 } // namespace
 
