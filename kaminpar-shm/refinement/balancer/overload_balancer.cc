@@ -49,8 +49,8 @@ void OverloadBalancer::track_moves(MoveTracker move_tracker) {
 }
 
 bool OverloadBalancer::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
-  SCOPED_TIMER("Greedy Balancer");
-  SCOPED_HEAP_PROFILER("Greedy Balancer");
+  SCOPED_TIMER("Overload Balancer");
+  SCOPED_HEAP_PROFILER("Overload Balancer");
 
   _p_graph = &p_graph;
   _p_ctx = &p_ctx;
@@ -59,14 +59,9 @@ bool OverloadBalancer::refine(PartitionedGraph &p_graph, const PartitionContext 
     return false;
   }
 
-  {
-    SCOPED_TIMER("Allocation");
-    SCOPED_HEAP_PROFILER("Allocation");
-
-    _moved_nodes.resize(_p_graph->n());
-    _pq.init(_p_graph->k());
-    _pq_weight.resize(_p_graph->k());
-  }
+  _moved_nodes.resize(_p_graph->n());
+  _pq.init(_p_graph->k());
+  _pq_weight.resize(_p_graph->k());
 
   reified(*_p_graph, [&]<typename Graph>(const Graph &graph) {
     _gain_cache.emplace<Graph>(_ctx, p_graph.k(), p_graph.k()).initialize(graph, p_graph);
