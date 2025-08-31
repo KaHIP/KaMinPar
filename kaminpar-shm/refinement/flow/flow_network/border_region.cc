@@ -77,6 +77,10 @@ void BorderRegionConstructor::compute_border_regions(
       _border_region.insert_into_region2(v, v_weight);
     }
   });
+
+  DBG << "Initial border region sizes: block " << _border_region.block1() << " = "
+      << _border_region.size_region1() << ", block " << _border_region.block2() << " = "
+      << _border_region.size_region2();
 }
 
 void BorderRegionConstructor::expand_border_regions() {
@@ -116,6 +120,10 @@ void BorderRegionConstructor::expand_border_regions() {
 
   expand_border_region(kSourceTag);
   expand_border_region(kSinkTag);
+
+  DBG << "Expanded border region sizes: block " << _border_region.block1() << " = "
+      << _border_region.size_region1() << ", block " << _border_region.block2() << " = "
+      << _border_region.size_region2();
 }
 
 } // namespace kaminpar::shm

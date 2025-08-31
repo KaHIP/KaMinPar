@@ -10,6 +10,7 @@
 #include "kaminpar-shm/refinement/flow/util/node_status.h"
 
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/logger.h"
 
 namespace kaminpar::shm {
 
@@ -179,6 +180,8 @@ private:
 };
 
 class BorderRegionConstructor {
+  SET_DEBUG(false);
+
   static constexpr bool kSourceTag = true;
   static constexpr bool kSinkTag = false;
 

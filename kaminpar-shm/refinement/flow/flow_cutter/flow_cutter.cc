@@ -29,6 +29,9 @@ FlowCutter::Result
 FlowCutter::compute_cut(const BorderRegion &border_region, const FlowNetwork &flow_network) {
   SCOPED_TIMER("Run FlowCutter");
 
+  DBG << "Starting refinement for block pair " << border_region.block1() << " and "
+      << border_region.block2() << " with an initial cut of " << flow_network.cut_value;
+
   _source_side_border_nodes.clear();
   _source_side_border_nodes.push_back(flow_network.source);
 
@@ -169,9 +172,9 @@ FlowCutter::compute_cut(const BorderRegion &border_region, const FlowNetwork &fl
       };
 
       if (piercing_nodes.empty()) {
-        LOG_WARNING << "Failed to find a suitable piercing node; "
-                       "aborting refinement for block pair "
-                    << border_region.block1() << " and " << border_region.block2();
+        DBG << "Failed to find a suitable piercing node; "
+               "aborting refinement for block pair "
+            << border_region.block1() << " and " << border_region.block2();
         return Result::Empty();
       }
 
@@ -216,9 +219,9 @@ FlowCutter::compute_cut(const BorderRegion &border_region, const FlowNetwork &fl
       };
 
       if (piercing_nodes.empty()) {
-        LOG_WARNING << "Failed to find a suitable piercing node; "
-                       "aborting refinement for block pair "
-                    << border_region.block1() << " and " << border_region.block2();
+        DBG << "Failed to find a suitable piercing node; "
+               "aborting refinement for block pair "
+            << border_region.block1() << " and " << border_region.block2();
         return Result::Empty();
       }
 

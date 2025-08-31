@@ -64,6 +64,9 @@ HyperFlowCutter::Result HyperFlowCutter::run_hyper_flow_cutter(
   const NodeWeight max_block1_weight = _p_ctx.max_block_weight(border_region.block1());
   const NodeWeight max_block2_weight = _p_ctx.max_block_weight(border_region.block2());
 
+  DBG << "Starting refinement for block pair " << border_region.block1() << " and "
+      << border_region.block2() << " with an initial cut of " << flow_network.cut_value;
+
   const auto on_cut = [&](const auto &cutter_state) {
     const EdgeWeight cut_value = cutter_state.flow_algo.flow_value;
     DBG << "Found a cut for block pair " << border_region.block1() << " and "
@@ -108,12 +111,10 @@ HyperFlowCutter::Result HyperFlowCutter::run_hyper_flow_cutter(
       return;
     }
 
-    DBG << "Found a balanced cut for block pair " << border_region.block1() << " and "
-        << border_region.block2() << " with value " << cut_value;
-
     gain = flow_network.cut_value - cut_value;
     improved_balance = std::max(cutter_state.source_weight, cutter_state.target_weight) <
                        std::max(flow_network.block1_weight, flow_network.block2_weight);
+
     compute_moves(border_region, flow_network, cutter_state);
   };
 
