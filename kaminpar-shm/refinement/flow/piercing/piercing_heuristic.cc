@@ -75,12 +75,12 @@ void PiercingHeuristic::compute_distances() {
         queue.push_back(v);
       });
     });
-  } else {
-    std::fill_n(_distance.data(), graph.n(), 1);
-  }
 
-  _distance[source] = -(max_dist_source + 1);
-  _distance[sink] = max_dist_sink + 1;
+    _distance[source] = -(max_dist_source + 1);
+    _distance[sink] = max_dist_sink + 1;
+  } else {
+    std::fill_n(_distance.data(), graph.n(), 0);
+  }
 
   _source_reachable_candidates_buckets.initialize(max_dist_source);
   _source_unreachable_candidates_buckets.initialize(max_dist_source);

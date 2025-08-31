@@ -176,7 +176,7 @@ void HyperFlowCutter::compute_distances(
     _bfs_runner.add_seed(u_local);
   }
 
-  _bfs_runner.perform([&](const NodeID u, const NodeID u_distance, auto &queue) {
+  _bfs_runner.perform(1, [&](const NodeID u, const NodeID u_distance, auto &queue) {
     const whfc::HopDistance dist = std::min(whfc::HopDistance(u_distance), kMaxDist);
 
     const NodeID u_global = flow_network.local_to_global_mapping.get(u);
