@@ -112,8 +112,9 @@ HyperFlowCutter::Result HyperFlowCutter::run_hyper_flow_cutter(
     }
 
     gain = flow_network.cut_value - cut_value;
-    improved_balance = std::max(cutter_state.source_weight, cutter_state.target_weight) <
-                       std::max(flow_network.block1_weight, flow_network.block2_weight);
+    improved_balance =
+        std::max<NodeWeight>(cutter_state.source_weight, cutter_state.target_weight) <
+        std::max(flow_network.block1_weight, flow_network.block2_weight);
 
     compute_moves(border_region, flow_network, cutter_state);
   };
@@ -127,6 +128,7 @@ HyperFlowCutter::Result HyperFlowCutter::run_hyper_flow_cutter(
 
     if (_fc_ctx.piercing.determine_distance_from_cut) {
       compute_distances(border_region, flow_network, flow_cutter.cs.border_nodes.distance);
+      flow_cutter.cs.border_nodes.updateMaxDistance();
     }
 
     const bool success = flow_cutter.enumerateCutsUntilBalancedOrFlowBoundExceeded(
@@ -153,7 +155,6 @@ void HyperFlowCutter::compute_distances(
     const FlowNetwork &flow_network,
     std::vector<whfc::HopDistance> &distances
 ) {
-  constexpr whfc::HopDistance kMaxDist(9);
   whfc::HopDistance max_dist_source(0);
   whfc::HopDistance max_dist_sink(0);
 
@@ -178,7 +179,7 @@ void HyperFlowCutter::compute_distances(
   }
 
   _bfs_runner.perform(1, [&](const NodeID u, const NodeID u_distance, auto &queue) {
-    const whfc::HopDistance dist = std::min(whfc::HopDistance(u_distance), kMaxDist);
+    const whfc::HopDistance dist(u_distance);
 
     const NodeID u_global = flow_network.local_to_global_mapping.get(u);
     const bool source_side = border_region.region1_contains(u_global);

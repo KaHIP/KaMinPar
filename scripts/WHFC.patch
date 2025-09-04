@@ -24,3 +24,450 @@ index a08baff..faa65f7 100644
                  has_balanced_cut_below_flow_bound |= cs.isBalanced();
              }
  
+diff --git a/algorithm/parallel_push_relabel.h b/algorithm/parallel_push_relabel.h
+index a9c70f6..dcd6f03 100644
+--- a/algorithm/parallel_push_relabel.h
++++ b/algorithm/parallel_push_relabel.h
+@@ -145,10 +145,10 @@ namespace whfc {
+             };
+             size_t work = 0;
+             Flow my_excess = excess[u];
+-            int my_level = level[u];
++            Level my_level = level[u];
+ 
+             while (my_excess > 0 && my_level < max_level) {
+-                int new_level = max_level;
++                Level new_level = max_level;
+                 bool skipped = false;
+ 
+                 // push to in-nodes of incident nets
+@@ -223,13 +223,13 @@ namespace whfc {
+             };
+             size_t work = 0;
+             Flow my_excess = excess[e_in];
+-            int my_level = level[e_in];
++            Level my_level = level[e_in];
+             next_level[e_in] = my_level;
+             Hyperedge e = inNodeToEdge(e_in);
+             assert(e < hg.numHyperedges());
+             Node e_out = edgeToOutNode(e);
+             while (my_excess > 0 && my_level < max_level) {
+-                int new_level = max_level;
++                Level new_level = max_level;
+                 bool skipped = false;
+ 
+                 // push through bridge edge
+@@ -297,14 +297,14 @@ namespace whfc {
+             };
+             size_t work = 0;
+             Flow my_excess = excess[e_out];
+-            int my_level = level[e_out];
++            Level my_level = level[e_out];
+             Hyperedge e = outNodeToEdge(e_out);
+             assert(e < hg.numHyperedges());
+             Node e_in = edgeToInNode(e);
+             assert(my_excess <= hg.capacity(e));
+ 
+             while (my_excess > 0 && my_level < max_level) {
+-                int new_level = max_level;
++                Level new_level = max_level;
+                 bool skipped = false;
+ 
+                 // push out to pins
+@@ -383,7 +383,7 @@ namespace whfc {
+                 resetReachability(false);
+             }
+ 
+-            auto scan = [&](Node u, int dist) {
++            auto scan = [&](Node u, Level dist) {
+                 auto next_layer = next_active.local_buffer();
+                 scanBackward(u, [&](const Node v) {
+                     if (!isSource(v) && !isTarget(v) && level[v] == max_level && __atomic_exchange_n(&level[v], dist, __ATOMIC_ACQ_REL) == max_level) {
+@@ -423,7 +423,7 @@ namespace whfc {
+                 resetReachability(true);
+ 
+                 // calculate new excess nodes
+-                tbb::parallel_for<size_t>(0, max_level, [&](int i) {
++                tbb::parallel_for<size_t>(0, max_level, [&](Level i) {
+                     Node u(i);
+                     if (!isSource(u) && !isTarget(u) && excess[u] > 0) {
+                         assert(level[u] == max_level);
+@@ -439,7 +439,7 @@ namespace whfc {
+             }
+ 
+             if (flow_changed) {
+-                auto scan = [&](Node u, int) {
++                auto scan = [&](Node u, Level) {
+                     auto next_layer = next_active.local_buffer();
+                     scanForward(u, [&](const Node v) {
+                         assert(!isTargetReachable(v));
+@@ -452,7 +452,7 @@ namespace whfc {
+                 parallelBFS(0, scan);
+             } else {
+                 // expect less work
+-                auto scan = [&](Node u, int) {
++                auto scan = [&](Node u, Level) {
+                     scanForward(u, [&](const Node v) {
+                         assert(!isTargetReachable(v));
+                         if (!isSourceReachable(v)) {
+@@ -478,7 +478,7 @@ namespace whfc {
+             }
+ 
+             /*
+-            auto scan = [&](Node u, int ) {
++            auto scan = [&](Node u, Level ) {
+                 auto next_layer = next_active.local_buffer();
+                 scanBackward(u, [&](const Node v) {
+                     assert(!isSourceReachable(v));
+@@ -491,7 +491,7 @@ namespace whfc {
+             parallelBFS(0, scan);
+             */
+ 
+-            auto scan = [&](Node u, int) {
++            auto scan = [&](Node u, Level) {
+                 scanBackward(u, [&](const Node v) {
+                     if (!isTargetReachable(v)) {
+                         reach[v] = target_reachable_stamp;
+@@ -509,7 +509,7 @@ namespace whfc {
+         template<typename ScanFunc>
+         void parallelBFS(size_t first, ScanFunc&& scan) {
+             size_t last = next_active.size();
+-            int dist = 1;
++            Level dist = 1;
+             while (first != last) {
+                 tbb::parallel_for<size_t>(first, last, [&](size_t i) { scan(next_active[i], dist); });
+                 next_active.finalize();
+@@ -522,7 +522,7 @@ namespace whfc {
+         template<typename ScanFunc>
+         void sequentialBFS(size_t first, ScanFunc&& scan) {
+             size_t last = next_active.size();
+-            int dist = 1;
++            Level dist = 1;
+             while (first != last) {
+                 for (; first < last; ++first) {
+                     scan(next_active[first], dist);
+@@ -603,7 +603,7 @@ namespace whfc {
+ 
+     private:
+         vec<Flow> excess_diff;
+-        vec<int> next_level;
++        vec<Level> next_level;
+         size_t num_active = 0;
+         BufferedVector<Node> next_active;
+         vec<Node> active;
+diff --git a/algorithm/parallel_push_relabel_block.h b/algorithm/parallel_push_relabel_block.h
+index eb7a130..e64ca01 100644
+--- a/algorithm/parallel_push_relabel_block.h
++++ b/algorithm/parallel_push_relabel_block.h
+@@ -120,10 +120,10 @@ namespace whfc {
+             };
+             size_t work = 0;
+             Flow my_excess = excess[u];
+-            int my_level = level[u];
++            Level my_level = level[u];
+ 
+             while (my_excess > 0 && my_level < max_level) {
+-                int new_level = max_level;
++                Level new_level = max_level;
+                 bool skipped = false;
+ 
+                 // push to in-nodes of incident nets
+@@ -201,13 +201,13 @@ namespace whfc {
+             };
+             size_t work = 0;
+             Flow my_excess = excess[e_in];
+-            int my_level = level[e_in];
++            Level my_level = level[e_in];
+             next_level[e_in] = my_level;
+             Hyperedge e = inNodeToEdge(e_in);
+             assert(e < hg.numHyperedges());
+             Node e_out = edgeToOutNode(e);
+             while (my_excess > 0 && my_level < max_level) {
+-                int new_level = max_level;
++                Level new_level = max_level;
+                 bool skipped = false;
+ 
+                 // push through bridge edge
+@@ -278,14 +278,14 @@ namespace whfc {
+             };
+             size_t work = 0;
+             Flow my_excess = excess[e_out];
+-            int my_level = level[e_out];
++            Level my_level = level[e_out];
+             Hyperedge e = outNodeToEdge(e_out);
+             assert(e < hg.numHyperedges());
+             Node e_in = edgeToInNode(e);
+             assert(my_excess <= hg.capacity(e));
+ 
+             while (my_excess > 0 && my_level < max_level) {
+-                int new_level = max_level;
++                Level new_level = max_level;
+                 bool skipped = false;
+ 
+                 // push out to pins
+@@ -359,7 +359,7 @@ namespace whfc {
+                 next_active.push_back_atomic(t);
+             }
+ 
+-            auto scan = [&](Node u, int dist) {
++            auto scan = [&](Node u, Level dist) {
+                 auto next_layer = next_active.local_buffer();
+                 scanBackward(u, [&](const Node v) {
+                     if (!isSource(v) && !isTarget(v) && level[v] == max_level && __atomic_exchange_n(&level[v], dist, __ATOMIC_ACQ_REL) == max_level) {
+@@ -376,7 +376,7 @@ namespace whfc {
+         template<typename ScanFunc>
+         void parallelBFS(size_t first, ScanFunc&& scan) {
+             size_t last = next_active.size();
+-            int dist = 1;
++            Level dist = 1;
+             while (first != last) {
+                 tbb::parallel_for<size_t>(first, last, [&](size_t i) { scan(next_active[i], dist); });
+                 next_active.finalize();
+@@ -434,7 +434,7 @@ namespace whfc {
+ 
+     private:
+         vec<Flow> excess_diff;
+-        vec<int> next_level;
++        vec<Level> next_level;
+         BufferedVector<Node> next_active;
+         vec<Node> active;
+         vec<LevelState> node_state;
+diff --git a/algorithm/push_relabel_commons.h b/algorithm/push_relabel_commons.h
+index a850e95..3d5ccaa 100644
+--- a/algorithm/push_relabel_commons.h
++++ b/algorithm/push_relabel_commons.h
+@@ -62,8 +62,8 @@ namespace whfc {
+ 
+ 
+         /** levels */
+-        int max_level = 0;
+-        vec<int> level;
++        Level max_level = 0;
++        vec<Level> level;
+         // to avoid concurrently pushing the same edge in different directions
+         bool winEdge(Node u, Node v) { return level[u] == level[v] + 1 || level[u] < level[v] - 1 || (level[u] == level[v] && u < v); }
+ 
+diff --git a/algorithm/sequential_push_relabel.h b/algorithm/sequential_push_relabel.h
+index d9780e6..5d3b654 100644
+--- a/algorithm/sequential_push_relabel.h
++++ b/algorithm/sequential_push_relabel.h
+@@ -55,10 +55,10 @@ namespace whfc {
+         size_t dischargeHypernode(Node u) {
+             size_t work = 0;
+             Flow my_excess = excess[u];
+-            int my_level = level[u];
++            Level my_level = level[u];
+ 
+             while (my_excess > 0 && my_level < max_level) {
+-                int new_level = max_level - 1;      // to make the assertion checks for the level of unreachable excess nodes work
++                Level new_level = max_level - 1;      // to make the assertion checks for the level of unreachable excess nodes work
+ 
+                 auto i = hg.beginIndexHyperedges(u);
+                 // push to in-nodes of incident nets
+@@ -132,13 +132,13 @@ namespace whfc {
+         size_t dischargeInNode(Node e_in) {
+             size_t work = 0;
+             Flow my_excess = excess[e_in];
+-            int my_level = level[e_in];
++            Level my_level = level[e_in];
+             Hyperedge e = inNodeToEdge(e_in);
+             assert(e < hg.numHyperedges());
+             Node e_out = edgeToOutNode(e);
+ 
+             while (my_excess > 0 && my_level < max_level) {
+-                int new_level = max_level - 1;
++                Level new_level = max_level - 1;
+ 
+                 // push through bridge edge
+                 if (my_level == level[e_out] + 1) {
+@@ -203,14 +203,14 @@ namespace whfc {
+         size_t dischargeOutNode(Node e_out) {
+             size_t work = 0;
+             Flow my_excess = excess[e_out];
+-            int my_level = level[e_out];
++            Level my_level = level[e_out];
+             Hyperedge e = outNodeToEdge(e_out);
+             assert(e < hg.numHyperedges());
+             Node e_in = edgeToInNode(e);
+             assert(my_excess <= hg.capacity(e));
+ 
+             while (my_excess > 0 && my_level < max_level) {
+-                int new_level = max_level - 1;
++                Level new_level = max_level - 1;
+ 
+                 // push out to pins
+                 for (const auto& p : hg.pinsOf(e)) {
+@@ -271,14 +271,14 @@ namespace whfc {
+         }
+ 
+         void globalRelabel() {
+-            for (int i = 0; i < max_level; ++i) {
++            for (Level i = 0; i < max_level; ++i) {
+                 level[i] = isTarget(Node(i)) ? 0 : max_level;
+             }
+             relabel_queue.clear();
+             for (const Node t : target_piercing_nodes) {
+                 relabel_queue.push_back(t);
+             }
+-            auto scan = [&](Node u, int dist) {
++            auto scan = [&](Node u, Level dist) {
+                 scanBackward(u, [&](const Node v) {
+                     if (!isSource(v) && !isTarget(v) && level[v] == max_level) {
+                         relabel_queue.push_back(v);
+@@ -295,7 +295,7 @@ namespace whfc {
+             source_reachable_nodes.clear();
+             if (flow_changed) {
+                 resetReachability(true); // if flow didn't change, we can reuse the old stamp
+-                for (int i = 0; i < max_level; ++i) { // collect excess nodes
++                for (Level i = 0; i < max_level; ++i) { // collect excess nodes
+                     Node u(i);
+                     if (!isSource(u) && !isTarget(u) && excess[u] > 0) {
+                         assert(level[u] == max_level);
+@@ -309,7 +309,7 @@ namespace whfc {
+                 source_reachable_nodes.push_back(s);
+             }
+ 
+-            auto scan = [&](Node u, int) {
++            auto scan = [&](Node u, Level) {
+                 scanForward(u, [&](const Node v) {
+                     assert(flow_changed || !isTargetReachable(v));
+                     assert(!isTarget(v));
+@@ -329,7 +329,7 @@ namespace whfc {
+             for (const Node t : target_piercing_nodes) {
+                 relabel_queue.push_back(t);
+             }
+-            auto scan = [&](Node u, int) {
++            auto scan = [&](Node u, Level) {
+                 scanBackward(u, [&](const Node v) {
+                     assert(!isSourceReachable(v));
+                     if (!isTargetReachable(v)) {
+@@ -346,7 +346,7 @@ namespace whfc {
+         void sequentialBFS(vec<Node>& queue, ScanFunc&& scan) {
+             size_t first = 0;
+             size_t last = queue.size();
+-            int dist = 1;
++            Level dist = 1;
+             while (first != last) {
+                 for (; first < last; ++first) {
+                     scan(queue[first], dist);
+@@ -377,7 +377,7 @@ namespace whfc {
+ 
+ #ifndef NDEBUG
+             size_t num_excesses = 0;
+-            for (int i = 0; i < max_level; ++i) {
++            for (Level i = 0; i < max_level; ++i) {
+                 num_excesses += static_cast<size_t>(excess[i] > 0 && !isTarget(Node(i)) && !isSource(Node(i)));
+             }
+             assert(active.size() == num_excesses);
+diff --git a/datastructure/node_border.h b/datastructure/node_border.h
+index 784698b..bcd598f 100644
+--- a/datastructure/node_border.h
++++ b/datastructure/node_border.h
+@@ -43,7 +43,7 @@ namespace whfc {
+         };
+ 
+         NodeBorder(const size_t initialN, const std::vector<HopDistance>& dfc, const int multiplier) :
+-            was_added(initialN), buckets(10, { Bucket(), Bucket() }), max_occupied_bucket({ -1, -1 }), min_occupied_bucket({ 0, 0 }),
++            was_added(initialN), buckets(1, { Bucket(), Bucket() }), max_occupied_bucket({ -1, -1 }), min_occupied_bucket({ 0, 0 }),
+             backup_max_occupied_bucket({ -1, -1 }), backup_min_occupied_bucket({ 0, 0 }), removed_during_most_balanced_cut_mode({ Bucket(), Bucket() }),
+             distance(dfc), multiplier(multiplier) {}
+ 
+@@ -65,6 +65,16 @@ namespace whfc {
+             min_occupied_bucket[i] = std::min(min_occupied_bucket[i], d);
+         }
+ 
++        void updateMaxDistance() {
++            HopDistance maxDistance = 0;
++            for (Node i(0); i < distance.size(); ++i) {
++                maxDistance = std::max(maxDistance, getDistance(i));
++            }
++            if (static_cast<size_t>(maxDistance) >= buckets.size()) {
++                buckets.resize(static_cast<size_t>(maxDistance + 1));
++            }
++        }
++
+         void reset(const size_t newN) {
+             most_balanced_cut_mode = false;
+             was_added.resize(newN);
+@@ -75,14 +85,6 @@ namespace whfc {
+                 assert(removed_during_most_balanced_cut_mode[i].empty());
+             }
+             verifyBucketsAreClean();
+-
+-            HopDistance maxDistance = 0;
+-            for (Node i(0); i < newN; ++i) {
+-                maxDistance = std::max(maxDistance, getDistance(i));
+-            }
+-            if (static_cast<size_t>(maxDistance) >= buckets.size()) {
+-                buckets.resize(static_cast<size_t>(maxDistance + 1));
+-            }
+         }
+ 
+         void resetForMostBalancedCut() {
+@@ -127,7 +129,7 @@ namespace whfc {
+         }
+ 
+         HopDistance getDistance(const Node u) const {
+-            return std::max(multiplier * distance[u], 0); // distances of vertices on opposite side are negative --> throw away
++            return std::max<HopDistance>(multiplier * distance[u], 0); // distances of vertices on opposite side are negative --> throw away
+         }
+ 
+         BitVector was_added;
+@@ -160,6 +162,11 @@ namespace whfc {
+     public:
+         NodeBorders(const size_t initialN) : distance(initialN, 0), source_side(initialN, distance, -1), target_side(initialN, distance, 1) {}
+ 
++        void updateMaxDistance() {
++            source_side.updateMaxDistance();
++            target_side.updateMaxDistance();
++        }
++
+         void reset(const size_t newN) {
+             distance.resize(newN, 0); // resize here in case distances are not used. however, users have to resize themselves at construction time
+             source_side.reset(newN);
+diff --git a/definitions.h b/definitions.h
+index 6995f6a..9224fba 100644
+--- a/definitions.h
++++ b/definitions.h
+@@ -18,6 +18,26 @@ int1 ceil_div(int1 numerator, int2 denominator) {
+ 
+ namespace whfc {
+     // every tagged integer takes as first template argument an integer tag, which is unique to its type
++
++#ifdef WHFC_USE_64_BIT_IDS
++    using Node = TaggedInteger<0, uint64_t, std::numeric_limits<uint64_t>::max(), 0>;
++    static constexpr Node invalidNode = Node::Invalid();
++    using Hyperedge = TaggedInteger<1, uint64_t, std::numeric_limits<uint64_t>::max(), 0>;
++    static constexpr Hyperedge invalidHyperedge = Hyperedge::Invalid();
++
++    using PinIndex = TaggedInteger<7, uint64_t, std::numeric_limits<uint64_t>::max(), 0>;
++    using InHeIndex = TaggedInteger<8, uint64_t, std::numeric_limits<uint64_t>::max(), 0>;
++
++    using NodeWeight = uint64_t;
++    static constexpr NodeWeight invalidWeight = std::numeric_limits<NodeWeight>::max();
++    using HyperedgeWeight = uint64_t;
++
++    using Flow = int64_t;
++    static constexpr Flow maxFlow = std::numeric_limits<int64_t>::max();
++
++    using Level = int64_t;
++    using HopDistance = int64_t;
++#else
+     using Node = TaggedInteger<0, uint32_t, std::numeric_limits<uint32_t>::max(), 0>;
+     static constexpr Node invalidNode = Node::Invalid();
+     using Hyperedge = TaggedInteger<1, uint32_t, std::numeric_limits<uint32_t>::max(), 0>;
+@@ -33,12 +53,9 @@ namespace whfc {
+     using Flow = int32_t;
+     static constexpr Flow maxFlow = std::numeric_limits<int32_t>::max();
+ 
+-    static_assert(sizeof(Node) == sizeof(uint32_t));
+-    static_assert(sizeof(Hyperedge) == sizeof(uint32_t));
+-    static_assert(sizeof(PinIndex) == sizeof(uint32_t));
+-    static_assert(sizeof(InHeIndex) == sizeof(uint32_t));
+-
++    using Level = int32_t;
+     using HopDistance = int32_t;
++#endif
+ 
+     using Index = uint32_t;
+     static constexpr Index invalidIndex = std::numeric_limits<uint32_t>::max();
