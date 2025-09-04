@@ -7,9 +7,19 @@
 
 namespace kaminpar::shm {
 
+QuotientGraph::QuotientGraph(const PartitionedCSRGraph &p_graph)
+    : _p_graph(p_graph),
+      _edges(p_graph.k() * p_graph.k()) {
+  for (Edge &edge : _edges) {
+    edge.cut_weight = 0;
+    edge.total_gain = 0;
+  }
+
+  reconstruct();
+}
+
 void QuotientGraph::reconstruct() {
   SCOPED_TIMER("Construct Quotient Graph");
-  const CSRGraph &graph = _p_graph.graph();
 
   for (Edge &edge : _edges) {
     edge.cut_edges.clear();
@@ -17,6 +27,8 @@ void QuotientGraph::reconstruct() {
   }
 
   EdgeWeight total_cut_weight = 0;
+
+  const CSRGraph &graph = _p_graph.graph();
   for (const NodeID u : graph.nodes()) {
     const BlockID u_block = _p_graph.block(u);
 
@@ -45,15 +57,12 @@ void QuotientGraph::add_gain(const BlockID b1, const BlockID b2, const EdgeWeigh
   Edge &quotient_edge = edge(b1, b2);
   quotient_edge.total_gain += gain;
 
-  _total_cut_weight -= gain;
-  KASSERT(
-      metrics::edge_cut_seq(_p_graph) == _total_cut_weight,
-      "Computed an invalid new gain ",
-      assert::heavy
-  );
+  __atomic_fetch_sub(&_total_cut_weight, gain, __ATOMIC_RELAXED);
 }
 
 void QuotientGraph::add_cut_edges(std::span<const GraphEdge> new_cut_edges) {
+  SCOPED_TIMER("Update Quotient Graph");
+
   for (const GraphEdge &cut_edge : new_cut_edges) {
     const NodeID u = cut_edge.u;
     const NodeID v = cut_edge.v;

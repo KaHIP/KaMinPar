@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/logger.h"
 
 namespace kaminpar::shm {
 

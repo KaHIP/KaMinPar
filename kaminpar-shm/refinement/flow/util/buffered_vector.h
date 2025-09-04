@@ -61,11 +61,11 @@ public:
 public:
   BufferedVector() : _size(0) {}
 
-  BufferedVector(const BufferedVector &) = delete;
-  BufferedVector &operator=(const BufferedVector &) = delete;
-
   BufferedVector(BufferedVector &&) noexcept = default;
   BufferedVector &operator=(BufferedVector &&) noexcept = default;
+
+  BufferedVector(const BufferedVector &) = delete;
+  BufferedVector &operator=(const BufferedVector &) = delete;
 
   void clear() {
     _size = 0;

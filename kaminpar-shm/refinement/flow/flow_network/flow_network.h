@@ -27,17 +27,25 @@ struct FlowNetwork {
 
 class FlowNetworkConstructor {
 public:
-  FlowNetworkConstructor(const PartitionedCSRGraph &p_graph, const CSRGraph &graph);
+  FlowNetworkConstructor(
+      const FlowNetworkConstructionContext &c_ctx,
+      bool run_sequentially,
+      const PartitionedCSRGraph &p_graph,
+      const CSRGraph &graph
+  );
+
+  FlowNetworkConstructor(FlowNetworkConstructor &&) noexcept = default;
+  FlowNetworkConstructor &operator=(FlowNetworkConstructor &&) noexcept = delete;
+
+  FlowNetworkConstructor(const FlowNetworkConstructor &) = delete;
+  FlowNetworkConstructor &operator=(const FlowNetworkConstructor &) = delete;
 
   [[nodiscard]] FlowNetwork construct_flow_network(
-      const BorderRegion &border_region,
-      BlockWeight block1_weight,
-      BlockWeight block2_weight,
-      bool sequential_construction
+      const BorderRegion &border_region, BlockWeight block1_weight, BlockWeight block2_weight
   );
 
 private:
-  [[nodiscard]] FlowNetwork construct_flow_network(
+  [[nodiscard]] FlowNetwork sequential_construct_flow_network(
       const BorderRegion &border_region, BlockWeight block1_weight, BlockWeight block2_weight
   );
 
@@ -46,6 +54,9 @@ private:
   );
 
 private:
+  const FlowNetworkConstructionContext &_c_ctx;
+  const bool _run_sequentially;
+
   const PartitionedCSRGraph &_p_graph;
   const CSRGraph &_graph;
 };

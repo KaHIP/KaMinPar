@@ -212,13 +212,13 @@ Context create_default_context() {
                                       .run_sequentially = true,
                                       .scheduler =
                                           {
-                                              .parallel_scheduling = false,
-                                              .parallel_searches_multiplier = 1,
-                                              .resolve_imbalance_conflicts = false,
-                                              .reschedule_imbalance_conflicts = false,
+                                              .parallel = false,
+                                              .parallel_search_multiplier = 1,
+                                              .deterministic = false,
                                           },
                                       .construction =
                                           {
+                                              .deterministic = false,
                                               .border_region_scaling_factor = 16,
                                               .max_border_distance = 20,
                                           },
@@ -283,13 +283,13 @@ Context create_default_context() {
                               .run_sequentially = true,
                               .scheduler =
                                   {
-                                      .parallel_scheduling = false,
-                                      .parallel_searches_multiplier = 1,
-                                      .resolve_imbalance_conflicts = false,
-                                      .reschedule_imbalance_conflicts = false,
+                                      .parallel = false,
+                                      .parallel_search_multiplier = 1,
+                                      .deterministic = false,
                                   },
                               .construction =
                                   {
+                                      .deterministic = false,
                                       .border_region_scaling_factor = 16,
                                       .max_border_distance = 20,
                                   },
@@ -371,13 +371,13 @@ Context create_default_context() {
                       .run_sequentially = true,
                       .scheduler =
                           {
-                              .parallel_scheduling = true,
-                              .parallel_searches_multiplier = 1,
-                              .resolve_imbalance_conflicts = false,
-                              .reschedule_imbalance_conflicts = false,
+                              .parallel = true,
+                              .parallel_search_multiplier = 1,
+                              .deterministic = false,
                           },
                       .construction =
                           {
+                              .deterministic = false,
                               .border_region_scaling_factor = 16,
                               .max_border_distance = 20,
                           },

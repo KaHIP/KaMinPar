@@ -756,17 +756,17 @@ std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
     out << "  Sequential mode:            " << yn(r_ctx.twoway_flow.run_sequentially) << "\n";
 
     out << "  Scheduling:                 "
-        << yn(r_ctx.twoway_flow.scheduler.parallel_scheduling, "Parallel", "Sequential") << "\n";
-    if (r_ctx.twoway_flow.scheduler.parallel_scheduling) {
+        << yn(r_ctx.twoway_flow.scheduler.parallel, "Parallel", "Sequential") << "\n";
+    if (r_ctx.twoway_flow.scheduler.parallel) {
       out << "    Search multiplier:        "
-          << r_ctx.twoway_flow.scheduler.parallel_searches_multiplier << "\n";
-      out << "    Resolve imbalances:       "
-          << yn(r_ctx.twoway_flow.scheduler.resolve_imbalance_conflicts) << "\n";
-      out << "    Reschedule imbalances:    "
-          << yn(r_ctx.twoway_flow.scheduler.reschedule_imbalance_conflicts) << "\n";
+          << r_ctx.twoway_flow.scheduler.parallel_search_multiplier << "\n";
+      out << "    Deterministic:            " << yn(r_ctx.twoway_flow.scheduler.deterministic)
+          << "\n";
     }
 
     out << "  Flow network construction:  " << "\n";
+    out << "    Deterministic:            " << yn(r_ctx.twoway_flow.construction.deterministic)
+        << "\n";
     out << "    Border region scaling:    "
         << r_ctx.twoway_flow.construction.border_region_scaling_factor << "\n";
     out << "    Max border distance:      " << r_ctx.twoway_flow.construction.max_border_distance

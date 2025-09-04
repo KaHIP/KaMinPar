@@ -608,6 +608,12 @@ CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context 
 
   twoway_flow
       ->add_option(
+          "--r-twoway-flow-deterministic-construction",
+          ctx.refinement.twoway_flow.construction.deterministic
+      )
+      ->capture_default_str();
+  twoway_flow
+      ->add_option(
           "--r-twoway-flow-border-region-scaling-factor",
           ctx.refinement.twoway_flow.construction.border_region_scaling_factor
       )
@@ -621,25 +627,19 @@ CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context 
 
   twoway_flow
       ->add_option(
-          "--r-twoway-flow-parallel-scheduling",
-          ctx.refinement.twoway_flow.scheduler.parallel_scheduling
+          "--r-twoway-flow-parallel-scheduling", ctx.refinement.twoway_flow.scheduler.parallel
       )
       ->capture_default_str();
   twoway_flow
       ->add_option(
-          "--r-twoway-flow-resolve-imbalance-conflicts",
-          ctx.refinement.twoway_flow.scheduler.resolve_imbalance_conflicts
-      )
-      ->capture_default_str();
-  twoway_flow
-      ->add_option(
-          "--r-twoway-flow-reschedule-imbalance-conflicts",
-          ctx.refinement.twoway_flow.scheduler.reschedule_imbalance_conflicts
+          "--r-twoway-flow-deterministic-scheduling",
+          ctx.refinement.twoway_flow.scheduler.deterministic
       )
       ->capture_default_str();
 
   twoway_flow->add_option("--r-twoway-flow-whfc", ctx.refinement.twoway_flow.flow_cutter.use_whfc)
       ->capture_default_str();
+
   twoway_flow
       ->add_option(
           "--r-twoway-flow-deterministic-piercing",

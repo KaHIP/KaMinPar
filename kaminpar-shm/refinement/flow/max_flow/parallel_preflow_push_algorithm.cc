@@ -264,7 +264,7 @@ template <bool kCollectActiveNodes> void ParallelPreflowPushAlgorithm::global_re
     _parallel_bfs_runner.add_seed(sink);
   }
 
-  _parallel_bfs_runner.perform([&](const NodeID u, const NodeID u_height, auto &queue) {
+  _parallel_bfs_runner.perform([&](const NodeID u, const NodeID u_height, auto queue) {
     if constexpr (kCollectActiveNodes) {
       if (!_node_status.is_terminal(u) && _excess[u] > 0 && _last_activated[u] != _round) {
         IF_STATS _stats.num_invalid_labels_ets.local() += 1;

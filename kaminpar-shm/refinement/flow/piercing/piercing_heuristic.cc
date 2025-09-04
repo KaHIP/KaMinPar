@@ -2,11 +2,12 @@
 
 #include <utility>
 
-#include "kaminpar-common/random.h"
-
 namespace kaminpar::shm {
 
-PiercingHeuristic::PiercingHeuristic(const PiercingHeuristicContext &ctx) : _ph_ctx(ctx) {}
+PiercingHeuristic::PiercingHeuristic(const PiercingHeuristicContext &ctx, const BlockID num_blocks)
+    : _ph_ctx(ctx),
+      _num_blocks(num_blocks),
+      _random(random::thread_independent_seeding) {}
 
 void PiercingHeuristic::initialize(
     const BorderRegion &border_region,
@@ -16,6 +17,12 @@ void PiercingHeuristic::initialize(
 ) {
   _border_region = &border_region;
   _flow_network = &flow_network;
+
+  if (_ph_ctx.deterministic) {
+    _random.reinit(
+        Random::get_seed() + (border_region.block1() * _num_blocks + border_region.block2())
+    );
+  }
 
   const NodeWeight initial_source_side_weight = flow_network.graph.node_weight(flow_network.source);
   const NodeWeight initial_sink_side_weight = flow_network.graph.node_weight(flow_network.sink);
@@ -119,7 +126,6 @@ std::span<const NodeID> PiercingHeuristic::find_piercing_nodes(
   _piercing_nodes.clear();
 
   const CSRGraph &graph = _flow_network->graph;
-  Random &random = Random::instance();
 
   NodeWeight cur_weight = 0;
   const auto add_piercing_nodes = [&](auto &candidates_buckets,
@@ -131,13 +137,9 @@ std::span<const NodeID> PiercingHeuristic::find_piercing_nodes(
     for (std::int64_t bucket = max_bucket; bucket >= min_bucket; --bucket) {
       ScalableVector<NodeID> &candidates = candidates_buckets.candidates(bucket);
 
-      if (_ph_ctx.deterministic) {
-        std::sort(candidates.begin(), candidates.end());
-      }
-
       while (!candidates.empty()) {
         const std::size_t size = candidates.size();
-        const std::size_t idx = random.random_index(0, size);
+        const std::size_t idx = _random.random_index(0, size);
         std::swap(candidates[idx], candidates[size - 1]);
 
         const NodeID u = candidates.back();
@@ -214,7 +216,7 @@ std::span<const NodeID> PiercingHeuristic::find_piercing_nodes(
       }
 
       if (!_piercing_nodes.empty()) {
-        const std::size_t idx = random.random_index(0, _piercing_nodes.size());
+        const std::size_t idx = _random.random_index(0, _piercing_nodes.size());
         std::swap(_piercing_nodes[0], _piercing_nodes[idx]);
         _piercing_nodes.resize(1);
       }

@@ -15,7 +15,7 @@ FlowCutter::FlowCutter(
       _fc_ctx(fc_ctx),
       _source_reachable_nodes_marker(p_graph.n()),
       _sink_reachable_nodes_marker(p_graph.n()),
-      _piercing_heuristic(fc_ctx.piercing),
+      _piercing_heuristic(fc_ctx.piercing, p_ctx.k),
       _source_side_piercing_node_candidates_marker(p_graph.n()),
       _sink_side_piercing_node_candidates_marker(p_graph.n()) {
   if (run_sequentially) {

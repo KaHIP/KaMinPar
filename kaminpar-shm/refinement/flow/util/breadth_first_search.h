@@ -15,20 +15,27 @@ namespace kaminpar::shm {
 
 class BFSRunner {
 public:
+  using Queue = ScalableVector<NodeID>;
+
+  BFSRunner() = default;
+
+  BFSRunner(BFSRunner &&) noexcept = default;
+  BFSRunner &operator=(BFSRunner &&) noexcept = default;
+
+  BFSRunner(const BFSRunner &) = delete;
+  BFSRunner &operator=(const BFSRunner &) = delete;
+
   void reset() {
-    _num_seeds = 0;
-    _data.clear();
+    _queue.clear();
   }
 
   void add_seed(const NodeID seed) {
-    _num_seeds += 1;
-    _data.push_back(seed);
+    _queue.push_back(seed);
   }
 
   void add_seeds(const std::span<const NodeID> seeds) {
-    _num_seeds += seeds.size();
     for (const NodeID seed : seeds) {
-      _data.push_back(seed);
+      _queue.push_back(seed);
     }
   }
 
@@ -37,89 +44,100 @@ public:
   }
 
   template <typename Callback> void perform(const NodeID initial_distance, Callback &&callback) {
-    constexpr bool kRequiresDistance =
-        std::is_invocable_v<Callback, NodeID, NodeID, ScalableVector<NodeID> &>;
+    constexpr bool kRequiresDistance = std::is_invocable_v<Callback, NodeID, NodeID, Queue &>;
 
-    _data.resize(_num_seeds);
+    const std::size_t num_seeds = _queue.size();
 
     std::size_t begin = 0;
-    std::size_t end = _data.size();
+    std::size_t end = num_seeds;
 
     NodeID distance = initial_distance;
     while (begin < end) {
       while (begin < end) {
         if constexpr (kRequiresDistance) {
-          callback(_data[begin++], distance, _data);
+          callback(_queue[begin++], distance, _queue);
         } else {
-          callback(_data[begin++], _data);
+          callback(_queue[begin++], _queue);
         }
       }
 
       begin = end;
-      end = _data.size();
+      end = _queue.size();
 
       distance += 1;
     }
+
+    _queue.resize(num_seeds);
   }
 
 private:
-  std::size_t _num_seeds;
-  ScalableVector<NodeID> _data;
+  Queue _queue;
 };
 
 class ParallelBFSRunner {
 public:
+  using Queue = BufferedVector<NodeID>::Buffer;
+
+  ParallelBFSRunner() = default;
+
+  ParallelBFSRunner(ParallelBFSRunner &&) noexcept = default;
+  ParallelBFSRunner &operator=(ParallelBFSRunner &&) noexcept = default;
+
+  ParallelBFSRunner(const ParallelBFSRunner &) = delete;
+  ParallelBFSRunner &operator=(const ParallelBFSRunner &) = delete;
+
   void reset(const NodeID max_num_nodes) {
-    _num_seeds = 0;
-    _data.clear();
-    _data.reserve(max_num_nodes);
+    _queue.clear();
+    _queue.reserve(max_num_nodes);
   }
 
   void add_seed(const NodeID seed) {
-    _num_seeds += 1;
-    _data.push_back(seed);
+    _queue.push_back(seed);
   }
 
   void add_seeds(const std::span<const NodeID> seeds) {
-    _num_seeds += seeds.size();
-    _data.push_back(seeds);
+    _queue.push_back(seeds);
   }
 
   template <typename Callback> void perform(Callback &&callback) {
-    constexpr bool kRequiresDistance =
-        std::is_invocable_v<Callback, NodeID, NodeID, ScalableVector<NodeID> &>;
+    perform(0, std::forward<Callback>(callback));
+  }
 
-    _data.resize(_num_seeds);
+  template <typename Callback> void perform(const NodeID initial_distance, Callback &&callback) {
+    constexpr bool kRequiresDistance = std::is_invocable_v<Callback, NodeID, NodeID, Queue>;
+
+    const std::size_t num_seeds = _queue.size();
 
     std::size_t begin = 0;
-    std::size_t end = _data.size();
+    std::size_t end = num_seeds;
 
-    std::size_t distance = 0;
+    std::size_t distance = initial_distance;
     while (begin < end) {
       tbb::parallel_for(tbb::blocked_range<std::size_t>(begin, end), [&](const auto &range) {
-        BufferedVector<NodeID>::Buffer buffer = _data.local_buffer();
+        Queue local_queue = _queue.local_buffer();
 
         for (std::size_t i = range.begin(), end = range.end(); i < end; ++i) {
           if constexpr (kRequiresDistance) {
-            callback(_data[i], distance, buffer);
+            callback(_queue[i], distance, local_queue);
           } else {
-            callback(_data[i], buffer);
+            callback(_queue[i], local_queue);
           }
         }
       });
 
-      _data.flush();
+      _queue.flush();
 
       begin = end;
-      end = _data.size();
+      end = _queue.size();
 
       distance += 1;
     }
+
+    _queue.resize(num_seeds);
   }
 
 private:
-  std::size_t _num_seeds;
-  BufferedVector<NodeID> _data;
+  BufferedVector<NodeID> _queue;
 };
 
 } // namespace kaminpar::shm

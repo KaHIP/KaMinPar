@@ -48,7 +48,16 @@ void BorderRegionConstructor::compute_border_regions(
       block1, block2, max_border_region_weight1, max_border_region_weight2, _graph.n()
   );
 
-  _q_graph.foreach_cut_edge_shuffled(block1, block2, [&](const NodeID u, const NodeID v) {
+  QuotientGraph::CutEdges &cut_edges = _q_graph.cut_edges(block1, block2);
+  const std::size_t num_cut_edges = cut_edges.size();
+
+  if (_c_ctx.deterministic) {
+    _random.reinit(Random::get_seed() + (block1 * _p_graph.k() + block2));
+  }
+  _random.shuffle(cut_edges.begin(), cut_edges.begin() + num_cut_edges);
+
+  for (std::size_t i = 0; i < num_cut_edges; ++i) {
+    const auto [u, v] = cut_edges[i];
     if (_p_graph.block(u) != block1 || _p_graph.block(v) != block2) {
       return;
     }
@@ -76,7 +85,7 @@ void BorderRegionConstructor::compute_border_regions(
       _border_region.insert_into_region1(u, u_weight);
       _border_region.insert_into_region2(v, v_weight);
     }
-  });
+  }
 
   DBG << "Initial border region sizes: block " << _border_region.block1() << " = "
       << _border_region.size_region1() << ", block " << _border_region.block2() << " = "
@@ -91,39 +100,41 @@ void BorderRegionConstructor::expand_border_regions() {
     return;
   }
 
-  const auto expand_border_region = [&](const bool source_side) {
-    _bfs_runner.reset();
-    _bfs_runner.add_seeds(
-        source_side ? _border_region.nodes_region1() : _border_region.nodes_region2()
-    );
-
-    const BlockID block = source_side ? _border_region.block1() : _border_region.block2();
-    _bfs_runner.perform([&](const NodeID u, const NodeID u_distance, auto &queue) {
-      const NodeID v_distance = u_distance + 1;
-
-      _graph.adjacent_nodes(u, [&](const NodeID v) {
-        if (_p_graph.block(v) != block || _border_region.contains(v)) {
-          return;
-        }
-
-        const NodeWeight v_weight = _graph.node_weight(v);
-        if (_border_region.fits(source_side, v_weight)) {
-          _border_region.insert(source_side, v, v_weight);
-
-          if (v_distance < max_border_distance) {
-            queue.push_back(v);
-          }
-        }
-      });
-    });
-  };
-
   expand_border_region(kSourceTag);
   expand_border_region(kSinkTag);
 
   DBG << "Expanded border region sizes: block " << _border_region.block1() << " = "
       << _border_region.size_region1() << ", block " << _border_region.block2() << " = "
       << _border_region.size_region2();
+}
+
+void BorderRegionConstructor::expand_border_region(const bool source_side) {
+  _bfs_runner.reset();
+  _bfs_runner.add_seeds(
+      source_side ? _border_region.initial_nodes_region1() : _border_region.initial_nodes_region2()
+  );
+
+  const NodeID max_border_distance = _c_ctx.max_border_distance;
+  const BlockID block = source_side ? _border_region.block1() : _border_region.block2();
+
+  _bfs_runner.perform([&](const NodeID u, const NodeID u_distance, auto &queue) {
+    const NodeID v_distance = u_distance + 1;
+
+    _graph.adjacent_nodes(u, [&](const NodeID v) {
+      if (_p_graph.block(v) != block || _border_region.contains(v)) {
+        return;
+      }
+
+      const NodeWeight v_weight = _graph.node_weight(v);
+      if (_border_region.fits(source_side, v_weight)) {
+        _border_region.insert(source_side, v, v_weight);
+
+        if (v_distance < max_border_distance) {
+          queue.push_back(v);
+        }
+      }
+    });
+  });
 }
 
 } // namespace kaminpar::shm

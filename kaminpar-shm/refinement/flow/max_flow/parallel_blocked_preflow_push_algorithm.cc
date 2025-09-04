@@ -270,7 +270,7 @@ template <bool kCollectActiveNodes> void ParallelBlockedPreflowPushAlgorithm::gl
     _parallel_bfs_runner.add_seed(sink);
   }
 
-  _parallel_bfs_runner.perform([&](const NodeID u, const NodeID u_height, auto &queue) {
+  _parallel_bfs_runner.perform([&](const NodeID u, const NodeID u_height, auto queue) {
     if constexpr (kCollectActiveNodes) {
       if (!_node_status.is_terminal(u) && _excess[u] > 0 && _last_activated[u] != _round) {
         _next_active_nodes.atomic_push_back(u);

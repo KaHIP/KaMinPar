@@ -259,13 +259,14 @@ struct KwayFMRefinementContext {
 };
 
 struct FlowSchedulerContext {
-  bool parallel_scheduling;
-  double parallel_searches_multiplier;
-  bool resolve_imbalance_conflicts;
-  bool reschedule_imbalance_conflicts;
+  bool parallel;
+  double parallel_search_multiplier;
+  bool deterministic;
 };
 
 struct FlowNetworkConstructionContext {
+  bool deterministic;
+
   double border_region_scaling_factor;
   NodeID max_border_distance;
 };
@@ -277,6 +278,7 @@ struct PreflowPushContext {
 
 struct PiercingHeuristicContext {
   bool deterministic;
+
   bool determine_distance_from_cut;
   bool fallback_heuristic;
 

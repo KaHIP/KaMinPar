@@ -13,6 +13,7 @@
 #include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/datastructures/static_array.h"
+#include "kaminpar-common/random.h"
 
 namespace kaminpar::shm {
 
@@ -84,7 +85,7 @@ class PiercingHeuristic {
   };
 
 public:
-  PiercingHeuristic(const PiercingHeuristicContext &_ctx);
+  PiercingHeuristic(const PiercingHeuristicContext &_ctx, BlockID num_blocks);
 
   void initialize(
       const BorderRegion &border_region,
@@ -110,6 +111,7 @@ private:
 
 private:
   const PiercingHeuristicContext &_ph_ctx;
+  const BlockID _num_blocks;
 
   const BorderRegion *_border_region;
   const FlowNetwork *_flow_network;
@@ -127,6 +129,8 @@ private:
 
   BulkPiercingContext _source_side_bulk_piercing_ctx;
   BulkPiercingContext _sink_side_bulk_piercing_ctx;
+
+  Random _random;
 };
 
 } // namespace kaminpar::shm

@@ -11,6 +11,7 @@
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/logger.h"
+#include "kaminpar-common/random.h"
 
 namespace kaminpar::shm {
 
@@ -24,11 +25,11 @@ public:
         _cur_weight1(0),
         _cur_weight2(0) {};
 
-  BorderRegion(const BorderRegion &) = delete;
-  BorderRegion &operator=(const BorderRegion &) = delete;
-
   BorderRegion(BorderRegion &&) noexcept = default;
   BorderRegion &operator=(BorderRegion &&) noexcept = default;
+
+  BorderRegion(const BorderRegion &) = delete;
+  BorderRegion &operator=(const BorderRegion &) = delete;
 
   void initialize(
       const BlockID block1,
@@ -109,11 +110,11 @@ public:
   }
 
   [[nodiscard]] BlockID empty() const {
-    return _cur_weight1 == 0 || _cur_weight2 == 0;
+    return size() == 0;
   }
 
   [[nodiscard]] BlockID size() const {
-    return _node_status.source_nodes().size() + _node_status.sink_nodes().size();
+    return size_region1() + size_region2();
   }
 
   [[nodiscard]] BlockID size_region1() const {
@@ -197,7 +198,14 @@ public:
         _c_ctx(c_ctx),
         _q_graph(q_graph),
         _p_graph(p_graph),
-        _graph(graph) {};
+        _graph(graph),
+        _random(random::thread_independent_seeding) {};
+
+  BorderRegionConstructor(BorderRegionConstructor &&) noexcept = default;
+  BorderRegionConstructor &operator=(BorderRegionConstructor &&) noexcept = delete;
+
+  BorderRegionConstructor(const BorderRegionConstructor &) = delete;
+  BorderRegionConstructor &operator=(const BorderRegionConstructor &) = delete;
 
   [[nodiscard]] const BorderRegion &
   construct(BlockID block1, BlockID block2, BlockWeight block1_weight, BlockWeight block2_weight);
@@ -212,6 +220,8 @@ private:
 
   void expand_border_regions();
 
+  void expand_border_region(bool source_side);
+
 private:
   const PartitionContext &_p_ctx;
   const FlowNetworkConstructionContext &_c_ctx;
@@ -220,8 +230,10 @@ private:
   const PartitionedCSRGraph &_p_graph;
   const CSRGraph &_graph;
 
-  BFSRunner _bfs_runner;
   BorderRegion _border_region;
+
+  BFSRunner _bfs_runner;
+  Random _random;
 };
 
 } // namespace kaminpar::shm
