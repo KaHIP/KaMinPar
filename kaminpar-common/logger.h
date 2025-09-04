@@ -196,7 +196,12 @@ public:
 
   void print(const std::string &text, std::ostream &out) const final;
 
+  static void set_colored_output(bool enabled);
+  static bool is_colored_output_enabled();
+
 private:
+  static std::atomic<std::uint8_t> _enabled;
+
   Color _color;
 };
 

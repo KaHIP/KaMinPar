@@ -5,22 +5,23 @@
  * @author: Daniel Seemaier
  * @date:   21.09.2021
  ******************************************************************************/
-// clang-format off
-#include "kaminpar-cli/kaminpar_arguments.h"
-// clang-format on
-
 #include <cstdlib>
 #include <iostream>
 #include <span>
-
-#ifdef KAMINPAR_ENABLE_TBB_MALLOC
-#include <tbb/scalable_allocator.h>
-#endif // KAMINPAR_ENABLE_TBB_MALLOC
 
 #if __has_include(<numa.h>)
 #include <numa.h>
 #endif // __has_include(<numa.h>)
 
+#if defined(__linux__)
+#include <sys/resource.h>
+#endif
+
+#ifdef KAMINPAR_ENABLE_TBB_MALLOC
+#include <tbb/scalable_allocator.h>
+#endif // KAMINPAR_ENABLE_TBB_MALLOC
+
+#include "kaminpar-cli/kaminpar_arguments.h"
 #include "kaminpar-io/kaminpar_io.h"
 
 #include "kaminpar-shm/graphutils/graph_validator.h"
@@ -28,14 +29,11 @@
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/heap_profiler.h"
+#include "kaminpar-common/logger.h"
 #include "kaminpar-common/strutils.h"
 #include "kaminpar-common/timer.h"
 
 #include "apps/version.h"
-
-#if defined(__linux__)
-#include <sys/resource.h>
-#endif
 
 using namespace kaminpar;
 using namespace kaminpar::shm;
@@ -68,6 +66,7 @@ struct ApplicationContext {
 
   int verbosity = 0;
   bool validate = false;
+  bool disable_colors = false;
 
   std::string graph_filename = "";
   io::GraphFileFormat input_graph_file_format = io::GraphFileFormat::METIS;
@@ -189,6 +188,7 @@ The output should be stored in a file and can be used by the -C,--config option.
       [&](const auto count) { app.verbosity = count; },
       "Increase output verbosity; can be specified multiple times."
   );
+  cli.add_flag("--disable-colors", app.disable_colors, "Disable colored output in the terminal.");
 
   cli.add_option("-t,--threads", app.num_threads, "Number of threads to be used.")
       ->check(CLI::PositiveNumber)
@@ -334,8 +334,7 @@ The output should be stored in a file and can be used by the -C,--config option.
   create_all_options(&cli, ctx);
 }
 
-inline void
-output_rearranged_graph(const ApplicationContext &app, const std::vector<BlockID> &partition) {
+void output_rearranged_graph(const ApplicationContext &app, const std::vector<BlockID> &partition) {
   if (app.rearranged_graph_filename.empty()) {
     return;
   }
@@ -382,21 +381,18 @@ output_rearranged_graph(const ApplicationContext &app, const std::vector<BlockID
   io::write_graph(app.rearranged_graph_filename, app.output_graph_file_format, permuted_graph);
 }
 
-inline void print_rss(const ApplicationContext &app) {
+void print_rss(const ApplicationContext &app) {
   if (app.verbosity >= 0) {
     std::cout << "\n";
 
 #if defined(__linux__)
     if (struct rusage usage; getrusage(RUSAGE_SELF, &usage) == 0) {
-      std::cout << "Maximum resident set size: " << usage.ru_maxrss << " KiB\n";
-    } else {
-#else
-    {
-#endif
-      std::cout << "Maximum resident set size: unknown\n";
+      std::cout << "Maximum resident set size: " << usage.ru_maxrss << " KiB" << std::endl;
+      return;
     }
+#endif
 
-    std::cout << std::flush;
+    std::cout << "Maximum resident set size: unknown" << std::endl;
   }
 }
 
@@ -448,6 +444,10 @@ int main(int argc, char *argv[]) {
     partitioner.set_output_level(OutputLevel::EXPERIMENT);
   } else if (app.verbosity >= 2) {
     partitioner.set_output_level(OutputLevel::DEBUG);
+  }
+
+  if (app.disable_colors) {
+    logger::Colorized::set_colored_output(false);
   }
 
   partitioner.context().debug.graph_name = str::extract_basename(app.graph_filename);
@@ -537,7 +537,7 @@ int main(int argc, char *argv[]) {
     if (total_factor >= 1.0) {
       LOG_ERROR << "Error: total min block weights must be smaller than the total node weight; "
                 << "this is not the case with the given factors.";
-      std::exit(1);
+      return EXIT_FAILURE;
     }
 
     partitioner.set_relative_min_block_weights(app.min_block_weight_factors);
@@ -551,7 +551,7 @@ int main(int argc, char *argv[]) {
     if (total_node_weight <= total_block_weight) {
       LOG_ERROR << "Error: total min block weights (" << total_block_weight
                 << ") must be smaller than the total node weight (" << total_node_weight << ").";
-      std::exit(1);
+      return EXIT_FAILURE;
     }
 
     partitioner.set_absolute_min_block_weights(app.min_block_weights);
@@ -569,7 +569,7 @@ int main(int argc, char *argv[]) {
     if (total_factor <= 1.0) {
       LOG_ERROR << "Error: total block weights must be greater than the total node weight; "
                 << "this is not the case with the given factors.";
-      std::exit(1);
+      return EXIT_FAILURE;
     }
 
     partitioner.set_relative_max_block_weights(app.max_block_weight_factors);
@@ -583,7 +583,7 @@ int main(int argc, char *argv[]) {
     if (total_node_weight >= total_block_weight) {
       LOG_ERROR << "Error: total max block weights (" << total_block_weight
                 << ") must be greater than the total node weight (" << total_node_weight << ").";
-      std::exit(1);
+      return EXIT_FAILURE;
     }
 
     partitioner.set_absolute_max_block_weights(app.max_block_weights);
@@ -610,5 +610,5 @@ int main(int argc, char *argv[]) {
 
   print_rss(app);
 
-  return 0;
+  return EXIT_SUCCESS;
 }
