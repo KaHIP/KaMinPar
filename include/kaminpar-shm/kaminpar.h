@@ -260,8 +260,8 @@ struct KwayFMRefinementContext {
 
 struct FlowSchedulerContext {
   bool parallel;
-  double parallel_search_multiplier;
   bool deterministic;
+  double parallel_search_multiplier;
 };
 
 struct FlowNetworkConstructionContext {

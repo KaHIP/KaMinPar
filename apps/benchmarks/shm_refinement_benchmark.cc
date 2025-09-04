@@ -15,6 +15,7 @@
 #include <vector>
 
 #include <tbb/global_control.h>
+#include <tbb/task_arena.h>
 
 #include "kaminpar-io/kaminpar_io.h"
 
@@ -35,6 +36,8 @@ using namespace kaminpar::shm;
 
 int main(int argc, char *argv[]) {
   Context ctx = create_default_context();
+  ctx.parallel.num_threads = tbb::this_task_arena::max_concurrency();
+
   double epsilon = 0.03;
   int seed = 0;
 

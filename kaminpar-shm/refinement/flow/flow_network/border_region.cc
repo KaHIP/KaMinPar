@@ -6,6 +6,20 @@
 
 namespace kaminpar::shm {
 
+BorderRegionConstructor::BorderRegionConstructor(
+    const PartitionContext &p_ctx,
+    const FlowNetworkConstructionContext &c_ctx,
+    const QuotientGraph &q_graph,
+    const PartitionedCSRGraph &p_graph,
+    const CSRGraph &graph
+)
+    : _p_ctx(p_ctx),
+      _c_ctx(c_ctx),
+      _q_graph(q_graph),
+      _p_graph(p_graph),
+      _graph(graph),
+      _random(random::thread_independent_seeding) {};
+
 const BorderRegion &BorderRegionConstructor::construct(
     const BlockID block1,
     const BlockID block2,
@@ -44,9 +58,7 @@ void BorderRegionConstructor::compute_border_regions(
 ) {
   SCOPED_TIMER("Compute Initial Border Region");
 
-  _border_region.initialize(
-      block1, block2, max_border_region_weight1, max_border_region_weight2, _graph.n()
-  );
+  _border_region.initialize(block1, block2, max_border_region_weight1, max_border_region_weight2);
 
   QuotientGraph::CutEdges &cut_edges = _q_graph.cut_edges(block1, block2);
   const std::size_t num_cut_edges = cut_edges.size();

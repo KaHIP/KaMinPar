@@ -25,7 +25,7 @@ class HyperFlowCutter : public FlowCutterAlgorithm {
 
 public:
   HyperFlowCutter(
-      const PartitionContext &p_ctx, const FlowCutterContext &fc_ctx, const bool run_sequentially
+      const PartitionContext &p_ctx, const FlowCutterContext &fc_ctx, bool run_sequentially
   );
 
   [[nodiscard]] virtual Result

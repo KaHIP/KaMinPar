@@ -10,12 +10,16 @@
 #include "kaminpar-shm/refinement/flow/util/node_status.h"
 
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::shm {
 
 class BorderRegion {
+  static constexpr std::uint8_t kSource = 1;
+  static constexpr std::uint8_t kSink = 2;
+
 public:
   BorderRegion()
       : _block1(kInvalidBlockID),
@@ -35,8 +39,7 @@ public:
       const BlockID block1,
       const BlockID block2,
       const NodeWeight max_weight1,
-      const NodeWeight max_weight2,
-      const NodeID max_num_nodes
+      const NodeWeight max_weight2
   ) {
     _block1 = block1;
     _block2 = block2;
@@ -47,9 +50,13 @@ public:
     _cur_weight1 = 0;
     _cur_weight2 = 0;
 
-    _node_status.initialize(max_num_nodes);
+    _node_status.clear();
+
     _initial_source_side_border_nodes.clear();
     _initial_sink_side_border_nodes.clear();
+
+    _source_side_nodes.clear();
+    _sink_side_nodes.clear();
   }
 
   void insert_into_region1(const NodeID u, const NodeWeight u_weight) {
@@ -57,7 +64,8 @@ public:
     KASSERT(fits_in_region1(u_weight));
 
     _cur_weight1 += u_weight;
-    _node_status.add_source(u);
+    _node_status[u] = kSource;
+    _source_side_nodes.push_back(u);
     _initial_source_side_border_nodes.push_back(u);
   }
 
@@ -66,7 +74,8 @@ public:
     KASSERT(fits_in_region2(u_weight));
 
     _cur_weight2 += u_weight;
-    _node_status.add_sink(u);
+    _node_status[u] = kSink;
+    _sink_side_nodes.push_back(u);
     _initial_sink_side_border_nodes.push_back(u);
   }
 
@@ -76,10 +85,12 @@ public:
 
     if (source_side) {
       _cur_weight1 += u_weight;
-      _node_status.add_source(u);
+      _node_status[u] = kSource;
+      _source_side_nodes.push_back(u);
     } else {
       _cur_weight2 += u_weight;
-      _node_status.add_sink(u);
+      _node_status[u] = kSink;
+      _sink_side_nodes.push_back(u);
     }
   }
 
@@ -98,15 +109,17 @@ public:
   }
 
   [[nodiscard]] bool region1_contains(const NodeID u) const {
-    return _node_status.is_source(u);
+    const std::uint8_t *status = _node_status.get_if_contained(u);
+    return status != nullptr && *status == kSource;
   }
 
   [[nodiscard]] bool region2_contains(const NodeID u) const {
-    return _node_status.is_sink(u);
+    const std::uint8_t *status = _node_status.get_if_contained(u);
+    return status != nullptr && *status == kSink;
   }
 
   [[nodiscard]] bool contains(const NodeID u) const {
-    return !_node_status.is_unknown(u);
+    return _node_status.contains(u);
   }
 
   [[nodiscard]] BlockID empty() const {
@@ -118,11 +131,11 @@ public:
   }
 
   [[nodiscard]] BlockID size_region1() const {
-    return _node_status.source_nodes().size();
+    return _source_side_nodes.size();
   }
 
   [[nodiscard]] BlockID size_region2() const {
-    return _node_status.sink_nodes().size();
+    return _sink_side_nodes.size();
   }
 
   [[nodiscard]] BlockID block1() const {
@@ -150,11 +163,11 @@ public:
   }
 
   [[nodiscard]] std::span<const NodeID> nodes_region1() const {
-    return _node_status.source_nodes();
+    return _source_side_nodes;
   }
 
   [[nodiscard]] std::span<const NodeID> nodes_region2() const {
-    return _node_status.sink_nodes();
+    return _sink_side_nodes;
   }
 
   [[nodiscard]] std::span<const NodeID> initial_nodes_region1() const {
@@ -175,9 +188,13 @@ private:
   NodeWeight _cur_weight1;
   NodeWeight _cur_weight2;
 
-  NodeStatus _node_status;
+  DynamicFlatMap<NodeID, std::uint8_t> _node_status;
+
   ScalableVector<NodeID> _initial_source_side_border_nodes;
   ScalableVector<NodeID> _initial_sink_side_border_nodes;
+
+  ScalableVector<NodeID> _source_side_nodes;
+  ScalableVector<NodeID> _sink_side_nodes;
 };
 
 class BorderRegionConstructor {
@@ -193,13 +210,7 @@ public:
       const QuotientGraph &q_graph,
       const PartitionedCSRGraph &p_graph,
       const CSRGraph &graph
-  )
-      : _p_ctx(p_ctx),
-        _c_ctx(c_ctx),
-        _q_graph(q_graph),
-        _p_graph(p_graph),
-        _graph(graph),
-        _random(random::thread_independent_seeding) {};
+  );
 
   BorderRegionConstructor(BorderRegionConstructor &&) noexcept = default;
   BorderRegionConstructor &operator=(BorderRegionConstructor &&) noexcept = delete;

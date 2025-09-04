@@ -256,7 +256,7 @@ template <bool kCollectExcessNodes>
 void FlowCutter::derive_source_side_cut(
     const FlowNetwork &flow_network, std::span<const EdgeWeight> flow
 ) {
-  SCOPED_TIMER("Derive Source Cut");
+  SCOPED_TIMER("Derive Cut");
   const CSRGraph &graph = flow_network.graph;
 
   _bfs_runner.reset();
@@ -311,7 +311,7 @@ void FlowCutter::derive_source_side_cut(
 void FlowCutter::derive_sink_side_cut(
     const FlowNetwork &flow_network, std::span<const EdgeWeight> flow
 ) {
-  SCOPED_TIMER("Derive Sink Cut");
+  SCOPED_TIMER("Derive Cut");
   const CSRGraph &graph = flow_network.graph;
 
   _bfs_runner.reset();

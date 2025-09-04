@@ -213,8 +213,8 @@ Context create_default_context() {
                                       .scheduler =
                                           {
                                               .parallel = false,
-                                              .parallel_search_multiplier = 1,
                                               .deterministic = false,
+                                              .parallel_search_multiplier = 1,
                                           },
                                       .construction =
                                           {
@@ -284,8 +284,8 @@ Context create_default_context() {
                               .scheduler =
                                   {
                                       .parallel = false,
-                                      .parallel_search_multiplier = 1,
                                       .deterministic = false,
+                                      .parallel_search_multiplier = 1,
                                   },
                               .construction =
                                   {
@@ -372,8 +372,8 @@ Context create_default_context() {
                       .scheduler =
                           {
                               .parallel = true,
-                              .parallel_search_multiplier = 1,
                               .deterministic = false,
+                              .parallel_search_multiplier = 1,
                           },
                       .construction =
                           {

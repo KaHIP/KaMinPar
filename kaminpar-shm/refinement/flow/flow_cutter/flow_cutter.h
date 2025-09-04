@@ -46,7 +46,7 @@ private:
   void update_border_nodes(
       bool source_side,
       const FlowNetwork &flow_network,
-      const std::span<const NodeID> reachable_nodes,
+      std::span<const NodeID> reachable_nodes,
       ScalableVector<NodeID> &border_nodes
   );
 

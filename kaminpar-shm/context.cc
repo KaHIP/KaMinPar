@@ -758,10 +758,10 @@ std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
     out << "  Scheduling:                 "
         << yn(r_ctx.twoway_flow.scheduler.parallel, "Parallel", "Sequential") << "\n";
     if (r_ctx.twoway_flow.scheduler.parallel) {
-      out << "    Search multiplier:        "
-          << r_ctx.twoway_flow.scheduler.parallel_search_multiplier << "\n";
       out << "    Deterministic:            " << yn(r_ctx.twoway_flow.scheduler.deterministic)
           << "\n";
+      out << "    Search multiplier:        "
+          << r_ctx.twoway_flow.scheduler.parallel_search_multiplier << "\n";
     }
 
     out << "  Flow network construction:  " << "\n";
