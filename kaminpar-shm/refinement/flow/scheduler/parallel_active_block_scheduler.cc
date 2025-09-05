@@ -286,25 +286,37 @@ std::pair<bool, double>
 ParallelActiveBlockScheduler::is_feasible_move_sequence(std::span<Move> moves) {
   std::fill_n(_block_weight_delta.begin(), _p_graph->k(), 0);
 
+  const bool ignore_move_conflicts = _f_ctx.scheduler.ignore_move_conflicts;
   for (Move &move : moves) {
-    const NodeID u = move.node;
-    const BlockID old_block = move.old_block;
-    const BlockID new_block = move.new_block;
-
     KASSERT(
         move.old_block != move.new_block,
         "Move sequence contains moves where node is already in target block",
         assert::heavy
     );
 
-    // Remove all nodes from the move sequence that are not in their expected block.
-    // Use the old block variable to mark the move as such, which is used during reverting.
-    const BlockID invalid_block_conflict = _p_graph->block(u) != old_block;
-    if (invalid_block_conflict) {
-      IF_STATS _stats.num_move_conflicts += 1;
+    const NodeID u = move.node;
+    const BlockID new_block = move.new_block;
 
-      move.old_block = kInvalidBlockID;
-      continue;
+    const BlockID u_block = _p_graph->block(u);
+    BlockID old_block = move.old_block;
+
+    if (ignore_move_conflicts) {
+      old_block = u_block;
+
+      if (old_block == new_block) {
+        move.old_block = kInvalidBlockID;
+        continue;
+      }
+    } else {
+      // Remove all nodes from the move sequence that are not in their expected block.
+      // Use the old block variable to mark the move as such, which is used during reverting.
+      const bool move_conflict = u_block != old_block;
+      if (move_conflict) {
+        IF_STATS _stats.num_move_conflicts += 1;
+
+        move.old_block = kInvalidBlockID;
+        continue;
+      }
     }
 
     const NodeWeight u_weight = _graph->node_weight(u);
@@ -338,8 +350,8 @@ EdgeWeight ParallelActiveBlockScheduler::atomic_apply_moves(
     const BlockID old_block = move.old_block;
 
     // If the node was not in its expected block, it should not be moved.
-    const BlockID invalid_block_conflict = old_block == kInvalidBlockID;
-    if (invalid_block_conflict) {
+    const bool move_conflict = old_block == kInvalidBlockID;
+    if (move_conflict) {
       continue;
     }
 
@@ -370,8 +382,8 @@ void ParallelActiveBlockScheduler::revert_moves(std::span<const Move> moves) {
 
     // If the node was not in its expected block, it has not been moved.
     // Thus, the move must not be reverted.
-    const BlockID invalid_block_conflict = old_block == kInvalidBlockID;
-    if (invalid_block_conflict) {
+    const bool move_conflict = old_block == kInvalidBlockID;
+    if (move_conflict) {
       continue;
     }
 

@@ -762,6 +762,8 @@ std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
     if (r_ctx.twoway_flow.scheduler.parallel) {
       out << "    Deterministic:            " << yn(r_ctx.twoway_flow.scheduler.deterministic)
           << "\n";
+      out << "    Ignore move conflicts:    "
+          << yn(r_ctx.twoway_flow.scheduler.ignore_move_conflicts) << "\n";
       out << "    Search multiplier:        "
           << r_ctx.twoway_flow.scheduler.parallel_search_multiplier << "\n";
     }

@@ -215,6 +215,7 @@ Context create_default_context() {
                                           {
                                               .parallel = false,
                                               .deterministic = false,
+                                              .ignore_move_conflicts = false,
                                               .parallel_search_multiplier = 1,
                                           },
                                       .construction =
@@ -287,6 +288,7 @@ Context create_default_context() {
                                   {
                                       .parallel = false,
                                       .deterministic = false,
+                                      .ignore_move_conflicts = false,
                                       .parallel_search_multiplier = 1,
                                   },
                               .construction =
@@ -376,6 +378,7 @@ Context create_default_context() {
                           {
                               .parallel = true,
                               .deterministic = false,
+                              .ignore_move_conflicts = false,
                               .parallel_search_multiplier = 1,
                           },
                       .construction =
