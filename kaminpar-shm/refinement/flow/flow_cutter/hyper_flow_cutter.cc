@@ -34,6 +34,8 @@ HyperFlowCutter::compute_cut(const BorderRegion &border_region, const FlowNetwor
   return run_hyper_flow_cutter(border_region, flow_network);
 }
 
+void HyperFlowCutter::free() {}
+
 void HyperFlowCutter::construct_hypergraph(const FlowNetwork &flow_network) {
   SCOPED_TIMER("Construct Hypergraph");
 

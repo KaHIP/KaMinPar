@@ -27,15 +27,12 @@ class FlowCutter : public FlowCutterAlgorithm {
   static constexpr bool kSinkTag = false;
 
 public:
-  FlowCutter(
-      const PartitionContext &p_ctx,
-      const FlowCutterContext &fc_ctx,
-      bool run_sequentially,
-      const PartitionedCSRGraph &p_graph
-  );
+  FlowCutter(const PartitionContext &p_ctx, const FlowCutterContext &fc_ctx, bool run_sequentially);
 
   [[nodiscard]] Result
   compute_cut(const BorderRegion &border_region, const FlowNetwork &flow_network) override;
+
+  void free() override;
 
 private:
   template <bool kCollectExcessNodes>

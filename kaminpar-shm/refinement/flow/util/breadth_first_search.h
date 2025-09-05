@@ -70,6 +70,11 @@ public:
     _queue.resize(num_seeds);
   }
 
+  void free() {
+    _queue.clear();
+    _queue.shrink_to_fit();
+  }
+
 private:
   Queue _queue;
 };
@@ -134,6 +139,10 @@ public:
     }
 
     _queue.resize(num_seeds);
+  }
+
+  void free() {
+    _queue.free();
   }
 
 private:

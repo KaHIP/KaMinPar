@@ -103,6 +103,14 @@ public:
     _data.resize(capacity);
   }
 
+  void free() {
+    _data.clear();
+    _data.shrink_to_fit();
+
+    _marker_id = 0;
+    _first_unmarked_element.fill(0);
+  }
+
   [[nodiscard]] std::size_t memory_in_kb() const {
     return _data.size() * sizeof(Value) / 1000;
   }

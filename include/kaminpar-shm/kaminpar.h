@@ -307,7 +307,9 @@ struct TwowayFlowRefinementContext {
   double min_round_improvement_factor;
   std::size_t max_num_rounds;
   std::size_t time_limit;
+
   bool run_sequentially;
+  bool free_memory_after_round;
 
   FlowSchedulerContext scheduler;
   FlowNetworkConstructionContext construction;

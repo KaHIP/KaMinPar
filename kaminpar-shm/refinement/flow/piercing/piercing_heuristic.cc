@@ -226,6 +226,20 @@ std::span<const NodeID> PiercingHeuristic::find_piercing_nodes(
   return _piercing_nodes;
 }
 
+void PiercingHeuristic::free() {
+  _piercing_nodes.clear();
+  _piercing_nodes.shrink_to_fit();
+
+  _bfs_runner.free();
+  _distance.free();
+
+  _source_reachable_candidates_buckets.free();
+  _source_unreachable_candidates_buckets.free();
+
+  _sink_reachable_candidates_buckets.free();
+  _sink_unreachable_candidates_buckets.free();
+}
+
 std::size_t PiercingHeuristic::compute_max_num_piercing_nodes(
     const bool source_side, const NodeWeight side_weight
 ) {

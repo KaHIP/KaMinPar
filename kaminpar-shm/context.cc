@@ -751,9 +751,11 @@ std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
     out << "  Min round improvement:      " << r_ctx.twoway_flow.min_round_improvement_factor
         << "\n";
     out << "  Max num rounds:             " << unlimited(r_ctx.twoway_flow.max_num_rounds) << "\n";
-    out << "  Time Limit:                 " << unlimited(r_ctx.twoway_flow.time_limit)
+    out << "  Time limit:                 " << unlimited(r_ctx.twoway_flow.time_limit)
         << " minute(s)" << "\n";
     out << "  Sequential mode:            " << yn(r_ctx.twoway_flow.run_sequentially) << "\n";
+    out << "  Free memory after round:    " << yn(r_ctx.twoway_flow.free_memory_after_round)
+        << "\n";
 
     out << "  Scheduling:                 "
         << yn(r_ctx.twoway_flow.scheduler.parallel, "Parallel", "Sequential") << "\n";
@@ -780,7 +782,7 @@ std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
         << yn(r_ctx.twoway_flow.flow_cutter.piercing.determine_distance_from_cut) << "\n";
     out << "    Fallback heuristic:       "
         << yn(r_ctx.twoway_flow.flow_cutter.piercing.fallback_heuristic) << "\n";
-    out << "    Bulk Piercing:            "
+    out << "    Bulk piercing:            "
         << yn(r_ctx.twoway_flow.flow_cutter.piercing.bulk_piercing) << "\n";
     if (!r_ctx.twoway_flow.flow_cutter.use_whfc) {
       if (r_ctx.twoway_flow.flow_cutter.piercing.bulk_piercing) {

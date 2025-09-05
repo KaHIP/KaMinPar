@@ -73,6 +73,11 @@ public:
     static_cast<Derived *>(this)->clear_impl();
   }
 
+  void free() {
+    _data.reset();
+    initialize(DEFAULT_INITIAL_CAPACITY);
+  }
+
 protected:
   static constexpr std::size_t INVALID_POS_MASK =
       ~(std::numeric_limits<std::size_t>::max() >> 1); // MSB is set
@@ -285,6 +290,12 @@ public:
       const MapElement element = _elements[pos];
       return std::make_pair(element.key, element.value);
     });
+  }
+
+  void free() {
+    Base::free();
+    _used_elements.clear();
+    _used_elements.shrink_to_fit();
   }
 
 private:

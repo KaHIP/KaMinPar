@@ -6,18 +6,11 @@
 namespace kaminpar::shm {
 
 FlowCutter::FlowCutter(
-    const PartitionContext &p_ctx,
-    const FlowCutterContext &fc_ctx,
-    const bool run_sequentially,
-    const PartitionedCSRGraph &p_graph
+    const PartitionContext &p_ctx, const FlowCutterContext &fc_ctx, const bool run_sequentially
 )
     : _p_ctx(p_ctx),
       _fc_ctx(fc_ctx),
-      _source_reachable_nodes_marker(p_graph.n()),
-      _sink_reachable_nodes_marker(p_graph.n()),
-      _piercing_heuristic(fc_ctx.piercing, p_ctx.k),
-      _source_side_piercing_node_candidates_marker(p_graph.n()),
-      _sink_side_piercing_node_candidates_marker(p_graph.n()) {
+      _piercing_heuristic(fc_ctx.piercing, p_ctx.k) {
   if (run_sequentially) {
     _max_flow_algorithm = std::make_unique<PreflowPushAlgorithm>(fc_ctx.flow);
   } else {
@@ -38,12 +31,19 @@ FlowCutter::compute_cut(const BorderRegion &border_region, const FlowNetwork &fl
   _sink_side_border_nodes.clear();
   _sink_side_border_nodes.push_back(flow_network.sink);
 
+  _source_reachable_nodes_marker.resize(flow_network.graph.n());
+  _sink_reachable_nodes_marker.resize(flow_network.graph.n());
+
+  _source_side_piercing_node_candidates_marker.reset();
+  _sink_side_piercing_node_candidates_marker.reset();
+
+  _source_side_piercing_node_candidates_marker.resize(flow_network.graph.n());
+  _sink_side_piercing_node_candidates_marker.resize(flow_network.graph.n());
+
   const NodeWeight max_source_side_weight = _p_ctx.max_block_weight(border_region.block1());
   const NodeWeight max_sink_side_weight = _p_ctx.max_block_weight(border_region.block2());
 
   TIMED_SCOPE("Initialize Piercing Heuristic") {
-    _source_side_piercing_node_candidates_marker.reset();
-    _sink_side_piercing_node_candidates_marker.reset();
     _piercing_heuristic.initialize(
         border_region, flow_network, max_source_side_weight, max_sink_side_weight
     );
@@ -250,6 +250,33 @@ FlowCutter::compute_cut(const BorderRegion &border_region, const FlowNetwork &fl
       return Result::TimeLimitExceeded();
     }
   }
+}
+
+void FlowCutter::free() {
+  _max_flow_algorithm->free();
+
+  _source_side_border_nodes.clear();
+  _source_side_border_nodes.shrink_to_fit();
+
+  _sink_side_border_nodes.clear();
+  _sink_side_border_nodes.shrink_to_fit();
+
+  _source_reachable_nodes.clear();
+  _source_reachable_nodes.shrink_to_fit();
+
+  _sink_reachable_nodes.clear();
+  _sink_reachable_nodes.shrink_to_fit();
+
+  _bfs_runner.free();
+  _source_reachable_nodes_marker.free();
+  _sink_reachable_nodes_marker.free();
+
+  _piercing_heuristic.free();
+  _source_side_piercing_node_candidates_marker.free();
+  _sink_side_piercing_node_candidates_marker.free();
+
+  _moves.clear();
+  _moves.shrink_to_fit();
 }
 
 template <bool kCollectExcessNodes>

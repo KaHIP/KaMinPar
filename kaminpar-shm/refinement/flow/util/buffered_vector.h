@@ -144,6 +144,12 @@ public:
     return _data[pos];
   }
 
+  void free() {
+    _size = 0;
+    _data.free();
+    _buffers.clear();
+  }
+
 private:
   std::size_t _size;
   StaticArray<T> _data;

@@ -159,6 +159,10 @@ bool ParallelActiveBlockScheduler::refine(
           }
         }
       });
+
+      if (_f_ctx.free_memory_after_round) {
+        refiners.for_each([&](FlowRefiner &refiner) { refiner.free(); });
+      }
     }
 
     const EdgeWeight round_gain = prev_cut_value - cut_value;

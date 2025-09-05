@@ -50,6 +50,11 @@ const BorderRegion &BorderRegionConstructor::construct(
   return _border_region;
 }
 
+void BorderRegionConstructor::free() {
+  _border_region.free();
+  _bfs_runner.free();
+}
+
 void BorderRegionConstructor::compute_border_regions(
     const BlockID block1,
     const BlockID block2,

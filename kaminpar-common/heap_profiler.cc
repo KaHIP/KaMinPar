@@ -87,7 +87,7 @@ void HeapProfiler::stop_profile() {
   }
 }
 
-void HeapProfiler::record_data_struct(std::string_view var_name, const source_location location) {
+void HeapProfiler::record_data_struct(std::string_view var_name, std::source_location location) {
   if (_enabled) {
     _var_name = var_name;
     _file_name = location.file_name();
@@ -396,9 +396,9 @@ void HeapProfiler::print_data_structures(
   }
 
   std::sort(
-      filtered_data_structures.begin(),
-      filtered_data_structures.end(),
-      [](auto *d1, auto *d2) { return d1->size > d2->size; }
+      filtered_data_structures.begin(), filtered_data_structures.end(), [](auto *d1, auto *d2) {
+        return d1->size > d2->size;
+      }
   );
 
   auto last_data_structure = filtered_data_structures.back();

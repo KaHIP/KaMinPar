@@ -15,7 +15,9 @@ public:
 
   LazyVector(const std::size_t capacity) : _factory([] { return T(); }), _data(capacity) {}
 
-  LazyVector(Factory factory, const std::size_t capacity) : _factory(std::move(factory)), _data(capacity) {}
+  LazyVector(Factory factory, const std::size_t capacity)
+      : _factory(std::move(factory)),
+        _data(capacity) {}
 
   T &operator[](const std::size_t idx) {
     KASSERT(idx < _data.size());
@@ -25,6 +27,14 @@ public:
     }
 
     return *_data[idx];
+  }
+
+  template <typename Callback> void for_each(Callback &&callback) {
+    for (std::size_t i = 0; i < _data.size(); ++i) {
+      if (_data[i]) {
+        callback(*_data[i]);
+      }
+    }
   }
 
 private:

@@ -31,6 +31,8 @@ public:
   [[nodiscard]] virtual Result
   compute_cut(const BorderRegion &border_region, const FlowNetwork &flow_network) override;
 
+  void free() override;
+
 private:
   void construct_hypergraph(const FlowNetwork &flow_network);
 

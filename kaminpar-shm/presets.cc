@@ -210,6 +210,7 @@ Context create_default_context() {
                                       .max_num_rounds = std::numeric_limits<std::size_t>::max(),
                                       .time_limit = std::numeric_limits<std::size_t>::max(),
                                       .run_sequentially = true,
+                                      .free_memory_after_round = false,
                                       .scheduler =
                                           {
                                               .parallel = false,
@@ -281,6 +282,7 @@ Context create_default_context() {
                               .max_num_rounds = std::numeric_limits<std::size_t>::max(),
                               .time_limit = std::numeric_limits<std::size_t>::max(),
                               .run_sequentially = true,
+                              .free_memory_after_round = false,
                               .scheduler =
                                   {
                                       .parallel = false,
@@ -369,6 +371,7 @@ Context create_default_context() {
                       .max_num_rounds = std::numeric_limits<std::size_t>::max(),
                       .time_limit = std::numeric_limits<std::size_t>::max(),
                       .run_sequentially = true,
+                      .free_memory_after_round = false,
                       .scheduler =
                           {
                               .parallel = true,

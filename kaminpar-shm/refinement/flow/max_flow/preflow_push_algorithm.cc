@@ -154,6 +154,25 @@ const NodeStatus &PreflowPushAlgorithm::node_status() const {
   return _node_status;
 }
 
+void PreflowPushAlgorithm::free() {
+  _node_status.free();
+
+  _excess_nodes.clear();
+  _excess_nodes.shrink_to_fit();
+
+  _flow.free();
+
+  _bfs_runner.free();
+
+  _nodes_to_desaturate.clear();
+  _nodes_to_desaturate.shrink_to_fit();
+
+  _cur_edge_offsets.free();
+  _excess.free();
+  _heights.free();
+  _active_nodes = {};
+}
+
 void PreflowPushAlgorithm::saturate_source_edges() {
   for (const NodeID source : _nodes_to_desaturate) {
     KASSERT(_node_status.is_source(source));

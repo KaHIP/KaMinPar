@@ -178,6 +178,22 @@ public:
     return _initial_sink_side_border_nodes;
   }
 
+  void free() {
+    _node_status.free();
+
+    _initial_source_side_border_nodes.clear();
+    _initial_source_side_border_nodes.shrink_to_fit();
+
+    _initial_sink_side_border_nodes.clear();
+    _initial_sink_side_border_nodes.shrink_to_fit();
+
+    _source_side_nodes.clear();
+    _source_side_nodes.shrink_to_fit();
+
+    _sink_side_nodes.clear();
+    _sink_side_nodes.shrink_to_fit();
+  }
+
 private:
   BlockID _block1;
   BlockID _block2;
@@ -220,6 +236,8 @@ public:
 
   [[nodiscard]] const BorderRegion &
   construct(BlockID block1, BlockID block2, BlockWeight block1_weight, BlockWeight block2_weight);
+
+  void free();
 
 private:
   void compute_border_regions(

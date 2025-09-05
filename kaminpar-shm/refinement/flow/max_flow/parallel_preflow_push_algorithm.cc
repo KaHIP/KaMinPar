@@ -201,6 +201,34 @@ const NodeStatus &ParallelPreflowPushAlgorithm::node_status() const {
   return _node_status;
 }
 
+void ParallelPreflowPushAlgorithm::free() {
+  _node_status.free();
+
+  _excess_nodes.clear();
+  _excess_nodes.shrink_to_fit();
+
+  _flow.free();
+
+  _work_ets.clear();
+  _parallel_bfs_runner.free();
+
+  _nodes_to_desaturate.clear();
+  _nodes_to_desaturate.shrink_to_fit();
+
+  _last_activated.free();
+  _cur_edge_offsets.free();
+
+  _excess.free();
+  _excess_delta.free();
+
+  _heights.free();
+  _next_heights.free();
+
+  _active_nodes.free();
+  _next_active_nodes.free();
+  _acitve_sink_nodes.clear();
+}
+
 void ParallelPreflowPushAlgorithm::saturate_source_edges() {
   if (_nodes_to_desaturate.empty()) {
     return;

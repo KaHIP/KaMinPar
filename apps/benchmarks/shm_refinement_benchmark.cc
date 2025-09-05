@@ -124,7 +124,7 @@ int main(int argc, char *argv[]) {
 
   std::unique_ptr<Refiner> refiner = factory::create_refiner(ctx);
 
-  START_HEAP_PROFILER();
+  ENABLE_HEAP_PROFILER();
   GLOBAL_TIMER.reset();
 
   refiner->refine(p_graph, ctx.partition);

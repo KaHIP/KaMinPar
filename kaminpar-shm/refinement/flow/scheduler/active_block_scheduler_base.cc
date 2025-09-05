@@ -59,15 +59,14 @@ FlowRefiner::FlowRefiner(
         std::make_unique<HyperFlowCutter>(p_ctx, f_ctx.flow_cutter, run_sequentially);
   } else {
     _flow_cutter_algorithm =
-        std::make_unique<FlowCutter>(p_ctx, f_ctx.flow_cutter, run_sequentially, p_graph);
+        std::make_unique<FlowCutter>(p_ctx, f_ctx.flow_cutter, run_sequentially);
   }
 #else
   if (f_ctx.flow_cutter.use_whfc) {
     LOG_WARNING << "WHFC requested but not available; using built-in FlowCutter as fallback.";
   }
 
-  _flow_cutter_algorithm =
-      std::make_unique<FlowCutter>(p_ctx, f_ctx.flow_cutter, run_sequentially, p_graph);
+  _flow_cutter_algorithm = std::make_unique<FlowCutter>(p_ctx, f_ctx.flow_cutter, run_sequentially);
 #endif
 
   _flow_cutter_algorithm->set_time_limit(f_ctx.time_limit, start_time);
@@ -87,6 +86,11 @@ FlowRefiner::Result FlowRefiner::refine(const BlockID block1, const BlockID bloc
       _flow_network_constructor.construct_flow_network(border_region, block_weight1, block_weight2);
 
   return _flow_cutter_algorithm->compute_cut(border_region, flow_network);
+}
+
+void FlowRefiner::free() {
+  _border_region_constructor.free();
+  _flow_cutter_algorithm->free();
 }
 
 } // namespace kaminpar::shm

@@ -57,6 +57,8 @@ public:
 
   [[nodiscard]] Result refine(BlockID block1, BlockID block2);
 
+  void free();
+
 private:
   const PartitionedCSRGraph &_p_graph;
   bool _run_sequentially;

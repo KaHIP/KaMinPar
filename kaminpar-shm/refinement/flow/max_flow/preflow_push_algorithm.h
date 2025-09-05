@@ -83,6 +83,8 @@ public:
 
   const NodeStatus &node_status() const override;
 
+  void free() override;
+
 private:
   void saturate_source_edges();
 

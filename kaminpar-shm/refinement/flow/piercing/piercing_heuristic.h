@@ -23,20 +23,12 @@ class PiercingHeuristic {
 
   class PiercingNodeCandidatesBuckets {
   public:
-    void initialize(const NodeID max_distance) {
-      _candidates_buckets.resize(max_distance + 1);
-      reset();
+    [[nodiscard]] NodeID min_occupied_bucket() const {
+      return 0;
     }
 
-    void reset() {
-      for (ScalableVector<NodeID> &candidates : _candidates_buckets) {
-        candidates.clear();
-      }
-    }
-
-    void add_candidate(const NodeID u, const NodeID distance) {
-      KASSERT(distance < _candidates_buckets.size());
-      _candidates_buckets[distance].push_back(u);
+    [[nodiscard]] NodeID max_occupied_bucket() const {
+      return _candidates_buckets.size() - 1;
     }
 
     [[nodiscard]] ScalableVector<NodeID> &candidates(const NodeID bucket) {
@@ -45,12 +37,25 @@ class PiercingHeuristic {
       return _candidates_buckets[bucket];
     }
 
-    [[nodiscard]] NodeID min_occupied_bucket() const {
-      return 0;
+    void initialize(const NodeID max_distance) {
+      _candidates_buckets.resize(max_distance + 1);
+      reset();
     }
 
-    [[nodiscard]] NodeID max_occupied_bucket() const {
-      return _candidates_buckets.size() - 1;
+    void add_candidate(const NodeID u, const NodeID distance) {
+      KASSERT(distance < _candidates_buckets.size());
+      _candidates_buckets[distance].push_back(u);
+    }
+
+    void reset() {
+      for (ScalableVector<NodeID> &candidates : _candidates_buckets) {
+        candidates.clear();
+      }
+    }
+
+    void free() {
+      _candidates_buckets.clear();
+      _candidates_buckets.shrink_to_fit();
     }
 
   private:
@@ -103,6 +108,8 @@ public:
       NodeWeight side_weight,
       NodeWeight max_weight
   );
+
+  void free();
 
 private:
   void compute_distances();

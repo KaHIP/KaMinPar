@@ -57,6 +57,8 @@ public:
   [[nodiscard]] virtual Result
   compute_cut(const BorderRegion &border_region, const FlowNetwork &flow_network) = 0;
 
+  virtual void free() = 0;
+
   void set_time_limit(const std::size_t time_limit, TimePoint start_time) {
     _has_time_limit = time_limit != std::numeric_limits<std::size_t>::max();
     _time_limit = time_limit;

@@ -602,8 +602,26 @@ CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context 
       ->capture_default_str();
   twoway_flow->add_option("--r-twoway-flow-time-limit", ctx.refinement.twoway_flow.time_limit)
       ->capture_default_str();
+
   twoway_flow
       ->add_option("--r-twoway-flow-run-sequentially", ctx.refinement.twoway_flow.run_sequentially)
+      ->capture_default_str();
+  twoway_flow
+      ->add_option(
+          "--r-twoway-flow-free-memory", ctx.refinement.twoway_flow.free_memory_after_round
+      )
+      ->capture_default_str();
+
+  twoway_flow
+      ->add_option(
+          "--r-twoway-flow-parallel-scheduling", ctx.refinement.twoway_flow.scheduler.parallel
+      )
+      ->capture_default_str();
+  twoway_flow
+      ->add_option(
+          "--r-twoway-flow-deterministic-scheduling",
+          ctx.refinement.twoway_flow.scheduler.deterministic
+      )
       ->capture_default_str();
 
   twoway_flow
@@ -622,18 +640,6 @@ CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context 
       ->add_option(
           "--r-twoway-flow-max-border-distance",
           ctx.refinement.twoway_flow.construction.max_border_distance
-      )
-      ->capture_default_str();
-
-  twoway_flow
-      ->add_option(
-          "--r-twoway-flow-parallel-scheduling", ctx.refinement.twoway_flow.scheduler.parallel
-      )
-      ->capture_default_str();
-  twoway_flow
-      ->add_option(
-          "--r-twoway-flow-deterministic-scheduling",
-          ctx.refinement.twoway_flow.scheduler.deterministic
       )
       ->capture_default_str();
 

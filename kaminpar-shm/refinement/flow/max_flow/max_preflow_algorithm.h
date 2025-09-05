@@ -32,6 +32,8 @@ public:
   virtual std::span<const NodeID> excess_nodes() = 0;
 
   virtual const NodeStatus &node_status() const = 0;
+
+  virtual void free() = 0;
 };
 
 namespace debug {

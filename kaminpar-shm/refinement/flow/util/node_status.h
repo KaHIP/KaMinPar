@@ -82,6 +82,17 @@ public:
     return _sink_nodes;
   }
 
+  void free() {
+    _num_nodes = 0;
+    _node_status.free();
+
+    _source_nodes.clear();
+    _source_nodes.shrink_to_fit();
+
+    _sink_nodes.clear();
+    _sink_nodes.shrink_to_fit();
+  }
+
 private:
   NodeID _num_nodes;
   StaticArray<std::uint8_t> _node_status;
