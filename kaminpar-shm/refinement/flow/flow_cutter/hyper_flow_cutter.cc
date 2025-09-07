@@ -171,6 +171,7 @@ void HyperFlowCutter::compute_distances(
   distances.assign(graph.n(), whfc::HopDistance(0));
 
   _bfs_runner.reset();
+  _bfs_marker.reset();
   _bfs_marker.resize(graph.n());
 
   for (const NodeID u : border_region.initial_nodes_region1()) {
@@ -185,11 +186,10 @@ void HyperFlowCutter::compute_distances(
   }
 
   _bfs_runner.perform(1, [&](const NodeID u, const NodeID u_distance, auto &queue) {
-    const whfc::HopDistance dist(u_distance);
-
     const NodeID u_global = flow_network.local_to_global_mapping.get(u);
     const bool source_side = border_region.region1_contains(u_global);
 
+    const whfc::HopDistance dist(u_distance);
     if (source_side) {
       distances[u] = -dist;
       max_dist_source = std::max(max_dist_source, dist);
