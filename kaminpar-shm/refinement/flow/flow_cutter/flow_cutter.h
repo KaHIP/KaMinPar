@@ -2,7 +2,6 @@
 
 #include <memory>
 
-#include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/refinement/flow/flow_cutter/flow_cutter_algorithm.h"
 #include "kaminpar-shm/refinement/flow/flow_network/border_region.h"

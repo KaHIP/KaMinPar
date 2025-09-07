@@ -1,5 +1,6 @@
 #include "kaminpar-shm/refinement/flow/piercing/piercing_heuristic.h"
 
+#include <algorithm>
 #include <utility>
 
 namespace kaminpar::shm {
@@ -97,27 +98,22 @@ void PiercingHeuristic::compute_distances() {
 }
 
 void PiercingHeuristic::add_piercing_node_candidate(
-    const bool source_side, const NodeID node, const bool reachable
+    const bool source_side, const NodeID node, const bool unreachable
 ) {
-  const NodeID distance = std::max<NodeWeight>((source_side ? -1 : 1) * _distance[node], 0);
+  const NodeWeight multiplier = source_side ? -1 : 1;
+  const NodeID distance = std::max<NodeWeight>(multiplier * _distance[node], 0);
 
-  if (source_side) {
-    if (reachable) {
-      _source_reachable_candidates_buckets.add_candidate(node, distance);
-    } else {
-      _source_unreachable_candidates_buckets.add_candidate(node, distance);
-    }
-  } else {
-    if (reachable) {
-      _sink_reachable_candidates_buckets.add_candidate(node, distance);
-    } else {
-      _sink_unreachable_candidates_buckets.add_candidate(node, distance);
-    }
-  }
+  PiercingNodeCandidatesBuckets &candidates_buckets =
+      source_side ? (unreachable ? _source_unreachable_candidates_buckets
+                                 : _source_reachable_candidates_buckets)
+                  : (unreachable ? _sink_unreachable_candidates_buckets
+                                 : _sink_reachable_candidates_buckets);
+  candidates_buckets.add_candidate(node, distance);
 }
 
 std::span<const NodeID> PiercingHeuristic::find_piercing_nodes(
     const bool source_side,
+    const bool has_unreachable_nodes,
     const NodeStatus &cut_status,
     const Marker<> &reachable_oracle,
     const NodeWeight side_weight,
@@ -125,105 +121,201 @@ std::span<const NodeID> PiercingHeuristic::find_piercing_nodes(
 ) {
   _piercing_nodes.clear();
 
-  const CSRGraph &graph = _flow_network->graph;
+  add_piercing_nodes(source_side, kUnreachableTag, cut_status, reachable_oracle, max_weight, 1);
+  if (!_piercing_nodes.empty()) {
+    return _piercing_nodes;
+  }
 
-  NodeWeight cur_weight = 0;
-  const auto add_piercing_nodes = [&](auto &candidates_buckets,
-                                      const auto max_num_piercing_nodes,
-                                      const bool unreachable_candidates) {
-    const std::int64_t max_bucket = candidates_buckets.max_occupied_bucket();
-    const std::int64_t min_bucket = candidates_buckets.min_occupied_bucket();
+  if (has_unreachable_nodes) {
+    const NodeID num_reclassified_nodes =
+        reclassify_reachable_candidates(source_side, cut_status, reachable_oracle, max_weight);
 
-    for (std::int64_t bucket = max_bucket; bucket >= min_bucket; --bucket) {
-      ScalableVector<NodeID> &candidates = candidates_buckets.candidates(bucket);
+    if (num_reclassified_nodes > 0) {
+      add_piercing_nodes(source_side, kUnreachableTag, cut_status, reachable_oracle, max_weight, 1);
 
-      while (!candidates.empty()) {
-        const std::size_t size = candidates.size();
-        const std::size_t idx = _random.random_index(0, size);
-        std::swap(candidates[idx], candidates[size - 1]);
-
-        const NodeID u = candidates.back();
-        candidates.pop_back();
-
-        if (cut_status.is_terminal(u)) {
-          continue;
-        }
-
-        const NodeWeight u_weight = graph.node_weight(u);
-        if (cur_weight + u_weight > max_weight) {
-          continue;
-        }
-
-        if (unreachable_candidates && reachable_oracle.get(u)) {
-          add_piercing_node_candidate(source_side, u, kReachableTag);
-          continue;
-        }
-
-        cur_weight += u_weight;
-        _piercing_nodes.push_back(u);
-
-        if (_piercing_nodes.size() >= max_num_piercing_nodes) {
-          return;
-        }
-      }
-    }
-  };
-
-  add_piercing_nodes(
-      source_side ? _source_unreachable_candidates_buckets : _sink_unreachable_candidates_buckets,
-      1ul,
-      true
-  );
-
-  if (_piercing_nodes.empty()) {
-    const std::size_t max_num_piercing_nodes =
-        compute_max_num_piercing_nodes(source_side, side_weight);
-
-    add_piercing_nodes(
-        source_side ? _source_reachable_candidates_buckets : _sink_reachable_candidates_buckets,
-        max_num_piercing_nodes,
-        false
-    );
-
-    if (_ph_ctx.bulk_piercing) {
-      BulkPiercingContext &bp_ctx =
-          source_side ? _source_side_bulk_piercing_ctx : _sink_side_bulk_piercing_ctx;
-      bp_ctx.total_bulk_piercing_nodes += _piercing_nodes.size();
-    }
-
-    if (_ph_ctx.fallback_heuristic && _piercing_nodes.empty()) {
-      NodeWeight cur_distance = -1;
-
-      for (const NodeID u : graph.nodes()) {
-        if (cut_status.is_terminal(u)) {
-          continue;
-        }
-
-        const NodeWeight u_weight = graph.node_weight(u);
-        if (u_weight > max_weight) {
-          continue;
-        }
-
-        const NodeWeight distance = std::max<NodeWeight>((source_side ? -1 : 1) * _distance[u], 0);
-        if (distance > cur_distance) {
-          cur_distance = distance;
-
-          _piercing_nodes.clear();
-          _piercing_nodes.push_back(u);
-        } else if (distance == cur_distance) {
-          _piercing_nodes.push_back(u);
-        }
-      }
-
-      if (!_piercing_nodes.empty()) {
-        const std::size_t idx = _random.random_index(0, _piercing_nodes.size());
-        std::swap(_piercing_nodes[0], _piercing_nodes[idx]);
-        _piercing_nodes.resize(1);
-      }
+      KASSERT(!_piercing_nodes.empty());
+      return _piercing_nodes;
     }
   }
 
+  const std::size_t max_piercing_nodes = compute_max_num_piercing_nodes(source_side, side_weight);
+  add_piercing_nodes(
+      source_side, kReachableTag, cut_status, reachable_oracle, max_weight, max_piercing_nodes
+  );
+
+  if (_ph_ctx.bulk_piercing) {
+    BulkPiercingContext &bp_ctx = bulk_piercing_context(source_side);
+    bp_ctx.total_bulk_piercing_nodes += _piercing_nodes.size();
+  }
+
+  if (_ph_ctx.fallback_heuristic && _piercing_nodes.empty()) {
+    employ_fallback_heuristic(source_side, cut_status, max_weight);
+  }
+
   return _piercing_nodes;
+}
+
+void PiercingHeuristic::add_piercing_nodes(
+    const bool source_side,
+    const bool unreachable_candidates,
+    const NodeStatus &cut_status,
+    const Marker<> &reachable_oracle,
+    const NodeWeight max_weight,
+    const NodeID max_num_piercing_nodes
+) {
+  PiercingNodeCandidatesBuckets &candidates_buckets =
+      source_side ? (unreachable_candidates ? _source_unreachable_candidates_buckets
+                                            : _source_reachable_candidates_buckets)
+                  : (unreachable_candidates ? _sink_unreachable_candidates_buckets
+                                            : _sink_reachable_candidates_buckets);
+
+  const std::int64_t max_bucket = candidates_buckets.max_occupied_bucket();
+  const std::int64_t min_bucket = candidates_buckets.min_occupied_bucket();
+
+  const CSRGraph &graph = _flow_network->graph;
+  NodeWeight cur_weight = 0;
+
+  for (std::int64_t bucket = max_bucket; bucket >= min_bucket; --bucket) {
+    ScalableVector<NodeID> &candidates = candidates_buckets.candidates(bucket);
+
+    while (!candidates.empty()) {
+      const std::size_t size = candidates.size();
+      const std::size_t idx = _random.random_index(0, size);
+      std::swap(candidates[idx], candidates[size - 1]);
+
+      const NodeID u = candidates.back();
+      candidates.pop_back();
+
+      if (cut_status.is_terminal(u)) {
+        continue;
+      }
+
+      const NodeWeight u_weight = graph.node_weight(u);
+      if (cur_weight + u_weight > max_weight) {
+        continue;
+      }
+
+      if (unreachable_candidates && reachable_oracle.get(u)) {
+        add_piercing_node_candidate(source_side, u, kReachableTag);
+        continue;
+      }
+
+      cur_weight += u_weight;
+      _piercing_nodes.push_back(u);
+
+      if (_piercing_nodes.size() >= max_num_piercing_nodes) {
+        return;
+      }
+    }
+  }
+}
+
+NodeID PiercingHeuristic::reclassify_reachable_candidates(
+    const bool source_side,
+    const NodeStatus &cut_status,
+    const Marker<> &reachable_oracle,
+    const NodeWeight max_node_weight
+) {
+  PiercingNodeCandidatesBuckets &candidates_buckets =
+      source_side ? _source_reachable_candidates_buckets : _sink_reachable_candidates_buckets;
+
+  const std::int64_t max_bucket = candidates_buckets.max_occupied_bucket();
+  const std::int64_t min_bucket = candidates_buckets.min_occupied_bucket();
+
+  const CSRGraph &graph = _flow_network->graph;
+  NodeID num_moved = 0;
+
+  for (std::int64_t bucket = max_bucket; bucket >= min_bucket; --bucket) {
+    ScalableVector<NodeID> &candidates = candidates_buckets.candidates(bucket);
+
+    const auto new_end = std::remove_if(candidates.begin(), candidates.end(), [&](const NodeID u) {
+      if (cut_status.is_terminal(u) || graph.node_weight(u) > max_node_weight) {
+        return true;
+      }
+
+      if (!reachable_oracle.get(u)) {
+        add_piercing_node_candidate(source_side, u, kUnreachableTag);
+
+        num_moved += 1;
+        return true;
+      }
+
+      return false;
+    });
+
+    candidates.erase(new_end, candidates.end());
+  }
+
+  return num_moved;
+}
+
+void PiercingHeuristic::employ_fallback_heuristic(
+    const bool source_side, const NodeStatus &cut_status, const NodeWeight max_node_weight
+) {
+  KASSERT(_piercing_nodes.empty());
+
+  const CSRGraph &graph = _flow_network->graph;
+  const NodeWeight multiplier = source_side ? -1 : 1;
+
+  NodeWeight cur_distance = -1;
+  for (const NodeID u : graph.nodes()) {
+    if (cut_status.is_terminal(u)) {
+      continue;
+    }
+
+    const NodeWeight u_weight = graph.node_weight(u);
+    if (u_weight > max_node_weight) {
+      continue;
+    }
+
+    const NodeWeight distance = std::max<NodeWeight>(multiplier * _distance[u], 0);
+    if (distance > cur_distance) {
+      cur_distance = distance;
+
+      _piercing_nodes.clear();
+      _piercing_nodes.push_back(u);
+    } else if (distance == cur_distance) {
+      _piercing_nodes.push_back(u);
+    }
+  }
+
+  if (!_piercing_nodes.empty()) {
+    const std::size_t idx = _random.random_index(0, _piercing_nodes.size());
+    std::swap(_piercing_nodes[0], _piercing_nodes[idx]);
+    _piercing_nodes.resize(1);
+  }
+}
+
+std::size_t PiercingHeuristic::compute_max_num_piercing_nodes(
+    const bool source_side, const NodeWeight side_weight
+) {
+  if (!_ph_ctx.bulk_piercing) {
+    return 1;
+  }
+
+  BulkPiercingContext &bp_ctx = bulk_piercing_context(source_side);
+  if (++bp_ctx.num_rounds <= _ph_ctx.bulk_piercing_round_threshold) {
+    return 1;
+  }
+
+  bp_ctx.current_weight_goal *= _ph_ctx.bulk_piercing_shrinking_factor;
+  bp_ctx.current_weight_goal_remaining += bp_ctx.current_weight_goal;
+
+  NodeWeight added_weight = side_weight - (bp_ctx.initial_side_weight + bp_ctx.weight_added_so_far);
+  bp_ctx.weight_added_so_far += added_weight;
+  bp_ctx.current_weight_goal_remaining -= added_weight;
+
+  double speed = bp_ctx.weight_added_so_far / static_cast<double>(bp_ctx.total_bulk_piercing_nodes);
+  if (bp_ctx.current_weight_goal_remaining <= speed) {
+    return 1;
+  }
+
+  std::size_t estimated_num_piercing_nodes = bp_ctx.current_weight_goal_remaining / speed;
+  return estimated_num_piercing_nodes;
+}
+
+PiercingHeuristic::BulkPiercingContext &PiercingHeuristic::bulk_piercing_context(bool source_side) {
+  return source_side ? _source_side_bulk_piercing_ctx : _sink_side_bulk_piercing_ctx;
 }
 
 void PiercingHeuristic::free() {
@@ -238,37 +330,6 @@ void PiercingHeuristic::free() {
 
   _sink_reachable_candidates_buckets.free();
   _sink_unreachable_candidates_buckets.free();
-}
-
-std::size_t PiercingHeuristic::compute_max_num_piercing_nodes(
-    const bool source_side, const NodeWeight side_weight
-) {
-  if (!_ph_ctx.bulk_piercing) {
-    return 1;
-  }
-
-  BulkPiercingContext &bp_ctx =
-      source_side ? _source_side_bulk_piercing_ctx : _sink_side_bulk_piercing_ctx;
-  if (++bp_ctx.num_rounds <= _ph_ctx.bulk_piercing_round_threshold) {
-    return 1;
-  }
-
-  bp_ctx.current_weight_goal *= _ph_ctx.bulk_piercing_shrinking_factor;
-  bp_ctx.current_weight_goal_remaining += bp_ctx.current_weight_goal;
-
-  const NodeWeight added_weight =
-      side_weight - (bp_ctx.initial_side_weight + bp_ctx.weight_added_so_far);
-  bp_ctx.weight_added_so_far += added_weight;
-  bp_ctx.current_weight_goal_remaining -= added_weight;
-
-  const double speed =
-      bp_ctx.weight_added_so_far / static_cast<double>(bp_ctx.total_bulk_piercing_nodes);
-  if (bp_ctx.current_weight_goal_remaining <= speed) {
-    return 1;
-  }
-
-  const std::size_t estimated_num_piercing_nodes = bp_ctx.current_weight_goal_remaining / speed;
-  return estimated_num_piercing_nodes;
 }
 
 } // namespace kaminpar::shm

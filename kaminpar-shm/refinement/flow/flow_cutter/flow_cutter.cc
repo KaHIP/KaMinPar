@@ -162,8 +162,11 @@ FlowCutter::compute_cut(const BorderRegion &border_region, const FlowNetwork &fl
 
       const NodeWeight max_piercing_node_weight = max_source_side_weight - source_side_weight;
       const auto piercing_nodes = TIMED_SCOPE("Compute Piercing Nodes") {
+        const EdgeWeight reachable_weight = source_side_weight + sink_side_weight;
+        const bool has_unreachable_nodes = (total_weight - reachable_weight) > 0;
         return _piercing_heuristic.find_piercing_nodes(
             kSourceTag,
+            has_unreachable_nodes,
             _max_flow_algorithm->node_status(),
             _sink_reachable_nodes_marker,
             source_side_weight,
@@ -209,8 +212,11 @@ FlowCutter::compute_cut(const BorderRegion &border_region, const FlowNetwork &fl
 
       const NodeWeight max_piercing_node_weight = max_sink_side_weight - sink_side_weight;
       const auto piercing_nodes = TIMED_SCOPE("Compute Piercing Nodes") {
+        const EdgeWeight reachable_weight = source_side_weight + sink_side_weight;
+        const bool has_unreachable_nodes = (total_weight - reachable_weight) > 0;
         return _piercing_heuristic.find_piercing_nodes(
             kSinkTag,
+            has_unreachable_nodes,
             _max_flow_algorithm->node_status(),
             _source_reachable_nodes_marker,
             sink_side_weight,
@@ -404,8 +410,8 @@ void FlowCutter::update_border_nodes(
       if (!piercing_marker.get(v)) {
         piercing_marker.set(v);
 
-        const bool reachable = node_status.has_status(v, other_side_status);
-        _piercing_heuristic.add_piercing_node_candidate(source_side, v, reachable);
+        const bool unreachable = !node_status.has_status(v, other_side_status);
+        _piercing_heuristic.add_piercing_node_candidate(source_side, v, unreachable);
       }
     });
 

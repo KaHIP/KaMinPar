@@ -18,8 +18,8 @@
 namespace kaminpar::shm {
 
 class PiercingHeuristic {
-  static constexpr bool kReachableTag = true;
-  static constexpr bool kUnreachableTag = false;
+  static constexpr bool kUnreachableTag = true;
+  static constexpr bool kReachableTag = false;
 
   class PiercingNodeCandidatesBuckets {
   public:
@@ -99,10 +99,11 @@ public:
       NodeWeight max_sink_side_weight
   );
 
-  void add_piercing_node_candidate(bool source_side, NodeID node, bool reachable);
+  void add_piercing_node_candidate(bool source_side, NodeID node, bool unreachable);
 
   std::span<const NodeID> find_piercing_nodes(
       bool source_side,
+      bool has_unreachable_nodes,
       const NodeStatus &cut_status,
       const Marker<> &reachable_oracle,
       NodeWeight side_weight,
@@ -114,7 +115,29 @@ public:
 private:
   void compute_distances();
 
+  void add_piercing_nodes(
+      bool source_side,
+      bool unreachable_candidates,
+      const NodeStatus &cut_status,
+      const Marker<> &reachable_oracle,
+      NodeWeight max_weight,
+      NodeID max_num_piercing_nodes
+  );
+
+  NodeID reclassify_reachable_candidates(
+      bool source_side,
+      const NodeStatus &cut_status,
+      const Marker<> &reachable_oracle,
+      NodeWeight max_node_weight
+  );
+
+  void employ_fallback_heuristic(
+      bool source_side, const NodeStatus &cut_status, NodeWeight max_node_weight
+  );
+
   std::size_t compute_max_num_piercing_nodes(bool source_side, NodeWeight side_weight);
+
+  BulkPiercingContext &bulk_piercing_context(bool source_side);
 
 private:
   const PiercingHeuristicContext &_ph_ctx;
