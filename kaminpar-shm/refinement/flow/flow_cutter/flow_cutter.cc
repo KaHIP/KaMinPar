@@ -156,9 +156,7 @@ FlowCutter::compute_cut(const BorderRegion &border_region, const FlowNetwork &fl
         _max_flow_algorithm->add_sources(_source_reachable_nodes);
       };
 
-      update_border_nodes(
-          kSourceTag, flow_network, _source_reachable_nodes, _source_side_border_nodes
-      );
+      update_border_nodes(kSourceTag, flow_network);
 
       const NodeWeight max_piercing_node_weight = max_source_side_weight - source_side_weight;
       const auto piercing_nodes = TIMED_SCOPE("Compute Piercing Nodes") {
@@ -208,7 +206,7 @@ FlowCutter::compute_cut(const BorderRegion &border_region, const FlowNetwork &fl
         _max_flow_algorithm->add_sinks(_sink_reachable_nodes);
       };
 
-      update_border_nodes(kSinkTag, flow_network, _sink_reachable_nodes, _sink_side_border_nodes);
+      update_border_nodes(kSinkTag, flow_network);
 
       const NodeWeight max_piercing_node_weight = max_sink_side_weight - sink_side_weight;
       const auto piercing_nodes = TIMED_SCOPE("Compute Piercing Nodes") {
@@ -382,22 +380,25 @@ void FlowCutter::derive_sink_side_cut(
   _sink_reachable_weight = sink_reachable_weight;
 }
 
-void FlowCutter::update_border_nodes(
-    const bool source_side,
-    const FlowNetwork &flow_network,
-    const std::span<const NodeID> reachable_nodes,
-    ScalableVector<NodeID> &border_nodes
-) {
+void FlowCutter::update_border_nodes(const bool source_side, const FlowNetwork &flow_network) {
   SCOPED_TIMER("Update Border Nodes");
 
-  border_nodes.clear();
+  const std::span<const NodeID> reachable_nodes =
+      source_side ? _source_reachable_nodes : _sink_reachable_nodes;
+
+  ScalableVector<NodeID> &border_nodes =
+      source_side ? _source_side_border_nodes : _sink_side_border_nodes;
 
   Marker<> &piercing_marker = source_side ? _source_side_piercing_node_candidates_marker
                                           : _sink_side_piercing_node_candidates_marker;
-  const CSRGraph &graph = flow_network.graph;
 
+  const Marker<> &reachable_oracle =
+      source_side ? _sink_reachable_nodes_marker : _source_reachable_nodes_marker;
+
+  const CSRGraph &graph = flow_network.graph;
   const NodeStatus &node_status = _max_flow_algorithm->node_status();
-  const std::uint8_t other_side_status = source_side ? NodeStatus::kSink : NodeStatus::kSource;
+
+  border_nodes.clear();
   for (const NodeID u : reachable_nodes) {
     bool is_border_node = false;
 
@@ -410,7 +411,7 @@ void FlowCutter::update_border_nodes(
       if (!piercing_marker.get(v)) {
         piercing_marker.set(v);
 
-        const bool unreachable = !node_status.has_status(v, other_side_status);
+        const bool unreachable = !reachable_oracle.get(v);
         _piercing_heuristic.add_piercing_node_candidate(source_side, v, unreachable);
       }
     });

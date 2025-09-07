@@ -39,12 +39,7 @@ private:
 
   void derive_sink_side_cut(const FlowNetwork &flow_network, std::span<const EdgeWeight> flow);
 
-  void update_border_nodes(
-      bool source_side,
-      const FlowNetwork &flow_network,
-      std::span<const NodeID> reachable_nodes,
-      ScalableVector<NodeID> &border_nodes
-  );
+  void update_border_nodes(bool source_side, const FlowNetwork &flow_network);
 
   void compute_moves(
       bool source_side, const BorderRegion &border_region, const FlowNetwork &flow_network

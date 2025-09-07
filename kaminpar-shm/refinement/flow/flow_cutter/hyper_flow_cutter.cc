@@ -17,10 +17,12 @@ HyperFlowCutter::HyperFlowCutter(
   _sequential_flow_cutter.timer.active = false;
   _sequential_flow_cutter.forceSequential(true);
   _sequential_flow_cutter.setBulkPiercing(fc_ctx.piercing.bulk_piercing);
+  _sequential_flow_cutter.find_most_balanced = false;
 
   _parallel_flow_cutter.timer.active = false;
   _parallel_flow_cutter.forceSequential(false);
   _parallel_flow_cutter.setBulkPiercing(fc_ctx.piercing.bulk_piercing);
+  _parallel_flow_cutter.find_most_balanced = false;
 }
 
 HyperFlowCutter::Result
@@ -102,6 +104,8 @@ HyperFlowCutter::Result HyperFlowCutter::run_hyper_flow_cutter(
   bool improved_balance = false;
   const auto on_result = [&](const bool success, const auto &cutter_state) {
     const EdgeWeight cut_value = cutter_state.flow_algo.flow_value;
+    DBG << "Found a cut for block pair " << border_region.block1() << " and "
+        << border_region.block2() << " with value " << cut_value;
 
     if (!success) {
       if (cut_value > flow_network.cut_value) {

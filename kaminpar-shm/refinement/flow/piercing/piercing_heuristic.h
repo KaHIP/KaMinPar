@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <span>
+#include <utility>
 
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/refinement/flow/flow_network/border_region.h"
@@ -21,6 +22,64 @@ class PiercingHeuristic {
   static constexpr bool kUnreachableTag = true;
   static constexpr bool kReachableTag = false;
 
+  class PiercingNodeCandidatesBucket {
+  public:
+    [[nodiscard]] bool empty() const {
+      return _candidates.empty();
+    }
+
+    [[nodiscard]] std::size_t size() const {
+      return _candidates.size();
+    }
+
+    [[nodiscard]] ScalableVector<NodeID> &candidates() {
+      return _candidates;
+    }
+
+    void push_back(const NodeID u) {
+      _candidates.push_back(u);
+    }
+
+    NodeID remove(const std::size_t id) {
+      KASSERT(id < _candidates.size());
+      KASSERT(
+          _deterministic_prefix_length == 0 || _deterministic_prefix_length == _candidates.size()
+      );
+
+      const NodeID candidate = _candidates[id];
+      _candidates[id] = _candidates.back();
+      _candidates.pop_back();
+      _deterministic_prefix_length = std::min(_deterministic_prefix_length, _candidates.size());
+      return candidate;
+    }
+
+    template <bool kFilterOnlyNondeterministicRange = false, typename Filter>
+    void filter(Filter &&filter) {
+      const auto new_end = std::remove_if(
+          _candidates.begin() +
+              (kFilterOnlyNondeterministicRange ? _deterministic_prefix_length : 0),
+          _candidates.end(),
+          std::forward<Filter>(filter)
+      );
+      _candidates.erase(new_end, _candidates.end());
+      _deterministic_prefix_length = std::min(_deterministic_prefix_length, _candidates.size());
+    }
+
+    void sort() {
+      std::sort(_candidates.begin() + _deterministic_prefix_length, _candidates.end());
+      _deterministic_prefix_length = _candidates.size();
+    }
+
+    void reset() {
+      _candidates.clear();
+      _deterministic_prefix_length = 0;
+    }
+
+  private:
+    ScalableVector<NodeID> _candidates;
+    std::size_t _deterministic_prefix_length;
+  };
+
   class PiercingNodeCandidatesBuckets {
   public:
     [[nodiscard]] NodeID min_occupied_bucket() const {
@@ -31,7 +90,7 @@ class PiercingHeuristic {
       return _candidates_buckets.size() - 1;
     }
 
-    [[nodiscard]] ScalableVector<NodeID> &candidates(const NodeID bucket) {
+    [[nodiscard]] PiercingNodeCandidatesBucket &bucket(const NodeID bucket) {
       KASSERT(bucket < _candidates_buckets.size());
 
       return _candidates_buckets[bucket];
@@ -48,8 +107,8 @@ class PiercingHeuristic {
     }
 
     void reset() {
-      for (ScalableVector<NodeID> &candidates : _candidates_buckets) {
-        candidates.clear();
+      for (PiercingNodeCandidatesBucket &candidates : _candidates_buckets) {
+        candidates.reset();
       }
     }
 
@@ -59,7 +118,7 @@ class PiercingHeuristic {
     }
 
   private:
-    ScalableVector<ScalableVector<NodeID>> _candidates_buckets;
+    ScalableVector<PiercingNodeCandidatesBucket> _candidates_buckets;
   };
 
   struct BulkPiercingContext {

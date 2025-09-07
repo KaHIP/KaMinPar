@@ -1,8 +1,5 @@
 #include "kaminpar-shm/refinement/flow/piercing/piercing_heuristic.h"
 
-#include <algorithm>
-#include <utility>
-
 namespace kaminpar::shm {
 
 PiercingHeuristic::PiercingHeuristic(const PiercingHeuristicContext &ctx, const BlockID num_blocks)
@@ -169,23 +166,28 @@ void PiercingHeuristic::add_piercing_nodes(
                   : (unreachable_candidates ? _sink_unreachable_candidates_buckets
                                             : _sink_reachable_candidates_buckets);
 
-  const std::int64_t max_bucket = candidates_buckets.max_occupied_bucket();
-  const std::int64_t min_bucket = candidates_buckets.min_occupied_bucket();
+  const std::int64_t max_distance = candidates_buckets.max_occupied_bucket();
+  const std::int64_t min_distance = candidates_buckets.min_occupied_bucket();
 
   const CSRGraph &graph = _flow_network->graph;
   NodeWeight cur_weight = 0;
 
-  for (std::int64_t bucket = max_bucket; bucket >= min_bucket; --bucket) {
-    ScalableVector<NodeID> &candidates = candidates_buckets.candidates(bucket);
+  for (std::int64_t distance = max_distance; distance >= min_distance; --distance) {
+    PiercingNodeCandidatesBucket &bucket = candidates_buckets.bucket(distance);
 
-    while (!candidates.empty()) {
-      const std::size_t size = candidates.size();
-      const std::size_t idx = _random.random_index(0, size);
-      std::swap(candidates[idx], candidates[size - 1]);
+    if (_ph_ctx.deterministic) {
+      constexpr bool kFilterOnlyNondeterministicRange = true;
+      bucket.filter<kFilterOnlyNondeterministicRange>([&](const NodeID u) {
+        return cut_status.is_terminal(u);
+      });
+      bucket.sort();
+    }
 
-      const NodeID u = candidates.back();
-      candidates.pop_back();
+    while (!bucket.empty()) {
+      const std::size_t size = bucket.size();
+      const std::size_t random_id = _random.random_index(0, size);
 
+      const NodeID u = bucket.remove(random_id);
       if (cut_status.is_terminal(u)) {
         continue;
       }
@@ -219,16 +221,15 @@ NodeID PiercingHeuristic::reclassify_reachable_candidates(
   PiercingNodeCandidatesBuckets &candidates_buckets =
       source_side ? _source_reachable_candidates_buckets : _sink_reachable_candidates_buckets;
 
-  const std::int64_t max_bucket = candidates_buckets.max_occupied_bucket();
-  const std::int64_t min_bucket = candidates_buckets.min_occupied_bucket();
+  const std::int64_t max_distance = candidates_buckets.max_occupied_bucket();
+  const std::int64_t min_distance = candidates_buckets.min_occupied_bucket();
 
   const CSRGraph &graph = _flow_network->graph;
   NodeID num_moved = 0;
 
-  for (std::int64_t bucket = max_bucket; bucket >= min_bucket; --bucket) {
-    ScalableVector<NodeID> &candidates = candidates_buckets.candidates(bucket);
-
-    const auto new_end = std::remove_if(candidates.begin(), candidates.end(), [&](const NodeID u) {
+  for (std::int64_t distance = max_distance; distance >= min_distance; --distance) {
+    PiercingNodeCandidatesBucket &candidates = candidates_buckets.bucket(distance);
+    candidates.filter([&](const NodeID u) {
       if (cut_status.is_terminal(u) || graph.node_weight(u) > max_node_weight) {
         return true;
       }
@@ -242,8 +243,6 @@ NodeID PiercingHeuristic::reclassify_reachable_candidates(
 
       return false;
     });
-
-    candidates.erase(new_end, candidates.end());
   }
 
   return num_moved;
@@ -294,7 +293,7 @@ std::size_t PiercingHeuristic::compute_max_num_piercing_nodes(
   }
 
   BulkPiercingContext &bp_ctx = bulk_piercing_context(source_side);
-  if (++bp_ctx.num_rounds <= _ph_ctx.bulk_piercing_round_threshold) {
+  if (++bp_ctx.num_rounds < _ph_ctx.bulk_piercing_round_threshold) {
     return 1;
   }
 
