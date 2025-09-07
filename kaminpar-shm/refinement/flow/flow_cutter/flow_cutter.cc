@@ -116,8 +116,28 @@ FlowCutter::compute_cut(const BorderRegion &border_region, const FlowNetwork &fl
     EdgeWeight source_side_weight = prev_source_side_weight + _source_reachable_weight;
     EdgeWeight sink_side_weight = prev_sink_side_weight + _sink_reachable_weight;
 
-    const bool is_source_cut_balanced = source_side_weight <= max_source_side_weight &&
-                                        (total_weight - source_side_weight) <= max_sink_side_weight;
+    bool is_source_cut_balanced = source_side_weight <= max_source_side_weight &&
+                                  (total_weight - source_side_weight) <= max_sink_side_weight;
+    bool is_sink_cut_balanced = sink_side_weight <= max_sink_side_weight &&
+                                (total_weight - sink_side_weight) <= max_source_side_weight;
+
+    if (is_source_cut_balanced && is_sink_cut_balanced) {
+      const double source_side_cut_balance = std::min(
+          source_side_weight / static_cast<double>(max_source_side_weight),
+          (total_weight - source_side_weight) / static_cast<double>(max_sink_side_weight)
+      );
+      double sink_side_cut_balance = std::min(
+          (total_weight - sink_side_weight) / static_cast<double>(max_source_side_weight),
+          sink_side_weight / static_cast<double>(max_sink_side_weight)
+      );
+
+      if (source_side_cut_balance < sink_side_cut_balance) {
+        is_source_cut_balanced = false;
+      } else {
+        is_sink_cut_balanced = false;
+      }
+    }
+
     if (is_source_cut_balanced) {
       DBG << "Found cut for block pair " << border_region.block1() << " and "
           << border_region.block2() << " is a balanced source-side cut";
@@ -132,8 +152,6 @@ FlowCutter::compute_cut(const BorderRegion &border_region, const FlowNetwork &fl
       return Result(gain, improve_balance, _moves);
     }
 
-    const bool is_sink_cut_balanced = sink_side_weight <= max_sink_side_weight &&
-                                      (total_weight - sink_side_weight) <= max_source_side_weight;
     if (is_sink_cut_balanced) {
       DBG << "Found cut for block pair " << border_region.block1() << " and "
           << border_region.block2() << " is a balanced sink-side cut";
