@@ -11,6 +11,7 @@
 #include <tbb/task_group.h>
 
 #include "kaminpar-shm/metrics.h"
+#include "kaminpar-shm/refinement/balancer/relative_gain.h"
 
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
@@ -20,10 +21,6 @@ namespace kaminpar::shm {
 namespace {
 
 SET_DEBUG(false);
-
-float compute_relative_gain(const EdgeWeight gain, const NodeWeight weight) {
-  return gain > 0 ? 1.0f * gain * weight : 1.0f * gain / weight;
-}
 
 } // namespace
 
@@ -35,22 +32,8 @@ std::string UnderloadBalancer::name() const {
   return "Underload Balancer";
 }
 
-void UnderloadBalancer::initialize(const PartitionedGraph &p_graph) {
-  SCOPED_TIMER("Underload balancer");
-  SCOPED_HEAP_PROFILER("Underload balancer");
-
-  _is_underloaded.resize(p_graph.k());
-
-  _mq.reset(_ctx.parallel.num_threads, /* seed = */ 42);
-
-  _node_target.resize(p_graph.n());
-
-  _block_locks.clear();
-  _block_locks.resize(p_graph.k());
-
-  reified(p_graph, [&]<typename Graph>(const Graph &graph) {
-    _gain_cache.emplace<Graph>(_ctx, p_graph.k(), p_graph.k()).initialize(graph, p_graph);
-  });
+void UnderloadBalancer::initialize(const PartitionedGraph &) {
+  // Nothing to do
 }
 
 bool UnderloadBalancer::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
@@ -66,9 +49,19 @@ bool UnderloadBalancer::refine(PartitionedGraph &p_graph, const PartitionContext
     return false;
   }
 
-  // Initialize PQs
+  _is_underloaded.resize(p_graph.k());
+  _mq.reset(_ctx.parallel.num_threads, /* seed = */ 42);
+  _node_target.resize(p_graph.n());
+  _block_locks.clear();
+  _block_locks.resize(p_graph.k());
+
   init_underloaded_blocks();
-  reified(*_p_graph, [&](const auto &graph) { init_pqs(graph); });
+
+  reified(*_p_graph, [&]<typename Graph>(const Graph &graph) {
+    _gain_cache.emplace<Graph>(_ctx, p_graph.k(), p_graph.k()).initialize(graph, p_graph);
+
+    init_pqs(graph);
+  });
 
   // Rebalance partition in parallel
   tbb::task_group tg;

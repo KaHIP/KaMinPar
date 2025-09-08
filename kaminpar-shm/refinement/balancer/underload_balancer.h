@@ -19,17 +19,11 @@
 namespace kaminpar::shm {
 
 class UnderloadBalancer : public Refiner {
-  // @todo if we also use FM refinement, we could share the gain cache (or more precisely, use an
-  // actual gain cache instead of on-the-fly gain calculation).
   template <typename ConcretizedGraph>
   using GainCache = OnTheFlyGainCache<
       ConcretizedGraph,
       /*iterate_nonadjacent_blocks=*/true,
       /*iterate_exact_gains=*/true>;
-
-  // We use two PQs per thread: 16 bit should be plenty (require n * sizeof(PQIndex) memory to store
-  // the PQ for each node).
-  using PQIndex = std::uint16_t;
 
 public:
   explicit UnderloadBalancer(const Context &ctx);
@@ -76,9 +70,7 @@ private:
 
   MaxMultiQueue<NodeID, float> _mq;
 
-  // StaticArray<PQIndex> _node_pq;
   StaticArray<BlockID> _node_target;
-
   AnyGraphComponent<GainCache> _gain_cache;
 };
 
