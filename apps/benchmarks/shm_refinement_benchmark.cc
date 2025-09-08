@@ -130,7 +130,7 @@ int main(int argc, char *argv[]) {
   refiner->refine(p_graph, ctx.partition);
 
   STOP_TIMER();
-  STOP_HEAP_PROFILER();
+  DISABLE_HEAP_PROFILER();
 
   cio::print_delimiter("Result Summary");
   print_statistics();
