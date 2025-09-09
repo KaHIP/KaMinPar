@@ -7,8 +7,6 @@
 #include "kaminpar-shm/refinement/flow/flow_network/border_region.h"
 #include "kaminpar-shm/refinement/flow/flow_network/flow_network.h"
 #include "kaminpar-shm/refinement/flow/max_flow/max_preflow_algorithm.h"
-#include "kaminpar-shm/refinement/flow/max_flow/parallel_preflow_push_algorithm.h"
-#include "kaminpar-shm/refinement/flow/max_flow/preflow_push_algorithm.h"
 #include "kaminpar-shm/refinement/flow/piercing/piercing_heuristic.h"
 #include "kaminpar-shm/refinement/flow/util/breadth_first_search.h"
 #include "kaminpar-shm/refinement/flow/util/node_status.h"
@@ -34,6 +32,10 @@ public:
   void free() override;
 
 private:
+  void initialize(const BorderRegion &border_region, const FlowNetwork &flow_network);
+
+  void run_flow_cutter(const BorderRegion &border_region, const FlowNetwork &flow_network);
+
   template <bool kCollectExcessNodes>
   void derive_source_side_cut(const FlowNetwork &flow_network, std::span<const EdgeWeight> flow);
 
@@ -68,6 +70,8 @@ private:
   Marker<> _source_side_piercing_node_candidates_marker;
   Marker<> _sink_side_piercing_node_candidates_marker;
 
+  EdgeWeight _gain;
+  bool _improve_balance;
   ScalableVector<Move> _moves;
 };
 

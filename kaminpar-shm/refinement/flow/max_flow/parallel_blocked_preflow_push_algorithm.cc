@@ -121,10 +121,8 @@ MaxPreflowAlgorithm::Result ParallelBlockedPreflowPushAlgorithm::compute_max_pre
 
   _round += 1;
   saturate_source_edges();
-
   if (_force_global_relabel) {
-    constexpr bool kCollectActiveNodes = true;
-    global_relabel<kCollectActiveNodes>();
+    global_relabel<kCollectActiveNodesTag>();
   }
 
   while (!_next_active_nodes.empty()) {
@@ -133,8 +131,8 @@ MaxPreflowAlgorithm::Result ParallelBlockedPreflowPushAlgorithm::compute_max_pre
     _round += 1;
 
     IF_STATS _stats.num_sequential_rounds +=
-        _active_nodes.size() <= kSequentialDischargeThreshold ? 1 : 0;
-    while (!_active_nodes.empty() && _active_nodes.size() <= kSequentialDischargeThreshold) {
+        _active_nodes.size() <= _ctx.sequential_discharge_threshold ? 1 : 0;
+    while (!_active_nodes.empty() && _active_nodes.size() <= _ctx.sequential_discharge_threshold) {
       const NodeID u = _active_nodes.pop_back();
       _last_activated[u] = _round - 1;
 
@@ -189,51 +187,6 @@ MaxPreflowAlgorithm::Result ParallelBlockedPreflowPushAlgorithm::compute_max_pre
   );
 
   return Result(_flow_value, _flow);
-}
-
-std::span<const NodeID> ParallelBlockedPreflowPushAlgorithm::excess_nodes() {
-  _excess_nodes.clear();
-
-  for (const NodeID u : _graph->nodes()) {
-    if (_excess[u] > 0 && !_node_status.is_terminal(u)) {
-      _excess_nodes.push_back(u);
-    }
-  }
-
-  return _excess_nodes;
-}
-
-const NodeStatus &ParallelBlockedPreflowPushAlgorithm::node_status() const {
-  return _node_status;
-}
-
-void ParallelBlockedPreflowPushAlgorithm::free() {
-  _node_status.free();
-
-  _excess_nodes.clear();
-  _excess_nodes.shrink_to_fit();
-
-  _flow.free();
-
-  _work_ets.clear();
-  _parallel_bfs_runner.free();
-
-  _nodes_to_desaturate.clear();
-  _nodes_to_desaturate.shrink_to_fit();
-
-  _last_activated.free();
-  _cur_edge_offsets.free();
-  _active_node_state.free();
-
-  _excess.free();
-  _excess_delta.free();
-
-  _heights.free();
-  _next_heights.free();
-
-  _active_nodes.free();
-  _next_active_nodes.free();
-  _acitve_sink_nodes.clear();
 }
 
 void ParallelBlockedPreflowPushAlgorithm::saturate_source_edges() {
@@ -383,62 +336,6 @@ void ParallelBlockedPreflowPushAlgorithm::apply_updates() {
   _acitve_sink_nodes.clear();
 }
 
-void ParallelBlockedPreflowPushAlgorithm::discharge(const NodeID u) {
-  IF_STATS _stats.num_discharges += 1;
-
-  const EdgeID first_edge = _graph->first_edge(u);
-  const NodeID degree = _graph->degree(u);
-  const NodeID num_nodes = _graph->n();
-
-  NodeID u_height = _heights[u];
-  EdgeID cur_edge_offset = _cur_edge_offsets[u];
-  while (_excess[u] > 0 && u_height < num_nodes) {
-    if (cur_edge_offset == degree) {
-      _grt.add_work(degree);
-
-      u_height = relabel(u);
-      cur_edge_offset = 0;
-      continue;
-    }
-
-    const EdgeID e = first_edge + cur_edge_offset++;
-    const NodeID v = _graph->edge_target(e);
-    if (u_height <= _heights[v]) {
-      continue;
-    }
-
-    const EdgeWeight e_flow = _flow[e];
-    const EdgeWeight e_capacity = _graph->edge_weight(e);
-
-    const EdgeWeight residual_capacity = e_capacity - e_flow;
-    const EdgeWeight flow = std::min(_excess[u], residual_capacity);
-    if (flow <= 0) {
-      continue;
-    }
-
-    const EdgeID e_reverse = _reverse_edges[e];
-    _flow[e] += flow;
-    _flow[e_reverse] -= flow;
-
-    const EdgeWeight to_prev_excess = _excess[v];
-    _excess[v] = to_prev_excess + flow;
-    _excess[u] -= flow;
-
-    if (_node_status.is_sink(v)) {
-      _flow_value += flow;
-    }
-
-    const bool to_was_inactive = to_prev_excess == 0;
-    if (to_was_inactive && !_node_status.is_terminal(v)) {
-      _active_nodes.push_back(v);
-      _last_activated[v] = _round;
-    }
-  }
-
-  _cur_edge_offsets[u] = cur_edge_offset;
-  _heights[u] = u_height;
-}
-
 void ParallelBlockedPreflowPushAlgorithm::atomic_discharge(
     const NodeID u, BufferedVector<NodeID>::Buffer next_active_nodes, std::size_t &local_work_amount
 ) {
@@ -455,7 +352,7 @@ void ParallelBlockedPreflowPushAlgorithm::atomic_discharge(
   bool skipped = false;
   NodeID u_height = _heights[u];
   while (excess > 0 && u_height < num_nodes) {
-    if (edge_offset == degree) {
+    if (edge_offset == degree) [[unlikely]] {
       if (skipped || !update_active_node(u, kRelabeledState)) {
         if (__atomic_exchange_n(&_last_activated[u], _round, __ATOMIC_ACQ_REL) != _round) {
           next_active_nodes.push_back(u);
@@ -510,6 +407,7 @@ void ParallelBlockedPreflowPushAlgorithm::atomic_discharge(
     if (_node_status.is_sink(v) &&
         __atomic_exchange_n(&_last_activated[v], _round, __ATOMIC_ACQ_REL) != _round) {
       _acitve_sink_nodes.push_back(v);
+      continue;
     }
 
     if (!_node_status.is_terminal(v) &&
@@ -523,6 +421,63 @@ void ParallelBlockedPreflowPushAlgorithm::atomic_discharge(
 
   const EdgeWeight excess_delta = excess - initial_excess;
   __atomic_fetch_add(&_excess_delta[u], excess_delta, __ATOMIC_RELAXED);
+}
+
+void ParallelBlockedPreflowPushAlgorithm::discharge(const NodeID u) {
+  IF_STATS _stats.num_discharges += 1;
+
+  const EdgeID first_edge = _graph->first_edge(u);
+  const NodeID degree = _graph->degree(u);
+  const NodeID num_nodes = _graph->n();
+
+  NodeID u_height = _heights[u];
+  EdgeID cur_edge_offset = _cur_edge_offsets[u];
+  while (_excess[u] > 0 && u_height < num_nodes) {
+    if (cur_edge_offset == degree) [[unlikely]] {
+      _grt.add_work(degree);
+
+      u_height = relabel(u);
+      cur_edge_offset = 0;
+      continue;
+    }
+
+    const EdgeID e = first_edge + cur_edge_offset++;
+    const NodeID v = _graph->edge_target(e);
+    if (u_height <= _heights[v]) {
+      continue;
+    }
+
+    const EdgeWeight e_flow = _flow[e];
+    const EdgeWeight e_capacity = _graph->edge_weight(e);
+
+    const EdgeWeight residual_capacity = e_capacity - e_flow;
+    const EdgeWeight flow = std::min(_excess[u], residual_capacity);
+    if (flow <= 0) {
+      continue;
+    }
+
+    const EdgeID e_reverse = _reverse_edges[e];
+    _flow[e] += flow;
+    _flow[e_reverse] -= flow;
+
+    const EdgeWeight to_prev_excess = _excess[v];
+    _excess[v] = to_prev_excess + flow;
+    _excess[u] -= flow;
+
+    if (_node_status.is_sink(v)) {
+      _flow_value += flow;
+      continue;
+    }
+
+    const bool to_was_inactive = to_prev_excess == 0;
+    if (to_was_inactive && !_node_status.is_terminal(v)) {
+      _active_nodes.push_back(v);
+      _last_activated[v] = _round;
+    }
+  }
+
+  _cur_edge_offsets[u] = cur_edge_offset;
+  _heights[u] = u_height;
 }
 
 NodeID ParallelBlockedPreflowPushAlgorithm::relabel(const NodeID u) {
@@ -550,6 +505,51 @@ bool ParallelBlockedPreflowPushAlgorithm::update_active_node(
                                                        __ATOMIC_ACQ_REL,
                                                        __ATOMIC_RELAXED
                                                    );
+}
+
+std::span<const NodeID> ParallelBlockedPreflowPushAlgorithm::excess_nodes() {
+  _excess_nodes.clear();
+
+  for (const NodeID u : _graph->nodes()) {
+    if (_excess[u] > 0 && !_node_status.is_terminal(u)) {
+      _excess_nodes.push_back(u);
+    }
+  }
+
+  return _excess_nodes;
+}
+
+const NodeStatus &ParallelBlockedPreflowPushAlgorithm::node_status() const {
+  return _node_status;
+}
+
+void ParallelBlockedPreflowPushAlgorithm::free() {
+  _node_status.free();
+
+  _excess_nodes.clear();
+  _excess_nodes.shrink_to_fit();
+
+  _flow.free();
+
+  _work_ets.clear();
+  _parallel_bfs_runner.free();
+
+  _nodes_to_desaturate.clear();
+  _nodes_to_desaturate.shrink_to_fit();
+
+  _last_activated.free();
+  _cur_edge_offsets.free();
+  _active_node_state.free();
+
+  _excess.free();
+  _excess_delta.free();
+
+  _heights.free();
+  _next_heights.free();
+
+  _active_nodes.free();
+  _next_active_nodes.free();
+  _acitve_sink_nodes.clear();
 }
 
 } // namespace kaminpar::shm

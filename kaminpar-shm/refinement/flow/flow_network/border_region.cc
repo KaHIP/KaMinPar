@@ -92,15 +92,15 @@ void BorderRegionConstructor::compute_border_regions(
     const bool v_fits = _border_region.fits_in_region2(v_weight);
     if (u_is_contained) {
       if (v_fits) {
-        _border_region.insert_into_region2(v, v_weight);
+        _border_region.insert_border_node_into_region2(v, v_weight);
       }
     } else if (v_is_contained) {
       if (u_fits) {
-        _border_region.insert_into_region1(u, u_weight);
+        _border_region.insert_border_node_into_region1(u, u_weight);
       }
     } else if (u_fits && v_fits) {
-      _border_region.insert_into_region1(u, u_weight);
-      _border_region.insert_into_region2(v, v_weight);
+      _border_region.insert_border_node_into_region1(u, u_weight);
+      _border_region.insert_border_node_into_region2(v, v_weight);
     }
   }
 

@@ -160,7 +160,7 @@ public:
 
   void add_piercing_node_candidate(bool source_side, NodeID node, bool unreachable);
 
-  std::span<const NodeID> find_piercing_nodes(
+  std::span<const NodeID> compute_piercing_nodes(
       bool source_side,
       bool has_unreachable_nodes,
       const NodeStatus &cut_status,

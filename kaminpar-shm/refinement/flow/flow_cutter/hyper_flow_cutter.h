@@ -34,9 +34,12 @@ public:
   void free() override;
 
 private:
-  void construct_hypergraph(const FlowNetwork &flow_network);
+  void initialize(const FlowNetwork &flow_network);
 
-  Result run_hyper_flow_cutter(const BorderRegion &border_region, const FlowNetwork &flow_network);
+  template <typename FlowCutter>
+  void run_flow_cutter(
+      FlowCutter &flow_cutter, const BorderRegion &border_region, const FlowNetwork &flow_network
+  );
 
   void compute_distances(
       const BorderRegion &border_region,
@@ -63,7 +66,8 @@ private:
   Marker<> _bfs_marker;
   BFSRunner _bfs_runner;
 
-  bool _time_limit_exceeded;
+  EdgeWeight _gain;
+  bool _improve_balance;
   ScalableVector<Move> _moves;
 };
 

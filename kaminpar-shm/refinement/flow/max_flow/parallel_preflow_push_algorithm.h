@@ -19,48 +19,45 @@
 
 namespace kaminpar::shm {
 
-struct ParallelPreflowPushAlgorithmStatistics {
-  std::size_t num_rounds;
-  std::size_t num_sequential_rounds;
-  std::size_t num_parallel_rounds;
-  std::size_t num_discharges;
-  std::size_t num_parallel_discharges;
-  std::size_t num_global_relabels;
-  tbb::enumerable_thread_specific<std::size_t> num_win_conflicts_ets;
-  tbb::enumerable_thread_specific<std::size_t> num_invalid_labels_ets;
-
-  void reset() {
-    num_rounds = 0;
-    num_sequential_rounds = 0;
-    num_parallel_rounds = 0;
-    num_discharges = 0;
-    num_parallel_discharges = 0;
-    num_global_relabels = 0;
-    num_win_conflicts_ets.clear();
-    num_invalid_labels_ets.clear();
-  }
-
-  void print() const {
-    LOG_STATS << "Parallel Preflow-Push Algorithm:";
-    LOG_STATS << "*  # num rounds (sequential / parallel): " << num_rounds << " ("
-              << num_sequential_rounds << " / " << num_parallel_rounds << ")";
-    LOG_STATS << "*  # num discharges (sequential / parallel): " << num_discharges << " ("
-              << (num_discharges - num_parallel_discharges) << " / " << num_parallel_discharges
-              << ")";
-    LOG_STATS << "*  # num global relabels: " << num_global_relabels;
-    LOG_STATS << "*  # num win conflicts: "
-              << std::accumulate(num_win_conflicts_ets.begin(), num_win_conflicts_ets.end(), 0);
-    LOG_STATS << "*  # num invalid labels: "
-              << std::accumulate(num_invalid_labels_ets.begin(), num_invalid_labels_ets.end(), 0);
-  }
-};
-
 class ParallelPreflowPushAlgorithm : public MaxPreflowAlgorithm {
   SET_DEBUG(false);
   SET_STATISTICS(false);
 
-  static constexpr std::size_t kSequentialDischargeThreshold = 1024;
-  static constexpr bool kCollectActiveNodes = true;
+  struct Statistics {
+    std::size_t num_rounds;
+    std::size_t num_sequential_rounds;
+    std::size_t num_parallel_rounds;
+    std::size_t num_discharges;
+    std::size_t num_parallel_discharges;
+    std::size_t num_global_relabels;
+    tbb::enumerable_thread_specific<std::size_t> num_win_conflicts_ets;
+    tbb::enumerable_thread_specific<std::size_t> num_invalid_labels_ets;
+
+    void reset() {
+      num_rounds = 0;
+      num_sequential_rounds = 0;
+      num_parallel_rounds = 0;
+      num_discharges = 0;
+      num_parallel_discharges = 0;
+      num_global_relabels = 0;
+      num_win_conflicts_ets.clear();
+      num_invalid_labels_ets.clear();
+    }
+
+    void print() const {
+      LOG_STATS << "Parallel Preflow-Push Algorithm:";
+      LOG_STATS << "*  # num rounds (sequential / parallel): " << num_rounds << " ("
+                << num_sequential_rounds << " / " << num_parallel_rounds << ")";
+      LOG_STATS << "*  # num discharges (sequential / parallel): " << num_discharges << " ("
+                << (num_discharges - num_parallel_discharges) << " / " << num_parallel_discharges
+                << ")";
+      LOG_STATS << "*  # num global relabels: " << num_global_relabels;
+      LOG_STATS << "*  # num win conflicts: "
+                << std::accumulate(num_win_conflicts_ets.begin(), num_win_conflicts_ets.end(), 0);
+      LOG_STATS << "*  # num invalid labels: "
+                << std::accumulate(num_invalid_labels_ets.begin(), num_invalid_labels_ets.end(), 0);
+    }
+  };
 
   class GlobalRelabelingThreshold {
   public:
@@ -88,6 +85,8 @@ class ParallelPreflowPushAlgorithm : public MaxPreflowAlgorithm {
     std::size_t _threshold;
     std::size_t _work;
   };
+
+  static constexpr bool kCollectActiveNodesTag = true;
 
 public:
   ParallelPreflowPushAlgorithm(const PreflowPushContext &ctx);
@@ -130,7 +129,7 @@ private:
 
 private:
   const PreflowPushContext _ctx;
-  ParallelPreflowPushAlgorithmStatistics _stats;
+  Statistics _stats;
 
   const CSRGraph *_graph;
   std::span<const EdgeID> _reverse_edges;

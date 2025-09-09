@@ -135,42 +135,7 @@ MaxPreflowAlgorithm::Result PreflowPushAlgorithm::compute_max_preflow() {
       assert::heavy
   );
 
-  return Result(_flow_value, _flow);
-}
-
-std::span<const NodeID> PreflowPushAlgorithm::excess_nodes() {
-  _excess_nodes.clear();
-
-  for (const NodeID u : _graph->nodes()) {
-    if (_excess[u] > 0 && !_node_status.is_terminal(u)) {
-      _excess_nodes.push_back(u);
-    }
-  }
-
-  return _excess_nodes;
-}
-
-const NodeStatus &PreflowPushAlgorithm::node_status() const {
-  return _node_status;
-}
-
-void PreflowPushAlgorithm::free() {
-  _node_status.free();
-
-  _excess_nodes.clear();
-  _excess_nodes.shrink_to_fit();
-
-  _flow.free();
-
-  _bfs_runner.free();
-
-  _nodes_to_desaturate.clear();
-  _nodes_to_desaturate.shrink_to_fit();
-
-  _cur_edge_offsets.free();
-  _excess.free();
-  _heights.free();
-  _active_nodes = {};
+  return {_flow_value, _flow};
 }
 
 void PreflowPushAlgorithm::saturate_source_edges() {
@@ -264,7 +229,7 @@ void PreflowPushAlgorithm::discharge(const NodeID u) {
   NodeID u_height = _heights[u];
   EdgeID cur_edge_offset = _cur_edge_offsets[u];
   while (_excess[u] > 0 && u_height < num_nodes) {
-    if (cur_edge_offset == degree) {
+    if (cur_edge_offset == degree) [[unlikely]] {
       _grt.add_work(degree);
 
       u_height = relabel(u);
@@ -297,6 +262,7 @@ void PreflowPushAlgorithm::discharge(const NodeID u) {
 
     if (_node_status.is_sink(v)) {
       _flow_value += flow;
+      continue;
     }
 
     const bool to_was_inactive = to_prev_excess == 0;
@@ -320,6 +286,41 @@ NodeID PreflowPushAlgorithm::relabel(const NodeID u) {
 
   KASSERT(min_neighboring_height != std::numeric_limits<NodeID>::max());
   return min_neighboring_height + 1;
+}
+
+std::span<const NodeID> PreflowPushAlgorithm::excess_nodes() {
+  _excess_nodes.clear();
+
+  for (const NodeID u : _graph->nodes()) {
+    if (_excess[u] > 0 && !_node_status.is_terminal(u)) {
+      _excess_nodes.push_back(u);
+    }
+  }
+
+  return _excess_nodes;
+}
+
+const NodeStatus &PreflowPushAlgorithm::node_status() const {
+  return _node_status;
+}
+
+void PreflowPushAlgorithm::free() {
+  _node_status.free();
+
+  _excess_nodes.clear();
+  _excess_nodes.shrink_to_fit();
+
+  _flow.free();
+
+  _bfs_runner.free();
+
+  _nodes_to_desaturate.clear();
+  _nodes_to_desaturate.shrink_to_fit();
+
+  _cur_edge_offsets.free();
+  _excess.free();
+  _heights.free();
+  _active_nodes = {};
 }
 
 } // namespace kaminpar::shm

@@ -108,7 +108,7 @@ void PiercingHeuristic::add_piercing_node_candidate(
   candidates_buckets.add_candidate(node, distance);
 }
 
-std::span<const NodeID> PiercingHeuristic::find_piercing_nodes(
+std::span<const NodeID> PiercingHeuristic::compute_piercing_nodes(
     const bool source_side,
     const bool has_unreachable_nodes,
     const NodeStatus &cut_status,

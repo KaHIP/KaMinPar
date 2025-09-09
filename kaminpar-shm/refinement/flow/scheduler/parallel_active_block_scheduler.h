@@ -2,14 +2,13 @@
 
 #include <memory>
 #include <mutex>
-#include <span>
 #include <utility>
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/refinement/flow/flow_network/quotient_graph.h"
-#include "kaminpar-shm/refinement/flow/scheduler/active_block_scheduler_base.h"
+#include "kaminpar-shm/refinement/flow/scheduler/flow_refiner.h"
 #include "kaminpar-shm/refinement/flow/scheduler/scheduling/active_block_scheduling.h"
 
 #include "kaminpar-common/datastructures/scalable_vector.h"
@@ -21,6 +20,41 @@ namespace kaminpar::shm {
 class ParallelActiveBlockScheduler {
   SET_DEBUG(true);
   SET_STATISTICS(true);
+
+  struct Statistics {
+    std::size_t num_searches;
+    std::size_t num_local_improvements;
+    std::size_t num_global_improvements;
+    std::size_t num_move_conflicts;
+    std::size_t num_imbalance_conflicts;
+    double min_imbalance;
+    double max_imbalance;
+    double total_imbalance;
+
+    void reset() {
+      num_searches = 0;
+      num_local_improvements = 0;
+      num_global_improvements = 0;
+      num_move_conflicts = 0;
+      num_imbalance_conflicts = 0;
+      min_imbalance = std::numeric_limits<double>::max();
+      max_imbalance = std::numeric_limits<double>::min();
+      total_imbalance = 0.0;
+    }
+
+    void print() const {
+      LOG_STATS << "Two-Way Flow Refiner:";
+      LOG_STATS << "*  # num searches: " << num_searches;
+      LOG_STATS << "*  # num local improvements: " << num_local_improvements;
+      LOG_STATS << "*  # num global improvements: " << num_global_improvements;
+      LOG_STATS << "*  # num move conflicts: " << num_move_conflicts;
+      LOG_STATS << "*  # num imbalance conflicts: " << num_imbalance_conflicts;
+      LOG_STATS << "*  # min / average / max imbalance: "
+                << (num_imbalance_conflicts ? min_imbalance : 0) << " / "
+                << (num_imbalance_conflicts ? total_imbalance / num_imbalance_conflicts : 0)
+                << " / " << (num_imbalance_conflicts ? max_imbalance : 0);
+    }
+  };
 
   using Scheduling = ActiveBlockScheduling::Scheduling;
   using QuotientCutEdges = ScalableVector<QuotientGraph::GraphEdge>;
@@ -94,7 +128,7 @@ private:
 
 private:
   const TwowayFlowRefinementContext &_f_ctx;
-  ActiveBlockSchedulerStatistics _stats;
+  Statistics _stats;
 
   PartitionedCSRGraph *_p_graph;
   const CSRGraph *_graph;

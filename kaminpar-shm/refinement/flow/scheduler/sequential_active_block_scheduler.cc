@@ -83,8 +83,7 @@ bool SequentialActiveBlockScheduler::refine(
             assert::heavy
         );
 
-        IF_STATS _stats.num_local_improvements += 1;
-        IF_STATS _stats.num_global_improvements += 1;
+        IF_STATS _stats.num_improvements += 1;
 
         cut_value = new_cut_value;
 

@@ -26,9 +26,9 @@ void QuotientGraph::reconstruct() {
     edge.cut_weight = 0;
   }
 
-  EdgeWeight total_cut_weight = 0;
-
   const CSRGraph &graph = _p_graph.graph();
+
+  EdgeWeight total_cut_weight = 0;
   for (const NodeID u : graph.nodes()) {
     const BlockID u_block = _p_graph.block(u);
 

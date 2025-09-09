@@ -214,6 +214,7 @@ void ParallelActiveBlockScheduler::apply_moves(
     std::span<const Move> moves, QuotientCutEdges &new_cut_edges
 ) {
   new_cut_edges.clear();
+
   for (const Move &move : moves) {
     KASSERT(
         _p_graph->block(move.node) == move.old_block,
@@ -259,13 +260,13 @@ ParallelActiveBlockScheduler::MoveAttempt ParallelActiveBlockScheduler::commit_m
   const EdgeWeight new_cut_value = cut_value - actual_gain;
 
   KASSERT(
-      metrics::edge_cut_seq(*_p_graph) == new_cut_value,
-      "Computed an invalid new cut value",
+      metrics::is_balanced(*_p_graph, *_p_ctx),
+      "Computed an imbalanced move sequence",
       assert::heavy
   );
   KASSERT(
-      metrics::is_balanced(*_p_graph, *_p_ctx),
-      "Computed an imbalanced move sequence",
+      metrics::edge_cut_seq(*_p_graph) == new_cut_value,
+      "Computed an invalid new cut value",
       assert::heavy
   );
 
@@ -286,7 +287,6 @@ std::pair<bool, double>
 ParallelActiveBlockScheduler::is_feasible_move_sequence(std::span<Move> moves) {
   std::fill_n(_block_weight_delta.begin(), _p_graph->k(), 0);
 
-  const bool ignore_move_conflicts = _f_ctx.scheduler.ignore_move_conflicts;
   for (Move &move : moves) {
     KASSERT(
         move.old_block != move.new_block,
@@ -295,28 +295,17 @@ ParallelActiveBlockScheduler::is_feasible_move_sequence(std::span<Move> moves) {
     );
 
     const NodeID u = move.node;
+    const BlockID old_block = move.old_block;
     const BlockID new_block = move.new_block;
 
-    const BlockID u_block = _p_graph->block(u);
-    BlockID old_block = move.old_block;
+    // Remove all nodes from the move sequence that are not in their expected block.
+    // Use the old block variable to mark the move as such, which is used during reverting.
+    const bool move_conflict = _p_graph->block(u) != old_block;
+    if (move_conflict) {
+      IF_STATS _stats.num_move_conflicts += 1;
 
-    if (ignore_move_conflicts) {
-      old_block = u_block;
-
-      if (old_block == new_block) {
-        move.old_block = kInvalidBlockID;
-        continue;
-      }
-    } else {
-      // Remove all nodes from the move sequence that are not in their expected block.
-      // Use the old block variable to mark the move as such, which is used during reverting.
-      const bool move_conflict = u_block != old_block;
-      if (move_conflict) {
-        IF_STATS _stats.num_move_conflicts += 1;
-
-        move.old_block = kInvalidBlockID;
-        continue;
-      }
+      move.old_block = kInvalidBlockID;
+      continue;
     }
 
     const NodeWeight u_weight = _graph->node_weight(u);
@@ -343,9 +332,9 @@ ParallelActiveBlockScheduler::is_feasible_move_sequence(std::span<Move> moves) {
 EdgeWeight ParallelActiveBlockScheduler::atomic_apply_moves(
     const std::span<const Move> moves, QuotientCutEdges &new_cut_edges
 ) {
-  EdgeWeight gain = 0;
-
   new_cut_edges.clear();
+
+  EdgeWeight gain = 0;
   for (const Move &move : moves) {
     const BlockID old_block = move.old_block;
 

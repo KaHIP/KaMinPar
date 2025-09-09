@@ -415,7 +415,7 @@ CLI::Option_group *create_initial_partitioning_options(CLI::App *app, Context &c
   ip->add_option("--i-p-r-algorithms", ctx.initial_partitioning.pool.refinement.algorithms)
       ->transform(CLI::CheckedTransformer(get_initial_refinement_algorithms()))
       ->description(
-          R"(This option can be used multiple times to define a sequence of initial refinement algorithms. 
+          R"(This option can be used multiple times to define a sequence of refinement algorithms used for the initial bipartitioner pool.
 The following algorithms can be used:
 - noop:            disable initial refinement
 - simple-fm:       2-way FM with a simple stopping rule
@@ -433,7 +433,7 @@ The following algorithms can be used:
   ip->add_option("--i-r-algorithms", ctx.initial_partitioning.refinement.algorithms)
       ->transform(CLI::CheckedTransformer(get_initial_refinement_algorithms()))
       ->description(
-          R"(This option can be used multiple times to define a sequence of initial refinement algorithms. 
+          R"(This option can be used multiple times to define a sequence of refinement algorithms used for the initial multilevel bipartitioner.
 The following algorithms can be used:
 - noop:            disable initial refinement
 - simple-fm:       2-way FM with a simple stopping rule
@@ -589,125 +589,171 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
 }
 
 CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context &ctx) {
-  auto *twoway_flow = app->add_option_group("Refinement -> two-way Flow");
+  auto *twoway_flow = app->add_option_group("Refinement -> Two-Way Flow");
 
   twoway_flow
       ->add_option(
           "--r-twoway-flow-min-round-improvement",
-          ctx.refinement.twoway_flow.min_round_improvement_factor
+          ctx.refinement.twoway_flow.min_round_improvement_factor,
+          "Minimum improvement factor required to continue with another active-block scheduling "
+          "round."
       )
       ->capture_default_str();
   twoway_flow
-      ->add_option("--r-twoway-flow-max-num-rounds", ctx.refinement.twoway_flow.max_num_rounds)
-      ->capture_default_str();
-  twoway_flow->add_option("--r-twoway-flow-time-limit", ctx.refinement.twoway_flow.time_limit)
-      ->capture_default_str();
-
-  twoway_flow
-      ->add_option("--r-twoway-flow-run-sequentially", ctx.refinement.twoway_flow.run_sequentially)
+      ->add_option(
+          "--r-twoway-flow-max-num-rounds",
+          ctx.refinement.twoway_flow.max_num_rounds,
+          "Maximum number of active-block scheduling rounds to perform."
+      )
       ->capture_default_str();
   twoway_flow
       ->add_option(
-          "--r-twoway-flow-free-memory", ctx.refinement.twoway_flow.free_memory_after_round
+          "--r-twoway-flow-time-limit",
+          ctx.refinement.twoway_flow.time_limit,
+          "Time limit (in minutes) for the two-way flow refiner."
       )
       ->capture_default_str();
 
   twoway_flow
       ->add_option(
-          "--r-twoway-flow-parallel-scheduling", ctx.refinement.twoway_flow.scheduler.parallel
+          "--r-twoway-flow-run-sequentially",
+          ctx.refinement.twoway_flow.run_sequentially,
+          "If set, force each refiner for a scheduled block pair to be run sequentially."
+      )
+      ->capture_default_str();
+  twoway_flow
+      ->add_option(
+          "--r-twoway-flow-free-memory",
+          ctx.refinement.twoway_flow.free_memory_after_round,
+          "If set, free the allocated memory after each active-block scheduling round."
+      )
+      ->capture_default_str();
+
+  twoway_flow
+      ->add_option(
+          "--r-twoway-flow-parallel-scheduling",
+          ctx.refinement.twoway_flow.scheduler.parallel,
+          "If set, the block pairs considered during an active-block scheduling round are "
+          "scheduled in parallel."
+
       )
       ->capture_default_str();
   twoway_flow
       ->add_option(
           "--r-twoway-flow-deterministic-scheduling",
-          ctx.refinement.twoway_flow.scheduler.deterministic
-      )
-      ->capture_default_str();
-  twoway_flow
-      ->add_option(
-          "--r-twoway-flow-ignore-move-conflicts",
-          ctx.refinement.twoway_flow.scheduler.ignore_move_conflicts
+          ctx.refinement.twoway_flow.scheduler.deterministic,
+          "If set, the block pairs considered during an active-block scheduling round are "
+          "scheduled deterministically if they are scheduled in parallel."
       )
       ->capture_default_str();
 
   twoway_flow
       ->add_option(
           "--r-twoway-flow-deterministic-construction",
-          ctx.refinement.twoway_flow.construction.deterministic
+          ctx.refinement.twoway_flow.construction.deterministic,
+          "If set, the flow networks are constructed deterministically."
       )
       ->capture_default_str();
   twoway_flow
       ->add_option(
           "--r-twoway-flow-border-region-scaling-factor",
-          ctx.refinement.twoway_flow.construction.border_region_scaling_factor
+          ctx.refinement.twoway_flow.construction.border_region_scaling_factor,
+          "Scaling factor for the border region size, i.e. the alpha in (1 + alpha * epsilon) * "
+          "c(V) / k - c(V')."
       )
       ->capture_default_str();
   twoway_flow
       ->add_option(
           "--r-twoway-flow-max-border-distance",
-          ctx.refinement.twoway_flow.construction.max_border_distance
+          ctx.refinement.twoway_flow.construction.max_border_distance,
+          "Maximum distance from the cut for nodes to be included in the border region."
       )
       ->capture_default_str();
 
-  twoway_flow->add_option("--r-twoway-flow-whfc", ctx.refinement.twoway_flow.flow_cutter.use_whfc)
+  twoway_flow
+      ->add_option(
+          "--r-twoway-flow-whfc",
+          ctx.refinement.twoway_flow.flow_cutter.use_whfc,
+          "If set, the Weighted Hyper FlowCutter (WHFC) algorithm is used as the flow cutter "
+          "instead of the built-in one."
+      )
+      ->capture_default_str();
+
+  twoway_flow
+      ->add_option(
+          "--r-twoway-flow-global-relabel-heuristic",
+          ctx.refinement.twoway_flow.flow_cutter.flow.global_relabeling_heuristic,
+          "If set, enables the global relabeling heuristic during the preflow-push algorithm."
+
+      )
+      ->capture_default_str();
+  twoway_flow
+      ->add_option(
+          "--r-twoway-flow-global-relabel-frequency",
+          ctx.refinement.twoway_flow.flow_cutter.flow.global_relabeling_frequency,
+          "Specifies how often the global relabeling heuristic is triggered."
+      )
+      ->capture_default_str();
+  twoway_flow
+      ->add_option(
+          "--r-twoway-flow-parallel-blocking-resolution",
+          ctx.refinement.twoway_flow.flow_cutter.flow.parallel_blocking_resolution,
+          "If set, the atomic blocking mechanism is used during the parallel preflow-push "
+          "algorithm."
+      )
+      ->capture_default_str();
+  twoway_flow
+      ->add_option(
+          "--r-twoway-flow-sequential-discharge-threshold",
+          ctx.refinement.twoway_flow.flow_cutter.flow.sequential_discharge_threshold,
+          "If the number of active nodes falls below this threshold, switch from parallel to "
+          "sequential discharge in the preflow-push algorithm."
+      )
       ->capture_default_str();
 
   twoway_flow
       ->add_option(
           "--r-twoway-flow-deterministic-piercing",
-          ctx.refinement.twoway_flow.flow_cutter.piercing.deterministic
+          ctx.refinement.twoway_flow.flow_cutter.piercing.deterministic,
+          "If set, the nodes are pierced deterministically."
       )
       ->capture_default_str();
   twoway_flow
       ->add_option(
           "--r-twoway-flow-determine-distance-from-cut",
-          ctx.refinement.twoway_flow.flow_cutter.piercing.determine_distance_from_cut
+          ctx.refinement.twoway_flow.flow_cutter.piercing.determine_distance_from_cut,
+          "If set, the distances from the cut are used during piercing."
       )
       ->capture_default_str();
   twoway_flow
       ->add_option(
           "--r-twoway-flow-fallback-piercing-heuristic",
-          ctx.refinement.twoway_flow.flow_cutter.piercing.fallback_heuristic
+          ctx.refinement.twoway_flow.flow_cutter.piercing.fallback_heuristic,
+          "If set, the fallback heuristic for piercing can be used."
       )
       ->capture_default_str();
   twoway_flow
       ->add_option(
           "--r-twoway-flow-bulk-piercing",
-          ctx.refinement.twoway_flow.flow_cutter.piercing.bulk_piercing
-      )
-      ->capture_default_str();
+          ctx.refinement.twoway_flow.flow_cutter.piercing.bulk_piercing,
+          "If set, multiple nodes can be pierced at once to accelerate the flow cutter."
 
-  twoway_flow
-      ->add_option("--r-twoway-flow-unconstrained", ctx.refinement.twoway_flow.rebalancer.enabled)
-      ->capture_default_str();
-  twoway_flow
-      ->add_option(
-          "--r-twoway-flow-dynamic-rebalancer",
-          ctx.refinement.twoway_flow.rebalancer.dynamic_rebalancer
       )
       ->capture_default_str();
   twoway_flow
       ->add_option(
-          "--r-twoway-flow-use-abort-criterion",
-          ctx.refinement.twoway_flow.rebalancer.use_abort_criterion
+          "--r-twoway-flow-bulk-piercing-shrinking-factor",
+          ctx.refinement.twoway_flow.flow_cutter.piercing.bulk_piercing_shrinking_factor,
+          "Controls how aggressively the number of bulk-pierced nodes is reduced in each round."
       )
+      ->check(CLI::Range(0.0, 1.0))
       ->capture_default_str();
   twoway_flow
       ->add_option(
-          "--r-twoway-flow-abort-on-first-cut",
-          ctx.refinement.twoway_flow.rebalancer.abort_on_first_cut
-      )
-      ->capture_default_str();
-  twoway_flow
-      ->add_option(
-          "--r-twoway-flow-abort-on-improved-cut",
-          ctx.refinement.twoway_flow.rebalancer.abort_on_improved_cut
-      )
-      ->capture_default_str();
-  twoway_flow
-      ->add_option(
-          "--r-twoway-flow-abort-on-candidate-cut",
-          ctx.refinement.twoway_flow.rebalancer.abort_on_candidate_cut
+          "--r-twoway-flow-bulk-piercing-round-threshold",
+          ctx.refinement.twoway_flow.flow_cutter.piercing.bulk_piercing_round_threshold,
+          "For the first few rounds, only a single node is pierced per round to improve accuracy. "
+          "After this threshold, multiple nodes can be pierced in each round."
       )
       ->capture_default_str();
 

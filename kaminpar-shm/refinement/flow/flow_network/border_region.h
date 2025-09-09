@@ -59,23 +59,25 @@ public:
     _sink_side_nodes.clear();
   }
 
-  void insert_into_region1(const NodeID u, const NodeWeight u_weight) {
+  void insert_border_node_into_region1(const NodeID u, const NodeWeight u_weight) {
     KASSERT(!contains(u));
     KASSERT(fits_in_region1(u_weight));
 
     _cur_weight1 += u_weight;
     _node_status[u] = kSource;
     _source_side_nodes.push_back(u);
+
     _initial_source_side_border_nodes.push_back(u);
   }
 
-  void insert_into_region2(const NodeID u, const NodeWeight u_weight) {
+  void insert_border_node_into_region2(const NodeID u, const NodeWeight u_weight) {
     KASSERT(!contains(u));
     KASSERT(fits_in_region2(u_weight));
 
     _cur_weight2 += u_weight;
     _node_status[u] = kSink;
     _sink_side_nodes.push_back(u);
+
     _initial_sink_side_border_nodes.push_back(u);
   }
 
@@ -179,6 +181,15 @@ public:
   }
 
   void free() {
+    _block1 = kInvalidBlockID;
+    _block2 = kInvalidBlockID;
+
+    _max_weight1 = 0;
+    _max_weight2 = 0;
+
+    _cur_weight1 = 0;
+    _cur_weight2 = 0;
+
     _node_status.free();
 
     _initial_source_side_border_nodes.clear();

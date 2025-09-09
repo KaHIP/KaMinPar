@@ -215,7 +215,6 @@ Context create_default_context() {
                                           {
                                               .parallel = false,
                                               .deterministic = false,
-                                              .ignore_move_conflicts = false,
                                               .parallel_search_multiplier = 1,
                                           },
                                       .construction =
@@ -231,6 +230,8 @@ Context create_default_context() {
                                                   {
                                                       .global_relabeling_heuristic = true,
                                                       .global_relabeling_frequency = 1,
+                                                      .parallel_blocking_resolution = false,
+                                                      .sequential_discharge_threshold = 1024,
                                                   },
                                               .piercing =
                                                   {
@@ -241,16 +242,6 @@ Context create_default_context() {
                                                       .bulk_piercing_shrinking_factor = 0.55,
                                                       .bulk_piercing_round_threshold = 5,
                                                   },
-                                          },
-                                      .rebalancer =
-                                          {
-                                              .enabled = false,
-                                              .dynamic_rebalancer = false,
-                                              .use_abort_criterion = false,
-                                              .abort_on_first_cut = false,
-                                              .abort_on_improved_cut = false,
-                                              .abort_on_candidate_cut = true,
-
                                           },
                                   },
                           },
@@ -288,7 +279,6 @@ Context create_default_context() {
                                   {
                                       .parallel = false,
                                       .deterministic = false,
-                                      .ignore_move_conflicts = false,
                                       .parallel_search_multiplier = 1,
                                   },
                               .construction =
@@ -304,6 +294,8 @@ Context create_default_context() {
                                           {
                                               .global_relabeling_heuristic = true,
                                               .global_relabeling_frequency = 1,
+                                              .parallel_blocking_resolution = false,
+                                              .sequential_discharge_threshold = 1024,
                                           },
                                       .piercing =
                                           {
@@ -314,16 +306,6 @@ Context create_default_context() {
                                               .bulk_piercing_shrinking_factor = 0.55,
                                               .bulk_piercing_round_threshold = 5,
                                           },
-                                  },
-                              .rebalancer =
-                                  {
-                                      .enabled = false,
-                                      .dynamic_rebalancer = false,
-                                      .use_abort_criterion = false,
-                                      .abort_on_first_cut = false,
-                                      .abort_on_improved_cut = false,
-                                      .abort_on_candidate_cut = true,
-
                                   },
                           },
                   },
@@ -378,7 +360,6 @@ Context create_default_context() {
                           {
                               .parallel = true,
                               .deterministic = false,
-                              .ignore_move_conflicts = false,
                               .parallel_search_multiplier = 1,
                           },
                       .construction =
@@ -394,6 +375,8 @@ Context create_default_context() {
                                   {
                                       .global_relabeling_heuristic = true,
                                       .global_relabeling_frequency = 1,
+                                      .parallel_blocking_resolution = false,
+                                      .sequential_discharge_threshold = 1024,
                                   },
                               .piercing =
                                   {
@@ -404,16 +387,6 @@ Context create_default_context() {
                                       .bulk_piercing_shrinking_factor = 0.55,
                                       .bulk_piercing_round_threshold = 5,
                                   },
-                          },
-                      .rebalancer =
-                          {
-                              .enabled = false,
-                              .dynamic_rebalancer = false,
-                              .use_abort_criterion = false,
-                              .abort_on_first_cut = false,
-                              .abort_on_improved_cut = false,
-                              .abort_on_candidate_cut = true,
-
                           },
                   },
               .jet =

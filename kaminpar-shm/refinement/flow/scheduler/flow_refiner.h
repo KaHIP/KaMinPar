@@ -1,34 +1,15 @@
 #pragma once
 
 #include <chrono>
-#include <cstddef>
 #include <memory>
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/refinement/flow/flow_cutter/flow_cutter_algorithm.h"
-#include "kaminpar-shm/refinement/flow/flow_network/border_region.h"
-#include "kaminpar-shm/refinement/flow/flow_network/flow_network.h"
 #include "kaminpar-shm/refinement/flow/flow_network/quotient_graph.h"
 
 namespace kaminpar::shm {
-
-struct ActiveBlockSchedulerStatistics {
-  std::size_t num_searches;
-  std::size_t num_local_improvements;
-  std::size_t num_global_improvements;
-  std::size_t num_move_conflicts;
-  std::size_t num_imbalance_conflicts;
-  std::size_t num_failed_imbalance_resolutions;
-  std::size_t num_successful_imbalance_resolutions;
-  double min_imbalance;
-  double max_imbalance;
-  double total_imbalance;
-
-  void reset();
-  void print() const;
-};
 
 class FlowRefiner {
 public:

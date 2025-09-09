@@ -115,10 +115,8 @@ MaxPreflowAlgorithm::Result ParallelPreflowPushAlgorithm::compute_max_preflow() 
 
   _round += 1;
   saturate_source_edges();
-
   if (_force_global_relabel) {
-    constexpr bool kCollectActiveNodes = true;
-    global_relabel<kCollectActiveNodes>();
+    global_relabel<kCollectActiveNodesTag>();
   }
 
   while (!_next_active_nodes.empty()) {
@@ -127,8 +125,8 @@ MaxPreflowAlgorithm::Result ParallelPreflowPushAlgorithm::compute_max_preflow() 
     _round += 1;
 
     IF_STATS _stats.num_sequential_rounds +=
-        _active_nodes.size() <= kSequentialDischargeThreshold ? 1 : 0;
-    while (!_active_nodes.empty() && _active_nodes.size() <= kSequentialDischargeThreshold) {
+        _active_nodes.size() <= _ctx.sequential_discharge_threshold ? 1 : 0;
+    while (!_active_nodes.empty() && _active_nodes.size() <= _ctx.sequential_discharge_threshold) {
       const NodeID u = _active_nodes.pop_back();
       _last_activated[u] = _round - 1;
 
@@ -150,7 +148,7 @@ MaxPreflowAlgorithm::Result ParallelPreflowPushAlgorithm::compute_max_preflow() 
       _work_ets.clear();
 
       if (_next_active_nodes.empty() || (_ctx.global_relabeling_heuristic && _grt.is_reached())) {
-        global_relabel<kCollectActiveNodes>();
+        global_relabel<kCollectActiveNodesTag>();
       }
     }
   }
@@ -183,50 +181,6 @@ MaxPreflowAlgorithm::Result ParallelPreflowPushAlgorithm::compute_max_preflow() 
   );
 
   return Result(_flow_value, _flow);
-}
-
-std::span<const NodeID> ParallelPreflowPushAlgorithm::excess_nodes() {
-  _excess_nodes.clear();
-
-  for (const NodeID u : _graph->nodes()) {
-    if (_excess[u] > 0 && !_node_status.is_terminal(u)) {
-      _excess_nodes.push_back(u);
-    }
-  }
-
-  return _excess_nodes;
-}
-
-const NodeStatus &ParallelPreflowPushAlgorithm::node_status() const {
-  return _node_status;
-}
-
-void ParallelPreflowPushAlgorithm::free() {
-  _node_status.free();
-
-  _excess_nodes.clear();
-  _excess_nodes.shrink_to_fit();
-
-  _flow.free();
-
-  _work_ets.clear();
-  _parallel_bfs_runner.free();
-
-  _nodes_to_desaturate.clear();
-  _nodes_to_desaturate.shrink_to_fit();
-
-  _last_activated.free();
-  _cur_edge_offsets.free();
-
-  _excess.free();
-  _excess_delta.free();
-
-  _heights.free();
-  _next_heights.free();
-
-  _active_nodes.free();
-  _next_active_nodes.free();
-  _acitve_sink_nodes.clear();
 }
 
 void ParallelPreflowPushAlgorithm::saturate_source_edges() {
@@ -393,7 +347,7 @@ void ParallelPreflowPushAlgorithm::atomic_discharge(
 
   bool skipped = false;
   while (excess > 0 && u_height < num_nodes) {
-    if (edge_offset == degree) {
+    if (edge_offset == degree) [[unlikely]] {
       if (skipped) {
         if (__atomic_exchange_n(&_last_activated[u], _round, __ATOMIC_ACQ_REL) != _round) {
           next_active_nodes.push_back(u);
@@ -449,6 +403,7 @@ void ParallelPreflowPushAlgorithm::atomic_discharge(
     if (_node_status.is_sink(v) &&
         __atomic_exchange_n(&_last_activated[v], _round, __ATOMIC_ACQ_REL) != _round) {
       _acitve_sink_nodes.push_back(v);
+      continue;
     }
 
     if (!_node_status.is_terminal(v) &&
@@ -474,7 +429,7 @@ void ParallelPreflowPushAlgorithm::discharge(const NodeID u) {
   NodeID u_height = _heights[u];
   EdgeID cur_edge_offset = _cur_edge_offsets[u];
   while (_excess[u] > 0 && u_height < num_nodes) {
-    if (cur_edge_offset == degree) {
+    if (cur_edge_offset == degree) [[unlikely]] {
       _grt.add_work(degree);
 
       u_height = relabel(u);
@@ -507,6 +462,7 @@ void ParallelPreflowPushAlgorithm::discharge(const NodeID u) {
 
     if (_node_status.is_sink(v)) {
       _flow_value += flow;
+      continue;
     }
 
     const bool to_was_inactive = to_prev_excess == 0;
@@ -531,6 +487,50 @@ NodeID ParallelPreflowPushAlgorithm::relabel(const NodeID u) {
 
   KASSERT(min_neighboring_height != std::numeric_limits<NodeID>::max());
   return min_neighboring_height + 1;
+}
+
+std::span<const NodeID> ParallelPreflowPushAlgorithm::excess_nodes() {
+  _excess_nodes.clear();
+
+  for (const NodeID u : _graph->nodes()) {
+    if (_excess[u] > 0 && !_node_status.is_terminal(u)) {
+      _excess_nodes.push_back(u);
+    }
+  }
+
+  return _excess_nodes;
+}
+
+const NodeStatus &ParallelPreflowPushAlgorithm::node_status() const {
+  return _node_status;
+}
+
+void ParallelPreflowPushAlgorithm::free() {
+  _node_status.free();
+
+  _excess_nodes.clear();
+  _excess_nodes.shrink_to_fit();
+
+  _flow.free();
+
+  _work_ets.clear();
+  _parallel_bfs_runner.free();
+
+  _nodes_to_desaturate.clear();
+  _nodes_to_desaturate.shrink_to_fit();
+
+  _last_activated.free();
+  _cur_edge_offsets.free();
+
+  _excess.free();
+  _excess_delta.free();
+
+  _heights.free();
+  _next_heights.free();
+
+  _active_nodes.free();
+  _next_active_nodes.free();
+  _acitve_sink_nodes.clear();
 }
 
 } // namespace kaminpar::shm

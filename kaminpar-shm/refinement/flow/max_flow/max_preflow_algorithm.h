@@ -1,6 +1,7 @@
 #pragma once
 
 #include <span>
+#include <utility>
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/kaminpar.h"
@@ -10,10 +11,7 @@ namespace kaminpar::shm {
 
 class MaxPreflowAlgorithm {
 public:
-  struct Result {
-    EdgeWeight flow_value;
-    std::span<const EdgeWeight> flow;
-  };
+  using Result = std::pair<EdgeWeight, std::span<const EdgeWeight>>;
 
   virtual ~MaxPreflowAlgorithm() = default;
 

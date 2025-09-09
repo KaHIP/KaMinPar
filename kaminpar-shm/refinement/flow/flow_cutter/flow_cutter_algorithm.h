@@ -40,11 +40,11 @@ public:
           improved_balance(improved_balance),
           moves(moves) {};
 
-    [[nodiscard]] static Result Empty() {
+    [[nodiscard]] static Result empty() {
       return Result(0, false, {});
     }
 
-    [[nodiscard]] static Result TimeLimitExceeded() {
+    [[nodiscard]] static Result time_limit() {
       return Result(true);
     }
   };

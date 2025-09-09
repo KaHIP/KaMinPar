@@ -11,19 +11,6 @@ index 9c7f077..4b6a1a0 100644
              assert(has_cut);
              assert(!partition_written_to_node_set && "Cannot call isBalanced() once the partition has been written");
              return (source_reachable_weight <= maxBlockWeight(0) && hg.totalNodeWeight() - source_reachable_weight <= maxBlockWeight(1)) ||
-diff --git a/algorithm/hyperflowcutter.h b/algorithm/hyperflowcutter.h
-index a08baff..faa65f7 100644
---- a/algorithm/hyperflowcutter.h
-+++ b/algorithm/hyperflowcutter.h
-@@ -78,7 +78,7 @@ namespace whfc {
-             cs.initialize(s, t);
-             piercer.initialize();
-             bool has_balanced_cut_below_flow_bound = false;
--            while (!has_balanced_cut_below_flow_bound && findNextCut() && on_cut()) {
-+            while (!has_balanced_cut_below_flow_bound && findNextCut() && on_cut(cs)) {
-                 has_balanced_cut_below_flow_bound |= cs.isBalanced();
-             }
- 
 diff --git a/algorithm/parallel_push_relabel.h b/algorithm/parallel_push_relabel.h
 index a9c70f6..dcd6f03 100644
 --- a/algorithm/parallel_push_relabel.h
