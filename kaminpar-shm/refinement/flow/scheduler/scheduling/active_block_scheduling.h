@@ -16,8 +16,9 @@ public:
   using SubroundScheduling = ScalableVector<BlockPair>;
   using Scheduling = ScalableVector<SubroundScheduling>;
 
-  [[nodiscard]] virtual Scheduling
-  compute_scheduling(const QuotientGraph &quotient_graph, std::span<const bool> active_blocks) = 0;
+  [[nodiscard]] virtual Scheduling compute_scheduling(
+      const QuotientGraph &quotient_graph, std::span<const bool> active_blocks, std::size_t round
+  ) = 0;
 };
 
 } // namespace kaminpar::shm

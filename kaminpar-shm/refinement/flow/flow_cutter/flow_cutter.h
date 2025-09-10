@@ -24,10 +24,11 @@ class FlowCutter : public FlowCutterAlgorithm {
   static constexpr bool kSinkTag = false;
 
 public:
-  FlowCutter(const PartitionContext &p_ctx, const FlowCutterContext &fc_ctx, bool run_sequentially);
+  FlowCutter(const PartitionContext &p_ctx, const FlowCutterContext &fc_ctx);
 
-  [[nodiscard]] Result
-  compute_cut(const BorderRegion &border_region, const FlowNetwork &flow_network) override;
+  [[nodiscard]] Result compute_cut(
+      const BorderRegion &border_region, const FlowNetwork &flow_network, bool run_sequentially
+  ) override;
 
   void free() override;
 
@@ -47,11 +48,15 @@ private:
       bool source_side, const BorderRegion &border_region, const FlowNetwork &flow_network
   );
 
+  [[nodiscard]] MaxPreflowAlgorithm *max_preflow_algorithm();
+
 private:
   const PartitionContext &_p_ctx;
   const FlowCutterContext &_fc_ctx;
+  bool _run_sequentially;
 
-  std::unique_ptr<MaxPreflowAlgorithm> _max_flow_algorithm;
+  std::unique_ptr<MaxPreflowAlgorithm> _sequential_max_flow_algorithm;
+  std::unique_ptr<MaxPreflowAlgorithm> _parallel_max_flow_algorithm;
 
   ScalableVector<NodeID> _source_side_border_nodes;
   ScalableVector<NodeID> _sink_side_border_nodes;

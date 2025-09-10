@@ -54,8 +54,9 @@ public:
 
   virtual ~FlowCutterAlgorithm() = default;
 
-  [[nodiscard]] virtual Result
-  compute_cut(const BorderRegion &border_region, const FlowNetwork &flow_network) = 0;
+  [[nodiscard]] virtual Result compute_cut(
+      const BorderRegion &border_region, const FlowNetwork &flow_network, bool run_sequentially
+  ) = 0;
 
   virtual void free() = 0;
 

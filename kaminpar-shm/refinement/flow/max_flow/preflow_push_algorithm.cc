@@ -92,8 +92,7 @@ MaxPreflowAlgorithm::Result PreflowPushAlgorithm::compute_max_preflow() {
 
   saturate_source_edges();
   if (_force_global_relabel) {
-    constexpr bool kCollectActiveNodes = true;
-    global_relabel<kCollectActiveNodes>();
+    global_relabel<kCollectActiveNodesTag>();
   }
 
   while (!_active_nodes.empty()) {

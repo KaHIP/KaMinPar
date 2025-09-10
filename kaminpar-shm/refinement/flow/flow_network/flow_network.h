@@ -29,7 +29,6 @@ class FlowNetworkConstructor {
 public:
   FlowNetworkConstructor(
       const FlowNetworkConstructionContext &c_ctx,
-      bool run_sequentially,
       const PartitionedCSRGraph &p_graph,
       const CSRGraph &graph
   );
@@ -41,7 +40,10 @@ public:
   FlowNetworkConstructor &operator=(const FlowNetworkConstructor &) = delete;
 
   [[nodiscard]] FlowNetwork construct_flow_network(
-      const BorderRegion &border_region, BlockWeight block1_weight, BlockWeight block2_weight
+      const BorderRegion &border_region,
+      BlockWeight block1_weight,
+      BlockWeight block2_weight,
+      bool run_sequentially
   );
 
 private:
@@ -55,7 +57,6 @@ private:
 
 private:
   const FlowNetworkConstructionContext &_c_ctx;
-  const bool _run_sequentially;
 
   const PartitionedCSRGraph &_p_graph;
   const CSRGraph &_graph;

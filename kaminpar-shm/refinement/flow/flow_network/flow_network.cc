@@ -18,21 +18,20 @@ namespace kaminpar::shm {
 
 FlowNetworkConstructor::FlowNetworkConstructor(
     const FlowNetworkConstructionContext &c_ctx,
-    const bool run_sequentially,
     const PartitionedCSRGraph &p_graph,
     const CSRGraph &graph
 )
     : _c_ctx(c_ctx),
-      _run_sequentially(run_sequentially),
       _p_graph(p_graph),
       _graph(graph) {};
 
 FlowNetwork FlowNetworkConstructor::construct_flow_network(
     const BorderRegion &border_region,
     const BlockWeight block1_weight,
-    const BlockWeight block2_weight
+    const BlockWeight block2_weight,
+    const bool run_sequentially
 ) {
-  if (_run_sequentially || _c_ctx.deterministic) {
+  if (run_sequentially || _c_ctx.deterministic) {
     return sequential_construct_flow_network(border_region, block1_weight, block2_weight);
   } else {
     return parallel_construct_flow_network(border_region, block1_weight, block2_weight);

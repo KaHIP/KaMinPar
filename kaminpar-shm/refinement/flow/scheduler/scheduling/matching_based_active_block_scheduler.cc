@@ -10,7 +10,9 @@ namespace kaminpar::shm {
 
 MatchingBasedActiveBlockScheduling::Scheduling
 MatchingBasedActiveBlockScheduling::compute_scheduling(
-    const QuotientGraph &quotient_graph, const std::span<const bool> active_blocks
+    const QuotientGraph &quotient_graph,
+    const std::span<const bool> active_blocks,
+    [[maybe_unused]] const std::size_t round
 ) {
   const BlockID k = quotient_graph.num_blocks();
 
@@ -33,11 +35,25 @@ MatchingBasedActiveBlockScheduling::compute_scheduling(
     _adjacent_active_blocks[block].clear();
   }
 
+  const auto skip_block_pair = [&](const BlockID block1, const BlockID block2) {
+    const QuotientGraph::Edge &quotient_edge = quotient_graph.edge(block1, block2);
+
+    if (_ctx.skip_small_cuts && quotient_edge.cut_weight < _ctx.small_cut_threshold) {
+      return true;
+    }
+
+    if (_ctx.skip_unpromising_cuts && round > 1 && quotient_edge.total_gain == 0) {
+      return true;
+    }
+
+    return false;
+  };
+
   BlockID num_active_block_pairs = 0;
   for (BlockID block2 = 1; block2 < k; ++block2) {
     for (BlockID block1 = 0; block1 < block2; ++block1) {
       if (quotient_graph.has_edge(block1, block2) &&
-          (active_blocks[block1] || active_blocks[block2])) {
+          (active_blocks[block1] || active_blocks[block2]) && !skip_block_pair(block1, block2)) {
         num_active_block_pairs += 1;
 
         _active_block_degrees[block1] += 1;

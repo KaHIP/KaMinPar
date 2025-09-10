@@ -23,7 +23,6 @@ public:
   FlowRefiner(
       const PartitionContext &p_ctx,
       const TwowayFlowRefinementContext &f_ctx,
-      bool run_sequentially,
       const QuotientGraph &q_graph,
       const PartitionedCSRGraph &p_graph,
       const CSRGraph &graph,
@@ -36,13 +35,12 @@ public:
   FlowRefiner(const FlowRefiner &) = delete;
   FlowRefiner &operator=(const FlowRefiner &) = delete;
 
-  [[nodiscard]] Result refine(BlockID block1, BlockID block2);
+  [[nodiscard]] Result refine(BlockID block1, BlockID block2, bool run_sequentially);
 
   void free();
 
 private:
   const PartitionedCSRGraph &_p_graph;
-  bool _run_sequentially;
 
   BorderRegionConstructor _border_region_constructor;
   FlowNetworkConstructor _flow_network_constructor;

@@ -12,29 +12,29 @@
 
 namespace kaminpar::shm {
 
-FlowCutter::FlowCutter(
-    const PartitionContext &p_ctx, const FlowCutterContext &fc_ctx, const bool run_sequentially
-)
+FlowCutter::FlowCutter(const PartitionContext &p_ctx, const FlowCutterContext &fc_ctx)
     : _p_ctx(p_ctx),
       _fc_ctx(fc_ctx),
+      _sequential_max_flow_algorithm(std::make_unique<PreflowPushAlgorithm>(fc_ctx.flow)),
       _piercing_heuristic(fc_ctx.piercing, p_ctx.k) {
-  if (run_sequentially) {
-    _max_flow_algorithm = std::make_unique<PreflowPushAlgorithm>(fc_ctx.flow);
+  if (_fc_ctx.flow.parallel_blocking_resolution) {
+    _parallel_max_flow_algorithm =
+        std::make_unique<ParallelBlockedPreflowPushAlgorithm>(fc_ctx.flow);
   } else {
-    if (_fc_ctx.flow.parallel_blocking_resolution) {
-      _max_flow_algorithm = std::make_unique<ParallelBlockedPreflowPushAlgorithm>(fc_ctx.flow);
-    } else {
-      _max_flow_algorithm = std::make_unique<ParallelPreflowPushAlgorithm>(fc_ctx.flow);
-    }
+    _parallel_max_flow_algorithm = std::make_unique<ParallelPreflowPushAlgorithm>(fc_ctx.flow);
   }
 };
 
-FlowCutter::Result
-FlowCutter::compute_cut(const BorderRegion &border_region, const FlowNetwork &flow_network) {
+FlowCutter::Result FlowCutter::compute_cut(
+    const BorderRegion &border_region, const FlowNetwork &flow_network, const bool run_sequentially
+) {
   SCOPED_TIMER("Run FlowCutter");
 
   DBG << "Starting refinement for block pair " << border_region.block1() << " and "
       << border_region.block2() << " with an initial cut of " << flow_network.cut_value;
+
+  _run_sequentially = run_sequentially || (flow_network.graph.n() + flow_network.graph.m()) <
+                                              _fc_ctx.small_flow_network_threshold;
 
   initialize(border_region, flow_network);
   run_flow_cutter(border_region, flow_network);
@@ -72,7 +72,8 @@ void FlowCutter::initialize(const BorderRegion &border_region, const FlowNetwork
   };
 
   TIMED_SCOPE("Initialize Max-Flow Algorithm") {
-    _max_flow_algorithm->initialize(
+    MaxPreflowAlgorithm *max_flow_algorithm = max_preflow_algorithm();
+    max_flow_algorithm->initialize(
         flow_network.graph, flow_network.reverse_edges, flow_network.source, flow_network.sink
     );
   };
@@ -85,6 +86,8 @@ void FlowCutter::initialize(const BorderRegion &border_region, const FlowNetwork
 void FlowCutter::run_flow_cutter(
     const BorderRegion &border_region, const FlowNetwork &flow_network
 ) {
+  MaxPreflowAlgorithm *max_flow_algorithm = max_preflow_algorithm();
+
   const NodeWeight max_source_side_weight = _p_ctx.max_block_weight(border_region.block1());
   const NodeWeight max_sink_side_weight = _p_ctx.max_block_weight(border_region.block2());
   const NodeWeight total_weight = flow_network.graph.total_node_weight();
@@ -100,7 +103,7 @@ void FlowCutter::run_flow_cutter(
   while (true) {
     if (augmenting_path_available_from_piercing) {
       TIMED_SCOPE("Compute Max Flow") {
-        std::tie(cut_value, flow) = _max_flow_algorithm->compute_max_preflow();
+        std::tie(cut_value, flow) = max_flow_algorithm->compute_max_preflow();
       };
 
       DBG << "Found a cut for block pair " << border_region.block1() << " and "
@@ -177,7 +180,7 @@ void FlowCutter::run_flow_cutter(
       _improve_balance = std::max(source_side_weight, total_weight - source_side_weight) <
                          std::max(flow_network.block1_weight, flow_network.block2_weight);
 
-      _max_flow_algorithm->add_sources(_source_reachable_nodes);
+      max_flow_algorithm->add_sources(_source_reachable_nodes);
       compute_moves(kSourceTag, border_region, flow_network);
       break;
     }
@@ -190,7 +193,7 @@ void FlowCutter::run_flow_cutter(
       _improve_balance = std::max(total_weight - sink_side_weight, sink_side_weight) <
                          std::max(flow_network.block1_weight, flow_network.block2_weight);
 
-      _max_flow_algorithm->add_sinks(_sink_reachable_nodes);
+      max_flow_algorithm->add_sinks(_sink_reachable_nodes);
       compute_moves(kSinkTag, border_region, flow_network);
       break;
     }
@@ -200,7 +203,7 @@ void FlowCutter::run_flow_cutter(
           << ", " << (total_weight - source_side_weight) << "/" << max_sink_side_weight << ")";
 
       TIMED_SCOPE("Update Max-Flow Algorithm State") {
-        _max_flow_algorithm->add_sources(_source_reachable_nodes);
+        max_flow_algorithm->add_sources(_source_reachable_nodes);
       };
 
       update_border_nodes(kSourceTag, flow_network);
@@ -212,7 +215,7 @@ void FlowCutter::run_flow_cutter(
         return _piercing_heuristic.compute_piercing_nodes(
             kSourceTag,
             has_unreachable_nodes,
-            _max_flow_algorithm->node_status(),
+            max_flow_algorithm->node_status(),
             _sink_reachable_nodes_marker,
             source_side_weight,
             max_piercing_node_weight
@@ -227,7 +230,7 @@ void FlowCutter::run_flow_cutter(
       }
 
       TIMED_SCOPE("Update Max-Flow Algorithm State") {
-        _max_flow_algorithm->pierce_nodes(kSourceTag, piercing_nodes);
+        max_flow_algorithm->pierce_nodes(kSourceTag, piercing_nodes);
       };
 
       TIMED_SCOPE("Update Border Nodes") {
@@ -250,7 +253,7 @@ void FlowCutter::run_flow_cutter(
           << (total_weight - sink_side_weight) << "/" << max_source_side_weight << ")";
 
       TIMED_SCOPE("Update Max-Flow Algorithm State") {
-        _max_flow_algorithm->add_sinks(_sink_reachable_nodes);
+        max_flow_algorithm->add_sinks(_sink_reachable_nodes);
       };
 
       update_border_nodes(kSinkTag, flow_network);
@@ -262,7 +265,7 @@ void FlowCutter::run_flow_cutter(
         return _piercing_heuristic.compute_piercing_nodes(
             kSinkTag,
             has_unreachable_nodes,
-            _max_flow_algorithm->node_status(),
+            max_flow_algorithm->node_status(),
             _source_reachable_nodes_marker,
             sink_side_weight,
             max_piercing_node_weight
@@ -277,7 +280,7 @@ void FlowCutter::run_flow_cutter(
       }
 
       TIMED_SCOPE("Update Max-Flow Algorithm State") {
-        _max_flow_algorithm->pierce_nodes(kSinkTag, piercing_nodes);
+        max_flow_algorithm->pierce_nodes(kSinkTag, piercing_nodes);
       };
 
       TIMED_SCOPE("Update Border Nodes") {
@@ -308,13 +311,15 @@ void FlowCutter::derive_source_side_cut(
     const FlowNetwork &flow_network, std::span<const EdgeWeight> flow
 ) {
   SCOPED_TIMER("Derive Cut");
+
   const CSRGraph &graph = flow_network.graph;
+  MaxPreflowAlgorithm *max_flow_algorithm = max_preflow_algorithm();
 
   _bfs_runner.reset();
   _source_reachable_nodes.clear();
   _source_reachable_nodes_marker.reset();
 
-  const NodeStatus &node_status = _max_flow_algorithm->node_status();
+  const NodeStatus &node_status = max_flow_algorithm->node_status();
   for (const NodeID border_node : _source_side_border_nodes) {
     KASSERT(node_status.is_source(border_node));
 
@@ -324,7 +329,7 @@ void FlowCutter::derive_source_side_cut(
 
   NodeWeight source_reachable_weight = 0;
   if constexpr (kCollectExcessNodes) {
-    for (const NodeID excess_node : _max_flow_algorithm->excess_nodes()) {
+    for (const NodeID excess_node : max_flow_algorithm->excess_nodes()) {
       KASSERT(!node_status.is_source(excess_node));
       KASSERT(!_source_reachable_nodes_marker.get(excess_node));
 
@@ -363,13 +368,15 @@ void FlowCutter::derive_sink_side_cut(
     const FlowNetwork &flow_network, std::span<const EdgeWeight> flow
 ) {
   SCOPED_TIMER("Derive Cut");
+
   const CSRGraph &graph = flow_network.graph;
+  MaxPreflowAlgorithm *max_flow_algorithm = max_preflow_algorithm();
 
   _bfs_runner.reset();
   _sink_reachable_nodes.clear();
   _sink_reachable_nodes_marker.reset();
 
-  const NodeStatus &node_status = _max_flow_algorithm->node_status();
+  const NodeStatus &node_status = max_flow_algorithm->node_status();
   for (const NodeID border_node : _sink_side_border_nodes) {
     KASSERT(node_status.is_sink(border_node));
 
@@ -416,7 +423,7 @@ void FlowCutter::update_border_nodes(const bool source_side, const FlowNetwork &
       source_side ? _sink_reachable_nodes_marker : _source_reachable_nodes_marker;
 
   const CSRGraph &graph = flow_network.graph;
-  const NodeStatus &node_status = _max_flow_algorithm->node_status();
+  const NodeStatus &node_status = max_preflow_algorithm()->node_status();
 
   border_nodes.clear();
   for (const NodeID u : reachable_nodes) {
@@ -447,7 +454,7 @@ void FlowCutter::compute_moves(
 ) {
   SCOPED_TIMER("Compute Moves");
 
-  const NodeStatus &node_status = _max_flow_algorithm->node_status();
+  const NodeStatus &node_status = max_preflow_algorithm()->node_status();
   const BlockID block1 = border_region.block1();
   const BlockID block2 = border_region.block2();
 
@@ -466,8 +473,14 @@ void FlowCutter::compute_moves(
   }
 }
 
+[[nodiscard]] MaxPreflowAlgorithm *FlowCutter::max_preflow_algorithm() {
+  return _run_sequentially ? _sequential_max_flow_algorithm.get()
+                           : _parallel_max_flow_algorithm.get();
+}
+
 void FlowCutter::free() {
-  _max_flow_algorithm->free();
+  _sequential_max_flow_algorithm->free();
+  _parallel_max_flow_algorithm->free();
 
   _source_side_border_nodes.clear();
   _source_side_border_nodes.shrink_to_fit();

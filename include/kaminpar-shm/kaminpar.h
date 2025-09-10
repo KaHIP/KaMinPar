@@ -262,6 +262,10 @@ struct FlowSchedulerContext {
   bool parallel;
   bool deterministic;
   double parallel_search_multiplier;
+
+  bool skip_unpromising_cuts;
+  bool skip_small_cuts;
+  EdgeWeight small_cut_threshold;
 };
 
 struct FlowNetworkConstructionContext {
@@ -293,6 +297,7 @@ struct PiercingHeuristicContext {
 struct FlowCutterContext {
   bool use_whfc;
 
+  NodeID small_flow_network_threshold;
   PreflowPushContext flow;
   PiercingHeuristicContext piercing;
 };

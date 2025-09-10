@@ -63,6 +63,8 @@ class PreflowPushAlgorithm : public MaxPreflowAlgorithm {
     std::size_t _work;
   };
 
+  static constexpr bool kCollectActiveNodesTag = true;
+
 public:
   PreflowPushAlgorithm(const PreflowPushContext &ctx);
   ~PreflowPushAlgorithm() override = default;

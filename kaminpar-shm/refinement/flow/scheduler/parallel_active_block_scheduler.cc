@@ -19,9 +19,10 @@ namespace kaminpar::shm {
 ParallelActiveBlockScheduler::ParallelActiveBlockScheduler(const TwowayFlowRefinementContext &f_ctx)
     : _f_ctx(f_ctx) {
   if (_f_ctx.scheduler.deterministic) {
-    _active_block_scheduling = std::make_unique<MatchingBasedActiveBlockScheduling>();
+    _active_block_scheduling =
+        std::make_unique<MatchingBasedActiveBlockScheduling>(f_ctx.scheduler);
   } else {
-    _active_block_scheduling = std::make_unique<SingleRoundActiveBlockScheduling>();
+    _active_block_scheduling = std::make_unique<SingleRoundActiveBlockScheduling>(f_ctx.scheduler);
   }
 }
 
@@ -54,13 +55,8 @@ bool ParallelActiveBlockScheduler::refine(
   const TimePoint start_time = Clock::now();
   QuotientGraph quotient_graph(p_graph);
 
-  const bool run_sequentially = _f_ctx.run_sequentially || num_threads == num_parallel_searches;
   LazyVector<FlowRefiner> refiners(
-      [&] {
-        return FlowRefiner(
-            p_ctx, _f_ctx, run_sequentially, quotient_graph, p_graph, graph, start_time
-        );
-      },
+      [&] { return FlowRefiner(p_ctx, _f_ctx, quotient_graph, p_graph, graph, start_time); },
       num_parallel_searches
   );
   LazyVector<ScalableVector<QuotientGraph::GraphEdge>> new_cut_edges_ets(num_parallel_searches);
@@ -76,7 +72,7 @@ bool ParallelActiveBlockScheduler::refine(
     DBG << "Starting round " << num_round;
 
     const Scheduling scheduling =
-        _active_block_scheduling->compute_scheduling(quotient_graph, _active_blocks);
+        _active_block_scheduling->compute_scheduling(quotient_graph, _active_blocks, num_round);
     std::fill_n(_active_blocks.begin(), p_graph.k(), false);
 
     EdgeWeight cut_value = prev_cut_value;
@@ -87,6 +83,7 @@ bool ParallelActiveBlockScheduler::refine(
       const std::size_t num_searches = std::min(num_parallel_searches, active_block_pairs.size());
       std::size_t cur_block_pair = 0;
 
+      const bool run_sequentially = _f_ctx.run_sequentially || num_threads == num_searches;
       tbb::parallel_for<std::size_t>(0, num_searches, [&](const std::size_t refiner_id) {
         FlowRefiner &refiner = refiners[refiner_id];
         ScalableVector<QuotientGraph::GraphEdge> &new_cut_edges = new_cut_edges_ets[refiner_id];
@@ -100,7 +97,7 @@ bool ParallelActiveBlockScheduler::refine(
           const auto [block1, block2] = active_block_pairs[block_pair];
           DBG << "Scheduling block pair " << block1 << " and " << block2;
 
-          const FlowRefiner::Result flow_result = refiner.refine(block1, block2);
+          const FlowRefiner::Result flow_result = refiner.refine(block1, block2, run_sequentially);
 
           if (flow_result.time_limit_exceeded) {
             if (tbb::task::current_context()->cancel_group_execution()) {

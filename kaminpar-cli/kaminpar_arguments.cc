@@ -646,6 +646,30 @@ CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context 
           "scheduled deterministically if they are scheduled in parallel."
       )
       ->capture_default_str();
+  twoway_flow
+      ->add_option(
+          "--r-twoway-flow-skip-unprimising-cuts",
+          ctx.refinement.twoway_flow.scheduler.skip_unpromising_cuts,
+          "If set, skip block pairs where no improvement was found during the first active-block "
+          "scheduling round."
+
+      )
+      ->capture_default_str();
+  twoway_flow
+      ->add_option(
+          "--r-twoway-flow-skip-small-cuts",
+          ctx.refinement.twoway_flow.scheduler.skip_small_cuts,
+          "If set, skip block pairs whose cut size is below the small cut threshold."
+
+      )
+      ->capture_default_str();
+  twoway_flow
+      ->add_option(
+          "--r-twoway-flow-small-cut-threshold",
+          ctx.refinement.twoway_flow.scheduler.small_cut_threshold,
+          "Block pairs with a cut size below this value are considered small cuts."
+      )
+      ->capture_default_str();
 
   twoway_flow
       ->add_option(
@@ -678,7 +702,14 @@ CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context 
           "instead of the built-in one."
       )
       ->capture_default_str();
-
+  twoway_flow
+      ->add_option(
+          "--r-twoway-flow-small-flow-network-threshold",
+          ctx.refinement.twoway_flow.flow_cutter.small_flow_network_threshold,
+          "If the size of flow network is below this threshold, always use the sequential max-flow "
+          "algorithm."
+      )
+      ->capture_default_str();
   twoway_flow
       ->add_option(
           "--r-twoway-flow-global-relabel-heuristic",

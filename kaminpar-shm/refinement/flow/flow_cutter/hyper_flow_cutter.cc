@@ -5,13 +5,9 @@
 
 namespace kaminpar::shm {
 
-HyperFlowCutter::HyperFlowCutter(
-    const PartitionContext &p_ctx, const FlowCutterContext &fc_ctx, const bool run_sequentially
-)
+HyperFlowCutter::HyperFlowCutter(const PartitionContext &p_ctx, const FlowCutterContext &fc_ctx)
     : _p_ctx(p_ctx),
       _fc_ctx(fc_ctx),
-      _run_sequentially(run_sequentially),
-      _hypergraph(),
       _sequential_flow_cutter(_hypergraph, Random::get_seed(), fc_ctx.piercing.deterministic),
       _parallel_flow_cutter(_hypergraph, Random::get_seed(), fc_ctx.piercing.deterministic) {
   _sequential_flow_cutter.timer.active = false;
@@ -25,12 +21,16 @@ HyperFlowCutter::HyperFlowCutter(
   _parallel_flow_cutter.setBulkPiercing(fc_ctx.piercing.bulk_piercing);
 }
 
-HyperFlowCutter::Result
-HyperFlowCutter::compute_cut(const BorderRegion &border_region, const FlowNetwork &flow_network) {
+HyperFlowCutter::Result HyperFlowCutter::compute_cut(
+    const BorderRegion &border_region, const FlowNetwork &flow_network, bool run_sequentially
+) {
   SCOPED_TIMER("Run WHFC");
 
+  run_sequentially = run_sequentially || (flow_network.graph.n() + flow_network.graph.m()) <
+                                             _fc_ctx.small_flow_network_threshold;
+
   initialize(flow_network);
-  if (_run_sequentially) {
+  if (run_sequentially) {
     run_flow_cutter(_sequential_flow_cutter, border_region, flow_network);
   } else {
     run_flow_cutter(_parallel_flow_cutter, border_region, flow_network);

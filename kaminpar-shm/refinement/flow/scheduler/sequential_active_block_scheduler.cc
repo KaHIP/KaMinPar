@@ -12,7 +12,8 @@ namespace kaminpar::shm {
 SequentialActiveBlockScheduler::SequentialActiveBlockScheduler(
     const TwowayFlowRefinementContext &f_ctx
 )
-    : _f_ctx(f_ctx) {}
+    : _f_ctx(f_ctx),
+      _active_block_scheduling(f_ctx.scheduler) {}
 
 bool SequentialActiveBlockScheduler::refine(
     PartitionedCSRGraph &p_graph, const CSRGraph &graph, const PartitionContext &p_ctx
@@ -32,9 +33,7 @@ bool SequentialActiveBlockScheduler::refine(
   const TimePoint start_time = Clock::now();
   QuotientGraph quotient_graph(p_graph);
 
-  FlowRefiner refiner(
-      p_ctx, _f_ctx, _f_ctx.run_sequentially, quotient_graph, p_graph, graph, start_time
-  );
+  FlowRefiner refiner(p_ctx, _f_ctx, quotient_graph, p_graph, graph, start_time);
 
   std::size_t num_round = 0;
   bool found_improvement = false;
@@ -47,7 +46,9 @@ bool SequentialActiveBlockScheduler::refine(
     DBG << "Starting round " << num_round;
 
     const SubroundScheduling active_block_pairs = TIMED_SCOPE("Compute Active Block Pairs") {
-      return _active_block_scheduling.compute_subround_scheduling(quotient_graph, _active_blocks);
+      return _active_block_scheduling.compute_subround_scheduling(
+          quotient_graph, _active_blocks, num_round
+      );
     };
     std::fill_n(_active_blocks.begin(), p_graph.k(), false);
 
@@ -56,7 +57,7 @@ bool SequentialActiveBlockScheduler::refine(
       IF_STATS _stats.num_searches += 1;
       DBG << "Scheduling block pair " << block1 << " and " << block2;
 
-      const Result result = refiner.refine(block1, block2);
+      const Result result = refiner.refine(block1, block2, _f_ctx.run_sequentially);
 
       if (result.time_limit_exceeded) {
         LOG_WARNING << "Time limit exceeded during flow refinement";

@@ -24,12 +24,11 @@ class HyperFlowCutter : public FlowCutterAlgorithm {
   SET_DEBUG(false);
 
 public:
-  HyperFlowCutter(
-      const PartitionContext &p_ctx, const FlowCutterContext &fc_ctx, bool run_sequentially
-  );
+  HyperFlowCutter(const PartitionContext &p_ctx, const FlowCutterContext &fc_ctx);
 
-  [[nodiscard]] virtual Result
-  compute_cut(const BorderRegion &border_region, const FlowNetwork &flow_network) override;
+  [[nodiscard]] virtual Result compute_cut(
+      const BorderRegion &border_region, const FlowNetwork &flow_network, bool run_sequentially
+  ) override;
 
   void free() override;
 
@@ -57,7 +56,6 @@ private:
 private:
   const PartitionContext &_p_ctx;
   const FlowCutterContext &_fc_ctx;
-  const bool _run_sequentially;
 
   whfc::FlowHypergraphBuilder _hypergraph;
   whfc::HyperFlowCutter<whfc::SequentialPushRelabel> _sequential_flow_cutter;

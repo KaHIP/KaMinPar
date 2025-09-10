@@ -216,6 +216,9 @@ Context create_default_context() {
                                               .parallel = false,
                                               .deterministic = false,
                                               .parallel_search_multiplier = 1,
+                                              .skip_unpromising_cuts = false,
+                                              .skip_small_cuts = false,
+                                              .small_cut_threshold = 10,
                                           },
                                       .construction =
                                           {
@@ -226,6 +229,7 @@ Context create_default_context() {
                                       .flow_cutter =
                                           {
                                               .use_whfc = false,
+                                              .small_flow_network_threshold = 65536,
                                               .flow =
                                                   {
                                                       .global_relabeling_heuristic = true,
@@ -280,6 +284,9 @@ Context create_default_context() {
                                       .parallel = false,
                                       .deterministic = false,
                                       .parallel_search_multiplier = 1,
+                                      .skip_unpromising_cuts = false,
+                                      .skip_small_cuts = false,
+                                      .small_cut_threshold = 10,
                                   },
                               .construction =
                                   {
@@ -290,6 +297,7 @@ Context create_default_context() {
                               .flow_cutter =
                                   {
                                       .use_whfc = false,
+                                      .small_flow_network_threshold = 65536,
                                       .flow =
                                           {
                                               .global_relabeling_heuristic = true,
@@ -361,6 +369,9 @@ Context create_default_context() {
                               .parallel = true,
                               .deterministic = false,
                               .parallel_search_multiplier = 1,
+                              .skip_unpromising_cuts = false,
+                              .skip_small_cuts = false,
+                              .small_cut_threshold = 10,
                           },
                       .construction =
                           {
@@ -371,6 +382,7 @@ Context create_default_context() {
                       .flow_cutter =
                           {
                               .use_whfc = false,
+                              .small_flow_network_threshold = 65536,
                               .flow =
                                   {
                                       .global_relabeling_heuristic = true,
