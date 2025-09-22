@@ -372,14 +372,22 @@ If you use KaMinPar in an academic setting, please cite the appropriate publicat
 }
 
 // [x]TeraPart (memory-efficient [d]KaMinPar)
-@misc{TeraPart,
-      title={Tera-Scale Multilevel Graph Partitioning},
-      author={Daniel Salwasser and Daniel Seemaier and Lars Gottesbüren and Peter Sanders},
-      year={2024},
-      eprint={2410.19119},
-      archivePrefix={arXiv},
-      primaryClass={cs.DS},
-      url={https://arxiv.org/abs/2410.19119},
+@InProceedings{TeraPart,
+  author       = {Daniel Salwasser and
+                  Daniel Seemaier and
+                  Lars Gottesb{\"{u}}ren and
+                  Peter Sanders},
+  title        = {Tera-Scale Multilevel Graph Partitioning},
+  booktitle    = {{IEEE} International Parallel and Distributed Processing Symposium,
+                  {IPDPS} 2025, Milano, Italy, June 3-7, 2025},
+  pages        = {285--296},
+  publisher    = {{IEEE}},
+  year         = {2025},
+  url          = {https://doi.org/10.1109/IPDPS64566.2025.00033},
+  doi          = {10.1109/IPDPS64566.2025.00033},
+  timestamp    = {Mon, 28 Jul 2025 15:42:51 +0200},
+  biburl       = {https://dblp.org/rec/conf/ipps/SalwasserSG025.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
 }
 
 // Worst-Case Linear-Time Multilevel Graph Partitioning
