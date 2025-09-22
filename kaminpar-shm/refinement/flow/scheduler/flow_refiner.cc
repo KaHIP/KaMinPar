@@ -30,7 +30,7 @@ FlowRefiner::FlowRefiner(
     LOG_WARNING << "WHFC requested but not available; using built-in FlowCutter as fallback.";
   }
 
-  _flow_cutter_algorithm = std::make_unique<FlowCutter>(p_ctx, f_ctx.flow_cutter, run_sequentially);
+  _flow_cutter_algorithm = std::make_unique<FlowCutter>(p_ctx, f_ctx.flow_cutter);
 #endif
 
   _flow_cutter_algorithm->set_time_limit(f_ctx.time_limit, start_time);
