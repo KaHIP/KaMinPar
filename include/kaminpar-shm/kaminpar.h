@@ -270,15 +270,14 @@ struct FlowSchedulerContext {
 
 struct FlowNetworkConstructionContext {
   bool deterministic;
+  NodeID small_graph_threshold;
 
   double border_region_scaling_factor;
   NodeID max_border_distance;
 };
 
 struct PreflowPushContext {
-  bool global_relabeling_heuristic;
   double global_relabeling_frequency;
-
   bool parallel_blocking_resolution;
   NodeID sequential_discharge_threshold;
 };

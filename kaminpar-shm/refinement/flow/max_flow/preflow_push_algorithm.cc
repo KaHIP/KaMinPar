@@ -102,7 +102,7 @@ MaxPreflowAlgorithm::Result PreflowPushAlgorithm::compute_max_preflow() {
     KASSERT(!_node_status.is_terminal(u));
     discharge(u);
 
-    if (_ctx.global_relabeling_heuristic && _grt.is_reached()) {
+    if (_grt.is_reached()) {
       global_relabel();
     }
   }

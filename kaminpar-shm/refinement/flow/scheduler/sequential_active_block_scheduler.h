@@ -42,7 +42,9 @@ class SequentialActiveBlockScheduler {
   using Result = FlowRefiner::Result;
 
 public:
-  SequentialActiveBlockScheduler(const TwowayFlowRefinementContext &f_ctx);
+  SequentialActiveBlockScheduler(
+      const ParallelContext &par_ctx, const TwowayFlowRefinementContext &f_ctx
+  );
 
   SequentialActiveBlockScheduler(SequentialActiveBlockScheduler &&) noexcept = default;
   SequentialActiveBlockScheduler &operator=(SequentialActiveBlockScheduler &&) noexcept = delete;
@@ -56,6 +58,7 @@ private:
   void apply_moves(std::span<const Move> moves);
 
 private:
+  const ParallelContext &_par_ctx;
   const TwowayFlowRefinementContext &_f_ctx;
   Statistics _stats;
 

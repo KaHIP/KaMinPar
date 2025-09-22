@@ -139,7 +139,7 @@ MaxPreflowAlgorithm::Result ParallelBlockedPreflowPushAlgorithm::compute_max_pre
       KASSERT(!_node_status.is_terminal(u));
       discharge(u);
 
-      if (_ctx.global_relabeling_heuristic && _grt.is_reached()) {
+      if (_grt.is_reached()) {
         global_relabel();
       }
     }
@@ -153,7 +153,7 @@ MaxPreflowAlgorithm::Result ParallelBlockedPreflowPushAlgorithm::compute_max_pre
       _grt.add_work(_work_ets.combine(std::plus<>()));
       _work_ets.clear();
 
-      if (_ctx.global_relabeling_heuristic && _grt.is_reached()) {
+      if (_grt.is_reached()) {
         global_relabel();
       }
     }

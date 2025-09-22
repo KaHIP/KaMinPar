@@ -17,7 +17,7 @@ TwowayFlowRefiner::TwowayFlowRefiner(
 )
     : _par_ctx(par_ctx),
       _f_ctx(f_ctx),
-      _sequential_scheduler(std::make_unique<SequentialActiveBlockScheduler>(f_ctx)),
+      _sequential_scheduler(std::make_unique<SequentialActiveBlockScheduler>(par_ctx, f_ctx)),
       _parallel_scheduler(std::make_unique<ParallelActiveBlockScheduler>(f_ctx)) {}
 
 std::string TwowayFlowRefiner::name() const {

@@ -29,9 +29,12 @@ FlowNetwork FlowNetworkConstructor::construct_flow_network(
     const BorderRegion &border_region,
     const BlockWeight block1_weight,
     const BlockWeight block2_weight,
-    const bool run_sequentially
+    bool run_sequentially
 ) {
-  if (run_sequentially || _c_ctx.deterministic) {
+  run_sequentially |= (_graph.n() + _graph.m()) <= _c_ctx.small_graph_threshold;
+  run_sequentially |= _c_ctx.deterministic;
+
+  if (run_sequentially) {
     return sequential_construct_flow_network(border_region, block1_weight, block2_weight);
   } else {
     return parallel_construct_flow_network(border_region, block1_weight, block2_weight);

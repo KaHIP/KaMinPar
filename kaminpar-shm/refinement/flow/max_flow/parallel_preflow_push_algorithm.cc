@@ -133,7 +133,7 @@ MaxPreflowAlgorithm::Result ParallelPreflowPushAlgorithm::compute_max_preflow() 
       KASSERT(!_node_status.is_terminal(u));
       discharge(u);
 
-      if (_ctx.global_relabeling_heuristic && _grt.is_reached()) {
+      if (_grt.is_reached()) {
         global_relabel();
       }
     }
@@ -147,7 +147,7 @@ MaxPreflowAlgorithm::Result ParallelPreflowPushAlgorithm::compute_max_preflow() 
       _grt.add_work(_work_ets.combine(std::plus<>()));
       _work_ets.clear();
 
-      if (_next_active_nodes.empty() || (_ctx.global_relabeling_heuristic && _grt.is_reached())) {
+      if (_next_active_nodes.empty() || _grt.is_reached()) {
         global_relabel<kCollectActiveNodesTag>();
       }
     }

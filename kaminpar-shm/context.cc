@@ -791,8 +791,6 @@ std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
         out << "      Shrinking factor:       "
             << r_ctx.twoway_flow.flow_cutter.piercing.bulk_piercing_shrinking_factor << "\n";
       }
-      out << "    Global relabeling:        "
-          << yn(r_ctx.twoway_flow.flow_cutter.flow.global_relabeling_heuristic) << "\n";
       out << "    Global relabeling freq.:  "
           << r_ctx.twoway_flow.flow_cutter.flow.global_relabeling_frequency << "\n";
       out << "    Blocking relabel/push:    "
