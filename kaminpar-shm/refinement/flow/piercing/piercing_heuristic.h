@@ -11,12 +11,28 @@
 #include "kaminpar-shm/refinement/flow/util/breadth_first_search.h"
 #include "kaminpar-shm/refinement/flow/util/node_status.h"
 
-#include "kaminpar-common/datastructures/marker.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::shm {
+
+class ReachabilityMarker {
+public:
+  ReachabilityMarker(
+      const std::size_t timestamp, const std::span<const std::size_t> reachability_marker
+  )
+      : _timestamp(timestamp),
+        _reachability_marker(reachability_marker) {}
+
+  [[nodiscard]] bool is_reachable(const NodeID u) const {
+    return _reachability_marker[u] == _timestamp;
+  }
+
+private:
+  std::size_t _timestamp;
+  std::span<const std::size_t> _reachability_marker;
+};
 
 class PiercingHeuristic {
   static constexpr bool kUnreachableTag = true;
@@ -53,14 +69,9 @@ class PiercingHeuristic {
       return candidate;
     }
 
-    template <bool kFilterOnlyNondeterministicRange = false, typename Filter>
-    void filter(Filter &&filter) {
-      const auto new_end = std::remove_if(
-          _candidates.begin() +
-              (kFilterOnlyNondeterministicRange ? _deterministic_prefix_length : 0),
-          _candidates.end(),
-          std::forward<Filter>(filter)
-      );
+    template <typename Filter> void filter(Filter &&filter) {
+      const auto new_end =
+          std::remove_if(_candidates.begin(), _candidates.end(), std::forward<Filter>(filter));
       _candidates.erase(new_end, _candidates.end());
       _deterministic_prefix_length = std::min(_deterministic_prefix_length, _candidates.size());
     }
@@ -165,7 +176,7 @@ public:
       bool source_side,
       bool has_unreachable_nodes,
       const NodeStatus &cut_status,
-      const Marker<> &reachable_oracle,
+      ReachabilityMarker reachable_marker,
       NodeWeight side_weight,
       NodeWeight max_weight
   );
@@ -181,7 +192,7 @@ private:
       bool source_side,
       bool unreachable_candidates,
       const NodeStatus &cut_status,
-      const Marker<> &reachable_oracle,
+      ReachabilityMarker reachable_marker,
       NodeWeight max_weight,
       NodeID max_num_piercing_nodes
   );
@@ -189,7 +200,7 @@ private:
   NodeID reclassify_reachable_candidates(
       bool source_side,
       const NodeStatus &cut_status,
-      const Marker<> &reachable_oracle,
+      ReachabilityMarker reachable_marker,
       NodeWeight max_node_weight
   );
 

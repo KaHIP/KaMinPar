@@ -186,23 +186,23 @@ std::span<const NodeID> PiercingHeuristic::compute_piercing_nodes(
     const bool source_side,
     const bool has_unreachable_nodes,
     const NodeStatus &cut_status,
-    const Marker<> &reachable_oracle,
+    const ReachabilityMarker reachable_marker,
     const NodeWeight side_weight,
     const NodeWeight max_weight
 ) {
   _piercing_nodes.clear();
 
-  add_piercing_nodes(source_side, kUnreachableTag, cut_status, reachable_oracle, max_weight, 1);
+  add_piercing_nodes(source_side, kUnreachableTag, cut_status, reachable_marker, max_weight, 1);
   if (!_piercing_nodes.empty()) {
     return _piercing_nodes;
   }
 
   if (has_unreachable_nodes) {
     const NodeID num_reclassified_nodes =
-        reclassify_reachable_candidates(source_side, cut_status, reachable_oracle, max_weight);
+        reclassify_reachable_candidates(source_side, cut_status, reachable_marker, max_weight);
 
     if (num_reclassified_nodes > 0) {
-      add_piercing_nodes(source_side, kUnreachableTag, cut_status, reachable_oracle, max_weight, 1);
+      add_piercing_nodes(source_side, kUnreachableTag, cut_status, reachable_marker, max_weight, 1);
 
       KASSERT(!_piercing_nodes.empty());
       return _piercing_nodes;
@@ -211,7 +211,7 @@ std::span<const NodeID> PiercingHeuristic::compute_piercing_nodes(
 
   const std::size_t max_piercing_nodes = compute_max_num_piercing_nodes(source_side, side_weight);
   add_piercing_nodes(
-      source_side, kReachableTag, cut_status, reachable_oracle, max_weight, max_piercing_nodes
+      source_side, kReachableTag, cut_status, reachable_marker, max_weight, max_piercing_nodes
   );
 
   if (_ph_ctx.bulk_piercing) {
@@ -230,7 +230,7 @@ void PiercingHeuristic::add_piercing_nodes(
     const bool source_side,
     const bool unreachable_candidates,
     const NodeStatus &cut_status,
-    const Marker<> &reachable_oracle,
+    const ReachabilityMarker reachable_marker,
     const NodeWeight max_weight,
     const NodeID max_num_piercing_nodes
 ) {
@@ -250,10 +250,6 @@ void PiercingHeuristic::add_piercing_nodes(
     PiercingNodeCandidatesBucket &bucket = candidates_buckets.bucket(distance);
 
     if (_ph_ctx.deterministic) {
-      constexpr bool kFilterOnlyNondeterministicRange = true;
-      bucket.filter<kFilterOnlyNondeterministicRange>([&](const NodeID u) {
-        return cut_status.is_terminal(u);
-      });
       bucket.sort();
     }
 
@@ -271,7 +267,7 @@ void PiercingHeuristic::add_piercing_nodes(
         continue;
       }
 
-      if (unreachable_candidates && reachable_oracle.get(u)) {
+      if (unreachable_candidates && reachable_marker.is_reachable(u)) {
         add_piercing_node_candidate(source_side, u, kReachableTag);
         continue;
       }
@@ -289,7 +285,7 @@ void PiercingHeuristic::add_piercing_nodes(
 NodeID PiercingHeuristic::reclassify_reachable_candidates(
     const bool source_side,
     const NodeStatus &cut_status,
-    const Marker<> &reachable_oracle,
+    const ReachabilityMarker reachable_marker,
     const NodeWeight max_node_weight
 ) {
   PiercingNodeCandidatesBuckets &candidates_buckets =
@@ -303,12 +299,17 @@ NodeID PiercingHeuristic::reclassify_reachable_candidates(
 
   for (std::int64_t distance = max_distance; distance >= min_distance; --distance) {
     PiercingNodeCandidatesBucket &candidates = candidates_buckets.bucket(distance);
+
+    if (_ph_ctx.deterministic) {
+      candidates.sort();
+    }
+
     candidates.filter([&](const NodeID u) {
       if (cut_status.is_terminal(u) || graph.node_weight(u) > max_node_weight) {
         return true;
       }
 
-      if (!reachable_oracle.get(u)) {
+      if (!reachable_marker.is_reachable(u)) {
         add_piercing_node_candidate(source_side, u, kUnreachableTag);
 
         num_moved += 1;

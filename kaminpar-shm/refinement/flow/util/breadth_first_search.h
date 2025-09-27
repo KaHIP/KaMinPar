@@ -25,8 +25,8 @@ public:
   BFSRunner(const BFSRunner &) = delete;
   BFSRunner &operator=(const BFSRunner &) = delete;
 
-  void reset() {
-    _queue.clear();
+  [[nodiscard]] std::span<const NodeID> reachable_nodes() const {
+    return _queue;
   }
 
   void add_seed(const NodeID seed) {
@@ -46,10 +46,8 @@ public:
   template <typename Callback> void perform(const NodeID initial_distance, Callback &&callback) {
     constexpr bool kRequiresDistance = std::is_invocable_v<Callback, NodeID, NodeID, Queue &>;
 
-    const std::size_t num_seeds = _queue.size();
-
     std::size_t begin = 0;
-    std::size_t end = num_seeds;
+    std::size_t end = _queue.size();
 
     NodeID distance = initial_distance;
     while (begin < end) {
@@ -66,8 +64,10 @@ public:
 
       distance += 1;
     }
+  }
 
-    _queue.resize(num_seeds);
+  void reset() {
+    _queue.clear();
   }
 
   void free() {
@@ -91,9 +91,8 @@ public:
   ParallelBFSRunner(const ParallelBFSRunner &) = delete;
   ParallelBFSRunner &operator=(const ParallelBFSRunner &) = delete;
 
-  void reset(const NodeID max_num_nodes) {
-    _queue.clear();
-    _queue.reserve(max_num_nodes);
+  [[nodiscard]] std::span<const NodeID> reachable_nodes() const {
+    return _queue.view();
   }
 
   void add_seed(const NodeID seed) {
@@ -111,10 +110,8 @@ public:
   template <typename Callback> void perform(const NodeID initial_distance, Callback &&callback) {
     constexpr bool kRequiresDistance = std::is_invocable_v<Callback, NodeID, NodeID, Queue>;
 
-    const std::size_t num_seeds = _queue.size();
-
     std::size_t begin = 0;
-    std::size_t end = num_seeds;
+    std::size_t end = _queue.size();
 
     std::size_t distance = initial_distance;
     while (begin < end) {
@@ -137,8 +134,11 @@ public:
 
       distance += 1;
     }
+  }
 
-    _queue.resize(num_seeds);
+  void reset(const NodeID max_num_nodes) {
+    _queue.clear();
+    _queue.reserve(max_num_nodes);
   }
 
   void free() {

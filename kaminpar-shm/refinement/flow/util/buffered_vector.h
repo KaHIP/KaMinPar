@@ -136,6 +136,10 @@ public:
     return _size;
   }
 
+  [[nodiscard]] std::span<const T> view() const {
+    return std::span<const T>(_data.data(), _size);
+  }
+
   [[nodiscard]] const T &operator[](const std::size_t pos) const {
     return _data[pos];
   }

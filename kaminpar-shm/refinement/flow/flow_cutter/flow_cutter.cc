@@ -1,7 +1,10 @@
 #include "kaminpar-shm/refinement/flow/flow_cutter/flow_cutter.h"
 
 #include <algorithm>
+#include <functional>
 #include <tuple>
+
+#include <tbb/enumerable_thread_specific.h>
 
 #include "kaminpar-shm/refinement/flow/max_flow/parallel_blocked_preflow_push_algorithm.h"
 #include "kaminpar-shm/refinement/flow/max_flow/parallel_preflow_push_algorithm.h"
@@ -53,8 +56,11 @@ void FlowCutter::initialize(const BorderRegion &border_region, const FlowNetwork
   _sink_side_border_nodes.clear();
   _sink_side_border_nodes.push_back(flow_network.sink);
 
-  _source_reachable_nodes_marker.resize(flow_network.graph.n());
-  _sink_reachable_nodes_marker.resize(flow_network.graph.n());
+  _source_reachable_nodes_timestamp = 0;
+  _sink_reachable_nodes_timestamp = 0;
+
+  _source_reachable_nodes_marker.resize(flow_network.graph.n(), static_array::seq);
+  _sink_reachable_nodes_marker.resize(flow_network.graph.n(), static_array::seq);
 
   _source_side_piercing_node_candidates_marker.reset();
   _sink_side_piercing_node_candidates_marker.reset();
@@ -117,13 +123,16 @@ void FlowCutter::run_flow_cutter(
         break;
       }
 
-      constexpr bool kCollectExcessNodes = true;
-      derive_source_side_cut<kCollectExcessNodes>(flow_network, flow);
-      derive_sink_side_cut(flow_network, flow);
+      if (_run_sequentially) {
+        derive_source_side_cut<kCollectExcessNodesTag>(flow_network, flow);
+        derive_sink_side_cut(flow_network, flow);
+      } else {
+        derive_source_side_cut_parallel<kCollectExcessNodesTag>(flow_network, flow);
+        derive_sink_side_cut_parallel(flow_network, flow);
+      }
     } else {
       if (pierced_on_source_side) {
-        constexpr bool kCollectExcessNodes = false;
-        derive_source_side_cut<kCollectExcessNodes>(flow_network, flow);
+        derive_source_side_cut<kDontCollectExcessNodesTag>(flow_network, flow);
       } else {
         derive_sink_side_cut(flow_network, flow);
       }
@@ -133,7 +142,9 @@ void FlowCutter::run_flow_cutter(
         std::none_of(
             _source_reachable_nodes.begin(),
             _source_reachable_nodes.end(),
-            [&](const NodeID node) { return _sink_reachable_nodes_marker.get(node); }
+            [&](const NodeID node) {
+              return _sink_reachable_nodes_marker[node] == _sink_reachable_nodes_timestamp;
+            }
         ),
         "source and sink reachable nodes are not disjoint",
         assert::heavy
@@ -142,7 +153,9 @@ void FlowCutter::run_flow_cutter(
         std::none_of(
             _sink_reachable_nodes.begin(),
             _sink_reachable_nodes.end(),
-            [&](const NodeID node) { return _source_reachable_nodes_marker.get(node); }
+            [&](const NodeID node) {
+              return _source_reachable_nodes_marker[node] == _source_reachable_nodes_timestamp;
+            }
         ),
         "source and sink reachable nodes are not disjoint",
         assert::heavy
@@ -217,7 +230,7 @@ void FlowCutter::run_flow_cutter(
             kSourceTag,
             has_unreachable_nodes,
             max_flow_algorithm->node_status(),
-            _sink_reachable_nodes_marker,
+            ReachabilityMarker(_sink_reachable_nodes_timestamp, _sink_reachable_nodes_marker),
             source_side_weight,
             max_piercing_node_weight
         );
@@ -238,9 +251,10 @@ void FlowCutter::run_flow_cutter(
         augmenting_path_available_from_piercing = false;
         _source_side_border_nodes.clear();
 
+        const std::size_t cur_timestamp = _sink_reachable_nodes_timestamp;
         for (const NodeID piercing_node : piercing_nodes) {
-          augmenting_path_available_from_piercing |=
-              _sink_reachable_nodes_marker.get(piercing_node);
+          const bool is_reachable = _sink_reachable_nodes_marker[piercing_node] == cur_timestamp;
+          augmenting_path_available_from_piercing |= is_reachable;
 
           _source_side_border_nodes.push_back(piercing_node);
           source_side_weight += flow_network.graph.node_weight(piercing_node);
@@ -267,7 +281,7 @@ void FlowCutter::run_flow_cutter(
             kSinkTag,
             has_unreachable_nodes,
             max_flow_algorithm->node_status(),
-            _source_reachable_nodes_marker,
+            ReachabilityMarker(_source_reachable_nodes_timestamp, _source_reachable_nodes_marker),
             sink_side_weight,
             max_piercing_node_weight
         );
@@ -288,9 +302,10 @@ void FlowCutter::run_flow_cutter(
         augmenting_path_available_from_piercing = false;
         _sink_side_border_nodes.clear();
 
+        const std::size_t cur_timestamp = _source_reachable_nodes_timestamp;
         for (const NodeID piercing_node : piercing_nodes) {
-          augmenting_path_available_from_piercing |=
-              _source_reachable_nodes_marker.get(piercing_node);
+          const bool is_reachable = _source_reachable_nodes_marker[piercing_node] == cur_timestamp;
+          augmenting_path_available_from_piercing |= is_reachable;
 
           _sink_side_border_nodes.push_back(piercing_node);
           sink_side_weight += flow_network.graph.node_weight(piercing_node);
@@ -316,36 +331,33 @@ void FlowCutter::derive_source_side_cut(
   const CSRGraph &graph = flow_network.graph;
   MaxPreflowAlgorithm *max_flow_algorithm = max_preflow_algorithm();
 
-  _bfs_runner.reset();
-  _source_reachable_nodes.clear();
-  _source_reachable_nodes_marker.reset();
+  _source_bfs_runner.reset();
 
   const NodeStatus &node_status = max_flow_algorithm->node_status();
   for (const NodeID border_node : _source_side_border_nodes) {
     KASSERT(node_status.is_source(border_node));
 
-    _bfs_runner.add_seed(border_node);
-    _source_reachable_nodes.push_back(border_node);
+    _source_bfs_runner.add_seed(border_node);
   }
+
+  const std::size_t cur_timestamp = ++_source_reachable_nodes_timestamp;
 
   NodeWeight source_reachable_weight = 0;
   if constexpr (kCollectExcessNodes) {
     for (const NodeID excess_node : max_flow_algorithm->excess_nodes()) {
       KASSERT(!node_status.is_source(excess_node));
-      KASSERT(!_source_reachable_nodes_marker.get(excess_node));
+      KASSERT(_source_reachable_nodes_marker[excess_node] != cur_timestamp);
 
-      _bfs_runner.add_seed(excess_node);
-
-      _source_reachable_nodes.push_back(excess_node);
-      _source_reachable_nodes_marker.set(excess_node);
+      _source_bfs_runner.add_seed(excess_node);
+      _source_reachable_nodes_marker[excess_node] = cur_timestamp;
 
       source_reachable_weight += graph.node_weight(excess_node);
     }
   }
 
-  _bfs_runner.perform([&](const NodeID u, auto &queue) {
+  _source_bfs_runner.perform([&](const NodeID u, auto &queue) {
     graph.neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight c) {
-      if (node_status.is_terminal(v) || _source_reachable_nodes_marker.get(v)) {
+      if (node_status.is_terminal(v) || _source_reachable_nodes_marker[v] == cur_timestamp) {
         return;
       }
 
@@ -354,15 +366,75 @@ void FlowCutter::derive_source_side_cut(
       if (has_residual_capacity) {
         queue.push_back(v);
 
-        _source_reachable_nodes.push_back(v);
-        _source_reachable_nodes_marker.set(v);
-
+        _source_reachable_nodes_marker[v] = cur_timestamp;
         source_reachable_weight += graph.node_weight(v);
       }
     });
   });
 
+  _source_reachable_nodes = _source_bfs_runner.reachable_nodes();
   _source_reachable_weight = source_reachable_weight;
+}
+
+template <bool kCollectExcessNodes>
+void FlowCutter::derive_source_side_cut_parallel(
+    const FlowNetwork &flow_network, std::span<const EdgeWeight> flow
+) {
+  SCOPED_TIMER("Derive Cut");
+
+  const CSRGraph &graph = flow_network.graph;
+  MaxPreflowAlgorithm *max_flow_algorithm = max_preflow_algorithm();
+
+  _source_parallel_bfs_runner.reset(graph.n());
+
+  const NodeStatus &node_status = max_flow_algorithm->node_status();
+  for (const NodeID border_node : _source_side_border_nodes) {
+    KASSERT(node_status.is_source(border_node));
+
+    _source_parallel_bfs_runner.add_seed(border_node);
+  }
+
+  const std::size_t cur_timestamp = ++_source_reachable_nodes_timestamp;
+
+  NodeWeight source_reachable_weight = 0;
+  if constexpr (kCollectExcessNodes) {
+    for (const NodeID excess_node : max_flow_algorithm->excess_nodes()) {
+      KASSERT(!node_status.is_source(excess_node));
+      KASSERT(_source_reachable_nodes_marker[excess_node] != cur_timestamp);
+
+      _source_parallel_bfs_runner.add_seed(excess_node);
+      _source_reachable_nodes_marker[excess_node] = cur_timestamp;
+
+      source_reachable_weight += graph.node_weight(excess_node);
+    }
+  }
+
+  tbb::enumerable_thread_specific<NodeWeight> source_reachable_weight_ets;
+  _source_parallel_bfs_runner.perform([&](const NodeID u, auto queue) {
+    NodeWeight &local_source_reachable_weight = source_reachable_weight_ets.local();
+    graph.neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight c) {
+      if (node_status.is_terminal(v)) {
+        return;
+      }
+
+      const EdgeWeight e_flow = flow[e];
+      const bool has_residual_capacity = e_flow < c;
+      if (!has_residual_capacity) {
+        return;
+      }
+
+      const std::size_t prev_timestamp =
+          __atomic_exchange_n(&_source_reachable_nodes_marker[v], cur_timestamp, __ATOMIC_ACQ_REL);
+      if (prev_timestamp != cur_timestamp) {
+        queue.push_back(v);
+        local_source_reachable_weight += graph.node_weight(v);
+      }
+    });
+  });
+
+  _source_reachable_nodes = _source_parallel_bfs_runner.reachable_nodes();
+  _source_reachable_weight =
+      source_reachable_weight + source_reachable_weight_ets.combine(std::plus<NodeWeight>());
 }
 
 void FlowCutter::derive_sink_side_cut(
@@ -373,22 +445,21 @@ void FlowCutter::derive_sink_side_cut(
   const CSRGraph &graph = flow_network.graph;
   MaxPreflowAlgorithm *max_flow_algorithm = max_preflow_algorithm();
 
-  _bfs_runner.reset();
-  _sink_reachable_nodes.clear();
-  _sink_reachable_nodes_marker.reset();
+  _sink_bfs_runner.reset();
 
   const NodeStatus &node_status = max_flow_algorithm->node_status();
   for (const NodeID border_node : _sink_side_border_nodes) {
     KASSERT(node_status.is_sink(border_node));
 
-    _bfs_runner.add_seed(border_node);
-    _sink_reachable_nodes.push_back(border_node);
+    _sink_bfs_runner.add_seed(border_node);
   }
 
+  const std::size_t cur_timestamp = ++_sink_reachable_nodes_timestamp;
+
   NodeWeight sink_reachable_weight = 0;
-  _bfs_runner.perform([&](const NodeID u, auto &queue) {
+  _sink_bfs_runner.perform([&](const NodeID u, auto &queue) {
     graph.neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight c) {
-      if (node_status.is_terminal(v) || _sink_reachable_nodes_marker.get(v)) {
+      if (node_status.is_terminal(v) || _sink_reachable_nodes_marker[v] == cur_timestamp) {
         return;
       }
 
@@ -397,15 +468,60 @@ void FlowCutter::derive_sink_side_cut(
       if (has_residual_capacity) {
         queue.push_back(v);
 
-        _sink_reachable_nodes.push_back(v);
-        _sink_reachable_nodes_marker.set(v);
-
+        _sink_reachable_nodes_marker[v] = cur_timestamp;
         sink_reachable_weight += graph.node_weight(v);
       }
     });
   });
 
+  _sink_reachable_nodes = _sink_bfs_runner.reachable_nodes();
   _sink_reachable_weight = sink_reachable_weight;
+}
+
+void FlowCutter::derive_sink_side_cut_parallel(
+    const FlowNetwork &flow_network, std::span<const EdgeWeight> flow
+) {
+  SCOPED_TIMER("Derive Cut");
+
+  const CSRGraph &graph = flow_network.graph;
+  MaxPreflowAlgorithm *max_flow_algorithm = max_preflow_algorithm();
+
+  _sink_parallel_bfs_runner.reset(graph.n());
+
+  const NodeStatus &node_status = max_flow_algorithm->node_status();
+  for (const NodeID border_node : _sink_side_border_nodes) {
+    KASSERT(node_status.is_sink(border_node));
+
+    _sink_parallel_bfs_runner.add_seed(border_node);
+  }
+
+  const std::size_t cur_timestamp = ++_sink_reachable_nodes_timestamp;
+
+  tbb::enumerable_thread_specific<NodeWeight> sink_reachable_weight_ets;
+  _sink_parallel_bfs_runner.perform([&](const NodeID u, auto queue) {
+    NodeWeight &local_sink_reachable_weight = sink_reachable_weight_ets.local();
+    graph.neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight c) {
+      if (node_status.is_terminal(v)) {
+        return;
+      }
+
+      const EdgeWeight e_flow = flow[e];
+      const bool has_residual_capacity = -e_flow < c;
+      if (!has_residual_capacity) {
+        return;
+      }
+
+      const std::size_t prev_timestamp =
+          __atomic_exchange_n(&_sink_reachable_nodes_marker[v], cur_timestamp, __ATOMIC_ACQ_REL);
+      if (prev_timestamp != cur_timestamp) {
+        queue.push_back(v);
+        local_sink_reachable_weight += graph.node_weight(v);
+      }
+    });
+  });
+
+  _sink_reachable_nodes = _sink_parallel_bfs_runner.reachable_nodes();
+  _sink_reachable_weight = sink_reachable_weight_ets.combine(std::plus<NodeWeight>());
 }
 
 void FlowCutter::update_border_nodes(const bool source_side, const FlowNetwork &flow_network) {
@@ -420,7 +536,9 @@ void FlowCutter::update_border_nodes(const bool source_side, const FlowNetwork &
   Marker<> &piercing_marker = source_side ? _source_side_piercing_node_candidates_marker
                                           : _sink_side_piercing_node_candidates_marker;
 
-  const Marker<> &reachable_oracle =
+  const std::size_t cur_time_stamp =
+      source_side ? _sink_reachable_nodes_timestamp : _source_reachable_nodes_timestamp;
+  const std::span<const std::size_t> reachable_oracle =
       source_side ? _sink_reachable_nodes_marker : _source_reachable_nodes_marker;
 
   const CSRGraph &graph = flow_network.graph;
@@ -439,7 +557,7 @@ void FlowCutter::update_border_nodes(const bool source_side, const FlowNetwork &
       if (!piercing_marker.get(v)) {
         piercing_marker.set(v);
 
-        const bool unreachable = !reachable_oracle.get(v);
+        const bool unreachable = reachable_oracle[v] != cur_time_stamp;
         _piercing_heuristic.add_piercing_node_candidate(source_side, v, unreachable);
       }
     });
@@ -489,13 +607,12 @@ void FlowCutter::free() {
   _sink_side_border_nodes.clear();
   _sink_side_border_nodes.shrink_to_fit();
 
-  _source_reachable_nodes.clear();
-  _source_reachable_nodes.shrink_to_fit();
+  _source_bfs_runner.free();
+  _sink_bfs_runner.free();
 
-  _sink_reachable_nodes.clear();
-  _sink_reachable_nodes.shrink_to_fit();
+  _source_parallel_bfs_runner.free();
+  _sink_parallel_bfs_runner.free();
 
-  _bfs_runner.free();
   _source_reachable_nodes_marker.free();
   _sink_reachable_nodes_marker.free();
 

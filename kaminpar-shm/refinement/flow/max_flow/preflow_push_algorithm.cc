@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include "kaminpar-common/timer.h"
+
 namespace kaminpar::shm {
 
 PreflowPushAlgorithm::PreflowPushAlgorithm(const PreflowPushContext &ctx) : _ctx(ctx) {}
@@ -138,6 +140,8 @@ MaxPreflowAlgorithm::Result PreflowPushAlgorithm::compute_max_preflow() {
 }
 
 void PreflowPushAlgorithm::saturate_source_edges() {
+  SCOPED_TIMER("Saturate Source Edges");
+
   for (const NodeID source : _nodes_to_desaturate) {
     KASSERT(_node_status.is_source(source));
 
@@ -173,6 +177,7 @@ void PreflowPushAlgorithm::saturate_source_edges() {
 }
 
 template <bool kCollectActiveNodes> void PreflowPushAlgorithm::global_relabel() {
+  SCOPED_TIMER("Global Relabel");
   IF_STATS _stats.num_global_relabels += 1;
 
   _grt.clear();

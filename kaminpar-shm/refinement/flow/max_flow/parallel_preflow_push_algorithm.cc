@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <limits>
 #include <utility>
 
 #include <tbb/blocked_range.h>
@@ -9,6 +10,7 @@
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/logger.h"
+#include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
 
@@ -124,21 +126,22 @@ MaxPreflowAlgorithm::Result ParallelPreflowPushAlgorithm::compute_max_preflow() 
     _next_active_nodes.clear();
     _round += 1;
 
-    IF_STATS _stats.num_sequential_rounds +=
-        _active_nodes.size() <= _ctx.sequential_discharge_threshold ? 1 : 0;
-    while (!_active_nodes.empty() && _active_nodes.size() <= _ctx.sequential_discharge_threshold) {
-      const NodeID u = _active_nodes.pop_back();
-      _last_activated[u] = _round - 1;
+    if (_active_nodes.size() <= _ctx.sequential_discharge_threshold) {
+      IF_STATS _stats.num_sequential_rounds += 1;
 
-      KASSERT(!_node_status.is_terminal(u));
-      discharge(u);
+      for (std::size_t i = 0; i < _active_nodes.size(); ++i) {
+        const NodeID u = _active_nodes[i];
 
-      if (_grt.is_reached()) {
-        global_relabel();
+        KASSERT(!_node_status.is_terminal(u));
+        discharge(u);
+
+        if (_grt.is_reached()) {
+          global_relabel();
+        }
       }
-    }
 
-    if (!_active_nodes.empty()) {
+      _next_active_nodes.flush();
+    } else {
       IF_STATS _stats.num_parallel_rounds += 1;
 
       discharge_active_nodes();
@@ -184,6 +187,8 @@ MaxPreflowAlgorithm::Result ParallelPreflowPushAlgorithm::compute_max_preflow() 
 }
 
 void ParallelPreflowPushAlgorithm::saturate_source_edges() {
+  SCOPED_TIMER("Saturate Source Edges");
+
   if (_nodes_to_desaturate.empty()) {
     return;
   }
@@ -231,6 +236,7 @@ void ParallelPreflowPushAlgorithm::saturate_source_edges() {
 }
 
 template <bool kCollectActiveNodes> void ParallelPreflowPushAlgorithm::global_relabel() {
+  SCOPED_TIMER("Global Relabel");
   IF_STATS _stats.num_global_relabels += 1;
 
   _grt.clear();
@@ -467,8 +473,7 @@ void ParallelPreflowPushAlgorithm::discharge(const NodeID u) {
 
     const bool to_was_inactive = to_prev_excess == 0;
     if (to_was_inactive && !_node_status.is_terminal(v)) {
-      _active_nodes.push_back(v);
-      _last_activated[v] = _round;
+      _next_active_nodes.push_back(v);
     }
   }
 

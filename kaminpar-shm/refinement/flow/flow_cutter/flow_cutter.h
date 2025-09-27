@@ -23,6 +23,9 @@ class FlowCutter : public FlowCutterAlgorithm {
   static constexpr bool kSourceTag = true;
   static constexpr bool kSinkTag = false;
 
+  static constexpr bool kCollectExcessNodesTag = true;
+  static constexpr bool kDontCollectExcessNodesTag = false;
+
 public:
   FlowCutter(const PartitionContext &p_ctx, const FlowCutterContext &fc_ctx);
 
@@ -40,7 +43,15 @@ private:
   template <bool kCollectExcessNodes>
   void derive_source_side_cut(const FlowNetwork &flow_network, std::span<const EdgeWeight> flow);
 
+  template <bool kCollectExcessNodes>
+  void derive_source_side_cut_parallel(
+      const FlowNetwork &flow_network, std::span<const EdgeWeight> flow
+  );
+
   void derive_sink_side_cut(const FlowNetwork &flow_network, std::span<const EdgeWeight> flow);
+
+  void
+  derive_sink_side_cut_parallel(const FlowNetwork &flow_network, std::span<const EdgeWeight> flow);
 
   void update_border_nodes(bool source_side, const FlowNetwork &flow_network);
 
@@ -61,15 +72,23 @@ private:
   ScalableVector<NodeID> _source_side_border_nodes;
   ScalableVector<NodeID> _sink_side_border_nodes;
 
-  ScalableVector<NodeID> _source_reachable_nodes;
-  ScalableVector<NodeID> _sink_reachable_nodes;
+  std::span<const NodeID> _source_reachable_nodes;
+  std::span<const NodeID> _sink_reachable_nodes;
 
   NodeWeight _source_reachable_weight;
   NodeWeight _sink_reachable_weight;
 
-  BFSRunner _bfs_runner;
-  Marker<> _source_reachable_nodes_marker;
-  Marker<> _sink_reachable_nodes_marker;
+  BFSRunner _source_bfs_runner;
+  BFSRunner _sink_bfs_runner;
+
+  ParallelBFSRunner _source_parallel_bfs_runner;
+  ParallelBFSRunner _sink_parallel_bfs_runner;
+
+  std::size_t _source_reachable_nodes_timestamp;
+  std::size_t _sink_reachable_nodes_timestamp;
+
+  StaticArray<std::size_t> _source_reachable_nodes_marker;
+  StaticArray<std::size_t> _sink_reachable_nodes_marker;
 
   PiercingHeuristic _piercing_heuristic;
   Marker<> _source_side_piercing_node_candidates_marker;
