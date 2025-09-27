@@ -67,7 +67,8 @@ void FlowCutter::initialize(const BorderRegion &border_region, const FlowNetwork
         border_region,
         flow_network,
         _p_ctx.max_block_weight(border_region.block1()),
-        _p_ctx.max_block_weight(border_region.block2())
+        _p_ctx.max_block_weight(border_region.block2()),
+        _run_sequentially
     );
   };
 

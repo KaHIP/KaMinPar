@@ -1,5 +1,10 @@
 #include "kaminpar-shm/refinement/flow/piercing/piercing_heuristic.h"
 
+#include <tbb/enumerable_thread_specific.h>
+#include <tbb/parallel_for.h>
+
+#include "kaminpar-common/timer.h"
+
 namespace kaminpar::shm {
 
 PiercingHeuristic::PiercingHeuristic(const PiercingHeuristicContext &ctx, const BlockID num_blocks)
@@ -11,7 +16,8 @@ void PiercingHeuristic::initialize(
     const BorderRegion &border_region,
     const FlowNetwork &flow_network,
     const NodeWeight max_source_side_weight,
-    const NodeWeight max_sink_side_weight
+    const NodeWeight max_sink_side_weight,
+    const bool run_sequentially
 ) {
   _border_region = &border_region;
   _flow_network = &flow_network;
@@ -33,58 +39,17 @@ void PiercingHeuristic::initialize(
       initial_sink_side_weight, total_weight, max_sink_side_weight, max_total_weight
   );
 
-  compute_distances();
-}
-
-void PiercingHeuristic::compute_distances() {
-  const NodeID source = _flow_network->source;
-  const NodeID sink = _flow_network->sink;
-  const CSRGraph &graph = _flow_network->graph;
-
-  if (_distance.size() < graph.n()) {
-    _distance.resize(graph.n(), static_array::noinit);
+  if (_distance.size() < flow_network.graph.n()) {
+    _distance.resize(flow_network.graph.n(), static_array::noinit);
   }
 
   NodeWeight max_dist_source = 1;
   NodeWeight max_dist_sink = 1;
   if (_ph_ctx.determine_distance_from_cut) {
-    std::fill_n(_distance.data(), graph.n(), kInvalidNodeWeight);
-
-    _bfs_runner.reset();
-    for (const NodeID u : _border_region->initial_nodes_region1()) {
-      const NodeID u_local = _flow_network->global_to_local_mapping.get(u);
-      _distance[u_local] = -1;
-      _bfs_runner.add_seed(u_local);
-    }
-    for (const NodeID u : _border_region->initial_nodes_region2()) {
-      const NodeID u_local = _flow_network->global_to_local_mapping.get(u);
-      _distance[u_local] = 1;
-      _bfs_runner.add_seed(u_local);
-    }
-
-    _bfs_runner.perform(1, [&](const NodeID u, const NodeID u_distance, auto &queue) {
-      const NodeWeight v_distance = u_distance + 1;
-
-      graph.adjacent_nodes(u, [&](const NodeID v) {
-        if (v == source || v == sink || _distance[v] != kInvalidNodeWeight) {
-          return;
-        }
-
-        const NodeID v_global = _flow_network->local_to_global_mapping.get(v);
-        const bool source_side = _border_region->region1_contains(v_global);
-
-        max_dist_source = source_side ? std::max(max_dist_source, v_distance) : max_dist_source;
-        max_dist_sink = source_side ? max_dist_sink : std::max(max_dist_sink, v_distance);
-
-        _distance[v] = source_side ? -v_distance : v_distance;
-        queue.push_back(v);
-      });
-    });
-
-    _distance[source] = -(max_dist_source + 1);
-    _distance[sink] = max_dist_sink + 1;
+    std::tie(max_dist_source, max_dist_sink) =
+        run_sequentially ? compute_distances() : compute_distances_parallel();
   } else {
-    std::fill_n(_distance.data(), graph.n(), 0);
+    std::fill_n(_distance.data(), flow_network.graph.n(), 0);
   }
 
   _source_reachable_candidates_buckets.initialize(max_dist_source);
@@ -92,6 +57,115 @@ void PiercingHeuristic::compute_distances() {
 
   _sink_reachable_candidates_buckets.initialize(max_dist_sink);
   _sink_unreachable_candidates_buckets.initialize(max_dist_sink);
+}
+
+std::pair<NodeID, NodeID> PiercingHeuristic::compute_distances() {
+  SCOPED_TIMER("Compute Distances");
+
+  const NodeID source = _flow_network->source;
+  const NodeID sink = _flow_network->sink;
+  const CSRGraph &graph = _flow_network->graph;
+
+  std::fill_n(_distance.data(), graph.n(), kInvalidNodeWeight);
+
+  _bfs_runner.reset();
+  for (const NodeID u : _border_region->initial_nodes_region1()) {
+    const NodeID u_local = _flow_network->global_to_local_mapping.get(u);
+    _distance[u_local] = -1;
+    _bfs_runner.add_seed(u_local);
+  }
+  for (const NodeID u : _border_region->initial_nodes_region2()) {
+    const NodeID u_local = _flow_network->global_to_local_mapping.get(u);
+    _distance[u_local] = 1;
+    _bfs_runner.add_seed(u_local);
+  }
+
+  NodeWeight max_dist_source = 1;
+  NodeWeight max_dist_sink = 1;
+  _bfs_runner.perform(1, [&](const NodeID u, const NodeID u_distance, auto &queue) {
+    const NodeWeight v_distance = u_distance + 1;
+
+    graph.adjacent_nodes(u, [&](const NodeID v) {
+      if (v == source || v == sink || _distance[v] != kInvalidNodeWeight) {
+        return;
+      }
+
+      const NodeID v_global = _flow_network->local_to_global_mapping.get(v);
+      const bool source_side = _border_region->region1_contains(v_global);
+
+      max_dist_source = source_side ? std::max(max_dist_source, v_distance) : max_dist_source;
+      max_dist_sink = source_side ? max_dist_sink : std::max(max_dist_sink, v_distance);
+
+      _distance[v] = source_side ? -v_distance : v_distance;
+      queue.push_back(v);
+    });
+  });
+
+  _distance[source] = -(max_dist_source + 1);
+  _distance[sink] = max_dist_sink + 1;
+
+  return {max_dist_source, max_dist_sink};
+}
+
+std::pair<NodeID, NodeID> PiercingHeuristic::compute_distances_parallel() {
+  SCOPED_TIMER("Compute Distances");
+
+  const NodeID source = _flow_network->source;
+  const NodeID sink = _flow_network->sink;
+  const CSRGraph &graph = _flow_network->graph;
+
+  tbb::parallel_for<NodeID>(0, graph.n(), [&](const NodeID u) {
+    _distance[u] = kInvalidNodeWeight;
+  });
+
+  _parallel_bfs_runner.reset(graph.n());
+  for (const NodeID u : _border_region->initial_nodes_region1()) {
+    const NodeID u_local = _flow_network->global_to_local_mapping.get(u);
+    _distance[u_local] = -1;
+    _parallel_bfs_runner.add_seed(u_local);
+  }
+  for (const NodeID u : _border_region->initial_nodes_region2()) {
+    const NodeID u_local = _flow_network->global_to_local_mapping.get(u);
+    _distance[u_local] = 1;
+    _parallel_bfs_runner.add_seed(u_local);
+  }
+
+  tbb::enumerable_thread_specific<NodeWeight> max_dist_source_ets(1);
+  tbb::enumerable_thread_specific<NodeWeight> max_dist_sink_ets(1);
+  _parallel_bfs_runner.perform(1, [&](const NodeID u, const NodeID u_distance, auto queue) {
+    NodeWeight &max_dist_source = max_dist_source_ets.local();
+    NodeWeight &max_dist_sink = max_dist_sink_ets.local();
+
+    const NodeWeight v_distance = u_distance + 1;
+    graph.adjacent_nodes(u, [&](const NodeID v) {
+      if (v == source || v == sink || _distance[v] != kInvalidNodeWeight) {
+        return;
+      }
+
+      const NodeID v_global = _flow_network->local_to_global_mapping.get(v);
+      const bool source_side = _border_region->region1_contains(v_global);
+
+      const NodeWeight prev_distance = __atomic_exchange_n(
+          &_distance[v], source_side ? -v_distance : v_distance, __ATOMIC_ACQ_REL
+      );
+      if (prev_distance == kInvalidNodeWeight) {
+        max_dist_source = source_side ? std::max(max_dist_source, v_distance) : max_dist_source;
+        max_dist_sink = source_side ? max_dist_sink : std::max(max_dist_sink, v_distance);
+        queue.push_back(v);
+      }
+    });
+  });
+
+  const auto max = [](NodeWeight a, NodeWeight b) {
+    return std::max(a, b);
+  };
+  const NodeWeight max_dist_source = max_dist_source_ets.combine(max);
+  const NodeWeight max_dist_sink = max_dist_sink_ets.combine(max);
+
+  _distance[source] = -(max_dist_source + 1);
+  _distance[sink] = max_dist_sink + 1;
+
+  return {max_dist_source, max_dist_sink};
 }
 
 void PiercingHeuristic::add_piercing_node_candidate(

@@ -155,7 +155,8 @@ public:
       const BorderRegion &border_region,
       const FlowNetwork &flow_network,
       NodeWeight max_source_side_weight,
-      NodeWeight max_sink_side_weight
+      NodeWeight max_sink_side_weight,
+      bool run_sequentially
   );
 
   void add_piercing_node_candidate(bool source_side, NodeID node, bool unreachable);
@@ -172,7 +173,9 @@ public:
   void free();
 
 private:
-  void compute_distances();
+  std::pair<NodeID, NodeID> compute_distances();
+
+  std::pair<NodeID, NodeID> compute_distances_parallel();
 
   void add_piercing_nodes(
       bool source_side,
@@ -208,6 +211,7 @@ private:
   ScalableVector<NodeID> _piercing_nodes;
 
   BFSRunner _bfs_runner;
+  ParallelBFSRunner _parallel_bfs_runner;
   StaticArray<NodeWeight> _distance;
 
   PiercingNodeCandidatesBuckets _source_reachable_candidates_buckets;
