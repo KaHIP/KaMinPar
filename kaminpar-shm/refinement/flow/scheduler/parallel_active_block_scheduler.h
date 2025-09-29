@@ -18,8 +18,8 @@
 namespace kaminpar::shm {
 
 class ParallelActiveBlockScheduler {
-  SET_DEBUG(true);
-  SET_STATISTICS(true);
+  SET_DEBUG(false);
+  SET_STATISTICS(false);
 
   struct Statistics {
     std::size_t num_searches;
