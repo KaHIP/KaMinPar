@@ -628,14 +628,16 @@ Context create_context_by_preset_name(const std::string &name);
 
 Context create_default_context();
 Context create_fast_context();
+Context create_eco_context();
 Context create_strong_context();
 
 Context create_terapart_context();
-Context create_terapart_strong_context();
+Context create_terapart_eco_context();
 Context create_terapart_largek_context();
 
 Context create_largek_context();
 Context create_largek_fast_context();
+Context create_largek_eco_context();
 Context create_largek_strong_context();
 
 Context create_jet_context(int rounds = 1);

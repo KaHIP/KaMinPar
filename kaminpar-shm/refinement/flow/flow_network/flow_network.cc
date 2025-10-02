@@ -23,7 +23,7 @@ FlowNetworkConstructor::FlowNetworkConstructor(
 )
     : _c_ctx(c_ctx),
       _p_graph(p_graph),
-      _graph(graph) {};
+      _graph(graph) {}
 
 FlowNetwork FlowNetworkConstructor::construct_flow_network(
     const BorderRegion &border_region,

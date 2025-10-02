@@ -18,7 +18,7 @@ BorderRegionConstructor::BorderRegionConstructor(
       _q_graph(q_graph),
       _p_graph(p_graph),
       _graph(graph),
-      _random(random::thread_independent_seeding) {};
+      _random(random::thread_independent_seeding) {}
 
 const BorderRegion &BorderRegionConstructor::construct(
     const BlockID block1,

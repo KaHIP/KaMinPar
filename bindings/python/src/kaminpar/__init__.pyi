@@ -53,6 +53,11 @@ def fast_context() -> Context:
     Retrieve the fast context.
     """
 
+def eco_context() -> Context:
+    """
+    Retrieve the eco context.
+    """
+
 def strong_context() -> Context:
     """
     Retrieve the higher-quality context.
@@ -63,7 +68,7 @@ def terapart_context() -> Context:
     Retrieve the default context for memory-efficient partitioning.
     """
 
-def terapart_strong_context() -> Context:
+def terapart_eco_context() -> Context:
     """
     Retrieve the higher-quality context for memory-efficient partitioning.
     """
@@ -81,6 +86,11 @@ def largek_context() -> Context:
 def largek_fast_context() -> Context:
     """
     Retrieve the fast context for large-k partitioning.
+    """
+
+def largek_eco_context() -> Context:
+    """
+    Retrieve the higher-quality context for large-k partitioning.
     """
 
 def largek_strong_context() -> Context:

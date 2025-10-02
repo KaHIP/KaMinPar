@@ -173,7 +173,7 @@ To partition a graph in [Metis](docs/graph_file_format.md) format, run:
 
 ```shell
 # KaMinPar: shared-memory partitioning
-./build/apps/KaMinPar <graph filename> <number of blocks> [-P default|terapart|strong|largek] [-t <nproc>] [-e <eps, e.g., 0.03 for 3%>] [-o <output partition>]
+./build/apps/KaMinPar <graph filename> <number of blocks> [-P default|terapart|eco|strong|largek] [-t <nproc>] [-e <eps, e.g., 0.03 for 3%>] [-o <output partition>]
 
 # dKaMinPar: distributed partitioning
 mpirun -n <nproc> ./build/apps/dKaMinPar <graph filename> <number of blocks> [-P default|strong|xterapart] [-e <eps, e.g., 0.03 for 3%>] [-o <output partition>]
@@ -185,7 +185,8 @@ There are multiple configuration presets that tune the algorithm for different s
 
 * `-P default`: fast partitioning with quality comparable to Metis.
 * `-P terapart`: same partition quality as `default`, but with reduced memory consumption (slightly slower).
-* `-P strong`: better quality than `default` through additional FM refinement at the cost of increased runtime.
+* `-P eco`: better quality than `default` through additional FM refinement at the cost of increased runtime.
+* `-P strong`: better quality than `eco` through additional flow refinement at the cost of increased runtime.
 * `-P largek`: faster for large values of k (e.g., k > 1024); reduces partition quality slightly for smaller k.
 
 The `-k <k>` option directs (d)KaMinPar to partition the graph into k blocks of roughly equal weight (use `-e <eps>` to control the maximum allowed imbalance, e.g., `-e 0.03` for 3%).
