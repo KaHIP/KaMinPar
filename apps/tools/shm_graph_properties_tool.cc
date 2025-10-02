@@ -13,7 +13,7 @@
 
 #include "kaminpar-io/kaminpar_io.h"
 
-#include "kaminpar-shm/context_io.h"
+#include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
@@ -39,9 +39,11 @@ template <typename Graph>
 void print_graph_properties(const Graph &graph, const Context ctx, std::ostream &out) {
   const float avg_deg = graph.m() / static_cast<float>(graph.n());
   const NodeID num_isolated_nodes = isolated_nodes(graph);
-  const std::size_t width = std::ceil(std::log10(
-      std::max<std::size_t>({graph.n(), graph.m(), graph.max_degree(), num_isolated_nodes})
-  ));
+  const std::size_t width = std::ceil(
+      std::log10(
+          std::max<std::size_t>({graph.n(), graph.m(), graph.max_degree(), num_isolated_nodes})
+      )
+  );
 
   cio::print_delimiter("Graph Properties", '#');
   out << "Graph:                        " << ctx.debug.graph_name << "\n";
@@ -62,7 +64,7 @@ void print_graph_properties(const Graph &graph, const Context ctx, std::ostream 
   out << "  Isolated nodes:             " << std::setw(width) << num_isolated_nodes << '\n';
 
   cio::print_delimiter("Graph Compression", '-');
-  print(ctx.compression, out);
+  std::cout << ctx.compression;
 }
 
 int main(int argc, char *argv[]) {
@@ -74,14 +76,16 @@ int main(int argc, char *argv[]) {
   app.add_option("-G,--graph", graph_filename, "Input graph in METIS format")->required();
   app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads");
   app.add_option("-f,--graph-file-format", graph_file_format)
-      ->transform(CLI::CheckedTransformer(
-          std::unordered_map<std::string, io::GraphFileFormat>{
-              {"metis", io::GraphFileFormat::METIS},
-              {"parhip", io::GraphFileFormat::PARHIP},
-              {"compressed", io::GraphFileFormat::COMPRESSED},
-          },
-          CLI::ignore_case
-      ))
+      ->transform(
+          CLI::CheckedTransformer(
+              std::unordered_map<std::string, io::GraphFileFormat>{
+                  {"metis", io::GraphFileFormat::METIS},
+                  {"parhip", io::GraphFileFormat::PARHIP},
+                  {"compressed", io::GraphFileFormat::COMPRESSED},
+              },
+              CLI::ignore_case
+          )
+      )
       ->description(R"(Graph file formats:
   - metis
   - parhip

@@ -20,8 +20,7 @@ void fill_leader_mapping(
   reified(graph, [&](const auto &graph) {
     TIMED_SCOPE("Allocation") {
       if (leader_mapping.size() < graph.n()) {
-        RECORD("leader_mapping") leader_mapping.resize(graph.n(), static_array::noinit);
-        RECORD_LOCAL_DATA_STRUCT(leader_mapping, leader_mapping.size() * sizeof(NodeID));
+        leader_mapping.resize(graph.n(), static_array::noinit);
       }
     };
 
@@ -77,13 +76,11 @@ void fill_cluster_buckets(
 
   TIMED_SCOPE("Allocation") {
     if (buckets.size() < graph.n()) {
-      RECORD("buckets") buckets.resize(graph.n(), static_array::noinit);
-      RECORD_LOCAL_DATA_STRUCT(buckets, buckets.size() * sizeof(NodeID));
+      buckets.resize(graph.n(), static_array::noinit);
     }
 
     if (buckets_index.size() < c_n + 1) {
-      RECORD("buckets_index") buckets_index.resize(c_n + 1, static_array::noinit);
-      RECORD_LOCAL_DATA_STRUCT(buckets_index, buckets_index.size() * sizeof(NodeID));
+      buckets_index.resize(c_n + 1, static_array::noinit);
     }
   };
 

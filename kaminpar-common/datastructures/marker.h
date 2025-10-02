@@ -15,7 +15,6 @@
 #include <tbb/parallel_for.h>
 
 #include "kaminpar-common/assert.h"
-#include "kaminpar-common/heap_profiler.h"
 
 namespace kaminpar {
 
@@ -26,14 +25,12 @@ template <
 class Marker {
 public:
   explicit Marker() : _marker_id(0), _first_unmarked_element{0} {
-    RECORD_DATA_STRUCT(0, _struct);
   }
 
   explicit Marker(const std::size_t capacity)
       : _data(capacity),
         _marker_id(0),
         _first_unmarked_element{0} {
-    RECORD_DATA_STRUCT(capacity * sizeof(Value), _struct);
   }
 
   Marker(const Marker &) = delete;
@@ -99,7 +96,6 @@ public:
   }
 
   void resize(const std::size_t capacity) {
-    IF_HEAP_PROFILING(_struct->size = std::max(_struct->size, capacity * sizeof(Value)));
     _data.resize(capacity);
   }
 
@@ -119,8 +115,6 @@ private:
   Container<Value> _data;
   Value _marker_id;
   std::array<std::size_t, kNumConcurrentMarkers> _first_unmarked_element;
-
-  IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };
 
 } // namespace kaminpar

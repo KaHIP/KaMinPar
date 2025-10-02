@@ -14,7 +14,7 @@
 #include "kaminpar-io/graph_compression_binary.h"
 #include "kaminpar-io/kaminpar_io.h"
 
-#include "kaminpar-shm/context_io.h"
+#include "kaminpar-shm/context.h"
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/logger.h"

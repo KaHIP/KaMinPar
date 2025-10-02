@@ -17,7 +17,6 @@
 
 #include "kaminpar-common/datastructures/cache_aligned_vector.h"
 #include "kaminpar-common/datastructures/static_array.h"
-#include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/ranges.h"
 
 namespace kaminpar {
@@ -40,7 +39,6 @@ public:
    * @param capacity The capacity of the map, i.e., the number of values that can be stored.
    */
   explicit ConcurrentFastResetArray(const std::size_t capacity = 0) : _data(capacity) {
-    RECORD_DATA_STRUCT(capacity * sizeof(value_type), _struct);
     _used_entries_tls.resize(tbb::this_task_arena::max_concurrency());
   }
 
@@ -80,7 +78,6 @@ public:
    * @param capacity The new capacity of the map, i.e., the number of values that can be stored.
    */
   void resize(const size_type capacity) {
-    IF_HEAP_PROFILING(_struct->size = std::max(_struct->size, capacity * sizeof(value_type)));
     _data.resize(capacity);
     _used_entries_tls.resize(tbb::this_task_arena::max_concurrency());
   }
@@ -128,8 +125,6 @@ public:
 private:
   StaticArray<value_type> _data;
   CacheAlignedVector<std::vector<size_type>> _used_entries_tls;
-
-  IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };
 
 } // namespace kaminpar

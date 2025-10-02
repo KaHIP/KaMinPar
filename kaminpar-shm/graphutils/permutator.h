@@ -34,8 +34,8 @@ NodePermutations compute_node_permutation_by_generic_buckets(
 
   const std::size_t cpus = std::min<std::size_t>(tbb::this_task_arena::max_concurrency(), n);
 
-  RECORD("permutation") StaticArray<NodeID> permutation(n);
-  RECORD("inverse_permutation") StaticArray<NodeID> inverse_permutation(n);
+  StaticArray<NodeID> permutation(n);
+  StaticArray<NodeID> inverse_permutation(n);
 
   // local_buckets[cpu][bucket]: thread-local bucket sizes
   CacheAlignedVector<std::vector<NodeID>> local_buckets(
@@ -43,9 +43,7 @@ NodePermutations compute_node_permutation_by_generic_buckets(
   );
 
   parallel::deterministic_for<NodeID>(
-      0,
-      n,
-      [&](const NodeID from, const NodeID to, const std::size_t cpu) {
+      0, n, [&](const NodeID from, const NodeID to, const std::size_t cpu) {
         KASSERT(cpu < cpus);
 
         for (NodeID u = from; u < to; ++u) {
@@ -75,9 +73,7 @@ NodePermutations compute_node_permutation_by_generic_buckets(
 
   // Apply offsets to obtain global permutation
   parallel::deterministic_for<NodeID>(
-      0,
-      n,
-      [&](const NodeID from, const NodeID to, const std::size_t cpu) {
+      0, n, [&](const NodeID from, const NodeID to, const std::size_t cpu) {
         KASSERT(cpu < cpus);
 
         for (NodeID u = from; u < to; ++u) {
@@ -111,9 +107,7 @@ NodePermutations compute_node_permutation_by_degree_buckets(
 ) {
   static_assert(std::is_invocable_r_v<NodeID, Lambda, NodeID>);
   return compute_node_permutation_by_generic_buckets(
-      n,
-      kNumberOfDegreeBuckets<NodeID>,
-      [&](const NodeID u) {
+      n, kNumberOfDegreeBuckets<NodeID>, [&](const NodeID u) {
         const NodeID deg = degrees(u);
 
         return deg == 0 ? (put_deg0_at_end ? kNumberOfDegreeBuckets<NodeID> - 1 : 0)

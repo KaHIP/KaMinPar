@@ -160,13 +160,11 @@ void KaMinPar::borrow_and_mutate_graph(
   const NodeID n = xadj.size() - 1;
   const EdgeID m = xadj[n];
 
-  RECORD("nodes") StaticArray<EdgeID> nodes(n + 1, xadj.data());
-  RECORD("edges") StaticArray<NodeID> edges(m, adjncy.data());
+  StaticArray<EdgeID> nodes(n + 1, xadj.data());
+  StaticArray<NodeID> edges(m, adjncy.data());
 
-  RECORD("node_weights")
   StaticArray<NodeWeight> node_weights =
       vwgt.empty() ? StaticArray<NodeWeight>(0) : StaticArray<NodeWeight>(n, vwgt.data());
-  RECORD("edge_weights")
   StaticArray<EdgeWeight> edge_weights =
       adjwgt.empty() ? StaticArray<EdgeWeight>(0) : StaticArray<EdgeWeight>(m, adjwgt.data());
 
@@ -192,10 +190,10 @@ void KaMinPar::copy_graph(
   const bool has_node_weights = !vwgt.empty();
   const bool has_edge_weights = !adjwgt.empty();
 
-  RECORD("nodes") StaticArray<EdgeID> nodes(n + 1);
-  RECORD("edges") StaticArray<NodeID> edges(m);
-  RECORD("node_weights") StaticArray<NodeWeight> node_weights(has_node_weights ? n : 0);
-  RECORD("edge_weights") StaticArray<EdgeWeight> edge_weights(has_edge_weights ? m : 0);
+  StaticArray<EdgeID> nodes(n + 1);
+  StaticArray<NodeID> edges(m);
+  StaticArray<NodeWeight> node_weights(has_node_weights ? n : 0);
+  StaticArray<EdgeWeight> edge_weights(has_edge_weights ? m : 0);
 
   nodes[n] = xadj[n];
   tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {

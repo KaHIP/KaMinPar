@@ -9,6 +9,8 @@
 
 #include <numeric>
 
+#include "kaminpar-io/util/binary_util.h"
+
 #include "kaminpar-mpi/datatype.h"
 #include "kaminpar-mpi/utils.h"
 
@@ -18,8 +20,6 @@
 
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/graph_compression/compressed_neighborhoods_builder.h"
-
-#include "kaminpar-io/util/binary_util.h"
 
 namespace {
 
@@ -236,7 +236,7 @@ DistributedCSRGraph csr_read(
   const NodeID num_local_nodes = last_node - first_node;
   const EdgeID num_local_edges = map_edge_offset(last_node) - map_edge_offset(first_node);
 
-  RECORD("node_distribution") StaticArray<GlobalNodeID> node_distribution(size + 1);
+  StaticArray<GlobalNodeID> node_distribution(size + 1);
   node_distribution[rank + 1] = last_node;
   MPI_Allgather(
       MPI_IN_PLACE,
@@ -248,7 +248,7 @@ DistributedCSRGraph csr_read(
       comm
   );
 
-  RECORD("edge_distribution") StaticArray<GlobalEdgeID> edge_distribution(size + 1);
+  StaticArray<GlobalEdgeID> edge_distribution(size + 1);
   edge_distribution[rank] = num_local_edges;
   MPI_Allgather(
       MPI_IN_PLACE,
@@ -267,9 +267,9 @@ DistributedCSRGraph csr_read(
   );
 
   graph::GhostNodeMapper mapper(rank, node_distribution);
-  RECORD("nodes") StaticArray<EdgeID> nodes(num_local_nodes + 1, static_array::noinit);
-  RECORD("edges") StaticArray<NodeID> edges(num_local_edges, static_array::noinit);
-  RECORD("edge_weights") StaticArray<EdgeWeight> edge_weights;
+  StaticArray<EdgeID> nodes(num_local_nodes + 1, static_array::noinit);
+  StaticArray<NodeID> edges(num_local_edges, static_array::noinit);
+  StaticArray<EdgeWeight> edge_weights;
   if (header.has_edge_weights) {
     edge_weights.resize(num_local_edges, static_array::noinit);
   }
@@ -302,7 +302,7 @@ DistributedCSRGraph csr_read(
   }
   nodes[num_local_nodes] = edge;
 
-  RECORD("node_weights") StaticArray<NodeWeight> node_weights;
+  StaticArray<NodeWeight> node_weights;
   if (header.has_node_weights) {
     node_weights.resize(num_local_nodes + mapper.next_ghost_node(), static_array::noinit);
 
@@ -385,7 +385,7 @@ DistributedCompressedGraph compressed_read(
   const NodeID num_local_nodes = last_node - first_node;
   const EdgeID num_local_edges = map_edge_offset(last_node) - map_edge_offset(first_node);
 
-  RECORD("node_distribution") StaticArray<GlobalNodeID> node_distribution(size + 1);
+  StaticArray<GlobalNodeID> node_distribution(size + 1);
   node_distribution[rank + 1] = last_node;
   MPI_Allgather(
       MPI_IN_PLACE,
@@ -397,7 +397,7 @@ DistributedCompressedGraph compressed_read(
       comm
   );
 
-  RECORD("edge_distribution") StaticArray<GlobalEdgeID> edge_distribution(size + 1);
+  StaticArray<GlobalEdgeID> edge_distribution(size + 1);
   edge_distribution[rank] = num_local_edges;
   MPI_Allgather(
       MPI_IN_PLACE,
@@ -450,7 +450,7 @@ DistributedCompressedGraph compressed_read(
     neighbourhood.clear();
   }
 
-  RECORD("node_weights") StaticArray<NodeWeight> node_weights;
+  StaticArray<NodeWeight> node_weights;
   if (header.has_node_weights) {
     node_weights.resize(num_local_nodes + mapper.next_ghost_node(), static_array::noinit);
 

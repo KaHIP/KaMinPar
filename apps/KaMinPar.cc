@@ -51,8 +51,6 @@ struct ApplicationContext {
 
   bool heap_profiler_detailed = false;
   int heap_profiler_max_depth = 3;
-  bool heap_profiler_print_structs = false;
-  float heap_profiler_min_struct_size = 10;
 
   BlockID k = 0;
   double epsilon = 0.03;
@@ -245,21 +243,6 @@ The output should be stored in a file and can be used by the -C,--config option.
             "Set maximum heap profiler depth shown in the result summary."
         )
         ->capture_default_str();
-    hp_group
-        ->add_flag(
-            "--hp-print-structs",
-            app.heap_profiler_print_structs,
-            "Print data structure memory statistics in the result summary."
-        )
-        ->capture_default_str();
-    hp_group
-        ->add_option(
-            "--hp-min-struct-size",
-            app.heap_profiler_min_struct_size,
-            "Sets the minimum size of a data structure in MiB to be included in the result summary."
-        )
-        ->capture_default_str()
-        ->check(CLI::NonNegativeNumber);
   }
 
   cli.add_option("-o,--output", app.partition_filename, "Output filename for the graph partition.")
@@ -457,9 +440,6 @@ int main(int argc, char *argv[]) {
     auto &global_heap_profiler = heap_profiler::HeapProfiler::global();
 
     global_heap_profiler.set_max_depth(app.heap_profiler_max_depth);
-    global_heap_profiler.set_print_data_structs(app.heap_profiler_print_structs);
-    global_heap_profiler.set_min_data_struct_size(app.heap_profiler_min_struct_size);
-
     if (app.heap_profiler_detailed) {
       global_heap_profiler.set_experiment_summary_options();
     }
@@ -521,8 +501,7 @@ int main(int argc, char *argv[]) {
                 << "This might cause overflows for very large cuts.";
   }
 
-  RECORD("partition") std::vector<BlockID> partition(graph.n());
-  RECORD_LOCAL_DATA_STRUCT(partition, partition.capacity() * sizeof(BlockID));
+  std::vector<BlockID> partition(graph.n());
   STOP_HEAP_PROFILER();
 
   // Compute partition

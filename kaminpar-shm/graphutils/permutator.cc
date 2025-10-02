@@ -23,13 +23,9 @@ NodePermutations rearrange_graph(
     StaticArray<EdgeWeight> &edge_weights
 ) {
   START_HEAP_PROFILER("Temporal nodes and edges allocation");
-  RECORD("tmp_nodes")
   StaticArray<EdgeID> tmp_nodes(nodes.size(), static_array::noinit);
-  RECORD("tmp_edges")
   StaticArray<NodeID> tmp_edges(edges.size(), static_array::noinit);
-  RECORD("tmp_node_weights")
   StaticArray<NodeWeight> tmp_node_weights(node_weights.size(), static_array::noinit);
-  RECORD("tmp_edge_weights")
   StaticArray<EdgeWeight> tmp_edge_weights(edge_weights.size(), static_array::noinit);
   STOP_HEAP_PROFILER();
 
@@ -244,7 +240,6 @@ PartitionedGraph assign_isolated_nodes(
   const NodeID num_nonisolated_nodes = graph.n() - num_isolated_nodes;
 
   // The following call graph.n() should include isolated nodes now
-  RECORD("partition")
   StaticArray<BlockID> partition(graph.n(), static_array::noinit);
 
   // Copy partition of non-isolated nodes
