@@ -32,13 +32,13 @@ public:
     Result(bool time_limit_exceeded = false)
         : time_limit_exceeded(time_limit_exceeded),
           gain(0),
-          improved_balance(false) {};
+          improved_balance(false) {}
 
     Result(EdgeWeight gain, bool improved_balance, std::span<Move> moves)
         : time_limit_exceeded(false),
           gain(gain),
           improved_balance(improved_balance),
-          moves(moves) {};
+          moves(moves) {}
 
     [[nodiscard]] static Result empty() {
       return Result(0, false, {});

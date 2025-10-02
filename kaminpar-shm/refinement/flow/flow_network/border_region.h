@@ -27,7 +27,7 @@ public:
         _max_weight1(0),
         _max_weight2(0),
         _cur_weight1(0),
-        _cur_weight2(0) {};
+        _cur_weight2(0) {}
 
   BorderRegion(BorderRegion &&) noexcept = default;
   BorderRegion &operator=(BorderRegion &&) noexcept = default;
