@@ -39,7 +39,6 @@ jobs:
           -DKAMINPAR_BUILD_WITH_DEBUG_SYMBOLS=Off
           -DKAMINPAR_BUILD_WITH_ASAN=On
           -DKAMINPAR_BUILD_WITH_UBSAN=On
-          -DCMAKE_CXX_FLAGS="-D_LIBCPP_INTRODUCED_IN_LLVM_21=0" # Workaround for Homebrew LLVM 21
       - name: Build
         run: >-
           cmake --build ${{github.workspace}}/build
