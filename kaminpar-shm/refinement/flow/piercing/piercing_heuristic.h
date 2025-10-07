@@ -59,7 +59,7 @@ class PiercingHeuristic {
     NodeID remove(const std::size_t id) {
       KASSERT(id < _candidates.size());
       KASSERT(
-          _deterministic_prefix_length == 0 || _deterministic_prefix_length == _candidates.size()
+          _deterministic_prefix_length == 0u || _deterministic_prefix_length == _candidates.size()
       );
 
       const NodeID candidate = _candidates[id];
