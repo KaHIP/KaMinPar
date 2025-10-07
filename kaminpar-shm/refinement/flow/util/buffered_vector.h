@@ -82,7 +82,7 @@ public:
   }
 
   T pop_back() {
-    KASSERT(_size > 0);
+    KASSERT(_size > 0u);
 
     return _data[--_size];
   }
