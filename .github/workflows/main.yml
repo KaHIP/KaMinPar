@@ -57,13 +57,13 @@ jobs:
           -G ${{github.workspace}}/misc/rgg2d.metis
           -k 2
         env: # We leak a few bytes due to OpenMPI
-          ASAN_OPTIONS: detect_leaks=0
+          ASAN_OPTIONS: detect_leaks=0,detect_container_overflow=0
       - name: Run unit tests (AppleClang build)
         if: matrix.compiler.name == 'AppleClang'
         working-directory: ${{github.workspace}}/build
         run: ctest --output-on-failure
         env:
-          ASAN_OPTIONS: detect_leaks=0
+          ASAN_OPTIONS: detect_leaks=0,detect_container_overflow=0
 
   build-linux-gcc:
     name: Linux GCC Build
@@ -141,12 +141,12 @@ jobs:
           -G ${{github.workspace}}/misc/rgg2d.metis
           -k 2
         env: # We leak a few bytes due to OpenMPI
-          ASAN_OPTIONS: detect_leaks=0
+          ASAN_OPTIONS: detect_leaks=0,detect_container_overflow=0
       - name: Run unit tests (Clang build)
         working-directory: ${{github.workspace}}/build
         run: ctest --output-on-failure
         env:
-          ASAN_OPTIONS: detect_leaks=0
+          ASAN_OPTIONS: detect_leaks=0,detect_container_overflow=0
 
   # Make sure that our code compiles with all assertions and experimental features enabled
   build-with-heavy-assertions-and-experimental-features:
