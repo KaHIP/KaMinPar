@@ -16,11 +16,11 @@ jobs:
       matrix:
         compiler:
           - { name: AppleClang, cc: clang, cxx: clang++ }
-          - { name: Clang, cc: /opt/homebrew/opt/llvm/bin/clang, cxx: /opt/homebrew/opt/llvm/bin/clang++ }
+          - { name: Clang, cc: /opt/homebrew/opt/llvm@20/bin/clang, cxx: /opt/homebrew/opt/llvm@20/bin/clang++ }
         build-mode: [Release]
     steps:
       - name: Install dependencies
-        run: brew install llvm tbb open-mpi google-sparsehash googletest
+        run: brew install llvm@20 tbb open-mpi google-sparsehash googletest
       - name: Checkout HEAD
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
