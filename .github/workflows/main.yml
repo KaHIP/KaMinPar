@@ -11,7 +11,7 @@ permissions: read-all
 jobs:
   build-macos:
     name: macOS Build
-    runs-on: macos-26
+    runs-on: macos-15
     strategy:
       matrix:
         compiler:
@@ -149,7 +149,7 @@ jobs:
   # Make sure that our code compiles with all assertions and experimental features enabled
   build-with-heavy-assertions-and-experimental-features:
     name: macOS Build with Heavy Assertions and Experimental Features
-    runs-on: macos-26 # fastest runner to compile the code
+    runs-on: macos-15 # fastest runner to compile the code
     strategy:
       matrix:
         compiler:
