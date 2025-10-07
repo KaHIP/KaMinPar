@@ -15,7 +15,7 @@
 
 #include "kaminpar-shm/coarsening/clustering/lp_clusterer.h"
 #include "kaminpar-shm/coarsening/max_cluster_weights.h"
-#include "kaminpar-shm/context_io.h"
+#include "kaminpar-shm/context.h"
 #include "kaminpar-shm/graphutils/permutator.h"
 
 #include "kaminpar-common/console_io.h"
@@ -50,14 +50,16 @@ int main(int argc, char *argv[]) {
       ->capture_default_str();
 
   app.add_option("-f,--graph-file-format", graph_file_format)
-      ->transform(CLI::CheckedTransformer(
-          std::unordered_map<std::string, io::GraphFileFormat>{
-              {"metis", io::GraphFileFormat::METIS},
-              {"parhip", io::GraphFileFormat::PARHIP},
-              {"compressed", io::GraphFileFormat::COMPRESSED},
-          },
-          CLI::ignore_case
-      ))
+      ->transform(
+          CLI::CheckedTransformer(
+              std::unordered_map<std::string, io::GraphFileFormat>{
+                  {"metis", io::GraphFileFormat::METIS},
+                  {"parhip", io::GraphFileFormat::PARHIP},
+                  {"compressed", io::GraphFileFormat::COMPRESSED},
+              },
+              CLI::ignore_case
+          )
+      )
       ->description(R"(Graph file formats:
   - metis
   - parhip
@@ -102,9 +104,11 @@ int main(int argc, char *argv[]) {
   }
 
   LPClustering lp_clustering(ctx.coarsening);
-  lp_clustering.set_max_cluster_weight(compute_max_cluster_weight<NodeWeight>(
-      ctx.coarsening, ctx.partition, graph->n(), graph->total_node_weight()
-  ));
+  lp_clustering.set_max_cluster_weight(
+      compute_max_cluster_weight<NodeWeight>(
+          ctx.coarsening, ctx.partition, graph->n(), graph->total_node_weight()
+      )
+  );
   lp_clustering.set_desired_cluster_count(0);
 
   GLOBAL_TIMER.reset();
@@ -126,9 +130,9 @@ int main(int argc, char *argv[]) {
   std::cout << "Execution mode:               " << ctx.parallel.num_threads << "\n";
   std::cout << "Seed:                         " << Random::get_seed() << "\n";
   cio::print_delimiter("Graph Compression", '-');
-  print(ctx.compression, std::cout);
+  std::cout << ctx.compression;
   cio::print_delimiter("Coarsening", '-');
-  print(ctx.coarsening, std::cout);
+  std::cout << ctx.coarsening;
   LOG;
 
   cio::print_delimiter("Result Summary");

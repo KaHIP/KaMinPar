@@ -73,7 +73,7 @@ template <typename Key, template <typename> typename Comparator> class BinaryHea
   static constexpr std::size_t kTreeArity = 4;
 
 public:
-  explicit BinaryHeap(const std::size_t capacity)
+  explicit BinaryHeap(const std::size_t capacity = 0)
       : _heap(capacity),
         _id_pos(capacity, kInvalidID),
         _size(0) {}

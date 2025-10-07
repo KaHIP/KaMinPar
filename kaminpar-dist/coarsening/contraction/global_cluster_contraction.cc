@@ -118,8 +118,7 @@ public:
       tbb::enumerable_thread_specific<growt::GlobalNodeIDMap<GlobalNodeID>::handle_type>
           gcnode_to_block_handle_ets([&] { return gcnode_to_block.get_handle(); });
       tbb::parallel_for(
-          tbb::blocked_range<std::size_t>(0, migrated_nodes_recvbuf.size()),
-          [&](const auto &r) {
+          tbb::blocked_range<std::size_t>(0, migrated_nodes_recvbuf.size()), [&](const auto &r) {
             auto &gcnode_to_block_handle = gcnode_to_block_handle_ets.local();
 
             for (std::size_t i = r.begin(); i != r.end(); ++i) {
@@ -340,7 +339,7 @@ find_nonlocal_nodes(const Graph &graph, const StaticArray<GlobalNodeID> &lnode_t
     //});
   }
 
-  RECORD("nonlocal_nodes") StaticArray<GlobalNode> dense_nonlocal_nodes(size);
+  StaticArray<GlobalNode> dense_nonlocal_nodes(size);
   std::size_t i = 0;
   for (const auto &[gcluster, weight] : nonlocal_nodes) {
     KASSERT(i < size);
@@ -354,7 +353,7 @@ find_nonlocal_nodes(const Graph &graph, const StaticArray<GlobalNodeID> &lnode_t
   return dense_nonlocal_nodes;
 
   /*
-  RECORD("node_position_buffer") StaticArray<NodeID> node_position_buffer(graph.total_n() + 1);
+  StaticArray<NodeID> node_position_buffer(graph.total_n() + 1);
 
   graph.pfor_all_nodes([&](const NodeID lnode) {
     const GlobalNodeID gcluster = lnode_to_gcluster[lnode];
@@ -368,7 +367,7 @@ find_nonlocal_nodes(const Graph &graph, const StaticArray<GlobalNodeID> &lnode_t
       node_position_buffer.begin(), node_position_buffer.end(), node_position_buffer.begin()
   );
 
-  RECORD("nonlocal_nodes") StaticArray<GlobalNode> nonlocal_nodes(node_position_buffer.back());
+  StaticArray<GlobalNode> nonlocal_nodes(node_position_buffer.back());
 
   graph.pfor_all_nodes([&](const NodeID lnode) {
     const GlobalNodeID gcluster = lnode_to_gcluster[lnode];
@@ -390,7 +389,7 @@ find_nonlocal_edges(const Graph &graph, const StaticArray<GlobalNodeID> &lnode_t
   SCOPED_TIMER("Collect nonlocal edges");
   SCOPED_HEAP_PROFILER("Collect nonlocal edges");
 
-  RECORD("edge_position_buffer") StaticArray<NodeID> edge_position_buffer(graph.n() + 1);
+  StaticArray<NodeID> edge_position_buffer(graph.n() + 1);
 
   graph.pfor_nodes([&](const NodeID lnode_u) {
     const GlobalNodeID gcluster_u = lnode_to_gcluster[lnode_u];
@@ -413,7 +412,7 @@ find_nonlocal_edges(const Graph &graph, const StaticArray<GlobalNodeID> &lnode_t
       edge_position_buffer.begin(), edge_position_buffer.end(), edge_position_buffer.begin()
   );
 
-  RECORD("nonlocal_edges") StaticArray<GlobalEdge> nonlocal_edges(edge_position_buffer.back());
+  StaticArray<GlobalEdge> nonlocal_edges(edge_position_buffer.back());
 
   graph.pfor_nodes([&](const NodeID lnode_u) {
     const GlobalNodeID gcluster_u = lnode_to_gcluster[lnode_u];
@@ -456,7 +455,7 @@ void deduplicate_edge_list(StaticArray<GlobalEdge> &edges) {
 
   // Mark the first edge in every block of duplicate edges
   START_TIMER("Mark start of parallel edge blocks");
-  RECORD("edge_position_buffer") StaticArray<EdgeID> edge_position_buffer(edges.size());
+  StaticArray<EdgeID> edge_position_buffer(edges.size());
   tbb::parallel_for<std::size_t>(1, edges.size(), [&](const std::size_t i) {
     edge_position_buffer[i] = (edges[i].u != edges[i - 1].u || edges[i].v != edges[i - 1].v);
   });
@@ -469,7 +468,6 @@ void deduplicate_edge_list(StaticArray<GlobalEdge> &edges) {
 
   // Deduplicate edges in a separate buffer
   START_TIMER("Deduplicate");
-  RECORD("tmp_nonlocal_edges")
   StaticArray<GlobalEdge> tmp_nonlocal_edges(edge_position_buffer.back() + 1);
   tbb::parallel_for<std::size_t>(0, edge_position_buffer.back() + 1, [&](const std::size_t i) {
     tmp_nonlocal_edges[i].weight = 0;
@@ -521,7 +519,7 @@ template <typename T> StaticArray<T> build_distribution(const T count, MPI_Comm 
   SCOPED_TIMER("Build node distribution");
   SCOPED_HEAP_PROFILER("Build node distribution");
 
-  RECORD("distribution") StaticArray<T> distribution(mpi::get_comm_size(comm) + 1);
+  StaticArray<T> distribution(mpi::get_comm_size(comm) + 1);
 
   MPI_Allgather(
       &count,
@@ -558,7 +556,7 @@ StaticArray<NodeID> build_lcluster_to_lcnode_mapping(
   SCOPED_TIMER("Build lcluster_to_lcnode");
   SCOPED_HEAP_PROFILER("Build local cluster to local node mapping");
 
-  RECORD("lcluster_to_lcnode") StaticArray<NodeID> lcluster_to_lcnode(graph.n());
+  StaticArray<NodeID> lcluster_to_lcnode(graph.n());
 
   tbb::parallel_invoke(
       [&] {
@@ -611,7 +609,7 @@ std::pair<StaticArray<NodeID>, StaticArray<NodeID>> build_node_buckets(
   SCOPED_TIMER("Bucket sort nodes by clusters");
   SCOPED_HEAP_PROFILER("Bucket sort nodes by clusters");
 
-  RECORD("buckets_position_buffer") StaticArray<NodeID> buckets_position_buffer(c_n + 1);
+  StaticArray<NodeID> buckets_position_buffer(c_n + 1);
 
   tbb::parallel_invoke(
       [&] {
@@ -640,7 +638,6 @@ std::pair<StaticArray<NodeID>, StaticArray<NodeID>> build_node_buckets(
       buckets_position_buffer.begin()
   );
 
-  RECORD("buckets")
   StaticArray<NodeID> buckets(buckets_position_buffer.empty() ? 0 : buckets_position_buffer.back());
 
   tbb::parallel_invoke(
@@ -694,7 +691,7 @@ MigrationResult<Element> migrate_elements(
   MPI_Alltoall(sendcounts.data(), 1, MPI_INT, recvcounts.data(), 1, MPI_INT, comm);
   std::exclusive_scan(recvcounts.begin(), recvcounts.end(), rdispls.begin(), 0);
 
-  RECORD("recvbuf") StaticArray<Element> recvbuf(rdispls.back() + recvcounts.back());
+  StaticArray<Element> recvbuf(rdispls.back() + recvcounts.back());
   MPI_Alltoallv(
       elements.data(),
       sendcounts.data(),
@@ -794,10 +791,7 @@ MigratedNodesMapping exchange_migrated_nodes_mapping(
 
   const PEID rank = mpi::get_comm_rank(graph.communicator());
 
-  RECORD("their_nonlocal_to_gcnode")
   StaticArray<NodeMapping> their_nonlocal_to_gcnode(local_nodes.elements.size());
-
-  RECORD("their_req_to_lcnode")
   StaticArray<NodeID> their_req_to_lcnode(their_nonlocal_to_gcnode.size());
 
   tbb::parallel_for<std::size_t>(0, local_nodes.elements.size(), [&](const std::size_t i) {
@@ -812,7 +806,6 @@ MigratedNodesMapping exchange_migrated_nodes_mapping(
     their_req_to_lcnode[i] = lcnode;
   });
 
-  RECORD("my_nonlocal_to_gcnode")
   StaticArray<NodeMapping> my_nonlocal_to_gcnode(nonlocal_nodes.size());
 
   MPI_Alltoallv(
@@ -1204,7 +1197,6 @@ std::optional<std::unique_ptr<CoarseGraph>> contract_clustering_or_rebalance(
   // After the exchange, each PE knows about all nodes that belong to its clusters, i.e., it knows
   // all of its non-empty clusters. Thus, we can now build the mapping from lcluster IDs to lcnode
   // IDs.
-  RECORD("lcluster_to_lcnode")
   const StaticArray<NodeID> lcluster_to_lcnode =
       build_lcluster_to_lcnode_mapping(graph, lnode_to_gcluster, local_nodes);
 
@@ -1260,7 +1252,7 @@ std::optional<std::unique_ptr<CoarseGraph>> contract_clustering_or_rebalance(
 
   // Construct the mapping to coarse node IDs for our nodes (including ghost nodes)
   START_TIMER("Construct lnode_to_gcnode");
-  RECORD("lnode_to_gcnode") StaticArray<GlobalNodeID> lnode_to_gcnode(graph.total_n());
+  StaticArray<GlobalNodeID> lnode_to_gcnode(graph.total_n());
 
   graph.pfor_all_nodes_range([&](const auto &r) {
     auto &handle = cluster_mapper.handle();
@@ -1371,8 +1363,8 @@ std::optional<std::unique_ptr<CoarseGraph>> contract_clustering_or_rebalance(
 
   START_TIMER("Allocation");
   START_HEAP_PROFILER("Coarse node allocation");
-  RECORD("c_nodes") StaticArray<EdgeID> c_nodes(c_n + 1);
-  RECORD("c_node_weights") StaticArray<NodeWeight> c_node_weights(c_n + c_ghost_n);
+  StaticArray<EdgeID> c_nodes(c_n + 1);
+  StaticArray<NodeWeight> c_node_weights(c_n + c_ghost_n);
   STOP_HEAP_PROFILER();
   STOP_TIMER();
 
@@ -1482,8 +1474,8 @@ std::optional<std::unique_ptr<CoarseGraph>> contract_clustering_or_rebalance(
 
   START_TIMER("Allocation");
   START_HEAP_PROFILER("Coarse edges allocation");
-  RECORD("c_edges") StaticArray<NodeID> c_edges(c_m);
-  RECORD("c_edge_weights") StaticArray<EdgeWeight> c_edge_weights(c_m);
+  StaticArray<NodeID> c_edges(c_m);
+  StaticArray<EdgeWeight> c_edge_weights(c_m);
   STOP_HEAP_PROFILER();
   STOP_TIMER();
 

@@ -56,7 +56,7 @@ bool SparsificationClusterCoarsener::coarsen() {
   );
 
   START_HEAP_PROFILER("Allocation");
-  RECORD("clustering") StaticArray<NodeID> clustering(current().n(), static_array::noinit);
+  StaticArray<NodeID> clustering(current().n(), static_array::noinit);
   STOP_HEAP_PROFILER();
 
   const bool free_allocated_memory = !keep_allocated_memory();

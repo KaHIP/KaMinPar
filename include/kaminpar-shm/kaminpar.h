@@ -27,18 +27,6 @@
 #define KAMINPAR_VERSION_MINOR 6
 #define KAMINPAR_VERSION_PATCH 0
 
-namespace kaminpar {
-
-enum class OutputLevel : std::uint8_t {
-  QUIET,       //! Disable all output to stdout.
-  PROGRESS,    //! Continuously output progress information while partitioning.
-  APPLICATION, //! Also output the application banner and context summary.
-  EXPERIMENT,  //! Also output information only relevant for benchmarking.
-  DEBUG,       //! Also output (a sane amount) of debug information.
-};
-
-} // namespace kaminpar
-
 namespace kaminpar::shm {
 
 #ifdef KAMINPAR_64BIT_NODE_IDS
@@ -218,18 +206,25 @@ struct CoarseningContext {
 //
 
 enum class RefinementAlgorithm {
-  LABEL_PROPAGATION,
-  KWAY_FM,
+  NOOP,
   OVERLOAD_BALANCER,
   UNDERLOAD_BALANCER,
+  LABEL_PROPAGATION,
+  KWAY_FM,
+  TWOWAY_FLOW,
   JET,
   MTKAHYPAR,
-  NOOP,
 };
 
-enum class FMStoppingRule {
-  SIMPLE,
-  ADAPTIVE,
+struct BalancerRefinementContext {};
+
+struct LabelPropagationRefinementContext {
+  std::size_t num_iterations;
+  NodeID large_degree_threshold;
+  NodeID max_num_neighbors;
+
+  LabelPropagationImplementation impl;
+  TieBreakingStrategy tie_breaking_strategy;
 };
 
 enum class GainCacheStrategy {
@@ -242,16 +237,6 @@ enum class GainCacheStrategy {
   DENSE,
   DENSE_LARGE_K,
   ON_THE_FLY,
-};
-
-struct LabelPropagationRefinementContext {
-  std::size_t num_iterations;
-  NodeID large_degree_threshold;
-  NodeID max_num_neighbors;
-
-  LabelPropagationImplementation impl;
-
-  TieBreakingStrategy tie_breaking_strategy;
 };
 
 struct KwayFMRefinementContext {
@@ -273,6 +258,62 @@ struct KwayFMRefinementContext {
   bool dbg_report_progress;
 };
 
+struct FlowSchedulerContext {
+  bool parallel;
+  bool deterministic;
+  double parallel_search_multiplier;
+
+  bool skip_unpromising_cuts;
+  bool skip_small_cuts;
+  EdgeWeight small_cut_threshold;
+};
+
+struct FlowNetworkConstructionContext {
+  bool deterministic;
+  NodeID small_graph_threshold;
+
+  double border_region_scaling_factor;
+  NodeID max_border_distance;
+};
+
+struct PreflowPushContext {
+  double global_relabeling_frequency;
+  bool parallel_blocking_resolution;
+  NodeID sequential_discharge_threshold;
+};
+
+struct PiercingHeuristicContext {
+  bool deterministic;
+
+  bool determine_distance_from_cut;
+  bool fallback_heuristic;
+
+  bool bulk_piercing;
+  double bulk_piercing_shrinking_factor;
+  NodeID bulk_piercing_round_threshold;
+};
+
+struct FlowCutterContext {
+  bool use_whfc;
+
+  NodeID small_flow_network_threshold;
+  PreflowPushContext flow;
+  PiercingHeuristicContext piercing;
+};
+
+struct TwowayFlowRefinementContext {
+  double min_round_improvement_factor;
+  std::size_t max_num_rounds;
+  std::size_t time_limit;
+
+  bool run_sequentially;
+  bool free_memory_after_round;
+
+  FlowSchedulerContext scheduler;
+  FlowNetworkConstructionContext construction;
+  FlowCutterContext flow_cutter;
+};
+
 struct JetRefinementContext {
   int num_iterations;
   int num_fruitless_iterations;
@@ -290,15 +331,16 @@ struct MtKaHyParRefinementContext {
   std::string config_filename;
   std::string coarse_config_filename;
   std::string fine_config_filename;
+  bool disable_logging;
 };
-
-struct BalancerRefinementContext {};
 
 struct RefinementContext {
   std::vector<RefinementAlgorithm> algorithms;
+
+  BalancerRefinementContext balancer;
   LabelPropagationRefinementContext lp;
   KwayFMRefinementContext kway_fm;
-  BalancerRefinementContext balancer;
+  TwowayFlowRefinementContext twoway_flow;
   JetRefinementContext jet;
   MtKaHyParRefinementContext mtkahypar;
 
@@ -311,13 +353,6 @@ struct RefinementContext {
 // Initial Partitioning
 //
 
-enum class DeepInitialPartitioningMode {
-  SEQUENTIAL,
-  ASYNCHRONOUS_PARALLEL,
-  SYNCHRONOUS_PARALLEL,
-  COMMUNITIES,
-};
-
 struct InitialCoarseningContext {
   NodeID contraction_limit;
   double convergence_threshold;
@@ -327,15 +362,26 @@ struct InitialCoarseningContext {
   double cluster_weight_multiplier;
 };
 
-struct InitialRefinementContext {
-  bool disabled;
+enum class InitialRefinementAlgorithm {
+  NOOP,
+  TWOWAY_SIMPLE_FM,
+  TWOWAY_ADAPTIVE_FM,
+  TWOWAY_FLOW,
+};
 
-  FMStoppingRule stopping_rule;
+struct InitialFMRefinementContext {
   NodeID num_fruitless_moves;
   double alpha;
 
   std::size_t num_iterations;
   double improvement_abortion_threshold;
+};
+
+struct InitialRefinementContext {
+  std::vector<InitialRefinementAlgorithm> algorithms;
+
+  InitialFMRefinementContext fm;
+  TwowayFlowRefinementContext twoway_flow;
 };
 
 struct InitialPoolPartitionerContext {
@@ -389,6 +435,10 @@ struct PartitionContext {
 
   [[nodiscard]] BlockWeight perfectly_balanced_block_weight(const BlockID block) const {
     return std::ceil(1.0 * _unrelaxed_max_block_weights[block] / (1 + inferred_epsilon()));
+  }
+
+  [[nodiscard]] std::span<const BlockWeight> max_block_weights() const {
+    return _max_block_weights;
   }
 
   [[nodiscard]] BlockWeight max_block_weight(const BlockID block) const {
@@ -502,6 +552,13 @@ enum class PartitioningMode {
   KWAY,
 };
 
+enum class DeepInitialPartitioningMode {
+  SEQUENTIAL,
+  ASYNCHRONOUS_PARALLEL,
+  SYNCHRONOUS_PARALLEL,
+  COMMUNITIES,
+};
+
 enum class KwayInitialPartitioningMode {
   SEQUENTIAL,
   PARALLEL,
@@ -571,14 +628,16 @@ Context create_context_by_preset_name(const std::string &name);
 
 Context create_default_context();
 Context create_fast_context();
+Context create_eco_context();
 Context create_strong_context();
 
 Context create_terapart_context();
-Context create_terapart_strong_context();
+Context create_terapart_eco_context();
 Context create_terapart_largek_context();
 
 Context create_largek_context();
 Context create_largek_fast_context();
+Context create_largek_eco_context();
 Context create_largek_strong_context();
 
 Context create_jet_context(int rounds = 1);
@@ -779,6 +838,14 @@ private:
 //
 
 namespace kaminpar {
+
+enum class OutputLevel : std::uint8_t {
+  QUIET,       //! Disable all output to stdout.
+  PROGRESS,    //! Continuously output progress information while partitioning.
+  APPLICATION, //! Also output the application banner and context summary.
+  EXPERIMENT,  //! Also output information only relevant for benchmarking.
+  DEBUG,       //! Also output (a sane amount) of debug information.
+};
 
 class KaMinPar {
 public:

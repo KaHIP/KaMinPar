@@ -30,12 +30,14 @@ def test_context():
         for context_name in [
             "default",
             "fast",
+            "eco",
             "strong",
             "terapart",
-            "terapart-strong",
+            "terapart-eco",
             "terapart-largek",
             "largek",
             "largek-fast",
+            "largek-eco",
             "largek-strong",
         ]
     )
@@ -46,14 +48,16 @@ def test_context():
 
     assert type(kaminpar.default_context()) is kaminpar.Context
     assert type(kaminpar.fast_context()) is kaminpar.Context
+    assert type(kaminpar.eco_context()) is kaminpar.Context
     assert type(kaminpar.strong_context()) is kaminpar.Context
 
     assert type(kaminpar.terapart_context()) is kaminpar.Context
-    assert type(kaminpar.terapart_strong_context()) is kaminpar.Context
+    assert type(kaminpar.terapart_eco_context()) is kaminpar.Context
     assert type(kaminpar.terapart_largek_context()) is kaminpar.Context
 
     assert type(kaminpar.largek_context()) is kaminpar.Context
     assert type(kaminpar.largek_fast_context()) is kaminpar.Context
+    assert type(kaminpar.largek_eco_context()) is kaminpar.Context
     assert type(kaminpar.largek_strong_context()) is kaminpar.Context
 
 

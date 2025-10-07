@@ -65,7 +65,7 @@ bool MultiRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_c
       feasible_before = feasible_after;
     } else if (_output_level >= OutputLevel::INFO) {
       if (!current_refiner_found_improvement) {
-        LOG << ": (no effect)";
+        LOG << " (no effect)";
       } else {
         LOG;
       }

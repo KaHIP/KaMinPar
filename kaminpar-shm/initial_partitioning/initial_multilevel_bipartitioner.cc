@@ -24,9 +24,9 @@
 #include "kaminpar-shm/initial_partitioning/initial_multilevel_bipartitioner.h"
 
 #include "kaminpar-shm/coarsening/max_cluster_weights.h"
-#include "kaminpar-shm/initial_partitioning/initial_coarsener.h"
-#include "kaminpar-shm/initial_partitioning/initial_pool_bipartitioner.h"
-#include "kaminpar-shm/initial_partitioning/initial_refiner.h"
+#include "kaminpar-shm/initial_partitioning/bipartitioning/initial_pool_bipartitioner.h"
+#include "kaminpar-shm/initial_partitioning/coarsening/initial_coarsener.h"
+#include "kaminpar-shm/initial_partitioning/refinement/initial_refiner.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/partitioning/helper.h"
 #include "kaminpar-shm/partitioning/partition_utils.h"

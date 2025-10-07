@@ -10,7 +10,6 @@
 #include <vector>
 
 #include "kaminpar-common/assert.h"
-#include "kaminpar-common/heap_profiler.h"
 
 namespace kaminpar {
 
@@ -34,7 +33,6 @@ public:
   Queue() : Queue(0) {}
 
   explicit Queue(const std::size_t capacity) : _data(capacity) {
-    RECORD_DATA_STRUCT(capacity * sizeof(T), _struct);
   }
 
   Queue(const Queue &) = delete;
@@ -95,7 +93,6 @@ public:
   }
 
   void resize(const std::size_t capacity) {
-    IF_HEAP_PROFILING(_struct->size = std::max(_struct->size, capacity * sizeof(T)));
     _data.resize(capacity);
     clear();
   }
@@ -133,8 +130,6 @@ private:
   std::vector<T> _data;
   std::size_t _head = 0;
   std::size_t _tail = 0;
-
-  IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };
 
 } // namespace kaminpar

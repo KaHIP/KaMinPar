@@ -37,6 +37,10 @@ CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx);
 
 CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx);
 
+CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context &ctx);
+
+CLI::Option_group *create_multiway_flow_refinement_options(CLI::App *app, Context &ctx);
+
 CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx);
 
 CLI::Option_group *create_mtkahypar_refinement_options(CLI::App *app, Context &ctx);

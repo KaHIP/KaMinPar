@@ -13,8 +13,9 @@ namespace kaminpar {
 
 namespace logger {
 
-void CompactContainerFormatter::print(const std::vector<std::string> &container, std::ostream &out)
-    const {
+void CompactContainerFormatter::print(
+    const std::vector<std::string> &container, std::ostream &out
+) const {
   bool first{true};
   for (const auto &element : container) {
     if (!first) {
@@ -64,7 +65,22 @@ void DefaultTextFormatter::print(const std::string &text, std::ostream &out) con
   out << text;
 }
 
+std::atomic<std::uint8_t> Colorized::_enabled = 1;
+
+void Colorized::set_colored_output(const bool enabled) {
+  _enabled = enabled;
+}
+
+bool Colorized::is_colored_output_enabled() {
+  return _enabled;
+}
+
 void Colorized::print(const std::string &text, std::ostream &out) const {
+  if (!_enabled) {
+    out << text;
+    return;
+  }
+
   switch (_color) {
   case Color::RED:
     out << "\u001b[31m";

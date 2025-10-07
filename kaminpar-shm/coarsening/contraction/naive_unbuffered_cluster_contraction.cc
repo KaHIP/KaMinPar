@@ -31,8 +31,8 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered_naive(
 
   START_TIMER("Allocation");
   START_HEAP_PROFILER("Coarse graph node allocation");
-  RECORD("c_nodes") StaticArray<EdgeID> c_nodes(c_n + 1);
-  RECORD("c_node_weights") StaticArray<NodeWeight> c_node_weights(c_n);
+  StaticArray<EdgeID> c_nodes(c_n + 1);
+  StaticArray<NodeWeight> c_node_weights(c_n);
   STOP_HEAP_PROFILER();
   STOP_TIMER();
 
@@ -117,8 +117,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered_naive(
 
   START_HEAP_PROFILER("Coarse graph edges allocation");
   START_TIMER("Allocation");
-  RECORD("c_edges") StaticArray<NodeID> c_edges(c_m, static_array::noinit);
-  RECORD("c_edge_weights")
+  StaticArray<NodeID> c_edges(c_m, static_array::noinit);
   StaticArray<EdgeWeight> c_edge_weights(c_m, static_array::noinit);
   STOP_TIMER();
   STOP_HEAP_PROFILER();
@@ -167,12 +166,14 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered_naive(
   STOP_HEAP_PROFILER();
 
   return std::make_unique<CoarseGraphImpl>(
-      shm::Graph(std::make_unique<CSRGraph>(
-          std::move(c_nodes),
-          std::move(c_edges),
-          std::move(c_node_weights),
-          std::move(c_edge_weights)
-      )),
+      shm::Graph(
+          std::make_unique<CSRGraph>(
+              std::move(c_nodes),
+              std::move(c_edges),
+              std::move(c_node_weights),
+              std::move(c_edge_weights)
+          )
+      ),
       std::move(mapping)
   );
 }

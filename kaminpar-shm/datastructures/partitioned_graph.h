@@ -5,13 +5,14 @@
 #pragma once
 
 #include <functional>
-#include <iostream>
 #include <span>
+#include <type_traits>
 #include <utility>
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
 
+#include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
@@ -23,6 +24,10 @@
 namespace kaminpar::shm {
 
 namespace partitioned_graph {
+
+struct alignas(64) AlignedBlockWeight {
+  BlockWeight value;
+};
 
 constexpr struct seq_t {
 } seq;
@@ -43,6 +48,8 @@ constexpr struct reinit_block_weights_t {
  * marked unassigned, i.e., are placed in block `kInvalidBlockID`.
  */
 template <typename GraphType> class GenericPartitionedGraph {
+  template <typename OtherGraphType> friend class GenericPartitionedGraph;
+
 public:
   using Graph = GraphType;
 
@@ -52,6 +59,7 @@ public:
   using EdgeWeight = typename Graph::EdgeWeight;
   using BlockID = ::kaminpar::shm::BlockID;
   using BlockWeight = ::kaminpar::shm::BlockWeight;
+  using AlignedBlockWeight = partitioned_graph::AlignedBlockWeight;
 
   // Maximum k for which block weights are spreaded to individual cache lines
   constexpr static BlockID kDenseBlockWeightsThreshold = 256;
@@ -197,7 +205,6 @@ public:
         __atomic_fetch_sub(&_dense_block_weights[from], weight, __ATOMIC_RELAXED);
         __atomic_fetch_add(&_dense_block_weights[to], weight, __ATOMIC_RELAXED);
       } else { // use_aligned_block_weights()
-        _diverged_block_weights = true;
         __atomic_fetch_sub(&_aligned_block_weights[from].value, weight, __ATOMIC_RELAXED);
         __atomic_fetch_add(&_aligned_block_weights[to].value, weight, __ATOMIC_RELAXED);
       }
@@ -239,7 +246,6 @@ public:
           min_from_weight
       );
     } else { // use_aligned_block_weights()
-      _diverged_block_weights = true;
       return move_block_weight_impl(
           _aligned_block_weights,
           [](auto &entry) { return &entry.value; },
@@ -257,6 +263,10 @@ public:
   //
 
   [[nodiscard]] inline const StaticArray<BlockID> &raw_partition() const {
+    return _partition;
+  }
+
+  [[nodiscard]] inline StaticArray<BlockID> &raw_partition() {
     return _partition;
   }
 
@@ -334,7 +344,56 @@ public:
     return *_graph;
   }
 
+  //
+  // Graph view creation
+  //
+
+  [[nodiscard]] GenericPartitionedGraph<CSRGraph> csr_view() {
+    if constexpr (std::is_same_v<Graph, shm::Graph>) {
+      KASSERT(_graph->is_csr());
+
+      return GenericPartitionedGraph<CSRGraph>(
+          _graph->csr_graph(),
+          _k,
+          StaticArray<BlockID>(_partition.size(), _partition.data()),
+          StaticArray<BlockWeight>(_dense_block_weights.size(), _dense_block_weights.data()),
+          StaticArray<AlignedBlockWeight>(
+              _aligned_block_weights.size(), _aligned_block_weights.data()
+          )
+      );
+    } else {
+      return GenericPartitionedGraph<CSRGraph>(
+          *_graph,
+          _k,
+          StaticArray<BlockID>(_partition.size(), _partition.data()),
+          StaticArray<BlockWeight>(_dense_block_weights.size(), _dense_block_weights.data()),
+          StaticArray<AlignedBlockWeight>(
+              _aligned_block_weights.size(), _aligned_block_weights.data()
+          )
+      );
+    }
+  }
+
 private:
+  GenericPartitionedGraph(
+      const Graph &graph,
+      const BlockID k,
+      StaticArray<BlockID> partition,
+      StaticArray<BlockWeight> dense_block_weights,
+      StaticArray<AlignedBlockWeight> aligned_block_weights
+  )
+      : _graph(&graph),
+        _k(k),
+        _partition(std::move(partition)),
+        _dense_block_weights(std::move(dense_block_weights)),
+        _aligned_block_weights(std::move(aligned_block_weights)) {
+    KASSERT(partition.is_span());
+    KASSERT(dense_block_weights.is_span());
+    KASSERT(aligned_block_weights.is_span());
+
+    init_node_weights();
+  }
+
   template <typename ValuePtrGetter>
   [[nodiscard]] bool move_block_weight_impl(
       auto &block_weights_vec,
@@ -392,11 +451,6 @@ private:
   BlockID _k = 0;
   StaticArray<BlockID> _partition = {};
 
-  struct alignas(64) AlignedBlockWeight {
-    BlockWeight value;
-  };
-
-  mutable bool _diverged_block_weights = false;
   mutable StaticArray<BlockWeight> _dense_block_weights = {};
   StaticArray<AlignedBlockWeight> _aligned_block_weights = {};
 };

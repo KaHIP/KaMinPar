@@ -160,15 +160,15 @@ std::optional<Graph> csr_read(const std::string &filename, const bool sorted) {
     MappedFileToker toker(filename);
     const MetisHeader header = parse_header(toker);
 
-    RECORD("nodes") StaticArray<EdgeID> nodes(header.num_nodes + 1, static_array::noinit);
-    RECORD("edges") StaticArray<NodeID> edges(header.num_edges * 2, static_array::noinit);
+    StaticArray<EdgeID> nodes(header.num_nodes + 1, static_array::noinit);
+    StaticArray<NodeID> edges(header.num_edges * 2, static_array::noinit);
 
-    RECORD("node_weights") StaticArray<NodeWeight> node_weights;
+    StaticArray<NodeWeight> node_weights;
     if (header.has_node_weights) {
       node_weights.resize(header.num_nodes, static_array::noinit);
     }
 
-    RECORD("edge_weights") StaticArray<EdgeWeight> edge_weights;
+    StaticArray<EdgeWeight> edge_weights;
     if (header.has_edge_weights) {
       edge_weights.resize(header.num_edges * 2, static_array::noinit);
     }
@@ -230,9 +230,15 @@ std::optional<Graph> csr_read(const std::string &filename, const bool sorted) {
         "total edge weight does not fit into the edge weight type"
     );
 
-    return Graph(std::make_unique<CSRGraph>(
-        std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), sorted
-    ));
+    return Graph(
+        std::make_unique<CSRGraph>(
+            std::move(nodes),
+            std::move(edges),
+            std::move(node_weights),
+            std::move(edge_weights),
+            sorted
+        )
+    );
   } catch (const TokerException &e) {
     return std::nullopt;
   }
@@ -250,8 +256,7 @@ std::optional<Graph> compress_read(const std::string &filename, const bool sorte
         header.has_edge_weights,
         sorted
     );
-    RECORD("neighbourhood") std::vector<std::pair<NodeID, EdgeWeight>> neighbourhood;
-    RECORD_LOCAL_DATA_STRUCT(neighbourhood, 0, neighbourhood_stats);
+    std::vector<std::pair<NodeID, EdgeWeight>> neighbourhood;
 
     NodeID node = 0;
     EdgeID edge = 0;
@@ -277,8 +282,6 @@ std::optional<Graph> compress_read(const std::string &filename, const bool sorte
         }
     );
     builder.add_node(neighbourhood);
-
-    IF_HEAP_PROFILING(neighbourhood_stats->size = neighbourhood.capacity() * sizeof(NodeID));
 
     return builder.build();
   } catch (const TokerException &e) {

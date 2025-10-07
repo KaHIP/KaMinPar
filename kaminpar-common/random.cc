@@ -7,8 +7,6 @@
  ******************************************************************************/
 #include "kaminpar-common/random.h"
 
-#include <mutex>
-
 #include <tbb/task_arena.h>
 
 namespace kaminpar {
@@ -28,6 +26,10 @@ Random &Random::create_instance() {
   return *_instances.back();
 }
 
+int Random::get_seed() {
+  return _seed;
+}
+
 void Random::reseed(const int seed) {
   _seed = seed;
   for (auto &instance : _instances) {
@@ -35,29 +37,21 @@ void Random::reseed(const int seed) {
   }
 }
 
-int Random::get_seed() {
-  return _seed;
-}
-
-Random::Random()
-    : _generator(_seed + tbb::this_task_arena::current_thread_index()),
-      _bool_dist(0, 1),
-      _real_dist(0, 1),
-      _next_random_bool(0),
-      _random_bools() {
-  precompute_bools();
-}
-
 void Random::reinit(const int seed) {
-  _generator = std::mt19937(seed + tbb::this_task_arena::current_thread_index());
-  _next_random_bool = 0;
-  precompute_bools();
+  _local_seed = seed;
+  reset();
 }
 
-void Random::precompute_bools() {
-  std::uniform_int_distribution<int> _dist(0, 1);
+void Random::reset() {
+  _bool_dist.reset();
+  _real_dist.reset();
+  _generator = std::mt19937(
+      _local_seed + (_thread_independent_seeding ? 0 : tbb::this_task_arena::current_thread_index())
+  );
+
+  _next_random_bool = 0;
   for (std::size_t i = 0; i < kPrecomputedBools; ++i) {
-    _random_bools[i] = static_cast<bool>(_dist(_generator));
+    _random_bools[i] = static_cast<bool>(_bool_dist(_generator));
   }
 }
 

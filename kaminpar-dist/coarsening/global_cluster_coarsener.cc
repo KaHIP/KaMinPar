@@ -37,7 +37,7 @@ bool GlobalClusterCoarsener::coarsen() {
 
   const DistributedGraph &graph = current();
 
-  RECORD("clustering") StaticArray<GlobalNodeID> clustering(graph.total_n(), static_array::noinit);
+  StaticArray<GlobalNodeID> clustering(graph.total_n(), static_array::noinit);
   _clusterer->set_max_cluster_weight(max_cluster_weight());
   _clusterer->cluster(clustering, graph);
 
@@ -70,7 +70,7 @@ GlobalClusterCoarsener::uncoarsen(DistributedPartitionedGraph &&p_c_graph) {
   _graph_hierarchy.pop_back();
   const DistributedGraph &f_graph = current();
 
-  RECORD("partition") StaticArray<BlockID> f_partition(f_graph.total_n(), static_array::noinit);
+  StaticArray<BlockID> f_partition(f_graph.total_n(), static_array::noinit);
   c_graph->project(p_c_graph.partition(), f_partition);
 
   DistributedPartitionedGraph p_f_graph(

@@ -158,25 +158,21 @@ public:
   using iterator = StaticArrayIterator<false>;
   using const_iterator = StaticArrayIterator<true>;
 
-  StaticArray(const std::size_t size, value_type *data) : _size(size), _data(data) {
-    RECORD_DATA_STRUCT(0, _struct);
-  }
+  StaticArray() {}
+
+  StaticArray(const std::size_t size, value_type *data) : _size(size), _data(data) {}
 
   StaticArray(const std::size_t size, heap_profiler::unique_ptr<T> storage)
       : _size(size),
         _overcommited_data(std::move(storage)),
-        _data(_overcommited_data.get()) {
-    RECORD_DATA_STRUCT(size * sizeof(T), _struct);
-  }
+        _data(_overcommited_data.get()) {}
 
   template <typename... Tags>
   StaticArray(const std::size_t size, const value_type init_value, Tags... tags) {
-    RECORD_DATA_STRUCT(0, _struct);
     resize(size, init_value, std::forward<Tags>(tags)...);
   }
 
   template <typename... Tags> StaticArray(const std::size_t size, Tags... tags) {
-    RECORD_DATA_STRUCT(0, _struct);
     resize(size, value_type(), std::forward<Tags>(tags)...);
   }
 
@@ -184,10 +180,6 @@ public:
   StaticArray(Iterator first, Iterator last)
       : StaticArray(std::distance(first, last), static_array::noinit) {
     tbb::parallel_for<std::size_t>(0, _size, [&](const std::size_t i) { _data[i] = *(first + i); });
-  }
-
-  StaticArray() {
-    RECORD_DATA_STRUCT(0, _struct);
   }
 
   StaticArray(const StaticArray &) = delete;
@@ -428,8 +420,6 @@ private:
 
     _size = size;
     _unrestricted_size = _size;
-
-    IF_HEAP_PROFILING(_struct->size = std::max(_struct->size, size * sizeof(value_type)));
   }
 
   size_type _size = 0;
@@ -438,8 +428,6 @@ private:
   std::unique_ptr<value_type, deleter<value_type>> _owned_data_std = nullptr;
   heap_profiler::unique_ptr<value_type> _overcommited_data = nullptr;
   value_type *_data = nullptr;
-
-  IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };
 
 namespace static_array {

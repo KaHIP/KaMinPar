@@ -46,16 +46,19 @@ option(KAMINPAR_ENABLE_TIMER_BARRIERS "Add additional MPI_Barrier() instructions
 option(KAMINPAR_ENABLE_TBB_MALLOC "Use tbb malloc for (some) allocations." ON)
 option(KAMINPAR_ENABLE_THP "Use transparent huge pages for large memory allocations (Linux only)." ON)
 
+option(KAMINPAR_BUILD_WITH_DEBUG_SYMBOLS "Always build with debug symbols, even in Release mode." ON)
 option(KAMINPAR_BUILD_WITH_ASAN "Enable address sanitizer." OFF)
 option(KAMINPAR_BUILD_WITH_UBSAN "Enable undefined behaviour sanitizer." OFF)
-option(KAMINPAR_BUILD_WITH_MTUNE_NATIVE "Build with -mtune=native." ON)
-option(KAMINPAR_BUILD_WITH_CCACHE "Use ccache to build." ON)
-option(KAMINPAR_BUILD_WITH_DEBUG_SYMBOLS "Always build with debug symbols, even in Release mode." ON)
-option(KAMINPAR_BUILD_WITH_MTKAHYPAR "If Mt-KaHyPar can be found, build the Mt-KaHyPar initial partitioner." OFF)
-option(KAMINPAR_BUILD_WITH_SPARSEHASH "Build with Google Sparsehash." ON)
 option(KAMINPAR_BUILD_WITH_PG "Build with the -pg option for profiling." OFF)
-option(KAMINPAR_BUILD_WITH_BACKWARD "Build with backward-cpp for stack traces (distributed partitioner only)." OFF)
+
+option(KAMINPAR_BUILD_WITH_CCACHE "Use Ccache as a compiler cache." ON)
+option(KAMINPAR_BUILD_WITH_MTUNE_NATIVE "Build with -mtune=native." ON)
+
 option(KAMINPAR_BUILD_WITH_KASSERT "Use KASSERT for assertions. If disabled, the assertion level is ignored." ON)
+option(KAMINPAR_BUILD_WITH_SPARSEHASH "Build with Google Sparsehash." ON)
+option(KAMINPAR_BUILD_WITH_WHFC "Build with Weighted HyperFlowCutter." OFF)
+option(KAMINPAR_BUILD_WITH_MTKAHYPAR "If Mt-KaHyPar can be found, build the Mt-KaHyPar initial partitioner." OFF)
+option(KAMINPAR_BUILD_WITH_BACKWARD "Build with backward-cpp for stack traces (distributed partitioner only)." OFF)
 
 # Control whether to install KaMinPar
 #####################################
@@ -396,11 +399,11 @@ if(KAMINPAR_BUILD_WITH_MTKAHYPAR)
     FetchContent_Declare(
       MtKaHyPar
       GIT_REPOSITORY https://github.com/kahypar/mt-kahypar.git
-      GIT_TAG a0236788100facfce4ffae29263c4cf26c3cafcd # v1.5.2
+      GIT_TAG ba647033b3368bf5178d86ac1e52b042d57e4f2d # v1.5.2
       EXCLUDE_FROM_ALL)
 
     set(KAHYPAR_ENABLE_ARCH_COMPILE_OPTIMIZATIONS ${KAMINPAR_BUILD_WITH_MTUNE_NATIVE} CACHE BOOL "" FORCE)
-    if(KAMINPAR_64BIT_IDS OR KAMINPAR_64BIT_NODE_IDS OR KAMINPAR_64BIT_EDGE_IDS)
+    if(KAMINPAR_64BIT_IDS OR KAMINPAR_64BIT_NODE_IDS OR KAMINPAR_64BIT_EDGE_IDS OR KAMINPAR_64BIT_WEIGHTS)
       set(KAHYPAR_USE_64_BIT_IDS ON CACHE BOOL "" FORCE)
     endif()
 
@@ -408,6 +411,26 @@ if(KAMINPAR_BUILD_WITH_MTKAHYPAR)
   endif()
 
   list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_MTKAHYPAR_FOUND")
+endif()
+
+# We optionally use WHFC for flow refinement
+if(KAMINPAR_BUILD_WITH_WHFC)
+  message(STATUS "Using FetchContent to get WHFC...")
+
+  FetchContent_Declare(
+    WHFC
+    GIT_REPOSITORY https://github.com/larsgottesbueren/WHFC.git
+    GIT_TAG 30b0eeb0e49577d06c3deb09a44b035d81c529d2
+    PATCH_COMMAND ${GIT_EXECUTABLE} apply ${CMAKE_CURRENT_SOURCE_DIR}/scripts/WHFC.patch
+    EXCLUDE_FROM_ALL
+    UPDATE_DISCONNECTED TRUE
+  )
+  FetchContent_MakeAvailable(WHFC)
+
+  list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_WHFC_FOUND")
+  if(KAMINPAR_64BIT_IDS OR KAMINPAR_64BIT_NODE_IDS OR KAMINPAR_64BIT_EDGE_IDS OR KAMINPAR_64BIT_WEIGHTS)
+    list(APPEND KAMINPAR_DEFINITIONS "-DWHFC_USE_64_BIT_IDS")
+  endif()
 endif()
 
 if(KAMINPAR_BUILD_DISTRIBUTED)

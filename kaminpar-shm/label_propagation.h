@@ -287,7 +287,7 @@ protected:
     }
 
     // Compute a mapping from old cluster IDs to new cluster IDs.
-    RECORD("mapping") StaticArray<ClusterID> mapping(_graph->n());
+    StaticArray<ClusterID> mapping(_graph->n());
     tbb::parallel_for(tbb::blocked_range<NodeID>(0, _graph->n()), [&](const auto &r) {
       for (NodeID u = r.begin(); u != r.end(); ++u) {
         const ClusterID c_u = derived_cluster(u);
@@ -2154,7 +2154,7 @@ public:
   void reassign_cluster_weights(
       const StaticArray<ClusterID> &mapping, const ClusterID num_new_clusters
   ) {
-    RECORD("new_cluster_weights") ClusterWeights new_cluster_weights(num_new_clusters);
+    ClusterWeights new_cluster_weights(num_new_clusters);
 
     tbb::parallel_for(
         tbb::blocked_range<ClusterID>(0, _cluster_weights.size()), [&](const auto &r) {

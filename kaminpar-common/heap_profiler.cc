@@ -57,7 +57,7 @@ HeapProfiler &HeapProfiler::global() {
 HeapProfiler::HeapProfiler(std::string_view name) : _tree(name) {}
 
 HeapProfiler::~HeapProfiler() {
-  _tree.root.free(_node_allocator, _struct_allocator);
+  _tree.root.free(_node_allocator);
 }
 
 void HeapProfiler::enable() {
@@ -85,39 +85,6 @@ void HeapProfiler::stop_profile() {
 
     _tree.currentNode = _tree.currentNode->parent;
   }
-}
-
-void HeapProfiler::record_data_struct(std::string_view var_name, const source_location location) {
-  if (_enabled) {
-    _var_name = var_name;
-    _file_name = location.file_name();
-    _line = location.line();
-    _column = location.column();
-  }
-}
-
-DataStructure *HeapProfiler::add_data_struct(std::string_view name, std::size_t size) {
-  if (_enabled) {
-    std::lock_guard<std::mutex> guard(_mutex);
-
-    DataStructure *data_structure = _struct_allocator.create(name, size);
-    if (_line != 0) {
-      data_structure->variable_name = _var_name;
-      data_structure->file_name = _file_name;
-      data_structure->line = _line;
-      data_structure->column = _column;
-
-      _line = 0;
-      _column = 0;
-    }
-
-    _tree.currentNode->data_structures.push_back(data_structure);
-    return data_structure;
-  }
-
-  // @todo: Potential memory leak. However, this method is currently not called when the heap
-  // profiler is disabled.
-  return new DataStructure(name, size);
 }
 
 void HeapProfiler::record_alloc(const void *ptr, std::size_t size) {
@@ -175,7 +142,6 @@ void HeapProfiler::record_free(const void *ptr) {
 void HeapProfiler::set_experiment_summary_options() {
   set_max_depth(std::numeric_limits<std::size_t>::max());
   set_highlight_peak_memory_node(false);
-  set_print_data_structs(false);
 }
 
 void HeapProfiler::set_max_depth(std::size_t max_depth) {
@@ -184,14 +150,6 @@ void HeapProfiler::set_max_depth(std::size_t max_depth) {
 
 void HeapProfiler::set_highlight_peak_memory_node(bool highlight) {
   _highlight_peak_memory_node = highlight;
-}
-
-void HeapProfiler::set_print_data_structs(bool print) {
-  _print_data_structs = print;
-}
-
-void HeapProfiler::set_min_data_struct_size(float size) {
-  _min_data_struct_size = static_cast<std::size_t>(size * 1024 * 1024);
 }
 
 void HeapProfiler::print_heap_profile(std::ostream &out) {
@@ -307,10 +265,6 @@ void HeapProfiler::print_heap_tree_node(
   }
   out << '\n';
 
-  if (print_data_structs) {
-    print_data_structures(out, node, depth, node.children.empty(), min_data_struct_size);
-  }
-
   if (!node.children.empty()) {
     const auto last_child = node.children.back();
 
@@ -373,58 +327,6 @@ void HeapProfiler::print_statistics(
 
   if (!node.annotation.empty()) {
     out << "   " << node.annotation;
-  }
-}
-
-void HeapProfiler::print_data_structures(
-    std::ostream &out,
-    const HeapProfileTreeNode &node,
-    std::size_t depth,
-    bool last,
-    std::size_t min_data_struct_size
-) {
-  std::vector<DataStructure *, NoProfileAllocator<DataStructure *>> filtered_data_structures;
-  std::copy_if(
-      node.data_structures.begin(),
-      node.data_structures.end(),
-      std::back_inserter(filtered_data_structures),
-      [&](auto *data_structure) { return data_structure->size >= min_data_struct_size; }
-  );
-
-  if (filtered_data_structures.empty()) {
-    return;
-  }
-
-  std::sort(
-      filtered_data_structures.begin(),
-      filtered_data_structures.end(),
-      [](auto *d1, auto *d2) { return d1->size > d2->size; }
-  );
-
-  auto last_data_structure = filtered_data_structures.back();
-  for (auto data_structure : filtered_data_structures) {
-    const bool is_last = last && (data_structure == last_data_structure);
-    const bool has_info = data_structure->line > 0;
-
-    const std::size_t leading_whitespaces = depth * kBranchLength;
-    out << std::string(leading_whitespaces, ' ') << (is_last ? kTailBranch : kBranch);
-
-    const float percentage =
-        (node.peak_memory == 0) ? 1 : (data_structure->size / static_cast<float>(node.peak_memory));
-    print_percentage(out, percentage);
-
-    out << data_structure->name;
-    if (has_info) {
-      out << " \"" << data_structure->variable_name << '\"';
-    }
-    out << " uses " << to_megabytes(data_structure->size) << " mb ";
-
-    if (has_info) {
-      out << " [" << data_structure->file_name << '(' << data_structure->line << ':'
-          << data_structure->column << ")]";
-    }
-
-    out << '\n';
   }
 }
 

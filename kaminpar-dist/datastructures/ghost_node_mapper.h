@@ -133,12 +133,9 @@ public:
     const GlobalNodeID num_global_nodes = _node_distribution.back();
     const std::size_t num_processes = _node_distribution.size() - 1;
 
-    RECORD("ghost_to_global")
     CompactStaticArray<GlobalNodeID> ghost_to_global(
         math::byte_width(num_global_nodes - 1), num_ghost_nodes
     );
-
-    RECORD("ghost_owner")
     CompactStaticArray<UPEID> ghost_owner(math::byte_width(num_processes - 1), num_ghost_nodes);
 
     const auto foreach_global_to_ghost = [&](auto &&l) {
@@ -166,7 +163,6 @@ public:
       });
       global_to_ghost_bitmap.update();
 
-      RECORD("dense_global_to_ghost")
       CompactStaticArray<NodeID> dense_global_to_ghost(
           math::byte_width(num_ghost_nodes - 1), num_ghost_nodes
       );
@@ -261,8 +257,8 @@ public:
 
     growt::StaticGhostNodeMapping global_to_ghost(ghost_n);
 
-    RECORD("ghost_to_global") StaticArray<GlobalNodeID> ghost_to_global(ghost_n);
-    RECORD("ghost_owner") StaticArray<PEID> ghost_owner(ghost_n);
+    StaticArray<GlobalNodeID> ghost_to_global(ghost_n);
+    StaticArray<PEID> ghost_owner(ghost_n);
 
     tbb::parallel_for(_global_to_ghost.range(), [&](const auto r) {
       for (auto it = r.begin(); it != r.end(); ++it) {
@@ -285,12 +281,6 @@ public:
         global_to_ghost.insert(global_node + 1, local_node);
       }
     });
-
-    RECORD("global_to_ghost");
-    RECORD_LOCAL_DATA_STRUCT(
-        "growt::StaticGhostNodeMapping",
-        global_to_ghost.capacity() * sizeof(growt::StaticGhostNodeMapping::atomic_slot_type)
-    );
 
     return {
         .global_to_ghost = std::move(global_to_ghost),

@@ -91,10 +91,6 @@ void GenericPartitionedGraph<Graph>::reinit_aligned_block_weights(const bool seq
 
 template <typename Graph>
 void GenericPartitionedGraph<Graph>::sync_dense_and_aligned_block_weights() const {
-  if (!_diverged_block_weights) {
-    return;
-  }
-
   // Avoid parallelism in the bipartite case (often used by sequential initial bipartitioning)
   if (_k == 2) {
     _dense_block_weights[0] = _aligned_block_weights[0].value;
@@ -104,8 +100,6 @@ void GenericPartitionedGraph<Graph>::sync_dense_and_aligned_block_weights() cons
       _dense_block_weights[b] = _aligned_block_weights[b].value;
     });
   }
-
-  _diverged_block_weights = false;
 }
 
 template <typename Graph> void GenericPartitionedGraph<Graph>::init_node_weights() {
