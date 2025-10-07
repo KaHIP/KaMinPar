@@ -16,6 +16,8 @@ public:
   using SubroundScheduling = ScalableVector<BlockPair>;
   using Scheduling = ScalableVector<SubroundScheduling>;
 
+  virtual ~ActiveBlockScheduling() = default;
+
   [[nodiscard]] virtual Scheduling compute_scheduling(
       const QuotientGraph &quotient_graph, std::span<const bool> active_blocks, std::size_t round
   ) = 0;
