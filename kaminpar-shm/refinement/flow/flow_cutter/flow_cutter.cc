@@ -26,7 +26,7 @@ FlowCutter::FlowCutter(const PartitionContext &p_ctx, const FlowCutterContext &f
   } else {
     _parallel_max_flow_algorithm = std::make_unique<ParallelPreflowPushAlgorithm>(fc_ctx.flow);
   }
-};
+}
 
 FlowCutter::Result FlowCutter::compute_cut(
     const BorderRegion &border_region, const FlowNetwork &flow_network, const bool run_sequentially
