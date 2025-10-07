@@ -149,7 +149,7 @@ jobs:
   # Make sure that our code compiles with all assertions and experimental features enabled
   build-with-heavy-assertions-and-experimental-features:
     name: macOS Build with Heavy Assertions and Experimental Features
-    runs-on: macos-15 # fastest runner to compile the code
+    runs-on: macos-26 # fastest runner to compile the code
     strategy:
       matrix:
         compiler:
@@ -157,7 +157,7 @@ jobs:
         build-mode: [Release]
     steps:
       - name: Install dependencies
-        run: brew install llvm tbb open-mpi google-sparsehash googletest
+        run: brew install tbb open-mpi google-sparsehash googletest
       - name: Checkout HEAD
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
