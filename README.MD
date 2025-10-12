@@ -65,12 +65,12 @@ KaMinPar is not available in the official Debian/Ubuntu repositories, but you ca
 
 ```shell
 # For AMD64
-wget https://github.com/KaHIP/KaMinPar/releases/download/v3.6.0/kaminpar_3.6.0-1_amd64.deb
-sudo apt install ./kaminpar_3.6.0-1_amd64.deb
+wget https://github.com/KaHIP/KaMinPar/releases/download/v3.7.0/kaminpar_3.7.0-1_amd64.deb
+sudo apt install ./kaminpar_3.7.0-1_amd64.deb
 
 # For ARM64
-wget https://github.com/KaHIP/KaMinPar/releases/download/v3.6.0/kaminpar_3.6.0-1_arm64.deb
-sudo apt install ./kaminpar_3.6.0-1_arm64.deb
+wget https://github.com/KaHIP/KaMinPar/releases/download/v3.7.0/kaminpar_3.7.0-1_arm64.deb
+sudo apt install ./kaminpar_3.7.0-1_arm64.deb
 ```
 
 > [!TIP]
@@ -82,10 +82,10 @@ An `.rpm` package is also available on the [GitHub Releases page](https://github
 
 ```shell
 # For AMD64
-sudo dnf install https://github.com/KaHIP/KaMinPar/releases/download/v3.6.0/kaminpar-3.6.0-1.x86_64.rpm
+sudo dnf install https://github.com/KaHIP/KaMinPar/releases/download/v3.7.0/kaminpar-3.7.0-1.x86_64.rpm
 
 # For ARM64
-sudo dnf install https://github.com/KaHIP/KaMinPar/releases/download/v3.6.0/kaminpar-3.6.0-1.aarch64.rpm
+sudo dnf install https://github.com/KaHIP/KaMinPar/releases/download/v3.7.0/kaminpar-3.7.0-1.aarch64.rpm
 ```
 
 ### ArchLinux (AUR)

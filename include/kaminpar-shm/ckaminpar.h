@@ -13,7 +13,7 @@
 #include <stdlib.h>
 
 #define CKAMINPAR_VERSION_MAJOR 3
-#define CKAMINPAR_VERSION_MINOR 6
+#define CKAMINPAR_VERSION_MINOR 7
 #define CKAMINPAR_VERSION_PATCH 0
 
 typedef enum {

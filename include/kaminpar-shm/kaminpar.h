@@ -24,7 +24,7 @@
 #include <tbb/global_control.h>
 
 #define KAMINPAR_VERSION_MAJOR 3
-#define KAMINPAR_VERSION_MINOR 6
+#define KAMINPAR_VERSION_MINOR 7
 #define KAMINPAR_VERSION_PATCH 0
 
 namespace kaminpar::shm {
