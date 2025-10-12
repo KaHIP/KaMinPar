@@ -64,8 +64,8 @@ std::unique_ptr<CoarseGraph> contract_and_sparsify_clustering(
   // edge weight array as we only know the amount of edges of the coarse graph afterwards.
   START_TIMER("Allocation");
   START_HEAP_PROFILER("Coarse graph node allocation");
-  RECORD("c_nodes") StaticArray<EdgeID> c_nodes(c_n + 1, static_array::noinit);
-  RECORD("c_node_weights") StaticArray<NodeWeight> c_node_weights(c_n, static_array::noinit);
+  StaticArray<EdgeID> c_nodes(c_n + 1, static_array::noinit);
+  StaticArray<NodeWeight> c_node_weights(c_n, static_array::noinit);
   STOP_HEAP_PROFILER();
 
   const EdgeID num_fine_edges = graph.m();
@@ -418,8 +418,7 @@ std::unique_ptr<CoarseGraph> contract_and_sparsify_clustering(
     heap_profiler::HeapProfiler::global().record_alloc(c_edge_weights, c_m * sizeof(EdgeWeight));
   }
 
-  RECORD("c_edges") StaticArray<NodeID> finalized_c_edges(c_m, std::move(c_edges_ptr));
-  RECORD("c_edge_weights")
+  StaticArray<NodeID> finalized_c_edges(c_m, std::move(c_edges_ptr));
   StaticArray<EdgeWeight> finalized_c_edge_weights(c_m, std::move(c_edge_weights_ptr));
   STOP_HEAP_PROFILER();
 

@@ -7,6 +7,7 @@
  ******************************************************************************/
 #include "kaminpar-shm/presets.h"
 
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <unordered_set>
@@ -20,7 +21,9 @@ Context create_context_by_preset_name(const std::string &name) {
     return create_default_context();
   } else if (name == "fast") {
     return create_fast_context();
-  } else if (name == "strong" || name == "fm") {
+  } else if (name == "eco" || name == "fm") {
+    return create_eco_context();
+  } else if (name == "strong" || name == "flow") {
     return create_strong_context();
   }
 
@@ -28,14 +31,16 @@ Context create_context_by_preset_name(const std::string &name) {
     return create_largek_context();
   } else if (name == "largek-fast") {
     return create_largek_fast_context();
-  } else if (name == "largek-strong") {
+  } else if (name == "largek-eco" || name == "largek-fm") {
+    return create_largek_eco_context();
+  } else if (name == "largek-strong" || name == "largek-flow") {
     return create_largek_strong_context();
   }
 
   if (name == "terapart") {
     return create_terapart_context();
-  } else if (name == "terapart-strong") {
-    return create_terapart_strong_context();
+  } else if (name == "terapart-eco") {
+    return create_terapart_eco_context();
   } else if (name == "terapart-largek") {
     return create_terapart_largek_context();
   }
@@ -77,12 +82,14 @@ std::unordered_set<std::string> get_preset_names() {
   return {
       "default",
       "fast",
+      "eco",
       "strong",
       "largek",
       "terapart",
-      "terapart-strong",
+      "terapart-eco",
       "terapart-largek",
       "largek-fast",
+      "largek-eco",
       "largek-strong",
       "jet",
       "4xjet",
@@ -192,12 +199,61 @@ Context create_default_context() {
                   {
                       .refinement =
                           {
-                              .disabled = false,
-                              .stopping_rule = FMStoppingRule::SIMPLE,
-                              .num_fruitless_moves = 100,
-                              .alpha = 1.0,
-                              .num_iterations = 5,
-                              .improvement_abortion_threshold = 0.0001,
+                              .algorithms =
+                                  {
+                                      InitialRefinementAlgorithm::TWOWAY_SIMPLE_FM,
+                                  },
+                              .fm =
+                                  {
+                                      .num_fruitless_moves = 100,
+                                      .alpha = 1.0,
+                                      .num_iterations = 5,
+                                      .improvement_abortion_threshold = 0.0001,
+                                  },
+                              .twoway_flow =
+                                  {
+                                      .min_round_improvement_factor = 0.001,
+                                      .max_num_rounds = std::numeric_limits<std::size_t>::max(),
+                                      .time_limit = std::numeric_limits<std::size_t>::max(),
+                                      .run_sequentially = true,
+                                      .free_memory_after_round = false,
+                                      .scheduler =
+                                          {
+                                              .parallel = false,
+                                              .deterministic = false,
+                                              .parallel_search_multiplier = 1,
+                                              .skip_unpromising_cuts = false,
+                                              .skip_small_cuts = false,
+                                              .small_cut_threshold = 10,
+                                          },
+                                      .construction =
+                                          {
+                                              .deterministic = false,
+                                              .small_graph_threshold = 131072,
+                                              .border_region_scaling_factor = 16,
+                                              .max_border_distance = 10,
+                                          },
+                                      .flow_cutter =
+                                          {
+                                              .use_whfc = false,
+                                              .small_flow_network_threshold = 131072,
+                                              .flow =
+                                                  {
+                                                      .global_relabeling_frequency = 3,
+                                                      .parallel_blocking_resolution = false,
+                                                      .sequential_discharge_threshold = 1024,
+                                                  },
+                                              .piercing =
+                                                  {
+                                                      .deterministic = false,
+                                                      .determine_distance_from_cut = true,
+                                                      .fallback_heuristic = true,
+                                                      .bulk_piercing = true,
+                                                      .bulk_piercing_shrinking_factor = 0.55,
+                                                      .bulk_piercing_round_threshold = 5,
+                                                  },
+                                          },
+                                  },
                           },
                       .repetition_multiplier = 1.0,
                       .min_num_repetitions = 10,
@@ -211,12 +267,61 @@ Context create_default_context() {
                   },
               .refinement =
                   {
-                      .disabled = false,
-                      .stopping_rule = FMStoppingRule::SIMPLE,
-                      .num_fruitless_moves = 100,
-                      .alpha = 1.0,
-                      .num_iterations = 5,
-                      .improvement_abortion_threshold = 0.0001,
+                      .algorithms =
+                          {
+                              InitialRefinementAlgorithm::TWOWAY_SIMPLE_FM,
+                          },
+                      .fm =
+                          {
+                              .num_fruitless_moves = 100,
+                              .alpha = 1.0,
+                              .num_iterations = 5,
+                              .improvement_abortion_threshold = 0.0001,
+                          },
+                      .twoway_flow =
+                          {
+                              .min_round_improvement_factor = 0.001,
+                              .max_num_rounds = std::numeric_limits<std::size_t>::max(),
+                              .time_limit = std::numeric_limits<std::size_t>::max(),
+                              .run_sequentially = true,
+                              .free_memory_after_round = false,
+                              .scheduler =
+                                  {
+                                      .parallel = false,
+                                      .deterministic = false,
+                                      .parallel_search_multiplier = 1,
+                                      .skip_unpromising_cuts = false,
+                                      .skip_small_cuts = false,
+                                      .small_cut_threshold = 10,
+                                  },
+                              .construction =
+                                  {
+                                      .deterministic = false,
+                                      .small_graph_threshold = 131072,
+                                      .border_region_scaling_factor = 16,
+                                      .max_border_distance = 10,
+                                  },
+                              .flow_cutter =
+                                  {
+                                      .use_whfc = false,
+                                      .small_flow_network_threshold = 131072,
+                                      .flow =
+                                          {
+                                              .global_relabeling_frequency = 3,
+                                              .parallel_blocking_resolution = false,
+                                              .sequential_discharge_threshold = 1024,
+                                          },
+                                      .piercing =
+                                          {
+                                              .deterministic = false,
+                                              .determine_distance_from_cut = true,
+                                              .fallback_heuristic = true,
+                                              .bulk_piercing = true,
+                                              .bulk_piercing_shrinking_factor = 0.55,
+                                              .bulk_piercing_round_threshold = 5,
+                                          },
+                                  },
+                          },
                   },
               .refine_pool_partition = false,
               .use_adaptive_epsilon = true,
@@ -230,6 +335,7 @@ Context create_default_context() {
                       RefinementAlgorithm::LABEL_PROPAGATION,
                       RefinementAlgorithm::UNDERLOAD_BALANCER,
                   },
+              .balancer = {},
               .lp =
                   {
                       // Context -> Refinement -> Label Propagation
@@ -257,7 +363,50 @@ Context create_default_context() {
                       .dbg_compute_batch_stats = false,
                       .dbg_report_progress = false,
                   },
-              .balancer = {},
+              .twoway_flow =
+                  {
+                      .min_round_improvement_factor = 0.001,
+                      .max_num_rounds = std::numeric_limits<std::size_t>::max(),
+                      .time_limit = std::numeric_limits<std::size_t>::max(),
+                      .run_sequentially = false,
+                      .free_memory_after_round = false,
+                      .scheduler =
+                          {
+                              .parallel = true,
+                              .deterministic = false,
+                              .parallel_search_multiplier = 1,
+                              .skip_unpromising_cuts = false,
+                              .skip_small_cuts = false,
+                              .small_cut_threshold = 10,
+                          },
+                      .construction =
+                          {
+                              .deterministic = false,
+                              .small_graph_threshold = 131072,
+                              .border_region_scaling_factor = 16,
+                              .max_border_distance = 10,
+                          },
+                      .flow_cutter =
+                          {
+                              .use_whfc = false,
+                              .small_flow_network_threshold = 131072,
+                              .flow =
+                                  {
+                                      .global_relabeling_frequency = 3,
+                                      .parallel_blocking_resolution = false,
+                                      .sequential_discharge_threshold = 1024,
+                                  },
+                              .piercing =
+                                  {
+                                      .deterministic = false,
+                                      .determine_distance_from_cut = true,
+                                      .fallback_heuristic = true,
+                                      .bulk_piercing = true,
+                                      .bulk_piercing_shrinking_factor = 0.55,
+                                      .bulk_piercing_round_threshold = 5,
+                                  },
+                          },
+                  },
               .jet =
                   {
                       .num_iterations = 0,
@@ -276,6 +425,7 @@ Context create_default_context() {
                       .config_filename = "",
                       .coarse_config_filename = "",
                       .fine_config_filename = "",
+                      .disable_logging = false,
                   },
           },
       .parallel =
@@ -307,6 +457,20 @@ Context create_fast_context() {
   ctx.initial_partitioning.pool.max_num_repetitions = 1;
   return ctx;
 }
+Context create_eco_context() {
+  Context ctx = create_default_context();
+
+  ctx.refinement.algorithms = {
+      RefinementAlgorithm::OVERLOAD_BALANCER,
+      RefinementAlgorithm::UNDERLOAD_BALANCER,
+      RefinementAlgorithm::LABEL_PROPAGATION,
+      RefinementAlgorithm::KWAY_FM,
+      RefinementAlgorithm::OVERLOAD_BALANCER,
+      RefinementAlgorithm::UNDERLOAD_BALANCER,
+  };
+
+  return ctx;
+}
 
 Context create_strong_context() {
   Context ctx = create_default_context();
@@ -316,6 +480,9 @@ Context create_strong_context() {
       RefinementAlgorithm::UNDERLOAD_BALANCER,
       RefinementAlgorithm::LABEL_PROPAGATION,
       RefinementAlgorithm::KWAY_FM,
+      RefinementAlgorithm::OVERLOAD_BALANCER,
+      RefinementAlgorithm::UNDERLOAD_BALANCER,
+      RefinementAlgorithm::TWOWAY_FLOW,
       RefinementAlgorithm::OVERLOAD_BALANCER,
       RefinementAlgorithm::UNDERLOAD_BALANCER,
   };
@@ -343,10 +510,27 @@ Context create_largek_fast_context() {
   ctx.initial_partitioning.pool.enable_ggg_bipartitioner = false;
   ctx.initial_partitioning.pool.enable_random_bipartitioner = true;
 
-  ctx.initial_partitioning.pool.refinement.disabled = true;
-  ctx.initial_partitioning.pool.refinement.num_iterations = 1;
+  ctx.initial_partitioning.pool.refinement.algorithms = {InitialRefinementAlgorithm::NOOP};
+  ctx.initial_partitioning.pool.refinement.fm.num_iterations = 1;
 
   ctx.initial_partitioning.refine_pool_partition = true;
+
+  return ctx;
+}
+
+Context create_largek_eco_context() {
+  Context ctx = create_largek_context();
+
+  ctx.refinement.algorithms = {
+      RefinementAlgorithm::OVERLOAD_BALANCER,
+      RefinementAlgorithm::UNDERLOAD_BALANCER,
+      RefinementAlgorithm::LABEL_PROPAGATION,
+      RefinementAlgorithm::KWAY_FM,
+      RefinementAlgorithm::OVERLOAD_BALANCER,
+      RefinementAlgorithm::UNDERLOAD_BALANCER,
+  };
+
+  ctx.refinement.kway_fm.gain_cache_strategy = GainCacheStrategy::COMPACT_HASHING_LARGE_K;
 
   return ctx;
 }
@@ -359,6 +543,9 @@ Context create_largek_strong_context() {
       RefinementAlgorithm::UNDERLOAD_BALANCER,
       RefinementAlgorithm::LABEL_PROPAGATION,
       RefinementAlgorithm::KWAY_FM,
+      RefinementAlgorithm::OVERLOAD_BALANCER,
+      RefinementAlgorithm::UNDERLOAD_BALANCER,
+      RefinementAlgorithm::TWOWAY_FLOW,
       RefinementAlgorithm::OVERLOAD_BALANCER,
       RefinementAlgorithm::UNDERLOAD_BALANCER,
   };
@@ -408,8 +595,8 @@ Context create_terapart_context() {
   return terapartify_context(create_default_context());
 }
 
-Context create_terapart_strong_context() {
-  return terapartify_context(create_strong_context());
+Context create_terapart_eco_context() {
+  return terapartify_context(create_eco_context());
 }
 
 Context create_terapart_largek_context() {
@@ -462,8 +649,8 @@ Context create_esa21_largek_fast_context() {
   ctx.initial_partitioning.pool.enable_ggg_bipartitioner = false;
   ctx.initial_partitioning.pool.enable_random_bipartitioner = true;
 
-  ctx.initial_partitioning.pool.refinement.disabled = true;
-  ctx.initial_partitioning.pool.refinement.num_iterations = 1;
+  ctx.initial_partitioning.pool.refinement.algorithms = {InitialRefinementAlgorithm::NOOP};
+  ctx.initial_partitioning.pool.refinement.fm.num_iterations = 1;
 
   ctx.initial_partitioning.refine_pool_partition = true;
 

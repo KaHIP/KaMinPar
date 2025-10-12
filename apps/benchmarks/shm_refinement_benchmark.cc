@@ -15,9 +15,11 @@
 #include <vector>
 
 #include <tbb/global_control.h>
+#include <tbb/task_arena.h>
 
 #include "kaminpar-io/kaminpar_io.h"
 
+#include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/factories.h"
 #include "kaminpar-shm/kaminpar.h"
@@ -34,6 +36,8 @@ using namespace kaminpar::shm;
 
 int main(int argc, char *argv[]) {
   Context ctx = create_default_context();
+  ctx.parallel.num_threads = tbb::this_task_arena::max_concurrency();
+
   double epsilon = 0.03;
   int seed = 0;
 
@@ -52,14 +56,16 @@ int main(int argc, char *argv[]) {
       ->check(CLI::NonNegativeNumber)
       ->capture_default_str();
   app.add_option("-f,--graph-file-format", graph_file_format)
-      ->transform(CLI::CheckedTransformer(
-          std::unordered_map<std::string, io::GraphFileFormat>{
-              {"metis", io::GraphFileFormat::METIS},
-              {"parhip", io::GraphFileFormat::PARHIP},
-              {"compressed", io::GraphFileFormat::COMPRESSED},
-          },
-          CLI::ignore_case
-      ));
+      ->transform(
+          CLI::CheckedTransformer(
+              std::unordered_map<std::string, io::GraphFileFormat>{
+                  {"metis", io::GraphFileFormat::METIS},
+                  {"parhip", io::GraphFileFormat::PARHIP},
+                  {"compressed", io::GraphFileFormat::COMPRESSED},
+              },
+              CLI::ignore_case
+          )
+      );
   app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads");
   app.add_option("-s,--seed", seed, "Seed for random number generation.")->default_val(seed);
 
@@ -79,9 +85,32 @@ int main(int argc, char *argv[]) {
   std::vector<BlockID> partition = io::read_partition(partition_filename);
   const BlockID k = std::unordered_set<BlockID>(partition.begin(), partition.end()).size();
 
+  if (partition.size() != graph->n()) {
+    LOG_ERROR << "Partition size (" << partition.size()
+              << ") does not match number of nodes in graph (" << graph->n() << ")";
+    return EXIT_FAILURE;
+  }
+
   PartitionedGraph p_graph(*graph, k, StaticArray<BlockID>(partition.size(), partition.data()));
   ctx.compression.setup(*graph);
   ctx.partition.setup(*graph, k, epsilon);
+
+  cio::print_kaminpar_banner();
+  cio::print_build_identifier();
+  cio::print_build_datatypes<NodeID, EdgeID, NodeWeight, EdgeWeight>();
+
+  cio::print_delimiter("Input Summary");
+  std::cout << "Threads:                      " << ctx.parallel.num_threads << "\n";
+  std::cout << "Seed:                         " << seed << "\n";
+  std::cout << "Graph:                        " << ctx.debug.graph_name
+            << " [node ordering: " << ctx.node_ordering << "] [edge ordering: " << ctx.edge_ordering
+            << "]\n";
+  std::cout << ctx.partition;
+
+  cio::print_delimiter("Refinement", '-');
+  std::cout << ctx.refinement;
+
+  cio::print_delimiter("Refinement");
 
   const auto print_statistics = [&]() {
     const EdgeWeight cut = metrics::edge_cut(p_graph);
@@ -90,20 +119,18 @@ int main(int argc, char *argv[]) {
     LOG << "Cut=" << cut << ", Imbalance=" << imbalance
         << ", Feasible=" << (feasible ? "Yes" : "No") << ", k=" << p_graph.k();
   };
-
-  cio::print_delimiter("Input Summary");
   print_statistics();
   LOG;
 
   std::unique_ptr<Refiner> refiner = factory::create_refiner(ctx);
 
-  START_HEAP_PROFILER();
+  ENABLE_HEAP_PROFILER();
   GLOBAL_TIMER.reset();
 
   refiner->refine(p_graph, ctx.partition);
 
   STOP_TIMER();
-  STOP_HEAP_PROFILER();
+  DISABLE_HEAP_PROFILER();
 
   cio::print_delimiter("Result Summary");
   print_statistics();

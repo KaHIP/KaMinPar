@@ -152,8 +152,8 @@
           whfc-src = pkgs.fetchFromGitHub {
             owner = "larsgottesbueren";
             repo = "WHFC";
-            rev = "5ae2e3664391ca0db7fab2c82973e98c48937a08";
-            hash = "sha256-Oyz6u1uAgQUTOjSWBC9hLbupmQwbzcZJcyxNnj7+qxo=";
+            rev = "30b0eeb0e49577d06c3deb09a44b035d81c529d2";
+            hash = "sha256-2+l3PGOT3dqtL39OZHNQGNwrvEH75xXJOK5SaXmDk8A=";
           };
 
           growt-src = pkgs.fetchFromGitHub {
@@ -177,14 +177,14 @@
           src = pkgs.fetchFromGitHub {
             owner = "kahypar";
             repo = "mt-kahypar";
-            rev = "a0236788100facfce4ffae29263c4cf26c3cafcd";
-            hash = "sha256-tVR+0I+/kqQVjF7J3bXuziEf9ldU7TDz5OuS4XVAjKA=";
+            rev = "ba647033b3368bf5178d86ac1e52b042d57e4f2d";
+            hash = "sha256-VraSGYl6HoJ0ruBwN3p3kOM+BZU2dfbcRhHf/UY9wxI=";
           };
 
           preConfigure = ''
             # Remove the FetchContent_Populate calls in CMakeLists.txt
-            sed -i '346,358d' CMakeLists.txt
-            sed -i '362,367d' CMakeLists.txt
+            sed -i '347,359d' CMakeLists.txt
+            sed -i '363,368d' CMakeLists.txt
 
             # Set up WHFC dependency
             mkdir -p external_tools

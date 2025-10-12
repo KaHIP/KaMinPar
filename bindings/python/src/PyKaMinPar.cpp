@@ -59,7 +59,8 @@ PYBIND11_MODULE(kaminpar_python, m) {
 
   m.def("default_context", &create_default_context, "Create the default context");
   m.def("fast_context", &create_fast_context, "Create the faster context");
-  m.def("strong_context", &create_strong_context, "Create the higher-quality context");
+  m.def("eco_context", &create_eco_context, "Create the higher-quality context");
+  m.def("strong_context", &create_strong_context, "Create the even higher-quality context");
 
   m.def(
       "terapart_context",
@@ -67,8 +68,8 @@ PYBIND11_MODULE(kaminpar_python, m) {
       "Create the default context for memory-efficient partitioning"
   );
   m.def(
-      "terapart_strong_context",
-      &create_terapart_strong_context,
+      "terapart_eco_context",
+      &create_terapart_eco_context,
       "Create the higher-qulity context for memory-efficient partitioning"
   );
   m.def(
@@ -88,9 +89,14 @@ PYBIND11_MODULE(kaminpar_python, m) {
       "Create the fast context for large-k partitioning"
   );
   m.def(
+      "largek_eco_context",
+      &create_largek_eco_context,
+      "Create the higher-quality context for large-k partitioning"
+  );
+  m.def(
       "largek_strong_context",
       &create_largek_strong_context,
-      "Create the higher-quality context for large-k partitioning"
+      "Create the even higher-quality context for large-k partitioning"
   );
 
   pybind11::class_<Graph>(m, "Graph")

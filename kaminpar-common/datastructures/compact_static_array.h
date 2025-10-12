@@ -11,12 +11,12 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <iterator>
 #include <limits>
 #include <memory>
 
 #include "kaminpar-common/assert.h"
-#include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/math.h"
 
 namespace kaminpar {
@@ -141,9 +141,7 @@ public:
         _size(0),
         _num_values(0),
         _unrestricted_size(0),
-        _unrestricted_num_values(0) {
-    RECORD_DATA_STRUCT(0, _struct);
-  }
+        _unrestricted_num_values(0) {}
 
   /*!
    * Constructs an unitialized CompactStaticArray.
@@ -152,7 +150,6 @@ public:
    * @param size num_values number of values to store.
    */
   CompactStaticArray(const std::size_t byte_width, const std::size_t num_values) {
-    RECORD_DATA_STRUCT(0, _struct);
     resize(byte_width, num_values);
   }
 
@@ -174,7 +171,6 @@ public:
         _values(std::move(data)),
         _unrestricted_size(_size),
         _unrestricted_num_values(_num_values) {
-    RECORD_DATA_STRUCT(0, _struct);
     KASSERT(actual_size >= sizeof(Int) - _byte_width);
     KASSERT(byte_width >= 1u);
     KASSERT(byte_width <= 8u);
@@ -204,8 +200,6 @@ public:
 
     _unrestricted_size = _size;
     _unrestricted_num_values = num_values;
-
-    IF_HEAP_PROFILING(_struct->size = std::max(_struct->size, _size));
   }
 
   /*!
@@ -336,8 +330,6 @@ private:
 
   std::size_t _unrestricted_size;
   std::size_t _unrestricted_num_values;
-
-  IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };
 
 } // namespace kaminpar

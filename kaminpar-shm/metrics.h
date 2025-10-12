@@ -8,7 +8,9 @@
 #pragma once
 
 #include <cmath>
+#include <span>
 
+#include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 
@@ -19,6 +21,9 @@ namespace kaminpar::shm::metrics {
 
 [[nodiscard]] EdgeWeight edge_cut_seq(const PartitionedCSRGraph &p_graph);
 [[nodiscard]] EdgeWeight edge_cut(const PartitionedCSRGraph &p_graph);
+
+[[nodiscard]] EdgeWeight edge_cut_seq(const CSRGraph &pgraph, std::span<const BlockID> partition);
+[[nodiscard]] EdgeWeight edge_cut(const CSRGraph &graph, std::span<const BlockID> partition);
 
 template <typename PartitionedGraph> double imbalance(const PartitionedGraph &p_graph) {
   const double perfect_block_weight =
@@ -54,6 +59,9 @@ NodeWeight total_overload(const PartitionedGraph &p_graph, const PartitionContex
 
   return total_overload;
 }
+
+[[nodiscard]] bool
+are_weights_balanced(std::span<const BlockWeight> block_weights, const PartitionContext &p_ctx);
 
 template <typename PartitionedGraph>
 bool is_balanced(const PartitionedGraph &p_graph, const PartitionContext &p_ctx) {

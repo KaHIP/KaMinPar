@@ -13,7 +13,6 @@
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/datastructures/static_array.h"
-#include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/ranges.h"
 
 namespace kaminpar {
@@ -26,9 +25,7 @@ public:
   using size_type = Size;
 
   explicit FastResetArray(const std::size_t capacity = 0)
-      : _data(capacity, static_array::seq, static_array::std_alloc) {
-    RECORD_DATA_STRUCT(capacity * sizeof(value_type), _struct);
-  }
+      : _data(capacity, static_array::seq, static_array::std_alloc) {}
 
   FastResetArray(const FastResetArray &) = delete;
   FastResetArray &operator=(const FastResetArray &) = delete;
@@ -40,13 +37,6 @@ public:
 
     if (_data[pos] == Value()) {
       _used_entries.push_back(pos);
-
-      IF_HEAP_PROFILING(
-          _struct->size = std::max(
-              _struct->size,
-              _data.size() * sizeof(value_type) + _used_entries.capacity() * sizeof(size_type)
-          )
-      );
     }
 
     return _data[pos];
@@ -109,20 +99,11 @@ public:
 
   void resize(const std::size_t capacity) {
     _data.resize(capacity, static_array::seq, static_array::std_alloc);
-
-    IF_HEAP_PROFILING(
-        _struct->size = std::max(
-            _struct->size,
-            _data.size() * sizeof(value_type) + _used_entries.capacity() * sizeof(size_type)
-        )
-    );
   }
 
 private:
   StaticArray<value_type> _data;
   ScalableVector<size_type> _used_entries{};
-
-  IF_HEAP_PROFILING(heap_profiler::DataStructure *_struct);
 };
 
 } // namespace kaminpar

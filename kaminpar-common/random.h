@@ -14,20 +14,42 @@
 #include <random>
 #include <vector>
 
+#include "kaminpar-common/constexpr_utils.h"
 #include "kaminpar-common/math.h"
 
 namespace kaminpar {
+
+namespace random {
+constexpr struct thread_independent_seeding_t {
+} thread_independent_seeding;
+} // namespace random
 
 class Random {
   static constexpr std::size_t kPrecomputedBools = 1024;
   static_assert(math::is_power_of_2(kPrecomputedBools), "not a power of 2");
 
 public:
-  Random();
+  [[nodiscard]] static Random &instance();
 
-  static Random &instance();
+  [[nodiscard]] static int get_seed();
+
   static void reseed(int seed);
-  static int get_seed();
+
+public:
+  template <typename... Tags> Random(Tags...) : _bool_dist(0, 1), _real_dist(0, 1) {
+    static_assert(
+        tag::are_all_contained<Tags...>(random::thread_independent_seeding), "invalid tags"
+    );
+
+    if constexpr (contains_tag_v<random::thread_independent_seeding_t, Tags...>) {
+      _thread_independent_seeding = true;
+    } else {
+      _thread_independent_seeding = false;
+    }
+
+    _local_seed = _seed;
+    reset();
+  }
 
   Random(const Random &) = delete;
   Random &operator=(const Random &) = delete;
@@ -35,9 +57,9 @@ public:
   Random(Random &&) noexcept = default; // might be expensive
   Random &operator=(Random &&) = delete;
 
-  using generator_type = std::mt19937;
-
   void reinit(int seed);
+
+  void reset();
 
   std::size_t
   random_index(const std::size_t inclusive_lower_bound, const std::size_t exclusive_upper_bound) {
@@ -48,9 +70,11 @@ public:
   bool random_bool() {
     return _random_bools[_next_random_bool++ % kPrecomputedBools];
   }
+
   bool random_bool(const double prob) {
     return _real_dist(_generator) <= prob;
   }
+
   double random_double() {
     return _real_dist(_generator);
   }
@@ -68,16 +92,20 @@ public:
   }
 
 private:
-  static int _seed;
-  static std::mutex _create_mutex;
-  static std::vector<std::unique_ptr<Random>> _instances;
   static Random &create_instance();
 
-  void precompute_bools();
+  static int _seed;
 
-  std::mt19937 _generator;
+  static std::mutex _create_mutex;
+  static std::vector<std::unique_ptr<Random>> _instances;
+
+  int _local_seed;
+  bool _thread_independent_seeding;
+
   std::uniform_int_distribution<int> _bool_dist;
   std::uniform_real_distribution<> _real_dist;
+  std::mt19937 _generator;
+
   std::size_t _next_random_bool;
   std::array<bool, kPrecomputedBools> _random_bools;
 };

@@ -76,7 +76,7 @@ jobs:
             -DKAMINPAR_64BIT_WEIGHTS=On
 
       - name: Build the project
-        run: cmake --build build --parallel
+        run: cmake --build build --parallel 4
 
       - name: Create the package
         run: cpack --config build/CPackConfig.cmake -G ${{ matrix.package }} -V

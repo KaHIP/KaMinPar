@@ -43,7 +43,9 @@ public:
   // Tag for the sequential ctor.
   struct seq {};
 
-  explicit CSRGraph(const class Graph &graph);
+  CSRGraph();
+
+  CSRGraph(const Graph &graph);
 
   CSRGraph(
       StaticArray<EdgeID> nodes,
@@ -63,13 +65,13 @@ public:
       std::vector<NodeID> buckets = std::vector<NodeID>(kNumberOfDegreeBuckets<NodeID> + 1)
   );
 
+  ~CSRGraph() override = default;
+
   CSRGraph(const CSRGraph &) = delete;
   CSRGraph &operator=(const CSRGraph &) = delete;
 
   CSRGraph(CSRGraph &&) noexcept = default;
   CSRGraph &operator=(CSRGraph &&) noexcept = default;
-
-  ~CSRGraph() override = default;
 
   //
   // Size of the graph
@@ -113,6 +115,10 @@ public:
   [[nodiscard]] inline EdgeWeight edge_weight(const EdgeID e) const {
     KASSERT(!is_edge_weighted() || e < _edge_weights.size());
     return is_edge_weighted() ? _edge_weights[e] : 1;
+  }
+
+  [[nodiscard]] inline EdgeWeight max_edge_weight() const {
+    return _max_edge_weight;
   }
 
   [[nodiscard]] inline EdgeWeight total_edge_weight() const final {
@@ -464,6 +470,7 @@ private:
 
   NodeWeight _max_node_weight = kInvalidNodeWeight;
   NodeWeight _total_node_weight = kInvalidNodeWeight;
+  EdgeWeight _max_edge_weight = kInvalidEdgeWeight;
   EdgeWeight _total_edge_weight = kInvalidEdgeWeight;
 
   NodeID _max_degree;

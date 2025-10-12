@@ -74,8 +74,8 @@ QuickselectResult<T> quickselect_k_smallest_iter(
   tbb::enumerable_thread_specific<std::size_t> thread_specific_number_less;
   tbb::enumerable_thread_specific<std::vector<T>> thread_specific_buffers;
 
-  RECORD("current_elements") StaticArray<T> current_elements;
-  RECORD("next_elements") StaticArray<T> next_elements;
+  StaticArray<T> current_elements;
+  StaticArray<T> next_elements;
 
   for (std::size_t size = initial_size; size > QUICKSELECT_BASE_CASE_SIZE;
        size = std::distance(begin, end)) {
@@ -110,9 +110,7 @@ QuickselectResult<T> quickselect_k_smallest_iter(
 
     if (k <= number_less) {
       parallel::deterministic_for<std::size_t>(
-          0,
-          size,
-          [&](const std::size_t from, const std::size_t to, int) {
+          0, size, [&](const std::size_t from, const std::size_t to, int) {
             auto &buffer = thread_specific_buffers.local();
 
             for (std::size_t i = from; i < to; ++i) {
@@ -141,9 +139,7 @@ QuickselectResult<T> quickselect_k_smallest_iter(
       end = current_elements.begin() + number_less;
     } else if (k > number_less + number_equal) {
       parallel::deterministic_for<std::size_t>(
-          0,
-          size,
-          [&](const std::size_t from, const std::size_t to, int) {
+          0, size, [&](const std::size_t from, const std::size_t to, int) {
             auto &buffer = thread_specific_buffers.local();
 
             for (std::size_t i = from; i < to; ++i) {

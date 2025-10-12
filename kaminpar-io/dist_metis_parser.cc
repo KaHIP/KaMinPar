@@ -344,15 +344,15 @@ DistributedCSRGraph csr_read(
   );
 
   graph::GhostNodeMapper mapper(rank, node_distribution);
-  RECORD("nodes") StaticArray<EdgeID> nodes(num_local_nodes + 1, static_array::noinit);
-  RECORD("edges") StaticArray<NodeID> edges(num_local_edges, static_array::noinit);
+  StaticArray<EdgeID> nodes(num_local_nodes + 1, static_array::noinit);
+  StaticArray<NodeID> edges(num_local_edges, static_array::noinit);
 
-  RECORD("node_weights") StaticArray<NodeWeight> node_weights;
+  StaticArray<NodeWeight> node_weights;
   if (header.has_node_weights) {
     node_weights.resize(num_local_nodes, static_array::noinit);
   }
 
-  RECORD("edge_weights") StaticArray<EdgeWeight> edge_weights;
+  StaticArray<EdgeWeight> edge_weights;
   if (header.has_edge_weights) {
     edge_weights.resize(num_local_edges, static_array::noinit);
   }
