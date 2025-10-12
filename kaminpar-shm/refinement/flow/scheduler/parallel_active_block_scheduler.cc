@@ -3,7 +3,6 @@
 #include <algorithm>
 
 #include <tbb/parallel_for.h>
-#include <tbb/task.h>
 #include <tbb/task_arena.h>
 
 #include "kaminpar-shm/metrics.h"
@@ -84,6 +83,8 @@ bool ParallelActiveBlockScheduler::refine(
       std::size_t cur_block_pair = 0;
 
       const bool run_sequentially = _f_ctx.run_sequentially || num_threads == num_searches;
+      bool cancelled = false;
+
       tbb::parallel_for<std::size_t>(0, num_searches, [&](const std::size_t refiner_id) {
         FlowRefiner &refiner = refiners[refiner_id];
         ScalableVector<QuotientGraph::GraphEdge> &new_cut_edges = new_cut_edges_ets[refiner_id];
@@ -100,7 +101,7 @@ bool ParallelActiveBlockScheduler::refine(
           const FlowRefiner::Result flow_result = refiner.refine(block1, block2, run_sequentially);
 
           if (flow_result.time_limit_exceeded) {
-            if (tbb::task::current_context()->cancel_group_execution()) {
+            if (!__atomic_exchange_n(&cancelled, true, __ATOMIC_ACQ_REL)) {
               LOG_WARNING << "Time limit exceeded during flow refinement";
               num_round = _f_ctx.max_num_rounds;
             }
@@ -159,6 +160,10 @@ bool ParallelActiveBlockScheduler::refine(
 
       if (_f_ctx.free_memory_after_round) {
         refiners.for_each([&](FlowRefiner &refiner) { refiner.free(); });
+      }
+
+      if (cancelled) {
+        break;
       }
     }
 
