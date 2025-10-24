@@ -142,18 +142,17 @@ static void sort_by_compression(
             if (interval_len >= CompressedGraph::kIntervalLengthTreshold) {
               NodeID *rot_end = iter + 1;
               std::rotate(
-                  std::reverse_iterator(rot_end),
-                  std::reverse_iterator(rot_end) + interval_len,
-                  std::reverse_iterator(rot_begin)
+                  std::reverse_iterator<NodeID *>(rot_end),
+                  std::reverse_iterator<NodeID *>(rot_end) + interval_len,
+                  std::reverse_iterator<NodeID *>(rot_begin)
               );
 
               if (store_edge_weights) {
                 std::rotate(
-                    std::reverse_iterator(rot_edge_weight_end + 1),
-                    std::reverse_iterator(rot_edge_weight_end + 1) + interval_len,
-                    std::reverse_iterator(rot_edge_weight_begin)
+                    std::reverse_iterator<EdgeWeight *>(rot_edge_weight_end + 1),
+                    std::reverse_iterator<EdgeWeight *>(rot_edge_weight_end + 1) + interval_len,
+                    std::reverse_iterator<EdgeWeight *>(rot_edge_weight_begin)
                 );
-              }
 
               rot_begin += interval_len;
               rot_edge_weight_begin += interval_len;
