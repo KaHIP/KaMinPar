@@ -475,6 +475,9 @@ struct PartitionContext {
   }
 
   [[nodiscard]] double infer_epsilon(const NodeWeight actual_total_node_weight) const {
+    if (actual_total_node_weight == 0) {
+      return 0.0;
+    }
     if (_uniform_block_weights) {
       const double max = (1.0 + _epsilon) * std::ceil(1.0 * original_total_node_weight / k);
       return max / std::ceil(1.0 * actual_total_node_weight / k) - 1.0;
