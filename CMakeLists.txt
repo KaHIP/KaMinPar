@@ -3,7 +3,7 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules)
 
 project(
   KaMinPar
-  VERSION 3.7.0
+  VERSION 3.7.1
   DESCRIPTION "Shared-memory and distributed-memory Graph Partitioner"
   HOMEPAGE_URL "https://github.com/KaHIP/KaMinPar"
   LANGUAGES C CXX)

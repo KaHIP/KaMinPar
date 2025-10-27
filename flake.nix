@@ -14,7 +14,7 @@
 
       kaminpar = stdenv.mkDerivation (finalAttrs: {
         pname = "kaminpar";
-        version = "3.7.0";
+        version = "3.7.1";
 
         src = self;
         strictDeps = true;
