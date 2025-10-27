@@ -153,6 +153,7 @@ static void sort_by_compression(
                     std::reverse_iterator<EdgeWeight *>(rot_edge_weight_end + 1) + interval_len,
                     std::reverse_iterator<EdgeWeight *>(rot_edge_weight_begin)
                 );
+              }
 
               rot_begin += interval_len;
               rot_edge_weight_begin += interval_len;
