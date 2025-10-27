@@ -63,7 +63,8 @@ tbb_unique_ptr<T> make_unique(const std::size_t size, [[maybe_unused]] const boo
     madvise(ptr, nbytes, MADV_HUGEPAGE);
   } else {
 #endif // KAMINPAR_ENABLE_THP
-    ptr = static_cast<T *>(malloc(nbytes));
+    nbytes = ((nbytes + alignof(T) - 1) / alignof(T)) * alignof(T);
+    ptr = static_cast<T *>(aligned_alloc(alignof(T), nbytes));
 #if defined(__linux__) && defined(KAMINPAR_ENABLE_THP)
   }
 #endif // KAMINPAR_ENABLE_THP

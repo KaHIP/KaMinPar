@@ -65,7 +65,7 @@ class StreamVByteEncoder {
         __builtin_unreachable();
       }
     } else {
-      static_assert("Unexpected integer width.");
+      // Impossible case due to static_assert above
     }
   }
 
@@ -86,7 +86,7 @@ class StreamVByteEncoder {
         __builtin_unreachable();
       }
     } else {
-      static_assert("Unexpected integer width.");
+      // Impossible case due to static_assert above
     }
   }
 
@@ -383,7 +383,7 @@ private:
       } else if constexpr (GapKind == DifferentialCodingKind::D4) {
         prev = _mm_add_epi32(data, prev);
       } else {
-        static_assert("Unexpected differential coding kind.");
+        // Impossible case due to static_assert above
       }
     };
 
@@ -729,7 +729,7 @@ private:
       } else if constexpr (GapKind == DifferentialCodingKind::D4) {
         prev = _mm_add_epi32(data, prev);
       } else {
-        static_assert("Unexpected differential coding kind.");
+        // Impossible case due to static_assert above
       }
     };
 
