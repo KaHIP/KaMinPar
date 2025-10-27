@@ -252,9 +252,8 @@ target_link_libraries(<your-target> PUBLIC KaMinPar::dKaMinPar) # Distributed pa
 The shared-memory partitioner can be used as follows:
 
 > [!CAUTION]
-> Only one thread can call `KaMinPar::compute_partition()` at a time (even on different `KaMinPar` objects).
-> This is because the performance timers are implemented as global singletons, which are inherently not thread-safe.
-> To compute multiple partitions in parallel, you must disable the timers by passing `-DKAMINPAR_ENABLE_TIMERS=Off` to CMake.
+> Only one thread may call `KaMinPar::compute_partition()` at a time, even on different `KaMinPar` objects.
+> To compute multiple partitions in parallel, disable the performance timers by passing `-DKAMINPAR_ENABLE_TIMERS=Off` to CMake.
 
 ```c++
 #include <kaminpar.h>
@@ -392,14 +391,25 @@ If you use KaMinPar in an academic setting, please cite the appropriate publicat
 }
 
 // Worst-Case Linear-Time Multilevel Graph Partitioning
-@misc{LinearTimeMGP,
-      title={Linear-Time Multilevel Graph Partitioning via Edge Sparsification},
-      author={Lars Gottesbüren and Nikolai Maas and Dominik Rosch and Peter Sanders and Daniel Seemaier},
-      year={2025},
-      eprint={2504.17615},
-      archivePrefix={arXiv},
-      primaryClass={cs.DS},
-      url={https://arxiv.org/abs/2504.17615},
+@InProceedings{LinearTimeMultilevelGraphPartitioning,
+  author       = {Lars Gottesb{\"{u}}ren and
+                  Nikolai Maas and
+                  Dominik Rosch and
+                  Peter Sanders and
+                  Daniel Seemaier},
+  title        = {Linear-Time Multilevel Graph Partitioning via Edge Sparsification},
+  booktitle    = {33rd Annual European Symposium on Algorithms, {ESA} 2025, September
+                  15-17, 2025, Warsaw, Poland},
+  series       = {LIPIcs},
+  volume       = {351},
+  pages        = {32:1--32:20},
+  publisher    = {Schloss Dagstuhl - Leibniz-Zentrum f{\"{u}}r Informatik},
+  year         = {2025},
+  url          = {https://doi.org/10.4230/LIPIcs.ESA.2025.32},
+  doi          = {10.4230/LIPICS.ESA.2025.32},
+  timestamp    = {Thu, 02 Oct 2025 15:21:33 +0200},
+  biburl       = {https://dblp.org/rec/conf/esa/GottesburenMR0S25.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
 }
 ```
 
