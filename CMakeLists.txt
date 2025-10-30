@@ -26,7 +26,7 @@ option(KAMINPAR_BUILD_TESTS "Build unit tests" OFF)
 option(KAMINPAR_BUILD_TOOLS "Build tool binaries." OFF)
 option(KAMINPAR_BUILD_BENCHMARKS "Build benchmark binaries." OFF)
 option(KAMINPAR_BUILD_EXAMPLES "Build examples." OFF)
-option(KAMINPAR_BUILD_IO, "Build the IO code." ON)
+option(KAMINPAR_BUILD_IO "Build the IO code." ON)
 
 option(KAMINPAR_BUILD_EXPERIMENTAL_FEATURES "Include experimental features in the build. This might increase compile times drastically." OFF)
 
