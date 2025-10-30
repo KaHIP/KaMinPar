@@ -26,6 +26,7 @@ option(KAMINPAR_BUILD_TESTS "Build unit tests" OFF)
 option(KAMINPAR_BUILD_TOOLS "Build tool binaries." OFF)
 option(KAMINPAR_BUILD_BENCHMARKS "Build benchmark binaries." OFF)
 option(KAMINPAR_BUILD_EXAMPLES "Build examples." OFF)
+option(KAMINPAR_BUILD_IO "Build the IO code." ON)
 
 option(KAMINPAR_BUILD_EXPERIMENTAL_FEATURES "Include experimental features in the build. This might increase compile times drastically." OFF)
 
@@ -459,7 +460,7 @@ if(KAMINPAR_BUILD_DISTRIBUTED)
 endif()
 
 # We use KaGen for distributed graph IO
-if((KAMINPAR_BUILD_DISTRIBUTED AND KAMINPAR_BUILD_APPS) OR KAMINPAR_BUILD_BENCHMARKS)
+if((KAMINPAR_BUILD_DISTRIBUTED AND (KAMINPAR_BUILD_IO OR KAMINPAR_BUILD_APPS)) OR KAMINPAR_BUILD_BENCHMARKS)
   if(NOT KAMINPAR_DOWNLOAD_KAGEN)
     find_package(KaGen QUIET)
   endif()
@@ -523,7 +524,9 @@ if(KAMINPAR_BUILD_DISTRIBUTED)
   add_subdirectory(kaminpar-dist) # Distributed components
 endif()
 
-add_subdirectory(kaminpar-io) # IO components
+if (KAMINPAR_BUILD_IO OR KAMINPAR_BUILD_APPS OR KAMINPAR_BUILD_BENCHMARKS)
+    add_subdirectory(kaminpar-io) # IO components
+endif ()
 
 # Create an interface library that groups all core components and ensures the full
 # project include path is available to dependent targets
@@ -531,9 +534,15 @@ add_library(KaMinParFull INTERFACE)
 add_library(KaMinPar::KaMinParFull ALIAS KaMinParFull)
 
 target_include_directories(KaMinParFull INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(KaMinParFull INTERFACE KaMinParIO KaMinPar)
+target_link_libraries(KaMinParFull INTERFACE KaMinPar)
+if (KAMINPAR_BUILD_IO) 
+  target_link_libraries(KaMinParFull INTERFACE KaMinParIO)
+endif ()
 if(KAMINPAR_BUILD_DISTRIBUTED)
-  target_link_libraries(KaMinParFull INTERFACE dKaMinParIO dKaMinPar)
+  target_link_libraries(KaMinParFull INTERFACE dKaMinPar)
+  if (KAMINPAR_BUILD_IO) 
+    target_link_libraries(KaMinParFull INTERFACE dKaMinParIO)
+  endif()
 endif()
 
 # Tests are built either when running as the main project or when explicitly enabled
@@ -578,7 +587,11 @@ install(
     COMPONENT KaMinPar_Development
 )
 
-set(KAMINPAR_INSTALL_TARGETS KaMinParCommon KaMinParIO KaMinPar)
+set(KAMINPAR_INSTALL_TARGETS KaMinParCommon KaMinPar)
+
+if (KAMINPAR_BUILD_IO)
+  list(APPEND KAMINPAR_INSTALL_TARGETS KaMinParIO)
+endif ()
 
 if(KAMINPAR_BUILD_WITH_KASSERT AND KAMINPAR_DOWNLOAD_KASSERT)
   list(APPEND KAMINPAR_INSTALL_TARGETS kassert_base kassert)
@@ -593,7 +606,11 @@ if(KAMINPAR_BUILD_APPS)
 endif()
 
 if(KAMINPAR_BUILD_DISTRIBUTED)
-  list(APPEND KAMINPAR_INSTALL_TARGETS growt KaMinParMPI dKaMinParIO dKaMinPar)
+  list(APPEND KAMINPAR_INSTALL_TARGETS growt KaMinParMPI dKaMinPar)
+
+  if (KAMINPAR_BUILD_IO)
+    list(APPEND KAMINPAR_INSTALL_TARGETS dKaMinParIO)
+  endif ()
 
   if (KAMINPAR_DOWNLOAD_KAGEN)
     list(APPEND KAMINPAR_INSTALL_TARGETS KaGen morton)
