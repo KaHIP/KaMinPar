@@ -472,7 +472,7 @@ private:
     const NodeID num_parts = math::div_ceil(degree, kHighDegreePartLength);
     const auto decode_part = [&](const NodeID part) {
       NodeID part_offset = *(reinterpret_cast<const NodeID *>(node_data) + part);
-      bool has_intervals;
+      bool has_intervals = false;
       if constexpr (kIntervalEncoding) {
         has_intervals = math::is_msb_set(part_offset);
         part_offset &= ~math::kSetMSB<NodeID>;
