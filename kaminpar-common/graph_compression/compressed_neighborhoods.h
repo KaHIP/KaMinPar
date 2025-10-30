@@ -435,15 +435,13 @@ private:
       return;
     }
 
-    NodeID degree;
-    bool has_intervals;
-    if constexpr (kIntervalEncoding) {
-      const auto header = marked_varint_decode<NodeID>(&node_data);
-      degree = header.first;
-      has_intervals = header.second;
-    } else {
-      degree = varint_decode<NodeID>(&node_data);
-    }
+    auto [degree, has_intervals] = [&] {
+      if constexpr (kIntervalEncoding) {
+        return marked_varint_decode<NodeID>(&node_data);
+      } else {
+        return std::make_pair(varint_decode<NodeID>(&node_data), false);
+      }
+    }();
 
     if constexpr (kHighDegreeEncoding) {
       const bool split_neighbourhood = degree >= kHighDegreeThreshold;
