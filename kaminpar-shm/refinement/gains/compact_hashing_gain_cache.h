@@ -347,7 +347,7 @@ private:
     KASSERT(width == 0 || (start % width) == 0);
     KASSERT(width == 0 || (_offsets[node + 1] - start) % width == 0);
     KASSERT(
-        math::is_power_of_2(size),
+        size == 0 || math::is_power_of_2(size),
         "not a power of 2: " << size << "; start: " << start << "; width: " << width
                              << "; end: " << _offsets[node + 1]
     );
