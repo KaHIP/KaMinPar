@@ -95,7 +95,7 @@ void GenericPartitionedGraph<Graph>::sync_dense_and_aligned_block_weights() cons
   if (_k == 2) {
     _dense_block_weights[0] = _aligned_block_weights[0].value;
     _dense_block_weights[1] = _aligned_block_weights[1].value;
-  } else {
+  } else if (use_aligned_block_weights()) {
     tbb::parallel_for<BlockID>(0, _k, [&](const BlockID b) {
       _dense_block_weights[b] = _aligned_block_weights[b].value;
     });
