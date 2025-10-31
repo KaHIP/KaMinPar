@@ -435,15 +435,13 @@ private:
       return;
     }
 
-    NodeID degree;
-    bool has_intervals;
-    if constexpr (kIntervalEncoding) {
-      const auto header = marked_varint_decode<NodeID>(&node_data);
-      degree = header.first;
-      has_intervals = header.second;
-    } else {
-      degree = varint_decode<NodeID>(&node_data);
-    }
+    auto [degree, has_intervals] = [&] {
+      if constexpr (kIntervalEncoding) {
+        return marked_varint_decode<NodeID>(&node_data);
+      } else {
+        return std::make_pair(varint_decode<NodeID>(&node_data), false);
+      }
+    }();
 
     if constexpr (kHighDegreeEncoding) {
       const bool split_neighbourhood = degree >= kHighDegreeThreshold;
@@ -474,7 +472,7 @@ private:
     const NodeID num_parts = math::div_ceil(degree, kHighDegreePartLength);
     const auto decode_part = [&](const NodeID part) {
       NodeID part_offset = *(reinterpret_cast<const NodeID *>(node_data) + part);
-      bool has_intervals;
+      bool has_intervals = false;
       if constexpr (kIntervalEncoding) {
         has_intervals = math::is_msb_set(part_offset);
         part_offset &= ~math::kSetMSB<NodeID>;

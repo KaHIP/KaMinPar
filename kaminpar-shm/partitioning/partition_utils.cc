@@ -39,12 +39,12 @@ BlockID compute_final_k(const BlockID block, const BlockID current_k, const Bloc
   // base + 1.
   static_assert(sizeof(BlockID) == 4);
   std::array<BlockID, 16> lut = {0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7, 15};
-  const BlockID reversed_block =
-      (lut[(block & 0xF0'00'00'00) >> 28] | (lut[(block & 0x0F'00'00'00) >> 24] << 4) |
-       (lut[(block & 0x00'F0'00'00) >> 20] << 8) | (lut[(block & 0x00'0F'00'00) >> 16] << 12) |
-       (lut[(block & 0x00'00'F0'00) >> 12] << 16) | (lut[(block & 0x00'00'0F'00) >> 8] << 20) |
-       (lut[(block & 0x00'00'00'F0) >> 4] << 24) | (lut[block & 0x00'00'00'0F] << 28)) >>
-      (32 - level);
+  const std::int64_t reversed_block = static_cast<std::int64_t>(
+          lut[(block & 0xF0'00'00'00) >> 28] | (lut[(block & 0x0F'00'00'00) >> 24] << 4) |
+          (lut[(block & 0x00'F0'00'00) >> 20] << 8) | (lut[(block & 0x00'0F'00'00) >> 16] << 12) |
+          (lut[(block & 0x00'00'F0'00) >> 12] << 16) | (lut[(block & 0x00'00'0F'00) >> 8] << 20) |
+          (lut[(block & 0x00'00'00'F0) >> 4] << 24) | (lut[block & 0x00'00'00'0F] << 28)
+      ) >> (32 - level);
 
   return base + (reversed_block < num_plus_one_blocks);
 }
@@ -123,9 +123,12 @@ std::size_t compute_num_copies(
 }
 
 int compute_num_threads_for_parallel_ip(const Context &input_ctx) {
-  return math::floor2(static_cast<unsigned int>(
-      1.0 * input_ctx.parallel.num_threads * input_ctx.partitioning.deep_initial_partitioning_load
-  ));
+  return math::floor2(
+      static_cast<unsigned int>(
+          1.0 * input_ctx.parallel.num_threads *
+          input_ctx.partitioning.deep_initial_partitioning_load
+      )
+  );
 }
 
 BlockID compute_next_k(const BlockID current_k, const Context &input_ctx) {

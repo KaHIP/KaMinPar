@@ -180,17 +180,12 @@ public:
 
   void init(const std::size_t num_heaps) {
     _num_heaps = num_heaps;
-    _size = 0;
 
     auto *max_forest_data = _max_forest.init(num_heaps);
     auto *min_forest_data = _min_forest.init(num_heaps);
 
     _max_forest.init_complementary_data(min_forest_data);
     _min_forest.init_complementary_data(max_forest_data);
-  }
-
-  [[nodiscard]] std::size_t size() const {
-    return _size;
   }
 
   [[nodiscard]] std::size_t size(const std::size_t heap) const {
@@ -213,8 +208,6 @@ public:
     auto &element_min = _min_forest.push(heap, id, key);
     auto &element_max = _max_forest.push(heap, id, key);
     std::swap(element_min.complementary_pos, element_max.complementary_pos);
-
-    _size += 1;
   }
 
   [[nodiscard]] ID peek_min_id(const std::size_t heap) const {
@@ -252,7 +245,6 @@ public:
 
     _max_forest.remove(heap, _min_forest.peek(heap).complementary_pos);
     _min_forest.pop(heap);
-    _size -= 1;
   }
 
   void pop_max(const std::size_t heap) {
@@ -262,18 +254,15 @@ public:
 
     _min_forest.remove(heap, _max_forest.peek(heap).complementary_pos);
     _max_forest.pop(heap);
-    _size -= 1;
   }
 
   void clear() {
     _min_forest.clear();
     _max_forest.clear();
-    _size = 0;
   }
 
 private:
   std::size_t _num_heaps;
-  std::size_t _size;
 
   DynamicBinaryMinForest _min_forest;
   DynamicBinaryMaxForest _max_forest;
