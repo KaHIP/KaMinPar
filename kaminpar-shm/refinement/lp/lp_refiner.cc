@@ -188,7 +188,7 @@ public:
           const NodeWeight initial_overload =
               state.initial_cluster_weight - max_cluster_weight(state.initial_cluster);
 
-          if (((state.current_cluster_weight + state.u_weight < current_max_weight)) ||
+          if (((state.current_cluster_weight + state.u_weight <= current_max_weight)) ||
               current_overload < initial_overload ||
               state.current_cluster == state.initial_cluster) {
             tie_breaking_clusters.clear();
@@ -208,7 +208,7 @@ public:
             const NodeWeight initial_overload =
                 state.initial_cluster_weight - max_cluster_weight(state.initial_cluster);
 
-            if (((state.current_cluster_weight + state.u_weight < current_max_weight)) ||
+            if (((state.current_cluster_weight + state.u_weight <= current_max_weight)) ||
                 current_overload < initial_overload ||
                 state.current_cluster == state.initial_cluster) {
               tie_breaking_clusters.clear();
@@ -221,7 +221,7 @@ public:
             const NodeWeight initial_overload =
                 state.initial_cluster_weight - max_cluster_weight(state.initial_cluster);
 
-            if (state.current_cluster_weight + state.u_weight < current_max_weight ||
+            if (state.current_cluster_weight + state.u_weight <= current_max_weight ||
                 current_overload < initial_overload ||
                 state.current_cluster == state.initial_cluster) {
               tie_breaking_clusters.push_back(state.current_cluster);
@@ -258,7 +258,7 @@ public:
                 (state.current_gain == state.best_gain &&
                  (current_overload < best_overload ||
                   (current_overload == best_overload && state.local_rand.random_bool())))) &&
-               (((state.current_cluster_weight + state.u_weight < current_max_weight)) ||
+               (((state.current_cluster_weight + state.u_weight <= current_max_weight)) ||
                 current_overload < initial_overload ||
                 state.current_cluster == state.initial_cluster);
       };
