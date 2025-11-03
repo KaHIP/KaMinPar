@@ -184,13 +184,11 @@ public:
             // Thus, users of the _applied_moves vector may only depend on the order of moves that
             // found an improvement.
             if (_record_applied_moves) {
-              _applied_moves.push_back(
-                  fm::AppliedMove{
-                      .node = moved_node,
-                      .from = moved_from,
-                      .improvement = false,
-                  }
-              );
+              _applied_moves.push_back(fm::AppliedMove{
+                  .node = moved_node,
+                  .from = moved_from,
+                  .improvement = false,
+              });
             }
 
             _shared.gain_cache.move(moved_node, moved_from, moved_to);
@@ -200,13 +198,11 @@ public:
           });
 
           if (_record_applied_moves) {
-            _applied_moves.push_back(
-                fm::AppliedMove{
-                    .node = node,
-                    .from = block_from,
-                    .improvement = true,
-                }
-            );
+            _applied_moves.push_back(fm::AppliedMove{
+                .node = node,
+                .from = block_from,
+                .improvement = true,
+            });
           }
 
           // Flush local delta
@@ -656,6 +652,10 @@ void FMRefiner::initialize(const PartitionedGraph &p_graph) {
 }
 
 bool FMRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
+  if (p_ctx.has_min_block_weights()) {
+    LOG_WARNING << "FM refinement does not support min block weights. They will be ignored.";
+  }
+
   return _core->refine(p_graph, p_ctx);
 }
 

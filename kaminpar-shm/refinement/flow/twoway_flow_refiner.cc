@@ -29,6 +29,11 @@ void TwowayFlowRefiner::initialize([[maybe_unused]] const PartitionedGraph &p_gr
 bool TwowayFlowRefiner::refine(
     PartitionedGraph &p_graph, [[maybe_unused]] const PartitionContext &p_ctx
 ) {
+  if (p_ctx.has_min_block_weights()) {
+    LOG_WARNING
+        << "Two-way flow refinement does not support min block weights. They will be ignored.";
+  }
+
   return reified(
       p_graph,
       [&](const auto &csr_graph) {
