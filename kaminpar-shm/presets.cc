@@ -462,10 +462,10 @@ Context create_eco_context() {
 
   ctx.refinement.algorithms = {
       RefinementAlgorithm::OVERLOAD_BALANCER,
-      RefinementAlgorithm::UNDERLOAD_BALANCER,
+      // RefinementAlgorithm::UNDERLOAD_BALANCER, // FM does not support min block weights
       RefinementAlgorithm::LABEL_PROPAGATION,
       RefinementAlgorithm::KWAY_FM,
-      RefinementAlgorithm::OVERLOAD_BALANCER,
+      // RefinementAlgorithm::OVERLOAD_BALANCER,
       RefinementAlgorithm::UNDERLOAD_BALANCER,
   };
 
@@ -477,13 +477,13 @@ Context create_strong_context() {
 
   ctx.refinement.algorithms = {
       RefinementAlgorithm::OVERLOAD_BALANCER,
-      RefinementAlgorithm::UNDERLOAD_BALANCER,
+      // RefinementAlgorithm::UNDERLOAD_BALANCER, // Flows and FM do not support min block weights
       RefinementAlgorithm::LABEL_PROPAGATION,
       RefinementAlgorithm::KWAY_FM,
       RefinementAlgorithm::OVERLOAD_BALANCER,
-      RefinementAlgorithm::UNDERLOAD_BALANCER,
+      // RefinementAlgorithm::UNDERLOAD_BALANCER,
       RefinementAlgorithm::TWOWAY_FLOW,
-      RefinementAlgorithm::OVERLOAD_BALANCER,
+      // RefinementAlgorithm::OVERLOAD_BALANCER,
       RefinementAlgorithm::UNDERLOAD_BALANCER,
   };
 
@@ -523,11 +523,11 @@ Context create_largek_eco_context() {
 
   ctx.refinement.algorithms = {
       RefinementAlgorithm::OVERLOAD_BALANCER,
-      RefinementAlgorithm::UNDERLOAD_BALANCER,
+      // RefinementAlgorithm::UNDERLOAD_BALANCER, // FM does not support min block weights
       RefinementAlgorithm::LABEL_PROPAGATION,
       RefinementAlgorithm::KWAY_FM,
       RefinementAlgorithm::OVERLOAD_BALANCER,
-      RefinementAlgorithm::UNDERLOAD_BALANCER,
+      // RefinementAlgorithm::UNDERLOAD_BALANCER,
   };
 
   ctx.refinement.kway_fm.gain_cache_strategy = GainCacheStrategy::COMPACT_HASHING_LARGE_K;
@@ -540,14 +540,14 @@ Context create_largek_strong_context() {
 
   ctx.refinement.algorithms = {
       RefinementAlgorithm::OVERLOAD_BALANCER,
-      RefinementAlgorithm::UNDERLOAD_BALANCER,
+      // RefinementAlgorithm::UNDERLOAD_BALANCER, // Flows and FM do not support min block weights
       RefinementAlgorithm::LABEL_PROPAGATION,
       RefinementAlgorithm::KWAY_FM,
       RefinementAlgorithm::OVERLOAD_BALANCER,
-      RefinementAlgorithm::UNDERLOAD_BALANCER,
+      // RefinementAlgorithm::UNDERLOAD_BALANCER,
       RefinementAlgorithm::TWOWAY_FLOW,
       RefinementAlgorithm::OVERLOAD_BALANCER,
-      RefinementAlgorithm::UNDERLOAD_BALANCER,
+      // RefinementAlgorithm::UNDERLOAD_BALANCER,
   };
 
   ctx.refinement.kway_fm.gain_cache_strategy = GainCacheStrategy::COMPACT_HASHING_LARGE_K;
