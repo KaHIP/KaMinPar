@@ -7,6 +7,7 @@
  ******************************************************************************/
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <random>
 #include <vector>
@@ -14,15 +15,13 @@
 #include <tbb/enumerable_thread_specific.h>
 
 #include "kaminpar-common/datastructures/dynamic_binary_heap.h"
-#include "kaminpar-common/logger.h"
 
 namespace kaminpar {
 
 template <typename ID, typename Key, template <typename> typename Comparator> class MultiQueue {
+  constexpr static Key kEmptyKey = Comparator<Key>::kMaxValue;
   constexpr static std::size_t kNumPQsPerThread = 2;
   constexpr static int kNumPopAttempts = 32;
-
-  SET_DEBUG(false);
 
   struct Token {
     Token(const int seed, const std::size_t num_pqs) : dist(0, num_pqs - 1) {
@@ -90,12 +89,12 @@ public:
     for (int attempt = 0; attempt < kNumPopAttempts; ++attempt) {
       const auto [first, second] = token.pick_two_random_pqs();
 
-      if (_pqs[first].empty() && _pqs[second].empty()) {
+      if (is_empty(first) && is_empty(second)) {
         continue;
       }
 
       const std::size_t pq =
-          (_pqs[first].empty() || _cmp(_top_keys[first], _top_keys[second])) ? second : first;
+          (is_empty(first) || _cmp(top_key(first), top_key(second))) ? second : first;
 
       if (!try_lock(pq)) {
         continue;
@@ -115,8 +114,8 @@ public:
       std::size_t best_pq = std::numeric_limits<std::size_t>::max();
 
       for (std::size_t pq = 0; pq < _pqs.size(); ++pq) {
-        if (!_pqs[pq].empty() && _cmp(_top_keys[pq], best_key)) {
-          best_key = _top_keys[pq];
+        if (!is_empty(pq) && _cmp(top_key(pq), best_key)) {
+          best_key = top_key(pq);
           best_pq = pq;
         }
       }
@@ -128,6 +127,7 @@ public:
       if (!try_lock(best_pq)) {
         continue;
       }
+
       if (_pqs[best_pq].empty()) {
         unlock(best_pq);
         continue;
@@ -145,16 +145,11 @@ public:
       pq = token.pick_random_pq();
     } while (!try_lock(pq));
 
-    DBG << "Locked " << pq << ", state: " << _pq_locks;
-
     return {pq, &_pqs[pq]};
   }
 
   void unlock(const Handle handle) {
     KASSERT(!!handle);
-
-    DBG << "Unlock " << handle.index() << ", state: " << _pq_locks;
-
     unlock(handle.index());
   }
 
@@ -174,7 +169,7 @@ public:
     _pq_locks.resize(num_pqs);
 
     _top_keys.clear();
-    _top_keys.assign(num_pqs, Comparator<Key>::kMaxValue);
+    _top_keys.assign(num_pqs, AlignedKey{.value = kEmptyKey});
 
     _token_ets.clear();
   }
@@ -193,10 +188,18 @@ public:
   }
 
 private:
-  [[nodiscard]] bool is_locked(const std::size_t pq) const {
+  [[nodiscard]] bool is_locked(const std::size_t pq) {
     KASSERT(pq < _pq_locks.size());
+    return std::atomic_ref<std::uint8_t>(_pq_locks[pq]).load(std::memory_order_relaxed) != 0u;
+  }
 
-    return __atomic_load_n(&_pq_locks[pq], __ATOMIC_RELAXED);
+  [[nodiscard]] Key top_key(const std::size_t pq) {
+    KASSERT(pq < _pq_locks.size());
+    return std::atomic_ref<Key>(_top_keys[pq].value).load(std::memory_order_relaxed);
+  }
+
+  [[nodiscard]] bool is_empty(const std::size_t pq) {
+    return top_key(pq) == kEmptyKey;
   }
 
   bool try_lock(const std::size_t pq) {
@@ -213,23 +216,25 @@ private:
     KASSERT(pq < _pq_locks.size());
     KASSERT(is_locked(pq), "PQ " << pq << " expected to be locked, but is unlocked");
 
-    update_top_key(pq);
-    __atomic_store_n(&_pq_locks[pq], 0u, __ATOMIC_RELAXED);
-  }
-
-  void update_top_key(const std::size_t pq) {
-    KASSERT(is_locked(pq), "PQ " << pq << " expected to be locked, but is unlocked");
-
-    if (!_pqs[pq].empty()) {
-      _top_keys[pq] = _pqs[pq].peek_key();
+    std::atomic_ref<Key> top_key_ref(_top_keys[pq].value);
+    if (_pqs[pq].empty()) {
+      top_key_ref.store(kEmptyKey, std::memory_order_relaxed);
+    } else {
+      top_key_ref.store(_pqs[pq].peek_key(), std::memory_order_relaxed);
     }
+
+    std::atomic_ref<std::uint8_t>(_pq_locks[pq]).store(0u, std::memory_order_relaxed);
   }
 
   int _seed;
 
+  struct alignas(std::atomic_ref<Key>::required_alignment) AlignedKey {
+    float value;
+  };
+
   std::vector<std::uint8_t> _pq_locks;
   std::vector<PQ> _pqs;
-  std::vector<Key> _top_keys;
+  std::vector<AlignedKey> _top_keys;
 
   tbb::enumerable_thread_specific<Token> _token_ets{[&] {
     return Token(_seed, _pqs.size());

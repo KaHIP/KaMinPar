@@ -49,6 +49,7 @@ option(KAMINPAR_ENABLE_THP "Use transparent huge pages for large memory allocati
 
 option(KAMINPAR_BUILD_WITH_DEBUG_SYMBOLS "Always build with debug symbols, even in Release mode." ON)
 option(KAMINPAR_BUILD_WITH_ASAN "Enable address sanitizer." OFF)
+option(KAMINPAR_BUILD_WITH_TSAN "Enable thread sanitizer." OFF)
 option(KAMINPAR_BUILD_WITH_UBSAN "Enable undefined behaviour sanitizer." OFF)
 option(KAMINPAR_BUILD_WITH_PG "Build with the -pg option for profiling." OFF)
 
@@ -181,6 +182,11 @@ endif()
 if(KAMINPAR_BUILD_WITH_ASAN)
   add_compile_options(-fsanitize=address)
   add_link_options(-fsanitize=address)
+endif()
+
+if (KAMINPAR_BUILD_WITH_TSAN)
+  add_compile_options(-fsanitize=thread)
+  add_link_options(-fsanitize=thread)
 endif()
 
 if(KAMINPAR_BUILD_WITH_UBSAN)
