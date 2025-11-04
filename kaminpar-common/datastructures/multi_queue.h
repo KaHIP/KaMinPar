@@ -20,6 +20,10 @@ namespace kaminpar {
 
 template <typename ID, typename Key, template <typename> typename Comparator> class MultiQueue {
   constexpr static Key kEmptyKey = Comparator<Key>::kMaxValue;
+
+  constexpr static std::uint8_t kLocked = 1u;
+  constexpr static std::uint8_t kUnlocked = 0u;
+
   constexpr static std::size_t kNumPQsPerThread = 2;
   constexpr static int kNumPopAttempts = 32;
 
@@ -89,12 +93,13 @@ public:
     for (int attempt = 0; attempt < kNumPopAttempts; ++attempt) {
       const auto [first, second] = token.pick_two_random_pqs();
 
-      if (is_empty(first) && is_empty(second)) {
+      const bool first_empty = is_empty(first);
+      if (first_empty && is_empty(second)) {
         continue;
       }
 
       const std::size_t pq =
-          (is_empty(first) || _cmp(top_key(first), top_key(second))) ? second : first;
+          (first_empty || _cmp(top_key(first), top_key(second))) ? second : first;
 
       if (!try_lock(pq)) {
         continue;
@@ -114,9 +119,11 @@ public:
       std::size_t best_pq = std::numeric_limits<std::size_t>::max();
 
       for (std::size_t pq = 0; pq < _pqs.size(); ++pq) {
-        if (!is_empty(pq) && _cmp(top_key(pq), best_key)) {
-          best_key = top_key(pq);
-          best_pq = pq;
+        if (!is_empty(pq)) {
+          if (const Key top = top_key(pq); _cmp(top, best_key)) {
+            best_key = top;
+            best_pq = pq;
+          }
         }
       }
 
@@ -190,7 +197,8 @@ public:
 private:
   [[nodiscard]] bool is_locked(const std::size_t pq) {
     KASSERT(pq < _pq_locks.size());
-    return std::atomic_ref<std::uint8_t>(_pq_locks[pq]).load(std::memory_order_relaxed) != 0u;
+    return std::atomic_ref<std::uint8_t>(_pq_locks[pq]).load(std::memory_order_relaxed) !=
+           kUnlocked;
   }
 
   [[nodiscard]] Key top_key(const std::size_t pq) {
@@ -205,10 +213,10 @@ private:
   bool try_lock(const std::size_t pq) {
     KASSERT(pq < _pq_locks.size());
 
-    std::uint8_t zero = 0u;
+    std::uint8_t zero = kUnlocked;
     return !is_locked(pq) &&
            __atomic_compare_exchange_n(
-               &_pq_locks[pq], &zero, 1u, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED
+               &_pq_locks[pq], &zero, kLocked, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED
            );
   }
 
@@ -223,7 +231,7 @@ private:
       top_key_ref.store(_pqs[pq].peek_key(), std::memory_order_relaxed);
     }
 
-    std::atomic_ref<std::uint8_t>(_pq_locks[pq]).store(0u, std::memory_order_relaxed);
+    std::atomic_ref<std::uint8_t>(_pq_locks[pq]).store(kUnlocked, std::memory_order_relaxed);
   }
 
   int _seed;
