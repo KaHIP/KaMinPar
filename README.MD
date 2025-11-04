@@ -196,7 +196,7 @@ Alternatively, one can specify the maximum weight for each block explicitly thro
 * `-b <w0> ... <wk-1>`: Same as `-B`, but specifies the maximum weights as fractions of the total node weight, i.e., the weight of the i-th block should be bounded by `wi * total node weight`.
 
 > [!TIP]
-> KaMinPar recently added support for balanced minimum block weights. 
+> KaMinPar recently added support for balanced minimum block weights (**currently only supported by LP refinement**, i.e., `-P default`).
 > These can be configured analogously to the maximum block weights via the following options:
 >
 > * `--min-epsilon=<e.g., 0.03 for 3%>`: mirrors `-e`
