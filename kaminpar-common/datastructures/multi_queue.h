@@ -237,7 +237,7 @@ private:
   int _seed;
 
   struct alignas(std::atomic_ref<Key>::required_alignment) AlignedKey {
-    float value;
+    Key value;
   };
 
   std::vector<std::uint8_t> _pq_locks;
