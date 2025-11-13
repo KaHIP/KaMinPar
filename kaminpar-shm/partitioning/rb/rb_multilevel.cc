@@ -34,6 +34,7 @@ RBMultilevelPartitioner::RBMultilevelPartitioner(const Graph &graph, const Conte
 PartitionedGraph RBMultilevelPartitioner::partition() {
   DISABLE_TIMERS();
   PartitionedGraph p_graph = [&] {
+	  START_TIMER("Phase 1");
     if (_input_ctx.partitioning.rb_switch_to_seq_factor > 0) {
       const BlockID parallel_k = math::ceil2(static_cast<std::uint32_t>(
           _input_ctx.partitioning.rb_switch_to_seq_factor * _input_ctx.parallel.num_threads
@@ -42,7 +43,9 @@ PartitionedGraph RBMultilevelPartitioner::partition() {
       PartitionedGraph p_graph = partition_recursive(
           _input_graph, 0, 1, std::min<BlockID>(_input_ctx.partition.k, parallel_k)
       );
+      STOP_TIMER();
 
+      START_TIMER("Phase 2");
       if (parallel_k < _input_ctx.partition.k) {
         graph::SubgraphMemory _extraction_mem_pool_ets(p_graph.n(), _input_ctx.partition.k, p_graph.m());
         partitioning::TemporarySubgraphMemoryEts _tmp_extraction_mem_pool_ets;
@@ -58,6 +61,7 @@ PartitionedGraph RBMultilevelPartitioner::partition() {
             _input_ctx.parallel.num_threads
         );
       }
+      STOP_TIMER();
 
       return p_graph;
     } else {
