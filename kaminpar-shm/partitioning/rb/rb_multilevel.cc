@@ -34,20 +34,26 @@ RBMultilevelPartitioner::RBMultilevelPartitioner(const Graph &graph, const Conte
 PartitionedGraph RBMultilevelPartitioner::partition() {
   DISABLE_TIMERS();
   PartitionedGraph p_graph = [&] {
-	  START_TIMER("Phase 1");
+    START_TIMER("Phase 1");
     if (_input_ctx.partitioning.rb_switch_to_seq_factor > 0) {
       const BlockID parallel_k = math::ceil2(static_cast<std::uint32_t>(
           _input_ctx.partitioning.rb_switch_to_seq_factor * _input_ctx.parallel.num_threads
       ));
 
       PartitionedGraph p_graph = partition_recursive(
-          _input_graph, 0, 1, std::min<BlockID>(_input_ctx.partition.k, parallel_k)
+          _input_graph,
+          0,
+          1,
+          std::min<BlockID>(_input_ctx.partition.k, parallel_k),
+          _input_ctx.parallel.num_threads
       );
       STOP_TIMER();
 
       START_TIMER("Phase 2");
       if (parallel_k < _input_ctx.partition.k) {
-        graph::SubgraphMemory _extraction_mem_pool_ets(p_graph.n(), _input_ctx.partition.k, p_graph.m());
+        graph::SubgraphMemory _extraction_mem_pool_ets(
+            p_graph.n(), _input_ctx.partition.k, p_graph.m()
+        );
         partitioning::TemporarySubgraphMemoryEts _tmp_extraction_mem_pool_ets;
         InitialBipartitionerWorkerPool _bipartitioner_pool(_input_ctx);
 
@@ -65,7 +71,9 @@ PartitionedGraph RBMultilevelPartitioner::partition() {
 
       return p_graph;
     } else {
-      return partition_recursive(_input_graph, 0, 1, _input_ctx.partition.k);
+      return partition_recursive(
+          _input_graph, 0, 1, _input_ctx.partition.k, _input_ctx.parallel.num_threads
+      );
     }
   }();
   ENABLE_TIMERS();
@@ -84,10 +92,11 @@ PartitionedGraph RBMultilevelPartitioner::partition_recursive(
     const Graph &graph,
     const BlockID current_block,
     const BlockID current_k,
-    const BlockID desired_k
+    const BlockID desired_k,
+    const int num_threads
 ) {
   DBG << "Partitioning subgraphs " << current_block << " of " << current_k;
-  auto p_graph = bipartition(graph, current_block, current_k);
+  auto p_graph = bipartition(graph, current_block, current_k, num_threads);
 
   if (current_k * 2 < desired_k) {
     graph::SubgraphMemory memory(p_graph);
@@ -98,11 +107,14 @@ PartitionedGraph RBMultilevelPartitioner::partition_recursive(
     PartitionedGraph p_graph1, p_graph2;
     tbb::parallel_invoke(
         [&] {
-          p_graph1 = partition_recursive(subgraphs[0], 2 * current_block, current_k * 2, desired_k);
+          p_graph1 = partition_recursive(
+              subgraphs[0], 2 * current_block, current_k * 2, desired_k, num_threads / 2
+          );
         },
         [&] {
-          p_graph2 =
-              partition_recursive(subgraphs[1], 2 * current_block + 1, current_k * 2, desired_k);
+          p_graph2 = partition_recursive(
+              subgraphs[1], 2 * current_block + 1, current_k * 2, desired_k, num_threads / 2
+          );
         }
     );
 
@@ -123,8 +135,10 @@ PartitionedGraph RBMultilevelPartitioner::partition_recursive(
 }
 
 PartitionedGraph RBMultilevelPartitioner::bipartition(
-    const Graph &graph, const BlockID current_block, const BlockID current_k
+    const Graph &graph, const BlockID current_block, const BlockID current_k, const int num_threads
 ) {
+  const int num_actual_threads = std::max(1, num_threads);
+
   // set k to 2 for max cluster weight computation
   PartitionContext p_ctx =
       partitioning::create_twoway_context(_input_ctx, current_block, current_k, graph);
@@ -140,9 +154,32 @@ PartitionedGraph RBMultilevelPartitioner::bipartition(
     c_graph = &coarsener->current();
   }
 
+  std::vector<StaticArray<BlockID>> initial_partitions(num_actual_threads);
+  std::vector<std::pair<bool, EdgeWeight>> initial_cuts(num_actual_threads);
+
   // Initial bipartitioning
-  PartitionedGraph p_graph =
-      _bipartitioner_pool.bipartition(c_graph, current_block, current_k, true);
+  tbb::parallel_for<int>(0, num_actual_threads, [&](const int t) {
+    PartitionedGraph p_graph =
+        _bipartitioner_pool.bipartition(c_graph, current_block, current_k, true);
+    initial_cuts[t] = {metrics::is_feasible(p_graph, p_ctx), metrics::edge_cut_seq(p_graph)};
+    initial_partitions[t] = std::move(p_graph.take_raw_partition());
+  });
+
+  StaticArray<BlockID> initial_partition;
+  EdgeWeight best_initial_cut = std::numeric_limits<EdgeWeight>::max();
+  bool best_initial_cut_feasible = false;
+
+  for (int t = 0; t < num_actual_threads; ++t) {
+    const auto [feasible, cut] = initial_cuts[t];
+    if ((feasible && cut < best_initial_cut) ||
+        (!feasible && !best_initial_cut_feasible && cut < best_initial_cut) ||
+        (feasible && !best_initial_cut_feasible)) {
+      initial_partition = std::move(initial_partitions[t]);
+      best_initial_cut_feasible = feasible;
+    }
+  }
+
+  PartitionedGraph p_graph(*c_graph, 2, std::move(initial_partition));
 
   // Uncoarsening + Refinement
   auto refiner = factory::create_refiner(_input_ctx);

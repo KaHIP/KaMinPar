@@ -29,10 +29,10 @@ public:
 
 private:
   PartitionedGraph partition_recursive(
-      const Graph &graph, BlockID current_block, BlockID current_k, BlockID desired_k
+      const Graph &graph, BlockID current_block, BlockID current_k, BlockID desired_k, int num_threads
   );
 
-  PartitionedGraph bipartition(const Graph &graph, BlockID current_block, BlockID current_k);
+  PartitionedGraph bipartition(const Graph &graph, BlockID current_block, BlockID current_k, int num_threads);
 
   const Graph &_input_graph;
   const Context &_input_ctx;
