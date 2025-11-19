@@ -9,6 +9,8 @@
 #include <kaminpar-cli/kaminpar_arguments.h>
 // clang-format on
 
+#include <vector>
+
 #include <tbb/global_control.h>
 
 #include "kaminpar-io/kaminpar_io.h"
@@ -29,12 +31,15 @@ int main(int argc, char *argv[]) {
   std::string partition_filename;
   std::string block_sizes_filename;
 
+  bool verify = false;
+  BlockID explicit_k = kInvalidBlockID;
+
   io::GraphFileFormat graph_file_format = io::GraphFileFormat::METIS;
 
   CLI::App app("Shared-memory partition properties tool");
   app.add_option("-G,--graph", graph_filename, "Input graph")->required();
 
-  auto *partition_group = app.group("Partition options:"); //->require_option(1);
+  auto *partition_group = app.group("Partition options:");
   partition_group->add_option(
       "-P,--partition", partition_filename, "Partition (block of one node per line)"
   );
@@ -56,6 +61,15 @@ int main(int argc, char *argv[]) {
   - metis
   - parhip
   - compressed)");
+  app.add_option("-k,--k", explicit_k, "Number of blocks");
+  app.add_flag(
+      "-v,--verify",
+      verify,
+      "Indicate that the tool is used for metric verification: in this mode, the tool uses "
+      "independent code paths for metric computation. Otherwise, framework functionality is "
+      "re-used."
+  );
+
   create_graph_compression_options(&app, ctx);
   CLI11_PARSE(app, argc, argv);
 
@@ -86,12 +100,60 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  const BlockID k = *std::max_element(partition.begin(), partition.end()) + 1;
-  PartitionedGraph p_graph(*graph, k, StaticArray<BlockID>(partition.size(), partition.data()));
+  if (partition.size() != graph->n()) {
+    LOG_WARNING << "Partition size mismatch!";
+    LOG_WARNING << "  Partition size:  " << partition.size();
+    LOG_WARNING << "  Number of nodes: " << graph->n();
+    if (partition.size() < graph->n()) {
+      LOG_ERROR << "This is fatal; aborting ...";
+      std::exit(1);
+    }
+  }
 
+  const BlockID implicit_k = *std::max_element(partition.begin(), partition.end()) + 1;
+  const BlockID k = (explicit_k == kInvalidBlockID ? implicit_k : explicit_k);
+
+  std::int64_t cut = 0;
+  double imbalance = 0.0;
+
+  if (verify) {
+    std::vector<std::int64_t> block_sizes(k);
+
+    reified(*graph, [&](const auto &graph) {
+      for (NodeID u = 0; u < graph.n(); ++u) {
+        block_sizes[partition[u]] += graph.node_weight(u);
+        graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight ew) {
+          if (partition[u] != partition[v]) {
+            cut += ew;
+          }
+        });
+      }
+    });
+    if (cut % 2 != 0) {
+      LOG_WARNING << "Total weight of cut edges is odd -- this should be impossible in an "
+                     "undirected graph!";
+      LOG_WARNING << "  Total weight of cut edges: " << cut;
+    }
+    cut /= 2;
+
+    const std::int64_t total_node_weight =
+        std::accumulate(block_sizes.begin(), block_sizes.end(), 0);
+    const double perfect_block_weight = std::ceil(1.0 * total_node_weight / k);
+
+    for (BlockID b = 0; b < k; ++b) {
+      imbalance = std::max(imbalance, block_sizes[b] / perfect_block_weight - 1.0);
+    }
+  } else {
+    PartitionedGraph p_graph(*graph, k, StaticArray<BlockID>(partition.size(), partition.data()));
+    cut = metrics::edge_cut(p_graph);
+    imbalance = metrics::imbalance(p_graph);
+  }
+
+  LOG << "Verify mode:      " << (verify ? "yes" : "no");
   LOG << "Number of blocks: " << k;
-  LOG << "Edge cut:         " << metrics::edge_cut(p_graph);
-  LOG << "Imbalance:        " << metrics::imbalance(p_graph);
+  LOG << "Largest block ID: " << implicit_k;
+  LOG << "Edge cut:         " << cut;
+  LOG << "Imbalance:        " << imbalance;
 
   return EXIT_SUCCESS;
 }
