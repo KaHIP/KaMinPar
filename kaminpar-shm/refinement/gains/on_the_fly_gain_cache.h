@@ -21,7 +21,8 @@ template <typename GainCache> class OnTheFlyDeltaGainCache;
 template <
     typename GraphType,
     bool iterate_nonadjacent_blocks = true,
-    bool iterate_exact_gains = true>
+    bool iterate_exact_gains = true,
+    bool iterate_source_block = false>
 class OnTheFlyGainCache {
   template <typename> friend class OnTheFlyDeltaGainCache;
 
@@ -32,6 +33,7 @@ public:
 
   constexpr static bool kIteratesNonadjacentBlocks = iterate_nonadjacent_blocks;
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
+  constexpr static bool kIteratesSourceBlock = iterate_source_block;
 
   OnTheFlyGainCache(const Context & /* ctx */, NodeID /* max_n */, const BlockID preallocate_k)
       : _rating_map_ets([preallocate_k] {
@@ -159,13 +161,13 @@ private:
 
       if constexpr (kIteratesNonadjacentBlocks) {
         for (const BlockID to : p_graph.blocks()) {
-          if (to != from) {
+          if (kIteratesSourceBlock || to != from) {
             lambda(to, [&] { return map[to] - conn_from; });
           }
         }
       } else {
         for (const auto [to, conn_to] : map.entries()) {
-          if (to != from) {
+          if (kIteratesSourceBlock || to != from) {
             lambda(to, [&, conn_to = conn_to] { return conn_to - conn_from; });
           }
         }

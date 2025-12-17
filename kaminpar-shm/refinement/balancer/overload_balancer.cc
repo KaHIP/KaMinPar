@@ -237,6 +237,10 @@ std::pair<BlockID, float> OverloadBalancer::compute_best_gain(
     }
   });
 
+  if (best_block == kInvalidBlockID) {
+    best_block = from;
+  }
+
   return std::make_pair(best_block, compute_relative_gain(best_gain, weight));
 }
 
@@ -269,6 +273,9 @@ bool OverloadBalancer::add_to_pq(
 bool OverloadBalancer::move_node_if_possible(
     const NodeID node, const BlockID from, const BlockID to
 ) {
+  KASSERT(node < _p_graph->n());
+  KASSERT(to < _p_graph->k());
+
   if (_p_graph->move(node, from, to, _p_ctx->max_block_weight(to))) {
     if (_move_tracker != nullptr) {
       _move_tracker(node, from, to);
