@@ -22,8 +22,9 @@ class UnderloadBalancer : public Refiner {
   template <typename ConcretizedGraph>
   using GainCache = OnTheFlyGainCache<
       ConcretizedGraph,
-      /*iterate_nonadjacent_blocks=*/true,
-      /*iterate_exact_gains=*/true>;
+      /*iterate_nonadjacent_blocks=*/false,
+      /*iterate_exact_gains=*/true,
+      /*iterate_source_block=*/true>;
 
 public:
   explicit UnderloadBalancer(const Context &ctx);

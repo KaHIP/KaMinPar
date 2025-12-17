@@ -26,8 +26,9 @@ class OverloadBalancer : public Refiner {
   template <typename ConcretizedGraph>
   using GainCache = OnTheFlyGainCache<
       ConcretizedGraph,
-      /*iterate_nonadjacent_blocks=*/true,
-      /*iterate_exact_gains=*/true>;
+      /*iterate_nonadjacent_blocks=*/false,
+      /*iterate_exact_gains=*/true,
+      /*iterate_source_block=*/true>;
 
 public:
   using MoveTracker = std::function<void(NodeID, BlockID, BlockID)>;
@@ -40,7 +41,7 @@ public:
   OverloadBalancer(const OverloadBalancer &) = delete;
 
   OverloadBalancer &operator=(OverloadBalancer &&) = delete;
-  OverloadBalancer(OverloadBalancer &&) noexcept = default;
+  OverloadBalancer(OverloadBalancer &&) noexcept = delete;
 
   [[nodiscard]] std::string name() const final;
 
