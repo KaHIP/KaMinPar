@@ -14,7 +14,7 @@ else:
 
 
 def test_version():
-    assert kaminpar.__version__ == "3.7.2"
+    assert kaminpar.__version__ == "3.7.3"
 
 
 def test_seed():
