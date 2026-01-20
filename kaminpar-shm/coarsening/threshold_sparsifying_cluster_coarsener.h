@@ -45,6 +45,14 @@ private:
       EdgeID target_m
   );
 
+  std::unique_ptr<CoarseGraph> recontract_with_weighted_uniform_sampling(
+      NodeID c_n,
+      EdgeID c_m,
+      StaticArray<EdgeWeight> c_edge_weights,
+      StaticArray<NodeID> mapping,
+      EdgeID target_m
+  );
+
   CSRGraph sparsify_and_recontract(CSRGraph csr, NodeID target_m) const;
   CSRGraph sparsify_and_make_negative_edges(CSRGraph csr, NodeID target_m) const;
   CSRGraph keep_only_negative_edges(CSRGraph csr) const;

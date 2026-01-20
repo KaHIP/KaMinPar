@@ -12,4 +12,9 @@ public:
   StaticArray<EdgeWeight> sample(const CSRGraph &g, EdgeID target_edge_amount) override;
 };
 
+class WeightedUniformRandomSampler : public Sampler {
+public:
+  StaticArray<EdgeWeight> sample(const CSRGraph &g, EdgeID desired_num_edges) override;
+};
+
 } // namespace kaminpar::shm::sparsification

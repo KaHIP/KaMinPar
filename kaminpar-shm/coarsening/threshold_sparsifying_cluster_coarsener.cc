@@ -100,7 +100,9 @@ bool ThresholdSparsifyingClusterCoarsener::coarsen() {
         // This reduces overall peak memory.
         // !! This invalidates the `csr` reference !!
         StaticArray<EdgeWeight> c_edge_weights = csr.take_raw_edge_weights();
-        { ((void)std::move(graph)); }
+        {
+          ((void)std::move(graph));
+        }
 
         // Sorted cluster buckets might have changed due to the node remapping --> re-do
         // preprocessing for cluster contraction
@@ -122,6 +124,11 @@ bool ThresholdSparsifyingClusterCoarsener::coarsen() {
             );
           } else if (_s_ctx.algorithm == SparsificationAlgorithm::UNIFORM_RANDOM_SAMPLING) {
             return recontract_with_uniform_sampling(
+                c_n, c_m, std::move(c_edge_weights), std::move(mapping), target_sparsified_m
+            );
+          } else if (_s_ctx.algorithm ==
+                     SparsificationAlgorithm::WEIGHTED_UNIFORM_RANDOM_SAMPLING) {
+            return recontract_with_weighted_uniform_sampling(
                 c_n, c_m, std::move(c_edge_weights), std::move(mapping), target_sparsified_m
             );
           }
@@ -317,6 +324,55 @@ ThresholdSparsifyingClusterCoarsener::recontract_with_threshold_sparsification(
 }
 
 std::unique_ptr<CoarseGraph> ThresholdSparsifyingClusterCoarsener::recontract_with_uniform_sampling(
+    const NodeID c_n,
+    const EdgeID c_m,
+    StaticArray<EdgeWeight> c_edge_weights,
+    StaticArray<NodeID> mapping,
+    const EdgeID target_m
+) {
+  using namespace contraction;
+  using namespace sparsification;
+
+  // We do not need them any longer, so free them now to reduce peak memory
+  c_edge_weights.free();
+
+  const double probability = 1.0 * target_m / c_m;
+  DBG << "Sampling probability: " << probability;
+
+  const std::size_t seed =
+      Random::instance().random_index(0, std::numeric_limits<std::size_t>::max());
+
+  auto throw_dice = [&](const NodeID u, const NodeID v) {
+    std::size_t hash = ((static_cast<std::size_t>(std::max(u, v)) << 32) |
+                        static_cast<std::size_t>(std::min(u, v))) +
+                       seed;
+
+    hash ^= hash >> 33;
+    hash *= 0xff51afd7ed558ccdL;
+    hash ^= hash >> 33;
+    hash *= 0xc4ceb9fe1a85ec53L;
+    hash ^= hash >> 33;
+
+    hash &= (1ul << 32) - 1;
+    return 1.0 * hash / ((1ul << 32) - 1) < probability;
+  };
+
+  auto sample_edge = [&](const NodeID u, EdgeWeight /* w */, const NodeID v) {
+    return throw_dice(u, v);
+  };
+
+  return contract_and_sparsify_clustering(
+      current().concretize<CSRGraph>(),
+      std::move(mapping),
+      c_n,
+      sample_edge,
+      _c_ctx.contraction,
+      _contraction_m_ctx
+  );
+}
+
+std::unique_ptr<CoarseGraph>
+ThresholdSparsifyingClusterCoarsener::recontract_with_weighted_uniform_sampling(
     const NodeID c_n,
     const EdgeID c_m,
     StaticArray<EdgeWeight> c_edge_weights,

@@ -116,6 +116,9 @@ std::unique_ptr<sparsification::Sampler> create_sampler(const Context &ctx) {
   case SparsificationAlgorithm::UNIFORM_RANDOM_SAMPLING:
     return std::make_unique<sparsification::UniformRandomSampler>();
 
+  case SparsificationAlgorithm::WEIGHTED_UNIFORM_RANDOM_SAMPLING:
+    return std::make_unique<sparsification::WeightedUniformRandomSampler>();
+
   case SparsificationAlgorithm::K_NEIGHBOUR:
     return std::make_unique<sparsification::kNeighborSampler>();
 

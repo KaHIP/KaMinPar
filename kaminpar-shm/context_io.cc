@@ -81,6 +81,8 @@ std::unordered_map<std::string, SparsificationAlgorithm> get_sparsification_algo
   return {
       {"uniform-random", SparsificationAlgorithm::UNIFORM_RANDOM_SAMPLING},
       {"ur", SparsificationAlgorithm::UNIFORM_RANDOM_SAMPLING},
+      {"weighted-uniform-random", SparsificationAlgorithm::WEIGHTED_UNIFORM_RANDOM_SAMPLING},
+      {"wur", SparsificationAlgorithm::WEIGHTED_UNIFORM_RANDOM_SAMPLING},
       {"k-neighbour", SparsificationAlgorithm::K_NEIGHBOUR},
       {"kn", SparsificationAlgorithm::K_NEIGHBOUR},
       {"k-neighbour-spanning-tree", SparsificationAlgorithm::K_NEIGHBOUR_SPANNING_TREE},
@@ -99,6 +101,7 @@ std::unordered_map<std::string, SparsificationAlgorithm> get_sparsification_algo
       {"ut", SparsificationAlgorithm::UNBIASED_THRESHOLD},
   };
 }
+
 std::unordered_map<std::string, ScoreFunctionSection> get_score_function() {
   return {
       {"weight", ScoreFunctionSection::WEIGHT},
