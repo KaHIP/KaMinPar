@@ -709,7 +709,7 @@ public:
   [[nodiscard]] bool is_compressed() const;
 
 private:
-  std::unique_ptr<AbstractGraph> _underlying_graph = nullptr;
+  std::unique_ptr<AbstractGraph> _underlying_graph;
   int _level = 0;
 };
 
