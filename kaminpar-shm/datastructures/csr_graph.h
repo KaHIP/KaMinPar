@@ -458,6 +458,11 @@ public:
     return std::move(_buckets);
   }
 
+  void clear_edge_weights() {
+    _total_edge_weight = static_cast<EdgeWeight>(m());
+    _edge_weights.free();
+  }
+
 private:
   void init_degree_buckets();
 

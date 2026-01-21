@@ -374,7 +374,7 @@ std::unique_ptr<CoarseGraph> ThresholdSparsifyingClusterCoarsener::recontract_wi
 std::unique_ptr<CoarseGraph>
 ThresholdSparsifyingClusterCoarsener::recontract_with_weighted_uniform_sampling(
     const NodeID c_n,
-    const EdgeID c_m,
+    [[maybe_unused]] const EdgeID c_m,
     StaticArray<EdgeWeight> c_edge_weights,
     StaticArray<NodeID> mapping,
     const EdgeID target_m
@@ -382,16 +382,18 @@ ThresholdSparsifyingClusterCoarsener::recontract_with_weighted_uniform_sampling(
   using namespace contraction;
   using namespace sparsification;
 
+  const EdgeWeight total_edge_weight =
+      parallel::accumulate(c_edge_weights, static_cast<EdgeWeight>(0));
+
   // We do not need them any longer, so free them now to reduce peak memory
   c_edge_weights.free();
 
-  const double probability = 1.0 * target_m / c_m;
-  DBG << "Sampling probability: " << probability;
+  const double probability_factor = 1.0 * target_m / total_edge_weight;
 
   const std::size_t seed =
       Random::instance().random_index(0, std::numeric_limits<std::size_t>::max());
 
-  auto throw_dice = [&](const NodeID u, const NodeID v) {
+  auto throw_dice = [&](const NodeID u, const NodeID v, const double probability) {
     std::size_t hash = ((static_cast<std::size_t>(std::max(u, v)) << 32) |
                         static_cast<std::size_t>(std::min(u, v))) +
                        seed;
@@ -406,11 +408,11 @@ ThresholdSparsifyingClusterCoarsener::recontract_with_weighted_uniform_sampling(
     return 1.0 * hash / ((1ul << 32) - 1) < probability;
   };
 
-  auto sample_edge = [&](const NodeID u, EdgeWeight /* w */, const NodeID v) {
-    return throw_dice(u, v);
+  auto sample_edge = [&](const NodeID u, EdgeWeight w, const NodeID v) {
+    return throw_dice(u, v, probability_factor * w);
   };
 
-  return contract_and_sparsify_clustering(
+  auto ans = contract_and_sparsify_clustering(
       current().concretize<CSRGraph>(),
       std::move(mapping),
       c_n,
@@ -418,6 +420,8 @@ ThresholdSparsifyingClusterCoarsener::recontract_with_weighted_uniform_sampling(
       _c_ctx.contraction,
       _contraction_m_ctx
   );
+  ans->get().csr_graph().clear_edge_weights();
+  return ans;
 }
 
 } // namespace kaminpar::shm
