@@ -8,6 +8,8 @@
  ******************************************************************************/
 #pragma once
 
+#include <vector>
+
 #include "kaminpar-shm/coarsening/clusterer.h"
 #include "kaminpar-shm/coarsening/coarsener.h"
 #include "kaminpar-shm/kaminpar.h"
@@ -25,5 +27,8 @@ std::unique_ptr<Coarsener> create_coarsener(const Context &ctx, const PartitionC
 std::unique_ptr<Coarsener> create_coarsener(const Context &ctx);
 
 std::unique_ptr<Refiner> create_refiner(const Context &ctx);
+
+std::unique_ptr<Refiner>
+create_refiner(const Context &ctx, const std::vector<RefinementAlgorithm> &algorithm);
 
 } // namespace kaminpar::shm::factory

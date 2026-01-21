@@ -16,6 +16,8 @@
 
 namespace kaminpar::shm {
 
+Context create_lhop_context();
+
 Context create_context_by_preset_name(const std::string &name) {
   if (name == "default") {
     return create_default_context();
@@ -75,6 +77,10 @@ Context create_context_by_preset_name(const std::string &name) {
     return create_linear_time_kway_context();
   }
 
+  if (name == "lhop") {
+    return create_lhop_context();
+  }
+
   throw std::runtime_error("invalid preset name");
 }
 
@@ -103,6 +109,7 @@ std::unordered_set<std::string> get_preset_names() {
       "esa21-strong",
       "mtkahypar-kway",
       "linear-time-kway",
+      "lhop"
   };
 }
 
@@ -433,18 +440,19 @@ Context create_default_context() {
               // Context -> Parallel
               .num_threads = 1,
           },
-      .debug = {
-          .graph_name = "",
-          .dump_graph_filename = "n%n_m%m_k%k_seed%seed.metis",
-          .dump_partition_filename = "n%n_m%m_k%k_seed%seed.part",
+      .debug =
+          {
+              .graph_name = "",
+              .dump_graph_filename = "n%n_m%m_k%k_seed%seed.metis",
+              .dump_partition_filename = "n%n_m%m_k%k_seed%seed.part",
 
-          .dump_toplevel_graph = false,
-          .dump_toplevel_partition = false,
-          .dump_coarsest_graph = false,
-          .dump_coarsest_partition = false,
-          .dump_graph_hierarchy = false,
-          .dump_partition_hierarchy = false,
-      },
+              .dump_toplevel_graph = false,
+              .dump_toplevel_partition = false,
+              .dump_coarsest_graph = false,
+              .dump_coarsest_partition = false,
+              .dump_graph_hierarchy = false,
+              .dump_partition_hierarchy = false,
+          },
   };
 }
 
@@ -688,6 +696,19 @@ Context create_mtkahypar_kway_context() {
 Context create_linear_time_kway_context() {
   Context ctx = create_mtkahypar_kway_context();
   ctx.coarsening.algorithm = CoarseningAlgorithm::SPARSIFICATION_CLUSTERING;
+  return ctx;
+}
+
+Context create_lhop_context() {
+  Context ctx = create_default_context();
+
+  // Run the standard refiners first, follow up with l-hop refinement
+  ctx.refinement.algorithms.push_back(RefinementAlgorithm::LHOP);
+
+  // Alternative, only run l-hop refinement on the top level:
+  // ctx.refinement.toplevel_algorithms.push_back(RefinementAlgorithm::LHOP);
+  // Leave `toplevel_algorithms` empty to use the same refiners on the top level as on coarse levels
+
   return ctx;
 }
 

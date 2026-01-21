@@ -461,7 +461,23 @@ The following algorithms can be used:
   - underload-balancer: Rebalancer for minimum block weights.
   - lp:                 Label propagation (also see --r-lp-*).
   - fm:                 FM (also see --r-fm-*).
-  - twoway-flow:        Two-Way Flow (also see --r-twoway-flow-*).)"
+  - twoway-flow:        Two-Way Flow (also see --r-twoway-flow-*).
+  - lhop:               L-hop refinement.)"
+      )
+      ->capture_default_str();
+
+  refinement->add_option("--r-toplevel-algorithms", ctx.refinement.toplevel_algorithms)
+      ->transform(CLI::CheckedTransformer(get_refinement_algorithms()).description(""))
+      ->description(
+          R"(If specified, overwrites the k-way refinement algorithm(s) active on the toplevel.
+The following algorithms can be used:
+  - noop:               No k-way refinement.
+  - overload-balancer:  Rebalancer for maximum block weights.
+  - underload-balancer: Rebalancer for minimum block weights.
+  - lp:                 Label propagation (also see --r-lp-*).
+  - fm:                 FM (also see --r-fm-*).
+  - twoway-flow:        Two-Way Flow (also see --r-twoway-flow-*).
+  - lhop:               L-hop refinement.)"
       )
       ->capture_default_str();
 
@@ -470,6 +486,7 @@ The following algorithms can be used:
   create_twoway_flow_refinement_options(app, ctx);
   create_jet_refinement_options(app, ctx);
   create_mtkahypar_refinement_options(app, ctx);
+  create_lhop_refinement_options(app, ctx);
 
   return refinement;
 }
@@ -865,6 +882,15 @@ CLI::Option_group *create_mtkahypar_refinement_options(CLI::App *app, Context &c
       ->capture_default_str();
 
   return mtkahypar;
+}
+
+CLI::Option_group *create_lhop_refinement_options(CLI::App *app, Context &ctx) {
+  auto *lhop = app->add_option_group("Refinement -> L-hop");
+
+  // <...>
+  ((void)ctx);
+
+  return lhop;
 }
 
 CLI::Option_group *create_debug_options(CLI::App *app, Context &ctx) {

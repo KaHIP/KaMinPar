@@ -33,6 +33,7 @@
 #include "kaminpar-shm/refinement/flow/twoway_flow_refiner.h"
 #include "kaminpar-shm/refinement/fm/fm_refiner.h"
 #include "kaminpar-shm/refinement/jet/jet_refiner.h"
+#include "kaminpar-shm/refinement/lhop/lhop_refiner.h"
 #include "kaminpar-shm/refinement/lp/lp_refiner.h"
 #include "kaminpar-shm/refinement/multi_refiner.h"
 
@@ -119,6 +120,9 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
 
   case RefinementAlgorithm::MTKAHYPAR:
     return std::make_unique<MtKaHyParRefiner>(ctx);
+
+  case RefinementAlgorithm::LHOP:
+    return std::make_unique<LHopRefiner>(ctx);
   }
 
   __builtin_unreachable();
@@ -127,23 +131,28 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
 } // namespace
 
 std::unique_ptr<Refiner> create_refiner(const Context &ctx) {
+  return create_refiner(ctx, ctx.refinement.algorithms);
+}
+
+std::unique_ptr<Refiner>
+create_refiner(const Context &ctx, const std::vector<RefinementAlgorithm> &algorithms) {
   SCOPED_HEAP_PROFILER("Refiner Allocation");
 
-  if (ctx.refinement.algorithms.empty()) {
+  if (algorithms.empty()) {
     return std::make_unique<NoopRefiner>();
   }
-  if (ctx.refinement.algorithms.size() == 1) {
-    return create_refiner(ctx, ctx.refinement.algorithms.front());
+  if (algorithms.size() == 1) {
+    return create_refiner(ctx, algorithms.front());
   }
 
   std::unordered_map<RefinementAlgorithm, std::unique_ptr<Refiner>> refiners;
-  for (const RefinementAlgorithm algorithm : ctx.refinement.algorithms) {
+  for (const RefinementAlgorithm algorithm : algorithms) {
     if (refiners.find(algorithm) == refiners.end()) {
       refiners[algorithm] = create_refiner(ctx, algorithm);
     }
   }
 
-  return std::make_unique<MultiRefiner>(std::move(refiners), ctx.refinement.algorithms);
+  return std::make_unique<MultiRefiner>(std::move(refiners), algorithms);
 }
 
 } // namespace kaminpar::shm::factory

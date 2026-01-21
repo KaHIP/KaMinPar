@@ -371,6 +371,7 @@ std::unordered_map<std::string, RefinementAlgorithm> get_refinement_algorithms()
       {"twoway-flow", RefinementAlgorithm::TWOWAY_FLOW},
       {"jet", RefinementAlgorithm::JET},
       {"mtkahypar", RefinementAlgorithm::MTKAHYPAR},
+      {"lhop", RefinementAlgorithm::LHOP},
   };
 }
 
@@ -392,6 +393,8 @@ std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm)
     return out << "jet";
   case RefinementAlgorithm::MTKAHYPAR:
     return out << "mtkahypar";
+  case RefinementAlgorithm::LHOP:
+    return out << "lhop";
   }
 
   return out << "<invalid>";

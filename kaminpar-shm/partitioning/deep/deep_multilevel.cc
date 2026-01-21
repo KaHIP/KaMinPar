@@ -276,6 +276,12 @@ PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) 
   SCOPED_HEAP_PROFILER("Uncoarsening");
   SCOPED_TIMER("Uncoarsening");
 
+  // Special case where the graph is too small for multilevel partitioning: switch to toplevel
+  // refiners right away
+  if (_coarsener->empty() && !_input_ctx.refinement.toplevel_algorithms.empty()) {
+    _refiner = factory::create_refiner(_input_ctx, _input_ctx.refinement.toplevel_algorithms);
+  }
+
   bool refined = false;
   while (!_coarsener->empty()) {
     SCOPED_HEAP_PROFILER("Level", std::to_string(_coarsener->level() - 1));
@@ -289,6 +295,11 @@ PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) 
 
     LOG << " Number of nodes: " << p_graph.graph().n()
         << " | Number of edges: " << p_graph.graph().m();
+
+    // If we are on the toplevel graph now, switch to toplevel refiners
+    if (_coarsener->empty() && !_input_ctx.refinement.toplevel_algorithms.empty()) {
+      _refiner = factory::create_refiner(_input_ctx, _input_ctx.refinement.toplevel_algorithms);
+    }
 
     refine(p_graph);
     refined = true;

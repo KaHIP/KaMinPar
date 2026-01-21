@@ -214,6 +214,7 @@ enum class RefinementAlgorithm {
   TWOWAY_FLOW,
   JET,
   MTKAHYPAR,
+  LHOP,
 };
 
 struct BalancerRefinementContext {};
@@ -336,6 +337,7 @@ struct MtKaHyParRefinementContext {
 
 struct RefinementContext {
   std::vector<RefinementAlgorithm> algorithms;
+  std::vector<RefinementAlgorithm> toplevel_algorithms;
 
   BalancerRefinementContext balancer;
   LabelPropagationRefinementContext lp;
