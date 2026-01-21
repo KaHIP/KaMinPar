@@ -37,7 +37,8 @@ public:
     SCOPED_TIMER("Jet Refiner");
     SCOPED_TIMER("Initialization");
 
-    const bool is_coarse_level = p_graph.graph().n() < _ctx.partition.n;
+    const bool is_coarse_level = p_graph.graph().level() > 0;
+
     if (is_coarse_level) {
       _num_rounds = _ctx.refinement.jet.num_rounds_on_coarse_level;
       _initial_gain_temp = _ctx.refinement.jet.initial_gain_temp_on_coarse_level;

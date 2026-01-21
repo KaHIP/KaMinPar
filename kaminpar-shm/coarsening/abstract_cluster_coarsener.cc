@@ -95,8 +95,7 @@ bool AbstractClusterCoarsener::keep_allocated_memory() const {
   return level() >= _c_ctx.clustering.max_mem_free_coarsening_level;
 }
 
-void AbstractClusterCoarsener::compute_clustering_for_current_graph(
-    StaticArray<NodeID> &clustering
+void AbstractClusterCoarsener::compute_clustering_for_current_graph(StaticArray<NodeID> &clustering
 ) {
   const bool free_allocated_memory = !keep_allocated_memory();
   const NodeWeight total_node_weight = current().total_node_weight();
@@ -174,9 +173,13 @@ void AbstractClusterCoarsener::contract_current_graph_and_push(StaticArray<NodeI
   START_HEAP_PROFILER("Contract graph");
   START_TIMER("Contract graph");
 
-  _hierarchy.push_back(
-      contract_clustering(current(), std::move(clustering), _c_ctx.contraction, _contraction_m_ctx)
-  );
+  _hierarchy.push_back([&] {
+    auto c_graph = contract_clustering(
+        current(), std::move(clustering), _c_ctx.contraction, _contraction_m_ctx
+    );
+    c_graph->get().set_level(level() + 1);
+    return c_graph;
+  }());
 
   auto project_communities = [&](const std::size_t fine_n,
                                  const NodeID *fine_ptr,

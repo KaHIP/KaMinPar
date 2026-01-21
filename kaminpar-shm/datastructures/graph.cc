@@ -16,6 +16,7 @@
 namespace kaminpar::shm {
 
 Graph::Graph(std::unique_ptr<AbstractGraph> graph) : _underlying_graph(std::move(graph)) {}
+
 Graph::~Graph() = default;
 
 Graph::Graph(Graph &&) noexcept = default;
@@ -51,6 +52,14 @@ EdgeWeight Graph::total_edge_weight() const {
 
 bool Graph::sorted() const {
   return _underlying_graph->sorted();
+}
+
+void Graph::set_level(const int level) {
+  _level = level;
+}
+
+int Graph::level() const {
+  return _level;
 }
 
 AbstractGraph *Graph::underlying_graph() {
