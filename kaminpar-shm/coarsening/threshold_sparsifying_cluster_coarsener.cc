@@ -309,8 +309,9 @@ ThresholdSparsifyingClusterCoarsener::recontract_with_threshold_sparsification(
     return 1.0 * hash / ((1ul << 32) - 1) < threshold_probability;
   };
 
-  auto sample_edge = [&](const NodeID u, const EdgeWeight w, const NodeID v) {
-    return w > threshold_weight || (w == threshold_weight && throw_dice(u, v));
+  auto sample_edge = [&](const NodeID u, const EdgeWeight w, const NodeID v) -> EdgeWeight {
+    const bool accept = w > threshold_weight || (w == threshold_weight && throw_dice(u, v));
+    return accept ? w : static_cast<EdgeWeight>(0);
   };
 
   return contract_and_sparsify_clustering(
@@ -357,8 +358,8 @@ std::unique_ptr<CoarseGraph> ThresholdSparsifyingClusterCoarsener::recontract_wi
     return 1.0 * hash / ((1ul << 32) - 1) < probability;
   };
 
-  auto sample_edge = [&](const NodeID u, EdgeWeight /* w */, const NodeID v) {
-    return throw_dice(u, v);
+  auto sample_edge = [&](const NodeID u, EdgeWeight w, const NodeID v) -> EdgeWeight {
+    return throw_dice(u, v) ? w : static_cast<EdgeWeight>(0);
   };
 
   return contract_and_sparsify_clustering(
@@ -408,8 +409,13 @@ ThresholdSparsifyingClusterCoarsener::recontract_with_weighted_uniform_sampling(
     return 1.0 * hash / ((1ul << 32) - 1) < probability;
   };
 
-  auto sample_edge = [&](const NodeID u, EdgeWeight w, const NodeID v) {
-    return throw_dice(u, v, probability_factor * w);
+  auto sample_edge = [&](const NodeID u, EdgeWeight w, const NodeID v) -> EdgeWeight {
+    const double p = probability_factor * w;
+    if (p > 1) {
+      return std::round(p);
+    }
+
+    return throw_dice(u, v, p) ? static_cast<EdgeWeight>(1) : static_cast<EdgeWeight>(0);
   };
 
   auto ans = contract_and_sparsify_clustering(
@@ -420,7 +426,6 @@ ThresholdSparsifyingClusterCoarsener::recontract_with_weighted_uniform_sampling(
       _c_ctx.contraction,
       _contraction_m_ctx
   );
-  ans->get().csr_graph().clear_edge_weights();
   return ans;
 }
 

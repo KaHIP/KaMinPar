@@ -92,10 +92,12 @@ std::unique_ptr<CoarseGraph> contract_and_sparsify_clustering(
     c_nodes[new_c_u] = edge;
     c_node_weights[new_c_u] = c_u_weight;
 
-    for (const auto [c_v, weight] : map.entries()) {
-      if (predicate(c_u, weight, c_v)) {
+    for (const auto [c_v, w] : map.entries()) {
+      const EdgeWeight new_w = predicate(c_u, w, c_v);
+
+      if (new_w) {
         c_edges[edge] = c_v;
-        c_edge_weights[edge] = weight;
+        c_edge_weights[edge] = new_w;
         edge += 1;
       }
     }
@@ -142,8 +144,8 @@ std::unique_ptr<CoarseGraph> contract_and_sparsify_clustering(
     // const std::size_t degree = edge_collector.size();
 
     std::size_t degree = 0;
-    for (const auto [c_v, weight] : edge_collector.entries()) {
-      degree += predicate(c_u, weight, c_v);
+    for (const auto [c_v, w] : edge_collector.entries()) {
+      degree += (predicate(c_u, w, c_v) > 0);
     }
 
     if (NeighborhoodsBuffer::exceeds_capacity(degree)) {
@@ -167,9 +169,10 @@ std::unique_ptr<CoarseGraph> contract_and_sparsify_clustering(
     }
 
     neighborhood_buffer.add(c_u, degree, c_u_weight, [&](auto &&l) {
-      for (const auto [c_v, weight] : edge_collector.entries()) {
-        if (predicate(c_u, weight, c_v)) {
-          l(c_v, weight);
+      for (const auto [c_v, w] : edge_collector.entries()) {
+        const EdgeWeight new_w = predicate(c_u, w, c_v);
+        if (new_w > 0) {
+          l(c_v, new_w);
         }
       }
     });
@@ -364,15 +367,17 @@ std::unique_ptr<CoarseGraph> contract_and_sparsify_clustering(
       edge_collector.iterate_and_reset([&](const auto, const auto &local_neighbors) {
         std::size_t degree = 0;
         for (const auto [c_v, w] : local_neighbors) {
-          degree += predicate(c_u, w, c_v);
+          degree += (predicate(c_u, w, c_v) > 0);
         }
 
         EdgeID local_cur_edge = __atomic_fetch_add(&cur_edge, degree, __ATOMIC_RELAXED);
 
         for (const auto [c_v, w] : local_neighbors) {
-          if (predicate(c_u, w, c_v)) {
+          const EdgeWeight new_w = predicate(c_u, w, c_v);
+
+          if (new_w > 0) {
             c_edges[local_cur_edge] = c_v;
-            c_edge_weights[local_cur_edge] = w;
+            c_edge_weights[local_cur_edge] = new_w;
             local_cur_edge += 1;
           }
         }
@@ -424,14 +429,12 @@ std::unique_ptr<CoarseGraph> contract_and_sparsify_clustering(
   STOP_HEAP_PROFILER();
 
   return std::make_unique<CoarseGraphImpl>(
-      shm::Graph(
-          std::make_unique<CSRGraph>(
-              std::move(c_nodes),
-              std::move(finalized_c_edges),
-              std::move(c_node_weights),
-              std::move(finalized_c_edge_weights)
-          )
-      ),
+      shm::Graph(std::make_unique<CSRGraph>(
+          std::move(c_nodes),
+          std::move(finalized_c_edges),
+          std::move(c_node_weights),
+          std::move(finalized_c_edge_weights)
+      )),
       std::move(mapping)
   );
 }
