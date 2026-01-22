@@ -694,6 +694,9 @@ public:
 
   [[nodiscard]] bool sorted() const;
 
+  void set_level(int level);
+  [[nodiscard]] int level() const;
+
   [[nodiscard]] AbstractGraph *underlying_graph();
   [[nodiscard]] const AbstractGraph *underlying_graph() const;
 
@@ -707,6 +710,7 @@ public:
 
 private:
   std::unique_ptr<AbstractGraph> _underlying_graph;
+  int _level = 0;
 };
 
 [[nodiscard]] Graph compress(
