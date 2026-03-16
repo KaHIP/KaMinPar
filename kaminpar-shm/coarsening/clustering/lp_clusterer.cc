@@ -227,10 +227,7 @@ public:
 
 private:
   NodeID perform_iteration(const Graph &graph) {
-    if (_iterator.empty()) {
-      _iterator.init_chunks(graph, 0, graph.n(), _max_degree);
-    }
-    _iterator.shuffle_chunks();
+    _iterator.prepare(graph, 0, graph.n(), _max_degree);
 
     auto &current_num_clusters = _processor.current_num_clusters();
 

@@ -87,6 +87,25 @@ public:
   }
 
   /*!
+   * Prepare for one LP iteration: build chunks on the first call, then shuffle them.
+   *
+   * Chunks are initialized only once per graph (when empty()) and reused across
+   * iterations; each call re-shuffles them for a fresh random order.
+   *
+   * @param graph The graph.
+   * @param from  First node in the iteration range.
+   * @param to    One past the last node in the iteration range.
+   * @param max_degree Maximum degree of nodes to include.
+   */
+  template <typename Graph>
+  void prepare(const Graph &graph, const NodeID from, const NodeID to, const NodeID max_degree) {
+    if (empty()) {
+      init_chunks(graph, from, to, max_degree);
+    }
+    shuffle_chunks();
+  }
+
+  /*!
    * Initialize the chunks based on the graph's degree buckets.
    *
    * @param graph The graph.

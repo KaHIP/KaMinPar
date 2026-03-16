@@ -56,8 +56,7 @@ protected:
 };
 
 TEST_F(ChunkRandomIteratorTest, VisitsEveryNodeExactlyOnce) {
-  iter.init_chunks(csr, 0, csr.n(), kMaxDegree);
-  iter.shuffle_chunks();
+  iter.prepare(csr, 0, csr.n(), kMaxDegree);
 
   std::vector<std::atomic<int>> visited(kNumNodes);
   for (auto &v : visited) {
@@ -83,8 +82,7 @@ TEST_F(ChunkRandomIteratorTest, VisitsEveryNodeExactlyOnce) {
 }
 
 TEST_F(ChunkRandomIteratorTest, CountsMoves) {
-  iter.init_chunks(csr, 0, csr.n(), kMaxDegree);
-  iter.shuffle_chunks();
+  iter.prepare(csr, 0, csr.n(), kMaxDegree);
 
   parallel::Atomic<NodeID> num_clusters = kNumNodes;
   const NodeID moved = iter.iterate(
@@ -220,27 +218,30 @@ TEST_F(ChunkRandomIteratorTest, ReleasedAndRestoredDataStructures) {
 // InOrderIterator
 // =============================================================================
 
-TEST(InOrderIteratorTest, VisitsEveryNodeExactlyOnce) {
-  constexpr NodeID kN = 40;
-  using EdgeID = shm::EdgeID;
-  using ClusterID = shm::NodeID;
+class InOrderIteratorTest : public ::testing::Test {
+protected:
+  static constexpr NodeID kMaxDegree = 100;
+  static constexpr NodeID kNumNodes = 40;
 
-  Graph graph = make_path_graph(kN);
-  const CSRGraph &csr = graph.csr_graph();
+  InOrderIteratorTest() : graph(make_path_graph(kNumNodes)), csr(graph.csr_graph()) {}
 
-  std::vector<std::atomic<int>> visited(kN);
+  Graph graph;
+  const CSRGraph &csr;
+  InOrderIterator<IterTestConfig> iter;
+};
+
+TEST_F(InOrderIteratorTest, VisitsEveryNodeExactlyOnce) {
+  iter.prepare(csr, 0, csr.n(), kMaxDegree);
+
+  std::vector<std::atomic<int>> visited(kNumNodes);
   for (auto &v : visited) {
     v = 0;
   }
 
-  parallel::Atomic<ClusterID> num_clusters = kN;
-
-  InOrderIterator::iterate<NodeID, EdgeID, ClusterID>(
+  parallel::Atomic<NodeID> num_clusters = kNumNodes;
+  iter.iterate(
       csr,
-      NodeID(0),
-      NodeID(kN),
-      NodeID(100), // max_degree: all nodes qualify
-      NodeID(0),   // min_chunk_size: check stop frequently
+      kMaxDegree,
       [&](const NodeID u) {
         visited[u].fetch_add(1, std::memory_order_relaxed);
         return std::make_pair(false, false);
@@ -250,32 +251,23 @@ TEST(InOrderIteratorTest, VisitsEveryNodeExactlyOnce) {
       num_clusters
   );
 
-  for (NodeID u = 0; u < kN; ++u) {
+  for (NodeID u = 0; u < kNumNodes; ++u) {
     EXPECT_EQ(visited[u].load(), 1) << "node " << u;
   }
 }
 
-TEST(InOrderIteratorTest, SkipsInactiveNodes) {
-  constexpr NodeID kN = 20;
-  using EdgeID = shm::EdgeID;
-  using ClusterID = shm::NodeID;
+TEST_F(InOrderIteratorTest, SkipsInactiveNodes) {
+  iter.prepare(csr, 0, csr.n(), kMaxDegree);
 
-  Graph graph = make_path_graph(kN);
-  const CSRGraph &csr = graph.csr_graph();
-
-  std::vector<std::atomic<int>> visited(kN);
+  std::vector<std::atomic<int>> visited(kNumNodes);
   for (auto &v : visited) {
     v = 0;
   }
 
-  parallel::Atomic<ClusterID> num_clusters = kN;
-
-  InOrderIterator::iterate<NodeID, EdgeID, ClusterID>(
+  parallel::Atomic<NodeID> num_clusters = kNumNodes;
+  iter.iterate(
       csr,
-      NodeID(0),
-      NodeID(kN),
-      NodeID(100),
-      NodeID(0),
+      kMaxDegree,
       [&](const NodeID u) {
         visited[u].fetch_add(1, std::memory_order_relaxed);
         return std::make_pair(false, false);
@@ -285,34 +277,76 @@ TEST(InOrderIteratorTest, SkipsInactiveNodes) {
       num_clusters
   );
 
-  for (NodeID u = 0; u < kN; ++u) {
+  for (NodeID u = 0; u < kNumNodes; ++u) {
     EXPECT_EQ(visited[u].load(), 0);
   }
 }
 
-TEST(InOrderIteratorTest, CountsMoves) {
-  constexpr NodeID kN = 20;
-  using EdgeID = shm::EdgeID;
-  using ClusterID = shm::NodeID;
+TEST_F(InOrderIteratorTest, CountsMoves) {
+  iter.prepare(csr, 0, csr.n(), kMaxDegree);
 
-  Graph graph = make_path_graph(kN);
-  const CSRGraph &csr = graph.csr_graph();
-
-  parallel::Atomic<ClusterID> num_clusters = kN;
-
-  const NodeID moved = InOrderIterator::iterate<NodeID, EdgeID, ClusterID>(
+  parallel::Atomic<NodeID> num_clusters = kNumNodes;
+  const NodeID moved = iter.iterate(
       csr,
-      NodeID(0),
-      NodeID(kN),
-      NodeID(100),
-      NodeID(0),
+      kMaxDegree,
       [](const NodeID) { return std::make_pair(true, false); },
       [] { return false; },
       [](const NodeID) { return true; },
       num_clusters
   );
 
-  EXPECT_EQ(moved, kN);
+  EXPECT_EQ(moved, kNumNodes);
+}
+
+TEST_F(InOrderIteratorTest, PrepareIsPersistentAcrossIterations) {
+  // prepare() is called once; iterate() can be called multiple times
+  iter.prepare(csr, 0, csr.n(), kMaxDegree);
+
+  for (int round = 0; round < 3; ++round) {
+    std::vector<std::atomic<int>> visited(kNumNodes);
+    for (auto &v : visited) {
+      v = 0;
+    }
+
+    parallel::Atomic<NodeID> num_clusters = kNumNodes;
+    iter.iterate(
+        csr,
+        kMaxDegree,
+        [&](const NodeID u) {
+          visited[u].fetch_add(1, std::memory_order_relaxed);
+          return std::make_pair(false, false);
+        },
+        [] { return false; },
+        [](const NodeID) { return true; },
+        num_clusters
+    );
+
+    for (NodeID u = 0; u < kNumNodes; ++u) {
+      EXPECT_EQ(visited[u].load(), 1) << "round " << round << " node " << u;
+    }
+  }
+}
+
+TEST_F(InOrderIteratorTest, ClearResetsRange) {
+  iter.prepare(csr, 0, csr.n(), kMaxDegree);
+  iter.clear();
+
+  // After clear(), iterate() visits nothing (range is [0, 0))
+  std::atomic<int> total = 0;
+  parallel::Atomic<NodeID> num_clusters = kNumNodes;
+  iter.iterate(
+      csr,
+      kMaxDegree,
+      [&](const NodeID) {
+        total.fetch_add(1, std::memory_order_relaxed);
+        return std::make_pair(false, false);
+      },
+      [] { return false; },
+      [](const NodeID) { return true; },
+      num_clusters
+  );
+
+  EXPECT_EQ(total.load(), 0);
 }
 
 } // namespace kaminpar::lp::testing
