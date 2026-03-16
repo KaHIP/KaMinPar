@@ -50,17 +50,28 @@ jobs:
           sed -i.bak "s|GIT_REPOSITORY .*|GIT_REPOSITORY https://github.com/${REPO_NAME}.git|" bindings/networkit/CMakeLists.txt
           sed -i.bak "s|GIT_TAG .*|GIT_TAG ${BRANCH_NAME}|" bindings/networkit/CMakeLists.txt
 
-      - name: Cache cibuildwheel dependencies
+      - name: Cache cibuildwheel virtualenv
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        id: cibw-cache
         with:
-          path: |
-            ~/Library/Caches/cibuildwheel
-            ~/.cache/cibuildwheel
-          key: cibw-${{ runner.os }}-${{ runner.arch }}
+          path: ${{ runner.temp }}/cibw-cache
+          key: cibw-virtualenv-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Pre-download virtualenv for cibuildwheel
+        if: steps.cibw-cache.outputs.cache-hit != 'true'
+        run: |
+          # cibuildwheel 2.23.0 pins virtualenv 20.29.2; update when bumping cibuildwheel
+          VENV_VERSION="20.29.2"
+          CACHE_DIR="${{ runner.temp }}/cibw-cache"
+          mkdir -p "$CACHE_DIR"
+          curl -sSL --retry 5 --retry-delay 10 --retry-all-errors \
+            -o "$CACHE_DIR/virtualenv-${VENV_VERSION}.pyz" \
+            "https://github.com/pypa/get-virtualenv/blob/${VENV_VERSION}/public/virtualenv.pyz?raw=true"
 
       - name: Build wheels
         uses: pypa/cibuildwheel@6cccd09a31908ffd175b012fb8bf4e1dbda3bc6c # v2.23.0
         env:
+          CIBW_CACHE_PATH: ${{ runner.temp }}/cibw-cache
           CIBW_BUILD: ${{ matrix.python }}-manylinux_x86_64
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
           CIBW_BEFORE_ALL_LINUX: dnf install -y epel-release && dnf install -y openblas-devel sparsehash-devel
