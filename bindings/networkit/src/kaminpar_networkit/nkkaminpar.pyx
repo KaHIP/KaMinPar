@@ -1,19 +1,10 @@
 # cython: language_level=3
 # distutils: language=c++
 
-from libcpp cimport bool as cbool
 from libcpp.vector cimport vector
-from libc.stdint cimport uint64_t
+from libc.stdint cimport uint64_t, int32_t
 
 import networkit
-
-# Declare NetworKit::Graph directly to avoid cimporting from networkit,
-# which would transitively pull in Partition and cause binary incompatibility
-# when the build-time and run-time struct layouts differ.
-cdef extern from "<networkit/graph/Graph.hpp>" namespace "NetworKit":
-    cdef cppclass _Graph "NetworKit::Graph":
-        _Graph() except +
-        _Graph(unsigned long, cbool, cbool) except +
 
 
 cdef extern from "kaminpar-shm/kaminpar.h":
@@ -23,8 +14,8 @@ cdef extern from "kaminpar-shm/kaminpar.h":
 
 cdef extern from "kaminpar_networkit.h":
     cdef cppclass _KaMinParNetworKit "kaminpar::KaMinParNetworKit"(_KaMinPar):
-        _KaMinParNetworKit(const _Graph &)
-        void copyGraph(const _Graph &) except +
+        _KaMinParNetworKit() except +
+        void copyCSRGraph(vector[uint64_t], vector[uint64_t], vector[int32_t]) except +
         vector[uint64_t] computePartition(unsigned int) except +
         vector[uint64_t] computePartitionWithEpsilon(unsigned int, double) except +
         vector[uint64_t] computePartitionWithFactors(vector[double]) except +
@@ -35,22 +26,36 @@ cdef _vector_to_partition(vector[uint64_t] vec):
     return networkit.Partition(data=vec)
 
 
-cdef _Graph* _get_graph_ptr(object G):
-    """Extract the C++ Graph pointer from a networkit.Graph Python object."""
-    return <_Graph*><size_t>G._this
+cdef _extract_csr(object G):
+    """Extract CSR arrays from a networkit.Graph via its adjacency matrix."""
+    from networkit.algebraic import adjacencyMatrix
+    A = adjacencyMatrix(G, matrixType="sparse")
+
+    xadj = A.indptr.tolist()
+    adjncy = A.indices.tolist()
+
+    if G.isWeighted():
+        adjwgt = [int(w) for w in A.data]
+    else:
+        adjwgt = []
+
+    return xadj, adjncy, adjwgt
 
 
 cdef class KaMinPar:
     cdef _KaMinParNetworKit *thisptr
 
     def __cinit__(self, object G):
-        self.thisptr = new _KaMinParNetworKit(_get_graph_ptr(G)[0])
+        self.thisptr = new _KaMinParNetworKit()
+        xadj, adjncy, adjwgt = _extract_csr(G)
+        self.thisptr.copyCSRGraph(xadj, adjncy, adjwgt)
 
     def __dealloc__(self):
         del self.thisptr
 
     def copyGraph(self, object G):
-        self.thisptr.copyGraph(_get_graph_ptr(G)[0])
+        xadj, adjncy, adjwgt = _extract_csr(G)
+        self.thisptr.copyCSRGraph(xadj, adjncy, adjwgt)
 
     def computePartition(self, unsigned int k):
         return _vector_to_partition(self.thisptr.computePartition(k))

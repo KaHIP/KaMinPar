@@ -15,10 +15,45 @@
 
 namespace kaminpar {
 
+KaMinParNetworKit::KaMinParNetworKit()
+    : KaMinPar(tbb::this_task_arena::max_concurrency(), shm::create_default_context()) {
+  KaMinPar::set_output_level(kaminpar::OutputLevel::QUIET);
+}
+
 KaMinParNetworKit::KaMinParNetworKit(const NetworKit::Graph &G)
     : KaMinPar(tbb::this_task_arena::max_concurrency(), shm::create_default_context()) {
   KaMinPar::set_output_level(kaminpar::OutputLevel::QUIET);
   copyGraph(G);
+}
+
+void KaMinParNetworKit::copyCSRGraph(
+    std::vector<std::uint64_t> xadj_vec,
+    std::vector<std::uint64_t> adjncy_vec,
+    std::vector<std::int32_t> adjwgt_vec
+) {
+  using namespace kaminpar::shm;
+
+  const std::size_t n = xadj_vec.size() - 1;
+  const std::size_t nnz = adjncy_vec.size();
+
+  StaticArray<EdgeID> xadj(n + 1);
+  for (std::size_t i = 0; i <= n; ++i) {
+    xadj[i] = static_cast<EdgeID>(xadj_vec[i]);
+  }
+
+  StaticArray<NodeID> adjncy(nnz);
+  for (std::size_t i = 0; i < nnz; ++i) {
+    adjncy[i] = static_cast<NodeID>(adjncy_vec[i]);
+  }
+
+  StaticArray<EdgeWeight> adjwgt(adjwgt_vec.size());
+  for (std::size_t i = 0; i < adjwgt_vec.size(); ++i) {
+    adjwgt[i] = static_cast<EdgeWeight>(adjwgt_vec[i]);
+  }
+
+  this->set_graph({std::make_unique<CSRGraph>(
+      std::move(xadj), std::move(adjncy), StaticArray<NodeWeight>{}, std::move(adjwgt)
+  )});
 }
 
 void KaMinParNetworKit::copyGraph(const NetworKit::Graph &G) {
