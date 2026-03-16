@@ -35,7 +35,7 @@ jobs:
         if: ${{ matrix.package == 'DEB' }}
         run: |
           apt-get update
-          apt-get install -y gcc-11 g++-11 nodejs \
+          apt-get install -y gcc-11 g++-11 nodejs ccache \
             git cmake \
             libnuma-dev libtbb-dev libsparsehash-dev \
             libopenmpi-dev mpi
@@ -44,10 +44,23 @@ jobs:
         if: ${{ matrix.package == 'RPM' }}
         run: |
           dnf install -y epel-release
-          dnf install -y make gcc gcc-c++ nodejs \
+          dnf install -y make gcc gcc-c++ nodejs ccache \
             rpm-build git cmake \
             numactl-devel tbb-devel sparsehash-devel \
             openmpi-devel openmpi
+
+      - name: Set up ccache
+        uses: actions/cache@v4
+        with:
+          path: /root/.cache/ccache
+          key: ccache-pkg-${{matrix.package}}-${{matrix.platform[0]}}-${{hashFiles('CMakeLists.txt')}}
+          restore-keys: |
+            ccache-pkg-${{matrix.package}}-${{matrix.platform[0]}}-
+
+      - name: Configure ccache
+        run: |
+          ccache --set-config=max_size=500M
+          ccache --zero-stats
 
       - name: Configure CMake build
         run: |
@@ -74,9 +87,11 @@ jobs:
             -DKAMINPAR_BUILD_DISTRIBUTED=On \
             -DKAMINPAR_64BIT_IDS=On \
             -DKAMINPAR_64BIT_WEIGHTS=On
-
       - name: Build the project
         run: cmake --build build --parallel 4
+
+      - name: Print ccache statistics
+        run: ccache --show-stats
 
       - name: Create the package
         run: cpack --config build/CPackConfig.cmake -G ${{ matrix.package }} -V
