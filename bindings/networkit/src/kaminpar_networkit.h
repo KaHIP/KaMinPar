@@ -7,10 +7,12 @@
  ******************************************************************************/
 #pragma once
 
+#include <cstdint>
+#include <vector>
+
 #include <kaminpar-shm/kaminpar.h>
 
 #include <networkit/graph/Graph.hpp>
-#include <networkit/structures/Partition.hpp>
 
 namespace kaminpar {
 
@@ -26,10 +28,10 @@ public:
 
   void copyGraph(const NetworKit::Graph &G);
 
-  NetworKit::Partition computePartition(shm::BlockID k);
-  NetworKit::Partition computePartitionWithEpsilon(shm::BlockID k, double epsilon);
-  NetworKit::Partition computePartitionWithFactors(std::vector<double> maxBlockWeightFactors);
-  NetworKit::Partition computePartitionWithWeights(std::vector<shm::BlockWeight> maxBlockWeights);
+  std::vector<std::uint64_t> computePartition(shm::BlockID k);
+  std::vector<std::uint64_t> computePartitionWithEpsilon(shm::BlockID k, double epsilon);
+  std::vector<std::uint64_t> computePartitionWithFactors(std::vector<double> maxBlockWeightFactors);
+  std::vector<std::uint64_t> computePartitionWithWeights(std::vector<shm::BlockWeight> maxBlockWeights);
 };
 
 } // namespace kaminpar

@@ -61,41 +61,45 @@ void KaMinParNetworKit::copyGraph(const NetworKit::Graph &G) {
 namespace {
 
 template <typename Lambda>
-NetworKit::Partition computePartitionGeneric(KaMinParNetworKit &shm, Lambda &&lambda) {
+std::vector<std::uint64_t>
+computePartitionGeneric(KaMinParNetworKit &shm, Lambda &&lambda) {
   using namespace kaminpar::shm;
 
-  NetworKit::Partition partition(shm.graph()->n());
-  StaticArray<BlockID> partitionVec(shm.graph()->n());
-
+  const auto n = shm.graph()->n();
+  StaticArray<BlockID> partitionVec(n);
   lambda(partitionVec);
-  shm.graph()->csr_graph().pfor_nodes([&](const NodeID u) { partition[u] = partitionVec[u]; });
 
-  return partition;
+  std::vector<std::uint64_t> result(n);
+  shm.graph()->csr_graph().pfor_nodes(
+      [&](const NodeID u) { result[u] = static_cast<std::uint64_t>(partitionVec[u]); }
+  );
+
+  return result;
 }
 
 } // namespace
 
-NetworKit::Partition KaMinParNetworKit::computePartition(shm::BlockID k) {
+std::vector<std::uint64_t> KaMinParNetworKit::computePartition(shm::BlockID k) {
   return computePartitionGeneric(*this, [&](StaticArray<shm::BlockID> &vec) {
     KaMinPar::compute_partition(k, vec);
   });
 }
 
-NetworKit::Partition
+std::vector<std::uint64_t>
 KaMinParNetworKit::computePartitionWithEpsilon(shm::BlockID k, double epsilon) {
   return computePartitionGeneric(*this, [&](StaticArray<shm::BlockID> &vec) {
     KaMinPar::compute_partition(k, epsilon, vec);
   });
 }
 
-NetworKit::Partition
+std::vector<std::uint64_t>
 KaMinParNetworKit::computePartitionWithFactors(std::vector<double> maxBlockWeightFactors) {
   return computePartitionGeneric(*this, [&](StaticArray<shm::BlockID> &vec) {
     KaMinPar::compute_partition(std::move(maxBlockWeightFactors), vec);
   });
 }
 
-NetworKit::Partition
+std::vector<std::uint64_t>
 KaMinParNetworKit::computePartitionWithWeights(std::vector<shm::BlockWeight> maxBlockWeights) {
   return computePartitionGeneric(*this, [&](StaticArray<shm::BlockID> &vec) {
     KaMinPar::compute_partition(std::move(maxBlockWeights), vec);
