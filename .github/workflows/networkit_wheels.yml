@@ -52,6 +52,7 @@ jobs:
         uses: pypa/cibuildwheel@6cccd09a31908ffd175b012fb8bf4e1dbda3bc6c # v2.23.0
         env:
           CIBW_BUILD: ${{ matrix.python }}-manylinux_x86_64
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
           CIBW_BEFORE_ALL_LINUX: yum install -y openblas-devel sparsehash-devel
         with:
           package-dir: bindings/networkit
