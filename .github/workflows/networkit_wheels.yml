@@ -50,6 +50,14 @@ jobs:
           sed -i.bak "s|GIT_REPOSITORY .*|GIT_REPOSITORY https://github.com/${REPO_NAME}.git|" bindings/networkit/CMakeLists.txt
           sed -i.bak "s|GIT_TAG .*|GIT_TAG ${BRANCH_NAME}|" bindings/networkit/CMakeLists.txt
 
+      - name: Cache cibuildwheel dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/Library/Caches/cibuildwheel
+            ~/.cache/cibuildwheel
+          key: cibw-${{ runner.os }}-${{ runner.arch }}
+
       - name: Build wheels
         uses: pypa/cibuildwheel@6cccd09a31908ffd175b012fb8bf4e1dbda3bc6c # v2.23.0
         env:
