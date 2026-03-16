@@ -27,7 +27,7 @@ jobs:
           fetch-depth: 1
           submodules: recursive
       - name: Set up ccache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/Library/Caches/ccache
           key: ccache-macos-${{matrix.compiler.name}}-${{matrix.build-mode}}-${{hashFiles('CMakeLists.txt')}}
@@ -96,7 +96,7 @@ jobs:
           fetch-depth: 1
           submodules: recursive
       - name: Set up ccache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/ccache
           key: ccache-linux-${{matrix.compiler.name}}-${{matrix.build-mode}}-${{hashFiles('CMakeLists.txt')}}
@@ -141,7 +141,7 @@ jobs:
           fetch-depth: 1
           submodules: recursive
       - name: Set up ccache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/ccache
           key: ccache-linux-${{matrix.compiler.name}}-${{matrix.build-mode}}-${{hashFiles('CMakeLists.txt')}}
@@ -208,7 +208,7 @@ jobs:
           fetch-depth: 1
           submodules: recursive
       - name: Set up ccache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/Library/Caches/ccache
           key: ccache-macos-${{matrix.compiler.name}}-heavy-${{matrix.build-mode}}-${{hashFiles('CMakeLists.txt')}}
