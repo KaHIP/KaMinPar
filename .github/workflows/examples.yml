@@ -40,7 +40,20 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build libtbb-dev libhwloc-dev libsparsehash-dev
+          sudo apt-get install -y cmake ninja-build libtbb-dev libhwloc-dev libsparsehash-dev ccache
+
+      - name: Set up ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-examples-${{matrix.compiler}}-${{hashFiles('examples/simple/CMakeLists.txt')}}
+          restore-keys: |
+            ccache-examples-${{matrix.compiler}}-
+
+      - name: Configure ccache
+        run: |
+          ccache --set-config=max_size=200M
+          ccache --zero-stats
 
       - name: Configure
         working-directory: ${{github.workspace}}/examples/simple
@@ -49,3 +62,6 @@ jobs:
       - name: Build
         working-directory: ${{github.workspace}}/examples/simple
         run: cmake --build --preset=ci-${{matrix.compiler}}-linux
+
+      - name: Print ccache statistics
+        run: ccache --show-stats

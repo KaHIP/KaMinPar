@@ -19,7 +19,9 @@ jobs:
 
     strategy:
       matrix:
-        python: ["cp310", "cp311", "cp312", "cp313"]
+        # On PRs, only build cp313 to catch binding issues quickly.
+        # On pushes/tags, build the full matrix for releases.
+        python: ${{ github.event_name == 'pull_request' && fromJSON('["cp313"]') || fromJSON('["cp310", "cp311", "cp312", "cp313"]') }}
       fail-fast: false
 
     runs-on: ubuntu-24.04
