@@ -1,12 +1,20 @@
 # cython: language_level=3
 # distutils: language=c++
 
+from libcpp cimport bool as cbool
 from libcpp.vector cimport vector
 from libc.stdint cimport uint64_t
 
-from networkit.graph cimport _Graph, Graph
-
 import networkit
+
+# Declare NetworKit::Graph directly to avoid cimporting from networkit,
+# which would transitively pull in Partition and cause binary incompatibility
+# when the build-time and run-time struct layouts differ.
+cdef extern from "<networkit/graph/Graph.hpp>" namespace "NetworKit":
+    cdef cppclass _Graph "NetworKit::Graph":
+        _Graph() except +
+        _Graph(unsigned long, cbool, cbool) except +
+
 
 cdef extern from "kaminpar-shm/kaminpar.h":
     cdef cppclass _KaMinPar "kaminpar::KaMinPar":
@@ -27,17 +35,22 @@ cdef _vector_to_partition(vector[uint64_t] vec):
     return networkit.Partition(data=vec)
 
 
+cdef _Graph* _get_graph_ptr(object G):
+    """Extract the C++ Graph pointer from a networkit.Graph Python object."""
+    return <_Graph*><size_t>G._this
+
+
 cdef class KaMinPar:
     cdef _KaMinParNetworKit *thisptr
 
-    def __cinit__(self, Graph G):
-        self.thisptr = new _KaMinParNetworKit(G._this)
+    def __cinit__(self, object G):
+        self.thisptr = new _KaMinParNetworKit(_get_graph_ptr(G)[0])
 
     def __dealloc__(self):
         del self.thisptr
 
-    def copyGraph(self, Graph G):
-        self.thisptr.copyGraph(G._this)
+    def copyGraph(self, object G):
+        self.thisptr.copyGraph(_get_graph_ptr(G)[0])
 
     def computePartition(self, unsigned int k):
         return _vector_to_partition(self.thisptr.computePartition(k))
