@@ -20,12 +20,24 @@ jobs:
         build-mode: [Release]
     steps:
       - name: Install dependencies
-        run: brew install llvm@20 tbb open-mpi google-sparsehash googletest
+        run: brew install llvm@20 tbb open-mpi google-sparsehash googletest ccache
       - name: Checkout HEAD
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
           fetch-depth: 1
           submodules: recursive
+      - name: Set up ccache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/Library/Caches/ccache
+          key: ccache-macos-${{matrix.compiler.name}}-${{matrix.build-mode}}-${{hashFiles('CMakeLists.txt')}}
+          restore-keys: |
+            ccache-macos-${{matrix.compiler.name}}-${{matrix.build-mode}}-
+            ccache-macos-${{matrix.compiler.name}}-
+      - name: Configure ccache
+        run: |
+          ccache --set-config=max_size=500M
+          ccache --zero-stats
       - name: Configure
         run: >-
           cmake -B ${{github.workspace}}/build
@@ -46,6 +58,8 @@ jobs:
           --parallel 3
         env: # 07.10.2025: triggered by GoogleTest, disable for now
           ASAN_OPTIONS: detect_container_overflow=0
+      - name: Print ccache statistics
+        run: ccache --show-stats
       - name: Run KaMinPar on a Dummy Graph
         run: >-
           ${{github.workspace}}/build/apps/KaMinPar
@@ -75,12 +89,24 @@ jobs:
         build-mode: [Debug]
     steps:
       - name: Install dependencies
-        run: sudo apt-get install -y libtbb-dev libhwloc-dev mpi libopenmpi-dev libsparsehash-dev libgtest-dev libgmock-dev
+        run: sudo apt-get install -y libtbb-dev libhwloc-dev mpi libopenmpi-dev libsparsehash-dev libgtest-dev libgmock-dev ccache
       - name: Checkout HEAD
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
           fetch-depth: 1
           submodules: recursive
+      - name: Set up ccache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-linux-${{matrix.compiler.name}}-${{matrix.build-mode}}-${{hashFiles('CMakeLists.txt')}}
+          restore-keys: |
+            ccache-linux-${{matrix.compiler.name}}-${{matrix.build-mode}}-
+            ccache-linux-${{matrix.compiler.name}}-
+      - name: Configure ccache
+        run: |
+          ccache --set-config=max_size=500M
+          ccache --zero-stats
       - name: Configure
         run: >-
           cmake -B ${{github.workspace}}/build
@@ -95,6 +121,8 @@ jobs:
           cmake --build ${{github.workspace}}/build
           --config ${{matrix.build-mode}}
           --parallel 4
+      - name: Print ccache statistics
+        run: ccache --show-stats
 
   build-and-run-linux-clang:
     name: Linux Build
@@ -106,12 +134,24 @@ jobs:
         build-mode: [Release]
     steps:
       - name: Install dependencies
-        run: sudo apt-get install -y libtbb-dev libhwloc-dev mpi libopenmpi-dev libsparsehash-dev libgtest-dev libgmock-dev
+        run: sudo apt-get install -y libtbb-dev libhwloc-dev mpi libopenmpi-dev libsparsehash-dev libgtest-dev libgmock-dev ccache
       - name: Checkout HEAD
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
           fetch-depth: 1
           submodules: recursive
+      - name: Set up ccache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-linux-${{matrix.compiler.name}}-${{matrix.build-mode}}-${{hashFiles('CMakeLists.txt')}}
+          restore-keys: |
+            ccache-linux-${{matrix.compiler.name}}-${{matrix.build-mode}}-
+            ccache-linux-${{matrix.compiler.name}}-
+      - name: Configure ccache
+        run: |
+          ccache --set-config=max_size=500M
+          ccache --zero-stats
       - name: Configure
         run: >-
           cmake -B ${{github.workspace}}/build
@@ -130,6 +170,8 @@ jobs:
           cmake --build ${{github.workspace}}/build
           --config ${{matrix.build-mode}}
           --parallel 4
+      - name: Print ccache statistics
+        run: ccache --show-stats
       - name: Run KaMinPar on a Dummy Graph
         run: >-
           ${{github.workspace}}/build/apps/KaMinPar
@@ -159,12 +201,24 @@ jobs:
         build-mode: [Release]
     steps:
       - name: Install dependencies
-        run: brew install tbb open-mpi google-sparsehash googletest
+        run: brew install tbb open-mpi google-sparsehash googletest ccache
       - name: Checkout HEAD
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
           fetch-depth: 1
           submodules: recursive
+      - name: Set up ccache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/Library/Caches/ccache
+          key: ccache-macos-${{matrix.compiler.name}}-heavy-${{matrix.build-mode}}-${{hashFiles('CMakeLists.txt')}}
+          restore-keys: |
+            ccache-macos-${{matrix.compiler.name}}-heavy-${{matrix.build-mode}}-
+            ccache-macos-${{matrix.compiler.name}}-heavy-
+      - name: Configure ccache
+        run: |
+          ccache --set-config=max_size=500M
+          ccache --zero-stats
       - name: Configure
         run: >-
           cmake -B ${{github.workspace}}/build
@@ -181,4 +235,5 @@ jobs:
           cmake --build ${{github.workspace}}/build
           --config Release
           --parallel 3
-
+      - name: Print ccache statistics
+        run: ccache --show-stats

@@ -19,7 +19,9 @@ jobs:
 
     strategy:
       matrix:
-        python: ["cp39", "cp310", "cp311", "cp312", "cp313", "cp313t", "pp39", "pp310", "pp311"]
+        # On PRs, only build cp313 per platform to catch binding issues quickly.
+        # On pushes/tags, build the full matrix for releases.
+        python: ${{ github.event_name == 'pull_request' && fromJSON('["cp313"]') || fromJSON('["cp39", "cp310", "cp311", "cp312", "cp313", "cp313t", "pp39", "pp310", "pp311"]') }}
         platform:
           - [ubuntu-24.04, manylinux_x86_64]
           - [ubuntu-24.04-arm, manylinux_aarch64]
@@ -47,9 +49,28 @@ jobs:
           sed -i.bak "s|GIT_REPOSITORY .*|GIT_REPOSITORY https://github.com/${REPO_NAME}.git|" bindings/python/CMakeLists.txt
           sed -i.bak "s|GIT_TAG .*|GIT_TAG ${BRANCH_NAME}|" bindings/python/CMakeLists.txt
 
+      - name: Cache cibuildwheel virtualenv
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        id: cibw-cache
+        with:
+          path: ${{ runner.temp }}/cibw-cache
+          key: cibw-virtualenv-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Pre-download virtualenv for cibuildwheel
+        if: steps.cibw-cache.outputs.cache-hit != 'true'
+        run: |
+          # cibuildwheel 2.23.0 pins virtualenv 20.29.2; update when bumping cibuildwheel
+          VENV_VERSION="20.29.2"
+          CACHE_DIR="${{ runner.temp }}/cibw-cache"
+          mkdir -p "$CACHE_DIR"
+          curl -sSL --retry 5 --retry-delay 10 --retry-all-errors \
+            -o "$CACHE_DIR/virtualenv-${VENV_VERSION}.pyz" \
+            "https://github.com/pypa/get-virtualenv/blob/${VENV_VERSION}/public/virtualenv.pyz?raw=true"
+
       - name: Build wheels
         uses: pypa/cibuildwheel@6cccd09a31908ffd175b012fb8bf4e1dbda3bc6c # v2.23.0
         env:
+          CIBW_CACHE_PATH: ${{ runner.temp }}/cibw-cache
           CIBW_BUILD: ${{ matrix.python }}-${{ matrix.platform[1] }}
           CIBW_ENVIRONMENT: SKBUILD_CMAKE_DEFINE="KAMINPAR_PYTHON_INSTALL_TBB=On"
           CIBW_FREE_THREADED_SUPPORT: True
