@@ -433,18 +433,19 @@ Context create_default_context() {
               // Context -> Parallel
               .num_threads = 1,
           },
-      .debug = {
-          .graph_name = "",
-          .dump_graph_filename = "n%n_m%m_k%k_seed%seed.metis",
-          .dump_partition_filename = "n%n_m%m_k%k_seed%seed.part",
+      .debug =
+          {
+              .graph_name = "",
+              .dump_graph_filename = "n%n_m%m_k%k_seed%seed.metis",
+              .dump_partition_filename = "n%n_m%m_k%k_seed%seed.part",
 
-          .dump_toplevel_graph = false,
-          .dump_toplevel_partition = false,
-          .dump_coarsest_graph = false,
-          .dump_coarsest_partition = false,
-          .dump_graph_hierarchy = false,
-          .dump_partition_hierarchy = false,
-      },
+              .dump_toplevel_graph = false,
+              .dump_toplevel_partition = false,
+              .dump_coarsest_graph = false,
+              .dump_coarsest_partition = false,
+              .dump_graph_hierarchy = false,
+              .dump_partition_hierarchy = false,
+          },
   };
 }
 
@@ -457,16 +458,15 @@ Context create_fast_context() {
   ctx.initial_partitioning.pool.max_num_repetitions = 1;
   return ctx;
 }
+
 Context create_eco_context() {
   Context ctx = create_default_context();
 
   ctx.refinement.algorithms = {
       RefinementAlgorithm::OVERLOAD_BALANCER,
-      // RefinementAlgorithm::UNDERLOAD_BALANCER, // FM does not support min block weights
       RefinementAlgorithm::LABEL_PROPAGATION,
       RefinementAlgorithm::KWAY_FM,
-      // RefinementAlgorithm::OVERLOAD_BALANCER,
-      RefinementAlgorithm::UNDERLOAD_BALANCER,
+      RefinementAlgorithm::OVERLOAD_BALANCER
   };
 
   return ctx;
@@ -477,14 +477,11 @@ Context create_strong_context() {
 
   ctx.refinement.algorithms = {
       RefinementAlgorithm::OVERLOAD_BALANCER,
-      // RefinementAlgorithm::UNDERLOAD_BALANCER, // Flows and FM do not support min block weights
       RefinementAlgorithm::LABEL_PROPAGATION,
       RefinementAlgorithm::KWAY_FM,
       RefinementAlgorithm::OVERLOAD_BALANCER,
-      // RefinementAlgorithm::UNDERLOAD_BALANCER,
       RefinementAlgorithm::TWOWAY_FLOW,
-      // RefinementAlgorithm::OVERLOAD_BALANCER,
-      RefinementAlgorithm::UNDERLOAD_BALANCER,
+      RefinementAlgorithm::OVERLOAD_BALANCER
   };
 
   return ctx;
