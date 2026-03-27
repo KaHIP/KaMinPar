@@ -3,6 +3,8 @@
 #include "kaminpar-shm/datastructures/graph.h"
 
 #include <vector>
+#include <algorithm>
+#include <unordered_set>
 
 namespace kaminpar::shm {
 
@@ -136,10 +138,76 @@ void LHopRefiner::calculateGains(PartitionedGraph &p_graph, std::vector<std::vec
 
 unsigned long LHopRefiner::tableToGain(LHopTable &gain) {
   unsigned long result = 0;
-  for(unsigned int len = 1; len < l; ++len) {
-    result += gain.pathLength[len] * lweights[len];
+  for(unsigned int len = 0; len < l; ++len) {
+    result += (gain.pathLength[len] * lweights[len]);
   }
   return result;
+}
+
+void LHopRefiner::updateGains(PartitionedGraph &p_graph, std::vector<std::vector<LHopTable>> &lhopModel, std::vector<LHopNodeGain> &nodeGains, 
+                                  std::vector<LHopPartitionGain> &partitionGains, BlockID src, BlockID dest, std::vector<NodeID> nodesToUpdate) {
+
+  std::unordered_set<int> updateSet(nodesToUpdate.begin(), nodesToUpdate.end());
+  nodeGains.erase(
+    std::remove_if(nodeGains.begin(), nodeGains.end(),
+        [&](LHopNodeGain& table) {
+            bool inUpdate = updateSet.count(table.node);
+            
+            if (inUpdate && (table.src == src || table.src == dest || table.dest == src || table.dest == dest)) {
+              for(LHopPartitionGain& partition : partitionGains) {
+                if(partition.src == table.src && partition.dest == table.dest) {
+                  partition.gain -= table.gain;
+                  break;
+                }
+              }
+              return true;
+            }
+            return false;
+        }),
+    nodeGains.end()
+  );
+  //TODO opt: make it parallel
+  for (auto node = nodesToUpdate.begin(); node != nodesToUpdate.end(); ++node) { 
+    BlockID srcBlock = p_graph.block(*node);
+    unsigned long gainForStay = 0;
+    //TODO opt: iterate only once to generate gains
+    for(LHopTable& table : lhopModel[*node]) {
+      if(table.block == srcBlock) {
+        gainForStay = tableToGain(table);
+      }
+    }
+    for(LHopTable& table : lhopModel[*node]) {
+      if(gainForStay < tableToGain(table) && (srcBlock == src || srcBlock == dest || table.block == src || table.block == dest)){
+        //NodeGains
+        nodeGains.push_back(LHopNodeGain(*node, srcBlock, table.block, (tableToGain(table) - gainForStay)));
+
+        //PartitionGains
+        bool isIn = false;
+        //TODO opt: is this the best data structure for partitionGains
+        for(LHopPartitionGain& partition : partitionGains) {
+          if(partition.src == srcBlock && partition.dest == table.block) {
+            partition.gain += (tableToGain(table) - gainForStay);
+            isIn = true;
+            break;
+          }
+        }
+        if(!isIn) {
+          partitionGains.push_back(LHopPartitionGain(srcBlock, table.block, (tableToGain(table) - gainForStay)));
+        }
+      }
+    }
+  }
+  //TODO opt: is sorting nessesary?
+  std::sort(nodeGains.begin(), nodeGains.end());
+  std::sort(partitionGains.begin(), partitionGains.end());
+
+  /*for(LHopNodeGain& node : nodeGains) {
+    LOG << "Gain: " << node.node << " :: " << node.src << " :: " << node.dest << " :: " << node.gain;
+  }
+
+  for(LHopPartitionGain& partition : partitionGains) {
+    LOG << "PartitionGain: " << partition.src << " :: " << partition.dest << " :: " << partition.gain;
+  }*/
 }
 
 bool LHopRefiner::moveAndUpdate(PartitionedGraph &p_graph, const PartitionContext &p_ctx, std::vector<std::vector<LHopTable>> &lhopModel, 
@@ -213,6 +281,7 @@ bool LHopRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ct
     LOG << "Generate Gains";
     nodeGains.clear();
     partitionGains.clear();
+    //TODO opt: only calculate changed Gains
     calculateGains(p_graph, lhopModel, nodeGains, partitionGains);
     if(partitionGains.empty()) {
       break;
@@ -224,7 +293,7 @@ bool LHopRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ct
         moving = true;
         break;
       } else {
-        LOG << "Full Partition: " << moveBlock.dest;
+        //LOG << "Full Partition: " << moveBlock.dest;
         moving = false;
       }
     }

@@ -59,7 +59,7 @@ private:
   //is lHop 2-3 better than edge-cut?
   const std::size_t l = 3; // SET L used for LHop -> TODO replace
 
-  const std::vector<int> lweights = {100, 10, 1};
+  const std::vector<int> lweights = {2500, 50, 1};
 
   void initializeLHopModel(PartitionedGraph &p_graph, std::vector<std::vector<LHopTable>> &lhopModel);
 
@@ -67,6 +67,9 @@ private:
 
   void calculateGains(PartitionedGraph &p_graph, std::vector<std::vector<LHopTable>> &lhopModel, std::vector<LHopNodeGain> &nodeGains, 
                       std::vector<LHopPartitionGain> &partitionGains);
+
+  void updateGains(PartitionedGraph &p_graph, std::vector<std::vector<LHopTable>> &lhopModel, std::vector<LHopNodeGain> &nodeGains, 
+                    std::vector<LHopPartitionGain> &partitionGains, BlockID src, BlockID dest, std::vector<NodeID> nodesToUpdate);
 
   unsigned long tableToGain(LHopTable &gain);
 
