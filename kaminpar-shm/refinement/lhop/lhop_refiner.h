@@ -73,7 +73,7 @@ private:
 
   unsigned long tableToGain(LHopTable &gain);
 
-  bool moveAndUpdate(PartitionedGraph &p_graph, const PartitionContext &p_ctx, std::vector<std::vector<LHopTable>> &lhopModel, 
+  std::vector<NodeID> moveAndUpdate(PartitionedGraph &p_graph, const PartitionContext &p_ctx, std::vector<std::vector<LHopTable>> &lhopModel, 
                       std::vector<LHopNodeGain> &nodeGains, BlockID src, BlockID dest);
 
   void subtractLHopTable(LHopTable &minuend, LHopTable &subtrahend);

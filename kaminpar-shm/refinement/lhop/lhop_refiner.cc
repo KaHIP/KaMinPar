@@ -210,7 +210,7 @@ void LHopRefiner::updateGains(PartitionedGraph &p_graph, std::vector<std::vector
   }*/
 }
 
-bool LHopRefiner::moveAndUpdate(PartitionedGraph &p_graph, const PartitionContext &p_ctx, std::vector<std::vector<LHopTable>> &lhopModel, 
+std::vector<NodeID> LHopRefiner::moveAndUpdate(PartitionedGraph &p_graph, const PartitionContext &p_ctx, std::vector<std::vector<LHopTable>> &lhopModel, 
                                 std::vector<LHopNodeGain> &nodeGains, BlockID src, BlockID dest) {
   //Move nodes
   std::vector<NodeID> movedNodes;
@@ -223,7 +223,7 @@ bool LHopRefiner::moveAndUpdate(PartitionedGraph &p_graph, const PartitionContex
   }
 
   if(movedNodes.empty()) {
-    return false;
+    return {};
   }
   //update Model
   //TODO opt: build smaller data structure
@@ -231,11 +231,14 @@ bool LHopRefiner::moveAndUpdate(PartitionedGraph &p_graph, const PartitionContex
   lhopPathFinder(p_graph, updateLHopModel, movedNodes);
 
   //merge updateModel into lHopModel
+  //TODO std::vector<NodeID> nodesToUpdate
+  std::vector<NodeID> nodesToUpdate = {};
   for (NodeID node = 0; node < _graph->n(); ++node) {
     std::vector<LHopTable>& nodeUpdate = updateLHopModel[node];
     if(nodeUpdate.empty()) {
       continue;
     }
+    nodesToUpdate.push_back(node);
     for(LHopTable& lHopModelEntry : lhopModel[node]) {
       if(lHopModelEntry.block == src) {
         //subtract
@@ -247,7 +250,7 @@ bool LHopRefiner::moveAndUpdate(PartitionedGraph &p_graph, const PartitionContex
     }
   }
   LOG << "Moved and updated: " << src << " -> " << dest << " : " << movedNodes.size();
-  return true;
+  return nodesToUpdate;
 }
 
 void LHopRefiner::subtractLHopTable(LHopTable &minuend, LHopTable &subtrahend) {
@@ -271,24 +274,23 @@ bool LHopRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ct
   std::vector<std::vector<LHopTable>> lhopModel(p_graph.n());
   initializeLHopModel(p_graph, lhopModel);
 
+  LOG << "Calculate Gains";
   std::vector<LHopNodeGain> nodeGains;
   std::vector<LHopPartitionGain> partitionGains;
+  calculateGains(p_graph, lhopModel, nodeGains, partitionGains);
   
   LOG << "START BATCH";
   bool movedANode = false;
   bool moving = true;
   while(moving) {
-    LOG << "Generate Gains";
-    nodeGains.clear();
-    partitionGains.clear();
-    //TODO opt: only calculate changed Gains
-    calculateGains(p_graph, lhopModel, nodeGains, partitionGains);
     if(partitionGains.empty()) {
       break;
     }
     LOG << "Move and update";
     for(LHopPartitionGain& moveBlock : partitionGains) {
-      if(moveAndUpdate(p_graph, p_ctx, lhopModel, nodeGains, moveBlock.src, moveBlock.dest)) {
+      std::vector<NodeID> nodesToUpdate = moveAndUpdate(p_graph, p_ctx, lhopModel, nodeGains, moveBlock.src, moveBlock.dest);
+      if(!nodesToUpdate.empty()) {
+        updateGains(p_graph, lhopModel, nodeGains, partitionGains, moveBlock.src, moveBlock.dest, nodesToUpdate);
         movedANode = true;
         moving = true;
         break;
