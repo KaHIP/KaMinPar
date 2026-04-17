@@ -65,13 +65,15 @@ private:
 
   void lhopPathFinder(PartitionedGraph &p_graph, std::vector<std::vector<LHopTable>> &lhopModel, std::vector<NodeID> &startgroup);
 
-  void calculateGains(PartitionedGraph &p_graph, std::vector<std::vector<LHopTable>> &lhopModel, std::vector<LHopNodeGain> &nodeGains, 
+  unsigned long calculateGains(PartitionedGraph &p_graph, std::vector<std::vector<LHopTable>> &lhopModel, std::vector<LHopNodeGain> &nodeGains, 
                       std::vector<LHopPartitionGain> &partitionGains);
 
   void updateGains(PartitionedGraph &p_graph, std::vector<std::vector<LHopTable>> &lhopModel, std::vector<LHopNodeGain> &nodeGains, 
                     std::vector<LHopPartitionGain> &partitionGains, BlockID src, BlockID dest, std::vector<NodeID> nodesToUpdate);
 
   unsigned long tableToGain(LHopTable &gain);
+
+  unsigned long tableToSum(LHopTable &gain);
 
   std::vector<NodeID> moveAndUpdate(PartitionedGraph &p_graph, const PartitionContext &p_ctx, std::vector<std::vector<LHopTable>> &lhopModel, 
                       std::vector<LHopNodeGain> &nodeGains, BlockID src, BlockID dest);

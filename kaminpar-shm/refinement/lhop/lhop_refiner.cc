@@ -90,8 +90,9 @@ void LHopRefiner::lhopPathFinder(PartitionedGraph &p_graph, std::vector<std::vec
   }
 }
 
-void LHopRefiner::calculateGains(PartitionedGraph &p_graph, std::vector<std::vector<LHopTable>> &lhopModel, std::vector<LHopNodeGain> &nodeGains, 
+unsigned long LHopRefiner::calculateGains(PartitionedGraph &p_graph, std::vector<std::vector<LHopTable>> &lhopModel, std::vector<LHopNodeGain> &nodeGains, 
                                   std::vector<LHopPartitionGain> &partitionGains) {
+  unsigned long pathSum = 0;
   //TODO opt: make it parallel
   for (NodeID node = 0; node < _graph->n(); ++node) { 
     BlockID srcBlock = p_graph.block(node);
@@ -103,6 +104,9 @@ void LHopRefiner::calculateGains(PartitionedGraph &p_graph, std::vector<std::vec
       }
     }
     for(LHopTable& table : lhopModel[node]) {
+      if(table.block != srcBlock) {
+        pathSum += tableToSum(table);
+      }
       if(gainForStay < tableToGain(table)){
         //NodeGains
         nodeGains.push_back(LHopNodeGain(node, srcBlock, table.block, (tableToGain(table) - gainForStay)));
@@ -134,12 +138,21 @@ void LHopRefiner::calculateGains(PartitionedGraph &p_graph, std::vector<std::vec
   for(LHopPartitionGain& partition : partitionGains) {
     LOG << "PartitionGain: " << partition.src << " :: " << partition.dest << " :: " << partition.gain;
   }*/
+  return pathSum / 2;
 }
 
 unsigned long LHopRefiner::tableToGain(LHopTable &gain) {
   unsigned long result = 0;
   for(unsigned int len = 0; len < l; ++len) {
     result += (gain.pathLength[len] * lweights[len]);
+  }
+  return result;
+}
+
+unsigned long LHopRefiner::tableToSum(LHopTable &gain) {
+  unsigned long result = 0;
+  for(unsigned int len = 0; len < l; ++len) {
+    result += (gain.pathLength[len]);
   }
   return result;
 }
@@ -277,7 +290,7 @@ bool LHopRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ct
   LOG << "Calculate Gains";
   std::vector<LHopNodeGain> nodeGains;
   std::vector<LHopPartitionGain> partitionGains;
-  calculateGains(p_graph, lhopModel, nodeGains, partitionGains);
+  unsigned long startSum = calculateGains(p_graph, lhopModel, nodeGains, partitionGains);
   
   LOG << "START BATCH";
   bool movedANode = false;
@@ -300,7 +313,11 @@ bool LHopRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ct
       }
     }
   }
+  nodeGains.clear();
+  partitionGains.clear();
+  unsigned long endSum = calculateGains(p_graph, lhopModel, nodeGains, partitionGains);
   LOG << "END BATCH";
+  LOG << "RESULT: Number Path reduced from " << startSum << " to " << endSum << " Reduced by %: " << (((double)startSum - (double)endSum) / (double)startSum);
   /*
   // E.g.,
   // Move vertex 0 from block 1 to block 0, but only if the resulting weight of block 0 does not
