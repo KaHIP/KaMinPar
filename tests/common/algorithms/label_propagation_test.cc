@@ -14,6 +14,7 @@
 #include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/datastructures/static_array.h"
+#include "kaminpar-common/parallel/iteration.h"
 
 using ::testing::Eq;
 
@@ -78,6 +79,13 @@ public:
     }
   }
 
+  template <typename Body>
+  void pfor_adjacent_nodes(
+      const NodeID node, const NodeID max_neighbors, const EdgeID, Body &&body
+  ) const {
+    body([&](auto &&visitor) { adjacent_nodes(node, max_neighbors, visitor); });
+  }
+
 private:
   template <typename Visitor> static bool call_visitor(Visitor &visitor, const Edge edge) {
     if constexpr (std::is_invocable_r_v<bool, Visitor, NodeID, EdgeWeight>) {
@@ -112,6 +120,14 @@ using TestWorkspace = lp::Workspace<
     TestGrowingRatingMap,
     TestConcurrentRatingMap,
     false>;
+using TestTwoPhaseWorkspace = lp::Workspace<
+    TestNodeID,
+    TestClusterID,
+    TestEdgeWeight,
+    TestRatingMap,
+    TestGrowingRatingMap,
+    TestConcurrentRatingMap,
+    true>;
 
 class TestWeights : public lp::RelaxedClusterWeightVector<TestClusterID, TestNodeWeight> {
 public:
@@ -196,8 +212,8 @@ struct TestNeighborPolicy {
   }
 };
 
-struct CoreFixture {
-  explicit CoreFixture(TestGraph graph, lp::Options<TestNodeID, TestClusterID> options = {})
+template <typename WorkspaceT> struct CoreFixtureBase {
+  explicit CoreFixtureBase(TestGraph graph, lp::Options<TestNodeID, TestClusterID> options = {})
       : graph(std::move(graph)),
         labels_array(this->graph.n()),
         selector(weights),
@@ -222,7 +238,7 @@ struct CoreFixture {
   StaticArray<TestClusterID> labels_array;
   lp::ExternalLabelArray<TestNodeID, TestClusterID> labels;
   TestWeights weights;
-  TestWorkspace workspace;
+  WorkspaceT workspace;
   TestSelector selector;
   TestNeighborPolicy neighbors;
   lp::LabelPropagationCore<
@@ -231,8 +247,43 @@ struct CoreFixture {
       TestWeights,
       TestSelector,
       TestNeighborPolicy,
-      TestWorkspace>
+      WorkspaceT>
       core;
+};
+
+using CoreFixture = CoreFixtureBase<TestWorkspace>;
+using TwoPhaseCoreFixture = CoreFixtureBase<TestTwoPhaseWorkspace>;
+
+class ResetTrackingLabelStore {
+public:
+  using ClusterIDType = TestClusterID;
+
+  explicit ResetTrackingLabelStore(const TestNodeID num_nodes)
+      : labels(num_nodes),
+        reset_calls(num_nodes, 0) {}
+
+  void init_cluster(const TestNodeID node, const TestClusterID cluster) {
+    labels[node] = cluster;
+  }
+
+  [[nodiscard]] TestClusterID initial_cluster(const TestNodeID node) const {
+    return node;
+  }
+
+  [[nodiscard]] TestClusterID cluster(const TestNodeID node) const {
+    return labels[node];
+  }
+
+  void move_node(const TestNodeID node, const TestClusterID cluster) {
+    labels[node] = cluster;
+  }
+
+  void reset_node_state(const TestNodeID node) {
+    ++reset_calls[node];
+  }
+
+  StaticArray<TestClusterID> labels;
+  std::vector<int> reset_calls;
 };
 
 TestGraph weighted_star() {
@@ -244,12 +295,74 @@ TestGraph weighted_star() {
 
 } // namespace
 
+TEST(LabelPropagationStoreTest, external_label_array_initializes_and_moves_labels) {
+  StaticArray<TestClusterID> labels(3);
+  lp::ExternalLabelArray<TestNodeID, TestClusterID> store;
+  store.init(labels);
+
+  store.init_cluster(0, 2);
+  store.move_node(1, 0);
+
+  EXPECT_THAT(store.initial_cluster(2), Eq(2));
+  EXPECT_THAT(store.cluster(0), Eq(2));
+  EXPECT_THAT(store.cluster(1), Eq(0));
+}
+
+TEST(LabelPropagationStoreTest, relaxed_weight_vector_moves_weight_when_feasible) {
+  lp::RelaxedClusterWeightVector<TestClusterID, TestNodeWeight> weights;
+  weights.allocate(2);
+  weights.init_cluster_weight(0, 3);
+  weights.init_cluster_weight(1, 1);
+
+  EXPECT_TRUE(weights.move_cluster_weight(0, 1, 2, 4));
+  EXPECT_THAT(weights.cluster_weight(0), Eq(1));
+  EXPECT_THAT(weights.cluster_weight(1), Eq(3));
+
+  EXPECT_FALSE(weights.move_cluster_weight(0, 1, 1, 3));
+  EXPECT_THAT(weights.cluster_weight(0), Eq(1));
+  EXPECT_THAT(weights.cluster_weight(1), Eq(3));
+}
+
 TEST(LabelPropagationCoreTest, manual_pass_moves_node_to_highest_rated_cluster) {
   CoreFixture fixture(weighted_star());
 
   auto pass = fixture.core.begin_pass();
   pass.handle_next_node(0);
   const auto result = pass.finish();
+
+  EXPECT_THAT(fixture.labels.cluster(0), Eq(3));
+  EXPECT_THAT(result.processed_nodes, Eq(1));
+  EXPECT_THAT(result.moved_nodes, Eq(1));
+}
+
+TEST(LabelPropagationCoreTest, local_manual_api_finds_and_commits_best_move) {
+  lp::Options<TestNodeID, TestClusterID> options;
+  options.track_cluster_count = true;
+  CoreFixture fixture(weighted_star(), options);
+
+  auto pass = fixture.core.begin_pass();
+  auto local = pass.local();
+  ASSERT_TRUE(local.should_consider(0));
+
+  const auto move = local.find_best_move(0);
+  EXPECT_TRUE(move.valid);
+  EXPECT_THAT(move.new_cluster, Eq(3));
+
+  const auto [moved, emptied] = local.try_commit_move(move);
+  EXPECT_TRUE(moved);
+  EXPECT_TRUE(emptied);
+  const auto result = pass.finish();
+
+  EXPECT_THAT(fixture.labels.cluster(0), Eq(3));
+  EXPECT_THAT(result.moved_nodes, Eq(1));
+  EXPECT_THAT(result.removed_clusters, Eq(1));
+}
+
+TEST(LabelPropagationCoreTest, run_iteration_connects_order_to_core) {
+  CoreFixture fixture(weighted_star());
+  iteration::NaturalNodeOrder<TestNodeID> order({0, 1});
+
+  const auto result = lp::run_iteration(order, fixture.core);
 
   EXPECT_THAT(fixture.labels.cluster(0), Eq(3));
   EXPECT_THAT(result.processed_nodes, Eq(1));
@@ -269,6 +382,20 @@ TEST(LabelPropagationCoreTest, neighbor_filter_and_max_neighbors_limit_rating_ac
   EXPECT_THAT(fixture.labels.cluster(0), Eq(1));
 }
 
+TEST(LabelPropagationCoreTest, max_degree_skips_high_degree_nodes) {
+  lp::Options<TestNodeID, TestClusterID> options;
+  options.max_degree = 3;
+  CoreFixture fixture(weighted_star(), options);
+
+  auto pass = fixture.core.begin_pass();
+  pass.handle_next_node(0);
+  const auto result = pass.finish();
+
+  EXPECT_THAT(fixture.labels.cluster(0), Eq(0));
+  EXPECT_THAT(result.processed_nodes, Eq(0));
+  EXPECT_THAT(result.moved_nodes, Eq(0));
+}
+
 TEST(LabelPropagationCoreTest, inactive_nodes_are_skipped) {
   lp::Options<TestNodeID, TestClusterID> options;
   options.active_set_strategy = lp::ActiveSetStrategy::GLOBAL;
@@ -282,6 +409,69 @@ TEST(LabelPropagationCoreTest, inactive_nodes_are_skipped) {
   EXPECT_THAT(fixture.labels.cluster(0), Eq(0));
   EXPECT_THAT(result.processed_nodes, Eq(0));
   EXPECT_THAT(result.moved_nodes, Eq(0));
+}
+
+TEST(LabelPropagationCoreTest, committed_move_activates_neighbors) {
+  lp::Options<TestNodeID, TestClusterID> options;
+  options.active_set_strategy = lp::ActiveSetStrategy::GLOBAL;
+  CoreFixture fixture(weighted_star(), options);
+  fixture.workspace.active[1] = 0;
+
+  auto pass = fixture.core.begin_pass();
+  pass.handle_next_node(0);
+  (void)pass.finish();
+
+  EXPECT_THAT(fixture.labels.cluster(0), Eq(3));
+  EXPECT_THAT(fixture.workspace.active[1], Eq(1));
+}
+
+TEST(LabelPropagationCoreTest, growing_hash_table_strategy_uses_same_node_flow) {
+  lp::Options<TestNodeID, TestClusterID> options;
+  options.rating_map_strategy = lp::RatingMapStrategy::GROWING_HASH_TABLES;
+  CoreFixture fixture(weighted_star(), options);
+
+  auto pass = fixture.core.begin_pass();
+  pass.handle_next_node(0);
+  const auto result = pass.finish();
+
+  EXPECT_THAT(fixture.labels.cluster(0), Eq(3));
+  EXPECT_THAT(result.moved_nodes, Eq(1));
+}
+
+TEST(LabelPropagationCoreTest, two_phase_strategy_finishes_deferred_nodes) {
+  lp::Options<TestNodeID, TestClusterID> options;
+  options.rating_map_strategy = lp::RatingMapStrategy::TWO_PHASE;
+  options.rating_map_threshold = 1;
+  TwoPhaseCoreFixture fixture(weighted_star(), options);
+
+  auto pass = fixture.core.begin_pass();
+  pass.handle_next_node(0);
+  const auto result = pass.finish();
+
+  EXPECT_THAT(fixture.labels.cluster(0), Eq(3));
+  EXPECT_THAT(result.processed_nodes, Eq(1));
+  EXPECT_THAT(result.moved_nodes, Eq(1));
+}
+
+TEST(LabelPropagationCoreTest, optional_reset_node_state_hook_runs_during_initialization) {
+  TestGraph graph = weighted_star();
+  ResetTrackingLabelStore labels(graph.n());
+  TestWeights weights;
+  weights.allocate(graph.n());
+  weights.set_initial_weights({1, 1, 1, 1});
+  TestWorkspace workspace;
+  TestSelector selector(weights);
+  TestNeighborPolicy neighbors;
+  lp::LabelPropagationCore core(graph, labels, weights, selector, neighbors, workspace, {});
+
+  core.initialize(
+      {.num_nodes = graph.n(), .num_active_nodes = graph.n(), .num_clusters = graph.n()}
+  );
+
+  EXPECT_THAT(labels.reset_calls[0], Eq(1));
+  EXPECT_THAT(labels.reset_calls[1], Eq(1));
+  EXPECT_THAT(labels.reset_calls[2], Eq(1));
+  EXPECT_THAT(labels.reset_calls[3], Eq(1));
 }
 
 TEST(LabelPropagationCoreTest, isolated_node_clustering_reuses_core_postprocessing) {
