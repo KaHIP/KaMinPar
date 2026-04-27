@@ -38,10 +38,12 @@ kaminpar_add_common_test(test_common_dynamic_map common/datastructures/dynamic_m
 kaminpar_add_common_test(test_common_compact_hash_map common/datastructures/compact_hash_map_test.cc)
 
 # Common -> Misc
+kaminpar_add_common_test(test_common_label_propagation common/algorithms/label_propagation_test.cc)
 kaminpar_add_common_test(test_common_math common/math_test.cc)
 kaminpar_add_common_test(test_common_string common/strutils_test.cc)
 kaminpar_add_common_test(test_common_parallel_algorithm common/parallel/algorithm_test.cc)
 kaminpar_add_common_test(test_common_parallel_aligned_prefix_sum common/parallel/aligned_prefix_sum_test.cc)
+kaminpar_add_common_test(test_common_parallel_iteration common/parallel/iteration_test.cc)
 kaminpar_add_common_test(test_common_parallel_quickselect common/parallel/quickselect_test.cc)
 kaminpar_add_common_test(test_common_varint common/graph_compression/varint_test.cc)
 kaminpar_add_common_test(test_common_streamvbyte common/graph_compression/streamvbyte_test.cc)

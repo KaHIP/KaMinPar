@@ -11,11 +11,14 @@
 
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/growt.h"
-#include "kaminpar-dist/distributed_label_propagation.h"
 #include "kaminpar-dist/graphutils/communication.h"
 #include "kaminpar-dist/timer.h"
 
+#include "kaminpar-common/algorithms/label_propagation.h"
+#include "kaminpar-common/datastructures/concurrent_fast_reset_array.h"
+#include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/datastructures/rating_map.h"
+#include "kaminpar-common/parallel/iteration.h"
 
 namespace kaminpar::dist {
 
@@ -27,91 +30,52 @@ SET_DEBUG(false);
 
 namespace {
 
-struct GlobalLPClusteringConfig : public LabelPropagationConfig {
-  using RatingMap = ::kaminpar::RatingMap<EdgeWeight, GlobalNodeID, rm_backyard::Sparsehash>;
+constexpr NodeID kMinChunkSize = 1024;
+constexpr NodeID kPermutationSize = 64;
+constexpr std::size_t kNumberOfNodePermutations = 64;
 
-  using ClusterID = GlobalNodeID;
-  using ClusterWeight = GlobalNodeWeight;
-
-  static constexpr bool kTrackClusterCount = false;   // NOLINT
-  static constexpr bool kUseTwoHopClustering = false; // NOLINT
-  static constexpr bool kUseActiveSetStrategy = true; // NOLINT
-};
+using GlobalLPRatingMap = ::kaminpar::RatingMap<EdgeWeight, GlobalNodeID, rm_backyard::Sparsehash>;
+using GlobalLPGrowingRatingMap = DynamicRememberingFlatMap<GlobalNodeID, EdgeWeight>;
+using GlobalLPConcurrentRatingMap = ConcurrentFastResetArray<EdgeWeight, GlobalNodeID>;
+using GlobalLPWorkspace = lp::Workspace<
+    NodeID,
+    GlobalNodeID,
+    EdgeWeight,
+    GlobalLPRatingMap,
+    GlobalLPGrowingRatingMap,
+    GlobalLPConcurrentRatingMap,
+    false>;
+using GlobalLPOrderWorkspace =
+    iteration::ChunkRandomNodeOrderWorkspace<NodeID, kPermutationSize, kNumberOfNodePermutations>;
 
 } // namespace
 
-struct GlobalLPClusteringMemoryContext : public LabelPropagationMemoryContext<
-                                             GlobalLPClusteringConfig::RatingMap,
-                                             GlobalLPClusteringConfig::ClusterID> {
-  StaticArray<GlobalNodeID> changed_label;
-  StaticArray<std::uint8_t> locked;
-  growt::GlobalNodeIDMap<GlobalNodeWeight> cluster_weights{0};
-  StaticArray<GlobalNodeWeight> local_cluster_weights;
-  growt::GlobalNodeIDMap<GlobalNodeWeight> weight_deltas{0};
-};
-
-template <typename Graph>
-class GlobalLPClusteringImpl final : public ChunkRandomdLabelPropagation<
-                                         GlobalLPClusteringImpl<Graph>,
-                                         GlobalLPClusteringConfig,
-                                         Graph>,
-                                     public NonatomicClusterVectorRef<NodeID, GlobalNodeID> {
-  using Base =
-      ChunkRandomdLabelPropagation<GlobalLPClusteringImpl<Graph>, GlobalLPClusteringConfig, Graph>;
-  using ClusterBase = NonatomicClusterVectorRef<NodeID, GlobalNodeID>;
+template <typename Graph> class GlobalLPClusteringImpl final {
   using WeightDeltaMap = growt::GlobalNodeIDMap<GlobalNodeWeight>;
-
-  using Config = GlobalLPClusteringConfig;
-  using ClusterID = Config::ClusterID;
-  using ClusterWeight = Config::ClusterWeight;
+  using ClusterID = GlobalNodeID;
+  using ClusterWeight = GlobalNodeWeight;
 
 public:
-  explicit GlobalLPClusteringImpl(const Context &ctx)
+  using ClusterIDType = ClusterID;
+  using ClusterWeightType = ClusterWeight;
+
+  GlobalLPClusteringImpl(
+      const Context &ctx, GlobalLPWorkspace &workspace, GlobalLPOrderWorkspace &order_workspace
+  )
       : _ctx(ctx),
         _c_ctx(ctx.coarsening),
-        _passive_high_degree_threshold(_c_ctx.global_lp.passive_high_degree_threshold) {
+        _workspace(workspace),
+        _order_workspace(order_workspace),
+        _passive_high_degree_threshold(_c_ctx.global_lp.passive_high_degree_threshold),
+        _selector(*this) {
     set_max_num_iterations(_c_ctx.global_lp.num_iterations);
-    Base::set_max_degree(_c_ctx.global_lp.active_high_degree_threshold);
-    Base::set_max_num_neighbors(_c_ctx.global_lp.max_num_neighbors);
-
-    if (_c_ctx.global_lp.active_set_strategy == ActiveSetStrategy::LOCAL) {
-      Base::enable_local_active_set();
-    }
-    if (_c_ctx.global_lp.active_set_strategy == ActiveSetStrategy::GLOBAL) {
-      Base::enable_active_set();
-    }
-  }
-
-  void setup(GlobalLPClusteringMemoryContext &memory_context) {
-    Base::setup(memory_context);
-    _changed_label = std::move(memory_context.changed_label);
-    _locked = std::move(memory_context.locked);
-    _cluster_weights = std::move(memory_context.cluster_weights);
-    _local_cluster_weights = std::move(memory_context.local_cluster_weights);
-    _weight_deltas = std::move(memory_context.weight_deltas);
-  }
-
-  GlobalLPClusteringMemoryContext release() {
-    _weight_delta_handles_ets.clear();
-    _cluster_weights_handles_ets.clear();
-
-    auto [rating_map_ets, active, favored_clusters] = Base::release();
-    return {
-        {
-            std::move(rating_map_ets),
-            std::move(active),
-            std::move(favored_clusters),
-        },
-        std::move(_changed_label),
-        std::move(_locked),
-        std::move(_cluster_weights),
-        std::move(_local_cluster_weights),
-        std::move(_weight_deltas),
-    };
+    _max_degree = _c_ctx.global_lp.active_high_degree_threshold;
+    _max_num_neighbors = _c_ctx.global_lp.max_num_neighbors;
   }
 
   void preinitialize(const NodeID num_nodes, const NodeID num_active_nodes) {
-    Base::preinitialize(num_nodes, num_active_nodes, num_nodes);
+    _num_nodes = num_nodes;
+    _num_active_nodes = num_active_nodes;
   }
 
   void initialize(const Graph &graph) {
@@ -140,9 +104,6 @@ public:
     _cluster_weights_handles_ets.clear();
     _cluster_weights = ClusterWeightsMap{0};
     std::fill(_local_cluster_weights.begin(), _local_cluster_weights.end(), 0);
-
-    Base::initialize(&graph, graph.total_n());
-    initialize_ghost_node_clusters();
     STOP_HEAP_PROFILER();
     STOP_TIMER();
   }
@@ -158,6 +119,27 @@ public:
 
     init_clusters_ref(clustering);
     initialize(graph);
+    _order_workspace.clear_order();
+
+    lp::Options<NodeID, GlobalNodeID> options{
+        .max_degree = _max_degree,
+        .max_num_neighbors = _max_num_neighbors,
+        .desired_num_clusters = 0,
+        .rating_map_strategy = lp::RatingMapStrategy::SINGLE_PHASE,
+        .active_set_strategy = map_active_set_strategy(),
+        .tie_breaking_strategy = lp::TieBreakingStrategy::GEOMETRIC,
+        .track_cluster_count = false,
+        .use_two_hop_clustering = false,
+        .use_actual_gain = false,
+    };
+    GlobalLPNeighborPolicy neighbors(*this);
+    lp::LabelPropagationCore core(graph, *this, *this, _selector, neighbors, _workspace, options);
+    core.initialize(
+        {.num_nodes = _num_nodes,
+         .num_active_nodes = _num_active_nodes,
+         .num_clusters = graph.total_n()}
+    );
+    initialize_ghost_node_clusters();
 
     const int num_chunks = _c_ctx.global_lp.chunks.compute(_ctx.parallel);
 
@@ -166,11 +148,11 @@ public:
       GlobalNodeID global_num_moved_nodes = 0;
       for (int chunk = 0; chunk < num_chunks; ++chunk) {
         const auto [from, to] = math::compute_local_range<NodeID>(_graph->n(), num_chunks, chunk);
-        global_num_moved_nodes += process_chunk(from, to);
+        global_num_moved_nodes += process_chunk(core, from, to);
       }
 
       if constexpr (kDebug) {
-        GlobalNodeID global_num_skipped_nodes = Base::_num_skipped_nodes_ets.combine(std::plus{});
+        GlobalNodeID global_num_skipped_nodes = 0;
         MPI_Allreduce(
             MPI_IN_PLACE,
             &global_num_skipped_nodes,
@@ -182,7 +164,6 @@ public:
 
         DBG0 << "Iteration " << iteration << ": " << global_num_moved_nodes << " nodes moved, "
              << global_num_skipped_nodes << " nodes skipped";
-        Base::_num_skipped_nodes_ets.clear();
       }
 
       if (global_num_moved_nodes == 0) {
@@ -202,7 +183,6 @@ public:
   //
   // VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
   void reset_node_state(const NodeID u) {
-    Base::reset_node_state(u);
     _changed_label[u] = kInvalidGlobalNodeID;
   }
 
@@ -312,7 +292,7 @@ public:
   void move_node(const NodeID lu, const ClusterID gcluster) {
     KASSERT(lu < _changed_label.size());
     _changed_label[lu] = this->cluster(lu);
-    NonatomicClusterVectorRef::move_node(lu, gcluster);
+    _clustering->at(lu) = gcluster;
 
     // Detect if a node was moved back to its original cluster
     if (_c_ctx.global_lp.prevent_cyclic_moves && gcluster == initial_cluster(lu)) {
@@ -351,7 +331,7 @@ public:
    * Moving nodes
    */
 
-  [[nodiscard]] bool accept_cluster(const Base::ClusterSelectionState &state) {
+  template <typename State> [[nodiscard]] bool accept_cluster(const State &state) {
     return (state.current_gain > state.best_gain ||
             (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
            (state.current_cluster_weight + state.u_weight <=
@@ -378,11 +358,18 @@ public:
   //--------------------------------------------------------------------------------
 
 private:
-  GlobalNodeID process_chunk(const NodeID from, const NodeID to) {
+  template <typename Core>
+  GlobalNodeID process_chunk(Core &core, const NodeID from, const NodeID to) {
     TIMER_BARRIER(_graph->communicator());
 
     const NodeID local_num_moved_nodes = TIMED_SCOPE("Local work") {
-      return Base::perform_iteration(from, to, kDebug);
+      iteration::ChunkRandomNodeOrder order(
+          *_graph,
+          _order_workspace,
+          iteration::NodeRange<NodeID>{from, to},
+          static_cast<EdgeID>(kMinChunkSize)
+      );
+      return lp::run_iteration(order, core).moved_nodes;
     };
 
     const GlobalNodeID global_num_moved_nodes =
@@ -391,7 +378,7 @@ private:
     control_cluster_weights(from, to);
 
     if (global_num_moved_nodes > 0) {
-      synchronize_ghost_node_clusters(from, to);
+      synchronize_ghost_node_clusters(core, from, to);
     }
 
     if (_c_ctx.global_lp.merge_singleton_clusters) {
@@ -411,8 +398,6 @@ private:
     if (_local_cluster_weights.size() < graph.n()) {
       _local_cluster_weights.resize(graph.n());
     }
-
-    Base::allocate();
 
     if (_c_ctx.global_lp.prevent_cyclic_moves) {
       _locked.resize(graph.n());
@@ -582,7 +567,8 @@ private:
     STOP_TIMER();
   }
 
-  void synchronize_ghost_node_clusters(const NodeID from, const NodeID to) {
+  template <typename Core>
+  void synchronize_ghost_node_clusters(Core &core, const NodeID from, const NodeID to) {
     TIMER_BARRIER(_graph->communicator());
     SCOPED_TIMER("Synchronize ghost node clusters");
 
@@ -620,13 +606,13 @@ private:
                   weight_delta_handle.find(old_gcluster + 1) == weight_delta_handle.end()) {
                 change_cluster_weight(old_gcluster, -weight, true);
               }
-              NonatomicClusterVectorRef::move_node(lnode, new_gcluster);
+              _clustering->at(lnode) = new_gcluster;
               if (!should_sync_cluster_weights() ||
                   weight_delta_handle.find(new_gcluster + 1) == weight_delta_handle.end()) {
                 change_cluster_weight(new_gcluster, weight, false);
               }
 
-              Base::activate_neighbors_of_ghost_node(lnode);
+              core.activate_neighbors_of_ghost_node(lnode);
             }
           });
         }
@@ -664,7 +650,7 @@ private:
           if (current != kInvalidNodeID &&
               current_weight + u_weight <= max_cluster_weight(u_cluster)) {
             change_cluster_weight(current_cluster, u_weight, true);
-            NonatomicClusterVectorRef::move_node(u, current_cluster);
+            _clustering->at(u) = current_cluster;
             current_weight += u_weight;
           } else {
             current = u;
@@ -686,9 +672,11 @@ private:
     return _ctx.coarsening.global_lp.enforce_cluster_weights;
   }
 
-  using Base::_graph;
   const Context &_ctx;
   const CoarseningContext &_c_ctx;
+  const Graph *_graph = nullptr;
+  GlobalLPWorkspace &_workspace;
+  GlobalLPOrderWorkspace &_order_workspace;
 
   NodeWeight _max_cluster_weight = std::numeric_limits<NodeWeight>::max();
   int _max_num_iterations = std::numeric_limits<int>::max();
@@ -703,9 +691,7 @@ private:
   using ClusterWeightsMap = typename growt::GlobalNodeIDMap<GlobalNodeWeight>;
   ClusterWeightsMap _cluster_weights{0};
   tbb::enumerable_thread_specific<typename ClusterWeightsMap::handle_type>
-      _cluster_weights_handles_ets{[&] {
-        return _cluster_weights.get_handle();
-      }};
+      _cluster_weights_handles_ets{[&] { return _cluster_weights.get_handle(); }};
 
   // Weights of local clusters (i.e., cluster ID is owned by this PE)
   StaticArray<GlobalNodeWeight> _local_cluster_weights;
@@ -718,13 +704,111 @@ private:
   tbb::enumerable_thread_specific<WeightDeltaMap::handle_type> _weight_delta_handles_ets{[this] {
     return _weight_deltas.get_handle();
   }};
+
+  NodeID _num_nodes = 0;
+  NodeID _num_active_nodes = 0;
+  NodeID _max_degree = std::numeric_limits<NodeID>::max();
+  NodeID _max_num_neighbors = std::numeric_limits<NodeID>::max();
+
+  StaticArray<GlobalNodeID> *_clustering = nullptr;
+
+  void init_clusters_ref(StaticArray<GlobalNodeID> &clustering) {
+    _clustering = &clustering;
+  }
+
+public:
+  void init_cluster(const NodeID node, const ClusterID cluster) {
+    KASSERT(_clustering != nullptr);
+    KASSERT(node < _clustering->size());
+    __atomic_store_n(&_clustering->at(node), cluster, __ATOMIC_RELAXED);
+  }
+
+  [[nodiscard]] ClusterID cluster(const NodeID node) const {
+    KASSERT(_clustering != nullptr);
+    KASSERT(node < _clustering->size());
+    return __atomic_load_n(&_clustering->at(node), __ATOMIC_RELAXED);
+  }
+
+private:
+  [[nodiscard]] lp::ActiveSetStrategy map_active_set_strategy() const {
+    switch (_c_ctx.global_lp.active_set_strategy) {
+    case ActiveSetStrategy::NONE:
+      return lp::ActiveSetStrategy::NONE;
+    case ActiveSetStrategy::LOCAL:
+      return lp::ActiveSetStrategy::LOCAL;
+    case ActiveSetStrategy::GLOBAL:
+      return lp::ActiveSetStrategy::GLOBAL;
+    }
+    __builtin_unreachable();
+  }
+
+  class GlobalLPNeighborPolicy {
+  public:
+    explicit GlobalLPNeighborPolicy(GlobalLPClusteringImpl &impl) : _impl(impl) {}
+
+    [[nodiscard]] bool accept(const NodeID u, const NodeID v) const {
+      return _impl.accept_neighbor(u, v);
+    }
+
+    [[nodiscard]] bool activate(const NodeID u) const {
+      return _impl.activate_neighbor(u);
+    }
+
+    [[nodiscard]] bool skip(const NodeID u) const {
+      return _impl.skip_node(u);
+    }
+
+  private:
+    GlobalLPClusteringImpl &_impl;
+  };
+
+  class GlobalLPSelector {
+  public:
+    explicit GlobalLPSelector(GlobalLPClusteringImpl &impl) : _impl(impl) {}
+
+    template <typename State, typename RatingMap>
+    [[nodiscard]] ClusterID select(
+        const bool,
+        const EdgeWeight gain_delta,
+        State &state,
+        RatingMap &map,
+        ScalableVector<ClusterID> &,
+        ScalableVector<ClusterID> &
+    ) {
+      ClusterID favored_cluster = state.initial_cluster;
+      for (const auto [cluster, rating] : map.entries()) {
+        state.current_cluster = cluster;
+        state.current_gain = rating - gain_delta;
+        state.current_cluster_weight = _impl.cluster_weight(cluster);
+
+        if (_impl.accept_cluster(state)) {
+          state.best_cluster = state.current_cluster;
+          state.best_cluster_weight = state.current_cluster_weight;
+          state.best_gain = state.current_gain;
+        }
+      }
+      return favored_cluster;
+    }
+
+  private:
+    GlobalLPClusteringImpl &_impl;
+  };
+
+  GlobalLPSelector _selector;
 };
 
 class GlobalLPClusteringImplWrapper {
 public:
   GlobalLPClusteringImplWrapper(const Context &ctx)
-      : _csr_impl(std::make_unique<GlobalLPClusteringImpl<DistributedCSRGraph>>(ctx)),
-        _compressed_impl(std::make_unique<GlobalLPClusteringImpl<DistributedCompressedGraph>>(ctx)
+      : _csr_impl(
+            std::make_unique<GlobalLPClusteringImpl<DistributedCSRGraph>>(
+                ctx, _workspace, _order_workspace
+            )
+        ),
+        _compressed_impl(
+            std::make_unique<GlobalLPClusteringImpl<DistributedCompressedGraph>>(
+                ctx, _workspace, _order_workspace
+            )
         ) {}
 
   void set_max_cluster_weight(const GlobalNodeWeight weight) {
@@ -734,9 +818,7 @@ public:
 
   void compute_clustering(StaticArray<GlobalNodeID> &clustering, const DistributedGraph &graph) {
     const auto compute_clustering = [&](auto &impl, const auto &graph) {
-      impl.setup(_memory_context);
       impl.compute_clustering(clustering, graph);
-      _memory_context = impl.release();
     };
 
     const NodeID num_nodes = graph.total_n();
@@ -757,7 +839,8 @@ public:
   }
 
 private:
-  GlobalLPClusteringMemoryContext _memory_context;
+  GlobalLPWorkspace _workspace;
+  GlobalLPOrderWorkspace _order_workspace;
   std::unique_ptr<GlobalLPClusteringImpl<DistributedCSRGraph>> _csr_impl;
   std::unique_ptr<GlobalLPClusteringImpl<DistributedCompressedGraph>> _compressed_impl;
 };
