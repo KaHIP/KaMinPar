@@ -121,19 +121,14 @@ public:
     initialize(graph);
     _order_workspace.clear_order();
 
-    lp::Options<NodeID, GlobalNodeID> options{
-        .max_degree = _max_degree,
-        .max_num_neighbors = _max_num_neighbors,
-        .desired_num_clusters = 0,
-        .rating_map_strategy = lp::RatingMapStrategy::SINGLE_PHASE,
-        .active_set_strategy = map_active_set_strategy(),
-        .tie_breaking_strategy = lp::TieBreakingStrategy::GEOMETRIC,
-        .track_cluster_count = false,
-        .use_two_hop_clustering = false,
-        .use_actual_gain = false,
+    lp::PassConfig<NodeID, GlobalNodeID> config{
+        .nodes = {.max_degree = _max_degree, .max_neighbors = _max_num_neighbors},
+        .rating = {.strategy = lp::RatingMapStrategy::SINGLE_PHASE},
+        .active_set = {.strategy = map_active_set_strategy()},
+        .selection = {.tie_breaking_strategy = lp::TieBreakingStrategy::GEOMETRIC},
     };
     GlobalLPNeighborPolicy neighbors(*this);
-    lp::LabelPropagationCore core(graph, *this, *this, _selector, neighbors, _workspace, options);
+    lp::LabelPropagationCore core(graph, *this, *this, _selector, neighbors, _workspace, config);
     core.initialize(
         {.num_nodes = _num_nodes,
          .num_active_nodes = _num_active_nodes,
@@ -331,14 +326,6 @@ public:
    * Moving nodes
    */
 
-  template <typename State> [[nodiscard]] bool accept_cluster(const State &state) {
-    return (state.current_gain > state.best_gain ||
-            (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
-           (state.current_cluster_weight + state.u_weight <=
-                max_cluster_weight(state.current_cluster) ||
-            state.current_cluster == state.initial_cluster);
-  }
-
   [[nodiscard]] inline bool activate_neighbor(const NodeID u) {
     return _graph->is_owned_node(u);
   }
@@ -368,7 +355,7 @@ private:
           _order_workspace,
           iteration::NodeRange<NodeID>{from, to},
           static_cast<EdgeID>(kMinChunkSize),
-          iteration::bucket_limit_for_max_degree(*_graph, core.options().max_degree)
+          iteration::bucket_limit_for_max_degree(*_graph, core.config().nodes.max_degree)
       );
       return lp::run_iteration(order, core).moved_nodes;
     };
@@ -767,28 +754,34 @@ private:
   public:
     explicit GlobalLPSelector(GlobalLPClusteringImpl &impl) : _impl(impl) {}
 
-    template <typename State, typename RatingMap>
-    [[nodiscard]] ClusterID select(
-        const bool,
-        const EdgeWeight gain_delta,
-        State &state,
+    template <::kaminpar::lp::TieBreakingStrategy TieBreaking, typename Context, typename RatingMap>
+    [[nodiscard]] KAMINPAR_LP_INLINE auto select(
+        const Context &context,
         RatingMap &map,
-        ScalableVector<ClusterID> &,
-        ScalableVector<ClusterID> &
+        ScalableVector<ClusterID> &tie_breaking_clusters,
+        ScalableVector<ClusterID> &tie_breaking_favored_clusters
     ) {
-      ClusterID favored_cluster = state.initial_cluster;
-      for (const auto [cluster, rating] : map.entries()) {
-        state.current_cluster = cluster;
-        state.current_gain = rating - gain_delta;
-        state.current_cluster_weight = _impl.cluster_weight(cluster);
+      return ::kaminpar::lp::choose_cluster<TieBreaking>(
+          context, map, *this, tie_breaking_clusters, tie_breaking_favored_clusters
+      );
+    }
 
-        if (_impl.accept_cluster(state)) {
-          state.best_cluster = state.current_cluster;
-          state.best_cluster_weight = state.current_cluster_weight;
-          state.best_gain = state.current_gain;
-        }
-      }
-      return favored_cluster;
+    [[nodiscard]] KAMINPAR_LP_INLINE ClusterWeight cluster_weight(const ClusterID cluster) {
+      return _impl.cluster_weight(cluster);
+    }
+
+    template <typename Context, typename Candidate, typename Choice>
+    [[nodiscard]] KAMINPAR_LP_INLINE bool
+    is_feasible(const Context &context, const Candidate &candidate, const Choice &) {
+      return candidate.weight + context.node_weight <=
+                 _impl.max_cluster_weight(candidate.cluster) ||
+             candidate.cluster == context.initial_cluster;
+    }
+
+    template <typename Context, typename Candidate, typename Choice>
+    [[nodiscard]] KAMINPAR_LP_INLINE ::kaminpar::lp::CandidateComparison
+    compare(const Context &, const Candidate &candidate, const Choice &choice) {
+      return ::kaminpar::lp::compare_by_gain(candidate.gain, choice.best_gain);
     }
 
   private:

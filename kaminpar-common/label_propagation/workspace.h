@@ -51,19 +51,19 @@ struct Workspace {
       const NodeID num_active_nodes,
       const ClusterID num_clusters,
       const ClusterID,
-      const Options<NodeID, ClusterID> &options
+      const PassConfig<NodeID, ClusterID> &config
   ) {
-    if (options.active_set_strategy == ActiveSetStrategy::LOCAL) {
+    if (config.active_set.strategy == ActiveSetStrategy::LOCAL) {
       if (active.size() < num_nodes) {
         active.resize(num_nodes);
       }
-    } else if (options.active_set_strategy == ActiveSetStrategy::GLOBAL) {
+    } else if (config.active_set.strategy == ActiveSetStrategy::GLOBAL) {
       if (active.size() < num_active_nodes) {
         active.resize(num_active_nodes);
       }
     }
 
-    if (options.use_two_hop_clustering) {
+    if (config.selection.track_favored_clusters) {
       if (favored_clusters.size() < num_active_nodes) {
         favored_clusters.resize(num_active_nodes);
       }

@@ -6,13 +6,11 @@ void reset_state() {
   tbb::parallel_invoke(
       [&] {
         tbb::parallel_for<NodeID>(0, _num_active_nodes, [&](const NodeID u) {
-          if (_options.active_set_strategy != ActiveSetStrategy::NONE) {
-            _workspace.active[u] = 1;
-          }
+          _active_set.initialize_node(u);
 
           const ClusterID initial_cluster = _labels.initial_cluster(u);
           _labels.init_cluster(u, initial_cluster);
-          if (_options.use_two_hop_clustering && u < _workspace.favored_clusters.size()) {
+          if (_config.selection.track_favored_clusters && u < _workspace.favored_clusters.size()) {
             _workspace.favored_clusters[u] = initial_cluster;
           }
           if (u < _workspace.moved.size()) {
@@ -69,7 +67,7 @@ template <bool kMatch> void handle_isolated_nodes(const NodeID from, const NodeI
 
 template <bool kMatch, bool kThreadwise>
 void handle_two_hop_nodes(const NodeID from, const NodeID to) {
-  KASSERT(_options.use_two_hop_clustering);
+  KASSERT(_config.selection.track_favored_clusters);
 
   if constexpr (kThreadwise) {
     handle_two_hop_nodes_threadwise_impl<kMatch>(from, to);

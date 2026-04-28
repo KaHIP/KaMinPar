@@ -140,39 +140,34 @@ class TestSelector {
 public:
   explicit TestSelector(TestWeights &weights) : _weights(weights) {}
 
-  template <typename State, typename RatingMap>
-  TestClusterID select(
-      const bool,
-      const TestEdgeWeight gain_delta,
-      State &state,
+  template <lp::TieBreakingStrategy TieBreaking, typename Context, typename RatingMap>
+  auto select(
+      const Context &context,
       RatingMap &map,
-      ScalableVector<TestClusterID> &,
-      ScalableVector<TestClusterID> &
+      ScalableVector<TestClusterID> &tie_breaking_clusters,
+      ScalableVector<TestClusterID> &tie_breaking_favored_clusters
   ) {
-    TestClusterID favored_cluster = state.initial_cluster;
-    TestEdgeWeight favored_gain = 0;
+    return lp::choose_cluster<TieBreaking>(
+        context, map, *this, tie_breaking_clusters, tie_breaking_favored_clusters
+    );
+  }
 
-    for (const auto [cluster, rating] : map.entries()) {
-      if (rating > favored_gain) {
-        favored_gain = rating;
-        favored_cluster = cluster;
-      }
+  [[nodiscard]] TestNodeWeight cluster_weight(const TestClusterID cluster) const {
+    return _weights.cluster_weight(cluster);
+  }
 
-      state.current_cluster = cluster;
-      state.current_gain = rating - gain_delta;
-      state.current_cluster_weight = _weights.cluster_weight(cluster);
+  template <typename Context, typename Candidate, typename Choice>
+  [[nodiscard]] bool
+  is_feasible(const Context &context, const Candidate &candidate, const Choice &) const {
+    return candidate.weight + context.node_weight <=
+               _weights.max_cluster_weight(candidate.cluster) ||
+           candidate.cluster == context.initial_cluster;
+  }
 
-      if (state.current_gain > state.best_gain &&
-          (state.current_cluster_weight + state.u_weight <=
-               _weights.max_cluster_weight(state.current_cluster) ||
-           state.current_cluster == state.initial_cluster)) {
-        state.best_cluster = state.current_cluster;
-        state.best_cluster_weight = state.current_cluster_weight;
-        state.best_gain = state.current_gain;
-      }
-    }
-
-    return favored_cluster;
+  template <typename Context, typename Candidate, typename Choice>
+  [[nodiscard]] lp::CandidateComparison
+  compare(const Context &, const Candidate &candidate, const Choice &choice) const {
+    return lp::compare_by_gain(candidate.gain, choice.best_gain);
   }
 
 private:
@@ -197,11 +192,11 @@ struct TestNeighborPolicy {
 };
 
 struct CoreFixture {
-  explicit CoreFixture(TestGraph graph, lp::Options<TestNodeID, TestClusterID> options = {})
+  explicit CoreFixture(TestGraph graph, lp::PassConfig<TestNodeID, TestClusterID> config = {})
       : graph(std::move(graph)),
         labels_array(this->graph.n()),
         selector(weights),
-        core(this->graph, labels, weights, selector, neighbors, workspace, options) {
+        core(this->graph, labels, weights, selector, neighbors, workspace, config) {
     labels.init(labels_array);
     weights.allocate(this->graph.n());
 
@@ -257,9 +252,9 @@ TEST(LabelPropagationCoreTest, manual_pass_moves_node_to_highest_rated_cluster) 
 }
 
 TEST(LabelPropagationCoreTest, neighbor_filter_and_max_neighbors_limit_rating_accumulation) {
-  lp::Options<TestNodeID, TestClusterID> options;
-  options.max_num_neighbors = 2;
-  CoreFixture fixture(weighted_star(), options);
+  lp::PassConfig<TestNodeID, TestClusterID> config;
+  config.nodes.max_neighbors = 2;
+  CoreFixture fixture(weighted_star(), config);
   fixture.neighbors.rejected_neighbor = 2;
 
   auto pass = fixture.core.begin_pass();
@@ -270,9 +265,9 @@ TEST(LabelPropagationCoreTest, neighbor_filter_and_max_neighbors_limit_rating_ac
 }
 
 TEST(LabelPropagationCoreTest, inactive_nodes_are_skipped) {
-  lp::Options<TestNodeID, TestClusterID> options;
-  options.active_set_strategy = lp::ActiveSetStrategy::GLOBAL;
-  CoreFixture fixture(weighted_star(), options);
+  lp::PassConfig<TestNodeID, TestClusterID> config;
+  config.active_set.strategy = lp::ActiveSetStrategy::GLOBAL;
+  CoreFixture fixture(weighted_star(), config);
   fixture.workspace.active[0] = 0;
 
   auto pass = fixture.core.begin_pass();
@@ -297,9 +292,9 @@ TEST(LabelPropagationCoreTest, isolated_node_clustering_reuses_core_postprocessi
 }
 
 TEST(LabelPropagationCoreTest, two_hop_clustering_uses_favored_clusters) {
-  lp::Options<TestNodeID, TestClusterID> options;
-  options.use_two_hop_clustering = true;
-  CoreFixture fixture(TestGraph{{{{2, 1}}, {{2, 1}}, {}}, {1, 1, 1}}, options);
+  lp::PassConfig<TestNodeID, TestClusterID> config;
+  config.selection.track_favored_clusters = true;
+  CoreFixture fixture(TestGraph{{{{2, 1}}, {{2, 1}}, {}}, {1, 1, 1}}, config);
   fixture.weights.set_max_cluster_weight(3);
   fixture.workspace.favored_clusters[0] = 2;
   fixture.workspace.favored_clusters[1] = 2;
