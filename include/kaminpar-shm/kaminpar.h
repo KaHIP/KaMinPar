@@ -210,6 +210,7 @@ enum class RefinementAlgorithm {
   OVERLOAD_BALANCER,
   UNDERLOAD_BALANCER,
   LABEL_PROPAGATION,
+  UNCONSTRAINED_LABEL_PROPAGATION,
   KWAY_FM,
   UNCONSTRAINED_FM,
   TWOWAY_FLOW,
@@ -226,6 +227,8 @@ struct LabelPropagationRefinementContext {
 
   LabelPropagationImplementation impl;
   TieBreakingStrategy tie_breaking_strategy;
+
+  double unconstrained_min_improvement_factor;
 };
 
 enum class GainCacheStrategy {
@@ -633,6 +636,7 @@ Context create_context_by_preset_name(const std::string &name);
 Context create_default_context();
 Context create_fast_context();
 Context create_eco_context();
+Context create_eco_test_context();
 Context create_strong_context();
 
 Context create_terapart_context();

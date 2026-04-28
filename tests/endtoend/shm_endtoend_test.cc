@@ -229,6 +229,44 @@ TEST(ShmEndToEndTest, partitions_unweighted_walshaw_data_graph_with_unconstraine
   }
 }
 
+TEST(ShmEndToEndTest, partitions_unweighted_walshaw_data_graph_with_eco_test_preset) {
+  auto &xadj = data::xadj;
+  auto &adjncy = data::adjncy;
+  const NodeID n = xadj.size() - 1;
+  constexpr BlockID k = 16;
+
+  Context ctx = create_eco_test_context();
+  ctx.refinement.kway_fm.num_iterations = 2;
+
+  std::vector<BlockID> partition(n);
+  KaMinPar::reseed(0);
+  KaMinPar shm(4, ctx);
+  shm.set_output_level(OutputLevel::QUIET);
+  shm.copy_graph(xadj, adjncy);
+  shm.set_k(k);
+  shm.set_uniform_max_block_weights(0.03);
+
+  const EdgeWeight reported_cut = shm.compute_partition(partition);
+
+  EdgeWeight expected_cut = 0;
+  std::vector<BlockWeight> block_weights(k);
+  for (NodeID u = 0; u < n; ++u) {
+    ASSERT_LT(partition[u], k);
+    ++block_weights[partition[u]];
+
+    for (EdgeID e = xadj[u]; e < xadj[u + 1]; ++e) {
+      if (partition[u] != partition[adjncy[e]]) {
+        ++expected_cut;
+      }
+    }
+  }
+
+  EXPECT_EQ(reported_cut, expected_cut / 2);
+  for (BlockID b = 0; b < k; ++b) {
+    EXPECT_LE(block_weights[b], shm.context().partition.max_block_weight(b));
+  }
+}
+
 TEST(ShmEndToEndTest, partitions_unweighted_walshaw_graph_multiple_times_with_same_seed) {
   auto &xadj = data::xadj;
   auto &adjncy = data::adjncy;

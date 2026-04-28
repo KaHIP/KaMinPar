@@ -23,6 +23,8 @@ Context create_context_by_preset_name(const std::string &name) {
     return create_fast_context();
   } else if (name == "eco" || name == "fm") {
     return create_eco_context();
+  } else if (name == "eco_test") {
+    return create_eco_test_context();
   } else if (name == "strong" || name == "flow") {
     return create_strong_context();
   }
@@ -83,6 +85,7 @@ std::unordered_set<std::string> get_preset_names() {
       "default",
       "fast",
       "eco",
+      "eco_test",
       "strong",
       "largek",
       "terapart",
@@ -344,6 +347,7 @@ Context create_default_context() {
                       .max_num_neighbors = std::numeric_limits<NodeID>::max(),
                       .impl = LabelPropagationImplementation::SINGLE_PHASE,
                       .tie_breaking_strategy = TieBreakingStrategy::UNIFORM,
+                      .unconstrained_min_improvement_factor = 0.001,
                   },
               .kway_fm =
                   {
@@ -468,6 +472,24 @@ Context create_eco_context() {
       RefinementAlgorithm::KWAY_FM,
       RefinementAlgorithm::OVERLOAD_BALANCER
   };
+
+  return ctx;
+}
+
+Context create_eco_test_context() {
+  Context ctx = create_eco_context();
+
+  ctx.refinement.algorithms = {
+      RefinementAlgorithm::OVERLOAD_BALANCER,
+      RefinementAlgorithm::UNCONSTRAINED_LABEL_PROPAGATION,
+      RefinementAlgorithm::UNCONSTRAINED_FM,
+      RefinementAlgorithm::OVERLOAD_BALANCER
+  };
+
+  ctx.refinement.lp.num_iterations = 5;
+  ctx.refinement.lp.unconstrained_min_improvement_factor = 0.001;
+  ctx.refinement.kway_fm.num_iterations = 10;
+  ctx.refinement.kway_fm.abortion_threshold = 0.998;
 
   return ctx;
 }

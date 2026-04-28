@@ -367,6 +367,8 @@ std::unordered_map<std::string, RefinementAlgorithm> get_refinement_algorithms()
       {"overload-balancer", RefinementAlgorithm::OVERLOAD_BALANCER},
       {"underload-balancer", RefinementAlgorithm::UNDERLOAD_BALANCER},
       {"lp", RefinementAlgorithm::LABEL_PROPAGATION},
+      {"unconstrained-lp", RefinementAlgorithm::UNCONSTRAINED_LABEL_PROPAGATION},
+      {"ulp", RefinementAlgorithm::UNCONSTRAINED_LABEL_PROPAGATION},
       {"fm", RefinementAlgorithm::KWAY_FM},
       {"unconstrained-fm", RefinementAlgorithm::UNCONSTRAINED_FM},
       {"ufm", RefinementAlgorithm::UNCONSTRAINED_FM},
@@ -386,6 +388,8 @@ std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm)
     return out << "underload-balancer";
   case RefinementAlgorithm::LABEL_PROPAGATION:
     return out << "lp";
+  case RefinementAlgorithm::UNCONSTRAINED_LABEL_PROPAGATION:
+    return out << "unconstrained-lp";
   case RefinementAlgorithm::KWAY_FM:
     return out << "fm";
   case RefinementAlgorithm::UNCONSTRAINED_FM:
@@ -731,9 +735,14 @@ std::ostream &operator<<(std::ostream &out, const InitialPartitioningContext &i_
 std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
   out << "Refinement algorithms:        [" << str::implode(r_ctx.algorithms, " -> ") << "]\n";
 
-  if (r_ctx.includes_algorithm(RefinementAlgorithm::LABEL_PROPAGATION)) {
+  if (r_ctx.includes_algorithm(RefinementAlgorithm::LABEL_PROPAGATION) ||
+      r_ctx.includes_algorithm(RefinementAlgorithm::UNCONSTRAINED_LABEL_PROPAGATION)) {
     out << "Label propagation:\n";
     out << "  Number of iterations:       " << r_ctx.lp.num_iterations << "\n";
+    if (r_ctx.includes_algorithm(RefinementAlgorithm::UNCONSTRAINED_LABEL_PROPAGATION)) {
+      out << "  Unconstrained min gain:     "
+          << 100.0 * r_ctx.lp.unconstrained_min_improvement_factor << "%\n";
+    }
     out << "  Tie breaking strategy:      " << r_ctx.lp.tie_breaking_strategy << "\n";
     out << "  Implementation:             " << r_ctx.lp.impl << "\n";
   }

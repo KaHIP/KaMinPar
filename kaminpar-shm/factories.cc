@@ -108,6 +108,9 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
   case RefinementAlgorithm::LABEL_PROPAGATION:
     return std::make_unique<LabelPropagationRefiner>(ctx);
 
+  case RefinementAlgorithm::UNCONSTRAINED_LABEL_PROPAGATION:
+    return std::make_unique<UnconstrainedLabelPropagationRefiner>(ctx);
+
   case RefinementAlgorithm::KWAY_FM:
     return std::make_unique<FMRefiner>(ctx);
 
