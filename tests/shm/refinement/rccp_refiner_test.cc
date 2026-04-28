@@ -40,6 +40,47 @@ TEST(RccpRefinerTest, FindsRepairCertifiedSingletonRotation) {
   EXPECT_EQ(metrics::edge_cut(p_graph), 0);
 }
 
+TEST(RccpRefinerTest, FindsTransitSingletonRepairThroughNonOverloadedBlock) {
+  EdgeBasedGraphBuilder builder;
+  builder.add_edge(0, 3, 10);
+  builder.add_edge(3, 4, 11);
+  builder.add_edge(5, 6, 4);
+  builder.add_edge(5, 4, 5);
+  builder.add_edge(7, 1, 1);
+  builder.add_edge(7, 8, 2);
+  builder.add_edge(6, 8, 5);
+  builder.add_edge(1, 2, 2);
+  const Graph graph = builder.build();
+
+  PartitionedGraph p_graph = make_p_graph(graph, 3, {0, 0, 0, 1, 1, 1, 2, 2, 2});
+
+  Context ctx = create_default_context();
+  ctx.partition.setup(graph, 3, 0.0, false);
+  ctx.refinement.rccp.num_iterations = 1;
+  ctx.refinement.rccp.run_baseline_first = false;
+  ctx.refinement.rccp.enable_fm_closure = false;
+  ctx.refinement.rccp.enable_mincut_packets = false;
+  ctx.refinement.rccp.max_negative_gain = 0;
+  ctx.refinement.rccp.repair_max_negative_gain = 16;
+  ctx.refinement.rccp.max_repair_moved_weight_fraction = 1.0;
+  ctx.refinement.rccp.max_total_packets = 32;
+  ctx.refinement.rccp.master_depth = 4;
+  ctx.refinement.rccp.master_beam_width = 64;
+  ctx.refinement.rccp.master_branching_factor = 16;
+  ctx.refinement.rccp.primary_scenarios = 8;
+  ctx.refinement.rccp.candidate_prefilter = 8;
+  ctx.refinement.rccp.repair_scenarios = 8;
+
+  EXPECT_EQ(metrics::edge_cut(p_graph), 15);
+
+  RccpRefiner refiner(ctx);
+  refiner.initialize(p_graph);
+  EXPECT_TRUE(refiner.refine(p_graph, ctx.partition));
+
+  EXPECT_TRUE(metrics::is_feasible(p_graph, ctx.partition));
+  EXPECT_EQ(metrics::edge_cut(p_graph), 7);
+}
+
 TEST(RccpRefinerTest, DoesNotApplyNonimprovingSwaps) {
   EdgeBasedGraphBuilder builder;
   builder.add_edge(0, 1, 1);

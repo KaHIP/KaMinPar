@@ -443,12 +443,20 @@ private:
     std::vector<Packet> packets;
     packets.reserve(_r_ctx.max_total_packets);
 
+    const std::vector<std::uint8_t> repair_sources =
+        mode == PacketGenerationMode::REPAIR ? find_repair_source_blocks(p_graph, graph, p_ctx)
+                                             : std::vector<std::uint8_t>{};
+
     if (_r_ctx.enable_singleton_packets) {
-      generate_singleton_packets(p_graph, graph, p_ctx, mode, forbidden_vertices, packets);
+      generate_singleton_packets(
+          p_graph, graph, p_ctx, mode, forbidden_vertices, repair_sources, packets
+      );
     }
 
     if (_r_ctx.enable_mincut_packets) {
-      generate_mincut_packets(p_graph, graph, p_ctx, mode, forbidden_vertices, packets);
+      generate_mincut_packets(
+          p_graph, graph, p_ctx, mode, forbidden_vertices, repair_sources, packets
+      );
     }
 
     deduplicate_packets(packets);
@@ -464,6 +472,7 @@ private:
       const PartitionContext &p_ctx,
       const PacketGenerationMode mode,
       const std::vector<std::uint8_t> &forbidden_vertices,
+      const std::vector<std::uint8_t> &repair_sources,
       std::vector<Packet> &packets
   ) const {
     const BlockWeight max_weight = max_packet_weight(p_ctx);
@@ -479,8 +488,7 @@ private:
         continue;
       }
 
-      if (mode == PacketGenerationMode::REPAIR &&
-          p_graph.block_weight(source) <= p_ctx.max_block_weight(source)) {
+      if (mode == PacketGenerationMode::REPAIR && !repair_sources[source]) {
         continue;
       }
 
@@ -541,9 +549,11 @@ private:
       const PartitionContext &p_ctx,
       const PacketGenerationMode mode,
       const std::vector<std::uint8_t> &forbidden_vertices,
+      const std::vector<std::uint8_t> &repair_sources,
       std::vector<Packet> &packets
   ) {
-    std::vector<ActivePair> active_pairs = find_active_pairs(p_graph, graph, p_ctx, mode);
+    std::vector<ActivePair> active_pairs =
+        find_active_pairs(p_graph, graph, mode, repair_sources);
     std::sort(active_pairs.begin(), active_pairs.end(), [](const auto &lhs, const auto &rhs) {
       return lhs.cut_weight > rhs.cut_weight;
     });
@@ -612,8 +622,8 @@ private:
   [[nodiscard]] std::vector<ActivePair> find_active_pairs(
       const PartitionedGraph &p_graph,
       const Graph &graph,
-      const PartitionContext &p_ctx,
-      const PacketGenerationMode mode
+      const PacketGenerationMode mode,
+      const std::vector<std::uint8_t> &repair_sources
   ) const {
     std::unordered_map<std::uint64_t, ActivePair> active_pair_map;
 
@@ -624,8 +634,7 @@ private:
         if (source == target) {
           return;
         }
-        if (mode == PacketGenerationMode::REPAIR &&
-            p_graph.block_weight(source) <= p_ctx.max_block_weight(source)) {
+        if (mode == PacketGenerationMode::REPAIR && !repair_sources[source]) {
           return;
         }
 
@@ -648,6 +657,85 @@ private:
     }
 
     return active_pairs;
+  }
+
+  [[nodiscard]] std::vector<std::uint8_t> find_repair_source_blocks(
+      const PartitionedGraph &p_graph, const Graph &graph, const PartitionContext &p_ctx
+  ) const {
+    std::vector<std::vector<BlockID>> outgoing(p_graph.k());
+    std::vector<std::vector<BlockID>> incoming(p_graph.k());
+
+    for (const NodeID u : graph.nodes()) {
+      const BlockID source = p_graph.block(u);
+      graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight) {
+        const BlockID target = p_graph.block(v);
+        if (source == target) {
+          return;
+        }
+
+        outgoing[source].push_back(target);
+        incoming[target].push_back(source);
+      });
+    }
+
+    for (BlockID block = 0; block < p_graph.k(); ++block) {
+      std::sort(outgoing[block].begin(), outgoing[block].end());
+      outgoing[block].erase(
+          std::unique(outgoing[block].begin(), outgoing[block].end()), outgoing[block].end()
+      );
+      std::sort(incoming[block].begin(), incoming[block].end());
+      incoming[block].erase(
+          std::unique(incoming[block].begin(), incoming[block].end()), incoming[block].end()
+      );
+    }
+
+    std::vector<std::uint8_t> from_overloaded(p_graph.k(), 0);
+    std::queue<BlockID> queue;
+    for (const BlockID block : p_graph.blocks()) {
+      if (p_graph.block_weight(block) > p_ctx.max_block_weight(block)) {
+        from_overloaded[block] = 1;
+        queue.push(block);
+      }
+    }
+
+    while (!queue.empty()) {
+      const BlockID block = queue.front();
+      queue.pop();
+
+      for (const BlockID target : outgoing[block]) {
+        if (!from_overloaded[target]) {
+          from_overloaded[target] = 1;
+          queue.push(target);
+        }
+      }
+    }
+
+    std::vector<std::uint8_t> reaches_slack(p_graph.k(), 0);
+    for (const BlockID block : p_graph.blocks()) {
+      if (p_graph.block_weight(block) < p_ctx.max_block_weight(block)) {
+        reaches_slack[block] = 1;
+        queue.push(block);
+      }
+    }
+
+    while (!queue.empty()) {
+      const BlockID block = queue.front();
+      queue.pop();
+
+      for (const BlockID source : incoming[block]) {
+        if (!reaches_slack[source]) {
+          reaches_slack[source] = 1;
+          queue.push(source);
+        }
+      }
+    }
+
+    std::vector<std::uint8_t> repair_sources(p_graph.k(), 0);
+    for (const BlockID block : p_graph.blocks()) {
+      repair_sources[block] = from_overloaded[block] && reaches_slack[block];
+    }
+
+    return repair_sources;
   }
 
   [[nodiscard]] std::vector<NodeID> build_source_region(
