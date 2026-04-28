@@ -404,14 +404,23 @@ public:
 
     class Local {
     public:
-      Local(LabelPropagationCore &core, PassStats &stats) : _core(core), _stats(stats) {}
+      Local(LabelPropagationCore &core, PassStats &stats)
+          : _core(core),
+            _stats(stats),
+            _rand(Random::instance()),
+            _tie_breaking_clusters(core._workspace.tie_breaking_clusters_ets.local()),
+            _tie_breaking_favored_clusters(
+                core._workspace.tie_breaking_favored_clusters_ets.local()
+            ) {}
 
       [[nodiscard]] bool should_consider(const NodeID u) const {
         return _core.should_consider(u);
       }
 
       [[nodiscard]] BestMove find_best_move(const NodeID u) {
-        return _core.find_best_move(u, Random::instance());
+        return _core.find_best_move(
+            u, _rand, rating_map(), _tie_breaking_clusters, _tie_breaking_favored_clusters
+        );
       }
 
       std::pair<bool, bool> try_commit_move(const BestMove &move) {
@@ -419,6 +428,22 @@ public:
       }
 
       void handle_next_node(const NodeID u) {
+        switch (_core._options.rating_map_strategy) {
+        case RatingMapStrategy::GROWING_HASH_TABLES:
+          handle_next_node<RatingMapStrategy::GROWING_HASH_TABLES>(u);
+          break;
+
+        case RatingMapStrategy::SINGLE_PHASE:
+          handle_next_node<RatingMapStrategy::SINGLE_PHASE>(u);
+          break;
+
+        case RatingMapStrategy::TWO_PHASE:
+          handle_next_node<RatingMapStrategy::TWO_PHASE>(u);
+          break;
+        }
+      }
+
+      template <RatingMapStrategy Strategy> void handle_next_node(const NodeID u) {
         _current_node = u;
         if (!should_consider(u)) {
           return;
@@ -426,60 +451,44 @@ public:
 
         ++_stats.processed_nodes;
 
-        switch (_core._options.rating_map_strategy) {
-        case RatingMapStrategy::GROWING_HASH_TABLES:
-          handle_node_with_map(_core._workspace.growing_rating_map_ets.local());
-          break;
-
-        case RatingMapStrategy::SINGLE_PHASE:
-          handle_node_with_map(_core._workspace.rating_map_ets.local());
-          break;
-
-        case RatingMapStrategy::TWO_PHASE:
+        if constexpr (Strategy == RatingMapStrategy::GROWING_HASH_TABLES) {
+          handle_node_with_map(growing_rating_map());
+        } else if constexpr (Strategy == RatingMapStrategy::SINGLE_PHASE) {
+          handle_node_with_map(rating_map());
+        } else if constexpr (Strategy == RatingMapStrategy::TWO_PHASE) {
           handle_first_phase_node();
-          break;
         }
       }
 
     private:
       template <typename LocalRatingMap> void handle_node_with_map(LocalRatingMap &rating_map) {
-        auto &rand = Random::instance();
-        auto &tie_breaking_clusters = _core._workspace.tie_breaking_clusters_ets.local();
-        auto &tie_breaking_favored_clusters =
-            _core._workspace.tie_breaking_favored_clusters_ets.local();
-
         const BestMove move = _core.find_best_move(
-            _current_node, rand, rating_map, tie_breaking_clusters, tie_breaking_favored_clusters
+            _current_node, _rand, rating_map, _tie_breaking_clusters, _tie_breaking_favored_clusters
         );
         _core.try_commit_move(move, _stats);
       }
 
       void handle_first_phase_node() {
-        auto &rand = Random::instance();
-        auto &rating_map = _core._workspace.rating_map_ets.local();
-        auto &tie_breaking_clusters = _core._workspace.tie_breaking_clusters_ets.local();
-        auto &tie_breaking_favored_clusters =
-            _core._workspace.tie_breaking_favored_clusters_ets.local();
-
         if constexpr (Workspace::kSupportsTwoPhase) {
           const NodeID u = _current_node;
           const NodeWeight u_weight = _core._graph.node_weight(u);
           const ClusterID u_cluster = _core._labels.cluster(u);
+          auto &map = rating_map();
           const std::size_t upper_bound_size = std::min<std::size_t>(
               {_core._graph.degree(u),
                _core._initial_num_clusters,
                _core._options.rating_map_threshold}
           );
 
-          const auto maybe_move = rating_map.execute(upper_bound_size, [&](auto &actual_map) {
+          const auto maybe_move = map.execute(upper_bound_size, [&](auto &actual_map) {
             return _core.find_best_move_first_phase(
                 u,
                 u_weight,
                 u_cluster,
-                rand,
+                _rand,
                 actual_map,
-                tie_breaking_clusters,
-                tie_breaking_favored_clusters
+                _tie_breaking_clusters,
+                _tie_breaking_favored_clusters
             );
           });
 
@@ -491,10 +500,29 @@ public:
         }
       }
 
+      RatingMap &rating_map() {
+        if (_rating_map == nullptr) {
+          _rating_map = &_core._workspace.rating_map_ets.local();
+        }
+        return *_rating_map;
+      }
+
+      GrowingRatingMap &growing_rating_map() {
+        if (_growing_rating_map == nullptr) {
+          _growing_rating_map = &_core._workspace.growing_rating_map_ets.local();
+        }
+        return *_growing_rating_map;
+      }
+
       friend class Pass;
 
       LabelPropagationCore &_core;
       PassStats &_stats;
+      Random &_rand;
+      ScalableVector<ClusterID> &_tie_breaking_clusters;
+      ScalableVector<ClusterID> &_tie_breaking_favored_clusters;
+      RatingMap *_rating_map = nullptr;
+      GrowingRatingMap *_growing_rating_map = nullptr;
       NodeID _current_node = 0;
     };
 
@@ -504,7 +532,6 @@ public:
 
     void handle_next_node(const NodeID u) {
       auto local_pass = local();
-      local_pass._current_node = u;
       local_pass.handle_next_node(u);
     }
 
@@ -1349,13 +1376,53 @@ private:
   bool _relabeled = false;
 };
 
+template <RatingMapStrategy Strategy, typename Order, typename Core, typename Pass>
+void run_iteration_with_strategy(Order &order, Core &lp, Pass &pass) {
+  auto make_local = [&] {
+    return pass.local();
+  };
+  auto handle_node = [](auto &local, const auto node) {
+    local.template handle_next_node<Strategy>(node);
+  };
+  auto should_skip = [&] {
+    return lp.should_stop();
+  };
+
+  if constexpr (requires {
+                  order.parallel_for_each_with_local(make_local, handle_node, should_skip);
+                }) {
+    order.parallel_for_each_with_local(make_local, handle_node, should_skip);
+  } else if constexpr (requires { order.parallel_for_each_with_local(make_local, handle_node); }) {
+    order.parallel_for_each_with_local(make_local, handle_node);
+  } else {
+    order.parallel_for_each([&](const auto node) {
+      if (lp.should_stop()) {
+        return;
+      }
+      auto local = pass.local();
+      local.template handle_next_node<Strategy>(node);
+    });
+  }
+}
+
 template <typename Order, typename Core>
 typename Core::Result run_iteration(Order &order, Core &lp) {
   auto pass = lp.begin_pass();
-  order.parallel_for_each([&](const auto node) {
-    auto local = pass.local();
-    local.handle_next_node(node);
-  });
+
+  switch (lp.options().rating_map_strategy) {
+  case RatingMapStrategy::GROWING_HASH_TABLES:
+    run_iteration_with_strategy<RatingMapStrategy::GROWING_HASH_TABLES>(order, lp, pass);
+    break;
+
+  case RatingMapStrategy::SINGLE_PHASE:
+    run_iteration_with_strategy<RatingMapStrategy::SINGLE_PHASE>(order, lp, pass);
+    break;
+
+  case RatingMapStrategy::TWO_PHASE:
+    run_iteration_with_strategy<RatingMapStrategy::TWO_PHASE>(order, lp, pass);
+    break;
+  }
+
   return pass.finish();
 }
 

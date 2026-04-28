@@ -164,7 +164,8 @@ private:
           *_graph,
           _order_workspace,
           iteration::NodeRange<NodeID>{from, to},
-          static_cast<EdgeID>(kMinChunkSize)
+          static_cast<EdgeID>(kMinChunkSize),
+          iteration::bucket_limit_for_max_degree(*_graph, core.options().max_degree)
       );
       return ::kaminpar::lp::run_iteration(order, core).moved_nodes;
     };

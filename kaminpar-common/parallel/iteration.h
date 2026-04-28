@@ -9,6 +9,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstddef>
+#include <limits>
 #include <numeric>
 #include <vector>
 
@@ -17,6 +18,7 @@
 #include <tbb/task_arena.h>
 
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/math.h"
 #include "kaminpar-common/parallel/atomic.h"
 #include "kaminpar-common/random.h"
 
@@ -37,6 +39,17 @@ struct Bucket {
   std::size_t end;
 };
 
+template <typename Graph, typename Degree>
+[[nodiscard]] std::size_t bucket_limit_for_max_degree(const Graph &graph, const Degree max_degree) {
+  if (max_degree == std::numeric_limits<Degree>::max()) {
+    return graph.number_of_buckets();
+  }
+  if (max_degree == 0) {
+    return 0;
+  }
+  return std::min<std::size_t>(math::floor_log2(max_degree), graph.number_of_buckets());
+}
+
 template <typename NodeID> class NaturalNodeOrder {
 public:
   explicit NaturalNodeOrder(const NodeRange<NodeID> range) : _range(range) {}
@@ -55,6 +68,32 @@ public:
     tbb::parallel_for(tbb::blocked_range<NodeID>(_range.from, _range.to), [&](const auto &r) {
       for (NodeID u = r.begin(); u != r.end(); ++u) {
         visitor(u);
+      }
+    });
+  }
+
+  template <typename LocalFactory, typename Visitor>
+  void parallel_for_each_with_local(LocalFactory &&local_factory, Visitor &&visitor) {
+    tbb::parallel_for(tbb::blocked_range<NodeID>(_range.from, _range.to), [&](const auto &r) {
+      auto local = local_factory();
+      for (NodeID u = r.begin(); u != r.end(); ++u) {
+        visitor(local, u);
+      }
+    });
+  }
+
+  template <typename LocalFactory, typename Visitor, typename ShouldSkip>
+  void parallel_for_each_with_local(
+      LocalFactory &&local_factory, Visitor &&visitor, ShouldSkip &&should_skip
+  ) {
+    tbb::parallel_for(tbb::blocked_range<NodeID>(_range.from, _range.to), [&](const auto &r) {
+      if (should_skip()) {
+        return;
+      }
+
+      auto local = local_factory();
+      for (NodeID u = r.begin(); u != r.end(); ++u) {
+        visitor(local, u);
       }
     });
   }
@@ -92,16 +131,20 @@ public:
     return _buckets;
   }
 
-  [[nodiscard]] bool
-  has_order_for(const NodeRange<NodeID> range, const std::size_t min_chunk_size) const {
+  [[nodiscard]] bool has_order_for(
+      const NodeRange<NodeID> range, const std::size_t min_chunk_size, const std::size_t max_bucket
+  ) const {
     return _has_order && _range.from == range.from && _range.to == range.to &&
-           _min_chunk_size == min_chunk_size;
+           _min_chunk_size == min_chunk_size && _max_bucket == max_bucket;
   }
 
-  void mark_order(const NodeRange<NodeID> range, const std::size_t min_chunk_size) {
+  void mark_order(
+      const NodeRange<NodeID> range, const std::size_t min_chunk_size, const std::size_t max_bucket
+  ) {
     _has_order = true;
     _range = range;
     _min_chunk_size = min_chunk_size;
+    _max_bucket = max_bucket;
   }
 
   void clear_order() {
@@ -130,6 +173,7 @@ private:
   bool _has_order = false;
   NodeRange<NodeID> _range{};
   std::size_t _min_chunk_size = 0;
+  std::size_t _max_bucket = 0;
 };
 
 template <
@@ -143,12 +187,14 @@ public:
       const Graph &graph,
       Workspace &workspace,
       const NodeRange<NodeID> range,
-      const EdgeID min_chunk_size
+      const EdgeID min_chunk_size,
+      const std::size_t max_bucket = std::numeric_limits<std::size_t>::max()
   )
       : _graph(graph),
         _workspace(workspace),
         _range(range),
-        _min_chunk_size(min_chunk_size) {}
+        _min_chunk_size(min_chunk_size),
+        _max_bucket(max_bucket) {}
 
   [[nodiscard]] NodeRange<NodeID> range() const {
     return _range;
@@ -223,9 +269,97 @@ public:
     });
   }
 
+  template <typename LocalFactory, typename Visitor>
+  void parallel_for_each_with_local(LocalFactory &&local_factory, Visitor &&visitor) {
+    ensure_initialized();
+    shuffle_chunks();
+
+    parallel::Atomic<std::size_t> next_chunk = 0;
+    auto &chunks = _workspace.chunks();
+    auto &node_permutations = _workspace.node_permutations();
+    auto &sub_chunk_permutations = _workspace.sub_chunk_permutations();
+
+    tbb::parallel_for(static_cast<std::size_t>(0), chunks.size(), [&](const std::size_t) {
+      auto local = local_factory();
+      auto &rand = Random::instance();
+      const auto chunk_id = next_chunk.fetch_add(1, std::memory_order_relaxed);
+      const auto &chunk = chunks[chunk_id];
+      const auto &permutation = node_permutations.get(rand);
+
+      const std::size_t num_sub_chunks =
+          std::ceil(1.0 * (chunk.end - chunk.start) / permutation.size());
+
+      auto &sub_chunk_permutation = sub_chunk_permutations.local();
+      if (sub_chunk_permutation.size() < num_sub_chunks) {
+        sub_chunk_permutation.resize(num_sub_chunks);
+      }
+
+      std::iota(sub_chunk_permutation.begin(), sub_chunk_permutation.begin() + num_sub_chunks, 0);
+      rand.shuffle(sub_chunk_permutation.begin(), sub_chunk_permutation.begin() + num_sub_chunks);
+
+      for (std::size_t sub_chunk = 0; sub_chunk < num_sub_chunks; ++sub_chunk) {
+        for (std::size_t i = 0; i < permutation.size(); ++i) {
+          const NodeID u = chunk.start + permutation.size() * sub_chunk_permutation[sub_chunk] +
+                           permutation[i % permutation.size()];
+          if (u < chunk.end) {
+            visitor(local, u);
+          }
+        }
+      }
+    });
+  }
+
+  template <typename LocalFactory, typename Visitor, typename ShouldSkip>
+  void parallel_for_each_with_local(
+      LocalFactory &&local_factory, Visitor &&visitor, ShouldSkip &&should_skip
+  ) {
+    ensure_initialized();
+    shuffle_chunks();
+
+    parallel::Atomic<std::size_t> next_chunk = 0;
+    auto &chunks = _workspace.chunks();
+    auto &node_permutations = _workspace.node_permutations();
+    auto &sub_chunk_permutations = _workspace.sub_chunk_permutations();
+
+    tbb::parallel_for(static_cast<std::size_t>(0), chunks.size(), [&](const std::size_t) {
+      if (should_skip()) {
+        return;
+      }
+
+      auto local = local_factory();
+      auto &rand = Random::instance();
+      const auto chunk_id = next_chunk.fetch_add(1, std::memory_order_relaxed);
+      const auto &chunk = chunks[chunk_id];
+      const auto &permutation = node_permutations.get(rand);
+
+      const std::size_t num_sub_chunks =
+          std::ceil(1.0 * (chunk.end - chunk.start) / permutation.size());
+
+      auto &sub_chunk_permutation = sub_chunk_permutations.local();
+      if (sub_chunk_permutation.size() < num_sub_chunks) {
+        sub_chunk_permutation.resize(num_sub_chunks);
+      }
+
+      std::iota(sub_chunk_permutation.begin(), sub_chunk_permutation.begin() + num_sub_chunks, 0);
+      rand.shuffle(sub_chunk_permutation.begin(), sub_chunk_permutation.begin() + num_sub_chunks);
+
+      for (std::size_t sub_chunk = 0; sub_chunk < num_sub_chunks; ++sub_chunk) {
+        for (std::size_t i = 0; i < permutation.size(); ++i) {
+          const NodeID u = chunk.start + permutation.size() * sub_chunk_permutation[sub_chunk] +
+                           permutation[i % permutation.size()];
+          if (u < chunk.end) {
+            visitor(local, u);
+          }
+        }
+      }
+    });
+  }
+
 private:
   void ensure_initialized() {
-    if (!_workspace.has_order_for(_range, static_cast<std::size_t>(_min_chunk_size))) {
+    if (!_workspace.has_order_for(
+            _range, static_cast<std::size_t>(_min_chunk_size), capped_max_bucket()
+        )) {
       init_chunks();
     }
   }
@@ -247,7 +381,7 @@ private:
 
     chunks.clear();
     buckets.clear();
-    _workspace.mark_order(_range, static_cast<std::size_t>(_min_chunk_size));
+    _workspace.mark_order(_range, static_cast<std::size_t>(_min_chunk_size), capped_max_bucket());
 
     const NodeID from = _range.from;
     const NodeID to = std::min(_range.to, _graph.n());
@@ -256,7 +390,7 @@ private:
     const NodeID max_node_chunk_size = std::max<NodeID>(_min_chunk_size, std::sqrt(_graph.n()));
 
     NodeID position = 0;
-    for (std::size_t bucket = 0; bucket < _graph.number_of_buckets(); ++bucket) {
+    for (std::size_t bucket = 0; bucket < capped_max_bucket(); ++bucket) {
       if (position + _graph.bucket_size(bucket) < from || _graph.bucket_size(bucket) == 0) {
         position += _graph.bucket_size(bucket);
         continue;
@@ -355,10 +489,15 @@ private:
     );
   }
 
+  [[nodiscard]] std::size_t capped_max_bucket() const {
+    return std::min(_max_bucket, _graph.number_of_buckets());
+  }
+
   const Graph &_graph;
   Workspace &_workspace;
   NodeRange<NodeID> _range;
   EdgeID _min_chunk_size;
+  std::size_t _max_bucket;
 };
 
 } // namespace kaminpar::iteration

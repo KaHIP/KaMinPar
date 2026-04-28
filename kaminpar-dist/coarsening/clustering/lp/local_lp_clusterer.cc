@@ -206,7 +206,8 @@ public:
           graph,
           _order_workspace,
           iteration::NodeRange<NodeID>{0, graph.n()},
-          static_cast<EdgeID>(kMinChunkSize)
+          static_cast<EdgeID>(kMinChunkSize),
+          iteration::bucket_limit_for_max_degree(graph, options.max_degree)
       );
       const auto result = lp::run_iteration(order, core);
       if (result.moved_nodes == 0) {

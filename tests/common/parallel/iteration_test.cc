@@ -131,6 +131,72 @@ TEST(IterationTest, chunk_random_parallel_order_covers_subrange_once) {
   EXPECT_THAT(sorted(copied_nodes), expected_range(1, 11));
 }
 
+TEST(IterationTest, chunk_random_order_respects_bucket_limit) {
+  const auto graph = make_bucketed_graph_with_isolated_nodes();
+  iteration::ChunkRandomNodeOrderWorkspace<std::uint32_t, 4, 4> workspace;
+  iteration::ChunkRandomNodeOrder order(
+      graph, workspace, iteration::NodeRange<std::uint32_t>{0, graph.n()}, 2, 2
+  );
+
+  std::vector<std::uint32_t> nodes;
+  order.for_each([&](const std::uint32_t node) { nodes.push_back(node); });
+
+  EXPECT_THAT(sorted(nodes), expected_range(0, 8));
+}
+
+TEST(IterationTest, chunk_random_workspace_rebuilds_when_bucket_limit_changes) {
+  const auto graph = make_bucketed_graph_with_isolated_nodes();
+  iteration::ChunkRandomNodeOrderWorkspace<std::uint32_t, 4, 4> workspace;
+
+  iteration::ChunkRandomNodeOrder first_order(
+      graph, workspace, iteration::NodeRange<std::uint32_t>{0, graph.n()}, 2, 1
+  );
+  std::vector<std::uint32_t> first_nodes;
+  first_order.for_each([&](const std::uint32_t node) { first_nodes.push_back(node); });
+
+  iteration::ChunkRandomNodeOrder second_order(
+      graph, workspace, iteration::NodeRange<std::uint32_t>{0, graph.n()}, 2, 3
+  );
+  std::vector<std::uint32_t> second_nodes;
+  second_order.for_each([&](const std::uint32_t node) { second_nodes.push_back(node); });
+
+  EXPECT_THAT(sorted(first_nodes), expected_range(0, 5));
+  EXPECT_THAT(sorted(second_nodes), expected_range(0, graph.n()));
+}
+
+TEST(IterationTest, parallel_order_reuses_local_state_for_worker_chunk) {
+  struct LocalState {
+    tbb::concurrent_vector<std::size_t> *batch_sizes;
+    std::size_t num_nodes = 0;
+
+    ~LocalState() {
+      batch_sizes->push_back(num_nodes);
+    }
+  };
+
+  const auto graph = make_bucketed_graph_with_isolated_nodes();
+  iteration::ChunkRandomNodeOrderWorkspace<std::uint32_t, 4, 4> workspace;
+  iteration::ChunkRandomNodeOrder order(
+      graph, workspace, iteration::NodeRange<std::uint32_t>{0, graph.n()}, 2
+  );
+
+  tbb::concurrent_vector<std::uint32_t> nodes;
+  tbb::concurrent_vector<std::size_t> batch_sizes;
+  order.parallel_for_each_with_local(
+      [&] { return LocalState{&batch_sizes}; },
+      [&](LocalState &local, const std::uint32_t node) {
+        ++local.num_nodes;
+        nodes.push_back(node);
+      }
+  );
+  std::vector<std::uint32_t> copied_nodes(nodes.begin(), nodes.end());
+
+  EXPECT_THAT(sorted(copied_nodes), expected_range(0, graph.n()));
+  EXPECT_TRUE(std::any_of(batch_sizes.begin(), batch_sizes.end(), [](const std::size_t size) {
+    return size > 1;
+  }));
+}
+
 TEST(IterationTest, chunk_random_workspace_rebuilds_when_range_changes) {
   const auto graph = make_bucketed_graph_with_isolated_nodes();
   iteration::ChunkRandomNodeOrderWorkspace<std::uint32_t, 4, 4> workspace;
