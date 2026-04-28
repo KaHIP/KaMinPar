@@ -18,6 +18,7 @@
 
 #include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/metrics.h"
+#include "kaminpar-shm/refinement/fm/fm_refiner.h"
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/timer.h"
@@ -140,6 +141,17 @@ enum class PacketType : std::uint8_t {
   MIN_CUT,
 };
 
+enum class PacketGenerationMode : std::uint8_t {
+  BASELINE,
+  PRIMARY,
+  REPAIR,
+};
+
+enum class BudgetMode : std::uint8_t {
+  BASELINE,
+  PRIMARY,
+};
+
 struct Packet {
   std::size_t id;
   BlockID source;
@@ -162,8 +174,20 @@ struct MasterState {
   std::vector<NodeID> moved_vertices;
   std::vector<BlockWeight> block_weights;
   EdgeWeight additive_gain = 0;
+  BlockWeight moved_weight = 0;
   double score = 0.0;
   std::size_t next_packet = 0;
+};
+
+struct MasterSearchConfig {
+  std::size_t max_solutions;
+  std::size_t depth;
+  std::size_t beam_width;
+  std::size_t branching_factor;
+  BlockWeight max_moved_weight;
+  BudgetMode budget_mode;
+  bool require_final_feasibility;
+  bool require_positive_additive_gain;
 };
 
 [[nodiscard]] bool
@@ -215,7 +239,7 @@ merge_sorted_vertices(const std::vector<NodeID> &lhs, const std::vector<NodeID> 
 
 template <typename Graph> class RccpRefinerImpl {
 public:
-  explicit RccpRefinerImpl(const Context &ctx) : _r_ctx(ctx.refinement.rccp) {}
+  explicit RccpRefinerImpl(const Context &ctx) : _ctx(ctx), _r_ctx(ctx.refinement.rccp) {}
 
   void initialize(const PartitionedGraph &p_graph) {
     _local_index.assign(p_graph.n(), -1);
@@ -224,6 +248,16 @@ public:
   bool refine(PartitionedGraph &p_graph, const Graph &graph, const PartitionContext &p_ctx) {
     SCOPED_TIMER("RCCP Refiner");
 
+    if (_r_ctx.enable_quality_mode) {
+      return refine_quality_mode(p_graph, graph, p_ctx);
+    }
+
+    return refine_baseline(p_graph, graph, p_ctx);
+  }
+
+private:
+  bool
+  refine_baseline(PartitionedGraph &p_graph, const Graph &graph, const PartitionContext &p_ctx) {
     bool improved = false;
     const int max_iterations =
         _r_ctx.num_iterations == 0 ? std::numeric_limits<int>::max() : _r_ctx.num_iterations;
@@ -252,18 +286,169 @@ public:
     return improved;
   }
 
-private:
-  [[nodiscard]] std::vector<Packet>
-  generate_packets(PartitionedGraph &p_graph, const Graph &graph, const PartitionContext &p_ctx) {
+  bool refine_quality_mode(
+      PartitionedGraph &p_graph, const Graph &graph, const PartitionContext &p_ctx
+  ) {
+    bool improved = false;
+    const int max_iterations =
+        _r_ctx.num_iterations == 0 ? std::numeric_limits<int>::max() : _r_ctx.num_iterations;
+
+    for (int iteration = 0; iteration < max_iterations; ++iteration) {
+      bool improved_this_iteration = false;
+
+      if (_r_ctx.run_baseline_first) {
+        const bool baseline_improved = run_single_baseline_iteration(p_graph, graph, p_ctx);
+        improved |= baseline_improved;
+        improved_this_iteration |= baseline_improved;
+      }
+
+      const EdgeWeight root_cut = metrics::edge_cut(p_graph);
+      const std::vector<BlockID> root_partition = snapshot_partition(p_graph, graph);
+      std::vector<BlockID> best_partition = root_partition;
+      EdgeWeight best_cut = root_cut;
+
+      std::vector<Packet> primary_packets =
+          generate_packets(p_graph, graph, p_ctx, PacketGenerationMode::PRIMARY);
+      if (!primary_packets.empty()) {
+        const MasterSearchConfig primary_config{
+            .max_solutions = std::min(_r_ctx.primary_scenarios, _r_ctx.candidate_prefilter),
+            .depth = _r_ctx.master_depth,
+            .beam_width = _r_ctx.master_beam_width,
+            .branching_factor = _r_ctx.master_branching_factor,
+            .max_moved_weight = moved_weight_limit(p_ctx, _r_ctx.max_primary_moved_weight_fraction),
+            .budget_mode = BudgetMode::PRIMARY,
+            .require_final_feasibility = false,
+            .require_positive_additive_gain = false,
+        };
+        std::vector<MasterState> primary_scenarios =
+            search_packet_sets(p_graph, graph, p_ctx, primary_packets, primary_config);
+
+        for (const MasterState &primary : primary_scenarios) {
+          restore_partition(p_graph, graph, root_partition);
+          apply_packets(p_graph, primary_packets, primary.selected_packets);
+
+          if (!is_within_primary_budget(current_block_weights(p_graph), p_ctx)) {
+            continue;
+          }
+
+          std::vector<std::uint8_t> primary_vertices(p_graph.n(), 0);
+          for (const NodeID u : primary.moved_vertices) {
+            primary_vertices[u] = 1;
+          }
+
+          std::vector<Packet> repair_packets = generate_packets(
+              p_graph, graph, p_ctx, PacketGenerationMode::REPAIR, primary_vertices
+          );
+          if (repair_packets.empty()) {
+            if (metrics::is_feasible(p_graph, p_ctx)) {
+              if (_r_ctx.enable_fm_closure && _r_ctx.fm_closure_iterations > 0) {
+                run_fm_closure(p_graph, p_ctx);
+              }
+
+              if (metrics::is_feasible(p_graph, p_ctx)) {
+                const EdgeWeight candidate_cut = metrics::edge_cut(p_graph);
+                if (candidate_cut < best_cut) {
+                  best_cut = candidate_cut;
+                  best_partition = snapshot_partition(p_graph, graph);
+                }
+              }
+            }
+            continue;
+          }
+
+          const MasterSearchConfig repair_config{
+              .max_solutions = _r_ctx.repair_scenarios,
+              .depth = _r_ctx.master_depth,
+              .beam_width = _r_ctx.master_beam_width,
+              .branching_factor = _r_ctx.master_branching_factor,
+              .max_moved_weight =
+                  moved_weight_limit(p_ctx, _r_ctx.max_repair_moved_weight_fraction),
+              .budget_mode = BudgetMode::PRIMARY,
+              .require_final_feasibility = true,
+              .require_positive_additive_gain = false,
+          };
+          std::vector<MasterState> repair_scenarios =
+              search_packet_sets(p_graph, graph, p_ctx, repair_packets, repair_config);
+
+          for (const MasterState &repair : repair_scenarios) {
+            restore_partition(p_graph, graph, root_partition);
+            apply_packets(p_graph, primary_packets, primary.selected_packets);
+            apply_packets(p_graph, repair_packets, repair.selected_packets);
+
+            if (!metrics::is_feasible(p_graph, p_ctx)) {
+              continue;
+            }
+
+            if (_r_ctx.enable_fm_closure && _r_ctx.fm_closure_iterations > 0) {
+              run_fm_closure(p_graph, p_ctx);
+            }
+
+            if (!metrics::is_feasible(p_graph, p_ctx)) {
+              continue;
+            }
+
+            const EdgeWeight candidate_cut = metrics::edge_cut(p_graph);
+            if (candidate_cut < best_cut) {
+              best_cut = candidate_cut;
+              best_partition = snapshot_partition(p_graph, graph);
+            }
+          }
+        }
+      }
+
+      if (best_cut < root_cut) {
+        restore_partition(p_graph, graph, best_partition);
+        improved = true;
+        improved_this_iteration = true;
+      } else {
+        restore_partition(p_graph, graph, root_partition);
+      }
+
+      if (!improved_this_iteration) {
+        break;
+      }
+    }
+
+    return improved;
+  }
+
+  bool run_single_baseline_iteration(
+      PartitionedGraph &p_graph, const Graph &graph, const PartitionContext &p_ctx
+  ) {
+    std::vector<Packet> packets = generate_packets(p_graph, graph, p_ctx);
+    if (packets.empty()) {
+      return false;
+    }
+
+    const std::vector<std::size_t> selected_packets = solve_master(p_graph, graph, p_ctx, packets);
+    if (selected_packets.empty()) {
+      return false;
+    }
+
+    if (exact_gain(p_graph, graph, packets, selected_packets) <= 0) {
+      return false;
+    }
+
+    apply_packets(p_graph, packets, selected_packets);
+    return true;
+  }
+
+  [[nodiscard]] std::vector<Packet> generate_packets(
+      const PartitionedGraph &p_graph,
+      const Graph &graph,
+      const PartitionContext &p_ctx,
+      const PacketGenerationMode mode = PacketGenerationMode::BASELINE,
+      const std::vector<std::uint8_t> &forbidden_vertices = {}
+  ) {
     std::vector<Packet> packets;
     packets.reserve(_r_ctx.max_total_packets);
 
     if (_r_ctx.enable_singleton_packets) {
-      generate_singleton_packets(p_graph, graph, p_ctx, packets);
+      generate_singleton_packets(p_graph, graph, p_ctx, mode, forbidden_vertices, packets);
     }
 
     if (_r_ctx.enable_mincut_packets) {
-      generate_mincut_packets(p_graph, graph, p_ctx, packets);
+      generate_mincut_packets(p_graph, graph, p_ctx, mode, forbidden_vertices, packets);
     }
 
     deduplicate_packets(packets);
@@ -277,14 +462,25 @@ private:
       const PartitionedGraph &p_graph,
       const Graph &graph,
       const PartitionContext &p_ctx,
+      const PacketGenerationMode mode,
+      const std::vector<std::uint8_t> &forbidden_vertices,
       std::vector<Packet> &packets
   ) const {
     const BlockWeight max_weight = max_packet_weight(p_ctx);
 
     for (const NodeID u : graph.nodes()) {
+      if (!forbidden_vertices.empty() && forbidden_vertices[u]) {
+        continue;
+      }
+
       const BlockID source = p_graph.block(u);
       const NodeWeight u_weight = p_graph.node_weight(u);
       if (u_weight > max_weight) {
+        continue;
+      }
+
+      if (mode == PacketGenerationMode::REPAIR &&
+          p_graph.block_weight(source) <= p_ctx.max_block_weight(source)) {
         continue;
       }
 
@@ -313,9 +509,14 @@ private:
         if (target == source) {
           continue;
         }
+        if (mode == PacketGenerationMode::REPAIR &&
+            p_graph.block_weight(target) >=
+                p_ctx.max_block_weight(target) + trust_region(p_ctx, target)) {
+          continue;
+        }
 
         const EdgeWeight gain = target_conn - source_conn;
-        if (!accept_packet_gain(gain, PacketType::SINGLETON)) {
+        if (!accept_packet_gain(gain, PacketType::SINGLETON, mode)) {
           continue;
         }
 
@@ -338,9 +539,11 @@ private:
       const PartitionedGraph &p_graph,
       const Graph &graph,
       const PartitionContext &p_ctx,
+      const PacketGenerationMode mode,
+      const std::vector<std::uint8_t> &forbidden_vertices,
       std::vector<Packet> &packets
   ) {
-    std::vector<ActivePair> active_pairs = find_active_pairs(p_graph, graph);
+    std::vector<ActivePair> active_pairs = find_active_pairs(p_graph, graph, p_ctx, mode);
     std::sort(active_pairs.begin(), active_pairs.end(), [](const auto &lhs, const auto &rhs) {
       return lhs.cut_weight > rhs.cut_weight;
     });
@@ -353,13 +556,14 @@ private:
         static_cast<double>(graph.total_edge_weight()) /
             std::max<NodeWeight>(1, graph.total_node_weight())
     );
-    const double prices[] = {-price_unit, 0.0, price_unit, 2.0 * price_unit, 4.0 * price_unit};
+    const std::vector<double> prices = price_grid(price_unit, mode);
 
     for (ActivePair &pair : active_pairs) {
       std::sort(pair.seeds.begin(), pair.seeds.end());
       pair.seeds.erase(std::unique(pair.seeds.begin(), pair.seeds.end()), pair.seeds.end());
 
-      const std::vector<NodeID> region = build_source_region(p_graph, graph, pair);
+      const std::vector<NodeID> region =
+          build_source_region(p_graph, graph, pair, forbidden_vertices);
       if (region.empty()) {
         continue;
       }
@@ -369,7 +573,34 @@ private:
       }
 
       for (const double price : prices) {
-        generate_mincut_packet_for_price(p_graph, graph, p_ctx, pair, region, price, packets);
+        generate_mincut_packet_for_price(
+            p_graph, graph, p_ctx, pair, region, price, {}, mode, packets
+        );
+      }
+
+      if (mode == PacketGenerationMode::PRIMARY && _r_ctx.enable_seeded_primary_packets) {
+        std::vector<NodeID> seeds = select_forced_primary_seeds(p_graph, graph, pair);
+        for (const NodeID seed : seeds) {
+          if (!forbidden_vertices.empty() && forbidden_vertices[seed]) {
+            continue;
+          }
+
+          const std::vector<NodeID> forced_seed = {seed};
+          generate_mincut_packet_for_price(
+              p_graph, graph, p_ctx, pair, region, -2.0 * price_unit, forced_seed, mode, packets
+          );
+          generate_mincut_packet_for_price(
+              p_graph, graph, p_ctx, pair, region, 0.0, forced_seed, mode, packets
+          );
+
+          if (const NodeID mate = strongest_same_block_neighbor(p_graph, graph, seed);
+              mate != kInvalidNodeID) {
+            const std::vector<NodeID> forced_pair = {seed, mate};
+            generate_mincut_packet_for_price(
+                p_graph, graph, p_ctx, pair, region, 0.0, forced_pair, mode, packets
+            );
+          }
+        }
       }
 
       for (const NodeID u : region) {
@@ -378,8 +609,12 @@ private:
     }
   }
 
-  [[nodiscard]] std::vector<ActivePair>
-  find_active_pairs(const PartitionedGraph &p_graph, const Graph &graph) const {
+  [[nodiscard]] std::vector<ActivePair> find_active_pairs(
+      const PartitionedGraph &p_graph,
+      const Graph &graph,
+      const PartitionContext &p_ctx,
+      const PacketGenerationMode mode
+  ) const {
     std::unordered_map<std::uint64_t, ActivePair> active_pair_map;
 
     for (const NodeID u : graph.nodes()) {
@@ -387,6 +622,10 @@ private:
       graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
         const BlockID target = p_graph.block(v);
         if (source == target) {
+          return;
+        }
+        if (mode == PacketGenerationMode::REPAIR &&
+            p_graph.block_weight(source) <= p_ctx.max_block_weight(source)) {
           return;
         }
 
@@ -411,15 +650,19 @@ private:
     return active_pairs;
   }
 
-  [[nodiscard]] std::vector<NodeID>
-  build_source_region(const PartitionedGraph &p_graph, const Graph &graph, const ActivePair &pair) {
+  [[nodiscard]] std::vector<NodeID> build_source_region(
+      const PartitionedGraph &p_graph,
+      const Graph &graph,
+      const ActivePair &pair,
+      const std::vector<std::uint8_t> &forbidden_vertices
+  ) {
     std::vector<NodeID> region;
     std::queue<NodeID> queue;
     region.reserve(std::min<NodeID>(_r_ctx.max_region_vertices, p_graph.n()));
 
     const auto add = [&](const NodeID u, const int distance) {
-      if (_local_index[u] >= 0 || p_graph.block(u) != pair.source ||
-          region.size() >= _r_ctx.max_region_vertices) {
+      if ((!forbidden_vertices.empty() && forbidden_vertices[u]) || _local_index[u] >= 0 ||
+          p_graph.block(u) != pair.source || region.size() >= _r_ctx.max_region_vertices) {
         return;
       }
 
@@ -452,6 +695,74 @@ private:
     return region;
   }
 
+  [[nodiscard]] std::vector<double>
+  price_grid(const double price_unit, const PacketGenerationMode mode) const {
+    switch (mode) {
+    case PacketGenerationMode::PRIMARY:
+      return {-8.0 * price_unit, -4.0 * price_unit, -2.0 * price_unit, 0.0, 2.0 * price_unit};
+
+    case PacketGenerationMode::REPAIR:
+      return {-price_unit, 0.0, price_unit, 2.0 * price_unit, 4.0 * price_unit};
+
+    case PacketGenerationMode::BASELINE:
+      return {-price_unit, 0.0, price_unit, 2.0 * price_unit, 4.0 * price_unit};
+    }
+
+    __builtin_unreachable();
+  }
+
+  [[nodiscard]] std::vector<NodeID> select_forced_primary_seeds(
+      const PartitionedGraph &p_graph, const Graph &graph, const ActivePair &pair
+  ) const {
+    std::vector<std::pair<EdgeWeight, NodeID>> rated_seeds;
+    rated_seeds.reserve(pair.seeds.size());
+
+    for (const NodeID seed : pair.seeds) {
+      EdgeWeight target_conn = 0;
+      EdgeWeight source_conn = 0;
+      graph.adjacent_nodes(seed, [&](const NodeID v, const EdgeWeight weight) {
+        const BlockID block = p_graph.block(v);
+        if (block == pair.target) {
+          target_conn += weight;
+        } else if (block == pair.source) {
+          source_conn += weight;
+        }
+      });
+      rated_seeds.emplace_back(target_conn - source_conn, seed);
+    }
+
+    std::sort(rated_seeds.begin(), rated_seeds.end(), [](const auto &lhs, const auto &rhs) {
+      return lhs > rhs;
+    });
+
+    std::vector<NodeID> seeds;
+    const std::size_t max_seeds =
+        std::min(_r_ctx.frustrated_seed_count_per_pair, rated_seeds.size());
+    seeds.reserve(max_seeds);
+    for (std::size_t i = 0; i < max_seeds; ++i) {
+      seeds.push_back(rated_seeds[i].second);
+    }
+
+    return seeds;
+  }
+
+  [[nodiscard]] NodeID strongest_same_block_neighbor(
+      const PartitionedGraph &p_graph, const Graph &graph, const NodeID u
+  ) const {
+    const BlockID block = p_graph.block(u);
+    NodeID best_neighbor = kInvalidNodeID;
+    EdgeWeight best_weight = std::numeric_limits<EdgeWeight>::min();
+
+    graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+      if (p_graph.block(v) == block && weight > best_weight) {
+        best_weight = weight;
+        best_neighbor = v;
+      }
+    });
+
+    return best_neighbor;
+  }
+
   void generate_mincut_packet_for_price(
       const PartitionedGraph &p_graph,
       const Graph &graph,
@@ -459,6 +770,8 @@ private:
       const ActivePair &pair,
       const std::vector<NodeID> &region,
       const double price,
+      const std::vector<NodeID> &forced_vertices,
+      const PacketGenerationMode mode,
       std::vector<Packet> &packets
   ) const {
     const int source = static_cast<int>(region.size());
@@ -484,6 +797,15 @@ private:
         cut.add_directed_edge(source, static_cast<int>(i), unary);
       } else if (unary < -kEpsilon) {
         cut.add_directed_edge(static_cast<int>(i), sink, -unary);
+      }
+    }
+
+    const double infinite_capacity =
+        std::max<double>(1.0, graph.total_edge_weight() + graph.total_node_weight()) * 1024.0;
+    for (const NodeID forced_vertex : forced_vertices) {
+      const int local = _local_index[forced_vertex];
+      if (local >= 0) {
+        cut.add_directed_edge(source, local, infinite_capacity);
       }
     }
 
@@ -524,6 +846,7 @@ private:
           pair.target,
           std::move(component),
           PacketType::MIN_CUT,
+          mode,
           packets
       );
     }
@@ -544,6 +867,7 @@ private:
           pair.target,
           std::move(full_packet),
           PacketType::MIN_CUT,
+          mode,
           packets
       );
     }
@@ -598,6 +922,7 @@ private:
       const BlockID target,
       std::vector<NodeID> vertices,
       const PacketType type,
+      const PacketGenerationMode mode,
       std::vector<Packet> &packets
   ) const {
     std::sort(vertices.begin(), vertices.end());
@@ -615,7 +940,7 @@ private:
     }
 
     const EdgeWeight gain = exact_packet_gain(p_graph, graph, source, target, vertices);
-    if (!accept_packet_gain(gain, type)) {
+    if (!accept_packet_gain(gain, type, mode)) {
       return;
     }
 
@@ -661,16 +986,46 @@ private:
       const PartitionContext &p_ctx,
       const std::vector<Packet> &packets
   ) const {
-    if (_r_ctx.master_depth == 0 || _r_ctx.master_beam_width == 0 ||
-        _r_ctx.master_branching_factor == 0) {
+    const MasterSearchConfig config{
+        .max_solutions = _r_ctx.master_beam_width,
+        .depth = _r_ctx.master_depth,
+        .beam_width = _r_ctx.master_beam_width,
+        .branching_factor = _r_ctx.master_branching_factor,
+        .max_moved_weight = 0,
+        .budget_mode = BudgetMode::BASELINE,
+        .require_final_feasibility = true,
+        .require_positive_additive_gain = true,
+    };
+    std::vector<MasterState> feasible_states =
+        search_packet_sets(p_graph, graph, p_ctx, packets, config);
+
+    EdgeWeight best_exact_gain = 0;
+    std::vector<std::size_t> best_selection;
+    for (const MasterState &state : feasible_states) {
+      const EdgeWeight gain = exact_gain(p_graph, graph, packets, state.selected_packets);
+      if (gain > best_exact_gain) {
+        best_exact_gain = gain;
+        best_selection = state.selected_packets;
+      }
+    }
+
+    return best_selection;
+  }
+
+  [[nodiscard]] std::vector<MasterState> search_packet_sets(
+      const PartitionedGraph &p_graph,
+      const Graph &graph,
+      const PartitionContext &p_ctx,
+      const std::vector<Packet> &packets,
+      const MasterSearchConfig &config
+  ) const {
+    if (config.depth == 0 || config.beam_width == 0 || config.branching_factor == 0 ||
+        config.max_solutions == 0) {
       return {};
     }
 
     MasterState initial_state;
-    initial_state.block_weights.resize(p_graph.k());
-    for (const BlockID block : p_graph.blocks()) {
-      initial_state.block_weights[block] = p_graph.block_weight(block);
-    }
+    initial_state.block_weights = current_block_weights(p_graph);
 
     const double balance_penalty_unit = std::max<double>(
         1.0,
@@ -679,9 +1034,9 @@ private:
     );
 
     std::vector<MasterState> states = {std::move(initial_state)};
-    std::vector<MasterState> feasible_states;
+    std::vector<MasterState> accepted_states;
 
-    for (std::size_t depth = 0; depth < _r_ctx.master_depth; ++depth) {
+    for (std::size_t depth = 0; depth < config.depth; ++depth) {
       std::vector<MasterState> next_states;
 
       for (const MasterState &state : states) {
@@ -699,7 +1054,12 @@ private:
           next.moved_vertices = merge_sorted_vertices(state.moved_vertices, packet.vertices);
           next.block_weights[packet.source] -= packet.weight;
           next.block_weights[packet.target] += packet.weight;
-          if (!is_within_trust_region(next.block_weights, p_ctx)) {
+          next.moved_weight += packet.weight;
+
+          if (config.max_moved_weight > 0 && next.moved_weight > config.max_moved_weight) {
+            continue;
+          }
+          if (!is_within_budget(next.block_weights, p_ctx, config.budget_mode)) {
             continue;
           }
 
@@ -709,7 +1069,7 @@ private:
           local_extensions.push_back(std::move(next));
         }
 
-        keep_best_states(local_extensions, _r_ctx.master_branching_factor);
+        keep_best_states(local_extensions, config.branching_factor);
         std::move(
             local_extensions.begin(), local_extensions.end(), std::back_inserter(next_states)
         );
@@ -719,34 +1079,24 @@ private:
         break;
       }
 
-      keep_best_states(next_states, _r_ctx.master_beam_width);
+      keep_best_states(next_states, config.beam_width);
 
       for (const MasterState &state : next_states) {
-        if (state.additive_gain > 0 && is_feasible(state.block_weights, p_ctx)) {
-          feasible_states.push_back(state);
+        if (config.require_positive_additive_gain && state.additive_gain <= 0) {
+          continue;
         }
+        if (config.require_final_feasibility && !is_feasible(state.block_weights, p_ctx)) {
+          continue;
+        }
+
+        accepted_states.push_back(state);
       }
 
       states = std::move(next_states);
     }
 
-    if (feasible_states.empty()) {
-      return {};
-    }
-
-    keep_best_states(feasible_states, _r_ctx.master_beam_width);
-
-    EdgeWeight best_exact_gain = 0;
-    std::vector<std::size_t> best_selection;
-    for (const MasterState &state : feasible_states) {
-      const EdgeWeight gain = exact_gain(p_graph, graph, packets, state.selected_packets);
-      if (gain > best_exact_gain) {
-        best_exact_gain = gain;
-        best_selection = state.selected_packets;
-      }
-    }
-
-    return best_selection;
+    keep_best_states(accepted_states, config.max_solutions);
+    return accepted_states;
   }
 
   [[nodiscard]] EdgeWeight exact_gain(
@@ -816,8 +1166,21 @@ private:
     }
   }
 
-  [[nodiscard]] bool accept_packet_gain(const EdgeWeight gain, const PacketType type) const {
-    return gain > 0 || (type == PacketType::SINGLETON && gain >= -_r_ctx.max_negative_gain);
+  [[nodiscard]] bool accept_packet_gain(
+      const EdgeWeight gain, const PacketType type, const PacketGenerationMode mode
+  ) const {
+    switch (mode) {
+    case PacketGenerationMode::REPAIR:
+      return gain >= -_r_ctx.repair_max_negative_gain;
+
+    case PacketGenerationMode::PRIMARY:
+      return gain > 0 || gain >= -_r_ctx.max_negative_gain;
+
+    case PacketGenerationMode::BASELINE:
+      return gain > 0 || (type == PacketType::SINGLETON && gain >= -_r_ctx.max_negative_gain);
+    }
+
+    __builtin_unreachable();
   }
 
   [[nodiscard]] BlockWeight max_packet_weight(const PartitionContext &p_ctx) const {
@@ -844,6 +1207,22 @@ private:
     );
   }
 
+  [[nodiscard]] bool is_within_budget(
+      const std::vector<BlockWeight> &block_weights,
+      const PartitionContext &p_ctx,
+      const BudgetMode mode
+  ) const {
+    switch (mode) {
+    case BudgetMode::BASELINE:
+      return is_within_trust_region(block_weights, p_ctx);
+
+    case BudgetMode::PRIMARY:
+      return is_within_primary_budget(block_weights, p_ctx);
+    }
+
+    __builtin_unreachable();
+  }
+
   [[nodiscard]] bool is_within_trust_region(
       const std::vector<BlockWeight> &block_weights, const PartitionContext &p_ctx
   ) const {
@@ -851,6 +1230,26 @@ private:
       const BlockWeight trust = trust_region(p_ctx, block);
       if (block_weights[block] > p_ctx.max_block_weight(block) + trust ||
           block_weights[block] < p_ctx.min_block_weight(block) - trust) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  [[nodiscard]] bool is_within_primary_budget(
+      const std::vector<BlockWeight> &block_weights, const PartitionContext &p_ctx
+  ) const {
+    for (BlockID block = 0; block < block_weights.size(); ++block) {
+      const BlockWeight excess_budget = static_cast<BlockWeight>(
+          std::ceil(_r_ctx.primary_temporary_excess_fraction * p_ctx.max_block_weight(block))
+      );
+      const BlockWeight deficit_budget = static_cast<BlockWeight>(
+          std::ceil(_r_ctx.primary_temporary_deficit_fraction * p_ctx.max_block_weight(block))
+      );
+
+      if (block_weights[block] > p_ctx.max_block_weight(block) + excess_budget ||
+          block_weights[block] < p_ctx.min_block_weight(block) - deficit_budget) {
         return false;
       }
     }
@@ -882,6 +1281,56 @@ private:
     }
 
     return debt;
+  }
+
+  [[nodiscard]] std::vector<BlockWeight>
+  current_block_weights(const PartitionedGraph &p_graph) const {
+    std::vector<BlockWeight> block_weights(p_graph.k());
+    for (const BlockID block : p_graph.blocks()) {
+      block_weights[block] = p_graph.block_weight(block);
+    }
+    return block_weights;
+  }
+
+  [[nodiscard]] BlockWeight
+  moved_weight_limit(const PartitionContext &p_ctx, const double fraction) const {
+    if (fraction <= 0.0) {
+      return 0;
+    }
+    return std::max<BlockWeight>(
+        p_ctx.max_node_weight,
+        static_cast<BlockWeight>(std::ceil(fraction * p_ctx.total_node_weight))
+    );
+  }
+
+  [[nodiscard]] std::vector<BlockID>
+  snapshot_partition(const PartitionedGraph &p_graph, const Graph &graph) const {
+    std::vector<BlockID> partition(graph.n());
+    for (const NodeID u : graph.nodes()) {
+      partition[u] = p_graph.block(u);
+    }
+    return partition;
+  }
+
+  void restore_partition(
+      PartitionedGraph &p_graph, const Graph &graph, const std::vector<BlockID> &partition
+  ) const {
+    for (const NodeID u : graph.nodes()) {
+      if (p_graph.block(u) != partition[u]) {
+        p_graph.set_block(u, partition[u]);
+      }
+    }
+  }
+
+  void run_fm_closure(PartitionedGraph &p_graph, const PartitionContext &p_ctx) const {
+    Context closure_ctx = _ctx;
+    closure_ctx.refinement.kway_fm.num_iterations = _r_ctx.fm_closure_iterations;
+    closure_ctx.refinement.kway_fm.dbg_compute_batch_stats = false;
+    closure_ctx.refinement.kway_fm.dbg_report_progress = false;
+
+    FMRefiner fm(closure_ctx);
+    fm.initialize(p_graph);
+    fm.refine(p_graph, p_ctx);
   }
 
   void deduplicate_packets(std::vector<Packet> &packets) const {
@@ -972,6 +1421,7 @@ private:
   }
 
 private:
+  const Context &_ctx;
   const RccpRefinementContext &_r_ctx;
 
   std::vector<int> _local_index;

@@ -820,18 +820,31 @@ std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
 
   if (r_ctx.includes_algorithm(RefinementAlgorithm::RCCP)) {
     out << "RCCP refinement:\n";
+    out << "  Quality mode:               " << yn(r_ctx.rccp.enable_quality_mode)
+        << " [baseline first: " << yn(r_ctx.rccp.run_baseline_first) << "]\n";
     out << "  Number of iterations:       " << r_ctx.rccp.num_iterations << "\n";
     out << "  Packet generation:          singleton " << yn(r_ctx.rccp.enable_singleton_packets)
-        << ", min-cut " << yn(r_ctx.rccp.enable_mincut_packets) << "\n";
+        << ", min-cut " << yn(r_ctx.rccp.enable_mincut_packets) << ", seeded primary "
+        << yn(r_ctx.rccp.enable_seeded_primary_packets) << "\n";
     out << "  Active regions:             radius " << r_ctx.rccp.active_region_radius
         << ", max nodes " << r_ctx.rccp.max_region_vertices << ", max pairs "
         << r_ctx.rccp.max_active_pairs << "\n";
     out << "  Packet pool:                max " << r_ctx.rccp.max_total_packets
         << ", max packet weight " << r_ctx.rccp.max_packet_weight_fraction
-        << " x avg block weight, max negative gain " << r_ctx.rccp.max_negative_gain << "\n";
+        << " x avg block weight, max negative gain " << r_ctx.rccp.max_negative_gain
+        << ", max repair loss " << r_ctx.rccp.repair_max_negative_gain << "\n";
     out << "  Master search:              depth " << r_ctx.rccp.master_depth << ", beam "
         << r_ctx.rccp.master_beam_width << ", branching " << r_ctx.rccp.master_branching_factor
         << ", trust region " << r_ctx.rccp.trust_region_factor << "\n";
+    if (r_ctx.rccp.enable_quality_mode) {
+      out << "  Primary scenarios:          " << r_ctx.rccp.primary_scenarios
+          << " [temporary excess " << r_ctx.rccp.primary_temporary_excess_fraction << ", deficit "
+          << r_ctx.rccp.primary_temporary_deficit_fraction << "]\n";
+      out << "  Repair scenarios:           " << r_ctx.rccp.repair_scenarios
+          << " [candidate prefilter " << r_ctx.rccp.candidate_prefilter << "]\n";
+      out << "  FM closure:                 " << yn(r_ctx.rccp.enable_fm_closure) << " ["
+          << r_ctx.rccp.fm_closure_iterations << " iteration(s)]\n";
+    }
   }
 
   return out;

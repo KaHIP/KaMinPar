@@ -841,6 +841,16 @@ CLI::Option_group *create_rccp_refinement_options(CLI::App *app, Context &ctx) {
           "Maximum number of RCCP improvement iterations."
   )
       ->capture_default_str();
+  rccp->add_flag(
+      "--r-rccp-disable-quality-mode",
+      [&](auto) { ctx.refinement.rccp.enable_quality_mode = false; },
+      "Use the original one-shot feasible RCCP master instead of RCCP-Q basin search."
+  );
+  rccp->add_flag(
+      "--r-rccp-disable-baseline-first",
+      [&](auto) { ctx.refinement.rccp.run_baseline_first = false; },
+      "Do not run the original feasible RCCP pass before RCCP-Q candidate search."
+  );
   rccp->add_option(
           "--r-rccp-max-active-pairs",
           ctx.refinement.rccp.max_active_pairs,
@@ -872,6 +882,12 @@ CLI::Option_group *create_rccp_refinement_options(CLI::App *app, Context &ctx) {
   )
       ->capture_default_str();
   rccp->add_option(
+          "--r-rccp-repair-max-negative-gain",
+          ctx.refinement.rccp.repair_max_negative_gain,
+          "Keep conditional repair packets with gain at least the negative of this value."
+  )
+      ->capture_default_str();
+  rccp->add_option(
           "--r-rccp-max-total-packets",
           ctx.refinement.rccp.max_total_packets,
           "Maximum number of packets kept for the RCCP master search."
@@ -899,6 +915,70 @@ CLI::Option_group *create_rccp_refinement_options(CLI::App *app, Context &ctx) {
           "--r-rccp-trust-region-factor",
           ctx.refinement.rccp.trust_region_factor,
           "Temporary per-block balance violation allowed during master search."
+  )
+      ->capture_default_str();
+  rccp->add_option(
+          "--r-rccp-primary-scenarios",
+          ctx.refinement.rccp.primary_scenarios,
+          "Number of relaxed primary packet scenarios evaluated by RCCP-Q."
+  )
+      ->capture_default_str();
+  rccp->add_option(
+          "--r-rccp-repair-scenarios",
+          ctx.refinement.rccp.repair_scenarios,
+          "Number of conditional repairs evaluated per primary scenario."
+  )
+      ->capture_default_str();
+  rccp->add_option(
+          "--r-rccp-primary-temporary-excess",
+          ctx.refinement.rccp.primary_temporary_excess_fraction,
+          "Temporary excess budget for relaxed primary scenarios as a fraction of block capacity."
+  )
+      ->capture_default_str();
+  rccp->add_option(
+          "--r-rccp-primary-temporary-deficit",
+          ctx.refinement.rccp.primary_temporary_deficit_fraction,
+          "Temporary deficit budget for relaxed primary scenarios as a fraction of block capacity."
+  )
+      ->capture_default_str();
+  rccp->add_option(
+          "--r-rccp-max-primary-moved-weight",
+          ctx.refinement.rccp.max_primary_moved_weight_fraction,
+          "Maximum primary moved weight as a fraction of total node weight."
+  )
+      ->capture_default_str();
+  rccp->add_option(
+          "--r-rccp-max-repair-moved-weight",
+          ctx.refinement.rccp.max_repair_moved_weight_fraction,
+          "Maximum conditional repair moved weight as a fraction of total node weight."
+  )
+      ->capture_default_str();
+  rccp->add_option(
+          "--r-rccp-frustrated-seeds-per-pair",
+          ctx.refinement.rccp.frustrated_seed_count_per_pair,
+          "Number of high-gain boundary seeds per block pair used for forced primary packets."
+  )
+      ->capture_default_str();
+  rccp->add_option(
+          "--r-rccp-candidate-prefilter",
+          ctx.refinement.rccp.candidate_prefilter,
+          "Maximum number of primary scenarios scored before conditional repair."
+  )
+      ->capture_default_str();
+  rccp->add_flag(
+      "--r-rccp-disable-seeded-primary-packets",
+      [&](auto) { ctx.refinement.rccp.enable_seeded_primary_packets = false; },
+      "Disable forced-seed min-cut primary packets."
+  );
+  rccp->add_flag(
+      "--r-rccp-disable-fm-closure",
+      [&](auto) { ctx.refinement.rccp.enable_fm_closure = false; },
+      "Disable bounded FM-closed scoring for RCCP-Q candidates."
+  );
+  rccp->add_option(
+          "--r-rccp-fm-closure-iterations",
+          ctx.refinement.rccp.fm_closure_iterations,
+          "Number of k-way FM iterations used to close each repaired RCCP-Q candidate."
   )
       ->capture_default_str();
   rccp->add_flag(

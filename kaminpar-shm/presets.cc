@@ -423,16 +423,30 @@ Context create_default_context() {
               .rccp =
                   {
                       .num_iterations = 3,
+                      .enable_quality_mode = true,
+                      .run_baseline_first = true,
                       .max_active_pairs = 256,
                       .active_region_radius = 2,
                       .max_region_vertices = 1024,
                       .max_packet_weight_fraction = 0.05,
                       .max_negative_gain = 16,
+                      .repair_max_negative_gain = 256,
                       .max_total_packets = 2048,
                       .master_depth = 8,
                       .master_beam_width = 128,
                       .master_branching_factor = 32,
                       .trust_region_factor = 0.10,
+                      .primary_scenarios = 32,
+                      .repair_scenarios = 4,
+                      .primary_temporary_excess_fraction = 0.05,
+                      .primary_temporary_deficit_fraction = 0.10,
+                      .max_primary_moved_weight_fraction = 0.05,
+                      .max_repair_moved_weight_fraction = 0.10,
+                      .frustrated_seed_count_per_pair = 32,
+                      .candidate_prefilter = 64,
+                      .enable_seeded_primary_packets = true,
+                      .enable_fm_closure = true,
+                      .fm_closure_iterations = 2,
                       .enable_singleton_packets = true,
                       .enable_mincut_packets = true,
                   },
@@ -449,19 +463,18 @@ Context create_default_context() {
               // Context -> Parallel
               .num_threads = 1,
           },
-      .debug =
-          {
-              .graph_name = "",
-              .dump_graph_filename = "n%n_m%m_k%k_seed%seed.metis",
-              .dump_partition_filename = "n%n_m%m_k%k_seed%seed.part",
+      .debug = {
+          .graph_name = "",
+          .dump_graph_filename = "n%n_m%m_k%k_seed%seed.metis",
+          .dump_partition_filename = "n%n_m%m_k%k_seed%seed.part",
 
-              .dump_toplevel_graph = false,
-              .dump_toplevel_partition = false,
-              .dump_coarsest_graph = false,
-              .dump_coarsest_partition = false,
-              .dump_graph_hierarchy = false,
-              .dump_partition_hierarchy = false,
-          },
+          .dump_toplevel_graph = false,
+          .dump_toplevel_partition = false,
+          .dump_coarsest_graph = false,
+          .dump_coarsest_partition = false,
+          .dump_graph_hierarchy = false,
+          .dump_partition_hierarchy = false,
+      },
   };
 }
 

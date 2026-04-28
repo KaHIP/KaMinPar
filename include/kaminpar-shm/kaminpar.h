@@ -331,17 +331,33 @@ struct JetRefinementContext {
 struct RccpRefinementContext {
   int num_iterations;
 
+  bool enable_quality_mode;
+  bool run_baseline_first;
+
   std::size_t max_active_pairs;
   NodeID active_region_radius;
   NodeID max_region_vertices;
   double max_packet_weight_fraction;
   EdgeWeight max_negative_gain;
+  EdgeWeight repair_max_negative_gain;
 
   std::size_t max_total_packets;
   std::size_t master_depth;
   std::size_t master_beam_width;
   std::size_t master_branching_factor;
   double trust_region_factor;
+
+  std::size_t primary_scenarios;
+  std::size_t repair_scenarios;
+  double primary_temporary_excess_fraction;
+  double primary_temporary_deficit_fraction;
+  double max_primary_moved_weight_fraction;
+  double max_repair_moved_weight_fraction;
+  std::size_t frustrated_seed_count_per_pair;
+  std::size_t candidate_prefilter;
+  bool enable_seeded_primary_packets;
+  bool enable_fm_closure;
+  int fm_closure_iterations;
 
   bool enable_singleton_packets;
   bool enable_mincut_packets;

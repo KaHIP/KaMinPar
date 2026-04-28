@@ -21,7 +21,10 @@ TEST(RccpRefinerTest, FindsRepairCertifiedSingletonRotation) {
   Context ctx = create_default_context();
   ctx.partition.setup(graph, 3, 0.0, false);
   ctx.refinement.rccp.num_iterations = 1;
+  ctx.refinement.rccp.run_baseline_first = false;
+  ctx.refinement.rccp.enable_fm_closure = false;
   ctx.refinement.rccp.enable_mincut_packets = false;
+  ctx.refinement.rccp.max_primary_moved_weight_fraction = 1.0;
   ctx.refinement.rccp.max_total_packets = 32;
   ctx.refinement.rccp.master_depth = 6;
   ctx.refinement.rccp.master_beam_width = 64;
