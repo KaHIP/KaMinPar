@@ -13,7 +13,7 @@ GetModifiedGitFiles(MODIFIED_FILES)
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/environment.cc.in" "${CMAKE_CURRENT_BINARY_DIR}/environment.cc" @ONLY)
 
 file(GLOB_RECURSE KAMINPAR_COMMON_SOURCE_FILES CONFIGURE_DEPENDS
-	*.cc *.h)
+	*.cc *.h *.inc)
 
 add_library(KaMinParCommon OBJECT ${KAMINPAR_COMMON_SOURCE_FILES} "${CMAKE_CURRENT_BINARY_DIR}/environment.cc")
 add_library(KaMinPar::KaMinParCommon ALIAS KaMinParCommon)
