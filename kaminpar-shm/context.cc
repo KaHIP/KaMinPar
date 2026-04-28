@@ -368,6 +368,8 @@ std::unordered_map<std::string, RefinementAlgorithm> get_refinement_algorithms()
       {"underload-balancer", RefinementAlgorithm::UNDERLOAD_BALANCER},
       {"lp", RefinementAlgorithm::LABEL_PROPAGATION},
       {"fm", RefinementAlgorithm::KWAY_FM},
+      {"unconstrained-fm", RefinementAlgorithm::UNCONSTRAINED_FM},
+      {"ufm", RefinementAlgorithm::UNCONSTRAINED_FM},
       {"twoway-flow", RefinementAlgorithm::TWOWAY_FLOW},
       {"jet", RefinementAlgorithm::JET},
       {"mtkahypar", RefinementAlgorithm::MTKAHYPAR},
@@ -386,6 +388,8 @@ std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm)
     return out << "lp";
   case RefinementAlgorithm::KWAY_FM:
     return out << "fm";
+  case RefinementAlgorithm::UNCONSTRAINED_FM:
+    return out << "unconstrained-fm";
   case RefinementAlgorithm::TWOWAY_FLOW:
     return out << "twoway-flow";
   case RefinementAlgorithm::JET:
@@ -734,7 +738,8 @@ std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
     out << "  Implementation:             " << r_ctx.lp.impl << "\n";
   }
 
-  if (r_ctx.includes_algorithm(RefinementAlgorithm::KWAY_FM)) {
+  if (r_ctx.includes_algorithm(RefinementAlgorithm::KWAY_FM) ||
+      r_ctx.includes_algorithm(RefinementAlgorithm::UNCONSTRAINED_FM)) {
     out << "k-way FM:\n";
     out << "  Number of iterations:       " << r_ctx.kway_fm.num_iterations
         << " [or improvement drops below < " << 100.0 * (1.0 - r_ctx.kway_fm.abortion_threshold)

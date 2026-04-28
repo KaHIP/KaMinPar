@@ -461,6 +461,7 @@ The following algorithms can be used:
   - underload-balancer: Rebalancer for minimum block weights.
   - lp:                 Label propagation (also see --r-lp-*).
   - fm:                 FM (also see --r-fm-*).
+  - unconstrained-fm:   FM with temporary balance violations (also see --r-fm-*).
   - twoway-flow:        Two-Way Flow (also see --r-twoway-flow-*).)"
       )
       ->capture_default_str();

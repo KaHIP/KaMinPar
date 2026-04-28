@@ -13,6 +13,7 @@
 #include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/metrics.h"
+#include "kaminpar-shm/refinement/balancer/overload_balancer.h"
 #include "kaminpar-shm/refinement/fm/batch_stats.h"
 #include "kaminpar-shm/refinement/fm/border_nodes.h"
 #include "kaminpar-shm/refinement/fm/general_stats.h"
@@ -44,6 +45,11 @@ SET_STATISTICS_FROM_GLOBAL();
 } // namespace
 
 namespace fm {
+
+enum class SearchMode : std::uint8_t {
+  CONSTRAINED,
+  UNCONSTRAINED,
+};
 
 template <typename GainCache> struct SharedData {
   SharedData(const Context &ctx, const NodeID preallocate_n, const BlockID preallocate_k)
@@ -78,8 +84,10 @@ template <typename GainCache> struct SharedData {
   std::atomic<std::uint8_t> abort = 0;
 };
 
-template <typename Graph, typename GainCache> class LocalizedFMRefiner {
+template <typename Graph, typename GainCache, SearchMode kSearchMode> class LocalizedFMRefiner {
   using DeltaGainCache = typename GainCache::DeltaGainCache;
+
+  static constexpr bool kAllowOverloadedMoves = kSearchMode == SearchMode::UNCONSTRAINED;
 
 public:
   LocalizedFMRefiner(
@@ -163,9 +171,11 @@ public:
         continue;
       }
 
-      // Accept the move if the target block does not get overloaded
+      // Accept the move if the target block does not get overloaded, unless this is an
+      // unconstrained search.
       const NodeWeight node_weight = _graph.node_weight(node);
-      if (_d_graph.block_weight(block_to) + node_weight <= _p_ctx.max_block_weight(block_to)) {
+      if (kAllowOverloadedMoves ||
+          _d_graph.block_weight(block_to) + node_weight <= _p_ctx.max_block_weight(block_to)) {
         current_total_gain += actual_gain;
 
         // If we found a new local minimum, apply the moves to the global
@@ -320,8 +330,14 @@ private:
     if (moved_to == old_target_block) {
       // In this case, old_target_block got even better
       // We only need to consider other blocks if old_target_block is full now
-      if (_d_graph.block_weight(old_target_block) + _d_graph.node_weight(node) <=
-          _p_ctx.max_block_weight(old_target_block)) {
+      if constexpr (kAllowOverloadedMoves) {
+        _node_pqs[old_block].change_priority(
+            node, _d_gain_cache.gain(node, old_block, old_target_block)
+        );
+      } else if (
+          _d_graph.block_weight(old_target_block) + _d_graph.node_weight(node) <=
+          _p_ctx.max_block_weight(old_target_block)
+      ) {
         _node_pqs[old_block].change_priority(
             node, _d_gain_cache.gain(node, old_block, old_target_block)
         );
@@ -348,9 +364,11 @@ private:
       const auto [gain_old_target_block, gain_moved_to] =
           _d_gain_cache.gain(node, old_block, {old_target_block, moved_to});
 
-      if (gain_moved_to > gain_old_target_block &&
+      const bool moved_to_is_feasible =
+          kAllowOverloadedMoves ||
           _d_graph.block_weight(moved_to) + _d_graph.node_weight(node) <=
-              _p_ctx.max_block_weight(moved_to)) {
+              _p_ctx.max_block_weight(moved_to);
+      if (gain_moved_to > gain_old_target_block && moved_to_is_feasible) {
         _shared.target_blocks[node] = moved_to;
         _node_pqs[old_block].change_priority(node, gain_moved_to);
       } else {
@@ -377,8 +395,10 @@ private:
       const NodeWeight target_block_weight = p_graph.block_weight(to) + weight;
       const NodeWeight max_block_weight = _p_ctx.max_block_weight(to);
       const NodeWeight block_weight_gap = max_block_weight - target_block_weight;
-      if (block_weight_gap < std::min<EdgeWeight>(best_target_block_weight_gap, 0)) {
-        return;
+      if constexpr (!kAllowOverloadedMoves) {
+        if (block_weight_gap < std::min<EdgeWeight>(best_target_block_weight_gap, 0)) {
+          return;
+        }
       }
 
       const EdgeWeight gain = compute_gain();
@@ -445,9 +465,14 @@ private:
 
 } // namespace fm
 
-template <typename Graph, template <typename> typename GainCacheTemplate>
+template <
+    typename Graph,
+    template <typename> typename GainCacheTemplate,
+    fm::SearchMode kSearchMode>
 class FMRefinerCore : public Refiner {
   using GainCache = GainCacheTemplate<Graph>;
+
+  static constexpr bool kAllowOverloadedMoves = kSearchMode == fm::SearchMode::UNCONSTRAINED;
 
 public:
   FMRefinerCore(const Context &ctx) : _ctx(ctx), _fm_ctx(ctx.refinement.kway_fm) {}
@@ -472,11 +497,27 @@ public:
     };
 
     const EdgeWeight initial_cut = metrics::edge_cut(p_graph);
+    EdgeWeight best_cut = initial_cut;
     EdgeWeight cut_before_current_iteration = initial_cut;
     EdgeWeight total_expected_gain = 0;
+    bool last_iteration_is_best = true;
+
+    StaticArray<BlockID> best_partition;
+    if constexpr (kAllowOverloadedMoves) {
+      best_partition.resize(graph.n());
+      graph.pfor_nodes([&](const NodeID u) { best_partition[u] = p_graph.block(u); });
+    }
+
+    OverloadBalancer balancer(_ctx);
+    if constexpr (kAllowOverloadedMoves) {
+      balancer.initialize(p_graph);
+      balancer.track_moves([&](const NodeID u, const BlockID from, const BlockID to) {
+        _shared->gain_cache.move(u, from, to);
+      });
+    }
 
     // Create thread-local workers numbered 1..P
-    using Worker = fm::LocalizedFMRefiner<Graph, GainCache>;
+    using Worker = fm::LocalizedFMRefiner<Graph, GainCache, kSearchMode>;
 
     std::atomic<int> next_id = 0;
     tbb::enumerable_thread_specific<std::unique_ptr<Worker>> localized_fm_refiner_ets([&] {
@@ -504,6 +545,7 @@ public:
       START_TIMER("Initialize border nodes");
       _shared->border_nodes.init(p_graph); // also resets the NodeTracker
       _shared->border_nodes.shuffle();
+      _shared->abort = 0;
       STOP_TIMER();
 
       DBG << "Starting FM iteration " << iteration << " with " << _shared->border_nodes.size()
@@ -554,10 +596,28 @@ public:
       const EdgeWeight expected_gain_of_this_iteration = expected_gain_ets.combine(std::plus{});
       total_expected_gain += expected_gain_of_this_iteration;
 
+      if constexpr (kAllowOverloadedMoves) {
+        if (metrics::total_overload(p_graph, p_ctx) > 0) {
+          TIMED_SCOPE("Rebalance") {
+            balancer.refine(p_graph, p_ctx);
+          };
+        }
+      }
+
       const EdgeWeight current_cut =
-          _fm_ctx.use_exact_abortion_threshold
+          kAllowOverloadedMoves || _fm_ctx.use_exact_abortion_threshold
               ? metrics::edge_cut(p_graph)
               : cut_before_current_iteration - expected_gain_of_this_iteration;
+
+      if constexpr (kAllowOverloadedMoves) {
+        if (metrics::total_overload(p_graph, p_ctx) == 0 && current_cut <= best_cut) {
+          graph.pfor_nodes([&](const NodeID u) { best_partition[u] = p_graph.block(u); });
+          best_cut = current_cut;
+          last_iteration_is_best = true;
+        } else {
+          last_iteration_is_best = false;
+        }
+      }
 
       const EdgeWeight abs_improvement_of_this_iteration =
           cut_before_current_iteration - current_cut;
@@ -578,7 +638,18 @@ public:
     IFSTATS(_shared->gain_cache.print_statistics());
     IFSTATSC(_fm_ctx.dbg_compute_batch_stats, batch_stats.print());
 
-    return false;
+    if constexpr (kAllowOverloadedMoves) {
+      TIMED_SCOPE("Rollback") {
+        if (!last_iteration_is_best) {
+          graph.pfor_nodes([&](const NodeID u) { p_graph.set_block(u, best_partition[u]); });
+          _shared->gain_cache.initialize(graph, p_graph);
+        }
+      };
+
+      return best_cut < initial_cut;
+    } else {
+      return false;
+    }
   }
 
 private:
@@ -589,6 +660,48 @@ private:
   std::unique_ptr<fm::SharedData<GainCache>> _shared;
 };
 
+template <fm::SearchMode kSearchMode, typename Graph>
+std::unique_ptr<Refiner> create_fm_core(const Context &ctx) {
+  switch (ctx.refinement.kway_fm.gain_cache_strategy) {
+  case GainCacheStrategy::SPARSE:
+    return std::make_unique<FMRefinerCore<Graph, NormalSparseGainCache, kSearchMode>>(ctx);
+
+#ifdef KAMINPAR_EXPERIMENTAL
+  case GainCacheStrategy::COMPACT_HASHING_LARGE_K:
+    return std::make_unique<FMRefinerCore<Graph, LargeKCompactHashingGainCache, kSearchMode>>(ctx);
+
+  case GainCacheStrategy::SPARSE_LARGE_K:
+    return std::make_unique<FMRefinerCore<Graph, LargeKSparseGainCache, kSearchMode>>(ctx);
+
+  case GainCacheStrategy::HASHING:
+    return std::make_unique<FMRefinerCore<Graph, NormalHashingGainCache, kSearchMode>>(ctx);
+
+  case GainCacheStrategy::HASHING_LARGE_K:
+    return std::make_unique<FMRefinerCore<Graph, LargeKHashingGainCache, kSearchMode>>(ctx);
+
+  case GainCacheStrategy::DENSE:
+    return std::make_unique<FMRefinerCore<Graph, NormalDenseGainCache, kSearchMode>>(ctx);
+
+  case GainCacheStrategy::DENSE_LARGE_K:
+    return std::make_unique<FMRefinerCore<Graph, LargeKDenseGainCache, kSearchMode>>(ctx);
+
+  case GainCacheStrategy::ON_THE_FLY:
+    return std::make_unique<FMRefinerCore<Graph, NormalOnTheFlyGainCache, kSearchMode>>(ctx);
+#endif // KAMINPAR_EXPERIMENTAL
+
+  default:
+    LOG_WARNING << "The selected gain cache strategy '"
+                << stringify_enum(ctx.refinement.kway_fm.gain_cache_strategy)
+                << "' is not available in this build. Rebuild with experimental features enabled.";
+    LOG_WARNING << "Using the default gain cache strategy '"
+                << stringify_enum(GainCacheStrategy::COMPACT_HASHING) << "' instead.";
+    [[fallthrough]];
+
+  case GainCacheStrategy::COMPACT_HASHING:
+    return std::make_unique<FMRefinerCore<Graph, NormalCompactHashingGainCache, kSearchMode>>(ctx);
+  }
+}
+
 FMRefiner::FMRefiner(const Context &input_ctx) : _ctx(input_ctx) {}
 FMRefiner::~FMRefiner() = default;
 
@@ -598,54 +711,7 @@ std::string FMRefiner::name() const {
 
 void FMRefiner::initialize(const PartitionedGraph &p_graph) {
   reified(p_graph, [&]<typename Graph>(Graph &) {
-    switch (_ctx.refinement.kway_fm.gain_cache_strategy) {
-    case GainCacheStrategy::SPARSE:
-      _core = std::make_unique<FMRefinerCore<Graph, NormalSparseGainCache>>(_ctx);
-      break;
-
-#ifdef KAMINPAR_EXPERIMENTAL
-    case GainCacheStrategy::COMPACT_HASHING_LARGE_K:
-      _core = std::make_unique<FMRefinerCore<Graph, LargeKCompactHashingGainCache>>(_ctx);
-      break;
-
-    case GainCacheStrategy::SPARSE_LARGE_K:
-      _core = std::make_unique<FMRefinerCore<Graph, LargeKSparseGainCache>>(_ctx);
-      break;
-
-    case GainCacheStrategy::HASHING:
-      _core = std::make_unique<FMRefinerCore<Graph, NormalHashingGainCache>>(_ctx);
-      break;
-
-    case GainCacheStrategy::HASHING_LARGE_K:
-      _core = std::make_unique<FMRefinerCore<Graph, LargeKHashingGainCache>>(_ctx);
-      break;
-
-    case GainCacheStrategy::DENSE:
-      _core = std::make_unique<FMRefinerCore<Graph, NormalDenseGainCache>>(_ctx);
-      break;
-
-    case GainCacheStrategy::DENSE_LARGE_K:
-      _core = std::make_unique<FMRefinerCore<Graph, LargeKDenseGainCache>>(_ctx);
-      break;
-
-    case GainCacheStrategy::ON_THE_FLY:
-      _core = std::make_unique<FMRefinerCore<Graph, NormalOnTheFlyGainCache>>(_ctx);
-      break;
-#endif // KAMINPAR_EXPERIMENTAL
-
-    default:
-      LOG_WARNING
-          << "The selected gain cache strategy '"
-          << stringify_enum(_ctx.refinement.kway_fm.gain_cache_strategy)
-          << "' is not available in this build. Rebuild with experimental features enabled.";
-      LOG_WARNING << "Using the default gain cache strategy '"
-                  << stringify_enum(GainCacheStrategy::COMPACT_HASHING) << "' instead.";
-      [[fallthrough]];
-
-    case GainCacheStrategy::COMPACT_HASHING:
-      _core = std::make_unique<FMRefinerCore<Graph, NormalCompactHashingGainCache>>(_ctx);
-      break;
-    }
+    _core = create_fm_core<fm::SearchMode::CONSTRAINED, Graph>(_ctx);
   });
 
   _core->initialize(p_graph);
@@ -654,6 +720,30 @@ void FMRefiner::initialize(const PartitionedGraph &p_graph) {
 bool FMRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
   if (p_ctx.has_min_block_weights()) {
     LOG_WARNING << "FM refinement does not support min block weights. They will be ignored.";
+  }
+
+  return _core->refine(p_graph, p_ctx);
+}
+
+UnconstrainedFMRefiner::UnconstrainedFMRefiner(const Context &input_ctx) : _ctx(input_ctx) {}
+UnconstrainedFMRefiner::~UnconstrainedFMRefiner() = default;
+
+std::string UnconstrainedFMRefiner::name() const {
+  return "Unconstrained FM";
+}
+
+void UnconstrainedFMRefiner::initialize(const PartitionedGraph &p_graph) {
+  reified(p_graph, [&]<typename Graph>(Graph &) {
+    _core = create_fm_core<fm::SearchMode::UNCONSTRAINED, Graph>(_ctx);
+  });
+
+  _core->initialize(p_graph);
+}
+
+bool UnconstrainedFMRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
+  if (p_ctx.has_min_block_weights()) {
+    LOG_WARNING
+        << "Unconstrained FM refinement does not support min block weights. They will be ignored.";
   }
 
   return _core->refine(p_graph, p_ctx);

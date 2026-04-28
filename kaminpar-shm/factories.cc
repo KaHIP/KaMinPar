@@ -111,6 +111,9 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
   case RefinementAlgorithm::KWAY_FM:
     return std::make_unique<FMRefiner>(ctx);
 
+  case RefinementAlgorithm::UNCONSTRAINED_FM:
+    return std::make_unique<UnconstrainedFMRefiner>(ctx);
+
   case RefinementAlgorithm::TWOWAY_FLOW:
     return std::make_unique<TwowayFlowRefiner>(ctx.parallel, ctx.refinement.twoway_flow);
 
