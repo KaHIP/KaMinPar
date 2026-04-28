@@ -252,6 +252,13 @@ struct KwayFMRefinementContext {
   bool use_exact_abortion_threshold;
   double abortion_threshold;
 
+  int unconstrained_num_iterations;
+  double unconstrained_min_improvement;
+  double unconstrained_penalty_min;
+  double unconstrained_penalty_max;
+  double unconstrained_rebalancing_node_inclusion_threshold;
+  double unconstrained_upper_bound;
+
   GainCacheStrategy gain_cache_strategy;
   EdgeID constant_high_degree_threshold;
   double k_based_high_degree_threshold;

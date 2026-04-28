@@ -757,6 +757,13 @@ std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
     out << "  Locking strategies:         seed nodes: "
         << (r_ctx.kway_fm.unlock_seed_nodes ? "unlock" : "lock") << ", locally moved nodes: "
         << (r_ctx.kway_fm.unlock_locally_moved_nodes ? "unlock" : "lock") << "\n";
+    if (r_ctx.includes_algorithm(RefinementAlgorithm::UNCONSTRAINED_FM)) {
+      out << "  Unconstrained iterations:   " << r_ctx.kway_fm.unconstrained_num_iterations << "\n";
+      out << "  Unconstrained min gain:     " << 100.0 * r_ctx.kway_fm.unconstrained_min_improvement
+          << "%\n";
+      out << "  Unconstrained penalty:      " << r_ctx.kway_fm.unconstrained_penalty_min << " -> "
+          << r_ctx.kway_fm.unconstrained_penalty_max << "\n";
+    }
     out << "  Gain cache:                 " << r_ctx.kway_fm.gain_cache_strategy << "\n";
   }
 

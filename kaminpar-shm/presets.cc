@@ -358,6 +358,12 @@ Context create_default_context() {
                       .unlock_seed_nodes = true,
                       .use_exact_abortion_threshold = false,
                       .abortion_threshold = 0.999,
+                      .unconstrained_num_iterations = 8,
+                      .unconstrained_min_improvement = 0.002,
+                      .unconstrained_penalty_min = 0.2,
+                      .unconstrained_penalty_max = 1.0,
+                      .unconstrained_rebalancing_node_inclusion_threshold = 0.7,
+                      .unconstrained_upper_bound = 0.0,
                       .gain_cache_strategy = GainCacheStrategy::COMPACT_HASHING,
                       .constant_high_degree_threshold = 0,
                       .k_based_high_degree_threshold = 1.0,
@@ -488,8 +494,13 @@ Context create_eco_test_context() {
 
   ctx.refinement.lp.num_iterations = 5;
   ctx.refinement.lp.unconstrained_min_improvement_factor = 0.001;
+  ctx.refinement.kway_fm.num_seed_nodes = 25;
   ctx.refinement.kway_fm.num_iterations = 10;
-  ctx.refinement.kway_fm.abortion_threshold = 0.998;
+  ctx.refinement.kway_fm.unconstrained_num_iterations = 8;
+  ctx.refinement.kway_fm.unconstrained_min_improvement = 0.002;
+  ctx.refinement.kway_fm.unconstrained_penalty_min = 0.2;
+  ctx.refinement.kway_fm.unconstrained_penalty_max = 1.0;
+  ctx.refinement.kway_fm.unconstrained_rebalancing_node_inclusion_threshold = 0.7;
 
   return ctx;
 }
