@@ -118,9 +118,9 @@ public:
 
       const std::uint32_t bucket =
           bucket_for_gain_per_weight(static_cast<double>(internal_weight) / node_weight);
+      _rebalancing_nodes[u] = 1;
       if (bucket < kNumBuckets) {
         local_bucket_weights.local()[index(block, bucket)] += node_weight;
-        _rebalancing_nodes[u] = 1;
       } else {
         local_fallback_bucket_weights.local()[fallback_key(block, bucket - kNumBuckets)] +=
             node_weight;
