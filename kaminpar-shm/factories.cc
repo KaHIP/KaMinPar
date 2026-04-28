@@ -100,7 +100,7 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
     return std::make_unique<NoopRefiner>();
 
   case RefinementAlgorithm::OVERLOAD_BALANCER:
-    return std::make_unique<OverloadBalancer>(ctx);
+    return std::make_unique<BlockParallelOverloadBalancer>(ctx);
 
   case RefinementAlgorithm::UNDERLOAD_BALANCER:
     return std::make_unique<UnderloadBalancer>(ctx);

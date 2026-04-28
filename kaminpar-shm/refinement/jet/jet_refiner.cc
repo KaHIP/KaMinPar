@@ -68,7 +68,7 @@ public:
 
     using namespace std::placeholders;
 
-    OverloadBalancer balancer(_ctx);
+    BlockParallelOverloadBalancer balancer(_ctx);
     balancer.initialize(p_graph);
     balancer.track_moves(
         std::bind(&NormalSparseGainCache<Graph>::move, std::ref(gain_cache), _1, _2, _3)

@@ -19,7 +19,7 @@
 #include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/metrics.h"
-#include "kaminpar-shm/refinement/balancer/overload_balancer.h"
+#include "kaminpar-shm/refinement/balancer/multi_queue_overload_balancer.h"
 #include "kaminpar-shm/refinement/fm/batch_stats.h"
 #include "kaminpar-shm/refinement/fm/border_nodes.h"
 #include "kaminpar-shm/refinement/fm/general_stats.h"
@@ -55,6 +55,13 @@ namespace fm {
 enum class SearchMode : std::uint8_t {
   CONSTRAINED,
   UNCONSTRAINED,
+};
+
+struct GlobalMove {
+  NodeID node;
+  BlockID from;
+  BlockID to;
+  bool valid = true;
 };
 
 class UnconstrainedFMData {
@@ -305,6 +312,8 @@ template <typename GainCache> struct SharedData {
   StaticArray<std::size_t> shared_pq_handles;
   StaticArray<BlockID> target_blocks;
   UnconstrainedFMData unconstrained;
+  tbb::concurrent_vector<GlobalMove> round_moves;
+  tbb::concurrent_vector<GlobalMove> rebalancing_moves;
   GlobalStatistics stats;
 
   std::atomic<std::uint8_t> abort = 0;
@@ -358,6 +367,7 @@ public:
 
     _seed_nodes.clear();
     _applied_moves.clear();
+    _local_moves.clear();
     std::fill(_local_virtual_weight_delta.begin(), _local_virtual_weight_delta.end(), 0);
 
     // Statistics for this batch only, to be merged into the global stats
@@ -416,40 +426,37 @@ public:
       const NodeWeight node_weight = _graph.node_weight(node);
       if (allow_overloaded_moves() ||
           _d_graph.block_weight(block_to) + node_weight <= _p_ctx.max_block_weight(block_to)) {
+        const BlockWeight from_weight_before = _d_graph.block_weight(block_from);
+        const BlockWeight to_weight_before = _d_graph.block_weight(block_to);
         current_total_gain += actual_gain;
+
+        const bool found_gain_improvement = current_total_gain > best_total_gain;
+        const bool found_balance_improvement =
+            current_total_gain == best_total_gain &&
+            from_weight_before == heaviest_block_weight(_d_graph) &&
+            to_weight_before + node_weight < from_weight_before;
 
         // If we found a new local minimum, apply the moves to the global
         // partition
-        if (current_total_gain > best_total_gain) {
-          record_unconstrained_move(node, block_from);
-          _p_graph.set_block(node, block_to);
-          _shared.gain_cache.move(node, block_from, block_to);
-          _shared.node_tracker.set(node, NodeTracker::MOVED_GLOBALLY);
-          IFSTATS(stats(Statistic::NUM_COMMITTED_MOVES));
+        if (found_gain_improvement || found_balance_improvement) {
+          for (const GlobalMove &move : _local_moves) {
+            apply_global_move(move);
 
-          _d_graph.for_each([&](const NodeID moved_node, const BlockID moved_to) {
-            const BlockID moved_from = _p_graph.block(moved_node);
-
-            // The order of the moves in the delta graph is not necessarily correct (depending on
-            // whether the delta graph stores the moves in a vector of a hash table).
-            // Thus, users of the _applied_moves vector may only depend on the order of moves that
-            // found an improvement.
             if (_record_applied_moves) {
               _applied_moves.push_back(
                   fm::AppliedMove{
-                      .node = moved_node,
-                      .from = moved_from,
+                      .node = move.node,
+                      .from = move.from,
                       .improvement = false,
                   }
               );
             }
 
-            _shared.gain_cache.move(moved_node, moved_from, moved_to);
-            _shared.node_tracker.set(moved_node, NodeTracker::MOVED_GLOBALLY);
-            record_unconstrained_move(moved_node, moved_from);
-            _p_graph.set_block(moved_node, moved_to);
             IFSTATS(stats(Statistic::NUM_COMMITTED_MOVES));
-          });
+          }
+
+          apply_global_move({.node = node, .from = block_from, .to = block_to, .valid = true});
+          record_unconstrained_move(node, block_from);
           flush_unconstrained_move_data();
 
           if (_record_applied_moves) {
@@ -461,10 +468,12 @@ public:
                 }
             );
           }
+          IFSTATS(stats(Statistic::NUM_COMMITTED_MOVES));
 
           // Flush local delta
           _d_graph.clear();
           _d_gain_cache.clear();
+          _local_moves.clear();
           _stopping_policy.reset();
 
           best_total_gain = current_total_gain;
@@ -472,6 +481,8 @@ public:
           // Perform local move
           _d_graph.set_block(node, block_to);
           _d_gain_cache.move(node, block_from, block_to);
+          _local_moves.push_back({.node = node, .from = block_from, .to = block_to, .valid = true});
+          record_unconstrained_move(node, block_from);
           _stopping_policy.update(actual_gain);
         }
 
@@ -531,6 +542,7 @@ public:
     _block_pq.clear();
     _d_graph.clear();
     _d_gain_cache.clear();
+    _local_moves.clear();
     _stopping_policy.reset();
     _touched_nodes.clear();
 
@@ -701,6 +713,26 @@ private:
     return kAllowOverloadedMoves && _allow_overloaded_moves;
   }
 
+  void apply_global_move(const GlobalMove &move) {
+    KASSERT(_p_graph.block(move.node) == move.from);
+
+    _shared.gain_cache.move(move.node, move.from, move.to);
+    _shared.node_tracker.set(move.node, NodeTracker::MOVED_GLOBALLY);
+    _p_graph.set_block(move.node, move.to);
+
+    if constexpr (kAllowOverloadedMoves) {
+      _shared.round_moves.push_back(move);
+    }
+  }
+
+  [[nodiscard]] BlockWeight heaviest_block_weight(const auto &p_graph) const {
+    BlockWeight heaviest = std::numeric_limits<BlockWeight>::min();
+    for (const BlockID block : _p_graph.blocks()) {
+      heaviest = std::max(heaviest, p_graph.block_weight(block));
+    }
+    return heaviest;
+  }
+
   void record_unconstrained_move(const NodeID node, const BlockID from) {
     if (allow_overloaded_moves() && _shared.unconstrained.is_rebalancing_node(node)) {
       _local_virtual_weight_delta[from] += _graph.node_weight(node);
@@ -767,6 +799,7 @@ private:
   std::vector<NodeID> _touched_nodes;
   std::vector<NodeID> _seed_nodes;
   std::vector<fm::AppliedMove> _applied_moves;
+  std::vector<GlobalMove> _local_moves;
   std::vector<BlockWeight> _local_virtual_weight_delta;
   bool _allow_overloaded_moves = kAllowOverloadedMoves;
   double _unconstrained_penalty_factor = 0.0;
@@ -782,6 +815,7 @@ template <
     fm::SearchMode kSearchMode>
 class FMRefinerCore : public Refiner {
   using GainCache = GainCacheTemplate<Graph>;
+  using GlobalMove = fm::GlobalMove;
 
   static constexpr bool kAllowOverloadedMoves = kSearchMode == fm::SearchMode::UNCONSTRAINED;
 
@@ -814,16 +848,19 @@ public:
     bool last_iteration_is_best = true;
 
     StaticArray<BlockID> best_partition;
+    StaticArray<BlockID> round_start_partition;
     if constexpr (kAllowOverloadedMoves) {
       best_partition.resize(graph.n());
+      round_start_partition.resize(graph.n());
       graph.pfor_nodes([&](const NodeID u) { best_partition[u] = p_graph.block(u); });
     }
 
-    OverloadBalancer balancer(_ctx);
+    MultiQueueOverloadBalancer balancer(_ctx);
     if constexpr (kAllowOverloadedMoves) {
       balancer.initialize(p_graph);
       balancer.track_moves([&](const NodeID u, const BlockID from, const BlockID to) {
         _shared->gain_cache.move(u, from, to);
+        _shared->rebalancing_moves.push_back({.node = u, .from = from, .to = to, .valid = true});
       });
     }
 
@@ -868,6 +905,10 @@ public:
           use_unconstrained_iteration ? interpolate_unconstrained_penalty(iteration) : 0.0;
 
       if constexpr (kAllowOverloadedMoves) {
+        _shared->round_moves.clear();
+        _shared->rebalancing_moves.clear();
+        graph.pfor_nodes([&](const NodeID u) { round_start_partition[u] = p_graph.block(u); });
+
         if (use_unconstrained_iteration) {
           TIMED_SCOPE("Initialize unconstrained FM data") {
             _shared->unconstrained.initialize(_fm_ctx, graph, p_graph, _shared->gain_cache);
@@ -947,6 +988,10 @@ public:
           };
           current_overload = metrics::total_overload(p_graph, p_ctx);
         }
+
+        if (use_unconstrained_iteration) {
+          interleave_rebalancing_moves(graph, p_graph, p_ctx, round_start_partition);
+        }
       }
 
       EdgeWeight current_cut = kAllowOverloadedMoves || _fm_ctx.use_exact_abortion_threshold
@@ -954,18 +999,16 @@ public:
                                    : cut_before_current_iteration - expected_gain_of_this_iteration;
 
       if constexpr (kAllowOverloadedMoves) {
-        if (current_overload == 0 && current_cut <= best_cut) {
-          graph.pfor_nodes([&](const NodeID u) { best_partition[u] = p_graph.block(u); });
-          best_cut = current_cut;
-          last_iteration_is_best = true;
-        } else {
-          TIMED_SCOPE("Rollback") {
-            graph.pfor_nodes([&](const NodeID u) { p_graph.set_block(u, best_partition[u]); });
-            _shared->gain_cache.initialize(graph, p_graph);
-          };
-          current_cut = best_cut;
-          last_iteration_is_best = true;
-        }
+        TIMED_SCOPE("Rollback") {
+          current_cut = rollback_to_best_prefix(
+              graph, p_graph, p_ctx, round_start_partition, cut_before_current_iteration
+          );
+          _shared->gain_cache.initialize(graph, p_graph);
+        };
+
+        graph.pfor_nodes([&](const NodeID u) { best_partition[u] = p_graph.block(u); });
+        best_cut = current_cut;
+        last_iteration_is_best = true;
       }
 
       const EdgeWeight abs_improvement_of_this_iteration =
@@ -1010,6 +1053,224 @@ public:
   }
 
 private:
+  [[nodiscard]] EdgeWeight compute_move_gain(
+      const Graph &graph,
+      const PartitionedGraph &p_graph,
+      const NodeID node,
+      const BlockID from,
+      const BlockID to
+  ) const {
+    EdgeWeight conn_from = 0;
+    EdgeWeight conn_to = 0;
+
+    graph.adjacent_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
+      const BlockID block = p_graph.block(v);
+      if (block == from) {
+        conn_from += weight;
+      } else if (block == to) {
+        conn_to += weight;
+      }
+    });
+
+    return conn_to - conn_from;
+  }
+
+  void interleave_rebalancing_moves(
+      const Graph &graph,
+      const PartitionedGraph &p_graph,
+      const PartitionContext &p_ctx,
+      const StaticArray<BlockID> &round_start_partition
+  ) const {
+    if (_shared->rebalancing_moves.empty()) {
+      return;
+    }
+
+    std::vector<GlobalMove> fm_moves(_shared->round_moves.begin(), _shared->round_moves.end());
+    std::vector<GlobalMove> rebalancing_moves(
+        _shared->rebalancing_moves.begin(), _shared->rebalancing_moves.end()
+    );
+
+    constexpr std::size_t kInvalidMoveIndex = std::numeric_limits<std::size_t>::max();
+    std::vector<std::size_t> move_index_of_node(graph.n(), kInvalidMoveIndex);
+    for (std::size_t i = 0; i < fm_moves.size(); ++i) {
+      const GlobalMove &move = fm_moves[i];
+      if (move.valid) {
+        move_index_of_node[move.node] = i;
+      }
+    }
+
+    for (GlobalMove &rebalancing_move : rebalancing_moves) {
+      if (!rebalancing_move.valid) {
+        continue;
+      }
+
+      const std::size_t fm_move_index = move_index_of_node[rebalancing_move.node];
+      if (fm_move_index == kInvalidMoveIndex) {
+        continue;
+      }
+
+      GlobalMove &fm_move = fm_moves[fm_move_index];
+      if (!fm_move.valid || fm_move.to != rebalancing_move.from) {
+        continue;
+      }
+
+      if (fm_move.from == rebalancing_move.to) {
+        fm_move.valid = false;
+        rebalancing_move.valid = false;
+      } else {
+        rebalancing_move.from = fm_move.from;
+        fm_move.valid = false;
+      }
+    }
+
+    std::vector<std::vector<GlobalMove>> rebalancing_moves_by_block(p_graph.k());
+    for (const GlobalMove &move : rebalancing_moves) {
+      if (move.valid) {
+        rebalancing_moves_by_block[move.from].push_back(move);
+      }
+    }
+
+    std::vector<BlockWeight> block_weights(p_graph.k(), 0);
+    for (const NodeID node : graph.nodes()) {
+      block_weights[round_start_partition[node]] += graph.node_weight(node);
+    }
+
+    std::vector<std::size_t> next_rebalancing_move(p_graph.k(), 0);
+    std::vector<GlobalMove> interleaved_moves;
+    interleaved_moves.reserve(fm_moves.size() + rebalancing_moves.size());
+
+    auto apply_to_block_weights = [&](const GlobalMove &move) {
+      const NodeWeight weight = graph.node_weight(move.node);
+      block_weights[move.from] -= weight;
+      block_weights[move.to] += weight;
+    };
+
+    auto insert_moves_to_balance_block = [&](auto &self, const BlockID block) -> void {
+      auto &moves = rebalancing_moves_by_block[block];
+      std::size_t &next = next_rebalancing_move[block];
+
+      while (block_weights[block] > p_ctx.max_block_weight(block) && next < moves.size()) {
+        const GlobalMove move = moves[next++];
+        interleaved_moves.push_back(move);
+        apply_to_block_weights(move);
+
+        if (block_weights[move.to] > p_ctx.max_block_weight(move.to)) {
+          self(self, move.to);
+        }
+      }
+    };
+
+    for (const BlockID block : p_graph.blocks()) {
+      insert_moves_to_balance_block(insert_moves_to_balance_block, block);
+    }
+
+    for (const GlobalMove &move : fm_moves) {
+      if (!move.valid) {
+        continue;
+      }
+
+      interleaved_moves.push_back(move);
+      apply_to_block_weights(move);
+      insert_moves_to_balance_block(insert_moves_to_balance_block, move.to);
+    }
+
+    for (const BlockID block : p_graph.blocks()) {
+      auto &moves = rebalancing_moves_by_block[block];
+      std::size_t &next = next_rebalancing_move[block];
+      while (next < moves.size()) {
+        interleaved_moves.push_back(moves[next++]);
+      }
+    }
+
+    _shared->round_moves.clear();
+    for (const GlobalMove &move : interleaved_moves) {
+      _shared->round_moves.push_back(move);
+    }
+  }
+
+  [[nodiscard]] EdgeWeight rollback_to_best_prefix(
+      const Graph &graph,
+      PartitionedGraph &p_graph,
+      const PartitionContext &p_ctx,
+      const StaticArray<BlockID> &round_start_partition,
+      const EdgeWeight round_start_cut
+  ) const {
+    const std::size_t num_moves = _shared->round_moves.size();
+
+    graph.pfor_nodes([&](const NodeID u) {
+      const BlockID block = round_start_partition[u];
+      if (p_graph.block(u) != block) {
+        p_graph.set_block(u, block);
+      }
+    });
+
+    std::vector<BlockWeight> block_weights(p_graph.k());
+    std::size_t overloaded_blocks = 0;
+    for (const BlockID block : p_graph.blocks()) {
+      block_weights[block] = p_graph.block_weight(block);
+      overloaded_blocks += block_weights[block] > p_ctx.max_block_weight(block);
+    }
+
+    EdgeWeight current_cut = round_start_cut;
+    EdgeWeight best_cut = round_start_cut;
+    BlockWeight best_heaviest_block_weight =
+        *std::max_element(block_weights.begin(), block_weights.end());
+    std::size_t best_prefix = 0;
+    std::vector<std::uint8_t> applied_moves(num_moves, 0);
+
+    auto update_block_weight = [&](const BlockID block, const BlockWeight new_weight) {
+      const bool was_overloaded = block_weights[block] > p_ctx.max_block_weight(block);
+      block_weights[block] = new_weight;
+      const bool is_overloaded = block_weights[block] > p_ctx.max_block_weight(block);
+
+      overloaded_blocks += is_overloaded && !was_overloaded;
+      overloaded_blocks -= was_overloaded && !is_overloaded;
+    };
+
+    for (std::size_t i = 0; i < num_moves; ++i) {
+      const GlobalMove move = _shared->round_moves[i];
+      if (!move.valid) {
+        continue;
+      }
+      if (p_graph.block(move.node) != move.from) {
+        continue;
+      }
+
+      current_cut -= compute_move_gain(graph, p_graph, move.node, move.from, move.to);
+
+      const NodeWeight weight = graph.node_weight(move.node);
+      update_block_weight(move.from, block_weights[move.from] - weight);
+      update_block_weight(move.to, block_weights[move.to] + weight);
+      p_graph.set_block(move.node, move.to);
+      applied_moves[i] = 1;
+
+      if (overloaded_blocks == 0) {
+        const BlockWeight heaviest_block_weight =
+            *std::max_element(block_weights.begin(), block_weights.end());
+        if (current_cut < best_cut ||
+            (current_cut == best_cut && heaviest_block_weight < best_heaviest_block_weight)) {
+          best_cut = current_cut;
+          best_heaviest_block_weight = heaviest_block_weight;
+          best_prefix = i + 1;
+        }
+      }
+    }
+
+    for (std::size_t i = num_moves; i-- > best_prefix;) {
+      if (!applied_moves[i]) {
+        continue;
+      }
+
+      const GlobalMove move = _shared->round_moves[i];
+      if (p_graph.block(move.node) == move.to) {
+        p_graph.set_block(move.node, move.from);
+      }
+    }
+
+    _shared->round_moves.clear();
+    return best_cut;
+  }
+
   const Context &_ctx;
   const KwayFMRefinementContext &_fm_ctx;
 
