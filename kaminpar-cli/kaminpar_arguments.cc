@@ -461,7 +461,9 @@ The following algorithms can be used:
   - underload-balancer: Rebalancer for minimum block weights.
   - lp:                 Label propagation (also see --r-lp-*).
   - fm:                 FM (also see --r-fm-*).
-  - twoway-flow:        Two-Way Flow (also see --r-twoway-flow-*).)"
+  - twoway-flow:        Two-Way Flow (also see --r-twoway-flow-*).
+  - jet:                Jet refinement (also see --r-jet-*).
+  - rccp:               Repair-certified cut-packet refinement (also see --r-rccp-*).)"
       )
       ->capture_default_str();
 
@@ -469,6 +471,7 @@ The following algorithms can be used:
   create_kway_fm_refinement_options(app, ctx);
   create_twoway_flow_refinement_options(app, ctx);
   create_jet_refinement_options(app, ctx);
+  create_rccp_refinement_options(app, ctx);
   create_mtkahypar_refinement_options(app, ctx);
 
   return refinement;
@@ -827,6 +830,89 @@ CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {
       ->capture_default_str();
 
   return jet;
+}
+
+CLI::Option_group *create_rccp_refinement_options(CLI::App *app, Context &ctx) {
+  auto *rccp = app->add_option_group("Refinement -> RCCP");
+
+  rccp->add_option(
+          "--r-rccp-num-iterations",
+          ctx.refinement.rccp.num_iterations,
+          "Maximum number of RCCP improvement iterations."
+  )
+      ->capture_default_str();
+  rccp->add_option(
+          "--r-rccp-max-active-pairs",
+          ctx.refinement.rccp.max_active_pairs,
+          "Maximum number of quotient block pairs used for min-cut packet generation."
+  )
+      ->capture_default_str();
+  rccp->add_option(
+          "--r-rccp-active-region-radius",
+          ctx.refinement.rccp.active_region_radius,
+          "Radius of source-block regions grown from active quotient edges."
+  )
+      ->capture_default_str();
+  rccp->add_option(
+          "--r-rccp-max-region-vertices",
+          ctx.refinement.rccp.max_region_vertices,
+          "Maximum number of vertices in one RCCP min-cut source region."
+  )
+      ->capture_default_str();
+  rccp->add_option(
+          "--r-rccp-max-packet-weight-fraction",
+          ctx.refinement.rccp.max_packet_weight_fraction,
+          "Maximum packet weight as a fraction of the average block weight."
+  )
+      ->capture_default_str();
+  rccp->add_option(
+          "--r-rccp-max-negative-gain",
+          ctx.refinement.rccp.max_negative_gain,
+          "Keep singleton eviction packets with gain at least the negative of this value."
+  )
+      ->capture_default_str();
+  rccp->add_option(
+          "--r-rccp-max-total-packets",
+          ctx.refinement.rccp.max_total_packets,
+          "Maximum number of packets kept for the RCCP master search."
+  )
+      ->capture_default_str();
+  rccp->add_option(
+          "--r-rccp-master-depth",
+          ctx.refinement.rccp.master_depth,
+          "Maximum number of packets selected by the RCCP beam-search master."
+  )
+      ->capture_default_str();
+  rccp->add_option(
+          "--r-rccp-master-beam-width",
+          ctx.refinement.rccp.master_beam_width,
+          "Number of partial packet selections retained per master-search depth."
+  )
+      ->capture_default_str();
+  rccp->add_option(
+          "--r-rccp-master-branching-factor",
+          ctx.refinement.rccp.master_branching_factor,
+          "Maximum number of packet extensions explored per master-search state."
+  )
+      ->capture_default_str();
+  rccp->add_option(
+          "--r-rccp-trust-region-factor",
+          ctx.refinement.rccp.trust_region_factor,
+          "Temporary per-block balance violation allowed during master search."
+  )
+      ->capture_default_str();
+  rccp->add_flag(
+      "--r-rccp-disable-singletons",
+      [&](auto) { ctx.refinement.rccp.enable_singleton_packets = false; },
+      "Disable singleton packet generation."
+  );
+  rccp->add_flag(
+      "--r-rccp-disable-mincut-packets",
+      [&](auto) { ctx.refinement.rccp.enable_mincut_packets = false; },
+      "Disable local min-cut packet generation."
+  );
+
+  return rccp;
 }
 
 CLI::Option_group *create_mtkahypar_refinement_options(CLI::App *app, Context &ctx) {

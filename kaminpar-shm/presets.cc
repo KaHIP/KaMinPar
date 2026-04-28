@@ -420,6 +420,22 @@ Context create_default_context() {
                       .final_gain_temp_on_coarse_level = 0.75,
                       .balancing_algorithm = RefinementAlgorithm::OVERLOAD_BALANCER,
                   },
+              .rccp =
+                  {
+                      .num_iterations = 3,
+                      .max_active_pairs = 256,
+                      .active_region_radius = 2,
+                      .max_region_vertices = 1024,
+                      .max_packet_weight_fraction = 0.05,
+                      .max_negative_gain = 16,
+                      .max_total_packets = 2048,
+                      .master_depth = 8,
+                      .master_beam_width = 128,
+                      .master_branching_factor = 32,
+                      .trust_region_factor = 0.10,
+                      .enable_singleton_packets = true,
+                      .enable_mincut_packets = true,
+                  },
               .mtkahypar =
                   {
                       .config_filename = "",

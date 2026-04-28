@@ -370,6 +370,8 @@ std::unordered_map<std::string, RefinementAlgorithm> get_refinement_algorithms()
       {"fm", RefinementAlgorithm::KWAY_FM},
       {"twoway-flow", RefinementAlgorithm::TWOWAY_FLOW},
       {"jet", RefinementAlgorithm::JET},
+      {"rccp", RefinementAlgorithm::RCCP},
+      {"repair-certified-cut-packets", RefinementAlgorithm::RCCP},
       {"mtkahypar", RefinementAlgorithm::MTKAHYPAR},
   };
 }
@@ -390,6 +392,8 @@ std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm)
     return out << "twoway-flow";
   case RefinementAlgorithm::JET:
     return out << "jet";
+  case RefinementAlgorithm::RCCP:
+    return out << "rccp";
   case RefinementAlgorithm::MTKAHYPAR:
     return out << "mtkahypar";
   }
@@ -812,6 +816,22 @@ std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
         << r_ctx.jet.initial_gain_temp_on_fine_level << ", "
         << r_ctx.jet.final_gain_temp_on_fine_level << "]\n";
     out << "  Balancing algorithm:        " << r_ctx.jet.balancing_algorithm << "\n";
+  }
+
+  if (r_ctx.includes_algorithm(RefinementAlgorithm::RCCP)) {
+    out << "RCCP refinement:\n";
+    out << "  Number of iterations:       " << r_ctx.rccp.num_iterations << "\n";
+    out << "  Packet generation:          singleton " << yn(r_ctx.rccp.enable_singleton_packets)
+        << ", min-cut " << yn(r_ctx.rccp.enable_mincut_packets) << "\n";
+    out << "  Active regions:             radius " << r_ctx.rccp.active_region_radius
+        << ", max nodes " << r_ctx.rccp.max_region_vertices << ", max pairs "
+        << r_ctx.rccp.max_active_pairs << "\n";
+    out << "  Packet pool:                max " << r_ctx.rccp.max_total_packets
+        << ", max packet weight " << r_ctx.rccp.max_packet_weight_fraction
+        << " x avg block weight, max negative gain " << r_ctx.rccp.max_negative_gain << "\n";
+    out << "  Master search:              depth " << r_ctx.rccp.master_depth << ", beam "
+        << r_ctx.rccp.master_beam_width << ", branching " << r_ctx.rccp.master_branching_factor
+        << ", trust region " << r_ctx.rccp.trust_region_factor << "\n";
   }
 
   return out;

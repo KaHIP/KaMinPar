@@ -213,6 +213,7 @@ enum class RefinementAlgorithm {
   KWAY_FM,
   TWOWAY_FLOW,
   JET,
+  RCCP,
   MTKAHYPAR,
 };
 
@@ -327,6 +328,25 @@ struct JetRefinementContext {
   RefinementAlgorithm balancing_algorithm;
 };
 
+struct RccpRefinementContext {
+  int num_iterations;
+
+  std::size_t max_active_pairs;
+  NodeID active_region_radius;
+  NodeID max_region_vertices;
+  double max_packet_weight_fraction;
+  EdgeWeight max_negative_gain;
+
+  std::size_t max_total_packets;
+  std::size_t master_depth;
+  std::size_t master_beam_width;
+  std::size_t master_branching_factor;
+  double trust_region_factor;
+
+  bool enable_singleton_packets;
+  bool enable_mincut_packets;
+};
+
 struct MtKaHyParRefinementContext {
   std::string config_filename;
   std::string coarse_config_filename;
@@ -342,6 +362,7 @@ struct RefinementContext {
   KwayFMRefinementContext kway_fm;
   TwowayFlowRefinementContext twoway_flow;
   JetRefinementContext jet;
+  RccpRefinementContext rccp;
   MtKaHyParRefinementContext mtkahypar;
 
   [[nodiscard]] bool includes_algorithm(const RefinementAlgorithm algorithm) const {

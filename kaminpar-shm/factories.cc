@@ -35,6 +35,7 @@
 #include "kaminpar-shm/refinement/jet/jet_refiner.h"
 #include "kaminpar-shm/refinement/lp/lp_refiner.h"
 #include "kaminpar-shm/refinement/multi_refiner.h"
+#include "kaminpar-shm/refinement/rccp/rccp_refiner.h"
 
 namespace kaminpar::shm::factory {
 
@@ -116,6 +117,9 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
 
   case RefinementAlgorithm::JET:
     return std::make_unique<JetRefiner>(ctx);
+
+  case RefinementAlgorithm::RCCP:
+    return std::make_unique<RccpRefiner>(ctx);
 
   case RefinementAlgorithm::MTKAHYPAR:
     return std::make_unique<MtKaHyParRefiner>(ctx);
