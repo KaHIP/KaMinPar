@@ -94,32 +94,34 @@ class LocalLPSelector {
 public:
   explicit LocalLPSelector(LocalLPWeights &weights) : _weights(weights) {}
 
-  template <typename State, typename RatingMap>
-  [[nodiscard]] NodeID select(
-      const bool,
-      const EdgeWeight gain_delta,
-      State &state,
+  template <::kaminpar::lp::TieBreakingStrategy TieBreaking, typename Context, typename RatingMap>
+  [[nodiscard]] KAMINPAR_LP_INLINE auto select(
+      const Context &context,
       RatingMap &map,
-      ScalableVector<NodeID> &,
-      ScalableVector<NodeID> &
+      ScalableVector<NodeID> &tie_breaking_clusters,
+      ScalableVector<NodeID> &tie_breaking_favored_clusters
   ) {
-    NodeID favored_cluster = state.initial_cluster;
-    for (const auto [cluster, rating] : map.entries()) {
-      state.current_cluster = cluster;
-      state.current_gain = rating - gain_delta;
-      state.current_cluster_weight = _weights.cluster_weight(cluster);
+    return ::kaminpar::lp::choose_cluster<TieBreaking>(
+        context, map, *this, tie_breaking_clusters, tie_breaking_favored_clusters
+    );
+  }
 
-      if ((state.current_gain > state.best_gain ||
-           (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
-          (state.current_cluster_weight + state.u_weight <=
-               _weights.max_cluster_weight(state.current_cluster) ||
-           state.current_cluster == state.initial_cluster)) {
-        state.best_cluster = state.current_cluster;
-        state.best_cluster_weight = state.current_cluster_weight;
-        state.best_gain = state.current_gain;
-      }
-    }
-    return favored_cluster;
+  [[nodiscard]] KAMINPAR_LP_INLINE NodeWeight cluster_weight(const NodeID cluster) const {
+    return _weights.cluster_weight(cluster);
+  }
+
+  template <typename Context, typename Candidate, typename Choice>
+  [[nodiscard]] KAMINPAR_LP_INLINE bool
+  is_feasible(const Context &context, const Candidate &candidate, const Choice &) const {
+    return candidate.weight + context.node_weight <=
+               _weights.max_cluster_weight(candidate.cluster) ||
+           candidate.cluster == context.initial_cluster;
+  }
+
+  template <typename Context, typename Candidate, typename Choice>
+  [[nodiscard]] KAMINPAR_LP_INLINE ::kaminpar::lp::CandidateComparison
+  compare(const Context &, const Candidate &candidate, const Choice &choice) const {
+    return ::kaminpar::lp::compare_by_gain(candidate.gain, choice.best_gain);
   }
 
 private:
@@ -170,20 +172,15 @@ public:
     _labels.init(clustering);
     initialize(graph);
 
-    lp::Options<NodeID, NodeID> options{
-        .max_degree = _max_degree,
-        .max_num_neighbors = _max_num_neighbors,
-        .desired_num_clusters = 0,
-        .rating_map_strategy = lp::RatingMapStrategy::SINGLE_PHASE,
-        .active_set_strategy = lp::ActiveSetStrategy::NONE,
-        .tie_breaking_strategy = lp::TieBreakingStrategy::GEOMETRIC,
-        .track_cluster_count = false,
-        .use_two_hop_clustering = false,
-        .use_actual_gain = false,
+    lp::PassConfig<NodeID, NodeID> config{
+        .nodes = {.max_degree = _max_degree, .max_neighbors = _max_num_neighbors},
+        .rating = {.strategy = lp::RatingMapStrategy::SINGLE_PHASE},
+        .active_set = {.strategy = lp::ActiveSetStrategy::NONE},
+        .selection = {.tie_breaking_strategy = lp::TieBreakingStrategy::GEOMETRIC},
     };
     TypedLocalLPNeighborPolicy neighbors(graph, _partition, _ignore_ghost_nodes);
     lp::LabelPropagationCore core(
-        graph, _labels, _weights, _selector, neighbors, _workspace, options
+        graph, _labels, _weights, _selector, neighbors, _workspace, config
     );
     core.initialize(
         {.num_nodes = _num_nodes, .num_active_nodes = graph.n(), .num_clusters = graph.n()}
@@ -207,7 +204,7 @@ public:
           _order_workspace,
           iteration::NodeRange<NodeID>{0, graph.n()},
           static_cast<EdgeID>(kMinChunkSize),
-          iteration::bucket_limit_for_max_degree(graph, options.max_degree)
+          iteration::bucket_limit_for_max_degree(graph, config.nodes.max_degree)
       );
       const auto result = lp::run_iteration(order, core);
       if (result.moved_nodes == 0) {

@@ -109,121 +109,99 @@ struct LPClusteringNeighborPolicy {
 
 class LPClusteringSelector {
 public:
-  LPClusteringSelector(
-      LPClusterWeights &weights,
-      std::span<const NodeID> &communities,
-      const CoarseningContext &c_ctx
-  )
+  LPClusteringSelector(LPClusterWeights &weights, std::span<const NodeID> &communities)
       : _weights(weights),
-        _communities(communities),
-        _lp_ctx(c_ctx.clustering.lp) {}
+        _communities(communities) {}
 
-  template <typename State, typename RatingMap>
-  [[nodiscard]] NodeID select(
-      const bool store_favored_cluster,
-      const EdgeWeight gain_delta,
-      State &state,
+  template <lp::TieBreakingStrategy TieBreaking, typename Context, typename RatingMap>
+  [[nodiscard]] KAMINPAR_LP_INLINE auto select(
+      const Context &context,
       RatingMap &map,
       ScalableVector<NodeID> &tie_breaking_clusters,
       ScalableVector<NodeID> &tie_breaking_favored_clusters
   ) {
-    const bool use_uniform_tie_breaking =
-        _lp_ctx.tie_breaking_strategy == TieBreakingStrategy::UNIFORM;
+    auto choice = lp::make_initial_choice(context);
+    const NodeWeight max_cluster_weight = _weights.max_cluster_weight(context.initial_cluster);
+    const bool use_communities = !_communities.empty();
+    const NodeID initial_community =
+        use_communities ? _communities[context.initial_cluster] : kInvalidNodeID;
 
-    const auto accept_cluster_community = [&] {
-      return _communities.empty() ||
-             _communities[state.current_cluster] == _communities[state.initial_cluster];
-    };
+    for (const auto [cluster, rating] : map.entries()) {
+      const NodeID current_cluster = cluster;
+      const EdgeWeight current_gain = rating - context.gain_delta;
+      const NodeWeight current_cluster_weight = _weights.cluster_weight(current_cluster);
 
-    NodeID favored_cluster = state.initial_cluster;
-    if (use_uniform_tie_breaking) {
-      const auto accept_cluster = [&] {
-        return (state.current_cluster_weight + state.u_weight <=
-                    _weights.max_cluster_weight(state.current_cluster) ||
-                state.current_cluster == state.initial_cluster) &&
-               accept_cluster_community();
-      };
-
-      for (const auto [cluster, rating] : map.entries()) {
-        state.current_cluster = cluster;
-        state.current_gain = rating - gain_delta;
-        state.current_cluster_weight = _weights.cluster_weight(cluster);
-
-        if (store_favored_cluster) {
-          if (state.current_gain > state.overall_best_gain) {
-            state.overall_best_gain = state.current_gain;
-            favored_cluster = state.current_cluster;
+      if (context.track_favored_cluster) {
+        if constexpr (TieBreaking == lp::TieBreakingStrategy::UNIFORM) {
+          if (current_gain > choice.favored_gain) {
+            choice.favored_gain = current_gain;
+            choice.favored_cluster = current_cluster;
 
             tie_breaking_favored_clusters.clear();
-            tie_breaking_favored_clusters.push_back(state.current_cluster);
-          } else if (state.current_gain == state.overall_best_gain) {
-            tie_breaking_favored_clusters.push_back(state.current_cluster);
+            tie_breaking_favored_clusters.push_back(current_cluster);
+          } else if (current_gain == choice.favored_gain) {
+            tie_breaking_favored_clusters.push_back(current_cluster);
           }
-        }
-
-        if (state.current_gain > state.best_gain) {
-          if (accept_cluster()) {
-            tie_breaking_clusters.clear();
-            tie_breaking_clusters.push_back(state.current_cluster);
-
-            state.best_cluster = state.current_cluster;
-            state.best_gain = state.current_gain;
-          }
-        } else if (state.current_gain == state.best_gain) {
-          if (accept_cluster()) {
-            tie_breaking_clusters.push_back(state.current_cluster);
+        } else {
+          if (current_gain > choice.favored_gain) {
+            choice.favored_gain = current_gain;
+            choice.favored_cluster = current_cluster;
           }
         }
       }
 
+      if constexpr (TieBreaking == lp::TieBreakingStrategy::UNIFORM) {
+        if (current_gain > choice.best_gain) {
+          if ((current_cluster_weight + context.node_weight <= max_cluster_weight ||
+               current_cluster == context.initial_cluster) &&
+              (!use_communities || _communities[current_cluster] == initial_community)) {
+            choice.best_cluster = current_cluster;
+            choice.best_gain = current_gain;
+            choice.best_cluster_weight = current_cluster_weight;
+
+            tie_breaking_clusters.clear();
+            tie_breaking_clusters.push_back(current_cluster);
+          }
+        } else if (current_gain == choice.best_gain) {
+          if ((current_cluster_weight + context.node_weight <= max_cluster_weight ||
+               current_cluster == context.initial_cluster) &&
+              (!use_communities || _communities[current_cluster] == initial_community)) {
+            tie_breaking_clusters.push_back(current_cluster);
+          }
+        }
+      } else {
+        if ((current_gain > choice.best_gain ||
+             (current_gain == choice.best_gain && context.rand.random_bool())) &&
+            (current_cluster_weight + context.node_weight <= max_cluster_weight ||
+             current_cluster == context.initial_cluster) &&
+            (!use_communities || _communities[current_cluster] == initial_community)) {
+          choice.best_cluster = current_cluster;
+          choice.best_gain = current_gain;
+          choice.best_cluster_weight = current_cluster_weight;
+        }
+      }
+    }
+
+    if constexpr (TieBreaking == lp::TieBreakingStrategy::UNIFORM) {
       if (tie_breaking_clusters.size() > 1) {
-        const NodeID i = state.local_rand.random_index(0, tie_breaking_clusters.size());
-        state.best_cluster = tie_breaking_clusters[i];
+        const NodeID i = context.rand.random_index(0, tie_breaking_clusters.size());
+        choice.best_cluster = tie_breaking_clusters[i];
       }
       tie_breaking_clusters.clear();
 
       if (tie_breaking_favored_clusters.size() > 1) {
-        const NodeID i = state.local_rand.random_index(0, tie_breaking_favored_clusters.size());
-        favored_cluster = tie_breaking_favored_clusters[i];
+        const NodeID i = context.rand.random_index(0, tie_breaking_favored_clusters.size());
+        choice.favored_cluster = tie_breaking_favored_clusters[i];
       }
       tie_breaking_favored_clusters.clear();
-
-      return favored_cluster;
-    } else {
-      const auto accept_cluster = [&] {
-        return (state.current_gain > state.best_gain ||
-                (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
-               (state.current_cluster_weight + state.u_weight <=
-                    _weights.max_cluster_weight(state.current_cluster) ||
-                state.current_cluster == state.initial_cluster) &&
-               accept_cluster_community();
-      };
-
-      for (const auto [cluster, rating] : map.entries()) {
-        state.current_cluster = cluster;
-        state.current_gain = rating - gain_delta;
-        state.current_cluster_weight = _weights.cluster_weight(cluster);
-
-        if (store_favored_cluster && state.current_gain > state.overall_best_gain) {
-          state.overall_best_gain = state.current_gain;
-          favored_cluster = state.current_cluster;
-        }
-
-        if (accept_cluster()) {
-          state.best_cluster = state.current_cluster;
-          state.best_cluster_weight = state.current_cluster_weight;
-          state.best_gain = state.current_gain;
-        }
-      }
-
-      return favored_cluster;
     }
+
+    return choice;
   }
 
 private:
   LPClusterWeights &_weights;
   std::span<const NodeID> &_communities;
-  const LabelPropagationCoarseningContext &_lp_ctx;
 };
 
 } // namespace
@@ -242,7 +220,7 @@ public:
         _workspace(workspace),
         _order_workspace(order_workspace),
         _weights(weights),
-        _selector(_weights, _communities, c_ctx),
+        _selector(_weights, _communities),
         _relabel_before_second_phase(c_ctx.clustering.lp.relabel_before_second_phase) {}
 
   void set_max_cluster_weight(const NodeWeight max_cluster_weight) {
@@ -284,23 +262,25 @@ public:
     });
     _order_workspace.clear_order();
 
-    lp::Options<NodeID, NodeID> options{
-        .max_degree = _lp_ctx.large_degree_threshold,
-        .max_num_neighbors = _lp_ctx.max_num_neighbors,
-        .desired_num_clusters = _desired_num_clusters,
-        .rating_map_strategy = map_rating_map_strategy(_lp_ctx.impl),
-        .active_set_strategy = lp::ActiveSetStrategy::GLOBAL,
-        .tie_breaking_strategy = map_tie_breaking_strategy(_lp_ctx.tie_breaking_strategy),
-        .track_cluster_count = true,
-        .use_two_hop_clustering = true,
-        .use_actual_gain = false,
-        .relabel_before_second_phase = _relabel_before_second_phase,
-        .rating_map_threshold = kRatingMapThreshold,
+    lp::PassConfig<NodeID, NodeID> config{
+        .nodes =
+            {.max_degree = _lp_ctx.large_degree_threshold,
+             .max_neighbors = _lp_ctx.max_num_neighbors},
+        .rating =
+            {.strategy = map_rating_map_strategy(_lp_ctx.impl),
+             .large_map_threshold = kRatingMapThreshold,
+             .relabel_before_second_phase = _relabel_before_second_phase},
+        .active_set = {.strategy = lp::ActiveSetStrategy::GLOBAL},
+        .selection =
+            {.tie_breaking_strategy = map_tie_breaking_strategy(_lp_ctx.tie_breaking_strategy),
+             .use_actual_gain = false,
+             .track_favored_clusters = true},
+        .stopping = {.desired_clusters = _desired_num_clusters, .track_cluster_count = true},
     };
 
     LPClusteringNeighborPolicy neighbors{.communities = _communities};
     lp::LabelPropagationCore core(
-        graph, _labels, _weights, _selector, neighbors, _workspace, options
+        graph, _labels, _weights, _selector, neighbors, _workspace, config
     );
     core.initialize(
         {.num_nodes = _num_nodes, .num_active_nodes = graph.n(), .num_clusters = graph.n()}
@@ -313,7 +293,7 @@ public:
           _order_workspace,
           iteration::NodeRange<NodeID>{0, graph.n()},
           static_cast<EdgeID>(kMinChunkSize),
-          iteration::bucket_limit_for_max_degree(graph, options.max_degree)
+          iteration::bucket_limit_for_max_degree(graph, config.nodes.max_degree)
       );
       const auto result = lp::run_iteration(order, core);
       if (result.moved_nodes == 0) {
@@ -323,8 +303,8 @@ public:
       // Only relabel during the first iteration because afterwards the memory for the second phase
       // is already allocated.
       if (iteration == 0) {
-        options.relabel_before_second_phase = false;
-        core.set_options(options);
+        config.rating.relabel_before_second_phase = false;
+        core.set_config(config);
         _relabel_before_second_phase = false;
       }
     }
