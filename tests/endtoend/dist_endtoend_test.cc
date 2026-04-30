@@ -98,7 +98,7 @@ TEST(DistEndToEndTest, copies_weighted_graph_with_one_node_weight_per_local_node
   std::vector<GlobalNodeID> vtxdist(size + 1);
   std::iota(vtxdist.begin(), vtxdist.end(), 0);
 
-  std::vector<GlobalEdgeID> xadj{0};
+  std::vector<GlobalEdgeID> xadj{0, 0};
   std::vector<GlobalNodeID> adjncy{};
   std::vector<GlobalNodeWeight> vwgt{rank + 1};
   std::vector<GlobalEdgeWeight> adjwgt{};
