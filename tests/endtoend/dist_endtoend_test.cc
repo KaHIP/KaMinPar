@@ -12,6 +12,7 @@
 
 #include "kaminpar-mpi/wrapper.h"
 
+#include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
 
 #include "kaminpar-common/math.h"
@@ -88,6 +89,28 @@ TEST(DistEndToEndTest, partitions_empty_weighted_graph) {
   dist.set_output_level(OutputLevel::QUIET);
   dist.copy_graph(vtxdist, xadj, adjncy, vwgt, adjwgt);
   EXPECT_EQ(dist.compute_partition(16, partition), 0);
+}
+
+TEST(DistEndToEndTest, copies_weighted_graph_with_one_node_weight_per_local_node) {
+  const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
+  const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
+
+  std::vector<GlobalNodeID> vtxdist(size + 1);
+  std::iota(vtxdist.begin(), vtxdist.end(), 0);
+
+  std::vector<GlobalEdgeID> xadj{0, 0};
+  std::vector<GlobalNodeID> adjncy{};
+  std::vector<GlobalNodeWeight> vwgt{rank + 1};
+  std::vector<GlobalEdgeWeight> adjwgt{};
+
+  dKaMinPar dist(MPI_COMM_WORLD, 1, create_default_context());
+  dist.set_output_level(OutputLevel::QUIET);
+  dist.copy_graph(vtxdist, xadj, adjncy, vwgt, adjwgt);
+
+  ASSERT_NE(nullptr, dist.graph());
+  EXPECT_TRUE(dist.graph()->is_node_weighted());
+  EXPECT_EQ(dist.graph()->total_n(), dist.graph()->node_weights().size());
+  EXPECT_EQ(rank + 1, dist.graph()->node_weight(0));
 }
 
 TEST(DistEndToEndTest, partitions_unweighted_walshaw_data_graph) {
