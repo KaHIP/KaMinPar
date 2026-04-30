@@ -419,7 +419,7 @@ void dKaMinPar::copy_graph(
 
   if (!vwgt.empty()) {
     // Allocate enough room for ghost nodes; we fill them in after constructing the graph
-    node_weights.resize(n + mapper.next_ghost_node());
+    node_weights.resize(mapper.next_ghost_node());
     tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) { node_weights[u] = vwgt[u]; });
   }
 
