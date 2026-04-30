@@ -2,6 +2,12 @@
  * @file:   dist_metis_parser_test.cc
  * @brief:  Unit tests for distributed METIS graph parsing.
  ******************************************************************************/
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <utility>
+#include <vector>
+
 #include <gmock/gmock.h>
 
 #include "kaminpar-io/dist_metis_parser.h"
@@ -20,7 +26,8 @@ struct MetisFixture {
   GlobalEdgeWeight total_edge_weight;
 };
 
-constexpr GlobalNodeID kNumNodes = 16;
+constexpr std::size_t kNumNodesSize = 16;
+constexpr GlobalNodeID kNumNodes = static_cast<GlobalNodeID>(kNumNodesSize);
 constexpr GlobalEdgeID kNumEdges = 2 * 24;
 constexpr GlobalNodeWeight kWeightedNodeWeight = 136;
 constexpr GlobalEdgeWeight kWeightedEdgeWeight = 2 * 332;
@@ -56,7 +63,44 @@ constexpr MetisFixture kMetisFixtures[] = {
     },
 };
 
-template <typename Graph> void expect_fixture_graph(const Graph &graph, const MetisFixture &fixture) {
+using ExpectedAdjacency = std::vector<std::pair<GlobalNodeID, EdgeWeight>>;
+
+const std::array<ExpectedAdjacency, kNumNodesSize> kWeightedTopology = {
+    ExpectedAdjacency{{1, 1}, {8, 21}, {15, 16}},
+    ExpectedAdjacency{{0, 1}, {2, 2}, {9, 22}},
+    ExpectedAdjacency{{1, 2}, {3, 3}, {10, 23}},
+    ExpectedAdjacency{{2, 3}, {4, 4}, {11, 24}},
+    ExpectedAdjacency{{3, 4}, {5, 5}, {12, 25}},
+    ExpectedAdjacency{{4, 5}, {6, 6}, {13, 26}},
+    ExpectedAdjacency{{5, 6}, {7, 7}, {14, 27}},
+    ExpectedAdjacency{{6, 7}, {8, 8}, {15, 28}},
+    ExpectedAdjacency{{0, 21}, {7, 8}, {9, 9}},
+    ExpectedAdjacency{{1, 22}, {8, 9}, {10, 10}},
+    ExpectedAdjacency{{2, 23}, {9, 10}, {11, 11}},
+    ExpectedAdjacency{{3, 24}, {10, 11}, {12, 12}},
+    ExpectedAdjacency{{4, 25}, {11, 12}, {13, 13}},
+    ExpectedAdjacency{{5, 26}, {12, 13}, {14, 14}},
+    ExpectedAdjacency{{6, 27}, {13, 14}, {15, 15}},
+    ExpectedAdjacency{{0, 16}, {7, 28}, {14, 15}},
+};
+
+ExpectedAdjacency expected_adjacency(const GlobalNodeID global_u, const MetisFixture &fixture) {
+  auto expected = kWeightedTopology[static_cast<std::size_t>(global_u)];
+  if (!fixture.has_edge_weights) {
+    for (auto &edge : expected) {
+      edge.second = 1;
+    }
+  }
+  std::sort(expected.begin(), expected.end());
+  return expected;
+}
+
+NodeWeight expected_node_weight(const GlobalNodeID global_u, const MetisFixture &fixture) {
+  return fixture.has_node_weights ? static_cast<NodeWeight>(global_u + 1) : 1;
+}
+
+template <typename Graph>
+void expect_fixture_graph(const Graph &graph, const MetisFixture &fixture) {
   const auto rank = mpi::get_comm_rank(MPI_COMM_WORLD);
 
   EXPECT_EQ(kNumNodes, graph.global_n());
@@ -74,6 +118,23 @@ template <typename Graph> void expect_fixture_graph(const Graph &graph, const Me
     EXPECT_EQ(graph.total_n(), graph.node_weights().size());
   } else {
     EXPECT_TRUE(graph.node_weights().empty());
+  }
+
+  for (const NodeID u : graph.nodes()) {
+    const GlobalNodeID global_u = graph.local_to_global_node(u);
+    const ExpectedAdjacency expected = expected_adjacency(global_u, fixture);
+
+    EXPECT_EQ(expected_node_weight(global_u, fixture), graph.node_weight(u))
+        << "global node " << global_u;
+    EXPECT_EQ(static_cast<NodeID>(expected.size()), graph.degree(u)) << "global node " << global_u;
+
+    ExpectedAdjacency actual;
+    graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+      actual.emplace_back(graph.local_to_global_node(v), weight);
+    });
+    std::sort(actual.begin(), actual.end());
+
+    EXPECT_THAT(actual, ::testing::ElementsAreArray(expected)) << "global node " << global_u;
   }
 }
 
