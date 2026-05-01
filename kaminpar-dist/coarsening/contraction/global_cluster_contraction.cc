@@ -521,15 +521,7 @@ template <typename T> StaticArray<T> build_distribution(const T count, MPI_Comm 
 
   StaticArray<T> distribution(mpi::get_comm_size(comm) + 1);
 
-  MPI_Allgather(
-      &count,
-      1,
-      mpi::type::get<NodeID>(),
-      distribution.data(),
-      1,
-      mpi::type::get<GlobalNodeID>(),
-      comm
-  );
+  MPI_Allgather(&count, 1, mpi::type::get<T>(), distribution.data(), 1, mpi::type::get<T>(), comm);
   std::exclusive_scan(
       distribution.begin(), distribution.end(), distribution.begin(), static_cast<T>(0)
   );
