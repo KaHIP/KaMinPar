@@ -9,7 +9,13 @@
 
 #include <span>
 
-#include "kaminpar-shm/label_propagation.h"
+#include "kaminpar-shm/label_propagation/active_set.h"
+#include "kaminpar-shm/label_propagation/chunk_random_iteration.h"
+#include "kaminpar-shm/label_propagation/cluster_ops.h"
+#include "kaminpar-shm/label_propagation/config.h"
+#include "kaminpar-shm/label_propagation/node_processor.h"
+#include "kaminpar-shm/label_propagation/simple_gain_selection.h"
+#include "kaminpar-shm/label_propagation/two_hop_clustering.h"
 
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/timer.h"
@@ -17,7 +23,7 @@
 namespace kaminpar::shm {
 
 //
-// Actual implementation -- not exposed in header
+// Configuration
 //
 
 struct LPClusteringConfig : public LabelPropagationConfig {
@@ -27,133 +33,308 @@ struct LPClusteringConfig : public LabelPropagationConfig {
   static constexpr bool kUseTwoHopClustering = true;
 };
 
-template <typename Graph>
-class LPClusteringImpl final
-    : public ChunkRandomLabelPropagation<LPClusteringImpl<Graph>, LPClusteringConfig, Graph>,
-      public OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>,
-      public NonatomicClusterVectorRef<NodeID, NodeID> {
-  SET_DEBUG(false);
+//
+// ClusterOps: the plain struct that satisfies the ClusterOps concept.
+// Replaces all CRTP hooks from the old LPClusteringImpl.
+//
 
-  using Base = ChunkRandomLabelPropagation<LPClusteringImpl, LPClusteringConfig, Graph>;
-  using ClusterWeightBase = OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>;
-  using ClusterBase = NonatomicClusterVectorRef<NodeID, NodeID>;
+template <typename Graph> struct LPClusteringOps {
+  NonatomicClusterVectorRef<NodeID, NodeID> *clusters = nullptr;
+  OwnedRelaxedClusterWeightVector<NodeID, NodeWeight> *weights = nullptr;
+  const Graph *graph = nullptr;
+  NodeWeight max_weight = kInvalidBlockWeight;
+  std::span<const NodeID> communities;
+
+  NodeID cluster(const NodeID u) {
+    return clusters->cluster(u);
+  }
+
+  void move_node(const NodeID u, const NodeID c) {
+    clusters->move_node(u, c);
+  }
+
+  NodeWeight cluster_weight(const NodeID c) {
+    return weights->cluster_weight(c);
+  }
+
+  bool move_cluster_weight(
+      const NodeID old_c, const NodeID new_c, const NodeWeight d, const NodeWeight max
+  ) {
+    return weights->move_cluster_weight(old_c, new_c, d, max);
+  }
+
+  NodeWeight max_cluster_weight(const NodeID /* c */) {
+    return max_weight;
+  }
+
+  NodeID initial_cluster(const NodeID u) {
+    return u;
+  }
+
+  NodeWeight initial_cluster_weight(const NodeID c) {
+    return graph->node_weight(c);
+  }
+
+  bool accept_neighbor(const NodeID u, const NodeID v) {
+    return communities.empty() || communities[u] == communities[v];
+  }
+
+  // Used by the selection strategy to check community constraint.
+  bool accept_cluster(const NodeID current_cluster, const NodeID initial_cluster) {
+    return communities.empty() || communities[current_cluster] == communities[initial_cluster];
+  }
+
+  void init_cluster(const NodeID u, const NodeID c) {
+    clusters->move_node(u, c);
+  }
+
+  void init_cluster_weight(const NodeID c, const NodeWeight w) {
+    weights->init_cluster_weight(c, w);
+  }
+
+  void reassign_cluster_weights(const StaticArray<NodeID> &mapping, const NodeID num_new_clusters) {
+    weights->reassign_cluster_weights(mapping, num_new_clusters);
+  }
+
+  bool skip_node(const NodeID /* u */) {
+    return false;
+  }
+
+  void reset_node_state(const NodeID /* u */) {}
+
+  bool activate_neighbor(const NodeID /* v */) {
+    return true;
+  }
+
+  NodeWeight min_cluster_weight(const NodeID /* c */) {
+    return 0;
+  }
+};
+
+//
+// Actual implementation -- composition, no CRTP
+//
+
+template <typename Graph> class LPClusteringImpl {
+  SET_DEBUG(false);
 
   using Config = LPClusteringConfig;
   using ClusterID = Config::ClusterID;
+  using Ops = LPClusteringOps<Graph>;
+  using Selection = lp::SimpleGainClusterSelection<Ops>;
+  using Processor = lp::LPNodeProcessor<Graph, Ops, Selection, Config>;
+  using Iterator = lp::ChunkRandomIterator<Config>;
+
+  static constexpr bool kUseActiveSet =
+      Config::kUseActiveSetStrategy || Config::kUseLocalActiveSetStrategy;
 
 public:
-  using Permutations = Base::Permutations;
+  using Permutations = Iterator::Permutations;
+
+  // Data structures for memory reuse between calls. Combines processor + iterator state.
+  using DataStructures = std::tuple<typename Processor::DataStructures, typename Iterator::DataStructures>;
 
   LPClusteringImpl(const CoarseningContext &c_ctx, Permutations &permutations)
-      : Base(permutations),
-        _lp_ctx(c_ctx.clustering.lp) {
-    Base::set_max_degree(_lp_ctx.large_degree_threshold);
-    Base::set_max_num_neighbors(_lp_ctx.max_num_neighbors);
-    Base::set_implementation(_lp_ctx.impl);
-    Base::set_tie_breaking_strategy(_lp_ctx.tie_breaking_strategy);
-    Base::set_relabel_before_second_phase(_lp_ctx.relabel_before_second_phase);
+      : _lp_ctx(c_ctx.clustering.lp),
+        _selection(_ops, _lp_ctx.tie_breaking_strategy),
+        _processor(_ops, _selection, _active_set),
+        _iterator(permutations),
+        _max_degree(_lp_ctx.large_degree_threshold),
+        _impl(_lp_ctx.impl),
+        _relabel_before_second_phase(_lp_ctx.relabel_before_second_phase) {
+    _processor.set_max_num_neighbors(_lp_ctx.max_num_neighbors);
   }
 
   void set_max_cluster_weight(const NodeWeight max_cluster_weight) {
-    _max_cluster_weight = max_cluster_weight;
+    _ops.max_weight = max_cluster_weight;
+  }
+
+  void set_desired_num_clusters(const NodeID count) {
+    _processor.set_desired_num_clusters(count);
   }
 
   void set_communities(const std::span<const NodeID> communities) {
-    _communities = communities;
+    _ops.communities = communities;
   }
 
-  void reset_communities() {
-    _communities = {};
+  void set_relabel_before_second_phase(const bool relabel) {
+    _relabel_before_second_phase = relabel;
   }
 
   void preinitialize(const NodeID num_nodes) {
-    Base::preinitialize(num_nodes, num_nodes);
+    _num_nodes = num_nodes;
   }
 
   void allocate(const NodeID num_clusters) {
     SCOPED_HEAP_PROFILER("Allocation");
     SCOPED_TIMER("Allocation");
 
-    Base::allocate();
-    ClusterWeightBase::allocate_cluster_weights(num_clusters);
+    _processor.allocate(_num_nodes, _num_nodes, num_clusters);
+    _cluster_weights.allocate_cluster_weights(num_clusters);
   }
 
   void free() {
     SCOPED_HEAP_PROFILER("Free");
     SCOPED_TIMER("Free");
 
-    Base::free();
-    ClusterWeightBase::free();
+    _processor.free();
+    _iterator.free();
+    _cluster_weights.free();
+  }
+
+  void setup(DataStructures structs) {
+    auto [proc_structs, iter_structs] = std::move(structs);
+    _processor.setup(std::move(proc_structs));
+    _iterator.setup(std::move(iter_structs));
+  }
+
+  DataStructures release() {
+    return std::make_tuple(_processor.release(), _iterator.release());
+  }
+
+  void setup_cluster_weights(OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>::ClusterWeights cw) {
+    _cluster_weights.setup_cluster_weights(std::move(cw));
+  }
+
+  OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>::ClusterWeights take_cluster_weights() {
+    return _cluster_weights.take_cluster_weights();
   }
 
   void compute_clustering(StaticArray<NodeID> &clustering, const Graph &graph) {
-    ClusterWeightBase::reset_cluster_weights();
-    ClusterBase::init_clusters_ref(clustering);
-    Base::initialize(&graph, graph.n());
+    _ops.graph = &graph;
+    _ops.clusters->init_clusters_ref(clustering);
+    _cluster_weights.reset_cluster_weights();
+
+    _processor.initialize(&graph, graph.n());
+    _iterator.clear();
 
     for (std::size_t iteration = 0; iteration < _lp_ctx.num_iterations; ++iteration) {
       SCOPED_TIMER("Iteration", std::to_string(iteration));
-      if (Base::perform_iteration() == 0) {
+      if (perform_iteration(graph) == 0) {
         break;
       }
 
-      // Only relabel during the first iteration because afterwards the memory for the second phase
-      // is already allocated.
+      // Only relabel during the first iteration because afterwards the memory for the second
+      // phase is already allocated.
       if (iteration == 0) {
-        Base::set_relabel_before_second_phase(false);
+        _relabel_before_second_phase = false;
       }
     }
 
-    cluster_isolated_nodes();
-    cluster_two_hop_nodes();
+    handle_isolated_nodes(graph);
+    handle_two_hop_nodes(graph);
   }
 
 private:
-  void cluster_two_hop_nodes() {
-    SCOPED_HEAP_PROFILER("Handle two-hop nodes");
-    SCOPED_TIMER("Handle two-hop nodes");
+  NodeID perform_iteration(const Graph &graph) {
+    _iterator.prepare(graph, 0, graph.n(), _max_degree);
 
-    if (!should_handle_two_hop_nodes()) {
-      return;
+    auto &current_num_clusters = _processor.current_num_clusters();
+
+    auto handler = [&](const NodeID u) {
+      auto &rand = Random::instance();
+      auto &rating_map = _processor.rating_map_ets().local();
+      auto &tb = _processor.tie_breaking_clusters_ets().local();
+      auto &tbf = _processor.tie_breaking_favored_clusters_ets().local();
+      return _processor.handle_node(u, rand, rating_map, tb, tbf);
+    };
+
+    auto first_phase_handler = [&](const NodeID u) {
+      auto &rand = Random::instance();
+      auto &rating_map = _processor.rating_map_ets().local();
+      auto &tb = _processor.tie_breaking_clusters_ets().local();
+      auto &tbf = _processor.tie_breaking_favored_clusters_ets().local();
+      auto result = _processor.handle_first_phase_node(u, rand, rating_map, tb, tbf);
+      if (result.first && _processor.relabeled()) {
+        _processor.moved()[u] = 1;
+      }
+      return result;
+    };
+
+    auto should_stop = [&] { return _processor.should_stop(); };
+    auto is_active = [&](const NodeID u) { return _processor.is_active(u); };
+
+    switch (_impl) {
+    case LabelPropagationImplementation::GROWING_HASH_TABLES: {
+      // Use growing rating maps
+      auto growing_handler = [&](const NodeID u) {
+        auto &rand = Random::instance();
+        auto &rating_map = _processor.rating_map_ets().local(); // @todo use growing map
+        auto &tb = _processor.tie_breaking_clusters_ets().local();
+        auto &tbf = _processor.tie_breaking_favored_clusters_ets().local();
+        return _processor.handle_node(u, rand, rating_map, tb, tbf);
+      };
+      return _iterator.iterate(graph, _max_degree, growing_handler, should_stop, is_active, current_num_clusters);
+    }
+    case LabelPropagationImplementation::SINGLE_PHASE:
+      return _iterator.iterate(graph, _max_degree, handler, should_stop, is_active, current_num_clusters);
+    case LabelPropagationImplementation::TWO_PHASE: {
+      const NodeID initial_num_clusters = _processor.initial_num_clusters();
+      const auto [num_processed, num_moved_first] = _iterator.iterate_first_phase(
+          graph, _max_degree, first_phase_handler, should_stop, is_active, current_num_clusters
+      );
+
+      auto &second_phase_nodes = _processor.second_phase_nodes();
+      const NodeID num_second_phase_nodes = second_phase_nodes.size();
+      NodeID total_moved = num_moved_first;
+
+      if (num_second_phase_nodes > 0) {
+        if (_relabel_before_second_phase) {
+          _processor.relabel_clusters();
+        }
+
+        // Second phase: process deferred high-degree nodes sequentially
+        const std::size_t num_clusters = _processor.initial_num_clusters();
+        auto &concurrent_map = _processor.concurrent_rating_map();
+        if (concurrent_map.capacity() < num_clusters) {
+          concurrent_map.resize(num_clusters);
+        }
+
+        auto &rand = Random::instance();
+        for (const NodeID u : second_phase_nodes) {
+          const auto [moved_node, emptied_cluster] =
+              _processor.handle_second_phase_node(u, rand, concurrent_map);
+
+          if (moved_node) {
+            ++total_moved;
+            if (_processor.relabeled()) {
+              _processor.moved()[u] = 1;
+            }
+          }
+          if (emptied_cluster) {
+            --current_num_clusters;
+          }
+        }
+
+        second_phase_nodes.clear();
+      }
+
+      return total_moved;
+    }
     }
 
-    switch (_lp_ctx.two_hop_strategy) {
-    case TwoHopStrategy::MATCH:
-      Base::match_two_hop_nodes();
-      break;
-    case TwoHopStrategy::MATCH_THREADWISE:
-      Base::match_two_hop_nodes_threadwise();
-      break;
-    case TwoHopStrategy::CLUSTER:
-      Base::cluster_two_hop_nodes();
-      break;
-    case TwoHopStrategy::CLUSTER_THREADWISE:
-      Base::cluster_two_hop_nodes_threadwise();
-      break;
-    case TwoHopStrategy::DISABLE:
-      break;
-    }
+    __builtin_unreachable();
   }
 
-  void cluster_isolated_nodes() {
+  void handle_isolated_nodes(const Graph &graph) {
     SCOPED_HEAP_PROFILER("Handle isolated nodes");
     SCOPED_TIMER("Handle isolated nodes");
 
     switch (_lp_ctx.isolated_nodes_strategy) {
     case IsolatedNodesClusteringStrategy::MATCH:
-      Base::match_isolated_nodes();
+      lp::two_hop::match_isolated_nodes(graph, _ops);
       break;
     case IsolatedNodesClusteringStrategy::CLUSTER:
-      Base::cluster_isolated_nodes();
+      lp::two_hop::cluster_isolated_nodes(graph, _ops);
       break;
     case IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP:
-      if (should_handle_two_hop_nodes()) {
-        Base::match_isolated_nodes();
+      if (should_handle_two_hop_nodes(graph)) {
+        lp::two_hop::match_isolated_nodes(graph, _ops);
       }
       break;
     case IsolatedNodesClusteringStrategy::CLUSTER_DURING_TWO_HOP:
-      if (should_handle_two_hop_nodes()) {
-        Base::cluster_isolated_nodes();
+      if (should_handle_two_hop_nodes(graph)) {
+        lp::two_hop::cluster_isolated_nodes(graph, _ops);
       }
       break;
     case IsolatedNodesClusteringStrategy::KEEP:
@@ -161,133 +342,71 @@ private:
     }
   }
 
-  [[nodiscard]] bool should_handle_two_hop_nodes() const {
-    return (1.0 - 1.0 * _current_num_clusters / _graph->n()) <= _lp_ctx.two_hop_threshold;
-  }
+  void handle_two_hop_nodes(const Graph &graph) {
+    SCOPED_HEAP_PROFILER("Handle two-hop nodes");
+    SCOPED_TIMER("Handle two-hop nodes");
 
-public:
-  [[nodiscard]] NodeID initial_cluster(const NodeID u) {
-    return u;
-  }
+    if (!should_handle_two_hop_nodes(graph)) {
+      return;
+    }
 
-  [[nodiscard]] NodeWeight initial_cluster_weight(const NodeID cluster) {
-    return _graph->node_weight(cluster);
-  }
+    auto &favored_clusters = _processor.favored_clusters();
+    auto &current_num_clusters = _processor.current_num_clusters();
+    const NodeID desired_num_clusters = 0; // clusterer doesn't use early stopping for 2-hop
 
-  [[nodiscard]] NodeWeight max_cluster_weight(const NodeID /* cluster */) {
-    return _max_cluster_weight;
-  }
-
-  template <typename RatingMap>
-  [[nodiscard]] ClusterID select_best_cluster(
-      const bool store_favored_cluster,
-      const EdgeWeight gain_delta,
-      Base::ClusterSelectionState &state,
-      RatingMap &map,
-      ScalableVector<ClusterID> &tie_breaking_clusters,
-      ScalableVector<ClusterID> &tie_breaking_favored_clusters
-  ) {
-    const bool use_uniform_tie_breaking = _tie_breaking_strategy == TieBreakingStrategy::UNIFORM;
-
-    const auto accept_cluster_community = [&] {
-      return _communities.empty() ||
-             _communities[state.current_cluster] == _communities[state.initial_cluster];
-    };
-
-    ClusterID favored_cluster = state.initial_cluster;
-    if (use_uniform_tie_breaking) {
-      const auto accept_cluster = [&] {
-        return (state.current_cluster_weight + state.u_weight <=
-                    max_cluster_weight(state.current_cluster) ||
-                state.current_cluster == state.initial_cluster) &&
-               accept_cluster_community();
-      };
-
-      for (const auto [cluster, rating] : map.entries()) {
-        state.current_cluster = cluster;
-        state.current_gain = rating - gain_delta;
-        state.current_cluster_weight = cluster_weight(cluster);
-
-        if (store_favored_cluster) {
-          if (state.current_gain > state.overall_best_gain) {
-            state.overall_best_gain = state.current_gain;
-            favored_cluster = state.current_cluster;
-
-            tie_breaking_favored_clusters.clear();
-            tie_breaking_favored_clusters.push_back(state.current_cluster);
-          } else if (state.current_gain == state.overall_best_gain) {
-            tie_breaking_favored_clusters.push_back(state.current_cluster);
-          }
-        }
-
-        if (state.current_gain > state.best_gain) {
-          if (accept_cluster()) {
-            tie_breaking_clusters.clear();
-            tie_breaking_clusters.push_back(state.current_cluster);
-
-            state.best_cluster = state.current_cluster;
-            state.best_gain = state.current_gain;
-          }
-        } else if (state.current_gain == state.best_gain) {
-          if (accept_cluster()) {
-            tie_breaking_clusters.push_back(state.current_cluster);
-          }
-        }
-      }
-
-      if (tie_breaking_clusters.size() > 1) {
-        const ClusterID i = state.local_rand.random_index(0, tie_breaking_clusters.size());
-        state.best_cluster = tie_breaking_clusters[i];
-      }
-      tie_breaking_clusters.clear();
-
-      if (tie_breaking_favored_clusters.size() > 1) {
-        const ClusterID i = state.local_rand.random_index(0, tie_breaking_favored_clusters.size());
-        favored_cluster = tie_breaking_favored_clusters[i];
-      }
-      tie_breaking_favored_clusters.clear();
-
-      return favored_cluster;
-    } else {
-      const auto accept_cluster = [&] {
-        return (state.current_gain > state.best_gain ||
-                (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
-               (state.current_cluster_weight + state.u_weight <=
-                    max_cluster_weight(state.current_cluster) ||
-                state.current_cluster == state.initial_cluster) &&
-               accept_cluster_community();
-      };
-
-      for (const auto [cluster, rating] : map.entries()) {
-        state.current_cluster = cluster;
-        state.current_gain = rating - gain_delta;
-        state.current_cluster_weight = cluster_weight(cluster);
-
-        if (store_favored_cluster && state.current_gain > state.overall_best_gain) {
-          state.overall_best_gain = state.current_gain;
-          favored_cluster = state.current_cluster;
-        }
-
-        if (accept_cluster()) {
-          state.best_cluster = state.current_cluster;
-          state.best_cluster_weight = state.current_cluster_weight;
-          state.best_gain = state.current_gain;
-        }
-      }
-
-      return favored_cluster;
+    switch (_lp_ctx.two_hop_strategy) {
+    case TwoHopStrategy::MATCH:
+      lp::two_hop::match_two_hop_nodes(
+          graph, _ops, favored_clusters, current_num_clusters, desired_num_clusters
+      );
+      break;
+    case TwoHopStrategy::MATCH_THREADWISE:
+      lp::two_hop::match_two_hop_nodes_threadwise(
+          graph, _ops, favored_clusters, &_processor.moved(), _processor.relabeled()
+      );
+      break;
+    case TwoHopStrategy::CLUSTER:
+      lp::two_hop::cluster_two_hop_nodes(
+          graph, _ops, favored_clusters, current_num_clusters, desired_num_clusters
+      );
+      break;
+    case TwoHopStrategy::CLUSTER_THREADWISE:
+      lp::two_hop::cluster_two_hop_nodes_threadwise(
+          graph, _ops, favored_clusters, &_processor.moved(), _processor.relabeled()
+      );
+      break;
+    case TwoHopStrategy::DISABLE:
+      break;
     }
   }
 
-  using Base::_current_num_clusters;
-  using Base::_graph;
-  using Base::_tie_breaking_strategy;
+  [[nodiscard]] bool should_handle_two_hop_nodes(const Graph &graph) const {
+    return (1.0 - 1.0 * _processor.current_num_clusters() / graph.n()) <=
+           _lp_ctx.two_hop_threshold;
+  }
+
+  // --- Members ---
 
   const LabelPropagationCoarseningContext &_lp_ctx;
-  NodeWeight _max_cluster_weight = kInvalidBlockWeight;
 
-  std::span<const NodeID> _communities;
+  // Building blocks (composition)
+  NonatomicClusterVectorRef<NodeID, NodeID> _cluster_storage;
+  OwnedRelaxedClusterWeightVector<NodeID, NodeWeight> _cluster_weights;
+  ActiveSet<kUseActiveSet> _active_set;
+  Ops _ops = {&_cluster_storage, &_cluster_weights, nullptr, kInvalidBlockWeight, {}};
+  Selection _selection;
+  Processor _processor;
+  Iterator _iterator;
+
+  NodeID _num_nodes = 0;
+  NodeID _max_degree;
+  LabelPropagationImplementation _impl;
+  bool _relabel_before_second_phase;
 };
+
+//
+// Wrapper that handles CSR vs Compressed graph dispatch + memory reuse
+//
 
 class LPClusteringImplWrapper {
 public:
@@ -314,8 +433,6 @@ public:
   void compute_clustering(
       StaticArray<NodeID> &clustering, const Graph &graph, const bool free_memory_afterwards
   ) {
-    // Compute a clustering and setup/release the data structures used by the core, so that they can
-    // be shared by all implementations.
     const auto compute_clustering = [&](auto &core, auto &graph) {
       if (_freed) {
         _freed = false;
@@ -366,7 +483,7 @@ private:
   bool _freed = true;
   LPClusteringImpl<Graph>::Permutations _permutations;
   LPClusteringImpl<Graph>::DataStructures _structs;
-  LPClusteringImpl<Graph>::ClusterWeights _cluster_weights;
+  OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>::ClusterWeights _cluster_weights;
 };
 
 //

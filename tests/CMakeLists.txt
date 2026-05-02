@@ -58,6 +58,12 @@ kaminpar_add_shm_test(test_compressed_graph_builder shm/graphutils/compressed_gr
 # KaMinPar -> Coarsening
 kaminpar_add_shm_test(test_shm_cluster_contraction shm/coarsening/cluster_contraction_test.cc)
 
+# KaMinPar -> Label Propagation building blocks
+kaminpar_add_shm_test(test_shm_lp_active_set shm/label_propagation/active_set_test.cc)
+kaminpar_add_shm_test(test_shm_lp_cluster_relabeling shm/label_propagation/cluster_relabeling_test.cc)
+kaminpar_add_shm_test(test_shm_lp_selection shm/label_propagation/selection_test.cc)
+kaminpar_add_shm_test(test_shm_lp_iteration shm/label_propagation/chunk_random_iteration_test.cc)
+
 # KaMinPar -> Data structures
 kaminpar_add_shm_test(test_shm_graph shm/datastructures/graph_test.cc)
 kaminpar_add_shm_test(test_shm_delta_partitioned_graph shm/datastructures/delta_partitioned_graph_test.cc)
