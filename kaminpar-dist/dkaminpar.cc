@@ -258,10 +258,10 @@ void print_partition_summary(
 void print_input_summary(
     const Context &ctx, const DistributedGraph &graph, const bool parseable, const bool root
 ) {
-  const auto n_str = mpi::gather_statistics_str<GlobalNodeID>(graph.n(), MPI_COMM_WORLD);
-  const auto m_str = mpi::gather_statistics_str<GlobalEdgeID>(graph.m(), MPI_COMM_WORLD);
-  const auto ghost_n_str =
-      mpi::gather_statistics_str<GlobalNodeID>(graph.ghost_n(), MPI_COMM_WORLD);
+  MPI_Comm comm = graph.communicator();
+  const auto n_str = mpi::gather_statistics_str<GlobalNodeID>(graph.n(), comm);
+  const auto m_str = mpi::gather_statistics_str<GlobalEdgeID>(graph.m(), comm);
+  const auto ghost_n_str = mpi::gather_statistics_str<GlobalNodeID>(graph.ghost_n(), comm);
 
   if (root && parseable) {
     LOG << "EXECUTION_MODE num_mpis=" << ctx.parallel.num_mpis
@@ -287,7 +287,7 @@ void print_input_summary(
         << (ctx.parallel.num_mpis > 1 ? "es" : "") << " a " << ctx.parallel.num_threads << " thread"
         << (ctx.parallel.num_threads > 1 ? "s" : "");
   }
-  print(ctx, root, std::cout, graph.communicator());
+  print(ctx, root, std::cout, comm);
   if (root) {
     cio::print_delimiter("Partitioning");
   }
@@ -586,7 +586,7 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const std::span<BlockID> partition
   }
   STOP_TIMER();
 
-  mpi::barrier(MPI_COMM_WORLD);
+  mpi::barrier(_comm);
 
   // Print some statistics
   STOP_TIMER(); // stop root timer
