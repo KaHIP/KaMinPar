@@ -7,6 +7,9 @@
  ******************************************************************************/
 #pragma once
 
+#include <utility>
+#include <variant>
+
 #include "kaminpar-dist/datastructures/abstract_distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_compressed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_csr_graph.h"
@@ -19,8 +22,10 @@ template <typename Lambda1, typename Lambda2>
 decltype(auto) reified(const AbstractDistributedGraph &graph, Lambda1 &&l1, Lambda2 &&l2) {
   if (auto *csr_graph = dynamic_cast<const DistributedCSRGraph *>(&graph); csr_graph != nullptr) {
     return l1(*csr_graph);
-  } else if (auto *compressed_graph = dynamic_cast<const DistributedCompressedGraph *>(&graph);
-             compressed_graph != nullptr) {
+  } else if (
+      auto *compressed_graph = dynamic_cast<const DistributedCompressedGraph *>(&graph);
+      compressed_graph != nullptr
+  ) {
     return l2(*compressed_graph);
   }
 
@@ -31,8 +36,10 @@ template <typename Lambda>
 decltype(auto) reified(const AbstractDistributedGraph &graph, Lambda &&l) {
   if (auto *csr_graph = dynamic_cast<const DistributedCSRGraph *>(&graph); csr_graph != nullptr) {
     return l(*csr_graph);
-  } else if (auto *compressed_graph = dynamic_cast<const DistributedCompressedGraph *>(&graph);
-             compressed_graph != nullptr) {
+  } else if (
+      auto *compressed_graph = dynamic_cast<const DistributedCompressedGraph *>(&graph);
+      compressed_graph != nullptr
+  ) {
     return l(*compressed_graph);
   }
 
@@ -57,5 +64,34 @@ template <typename ConcretizedGraph> ConcretizedGraph &concretize(AbstractDistri
   );
   return dynamic_cast<ConcretizedGraph &>(graph);
 }
+
+/*!
+ * Encapsulates an object of a class `Component` that should be instantiated for the concrete
+ * distributed graph classes.
+ *
+ * `Component` may only take one template argument: the concretized graph class.
+ */
+template <template <typename> typename Component> struct AnyDistributedGraphComponent {
+  std::
+      variant<std::monostate, Component<DistributedCSRGraph>, Component<DistributedCompressedGraph>>
+          obj;
+
+  template <typename ConcretizedGraph, typename... Args>
+  Component<ConcretizedGraph> &emplace(Args &&...args) {
+    return obj.template emplace<Component<ConcretizedGraph>>(std::forward<Args>(args)...);
+  }
+
+  template <typename ConcretizedGraph, typename... Args>
+  Component<ConcretizedGraph> &ensure(Args &&...args) {
+    if (!std::holds_alternative<Component<ConcretizedGraph>>(obj)) {
+      return emplace<ConcretizedGraph>(std::forward<Args>(args)...);
+    }
+    return get<ConcretizedGraph>();
+  }
+
+  template <typename ConcretizedGraph> Component<ConcretizedGraph> &get() {
+    return std::get<Component<ConcretizedGraph>>(obj);
+  }
+};
 
 } // namespace kaminpar::dist::graph

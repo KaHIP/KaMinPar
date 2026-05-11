@@ -11,7 +11,7 @@
 namespace kaminpar::lp {
 
 template <typename EdgeWeight>
-[[nodiscard]] KAMINPAR_LP_INLINE CandidateComparison
+[[nodiscard]] KAMINPAR_INLINE CandidateComparison
 compare_by_gain(const EdgeWeight candidate_gain, const EdgeWeight best_gain) {
   if (candidate_gain > best_gain) {
     return CandidateComparison::BETTER;
@@ -23,7 +23,7 @@ compare_by_gain(const EdgeWeight candidate_gain, const EdgeWeight best_gain) {
 }
 
 template <typename Context>
-[[nodiscard]] KAMINPAR_LP_INLINE auto make_initial_choice(const Context &context) {
+[[nodiscard]] KAMINPAR_INLINE auto make_initial_choice(const Context &context) {
   using ClusterID = typename Context::ClusterIDType;
   using ClusterWeight = typename Context::ClusterWeightType;
   using EdgeWeight = typename Context::EdgeWeightType;
@@ -38,20 +38,20 @@ template <typename Context>
 }
 
 template <typename Choice, typename Candidate>
-KAMINPAR_LP_INLINE void set_best_cluster(Choice &choice, const Candidate &candidate) {
+KAMINPAR_INLINE void set_best_cluster(Choice &choice, const Candidate &candidate) {
   choice.best_cluster = candidate.cluster;
   choice.best_gain = candidate.gain;
   choice.best_cluster_weight = candidate.weight;
 }
 
 template <typename Choice, typename Candidate>
-KAMINPAR_LP_INLINE void set_favored_cluster(Choice &choice, const Candidate &candidate) {
+KAMINPAR_INLINE void set_favored_cluster(Choice &choice, const Candidate &candidate) {
   choice.favored_cluster = candidate.cluster;
   choice.favored_gain = candidate.gain;
 }
 
 template <TieBreakingStrategy Strategy, typename Context, typename Evaluator, typename RatingMap>
-[[nodiscard]] KAMINPAR_LP_INLINE auto choose_cluster(
+[[nodiscard]] KAMINPAR_INLINE auto choose_cluster(
     const Context &context,
     RatingMap &map,
     Evaluator &evaluator,
@@ -135,7 +135,7 @@ template <TieBreakingStrategy Strategy, typename Context, typename Evaluator, ty
 }
 
 template <typename Context, typename Evaluator, typename RatingMap>
-[[nodiscard]] KAMINPAR_LP_INLINE auto choose_cluster(
+[[nodiscard]] KAMINPAR_INLINE auto choose_cluster(
     const Context &context,
     RatingMap &map,
     Evaluator &evaluator,

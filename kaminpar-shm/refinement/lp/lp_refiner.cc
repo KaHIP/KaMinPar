@@ -156,7 +156,7 @@ public:
   explicit LPRefinerSelector(PartitionedGraphWeightStore &weights) : _weights(weights) {}
 
   template <lp::TieBreakingStrategy TieBreaking, typename Context, typename RatingMap>
-  [[nodiscard]] KAMINPAR_LP_INLINE auto select(
+  [[nodiscard]] KAMINPAR_INLINE auto select(
       const Context &context,
       RatingMap &map,
       ScalableVector<BlockID> &tie_breaking_clusters,
@@ -172,12 +172,12 @@ public:
     );
   }
 
-  [[nodiscard]] KAMINPAR_LP_INLINE BlockWeight cluster_weight(const BlockID cluster) const {
+  [[nodiscard]] KAMINPAR_INLINE BlockWeight cluster_weight(const BlockID cluster) const {
     return _weights.cluster_weight(cluster);
   }
 
   template <typename Context, typename Candidate, typename Choice>
-  [[nodiscard]] KAMINPAR_LP_INLINE bool
+  [[nodiscard]] KAMINPAR_INLINE bool
   is_feasible(const Context &context, const Candidate &candidate, const Choice &) const {
     static_assert(std::is_signed_v<NodeWeight>);
 
@@ -191,7 +191,7 @@ public:
   }
 
   template <typename Context, typename Candidate, typename Choice>
-  [[nodiscard]] KAMINPAR_LP_INLINE lp::CandidateComparison
+  [[nodiscard]] KAMINPAR_INLINE lp::CandidateComparison
   compare(const Context &, const Candidate &candidate, const Choice &choice) const {
     const lp::CandidateComparison gain_comparison =
         lp::compare_by_gain(candidate.gain, choice.best_gain);
@@ -257,19 +257,20 @@ public:
         .nodes =
             {.max_degree = _r_ctx.lp.large_degree_threshold,
              .max_neighbors = _r_ctx.lp.max_num_neighbors},
-        .rating =
-            {.strategy = map_rating_map_strategy(_r_ctx.lp.impl),
-             .large_map_threshold = kRatingMapThreshold},
         .active_set = {.strategy = lp::ActiveSetStrategy::GLOBAL},
         .selection = {
             .tie_breaking_strategy = map_tie_breaking_strategy(_r_ctx.lp.tie_breaking_strategy)
         },
     };
+    lp::ExecutionConfig execution{
+        .strategy = map_rating_map_strategy(_r_ctx.lp.impl),
+        .large_map_threshold = kRatingMapThreshold,
+    };
     LPRefinerNeighborPolicy neighbors{.communities = _communities};
-    lp::LabelPropagationCore core(
+    lp::LabelPropagationKernel kernel(
         *_graph, _labels, _weights, _selector, neighbors, _workspace, config
     );
-    core.initialize(
+    kernel.initialize(
         {.num_nodes = _graph->n(), .num_active_nodes = _graph->n(), .num_clusters = _p_ctx->k}
     );
 
@@ -285,7 +286,7 @@ public:
           static_cast<EdgeID>(kMinChunkSize),
           iteration::bucket_limit_for_max_degree(*_graph, config.nodes.max_degree)
       );
-      const auto result = lp::run_iteration(order, core);
+      const auto result = lp::run_iteration(order, kernel, execution);
       if (result.moved_nodes == 0) {
         break;
       }
@@ -314,17 +315,13 @@ public:
 
 class LPRefinerImplWrapper {
 public:
-  LPRefinerImplWrapper(const Context &ctx)
-      : _csr_impl(std::make_unique<LPRefinerImpl<CSRGraph>>(ctx, _workspace, _order_workspace)),
-        _compressed_impl(
-            std::make_unique<LPRefinerImpl<CompressedGraph>>(ctx, _workspace, _order_workspace)
-        ) {}
+  LPRefinerImplWrapper(const Context &ctx) : _ctx(ctx) {}
 
   void initialize(const PartitionedGraph &p_graph) {
     reified(
         p_graph,
-        [&](const auto &graph) { _csr_impl->initialize(&graph); },
-        [&](const auto &graph) { _compressed_impl->initialize(&graph); }
+        [&](const CSRGraph &graph) { ensure_impl<CSRGraph>().initialize(&graph); },
+        [&](const CompressedGraph &graph) { ensure_impl<CompressedGraph>().initialize(&graph); }
     );
   }
 
@@ -343,20 +340,33 @@ public:
 
     return reified(
         p_graph,
-        [&](const auto &) { return refine(*_csr_impl); },
-        [&](const auto &) { return refine(*_compressed_impl); }
+        [&](const CSRGraph &graph) {
+          auto &impl = ensure_impl<CSRGraph>();
+          impl.initialize(&graph);
+          return refine(impl);
+        },
+        [&](const CompressedGraph &graph) {
+          auto &impl = ensure_impl<CompressedGraph>();
+          impl.initialize(&graph);
+          return refine(impl);
+        }
     );
   }
 
   void set_communities(std::span<const NodeID> communities) {
-    _csr_impl->set_communities(communities);
-    _compressed_impl->set_communities(communities);
+    _communities = communities;
   }
 
 private:
-  std::unique_ptr<LPRefinerImpl<CSRGraph>> _csr_impl;
-  std::unique_ptr<LPRefinerImpl<CompressedGraph>> _compressed_impl;
+  template <typename ConcreteGraph> LPRefinerImpl<ConcreteGraph> &ensure_impl() {
+    auto &impl = _impl.template ensure<ConcreteGraph>(_ctx, _workspace, _order_workspace);
+    impl.set_communities(_communities);
+    return impl;
+  }
 
+  const Context &_ctx;
+  AnyGraphComponent<LPRefinerImpl> _impl;
+  std::span<const NodeID> _communities;
   bool _freed = true;
   LPRefinerWorkspace _workspace;
   LPRefinerOrderWorkspace _order_workspace;

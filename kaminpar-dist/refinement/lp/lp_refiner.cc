@@ -14,6 +14,7 @@
 
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
+#include "kaminpar-dist/datastructures/reify_graph.h"
 #include "kaminpar-dist/graphutils/communication.h"
 #include "kaminpar-dist/metrics.h"
 #include "kaminpar-dist/refinement/lp/lp_stats.h"
@@ -77,6 +78,10 @@ public:
         _workspace(workspace),
         _order_workspace(order_workspace),
         _selector(*this) {
+    preinitialize(p_graph);
+  }
+
+  void preinitialize(const DistributedPartitionedGraph &p_graph) {
     _num_nodes = p_graph.total_n();
     _num_active_nodes = p_graph.n();
     _num_clusters = p_graph.k();
@@ -108,18 +113,20 @@ public:
         .nodes =
             {.max_degree = _lp_ctx.active_high_degree_threshold,
              .max_neighbors = std::numeric_limits<NodeID>::max()},
-        .rating = {.strategy = ::kaminpar::lp::RatingMapStrategy::SINGLE_PHASE},
         .active_set = {.strategy = ::kaminpar::lp::ActiveSetStrategy::NONE},
         .selection = {
             .tie_breaking_strategy = ::kaminpar::lp::TieBreakingStrategy::GEOMETRIC,
             .use_actual_gain = true
         },
     };
+    ::kaminpar::lp::ExecutionConfig execution{
+        .strategy = ::kaminpar::lp::RatingMapStrategy::SINGLE_PHASE
+    };
     DistLPRefinerNeighborPolicy neighbors(*this);
-    ::kaminpar::lp::LabelPropagationCore core(
+    ::kaminpar::lp::LabelPropagationKernel kernel(
         graph, *this, *this, _selector, neighbors, _workspace, config
     );
-    core.initialize(
+    kernel.initialize(
         {.num_nodes = _num_nodes,
          .num_active_nodes = _num_active_nodes,
          .num_clusters = _num_clusters}
@@ -136,7 +143,7 @@ public:
 
       for (int chunk = 0; chunk < num_chunks; ++chunk) {
         const auto [from, to] = math::compute_local_range<NodeID>(graph.n(), num_chunks, chunk);
-        num_moved_nodes += process_chunk(core, from, to);
+        num_moved_nodes += process_chunk(kernel, execution, from, to);
       }
 
       if (num_moved_nodes == 0) {
@@ -150,7 +157,12 @@ public:
 
 private:
   template <typename Core>
-  GlobalNodeID process_chunk(Core &core, const NodeID from, const NodeID to) {
+  GlobalNodeID process_chunk(
+      Core &core,
+      const ::kaminpar::lp::ExecutionConfig &execution,
+      const NodeID from,
+      const NodeID to
+  ) {
     TIMER_BARRIER(_graph->communicator());
     DBG0 << "Running label propagation on chunk [" << from << ".." << to << "]";
 
@@ -167,7 +179,7 @@ private:
           static_cast<EdgeID>(kMinChunkSize),
           iteration::bucket_limit_for_max_degree(*_graph, core.config().nodes.max_degree)
       );
-      return ::kaminpar::lp::run_iteration(order, core).moved_nodes;
+      return ::kaminpar::lp::run_iteration(order, core, execution).moved_nodes;
     };
 
     const auto global_num_moved_nodes =
@@ -501,7 +513,7 @@ private:
     explicit DistLPRefinerSelector(LPRefinerImpl &impl) : _impl(impl) {}
 
     template <::kaminpar::lp::TieBreakingStrategy TieBreaking, typename Context, typename RatingMap>
-    [[nodiscard]] KAMINPAR_LP_INLINE auto select(
+    [[nodiscard]] KAMINPAR_INLINE auto select(
         const Context &context,
         RatingMap &map,
         ScalableVector<BlockID> &tie_breaking_clusters,
@@ -512,25 +524,25 @@ private:
       );
     }
 
-    [[nodiscard]] KAMINPAR_LP_INLINE BlockWeight cluster_weight(const BlockID cluster) {
+    [[nodiscard]] KAMINPAR_INLINE BlockWeight cluster_weight(const BlockID cluster) {
       return _impl.cluster_weight(cluster);
     }
 
     template <typename Context, typename Candidate, typename Choice>
-    [[nodiscard]] KAMINPAR_LP_INLINE bool
+    [[nodiscard]] KAMINPAR_INLINE bool
     is_feasible(const Context &context, const Candidate &candidate, const Choice &) {
       return candidate.weight + context.node_weight < _impl.max_cluster_weight(candidate.cluster) ||
              candidate.cluster == context.initial_cluster;
     }
 
     template <typename Context, typename Candidate, typename Choice>
-    [[nodiscard]] KAMINPAR_LP_INLINE ::kaminpar::lp::CandidateComparison
+    [[nodiscard]] KAMINPAR_INLINE ::kaminpar::lp::CandidateComparison
     compare(const Context &, const Candidate &candidate, const Choice &choice) {
       return ::kaminpar::lp::compare_by_gain(candidate.gain, choice.best_gain);
     }
 
     template <typename Context, typename Choice>
-    KAMINPAR_LP_INLINE void record_choice(const Context &context, const Choice &choice) {
+    KAMINPAR_INLINE void record_choice(const Context &context, const Choice &choice) {
       _impl._gains[context.node] = choice.best_gain;
     }
 
@@ -565,17 +577,14 @@ private:
 
 class LPRefinerImplWrapper {
 public:
-  LPRefinerImplWrapper(const Context &ctx, DistributedPartitionedGraph &p_graph)
-      : _csr_impl(
-            std::make_unique<LPRefinerImpl<DistributedCSRGraph>>(
-                ctx, p_graph, _workspace, _order_workspace
-            )
-        ),
-        _compressed_impl(
-            std::make_unique<LPRefinerImpl<DistributedCompressedGraph>>(
-                ctx, p_graph, _workspace, _order_workspace
-            )
-        ) {}
+  LPRefinerImplWrapper(const Context &ctx, DistributedPartitionedGraph &p_graph) : _ctx(ctx) {
+    p_graph.reified(
+        [&](const DistributedCSRGraph &) { (void)ensure_impl<DistributedCSRGraph>(p_graph); },
+        [&](const DistributedCompressedGraph &) {
+          (void)ensure_impl<DistributedCompressedGraph>(p_graph);
+        }
+    );
+  }
 
   void refine(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
     const auto refine = [&](auto &impl, const auto &graph) {
@@ -584,21 +593,28 @@ public:
 
     p_graph.reified(
         [&](const DistributedCSRGraph &csr_graph) {
-          LPRefinerImpl<DistributedCSRGraph> &impl = *_csr_impl;
+          auto &impl = ensure_impl<DistributedCSRGraph>(p_graph);
           refine(impl, csr_graph);
         },
         [&](const DistributedCompressedGraph &compressed_graph) {
-          LPRefinerImpl<DistributedCompressedGraph> &impl = *_compressed_impl;
+          auto &impl = ensure_impl<DistributedCompressedGraph>(p_graph);
           refine(impl, compressed_graph);
         }
     );
   }
 
 private:
+  template <typename ConcreteGraph>
+  LPRefinerImpl<ConcreteGraph> &ensure_impl(DistributedPartitionedGraph &p_graph) {
+    auto &impl = _impl.template ensure<ConcreteGraph>(_ctx, p_graph, _workspace, _order_workspace);
+    impl.preinitialize(p_graph);
+    return impl;
+  }
+
+  const Context &_ctx;
+  graph::AnyDistributedGraphComponent<LPRefinerImpl> _impl;
   DistLPRefinerWorkspace _workspace;
   DistLPRefinerOrderWorkspace _order_workspace;
-  std::unique_ptr<LPRefinerImpl<DistributedCSRGraph>> _csr_impl;
-  std::unique_ptr<LPRefinerImpl<DistributedCompressedGraph>> _compressed_impl;
 };
 
 //

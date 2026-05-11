@@ -35,7 +35,7 @@ public:
         _active_set(active_set),
         _config(config) {}
 
-  KAMINPAR_LP_INLINE std::pair<bool, bool> try_commit(const Move &move, Stats &stats) {
+  KAMINPAR_INLINE std::pair<bool, bool> try_commit(const Move &move, Stats &stats) {
     if (!move.valid || _labels.cluster(move.node) == move.new_cluster) {
       return {false, false};
     }

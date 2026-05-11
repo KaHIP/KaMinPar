@@ -9,6 +9,7 @@
 #include "tests/dist/distributed_graph_factories.h"
 
 #include "kaminpar-dist/datastructures/distributed_compressed_graph.h"
+#include "kaminpar-dist/datastructures/reify_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/graphutils/synchronization.h"
 
@@ -27,6 +28,12 @@
   test_function(testing::make_csr_global_complete_graph(100));
 
 namespace kaminpar::dist {
+
+template <typename Graph> struct TestDistributedGraphComponent {
+  explicit TestDistributedGraphComponent(const int value) : value(value) {}
+
+  int value;
+};
 
 template <typename T>
 [[nodiscard]] static bool operator==(const IotaRange<T> &a, const IotaRange<T> &b) {
@@ -124,6 +131,23 @@ static void test_compressed_graph_size(const DistributedCSRGraph &graph) {
 
 TEST(DistributedCompressedGraphTest, compressed_graph_size) {
   TEST_ON_ALL_GRAPHS(test_compressed_graph_size);
+}
+
+TEST(DistributedGraphTest, AnyDistributedGraphComponentEnsureReusesMatchingGraphType) {
+  graph::AnyDistributedGraphComponent<TestDistributedGraphComponent> component;
+
+  auto &csr = component.ensure<DistributedCSRGraph>(1);
+  csr.value = 7;
+
+  auto &same_csr = component.ensure<DistributedCSRGraph>(2);
+  EXPECT_EQ(&same_csr, &csr);
+  EXPECT_EQ(same_csr.value, 7);
+
+  auto &compressed = component.ensure<DistributedCompressedGraph>(3);
+  EXPECT_EQ(compressed.value, 3);
+
+  auto &new_csr = component.ensure<DistributedCSRGraph>(4);
+  EXPECT_EQ(new_csr.value, 4);
 }
 
 static void test_compressed_graph_node_ownership(const DistributedCSRGraph &graph) {

@@ -30,7 +30,7 @@ public:
         _active_set_config(active_set_config) {}
 
   template <typename RatingMap>
-  KAMINPAR_LP_INLINE void rate_neighbors(
+  KAMINPAR_INLINE void rate_neighbors(
       const NodeID u, RatingMap &map, const NodeID num_active_nodes, bool &is_interface_node
   ) {
     const auto add_to_rating_map = [&](const NodeID v, const EdgeWeight w) {
@@ -52,7 +52,7 @@ public:
   }
 
   template <typename RatingMap>
-  [[nodiscard]] KAMINPAR_LP_INLINE bool rate_neighbors_until(
+  [[nodiscard]] KAMINPAR_INLINE bool rate_neighbors_until(
       const NodeID u,
       RatingMap &map,
       const NodeID num_active_nodes,

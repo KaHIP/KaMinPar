@@ -11,6 +11,7 @@
 
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/growt.h"
+#include "kaminpar-dist/datastructures/reify_graph.h"
 #include "kaminpar-dist/graphutils/communication.h"
 #include "kaminpar-dist/timer.h"
 
@@ -123,13 +124,15 @@ public:
 
     lp::PassConfig<NodeID, GlobalNodeID> config{
         .nodes = {.max_degree = _max_degree, .max_neighbors = _max_num_neighbors},
-        .rating = {.strategy = lp::RatingMapStrategy::SINGLE_PHASE},
         .active_set = {.strategy = map_active_set_strategy()},
         .selection = {.tie_breaking_strategy = lp::TieBreakingStrategy::GEOMETRIC},
     };
+    lp::ExecutionConfig execution{.strategy = lp::RatingMapStrategy::SINGLE_PHASE};
     GlobalLPNeighborPolicy neighbors(*this);
-    lp::LabelPropagationCore core(graph, *this, *this, _selector, neighbors, _workspace, config);
-    core.initialize(
+    lp::LabelPropagationKernel kernel(
+        graph, *this, *this, _selector, neighbors, _workspace, config
+    );
+    kernel.initialize(
         {.num_nodes = _num_nodes,
          .num_active_nodes = _num_active_nodes,
          .num_clusters = graph.total_n()}
@@ -143,7 +146,7 @@ public:
       GlobalNodeID global_num_moved_nodes = 0;
       for (int chunk = 0; chunk < num_chunks; ++chunk) {
         const auto [from, to] = math::compute_local_range<NodeID>(_graph->n(), num_chunks, chunk);
-        global_num_moved_nodes += process_chunk(core, from, to);
+        global_num_moved_nodes += process_chunk(kernel, execution, from, to);
       }
 
       if constexpr (kDebug) {
@@ -346,7 +349,9 @@ public:
 
 private:
   template <typename Core>
-  GlobalNodeID process_chunk(Core &core, const NodeID from, const NodeID to) {
+  GlobalNodeID process_chunk(
+      Core &core, const lp::ExecutionConfig &execution, const NodeID from, const NodeID to
+  ) {
     TIMER_BARRIER(_graph->communicator());
 
     const NodeID local_num_moved_nodes = TIMED_SCOPE("Local work") {
@@ -357,7 +362,7 @@ private:
           static_cast<EdgeID>(kMinChunkSize),
           iteration::bucket_limit_for_max_degree(*_graph, core.config().nodes.max_degree)
       );
-      return lp::run_iteration(order, core).moved_nodes;
+      return lp::run_iteration(order, core, execution).moved_nodes;
     };
 
     const GlobalNodeID global_num_moved_nodes =
@@ -755,7 +760,7 @@ private:
     explicit GlobalLPSelector(GlobalLPClusteringImpl &impl) : _impl(impl) {}
 
     template <::kaminpar::lp::TieBreakingStrategy TieBreaking, typename Context, typename RatingMap>
-    [[nodiscard]] KAMINPAR_LP_INLINE auto select(
+    [[nodiscard]] KAMINPAR_INLINE auto select(
         const Context &context,
         RatingMap &map,
         ScalableVector<ClusterID> &tie_breaking_clusters,
@@ -766,12 +771,12 @@ private:
       );
     }
 
-    [[nodiscard]] KAMINPAR_LP_INLINE ClusterWeight cluster_weight(const ClusterID cluster) {
+    [[nodiscard]] KAMINPAR_INLINE ClusterWeight cluster_weight(const ClusterID cluster) {
       return _impl.cluster_weight(cluster);
     }
 
     template <typename Context, typename Candidate, typename Choice>
-    [[nodiscard]] KAMINPAR_LP_INLINE bool
+    [[nodiscard]] KAMINPAR_INLINE bool
     is_feasible(const Context &context, const Candidate &candidate, const Choice &) {
       return candidate.weight + context.node_weight <=
                  _impl.max_cluster_weight(candidate.cluster) ||
@@ -779,7 +784,7 @@ private:
     }
 
     template <typename Context, typename Candidate, typename Choice>
-    [[nodiscard]] KAMINPAR_LP_INLINE ::kaminpar::lp::CandidateComparison
+    [[nodiscard]] KAMINPAR_INLINE ::kaminpar::lp::CandidateComparison
     compare(const Context &, const Candidate &candidate, const Choice &choice) {
       return ::kaminpar::lp::compare_by_gain(candidate.gain, choice.best_gain);
     }
@@ -793,21 +798,10 @@ private:
 
 class GlobalLPClusteringImplWrapper {
 public:
-  GlobalLPClusteringImplWrapper(const Context &ctx)
-      : _csr_impl(
-            std::make_unique<GlobalLPClusteringImpl<DistributedCSRGraph>>(
-                ctx, _workspace, _order_workspace
-            )
-        ),
-        _compressed_impl(
-            std::make_unique<GlobalLPClusteringImpl<DistributedCompressedGraph>>(
-                ctx, _workspace, _order_workspace
-            )
-        ) {}
+  GlobalLPClusteringImplWrapper(const Context &ctx) : _ctx(ctx) {}
 
   void set_max_cluster_weight(const GlobalNodeWeight weight) {
-    _csr_impl->set_max_cluster_weight(weight);
-    _compressed_impl->set_max_cluster_weight(weight);
+    _max_cluster_weight = weight;
   }
 
   void compute_clustering(StaticArray<GlobalNodeID> &clustering, const DistributedGraph &graph) {
@@ -817,26 +811,34 @@ public:
 
     const NodeID num_nodes = graph.total_n();
     const NodeID num_active_nodes = graph.n();
-    _csr_impl->preinitialize(num_nodes, num_active_nodes);
-    _compressed_impl->preinitialize(num_nodes, num_active_nodes);
 
     graph.reified(
         [&](const DistributedCSRGraph &csr_graph) {
-          GlobalLPClusteringImpl<DistributedCSRGraph> &impl = *_csr_impl;
+          auto &impl = ensure_impl<DistributedCSRGraph>(num_nodes, num_active_nodes);
           compute_clustering(impl, csr_graph);
         },
         [&](const DistributedCompressedGraph &compressed_graph) {
-          GlobalLPClusteringImpl<DistributedCompressedGraph> &impl = *_compressed_impl;
+          auto &impl = ensure_impl<DistributedCompressedGraph>(num_nodes, num_active_nodes);
           compute_clustering(impl, compressed_graph);
         }
     );
   }
 
 private:
+  template <typename ConcreteGraph>
+  GlobalLPClusteringImpl<ConcreteGraph> &
+  ensure_impl(const NodeID num_nodes, const NodeID num_active_nodes) {
+    auto &impl = _impl.template ensure<ConcreteGraph>(_ctx, _workspace, _order_workspace);
+    impl.preinitialize(num_nodes, num_active_nodes);
+    impl.set_max_cluster_weight(_max_cluster_weight);
+    return impl;
+  }
+
+  const Context &_ctx;
+  graph::AnyDistributedGraphComponent<GlobalLPClusteringImpl> _impl;
   GlobalLPWorkspace _workspace;
   GlobalLPOrderWorkspace _order_workspace;
-  std::unique_ptr<GlobalLPClusteringImpl<DistributedCSRGraph>> _csr_impl;
-  std::unique_ptr<GlobalLPClusteringImpl<DistributedCompressedGraph>> _compressed_impl;
+  GlobalNodeWeight _max_cluster_weight = std::numeric_limits<GlobalNodeWeight>::max();
 };
 
 //

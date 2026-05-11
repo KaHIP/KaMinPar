@@ -8,15 +8,10 @@
 #include <cstddef>
 #include <limits>
 
+#include "kaminpar-common/inline.h"
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::lp {
-
-#if defined(__GNUC__) || defined(__clang__)
-#define KAMINPAR_LP_INLINE inline __attribute__((always_inline))
-#else
-#define KAMINPAR_LP_INLINE inline
-#endif
 
 enum class RatingMapStrategy {
   SINGLE_PHASE,
@@ -52,7 +47,7 @@ template <typename NodeID> struct NodeLimits {
   NodeID max_neighbors = std::numeric_limits<NodeID>::max();
 };
 
-struct RatingConfig {
+struct ExecutionConfig {
   RatingMapStrategy strategy = RatingMapStrategy::SINGLE_PHASE;
   std::size_t large_map_threshold = 10000;
   bool relabel_before_second_phase = false;
@@ -75,7 +70,6 @@ template <typename ClusterID> struct StopConfig {
 
 template <typename NodeID, typename ClusterID> struct PassConfig {
   NodeLimits<NodeID> nodes;
-  RatingConfig rating;
   ActiveSetConfig active_set;
   ClusterSelectionConfig selection;
   StopConfig<ClusterID> stopping;

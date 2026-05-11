@@ -78,6 +78,15 @@ public:
     }
   }
 
+  template <typename Callback>
+  void pfor_adjacent_nodes(
+      const NodeID node, const NodeID max_neighbors, const NodeID, Callback &&callback
+  ) const {
+    callback([&](auto &&visitor) {
+      adjacent_nodes(node, max_neighbors, std::forward<decltype(visitor)>(visitor));
+    });
+  }
+
 private:
   template <typename Visitor> static bool call_visitor(Visitor &visitor, const Edge edge) {
     if constexpr (std::is_invocable_r_v<bool, Visitor, NodeID, EdgeWeight>) {
@@ -111,7 +120,7 @@ using TestWorkspace = lp::Workspace<
     TestRatingMap,
     TestGrowingRatingMap,
     TestConcurrentRatingMap,
-    false>;
+    true>;
 
 class TestWeights : public lp::RelaxedClusterWeightVector<TestClusterID, TestNodeWeight> {
 public:
@@ -191,12 +200,12 @@ struct TestNeighborPolicy {
   }
 };
 
-struct CoreFixture {
-  explicit CoreFixture(TestGraph graph, lp::PassConfig<TestNodeID, TestClusterID> config = {})
+struct KernelFixture {
+  explicit KernelFixture(TestGraph graph, lp::PassConfig<TestNodeID, TestClusterID> config = {})
       : graph(std::move(graph)),
         labels_array(this->graph.n()),
         selector(weights),
-        core(this->graph, labels, weights, selector, neighbors, workspace, config) {
+        kernel(this->graph, labels, weights, selector, neighbors, workspace, config) {
     labels.init(labels_array);
     weights.allocate(this->graph.n());
 
@@ -206,7 +215,7 @@ struct CoreFixture {
     }
     weights.set_initial_weights(std::move(initial_weights));
 
-    core.initialize({
+    kernel.initialize({
         .num_nodes = this->graph.n(),
         .num_active_nodes = this->graph.n(),
         .num_clusters = this->graph.n(),
@@ -220,14 +229,24 @@ struct CoreFixture {
   TestWorkspace workspace;
   TestSelector selector;
   TestNeighborPolicy neighbors;
-  lp::LabelPropagationCore<
+  lp::LabelPropagationKernel<
       TestGraph,
       lp::ExternalLabelArray<TestNodeID, TestClusterID>,
       TestWeights,
       TestSelector,
       TestNeighborPolicy,
       TestWorkspace>
-      core;
+      kernel;
+};
+
+struct TestOrder {
+  std::vector<TestNodeID> nodes;
+
+  template <typename Visitor> void parallel_for_each(Visitor &&visitor) {
+    for (const TestNodeID node : nodes) {
+      visitor(node);
+    }
+  }
 };
 
 TestGraph weighted_star() {
@@ -239,10 +258,12 @@ TestGraph weighted_star() {
 
 } // namespace
 
-TEST(LabelPropagationCoreTest, manual_pass_moves_node_to_highest_rated_cluster) {
-  CoreFixture fixture(weighted_star());
+TEST(LabelPropagationKernelTest, manual_single_phase_pass_moves_node_to_highest_rated_cluster) {
+  KernelFixture fixture(weighted_star());
 
-  auto pass = fixture.core.begin_pass();
+  lp::SinglePhasePass<decltype(fixture.kernel), lp::TieBreakingStrategy::GEOMETRIC> pass(
+      fixture.kernel
+  );
   pass.handle_next_node(0);
   const auto result = pass.finish();
 
@@ -251,26 +272,30 @@ TEST(LabelPropagationCoreTest, manual_pass_moves_node_to_highest_rated_cluster) 
   EXPECT_THAT(result.moved_nodes, Eq(1));
 }
 
-TEST(LabelPropagationCoreTest, neighbor_filter_and_max_neighbors_limit_rating_accumulation) {
+TEST(LabelPropagationKernelTest, neighbor_filter_and_max_neighbors_limit_rating_accumulation) {
   lp::PassConfig<TestNodeID, TestClusterID> config;
   config.nodes.max_neighbors = 2;
-  CoreFixture fixture(weighted_star(), config);
+  KernelFixture fixture(weighted_star(), config);
   fixture.neighbors.rejected_neighbor = 2;
 
-  auto pass = fixture.core.begin_pass();
+  lp::SinglePhasePass<decltype(fixture.kernel), lp::TieBreakingStrategy::GEOMETRIC> pass(
+      fixture.kernel
+  );
   pass.handle_next_node(0);
   (void)pass.finish();
 
   EXPECT_THAT(fixture.labels.cluster(0), Eq(1));
 }
 
-TEST(LabelPropagationCoreTest, inactive_nodes_are_skipped) {
+TEST(LabelPropagationKernelTest, inactive_nodes_are_skipped) {
   lp::PassConfig<TestNodeID, TestClusterID> config;
   config.active_set.strategy = lp::ActiveSetStrategy::GLOBAL;
-  CoreFixture fixture(weighted_star(), config);
-  fixture.workspace.active[0] = 0;
+  KernelFixture fixture(weighted_star(), config);
+  fixture.workspace.active_set.flags[0] = 0;
 
-  auto pass = fixture.core.begin_pass();
+  lp::SinglePhasePass<decltype(fixture.kernel), lp::TieBreakingStrategy::GEOMETRIC> pass(
+      fixture.kernel
+  );
   pass.handle_next_node(0);
   const auto result = pass.finish();
 
@@ -279,33 +304,91 @@ TEST(LabelPropagationCoreTest, inactive_nodes_are_skipped) {
   EXPECT_THAT(result.moved_nodes, Eq(0));
 }
 
-TEST(LabelPropagationCoreTest, isolated_node_clustering_reuses_core_postprocessing) {
-  CoreFixture fixture(TestGraph{{{}, {}, {}}, {1, 1, 1}});
+TEST(LabelPropagationKernelTest, isolated_node_clustering_reuses_kernel_postprocessing) {
+  KernelFixture fixture(TestGraph{{{}, {}, {}}, {1, 1, 1}});
   fixture.weights.set_max_cluster_weight(3);
 
   tbb::task_arena arena(1);
-  arena.execute([&] { fixture.core.cluster_isolated_nodes(); });
+  arena.execute([&] { lp::cluster_isolated_nodes(fixture.kernel); });
 
   EXPECT_THAT(fixture.labels.cluster(0), Eq(0));
   EXPECT_THAT(fixture.labels.cluster(1), Eq(0));
   EXPECT_THAT(fixture.labels.cluster(2), Eq(0));
 }
 
-TEST(LabelPropagationCoreTest, two_hop_clustering_uses_favored_clusters) {
+TEST(LabelPropagationKernelTest, two_hop_clustering_uses_favored_clusters) {
   lp::PassConfig<TestNodeID, TestClusterID> config;
   config.selection.track_favored_clusters = true;
-  CoreFixture fixture(TestGraph{{{{2, 1}}, {{2, 1}}, {}}, {1, 1, 1}}, config);
+  KernelFixture fixture(TestGraph{{{{2, 1}}, {{2, 1}}, {}}, {1, 1, 1}}, config);
   fixture.weights.set_max_cluster_weight(3);
-  fixture.workspace.favored_clusters[0] = 2;
-  fixture.workspace.favored_clusters[1] = 2;
-  fixture.workspace.favored_clusters[2] = 2;
+  fixture.workspace.postprocessing.favored_clusters[0] = 2;
+  fixture.workspace.postprocessing.favored_clusters[1] = 2;
+  fixture.workspace.postprocessing.favored_clusters[2] = 2;
 
   tbb::task_arena arena(1);
-  arena.execute([&] { fixture.core.cluster_two_hop_nodes(); });
+  arena.execute([&] { lp::cluster_two_hop_nodes(fixture.kernel); });
 
   EXPECT_THAT(fixture.labels.cluster(0), Eq(0));
   EXPECT_THAT(fixture.labels.cluster(1), Eq(0));
   EXPECT_THAT(fixture.labels.cluster(2), Eq(2));
+}
+
+TEST(LabelPropagationPassTest, rating_map_passes_produce_same_move_without_deferral) {
+  KernelFixture single_phase(weighted_star());
+  KernelFixture growing_hash_tables(weighted_star());
+  KernelFixture two_phase(weighted_star());
+
+  lp::SinglePhasePass<decltype(single_phase.kernel), lp::TieBreakingStrategy::GEOMETRIC>
+      single_phase_pass(single_phase.kernel);
+  lp::GrowingHashTablePass<decltype(growing_hash_tables.kernel), lp::TieBreakingStrategy::GEOMETRIC>
+      growing_pass(growing_hash_tables.kernel);
+  lp::TwoPhasePass<decltype(two_phase.kernel), lp::TieBreakingStrategy::GEOMETRIC> two_phase_pass(
+      two_phase.kernel, {.strategy = lp::RatingMapStrategy::TWO_PHASE, .large_map_threshold = 10000}
+  );
+
+  single_phase_pass.handle_next_node(0);
+  growing_pass.handle_next_node(0);
+  two_phase_pass.handle_next_node(0);
+
+  EXPECT_THAT(single_phase_pass.finish().moved_nodes, Eq(1));
+  EXPECT_THAT(growing_pass.finish().moved_nodes, Eq(1));
+  EXPECT_THAT(two_phase_pass.finish().moved_nodes, Eq(1));
+  EXPECT_THAT(single_phase.labels.cluster(0), Eq(3));
+  EXPECT_THAT(growing_hash_tables.labels.cluster(0), Eq(3));
+  EXPECT_THAT(two_phase.labels.cluster(0), Eq(3));
+}
+
+TEST(LabelPropagationPassTest, two_phase_pass_defers_large_nodes_to_finish) {
+  KernelFixture fixture(weighted_star());
+
+  lp::TwoPhasePass<decltype(fixture.kernel), lp::TieBreakingStrategy::GEOMETRIC> pass(
+      fixture.kernel, {.strategy = lp::RatingMapStrategy::TWO_PHASE, .large_map_threshold = 1}
+  );
+  pass.handle_next_node(0);
+
+  EXPECT_THAT(fixture.labels.cluster(0), Eq(0));
+  EXPECT_THAT(pass.finish().moved_nodes, Eq(1));
+  EXPECT_THAT(fixture.labels.cluster(0), Eq(3));
+}
+
+TEST(LabelPropagationRunTest, manual_iteration_and_run_iteration_are_equivalent) {
+  KernelFixture manual(weighted_star());
+  KernelFixture utility(weighted_star());
+
+  lp::SinglePhasePass<decltype(manual.kernel), lp::TieBreakingStrategy::GEOMETRIC> pass(
+      manual.kernel
+  );
+  for (const TestNodeID node : std::vector<TestNodeID>{0}) {
+    pass.handle_next_node(node);
+  }
+  const auto manual_result = pass.finish();
+
+  TestOrder order{{0}};
+  const auto utility_result =
+      lp::run_iteration(order, utility.kernel, {.strategy = lp::RatingMapStrategy::SINGLE_PHASE});
+
+  EXPECT_THAT(manual.labels.cluster(0), Eq(utility.labels.cluster(0)));
+  EXPECT_THAT(manual_result.moved_nodes, Eq(utility_result.moved_nodes));
 }
 
 } // namespace kaminpar

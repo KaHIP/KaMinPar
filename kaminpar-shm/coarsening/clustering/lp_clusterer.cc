@@ -114,7 +114,7 @@ public:
         _communities(communities) {}
 
   template <lp::TieBreakingStrategy TieBreaking, typename Context, typename RatingMap>
-  [[nodiscard]] KAMINPAR_LP_INLINE auto select(
+  [[nodiscard]] KAMINPAR_INLINE auto select(
       const Context &context,
       RatingMap &map,
       ScalableVector<NodeID> &tie_breaking_clusters,
@@ -266,10 +266,6 @@ public:
         .nodes =
             {.max_degree = _lp_ctx.large_degree_threshold,
              .max_neighbors = _lp_ctx.max_num_neighbors},
-        .rating =
-            {.strategy = map_rating_map_strategy(_lp_ctx.impl),
-             .large_map_threshold = kRatingMapThreshold,
-             .relabel_before_second_phase = _relabel_before_second_phase},
         .active_set = {.strategy = lp::ActiveSetStrategy::GLOBAL},
         .selection =
             {.tie_breaking_strategy = map_tie_breaking_strategy(_lp_ctx.tie_breaking_strategy),
@@ -277,12 +273,17 @@ public:
              .track_favored_clusters = true},
         .stopping = {.desired_clusters = _desired_num_clusters, .track_cluster_count = true},
     };
+    lp::ExecutionConfig execution{
+        .strategy = map_rating_map_strategy(_lp_ctx.impl),
+        .large_map_threshold = kRatingMapThreshold,
+        .relabel_before_second_phase = _relabel_before_second_phase,
+    };
 
     LPClusteringNeighborPolicy neighbors{.communities = _communities};
-    lp::LabelPropagationCore core(
+    lp::LabelPropagationKernel kernel(
         graph, _labels, _weights, _selector, neighbors, _workspace, config
     );
-    core.initialize(
+    kernel.initialize(
         {.num_nodes = _num_nodes, .num_active_nodes = graph.n(), .num_clusters = graph.n()}
     );
 
@@ -295,7 +296,7 @@ public:
           static_cast<EdgeID>(kMinChunkSize),
           iteration::bucket_limit_for_max_degree(graph, config.nodes.max_degree)
       );
-      const auto result = lp::run_iteration(order, core);
+      const auto result = lp::run_iteration(order, kernel, execution);
       if (result.moved_nodes == 0) {
         break;
       }
@@ -303,14 +304,13 @@ public:
       // Only relabel during the first iteration because afterwards the memory for the second phase
       // is already allocated.
       if (iteration == 0) {
-        config.rating.relabel_before_second_phase = false;
-        core.set_config(config);
+        execution.relabel_before_second_phase = false;
         _relabel_before_second_phase = false;
       }
     }
 
-    cluster_isolated_nodes(core, graph);
-    cluster_two_hop_nodes(core, graph);
+    cluster_isolated_nodes(kernel, graph);
+    cluster_two_hop_nodes(kernel, graph);
   }
 
   void set_desired_num_clusters(const NodeID count) {
@@ -332,16 +332,16 @@ private:
 
     switch (_lp_ctx.two_hop_strategy) {
     case TwoHopStrategy::MATCH:
-      core.match_two_hop_nodes();
+      lp::match_two_hop_nodes(core);
       break;
     case TwoHopStrategy::MATCH_THREADWISE:
-      core.match_two_hop_nodes_threadwise();
+      lp::match_two_hop_nodes_threadwise(core);
       break;
     case TwoHopStrategy::CLUSTER:
-      core.cluster_two_hop_nodes();
+      lp::cluster_two_hop_nodes(core);
       break;
     case TwoHopStrategy::CLUSTER_THREADWISE:
-      core.cluster_two_hop_nodes_threadwise();
+      lp::cluster_two_hop_nodes_threadwise(core);
       break;
     case TwoHopStrategy::DISABLE:
       break;
@@ -354,19 +354,19 @@ private:
 
     switch (_lp_ctx.isolated_nodes_strategy) {
     case IsolatedNodesClusteringStrategy::MATCH:
-      core.match_isolated_nodes();
+      lp::match_isolated_nodes(core);
       break;
     case IsolatedNodesClusteringStrategy::CLUSTER:
-      core.cluster_isolated_nodes();
+      lp::cluster_isolated_nodes(core);
       break;
     case IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP:
       if (should_handle_two_hop_nodes(core, graph)) {
-        core.match_isolated_nodes();
+        lp::match_isolated_nodes(core);
       }
       break;
     case IsolatedNodesClusteringStrategy::CLUSTER_DURING_TWO_HOP:
       if (should_handle_two_hop_nodes(core, graph)) {
-        core.cluster_isolated_nodes();
+        lp::cluster_isolated_nodes(core);
       }
       break;
     case IsolatedNodesClusteringStrategy::KEEP:
@@ -395,75 +395,75 @@ private:
 class LPClusteringImplWrapper {
 public:
   LPClusteringImplWrapper(const CoarseningContext &c_ctx)
-      : _csr_impl(
-            std::make_unique<LPClusteringImpl<CSRGraph>>(
-                c_ctx, _workspace, _order_workspace, _weights
-            )
-        ),
-        _compressed_impl(
-            std::make_unique<LPClusteringImpl<CompressedGraph>>(
-                c_ctx, _workspace, _order_workspace, _weights
-            )
-        ) {}
+      : _c_ctx(c_ctx),
+        _relabel_before_second_phase(c_ctx.clustering.lp.relabel_before_second_phase) {}
 
   void set_max_cluster_weight(const NodeWeight max_cluster_weight) {
-    _csr_impl->set_max_cluster_weight(max_cluster_weight);
-    _compressed_impl->set_max_cluster_weight(max_cluster_weight);
+    _max_cluster_weight = max_cluster_weight;
+    _weights.set_max_cluster_weight(max_cluster_weight);
   }
 
   void set_desired_cluster_count(const NodeID count) {
-    _csr_impl->set_desired_num_clusters(count);
-    _compressed_impl->set_desired_num_clusters(count);
+    _desired_cluster_count = count;
   }
 
   void set_communities(std::span<const NodeID> communities) {
-    _csr_impl->set_communities(communities);
-    _compressed_impl->set_communities(communities);
+    _communities = communities;
   }
 
   void compute_clustering(
       StaticArray<NodeID> &clustering, const Graph &graph, const bool free_memory_afterwards
   ) {
-    const auto compute_clustering = [&](auto &core, auto &graph) {
+    const auto compute_clustering = [&](auto &impl, auto &graph) {
       if (_freed) {
         _freed = false;
-        core.allocate(graph.n());
+        impl.allocate(graph.n());
       }
 
-      core.compute_clustering(clustering, graph);
+      impl.compute_clustering(clustering, graph);
 
       if (free_memory_afterwards) {
         _freed = true;
-        core.free();
+        impl.free();
       }
     };
 
     const NodeID num_nodes = graph.n();
-    _csr_impl->preinitialize(num_nodes);
-    _compressed_impl->preinitialize(num_nodes);
-
     reified(
         graph,
         [&](const auto &csr_graph) {
-          LPClusteringImpl<CSRGraph> &impl = *_csr_impl;
+          auto &impl = ensure_impl<CSRGraph>(num_nodes);
           compute_clustering(impl, csr_graph);
         },
         [&](const auto &compressed_graph) {
-          LPClusteringImpl<CompressedGraph> &impl = *_compressed_impl;
+          auto &impl = ensure_impl<CompressedGraph>(num_nodes);
           compute_clustering(impl, compressed_graph);
         }
     );
 
     // Only relabel clusters for the first iteration
-    _csr_impl->set_relabel_before_second_phase(false);
-    _compressed_impl->set_relabel_before_second_phase(false);
+    _relabel_before_second_phase = false;
   }
 
 private:
-  std::unique_ptr<LPClusteringImpl<CSRGraph>> _csr_impl;
-  std::unique_ptr<LPClusteringImpl<CompressedGraph>> _compressed_impl;
+  template <typename ConcreteGraph> LPClusteringImpl<ConcreteGraph> &ensure_impl(const NodeID n) {
+    auto &impl =
+        _impl.template ensure<ConcreteGraph>(_c_ctx, _workspace, _order_workspace, _weights);
+    impl.preinitialize(n);
+    impl.set_max_cluster_weight(_max_cluster_weight);
+    impl.set_desired_num_clusters(_desired_cluster_count);
+    impl.set_communities(_communities);
+    impl.set_relabel_before_second_phase(_relabel_before_second_phase);
+    return impl;
+  }
 
+  const CoarseningContext &_c_ctx;
+  AnyGraphComponent<LPClusteringImpl> _impl;
   bool _freed = true;
+  NodeWeight _max_cluster_weight = kInvalidBlockWeight;
+  NodeID _desired_cluster_count = 0;
+  std::span<const NodeID> _communities;
+  bool _relabel_before_second_phase;
   LPClusterWorkspace _workspace;
   LPClusterOrderWorkspace _order_workspace;
   LPClusterWeights _weights;

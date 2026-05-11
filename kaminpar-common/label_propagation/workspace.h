@@ -35,16 +35,64 @@ struct Workspace {
   using GrowingRatingMapType = GrowingRatingMap;
   using ConcurrentRatingMapType = ConcurrentRatingMap;
 
-  tbb::enumerable_thread_specific<RatingMap> rating_map_ets;
-  tbb::enumerable_thread_specific<GrowingRatingMap> growing_rating_map_ets;
-  ConcurrentRatingMap concurrent_rating_map;
-  tbb::enumerable_thread_specific<ScalableVector<ClusterID>> tie_breaking_clusters_ets;
-  tbb::enumerable_thread_specific<ScalableVector<ClusterID>> tie_breaking_favored_clusters_ets;
-  StaticArray<std::uint8_t> active;
-  StaticArray<std::uint8_t> moved;
-  StaticArray<ClusterID> favored_clusters;
-  tbb::concurrent_vector<NodeID> second_phase_nodes;
-  std::vector<LocalClusterSelectionState<ClusterID, EdgeWeight>> local_cluster_selection_states;
+  struct RatingBuffers {
+    tbb::enumerable_thread_specific<RatingMap> maps;
+    tbb::enumerable_thread_specific<GrowingRatingMap> growing_maps;
+    ClusterID map_capacity = 0;
+
+    void free() {
+      maps.clear();
+      growing_maps.clear();
+      map_capacity = 0;
+    }
+  };
+
+  struct ActiveSetStorage {
+    StaticArray<std::uint8_t> flags;
+
+    void free() {
+      flags.free();
+    }
+  };
+
+  struct SelectionBuffers {
+    tbb::enumerable_thread_specific<ScalableVector<ClusterID>> tie_breaking_clusters;
+    tbb::enumerable_thread_specific<ScalableVector<ClusterID>> tie_breaking_favored_clusters;
+    std::vector<LocalClusterSelectionState<ClusterID, EdgeWeight>> local_states;
+
+    void free() {
+      tie_breaking_clusters.clear();
+      tie_breaking_favored_clusters.clear();
+      local_states.clear();
+    }
+  };
+
+  struct TwoPhaseStorage {
+    ConcurrentRatingMap concurrent_rating_map;
+    tbb::concurrent_vector<NodeID> nodes;
+
+    void free() {
+      concurrent_rating_map.free();
+      nodes.clear();
+      nodes.shrink_to_fit();
+    }
+  };
+
+  struct PostprocessingStorage {
+    StaticArray<std::uint8_t> moved;
+    StaticArray<ClusterID> favored_clusters;
+
+    void free() {
+      moved.free();
+      favored_clusters.free();
+    }
+  };
+
+  RatingBuffers rating;
+  ActiveSetStorage active_set;
+  SelectionBuffers selection;
+  TwoPhaseStorage two_phase;
+  PostprocessingStorage postprocessing;
 
   void allocate(
       const NodeID num_nodes,
@@ -54,55 +102,45 @@ struct Workspace {
       const PassConfig<NodeID, ClusterID> &config
   ) {
     if (config.active_set.strategy == ActiveSetStrategy::LOCAL) {
-      if (active.size() < num_nodes) {
-        active.resize(num_nodes);
+      if (active_set.flags.size() < num_nodes) {
+        active_set.flags.resize(num_nodes);
       }
     } else if (config.active_set.strategy == ActiveSetStrategy::GLOBAL) {
-      if (active.size() < num_active_nodes) {
-        active.resize(num_active_nodes);
+      if (active_set.flags.size() < num_active_nodes) {
+        active_set.flags.resize(num_active_nodes);
       }
     }
 
     if (config.selection.track_favored_clusters) {
-      if (favored_clusters.size() < num_active_nodes) {
-        favored_clusters.resize(num_active_nodes);
+      if (postprocessing.favored_clusters.size() < num_active_nodes) {
+        postprocessing.favored_clusters.resize(num_active_nodes);
       }
     }
 
-    if (rating_map_ets.empty() || _rating_map_capacity < num_clusters) {
-      rating_map_ets = tbb::enumerable_thread_specific<RatingMap>([num_clusters] {
+    if (rating.maps.empty() || rating.map_capacity < num_clusters) {
+      rating.maps = tbb::enumerable_thread_specific<RatingMap>([num_clusters] {
         return RatingMap(num_clusters);
       });
-      _rating_map_capacity = num_clusters;
+      rating.map_capacity = num_clusters;
     } else {
-      for (auto &rating_map : rating_map_ets) {
+      for (auto &rating_map : rating.maps) {
         rating_map.change_max_size(num_clusters);
       }
     }
 
-    if (local_cluster_selection_states.size() <
+    if (selection.local_states.size() <
         static_cast<std::size_t>(tbb::this_task_arena::max_concurrency())) {
-      local_cluster_selection_states.resize(tbb::this_task_arena::max_concurrency());
+      selection.local_states.resize(tbb::this_task_arena::max_concurrency());
     }
   }
 
   void free() {
-    rating_map_ets.clear();
-    growing_rating_map_ets.clear();
-    tie_breaking_clusters_ets.clear();
-    tie_breaking_favored_clusters_ets.clear();
-    active.free();
-    moved.free();
-    favored_clusters.free();
-    second_phase_nodes.clear();
-    second_phase_nodes.shrink_to_fit();
-    local_cluster_selection_states.clear();
-    concurrent_rating_map.free();
-    _rating_map_capacity = 0;
+    rating.free();
+    active_set.free();
+    selection.free();
+    two_phase.free();
+    postprocessing.free();
   }
-
-private:
-  ClusterID _rating_map_capacity = 0;
 };
 
 } // namespace kaminpar::lp

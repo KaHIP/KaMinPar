@@ -2,9 +2,16 @@
 #include "tests/shm/graph_helpers.h"
 
 #include "kaminpar-shm/datastructures/csr_graph.h"
+#include "kaminpar-shm/datastructures/graph.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 
 namespace kaminpar::shm::testing {
+
+template <typename Graph> struct TestGraphComponent {
+  explicit TestGraphComponent(const int value) : value(value) {}
+
+  int value;
+};
 
 class AWeightedGridGraph : public ::testing::Test {
 public:
@@ -194,6 +201,23 @@ TEST(GraphTest, LowestDegreeInBucketWorks) {
   EXPECT_EQ(lowest_degree_in_bucket<NodeID>(1), 1);
   EXPECT_EQ(lowest_degree_in_bucket<NodeID>(2), 2);
   EXPECT_EQ(lowest_degree_in_bucket<NodeID>(3), 4);
+}
+
+TEST(GraphTest, AnyGraphComponentEnsureReusesMatchingGraphType) {
+  AnyGraphComponent<TestGraphComponent> component;
+
+  auto &csr = component.ensure<CSRGraph>(1);
+  csr.value = 7;
+
+  auto &same_csr = component.ensure<CSRGraph>(2);
+  EXPECT_EQ(&same_csr, &csr);
+  EXPECT_EQ(same_csr.value, 7);
+
+  auto &compressed = component.ensure<CompressedGraph>(3);
+  EXPECT_EQ(compressed.value, 3);
+
+  auto &new_csr = component.ensure<CSRGraph>(4);
+  EXPECT_EQ(new_csr.value, 4);
 }
 
 } // namespace kaminpar::shm::testing

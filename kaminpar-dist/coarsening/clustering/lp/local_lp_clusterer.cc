@@ -10,6 +10,8 @@
 
 #include <functional>
 
+#include "kaminpar-dist/datastructures/reify_graph.h"
+
 #include "kaminpar-common/algorithms/label_propagation.h"
 #include "kaminpar-common/datastructures/concurrent_fast_reset_array.h"
 #include "kaminpar-common/datastructures/dynamic_map.h"
@@ -95,7 +97,7 @@ public:
   explicit LocalLPSelector(LocalLPWeights &weights) : _weights(weights) {}
 
   template <::kaminpar::lp::TieBreakingStrategy TieBreaking, typename Context, typename RatingMap>
-  [[nodiscard]] KAMINPAR_LP_INLINE auto select(
+  [[nodiscard]] KAMINPAR_INLINE auto select(
       const Context &context,
       RatingMap &map,
       ScalableVector<NodeID> &tie_breaking_clusters,
@@ -106,12 +108,12 @@ public:
     );
   }
 
-  [[nodiscard]] KAMINPAR_LP_INLINE NodeWeight cluster_weight(const NodeID cluster) const {
+  [[nodiscard]] KAMINPAR_INLINE NodeWeight cluster_weight(const NodeID cluster) const {
     return _weights.cluster_weight(cluster);
   }
 
   template <typename Context, typename Candidate, typename Choice>
-  [[nodiscard]] KAMINPAR_LP_INLINE bool
+  [[nodiscard]] KAMINPAR_INLINE bool
   is_feasible(const Context &context, const Candidate &candidate, const Choice &) const {
     return candidate.weight + context.node_weight <=
                _weights.max_cluster_weight(candidate.cluster) ||
@@ -119,7 +121,7 @@ public:
   }
 
   template <typename Context, typename Candidate, typename Choice>
-  [[nodiscard]] KAMINPAR_LP_INLINE ::kaminpar::lp::CandidateComparison
+  [[nodiscard]] KAMINPAR_INLINE ::kaminpar::lp::CandidateComparison
   compare(const Context &, const Candidate &candidate, const Choice &choice) const {
     return ::kaminpar::lp::compare_by_gain(candidate.gain, choice.best_gain);
   }
@@ -174,15 +176,15 @@ public:
 
     lp::PassConfig<NodeID, NodeID> config{
         .nodes = {.max_degree = _max_degree, .max_neighbors = _max_num_neighbors},
-        .rating = {.strategy = lp::RatingMapStrategy::SINGLE_PHASE},
         .active_set = {.strategy = lp::ActiveSetStrategy::NONE},
         .selection = {.tie_breaking_strategy = lp::TieBreakingStrategy::GEOMETRIC},
     };
+    lp::ExecutionConfig execution{.strategy = lp::RatingMapStrategy::SINGLE_PHASE};
     TypedLocalLPNeighborPolicy neighbors(graph, _partition, _ignore_ghost_nodes);
-    lp::LabelPropagationCore core(
+    lp::LabelPropagationKernel kernel(
         graph, _labels, _weights, _selector, neighbors, _workspace, config
     );
-    core.initialize(
+    kernel.initialize(
         {.num_nodes = _num_nodes, .num_active_nodes = graph.n(), .num_clusters = graph.n()}
     );
     _order_workspace.clear_order();
@@ -206,7 +208,7 @@ public:
           static_cast<EdgeID>(kMinChunkSize),
           iteration::bucket_limit_for_max_degree(graph, config.nodes.max_degree)
       );
-      const auto result = lp::run_iteration(order, core);
+      const auto result = lp::run_iteration(order, kernel, execution);
       if (result.moved_nodes == 0) {
         break;
       }
@@ -269,30 +271,20 @@ public:
 class LocalLPClusteringImplWrapper {
 public:
   LocalLPClusteringImplWrapper(const NodeID max_n, const CoarseningContext &c_ctx)
-      : _csr_impl(
-            std::make_unique<LocalLPClusteringImpl<DistributedCSRGraph>>(
-                max_n, c_ctx, _workspace, _order_workspace, _weights
-            )
-        ),
-        _compressed_impl(
-            std::make_unique<LocalLPClusteringImpl<DistributedCompressedGraph>>(
-                max_n, c_ctx, _workspace, _order_workspace, _weights
-            )
-        ) {}
+      : _max_n(max_n),
+        _c_ctx(c_ctx) {}
 
   void set_communities(const StaticArray<BlockID> &communities) {
-    _csr_impl->_partition = communities.data();
-    _compressed_impl->_partition = communities.data();
+    _partition = communities.data();
   }
 
   void clear_communities() {
-    _csr_impl->_partition = nullptr;
-    _compressed_impl->_partition = nullptr;
+    _partition = nullptr;
   }
 
   void set_max_cluster_weight(const GlobalNodeWeight weight) {
-    _csr_impl->set_max_cluster_weight(weight);
-    _compressed_impl->set_max_cluster_weight(weight);
+    _max_cluster_weight = weight;
+    _weights.set_max_cluster_weight(weight);
   }
 
   void compute_clustering(StaticArray<NodeID> &clustering, const DistributedGraph &graph) {
@@ -301,27 +293,38 @@ public:
     };
 
     const NodeID num_nodes = graph.total_n();
-    _csr_impl->preinitialize(num_nodes);
-    _compressed_impl->preinitialize(num_nodes);
-
     graph.reified(
         [&](const DistributedCSRGraph &csr_graph) {
-          LocalLPClusteringImpl<DistributedCSRGraph> &impl = *_csr_impl;
+          auto &impl = ensure_impl<DistributedCSRGraph>(num_nodes);
           compute_clustering(impl, csr_graph);
         },
         [&](const DistributedCompressedGraph &compressed_graph) {
-          LocalLPClusteringImpl<DistributedCompressedGraph> &impl = *_compressed_impl;
+          auto &impl = ensure_impl<DistributedCompressedGraph>(num_nodes);
           compute_clustering(impl, compressed_graph);
         }
     );
   }
 
 private:
+  template <typename ConcreteGraph>
+  LocalLPClusteringImpl<ConcreteGraph> &ensure_impl(const NodeID num_nodes) {
+    auto &impl = _impl.template ensure<ConcreteGraph>(
+        _max_n, _c_ctx, _workspace, _order_workspace, _weights
+    );
+    impl.preinitialize(num_nodes);
+    impl._partition = _partition;
+    impl.set_max_cluster_weight(_max_cluster_weight);
+    return impl;
+  }
+
+  NodeID _max_n;
+  const CoarseningContext &_c_ctx;
+  graph::AnyDistributedGraphComponent<LocalLPClusteringImpl> _impl;
   LocalLPWorkspace _workspace;
   LocalLPOrderWorkspace _order_workspace;
   LocalLPWeights _weights;
-  std::unique_ptr<LocalLPClusteringImpl<DistributedCSRGraph>> _csr_impl;
-  std::unique_ptr<LocalLPClusteringImpl<DistributedCompressedGraph>> _compressed_impl;
+  const BlockID *_partition = nullptr;
+  GlobalNodeWeight _max_cluster_weight = std::numeric_limits<GlobalNodeWeight>::max();
 };
 
 //
