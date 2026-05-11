@@ -304,7 +304,7 @@ DistributedCSRGraph csr_read(
 
   StaticArray<NodeWeight> node_weights;
   if (header.has_node_weights) {
-    node_weights.resize(num_local_nodes + mapper.next_ghost_node(), static_array::noinit);
+    node_weights.resize(mapper.next_ghost_node(), static_array::noinit);
 
     tbb::parallel_for(
         tbb::blocked_range<NodeID>(0, num_local_nodes),
@@ -452,7 +452,7 @@ DistributedCompressedGraph compressed_read(
 
   StaticArray<NodeWeight> node_weights;
   if (header.has_node_weights) {
-    node_weights.resize(num_local_nodes + mapper.next_ghost_node(), static_array::noinit);
+    node_weights.resize(mapper.next_ghost_node(), static_array::noinit);
 
     tbb::parallel_for(
         tbb::blocked_range<NodeID>(0, num_local_nodes),
