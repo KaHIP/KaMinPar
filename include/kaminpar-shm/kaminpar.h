@@ -125,6 +125,12 @@ enum class TieBreakingStrategy {
   UNIFORM,
 };
 
+enum class LabelPropagationFastMode {
+  OFF,
+  LIGHT,
+  AGGRESSIVE,
+};
+
 enum class ContractionAlgorithm {
   BUFFERED,
   UNBUFFERED,
@@ -151,6 +157,7 @@ struct LabelPropagationCoarseningContext {
   IsolatedNodesClusteringStrategy isolated_nodes_strategy;
 
   TieBreakingStrategy tie_breaking_strategy;
+  LabelPropagationFastMode fast_mode;
 };
 
 struct ContractionCoarseningContext {

@@ -318,6 +318,27 @@ std::unordered_map<std::string, TieBreakingStrategy> get_tie_breaking_strategies
   };
 }
 
+std::ostream &operator<<(std::ostream &out, const LabelPropagationFastMode mode) {
+  switch (mode) {
+  case LabelPropagationFastMode::OFF:
+    return out << "off";
+  case LabelPropagationFastMode::LIGHT:
+    return out << "light";
+  case LabelPropagationFastMode::AGGRESSIVE:
+    return out << "aggressive";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, LabelPropagationFastMode> get_lp_fast_modes() {
+  return {
+      {"off", LabelPropagationFastMode::OFF},
+      {"light", LabelPropagationFastMode::LIGHT},
+      {"aggressive", LabelPropagationFastMode::AGGRESSIVE},
+  };
+}
+
 std::ostream &operator<<(std::ostream &out, const ContractionAlgorithm mode) {
   switch (mode) {
   case ContractionAlgorithm::BUFFERED:
@@ -704,6 +725,7 @@ std::ostream &operator<<(std::ostream &out, const LabelPropagationCoarseningCont
   out << "    High degree threshold:    " << lp_ctx.large_degree_threshold << "\n";
   out << "    Max degree:               " << lp_ctx.max_num_neighbors << "\n";
   out << "    Tie breaking strategy:    " << lp_ctx.tie_breaking_strategy << "\n";
+  out << "    Fast mode:                " << lp_ctx.fast_mode << "\n";
   out << "    Implementation:           " << lp_ctx.impl << "\n";
   if (lp_ctx.impl == LabelPropagationImplementation::TWO_PHASE) {
     out << "      Relabel:                " << yn(lp_ctx.relabel_before_second_phase) << "\n";

@@ -7,6 +7,7 @@
  ******************************************************************************/
 #include "kaminpar-shm/coarsening/clustering/lp_clusterer.h"
 
+#include <algorithm>
 #include <functional>
 #include <span>
 
@@ -297,13 +298,13 @@ private:
   template <bool kUseCommunities, typename NeighborPolicy>
   void compute_clustering_with_neighbors(const Graph &graph, NeighborPolicy &neighbors) {
     LPClusteringSelector<kUseCommunities> selector(_weights, _communities);
+    const NodeID large_degree_threshold = effective_large_degree_threshold();
+    const NodeID max_num_neighbors = effective_max_num_neighbors();
     lp::PassConfig<NodeID, NodeID> config{
-        .nodes =
-            {.max_degree = _lp_ctx.large_degree_threshold,
-             .max_neighbors = _lp_ctx.max_num_neighbors},
+        .nodes = {.max_degree = large_degree_threshold, .max_neighbors = max_num_neighbors},
         .active_set = {.strategy = lp::ActiveSetStrategy::GLOBAL},
         .selection =
-            {.tie_breaking_strategy = map_tie_breaking_strategy(_lp_ctx.tie_breaking_strategy),
+            {.tie_breaking_strategy = map_tie_breaking_strategy(effective_tie_breaking_strategy()),
              .use_actual_gain = false,
              .track_favored_clusters = true},
         .stopping = {.desired_clusters = _desired_num_clusters, .track_cluster_count = true},
@@ -321,14 +322,15 @@ private:
         {.num_nodes = _num_nodes, .num_active_nodes = graph.n(), .num_clusters = graph.n()}
     );
 
-    for (std::size_t iteration = 0; iteration < _lp_ctx.num_iterations; ++iteration) {
+    const std::size_t num_iterations = effective_num_iterations();
+    for (std::size_t iteration = 0; iteration < num_iterations; ++iteration) {
       SCOPED_TIMER("Iteration", std::to_string(iteration));
       iteration::ChunkRandomNodeOrder order(
           graph,
           _order_workspace,
           iteration::NodeRange<NodeID>{0, graph.n()},
           static_cast<EdgeID>(kMinChunkSize),
-          iteration::bucket_limit_for_max_degree(graph, config.nodes.max_degree)
+          iteration::bucket_limit_for_max_degree(graph, large_degree_threshold)
       );
       const auto result = lp::run_iteration(order, kernel, execution);
       if (result.moved_nodes == 0) {
@@ -402,6 +404,52 @@ private:
   template <typename Core>
   [[nodiscard]] bool should_handle_two_hop_nodes(Core &core, const Graph &graph) const {
     return (1.0 - 1.0 * core.current_num_clusters() / graph.n()) <= _lp_ctx.two_hop_threshold;
+  }
+
+  [[nodiscard]] std::size_t effective_num_iterations() const {
+    switch (_lp_ctx.fast_mode) {
+    case LabelPropagationFastMode::OFF:
+      return _lp_ctx.num_iterations;
+    case LabelPropagationFastMode::LIGHT:
+      return std::min<std::size_t>(_lp_ctx.num_iterations, 3);
+    case LabelPropagationFastMode::AGGRESSIVE:
+      return std::min<std::size_t>(_lp_ctx.num_iterations, 2);
+    }
+    __builtin_unreachable();
+  }
+
+  [[nodiscard]] NodeID effective_max_num_neighbors() const {
+    switch (_lp_ctx.fast_mode) {
+    case LabelPropagationFastMode::OFF:
+      return _lp_ctx.max_num_neighbors;
+    case LabelPropagationFastMode::LIGHT:
+      return std::min<NodeID>(_lp_ctx.max_num_neighbors, 512);
+    case LabelPropagationFastMode::AGGRESSIVE:
+      return std::min<NodeID>(_lp_ctx.max_num_neighbors, 256);
+    }
+    __builtin_unreachable();
+  }
+
+  [[nodiscard]] NodeID effective_large_degree_threshold() const {
+    switch (_lp_ctx.fast_mode) {
+    case LabelPropagationFastMode::OFF:
+    case LabelPropagationFastMode::LIGHT:
+      return _lp_ctx.large_degree_threshold;
+    case LabelPropagationFastMode::AGGRESSIVE:
+      return std::min<NodeID>(_lp_ctx.large_degree_threshold, 4096);
+    }
+    __builtin_unreachable();
+  }
+
+  [[nodiscard]] TieBreakingStrategy effective_tie_breaking_strategy() const {
+    switch (_lp_ctx.fast_mode) {
+    case LabelPropagationFastMode::OFF:
+      return _lp_ctx.tie_breaking_strategy;
+    case LabelPropagationFastMode::LIGHT:
+    case LabelPropagationFastMode::AGGRESSIVE:
+      return TieBreakingStrategy::GEOMETRIC;
+    }
+    __builtin_unreachable();
   }
 
   const LabelPropagationCoarseningContext &_lp_ctx;

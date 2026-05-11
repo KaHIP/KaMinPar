@@ -320,6 +320,16 @@ CLI::Option_group *create_lp_coarsening_options(CLI::App *app, Context &ctx) {
   )"
       )
       ->capture_default_str();
+  lp->add_option("--c-lp-fast-mode", ctx.coarsening.clustering.lp.fast_mode)
+      ->transform(CLI::CheckedTransformer(get_lp_fast_modes()).description(""))
+      ->description(
+          R"(Chooses an opt-in speed/quality tradeoff for coarsening LP:
+  - off:        Preserve the configured LP behavior.
+  - light:      Use 3 iterations, geometric tie breaking and at most 512 neighbors.
+  - aggressive: Use 2 iterations, geometric tie breaking, at most 256 neighbors and skip very high-degree nodes.
+  )"
+      )
+      ->capture_default_str();
   lp->add_option("--c-lp-impl", ctx.coarsening.clustering.lp.impl)
       ->transform(CLI::CheckedTransformer(get_lp_implementations()).description(""))
       ->description(
