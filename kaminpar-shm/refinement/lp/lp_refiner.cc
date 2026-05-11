@@ -318,11 +318,9 @@ public:
   LPRefinerImplWrapper(const Context &ctx) : _ctx(ctx) {}
 
   void initialize(const PartitionedGraph &p_graph) {
-    reified(
-        p_graph,
-        [&](const CSRGraph &graph) { ensure_impl<CSRGraph>().initialize(&graph); },
-        [&](const CompressedGraph &graph) { ensure_impl<CompressedGraph>().initialize(&graph); }
-    );
+    // reified(p_graph, [&]<template Graph>(const Graph &graph) {
+    //   ensure_impl<Graph>().initialize(&graph);
+    // });
   }
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
@@ -338,19 +336,11 @@ public:
       return found_improvement;
     };
 
-    return reified(
-        p_graph,
-        [&](const CSRGraph &graph) {
-          auto &impl = ensure_impl<CSRGraph>();
-          impl.initialize(&graph);
-          return refine(impl);
-        },
-        [&](const CompressedGraph &graph) {
-          auto &impl = ensure_impl<CompressedGraph>();
-          impl.initialize(&graph);
-          return refine(impl);
-        }
-    );
+    return reified(p_graph, [&]<typename Graph>(const Graph &graph) {
+      auto &impl = ensure_impl<Graph>();
+      impl.initialize(&graph);
+      return refine(impl);
+    });
   }
 
   void set_communities(std::span<const NodeID> communities) {
