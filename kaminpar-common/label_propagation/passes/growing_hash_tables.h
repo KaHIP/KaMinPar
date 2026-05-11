@@ -14,7 +14,8 @@
 
 namespace kaminpar::lp {
 
-template <typename Kernel, TieBreakingStrategy TieBreaking> class GrowingHashTablePass {
+template <typename Kernel, ActiveSetStrategy ActiveSet, TieBreakingStrategy TieBreaking>
+class GrowingHashTablePass {
 public:
   using NodeID = typename Kernel::NodeID;
   using ClusterID = typename Kernel::ClusterID;
@@ -32,23 +33,24 @@ public:
         : _kernel(kernel),
           _stats(stats),
           _rand(Random::instance()),
+          _rating_map(kernel.workspace().rating.growing_maps.local()),
           _tie_breaking_clusters(kernel.workspace().selection.tie_breaking_clusters.local()),
           _tie_breaking_favored_clusters(
               kernel.workspace().selection.tie_breaking_favored_clusters.local()
           ) {}
 
     [[nodiscard]] KAMINPAR_INLINE bool should_consider(const NodeID u) const {
-      return _kernel.should_consider(u);
+      return _kernel.template should_consider<ActiveSet>(u);
     }
 
     [[nodiscard]] KAMINPAR_INLINE Move find_best_move(const NodeID u) {
-      return _kernel.template find_best_move<TieBreaking>(
-          u, _rand, rating_map(), _tie_breaking_clusters, _tie_breaking_favored_clusters
+      return _kernel.template find_best_move<ActiveSet, TieBreaking>(
+          u, _rand, _rating_map, _tie_breaking_clusters, _tie_breaking_favored_clusters
       );
     }
 
     KAMINPAR_INLINE std::pair<bool, bool> try_commit_move(const Move &move) {
-      return _kernel.commit(move, _stats);
+      return _kernel.template commit<ActiveSet>(move, _stats);
     }
 
     KAMINPAR_INLINE void handle_next_node(const NodeID u) {
@@ -57,27 +59,60 @@ public:
       }
 
       ++_stats.processed_nodes;
-      try_commit_move(find_best_move(u));
+      const auto u_weight = _kernel.graph().node_weight(u);
+      const auto u_cluster = _kernel.labels().cluster(u);
+      const auto [best_cluster, gain] = _kernel.template find_best_target<ActiveSet, TieBreaking>(
+          u,
+          u_weight,
+          u_cluster,
+          _rand,
+          _rating_map,
+          _tie_breaking_clusters,
+          _tie_breaking_favored_clusters
+      );
+      _kernel.template commit<ActiveSet>(u, u_weight, u_cluster, best_cluster, gain, _stats);
     }
 
   private:
-    KAMINPAR_INLINE GrowingRatingMap &rating_map() {
-      if (_rating_map == nullptr) {
-        _rating_map = &_kernel.workspace().rating.growing_maps.local();
-      }
-      return *_rating_map;
-    }
-
     Kernel &_kernel;
     Stats &_stats;
     Random &_rand;
+    GrowingRatingMap &_rating_map;
     TieBreakingBuffer &_tie_breaking_clusters;
     TieBreakingBuffer &_tie_breaking_favored_clusters;
-    GrowingRatingMap *_rating_map = nullptr;
   };
 
   [[nodiscard]] Local local() {
     return Local(_kernel, _stats.local());
+  }
+
+  class BufferedLocal {
+  public:
+    BufferedLocal(Kernel &kernel, Stats &target_stats)
+        : _target_stats(target_stats),
+          _local(kernel, _stats) {}
+
+    BufferedLocal(const BufferedLocal &) = delete;
+    BufferedLocal &operator=(const BufferedLocal &) = delete;
+    BufferedLocal(BufferedLocal &&) = delete;
+    BufferedLocal &operator=(BufferedLocal &&) = delete;
+
+    ~BufferedLocal() {
+      _target_stats += _stats;
+    }
+
+    KAMINPAR_INLINE void handle_next_node(const NodeID u) {
+      _local.handle_next_node(u);
+    }
+
+  private:
+    Stats &_target_stats;
+    Stats _stats;
+    Local _local;
+  };
+
+  [[nodiscard]] BufferedLocal buffered_local() {
+    return BufferedLocal(_kernel, _stats.local());
   }
 
   KAMINPAR_INLINE void handle_next_node(const NodeID u) {

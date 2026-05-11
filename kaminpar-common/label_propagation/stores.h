@@ -11,6 +11,7 @@
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/static_array.h"
+#include "kaminpar-common/inline.h"
 
 namespace kaminpar::lp {
 
@@ -18,27 +19,27 @@ template <typename NodeID, typename ClusterID> class ExternalLabelArray {
 public:
   using ClusterIDType = ClusterID;
 
-  void init(StaticArray<ClusterID> &labels) {
+  KAMINPAR_INLINE void init(StaticArray<ClusterID> &labels) {
     _labels = &labels;
   }
 
-  void init_cluster(const NodeID node, const ClusterID cluster) {
+  KAMINPAR_INLINE void init_cluster(const NodeID node, const ClusterID cluster) {
     move_node(node, cluster);
   }
 
-  [[nodiscard]] ClusterID cluster(const NodeID node) const {
+  [[nodiscard]] KAMINPAR_INLINE ClusterID cluster(const NodeID node) const {
     KASSERT(_labels != nullptr);
     KASSERT(node < _labels->size());
     return __atomic_load_n(&_labels->at(node), __ATOMIC_RELAXED);
   }
 
-  void move_node(const NodeID node, const ClusterID cluster) {
+  KAMINPAR_INLINE void move_node(const NodeID node, const ClusterID cluster) {
     KASSERT(_labels != nullptr);
     KASSERT(node < _labels->size());
     __atomic_store_n(&_labels->at(node), cluster, __ATOMIC_RELAXED);
   }
 
-  [[nodiscard]] ClusterID initial_cluster(const NodeID node) const {
+  [[nodiscard]] KAMINPAR_INLINE ClusterID initial_cluster(const NodeID node) const {
     return node;
   }
 
@@ -69,19 +70,20 @@ public:
     return std::move(_cluster_weights);
   }
 
-  void init_cluster_weight(const ClusterID cluster, const ClusterWeight weight) {
+  KAMINPAR_INLINE void init_cluster_weight(const ClusterID cluster, const ClusterWeight weight) {
     _cluster_weights[cluster] = weight;
   }
 
-  [[nodiscard]] ClusterWeight cluster_weight(const ClusterID cluster) const {
+  [[nodiscard]] KAMINPAR_INLINE ClusterWeight cluster_weight(const ClusterID cluster) const {
     return __atomic_load_n(&_cluster_weights[cluster], __ATOMIC_RELAXED);
   }
 
-  [[nodiscard]] ClusterWeight initial_cluster_weight(const ClusterID cluster) const {
+  [[nodiscard]] KAMINPAR_INLINE ClusterWeight
+  initial_cluster_weight(const ClusterID cluster) const {
     return cluster_weight(cluster);
   }
 
-  bool move_cluster_weight(
+  KAMINPAR_INLINE bool move_cluster_weight(
       const ClusterID old_cluster,
       const ClusterID new_cluster,
       const ClusterWeight delta,

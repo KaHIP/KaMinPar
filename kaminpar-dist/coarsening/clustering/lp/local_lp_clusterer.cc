@@ -94,6 +94,9 @@ private:
 
 class LocalLPSelector {
 public:
+  static constexpr bool kUseActualGain = false;
+  static constexpr bool kTrackFavoredClusters = false;
+
   explicit LocalLPSelector(LocalLPWeights &weights) : _weights(weights) {}
 
   template <::kaminpar::lp::TieBreakingStrategy TieBreaking, typename Context, typename RatingMap>

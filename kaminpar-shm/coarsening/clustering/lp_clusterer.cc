@@ -68,11 +68,11 @@ lp::TieBreakingStrategy map_tie_breaking_strategy(const TieBreakingStrategy stra
 
 class LPClusterWeights : public lp::RelaxedClusterWeightVector<NodeID, NodeWeight> {
 public:
-  void set_max_cluster_weight(const NodeWeight max_cluster_weight) {
+  KAMINPAR_INLINE void set_max_cluster_weight(const NodeWeight max_cluster_weight) {
     _max_cluster_weight = max_cluster_weight;
   }
 
-  [[nodiscard]] NodeWeight max_cluster_weight(const NodeID) const {
+  [[nodiscard]] KAMINPAR_INLINE NodeWeight max_cluster_weight(const NodeID) const {
     return _max_cluster_weight;
   }
 
@@ -80,7 +80,7 @@ public:
     _initial_cluster_weight = std::move(initial_cluster_weight);
   }
 
-  [[nodiscard]] NodeWeight initial_cluster_weight(const NodeID cluster) const {
+  [[nodiscard]] KAMINPAR_INLINE NodeWeight initial_cluster_weight(const NodeID cluster) const {
     return _initial_cluster_weight(cluster);
   }
 
@@ -94,21 +94,24 @@ private:
 struct LPClusteringNeighborPolicy {
   std::span<const NodeID> communities;
 
-  [[nodiscard]] bool accept(const NodeID u, const NodeID v) const {
+  [[nodiscard]] KAMINPAR_INLINE bool accept(const NodeID u, const NodeID v) const {
     return communities.empty() || communities[u] == communities[v];
   }
 
-  [[nodiscard]] bool activate(const NodeID) const {
+  [[nodiscard]] KAMINPAR_INLINE bool activate(const NodeID) const {
     return true;
   }
 
-  [[nodiscard]] bool skip(const NodeID) const {
+  [[nodiscard]] KAMINPAR_INLINE bool skip(const NodeID) const {
     return false;
   }
 };
 
-class LPClusteringSelector {
+template <bool kUseCommunities> class LPClusteringSelector {
 public:
+  static constexpr bool kUseActualGain = false;
+  static constexpr bool kTrackFavoredClusters = true;
+
   LPClusteringSelector(LPClusterWeights &weights, std::span<const NodeID> &communities)
       : _weights(weights),
         _communities(communities) {}
@@ -122,9 +125,8 @@ public:
   ) {
     auto choice = lp::make_initial_choice(context);
     const NodeWeight max_cluster_weight = _weights.max_cluster_weight(context.initial_cluster);
-    const bool use_communities = !_communities.empty();
-    const NodeID initial_community =
-        use_communities ? _communities[context.initial_cluster] : kInvalidNodeID;
+    [[maybe_unused]] const NodeID initial_community =
+        kUseCommunities ? _communities[context.initial_cluster] : kInvalidNodeID;
 
     for (const auto [cluster, rating] : map.entries()) {
       const NodeID current_cluster = cluster;
@@ -154,7 +156,7 @@ public:
         if (current_gain > choice.best_gain) {
           if ((current_cluster_weight + context.node_weight <= max_cluster_weight ||
                current_cluster == context.initial_cluster) &&
-              (!use_communities || _communities[current_cluster] == initial_community)) {
+              (!kUseCommunities || _communities[current_cluster] == initial_community)) {
             choice.best_cluster = current_cluster;
             choice.best_gain = current_gain;
             choice.best_cluster_weight = current_cluster_weight;
@@ -165,7 +167,7 @@ public:
         } else if (current_gain == choice.best_gain) {
           if ((current_cluster_weight + context.node_weight <= max_cluster_weight ||
                current_cluster == context.initial_cluster) &&
-              (!use_communities || _communities[current_cluster] == initial_community)) {
+              (!kUseCommunities || _communities[current_cluster] == initial_community)) {
             tie_breaking_clusters.push_back(current_cluster);
           }
         }
@@ -174,7 +176,7 @@ public:
              (current_gain == choice.best_gain && context.rand.random_bool())) &&
             (current_cluster_weight + context.node_weight <= max_cluster_weight ||
              current_cluster == context.initial_cluster) &&
-            (!use_communities || _communities[current_cluster] == initial_community)) {
+            (!kUseCommunities || _communities[current_cluster] == initial_community)) {
           choice.best_cluster = current_cluster;
           choice.best_gain = current_gain;
           choice.best_cluster_weight = current_cluster_weight;
@@ -220,7 +222,6 @@ public:
         _workspace(workspace),
         _order_workspace(order_workspace),
         _weights(weights),
-        _selector(_weights, _communities),
         _relabel_before_second_phase(c_ctx.clustering.lp.relabel_before_second_phase) {}
 
   void set_max_cluster_weight(const NodeWeight max_cluster_weight) {
@@ -262,6 +263,27 @@ public:
     });
     _order_workspace.clear_order();
 
+    if (_communities.empty()) {
+      lp::StatelessNeighborPolicy<NodeID> neighbors;
+      compute_clustering_with_neighbors<false>(graph, neighbors);
+    } else {
+      LPClusteringNeighborPolicy neighbors{.communities = _communities};
+      compute_clustering_with_neighbors<true>(graph, neighbors);
+    }
+  }
+
+  void set_desired_num_clusters(const NodeID count) {
+    _desired_num_clusters = count;
+  }
+
+  void set_relabel_before_second_phase(const bool relabel) {
+    _relabel_before_second_phase = relabel;
+  }
+
+private:
+  template <bool kUseCommunities, typename NeighborPolicy>
+  void compute_clustering_with_neighbors(const Graph &graph, NeighborPolicy &neighbors) {
+    LPClusteringSelector<kUseCommunities> selector(_weights, _communities);
     lp::PassConfig<NodeID, NodeID> config{
         .nodes =
             {.max_degree = _lp_ctx.large_degree_threshold,
@@ -279,9 +301,8 @@ public:
         .relabel_before_second_phase = _relabel_before_second_phase,
     };
 
-    LPClusteringNeighborPolicy neighbors{.communities = _communities};
     lp::LabelPropagationKernel kernel(
-        graph, _labels, _weights, _selector, neighbors, _workspace, config
+        graph, _labels, _weights, selector, neighbors, _workspace, config
     );
     kernel.initialize(
         {.num_nodes = _num_nodes, .num_active_nodes = graph.n(), .num_clusters = graph.n()}
@@ -313,15 +334,6 @@ public:
     cluster_two_hop_nodes(kernel, graph);
   }
 
-  void set_desired_num_clusters(const NodeID count) {
-    _desired_num_clusters = count;
-  }
-
-  void set_relabel_before_second_phase(const bool relabel) {
-    _relabel_before_second_phase = relabel;
-  }
-
-private:
   template <typename Core> void cluster_two_hop_nodes(Core &core, const Graph &graph) {
     SCOPED_HEAP_PROFILER("Handle two-hop nodes");
     SCOPED_TIMER("Handle two-hop nodes");
@@ -384,7 +396,6 @@ private:
   LPClusterOrderWorkspace &_order_workspace;
   LPClusterWeights &_weights;
   lp::ExternalLabelArray<NodeID, NodeID> _labels;
-  LPClusteringSelector _selector;
 
   std::span<const NodeID> _communities;
   NodeID _num_nodes = 0;

@@ -153,6 +153,9 @@ struct LPRefinerNeighborPolicy {
 
 class LPRefinerSelector {
 public:
+  static constexpr bool kUseActualGain = false;
+  static constexpr bool kTrackFavoredClusters = false;
+
   explicit LPRefinerSelector(PartitionedGraphWeightStore &weights) : _weights(weights) {}
 
   template <lp::TieBreakingStrategy TieBreaking, typename Context, typename RatingMap>
@@ -253,6 +256,24 @@ public:
     _weights.init(p_graph, p_ctx);
     _order_workspace.clear_order();
 
+    if (_communities.empty()) {
+      lp::StatelessNeighborPolicy<NodeID> neighbors;
+      return refine_with_neighbors(neighbors);
+    }
+
+    LPRefinerNeighborPolicy neighbors{.communities = _communities};
+    return refine_with_neighbors(neighbors);
+  }
+
+  void set_communities(std::span<const NodeID> communities) {
+    _communities = communities;
+  }
+
+  const Graph *_graph = nullptr;
+  PartitionedGraph *_p_graph = nullptr;
+
+private:
+  template <typename NeighborPolicy> bool refine_with_neighbors(NeighborPolicy &neighbors) {
     lp::PassConfig<NodeID, BlockID> config{
         .nodes =
             {.max_degree = _r_ctx.lp.large_degree_threshold,
@@ -266,7 +287,6 @@ public:
         .strategy = map_rating_map_strategy(_r_ctx.lp.impl),
         .large_map_threshold = kRatingMapThreshold,
     };
-    LPRefinerNeighborPolicy neighbors{.communities = _communities};
     lp::LabelPropagationKernel kernel(
         *_graph, _labels, _weights, _selector, neighbors, _workspace, config
     );
@@ -294,13 +314,6 @@ public:
 
     return true;
   }
-
-  void set_communities(std::span<const NodeID> communities) {
-    _communities = communities;
-  }
-
-  const Graph *_graph = nullptr;
-  PartitionedGraph *_p_graph = nullptr;
 
   const PartitionContext *_p_ctx;
   const RefinementContext &_r_ctx;

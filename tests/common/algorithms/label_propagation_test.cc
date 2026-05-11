@@ -261,9 +261,11 @@ TestGraph weighted_star() {
 TEST(LabelPropagationKernelTest, manual_single_phase_pass_moves_node_to_highest_rated_cluster) {
   KernelFixture fixture(weighted_star());
 
-  lp::SinglePhasePass<decltype(fixture.kernel), lp::TieBreakingStrategy::GEOMETRIC> pass(
-      fixture.kernel
-  );
+  lp::SinglePhasePass<
+      decltype(fixture.kernel),
+      lp::ActiveSetStrategy::NONE,
+      lp::TieBreakingStrategy::GEOMETRIC>
+      pass(fixture.kernel);
   pass.handle_next_node(0);
   const auto result = pass.finish();
 
@@ -278,9 +280,11 @@ TEST(LabelPropagationKernelTest, neighbor_filter_and_max_neighbors_limit_rating_
   KernelFixture fixture(weighted_star(), config);
   fixture.neighbors.rejected_neighbor = 2;
 
-  lp::SinglePhasePass<decltype(fixture.kernel), lp::TieBreakingStrategy::GEOMETRIC> pass(
-      fixture.kernel
-  );
+  lp::SinglePhasePass<
+      decltype(fixture.kernel),
+      lp::ActiveSetStrategy::NONE,
+      lp::TieBreakingStrategy::GEOMETRIC>
+      pass(fixture.kernel);
   pass.handle_next_node(0);
   (void)pass.finish();
 
@@ -293,9 +297,11 @@ TEST(LabelPropagationKernelTest, inactive_nodes_are_skipped) {
   KernelFixture fixture(weighted_star(), config);
   fixture.workspace.active_set.flags[0] = 0;
 
-  lp::SinglePhasePass<decltype(fixture.kernel), lp::TieBreakingStrategy::GEOMETRIC> pass(
-      fixture.kernel
-  );
+  lp::SinglePhasePass<
+      decltype(fixture.kernel),
+      lp::ActiveSetStrategy::GLOBAL,
+      lp::TieBreakingStrategy::GEOMETRIC>
+      pass(fixture.kernel);
   pass.handle_next_node(0);
   const auto result = pass.finish();
 
@@ -338,13 +344,24 @@ TEST(LabelPropagationPassTest, rating_map_passes_produce_same_move_without_defer
   KernelFixture growing_hash_tables(weighted_star());
   KernelFixture two_phase(weighted_star());
 
-  lp::SinglePhasePass<decltype(single_phase.kernel), lp::TieBreakingStrategy::GEOMETRIC>
+  lp::SinglePhasePass<
+      decltype(single_phase.kernel),
+      lp::ActiveSetStrategy::NONE,
+      lp::TieBreakingStrategy::GEOMETRIC>
       single_phase_pass(single_phase.kernel);
-  lp::GrowingHashTablePass<decltype(growing_hash_tables.kernel), lp::TieBreakingStrategy::GEOMETRIC>
+  lp::GrowingHashTablePass<
+      decltype(growing_hash_tables.kernel),
+      lp::ActiveSetStrategy::NONE,
+      lp::TieBreakingStrategy::GEOMETRIC>
       growing_pass(growing_hash_tables.kernel);
-  lp::TwoPhasePass<decltype(two_phase.kernel), lp::TieBreakingStrategy::GEOMETRIC> two_phase_pass(
-      two_phase.kernel, {.strategy = lp::RatingMapStrategy::TWO_PHASE, .large_map_threshold = 10000}
-  );
+  lp::TwoPhasePass<
+      decltype(two_phase.kernel),
+      lp::ActiveSetStrategy::NONE,
+      lp::TieBreakingStrategy::GEOMETRIC>
+      two_phase_pass(
+          two_phase.kernel,
+          {.strategy = lp::RatingMapStrategy::TWO_PHASE, .large_map_threshold = 10000}
+      );
 
   single_phase_pass.handle_next_node(0);
   growing_pass.handle_next_node(0);
@@ -361,9 +378,13 @@ TEST(LabelPropagationPassTest, rating_map_passes_produce_same_move_without_defer
 TEST(LabelPropagationPassTest, two_phase_pass_defers_large_nodes_to_finish) {
   KernelFixture fixture(weighted_star());
 
-  lp::TwoPhasePass<decltype(fixture.kernel), lp::TieBreakingStrategy::GEOMETRIC> pass(
-      fixture.kernel, {.strategy = lp::RatingMapStrategy::TWO_PHASE, .large_map_threshold = 1}
-  );
+  lp::TwoPhasePass<
+      decltype(fixture.kernel),
+      lp::ActiveSetStrategy::NONE,
+      lp::TieBreakingStrategy::GEOMETRIC>
+      pass(
+          fixture.kernel, {.strategy = lp::RatingMapStrategy::TWO_PHASE, .large_map_threshold = 1}
+      );
   pass.handle_next_node(0);
 
   EXPECT_THAT(fixture.labels.cluster(0), Eq(0));
@@ -375,9 +396,11 @@ TEST(LabelPropagationRunTest, manual_iteration_and_run_iteration_are_equivalent)
   KernelFixture manual(weighted_star());
   KernelFixture utility(weighted_star());
 
-  lp::SinglePhasePass<decltype(manual.kernel), lp::TieBreakingStrategy::GEOMETRIC> pass(
-      manual.kernel
-  );
+  lp::SinglePhasePass<
+      decltype(manual.kernel),
+      lp::ActiveSetStrategy::NONE,
+      lp::TieBreakingStrategy::GEOMETRIC>
+      pass(manual.kernel);
   for (const TestNodeID node : std::vector<TestNodeID>{0}) {
     pass.handle_next_node(node);
   }

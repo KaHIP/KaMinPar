@@ -19,7 +19,8 @@
 
 namespace kaminpar::lp {
 
-template <typename Kernel, TieBreakingStrategy TieBreaking> class TwoPhasePass {
+template <typename Kernel, ActiveSetStrategy ActiveSet, TieBreakingStrategy TieBreaking>
+class TwoPhasePass {
 public:
   using NodeID = typename Kernel::NodeID;
   using NodeWeight = typename Kernel::NodeWeight;
@@ -47,49 +48,70 @@ public:
           _execution(execution),
           _stats(stats),
           _rand(Random::instance()),
+          _rating_map(kernel.workspace().rating.maps.local()),
           _tie_breaking_clusters(kernel.workspace().selection.tie_breaking_clusters.local()),
           _tie_breaking_favored_clusters(
               kernel.workspace().selection.tie_breaking_favored_clusters.local()
           ) {}
 
     [[nodiscard]] KAMINPAR_INLINE bool should_consider(const NodeID u) const {
-      return _kernel.should_consider(u);
+      return _kernel.template should_consider<ActiveSet>(u);
     }
 
     [[nodiscard]] KAMINPAR_INLINE std::optional<Move> find_best_move(const NodeID u) {
+      const NodeWeight u_weight = _kernel.graph().node_weight(u);
+      const ClusterID u_cluster = _kernel.labels().cluster(u);
+      const auto target = find_best_target(u, u_weight, u_cluster);
+      if (!target.has_value()) {
+        return std::nullopt;
+      }
+
+      const auto [best_cluster, gain] = *target;
+      return Move{
+          .node = u,
+          .node_weight = u_weight,
+          .old_cluster = u_cluster,
+          .new_cluster = best_cluster,
+          .gain = gain,
+          .valid = true,
+      };
+    }
+
+    [[nodiscard]] KAMINPAR_INLINE std::optional<std::pair<ClusterID, EdgeWeight>>
+    find_best_target(const NodeID u, const NodeWeight u_weight, const ClusterID u_cluster) {
       if constexpr (Kernel::WorkspaceType::kSupportsTwoPhase) {
-        const NodeWeight u_weight = _kernel.graph().node_weight(u);
-        const ClusterID u_cluster = _kernel.labels().cluster(u);
-        auto &map = rating_map();
         const std::size_t upper_bound_size = std::min<std::size_t>(
             {static_cast<std::size_t>(_kernel.graph().degree(u)),
              static_cast<std::size_t>(_kernel.initial_num_clusters()),
              _execution.large_map_threshold}
         );
 
-        return map.execute(upper_bound_size, [&](auto &actual_map) -> std::optional<Move> {
-          bool is_interface_node = false;
-          const bool is_second_phase_node = _kernel.rate_neighbors_until(
-              u, actual_map, _execution.large_map_threshold, is_interface_node
-          );
+        return _rating_map.execute(
+            upper_bound_size,
+            [&](auto &actual_map) -> std::optional<std::pair<ClusterID, EdgeWeight>> {
+              bool is_interface_node = false;
+              const bool is_second_phase_node = _kernel.template rate_neighbors_until<ActiveSet>(
+                  u, actual_map, _execution.large_map_threshold, is_interface_node
+              );
 
-          if (is_second_phase_node) [[unlikely]] {
-            actual_map.clear();
-            _kernel.workspace().two_phase.nodes.push_back(u);
-            return std::nullopt;
-          }
+              if (is_second_phase_node) [[unlikely]] {
+                actual_map.clear();
+                _kernel.workspace().two_phase.nodes.push_back(u);
+                return std::nullopt;
+              }
 
-          _kernel.clear_active(u, is_interface_node);
-          return _kernel.template select_move<TieBreaking>(
-              u,
-              u_weight,
-              u_cluster,
-              _rand,
-              actual_map,
-              _tie_breaking_clusters,
-              _tie_breaking_favored_clusters
-          );
-        });
+              _kernel.template clear_active<ActiveSet>(u, is_interface_node);
+              return _kernel.template select_target<TieBreaking>(
+                  u,
+                  u_weight,
+                  u_cluster,
+                  _rand,
+                  actual_map,
+                  _tie_breaking_clusters,
+                  _tie_breaking_favored_clusters
+              );
+            }
+        );
       } else {
         KASSERT(false, "two-phase label propagation is not supported by this workspace");
         __builtin_unreachable();
@@ -97,7 +119,7 @@ public:
     }
 
     KAMINPAR_INLINE std::pair<bool, bool> try_commit_move(const Move &move) {
-      return _kernel.commit(move, _stats);
+      return _kernel.template commit<ActiveSet>(move, _stats);
     }
 
     KAMINPAR_INLINE void handle_next_node(const NodeID u) {
@@ -106,31 +128,56 @@ public:
       }
 
       ++_stats.processed_nodes;
-      const auto move = find_best_move(u);
-      if (move.has_value()) {
-        try_commit_move(*move);
+      const NodeWeight u_weight = _kernel.graph().node_weight(u);
+      const ClusterID u_cluster = _kernel.labels().cluster(u);
+      const auto target = find_best_target(u, u_weight, u_cluster);
+      if (target.has_value()) {
+        const auto [best_cluster, gain] = *target;
+        _kernel.template commit<ActiveSet>(u, u_weight, u_cluster, best_cluster, gain, _stats);
       }
     }
 
   private:
-    KAMINPAR_INLINE RatingMap &rating_map() {
-      if (_rating_map == nullptr) {
-        _rating_map = &_kernel.workspace().rating.maps.local();
-      }
-      return *_rating_map;
-    }
-
     Kernel &_kernel;
     const ExecutionConfig &_execution;
     Stats &_stats;
     Random &_rand;
+    RatingMap &_rating_map;
     TieBreakingBuffer &_tie_breaking_clusters;
     TieBreakingBuffer &_tie_breaking_favored_clusters;
-    RatingMap *_rating_map = nullptr;
   };
 
   [[nodiscard]] Local local() {
     return Local(_kernel, _execution, _stats.local());
+  }
+
+  class BufferedLocal {
+  public:
+    BufferedLocal(Kernel &kernel, const ExecutionConfig &execution, Stats &target_stats)
+        : _target_stats(target_stats),
+          _local(kernel, execution, _stats) {}
+
+    BufferedLocal(const BufferedLocal &) = delete;
+    BufferedLocal &operator=(const BufferedLocal &) = delete;
+    BufferedLocal(BufferedLocal &&) = delete;
+    BufferedLocal &operator=(BufferedLocal &&) = delete;
+
+    ~BufferedLocal() {
+      _target_stats += _stats;
+    }
+
+    KAMINPAR_INLINE void handle_next_node(const NodeID u) {
+      _local.handle_next_node(u);
+    }
+
+  private:
+    Stats &_target_stats;
+    Stats _stats;
+    Local _local;
+  };
+
+  [[nodiscard]] BufferedLocal buffered_local() {
+    return BufferedLocal(_kernel, _execution, _stats.local());
   }
 
   KAMINPAR_INLINE void handle_next_node(const NodeID u) {
@@ -167,7 +214,7 @@ private:
         const Move move = find_best_move_second_phase(
             u, u_weight, u_cluster, rand, workspace.two_phase.concurrent_rating_map
         );
-        const auto [moved, emptied] = _kernel.commit(move, stats);
+        const auto [moved, emptied] = _kernel.template commit<ActiveSet>(move, stats);
 
         if (moved && _kernel.relabeled() && u < workspace.postprocessing.moved.size()) {
           workspace.postprocessing.moved[u] = 1;
@@ -219,7 +266,7 @@ private:
                 flush_local_rating_map(local_used_entries, local_rating_map);
               }
 
-              if (config.active_set.strategy == ActiveSetStrategy::LOCAL) {
+              if constexpr (ActiveSet == ActiveSetStrategy::LOCAL) {
                 is_interface_node |= v >= _kernel.num_active_nodes();
               }
             }
@@ -235,7 +282,7 @@ private:
       }
     });
 
-    _kernel.clear_active(u, is_interface_node);
+    _kernel.template clear_active<ActiveSet>(u, is_interface_node);
 
     const bool track_favored_cluster =
         config.selection.track_favored_clusters && u_weight == initial_cluster_weight &&
@@ -339,7 +386,10 @@ private:
       workspace.postprocessing.favored_clusters[u] = favored_cluster;
     }
 
-    const EdgeWeight actual_gain = best_gain - map[u_cluster];
+    EdgeWeight actual_gain = 0;
+#ifdef KAMINPAR_ENABLE_STATISTICS
+    actual_gain = best_gain - map[u_cluster];
+#endif
     return {
         .node = u,
         .node_weight = u_weight,

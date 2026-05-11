@@ -510,6 +510,9 @@ private:
 
   class DistLPRefinerSelector {
   public:
+    static constexpr bool kUseActualGain = true;
+    static constexpr bool kTrackFavoredClusters = false;
+
     explicit DistLPRefinerSelector(LPRefinerImpl &impl) : _impl(impl) {}
 
     template <::kaminpar::lp::TieBreakingStrategy TieBreaking, typename Context, typename RatingMap>

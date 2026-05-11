@@ -757,6 +757,9 @@ private:
 
   class GlobalLPSelector {
   public:
+    static constexpr bool kUseActualGain = false;
+    static constexpr bool kTrackFavoredClusters = false;
+
     explicit GlobalLPSelector(GlobalLPClusteringImpl &impl) : _impl(impl) {}
 
     template <::kaminpar::lp::TieBreakingStrategy TieBreaking, typename Context, typename RatingMap>

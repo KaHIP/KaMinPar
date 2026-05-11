@@ -51,6 +51,32 @@ public:
     }
   }
 
+  template <ActiveSetStrategy ActiveSet, typename RatingMap>
+  KAMINPAR_INLINE void rate_neighbors(
+      const NodeID u, RatingMap &map, const NodeID num_active_nodes, bool &is_interface_node
+  ) {
+    const auto add_to_rating_map = [&](const NodeID v, const EdgeWeight w) {
+      if constexpr (!AcceptsAllNeighbors<NeighborPolicy>::value) {
+        if (!_neighbors.accept(u, v)) {
+          return;
+        }
+      }
+
+      const auto v_cluster = _labels.cluster(v);
+      map[v_cluster] += w;
+
+      if constexpr (ActiveSet == ActiveSetStrategy::LOCAL) {
+        is_interface_node |= v >= num_active_nodes;
+      }
+    };
+
+    if (_node_limits.max_neighbors == std::numeric_limits<NodeID>::max()) [[likely]] {
+      _graph.adjacent_nodes(u, add_to_rating_map);
+    } else {
+      _graph.adjacent_nodes(u, _node_limits.max_neighbors, add_to_rating_map);
+    }
+  }
+
   template <typename RatingMap>
   [[nodiscard]] KAMINPAR_INLINE bool rate_neighbors_until(
       const NodeID u,
@@ -73,6 +99,46 @@ public:
         if (_active_set_config.strategy == ActiveSetStrategy::LOCAL) {
           is_interface_node |= v >= num_active_nodes;
         }
+      }
+
+      return false;
+    };
+
+    if (_node_limits.max_neighbors == std::numeric_limits<NodeID>::max()) [[likely]] {
+      _graph.adjacent_nodes(u, add_to_rating_map);
+    } else {
+      _graph.adjacent_nodes(u, _node_limits.max_neighbors, add_to_rating_map);
+    }
+
+    return reached_limit;
+  }
+
+  template <ActiveSetStrategy ActiveSet, typename RatingMap>
+  [[nodiscard]] KAMINPAR_INLINE bool rate_neighbors_until(
+      const NodeID u,
+      RatingMap &map,
+      const NodeID num_active_nodes,
+      const std::size_t max_map_size,
+      bool &is_interface_node
+  ) {
+    bool reached_limit = false;
+    const auto add_to_rating_map = [&](const NodeID v, const EdgeWeight w) -> bool {
+      if constexpr (!AcceptsAllNeighbors<NeighborPolicy>::value) {
+        if (!_neighbors.accept(u, v)) {
+          return false;
+        }
+      }
+
+      const auto v_cluster = _labels.cluster(v);
+      map[v_cluster] += w;
+
+      if (map.size() >= max_map_size) [[unlikely]] {
+        reached_limit = true;
+        return true;
+      }
+
+      if constexpr (ActiveSet == ActiveSetStrategy::LOCAL) {
+        is_interface_node |= v >= num_active_nodes;
       }
 
       return false;

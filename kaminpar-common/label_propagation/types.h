@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <limits>
+#include <type_traits>
 
 #include "kaminpar-common/inline.h"
 #include "kaminpar-common/random.h"
@@ -128,11 +129,19 @@ struct NodeMove {
   bool valid = false;
 };
 
-template <typename NodeID, typename ClusterID, typename EdgeWeight> struct PassStats {
+template <typename NodeID, typename ClusterID, typename EdgeWeight> struct alignas(64) PassStats {
   NodeID processed_nodes = 0;
   NodeID moved_nodes = 0;
   ClusterID removed_clusters = 0;
   EdgeWeight expected_total_gain = 0;
+
+  KAMINPAR_INLINE PassStats &operator+=(const PassStats &other) {
+    processed_nodes += other.processed_nodes;
+    moved_nodes += other.moved_nodes;
+    removed_clusters += other.removed_clusters;
+    expected_total_gain += other.expected_total_gain;
+    return *this;
+  }
 };
 
 template <typename NodeID, typename ClusterID, typename EdgeWeight> struct PassResult {
@@ -150,6 +159,10 @@ template <typename ClusterID, typename EdgeWeight> struct LocalClusterSelectionS
 };
 
 template <typename NodeID> struct StatelessNeighborPolicy {
+  static constexpr bool kAcceptsAllNeighbors = true;
+  static constexpr bool kActivatesAllNeighbors = true;
+  static constexpr bool kSkipsNoNodes = true;
+
   [[nodiscard]] bool accept(const NodeID, const NodeID) const {
     return true;
   }
@@ -162,5 +175,59 @@ template <typename NodeID> struct StatelessNeighborPolicy {
     return false;
   }
 };
+
+template <typename NeighborPolicy, typename = void> struct AcceptsAllNeighbors : std::false_type {};
+
+template <typename NeighborPolicy>
+struct AcceptsAllNeighbors<
+    NeighborPolicy,
+    std::void_t<decltype(NeighborPolicy::kAcceptsAllNeighbors)>>
+    : std::bool_constant<NeighborPolicy::kAcceptsAllNeighbors> {};
+
+template <typename NeighborPolicy, typename = void>
+struct ActivatesAllNeighbors : std::false_type {};
+
+template <typename NeighborPolicy>
+struct ActivatesAllNeighbors<
+    NeighborPolicy,
+    std::void_t<decltype(NeighborPolicy::kActivatesAllNeighbors)>>
+    : std::bool_constant<NeighborPolicy::kActivatesAllNeighbors> {};
+
+template <typename NeighborPolicy, typename = void> struct SkipsNoNodes : std::false_type {};
+
+template <typename NeighborPolicy>
+struct SkipsNoNodes<NeighborPolicy, std::void_t<decltype(NeighborPolicy::kSkipsNoNodes)>>
+    : std::bool_constant<NeighborPolicy::kSkipsNoNodes> {};
+
+template <typename ClusterSelector, typename = void>
+struct HasStaticUseActualGain : std::false_type {};
+
+template <typename ClusterSelector>
+struct HasStaticUseActualGain<
+    ClusterSelector,
+    std::void_t<decltype(ClusterSelector::kUseActualGain)>> : std::true_type {};
+
+template <typename ClusterSelector, typename = void> struct UsesActualGain : std::false_type {};
+
+template <typename ClusterSelector>
+struct UsesActualGain<ClusterSelector, std::void_t<decltype(ClusterSelector::kUseActualGain)>>
+    : std::bool_constant<ClusterSelector::kUseActualGain> {};
+
+template <typename ClusterSelector, typename = void>
+struct HasStaticTrackFavoredClusters : std::false_type {};
+
+template <typename ClusterSelector>
+struct HasStaticTrackFavoredClusters<
+    ClusterSelector,
+    std::void_t<decltype(ClusterSelector::kTrackFavoredClusters)>> : std::true_type {};
+
+template <typename ClusterSelector, typename = void>
+struct TracksFavoredClusters : std::false_type {};
+
+template <typename ClusterSelector>
+struct TracksFavoredClusters<
+    ClusterSelector,
+    std::void_t<decltype(ClusterSelector::kTrackFavoredClusters)>>
+    : std::bool_constant<ClusterSelector::kTrackFavoredClusters> {};
 
 } // namespace kaminpar::lp

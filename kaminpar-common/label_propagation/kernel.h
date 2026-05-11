@@ -72,11 +72,11 @@ public:
         _move_applier(labels, weights, _active_set, _config.stopping),
         _rating_accumulator(graph, labels, neighbors, _config.nodes, _config.active_set) {}
 
-  void set_config(const PassConfig<NodeID, ClusterID> config) {
+  KAMINPAR_INLINE void set_config(const PassConfig<NodeID, ClusterID> config) {
     _config = config;
   }
 
-  [[nodiscard]] const PassConfig<NodeID, ClusterID> &config() const {
+  [[nodiscard]] KAMINPAR_INLINE const PassConfig<NodeID, ClusterID> &config() const {
     return _config;
   }
 
@@ -94,75 +94,75 @@ public:
 
   void clear_iteration_order_cache() {}
 
-  [[nodiscard]] const Graph &graph() const {
+  [[nodiscard]] KAMINPAR_INLINE const Graph &graph() const {
     return _graph;
   }
 
-  [[nodiscard]] LabelStore &labels() {
+  [[nodiscard]] KAMINPAR_INLINE LabelStore &labels() {
     return _labels;
   }
 
-  [[nodiscard]] const LabelStore &labels() const {
+  [[nodiscard]] KAMINPAR_INLINE const LabelStore &labels() const {
     return _labels;
   }
 
-  [[nodiscard]] WeightStore &weights() {
+  [[nodiscard]] KAMINPAR_INLINE WeightStore &weights() {
     return _weights;
   }
 
-  [[nodiscard]] const WeightStore &weights() const {
+  [[nodiscard]] KAMINPAR_INLINE const WeightStore &weights() const {
     return _weights;
   }
 
-  [[nodiscard]] ClusterSelector &selector() {
+  [[nodiscard]] KAMINPAR_INLINE ClusterSelector &selector() {
     return _selector;
   }
 
-  [[nodiscard]] NeighborPolicy &neighbors() {
+  [[nodiscard]] KAMINPAR_INLINE NeighborPolicy &neighbors() {
     return _neighbors;
   }
 
-  [[nodiscard]] Workspace &workspace() {
+  [[nodiscard]] KAMINPAR_INLINE Workspace &workspace() {
     return _workspace;
   }
 
-  [[nodiscard]] const Workspace &workspace() const {
+  [[nodiscard]] KAMINPAR_INLINE const Workspace &workspace() const {
     return _workspace;
   }
 
-  [[nodiscard]] NodeID num_nodes() const {
+  [[nodiscard]] KAMINPAR_INLINE NodeID num_nodes() const {
     return _num_nodes;
   }
 
-  [[nodiscard]] NodeID num_active_nodes() const {
+  [[nodiscard]] KAMINPAR_INLINE NodeID num_active_nodes() const {
     return _num_active_nodes;
   }
 
-  [[nodiscard]] ClusterID initial_num_clusters() const {
+  [[nodiscard]] KAMINPAR_INLINE ClusterID initial_num_clusters() const {
     return _initial_num_clusters;
   }
 
-  [[nodiscard]] ClusterID current_num_clusters() const {
+  [[nodiscard]] KAMINPAR_INLINE ClusterID current_num_clusters() const {
     return _current_num_clusters;
   }
 
-  [[nodiscard]] bool relabeled() const {
+  [[nodiscard]] KAMINPAR_INLINE bool relabeled() const {
     return _relabeled;
   }
 
-  void set_initial_num_clusters(const ClusterID num_clusters) {
+  KAMINPAR_INLINE void set_initial_num_clusters(const ClusterID num_clusters) {
     _initial_num_clusters = num_clusters;
   }
 
-  void set_relabeled(const bool relabeled) {
+  KAMINPAR_INLINE void set_relabeled(const bool relabeled) {
     _relabeled = relabeled;
   }
 
-  void decrement_current_num_clusters() {
+  KAMINPAR_INLINE void decrement_current_num_clusters() {
     --_current_num_clusters;
   }
 
-  [[nodiscard]] bool should_stop() const {
+  [[nodiscard]] KAMINPAR_INLINE bool should_stop() const {
     return _config.stopping.track_cluster_count &&
            _current_num_clusters <= _config.stopping.desired_clusters;
   }
@@ -200,17 +200,30 @@ public:
   }
 
   [[nodiscard]] KAMINPAR_INLINE bool should_consider(const NodeID u) const {
-    if (u >= _num_active_nodes) {
-      return false;
+    switch (_config.active_set.strategy) {
+    case ActiveSetStrategy::NONE:
+      return should_consider<ActiveSetStrategy::NONE>(u);
+    case ActiveSetStrategy::GLOBAL:
+      return should_consider<ActiveSetStrategy::GLOBAL>(u);
+    case ActiveSetStrategy::LOCAL:
+      return should_consider<ActiveSetStrategy::LOCAL>(u);
     }
-    if (_neighbors.skip(u)) {
+    __builtin_unreachable();
+  }
+
+  template <ActiveSetStrategy ActiveSet>
+  [[nodiscard]] KAMINPAR_INLINE bool should_consider(const NodeID u) const {
+    KASSERT(u < _num_active_nodes);
+    if (!_active_set.template is_active<ActiveSet>(u)) {
       return false;
     }
     if (_graph.degree(u) >= _config.nodes.max_degree) {
       return false;
     }
-    if (!_active_set.is_active(u)) {
-      return false;
+    if constexpr (!SkipsNoNodes<NeighborPolicy>::value) {
+      if (_neighbors.skip(u)) {
+        return false;
+      }
     }
     return true;
   }
@@ -218,6 +231,13 @@ public:
   template <typename RatingMap>
   KAMINPAR_INLINE void rate_neighbors(const NodeID u, RatingMap &map, bool &is_interface_node) {
     _rating_accumulator.rate_neighbors(u, map, _num_active_nodes, is_interface_node);
+  }
+
+  template <ActiveSetStrategy ActiveSet, typename RatingMap>
+  KAMINPAR_INLINE void rate_neighbors(const NodeID u, RatingMap &map, bool &is_interface_node) {
+    _rating_accumulator.template rate_neighbors<ActiveSet>(
+        u, map, _num_active_nodes, is_interface_node
+    );
   }
 
   template <typename RatingMap>
@@ -229,8 +249,22 @@ public:
     );
   }
 
+  template <ActiveSetStrategy ActiveSet, typename RatingMap>
+  [[nodiscard]] KAMINPAR_INLINE bool rate_neighbors_until(
+      const NodeID u, RatingMap &map, const std::size_t max_map_size, bool &is_interface_node
+  ) {
+    return _rating_accumulator.template rate_neighbors_until<ActiveSet>(
+        u, map, _num_active_nodes, max_map_size, is_interface_node
+    );
+  }
+
   KAMINPAR_INLINE void clear_active(const NodeID u, const bool is_interface_node) {
     _active_set.clear(u, is_interface_node);
+  }
+
+  template <ActiveSetStrategy ActiveSet>
+  KAMINPAR_INLINE void clear_active(const NodeID u, const bool is_interface_node) {
+    _active_set.template clear<ActiveSet>(u, is_interface_node);
   }
 
   template <
@@ -238,7 +272,7 @@ public:
       typename ActualMap,
       typename TieBreakingClusters,
       typename TieBreakingFavoredClusters>
-  [[nodiscard]] KAMINPAR_INLINE Move select_move(
+  [[nodiscard]] KAMINPAR_INLINE std::pair<ClusterID, EdgeWeight> select_target(
       const NodeID u,
       const NodeWeight u_weight,
       const ClusterID u_cluster,
@@ -248,10 +282,28 @@ public:
       TieBreakingFavoredClusters &tie_breaking_favored_clusters
   ) {
     const ClusterWeight initial_cluster_weight = _weights.cluster_weight(u_cluster);
-    const bool track_favored_cluster =
-        _config.selection.track_favored_clusters && u_weight == initial_cluster_weight &&
-        initial_cluster_weight <= _weights.max_cluster_weight(u_cluster) / 2;
-    const EdgeWeight gain_delta = _config.selection.use_actual_gain ? map[u_cluster] : 0;
+    const bool track_favored_cluster = [&] {
+      if constexpr (HasStaticTrackFavoredClusters<ClusterSelector>::value) {
+        if constexpr (TracksFavoredClusters<ClusterSelector>::value) {
+          return u_weight == initial_cluster_weight &&
+                 initial_cluster_weight <= _weights.max_cluster_weight(u_cluster) / 2;
+        } else {
+          return false;
+        }
+      } else {
+        return _config.selection.track_favored_clusters && u_weight == initial_cluster_weight &&
+               initial_cluster_weight <= _weights.max_cluster_weight(u_cluster) / 2;
+      }
+    }();
+
+    EdgeWeight gain_delta = 0;
+    if constexpr (HasStaticUseActualGain<ClusterSelector>::value) {
+      if constexpr (UsesActualGain<ClusterSelector>::value) {
+        gain_delta = map[u_cluster];
+      }
+    } else {
+      gain_delta = _config.selection.use_actual_gain ? map[u_cluster] : 0;
+    }
     SelectionContext context{
         .rand = rand,
         .node = u,
@@ -270,19 +322,44 @@ public:
       _workspace.postprocessing.favored_clusters[u] = choice.favored_cluster;
     }
 
-    const EdgeWeight actual_gain = choice.best_gain - map[context.initial_cluster];
+    EdgeWeight actual_gain = 0;
+#ifdef KAMINPAR_ENABLE_STATISTICS
+    actual_gain = choice.best_gain - map[context.initial_cluster];
+#endif
     map.clear();
+    return {choice.best_cluster, actual_gain};
+  }
+
+  template <
+      TieBreakingStrategy TieBreaking,
+      typename ActualMap,
+      typename TieBreakingClusters,
+      typename TieBreakingFavoredClusters>
+  [[nodiscard]] KAMINPAR_INLINE Move select_move(
+      const NodeID u,
+      const NodeWeight u_weight,
+      const ClusterID u_cluster,
+      Random &rand,
+      ActualMap &map,
+      TieBreakingClusters &tie_breaking_clusters,
+      TieBreakingFavoredClusters &tie_breaking_favored_clusters
+  ) {
+    const auto [best_cluster, actual_gain] = select_target<TieBreaking>(
+        u, u_weight, u_cluster, rand, map, tie_breaking_clusters, tie_breaking_favored_clusters
+    );
+
     return {
         .node = u,
         .node_weight = u_weight,
         .old_cluster = u_cluster,
-        .new_cluster = choice.best_cluster,
+        .new_cluster = best_cluster,
         .gain = actual_gain,
         .valid = true,
     };
   }
 
   template <
+      ActiveSetStrategy ActiveSet,
       TieBreakingStrategy TieBreaking,
       typename LocalRatingMap,
       typename TieBreakingClusters,
@@ -296,12 +373,46 @@ public:
   ) {
     const NodeWeight u_weight = _graph.node_weight(u);
     const ClusterID u_cluster = _labels.cluster(u);
+    const auto [best_cluster, actual_gain] = find_best_target<ActiveSet, TieBreaking>(
+        u,
+        u_weight,
+        u_cluster,
+        rand,
+        rating_map,
+        tie_breaking_clusters,
+        tie_breaking_favored_clusters
+    );
 
+    return {
+        .node = u,
+        .node_weight = u_weight,
+        .old_cluster = u_cluster,
+        .new_cluster = best_cluster,
+        .gain = actual_gain,
+        .valid = true,
+    };
+  }
+
+  template <
+      ActiveSetStrategy ActiveSet,
+      TieBreakingStrategy TieBreaking,
+      typename LocalRatingMap,
+      typename TieBreakingClusters,
+      typename TieBreakingFavoredClusters>
+  [[nodiscard]] KAMINPAR_INLINE std::pair<ClusterID, EdgeWeight> find_best_target(
+      const NodeID u,
+      const NodeWeight u_weight,
+      const ClusterID u_cluster,
+      Random &rand,
+      LocalRatingMap &rating_map,
+      TieBreakingClusters &tie_breaking_clusters,
+      TieBreakingFavoredClusters &tie_breaking_favored_clusters
+  ) {
     const auto action = [&](auto &map) {
       bool is_interface_node = false;
-      rate_neighbors(u, map, is_interface_node);
-      clear_active(u, is_interface_node);
-      return select_move<TieBreaking>(
+      rate_neighbors<ActiveSet>(u, map, is_interface_node);
+      clear_active<ActiveSet>(u, is_interface_node);
+      return select_target<TieBreaking>(
           u, u_weight, u_cluster, rand, map, tie_breaking_clusters, tie_breaking_favored_clusters
       );
     };
@@ -333,8 +444,56 @@ public:
     }
   }
 
+  template <
+      TieBreakingStrategy TieBreaking,
+      typename LocalRatingMap,
+      typename TieBreakingClusters,
+      typename TieBreakingFavoredClusters>
+  [[nodiscard]] KAMINPAR_INLINE Move find_best_move(
+      const NodeID u,
+      Random &rand,
+      LocalRatingMap &rating_map,
+      TieBreakingClusters &tie_breaking_clusters,
+      TieBreakingFavoredClusters &tie_breaking_favored_clusters
+  ) {
+    switch (_config.active_set.strategy) {
+    case ActiveSetStrategy::NONE:
+      return find_best_move<ActiveSetStrategy::NONE, TieBreaking>(
+          u, rand, rating_map, tie_breaking_clusters, tie_breaking_favored_clusters
+      );
+    case ActiveSetStrategy::GLOBAL:
+      return find_best_move<ActiveSetStrategy::GLOBAL, TieBreaking>(
+          u, rand, rating_map, tie_breaking_clusters, tie_breaking_favored_clusters
+      );
+    case ActiveSetStrategy::LOCAL:
+      return find_best_move<ActiveSetStrategy::LOCAL, TieBreaking>(
+          u, rand, rating_map, tie_breaking_clusters, tie_breaking_favored_clusters
+      );
+    }
+    __builtin_unreachable();
+  }
+
   KAMINPAR_INLINE std::pair<bool, bool> commit(const Move &move, Stats &stats) {
     return _move_applier.try_commit(move, stats);
+  }
+
+  template <ActiveSetStrategy ActiveSet>
+  KAMINPAR_INLINE std::pair<bool, bool> commit(const Move &move, Stats &stats) {
+    return _move_applier.template try_commit<ActiveSet>(move, stats);
+  }
+
+  template <ActiveSetStrategy ActiveSet>
+  KAMINPAR_INLINE std::pair<bool, bool> commit(
+      const NodeID node,
+      const NodeWeight node_weight,
+      const ClusterID old_cluster,
+      const ClusterID new_cluster,
+      const EdgeWeight gain,
+      Stats &stats
+  ) {
+    return _move_applier.template try_commit<ActiveSet>(
+        node, node_weight, old_cluster, new_cluster, gain, stats
+    );
   }
 
   KAMINPAR_INLINE std::pair<bool, bool> try_commit_move(const Move &move, Stats &stats) {
