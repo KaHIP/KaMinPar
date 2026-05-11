@@ -78,14 +78,23 @@ public:
 
   void set_initial_cluster_weight(std::function<NodeWeight(NodeID)> initial_cluster_weight) {
     _initial_cluster_weight = std::move(initial_cluster_weight);
+    _has_constant_initial_cluster_weight = false;
+  }
+
+  void set_initial_cluster_weight(const NodeWeight initial_cluster_weight) {
+    _constant_initial_cluster_weight = initial_cluster_weight;
+    _has_constant_initial_cluster_weight = true;
   }
 
   [[nodiscard]] KAMINPAR_INLINE NodeWeight initial_cluster_weight(const NodeID cluster) const {
-    return _initial_cluster_weight(cluster);
+    return _has_constant_initial_cluster_weight ? _constant_initial_cluster_weight
+                                                : _initial_cluster_weight(cluster);
   }
 
 private:
   NodeWeight _max_cluster_weight = kInvalidBlockWeight;
+  NodeWeight _constant_initial_cluster_weight = 1;
+  bool _has_constant_initial_cluster_weight = false;
   std::function<NodeWeight(NodeID)> _initial_cluster_weight = [](NodeID) {
     return 0;
   };
@@ -258,9 +267,13 @@ public:
 
   void compute_clustering(StaticArray<NodeID> &clustering, const Graph &graph) {
     _labels.init(clustering);
-    _weights.set_initial_cluster_weight([&](const NodeID cluster) {
-      return graph.node_weight(cluster);
-    });
+    if (graph.is_node_weighted()) {
+      _weights.set_initial_cluster_weight([&](const NodeID cluster) {
+        return graph.node_weight(cluster);
+      });
+    } else {
+      _weights.set_initial_cluster_weight(1);
+    }
     _order_workspace.clear_order();
 
     if (_communities.empty()) {

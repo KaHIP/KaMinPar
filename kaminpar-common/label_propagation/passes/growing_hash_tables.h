@@ -59,7 +59,7 @@ public:
       }
 
       ++_stats.processed_nodes;
-      const auto u_weight = _kernel.graph().node_weight(u);
+      const auto u_weight = _kernel.node_weight(u);
       const auto u_cluster = _kernel.labels().cluster(u);
       const auto [best_cluster, gain] = _kernel.template find_best_target<ActiveSet, TieBreaking>(
           u,

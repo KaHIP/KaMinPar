@@ -79,6 +79,32 @@ public:
 
   template <ActiveSetStrategy Strategy> KAMINPAR_INLINE void activate_neighbors(const NodeID u) {
     if constexpr (Strategy != ActiveSetStrategy::NONE) {
+      if constexpr (requires {
+                      _graph.raw_nodes();
+                      _graph.raw_edges();
+                    }) {
+        const auto &nodes = _graph.raw_nodes();
+        const auto &edges = _graph.raw_edges();
+        const auto to = nodes[u + 1];
+        for (auto edge = nodes[u]; edge < to; ++edge) {
+          const NodeID v = edges[edge];
+          if constexpr (!ActivatesAllNeighbors<NeighborPolicy>::value) {
+            if (!_neighbors.activate(v)) {
+              continue;
+            }
+          }
+
+          if constexpr (requires { _graph.is_ghost_node(v); }) {
+            if (v < _workspace.active_set.flags.size()) {
+              __atomic_store_n(&_workspace.active_set.flags[v], 1, __ATOMIC_RELAXED);
+            }
+          } else {
+            __atomic_store_n(&_workspace.active_set.flags[v], 1, __ATOMIC_RELAXED);
+          }
+        }
+        return;
+      }
+
       _graph.adjacent_nodes(u, [&](const NodeID v) {
         if constexpr (!ActivatesAllNeighbors<NeighborPolicy>::value) {
           if (!_neighbors.activate(v)) {

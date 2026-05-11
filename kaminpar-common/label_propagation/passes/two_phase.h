@@ -59,7 +59,7 @@ public:
     }
 
     [[nodiscard]] KAMINPAR_INLINE std::optional<Move> find_best_move(const NodeID u) {
-      const NodeWeight u_weight = _kernel.graph().node_weight(u);
+      const NodeWeight u_weight = _kernel.node_weight(u);
       const ClusterID u_cluster = _kernel.labels().cluster(u);
       const auto target = find_best_target(u, u_weight, u_cluster);
       if (!target.has_value()) {
@@ -128,7 +128,7 @@ public:
       }
 
       ++_stats.processed_nodes;
-      const NodeWeight u_weight = _kernel.graph().node_weight(u);
+      const NodeWeight u_weight = _kernel.node_weight(u);
       const ClusterID u_cluster = _kernel.labels().cluster(u);
       const auto target = find_best_target(u, u_weight, u_cluster);
       if (target.has_value()) {
@@ -209,7 +209,7 @@ private:
           continue;
         }
 
-        const NodeWeight u_weight = _kernel.graph().node_weight(u);
+        const NodeWeight u_weight = _kernel.node_weight(u);
         const ClusterID u_cluster = _kernel.labels().cluster(u);
         const Move move = find_best_move_second_phase(
             u, u_weight, u_cluster, rand, workspace.two_phase.concurrent_rating_map

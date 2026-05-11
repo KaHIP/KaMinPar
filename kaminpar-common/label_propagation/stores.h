@@ -33,6 +33,11 @@ public:
     return __atomic_load_n(&_labels->at(node), __ATOMIC_RELAXED);
   }
 
+  KAMINPAR_INLINE void prefetch_cluster(const NodeID node) const {
+    KASSERT(_labels != nullptr);
+    __builtin_prefetch(_labels->data() + node, 0, 1);
+  }
+
   KAMINPAR_INLINE void move_node(const NodeID node, const ClusterID cluster) {
     KASSERT(_labels != nullptr);
     KASSERT(node < _labels->size());

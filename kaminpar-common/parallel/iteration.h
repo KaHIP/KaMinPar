@@ -214,7 +214,7 @@ public:
       const auto &permutation = node_permutations.get(rand);
 
       const std::size_t num_sub_chunks =
-          std::ceil(1.0 * (chunk.end - chunk.start) / permutation.size());
+          (chunk.end - chunk.start + permutation.size() - 1) / permutation.size();
       std::vector<NodeID> sub_chunk_permutation(num_sub_chunks);
       std::iota(sub_chunk_permutation.begin(), sub_chunk_permutation.end(), 0);
       rand.shuffle(sub_chunk_permutation);
@@ -222,7 +222,7 @@ public:
       for (std::size_t sub_chunk = 0; sub_chunk < num_sub_chunks; ++sub_chunk) {
         for (std::size_t i = 0; i < permutation.size(); ++i) {
           const NodeID u = chunk.start + permutation.size() * sub_chunk_permutation[sub_chunk] +
-                           permutation[i % permutation.size()];
+                           permutation[i];
           if (u < chunk.end) {
             visitor(u);
           }
@@ -247,7 +247,7 @@ public:
       const auto &permutation = node_permutations.get(rand);
 
       const std::size_t num_sub_chunks =
-          std::ceil(1.0 * (chunk.end - chunk.start) / permutation.size());
+          (chunk.end - chunk.start + permutation.size() - 1) / permutation.size();
 
       auto &sub_chunk_permutation = sub_chunk_permutations.local();
       if (sub_chunk_permutation.size() < num_sub_chunks) {
@@ -260,7 +260,7 @@ public:
       for (std::size_t sub_chunk = 0; sub_chunk < num_sub_chunks; ++sub_chunk) {
         for (std::size_t i = 0; i < permutation.size(); ++i) {
           const NodeID u = chunk.start + permutation.size() * sub_chunk_permutation[sub_chunk] +
-                           permutation[i % permutation.size()];
+                           permutation[i];
           if (u < chunk.end) {
             visitor(u);
           }
@@ -287,7 +287,7 @@ public:
       const auto &permutation = node_permutations.get(rand);
 
       const std::size_t num_sub_chunks =
-          std::ceil(1.0 * (chunk.end - chunk.start) / permutation.size());
+          (chunk.end - chunk.start + permutation.size() - 1) / permutation.size();
 
       auto &sub_chunk_permutation = sub_chunk_permutations.local();
       if (sub_chunk_permutation.size() < num_sub_chunks) {
@@ -300,7 +300,7 @@ public:
       for (std::size_t sub_chunk = 0; sub_chunk < num_sub_chunks; ++sub_chunk) {
         for (std::size_t i = 0; i < permutation.size(); ++i) {
           const NodeID u = chunk.start + permutation.size() * sub_chunk_permutation[sub_chunk] +
-                           permutation[i % permutation.size()];
+                           permutation[i];
           if (u < chunk.end) {
             visitor(local, u);
           }
@@ -333,7 +333,7 @@ public:
       const auto &permutation = node_permutations.get(rand);
 
       const std::size_t num_sub_chunks =
-          std::ceil(1.0 * (chunk.end - chunk.start) / permutation.size());
+          (chunk.end - chunk.start + permutation.size() - 1) / permutation.size();
 
       auto &sub_chunk_permutation = sub_chunk_permutations.local();
       if (sub_chunk_permutation.size() < num_sub_chunks) {
@@ -346,7 +346,7 @@ public:
       for (std::size_t sub_chunk = 0; sub_chunk < num_sub_chunks; ++sub_chunk) {
         for (std::size_t i = 0; i < permutation.size(); ++i) {
           const NodeID u = chunk.start + permutation.size() * sub_chunk_permutation[sub_chunk] +
-                           permutation[i % permutation.size()];
+                           permutation[i];
           if (u < chunk.end) {
             visitor(local, u);
           }

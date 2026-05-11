@@ -68,6 +68,13 @@ public:
         _neighbors(neighbors),
         _workspace(workspace),
         _config(config),
+        _unit_node_weights([&] {
+          if constexpr (requires { graph.is_node_weighted(); }) {
+            return !graph.is_node_weighted();
+          } else {
+            return false;
+          }
+        }()),
         _active_set(graph, neighbors, workspace, _config.active_set),
         _move_applier(labels, weights, _active_set, _config.stopping),
         _rating_accumulator(graph, labels, neighbors, _config.nodes, _config.active_set) {}
@@ -96,6 +103,10 @@ public:
 
   [[nodiscard]] KAMINPAR_INLINE const Graph &graph() const {
     return _graph;
+  }
+
+  [[nodiscard]] KAMINPAR_INLINE NodeWeight node_weight(const NodeID u) const {
+    return _unit_node_weights ? 1 : _graph.node_weight(u);
   }
 
   [[nodiscard]] KAMINPAR_INLINE LabelStore &labels() {
@@ -371,7 +382,7 @@ public:
       TieBreakingClusters &tie_breaking_clusters,
       TieBreakingFavoredClusters &tie_breaking_favored_clusters
   ) {
-    const NodeWeight u_weight = _graph.node_weight(u);
+    const NodeWeight u_weight = node_weight(u);
     const ClusterID u_cluster = _labels.cluster(u);
     const auto [best_cluster, actual_gain] = find_best_target<ActiveSet, TieBreaking>(
         u,
@@ -526,6 +537,7 @@ private:
   NeighborPolicy &_neighbors;
   Workspace &_workspace;
   PassConfig<NodeID, ClusterID> _config;
+  bool _unit_node_weights;
   ActiveSet _active_set;
   MoveApplier _move_applier;
   RatingAccumulator _rating_accumulator;
