@@ -325,8 +325,8 @@ CLI::Option_group *create_lp_coarsening_options(CLI::App *app, Context &ctx) {
       ->description(
           R"(Chooses an opt-in speed/quality tradeoff for coarsening LP:
   - off:        Preserve the configured LP behavior.
-  - light:      Use 3 iterations, geometric tie breaking and at most 512 neighbors.
-  - aggressive: Use 2 iterations, geometric tie breaking, at most 256 neighbors and skip very high-degree nodes.
+  - light:      Use single-phase LP with 3 iterations, geometric tie breaking and at most 512 neighbors.
+  - aggressive: Use single-phase LP with 2 iterations, geometric tie breaking, at most 256 neighbors and skip very high-degree nodes.
   )"
       )
       ->capture_default_str();

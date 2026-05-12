@@ -310,7 +310,7 @@ private:
         .stopping = {.desired_clusters = _desired_num_clusters, .track_cluster_count = true},
     };
     lp::ExecutionConfig execution{
-        .strategy = map_rating_map_strategy(_lp_ctx.impl),
+        .strategy = map_rating_map_strategy(effective_implementation()),
         .large_map_threshold = kRatingMapThreshold,
         .relabel_before_second_phase = _relabel_before_second_phase,
     };
@@ -448,6 +448,17 @@ private:
     case LabelPropagationFastMode::LIGHT:
     case LabelPropagationFastMode::AGGRESSIVE:
       return TieBreakingStrategy::GEOMETRIC;
+    }
+    __builtin_unreachable();
+  }
+
+  [[nodiscard]] LabelPropagationImplementation effective_implementation() const {
+    switch (_lp_ctx.fast_mode) {
+    case LabelPropagationFastMode::OFF:
+      return _lp_ctx.impl;
+    case LabelPropagationFastMode::LIGHT:
+    case LabelPropagationFastMode::AGGRESSIVE:
+      return LabelPropagationImplementation::SINGLE_PHASE;
     }
     __builtin_unreachable();
   }
