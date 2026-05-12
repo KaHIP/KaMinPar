@@ -386,6 +386,10 @@ private:
     const NodeID from = _range.from;
     const NodeID to = std::min(_range.to, _graph.n());
 
+    if (from >= to || capped_max_bucket() == 0) {
+      return;
+    }
+
     const EdgeID max_chunk_size = std::max<EdgeID>(_min_chunk_size, std::sqrt(_graph.m()));
     const NodeID max_node_chunk_size = std::max<NodeID>(_min_chunk_size, std::sqrt(_graph.n()));
 

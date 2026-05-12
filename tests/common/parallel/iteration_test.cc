@@ -221,25 +221,21 @@ TEST(IterationTest, chunk_random_order_is_seed_reproducible) {
   const auto graph = make_bucketed_graph_with_isolated_nodes();
   tbb::task_arena arena(1);
 
-  Random::reseed(0);
-  iteration::ChunkRandomNodeOrderWorkspace<std::uint32_t, 4, 4> first_workspace;
-  iteration::ChunkRandomNodeOrder first_order(
-      graph, first_workspace, iteration::NodeRange<std::uint32_t>{0, graph.n()}, 2
-  );
-  std::vector<std::uint32_t> first_nodes;
-  arena.execute([&] {
-    first_order.for_each([&](const std::uint32_t node) { first_nodes.push_back(node); });
-  });
+  const auto ordered_nodes = [&] {
+    Random::reseed(0);
+    iteration::ChunkRandomNodeOrderWorkspace<std::uint32_t, 4, 4> workspace;
+    iteration::ChunkRandomNodeOrder order(
+        graph, workspace, iteration::NodeRange<std::uint32_t>{0, graph.n()}, 2
+    );
+    std::vector<std::uint32_t> nodes;
+    order.for_each([&](const std::uint32_t node) { nodes.push_back(node); });
+    return nodes;
+  };
 
-  Random::reseed(0);
-  iteration::ChunkRandomNodeOrderWorkspace<std::uint32_t, 4, 4> second_workspace;
-  iteration::ChunkRandomNodeOrder second_order(
-      graph, second_workspace, iteration::NodeRange<std::uint32_t>{0, graph.n()}, 2
-  );
+  std::vector<std::uint32_t> first_nodes;
   std::vector<std::uint32_t> second_nodes;
-  arena.execute([&] {
-    second_order.for_each([&](const std::uint32_t node) { second_nodes.push_back(node); });
-  });
+  arena.execute([&] { first_nodes = ordered_nodes(); });
+  arena.execute([&] { second_nodes = ordered_nodes(); });
 
   EXPECT_THAT(first_nodes, Eq(second_nodes));
 }
