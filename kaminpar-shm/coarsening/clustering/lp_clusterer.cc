@@ -325,6 +325,10 @@ private:
     const std::size_t num_iterations = effective_num_iterations();
     for (std::size_t iteration = 0; iteration < num_iterations; ++iteration) {
       SCOPED_TIMER("Iteration", std::to_string(iteration));
+      config.active_set.activate_neighbors =
+          effective_activate_neighbors_after_move(iteration, num_iterations);
+      kernel.set_config(config);
+
       iteration::ChunkRandomNodeOrder order(
           graph,
           _order_workspace,
@@ -436,7 +440,7 @@ private:
     case LabelPropagationFastMode::LIGHT:
       return _lp_ctx.large_degree_threshold;
     case LabelPropagationFastMode::AGGRESSIVE:
-      return std::min<NodeID>(_lp_ctx.large_degree_threshold, 4096);
+      return std::min<NodeID>(_lp_ctx.large_degree_threshold, 3072);
     }
     __builtin_unreachable();
   }
@@ -459,6 +463,19 @@ private:
     case LabelPropagationFastMode::LIGHT:
     case LabelPropagationFastMode::AGGRESSIVE:
       return LabelPropagationImplementation::SINGLE_PHASE;
+    }
+    __builtin_unreachable();
+  }
+
+  [[nodiscard]] bool effective_activate_neighbors_after_move(
+      const std::size_t iteration, const std::size_t num_iterations
+  ) const {
+    switch (_lp_ctx.fast_mode) {
+    case LabelPropagationFastMode::OFF:
+      return true;
+    case LabelPropagationFastMode::LIGHT:
+    case LabelPropagationFastMode::AGGRESSIVE:
+      return iteration + 1 < num_iterations;
     }
     __builtin_unreachable();
   }

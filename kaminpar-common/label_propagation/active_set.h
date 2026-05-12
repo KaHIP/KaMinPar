@@ -66,7 +66,7 @@ public:
   }
 
   KAMINPAR_INLINE void activate_neighbors(const NodeID u) {
-    if (_config.strategy == ActiveSetStrategy::NONE) {
+    if (_config.strategy == ActiveSetStrategy::NONE || !_config.activate_neighbors) {
       return;
     }
 
@@ -79,6 +79,10 @@ public:
 
   template <ActiveSetStrategy Strategy> KAMINPAR_INLINE void activate_neighbors(const NodeID u) {
     if constexpr (Strategy != ActiveSetStrategy::NONE) {
+      if (!_config.activate_neighbors) {
+        return;
+      }
+
       if constexpr (requires {
                       _graph.raw_nodes();
                       _graph.raw_edges();

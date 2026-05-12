@@ -453,6 +453,7 @@ public:
           u, rand, rating_map, tie_breaking_clusters, tie_breaking_favored_clusters
       );
     }
+    __builtin_unreachable();
   }
 
   template <

@@ -310,6 +310,30 @@ TEST(LabelPropagationKernelTest, inactive_nodes_are_skipped) {
   EXPECT_THAT(result.moved_nodes, Eq(0));
 }
 
+TEST(LabelPropagationKernelTest, disabled_neighbor_activation_keeps_neighbors_inactive) {
+  lp::PassConfig<TestNodeID, TestClusterID> config;
+  config.active_set.strategy = lp::ActiveSetStrategy::GLOBAL;
+  config.active_set.activate_neighbors = false;
+  KernelFixture fixture(weighted_star(), config);
+  fixture.workspace.active_set.flags[1] = 0;
+  fixture.workspace.active_set.flags[2] = 0;
+  fixture.workspace.active_set.flags[3] = 0;
+
+  lp::SinglePhasePass<
+      decltype(fixture.kernel),
+      lp::ActiveSetStrategy::GLOBAL,
+      lp::TieBreakingStrategy::GEOMETRIC>
+      pass(fixture.kernel);
+  pass.handle_next_node(0);
+  const auto result = pass.finish();
+
+  EXPECT_THAT(fixture.labels.cluster(0), Eq(3));
+  EXPECT_THAT(result.moved_nodes, Eq(1));
+  EXPECT_THAT(fixture.workspace.active_set.flags[1], Eq(0));
+  EXPECT_THAT(fixture.workspace.active_set.flags[2], Eq(0));
+  EXPECT_THAT(fixture.workspace.active_set.flags[3], Eq(0));
+}
+
 TEST(LabelPropagationKernelTest, isolated_node_clustering_reuses_kernel_postprocessing) {
   KernelFixture fixture(TestGraph{{{}, {}, {}}, {1, 1, 1}});
   fixture.weights.set_max_cluster_weight(3);

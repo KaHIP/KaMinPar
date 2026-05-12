@@ -56,6 +56,7 @@ struct ExecutionConfig {
 
 struct ActiveSetConfig {
   ActiveSetStrategy strategy = ActiveSetStrategy::NONE;
+  bool activate_neighbors = true;
 };
 
 struct ClusterSelectionConfig {
