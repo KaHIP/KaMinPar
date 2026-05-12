@@ -58,6 +58,10 @@ std::ostream &operator<<(std::ostream &out, TieBreakingStrategy strategy);
 
 std::unordered_map<std::string, TieBreakingStrategy> get_tie_breaking_strategies();
 
+std::ostream &operator<<(std::ostream &out, LabelPropagationFastMode mode);
+
+std::unordered_map<std::string, LabelPropagationFastMode> get_lp_fast_modes();
+
 std::ostream &operator<<(std::ostream &out, const ContractionAlgorithm algorithm);
 
 std::unordered_map<std::string, ContractionAlgorithm> get_contraction_algorithms();

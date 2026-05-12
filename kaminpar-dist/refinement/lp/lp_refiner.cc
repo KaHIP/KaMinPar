@@ -14,13 +14,17 @@
 
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
-#include "kaminpar-dist/distributed_label_propagation.h"
+#include "kaminpar-dist/datastructures/reify_graph.h"
 #include "kaminpar-dist/graphutils/communication.h"
 #include "kaminpar-dist/metrics.h"
 #include "kaminpar-dist/refinement/lp/lp_stats.h"
 
+#include "kaminpar-common/algorithms/label_propagation.h"
+#include "kaminpar-common/datastructures/concurrent_fast_reset_array.h"
+#include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/math.h"
+#include "kaminpar-common/parallel/iteration.h"
 #include "kaminpar-common/parallel/vector_ets.h"
 #include "kaminpar-common/random.h"
 
@@ -33,60 +37,54 @@ SET_DEBUG(false);
 
 } // namespace
 
-struct LPRefinerConfig : public LabelPropagationConfig {
-  using RatingMap = ::kaminpar::RatingMap<EdgeWeight, BlockID>;
-  using Graph = DistributedGraph;
+namespace {
+
+constexpr NodeID kMinChunkSize = 1024;
+constexpr NodeID kPermutationSize = 64;
+constexpr std::size_t kNumberOfNodePermutations = 64;
+
+using DistLPRefinerRatingMap = ::kaminpar::RatingMap<EdgeWeight, BlockID>;
+using DistLPRefinerGrowingRatingMap = DynamicRememberingFlatMap<BlockID, EdgeWeight>;
+using DistLPRefinerConcurrentRatingMap = ConcurrentFastResetArray<EdgeWeight, BlockID>;
+using DistLPRefinerWorkspace = ::kaminpar::lp::Workspace<
+    NodeID,
+    BlockID,
+    EdgeWeight,
+    DistLPRefinerRatingMap,
+    DistLPRefinerGrowingRatingMap,
+    DistLPRefinerConcurrentRatingMap,
+    false>;
+using DistLPRefinerOrderWorkspace =
+    iteration::ChunkRandomNodeOrderWorkspace<NodeID, kPermutationSize, kNumberOfNodePermutations>;
+
+} // namespace
+
+template <typename Graph> class LPRefinerImpl final {
   using ClusterID = BlockID;
   using ClusterWeight = BlockWeight;
 
-  static constexpr bool kTrackClusterCount = false;
-  static constexpr bool kUseTwoHopClustering = false;
-  static constexpr bool kUseActualGain = true;
-
-  static constexpr bool kUseActiveSetStrategy = false;
-  static constexpr bool kUseLocalActiveSetStrategy = true;
-};
-
-struct LPRefinerMemoryContext
-    : public LabelPropagationMemoryContext<LPRefinerConfig::RatingMap, LPRefinerConfig::ClusterID> {
-  StaticArray<BlockID> next_partition;
-  StaticArray<EdgeWeight> gains;
-  StaticArray<BlockWeight> block_weights;
-};
-
-template <typename Graph>
-class LPRefinerImpl final
-    : public ChunkRandomdLabelPropagation<LPRefinerImpl<Graph>, LPRefinerConfig, Graph> {
-  using Base = ChunkRandomdLabelPropagation<LPRefinerImpl<Graph>, LPRefinerConfig, Graph>;
-  using Config = LPRefinerConfig;
-
 public:
-  explicit LPRefinerImpl(const Context &ctx, const DistributedPartitionedGraph &p_graph)
+  using ClusterIDType = BlockID;
+  using ClusterWeightType = BlockWeight;
+
+  LPRefinerImpl(
+      const Context &ctx,
+      const DistributedPartitionedGraph &p_graph,
+      DistLPRefinerWorkspace &workspace,
+      DistLPRefinerOrderWorkspace &order_workspace
+  )
       : _lp_ctx(ctx.refinement.lp),
-        _par_ctx(ctx.parallel) {
-    Base::set_max_degree(_lp_ctx.active_high_degree_threshold);
-    Base::preinitialize(p_graph.total_n(), p_graph.n(), p_graph.k());
+        _par_ctx(ctx.parallel),
+        _workspace(workspace),
+        _order_workspace(order_workspace),
+        _selector(*this) {
+    preinitialize(p_graph);
   }
 
-  void setup(LPRefinerMemoryContext &memory_context) {
-    Base::setup(memory_context);
-    _next_partition = std::move(memory_context.next_partition);
-    _gains = std::move(memory_context.gains);
-    _block_weights = std::move(memory_context.block_weights);
-  }
-
-  LPRefinerMemoryContext release() {
-    auto [rating_map_ets, active, favored_clusters] = Base::release();
-    return {
-        {
-            std::move(rating_map_ets),
-            std::move(active),
-            std::move(favored_clusters),
-        },
-        std::move(_next_partition),
-        std::move(_gains),
-        std::move(_block_weights),
-    };
+  void preinitialize(const DistributedPartitionedGraph &p_graph) {
+    _num_nodes = p_graph.total_n();
+    _num_active_nodes = p_graph.n();
+    _num_clusters = p_graph.k();
   }
 
   void
@@ -97,6 +95,7 @@ public:
 
     _p_graph = &p_graph;
     _p_ctx = &p_ctx;
+    _graph = &graph;
 
     TIMED_SCOPE("Allocation") {
       if (_next_partition.size() < graph.n()) {
@@ -108,10 +107,31 @@ public:
       if (_block_weights.size() < p_graph.k()) {
         _block_weights.resize(p_graph.k());
       }
-      Base::allocate();
     };
 
-    Base::initialize(&graph, _p_ctx->k);
+    ::kaminpar::lp::PassConfig<NodeID, BlockID> config{
+        .nodes =
+            {.max_degree = _lp_ctx.active_high_degree_threshold,
+             .max_neighbors = std::numeric_limits<NodeID>::max()},
+        .active_set = {.strategy = ::kaminpar::lp::ActiveSetStrategy::NONE},
+        .selection = {
+            .tie_breaking_strategy = ::kaminpar::lp::TieBreakingStrategy::GEOMETRIC,
+            .use_actual_gain = true
+        },
+    };
+    ::kaminpar::lp::ExecutionConfig execution{
+        .strategy = ::kaminpar::lp::RatingMapStrategy::SINGLE_PHASE
+    };
+    DistLPRefinerNeighborPolicy neighbors(*this);
+    ::kaminpar::lp::LabelPropagationKernel kernel(
+        graph, *this, *this, _selector, neighbors, _workspace, config
+    );
+    kernel.initialize(
+        {.num_nodes = _num_nodes,
+         .num_active_nodes = _num_active_nodes,
+         .num_clusters = _num_clusters}
+    );
+    _order_workspace.clear_order();
 
     IFSTATS(_stats.reset());
     IFSTATS(_stats.cut_before = metrics::edge_cut(*_p_graph));
@@ -123,7 +143,7 @@ public:
 
       for (int chunk = 0; chunk < num_chunks; ++chunk) {
         const auto [from, to] = math::compute_local_range<NodeID>(graph.n(), num_chunks, chunk);
-        num_moved_nodes += process_chunk(from, to);
+        num_moved_nodes += process_chunk(kernel, execution, from, to);
       }
 
       if (num_moved_nodes == 0) {
@@ -136,7 +156,13 @@ public:
   }
 
 private:
-  GlobalNodeID process_chunk(const NodeID from, const NodeID to) {
+  template <typename Core>
+  GlobalNodeID process_chunk(
+      Core &core,
+      const ::kaminpar::lp::ExecutionConfig &execution,
+      const NodeID from,
+      const NodeID to
+  ) {
     TIMER_BARRIER(_graph->communicator());
     DBG0 << "Running label propagation on chunk [" << from << ".." << to << "]";
 
@@ -146,7 +172,14 @@ private:
 
     // Run label propagation
     const NodeID num_moved_nodes = TIMED_SCOPE("Local work") {
-      return Base::perform_iteration(from, to);
+      iteration::ChunkRandomNodeOrder order(
+          *_graph,
+          _order_workspace,
+          iteration::NodeRange<NodeID>{from, to},
+          static_cast<EdgeID>(kMinChunkSize),
+          iteration::bucket_limit_for_max_degree(*_graph, core.config().nodes.max_degree)
+      );
+      return ::kaminpar::lp::run_iteration(order, core, execution).moved_nodes;
     };
 
     const auto global_num_moved_nodes =
@@ -436,19 +469,6 @@ public:
     return false;
   }
 
-  [[nodiscard]] bool accept_cluster(const typename Base::ClusterSelectionState &state) {
-    const bool accept =
-        (state.current_gain > state.best_gain ||
-         (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
-        (state.current_cluster_weight + state.u_weight <
-             max_cluster_weight(state.current_cluster) ||
-         state.current_cluster == state.initial_cluster);
-    if (accept) {
-      _gains[state.u] = state.current_gain;
-    }
-    return accept;
-  }
-
   [[nodiscard]] bool activate_neighbor(const NodeID u) {
     return u < _graph->n();
   }
@@ -468,10 +488,77 @@ private:
   }
 #endif
 
-  using Base::_graph;
+  class DistLPRefinerNeighborPolicy {
+  public:
+    explicit DistLPRefinerNeighborPolicy(LPRefinerImpl &impl) : _impl(impl) {}
+
+    [[nodiscard]] bool accept(const NodeID, const NodeID) const {
+      return true;
+    }
+
+    [[nodiscard]] bool activate(const NodeID u) const {
+      return _impl.activate_neighbor(u);
+    }
+
+    [[nodiscard]] bool skip(const NodeID) const {
+      return false;
+    }
+
+  private:
+    LPRefinerImpl &_impl;
+  };
+
+  class DistLPRefinerSelector {
+  public:
+    static constexpr bool kUseActualGain = true;
+    static constexpr bool kTrackFavoredClusters = false;
+
+    explicit DistLPRefinerSelector(LPRefinerImpl &impl) : _impl(impl) {}
+
+    template <::kaminpar::lp::TieBreakingStrategy TieBreaking, typename Context, typename RatingMap>
+    [[nodiscard]] KAMINPAR_INLINE auto select(
+        const Context &context,
+        RatingMap &map,
+        ScalableVector<BlockID> &tie_breaking_clusters,
+        ScalableVector<BlockID> &tie_breaking_favored_clusters
+    ) {
+      return ::kaminpar::lp::choose_cluster<TieBreaking>(
+          context, map, *this, tie_breaking_clusters, tie_breaking_favored_clusters
+      );
+    }
+
+    [[nodiscard]] KAMINPAR_INLINE BlockWeight cluster_weight(const BlockID cluster) {
+      return _impl.cluster_weight(cluster);
+    }
+
+    template <typename Context, typename Candidate, typename Choice>
+    [[nodiscard]] KAMINPAR_INLINE bool
+    is_feasible(const Context &context, const Candidate &candidate, const Choice &) {
+      return candidate.weight + context.node_weight < _impl.max_cluster_weight(candidate.cluster) ||
+             candidate.cluster == context.initial_cluster;
+    }
+
+    template <typename Context, typename Candidate, typename Choice>
+    [[nodiscard]] KAMINPAR_INLINE ::kaminpar::lp::CandidateComparison
+    compare(const Context &, const Candidate &candidate, const Choice &choice) {
+      return ::kaminpar::lp::compare_by_gain(candidate.gain, choice.best_gain);
+    }
+
+    template <typename Context, typename Choice>
+    KAMINPAR_INLINE void record_choice(const Context &context, const Choice &choice) {
+      _impl._gains[context.node] = choice.best_gain;
+    }
+
+  private:
+    LPRefinerImpl &_impl;
+  };
+
+  const Graph *_graph = nullptr;
 
   const LabelPropagationRefinementContext &_lp_ctx;
   const ParallelContext &_par_ctx;
+  DistLPRefinerWorkspace &_workspace;
+  DistLPRefinerOrderWorkspace &_order_workspace;
 
   DistributedPartitionedGraph *_p_graph = nullptr;
   const PartitionContext *_p_ctx = nullptr;
@@ -481,6 +568,10 @@ private:
   StaticArray<BlockWeight> _block_weights;
 
   lp::RefinerStatistics _stats;
+  DistLPRefinerSelector _selector;
+  NodeID _num_nodes = 0;
+  NodeID _num_active_nodes = 0;
+  BlockID _num_clusters = 0;
 };
 
 //
@@ -489,35 +580,44 @@ private:
 
 class LPRefinerImplWrapper {
 public:
-  LPRefinerImplWrapper(const Context &ctx, DistributedPartitionedGraph &p_graph)
-      : _csr_impl(std::make_unique<LPRefinerImpl<DistributedCSRGraph>>(ctx, p_graph)),
-        _compressed_impl(
-            std::make_unique<LPRefinerImpl<DistributedCompressedGraph>>(ctx, p_graph)
-        ) {}
+  LPRefinerImplWrapper(const Context &ctx, DistributedPartitionedGraph &p_graph) : _ctx(ctx) {
+    p_graph.reified(
+        [&](const DistributedCSRGraph &) { (void)ensure_impl<DistributedCSRGraph>(p_graph); },
+        [&](const DistributedCompressedGraph &) {
+          (void)ensure_impl<DistributedCompressedGraph>(p_graph);
+        }
+    );
+  }
 
   void refine(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
     const auto refine = [&](auto &impl, const auto &graph) {
-      impl.setup(_memory_context);
       impl.refine(graph, p_graph, p_ctx);
-      _memory_context = impl.release();
     };
 
     p_graph.reified(
         [&](const DistributedCSRGraph &csr_graph) {
-          LPRefinerImpl<DistributedCSRGraph> &impl = *_csr_impl;
+          auto &impl = ensure_impl<DistributedCSRGraph>(p_graph);
           refine(impl, csr_graph);
         },
         [&](const DistributedCompressedGraph &compressed_graph) {
-          LPRefinerImpl<DistributedCompressedGraph> &impl = *_compressed_impl;
+          auto &impl = ensure_impl<DistributedCompressedGraph>(p_graph);
           refine(impl, compressed_graph);
         }
     );
   }
 
 private:
-  LPRefinerMemoryContext _memory_context;
-  std::unique_ptr<LPRefinerImpl<DistributedCSRGraph>> _csr_impl;
-  std::unique_ptr<LPRefinerImpl<DistributedCompressedGraph>> _compressed_impl;
+  template <typename ConcreteGraph>
+  LPRefinerImpl<ConcreteGraph> &ensure_impl(DistributedPartitionedGraph &p_graph) {
+    auto &impl = _impl.template ensure<ConcreteGraph>(_ctx, p_graph, _workspace, _order_workspace);
+    impl.preinitialize(p_graph);
+    return impl;
+  }
+
+  const Context &_ctx;
+  graph::AnyDistributedGraphComponent<LPRefinerImpl> _impl;
+  DistLPRefinerWorkspace _workspace;
+  DistLPRefinerOrderWorkspace _order_workspace;
 };
 
 //

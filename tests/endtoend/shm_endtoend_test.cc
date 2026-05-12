@@ -5,10 +5,12 @@
  * @author: Daniel Seemaier
  * @date:   06.10.023
  ******************************************************************************/
+#include <sstream>
 #include <vector>
 
 #include <gmock/gmock.h>
 
+#include "kaminpar-shm/context.h"
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
@@ -24,6 +26,49 @@ static std::vector<NodeID> adjncy = {
 };
 
 } // namespace data
+
+TEST(ShmEndToEndTest, label_propagation_fast_mode_context_roundtrip) {
+  const auto modes = get_lp_fast_modes();
+
+  EXPECT_THAT(
+      modes,
+      testing::UnorderedElementsAre(
+          testing::Pair("off", LabelPropagationFastMode::OFF),
+          testing::Pair("light", LabelPropagationFastMode::LIGHT),
+          testing::Pair("aggressive", LabelPropagationFastMode::AGGRESSIVE)
+      )
+  );
+  EXPECT_EQ(
+      create_default_context().coarsening.clustering.lp.fast_mode, LabelPropagationFastMode::OFF
+  );
+
+  std::stringstream out;
+  out << LabelPropagationFastMode::OFF << " " << LabelPropagationFastMode::LIGHT << " "
+      << LabelPropagationFastMode::AGGRESSIVE;
+  EXPECT_EQ(out.str(), "off light aggressive");
+}
+
+namespace {
+
+EdgeWeight compute_cut(
+    const std::vector<EdgeID> &xadj,
+    const std::vector<NodeID> &adjncy,
+    const std::vector<BlockID> &partition,
+    const BlockID k
+) {
+  EdgeWeight cut = 0;
+  for (NodeID u = 0; u < static_cast<NodeID>(partition.size()); ++u) {
+    EXPECT_LT(partition[u], k);
+    for (EdgeID e = xadj[u]; e < xadj[u + 1]; ++e) {
+      if (partition[u] != partition[adjncy[e]]) {
+        ++cut;
+      }
+    }
+  }
+  return cut / 2;
+}
+
+} // namespace
 
 TEST(ShmEndToEndTest, partitions_empty_unweighted_graph) {
   std::vector<EdgeID> xadj{0};
@@ -183,6 +228,29 @@ TEST(ShmEndToEndTest, partitions_unweighted_walshaw_data_graph) {
 
     // Cut should be the same as before
     EXPECT_EQ(shm.compute_partition(partition), reported_cut);
+  }
+}
+
+TEST(ShmEndToEndTest, partitions_unweighted_walshaw_data_graph_with_lp_fast_modes) {
+  const auto &xadj = data::xadj;
+  const auto &adjncy = data::adjncy;
+  const NodeID n = xadj.size() - 1;
+
+  for (const LabelPropagationFastMode mode :
+       {LabelPropagationFastMode::LIGHT, LabelPropagationFastMode::AGGRESSIVE}) {
+    Context ctx = create_default_context();
+    ctx.coarsening.clustering.lp.fast_mode = mode;
+
+    std::vector<BlockID> partition(n);
+    KaMinPar::reseed(0);
+    KaMinPar shm(1, ctx); // 1 thread: deterministic
+    shm.set_output_level(OutputLevel::QUIET);
+    shm.copy_graph(xadj, adjncy);
+    shm.set_k(16);
+    shm.set_uniform_max_block_weights(0.03);
+
+    const EdgeWeight reported_cut = shm.compute_partition(partition);
+    EXPECT_EQ(reported_cut, compute_cut(xadj, adjncy, partition, 16));
   }
 }
 

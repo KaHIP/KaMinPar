@@ -104,6 +104,23 @@ template <template <typename> typename Component> struct AnyGraphComponent {
   }
 
   /*!
+   * Returns the active `Component<ConcretizedGraph>` object, constructing it if the active graph
+   * type differs.
+   *
+   * @param args Forwarded to the `Component` ctor when construction is needed.
+   * @tparam ConcretizedGraph The concretized graph class.
+   *
+   * @return Reference to the active object.
+   */
+  template <typename ConcretizedGraph, typename... Args>
+  Component<ConcretizedGraph> &ensure(Args &&...args) {
+    if (!std::holds_alternative<Component<ConcretizedGraph>>(obj)) {
+      return emplace<ConcretizedGraph>(std::forward<Args>(args)...);
+    }
+    return get<ConcretizedGraph>();
+  }
+
+  /*!
    * Returns a reference to the emplaced object. Must be compatible to the previous `emplace()`
    * call.
    *

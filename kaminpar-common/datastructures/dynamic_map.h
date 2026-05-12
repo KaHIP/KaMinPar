@@ -8,6 +8,7 @@
 
 #include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/parallel/tbb_malloc.h"
+#include "kaminpar-common/ranges.h"
 
 namespace kaminpar {
 

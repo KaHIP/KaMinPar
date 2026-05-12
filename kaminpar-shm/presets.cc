@@ -150,6 +150,7 @@ Context create_default_context() {
                               .isolated_nodes_strategy =
                                   IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP,
                               .tie_breaking_strategy = TieBreakingStrategy::UNIFORM,
+                              .fast_mode = LabelPropagationFastMode::OFF,
                           },
 
                       .cluster_weight_limit = ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
