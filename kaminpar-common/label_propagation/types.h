@@ -37,6 +37,30 @@ enum class CandidateComparison {
   BETTER,
 };
 
+template <typename Implementation>
+[[nodiscard]] RatingMapStrategy map_rating_map_strategy(const Implementation implementation) {
+  switch (implementation) {
+  case Implementation::SINGLE_PHASE:
+    return RatingMapStrategy::SINGLE_PHASE;
+  case Implementation::TWO_PHASE:
+    return RatingMapStrategy::TWO_PHASE;
+  case Implementation::GROWING_HASH_TABLES:
+    return RatingMapStrategy::GROWING_HASH_TABLES;
+  }
+  __builtin_unreachable();
+}
+
+template <typename Strategy>
+[[nodiscard]] TieBreakingStrategy map_tie_breaking_strategy(const Strategy strategy) {
+  switch (strategy) {
+  case Strategy::GEOMETRIC:
+    return TieBreakingStrategy::GEOMETRIC;
+  case Strategy::UNIFORM:
+    return TieBreakingStrategy::UNIFORM;
+  }
+  __builtin_unreachable();
+}
+
 template <typename NodeID, typename ClusterID> struct Initialization {
   NodeID num_nodes;
   NodeID num_active_nodes;
@@ -151,7 +175,7 @@ template <typename NodeID, typename ClusterID, typename EdgeWeight> struct PassR
   EdgeWeight expected_total_gain = 0;
 };
 
-template <typename ClusterID, typename EdgeWeight> struct LocalClusterSelectionState {
+template <typename ClusterID, typename EdgeWeight> struct alignas(64) LocalClusterSelectionState {
   EdgeWeight best_gain;
   ClusterID best_cluster;
   EdgeWeight favored_cluster_gain;

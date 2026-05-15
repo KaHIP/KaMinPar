@@ -92,8 +92,6 @@ public:
     reset_state();
   }
 
-  void clear_iteration_order_cache() {}
-
   [[nodiscard]] KAMINPAR_INLINE const Graph &graph() const {
     return _graph;
   }

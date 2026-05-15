@@ -44,28 +44,6 @@ using LPClusterWorkspace = lp::Workspace<
 using LPClusterOrderWorkspace =
     iteration::ChunkRandomNodeOrderWorkspace<NodeID, kPermutationSize, kNumberOfNodePermutations>;
 
-lp::RatingMapStrategy map_rating_map_strategy(const LabelPropagationImplementation impl) {
-  switch (impl) {
-  case LabelPropagationImplementation::SINGLE_PHASE:
-    return lp::RatingMapStrategy::SINGLE_PHASE;
-  case LabelPropagationImplementation::TWO_PHASE:
-    return lp::RatingMapStrategy::TWO_PHASE;
-  case LabelPropagationImplementation::GROWING_HASH_TABLES:
-    return lp::RatingMapStrategy::GROWING_HASH_TABLES;
-  }
-  __builtin_unreachable();
-}
-
-lp::TieBreakingStrategy map_tie_breaking_strategy(const TieBreakingStrategy strategy) {
-  switch (strategy) {
-  case TieBreakingStrategy::GEOMETRIC:
-    return lp::TieBreakingStrategy::GEOMETRIC;
-  case TieBreakingStrategy::UNIFORM:
-    return lp::TieBreakingStrategy::UNIFORM;
-  }
-  __builtin_unreachable();
-}
-
 class LPClusterWeights : public lp::RelaxedClusterWeightVector<NodeID, NodeWeight> {
 public:
   KAMINPAR_INLINE void set_max_cluster_weight(const NodeWeight max_cluster_weight) {
@@ -290,13 +268,13 @@ private:
              .max_neighbors = _lp_ctx.max_num_neighbors},
         .active_set = {.strategy = lp::ActiveSetStrategy::GLOBAL},
         .selection =
-            {.tie_breaking_strategy = map_tie_breaking_strategy(_lp_ctx.tie_breaking_strategy),
+            {.tie_breaking_strategy = lp::map_tie_breaking_strategy(_lp_ctx.tie_breaking_strategy),
              .use_actual_gain = false,
              .track_favored_clusters = true},
         .stopping = {.desired_clusters = _desired_num_clusters, .track_cluster_count = true},
     };
     lp::ExecutionConfig execution{
-        .strategy = map_rating_map_strategy(_lp_ctx.impl),
+        .strategy = lp::map_rating_map_strategy(_lp_ctx.impl),
         .large_map_threshold = kRatingMapThreshold,
         .relabel_before_second_phase = _relabel_before_second_phase,
     };

@@ -42,28 +42,6 @@ using LPRefinerWorkspace = lp::Workspace<
 using LPRefinerOrderWorkspace =
     iteration::ChunkRandomNodeOrderWorkspace<NodeID, kPermutationSize, kNumberOfNodePermutations>;
 
-lp::RatingMapStrategy map_rating_map_strategy(const LabelPropagationImplementation impl) {
-  switch (impl) {
-  case LabelPropagationImplementation::SINGLE_PHASE:
-    return lp::RatingMapStrategy::SINGLE_PHASE;
-  case LabelPropagationImplementation::TWO_PHASE:
-    return lp::RatingMapStrategy::TWO_PHASE;
-  case LabelPropagationImplementation::GROWING_HASH_TABLES:
-    return lp::RatingMapStrategy::GROWING_HASH_TABLES;
-  }
-  __builtin_unreachable();
-}
-
-lp::TieBreakingStrategy map_tie_breaking_strategy(const TieBreakingStrategy strategy) {
-  switch (strategy) {
-  case TieBreakingStrategy::GEOMETRIC:
-    return lp::TieBreakingStrategy::GEOMETRIC;
-  case TieBreakingStrategy::UNIFORM:
-    return lp::TieBreakingStrategy::UNIFORM;
-  }
-  __builtin_unreachable();
-}
-
 class PartitionedGraphLabelStore {
 public:
   using ClusterIDType = BlockID;
@@ -280,11 +258,11 @@ private:
              .max_neighbors = _r_ctx.lp.max_num_neighbors},
         .active_set = {.strategy = lp::ActiveSetStrategy::GLOBAL},
         .selection = {
-            .tie_breaking_strategy = map_tie_breaking_strategy(_r_ctx.lp.tie_breaking_strategy)
+            .tie_breaking_strategy = lp::map_tie_breaking_strategy(_r_ctx.lp.tie_breaking_strategy)
         },
     };
     lp::ExecutionConfig execution{
-        .strategy = map_rating_map_strategy(_r_ctx.lp.impl),
+        .strategy = lp::map_rating_map_strategy(_r_ctx.lp.impl),
         .large_map_threshold = kRatingMapThreshold,
     };
     lp::LabelPropagationKernel kernel(
@@ -329,12 +307,6 @@ private:
 class LPRefinerImplWrapper {
 public:
   LPRefinerImplWrapper(const Context &ctx) : _ctx(ctx) {}
-
-  void initialize(const PartitionedGraph &p_graph) {
-    // reified(p_graph, [&]<template Graph>(const Graph &graph) {
-    //   ensure_impl<Graph>().initialize(&graph);
-    // });
-  }
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
     SCOPED_TIMER("Label Propagation");
@@ -389,7 +361,7 @@ std::string LabelPropagationRefiner::name() const {
 }
 
 void LabelPropagationRefiner::initialize(const PartitionedGraph &p_graph) {
-  _impl_wrapper->initialize(p_graph);
+  (void)p_graph;
 }
 
 bool LabelPropagationRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {

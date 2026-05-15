@@ -47,7 +47,9 @@ template <typename Graph, typename Degree>
   if (max_degree == 0) {
     return 0;
   }
-  return std::min<std::size_t>(math::floor_log2(max_degree), graph.number_of_buckets());
+  const std::size_t last_included_bucket =
+      max_degree == 1 ? 0 : static_cast<std::size_t>(math::floor_log2(max_degree - 1)) + 1;
+  return std::min<std::size_t>(last_included_bucket + 1, graph.number_of_buckets());
 }
 
 template <typename NodeID> class NaturalNodeOrder {
@@ -483,8 +485,10 @@ private:
               hit[u - from] = true;
             }
           }
-          for (NodeID u = from; u < to; ++u) {
-            KASSERT(hit[u - from], "");
+          if (capped_max_bucket() == _graph.number_of_buckets()) {
+            for (NodeID u = from; u < to; ++u) {
+              KASSERT(hit[u - from], "");
+            }
           }
           return true;
         }(),

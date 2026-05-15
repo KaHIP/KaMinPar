@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <numeric>
 #include <vector>
 
@@ -68,6 +69,10 @@ std::vector<std::uint32_t> expected_range(const std::uint32_t from, const std::u
 
 BucketedTestGraph make_bucketed_graph_with_isolated_nodes() {
   return BucketedTestGraph{{0, 0, 3, 0, 2, 0, 1, 4, 0, 0, 2, 0}, {0, 5, 8}};
+}
+
+BucketedTestGraph make_degree_bucketed_graph() {
+  return BucketedTestGraph{{0, 1, 2, 3, 4, 5, 8}, {0, 1, 2, 4, 6}};
 }
 
 } // namespace
@@ -142,6 +147,37 @@ TEST(IterationTest, chunk_random_order_respects_bucket_limit) {
   order.for_each([&](const std::uint32_t node) { nodes.push_back(node); });
 
   EXPECT_THAT(sorted(nodes), expected_range(0, 8));
+}
+
+TEST(IterationTest, bucket_limit_for_max_degree_includes_all_lower_degree_buckets) {
+  const auto graph = make_degree_bucketed_graph();
+
+  EXPECT_THAT(iteration::bucket_limit_for_max_degree(graph, 0u), Eq(0));
+  EXPECT_THAT(iteration::bucket_limit_for_max_degree(graph, 1u), Eq(1));
+  EXPECT_THAT(iteration::bucket_limit_for_max_degree(graph, 2u), Eq(2));
+  EXPECT_THAT(iteration::bucket_limit_for_max_degree(graph, 4u), Eq(3));
+  EXPECT_THAT(iteration::bucket_limit_for_max_degree(graph, 6u), Eq(4));
+  EXPECT_THAT(
+      iteration::bucket_limit_for_max_degree(graph, std::numeric_limits<std::uint32_t>::max()),
+      Eq(graph.number_of_buckets())
+  );
+}
+
+TEST(IterationTest, chunk_random_order_with_max_degree_limit_covers_lower_degree_buckets) {
+  const auto graph = make_degree_bucketed_graph();
+  iteration::ChunkRandomNodeOrderWorkspace<std::uint32_t, 4, 4> workspace;
+  iteration::ChunkRandomNodeOrder order(
+      graph,
+      workspace,
+      iteration::NodeRange<std::uint32_t>{0, graph.n()},
+      2,
+      iteration::bucket_limit_for_max_degree(graph, 4u)
+  );
+
+  std::vector<std::uint32_t> nodes;
+  order.for_each([&](const std::uint32_t node) { nodes.push_back(node); });
+
+  EXPECT_THAT(sorted(nodes), expected_range(0, 4));
 }
 
 TEST(IterationTest, chunk_random_workspace_rebuilds_when_bucket_limit_changes) {

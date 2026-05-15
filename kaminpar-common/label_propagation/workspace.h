@@ -12,6 +12,7 @@
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/task_arena.h>
 
+#include "kaminpar-common/datastructures/cache_aligned_vector.h"
 #include "kaminpar-common/datastructures/concurrent_fast_reset_array.h"
 #include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/datastructures/scalable_vector.h"
@@ -58,7 +59,7 @@ struct Workspace {
   struct SelectionBuffers {
     tbb::enumerable_thread_specific<ScalableVector<ClusterID>> tie_breaking_clusters;
     tbb::enumerable_thread_specific<ScalableVector<ClusterID>> tie_breaking_favored_clusters;
-    std::vector<LocalClusterSelectionState<ClusterID, EdgeWeight>> local_states;
+    CacheAlignedVector<LocalClusterSelectionState<ClusterID, EdgeWeight>> local_states;
 
     void free() {
       tie_breaking_clusters.clear();
