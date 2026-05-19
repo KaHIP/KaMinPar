@@ -17,6 +17,7 @@
 
 #include "kaminpar-shm/label_propagation.h"
 #include "kaminpar-shm/metrics.h"
+#include "kaminpar-shm/refinement/balancer/multi_queue_overload_balancer.h"
 #include "kaminpar-shm/refinement/balancer/overload_balancer.h"
 
 #include "kaminpar-common/console_io.h"
@@ -649,7 +650,7 @@ private:
   tbb::enumerable_thread_specific<RatingMap> _rating_maps;
   tbb::enumerable_thread_specific<std::vector<BlockID>> _tie_breaking_blocks;
 
-  BlockParallelOverloadBalancer _balancer;
+  MultiQueueOverloadBalancer _balancer;
 };
 
 class UnconstrainedLPRefinerImplWrapper {
