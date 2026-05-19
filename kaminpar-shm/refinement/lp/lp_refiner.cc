@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstdint>
 #include <limits>
 #include <utility>
 #include <vector>
@@ -365,6 +366,7 @@ private:
 
 template <typename Graph> class UnconstrainedLPRefinerImpl {
   using RatingMap = ::kaminpar::RatingMap<EdgeWeight, NodeID, rm_backyard::SparseMap>;
+  using Gain = std::int64_t;
 
   static constexpr std::size_t kInfiniteIterations = std::numeric_limits<std::size_t>::max();
 
@@ -385,11 +387,11 @@ public:
     allocate(p_graph);
 
     _balancer.initialize(p_graph);
-    _balancer.track_moves([&](const NodeID u, const BlockID /* from */, const BlockID /* to */) {
-      mark_moved_and_activate_neighbors(u);
+    _balancer.track_moves([&](const NodeID u, const BlockID from, const BlockID /* to */) {
+      record_moved_node(u, from);
     });
 
-    EdgeWeight cut_before = metrics::edge_cut(p_graph);
+    Gain cut_before = compute_edge_cut(p_graph);
     NodeID active_nodes = initialize_active_nodes(p_graph);
     bool found_improvement = false;
 
@@ -402,10 +404,9 @@ public:
         break;
       }
 
-      save_partition(p_graph);
-      reset_round_state();
+      clear_moved_nodes();
 
-      const NodeID num_moves = perform_round(p_graph);
+      const auto [num_moves, improvement] = perform_round(p_graph);
       if (num_moves == 0) {
         break;
       }
@@ -416,17 +417,19 @@ public:
         };
       }
 
-      const EdgeWeight cut_after = metrics::edge_cut(p_graph);
-      if (metrics::total_overload(p_graph, p_ctx) > 0 || cut_after >= cut_before) {
+      if (metrics::total_overload(p_graph, p_ctx) > 0 || improvement <= 0) {
         restore_partition(p_graph);
         break;
       }
 
-      const EdgeWeight improvement = cut_before - cut_after;
-      const double relative_improvement = cut_before == 0 ? 0.0 : 1.0 * improvement / cut_before;
+      activate_moved_nodes();
+
+      const Gain previous_cut = cut_before;
+      cut_before = std::max<Gain>(0, cut_before - improvement);
+      const double relative_improvement =
+          previous_cut == 0 ? 0.0 : 1.0 * improvement / previous_cut;
 
       found_improvement = true;
-      cut_before = cut_after;
       active_nodes = update_active_nodes();
 
       if (relative_improvement < _r_ctx.lp.unconstrained_min_improvement_factor) {
@@ -454,6 +457,7 @@ private:
     _rating_maps =
         tbb::enumerable_thread_specific<RatingMap>([&] { return RatingMap(p_graph.k()); });
     _tie_breaking_blocks = tbb::enumerable_thread_specific<std::vector<BlockID>>();
+    _round_moved_nodes = tbb::enumerable_thread_specific<std::vector<NodeID>>();
   }
 
   [[nodiscard]] bool should_handle_node(const NodeID u) const {
@@ -500,19 +504,31 @@ private:
     return active_nodes.load(std::memory_order_relaxed);
   }
 
-  void save_partition(const PartitionedGraph &p_graph) {
-    _graph->pfor_nodes([&](const NodeID u) { _round_start_partition[u] = p_graph.block(u); });
-  }
+  Gain compute_edge_cut(const PartitionedGraph &p_graph) {
+    tbb::enumerable_thread_specific<Gain> cut_ets;
 
-  void reset_round_state() {
     _graph->pfor_nodes([&](const NodeID u) {
-      _next_active[u] = 0;
-      _moved[u] = 0;
+      auto &cut = cut_ets.local();
+      const BlockID block_u = p_graph.block(u);
+      adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+        cut += (block_u != p_graph.block(v)) ? weight : 0;
+      });
     });
+
+    const Gain cut = cut_ets.combine(std::plus{});
+    KASSERT(cut % 2 == 0, "inconsistent cut", assert::always);
+    return cut / 2;
   }
 
-  NodeID perform_round(PartitionedGraph &p_graph) {
+  void clear_moved_nodes() {
+    for (auto &nodes : _round_moved_nodes) {
+      nodes.clear();
+    }
+  }
+
+  std::pair<NodeID, Gain> perform_round(PartitionedGraph &p_graph) {
     std::atomic<NodeID> num_moves = 0;
+    std::atomic<Gain> improvement = 0;
 
     _graph->pfor_nodes([&](const NodeID u) {
       if (!_active[u] || !should_handle_node(u)) {
@@ -525,12 +541,14 @@ private:
         return;
       }
 
+      const BlockID from = p_graph.block(u);
       p_graph.set_block(u, to);
-      mark_moved_and_activate_neighbors(u);
+      record_moved_node(u, from);
       num_moves.fetch_add(1, std::memory_order_relaxed);
+      improvement.fetch_add(gain, std::memory_order_relaxed);
     });
 
-    return num_moves.load(std::memory_order_relaxed);
+    return {num_moves.load(std::memory_order_relaxed), improvement.load(std::memory_order_relaxed)};
   }
 
   std::pair<BlockID, EdgeWeight> find_best_target(
@@ -598,14 +616,27 @@ private:
     return {best_block, best_gain};
   }
 
-  void mark_moved_and_activate_neighbors(const NodeID u) {
-    __atomic_store_n(&_moved[u], 1, __ATOMIC_RELAXED);
+  void record_moved_node(const NodeID u, const BlockID from) {
+    std::uint8_t expected = 0;
+    if (__atomic_compare_exchange_n(
+            &_moved[u], &expected, 1, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED
+        )) {
+      _round_start_partition[u] = from;
+      _round_moved_nodes.local().push_back(u);
+    }
+  }
 
-    adjacent_nodes(u, [&](const NodeID v, const EdgeWeight) {
-      if (accept_neighbor(u, v)) {
-        __atomic_store_n(&_next_active[v], 1, __ATOMIC_RELAXED);
+  void activate_moved_nodes() {
+    for (const auto &nodes : _round_moved_nodes) {
+      for (const NodeID u : nodes) {
+        __atomic_store_n(&_next_active[u], 1, __ATOMIC_RELAXED);
+        adjacent_nodes(u, [&](const NodeID v, const EdgeWeight) {
+          if (accept_neighbor(u, v)) {
+            __atomic_store_n(&_next_active[v], 1, __ATOMIC_RELAXED);
+          }
+        });
       }
-    });
+    }
   }
 
   NodeID update_active_nodes() {
@@ -613,7 +644,6 @@ private:
 
     _graph->pfor_nodes([&](const NodeID u) {
       const std::uint8_t active = should_handle_node(u) &&
-                                  !__atomic_load_n(&_moved[u], __ATOMIC_RELAXED) &&
                                   __atomic_load_n(&_next_active[u], __ATOMIC_RELAXED);
 
       _active[u] = active;
@@ -629,10 +659,14 @@ private:
   }
 
   void restore_partition(PartitionedGraph &p_graph) {
-    _graph->pfor_nodes([&](const NodeID u) {
-      const BlockID block = _round_start_partition[u];
-      if (p_graph.block(u) != block) {
-        p_graph.set_block(u, block);
+    tbb::parallel_for(_round_moved_nodes.range(), [&](const auto &range) {
+      for (const auto &nodes : range) {
+        for (const NodeID u : nodes) {
+          const BlockID block = _round_start_partition[u];
+          if (p_graph.block(u) != block) {
+            p_graph.set_block(u, block);
+          }
+        }
       }
     });
   }
@@ -649,6 +683,7 @@ private:
 
   tbb::enumerable_thread_specific<RatingMap> _rating_maps;
   tbb::enumerable_thread_specific<std::vector<BlockID>> _tie_breaking_blocks;
+  tbb::enumerable_thread_specific<std::vector<NodeID>> _round_moved_nodes;
 
   MultiQueueOverloadBalancer _balancer;
 };
