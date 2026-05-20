@@ -1,9 +1,9 @@
 /*******************************************************************************
- * Parallel k-way FM refinement algorithm.
+ * Parallel unconstrained k-way FM refinement algorithm.
  *
- * @file:   fm_refiner.h
+ * @file:   unconstrained_fm_refiner.h
  * @author: Daniel Seemaier
- * @date:   14.03.2023
+ * @date:   20.05.2026
  ******************************************************************************/
 #pragma once
 
@@ -12,18 +12,18 @@
 
 namespace kaminpar::shm {
 
-class FMRefiner : public Refiner {
+class UnconstrainedFMRefiner : public Refiner {
 public:
-  FMRefiner(const Context &ctx);
+  UnconstrainedFMRefiner(const Context &ctx);
 
   // Note: requires dtor definition in the *.cc file due to the std::unique_ptr<> member.
-  ~FMRefiner() override;
+  ~UnconstrainedFMRefiner() override;
 
-  FMRefiner(const FMRefiner &) = delete;
-  FMRefiner &operator=(const FMRefiner &) = delete;
+  UnconstrainedFMRefiner(const UnconstrainedFMRefiner &) = delete;
+  UnconstrainedFMRefiner &operator=(const UnconstrainedFMRefiner &) = delete;
 
-  FMRefiner(FMRefiner &&) noexcept = default;
-  FMRefiner &operator=(FMRefiner &&) = delete;
+  UnconstrainedFMRefiner(UnconstrainedFMRefiner &&) noexcept = default;
+  UnconstrainedFMRefiner &operator=(UnconstrainedFMRefiner &&) = delete;
 
   [[nodiscard]] std::string name() const final;
 

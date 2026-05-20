@@ -32,8 +32,10 @@
 #include "kaminpar-shm/refinement/balancer/underload_balancer.h"
 #include "kaminpar-shm/refinement/flow/twoway_flow_refiner.h"
 #include "kaminpar-shm/refinement/fm/fm_refiner.h"
+#include "kaminpar-shm/refinement/fm/unconstrained_fm_refiner.h"
 #include "kaminpar-shm/refinement/jet/jet_refiner.h"
 #include "kaminpar-shm/refinement/lp/lp_refiner.h"
+#include "kaminpar-shm/refinement/lp/unconstrained_lp_refiner.h"
 #include "kaminpar-shm/refinement/multi_refiner.h"
 
 namespace kaminpar::shm::factory {
