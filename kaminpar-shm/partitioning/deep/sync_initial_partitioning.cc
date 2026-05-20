@@ -116,6 +116,9 @@ SyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionCon
       small_ctx.partition.n = p_graph.graph().n();
       small_ctx.partition.m = p_graph.graph().m();
       small_ctx.parallel.num_threads = static_cast<int>(num_current_threads);
+      small_ctx.refinement.kway_fm.minimal_parallelism = std::max(
+          small_ctx.refinement.kway_fm.minimal_parallelism, static_cast<int>(num_current_threads)
+      );
 
       auto refiner = factory::create_refiner(small_ctx);
       refiner->initialize(p_graph);
