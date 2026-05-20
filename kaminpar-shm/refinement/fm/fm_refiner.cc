@@ -1140,7 +1140,8 @@ public:
         // The workers attempt to extract seed nodes from the border nodes
         // that are still available, continuing this process until there are
         // no more border nodes
-        while (_shared->border_nodes.has_more()) {
+        while (!_shared->abort.load(std::memory_order_relaxed) &&
+               _shared->border_nodes.has_more()) {
           if (_fm_ctx.dbg_report_progress) {
             LLOG << " " << _shared->border_nodes.remaining();
           }
