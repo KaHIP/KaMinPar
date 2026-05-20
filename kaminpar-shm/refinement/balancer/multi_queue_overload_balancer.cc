@@ -276,6 +276,10 @@ bool MultiQueueOverloadBalancer::find_next_move(
     if (!try_lock_pq(best_pq)) {
       continue;
     }
+    if (_pqs[best_pq].empty()) {
+      unlock_pq(best_pq);
+      continue;
+    }
     if (locked_extract_candidate(best_pq, graph, gain_cache, move)) {
       return true;
     }
