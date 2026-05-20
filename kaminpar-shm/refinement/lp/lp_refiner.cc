@@ -365,8 +365,8 @@ private:
 };
 
 template <typename Graph> class UnconstrainedLPRefinerImpl {
-  using RatingMap = ::kaminpar::RatingMap<EdgeWeight, NodeID, rm_backyard::SparseMap>;
   using Gain = std::int64_t;
+  using RatingMap = ::kaminpar::RatingMap<Gain, NodeID, rm_backyard::SparseMap>;
 
   static constexpr std::size_t kInfiniteIterations = std::numeric_limits<std::size_t>::max();
 
@@ -535,23 +535,29 @@ private:
         return;
       }
 
-      const auto [to, gain] =
+      const auto [to, expected_gain] =
           find_best_target(p_graph, u, _rating_maps.local(), _tie_breaking_blocks.local());
-      if (gain <= 0 || to == p_graph.block(u)) {
+      if (expected_gain <= 0 || to == p_graph.block(u)) {
         return;
       }
 
       const BlockID from = p_graph.block(u);
       p_graph.set_block(u, to);
+      const Gain actual_gain = compute_move_gain(p_graph, u, from, to);
+      if (actual_gain <= 0) {
+        p_graph.set_block(u, from);
+        return;
+      }
+
       record_moved_node(u, from);
       num_moves.fetch_add(1, std::memory_order_relaxed);
-      improvement.fetch_add(gain, std::memory_order_relaxed);
+      improvement.fetch_add(actual_gain, std::memory_order_relaxed);
     });
 
     return {num_moves.load(std::memory_order_relaxed), improvement.load(std::memory_order_relaxed)};
   }
 
-  std::pair<BlockID, EdgeWeight> find_best_target(
+  std::pair<BlockID, Gain> find_best_target(
       const PartitionedGraph &p_graph,
       const NodeID u,
       RatingMap &map,
@@ -564,7 +570,7 @@ private:
   }
 
   template <typename Map>
-  std::pair<BlockID, EdgeWeight> find_best_target(
+  std::pair<BlockID, Gain> find_best_target(
       const PartitionedGraph &p_graph,
       const NodeID u,
       Map &map,
@@ -578,9 +584,9 @@ private:
       }
     });
 
-    const EdgeWeight gain_delta = map[from];
+    const Gain gain_delta = map[from];
     BlockID best_block = from;
-    EdgeWeight best_gain = 0;
+    Gain best_gain = 0;
 
     const bool uniform_tie_breaking =
         _r_ctx.lp.tie_breaking_strategy == TieBreakingStrategy::UNIFORM;
@@ -593,7 +599,7 @@ private:
         continue;
       }
 
-      const EdgeWeight gain = rating - gain_delta;
+      const Gain gain = rating - gain_delta;
       if (gain > best_gain) {
         best_block = block;
         best_gain = gain;
@@ -614,6 +620,19 @@ private:
 
     map.clear();
     return {best_block, best_gain};
+  }
+
+  Gain compute_move_gain(
+      const PartitionedGraph &p_graph, const NodeID u, const BlockID from, const BlockID to
+  ) const {
+    Gain conn_from = 0;
+    Gain conn_to = 0;
+    adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+      const BlockID block = p_graph.block(v);
+      conn_from += block == from ? weight : 0;
+      conn_to += block == to ? weight : 0;
+    });
+    return conn_to - conn_from;
   }
 
   void record_moved_node(const NodeID u, const BlockID from) {
