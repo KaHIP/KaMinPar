@@ -351,11 +351,12 @@ bool LHopRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ct
       LOG << "START SINGLE-BATCH";
       while(moving) {
         moving = false;
+        std::vector<std::vector<LHopTable>> updateLHopModel(p_graph.n());
         for(LHopNodeGain& node : nodeGains) {
           if(p_graph.move(node.node, node.src, node.dest, p_ctx.max_block_weight(node.dest))) {
             //LOG << "Moved Node: " << node.node;
             movedANode = true;
-            std::vector<std::vector<LHopTable>> updateLHopModel(p_graph.n());
+            updateLHopModel.assign(p_graph.n(), {});
             lhopPathFinder(p_graph, updateLHopModel, {node.node});
 
             for (NodeID updateNode = 0; updateNode < _graph->n(); ++updateNode) {
@@ -383,8 +384,12 @@ bool LHopRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ct
     case 3: //Move all
       LOG << "START ALL-BATCH 10";
       for(int i = 0; i < 10; i++) {
+        moving = false;
         for(LHopNodeGain& node : nodeGains) {
-          (void)p_graph.move(node.node, node.src, node.dest, p_ctx.max_block_weight(node.dest));
+          moving = moving || p_graph.move(node.node, node.src, node.dest, p_ctx.max_block_weight(node.dest));
+        }
+        if(!moving) {
+          break;
         }
         lhopModel.assign(p_graph.n(), {});
         nodeGains.clear();
