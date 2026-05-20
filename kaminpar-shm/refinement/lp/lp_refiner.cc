@@ -387,7 +387,9 @@ public:
     allocate(p_graph);
 
     _balancer.initialize(p_graph);
-    _balancer.track_moves([&](const NodeID u, const BlockID from, const BlockID /* to */) {
+    _balancer.track_moves([&](const NodeID u, const BlockID from, const BlockID to) {
+      const Gain gain = compute_move_gain(p_graph, u, from, to);
+      _rebalancing_gain.fetch_add(gain, std::memory_order_relaxed);
       record_moved_node(u, from);
     });
 
@@ -405,8 +407,9 @@ public:
       }
 
       clear_moved_nodes();
+      _rebalancing_gain.store(0, std::memory_order_relaxed);
 
-      const NodeID num_moves = perform_round(p_graph).first;
+      const auto [num_moves, lp_improvement] = perform_round(p_graph);
       if (num_moves == 0) {
         break;
       }
@@ -417,8 +420,9 @@ public:
         };
       }
 
-      const Gain cut_after = compute_edge_cut(p_graph);
-      if (metrics::total_overload(p_graph, p_ctx) > 0 || cut_after >= cut_before) {
+      const Gain improvement =
+          lp_improvement + _rebalancing_gain.load(std::memory_order_relaxed);
+      if (metrics::total_overload(p_graph, p_ctx) > 0 || improvement <= 0) {
         restore_partition(p_graph);
         break;
       }
@@ -426,8 +430,7 @@ public:
       activate_moved_nodes();
 
       const Gain previous_cut = cut_before;
-      cut_before = cut_after;
-      const Gain improvement = previous_cut - cut_after;
+      cut_before = std::max<Gain>(0, cut_before - improvement);
       const double relative_improvement =
           previous_cut == 0 ? 0.0 : 1.0 * improvement / previous_cut;
 
@@ -705,6 +708,7 @@ private:
   tbb::enumerable_thread_specific<RatingMap> _rating_maps;
   tbb::enumerable_thread_specific<std::vector<BlockID>> _tie_breaking_blocks;
   tbb::enumerable_thread_specific<std::vector<NodeID>> _round_moved_nodes;
+  std::atomic<Gain> _rebalancing_gain = 0;
 
   MultiQueueOverloadBalancer _balancer;
 };

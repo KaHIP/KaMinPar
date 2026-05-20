@@ -34,6 +34,17 @@ namespace {
 
 SET_DEBUG(false);
 
+template <typename GainCache> struct IsOnTheFlyGainCache : std::false_type {};
+
+template <
+    typename Graph,
+    bool iterate_nonadjacent_blocks,
+    bool iterate_exact_gains,
+    bool iterate_source_block>
+struct IsOnTheFlyGainCache<
+    OnTheFlyGainCache<Graph, iterate_nonadjacent_blocks, iterate_exact_gains, iterate_source_block>>
+    : std::true_type {};
+
 } // namespace
 
 MultiQueueOverloadBalancer::MultiQueueOverloadBalancer(const Context &ctx) : _ctx(ctx) {}
@@ -201,7 +212,9 @@ void MultiQueueOverloadBalancer::rebalance_worker(
     }
 
     if (move_node_if_possible(move.node, move.from, move.to)) {
-      update_neighbors(graph, gain_cache, move);
+      if constexpr (!IsOnTheFlyGainCache<std::remove_cvref_t<GainCacheT>>::value) {
+        update_neighbors(graph, gain_cache, move);
+      }
       if (_p_graph->block_weight(move.from) <= _p_ctx->max_block_weight(move.from)) {
         deactivate_overloaded_block(move.from);
       }
@@ -335,7 +348,7 @@ void MultiQueueOverloadBalancer::update_neighbors(
     }
 
     auto [neighbor_to, neighbor_gain] = compute_best_gain_of_candidates(
-        graph, neighbor, neighbor_from, {_node_target[neighbor], move.from, move.to}
+        graph, gain_cache, neighbor, neighbor_from, {_node_target[neighbor], move.from, move.to}
     );
     if (neighbor_to == kInvalidBlockID) {
       std::tie(neighbor_to, neighbor_gain) =
@@ -397,6 +410,7 @@ std::pair<BlockID, float> MultiQueueOverloadBalancer::compute_best_gain(
 
 std::pair<BlockID, float> MultiQueueOverloadBalancer::compute_best_gain_of_candidates(
     const auto &graph,
+    const auto &gain_cache,
     const NodeID node,
     const BlockID from,
     const std::array<BlockID, 3> candidates
@@ -405,22 +419,6 @@ std::pair<BlockID, float> MultiQueueOverloadBalancer::compute_best_gain_of_candi
   if (weight == 0) {
     return {kInvalidBlockID, std::numeric_limits<float>::lowest()};
   }
-
-  std::array<EdgeWeight, 3> conn = {0, 0, 0};
-  EdgeWeight conn_from = 0;
-
-  graph.adjacent_nodes(node, [&](const NodeID neighbor, const EdgeWeight edge_weight) {
-    const BlockID block = _p_graph->block(neighbor);
-    if (block == from) {
-      conn_from += edge_weight;
-    }
-
-    for (std::size_t i = 0; i < candidates.size(); ++i) {
-      if (candidates[i] != kInvalidBlockID && candidates[i] != from && block == candidates[i]) {
-        conn[i] += edge_weight;
-      }
-    }
-  });
 
   BlockID best_block = kInvalidBlockID;
   EdgeWeight best_gain = std::numeric_limits<EdgeWeight>::min();
@@ -445,7 +443,7 @@ std::pair<BlockID, float> MultiQueueOverloadBalancer::compute_best_gain_of_candi
       continue;
     }
 
-    const EdgeWeight gain = conn[i] - conn_from;
+    const EdgeWeight gain = gain_cache.gain(node, from, to);
     if (gain > best_gain || (gain == best_gain && target_weight < best_target_weight)) {
       best_block = to;
       best_gain = gain;

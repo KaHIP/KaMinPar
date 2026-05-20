@@ -118,7 +118,11 @@ private:
   compute_best_gain(const auto &graph, auto &gain_cache, NodeID node, BlockID from);
 
   std::pair<BlockID, float> compute_best_gain_of_candidates(
-      const auto &graph, NodeID node, BlockID from, std::array<BlockID, 3> candidates
+      const auto &graph,
+      const auto &gain_cache,
+      NodeID node,
+      BlockID from,
+      std::array<BlockID, 3> candidates
   );
 
   void insert_node_into_pq(NodeID node, BlockID to, float gain, AccessToken &token);
