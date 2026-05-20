@@ -66,6 +66,7 @@ PartitionedGraph AsyncInitialPartitioner::partition_recursive(
   Context small_ctx = _input_ctx;
   small_ctx.partition.n = p_graph.graph().n();
   small_ctx.partition.m = p_graph.graph().m();
+  small_ctx.parallel.num_threads = static_cast<int>(num_threads);
 
   p_ctx = create_kway_context(_input_ctx, p_graph);
   auto refiner = factory::create_refiner(small_ctx);
