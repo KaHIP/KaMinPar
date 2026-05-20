@@ -127,8 +127,8 @@ void MultiQueueOverloadBalancer::finish_refinement() {
   clear_pqs();
 }
 
-template <typename Graph, typename GainCache>
-void MultiQueueOverloadBalancer::init_pqs(const Graph &graph, GainCache &gain_cache) {
+template <typename Graph, typename GainCacheT>
+void MultiQueueOverloadBalancer::init_pqs(const Graph &graph, GainCacheT &gain_cache) {
   [[maybe_unused]] std::atomic<NodeID> num_initial_nodes = 0;
   [[maybe_unused]] std::atomic<NodeID> num_rejected_nodes = 0;
 
@@ -180,9 +180,9 @@ void MultiQueueOverloadBalancer::init_pqs(const Graph &graph, GainCache &gain_ca
       << " candidate nodes while skipping " << num_rejected_nodes << " nodes";
 }
 
-template <typename Graph, typename GainCache>
+template <typename Graph, typename GainCacheT>
 void MultiQueueOverloadBalancer::rebalance_worker(
-    const Graph &graph, GainCache &gain_cache, const int task_id
+    const Graph &graph, GainCacheT &gain_cache, const int task_id
 ) {
   AccessToken token(graph.n() + task_id, _pqs.size());
 

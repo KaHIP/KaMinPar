@@ -54,12 +54,12 @@ public:
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
-  template <typename Graph, typename GainCache>
+  template <typename Graph, typename GainCacheT>
   bool refine_with_gain_cache(
       PartitionedGraph &p_graph,
       const PartitionContext &p_ctx,
       const Graph &graph,
-      GainCache &gain_cache
+      GainCacheT &gain_cache
   );
 
   void track_moves(MoveTracker move_tracker);
@@ -96,14 +96,14 @@ private:
 
   void finish_refinement();
 
-  template <typename Graph, typename GainCache>
-  void run_refinement(const Graph &graph, GainCache &gain_cache);
+  template <typename Graph, typename GainCacheT>
+  void run_refinement(const Graph &graph, GainCacheT &gain_cache);
 
-  template <typename Graph, typename GainCache>
-  void init_pqs(const Graph &graph, GainCache &gain_cache);
+  template <typename Graph, typename GainCacheT>
+  void init_pqs(const Graph &graph, GainCacheT &gain_cache);
 
-  template <typename Graph, typename GainCache>
-  void rebalance_worker(const Graph &graph, GainCache &gain_cache, int task_id);
+  template <typename Graph, typename GainCacheT>
+  void rebalance_worker(const Graph &graph, GainCacheT &gain_cache, int task_id);
 
   template <typename Graph>
   bool find_next_move(const Graph &graph, auto &gain_cache, AccessToken &token, Move &move);
@@ -179,12 +179,12 @@ private:
   MoveTracker _move_tracker = nullptr;
 };
 
-template <typename Graph, typename GainCache>
+template <typename Graph, typename GainCacheT>
 bool MultiQueueOverloadBalancer::refine_with_gain_cache(
     PartitionedGraph &p_graph,
     const PartitionContext &p_ctx,
     const Graph &graph,
-    GainCache &gain_cache
+    GainCacheT &gain_cache
 ) {
   if (!begin_refinement(p_graph, p_ctx)) {
     return false;
@@ -196,8 +196,8 @@ bool MultiQueueOverloadBalancer::refine_with_gain_cache(
   return true;
 }
 
-template <typename Graph, typename GainCache>
-void MultiQueueOverloadBalancer::run_refinement(const Graph &graph, GainCache &gain_cache) {
+template <typename Graph, typename GainCacheT>
+void MultiQueueOverloadBalancer::run_refinement(const Graph &graph, GainCacheT &gain_cache) {
   init_pqs(graph, gain_cache);
 
   tbb::task_group tg;
