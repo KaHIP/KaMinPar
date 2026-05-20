@@ -61,15 +61,20 @@ private:
 
   const std::vector<int> lweights = {1, 1, 1};
 
+  const int batchtype = 3;
+
   void initializeLHopModel(PartitionedGraph &p_graph, std::vector<std::vector<LHopTable>> &lhopModel);
 
-  void lhopPathFinder(PartitionedGraph &p_graph, std::vector<std::vector<LHopTable>> &lhopModel, std::vector<NodeID> &startgroup);
+  void lhopPathFinder(PartitionedGraph &p_graph, std::vector<std::vector<LHopTable>> &lhopModel, const std::vector<NodeID> &startgroup);
 
   unsigned long calculateGains(PartitionedGraph &p_graph, std::vector<std::vector<LHopTable>> &lhopModel, std::vector<LHopNodeGain> &nodeGains, 
                       std::vector<LHopPartitionGain> &partitionGains);
 
   void updateGains(PartitionedGraph &p_graph, std::vector<std::vector<LHopTable>> &lhopModel, std::vector<LHopNodeGain> &nodeGains, 
                     std::vector<LHopPartitionGain> &partitionGains, BlockID src, BlockID dest, std::vector<NodeID> nodesToUpdate);
+
+  void updateSingleGain(PartitionedGraph &p_graph, std::vector<std::vector<LHopTable>> &lhopModel, std::vector<LHopNodeGain> &nodeGains, 
+                     BlockID src, BlockID dest, NodeID node);
 
   unsigned long tableToGain(LHopTable &gain);
 

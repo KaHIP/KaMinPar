@@ -37,7 +37,7 @@ void LHopRefiner::initializeLHopModel(PartitionedGraph &p_graph, std::vector<std
 
 
 //TODO opt: make this parallel?
-void LHopRefiner::lhopPathFinder(PartitionedGraph &p_graph, std::vector<std::vector<LHopTable>> &lhopModel, std::vector<NodeID> &startgroup) {
+void LHopRefiner::lhopPathFinder(PartitionedGraph &p_graph, std::vector<std::vector<LHopTable>> &lhopModel, const std::vector<NodeID> &startgroup) {
   BlockID identifier = p_graph.block(startgroup[0]);
   //TODO opt: activeGroup to vector<bool>?
   std::vector<NodeID> activeGroup;
@@ -187,6 +187,7 @@ void LHopRefiner::updateGains(PartitionedGraph &p_graph, std::vector<std::vector
     for(LHopTable& table : lhopModel[*node]) {
       if(table.block == srcBlock) {
         gainForStay = tableToGain(table);
+        break;
       }
     }
     for(LHopTable& table : lhopModel[*node]) {
@@ -221,6 +222,37 @@ void LHopRefiner::updateGains(PartitionedGraph &p_graph, std::vector<std::vector
   for(LHopPartitionGain& partition : partitionGains) {
     LOG << "PartitionGain: " << partition.src << " :: " << partition.dest << " :: " << partition.gain;
   }*/
+}
+
+void LHopRefiner::updateSingleGain(PartitionedGraph &p_graph, std::vector<std::vector<LHopTable>> &lhopModel, std::vector<LHopNodeGain> &nodeGains, 
+                                  BlockID src, BlockID dest, NodeID node) {
+
+  nodeGains.erase(
+    std::remove_if(nodeGains.begin(), nodeGains.end(),
+        [&](LHopNodeGain& table) {
+            return table.node == node && (table.src == src || table.src == dest || table.dest == src || table.dest == dest);
+        }),
+    nodeGains.end()
+  );
+  BlockID srcBlock = p_graph.block(node);
+  unsigned long gainForStay = 0;
+  //TODO opt: iterate only once to generate gains
+  for(LHopTable& table : lhopModel[node]) {
+    if(table.block == srcBlock) {
+      gainForStay = tableToGain(table);
+      break;
+    }
+  }
+  for(LHopTable& table : lhopModel[node]) {
+    if(gainForStay < tableToGain(table) && (srcBlock == src || srcBlock == dest || table.block == src || table.block == dest)){
+      //NodeGains
+      nodeGains.push_back(LHopNodeGain(node, srcBlock, table.block, (tableToGain(table) - gainForStay)));
+      //LOG << "Gain: " << node << " :: " << srcBlock << " :: " << table.block << " :: " << (tableToGain(table) - gainForStay);
+    }
+  }
+  
+  //TODO opt: is sorting nessesary?
+  std::sort(nodeGains.begin(), nodeGains.end());
 }
 
 std::vector<NodeID> LHopRefiner::moveAndUpdate(PartitionedGraph &p_graph, const PartitionContext &p_ctx, std::vector<std::vector<LHopTable>> &lhopModel, 
@@ -262,18 +294,18 @@ std::vector<NodeID> LHopRefiner::moveAndUpdate(PartitionedGraph &p_graph, const 
       }
     }
   }
-  LOG << "Moved and updated: " << src << " -> " << dest << " : " << movedNodes.size();
+  //LOG << "Moved and updated: " << src << " -> " << dest << " : " << movedNodes.size();
   return nodesToUpdate;
 }
 
 void LHopRefiner::subtractLHopTable(LHopTable &minuend, LHopTable &subtrahend) {
-  for(unsigned int len = 1; len < l; ++len) {
+  for(unsigned int len = 0; len < l; ++len) {
     minuend.pathLength[len] -= subtrahend.pathLength[len];
   }
 }
 
 void LHopRefiner::addLHopTable(LHopTable &result, LHopTable &addends) {
-  for(unsigned int len = 1; len < l; ++len) {
+  for(unsigned int len = 0; len < l; ++len) {
     result.pathLength[len] += addends.pathLength[len];
   }
 }
@@ -291,57 +323,86 @@ bool LHopRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ct
   std::vector<LHopNodeGain> nodeGains;
   std::vector<LHopPartitionGain> partitionGains;
   unsigned long startSum = calculateGains(p_graph, lhopModel, nodeGains, partitionGains);
-  
-  LOG << "START BATCH";
+
   bool movedANode = false;
   bool moving = true;
-  while(moving) {
-    if(partitionGains.empty()) {
-      break;
-    }
-    LOG << "Move and update";
-    for(LHopPartitionGain& moveBlock : partitionGains) {
-      std::vector<NodeID> nodesToUpdate = moveAndUpdate(p_graph, p_ctx, lhopModel, nodeGains, moveBlock.src, moveBlock.dest);
-      if(!nodesToUpdate.empty()) {
-        updateGains(p_graph, lhopModel, nodeGains, partitionGains, moveBlock.src, moveBlock.dest, nodesToUpdate);
-        movedANode = true;
-        moving = true;
-        break;
-      } else {
-        //LOG << "Full Partition: " << moveBlock.dest;
-        moving = false;
+  switch(batchtype) {
+    case 1: //Partition-Batch
+      LOG << "START PARTITION-BATCH";
+      while(moving) {
+        if(partitionGains.empty()) {
+          break;
+        }
+        //LOG << "Move and update";
+        for(LHopPartitionGain& moveBlock : partitionGains) {
+          std::vector<NodeID> nodesToUpdate = moveAndUpdate(p_graph, p_ctx, lhopModel, nodeGains, moveBlock.src, moveBlock.dest);
+          if(!nodesToUpdate.empty()) {
+            updateGains(p_graph, lhopModel, nodeGains, partitionGains, moveBlock.src, moveBlock.dest, nodesToUpdate);
+            movedANode = true;
+            moving = true;
+            break;
+          } else {
+            moving = false;
+          }
+        }
       }
-    }
+      break;
+    case 2: //Single move
+      LOG << "START SINGLE-BATCH";
+      while(moving) {
+        moving = false;
+        for(LHopNodeGain& node : nodeGains) {
+          if(p_graph.move(node.node, node.src, node.dest, p_ctx.max_block_weight(node.dest))) {
+            //LOG << "Moved Node: " << node.node;
+            movedANode = true;
+            std::vector<std::vector<LHopTable>> updateLHopModel(p_graph.n());
+            lhopPathFinder(p_graph, updateLHopModel, {node.node});
+
+            for (NodeID updateNode = 0; updateNode < _graph->n(); ++updateNode) {
+              std::vector<LHopTable>& nodeUpdate = updateLHopModel[updateNode];
+              if(nodeUpdate.empty()) {
+                continue;
+              }
+              for(LHopTable& lHopModelEntry : lhopModel[updateNode]) {
+                if(lHopModelEntry.block == node.src) {
+                  //subtract
+                  subtractLHopTable(lHopModelEntry, nodeUpdate[0]);
+                } else if (lHopModelEntry.block == node.dest) {
+                  //add
+                  addLHopTable(lHopModelEntry, nodeUpdate[0]);
+                }
+              }
+            }
+            updateSingleGain(p_graph, lhopModel, nodeGains, node.src, node.dest, node.node);
+            moving = true;
+            break;
+          }
+        }
+      }
+      break;
+    case 3: //Move all
+      LOG << "START ALL-BATCH 10";
+      for(int i = 0; i < 10; i++) {
+        for(LHopNodeGain& node : nodeGains) {
+          (void)p_graph.move(node.node, node.src, node.dest, p_ctx.max_block_weight(node.dest));
+        }
+        lhopModel.assign(p_graph.n(), {});
+        nodeGains.clear();
+        partitionGains.clear();
+        initializeLHopModel(p_graph, lhopModel);
+        calculateGains(p_graph, lhopModel, nodeGains, partitionGains);
+      }
+      break;
+    default:
+      LOG << "No batch option is choosen, no refinment";
+      break;
+
   }
   nodeGains.clear();
   partitionGains.clear();
   unsigned long endSum = calculateGains(p_graph, lhopModel, nodeGains, partitionGains);
   LOG << "END BATCH";
   LOG << "RESULT: Number Path reduced from " << startSum << " to " << endSum << " Reduced by %: " << (((double)startSum - (double)endSum) / (double)startSum);
-  /*
-  // E.g.,
-  // Move vertex 0 from block 1 to block 0, but only if the resulting weight of block 0 does not
-  // exceed p_ctx.max_block_weight(0)
-  const bool success = p_graph.move(0, 1, 0, p_ctx.max_block_weight(0));
-  ((void)success);
-
-  // Iterate over vertices (in parallel):
-  _graph->pfor_nodes([&](const NodeID u) {
-    // ... do stuff with u ...
-
-    // Visit u's neighbors:
-    _graph->neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight ew) {
-      // Edge e, with weight ew, connects u to neighbor v
-      ((void)e);
-      ((void)v);
-      ((void)ew);
-    });
-  });
-
-  // Iterate over vertices sequentially:
-  for (NodeID u = 0; u < _graph->n(); ++u) {
-    // ... do stuff with u ...
-  }
 
   // Indicate whether refinement improved the partition:
   // (mostly ignored)*/
