@@ -15,6 +15,8 @@
 #include <string>
 #include <vector>
 
+#include <tbb/task_group.h>
+
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/refinement/gains/on_the_fly_gain_cache.h"
@@ -52,6 +54,14 @@ public:
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
+  template <typename Graph, typename GainCache>
+  bool refine_with_gain_cache(
+      PartitionedGraph &p_graph,
+      const PartitionContext &p_ctx,
+      const Graph &graph,
+      GainCache &gain_cache
+  );
+
   void track_moves(MoveTracker move_tracker);
 
 private:
@@ -82,9 +92,18 @@ private:
     float gain = std::numeric_limits<float>::lowest();
   };
 
-  template <typename Graph> void init_pqs(const Graph &graph);
+  bool begin_refinement(PartitionedGraph &p_graph, const PartitionContext &p_ctx);
 
-  template <typename Graph> void rebalance_worker(const Graph &graph, int task_id);
+  void finish_refinement();
+
+  template <typename Graph, typename GainCache>
+  void run_refinement(const Graph &graph, GainCache &gain_cache);
+
+  template <typename Graph, typename GainCache>
+  void init_pqs(const Graph &graph, GainCache &gain_cache);
+
+  template <typename Graph, typename GainCache>
+  void rebalance_worker(const Graph &graph, GainCache &gain_cache, int task_id);
 
   template <typename Graph>
   bool find_next_move(const Graph &graph, auto &gain_cache, AccessToken &token, Move &move);
@@ -97,6 +116,10 @@ private:
 
   std::pair<BlockID, float>
   compute_best_gain(const auto &graph, auto &gain_cache, NodeID node, BlockID from);
+
+  std::pair<BlockID, float> compute_best_gain_of_candidates(
+      const auto &graph, NodeID node, BlockID from, std::array<BlockID, 3> candidates
+  );
 
   void insert_node_into_pq(NodeID node, BlockID to, float gain, AccessToken &token);
 
@@ -128,6 +151,8 @@ private:
 
   void unlock_pq(std::size_t pq);
 
+  [[nodiscard]] float pq_top_key(std::size_t pq) const;
+
   void update_pq_top_key(std::size_t pq);
 
   void clear_pqs();
@@ -153,5 +178,33 @@ private:
 
   MoveTracker _move_tracker = nullptr;
 };
+
+template <typename Graph, typename GainCache>
+bool MultiQueueOverloadBalancer::refine_with_gain_cache(
+    PartitionedGraph &p_graph,
+    const PartitionContext &p_ctx,
+    const Graph &graph,
+    GainCache &gain_cache
+) {
+  if (!begin_refinement(p_graph, p_ctx)) {
+    return false;
+  }
+
+  run_refinement(graph, gain_cache);
+  finish_refinement();
+
+  return true;
+}
+
+template <typename Graph, typename GainCache>
+void MultiQueueOverloadBalancer::run_refinement(const Graph &graph, GainCache &gain_cache) {
+  init_pqs(graph, gain_cache);
+
+  tbb::task_group tg;
+  for (int task_id = 0; task_id < _ctx.parallel.num_threads; ++task_id) {
+    tg.run([&, task_id] { rebalance_worker(graph, gain_cache, task_id); });
+  }
+  tg.wait();
+}
 
 } // namespace kaminpar::shm

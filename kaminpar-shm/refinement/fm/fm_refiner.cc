@@ -8,6 +8,7 @@
 #include "kaminpar-shm/refinement/fm/fm_refiner.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <unordered_map>
@@ -67,6 +68,7 @@ struct GlobalMove {
 class UnconstrainedFMData {
   static constexpr std::uint32_t kNumBuckets = 16;
   static constexpr double kBucketFactor = 1.5;
+  static constexpr double kFallbackThreshold = 0.75;
 
 public:
   UnconstrainedFMData(const NodeID preallocate_n, const BlockID preallocate_k)
@@ -95,8 +97,8 @@ public:
     tbb::enumerable_thread_specific<std::vector<BlockWeight>> local_bucket_weights([&] {
       return std::vector<BlockWeight>(_current_k * kNumBuckets);
     });
-    tbb::enumerable_thread_specific<std::unordered_map<std::uint64_t, BlockWeight>>
-        local_fallback_bucket_weights;
+    tbb::enumerable_thread_specific<BlockWeight> local_considered_weight(0);
+    tbb::enumerable_thread_specific<BlockWeight> local_inserted_weight(0);
 
     graph.pfor_nodes([&](const NodeID u) {
       const NodeWeight node_weight = graph.node_weight(u);
@@ -118,12 +120,11 @@ public:
 
       const std::uint32_t bucket =
           bucket_for_gain_per_weight(static_cast<double>(internal_weight) / node_weight);
-      _rebalancing_nodes[u] = 1;
+      local_considered_weight.local() += node_weight;
       if (bucket < kNumBuckets) {
+        _rebalancing_nodes[u] = 1;
         local_bucket_weights.local()[index(block, bucket)] += node_weight;
-      } else {
-        local_fallback_bucket_weights.local()[fallback_key(block, bucket - kNumBuckets)] +=
-            node_weight;
+        local_inserted_weight.local() += node_weight;
       }
     });
 
@@ -140,38 +141,14 @@ public:
       }
     });
 
-    std::vector<std::unordered_map<std::uint32_t, BlockWeight>> fallback_weights_by_block(
-        _current_k
-    );
-    for (const auto &local_weights : local_fallback_bucket_weights) {
-      for (const auto &[key, weight] : local_weights) {
-        const auto [block, bucket] = fallback_key_to_pair(key);
-        fallback_weights_by_block[block][bucket] += weight;
-      }
-    }
-
     _fallback_bucket_weights.assign(_current_k, {});
-    tbb::parallel_for<BlockID>(0, _current_k, [&](const BlockID block) {
-      auto &weights_by_bucket = fallback_weights_by_block[block];
-      if (weights_by_bucket.empty()) {
-        return;
-      }
 
-      std::uint32_t max_bucket = 0;
-      for (const auto &[bucket, weight] : weights_by_bucket) {
-        max_bucket = std::max(max_bucket, bucket);
-      }
-
-      std::vector<BlockWeight> &fallback_weights = _fallback_bucket_weights[block];
-      fallback_weights.resize(max_bucket + 1, 0);
-      fallback_weights[0] += _bucket_weights[index(block, kNumBuckets - 1)];
-      for (const auto &[bucket, weight] : weights_by_bucket) {
-        fallback_weights[bucket] += weight;
-      }
-      for (std::uint32_t bucket = 0; bucket + 1 < fallback_weights.size(); ++bucket) {
-        fallback_weights[bucket + 1] += fallback_weights[bucket];
-      }
-    });
+    const BlockWeight considered_weight = local_considered_weight.combine(std::plus{});
+    const BlockWeight inserted_weight = local_inserted_weight.combine(std::plus{});
+    if (considered_weight > 0 &&
+        static_cast<double>(inserted_weight) / considered_weight < kFallbackThreshold) {
+      init_fallback_buckets(fm_ctx, graph, p_graph, gain_cache);
+    }
 
     _initialized = true;
   }
@@ -249,6 +226,109 @@ private:
     return {static_cast<BlockID>(key >> 32), static_cast<std::uint32_t>(key)};
   }
 
+  template <typename Graph, typename GainCache>
+  void init_fallback_buckets(
+      const KwayFMRefinementContext &fm_ctx,
+      const Graph &graph,
+      const PartitionedGraph &p_graph,
+      const GainCache &gain_cache
+  ) {
+    tbb::enumerable_thread_specific<std::unordered_map<std::uint64_t, BlockWeight>>
+        local_fallback_bucket_weights;
+
+    graph.pfor_nodes([&](const NodeID u) {
+      const NodeWeight node_weight = graph.node_weight(u);
+      if (node_weight == 0) {
+        return;
+      }
+
+      EdgeWeight total_incident_weight = 0;
+      graph.adjacent_nodes(u, [&](const NodeID, const EdgeWeight weight) {
+        total_incident_weight += weight;
+      });
+
+      const BlockID block = p_graph.block(u);
+      const EdgeWeight internal_weight = gain_cache.conn(u, block);
+      if (static_cast<double>(internal_weight) <
+          fm_ctx.unconstrained_rebalancing_node_inclusion_threshold * total_incident_weight) {
+        return;
+      }
+
+      const std::uint32_t bucket =
+          bucket_for_gain_per_weight(static_cast<double>(internal_weight) / node_weight);
+      if (bucket >= kNumBuckets) {
+        local_fallback_bucket_weights.local()[fallback_key(block, bucket - kNumBuckets)] +=
+            node_weight;
+      }
+    });
+
+    std::vector<std::unordered_map<std::uint32_t, BlockWeight>> fallback_weights_by_block(
+        _current_k
+    );
+    for (const auto &local_weights : local_fallback_bucket_weights) {
+      for (const auto &[key, weight] : local_weights) {
+        const auto [block, bucket] = fallback_key_to_pair(key);
+        fallback_weights_by_block[block][bucket] += weight;
+      }
+    }
+
+    tbb::parallel_for<BlockID>(0, _current_k, [&](const BlockID block) {
+      auto &weights_by_bucket = fallback_weights_by_block[block];
+      if (weights_by_bucket.empty()) {
+        return;
+      }
+
+      const BlockWeight handled_weight = _bucket_weights[index(block, kNumBuckets - 1)];
+      BlockWeight fallback_weight = 0;
+      for (const auto &[bucket, weight] : weights_by_bucket) {
+        fallback_weight += weight;
+      }
+
+      if (fallback_weight == 0 ||
+          static_cast<double>(handled_weight) / (handled_weight + fallback_weight) >=
+              kFallbackThreshold) {
+        return;
+      }
+
+      std::vector<std::pair<std::uint32_t, BlockWeight>> sorted_weights(
+          weights_by_bucket.begin(), weights_by_bucket.end()
+      );
+      std::sort(sorted_weights.begin(), sorted_weights.end(), [](const auto &lhs, const auto &rhs) {
+        return lhs.first < rhs.first;
+      });
+
+      BlockWeight remaining_upper_weight =
+          static_cast<BlockWeight>(std::floor((1.0 - kFallbackThreshold) * fallback_weight));
+      std::uint32_t max_bucket = 0;
+      bool found_max_bucket = false;
+      for (std::size_t i = sorted_weights.size(); i-- > 0;) {
+        const auto [bucket, weight] = sorted_weights[i];
+        if (remaining_upper_weight >= weight) {
+          remaining_upper_weight -= weight;
+        } else {
+          max_bucket = bucket;
+          found_max_bucket = true;
+          break;
+        }
+      }
+      if (!found_max_bucket) {
+        return;
+      }
+
+      std::vector<BlockWeight> &fallback_weights = _fallback_bucket_weights[block];
+      fallback_weights.resize(max_bucket + 1, 0);
+      fallback_weights[0] += handled_weight;
+      for (const auto &[bucket, weight] : sorted_weights) {
+        if (bucket <= max_bucket) {
+          fallback_weights[bucket] += weight;
+        }
+      }
+      for (std::uint32_t bucket = 0; bucket + 1 < fallback_weights.size(); ++bucket) {
+        fallback_weights[bucket + 1] += fallback_weights[bucket];
+      }
+    });
+  }
+
   [[nodiscard]] static double gain_per_weight_for_bucket(const std::uint32_t bucket) {
     if (bucket > 1) {
       return std::pow(kBucketFactor, bucket - 2);
@@ -323,6 +403,7 @@ template <typename Graph, typename GainCache, SearchMode kSearchMode> class Loca
   using DeltaGainCache = typename GainCache::DeltaGainCache;
 
   static constexpr bool kAllowOverloadedMoves = kSearchMode == SearchMode::UNCONSTRAINED;
+  static constexpr EdgeID kHighDegreeThreshold = 100000;
 
 public:
   LocalizedFMRefiner(
@@ -428,9 +509,16 @@ public:
           _d_graph.block_weight(block_to) + node_weight <= _p_ctx.max_block_weight(block_to)) {
         const BlockWeight from_weight_before = _d_graph.block_weight(block_from);
         const BlockWeight to_weight_before = _d_graph.block_weight(block_to);
-        current_total_gain += actual_gain;
+        const EdgeWeight next_total_gain = current_total_gain + actual_gain;
 
-        const bool found_gain_improvement = current_total_gain > best_total_gain;
+        const bool found_gain_improvement = next_total_gain > best_total_gain;
+        if constexpr (kAllowOverloadedMoves) {
+          if (!found_gain_improvement && _graph.degree(node) >= kHighDegreeThreshold) {
+            continue;
+          }
+        }
+
+        current_total_gain = next_total_gain;
         const bool found_balance_improvement =
             current_total_gain == best_total_gain &&
             from_weight_before == heaviest_block_weight(_d_graph) &&
@@ -563,6 +651,12 @@ public:
   }
 
 private:
+  struct CandidateGain {
+    BlockID target = kInvalidBlockID;
+    EdgeWeight gain = std::numeric_limits<EdgeWeight>::min();
+    bool recompute_all = false;
+  };
+
   // Note: p_graph could be a PartitionedGraph or a DeltaPartitionedGraph. If it is a
   // PartitionedGraph, gain_cache will be of type GainCache; if it is a DeltaPartitionedGraph,
   // gain_cache will also be a DeltaGainCache.
@@ -587,7 +681,21 @@ private:
     const BlockID old_target_block = _shared.target_blocks[node];
 
     if (allow_overloaded_moves()) {
-      const auto [new_target_block, new_gain] = find_best_gain(_d_graph, _d_gain_cache, node);
+      BlockID new_target_block;
+      EdgeWeight new_gain;
+      if (_p_graph.k() < 4 || old_target_block == moved_from || old_target_block == moved_to) {
+        std::tie(new_target_block, new_gain) = find_best_gain(_d_graph, _d_gain_cache, node);
+      } else {
+        const CandidateGain result = find_best_gain_of_candidates(
+            _d_graph, _d_gain_cache, node, {old_target_block, moved_from, moved_to}
+        );
+        if (result.recompute_all) {
+          std::tie(new_target_block, new_gain) = find_best_gain(_d_graph, _d_gain_cache, node);
+        } else {
+          new_target_block = result.target;
+          new_gain = result.gain;
+        }
+      }
       _shared.target_blocks[node] = new_target_block;
       _node_pqs[old_block].change_priority(node, new_gain);
       return;
@@ -652,6 +760,13 @@ private:
         _p_ctx.max_block_weight(from) - p_graph.block_weight(from);
 
     gain_cache.gains(u, from, [&](const BlockID to, auto &&compute_gain) {
+      const EdgeWeight unpenalized_gain = compute_gain();
+      if constexpr (kAllowOverloadedMoves && !GainCache::kIteratesExactGains) {
+        if (unpenalized_gain == 0) {
+          return;
+        }
+      }
+
       const BlockWeight target_block_weight = p_graph.block_weight(to) + weight;
       const BlockWeight max_block_weight = _p_ctx.max_block_weight(to);
       const BlockWeight block_weight_gap = max_block_weight - target_block_weight;
@@ -665,6 +780,10 @@ private:
       if (allow_overloaded_moves()) {
         if (_unconstrained_upper_bound >= 1.0 &&
             target_block_weight > _unconstrained_upper_bound * max_block_weight) {
+          return;
+        }
+
+        if (target_block_weight > max_block_weight && unpenalized_gain <= best_gain) {
           return;
         }
 
@@ -684,7 +803,7 @@ private:
         }
       }
 
-      const EdgeWeight gain = compute_gain() - penalty;
+      const EdgeWeight gain = unpenalized_gain - penalty;
       if (gain > best_gain ||
           (gain == best_gain && block_weight_gap > best_target_block_weight_gap)) {
         best_gain = gain;
@@ -707,6 +826,77 @@ private:
     }();
 
     return {best_target_block, actual_best_gain};
+  }
+
+  CandidateGain find_best_gain_of_candidates(
+      const auto &p_graph,
+      const auto &gain_cache,
+      const NodeID u,
+      const std::array<BlockID, 3> candidates
+  ) {
+    const BlockID from = p_graph.block(u);
+    const NodeWeight weight = _graph.node_weight(u);
+    const BlockID designated_target = _shared.target_blocks[u];
+
+    CandidateGain result{.target = from};
+    BlockWeight best_target_block_weight_gap =
+        _p_ctx.max_block_weight(from) - p_graph.block_weight(from);
+
+    for (std::size_t i = 0; i < candidates.size(); ++i) {
+      const BlockID to = candidates[i];
+      if (to == kInvalidBlockID || to == from) {
+        continue;
+      }
+
+      bool duplicate = false;
+      for (std::size_t j = 0; j < i; ++j) {
+        duplicate |= candidates[j] == to;
+      }
+      if (duplicate) {
+        continue;
+      }
+
+      const BlockWeight target_block_weight = p_graph.block_weight(to) + weight;
+      const BlockWeight max_block_weight = _p_ctx.max_block_weight(to);
+      const BlockWeight block_weight_gap = max_block_weight - target_block_weight;
+      if (_unconstrained_upper_bound >= 1.0 &&
+          target_block_weight > _unconstrained_upper_bound * max_block_weight) {
+        continue;
+      }
+
+      EdgeWeight penalty = 0;
+      if (target_block_weight > max_block_weight && _unconstrained_penalty_factor > 0.0) {
+        const EdgeWeight estimated_penalty = estimate_unconstrained_penalty(p_graph, to, weight);
+        if (estimated_penalty == std::numeric_limits<EdgeWeight>::max()) {
+          if (to == designated_target) {
+            result.recompute_all = true;
+            return result;
+          }
+          continue;
+        }
+
+        const double scaled_penalty = std::ceil(_unconstrained_penalty_factor * estimated_penalty);
+        if (scaled_penalty >= static_cast<double>(std::numeric_limits<EdgeWeight>::max())) {
+          if (to == designated_target) {
+            result.recompute_all = true;
+            return result;
+          }
+          continue;
+        }
+
+        penalty = static_cast<EdgeWeight>(scaled_penalty);
+      }
+
+      const EdgeWeight gain = gain_cache.gain(u, from, to) - penalty;
+      if (gain > result.gain ||
+          (gain == result.gain && block_weight_gap > best_target_block_weight_gap)) {
+        result.target = to;
+        result.gain = gain;
+        best_target_block_weight_gap = block_weight_gap;
+      }
+    }
+
+    return result;
   }
 
   [[nodiscard]] bool allow_overloaded_moves() const {
@@ -984,7 +1174,7 @@ public:
         current_overload = metrics::total_overload(p_graph, p_ctx);
         if (use_unconstrained_iteration && current_overload > 0) {
           TIMED_SCOPE("Rebalance") {
-            balancer.refine(p_graph, p_ctx);
+            balancer.refine_with_gain_cache(p_graph, p_ctx, graph, _shared->gain_cache);
           };
           current_overload = metrics::total_overload(p_graph, p_ctx);
         }
@@ -1003,7 +1193,6 @@ public:
           current_cut = rollback_to_best_prefix(
               graph, p_graph, p_ctx, round_start_partition, cut_before_current_iteration
           );
-          _shared->gain_cache.initialize(graph, p_graph);
         };
 
         graph.pfor_nodes([&](const NodeID u) { best_partition[u] = p_graph.block(u); });
@@ -1263,6 +1452,7 @@ private:
 
       const GlobalMove move = _shared->round_moves[i];
       if (p_graph.block(move.node) == move.to) {
+        _shared->gain_cache.move(move.node, move.to, move.from);
         p_graph.set_block(move.node, move.from);
       }
     }
@@ -1280,6 +1470,14 @@ private:
 
 template <fm::SearchMode kSearchMode, typename Graph>
 std::unique_ptr<Refiner> create_fm_core(const Context &ctx) {
+  if constexpr (kSearchMode == fm::SearchMode::UNCONSTRAINED) {
+    if (ctx.refinement.kway_fm.gain_cache_strategy == GainCacheStrategy::COMPACT_HASHING) {
+      return std::make_unique<FMRefinerCore<Graph, LargeKCompactHashingGainCache, kSearchMode>>(
+          ctx
+      );
+    }
+  }
+
   switch (ctx.refinement.kway_fm.gain_cache_strategy) {
   case GainCacheStrategy::SPARSE:
     return std::make_unique<FMRefinerCore<Graph, NormalSparseGainCache, kSearchMode>>(ctx);

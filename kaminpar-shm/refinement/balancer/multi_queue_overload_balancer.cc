@@ -9,15 +9,23 @@
 
 #include <limits>
 #include <string>
+#include <thread>
+#include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
-#include <tbb/task_group.h>
 
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/refinement/balancer/relative_gain.h"
+#include "kaminpar-shm/refinement/gains/compact_hashing_gain_cache.h"
+#include "kaminpar-shm/refinement/gains/dense_gain_cache.h"
+#include "kaminpar-shm/refinement/gains/hashing_gain_cache.h"
+#include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
 
+#include "kaminpar-common/datastructures/dynamic_binary_heap.h"
+#include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
@@ -67,6 +75,24 @@ bool MultiQueueOverloadBalancer::refine(PartitionedGraph &p_graph, const Partiti
   SCOPED_TIMER("Multi-Queue Overload Balancer");
   SCOPED_HEAP_PROFILER("Multi-Queue Overload Balancer");
 
+  if (!begin_refinement(p_graph, p_ctx)) {
+    return false;
+  }
+
+  reified(*_p_graph, [&]<typename Graph>(const Graph &graph) {
+    auto &gain_cache = _gain_cache.emplace<Graph>(_ctx, p_graph.k(), p_graph.k());
+    gain_cache.initialize(graph, p_graph);
+    run_refinement(graph, gain_cache);
+  });
+
+  finish_refinement();
+
+  return true;
+}
+
+bool MultiQueueOverloadBalancer::begin_refinement(
+    PartitionedGraph &p_graph, const PartitionContext &p_ctx
+) {
   _p_graph = &p_graph;
   _p_ctx = &p_ctx;
 
@@ -96,29 +122,21 @@ bool MultiQueueOverloadBalancer::refine(PartitionedGraph &p_graph, const Partiti
 
   init_overloaded_blocks();
 
-  reified(*_p_graph, [&]<typename Graph>(const Graph &graph) {
-    _gain_cache.emplace<Graph>(_ctx, p_graph.k(), p_graph.k()).initialize(graph, p_graph);
-    init_pqs(graph);
-  });
-
-  tbb::task_group tg;
-  for (int task_id = 0; task_id < _ctx.parallel.num_threads; ++task_id) {
-    tg.run([&, task_id] {
-      reified(*_p_graph, [&](const auto &graph) { rebalance_worker(graph, task_id); });
-    });
-  }
-  tg.wait();
-
-  clear_pqs();
-
   return true;
 }
 
-template <typename Graph> void MultiQueueOverloadBalancer::init_pqs(const Graph &graph) {
-  auto &gain_cache = _gain_cache.get<Graph>();
-  std::atomic<int> seed{555};
-  tbb::enumerable_thread_specific<AccessToken> tokens([&] {
-    return AccessToken(seed.fetch_add(1, std::memory_order_relaxed), _pqs.size());
+void MultiQueueOverloadBalancer::finish_refinement() {
+  clear_pqs();
+}
+
+template <typename Graph, typename GainCache>
+void MultiQueueOverloadBalancer::init_pqs(const Graph &graph, GainCache &gain_cache) {
+  using LocalPQs = std::vector<DynamicBinaryMinHeap<NodeID, float, ScalableVector>>;
+  tbb::enumerable_thread_specific<LocalPQs> local_pqs([&] { return LocalPQs(_p_graph->k()); });
+
+  using LocalPQWeights = std::vector<BlockWeight>;
+  tbb::enumerable_thread_specific<LocalPQWeights> local_pq_weights([&] {
+    return LocalPQWeights(_p_graph->k());
   });
 
   [[maybe_unused]] std::atomic<NodeID> num_initial_nodes = 0;
@@ -130,6 +148,9 @@ template <typename Graph> void MultiQueueOverloadBalancer::init_pqs(const Graph 
       return;
     }
 
+    const BlockWeight overload = block_overload(from);
+    KASSERT(overload > 0);
+
     const auto [to, gain] = compute_best_gain(graph, gain_cache, node, from);
     if (to == kInvalidBlockID) {
       IFDBG(++num_rejected_nodes);
@@ -137,18 +158,70 @@ template <typename Graph> void MultiQueueOverloadBalancer::init_pqs(const Graph 
     }
 
     _node_target[node] = to;
-    __atomic_store_n(&_node_state[node], MOVABLE, __ATOMIC_RELAXED);
-    insert_node_into_pq(node, to, gain, tokens.local());
-    IFDBG(++num_initial_nodes);
+
+    auto &pq = local_pqs.local()[from];
+    BlockWeight &pq_weight = local_pq_weights.local()[from];
+    const bool need_more_nodes = pq_weight < overload;
+    if (need_more_nodes || pq.empty() || gain > pq.peek_key()) {
+      if (!need_more_nodes) {
+        const NodeWeight node_weight = graph.node_weight(node);
+        const NodeWeight min_weight = graph.node_weight(pq.peek_id());
+        if (pq_weight + node_weight - min_weight >= overload) {
+          pq.pop();
+          pq_weight -= min_weight;
+        }
+      }
+
+      pq.push(node, gain);
+      pq_weight += graph.node_weight(node);
+    }
+  });
+
+  std::vector<LocalPQs *> local_pq_ptrs;
+  for (LocalPQs &pqs : local_pqs) {
+    local_pq_ptrs.push_back(&pqs);
+  }
+
+  using PQItems = std::vector<std::vector<std::pair<NodeID, float>>>;
+  tbb::enumerable_thread_specific<PQItems> local_pq_items([&] { return PQItems(_pqs.size()); });
+
+  tbb::parallel_for<std::size_t>(0, local_pq_ptrs.size(), [&](const std::size_t i) {
+    AccessToken token(555 + static_cast<int>(i), _pqs.size());
+    auto &pq_items = local_pq_items.local();
+
+    for (const BlockID from : _p_graph->blocks()) {
+      for (const auto &[node, gain] : (*local_pq_ptrs[i])[from].elements()) {
+        const std::size_t pq = token.pick_random_pq();
+        __atomic_store_n(&_node_state[node], MOVABLE, __ATOMIC_RELAXED);
+        _node_pq[node] = pq;
+        pq_items[pq].emplace_back(node, gain);
+      }
+    }
+  });
+
+  std::vector<PQItems *> local_pq_item_ptrs;
+  for (PQItems &items : local_pq_items) {
+    local_pq_item_ptrs.push_back(&items);
+  }
+
+  tbb::parallel_for<std::size_t>(0, _pqs.size(), [&](const std::size_t pq) {
+    for (PQItems *items : local_pq_item_ptrs) {
+      for (const auto &[node, gain] : (*items)[pq]) {
+        _pqs[pq].push(node, gain);
+        IFDBG(++num_initial_nodes);
+      }
+    }
+    update_pq_top_key(pq);
   });
 
   DBG << "Initialized multi-queue overload balancer with " << num_initial_nodes
       << " candidate nodes while skipping " << num_rejected_nodes << " nodes";
 }
 
-template <typename Graph>
-void MultiQueueOverloadBalancer::rebalance_worker(const Graph &graph, const int task_id) {
-  auto &gain_cache = _gain_cache.get<Graph>();
+template <typename Graph, typename GainCache>
+void MultiQueueOverloadBalancer::rebalance_worker(
+    const Graph &graph, GainCache &gain_cache, const int task_id
+) {
   AccessToken token(graph.n() + task_id, _pqs.size());
 
   while (_num_overloaded_blocks.load(std::memory_order_relaxed) > 0) {
@@ -169,8 +242,6 @@ void MultiQueueOverloadBalancer::rebalance_worker(const Graph &graph, const int 
       if (_p_graph->block_weight(move.from) <= _p_ctx->max_block_weight(move.from)) {
         deactivate_overloaded_block(move.from);
       }
-
-      update_neighbors(graph, gain_cache, move);
     } else if (_p_graph->block_weight(move.from) <= _p_ctx->max_block_weight(move.from)) {
       deactivate_overloaded_block(move.from);
     }
@@ -185,31 +256,11 @@ bool MultiQueueOverloadBalancer::find_next_move(
 
   for (int attempt = 0; attempt < kNumPopAttempts; ++attempt) {
     const auto [first, second] = token.pick_two_random_pqs();
+    const std::size_t pq = pq_top_key(first) < pq_top_key(second) ? second : first;
 
-    const std::size_t first_lock = std::min(first, second);
-    const std::size_t second_lock = std::max(first, second);
-    if (!try_lock_pq(first_lock)) {
+    if (!try_lock_pq(pq)) {
       continue;
     }
-    if (!try_lock_pq(second_lock)) {
-      unlock_pq(first_lock);
-      continue;
-    }
-
-    const bool first_empty = _pqs[first].empty();
-    const bool second_empty = _pqs[second].empty();
-    if (first_empty && second_empty) {
-      unlock_pq(second_lock);
-      unlock_pq(first_lock);
-      continue;
-    }
-
-    const std::size_t pq =
-        (first_empty || (!second_empty && _pqs[first].peek_key() < _pqs[second].peek_key()))
-            ? second
-            : first;
-    const std::size_t other = pq == first ? second : first;
-    unlock_pq(other);
 
     if (_pqs[pq].empty()) {
       unlock_pq(pq);
@@ -227,19 +278,10 @@ bool MultiQueueOverloadBalancer::find_next_move(
     std::size_t best_pq = std::numeric_limits<std::size_t>::max();
 
     for (std::size_t pq = 0; pq < _pqs.size(); ++pq) {
-      if (!try_lock_pq(pq)) {
-        continue;
-      }
-
-      if (!_pqs[pq].empty() && _pqs[pq].peek_key() > best_key) {
-        if (best_pq != std::numeric_limits<std::size_t>::max()) {
-          unlock_pq(best_pq);
-        }
-
-        best_key = _pqs[pq].peek_key();
+      const float key = pq_top_key(pq);
+      if (key > best_key) {
+        best_key = key;
         best_pq = pq;
-      } else {
-        unlock_pq(pq);
       }
     }
 
@@ -255,6 +297,9 @@ bool MultiQueueOverloadBalancer::find_next_move(
       }
     }
 
+    if (!try_lock_pq(best_pq)) {
+      continue;
+    }
     if (locked_extract_candidate(best_pq, graph, gain_cache, move)) {
       return true;
     }
@@ -326,8 +371,13 @@ void MultiQueueOverloadBalancer::update_neighbors(
       return;
     }
 
-    const auto [neighbor_to, neighbor_gain] =
-        compute_best_gain(graph, gain_cache, neighbor, neighbor_from);
+    auto [neighbor_to, neighbor_gain] = compute_best_gain_of_candidates(
+        graph, neighbor, neighbor_from, {_node_target[neighbor], move.from, move.to}
+    );
+    if (neighbor_to == kInvalidBlockID) {
+      std::tie(neighbor_to, neighbor_gain) =
+          compute_best_gain(graph, gain_cache, neighbor, neighbor_from);
+    }
     _node_target[neighbor] = neighbor_to;
 
     if (neighbor_to == kInvalidBlockID) {
@@ -352,19 +402,93 @@ std::pair<BlockID, float> MultiQueueOverloadBalancer::compute_best_gain(
   EdgeWeight best_gain = std::numeric_limits<EdgeWeight>::min();
   BlockWeight best_target_weight = _p_graph->block_weight(from) - weight;
 
-  gain_cache.gains(node, from, [&](const BlockID to, auto &&gain_fn) {
-    const BlockWeight target_weight = _p_graph->block_weight(to);
-    if (target_weight + weight > _p_ctx->max_block_weight(to)) {
+  auto consider_target = [&](const BlockID to, auto &&gain_fn) {
+    if (to == from) {
       return;
     }
+    const BlockWeight target_weight = _p_graph->block_weight(to);
+    if (target_weight + weight <= _p_ctx->max_block_weight(to)) {
+      const EdgeWeight gain = gain_fn();
+      if (gain > best_gain || (gain == best_gain && target_weight < best_target_weight)) {
+        best_block = to;
+        best_gain = gain;
+        best_target_weight = target_weight;
+      }
+    }
+  };
 
-    const EdgeWeight gain = gain_fn();
+  if constexpr (std::remove_reference_t<decltype(gain_cache)>::kIteratesNonadjacentBlocks) {
+    gain_cache.gains(node, from, consider_target);
+  } else {
+    for (const BlockID to : _p_graph->blocks()) {
+      consider_target(to, [&] { return gain_cache.gain(node, from, to); });
+    }
+  }
+
+  if (best_block == kInvalidBlockID) {
+    return {kInvalidBlockID, std::numeric_limits<float>::lowest()};
+  }
+
+  return {best_block, compute_relative_gain(best_gain, weight)};
+}
+
+std::pair<BlockID, float> MultiQueueOverloadBalancer::compute_best_gain_of_candidates(
+    const auto &graph,
+    const NodeID node,
+    const BlockID from,
+    const std::array<BlockID, 3> candidates
+) {
+  const NodeWeight weight = graph.node_weight(node);
+  if (weight == 0) {
+    return {kInvalidBlockID, std::numeric_limits<float>::lowest()};
+  }
+
+  std::array<EdgeWeight, 3> conn = {0, 0, 0};
+  EdgeWeight conn_from = 0;
+
+  graph.adjacent_nodes(node, [&](const NodeID neighbor, const EdgeWeight edge_weight) {
+    const BlockID block = _p_graph->block(neighbor);
+    if (block == from) {
+      conn_from += edge_weight;
+    }
+
+    for (std::size_t i = 0; i < candidates.size(); ++i) {
+      if (candidates[i] != kInvalidBlockID && candidates[i] != from && block == candidates[i]) {
+        conn[i] += edge_weight;
+      }
+    }
+  });
+
+  BlockID best_block = kInvalidBlockID;
+  EdgeWeight best_gain = std::numeric_limits<EdgeWeight>::min();
+  BlockWeight best_target_weight = _p_graph->block_weight(from) - weight;
+
+  for (std::size_t i = 0; i < candidates.size(); ++i) {
+    const BlockID to = candidates[i];
+    if (to == kInvalidBlockID || to == from) {
+      continue;
+    }
+
+    bool duplicate = false;
+    for (std::size_t j = 0; j < i; ++j) {
+      duplicate |= candidates[j] == to;
+    }
+    if (duplicate) {
+      continue;
+    }
+
+    const BlockWeight target_weight = _p_graph->block_weight(to);
+    if (target_weight + weight > _p_ctx->max_block_weight(to)) {
+      continue;
+    }
+
+    const EdgeWeight gain = conn[i] - conn_from;
     if (gain > best_gain || (gain == best_gain && target_weight < best_target_weight)) {
       best_block = to;
       best_gain = gain;
       best_target_weight = target_weight;
     }
-  });
+  }
 
   if (best_block == kInvalidBlockID) {
     return {kInvalidBlockID, std::numeric_limits<float>::lowest()};
@@ -504,7 +628,11 @@ bool MultiQueueOverloadBalancer::try_lock_pq(const std::size_t pq) {
 }
 
 void MultiQueueOverloadBalancer::lock_pq(const std::size_t pq) {
+  int spins = 0;
   while (!try_lock_pq(pq)) {
+    if (++spins % 64 == 0) {
+      std::this_thread::yield();
+    }
   }
 }
 
@@ -516,8 +644,16 @@ void MultiQueueOverloadBalancer::unlock_pq(const std::size_t pq) {
   __atomic_store_n(&_pq_locks[pq], 0, __ATOMIC_RELEASE);
 }
 
+float MultiQueueOverloadBalancer::pq_top_key(const std::size_t pq) const {
+  KASSERT(pq < _pq_top_keys.size());
+  return std::atomic_ref<float>(const_cast<float &>(_pq_top_keys[pq]))
+      .load(std::memory_order_relaxed);
+}
+
 void MultiQueueOverloadBalancer::update_pq_top_key(const std::size_t pq) {
-  _pq_top_keys[pq] = _pqs[pq].empty() ? std::numeric_limits<float>::lowest() : _pqs[pq].peek_key();
+  const float top_key =
+      _pqs[pq].empty() ? std::numeric_limits<float>::lowest() : _pqs[pq].peek_key();
+  std::atomic_ref<float>(_pq_top_keys[pq]).store(top_key, std::memory_order_relaxed);
 }
 
 void MultiQueueOverloadBalancer::clear_pqs() {
@@ -527,5 +663,63 @@ void MultiQueueOverloadBalancer::clear_pqs() {
     unlock_pq(pq);
   }
 }
+
+#define INSTANTIATE_CACHED_REBALANCER(Graph, GainCache)                                            \
+  template void MultiQueueOverloadBalancer::init_pqs<Graph, GainCache>(                            \
+      const Graph &, GainCache &                                                                   \
+  );                                                                                               \
+  template void MultiQueueOverloadBalancer::rebalance_worker<Graph, GainCache>(                    \
+      const Graph &, GainCache &, int                                                              \
+  )
+
+using CSRNormalSparseGainCache = NormalSparseGainCache<const CSRGraph>;
+using CSRNormalCompactHashingGainCache = NormalCompactHashingGainCache<const CSRGraph>;
+using CSRLargeKCompactHashingGainCache = LargeKCompactHashingGainCache<const CSRGraph>;
+
+using CompressedNormalSparseGainCache = NormalSparseGainCache<const CompressedGraph>;
+using CompressedNormalCompactHashingGainCache =
+    NormalCompactHashingGainCache<const CompressedGraph>;
+using CompressedLargeKCompactHashingGainCache =
+    LargeKCompactHashingGainCache<const CompressedGraph>;
+
+INSTANTIATE_CACHED_REBALANCER(CSRGraph, CSRNormalSparseGainCache);
+INSTANTIATE_CACHED_REBALANCER(CSRGraph, CSRNormalCompactHashingGainCache);
+INSTANTIATE_CACHED_REBALANCER(CSRGraph, CSRLargeKCompactHashingGainCache);
+
+INSTANTIATE_CACHED_REBALANCER(CompressedGraph, CompressedNormalSparseGainCache);
+INSTANTIATE_CACHED_REBALANCER(CompressedGraph, CompressedNormalCompactHashingGainCache);
+INSTANTIATE_CACHED_REBALANCER(CompressedGraph, CompressedLargeKCompactHashingGainCache);
+
+#ifdef KAMINPAR_EXPERIMENTAL
+using CSRLargeKSparseGainCache = LargeKSparseGainCache<const CSRGraph>;
+using CSRNormalHashingGainCache = NormalHashingGainCache<const CSRGraph>;
+using CSRLargeKHashingGainCache = LargeKHashingGainCache<const CSRGraph>;
+using CSRNormalDenseGainCache = NormalDenseGainCache<const CSRGraph>;
+using CSRLargeKDenseGainCache = LargeKDenseGainCache<const CSRGraph>;
+using CSRNormalOnTheFlyGainCache = NormalOnTheFlyGainCache<const CSRGraph>;
+
+using CompressedLargeKSparseGainCache = LargeKSparseGainCache<const CompressedGraph>;
+using CompressedNormalHashingGainCache = NormalHashingGainCache<const CompressedGraph>;
+using CompressedLargeKHashingGainCache = LargeKHashingGainCache<const CompressedGraph>;
+using CompressedNormalDenseGainCache = NormalDenseGainCache<const CompressedGraph>;
+using CompressedLargeKDenseGainCache = LargeKDenseGainCache<const CompressedGraph>;
+using CompressedNormalOnTheFlyGainCache = NormalOnTheFlyGainCache<const CompressedGraph>;
+
+INSTANTIATE_CACHED_REBALANCER(CSRGraph, CSRLargeKSparseGainCache);
+INSTANTIATE_CACHED_REBALANCER(CSRGraph, CSRNormalHashingGainCache);
+INSTANTIATE_CACHED_REBALANCER(CSRGraph, CSRLargeKHashingGainCache);
+INSTANTIATE_CACHED_REBALANCER(CSRGraph, CSRNormalDenseGainCache);
+INSTANTIATE_CACHED_REBALANCER(CSRGraph, CSRLargeKDenseGainCache);
+INSTANTIATE_CACHED_REBALANCER(CSRGraph, CSRNormalOnTheFlyGainCache);
+
+INSTANTIATE_CACHED_REBALANCER(CompressedGraph, CompressedLargeKSparseGainCache);
+INSTANTIATE_CACHED_REBALANCER(CompressedGraph, CompressedNormalHashingGainCache);
+INSTANTIATE_CACHED_REBALANCER(CompressedGraph, CompressedLargeKHashingGainCache);
+INSTANTIATE_CACHED_REBALANCER(CompressedGraph, CompressedNormalDenseGainCache);
+INSTANTIATE_CACHED_REBALANCER(CompressedGraph, CompressedLargeKDenseGainCache);
+INSTANTIATE_CACHED_REBALANCER(CompressedGraph, CompressedNormalOnTheFlyGainCache);
+#endif // KAMINPAR_EXPERIMENTAL
+
+#undef INSTANTIATE_CACHED_REBALANCER
 
 } // namespace kaminpar::shm

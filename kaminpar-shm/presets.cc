@@ -82,30 +82,14 @@ Context create_context_by_preset_name(const std::string &name) {
 
 std::unordered_set<std::string> get_preset_names() {
   return {
-      "default",
-      "fast",
-      "eco",
-      "eco_test",
-      "strong",
-      "largek",
-      "terapart",
-      "terapart-eco",
-      "terapart-largek",
-      "largek-fast",
-      "largek-eco",
-      "largek-strong",
-      "jet",
-      "4xjet",
-      "noref",
-      "fm",
-      "vcycle",
-      "restricted-vcycle",
-      "esa21-smallk",
-      "esa21-largek",
-      "esa21-largek-fast",
-      "esa21-strong",
-      "mtkahypar-kway",
-      "linear-time-kway",
+      "default",      "fast",           "eco",
+      "eco_test",     "strong",         "largek",
+      "terapart",     "terapart-eco",   "terapart-largek",
+      "largek-fast",  "largek-eco",     "largek-strong",
+      "jet",          "4xjet",          "noref",
+      "fm",           "vcycle",         "restricted-vcycle",
+      "esa21-smallk", "esa21-largek",   "esa21-largek-fast",
+      "esa21-strong", "mtkahypar-kway", "linear-time-kway",
   };
 }
 
@@ -443,19 +427,18 @@ Context create_default_context() {
               // Context -> Parallel
               .num_threads = 1,
           },
-      .debug =
-          {
-              .graph_name = "",
-              .dump_graph_filename = "n%n_m%m_k%k_seed%seed.metis",
-              .dump_partition_filename = "n%n_m%m_k%k_seed%seed.part",
+      .debug = {
+          .graph_name = "",
+          .dump_graph_filename = "n%n_m%m_k%k_seed%seed.metis",
+          .dump_partition_filename = "n%n_m%m_k%k_seed%seed.part",
 
-              .dump_toplevel_graph = false,
-              .dump_toplevel_partition = false,
-              .dump_coarsest_graph = false,
-              .dump_coarsest_partition = false,
-              .dump_graph_hierarchy = false,
-              .dump_partition_hierarchy = false,
-          },
+          .dump_toplevel_graph = false,
+          .dump_toplevel_partition = false,
+          .dump_coarsest_graph = false,
+          .dump_coarsest_partition = false,
+          .dump_graph_hierarchy = false,
+          .dump_partition_hierarchy = false,
+      },
   };
 }
 
@@ -501,6 +484,7 @@ Context create_eco_test_context() {
   ctx.refinement.kway_fm.unconstrained_penalty_min = 0.2;
   ctx.refinement.kway_fm.unconstrained_penalty_max = 1.0;
   ctx.refinement.kway_fm.unconstrained_rebalancing_node_inclusion_threshold = 0.7;
+  ctx.refinement.kway_fm.minimal_parallelism = 8;
 
   return ctx;
 }
