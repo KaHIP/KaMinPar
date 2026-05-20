@@ -1210,7 +1210,9 @@ public:
       const bool switch_to_constrained_fm =
           use_unconstrained_iteration && _fm_ctx.unconstrained_min_improvement >= 0.0 &&
           improvement_of_this_iteration < _fm_ctx.unconstrained_min_improvement;
-      if (switch_to_constrained_fm) {
+      if (abs_improvement_of_this_iteration <= 0) {
+        break;
+      } else if (switch_to_constrained_fm) {
         unconstrained_enabled = false;
       } else if (1.0 - improvement_of_this_iteration > _fm_ctx.abortion_threshold) {
         break;
