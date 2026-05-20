@@ -387,9 +387,7 @@ public:
     allocate(p_graph);
 
     _balancer.initialize(p_graph);
-    _balancer.track_moves([&](const NodeID u, const BlockID from, const BlockID to) {
-      const Gain gain = compute_move_gain(p_graph, u, from, to);
-      _rebalancing_gain.fetch_add(gain, std::memory_order_relaxed);
+    _balancer.track_moves([&](const NodeID u, const BlockID from, const BlockID /* to */) {
       record_moved_node(u, from);
     });
 
@@ -407,9 +405,8 @@ public:
       }
 
       clear_moved_nodes();
-      _rebalancing_gain.store(0, std::memory_order_relaxed);
 
-      const auto [num_moves, lp_improvement] = perform_round(p_graph);
+      const NodeID num_moves = perform_round(p_graph);
       if (num_moves == 0) {
         break;
       }
@@ -420,9 +417,9 @@ public:
         };
       }
 
-      const Gain improvement =
-          lp_improvement + _rebalancing_gain.load(std::memory_order_relaxed);
-      if (metrics::total_overload(p_graph, p_ctx) > 0 || improvement <= 0) {
+      const bool balanced = metrics::total_overload(p_graph, p_ctx) == 0;
+      const Gain improvement = balanced ? compute_round_improvement(p_graph) : 0;
+      if (!balanced || improvement <= 0) {
         restore_partition(p_graph);
         break;
       }
@@ -531,9 +528,8 @@ private:
     }
   }
 
-  std::pair<NodeID, Gain> perform_round(PartitionedGraph &p_graph) {
+  NodeID perform_round(PartitionedGraph &p_graph) {
     std::atomic<NodeID> num_moves = 0;
-    std::atomic<Gain> improvement = 0;
 
     _graph->pfor_nodes([&](const NodeID u) {
       if (!_active[u] || !should_handle_node(u)) {
@@ -556,10 +552,9 @@ private:
 
       record_moved_node(u, from);
       num_moves.fetch_add(1, std::memory_order_relaxed);
-      improvement.fetch_add(actual_gain, std::memory_order_relaxed);
     });
 
-    return {num_moves.load(std::memory_order_relaxed), improvement.load(std::memory_order_relaxed)};
+    return num_moves.load(std::memory_order_relaxed);
   }
 
   std::pair<BlockID, Gain> find_best_target(
@@ -640,6 +635,35 @@ private:
     return conn_to - conn_from;
   }
 
+  Gain compute_round_improvement(const PartitionedGraph &p_graph) const {
+    tbb::enumerable_thread_specific<Gain> improvement_ets;
+
+    tbb::parallel_for(_round_moved_nodes.range(), [&](const auto &range) {
+      Gain &improvement = improvement_ets.local();
+      for (const auto &nodes : range) {
+        for (const NodeID u : nodes) {
+          const BlockID old_u = _round_start_partition[u];
+          const BlockID new_u = p_graph.block(u);
+
+          adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+            const bool v_moved = __atomic_load_n(&_moved[v], __ATOMIC_RELAXED);
+            // Count edges between two moved nodes once; moved-to-unmoved edges are seen once.
+            if (v_moved && v < u) {
+              return;
+            }
+
+            const BlockID old_v = v_moved ? _round_start_partition[v] : p_graph.block(v);
+            const BlockID new_v = p_graph.block(v);
+
+            improvement += (old_u != old_v ? weight : 0) - (new_u != new_v ? weight : 0);
+          });
+        }
+      }
+    });
+
+    return improvement_ets.combine(std::plus{});
+  }
+
   void record_moved_node(const NodeID u, const BlockID from) {
     std::uint8_t expected = 0;
     if (__atomic_compare_exchange_n(
@@ -708,7 +732,6 @@ private:
   tbb::enumerable_thread_specific<RatingMap> _rating_maps;
   tbb::enumerable_thread_specific<std::vector<BlockID>> _tie_breaking_blocks;
   tbb::enumerable_thread_specific<std::vector<NodeID>> _round_moved_nodes;
-  std::atomic<Gain> _rebalancing_gain = 0;
 
   MultiQueueOverloadBalancer _balancer;
 };
