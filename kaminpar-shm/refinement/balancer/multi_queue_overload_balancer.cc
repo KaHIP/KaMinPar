@@ -24,8 +24,6 @@
 #include "kaminpar-shm/refinement/gains/hashing_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
 
-#include "kaminpar-common/datastructures/dynamic_binary_heap.h"
-#include "kaminpar-common/datastructures/scalable_vector.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
@@ -131,16 +129,16 @@ void MultiQueueOverloadBalancer::finish_refinement() {
 
 template <typename Graph, typename GainCache>
 void MultiQueueOverloadBalancer::init_pqs(const Graph &graph, GainCache &gain_cache) {
-  using LocalPQs = std::vector<DynamicBinaryMinHeap<NodeID, float, ScalableVector>>;
-  tbb::enumerable_thread_specific<LocalPQs> local_pqs([&] { return LocalPQs(_p_graph->k()); });
-
-  using LocalPQWeights = std::vector<BlockWeight>;
-  tbb::enumerable_thread_specific<LocalPQWeights> local_pq_weights([&] {
-    return LocalPQWeights(_p_graph->k());
-  });
-
   [[maybe_unused]] std::atomic<NodeID> num_initial_nodes = 0;
   [[maybe_unused]] std::atomic<NodeID> num_rejected_nodes = 0;
+
+  using PQItems = std::vector<std::vector<std::pair<NodeID, float>>>;
+  tbb::enumerable_thread_specific<PQItems> local_pq_items([&] { return PQItems(_pqs.size()); });
+
+  std::atomic<int> seed{555};
+  tbb::enumerable_thread_specific<AccessToken> tokens([&] {
+    return AccessToken(seed.fetch_add(1, std::memory_order_relaxed), _pqs.size());
+  });
 
   graph.pfor_nodes([&](const NodeID node) {
     const BlockID from = _p_graph->block(node);
@@ -148,55 +146,19 @@ void MultiQueueOverloadBalancer::init_pqs(const Graph &graph, GainCache &gain_ca
       return;
     }
 
-    const BlockWeight overload = block_overload(from);
-    KASSERT(overload > 0);
-
     const auto [to, gain] = compute_best_gain(graph, gain_cache, node, from);
     if (to == kInvalidBlockID) {
       IFDBG(++num_rejected_nodes);
       return;
     }
 
+    AccessToken &token = tokens.local();
+    const std::size_t pq = token.pick_random_pq();
+
     _node_target[node] = to;
-
-    auto &pq = local_pqs.local()[from];
-    BlockWeight &pq_weight = local_pq_weights.local()[from];
-    const bool need_more_nodes = pq_weight < overload;
-    if (need_more_nodes || pq.empty() || gain > pq.peek_key()) {
-      if (!need_more_nodes) {
-        const NodeWeight node_weight = graph.node_weight(node);
-        const NodeWeight min_weight = graph.node_weight(pq.peek_id());
-        if (pq_weight + node_weight - min_weight >= overload) {
-          pq.pop();
-          pq_weight -= min_weight;
-        }
-      }
-
-      pq.push(node, gain);
-      pq_weight += graph.node_weight(node);
-    }
-  });
-
-  std::vector<LocalPQs *> local_pq_ptrs;
-  for (LocalPQs &pqs : local_pqs) {
-    local_pq_ptrs.push_back(&pqs);
-  }
-
-  using PQItems = std::vector<std::vector<std::pair<NodeID, float>>>;
-  tbb::enumerable_thread_specific<PQItems> local_pq_items([&] { return PQItems(_pqs.size()); });
-
-  tbb::parallel_for<std::size_t>(0, local_pq_ptrs.size(), [&](const std::size_t i) {
-    AccessToken token(555 + static_cast<int>(i), _pqs.size());
-    auto &pq_items = local_pq_items.local();
-
-    for (const BlockID from : _p_graph->blocks()) {
-      for (const auto &[node, gain] : (*local_pq_ptrs[i])[from].elements()) {
-        const std::size_t pq = token.pick_random_pq();
-        __atomic_store_n(&_node_state[node], MOVABLE, __ATOMIC_RELAXED);
-        _node_pq[node] = pq;
-        pq_items[pq].emplace_back(node, gain);
-      }
-    }
+    __atomic_store_n(&_node_state[node], MOVABLE, __ATOMIC_RELAXED);
+    _node_pq[node] = pq;
+    local_pq_items.local()[pq].emplace_back(node, gain);
   });
 
   std::vector<PQItems *> local_pq_item_ptrs;
@@ -239,6 +201,7 @@ void MultiQueueOverloadBalancer::rebalance_worker(
     }
 
     if (move_node_if_possible(move.node, move.from, move.to)) {
+      update_neighbors(graph, gain_cache, move);
       if (_p_graph->block_weight(move.from) <= _p_ctx->max_block_weight(move.from)) {
         deactivate_overloaded_block(move.from);
       }
