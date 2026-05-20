@@ -406,7 +406,7 @@ public:
 
       clear_moved_nodes();
 
-      const auto [num_moves, improvement] = perform_round(p_graph);
+      const NodeID num_moves = perform_round(p_graph).first;
       if (num_moves == 0) {
         break;
       }
@@ -417,7 +417,8 @@ public:
         };
       }
 
-      if (metrics::total_overload(p_graph, p_ctx) > 0 || improvement <= 0) {
+      const Gain cut_after = compute_edge_cut(p_graph);
+      if (metrics::total_overload(p_graph, p_ctx) > 0 || cut_after >= cut_before) {
         restore_partition(p_graph);
         break;
       }
@@ -425,7 +426,8 @@ public:
       activate_moved_nodes();
 
       const Gain previous_cut = cut_before;
-      cut_before = std::max<Gain>(0, cut_before - improvement);
+      cut_before = cut_after;
+      const Gain improvement = previous_cut - cut_after;
       const double relative_improvement =
           previous_cut == 0 ? 0.0 : 1.0 * improvement / previous_cut;
 
