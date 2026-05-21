@@ -116,6 +116,7 @@ jobs:
           -DKAMINPAR_ASSERTION_LEVEL=light
           -DKAMINPAR_BUILD_DISTRIBUTED=On
           -DKAMINPAR_BUILD_WITH_DEBUG_SYMBOLS=Off
+          -DKAMINPAR_BUILD_WITH_MTUNE_NATIVE=Off
       - name: GCC Build
         run: >-
           cmake --build ${{github.workspace}}/build

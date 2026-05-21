@@ -129,6 +129,14 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
         FILES dist/datastructures/distributed_compressed_graph_test.cc
         CORES 1)
 
+    # dKaMinPar -> IO
+    if (TARGET dKaMinParIO)
+        kaminpar_add_dist_test(test_dist_io_metis_parser
+            FILES io/dist_metis_parser_test.cc
+            CORES 1 2 3 4 5 8)
+        target_link_libraries(test_dist_io_metis_parser PRIVATE KaMinPar::dKaMinParIO)
+    endif ()
+
     # dKaMinPar -> Graph Utils
     kaminpar_add_dist_test(test_dist_graphutils_block_extractor
         FILES dist/graphutils/block_extractor_test.cc
