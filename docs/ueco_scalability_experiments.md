@@ -222,9 +222,19 @@ Rejected stronger local tradeoffs:
 - `num_seed_nodes = 100`: faster in one sweep, but quality degraded substantially on `kkt_power`.
 - `unconstrained_upper_bound = 1.02`: not consistently faster than the selected `1.05` cap.
 
+Additional max-local-core checks (`2026-05-21 23:45 CEST`, `t=18`, two repeats):
+
+- Behavior-preserving generation stamps for UFM rebalancing-node flags avoided one full reset pass,
+  but total runtime was neutral and noisy (`1.003x` geomean speedup, with `rmat_n16_m23` slower).
+  Rejected for now to avoid extra state complexity without a clear local gain.
+- Stronger runtime-quality tradeoffs did not produce a defensible local win at `t=18`. Relative to
+  the current tuned preset, `num_seed_nodes = 100` was `0.990x` geomean speed with `1.038x` cut,
+  `num_iterations = 6` was only `1.016x` speed with `1.018x` cut, and the combined fast variants
+  were slower on geomean.
+
 ## Next optimization idea
 
-- Validate the selected UFM tuning/code cleanup with a max-core-only mkexp2 run (`1x1x96` on
-  `hellman` or another idle 96+ core node).
+- Poll `2026.05.21-codex-ueco-max96-ufm-tuning-hellman` until complete and accept/reject the
+  selected UFM tuning/code cleanup based on `1x1x96` runtime.
 - If accepted, inspect remaining UFM costs in rebalancing and localized search bookkeeping before
   running the final `4/16/max` scalability sweep.
