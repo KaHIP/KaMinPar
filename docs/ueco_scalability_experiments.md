@@ -155,6 +155,25 @@ Interpretation:
 - The rollback change was reverted; keep the earlier accepted batching/rollback-through-cache
   changes as the current best branch state.
 
+### 2026.05.21-codex-ueco-max96-ufm-tuning-hellman
+
+- Partition: `hellman` (idle at submit time, 96 physical cores)
+- Graph set: `/nfs/work/graph_benchmark_sets/ufm_paper/small`
+- Created/submitted: `2026-05-21 23:41 CEST`
+- Algorithms: `BaseUeco`, `OptUeco`
+- Threads: `1x1x96` only
+- OptUeco commit: `8f7db829d8b037b53c9471cea1008666f0e2fa59`
+- Slurm install job: `70995`
+- Status: running (initial poll `2026-05-21 23:42 CEST`, `0/88`, `0%`)
+
+Intent:
+
+- Validate the local UFM tuning/code cleanup at the max-core point only, per the fast iteration
+  policy.
+- Accept this candidate if `OptUeco` is faster than `BaseUeco` at `1x1x96` while cut quality
+  remains sane. If it regresses, keep the current local evidence but reject the candidate for the
+  branch.
+
 ## Local runs
 
 Local sanity-check runs (this machine) on `~/Graphs/coAuthorsDBLP.metis`, `k=16`, `eps=0.03`:
