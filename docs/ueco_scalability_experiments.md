@@ -123,6 +123,17 @@ Geometric mean cut (lower is better):
 | --- | --- | --- | --- |
 | `1x1x96` | `1379891` | `1388780` | `1.0064x` |
 
+### 2026.05.21-codex-ueco-rollback-4v96-hellman
+
+- Partition: `hellman` (96 physical cores)
+- Graph set: `/nfs/work/graph_benchmark_sets/ufm_paper/small`
+- Created: `2026-05-21T19:20:59` (submit action)
+- Algorithms: `BaseUeco`, `OptUeco`
+- Threads: `1x1x4`, `1x1x96`
+- OptUeco commit: `ec56814eba05c5de52a100e314268593d4a447f1` (rollback changes)
+- Slurm jobs: `70816`, `70817`, `70818`, `70819`
+- Status: running (last polled `2026-05-21 19:21 CEST`, `0/176`)
+
 ## Local runs
 
 Local sanity-check runs (this machine) on `~/Graphs/coAuthorsDBLP.metis`, `k=16`, `eps=0.03`:
