@@ -494,8 +494,8 @@ Context create_strong_context() {
 
   ctx.refinement.algorithms = {
       RefinementAlgorithm::OVERLOAD_BALANCER,
-      RefinementAlgorithm::LABEL_PROPAGATION,
-      RefinementAlgorithm::KWAY_FM,
+      RefinementAlgorithm::UNCONSTRAINED_LABEL_PROPAGATION,
+      RefinementAlgorithm::UNCONSTRAINED_FM,
       RefinementAlgorithm::OVERLOAD_BALANCER,
       RefinementAlgorithm::TWOWAY_FLOW,
       RefinementAlgorithm::OVERLOAD_BALANCER
