@@ -1,0 +1,122 @@
+{
+  "tests": 22,
+  "name": "AllTests",
+  "testsuites": [
+    {
+      "name": "CompactHashMapTest",
+      "tests": 22,
+      "testsuite": [
+        {
+          "name": "ObjectConstructionWorks",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/compact_hash_map_test.cc",
+          "line": 7
+        },
+        {
+          "name": "SimpleIncreaseWithoutCollision",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/compact_hash_map_test.cc",
+          "line": 12
+        },
+        {
+          "name": "SimpleIncreaseWithCollision",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/compact_hash_map_test.cc",
+          "line": 20
+        },
+        {
+          "name": "SimpleIncreaseQueryWithoutCollision",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/compact_hash_map_test.cc",
+          "line": 28
+        },
+        {
+          "name": "SimpleIncreaseQueryWithCollision",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/compact_hash_map_test.cc",
+          "line": 39
+        },
+        {
+          "name": "SingleElementIncreaseDecreaseErase",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/compact_hash_map_test.cc",
+          "line": 50
+        },
+        {
+          "name": "InsertEraseSequence",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/compact_hash_map_test.cc",
+          "line": 64
+        },
+        {
+          "name": "InsertEraseSequence2",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/compact_hash_map_test.cc",
+          "line": 77
+        },
+        {
+          "name": "FillCompletely",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/compact_hash_map_test.cc",
+          "line": 97
+        },
+        {
+          "name": "FillCompletelyWithCollisions",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/compact_hash_map_test.cc",
+          "line": 113
+        },
+        {
+          "name": "IncreaseOnFullMap",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/compact_hash_map_test.cc",
+          "line": 129
+        },
+        {
+          "name": "RemoveFromFullMap",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/compact_hash_map_test.cc",
+          "line": 154
+        },
+        {
+          "name": "RemoveFromFullMapWithCollisions",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/compact_hash_map_test.cc",
+          "line": 169
+        },
+        {
+          "name": "RemoveFromFullMapAndReinsert",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/compact_hash_map_test.cc",
+          "line": 186
+        },
+        {
+          "name": "UnsuccessfulQueryOnFullMap",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/compact_hash_map_test.cc",
+          "line": 206
+        },
+        {
+          "name": "CountWorksOnEmptyMap",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/compact_hash_map_test.cc",
+          "line": 219
+        },
+        {
+          "name": "CountWorksOnFullMap",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/compact_hash_map_test.cc",
+          "line": 226
+        },
+        {
+          "name": "SingleSlotMapWorks",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/compact_hash_map_test.cc",
+          "line": 239
+        },
+        {
+          "name": "UnsuccessfulQueriesWorkOnEmptyMap",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/compact_hash_map_test.cc",
+          "line": 255
+        },
+        {
+          "name": "UnsuccessfulQueriesWorkOnFullMap",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/compact_hash_map_test.cc",
+          "line": 265
+        },
+        {
+          "name": "UnsuccessfulQueriesWorkOnPartialFullMap_NoAllowFullMap",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/compact_hash_map_test.cc",
+          "line": 280
+        },
+        {
+          "name": "UnsuccessfulQueriesWorkOnPartialFullMap_AllowFullMap",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/compact_hash_map_test.cc",
+          "line": 293
+        }
+      ]
+    }
+  ]
+}

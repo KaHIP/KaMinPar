@@ -11,7 +11,7 @@
 #include <iterator>
 
 #include "kaminpar-common/assert.h"
-#include "kaminpar-common/math.h"
+#include "kaminpar-common/math_utils.h"
 #include "kaminpar-common/parallel/loops.h"
 
 namespace kaminpar::parallel {

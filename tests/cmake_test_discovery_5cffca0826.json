@@ -1,0 +1,27 @@
+{
+  "tests": 3,
+  "name": "AllTests",
+  "testsuites": [
+    {
+      "name": "CompactStaticArrayTest",
+      "tests": 3,
+      "testsuite": [
+        {
+          "name": "single_byte_test",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/compact_static_array_test.cc",
+          "line": 7
+        },
+        {
+          "name": "single_byte_iterator_test",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/compact_static_array_test.cc",
+          "line": 19
+        },
+        {
+          "name": "two_bytes_test",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/compact_static_array_test.cc",
+          "line": 32
+        }
+      ]
+    }
+  ]
+}

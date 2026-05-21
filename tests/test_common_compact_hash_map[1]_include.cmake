@@ -1,0 +1,5 @@
+if(EXISTS "/Users/daniel/.codex/worktrees/d883/KaMinPar/tests/test_common_compact_hash_map[1]_tests.cmake")
+  include("/Users/daniel/.codex/worktrees/d883/KaMinPar/tests/test_common_compact_hash_map[1]_tests.cmake")
+else()
+  add_test(test_common_compact_hash_map_NOT_BUILT test_common_compact_hash_map_NOT_BUILT)
+endif()

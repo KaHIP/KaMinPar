@@ -20,7 +20,7 @@
 #include "kaminpar-dist/refinement/lp/lp_stats.h"
 
 #include "kaminpar-common/datastructures/rating_map.h"
-#include "kaminpar-common/math.h"
+#include "kaminpar-common/math_utils.h"
 #include "kaminpar-common/parallel/vector_ets.h"
 #include "kaminpar-common/random.h"
 

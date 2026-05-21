@@ -1,0 +1,396 @@
+{
+  "tests": 60,
+  "name": "AllTests",
+  "testsuites": [
+    {
+      "name": "GainCacheTest\/0",
+      "tests": 12,
+      "testsuite": [
+        {
+          "name": "ObjectConstructionWorks",
+          "type_param": "kaminpar::shm::DenseGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 55
+        },
+        {
+          "name": "InitWorksOnEmptyGraphWith0Nodes",
+          "type_param": "kaminpar::shm::DenseGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 59
+        },
+        {
+          "name": "InitWorksOnGraphWithSingleNode",
+          "type_param": "kaminpar::shm::DenseGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 67
+        },
+        {
+          "name": "InitWorksOnEmptyGraphWith4Nodes",
+          "type_param": "kaminpar::shm::DenseGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 79
+        },
+        {
+          "name": "InitWorksOnBipartiteStarGraphWith4Nodes",
+          "type_param": "kaminpar::shm::DenseGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 104
+        },
+        {
+          "name": "InitWorksOn4PartiteStarGraphWith4Nodes",
+          "type_param": "kaminpar::shm::DenseGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 126
+        },
+        {
+          "name": "InitWorksOnGraphWithTwoConnectedNodes",
+          "type_param": "kaminpar::shm::DenseGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 157
+        },
+        {
+          "name": "MoveWorksOn4PartiteStarGraphWith4Nodes",
+          "type_param": "kaminpar::shm::DenseGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 171
+        },
+        {
+          "name": "MoveWorksOnGraphWithTwoConnectedNodes",
+          "type_param": "kaminpar::shm::DenseGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 198
+        },
+        {
+          "name": "MoveWorksOnGraphWithDisconnectedNodes",
+          "type_param": "kaminpar::shm::DenseGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 214
+        },
+        {
+          "name": "InitWorksOnCompleteGraph",
+          "type_param": "kaminpar::shm::DenseGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 230
+        },
+        {
+          "name": "MoveWorksOnCompleteGraph",
+          "type_param": "kaminpar::shm::DenseGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 255
+        }
+      ]
+    },
+    {
+      "name": "GainCacheTest\/1",
+      "tests": 12,
+      "testsuite": [
+        {
+          "name": "ObjectConstructionWorks",
+          "type_param": "kaminpar::shm::HashingGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 55
+        },
+        {
+          "name": "InitWorksOnEmptyGraphWith0Nodes",
+          "type_param": "kaminpar::shm::HashingGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 59
+        },
+        {
+          "name": "InitWorksOnGraphWithSingleNode",
+          "type_param": "kaminpar::shm::HashingGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 67
+        },
+        {
+          "name": "InitWorksOnEmptyGraphWith4Nodes",
+          "type_param": "kaminpar::shm::HashingGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 79
+        },
+        {
+          "name": "InitWorksOnBipartiteStarGraphWith4Nodes",
+          "type_param": "kaminpar::shm::HashingGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 104
+        },
+        {
+          "name": "InitWorksOn4PartiteStarGraphWith4Nodes",
+          "type_param": "kaminpar::shm::HashingGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 126
+        },
+        {
+          "name": "InitWorksOnGraphWithTwoConnectedNodes",
+          "type_param": "kaminpar::shm::HashingGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 157
+        },
+        {
+          "name": "MoveWorksOn4PartiteStarGraphWith4Nodes",
+          "type_param": "kaminpar::shm::HashingGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 171
+        },
+        {
+          "name": "MoveWorksOnGraphWithTwoConnectedNodes",
+          "type_param": "kaminpar::shm::HashingGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 198
+        },
+        {
+          "name": "MoveWorksOnGraphWithDisconnectedNodes",
+          "type_param": "kaminpar::shm::HashingGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 214
+        },
+        {
+          "name": "InitWorksOnCompleteGraph",
+          "type_param": "kaminpar::shm::HashingGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 230
+        },
+        {
+          "name": "MoveWorksOnCompleteGraph",
+          "type_param": "kaminpar::shm::HashingGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 255
+        }
+      ]
+    },
+    {
+      "name": "GainCacheTest\/2",
+      "tests": 12,
+      "testsuite": [
+        {
+          "name": "ObjectConstructionWorks",
+          "type_param": "kaminpar::shm::OnTheFlyGainCache<kaminpar::shm::CSRGraph,true,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 55
+        },
+        {
+          "name": "InitWorksOnEmptyGraphWith0Nodes",
+          "type_param": "kaminpar::shm::OnTheFlyGainCache<kaminpar::shm::CSRGraph,true,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 59
+        },
+        {
+          "name": "InitWorksOnGraphWithSingleNode",
+          "type_param": "kaminpar::shm::OnTheFlyGainCache<kaminpar::shm::CSRGraph,true,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 67
+        },
+        {
+          "name": "InitWorksOnEmptyGraphWith4Nodes",
+          "type_param": "kaminpar::shm::OnTheFlyGainCache<kaminpar::shm::CSRGraph,true,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 79
+        },
+        {
+          "name": "InitWorksOnBipartiteStarGraphWith4Nodes",
+          "type_param": "kaminpar::shm::OnTheFlyGainCache<kaminpar::shm::CSRGraph,true,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 104
+        },
+        {
+          "name": "InitWorksOn4PartiteStarGraphWith4Nodes",
+          "type_param": "kaminpar::shm::OnTheFlyGainCache<kaminpar::shm::CSRGraph,true,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 126
+        },
+        {
+          "name": "InitWorksOnGraphWithTwoConnectedNodes",
+          "type_param": "kaminpar::shm::OnTheFlyGainCache<kaminpar::shm::CSRGraph,true,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 157
+        },
+        {
+          "name": "MoveWorksOn4PartiteStarGraphWith4Nodes",
+          "type_param": "kaminpar::shm::OnTheFlyGainCache<kaminpar::shm::CSRGraph,true,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 171
+        },
+        {
+          "name": "MoveWorksOnGraphWithTwoConnectedNodes",
+          "type_param": "kaminpar::shm::OnTheFlyGainCache<kaminpar::shm::CSRGraph,true,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 198
+        },
+        {
+          "name": "MoveWorksOnGraphWithDisconnectedNodes",
+          "type_param": "kaminpar::shm::OnTheFlyGainCache<kaminpar::shm::CSRGraph,true,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 214
+        },
+        {
+          "name": "InitWorksOnCompleteGraph",
+          "type_param": "kaminpar::shm::OnTheFlyGainCache<kaminpar::shm::CSRGraph,true,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 230
+        },
+        {
+          "name": "MoveWorksOnCompleteGraph",
+          "type_param": "kaminpar::shm::OnTheFlyGainCache<kaminpar::shm::CSRGraph,true,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 255
+        }
+      ]
+    },
+    {
+      "name": "GainCacheTest\/3",
+      "tests": 12,
+      "testsuite": [
+        {
+          "name": "ObjectConstructionWorks",
+          "type_param": "kaminpar::shm::SparseGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 55
+        },
+        {
+          "name": "InitWorksOnEmptyGraphWith0Nodes",
+          "type_param": "kaminpar::shm::SparseGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 59
+        },
+        {
+          "name": "InitWorksOnGraphWithSingleNode",
+          "type_param": "kaminpar::shm::SparseGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 67
+        },
+        {
+          "name": "InitWorksOnEmptyGraphWith4Nodes",
+          "type_param": "kaminpar::shm::SparseGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 79
+        },
+        {
+          "name": "InitWorksOnBipartiteStarGraphWith4Nodes",
+          "type_param": "kaminpar::shm::SparseGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 104
+        },
+        {
+          "name": "InitWorksOn4PartiteStarGraphWith4Nodes",
+          "type_param": "kaminpar::shm::SparseGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 126
+        },
+        {
+          "name": "InitWorksOnGraphWithTwoConnectedNodes",
+          "type_param": "kaminpar::shm::SparseGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 157
+        },
+        {
+          "name": "MoveWorksOn4PartiteStarGraphWith4Nodes",
+          "type_param": "kaminpar::shm::SparseGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 171
+        },
+        {
+          "name": "MoveWorksOnGraphWithTwoConnectedNodes",
+          "type_param": "kaminpar::shm::SparseGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 198
+        },
+        {
+          "name": "MoveWorksOnGraphWithDisconnectedNodes",
+          "type_param": "kaminpar::shm::SparseGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 214
+        },
+        {
+          "name": "InitWorksOnCompleteGraph",
+          "type_param": "kaminpar::shm::SparseGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 230
+        },
+        {
+          "name": "MoveWorksOnCompleteGraph",
+          "type_param": "kaminpar::shm::SparseGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 255
+        }
+      ]
+    },
+    {
+      "name": "GainCacheTest\/4",
+      "tests": 12,
+      "testsuite": [
+        {
+          "name": "ObjectConstructionWorks",
+          "type_param": "kaminpar::shm::CompactHashingGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 55
+        },
+        {
+          "name": "InitWorksOnEmptyGraphWith0Nodes",
+          "type_param": "kaminpar::shm::CompactHashingGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 59
+        },
+        {
+          "name": "InitWorksOnGraphWithSingleNode",
+          "type_param": "kaminpar::shm::CompactHashingGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 67
+        },
+        {
+          "name": "InitWorksOnEmptyGraphWith4Nodes",
+          "type_param": "kaminpar::shm::CompactHashingGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 79
+        },
+        {
+          "name": "InitWorksOnBipartiteStarGraphWith4Nodes",
+          "type_param": "kaminpar::shm::CompactHashingGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 104
+        },
+        {
+          "name": "InitWorksOn4PartiteStarGraphWith4Nodes",
+          "type_param": "kaminpar::shm::CompactHashingGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 126
+        },
+        {
+          "name": "InitWorksOnGraphWithTwoConnectedNodes",
+          "type_param": "kaminpar::shm::CompactHashingGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 157
+        },
+        {
+          "name": "MoveWorksOn4PartiteStarGraphWith4Nodes",
+          "type_param": "kaminpar::shm::CompactHashingGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 171
+        },
+        {
+          "name": "MoveWorksOnGraphWithTwoConnectedNodes",
+          "type_param": "kaminpar::shm::CompactHashingGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 198
+        },
+        {
+          "name": "MoveWorksOnGraphWithDisconnectedNodes",
+          "type_param": "kaminpar::shm::CompactHashingGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 214
+        },
+        {
+          "name": "InitWorksOnCompleteGraph",
+          "type_param": "kaminpar::shm::CompactHashingGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 230
+        },
+        {
+          "name": "MoveWorksOnCompleteGraph",
+          "type_param": "kaminpar::shm::CompactHashingGainCache<kaminpar::shm::CSRGraph,kaminpar::shm::GenericDeltaGainCache,true,false>",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/refinement\/gain_cache_test.cc",
+          "line": 255
+        }
+      ]
+    }
+  ]
+}

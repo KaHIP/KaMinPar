@@ -1,0 +1,22 @@
+{
+  "tests": 2,
+  "name": "AllTests",
+  "testsuites": [
+    {
+      "name": "StaticArrayTest",
+      "tests": 2,
+      "testsuite": [
+        {
+          "name": "SimpleStorageTest",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/static_array_test.cc",
+          "line": 15
+        },
+        {
+          "name": "IteratorTest",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/static_array_test.cc",
+          "line": 27
+        }
+      ]
+    }
+  ]
+}

@@ -13,7 +13,7 @@
 #include <limits>
 
 #include "kaminpar-common/datastructures/static_array.h"
-#include "kaminpar-common/math.h"
+#include "kaminpar-common/math_utils.h"
 
 namespace kaminpar {
 

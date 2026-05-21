@@ -1,0 +1,27 @@
+{
+  "tests": 3,
+  "name": "AllTests",
+  "testsuites": [
+    {
+      "name": "DynamicMapTest",
+      "tests": 3,
+      "testsuite": [
+        {
+          "name": "SmallInsertRetrieveNoGrowing",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/dynamic_map_test.cc",
+          "line": 7
+        },
+        {
+          "name": "LargeInsertRetrieveWithGrowing",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/dynamic_map_test.cc",
+          "line": 26
+        },
+        {
+          "name": "ClearAfterFewInsertions",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/dynamic_map_test.cc",
+          "line": 50
+        }
+      ]
+    }
+  ]
+}

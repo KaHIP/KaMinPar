@@ -13,7 +13,7 @@
 #include <tbb/parallel_for.h>
 #include <tbb/task_arena.h>
 
-#include "kaminpar-common/math.h"
+#include "kaminpar-common/math_utils.h"
 
 namespace kaminpar::parallel {
 

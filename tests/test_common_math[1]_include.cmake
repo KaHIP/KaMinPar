@@ -1,0 +1,5 @@
+if(EXISTS "/Users/daniel/.codex/worktrees/d883/KaMinPar/tests/test_common_math[1]_tests.cmake")
+  include("/Users/daniel/.codex/worktrees/d883/KaMinPar/tests/test_common_math[1]_tests.cmake")
+else()
+  add_test(test_common_math_NOT_BUILT test_common_math_NOT_BUILT)
+endif()

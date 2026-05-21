@@ -14,7 +14,7 @@
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/assert.h"
-#include "kaminpar-common/math.h"
+#include "kaminpar-common/math_utils.h"
 
 namespace kaminpar::shm::partitioning {
 

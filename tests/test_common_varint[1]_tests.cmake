@@ -1,0 +1,5 @@
+add_test([=[VarIntTest.Codec]=]  /Users/daniel/.codex/worktrees/d883/KaMinPar/tests/test_common_varint [==[--gtest_filter=VarIntTest.Codec]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[VarIntTest.Codec]=]  PROPERTIES DEF_SOURCE_LINE /Users/daniel/.codex/worktrees/d883/KaMinPar/tests/common/graph_compression/varint_test.cc:88 WORKING_DIRECTORY /Users/daniel/.codex/worktrees/d883/KaMinPar/tests SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
+add_test([=[SignedVarIntTest.Codec]=]  /Users/daniel/.codex/worktrees/d883/KaMinPar/tests/test_common_varint [==[--gtest_filter=SignedVarIntTest.Codec]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[SignedVarIntTest.Codec]=]  PROPERTIES DEF_SOURCE_LINE /Users/daniel/.codex/worktrees/d883/KaMinPar/tests/common/graph_compression/varint_test.cc:100 WORKING_DIRECTORY /Users/daniel/.codex/worktrees/d883/KaMinPar/tests SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
+set(  test_common_varint_TESTS VarIntTest.Codec SignedVarIntTest.Codec)

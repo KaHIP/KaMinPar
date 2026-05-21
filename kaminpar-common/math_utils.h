@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Utility functions for common computations.
  *
- * @file:   math.h
+ * @file:   math_utils.h
  * @author: Daniel Seemaier
  * @date:   17.06.2022
  ******************************************************************************/
@@ -219,32 +219,5 @@ Int encode_grid_position(const Int row, const Int column, const Int num_columns)
   return row * num_columns + column;
 }
 
-template <typename Container>
-auto find_min(const Container &container) -> typename Container::value_type {
-  return *std::min_element(container.begin(), container.end());
-}
-
-template <typename Container>
-auto find_max(const Container &container) -> typename Container::value_type {
-  return *std::max_element(container.begin(), container.end());
-}
-
-template <typename Container> double find_mean(const Container &container) {
-  double sum = 0;
-  for (const auto &e : container) {
-    sum += e;
-  }
-  return sum / container.size();
-}
-
-template <typename Container>
-auto find_min_mean_max(const Container &container)
-    -> std::tuple<typename Container::value_type, double, typename Container::value_type> {
-  return std::make_tuple(find_min(container), find_mean(container), find_max(container));
-}
-
-template <typename Int> Int create_mask(const int num_bits) {
-  return (1 << num_bits) - 1;
-}
-
 } // namespace kaminpar::math
+

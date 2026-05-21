@@ -10,7 +10,7 @@
 #include "kaminpar-shm/partitioning/partition_utils.h"
 
 #include "kaminpar-common/heap_profiler.h"
-#include "kaminpar-common/math.h"
+#include "kaminpar-common/math_utils.h"
 #include "kaminpar-common/parallel/algorithm.h"
 #include "kaminpar-common/timer.h"
 

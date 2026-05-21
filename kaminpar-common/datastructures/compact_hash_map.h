@@ -23,7 +23,7 @@
 #include <type_traits>
 #include <utility>
 
-#include "kaminpar-common/math.h"
+#include "kaminpar-common/math_utils.h"
 
 namespace kaminpar {
 

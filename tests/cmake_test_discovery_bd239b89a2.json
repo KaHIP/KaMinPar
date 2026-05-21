@@ -1,0 +1,42 @@
+{
+  "tests": 6,
+  "name": "AllTests",
+  "testsuites": [
+    {
+      "name": "SubgraphExtractionTest",
+      "tests": 6,
+      "testsuite": [
+        {
+          "name": "ExtractingBlockFromWeightedGridGraphHorizontally",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/graphutils\/subgraph_extraction_test.cc",
+          "line": 19
+        },
+        {
+          "name": "ExtractingEmptyBlockFromWeightedGridGraph",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/graphutils\/subgraph_extraction_test.cc",
+          "line": 41
+        },
+        {
+          "name": "ExtractsIsolatedNodes",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/graphutils\/subgraph_extraction_test.cc",
+          "line": 56
+        },
+        {
+          "name": "ExtractsEdges",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/graphutils\/subgraph_extraction_test.cc",
+          "line": 73
+        },
+        {
+          "name": "ExtractsPathCutInTwo",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/graphutils\/subgraph_extraction_test.cc",
+          "line": 95
+        },
+        {
+          "name": "ComplexTrianglesWeightedExampleWorks",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/graphutils\/subgraph_extraction_test.cc",
+          "line": 117
+        }
+      ]
+    }
+  ]
+}

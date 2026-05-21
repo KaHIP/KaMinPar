@@ -1,0 +1,37 @@
+{
+  "tests": 5,
+  "name": "AllTests",
+  "testsuites": [
+    {
+      "name": "MarkerTests",
+      "tests": 5,
+      "testsuite": [
+        {
+          "name": "ConcurrentMarkersWork",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/marker_test.cc",
+          "line": 7
+        },
+        {
+          "name": "ResetWorks",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/marker_test.cc",
+          "line": 26
+        },
+        {
+          "name": "MarkingOutOfOrderWorks",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/marker_test.cc",
+          "line": 35
+        },
+        {
+          "name": "MarkingOutOfOrderAfterResetWorks",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/marker_test.cc",
+          "line": 45
+        },
+        {
+          "name": "MarkingAfterResetsWorks",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/datastructures\/marker_test.cc",
+          "line": 54
+        }
+      ]
+    }
+  ]
+}

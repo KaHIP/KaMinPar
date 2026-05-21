@@ -1,0 +1,62 @@
+{
+  "tests": 10,
+  "name": "AllTests",
+  "testsuites": [
+    {
+      "name": "ShmEndToEndTest",
+      "tests": 10,
+      "testsuite": [
+        {
+          "name": "partitions_empty_unweighted_graph",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/endtoend\/shm_endtoend_test.cc",
+          "line": 28
+        },
+        {
+          "name": "partitions_empty_weighted_graph",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/endtoend\/shm_endtoend_test.cc",
+          "line": 55
+        },
+        {
+          "name": "partitions_empty_graph_repeatedly_with_separate_partitioner_instances",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/endtoend\/shm_endtoend_test.cc",
+          "line": 84
+        },
+        {
+          "name": "partitions_empty_graph_repeatedly_with_one_partitioner_instances",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/endtoend\/shm_endtoend_test.cc",
+          "line": 103
+        },
+        {
+          "name": "partitions_empty_graph_repeatedly_after_borrow",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/endtoend\/shm_endtoend_test.cc",
+          "line": 123
+        },
+        {
+          "name": "partitions_unweighted_walshaw_data_graph",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/endtoend\/shm_endtoend_test.cc",
+          "line": 142
+        },
+        {
+          "name": "partitions_unweighted_walshaw_data_graph_with_unconstrained_fm",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/endtoend\/shm_endtoend_test.cc",
+          "line": 189
+        },
+        {
+          "name": "partitions_unweighted_walshaw_data_graph_with_eco_preset",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/endtoend\/shm_endtoend_test.cc",
+          "line": 232
+        },
+        {
+          "name": "partitions_unweighted_walshaw_graph_multiple_times_with_same_seed",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/endtoend\/shm_endtoend_test.cc",
+          "line": 270
+        },
+        {
+          "name": "partitions_unweighted_walshaw_graph_multiple_times_with_different_seeds",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/endtoend\/shm_endtoend_test.cc",
+          "line": 300
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "tests": 6,
+  "name": "AllTests",
+  "testsuites": [
+    {
+      "name": "ParallelAlignedPrefixSumTest",
+      "tests": 6,
+      "testsuite": [
+        {
+          "name": "works_with_zero_elements",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/parallel\/aligned_prefix_sum_test.cc",
+          "line": 11
+        },
+        {
+          "name": "works_with_single_element",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/parallel\/aligned_prefix_sum_test.cc",
+          "line": 20
+        },
+        {
+          "name": "works_with_aligned_values",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/parallel\/aligned_prefix_sum_test.cc",
+          "line": 30
+        },
+        {
+          "name": "works_with_unaligned_values_4",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/parallel\/aligned_prefix_sum_test.cc",
+          "line": 42
+        },
+        {
+          "name": "works_with_unaligned_values_8",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/parallel\/aligned_prefix_sum_test.cc",
+          "line": 55
+        },
+        {
+          "name": "works_with_multiple_alignments",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/parallel\/aligned_prefix_sum_test.cc",
+          "line": 68
+        }
+      ]
+    }
+  ]
+}

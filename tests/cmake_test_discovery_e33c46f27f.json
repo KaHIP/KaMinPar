@@ -1,0 +1,32 @@
+{
+  "tests": 4,
+  "name": "AllTests",
+  "testsuites": [
+    {
+      "name": "DeltaPartitionedGraphTest",
+      "tests": 4,
+      "testsuite": [
+        {
+          "name": "two_node_graph_delta_returns_original_blocks",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/datastructures\/delta_partitioned_graph_test.cc",
+          "line": 16
+        },
+        {
+          "name": "two_node_graph_delta_returns_new_blocks",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/datastructures\/delta_partitioned_graph_test.cc",
+          "line": 25
+        },
+        {
+          "name": "two_node_graph_delta_returns_original_block_weights",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/datastructures\/delta_partitioned_graph_test.cc",
+          "line": 38
+        },
+        {
+          "name": "two_node_graph_delta_returns_modified_block_weights",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/datastructures\/delta_partitioned_graph_test.cc",
+          "line": 47
+        }
+      ]
+    }
+  ]
+}

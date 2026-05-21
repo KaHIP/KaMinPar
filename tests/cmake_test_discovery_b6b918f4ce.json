@@ -1,0 +1,17 @@
+{
+  "tests": 1,
+  "name": "AllTests",
+  "testsuites": [
+    {
+      "name": "UtilityTest",
+      "tests": 1,
+      "testsuite": [
+        {
+          "name": "extract_basename",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/common\/strutils_test.cc",
+          "line": 7
+        }
+      ]
+    }
+  ]
+}

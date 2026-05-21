@@ -11,7 +11,7 @@
 #include "kaminpar-shm/graphutils/subgraph_extractor.h"
 #include "kaminpar-shm/partitioning/helper.h"
 
-#include "kaminpar-common/math.h"
+#include "kaminpar-common/math_utils.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {

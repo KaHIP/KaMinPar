@@ -109,7 +109,19 @@ Interpretation:
 - Threads: `1x1x96` only
 - OptUeco commit: `14e0151b52c901464ad4d8671aec32dbb73b6d3f`
 - Slurm jobs: `70724`, `70725`, `70726`
-- Status: running (last polled `2026-05-21 17:53 CEST`, `0/88`)
+- Status: complete (last polled `2026-05-21 18:46 CEST`, `88/88`, `100%`)
+
+Geometric mean time (lower is better):
+
+| Threads | BaseUeco | OptUeco | BaseUeco / OptUeco |
+| --- | --- | --- | --- |
+| `1x1x96` | `1.644s` | `1.555s` | `1.058x` |
+
+Geometric mean cut (lower is better):
+
+| Threads | BaseUeco | OptUeco | OptUeco / BaseUeco |
+| --- | --- | --- | --- |
+| `1x1x96` | `1379891` | `1388780` | `1.0064x` |
 
 ## Local runs
 
@@ -128,9 +140,20 @@ Notes:
 
 - `32` threads is oversubscribed locally (machine reports 18 CPUs), so only use it as a rough sanity check.
 
+Local sanity-check runs after the FM rollback change (this worktree, `2026-05-21 18:46 CEST`):
+
+| Preset | Threads | Time (real) | Cut | Feasible |
+| --- | --- | --- | --- | --- |
+| `eco` | `4` | `0.19s` | `123883` | `yes` |
+| `eco` | `8` | `0.13s` | `123358` | `yes` |
+| `eco` | `16` | `0.11s` | `122153` | `yes` |
+| `ueco` | `4` | `0.23s` | `125096` | `yes` |
+| `ueco` | `8` | `0.17s` | `124392` | `yes` |
+| `ueco` | `16` | `0.15s` | `122870` | `yes` |
+
 ## Next optimization idea
 
-- Batch unconstrained LP block-weight updates only for high thread counts (>= 32):
-  - Avoid per-move atomic updates to block weights (`set_block<false>()`).
-  - Recompute block weights once per LP round (`recompute_block_weights()`).
-  - Use atomic per-move updates for smaller thread counts to avoid regressions.
+- Reduce unconstrained FM rollback overhead:
+  - In the `1x1x96` logs for `rmat_n25_m28`, `Rollback` dominates runtime (tens of seconds).
+  - Candidate: avoid replaying *undo* moves through the gain cache; rebuild the gain cache once
+    after restoring the partition, and keep the forward replay unchanged for correctness.

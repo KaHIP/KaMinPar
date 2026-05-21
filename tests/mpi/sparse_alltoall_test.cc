@@ -4,7 +4,7 @@
 #include "kaminpar-mpi/sparse_alltoall.h"
 #include "kaminpar-mpi/wrapper.h"
 
-#include "kaminpar-common/math.h"
+#include "kaminpar-common/math_utils.h"
 
 namespace kaminpar::mpi {
 

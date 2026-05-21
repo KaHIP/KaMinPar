@@ -15,7 +15,7 @@
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/dkaminpar.h"
 
-#include "kaminpar-common/math.h"
+#include "kaminpar-common/math_utils.h"
 
 namespace kaminpar::dist {
 

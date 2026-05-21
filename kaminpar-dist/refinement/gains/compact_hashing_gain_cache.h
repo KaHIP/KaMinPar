@@ -21,7 +21,7 @@
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/inline.h"
 #include "kaminpar-common/logger.h"
-#include "kaminpar-common/math.h"
+#include "kaminpar-common/math_utils.h"
 #include "kaminpar-common/parallel/aligned_prefix_sum.h"
 #include "kaminpar-common/timer.h"
 

@@ -18,7 +18,7 @@
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/noinit_vector.h"
-#include "kaminpar-common/math.h"
+#include "kaminpar-common/math_utils.h"
 
 namespace kaminpar::mpi {
 

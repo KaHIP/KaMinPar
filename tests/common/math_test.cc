@@ -1,6 +1,6 @@
 #include <gmock/gmock.h>
 
-#include "kaminpar-common/math.h"
+#include "kaminpar-common/math_utils.h"
 
 using ::testing::AnyOf;
 using ::testing::Eq;

@@ -1,0 +1,47 @@
+{
+  "tests": 7,
+  "name": "AllTests",
+  "testsuites": [
+    {
+      "name": "CompressedGraphBuilderTest",
+      "tests": 7,
+      "testsuite": [
+        {
+          "name": "csr_graph_compress_test",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/graphutils\/compressed_graph_builder_test.cc",
+          "line": 81
+        },
+        {
+          "name": "csr_compress_test",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/graphutils\/compressed_graph_builder_test.cc",
+          "line": 85
+        },
+        {
+          "name": "parallel_csr_graph_compress_test",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/graphutils\/compressed_graph_builder_test.cc",
+          "line": 96
+        },
+        {
+          "name": "parallel_csr_compress_test",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/graphutils\/compressed_graph_builder_test.cc",
+          "line": 100
+        },
+        {
+          "name": "compressed_graph_builder_test",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/graphutils\/compressed_graph_builder_test.cc",
+          "line": 111
+        },
+        {
+          "name": "two_pass_parallel_compressed_graph_builder_test",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/graphutils\/compressed_graph_builder_test.cc",
+          "line": 140
+        },
+        {
+          "name": "single_pass_parallel_compressed_graph_builder_test",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/graphutils\/compressed_graph_builder_test.cc",
+          "line": 180
+        }
+      ]
+    }
+  ]
+}

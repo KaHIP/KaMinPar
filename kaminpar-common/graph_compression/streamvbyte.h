@@ -20,7 +20,7 @@
 #endif
 
 #include "kaminpar-common/constexpr_utils.h"
-#include "kaminpar-common/math.h"
+#include "kaminpar-common/math_utils.h"
 
 namespace kaminpar::streamvbyte {
 

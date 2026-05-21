@@ -29,7 +29,7 @@
 #include "kaminpar-shm/metrics.h"
 
 #include "kaminpar-common/assert.h"
-#include "kaminpar-common/math.h"
+#include "kaminpar-common/math_utils.h"
 
 namespace kaminpar::dist {
 

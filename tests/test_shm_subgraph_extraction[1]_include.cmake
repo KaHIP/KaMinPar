@@ -1,0 +1,5 @@
+if(EXISTS "/Users/daniel/.codex/worktrees/d883/KaMinPar/tests/test_shm_subgraph_extraction[1]_tests.cmake")
+  include("/Users/daniel/.codex/worktrees/d883/KaMinPar/tests/test_shm_subgraph_extraction[1]_tests.cmake")
+else()
+  add_test(test_shm_subgraph_extraction_NOT_BUILT test_shm_subgraph_extraction_NOT_BUILT)
+endif()

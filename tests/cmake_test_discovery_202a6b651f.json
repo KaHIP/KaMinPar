@@ -1,0 +1,32 @@
+{
+  "tests": 4,
+  "name": "AllTests",
+  "testsuites": [
+    {
+      "name": "PartitionUtilsTest",
+      "tests": 4,
+      "testsuite": [
+        {
+          "name": "TwoBlocks",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/graphutils\/partition_utils_test.cc",
+          "line": 11
+        },
+        {
+          "name": "FourBlocks",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/graphutils\/partition_utils_test.cc",
+          "line": 15
+        },
+        {
+          "name": "ElevenBlocks",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/graphutils\/partition_utils_test.cc",
+          "line": 22
+        },
+        {
+          "name": "TwoToTenThousendBlocks",
+          "file": "\/Users\/daniel\/.codex\/worktrees\/d883\/KaMinPar\/tests\/shm\/graphutils\/partition_utils_test.cc",
+          "line": 57
+        }
+      ]
+    }
+  ]
+}
