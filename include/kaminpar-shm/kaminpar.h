@@ -643,6 +643,7 @@ Context create_context_by_preset_name(const std::string &name);
 Context create_default_context();
 Context create_fast_context();
 Context create_eco_context();
+Context create_ueco_context();
 Context create_strong_context();
 
 Context create_terapart_context();

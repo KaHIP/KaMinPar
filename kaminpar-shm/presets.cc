@@ -23,6 +23,8 @@ Context create_context_by_preset_name(const std::string &name) {
     return create_fast_context();
   } else if (name == "eco" || name == "fm") {
     return create_eco_context();
+  } else if (name == "ueco") {
+    return create_ueco_context();
   } else if (name == "strong" || name == "flow") {
     return create_strong_context();
   }
@@ -81,11 +83,11 @@ Context create_context_by_preset_name(const std::string &name) {
 std::unordered_set<std::string> get_preset_names() {
   return {
       "default",      "fast",           "eco",
-      "strong",       "largek",         "terapart",
-      "terapart-eco", "terapart-largek", "largek-fast",
-      "largek-eco",   "largek-strong",  "jet",
-      "4xjet",        "noref",          "fm",
-      "vcycle",       "restricted-vcycle",
+      "ueco",         "strong",         "largek",
+      "terapart",     "terapart-eco",   "terapart-largek",
+      "largek-fast",  "largek-eco",     "largek-strong",
+      "jet",          "4xjet",          "noref",
+      "fm",           "vcycle",         "restricted-vcycle",
       "esa21-smallk", "esa21-largek",   "esa21-largek-fast",
       "esa21-strong", "mtkahypar-kway", "linear-time-kway",
   };
@@ -451,6 +453,19 @@ Context create_fast_context() {
 }
 
 Context create_eco_context() {
+  Context ctx = create_default_context();
+
+  ctx.refinement.algorithms = {
+      RefinementAlgorithm::OVERLOAD_BALANCER,
+      RefinementAlgorithm::LABEL_PROPAGATION,
+      RefinementAlgorithm::KWAY_FM,
+      RefinementAlgorithm::OVERLOAD_BALANCER
+  };
+
+  return ctx;
+}
+
+Context create_ueco_context() {
   Context ctx = create_default_context();
 
   ctx.refinement.algorithms = {
