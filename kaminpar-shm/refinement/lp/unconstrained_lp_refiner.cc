@@ -193,6 +193,8 @@ private:
 
   NodeID perform_round(PartitionedGraph &p_graph) {
     tbb::enumerable_thread_specific<NodeID> num_moves_ets(0);
+    const bool batch_block_weight_updates =
+        tbb::this_task_arena::max_concurrency() >= 32 && p_graph.k() <= 256;
 
     _graph->pfor_nodes([&](const NodeID u) {
       if (!_active[u] || !should_handle_node(u)) {
@@ -206,11 +208,18 @@ private:
       }
 
       const BlockID from = p_graph.block(u);
-      p_graph.set_block(u, to);
+      if (batch_block_weight_updates) {
+        p_graph.set_block<false>(u, to);
+      } else {
+        p_graph.set_block(u, to);
+      }
       record_moved_node(u, from);
       ++num_moves_ets.local();
     });
 
+    if (batch_block_weight_updates) {
+      p_graph.recompute_block_weights();
+    }
     return num_moves_ets.combine(std::plus{});
   }
 

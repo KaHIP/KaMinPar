@@ -52,3 +52,61 @@ unconstrained refiners:
 - Unconstrained FM batches move-log appends per localized search batch, uses sparse
   rebalancing-move indexing, and replays rollback through the gain cache instead of
   rescanning adjacency for every move.
+
+## Runs
+
+### 2026.05.21-codex-ueco-scalability-small-hellman
+
+- Partition: `hellman` (96 physical cores)
+- Graph set: `/nfs/work/graph_benchmark_sets/ufm_paper/small`
+- Created: `2026-05-21T14:02:34`
+- Completed: `2026-05-21 17:23 CEST` (per `/api/.../progress`)
+- Status: complete (`396/396`, `100%`)
+  - BaseEco: `132/132`
+  - BaseUeco: `132/132`
+  - OptUeco: `132/132`
+
+Geometric mean time (lower is better):
+
+| Threads | BaseEco | BaseUeco | OptUeco | BaseUeco / OptUeco | OptUeco / BaseEco |
+| --- | --- | --- | --- | --- | --- |
+| `1x1x4` | `10.975s` | `10.181s` | `9.812s` | `1.038x` | `0.894x` |
+| `1x1x16` | `3.525s` | `3.148s` | `2.999s` | `1.050x` | `0.851x` |
+| `1x1x96` | `1.270s` | `1.644s` | `1.590s` | `1.033x` | `1.253x` |
+
+Geometric mean cut (lower is better):
+
+| Threads | BaseEco | BaseUeco | OptUeco | OptUeco / BaseUeco |
+| --- | --- | --- | --- | --- |
+| `1x1x4` | `1311331` | `1406716` | `1413194` | `1.0046x` |
+| `1x1x16` | `1442155` | `1388866` | `1386910` | `0.9986x` |
+| `1x1x96` | `1439627` | `1384600` | `1389794` | `1.0038x` |
+
+Interpretation:
+
+- OptUeco improves runtime vs BaseUeco by ~`3–5%` across `4/16/96` threads.
+- Ueco scalability is still worse than Eco at 96 threads (OptUeco is ~`25%` slower than BaseEco at `1x1x96`).
+
+## Local runs
+
+Local sanity-check runs (this machine) on `~/Graphs/coAuthorsDBLP.metis`, `k=16`, `eps=0.03`:
+
+| Preset | Threads | Time (real) | Cut | Feasible |
+| --- | --- | --- | --- | --- |
+| `eco` | `4` | `0.240s` | `122499` | `yes` |
+| `eco` | `16` | `0.130s` | `121851` | `yes` |
+| `eco` | `32` | `0.130s` | `120959` | `yes` |
+| `ueco` | `4` | `0.240s` | `124248` | `yes` |
+| `ueco` | `16` | `0.140s` | `123320` | `yes` |
+| `ueco` | `32` | `0.170s` | `124840` | `yes` |
+
+Notes:
+
+- `32` threads is oversubscribed locally (machine reports 18 CPUs), so only use it as a rough sanity check.
+
+## Next optimization idea
+
+- Batch unconstrained LP block-weight updates only for high thread counts (>= 32):
+  - Avoid per-move atomic updates to block weights (`set_block<false>()`).
+  - Recompute block weights once per LP round (`recompute_block_weights()`).
+  - Use atomic per-move updates for smaller thread counts to avoid regressions.
