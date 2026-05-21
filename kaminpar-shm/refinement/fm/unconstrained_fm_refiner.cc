@@ -430,7 +430,6 @@ public:
     _unconstrained_upper_bound = unconstrained_upper_bound;
 
     _local_virtual_weight_delta.resize(_p_graph.k());
-    std::fill(_local_virtual_weight_delta.begin(), _local_virtual_weight_delta.end(), 0);
   }
 
   EdgeWeight run_batch() {
@@ -501,8 +500,8 @@ public:
         current_total_gain = next_total_gain;
         const bool found_balance_improvement =
             current_total_gain == best_total_gain &&
-            from_weight_before == heaviest_block_weight(_d_graph) &&
-            to_weight_before + node_weight < from_weight_before;
+            to_weight_before + node_weight < from_weight_before &&
+            from_weight_before == heaviest_block_weight(_d_graph);
 
         // If we found a new local minimum, apply the moves to the global
         // partition
@@ -701,13 +700,6 @@ private:
         _p_ctx.max_block_weight(from) - p_graph.block_weight(from);
 
     gain_cache.gains(u, from, [&](const BlockID to, auto &&compute_gain) {
-      const EdgeWeight unpenalized_gain = compute_gain();
-      if constexpr (!GainCache::kIteratesExactGains) {
-        if (unpenalized_gain == 0) {
-          return;
-        }
-      }
-
       const BlockWeight target_block_weight = p_graph.block_weight(to) + weight;
       const BlockWeight max_block_weight = _p_ctx.max_block_weight(to);
       const BlockWeight block_weight_gap = max_block_weight - target_block_weight;
@@ -717,13 +709,20 @@ private:
         }
       }
 
-      EdgeWeight penalty = 0;
-      if (allow_overloaded_moves()) {
-        if (_unconstrained_upper_bound >= 1.0 &&
-            target_block_weight > _unconstrained_upper_bound * max_block_weight) {
+      if (allow_overloaded_moves() && _unconstrained_upper_bound >= 1.0 &&
+          target_block_weight > _unconstrained_upper_bound * max_block_weight) {
+        return;
+      }
+
+      const EdgeWeight unpenalized_gain = compute_gain();
+      if constexpr (!GainCache::kIteratesExactGains) {
+        if (unpenalized_gain == 0) {
           return;
         }
+      }
 
+      EdgeWeight penalty = 0;
+      if (allow_overloaded_moves()) {
         if (target_block_weight > max_block_weight && unpenalized_gain <= best_gain) {
           return;
         }

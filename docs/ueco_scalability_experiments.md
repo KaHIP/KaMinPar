@@ -183,10 +183,29 @@ Local sanity-check runs after the FM rollback change (this worktree, `2026-05-21
 | `ueco` | `8` | `0.17s` | `124392` | `yes` |
 | `ueco` | `16` | `0.15s` | `122870` | `yes` |
 
+Local UFM parameter/code sweep (`2026-05-21 23:30 CEST`, `k=16`, `eps=0.03`, `t=16`):
+
+| Graph | Baseline median | Tuned median | Speedup | Tuned / baseline cut |
+| --- | --- | --- | --- | --- |
+| `rmat_n16_m23` | `0.790s` | `0.640s` | `1.234x` | `1.0022x` |
+| `kkt_power` | `0.430s` | `0.380s` | `1.132x` | `1.0624x` |
+| `web-Google` | `0.250s` | `0.220s` | `1.136x` | `1.0180x` |
+
+Geometric mean: `1.166x` faster with `1.027x` worse cut. The tuned version uses larger UFM
+batches (`num_seed_nodes = 50`), earlier switch from unconstrained FM
+(`unconstrained_min_improvement = 0.005`), an overload cap
+(`unconstrained_upper_bound = 1.05`), and lower minimal search parallelism (`4`).
+
+Rejected stronger local tradeoffs:
+
+- `num_seed_nodes = 75` plus `unconstrained_min_improvement = 0.01`: repeat runs were slower on
+  `kkt_power` and `web-Google` despite speeding up `rmat_n16_m23`.
+- `num_seed_nodes = 100`: faster in one sweep, but quality degraded substantially on `kkt_power`.
+- `unconstrained_upper_bound = 1.02`: not consistently faster than the selected `1.05` cap.
+
 ## Next optimization idea
 
-- Do not schedule another mkexp2 run until a local experiment shows a defensible speedup.
-- Profile local `-P ueco` runs against `-P eco` on available `~/Graphs` instances and focus on
-  refinement-time bottlenecks that help any thread count, not only high-core rollback behavior.
-- Candidate areas to inspect next: unconstrained FM move selection/search overhead, LP activation
-  churn, and repeated per-round bookkeeping in shared refinement state.
+- Validate the selected UFM tuning/code cleanup with a max-core-only mkexp2 run (`1x1x96` on
+  `hellman` or another idle 96+ core node).
+- If accepted, inspect remaining UFM costs in rebalancing and localized search bookkeeping before
+  running the final `4/16/max` scalability sweep.
