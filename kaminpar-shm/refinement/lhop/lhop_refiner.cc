@@ -403,6 +403,22 @@ bool LHopRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ct
         calculateGains(p_graph, lhopModel, nodeGains, partitionGains);
       }
       break;
+    case 4: //Move all - partitionwise
+      LOG << "START ALL-BATCH 10";
+      for(int i = 0; i < 10; i++) {
+        if(partitionGains.empty()) {
+          break;
+        }
+        //LOG << "Move and update";
+        for(LHopPartitionGain& moveBlock : partitionGains) {
+          std::vector<NodeID> nodesToUpdate = moveAndUpdate(p_graph, p_ctx, lhopModel, nodeGains, moveBlock.src, moveBlock.dest);
+          if(!nodesToUpdate.empty()) {
+            updateGains(p_graph, lhopModel, nodeGains, partitionGains, moveBlock.src, moveBlock.dest, nodesToUpdate);
+            movedANode = true;
+          }
+        }
+      }
+      break;
     default:
       LOG << "No batch option is choosen, no refinment";
       break;

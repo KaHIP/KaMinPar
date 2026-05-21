@@ -61,7 +61,7 @@ private:
 
   const std::vector<int> lweights = {1, 1, 1};
 
-  const int batchtype = 0;
+  const int batchtype = 4;
 
   void initializeLHopModel(PartitionedGraph &p_graph, std::vector<std::vector<LHopTable>> &lhopModel);
 
