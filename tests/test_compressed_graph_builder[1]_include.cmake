@@ -1,5 +1,0 @@
-if(EXISTS "/Users/daniel/.codex/worktrees/d883/KaMinPar/tests/test_compressed_graph_builder[1]_tests.cmake")
-  include("/Users/daniel/.codex/worktrees/d883/KaMinPar/tests/test_compressed_graph_builder[1]_tests.cmake")
-else()
-  add_test(test_compressed_graph_builder_NOT_BUILT test_compressed_graph_builder_NOT_BUILT)
-endif()

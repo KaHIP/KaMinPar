@@ -1,5 +1,0 @@
-if(EXISTS "/Users/daniel/.codex/worktrees/d883/KaMinPar/tests/test_shm_gain_caches[1]_tests.cmake")
-  include("/Users/daniel/.codex/worktrees/d883/KaMinPar/tests/test_shm_gain_caches[1]_tests.cmake")
-else()
-  add_test(test_shm_gain_caches_NOT_BUILT test_shm_gain_caches_NOT_BUILT)
-endif()

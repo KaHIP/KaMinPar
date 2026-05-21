@@ -132,7 +132,28 @@ Geometric mean cut (lower is better):
 - Threads: `1x1x4`, `1x1x96`
 - OptUeco commit: `ec56814eba05c5de52a100e314268593d4a447f1` (rollback changes)
 - Slurm jobs: `70816`, `70817`, `70818`, `70819`
-- Status: running (last polled `2026-05-21 19:21 CEST`, `0/176`)
+- Status: complete (last polled `2026-05-21 20:39 CEST`, `176/176`, `100%`)
+
+Geometric mean time (lower is better):
+
+| Threads | BaseUeco | OptUeco | BaseUeco / OptUeco |
+| --- | --- | --- | --- |
+| `1x1x4` | `10.044s` | `11.658s` | `0.862x` |
+| `1x1x96` | `1.622s` | `1.706s` | `0.951x` |
+
+Geometric mean cut (lower is better):
+
+| Threads | BaseUeco | OptUeco | OptUeco / BaseUeco |
+| --- | --- | --- | --- |
+| `1x1x4` | `1396294` | `1422538` | `1.0188x` |
+| `1x1x96` | `1377314` | `1394810` | `1.0127x` |
+
+Interpretation:
+
+- Rejected. Rebuilding the gain cache during rollback regresses runtime at both 4 and 96
+  cores and worsens cut quality at both points.
+- The rollback change was reverted; keep the earlier accepted batching/rollback-through-cache
+  changes as the current best branch state.
 
 ## Local runs
 
@@ -164,7 +185,8 @@ Local sanity-check runs after the FM rollback change (this worktree, `2026-05-21
 
 ## Next optimization idea
 
-- Reduce unconstrained FM rollback overhead:
-  - In the `1x1x96` logs for `rmat_n25_m28`, `Rollback` dominates runtime (tens of seconds).
-  - Candidate: avoid replaying *undo* moves through the gain cache; rebuild the gain cache once
-    after restoring the partition, and keep the forward replay unchanged for correctness.
+- Do not schedule another mkexp2 run until a local experiment shows a defensible speedup.
+- Profile local `-P ueco` runs against `-P eco` on available `~/Graphs` instances and focus on
+  refinement-time bottlenecks that help any thread count, not only high-core rollback behavior.
+- Candidate areas to inspect next: unconstrained FM move selection/search overhead, LP activation
+  churn, and repeated per-round bookkeeping in shared refinement state.

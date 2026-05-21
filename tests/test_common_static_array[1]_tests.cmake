@@ -1,5 +1,0 @@
-add_test([=[StaticArrayTest.SimpleStorageTest]=]  /Users/daniel/.codex/worktrees/d883/KaMinPar/tests/test_common_static_array [==[--gtest_filter=StaticArrayTest.SimpleStorageTest]==] --gtest_also_run_disabled_tests)
-set_tests_properties([=[StaticArrayTest.SimpleStorageTest]=]  PROPERTIES DEF_SOURCE_LINE /Users/daniel/.codex/worktrees/d883/KaMinPar/tests/common/datastructures/static_array_test.cc:15 WORKING_DIRECTORY /Users/daniel/.codex/worktrees/d883/KaMinPar/tests SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
-add_test([=[StaticArrayTest.IteratorTest]=]  /Users/daniel/.codex/worktrees/d883/KaMinPar/tests/test_common_static_array [==[--gtest_filter=StaticArrayTest.IteratorTest]==] --gtest_also_run_disabled_tests)
-set_tests_properties([=[StaticArrayTest.IteratorTest]=]  PROPERTIES DEF_SOURCE_LINE /Users/daniel/.codex/worktrees/d883/KaMinPar/tests/common/datastructures/static_array_test.cc:27 WORKING_DIRECTORY /Users/daniel/.codex/worktrees/d883/KaMinPar/tests SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
-set(  test_common_static_array_TESTS StaticArrayTest.SimpleStorageTest StaticArrayTest.IteratorTest)

@@ -1253,16 +1253,14 @@ private:
     const std::size_t num_moves = _shared->round_moves.size();
     std::vector<std::uint8_t> reverted_moves(num_moves, 0);
 
-    // Reset to the round start partition. To speed up rollback, avoid replaying each undo through
-    // the gain cache and rebuild the gain cache once after the partition has been restored.
     for (std::size_t i = num_moves; i-- > 0;) {
       const GlobalMove move = _shared->round_moves[i];
       if (move.valid && p_graph.block(move.node) == move.to) {
+        _shared->gain_cache.move(move.node, move.to, move.from);
         p_graph.set_block(move.node, move.from);
         reverted_moves[i] = 1;
       }
     }
-    _shared->gain_cache.initialize(graph, p_graph);
 
     std::vector<BlockWeight> block_weights = round_start_block_weights;
     std::size_t overloaded_blocks = 0;
@@ -1313,8 +1311,6 @@ private:
       }
     }
 
-    // Revert to the best prefix. Again, avoid replaying the suffix through the gain cache and
-    // rebuild once at the end.
     for (std::size_t i = num_moves; i-- > best_prefix;) {
       if (!applied_moves[i]) {
         continue;
@@ -1322,10 +1318,10 @@ private:
 
       const GlobalMove move = _shared->round_moves[i];
       if (p_graph.block(move.node) == move.to) {
+        _shared->gain_cache.move(move.node, move.to, move.from);
         p_graph.set_block(move.node, move.from);
       }
     }
-    _shared->gain_cache.initialize(graph, p_graph);
 
     _shared->round_moves.clear();
     return best_cut;

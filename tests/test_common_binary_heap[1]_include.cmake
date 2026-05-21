@@ -1,5 +1,0 @@
-if(EXISTS "/Users/daniel/.codex/worktrees/d883/KaMinPar/tests/test_common_binary_heap[1]_tests.cmake")
-  include("/Users/daniel/.codex/worktrees/d883/KaMinPar/tests/test_common_binary_heap[1]_tests.cmake")
-else()
-  add_test(test_common_binary_heap_NOT_BUILT test_common_binary_heap_NOT_BUILT)
-endif()
