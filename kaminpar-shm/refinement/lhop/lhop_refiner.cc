@@ -327,6 +327,11 @@ bool LHopRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ct
   bool movedANode = false;
   bool moving = true;
   switch(batchtype) {
+    case 0:
+      unsigned long endSum = startSum;
+      LOG << "RESULT: Number Path reduced from " << startSum << " to " << endSum << " Reduced by %: " << (((double)startSum - (double)endSum) / (double)startSum);
+      return false;
+      break;
     case 1: //Partition-Batch
       LOG << "START PARTITION-BATCH";
       while(moving) {
