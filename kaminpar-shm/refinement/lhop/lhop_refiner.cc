@@ -323,12 +323,12 @@ bool LHopRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ct
   std::vector<LHopNodeGain> nodeGains;
   std::vector<LHopPartitionGain> partitionGains;
   unsigned long startSum = calculateGains(p_graph, lhopModel, nodeGains, partitionGains);
+  unsigned long endSum = 0;
 
   bool movedANode = false;
   bool moving = true;
   switch(batchtype) {
     case 0:
-      unsigned long endSum = startSum;
       LOG << "RESULT: Number Path reduced from " << startSum << " to " << endSum << " Reduced by %: " << (((double)startSum - (double)endSum) / (double)startSum);
       return false;
       break;
@@ -410,7 +410,7 @@ bool LHopRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ct
   }
   nodeGains.clear();
   partitionGains.clear();
-  unsigned long endSum = calculateGains(p_graph, lhopModel, nodeGains, partitionGains);
+  endSum = calculateGains(p_graph, lhopModel, nodeGains, partitionGains);
   LOG << "END BATCH";
   LOG << "RESULT: Number Path reduced from " << startSum << " to " << endSum << " Reduced by %: " << (((double)startSum - (double)endSum) / (double)startSum);
 
