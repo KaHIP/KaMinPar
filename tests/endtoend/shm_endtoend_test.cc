@@ -229,13 +229,13 @@ TEST(ShmEndToEndTest, partitions_unweighted_walshaw_data_graph_with_unconstraine
   }
 }
 
-TEST(ShmEndToEndTest, partitions_unweighted_walshaw_data_graph_with_eco_test_preset) {
+TEST(ShmEndToEndTest, partitions_unweighted_walshaw_data_graph_with_eco_preset) {
   auto &xadj = data::xadj;
   auto &adjncy = data::adjncy;
   const NodeID n = xadj.size() - 1;
   constexpr BlockID k = 16;
 
-  Context ctx = create_eco_test_context();
+  Context ctx = create_eco_context();
   ctx.refinement.kway_fm.num_iterations = 2;
 
   std::vector<BlockID> partition(n);

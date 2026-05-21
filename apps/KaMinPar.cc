@@ -94,8 +94,7 @@ void setup_context(CLI::App &cli, ApplicationContext &app, Context &ctx) {
   - fast:     fastest (especially for small graphs), but lowest quality
   - default:  in-between
   - terapart: same as default, but use graph compression to reduce peak memory consumption
-  - eco:      slower, but higher quality (LP + FM)
-  - eco_test: same as eco, but with unconstrained LP + FM
+  - eco:      slower, but higher quality (unconstrained LP + FM)
   - strong:   even slower, but even higher quality (LP + FM + Flow)
   - largek:   tuned for k > 1024-ish)");
 
