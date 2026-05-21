@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <limits>
 #include <unordered_map>
@@ -437,6 +438,7 @@ public:
 
     _seed_nodes.clear();
     _local_moves.clear();
+    _global_moves.clear();
     std::fill(_local_virtual_weight_delta.begin(), _local_virtual_weight_delta.end(), 0);
 
     // Poll seed nodes from the border node arrays
@@ -584,6 +586,7 @@ public:
     _local_moves.clear();
     _stopping_policy.reset();
     _touched_nodes.clear();
+    flush_global_moves();
 
     return best_total_gain;
   }
@@ -848,7 +851,17 @@ private:
     _shared.node_tracker.set(move.node, fm::NodeTracker::MOVED_GLOBALLY);
     _p_graph.set_block(move.node, move.to);
 
-    _shared.round_moves.push_back(move);
+    _global_moves.push_back(move);
+  }
+
+  void flush_global_moves() {
+    if (_global_moves.empty()) {
+      return;
+    }
+
+    auto out = _shared.round_moves.grow_by(_global_moves.size());
+    std::copy(_global_moves.begin(), _global_moves.end(), out);
+    _global_moves.clear();
   }
 
   [[nodiscard]] BlockWeight heaviest_block_weight(const auto &p_graph) const {
@@ -925,6 +938,7 @@ private:
   std::vector<NodeID> _touched_nodes;
   std::vector<NodeID> _seed_nodes;
   std::vector<GlobalMove> _local_moves;
+  std::vector<GlobalMove> _global_moves;
   std::vector<BlockWeight> _local_virtual_weight_delta;
   bool _allow_overloaded_moves = true;
   double _unconstrained_penalty_factor = 0.0;
@@ -1119,28 +1133,6 @@ public:
   }
 
 private:
-  [[nodiscard]] EdgeWeight compute_move_gain(
-      const Graph &graph,
-      const PartitionedGraph &p_graph,
-      const NodeID node,
-      const BlockID from,
-      const BlockID to
-  ) const {
-    EdgeWeight conn_from = 0;
-    EdgeWeight conn_to = 0;
-
-    graph.adjacent_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
-      const BlockID block = p_graph.block(v);
-      if (block == from) {
-        conn_from += weight;
-      } else if (block == to) {
-        conn_to += weight;
-      }
-    });
-
-    return conn_to - conn_from;
-  }
-
   void interleave_rebalancing_moves(
       const Graph &graph,
       const PartitionedGraph &p_graph,
@@ -1156,8 +1148,8 @@ private:
         _shared->rebalancing_moves.begin(), _shared->rebalancing_moves.end()
     );
 
-    constexpr std::size_t kInvalidMoveIndex = std::numeric_limits<std::size_t>::max();
-    std::vector<std::size_t> move_index_of_node(graph.n(), kInvalidMoveIndex);
+    std::unordered_map<NodeID, std::size_t> move_index_of_node;
+    move_index_of_node.reserve(fm_moves.size());
     for (std::size_t i = 0; i < fm_moves.size(); ++i) {
       const GlobalMove &move = fm_moves[i];
       if (move.valid) {
@@ -1170,12 +1162,12 @@ private:
         continue;
       }
 
-      const std::size_t fm_move_index = move_index_of_node[rebalancing_move.node];
-      if (fm_move_index == kInvalidMoveIndex) {
+      const auto fm_move_index_it = move_index_of_node.find(rebalancing_move.node);
+      if (fm_move_index_it == move_index_of_node.end()) {
         continue;
       }
 
-      GlobalMove &fm_move = fm_moves[fm_move_index];
+      GlobalMove &fm_move = fm_moves[fm_move_index_it->second];
       if (!fm_move.valid || fm_move.to != rebalancing_move.from) {
         continue;
       }
@@ -1259,11 +1251,14 @@ private:
       const EdgeWeight round_start_cut
   ) const {
     const std::size_t num_moves = _shared->round_moves.size();
+    std::vector<std::uint8_t> reverted_moves(num_moves, 0);
 
     for (std::size_t i = num_moves; i-- > 0;) {
       const GlobalMove move = _shared->round_moves[i];
       if (move.valid && p_graph.block(move.node) == move.to) {
+        _shared->gain_cache.move(move.node, move.to, move.from);
         p_graph.set_block(move.node, move.from);
+        reverted_moves[i] = 1;
       }
     }
 
@@ -1291,18 +1286,16 @@ private:
 
     for (std::size_t i = 0; i < num_moves; ++i) {
       const GlobalMove move = _shared->round_moves[i];
-      if (!move.valid) {
-        continue;
-      }
-      if (p_graph.block(move.node) != move.from) {
+      if (!reverted_moves[i] || p_graph.block(move.node) != move.from) {
         continue;
       }
 
-      current_cut -= compute_move_gain(graph, p_graph, move.node, move.from, move.to);
+      current_cut -= _shared->gain_cache.gain(move.node, move.from, move.to);
 
       const NodeWeight weight = graph.node_weight(move.node);
       update_block_weight(move.from, block_weights[move.from] - weight);
       update_block_weight(move.to, block_weights[move.to] + weight);
+      _shared->gain_cache.move(move.node, move.from, move.to);
       p_graph.set_block(move.node, move.to);
       applied_moves[i] = 1;
 
