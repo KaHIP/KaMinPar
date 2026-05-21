@@ -26,16 +26,18 @@ regular eco preset (`-P eco`).
 - For timing/scalability runs, keep `Property slurm.array.max_parallel 1` unless the
   experiment is explicitly designed to measure throughput rather than per-run time.
 
-## Current comparison
+## Iteration policy
 
-The experiment `2026.05.21-codex-ueco-scalability` is intended to compare:
+For fast iteration, only benchmark the selected node's maximum physical core count. Accept a
+candidate if OptUeco is faster than BaseUeco at that max-core point while keeping quality sane. Run
+the full `4/16/max` scalability comparison only at the end, after a candidate has been accepted.
 
-- `BaseEco`: upstream `KaMinPar` with `-P eco`
+Iteration experiments compare:
+
 - `BaseUeco`: upstream `KaMinPar` with `-P ueco`
 - `OptUeco`: `origin/codex/improve-ueco-scalability` with `-P ueco`
 
-Use a small thread sweep such as `1x1x4`, `1x1x16`, and the selected node's physical-core
-count to expose scalability regressions without running the full combined graph set. The
+Final scalability experiments should add `BaseEco` and include the `4/16/max` thread sweep. The
 baseline point should be 4 physical cores rather than 1 core.
 
 ## Local optimization context
@@ -93,7 +95,21 @@ Interpretation:
 - Graph set: `/nfs/work/graph_benchmark_sets/ufm_paper/small`
 - Created: `2026-05-21T17:43:32` (submit action)
 - OptUeco commit: `26003b679bd3d3f7a37f605162b7847ff4f123a0`
-- Status: running (last polled `2026-05-21 17:43 CEST`, `0/396`)
+- Status: canceled after user changed iteration policy to max-core-only (`0/396`)
+- Canceled jobs: `70719`, `70723`; dependent arrays `70720`..`70722` remained queued as
+  `DependencyNeverSatisfied` and should not consume compute.
+- Submit lock cleared via mkexp2 backend.
+
+### 2026.05.21-codex-ueco-max96-bwbatch-hellman
+
+- Partition: `hellman` (idle at submit time, 96 physical cores)
+- Graph set: `/nfs/work/graph_benchmark_sets/ufm_paper/small`
+- Created: `2026-05-21T17:53:41` (submit action)
+- Algorithms: `BaseUeco`, `OptUeco`
+- Threads: `1x1x96` only
+- OptUeco commit: `14e0151b52c901464ad4d8671aec32dbb73b6d3f`
+- Slurm jobs: `70724`, `70725`, `70726`
+- Status: running (last polled `2026-05-21 17:53 CEST`, `0/88`)
 
 ## Local runs
 
