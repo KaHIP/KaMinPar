@@ -964,13 +964,8 @@ public:
     EdgeWeight best_cut = initial_cut;
     EdgeWeight cut_before_current_iteration = initial_cut;
     EdgeWeight total_expected_gain = 0;
-    bool last_iteration_is_best = true;
 
-    StaticArray<BlockID> best_partition;
-    StaticArray<BlockID> round_start_partition;
-    best_partition.resize(graph.n());
-    round_start_partition.resize(graph.n());
-    graph.pfor_nodes([&](const NodeID u) { best_partition[u] = p_graph.block(u); });
+    std::vector<BlockWeight> round_start_block_weights(p_graph.k());
 
     MultiQueueOverloadBalancer balancer(_ctx);
     balancer.initialize(p_graph);
@@ -1013,7 +1008,9 @@ public:
 
       _shared->round_moves.clear();
       _shared->rebalancing_moves.clear();
-      graph.pfor_nodes([&](const NodeID u) { round_start_partition[u] = p_graph.block(u); });
+      for (const BlockID block : p_graph.blocks()) {
+        round_start_block_weights[block] = p_graph.block_weight(block);
+      }
 
       if (use_unconstrained_iteration) {
         TIMED_SCOPE("Initialize unconstrained FM data") {
@@ -1084,20 +1081,16 @@ public:
       }
 
       if (use_unconstrained_iteration) {
-        interleave_rebalancing_moves(graph, p_graph, p_ctx, round_start_partition);
+        interleave_rebalancing_moves(graph, p_graph, p_ctx, round_start_block_weights);
       }
 
-      EdgeWeight current_cut = metrics::edge_cut(p_graph);
-
-      TIMED_SCOPE("Rollback") {
-        current_cut = rollback_to_best_prefix(
-            graph, p_graph, p_ctx, round_start_partition, cut_before_current_iteration
+      const EdgeWeight current_cut = TIMED_SCOPE("Rollback") {
+        return rollback_to_best_prefix(
+            graph, p_graph, p_ctx, round_start_block_weights, cut_before_current_iteration
         );
       };
 
-      graph.pfor_nodes([&](const NodeID u) { best_partition[u] = p_graph.block(u); });
       best_cut = current_cut;
-      last_iteration_is_best = true;
 
       const EdgeWeight abs_improvement_of_this_iteration =
           cut_before_current_iteration - current_cut;
@@ -1121,13 +1114,6 @@ public:
       DBG << "Expected gain of iteration " << iteration << ": " << expected_gain_of_this_iteration
           << ", total expected gain so far: " << total_expected_gain;
     }
-
-    TIMED_SCOPE("Rollback") {
-      if (!last_iteration_is_best) {
-        graph.pfor_nodes([&](const NodeID u) { p_graph.set_block(u, best_partition[u]); });
-        _shared->gain_cache.initialize(graph, p_graph);
-      }
-    };
 
     return best_cut < initial_cut;
   }
@@ -1159,7 +1145,7 @@ private:
       const Graph &graph,
       const PartitionedGraph &p_graph,
       const PartitionContext &p_ctx,
-      const StaticArray<BlockID> &round_start_partition
+      const std::vector<BlockWeight> &round_start_block_weights
   ) const {
     if (_shared->rebalancing_moves.empty()) {
       return;
@@ -1210,10 +1196,7 @@ private:
       }
     }
 
-    std::vector<BlockWeight> block_weights(p_graph.k(), 0);
-    for (const NodeID node : graph.nodes()) {
-      block_weights[round_start_partition[node]] += graph.node_weight(node);
-    }
+    std::vector<BlockWeight> block_weights = round_start_block_weights;
 
     std::vector<std::size_t> next_rebalancing_move(p_graph.k(), 0);
     std::vector<GlobalMove> interleaved_moves;
@@ -1272,22 +1255,21 @@ private:
       const Graph &graph,
       PartitionedGraph &p_graph,
       const PartitionContext &p_ctx,
-      const StaticArray<BlockID> &round_start_partition,
+      const std::vector<BlockWeight> &round_start_block_weights,
       const EdgeWeight round_start_cut
   ) const {
     const std::size_t num_moves = _shared->round_moves.size();
 
-    graph.pfor_nodes([&](const NodeID u) {
-      const BlockID block = round_start_partition[u];
-      if (p_graph.block(u) != block) {
-        p_graph.set_block(u, block);
+    for (std::size_t i = num_moves; i-- > 0;) {
+      const GlobalMove move = _shared->round_moves[i];
+      if (move.valid && p_graph.block(move.node) == move.to) {
+        p_graph.set_block(move.node, move.from);
       }
-    });
+    }
 
-    std::vector<BlockWeight> block_weights(p_graph.k());
+    std::vector<BlockWeight> block_weights = round_start_block_weights;
     std::size_t overloaded_blocks = 0;
     for (const BlockID block : p_graph.blocks()) {
-      block_weights[block] = p_graph.block_weight(block);
       overloaded_blocks += block_weights[block] > p_ctx.max_block_weight(block);
     }
 
