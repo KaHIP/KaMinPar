@@ -87,6 +87,14 @@ Interpretation:
 - OptUeco improves runtime vs BaseUeco by ~`3–5%` across `4/16/96` threads.
 - Ueco scalability is still worse than Eco at 96 threads (OptUeco is ~`25%` slower than BaseEco at `1x1x96`).
 
+### 2026.05.21-2026.05.21-codex-ueco-scalability-small-hellman-bwbatch
+
+- Partition: `hellman` (idle at submit time, 96 physical cores)
+- Graph set: `/nfs/work/graph_benchmark_sets/ufm_paper/small`
+- Created: `2026-05-21T17:43:32` (submit action)
+- OptUeco commit: `26003b679bd3d3f7a37f605162b7847ff4f123a0`
+- Status: running (last polled `2026-05-21 17:43 CEST`, `0/396`)
+
 ## Local runs
 
 Local sanity-check runs (this machine) on `~/Graphs/coAuthorsDBLP.metis`, `k=16`, `eps=0.03`:
