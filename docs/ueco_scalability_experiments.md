@@ -34,8 +34,9 @@ The experiment `2026.05.21-codex-ueco-scalability` is intended to compare:
 - `BaseUeco`: upstream `KaMinPar` with `-P ueco`
 - `OptUeco`: `origin/codex/improve-ueco-scalability` with `-P ueco`
 
-Use a small thread sweep such as `1x1x1`, `1x1x16`, and the selected node's physical-core
-count to expose scalability regressions without running the full combined graph set.
+Use a small thread sweep such as `1x1x4`, `1x1x16`, and the selected node's physical-core
+count to expose scalability regressions without running the full combined graph set. The
+baseline point should be 4 physical cores rather than 1 core.
 
 ## Local optimization context
 
