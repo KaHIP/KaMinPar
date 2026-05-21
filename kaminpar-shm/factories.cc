@@ -32,8 +32,10 @@
 #include "kaminpar-shm/refinement/balancer/underload_balancer.h"
 #include "kaminpar-shm/refinement/flow/twoway_flow_refiner.h"
 #include "kaminpar-shm/refinement/fm/fm_refiner.h"
+#include "kaminpar-shm/refinement/fm/unconstrained_fm_refiner.h"
 #include "kaminpar-shm/refinement/jet/jet_refiner.h"
 #include "kaminpar-shm/refinement/lp/lp_refiner.h"
+#include "kaminpar-shm/refinement/lp/unconstrained_lp_refiner.h"
 #include "kaminpar-shm/refinement/multi_refiner.h"
 
 namespace kaminpar::shm::factory {
@@ -100,7 +102,7 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
     return std::make_unique<NoopRefiner>();
 
   case RefinementAlgorithm::OVERLOAD_BALANCER:
-    return std::make_unique<OverloadBalancer>(ctx);
+    return std::make_unique<BlockParallelOverloadBalancer>(ctx);
 
   case RefinementAlgorithm::UNDERLOAD_BALANCER:
     return std::make_unique<UnderloadBalancer>(ctx);
@@ -108,8 +110,14 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
   case RefinementAlgorithm::LABEL_PROPAGATION:
     return std::make_unique<LabelPropagationRefiner>(ctx);
 
+  case RefinementAlgorithm::UNCONSTRAINED_LABEL_PROPAGATION:
+    return std::make_unique<UnconstrainedLabelPropagationRefiner>(ctx);
+
   case RefinementAlgorithm::KWAY_FM:
     return std::make_unique<FMRefiner>(ctx);
+
+  case RefinementAlgorithm::UNCONSTRAINED_FM:
+    return std::make_unique<UnconstrainedFMRefiner>(ctx);
 
   case RefinementAlgorithm::TWOWAY_FLOW:
     return std::make_unique<TwowayFlowRefiner>(ctx.parallel, ctx.refinement.twoway_flow);

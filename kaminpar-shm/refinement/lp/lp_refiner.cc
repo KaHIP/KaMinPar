@@ -7,10 +7,22 @@
  ******************************************************************************/
 #include "kaminpar-shm/refinement/lp/lp_refiner.h"
 
-#include "kaminpar-shm/label_propagation.h"
+#include <algorithm>
+#include <atomic>
+#include <cstdint>
+#include <limits>
+#include <utility>
+#include <vector>
 
+#include <tbb/enumerable_thread_specific.h>
+
+#include "kaminpar-shm/label_propagation.h"
+#include "kaminpar-shm/refinement/balancer/overload_balancer.h"
+
+#include "kaminpar-common/console_io.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/heap_profiler.h"
+#include "kaminpar-common/random.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {

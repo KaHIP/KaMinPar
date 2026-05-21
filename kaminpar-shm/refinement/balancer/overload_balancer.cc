@@ -31,24 +31,26 @@ SET_DEBUG(false);
 
 }
 
-OverloadBalancer::OverloadBalancer(const Context &ctx) : _ctx(ctx) {}
+BlockParallelOverloadBalancer::BlockParallelOverloadBalancer(const Context &ctx) : _ctx(ctx) {}
 
-OverloadBalancer::~OverloadBalancer() = default;
+BlockParallelOverloadBalancer::~BlockParallelOverloadBalancer() = default;
 
-std::string OverloadBalancer::name() const {
-  return "Overload Balancer";
+std::string BlockParallelOverloadBalancer::name() const {
+  return "Block-Parallel Overload Balancer";
 }
 
-void OverloadBalancer::initialize(const PartitionedGraph &) {
+void BlockParallelOverloadBalancer::initialize(const PartitionedGraph &) {
   // Nothing to do: only allocate data if there are any overloaded blocks.
   // Do this in refine() to avoid checking this twice.
 }
 
-void OverloadBalancer::track_moves(MoveTracker move_tracker) {
+void BlockParallelOverloadBalancer::track_moves(MoveTracker move_tracker) {
   _move_tracker = move_tracker;
 }
 
-bool OverloadBalancer::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
+bool BlockParallelOverloadBalancer::refine(
+    PartitionedGraph &p_graph, const PartitionContext &p_ctx
+) {
   SCOPED_TIMER("Overload Balancer");
   SCOPED_HEAP_PROFILER("Overload Balancer");
 
@@ -73,7 +75,8 @@ bool OverloadBalancer::refine(PartitionedGraph &p_graph, const PartitionContext 
   return true;
 }
 
-template <typename Graph> BlockWeight OverloadBalancer::perform_round(const Graph &graph) {
+template <typename Graph>
+BlockWeight BlockParallelOverloadBalancer::perform_round(const Graph &graph) {
   // Reset feasible target blocks
   for (auto &blocks : _feasible_target_blocks) {
     blocks.clear();
@@ -159,7 +162,7 @@ template <typename Graph> BlockWeight OverloadBalancer::perform_round(const Grap
   return overload_delta.combine(std::plus{});
 }
 
-template <typename Graph> void OverloadBalancer::init_pq(const Graph &graph) {
+template <typename Graph> void BlockParallelOverloadBalancer::init_pq(const Graph &graph) {
   SCOPED_TIMER("Initialize balancer PQ");
   SCOPED_HEAP_PROFILER("Initialize balancer PQ");
 
@@ -167,14 +170,10 @@ template <typename Graph> void OverloadBalancer::init_pq(const Graph &graph) {
   auto &gain_cache = _gain_cache.get<Graph>();
 
   using PQs = std::vector<DynamicBinaryMinHeap<NodeID, float, ScalableVector>>;
-  tbb::enumerable_thread_specific<PQs> local_pq{[&] {
-    return PQs(k);
-  }};
+  tbb::enumerable_thread_specific<PQs> local_pq{[&] { return PQs(k); }};
 
   using PQWeights = std::vector<NodeWeight>;
-  tbb::enumerable_thread_specific<PQWeights> local_pq_weight{[&] {
-    return PQWeights(k);
-  }};
+  tbb::enumerable_thread_specific<PQWeights> local_pq_weight{[&] { return PQWeights(k); }};
 
   // build thread-local PQs: one PQ for each thread and block, each PQ for block
   // b has at most roughly |overload[b]| weight
@@ -220,7 +219,7 @@ template <typename Graph> void OverloadBalancer::init_pq(const Graph &graph) {
   STOP_TIMER();
 }
 
-std::pair<BlockID, float> OverloadBalancer::compute_best_gain(
+std::pair<BlockID, float> BlockParallelOverloadBalancer::compute_best_gain(
     const auto &graph, auto &gain_cache, const NodeID node, const BlockID from
 ) {
   const NodeWeight weight = graph.node_weight(node);
@@ -244,7 +243,7 @@ std::pair<BlockID, float> OverloadBalancer::compute_best_gain(
   return std::make_pair(best_block, compute_relative_gain(best_gain, weight));
 }
 
-bool OverloadBalancer::add_to_pq(
+bool BlockParallelOverloadBalancer::add_to_pq(
     const BlockID block, const NodeID node, const NodeWeight weight, const float rel_gain
 ) {
   KASSERT(weight == _p_graph->node_weight(node));
@@ -270,7 +269,7 @@ bool OverloadBalancer::add_to_pq(
   return false;
 }
 
-bool OverloadBalancer::move_node_if_possible(
+bool BlockParallelOverloadBalancer::move_node_if_possible(
     const NodeID node, const BlockID from, const BlockID to
 ) {
   KASSERT(node < _p_graph->n());
@@ -287,7 +286,7 @@ bool OverloadBalancer::move_node_if_possible(
   return false;
 }
 
-bool OverloadBalancer::move_to_random_block(const NodeID node) {
+bool BlockParallelOverloadBalancer::move_to_random_block(const NodeID node) {
   auto &feasible_target_blocks = _feasible_target_blocks.local();
   const BlockID from = _p_graph->block(node);
 
@@ -314,7 +313,7 @@ bool OverloadBalancer::move_to_random_block(const NodeID node) {
   return false;
 }
 
-void OverloadBalancer::init_feasible_target_blocks() {
+void BlockParallelOverloadBalancer::init_feasible_target_blocks() {
   auto &blocks = _feasible_target_blocks.local();
   blocks.clear();
 
@@ -325,7 +324,7 @@ void OverloadBalancer::init_feasible_target_blocks() {
   }
 }
 
-BlockWeight OverloadBalancer::block_overload(const BlockID block) const {
+BlockWeight BlockParallelOverloadBalancer::block_overload(const BlockID block) const {
   static_assert(
       std::numeric_limits<BlockWeight>::is_signed,
       "This must be changed when using an unsigned data type for "

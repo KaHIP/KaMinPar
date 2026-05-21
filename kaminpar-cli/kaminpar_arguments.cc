@@ -460,7 +460,9 @@ The following algorithms can be used:
   - overload-balancer:  Rebalancer for maximum block weights.
   - underload-balancer: Rebalancer for minimum block weights.
   - lp:                 Label propagation (also see --r-lp-*).
+  - unconstrained-lp:   Label propagation with temporary balance violations (also see --r-lp-*).
   - fm:                 FM (also see --r-fm-*).
+  - unconstrained-fm:   FM with temporary balance violations (also see --r-fm-*).
   - twoway-flow:        Two-Way Flow (also see --r-twoway-flow-*).)"
       )
       ->capture_default_str();
@@ -495,6 +497,14 @@ CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx) {
         "--r-lp-max-num-neighbors",
         ctx.refinement.lp.max_num_neighbors,
         "Maximum number of neighbors to consider for each nod.e"
+  )
+      ->capture_default_str();
+
+  lp->add_option(
+        "--r-lp-unconstrained-min-improvement-factor",
+        ctx.refinement.lp.unconstrained_min_improvement_factor,
+        "Stop unconstrained label propagation if a round improves the cut by less than this "
+        "relative factor."
   )
       ->capture_default_str();
 
@@ -543,6 +553,46 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
         ctx.refinement.kway_fm.abortion_threshold,
         "Stop FM iterations if the edge cut reduction of the previous "
         "iteration falls below this threshold (lower = weaker, but faster)."
+  )
+      ->capture_default_str();
+
+  fm->add_option(
+        "--r-fm-unconstrained-num-iterations",
+        ctx.refinement.kway_fm.unconstrained_num_iterations,
+        "Number of unconstrained FM iterations before switching to constrained FM."
+  )
+      ->capture_default_str();
+  fm->add_option(
+        "--r-fm-unconstrained-min-improvement",
+        ctx.refinement.kway_fm.unconstrained_min_improvement,
+        "Switch to constrained FM if an unconstrained iteration improves the cut by less than "
+        "this relative factor."
+  )
+      ->capture_default_str();
+  fm->add_option(
+        "--r-fm-unconstrained-penalty-min",
+        ctx.refinement.kway_fm.unconstrained_penalty_min,
+        "Initial penalty factor for balance-violating unconstrained FM moves."
+  )
+      ->capture_default_str();
+  fm->add_option(
+        "--r-fm-unconstrained-penalty-max",
+        ctx.refinement.kway_fm.unconstrained_penalty_max,
+        "Final penalty factor for balance-violating unconstrained FM moves."
+  )
+      ->capture_default_str();
+  fm->add_option(
+        "--r-fm-unconstrained-rebalancing-node-inclusion-threshold",
+        ctx.refinement.kway_fm.unconstrained_rebalancing_node_inclusion_threshold,
+        "Internal incident edge-weight fraction required for nodes used in unconstrained FM "
+        "rebalancing penalty estimation."
+  )
+      ->capture_default_str();
+  fm->add_option(
+        "--r-fm-unconstrained-upper-bound",
+        ctx.refinement.kway_fm.unconstrained_upper_bound,
+        "Optional upper bound for unconstrained FM block weights as a factor of max block weight "
+        "(0 disables the bound)."
   )
       ->capture_default_str();
 

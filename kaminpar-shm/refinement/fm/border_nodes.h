@@ -5,7 +5,9 @@
  ******************************************************************************/
 #pragma once
 
-#include <tbb/concurrent_vector.h>
+#include <vector>
+
+#include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
 
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
@@ -24,22 +26,22 @@ public:
         _node_tracker(node_tracker) {}
 
   void init(const PartitionedGraph &p_graph) {
-    _border_nodes.clear();
+    tbb::enumerable_thread_specific<std::vector<NodeID>> local_border_nodes;
+
     tbb::parallel_for<NodeID>(0, p_graph.graph().n(), [&](const NodeID u) {
       if (_gain_cache.is_border_node(u, p_graph.block(u))) {
-        _border_nodes.push_back(u);
+        local_border_nodes.local().push_back(u);
       }
       _node_tracker.set(u, 0);
     });
+
+    assign_from_thread_locals(local_border_nodes);
     _next_border_node = 0;
   }
 
   template <typename Container>
   void init_precomputed(const PartitionedGraph &p_graph, const Container &border_nodes) {
-    _border_nodes.clear();
-    for (const auto &u : border_nodes) {
-      _border_nodes.push_back(u);
-    }
+    _border_nodes.assign(border_nodes.begin(), border_nodes.end());
     tbb::parallel_for<NodeID>(0, p_graph.graph().n(), [&](const NodeID u) {
       _node_tracker.set(u, 0);
     });
@@ -87,11 +89,32 @@ public:
   }
 
 private:
+  void assign_from_thread_locals(
+      const tbb::enumerable_thread_specific<std::vector<NodeID>> &local_border_nodes
+  ) {
+    std::vector<const std::vector<NodeID> *> local_vectors;
+    std::vector<std::size_t> offsets;
+
+    std::size_t total_size = 0;
+    for (const std::vector<NodeID> &local_nodes : local_border_nodes) {
+      local_vectors.push_back(&local_nodes);
+      offsets.push_back(total_size);
+      total_size += local_nodes.size();
+    }
+
+    _border_nodes.resize(total_size);
+    tbb::parallel_for<std::size_t>(0, local_vectors.size(), [&](const std::size_t i) {
+      std::copy(
+          local_vectors[i]->begin(), local_vectors[i]->end(), _border_nodes.begin() + offsets[i]
+      );
+    });
+  }
+
   GainCache &_gain_cache;
   NodeTracker &_node_tracker;
 
   parallel::Atomic<NodeID> _next_border_node;
-  tbb::concurrent_vector<NodeID> _border_nodes;
+  std::vector<NodeID> _border_nodes;
 };
 
 } // namespace kaminpar::shm::fm

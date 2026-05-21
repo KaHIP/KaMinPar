@@ -184,11 +184,13 @@ public:
             // Thus, users of the _applied_moves vector may only depend on the order of moves that
             // found an improvement.
             if (_record_applied_moves) {
-              _applied_moves.push_back(fm::AppliedMove{
-                  .node = moved_node,
-                  .from = moved_from,
-                  .improvement = false,
-              });
+              _applied_moves.push_back(
+                  fm::AppliedMove{
+                      .node = moved_node,
+                      .from = moved_from,
+                      .improvement = false,
+                  }
+              );
             }
 
             _shared.gain_cache.move(moved_node, moved_from, moved_to);
@@ -198,11 +200,13 @@ public:
           });
 
           if (_record_applied_moves) {
-            _applied_moves.push_back(fm::AppliedMove{
-                .node = node,
-                .from = block_from,
-                .improvement = true,
-            });
+            _applied_moves.push_back(
+                fm::AppliedMove{
+                    .node = node,
+                    .from = block_from,
+                    .improvement = true,
+                }
+            );
           }
 
           // Flush local delta
@@ -588,6 +592,56 @@ private:
   bool _uninitialized = true;
   std::unique_ptr<fm::SharedData<GainCache>> _shared;
 };
+template <typename Graph> std::unique_ptr<Refiner> create_fm_core(const Context &ctx) {
+  switch (ctx.refinement.kway_fm.gain_cache_strategy) {
+  case GainCacheStrategy::SPARSE:
+    return std::make_unique<FMRefinerCore<Graph, NormalSparseGainCache>>(ctx);
+
+#ifdef KAMINPAR_EXPERIMENTAL
+  case GainCacheStrategy::COMPACT_HASHING_LARGE_K:
+    return std::make_unique<FMRefinerCore<Graph, LargeKCompactHashingGainCache>>(ctx);
+
+  case GainCacheStrategy::SPARSE_LARGE_K:
+    return std::make_unique<FMRefinerCore<Graph, LargeKSparseGainCache>>(ctx);
+
+  case GainCacheStrategy::HASHING:
+    return std::make_unique<FMRefinerCore<Graph, NormalHashingGainCache>>(ctx);
+
+  case GainCacheStrategy::HASHING_LARGE_K:
+    return std::make_unique<FMRefinerCore<Graph, LargeKHashingGainCache>>(ctx);
+
+  case GainCacheStrategy::DENSE:
+    return std::make_unique<FMRefinerCore<Graph, NormalDenseGainCache>>(ctx);
+
+  case GainCacheStrategy::DENSE_LARGE_K:
+    return std::make_unique<FMRefinerCore<Graph, LargeKDenseGainCache>>(ctx);
+
+  case GainCacheStrategy::ON_THE_FLY:
+    return std::make_unique<FMRefinerCore<Graph, NormalOnTheFlyGainCache>>(ctx);
+#endif // KAMINPAR_EXPERIMENTAL
+
+  default:
+    LOG_WARNING << "The selected gain cache strategy '"
+                << stringify_enum(ctx.refinement.kway_fm.gain_cache_strategy)
+                << "' is not available in this build. Rebuild with experimental features enabled.";
+    LOG_WARNING << "Using the default gain cache strategy '"
+                << stringify_enum(GainCacheStrategy::COMPACT_HASHING) << "' instead.";
+    [[fallthrough]];
+
+  case GainCacheStrategy::COMPACT_HASHING:
+    return std::make_unique<FMRefinerCore<Graph, NormalCompactHashingGainCache>>(ctx);
+  }
+}
+
+namespace fm {
+
+std::unique_ptr<Refiner> create_fm_core(const Context &ctx, const PartitionedGraph &p_graph) {
+  return reified(p_graph, [&]<typename Graph>(Graph &) -> std::unique_ptr<Refiner> {
+    return ::kaminpar::shm::create_fm_core<Graph>(ctx);
+  });
+}
+
+} // namespace fm
 
 FMRefiner::FMRefiner(const Context &input_ctx) : _ctx(input_ctx) {}
 FMRefiner::~FMRefiner() = default;
@@ -597,57 +651,7 @@ std::string FMRefiner::name() const {
 }
 
 void FMRefiner::initialize(const PartitionedGraph &p_graph) {
-  reified(p_graph, [&]<typename Graph>(Graph &) {
-    switch (_ctx.refinement.kway_fm.gain_cache_strategy) {
-    case GainCacheStrategy::SPARSE:
-      _core = std::make_unique<FMRefinerCore<Graph, NormalSparseGainCache>>(_ctx);
-      break;
-
-#ifdef KAMINPAR_EXPERIMENTAL
-    case GainCacheStrategy::COMPACT_HASHING_LARGE_K:
-      _core = std::make_unique<FMRefinerCore<Graph, LargeKCompactHashingGainCache>>(_ctx);
-      break;
-
-    case GainCacheStrategy::SPARSE_LARGE_K:
-      _core = std::make_unique<FMRefinerCore<Graph, LargeKSparseGainCache>>(_ctx);
-      break;
-
-    case GainCacheStrategy::HASHING:
-      _core = std::make_unique<FMRefinerCore<Graph, NormalHashingGainCache>>(_ctx);
-      break;
-
-    case GainCacheStrategy::HASHING_LARGE_K:
-      _core = std::make_unique<FMRefinerCore<Graph, LargeKHashingGainCache>>(_ctx);
-      break;
-
-    case GainCacheStrategy::DENSE:
-      _core = std::make_unique<FMRefinerCore<Graph, NormalDenseGainCache>>(_ctx);
-      break;
-
-    case GainCacheStrategy::DENSE_LARGE_K:
-      _core = std::make_unique<FMRefinerCore<Graph, LargeKDenseGainCache>>(_ctx);
-      break;
-
-    case GainCacheStrategy::ON_THE_FLY:
-      _core = std::make_unique<FMRefinerCore<Graph, NormalOnTheFlyGainCache>>(_ctx);
-      break;
-#endif // KAMINPAR_EXPERIMENTAL
-
-    default:
-      LOG_WARNING
-          << "The selected gain cache strategy '"
-          << stringify_enum(_ctx.refinement.kway_fm.gain_cache_strategy)
-          << "' is not available in this build. Rebuild with experimental features enabled.";
-      LOG_WARNING << "Using the default gain cache strategy '"
-                  << stringify_enum(GainCacheStrategy::COMPACT_HASHING) << "' instead.";
-      [[fallthrough]];
-
-    case GainCacheStrategy::COMPACT_HASHING:
-      _core = std::make_unique<FMRefinerCore<Graph, NormalCompactHashingGainCache>>(_ctx);
-      break;
-    }
-  });
-
+  _core = fm::create_fm_core(_ctx, p_graph);
   _core->initialize(p_graph);
 }
 

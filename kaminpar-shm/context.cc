@@ -367,7 +367,11 @@ std::unordered_map<std::string, RefinementAlgorithm> get_refinement_algorithms()
       {"overload-balancer", RefinementAlgorithm::OVERLOAD_BALANCER},
       {"underload-balancer", RefinementAlgorithm::UNDERLOAD_BALANCER},
       {"lp", RefinementAlgorithm::LABEL_PROPAGATION},
+      {"unconstrained-lp", RefinementAlgorithm::UNCONSTRAINED_LABEL_PROPAGATION},
+      {"ulp", RefinementAlgorithm::UNCONSTRAINED_LABEL_PROPAGATION},
       {"fm", RefinementAlgorithm::KWAY_FM},
+      {"unconstrained-fm", RefinementAlgorithm::UNCONSTRAINED_FM},
+      {"ufm", RefinementAlgorithm::UNCONSTRAINED_FM},
       {"twoway-flow", RefinementAlgorithm::TWOWAY_FLOW},
       {"jet", RefinementAlgorithm::JET},
       {"mtkahypar", RefinementAlgorithm::MTKAHYPAR},
@@ -384,8 +388,12 @@ std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm)
     return out << "underload-balancer";
   case RefinementAlgorithm::LABEL_PROPAGATION:
     return out << "lp";
+  case RefinementAlgorithm::UNCONSTRAINED_LABEL_PROPAGATION:
+    return out << "unconstrained-lp";
   case RefinementAlgorithm::KWAY_FM:
     return out << "fm";
+  case RefinementAlgorithm::UNCONSTRAINED_FM:
+    return out << "unconstrained-fm";
   case RefinementAlgorithm::TWOWAY_FLOW:
     return out << "twoway-flow";
   case RefinementAlgorithm::JET:
@@ -727,14 +735,20 @@ std::ostream &operator<<(std::ostream &out, const InitialPartitioningContext &i_
 std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
   out << "Refinement algorithms:        [" << str::implode(r_ctx.algorithms, " -> ") << "]\n";
 
-  if (r_ctx.includes_algorithm(RefinementAlgorithm::LABEL_PROPAGATION)) {
+  if (r_ctx.includes_algorithm(RefinementAlgorithm::LABEL_PROPAGATION) ||
+      r_ctx.includes_algorithm(RefinementAlgorithm::UNCONSTRAINED_LABEL_PROPAGATION)) {
     out << "Label propagation:\n";
     out << "  Number of iterations:       " << r_ctx.lp.num_iterations << "\n";
+    if (r_ctx.includes_algorithm(RefinementAlgorithm::UNCONSTRAINED_LABEL_PROPAGATION)) {
+      out << "  Unconstrained min gain:     "
+          << 100.0 * r_ctx.lp.unconstrained_min_improvement_factor << "%\n";
+    }
     out << "  Tie breaking strategy:      " << r_ctx.lp.tie_breaking_strategy << "\n";
     out << "  Implementation:             " << r_ctx.lp.impl << "\n";
   }
 
-  if (r_ctx.includes_algorithm(RefinementAlgorithm::KWAY_FM)) {
+  if (r_ctx.includes_algorithm(RefinementAlgorithm::KWAY_FM) ||
+      r_ctx.includes_algorithm(RefinementAlgorithm::UNCONSTRAINED_FM)) {
     out << "k-way FM:\n";
     out << "  Number of iterations:       " << r_ctx.kway_fm.num_iterations
         << " [or improvement drops below < " << 100.0 * (1.0 - r_ctx.kway_fm.abortion_threshold)
@@ -743,6 +757,13 @@ std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
     out << "  Locking strategies:         seed nodes: "
         << (r_ctx.kway_fm.unlock_seed_nodes ? "unlock" : "lock") << ", locally moved nodes: "
         << (r_ctx.kway_fm.unlock_locally_moved_nodes ? "unlock" : "lock") << "\n";
+    if (r_ctx.includes_algorithm(RefinementAlgorithm::UNCONSTRAINED_FM)) {
+      out << "  Unconstrained iterations:   " << r_ctx.kway_fm.unconstrained_num_iterations << "\n";
+      out << "  Unconstrained min gain:     " << 100.0 * r_ctx.kway_fm.unconstrained_min_improvement
+          << "%\n";
+      out << "  Unconstrained penalty:      " << r_ctx.kway_fm.unconstrained_penalty_min << " -> "
+          << r_ctx.kway_fm.unconstrained_penalty_max << "\n";
+    }
     out << "  Gain cache:                 " << r_ctx.kway_fm.gain_cache_strategy << "\n";
   }
 

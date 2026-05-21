@@ -210,7 +210,9 @@ enum class RefinementAlgorithm {
   OVERLOAD_BALANCER,
   UNDERLOAD_BALANCER,
   LABEL_PROPAGATION,
+  UNCONSTRAINED_LABEL_PROPAGATION,
   KWAY_FM,
+  UNCONSTRAINED_FM,
   TWOWAY_FLOW,
   JET,
   MTKAHYPAR,
@@ -225,6 +227,8 @@ struct LabelPropagationRefinementContext {
 
   LabelPropagationImplementation impl;
   TieBreakingStrategy tie_breaking_strategy;
+
+  double unconstrained_min_improvement_factor;
 };
 
 enum class GainCacheStrategy {
@@ -247,6 +251,13 @@ struct KwayFMRefinementContext {
   bool unlock_seed_nodes;
   bool use_exact_abortion_threshold;
   double abortion_threshold;
+
+  int unconstrained_num_iterations;
+  double unconstrained_min_improvement;
+  double unconstrained_penalty_min;
+  double unconstrained_penalty_max;
+  double unconstrained_rebalancing_node_inclusion_threshold;
+  double unconstrained_upper_bound;
 
   GainCacheStrategy gain_cache_strategy;
   EdgeID constant_high_degree_threshold;
