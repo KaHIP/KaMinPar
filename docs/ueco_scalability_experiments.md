@@ -661,8 +661,10 @@ commit `438f10da`):
 - Submitted mkexp2 validation `2026.05.22-codex-ueco-max128-relaxed-lock-liskov` on idle
   `liskov`, graph set `/nfs/work/graph_benchmark_sets/ufm_paper/small`, algorithms
   `Constrained3xUeco` (`438f10da...`) and `OptUeco`
-  (`50892619db5d3f817ca21de78ee2d0081a02b467`), threads `1x1x128`, 88 calls. Initial progress:
-  `0/88`; Slurm jobs `71799` (install), `71800` (array), and `71801` (submit-lock cleanup).
+  (`5089261994421bff69e1055c83cb375bebc41446`), threads `1x1x128`, 88 calls. Initial progress:
+  `0/88`; first two submissions used an incorrect full SHA with the same `50892619` prefix and
+  failed during checkout. The experiment file was corrected and resubmitted with Slurm jobs `71819`
+  (install), `71820` (array), and `71821` (submit-lock cleanup).
 
 ## Automation
 
