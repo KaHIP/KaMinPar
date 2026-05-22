@@ -658,6 +658,11 @@ commit `438f10da`):
   is scheduling-sensitive enough to require max-core server validation.
 - Verification passed after the code change: `cmake --build build --target KaMinParApp -j 8` and
   `ctest --test-dir build -R '(ShmEndToEndTest|GainCacheTest)' --output-on-failure -j 8` (`70/70`).
+- Submitted mkexp2 validation `2026.05.22-codex-ueco-max128-relaxed-lock-liskov` on idle
+  `liskov`, graph set `/nfs/work/graph_benchmark_sets/ufm_paper/small`, algorithms
+  `Constrained3xUeco` (`438f10da...`) and `OptUeco`
+  (`50892619db5d3f817ca21de78ee2d0081a02b467`), threads `1x1x128`, 88 calls. Initial progress:
+  `0/88`; Slurm jobs `71799` (install), `71800` (array), and `71801` (submit-lock cleanup).
 
 ## Automation
 
@@ -679,6 +684,11 @@ commit `438f10da`):
   once submitted, then accept/reject it, update this document and the automation memory, and
   continue local-first implementation work with a new UFM idea instead of stopping at result
   interpretation.
+- `2026-05-22 18:51 CEST`: Codex heartbeat automation
+  `check-ueco-relaxed-lock-validation` created to poll
+  `2026.05.22-codex-ueco-max128-relaxed-lock-liskov` every 30 minutes, parse completed results,
+  document the interpretation, accept/reject `50892619...`, and continue with the next local-first
+  code-level UFM idea.
 
 ## Next optimization idea
 
