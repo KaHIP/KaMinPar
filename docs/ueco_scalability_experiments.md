@@ -226,7 +226,8 @@ Interpretation:
 - Seed400Ueco commit: `3babd60996b8c90fc8a812ec12f4a356d72f4c85`
 - OptUeco commit: `84dfbb40b5c403d3ea0985c227ebbe0b500fb8a7`
 - Slurm install job: `71182`
-- Status: running (latest poll `2026-05-22 13:54 CEST`, `0/88`, `0%`)
+- Status: running (latest poll `2026-05-22 13:55 CEST`, `21/88`, `24%`;
+  `Seed400Ueco 21/44`, `OptUeco 0/44`)
 
 Intent:
 
