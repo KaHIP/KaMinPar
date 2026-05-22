@@ -386,6 +386,25 @@ Interpretation:
   (`1.0339x`). This is worth accepting for now, but `rhg` remains the guard graph for future
   speed-quality trade-offs.
 
+### 2026.05.22-codex-ueco-max128-mqgen-liskov
+
+- Partition: `liskov` (idle at submit time, 128 physical cores)
+- Graph set: `/nfs/work/graph_benchmark_sets/ufm_paper/small`
+- Created/submitted: `2026-05-22 17:25 CEST`
+- Algorithms: `Constrained3xUeco`, `OptUeco`
+- Threads: `1x1x128` only
+- Constrained3xUeco commit: `438f10dae00e304e7406460e790587ac9fc4cf18`
+- OptUeco commit: `7dff9a08876c64c6ad3e1cba17e5c549f93485a2`
+- Status: running at initial poll (`0/88`)
+
+Intent:
+
+- Validate the code-level multi-queue overload-balancer implementation against the accepted
+  constrained-only `3x` baseline. The local implementation target was met on the targeted
+  balancer/rebalancing subphase (`1.217x` balancer speed, `1.202x` rebalancing speed), while
+  end-to-end local runtime improved by `1.052x`.
+- Accept only if server max-core runtime improves without a new `rhg` quality regression.
+
 ## Local runs
 
 Local sanity-check runs (this machine) on `~/Graphs/coAuthorsDBLP.metis`, `k=16`, `eps=0.03`:
@@ -585,6 +604,10 @@ Local balancer implementation optimization after accepting constrained-only `3x`
   the interpretation, and continue with the next idea.
 - `2026-05-22 16:08 CEST`: same heartbeat automation updated to poll
   `2026.05.22-codex-ueco-max96-constrained3x-diffie` every 30 minutes.
+- `2026-05-22 17:26 CEST`: Codex heartbeat automation
+  `check-ueco-mq-generation-validation` created to poll
+  `2026.05.22-codex-ueco-max128-mqgen-liskov` every 30 minutes, parse completed results, document
+  the interpretation, and continue with the next code-level idea.
 
 ## Next optimization idea
 
