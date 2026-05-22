@@ -708,6 +708,12 @@ commit `438f10da`):
 - The multi-queue overload-balancer generation-stamp implementation is rejected and reverted.
 - The relaxed NodeTracker lock is rejected and reverted; the max-core run did not reproduce the
   local FM speedup.
+- Tried and rejected an early-break optimization in `BinaryHeap::sift_up()` and
+  `SharedBinaryHeap::sift_up()` after the relaxed-lock rejection
+  (`/private/tmp/ueco/heap_sift_up_break_t18_20260522_195516`, ten local graphs, two repeats,
+  `t=18`): `1.001x` geomean total speed, `0.962x` arithmetic total speed, `1.0067x` cut ratio,
+  `1.002x` FM speed, `0.929x` fine-level localized-search speed, and `0.972x` rebalancing speed.
+  Rejected and reverted because the targeted timers got slower.
 - Continue with local-first code-level UFM work on search scheduling and rebalancing/interleaving
   data structures. Avoid the rejected tracker-generation/reset/rollback/balancer-generation
   micro-optimizations unless new profiling explains the previous slowdowns.
