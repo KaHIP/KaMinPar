@@ -623,6 +623,42 @@ Local balancer implementation optimization after accepting constrained-only `3x`
 - Server validation rejected this patch at `1x1x128`; the local subphase gain did not carry over to
   end-to-end server runtime because large instances, especially `rmat_n25_m28`, regressed.
 
+Additional local implementation probes after the MQ generation-stamp rejection (`2026-05-22
+18:29–18:45 CEST`, `t=18`, ten local graphs including `rhg18`, two repeats against accepted
+commit `438f10da`):
+
+- Rejected sorting FM moves by node instead of using an `unordered_map` in
+  `interleave_rebalancing_moves()`: `0.975x` total speed, `0.933x` FM speed, and `1.0173x` cut
+  ratio (`/private/tmp/ueco/ufm_interleave_sorted_t18_20260522_182958`).
+- Rejected removing duplicate `UnconstrainedFMData::initialize()` clearing: `1.008x` total speed
+  but `0.985x` FM speed and `0.904x` init-timer speed
+  (`/private/tmp/ueco/ufm_init_clear_t18_20260522_183126`).
+- Rejected delaying virtual-weight-delta flushes until the end of a localized-search batch:
+  `0.985x` total speed and `0.9993x` cut ratio despite a local `1.052x` FM timer
+  (`/private/tmp/ueco/ufm_delayed_delta_flush_t18_20260522_183352`).
+- Rejected sparse block-list flushing for virtual-weight deltas: `0.972x` total speed,
+  `0.966x` FM speed, and `0.9872x` cut ratio
+  (`/private/tmp/ueco/ufm_sparse_delta_flush_t18_20260522_183523`).
+- Rejected the rollback tie-check shortcut that avoided scanning the heaviest block unless the cut
+  could improve: `1.014x` geomean total speed but `0.990x` arithmetic total speed,
+  `0.909x` FM speed, and `0.905x` rollback speed
+  (`/private/tmp/ueco/ufm_rollback_tiecheck_t18_20260522_183706`).
+- Rejected a conservative acquire-CAS NodeTracker lock variant: `1.001x` total speed,
+  `1.120x` FM geomean speed, but `0.958x` arithmetic total speed and `1.0079x` cut ratio
+  (`/private/tmp/ueco/ufm_acquire_tracker_lock_t18_20260522_184309`).
+- Selected code change for validation: weaken `NodeTracker::lock()` from sequentially consistent
+  compare-exchange to relaxed compare-exchange. The tracker state is used as an ownership token, and
+  its loads/stores were already relaxed; the change removes the remaining hot-path seq-cst lock from
+  seed and touched-node acquisition.
+- Selected local result (`/private/tmp/ueco/ufm_relaxed_tracker_lock_t18_20260522_184105`):
+  `1.078x` total geomean speed, `1.043x` arithmetic total speed, `1.230x` FM geomean speed,
+  `1.265x` FM arithmetic speed, `1.148x` fine-level localized-search speed, `1.225x`
+  rebalancing speed, and `0.9854x` cut ratio. This reaches the requested `20%` implementation
+  speedup on the targeted FM phase locally, but end-to-end speed is still below `20%` and the result
+  is scheduling-sensitive enough to require max-core server validation.
+- Verification passed after the code change: `cmake --build build --target KaMinParApp -j 8` and
+  `ctest --test-dir build -R '(ShmEndToEndTest|GainCacheTest)' --output-on-failure -j 8` (`70/70`).
+
 ## Automation
 
 - `2026-05-22`: local LaunchAgent fallback configured because no Codex `automation_update` tool was
@@ -639,11 +675,17 @@ Local balancer implementation optimization after accepting constrained-only `3x`
   `check-ueco-mq-generation-validation` created to poll
   `2026.05.22-codex-ueco-max128-mqgen-liskov` every 30 minutes, parse completed results, document
   the interpretation, and continue with the next code-level idea.
+- `2026-05-22 18:45 CEST`: next heartbeat should poll the NodeTracker relaxed-lock validation
+  once submitted, then accept/reject it, update this document and the automation memory, and
+  continue local-first implementation work with a new UFM idea instead of stopping at result
+  interpretation.
 
 ## Next optimization idea
 
 - Treat `438f10da` (constrained-only `3x` batches) as the accepted max-core baseline.
 - The multi-queue overload-balancer generation-stamp implementation is rejected and reverted.
-- Continue with local-first code-level UFM work on search scheduling and rebalancing/interleaving
-  data structures. Avoid the rejected tracker/reset/rollback/balancer-generation micro-optimizations
-  unless new profiling explains the previous slowdowns.
+- Validate the relaxed NodeTracker lock against `438f10da` on a max-core mkexp2 run.
+- If rejected, revert the lock change and continue with local-first code-level UFM work on
+  search scheduling and rebalancing/interleaving data structures. Avoid the rejected
+  tracker-generation/reset/rollback/balancer-generation micro-optimizations unless new profiling
+  explains the previous slowdowns.
