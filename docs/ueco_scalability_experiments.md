@@ -284,9 +284,19 @@ Rejected follow-up:
   only `1.073x` and total time by `1.003x` versus the `num_seed_nodes = 400` candidate, with mixed
   per-graph runtime (`kkt_power` slowed down). Rejected as too noisy and not committed.
 
+Additional local candidate:
+
+- Raising `unconstrained_rebalancing_node_inclusion_threshold` from `0.7` to `1.0` on top of
+  `num_seed_nodes = 400` was locally promising. A two-repeat 9-graph run at `t=18` showed `1.054x`
+  total speedup and `1.205x` UFM speedup versus the `num_seed_nodes = 400` candidate, with
+  `0.9959x` geomean cut. This is committed after the running seed400 server experiment; do not
+  submit a second server run until `2026.05.22-codex-ueco-max96-seed400-diffie` completes.
+
 ## Next optimization idea
 
 - Poll `2026.05.22-codex-ueco-max96-seed400-diffie` and accept it only if it reduces `1x1x96`
   runtime without an unacceptable cut regression.
+- If the seed400 server run is accepted, submit a follow-up max-core-only run for the
+  `unconstrained_rebalancing_node_inclusion_threshold = 1.0` candidate.
 - If the server run rejects it, keep the unweighted incident-weight/bucket cleanup only if it is
   independently measurable; otherwise revert the whole candidate and inspect rebalancing hot spots.

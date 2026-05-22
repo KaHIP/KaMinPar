@@ -483,7 +483,7 @@ Context create_ueco_context() {
   ctx.refinement.kway_fm.unconstrained_min_improvement = 0.005;
   ctx.refinement.kway_fm.unconstrained_penalty_min = 0.2;
   ctx.refinement.kway_fm.unconstrained_penalty_max = 1.0;
-  ctx.refinement.kway_fm.unconstrained_rebalancing_node_inclusion_threshold = 0.7;
+  ctx.refinement.kway_fm.unconstrained_rebalancing_node_inclusion_threshold = 1.0;
   ctx.refinement.kway_fm.unconstrained_upper_bound = 1.05;
   ctx.refinement.kway_fm.minimal_parallelism = 4;
 
