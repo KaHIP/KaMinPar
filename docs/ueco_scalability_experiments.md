@@ -226,14 +226,34 @@ Interpretation:
 - Seed400Ueco commit: `3babd60996b8c90fc8a812ec12f4a356d72f4c85`
 - OptUeco commit: `84dfbb40b5c403d3ea0985c227ebbe0b500fb8a7`
 - Slurm install job: `71182`
-- Status: running (latest poll `2026-05-22 13:55 CEST`, `21/88`, `24%`;
-  `Seed400Ueco 21/44`, `OptUeco 0/44`)
+- Status: complete (polled `2026-05-22 14:14 CEST`, `88/88`, `100%`)
 
 Intent:
 
 - Validate the follow-up `unconstrained_rebalancing_node_inclusion_threshold = 1.0` change against
   the accepted `num_seed_nodes = 400` candidate.
 - Accept if it improves max-core runtime without worsening the seed400 cut regression.
+
+Geometric mean time (lower is better):
+
+| Threads | Seed400Ueco | OptUeco | Seed400Ueco / OptUeco |
+| --- | --- | --- | --- |
+| `1x1x96` | `1.397s` | `1.350s` | `1.034x` |
+
+Geometric mean cut (lower is better):
+
+| Threads | Seed400Ueco | OptUeco | OptUeco / Seed400Ueco |
+| --- | --- | --- | --- |
+| `1x1x96` | `1406454` | `1417538` | `1.0079x` |
+
+Interpretation:
+
+- Accepted as the current max-core candidate: geomean runtime improved by `3.4%`, arithmetic total
+  runtime improved by `5.5%`, and geomean cut regressed by `0.8%`.
+- Runtime improved on `26/44` graphs. Largest speedups were `arabic-2005` (`1.871x`),
+  `webbase-2001` (`1.750x`), `Bump_2911` (`1.623x`), and `Hook_1498` (`1.457x`).
+- Watch quality/runtime outliers in the final scalability run: `soc-flickr-und` cut regressed by
+  `1.089x`; `HV15R` cut regressed by `1.073x`; `channel-500x100x100-b050` slowed to `0.604x`.
 
 ## Local runs
 
@@ -334,12 +354,26 @@ Additional rejected local ideas (`2026-05-22 13:48–13:51 CEST`, `t=18`, 9 loca
   (`0.953x`) and FM runtime was only neutral (`1.016x`). The patch was reverted; revisit only if a
   lower-overhead implementation removes the per-operation generation checks from hot paths.
 
+Local code optimization validation (`2026-05-22 14:18 CEST`, `t=18`, 6 local graphs):
+
+- Reused a single rollback move-state buffer and encoded reverted/applied flags in one byte array
+  instead of allocating and clearing two rollback vectors per FM round.
+- Compared against `/private/tmp/ueco/bin/KaMinPar_before_node_tracker_epoch` on `com-lj.ungraph`,
+  `as-skitter`, `coPapersDBLP`, `web-BerkStan`, `rmat_n16_m24`, and `kkt_power`, two repeats.
+- Local result: `1.057x` geomean total speedup, `1.180x` geomean FM speedup, `1.071x` rollback
+  speedup, and `1.0054x` geomean cut ratio. This is code-level and behavior-preserving modulo
+  normal parallel nondeterminism, so it is worth server validation.
+
+## Automation
+
+- `2026-05-22`: local LaunchAgent fallback configured because no Codex `automation_update` tool was
+  available in this session. It runs `/Users/daniel/.codex/automations/iterate-ueco-scalability/continue.sh`
+  every 30 minutes with a lock directory and writes logs to
+  `/Users/daniel/.codex/automations/iterate-ueco-scalability/logs`.
+
 ## Next optimization idea
 
-- Poll `2026.05.22-codex-ueco-max96-reb10-hellman` and accept it only if it improves the accepted
-  seed400 max-core runtime without worsening the seed400 quality tradeoff.
-- If accepted, inspect UFM localized-search/rebalancing timers again and look for a smaller quality
-  penalty than `num_seed_nodes = 400`; otherwise keep seed400 as the current accepted candidate.
+- Treat reb10 as the current accepted max-core candidate.
 - Code-level next targets: reduce border-node initialization/shuffle overhead without changing
   search order, and inspect rollback/rebalancing data structures for avoidable per-move work. Avoid
   the rejected NodeTracker epoch approach unless it can be made cheaper in the hot path.

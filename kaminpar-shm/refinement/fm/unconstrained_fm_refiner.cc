@@ -1259,16 +1259,16 @@ private:
       const PartitionContext &p_ctx,
       const std::vector<BlockWeight> &round_start_block_weights,
       const EdgeWeight round_start_cut
-  ) const {
+  ) {
     const std::size_t num_moves = _shared->round_moves.size();
-    std::vector<std::uint8_t> reverted_moves(num_moves, 0);
+    _rollback_move_state.assign(num_moves, 0);
 
     for (std::size_t i = num_moves; i-- > 0;) {
-      const GlobalMove move = _shared->round_moves[i];
+      const GlobalMove &move = _shared->round_moves[i];
       if (move.valid && p_graph.block(move.node) == move.to) {
         _shared->gain_cache.move(move.node, move.to, move.from);
         p_graph.set_block(move.node, move.from);
-        reverted_moves[i] = 1;
+        _rollback_move_state[i] = 1;
       }
     }
 
@@ -1283,7 +1283,6 @@ private:
     BlockWeight best_heaviest_block_weight =
         *std::max_element(block_weights.begin(), block_weights.end());
     std::size_t best_prefix = 0;
-    std::vector<std::uint8_t> applied_moves(num_moves, 0);
 
     auto update_block_weight = [&](const BlockID block, const BlockWeight new_weight) {
       const bool was_overloaded = block_weights[block] > p_ctx.max_block_weight(block);
@@ -1295,8 +1294,8 @@ private:
     };
 
     for (std::size_t i = 0; i < num_moves; ++i) {
-      const GlobalMove move = _shared->round_moves[i];
-      if (!reverted_moves[i] || p_graph.block(move.node) != move.from) {
+      const GlobalMove &move = _shared->round_moves[i];
+      if (!(_rollback_move_state[i] & 1) || p_graph.block(move.node) != move.from) {
         continue;
       }
 
@@ -1307,7 +1306,7 @@ private:
       update_block_weight(move.to, block_weights[move.to] + weight);
       _shared->gain_cache.move(move.node, move.from, move.to);
       p_graph.set_block(move.node, move.to);
-      applied_moves[i] = 1;
+      _rollback_move_state[i] |= 2;
 
       if (overloaded_blocks == 0) {
         const BlockWeight heaviest_block_weight =
@@ -1322,11 +1321,11 @@ private:
     }
 
     for (std::size_t i = num_moves; i-- > best_prefix;) {
-      if (!applied_moves[i]) {
+      if (!(_rollback_move_state[i] & 2)) {
         continue;
       }
 
-      const GlobalMove move = _shared->round_moves[i];
+      const GlobalMove &move = _shared->round_moves[i];
       if (p_graph.block(move.node) == move.to) {
         _shared->gain_cache.move(move.node, move.to, move.from);
         p_graph.set_block(move.node, move.from);
@@ -1342,6 +1341,7 @@ private:
 
   bool _uninitialized = true;
   std::unique_ptr<ufm::SharedData<GainCache>> _shared;
+  std::vector<std::uint8_t> _rollback_move_state;
 };
 
 template <typename Graph>
