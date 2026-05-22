@@ -395,7 +395,8 @@ Interpretation:
 - Threads: `1x1x128` only
 - Constrained3xUeco commit: `438f10dae00e304e7406460e790587ac9fc4cf18`
 - OptUeco commit: `7dff9a08876c64c6ad3e1cba17e5c549f93485a2`
-- Status: running at initial poll (`0/88`)
+- Slurm jobs: `71667` (install), `71668` (array), `71669` (submit-lock cleanup)
+- Status: running at initial poll (`0/88`); install job configuring on `liskov`
 
 Intent:
 
