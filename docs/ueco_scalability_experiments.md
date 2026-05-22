@@ -665,6 +665,14 @@ commit `438f10da`):
   `0/88`; first two submissions used an incorrect full SHA with the same `50892619` prefix and
   failed during checkout. The experiment file was corrected and resubmitted with Slurm jobs `71819`
   (install), `71820` (array), and `71821` (submit-lock cleanup).
+- Server validation rejected the relaxed-lock candidate at `1x1x128`: geomean time regressed from
+  `2.06320s` to `2.09753s` (`0.9836x` speed), arithmetic total time was neutral
+  (`204.803s` to `204.991s`, `0.9991x`), and geomean cut improved from `1413460` to `1408870`
+  (`0.9968x`). Runtime improved on only `24/44` graphs. Biggest speedups were `vas_stokes_4M`
+  (`1.740x`), `cage15` (`1.484x`), and `soc-sinaweibo` (`1.189x`), but these were offset by
+  severe slowdowns on `kmer_V2a` (`0.537x`), `nlpkkt240` (`0.689x`),
+  `recomp_sources1GB_9` (`0.691x`), and `stokes` (`0.714x`). Quality was generally fine and even
+  better on average, but the max-core runtime target failed; the relaxed-lock code was reverted.
 
 ## Automation
 
@@ -691,13 +699,15 @@ commit `438f10da`):
   `2026.05.22-codex-ueco-max128-relaxed-lock-liskov` every 30 minutes, parse completed results,
   document the interpretation, accept/reject `50892619...`, and continue with the next local-first
   code-level UFM idea.
+- `2026-05-22 19:50 CEST`: relaxed-lock validation completed and was rejected. The heartbeat was
+  updated to continue local-first implementation exploration instead of polling the completed run.
 
 ## Next optimization idea
 
 - Treat `438f10da` (constrained-only `3x` batches) as the accepted max-core baseline.
 - The multi-queue overload-balancer generation-stamp implementation is rejected and reverted.
-- Validate the relaxed NodeTracker lock against `438f10da` on a max-core mkexp2 run.
-- If rejected, revert the lock change and continue with local-first code-level UFM work on
-  search scheduling and rebalancing/interleaving data structures. Avoid the rejected
-  tracker-generation/reset/rollback/balancer-generation micro-optimizations unless new profiling
-  explains the previous slowdowns.
+- The relaxed NodeTracker lock is rejected and reverted; the max-core run did not reproduce the
+  local FM speedup.
+- Continue with local-first code-level UFM work on search scheduling and rebalancing/interleaving
+  data structures. Avoid the rejected tracker-generation/reset/rollback/balancer-generation
+  micro-optimizations unless new profiling explains the previous slowdowns.

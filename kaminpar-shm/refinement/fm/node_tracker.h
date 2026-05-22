@@ -24,7 +24,7 @@ public:
   bool lock(const NodeID u, const int id) {
     int free = 0;
     return __atomic_compare_exchange_n(
-        &_state[u], &free, id, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED
+        &_state[u], &free, id, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST
     );
   }
 
