@@ -337,6 +337,27 @@ Interpretation:
 - Keep the current reb10 candidate as the accepted baseline, revert the fine-level multiplier, and
   look for code-level speedups that do not weaken the fine-level solution quality this much.
 
+### 2026.05.22-codex-ueco-max96-constrained3x-diffie
+
+- Partition: `diffie` (96 physical cores)
+- Graph set: `/nfs/work/graph_benchmark_sets/ufm_paper/small`
+- Created/submitted: `2026-05-22 16:07 CEST`
+- Algorithms: `Reb10Ueco`, `OptUeco`
+- Threads: `1x1x96` only
+- Reb10Ueco commit: `5cc9f814c70ea44e28f1a6f181d309fa4046bab1`
+- OptUeco commit: `438f10dae00e304e7406460e790587ac9fc4cf18`
+- Slurm jobs: `71496` (install), `71497` (array), `71498` (submit-lock cleanup)
+- Status: running (initial poll `2026-05-22 16:07 CEST`, `0/88`, `0%`, install/build
+  running on `diffie`)
+
+Intent:
+
+- Validate the code-level compromise after rejecting unconditional fine-level `3x` batches: keep
+  `num_seed_nodes = 400` during overload-permitting unconstrained FM iterations, then switch to
+  `3 * num_seed_nodes` only for constrained FM iterations.
+- Accept if server max-core runtime improves over reb10 without reproducing the fine-level `3x`
+  quality outlier (`rhg` cut `2.1477x`).
+
 ## Local runs
 
 Local sanity-check runs (this machine) on `~/Graphs/coAuthorsDBLP.metis`, `k=16`, `eps=0.03`:
@@ -496,11 +517,14 @@ graphs, two repeats against the reb10 baseline):
   `check-ueco-fine3x-validation` created to poll
   `2026.05.22-codex-ueco-max96-fine3x-diffie` every 30 minutes, parse completed results, document
   the interpretation, and continue with the next idea.
+- `2026-05-22 16:08 CEST`: same heartbeat automation updated to poll
+  `2026.05.22-codex-ueco-max96-constrained3x-diffie` every 30 minutes.
 
 ## Next optimization idea
 
-- Treat reb10 as the current accepted max-core candidate until the fine-level `3x` batch server
+- Treat reb10 as the current accepted max-core candidate until the constrained-only `3x` batch server
   validation finishes.
-- If the `3x` batch candidate is rejected, revert it and continue with code-level UFM work on
-  search scheduling and rebalancing data structures. Avoid the rejected tracker/reset/rollback
-  micro-optimizations unless new profiling explains the previous slowdowns.
+- If the constrained-only `3x` batch candidate is rejected, revert the batch-multiplier
+  infrastructure entirely and continue with code-level UFM work on search scheduling and
+  rebalancing data structures. Avoid the rejected tracker/reset/rollback micro-optimizations unless
+  new profiling explains the previous slowdowns.
