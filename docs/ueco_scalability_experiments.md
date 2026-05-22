@@ -546,6 +546,33 @@ Rejected local code probe after accepting constrained-only `3x` batches (`2026-0
 - Rejected and reverted because the measured total-speed gain is likely phase noise, while the
   targeted FM/search timers got slower.
 
+Local balancer implementation optimization after accepting constrained-only `3x` batches
+(`2026-05-22 16:57–17:19 CEST`, `t=18`, ten local graphs, two repeats against accepted commit
+`438f10da`):
+
+- Rejected split constrained/unconstrained gain search in UFM: `1.006x` total speed, `1.046x` FM
+  speed, `0.952x` fine-level localized-search speed, and `0.9980x` cut ratio
+  (`/private/tmp/ueco/ufm_split_gain_t18_20260522_165719`).
+- Rejected active-node reset alone in the multi-queue overload balancer: `1.003x` total speed,
+  `1.065x` balancer speed, `1.067x` ULP speed, `1.070x` FM speed, and `0.9888x` cut ratio
+  (`/private/tmp/ueco/mq_active_reset_t18_20260522_170400`).
+- Fast per-worker xorshift RNG alone was useful but not enough: `1.033x` total speed,
+  `1.167x` balancer speed, `1.143x` ULP speed, `0.997x` FM speed, and `1.0024x` cut ratio
+  (`/private/tmp/ueco/mq_fast_rng_t18_20260522_170602`).
+- Rejected reducing the number of priority queues from `2 * threads` to `threads`: `0.974x` total
+  speed, `0.882x` balancer speed, `0.909x` ULP speed, and `0.9983x` cut ratio
+  (`/private/tmp/ueco/mq_fast_rng_active_reset_p1_t18_20260522_171004`).
+- Selected code change: replace `std::mt19937` queue sampling with a lightweight xorshift token,
+  keep balancer priority queues/node-state arrays allocated across calls, use a per-refinement
+  node generation stamp so stale node state is ignored without a full reset or active-node merge,
+  and clear PQs without uncontended locks after worker threads have joined.
+- Selected local result (`/private/tmp/ueco/mq_generation_stamp_t18_20260522_171905`):
+  `1.052x` total speed, `1.217x` multi-queue overload-balancer speed, `1.191x` ULP speed,
+  `1.202x` rebalancing speed, `1.047x` FM speed, and `0.9982x` cut ratio. This reaches the
+  requested `20%` implementation speedup on the targeted balancer/rebalancing subphase, but it is
+  not a `20%` end-to-end `-P ueco` speedup; server validation is still required.
+  The local `rhg18` guard improved in both runtime (`1.125x`) and cut (`0.9888x`).
+
 ## Automation
 
 - `2026-05-22`: local LaunchAgent fallback configured because no Codex `automation_update` tool was
@@ -561,9 +588,9 @@ Rejected local code probe after accepting constrained-only `3x` batches (`2026-0
 
 ## Next optimization idea
 
-- Treat reb10 as the current accepted max-core candidate until the constrained-only `3x` batch server
-  validation finishes.
-- If the constrained-only `3x` batch candidate is rejected, revert the batch-multiplier
-  infrastructure entirely and continue with code-level UFM work on search scheduling and
-  rebalancing data structures. Avoid the rejected tracker/reset/rollback micro-optimizations unless
-  new profiling explains the previous slowdowns.
+- Treat `438f10da` (constrained-only `3x` batches) as the accepted max-core baseline.
+- Validate the multi-queue overload-balancer generation-stamp implementation on the server against
+  `438f10da`. Accept only if max-core runtime improves without a new `rhg` quality regression.
+- If rejected, revert the balancer generation-stamp patch and continue with code-level UFM work on
+  search scheduling and rebalancing/interleaving data structures. Avoid the rejected
+  tracker/reset/rollback micro-optimizations unless new profiling explains the previous slowdowns.

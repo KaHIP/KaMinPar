@@ -9,9 +9,9 @@
 
 #include <array>
 #include <atomic>
+#include <cstdint>
 #include <functional>
 #include <limits>
-#include <random>
 #include <string>
 #include <vector>
 
@@ -81,8 +81,10 @@ private:
 
     [[nodiscard]] std::array<std::size_t, 2> pick_two_random_pqs();
 
-    std::mt19937 rng;
-    std::uniform_int_distribution<std::size_t> dist;
+    [[nodiscard]] std::uint64_t next_random();
+
+    std::uint64_t state;
+    std::size_t num_pqs;
   };
 
   struct Move {
@@ -95,6 +97,10 @@ private:
   bool begin_refinement(PartitionedGraph &p_graph, const PartitionContext &p_ctx);
 
   void finish_refinement();
+
+  void ensure_node_state_capacity(NodeID capacity);
+
+  void start_new_node_generation();
 
   template <typename Graph, typename GainCacheT>
   void run_refinement(const Graph &graph, GainCacheT &gain_cache);
@@ -170,6 +176,7 @@ private:
   std::atomic<std::size_t> _num_overloaded_blocks = 0;
 
   std::vector<PQ> _pqs;
+  NodeID _pq_capacity = 0;
   std::vector<std::uint8_t> _pq_locks;
   std::vector<float> _pq_top_keys;
 
@@ -177,6 +184,8 @@ private:
   StaticArray<std::size_t> _node_pq;
   StaticArray<std::size_t> _pq_handles;
   StaticArray<std::uint8_t> _node_state;
+  StaticArray<std::uint32_t> _node_generation;
+  std::uint32_t _current_node_generation = 0;
 
   AnyGraphComponent<GainCache> _gain_cache;
 
