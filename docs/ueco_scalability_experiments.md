@@ -195,7 +195,7 @@ Interpretation:
 - PrevOptUeco commit: `a8f5ed9f26d7093a806ddd24a289db88b02449b6`
 - OptUeco commit: `3babd60996b8c90fc8a812ec12f4a356d72f4c85`
 - Slurm install job: `71092`
-- Status: running (initial poll `2026-05-22 13:27 CEST`, `0/88`, `0%`)
+- Status: running (latest poll `2026-05-22 13:34 CEST`, `36/88`, `40%`)
 
 Intent:
 
