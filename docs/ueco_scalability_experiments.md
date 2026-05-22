@@ -255,6 +255,24 @@ Interpretation:
 - Watch quality/runtime outliers in the final scalability run: `soc-flickr-und` cut regressed by
   `1.089x`; `HV15R` cut regressed by `1.073x`; `channel-500x100x100-b050` slowed to `0.604x`.
 
+### 2026.05.22-codex-ueco-max96-rollback-state-diffie
+
+- Partition: `diffie` (idle at submit time, 96 physical cores)
+- Graph set: `/nfs/work/graph_benchmark_sets/ufm_paper/small`
+- Created/submitted: `2026-05-22 14:21 CEST`
+- Algorithms: `Reb10Ueco`, `OptUeco`
+- Threads: `1x1x96` only
+- Reb10Ueco commit: `5cc9f814c70ea44e28f1a6f181d309fa4046bab1`
+- OptUeco commit: `b72976da9d44a10aba0e5edd57dc2702ea9ff558`
+- Status: running (initial poll `2026-05-22 14:22 CEST`, `0/88`, `0%`, install/build
+  running)
+
+Intent:
+
+- Validate the rollback-state code optimization against the accepted reb10 candidate.
+- Accept only if server max-core runtime improves; it should not materially affect quality because
+  the code only changes rollback scratch-state representation and reuses buffer capacity.
+
 ## Local runs
 
 Local sanity-check runs (this machine) on `~/Graphs/coAuthorsDBLP.metis`, `k=16`, `eps=0.03`:
