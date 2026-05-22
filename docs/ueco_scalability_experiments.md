@@ -185,6 +185,26 @@ Interpretation:
 - Arithmetic total time was neutral because `rmat_n25_m28` and `stokes` regressed sharply; future
   iterations should watch per-graph slowdowns, not only geomean speedup.
 
+### 2026.05.22-codex-ueco-max96-seed400-diffie
+
+- Partition: `diffie` (idle at submit time, 96 physical cores)
+- Graph set: `/nfs/work/graph_benchmark_sets/ufm_paper/small`
+- Created/submitted: `2026-05-22 13:25 CEST`
+- Algorithms: `PrevOptUeco`, `OptUeco`
+- Threads: `1x1x96` only
+- PrevOptUeco commit: `a8f5ed9f26d7093a806ddd24a289db88b02449b6`
+- OptUeco commit: `3babd60996b8c90fc8a812ec12f4a356d72f4c85`
+- Slurm install job: `71092`
+- Status: running (initial poll `2026-05-22 13:27 CEST`, `0/88`, `0%`)
+
+Intent:
+
+- Validate the `num_seed_nodes = 400` runtime-quality tradeoff against the previous accepted
+  OptUeco baseline in the same max-core-only experiment.
+- Accept if `OptUeco` is faster at `1x1x96` and the cut regression is acceptable. The local target
+  is at least `30%` lower UFM time; local validation saw `1.906x` UFM speedup and `1.114x` total
+  speedup over nine graphs.
+
 ## Local runs
 
 Local sanity-check runs (this machine) on `~/Graphs/coAuthorsDBLP.metis`, `k=16`, `eps=0.03`:
@@ -258,9 +278,15 @@ default via a CLI override. It used `com-lj.ungraph`, `as-skitter`, `coPapersDBL
 about `1.8%` worse geomean cut. The largest observed quality regression was `kkt_power`
 (`1.152x` cut), so server validation must check whether this remains acceptable on the small set.
 
+Rejected follow-up:
+
+- Skipping border-node shuffling when `num_seed_nodes >= 400` improved measured local UFM time by
+  only `1.073x` and total time by `1.003x` versus the `num_seed_nodes = 400` candidate, with mixed
+  per-graph runtime (`kkt_power` slowed down). Rejected as too noisy and not committed.
+
 ## Next optimization idea
 
-- Submit a max-core-only mkexp2 run for the `num_seed_nodes = 400` candidate and accept it only if
-  it reduces `1x1x96` runtime without an unacceptable cut regression.
+- Poll `2026.05.22-codex-ueco-max96-seed400-diffie` and accept it only if it reduces `1x1x96`
+  runtime without an unacceptable cut regression.
 - If the server run rejects it, keep the unweighted incident-weight/bucket cleanup only if it is
   independently measurable; otherwise revert the whole candidate and inspect rebalancing hot spots.
