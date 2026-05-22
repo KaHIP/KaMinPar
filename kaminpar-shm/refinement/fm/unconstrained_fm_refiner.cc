@@ -964,7 +964,7 @@ template <typename Graph, template <typename> typename GainCacheTemplate>
 class UnconstrainedFMRefinerCore : public Refiner {
   using GainCache = GainCacheTemplate<Graph>;
   using GlobalMove = ufm::GlobalMove;
-  static constexpr NodeID kFineLevelSeedNodeMultiplier = 3;
+  static constexpr NodeID kConstrainedSeedNodeMultiplier = 3;
 
 public:
   UnconstrainedFMRefinerCore(const Context &ctx) : _ctx(ctx), _fm_ctx(ctx.refinement.kway_fm) {}
@@ -1067,9 +1067,9 @@ public:
       }
 
       std::atomic<int> num_finished_workers = 0;
-      const NodeID num_seed_nodes = graph.n() == _ctx.partition.n
-                                        ? kFineLevelSeedNodeMultiplier * _fm_ctx.num_seed_nodes
-                                        : _fm_ctx.num_seed_nodes;
+      const NodeID num_seed_nodes = use_unconstrained_iteration
+                                        ? _fm_ctx.num_seed_nodes
+                                        : kConstrainedSeedNodeMultiplier * _fm_ctx.num_seed_nodes;
 
       tbb::parallel_for<int>(0, _ctx.parallel.num_threads, [&](int) {
         auto &expected_gain = expected_gain_ets.local();

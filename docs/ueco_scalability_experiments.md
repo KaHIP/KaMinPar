@@ -302,8 +302,7 @@ Interpretation:
 - Reb10Ueco commit: `5cc9f814c70ea44e28f1a6f181d309fa4046bab1`
 - OptUeco commit: `522dc687dd27bb16f98bbc65bb724aac136e4d57`
 - Slurm jobs: `71365`, `71366`, `71367`
-- Status: running (initial poll `2026-05-22 15:25 CEST`, `0/88`, `0%`, install/build
-  submitted)
+- Status: complete (`88/88`)
 
 Intent:
 
@@ -311,6 +310,32 @@ Intent:
   UFM localized searches while keeping the accepted `num_seed_nodes = 400` on coarser levels.
 - Accept only if max-core server runtime improves over reb10 and the cut remains sane; local
   validation showed a large FM speedup but noisy total runtime.
+
+Result:
+
+Geometric mean running time (lower is better):
+
+| Threads | Reb10Ueco | OptUeco | Reb10Ueco / OptUeco |
+| --- | --- | --- | --- |
+| `1x1x96` | `1.37034s` | `1.31801s` | `1.0397x` |
+
+Geometric mean cut (lower is better):
+
+| Threads | Reb10Ueco | OptUeco | OptUeco / Reb10Ueco |
+| --- | --- | --- | --- |
+| `1x1x96` | `1414489` | `1452564` | `1.0269x` |
+
+Interpretation:
+
+- Rejected as the default despite the `3.97%` geomean runtime improvement. The quality trade-off is
+  too large for the current accepted path: geomean cut regressed by `2.69%`, and `rhg` regressed
+  from `20664` to `44381` cut (`2.1477x`) while also slowing from `0.674s` to `1.253s`.
+- Runtime improved on `31/44` graphs and arithmetic total time improved by `1.165x` (`160.929s` to
+  `138.152s`), so large fine-level batches remain useful as an optional speed-quality trade-off.
+  The worst runtime slowdowns were `rhg` (`0.538x`), `stokes` (`0.546x`), `indochina-2004`
+  (`0.702x`), and `channel-500x100x100-b050` (`0.801x`).
+- Keep the current reb10 candidate as the accepted baseline, revert the fine-level multiplier, and
+  look for code-level speedups that do not weaken the fine-level solution quality this much.
 
 ## Local runs
 
@@ -446,6 +471,20 @@ Local runtime-quality trade-off selected for server validation:
   but the FM-specific speedup is large enough to justify one max-core server validation. A milder
   `2x` fine-level multiplier was worse (`0.962x` total, `0.954x` FM, `1.0021x` cut), so the
   submitted candidate uses `3x`.
+
+Local follow-up after the fine-level `3x` rejection (`2026-05-22 16:04 CEST`, `t=18`, ten local
+graphs, two repeats against the reb10 baseline):
+
+- Code change: keep `num_seed_nodes = 400` during unconstrained FM iterations, then use
+  `3 * num_seed_nodes` only after UFM switches back to constrained FM. This keeps the speed-oriented
+  larger batches out of the overload-permitting phase that caused the server quality regression.
+- Local result (`/private/tmp/ueco/ufm_constrained_seed3x_t18_20260522_160403`):
+  `1.083x` total geomean speedup, `1.106x` FM speedup, `1.217x` fine-level localized-search
+  speedup, and `0.9971x` geomean cut ratio.
+- Runtime improved on `7/10` graphs. The local `rhg18` guard graph improved from `84710` to
+  `80439` cut (`0.9496x`) while speeding up from `0.090s` to `0.080s`, which addresses the most
+  severe failure mode seen in the server fine-level `3x` run well enough to justify max-core server
+  validation.
 
 ## Automation
 
