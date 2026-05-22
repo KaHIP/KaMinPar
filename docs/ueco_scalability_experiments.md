@@ -226,7 +226,7 @@ Interpretation:
 - Seed400Ueco commit: `3babd60996b8c90fc8a812ec12f4a356d72f4c85`
 - OptUeco commit: `84dfbb40b5c403d3ea0985c227ebbe0b500fb8a7`
 - Slurm install job: `71182`
-- Status: running (initial poll `2026-05-22 13:46 CEST`, `0/88`, `0%`)
+- Status: running (latest poll `2026-05-22 13:54 CEST`, `0/88`, `0%`)
 
 Intent:
 
@@ -320,9 +320,25 @@ Additional local candidate:
   total speedup and `1.205x` UFM speedup versus the `num_seed_nodes = 400` candidate, with
   `0.9959x` geomean cut.
 
+Additional rejected local ideas (`2026-05-22 13:48–13:51 CEST`, `t=18`, 9 local graphs):
+
+- Raising `unconstrained_min_improvement` to `0.02` looked good in a one-repeat sweep, but did not
+  repeat. The two-repeat check was `0.950x` total speed, `0.942x` UFM speed, and `1.0027x` cut
+  relative to the current seed400+reb10 candidate, so this is rejected.
+- Increasing `num_seed_nodes` further to `1200` gave only a small and noisy total-speed gain
+  (`1.013x` alone, `1.030x` combined with `unconstrained_min_improvement = 0.02`) despite UFM-only
+  speedups. Do not submit this before the reb10 server result.
+- A behavior-preserving NodeTracker generation-stamp implementation avoided full tracker resets and
+  sped up the UFM border-initialization subphase (`1.102x`), but total runtime was slower
+  (`0.953x`) and FM runtime was only neutral (`1.016x`). The patch was reverted; revisit only if a
+  lower-overhead implementation removes the per-operation generation checks from hot paths.
+
 ## Next optimization idea
 
 - Poll `2026.05.22-codex-ueco-max96-reb10-hellman` and accept it only if it improves the accepted
   seed400 max-core runtime without worsening the seed400 quality tradeoff.
 - If accepted, inspect UFM localized-search/rebalancing timers again and look for a smaller quality
   penalty than `num_seed_nodes = 400`; otherwise keep seed400 as the current accepted candidate.
+- Code-level next targets: reduce border-node initialization/shuffle overhead without changing
+  search order, and inspect rollback/rebalancing data structures for avoidable per-move work. Avoid
+  the rejected NodeTracker epoch approach unless it can be made cheaper in the hot path.
