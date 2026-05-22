@@ -347,8 +347,7 @@ Interpretation:
 - Reb10Ueco commit: `5cc9f814c70ea44e28f1a6f181d309fa4046bab1`
 - OptUeco commit: `438f10dae00e304e7406460e790587ac9fc4cf18`
 - Slurm jobs: `71496` (install), `71497` (array), `71498` (submit-lock cleanup)
-- Status: running (initial poll `2026-05-22 16:07 CEST`, `0/88`, `0%`, install/build
-  running on `diffie`)
+- Status: complete (`88/88`)
 
 Intent:
 
@@ -357,6 +356,35 @@ Intent:
   `3 * num_seed_nodes` only for constrained FM iterations.
 - Accept if server max-core runtime improves over reb10 without reproducing the fine-level `3x`
   quality outlier (`rhg` cut `2.1477x`).
+
+Result:
+
+Geometric mean running time (lower is better):
+
+| Threads | Reb10Ueco | OptUeco | Reb10Ueco / OptUeco |
+| --- | --- | --- | --- |
+| `1x1x96` | `1.37942s` | `1.32564s` | `1.0406x` |
+
+Geometric mean cut (lower is better):
+
+| Threads | Reb10Ueco | OptUeco | OptUeco / Reb10Ueco |
+| --- | --- | --- | --- |
+| `1x1x96` | `1415425` | `1417920` | `1.0018x` |
+
+Interpretation:
+
+- Accepted as the current max-core candidate. It gives a `4.06%` geomean runtime improvement and a
+  `3.96%` arithmetic total-time improvement (`147.535s` to `141.910s`) with only `0.18%` worse
+  geomean cut.
+- Runtime improved on `28/44` graphs. The largest wins were `arabic-2005` (`1.486x`),
+  `kmer_V2a` (`1.470x`), `channel-500x100x100-b050` (`1.317x`), `Bump_2911` (`1.250x`), and
+  `nlpkkt240` (`1.238x`).
+- The largest runtime slowdowns were `Hook_1498` (`0.635x`), `nv2` (`0.854x`),
+  `vas_stokes_4M` (`0.891x`), `stokes` (`0.903x`), and `soc-sinaweibo` (`0.905x`).
+- Quality is much saner than the rejected fine-level `3x` run. The worst remaining cut outlier is
+  `rhg` (`19509` to `22057`, `1.1306x`), followed by `Hook_1498` (`1.0400x`) and `rgg26`
+  (`1.0339x`). This is worth accepting for now, but `rhg` remains the guard graph for future
+  speed-quality trade-offs.
 
 ## Local runs
 
@@ -506,6 +534,17 @@ graphs, two repeats against the reb10 baseline):
   `80439` cut (`0.9496x`) while speeding up from `0.090s` to `0.080s`, which addresses the most
   severe failure mode seen in the server fine-level `3x` run well enough to justify max-core server
   validation.
+
+Rejected local code probe after accepting constrained-only `3x` batches (`2026-05-22 16:30 CEST`,
+`t=18`, ten local graphs, two repeats against the accepted constrained-only `3x` baseline):
+
+- Empty-batch fast path: return immediately from a UFM worker batch if polling the shared border-node
+  cursor yields no seed nodes. This is behavior-preserving in intent, but the local result was not a
+  useful FM speedup: `1.031x` total geomean speed, `0.979x` FM speed, `0.871x` fine-level
+  localized-search speed, and `0.9949x` cut ratio
+  (`/private/tmp/ueco/ufm_empty_batch_skip_t18_20260522_163034`).
+- Rejected and reverted because the measured total-speed gain is likely phase noise, while the
+  targeted FM/search timers got slower.
 
 ## Automation
 
