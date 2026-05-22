@@ -292,6 +292,26 @@ Interpretation:
   `vas_stokes_4M` (`0.637x`), `cage15` (`0.683x`), and
   `channel-500x100x100-b050` (`0.790x`).
 
+### 2026.05.22-codex-ueco-max96-fine3x-diffie
+
+- Partition: `diffie` (96 physical cores)
+- Graph set: `/nfs/work/graph_benchmark_sets/ufm_paper/small`
+- Created/submitted: `2026-05-22 15:25 CEST`
+- Algorithms: `Reb10Ueco`, `OptUeco`
+- Threads: `1x1x96` only
+- Reb10Ueco commit: `5cc9f814c70ea44e28f1a6f181d309fa4046bab1`
+- OptUeco commit: `522dc687dd27bb16f98bbc65bb724aac136e4d57`
+- Slurm jobs: `71365`, `71366`, `71367`
+- Status: running (initial poll `2026-05-22 15:25 CEST`, `0/88`, `0%`, install/build
+  submitted)
+
+Intent:
+
+- Validate the code-level runtime-quality trade-off that uses `3 * num_seed_nodes` for finest-level
+  UFM localized searches while keeping the accepted `num_seed_nodes = 400` on coarser levels.
+- Accept only if max-core server runtime improves over reb10 and the cut remains sane; local
+  validation showed a large FM speedup but noisy total runtime.
+
 ## Local runs
 
 Local sanity-check runs (this machine) on `~/Graphs/coAuthorsDBLP.metis`, `k=16`, `eps=0.03`:
@@ -433,6 +453,10 @@ Local runtime-quality trade-off selected for server validation:
   available in this session. It runs `/Users/daniel/.codex/automations/iterate-ueco-scalability/continue.sh`
   every 30 minutes with a lock directory and writes logs to
   `/Users/daniel/.codex/automations/iterate-ueco-scalability/logs`.
+- `2026-05-22 15:26 CEST`: Codex heartbeat automation
+  `check-ueco-fine3x-validation` created to poll
+  `2026.05.22-codex-ueco-max96-fine3x-diffie` every 30 minutes, parse completed results, document
+  the interpretation, and continue with the next idea.
 
 ## Next optimization idea
 
