@@ -99,10 +99,7 @@ public:
         return;
       }
 
-      EdgeWeight total_incident_weight = 0;
-      graph.adjacent_nodes(u, [&](const NodeID, const EdgeWeight weight) {
-        total_incident_weight += weight;
-      });
+      const EdgeWeight total_incident_weight = incident_weight(graph, u);
 
       const BlockID block = p_graph.block(u);
       const EdgeWeight internal_weight = gain_cache.conn(u, block);
@@ -235,10 +232,7 @@ private:
         return;
       }
 
-      EdgeWeight total_incident_weight = 0;
-      graph.adjacent_nodes(u, [&](const NodeID, const EdgeWeight weight) {
-        total_incident_weight += weight;
-      });
+      const EdgeWeight total_incident_weight = incident_weight(graph, u);
 
       const BlockID block = p_graph.block(u);
       const EdgeWeight internal_weight = gain_cache.conn(u, block);
@@ -322,6 +316,19 @@ private:
     });
   }
 
+  template <typename Graph>
+  [[nodiscard]] static EdgeWeight incident_weight(const Graph &graph, const NodeID u) {
+    if (!graph.is_edge_weighted()) {
+      return static_cast<EdgeWeight>(graph.degree(u));
+    }
+
+    EdgeWeight total_incident_weight = 0;
+    graph.adjacent_nodes(u, [&](const NodeID, const EdgeWeight weight) {
+      total_incident_weight += weight;
+    });
+    return total_incident_weight;
+  }
+
   [[nodiscard]] static double gain_per_weight_for_bucket(const std::uint32_t bucket) {
     if (bucket > 1) {
       return std::pow(kBucketFactor, bucket - 2);
@@ -334,9 +341,13 @@ private:
 
   [[nodiscard]] static std::uint32_t bucket_for_gain_per_weight(const double gain_per_weight) {
     if (gain_per_weight >= 1.0) {
-      return static_cast<std::uint32_t>(
-          2 + std::ceil(std::log(gain_per_weight) / std::log(kBucketFactor))
-      );
+      std::uint32_t bucket = 2;
+      double bucket_upper_bound = 1.0;
+      while (gain_per_weight > bucket_upper_bound) {
+        ++bucket;
+        bucket_upper_bound *= kBucketFactor;
+      }
+      return bucket;
     } else if (gain_per_weight > 0.5) {
       return 2;
     } else if (gain_per_weight > 0.0) {

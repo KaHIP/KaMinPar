@@ -164,15 +164,26 @@ Interpretation:
 - Threads: `1x1x96` only
 - OptUeco commit: `8f7db829d8b037b53c9471cea1008666f0e2fa59`
 - Slurm install job: `70995`
-- Status: running (initial poll `2026-05-21 23:42 CEST`, `0/88`, `0%`)
+- Status: complete (polled `2026-05-22 13:15 CEST`, `88/88`, `100%`)
 
-Intent:
+Geometric mean time (lower is better):
 
-- Validate the local UFM tuning/code cleanup at the max-core point only, per the fast iteration
-  policy.
-- Accept this candidate if `OptUeco` is faster than `BaseUeco` at `1x1x96` while cut quality
-  remains sane. If it regresses, keep the current local evidence but reject the candidate for the
-  branch.
+| Threads | BaseUeco | OptUeco | BaseUeco / OptUeco |
+| --- | --- | --- | --- |
+| `1x1x96` | `1.638s` | `1.468s` | `1.116x` |
+
+Geometric mean cut (lower is better):
+
+| Threads | BaseUeco | OptUeco | OptUeco / BaseUeco |
+| --- | --- | --- | --- |
+| `1x1x96` | `1404198` | `1387912` | `0.9884x` |
+
+Interpretation:
+
+- Accepted as the new local/server baseline: the first UFM tuning/code cleanup improves
+  max-core runtime by `11.6%` and slightly improves geomean cut.
+- Arithmetic total time was neutral because `rmat_n25_m28` and `stokes` regressed sharply; future
+  iterations should watch per-graph slowdowns, not only geomean speedup.
 
 ## Local runs
 
@@ -232,9 +243,24 @@ Additional max-local-core checks (`2026-05-21 23:45 CEST`, `t=18`, two repeats):
   `num_iterations = 6` was only `1.016x` speed with `1.018x` cut, and the combined fast variants
   were slower on geomean.
 
+Local max-core UFM batch-size sweep (`2026-05-22 13:21 CEST`, `k=16`, `eps=0.03`, `t=18`):
+
+| Graph set | Candidate | Total speedup | UFM speedup | Candidate / baseline cut |
+| --- | --- | --- | --- | --- |
+| 6 larger local graphs, one repeat | `num_seed_nodes = 400` | `1.329x` | `1.671x` | `0.9852x` |
+| 6 larger local graphs, one repeat | `num_seed_nodes = 1200` | `1.286x` | `1.917x` | `1.0200x` |
+| 9 local graphs, two repeats | `num_seed_nodes = 400` plus init cleanup | `1.114x` | `1.906x` | `1.0184x` |
+
+The 9-graph validation compared the new candidate against the previous `num_seed_nodes = 50`
+default via a CLI override. It used `com-lj.ungraph`, `as-skitter`, `coPapersDBLP`,
+`web-BerkStan`, `rgg_n_2_19_s0`, `rmat_n16_m24`, `rmat_n16_m23`, `kkt_power`, and
+`web-Google`. The candidate reaches the explicit `30%` UFM-time reduction target locally, with
+about `1.8%` worse geomean cut. The largest observed quality regression was `kkt_power`
+(`1.152x` cut), so server validation must check whether this remains acceptable on the small set.
+
 ## Next optimization idea
 
-- Poll `2026.05.21-codex-ueco-max96-ufm-tuning-hellman` until complete and accept/reject the
-  selected UFM tuning/code cleanup based on `1x1x96` runtime.
-- If accepted, inspect remaining UFM costs in rebalancing and localized search bookkeeping before
-  running the final `4/16/max` scalability sweep.
+- Submit a max-core-only mkexp2 run for the `num_seed_nodes = 400` candidate and accept it only if
+  it reduces `1x1x96` runtime without an unacceptable cut regression.
+- If the server run rejects it, keep the unweighted incident-weight/bucket cleanup only if it is
+  independently measurable; otherwise revert the whole candidate and inspect rebalancing hot spots.
