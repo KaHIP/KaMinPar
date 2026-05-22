@@ -56,12 +56,11 @@ private:
 
   const CSRGraph *_graph = nullptr;
 
-  //is lHop 2-3 better than edge-cut?
   const std::size_t l = 2; // SET L used for LHop -> TODO replace
 
   const std::vector<int> lweights = {1, 1, 1};
 
-  const int batchtype = 0;
+  const int batchtype = 2;
 
   void initializeLHopModel(PartitionedGraph &p_graph, std::vector<std::vector<LHopTable>> &lhopModel);
 
