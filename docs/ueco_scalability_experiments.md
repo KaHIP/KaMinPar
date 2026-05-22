@@ -195,15 +195,44 @@ Interpretation:
 - PrevOptUeco commit: `a8f5ed9f26d7093a806ddd24a289db88b02449b6`
 - OptUeco commit: `3babd60996b8c90fc8a812ec12f4a356d72f4c85`
 - Slurm install job: `71092`
-- Status: running (latest poll `2026-05-22 13:34 CEST`, `36/88`, `40%`)
+- Status: complete (polled `2026-05-22 13:45 CEST`, `88/88`, `100%`)
+
+Geometric mean time (lower is better):
+
+| Threads | PrevOptUeco | OptUeco | PrevOptUeco / OptUeco |
+| --- | --- | --- | --- |
+| `1x1x96` | `1.411s` | `1.325s` | `1.065x` |
+
+Geometric mean cut (lower is better):
+
+| Threads | PrevOptUeco | OptUeco | OptUeco / PrevOptUeco |
+| --- | --- | --- | --- |
+| `1x1x96` | `1396002` | `1414252` | `1.0131x` |
+
+Interpretation:
+
+- Accepted as a runtime-quality tradeoff: max-core geomean runtime improved by `6.5%`, arithmetic
+  total runtime improved by `14.1%`, and geomean cut regressed by `1.3%`.
+- Watch quality outliers in follow-up runs: `HV15R` cut regressed by `1.121x`; `kmer_V2a` runtime
+  regressed sharply despite the overall speedup.
+
+### 2026.05.22-codex-ueco-max96-reb10-hellman
+
+- Partition: `hellman` (idle at submit time, 96 physical cores)
+- Graph set: `/nfs/work/graph_benchmark_sets/ufm_paper/small`
+- Created/submitted: `2026-05-22 13:46 CEST`
+- Algorithms: `Seed400Ueco`, `OptUeco`
+- Threads: `1x1x96` only
+- Seed400Ueco commit: `3babd60996b8c90fc8a812ec12f4a356d72f4c85`
+- OptUeco commit: `84dfbb40b5c403d3ea0985c227ebbe0b500fb8a7`
+- Slurm install job: `71182`
+- Status: running (initial poll `2026-05-22 13:46 CEST`, `0/88`, `0%`)
 
 Intent:
 
-- Validate the `num_seed_nodes = 400` runtime-quality tradeoff against the previous accepted
-  OptUeco baseline in the same max-core-only experiment.
-- Accept if `OptUeco` is faster at `1x1x96` and the cut regression is acceptable. The local target
-  is at least `30%` lower UFM time; local validation saw `1.906x` UFM speedup and `1.114x` total
-  speedup over nine graphs.
+- Validate the follow-up `unconstrained_rebalancing_node_inclusion_threshold = 1.0` change against
+  the accepted `num_seed_nodes = 400` candidate.
+- Accept if it improves max-core runtime without worsening the seed400 cut regression.
 
 ## Local runs
 
@@ -289,14 +318,11 @@ Additional local candidate:
 - Raising `unconstrained_rebalancing_node_inclusion_threshold` from `0.7` to `1.0` on top of
   `num_seed_nodes = 400` was locally promising. A two-repeat 9-graph run at `t=18` showed `1.054x`
   total speedup and `1.205x` UFM speedup versus the `num_seed_nodes = 400` candidate, with
-  `0.9959x` geomean cut. This is committed after the running seed400 server experiment; do not
-  submit a second server run until `2026.05.22-codex-ueco-max96-seed400-diffie` completes.
+  `0.9959x` geomean cut.
 
 ## Next optimization idea
 
-- Poll `2026.05.22-codex-ueco-max96-seed400-diffie` and accept it only if it reduces `1x1x96`
-  runtime without an unacceptable cut regression.
-- If the seed400 server run is accepted, submit a follow-up max-core-only run for the
-  `unconstrained_rebalancing_node_inclusion_threshold = 1.0` candidate.
-- If the server run rejects it, keep the unweighted incident-weight/bucket cleanup only if it is
-  independently measurable; otherwise revert the whole candidate and inspect rebalancing hot spots.
+- Poll `2026.05.22-codex-ueco-max96-reb10-hellman` and accept it only if it improves the accepted
+  seed400 max-core runtime without worsening the seed400 quality tradeoff.
+- If accepted, inspect UFM localized-search/rebalancing timers again and look for a smaller quality
+  penalty than `num_seed_nodes = 400`; otherwise keep seed400 as the current accepted candidate.
