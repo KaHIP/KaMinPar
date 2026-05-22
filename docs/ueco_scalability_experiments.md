@@ -396,7 +396,7 @@ Interpretation:
 - Constrained3xUeco commit: `438f10dae00e304e7406460e790587ac9fc4cf18`
 - OptUeco commit: `7dff9a08876c64c6ad3e1cba17e5c549f93485a2`
 - Slurm jobs: `71667` (install), `71668` (array), `71669` (submit-lock cleanup)
-- Status: running at initial poll (`0/88`); install job configuring on `liskov`
+- Status: complete (polled `2026-05-22 18:24 CEST`, `88/88`, `100%`)
 
 Intent:
 
@@ -405,6 +405,34 @@ Intent:
   balancer/rebalancing subphase (`1.217x` balancer speed, `1.202x` rebalancing speed), while
   end-to-end local runtime improved by `1.052x`.
 - Accept only if server max-core runtime improves without a new `rhg` quality regression.
+
+Result:
+
+Geometric mean running time (lower is better):
+
+| Threads | Constrained3xUeco | OptUeco | Constrained3xUeco / OptUeco |
+| --- | --- | --- | --- |
+| `1x1x128` | `2.04435s` | `2.08751s` | `0.9793x` |
+
+Geometric mean cut (lower is better):
+
+| Threads | Constrained3xUeco | OptUeco | OptUeco / Constrained3xUeco |
+| --- | --- | --- | --- |
+| `1x1x128` | `1423025` | `1421088` | `0.9986x` |
+
+Interpretation:
+
+- Rejected. The patch slightly improved geomean cut (`0.14%`) and the `rhg` guard graph improved
+  in both time (`1.058x`) and cut (`0.9725x`), but server max-core runtime regressed:
+  `0.9793x` geomean speed and `0.8590x` arithmetic total-time speed (`169.580s` to `197.424s`).
+- Runtime improved on only `22/44` graphs. The largest slowdowns were `rmat_n25_m28` (`0.481x`,
+  `31.080s` to `64.610s`), `arabic-2005` (`0.752x`), `Hook_1498` (`0.816x`), `Bump_2911`
+  (`0.818x`), `channel-500x100x100-b050` (`0.820x`), and `com-lj.ungraph` (`0.831x`).
+- The largest speedups were `nlpkkt240` (`1.425x`), `soc-sinaweibo` (`1.314x`), `Long_Coup_dt6`
+  (`1.249x`), `Flan_1565` (`1.230x`), and `Queen_4147` (`1.192x`), but they did not compensate
+  for the slowdowns.
+- The balancer generation-stamp patch was reverted after this result. Keep `438f10da` as the
+  accepted max-core baseline.
 
 ## Local runs
 
@@ -592,6 +620,8 @@ Local balancer implementation optimization after accepting constrained-only `3x`
   requested `20%` implementation speedup on the targeted balancer/rebalancing subphase, but it is
   not a `20%` end-to-end `-P ueco` speedup; server validation is still required.
   The local `rhg18` guard improved in both runtime (`1.125x`) and cut (`0.9888x`).
+- Server validation rejected this patch at `1x1x128`; the local subphase gain did not carry over to
+  end-to-end server runtime because large instances, especially `rmat_n25_m28`, regressed.
 
 ## Automation
 
@@ -613,8 +643,7 @@ Local balancer implementation optimization after accepting constrained-only `3x`
 ## Next optimization idea
 
 - Treat `438f10da` (constrained-only `3x` batches) as the accepted max-core baseline.
-- Validate the multi-queue overload-balancer generation-stamp implementation on the server against
-  `438f10da`. Accept only if max-core runtime improves without a new `rhg` quality regression.
-- If rejected, revert the balancer generation-stamp patch and continue with code-level UFM work on
-  search scheduling and rebalancing/interleaving data structures. Avoid the rejected
-  tracker/reset/rollback micro-optimizations unless new profiling explains the previous slowdowns.
+- The multi-queue overload-balancer generation-stamp implementation is rejected and reverted.
+- Continue with local-first code-level UFM work on search scheduling and rebalancing/interleaving
+  data structures. Avoid the rejected tracker/reset/rollback/balancer-generation micro-optimizations
+  unless new profiling explains the previous slowdowns.

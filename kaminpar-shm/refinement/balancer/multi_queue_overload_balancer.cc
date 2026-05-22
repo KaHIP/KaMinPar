@@ -52,11 +52,12 @@ MultiQueueOverloadBalancer::MultiQueueOverloadBalancer(const Context &ctx) : _ct
 MultiQueueOverloadBalancer::~MultiQueueOverloadBalancer() = default;
 
 MultiQueueOverloadBalancer::AccessToken::AccessToken(const int seed, const std::size_t num_pqs)
-    : state(static_cast<std::uint64_t>(seed) + 0x9e3779b97f4a7c15ull),
-      num_pqs(num_pqs) {}
+    : dist(0, num_pqs - 1) {
+  rng.seed(seed);
+}
 
 std::size_t MultiQueueOverloadBalancer::AccessToken::pick_random_pq() {
-  return next_random() % num_pqs;
+  return dist(rng);
 }
 
 std::array<std::size_t, 2> MultiQueueOverloadBalancer::AccessToken::pick_two_random_pqs() {
@@ -65,13 +66,6 @@ std::array<std::size_t, 2> MultiQueueOverloadBalancer::AccessToken::pick_two_ran
     pqs[1] = pick_random_pq();
   }
   return pqs;
-}
-
-std::uint64_t MultiQueueOverloadBalancer::AccessToken::next_random() {
-  state ^= state << 13;
-  state ^= state >> 7;
-  state ^= state << 17;
-  return state;
 }
 
 std::string MultiQueueOverloadBalancer::name() const {
@@ -116,17 +110,21 @@ bool MultiQueueOverloadBalancer::begin_refinement(
   }
 
   _is_overloaded.resize(p_graph.k());
-  ensure_node_state_capacity(p_graph.n());
-  start_new_node_generation();
+  _node_target.resize(p_graph.n());
+  _node_pq.resize(p_graph.n());
+  _pq_handles.resize(p_graph.n());
+  _node_state.resize(p_graph.n());
+  tbb::parallel_for<NodeID>(0, p_graph.n(), [&](const NodeID node) {
+    _node_state[node] = INACTIVE;
+    _node_pq[node] = std::numeric_limits<std::size_t>::max();
+    _pq_handles[node] = PQ::kInvalidID;
+  });
 
   const std::size_t num_pqs = std::max(2, 2 * _ctx.parallel.num_threads);
-  if (_pqs.size() != num_pqs || _pq_capacity != p_graph.n()) {
-    _pqs.clear();
-    _pqs.reserve(num_pqs);
-    for (std::size_t i = 0; i < num_pqs; ++i) {
-      _pqs.emplace_back(p_graph.n(), _pq_handles.data());
-    }
-    _pq_capacity = p_graph.n();
+  _pqs.clear();
+  _pqs.reserve(num_pqs);
+  for (std::size_t i = 0; i < num_pqs; ++i) {
+    _pqs.emplace_back(p_graph.n(), _pq_handles.data());
   }
   _pq_locks.assign(num_pqs, 0);
   _pq_top_keys.assign(num_pqs, std::numeric_limits<float>::lowest());
@@ -138,38 +136,6 @@ bool MultiQueueOverloadBalancer::begin_refinement(
 
 void MultiQueueOverloadBalancer::finish_refinement() {
   clear_pqs();
-}
-
-void MultiQueueOverloadBalancer::ensure_node_state_capacity(const NodeID capacity) {
-  if (_node_state.size() == capacity) {
-    return;
-  }
-
-  _node_target.resize(capacity, static_array::noinit);
-  _node_pq.resize(capacity, static_array::noinit);
-  _pq_handles.resize(capacity, static_array::noinit);
-  _node_state.resize(capacity, static_array::noinit);
-  _node_generation.resize(capacity, static_array::noinit);
-
-  tbb::parallel_for<NodeID>(0, capacity, [&](const NodeID node) {
-    _node_state[node] = INACTIVE;
-    _node_pq[node] = std::numeric_limits<std::size_t>::max();
-    _pq_handles[node] = PQ::kInvalidID;
-    _node_generation[node] = 0;
-  });
-
-  _pqs.clear();
-  _pq_capacity = 0;
-}
-
-void MultiQueueOverloadBalancer::start_new_node_generation() {
-  ++_current_node_generation;
-  if (_current_node_generation == 0) {
-    _current_node_generation = 1;
-    tbb::parallel_for<NodeID>(0, _node_generation.size(), [&](const NodeID node) {
-      _node_generation[node] = 0;
-    });
-  }
 }
 
 template <typename Graph, typename GainCacheT>
@@ -201,10 +167,8 @@ void MultiQueueOverloadBalancer::init_pqs(const Graph &graph, GainCacheT &gain_c
     const std::size_t pq = token.pick_random_pq();
 
     _node_target[node] = to;
-    _node_pq[node] = pq;
-    _pq_handles[node] = PQ::kInvalidID;
-    _node_generation[node] = _current_node_generation;
     __atomic_store_n(&_node_state[node], MOVABLE, __ATOMIC_RELAXED);
+    _node_pq[node] = pq;
     local_pq_items.local()[pq].emplace_back(node, gain);
   });
 
@@ -566,10 +530,6 @@ void MultiQueueOverloadBalancer::deactivate_overloaded_block(const BlockID block
 }
 
 bool MultiQueueOverloadBalancer::try_lock_node(const NodeID node) {
-  if (_node_generation[node] != _current_node_generation) {
-    return false;
-  }
-
   std::uint8_t expected = MOVABLE;
   return __atomic_load_n(&_node_state[node], __ATOMIC_RELAXED) == MOVABLE &&
          __atomic_compare_exchange_n(
@@ -663,7 +623,9 @@ void MultiQueueOverloadBalancer::update_pq_top_key(const std::size_t pq) {
 
 void MultiQueueOverloadBalancer::clear_pqs() {
   for (std::size_t pq = 0; pq < _pqs.size(); ++pq) {
+    lock_pq(pq);
     _pqs[pq].clear();
+    unlock_pq(pq);
   }
 }
 
