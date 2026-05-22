@@ -434,11 +434,13 @@ public:
   void configure_round(
       const bool allow_overloaded_moves,
       const double unconstrained_penalty_factor,
-      const double unconstrained_upper_bound
+      const double unconstrained_upper_bound,
+      const NodeID num_seed_nodes
   ) {
     _allow_overloaded_moves = allow_overloaded_moves;
     _unconstrained_penalty_factor = unconstrained_penalty_factor;
     _unconstrained_upper_bound = unconstrained_upper_bound;
+    _num_seed_nodes = num_seed_nodes;
 
     _local_virtual_weight_delta.resize(_p_graph.k());
   }
@@ -452,7 +454,7 @@ public:
     std::fill(_local_virtual_weight_delta.begin(), _local_virtual_weight_delta.end(), 0);
 
     // Poll seed nodes from the border node arrays
-    _shared.border_nodes.poll(_fm_ctx.num_seed_nodes, _id, [&](const NodeID seed_node) {
+    _shared.border_nodes.poll(_num_seed_nodes, _id, [&](const NodeID seed_node) {
       insert_into_node_pq(_p_graph, _shared.gain_cache, seed_node);
       _seed_nodes.push_back(seed_node);
     });
@@ -953,6 +955,7 @@ private:
   bool _allow_overloaded_moves = true;
   double _unconstrained_penalty_factor = 0.0;
   double _unconstrained_upper_bound = 0.0;
+  NodeID _num_seed_nodes = 0;
 };
 
 } // namespace ufm
@@ -961,6 +964,7 @@ template <typename Graph, template <typename> typename GainCacheTemplate>
 class UnconstrainedFMRefinerCore : public Refiner {
   using GainCache = GainCacheTemplate<Graph>;
   using GlobalMove = ufm::GlobalMove;
+  static constexpr NodeID kFineLevelSeedNodeMultiplier = 3;
 
 public:
   UnconstrainedFMRefinerCore(const Context &ctx) : _ctx(ctx), _fm_ctx(ctx.refinement.kway_fm) {}
@@ -1063,6 +1067,9 @@ public:
       }
 
       std::atomic<int> num_finished_workers = 0;
+      const NodeID num_seed_nodes = graph.n() == _ctx.partition.n
+                                        ? kFineLevelSeedNodeMultiplier * _fm_ctx.num_seed_nodes
+                                        : _fm_ctx.num_seed_nodes;
 
       tbb::parallel_for<int>(0, _ctx.parallel.num_threads, [&](int) {
         auto &expected_gain = expected_gain_ets.local();
@@ -1070,7 +1077,8 @@ public:
         localized_refiner.configure_round(
             use_unconstrained_iteration,
             unconstrained_penalty_factor,
-            _fm_ctx.unconstrained_upper_bound
+            _fm_ctx.unconstrained_upper_bound,
+            num_seed_nodes
         );
 
         // The workers attempt to extract seed nodes from the border nodes
@@ -1259,16 +1267,16 @@ private:
       const PartitionContext &p_ctx,
       const std::vector<BlockWeight> &round_start_block_weights,
       const EdgeWeight round_start_cut
-  ) {
+  ) const {
     const std::size_t num_moves = _shared->round_moves.size();
-    _rollback_move_state.assign(num_moves, 0);
+    std::vector<std::uint8_t> reverted_moves(num_moves, 0);
 
     for (std::size_t i = num_moves; i-- > 0;) {
-      const GlobalMove &move = _shared->round_moves[i];
+      const GlobalMove move = _shared->round_moves[i];
       if (move.valid && p_graph.block(move.node) == move.to) {
         _shared->gain_cache.move(move.node, move.to, move.from);
         p_graph.set_block(move.node, move.from);
-        _rollback_move_state[i] = 1;
+        reverted_moves[i] = 1;
       }
     }
 
@@ -1283,6 +1291,7 @@ private:
     BlockWeight best_heaviest_block_weight =
         *std::max_element(block_weights.begin(), block_weights.end());
     std::size_t best_prefix = 0;
+    std::vector<std::uint8_t> applied_moves(num_moves, 0);
 
     auto update_block_weight = [&](const BlockID block, const BlockWeight new_weight) {
       const bool was_overloaded = block_weights[block] > p_ctx.max_block_weight(block);
@@ -1294,8 +1303,8 @@ private:
     };
 
     for (std::size_t i = 0; i < num_moves; ++i) {
-      const GlobalMove &move = _shared->round_moves[i];
-      if (!(_rollback_move_state[i] & 1) || p_graph.block(move.node) != move.from) {
+      const GlobalMove move = _shared->round_moves[i];
+      if (!reverted_moves[i] || p_graph.block(move.node) != move.from) {
         continue;
       }
 
@@ -1306,7 +1315,7 @@ private:
       update_block_weight(move.to, block_weights[move.to] + weight);
       _shared->gain_cache.move(move.node, move.from, move.to);
       p_graph.set_block(move.node, move.to);
-      _rollback_move_state[i] |= 2;
+      applied_moves[i] = 1;
 
       if (overloaded_blocks == 0) {
         const BlockWeight heaviest_block_weight =
@@ -1321,11 +1330,11 @@ private:
     }
 
     for (std::size_t i = num_moves; i-- > best_prefix;) {
-      if (!(_rollback_move_state[i] & 2)) {
+      if (!applied_moves[i]) {
         continue;
       }
 
-      const GlobalMove &move = _shared->round_moves[i];
+      const GlobalMove move = _shared->round_moves[i];
       if (p_graph.block(move.node) == move.to) {
         _shared->gain_cache.move(move.node, move.to, move.from);
         p_graph.set_block(move.node, move.from);
@@ -1341,7 +1350,6 @@ private:
 
   bool _uninitialized = true;
   std::unique_ptr<ufm::SharedData<GainCache>> _shared;
-  std::vector<std::uint8_t> _rollback_move_state;
 };
 
 template <typename Graph>

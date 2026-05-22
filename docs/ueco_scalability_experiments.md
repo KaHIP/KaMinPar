@@ -264,14 +264,33 @@ Interpretation:
 - Threads: `1x1x96` only
 - Reb10Ueco commit: `5cc9f814c70ea44e28f1a6f181d309fa4046bab1`
 - OptUeco commit: `b72976da9d44a10aba0e5edd57dc2702ea9ff558`
-- Status: running (initial poll `2026-05-22 14:22 CEST`, `0/88`, `0%`, install/build
-  running)
+- Status: complete (polled `2026-05-22 15:05 CEST`, `88/88`, `100%`)
 
 Intent:
 
 - Validate the rollback-state code optimization against the accepted reb10 candidate.
 - Accept only if server max-core runtime improves; it should not materially affect quality because
   the code only changes rollback scratch-state representation and reuses buffer capacity.
+
+Geometric mean time (lower is better):
+
+| Threads | Reb10Ueco | OptUeco | Reb10Ueco / OptUeco |
+| --- | --- | --- | --- |
+| `1x1x96` | `1.323s` | `1.381s` | `0.958x` |
+
+Geometric mean cut (lower is better):
+
+| Threads | Reb10Ueco | OptUeco | OptUeco / Reb10Ueco |
+| --- | --- | --- | --- |
+| `1x1x96` | `1413940` | `1412130` | `0.9987x` |
+
+Interpretation:
+
+- Rejected and reverted. Server max-core runtime regressed by `4.2%`, even though geomean cut
+  improved slightly.
+- Runtime improved on only `17/44` graphs. The largest slowdowns were `soc-sinaweibo` (`0.586x`),
+  `vas_stokes_4M` (`0.637x`), `cage15` (`0.683x`), and
+  `channel-500x100x100-b050` (`0.790x`).
 
 ## Local runs
 
@@ -382,6 +401,32 @@ Local code optimization validation (`2026-05-22 14:18 CEST`, `t=18`, 6 local gra
   speedup, and `1.0054x` geomean cut ratio. This is code-level and behavior-preserving modulo
   normal parallel nondeterminism, so it is worth server validation.
 
+Server follow-up rejected this rollback-state optimization; do not reintroduce it without a clearer
+explanation for the server slowdown.
+
+Local rejected code probes after the rollback-state rejection (`2026-05-22 15:10–15:17 CEST`,
+`t=18`, 9 local graphs, two repeats against the reb10 baseline):
+
+- Sparse-clearing UFM rebalancing-node flags and non-atomic tracker reset: `1.036x` total and
+  `1.035x` FM geomean speed, but `com-lj.ungraph` regressed to `0.855x`; rejected as too risky.
+- Non-atomic NodeTracker reset only: `0.973x` total geomean speed despite neutral FM; rejected.
+- Lowering the high-degree no-improvement pruning threshold from `100000` to `10000`: `0.993x`
+  total geomean speed and `1.0013x` cut; rejected.
+- Bulk-copying interleaved rebalancing moves back into the concurrent round-move vector:
+  `0.989x` total geomean speed; rejected.
+
+Local runtime-quality trade-off selected for server validation:
+
+- Code change: use `3 * num_seed_nodes` only for finest-level UFM localized searches, keeping the
+  accepted `num_seed_nodes = 400` on coarser levels.
+- Local result (`/private/tmp/ueco/ufm_fine_seed3x_t18_20260522_151902`, 9 graphs, two repeats):
+  `1.012x` total geomean speedup, `1.268x` FM speedup, `1.324x` localized-search speedup, and
+  `0.9994x` geomean cut ratio.
+- Trade-off: total runtime is noisy and slower on `as-skitter`, `coPapersDBLP`, and `kkt_power`,
+  but the FM-specific speedup is large enough to justify one max-core server validation. A milder
+  `2x` fine-level multiplier was worse (`0.962x` total, `0.954x` FM, `1.0021x` cut), so the
+  submitted candidate uses `3x`.
+
 ## Automation
 
 - `2026-05-22`: local LaunchAgent fallback configured because no Codex `automation_update` tool was
@@ -391,7 +436,8 @@ Local code optimization validation (`2026-05-22 14:18 CEST`, `t=18`, 6 local gra
 
 ## Next optimization idea
 
-- Treat reb10 as the current accepted max-core candidate.
-- Code-level next targets: reduce border-node initialization/shuffle overhead without changing
-  search order, and inspect rollback/rebalancing data structures for avoidable per-move work. Avoid
-  the rejected NodeTracker epoch approach unless it can be made cheaper in the hot path.
+- Treat reb10 as the current accepted max-core candidate until the fine-level `3x` batch server
+  validation finishes.
+- If the `3x` batch candidate is rejected, revert it and continue with code-level UFM work on
+  search scheduling and rebalancing data structures. Avoid the rejected tracker/reset/rollback
+  micro-optimizations unless new profiling explains the previous slowdowns.
