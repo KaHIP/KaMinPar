@@ -8,7 +8,6 @@
 #include "kaminpar-shm/refinement/lp/unconstrained_lp_refiner.h"
 
 #include <algorithm>
-#include <atomic>
 #include <cstdint>
 #include <limits>
 #include <utility>
@@ -49,14 +48,8 @@ public:
 
     allocate(p_graph);
 
-    const bool fast_lp_path = use_fast_lp_path();
-
     _balancer.initialize(p_graph);
-    _balancer.track_moves([&, fast_lp_path](const NodeID u, const BlockID from, const BlockID to) {
-      if (!fast_lp_path) {
-        const Gain gain = compute_move_gain(p_graph, u, from, to);
-        _rebalancing_gain.fetch_add(gain, std::memory_order_relaxed);
-      }
+    _balancer.track_moves([&](const NodeID u, const BlockID from, const BlockID) {
       record_moved_node(u, from);
     });
 
@@ -75,12 +68,7 @@ public:
 
       clear_moved_nodes();
 
-      if (!fast_lp_path) {
-        _rebalancing_gain.store(0, std::memory_order_relaxed);
-      }
-
-      const auto [num_moves, lp_improvement] =
-          fast_lp_path ? perform_fast_round(p_graph) : perform_exact_round(p_graph);
+      const NodeID num_moves = perform_round(p_graph);
       if (num_moves == 0) {
         break;
       }
@@ -92,8 +80,7 @@ public:
       }
 
       const Gain improvement = TIMED_SCOPE("Compute improvement") {
-        return fast_lp_path ? compute_round_improvement(p_graph)
-                            : lp_improvement + _rebalancing_gain.load(std::memory_order_relaxed);
+        return compute_round_improvement(p_graph);
       };
       if (metrics::total_overload(p_graph, p_ctx) > 0 || improvement < 0) {
         restore_partition(p_graph);
@@ -140,10 +127,6 @@ private:
 
   [[nodiscard]] bool should_handle_node(const NodeID u) const {
     return _graph->degree(u) <= _r_ctx.lp.large_degree_threshold;
-  }
-
-  [[nodiscard]] bool use_fast_lp_path() const {
-    return _graph->n() > 0 && static_cast<std::uint64_t>(_graph->m()) >= 8ull * _graph->n();
   }
 
   template <typename Lambda> void adjacent_nodes(const NodeID u, Lambda &&lambda) const {
@@ -208,7 +191,7 @@ private:
     }
   }
 
-  std::pair<NodeID, Gain> perform_fast_round(PartitionedGraph &p_graph) {
+  NodeID perform_round(PartitionedGraph &p_graph) {
     tbb::enumerable_thread_specific<NodeID> num_moves_ets(0);
     const bool batch_block_weight_updates =
         tbb::this_task_arena::max_concurrency() >= 32 && p_graph.k() <= 256;
@@ -237,38 +220,7 @@ private:
     if (batch_block_weight_updates) {
       p_graph.recompute_block_weights();
     }
-    return {num_moves_ets.combine(std::plus{}), 0};
-  }
-
-  std::pair<NodeID, Gain> perform_exact_round(PartitionedGraph &p_graph) {
-    tbb::enumerable_thread_specific<NodeID> num_moves_ets(0);
-    tbb::enumerable_thread_specific<Gain> improvement_ets(0);
-
-    _graph->pfor_nodes([&](const NodeID u) {
-      if (!_active[u] || !should_handle_node(u)) {
-        return;
-      }
-
-      const auto [to, expected_gain] =
-          find_best_target(p_graph, u, _rating_maps.local(), _tie_breaking_blocks.local());
-      if (expected_gain <= 0 || to == p_graph.block(u)) {
-        return;
-      }
-
-      const BlockID from = p_graph.block(u);
-      p_graph.set_block(u, to);
-      const Gain actual_gain = compute_move_gain(p_graph, u, from, to);
-      if (actual_gain <= 0) {
-        p_graph.set_block(u, from);
-        return;
-      }
-
-      record_moved_node(u, from);
-      ++num_moves_ets.local();
-      improvement_ets.local() += actual_gain;
-    });
-
-    return {num_moves_ets.combine(std::plus{}), improvement_ets.combine(std::plus{})};
+    return num_moves_ets.combine(std::plus{});
   }
 
   std::pair<BlockID, Gain> find_best_target(
@@ -334,19 +286,6 @@ private:
 
     map.clear();
     return {best_block, best_gain};
-  }
-
-  Gain compute_move_gain(
-      const PartitionedGraph &p_graph, const NodeID u, const BlockID from, const BlockID to
-  ) const {
-    Gain conn_from = 0;
-    Gain conn_to = 0;
-    adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
-      const BlockID block = p_graph.block(v);
-      conn_from += block == from ? weight : 0;
-      conn_to += block == to ? weight : 0;
-    });
-    return conn_to - conn_from;
   }
 
   Gain compute_round_improvement(const PartitionedGraph &p_graph) const {
@@ -448,7 +387,6 @@ private:
   tbb::enumerable_thread_specific<RatingMap> _rating_maps;
   tbb::enumerable_thread_specific<std::vector<BlockID>> _tie_breaking_blocks;
   tbb::enumerable_thread_specific<std::vector<NodeID>> _round_moved_nodes;
-  std::atomic<Gain> _rebalancing_gain = 0;
 
   MultiQueueOverloadBalancer _balancer;
 };
