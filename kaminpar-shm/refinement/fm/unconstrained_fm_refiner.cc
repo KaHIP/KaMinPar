@@ -1171,7 +1171,7 @@ public:
 
 private:
   [[nodiscard]] bool use_stable_fm_path(const Graph &graph) const {
-    return graph.n() > 0 && static_cast<std::uint64_t>(graph.m()) < 9ull * graph.n();
+    return graph.n() > 0 && static_cast<std::uint64_t>(graph.m()) < 6ull * graph.n();
   }
 
   bool refine_stable(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
