@@ -983,15 +983,10 @@ public:
     SCOPED_TIMER("FM");
 
     const Graph &graph = concretize<Graph>(p_graph.graph());
-    KwayFMRefinementContext fm_ctx = _fm_ctx;
-    const bool use_fast_fm_settings =
-        graph.n() > 0 && static_cast<std::uint64_t>(graph.m()) >= 18ull * graph.n();
-    if (!use_fast_fm_settings) {
-      fm_ctx.num_seed_nodes = 25;
-      fm_ctx.unconstrained_min_improvement = 0.002;
-      fm_ctx.unconstrained_upper_bound = 0.0;
-      fm_ctx.minimal_parallelism = 8;
+    if (use_stable_fm_path(graph)) {
+      return refine_stable(p_graph, p_ctx);
     }
+    const KwayFMRefinementContext &fm_ctx = _fm_ctx;
 
     TIMED_SCOPE("Initialize gain cache") {
       _shared->gain_cache.initialize(graph, p_graph);
@@ -1175,6 +1170,187 @@ public:
   }
 
 private:
+  [[nodiscard]] bool use_stable_fm_path(const Graph &graph) const {
+    return graph.n() > 0 && static_cast<std::uint64_t>(graph.m()) < 8ull * graph.n();
+  }
+
+  bool refine_stable(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
+    const Graph &graph = concretize<Graph>(p_graph.graph());
+
+    KwayFMRefinementContext fm_ctx = _fm_ctx;
+    fm_ctx.num_seed_nodes = 25;
+    fm_ctx.unconstrained_min_improvement = 0.002;
+    fm_ctx.unconstrained_upper_bound = 0.0;
+    fm_ctx.minimal_parallelism = 8;
+
+    TIMED_SCOPE("Initialize gain cache") {
+      _shared->gain_cache.initialize(graph, p_graph);
+    };
+
+    const EdgeWeight initial_cut = metrics::edge_cut(p_graph);
+    EdgeWeight best_cut = initial_cut;
+    EdgeWeight cut_before_current_iteration = initial_cut;
+    EdgeWeight total_expected_gain = 0;
+    bool last_iteration_is_best = true;
+
+    StaticArray<BlockID> best_partition;
+    StaticArray<BlockID> round_start_partition;
+    best_partition.resize(graph.n());
+    round_start_partition.resize(graph.n());
+    graph.pfor_nodes([&](const NodeID u) { best_partition[u] = p_graph.block(u); });
+
+    MultiQueueOverloadBalancer balancer(_ctx);
+    balancer.initialize(p_graph);
+    balancer.track_moves([&](const NodeID u, const BlockID from, const BlockID to) {
+      _shared->gain_cache.move(u, from, to);
+      _shared->rebalancing_moves.push_back({.node = u, .from = from, .to = to, .valid = true});
+    });
+
+    using Worker = ufm::LocalizedFMRefiner<Graph, GainCache>;
+
+    std::atomic<int> next_id = 0;
+    tbb::enumerable_thread_specific<std::unique_ptr<Worker>> localized_fm_refiner_ets([&] {
+      std::unique_ptr<Worker> localized_refiner =
+          std::make_unique<Worker>(++next_id, p_ctx, fm_ctx, graph, p_graph, *_shared);
+
+      return localized_refiner;
+    });
+
+    bool unconstrained_enabled = true;
+
+    auto interpolate_unconstrained_penalty = [&](const int iteration) {
+      if (fm_ctx.unconstrained_num_iterations <= 1) {
+        return fm_ctx.unconstrained_penalty_min;
+      }
+
+      const double start = fm_ctx.unconstrained_penalty_min;
+      const double end = fm_ctx.unconstrained_penalty_max;
+      return ((fm_ctx.unconstrained_num_iterations - iteration - 1) * start + iteration * end) /
+             static_cast<double>(fm_ctx.unconstrained_num_iterations - 1);
+    };
+
+    for (int iteration = 0; iteration < fm_ctx.num_iterations; ++iteration) {
+      const bool use_unconstrained_iteration =
+          unconstrained_enabled && iteration < fm_ctx.unconstrained_num_iterations;
+      const double unconstrained_penalty_factor =
+          use_unconstrained_iteration ? interpolate_unconstrained_penalty(iteration) : 0.0;
+
+      _shared->round_moves.clear();
+      _shared->rebalancing_moves.clear();
+      graph.pfor_nodes([&](const NodeID u) { round_start_partition[u] = p_graph.block(u); });
+
+      if (use_unconstrained_iteration) {
+        TIMED_SCOPE("Initialize unconstrained FM data") {
+          _shared->unconstrained.initialize(fm_ctx, graph, p_graph, _shared->gain_cache);
+        };
+      }
+
+      tbb::enumerable_thread_specific<EdgeWeight> expected_gain_ets;
+
+      START_TIMER("Initialize border nodes");
+      _shared->border_nodes.init(p_graph);
+      _shared->border_nodes.shuffle();
+      _shared->abort = 0;
+      STOP_TIMER();
+
+      DBG << "Starting FM iteration " << iteration << " with " << _shared->border_nodes.size()
+          << " border nodes and " << _ctx.parallel.num_threads << " worker threads";
+
+      if (graph.n() == _ctx.partition.n) {
+        START_TIMER("Localized searches, fine level");
+      } else {
+        START_TIMER("Localized searches, coarse level");
+      }
+
+      std::atomic<int> num_finished_workers = 0;
+      const NodeID num_seed_nodes = use_unconstrained_iteration
+                                        ? fm_ctx.num_seed_nodes
+                                        : kConstrainedSeedNodeMultiplier * fm_ctx.num_seed_nodes;
+
+      tbb::parallel_for<int>(0, _ctx.parallel.num_threads, [&](int) {
+        auto &expected_gain = expected_gain_ets.local();
+        auto &localized_refiner = *localized_fm_refiner_ets.local();
+        localized_refiner.configure_round(
+            use_unconstrained_iteration,
+            unconstrained_penalty_factor,
+            fm_ctx.unconstrained_upper_bound,
+            num_seed_nodes
+        );
+
+        while (!_shared->abort.load(std::memory_order_relaxed) &&
+               _shared->border_nodes.has_more()) {
+          if (fm_ctx.dbg_report_progress) {
+            LLOG << " " << _shared->border_nodes.remaining();
+          }
+
+          const auto expected_batch_gain = localized_refiner.run_batch();
+          expected_gain += expected_batch_gain;
+        }
+
+        if (++num_finished_workers >= fm_ctx.minimal_parallelism) {
+          _shared->abort = 1;
+        }
+      });
+      STOP_TIMER();
+
+      const EdgeWeight expected_gain_of_this_iteration = expected_gain_ets.combine(std::plus{});
+      total_expected_gain += expected_gain_of_this_iteration;
+
+      NodeWeight current_overload = metrics::total_overload(p_graph, p_ctx);
+      if (use_unconstrained_iteration && current_overload > 0) {
+        TIMED_SCOPE("Rebalance") {
+          balancer.refine_with_gain_cache(p_graph, p_ctx, graph, _shared->gain_cache);
+        };
+        current_overload = metrics::total_overload(p_graph, p_ctx);
+      }
+
+      if (use_unconstrained_iteration) {
+        interleave_rebalancing_moves_stable(graph, p_graph, p_ctx, round_start_partition);
+      }
+
+      const EdgeWeight current_cut = TIMED_SCOPE("Rollback") {
+        return rollback_to_best_prefix_from_snapshot(
+            graph, p_graph, p_ctx, round_start_partition, cut_before_current_iteration
+        );
+      };
+
+      graph.pfor_nodes([&](const NodeID u) { best_partition[u] = p_graph.block(u); });
+      best_cut = current_cut;
+      last_iteration_is_best = true;
+
+      const EdgeWeight abs_improvement_of_this_iteration =
+          cut_before_current_iteration - current_cut;
+      const double improvement_of_this_iteration =
+          cut_before_current_iteration > 0
+              ? 1.0 * abs_improvement_of_this_iteration / cut_before_current_iteration
+              : 0.0;
+
+      const bool switch_to_constrained_fm =
+          use_unconstrained_iteration && fm_ctx.unconstrained_min_improvement >= 0.0 &&
+          improvement_of_this_iteration < fm_ctx.unconstrained_min_improvement;
+      if (abs_improvement_of_this_iteration <= 0) {
+        break;
+      } else if (switch_to_constrained_fm) {
+        unconstrained_enabled = false;
+      } else if (1.0 - improvement_of_this_iteration > fm_ctx.abortion_threshold) {
+        break;
+      }
+
+      cut_before_current_iteration = current_cut;
+      DBG << "Expected gain of iteration " << iteration << ": " << expected_gain_of_this_iteration
+          << ", total expected gain so far: " << total_expected_gain;
+    }
+
+    TIMED_SCOPE("Rollback") {
+      if (!last_iteration_is_best) {
+        graph.pfor_nodes([&](const NodeID u) { p_graph.set_block(u, best_partition[u]); });
+        _shared->gain_cache.initialize(graph, p_graph);
+      }
+    };
+
+    return best_cut < initial_cut;
+  }
+
   [[nodiscard]] EdgeWeight compute_move_gain(
       const Graph &graph,
       const PartitionedGraph &p_graph,
@@ -1195,6 +1371,119 @@ private:
     });
 
     return conn_to - conn_from;
+  }
+
+  void interleave_rebalancing_moves_stable(
+      const Graph &graph,
+      const PartitionedGraph &p_graph,
+      const PartitionContext &p_ctx,
+      const StaticArray<BlockID> &round_start_partition
+  ) const {
+    if (_shared->rebalancing_moves.empty()) {
+      return;
+    }
+
+    std::vector<GlobalMove> fm_moves(_shared->round_moves.begin(), _shared->round_moves.end());
+    std::vector<GlobalMove> rebalancing_moves(
+        _shared->rebalancing_moves.begin(), _shared->rebalancing_moves.end()
+    );
+
+    constexpr std::size_t kInvalidMoveIndex = std::numeric_limits<std::size_t>::max();
+    std::vector<std::size_t> move_index_of_node(graph.n(), kInvalidMoveIndex);
+    for (std::size_t i = 0; i < fm_moves.size(); ++i) {
+      const GlobalMove &move = fm_moves[i];
+      if (move.valid) {
+        move_index_of_node[move.node] = i;
+      }
+    }
+
+    for (GlobalMove &rebalancing_move : rebalancing_moves) {
+      if (!rebalancing_move.valid) {
+        continue;
+      }
+
+      const std::size_t fm_move_index = move_index_of_node[rebalancing_move.node];
+      if (fm_move_index == kInvalidMoveIndex) {
+        continue;
+      }
+
+      GlobalMove &fm_move = fm_moves[fm_move_index];
+      if (!fm_move.valid || fm_move.to != rebalancing_move.from) {
+        continue;
+      }
+
+      if (fm_move.from == rebalancing_move.to) {
+        fm_move.valid = false;
+        rebalancing_move.valid = false;
+      } else {
+        rebalancing_move.from = fm_move.from;
+        fm_move.valid = false;
+      }
+    }
+
+    std::vector<std::vector<GlobalMove>> rebalancing_moves_by_block(p_graph.k());
+    for (const GlobalMove &move : rebalancing_moves) {
+      if (move.valid) {
+        rebalancing_moves_by_block[move.from].push_back(move);
+      }
+    }
+
+    std::vector<BlockWeight> block_weights(p_graph.k(), 0);
+    for (const NodeID node : graph.nodes()) {
+      block_weights[round_start_partition[node]] += graph.node_weight(node);
+    }
+
+    std::vector<std::size_t> next_rebalancing_move(p_graph.k(), 0);
+    std::vector<GlobalMove> interleaved_moves;
+    interleaved_moves.reserve(fm_moves.size() + rebalancing_moves.size());
+
+    auto apply_to_block_weights = [&](const GlobalMove &move) {
+      const NodeWeight weight = graph.node_weight(move.node);
+      block_weights[move.from] -= weight;
+      block_weights[move.to] += weight;
+    };
+
+    auto insert_moves_to_balance_block = [&](auto &self, const BlockID block) -> void {
+      auto &moves = rebalancing_moves_by_block[block];
+      std::size_t &next = next_rebalancing_move[block];
+
+      while (block_weights[block] > p_ctx.max_block_weight(block) && next < moves.size()) {
+        const GlobalMove move = moves[next++];
+        interleaved_moves.push_back(move);
+        apply_to_block_weights(move);
+
+        if (block_weights[move.to] > p_ctx.max_block_weight(move.to)) {
+          self(self, move.to);
+        }
+      }
+    };
+
+    for (const BlockID block : p_graph.blocks()) {
+      insert_moves_to_balance_block(insert_moves_to_balance_block, block);
+    }
+
+    for (const GlobalMove &move : fm_moves) {
+      if (!move.valid) {
+        continue;
+      }
+
+      interleaved_moves.push_back(move);
+      apply_to_block_weights(move);
+      insert_moves_to_balance_block(insert_moves_to_balance_block, move.to);
+    }
+
+    for (const BlockID block : p_graph.blocks()) {
+      auto &moves = rebalancing_moves_by_block[block];
+      std::size_t &next = next_rebalancing_move[block];
+      while (next < moves.size()) {
+        interleaved_moves.push_back(moves[next++]);
+      }
+    }
+
+    _shared->round_moves.clear();
+    for (const GlobalMove &move : interleaved_moves) {
+      _shared->round_moves.push_back(move);
+    }
   }
 
   void interleave_rebalancing_moves(

@@ -143,7 +143,7 @@ private:
   }
 
   [[nodiscard]] bool use_fast_lp_path() const {
-    return _graph->n() > 0 && static_cast<std::uint64_t>(_graph->m()) >= 18ull * _graph->n();
+    return _graph->n() > 0 && static_cast<std::uint64_t>(_graph->m()) >= 8ull * _graph->n();
   }
 
   template <typename Lambda> void adjacent_nodes(const NodeID u, Lambda &&lambda) const {
