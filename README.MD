@@ -210,6 +210,8 @@ Other common command line options include:
 * `--help`: Prints all command line options.
 * `--version`: Prints the build configuration and current version.
 * `--validate`: Enables basic input graph validation.
+* `-V <n>, --num-vcycles <n>`: Runs KaMinPar in V-cycle mode with `n` full V-cycles at
+  the target number of blocks.
 * `-q`: Quiet mode, suppresses all console output.
 
 ## Using the C++ Library Interface
@@ -412,4 +414,3 @@ If you use KaMinPar in an academic setting, please cite the appropriate publicat
   bibsource    = {dblp computer science bibliography, https://dblp.org}
 }
 ```
-

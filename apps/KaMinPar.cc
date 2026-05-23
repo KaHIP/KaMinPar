@@ -61,6 +61,7 @@ struct ApplicationContext {
   std::vector<BlockWeight> min_block_weights = {};
   std::vector<double> min_block_weight_factors = {};
   bool no_empty_blocks = false;
+  int num_vcycles = 0;
 
   int verbosity = 0;
   bool validate = false;
@@ -178,6 +179,14 @@ The output should be stored in a file and can be used by the -C,--config option.
       ->capture_default_str();
 
   cli.add_flag("--no-empty-blocks", app.no_empty_blocks, "Forbid empty blocks.");
+  cli.add_option(
+         "-V,--num-vcycles",
+         app.num_vcycles,
+         "Use V-cycle partitioning with the given number of full V-cycles at the target number "
+         "of blocks."
+  )
+      ->check(CLI::NonNegativeNumber)
+      ->capture_default_str();
 
   cli.add_option("-s,--seed", app.seed, "Seed for random number generation.")
       ->default_val(app.seed);
@@ -319,6 +328,30 @@ The output should be stored in a file and can be used by the -C,--config option.
   create_all_options(&cli, ctx);
 }
 
+BlockID infer_num_blocks(const ApplicationContext &app) {
+  if (!app.max_block_weight_factors.empty()) {
+    return static_cast<BlockID>(app.max_block_weight_factors.size());
+  }
+
+  if (!app.max_block_weights.empty()) {
+    return static_cast<BlockID>(app.max_block_weights.size());
+  }
+
+  return app.k;
+}
+
+void apply_num_vcycles_option(ApplicationContext &app, Context &ctx) {
+  if (app.num_vcycles == 0) {
+    return;
+  }
+
+  const BlockID final_k = infer_num_blocks(app);
+  app.k = final_k;
+
+  ctx.partitioning.mode = PartitioningMode::VCYCLE;
+  ctx.partitioning.vcycles.assign(static_cast<std::size_t>(app.num_vcycles), final_k);
+}
+
 void output_rearranged_graph(const ApplicationContext &app, const std::vector<BlockID> &partition) {
   if (app.rearranged_graph_filename.empty()) {
     return;
@@ -411,6 +444,8 @@ int main(int argc, char *argv[]) {
   if (app.dry_run) {
     std::exit(0);
   }
+
+  apply_num_vcycles_option(app, ctx);
 
 #ifdef KAMINPAR_ENABLE_TBB_MALLOC
   // If available, use huge pages for large allocations
