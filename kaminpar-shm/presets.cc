@@ -477,14 +477,15 @@ Context create_ueco_context() {
 
   ctx.refinement.lp.num_iterations = 5;
   ctx.refinement.lp.unconstrained_min_improvement_factor = 0.001;
-  ctx.refinement.kway_fm.num_seed_nodes = 25;
+  ctx.refinement.kway_fm.num_seed_nodes = 75;
   ctx.refinement.kway_fm.num_iterations = 10;
   ctx.refinement.kway_fm.unconstrained_num_iterations = 8;
-  ctx.refinement.kway_fm.unconstrained_min_improvement = 0.002;
+  ctx.refinement.kway_fm.unconstrained_min_improvement = 0.005;
   ctx.refinement.kway_fm.unconstrained_penalty_min = 0.2;
   ctx.refinement.kway_fm.unconstrained_penalty_max = 1.0;
   ctx.refinement.kway_fm.unconstrained_rebalancing_node_inclusion_threshold = 0.7;
-  ctx.refinement.kway_fm.minimal_parallelism = 8;
+  ctx.refinement.kway_fm.unconstrained_upper_bound = 1.05;
+  ctx.refinement.kway_fm.minimal_parallelism = 4;
 
   return ctx;
 }
