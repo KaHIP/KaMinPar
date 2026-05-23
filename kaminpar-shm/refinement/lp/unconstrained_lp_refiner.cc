@@ -49,10 +49,14 @@ public:
 
     allocate(p_graph);
 
+    const bool fast_lp_path = use_fast_lp_path();
+
     _balancer.initialize(p_graph);
-    _balancer.track_moves([&](const NodeID u, const BlockID from, const BlockID to) {
-      const Gain gain = compute_move_gain(p_graph, u, from, to);
-      _rebalancing_gain.fetch_add(gain, std::memory_order_relaxed);
+    _balancer.track_moves([&, fast_lp_path](const NodeID u, const BlockID from, const BlockID to) {
+      if (!fast_lp_path) {
+        const Gain gain = compute_move_gain(p_graph, u, from, to);
+        _rebalancing_gain.fetch_add(gain, std::memory_order_relaxed);
+      }
       record_moved_node(u, from);
     });
 
@@ -70,9 +74,13 @@ public:
       }
 
       clear_moved_nodes();
-      _rebalancing_gain.store(0, std::memory_order_relaxed);
 
-      const auto [num_moves, lp_improvement] = perform_round(p_graph);
+      if (!fast_lp_path) {
+        _rebalancing_gain.store(0, std::memory_order_relaxed);
+      }
+
+      const auto [num_moves, lp_improvement] =
+          fast_lp_path ? perform_fast_round(p_graph) : perform_exact_round(p_graph);
       if (num_moves == 0) {
         break;
       }
@@ -83,7 +91,10 @@ public:
         };
       }
 
-      const Gain improvement = lp_improvement + _rebalancing_gain.load(std::memory_order_relaxed);
+      const Gain improvement = TIMED_SCOPE("Compute improvement") {
+        return fast_lp_path ? compute_round_improvement(p_graph)
+                            : lp_improvement + _rebalancing_gain.load(std::memory_order_relaxed);
+      };
       if (metrics::total_overload(p_graph, p_ctx) > 0 || improvement < 0) {
         restore_partition(p_graph);
         break;
@@ -131,6 +142,10 @@ private:
     return _graph->degree(u) <= _r_ctx.lp.large_degree_threshold;
   }
 
+  [[nodiscard]] bool use_fast_lp_path() const {
+    return _graph->n() > 0 && static_cast<std::uint64_t>(_graph->m()) >= 18ull * _graph->n();
+  }
+
   template <typename Lambda> void adjacent_nodes(const NodeID u, Lambda &&lambda) const {
     if (_r_ctx.lp.max_num_neighbors == std::numeric_limits<NodeID>::max()) {
       _graph->adjacent_nodes(u, std::forward<Lambda>(lambda));
@@ -155,7 +170,7 @@ private:
   }
 
   NodeID initialize_active_nodes(const PartitionedGraph &p_graph) {
-    std::atomic<NodeID> active_nodes = 0;
+    tbb::enumerable_thread_specific<NodeID> active_nodes_ets(0);
 
     _graph->pfor_nodes([&](const NodeID u) {
       const std::uint8_t is_active = should_handle_node(u) && is_boundary_node(p_graph, u);
@@ -164,11 +179,11 @@ private:
       _moved[u] = 0;
 
       if (is_active) {
-        active_nodes.fetch_add(1, std::memory_order_relaxed);
+        ++active_nodes_ets.local();
       }
     });
 
-    return active_nodes.load(std::memory_order_relaxed);
+    return active_nodes_ets.combine(std::plus{});
   }
 
   Gain compute_edge_cut(const PartitionedGraph &p_graph) {
@@ -193,9 +208,41 @@ private:
     }
   }
 
-  std::pair<NodeID, Gain> perform_round(PartitionedGraph &p_graph) {
-    std::atomic<NodeID> num_moves = 0;
-    std::atomic<Gain> improvement = 0;
+  std::pair<NodeID, Gain> perform_fast_round(PartitionedGraph &p_graph) {
+    tbb::enumerable_thread_specific<NodeID> num_moves_ets(0);
+    const bool batch_block_weight_updates =
+        tbb::this_task_arena::max_concurrency() >= 32 && p_graph.k() <= 256;
+
+    _graph->pfor_nodes([&](const NodeID u) {
+      if (!_active[u] || !should_handle_node(u)) {
+        return;
+      }
+
+      const auto [to, expected_gain] =
+          find_best_target(p_graph, u, _rating_maps.local(), _tie_breaking_blocks.local());
+      if (expected_gain <= 0 || to == p_graph.block(u)) {
+        return;
+      }
+
+      const BlockID from = p_graph.block(u);
+      if (batch_block_weight_updates) {
+        p_graph.set_block<false>(u, to);
+      } else {
+        p_graph.set_block(u, to);
+      }
+      record_moved_node(u, from);
+      ++num_moves_ets.local();
+    });
+
+    if (batch_block_weight_updates) {
+      p_graph.recompute_block_weights();
+    }
+    return {num_moves_ets.combine(std::plus{}), 0};
+  }
+
+  std::pair<NodeID, Gain> perform_exact_round(PartitionedGraph &p_graph) {
+    tbb::enumerable_thread_specific<NodeID> num_moves_ets(0);
+    tbb::enumerable_thread_specific<Gain> improvement_ets(0);
 
     _graph->pfor_nodes([&](const NodeID u) {
       if (!_active[u] || !should_handle_node(u)) {
@@ -217,11 +264,11 @@ private:
       }
 
       record_moved_node(u, from);
-      num_moves.fetch_add(1, std::memory_order_relaxed);
-      improvement.fetch_add(actual_gain, std::memory_order_relaxed);
+      ++num_moves_ets.local();
+      improvement_ets.local() += actual_gain;
     });
 
-    return {num_moves.load(std::memory_order_relaxed), improvement.load(std::memory_order_relaxed)};
+    return {num_moves_ets.combine(std::plus{}), improvement_ets.combine(std::plus{})};
   }
 
   std::pair<BlockID, Gain> find_best_target(
@@ -342,20 +389,22 @@ private:
   }
 
   void activate_moved_nodes() {
-    for (const auto &nodes : _round_moved_nodes) {
-      for (const NodeID u : nodes) {
-        __atomic_store_n(&_next_active[u], 1, __ATOMIC_RELAXED);
-        adjacent_nodes(u, [&](const NodeID v, const EdgeWeight) {
-          if (accept_neighbor(u, v)) {
-            __atomic_store_n(&_next_active[v], 1, __ATOMIC_RELAXED);
-          }
-        });
+    tbb::parallel_for(_round_moved_nodes.range(), [&](const auto &range) {
+      for (const auto &nodes : range) {
+        for (const NodeID u : nodes) {
+          __atomic_store_n(&_next_active[u], 1, __ATOMIC_RELAXED);
+          adjacent_nodes(u, [&](const NodeID v, const EdgeWeight) {
+            if (accept_neighbor(u, v)) {
+              __atomic_store_n(&_next_active[v], 1, __ATOMIC_RELAXED);
+            }
+          });
+        }
       }
-    }
+    });
   }
 
   NodeID update_active_nodes() {
-    std::atomic<NodeID> active_nodes = 0;
+    tbb::enumerable_thread_specific<NodeID> active_nodes_ets(0);
 
     _graph->pfor_nodes([&](const NodeID u) {
       const std::uint8_t active =
@@ -366,11 +415,11 @@ private:
       _moved[u] = 0;
 
       if (active) {
-        active_nodes.fetch_add(1, std::memory_order_relaxed);
+        ++active_nodes_ets.local();
       }
     });
 
-    return active_nodes.load(std::memory_order_relaxed);
+    return active_nodes_ets.combine(std::plus{});
   }
 
   void restore_partition(PartitionedGraph &p_graph) {

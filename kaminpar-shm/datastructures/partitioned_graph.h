@@ -298,6 +298,17 @@ public:
     }
   }
 
+  /**
+   * Recompute block weights from the current partition.
+   *
+   * This is useful after a sequence of partition updates that bypass block weight maintenance,
+   * e.g., when calling `set_block<false>()` in parallel for performance reasons.
+   */
+  inline void recompute_block_weights(const bool sequentially = false) {
+    reinit_dense_block_weights(sequentially);
+    reinit_aligned_block_weights(sequentially);
+  }
+
   //
   // Parallel iteration
   //
