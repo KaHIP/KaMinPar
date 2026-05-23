@@ -964,13 +964,8 @@ public:
     EdgeWeight best_cut = initial_cut;
     EdgeWeight cut_before_current_iteration = initial_cut;
     EdgeWeight total_expected_gain = 0;
-    bool last_iteration_is_best = true;
-
-    StaticArray<BlockID> best_partition;
     StaticArray<BlockID> round_start_partition;
-    best_partition.resize(graph.n());
     round_start_partition.resize(graph.n());
-    graph.pfor_nodes([&](const NodeID u) { best_partition[u] = p_graph.block(u); });
 
     MultiQueueOverloadBalancer balancer(_ctx);
     balancer.initialize(p_graph);
@@ -1095,9 +1090,7 @@ public:
         );
       };
 
-      graph.pfor_nodes([&](const NodeID u) { best_partition[u] = p_graph.block(u); });
       best_cut = current_cut;
-      last_iteration_is_best = true;
 
       const EdgeWeight abs_improvement_of_this_iteration =
           cut_before_current_iteration - current_cut;
@@ -1121,13 +1114,6 @@ public:
       DBG << "Expected gain of iteration " << iteration << ": " << expected_gain_of_this_iteration
           << ", total expected gain so far: " << total_expected_gain;
     }
-
-    TIMED_SCOPE("Rollback") {
-      if (!last_iteration_is_best) {
-        graph.pfor_nodes([&](const NodeID u) { p_graph.set_block(u, best_partition[u]); });
-        _shared->gain_cache.initialize(graph, p_graph);
-      }
-    };
 
     return best_cut < initial_cut;
   }
@@ -1277,12 +1263,16 @@ private:
   ) const {
     const std::size_t num_moves = _shared->round_moves.size();
 
-    graph.pfor_nodes([&](const NodeID u) {
-      const BlockID block = round_start_partition[u];
-      if (p_graph.block(u) != block) {
-        p_graph.set_block(u, block);
+    for (const GlobalMove &move : _shared->round_moves) {
+      if (!move.valid) {
+        continue;
       }
-    });
+
+      const BlockID block = round_start_partition[move.node];
+      if (p_graph.block(move.node) != block) {
+        p_graph.set_block(move.node, block);
+      }
+    }
 
     std::vector<BlockWeight> block_weights(p_graph.k());
     std::size_t overloaded_blocks = 0;

@@ -155,7 +155,7 @@ private:
   }
 
   NodeID initialize_active_nodes(const PartitionedGraph &p_graph) {
-    std::atomic<NodeID> active_nodes = 0;
+    tbb::enumerable_thread_specific<NodeID> active_nodes_ets(0);
 
     _graph->pfor_nodes([&](const NodeID u) {
       const std::uint8_t is_active = should_handle_node(u) && is_boundary_node(p_graph, u);
@@ -164,11 +164,11 @@ private:
       _moved[u] = 0;
 
       if (is_active) {
-        active_nodes.fetch_add(1, std::memory_order_relaxed);
+        ++active_nodes_ets.local();
       }
     });
 
-    return active_nodes.load(std::memory_order_relaxed);
+    return active_nodes_ets.combine(std::plus{});
   }
 
   Gain compute_edge_cut(const PartitionedGraph &p_graph) {
@@ -194,8 +194,8 @@ private:
   }
 
   std::pair<NodeID, Gain> perform_round(PartitionedGraph &p_graph) {
-    std::atomic<NodeID> num_moves = 0;
-    std::atomic<Gain> improvement = 0;
+    tbb::enumerable_thread_specific<NodeID> num_moves_ets(0);
+    tbb::enumerable_thread_specific<Gain> improvement_ets(0);
 
     _graph->pfor_nodes([&](const NodeID u) {
       if (!_active[u] || !should_handle_node(u)) {
@@ -217,11 +217,11 @@ private:
       }
 
       record_moved_node(u, from);
-      num_moves.fetch_add(1, std::memory_order_relaxed);
-      improvement.fetch_add(actual_gain, std::memory_order_relaxed);
+      ++num_moves_ets.local();
+      improvement_ets.local() += actual_gain;
     });
 
-    return {num_moves.load(std::memory_order_relaxed), improvement.load(std::memory_order_relaxed)};
+    return {num_moves_ets.combine(std::plus{}), improvement_ets.combine(std::plus{})};
   }
 
   std::pair<BlockID, Gain> find_best_target(
@@ -355,7 +355,7 @@ private:
   }
 
   NodeID update_active_nodes() {
-    std::atomic<NodeID> active_nodes = 0;
+    tbb::enumerable_thread_specific<NodeID> active_nodes_ets(0);
 
     _graph->pfor_nodes([&](const NodeID u) {
       const std::uint8_t active =
@@ -366,11 +366,11 @@ private:
       _moved[u] = 0;
 
       if (active) {
-        active_nodes.fetch_add(1, std::memory_order_relaxed);
+        ++active_nodes_ets.local();
       }
     });
 
-    return active_nodes.load(std::memory_order_relaxed);
+    return active_nodes_ets.combine(std::plus{});
   }
 
   void restore_partition(PartitionedGraph &p_graph) {
