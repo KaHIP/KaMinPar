@@ -501,6 +501,7 @@ Context create_strong_context() {
       RefinementAlgorithm::TWOWAY_FLOW,
       RefinementAlgorithm::OVERLOAD_BALANCER
   };
+  ctx.coarsening.algorithm = CoarseningAlgorithm::OVERLAY_CLUSTERING;
 
   return ctx;
 }
