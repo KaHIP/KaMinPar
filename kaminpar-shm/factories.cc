@@ -17,6 +17,7 @@
 #include "kaminpar-shm/partitioning/rb/rb_multilevel.h"
 
 // Clusterings
+#include "kaminpar-shm/coarsening/clustering/hem_clusterer.h"
 #include "kaminpar-shm/coarsening/clustering/lp_clusterer.h"
 #include "kaminpar-shm/coarsening/clustering/noop_clusterer.h"
 
@@ -67,6 +68,9 @@ std::unique_ptr<Clusterer> create_clusterer(const Context &ctx) {
 
   case ClusteringAlgorithm::LABEL_PROPAGATION:
     return std::make_unique<LPClustering>(ctx.coarsening);
+
+  case ClusteringAlgorithm::HEAVY_EDGE_MATCHING:
+    return std::make_unique<HEMClustering>(ctx.coarsening);
   }
 
   __builtin_unreachable();

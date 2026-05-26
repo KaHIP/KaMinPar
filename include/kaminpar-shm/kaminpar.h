@@ -89,6 +89,7 @@ enum class CoarseningAlgorithm {
 enum class ClusteringAlgorithm {
   NOOP,
   LABEL_PROPAGATION,
+  HEAVY_EDGE_MATCHING,
 };
 
 enum class ClusterWeightLimit {
