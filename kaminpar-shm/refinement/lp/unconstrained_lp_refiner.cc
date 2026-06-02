@@ -393,36 +393,36 @@ private:
 
 class UnconstrainedLPRefinerImplWrapper {
 public:
-  explicit UnconstrainedLPRefinerImplWrapper(const Context &ctx)
-      : _csr_impl(std::make_unique<UnconstrainedLPRefinerImpl<CSRGraph>>(ctx)),
-        _compressed_impl(std::make_unique<UnconstrainedLPRefinerImpl<CompressedGraph>>(ctx)) {}
+  explicit UnconstrainedLPRefinerImplWrapper(const Context &ctx) : _ctx(ctx) {}
 
   void initialize(const PartitionedGraph &p_graph) {
-    reified(
-        p_graph,
-        [&](const auto &graph) { _csr_impl->initialize(&graph); },
-        [&](const auto &graph) { _compressed_impl->initialize(&graph); }
-    );
+    reified(p_graph, [&]<typename Graph>(const Graph &graph) { ensure_impl(graph); });
   }
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
     SCOPED_TIMER("Unconstrained Label Propagation");
 
-    return reified(
-        p_graph,
-        [&](const auto &) { return _csr_impl->refine(p_graph, p_ctx); },
-        [&](const auto &) { return _compressed_impl->refine(p_graph, p_ctx); }
-    );
+    return reified(p_graph, [&]<typename Graph>(const Graph &graph) {
+      return ensure_impl(graph).refine(p_graph, p_ctx);
+    });
   }
 
   void set_communities(std::span<const NodeID> communities) {
-    _csr_impl->set_communities(communities);
-    _compressed_impl->set_communities(communities);
+    _communities = communities;
+    _impl.if_present([&](auto &impl) { impl.set_communities(_communities); });
   }
 
 private:
-  std::unique_ptr<UnconstrainedLPRefinerImpl<CSRGraph>> _csr_impl;
-  std::unique_ptr<UnconstrainedLPRefinerImpl<CompressedGraph>> _compressed_impl;
+  template <typename Graph> UnconstrainedLPRefinerImpl<Graph> &ensure_impl(const Graph &graph) {
+    UnconstrainedLPRefinerImpl<Graph> &impl = _impl.ensure<Graph>(_ctx);
+    impl.initialize(&graph);
+    impl.set_communities(_communities);
+    return impl;
+  }
+
+  const Context &_ctx;
+  ReifiedGraphComponent<UnconstrainedLPRefinerImpl> _impl;
+  std::span<const NodeID> _communities;
 };
 
 //

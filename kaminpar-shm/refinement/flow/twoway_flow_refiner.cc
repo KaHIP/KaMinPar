@@ -34,19 +34,15 @@ bool TwowayFlowRefiner::refine(
         << "Two-way flow refinement does not support min block weights. They will be ignored.";
   }
 
-  return reified(
-      p_graph,
-      [&](const auto &csr_graph) {
-        // The flow refiner works with PartitionedCSRGraph instead of PartitionedGraph.
-        // Intead of copying the partition, use a view on it to access the partition.
-        PartitionedCSRGraph p_csr_graph = p_graph.csr_view();
-        return refine(p_csr_graph, csr_graph, p_ctx);
-      },
-      [&]([[maybe_unused]] const auto &compressed_graph) {
-        LOG_WARNING << "Cannot refine a compressed graph using the two-way flow refiner.";
-        return false;
-      }
-  );
+  if (!is<CSRGraph>(p_graph.graph())) {
+    LOG_WARNING << "Cannot refine a compressed graph using the two-way flow refiner.";
+    return false;
+  }
+
+  // The flow refiner works with PartitionedCSRGraph instead of PartitionedGraph.
+  // Intead of copying the partition, use a view on it to access the partition.
+  PartitionedCSRGraph p_csr_graph = p_graph.csr_view();
+  return refine(p_csr_graph, as_concrete_graph<CSRGraph>(p_graph.graph()), p_ctx);
 }
 
 bool TwowayFlowRefiner::refine(

@@ -489,11 +489,7 @@ private:
 
 class LPRefinerImplWrapper {
 public:
-  LPRefinerImplWrapper(const Context &ctx, DistributedPartitionedGraph &p_graph)
-      : _csr_impl(std::make_unique<LPRefinerImpl<DistributedCSRGraph>>(ctx, p_graph)),
-        _compressed_impl(
-            std::make_unique<LPRefinerImpl<DistributedCompressedGraph>>(ctx, p_graph)
-        ) {}
+  LPRefinerImplWrapper(const Context &ctx, DistributedPartitionedGraph &) : _ctx(ctx) {}
 
   void refine(DistributedPartitionedGraph &p_graph, const PartitionContext &p_ctx) {
     const auto refine = [&](auto &impl, const auto &graph) {
@@ -502,22 +498,15 @@ public:
       _memory_context = impl.release();
     };
 
-    p_graph.reified(
-        [&](const DistributedCSRGraph &csr_graph) {
-          LPRefinerImpl<DistributedCSRGraph> &impl = *_csr_impl;
-          refine(impl, csr_graph);
-        },
-        [&](const DistributedCompressedGraph &compressed_graph) {
-          LPRefinerImpl<DistributedCompressedGraph> &impl = *_compressed_impl;
-          refine(impl, compressed_graph);
-        }
-    );
+    p_graph.reified([&]<typename Graph>(const Graph &graph) {
+      refine(_impl.ensure<Graph>(_ctx, p_graph), graph);
+    });
   }
 
 private:
+  const Context &_ctx;
+  ReifiedGraphComponent<LPRefinerImpl> _impl;
   LPRefinerMemoryContext _memory_context;
-  std::unique_ptr<LPRefinerImpl<DistributedCSRGraph>> _csr_impl;
-  std::unique_ptr<LPRefinerImpl<DistributedCompressedGraph>> _compressed_impl;
 };
 
 //

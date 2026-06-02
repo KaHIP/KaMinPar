@@ -703,9 +703,7 @@ private:
   using ClusterWeightsMap = typename growt::GlobalNodeIDMap<GlobalNodeWeight>;
   ClusterWeightsMap _cluster_weights{0};
   tbb::enumerable_thread_specific<typename ClusterWeightsMap::handle_type>
-      _cluster_weights_handles_ets{[&] {
-        return _cluster_weights.get_handle();
-      }};
+      _cluster_weights_handles_ets{[&] { return _cluster_weights.get_handle(); }};
 
   // Weights of local clusters (i.e., cluster ID is owned by this PE)
   StaticArray<GlobalNodeWeight> _local_cluster_weights;
@@ -722,14 +720,11 @@ private:
 
 class GlobalLPClusteringImplWrapper {
 public:
-  GlobalLPClusteringImplWrapper(const Context &ctx)
-      : _csr_impl(std::make_unique<GlobalLPClusteringImpl<DistributedCSRGraph>>(ctx)),
-        _compressed_impl(std::make_unique<GlobalLPClusteringImpl<DistributedCompressedGraph>>(ctx)
-        ) {}
+  GlobalLPClusteringImplWrapper(const Context &ctx) : _ctx(ctx) {}
 
   void set_max_cluster_weight(const GlobalNodeWeight weight) {
-    _csr_impl->set_max_cluster_weight(weight);
-    _compressed_impl->set_max_cluster_weight(weight);
+    _max_cluster_weight = weight;
+    _impl.if_present([&](auto &impl) { impl.set_max_cluster_weight(_max_cluster_weight); });
   }
 
   void compute_clustering(StaticArray<GlobalNodeID> &clustering, const DistributedGraph &graph) {
@@ -741,25 +736,24 @@ public:
 
     const NodeID num_nodes = graph.total_n();
     const NodeID num_active_nodes = graph.n();
-    _csr_impl->preinitialize(num_nodes, num_active_nodes);
-    _compressed_impl->preinitialize(num_nodes, num_active_nodes);
-
-    graph.reified(
-        [&](const DistributedCSRGraph &csr_graph) {
-          GlobalLPClusteringImpl<DistributedCSRGraph> &impl = *_csr_impl;
-          compute_clustering(impl, csr_graph);
-        },
-        [&](const DistributedCompressedGraph &compressed_graph) {
-          GlobalLPClusteringImpl<DistributedCompressedGraph> &impl = *_compressed_impl;
-          compute_clustering(impl, compressed_graph);
-        }
-    );
+    graph.reified([&]<typename Graph>(const Graph &concrete_graph) {
+      GlobalLPClusteringImpl<Graph> &impl = ensure_impl<Graph>();
+      impl.preinitialize(num_nodes, num_active_nodes);
+      compute_clustering(impl, concrete_graph);
+    });
   }
 
 private:
+  template <typename Graph> GlobalLPClusteringImpl<Graph> &ensure_impl() {
+    GlobalLPClusteringImpl<Graph> &impl = _impl.ensure<Graph>(_ctx);
+    impl.set_max_cluster_weight(_max_cluster_weight);
+    return impl;
+  }
+
+  const Context &_ctx;
+  ReifiedGraphComponent<GlobalLPClusteringImpl> _impl;
   GlobalLPClusteringMemoryContext _memory_context;
-  std::unique_ptr<GlobalLPClusteringImpl<DistributedCSRGraph>> _csr_impl;
-  std::unique_ptr<GlobalLPClusteringImpl<DistributedCompressedGraph>> _compressed_impl;
+  GlobalNodeWeight _max_cluster_weight = std::numeric_limits<NodeWeight>::max();
 };
 
 //
