@@ -92,7 +92,7 @@ bool SparsificationClusterCoarsener::coarsen() {
     auto *coarsened_downcast = dynamic_cast<CoarseGraphImpl *>(coarsened.get());
     StaticArray<NodeID> mapping = std::move(coarsened_downcast->get_mapping());
     Graph graph = std::move(coarsened_downcast->get());
-    CSRGraph &csr = concretize<CSRGraph>(graph);
+    CSRGraph &csr = as_concrete_graph<CSRGraph>(graph);
 
     const NodeID c_n = csr.n();
     const EdgeID c_m = csr.m();
@@ -122,7 +122,7 @@ bool SparsificationClusterCoarsener::coarsen() {
       // Contraction code is racy: mapping might have changed
       auto *recontracted_impl = dynamic_cast<CoarseGraphImpl *>(recontracted.get());
       mapping = std::move(recontracted_impl->get_mapping());
-      return std::move(concretize<CSRGraph>(recontracted->get()));
+      return std::move(as_concrete_graph<CSRGraph>(recontracted->get()));
     }();
 
     _prev_sparsification_target_m = target_sparsified_m;
@@ -165,7 +165,7 @@ SparsificationClusterCoarsener::recontract_with_threshold_sparsification(
 ) {
   if (target_m < 2) {
     return contract_and_sparsify_clustering(
-        concretize<CSRGraph>(current()),
+        as_concrete_graph<CSRGraph>(current()),
         std::move(mapping),
         c_n,
         [](const NodeID, const EdgeWeight, const NodeID) { return false; },
@@ -218,7 +218,7 @@ SparsificationClusterCoarsener::recontract_with_threshold_sparsification(
   };
 
   return contract_and_sparsify_clustering(
-      concretize<CSRGraph>(current()),
+      as_concrete_graph<CSRGraph>(current()),
       std::move(mapping),
       c_n,
       sample_edge,

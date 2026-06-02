@@ -465,7 +465,7 @@ JetRefinerFactory::create(DistributedPartitionedGraph &p_graph, const PartitionC
       assert::always
   );
 
-  const DistributedCSRGraph &csr_graph = p_graph.graph().concretize<DistributedCSRGraph>();
+  const DistributedCSRGraph &csr_graph = p_graph.graph().as_concrete_graph<DistributedCSRGraph>();
 
   switch (_ctx.refinement.jet.gain_cache_strategy) {
 #ifdef KAMINPAR_EXPERIMENTAL

@@ -72,7 +72,7 @@ private:
   MaxMultiQueue<NodeID, float> _mq;
 
   StaticArray<BlockID> _node_target;
-  AnyGraphComponent<GainCache> _gain_cache;
+  ReifiedGraphComponent<GainCache> _gain_cache;
 };
 
 } // namespace kaminpar::shm

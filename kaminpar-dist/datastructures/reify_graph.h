@@ -39,23 +39,23 @@ decltype(auto) reified(const AbstractDistributedGraph &graph, Lambda &&l) {
   __builtin_unreachable();
 }
 
-template <typename ConcretizedGraph> [[nodiscard]] bool is(const AbstractDistributedGraph &graph) {
-  return dynamic_cast<const ConcretizedGraph *>(&graph) != nullptr;
+template <typename ConcreteGraph> [[nodiscard]] bool is(const AbstractDistributedGraph &graph) {
+  return dynamic_cast<const ConcreteGraph *>(&graph) != nullptr;
 }
 
-template <typename ConcretizedGraph>
-[[nodiscard]] ConcretizedGraph &concretize(const AbstractDistributedGraph &graph) {
+template <typename ConcreteGraph>
+[[nodiscard]] ConcreteGraph &as_concrete_graph(const AbstractDistributedGraph &graph) {
   KASSERT(
-      is<ConcretizedGraph>(graph), "underlying graph is not a " << typeid(ConcretizedGraph).name()
+      is<ConcreteGraph>(graph), "underlying graph is not a " << typeid(ConcreteGraph).name()
   );
-  return *static_cast<ConcretizedGraph *>(&graph);
+  return *static_cast<ConcreteGraph *>(&graph);
 }
 
-template <typename ConcretizedGraph> ConcretizedGraph &concretize(AbstractDistributedGraph &graph) {
+template <typename ConcreteGraph> ConcreteGraph &as_concrete_graph(AbstractDistributedGraph &graph) {
   KASSERT(
-      is<ConcretizedGraph>(graph), "underlying graph is not a " << typeid(ConcretizedGraph).name()
+      is<ConcreteGraph>(graph), "underlying graph is not a " << typeid(ConcreteGraph).name()
   );
-  return dynamic_cast<ConcretizedGraph &>(graph);
+  return dynamic_cast<ConcreteGraph &>(graph);
 }
 
 } // namespace kaminpar::dist::graph

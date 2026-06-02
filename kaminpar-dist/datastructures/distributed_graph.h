@@ -416,19 +416,19 @@ public:
   }
 
   [[nodiscard]] inline DistributedCSRGraph &csr_graph() {
-    return graph::concretize<DistributedCSRGraph>(*_underlying_graph);
+    return graph::as_concrete_graph<DistributedCSRGraph>(*_underlying_graph);
   }
 
   [[nodiscard]] inline const DistributedCSRGraph &csr_graph() const {
-    return graph::concretize<DistributedCSRGraph>(*_underlying_graph);
+    return graph::as_concrete_graph<DistributedCSRGraph>(*_underlying_graph);
   }
 
   [[nodiscard]] inline DistributedCompressedGraph &compressed_graph() {
-    return graph::concretize<DistributedCompressedGraph>(*_underlying_graph);
+    return graph::as_concrete_graph<DistributedCompressedGraph>(*_underlying_graph);
   }
 
   [[nodiscard]] inline const DistributedCompressedGraph &compressed_graph() const {
-    return graph::concretize<DistributedCompressedGraph>(*_underlying_graph);
+    return graph::as_concrete_graph<DistributedCompressedGraph>(*_underlying_graph);
   }
 
   template <typename Lambda1, typename Lambda2>
@@ -440,16 +440,16 @@ public:
     return graph::reified(*_underlying_graph, std::forward<Lambda>(l));
   }
 
-  template <typename ConcretizedGraph> [[nodiscard]] bool is() const {
-    return graph::is<ConcretizedGraph>(*_underlying_graph);
+  template <typename ConcreteGraph> [[nodiscard]] bool is() const {
+    return graph::is<ConcreteGraph>(*_underlying_graph);
   }
 
-  template <typename ConcretizedGraph> [[nodiscard]] ConcretizedGraph &concretize() {
-    return graph::concretize<ConcretizedGraph>(*_underlying_graph);
+  template <typename ConcreteGraph> [[nodiscard]] ConcreteGraph &as_concrete_graph() {
+    return graph::as_concrete_graph<ConcreteGraph>(*_underlying_graph);
   }
 
-  template <typename ConcretizedGraph> [[nodiscard]] const ConcretizedGraph &concretize() const {
-    return graph::concretize<ConcretizedGraph>(*_underlying_graph);
+  template <typename ConcreteGraph> [[nodiscard]] const ConcreteGraph &as_concrete_graph() const {
+    return graph::as_concrete_graph<ConcreteGraph>(*_underlying_graph);
   }
 
 private:
