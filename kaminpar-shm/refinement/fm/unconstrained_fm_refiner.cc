@@ -982,7 +982,7 @@ public:
     SCOPED_HEAP_PROFILER("FM");
     SCOPED_TIMER("FM");
 
-    const Graph &graph = concretize<Graph>(p_graph.graph());
+    const Graph &graph = as_concrete_graph<Graph>(p_graph.graph());
     if (use_stable_fm_path(graph)) {
       return refine_stable(p_graph, p_ctx);
     }
@@ -1175,7 +1175,7 @@ private:
   }
 
   bool refine_stable(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
-    const Graph &graph = concretize<Graph>(p_graph.graph());
+    const Graph &graph = as_concrete_graph<Graph>(p_graph.graph());
 
     KwayFMRefinementContext fm_ctx = _fm_ctx;
     fm_ctx.num_seed_nodes = 25;

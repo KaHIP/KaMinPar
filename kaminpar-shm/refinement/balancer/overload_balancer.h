@@ -79,7 +79,7 @@ private:
 
   StaticArray<std::uint8_t> _moved_nodes;
 
-  AnyGraphComponent<GainCache> _gain_cache;
+  ReifiedGraphComponent<GainCache> _gain_cache;
 
   MoveTracker _move_tracker = nullptr;
 };

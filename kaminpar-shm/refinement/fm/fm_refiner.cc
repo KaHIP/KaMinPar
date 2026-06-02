@@ -469,7 +469,7 @@ public:
     SCOPED_HEAP_PROFILER("FM");
     SCOPED_TIMER("FM");
 
-    const Graph &graph = concretize<Graph>(p_graph.graph());
+    const Graph &graph = as_concrete_graph<Graph>(p_graph.graph());
 
     TIMED_SCOPE("Initialize gain cache") {
       _shared->gain_cache.initialize(graph, p_graph);

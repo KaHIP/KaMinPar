@@ -178,7 +178,7 @@ private:
   StaticArray<std::size_t> _pq_handles;
   StaticArray<std::uint8_t> _node_state;
 
-  AnyGraphComponent<GainCache> _gain_cache;
+  ReifiedGraphComponent<GainCache> _gain_cache;
 
   MoveTracker _move_tracker = nullptr;
 };
