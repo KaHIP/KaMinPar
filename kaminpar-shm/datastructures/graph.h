@@ -62,23 +62,23 @@ template <typename Lambda> decltype(auto) reified(const Graph &graph, Lambda &&l
   return reified(graph, std::forward<Lambda>(l), std::forward<Lambda>(l));
 }
 
-template <typename ConcretizedGraph> [[nodiscard]] ConcretizedGraph &concretize(Graph &graph) {
+template <typename ConcreteGraph> [[nodiscard]] ConcreteGraph &as_concrete_graph(Graph &graph) {
   KASSERT(
-      dynamic_cast<ConcretizedGraph *>(graph.underlying_graph()) != nullptr,
-      "underlying graph is not a " << typeid(ConcretizedGraph).name()
+      dynamic_cast<ConcreteGraph *>(graph.underlying_graph()) != nullptr,
+      "underlying graph is not a " << typeid(ConcreteGraph).name()
   );
 
-  return *static_cast<ConcretizedGraph *>(graph.underlying_graph());
+  return *static_cast<ConcreteGraph *>(graph.underlying_graph());
 }
 
-template <typename ConcretizedGraph>
-[[nodiscard]] const ConcretizedGraph &concretize(const Graph &graph) {
+template <typename ConcreteGraph>
+[[nodiscard]] const ConcreteGraph &as_concrete_graph(const Graph &graph) {
   KASSERT(
-      dynamic_cast<const ConcretizedGraph *>(graph.underlying_graph()) != nullptr,
-      "underlying graph is not a " << typeid(ConcretizedGraph).name()
+      dynamic_cast<const ConcreteGraph *>(graph.underlying_graph()) != nullptr,
+      "underlying graph is not a " << typeid(ConcreteGraph).name()
   );
 
-  return *static_cast<const ConcretizedGraph *>(graph.underlying_graph());
+  return *static_cast<const ConcreteGraph *>(graph.underlying_graph());
 }
 
 /*!
@@ -87,7 +87,7 @@ template <typename ConcretizedGraph>
  *
  * `Component` may only take one template argument: the concretized graph class.
  */
-template <template <typename> typename Component> struct AnyGraphComponent {
+template <template <typename> typename Component> struct ReifiedGraphComponent {
   std::variant<std::monostate, Component<CSRGraph>, Component<CompressedGraph>> obj;
 
   /*!
