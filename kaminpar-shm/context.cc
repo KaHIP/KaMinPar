@@ -188,6 +188,8 @@ std::ostream &operator<<(std::ostream &out, const ClusteringAlgorithm algorithm)
     return out << "noop";
   case ClusteringAlgorithm::LABEL_PROPAGATION:
     return out << "lp";
+  case ClusteringAlgorithm::HEAVY_EDGE_MATCHING:
+    return out << "hem";
   }
 
   return out << "<invalid>";
@@ -197,6 +199,8 @@ std::unordered_map<std::string, ClusteringAlgorithm> get_clustering_algorithms()
   return {
       {"noop", ClusteringAlgorithm::NOOP},
       {"lp", ClusteringAlgorithm::LABEL_PROPAGATION},
+      {"hem", ClusteringAlgorithm::HEAVY_EDGE_MATCHING},
+      {"heavy-edge-matching", ClusteringAlgorithm::HEAVY_EDGE_MATCHING},
   };
 }
 

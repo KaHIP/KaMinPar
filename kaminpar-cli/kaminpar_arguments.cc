@@ -191,7 +191,8 @@ For all *-clustering algorithms, also see the --c-clustering-* options.)"
       ->transform(CLI::CheckedTransformer(get_clustering_algorithms()).description(""))
       ->description(R"(Chooses the clustering algorithm:
   - noop: Disable coarsening (for debugging purposes).
-  - lp:   Size-constrained label propagation (also see --c-lp-* options).)")
+  - lp:   Size-constrained label propagation (also see --c-lp-* options).
+  - hem:  Heavy edge matching with two-hop matching.)")
       ->capture_default_str();
 
   coarsening->add_option("--c-cluster-weight-limit", ctx.coarsening.clustering.cluster_weight_limit)

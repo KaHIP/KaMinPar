@@ -57,6 +57,7 @@ kaminpar_add_shm_test(test_compressed_graph_builder shm/graphutils/compressed_gr
 
 # KaMinPar -> Coarsening
 kaminpar_add_shm_test(test_shm_cluster_contraction shm/coarsening/cluster_contraction_test.cc)
+kaminpar_add_shm_test(test_shm_hem_clusterer shm/coarsening/hem_clusterer_test.cc)
 
 # KaMinPar -> Data structures
 kaminpar_add_shm_test(test_shm_graph shm/datastructures/graph_test.cc)
