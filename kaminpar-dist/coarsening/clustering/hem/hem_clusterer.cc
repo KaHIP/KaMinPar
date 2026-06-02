@@ -158,8 +158,8 @@ private:
 
     TIMED_SCOPE("Compute color blacklist") {
       if (_ctx.small_color_blacklist == 0 ||
-          (_ctx.only_blacklist_input_level && _graph->global_n() != _input_ctx.partition.global_n
-          )) {
+          (_ctx.only_blacklist_input_level &&
+           _graph->global_n() != _input_ctx.partition.global_n)) {
         return;
       }
 
@@ -180,9 +180,7 @@ private:
       std::vector<ColorID> sorted_by_size(num_colors);
       std::iota(sorted_by_size.begin(), sorted_by_size.end(), 0);
       std::sort(
-          sorted_by_size.begin(),
-          sorted_by_size.end(),
-          [&](const ColorID lhs, const ColorID rhs) {
+          sorted_by_size.begin(), sorted_by_size.end(), [&](const ColorID lhs, const ColorID rhs) {
             return global_color_sizes[lhs] < global_color_sizes[rhs];
           }
       );
@@ -501,13 +499,11 @@ private:
 
 class HEMClustererImplWrapper {
 public:
-  HEMClustererImplWrapper(const Context &ctx)
-      : _csr_impl(std::make_unique<HEMClustererImpl<DistributedCSRGraph>>(ctx)),
-        _compressed_impl(std::make_unique<HEMClustererImpl<DistributedCompressedGraph>>(ctx)) {}
+  HEMClustererImplWrapper(const Context &ctx) : _ctx(ctx) {}
 
   void set_max_cluster_weight(const GlobalNodeWeight max_cluster_weight) {
-    _csr_impl->set_max_cluster_weight(max_cluster_weight);
-    _compressed_impl->set_max_cluster_weight(max_cluster_weight);
+    _max_cluster_weight = max_cluster_weight;
+    _impl.if_present([&](auto &impl) { impl.set_max_cluster_weight(_max_cluster_weight); });
   }
 
   void cluster(StaticArray<GlobalNodeID> &matching, const DistributedGraph &graph) {
@@ -517,22 +513,22 @@ public:
       _memory_context = impl.release();
     };
 
-    graph.reified(
-        [&](const DistributedCSRGraph &csr_graph) {
-          HEMClustererImpl<DistributedCSRGraph> &impl = *_csr_impl;
-          compute_cluster(impl, csr_graph);
-        },
-        [&](const DistributedCompressedGraph &compressed_graph) {
-          HEMClustererImpl<DistributedCompressedGraph> &impl = *_compressed_impl;
-          compute_cluster(impl, compressed_graph);
-        }
-    );
+    graph.reified([&]<typename Graph>(const Graph &concrete_graph) {
+      compute_cluster(ensure_impl<Graph>(), concrete_graph);
+    });
   }
 
 private:
+  template <typename Graph> HEMClustererImpl<Graph> &ensure_impl() {
+    HEMClustererImpl<Graph> &impl = _impl.ensure<Graph>(_ctx);
+    impl.set_max_cluster_weight(_max_cluster_weight);
+    return impl;
+  }
+
+  const Context &_ctx;
+  ReifiedGraphComponent<HEMClustererImpl> _impl;
   HEMClustererMemoryContext _memory_context;
-  std::unique_ptr<HEMClustererImpl<DistributedCSRGraph>> _csr_impl;
-  std::unique_ptr<HEMClustererImpl<DistributedCompressedGraph>> _compressed_impl;
+  GlobalNodeWeight _max_cluster_weight = 0;
 };
 
 //

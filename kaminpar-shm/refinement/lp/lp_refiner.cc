@@ -310,16 +310,10 @@ public:
 
 class LPRefinerImplWrapper {
 public:
-  LPRefinerImplWrapper(const Context &ctx)
-      : _csr_impl(std::make_unique<LPRefinerImpl<CSRGraph>>(ctx, _permutations)),
-        _compressed_impl(std::make_unique<LPRefinerImpl<CompressedGraph>>(ctx, _permutations)) {}
+  LPRefinerImplWrapper(const Context &ctx) : _ctx(ctx) {}
 
   void initialize(const PartitionedGraph &p_graph) {
-    reified(
-        p_graph,
-        [&](const auto &graph) { _csr_impl->initialize(&graph); },
-        [&](const auto &graph) { _compressed_impl->initialize(&graph); }
-    );
+    reified(p_graph, [&]<typename Graph>(const Graph &graph) { ensure_impl(graph); });
   }
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
@@ -339,27 +333,33 @@ public:
       return found_improvement;
     };
 
-    return reified(
-        p_graph,
-        [&](const auto &) { return refine(*_csr_impl); },
-        [&](const auto &) { return refine(*_compressed_impl); }
-    );
+    return reified(p_graph, [&]<typename Graph>(const Graph &graph) {
+      return refine(ensure_impl(graph));
+    });
   }
 
   void set_communities(std::span<const NodeID> communities) {
-    _csr_impl->set_communities(communities);
-    _compressed_impl->set_communities(communities);
+    _communities = communities;
+    _impl.if_present([&](auto &impl) { impl.set_communities(_communities); });
   }
 
 private:
-  std::unique_ptr<LPRefinerImpl<CSRGraph>> _csr_impl;
-  std::unique_ptr<LPRefinerImpl<CompressedGraph>> _compressed_impl;
+  template <typename Graph> LPRefinerImpl<Graph> &ensure_impl(const Graph &graph) {
+    LPRefinerImpl<Graph> &impl = _impl.ensure<Graph>(_ctx, _permutations);
+    impl.initialize(&graph);
+    impl.set_communities(_communities);
+    return impl;
+  }
+
+  const Context &_ctx;
+  ReifiedGraphComponent<LPRefinerImpl> _impl;
 
   // The data structures which are used by the LP refiner and are shared between the
   // different implementations.
   bool _freed = true;
   LPRefinerImpl<Graph>::Permutations _permutations;
   LPRefinerImpl<Graph>::DataStructures _structs;
+  std::span<const NodeID> _communities;
 };
 
 //

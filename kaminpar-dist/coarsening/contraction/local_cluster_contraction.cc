@@ -277,33 +277,30 @@ std::unique_ptr<CoarseGraph> contract_local_clustering(
 
   auto [c_global_to_ghost, c_ghost_to_global, c_ghost_owner] = ghost_mapper.finalize();
 
-  DistributedGraph c_graph(std::make_unique<DistributedCSRGraph>(
-      std::move(c_node_distribution),
-      std::move(c_edge_distribution),
-      std::move(c_nodes),
-      std::move(c_edges),
-      std::move(c_node_weights),
-      std::move(c_edge_weights),
-      std::move(c_ghost_owner),
-      std::move(c_ghost_to_global),
-      std::move(c_global_to_ghost),
-      false,
-      graph.communicator()
-  ));
+  DistributedGraph c_graph(
+      std::make_unique<DistributedCSRGraph>(
+          std::move(c_node_distribution),
+          std::move(c_edge_distribution),
+          std::move(c_nodes),
+          std::move(c_edges),
+          std::move(c_node_weights),
+          std::move(c_edge_weights),
+          std::move(c_ghost_owner),
+          std::move(c_ghost_to_global),
+          std::move(c_global_to_ghost),
+          false,
+          graph.communicator()
+      )
+  );
 
   return std::make_unique<LocalCoarseGraphImpl>(fine_graph, std::move(c_graph), std::move(mapping));
 }
 
 std::unique_ptr<CoarseGraph>
 contract_local_clustering(const DistributedGraph &graph, const StaticArray<NodeID> &clustering) {
-  return graph.reified(
-      [&](const DistributedCSRGraph &csr_graph) {
-        return contract_local_clustering(graph, csr_graph, clustering);
-      },
-      [&](const DistributedCompressedGraph &compressed_graph) {
-        return contract_local_clustering(graph, compressed_graph, clustering);
-      }
-  );
+  return graph.reified([&](const auto &concrete_graph) {
+    return contract_local_clustering(graph, concrete_graph, clustering);
+  });
 }
 
 } // namespace kaminpar::dist

@@ -1581,28 +1581,16 @@ std::unique_ptr<CoarseGraph> contract_clustering(
     bool migrate_cnode_prefix,
     bool force_perfect_cnode_balance
 ) {
-  return graph.reified(
-      [&](const DistributedCSRGraph &csr_graph) {
-        return contract_clustering(
-            graph,
-            csr_graph,
-            clustering,
-            max_cnode_imbalance,
-            migrate_cnode_prefix,
-            force_perfect_cnode_balance
-        );
-      },
-      [&](const DistributedCompressedGraph &compressed_graph) {
-        return contract_clustering(
-            graph,
-            compressed_graph,
-            clustering,
-            max_cnode_imbalance,
-            migrate_cnode_prefix,
-            force_perfect_cnode_balance
-        );
-      }
-  );
+  return graph.reified([&](const auto &concrete_graph) {
+    return contract_clustering(
+        graph,
+        concrete_graph,
+        clustering,
+        max_cnode_imbalance,
+        migrate_cnode_prefix,
+        force_perfect_cnode_balance
+    );
+  });
 }
 
 } // namespace kaminpar::dist

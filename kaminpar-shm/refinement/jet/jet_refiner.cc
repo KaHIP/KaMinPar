@@ -9,6 +9,7 @@
 #include "kaminpar-shm/refinement/jet/jet_refiner.h"
 
 #include <functional>
+#include <memory>
 
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/metrics.h"
@@ -253,8 +254,8 @@ private:
 };
 
 JetRefiner::JetRefiner(const Context &ctx)
-    : _csr_impl(std::make_unique<JetRefinerCSRImpl>(ctx)),
-      _compressed_impl(std::make_unique<JetRefinerCompressedImpl>(ctx)) {}
+    : _ctx(ctx),
+      _impl(std::make_unique<ReifiedGraphComponent<JetRefinerImpl>>()) {}
 
 JetRefiner::~JetRefiner() = default;
 
@@ -263,16 +264,15 @@ std::string JetRefiner::name() const {
 }
 
 void JetRefiner::initialize(const PartitionedGraph &p_graph) {
-  _csr_impl->initialize(p_graph);
-  _compressed_impl->initialize(p_graph);
+  reified(p_graph, [&]<typename Graph>(const Graph &) {
+    _impl->ensure<Graph>(_ctx).initialize(p_graph);
+  });
 }
 
 bool JetRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
-  reified(
-      p_graph,
-      [&](const auto &graph) { return _csr_impl->refine(p_graph, graph, p_ctx); },
-      [&](const auto &graph) { return _compressed_impl->refine(p_graph, graph, p_ctx); }
-  );
+  _impl->with(p_graph, [&](auto &impl, const auto &graph) {
+    return impl.refine(p_graph, graph, p_ctx);
+  });
 
   return false; // (ignored)
 }

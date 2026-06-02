@@ -431,11 +431,6 @@ public:
     return graph::as_concrete_graph<DistributedCompressedGraph>(*_underlying_graph);
   }
 
-  template <typename Lambda1, typename Lambda2>
-  inline decltype(auto) reified(Lambda1 &&l1, Lambda2 &&l2) const {
-    return graph::reified(*_underlying_graph, std::forward<Lambda1>(l1), std::forward<Lambda2>(l2));
-  }
-
   template <typename Lambda> inline decltype(auto) reified(Lambda &&l) const {
     return graph::reified(*_underlying_graph, std::forward<Lambda>(l));
   }

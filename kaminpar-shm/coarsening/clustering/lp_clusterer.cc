@@ -292,23 +292,22 @@ public:
 class LPClusteringImplWrapper {
 public:
   LPClusteringImplWrapper(const CoarseningContext &c_ctx)
-      : _csr_impl(std::make_unique<LPClusteringImpl<CSRGraph>>(c_ctx, _permutations)),
-        _compressed_impl(std::make_unique<LPClusteringImpl<CompressedGraph>>(c_ctx, _permutations)
-        ) {}
+      : _c_ctx(c_ctx),
+        _relabel_before_second_phase(c_ctx.clustering.lp.relabel_before_second_phase) {}
 
   void set_max_cluster_weight(const NodeWeight max_cluster_weight) {
-    _csr_impl->set_max_cluster_weight(max_cluster_weight);
-    _compressed_impl->set_max_cluster_weight(max_cluster_weight);
+    _max_cluster_weight = max_cluster_weight;
+    _impl.if_present([&](auto &impl) { impl.set_max_cluster_weight(_max_cluster_weight); });
   }
 
   void set_desired_cluster_count(const NodeID count) {
-    _csr_impl->set_desired_num_clusters(count);
-    _compressed_impl->set_desired_num_clusters(count);
+    _desired_cluster_count = count;
+    _impl.if_present([&](auto &impl) { impl.set_desired_num_clusters(_desired_cluster_count); });
   }
 
   void set_communities(std::span<const NodeID> communities) {
-    _csr_impl->set_communities(communities);
-    _compressed_impl->set_communities(communities);
+    _communities = communities;
+    _impl.if_present([&](auto &impl) { impl.set_communities(_communities); });
   }
 
   void compute_clustering(
@@ -337,29 +336,33 @@ public:
     };
 
     const NodeID num_nodes = graph.n();
-    _csr_impl->preinitialize(num_nodes);
-    _compressed_impl->preinitialize(num_nodes);
-
-    reified(
-        graph,
-        [&](const auto &csr_graph) {
-          LPClusteringImpl<CSRGraph> &impl = *_csr_impl;
-          compute_clustering(impl, csr_graph);
-        },
-        [&](const auto &compressed_graph) {
-          LPClusteringImpl<CompressedGraph> &impl = *_compressed_impl;
-          compute_clustering(impl, compressed_graph);
-        }
-    );
+    reified(graph, [&]<typename Graph>(const Graph &concrete_graph) {
+      LPClusteringImpl<Graph> &impl = ensure_impl<Graph>();
+      impl.preinitialize(num_nodes);
+      compute_clustering(impl, concrete_graph);
+    });
 
     // Only relabel clusters for the first iteration
-    _csr_impl->set_relabel_before_second_phase(false);
-    _compressed_impl->set_relabel_before_second_phase(false);
+    _relabel_before_second_phase = false;
+    _impl.if_present([&](auto &impl) { impl.set_relabel_before_second_phase(false); });
   }
 
 private:
-  std::unique_ptr<LPClusteringImpl<CSRGraph>> _csr_impl;
-  std::unique_ptr<LPClusteringImpl<CompressedGraph>> _compressed_impl;
+  template <typename Graph> LPClusteringImpl<Graph> &ensure_impl() {
+    LPClusteringImpl<Graph> &impl = _impl.ensure<Graph>(_c_ctx, _permutations);
+    apply_config(impl);
+    return impl;
+  }
+
+  void apply_config(auto &impl) {
+    impl.set_max_cluster_weight(_max_cluster_weight);
+    impl.set_desired_num_clusters(_desired_cluster_count);
+    impl.set_communities(_communities);
+    impl.set_relabel_before_second_phase(_relabel_before_second_phase);
+  }
+
+  const CoarseningContext &_c_ctx;
+  ReifiedGraphComponent<LPClusteringImpl> _impl;
 
   // The data structures that are used by the LP clusterer and are shared between the
   // different implementations.
@@ -367,6 +370,10 @@ private:
   LPClusteringImpl<Graph>::Permutations _permutations;
   LPClusteringImpl<Graph>::DataStructures _structs;
   LPClusteringImpl<Graph>::ClusterWeights _cluster_weights;
+  NodeWeight _max_cluster_weight = kInvalidBlockWeight;
+  NodeID _desired_cluster_count = 0;
+  std::span<const NodeID> _communities;
+  bool _relabel_before_second_phase;
 };
 
 //

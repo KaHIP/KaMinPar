@@ -8,6 +8,8 @@
  ******************************************************************************/
 #pragma once
 
+#include <memory>
+
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/refinement/refiner.h"
@@ -17,9 +19,6 @@ namespace kaminpar::shm {
 template <typename Graph> class JetRefinerImpl;
 
 class JetRefiner : public Refiner {
-  using JetRefinerCSRImpl = JetRefinerImpl<CSRGraph>;
-  using JetRefinerCompressedImpl = JetRefinerImpl<CompressedGraph>;
-
 public:
   JetRefiner(const Context &ctx);
   ~JetRefiner() override;
@@ -37,8 +36,8 @@ public:
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
 private:
-  std::unique_ptr<JetRefinerCSRImpl> _csr_impl;
-  std::unique_ptr<JetRefinerCompressedImpl> _compressed_impl;
+  const Context &_ctx;
+  std::unique_ptr<ReifiedGraphComponent<JetRefinerImpl>> _impl;
 };
 
 } // namespace kaminpar::shm

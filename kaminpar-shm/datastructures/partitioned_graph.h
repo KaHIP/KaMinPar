@@ -477,14 +477,4 @@ template <typename Lambda> decltype(auto) reified(const PartitionedGraph &p_grap
   return reified(p_graph.graph(), std::forward<Lambda>(l));
 }
 
-template <typename Lambda1, typename Lambda2>
-decltype(auto) reified(PartitionedGraph &p_graph, Lambda1 &&l1, Lambda2 &&l2) {
-  return reified(p_graph.graph(), std::forward<Lambda1>(l1), std::forward<Lambda2>(l2));
-}
-
-template <typename Lambda1, typename Lambda2>
-decltype(auto) reified(const PartitionedGraph &p_graph, Lambda1 &&l1, Lambda2 &&l2) {
-  return reified(p_graph.graph(), std::forward<Lambda1>(l1), std::forward<Lambda2>(l2));
-}
-
 } // namespace kaminpar::shm
