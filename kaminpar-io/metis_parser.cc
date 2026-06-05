@@ -202,27 +202,12 @@ compute_file_chunks(const MappedFileToker &toker, const std::size_t data_begin) 
   }
 
   const std::size_t data_size = data_end - data_begin;
+  const MappedFileToker data_toker(toker, data_begin, data_end);
   const std::size_t num_threads = std::max<std::size_t>(1, tbb::this_task_arena::max_concurrency());
   constexpr std::size_t kMinChunkSize = 1 << 20;
   const std::size_t num_chunks = std::max<std::size_t>(
       1, std::min<std::size_t>(num_threads * 4, (data_size + kMinChunkSize - 1) / kMinChunkSize)
   );
-
-  const char *contents = toker.contents();
-  const auto advance_to_line_begin = [&](std::size_t position) {
-    if (position <= data_begin) {
-      return data_begin;
-    }
-    if (position >= data_end) {
-      return data_end;
-    }
-
-    while (position < data_end && contents[position - 1] != '\n') {
-      ++position;
-    }
-
-    return position;
-  };
 
   std::vector<FileChunk> chunks;
   chunks.reserve(num_chunks);
@@ -230,7 +215,8 @@ compute_file_chunks(const MappedFileToker &toker, const std::size_t data_begin) 
   std::size_t chunk_begin = data_begin;
   for (std::size_t i = 1; i <= num_chunks; ++i) {
     const std::size_t raw_end = data_begin + (i * data_size) / num_chunks;
-    const std::size_t chunk_end = i == num_chunks ? data_end : advance_to_line_begin(raw_end);
+    const std::size_t chunk_end =
+        i == num_chunks ? data_end : data_toker.advance_to_line_begin(raw_end);
 
     if (chunk_begin < chunk_end) {
       chunks.push_back({.begin = chunk_begin, .end = chunk_end});

@@ -92,6 +92,22 @@ public:
     _position = position;
   }
 
+  [[nodiscard]] std::size_t advance_to_line_begin(std::size_t position) const {
+    KASSERT(_begin <= position && position <= _end);
+    if (position <= _begin) {
+      return _begin;
+    }
+    if (position >= _end) {
+      return _end;
+    }
+
+    while (position < _end && _contents[position - 1] != '\n') {
+      ++position;
+    }
+
+    return position;
+  }
+
   inline void skip_spaces() {
     while (valid_position() && current() == ' ') {
       advance();
