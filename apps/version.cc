@@ -130,11 +130,6 @@ void print_version() {
 #else
   std::cout << "    Backward: not found or disabled\n";
 #endif
-#ifdef KAMINPAR_MTKAHYPAR_FOUND
-  std::cout << "    Mt-KaHyPar: found and enabled\n";
-#else
-  std::cout << "    Mt-KaHyPar: not found or disabled\n";
-#endif
   std::cout << "    TBB: " << TBB_VERSION_STRING << "\n";
   std::cout << "  Assertion levels: always";
 #if KASSERT_ENABLED(ASSERTION_LEVEL_LIGHT)

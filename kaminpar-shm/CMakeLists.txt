@@ -17,7 +17,3 @@ endif ()
 if (KAMINPAR_BUILD_WITH_WHFC)
     target_include_directories(KaMinPar PRIVATE $<BUILD_INTERFACE:${whfc_SOURCE_DIR}>)
 endif ()
-
-if (KAMINPAR_BUILD_WITH_MTKAHYPAR)
-    target_link_libraries(KaMinPar PRIVATE MtKaHyPar::mtkahypar)
-endif ()

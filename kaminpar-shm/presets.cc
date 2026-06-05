@@ -427,13 +427,6 @@ Context create_default_context() {
                       .final_gain_temp_on_coarse_level = 0.75,
                       .balancing_algorithm = RefinementAlgorithm::OVERLOAD_BALANCER,
                   },
-              .mtkahypar =
-                  {
-                      .config_filename = "",
-                      .coarse_config_filename = "",
-                      .fine_config_filename = "",
-                      .disable_logging = false,
-                  },
           },
       .parallel =
           {

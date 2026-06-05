@@ -216,7 +216,6 @@ enum class RefinementAlgorithm {
   UNCONSTRAINED_FM,
   TWOWAY_FLOW,
   JET,
-  MTKAHYPAR,
 };
 
 struct BalancerRefinementContext {};
@@ -339,13 +338,6 @@ struct JetRefinementContext {
   RefinementAlgorithm balancing_algorithm;
 };
 
-struct MtKaHyParRefinementContext {
-  std::string config_filename;
-  std::string coarse_config_filename;
-  std::string fine_config_filename;
-  bool disable_logging;
-};
-
 struct RefinementContext {
   std::vector<RefinementAlgorithm> algorithms;
 
@@ -354,7 +346,6 @@ struct RefinementContext {
   KwayFMRefinementContext kway_fm;
   TwowayFlowRefinementContext twoway_flow;
   JetRefinementContext jet;
-  MtKaHyParRefinementContext mtkahypar;
 
   [[nodiscard]] bool includes_algorithm(const RefinementAlgorithm algorithm) const {
     return std::find(algorithms.begin(), algorithms.end(), algorithm) != algorithms.end();
