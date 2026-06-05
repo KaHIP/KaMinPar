@@ -20,9 +20,10 @@ namespace kaminpar::shm::io {
  * All graph file formats that can be parsed.
  */
 enum class GraphFileFormat {
-  METIS,
-  PARHIP,
-  COMPRESSED,
+  METIS = 0,
+  PARHIP = 1,
+  COMPRESSED = 2,
+  METIS_PARALLEL = 3,
 };
 
 /*!

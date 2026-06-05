@@ -27,6 +27,8 @@ std::optional<Graph> read_graph(
   switch (file_format) {
   case GraphFileFormat::METIS:
     return metis::read_graph(filename, compress, ordering);
+  case GraphFileFormat::METIS_PARALLEL:
+    return metis::read_graph(filename, compress, ordering, true);
   case GraphFileFormat::PARHIP:
     return parhip::read_graph(filename, compress, ordering);
     break;
@@ -42,6 +44,7 @@ void write_graph(
 ) {
   switch (file_format) {
   case GraphFileFormat::METIS:
+  case GraphFileFormat::METIS_PARALLEL:
     metis::write_graph(filename, graph);
     break;
   case GraphFileFormat::PARHIP:

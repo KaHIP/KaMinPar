@@ -7,9 +7,11 @@
  ******************************************************************************/
 #pragma once
 
+#include <algorithm>
 #include <cctype>
 #include <cstdint>
 #include <exception>
+#include <limits>
 #include <string>
 
 #include <fcntl.h>
@@ -35,7 +37,11 @@ private:
 
 class MappedFileToker {
 public:
-  explicit MappedFileToker(const std::string &filename) {
+  explicit MappedFileToker(
+      const std::string &filename,
+      const std::size_t begin = 0,
+      const std::size_t end = std::numeric_limits<std::size_t>::max()
+  ) {
     _fd = open(filename.c_str(), O_RDONLY);
     if (_fd == -1) {
       throw TokerException("Cannot open input file");
@@ -47,7 +53,6 @@ public:
       throw TokerException("Cannot get input file status");
     }
 
-    _position = 0;
     _length = static_cast<std::size_t>(file_info.st_size);
 
     _contents = static_cast<char *>(mmap(nullptr, _length, PROT_READ, MAP_PRIVATE, _fd, 0));
@@ -55,18 +60,35 @@ public:
       close(_fd);
       throw TokerException("Cannot map input file into memory");
     }
+
+    _owns_mapping = true;
+    set_bounds(begin, end);
   }
 
+  MappedFileToker(const MappedFileToker &parent, const std::size_t begin, const std::size_t end)
+      : _fd(-1),
+        _length(parent._length),
+        _contents(parent._contents),
+        _owns_mapping(false) {
+    set_bounds(begin, end);
+  }
+
+  MappedFileToker(const MappedFileToker &) = delete;
+  MappedFileToker &operator=(const MappedFileToker &) = delete;
+
   ~MappedFileToker() {
-    munmap(_contents, _length);
-    close(_fd);
+    if (_owns_mapping) {
+      munmap(_contents, _length);
+      close(_fd);
+    }
   }
 
   void reset() {
-    _position = 0;
+    _position = _begin;
   }
 
   void seek(const std::size_t position) {
+    KASSERT(_begin <= position && position <= _end);
     _position = position;
   }
 
@@ -151,7 +173,7 @@ public:
   }
 
   [[nodiscard]] inline bool valid_position() const {
-    return _position < _length;
+    return _position < _end;
   }
 
   [[nodiscard]] inline char current() const {
@@ -170,11 +192,27 @@ public:
     return _length;
   }
 
+  [[nodiscard]] inline const char *contents() const {
+    return _contents;
+  }
+
 private:
-  int _fd;
-  std::size_t _position;
-  std::size_t _length;
-  char *_contents;
+  void set_bounds(const std::size_t begin, const std::size_t end) {
+    const std::size_t bounded_end = std::min(end, _length);
+    KASSERT(begin <= bounded_end && bounded_end <= _length);
+
+    _begin = begin;
+    _end = bounded_end;
+    _position = _begin;
+  }
+
+  int _fd = -1;
+  std::size_t _position = 0;
+  std::size_t _length = 0;
+  char *_contents = nullptr;
+  std::size_t _begin = 0;
+  std::size_t _end = 0;
+  bool _owns_mapping = false;
 };
 
 } // namespace kaminpar::io

@@ -213,6 +213,7 @@ The output should be stored in a file and can be used by the -C,--config option.
           CLI::CheckedTransformer(
               std::unordered_map<std::string, io::GraphFileFormat>{
                   {"metis", io::GraphFileFormat::METIS},
+                  {"metis-parallel", io::GraphFileFormat::METIS_PARALLEL},
                   {"parhip", io::GraphFileFormat::PARHIP},
                   {"compressed", io::GraphFileFormat::COMPRESSED},
               },
@@ -221,6 +222,7 @@ The output should be stored in a file and can be used by the -C,--config option.
       )
       ->description(R"(Graph file formats:
   - metis
+  - metis-parallel
   - parhip
   - compressed)")
       ->capture_default_str();
