@@ -90,7 +90,7 @@ public:
     const std::size_t max_iterations =
         _r_ctx.lp.num_iterations == 0 ? kInfiniteIterations : _r_ctx.lp.num_iterations;
     for (std::size_t iteration = 0; iteration < max_iterations; ++iteration) {
-      SCOPED_TIMER("Iteration", std::to_string(iteration));
+      SCOPED_TIMER(iteration == 0 ? "Initial iteration" : "Remaining iterations");
 
       if (Base::perform_iteration() == 0) {
         break;

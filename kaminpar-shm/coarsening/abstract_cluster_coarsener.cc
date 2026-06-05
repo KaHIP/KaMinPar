@@ -146,8 +146,6 @@ void AbstractClusterCoarsener::compute_clustering_for_current_graph(StaticArray<
 }
 
 PartitionedGraph AbstractClusterCoarsener::uncoarsen(PartitionedGraph &&p_graph) {
-  SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
-
   const BlockID p_graph_k = p_graph.k();
   const auto p_graph_partition = p_graph.take_raw_partition();
 

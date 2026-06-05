@@ -79,8 +79,8 @@ public:
   }
 
   void free() {
-    SCOPED_HEAP_PROFILER("Free");
-    SCOPED_TIMER("Free");
+    SCOPED_HEAP_PROFILER("Deallocation");
+    SCOPED_TIMER("Deallocation");
 
     Base::free();
     ClusterWeightBase::free();
@@ -92,7 +92,7 @@ public:
     Base::initialize(&graph, graph.n());
 
     for (std::size_t iteration = 0; iteration < _lp_ctx.num_iterations; ++iteration) {
-      SCOPED_TIMER("Iteration", std::to_string(iteration));
+      SCOPED_TIMER(iteration == 0 ? "Initial iteration" : "Remaining iterations");
       if (Base::perform_iteration() == 0) {
         break;
       }
