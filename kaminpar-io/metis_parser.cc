@@ -172,7 +172,7 @@ struct FileChunk {
 };
 
 struct ParsedChunk {
-  std::vector<EdgeID> xadj;
+  std::vector<EdgeID> nodes;
   std::vector<NodeID> edges;
   std::vector<NodeWeight> node_weights;
   std::vector<EdgeWeight> edge_weights;
@@ -180,7 +180,7 @@ struct ParsedChunk {
   std::int64_t total_edge_weight = 0;
 
   [[nodiscard]] NodeID num_nodes() const {
-    return static_cast<NodeID>(xadj.size() - 1);
+    return static_cast<NodeID>(nodes.size() - 1);
   }
 
   [[nodiscard]] EdgeID num_edges() const {
@@ -190,8 +190,8 @@ struct ParsedChunk {
 
 struct ChunkToFinalize {
   ParsedChunk parsed;
-  NodeID vbase = 0;
-  EdgeID ebase = 0;
+  NodeID node_offset = 0;
+  EdgeID edge_offset = 0;
 };
 
 std::vector<FileChunk>
@@ -247,7 +247,7 @@ parse_chunk(const MappedFileToker &mapped_file, const FileChunk chunk, const Met
   MappedFileToker toker(mapped_file, chunk.begin, chunk.end);
 
   ParsedChunk parsed;
-  parsed.xadj.push_back(0);
+  parsed.nodes.push_back(0);
 
   while (toker.valid_position()) {
     toker.skip_spaces();
@@ -299,7 +299,7 @@ parse_chunk(const MappedFileToker &mapped_file, const FileChunk chunk, const Met
         parsed.edges.size() <= static_cast<std::uint64_t>(std::numeric_limits<EdgeID>::max()),
         "too many adjacency entries in chunk"
     );
-    parsed.xadj.push_back(static_cast<EdgeID>(parsed.edges.size()));
+    parsed.nodes.push_back(static_cast<EdgeID>(parsed.edges.size()));
 
     if (toker.valid_position()) {
       toker.consume_char('\n');
@@ -320,9 +320,9 @@ void finalize_chunk(
     StaticArray<EdgeWeight> &edge_weights
 ) {
   for (NodeID i = 0; i < parsed.num_nodes(); ++i) {
-    nodes[vbase + i] = ebase + parsed.xadj[i];
+    nodes[vbase + i] = ebase + parsed.nodes[i];
 
-    for (EdgeID e = parsed.xadj[i]; e < parsed.xadj[i + 1]; ++e) {
+    for (EdgeID e = parsed.nodes[i]; e < parsed.nodes[i + 1]; ++e) {
       KASSERT(vbase + i != parsed.edges[e], "detected illegal self-loop");
     }
   }
@@ -535,8 +535,8 @@ Graph csr_read_parallel(const std::string &filename, const bool sorted) {
         chunks_to_finalize.push_back(
             ChunkToFinalize{
                 .parsed = std::move(parsed),
-                .vbase = static_cast<NodeID>(next_node),
-                .ebase = static_cast<EdgeID>(next_edge),
+                .node_offset = static_cast<NodeID>(next_node),
+                .edge_offset = static_cast<EdgeID>(next_edge),
             }
         );
 
@@ -552,7 +552,14 @@ Graph csr_read_parallel(const std::string &filename, const bool sorted) {
 
     for (ChunkToFinalize &chunk : chunks_to_finalize) {
       finalize_chunk(
-          chunk.parsed, chunk.vbase, chunk.ebase, header, nodes, edges, node_weights, edge_weights
+          chunk.parsed,
+          chunk.node_offset,
+          chunk.edge_offset,
+          header,
+          nodes,
+          edges,
+          node_weights,
+          edge_weights
       );
     }
   };
