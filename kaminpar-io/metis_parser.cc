@@ -11,7 +11,6 @@
 #include <atomic>
 #include <cctype>
 #include <cstdint>
-#include <exception>
 #include <fstream>
 #include <limits>
 #include <memory>
@@ -316,11 +315,15 @@ void finalize_chunk(
   std::copy(parsed.edges.begin(), parsed.edges.end(), edges.begin() + edge_offset);
 
   if (header.has_node_weights) {
-    std::copy(parsed.node_weights.begin(), parsed.node_weights.end(), node_weights.begin() + node_offset);
+    std::copy(
+        parsed.node_weights.begin(), parsed.node_weights.end(), node_weights.begin() + node_offset
+    );
   }
 
   if (header.has_edge_weights) {
-    std::copy(parsed.edge_weights.begin(), parsed.edge_weights.end(), edge_weights.begin() + edge_offset);
+    std::copy(
+        parsed.edge_weights.begin(), parsed.edge_weights.end(), edge_weights.begin() + edge_offset
+    );
   }
 }
 
@@ -455,26 +458,15 @@ Graph csr_read_parallel(const std::string &filename, const bool sorted) {
 
   std::atomic<std::size_t> next_chunk_to_claim{0};
   std::atomic<std::size_t> committed_frontier{0};
-  std::atomic<bool> failed{false};
 
   std::size_t next_chunk_to_commit = 0;
   std::int64_t total_node_weight = 0;
   std::int64_t total_edge_weight = 0;
 
   std::mutex commit_mutex;
-  std::mutex failure_mutex;
-  std::exception_ptr failure;
-
-  const auto record_failure = [&](std::exception_ptr exception) {
-    bool expected = false;
-    if (failed.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
-      const std::lock_guard<std::mutex> lock(failure_mutex);
-      failure = exception;
-    }
-  };
 
   const auto claim_chunk = [&]() -> std::optional<std::size_t> {
-    while (!failed.load(std::memory_order_acquire)) {
+    for (;;) {
       const std::size_t chunk_id = next_chunk_to_claim.load(std::memory_order_acquire);
       if (chunk_id >= file_chunks.size()) {
         return std::nullopt;
@@ -493,8 +485,6 @@ Graph csr_read_parallel(const std::string &filename, const bool sorted) {
         return chunk_id;
       }
     }
-
-    return std::nullopt;
   };
 
   const auto commit_ready_chunks = [&]() {
@@ -551,24 +541,17 @@ Graph csr_read_parallel(const std::string &filename, const bool sorted) {
   };
 
   tbb::parallel_for<std::size_t>(0, num_workers, [&](const std::size_t) {
-    try {
-      while (const std::optional<std::size_t> chunk_id = claim_chunk()) {
-        ParsedChunk parsed = parse_chunk(toker, file_chunks[*chunk_id], header);
+    while (const std::optional<std::size_t> chunk_id = claim_chunk()) {
+      ParsedChunk parsed = parse_chunk(toker, file_chunks[*chunk_id], header);
 
-        {
-          const std::lock_guard<std::mutex> lock(commit_mutex);
-          parsed_chunks[*chunk_id] = std::make_unique<ParsedChunk>(std::move(parsed));
-        }
-        commit_ready_chunks();
+      {
+        const std::lock_guard<std::mutex> lock(commit_mutex);
+        parsed_chunks[*chunk_id] = std::make_unique<ParsedChunk>(std::move(parsed));
       }
-    } catch (...) {
-      record_failure(std::current_exception());
+      commit_ready_chunks();
     }
   });
 
-  if (failure) {
-    std::rethrow_exception(failure);
-  }
   commit_ready_chunks();
 
   KASSERT(
