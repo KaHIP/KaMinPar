@@ -33,7 +33,6 @@ option(KAMINPAR_BUILD_EXPERIMENTAL_FEATURES "Include experimental features in th
 option(KAMINPAR_DOWNLOAD_TBB "Always download TBB even if it's available on the system." OFF)
 option(KAMINPAR_DOWNLOAD_KASSERT "Always download kassert even if it's available on the system." OFF)
 option(KAMINPAR_DOWNLOAD_KAGEN "Always download KaGen even if it's available on the system." OFF)
-option(KAMINPAR_DOWNLOAD_MTKAHYPAR "Always download Mt-KaHyPar even if it's available on the system." OFF)
 option(KAMINPAR_DOWNLOAD_GTEST "Always download GoogleTest even if it's available on the system." OFF)
 
 # Control how to build
@@ -58,7 +57,6 @@ option(KAMINPAR_BUILD_WITH_MTUNE_NATIVE "Build with -mtune=native." ON)
 option(KAMINPAR_BUILD_WITH_KASSERT "Use KASSERT for assertions. If disabled, the assertion level is ignored." ON)
 option(KAMINPAR_BUILD_WITH_SPARSEHASH "Build with Google Sparsehash." ON)
 option(KAMINPAR_BUILD_WITH_WHFC "Build with Weighted HyperFlowCutter." OFF)
-option(KAMINPAR_BUILD_WITH_MTKAHYPAR "If Mt-KaHyPar can be found, build the Mt-KaHyPar initial partitioner." OFF)
 option(KAMINPAR_BUILD_WITH_BACKWARD "Build with backward-cpp for stack traces (distributed partitioner only)." OFF)
 
 # Control whether to install KaMinPar
@@ -385,35 +383,6 @@ if(KAMINPAR_BUILD_WITH_KASSERT)
   list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_KASSERT_FOUND")
 endif()
 
-# We optionally use Mt-KaHyPar as an initial partitioner and refiner
-if(KAMINPAR_BUILD_WITH_MTKAHYPAR)
-  if(NOT KAMINPAR_DOWNLOAD_MTKAHYPAR)
-    find_package(MtKaHyPar QUIET)
-  endif()
-
-  if(MtKaHyPar_FOUND)
-    message(STATUS "Found Mt-KaHyPar version ${MtKaHyPar_VERSION} on the system")
-  else()
-    message(STATUS "Using FetchContent to get Mt-KaHyPar...")
-    set(KAMINPAR_DOWNLOAD_MTKAHYPAR ON)
-
-    FetchContent_Declare(
-      MtKaHyPar
-      GIT_REPOSITORY https://github.com/kahypar/mt-kahypar.git
-      GIT_TAG ba647033b3368bf5178d86ac1e52b042d57e4f2d # v1.5.2
-      EXCLUDE_FROM_ALL)
-
-    set(KAHYPAR_ENABLE_ARCH_COMPILE_OPTIMIZATIONS ${KAMINPAR_BUILD_WITH_MTUNE_NATIVE} CACHE BOOL "" FORCE)
-    if(KAMINPAR_64BIT_IDS OR KAMINPAR_64BIT_NODE_IDS OR KAMINPAR_64BIT_EDGE_IDS OR KAMINPAR_64BIT_WEIGHTS)
-      set(KAHYPAR_USE_64_BIT_IDS ON CACHE BOOL "" FORCE)
-    endif()
-
-    FetchContent_MakeAvailable(MtKaHyPar)
-  endif()
-
-  list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_MTKAHYPAR_FOUND")
-endif()
-
 # We optionally use WHFC for flow refinement
 if(KAMINPAR_BUILD_WITH_WHFC)
   message(STATUS "Using FetchContent to get WHFC...")
@@ -595,10 +564,6 @@ endif ()
 
 if(KAMINPAR_BUILD_WITH_KASSERT AND KAMINPAR_DOWNLOAD_KASSERT)
   list(APPEND KAMINPAR_INSTALL_TARGETS kassert_base kassert)
-endif()
-
-if(KAMINPAR_BUILD_WITH_MTKAHYPAR AND KAMINPAR_DOWNLOAD_MTKAHYPAR)
-  list(APPEND KAMINPAR_INSTALL_TARGETS mtkahypar)
 endif()
 
 if(KAMINPAR_BUILD_APPS)

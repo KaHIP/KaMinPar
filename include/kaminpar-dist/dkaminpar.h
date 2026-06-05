@@ -87,7 +87,6 @@ enum class ClusteringAlgorithm {
 
 enum class InitialPartitioningAlgorithm {
   KAMINPAR,
-  MTKAHYPAR,
   RANDOM,
 };
 
@@ -98,7 +97,6 @@ enum class RefinementAlgorithm {
   JET_REFINER,
   HYBRID_NODE_BALANCER,
   HYBRID_CLUSTER_BALANCER,
-  MTKAHYPAR_REFINER,
 };
 
 enum class GraphOrdering {
@@ -217,13 +215,6 @@ struct LabelPropagationRefinementContext {
   bool ignore_probabilities;
 };
 
-struct MtKaHyParRefinementContext {
-  std::string config_filename;
-  std::string fine_config_filename;
-  std::string coarse_config_filename;
-  bool only_run_on_root;
-};
-
 struct CoarseningContext {
   // Global clustering
   std::size_t max_global_clustering_levels;
@@ -333,8 +324,6 @@ struct RefinementContext {
   ClusterBalancerContext cluster_balancer;
 
   JetRefinementContext jet;
-
-  MtKaHyParRefinementContext mtkahypar;
 
   [[nodiscard]] bool includes_algorithm(RefinementAlgorithm algorithm) const;
 };

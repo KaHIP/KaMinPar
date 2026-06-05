@@ -28,7 +28,6 @@
 #include "kaminpar-shm/coarsening/sparsification_cluster_coarsener.h"
 
 // Refinement
-#include "kaminpar-shm/refinement/adapters/mtkahypar_refiner.h"
 #include "kaminpar-shm/refinement/balancer/overload_balancer.h"
 #include "kaminpar-shm/refinement/balancer/underload_balancer.h"
 #include "kaminpar-shm/refinement/flow/twoway_flow_refiner.h"
@@ -128,9 +127,6 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
 
   case RefinementAlgorithm::JET:
     return std::make_unique<JetRefiner>(ctx);
-
-  case RefinementAlgorithm::MTKAHYPAR:
-    return std::make_unique<MtKaHyParRefiner>(ctx);
   }
 
   __builtin_unreachable();

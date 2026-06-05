@@ -12,7 +12,3 @@ set_target_properties(dKaMinPar PROPERTIES KASSERT_ASSERTION_LEVEL ${KAMINPAR_AS
 if (KAMINPAR_BUILD_WITH_SPARSEHASH)
     target_link_libraries(dKaMinPar PRIVATE Sparsehash::Sparsehash)
 endif ()
-
-if (KAMINPAR_BUILD_WITH_MTKAHYPAR)
-    target_link_libraries(dKaMinPar PRIVATE MtKaHyPar::mtkahypar)
-endif ()

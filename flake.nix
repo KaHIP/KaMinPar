@@ -27,7 +27,7 @@
 
         propagatedBuildInputs = builtins.attrValues {
           inherit (pkgs) mpi sparsehash tbb_2022_0;
-          inherit kagen kassert mt-kahypar;
+          inherit kagen kassert;
         };
 
         cmakeFlags = [
@@ -139,100 +139,6 @@
           platforms = lib.platforms.unix;
         };
       });
-
-      mt-kahypar =
-        let
-          kahypar-shared-resources-src = pkgs.fetchFromGitHub {
-            owner = "kahypar";
-            repo = "kahypar-shared-resources";
-            rev = "6d5c8e2444e4310667ec1925e995f26179d7ee88";
-            hash = "sha256-K3tQ9nSJrANdJPf7v/ko2etQLDq2f7Z0V/kvDuWKExM=";
-          };
-
-          whfc-src = pkgs.fetchFromGitHub {
-            owner = "larsgottesbueren";
-            repo = "WHFC";
-            rev = "30b0eeb0e49577d06c3deb09a44b035d81c529d2";
-            hash = "sha256-2+l3PGOT3dqtL39OZHNQGNwrvEH75xXJOK5SaXmDk8A=";
-          };
-
-          growt-src = pkgs.fetchFromGitHub {
-            owner = "TooBiased";
-            repo = "growt";
-            rev = "0c1148ebcdfd4c04803be79706533ad09cc81d37";
-            hash = "sha256-4Vm4EiwmwCs3nyBdRg/MAk8SUWtX6kTukj8gJ7HfJNY=";
-          };
-
-          parlay-src = pkgs.fetchFromGitHub {
-            owner = "cmuparlay";
-            repo = "parlaylib";
-            rev = "e1f1dc0ccf930492a2723f7fbef8510d35bf57f5";
-            hash = "sha256-Hg4OVHC1LDvBf1tFUMW7YAugnFk0ju1VzgEzT2OoT8Y=";
-          };
-        in
-        stdenv.mkDerivation {
-          pname = "Mt-KaHyPar";
-          version = "1.5.2";
-
-          src = pkgs.fetchFromGitHub {
-            owner = "kahypar";
-            repo = "mt-kahypar";
-            rev = "ba647033b3368bf5178d86ac1e52b042d57e4f2d";
-            hash = "sha256-VraSGYl6HoJ0ruBwN3p3kOM+BZU2dfbcRhHf/UY9wxI=";
-          };
-
-          preConfigure = ''
-            # Remove the FetchContent_Populate calls in CMakeLists.txt
-            sed -i '347,359d' CMakeLists.txt
-            sed -i '363,368d' CMakeLists.txt
-
-            # Set up WHFC dependency
-            mkdir -p external_tools
-            ln -s ${whfc-src} external_tools/WHFC
-
-            # Patch dependency paths to Nix sources
-            substituteInPlace CMakeLists.txt \
-              --replace ''\'''${CMAKE_CURRENT_BINARY_DIR}/external_tools/kahypar-shared-resources' '${kahypar-shared-resources-src}'
-
-            substituteInPlace CMakeLists.txt \
-              --replace ''\'''${CMAKE_CURRENT_BINARY_DIR}/external_tools)' 'external_tools)'
-
-            substituteInPlace CMakeLists.txt \
-              --replace ''\'''${CMAKE_CURRENT_BINARY_DIR}/external_tools/growt' '${growt-src}'
-
-            substituteInPlace CMakeLists.txt \
-              --replace ''\'''${CMAKE_CURRENT_BINARY_DIR}/external_tools/parlay' '${parlay-src}'
-          '';
-
-          nativeBuildInputs = builtins.attrValues {
-            inherit (pkgs) cmake ninja;
-          };
-
-          buildInputs = builtins.attrValues {
-            inherit (pkgs) boost hwloc;
-          };
-
-          propagatedBuildInputs = builtins.attrValues {
-            inherit (pkgs) tbb_2022_0;
-          };
-
-          cmakeFlags = [
-            # The cmake package does not handle absolute CMAKE_INSTALL_INCLUDEDIR
-            # correctly (setting it to an absolute path causes include files to go to
-            # $out/$out/include, because the absolute path is interpreted with root
-            # at $out).
-            # See: https://github.com/NixOS/nixpkgs/issues/144170
-            (lib.cmakeFeature "CMAKE_INSTALL_INCLUDEDIR" "include")
-            (lib.cmakeFeature "CMAKE_INSTALL_LIBDIR" "lib")
-          ];
-
-          meta = {
-            description = "Shared-memory multilevel graph and hypergraph partitioner";
-            homepage = "https://github.com/kahypar/mt-kahypar";
-            license = lib.licenses.mit;
-            platforms = lib.platforms.unix;
-          };
-        };
 
       kaminpar-python = pkgs.python3Packages.buildPythonPackage {
         pname = "kaminpar";
@@ -386,10 +292,7 @@
           packages = builtins.attrValues {
             # (d)KaMinPar inputs
             inherit (pkgs) cmake gtest mpi numactl sparsehash tbb_2022_0;
-            inherit kagen kassert mt-kahypar;
-
-            # Additional Mt-KaHyPar inputs if build from source for KaMinPar
-            inherit (pkgs) boost hwloc;
+            inherit kagen kassert;
 
             # Development inputs
             inherit (pkgs) ccache ninja mold-wrapped gdb dpkg rpm pre-commit gersemi;

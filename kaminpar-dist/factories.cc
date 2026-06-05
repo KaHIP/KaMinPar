@@ -18,11 +18,9 @@
 
 // Initial Partitioning
 #include "kaminpar-dist/initial_partitioning/kaminpar_initial_partitioner.h"
-#include "kaminpar-dist/initial_partitioning/mtkahypar_initial_partitioner.h"
 #include "kaminpar-dist/initial_partitioning/random_initial_partitioner.h"
 
 // Refinement
-#include "kaminpar-dist/refinement/adapters/mtkahypar_refiner.h"
 #include "kaminpar-dist/refinement/balancer/cluster_balancer.h"
 #include "kaminpar-dist/refinement/balancer/node_balancer.h"
 #include "kaminpar-dist/refinement/jet/jet_refiner.h"
@@ -74,9 +72,6 @@ create_initial_partitioner(const Context &ctx, const InitialPartitioningAlgorith
   case InitialPartitioningAlgorithm::KAMINPAR:
     return std::make_unique<KaMinParInitialPartitioner>(ctx);
 
-  case InitialPartitioningAlgorithm::MTKAHYPAR:
-    return std::make_unique<MtKaHyParInitialPartitioner>(ctx);
-
   case InitialPartitioningAlgorithm::RANDOM:
     return std::make_unique<RandomInitialPartitioner>();
   }
@@ -108,9 +103,6 @@ create_refiner(const Context &ctx, const RefinementAlgorithm algorithm) {
 
   case RefinementAlgorithm::HYBRID_CLUSTER_BALANCER:
     return std::make_unique<ClusterBalancerFactory>(ctx);
-
-  case RefinementAlgorithm::MTKAHYPAR_REFINER:
-    return std::make_unique<MtKaHyParRefinerFactory>(ctx);
   }
 
   __builtin_unreachable();

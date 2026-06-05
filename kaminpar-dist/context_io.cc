@@ -96,7 +96,6 @@ std::unordered_map<std::string, InitialPartitioningAlgorithm>
 get_initial_partitioning_algorithms() {
   return {
       {"kaminpar", InitialPartitioningAlgorithm::KAMINPAR},
-      {"mtkahypar", InitialPartitioningAlgorithm::MTKAHYPAR},
       {"random", InitialPartitioningAlgorithm::RANDOM},
   };
 }
@@ -105,8 +104,6 @@ std::ostream &operator<<(std::ostream &out, const InitialPartitioningAlgorithm a
   switch (algorithm) {
   case InitialPartitioningAlgorithm::KAMINPAR:
     return out << "kaminpar";
-  case InitialPartitioningAlgorithm::MTKAHYPAR:
-    return out << "mtkahypar";
   case InitialPartitioningAlgorithm::RANDOM:
     return out << "random";
   }
@@ -132,7 +129,6 @@ std::unordered_map<std::string, RefinementAlgorithm> get_kway_refinement_algorit
       {"hybrid-cluster-balancer", RefinementAlgorithm::HYBRID_CLUSTER_BALANCER},
 
       {"jet", RefinementAlgorithm::JET_REFINER},
-      {"mtkahypar", RefinementAlgorithm::MTKAHYPAR_REFINER},
   };
 }
 
@@ -141,7 +137,6 @@ std::unordered_map<std::string, RefinementAlgorithm> get_balancing_algorithms() 
       {"noop", RefinementAlgorithm::NOOP},
       {"hybrid-node-balancer", RefinementAlgorithm::HYBRID_NODE_BALANCER},
       {"hybrid-cluster-balancer", RefinementAlgorithm::HYBRID_CLUSTER_BALANCER},
-      {"mtkahypar", RefinementAlgorithm::MTKAHYPAR_REFINER},
   };
 }
 
@@ -155,8 +150,6 @@ std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm)
     return out << "colored-lp";
   case RefinementAlgorithm::JET_REFINER:
     return out << "jet";
-  case RefinementAlgorithm::MTKAHYPAR_REFINER:
-    return out << "mtkahypar";
   case RefinementAlgorithm::HYBRID_NODE_BALANCER:
     return out << "hybrid-node-balancer";
   case RefinementAlgorithm::HYBRID_CLUSTER_BALANCER:

@@ -229,13 +229,6 @@ Context create_default_context() {
                       .balancing_algorithm = RefinementAlgorithm::HYBRID_NODE_BALANCER,
                       .gain_cache_strategy = GainCacheStrategy::ON_THE_FLY,
                   },
-              .mtkahypar =
-                  {
-                      .config_filename = "",
-                      .fine_config_filename = "",
-                      .coarse_config_filename = "",
-                      .only_run_on_root = true,
-                  },
           },
       .debug = {
           .graph_filename = "<NA>",
@@ -266,7 +259,6 @@ Context create_europar23_fast_context() {
 
 Context create_europar23_strong_context() {
   Context ctx = create_europar23_fast_context();
-  ctx.initial_partitioning.algorithm = InitialPartitioningAlgorithm::MTKAHYPAR;
   ctx.coarsening.global_lp.num_iterations = 5;
   return ctx;
 }
