@@ -297,8 +297,8 @@ parse_chunk(const MappedFileToker &mapped_file, const FileChunk chunk, const Met
 
 void finalize_chunk(
     ParsedChunk &parsed,
-    const NodeID vbase,
-    const EdgeID ebase,
+    const NodeID node_offset,
+    const EdgeID edge_offset,
     const MetisHeader header,
     StaticArray<EdgeID> &nodes,
     StaticArray<NodeID> &edges,
@@ -306,21 +306,21 @@ void finalize_chunk(
     StaticArray<EdgeWeight> &edge_weights
 ) {
   for (NodeID i = 0; i < parsed.num_nodes(); ++i) {
-    nodes[vbase + i] = ebase + parsed.nodes[i];
+    nodes[node_offset + i] = edge_offset + parsed.nodes[i];
 
     for (EdgeID e = parsed.nodes[i]; e < parsed.nodes[i + 1]; ++e) {
-      KASSERT(vbase + i != parsed.edges[e], "detected illegal self-loop");
+      KASSERT(node_offset + i != parsed.edges[e], "detected illegal self-loop");
     }
   }
 
-  std::copy(parsed.edges.begin(), parsed.edges.end(), edges.begin() + ebase);
+  std::copy(parsed.edges.begin(), parsed.edges.end(), edges.begin() + edge_offset);
 
   if (header.has_node_weights) {
-    std::copy(parsed.node_weights.begin(), parsed.node_weights.end(), node_weights.begin() + vbase);
+    std::copy(parsed.node_weights.begin(), parsed.node_weights.end(), node_weights.begin() + node_offset);
   }
 
   if (header.has_edge_weights) {
-    std::copy(parsed.edge_weights.begin(), parsed.edge_weights.end(), edge_weights.begin() + ebase);
+    std::copy(parsed.edge_weights.begin(), parsed.edge_weights.end(), edge_weights.begin() + edge_offset);
   }
 }
 
