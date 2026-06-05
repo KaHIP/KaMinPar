@@ -643,6 +643,9 @@ std::optional<Graph> read_graph(
   try {
     const bool sorted = ordering == NodeOrdering::IMPLICIT_DEGREE_BUCKETS;
     if (compress && parallel) {
+      LOG_WARNING << "On-the-fly parallel compression is not implement for METIS graphs. This will "
+                     "use extra memory.";
+
       Graph graph = csr_read_parallel(filename, sorted);
       return parallel_compress(graph.csr_graph());
     } else if (compress) {
