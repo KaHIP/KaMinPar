@@ -37,4 +37,17 @@ TEST(StaticArrayTest, IteratorTest) {
   }
 }
 
+TEST(StaticArrayTest, EqualityComparesAllElementBytes) {
+  StaticArray<int> lhs(2);
+  StaticArray<int> rhs(2);
+
+  lhs[0] = 0;
+  lhs[1] = 1;
+
+  rhs[0] = 0;
+  rhs[1] = 2;
+
+  EXPECT_FALSE(lhs == rhs);
+}
+
 } // namespace kaminpar
