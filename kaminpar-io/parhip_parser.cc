@@ -606,6 +606,7 @@ void write_graph(const std::string &filename, const Graph &graph) {
     const EdgeID nodes_offset_base = ParHIPHeader::kSize + num_total_nodes * sizeof(EdgeID);
 
     StaticArray<EdgeID> raw_nodes(num_total_nodes, static_array::noinit);
+    raw_nodes[0] = 0;
     tbb::parallel_for<NodeID>(0, num_nodes, [&](const NodeID u) {
       raw_nodes[u + 1] = graph.degree(u);
     });

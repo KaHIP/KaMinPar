@@ -17,7 +17,8 @@ namespace kaminpar::shm::io::metis {
 [[nodiscard]] std::optional<Graph> read_graph(
     const std::string &filename,
     bool compress = false,
-    NodeOrdering ordering = NodeOrdering::NATURAL
+    NodeOrdering ordering = NodeOrdering::NATURAL,
+    bool parallel = false
 );
 
 void write_graph(const std::string &filename, const Graph &graph);
