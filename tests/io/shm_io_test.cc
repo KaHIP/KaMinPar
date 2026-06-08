@@ -129,6 +129,8 @@ void expect_graph_eq(const Graph &actual, const GraphSnapshot &expected) {
 }
 
 std::vector<std::vector<Edge>> canonicalize_by_node_weight(const GraphSnapshot &snapshot) {
+  // This is intentionally only used with weighted_test_snapshot(), whose node weights are dense
+  // identity labels in [0, n). This keeps the comparison compact for degree-bucket reorderings.
   std::vector<std::vector<Edge>> adjacency_by_weight(snapshot.n);
   for (NodeID u = 0; u < snapshot.n; ++u) {
     const NodeID u_key = static_cast<NodeID>(snapshot.node_weights[u]);
