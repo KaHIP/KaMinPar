@@ -28,6 +28,23 @@ function(kaminpar_add_common_test target)
     message(STATUS "Enabled common test: ${target}")
 endfunction()
 
+function(kaminpar_add_io_test target)
+    add_executable(${target} ${ARGN})
+    target_link_libraries(${target} PRIVATE 
+        GTest::gtest_main
+        GTest::gmock_main
+        KaMinPar::KaMinParIO)
+    target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_compile_options(${target} PRIVATE ${KAMINPAR_WARNING_FLAGS})
+    set_target_properties(${target} PROPERTIES KASSERT_ASSERTION_LEVEL ${KAMINPAR_ASSERTION_LEVEL_CODE})
+    gtest_discover_tests(${target})
+
+    # Path to the test graphs
+    target_compile_definitions(${target} PRIVATE KAMINPAR_TEST_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+
+    message(STATUS "Enabled IO test: ${target}")
+endfunction()
+
 # Common -> Datastructures
 kaminpar_add_common_test(test_common_binary_heap common/datastructures/binary_heap_test.cc)
 kaminpar_add_common_test(test_common_fast_reset_array common/datastructures/fast_reset_array_test.cc)
@@ -46,13 +63,13 @@ kaminpar_add_common_test(test_common_parallel_quickselect common/parallel/quicks
 kaminpar_add_common_test(test_common_varint common/graph_compression/varint_test.cc)
 kaminpar_add_common_test(test_common_streamvbyte common/graph_compression/streamvbyte_test.cc)
 
+# IO
+kaminpar_add_io_test(test_shm_io io/shm_io_test.cc)
+
 # KaMinPar -> End-to-end
 kaminpar_add_shm_test(test_shm_endtoend endtoend/shm_endtoend_test.cc)
 
 # KaMinPar -> Utils
-kaminpar_add_shm_test(test_shm_io io/shm_io_test.cc)
-target_link_libraries(test_shm_io PRIVATE KaMinPar::KaMinParIO)
-target_compile_definitions(test_shm_io PRIVATE KAMINPAR_TEST_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 kaminpar_add_shm_test(test_shm_metrics shm/metrics_test.cc)
 kaminpar_add_shm_test(test_shm_subgraph_extraction shm/graphutils/subgraph_extraction_test.cc)
 kaminpar_add_shm_test(test_shm_partition_utils shm/graphutils/partition_utils_test.cc)
