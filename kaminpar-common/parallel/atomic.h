@@ -101,7 +101,7 @@ public:
   }
 
   T operator--(int) & noexcept {
-    return _value++;
+    return _value--;
   } // NOLINT
 
   T operator+=(T arg) noexcept {
