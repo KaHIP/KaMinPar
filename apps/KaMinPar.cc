@@ -6,8 +6,10 @@
  * @date:   21.09.2021
  ******************************************************************************/
 #include <cstdlib>
+#include <filesystem>
 #include <iostream>
 #include <span>
+#include <system_error>
 
 #if __has_include(<numa.h>)
 #include <numa.h>
@@ -68,6 +70,7 @@ struct ApplicationContext {
   bool disable_colors = false;
 
   std::string graph_filename = "";
+  std::string graph_cache_directory = "";
   io::GraphFileFormat input_graph_file_format = io::GraphFileFormat::METIS_PARALLEL;
 
   bool ignore_node_weights = false;
@@ -226,6 +229,13 @@ The output should be stored in a file and can be used by the -C,--config option.
   - parhip
   - compressed)")
       ->capture_default_str();
+  cli.add_option(
+         "--graph-cache-dir",
+         app.graph_cache_directory,
+         "Directory containing local copies of input graphs. If a file with the same basename as "
+         "the input graph exists in this directory and has the same size, it is used instead."
+  )
+      ->capture_default_str();
 
   cli.add_flag(
       "--ignore-node-weights",
@@ -353,6 +363,29 @@ void apply_num_vcycles_option(ApplicationContext &app, Context &ctx) {
   ctx.partitioning.vcycles.assign(static_cast<std::size_t>(app.num_vcycles), final_k);
 }
 
+std::string find_graph_in_cache_directory(const ApplicationContext &app) {
+  if (app.graph_cache_directory.empty()) {
+    return app.graph_filename;
+  }
+
+  std::error_code ec;
+  const std::filesystem::path input_graph_filename(app.graph_filename);
+  const std::filesystem::path cached_graph_filename =
+      std::filesystem::path(app.graph_cache_directory) / input_graph_filename.filename();
+
+  const auto input_graph_size = std::filesystem::file_size(input_graph_filename, ec);
+  if (ec) {
+    return app.graph_filename;
+  }
+
+  const auto cached_graph_size = std::filesystem::file_size(cached_graph_filename, ec);
+  if (ec || cached_graph_size != input_graph_size) {
+    return app.graph_filename;
+  }
+
+  return cached_graph_filename.string();
+}
+
 void output_rearranged_graph(const ApplicationContext &app, const std::vector<BlockID> &partition) {
   if (app.rearranged_graph_filename.empty()) {
     return;
@@ -447,6 +480,7 @@ int main(int argc, char *argv[]) {
   }
 
   apply_num_vcycles_option(app, ctx);
+  app.graph_filename = find_graph_in_cache_directory(app);
 
 #ifdef KAMINPAR_ENABLE_TBB_MALLOC
   // If available, use huge pages for large allocations
