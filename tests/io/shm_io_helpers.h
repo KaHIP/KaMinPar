@@ -124,14 +124,17 @@ inline void expect_graph_eq(const Graph &actual, const GraphSnapshot &expected) 
 
 inline std::vector<std::vector<Edge>> canonicalize_by_node_weight(const GraphSnapshot &snapshot) {
   // This is intentionally only used with weighted_test_snapshot(), whose node weights are dense
-  // identity labels in [0, n). This keeps the comparison compact for degree-bucket reorderings.
+  // positive identity labels in [1, n]. We normalize them to zero-based keys here, which keeps the
+  // comparison compact for degree-bucket reorderings while still respecting graph weight
+  // invariants.
   std::vector<std::vector<Edge>> adjacency_by_weight(snapshot.n);
   for (NodeID u = 0; u < snapshot.n; ++u) {
-    const NodeID u_key = static_cast<NodeID>(snapshot.node_weights[u]);
+    const NodeID u_key = static_cast<NodeID>(snapshot.node_weights[u] - 1);
     for (const Edge edge : snapshot.adjacency[u]) {
-      adjacency_by_weight[u_key].push_back(
-          {.target = static_cast<NodeID>(snapshot.node_weights[edge.target]), .weight = edge.weight}
-      );
+      adjacency_by_weight[u_key].push_back({
+          .target = static_cast<NodeID>(snapshot.node_weights[edge.target] - 1),
+          .weight = edge.weight,
+      });
     }
     std::sort(adjacency_by_weight[u_key].begin(), adjacency_by_weight[u_key].end());
   }
@@ -215,7 +218,9 @@ inline GraphSnapshot weighted_test_snapshot() {
   snapshot.n = 7;
   snapshot.node_weighted = true;
   snapshot.edge_weighted = true;
-  snapshot.node_weights = {0, 1, 2, 3, 4, 5, 6};
+  // These weights double as stable node labels in degree-bucket reordering tests. Keep them dense,
+  // unique, and positive so they are valid graph weights and easy to normalize to [0, n).
+  snapshot.node_weights = {1, 2, 3, 4, 5, 6, 7};
   snapshot.adjacency = {
       {{1, 7}, {2, 11}, {3, 13}, {4, 17}, {5, 19}, {6, 23}},
       {{0, 7}, {2, 29}},
