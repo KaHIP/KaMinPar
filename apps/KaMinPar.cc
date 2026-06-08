@@ -68,7 +68,7 @@ struct ApplicationContext {
   bool disable_colors = false;
 
   std::string graph_filename = "";
-  io::GraphFileFormat input_graph_file_format = io::GraphFileFormat::METIS;
+  io::GraphFileFormat input_graph_file_format = io::GraphFileFormat::METIS_PARALLEL;
 
   bool ignore_node_weights = false;
   bool ignore_edge_weights = false;
