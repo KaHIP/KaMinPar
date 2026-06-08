@@ -50,6 +50,9 @@ kaminpar_add_common_test(test_common_streamvbyte common/graph_compression/stream
 kaminpar_add_shm_test(test_shm_endtoend endtoend/shm_endtoend_test.cc)
 
 # KaMinPar -> Utils
+kaminpar_add_shm_test(test_shm_io io/shm_io_test.cc)
+target_link_libraries(test_shm_io PRIVATE KaMinPar::KaMinParIO)
+target_compile_definitions(test_shm_io PRIVATE KAMINPAR_TEST_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 kaminpar_add_shm_test(test_shm_metrics shm/metrics_test.cc)
 kaminpar_add_shm_test(test_shm_subgraph_extraction shm/graphutils/subgraph_extraction_test.cc)
 kaminpar_add_shm_test(test_shm_partition_utils shm/graphutils/partition_utils_test.cc)
@@ -155,7 +158,7 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
         FILES dist/graphutils/allgather_test.cc
         CORES 1 4)
 
-    # dKaMinPar -> Algorithms 
+    # dKaMinPar -> Algorithms
     kaminpar_add_dist_test(test_dist_greedy_node_coloring
         FILES dist/algorithms/greedy_node_coloring_test.cc
         CORES 1 4)
