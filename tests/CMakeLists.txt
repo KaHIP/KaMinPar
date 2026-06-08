@@ -64,7 +64,8 @@ kaminpar_add_common_test(test_common_varint common/graph_compression/varint_test
 kaminpar_add_common_test(test_common_streamvbyte common/graph_compression/streamvbyte_test.cc)
 
 # IO
-kaminpar_add_io_test(test_shm_io io/shm_io_test.cc)
+kaminpar_add_io_test(test_shm_metis_io io/shm_metis_io_test.cc)
+kaminpar_add_io_test(test_shm_parhip_io io/shm_parhip_io_test.cc)
 
 # KaMinPar -> End-to-end
 kaminpar_add_shm_test(test_shm_endtoend endtoend/shm_endtoend_test.cc)
