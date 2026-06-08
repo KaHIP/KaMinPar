@@ -21,6 +21,13 @@ TEST(ParallelAlgorithmTest, prefix_sum_with_multiple_elements_inplace) {
   EXPECT_THAT(data, ElementsAre(1, 3, 6, 10, 15));
 }
 
+TEST(ParallelAlgorithmTest, prefix_sum_with_zero_elements) {
+  std::vector<int> input;
+  std::vector<int> output{42};
+  parallel::prefix_sum(input.begin(), input.end(), output.begin());
+  EXPECT_THAT(output, ElementsAre(42));
+}
+
 TEST(ParallelAlgorithmTest, max_element_with_single_element) {
   std::vector<int> data{1};
   const int result = parallel::max_element(data);
@@ -33,6 +40,12 @@ TEST(ParallelAlgorithmTest, max_element_with_multiple_elements) {
   EXPECT_EQ(result, 10);
 }
 
+TEST(ParallelAlgorithmTest, max_element_with_negative_floating_point_elements) {
+  std::vector<double> data{-4.5, -1.25, -8.0};
+  const double result = parallel::max_element(data);
+  EXPECT_DOUBLE_EQ(result, -1.25);
+}
+
 TEST(ParallelAlgorithmTest, max_element_with_single_element_subset) {
   std::vector<int> data{1, 2, 3};
   const int result = parallel::max_element(data.begin() + 1, data.begin() + 2);
@@ -43,6 +56,12 @@ TEST(ParallelAlgorithmTest, max_element_with_iterators) {
   std::vector<int> data{1, 2, 3};
   const int result = parallel::max_element(data.begin(), data.end());
   EXPECT_EQ(result, 3);
+}
+
+TEST(ParallelAlgorithmTest, max_element_with_negative_floating_point_iterators) {
+  std::vector<double> data{-4.5, -1.25, -8.0};
+  const double result = parallel::max_element(data.begin(), data.end());
+  EXPECT_DOUBLE_EQ(result, -1.25);
 }
 
 TEST(ParallelAlgorithmTest, accumulate_with_zero_elements) {
@@ -107,10 +126,24 @@ TEST(ParallelAlgorithmTest, accumulate_large_subset) {
   EXPECT_EQ(result, (1000 * 999) / 2);
 }
 
+TEST(ParallelAlgorithmTest, accumulate_with_unary_operation) {
+  std::vector<int> data{1, 2, 3};
+  const int result = parallel::accumulate(data.begin(), data.end(), 10, [](const int value) {
+    return value * value;
+  });
+  EXPECT_EQ(result, 24);
+}
+
 TEST(ParallelAlgorithmTest, max_difference_with_zero_elements) {
   std::vector<int> data;
   const int result = parallel::max_difference(data);
   EXPECT_EQ(result, std::numeric_limits<int>::min());
+}
+
+TEST(ParallelAlgorithmTest, max_difference_with_zero_floating_point_elements) {
+  std::vector<double> data;
+  const double result = parallel::max_difference(data);
+  EXPECT_DOUBLE_EQ(result, std::numeric_limits<double>::lowest());
 }
 
 TEST(ParallelAlgorithmTest, max_difference_with_one_element) {
@@ -141,6 +174,12 @@ TEST(ParallelAlgorithmTest, max_difference_last_pair_is_max) {
   std::vector<int> data{1, 5, 6, 7, 17};
   const int result = parallel::max_difference(data);
   EXPECT_EQ(result, 10);
+}
+
+TEST(ParallelAlgorithmTest, max_difference_with_negative_floating_point_differences) {
+  std::vector<double> data{5.0, 3.5, 0.5};
+  const double result = parallel::max_difference(data);
+  EXPECT_DOUBLE_EQ(result, -1.5);
 }
 
 } // namespace kaminpar

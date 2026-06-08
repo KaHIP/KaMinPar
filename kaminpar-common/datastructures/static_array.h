@@ -192,7 +192,7 @@ public:
     if (size() != other.size()) {
       return false;
     }
-    return std::memcmp(_data, other._data, size()) == 0;
+    return std::memcmp(_data, other._data, size() * sizeof(T)) == 0;
   }
 
   [[nodiscard]] bool is_span() const {
