@@ -28,7 +28,7 @@ SET_DEBUG(false);
 namespace {
 
 struct GlobalLPClusteringConfig : public LabelPropagationConfig {
-  using RatingMap = ::kaminpar::RatingMap<EdgeWeight, GlobalNodeID, rm_backyard::Sparsehash>;
+  using RatingMap = ::kaminpar::RatingMap<EdgeWeight, GlobalNodeID, rm_backyard::FlatHashMap>;
 
   using ClusterID = GlobalNodeID;
   using ClusterWeight = GlobalNodeWeight;

@@ -17,7 +17,7 @@ git clone https://github.com/KaHiP/KaMinPar.git
 pip install KaMinPar/bindings/python
 ```
 
-When building the Python bindings from source, the dependencies of KaMinPar must be available on the system. These include CMake, Intel TBB and Sparsehash. Additionally, if you install the package via pip on a target system and Python version where no pre-built wheel is available, the package will fall back to building from the source distribution. In this case, you must also ensure that the required dependencies are installed on your system.
+When building the Python bindings from source, the dependencies of KaMinPar must be available on the system. These include CMake and Intel TBB. Additionally, if you install the package via pip on a target system and Python version where no pre-built wheel is available, the package will fall back to building from the source distribution. In this case, you must also ensure that the required dependencies are installed on your system.
 
 ## Usage
 

@@ -146,7 +146,7 @@ outputs = { self, nixpkgs, kaminpar, ... }@inputs: {
 ### Requirements
 
 * **Compiler:** C++20-ready GCC or Clang compiler
-* **Dependencies:** CMake, oneAPI TBB, Google Sparsehash (optional), MPI (optional)
+* **Dependencies:** CMake, oneAPI TBB, MPI (optional)
 * **System:** Linux (x86, ARM) or macOS (ARM)
 
 ### Instructions

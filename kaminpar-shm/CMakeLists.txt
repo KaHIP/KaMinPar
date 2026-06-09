@@ -10,10 +10,6 @@ target_link_libraries(KaMinPar PUBLIC KaMinPar::KaMinParCommon)
 target_compile_options(KaMinPar PRIVATE ${KAMINPAR_WARNING_FLAGS})
 set_target_properties(KaMinPar PROPERTIES KASSERT_ASSERTION_LEVEL ${KAMINPAR_ASSERTION_LEVEL_CODE})
 
-if (KAMINPAR_BUILD_WITH_SPARSEHASH)
-    target_link_libraries(KaMinPar PRIVATE Sparsehash::Sparsehash)
-endif ()
-
 if (KAMINPAR_BUILD_WITH_WHFC)
     target_include_directories(KaMinPar PRIVATE $<BUILD_INTERFACE:${whfc_SOURCE_DIR}>)
 endif ()

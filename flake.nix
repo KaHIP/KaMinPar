@@ -26,7 +26,7 @@
         buildInputs = [ pkgs.gtest ] ++ lib.optional stdenv.hostPlatform.isLinux pkgs.numactl;
 
         propagatedBuildInputs = builtins.attrValues {
-          inherit (pkgs) mpi sparsehash tbb_2022_0;
+          inherit (pkgs) mpi tbb_2022_0;
           inherit kagen kassert;
         };
 
@@ -195,7 +195,7 @@
           export CMAKE_ARGS="-DCMAKE_CXX_COMPILER_AR=$AR -DCMAKE_CXX_COMPILER_RANLIB=$RANLIB"
         '';
 
-        buildInputs = [ pkgs.tbb_2022_0 pkgs.sparsehash ] ++ lib.optional stdenv.hostPlatform.isLinux pkgs.numactl;
+        buildInputs = [ pkgs.tbb_2022_0 ] ++ lib.optional stdenv.hostPlatform.isLinux pkgs.numactl;
 
         dependencies = [ kassert networkit-python ];
 
@@ -291,7 +291,7 @@
         default = pkgs.mkShell {
           packages = builtins.attrValues {
             # (d)KaMinPar inputs
-            inherit (pkgs) cmake gtest mpi numactl sparsehash tbb_2022_0;
+            inherit (pkgs) cmake gtest mpi numactl tbb_2022_0;
             inherit kagen kassert;
 
             # Development inputs
