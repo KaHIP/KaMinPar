@@ -10,17 +10,16 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <limits>
 #include <memory>
 #include <optional>
 #include <span>
-#include <type_traits>
 #include <utility>
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
 
 #include "kaminpar-io/util/binary_util.h"
+#include "kaminpar-io/util/io_validation.h"
 
 #include "kaminpar-shm/datastructures/compressed_graph.h"
 #include "kaminpar-shm/datastructures/csr_graph.h"
@@ -39,61 +38,6 @@ namespace kaminpar::shm::io::parhip {
 using namespace kaminpar::io;
 
 namespace {
-
-void raise_if(const bool condition, const char *message) {
-  if (condition) [[unlikely]] {
-    throw IOException(message);
-  }
-}
-
-std::size_t checked_add(const std::size_t lhs, const std::size_t rhs, const char *message) {
-  raise_if(lhs > std::numeric_limits<std::size_t>::max() - rhs, message);
-  return lhs + rhs;
-}
-
-std::size_t checked_mul(const std::uint64_t lhs, const std::size_t rhs, const char *message) {
-  raise_if(rhs != 0 && lhs > std::numeric_limits<std::size_t>::max() / rhs, message);
-  return static_cast<std::size_t>(lhs) * rhs;
-}
-
-template <typename Int> void ensure_fits(const std::uint64_t value, const char *message) {
-  raise_if(value > static_cast<std::uint64_t>(std::numeric_limits<Int>::max()), message);
-}
-
-template <typename Int> Int checked_cast(const std::uint64_t value, const char *message) {
-  ensure_fits<Int>(value, message);
-  return static_cast<Int>(value);
-}
-
-template <typename Weight, typename RawWeight>
-Weight parse_weight(const RawWeight weight, const char *message) {
-  if constexpr (std::is_signed_v<RawWeight>) {
-    raise_if(weight <= 0, message);
-  } else {
-    raise_if(weight == 0, message);
-  }
-  raise_if(
-      static_cast<std::uint64_t>(weight) >
-          static_cast<std::uint64_t>(std::numeric_limits<Weight>::max()),
-      message
-  );
-  return static_cast<Weight>(weight);
-}
-
-std::uint64_t
-fetch_unsigned(const std::uint8_t *data, const bool is_64_bit, const std::uint64_t pos) {
-  if (is_64_bit) [[unlikely]] {
-    return reinterpret_cast<const std::uint64_t *>(data)[pos];
-  }
-  return reinterpret_cast<const std::uint32_t *>(data)[pos];
-}
-
-std::int64_t fetch_signed(const std::uint8_t *data, const bool is_64_bit, const std::uint64_t pos) {
-  if (is_64_bit) [[unlikely]] {
-    return reinterpret_cast<const std::int64_t *>(data)[pos];
-  }
-  return reinterpret_cast<const std::int32_t *>(data)[pos];
-}
 
 class ParHIPHeader {
 public:
@@ -272,13 +216,13 @@ StaticArray<Weight> read_weights(
   if (is_64_bit) {
     return read_raw_array<Weight, std::int64_t>(
         reader, offset, length, [](const std::int64_t weight) {
-          return parse_weight<Weight>(weight, "Invalid ParHIP node or edge weight");
+          return parse_positive_weight<Weight>(weight, "Invalid ParHIP node or edge weight");
         }
     );
   } else {
     return read_raw_array<Weight, std::int32_t>(
         reader, offset, length, [](const std::int32_t weight) {
-          return parse_weight<Weight>(weight, "Invalid ParHIP node or edge weight");
+          return parse_positive_weight<Weight>(weight, "Invalid ParHIP node or edge weight");
         }
     );
   }
@@ -384,7 +328,7 @@ std::optional<Graph> csr_read_deg_buckets(const std::string &filename) {
 
     const auto *raw_node_weights = reader.fetch_raw(header.node_weights_offset());
     const auto fetch_node_weight = [&](const NodeID u) -> NodeWeight {
-      return parse_weight<NodeWeight>(
+      return parse_positive_weight<NodeWeight>(
           fetch_signed(raw_node_weights, header.has_64_bit_node_weight, u),
           "Invalid ParHIP node weight"
       );
@@ -392,7 +336,7 @@ std::optional<Graph> csr_read_deg_buckets(const std::string &filename) {
 
     const auto *raw_edge_weights = reader.fetch_raw(header.edge_weights_offset());
     const auto fetch_edge_weight = [&](const EdgeID e) -> EdgeWeight {
-      return parse_weight<EdgeWeight>(
+      return parse_positive_weight<EdgeWeight>(
           fetch_signed(raw_edge_weights, header.has_64_bit_edge_weight, e),
           "Invalid ParHIP edge weight"
       );
@@ -514,7 +458,7 @@ std::optional<Graph> compressed_read(const std::string &filename, const bool sor
 
     const auto *edge_weights = reader.fetch_raw(header.edge_weights_offset());
     const auto fetch_edge_weight = [&](const EdgeID e) -> EdgeWeight {
-      return parse_weight<EdgeWeight>(
+      return parse_positive_weight<EdgeWeight>(
           fetch_signed(edge_weights, header.has_64_bit_edge_weight, e), "Invalid ParHIP edge weight"
       );
     };
@@ -585,7 +529,7 @@ std::optional<Graph> compressed_read_deg_buckets(const std::string &filename) {
 
     const auto *raw_node_weights = reader.fetch_raw(header.node_weights_offset());
     const auto fetch_node_weight = [&](const NodeID u) -> NodeWeight {
-      return parse_weight<NodeWeight>(
+      return parse_positive_weight<NodeWeight>(
           fetch_signed(raw_node_weights, header.has_64_bit_node_weight, u),
           "Invalid ParHIP node weight"
       );
@@ -593,7 +537,7 @@ std::optional<Graph> compressed_read_deg_buckets(const std::string &filename) {
 
     const auto *raw_edge_weights = reader.fetch_raw(header.edge_weights_offset());
     const auto fetch_edge_weight = [&](const EdgeID e) -> EdgeWeight {
-      return parse_weight<EdgeWeight>(
+      return parse_positive_weight<EdgeWeight>(
           fetch_signed(raw_edge_weights, header.has_64_bit_edge_weight, e),
           "Invalid ParHIP edge weight"
       );

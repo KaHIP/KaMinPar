@@ -15,6 +15,7 @@
 #include <optional>
 
 #include "kaminpar-io/util/binary_util.h"
+#include "kaminpar-io/util/io_validation.h"
 
 #include "kaminpar-shm/datastructures/compressed_graph.h"
 
@@ -25,21 +26,9 @@ namespace kaminpar::shm::io::compressed_binary {
 
 namespace {
 
-void raise_if(const bool condition, const char *message) {
-  if (condition) [[unlikely]] {
-    throw kaminpar::io::IOException(message);
-  }
-}
-
-std::size_t checked_add(const std::size_t lhs, const std::size_t rhs, const char *message) {
-  raise_if(lhs > std::numeric_limits<std::size_t>::max() - rhs, message);
-  return lhs + rhs;
-}
-
-std::size_t checked_mul(const std::size_t lhs, const std::size_t rhs, const char *message) {
-  raise_if(rhs != 0 && lhs > std::numeric_limits<std::size_t>::max() / rhs, message);
-  return lhs * rhs;
-}
+using kaminpar::io::checked_add;
+using kaminpar::io::checked_mul;
+using kaminpar::io::raise_if;
 
 } // namespace
 

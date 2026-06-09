@@ -7,11 +7,10 @@
  ******************************************************************************/
 #include "kaminpar-io/dist_parhip_parser.h"
 
-#include <limits>
 #include <numeric>
-#include <type_traits>
 
 #include "kaminpar-io/util/binary_util.h"
+#include "kaminpar-io/util/io_validation.h"
 
 #include "kaminpar-mpi/datatype.h"
 #include "kaminpar-mpi/utils.h"
@@ -25,55 +24,14 @@
 
 namespace {
 
-void raise_if(const bool condition, const char *message) {
-  if (condition) [[unlikely]] {
-    throw kaminpar::io::IOException(message);
-  }
-}
-
-std::size_t checked_add(const std::size_t lhs, const std::size_t rhs, const char *message) {
-  raise_if(lhs > std::numeric_limits<std::size_t>::max() - rhs, message);
-  return lhs + rhs;
-}
-
-std::size_t checked_mul(const std::uint64_t lhs, const std::size_t rhs, const char *message) {
-  raise_if(rhs != 0 && lhs > std::numeric_limits<std::size_t>::max() / rhs, message);
-  return static_cast<std::size_t>(lhs) * rhs;
-}
-
-template <typename Int> void ensure_fits(const std::uint64_t value, const char *message) {
-  raise_if(value > static_cast<std::uint64_t>(std::numeric_limits<Int>::max()), message);
-}
-
-template <typename Int> Int checked_cast(const std::uint64_t value, const char *message) {
-  ensure_fits<Int>(value, message);
-  return static_cast<Int>(value);
-}
-
-template <typename Weight> Weight parse_weight(const std::int64_t weight, const char *message) {
-  raise_if(weight <= 0, message);
-  raise_if(
-      static_cast<std::uint64_t>(weight) >
-          static_cast<std::uint64_t>(std::numeric_limits<Weight>::max()),
-      message
-  );
-  return static_cast<Weight>(weight);
-}
-
-std::uint64_t
-fetch_unsigned(const std::uint8_t *data, const bool is_64_bit, const std::uint64_t pos) {
-  if (is_64_bit) [[unlikely]] {
-    return reinterpret_cast<const std::uint64_t *>(data)[pos];
-  }
-  return reinterpret_cast<const std::uint32_t *>(data)[pos];
-}
-
-std::int64_t fetch_signed(const std::uint8_t *data, const bool is_64_bit, const std::uint64_t pos) {
-  if (is_64_bit) [[unlikely]] {
-    return reinterpret_cast<const std::int64_t *>(data)[pos];
-  }
-  return reinterpret_cast<const std::int32_t *>(data)[pos];
-}
+using kaminpar::io::checked_add;
+using kaminpar::io::checked_cast;
+using kaminpar::io::checked_mul;
+using kaminpar::io::ensure_fits;
+using kaminpar::io::fetch_signed;
+using kaminpar::io::fetch_unsigned;
+using kaminpar::io::parse_positive_weight;
+using kaminpar::io::raise_if;
 
 class ParhipHeader {
   using NodeID = kaminpar::dist::NodeID;
@@ -341,13 +299,13 @@ DistributedCSRGraph csr_read(
     return parse_edge_endpoint(fetch_unsigned(raw_edges, header.has_64_bit_node_id, e), header);
   };
   const auto fetch_node_weight = [&](const std::uint64_t u) {
-    return parse_weight<NodeWeight>(
+    return parse_positive_weight<NodeWeight>(
         fetch_signed(raw_node_weights, header.has_64_bit_node_weight, u),
         "Invalid ParHIP node weight"
     );
   };
   const auto fetch_edge_weight = [&](const EdgeID e) {
-    return parse_weight<EdgeWeight>(
+    return parse_positive_weight<EdgeWeight>(
         fetch_signed(raw_edge_weights, header.has_64_bit_edge_weight, e),
         "Invalid ParHIP edge weight"
     );
@@ -513,13 +471,13 @@ DistributedCompressedGraph compressed_read(
     return parse_edge_endpoint(fetch_unsigned(raw_edges, header.has_64_bit_node_id, e), header);
   };
   const auto fetch_node_weight = [&](const std::uint64_t u) {
-    return parse_weight<NodeWeight>(
+    return parse_positive_weight<NodeWeight>(
         fetch_signed(raw_node_weights, header.has_64_bit_node_weight, u),
         "Invalid ParHIP node weight"
     );
   };
   const auto fetch_edge_weight = [&](const EdgeID e) {
-    return parse_weight<EdgeWeight>(
+    return parse_positive_weight<EdgeWeight>(
         fetch_signed(raw_edge_weights, header.has_64_bit_edge_weight, e),
         "Invalid ParHIP edge weight"
     );

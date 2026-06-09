@@ -11,6 +11,7 @@
 #include <numeric>
 
 #include "kaminpar-io/util/file_toker.h"
+#include "kaminpar-io/util/io_validation.h"
 
 #include "kaminpar-mpi/datatype.h"
 #include "kaminpar-mpi/utils.h"
@@ -36,16 +37,6 @@ struct MetisHeader {
   bool has_node_weights = false;
   bool has_edge_weights = false;
 };
-
-void raise_if(const bool condition, const char *message) {
-  if (condition) [[unlikely]] {
-    throw IOException(message);
-  }
-}
-
-template <typename Int> void ensure_fits(const std::uint64_t value, const char *message) {
-  raise_if(value > static_cast<std::uint64_t>(std::numeric_limits<Int>::max()), message);
-}
 
 bool is_valid_metis_format(const std::uint64_t format) {
   return format == 0 || format == 1 || format == 10 || format == 11 || format == 100 ||

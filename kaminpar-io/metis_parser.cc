@@ -23,6 +23,7 @@
 #include <tbb/task_arena.h>
 
 #include "kaminpar-io/util/file_toker.h"
+#include "kaminpar-io/util/io_validation.h"
 
 #include "kaminpar-shm/datastructures/compressed_graph.h"
 #include "kaminpar-shm/datastructures/csr_graph.h"
@@ -45,16 +46,6 @@ struct MetisHeader {
   bool has_node_weights = false;
   bool has_edge_weights = false;
 };
-
-void raise_if(const bool condition, const char *message) {
-  if (condition) [[unlikely]] {
-    throw IOException(message);
-  }
-}
-
-template <typename Int> void ensure_fits(const std::uint64_t value, const char *message) {
-  raise_if(value > static_cast<std::uint64_t>(std::numeric_limits<Int>::max()), message);
-}
 
 template <typename Weight>
 void add_weight(std::int64_t &total, const std::uint64_t weight, const char *message) {
