@@ -9,50 +9,46 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <exception>
 #include <fstream>
+#include <limits>
 #include <string>
+#include <type_traits>
 
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "kaminpar-io/util/io_exception.h"
+
 #include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::io {
-
-class BinaryReaderException : public std::exception {
-public:
-  BinaryReaderException(std::string msg) : _msg(std::move(msg)) {}
-
-  [[nodiscard]] const char *what() const noexcept override {
-    return _msg.c_str();
-  }
-
-private:
-  std::string _msg;
-};
 
 class BinaryReader {
 public:
   BinaryReader(const std::string &filename) {
     _file = open(filename.c_str(), O_RDONLY);
     if (_file == -1) {
-      throw BinaryReaderException("Cannot read the file that stores the graph");
+      throw IOException("Cannot read the file that stores the graph");
     }
 
     struct stat file_info;
     if (fstat(_file, &file_info) == -1) {
       close(_file);
-      throw BinaryReaderException("Cannot determine the size of the file that stores the graph");
+      throw IOException("Cannot determine the size of the file that stores the graph");
+    }
+
+    if (file_info.st_size == 0) {
+      close(_file);
+      throw IOException("The file that stores the graph is empty");
     }
 
     _length = static_cast<std::size_t>(file_info.st_size);
     _data = static_cast<std::uint8_t *>(mmap(nullptr, _length, PROT_READ, MAP_PRIVATE, _file, 0));
     if (_data == MAP_FAILED) {
       close(_file);
-      throw BinaryReaderException("Cannot map the file that stores the graph");
+      throw IOException("Cannot map the file that stores the graph");
     }
   }
 
@@ -62,11 +58,27 @@ public:
   }
 
   template <typename T> [[nodiscard]] T read(const std::size_t position) const {
-    return *reinterpret_cast<T *>(_data + position);
+    require_available(position, sizeof(T));
+    return *reinterpret_cast<const T *>(_data + position);
   }
 
   template <typename T> [[nodiscard]] const T *fetch(const std::size_t position) const {
+    if constexpr (!std::is_void_v<T>) {
+      require_available(position, sizeof(T));
+    } else {
+      require_available(position, 0);
+    }
     return reinterpret_cast<const T *>(_data + position);
+  }
+
+  void require_available(const std::size_t position, const std::size_t bytes) const {
+    if (position > _length || bytes > _length - position) [[unlikely]] {
+      throw IOException("Unexpected end of binary graph file");
+    }
+  }
+
+  [[nodiscard]] std::size_t length() const {
+    return _length;
   }
 
 private:
@@ -77,14 +89,20 @@ private:
 
 class BinaryWriter {
 public:
-  BinaryWriter(const std::string &filename) : _out(filename, std::ios::binary) {}
+  BinaryWriter(const std::string &filename) : _out(filename, std::ios::binary) {
+    if (!_out) {
+      throw IOException("Cannot open output file");
+    }
+  }
 
   void write(const char *data, const std::size_t size) {
-    _out.write(data, size);
+    if (!_out.write(data, size)) {
+      throw IOException("Cannot write output file");
+    }
   }
 
   template <typename T> void write_int(const T value) {
-    _out.write(reinterpret_cast<const char *>(&value), sizeof(T));
+    write(reinterpret_cast<const char *>(&value), sizeof(T));
   }
 
   template <typename T> void write_raw_static_array(const StaticArray<T> &static_array) {

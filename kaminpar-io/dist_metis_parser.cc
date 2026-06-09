@@ -7,6 +7,7 @@
  ******************************************************************************/
 #include "kaminpar-io/dist_metis_parser.h"
 
+#include <limits>
 #include <numeric>
 
 #include "kaminpar-io/util/file_toker.h"
@@ -28,52 +29,116 @@ namespace {
 
 struct MetisHeader {
   std::uint64_t num_nodes = 0;
+  std::uint64_t num_global_nodes = 0;
+  std::uint64_t node_offset = 0;
   std::uint64_t num_edges = 0;
+  bool has_node_sizes = false;
   bool has_node_weights = false;
   bool has_edge_weights = false;
 };
 
-MetisHeader parse_header(MappedFileToker &toker) {
-  toker.skip_spaces();
-  while (toker.current() == '%') {
-    toker.skip_line();
-    toker.skip_spaces();
+void raise_if(const bool condition, const char *message) {
+  if (condition) [[unlikely]] {
+    throw IOException(message);
   }
+}
+
+template <typename Int> void ensure_fits(const std::uint64_t value, const char *message) {
+  raise_if(value > static_cast<std::uint64_t>(std::numeric_limits<Int>::max()), message);
+}
+
+bool is_valid_metis_format(const std::uint64_t format) {
+  return format == 0 || format == 1 || format == 10 || format == 11 || format == 100 ||
+         format == 101 || format == 110 || format == 111;
+}
+
+bool is_line_end(const MappedFileToker &toker) {
+  return !toker.valid_position() || toker.current() == '\n' || toker.current() == '\r';
+}
+
+void consume_line_end(MappedFileToker &toker) {
+  if (!toker.valid_position()) {
+    return;
+  }
+  if (toker.current() == '\r') {
+    toker.advance();
+  }
+  if (toker.valid_position()) {
+    toker.consume_char('\n');
+  }
+}
+
+void skip_comment_and_empty_lines(MappedFileToker &toker) {
+  while (toker.valid_position()) {
+    toker.skip_spaces();
+    if (!toker.valid_position()) {
+      return;
+    }
+    if (toker.current() == '%' || toker.current() == '#') {
+      toker.skip_line();
+    } else if (is_line_end(toker)) {
+      consume_line_end(toker);
+    } else {
+      return;
+    }
+  }
+}
+
+void skip_comment_lines(MappedFileToker &toker) {
+  while (toker.valid_position()) {
+    toker.skip_spaces();
+    if (toker.valid_position() && (toker.current() == '%' || toker.current() == '#')) {
+      toker.skip_line();
+    } else {
+      return;
+    }
+  }
+}
+
+void finish_line(MappedFileToker &toker) {
+  toker.skip_spaces();
+  raise_if(!is_line_end(toker), "Unexpected character in METIS graph file");
+  consume_line_end(toker);
+}
+
+MetisHeader parse_header(MappedFileToker &toker) {
+  skip_comment_and_empty_lines(toker);
 
   const std::uint64_t num_nodes = toker.scan_uint();
-  const std::uint64_t num_edges = toker.scan_uint() * 2;
-  const std::uint64_t format = (toker.current() != '\n') ? toker.scan_uint() : 0;
-  toker.consume_char('\n');
+  const std::uint64_t undirected_edges = toker.scan_uint();
+  raise_if(
+      undirected_edges > std::numeric_limits<std::uint64_t>::max() / 2,
+      "the number of adjacency entries is too large"
+  );
+  const std::uint64_t num_edges = undirected_edges * 2;
+  const std::uint64_t format = !is_line_end(toker) ? toker.scan_uint() : 0;
+  finish_line(toker);
 
-  if (format != 0 && format != 1 && format != 10 && format != 11 && format && format != 100 &&
-      format != 110 && format != 101 && format != 111) {
-    LOG_WARNING << "invalid or unsupported graph format";
-  }
+  raise_if(!is_valid_metis_format(format), "Invalid or unsupported METIS graph format");
 
-  [[maybe_unused]] const bool has_node_sizes = format / 100; // == 1xx
-  const bool has_node_weights = (format % 100) / 10;         // == x1x
-  const bool has_edge_weights = format % 10;                 // == xx1
+  const bool has_node_sizes = format / 100;          // == 1xx
+  const bool has_node_weights = (format % 100) / 10; // == x1x
+  const bool has_edge_weights = format % 10;         // == xx1
 
   if (has_node_sizes) {
     LOG_WARNING << "ignoring node sizes";
   }
 
-  KASSERT(
-      num_nodes <= static_cast<std::uint64_t>(std::numeric_limits<NodeID>::max()),
-      "number of nodes is too large for the node ID type"
-  );
-  KASSERT(
-      num_edges <= static_cast<std::uint64_t>(std::numeric_limits<EdgeID>::max()),
-      "number of edges is too large for the edge ID type"
-  );
-  KASSERT(
-      num_edges <= (num_nodes * (num_nodes - 1)) / 2,
+  ensure_fits<NodeID>(num_nodes, "number of nodes is too large for the node ID type");
+  raise_if(num_nodes == std::numeric_limits<std::uint64_t>::max(), "number of nodes is too large");
+  ensure_fits<EdgeID>(num_edges, "number of edges is too large for the edge ID type");
+  raise_if(
+      static_cast<unsigned __int128>(undirected_edges) >
+          (static_cast<unsigned __int128>(num_nodes) * (num_nodes - 1)) / 2,
       "specified number of edges is impossibly large"
   );
 
   return {
       .num_nodes = num_nodes,
+      .num_global_nodes = num_nodes,
+      .node_offset = 0,
       .num_edges = num_edges,
+      .has_node_sizes = has_node_sizes,
       .has_node_weights = has_node_weights,
       .has_edge_weights = has_edge_weights,
   };
@@ -108,37 +173,46 @@ void parse_graph(
   };
 
   for (std::uint64_t u = 0; u < header.num_nodes; ++u) {
-    toker.skip_spaces();
-    while (toker.current() == '%') {
-      toker.skip_line();
-      toker.skip_spaces();
-    }
+    skip_comment_lines(toker);
+    raise_if(
+        !toker.valid_position(), "input contains fewer vertex lines than specified in the header"
+    );
 
     const std::size_t node_start_pos = toker.position();
+
+    if (header.has_node_sizes) {
+      toker.skip_uint();
+    }
 
     std::uint64_t node_weight = 1;
     if (header.has_node_weights) {
       node_weight = toker.scan_uint();
+      ensure_fits<NodeWeight>(node_weight, "node weight is too large for the node weight type");
+      raise_if(node_weight == 0u, "zero node weights are not supported");
     }
 
     if (invoke_next_node(node_weight, node_start_pos)) {
       return;
     }
 
-    while (std::isdigit(toker.current())) {
-      const std::uint64_t v = toker.scan_uint() - 1;
+    while (toker.current_is_digit()) {
+      const std::uint64_t raw_v = toker.scan_uint();
+      raise_if(raw_v == 0, "METIS vertex IDs must be one-based");
+      const std::uint64_t v = raw_v - 1;
 
       std::uint64_t edge_weight = 1;
       if (header.has_edge_weights) {
         edge_weight = toker.scan_uint();
+        ensure_fits<EdgeWeight>(edge_weight, "edge weight is too large for the edge weight type");
+        raise_if(edge_weight == 0u, "zero edge weights are not supported");
       }
 
+      raise_if(v >= header.num_global_nodes, "neighbor out of bounds");
+      raise_if(header.node_offset + u == v, "detected illegal self-loop");
       next_edge_cb(edge_weight, v);
     }
 
-    if (toker.valid_position()) {
-      toker.consume_char('\n');
-    }
+    finish_line(toker);
   }
 }
 
@@ -377,11 +451,13 @@ DistributedCSRGraph csr_read(
   if (num_local_nodes > 0) {
     toker.seek(start_pos);
     header.num_nodes = num_local_nodes;
+    header.node_offset = first_node;
 
     parse_graph(
         toker,
         header,
         [&](const auto weight) {
+          raise_if(node >= num_local_nodes, "input contains more vertex lines than expected");
           nodes[node] = edge;
 
           if (header.has_node_weights) {
@@ -391,6 +467,7 @@ DistributedCSRGraph csr_read(
           node += 1;
         },
         [&, first_node = first_node, last_node = last_node](const auto weight, const auto v) {
+          raise_if(edge >= num_local_edges, "input contains more adjacency entries than expected");
           NodeID adjacent_node = static_cast<NodeID>(v);
           if (adjacent_node >= first_node && adjacent_node < last_node) {
             adjacent_node = adjacent_node - first_node;
@@ -407,6 +484,8 @@ DistributedCSRGraph csr_read(
         }
     );
   }
+  raise_if(node != num_local_nodes, "input contains fewer vertex lines than expected");
+  raise_if(edge != num_local_edges, "input contains fewer adjacency entries than expected");
   nodes[node] = edge;
 
   const NodeID num_total_nodes = mapper.next_ghost_node();
@@ -505,6 +584,7 @@ DistributedCompressedGraph compress_read(
   if (num_local_nodes > 0) {
     toker.seek(start_pos);
     header.num_nodes = num_local_nodes;
+    header.node_offset = first_node;
 
     std::vector<std::pair<NodeID, EdgeWeight>> neighbourhood;
     NodeID node = 0;
@@ -513,6 +593,7 @@ DistributedCompressedGraph compress_read(
         toker,
         header,
         [&](const auto weight) {
+          raise_if(node >= num_local_nodes, "input contains more vertex lines than expected");
           if (node > 0) {
             builder.add(node - 1, std::span<std::pair<NodeID, EdgeWeight>>(neighbourhood));
             neighbourhood.clear();
@@ -525,6 +606,7 @@ DistributedCompressedGraph compress_read(
           node += 1;
         },
         [&, first_node = first_node, last_node = last_node](const auto weight, const auto v) {
+          raise_if(edge >= num_local_edges, "input contains more adjacency entries than expected");
           NodeID adjacent_node = static_cast<NodeID>(v);
           if (adjacent_node >= first_node && adjacent_node < last_node) {
             adjacent_node = adjacent_node - first_node;
@@ -537,6 +619,8 @@ DistributedCompressedGraph compress_read(
         }
     );
 
+    raise_if(node != num_local_nodes, "input contains fewer vertex lines than expected");
+    raise_if(edge != num_local_edges, "input contains fewer adjacency entries than expected");
     builder.add(node - 1, std::span<std::pair<NodeID, EdgeWeight>>(neighbourhood));
     neighbourhood.clear();
     neighbourhood.shrink_to_fit();

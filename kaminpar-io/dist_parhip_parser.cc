@@ -7,7 +7,9 @@
  ******************************************************************************/
 #include "kaminpar-io/dist_parhip_parser.h"
 
+#include <limits>
 #include <numeric>
+#include <type_traits>
 
 #include "kaminpar-io/util/binary_util.h"
 
@@ -22,6 +24,31 @@
 #include "kaminpar-common/graph_compression/compressed_neighborhoods_builder.h"
 
 namespace {
+
+void raise_if(const bool condition, const char *message) {
+  if (condition) [[unlikely]] {
+    throw kaminpar::io::IOException(message);
+  }
+}
+
+std::size_t checked_add(const std::size_t lhs, const std::size_t rhs, const char *message) {
+  raise_if(lhs > std::numeric_limits<std::size_t>::max() - rhs, message);
+  return lhs + rhs;
+}
+
+std::size_t checked_mul(const std::uint64_t lhs, const std::size_t rhs, const char *message) {
+  raise_if(rhs != 0 && lhs > std::numeric_limits<std::size_t>::max() / rhs, message);
+  return static_cast<std::size_t>(lhs) * rhs;
+}
+
+template <typename Int> void ensure_fits(const std::uint64_t value, const char *message) {
+  raise_if(value > static_cast<std::uint64_t>(std::numeric_limits<Int>::max()), message);
+}
+
+template <typename Weight> Weight validate_weight(const Weight weight, const char *message) {
+  raise_if(weight <= 0, message);
+  return weight;
+}
 
 class ParhipHeader {
   using NodeID = kaminpar::dist::NodeID;
@@ -49,57 +76,122 @@ public:
         has_64_bit_node_weight((version & 16) == 0),
         has_64_bit_edge_weight((version & 32) == 0),
         num_nodes(num_nodes),
-        num_edges(num_edges) {}
+        num_edges(num_edges),
+        _nodes_offset_base(checked_add(
+            ParhipHeader::kSize,
+            checked_mul(
+                checked_add(num_nodes, 1, "ParHIP graph has too many nodes"),
+                sizeof(EdgeID),
+                "ParHIP graph file layout is too large"
+            ),
+            "ParHIP graph file layout is too large"
+        )) {}
 
-  void validate() const {
+  [[nodiscard]] std::size_t nodes_offset() const {
+    return ParhipHeader::kSize;
+  }
+
+  [[nodiscard]] std::size_t edges_offset() const {
+    return _nodes_offset_base;
+  }
+
+  [[nodiscard]] std::size_t node_weights_offset() const {
+    return checked_add(
+        edges_offset(),
+        checked_mul(num_edges, sizeof(NodeID), "ParHIP graph file layout is too large"),
+        "ParHIP graph file layout is too large"
+    );
+  }
+
+  [[nodiscard]] std::size_t edge_weights_offset() const {
+    return checked_add(
+        node_weights_offset(),
+        has_node_weights
+            ? checked_mul(num_nodes, sizeof(NodeWeight), "ParHIP graph file layout is too large")
+            : 0,
+        "ParHIP graph file layout is too large"
+    );
+  }
+
+  [[nodiscard]] std::size_t file_size() const {
+    return checked_add(
+        edge_weights_offset(),
+        has_edge_weights
+            ? checked_mul(num_edges, sizeof(EdgeWeight), "ParHIP graph file layout is too large")
+            : 0,
+        "ParHIP graph file layout is too large"
+    );
+  }
+
+  [[nodiscard]] EdgeID map_edge_offset(const EdgeID edge_offset) const {
+    raise_if(edge_offset < _nodes_offset_base, "Invalid ParHIP node offset");
+    const EdgeID relative_offset = edge_offset - _nodes_offset_base;
+    raise_if(relative_offset % sizeof(NodeID) != 0, "Invalid ParHIP node offset alignment");
+    const EdgeID edge = relative_offset / sizeof(NodeID);
+    raise_if(edge > num_edges, "ParHIP node offset points past the edge array");
+    return edge;
+  }
+
+  void validate(const kaminpar::io::BinaryReader &reader) const {
     if (has_64_bit_node_id) {
       if (sizeof(NodeID) != 8) {
-        LOG_ERROR << "The stored graph uses 64-Bit node IDs but this build uses 32-Bit node IDs.";
-        std::exit(1);
+        throw kaminpar::io::IOException(
+            "The stored graph uses 64-Bit node IDs but this build uses 32-Bit node IDs."
+        );
       }
     } else if (sizeof(NodeID) != 4) {
-      LOG_ERROR << "The stored graph uses 32-Bit node IDs but this build uses 64-Bit node IDs.";
-      std::exit(1);
+      throw kaminpar::io::IOException(
+          "The stored graph uses 32-Bit node IDs but this build uses 64-Bit node IDs."
+      );
     }
 
     if (has_64_bit_edge_id) {
       if (sizeof(EdgeID) != 8) {
-        LOG_ERROR << "The stored graph uses 64-Bit edge IDs but this build uses 32-Bit edge IDs.";
-        std::exit(1);
+        throw kaminpar::io::IOException(
+            "The stored graph uses 64-Bit edge IDs but this build uses 32-Bit edge IDs."
+        );
       }
     } else if (sizeof(EdgeID) != 4) {
-      LOG_ERROR << "The stored graph uses 32-Bit edge IDs but this build uses 64-Bit edge IDs.";
-      std::exit(1);
+      throw kaminpar::io::IOException(
+          "The stored graph uses 32-Bit edge IDs but this build uses 64-Bit edge IDs."
+      );
     }
 
     if (has_node_weights) {
       if (has_64_bit_node_weight) {
         if (sizeof(NodeWeight) != 8) {
-          LOG_ERROR << "The stored graph uses 64-Bit node weights but this build uses 32-Bit node "
-                       "weights.";
-          std::exit(1);
+          throw kaminpar::io::IOException(
+              "The stored graph uses 64-Bit node weights but this build uses 32-Bit node weights."
+          );
         }
       } else if (sizeof(NodeWeight) != 4) {
-        LOG_ERROR << "The stored graph uses 32-Bit node weights but this build uses 64-Bit node "
-                     "weights.";
-        std::exit(1);
+        throw kaminpar::io::IOException(
+            "The stored graph uses 32-Bit node weights but this build uses 64-Bit node weights."
+        );
       }
     }
 
     if (has_edge_weights) {
       if (has_64_bit_edge_weight) {
         if (sizeof(EdgeWeight) != 8) {
-          LOG_ERROR << "The stored graph uses 64-Bit edge weights but this build uses 32-Bit edge "
-                       "weights.";
-          std::exit(1);
+          throw kaminpar::io::IOException(
+              "The stored graph uses 64-Bit edge weights but this build uses 32-Bit edge weights."
+          );
         }
       } else if (sizeof(EdgeWeight) != 4) {
-        LOG_ERROR << "The stored graph uses 32-Bit edge weights but this build uses 64-Bit edge "
-                     "weights.";
-        std::exit(1);
+        throw kaminpar::io::IOException(
+            "The stored graph uses 32-Bit edge weights but this build uses 64-Bit edge weights."
+        );
       }
     }
+
+    ensure_fits<NodeID>(num_nodes, "number of nodes is too large for the node ID type");
+    ensure_fits<EdgeID>(num_edges, "number of edges is too large for the edge ID type");
+    raise_if(file_size() != reader.length(), "ParHIP graph file has an unexpected size");
   }
+
+private:
+  std::size_t _nodes_offset_base;
 };
 
 } // namespace
@@ -108,6 +200,21 @@ namespace kaminpar::dist::io::parhip {
 using namespace kaminpar::io;
 
 namespace {
+
+template <typename FetchRawOffset>
+void validate_raw_node_offsets(const ParhipHeader &header, FetchRawOffset &&fetch_raw_offset) {
+  EdgeID previous = header.map_edge_offset(fetch_raw_offset(0));
+  raise_if(previous != 0, "Invalid ParHIP first node offset");
+
+  for (NodeID u = 0; u < header.num_nodes; ++u) {
+    const EdgeID current = previous;
+    const EdgeID next = header.map_edge_offset(fetch_raw_offset(u + 1));
+    raise_if(current > next, "ParHIP node offsets are not monotone");
+    previous = next;
+  }
+
+  raise_if(previous != header.num_edges, "Invalid ParHIP final node offset");
+}
 
 template <typename Int>
 std::pair<Int, Int>
@@ -168,13 +275,21 @@ std::pair<std::uint64_t, std::uint64_t> find_local_nodes(
     return std::make_pair(first_node, last_node);
   }
   case GraphDistribution::BALANCED_MEMORY_SPACE: {
-    const std::size_t total_memory_space = num_nodes * sizeof(EdgeID) + num_edges * sizeof(NodeID);
+    const std::size_t total_memory_space = checked_add(
+        checked_mul(num_nodes, sizeof(EdgeID), "ParHIP graph file layout is too large"),
+        checked_mul(num_edges, sizeof(NodeID), "ParHIP graph file layout is too large"),
+        "ParHIP graph file layout is too large"
+    );
     const auto [memory_space_start, memory_space_end] =
         compute_chunks(total_memory_space, size, rank);
 
     const auto fetch_memory_space = [&](const NodeID node) {
       const EdgeID edge = fetch_edge(node + 1);
-      return node * sizeof(EdgeID) + edge * sizeof(NodeID);
+      return checked_add(
+          checked_mul(node, sizeof(EdgeID), "ParHIP graph file layout is too large"),
+          checked_mul(edge, sizeof(NodeID), "ParHIP graph file layout is too large"),
+          "ParHIP graph file layout is too large"
+      );
     };
 
     const std::uint64_t first_node =
@@ -200,31 +315,28 @@ DistributedCSRGraph csr_read(
   BinaryReader reader(filename);
 
   const auto version = reader.read<std::uint64_t>(0);
+  raise_if((version & ~std::uint64_t{63}) != 0, "Invalid ParHIP graph file version");
   const auto num_nodes = reader.read<std::uint64_t>(sizeof(std::uint64_t));
   const auto num_edges = reader.read<std::uint64_t>(sizeof(std::uint64_t) * 2);
   const ParhipHeader header(version, num_nodes, num_edges);
-  header.validate();
+  header.validate(reader);
 
-  std::size_t position = ParhipHeader::kSize;
+  const EdgeID *raw_nodes = reader.fetch<EdgeID>(header.nodes_offset());
+  validate_raw_node_offsets(header, [&](const NodeID u) { return raw_nodes[u]; });
 
-  const EdgeID *raw_nodes = reader.fetch<EdgeID>(position);
-  position += (header.num_nodes + 1) * sizeof(EdgeID);
+  const NodeID *raw_edges =
+      header.num_edges > 0 ? reader.fetch<NodeID>(header.edges_offset()) : nullptr;
 
-  const NodeID *raw_edges = reader.fetch<NodeID>(position);
-  position += header.num_edges * sizeof(NodeID);
+  const NodeWeight *raw_node_weights = header.has_node_weights && header.num_nodes > 0
+                                           ? reader.fetch<NodeWeight>(header.node_weights_offset())
+                                           : nullptr;
 
-  const NodeWeight *raw_node_weights = reader.fetch<NodeWeight>(position);
-  if (header.has_node_weights) {
-    position += header.num_nodes * sizeof(NodeWeight);
-  }
+  const EdgeWeight *raw_edge_weights = header.has_edge_weights && header.num_edges > 0
+                                           ? reader.fetch<EdgeWeight>(header.edge_weights_offset())
+                                           : nullptr;
 
-  const EdgeWeight *raw_edge_weights = reader.fetch<EdgeWeight>(position);
-
-  // Since the offsets stored in the (raw) node array of the binary are relative byte adresses
-  // into the binary itself, these offsets must be mapped to the actual edge IDs.
-  const EdgeID nodes_offset_base = ParhipHeader::kSize + (header.num_nodes + 1) * sizeof(EdgeID);
   const auto map_edge_offset = [&](const NodeID node) {
-    return (raw_nodes[node] - nodes_offset_base) / sizeof(NodeID);
+    return header.map_edge_offset(raw_nodes[node]);
   };
 
   const mpi::PEID size = mpi::get_comm_size(comm);
@@ -287,6 +399,7 @@ DistributedCSRGraph csr_read(
       const EdgeID e = offset + i;
 
       NodeID adjacent_node = raw_edges[e];
+      raise_if(adjacent_node >= header.num_nodes, "ParHIP edge endpoint is out of bounds");
       if (adjacent_node >= first_node && adjacent_node < last_node) {
         edges[edge] = adjacent_node - first_node;
       } else {
@@ -294,7 +407,7 @@ DistributedCSRGraph csr_read(
       }
 
       if (header.has_edge_weights) [[unlikely]] {
-        edge_weights[edge] = raw_edge_weights[e];
+        edge_weights[edge] = validate_weight(raw_edge_weights[e], "Invalid ParHIP edge weight");
       }
 
       edge += 1;
@@ -310,7 +423,8 @@ DistributedCSRGraph csr_read(
         tbb::blocked_range<NodeID>(0, num_local_nodes),
         [&, first_node = first_node](const auto &r) {
           for (NodeID u = r.begin(); u != r.end(); ++u) {
-            node_weights[u] = raw_node_weights[first_node + u];
+            node_weights[u] =
+                validate_weight(raw_node_weights[first_node + u], "Invalid ParHIP node weight");
           }
         }
     );
@@ -349,31 +463,28 @@ DistributedCompressedGraph compressed_read(
   BinaryReader reader(filename);
 
   const auto version = reader.read<std::uint64_t>(0);
+  raise_if((version & ~std::uint64_t{63}) != 0, "Invalid ParHIP graph file version");
   const auto num_nodes = reader.read<std::uint64_t>(sizeof(std::uint64_t));
   const auto num_edges = reader.read<std::uint64_t>(sizeof(std::uint64_t) * 2);
   const ParhipHeader header(version, num_nodes, num_edges);
-  header.validate();
+  header.validate(reader);
 
-  std::size_t position = ParhipHeader::kSize;
+  const EdgeID *raw_nodes = reader.fetch<EdgeID>(header.nodes_offset());
+  validate_raw_node_offsets(header, [&](const NodeID u) { return raw_nodes[u]; });
 
-  const EdgeID *raw_nodes = reader.fetch<EdgeID>(position);
-  position += (header.num_nodes + 1) * sizeof(EdgeID);
+  const NodeID *raw_edges =
+      header.num_edges > 0 ? reader.fetch<NodeID>(header.edges_offset()) : nullptr;
 
-  const NodeID *raw_edges = reader.fetch<NodeID>(position);
-  position += header.num_edges * sizeof(NodeID);
+  const NodeWeight *raw_node_weights = header.has_node_weights && header.num_nodes > 0
+                                           ? reader.fetch<NodeWeight>(header.node_weights_offset())
+                                           : nullptr;
 
-  const NodeWeight *raw_node_weights = reader.fetch<NodeWeight>(position);
-  if (header.has_node_weights) {
-    position += header.num_nodes * sizeof(NodeWeight);
-  }
+  const EdgeWeight *raw_edge_weights = header.has_edge_weights && header.num_edges > 0
+                                           ? reader.fetch<EdgeWeight>(header.edge_weights_offset())
+                                           : nullptr;
 
-  const EdgeWeight *raw_edge_weights = reader.fetch<EdgeWeight>(position);
-
-  // Since the offsets stored in the (raw) node array of the binary are relative byte adresses
-  // into the binary itself, these offsets must be mapped to the actual edge IDs.
-  const EdgeID nodes_offset_base = ParhipHeader::kSize + (header.num_nodes + 1) * sizeof(EdgeID);
   const auto map_edge_offset = [&](const NodeID node) {
-    return (raw_nodes[node] - nodes_offset_base) / sizeof(NodeID);
+    return header.map_edge_offset(raw_nodes[node]);
   };
 
   const mpi::PEID size = mpi::get_comm_size(comm);
@@ -430,6 +541,7 @@ DistributedCompressedGraph compressed_read(
       const EdgeID e = offset + i;
 
       NodeID adjacent_node = raw_edges[e];
+      raise_if(adjacent_node >= header.num_nodes, "ParHIP edge endpoint is out of bounds");
       if (adjacent_node >= first_node && adjacent_node < last_node) {
         adjacent_node = adjacent_node - first_node;
       } else {
@@ -438,7 +550,7 @@ DistributedCompressedGraph compressed_read(
 
       EdgeWeight edge_weight;
       if (header.has_edge_weights) [[unlikely]] {
-        edge_weight = raw_edge_weights[e];
+        edge_weight = validate_weight(raw_edge_weights[e], "Invalid ParHIP edge weight");
       } else {
         edge_weight = 1;
       }
@@ -458,7 +570,8 @@ DistributedCompressedGraph compressed_read(
         tbb::blocked_range<NodeID>(0, num_local_nodes),
         [&, first_node = first_node](const auto &r) {
           for (NodeID u = r.begin(); u != r.end(); ++u) {
-            node_weights[u] = raw_node_weights[first_node + u];
+            node_weights[u] =
+                validate_weight(raw_node_weights[first_node + u], "Invalid ParHIP node weight");
           }
         }
     );

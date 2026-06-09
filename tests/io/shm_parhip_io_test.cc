@@ -10,6 +10,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include "kaminpar-io/graph_compression_binary.h"
 #include "kaminpar-io/kaminpar_io.h"
 #include "kaminpar-io/parhip_parser.h"
 #include "tests/io/shm_io_helpers.h"
@@ -61,6 +62,16 @@ void write_direct_parhip(const std::string &filename, const GraphSnapshot &snaps
       for (const Edge edge : adjacency) {
         write_binary<EdgeWeight>(out, edge.weight);
       }
+    }
+  }
+}
+
+void expect_parhip_rejected(const std::string &filename) {
+  for (const bool compress : {false, true}) {
+    for (const NodeOrdering ordering :
+         {NodeOrdering::NATURAL, NodeOrdering::EXTERNAL_DEGREE_BUCKETS}) {
+      SCOPED_TRACE(compress);
+      EXPECT_FALSE(io::parhip::read_graph(filename, compress, ordering));
     }
   }
 }
@@ -154,6 +165,57 @@ TEST(ShmParhipIOTest, write_graph_roundtrips_and_uses_expected_header) {
   expect_graph_eq(*compressed, expected);
 }
 
+TEST(ShmParhipIOTest, parhip_reader_rejects_malformed_files) {
+  {
+    TempFile file(".parhip");
+    std::ofstream out(file.string(), std::ios::binary);
+    write_binary<std::uint64_t>(out, parhip_version(false, false));
+    out.close();
+    expect_parhip_rejected(file.string());
+  }
+
+  {
+    TempFile file(".parhip");
+    write_direct_parhip(file.string(), rgg16_snapshot(false, false));
+    std::ofstream out(file.string(), std::ios::binary | std::ios::app);
+    write_binary<std::uint8_t>(out, 0xff);
+    out.close();
+    expect_parhip_rejected(file.string());
+  }
+
+  {
+    TempFile file(".parhip");
+    std::ofstream out(file.string(), std::ios::binary);
+    write_binary<std::uint64_t>(out, parhip_version(false, false));
+    write_binary<std::uint64_t>(out, 2);
+    write_binary<std::uint64_t>(out, 2);
+    const EdgeID nodes_offset_base = 3 * sizeof(std::uint64_t) + 3 * sizeof(EdgeID);
+    write_binary<EdgeID>(out, nodes_offset_base);
+    write_binary<EdgeID>(out, nodes_offset_base + 2 * sizeof(NodeID));
+    write_binary<EdgeID>(out, nodes_offset_base + sizeof(NodeID));
+    write_binary<NodeID>(out, 1);
+    write_binary<NodeID>(out, 0);
+    out.close();
+    expect_parhip_rejected(file.string());
+  }
+
+  {
+    TempFile file(".parhip");
+    std::ofstream out(file.string(), std::ios::binary);
+    write_binary<std::uint64_t>(out, parhip_version(false, false));
+    write_binary<std::uint64_t>(out, 2);
+    write_binary<std::uint64_t>(out, 2);
+    const EdgeID nodes_offset_base = 3 * sizeof(std::uint64_t) + 3 * sizeof(EdgeID);
+    write_binary<EdgeID>(out, nodes_offset_base);
+    write_binary<EdgeID>(out, nodes_offset_base + sizeof(NodeID));
+    write_binary<EdgeID>(out, nodes_offset_base + 2 * sizeof(NodeID));
+    write_binary<NodeID>(out, 1);
+    write_binary<NodeID>(out, 2);
+    out.close();
+    expect_parhip_rejected(file.string());
+  }
+}
+
 TEST(ShmParhipIOTest, compressed_binary_roundtrips_compressed_graphs) {
   const GraphSnapshot expected = weighted_test_snapshot();
   Graph graph = make_graph(expected);
@@ -178,6 +240,23 @@ TEST(ShmParhipIOTest, compressed_binary_rejects_missing_file_and_wrong_magic) {
     write_binary<std::uint64_t>(out, 0x123456789abcdef0ull);
   }
   EXPECT_FALSE(io::read_graph(wrong_magic.string(), io::GraphFileFormat::COMPRESSED));
+
+  TempFile truncated(".compressed");
+  {
+    std::ofstream out(truncated.string(), std::ios::binary);
+    write_binary<std::uint64_t>(out, io::compressed_binary::kMagicNumber);
+  }
+  EXPECT_FALSE(io::read_graph(truncated.string(), io::GraphFileFormat::COMPRESSED));
+
+  TempFile trailing(".compressed");
+  Graph graph = make_graph(weighted_test_snapshot());
+  Graph compressed = parallel_compress(graph.csr_graph());
+  io::write_graph(trailing.string(), io::GraphFileFormat::COMPRESSED, compressed);
+  {
+    std::ofstream out(trailing.string(), std::ios::binary | std::ios::app);
+    write_binary<std::uint8_t>(out, 0xff);
+  }
+  EXPECT_FALSE(io::read_graph(trailing.string(), io::GraphFileFormat::COMPRESSED));
 }
 
 TEST(ShmParhipIOTest, partition_and_block_size_helpers_roundtrip) {

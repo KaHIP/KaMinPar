@@ -242,6 +242,56 @@ TEST(ShmMetisIOTest, explicit_unit_weights_are_compacted) {
   }
 }
 
+TEST(ShmMetisIOTest, readers_skip_declared_node_sizes) {
+  TempFile file(".metis");
+  write_text(
+      file.string(),
+      R"(2 1 100
+17 2
+19 1
+)"
+  );
+
+  GraphSnapshot expected;
+  expected.n = 2;
+  expected.m = 2;
+  expected.node_weights = {1, 1};
+  expected.adjacency = {{{1, 1}}, {{0, 1}}};
+  expected.total_node_weight = 2;
+  expected.total_edge_weight = 2;
+
+  const auto graph = io::metis::read_graph(file.string(), false, NodeOrdering::NATURAL, false);
+  ASSERT_TRUE(graph);
+  expect_graph_eq(*graph, expected);
+}
+
+TEST(ShmMetisIOTest, readers_reject_malformed_graphs) {
+  const std::vector<std::string> malformed_graphs = {
+      "2 1\n2\n",
+      "2 0\n2\n1\n",
+      "2 1\n3\n1\n",
+      "2 1\n0\n1\n",
+      "2 1 2\n2\n1\n",
+      "2 1 11\n1 2 0\n1 1 1\n",
+  };
+
+  for (const std::string &contents : malformed_graphs) {
+    TempFile file(".metis");
+    write_text(file.string(), contents);
+
+    for (const bool parallel : {false, true}) {
+      for (const bool compress : {false, true}) {
+        SCOPED_TRACE(contents);
+        SCOPED_TRACE(parallel);
+        SCOPED_TRACE(compress);
+        EXPECT_FALSE(
+            io::metis::read_graph(file.string(), compress, NodeOrdering::NATURAL, parallel)
+        );
+      }
+    }
+  }
+}
+
 TEST(ShmMetisIOTest, parallel_reader_matches_large_multichunk_oracle) {
   TempFile file(".metis");
   LargeMetisFixture fixture = make_large_metis_fixture();
