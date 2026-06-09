@@ -12,7 +12,6 @@
 #include <fstream>
 #include <limits>
 #include <string>
-#include <type_traits>
 
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -63,12 +62,13 @@ public:
   }
 
   template <typename T> [[nodiscard]] const T *fetch(const std::size_t position) const {
-    if constexpr (!std::is_void_v<T>) {
-      require_available(position, sizeof(T));
-    } else {
-      require_available(position, 0);
-    }
+    require_available(position, sizeof(T));
     return reinterpret_cast<const T *>(_data + position);
+  }
+
+  [[nodiscard]] const std::uint8_t *fetch_raw(const std::size_t position) const {
+    require_available(position, 0);
+    return _data + position;
   }
 
   void require_available(const std::size_t position, const std::size_t bytes) const {

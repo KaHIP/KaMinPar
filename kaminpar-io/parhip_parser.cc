@@ -363,7 +363,7 @@ std::optional<Graph> csr_read_deg_buckets(const std::string &filename) {
     const ParHIPHeader header = ParHIPHeader::parse(reader);
     header.validate(reader);
 
-    const auto *raw_nodes = reader.fetch<void>(header.nodes_offset());
+    const auto *raw_nodes = reader.fetch_raw(header.nodes_offset());
     const bool upcast_edge_id = !header.has_64_bit_edge_id && sizeof(EdgeID) == 8;
     const auto fetch_edge_offset = [&](const NodeID u) -> EdgeID {
       if (upcast_edge_id) [[unlikely]] {
@@ -374,7 +374,7 @@ std::optional<Graph> csr_read_deg_buckets(const std::string &filename) {
     };
     validate_raw_node_offsets(header, fetch_edge_offset);
 
-    const auto *raw_edges = reader.fetch<void>(header.edges_offset());
+    const auto *raw_edges = reader.fetch_raw(header.edges_offset());
     const bool upcast_node_id = !header.has_64_bit_node_id && sizeof(NodeID) == 8;
     const auto fetch_adjacent_node = [&](const EdgeID e) -> NodeID {
       NodeID v;
@@ -387,7 +387,7 @@ std::optional<Graph> csr_read_deg_buckets(const std::string &filename) {
       return v;
     };
 
-    const auto *raw_node_weights = reader.fetch<void>(header.node_weights_offset());
+    const auto *raw_node_weights = reader.fetch_raw(header.node_weights_offset());
     const bool upcast_node_weight = !header.has_64_bit_node_weight && sizeof(NodeWeight) == 8;
     const auto fetch_node_weight = [&](const NodeID u) -> NodeWeight {
       if (upcast_node_weight) [[unlikely]] {
@@ -402,7 +402,7 @@ std::optional<Graph> csr_read_deg_buckets(const std::string &filename) {
       }
     };
 
-    const auto *raw_edge_weights = reader.fetch<void>(header.edge_weights_offset());
+    const auto *raw_edge_weights = reader.fetch_raw(header.edge_weights_offset());
     const bool upcast_edge_weight = !header.has_64_bit_edge_weight && sizeof(EdgeWeight) == 8;
     const auto fetch_edge_weight = [&](const EdgeID e) -> EdgeWeight {
       if (upcast_edge_weight) [[unlikely]] {
@@ -526,7 +526,7 @@ std::optional<Graph> compressed_read(const std::string &filename, const bool sor
       return static_cast<NodeID>(nodes[u + 1] - nodes[u]);
     };
 
-    const auto *edges = reader.fetch<void>(header.edges_offset());
+    const auto *edges = reader.fetch_raw(header.edges_offset());
     const bool upcast_node_id = !header.has_64_bit_node_id && sizeof(NodeID) == 8;
     const auto fetch_adjacent_node = [&](const EdgeID e) -> NodeID {
       NodeID v;
@@ -539,7 +539,7 @@ std::optional<Graph> compressed_read(const std::string &filename, const bool sor
       return v;
     };
 
-    const auto *edge_weights = reader.fetch<void>(header.edge_weights_offset());
+    const auto *edge_weights = reader.fetch_raw(header.edge_weights_offset());
     const bool upcast_edge_weight = !header.has_64_bit_edge_weight && sizeof(EdgeWeight) == 8;
     const auto fetch_edge_weight = [&](const EdgeID e) -> EdgeWeight {
       if (upcast_edge_weight) [[unlikely]] {
@@ -606,7 +606,7 @@ std::optional<Graph> compressed_read_deg_buckets(const std::string &filename) {
     const ParHIPHeader header = ParHIPHeader::parse(reader);
     header.validate(reader);
 
-    const auto *raw_nodes = reader.fetch<void>(header.nodes_offset());
+    const auto *raw_nodes = reader.fetch_raw(header.nodes_offset());
     const bool upcast_edge_id = !header.has_64_bit_edge_id && sizeof(EdgeID) == 8;
     const auto fetch_edge_offset = [&](const NodeID u) -> EdgeID {
       if (upcast_edge_id) [[unlikely]] {
@@ -617,7 +617,7 @@ std::optional<Graph> compressed_read_deg_buckets(const std::string &filename) {
     };
     validate_raw_node_offsets(header, fetch_edge_offset);
 
-    const auto *raw_edges = reader.fetch<void>(header.edges_offset());
+    const auto *raw_edges = reader.fetch_raw(header.edges_offset());
     const bool upcast_node_id = !header.has_64_bit_node_id && sizeof(NodeID) == 8;
     const auto fetch_adjacent_node = [&](const EdgeID e) -> NodeID {
       NodeID v;
@@ -630,7 +630,7 @@ std::optional<Graph> compressed_read_deg_buckets(const std::string &filename) {
       return v;
     };
 
-    const auto *raw_node_weights = reader.fetch<void>(header.node_weights_offset());
+    const auto *raw_node_weights = reader.fetch_raw(header.node_weights_offset());
     const bool upcast_node_weight = !header.has_64_bit_node_weight && sizeof(NodeWeight) == 8;
     const auto fetch_node_weight = [&](const NodeID u) -> NodeWeight {
       if (upcast_node_weight) [[unlikely]] {
@@ -645,7 +645,7 @@ std::optional<Graph> compressed_read_deg_buckets(const std::string &filename) {
       }
     };
 
-    const auto *raw_edge_weights = reader.fetch<void>(header.edge_weights_offset());
+    const auto *raw_edge_weights = reader.fetch_raw(header.edge_weights_offset());
     const bool upcast_edge_weight = !header.has_64_bit_edge_weight && sizeof(EdgeWeight) == 8;
     const auto fetch_edge_weight = [&](const EdgeID e) -> EdgeWeight {
       if (upcast_edge_weight) [[unlikely]] {
