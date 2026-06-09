@@ -106,7 +106,7 @@ template <typename Container> typename Container::value_type max_element(const C
     const Container &_r;
 
   public:
-    value_t _ans{std::numeric_limits<value_t>::min()};
+    value_t _ans{std::numeric_limits<value_t>::lowest()};
 
     void operator()(const tbb::blocked_range<size_t> &indices) {
       const Container &r = _r;
@@ -140,7 +140,7 @@ typename std::iterator_traits<InputIt>::value_type max_element(InputIt begin, In
     InputIt _begin;
 
   public:
-    value_t _ans{std::numeric_limits<value_t>::min()};
+    value_t _ans{std::numeric_limits<value_t>::lowest()};
 
     void operator()(const tbb::blocked_range<size_t> &indices) {
       InputIt begin = _begin;
@@ -177,7 +177,7 @@ typename std::iterator_traits<InputIt>::value_type max_difference(InputIt begin,
 
   // Catch special cases: zero or one element
   if (size == 0) {
-    return std::numeric_limits<value_t>::min();
+    return std::numeric_limits<value_t>::lowest();
   } else if (size == 1) {
     return 0;
   }
@@ -186,7 +186,7 @@ typename std::iterator_traits<InputIt>::value_type max_difference(InputIt begin,
     InputIt _begin;
 
   public:
-    value_t _ans = std::numeric_limits<value_t>::min();
+    value_t _ans = std::numeric_limits<value_t>::lowest();
 
     void operator()(const tbb::blocked_range<size_t> &indices) {
       const InputIt begin = _begin;

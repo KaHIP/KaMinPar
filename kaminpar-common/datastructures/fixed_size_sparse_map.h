@@ -122,7 +122,9 @@ public:
     return containsValidElement(key, find(key));
   }
   [[nodiscard]] const Value &get(const Key key) const {
-    return find(key)->element->value;
+    SparseElement *s = find(key);
+    KASSERT(containsValidElement(key, s), "key not in fixed-size sparse map: " << key);
+    return s->element->value;
   }
 
   auto &entries() {
@@ -153,6 +155,7 @@ public:
 
   void freeInternalData() {
     _size = 0;
+    _map_size = 0;
     _timestamp = 0;
     _data = nullptr;
     _sparse = nullptr;
@@ -161,26 +164,36 @@ public:
 
 private:
   inline SparseElement *find(const Key key) const {
-    KASSERT(_size < _map_size);
+    if (_map_size == 0 || _sparse == nullptr) [[unlikely]] {
+      return nullptr;
+    }
+
     std::size_t hash = murmur64(key) & (_map_size - 1);
+    const std::size_t start_hash = hash;
     while (_sparse[hash].timestamp == _timestamp) {
       KASSERT(_sparse[hash].element);
       if (_sparse[hash].element->key == key) {
         return &_sparse[hash];
       }
       hash = (hash + 1) & (_map_size - 1);
+      if (hash == start_hash) {
+        return nullptr;
+      }
     }
     return &_sparse[hash];
   }
 
   inline bool containsValidElement([[maybe_unused]] const Key key, const SparseElement *s) const {
-    KASSERT(s);
+    if (s == nullptr) {
+      return false;
+    }
     const bool is_contained = s->timestamp == _timestamp;
     KASSERT((!is_contained || s->element->key == key));
     return is_contained;
   }
 
   inline Element *addElement(const Key key, const Value value, SparseElement *s) {
+    KASSERT(s != nullptr, "fixed-size sparse map is full");
     KASSERT(find(key) == s);
     _dense[_size] = Element{key, value};
     *s = SparseElement{&_dense[_size++], _timestamp};

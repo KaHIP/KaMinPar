@@ -230,9 +230,10 @@ public:
     rank += first_word & setbits<Word>(kBlockHeaderWidth);
 
     if (num_word == 0) [[unlikely]] {
-      const std::size_t shift = (kWordWidth + kBlockHeaderWidth) - word_pos;
-      rank += std::popcount((first_word >> kBlockHeaderWidth) << shift) *
-              (word_pos != kBlockHeaderWidth);
+      if (word_pos != kBlockHeaderWidth) {
+        const std::size_t shift = (kWordWidth + kBlockHeaderWidth) - word_pos;
+        rank += std::popcount((first_word >> kBlockHeaderWidth) << shift);
+      }
     } else {
       rank += std::popcount(first_word >> kBlockHeaderWidth);
 
@@ -241,8 +242,10 @@ public:
         rank += std::popcount(data[i++]);
       }
 
-      const std::size_t shift = kWordWidth - word_pos;
-      rank += std::popcount(data[i] << shift) * (word_pos != 0);
+      if (word_pos != 0) {
+        const std::size_t shift = kWordWidth - word_pos;
+        rank += std::popcount(data[i] << shift);
+      }
     }
 
     return rank;

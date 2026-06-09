@@ -62,12 +62,16 @@ template <std::unsigned_integral Int> class CompactStaticArray {
       return _data -= _byte_width, *this;
     }
 
-    CompactStaticArrayIterator operator++(int) const {
-      return CompactStaticArrayIterator{_byte_width, _data + _byte_width};
+    CompactStaticArrayIterator operator++(int) {
+      auto old = *this;
+      _data += _byte_width;
+      return old;
     }
 
-    CompactStaticArrayIterator operator--(int) const {
-      return CompactStaticArrayIterator{_byte_width, _data - _byte_width};
+    CompactStaticArrayIterator operator--(int) {
+      auto old = *this;
+      _data -= _byte_width;
+      return old;
     }
 
     CompactStaticArrayIterator operator+(const difference_type n) const {

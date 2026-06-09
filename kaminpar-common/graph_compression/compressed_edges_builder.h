@@ -545,6 +545,7 @@ private:
               const EdgeWeight weight = get_edge_weight(neighborhood, i);
               _cur_compressed_edges += encoder.add(adjacent_node);
               _cur_compressed_edges += encoder.add(weight);
+              _total_edge_weight += weight;
 
               i += 1;
             }
