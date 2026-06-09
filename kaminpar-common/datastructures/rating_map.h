@@ -10,8 +10,6 @@
  ******************************************************************************/
 #pragma once
 
-#include <unordered_map>
-
 #include "kaminpar-common/datastructures/fast_reset_array.h"
 #include "kaminpar-common/datastructures/fixed_size_sparse_map.h"
 #include "kaminpar-common/datastructures/flat_hash_map.h"
@@ -25,30 +23,6 @@ template <typename Key, typename Value>
 using FastResetArray = ::kaminpar::FastResetArray<Value, Key>;
 
 template <typename Key, typename Value> using SparseMap = ::kaminpar::SparseMap<Key, Value>;
-
-template <typename Key, typename Value> class UnorderedMap {
-public:
-  Value &operator[](const Key key) {
-    return map[key];
-  }
-
-  [[nodiscard]] auto &entries() {
-    return map;
-  }
-
-  void clear() {
-    map.clear();
-  }
-
-  [[nodiscard]] std::size_t capacity() const {
-    return std::numeric_limits<std::size_t>::max();
-  }
-
-  void resize(std::size_t) {}
-
-private:
-  std::unordered_map<Key, Value> map;
-};
 
 template <typename Key, typename Value> class FlatHashMap {
 public:
