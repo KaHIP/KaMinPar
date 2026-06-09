@@ -10,14 +10,11 @@
  ******************************************************************************/
 #pragma once
 
-#ifdef KAMINPAR_SPARSEHASH_FOUND
-#include <google/dense_hash_map>
-#endif
-
 #include <unordered_map>
 
 #include "kaminpar-common/datastructures/fast_reset_array.h"
 #include "kaminpar-common/datastructures/fixed_size_sparse_map.h"
+#include "kaminpar-common/datastructures/flat_hash_map.h"
 #include "kaminpar-common/datastructures/sparse_map.h"
 
 namespace kaminpar {
@@ -53,13 +50,8 @@ private:
   std::unordered_map<Key, Value> map;
 };
 
-#ifdef KAMINPAR_SPARSEHASH_FOUND
-template <typename Key, typename Value> class Sparsehash {
+template <typename Key, typename Value> class FlatHashMap {
 public:
-  Sparsehash() {
-    map.set_empty_key(std::numeric_limits<Key>::max());
-  }
-
   Value &operator[](const Key key) {
     return map[key];
   }
@@ -79,11 +71,8 @@ public:
   void resize(std::size_t) {}
 
 private:
-  google::dense_hash_map<Key, Value> map;
+  ::kaminpar::FlatHashMap<Key, Value> map;
 };
-#else  // KAMINPAR_SPARSEHASH_FOUND
-template <typename Key, typename Value> using Sparsehash = SparseMap<Key, Value>;
-#endif // KAMINPAR_SPARSEHASH_FOUND
 
 } // namespace rm_backyard
 

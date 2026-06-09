@@ -5,12 +5,7 @@
  ******************************************************************************/
 #pragma once
 
-#ifdef KAMINPAR_SPARSEHASH_FOUND
-#include <google/dense_hash_map>
-#else // KAMINPAR_SPARSEHASH_FOUND
-#include <unordered_map>
-#endif // KAMINPAR_SPARSEHASH_FOUND
-
+#include <algorithm>
 #include <vector>
 
 #include <tbb/parallel_for.h>
@@ -20,6 +15,7 @@
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/dynamic_map.h"
+#include "kaminpar-common/datastructures/flat_hash_map.h"
 #include "kaminpar-common/inline.h"
 
 namespace kaminpar::shm {
@@ -110,12 +106,7 @@ public:
   LargeKGenericDeltaGainCache(const GainCache &gain_cache, const DeltaPartitionedGraph &d_graph)
       : _gain_cache(gain_cache),
         _d_graph(d_graph),
-        _k(d_graph.k()) {
-#ifdef KAMINPAR_SPARSEHASH_FOUND
-    _adjacent_blocks_delta.set_empty_key(kInvalidNodeID);
-    _adjacent_blocks_delta.set_deleted_key(kInvalidNodeID - 1);
-#endif // KAMINPAR_SPARSEHASH_FOUND
-  }
+        _k(d_graph.k()) {}
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight conn(const NodeID node, const BlockID block) const {
     return _gain_cache.conn(node, block) + conn_delta(node, block);
@@ -192,11 +183,7 @@ private:
 
   DynamicFlatMap<std::size_t, EdgeWeight> _gain_cache_delta;
 
-#ifdef KAMINPAR_SPARSEHASH_FOUND
-  google::dense_hash_map<NodeID, std::vector<BlockID>> _adjacent_blocks_delta;
-#else  // KAMINPAR_SPARSEHASH_FOUND
-  std::unordered_map<NodeID, std::vector<BlockID>> _adjacent_blocks_delta;
-#endif // KAMINPAR_SPARSEHASH_FOUND
+  FlatHashMap<NodeID, std::vector<BlockID>> _adjacent_blocks_delta;
 };
 
 } // namespace kaminpar::shm

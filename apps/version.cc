@@ -115,11 +115,6 @@ void print_version() {
   std::cout << "    64-bit local weights: disabled\n";
 #endif
   std::cout << "  Dependencies:\n";
-#ifdef KAMINPAR_SPARSEHASH_FOUND
-  std::cout << "    Sparsehash: found and enabled\n";
-#else
-  std::cout << "    Sparsehash: not found or disabled\n";
-#endif
 #ifdef KAMINPAR_USES_GROWT
   std::cout << "    Growt: found and enabled\n";
 #else

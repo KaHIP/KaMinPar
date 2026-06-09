@@ -8,7 +8,3 @@ target_include_directories(dKaMinPar PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SO
 target_link_libraries(dKaMinPar PUBLIC KaMinPar::KaMinPar KaMinPar::KaMinParMPI growt)
 target_compile_options(dKaMinPar PRIVATE ${KAMINPAR_WARNING_FLAGS})
 set_target_properties(dKaMinPar PROPERTIES KASSERT_ASSERTION_LEVEL ${KAMINPAR_ASSERTION_LEVEL_CODE})
-
-if (KAMINPAR_BUILD_WITH_SPARSEHASH)
-    target_link_libraries(dKaMinPar PRIVATE Sparsehash::Sparsehash)
-endif ()

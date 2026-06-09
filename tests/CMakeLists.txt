@@ -52,6 +52,7 @@ kaminpar_add_common_test(test_common_marker common/datastructures/marker_test.cc
 kaminpar_add_common_test(test_common_static_array common/datastructures/static_array_test.cc)
 kaminpar_add_common_test(test_common_compact_static_array common/datastructures/compact_static_array_test.cc)
 kaminpar_add_common_test(test_common_dynamic_map common/datastructures/dynamic_map_test.cc)
+kaminpar_add_common_test(test_common_flat_hash_map common/datastructures/flat_hash_map_test.cc)
 kaminpar_add_common_test(test_common_compact_hash_map common/datastructures/compact_hash_map_test.cc)
 
 # Common -> Misc
