@@ -20,12 +20,6 @@
  ******************************************************************************/
 #pragma once
 
-#ifdef KAMINPAR_SPARSEHASH_FOUND
-#include <google/dense_hash_map>
-#else // KAMINPAR_SPARSEHASH_FOUND
-#include <unordered_map>
-#endif // KAMINPAR_SPARSEHASH_FOUND
-
 #include <limits>
 
 #include <tbb/enumerable_thread_specific.h>

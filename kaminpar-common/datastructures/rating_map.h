@@ -10,14 +10,9 @@
  ******************************************************************************/
 #pragma once
 
-#ifdef KAMINPAR_SPARSEHASH_FOUND
-#include <google/dense_hash_map>
-#endif
-
-#include <unordered_map>
-
 #include "kaminpar-common/datastructures/fast_reset_array.h"
 #include "kaminpar-common/datastructures/fixed_size_sparse_map.h"
+#include "kaminpar-common/datastructures/flat_hash_map.h"
 #include "kaminpar-common/datastructures/sparse_map.h"
 
 namespace kaminpar {
@@ -29,7 +24,7 @@ using FastResetArray = ::kaminpar::FastResetArray<Value, Key>;
 
 template <typename Key, typename Value> using SparseMap = ::kaminpar::SparseMap<Key, Value>;
 
-template <typename Key, typename Value> class UnorderedMap {
+template <typename Key, typename Value> class FlatHashMap {
 public:
   Value &operator[](const Key key) {
     return map[key];
@@ -50,40 +45,8 @@ public:
   void resize(std::size_t) {}
 
 private:
-  std::unordered_map<Key, Value> map;
+  ::kaminpar::FlatHashMap<Key, Value> map;
 };
-
-#ifdef KAMINPAR_SPARSEHASH_FOUND
-template <typename Key, typename Value> class Sparsehash {
-public:
-  Sparsehash() {
-    map.set_empty_key(std::numeric_limits<Key>::max());
-  }
-
-  Value &operator[](const Key key) {
-    return map[key];
-  }
-
-  [[nodiscard]] auto &entries() {
-    return map;
-  }
-
-  void clear() {
-    map.clear();
-  }
-
-  [[nodiscard]] std::size_t capacity() const {
-    return std::numeric_limits<std::size_t>::max();
-  }
-
-  void resize(std::size_t) {}
-
-private:
-  google::dense_hash_map<Key, Value> map;
-};
-#else  // KAMINPAR_SPARSEHASH_FOUND
-template <typename Key, typename Value> using Sparsehash = SparseMap<Key, Value>;
-#endif // KAMINPAR_SPARSEHASH_FOUND
 
 } // namespace rm_backyard
 

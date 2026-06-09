@@ -55,7 +55,6 @@ option(KAMINPAR_BUILD_WITH_CCACHE "Use Ccache as a compiler cache." ON)
 option(KAMINPAR_BUILD_WITH_MTUNE_NATIVE "Build with -mtune=native." ON)
 
 option(KAMINPAR_BUILD_WITH_KASSERT "Use KASSERT for assertions. If disabled, the assertion level is ignored." ON)
-option(KAMINPAR_BUILD_WITH_SPARSEHASH "Build with Google Sparsehash." ON)
 option(KAMINPAR_BUILD_WITH_WHFC "Build with Weighted HyperFlowCutter." OFF)
 option(KAMINPAR_BUILD_WITH_BACKWARD "Build with backward-cpp for stack traces (distributed partitioner only)." OFF)
 
@@ -334,12 +333,6 @@ if(KAMINPAR_BUILD_WITH_CCACHE)
   endif()
 endif()
 
-# We use Google Sparsehash for hash tables
-if(KAMINPAR_BUILD_WITH_SPARSEHASH)
-  find_package(Sparsehash REQUIRED)
-  list(APPEND KAMINPAR_DEFINITIONS "-DKAMINPAR_SPARSEHASH_FOUND")
-endif()
-
 # We use Intel' TBB as a parallelization library
 if(NOT KAMINPAR_DOWNLOAD_TBB)
   find_package(TBB QUIET)
@@ -603,12 +596,6 @@ set(
 set_property(CACHE KAMINPAR_INSTALL_CMAKEDIR PROPERTY TYPE PATH)
 mark_as_advanced(KAMINPAR_INSTALL_CMAKEDIR)
 
-install(
-  FILES ${PROJECT_SOURCE_DIR}/cmake/modules/FindSparsehash.cmake
-  DESTINATION ${KAMINPAR_INSTALL_CMAKEDIR}
-  COMPONENT KaMinPar_Development
-)
-
 configure_file(cmake/KaMinParConfig.cmake.in KaMinParConfig.cmake @ONLY)
 install(
     FILES ${PROJECT_BINARY_DIR}/KaMinParConfig.cmake
@@ -662,7 +649,7 @@ set(CPACK_DEB_COMPONENT_INSTALL ON)
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 set(CPACK_DEBIAN_PACKAGE_RELEASE 1)
 set(CPACK_DEBIAN_PACKAGE_GENERATE_SHLIBS ON)
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6 (>= 2.34), libgcc-s1 (>= 3.0), libstdc++6 (>= 10.2), libtbb-dev (>= 2018~U6-4), libsparsehash-dev (>= 2.0.2-1)")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6 (>= 2.34), libgcc-s1 (>= 3.0), libstdc++6 (>= 10.2), libtbb-dev (>= 2018~U6-4)")
 if(NUMA_LIB)
   set(CPACK_DEBIAN_PACKAGE_DEPENDS "${CPACK_DEBIAN_PACKAGE_DEPENDS}, libnuma-dev (>= 2.0.12-1)")
 endif()
@@ -675,7 +662,7 @@ set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
 set(CPACK_RPM_PACKAGE_LICENSE "MIT")
 set(CPACK_RPM_PACKAGE_RELEASE 1)
 set(CPACK_RPM_PACKAGE_AUTOREQ OFF)
-set(CPACK_RPM_PACKAGE_REQUIRES "tbb-devel, sparsehash-devel")
+set(CPACK_RPM_PACKAGE_REQUIRES "tbb-devel")
 if(NUMA_LIB)
   set(CPACK_RPM_PACKAGE_REQUIRES "${CPACK_RPM_PACKAGE_REQUIRES}, numactl-devel")
 endif()
