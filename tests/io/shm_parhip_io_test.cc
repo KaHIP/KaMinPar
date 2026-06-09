@@ -24,46 +24,77 @@ using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using namespace io_helpers;
 
-std::uint64_t parhip_version(const bool has_node_weights, const bool has_edge_weights) {
+std::uint64_t parhip_version(
+    const bool has_node_weights,
+    const bool has_edge_weights,
+    const bool has_64_bit_edge_id = sizeof(EdgeID) == 8,
+    const bool has_64_bit_node_id = sizeof(NodeID) == 8,
+    const bool has_64_bit_node_weight = sizeof(NodeWeight) == 8,
+    const bool has_64_bit_edge_weight = sizeof(EdgeWeight) == 8
+) {
   const auto make_flag = [](const bool flag, const std::uint64_t shift) {
     return static_cast<std::uint64_t>(flag ? 0 : 1) << shift;
   };
-  return make_flag(sizeof(EdgeWeight) == 8, 5) | make_flag(sizeof(NodeWeight) == 8, 4) |
-         make_flag(sizeof(NodeID) == 8, 3) | make_flag(sizeof(EdgeID) == 8, 2) |
+  return make_flag(has_64_bit_edge_weight, 5) | make_flag(has_64_bit_node_weight, 4) |
+         make_flag(has_64_bit_node_id, 3) | make_flag(has_64_bit_edge_id, 2) |
          make_flag(has_node_weights, 1) | make_flag(has_edge_weights, 0);
 }
 
-void write_direct_parhip(const std::string &filename, const GraphSnapshot &snapshot) {
+template <
+    typename FileEdgeID,
+    typename FileNodeID,
+    typename FileNodeWeight,
+    typename FileEdgeWeight>
+void write_direct_parhip_as(const std::string &filename, const GraphSnapshot &snapshot) {
   std::ofstream out(filename, std::ios::binary);
-  write_binary<std::uint64_t>(out, parhip_version(snapshot.node_weighted, snapshot.edge_weighted));
+  write_binary<std::uint64_t>(
+      out,
+      parhip_version(
+          snapshot.node_weighted,
+          snapshot.edge_weighted,
+          sizeof(FileEdgeID) == 8,
+          sizeof(FileNodeID) == 8,
+          sizeof(FileNodeWeight) == 8,
+          sizeof(FileEdgeWeight) == 8
+      )
+  );
   write_binary<std::uint64_t>(out, snapshot.n);
   write_binary<std::uint64_t>(out, snapshot.m);
 
-  const EdgeID nodes_offset_base = 3 * sizeof(std::uint64_t) + (snapshot.n + 1) * sizeof(EdgeID);
-  EdgeID cur_edge = 0;
+  const std::uint64_t nodes_offset_base =
+      3 * sizeof(std::uint64_t) + (snapshot.n + 1) * sizeof(FileEdgeID);
+  std::uint64_t cur_edge = 0;
   for (NodeID u = 0; u < snapshot.n; ++u) {
-    write_binary<EdgeID>(out, nodes_offset_base + cur_edge * sizeof(NodeID));
-    cur_edge += static_cast<EdgeID>(snapshot.adjacency[u].size());
+    write_binary<FileEdgeID>(
+        out, static_cast<FileEdgeID>(nodes_offset_base + cur_edge * sizeof(FileNodeID))
+    );
+    cur_edge += snapshot.adjacency[u].size();
   }
-  write_binary<EdgeID>(out, nodes_offset_base + cur_edge * sizeof(NodeID));
+  write_binary<FileEdgeID>(
+      out, static_cast<FileEdgeID>(nodes_offset_base + cur_edge * sizeof(FileNodeID))
+  );
 
   for (const auto &adjacency : snapshot.adjacency) {
     for (const Edge edge : adjacency) {
-      write_binary<NodeID>(out, edge.target);
+      write_binary<FileNodeID>(out, static_cast<FileNodeID>(edge.target));
     }
   }
   if (snapshot.node_weighted) {
     for (const NodeWeight weight : snapshot.node_weights) {
-      write_binary<NodeWeight>(out, weight);
+      write_binary<FileNodeWeight>(out, static_cast<FileNodeWeight>(weight));
     }
   }
   if (snapshot.edge_weighted) {
     for (const auto &adjacency : snapshot.adjacency) {
       for (const Edge edge : adjacency) {
-        write_binary<EdgeWeight>(out, edge.weight);
+        write_binary<FileEdgeWeight>(out, static_cast<FileEdgeWeight>(edge.weight));
       }
     }
   }
+}
+
+void write_direct_parhip(const std::string &filename, const GraphSnapshot &snapshot) {
+  write_direct_parhip_as<EdgeID, NodeID, NodeWeight, EdgeWeight>(filename, snapshot);
 }
 
 void expect_parhip_rejected(const std::string &filename) {
@@ -72,6 +103,22 @@ void expect_parhip_rejected(const std::string &filename) {
          {NodeOrdering::NATURAL, NodeOrdering::EXTERNAL_DEGREE_BUCKETS}) {
       SCOPED_TRACE(compress);
       EXPECT_FALSE(io::parhip::read_graph(filename, compress, ordering));
+    }
+  }
+}
+
+void expect_parhip_read_variants(const std::string &filename, const GraphSnapshot &expected) {
+  for (const bool compress : {false, true}) {
+    for (const NodeOrdering ordering :
+         {NodeOrdering::NATURAL, NodeOrdering::EXTERNAL_DEGREE_BUCKETS}) {
+      SCOPED_TRACE(compress);
+      const auto graph = io::parhip::read_graph(filename, compress, ordering);
+      ASSERT_TRUE(graph);
+      if (ordering == NodeOrdering::EXTERNAL_DEGREE_BUCKETS) {
+        expect_graph_eq_by_unique_node_weight(*graph, expected);
+      } else {
+        expect_graph_eq(*graph, expected);
+      }
     }
   }
 }
@@ -117,6 +164,34 @@ TEST(ShmParhipIOTest, external_degree_bucket_read_preserves_weight_identified_gr
     EXPECT_EQ(graph->is_compressed(), compress);
     EXPECT_TRUE(graph->sorted());
     expect_graph_eq_by_unique_node_weight(*graph, expected);
+  }
+}
+
+TEST(ShmParhipIOTest, readers_convert_parhip_integer_widths) {
+  const GraphSnapshot expected = weighted_test_snapshot();
+
+  {
+    TempFile file(".parhip");
+    write_direct_parhip_as<std::uint32_t, std::uint32_t, std::int32_t, std::int32_t>(
+        file.string(), expected
+    );
+    expect_parhip_read_variants(file.string(), expected);
+  }
+
+  {
+    TempFile file(".parhip");
+    write_direct_parhip_as<std::uint64_t, std::uint64_t, std::int64_t, std::int64_t>(
+        file.string(), expected
+    );
+    expect_parhip_read_variants(file.string(), expected);
+  }
+
+  {
+    TempFile file(".parhip");
+    write_direct_parhip_as<std::uint64_t, std::uint32_t, std::int64_t, std::int32_t>(
+        file.string(), expected
+    );
+    expect_parhip_read_variants(file.string(), expected);
   }
 }
 

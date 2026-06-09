@@ -60,6 +60,11 @@ template <typename Int> void ensure_fits(const std::uint64_t value, const char *
   raise_if(value > static_cast<std::uint64_t>(std::numeric_limits<Int>::max()), message);
 }
 
+template <typename Int> Int checked_cast(const std::uint64_t value, const char *message) {
+  ensure_fits<Int>(value, message);
+  return static_cast<Int>(value);
+}
+
 template <typename Weight, typename RawWeight>
 Weight parse_weight(const RawWeight weight, const char *message) {
   if constexpr (std::is_signed_v<RawWeight>) {
@@ -73,6 +78,21 @@ Weight parse_weight(const RawWeight weight, const char *message) {
       message
   );
   return static_cast<Weight>(weight);
+}
+
+std::uint64_t
+fetch_unsigned(const std::uint8_t *data, const bool is_64_bit, const std::uint64_t pos) {
+  if (is_64_bit) [[unlikely]] {
+    return reinterpret_cast<const std::uint64_t *>(data)[pos];
+  }
+  return reinterpret_cast<const std::uint32_t *>(data)[pos];
+}
+
+std::int64_t fetch_signed(const std::uint8_t *data, const bool is_64_bit, const std::uint64_t pos) {
+  if (is_64_bit) [[unlikely]] {
+    return reinterpret_cast<const std::int64_t *>(data)[pos];
+  }
+  return reinterpret_cast<const std::int32_t *>(data)[pos];
 }
 
 class ParHIPHeader {
@@ -167,13 +187,13 @@ public:
     );
   }
 
-  [[nodiscard]] EdgeID map_edge_offset(const EdgeID edge_offset) const {
+  [[nodiscard]] EdgeID map_edge_offset(const std::uint64_t edge_offset) const {
     raise_if(edge_offset < _nodes_offset_base, "Invalid ParHIP node offset");
-    const EdgeID relative_offset = edge_offset - _nodes_offset_base;
+    const std::uint64_t relative_offset = edge_offset - _nodes_offset_base;
     raise_if(relative_offset % _node_id_width != 0, "Invalid ParHIP node offset alignment");
-    const EdgeID edge = relative_offset / _node_id_width;
+    const std::uint64_t edge = relative_offset / _node_id_width;
     raise_if(edge > num_edges, "ParHIP node offset points past the edge array");
-    return edge;
+    return checked_cast<EdgeID>(edge, "ParHIP node offset is too large for the edge ID type");
   }
 
   [[nodiscard]] std::size_t file_size() const {
@@ -187,30 +207,6 @@ public:
   }
 
   void validate(const BinaryReader &reader) const {
-    if (has_64_bit_node_id && sizeof(NodeID) == 4) {
-      throw IOException(
-          "The stored graph uses 64-Bit node IDs but this build uses 32-Bit node IDs."
-      );
-    }
-
-    if (has_64_bit_edge_id && sizeof(EdgeID) == 4) {
-      throw IOException(
-          "The stored graph uses 64-Bit edge IDs but this build uses 32-Bit edge IDs."
-      );
-    }
-
-    if (has_node_weights && has_64_bit_node_weight && sizeof(NodeWeight) == 4) {
-      throw IOException(
-          "The stored graph uses 64-Bit node weights but this build uses 32-Bit node weights."
-      );
-    }
-
-    if (has_edge_weights && has_64_bit_edge_weight && sizeof(EdgeWeight) == 4) {
-      throw IOException(
-          "The stored graph uses 64-Bit edge weights but this build uses 32-Bit edge weights."
-      );
-    }
-
     ensure_fits<NodeID>(num_nodes, "number of nodes is too large for the node ID type");
     ensure_fits<EdgeID>(num_edges, "number of edges is too large for the edge ID type");
     raise_if(file_size() != reader.length(), "ParHIP graph file has an unexpected size");
@@ -224,22 +220,22 @@ private:
   std::size_t _nodes_offset_base;
 };
 
-template <typename T, typename U = T, typename Transformer = std::identity>
-StaticArray<T> read(
+template <typename T, typename Raw, typename Transformer>
+StaticArray<T> read_raw_array(
     const BinaryReader &reader,
     const std::size_t offset,
     const std::size_t length,
-    Transformer transformer = {}
+    Transformer transformer
 ) {
   StaticArray<T> data(length, static_array::noinit);
   reader.require_available(
-      offset, checked_mul(length, sizeof(U), "ParHIP graph file layout is too large")
+      offset, checked_mul(length, sizeof(Raw), "ParHIP graph file layout is too large")
   );
   if (length == 0) {
     return data;
   }
 
-  const U *raw_data = reader.fetch<U>(offset);
+  const Raw *raw_data = reader.fetch<Raw>(offset);
   tbb::parallel_for<std::size_t>(0, length, [&](const auto i) {
     data[i] = transformer(raw_data[i]);
   });
@@ -248,17 +244,21 @@ StaticArray<T> read(
 }
 
 template <typename T, typename Transformer = std::identity>
-StaticArray<T> read(
+StaticArray<T> read_unsigned_array(
     const BinaryReader &reader,
     const std::size_t offset,
     const std::size_t length,
-    const bool upcast,
+    const bool is_64_bit,
     Transformer transformer = {}
 ) {
-  if (upcast) {
-    return read<T, std::uint32_t>(reader, offset, length, std::forward<Transformer>(transformer));
+  if (is_64_bit) {
+    return read_raw_array<T, std::uint64_t>(
+        reader, offset, length, std::forward<Transformer>(transformer)
+    );
   } else {
-    return read<T>(reader, offset, length, std::forward<Transformer>(transformer));
+    return read_raw_array<T, std::uint32_t>(
+        reader, offset, length, std::forward<Transformer>(transformer)
+    );
   }
 }
 
@@ -267,17 +267,26 @@ StaticArray<Weight> read_weights(
     const BinaryReader &reader,
     const std::size_t offset,
     const std::size_t length,
-    const bool upcast
+    const bool is_64_bit
 ) {
-  if (upcast) {
-    return read<Weight, std::int32_t>(reader, offset, length, [](const std::int32_t weight) {
-      return parse_weight<Weight>(weight, "Invalid ParHIP node or edge weight");
-    });
+  if (is_64_bit) {
+    return read_raw_array<Weight, std::int64_t>(
+        reader, offset, length, [](const std::int64_t weight) {
+          return parse_weight<Weight>(weight, "Invalid ParHIP node or edge weight");
+        }
+    );
   } else {
-    return read<Weight>(reader, offset, length, [](const Weight weight) {
-      return parse_weight<Weight>(weight, "Invalid ParHIP node or edge weight");
-    });
+    return read_raw_array<Weight, std::int32_t>(
+        reader, offset, length, [](const std::int32_t weight) {
+          return parse_weight<Weight>(weight, "Invalid ParHIP node or edge weight");
+        }
+    );
   }
+}
+
+NodeID parse_edge_endpoint(const std::uint64_t v, const ParHIPHeader &header) {
+  raise_if(v >= header.num_nodes, "ParHIP edge endpoint is out of bounds");
+  return checked_cast<NodeID>(v, "ParHIP edge endpoint is too large for the node ID type");
 }
 
 void validate_node_offsets(const StaticArray<EdgeID> &nodes, const ParHIPHeader &header) {
@@ -311,35 +320,34 @@ std::optional<Graph> csr_read(const std::string &filename, const bool sorted) {
     const ParHIPHeader header = ParHIPHeader::parse(reader);
     header.validate(reader);
 
-    const bool upcast_edge_id = !header.has_64_bit_edge_id && sizeof(EdgeID) == 8;
-    StaticArray<EdgeID> nodes = read<EdgeID>(
-        reader, header.nodes_offset(), header.num_nodes + 1, upcast_edge_id, [&](const EdgeID e) {
-          return header.map_edge_offset(e);
-        }
+    StaticArray<EdgeID> nodes = read_unsigned_array<EdgeID>(
+        reader,
+        header.nodes_offset(),
+        header.num_nodes + 1,
+        header.has_64_bit_edge_id,
+        [&](const std::uint64_t e) { return header.map_edge_offset(e); }
     );
     validate_node_offsets(nodes, header);
 
-    const bool upcast_node_id = !header.has_64_bit_node_id && sizeof(NodeID) == 8;
-    StaticArray<NodeID> edges = read<NodeID>(
-        reader, header.edges_offset(), header.num_edges, upcast_node_id, [&](const NodeID v) {
-          raise_if(v >= header.num_nodes, "ParHIP edge endpoint is out of bounds");
-          return v;
-        }
+    StaticArray<NodeID> edges = read_unsigned_array<NodeID>(
+        reader,
+        header.edges_offset(),
+        header.num_edges,
+        header.has_64_bit_node_id,
+        [&](const std::uint64_t v) { return parse_edge_endpoint(v, header); }
     );
 
     StaticArray<NodeWeight> node_weights;
     if (header.has_node_weights) {
-      const bool upcast_node_weight = !header.has_64_bit_node_weight && sizeof(NodeWeight) == 8;
       node_weights = read_weights<NodeWeight>(
-          reader, header.node_weights_offset(), header.num_nodes, upcast_node_weight
+          reader, header.node_weights_offset(), header.num_nodes, header.has_64_bit_node_weight
       );
     }
 
     StaticArray<EdgeWeight> edge_weights;
     if (header.has_edge_weights) {
-      const bool upcast_edge_weight = !header.has_64_bit_edge_weight && sizeof(EdgeWeight) == 8;
       edge_weights = read_weights<EdgeWeight>(
-          reader, header.edge_weights_offset(), header.num_edges, upcast_edge_weight
+          reader, header.edge_weights_offset(), header.num_edges, header.has_64_bit_edge_weight
       );
     }
 
@@ -364,57 +372,30 @@ std::optional<Graph> csr_read_deg_buckets(const std::string &filename) {
     header.validate(reader);
 
     const auto *raw_nodes = reader.fetch_raw(header.nodes_offset());
-    const bool upcast_edge_id = !header.has_64_bit_edge_id && sizeof(EdgeID) == 8;
-    const auto fetch_edge_offset = [&](const NodeID u) -> EdgeID {
-      if (upcast_edge_id) [[unlikely]] {
-        return reinterpret_cast<const std::uint32_t *>(raw_nodes)[u];
-      } else {
-        return reinterpret_cast<const EdgeID *>(raw_nodes)[u];
-      }
+    const auto fetch_edge_offset = [&](const NodeID u) -> std::uint64_t {
+      return fetch_unsigned(raw_nodes, header.has_64_bit_edge_id, u);
     };
     validate_raw_node_offsets(header, fetch_edge_offset);
 
     const auto *raw_edges = reader.fetch_raw(header.edges_offset());
-    const bool upcast_node_id = !header.has_64_bit_node_id && sizeof(NodeID) == 8;
     const auto fetch_adjacent_node = [&](const EdgeID e) -> NodeID {
-      NodeID v;
-      if (upcast_node_id) [[unlikely]] {
-        v = reinterpret_cast<const std::uint32_t *>(raw_edges)[e];
-      } else {
-        v = reinterpret_cast<const NodeID *>(raw_edges)[e];
-      }
-      raise_if(v >= header.num_nodes, "ParHIP edge endpoint is out of bounds");
-      return v;
+      return parse_edge_endpoint(fetch_unsigned(raw_edges, header.has_64_bit_node_id, e), header);
     };
 
     const auto *raw_node_weights = reader.fetch_raw(header.node_weights_offset());
-    const bool upcast_node_weight = !header.has_64_bit_node_weight && sizeof(NodeWeight) == 8;
     const auto fetch_node_weight = [&](const NodeID u) -> NodeWeight {
-      if (upcast_node_weight) [[unlikely]] {
-        return parse_weight<NodeWeight>(
-            reinterpret_cast<const std::int32_t *>(raw_node_weights)[u],
-            "Invalid ParHIP node weight"
-        );
-      } else {
-        return parse_weight<NodeWeight>(
-            reinterpret_cast<const NodeWeight *>(raw_node_weights)[u], "Invalid ParHIP node weight"
-        );
-      }
+      return parse_weight<NodeWeight>(
+          fetch_signed(raw_node_weights, header.has_64_bit_node_weight, u),
+          "Invalid ParHIP node weight"
+      );
     };
 
     const auto *raw_edge_weights = reader.fetch_raw(header.edge_weights_offset());
-    const bool upcast_edge_weight = !header.has_64_bit_edge_weight && sizeof(EdgeWeight) == 8;
     const auto fetch_edge_weight = [&](const EdgeID e) -> EdgeWeight {
-      if (upcast_edge_weight) [[unlikely]] {
-        return parse_weight<EdgeWeight>(
-            reinterpret_cast<const std::int32_t *>(raw_edge_weights)[e],
-            "Invalid ParHIP edge weight"
-        );
-      } else {
-        return parse_weight<EdgeWeight>(
-            reinterpret_cast<const EdgeWeight *>(raw_edge_weights)[e], "Invalid ParHIP edge weight"
-        );
-      }
+      return parse_weight<EdgeWeight>(
+          fetch_signed(raw_edge_weights, header.has_64_bit_edge_weight, e),
+          "Invalid ParHIP edge weight"
+      );
     };
 
     const auto fetch_degree = [&](const NodeID u) -> NodeID {
@@ -506,19 +487,19 @@ std::optional<Graph> compressed_read(const std::string &filename, const bool sor
     const ParHIPHeader header = ParHIPHeader::parse(reader);
     header.validate(reader);
 
-    const bool upcast_edge_id = !header.has_64_bit_edge_id && sizeof(EdgeID) == 8;
-    StaticArray<EdgeID> nodes = read<EdgeID>(
-        reader, header.nodes_offset(), header.num_nodes + 1, upcast_edge_id, [&](const EdgeID e) {
-          return header.map_edge_offset(e);
-        }
+    StaticArray<EdgeID> nodes = read_unsigned_array<EdgeID>(
+        reader,
+        header.nodes_offset(),
+        header.num_nodes + 1,
+        header.has_64_bit_edge_id,
+        [&](const std::uint64_t e) { return header.map_edge_offset(e); }
     );
     validate_node_offsets(nodes, header);
 
     StaticArray<NodeWeight> node_weights;
     if (header.has_node_weights) {
-      const bool upcast_node_weight = !header.has_64_bit_node_weight && sizeof(NodeWeight) == 8;
       node_weights = read_weights<NodeWeight>(
-          reader, header.node_weights_offset(), header.num_nodes, upcast_node_weight
+          reader, header.node_weights_offset(), header.num_nodes, header.has_64_bit_node_weight
       );
     }
 
@@ -527,30 +508,15 @@ std::optional<Graph> compressed_read(const std::string &filename, const bool sor
     };
 
     const auto *edges = reader.fetch_raw(header.edges_offset());
-    const bool upcast_node_id = !header.has_64_bit_node_id && sizeof(NodeID) == 8;
     const auto fetch_adjacent_node = [&](const EdgeID e) -> NodeID {
-      NodeID v;
-      if (upcast_node_id) [[unlikely]] {
-        v = reinterpret_cast<const std::uint32_t *>(edges)[e];
-      } else {
-        v = reinterpret_cast<const NodeID *>(edges)[e];
-      }
-      raise_if(v >= header.num_nodes, "ParHIP edge endpoint is out of bounds");
-      return v;
+      return parse_edge_endpoint(fetch_unsigned(edges, header.has_64_bit_node_id, e), header);
     };
 
     const auto *edge_weights = reader.fetch_raw(header.edge_weights_offset());
-    const bool upcast_edge_weight = !header.has_64_bit_edge_weight && sizeof(EdgeWeight) == 8;
     const auto fetch_edge_weight = [&](const EdgeID e) -> EdgeWeight {
-      if (upcast_edge_weight) [[unlikely]] {
-        return parse_weight<EdgeWeight>(
-            reinterpret_cast<const std::int32_t *>(edge_weights)[e], "Invalid ParHIP edge weight"
-        );
-      } else {
-        return parse_weight<EdgeWeight>(
-            reinterpret_cast<const EdgeWeight *>(edge_weights)[e], "Invalid ParHIP edge weight"
-        );
-      }
+      return parse_weight<EdgeWeight>(
+          fetch_signed(edge_weights, header.has_64_bit_edge_weight, e), "Invalid ParHIP edge weight"
+      );
     };
 
     if (header.has_edge_weights) {
@@ -607,57 +573,30 @@ std::optional<Graph> compressed_read_deg_buckets(const std::string &filename) {
     header.validate(reader);
 
     const auto *raw_nodes = reader.fetch_raw(header.nodes_offset());
-    const bool upcast_edge_id = !header.has_64_bit_edge_id && sizeof(EdgeID) == 8;
-    const auto fetch_edge_offset = [&](const NodeID u) -> EdgeID {
-      if (upcast_edge_id) [[unlikely]] {
-        return reinterpret_cast<const std::uint32_t *>(raw_nodes)[u];
-      } else {
-        return reinterpret_cast<const EdgeID *>(raw_nodes)[u];
-      }
+    const auto fetch_edge_offset = [&](const NodeID u) -> std::uint64_t {
+      return fetch_unsigned(raw_nodes, header.has_64_bit_edge_id, u);
     };
     validate_raw_node_offsets(header, fetch_edge_offset);
 
     const auto *raw_edges = reader.fetch_raw(header.edges_offset());
-    const bool upcast_node_id = !header.has_64_bit_node_id && sizeof(NodeID) == 8;
     const auto fetch_adjacent_node = [&](const EdgeID e) -> NodeID {
-      NodeID v;
-      if (upcast_node_id) [[unlikely]] {
-        v = reinterpret_cast<const std::uint32_t *>(raw_edges)[e];
-      } else {
-        v = reinterpret_cast<const NodeID *>(raw_edges)[e];
-      }
-      raise_if(v >= header.num_nodes, "ParHIP edge endpoint is out of bounds");
-      return v;
+      return parse_edge_endpoint(fetch_unsigned(raw_edges, header.has_64_bit_node_id, e), header);
     };
 
     const auto *raw_node_weights = reader.fetch_raw(header.node_weights_offset());
-    const bool upcast_node_weight = !header.has_64_bit_node_weight && sizeof(NodeWeight) == 8;
     const auto fetch_node_weight = [&](const NodeID u) -> NodeWeight {
-      if (upcast_node_weight) [[unlikely]] {
-        return parse_weight<NodeWeight>(
-            reinterpret_cast<const std::int32_t *>(raw_node_weights)[u],
-            "Invalid ParHIP node weight"
-        );
-      } else {
-        return parse_weight<NodeWeight>(
-            reinterpret_cast<const NodeWeight *>(raw_node_weights)[u], "Invalid ParHIP node weight"
-        );
-      }
+      return parse_weight<NodeWeight>(
+          fetch_signed(raw_node_weights, header.has_64_bit_node_weight, u),
+          "Invalid ParHIP node weight"
+      );
     };
 
     const auto *raw_edge_weights = reader.fetch_raw(header.edge_weights_offset());
-    const bool upcast_edge_weight = !header.has_64_bit_edge_weight && sizeof(EdgeWeight) == 8;
     const auto fetch_edge_weight = [&](const EdgeID e) -> EdgeWeight {
-      if (upcast_edge_weight) [[unlikely]] {
-        return parse_weight<EdgeWeight>(
-            reinterpret_cast<const std::int32_t *>(raw_edge_weights)[e],
-            "Invalid ParHIP edge weight"
-        );
-      } else {
-        return parse_weight<EdgeWeight>(
-            reinterpret_cast<const EdgeWeight *>(raw_edge_weights)[e], "Invalid ParHIP edge weight"
-        );
-      }
+      return parse_weight<EdgeWeight>(
+          fetch_signed(raw_edge_weights, header.has_64_bit_edge_weight, e),
+          "Invalid ParHIP edge weight"
+      );
     };
 
     const auto fetch_degree = [&](const NodeID u) -> NodeID {
