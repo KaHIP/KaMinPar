@@ -71,7 +71,7 @@
         };
 
         propagatedBuildInputs = builtins.attrValues {
-          inherit (pkgs) boost cgal gmp mpfr mpi;
+          inherit (pkgs) boost cgal gmp mpfr mpi sparsehash;
         };
 
         cmakeFlags = [
