@@ -60,20 +60,20 @@ private:
 
   const std::vector<int> lweights = {1, 1, 1};
 
-  const int batchtype = 0;
+  const int batchtype = 1;
 
   void initializeLHopModel(PartitionedGraph &p_graph, std::vector<std::vector<LHopTable>> &lhopModel);
 
   void lhopPathFinder(PartitionedGraph &p_graph, std::vector<std::vector<LHopTable>> &lhopModel, const std::vector<NodeID> &startgroup);
 
   unsigned long calculateGains(PartitionedGraph &p_graph, std::vector<std::vector<LHopTable>> &lhopModel, std::vector<LHopNodeGain> &nodeGains, 
-                      std::vector<LHopPartitionGain> &partitionGains);
+                      std::vector<LHopPartitionGain> &partitionGains, std::vector<int> &nodeCycleWeight);
 
   void updateGains(PartitionedGraph &p_graph, std::vector<std::vector<LHopTable>> &lhopModel, std::vector<LHopNodeGain> &nodeGains, 
-                    std::vector<LHopPartitionGain> &partitionGains, BlockID src, BlockID dest, std::vector<NodeID> nodesToUpdate);
+                    std::vector<LHopPartitionGain> &partitionGains, BlockID src, BlockID dest, std::vector<NodeID> nodesToUpdate, std::vector<int> &nodeCycleWeight);
 
   void updateSingleGain(PartitionedGraph &p_graph, std::vector<std::vector<LHopTable>> &lhopModel, std::vector<LHopNodeGain> &nodeGains, 
-                     BlockID src, BlockID dest, NodeID node);
+                     BlockID src, BlockID dest, NodeID node, std::vector<int> &nodeCycleWeight);
 
   unsigned long tableToGain(LHopTable &gain);
 
@@ -85,6 +85,8 @@ private:
   void subtractLHopTable(LHopTable &minuend, LHopTable &subtrahend);
 
   void addLHopTable(LHopTable &result, LHopTable &addends);
+
+  void calculateCycles(PartitionedGraph &p_graph, std::vector<int> &nodeCycleWeight);
 };
 
 } // namespace kaminpar::shm
