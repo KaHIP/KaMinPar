@@ -56,11 +56,11 @@ private:
 
   const CSRGraph *_graph = nullptr;
 
-  const std::size_t l = 3; // SET L used for LHop -> TODO replace
+  const std::size_t l = 2; // SET L used for LHop -> TODO replace
 
   const std::vector<int> lweights = {1, 1, 1};
 
-  const int batchtype = 1;
+  const int batchtype = 0;
 
   void initializeLHopModel(PartitionedGraph &p_graph, std::vector<std::vector<LHopTable>> &lhopModel);
 
