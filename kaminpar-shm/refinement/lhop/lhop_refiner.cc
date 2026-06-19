@@ -391,20 +391,9 @@ bool LHopRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ct
       }
       break;
     case 3: //Move all
-      LOG << "START ALL-BATCH 10";
-      for(int i = 0; i < 10; i++) {
-        moving = false;
-        for(LHopNodeGain& node : nodeGains) {
-          moving = moving || p_graph.move(node.node, node.src, node.dest, p_ctx.max_block_weight(node.dest));
-        }
-        if(!moving) {
-          break;
-        }
-        lhopModel.assign(p_graph.n(), {});
-        nodeGains.clear();
-        partitionGains.clear();
-        initializeLHopModel(p_graph, lhopModel);
-        calculateGains(p_graph, lhopModel, nodeGains, partitionGains, nodeCycleWeight);
+      LOG << "START ALL-MOVE";
+      for(LHopNodeGain& node : nodeGains) {
+        p_graph.move(node.node, node.src, node.dest, p_ctx.max_block_weight(node.dest));
       }
       break;
     case 4: //Move all - partitionwise
