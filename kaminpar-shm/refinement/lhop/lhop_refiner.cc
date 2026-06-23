@@ -320,7 +320,7 @@ bool LHopRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ct
   std::vector<std::vector<LHopTable>> lhopModel(p_graph.n());
   initializeLHopModel(p_graph, lhopModel);
   std::vector<int> nodeCycleWeight(p_graph.n(), 0);
-  //calculateCycles(p_graph, nodeCycleWeight);
+  calculateCycles(p_graph, nodeCycleWeight);
 
 
   LOG << "Calculate Gains";
@@ -429,12 +429,50 @@ bool LHopRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ct
 }
 
 void LHopRefiner::calculateCycles(PartitionedGraph &p_graph, std::vector<int> &nodeCycleWeight) {
-  std::vector<std::vector<LHopTable>> lhopModel(p_graph.n());
-  for (NodeID node = 0; node < _graph->n(); ++node) {
-    lhopPathFinder(p_graph, lhopModel, {node});
-    nodeCycleWeight[node] = tableToGain(lhopModel[node].back());
-    lhopModel.assign(p_graph.n(), {});
-  }
+  const NodeID n = p_graph.n();
+    std::fill(nodeCycleWeight.begin(), nodeCycleWeight.end(), 0);
+
+    // Precompute degrees once (cheap, huge win)
+    std::vector<int> deg(n, 0);
+    for (NodeID u = 0; u < n; ++u) {
+        p_graph.neighbors(u, [&](const EdgeID, const NodeID v, const EdgeWeight) {
+            deg[u]++;
+        });
+    }
+
+    for (NodeID u = 0; u < n; ++u) {
+
+        std::unordered_set<NodeID> Nu;
+
+        // Build neighbor set ONLY for u
+        p_graph.neighbors(u, [&](const EdgeID, const NodeID v, const EdgeWeight) {
+            if (v != u) Nu.insert(v);
+        });
+
+        for (const NodeID v : Nu) {
+
+            // orientation trick: only process one direction
+            if (deg[u] > deg[v] || (deg[u] == deg[v] && u > v))
+                continue;
+
+            // now scan neighbors of v
+            p_graph.neighbors(v, [&](const EdgeID, const NodeID w, const EdgeWeight) {
+
+                if (w == u || w == v) return;
+
+                // triangle closure check
+                if (Nu.find(w) != Nu.end()) {
+
+                    // canonical ordering ensures no duplicates
+                    if (u < v && v < w) {
+                        nodeCycleWeight[u]++;
+                        nodeCycleWeight[v]++;
+                        nodeCycleWeight[w]++;
+                    }
+                }
+            });
+        }
+    }
 }
 
 } // namespace kaminpar::shm
