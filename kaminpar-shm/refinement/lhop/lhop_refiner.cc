@@ -435,7 +435,7 @@ void LHopRefiner::calculateCycles(PartitionedGraph &p_graph, std::vector<int> &n
     // Precompute degrees once (cheap, huge win)
     std::vector<int> deg(n, 0);
     for (NodeID u = 0; u < n; ++u) {
-        p_graph.neighbors(u, [&](const EdgeID, const NodeID v, const EdgeWeight) {
+        _graph->neighbors(u, [&](const EdgeID, const NodeID v, const EdgeWeight) {
             deg[u]++;
         });
     }
@@ -445,7 +445,7 @@ void LHopRefiner::calculateCycles(PartitionedGraph &p_graph, std::vector<int> &n
         std::unordered_set<NodeID> Nu;
 
         // Build neighbor set ONLY for u
-        p_graph.neighbors(u, [&](const EdgeID, const NodeID v, const EdgeWeight) {
+        _graph->neighbors(u, [&](const EdgeID, const NodeID v, const EdgeWeight) {
             if (v != u) Nu.insert(v);
         });
 
@@ -456,7 +456,7 @@ void LHopRefiner::calculateCycles(PartitionedGraph &p_graph, std::vector<int> &n
                 continue;
 
             // now scan neighbors of v
-            p_graph.neighbors(v, [&](const EdgeID, const NodeID w, const EdgeWeight) {
+            _graph->neighbors(v, [&](const EdgeID, const NodeID w, const EdgeWeight) {
 
                 if (w == u || w == v) return;
 
