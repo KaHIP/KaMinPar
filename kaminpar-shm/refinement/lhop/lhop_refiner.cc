@@ -321,7 +321,7 @@ bool LHopRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ct
   lhopModel.clear();
   initializeLHopModel(p_graph, lhopModel);
   std::vector<int> nodeCycleWeight(p_graph.n(), 0);
-  //calculateCycles(p_graph, nodeCycleWeight);
+  calculateCycles(p_graph, nodeCycleWeight);
 
 
   LOG << "Calculate Gains";
@@ -418,8 +418,8 @@ bool LHopRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ct
       break;
 
   }
-  lhopModel.assign(p_graph.n(), {});
-  initializeLHopModel(p_graph, lhopModel);
+  //lhopModel.assign(p_graph.n(), {});
+  //initializeLHopModel(p_graph, lhopModel);
   nodeGains.clear();
   partitionGains.clear();
   endSum = calculateGains(p_graph, lhopModel, nodeGains, partitionGains, nodeCycleWeight);
