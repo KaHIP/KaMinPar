@@ -318,7 +318,6 @@ bool LHopRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ct
   }
   LOG << "Build LHop Model";
   std::vector<std::vector<LHopTable>> lhopModel(p_graph.n());
-  lhopModel.clear();
   initializeLHopModel(p_graph, lhopModel);
   std::vector<int> nodeCycleWeight(p_graph.n(), 0);
   calculateCycles(p_graph, nodeCycleWeight);
@@ -432,12 +431,14 @@ bool LHopRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ct
 }
 
 void LHopRefiner::calculateCycles(PartitionedGraph &p_graph, std::vector<int> &nodeCycleWeight) {
-  std::vector<std::vector<LHopTable>> lhopModel(p_graph.n());
+  LOG << "START CYCLE";
+  std::vector<std::vector<LHopTable>> model(p_graph.n());
   for (NodeID node = 0; node < _graph->n(); ++node) {
-    lhopPathFinder(p_graph, lhopModel, {node});
-    nodeCycleWeight[node] = tableToGain(lhopModel[node].back());
-    lhopModel.assign(p_graph.n(), {});
+    lhopPathFinder(p_graph, model, {node});
+    nodeCycleWeight[node] = tableToGain(model[node].back());
+    model.assign(p_graph.n(), {});
   }
+  LOG << "END CYCLE";
 }
 
 } // namespace kaminpar::shm
