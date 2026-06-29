@@ -327,7 +327,7 @@ bool LHopRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ct
   LOG << "Calculate Gains";
   std::vector<LHopNodeGain> nodeGains;
   std::vector<LHopPartitionGain> partitionGains;
-  unsigned long startSum = calculateGains(p_graph, lhopModel, nodeGains, partitionGains, nodeCycleWeight);
+  unsigned long startSum = 0 /*calculateGains(p_graph, lhopModel, nodeGains, partitionGains, nodeCycleWeight)*/;
   unsigned long endSum = 0;
 
   bool movedANode = false;
