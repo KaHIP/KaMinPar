@@ -524,6 +524,7 @@ Graph csr_read_parallel(const std::string &filename, const bool sorted) {
 
   std::atomic<std::size_t> next_chunk_to_claim{0};
   std::atomic<std::size_t> committed_frontier{0};
+  std::atomic<bool> parsing_failed{false};
 
   std::size_t next_chunk_to_commit = 0;
   std::int64_t total_node_weight = 0;
@@ -533,6 +534,10 @@ Graph csr_read_parallel(const std::string &filename, const bool sorted) {
 
   const auto claim_chunk = [&]() -> std::optional<std::size_t> {
     for (;;) {
+      if (parsing_failed.load(std::memory_order_acquire)) {
+        return std::nullopt;
+      }
+
       const std::size_t chunk_id = next_chunk_to_claim.load(std::memory_order_acquire);
       if (chunk_id >= file_chunks.size()) {
         return std::nullopt;
@@ -615,14 +620,19 @@ Graph csr_read_parallel(const std::string &filename, const bool sorted) {
   };
 
   tbb::parallel_for<std::size_t>(0, num_workers, [&](const std::size_t) {
-    while (const std::optional<std::size_t> chunk_id = claim_chunk()) {
-      ParsedChunk parsed = parse_chunk(toker, file_chunks[*chunk_id], header);
+    try {
+      while (const std::optional<std::size_t> chunk_id = claim_chunk()) {
+        ParsedChunk parsed = parse_chunk(toker, file_chunks[*chunk_id], header);
 
-      {
-        const std::lock_guard<std::mutex> lock(commit_mutex);
-        parsed_chunks[*chunk_id] = std::make_unique<ParsedChunk>(std::move(parsed));
+        {
+          const std::lock_guard<std::mutex> lock(commit_mutex);
+          parsed_chunks[*chunk_id] = std::make_unique<ParsedChunk>(std::move(parsed));
+        }
+        commit_ready_chunks();
       }
-      commit_ready_chunks();
+    } catch (...) {
+      parsing_failed.store(true, std::memory_order_release);
+      throw;
     }
   });
 

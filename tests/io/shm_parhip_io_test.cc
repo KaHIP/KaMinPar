@@ -4,6 +4,7 @@
  ******************************************************************************/
 #include <cstdint>
 #include <fstream>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -13,6 +14,7 @@
 #include "kaminpar-io/graph_compression_binary.h"
 #include "kaminpar-io/kaminpar_io.h"
 #include "kaminpar-io/parhip_parser.h"
+#include "kaminpar-io/util/binary_util.h"
 #include "tests/io/shm_io_helpers.h"
 
 #include "kaminpar-shm/graphutils/compressed_graph_builder.h"
@@ -151,6 +153,19 @@ TEST(ShmParhipIOTest, direct_fixtures_read_as_csr_and_compressed) {
   }
 }
 
+TEST(ShmParhipIOTest, binary_reader_reads_unaligned_scalars) {
+  TempFile file(".bin");
+  constexpr std::uint64_t expected = 0x0123456789abcdefull;
+  {
+    std::ofstream out(file.string(), std::ios::binary);
+    write_binary<std::uint8_t>(out, 0xff);
+    write_binary<std::uint64_t>(out, expected);
+  }
+
+  const kaminpar::io::BinaryReader reader(file.string());
+  EXPECT_EQ(reader.read<std::uint64_t>(1), expected);
+}
+
 TEST(ShmParhipIOTest, external_degree_bucket_read_preserves_weight_identified_graph) {
   const GraphSnapshot expected = weighted_test_snapshot();
   TempFile file(".parhip");
@@ -192,6 +207,15 @@ TEST(ShmParhipIOTest, readers_convert_parhip_integer_widths) {
         file.string(), expected
     );
     expect_parhip_read_variants(file.string(), expected);
+  }
+
+  {
+    const GraphSnapshot unaligned_expected = rgg16_snapshot(true, true);
+    TempFile file(".parhip");
+    write_direct_parhip_as<std::uint32_t, std::uint64_t, std::int64_t, std::int64_t>(
+        file.string(), unaligned_expected
+    );
+    expect_parhip_read_variants(file.string(), unaligned_expected);
   }
 }
 
@@ -286,6 +310,40 @@ TEST(ShmParhipIOTest, parhip_reader_rejects_malformed_files) {
     write_binary<EdgeID>(out, nodes_offset_base + 2 * sizeof(NodeID));
     write_binary<NodeID>(out, 1);
     write_binary<NodeID>(out, 2);
+    out.close();
+    expect_parhip_rejected(file.string());
+  }
+
+  {
+    TempFile file(".parhip");
+    std::ofstream out(file.string(), std::ios::binary);
+    write_binary<std::uint64_t>(out, parhip_version(true, false));
+    write_binary<std::uint64_t>(out, 2);
+    write_binary<std::uint64_t>(out, 0);
+    const EdgeID nodes_offset_base = 3 * sizeof(std::uint64_t) + 3 * sizeof(EdgeID);
+    write_binary<EdgeID>(out, nodes_offset_base);
+    write_binary<EdgeID>(out, nodes_offset_base);
+    write_binary<EdgeID>(out, nodes_offset_base);
+    write_binary<NodeWeight>(out, std::numeric_limits<NodeWeight>::max());
+    write_binary<NodeWeight>(out, std::numeric_limits<NodeWeight>::max());
+    out.close();
+    expect_parhip_rejected(file.string());
+  }
+
+  {
+    TempFile file(".parhip");
+    std::ofstream out(file.string(), std::ios::binary);
+    write_binary<std::uint64_t>(out, parhip_version(false, true));
+    write_binary<std::uint64_t>(out, 2);
+    write_binary<std::uint64_t>(out, 2);
+    const EdgeID nodes_offset_base = 3 * sizeof(std::uint64_t) + 3 * sizeof(EdgeID);
+    write_binary<EdgeID>(out, nodes_offset_base);
+    write_binary<EdgeID>(out, nodes_offset_base + sizeof(NodeID));
+    write_binary<EdgeID>(out, nodes_offset_base + 2 * sizeof(NodeID));
+    write_binary<NodeID>(out, 1);
+    write_binary<NodeID>(out, 0);
+    write_binary<EdgeWeight>(out, std::numeric_limits<EdgeWeight>::max());
+    write_binary<EdgeWeight>(out, std::numeric_limits<EdgeWeight>::max());
     out.close();
     expect_parhip_rejected(file.string());
   }

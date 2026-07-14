@@ -207,6 +207,44 @@ void parse_graph(
   }
 }
 
+void collectively_validate_graph(const std::string &filename, const MPI_Comm comm) {
+  int graph_is_valid = 1;
+  if (mpi::get_comm_rank(comm) == 0) {
+    try {
+      MappedFileToker validation_toker(filename);
+      const MetisHeader validation_header = parse_header(validation_toker);
+
+      std::uint64_t actual_num_edges = 0;
+      parse_graph(
+          validation_toker,
+          validation_header,
+          [](const std::uint64_t) {},
+          [&](const std::uint64_t, const std::uint64_t) {
+            raise_if(
+                actual_num_edges >= validation_header.num_edges,
+                "input contains more adjacency entries than specified in the header"
+            );
+            ++actual_num_edges;
+          }
+      );
+      raise_if(
+          actual_num_edges != validation_header.num_edges,
+          "input contains fewer adjacency entries than specified in the header"
+      );
+      skip_comment_and_empty_lines(validation_toker);
+      raise_if(
+          validation_toker.valid_position(),
+          "input contains more vertex lines than specified in the header"
+      );
+    } catch (const IOException &) {
+      graph_is_valid = 0;
+    }
+  }
+
+  MPI_Bcast(&graph_is_valid, 1, MPI_INT, 0, comm);
+  raise_if(graph_is_valid == 0, "Invalid distributed METIS graph file");
+}
+
 } // namespace
 
 namespace {
@@ -388,6 +426,7 @@ DistributedCSRGraph csr_read(
 
   const mpi::PEID size = mpi::get_comm_size(comm);
   const mpi::PEID rank = mpi::get_comm_rank(comm);
+  collectively_validate_graph(filename, comm);
 
   const auto [first_node, last_node, num_local_edges, start_pos] =
       find_local_nodes(size, rank, toker, header, distribution);
@@ -527,6 +566,7 @@ DistributedCompressedGraph compress_read(
 
   const mpi::PEID size = mpi::get_comm_size(comm);
   const mpi::PEID rank = mpi::get_comm_rank(comm);
+  collectively_validate_graph(filename, comm);
 
   const auto [first_node, last_node, num_local_edges, start_pos] =
       find_local_nodes(size, rank, toker, header, distribution);

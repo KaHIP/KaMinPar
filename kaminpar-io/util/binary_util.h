@@ -9,9 +9,11 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <fstream>
 #include <limits>
 #include <string>
+#include <type_traits>
 
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -57,13 +59,11 @@ public:
   }
 
   template <typename T> [[nodiscard]] T read(const std::size_t position) const {
+    static_assert(std::is_trivially_copyable_v<T>);
     require_available(position, sizeof(T));
-    return *reinterpret_cast<const T *>(_data + position);
-  }
-
-  template <typename T> [[nodiscard]] const T *fetch(const std::size_t position) const {
-    require_available(position, sizeof(T));
-    return reinterpret_cast<const T *>(_data + position);
+    T value;
+    std::memcpy(&value, _data + position, sizeof(T));
+    return value;
   }
 
   [[nodiscard]] const std::uint8_t *fetch_raw(const std::size_t position) const {

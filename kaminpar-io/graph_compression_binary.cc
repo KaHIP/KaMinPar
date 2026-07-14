@@ -311,7 +311,7 @@ read_compact_static_array(const kaminpar::io::BinaryReader &reader, std::size_t 
 
   auto data = std::make_unique<std::uint8_t[]>(allocated_size);
   if (allocated_size > 0) {
-    std::memcpy(data.get(), reader.fetch<std::uint8_t>(pos), allocated_size);
+    std::memcpy(data.get(), reader.fetch_raw(pos), allocated_size);
   }
   pos = checked_add(pos, allocated_size, "Compressed graph binary array is too large");
   return CompactStaticArray<T>(byte_width, allocated_size, std::move(data));
@@ -327,7 +327,7 @@ read_static_array(const kaminpar::io::BinaryReader &reader, std::size_t &pos) {
 
   StaticArray<T> array(size, static_array::noinit);
   if (bytes > 0) {
-    std::memcpy(array.data(), reader.fetch<std::uint8_t>(pos), bytes);
+    std::memcpy(array.data(), reader.fetch_raw(pos), bytes);
   }
   pos = checked_add(pos, bytes, "Compressed graph binary array is too large");
   return array;

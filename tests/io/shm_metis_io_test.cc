@@ -4,6 +4,7 @@
  ******************************************************************************/
 #include <algorithm>
 #include <array>
+#include <fstream>
 #include <numeric>
 #include <sstream>
 #include <string>
@@ -314,6 +315,25 @@ TEST(ShmMetisIOTest, parallel_reader_matches_large_multichunk_oracle) {
     ASSERT_TRUE(parallel);
     expect_graph_eq(*parallel, fixture.snapshot);
   }
+}
+
+TEST(ShmMetisIOTest, parallel_reader_cancels_after_multichunk_parse_error) {
+  TempFile file(".metis");
+  constexpr NodeID n = 2'100'000;
+  {
+    std::ofstream out(file.string());
+    out << n << " 0\n";
+    out << "x\n";
+    for (NodeID u = 1; u < n; ++u) {
+      out << "    \n";
+    }
+  }
+
+  tbb::task_arena arena(4);
+  const auto graph = arena.execute([&] {
+    return io::metis::read_graph(file.string(), false, NodeOrdering::NATURAL, true);
+  });
+  EXPECT_FALSE(graph);
 }
 
 } // namespace kaminpar::shm::testing

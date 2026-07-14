@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <type_traits>
 
@@ -56,20 +57,42 @@ Weight parse_positive_weight(const RawWeight weight, const char *message) {
   return static_cast<Weight>(weight);
 }
 
+template <typename Weight, typename FetchWeight>
+void validate_weight_sum(
+    const std::size_t length, FetchWeight &&fetch_weight, const char *message
+) {
+  const std::uint64_t max = static_cast<std::uint64_t>(std::numeric_limits<Weight>::max());
+  std::uint64_t total = 0;
+
+  for (std::size_t i = 0; i < length; ++i) {
+    const Weight weight = fetch_weight(i);
+    const std::uint64_t unsigned_weight = static_cast<std::uint64_t>(weight);
+    raise_if(unsigned_weight > max || total > max - unsigned_weight, message);
+    total += unsigned_weight;
+  }
+}
+
+template <typename Int> Int fetch_unaligned(const std::uint8_t *data, const std::uint64_t pos) {
+  static_assert(std::is_integral_v<Int>);
+  Int value;
+  std::memcpy(&value, data + static_cast<std::size_t>(pos) * sizeof(Int), sizeof(Int));
+  return value;
+}
+
 inline std::uint64_t
 fetch_unsigned(const std::uint8_t *data, const bool is_64_bit, const std::uint64_t pos) {
   if (is_64_bit) [[unlikely]] {
-    return reinterpret_cast<const std::uint64_t *>(data)[pos];
+    return fetch_unaligned<std::uint64_t>(data, pos);
   }
-  return reinterpret_cast<const std::uint32_t *>(data)[pos];
+  return fetch_unaligned<std::uint32_t>(data, pos);
 }
 
 inline std::int64_t
 fetch_signed(const std::uint8_t *data, const bool is_64_bit, const std::uint64_t pos) {
   if (is_64_bit) [[unlikely]] {
-    return reinterpret_cast<const std::int64_t *>(data)[pos];
+    return fetch_unaligned<std::int64_t>(data, pos);
   }
-  return reinterpret_cast<const std::int32_t *>(data)[pos];
+  return fetch_unaligned<std::int32_t>(data, pos);
 }
 
 } // namespace kaminpar::io

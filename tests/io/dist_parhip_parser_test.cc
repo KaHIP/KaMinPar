@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
@@ -15,6 +16,7 @@
 #include <unistd.h>
 
 #include "kaminpar-io/dist_parhip_parser.h"
+#include "kaminpar-io/util/io_exception.h"
 
 #include "kaminpar-mpi/utils.h"
 
@@ -194,6 +196,50 @@ TEST(DistParhipParserTest, reads_integer_width_variants) {
   expect_width_variant<std::uint32_t, std::uint32_t, std::int32_t, std::int32_t>("-32.parhip");
   expect_width_variant<std::uint64_t, std::uint64_t, std::int64_t, std::int64_t>("-64.parhip");
   expect_width_variant<std::uint64_t, std::uint32_t, std::int64_t, std::int32_t>("-mixed.parhip");
+}
+
+TEST(DistParhipParserTest, rejects_local_weight_sum_overflow) {
+  constexpr std::uint64_t num_nodes = 8;
+  const std::string filename = make_temp_filename("-weight-overflow.parhip");
+  if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+    std::ofstream out(filename, std::ios::binary);
+    write_binary<std::uint64_t>(
+        out,
+        parhip_version(
+            true,
+            false,
+            sizeof(EdgeID) == 8,
+            sizeof(NodeID) == 8,
+            sizeof(NodeWeight) == 8,
+            sizeof(EdgeWeight) == 8
+        )
+    );
+    write_binary<std::uint64_t>(out, num_nodes);
+    write_binary<std::uint64_t>(out, 0);
+
+    const EdgeID nodes_offset_base = 3 * sizeof(std::uint64_t) + (num_nodes + 1) * sizeof(EdgeID);
+    for (std::uint64_t u = 0; u <= num_nodes; ++u) {
+      write_binary<EdgeID>(out, nodes_offset_base);
+    }
+    for (std::uint64_t u = 0; u < num_nodes; ++u) {
+      write_binary<NodeWeight>(out, std::numeric_limits<NodeWeight>::max());
+    }
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  EXPECT_THROW(
+      csr_read(filename, GraphDistribution::BALANCED_NODES, false, MPI_COMM_WORLD),
+      kaminpar::io::IOException
+  );
+  EXPECT_THROW(
+      compressed_read(filename, GraphDistribution::BALANCED_NODES, false, MPI_COMM_WORLD),
+      kaminpar::io::IOException
+  );
+
+  MPI_Barrier(MPI_COMM_WORLD);
+  if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+    std::filesystem::remove(filename);
+  }
 }
 
 } // namespace kaminpar::dist::io::parhip

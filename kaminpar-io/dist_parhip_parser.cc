@@ -168,6 +168,46 @@ NodeID parse_edge_endpoint(const std::uint64_t v, const ParhipHeader &header) {
   return checked_cast<NodeID>(v, "ParHIP edge endpoint is too large for the node ID type");
 }
 
+template <typename FetchNodeWeight, typename FetchEdgeWeight>
+void collectively_validate_local_weight_sums(
+    const ParhipHeader &header,
+    const NodeID first_node,
+    const NodeID last_node,
+    const EdgeID first_edge,
+    const EdgeID last_edge,
+    FetchNodeWeight &&fetch_node_weight,
+    FetchEdgeWeight &&fetch_edge_weight,
+    const MPI_Comm comm
+) {
+  int local_weights_are_valid = 1;
+  try {
+    if (header.has_node_weights) {
+      validate_weight_sum<NodeWeight>(
+          last_node - first_node,
+          [&](const std::size_t i) {
+            return fetch_node_weight(first_node + static_cast<NodeID>(i));
+          },
+          "Local ParHIP node weight total is too large"
+      );
+    }
+    if (header.has_edge_weights) {
+      validate_weight_sum<EdgeWeight>(
+          last_edge - first_edge,
+          [&](const std::size_t i) {
+            return fetch_edge_weight(first_edge + static_cast<EdgeID>(i));
+          },
+          "Local ParHIP edge weight total is too large"
+      );
+    }
+  } catch (const IOException &) {
+    local_weights_are_valid = 0;
+  }
+
+  int weights_are_valid = 0;
+  MPI_Allreduce(&local_weights_are_valid, &weights_are_valid, 1, MPI_INT, MPI_LAND, comm);
+  raise_if(weights_are_valid == 0, "Invalid ParHIP node or edge weight total");
+}
+
 template <typename Int>
 std::pair<Int, Int>
 compute_chunks(const Int length, const mpi::PEID num_processes, const mpi::PEID rank) {
@@ -326,7 +366,19 @@ DistributedCSRGraph csr_read(
   );
 
   const NodeID num_local_nodes = last_node - first_node;
-  const EdgeID num_local_edges = map_edge_offset(last_node) - map_edge_offset(first_node);
+  const EdgeID first_edge = map_edge_offset(first_node);
+  const EdgeID last_edge = map_edge_offset(last_node);
+  const EdgeID num_local_edges = last_edge - first_edge;
+  collectively_validate_local_weight_sums(
+      header,
+      first_node,
+      last_node,
+      first_edge,
+      last_edge,
+      fetch_node_weight,
+      fetch_edge_weight,
+      comm
+  );
 
   StaticArray<GlobalNodeID> node_distribution(size + 1);
   node_distribution[rank + 1] = last_node;
@@ -498,7 +550,19 @@ DistributedCompressedGraph compressed_read(
   );
 
   const NodeID num_local_nodes = last_node - first_node;
-  const EdgeID num_local_edges = map_edge_offset(last_node) - map_edge_offset(first_node);
+  const EdgeID first_edge = map_edge_offset(first_node);
+  const EdgeID last_edge = map_edge_offset(last_node);
+  const EdgeID num_local_edges = last_edge - first_edge;
+  collectively_validate_local_weight_sums(
+      header,
+      first_node,
+      last_node,
+      first_edge,
+      last_edge,
+      fetch_node_weight,
+      fetch_edge_weight,
+      comm
+  );
 
   StaticArray<GlobalNodeID> node_distribution(size + 1);
   node_distribution[rank + 1] = last_node;
