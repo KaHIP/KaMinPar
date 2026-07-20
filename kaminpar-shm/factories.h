@@ -26,4 +26,6 @@ std::unique_ptr<Coarsener> create_coarsener(const Context &ctx);
 
 std::unique_ptr<Refiner> create_refiner(const Context &ctx);
 
+std::unique_ptr<Refiner> create_refiner(const Context &ctx, RefinementAlgorithm algorithm);
+
 } // namespace kaminpar::shm::factory

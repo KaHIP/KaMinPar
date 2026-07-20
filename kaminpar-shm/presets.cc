@@ -7,6 +7,7 @@
  ******************************************************************************/
 #include "kaminpar-shm/presets.h"
 
+#include <algorithm>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -23,6 +24,8 @@ Context create_context_by_preset_name(const std::string &name) {
     return create_fast_context();
   } else if (name == "eco" || name == "fm") {
     return create_eco_context();
+  } else if (name == "meta-eco") {
+    return create_meta_eco_context();
   } else if (name == "strong" || name == "flow") {
     return create_strong_context();
   }
@@ -80,29 +83,14 @@ Context create_context_by_preset_name(const std::string &name) {
 
 std::unordered_set<std::string> get_preset_names() {
   return {
-      "default",
-      "fast",
-      "eco",
-      "strong",
-      "largek",
-      "terapart",
-      "terapart-eco",
-      "terapart-largek",
-      "largek-fast",
-      "largek-eco",
-      "largek-strong",
-      "jet",
-      "4xjet",
-      "noref",
-      "fm",
-      "vcycle",
-      "restricted-vcycle",
-      "esa21-smallk",
-      "esa21-largek",
-      "esa21-largek-fast",
-      "esa21-strong",
-      "mtkahypar-kway",
-      "linear-time-kway",
+      "default",      "fast",           "eco",
+      "meta-eco",     "strong",         "largek",
+      "terapart",     "terapart-eco",   "terapart-largek",
+      "largek-fast",  "largek-eco",     "largek-strong",
+      "jet",          "4xjet",          "noref",
+      "fm",           "vcycle",         "restricted-vcycle",
+      "esa21-smallk", "esa21-largek",   "esa21-largek-fast",
+      "esa21-strong", "mtkahypar-kway", "linear-time-kway",
   };
 }
 
@@ -427,6 +415,7 @@ Context create_default_context() {
                       .final_gain_temp_on_coarse_level = 0.75,
                       .balancing_algorithm = RefinementAlgorithm::OVERLOAD_BALANCER,
                   },
+              .meta = {},
           },
       .parallel =
           {
@@ -479,6 +468,19 @@ Context create_eco_context() {
   ctx.refinement.kway_fm.unconstrained_rebalancing_node_inclusion_threshold = 0.7;
   ctx.refinement.kway_fm.unconstrained_upper_bound = 1.05;
   ctx.refinement.kway_fm.minimal_parallelism = 4;
+
+  return ctx;
+}
+
+Context create_meta_eco_context() {
+  Context ctx = create_eco_context();
+
+  std::replace(
+      ctx.refinement.algorithms.begin(),
+      ctx.refinement.algorithms.end(),
+      RefinementAlgorithm::UNCONSTRAINED_FM,
+      RefinementAlgorithm::META
+  );
 
   return ctx;
 }

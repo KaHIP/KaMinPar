@@ -46,4 +46,8 @@ public:
   ) = 0;
 };
 
+void configure_clusterer(
+    Clusterer &clusterer, const Graph &graph, const Context &ctx, const PartitionContext &p_ctx
+);
+
 } // namespace kaminpar::shm

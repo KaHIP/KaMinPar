@@ -216,6 +216,7 @@ enum class RefinementAlgorithm {
   UNCONSTRAINED_FM,
   TWOWAY_FLOW,
   JET,
+  META,
 };
 
 struct BalancerRefinementContext {};
@@ -338,6 +339,11 @@ struct JetRefinementContext {
   RefinementAlgorithm balancing_algorithm;
 };
 
+struct MetaRefinementContext {
+  std::size_t num_clusterings = 8;
+  RefinementAlgorithm refiner = RefinementAlgorithm::UNCONSTRAINED_FM;
+};
+
 struct RefinementContext {
   std::vector<RefinementAlgorithm> algorithms;
 
@@ -346,9 +352,15 @@ struct RefinementContext {
   KwayFMRefinementContext kway_fm;
   TwowayFlowRefinementContext twoway_flow;
   JetRefinementContext jet;
+  MetaRefinementContext meta;
 
   [[nodiscard]] bool includes_algorithm(const RefinementAlgorithm algorithm) const {
     return std::find(algorithms.begin(), algorithms.end(), algorithm) != algorithms.end();
+  }
+
+  [[nodiscard]] bool uses_algorithm(const RefinementAlgorithm algorithm) const {
+    return includes_algorithm(algorithm) ||
+           (includes_algorithm(RefinementAlgorithm::META) && meta.refiner == algorithm);
   }
 };
 
@@ -635,6 +647,7 @@ Context create_context_by_preset_name(const std::string &name);
 Context create_default_context();
 Context create_fast_context();
 Context create_eco_context();
+Context create_meta_eco_context();
 Context create_strong_context();
 
 Context create_terapart_context();

@@ -464,16 +464,43 @@ The following algorithms can be used:
   - unconstrained-lp:   Label propagation with temporary balance violations (also see --r-lp-*).
   - fm:                 FM (also see --r-fm-*).
   - unconstrained-fm:   FM with temporary balance violations (also see --r-fm-*).
+  - meta:               Refine an LP ensemble contraction, then the current graph (also see --r-meta-*).
   - twoway-flow:        Two-Way Flow (also see --r-twoway-flow-*).)"
       )
       ->capture_default_str();
 
+  create_meta_refinement_options(app, ctx);
   create_lp_refinement_options(app, ctx);
   create_kway_fm_refinement_options(app, ctx);
   create_twoway_flow_refinement_options(app, ctx);
   create_jet_refinement_options(app, ctx);
 
   return refinement;
+}
+
+CLI::Option_group *create_meta_refinement_options(CLI::App *app, Context &ctx) {
+  auto *meta = app->add_option_group("Refinement -> Meta Refiner");
+
+  meta->add_option(
+          "--r-meta-num-clusterings",
+          ctx.refinement.meta.num_clusterings,
+          "Number of label propagation clusterings in the ensemble."
+  )
+      ->check(CLI::PositiveNumber)
+      ->capture_default_str();
+
+  auto refiners = get_refinement_algorithms();
+  refiners.erase("meta");
+  refiners.erase("meta-refiner");
+  meta->add_option(
+          "--r-meta-refiner",
+          ctx.refinement.meta.refiner,
+          "Refinement algorithm to run on the contracted graph and then on the current graph."
+  )
+      ->transform(CLI::CheckedTransformer(std::move(refiners)).description(""))
+      ->capture_default_str();
+
+  return meta;
 }
 
 CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx) {

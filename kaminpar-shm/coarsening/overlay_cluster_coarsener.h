@@ -9,9 +9,8 @@
 #pragma once
 
 #include "kaminpar-shm/coarsening/abstract_cluster_coarsener.h"
+#include "kaminpar-shm/coarsening/clustering/ensemble_clusterer.h"
 #include "kaminpar-shm/kaminpar.h"
-
-#include "kaminpar-common/datastructures/static_array.h"
 
 namespace kaminpar::shm {
 
@@ -28,7 +27,7 @@ public:
   bool coarsen() final;
 
 private:
-  StaticArray<NodeID> overlay(StaticArray<NodeID> a, const StaticArray<NodeID> &b);
+  EnsembleClusterer *_ensemble_clusterer = nullptr;
 };
 
 } // namespace kaminpar::shm

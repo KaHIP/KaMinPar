@@ -99,6 +99,7 @@ void setup_context(CLI::App &cli, ApplicationContext &app, Context &ctx) {
   - default:  in-between
   - terapart: same as default, but use graph compression to reduce peak memory consumption
   - eco:      slower, but higher quality (unc. LP + unc. FM)
+  - meta-eco: same as eco, but replaces unc. FM with the ensemble meta-refiner
   - strong:   even slower, but even higher quality (unc. LP + unc. FM + Flow)
   - largek:   tuned for k > 1024-ish)");
 

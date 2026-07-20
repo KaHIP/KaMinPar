@@ -378,6 +378,8 @@ std::unordered_map<std::string, RefinementAlgorithm> get_refinement_algorithms()
       {"ufm", RefinementAlgorithm::UNCONSTRAINED_FM},
       {"twoway-flow", RefinementAlgorithm::TWOWAY_FLOW},
       {"jet", RefinementAlgorithm::JET},
+      {"meta", RefinementAlgorithm::META},
+      {"meta-refiner", RefinementAlgorithm::META},
   };
 }
 
@@ -401,6 +403,8 @@ std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm)
     return out << "twoway-flow";
   case RefinementAlgorithm::JET:
     return out << "jet";
+  case RefinementAlgorithm::META:
+    return out << "meta";
   }
 
   return out << "<invalid>";
@@ -695,7 +699,7 @@ std::ostream &operator<<(std::ostream &out, const CoarseningContext &c_ctx) {
   }
   if (c_ctx.algorithm == CoarseningAlgorithm::OVERLAY_CLUSTERING) {
     out << "  Overlays:" << "\n";
-    out << "    Number of overlays:       " << (2 << c_ctx.overlay_clustering.num_levels) << "\n";
+    out << "    Number of overlays:       " << (1 << c_ctx.overlay_clustering.num_levels) << "\n";
   }
 
   out << "Contraction algorithm:        " << c_ctx.contraction.algorithm << "\n";
@@ -736,11 +740,17 @@ std::ostream &operator<<(std::ostream &out, const InitialPartitioningContext &i_
 std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
   out << "Refinement algorithms:        [" << str::implode(r_ctx.algorithms, " -> ") << "]\n";
 
-  if (r_ctx.includes_algorithm(RefinementAlgorithm::LABEL_PROPAGATION) ||
-      r_ctx.includes_algorithm(RefinementAlgorithm::UNCONSTRAINED_LABEL_PROPAGATION)) {
+  if (r_ctx.includes_algorithm(RefinementAlgorithm::META)) {
+    out << "Meta refinement:\n";
+    out << "  Number of clusterings:      " << r_ctx.meta.num_clusterings << "\n";
+    out << "  Refiner:                    " << r_ctx.meta.refiner << "\n";
+  }
+
+  if (r_ctx.uses_algorithm(RefinementAlgorithm::LABEL_PROPAGATION) ||
+      r_ctx.uses_algorithm(RefinementAlgorithm::UNCONSTRAINED_LABEL_PROPAGATION)) {
     out << "Label propagation:\n";
     out << "  Number of iterations:       " << r_ctx.lp.num_iterations << "\n";
-    if (r_ctx.includes_algorithm(RefinementAlgorithm::UNCONSTRAINED_LABEL_PROPAGATION)) {
+    if (r_ctx.uses_algorithm(RefinementAlgorithm::UNCONSTRAINED_LABEL_PROPAGATION)) {
       out << "  Unconstrained min gain:     "
           << 100.0 * r_ctx.lp.unconstrained_min_improvement_factor << "%\n";
     }
@@ -748,8 +758,8 @@ std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
     out << "  Implementation:             " << r_ctx.lp.impl << "\n";
   }
 
-  if (r_ctx.includes_algorithm(RefinementAlgorithm::KWAY_FM) ||
-      r_ctx.includes_algorithm(RefinementAlgorithm::UNCONSTRAINED_FM)) {
+  if (r_ctx.uses_algorithm(RefinementAlgorithm::KWAY_FM) ||
+      r_ctx.uses_algorithm(RefinementAlgorithm::UNCONSTRAINED_FM)) {
     out << "k-way FM:\n";
     out << "  Number of iterations:       " << r_ctx.kway_fm.num_iterations
         << " [or improvement drops below < " << 100.0 * (1.0 - r_ctx.kway_fm.abortion_threshold)
@@ -758,7 +768,7 @@ std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
     out << "  Locking strategies:         seed nodes: "
         << (r_ctx.kway_fm.unlock_seed_nodes ? "unlock" : "lock") << ", locally moved nodes: "
         << (r_ctx.kway_fm.unlock_locally_moved_nodes ? "unlock" : "lock") << "\n";
-    if (r_ctx.includes_algorithm(RefinementAlgorithm::UNCONSTRAINED_FM)) {
+    if (r_ctx.uses_algorithm(RefinementAlgorithm::UNCONSTRAINED_FM)) {
       out << "  Unconstrained iterations:   " << r_ctx.kway_fm.unconstrained_num_iterations << "\n";
       out << "  Unconstrained min gain:     " << 100.0 * r_ctx.kway_fm.unconstrained_min_improvement
           << "%\n";
@@ -768,7 +778,7 @@ std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
     out << "  Gain cache:                 " << r_ctx.kway_fm.gain_cache_strategy << "\n";
   }
 
-  if (r_ctx.includes_algorithm(RefinementAlgorithm::TWOWAY_FLOW)) {
+  if (r_ctx.uses_algorithm(RefinementAlgorithm::TWOWAY_FLOW)) {
     out << "Two-way flow:\n";
     out << "  Min round improvement:      " << r_ctx.twoway_flow.min_round_improvement_factor
         << "\n";
@@ -822,7 +832,7 @@ std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
     }
   }
 
-  if (r_ctx.includes_algorithm(RefinementAlgorithm::JET)) {
+  if (r_ctx.uses_algorithm(RefinementAlgorithm::JET)) {
     out << "Jet refinement:               " << RefinementAlgorithm::JET << "\n";
     out << "  Number of rounds:           coarse " << r_ctx.jet.num_rounds_on_coarse_level
         << ", fine " << r_ctx.jet.num_rounds_on_fine_level << "\n";

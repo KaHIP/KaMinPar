@@ -9,6 +9,7 @@
 #include "kaminpar-shm/factories.h"
 
 #include <memory>
+#include <stdexcept>
 
 // Partitioning schemes
 #include "kaminpar-shm/partitioning/deep/deep_multilevel.h"
@@ -36,6 +37,7 @@
 #include "kaminpar-shm/refinement/jet/jet_refiner.h"
 #include "kaminpar-shm/refinement/lp/lp_refiner.h"
 #include "kaminpar-shm/refinement/lp/unconstrained_lp_refiner.h"
+#include "kaminpar-shm/refinement/meta_refiner.h"
 #include "kaminpar-shm/refinement/multi_refiner.h"
 
 namespace kaminpar::shm::factory {
@@ -97,8 +99,6 @@ std::unique_ptr<Coarsener> create_coarsener(const Context &ctx, const PartitionC
   __builtin_unreachable();
 }
 
-namespace {
-
 std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgorithm algorithm) {
   switch (algorithm) {
   case RefinementAlgorithm::NOOP:
@@ -127,12 +127,20 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
 
   case RefinementAlgorithm::JET:
     return std::make_unique<JetRefiner>(ctx);
+
+  case RefinementAlgorithm::META:
+    if (ctx.refinement.meta.refiner == RefinementAlgorithm::META) {
+      throw std::invalid_argument("the meta refiner cannot use itself as its underlying refiner");
+    }
+    return std::make_unique<MetaRefiner>(
+        ctx,
+        std::make_unique<LPClustering>(ctx.coarsening),
+        create_refiner(ctx, ctx.refinement.meta.refiner)
+    );
   }
 
   __builtin_unreachable();
 }
-
-} // namespace
 
 std::unique_ptr<Refiner> create_refiner(const Context &ctx) {
   SCOPED_HEAP_PROFILER("Refiner Allocation");

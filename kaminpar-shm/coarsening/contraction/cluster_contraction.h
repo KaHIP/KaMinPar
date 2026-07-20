@@ -58,4 +58,10 @@ std::unique_ptr<CoarseGraph> contract_clustering(
     contraction::MemoryContext &m_ctx
 );
 
+void project_communities(
+    CoarseGraph &coarse_graph,
+    std::span<const NodeID> fine_communities,
+    std::span<NodeID> coarse_communities
+);
+
 } // namespace kaminpar::shm
