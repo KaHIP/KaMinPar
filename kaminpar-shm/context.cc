@@ -380,6 +380,8 @@ std::unordered_map<std::string, RefinementAlgorithm> get_refinement_algorithms()
       {"jet", RefinementAlgorithm::JET},
       {"meta", RefinementAlgorithm::META},
       {"meta-refiner", RefinementAlgorithm::META},
+      {"meta-ufm", RefinementAlgorithm::META_UNCONSTRAINED_FM},
+      {"meta-flow", RefinementAlgorithm::META_TWOWAY_FLOW},
   };
 }
 
@@ -405,6 +407,10 @@ std::ostream &operator<<(std::ostream &out, const RefinementAlgorithm algorithm)
     return out << "jet";
   case RefinementAlgorithm::META:
     return out << "meta";
+  case RefinementAlgorithm::META_UNCONSTRAINED_FM:
+    return out << "meta-ufm";
+  case RefinementAlgorithm::META_TWOWAY_FLOW:
+    return out << "meta-flow";
   }
 
   return out << "<invalid>";
@@ -740,10 +746,20 @@ std::ostream &operator<<(std::ostream &out, const InitialPartitioningContext &i_
 std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
   out << "Refinement algorithms:        [" << str::implode(r_ctx.algorithms, " -> ") << "]\n";
 
-  if (r_ctx.includes_algorithm(RefinementAlgorithm::META)) {
+  if (r_ctx.includes_algorithm(RefinementAlgorithm::META) ||
+      r_ctx.includes_algorithm(RefinementAlgorithm::META_UNCONSTRAINED_FM) ||
+      r_ctx.includes_algorithm(RefinementAlgorithm::META_TWOWAY_FLOW)) {
     out << "Meta refinement:\n";
     out << "  Number of clusterings:      " << r_ctx.meta.num_clusterings << "\n";
-    out << "  Refiner:                    " << r_ctx.meta.refiner << "\n";
+    if (r_ctx.includes_algorithm(RefinementAlgorithm::META)) {
+      out << "  Generic refiner:            " << r_ctx.meta.refiner << "\n";
+    }
+    if (r_ctx.includes_algorithm(RefinementAlgorithm::META_UNCONSTRAINED_FM)) {
+      out << "  meta-ufm refiner:           unconstrained-fm\n";
+    }
+    if (r_ctx.includes_algorithm(RefinementAlgorithm::META_TWOWAY_FLOW)) {
+      out << "  meta-flow refiner:          twoway-flow\n";
+    }
   }
 
   if (r_ctx.uses_algorithm(RefinementAlgorithm::LABEL_PROPAGATION) ||

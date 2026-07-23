@@ -233,6 +233,33 @@ TEST(MetaRefinerCLITest, ParsesNumberOfClusteringsAndRefinerByName) {
   EXPECT_EQ(ctx.refinement.meta.refiner, RefinementAlgorithm::LABEL_PROPAGATION);
 }
 
+TEST(MetaRefinerCLITest, ParsesDistinctUFMAndFlowMetaRefinersInOneChain) {
+  Context ctx = create_default_context();
+  CLI::App app;
+  create_refinement_options(&app, ctx);
+
+  app.parse(
+      "--r-algorithms overload-balancer unconstrained-lp meta-ufm overload-balancer "
+      "meta-flow overload-balancer",
+      false
+  );
+
+  EXPECT_EQ(
+      ctx.refinement.algorithms,
+      std::vector<RefinementAlgorithm>({
+          RefinementAlgorithm::OVERLOAD_BALANCER,
+          RefinementAlgorithm::UNCONSTRAINED_LABEL_PROPAGATION,
+          RefinementAlgorithm::META_UNCONSTRAINED_FM,
+          RefinementAlgorithm::OVERLOAD_BALANCER,
+          RefinementAlgorithm::META_TWOWAY_FLOW,
+          RefinementAlgorithm::OVERLOAD_BALANCER,
+      })
+  );
+
+  auto refiner = factory::create_refiner(ctx);
+  EXPECT_EQ(refiner->name(), "Multi Refiner");
+}
+
 TEST(MetaEcoPresetTest, ReplacesUnconstrainedFMWithMetaRefiner) {
   const Context ctx = create_context_by_preset_name("meta-eco");
 

@@ -217,6 +217,8 @@ enum class RefinementAlgorithm {
   TWOWAY_FLOW,
   JET,
   META,
+  META_UNCONSTRAINED_FM,
+  META_TWOWAY_FLOW,
 };
 
 struct BalancerRefinementContext {};
@@ -360,7 +362,11 @@ struct RefinementContext {
 
   [[nodiscard]] bool uses_algorithm(const RefinementAlgorithm algorithm) const {
     return includes_algorithm(algorithm) ||
-           (includes_algorithm(RefinementAlgorithm::META) && meta.refiner == algorithm);
+           (includes_algorithm(RefinementAlgorithm::META) && meta.refiner == algorithm) ||
+           (algorithm == RefinementAlgorithm::UNCONSTRAINED_FM &&
+            includes_algorithm(RefinementAlgorithm::META_UNCONSTRAINED_FM)) ||
+           (algorithm == RefinementAlgorithm::TWOWAY_FLOW &&
+            includes_algorithm(RefinementAlgorithm::META_TWOWAY_FLOW));
   }
 };
 

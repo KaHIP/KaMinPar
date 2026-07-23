@@ -465,6 +465,8 @@ The following algorithms can be used:
   - fm:                 FM (also see --r-fm-*).
   - unconstrained-fm:   FM with temporary balance violations (also see --r-fm-*).
   - meta:               Refine an LP ensemble contraction, then the current graph (also see --r-meta-*).
+  - meta-ufm:           Meta refinement using unconstrained FM.
+  - meta-flow:          Meta refinement using two-way flow.
   - twoway-flow:        Two-Way Flow (also see --r-twoway-flow-*).)"
       )
       ->capture_default_str();
@@ -492,6 +494,8 @@ CLI::Option_group *create_meta_refinement_options(CLI::App *app, Context &ctx) {
   auto refiners = get_refinement_algorithms();
   refiners.erase("meta");
   refiners.erase("meta-refiner");
+  refiners.erase("meta-ufm");
+  refiners.erase("meta-flow");
   meta->add_option(
           "--r-meta-refiner",
           ctx.refinement.meta.refiner,

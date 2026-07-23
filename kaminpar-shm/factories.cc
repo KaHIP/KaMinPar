@@ -129,13 +129,29 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
     return std::make_unique<JetRefiner>(ctx);
 
   case RefinementAlgorithm::META:
-    if (ctx.refinement.meta.refiner == RefinementAlgorithm::META) {
+    if (ctx.refinement.meta.refiner == RefinementAlgorithm::META ||
+        ctx.refinement.meta.refiner == RefinementAlgorithm::META_UNCONSTRAINED_FM ||
+        ctx.refinement.meta.refiner == RefinementAlgorithm::META_TWOWAY_FLOW) {
       throw std::invalid_argument("the meta refiner cannot use itself as its underlying refiner");
     }
     return std::make_unique<MetaRefiner>(
         ctx,
         std::make_unique<LPClustering>(ctx.coarsening),
         create_refiner(ctx, ctx.refinement.meta.refiner)
+    );
+
+  case RefinementAlgorithm::META_UNCONSTRAINED_FM:
+    return std::make_unique<MetaRefiner>(
+        ctx,
+        std::make_unique<LPClustering>(ctx.coarsening),
+        create_refiner(ctx, RefinementAlgorithm::UNCONSTRAINED_FM)
+    );
+
+  case RefinementAlgorithm::META_TWOWAY_FLOW:
+    return std::make_unique<MetaRefiner>(
+        ctx,
+        std::make_unique<LPClustering>(ctx.coarsening),
+        create_refiner(ctx, RefinementAlgorithm::TWOWAY_FLOW)
     );
   }
 
