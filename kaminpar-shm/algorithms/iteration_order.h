@@ -167,8 +167,8 @@ public:
       const Chunk &chunk = _chunks[chunk_id];
       const auto &node_permutation = _random_permutations.get(rand);
 
-      const std::size_t num_sub_chunks =
-          std::ceil(1.0 * (chunk.end - chunk.start) / kPermutationSize);
+      const std::size_t chunk_size = chunk.end - chunk.start;
+      const std::size_t num_sub_chunks = (chunk_size + kPermutationSize - 1) / kPermutationSize;
 
       auto &sub_chunk_permutation = _sub_chunk_permutation_ets.local();
       if (sub_chunk_permutation.size() < num_sub_chunks) {
@@ -179,11 +179,17 @@ public:
       rand.shuffle(sub_chunk_permutation.begin(), sub_chunk_permutation.begin() + num_sub_chunks);
 
       for (std::size_t sub_chunk = 0; sub_chunk < num_sub_chunks; ++sub_chunk) {
-        for (std::size_t i = 0; i < kPermutationSize; ++i) {
-          const NodeID u = chunk.start + kPermutationSize * sub_chunk_permutation[sub_chunk] +
-                           node_permutation[i % kPermutationSize];
-          if (u < chunk.end) {
-            local(u);
+        const NodeID base = chunk.start + kPermutationSize * sub_chunk_permutation[sub_chunk];
+        if (chunk.end - base >= kPermutationSize) {
+          for (const NodeID offset : node_permutation) {
+            local(base + offset);
+          }
+        } else {
+          for (const NodeID offset : node_permutation) {
+            const NodeID u = base + offset;
+            if (u < chunk.end) {
+              local(u);
+            }
           }
         }
       }
@@ -241,7 +247,7 @@ private:
             auto &num_chunks = _num_chunks_ets.local();
 
             while (offset < bucket_size) {
-              const NodeID begin = offset.fetch_add(max_node_chunk_size);
+              const NodeID begin = offset.fetch_add(max_node_chunk_size, std::memory_order_relaxed);
               if (begin >= bucket_size) {
                 break;
               }
@@ -282,7 +288,8 @@ private:
       _chunks.resize(chunks_start + num_chunks);
       tbb::parallel_for(_chunks_ets.range(), [&](auto &range) {
         for (auto &local_chunks : range) {
-          const std::size_t local_pos = pos.fetch_add(local_chunks.size());
+          const std::size_t local_pos =
+              pos.fetch_add(local_chunks.size(), std::memory_order_relaxed);
           std::copy(local_chunks.begin(), local_chunks.end(), _chunks.begin() + local_pos);
           local_chunks.clear();
         }

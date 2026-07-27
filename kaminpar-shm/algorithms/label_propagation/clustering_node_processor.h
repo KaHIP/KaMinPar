@@ -28,7 +28,7 @@ template <typename Graph> class ClusteringNodeProcessor {
   static constexpr EdgeID kStopCheckWork = 1024;
 
 public:
-  using RatingMaps = RatingMapPool<EdgeWeight, NodeID>;
+  using RatingMaps = RatingMapPool<NodeID, EdgeWeight>;
   using RatingMap = typename RatingMaps::RatingMap;
 
   struct LocalWorker {
@@ -45,7 +45,7 @@ public:
       const Graph &graph,
       ClusteringState &state,
       RatingMaps &rating_maps,
-      ParallelRatingMap<EdgeWeight, NodeID> &parallel_ratings,
+      ParallelRatingMap<NodeID, EdgeWeight> &parallel_ratings,
       tbb::concurrent_vector<NodeID> &deferred_nodes,
       CacheAlignedVector<ClusteringSelector::RatedSelection> &local_selections,
       RoundStatistics &statistics
@@ -133,15 +133,16 @@ public:
     const bool store_favored_cluster =
         u_weight == from_weight && from_weight <= _state_view.max_cluster_weight(from) / 2;
     const std::size_t upper_bound = std::min<std::size_t>(
-        {degree, _graph.n(), ParallelRatingMap<EdgeWeight, NodeID>::kFlushThreshold}
+        {degree, _graph.n(), ParallelRatingMap<NodeID, EdgeWeight>::kFlushThreshold}
     );
 
     const auto selection = local.ratings.execute(upper_bound, [&](auto &ratings) {
-      if (NeighborhoodRatings::accumulate_until_full(
+      if (NeighborhoodRatings::accumulate_with_capacity(
               _graph,
               u,
               ratings,
-              ParallelRatingMap<EdgeWeight, NodeID>::kFlushThreshold,
+              upper_bound,
+              ParallelRatingMap<NodeID, EdgeWeight>::kFlushThreshold,
               [&](const NodeID v) { return _state_view.cluster(v); },
               [](const NodeID) { return true; }
           )) [[unlikely]] {
@@ -289,7 +290,7 @@ private:
   ClusteringState &_state;
   ClusteringStateView _state_view;
   RatingMaps &_rating_maps;
-  ParallelRatingMap<EdgeWeight, NodeID> &_parallel_ratings;
+  ParallelRatingMap<NodeID, EdgeWeight> &_parallel_ratings;
   tbb::concurrent_vector<NodeID> &_deferred_nodes;
   CacheAlignedVector<ClusteringSelector::RatedSelection> &_local_selections;
   RoundStatistics &_statistics;

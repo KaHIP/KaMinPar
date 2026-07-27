@@ -10,11 +10,9 @@
 #include "kaminpar-shm/algorithms/label_propagation/rating_map_pool.h"
 #include "kaminpar-shm/algorithms/label_propagation/round_statistics.h"
 
-#include "kaminpar-common/datastructures/sparse_map.h"
-
 namespace kaminpar::shm::lp {
 
-using BalancedRatingMaps = RatingMapPool<EdgeWeight, BlockID, rm_backyard::SparseMap>;
+using BalancedRatingMaps = RatingMapPool<BlockID, EdgeWeight, adaptive_rating_map::SparseMap>;
 
 class BalancedWorkspace {
 public:

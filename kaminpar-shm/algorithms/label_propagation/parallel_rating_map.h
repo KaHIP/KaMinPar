@@ -18,7 +18,7 @@
 
 namespace kaminpar::shm::lp {
 
-template <typename Value, typename Key> class ParallelRatingMap {
+template <typename Key, typename Value> class ParallelRatingMap {
 public:
   static constexpr std::size_t kFlushThreshold = 10000;
 
@@ -49,7 +49,7 @@ public:
     graph.pfor_adjacent_nodes(
         u, std::numeric_limits<NodeID>::max(), 2000, [&](auto &&pfor_adjacent_nodes) {
           auto &used_entries = _ratings.local_used_entries();
-          auto &local_map = local_maps.maps().local().small_map();
+          auto &local_map = local_maps.maps().local().prepare_hash_map(kFlushThreshold);
 
           pfor_adjacent_nodes([&](const NodeID v, const EdgeWeight weight) {
             if (accept_neighbor(v)) {
@@ -65,7 +65,7 @@ public:
     tbb::parallel_for(local_maps.maps().range(), [&](auto &maps) {
       auto &used_entries = _ratings.local_used_entries();
       for (auto &map : maps) {
-        flush(used_entries, map.small_map());
+        flush(used_entries, map.hash_map());
       }
     });
   }

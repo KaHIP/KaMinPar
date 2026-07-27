@@ -82,7 +82,7 @@ public:
       const NodeID to,
       const NodeWeight u_weight
   ) {
-    if (cluster(u) == to || !move_cluster_weight(from, to, u_weight)) {
+    if (from == to || !move_cluster_weight(from, to, u_weight)) {
       return {};
     }
 

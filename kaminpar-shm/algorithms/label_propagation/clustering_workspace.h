@@ -21,7 +21,7 @@
 
 namespace kaminpar::shm::lp {
 
-using ClusteringRatingMaps = RatingMapPool<EdgeWeight, NodeID>;
+using ClusteringRatingMaps = RatingMapPool<NodeID, EdgeWeight>;
 
 class ClusteringWorkspace {
 public:
@@ -58,7 +58,7 @@ public:
 
   ClusteringState state;
   ClusteringRatingMaps rating_maps;
-  ParallelRatingMap<EdgeWeight, NodeID> parallel_ratings;
+  ParallelRatingMap<NodeID, EdgeWeight> parallel_ratings;
   tbb::concurrent_vector<NodeID> deferred_nodes;
   CacheAlignedVector<ClusteringSelector::RatedSelection> local_selections;
   RoundStatistics statistics;

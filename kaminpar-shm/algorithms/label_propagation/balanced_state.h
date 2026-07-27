@@ -55,9 +55,9 @@ public:
       const BlockID to,
       const NodeWeight u_weight
   ) {
-    if (cluster(u) == to || !_p_graph->move_block_weight(
-                                from, to, u_weight, max_cluster_weight(to), min_cluster_weight(from)
-                            )) {
+    if (from == to || !_p_graph->move_block_weight(
+                          from, to, u_weight, max_cluster_weight(to), min_cluster_weight(from)
+                      )) {
       return {};
     }
 

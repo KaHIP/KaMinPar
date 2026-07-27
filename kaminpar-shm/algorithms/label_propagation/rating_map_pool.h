@@ -10,18 +10,25 @@
 
 #include <tbb/enumerable_thread_specific.h>
 
-#include "kaminpar-common/datastructures/rating_map.h"
+#include "kaminpar-shm/algorithms/label_propagation/adaptive_rating_map.h"
+
 #include "kaminpar-common/datastructures/scalable_vector.h"
 
 namespace kaminpar::shm::lp {
 
 template <
-    typename Value,
     typename Key,
-    template <typename, typename> typename LargeMap = rm_backyard::FastResetArray>
+    typename Value,
+    template <typename, typename> typename DirectMap = adaptive_rating_map::FastResetArray>
 class RatingMapPool {
 public:
-  using RatingMap = ::kaminpar::RatingMap<Value, Key, LargeMap>;
+  using RatingMap = AdaptiveRatingMap<Key, Value, DirectMap>;
+
+  RatingMapPool() : _rating_maps([] { return RatingMap(1); }) {}
+  RatingMapPool(const RatingMapPool &) = delete;
+  RatingMapPool &operator=(const RatingMapPool &) = delete;
+  RatingMapPool(RatingMapPool &&) = delete;
+  RatingMapPool &operator=(RatingMapPool &&) = delete;
 
   struct Local {
     RatingMap &ratings;
@@ -35,14 +42,15 @@ public:
     }
 
     if (_rating_maps.empty() || _capacity < capacity) {
+      _capacity = capacity;
       _rating_maps =
-          tbb::enumerable_thread_specific<RatingMap>([capacity] { return RatingMap(capacity); });
+          tbb::enumerable_thread_specific<RatingMap>([this] { return RatingMap(_capacity); });
     } else {
+      _capacity = capacity;
       for (RatingMap &map : _rating_maps) {
         map.change_max_size(capacity);
       }
     }
-    _capacity = capacity;
   }
 
   [[nodiscard]] Local local() {

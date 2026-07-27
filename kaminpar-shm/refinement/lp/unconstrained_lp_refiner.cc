@@ -16,13 +16,12 @@
 #include <tbb/enumerable_thread_specific.h>
 
 #include "kaminpar-shm/algorithms/label_propagation/neighborhood_ratings.h"
+#include "kaminpar-shm/algorithms/label_propagation/positive_gain_selector.h"
 #include "kaminpar-shm/algorithms/label_propagation/rating_map_pool.h"
-#include "kaminpar-shm/algorithms/label_propagation/uniform_tie_set.h"
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/refinement/balancer/multi_queue_overload_balancer.h"
 
 #include "kaminpar-common/console_io.h"
-#include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/timer.h"
@@ -31,7 +30,7 @@ namespace kaminpar::shm {
 
 template <typename Graph> class UnconstrainedLPRefinerImpl {
   using Gain = std::int64_t;
-  using RatingMaps = lp::RatingMapPool<Gain, BlockID, rm_backyard::SparseMap>;
+  using RatingMaps = lp::RatingMapPool<BlockID, Gain, lp::adaptive_rating_map::SparseMap>;
   using RatingMap = typename RatingMaps::RatingMap;
 
   static constexpr std::size_t kInfiniteIterations = std::numeric_limits<std::size_t>::max();
@@ -247,31 +246,11 @@ private:
         [&](const NodeID v) { return accept_neighbor(u, v); }
     );
 
-    const Gain gain_delta = map[from];
-    BlockID best_block = from;
-    Gain best_gain = 0;
-    lp::UniformTieSet ties(tie_breaking_blocks);
-
-    for (const auto [block, rating] : map.entries()) {
-      if (block == from) {
-        continue;
-      }
-
-      const Gain gain = rating - gain_delta;
-      if (gain > best_gain) {
-        best_block = block;
-        best_gain = gain;
-        ties.replace_with(block);
-      } else if (gain == best_gain && gain > 0) {
-        ties.add(block);
-      }
-    }
-
-    best_block = ties.select_or(best_block, Random::instance());
-    ties.clear();
-
+    const auto selection = lp::select_best_positive_gain<Gain>(
+        from, map.entries(), Random::instance(), tie_breaking_blocks
+    );
     map.clear();
-    return {best_block, best_gain};
+    return selection;
   }
 
   Gain compute_round_improvement(const PartitionedGraph &p_graph) const {

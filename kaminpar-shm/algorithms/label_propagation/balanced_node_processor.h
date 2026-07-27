@@ -13,14 +13,13 @@
 #include "kaminpar-shm/algorithms/label_propagation/rating_map_pool.h"
 #include "kaminpar-shm/algorithms/label_propagation/round_statistics.h"
 
-#include "kaminpar-common/datastructures/sparse_map.h"
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::shm::lp {
 
 template <typename Graph> class BalancedNodeProcessor {
 public:
-  using RatingMaps = RatingMapPool<EdgeWeight, BlockID, rm_backyard::SparseMap>;
+  using RatingMaps = RatingMapPool<BlockID, EdgeWeight, adaptive_rating_map::SparseMap>;
   using RatingMap = typename RatingMaps::RatingMap;
 
   struct LocalWorker {
