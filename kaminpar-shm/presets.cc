@@ -141,15 +141,10 @@ Context create_default_context() {
                           {
                               // Context -> Coarsening -> Clustering -> Label Propagation
                               .num_iterations = 5,
-                              .large_degree_threshold = std::numeric_limits<NodeID>::max(),
-                              .max_num_neighbors = std::numeric_limits<NodeID>::max(),
+                              .iteration_order = LabelPropagationIterationOrder::CHUNK_SHUFFLED,
                               .impl = LabelPropagationImplementation::TWO_PHASE,
-                              .relabel_before_second_phase = false,
                               .two_hop_strategy = TwoHopStrategy::MATCH_THREADWISE,
                               .two_hop_threshold = 0.5,
-                              .isolated_nodes_strategy =
-                                  IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP,
-                              .tie_breaking_strategy = TieBreakingStrategy::UNIFORM,
                           },
 
                       .cluster_weight_limit = ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
@@ -340,10 +335,7 @@ Context create_default_context() {
                   {
                       // Context -> Refinement -> Label Propagation
                       .num_iterations = 5,
-                      .large_degree_threshold = std::numeric_limits<NodeID>::max(),
-                      .max_num_neighbors = std::numeric_limits<NodeID>::max(),
-                      .impl = LabelPropagationImplementation::SINGLE_PHASE,
-                      .tie_breaking_strategy = TieBreakingStrategy::UNIFORM,
+                      .iteration_order = LabelPropagationIterationOrder::CHUNK_SHUFFLED,
                       .unconstrained_min_improvement_factor = 0.001,
                   },
               .kway_fm =

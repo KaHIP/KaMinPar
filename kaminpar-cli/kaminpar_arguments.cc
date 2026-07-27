@@ -299,25 +299,13 @@ CLI::Option_group *create_lp_coarsening_options(CLI::App *app, Context &ctx) {
         "Number of label propagation iterations."
   )
       ->capture_default_str();
-  lp->add_option(
-        "--c-lp-active-large-degree-threshold",
-        ctx.coarsening.clustering.lp.large_degree_threshold,
-        "Threshold for ignoring nodes with large degree."
-  )
-      ->capture_default_str();
-  lp->add_option(
-        "--c-lp-max-num-neighbors",
-        ctx.coarsening.clustering.lp.max_num_neighbors,
-        "Limit the neighborhood to this many nodes."
-  )
-      ->capture_default_str();
 
-  lp->add_option("--c-lp-tie-breaking-strategy", ctx.coarsening.clustering.lp.tie_breaking_strategy)
-      ->transform(CLI::CheckedTransformer(get_tie_breaking_strategies()).description(""))
+  lp->add_option("--c-lp-iteration-order", ctx.coarsening.clustering.lp.iteration_order)
+      ->transform(CLI::CheckedTransformer(get_lp_iteration_orders()).description(""))
       ->description(
-          R"(Chooses the tie breaking strategy:
-  - geometric: Prefer nodes with same rating located at the end of a neighborhood.
-  - uniform:   Select nodes with same rating uniformly at random.
+          R"(Chooses the label propagation iteration order:
+  - chunk-shuffled: Visit nodes in randomized chunk order.
+  - in-order:       Visit nodes in natural order.
   )"
       )
       ->capture_default_str();
@@ -325,26 +313,17 @@ CLI::Option_group *create_lp_coarsening_options(CLI::App *app, Context &ctx) {
       ->transform(CLI::CheckedTransformer(get_lp_implementations()).description(""))
       ->description(
           R"(Chooses the label propagation implementation:
-  - single-phase:        Uses single-phase label propagation.
-  - two-phase:           Uses two-phase label propagation.
-  - growing-hash-tables: Uses single-phase label propagation with growing hash tables.
+  - single-phase: Uses single-phase label propagation.
+  - two-phase:    Uses two-phase label propagation.
   )"
       )
-      ->capture_default_str();
-
-  lp->add_option(
-        "--c-lp-second-phase-relabel",
-        ctx.coarsening.clustering.lp.relabel_before_second_phase,
-        "Relabel the clusters before running the second phase."
-  )
       ->capture_default_str();
 
   lp->add_option("--c-lp-two-hop-strategy", ctx.coarsening.clustering.lp.two_hop_strategy)
       ->transform(CLI::CheckedTransformer(get_two_hop_strategies()).description(""))
       ->description(R"(Chooses the strategy for handling singleton clusters during coarsening:
-  - disable: Do not merge two-hop singleton clusters.
-  - match:   Join two-hop singleton clusters pairwise.
-  - cluster: Cluster two-hop singleton clusters into a single cluster (respecting the maximum cluster weight limit).
+  - match-threadwise: Join two-hop singleton clusters pairwise within each worker.
+  - cluster:          Cluster two-hop singleton clusters (respecting the maximum cluster weight limit).
   )")
       ->capture_default_str();
   lp->add_option(
@@ -353,21 +332,6 @@ CLI::Option_group *create_lp_coarsening_options(CLI::App *app, Context &ctx) {
         "Enable two-hop clustering if plain label propagation shrunk "
         "the graph by less than this factor."
   )
-      ->capture_default_str();
-
-  lp->add_option(
-        "--c-lp-isolated-nodes-strategy", ctx.coarsening.clustering.lp.isolated_nodes_strategy
-  )
-      ->transform(
-          CLI::CheckedTransformer(get_isolated_nodes_clustering_strategies()).description("")
-      )
-      ->description(R"(Chooses the strategy for handling isolated nodes during graph clustering:
-  - keep:                   Keep isolated nodes in the graph.
-  - match-always:           Pack pairs of isolated nodes into the same cluster (respecting the maximum cluster weight limit).
-  - cluster-always:         Pack any number of isolated nodes into the same cluster (respecting the maximum cluster weight limit).
-  - match-during-two-hop:   Only match isolated nodes after two-hop clustering was triggered.
-  - cluster-during-two-hop: Only cluster isolated nodes after two-hop clustering was triggered.
-  )")
       ->capture_default_str();
 
   return lp;
@@ -486,18 +450,16 @@ CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx) {
   )
       ->capture_default_str();
 
-  lp->add_option(
-        "--r-lp-active-large-degree-threshold",
-        ctx.refinement.lp.large_degree_threshold,
-        "Ignore nodes that have a degree larger than this threshold."
-  )
-      ->capture_default_str();
+  lp->add_option("--r-lp-iteration-order", ctx.refinement.lp.iteration_order)
+      ->transform(CLI::CheckedTransformer(get_lp_iteration_orders()).description(""))
+      ->description(
+          R"(Chooses the constrained label propagation iteration order:
+  - chunk-shuffled: Visit nodes in randomized chunk order.
+  - in-order:       Visit nodes in natural order.
 
-  lp->add_option(
-        "--r-lp-max-num-neighbors",
-        ctx.refinement.lp.max_num_neighbors,
-        "Maximum number of neighbors to consider for each nod.e"
-  )
+Unconstrained label propagation retains its transactional parallel traversal.
+  )"
+      )
       ->capture_default_str();
 
   lp->add_option(
@@ -506,27 +468,6 @@ CLI::Option_group *create_lp_refinement_options(CLI::App *app, Context &ctx) {
         "Stop unconstrained label propagation if a round improves the cut by less than this "
         "relative factor."
   )
-      ->capture_default_str();
-
-  lp->add_option("--r-lp-impl", ctx.refinement.lp.impl)
-      ->transform(CLI::CheckedTransformer(get_lp_implementations()).description(""))
-      ->description(
-          R"(Chooses the label propagation implementation:
-  - single-phase:        Uses single-phase label propagation.
-  - two-phase:           Uses two-phase label propagation.
-  - growing-hash-tables: Uses single-phase label propagation with growing hash tables.
-  )"
-      )
-      ->capture_default_str();
-
-  lp->add_option("--r-lp-tie-breaking-strategy", ctx.refinement.lp.tie_breaking_strategy)
-      ->transform(CLI::CheckedTransformer(get_tie_breaking_strategies()).description(""))
-      ->description(
-          R"(Chooses the tie breaking strategy:
-  - geometric: Prefer nodes with same rating located at the end of a neighborhood.
-  - uniform:   Select nodes with same rating uniformly at random.
-  )"
-      )
       ->capture_default_str();
 
   return lp;
