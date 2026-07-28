@@ -10,6 +10,7 @@
 #include "tests/shm/graph_builder.h"
 #include "tests/shm/graph_factories.h"
 
+#include "kaminpar-shm/algorithms/label_propagation/clustering_postprocessor.h"
 #include "kaminpar-shm/algorithms/label_propagation/two_hop_clustering.h"
 #include "kaminpar-shm/context.h"
 #include "kaminpar-shm/presets.h"
@@ -112,6 +113,20 @@ TEST(TwoHopCandidatesTest, RejectsIsolatedAndOverweightSingletons) {
   EXPECT_FALSE(overweight_candidates.contains(1));
 }
 
+TEST(ClusteringPostprocessorTest, CountsIsolatedNodeMerges) {
+  const tbb::global_control one_worker(tbb::global_control::max_allowed_parallelism, 1);
+  TwoHopTestState test_state(make_empty_graph(4), 2);
+
+  lp::ClusteringPostprocessor(
+      test_state.graph.csr_graph(), test_state.state, TwoHopStrategy::MATCH_THREADWISE, 1.0
+  )
+      .run();
+
+  EXPECT_THAT(test_state.sorted_cluster_sizes(), ElementsAre(2, 2));
+  EXPECT_EQ(test_state.state.num_clusters(), 2);
+  test_state.expect_consistent_cluster_weights();
+}
+
 TEST(GlobalTwoHopClusteringTest, MatchBuildsGlobalPairs) {
   TwoHopTestState test_state(make_weighted_star(4), 2);
   test_state.assign_leaf_group();
@@ -183,6 +198,7 @@ TEST(ThreadwiseTwoHopClusteringTest, MatchBuildsWorkerLocalPairs) {
   lp::ThreadwiseTwoHopClustering(test_state.graph.csr_graph(), test_state.state).match();
 
   EXPECT_THAT(test_state.sorted_cluster_sizes(), ElementsAre(1, 2, 2));
+  EXPECT_EQ(test_state.state.num_clusters(), 3);
   test_state.expect_consistent_cluster_weights();
 }
 
@@ -194,6 +210,7 @@ TEST(ThreadwiseTwoHopClusteringTest, ClusterRollsOverToANewRepresentativeAtTheWe
   lp::ThreadwiseTwoHopClustering(test_state.graph.csr_graph(), test_state.state).cluster();
 
   EXPECT_THAT(test_state.sorted_cluster_sizes(), ElementsAre(1, 1, 3));
+  EXPECT_EQ(test_state.state.num_clusters(), 3);
   test_state.expect_consistent_cluster_weights();
 }
 
@@ -207,6 +224,7 @@ TEST(ThreadwiseTwoHopClusteringTest, ClusterMaintainsConsistentWeightsAcrossWork
 
   const std::vector<std::size_t> sizes = test_state.sorted_cluster_sizes();
   EXPECT_LT(sizes.size(), test_state.graph.n());
+  EXPECT_EQ(test_state.state.num_clusters(), sizes.size());
   EXPECT_TRUE(std::ranges::all_of(sizes, [](const std::size_t size) { return size <= 3; }));
   test_state.expect_consistent_cluster_weights();
 }

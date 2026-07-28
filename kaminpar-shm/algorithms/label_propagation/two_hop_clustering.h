@@ -174,19 +174,23 @@ public:
 
 private:
   template <bool kMatching> void run() {
-    tbb::enumerable_thread_specific<DynamicFlatMap<NodeID, NodeID>> groups;
+    struct LocalState {
+      DynamicFlatMap<NodeID, NodeID> groups;
+      NodeID removed_clusters = 0;
+    };
+    tbb::enumerable_thread_specific<LocalState> local_states;
 
     tbb::parallel_for(
         tbb::blocked_range<NodeID>(0, _graph.n(), 512),
         [&](const tbb::blocked_range<NodeID> &range) {
-          auto &local_groups = groups.local();
+          auto &local = local_states.local();
           for (NodeID u = range.begin(); u != range.end(); ++u) {
             if (!_candidates.contains(u)) {
               continue;
             }
 
             const NodeID from = _state.cluster(u);
-            NodeID &representative = local_groups[_candidates.group(u)];
+            NodeID &representative = local.groups[_candidates.group(u)];
             if (representative == 0) {
               representative = from + 1;
               continue;
@@ -199,14 +203,22 @@ private:
               KASSERT(moved);
               _state.move_node(u, to);
               representative = 0;
+              ++local.removed_clusters;
             } else if (moved) {
               _state.move_node(u, to);
+              ++local.removed_clusters;
             } else {
               representative = from + 1;
             }
           }
         }
     );
+
+    NodeID removed_clusters = 0;
+    for (const auto &local : local_states) {
+      removed_clusters += local.removed_clusters;
+    }
+    _state.remove_empty_clusters(removed_clusters);
   }
 
   const Graph &_graph;

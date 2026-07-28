@@ -60,11 +60,16 @@ private:
 
   void match_isolated_nodes() {
     constexpr NodeID kInvalidCluster = std::numeric_limits<NodeID>::max();
-    tbb::enumerable_thread_specific<NodeID> current_cluster_ets(kInvalidCluster);
+    struct LocalState {
+      NodeID current_cluster = kInvalidCluster;
+      NodeID removed_clusters = 0;
+    };
+    tbb::enumerable_thread_specific<LocalState> local_states;
 
     tbb::parallel_for(
         tbb::blocked_range<NodeID>(0, _graph.n()), [&](const tbb::blocked_range<NodeID> &range) {
-          NodeID cluster = current_cluster_ets.local();
+          auto &local = local_states.local();
+          NodeID cluster = local.current_cluster;
           for (NodeID u = range.begin(); u != range.end(); ++u) {
             if (_graph.degree(u) != 0) {
               continue;
@@ -75,13 +80,20 @@ private:
                 _state.move_cluster_weight(from, cluster, _state.cluster_weight(from))) {
               _state.move_node(u, cluster);
               cluster = kInvalidCluster;
+              ++local.removed_clusters;
             } else {
               cluster = from;
             }
           }
-          current_cluster_ets.local() = cluster;
+          local.current_cluster = cluster;
         }
     );
+
+    NodeID removed_clusters = 0;
+    for (const auto &local : local_states) {
+      removed_clusters += local.removed_clusters;
+    }
+    _state.remove_empty_clusters(removed_clusters);
   }
 
   const Graph &_graph;
