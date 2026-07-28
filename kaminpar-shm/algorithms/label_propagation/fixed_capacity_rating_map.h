@@ -185,7 +185,7 @@ private:
   void allocate() {
     if (!is_allocated()) {
       _sparse = std::make_unique<SparseElement[]>(MaxCapacity);
-      _dense = std::make_unique_for_overwrite<Element[]>(MaxCapacity);
+      _dense.reset(new Element[MaxCapacity]);
       _capacity = MaxCapacity;
       _hash_shift = 64 - std::countr_zero(MaxCapacity);
     }
