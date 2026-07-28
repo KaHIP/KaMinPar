@@ -10,8 +10,8 @@
 
 #include "kaminpar-shm/algorithms/label_propagation/balanced_selector.h"
 #include "kaminpar-shm/algorithms/label_propagation/neighborhood_ratings.h"
+#include "kaminpar-shm/algorithms/label_propagation/node_processing.h"
 #include "kaminpar-shm/algorithms/label_propagation/rating_map_pool.h"
-#include "kaminpar-shm/algorithms/label_propagation/round_statistics.h"
 
 #include "kaminpar-common/random.h"
 
@@ -82,7 +82,7 @@ public:
       return selected;
     });
 
-    if (_state.commit(_graph, u, from, to, u_weight).moved) {
+    if (_state.commit(_graph, u, from, to, u_weight)) {
       ++local.stats.moved;
     }
   }

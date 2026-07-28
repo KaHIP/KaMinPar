@@ -14,9 +14,9 @@
 
 #include "kaminpar-shm/algorithms/label_propagation/clustering_selector.h"
 #include "kaminpar-shm/algorithms/label_propagation/neighborhood_ratings.h"
+#include "kaminpar-shm/algorithms/label_propagation/node_processing.h"
 #include "kaminpar-shm/algorithms/label_propagation/parallel_rating_map.h"
 #include "kaminpar-shm/algorithms/label_propagation/rating_map_pool.h"
-#include "kaminpar-shm/algorithms/label_propagation/round_statistics.h"
 
 #include "kaminpar-common/datastructures/cache_aligned_vector.h"
 #include "kaminpar-common/inline.h"

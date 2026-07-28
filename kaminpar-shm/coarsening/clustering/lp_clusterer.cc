@@ -7,18 +7,69 @@
  ******************************************************************************/
 #include "kaminpar-shm/coarsening/clustering/lp_clusterer.h"
 
+#include <cstddef>
 #include <span>
+
+#include <tbb/concurrent_vector.h>
+#include <tbb/task_arena.h>
 
 #include "kaminpar-shm/algorithms/iteration_order.h"
 #include "kaminpar-shm/algorithms/label_propagation/clustering_node_processor.h"
 #include "kaminpar-shm/algorithms/label_propagation/clustering_postprocessor.h"
-#include "kaminpar-shm/algorithms/label_propagation/clustering_workspace.h"
-#include "kaminpar-shm/algorithms/label_propagation/node_processing_kernel.h"
+#include "kaminpar-shm/algorithms/label_propagation/clustering_selector.h"
+#include "kaminpar-shm/algorithms/label_propagation/clustering_state.h"
+#include "kaminpar-shm/algorithms/label_propagation/node_processing.h"
+#include "kaminpar-shm/algorithms/label_propagation/parallel_rating_map.h"
+#include "kaminpar-shm/algorithms/label_propagation/rating_map_pool.h"
 
+#include "kaminpar-common/datastructures/cache_aligned_vector.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
+
+using ClusteringRatingMaps = lp::RatingMapPool<NodeID, EdgeWeight>;
+
+class LPClusteringWorkspace {
+public:
+  void ensure_capacity(const NodeID num_nodes) {
+    rating_maps.ensure_capacity(num_nodes);
+    const std::size_t concurrency = tbb::this_task_arena::max_concurrency();
+    if (local_selections.size() < concurrency) {
+      local_selections.resize(
+          concurrency,
+          lp::ClusteringSelector::RatedSelection{
+              .cluster = 0,
+              .rating = -1,
+              .favored_cluster = 0,
+              .favored_rating = -1,
+          }
+      );
+    }
+  }
+
+  void begin_round() {
+    statistics.clear();
+  }
+
+  void free() {
+    state.free();
+    rating_maps.free();
+    parallel_ratings.free();
+    deferred_nodes.clear();
+    deferred_nodes.shrink_to_fit();
+    local_selections.clear();
+    local_selections.shrink_to_fit();
+    statistics.clear();
+  }
+
+  lp::ClusteringState state;
+  ClusteringRatingMaps rating_maps;
+  lp::ParallelRatingMap<NodeID, EdgeWeight> parallel_ratings;
+  tbb::concurrent_vector<NodeID> deferred_nodes;
+  CacheAlignedVector<lp::ClusteringSelector::RatedSelection> local_selections;
+  lp::RoundStatistics statistics;
+};
 
 namespace {
 
@@ -27,7 +78,7 @@ public:
   LPClusteringRunner(
       const Graph &graph,
       const LabelPropagationCoarseningContext &lp_ctx,
-      lp::ClusteringWorkspace &workspace,
+      LPClusteringWorkspace &workspace,
       InOrderIterationOrder &in_order,
       ChunkShuffledIterationOrder &chunk_shuffled
   )
@@ -105,7 +156,7 @@ private:
 
   const Graph &_graph;
   const LabelPropagationCoarseningContext &_lp_ctx;
-  lp::ClusteringWorkspace &_workspace;
+  LPClusteringWorkspace &_workspace;
   InOrderIterationOrder &_in_order;
   ChunkShuffledIterationOrder &_chunk_shuffled;
 };
@@ -152,7 +203,7 @@ public:
 
 private:
   const LabelPropagationCoarseningContext &_lp_ctx;
-  lp::ClusteringWorkspace _workspace;
+  LPClusteringWorkspace _workspace;
 
   ChunkShuffledIterationOrder::Permutations _permutations;
   InOrderIterationOrder _in_order;

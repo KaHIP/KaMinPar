@@ -12,13 +12,38 @@
 
 #include "kaminpar-shm/algorithms/iteration_order.h"
 #include "kaminpar-shm/algorithms/label_propagation/balanced_node_processor.h"
-#include "kaminpar-shm/algorithms/label_propagation/balanced_workspace.h"
-#include "kaminpar-shm/algorithms/label_propagation/node_processing_kernel.h"
+#include "kaminpar-shm/algorithms/label_propagation/balanced_state.h"
+#include "kaminpar-shm/algorithms/label_propagation/node_processing.h"
+#include "kaminpar-shm/algorithms/label_propagation/rating_map_pool.h"
 
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
+
+using BalancedRatingMaps =
+    lp::RatingMapPool<BlockID, EdgeWeight, lp::adaptive_rating_map::SparseMap>;
+
+class LPRefinementWorkspace {
+public:
+  void ensure_capacity(const BlockID num_blocks) {
+    rating_maps.ensure_capacity(num_blocks);
+  }
+
+  void begin_round() {
+    statistics.clear();
+  }
+
+  void free() {
+    state.free();
+    rating_maps.free();
+    statistics.clear();
+  }
+
+  lp::BalancedState state;
+  BalancedRatingMaps rating_maps;
+  lp::RoundStatistics statistics;
+};
 
 namespace {
 
@@ -32,7 +57,7 @@ public:
       const PartitionContext &p_ctx,
       const LabelPropagationRefinementContext &lp_ctx,
       const std::span<const NodeID> communities,
-      lp::BalancedWorkspace &workspace,
+      LPRefinementWorkspace &workspace,
       InOrderIterationOrder &in_order,
       ChunkShuffledIterationOrder &chunk_shuffled
   )
@@ -92,7 +117,7 @@ private:
   const PartitionContext &_p_ctx;
   const LabelPropagationRefinementContext &_lp_ctx;
   std::span<const NodeID> _communities;
-  lp::BalancedWorkspace &_workspace;
+  LPRefinementWorkspace &_workspace;
   InOrderIterationOrder &_in_order;
   ChunkShuffledIterationOrder &_chunk_shuffled;
 };
@@ -132,7 +157,7 @@ public:
 
 private:
   const LabelPropagationRefinementContext &_lp_ctx;
-  lp::BalancedWorkspace _workspace;
+  LPRefinementWorkspace _workspace;
 
   ChunkShuffledIterationOrder::Permutations _permutations;
   InOrderIterationOrder _in_order;

@@ -9,7 +9,6 @@
 #include <span>
 
 #include "kaminpar-shm/algorithms/label_propagation/active_set.h"
-#include "kaminpar-shm/algorithms/label_propagation/move.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 
 namespace kaminpar::shm::lp {
@@ -48,7 +47,7 @@ public:
   }
 
   template <typename Graph>
-  MoveResult commit(
+  bool commit(
       const Graph &graph,
       const NodeID u,
       const BlockID from,
@@ -58,12 +57,12 @@ public:
     if (from == to || !_p_graph->move_block_weight(
                           from, to, u_weight, max_cluster_weight(to), min_cluster_weight(from)
                       )) {
-      return {};
+      return false;
     }
 
     _p_graph->set_block<false>(u, to);
     _active.activate_neighbors(graph, u, [](const NodeID) { return true; });
-    return {.moved = true, .emptied_cluster = false};
+    return true;
   }
 
   [[nodiscard]] bool is_active(const NodeID u) const {

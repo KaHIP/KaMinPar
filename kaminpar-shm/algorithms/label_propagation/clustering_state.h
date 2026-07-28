@@ -12,7 +12,6 @@
 #include <tbb/parallel_invoke.h>
 
 #include "kaminpar-shm/algorithms/label_propagation/active_set.h"
-#include "kaminpar-shm/algorithms/label_propagation/move.h"
 #include "kaminpar-shm/kaminpar.h"
 
 #include "kaminpar-common/datastructures/static_array.h"
@@ -20,6 +19,11 @@
 #include "kaminpar-common/parallel/atomic.h"
 
 namespace kaminpar::shm::lp {
+
+struct MoveResult {
+  bool moved = false;
+  bool emptied_cluster = false;
+};
 
 /*!
  * Run-scoped direct access to clustering state used by the node hot path.

@@ -13,8 +13,7 @@
 #include <tbb/parallel_for.h>
 
 #include "kaminpar-shm/algorithms/label_propagation/clustering_state.h"
-#include "kaminpar-shm/algorithms/label_propagation/global_two_hop_clustering.h"
-#include "kaminpar-shm/algorithms/label_propagation/threadwise_two_hop_clustering.h"
+#include "kaminpar-shm/algorithms/label_propagation/two_hop_clustering.h"
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm::lp {

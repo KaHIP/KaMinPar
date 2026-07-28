@@ -13,14 +13,12 @@
 
 #include "kaminpar-shm/algorithms/iteration_order.h"
 #include "kaminpar-shm/algorithms/label_propagation/active_set.h"
-#include "kaminpar-shm/algorithms/label_propagation/adaptive_rating_map.h"
 #include "kaminpar-shm/algorithms/label_propagation/balanced_selector.h"
 #include "kaminpar-shm/algorithms/label_propagation/clustering_selector.h"
-#include "kaminpar-shm/algorithms/label_propagation/fixed_capacity_rating_map.h"
-#include "kaminpar-shm/algorithms/label_propagation/linear_rating_map.h"
 #include "kaminpar-shm/algorithms/label_propagation/neighborhood_ratings.h"
 #include "kaminpar-shm/algorithms/label_propagation/parallel_rating_map.h"
 #include "kaminpar-shm/algorithms/label_propagation/positive_gain_selector.h"
+#include "kaminpar-shm/algorithms/label_propagation/rating_map.h"
 #include "kaminpar-shm/algorithms/label_propagation/rating_map_pool.h"
 #include "kaminpar-shm/algorithms/label_propagation/uniform_tie_set.h"
 
@@ -755,7 +753,7 @@ TEST(BalancedSelectorTest, SelectsAndCommitsTheStrongestFeasibleBlock) {
 
   const BlockID selected = selector.select(0, 1, ratings, Random::instance(), ties);
   EXPECT_EQ(selected, 1);
-  EXPECT_TRUE(state.commit(graph.csr_graph(), 0, 0, selected, 1).moved);
+  EXPECT_TRUE(state.commit(graph.csr_graph(), 0, 0, selected, 1));
   EXPECT_EQ(p_graph.block(0), 1);
 }
 

@@ -1,12 +1,13 @@
 /*******************************************************************************
- * Cache-efficient fixed-capacity map for neighborhood rating aggregation.
+ * Local maps for neighborhood rating aggregation.
  *
- * @file:   fixed_capacity_rating_map.h
+ * @file:   rating_map.h
  * @author: Daniel Seemaier
  ******************************************************************************/
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <bit>
 #include <cstddef>
 #include <cstdint>
@@ -15,9 +16,94 @@
 #include <memory>
 
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/datastructures/fast_reset_array.h"
+#include "kaminpar-common/datastructures/sparse_map.h"
 #include "kaminpar-common/math.h"
 
 namespace kaminpar::shm::lp {
+
+template <typename Key, typename Value, std::size_t Capacity> class LinearRatingMap {
+  static_assert(Capacity > 0);
+
+  struct Element {
+    Key key;
+    Value value;
+  };
+
+public:
+  explicit LinearRatingMap(const Value initial_value = Value()) : _initial_value(initial_value) {}
+
+  [[nodiscard]] std::size_t capacity() const {
+    return Capacity;
+  }
+
+  [[nodiscard]] std::size_t size() const {
+    return _size;
+  }
+
+  [[nodiscard]] Element *begin() {
+    return _entries.data();
+  }
+
+  [[nodiscard]] Element *end() {
+    return _entries.data() + _size;
+  }
+
+  [[nodiscard]] const Element *begin() const {
+    return _entries.data();
+  }
+
+  [[nodiscard]] const Element *end() const {
+    return _entries.data() + _size;
+  }
+
+  [[nodiscard]] LinearRatingMap &entries() {
+    return *this;
+  }
+
+  [[nodiscard]] const LinearRatingMap &entries() const {
+    return *this;
+  }
+
+  [[nodiscard]] bool contains(const Key key) const {
+    return find(key) != _size;
+  }
+
+  [[nodiscard]] const Value &get(const Key key) const {
+    const std::size_t position = find(key);
+    KASSERT(position != _size, "key not in linear rating map");
+    return _entries[position].value;
+  }
+
+  Value &operator[](const Key key) {
+    const std::size_t position = find(key);
+    if (position != _size) {
+      return _entries[position].value;
+    }
+
+    KASSERT(_size < Capacity, "linear rating map is full");
+    _entries[_size] = {.key = key, .value = _initial_value};
+    return _entries[_size++].value;
+  }
+
+  void clear() {
+    _size = 0;
+  }
+
+private:
+  [[nodiscard]] std::size_t find(const Key key) const {
+    for (std::size_t i = 0; i < _size; ++i) {
+      if (_entries[i].key == key) {
+        return i;
+      }
+    }
+    return _size;
+  }
+
+  Value _initial_value;
+  std::array<Element, Capacity> _entries;
+  std::size_t _size = 0;
+};
 
 template <typename Key, typename Value, std::size_t MaxCapacity = 32768>
 class FixedCapacityRatingMap {
@@ -235,6 +321,128 @@ private:
   std::size_t _size = 0;
   int _hash_shift = 0;
   std::uint32_t _timestamp = 1;
+};
+
+namespace adaptive_rating_map {
+
+template <typename Key, typename Value>
+using FastResetArray = ::kaminpar::FastResetArray<Value, Key>;
+
+template <typename Key, typename Value> using SparseMap = ::kaminpar::SparseMap<Key, Value>;
+
+} // namespace adaptive_rating_map
+
+template <
+    typename Key,
+    typename Value,
+    template <typename, typename> typename DirectMap = adaptive_rating_map::FastResetArray>
+class AdaptiveRatingMap {
+public:
+  static constexpr std::size_t kMaxHashCapacity = 32768;
+  static constexpr std::size_t kMaxHashSize = kMaxHashCapacity / 3;
+  static constexpr std::size_t kHashCapacityFactor = 8;
+  static constexpr std::size_t kMinHashCapacity = 128;
+  static constexpr std::size_t kDirectMapThreshold = 512;
+  static constexpr std::size_t kLinearMapCapacity = 8;
+
+  using LinearMap = LinearRatingMap<Key, Value, kLinearMapCapacity>;
+  using HashMap = FixedCapacityRatingMap<Key, Value, kMaxHashCapacity>;
+
+  explicit AdaptiveRatingMap(const std::size_t max_size)
+      : _max_size(max_size),
+        _hash_map(Value{}, max_size > kDirectMapThreshold) {
+    KASSERT(
+        max_size > std::size_t{0},
+        "adaptive rating maps require a non-empty key universe",
+        assert::always
+    );
+    if (use_direct_map()) {
+      ensure_direct_map_capacity();
+    }
+  }
+
+  AdaptiveRatingMap(const AdaptiveRatingMap &) = delete;
+  AdaptiveRatingMap &operator=(const AdaptiveRatingMap &) = delete;
+  AdaptiveRatingMap(AdaptiveRatingMap &&) noexcept = default;
+  AdaptiveRatingMap &operator=(AdaptiveRatingMap &&) noexcept = default;
+
+  template <typename Lambda>
+  decltype(auto) execute(const std::size_t upper_bound, Lambda &&lambda) {
+    if (use_direct_map()) {
+      return lambda(_direct_map);
+    }
+
+    if (upper_bound <= kLinearMapCapacity) {
+      return lambda(_linear_map);
+    }
+
+    if (upper_bound <= kMaxHashSize) {
+      return lambda(prepare_hash_map_unchecked(upper_bound));
+    }
+
+    ensure_direct_map_capacity();
+    return lambda(_direct_map);
+  }
+
+  [[nodiscard]] HashMap &prepare_hash_map(const std::size_t upper_bound) {
+    KASSERT(
+        upper_bound <= kMaxHashSize,
+        "too many entries for the fixed-capacity rating map",
+        assert::always
+    );
+    return prepare_hash_map_unchecked(upper_bound);
+  }
+
+  [[nodiscard]] HashMap &hash_map() {
+    return _hash_map;
+  }
+
+  [[nodiscard]] std::size_t max_size() const {
+    return _max_size;
+  }
+
+  void change_max_size(const std::size_t max_size) {
+    _max_size = max_size;
+    if (use_direct_map()) {
+      ensure_direct_map_capacity();
+    }
+  }
+
+private:
+  [[nodiscard]] HashMap &prepare_hash_map_unchecked(const std::size_t upper_bound) {
+    const std::size_t capacity = hash_capacity(upper_bound);
+    if (_hash_map.size() == 0) {
+      if (_hash_map.capacity() != capacity) {
+        _hash_map.set_capacity(capacity);
+      }
+    } else {
+      KASSERT(_hash_map.capacity() >= capacity);
+    }
+    return _hash_map;
+  }
+
+  [[nodiscard]] bool use_direct_map() const {
+    return _max_size <= kDirectMapThreshold;
+  }
+
+  [[nodiscard]] static std::size_t hash_capacity(const std::size_t upper_bound) {
+    const std::size_t required_capacity =
+        kHashCapacityFactor * std::max<std::size_t>(upper_bound, 1);
+    return std::clamp<std::size_t>(
+        std::bit_ceil(required_capacity), kMinHashCapacity, kMaxHashCapacity
+    );
+  }
+
+  void ensure_direct_map_capacity() {
+    if (_direct_map.capacity() < _max_size) {
+      _direct_map.resize(_max_size);
+    }
+  }
+
+  std::size_t _max_size;
+  LinearMap _linear_map;
+  HashMap _hash_map;
+  DirectMap<Key, Value> _direct_map;
 };
 
 } // namespace kaminpar::shm::lp

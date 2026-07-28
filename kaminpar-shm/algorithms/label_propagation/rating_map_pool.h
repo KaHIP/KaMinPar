@@ -10,7 +10,7 @@
 
 #include <tbb/enumerable_thread_specific.h>
 
-#include "kaminpar-shm/algorithms/label_propagation/adaptive_rating_map.h"
+#include "kaminpar-shm/algorithms/label_propagation/rating_map.h"
 
 #include "kaminpar-common/datastructures/scalable_vector.h"
 

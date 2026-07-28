@@ -10,9 +10,7 @@
 #include "tests/shm/graph_builder.h"
 #include "tests/shm/graph_factories.h"
 
-#include "kaminpar-shm/algorithms/label_propagation/global_two_hop_clustering.h"
-#include "kaminpar-shm/algorithms/label_propagation/threadwise_two_hop_clustering.h"
-#include "kaminpar-shm/algorithms/label_propagation/two_hop_candidates.h"
+#include "kaminpar-shm/algorithms/label_propagation/two_hop_clustering.h"
 #include "kaminpar-shm/context.h"
 #include "kaminpar-shm/presets.h"
 
