@@ -61,7 +61,7 @@ private:
   void match_isolated_nodes() {
     constexpr NodeID kInvalidCluster = std::numeric_limits<NodeID>::max();
     struct LocalState {
-      NodeID current_cluster = kInvalidCluster;
+      NodeID current_cluster = std::numeric_limits<NodeID>::max();
       NodeID removed_clusters = 0;
     };
     tbb::enumerable_thread_specific<LocalState> local_states;
