@@ -99,9 +99,9 @@ enum class ClusterWeightLimit {
   ZERO,
 };
 
-enum class LabelPropagationImplementation {
-  SINGLE_PHASE,
-  TWO_PHASE,
+enum class LabelPropagationRatingAggregation {
+  LOCAL = 0,
+  DEFERRED_PARALLEL = 1,
 };
 
 enum class LabelPropagationIterationOrder {
@@ -110,8 +110,11 @@ enum class LabelPropagationIterationOrder {
 };
 
 enum class TwoHopStrategy {
-  MATCH_THREADWISE,
-  CLUSTER,
+  // Keep values stable for existing numeric configuration files.
+  MATCH = 1,
+  MATCH_THREADWISE = 2,
+  CLUSTER = 3,
+  CLUSTER_THREADWISE = 4,
 };
 
 enum class ContractionAlgorithm {
@@ -130,7 +133,7 @@ struct LabelPropagationCoarseningContext {
   std::size_t num_iterations;
 
   LabelPropagationIterationOrder iteration_order;
-  LabelPropagationImplementation impl;
+  LabelPropagationRatingAggregation rating_aggregation;
 
   TwoHopStrategy two_hop_strategy;
   double two_hop_threshold;

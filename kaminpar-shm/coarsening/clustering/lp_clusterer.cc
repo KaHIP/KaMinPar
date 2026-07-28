@@ -56,7 +56,7 @@ public:
       SCOPED_TIMER(iteration == 0 ? "Initial iteration" : "Remaining iterations");
       _workspace.begin_round();
 
-      if (_lp_ctx.impl == LabelPropagationImplementation::TWO_PHASE) {
+      if (_lp_ctx.rating_aggregation == LabelPropagationRatingAggregation::DEFERRED_PARALLEL) {
         {
           SCOPED_HEAP_PROFILER("First phase");
           SCOPED_TIMER("First phase");

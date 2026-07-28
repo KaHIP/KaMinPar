@@ -309,12 +309,12 @@ CLI::Option_group *create_lp_coarsening_options(CLI::App *app, Context &ctx) {
   )"
       )
       ->capture_default_str();
-  lp->add_option("--c-lp-impl", ctx.coarsening.clustering.lp.impl)
-      ->transform(CLI::CheckedTransformer(get_lp_implementations()).description(""))
+  lp->add_option("--c-lp-rating-aggregation", ctx.coarsening.clustering.lp.rating_aggregation)
+      ->transform(CLI::CheckedTransformer(get_lp_rating_aggregations()).description(""))
       ->description(
-          R"(Chooses the label propagation implementation:
-  - single-phase: Uses single-phase label propagation.
-  - two-phase:    Uses two-phase label propagation.
+          R"(Chooses how label propagation aggregates neighborhood ratings:
+  - local:             Aggregate the complete neighborhood in worker-local storage.
+  - deferred-parallel: Defer neighborhoods that exceed local capacity and aggregate them in parallel.
   )"
       )
       ->capture_default_str();
@@ -322,8 +322,10 @@ CLI::Option_group *create_lp_coarsening_options(CLI::App *app, Context &ctx) {
   lp->add_option("--c-lp-two-hop-strategy", ctx.coarsening.clustering.lp.two_hop_strategy)
       ->transform(CLI::CheckedTransformer(get_two_hop_strategies()).description(""))
       ->description(R"(Chooses the strategy for handling singleton clusters during coarsening:
-  - match-threadwise: Join two-hop singleton clusters pairwise within each worker.
-  - cluster:          Cluster two-hop singleton clusters (respecting the maximum cluster weight limit).
+  - match:              Join two-hop singleton clusters pairwise across all workers.
+  - match-threadwise:   Join two-hop singleton clusters pairwise within each worker.
+  - cluster:            Cluster two-hop singleton clusters across all workers.
+  - cluster-threadwise: Cluster two-hop singleton clusters within each worker.
   )")
       ->capture_default_str();
   lp->add_option(

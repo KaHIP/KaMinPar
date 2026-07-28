@@ -80,6 +80,7 @@ kaminpar_add_shm_test(test_shm_endtoend endtoend/shm_endtoend_test.cc)
 kaminpar_add_shm_test(
     test_shm_label_propagation_components
     shm/algorithms/label_propagation_test.cc
+    shm/algorithms/two_hop_clustering_test.cc
 )
 kaminpar_add_shm_test(test_shm_metrics shm/metrics_test.cc)
 kaminpar_add_shm_test(test_shm_subgraph_extraction shm/graphutils/subgraph_extraction_test.cc)

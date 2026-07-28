@@ -190,11 +190,14 @@ public:
   }
 
   [[nodiscard]] NodeID favored_cluster(const NodeID u) const {
-    return _favored_clusters[u];
+    return __atomic_load_n(&_favored_clusters[u], __ATOMIC_RELAXED);
   }
 
-  [[nodiscard]] NodeID &favored_cluster_ref(const NodeID u) {
-    return _favored_clusters[u];
+  [[nodiscard]] bool
+  compare_exchange_favored_cluster(const NodeID u, NodeID &expected, const NodeID desired) {
+    return __atomic_compare_exchange_n(
+        &_favored_clusters[u], &expected, desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST
+    );
   }
 
   void remove_empty_clusters(const NodeID count) {

@@ -91,8 +91,7 @@ private:
 };
 
 /*!
- * Visits nodes in the degree-bucket-aware, chunk-shuffled order used by the
- * shared-memory label propagation implementation.
+ * Visits nodes in degree-bucket-aware, chunk-shuffled order.
  *
  * The chunk plan is initialized once and reused across iterations. Before each
  * iteration, chunks are shuffled within their degree bucket. TBB tasks claim

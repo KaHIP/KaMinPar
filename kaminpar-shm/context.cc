@@ -228,21 +228,24 @@ std::unordered_map<std::string, ClusterWeightLimit> get_cluster_weight_limits() 
   };
 }
 
-std::ostream &operator<<(std::ostream &out, const LabelPropagationImplementation impl) {
-  switch (impl) {
-  case LabelPropagationImplementation::SINGLE_PHASE:
-    return out << "single-phase";
-  case LabelPropagationImplementation::TWO_PHASE:
-    return out << "two-phase";
+std::ostream &
+operator<<(std::ostream &out, const LabelPropagationRatingAggregation rating_aggregation) {
+  switch (rating_aggregation) {
+  case LabelPropagationRatingAggregation::LOCAL:
+    return out << "local";
+  case LabelPropagationRatingAggregation::DEFERRED_PARALLEL:
+    return out << "deferred-parallel";
   }
 
   return out << "<invalid>";
 }
 
-std::unordered_map<std::string, LabelPropagationImplementation> get_lp_implementations() {
+std::unordered_map<std::string, LabelPropagationRatingAggregation> get_lp_rating_aggregations() {
   return {
-      {"single-phase", LabelPropagationImplementation::SINGLE_PHASE},
-      {"two-phase", LabelPropagationImplementation::TWO_PHASE},
+      {"local", LabelPropagationRatingAggregation::LOCAL},
+      {"deferred-parallel", LabelPropagationRatingAggregation::DEFERRED_PARALLEL},
+      {"single-phase", LabelPropagationRatingAggregation::LOCAL},
+      {"two-phase", LabelPropagationRatingAggregation::DEFERRED_PARALLEL},
   };
 }
 
@@ -266,10 +269,14 @@ std::unordered_map<std::string, LabelPropagationIterationOrder> get_lp_iteration
 
 std::ostream &operator<<(std::ostream &out, const TwoHopStrategy strategy) {
   switch (strategy) {
+  case TwoHopStrategy::MATCH:
+    return out << "match";
   case TwoHopStrategy::MATCH_THREADWISE:
     return out << "match-threadwise";
   case TwoHopStrategy::CLUSTER:
     return out << "cluster";
+  case TwoHopStrategy::CLUSTER_THREADWISE:
+    return out << "cluster-threadwise";
   }
 
   return out << "<invalid>";
@@ -277,8 +284,10 @@ std::ostream &operator<<(std::ostream &out, const TwoHopStrategy strategy) {
 
 std::unordered_map<std::string, TwoHopStrategy> get_two_hop_strategies() {
   return {
+      {"match", TwoHopStrategy::MATCH},
       {"match-threadwise", TwoHopStrategy::MATCH_THREADWISE},
       {"cluster", TwoHopStrategy::CLUSTER},
+      {"cluster-threadwise", TwoHopStrategy::CLUSTER_THREADWISE},
   };
 }
 
@@ -671,7 +680,7 @@ std::ostream &operator<<(std::ostream &out, const CoarseningContext &c_ctx) {
 std::ostream &operator<<(std::ostream &out, const LabelPropagationCoarseningContext &lp_ctx) {
   out << "    Number of iterations:     " << lp_ctx.num_iterations << "\n";
   out << "    Iteration order:          " << lp_ctx.iteration_order << "\n";
-  out << "    Implementation:           " << lp_ctx.impl << "\n";
+  out << "    Rating aggregation:       " << lp_ctx.rating_aggregation << "\n";
   out << "    2-hop clustering:         " << lp_ctx.two_hop_strategy << ", if |Vcoarse| > "
       << std::setw(2) << std::fixed << lp_ctx.two_hop_threshold << " * |V|\n";
 

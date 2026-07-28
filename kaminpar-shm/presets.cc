@@ -142,7 +142,8 @@ Context create_default_context() {
                               // Context -> Coarsening -> Clustering -> Label Propagation
                               .num_iterations = 5,
                               .iteration_order = LabelPropagationIterationOrder::CHUNK_SHUFFLED,
-                              .impl = LabelPropagationImplementation::TWO_PHASE,
+                              .rating_aggregation =
+                                  LabelPropagationRatingAggregation::DEFERRED_PARALLEL,
                               .two_hop_strategy = TwoHopStrategy::MATCH_THREADWISE,
                               .two_hop_threshold = 0.5,
                           },
@@ -625,7 +626,7 @@ Context create_esa21_smallk_context() {
   Context ctx = create_default_context();
 
   ctx.coarsening.contraction.algorithm = ContractionAlgorithm::BUFFERED;
-  ctx.coarsening.clustering.lp.impl = LabelPropagationImplementation::SINGLE_PHASE;
+  ctx.coarsening.clustering.lp.rating_aggregation = LabelPropagationRatingAggregation::LOCAL;
 
   return ctx;
 }
