@@ -99,31 +99,22 @@ enum class ClusterWeightLimit {
   ZERO,
 };
 
-enum class LabelPropagationImplementation {
-  SINGLE_PHASE,
-  TWO_PHASE,
-  GROWING_HASH_TABLES
+enum class LabelPropagationRatingAggregation {
+  LOCAL = 0,
+  DEFERRED_PARALLEL = 1,
+};
+
+enum class LabelPropagationIterationOrder {
+  CHUNK_SHUFFLED,
+  IN_ORDER,
 };
 
 enum class TwoHopStrategy {
-  DISABLE,
-  MATCH,
-  MATCH_THREADWISE,
-  CLUSTER,
-  CLUSTER_THREADWISE,
-};
-
-enum class IsolatedNodesClusteringStrategy {
-  KEEP,
-  MATCH,
-  CLUSTER,
-  MATCH_DURING_TWO_HOP,
-  CLUSTER_DURING_TWO_HOP,
-};
-
-enum class TieBreakingStrategy {
-  GEOMETRIC,
-  UNIFORM,
+  // Keep values stable for existing numeric configuration files.
+  MATCH = 1,
+  MATCH_THREADWISE = 2,
+  CLUSTER = 3,
+  CLUSTER_THREADWISE = 4,
 };
 
 enum class ContractionAlgorithm {
@@ -140,18 +131,12 @@ enum class ContractionImplementation {
 
 struct LabelPropagationCoarseningContext {
   std::size_t num_iterations;
-  NodeID large_degree_threshold;
-  NodeID max_num_neighbors;
 
-  LabelPropagationImplementation impl;
-  bool relabel_before_second_phase;
+  LabelPropagationIterationOrder iteration_order;
+  LabelPropagationRatingAggregation rating_aggregation;
 
   TwoHopStrategy two_hop_strategy;
   double two_hop_threshold;
-
-  IsolatedNodesClusteringStrategy isolated_nodes_strategy;
-
-  TieBreakingStrategy tie_breaking_strategy;
 };
 
 struct ContractionCoarseningContext {
@@ -222,11 +207,8 @@ struct BalancerRefinementContext {};
 
 struct LabelPropagationRefinementContext {
   std::size_t num_iterations;
-  NodeID large_degree_threshold;
-  NodeID max_num_neighbors;
 
-  LabelPropagationImplementation impl;
-  TieBreakingStrategy tie_breaking_strategy;
+  LabelPropagationIterationOrder iteration_order;
 
   double unconstrained_min_improvement_factor;
 };

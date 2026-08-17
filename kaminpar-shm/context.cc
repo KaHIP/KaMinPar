@@ -228,31 +228,47 @@ std::unordered_map<std::string, ClusterWeightLimit> get_cluster_weight_limits() 
   };
 }
 
-std::ostream &operator<<(std::ostream &out, const LabelPropagationImplementation impl) {
-  switch (impl) {
-  case LabelPropagationImplementation::SINGLE_PHASE:
-    return out << "single-phase";
-  case LabelPropagationImplementation::TWO_PHASE:
-    return out << "two-phase";
-  case LabelPropagationImplementation::GROWING_HASH_TABLES:
-    return out << "growing-hash-tables";
+std::ostream &
+operator<<(std::ostream &out, const LabelPropagationRatingAggregation rating_aggregation) {
+  switch (rating_aggregation) {
+  case LabelPropagationRatingAggregation::LOCAL:
+    return out << "local";
+  case LabelPropagationRatingAggregation::DEFERRED_PARALLEL:
+    return out << "deferred-parallel";
   }
 
   return out << "<invalid>";
 }
 
-std::unordered_map<std::string, LabelPropagationImplementation> get_lp_implementations() {
+std::unordered_map<std::string, LabelPropagationRatingAggregation> get_lp_rating_aggregations() {
   return {
-      {"single-phase", LabelPropagationImplementation::SINGLE_PHASE},
-      {"two-phase", LabelPropagationImplementation::TWO_PHASE},
-      {"growing-hash-tables", LabelPropagationImplementation::GROWING_HASH_TABLES},
+      {"local", LabelPropagationRatingAggregation::LOCAL},
+      {"deferred-parallel", LabelPropagationRatingAggregation::DEFERRED_PARALLEL},
+      {"single-phase", LabelPropagationRatingAggregation::LOCAL},
+      {"two-phase", LabelPropagationRatingAggregation::DEFERRED_PARALLEL},
+  };
+}
+
+std::ostream &operator<<(std::ostream &out, const LabelPropagationIterationOrder iteration_order) {
+  switch (iteration_order) {
+  case LabelPropagationIterationOrder::CHUNK_SHUFFLED:
+    return out << "chunk-shuffled";
+  case LabelPropagationIterationOrder::IN_ORDER:
+    return out << "in-order";
+  }
+
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, LabelPropagationIterationOrder> get_lp_iteration_orders() {
+  return {
+      {"chunk-shuffled", LabelPropagationIterationOrder::CHUNK_SHUFFLED},
+      {"in-order", LabelPropagationIterationOrder::IN_ORDER},
   };
 }
 
 std::ostream &operator<<(std::ostream &out, const TwoHopStrategy strategy) {
   switch (strategy) {
-  case TwoHopStrategy::DISABLE:
-    return out << "disable";
   case TwoHopStrategy::MATCH:
     return out << "match";
   case TwoHopStrategy::MATCH_THREADWISE:
@@ -268,57 +284,10 @@ std::ostream &operator<<(std::ostream &out, const TwoHopStrategy strategy) {
 
 std::unordered_map<std::string, TwoHopStrategy> get_two_hop_strategies() {
   return {
-      {"disable", TwoHopStrategy::DISABLE},
       {"match", TwoHopStrategy::MATCH},
       {"match-threadwise", TwoHopStrategy::MATCH_THREADWISE},
       {"cluster", TwoHopStrategy::CLUSTER},
       {"cluster-threadwise", TwoHopStrategy::CLUSTER_THREADWISE},
-  };
-}
-
-std::ostream &operator<<(std::ostream &out, IsolatedNodesClusteringStrategy strategy) {
-  switch (strategy) {
-  case IsolatedNodesClusteringStrategy::KEEP:
-    return out << "keep";
-  case IsolatedNodesClusteringStrategy::MATCH:
-    return out << "match";
-  case IsolatedNodesClusteringStrategy::CLUSTER:
-    return out << "cluster";
-  case IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP:
-    return out << "match-during-two-hop";
-  case IsolatedNodesClusteringStrategy::CLUSTER_DURING_TWO_HOP:
-    return out << "cluster-during-two-hop";
-  }
-
-  return out << "<invalid>";
-}
-
-std::unordered_map<std::string, IsolatedNodesClusteringStrategy>
-get_isolated_nodes_clustering_strategies() {
-  return {
-      {"keep", IsolatedNodesClusteringStrategy::KEEP},
-      {"match", IsolatedNodesClusteringStrategy::MATCH},
-      {"cluster", IsolatedNodesClusteringStrategy::CLUSTER},
-      {"match-during-two-hop", IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP},
-      {"cluster-during-two-hop", IsolatedNodesClusteringStrategy::CLUSTER_DURING_TWO_HOP},
-  };
-}
-
-std::ostream &operator<<(std::ostream &out, const TieBreakingStrategy strategy) {
-  switch (strategy) {
-  case TieBreakingStrategy::GEOMETRIC:
-    return out << "geometric";
-  case TieBreakingStrategy::UNIFORM:
-    return out << "uniform";
-  }
-
-  return out << "<invalid>";
-}
-
-std::unordered_map<std::string, TieBreakingStrategy> get_tie_breaking_strategies() {
-  return {
-      {"geometric", TieBreakingStrategy::GEOMETRIC},
-      {"uniform", TieBreakingStrategy::UNIFORM},
   };
 }
 
@@ -710,16 +679,10 @@ std::ostream &operator<<(std::ostream &out, const CoarseningContext &c_ctx) {
 
 std::ostream &operator<<(std::ostream &out, const LabelPropagationCoarseningContext &lp_ctx) {
   out << "    Number of iterations:     " << lp_ctx.num_iterations << "\n";
-  out << "    High degree threshold:    " << lp_ctx.large_degree_threshold << "\n";
-  out << "    Max degree:               " << lp_ctx.max_num_neighbors << "\n";
-  out << "    Tie breaking strategy:    " << lp_ctx.tie_breaking_strategy << "\n";
-  out << "    Implementation:           " << lp_ctx.impl << "\n";
-  if (lp_ctx.impl == LabelPropagationImplementation::TWO_PHASE) {
-    out << "      Relabel:                " << yn(lp_ctx.relabel_before_second_phase) << "\n";
-  }
+  out << "    Iteration order:          " << lp_ctx.iteration_order << "\n";
+  out << "    Rating aggregation:       " << lp_ctx.rating_aggregation << "\n";
   out << "    2-hop clustering:         " << lp_ctx.two_hop_strategy << ", if |Vcoarse| > "
       << std::setw(2) << std::fixed << lp_ctx.two_hop_threshold << " * |V|\n";
-  out << "    Isolated nodes:           " << lp_ctx.isolated_nodes_strategy << "\n";
 
   return out;
 }
@@ -744,8 +707,9 @@ std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
       out << "  Unconstrained min gain:     "
           << 100.0 * r_ctx.lp.unconstrained_min_improvement_factor << "%\n";
     }
-    out << "  Tie breaking strategy:      " << r_ctx.lp.tie_breaking_strategy << "\n";
-    out << "  Implementation:             " << r_ctx.lp.impl << "\n";
+    if (r_ctx.includes_algorithm(RefinementAlgorithm::LABEL_PROPAGATION)) {
+      out << "  Iteration order:            " << r_ctx.lp.iteration_order << "\n";
+    }
   }
 
   if (r_ctx.includes_algorithm(RefinementAlgorithm::KWAY_FM) ||

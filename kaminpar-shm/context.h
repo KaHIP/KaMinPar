@@ -41,22 +41,17 @@ std::ostream &operator<<(std::ostream &out, ClusterWeightLimit limit);
 
 std::unordered_map<std::string, ClusterWeightLimit> get_cluster_weight_limits();
 
-std::ostream &operator<<(std::ostream &out, const LabelPropagationImplementation impl);
+std::ostream &operator<<(std::ostream &out, LabelPropagationRatingAggregation rating_aggregation);
 
-std::unordered_map<std::string, LabelPropagationImplementation> get_lp_implementations();
+std::unordered_map<std::string, LabelPropagationRatingAggregation> get_lp_rating_aggregations();
+
+std::ostream &operator<<(std::ostream &out, LabelPropagationIterationOrder iteration_order);
+
+std::unordered_map<std::string, LabelPropagationIterationOrder> get_lp_iteration_orders();
 
 std::ostream &operator<<(std::ostream &out, TwoHopStrategy strategy);
 
 std::unordered_map<std::string, TwoHopStrategy> get_two_hop_strategies();
-
-std::ostream &operator<<(std::ostream &out, IsolatedNodesClusteringStrategy strategy);
-
-std::unordered_map<std::string, IsolatedNodesClusteringStrategy>
-get_isolated_nodes_clustering_strategies();
-
-std::ostream &operator<<(std::ostream &out, TieBreakingStrategy strategy);
-
-std::unordered_map<std::string, TieBreakingStrategy> get_tie_breaking_strategies();
 
 std::ostream &operator<<(std::ostream &out, const ContractionAlgorithm algorithm);
 
