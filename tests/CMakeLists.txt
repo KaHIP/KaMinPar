@@ -168,6 +168,11 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
             FILES io/dist_metis_parser_test.cc
             CORES 1 2 3 4 5 8)
         target_link_libraries(test_dist_io_metis_parser PRIVATE KaMinPar::dKaMinParIO)
+
+        kaminpar_add_dist_test(test_dist_io_parhip_parser
+            FILES io/dist_parhip_parser_test.cc
+            CORES 1 2 4)
+        target_link_libraries(test_dist_io_parhip_parser PRIVATE KaMinPar::dKaMinParIO)
     endif ()
 
     # dKaMinPar -> Graph Utils

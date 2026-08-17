@@ -1,5 +1,7 @@
 set(COMMON_IO_SOURCE_FILES
     util/file_toker.h
+    util/io_exception.h
+    util/io_validation.h
     util/binary_util.h)
 
 set(KAMINPAR_IO_SOURCE_FILES

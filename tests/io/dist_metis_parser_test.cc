@@ -5,12 +5,17 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <filesystem>
+#include <fstream>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include <gmock/gmock.h>
+#include <unistd.h>
 
 #include "kaminpar-io/dist_metis_parser.h"
+#include "kaminpar-io/util/io_exception.h"
 
 #include "kaminpar-mpi/utils.h"
 
@@ -99,6 +104,21 @@ NodeWeight expected_node_weight(const GlobalNodeID global_u, const MetisFixture 
   return fixture.has_node_weights ? static_cast<NodeWeight>(global_u + 1) : 1;
 }
 
+std::string make_temp_filename(const char *suffix) {
+  std::string filename;
+  if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+    filename = (std::filesystem::temp_directory_path() /
+                ("kaminpar-dist-metis-test-" + std::to_string(::getpid()) + suffix))
+                   .string();
+  }
+
+  int length = static_cast<int>(filename.size());
+  MPI_Bcast(&length, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  filename.resize(length);
+  MPI_Bcast(filename.data(), length, MPI_CHAR, 0, MPI_COMM_WORLD);
+  return filename;
+}
+
 template <typename Graph>
 void expect_fixture_graph(const Graph &graph, const MetisFixture &fixture) {
   const auto rank = mpi::get_comm_rank(MPI_COMM_WORLD);
@@ -155,6 +175,29 @@ TEST(DistMetisParserTest, csr_read_reads_metis_fixtures) {
     const auto graph =
         csr_read(fixture.filename, GraphDistribution::BALANCED_NODES, false, MPI_COMM_WORLD);
     expect_fixture_graph(graph, fixture);
+  }
+}
+
+TEST(DistMetisParserTest, readers_reject_header_edge_count_mismatch) {
+  const std::string filename = make_temp_filename("-bad-edge-count.metis");
+  if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+    std::ofstream out(filename);
+    out << "2 0\n2\n1\n";
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  EXPECT_THROW(
+      csr_read(filename, GraphDistribution::BALANCED_NODES, false, MPI_COMM_WORLD),
+      kaminpar::io::IOException
+  );
+  EXPECT_THROW(
+      compress_read(filename, GraphDistribution::BALANCED_NODES, false, MPI_COMM_WORLD),
+      kaminpar::io::IOException
+  );
+
+  MPI_Barrier(MPI_COMM_WORLD);
+  if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+    std::filesystem::remove(filename);
   }
 }
 
