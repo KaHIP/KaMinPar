@@ -57,7 +57,7 @@ test-command = """
 
 [tool.cibuildwheel.linux]
 archs = ["x86_64", "aarch64"]
-before-build = "yum install -y hwloc-devel"
+before-build = "yum --disablerepo='epel*' install -y hwloc-devel"
 environment-pass = ["CMAKE_ARGS", "SKBUILD_CMAKE_DEFINE"]
 repair-wheel-command = """
   export LD_LIBRARY_PATH="/tmp/tbb/:$LD_LIBRARY_PATH"

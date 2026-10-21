@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build_simple_example:
     name: Build simple example
@@ -40,15 +44,15 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build libtbb-dev libhwloc-dev libsparsehash-dev ccache
+          sudo apt-get install -y cmake ninja-build libtbb-dev libhwloc-dev ccache
 
       - name: Set up ccache
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/ccache
-          key: ccache-examples-${{matrix.compiler}}-${{hashFiles('examples/simple/CMakeLists.txt')}}
+          key: ccache-v2-examples-${{runner.os}}-${{runner.arch}}-${{matrix.compiler}}-${{hashFiles('examples/simple/CMakeLists.txt')}}-${{github.sha}}
           restore-keys: |
-            ccache-examples-${{matrix.compiler}}-
+            ccache-v2-examples-${{runner.os}}-${{runner.arch}}-${{matrix.compiler}}-
 
       - name: Configure ccache
         run: |
@@ -57,7 +61,7 @@ jobs:
 
       - name: Configure
         working-directory: ${{github.workspace}}/examples/simple
-        run: cmake --preset=ci-${{matrix.compiler}}-linux
+        run: cmake --preset=ci-${{matrix.compiler}}-linux -DKAMINPAR_BUILD_WITH_MTUNE_NATIVE=Off -DBUILD_TESTING=Off
 
       - name: Build
         working-directory: ${{github.workspace}}/examples/simple
