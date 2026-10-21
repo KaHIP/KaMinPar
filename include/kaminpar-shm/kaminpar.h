@@ -203,8 +203,6 @@ enum class RefinementAlgorithm {
   JET,
 };
 
-struct BalancerRefinementContext {};
-
 struct LabelPropagationRefinementContext {
   std::size_t num_iterations;
 
@@ -317,13 +315,11 @@ struct JetRefinementContext {
   double final_gain_temp_on_fine_level;
   double initial_gain_temp_on_coarse_level;
   double final_gain_temp_on_coarse_level;
-  RefinementAlgorithm balancing_algorithm;
 };
 
 struct RefinementContext {
   std::vector<RefinementAlgorithm> algorithms;
 
-  BalancerRefinementContext balancer;
   LabelPropagationRefinementContext lp;
   KwayFMRefinementContext kway_fm;
   TwowayFlowRefinementContext twoway_flow;
@@ -400,7 +396,6 @@ struct InitialPartitioningContext {
 //
 
 struct PartitionContext {
-  NodeID original_n = kInvalidNodeID;
   NodeID n = kInvalidNodeID;
   EdgeID m = kInvalidEdgeID;
   NodeWeight original_total_node_weight = kInvalidNodeWeight;

@@ -17,6 +17,8 @@
 #include "kaminpar-dist/refinement/balancer/clusters.h"
 #include "kaminpar-dist/refinement/balancer/reductions.h"
 
+#include "kaminpar-common/random.h"
+
 #define HEAVY assert::heavy
 
 namespace kaminpar::dist {
@@ -236,43 +238,13 @@ void ClusterBalancer::try_pq_insertion(const NodeID cluster) {
   KASSERT(!_moved_marker.get(cluster));
 
   const BlockID from_block = _clusters.block(cluster);
-  const auto [relative_gain, to_block] = _clusters.find_max_relative_gain(cluster);
+  const double relative_gain = _clusters.find_max_relative_gain(cluster).first;
 
   // Add weight to the correct weight bucket
   _weight_buckets.add(from_block, _clusters.weight(cluster), relative_gain);
 
-  // Add this move set to the PQ if:
-  // @todo seq_full_pq is mandatory for now, otherwise updating the weight buckets does not work
-  bool accept = _cb_ctx.seq_full_pq;
-  KASSERT(accept, "implementation does not work with partial PQs", assert::always);
-
-  bool replace_min = false;
-
-  // - we do not have enough move sets yet to remove all excess weight from the block
-  if (!accept) {
-    accept = _pq_weights[from_block] < overload(from_block);
-  }
-
-  // - or its relative gain is better than the worst relative gain in the PQ
-  if (!accept) {
-    KASSERT(!_pqs.empty(from_block));
-    const double min_key = _pqs.peek_min_key(from_block);
-    accept = relative_gain > min_key || (relative_gain == min_key && _rand.random_bool());
-    replace_min = true; // no effect if accept == false
-  }
-
-  if (accept) {
-    if (replace_min) {
-      KASSERT(!_pqs.empty(from_block));
-      NodeID replaced_set = _pqs.peek_min_id(from_block);
-      _pqs.pop_min(from_block);
-      _pq_weights[from_block] -= _clusters.weight(replaced_set);
-      _pq_weights[to_block] += _clusters.weight(cluster);
-    }
-
-    _pq_weights[from_block] += _clusters.weight(cluster);
-    _pqs.push(from_block, cluster, relative_gain);
-  }
+  _pq_weights[from_block] += _clusters.weight(cluster);
+  _pqs.push(from_block, cluster, relative_gain);
 }
 
 void ClusterBalancer::try_pq_update(const NodeID cluster) {

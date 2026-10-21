@@ -69,7 +69,6 @@ Context create_default_context() {
           },
       .coarsening =
           {
-              .max_global_clustering_levels = std::numeric_limits<std::size_t>::max(),
               .global_clustering_algorithm = ClusteringAlgorithm::GLOBAL_LP,
               .global_lp =
                   {
@@ -78,7 +77,6 @@ Context create_default_context() {
                       .active_high_degree_threshold = 1'000'000,
                       .max_num_neighbors = kInvalidNodeID,
                       .merge_singleton_clusters = true,
-                      .merge_nonadjacent_clusters_threshold = 0.5,
                       .chunks =
                           {
                               .total_num_chunks = 128,
@@ -86,8 +84,6 @@ Context create_default_context() {
                               .min_num_chunks = 8,
                               .scale_chunks_with_threads = false,
                           },
-                      .ignore_ghost_nodes = false,
-                      .keep_ghost_clusters = false,
                       .sync_cluster_weights = true,
                       .enforce_cluster_weights = true,
                       .prevent_cyclic_moves = false,
@@ -102,27 +98,15 @@ Context create_default_context() {
                               .min_num_chunks = 8,
                               .scale_chunks_with_threads = false,
                           },
-                      .small_color_blacklist = 0.0,
-                      .only_blacklist_input_level = false,
                       .ignore_weight_limit = false,
                   },
-              .max_local_clustering_levels = 0,
-              .local_clustering_algorithm = ClusteringAlgorithm::LOCAL_NOOP,
               .local_lp =
                   {
                       .num_iterations = 5,
-                      .passive_high_degree_threshold = 200'000,
                       .active_high_degree_threshold = 1'000'000,
                       .max_num_neighbors = kInvalidNodeID,
-                      .merge_singleton_clusters = false,
-                      .merge_nonadjacent_clusters_threshold = 0.5,
-                      .chunks = {},
                       .ignore_ghost_nodes = true,
                       .keep_ghost_clusters = false,
-                      .sync_cluster_weights = false,
-                      .enforce_cluster_weights = false,
-                      .prevent_cyclic_moves = false,
-                      .active_set_strategy = ActiveSetStrategy::NONE,
                   },
               .contraction_limit = 2000,
               .cluster_weight_limit = shm::ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
@@ -198,7 +182,6 @@ Context create_default_context() {
                       .max_num_rounds = std::numeric_limits<int>::max(),
                       .enable_sequential_balancing = true,
                       .seq_num_nodes_per_block = 5,
-                      .seq_full_pq = true,
                       .enable_parallel_balancing = true,
                       .parallel_threshold = 0.1,
                       .par_num_dicing_attempts = 0,
