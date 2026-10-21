@@ -141,15 +141,11 @@ Context create_default_context() {
                           {
                               // Context -> Coarsening -> Clustering -> Label Propagation
                               .num_iterations = 5,
-                              .large_degree_threshold = std::numeric_limits<NodeID>::max(),
-                              .max_num_neighbors = std::numeric_limits<NodeID>::max(),
-                              .impl = LabelPropagationImplementation::TWO_PHASE,
-                              .relabel_before_second_phase = false,
+                              .iteration_order = LabelPropagationIterationOrder::CHUNK_SHUFFLED,
+                              .rating_aggregation =
+                                  LabelPropagationRatingAggregation::DEFERRED_PARALLEL,
                               .two_hop_strategy = TwoHopStrategy::MATCH_THREADWISE,
                               .two_hop_threshold = 0.5,
-                              .isolated_nodes_strategy =
-                                  IsolatedNodesClusteringStrategy::MATCH_DURING_TWO_HOP,
-                              .tie_breaking_strategy = TieBreakingStrategy::UNIFORM,
                           },
 
                       .cluster_weight_limit = ClusterWeightLimit::EPSILON_BLOCK_WEIGHT,
@@ -335,15 +331,11 @@ Context create_default_context() {
                       RefinementAlgorithm::LABEL_PROPAGATION,
                       RefinementAlgorithm::UNDERLOAD_BALANCER,
                   },
-              .balancer = {},
               .lp =
                   {
                       // Context -> Refinement -> Label Propagation
                       .num_iterations = 5,
-                      .large_degree_threshold = std::numeric_limits<NodeID>::max(),
-                      .max_num_neighbors = std::numeric_limits<NodeID>::max(),
-                      .impl = LabelPropagationImplementation::SINGLE_PHASE,
-                      .tie_breaking_strategy = TieBreakingStrategy::UNIFORM,
+                      .iteration_order = LabelPropagationIterationOrder::CHUNK_SHUFFLED,
                       .unconstrained_min_improvement_factor = 0.001,
                   },
               .kway_fm =
@@ -425,7 +417,6 @@ Context create_default_context() {
                       .final_gain_temp_on_fine_level = 0.25,
                       .initial_gain_temp_on_coarse_level = 0.75,
                       .final_gain_temp_on_coarse_level = 0.75,
-                      .balancing_algorithm = RefinementAlgorithm::OVERLOAD_BALANCER,
                   },
           },
       .parallel =
@@ -633,7 +624,7 @@ Context create_esa21_smallk_context() {
   Context ctx = create_default_context();
 
   ctx.coarsening.contraction.algorithm = ContractionAlgorithm::BUFFERED;
-  ctx.coarsening.clustering.lp.impl = LabelPropagationImplementation::SINGLE_PHASE;
+  ctx.coarsening.clustering.lp.rating_aggregation = LabelPropagationRatingAggregation::LOCAL;
 
   return ctx;
 }

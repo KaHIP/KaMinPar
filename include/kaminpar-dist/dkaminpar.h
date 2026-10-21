@@ -163,12 +163,8 @@ struct LabelPropagationCoarseningContext {
   NodeID active_high_degree_threshold;
   NodeID max_num_neighbors;
   bool merge_singleton_clusters;
-  double merge_nonadjacent_clusters_threshold;
 
   ChunksContext chunks;
-
-  bool ignore_ghost_nodes;
-  bool keep_ghost_clusters;
 
   bool sync_cluster_weights;
   bool enforce_cluster_weights;
@@ -176,15 +172,20 @@ struct LabelPropagationCoarseningContext {
   bool prevent_cyclic_moves;
 
   ActiveSetStrategy active_set_strategy;
+};
 
-  [[nodiscard]] bool should_merge_nonadjacent_clusters(NodeID old_n, NodeID new_n) const;
+struct LocalLabelPropagationCoarseningContext {
+  int num_iterations;
+  NodeID active_high_degree_threshold;
+  NodeID max_num_neighbors;
+
+  bool ignore_ghost_nodes;
+  bool keep_ghost_clusters;
 };
 
 struct HEMCoarseningContext {
   ChunksContext chunks;
 
-  double small_color_blacklist;
-  bool only_blacklist_input_level;
   bool ignore_weight_limit;
 };
 
@@ -217,15 +218,12 @@ struct LabelPropagationRefinementContext {
 
 struct CoarseningContext {
   // Global clustering
-  std::size_t max_global_clustering_levels;
   ClusteringAlgorithm global_clustering_algorithm;
   LabelPropagationCoarseningContext global_lp;
   HEMCoarseningContext hem;
 
   // Local clustering
-  std::size_t max_local_clustering_levels;
-  ClusteringAlgorithm local_clustering_algorithm;
-  LabelPropagationCoarseningContext local_lp;
+  LocalLabelPropagationCoarseningContext local_lp;
 
   // Cluster weight limit
   NodeID contraction_limit;
@@ -236,8 +234,6 @@ struct CoarseningContext {
   double max_cnode_imbalance;
   bool migrate_cnode_prefix;
   bool force_perfect_cnode_balance;
-
-  void setup(const ParallelContext &parallel);
 };
 
 struct InitialPartitioningContext {
@@ -270,7 +266,6 @@ struct ClusterBalancerContext {
 
   bool enable_sequential_balancing;
   NodeID seq_num_nodes_per_block;
-  bool seq_full_pq;
 
   bool enable_parallel_balancing;
   double parallel_threshold;

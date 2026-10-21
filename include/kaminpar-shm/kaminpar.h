@@ -99,31 +99,22 @@ enum class ClusterWeightLimit {
   ZERO,
 };
 
-enum class LabelPropagationImplementation {
-  SINGLE_PHASE,
-  TWO_PHASE,
-  GROWING_HASH_TABLES
+enum class LabelPropagationRatingAggregation {
+  LOCAL = 0,
+  DEFERRED_PARALLEL = 1,
+};
+
+enum class LabelPropagationIterationOrder {
+  CHUNK_SHUFFLED,
+  IN_ORDER,
 };
 
 enum class TwoHopStrategy {
-  DISABLE,
-  MATCH,
-  MATCH_THREADWISE,
-  CLUSTER,
-  CLUSTER_THREADWISE,
-};
-
-enum class IsolatedNodesClusteringStrategy {
-  KEEP,
-  MATCH,
-  CLUSTER,
-  MATCH_DURING_TWO_HOP,
-  CLUSTER_DURING_TWO_HOP,
-};
-
-enum class TieBreakingStrategy {
-  GEOMETRIC,
-  UNIFORM,
+  // Keep values stable for existing numeric configuration files.
+  MATCH = 1,
+  MATCH_THREADWISE = 2,
+  CLUSTER = 3,
+  CLUSTER_THREADWISE = 4,
 };
 
 enum class ContractionAlgorithm {
@@ -140,18 +131,12 @@ enum class ContractionImplementation {
 
 struct LabelPropagationCoarseningContext {
   std::size_t num_iterations;
-  NodeID large_degree_threshold;
-  NodeID max_num_neighbors;
 
-  LabelPropagationImplementation impl;
-  bool relabel_before_second_phase;
+  LabelPropagationIterationOrder iteration_order;
+  LabelPropagationRatingAggregation rating_aggregation;
 
   TwoHopStrategy two_hop_strategy;
   double two_hop_threshold;
-
-  IsolatedNodesClusteringStrategy isolated_nodes_strategy;
-
-  TieBreakingStrategy tie_breaking_strategy;
 };
 
 struct ContractionCoarseningContext {
@@ -218,15 +203,10 @@ enum class RefinementAlgorithm {
   JET,
 };
 
-struct BalancerRefinementContext {};
-
 struct LabelPropagationRefinementContext {
   std::size_t num_iterations;
-  NodeID large_degree_threshold;
-  NodeID max_num_neighbors;
 
-  LabelPropagationImplementation impl;
-  TieBreakingStrategy tie_breaking_strategy;
+  LabelPropagationIterationOrder iteration_order;
 
   double unconstrained_min_improvement_factor;
 };
@@ -335,13 +315,11 @@ struct JetRefinementContext {
   double final_gain_temp_on_fine_level;
   double initial_gain_temp_on_coarse_level;
   double final_gain_temp_on_coarse_level;
-  RefinementAlgorithm balancing_algorithm;
 };
 
 struct RefinementContext {
   std::vector<RefinementAlgorithm> algorithms;
 
-  BalancerRefinementContext balancer;
   LabelPropagationRefinementContext lp;
   KwayFMRefinementContext kway_fm;
   TwowayFlowRefinementContext twoway_flow;
@@ -418,7 +396,6 @@ struct InitialPartitioningContext {
 //
 
 struct PartitionContext {
-  NodeID original_n = kInvalidNodeID;
   NodeID n = kInvalidNodeID;
   EdgeID m = kInvalidEdgeID;
   NodeWeight original_total_node_weight = kInvalidNodeWeight;

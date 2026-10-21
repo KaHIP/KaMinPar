@@ -104,12 +104,6 @@ int ChunksContext::compute(const ParallelContext &parallel) const {
   return std::max<std::size_t>(min_num_chunks, total_num_chunks / num_pes);
 }
 
-bool LabelPropagationCoarseningContext::should_merge_nonadjacent_clusters(
-    const NodeID old_n, const NodeID new_n
-) const {
-  return (1.0 - 1.0 * new_n / old_n) <= merge_nonadjacent_clusters_threshold;
-}
-
 bool RefinementContext::includes_algorithm(const RefinementAlgorithm algorithm) const {
   return std::find(algorithms.begin(), algorithms.end(), algorithm) != algorithms.end();
 }

@@ -15,11 +15,13 @@
 
 #include <tbb/enumerable_thread_specific.h>
 
+#include "kaminpar-shm/algorithms/label_propagation/neighborhood_ratings.h"
+#include "kaminpar-shm/algorithms/label_propagation/positive_gain_selector.h"
+#include "kaminpar-shm/algorithms/label_propagation/rating_map_pool.h"
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/refinement/balancer/multi_queue_overload_balancer.h"
 
 #include "kaminpar-common/console_io.h"
-#include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/random.h"
 #include "kaminpar-common/timer.h"
@@ -28,13 +30,14 @@ namespace kaminpar::shm {
 
 template <typename Graph> class UnconstrainedLPRefinerImpl {
   using Gain = std::int64_t;
-  using RatingMap = ::kaminpar::RatingMap<Gain, NodeID, rm_backyard::SparseMap>;
+  using RatingMaps = lp::RatingMapPool<BlockID, Gain, lp::adaptive_rating_map::SparseMap>;
+  using RatingMap = typename RatingMaps::RatingMap;
 
   static constexpr std::size_t kInfiniteIterations = std::numeric_limits<std::size_t>::max();
 
 public:
   explicit UnconstrainedLPRefinerImpl(const Context &ctx)
-      : _r_ctx(ctx.refinement),
+      : _lp_ctx(ctx.refinement.lp),
         _balancer(ctx) {}
 
   void initialize(const Graph *graph) {
@@ -58,7 +61,7 @@ public:
     bool found_improvement = false;
 
     const std::size_t max_iterations =
-        _r_ctx.lp.num_iterations == 0 ? kInfiniteIterations : _r_ctx.lp.num_iterations;
+        _lp_ctx.num_iterations == 0 ? kInfiniteIterations : _lp_ctx.num_iterations;
     for (std::size_t iteration = 0; iteration < max_iterations; ++iteration) {
       SCOPED_TIMER("Iteration", std::to_string(iteration));
 
@@ -97,7 +100,7 @@ public:
       found_improvement = true;
       active_nodes = update_active_nodes();
 
-      if (relative_improvement < _r_ctx.lp.unconstrained_min_improvement_factor) {
+      if (relative_improvement < _lp_ctx.unconstrained_min_improvement_factor) {
         break;
       }
     }
@@ -119,22 +122,12 @@ private:
       _round_start_partition.resize(n, ::kaminpar::static_array::noinit);
     }
 
-    _rating_maps =
-        tbb::enumerable_thread_specific<RatingMap>([&] { return RatingMap(p_graph.k()); });
-    _tie_breaking_blocks = tbb::enumerable_thread_specific<std::vector<BlockID>>();
+    _rating_maps.ensure_capacity(p_graph.k());
     _round_moved_nodes = tbb::enumerable_thread_specific<std::vector<NodeID>>();
   }
 
-  [[nodiscard]] bool should_handle_node(const NodeID u) const {
-    return _graph->degree(u) <= _r_ctx.lp.large_degree_threshold;
-  }
-
   template <typename Lambda> void adjacent_nodes(const NodeID u, Lambda &&lambda) const {
-    if (_r_ctx.lp.max_num_neighbors == std::numeric_limits<NodeID>::max()) {
-      _graph->adjacent_nodes(u, std::forward<Lambda>(lambda));
-    } else {
-      _graph->adjacent_nodes(u, _r_ctx.lp.max_num_neighbors, std::forward<Lambda>(lambda));
-    }
+    _graph->adjacent_nodes(u, std::forward<Lambda>(lambda));
   }
 
   [[nodiscard]] bool accept_neighbor(const NodeID u, const NodeID v) const {
@@ -156,7 +149,7 @@ private:
     tbb::enumerable_thread_specific<NodeID> active_nodes_ets(0);
 
     _graph->pfor_nodes([&](const NodeID u) {
-      const std::uint8_t is_active = should_handle_node(u) && is_boundary_node(p_graph, u);
+      const std::uint8_t is_active = is_boundary_node(p_graph, u);
       _active[u] = is_active;
       _next_active[u] = 0;
       _moved[u] = 0;
@@ -197,12 +190,13 @@ private:
         tbb::this_task_arena::max_concurrency() >= 32 && p_graph.k() <= 256;
 
     _graph->pfor_nodes([&](const NodeID u) {
-      if (!_active[u] || !should_handle_node(u)) {
+      if (!_active[u]) {
         return;
       }
 
-      const auto [to, expected_gain] =
-          find_best_target(p_graph, u, _rating_maps.local(), _tie_breaking_blocks.local());
+      RatingMap &ratings = _rating_maps.local_ratings();
+      ScalableVector<BlockID> &ties = _rating_maps.local_ties();
+      const auto [to, expected_gain] = find_best_target(p_graph, u, ratings, ties);
       if (expected_gain <= 0 || to == p_graph.block(u)) {
         return;
       }
@@ -227,7 +221,7 @@ private:
       const PartitionedGraph &p_graph,
       const NodeID u,
       RatingMap &map,
-      std::vector<BlockID> &tie_breaking_blocks
+      ScalableVector<BlockID> &tie_breaking_blocks
   ) {
     const std::size_t upper_bound_size = std::min<NodeID>(_graph->degree(u), p_graph.k());
     return map.execute(upper_bound_size, [&](auto &actual_map) {
@@ -240,52 +234,23 @@ private:
       const PartitionedGraph &p_graph,
       const NodeID u,
       Map &map,
-      std::vector<BlockID> &tie_breaking_blocks
+      ScalableVector<BlockID> &tie_breaking_blocks
   ) {
     const BlockID from = p_graph.block(u);
 
-    adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
-      if (accept_neighbor(u, v)) {
-        map[p_graph.block(v)] += weight;
-      }
-    });
+    lp::NeighborhoodRatings::accumulate(
+        *_graph,
+        u,
+        map,
+        [&](const NodeID v) { return p_graph.block(v); },
+        [&](const NodeID v) { return accept_neighbor(u, v); }
+    );
 
-    const Gain gain_delta = map[from];
-    BlockID best_block = from;
-    Gain best_gain = 0;
-
-    const bool uniform_tie_breaking =
-        _r_ctx.lp.tie_breaking_strategy == TieBreakingStrategy::UNIFORM;
-    if (uniform_tie_breaking) {
-      tie_breaking_blocks.clear();
-    }
-
-    for (const auto [block, rating] : map.entries()) {
-      if (block == from) {
-        continue;
-      }
-
-      const Gain gain = rating - gain_delta;
-      if (gain > best_gain) {
-        best_block = block;
-        best_gain = gain;
-
-        if (uniform_tie_breaking) {
-          tie_breaking_blocks.clear();
-          tie_breaking_blocks.push_back(block);
-        }
-      } else if (uniform_tie_breaking && gain == best_gain && gain > 0) {
-        tie_breaking_blocks.push_back(block);
-      }
-    }
-
-    if (uniform_tie_breaking && tie_breaking_blocks.size() > 1) {
-      const std::size_t i = Random::instance().random_index(0, tie_breaking_blocks.size());
-      best_block = tie_breaking_blocks[i];
-    }
-
+    const auto selection = lp::select_best_positive_gain<Gain>(
+        from, map.entries(), Random::instance(), tie_breaking_blocks
+    );
     map.clear();
-    return {best_block, best_gain};
+    return selection;
   }
 
   Gain compute_round_improvement(const PartitionedGraph &p_graph) const {
@@ -346,8 +311,7 @@ private:
     tbb::enumerable_thread_specific<NodeID> active_nodes_ets(0);
 
     _graph->pfor_nodes([&](const NodeID u) {
-      const std::uint8_t active =
-          should_handle_node(u) && __atomic_load_n(&_next_active[u], __ATOMIC_RELAXED);
+      const std::uint8_t active = __atomic_load_n(&_next_active[u], __ATOMIC_RELAXED);
 
       _active[u] = active;
       _next_active[u] = 0;
@@ -374,7 +338,7 @@ private:
     });
   }
 
-  const RefinementContext &_r_ctx;
+  const LabelPropagationRefinementContext &_lp_ctx;
   const Graph *_graph = nullptr;
 
   std::span<const NodeID> _communities;
@@ -384,8 +348,7 @@ private:
   StaticArray<std::uint8_t> _moved;
   StaticArray<BlockID> _round_start_partition;
 
-  tbb::enumerable_thread_specific<RatingMap> _rating_maps;
-  tbb::enumerable_thread_specific<std::vector<BlockID>> _tie_breaking_blocks;
+  RatingMaps _rating_maps;
   tbb::enumerable_thread_specific<std::vector<NodeID>> _round_moved_nodes;
 
   MultiQueueOverloadBalancer _balancer;
