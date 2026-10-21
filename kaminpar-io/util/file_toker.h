@@ -8,9 +8,7 @@
 #pragma once
 
 #include <algorithm>
-#include <cctype>
 #include <cstdint>
-#include <exception>
 #include <limits>
 #include <string>
 
@@ -19,21 +17,9 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "kaminpar-common/assert.h"
+#include "kaminpar-io/util/io_exception.h"
 
 namespace kaminpar::io {
-
-class TokerException : public std::exception {
-public:
-  TokerException(std::string msg) : _msg(std::move(msg)) {}
-
-  [[nodiscard]] const char *what() const noexcept override {
-    return _msg.c_str();
-  }
-
-private:
-  std::string _msg;
-};
 
 class MappedFileToker {
 public:
@@ -44,13 +30,18 @@ public:
   ) {
     _fd = open(filename.c_str(), O_RDONLY);
     if (_fd == -1) {
-      throw TokerException("Cannot open input file");
+      throw IOException("Cannot open input file");
     }
 
     struct stat file_info{};
     if (fstat(_fd, &file_info) == -1) {
       close(_fd);
-      throw TokerException("Cannot get input file status");
+      throw IOException("Cannot get input file status");
+    }
+
+    if (file_info.st_size == 0) {
+      close(_fd);
+      throw IOException("Input file is empty");
     }
 
     _length = static_cast<std::size_t>(file_info.st_size);
@@ -58,7 +49,7 @@ public:
     _contents = static_cast<char *>(mmap(nullptr, _length, PROT_READ, MAP_PRIVATE, _fd, 0));
     if (_contents == MAP_FAILED) {
       close(_fd);
-      throw TokerException("Cannot map input file into memory");
+      throw IOException("Cannot map input file into memory");
     }
 
     _owns_mapping = true;
@@ -88,12 +79,16 @@ public:
   }
 
   void seek(const std::size_t position) {
-    KASSERT(_begin <= position && position <= _end);
+    if (position < _begin || position > _end) [[unlikely]] {
+      throw IOException("Cannot seek outside of the input file bounds");
+    }
     _position = position;
   }
 
   [[nodiscard]] std::size_t advance_to_line_begin(std::size_t position) const {
-    KASSERT(_begin <= position && position <= _end);
+    if (position < _begin || position > _end) [[unlikely]] {
+      throw IOException("Cannot seek outside of the input file bounds");
+    }
     if (position <= _begin) {
       return _begin;
     }
@@ -125,23 +120,60 @@ public:
   }
 
   inline std::uint64_t scan_uint() {
-    KASSERT(valid_position() && std::isdigit(current()));
-
-    std::uint64_t number = 0;
-    while (valid_position() && std::isdigit(current())) {
-      const int digit = current() - '0';
-      number = number * 10 + digit;
-      advance();
+    std::size_t position = _position;
+    if (position >= _end) [[unlikely]] {
+      throw IOException("Expected unsigned integer");
     }
 
-    skip_spaces();
+    std::uint64_t digit = static_cast<unsigned char>(_contents[position]) - '0';
+    if (digit > 9) [[unlikely]] {
+      throw IOException("Expected unsigned integer");
+    }
+
+    std::uint64_t number = 0;
+    do {
+      number = number * 10 + digit;
+      ++position;
+      if (position == _end) {
+        break;
+      }
+      digit = static_cast<unsigned char>(_contents[position]) - '0';
+    } while (digit <= 9);
+
+    // Every decimal integer with at most 19 digits fits in uint64_t. For longer
+    // tokens, unsigned wraparound above is defined; reparse with overflow checks
+    // before using the result, including tokens with arbitrarily many leading zeros.
+    if (position - _position > 19) [[unlikely]] {
+      constexpr std::uint64_t kMax = std::numeric_limits<std::uint64_t>::max();
+      number = 0;
+      for (std::size_t checked_position = _position; checked_position < position;
+           ++checked_position) {
+        const std::uint64_t checked_digit =
+            static_cast<unsigned char>(_contents[checked_position]) - '0';
+        if (number >= kMax / 10) [[unlikely]] {
+          if (number > kMax / 10 || checked_digit > kMax % 10) {
+            _position = checked_position;
+            throw IOException("Unsigned integer is too large");
+          }
+        }
+        number = number * 10 + checked_digit;
+      }
+    }
+
+    while (position < _end && _contents[position] == ' ') {
+      ++position;
+    }
+
+    _position = position;
     return number;
   }
 
   inline void skip_uint() {
-    KASSERT(valid_position() && std::isdigit(current()));
+    if (!current_is_digit()) [[unlikely]] {
+      throw IOException("Expected unsigned integer");
+    }
 
-    while (valid_position() && std::isdigit(current())) {
+    while (current_is_digit()) {
       advance();
     }
 
@@ -151,21 +183,19 @@ public:
   inline void consume_string(const char *str) {
     std::size_t i = 0;
     while (str[i] != '\0') {
-      KASSERT(
-          valid_position() && str[i] == current(),
-          "unexpected symbol: " << current() << ", but expected " << str[i]
-      );
+      if (!valid_position() || str[i] != current()) [[unlikely]] {
+        throw IOException("Unexpected character in input file");
+      }
 
       advance();
       ++i;
     }
   }
 
-  inline void consume_char([[maybe_unused]] const char ch) {
-    KASSERT(
-        valid_position() && current() == ch,
-        "unexpected symbol: " << current() << ", but expected " << ch
-    );
+  inline void consume_char(const char ch) {
+    if (!valid_position() || current() != ch) [[unlikely]] {
+      throw IOException("Unexpected character in input file");
+    }
 
     advance();
   }
@@ -196,6 +226,10 @@ public:
     return _contents[_position];
   }
 
+  [[nodiscard]] inline bool current_is_digit() const {
+    return valid_position() && static_cast<unsigned char>(current() - '0') <= 9;
+  }
+
   inline void advance() {
     ++_position;
   }
@@ -215,7 +249,9 @@ public:
 private:
   void set_bounds(const std::size_t begin, const std::size_t end) {
     const std::size_t bounded_end = std::min(end, _length);
-    KASSERT(begin <= bounded_end && bounded_end <= _length);
+    if (begin > bounded_end || bounded_end > _length) [[unlikely]] {
+      throw IOException("Invalid input file bounds");
+    }
 
     _begin = begin;
     _end = bounded_end;

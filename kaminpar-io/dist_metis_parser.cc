@@ -7,9 +7,13 @@
  ******************************************************************************/
 #include "kaminpar-io/dist_metis_parser.h"
 
+#include <array>
+#include <limits>
 #include <numeric>
+#include <vector>
 
 #include "kaminpar-io/util/file_toker.h"
+#include "kaminpar-io/util/io_validation.h"
 
 #include "kaminpar-mpi/datatype.h"
 #include "kaminpar-mpi/utils.h"
@@ -28,52 +32,106 @@ namespace {
 
 struct MetisHeader {
   std::uint64_t num_nodes = 0;
+  std::uint64_t num_global_nodes = 0;
+  std::uint64_t node_offset = 0;
   std::uint64_t num_edges = 0;
+  bool has_node_sizes = false;
   bool has_node_weights = false;
   bool has_edge_weights = false;
 };
 
-MetisHeader parse_header(MappedFileToker &toker) {
-  toker.skip_spaces();
-  while (toker.current() == '%') {
-    toker.skip_line();
-    toker.skip_spaces();
+bool is_valid_metis_format(const std::uint64_t format) {
+  return format == 0 || format == 1 || format == 10 || format == 11 || format == 100 ||
+         format == 101 || format == 110 || format == 111;
+}
+
+bool is_line_end(const MappedFileToker &toker) {
+  return !toker.valid_position() || toker.current() == '\n' || toker.current() == '\r';
+}
+
+void consume_line_end(MappedFileToker &toker) {
+  if (!toker.valid_position()) {
+    return;
   }
+  if (toker.current() == '\r') {
+    toker.advance();
+  }
+  if (toker.valid_position()) {
+    toker.consume_char('\n');
+  }
+}
+
+void skip_comment_and_empty_lines(MappedFileToker &toker) {
+  while (toker.valid_position()) {
+    toker.skip_spaces();
+    if (!toker.valid_position()) {
+      return;
+    }
+    if (toker.current() == '%' || toker.current() == '#') {
+      toker.skip_line();
+    } else if (is_line_end(toker)) {
+      consume_line_end(toker);
+    } else {
+      return;
+    }
+  }
+}
+
+void skip_comment_lines(MappedFileToker &toker) {
+  while (toker.valid_position()) {
+    toker.skip_spaces();
+    if (toker.valid_position() && (toker.current() == '%' || toker.current() == '#')) {
+      toker.skip_line();
+    } else {
+      return;
+    }
+  }
+}
+
+void finish_line(MappedFileToker &toker) {
+  toker.skip_spaces();
+  raise_if(!is_line_end(toker), "Unexpected character in METIS graph file");
+  consume_line_end(toker);
+}
+
+MetisHeader parse_header(MappedFileToker &toker) {
+  skip_comment_and_empty_lines(toker);
 
   const std::uint64_t num_nodes = toker.scan_uint();
-  const std::uint64_t num_edges = toker.scan_uint() * 2;
-  const std::uint64_t format = (toker.current() != '\n') ? toker.scan_uint() : 0;
-  toker.consume_char('\n');
+  const std::uint64_t undirected_edges = toker.scan_uint();
+  raise_if(
+      undirected_edges > std::numeric_limits<std::uint64_t>::max() / 2,
+      "the number of adjacency entries is too large"
+  );
+  const std::uint64_t num_edges = undirected_edges * 2;
+  const std::uint64_t format = !is_line_end(toker) ? toker.scan_uint() : 0;
+  finish_line(toker);
 
-  if (format != 0 && format != 1 && format != 10 && format != 11 && format && format != 100 &&
-      format != 110 && format != 101 && format != 111) {
-    LOG_WARNING << "invalid or unsupported graph format";
-  }
+  raise_if(!is_valid_metis_format(format), "Invalid or unsupported METIS graph format");
 
-  [[maybe_unused]] const bool has_node_sizes = format / 100; // == 1xx
-  const bool has_node_weights = (format % 100) / 10;         // == x1x
-  const bool has_edge_weights = format % 10;                 // == xx1
+  const bool has_node_sizes = format / 100;          // == 1xx
+  const bool has_node_weights = (format % 100) / 10; // == x1x
+  const bool has_edge_weights = format % 10;         // == xx1
 
   if (has_node_sizes) {
     LOG_WARNING << "ignoring node sizes";
   }
 
-  KASSERT(
-      num_nodes <= static_cast<std::uint64_t>(std::numeric_limits<NodeID>::max()),
-      "number of nodes is too large for the node ID type"
-  );
-  KASSERT(
-      num_edges <= static_cast<std::uint64_t>(std::numeric_limits<EdgeID>::max()),
-      "number of edges is too large for the edge ID type"
-  );
-  KASSERT(
-      num_edges <= (num_nodes * (num_nodes - 1)) / 2,
+  ensure_fits<NodeID>(num_nodes, "number of nodes is too large for the node ID type");
+  raise_if(num_nodes == std::numeric_limits<std::uint64_t>::max(), "number of nodes is too large");
+  ensure_fits<EdgeID>(num_edges, "number of edges is too large for the edge ID type");
+  raise_if(
+      static_cast<unsigned __int128>(undirected_edges) >
+          (static_cast<unsigned __int128>(num_nodes) * (num_nodes - 1)) / 2,
       "specified number of edges is impossibly large"
   );
 
   return {
       .num_nodes = num_nodes,
+      .num_global_nodes = num_nodes,
+      .node_offset = 0,
       .num_edges = num_edges,
+      .has_node_sizes = has_node_sizes,
       .has_node_weights = has_node_weights,
       .has_edge_weights = has_edge_weights,
   };
@@ -108,37 +166,46 @@ void parse_graph(
   };
 
   for (std::uint64_t u = 0; u < header.num_nodes; ++u) {
-    toker.skip_spaces();
-    while (toker.current() == '%') {
-      toker.skip_line();
-      toker.skip_spaces();
-    }
+    skip_comment_lines(toker);
+    raise_if(
+        !toker.valid_position(), "input contains fewer vertex lines than specified in the header"
+    );
 
     const std::size_t node_start_pos = toker.position();
+
+    if (header.has_node_sizes) {
+      toker.skip_uint();
+    }
 
     std::uint64_t node_weight = 1;
     if (header.has_node_weights) {
       node_weight = toker.scan_uint();
+      ensure_fits<NodeWeight>(node_weight, "node weight is too large for the node weight type");
+      raise_if(node_weight == 0u, "zero node weights are not supported");
     }
 
     if (invoke_next_node(node_weight, node_start_pos)) {
       return;
     }
 
-    while (std::isdigit(toker.current())) {
-      const std::uint64_t v = toker.scan_uint() - 1;
+    while (toker.current_is_digit()) {
+      const std::uint64_t raw_v = toker.scan_uint();
+      raise_if(raw_v == 0, "METIS vertex IDs must be one-based");
+      const std::uint64_t v = raw_v - 1;
 
       std::uint64_t edge_weight = 1;
       if (header.has_edge_weights) {
         edge_weight = toker.scan_uint();
+        ensure_fits<EdgeWeight>(edge_weight, "edge weight is too large for the edge weight type");
+        raise_if(edge_weight == 0u, "zero edge weights are not supported");
       }
 
+      raise_if(v >= header.num_global_nodes, "neighbor out of bounds");
+      raise_if(header.node_offset + u == v, "detected illegal self-loop");
       next_edge_cb(edge_weight, v);
     }
 
-    if (toker.valid_position()) {
-      toker.consume_char('\n');
-    }
+    finish_line(toker);
   }
 }
 
@@ -158,156 +225,119 @@ compute_chunks(const Int length, const mpi::PEID num_processes, const mpi::PEID 
   return std::make_pair(from, to);
 }
 
-std::tuple<NodeID, NodeID, EdgeID, std::size_t> find_node_by_node(
-    MappedFileToker &toker,
-    const MetisHeader header,
-    const EdgeID first_node,
-    const EdgeID last_node
-) {
-  std::size_t start_pos = 0;
-  EdgeID actual_first_edge = 0;
-
-  NodeID current_node = 0;
-  EdgeID current_edge = 0;
-  parse_graph(
-      toker,
-      header,
-      [&](const auto, const std::size_t node_start_pos) {
-        if (current_node < first_node) {
-          current_node += 1;
-          return false;
-        }
-
-        if (current_node < last_node) {
-          if (current_node - first_node == 0) {
-            start_pos = node_start_pos;
-            actual_first_edge = current_edge;
-          }
-
-          current_node += 1;
-          return false;
-        }
-
-        return true;
-      },
-      [&](const auto, const auto) { current_edge += 1; }
-  );
-
-  const EdgeID num_edges = ((last_node - first_node) == 0) ? 0 : current_edge - actual_first_edge;
-  return std::make_tuple(first_node, last_node, num_edges, start_pos);
-}
-
-std::tuple<NodeID, NodeID, EdgeID, std::size_t> find_node_by_edge(
-    MappedFileToker &toker,
-    const MetisHeader header,
-    const EdgeID first_edge,
-    const EdgeID last_edge
-) {
-  NodeID first_node = 0;
-  NodeID length = 0;
-
-  std::size_t start_pos = 0;
-  EdgeID actual_first_edge = 0;
-
-  EdgeID current_edge = 0;
-  parse_graph(
-      toker,
-      header,
-      [&](const auto, const std::size_t node_start_pos) {
-        if (current_edge < first_edge) {
-          first_node += 1;
-          return false;
-        }
-
-        if (current_edge < last_edge) {
-          if (length == 0) {
-            start_pos = node_start_pos;
-            actual_first_edge = current_edge;
-          }
-
-          length += 1;
-          return false;
-        }
-
-        return true;
-      },
-      [&](const auto, const auto) { current_edge += 1; }
-  );
-
-  const EdgeID num_edges = (length == 0) ? 0 : current_edge - actual_first_edge;
-  return std::make_tuple(first_node, first_node + length, num_edges, start_pos);
-}
-
-std::tuple<NodeID, NodeID, EdgeID, std::size_t> find_node_by_memory_space(
-    MappedFileToker &toker,
-    const MetisHeader header,
-    const std::size_t memory_space_start,
-    const std::size_t memory_space_stop
-) {
-  NodeID first_node = 0;
-  NodeID length = 0;
-
-  std::size_t start_pos = 0;
-  EdgeID first_edge = 0;
-
-  EdgeID current_edge = 0;
-  parse_graph(
-      toker,
-      header,
-      [&](const auto, const std::size_t node_start_pos) {
-        std::size_t memory_space = first_node * sizeof(EdgeID) + current_edge * sizeof(NodeID);
-        if (memory_space < memory_space_start) {
-          first_node += 1;
-          return false;
-        }
-
-        memory_space += length * sizeof(EdgeID);
-        if (memory_space < memory_space_stop) {
-          if (length == 0) {
-            start_pos = node_start_pos;
-            first_edge = current_edge;
-          }
-
-          length += 1;
-          return false;
-        }
-
-        return true;
-      },
-      [&](const auto, const auto) { current_edge += 1; }
-  );
-
-  const EdgeID num_edges = (length == 0) ? 0 : current_edge - first_edge;
-  return std::make_tuple(first_node, first_node + length, num_edges, start_pos);
-}
-
+// The full validation pass also locates all partition boundaries. This avoids
+// reparsing the prefix of the graph independently on every rank.
 std::tuple<NodeID, NodeID, EdgeID, std::size_t> find_local_nodes(
-    const mpi::PEID size,
-    const mpi::PEID rank,
     MappedFileToker &toker,
     const MetisHeader header,
-    const GraphDistribution distribution
+    const GraphDistribution distribution,
+    const MPI_Comm comm
 ) {
-  switch (distribution) {
-  case GraphDistribution::BALANCED_NODES: {
-    const auto [first_node, last_node] = compute_chunks(header.num_nodes, size, rank);
-    return find_node_by_node(toker, header, first_node, last_node);
-  }
-  case GraphDistribution::BALANCED_EDGES: {
-    const auto [first_edge, last_edge] = compute_chunks(header.num_edges, size, rank);
-    return find_node_by_edge(toker, header, first_edge, last_edge);
-  }
-  case GraphDistribution::BALANCED_MEMORY_SPACE: {
-    const std::size_t total_memory_space =
-        header.num_nodes * sizeof(EdgeID) + header.num_edges * sizeof(NodeID);
-    const auto [memory_space_start, memory_space_end] =
-        compute_chunks(total_memory_space, size, rank);
+  const mpi::PEID size = mpi::get_comm_size(comm);
+  const mpi::PEID rank = mpi::get_comm_rank(comm);
+  std::vector<std::array<std::uint64_t, 4>> partitions;
+  int graph_is_valid = 1;
 
-    return find_node_by_memory_space(toker, header, memory_space_start, memory_space_end);
+  if (rank == 0) {
+    try {
+      std::uint64_t total_size = 0;
+      switch (distribution) {
+      case GraphDistribution::BALANCED_NODES:
+        total_size = header.num_nodes;
+        break;
+      case GraphDistribution::BALANCED_EDGES:
+        total_size = header.num_edges;
+        break;
+      case GraphDistribution::BALANCED_MEMORY_SPACE:
+        total_size = checked_add(
+            checked_mul(header.num_nodes, sizeof(EdgeID), "METIS graph is too large"),
+            checked_mul(header.num_edges, sizeof(NodeID), "METIS graph is too large"),
+            "METIS graph is too large"
+        );
+        break;
+      }
+
+      struct Boundary {
+        std::uint64_t node;
+        std::uint64_t edge;
+        std::size_t position;
+      };
+      std::vector<Boundary> boundaries(size + 1);
+      std::vector<std::uint64_t> targets(size);
+      for (mpi::PEID pe = 0; pe < size; ++pe) {
+        targets[pe] = compute_chunks(total_size, size, pe).first;
+      }
+      std::uint64_t node = 0;
+      std::uint64_t edge = 0;
+      mpi::PEID next_boundary = 0;
+      parse_graph(
+          toker,
+          header,
+          [&](const std::uint64_t, const std::size_t node_start_pos) {
+            const std::uint64_t position = distribution == GraphDistribution::BALANCED_NODES ? node
+                                           : distribution == GraphDistribution::BALANCED_EDGES
+                                               ? edge
+                                               : node * sizeof(EdgeID) + edge * sizeof(NodeID);
+            while (next_boundary < size && position >= targets[next_boundary]) {
+              boundaries[next_boundary++] = {node, edge, node_start_pos};
+            }
+            ++node;
+          },
+          [&](const std::uint64_t, const std::uint64_t) {
+            raise_if(
+                edge >= header.num_edges,
+                "input contains more adjacency entries than specified in the header"
+            );
+            ++edge;
+          }
+      );
+      raise_if(
+          edge != header.num_edges,
+          "input contains fewer adjacency entries than specified in the header"
+      );
+      skip_comment_and_empty_lines(toker);
+      raise_if(
+          toker.valid_position(), "input contains more vertex lines than specified in the header"
+      );
+
+      // The final boundary includes trailing isolated vertices, including for
+      // edge-balanced partitions and graphs without any edges.
+      while (next_boundary <= size) {
+        boundaries[next_boundary++] = {node, edge, toker.position()};
+      }
+      partitions.resize(size);
+      for (mpi::PEID pe = 0; pe < size; ++pe) {
+        partitions[pe] = {
+            boundaries[pe].node,
+            boundaries[pe + 1].node,
+            boundaries[pe + 1].edge - boundaries[pe].edge,
+            boundaries[pe].position,
+        };
+      }
+    } catch (const IOException &) {
+      graph_is_valid = 0;
+    }
   }
-  default:
-    __builtin_unreachable();
-  }
+
+  MPI_Bcast(&graph_is_valid, 1, MPI_INT, 0, comm);
+  raise_if(graph_is_valid == 0, "Invalid distributed METIS graph file");
+  std::array<std::uint64_t, 4> local_partition;
+  MPI_Scatter(
+      partitions.data(),
+      4,
+      mpi::type::get<std::uint64_t>(),
+      local_partition.data(),
+      4,
+      mpi::type::get<std::uint64_t>(),
+      0,
+      comm
+  );
+  return {
+      static_cast<NodeID>(local_partition[0]),
+      static_cast<NodeID>(local_partition[1]),
+      static_cast<EdgeID>(local_partition[2]),
+      static_cast<std::size_t>(local_partition[3]),
+  };
 }
 
 } // namespace
@@ -325,7 +355,7 @@ DistributedCSRGraph csr_read(
   const mpi::PEID rank = mpi::get_comm_rank(comm);
 
   const auto [first_node, last_node, num_local_edges, start_pos] =
-      find_local_nodes(size, rank, toker, header, distribution);
+      find_local_nodes(toker, header, distribution, comm);
   const NodeID num_local_nodes = last_node - first_node;
 
   StaticArray<GlobalNodeID> node_distribution(size + 1);
@@ -377,11 +407,13 @@ DistributedCSRGraph csr_read(
   if (num_local_nodes > 0) {
     toker.seek(start_pos);
     header.num_nodes = num_local_nodes;
+    header.node_offset = first_node;
 
     parse_graph(
         toker,
         header,
         [&](const auto weight) {
+          raise_if(node >= num_local_nodes, "input contains more vertex lines than expected");
           nodes[node] = edge;
 
           if (header.has_node_weights) {
@@ -391,6 +423,7 @@ DistributedCSRGraph csr_read(
           node += 1;
         },
         [&, first_node = first_node, last_node = last_node](const auto weight, const auto v) {
+          raise_if(edge >= num_local_edges, "input contains more adjacency entries than expected");
           NodeID adjacent_node = static_cast<NodeID>(v);
           if (adjacent_node >= first_node && adjacent_node < last_node) {
             adjacent_node = adjacent_node - first_node;
@@ -407,6 +440,8 @@ DistributedCSRGraph csr_read(
         }
     );
   }
+  raise_if(node != num_local_nodes, "input contains fewer vertex lines than expected");
+  raise_if(edge != num_local_edges, "input contains fewer adjacency entries than expected");
   nodes[node] = edge;
 
   const NodeID num_total_nodes = mapper.next_ghost_node();
@@ -459,7 +494,7 @@ DistributedCompressedGraph compress_read(
   const mpi::PEID rank = mpi::get_comm_rank(comm);
 
   const auto [first_node, last_node, num_local_edges, start_pos] =
-      find_local_nodes(size, rank, toker, header, distribution);
+      find_local_nodes(toker, header, distribution, comm);
   const NodeID num_local_nodes = last_node - first_node;
 
   StaticArray<GlobalNodeID> node_distribution(size + 1);
@@ -505,6 +540,7 @@ DistributedCompressedGraph compress_read(
   if (num_local_nodes > 0) {
     toker.seek(start_pos);
     header.num_nodes = num_local_nodes;
+    header.node_offset = first_node;
 
     std::vector<std::pair<NodeID, EdgeWeight>> neighbourhood;
     NodeID node = 0;
@@ -513,6 +549,7 @@ DistributedCompressedGraph compress_read(
         toker,
         header,
         [&](const auto weight) {
+          raise_if(node >= num_local_nodes, "input contains more vertex lines than expected");
           if (node > 0) {
             builder.add(node - 1, std::span<std::pair<NodeID, EdgeWeight>>(neighbourhood));
             neighbourhood.clear();
@@ -525,6 +562,7 @@ DistributedCompressedGraph compress_read(
           node += 1;
         },
         [&, first_node = first_node, last_node = last_node](const auto weight, const auto v) {
+          raise_if(edge >= num_local_edges, "input contains more adjacency entries than expected");
           NodeID adjacent_node = static_cast<NodeID>(v);
           if (adjacent_node >= first_node && adjacent_node < last_node) {
             adjacent_node = adjacent_node - first_node;
@@ -537,6 +575,8 @@ DistributedCompressedGraph compress_read(
         }
     );
 
+    raise_if(node != num_local_nodes, "input contains fewer vertex lines than expected");
+    raise_if(edge != num_local_edges, "input contains fewer adjacency entries than expected");
     builder.add(node - 1, std::span<std::pair<NodeID, EdgeWeight>>(neighbourhood));
     neighbourhood.clear();
     neighbourhood.shrink_to_fit();

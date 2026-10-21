@@ -5,12 +5,17 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <filesystem>
+#include <fstream>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include <gmock/gmock.h>
+#include <unistd.h>
 
 #include "kaminpar-io/dist_metis_parser.h"
+#include "kaminpar-io/util/io_exception.h"
 
 #include "kaminpar-mpi/utils.h"
 
@@ -99,6 +104,21 @@ NodeWeight expected_node_weight(const GlobalNodeID global_u, const MetisFixture 
   return fixture.has_node_weights ? static_cast<NodeWeight>(global_u + 1) : 1;
 }
 
+std::string make_temp_filename(const char *suffix) {
+  std::string filename;
+  if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+    filename = (std::filesystem::temp_directory_path() /
+                ("kaminpar-dist-metis-test-" + std::to_string(::getpid()) + suffix))
+                   .string();
+  }
+
+  int length = static_cast<int>(filename.size());
+  MPI_Bcast(&length, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  filename.resize(length);
+  MPI_Bcast(filename.data(), length, MPI_CHAR, 0, MPI_COMM_WORLD);
+  return filename;
+}
+
 template <typename Graph>
 void expect_fixture_graph(const Graph &graph, const MetisFixture &fixture) {
   const auto rank = mpi::get_comm_rank(MPI_COMM_WORLD);
@@ -143,18 +163,137 @@ void expect_fixture_graph(const Graph &graph, const MetisFixture &fixture) {
 TEST(DistMetisParserTest, compressed_read_reads_metis_fixtures) {
   for (const MetisFixture &fixture : kMetisFixtures) {
     SCOPED_TRACE(fixture.filename);
-    const auto graph =
-        compress_read(fixture.filename, GraphDistribution::BALANCED_NODES, false, MPI_COMM_WORLD);
-    expect_fixture_graph(graph, fixture);
+    for (const GraphDistribution distribution :
+         {GraphDistribution::BALANCED_NODES,
+          GraphDistribution::BALANCED_EDGES,
+          GraphDistribution::BALANCED_MEMORY_SPACE}) {
+      SCOPED_TRACE(static_cast<int>(distribution));
+      const auto graph = compress_read(fixture.filename, distribution, false, MPI_COMM_WORLD);
+      expect_fixture_graph(graph, fixture);
+    }
   }
 }
 
 TEST(DistMetisParserTest, csr_read_reads_metis_fixtures) {
   for (const MetisFixture &fixture : kMetisFixtures) {
     SCOPED_TRACE(fixture.filename);
-    const auto graph =
-        csr_read(fixture.filename, GraphDistribution::BALANCED_NODES, false, MPI_COMM_WORLD);
-    expect_fixture_graph(graph, fixture);
+    for (const GraphDistribution distribution :
+         {GraphDistribution::BALANCED_NODES,
+          GraphDistribution::BALANCED_EDGES,
+          GraphDistribution::BALANCED_MEMORY_SPACE}) {
+      SCOPED_TRACE(static_cast<int>(distribution));
+      const auto graph = csr_read(fixture.filename, distribution, false, MPI_COMM_WORLD);
+      expect_fixture_graph(graph, fixture);
+    }
+  }
+}
+
+TEST(DistMetisParserTest, readers_reject_header_edge_count_mismatch) {
+  const std::string filename = make_temp_filename("-bad-edge-count.metis");
+  if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+    std::ofstream out(filename);
+    out << "2 0\n2\n1\n";
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  EXPECT_THROW(
+      csr_read(filename, GraphDistribution::BALANCED_NODES, false, MPI_COMM_WORLD),
+      kaminpar::io::IOException
+  );
+  EXPECT_THROW(
+      compress_read(filename, GraphDistribution::BALANCED_NODES, false, MPI_COMM_WORLD),
+      kaminpar::io::IOException
+  );
+
+  MPI_Barrier(MPI_COMM_WORLD);
+  if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+    std::filesystem::remove(filename);
+  }
+}
+
+TEST(DistMetisParserTest, all_distributions_reject_malformed_vertex_data_collectively) {
+  for (const std::string contents : {
+           "2 1\n2\n1\n3\n",
+           "3 1\n2\n1\n",
+           "2 1\n3\n1\n",
+           "2 1\n1\n1\n",
+           "2 1\n18446744073709551616\n1\n",
+           "2 1 11\n1 2 0\n1 1 1\n",
+       }) {
+    const std::string filename = make_temp_filename("-malformed.metis");
+    if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+      std::ofstream out(filename);
+      out << contents;
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+    for (const GraphDistribution distribution :
+         {GraphDistribution::BALANCED_NODES,
+          GraphDistribution::BALANCED_EDGES,
+          GraphDistribution::BALANCED_MEMORY_SPACE}) {
+      SCOPED_TRACE(contents);
+      SCOPED_TRACE(static_cast<int>(distribution));
+      EXPECT_THROW(
+          csr_read(filename, distribution, false, MPI_COMM_WORLD), kaminpar::io::IOException
+      );
+      EXPECT_THROW(
+          compress_read(filename, distribution, false, MPI_COMM_WORLD), kaminpar::io::IOException
+      );
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+    if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+      std::filesystem::remove(filename);
+    }
+  }
+}
+
+TEST(DistMetisParserTest, all_distributions_retain_isolated_vertices) {
+  for (const NodeID num_nodes : {2u, 8u}) {
+    for (const bool has_edges : {false, true}) {
+      const std::string filename = make_temp_filename("-isolated.metis");
+      if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+        std::ofstream out(filename);
+        out << num_nodes << " " << (has_edges ? 1 : 0) << " 11\n";
+        for (NodeID u = 0; u < num_nodes; ++u) {
+          out << u + 1;
+          if (has_edges && u < 2) {
+            out << ' ' << 2 - u << " 3";
+          }
+          out << '\n';
+        }
+      }
+      MPI_Barrier(MPI_COMM_WORLD);
+
+      const auto expect_graph = [&](const auto &graph) {
+        EXPECT_EQ(graph.global_n(), num_nodes);
+        EXPECT_EQ(graph.global_m(), has_edges ? 2u : 0u);
+        EXPECT_EQ(graph.global_total_node_weight(), num_nodes * (num_nodes + 1) / 2);
+        EXPECT_EQ(graph.global_total_edge_weight(), has_edges ? 6 : 0);
+        for (const NodeID u : graph.nodes()) {
+          const GlobalNodeID global_u = graph.local_to_global_node(u);
+          EXPECT_EQ(graph.node_weight(u), global_u + 1);
+          EXPECT_EQ(graph.degree(u), has_edges && global_u < 2 ? 1u : 0u);
+          graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+            EXPECT_EQ(graph.local_to_global_node(v), 1 - global_u);
+            EXPECT_EQ(weight, 3);
+          });
+        }
+      };
+      for (const GraphDistribution distribution :
+           {GraphDistribution::BALANCED_NODES,
+            GraphDistribution::BALANCED_EDGES,
+            GraphDistribution::BALANCED_MEMORY_SPACE}) {
+        SCOPED_TRACE(num_nodes);
+        SCOPED_TRACE(has_edges);
+        SCOPED_TRACE(static_cast<int>(distribution));
+        expect_graph(csr_read(filename, distribution, false, MPI_COMM_WORLD));
+        expect_graph(compress_read(filename, distribution, false, MPI_COMM_WORLD));
+      }
+
+      MPI_Barrier(MPI_COMM_WORLD);
+      if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+        std::filesystem::remove(filename);
+      }
+    }
   }
 }
 

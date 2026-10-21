@@ -4,6 +4,8 @@
  ******************************************************************************/
 #include <algorithm>
 #include <array>
+#include <fstream>
+#include <limits>
 #include <numeric>
 #include <sstream>
 #include <string>
@@ -16,6 +18,7 @@
 
 #include "kaminpar-io/kaminpar_io.h"
 #include "kaminpar-io/metis_parser.h"
+#include "kaminpar-io/util/file_toker.h"
 #include "tests/io/shm_io_helpers.h"
 
 namespace kaminpar::shm::testing {
@@ -242,6 +245,244 @@ TEST(ShmMetisIOTest, explicit_unit_weights_are_compacted) {
   }
 }
 
+TEST(ShmMetisIOTest, readers_skip_declared_node_sizes) {
+  TempFile file(".metis");
+  write_text(
+      file.string(),
+      R"(2 1 100
+17 2
+19 1
+)"
+  );
+
+  GraphSnapshot expected;
+  expected.n = 2;
+  expected.m = 2;
+  expected.node_weights = {1, 1};
+  expected.adjacency = {{{1, 1}}, {{0, 1}}};
+  expected.total_node_weight = 2;
+  expected.total_edge_weight = 2;
+
+  const auto graph = io::metis::read_graph(file.string(), false, NodeOrdering::NATURAL, false);
+  ASSERT_TRUE(graph);
+  expect_graph_eq(*graph, expected);
+}
+
+TEST(ShmMetisIOTest, readers_reject_malformed_graphs) {
+  const std::vector<std::string> malformed_graphs = {
+      "2 1\n2\n",
+      "2 0\n2\n1\n",
+      "2 1\n3\n1\n",
+      "2 1\n0\n1\n",
+      "2 1 2\n2\n1\n",
+      "2 1 11\n1 2 0\n1 1 1\n",
+      "2 1\n1\n2\n",
+      "2 1\n18446744073709551616\n1\n",
+      "2 1 1\n2 18446744073709551616\n1 1\n",
+  };
+
+  for (const std::string &contents : malformed_graphs) {
+    TempFile file(".metis");
+    write_text(file.string(), contents);
+
+    for (const bool parallel : {false, true}) {
+      for (const bool compress : {false, true}) {
+        SCOPED_TRACE(contents);
+        SCOPED_TRACE(parallel);
+        SCOPED_TRACE(compress);
+        EXPECT_FALSE(
+            io::metis::read_graph(file.string(), compress, NodeOrdering::NATURAL, parallel)
+        );
+      }
+    }
+  }
+}
+
+TEST(ShmMetisIOTest, readers_reject_total_weight_overflow) {
+  const std::string max_node_weight = std::to_string(std::numeric_limits<NodeWeight>::max());
+  const std::string max_edge_weight = std::to_string(std::numeric_limits<EdgeWeight>::max());
+  const std::array<std::string, 2> malformed_graphs = {
+      "2 0 10\n" + max_node_weight + "\n1\n",
+      "2 1 1\n2 " + max_edge_weight + "\n1 " + max_edge_weight + "\n",
+  };
+
+  for (const std::string &contents : malformed_graphs) {
+    TempFile file(".metis");
+    write_text(file.string(), contents);
+    for (const bool parallel : {false, true}) {
+      for (const bool compress : {false, true}) {
+        SCOPED_TRACE(contents);
+        SCOPED_TRACE(parallel);
+        SCOPED_TRACE(compress);
+        EXPECT_FALSE(
+            io::metis::read_graph(file.string(), compress, NodeOrdering::NATURAL, parallel)
+        );
+      }
+    }
+  }
+}
+
+TEST(ShmMetisIOTest, readers_accept_weight_sums_at_type_boundary) {
+  TempFile file(".metis");
+  const auto max_node_weight = std::numeric_limits<NodeWeight>::max();
+  const auto edge_weight = std::numeric_limits<EdgeWeight>::max() / 2;
+  std::ostringstream contents;
+  contents << "2 1 11\n"
+           << max_node_weight - 1 << " 2 " << edge_weight << "\n1 1 " << edge_weight << '\n';
+  write_text(file.string(), contents.str());
+
+  for (const bool parallel : {false, true}) {
+    for (const bool compress : {false, true}) {
+      SCOPED_TRACE(parallel);
+      SCOPED_TRACE(compress);
+      const auto graph =
+          io::metis::read_graph(file.string(), compress, NodeOrdering::NATURAL, parallel);
+      ASSERT_TRUE(graph);
+      EXPECT_EQ(graph->total_node_weight(), max_node_weight);
+      EXPECT_EQ(graph->total_edge_weight(), 2 * edge_weight);
+    }
+  }
+}
+
+TEST(ShmMetisIOTest, readers_check_weight_sums_across_chunks) {
+  constexpr NodeID n = 600000;
+  const auto max_weight = std::numeric_limits<NodeWeight>::max();
+  const auto first_weight = max_weight / 2;
+  const auto last_weight = max_weight - first_weight - static_cast<NodeWeight>(n - 2);
+  tbb::task_arena arena(4);
+  for (const bool overflow : {false, true}) {
+    TempFile file(".metis");
+    std::ostringstream contents;
+    contents << n << " 0 10\n" << first_weight << '\n';
+    for (NodeID u = 1; u + 1 < n; ++u) {
+      contents << "1\n";
+    }
+    contents << last_weight + static_cast<NodeWeight>(overflow) << '\n';
+    ASSERT_GT(contents.str().size(), 1u << 20);
+    write_text(file.string(), contents.str());
+    for (const bool parallel : {false, true}) {
+      for (const bool compress : {false, true}) {
+        SCOPED_TRACE(overflow);
+        SCOPED_TRACE(parallel);
+        SCOPED_TRACE(compress);
+        const auto graph = arena.execute([&] {
+          return io::metis::read_graph(file.string(), compress, NodeOrdering::NATURAL, parallel);
+        });
+        if (overflow) {
+          EXPECT_FALSE(graph);
+        } else {
+          ASSERT_TRUE(graph);
+          EXPECT_EQ(graph->n(), n);
+          EXPECT_EQ(graph->total_node_weight(), max_weight);
+        }
+      }
+    }
+  }
+}
+
+TEST(ShmMetisIOTest, parallel_reader_rejects_self_loop_at_global_chunk_offset) {
+  constexpr NodeID n = 600000;
+  TempFile file(".metis");
+  std::ostringstream contents;
+  contents << n << " 1\n2\n";
+  for (NodeID u = 1; u + 1 < n; ++u) {
+    contents << " \n";
+  }
+  contents << n << '\n';
+  ASSERT_GT(contents.str().size(), 1u << 20);
+  write_text(file.string(), contents.str());
+
+  tbb::task_arena arena(4);
+  for (const bool compress : {false, true}) {
+    SCOPED_TRACE(compress);
+    const auto graph = arena.execute([&] {
+      return io::metis::read_graph(file.string(), compress, NodeOrdering::NATURAL, true);
+    });
+    EXPECT_FALSE(graph);
+  }
+}
+
+TEST(MappedFileTokerTest, reads_uint64_boundaries_and_arbitrary_leading_zeros) {
+  const std::uint64_t max = std::numeric_limits<std::uint64_t>::max();
+  const std::array<std::pair<std::string, std::uint64_t>, 8> values = {
+      std::pair{"0", 0},
+      {"9", 9},
+      {"10", 10},
+      {"9999999999999999999", 9'999'999'999'999'999'999ull},
+      {"18446744073709551614", max - 1},
+      {"18446744073709551615", max},
+      {std::string(100, '0'), 0},
+      {std::string(100, '0') + "18446744073709551615", max},
+  };
+  for (const auto &[text, expected] : values) {
+    SCOPED_TRACE(text);
+    TempFile file(".txt");
+    write_text(file.string(), text + " 7");
+    kaminpar::io::MappedFileToker toker(file.string());
+    EXPECT_EQ(toker.scan_uint(), expected);
+    EXPECT_EQ(toker.scan_uint(), 7);
+    EXPECT_FALSE(toker.valid_position());
+  }
+}
+
+TEST(MappedFileTokerTest, rejects_invalid_and_overflowing_unsigned_integers) {
+  const std::array<std::string, 7> values = {
+      "18446744073709551616",
+      "99999999999999999999",
+      std::string(100, '0') + "18446744073709551616",
+      std::string(100, '9'),
+      "-1",
+      "+1",
+      "x",
+  };
+  for (const std::string &text : values) {
+    SCOPED_TRACE(text);
+    TempFile file(".txt");
+    write_text(file.string(), text);
+    kaminpar::io::MappedFileToker toker(file.string());
+    EXPECT_THROW(toker.scan_uint(), kaminpar::io::IOException);
+  }
+}
+
+TEST(MappedFileTokerTest, respects_chunk_bounds_inside_integer) {
+  TempFile file(".txt");
+  write_text(file.string(), "18446744073709551616");
+  kaminpar::io::MappedFileToker parent(file.string());
+  kaminpar::io::MappedFileToker toker(parent, 0, 19);
+  EXPECT_EQ(toker.scan_uint(), 1'844'674'407'370'955'161ull);
+  EXPECT_FALSE(toker.valid_position());
+  EXPECT_FALSE(toker.current_is_digit());
+  EXPECT_THROW(toker.scan_uint(), kaminpar::io::IOException);
+}
+
+TEST(MappedFileTokerTest, preserves_cursor_at_offending_digit_after_overflow) {
+  TempFile file(".txt");
+  const std::string leading_zeros(100, '0');
+  write_text(file.string(), "7 " + leading_zeros + "18446744073709551616");
+  kaminpar::io::MappedFileToker toker(file.string());
+  ASSERT_EQ(toker.scan_uint(), 7);
+  ASSERT_EQ(toker.position(), 2);
+  EXPECT_THROW(toker.scan_uint(), kaminpar::io::IOException);
+  EXPECT_EQ(toker.position(), 2 + leading_zeros.size() + 19);
+  EXPECT_EQ(toker.current(), '6');
+}
+
+TEST(MappedFileTokerTest, recognizes_only_ascii_digits) {
+  TempFile file(".txt");
+  std::string bytes;
+  for (int byte = 0; byte <= 255; ++byte) {
+    bytes.push_back(static_cast<char>(byte));
+  }
+  write_text(file.string(), bytes);
+  kaminpar::io::MappedFileToker toker(file.string());
+  for (int byte = 0; byte <= 255; ++byte) {
+    SCOPED_TRACE(byte);
+    EXPECT_EQ(toker.current_is_digit(), byte >= '0' && byte <= '9');
+    toker.advance();
+  }
+  EXPECT_FALSE(toker.current_is_digit());
+}
+
 TEST(ShmMetisIOTest, parallel_reader_matches_large_multichunk_oracle) {
   TempFile file(".metis");
   LargeMetisFixture fixture = make_large_metis_fixture();
@@ -264,6 +505,25 @@ TEST(ShmMetisIOTest, parallel_reader_matches_large_multichunk_oracle) {
     ASSERT_TRUE(parallel);
     expect_graph_eq(*parallel, fixture.snapshot);
   }
+}
+
+TEST(ShmMetisIOTest, parallel_reader_cancels_after_multichunk_parse_error) {
+  TempFile file(".metis");
+  constexpr NodeID n = 2'100'000;
+  {
+    std::ofstream out(file.string());
+    out << n << " 0\n";
+    out << "x\n";
+    for (NodeID u = 1; u < n; ++u) {
+      out << "    \n";
+    }
+  }
+
+  tbb::task_arena arena(4);
+  const auto graph = arena.execute([&] {
+    return io::metis::read_graph(file.string(), false, NodeOrdering::NATURAL, true);
+  });
+  EXPECT_FALSE(graph);
 }
 
 } // namespace kaminpar::shm::testing

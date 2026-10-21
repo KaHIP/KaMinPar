@@ -72,6 +72,7 @@ target_compile_definitions(test_common_compressed_neighborhoods PRIVATE KAMINPAR
 # IO
 kaminpar_add_io_test(test_shm_metis_io io/shm_metis_io_test.cc)
 kaminpar_add_io_test(test_shm_parhip_io io/shm_parhip_io_test.cc)
+kaminpar_add_io_test(test_shm_compressed_binary_io io/shm_compressed_binary_io_test.cc)
 
 # KaMinPar -> End-to-end
 kaminpar_add_shm_test(test_shm_endtoend endtoend/shm_endtoend_test.cc)
@@ -168,6 +169,11 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
             FILES io/dist_metis_parser_test.cc
             CORES 1 2 3 4 5 8)
         target_link_libraries(test_dist_io_metis_parser PRIVATE KaMinPar::dKaMinParIO)
+
+        kaminpar_add_dist_test(test_dist_io_parhip_parser
+            FILES io/dist_parhip_parser_test.cc
+            CORES 1 2 4 5 8)
+        target_link_libraries(test_dist_io_parhip_parser PRIVATE KaMinPar::dKaMinParIO)
     endif ()
 
     # dKaMinPar -> Graph Utils
