@@ -108,6 +108,15 @@ jobs:
           package-dir: bindings/python
           output-dir: bindings/python/dist
 
+      - name: Make compiler cache readable by the runner
+        if: runner.os == 'Linux' && always()
+        env:
+          SCCACHE_HOST_DIR: ${{ runner.temp }}/sccache
+        run: |
+          if [ -d "$SCCACHE_HOST_DIR" ]; then
+            sudo chown -R "$(id -u):$(id -g)" "$SCCACHE_HOST_DIR"
+          fi
+
       - name: Store wheels
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
