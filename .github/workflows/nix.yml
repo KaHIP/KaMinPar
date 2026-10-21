@@ -4,16 +4,40 @@ on:
   pull_request:
     branches:
       - main
+    paths:
+      - '**/*.nix'
+      - flake.lock
+      - .github/workflows/nix.yml
   push:
-    branches:
-      - main
+    tags:
+      - v*
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  check-flake:
+    name: Evaluate Nix flake
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout KaMinPar
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@786fff0690178f1234e4e1fe9b536e94f5433196 # v20
+
+      - name: Evaluate flake without building
+        run: nix flake check --no-build --no-update-lock-file
+
   build-package:
     name: Build Packages for ${{ matrix.platform[0] }} target
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
     strategy:
       matrix:
         platform:

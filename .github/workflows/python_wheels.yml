@@ -13,15 +13,18 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build-wheels:
     name: Build KaMinPar Python wheel for ${{ matrix.python }}-${{ matrix.platform[1] }}
 
     strategy:
       matrix:
-        # On PRs, only build cp313 per platform to catch binding issues quickly.
-        # On pushes/tags, build the full matrix for releases.
-        python: ${{ github.event_name == 'pull_request' && fromJSON('["cp313"]') || fromJSON('["cp39", "cp310", "cp311", "cp312", "cp313", "cp313t", "pp39", "pp310", "pp311"]') }}
+        # Keep representative builds on PRs/main; the full matrix is release-only.
+        python: ${{ startsWith(github.ref, 'refs/tags/v') && fromJSON('["cp39", "cp310", "cp311", "cp312", "cp313", "cp313t", "pp39", "pp310", "pp311"]') || fromJSON('["cp313"]') }}
         platform:
           - [ubuntu-24.04, manylinux_x86_64]
           - [ubuntu-24.04-arm, manylinux_aarch64]
@@ -67,16 +70,52 @@ jobs:
             -o "$CACHE_DIR/virtualenv-${VENV_VERSION}.pyz" \
             "https://github.com/pypa/get-virtualenv/blob/${VENV_VERSION}/public/virtualenv.pyz?raw=true"
 
+      - name: Restore compiler cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ${{ runner.temp }}/sccache
+          key: sccache-wheel-python-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.python }}-${{ github.sha }}
+          restore-keys: |
+            sccache-wheel-python-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.python }}-
+            sccache-wheel-python-v1-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Install compiler cache
+        run: bash scripts/ci/setup-wheel-cache.sh
+
       - name: Build wheels
         uses: pypa/cibuildwheel@6cccd09a31908ffd175b012fb8bf4e1dbda3bc6c # v2.23.0
         env:
           CIBW_CACHE_PATH: ${{ runner.temp }}/cibw-cache
           CIBW_BUILD: ${{ matrix.python }}-${{ matrix.platform[1] }}
-          CIBW_ENVIRONMENT: SKBUILD_CMAKE_DEFINE="KAMINPAR_PYTHON_INSTALL_TBB=On"
+          # Linux containers expose the host filesystem under /host.
+          CIBW_ENVIRONMENT_LINUX: >-
+            CMAKE_ARGS="$CMAKE_ARGS -DKAMINPAR_PYTHON_INSTALL_TBB=On -DKAMINPAR_BUILD_WITH_CCACHE=Off"
+            CMAKE_C_COMPILER_LAUNCHER="/host${{ runner.temp }}/sccache-bin/sccache"
+            CMAKE_CXX_COMPILER_LAUNCHER="/host${{ runner.temp }}/sccache-bin/sccache"
+            SCCACHE_DIR="/host${{ runner.temp }}/sccache"
+            SCCACHE_CACHE_SIZE="500M"
+            SKBUILD_BUILD_DIR="build/ci"
+          CIBW_ENVIRONMENT_MACOS: >-
+            CMAKE_ARGS="$CMAKE_ARGS -DKAMINPAR_PYTHON_INSTALL_TBB=On -DKAMINPAR_BUILD_WITH_CCACHE=Off"
+            CMAKE_C_COMPILER_LAUNCHER="${{ runner.temp }}/sccache-bin/sccache"
+            CMAKE_CXX_COMPILER_LAUNCHER="${{ runner.temp }}/sccache-bin/sccache"
+            SCCACHE_DIR="${{ runner.temp }}/sccache"
+            SCCACHE_CACHE_SIZE="500M"
+            SKBUILD_BUILD_DIR="build/ci"
+          CIBW_BEFORE_TEST: '"$CMAKE_CXX_COMPILER_LAUNCHER" --stop-server'
           CIBW_FREE_THREADED_SUPPORT: True
         with:
           package-dir: bindings/python
           output-dir: bindings/python/dist
+
+      - name: Make compiler cache readable by the runner
+        if: runner.os == 'Linux' && always()
+        env:
+          SCCACHE_HOST_DIR: ${{ runner.temp }}/sccache
+        run: |
+          if [ -d "$SCCACHE_HOST_DIR" ]; then
+            sudo chown -R "$(id -u):$(id -g)" "$SCCACHE_HOST_DIR"
+          fi
 
       - name: Store wheels
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
