@@ -8,6 +8,12 @@ on:
 
 permissions: read-all
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Keep portable objects separate from old native-tuned caches: older ccache
+# versions can incorrectly reuse native objects on a different hosted CPU.
 jobs:
   build-macos:
     name: macOS Build
@@ -20,7 +26,13 @@ jobs:
         build-mode: [Release]
     steps:
       - name: Install dependencies
-        run: brew install llvm@20 tbb open-mpi google-sparsehash googletest ccache
+        run: brew install tbb open-mpi ccache
+      - name: Install LLVM
+        if: matrix.compiler.name == 'Clang'
+        run: brew install llvm@20
+      - name: Install GoogleTest
+        if: matrix.compiler.name == 'AppleClang'
+        run: brew install googletest
       - name: Checkout HEAD
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
@@ -30,10 +42,10 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/Library/Caches/ccache
-          key: ccache-macos-${{matrix.compiler.name}}-${{matrix.build-mode}}-${{hashFiles('CMakeLists.txt')}}
+          key: ccache-v2-${{runner.os}}-${{runner.arch}}-${{matrix.compiler.name}}-${{matrix.build-mode}}-${{hashFiles('CMakeLists.txt')}}-${{github.sha}}
           restore-keys: |
-            ccache-macos-${{matrix.compiler.name}}-${{matrix.build-mode}}-
-            ccache-macos-${{matrix.compiler.name}}-
+            ccache-v2-${{runner.os}}-${{runner.arch}}-${{matrix.compiler.name}}-${{matrix.build-mode}}-${{hashFiles('CMakeLists.txt')}}-
+            ccache-v2-${{runner.os}}-${{runner.arch}}-${{matrix.compiler.name}}-${{matrix.build-mode}}-
       - name: Configure ccache
         run: |
           ccache --set-config=max_size=500M
@@ -46,9 +58,11 @@ jobs:
           -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
           -DKAMINPAR_ASSERTION_LEVEL=normal
           -DKAMINPAR_BUILD_APPS=On
-          -DKAMINPAR_BUILD_TESTS=On
+          -DBUILD_TESTING=${{matrix.compiler.name == 'AppleClang' && 'On' || 'Off'}}
+          -DKAMINPAR_BUILD_TESTS=${{matrix.compiler.name == 'AppleClang' && 'On' || 'Off'}}
           -DKAMINPAR_BUILD_DISTRIBUTED=On
           -DKAMINPAR_BUILD_WITH_DEBUG_SYMBOLS=Off
+          -DKAMINPAR_BUILD_WITH_MTUNE_NATIVE=Off
           -DKAMINPAR_BUILD_WITH_ASAN=On
           -DKAMINPAR_BUILD_WITH_UBSAN=On
       - name: Build
@@ -89,7 +103,7 @@ jobs:
         build-mode: [Debug]
     steps:
       - name: Install dependencies
-        run: sudo apt-get install -y libtbb-dev libhwloc-dev mpi libopenmpi-dev libsparsehash-dev libgtest-dev libgmock-dev ccache
+        run: sudo apt-get install -y libtbb-dev libhwloc-dev mpi libopenmpi-dev ccache
       - name: Checkout HEAD
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
@@ -99,10 +113,10 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/ccache
-          key: ccache-linux-${{matrix.compiler.name}}-${{matrix.build-mode}}-${{hashFiles('CMakeLists.txt')}}
+          key: ccache-v2-${{runner.os}}-${{runner.arch}}-${{matrix.compiler.name}}-${{matrix.build-mode}}-${{hashFiles('CMakeLists.txt')}}-${{github.sha}}
           restore-keys: |
-            ccache-linux-${{matrix.compiler.name}}-${{matrix.build-mode}}-
-            ccache-linux-${{matrix.compiler.name}}-
+            ccache-v2-${{runner.os}}-${{runner.arch}}-${{matrix.compiler.name}}-${{matrix.build-mode}}-${{hashFiles('CMakeLists.txt')}}-
+            ccache-v2-${{runner.os}}-${{runner.arch}}-${{matrix.compiler.name}}-${{matrix.build-mode}}-
       - name: Configure ccache
         run: |
           ccache --set-config=max_size=500M
@@ -114,6 +128,8 @@ jobs:
           -DCMAKE_C_COMPILER=${{matrix.compiler.cc}}
           -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
           -DKAMINPAR_ASSERTION_LEVEL=light
+          -DBUILD_TESTING=Off
+          -DKAMINPAR_BUILD_TESTS=Off
           -DKAMINPAR_BUILD_DISTRIBUTED=On
           -DKAMINPAR_BUILD_WITH_DEBUG_SYMBOLS=Off
           -DKAMINPAR_BUILD_WITH_MTUNE_NATIVE=Off
@@ -135,7 +151,7 @@ jobs:
         build-mode: [Release]
     steps:
       - name: Install dependencies
-        run: sudo apt-get install -y libtbb-dev libhwloc-dev mpi libopenmpi-dev libsparsehash-dev libgtest-dev libgmock-dev ccache
+        run: sudo apt-get install -y libtbb-dev libhwloc-dev mpi libopenmpi-dev libgtest-dev libgmock-dev ccache
       - name: Checkout HEAD
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
@@ -145,10 +161,10 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/ccache
-          key: ccache-linux-${{matrix.compiler.name}}-${{matrix.build-mode}}-${{hashFiles('CMakeLists.txt')}}
+          key: ccache-v2-${{runner.os}}-${{runner.arch}}-${{matrix.compiler.name}}-${{matrix.build-mode}}-${{hashFiles('CMakeLists.txt')}}-${{github.sha}}
           restore-keys: |
-            ccache-linux-${{matrix.compiler.name}}-${{matrix.build-mode}}-
-            ccache-linux-${{matrix.compiler.name}}-
+            ccache-v2-${{runner.os}}-${{runner.arch}}-${{matrix.compiler.name}}-${{matrix.build-mode}}-${{hashFiles('CMakeLists.txt')}}-
+            ccache-v2-${{runner.os}}-${{runner.arch}}-${{matrix.compiler.name}}-${{matrix.build-mode}}-
       - name: Configure ccache
         run: |
           ccache --set-config=max_size=500M
@@ -161,9 +177,11 @@ jobs:
           -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
           -DKAMINPAR_ASSERTION_LEVEL=normal
           -DKAMINPAR_BUILD_APPS=On
+          -DBUILD_TESTING=On
           -DKAMINPAR_BUILD_TESTS=On
           -DKAMINPAR_BUILD_DISTRIBUTED=On
           -DKAMINPAR_BUILD_WITH_DEBUG_SYMBOLS=Off
+          -DKAMINPAR_BUILD_WITH_MTUNE_NATIVE=Off
           -DKAMINPAR_BUILD_WITH_ASAN=On
           -DKAMINPAR_BUILD_WITH_UBSAN=On
       - name: Clang Build
@@ -202,7 +220,7 @@ jobs:
         build-mode: [Release]
     steps:
       - name: Install dependencies
-        run: brew install tbb open-mpi google-sparsehash googletest ccache
+        run: brew install tbb open-mpi ccache
       - name: Checkout HEAD
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
@@ -212,10 +230,10 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/Library/Caches/ccache
-          key: ccache-macos-${{matrix.compiler.name}}-heavy-${{matrix.build-mode}}-${{hashFiles('CMakeLists.txt')}}
+          key: ccache-v2-${{runner.os}}-${{runner.arch}}-${{matrix.compiler.name}}-heavy-${{matrix.build-mode}}-${{hashFiles('CMakeLists.txt')}}-${{github.sha}}
           restore-keys: |
-            ccache-macos-${{matrix.compiler.name}}-heavy-${{matrix.build-mode}}-
-            ccache-macos-${{matrix.compiler.name}}-heavy-
+            ccache-v2-${{runner.os}}-${{runner.arch}}-${{matrix.compiler.name}}-heavy-${{matrix.build-mode}}-${{hashFiles('CMakeLists.txt')}}-
+            ccache-v2-${{runner.os}}-${{runner.arch}}-${{matrix.compiler.name}}-heavy-${{matrix.build-mode}}-
       - name: Configure ccache
         run: |
           ccache --set-config=max_size=500M
@@ -229,8 +247,11 @@ jobs:
           -DKAMINPAR_ASSERTION_LEVEL=heavy
           -DKAMINPAR_BUILD_EXPERIMENTAL_FEATURES=On
           -DKAMINPAR_BUILD_APPS=On
-          -DKAMINPAR_BUILD_TESTS=On
+          -DBUILD_TESTING=Off
+          -DKAMINPAR_BUILD_TESTS=Off
           -DKAMINPAR_BUILD_DISTRIBUTED=On
+          -DKAMINPAR_BUILD_WITH_DEBUG_SYMBOLS=Off
+          -DKAMINPAR_BUILD_WITH_MTUNE_NATIVE=Off
       - name: Build
         run: >-
           cmake --build ${{github.workspace}}/build
