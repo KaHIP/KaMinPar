@@ -444,27 +444,6 @@ CLI::Option_group *create_coarsening_options(CLI::App *app, Context &ctx) {
       )
       ->capture_default_str();
   coarsening
-      ->add_option(
-          "--c-max-local-levels",
-          ctx.coarsening.max_local_clustering_levels,
-          "Maximum number of local clustering levels."
-      )
-      ->capture_default_str();
-  coarsening
-      ->add_option(
-          "--c-max-global-levels",
-          ctx.coarsening.max_global_clustering_levels,
-          "Maximum number of global clustering levels."
-      )
-      ->capture_default_str();
-  coarsening
-      ->add_option("--c-local-clustering-algorithm", ctx.coarsening.local_clustering_algorithm)
-      ->transform(CLI::CheckedTransformer(get_clustering_algorithms()).description(""))
-      ->description(R"(Local clustering algorithm, options are:
-  - local-noop: disable local clustering
-  - local-lp:   parallel label propagation)")
-      ->capture_default_str();
-  coarsening
       ->add_option("--c-global-clustering-algorithm", ctx.coarsening.global_clustering_algorithm)
       ->transform(CLI::CheckedTransformer(get_clustering_algorithms()).description(""))
       ->description(R"(Global clustering algorithm, options are:
@@ -562,19 +541,6 @@ CLI::Option_group *create_hem_coarsening_options(CLI::App *app, Context &ctx) {
 
   create_chunks_options(lp, "--c-hem", ctx.coarsening.hem.chunks);
 
-  lp->add_option(
-        "--c-hem-small-color-blacklist",
-        ctx.coarsening.hem.small_color_blacklist,
-        "Sort colors by their size, then exclude the smallest colors such that "
-        "roughly <param>% of all nodes are excluded"
-  )
-      ->capture_default_str();
-  lp->add_flag(
-        "--c-hem-only-blacklist-on-input-level",
-        ctx.coarsening.hem.only_blacklist_input_level,
-        "Only blacklist nodes when refining the input graph."
-  )
-      ->capture_default_str();
   lp->add_flag(
       "--c-hem-ignore-weight-limit",
       ctx.coarsening.hem.ignore_weight_limit,

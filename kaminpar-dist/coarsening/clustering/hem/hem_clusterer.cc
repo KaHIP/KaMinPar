@@ -26,7 +26,6 @@ SET_DEBUG(true);
 //
 
 struct HEMClustererMemoryContext {
-  NoinitVector<std::uint8_t> color_blacklist;
   NoinitVector<ColorID> color_sizes;
   NoinitVector<NodeID> color_sorted_nodes;
 };
@@ -36,14 +35,12 @@ public:
   explicit HEMClustererImpl(const Context &ctx) : _input_ctx(ctx), _ctx(ctx.coarsening.hem) {}
 
   void setup(HEMClustererMemoryContext &memory_context) {
-    _color_blacklist = std::move(memory_context.color_blacklist);
     _color_sizes = std::move(memory_context.color_sizes);
     _color_sorted_nodes = std::move(memory_context.color_sorted_nodes);
   }
 
   HEMClustererMemoryContext release() {
     return {
-        std::move(_color_blacklist),
         std::move(_color_sizes),
         std::move(_color_sorted_nodes),
     };
@@ -116,15 +113,11 @@ private:
     TIMED_SCOPE("Allocation") {
       _color_sorted_nodes.resize(_graph->n());
       _color_sizes.resize(num_colors + 1);
-      _color_blacklist.resize(num_colors);
       tbb::parallel_for<std::size_t>(0, _color_sorted_nodes.size(), [&](const std::size_t i) {
         _color_sorted_nodes[i] = 0;
       });
       tbb::parallel_for<std::size_t>(0, _color_sizes.size(), [&](const std::size_t i) {
         _color_sizes[i] = 0;
-      });
-      tbb::parallel_for<std::size_t>(0, _color_blacklist.size(), [&](const std::size_t i) {
-        _color_blacklist[i] = 0;
       });
     };
 
@@ -153,47 +146,6 @@ private:
           KASSERT(i < _color_sorted_nodes.size());
           _color_sorted_nodes[i] = u;
         });
-      }
-    };
-
-    TIMED_SCOPE("Compute color blacklist") {
-      if (_ctx.small_color_blacklist == 0 ||
-          (_ctx.only_blacklist_input_level &&
-           _graph->global_n() != _input_ctx.partition.global_n)) {
-        return;
-      }
-
-      NoinitVector<GlobalNodeID> global_color_sizes(num_colors);
-      tbb::parallel_for<ColorID>(0, num_colors, [&](const ColorID c) {
-        global_color_sizes[c] = _color_sizes[c + 1] - _color_sizes[c];
-      });
-      MPI_Allreduce(
-          MPI_IN_PLACE,
-          global_color_sizes.data(),
-          asserting_cast<int>(num_colors),
-          mpi::type::get<GlobalNodeID>(),
-          MPI_SUM,
-          _graph->communicator()
-      );
-
-      // @todo parallelize the rest of this section
-      std::vector<ColorID> sorted_by_size(num_colors);
-      std::iota(sorted_by_size.begin(), sorted_by_size.end(), 0);
-      std::sort(
-          sorted_by_size.begin(), sorted_by_size.end(), [&](const ColorID lhs, const ColorID rhs) {
-            return global_color_sizes[lhs] < global_color_sizes[rhs];
-          }
-      );
-
-      GlobalNodeID excluded_so_far = 0;
-      for (const ColorID c : sorted_by_size) {
-        excluded_so_far += global_color_sizes[c];
-        const double percentage = 1.0 * excluded_so_far / _graph->global_n();
-        if (percentage <= _ctx.small_color_blacklist) {
-          _color_blacklist[c] = 1;
-        } else {
-          break;
-        }
       }
     };
 
@@ -485,7 +437,6 @@ private:
 
   const Graph *_graph;
 
-  NoinitVector<std::uint8_t> _color_blacklist;
   NoinitVector<ColorID> _color_sizes;
   NoinitVector<NodeID> _color_sorted_nodes;
 

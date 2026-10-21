@@ -15,7 +15,6 @@
 
 #include "kaminpar-common/datastructures/addressable_dynamic_de_heap.h"
 #include "kaminpar-common/datastructures/marker.h"
-#include "kaminpar-common/random.h"
 
 namespace kaminpar::dist {
 
@@ -134,8 +133,6 @@ private:
   bool dbg_validate_bucket_weights() const;
   bool dbg_validate_cluster_conns() const;
   NodeID dbg_count_nodes_in_clusters(const std::vector<MoveCandidate> &candidates) const;
-
-  Random &_rand = Random::instance();
 
   ClusterBalancerFactory &_factory;
   const Context &_ctx;

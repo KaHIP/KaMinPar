@@ -43,7 +43,6 @@ void PartitionContext::setup(
     std::vector<BlockWeight> max_block_weights,
     const bool relax_max_block_weights
 ) {
-  original_n = graph.n();
   n = graph.n();
   m = graph.m();
   original_total_node_weight = graph.total_node_weight();
@@ -797,7 +796,6 @@ std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
         << ", " << r_ctx.jet.final_gain_temp_on_coarse_level << "], " << "fine ["
         << r_ctx.jet.initial_gain_temp_on_fine_level << ", "
         << r_ctx.jet.final_gain_temp_on_fine_level << "]\n";
-    out << "  Balancing algorithm:        " << r_ctx.jet.balancing_algorithm << "\n";
   }
 
   return out;

@@ -461,68 +461,42 @@ void print(
 
 void print(const CoarseningContext &ctx, const ParallelContext &parallel, std::ostream &out) {
   out << "Contraction limit:            " << ctx.contraction_limit << "\n";
-  if (ctx.max_global_clustering_levels > 0 && ctx.max_local_clustering_levels > 0) {
-    out << "Coarsening mode:              local[" << ctx.max_local_clustering_levels << "]+global["
-        << ctx.max_global_clustering_levels << "]\n";
-  } else if (ctx.max_global_clustering_levels > 0) {
-    out << "Coarsening mode:              global[" << ctx.max_global_clustering_levels << "]\n";
-  } else if (ctx.max_local_clustering_levels > 0) {
-    out << "Coarsening mode:              local[" << ctx.max_local_clustering_levels << "]\n";
-  } else {
-    out << "Coarsening mode:              disabled\n";
-  }
-
-  if (ctx.max_local_clustering_levels > 0) {
-    out << "Local clustering algorithm:   " << ctx.local_clustering_algorithm << "\n";
-    out << "  Number of iterations:       " << ctx.local_lp.num_iterations << "\n";
-    out << "  High degree threshold:      " << ctx.local_lp.passive_high_degree_threshold
-        << " (passive), " << ctx.local_lp.active_high_degree_threshold << " (active)\n";
-    out << "  Max degree:                 " << ctx.local_lp.max_num_neighbors << "\n";
-    out << "  Ghost nodes:                "
-        << (ctx.local_lp.ignore_ghost_nodes ? "ignore" : "consider") << "+"
-        << (ctx.local_lp.keep_ghost_clusters ? "keep" : "discard") << "\n";
-  }
-
-  if (ctx.max_global_clustering_levels > 0) {
-    out << "Global clustering algorithm:  " << ctx.global_clustering_algorithm;
-    if (ctx.max_cnode_imbalance < std::numeric_limits<double>::max()) {
-      out << " [rebalance if >" << std::setprecision(2) << 100.0 * (ctx.max_cnode_imbalance - 1.0)
-          << "%";
-      if (ctx.migrate_cnode_prefix) {
-        out << ", prefix";
-      } else {
-        out << ", suffix";
-      }
-      if (ctx.force_perfect_cnode_balance) {
-        out << ", strict";
-      } else {
-        out << ", relaxed";
-      }
-      out << "]";
+  out << "Global clustering algorithm:  " << ctx.global_clustering_algorithm;
+  if (ctx.max_cnode_imbalance < std::numeric_limits<double>::max()) {
+    out << " [rebalance if >" << std::setprecision(2) << 100.0 * (ctx.max_cnode_imbalance - 1.0)
+        << "%";
+    if (ctx.migrate_cnode_prefix) {
+      out << ", prefix";
     } else {
-      out << "[natural assignment]";
+      out << ", suffix";
     }
-    out << "\n";
+    if (ctx.force_perfect_cnode_balance) {
+      out << ", strict";
+    } else {
+      out << ", relaxed";
+    }
+    out << "]";
+  } else {
+    out << "[natural assignment]";
+  }
+  out << "\n";
 
-    if (ctx.global_clustering_algorithm == ClusteringAlgorithm::GLOBAL_LP ||
-        ctx.global_clustering_algorithm == ClusteringAlgorithm::GLOBAL_HEM_LP) {
-      out << "  Number of iterations:       " << ctx.global_lp.num_iterations << "\n";
-      out << "  High degree threshold:      " << ctx.global_lp.passive_high_degree_threshold
-          << " (passive), " << ctx.global_lp.active_high_degree_threshold << " (active)\n";
-      out << "  Max degree:                 " << ctx.global_lp.max_num_neighbors << "\n";
-      print(ctx.global_lp.chunks, parallel, out);
-      out << "  Active set:                 " << ctx.global_lp.active_set_strategy << "\n";
-      out << "  Cluster weights:            "
-          << (ctx.global_lp.sync_cluster_weights ? "sync" : "no-sync") << "+"
-          << (ctx.global_lp.enforce_cluster_weights ? "enforce" : "no-enforce") << "\n";
-    }
+  if (ctx.global_clustering_algorithm == ClusteringAlgorithm::GLOBAL_LP ||
+      ctx.global_clustering_algorithm == ClusteringAlgorithm::GLOBAL_HEM_LP) {
+    out << "  Number of iterations:       " << ctx.global_lp.num_iterations << "\n";
+    out << "  High degree threshold:      " << ctx.global_lp.passive_high_degree_threshold
+        << " (passive), " << ctx.global_lp.active_high_degree_threshold << " (active)\n";
+    out << "  Max degree:                 " << ctx.global_lp.max_num_neighbors << "\n";
+    print(ctx.global_lp.chunks, parallel, out);
+    out << "  Active set:                 " << ctx.global_lp.active_set_strategy << "\n";
+    out << "  Cluster weights:            "
+        << (ctx.global_lp.sync_cluster_weights ? "sync" : "no-sync") << "+"
+        << (ctx.global_lp.enforce_cluster_weights ? "enforce" : "no-enforce") << "\n";
+  }
 
-    if (ctx.global_clustering_algorithm == ClusteringAlgorithm::GLOBAL_HEM ||
-        ctx.global_clustering_algorithm == ClusteringAlgorithm::GLOBAL_HEM_LP) {
-      print(ctx.hem.chunks, parallel, out);
-      out << "  Small color blacklist:      " << 100 * ctx.hem.small_color_blacklist << "%"
-          << (ctx.hem.only_blacklist_input_level ? " (input level only)" : "") << "\n";
-    }
+  if (ctx.global_clustering_algorithm == ClusteringAlgorithm::GLOBAL_HEM ||
+      ctx.global_clustering_algorithm == ClusteringAlgorithm::GLOBAL_HEM_LP) {
+    print(ctx.hem.chunks, parallel, out);
   }
 }
 
@@ -628,8 +602,6 @@ void print(const RefinementContext &ctx, const ParallelContext &parallel, std::o
     out << "  Sequential balancing:       "
         << (ctx.cluster_balancer.enable_sequential_balancing ? "enabled" : "disabled") << "\n";
     out << "    No. of nodes per block:   " << ctx.cluster_balancer.seq_num_nodes_per_block << "\n";
-    out << "    Keep all nodes in PQ:     " << (ctx.cluster_balancer.seq_full_pq ? "yes" : "no")
-        << "\n";
     out << "  Parallel balancing:         "
         << (ctx.cluster_balancer.enable_parallel_balancing ? "enabled" : "disabled") << "\n";
     out << "    Trigger threshold:        " << ctx.cluster_balancer.parallel_threshold << "\n";

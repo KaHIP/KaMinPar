@@ -331,7 +331,6 @@ Context create_default_context() {
                       RefinementAlgorithm::LABEL_PROPAGATION,
                       RefinementAlgorithm::UNDERLOAD_BALANCER,
                   },
-              .balancer = {},
               .lp =
                   {
                       // Context -> Refinement -> Label Propagation
@@ -418,7 +417,6 @@ Context create_default_context() {
                       .final_gain_temp_on_fine_level = 0.25,
                       .initial_gain_temp_on_coarse_level = 0.75,
                       .final_gain_temp_on_coarse_level = 0.75,
-                      .balancing_algorithm = RefinementAlgorithm::OVERLOAD_BALANCER,
                   },
           },
       .parallel =
