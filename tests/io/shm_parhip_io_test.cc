@@ -349,6 +349,51 @@ TEST(ShmParhipIOTest, parhip_reader_rejects_malformed_files) {
   }
 }
 
+TEST(ShmParhipIOTest, parhip_reader_rejects_offset_decreases_across_validation_chunks) {
+  GraphSnapshot snapshot;
+  snapshot.n = 32'768;
+  snapshot.m = 2;
+  snapshot.node_weights.assign(snapshot.n, 1);
+  snapshot.adjacency.resize(snapshot.n);
+  snapshot.adjacency.front().push_back({snapshot.n - 1, 1});
+  snapshot.adjacency.back().push_back({0, 1});
+  TempFile file(".parhip");
+  write_direct_parhip(file.string(), snapshot);
+  {
+    std::fstream out(file.string(), std::ios::in | std::ios::out | std::ios::binary);
+    out.seekp(3 * sizeof(std::uint64_t) + 16'384 * sizeof(EdgeID));
+    const EdgeID offset = 3 * sizeof(std::uint64_t) + (snapshot.n + 1) * sizeof(EdgeID);
+    out.write(reinterpret_cast<const char *>(&offset), sizeof(offset));
+  }
+  expect_parhip_rejected(file.string());
+}
+
+TEST(ShmParhipIOTest, parhip_reader_checks_weight_totals_across_validation_chunks) {
+  GraphSnapshot snapshot;
+  snapshot.n = 32'768;
+  snapshot.m = 0;
+  snapshot.node_weighted = true;
+  snapshot.adjacency.resize(snapshot.n);
+  const NodeWeight weight = std::numeric_limits<NodeWeight>::max() / snapshot.n;
+  snapshot.node_weights.assign(snapshot.n, weight);
+  snapshot.node_weights.back() += std::numeric_limits<NodeWeight>::max() % snapshot.n;
+  snapshot.total_node_weight = std::numeric_limits<NodeWeight>::max();
+
+  TempFile file(".parhip");
+  write_direct_parhip(file.string(), snapshot);
+  for (const bool compress : {false, true}) {
+    SCOPED_TRACE(compress);
+    const auto graph = io::parhip::read_graph(file.string(), compress, NodeOrdering::NATURAL);
+    ASSERT_TRUE(graph);
+    EXPECT_EQ(graph->total_node_weight(), std::numeric_limits<NodeWeight>::max());
+  }
+
+  // Each chunk fits individually, but their combined total exceeds the weight type.
+  ++snapshot.node_weights.front();
+  write_direct_parhip(file.string(), snapshot);
+  expect_parhip_rejected(file.string());
+}
+
 TEST(ShmParhipIOTest, compressed_binary_roundtrips_compressed_graphs) {
   const GraphSnapshot expected = weighted_test_snapshot();
   Graph graph = make_graph(expected);

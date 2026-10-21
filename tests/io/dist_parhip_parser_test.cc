@@ -69,8 +69,9 @@ template <
     typename FileNodeID,
     typename FileNodeWeight,
     typename FileEdgeWeight>
-void write_parhip_as(const std::string &filename) {
+void write_parhip_as(const std::string &filename, const bool trailing_isolate = false) {
   std::ofstream out(filename, std::ios::binary);
+  const GlobalNodeID num_nodes = kNumNodes + trailing_isolate;
   write_binary<std::uint64_t>(
       out,
       parhip_version(
@@ -82,11 +83,11 @@ void write_parhip_as(const std::string &filename) {
           sizeof(FileEdgeWeight) == 8
       )
   );
-  write_binary<std::uint64_t>(out, kNumNodes);
+  write_binary<std::uint64_t>(out, num_nodes);
   write_binary<std::uint64_t>(out, kNumEdges);
 
   const std::uint64_t nodes_offset_base =
-      3 * sizeof(std::uint64_t) + (kNumNodes + 1) * sizeof(FileEdgeID);
+      3 * sizeof(std::uint64_t) + (num_nodes + 1) * sizeof(FileEdgeID);
   std::uint64_t cur_edge = 0;
   for (GlobalNodeID u = 0; u < kNumNodes; ++u) {
     write_binary<FileEdgeID>(
@@ -97,6 +98,11 @@ void write_parhip_as(const std::string &filename) {
   write_binary<FileEdgeID>(
       out, static_cast<FileEdgeID>(nodes_offset_base + cur_edge * sizeof(FileNodeID))
   );
+  if (trailing_isolate) {
+    write_binary<FileEdgeID>(
+        out, static_cast<FileEdgeID>(nodes_offset_base + cur_edge * sizeof(FileNodeID))
+    );
+  }
 
   for (const auto &adjacency : kTopology) {
     for (const Edge edge : adjacency) {
@@ -105,6 +111,9 @@ void write_parhip_as(const std::string &filename) {
   }
   for (const NodeWeight weight : kNodeWeights) {
     write_binary<FileNodeWeight>(out, static_cast<FileNodeWeight>(weight));
+  }
+  if (trailing_isolate) {
+    write_binary<FileNodeWeight>(out, 5);
   }
   for (const auto &adjacency : kTopology) {
     for (const Edge edge : adjacency) {
@@ -144,8 +153,12 @@ template <typename Graph> void expect_graph(const Graph &graph) {
   EXPECT_EQ(kNumEdges, graph.global_m());
   EXPECT_EQ(graph.node_distribution(rank + 1) - graph.node_distribution(rank), graph.n());
   EXPECT_EQ(graph.edge_distribution(rank + 1) - graph.edge_distribution(rank), graph.m());
-  EXPECT_TRUE(graph.is_node_weighted());
-  EXPECT_TRUE(graph.is_edge_weighted());
+  if (graph.n() > 0) {
+    EXPECT_TRUE(graph.is_node_weighted());
+  }
+  if (graph.m() > 0) {
+    EXPECT_TRUE(graph.is_edge_weighted());
+  }
   EXPECT_EQ(kTotalNodeWeight, graph.global_total_node_weight());
   EXPECT_EQ(kTotalEdgeWeight, graph.global_total_edge_weight());
 
@@ -178,7 +191,9 @@ void expect_width_variant(const char *suffix) {
   MPI_Barrier(MPI_COMM_WORLD);
 
   for (const GraphDistribution distribution :
-       {GraphDistribution::BALANCED_NODES, GraphDistribution::BALANCED_MEMORY_SPACE}) {
+       {GraphDistribution::BALANCED_NODES,
+        GraphDistribution::BALANCED_EDGES,
+        GraphDistribution::BALANCED_MEMORY_SPACE}) {
     SCOPED_TRACE(static_cast<int>(distribution));
     expect_graph(csr_read(filename, distribution, false, MPI_COMM_WORLD));
     expect_graph(compressed_read(filename, distribution, false, MPI_COMM_WORLD));
@@ -190,6 +205,28 @@ void expect_width_variant(const char *suffix) {
   }
 }
 
+template <typename T>
+void overwrite_binary(const std::string &filename, const std::size_t offset, const T value) {
+  std::fstream out(filename, std::ios::in | std::ios::out | std::ios::binary);
+  out.seekp(offset);
+  out.write(reinterpret_cast<const char *>(&value), sizeof(value));
+}
+
+void expect_collectively_rejected(const std::string &filename) {
+  for (const GraphDistribution distribution :
+       {GraphDistribution::BALANCED_NODES,
+        GraphDistribution::BALANCED_EDGES,
+        GraphDistribution::BALANCED_MEMORY_SPACE}) {
+    SCOPED_TRACE(static_cast<int>(distribution));
+    EXPECT_THROW(
+        csr_read(filename, distribution, false, MPI_COMM_WORLD), kaminpar::io::IOException
+    );
+    EXPECT_THROW(
+        compressed_read(filename, distribution, false, MPI_COMM_WORLD), kaminpar::io::IOException
+    );
+  }
+}
+
 } // namespace
 
 TEST(DistParhipParserTest, reads_integer_width_variants) {
@@ -198,8 +235,106 @@ TEST(DistParhipParserTest, reads_integer_width_variants) {
   expect_width_variant<std::uint64_t, std::uint32_t, std::int64_t, std::int32_t>("-mixed.parhip");
 }
 
+TEST(DistParhipParserTest, collectively_rejects_rank_local_endpoint_and_weight_errors) {
+  constexpr std::size_t edges_offset = 3 * sizeof(std::uint64_t) + (kNumNodes + 1) * sizeof(EdgeID);
+  constexpr std::size_t node_weights_offset = edges_offset + kNumEdges * sizeof(NodeID);
+  constexpr std::size_t edge_weights_offset = node_weights_offset + kNumNodes * sizeof(NodeWeight);
+  const std::string filename = make_temp_filename("-rank-local-error.parhip");
+
+  for (const int error : {0, 1, 2, 3}) {
+    SCOPED_TRACE(error);
+    if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+      write_parhip_as<EdgeID, NodeID, NodeWeight, EdgeWeight>(filename);
+      if (error == 0) {
+        overwrite_binary<NodeID>(filename, edges_offset, kNumNodes);
+      } else if (error == 1) {
+        overwrite_binary<NodeWeight>(filename, node_weights_offset, 0);
+      } else if (error == 2) {
+        overwrite_binary<EdgeWeight>(filename, edge_weights_offset, 0);
+      } else {
+        overwrite_binary<NodeID>(
+            filename, edges_offset + (kNumEdges - 1) * sizeof(NodeID), kNumNodes
+        );
+      }
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+    expect_collectively_rejected(filename);
+    MPI_Barrier(MPI_COMM_WORLD);
+  }
+
+  if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+    std::filesystem::remove(filename);
+  }
+}
+
+TEST(DistParhipParserTest, collectively_rejects_invalid_node_offsets) {
+  constexpr EdgeID edges_offset = 3 * sizeof(std::uint64_t) + (kNumNodes + 1) * sizeof(EdgeID);
+  const std::string filename = make_temp_filename("-node-offset-error.parhip");
+  const std::array<std::pair<std::size_t, EdgeID>, 6> invalid_offsets = {{
+      {0, edges_offset + sizeof(NodeID)},
+      {1, edges_offset + 1},
+      {2, edges_offset - 1},
+      {2, edges_offset + sizeof(NodeID)},
+      {3, edges_offset + (kNumEdges + 1) * sizeof(NodeID)},
+      {kNumNodes, edges_offset + (kNumEdges - 1) * sizeof(NodeID)},
+  }};
+  for (const auto [node, offset] : invalid_offsets) {
+    SCOPED_TRACE(node);
+    SCOPED_TRACE(offset);
+    if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+      write_parhip_as<EdgeID, NodeID, NodeWeight, EdgeWeight>(filename);
+      overwrite_binary<EdgeID>(filename, 3 * sizeof(std::uint64_t) + node * sizeof(EdgeID), offset);
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+    expect_collectively_rejected(filename);
+    MPI_Barrier(MPI_COMM_WORLD);
+  }
+  if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+    std::filesystem::remove(filename);
+  }
+}
+
+TEST(DistParhipParserTest, preserves_and_validates_trailing_isolated_vertices) {
+  const std::string filename = make_temp_filename("-trailing-isolate.parhip");
+  if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+    write_parhip_as<EdgeID, NodeID, NodeWeight, EdgeWeight>(filename, true);
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
+  const auto expect_isolate = [](const auto &graph) {
+    EXPECT_EQ(graph.global_n(), kNumNodes + 1);
+    EXPECT_EQ(graph.global_m(), kNumEdges);
+    EXPECT_EQ(graph.global_total_node_weight(), kTotalNodeWeight + 5);
+    for (const NodeID u : graph.nodes()) {
+      if (graph.local_to_global_node(u) == kNumNodes) {
+        EXPECT_EQ(graph.degree(u), 0);
+        EXPECT_EQ(graph.node_weight(u), 5);
+      }
+    }
+  };
+  for (const GraphDistribution distribution :
+       {GraphDistribution::BALANCED_NODES,
+        GraphDistribution::BALANCED_EDGES,
+        GraphDistribution::BALANCED_MEMORY_SPACE}) {
+    SCOPED_TRACE(static_cast<int>(distribution));
+    expect_isolate(csr_read(filename, distribution, false, MPI_COMM_WORLD));
+    expect_isolate(compressed_read(filename, distribution, false, MPI_COMM_WORLD));
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
+  if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+    constexpr std::size_t node_weights_offset =
+        3 * sizeof(std::uint64_t) + (kNumNodes + 2) * sizeof(EdgeID) + kNumEdges * sizeof(NodeID);
+    overwrite_binary<NodeWeight>(filename, node_weights_offset + kNumNodes * sizeof(NodeWeight), 0);
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
+  expect_collectively_rejected(filename);
+  MPI_Barrier(MPI_COMM_WORLD);
+  if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
+    std::filesystem::remove(filename);
+  }
+}
+
 TEST(DistParhipParserTest, rejects_local_weight_sum_overflow) {
-  constexpr std::uint64_t num_nodes = 8;
+  constexpr std::uint64_t num_nodes = 16;
   const std::string filename = make_temp_filename("-weight-overflow.parhip");
   if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {
     std::ofstream out(filename, std::ios::binary);
@@ -227,14 +362,7 @@ TEST(DistParhipParserTest, rejects_local_weight_sum_overflow) {
   }
   MPI_Barrier(MPI_COMM_WORLD);
 
-  EXPECT_THROW(
-      csr_read(filename, GraphDistribution::BALANCED_NODES, false, MPI_COMM_WORLD),
-      kaminpar::io::IOException
-  );
-  EXPECT_THROW(
-      compressed_read(filename, GraphDistribution::BALANCED_NODES, false, MPI_COMM_WORLD),
-      kaminpar::io::IOException
-  );
+  expect_collectively_rejected(filename);
 
   MPI_Barrier(MPI_COMM_WORLD);
   if (mpi::get_comm_rank(MPI_COMM_WORLD) == 0) {

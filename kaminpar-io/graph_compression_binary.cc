@@ -14,6 +14,8 @@
 #include <memory>
 #include <optional>
 
+#include <tbb/parallel_for.h>
+
 #include "kaminpar-io/util/binary_util.h"
 #include "kaminpar-io/util/io_validation.h"
 
@@ -349,12 +351,31 @@ std::optional<Graph> read(const std::string &filename) {
     StaticArray<std::uint8_t> compressed_edges = read_static_array<std::uint8_t>(reader, pos);
     raise_if(nodes.size() != header.num_nodes + 1, "Invalid compressed graph node offsets");
     raise_if(nodes[0] != 0, "Invalid compressed graph first node offset");
+    // StreamVByte decoders read 16-byte chunks, so the builders append padding after the
+    // terminal node offset. This padding is part of the serialized edge array.
+    constexpr std::size_t kPadding = CompressedGraph::kStreamVByteEncoding ? 15 : 0;
     raise_if(
-        nodes[header.num_nodes] != compressed_edges.size(),
+        checked_add(
+            nodes[header.num_nodes], kPadding, "Compressed graph edge array is too large"
+        ) != compressed_edges.size(),
         "Invalid compressed graph final node offset"
     );
-    for (NodeID u = 0; u < header.num_nodes; ++u) {
-      raise_if(nodes[u] > nodes[u + 1], "Compressed graph node offsets are not monotone");
+    const auto validate_offsets = [&](const tbb::blocked_range<NodeID> &range) {
+      EdgeID previous = nodes[range.begin()];
+      for (NodeID u = range.begin(); u < range.end(); ++u) {
+        const EdgeID next = nodes[u + 1];
+        raise_if(previous > next, "Compressed graph node offsets are not monotone");
+        previous = next;
+      }
+    };
+    constexpr NodeID kParallelValidationThreshold = 1u << 20;
+    constexpr NodeID kValidationGrainSize = 1u << 18;
+    if (header.num_nodes < kParallelValidationThreshold) {
+      validate_offsets(tbb::blocked_range<NodeID>(0, header.num_nodes));
+    } else {
+      tbb::parallel_for(
+          tbb::blocked_range<NodeID>(0, header.num_nodes, kValidationGrainSize), validate_offsets
+      );
     }
 
     StaticArray<NodeWeight> node_weights;

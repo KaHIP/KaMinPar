@@ -293,6 +293,11 @@ parse_chunk(const MappedFileToker &mapped_file, const FileChunk chunk, const Met
 
   ParsedChunk parsed;
   parsed.nodes.push_back(0);
+  // Each stored weight is at most INT64_MAX and each vector has at most SIZE_MAX
+  // entries, so these sums fit in 128 bits even before checking the chunk totals.
+  static_assert(sizeof(std::size_t) <= sizeof(std::uint64_t));
+  unsigned __int128 total_node_weight = 0;
+  unsigned __int128 total_edge_weight = 0;
 
   while (toker.valid_position()) {
     skip_comment_lines(toker);
@@ -313,11 +318,7 @@ parse_chunk(const MappedFileToker &mapped_file, const FileChunk chunk, const Met
       raise_if(node_weight == 0u, "zero node weights are not supported");
 
       parsed.node_weights.push_back(static_cast<NodeWeight>(node_weight));
-      add_weight<NodeWeight>(
-          parsed.total_node_weight,
-          node_weight,
-          "total node weight does not fit into the node weight type"
-      );
+      total_node_weight += node_weight;
     }
 
     while (toker.current_is_digit()) {
@@ -333,11 +334,7 @@ parse_chunk(const MappedFileToker &mapped_file, const FileChunk chunk, const Met
         raise_if(edge_weight == 0u, "zero edge weights are not supported");
 
         parsed.edge_weights.push_back(static_cast<EdgeWeight>(edge_weight));
-        add_weight<EdgeWeight>(
-            parsed.total_edge_weight,
-            edge_weight,
-            "total edge weight does not fit into the edge weight type"
-        );
+        total_edge_weight += edge_weight;
       }
 
       raise_if(v >= header.num_nodes, "neighbor out of bounds");
@@ -352,6 +349,17 @@ parse_chunk(const MappedFileToker &mapped_file, const FileChunk chunk, const Met
 
     finish_line(toker);
   }
+
+  raise_if(
+      total_node_weight > static_cast<std::uint64_t>(std::numeric_limits<NodeWeight>::max()),
+      "total node weight does not fit into the node weight type"
+  );
+  raise_if(
+      total_edge_weight > static_cast<std::uint64_t>(std::numeric_limits<EdgeWeight>::max()),
+      "total edge weight does not fit into the edge weight type"
+  );
+  parsed.total_node_weight = static_cast<std::int64_t>(total_node_weight);
+  parsed.total_edge_weight = static_cast<std::int64_t>(total_edge_weight);
 
   return parsed;
 }
@@ -370,11 +378,11 @@ void finalize_chunk(
     nodes[node_offset + i] = edge_offset + parsed.nodes[i];
 
     for (EdgeID e = parsed.nodes[i]; e < parsed.nodes[i + 1]; ++e) {
-      raise_if(node_offset + i == parsed.edges[e], "detected illegal self-loop");
+      const NodeID v = parsed.edges[e];
+      raise_if(node_offset + i == v, "detected illegal self-loop");
+      edges[edge_offset + e] = v;
     }
   }
-
-  std::copy(parsed.edges.begin(), parsed.edges.end(), edges.begin() + edge_offset);
 
   if (header.has_node_weights) {
     std::copy(
@@ -692,6 +700,8 @@ Graph compress_read(const std::string &filename, const bool sorted) {
 
   NodeID node = 0;
   EdgeID edge = 0;
+  std::int64_t total_node_weight = 0;
+  std::int64_t total_edge_weight = 0;
   parse_graph(
       toker,
       header,
@@ -702,6 +712,9 @@ Graph compress_read(const std::string &filename, const bool sorted) {
         }
 
         if (header.has_node_weights) {
+          add_weight<NodeWeight>(
+              total_node_weight, weight, "total node weight does not fit into the node weight type"
+          );
           builder.add_node_weight(node, static_cast<NodeWeight>(weight));
         }
 
@@ -713,6 +726,11 @@ Graph compress_read(const std::string &filename, const bool sorted) {
             edge >= expected_nnz,
             "input contains more adjacency entries than specified in the header"
         );
+        if (header.has_edge_weights) {
+          add_weight<EdgeWeight>(
+              total_edge_weight, weight, "total edge weight does not fit into the edge weight type"
+          );
+        }
         neighbourhood.emplace_back(static_cast<NodeID>(v), static_cast<EdgeWeight>(weight));
         edge += 1;
       }

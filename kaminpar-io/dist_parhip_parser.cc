@@ -9,6 +9,8 @@
 
 #include <numeric>
 
+#include <tbb/parallel_reduce.h>
+
 #include "kaminpar-io/util/binary_util.h"
 #include "kaminpar-io/util/io_validation.h"
 
@@ -113,10 +115,14 @@ public:
   [[nodiscard]] EdgeID map_edge_offset(const std::uint64_t edge_offset) const {
     raise_if(edge_offset < _nodes_offset_base, "Invalid ParHIP node offset");
     const std::uint64_t relative_offset = edge_offset - _nodes_offset_base;
-    raise_if(relative_offset % _node_id_width != 0, "Invalid ParHIP node offset alignment");
-    const std::uint64_t edge = relative_offset / _node_id_width;
+    raise_if((relative_offset & (_node_id_width - 1)) != 0, "Invalid ParHIP node offset alignment");
+    const std::uint64_t edge = relative_offset >> (has_64_bit_node_id ? 3 : 2);
     raise_if(edge > num_edges, "ParHIP node offset points past the edge array");
     return checked_cast<EdgeID>(edge, "ParHIP node offset is too large for the edge ID type");
+  }
+
+  [[nodiscard]] EdgeID map_validated_edge_offset(const std::uint64_t edge_offset) const {
+    return static_cast<EdgeID>((edge_offset - _nodes_offset_base) >> (has_64_bit_node_id ? 3 : 2));
   }
 
   void validate(const kaminpar::io::BinaryReader &reader) const {
@@ -148,64 +154,50 @@ using namespace kaminpar::io;
 
 namespace {
 
-template <typename FetchRawOffset>
-void validate_raw_node_offsets(const ParhipHeader &header, FetchRawOffset &&fetch_raw_offset) {
-  EdgeID previous = header.map_edge_offset(fetch_raw_offset(0));
-  raise_if(previous != 0, "Invalid ParHIP first node offset");
-
-  for (NodeID u = 0; u < header.num_nodes; ++u) {
-    const EdgeID current = previous;
-    const EdgeID next = header.map_edge_offset(fetch_raw_offset(u + 1));
-    raise_if(current > next, "ParHIP node offsets are not monotone");
-    previous = next;
-  }
-
-  raise_if(previous != header.num_edges, "Invalid ParHIP final node offset");
-}
-
 NodeID parse_edge_endpoint(const std::uint64_t v, const ParhipHeader &header) {
   raise_if(v >= header.num_nodes, "ParHIP edge endpoint is out of bounds");
   return checked_cast<NodeID>(v, "ParHIP edge endpoint is too large for the node ID type");
 }
 
-template <typename FetchNodeWeight, typename FetchEdgeWeight>
-void collectively_validate_local_weight_sums(
-    const ParhipHeader &header,
-    const NodeID first_node,
-    const NodeID last_node,
-    const EdgeID first_edge,
-    const EdgeID last_edge,
-    FetchNodeWeight &&fetch_node_weight,
-    FetchEdgeWeight &&fetch_edge_weight,
-    const MPI_Comm comm
+void collectively_require_valid(
+    const int local_is_valid, const char *message, const MPI_Comm comm
 ) {
-  int local_weights_are_valid = 1;
-  try {
-    if (header.has_node_weights) {
-      validate_weight_sum<NodeWeight>(
-          last_node - first_node,
-          [&](const std::size_t i) {
-            return fetch_node_weight(first_node + static_cast<NodeID>(i));
-          },
-          "Local ParHIP node weight total is too large"
-      );
-    }
-    if (header.has_edge_weights) {
-      validate_weight_sum<EdgeWeight>(
-          last_edge - first_edge,
-          [&](const std::size_t i) {
-            return fetch_edge_weight(first_edge + static_cast<EdgeID>(i));
-          },
-          "Local ParHIP edge weight total is too large"
-      );
-    }
-  } catch (const IOException &) {
-    local_weights_are_valid = 0;
-  }
+  int is_valid = 0;
+  MPI_Allreduce(&local_is_valid, &is_valid, 1, MPI_INT, MPI_LAND, comm);
+  raise_if(is_valid == 0, message);
+}
 
-  int weights_are_valid = 0;
-  MPI_Allreduce(&local_weights_are_valid, &weights_are_valid, 1, MPI_INT, MPI_LAND, comm);
-  raise_if(weights_are_valid == 0, "Invalid ParHIP node or edge weight total");
+template <typename Weight>
+std::uint64_t
+add_weight_sum(const std::uint64_t total, const std::uint64_t weight, const char *message) {
+  constexpr auto max = static_cast<std::uint64_t>(std::numeric_limits<Weight>::max());
+  raise_if(weight > max || total > max - weight, message);
+  return total + weight;
+}
+
+template <typename FetchNodeWeight>
+void read_node_weights(
+    StaticArray<NodeWeight> &node_weights,
+    const NodeID num_local_nodes,
+    const NodeID first_node,
+    FetchNodeWeight &&fetch_node_weight
+) {
+  constexpr auto message = "Local ParHIP node weight total is too large";
+  tbb::parallel_reduce(
+      tbb::blocked_range<NodeID>(0, num_local_nodes, 16'384),
+      std::uint64_t{0},
+      [&](const auto &r, std::uint64_t total) {
+        for (NodeID u = r.begin(); u != r.end(); ++u) {
+          const NodeWeight weight = fetch_node_weight(first_node + u);
+          node_weights[u] = weight;
+          total = add_weight_sum<NodeWeight>(total, static_cast<std::uint64_t>(weight), message);
+        }
+        return total;
+      },
+      [&](const std::uint64_t lhs, const std::uint64_t rhs) {
+        return add_weight_sum<NodeWeight>(lhs, rhs, message);
+      }
+  );
 }
 
 template <typename Int>
@@ -218,6 +210,37 @@ compute_chunks(const Int length, const mpi::PEID num_processes, const mpi::PEID 
       from + ((static_cast<Int>(rank) < remainder) ? chunk_size + 1 : chunk_size), length
   );
   return std::make_pair(from, to);
+}
+
+template <typename FetchRawOffset>
+void collectively_validate_raw_node_offsets(
+    const ParhipHeader &header, FetchRawOffset &&fetch_raw_offset, const MPI_Comm comm
+) {
+  const auto [first_node, last_node] =
+      compute_chunks(header.num_nodes, mpi::get_comm_size(comm), mpi::get_comm_rank(comm));
+  int local_is_valid = 1;
+  try {
+    raise_if(header.map_edge_offset(fetch_raw_offset(0)) != 0, "Invalid ParHIP first node offset");
+    raise_if(
+        header.map_edge_offset(fetch_raw_offset(header.num_nodes)) != header.num_edges,
+        "Invalid ParHIP final node offset"
+    );
+    // Each rank checks its own chunk, including the offset immediately after it.
+    // This covers monotonicity across rank and TBB task boundaries as well.
+    tbb::parallel_for(
+        tbb::blocked_range<std::uint64_t>(first_node, last_node, 16'384), [&](const auto &r) {
+          EdgeID previous = header.map_edge_offset(fetch_raw_offset(r.begin()));
+          for (std::uint64_t u = r.begin(); u != r.end(); ++u) {
+            const EdgeID next = header.map_edge_offset(fetch_raw_offset(u + 1));
+            raise_if(previous > next, "ParHIP node offsets are not monotone");
+            previous = next;
+          }
+        }
+    );
+  } catch (const IOException &) {
+    local_is_valid = 0;
+  }
+  collectively_require_valid(local_is_valid, "Invalid ParHIP node offsets", comm);
 }
 
 template <typename Int, typename Lambda>
@@ -259,12 +282,17 @@ std::pair<std::uint64_t, std::uint64_t> find_local_nodes(
     return compute_chunks(num_nodes, size, rank);
   }
   case GraphDistribution::BALANCED_EDGES: {
+    if (num_edges == 0) {
+      return compute_chunks(num_nodes, size, rank);
+    }
     const auto [first_edge, last_edge] = compute_chunks(num_edges, size, rank);
 
     const std::uint64_t first_node =
         find_node(num_nodes, num_edges - 1, first_edge, std::forward<Lambda>(fetch_edge));
     const std::uint64_t last_node =
-        find_node(num_nodes, num_edges - 1, last_edge, std::forward<Lambda>(fetch_edge));
+        rank + 1 == size
+            ? num_nodes
+            : find_node(num_nodes, num_edges - 1, last_edge, std::forward<Lambda>(fetch_edge));
 
     return std::make_pair(first_node, last_node);
   }
@@ -318,9 +346,13 @@ DistributedCSRGraph csr_read(
   const EdgeID m = static_cast<EdgeID>(header.num_edges);
 
   const auto *raw_nodes = reader.fetch_raw(header.nodes_offset());
-  validate_raw_node_offsets(header, [&](const NodeID u) {
-    return fetch_unsigned(raw_nodes, header.has_64_bit_edge_id, u);
-  });
+  collectively_validate_raw_node_offsets(
+      header,
+      [&](const std::uint64_t u) {
+        return fetch_unsigned(raw_nodes, header.has_64_bit_edge_id, u);
+      },
+      comm
+  );
 
   const auto *raw_edges = header.num_edges > 0 ? reader.fetch_raw(header.edges_offset()) : nullptr;
 
@@ -333,7 +365,9 @@ DistributedCSRGraph csr_read(
                                      : nullptr;
 
   const auto map_edge_offset = [&](const NodeID node) {
-    return header.map_edge_offset(fetch_unsigned(raw_nodes, header.has_64_bit_edge_id, node));
+    return header.map_validated_edge_offset(
+        fetch_unsigned(raw_nodes, header.has_64_bit_edge_id, node)
+    );
   };
   const auto fetch_adjacent_node = [&](const EdgeID e) {
     return parse_edge_endpoint(fetch_unsigned(raw_edges, header.has_64_bit_node_id, e), header);
@@ -369,16 +403,6 @@ DistributedCSRGraph csr_read(
   const EdgeID first_edge = map_edge_offset(first_node);
   const EdgeID last_edge = map_edge_offset(last_node);
   const EdgeID num_local_edges = last_edge - first_edge;
-  collectively_validate_local_weight_sums(
-      header,
-      first_node,
-      last_node,
-      first_edge,
-      last_edge,
-      fetch_node_weight,
-      fetch_edge_weight,
-      comm
-  );
 
   StaticArray<GlobalNodeID> node_distribution(size + 1);
   node_distribution[rank + 1] = last_node;
@@ -411,54 +435,58 @@ DistributedCSRGraph csr_read(
   );
 
   graph::GhostNodeMapper mapper(rank, node_distribution);
-  StaticArray<EdgeID> nodes(num_local_nodes + 1, static_array::noinit);
+  StaticArray<EdgeID> nodes(static_cast<std::size_t>(num_local_nodes) + 1, static_array::noinit);
   StaticArray<NodeID> edges(num_local_edges, static_array::noinit);
   StaticArray<EdgeWeight> edge_weights;
   if (header.has_edge_weights) {
     edge_weights.resize(num_local_edges, static_array::noinit);
   }
 
-  EdgeID edge = 0;
-  for (NodeID u = first_node; u < last_node; ++u) {
-    const NodeID node = u - first_node;
-    nodes[node] = edge;
-
-    const EdgeID offset = map_edge_offset(u);
-    const EdgeID next_offset = map_edge_offset(u + 1);
-
-    const auto degree = static_cast<NodeID>(next_offset - offset);
-    for (NodeID i = 0; i < degree; ++i) {
-      const EdgeID e = offset + i;
-
-      NodeID adjacent_node = fetch_adjacent_node(e);
-      if (adjacent_node >= first_node && adjacent_node < last_node) {
-        edges[edge] = adjacent_node - first_node;
-      } else {
-        edges[edge] = mapper.new_ghost_node(adjacent_node);
-      }
-
-      if (header.has_edge_weights) [[unlikely]] {
-        edge_weights[edge] = fetch_edge_weight(e);
-      }
-
-      edge += 1;
-    }
-  }
-  nodes[num_local_nodes] = edge;
-
   StaticArray<NodeWeight> node_weights;
-  if (header.has_node_weights) {
-    node_weights.resize(mapper.next_ghost_node(), static_array::noinit);
+  int local_is_valid = 1;
+  try {
+    EdgeID edge = 0;
+    std::uint64_t total_edge_weight = 0;
+    for (NodeID u = first_node; u < last_node; ++u) {
+      const NodeID node = u - first_node;
+      nodes[node] = edge;
 
-    tbb::parallel_for(
-        tbb::blocked_range<NodeID>(0, num_local_nodes),
-        [&, first_node = first_node](const auto &r) {
-          for (NodeID u = r.begin(); u != r.end(); ++u) {
-            node_weights[u] = fetch_node_weight(first_node + u);
-          }
+      const EdgeID offset = map_edge_offset(u);
+      const EdgeID next_offset = map_edge_offset(u + 1);
+
+      for (EdgeID e = offset; e < next_offset; ++e) {
+
+        NodeID adjacent_node = fetch_adjacent_node(e);
+        if (adjacent_node >= first_node && adjacent_node < last_node) {
+          edges[edge] = adjacent_node - first_node;
+        } else {
+          edges[edge] = mapper.new_ghost_node(adjacent_node);
         }
-    );
+
+        if (header.has_edge_weights) [[unlikely]] {
+          const EdgeWeight weight = fetch_edge_weight(e);
+          edge_weights[edge] = weight;
+          total_edge_weight = add_weight_sum<EdgeWeight>(
+              total_edge_weight,
+              static_cast<std::uint64_t>(weight),
+              "Local ParHIP edge weight total is too large"
+          );
+        }
+
+        edge += 1;
+      }
+    }
+    nodes[num_local_nodes] = edge;
+
+    if (header.has_node_weights) {
+      node_weights.resize(mapper.next_ghost_node(), static_array::noinit);
+
+      read_node_weights(node_weights, num_local_nodes, first_node, fetch_node_weight);
+    }
+  } catch (const IOException &) {
+    local_is_valid = 0;
   }
+  collectively_require_valid(local_is_valid, "Invalid local ParHIP graph data", comm);
 
   auto [global_to_ghost, ghost_to_global, ghost_owner] = mapper.finalize();
 
@@ -502,9 +530,13 @@ DistributedCompressedGraph compressed_read(
   const EdgeID m = static_cast<EdgeID>(header.num_edges);
 
   const auto *raw_nodes = reader.fetch_raw(header.nodes_offset());
-  validate_raw_node_offsets(header, [&](const NodeID u) {
-    return fetch_unsigned(raw_nodes, header.has_64_bit_edge_id, u);
-  });
+  collectively_validate_raw_node_offsets(
+      header,
+      [&](const std::uint64_t u) {
+        return fetch_unsigned(raw_nodes, header.has_64_bit_edge_id, u);
+      },
+      comm
+  );
 
   const auto *raw_edges = header.num_edges > 0 ? reader.fetch_raw(header.edges_offset()) : nullptr;
 
@@ -517,7 +549,9 @@ DistributedCompressedGraph compressed_read(
                                      : nullptr;
 
   const auto map_edge_offset = [&](const NodeID node) {
-    return header.map_edge_offset(fetch_unsigned(raw_nodes, header.has_64_bit_edge_id, node));
+    return header.map_validated_edge_offset(
+        fetch_unsigned(raw_nodes, header.has_64_bit_edge_id, node)
+    );
   };
   const auto fetch_adjacent_node = [&](const EdgeID e) {
     return parse_edge_endpoint(fetch_unsigned(raw_edges, header.has_64_bit_node_id, e), header);
@@ -553,16 +587,6 @@ DistributedCompressedGraph compressed_read(
   const EdgeID first_edge = map_edge_offset(first_node);
   const EdgeID last_edge = map_edge_offset(last_node);
   const EdgeID num_local_edges = last_edge - first_edge;
-  collectively_validate_local_weight_sums(
-      header,
-      first_node,
-      last_node,
-      first_edge,
-      last_edge,
-      fetch_node_weight,
-      fetch_edge_weight,
-      comm
-  );
 
   StaticArray<GlobalNodeID> node_distribution(size + 1);
   node_distribution[rank + 1] = last_node;
@@ -599,49 +623,52 @@ DistributedCompressedGraph compressed_read(
       num_local_nodes, num_local_edges, header.has_edge_weights
   );
 
-  std::vector<std::pair<NodeID, EdgeWeight>> neighbourhood;
-  for (NodeID u = first_node; u < last_node; ++u) {
-    const EdgeID offset = map_edge_offset(u);
-    const EdgeID next_offset = map_edge_offset(u + 1);
+  StaticArray<NodeWeight> node_weights;
+  int local_is_valid = 1;
+  try {
+    std::uint64_t total_edge_weight = 0;
+    std::vector<std::pair<NodeID, EdgeWeight>> neighbourhood;
+    for (NodeID u = first_node; u < last_node; ++u) {
+      const EdgeID offset = map_edge_offset(u);
+      const EdgeID next_offset = map_edge_offset(u + 1);
 
-    const auto degree = static_cast<NodeID>(next_offset - offset);
-    for (NodeID i = 0; i < degree; ++i) {
-      const EdgeID e = offset + i;
+      for (EdgeID e = offset; e < next_offset; ++e) {
 
-      NodeID adjacent_node = fetch_adjacent_node(e);
-      if (adjacent_node >= first_node && adjacent_node < last_node) {
-        adjacent_node = adjacent_node - first_node;
-      } else {
-        adjacent_node = mapper.new_ghost_node(adjacent_node);
+        NodeID adjacent_node = fetch_adjacent_node(e);
+        if (adjacent_node >= first_node && adjacent_node < last_node) {
+          adjacent_node = adjacent_node - first_node;
+        } else {
+          adjacent_node = mapper.new_ghost_node(adjacent_node);
+        }
+
+        EdgeWeight edge_weight;
+        if (header.has_edge_weights) [[unlikely]] {
+          edge_weight = fetch_edge_weight(e);
+          total_edge_weight = add_weight_sum<EdgeWeight>(
+              total_edge_weight,
+              static_cast<std::uint64_t>(edge_weight),
+              "Local ParHIP edge weight total is too large"
+          );
+        } else {
+          edge_weight = 1;
+        }
+
+        neighbourhood.emplace_back(adjacent_node, edge_weight);
       }
 
-      EdgeWeight edge_weight;
-      if (header.has_edge_weights) [[unlikely]] {
-        edge_weight = fetch_edge_weight(e);
-      } else {
-        edge_weight = 1;
-      }
-
-      neighbourhood.emplace_back(adjacent_node, edge_weight);
+      builder.add(u - first_node, std::span<std::pair<NodeID, EdgeWeight>>(neighbourhood));
+      neighbourhood.clear();
     }
 
-    builder.add(u - first_node, std::span<std::pair<NodeID, EdgeWeight>>(neighbourhood));
-    neighbourhood.clear();
-  }
+    if (header.has_node_weights) {
+      node_weights.resize(mapper.next_ghost_node(), static_array::noinit);
 
-  StaticArray<NodeWeight> node_weights;
-  if (header.has_node_weights) {
-    node_weights.resize(mapper.next_ghost_node(), static_array::noinit);
-
-    tbb::parallel_for(
-        tbb::blocked_range<NodeID>(0, num_local_nodes),
-        [&, first_node = first_node](const auto &r) {
-          for (NodeID u = r.begin(); u != r.end(); ++u) {
-            node_weights[u] = fetch_node_weight(first_node + u);
-          }
-        }
-    );
+      read_node_weights(node_weights, num_local_nodes, first_node, fetch_node_weight);
+    }
+  } catch (const IOException &) {
+    local_is_valid = 0;
   }
+  collectively_require_valid(local_is_valid, "Invalid local ParHIP graph data", comm);
 
   DistributedCompressedGraph graph(
       std::move(node_distribution),

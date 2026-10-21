@@ -8,7 +8,6 @@
 #pragma once
 
 #include <algorithm>
-#include <cctype>
 #include <cstdint>
 #include <limits>
 #include <string>
@@ -121,21 +120,51 @@ public:
   }
 
   inline std::uint64_t scan_uint() {
-    if (!current_is_digit()) [[unlikely]] {
+    std::size_t position = _position;
+    if (position >= _end) [[unlikely]] {
+      throw IOException("Expected unsigned integer");
+    }
+
+    std::uint64_t digit = static_cast<unsigned char>(_contents[position]) - '0';
+    if (digit > 9) [[unlikely]] {
       throw IOException("Expected unsigned integer");
     }
 
     std::uint64_t number = 0;
-    while (current_is_digit()) {
-      const std::uint64_t digit = current() - '0';
-      if (number > (std::numeric_limits<std::uint64_t>::max() - digit) / 10) [[unlikely]] {
-        throw IOException("Unsigned integer is too large");
-      }
+    do {
       number = number * 10 + digit;
-      advance();
+      ++position;
+      if (position == _end) {
+        break;
+      }
+      digit = static_cast<unsigned char>(_contents[position]) - '0';
+    } while (digit <= 9);
+
+    // Every decimal integer with at most 19 digits fits in uint64_t. For longer
+    // tokens, unsigned wraparound above is defined; reparse with overflow checks
+    // before using the result, including tokens with arbitrarily many leading zeros.
+    if (position - _position > 19) [[unlikely]] {
+      constexpr std::uint64_t kMax = std::numeric_limits<std::uint64_t>::max();
+      number = 0;
+      for (std::size_t checked_position = _position; checked_position < position;
+           ++checked_position) {
+        const std::uint64_t checked_digit =
+            static_cast<unsigned char>(_contents[checked_position]) - '0';
+        if (number >= kMax / 10) [[unlikely]] {
+          if (number > kMax / 10 || checked_digit > kMax % 10) {
+            _position = checked_position;
+            throw IOException("Unsigned integer is too large");
+          }
+        }
+        number = number * 10 + checked_digit;
+      }
     }
 
-    skip_spaces();
+    while (position < _end && _contents[position] == ' ') {
+      ++position;
+    }
+
+    _position = position;
     return number;
   }
 
@@ -198,7 +227,7 @@ public:
   }
 
   [[nodiscard]] inline bool current_is_digit() const {
-    return valid_position() && std::isdigit(static_cast<unsigned char>(current()));
+    return valid_position() && static_cast<unsigned char>(current() - '0') <= 9;
   }
 
   inline void advance() {
