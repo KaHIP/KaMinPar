@@ -109,7 +109,7 @@ public:
       // Avoid n*k storage on unsorted input and packed connectivity overflow.
       return refine_with_cache<OnTheFlyGainCache<Graph, false, false, true>>(p_graph, graph, p_ctx);
     case JetGainCacheStrategy::JET:
-      return refine_with_cache<JetGainCache<Graph>>(p_graph, graph, p_ctx);
+      return refine_with_cache<SynchronousJetGainCache<Graph>>(p_graph, graph, p_ctx);
     }
     return false;
   }

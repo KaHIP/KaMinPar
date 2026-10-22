@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <type_traits>
 #include <utility>
 
 #include <tbb/enumerable_thread_specific.h>
@@ -34,9 +35,17 @@ namespace kaminpar::shm {
 // Unlike the GPU algorithm's two update passes and third reconstruction pass, move() applies
 // both deltas while holding the affected row's lock. Growing a row rehashes its exact current
 // contents; reconstructing it from the partition here would race with concurrent moves.
-// Queries also take this lock, so this cache can be used by asynchronous balancers as well as
-// Jet's synchronous phases. initialize() and free() require all users to be quiescent.
-template <typename GraphType> class JetGainCache {
+// Queries also take this lock by default, permitting concurrent queries and moves. Disabling
+// query locking requires that every query phase be separated from all move operations by a
+// barrier; sequential query-then-move use is also allowed. initialize() and free() always require
+// all users to be quiescent. Writer locks remain enabled for either specialization.
+template <typename GraphType, bool lock_queries = true> class JetGainCache {
+  struct UnlockedQueryGuard {
+    explicit UnlockedQueryGuard(tbb::spin_mutex &) {}
+  };
+  using QueryGuard =
+      std::conditional_t<lock_queries, tbb::spin_mutex::scoped_lock, UnlockedQueryGuard>;
+
   struct Entry {
     BlockID block = kInvalidBlockID;
     EdgeWeight weight = 0;
@@ -115,34 +124,34 @@ public:
 
   [[nodiscard]] EdgeWeight conn(const NodeID u, const BlockID block) const {
     const Row &row = _rows[u];
-    const tbb::spin_mutex::scoped_lock lock(row.mutex);
+    const QueryGuard lock(row.mutex);
     return lookup(row, block);
   }
 
   [[nodiscard]] EdgeWeight gain(const NodeID u, const BlockID from, const BlockID to) const {
     const Row &row = _rows[u];
-    const tbb::spin_mutex::scoped_lock lock(row.mutex);
+    const QueryGuard lock(row.mutex);
     return lookup(row, to) - lookup(row, from);
   }
 
   [[nodiscard]] std::pair<EdgeWeight, EdgeWeight>
   gain(const NodeID u, const BlockID from, const std::pair<BlockID, BlockID> &targets) const {
     const Row &row = _rows[u];
-    const tbb::spin_mutex::scoped_lock lock(row.mutex);
+    const QueryGuard lock(row.mutex);
     const EdgeWeight source = lookup(row, from);
     return {lookup(row, targets.first) - source, lookup(row, targets.second) - source};
   }
 
   [[nodiscard]] bool is_border_node(const NodeID u, const BlockID from) const {
     const Row &row = _rows[u];
-    const tbb::spin_mutex::scoped_lock lock(row.mutex);
+    const QueryGuard lock(row.mutex);
     return row.weighted_degree != lookup(row, from);
   }
 
-  // The callback must not reenter this cache for the same vertex while the row is locked.
+  // With query locking enabled, the callback must not reenter this cache for the same vertex.
   template <typename Lambda> void for_each_connection(const NodeID u, Lambda &&lambda) const {
     const Row &row = _rows[u];
-    const tbb::spin_mutex::scoped_lock lock(row.mutex);
+    const QueryGuard lock(row.mutex);
     for (std::size_t i = 0; i < row.capacity; ++i) {
       const Entry &entry = row.entries[i];
       if (entry.block != kInvalidBlockID) {
@@ -203,7 +212,7 @@ public:
 
   [[nodiscard]] std::size_t row_capacity(const NodeID u) const {
     const Row &row = _rows[u];
-    const tbb::spin_mutex::scoped_lock lock(row.mutex);
+    const QueryGuard lock(row.mutex);
     return row.capacity;
   }
 
@@ -315,5 +324,9 @@ private:
   std::unique_ptr<Row[]> _rows;
   StaticArray<Entry> _initial_entries;
 };
+
+// Jet queries only between blocking parallel move phases. Avoiding reader locks prevents
+// otherwise read-only scans from contending on frequently queried neighbors.
+template <typename Graph> using SynchronousJetGainCache = JetGainCache<Graph, false>;
 
 } // namespace kaminpar::shm

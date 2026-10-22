@@ -23,7 +23,10 @@ namespace {
 
 using namespace testing;
 
-void expect_exact(const JetGainCache<CSRGraph> &cache, const PartitionedGraph &p_graph) {
+template <bool lock_queries>
+void expect_exact(
+    const JetGainCache<CSRGraph, lock_queries> &cache, const PartitionedGraph &p_graph
+) {
   for (const NodeID u : p_graph.graph().csr_graph().nodes()) {
     std::vector<EdgeWeight> expected(p_graph.k(), 0);
     p_graph.graph().csr_graph().adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
@@ -156,6 +159,28 @@ TEST(JetGainCacheTest, DoesNotPackOrTruncateEdgeWeights) {
   cache.move(1, 1023, 511);
   p_graph.set_block(1, 511);
   expect_exact(cache, p_graph);
+}
+
+TEST(JetGainCacheTest, UnlockedQueriesAreExactBetweenParallelMovePhases) {
+  const tbb::global_control control(tbb::global_control::max_allowed_parallelism, 4);
+  const auto graph = make_complete_bipartite_graph(8, 128, [](const NodeID u, const NodeID v) {
+    return static_cast<EdgeWeight>(1 + (u + v) % 7);
+  });
+  auto p_graph = make_p_graph(graph, 67, std::vector<BlockID>(graph.n(), 0));
+  const Context ctx = create_default_context();
+  SynchronousJetGainCache<CSRGraph> cache(ctx, graph.n(), p_graph.k());
+  cache.initialize(graph.csr_graph(), p_graph);
+
+  for (int iteration = 0; iteration < 12; ++iteration) {
+    // The blocking parallel_for separates all writes (including row growth) from queries.
+    graph.csr_graph().pfor_nodes([&](const NodeID u) {
+      const BlockID to = iteration % 2 == 0 ? (u + iteration) % p_graph.k() : 0;
+      const BlockID from = p_graph.block(u);
+      p_graph.set_block(u, to);
+      cache.move(u, from, to);
+    });
+    expect_exact(cache, p_graph);
+  }
 }
 
 TEST(JetGainCacheTest, ReinitializesAfterRollbackAndGraphOrBlockCountChanges) {
