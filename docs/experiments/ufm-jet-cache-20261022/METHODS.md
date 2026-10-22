@@ -1,0 +1,11 @@
+# UFM adaptive-cache experiment protocol
+
+This reduced study compares stock Eco UFM, corrected compact-hashing UFM, and adaptive Jet-cache UFM. Stock comes from the frozen Jet PR head `183e170ba396c66bc380d20b09b6928bbb55c000`. The candidate executable shares corrected large-k delta-cache semantics and scratch reuse across its compact and Jet arms; only the selected gain cache differs. Stock is rebuilt from its own immutable source archive. Both builds use identical compiler/dependency/options on dijkstra. The existing UFM compact-hashing strategy already uses the large-k cache path.
+
+The 108 planned calls cover six preselected UFM corpus graphs, k=16 and 1024, and seeds 1–3. Each cell runs all three arms consecutively, with each of six arm orders appearing six times. The graphs are Long_Coup_dt6, com-lj.ungraph, kron_g500-simple-logn19, recomp_dna1GB_9, recomp_sources1GB_9, and soc-flickr-und. All use Eco, epsilon 0.03, 32 physical cores on an exclusive dijkstra allocation, and a 300-second per-call timeout. The measurement reservation is two hours. Input hashes and binary hashes are verified; originals remain unchanged. Nine edge-weighted smoke cases (three arms at k=2/16/64) precede measurement.
+
+Each run retains its command, source and binary provenance, raw output, exact block sizes, and process peak RSS. Feasibility requires the expected k, unit-node-weight total n, and every block within floor(1.03 ceil(n/k)). Partitioning runtime excludes graph I/O. UFM time sums per-level UFM timer roots without counting descendants twice; direct UFM phases and cache-initialization subphases are also retained. Missing, invalid, and timed-out runs stay in the manifest. An independent audit re-parses raw records and checks hashes and block counts.
+
+The three comparisons are adaptive versus corrected compact, corrected compact versus stock, and adaptive versus stock. Report paired geometric mean ratios by k and overall, plus per-graph details. Parallel scheduling and iteration-order changes can alter the optimization trajectory, so phase-time differences do not isolate per-operation costs. This fixed six-graph screening subset does not establish full-corpus superiority.
+
+Status: protocol and runner validated; only the stock build is authorized until candidate tests and source freeze are confirmed. No measurements have begun.

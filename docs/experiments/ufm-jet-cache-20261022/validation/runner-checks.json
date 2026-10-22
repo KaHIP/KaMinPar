@@ -1,0 +1,29 @@
+{
+  "kind": "synthetic_runner_validation_not_measurements",
+  "checks": [
+    "36 archived UFM logs parse with explicit compact-hashing and UFM timers",
+    "108 matched calls with 36 per arm, 12 per arm-position, six of each order, correct executable/cache routing",
+    "auditor accepts valid three-arm fixture with two binary hashes",
+    "auditor rejects non-ok row status",
+    "auditor rejects wrong RESULT k with otherwise valid block counts",
+    "auditor rejects mismatched reported gain-cache selection",
+    "auditor rejects swapped stock/candidate binary hash",
+    "auditor retains timeout as invalid row without raising",
+    "auditor retains missing RSS evidence for an invalid row",
+    "auditor retains malformed RSS evidence for an invalid row",
+    "auditor retains missing block evidence for an invalid row",
+    "auditor retains malformed block evidence for an invalid row",
+    "parser rejects cache fallback",
+    "parser rejects absent cache confirmation",
+    "timer roots and direct phases avoid descendant double-counting",
+    "zero candidate cut preserved; zero/zero cut ratio is one"
+  ],
+  "old_eco_parser_checks": {
+    "logs": 36,
+    "ufm_seconds": 144.29399999999998
+  },
+  "runner_sha256": "f256cf9c44fde1ded1860a6281a934de9f924cc1e718b3115c91ac4fae66a0be",
+  "auditor_sha256": "2b228b1d0289531a1a2484156bd8047c1208b7973a8f7ac0594fbfa5dbb2fec9",
+  "fixture_directory": "/private/tmp/ufm-cache-runner-synthetic-_agt0c2f",
+  "passed": true
+}
