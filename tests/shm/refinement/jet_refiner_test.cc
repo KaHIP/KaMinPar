@@ -128,6 +128,28 @@ TEST_P(JetRefinerTest, KeepsBalancedRepairWhenInitialInfeasiblePartitionHasSmall
   EXPECT_TRUE(metrics::is_feasible(p_graph, ctx.partition));
 }
 
+TEST_P(JetRefinerTest, KeepsBalancedRepairWhenCombinedViolationExceedsBlockWeightRange) {
+  // The total weight (6 * weight) fits, but the combined overload and underload
+  // (8 * weight) exceeds the signed range in both 32-bit and 64-bit builds.
+  constexpr NodeWeight weight = std::numeric_limits<NodeWeight>::max() / 7;
+  constexpr BlockWeight target_weight = 2 * weight;
+  auto g = graph(6, {}, 1, std::vector<NodeWeight>(6, weight));
+  auto p_graph = make_p_graph(g, 3, {0, 0, 0, 0, 0, 0});
+  Context ctx = context(g, 3);
+  ctx.partition.setup(g, std::vector<BlockWeight>(3, target_weight));
+  ctx.partition.setup_min_block_weights(std::vector<BlockWeight>(3, target_weight));
+  ASSERT_EQ(metrics::edge_cut(p_graph), 0);
+  ASSERT_FALSE(metrics::is_feasible(p_graph, ctx.partition));
+
+  EXPECT_TRUE(refine(ctx, p_graph));
+
+  EXPECT_EQ(metrics::edge_cut(p_graph), 0);
+  EXPECT_TRUE(metrics::is_feasible(p_graph, ctx.partition));
+  for (const BlockID b : p_graph.blocks()) {
+    EXPECT_EQ(p_graph.block_weight(b), target_weight);
+  }
+}
+
 TEST_P(JetRefinerTest, PreservesFeasiblePartitionWhenNoImprovementExists) {
   auto g = graph(4, {{0, 1}, {2, 3}});
   auto p_graph = make_p_graph(g, 2, {0, 0, 1, 1});

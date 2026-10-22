@@ -102,7 +102,9 @@ public:
     EdgeWeight best_cut = initial_cut;
     std::int64_t current_cut = initial_cut;
     const auto total_violation = [&] {
-      BlockWeight violation = 0;
+      // Overload and underload can each approach the total node weight, so their
+      // sum needs the unsigned range even when individual block weights fit.
+      UnsignedNodeWeight violation = 0;
       for (const BlockID b : p_graph.blocks()) {
         const BlockWeight weight = p_graph.block_weight(b);
         violation += std::max<BlockWeight>(0, weight - p_ctx.max_block_weight(b));
@@ -110,8 +112,8 @@ public:
       }
       return violation;
     };
-    const BlockWeight initial_violation = total_violation();
-    BlockWeight best_violation = initial_violation;
+    const UnsignedNodeWeight initial_violation = total_violation();
+    UnsignedNodeWeight best_violation = initial_violation;
     bool last_iteration_is_best = true;
     bool previous_lp_moved = false;
     STOP_TIMER();
@@ -266,7 +268,7 @@ public:
           });
         };
         const EdgeWeight final_cut = static_cast<EdgeWeight>(current_cut);
-        const BlockWeight violation = total_violation();
+        const UnsignedNodeWeight violation = total_violation();
         const bool improved_balance = violation < best_violation;
         const bool improved_cut = violation == best_violation && final_cut < best_cut;
         const bool significant_improvement =
