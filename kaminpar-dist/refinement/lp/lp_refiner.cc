@@ -40,6 +40,7 @@ struct LPRefinerConfig : public LabelPropagationConfig {
   using ClusterWeight = BlockWeight;
 
   static constexpr bool kTrackClusterCount = false;
+  static constexpr bool kSkipLosingClusterWeights = true;
   static constexpr bool kUseTwoHopClustering = false;
   static constexpr bool kUseActualGain = true;
 
@@ -391,7 +392,7 @@ public:
 
   void init_cluster(const NodeID u, const BlockID b) {
     KASSERT(u < _next_partition.size());
-    _next_partition[u] = b;
+    __atomic_store_n(&_next_partition[u], b, __ATOMIC_RELAXED);
   }
 
   [[nodiscard]] BlockID initial_cluster(const NodeID u) {
@@ -401,12 +402,13 @@ public:
 
   [[nodiscard]] BlockID cluster(const NodeID u) {
     KASSERT(u < _graph->total_n());
-    return _graph->is_owned_node(u) ? _next_partition[u] : _p_graph->block(u);
+    return _graph->is_owned_node(u) ? __atomic_load_n(&_next_partition[u], __ATOMIC_RELAXED)
+                                    : _p_graph->block(u);
   }
 
   void move_node(const NodeID u, const BlockID b) {
     KASSERT(u < _graph->n());
-    _next_partition[u] = b;
+    __atomic_store_n(&_next_partition[u], b, __ATOMIC_RELAXED);
   }
 
   [[nodiscard]] BlockWeight initial_cluster_weight(const BlockID b) {

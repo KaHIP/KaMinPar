@@ -102,16 +102,14 @@ public:
   }
 
   void atomic_push_back(T t) {
-    KASSERT(_size < _data.size());
-
     const std::size_t pos = __atomic_fetch_add(&_size, 1, __ATOMIC_RELAXED);
+    KASSERT(pos < _data.size());
     _data[pos] = t;
   }
 
   void atomic_push_back(std::span<const T> ts) {
-    KASSERT(_size + ts.size() <= _data.size());
-
     const std::size_t pos = __atomic_fetch_add(&_size, ts.size(), __ATOMIC_RELAXED);
+    KASSERT(pos + ts.size() <= _data.size());
     std::copy(ts.begin(), ts.end(), _data.begin() + pos);
   }
 

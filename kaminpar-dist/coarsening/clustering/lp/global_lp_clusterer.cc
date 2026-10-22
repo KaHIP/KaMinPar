@@ -10,6 +10,7 @@
 #include "kaminpar-mpi/sparse_alltoall.h"
 
 #include "kaminpar-dist/datastructures/distributed_graph.h"
+#include "kaminpar-dist/datastructures/foreign_cluster_weights.h"
 #include "kaminpar-dist/datastructures/growt.h"
 #include "kaminpar-dist/distributed_label_propagation.h"
 #include "kaminpar-dist/graphutils/communication.h"
@@ -34,6 +35,7 @@ struct GlobalLPClusteringConfig : public LabelPropagationConfig {
   using ClusterWeight = GlobalNodeWeight;
 
   static constexpr bool kTrackClusterCount = false;   // NOLINT
+  static constexpr bool kSkipLosingClusterWeights = true;
   static constexpr bool kUseTwoHopClustering = false; // NOLINT
   static constexpr bool kUseActiveSetStrategy = true; // NOLINT
 };
@@ -45,7 +47,7 @@ struct GlobalLPClusteringMemoryContext : public LabelPropagationMemoryContext<
                                              GlobalLPClusteringConfig::ClusterID> {
   StaticArray<GlobalNodeID> changed_label;
   StaticArray<std::uint8_t> locked;
-  growt::GlobalNodeIDMap<GlobalNodeWeight> cluster_weights{0};
+  ForeignClusterWeights cluster_weights;
   StaticArray<GlobalNodeWeight> local_cluster_weights;
   growt::GlobalNodeIDMap<GlobalNodeWeight> weight_deltas{0};
 };
@@ -93,7 +95,6 @@ public:
 
   GlobalLPClusteringMemoryContext release() {
     _weight_delta_handles_ets.clear();
-    _cluster_weights_handles_ets.clear();
 
     auto [rating_map_ets, active, favored_clusters] = Base::release();
     return {
@@ -137,11 +138,11 @@ public:
     TIMER_BARRIER(graph.communicator());
     START_TIMER("Initialize datastructures");
     START_HEAP_PROFILER("Initialize datastructures");
-    _cluster_weights_handles_ets.clear();
-    _cluster_weights = ClusterWeightsMap{0};
+    _cluster_weights.reset(graph.ghost_n());
     std::fill(_local_cluster_weights.begin(), _local_cluster_weights.end(), 0);
 
     Base::initialize(&graph, graph.total_n());
+    _cluster_weights.finish_initialization();
     initialize_ghost_node_clusters();
     STOP_HEAP_PROFILER();
     STOP_TIMER();
@@ -217,9 +218,7 @@ public:
     } else {
       KASSERT(lcluster < _graph->total_n());
       const auto gcluster = _graph->local_to_global_node(static_cast<NodeID>(lcluster));
-      auto &handle = _cluster_weights_handles_ets.local();
-      [[maybe_unused]] const auto [it, success] = handle.insert(gcluster + 1, weight);
-      KASSERT(success, "Cluster already initialized: " << gcluster + 1);
+      _cluster_weights.initialize_entry(lcluster - _graph->n(), gcluster, weight);
     }
   }
 
@@ -228,10 +227,7 @@ public:
       const NodeID lcluster = _graph->global_to_local_node(gcluster);
       return __atomic_load_n(&_local_cluster_weights[lcluster], __ATOMIC_RELAXED);
     } else {
-      auto &handle = _cluster_weights_handles_ets.local();
-      auto it = handle.find(gcluster + 1);
-      KASSERT(it != handle.end(), "read weight of uninitialized cluster: " << gcluster);
-      return (*it).second;
+      return _cluster_weights.weight(gcluster);
     }
   }
 
@@ -247,31 +243,19 @@ public:
       return false;
     }
 
-    auto &handle = _cluster_weights_handles_ets.local();
-
     if (_graph->is_owned_global_node(old_gcluster)) {
       const NodeID old_lcluster = _graph->global_to_local_node(old_gcluster);
       __atomic_fetch_sub(&_local_cluster_weights[old_lcluster], weight_delta, __ATOMIC_RELAXED);
     } else {
       // Otherwise, move node to new cluster
-      [[maybe_unused]] const auto [it, found] = handle.update(
-          old_gcluster + 1, [](auto &lhs, const auto rhs) { return lhs -= rhs; }, weight_delta
-      );
-      KASSERT(
-          it != handle.end() && found, "moved weight from uninitialized cluster: " << old_gcluster
-      );
+      _cluster_weights.subtract(old_gcluster, weight_delta);
     }
 
     if (_graph->is_owned_global_node(new_gcluster)) {
       const NodeID new_lcluster = _graph->global_to_local_node(new_gcluster);
       __atomic_fetch_add(&_local_cluster_weights[new_lcluster], weight_delta, __ATOMIC_RELAXED);
     } else {
-      [[maybe_unused]] const auto [it, found] = handle.update(
-          new_gcluster + 1, [](auto &lhs, const auto rhs) { return lhs += rhs; }, weight_delta
-      );
-      KASSERT(
-          it != handle.end() && found, "moved weight to uninitialized cluster: " << new_gcluster
-      );
+      _cluster_weights.add(new_gcluster, weight_delta);
     }
 
     return true;
@@ -284,15 +268,8 @@ public:
       const NodeID lcluster = _graph->global_to_local_node(gcluster);
       __atomic_fetch_add(&_local_cluster_weights[lcluster], delta, __ATOMIC_RELAXED);
     } else {
-      auto &handle = _cluster_weights_handles_ets.local();
-
-      [[maybe_unused]] const auto [it, not_found] = handle.insert_or_update(
-          gcluster + 1, delta, [](auto &lhs, const auto rhs) { return lhs += rhs; }, delta
-      );
-      KASSERT(
-          it != handle.end() && (!must_exist || !not_found),
-          "changed weight of uninitialized cluster: " << gcluster
-      );
+      // The joined ghost-label batch prepares new foreign IDs before receiver integration.
+      _cluster_weights.add(gcluster, delta);
     }
   }
 
@@ -591,46 +568,58 @@ private:
       ClusterID new_gcluster;
     };
 
-    mpi::graph::sparse_alltoall_interface_to_pe<ChangedLabelMessage>(
+    auto buffers = mpi::graph::sparse_alltoall_interface_to_pe_get<ChangedLabelMessage>(
         *_graph,
         from,
         to,
         [&](const NodeID lnode) { return _changed_label[lnode] != kInvalidGlobalNodeID; },
-        [&](const NodeID lnode) -> ChangedLabelMessage { return {lnode, cluster(lnode)}; },
-        [&](const auto &buffer, const PEID owner) {
-          tbb::parallel_for(tbb::blocked_range<std::size_t>(0, buffer.size()), [&](const auto &r) {
-            auto &weight_delta_handle = _weight_delta_handles_ets.local();
-
-            for (std::size_t i = r.begin(); i != r.end(); ++i) {
-              const auto [owner_lnode, new_gcluster] = buffer[i];
-
-              const GlobalNodeID gnode = _graph->offset_n(owner) + owner_lnode;
-              KASSERT(!_graph->is_owned_global_node(gnode));
-
-              const NodeID lnode = _graph->global_to_local_node(gnode);
-              const NodeWeight weight = _graph->node_weight(lnode);
-
-              const GlobalNodeID old_gcluster = cluster(lnode);
-
-              // If we synchronize the weights of clusters with local
-              // changes, we already have the right weight including ghost
-              // vertices --> only update weight if we did not get an update
-
-              if (!should_sync_cluster_weights() ||
-                  weight_delta_handle.find(old_gcluster + 1) == weight_delta_handle.end()) {
-                change_cluster_weight(old_gcluster, -weight, true);
-              }
-              NonatomicClusterVectorRef::move_node(lnode, new_gcluster);
-              if (!should_sync_cluster_weights() ||
-                  weight_delta_handle.find(new_gcluster + 1) == weight_delta_handle.end()) {
-                change_cluster_weight(new_gcluster, weight, false);
-              }
-
-              Base::activate_neighbors_of_ghost_node(lnode);
-            }
-          });
-        }
+        [&](const NodeID lnode) -> ChangedLabelMessage { return {lnode, cluster(lnode)}; }
     );
+
+    std::vector<GlobalNodeID> new_foreign_clusters;
+    for (const auto &buffer : buffers) {
+      for (const auto &message : buffer) {
+        if (!_graph->is_owned_global_node(message.new_gcluster)) {
+          new_foreign_clusters.push_back(message.new_gcluster);
+        }
+      }
+    }
+    _cluster_weights.prepare_keys(new_foreign_clusters);
+
+    tbb::parallel_for<PEID>(0, buffers.size(), [&](const PEID owner) {
+      const auto &buffer = buffers[owner];
+      tbb::parallel_for(tbb::blocked_range<std::size_t>(0, buffer.size()), [&](const auto &r) {
+        auto &weight_delta_handle = _weight_delta_handles_ets.local();
+
+        for (std::size_t i = r.begin(); i != r.end(); ++i) {
+          const auto [owner_lnode, new_gcluster] = buffer[i];
+
+          const GlobalNodeID gnode = _graph->offset_n(owner) + owner_lnode;
+          KASSERT(!_graph->is_owned_global_node(gnode));
+
+          const NodeID lnode = _graph->global_to_local_node(gnode);
+          const NodeWeight weight = _graph->node_weight(lnode);
+
+          const GlobalNodeID old_gcluster = cluster(lnode);
+
+          // If we synchronize the weights of clusters with local
+          // changes, we already have the right weight including ghost
+          // vertices --> only update weight if we did not get an update
+
+          if (!should_sync_cluster_weights() ||
+              weight_delta_handle.find(old_gcluster + 1) == weight_delta_handle.end()) {
+            change_cluster_weight(old_gcluster, -weight, true);
+          }
+          NonatomicClusterVectorRef::move_node(lnode, new_gcluster);
+          if (!should_sync_cluster_weights() ||
+              weight_delta_handle.find(new_gcluster + 1) == weight_delta_handle.end()) {
+            change_cluster_weight(new_gcluster, weight, false);
+          }
+
+          Base::activate_neighbors_of_ghost_node(lnode);
+        }
+      });
+    });
 
     _graph->pfor_nodes(from, to, [&](const NodeID lnode) {
       _changed_label[lnode] = kInvalidGlobalNodeID;
@@ -700,10 +689,7 @@ private:
   StaticArray<std::uint8_t> _locked;
 
   // Weights of non-local clusters (i.e., cluster ID is owned by another PE)
-  using ClusterWeightsMap = typename growt::GlobalNodeIDMap<GlobalNodeWeight>;
-  ClusterWeightsMap _cluster_weights{0};
-  tbb::enumerable_thread_specific<typename ClusterWeightsMap::handle_type>
-      _cluster_weights_handles_ets{[&] { return _cluster_weights.get_handle(); }};
+  ForeignClusterWeights _cluster_weights;
 
   // Weights of local clusters (i.e., cluster ID is owned by this PE)
   StaticArray<GlobalNodeWeight> _local_cluster_weights;

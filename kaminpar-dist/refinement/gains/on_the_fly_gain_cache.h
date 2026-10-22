@@ -7,6 +7,9 @@
  ******************************************************************************/
 #pragma once
 
+#include <cstdint>
+#include <limits>
+
 #include <tbb/enumerable_thread_specific.h>
 
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
@@ -63,12 +66,22 @@ public:
     });
   }
 
+  // Each set bit permits that target block. The caller must keep any capacity
+  // snapshot represented by the mask valid throughout this read-only query.
+  MaxGainer compute_max_gainer_for_blocks(const NodeID u, const std::uint64_t blocks) const {
+    KASSERT(_p_graph != nullptr, "GainCalculator not initialized!");
+    KASSERT(_p_graph->k() <= std::numeric_limits<std::uint64_t>::digits);
+    return compute_max_gainer_impl<true>(u, [blocks](const BlockID block) {
+      return (blocks & (std::uint64_t{1} << block)) != 0;
+    });
+  }
+
   void move(NodeID, BlockID, BlockID) {
     // Nothing to do
   }
 
 private:
-  template <typename WeightChecker>
+  template <bool kUseBlockMask = false, typename WeightChecker>
   MaxGainer compute_max_gainer_impl(const NodeID u, WeightChecker &&weight_checker) const {
     KASSERT(_p_graph != nullptr, "GainCalculator not initialized!");
 
@@ -81,10 +94,18 @@ private:
     EdgeWeight max_ext_conn = 0;
     BlockID max_target = b_u;
 
+    const auto is_allowed_block = [&](const BlockID block) {
+      if constexpr (kUseBlockMask) {
+        return weight_checker(block);
+      } else {
+        return weight_checker(block, _p_graph->block_weight(block) + w_u);
+      }
+    };
+
     auto action = [&](auto &map) {
       _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
         const BlockID b_v = _p_graph->block(v);
-        if (b_u != b_v && weight_checker(b_v, _p_graph->block_weight(b_v) + w_u)) {
+        if (b_u != b_v && is_allowed_block(b_v)) {
           map[b_v] += w;
         } else if (b_u == b_v) {
           int_conn += w;

@@ -33,7 +33,9 @@ public:
   }
 
   void set(const NodeID node, const int value) {
-    __atomic_store_n(&_state[node], value, __ATOMIC_RELAXED);
+    // Publish the previous owner's queue handles and target block before another search can
+    // acquire the node. Atomic ownership alone does not order the protected ordinary accesses.
+    __atomic_store_n(&_state[node], value, __ATOMIC_RELEASE);
   }
 
   void reset() {

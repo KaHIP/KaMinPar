@@ -7,6 +7,8 @@
  ******************************************************************************/
 #pragma once
 
+#include <array>
+#include <atomic>
 #include <cstdint>
 #include <random>
 #include <vector>
@@ -14,15 +16,16 @@
 #include <tbb/enumerable_thread_specific.h>
 
 #include "kaminpar-common/datastructures/dynamic_binary_heap.h"
-#include "kaminpar-common/logger.h"
 
 namespace kaminpar {
 
 template <typename ID, typename Key, template <typename> typename Comparator> class MultiQueue {
+  static_assert(alignof(Key) >= std::atomic_ref<Key>::required_alignment);
+
   constexpr static std::size_t kNumPQsPerThread = 2;
   constexpr static int kNumPopAttempts = 32;
-
-  SET_DEBUG(false);
+  constexpr static std::uint8_t kLocked = 1u;
+  constexpr static std::uint8_t kEmpty = 2u;
 
   struct Token {
     Token(const int seed, const std::size_t num_pqs) : dist(0, num_pqs - 1) {
@@ -90,12 +93,15 @@ public:
     for (int attempt = 0; attempt < kNumPopAttempts; ++attempt) {
       const auto [first, second] = token.pick_two_random_pqs();
 
-      if (_pqs[first].empty() && _pqs[second].empty()) {
+      const bool first_empty = is_empty(first);
+      const bool second_empty = is_empty(second);
+      if (first_empty && second_empty) {
         continue;
       }
 
-      const std::size_t pq =
-          (_pqs[first].empty() || _cmp(_top_keys[first], _top_keys[second])) ? second : first;
+      const bool pick_second =
+          first_empty || (!second_empty && _cmp(top_key(first), top_key(second)));
+      const std::size_t pq = pick_second ? second : first;
 
       if (!try_lock(pq)) {
         continue;
@@ -115,8 +121,12 @@ public:
       std::size_t best_pq = std::numeric_limits<std::size_t>::max();
 
       for (std::size_t pq = 0; pq < _pqs.size(); ++pq) {
-        if (!_pqs[pq].empty() && _cmp(_top_keys[pq], best_key)) {
-          best_key = _top_keys[pq];
+        if (is_empty(pq)) {
+          continue;
+        }
+        const Key key = top_key(pq);
+        if (best_pq == std::numeric_limits<std::size_t>::max() || _cmp(best_key, key)) {
+          best_key = key;
           best_pq = pq;
         }
       }
@@ -145,15 +155,11 @@ public:
       pq = token.pick_random_pq();
     } while (!try_lock(pq));
 
-    DBG << "Locked " << pq << ", state: " << _pq_locks;
-
     return {pq, &_pqs[pq]};
   }
 
   void unlock(const Handle handle) {
     KASSERT(!!handle);
-
-    DBG << "Unlock " << handle.index() << ", state: " << _pq_locks;
 
     unlock(handle.index());
   }
@@ -171,7 +177,7 @@ public:
     _pqs.resize(num_pqs);
 
     _pq_locks.clear();
-    _pq_locks.resize(num_pqs);
+    _pq_locks.assign(num_pqs, kEmpty);
 
     _top_keys.clear();
     _top_keys.assign(num_pqs, Comparator<Key>::kMaxValue);
@@ -193,19 +199,27 @@ public:
   }
 
 private:
+  [[nodiscard]] bool is_empty(const std::size_t pq) const {
+    return (__atomic_load_n(&_pq_locks[pq], __ATOMIC_RELAXED) & kEmpty) != 0;
+  }
+
+  [[nodiscard]] Key top_key(const std::size_t pq) {
+    return std::atomic_ref<Key>(_top_keys[pq]).load(std::memory_order_relaxed);
+  }
+
   [[nodiscard]] bool is_locked(const std::size_t pq) const {
     KASSERT(pq < _pq_locks.size());
 
-    return __atomic_load_n(&_pq_locks[pq], __ATOMIC_RELAXED);
+    return (__atomic_load_n(&_pq_locks[pq], __ATOMIC_RELAXED) & kLocked) != 0;
   }
 
   bool try_lock(const std::size_t pq) {
     KASSERT(pq < _pq_locks.size());
 
-    std::uint8_t zero = 0u;
-    return !is_locked(pq) &&
+    std::uint8_t state = __atomic_load_n(&_pq_locks[pq], __ATOMIC_RELAXED);
+    return (state & kLocked) == 0 &&
            __atomic_compare_exchange_n(
-               &_pq_locks[pq], &zero, 1u, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED
+               &_pq_locks[pq], &state, state | kLocked, false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED
            );
   }
 
@@ -213,16 +227,12 @@ private:
     KASSERT(pq < _pq_locks.size());
     KASSERT(is_locked(pq), "PQ " << pq << " expected to be locked, but is unlocked");
 
-    update_top_key(pq);
-    __atomic_store_n(&_pq_locks[pq], 0u, __ATOMIC_RELAXED);
-  }
-
-  void update_top_key(const std::size_t pq) {
-    KASSERT(is_locked(pq), "PQ " << pq << " expected to be locked, but is unlocked");
-
-    if (!_pqs[pq].empty()) {
-      _top_keys[pq] = _pqs[pq].peek_key();
-    }
+    // Readers use these atomic hints without accessing the heap. They recheck the heap after
+    // acquiring its lock, which also publishes all preceding heap mutations.
+    const bool empty = _pqs[pq].empty();
+    const Key key = empty ? Comparator<Key>::kMaxValue : _pqs[pq].peek_key();
+    std::atomic_ref<Key>(_top_keys[pq]).store(key, std::memory_order_relaxed);
+    __atomic_store_n(&_pq_locks[pq], empty ? kEmpty : 0u, __ATOMIC_RELEASE);
   }
 
   int _seed;
@@ -231,9 +241,7 @@ private:
   std::vector<PQ> _pqs;
   std::vector<Key> _top_keys;
 
-  tbb::enumerable_thread_specific<Token> _token_ets{[&] {
-    return Token(_seed, _pqs.size());
-  }};
+  tbb::enumerable_thread_specific<Token> _token_ets{[&] { return Token(_seed, _pqs.size()); }};
 
   Comparator<Key> _cmp;
 };

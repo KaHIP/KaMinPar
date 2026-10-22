@@ -112,6 +112,8 @@ class simple_slot
         ~atomic_slot_type()       = default;
 
         slot_type load() const;
+        // Precondition: prior writers have joined; no mutation/reclamation overlaps this lookup.
+        slot_type quiescent_load() const;
         void      non_atomic_set(const slot_type& goal);
         bool cas(slot_type& expected, slot_type goal, bool release = false);
         bool atomic_delete(slot_type& expected);
@@ -312,17 +314,16 @@ template <class K, class D, bool m, K dd>
 typename simple_slot<K, D, m, dd>::slot_type
 simple_slot<K, D, m, dd>::atomic_slot_type::load() const
 {
-    // Roman used: _mm_loadu_ps Think about using
-    // _mm_load_ps because the memory should be aligned
+    // Writers replace the complete key/value pair with a 128-bit CAS, so readers also need a
+    // coherent atomic snapshot. Unlike a CAS-as-read, this permits shared read-only cache lines.
+    return slot_type(__atomic_load_n(&_raw_data, __ATOMIC_RELAXED));
+}
 
-    // as128i() = (int128_t) _mm_loadu_ps((float *) &e);
-#if defined(__x86_64__)
-    auto temp = reinterpret_cast<int128_t>(
-        _mm_loadu_si128(reinterpret_cast<const __m128i*>(&_raw_data)));
-    return slot_type(temp);
-#else // @todo(arm) whats the difference?
+template <class K, class D, bool m, K dd>
+typename simple_slot<K, D, m, dd>::slot_type
+simple_slot<K, D, m, dd>::atomic_slot_type::quiescent_load() const
+{
     return slot_type(_raw_data);
-#endif
 }
 
 template <class K, class D, bool m, K dd>

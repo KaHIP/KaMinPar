@@ -6,6 +6,7 @@
 #pragma once
 
 #include <limits>
+#include <utility>
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
@@ -69,6 +70,7 @@ public:
   void initialize(const Graph &graph, const PartitionedGraph &p_graph) {
     _graph = &graph;
     _p_graph = &p_graph;
+    _has_unit_edge_weights = !_graph->is_edge_weighted();
 
     _n = _graph->n();
     _k = _p_graph->k();
@@ -149,6 +151,7 @@ public:
   void free() {
     _gain_cache.free();
     _weighted_degrees.free();
+    _has_unit_edge_weights = false;
   }
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight
@@ -163,6 +166,41 @@ public:
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight conn(const NodeID node, const BlockID block) const {
     return use_hash_table(node) ? conn_hash_table(node, block) : conn_full_table(node, block);
+  }
+
+  // Invoke the consumer once with a scoped gain query. Only the immutable table layout is
+  // cached; every query reads current connectivity. The query must not escape the consumer,
+  // and initialize()/free() must not overlap it. Neighbor moves are allowed during its scope.
+  template <typename Lambda>
+  KAMINPAR_INLINE void with_gain_query(const NodeID node, Lambda &&consumer) const {
+    const auto degree = immutable_degree(node);
+    const bool hash_table = math::ceil2(static_cast<NodeID>(degree)) < _k;
+    const int width =
+        _has_unit_edge_weights
+            ? compute_entry_width_from_degree(
+                  static_cast<UnsignedEdgeWeight>(degree) & kWeightedDegreeMask, hash_table
+              )
+            : compute_entry_width(node, hash_table);
+    if (width == 0) {
+      consumer([](const BlockID, const BlockID) -> EdgeWeight { return 0; });
+    } else if (hash_table) {
+      with_hash_table_impl(
+          node, width, [&]<typename Width>(const Width *storage, std::size_t size) {
+            const CompactHashMap<const Width, true> table(storage, size, _bits_for_key);
+            consumer([&](const BlockID from, const BlockID to) {
+              return static_cast<EdgeWeight>(table.get(to)) -
+                     static_cast<EdgeWeight>(table.get(from));
+            });
+          }
+      );
+    } else {
+      with_full_table_impl(node, width, [&](const auto *table) {
+        consumer([&](const BlockID from, const BlockID to) {
+          return static_cast<EdgeWeight>(__atomic_load_n(table + to, __ATOMIC_RELAXED)) -
+                 static_cast<EdgeWeight>(__atomic_load_n(table + from, __ATOMIC_RELAXED));
+        });
+      });
+    }
   }
 
   // Forcing inlining here seems to be very important
@@ -217,12 +255,12 @@ public:
   KAMINPAR_INLINE void move(const NodeID node, const BlockID block_from, const BlockID block_to) {
     _graph->adjacent_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
       if (use_hash_table(v)) {
-        lock(v);
-        with_hash_table(v, [&](auto &&hash_table) {
+        const UnsignedEdgeWeight degree = lock(v);
+        with_hash_table(v, compute_entry_width_from_degree(degree, true), [&](auto &&hash_table) {
           hash_table.decrease_by(block_from, weight);
           hash_table.increase_by(block_to, weight);
         });
-        unlock(v);
+        unlock(v, degree);
       } else {
         with_full_table(v, [&](auto *full_table) {
           __atomic_fetch_sub(full_table + block_from, weight, __ATOMIC_RELAXED);
@@ -284,7 +322,14 @@ private:
 
   // Computes the number of bytes (0, 1, 2, 4, 8) required to store the entries for the given node
   KAMINPAR_INLINE int compute_entry_width(const NodeID node, const bool with_key) const {
-    const auto max_value = static_cast<std::uint64_t>(weighted_degree(node));
+    return compute_entry_width_from_degree(
+        static_cast<UnsignedEdgeWeight>(weighted_degree(node)), with_key
+    );
+  }
+
+  KAMINPAR_INLINE int
+  compute_entry_width_from_degree(const UnsignedEdgeWeight degree, const bool with_key) const {
+    const auto max_value = static_cast<std::uint64_t>(degree);
     if (max_value == 0) {
       return 0;
     }
@@ -304,7 +349,7 @@ private:
   // Locking (hash table)
   //
 
-  void lock(const NodeID node) {
+  [[nodiscard]] UnsignedEdgeWeight lock(const NodeID node) {
     UnsignedEdgeWeight state = __atomic_load_n(&_weighted_degrees[node], __ATOMIC_RELAXED);
     do {
       while (state & kWeightedDegreeLock) {
@@ -318,12 +363,12 @@ private:
         __ATOMIC_ACQUIRE,
         __ATOMIC_RELAXED
     ));
+    return state;
   }
 
-  void unlock(const NodeID node) {
-    __atomic_store_n(
-        &_weighted_degrees[node], _weighted_degrees[node] & kWeightedDegreeMask, __ATOMIC_RELAXED
-    );
+  void unlock(const NodeID node, const UnsignedEdgeWeight degree) {
+    // The low bits are immutable between initialize()/free(); only this lock bit changes.
+    __atomic_store_n(&_weighted_degrees[node], degree, __ATOMIC_RELEASE);
   }
 
   //
@@ -339,7 +384,12 @@ private:
 
   template <typename Lambda>
   KAMINPAR_INLINE decltype(auto) with_hash_table_impl(const NodeID node, Lambda &&l) const {
-    const int width = compute_entry_width(node, true);
+    return with_hash_table_impl(node, compute_entry_width(node, true), std::forward<Lambda>(l));
+  }
+
+  template <typename Lambda>
+  KAMINPAR_INLINE decltype(auto)
+  with_hash_table_impl(const NodeID node, const int width, Lambda &&l) const {
     const std::size_t start = _offsets[node];
     const std::size_t size = width > 0 ? math::floor2((_offsets[node + 1] - start) / width) : 0;
 
@@ -402,9 +452,13 @@ private:
 
   template <typename Lambda>
   KAMINPAR_INLINE decltype(auto) with_hash_table(const NodeID node, Lambda &&l) {
+    return with_hash_table(node, compute_entry_width(node, true), std::forward<Lambda>(l));
+  }
+
+  template <typename Lambda>
+  KAMINPAR_INLINE decltype(auto) with_hash_table(const NodeID node, const int width, Lambda &&l) {
     return static_cast<const Self *>(this)->with_hash_table_impl(
-        node,
-        [&]<typename Width>(const Width *storage, const std::size_t size) {
+        node, width, [&]<typename Width>(const Width *storage, const std::size_t size) {
           return l(CompactHashMap<Width, true>(const_cast<Width *>(storage), size, _bits_for_key));
         }
     );
@@ -416,7 +470,12 @@ private:
 
   template <typename Lambda>
   KAMINPAR_INLINE decltype(auto) with_full_table(const NodeID node, Lambda &&l) const {
-    const int width = compute_entry_width(node, false);
+    return with_full_table_impl(node, compute_entry_width(node, false), std::forward<Lambda>(l));
+  }
+
+  template <typename Lambda>
+  KAMINPAR_INLINE decltype(auto)
+  with_full_table_impl(const NodeID node, const int width, Lambda &&l) const {
     const std::size_t start = _offsets[node];
 
     KASSERT(width == 0 || (start % width) == 0);
@@ -468,15 +527,37 @@ private:
   // Lookups (mixed)
   //
 
+  [[nodiscard]] KAMINPAR_INLINE auto immutable_degree(const NodeID node) const {
+    if constexpr (requires {
+                    _graph->first_edge(node);
+                    _graph->first_invalid_edge(node);
+                  }) {
+      // Preserve the complete adjacency count when EdgeID is wider than NodeID.
+      return _graph->first_invalid_edge(node) - _graph->first_edge(node);
+    } else {
+      return _graph->degree(node);
+    }
+  }
+
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight weighted_degree(const NodeID node) const {
     KASSERT(node < _weighted_degrees.size());
-    return static_cast<EdgeWeight>(_weighted_degrees[node] & kWeightedDegreeMask);
+    if (_has_unit_edge_weights) {
+      return static_cast<EdgeWeight>(
+          static_cast<UnsignedEdgeWeight>(immutable_degree(node)) & kWeightedDegreeMask
+      );
+    }
+    return static_cast<EdgeWeight>(
+        __atomic_load_n(&_weighted_degrees[node], __ATOMIC_RELAXED) & kWeightedDegreeMask
+    );
   }
 
   const Context &_ctx;
 
   const Graph *_graph = nullptr;
   const PartitionedGraph *_p_graph = nullptr;
+
+  // Graph topology and edge-weight representation are fixed until the next initialize().
+  bool _has_unit_edge_weights = false;
 
   NodeID _n = kInvalidNodeID;
   BlockID _k = kInvalidBlockID;

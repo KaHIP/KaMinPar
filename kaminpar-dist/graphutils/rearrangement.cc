@@ -147,7 +147,7 @@ DistributedCSRGraph rearrange_by_permutation(
 
   const NodeID n = graph.n();
   auto old_global_to_ghost = graph.take_global_to_ghost(); // TODO cannot be cleared?
-  growt::StaticGhostNodeMapping new_global_to_ghost(old_global_to_ghost.capacity());
+  growt::MutableGhostNodeMapping new_global_to_ghost(old_global_to_ghost.capacity());
   auto new_ghost_to_global = graph.take_ghost_to_global(); // can be reused
 
   parallel::chunked_for(received, [&](const ChangedNodeLabel &message, const PEID pe) {
@@ -155,8 +155,7 @@ DistributedCSRGraph rearrange_by_permutation(
     const GlobalNodeID old_node_global = graph.offset_n(pe) + old_node_local;
     const GlobalNodeID new_node_global = graph.offset_n(pe) + new_node_local;
 
-    KASSERT(old_global_to_ghost.find(old_node_global + 1) != old_global_to_ghost.end());
-    const NodeID ghost_node = (*old_global_to_ghost.find(old_node_global + 1)).second;
+    const NodeID ghost_node = old_global_to_ghost.at(old_node_global + 1);
     new_global_to_ghost.insert(new_node_global + 1, ghost_node);
     new_ghost_to_global[ghost_node - n] = new_node_global;
   });
@@ -170,7 +169,7 @@ DistributedCSRGraph rearrange_by_permutation(
       std::move(new_edge_weights),
       graph.take_ghost_owner(),
       std::move(new_ghost_to_global),
-      std::move(new_global_to_ghost),
+      std::move(new_global_to_ghost).freeze(),
       degree_sorted,
       graph.communicator()
   );

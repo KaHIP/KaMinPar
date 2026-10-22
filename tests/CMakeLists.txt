@@ -1,10 +1,12 @@
 include(GoogleTest)
 
+add_library(KaMinParTestMain STATIC gtest_main.cc)
+target_link_libraries(KaMinParTestMain PUBLIC GTest::gtest GTest::gmock TBB::tbb)
+
 function(kaminpar_add_shm_test target)
     add_executable(${target} ${ARGN})
     target_link_libraries(${target} PRIVATE 
-        GTest::gtest_main 
-        GTest::gmock_main
+        KaMinParTestMain
         KaMinPar::KaMinPar)
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_compile_options(${target} PRIVATE ${KAMINPAR_WARNING_FLAGS})
@@ -17,8 +19,7 @@ endfunction()
 function(kaminpar_add_common_test target)
     add_executable(${target} ${ARGN})
     target_link_libraries(${target} PRIVATE 
-        GTest::gtest_main
-        GTest::gmock_main
+        KaMinParTestMain
         KaMinPar::KaMinParCommon)
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_compile_options(${target} PRIVATE ${KAMINPAR_WARNING_FLAGS})
@@ -31,8 +32,7 @@ endfunction()
 function(kaminpar_add_io_test target)
     add_executable(${target} ${ARGN})
     target_link_libraries(${target} PRIVATE 
-        GTest::gtest_main
-        GTest::gmock_main
+        KaMinParTestMain
         KaMinPar::KaMinParIO)
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_compile_options(${target} PRIVATE ${KAMINPAR_WARNING_FLAGS})
@@ -54,6 +54,7 @@ kaminpar_add_common_test(test_common_compact_static_array common/datastructures/
 kaminpar_add_common_test(test_common_dynamic_map common/datastructures/dynamic_map_test.cc)
 kaminpar_add_common_test(test_common_flat_hash_map common/datastructures/flat_hash_map_test.cc)
 kaminpar_add_common_test(test_common_compact_hash_map common/datastructures/compact_hash_map_test.cc)
+kaminpar_add_common_test(test_common_compact_hash_map_concurrency common/datastructures/compact_hash_map_concurrency_test.cc)
 kaminpar_add_common_test(test_common_sparse_map common/datastructures/sparse_map_test.cc)
 kaminpar_add_common_test(test_common_bitvector_rank common/datastructures/bitvector_rank_test.cc)
 
@@ -100,6 +101,7 @@ kaminpar_add_shm_test(test_shm_compressed_graph shm/datastructures/compressed_gr
 # KaMinPar -> Refinement
 kaminpar_add_shm_test(test_shm_gain_caches shm/refinement/gain_cache_test.cc)
 kaminpar_add_shm_test(test_shm_jet_refiner shm/refinement/jet_refiner_test.cc)
+kaminpar_add_shm_test(test_shm_compact_gain_query shm/refinement/compact_gain_query_test.cc)
 
 if (KAMINPAR_BUILD_DISTRIBUTED)
     include(cmake/KaTestrophe.cmake)
@@ -216,3 +218,49 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
         FILES mpi/sparse_allreduce_test.cc
         CORES 1 4 8)
 endif ()
+
+kaminpar_add_common_test(test_common_multi_queue common/datastructures/multi_queue_test.cc)
+
+kaminpar_add_shm_test(test_shm_gain_cache_concurrency shm/refinement/gain_cache_concurrency_test.cc)
+
+kaminpar_add_shm_test(test_shm_node_tracker shm/refinement/node_tracker_test.cc)
+
+kaminpar_add_shm_test(test_shm_underload_balancer_concurrency shm/refinement/underload_balancer_concurrency_test.cc)
+
+kaminpar_add_shm_test(test_shm_buffered_vector shm/refinement/buffered_vector_test.cc)
+
+kaminpar_add_shm_test(test_shm_parallel_max_flow shm/refinement/parallel_max_flow_test.cc)
+
+if (KAMINPAR_BUILD_DISTRIBUTED)
+    kaminpar_add_dist_test(test_dist_foreign_cluster_weights
+        FILES dist/datastructures/foreign_cluster_weights_test.cc
+        CORES 1 4)
+    kaminpar_add_dist_test(test_dist_global_lp_phase
+        FILES dist/coarsening/global_lp_phase_test.cc
+        CORES 1 4)
+    kaminpar_add_dist_test(test_dist_growt_slot
+        FILES dist/datastructures/growt_slot_test.cc
+        CORES 1 4)
+    kaminpar_add_dist_test(test_dist_cluster_weight_concurrency
+        FILES dist/datastructures/cluster_weight_concurrency_test.cc
+        CORES 1 4)
+    if (KAMINPAR_BUILD_EXPERIMENTAL_FEATURES)
+        kaminpar_add_dist_test(test_dist_gain_cache_concurrency
+            FILES dist/datastructures/gain_cache_concurrency_test.cc
+            CORES 1)
+    endif ()
+endif ()
+
+if(KAMINPAR_BUILD_DISTRIBUTED)
+    kaminpar_add_dist_test(test_dist_frozen_ghost_map
+        FILES dist/datastructures/frozen_ghost_map_test.cc
+        CORES 1 4)
+
+    kaminpar_add_dist_test(test_dist_capacity_mask
+        FILES dist/refinement/capacity_mask_test.cc
+        CORES 1 4)
+
+    kaminpar_add_dist_test(test_dist_node_balancer_lifecycle
+        FILES dist/refinement/node_balancer_lifecycle_test.cc
+        CORES 1 4)
+endif()

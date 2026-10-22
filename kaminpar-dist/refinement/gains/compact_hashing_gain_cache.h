@@ -380,9 +380,8 @@ private:
   void unlock(const NodeID node) {
     KASSERT(_graph->is_owned_node(node));
 
-    __atomic_store_n(
-        &_weighted_degrees[node], _weighted_degrees[node] & kWeightedDegreeMask, __ATOMIC_RELAXED
-    );
+    const UnsignedEdgeWeight state = __atomic_load_n(&_weighted_degrees[node], __ATOMIC_RELAXED);
+    __atomic_store_n(&_weighted_degrees[node], state & kWeightedDegreeMask, __ATOMIC_RELEASE);
   }
 
   //
@@ -545,7 +544,9 @@ private:
     KASSERT(_graph->is_owned_node(node));
 
     KASSERT(node < _weighted_degrees.size());
-    return static_cast<EdgeWeight>(_weighted_degrees[node] & kWeightedDegreeMask);
+    return static_cast<EdgeWeight>(
+        __atomic_load_n(&_weighted_degrees[node], __ATOMIC_RELAXED) & kWeightedDegreeMask
+    );
   }
 
   const Context &_ctx;

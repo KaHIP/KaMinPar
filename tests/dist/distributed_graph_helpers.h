@@ -127,7 +127,7 @@ inline DistributedGraph change_edge_weights(
 ) {
   auto edge_weights = graph.take_edge_weights();
   if (edge_weights.empty()) {
-    edge_weights.resize(graph.m(), 1);
+    edge_weights.resize(graph.m(), EdgeWeight{1});
   }
 
   for (const auto &[e, weight] : changes) {
@@ -186,7 +186,7 @@ inline DistributedGraph change_node_weights(
 ) {
   auto node_weights = graph.take_node_weights();
   if (node_weights.empty()) {
-    node_weights.resize(graph.total_n(), 1);
+    node_weights.resize(graph.total_n(), NodeWeight{1});
   }
 
   for (const auto &[u, weight] : changes) {

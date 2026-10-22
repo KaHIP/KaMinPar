@@ -70,13 +70,13 @@ find_independent_border_set(const DistributedPartitionedGraph &p_graph, const in
     bool is_seed_node = true;
     p_graph.adjacent_nodes(u, [&](const NodeID v) {
       // Compute score for ghost nodes lazy
-      if (score[v] < 0) {
-        const auto v_score =
-            compute_score(generator_ets.local(), p_graph.local_to_global_node(v), seed);
+      auto v_score = __atomic_load_n(&score[v], __ATOMIC_RELAXED);
+      if (v_score < 0) {
+        v_score = compute_score(generator_ets.local(), p_graph.local_to_global_node(v), seed);
         __atomic_store_n(&score[v], v_score, __ATOMIC_RELAXED);
       }
 
-      if (score[u] >= score[v]) {
+      if (score[u] >= v_score) {
         is_seed_node = false;
         return true;
       }
