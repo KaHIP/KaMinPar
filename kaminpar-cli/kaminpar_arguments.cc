@@ -787,6 +787,19 @@ CLI::Option_group *create_twoway_flow_refinement_options(CLI::App *app, Context 
 CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {
   auto *jet = app->add_option_group("Refinement -> Jet");
 
+  jet->add_option("--r-jet-gain-cache", ctx.refinement.jet.gain_cache_strategy)
+      ->transform(CLI::CheckedTransformer(get_jet_gain_cache_strategies()).description(""))
+      ->description(
+          "Gain cache: jet uses adaptive per-vertex hash tables; sparse uses the legacy cache."
+      )
+      ->capture_default_str();
+  jet->add_option("--r-jet-balancer", ctx.refinement.jet.balancing_algorithm)
+      ->transform(CLI::CheckedTransformer(get_jet_balancing_algorithms()).description(""))
+      ->description(
+          "Balancer: jet uses weak/strong bucket rebalancing; overload uses the legacy balancer."
+      )
+      ->capture_default_str();
+
   jet->add_option("--r-jet-num-iterations", ctx.refinement.jet.num_iterations)
       ->capture_default_str();
   jet->add_option("--r-jet-num-fruitless-iterations", ctx.refinement.jet.num_fruitless_iterations)
