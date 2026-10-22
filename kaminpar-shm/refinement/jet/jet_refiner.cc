@@ -8,13 +8,21 @@
  ******************************************************************************/
 #include "kaminpar-shm/refinement/jet/jet_refiner.h"
 
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
 #include <functional>
+#include <limits>
 #include <memory>
+#include <vector>
+
+#include <tbb/enumerable_thread_specific.h>
+#include <tbb/parallel_reduce.h>
 
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/refinement/balancer/overload_balancer.h"
-#include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
+#include "kaminpar-shm/refinement/gains/on_the_fly_gain_cache.h"
 
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
@@ -54,33 +62,60 @@ public:
         << _initial_gain_temp << ", " << _final_gain_temp << "]";
   }
 
-  void refine(PartitionedGraph &p_graph, const Graph &graph, const PartitionContext &p_ctx) {
+  bool refine(PartitionedGraph &p_graph, const Graph &graph, const PartitionContext &p_ctx) {
     SCOPED_TIMER("Jet Refiner");
 
+    if (_num_rounds <= 0 || p_graph.k() < 2) {
+      return false;
+    }
+
     START_TIMER("Allocation");
-    NormalSparseGainCache<Graph> gain_cache(_ctx, p_graph.graph().n(), p_graph.k());
+    // Aggregate adjacent parts once per vertex. In particular, do not allocate n*k
+    // connectivity entries for unsorted graphs or probe every nonadjacent part.
+    OnTheFlyGainCache<Graph, false, false, true> gain_cache(_ctx, graph.n(), p_graph.k());
     gain_cache.initialize(graph, p_graph);
 
-    StaticArray<BlockID> next_partition(p_graph.graph().n());
-    graph.pfor_nodes([&](const NodeID u) { next_partition[u] = 0; });
+    StaticArray<BlockID> next_partition(graph.n(), static_array::noinit);
+    StaticArray<EdgeWeight> candidate_gain(graph.n(), static_array::noinit);
+    StaticArray<std::uint8_t> lock(graph.n(), std::uint8_t{0});
 
-    StaticArray<std::uint8_t> lock(p_graph.graph().n());
-    graph.pfor_nodes([&](const NodeID u) { lock[u] = 0; });
-
-    using namespace std::placeholders;
+    // A vertex can move in both LP and rebalancing. Remember its original part
+    // only once, then account for all changed edges after both phases finish.
+    StaticArray<BlockID> old_block(graph.n(), kInvalidBlockID);
+    tbb::enumerable_thread_specific<std::vector<NodeID>> moved_nodes;
+    const auto track_move = [&](const NodeID u, const BlockID from, BlockID) {
+      // Both phases have a single owner per vertex; their barriers separate them.
+      if (old_block[u] == kInvalidBlockID) {
+        old_block[u] = from;
+        moved_nodes.local().push_back(u);
+      }
+    };
 
     BlockParallelOverloadBalancer balancer(_ctx);
     balancer.initialize(p_graph);
-    balancer.track_moves(
-        std::bind(&NormalSparseGainCache<Graph>::move, std::ref(gain_cache), _1, _2, _3)
-    );
+    balancer.track_moves(track_move);
 
-    StaticArray<BlockID> best_partition(p_graph.graph().n());
+    StaticArray<BlockID> best_partition(graph.n(), static_array::noinit);
     graph.pfor_nodes([&](const NodeID u) { best_partition[u] = p_graph.block(u); });
 
     const EdgeWeight initial_cut = metrics::edge_cut(p_graph);
     EdgeWeight best_cut = initial_cut;
+    std::int64_t current_cut = initial_cut;
+    const auto total_violation = [&] {
+      // Overload and underload can each approach the total node weight, so their
+      // sum needs the unsigned range even when individual block weights fit.
+      UnsignedNodeWeight violation = 0;
+      for (const BlockID b : p_graph.blocks()) {
+        const BlockWeight weight = p_graph.block_weight(b);
+        violation += std::max<BlockWeight>(0, weight - p_ctx.max_block_weight(b));
+        violation += std::max<BlockWeight>(0, p_ctx.min_block_weight(b) - weight);
+      }
+      return violation;
+    };
+    const UnsignedNodeWeight initial_violation = total_violation();
+    UnsignedNodeWeight best_violation = initial_violation;
     bool last_iteration_is_best = true;
+    bool previous_lp_moved = false;
     STOP_TIMER();
 
     const int max_num_fruitless_iterations = (_ctx.refinement.jet.num_fruitless_iterations == 0)
@@ -101,34 +136,35 @@ public:
           << gain_temp;
 
       do {
+        const bool had_locked_nodes = previous_lp_moved;
         TIMED_SCOPE("Find moves") {
           graph.pfor_nodes([&](const NodeID u) {
             const BlockID from = p_graph.block(u);
 
-            if (lock[u] || !gain_cache.is_border_node(u, from)) {
-              next_partition[u] = from;
+            next_partition[u] = from;
+            candidate_gain[u] = std::numeric_limits<EdgeWeight>::min();
+            if (lock[u]) {
               return;
             }
 
-            EdgeWeight best_gain = std::numeric_limits<EdgeWeight>::min();
+            EdgeWeight conn_from = 0;
+            EdgeWeight best_conn = 0;
             BlockID best_block = from;
-
-            for (const BlockID to : p_graph.blocks()) {
+            gain_cache.gains(u, from, [&](const BlockID to, auto &&conn_fn) {
+              const EdgeWeight conn = conn_fn();
               if (to == from) {
-                continue;
-              }
-
-              const EdgeWeight gain = gain_cache.gain(u, from, to);
-              if (gain > best_gain) {
-                best_gain = gain;
+                conn_from = conn;
+              } else if (conn > best_conn || (conn == best_conn && to < best_block)) {
+                best_conn = conn;
                 best_block = to;
               }
-            }
+            });
 
-            if (best_gain > -std::floor(gain_temp * gain_cache.conn(u, from))) {
+            const EdgeWeight best_gain = best_conn - conn_from;
+            if (best_conn > 0 &&
+                (best_gain >= 0 || best_gain > -std::floor(gain_temp * conn_from))) {
               next_partition[u] = best_block;
-            } else {
-              next_partition[u] = from;
+              candidate_gain[u] = best_gain;
             }
           });
         };
@@ -143,19 +179,12 @@ public:
               return;
             }
 
-            const EdgeWeight gain_u = gain_cache.gain(u, from, to);
+            const EdgeWeight gain_u = candidate_gain[u];
             EdgeWeight gain = 0;
 
             graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
-              const bool v_before_u = [&, v = v] {
-                const BlockID from_v = p_graph.block(v);
-                const BlockID to_v = next_partition[v];
-                if (from_v != to_v) {
-                  const EdgeWeight gain_v = gain_cache.gain(v, from_v, to_v);
-                  return gain_v > gain_u || (gain_v == gain_u && v < u);
-                }
-                return false;
-              }();
+              const EdgeWeight gain_v = candidate_gain[v];
+              const bool v_before_u = gain_v > gain_u || (gain_v == gain_u && v < u);
               const BlockID block_v = v_before_u ? next_partition[v] : p_graph.block(v);
 
               if (to == block_v) {
@@ -165,7 +194,7 @@ public:
               }
             });
 
-            if (gain > 0) {
+            if (gain >= 0) {
               lock[u] = 1;
             }
           });
@@ -178,22 +207,82 @@ public:
               const BlockID to = next_partition[u];
 
               p_graph.set_block(u, to);
-              gain_cache.move(u, from, to);
+              track_move(u, from, to);
             }
           });
         };
+
+        previous_lp_moved =
+            std::any_of(moved_nodes.begin(), moved_nodes.end(), [](const auto &nodes) {
+              return !nodes.empty();
+            });
 
         TIMED_SCOPE("Rebalance") {
           balancer.refine(p_graph, p_ctx);
         };
 
-        const EdgeWeight final_cut = metrics::edge_cut(p_graph);
+        const bool any_moves =
+            std::any_of(moved_nodes.begin(), moved_nodes.end(), [](const auto &nodes) {
+              return !nodes.empty();
+            });
+        TIMED_SCOPE("Update cut") {
+          const std::int64_t gain = tbb::parallel_reduce(
+              moved_nodes.range(),
+              std::int64_t{0},
+              [&](const auto &range, std::int64_t sum) {
+                for (const auto &nodes : range) {
+                  for (const NodeID u : nodes) {
+                    const BlockID from = old_block[u];
+                    const BlockID to = p_graph.block(u);
+                    graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+                      const BlockID old_v = old_block[v];
+                      // Count edges between two moved vertices only once.
+                      if (old_v == kInvalidBlockID || u < v) {
+                        const BlockID final_v = p_graph.block(v);
+                        const BlockID original_v = old_v == kInvalidBlockID ? final_v : old_v;
+                        sum += static_cast<std::int64_t>(weight) *
+                               (static_cast<int>(from != original_v) -
+                                static_cast<int>(to != final_v));
+                      }
+                    });
+                  }
+                }
+                return sum;
+              },
+              std::plus<>{}
+          );
+          current_cut -= gain;
+          KASSERT(current_cut >= 0 && current_cut <= std::numeric_limits<EdgeWeight>::max());
+          KASSERT(
+              current_cut == metrics::edge_cut(p_graph), "incorrect incremental cut", assert::heavy
+          );
+
+          // Do not clear the markers until all readers in the reduction finish.
+          tbb::parallel_for(moved_nodes.range(), [&](const auto &range) {
+            for (auto &nodes : range) {
+              for (const NodeID u : nodes) {
+                old_block[u] = kInvalidBlockID;
+              }
+              nodes.clear();
+            }
+          });
+        };
+        const EdgeWeight final_cut = static_cast<EdgeWeight>(current_cut);
+        const UnsignedNodeWeight violation = total_violation();
+        const bool improved_balance = violation < best_violation;
+        const bool improved_cut = violation == best_violation && final_cut < best_cut;
+        const bool significant_improvement =
+            improved_balance ||
+            (improved_cut &&
+             best_cut - final_cut > (1.0 - _ctx.refinement.jet.fruitless_threshold) * best_cut);
 
         TIMED_SCOPE("Update best partition") {
-          if (final_cut <= best_cut) {
+          if (improved_balance || improved_cut) {
             graph.pfor_nodes([&](const NodeID u) { best_partition[u] = p_graph.block(u); });
+            best_cut = final_cut;
+            best_violation = violation;
             last_iteration_is_best = true;
-          } else {
+          } else if (any_moves) {
             last_iteration_is_best = false;
           }
         };
@@ -201,7 +290,7 @@ public:
         ++cur_iteration;
         ++cur_fruitless_iteration;
 
-        if (best_cut - final_cut > (1.0 - _ctx.refinement.jet.fruitless_threshold) * best_cut) {
+        if (significant_improvement) {
           DBG << "Improved cut from " << initial_cut << " to " << best_cut << " to " << final_cut
               << ": resetting number of fruitless iterations (threshold: "
               << _ctx.refinement.jet.fruitless_threshold << ")";
@@ -212,27 +301,31 @@ public:
               << "): incrementing fruitless iterations counter to " << cur_fruitless_iteration;
         }
 
-        if (final_cut < best_cut) {
-          best_cut = final_cut;
+        // A no-move pass may merely have cleared the preceding LP locks. Allow
+        // one more pass in that case before declaring the round converged.
+        if (!any_moves && !had_locked_nodes) {
+          break;
         }
       } while (cur_iteration < max_num_iterations &&
                cur_fruitless_iteration < max_num_fruitless_iterations);
 
       TIMED_SCOPE("Rollback") {
         if (!last_iteration_is_best) {
-          graph.pfor_nodes([&](const NodeID u) { p_graph.set_block(u, best_partition[u]); });
-
-          // Re-initialize gain cache and balancer after rollback
-          gain_cache.initialize(graph, p_graph);
-          balancer.initialize(p_graph);
-
-          using namespace std::placeholders;
-          balancer.track_moves(
-              std::bind(&NormalSparseGainCache<Graph>::move, std::ref(gain_cache), _1, _2, _3)
-          );
+          graph.pfor_nodes([&](const NodeID u) {
+            if (p_graph.block(u) != best_partition[u]) {
+              p_graph.set_block(u, best_partition[u]);
+            }
+            lock[u] = 0;
+          });
+          current_cut = best_cut;
+          last_iteration_is_best = true;
+          previous_lp_moved = false;
         }
       };
     }
+
+    return best_violation < initial_violation ||
+           (best_violation == initial_violation && best_cut < initial_cut);
   }
 
 private:
@@ -270,11 +363,9 @@ void JetRefiner::initialize(const PartitionedGraph &p_graph) {
 }
 
 bool JetRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
-  _impl->with(p_graph, [&](auto &impl, const auto &graph) {
+  return _impl->with(p_graph, [&](auto &impl, const auto &graph) {
     return impl.refine(p_graph, graph, p_ctx);
   });
-
-  return false; // (ignored)
 }
 
 } // namespace kaminpar::shm
