@@ -62,7 +62,7 @@ public:
       refine_with_cache<NormalSparseGainCache<Graph>>(p_graph, graph, p_ctx);
       break;
     case JetGainCacheStrategy::JET:
-      refine_with_cache<JetGainCache<Graph>>(p_graph, graph, p_ctx);
+      refine_with_cache<SynchronousJetGainCache<Graph>>(p_graph, graph, p_ctx);
       break;
     }
   }
@@ -149,7 +149,7 @@ private:
             EdgeWeight best_gain = std::numeric_limits<EdgeWeight>::min();
             BlockID best_block = from;
 
-            if constexpr (std::is_same_v<GainCache, JetGainCache<Graph>>) {
+            if constexpr (std::is_same_v<GainCache, SynchronousJetGainCache<Graph>>) {
               const EdgeWeight conn_from = gain_cache.conn(u, from);
               gain_cache.gains(u, from, [&](const BlockID to, auto &&conn) {
                 const EdgeWeight gain = conn() - conn_from;

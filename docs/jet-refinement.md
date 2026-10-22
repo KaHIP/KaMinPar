@@ -36,8 +36,12 @@ that returns connectivity, not gain. `for_each_connection` also includes the sou
 Callbacks must not reenter the same cache row. Jet's adaptive-cache move selection scans
 these adjacent entries; the legacy-cache selection retains its all-block traversal.
 
-Each row uses a lock for queries and updates. A move subtracts its source connection,
-removes zero entries with backward-shift deletion, and adds its destination connection.
+Each row uses a lock for updates. The general `JetGainCache` also locks queries; Jet uses
+`SynchronousJetGainCache`, whose queries require a quiescent cache. Jet's blocking parallel
+phases separate queries from moves, the legacy balancer only sends move callbacks to this
+cache, and the new balancer separates its query and update phases. Thus this specialization
+avoids lock contention during read-only neighbor scans. A move subtracts its source
+connection, removes zero entries with backward-shift deletion, and adds its destination connection.
 This CPU implementation applies both deltas under one lock rather than reproducing the
 GPU's separate subtraction, insertion, and reconstruction kernels. Growing from the
 stored connections avoids reconstructing from a partition that concurrent moves are
