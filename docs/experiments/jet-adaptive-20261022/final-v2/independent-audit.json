@@ -1,0 +1,13 @@
+{
+  "audit_script_sha256": "970523d408443c45dcad10ad2f42b83d729422fa655dbe462b345e164982adae",
+  "audited_invocations": 180,
+  "binary_sha256": "54e784046f1f2eab232d6b3caaa550f50224444ae71b9f98b62a473c48d38a62",
+  "complete": true,
+  "expected_invocations": 180,
+  "failed_or_invalid": [],
+  "manifest_sha256": "081c63b0b3e95223e1943370753cc0794381c747d407f4e85d104c2621ea76f0",
+  "missing_ids": [],
+  "plan_sha256": "1af10c6aa1f00c1f5ce62289170d1b5701b4f642bd3927fc0b45d9a3321c9a53",
+  "runner_sha256": "f28ddda706d78f9a5810dc712bc44d9cb921c7af84bdfd66a986b37278a355f2",
+  "source_base_commit": "7679b10946c9d13c0daa2caf18ee78ed81321350"
+}

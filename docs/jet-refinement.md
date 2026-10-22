@@ -98,3 +98,11 @@ Dedicated tests cover connectivity reconstruction, collision chains, cache growt
 concurrent moves, bucket boundaries, weak and strong passes, nonuniform bounds, source
 lower bounds, weighted stalls, and Jet's component combinations. Run the registered
 `test_shm_jet_gain_cache`, `test_shm_jet_balancer`, and `test_shm_jet_refiner` targets.
+
+## Reduced UFM evaluation
+
+The [completed six-graph cluster experiment](experiments/jet-adaptive-20261022/README.md)
+compares all four component combinations and Eco/UFM at k=16 and k=1024. The
+rebalancer supplies the more consistent improvement; the adaptive cache helps mainly
+at large k and regresses the small-k aggregate. Raw measurements, balance audits,
+provenance, and reproducible figures are retained with the report.

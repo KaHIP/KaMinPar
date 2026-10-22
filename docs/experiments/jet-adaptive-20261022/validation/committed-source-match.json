@@ -1,0 +1,72 @@
+{
+  "implementation_commit": "459bbb9ef821255c93481b3bf6ab434cdc413d0d",
+  "source_snapshot": "840f70d87b473ce0c98517fbff779e106ad25fcf6ce6847f5ff478ba8125189b",
+  "files": [
+    {
+      "path": "include/kaminpar-shm/kaminpar.h",
+      "current_sha256": "8a2888a1db1b36c7af2af60e865df8ed83debd84ca9220868b3acc9d231d7c5d",
+      "experiment_sha256": "8a2888a1db1b36c7af2af60e865df8ed83debd84ca9220868b3acc9d231d7c5d",
+      "match": true
+    },
+    {
+      "path": "kaminpar-cli/kaminpar_arguments.cc",
+      "current_sha256": "97c6082c37c464bb340ea6cbe2379d289804fca07f46e6e289195854f6a398ff",
+      "experiment_sha256": "97c6082c37c464bb340ea6cbe2379d289804fca07f46e6e289195854f6a398ff",
+      "match": true
+    },
+    {
+      "path": "kaminpar-shm/context.cc",
+      "current_sha256": "2a47a6f23e969fe9bd8403b4a5b5a272f5b2ac84864c17f497120faa5bff1624",
+      "experiment_sha256": "2a47a6f23e969fe9bd8403b4a5b5a272f5b2ac84864c17f497120faa5bff1624",
+      "match": true
+    },
+    {
+      "path": "kaminpar-shm/context.h",
+      "current_sha256": "14c5b1d170e2b4a0043809e86c5f086908a41b12c37ddebbf940e287cdc76616",
+      "experiment_sha256": "14c5b1d170e2b4a0043809e86c5f086908a41b12c37ddebbf940e287cdc76616",
+      "match": true
+    },
+    {
+      "path": "kaminpar-shm/refinement/gains/jet_gain_cache.h",
+      "current_sha256": "fa7e1a3b33e8cbd77eb16084f4d6abab6d318b3df8565ce7660a73c967820f21",
+      "experiment_sha256": "fa7e1a3b33e8cbd77eb16084f4d6abab6d318b3df8565ce7660a73c967820f21",
+      "match": true
+    },
+    {
+      "path": "kaminpar-shm/refinement/jet/jet_balancer.h",
+      "current_sha256": "9c4bf047875ab0f74c8c8719ab9d16a1d2a4aa160efdf87783c724120961f495",
+      "experiment_sha256": "9c4bf047875ab0f74c8c8719ab9d16a1d2a4aa160efdf87783c724120961f495",
+      "match": true
+    },
+    {
+      "path": "kaminpar-shm/refinement/jet/jet_refiner.cc",
+      "current_sha256": "e4dbc78fffd5ed66814334a6b30924be27ead26bc3d01b7203c6650480b8f79a",
+      "experiment_sha256": "e4dbc78fffd5ed66814334a6b30924be27ead26bc3d01b7203c6650480b8f79a",
+      "match": true
+    },
+    {
+      "path": "tests/CMakeLists.txt",
+      "current_sha256": "bfe3045235915d5fdb9e0351a27e579ca3351fb65f2b7ff25e2d155425335b98",
+      "experiment_sha256": "bfe3045235915d5fdb9e0351a27e579ca3351fb65f2b7ff25e2d155425335b98",
+      "match": true
+    },
+    {
+      "path": "tests/shm/refinement/jet_balancer_test.cc",
+      "current_sha256": "d869c5c90eff980e308bbd66873da3efba9d1a72c659a70fda829fdc4d0ccfbc",
+      "experiment_sha256": "d869c5c90eff980e308bbd66873da3efba9d1a72c659a70fda829fdc4d0ccfbc",
+      "match": true
+    },
+    {
+      "path": "tests/shm/refinement/jet_gain_cache_test.cc",
+      "current_sha256": "0133407f37ddd4b67fd0bb49b4bc4d799194148de14d7010c9ca479fdf4d6417",
+      "experiment_sha256": "0133407f37ddd4b67fd0bb49b4bc4d799194148de14d7010c9ca479fdf4d6417",
+      "match": true
+    },
+    {
+      "path": "tests/shm/refinement/jet_refiner_test.cc",
+      "current_sha256": "da52a0805868bd76f5aa046aaebfb6e1bfdf7b576f87bd150e16e0922bcb422d",
+      "experiment_sha256": "da52a0805868bd76f5aa046aaebfb6e1bfdf7b576f87bd150e16e0922bcb422d",
+      "match": true
+    }
+  ]
+}

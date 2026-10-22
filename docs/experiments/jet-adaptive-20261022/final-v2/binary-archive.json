@@ -1,0 +1,20 @@
+[
+  {
+    "archive": "/nfs/work/seemaier/experiments/jet-adaptive-20261022/final-v2-binaries/KaMinPar",
+    "bytes": 9656296,
+    "original": "/nfs/work/seemaier/experiments/jet-adaptive-20261022/build/apps/KaMinPar",
+    "sha256": "54e784046f1f2eab232d6b3caaa550f50224444ae71b9f98b62a473c48d38a62"
+  },
+  {
+    "archive": "/nfs/work/seemaier/experiments/jet-adaptive-20261022/final-v2-binaries/libtbb.so.12",
+    "bytes": 377680,
+    "original": "/nfs/work/seemaier/experiments/jet-adaptive-20261022/build/gnu_13.3_cxx20_64_release/libtbb.so.12",
+    "sha256": "5711a3e2e52fbb8e27a5e8b39c5f7840fbe3ca59c5065dcef7afa5a711749e35"
+  },
+  {
+    "archive": "/nfs/work/seemaier/experiments/jet-adaptive-20261022/final-v2-binaries/libtbbmalloc.so.2",
+    "bytes": 182584,
+    "original": "/nfs/work/seemaier/experiments/jet-adaptive-20261022/build/gnu_13.3_cxx20_64_release/libtbbmalloc.so.2",
+    "sha256": "ed52710a5a3d493ce2329e1fee160f3a8c3528209659392ca92cd03a87453c58"
+  }
+]

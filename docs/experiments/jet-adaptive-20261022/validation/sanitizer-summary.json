@@ -1,0 +1,40 @@
+{
+  "assertion_level": "heavy",
+  "binary_sha256": {
+    "test_shm_jet_balancer": "63a31025f9fd8c32109ae69ccce63a4982e1ba2b9ec91a3952749f58a84bc3d5",
+    "test_shm_jet_gain_cache": "34bc53e2c9336c5b69bea3472137ba97c50b220b79998fd66fca575785181fae",
+    "test_shm_jet_refiner": "db8e49f27bbf75ff4c52688246a89053c67967f86a3ba2faa6abd7c5d0477700"
+  },
+  "build_type": "Debug",
+  "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)\nTarget: arm64-apple-darwin27.2.0\nThread model: posix\nInstalledDir: /Library/Developer/CommandLineTools/usr/bin\n",
+  "completed_utc": "2026-10-22T13:57:30.118150+00:00",
+  "diagnostics": [],
+  "logs_sha256": {
+    "sanitizer-build.log": "ce068fb4abc4c82253fd4228108519f46fb1f9a02d4b51bda1612c17b28198ef",
+    "sanitizer-configure.log": "16b4c9dcf3f3175e2a7e8a45744f07cb6e3b23314be9b33e70a146805f39ac61",
+    "sanitizer-tests.log": "7019642a34eacc17e216236aeaeb4d7d2dd6873e24a0d72d2e1ab7a284fbeea2"
+  },
+  "notes": [
+    "No source or runtime modifications were made for sanitizer validation.",
+    "The build emitted one pre-existing GoogleTest char8_t-to-char32_t warning.",
+    "AddressSanitizer and UndefinedBehaviorSanitizer do not detect general data races; this is not ThreadSanitizer validation."
+  ],
+  "platform": "macOS-27.2-arm64-arm-64bit",
+  "sanitizers": [
+    "address",
+    "undefined"
+  ],
+  "source_sha256": {
+    "kaminpar-shm/refinement/gains/jet_gain_cache.h": "fa7e1a3b33e8cbd77eb16084f4d6abab6d318b3df8565ce7660a73c967820f21",
+    "kaminpar-shm/refinement/jet/jet_balancer.h": "9c4bf047875ab0f74c8c8719ab9d16a1d2a4aa160efdf87783c724120961f495",
+    "kaminpar-shm/refinement/jet/jet_refiner.cc": "e4dbc78fffd5ed66814334a6b30924be27ead26bc3d01b7203c6650480b8f79a",
+    "tests/shm/refinement/jet_balancer_test.cc": "d869c5c90eff980e308bbd66873da3efba9d1a72c659a70fda829fdc4d0ccfbc",
+    "tests/shm/refinement/jet_gain_cache_test.cc": "0133407f37ddd4b67fd0bb49b4bc4d799194148de14d7010c9ca479fdf4d6417",
+    "tests/shm/refinement/jet_refiner_test.cc": "da52a0805868bd76f5aa046aaebfb6e1bfdf7b576f87bd150e16e0922bcb422d"
+  },
+  "suppressions": [],
+  "test_command": "ASAN_OPTIONS=halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 ctest --test-dir build-jet-sanitized --output-on-failure -R 'Jet(GainCache|Balancer|Refiner)'",
+  "test_returncode": 0,
+  "tests_failed": 0,
+  "tests_passed": 21
+}
