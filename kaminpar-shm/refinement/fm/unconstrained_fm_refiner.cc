@@ -39,6 +39,7 @@
 #endif
 
 #include "kaminpar-shm/refinement/gains/compact_hashing_gain_cache.h"
+#include "kaminpar-shm/refinement/gains/fm_jet_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
 
 namespace kaminpar::shm {
@@ -1778,6 +1779,9 @@ std::unique_ptr<Refiner> create_unconstrained_fm_core(const Context &ctx) {
   }
 
   switch (ctx.refinement.kway_fm.gain_cache_strategy) {
+  case GainCacheStrategy::JET:
+    return std::make_unique<UnconstrainedFMRefinerCore<Graph, FMJetGainCache>>(ctx);
+
   case GainCacheStrategy::SPARSE:
     return std::make_unique<UnconstrainedFMRefinerCore<Graph, NormalSparseGainCache>>(ctx);
 

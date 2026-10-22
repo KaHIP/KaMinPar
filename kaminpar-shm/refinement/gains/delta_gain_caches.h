@@ -126,37 +126,48 @@ public:
   KAMINPAR_INLINE void gains(const NodeID node, const BlockID from, Lambda &&lambda) const {
     const EdgeWeight conn_from_delta = kIteratesExactGains ? conn_delta(node, from) : 0;
 
+    // Reuse sparse scratch storage and finish reading the shared row before invoking the
+    // consumer. Some gain caches lock the row during gains(), so its callback must not
+    // query the same cache again or keep the lock during the consumer's work.
+    _gain_snapshot.clear();
     _gain_cache.gains(node, from, [&](const BlockID to, auto &&gain) {
-      lambda(to, [&] { return gain() + conn_delta(node, to) - conn_from_delta; });
+      _gain_snapshot[to] = gain() + conn_delta(node, to) - conn_from_delta;
     });
 
     const auto it = _adjacent_blocks_delta.find(node);
     if (it != _adjacent_blocks_delta.end()) {
       for (const BlockID to : it->second) {
-        if (to != from) {
-          lambda(to, [&] {
-            return _gain_cache.gain(node, from, to) + conn_delta(node, to) - conn_from_delta;
-          });
+        if (to != from && !_gain_snapshot.contains(to)) {
+          const EdgeWeight shared_value = [&] {
+            if constexpr (kIteratesExactGains) {
+              return _gain_cache.gain(node, from, to);
+            } else {
+              return _gain_cache.conn(node, to);
+            }
+          }();
+          _gain_snapshot[to] = shared_value + conn_delta(node, to) - conn_from_delta;
         }
       }
     }
+
+    _gain_snapshot.for_each([&](const BlockID to, const EdgeWeight value) {
+      const EdgeWeight connectivity = kIteratesExactGains ? conn(node, to) : value;
+      if (connectivity <= 0) {
+        return;
+      }
+      lambda(to, [&] { return value; });
+    });
   }
 
   KAMINPAR_INLINE void move(const NodeID u, const BlockID block_from, const BlockID block_to) {
+    if (block_from == block_to) {
+      return;
+    }
+
     reified(_d_graph, [&](const auto &graph) {
       graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
-        _gain_cache_delta[index(v, block_from)] -= weight;
-
-        if (_gain_cache.conn(v, block_to) == 0 && conn_delta(v, block_to) == 0) {
-          auto &additional_adjacent_blocks = _adjacent_blocks_delta[v];
-          if (std::find(
-                  additional_adjacent_blocks.begin(), additional_adjacent_blocks.end(), block_to
-              ) == additional_adjacent_blocks.end()) {
-            additional_adjacent_blocks.push_back(block_to);
-          }
-        }
-
-        _gain_cache_delta[index(v, block_to)] += weight;
+        add_delta(v, block_from, -weight);
+        add_delta(v, block_to, weight);
       });
     });
   }
@@ -164,9 +175,20 @@ public:
   KAMINPAR_INLINE void clear() {
     _gain_cache_delta.clear();
     _adjacent_blocks_delta.clear();
+    _gain_snapshot.clear();
   }
 
 private:
+  KAMINPAR_INLINE void add_delta(const NodeID node, const BlockID block, const EdgeWeight delta) {
+    const std::size_t key = index(node, block);
+    // A shared connection can disappear after this local move. Track every touched block
+    // independently of its current shared connectivity, including deltas that later cancel.
+    if (!_gain_cache_delta.contains(key)) {
+      _adjacent_blocks_delta[node].push_back(block);
+    }
+    _gain_cache_delta[key] += delta;
+  }
+
   [[nodiscard]] KAMINPAR_INLINE std::size_t index(const NodeID node, const BlockID block) const {
     return 1ull * node * _k + block;
   }
@@ -184,6 +206,10 @@ private:
   DynamicFlatMap<std::size_t, EdgeWeight> _gain_cache_delta;
 
   FlatHashMap<NodeID, std::vector<BlockID>> _adjacent_blocks_delta;
+
+  // Delta gain caches are worker-local. Queries are not reentrant; this map retains its
+  // allocation across queries and iterates only entries used by the current query.
+  mutable DynamicRememberingFlatMap<BlockID, EdgeWeight> _gain_snapshot;
 };
 
 } // namespace kaminpar::shm

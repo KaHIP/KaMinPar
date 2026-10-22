@@ -221,6 +221,7 @@ enum class GainCacheStrategy {
   DENSE,
   DENSE_LARGE_K,
   ON_THE_FLY,
+  JET,
 };
 
 struct KwayFMRefinementContext {

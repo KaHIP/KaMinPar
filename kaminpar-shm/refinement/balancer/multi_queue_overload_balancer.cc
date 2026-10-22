@@ -21,6 +21,7 @@
 #include "kaminpar-shm/refinement/balancer/relative_gain.h"
 #include "kaminpar-shm/refinement/gains/compact_hashing_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/dense_gain_cache.h"
+#include "kaminpar-shm/refinement/gains/fm_jet_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/hashing_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
 
@@ -640,20 +641,24 @@ void MultiQueueOverloadBalancer::clear_pqs() {
 using CSRNormalSparseGainCache = NormalSparseGainCache<const CSRGraph>;
 using CSRNormalCompactHashingGainCache = NormalCompactHashingGainCache<const CSRGraph>;
 using CSRLargeKCompactHashingGainCache = LargeKCompactHashingGainCache<const CSRGraph>;
+using CSRFMJetGainCache = FMJetGainCache<const CSRGraph>;
 
 using CompressedNormalSparseGainCache = NormalSparseGainCache<const CompressedGraph>;
 using CompressedNormalCompactHashingGainCache =
     NormalCompactHashingGainCache<const CompressedGraph>;
 using CompressedLargeKCompactHashingGainCache =
     LargeKCompactHashingGainCache<const CompressedGraph>;
+using CompressedFMJetGainCache = FMJetGainCache<const CompressedGraph>;
 
 INSTANTIATE_CACHED_REBALANCER(CSRGraph, CSRNormalSparseGainCache);
 INSTANTIATE_CACHED_REBALANCER(CSRGraph, CSRNormalCompactHashingGainCache);
 INSTANTIATE_CACHED_REBALANCER(CSRGraph, CSRLargeKCompactHashingGainCache);
+INSTANTIATE_CACHED_REBALANCER(CSRGraph, CSRFMJetGainCache);
 
 INSTANTIATE_CACHED_REBALANCER(CompressedGraph, CompressedNormalSparseGainCache);
 INSTANTIATE_CACHED_REBALANCER(CompressedGraph, CompressedNormalCompactHashingGainCache);
 INSTANTIATE_CACHED_REBALANCER(CompressedGraph, CompressedLargeKCompactHashingGainCache);
+INSTANTIATE_CACHED_REBALANCER(CompressedGraph, CompressedFMJetGainCache);
 
 #ifdef KAMINPAR_EXPERIMENTAL
 using CSRLargeKSparseGainCache = LargeKSparseGainCache<const CSRGraph>;

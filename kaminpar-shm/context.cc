@@ -394,6 +394,8 @@ std::ostream &operator<<(std::ostream &out, const GainCacheStrategy strategy) {
     return out << "dense-largek";
   case GainCacheStrategy::ON_THE_FLY:
     return out << "on-the-fly";
+  case GainCacheStrategy::JET:
+    return out << "jet";
   }
 
   return out << "<invalid>";
@@ -410,6 +412,7 @@ std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies() {
       {"dense", GainCacheStrategy::DENSE},
       {"dense-largek", GainCacheStrategy::DENSE_LARGE_K},
       {"on-the-fly", GainCacheStrategy::ON_THE_FLY},
+      {"jet", GainCacheStrategy::JET},
   };
 }
 
