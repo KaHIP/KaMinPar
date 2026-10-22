@@ -181,13 +181,21 @@ mpirun -n <nproc> ./build/apps/dKaMinPar <graph filename> <number of blocks> [-P
 
 The computed partition is written to a text file (controlled via `-o <filename>`), where the n-th line contains the block ID (0-based) of the n-th node.
 
-There are multiple configuration presets that tune the algorithm for different scenarios:
+For shared-memory partitioning with `KaMinPar`, the main configuration presets are:
 
 * `-P default`: fast partitioning with quality comparable to Metis.
 * `-P terapart`: same partition quality as `default`, but with reduced memory consumption (slightly slower).
 * `-P eco`: better quality than `default` through additional FM refinement at the cost of increased runtime.
 * `-P strong`: better quality than `eco` through additional flow refinement at the cost of increased runtime.
 * `-P largek`: faster for large values of k (e.g., k > 1024); reduces partition quality slightly for smaller k.
+
+For distributed-memory partitioning with `dKaMinPar`, the main configuration presets are:
+
+* `-P default`: fast partitioning using batched label propagation refinement.
+* `-P strong`: uses Jet refinement for higher partition quality at the cost of increased runtime.
+* `-P xterapart`: same as `default`, but uses graph compression to reduce peak memory consumption.
+
+Flow refinement is only available in the shared-memory partitioner; `dKaMinPar -P strong` does not use flows.
 
 The `-k <k>` option directs (d)KaMinPar to partition the graph into k blocks of roughly equal weight (use `-e <eps>` to control the maximum allowed imbalance, e.g., `-e 0.03` for 3%).
 Alternatively, one can specify the maximum weight for each block explicitly through one of the following options:
