@@ -48,6 +48,7 @@ option(KAMINPAR_ENABLE_THP "Use transparent huge pages for large memory allocati
 
 option(KAMINPAR_BUILD_WITH_DEBUG_SYMBOLS "Always build with debug symbols, even in Release mode." ON)
 option(KAMINPAR_BUILD_WITH_ASAN "Enable address sanitizer." OFF)
+option(KAMINPAR_BUILD_WITH_TSAN "Enable thread sanitizer." OFF)
 option(KAMINPAR_BUILD_WITH_UBSAN "Enable undefined behaviour sanitizer." OFF)
 option(KAMINPAR_BUILD_WITH_PG "Build with the -pg option for profiling." OFF)
 
@@ -173,6 +174,15 @@ endif()
 
 if(KAMINPAR_BUILD_WITH_MTUNE_NATIVE)
   add_compile_options(-mtune=native -march=native)
+endif()
+
+if(KAMINPAR_BUILD_WITH_ASAN AND KAMINPAR_BUILD_WITH_TSAN)
+  message(FATAL_ERROR "AddressSanitizer and ThreadSanitizer cannot be enabled together.")
+endif()
+
+if(KAMINPAR_BUILD_WITH_TSAN)
+  add_compile_options(-fsanitize=thread -fno-omit-frame-pointer)
+  add_link_options(-fsanitize=thread)
 endif()
 
 if(KAMINPAR_BUILD_WITH_ASAN)
@@ -409,6 +419,27 @@ if(KAMINPAR_BUILD_DISTRIBUTED)
   add_subdirectory(external/growt EXCLUDE_FROM_ALL)
   add_library(growt INTERFACE)
   target_include_directories(growt SYSTEM INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/external/growt>)
+
+  # Growt reads its 128-bit key/value slots atomically. Some compilers emit native loads, while
+  # others use libatomic to select the appropriate implementation for the execution host.
+  include(CheckCXXSourceCompiles)
+  include(CMakePushCheckState)
+  cmake_push_check_state()
+  if(COMPILER_SUPPORTS_MCX16)
+    string(APPEND CMAKE_REQUIRED_FLAGS " -mcx16")
+  endif()
+  set(KAMINPAR_GROWT_ATOMIC_LOAD_SOURCE
+      "alignas(16) __int128 value = 1; int main() { return static_cast<int>(__atomic_load_n(&value, __ATOMIC_RELAXED)); }")
+  check_cxx_source_compiles("${KAMINPAR_GROWT_ATOMIC_LOAD_SOURCE}" KAMINPAR_GROWT_NATIVE_ATOMIC_LOAD)
+  if(NOT KAMINPAR_GROWT_NATIVE_ATOMIC_LOAD)
+    list(APPEND CMAKE_REQUIRED_LIBRARIES atomic)
+    check_cxx_source_compiles("${KAMINPAR_GROWT_ATOMIC_LOAD_SOURCE}" KAMINPAR_GROWT_LIBATOMIC_LOAD)
+    if(NOT KAMINPAR_GROWT_LIBATOMIC_LOAD)
+      message(FATAL_ERROR "Growt requires native 128-bit atomic loads or libatomic")
+    endif()
+    target_link_libraries(growt INTERFACE atomic)
+  endif()
+  cmake_pop_check_state()
 
   # We optionally use Backward for pretty-printing stack traces
   if(KAMINPAR_BUILD_WITH_BACKWARD)

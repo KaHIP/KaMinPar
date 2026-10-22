@@ -1396,9 +1396,9 @@ std::optional<std::unique_ptr<CoarseGraph>> contract_clustering_or_rebalance(
                 map[lcnode] += weight;
               }
             } else {
-              auto lcnode_it = c_global_to_ghost.find(gcnode + 1);
-              KASSERT(lcnode_it != c_global_to_ghost.end());
-              const NodeID lcnode = (*lcnode_it).second;
+              const auto lcnode_it = c_global_to_ghost.lookup(gcnode + 1);
+              KASSERT(lcnode_it.has_value());
+              const NodeID lcnode = *lcnode_it;
               if (lcnode != lcu) {
                 map[lcnode] += weight;
               }

@@ -354,9 +354,8 @@ private:
   }
 
   void unlock(const NodeID node) {
-    __atomic_store_n(
-        &_weighted_degrees[node], _weighted_degrees[node] & kWeightedDegreeMask, __ATOMIC_RELAXED
-    );
+    const UnsignedEdgeWeight state = __atomic_load_n(&_weighted_degrees[node], __ATOMIC_RELAXED);
+    __atomic_store_n(&_weighted_degrees[node], state & kWeightedDegreeMask, __ATOMIC_RELEASE);
   }
 
   //
@@ -365,7 +364,9 @@ private:
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight weighted_degree(const NodeID node) const {
     KASSERT(node < _weighted_degrees.size());
-    return static_cast<EdgeWeight>(_weighted_degrees[node] & kWeightedDegreeMask);
+    return static_cast<EdgeWeight>(
+        __atomic_load_n(&_weighted_degrees[node], __ATOMIC_RELAXED) & kWeightedDegreeMask
+    );
   }
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight

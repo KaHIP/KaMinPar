@@ -66,7 +66,7 @@ bool UnderloadBalancer::refine(PartitionedGraph &p_graph, const PartitionContext
   // Rebalance partition in parallel
   tbb::task_group tg;
   for (int task_id = 0; task_id < _ctx.parallel.num_threads; ++task_id) {
-    tg.run([&] {
+    tg.run([&, task_id] {
       reified(*_p_graph, [&](const auto &graph) { rebalance_worker(graph, task_id); });
     });
   }
@@ -234,12 +234,12 @@ std::pair<BlockID, float> UnderloadBalancer::compute_best_gain(
 bool UnderloadBalancer::is_movable_to(const BlockID block, const NodeWeight node_weight) const {
   KASSERT(block < _p_graph->k());
 
-  return _is_underloaded[block] &&
+  return __atomic_load_n(&_is_underloaded[block], __ATOMIC_RELAXED) &&
          _p_graph->block_weight(block) + node_weight <= _p_ctx->max_block_weight(block);
 }
 
 bool UnderloadBalancer::is_movable_from(const BlockID from, const NodeWeight node_weight) const {
-  return !_is_underloaded[from] &&
+  return !__atomic_load_n(&_is_underloaded[from], __ATOMIC_RELAXED) &&
          _p_graph->block_weight(from) - node_weight >= _p_ctx->min_block_weight(from);
 }
 
@@ -248,7 +248,7 @@ void UnderloadBalancer::lock_block(const BlockID block) {
 
   std::uint8_t zero = 0u;
   while (!__atomic_compare_exchange_n(
-      &_block_locks[block], &zero, 1u, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED
+      &_block_locks[block], &zero, 1u, false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED
   )) {
     zero = 0u;
   }
@@ -258,7 +258,7 @@ void UnderloadBalancer::unlock_block(const BlockID block) {
   KASSERT(static_cast<std::size_t>(block) < _block_locks.size());
   KASSERT(__atomic_load_n(&_block_locks[block], __ATOMIC_RELAXED) == 1u);
 
-  __atomic_store_n(&_block_locks[block], 0u, __ATOMIC_RELAXED);
+  __atomic_store_n(&_block_locks[block], 0u, __ATOMIC_RELEASE);
 }
 
 } // namespace kaminpar::shm

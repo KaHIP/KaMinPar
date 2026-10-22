@@ -13,6 +13,7 @@
 
 #pragma once
 
+#include <optional>
 #include <atomic>
 #include <functional>
 #include <iostream>
@@ -194,6 +195,9 @@ class base_linear
     size_type          erase(const key_type& k);
     iterator           find(const key_type& k);
     const_iterator     find(const key_type& k) const;
+    // Returns a copy, never an iterator or mapped reference. The caller must guarantee that all
+    // writers have completed and no mutation/reclamation overlaps this lookup.
+    std::optional<mapped_type> find_quiescent(const key_type& k) const;
 
     inline insert_return_type
     insert_or_assign(const key_type& k, const mapped_type& d)
@@ -917,6 +921,20 @@ base_linear<C>::find(const key_type& k) const
             return make_citerator(curr, &_table[temp]);
     }
     return cend();
+}
+
+template <class C>
+inline std::optional<typename base_linear<C>::mapped_type>
+base_linear<C>::find_quiescent(const key_type& k) const
+{
+    size_type htemp = h(k);
+    for (size_type i = _mapper.map(htemp);; ++i)
+    {
+        auto temp = _mapper.remap(i);
+        auto curr = _table[temp].quiescent_load();
+        if (curr.is_empty()) return std::nullopt;
+        if (curr.compare_key(k, htemp)) return curr.get_mapped();
+    }
 }
 
 template <class C>

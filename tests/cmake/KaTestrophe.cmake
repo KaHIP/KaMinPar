@@ -19,7 +19,7 @@ if (NOT DEFINED KATESTROPHE_INCLUDED)
 
     # register the test main class
     add_library(mpi-gtest-main EXCLUDE_FROM_ALL mpi_gtest_main.cc)
-    target_link_libraries(mpi-gtest-main PUBLIC MPI::MPI_CXX GTest::gtest GTest::gmock)
+    target_link_libraries(mpi-gtest-main PUBLIC MPI::MPI_CXX GTest::gtest GTest::gmock TBB::tbb)
 
     # keep the cache clean
     mark_as_advanced(

@@ -62,7 +62,7 @@ public:
     if (_use_dense_global_to_ghost) [[likely]] {
       return _global_to_ghost_bitmap.is_set(global_node);
     } else {
-      return _sparse_global_to_ghost.find(global_node + 1) != _sparse_global_to_ghost.end();
+      return _sparse_global_to_ghost.contains(global_node + 1);
     }
   }
 
@@ -71,7 +71,7 @@ public:
       const NodeID dense_index = _global_to_ghost_bitmap.rank(global_node);
       return _dense_global_to_ghost[dense_index] + _num_nodes;
     } else {
-      return (*_sparse_global_to_ghost.find(global_node + 1)).second;
+      return _sparse_global_to_ghost.at(global_node + 1);
     }
   }
 
@@ -151,8 +151,7 @@ public:
       }
     };
 
-    const std::size_t sparse_size =
-        num_ghost_nodes * sizeof(growt::StaticGhostNodeMapping::atomic_slot_type);
+    const std::size_t sparse_size = num_ghost_nodes * growt::StaticGhostNodeMapping::kSlotSize;
     const std::size_t dense_size =
         num_global_nodes / 8 + num_ghost_nodes * math::byte_width(num_ghost_nodes - 1);
 
@@ -185,7 +184,7 @@ public:
           std::move(ghost_owner)
       );
     } else {
-      growt::StaticGhostNodeMapping global_to_ghost(num_ghost_nodes);
+      growt::MutableGhostNodeMapping global_to_ghost(num_ghost_nodes);
       foreach_global_to_ghost([&](const GlobalNodeID global_node,
                                   const NodeID local_node,
                                   const NodeID local_ghost,
@@ -199,7 +198,7 @@ public:
       return CompactGhostNodeMapping(
           _num_nodes,
           num_ghost_nodes,
-          std::move(global_to_ghost),
+          std::move(global_to_ghost).freeze(),
           std::move(ghost_to_global),
           std::move(ghost_owner)
       );
@@ -255,7 +254,7 @@ public:
   [[nodiscard]] Result finalize() {
     const NodeID ghost_n = static_cast<NodeID>(_next_ghost_node - _n);
 
-    growt::StaticGhostNodeMapping global_to_ghost(ghost_n);
+    growt::MutableGhostNodeMapping global_to_ghost(ghost_n);
 
     StaticArray<GlobalNodeID> ghost_to_global(ghost_n);
     StaticArray<PEID> ghost_owner(ghost_n);
@@ -283,7 +282,7 @@ public:
     });
 
     return {
-        .global_to_ghost = std::move(global_to_ghost),
+        .global_to_ghost = std::move(global_to_ghost).freeze(),
         .ghost_to_global = std::move(ghost_to_global),
         .ghost_owner = std::move(ghost_owner),
     };

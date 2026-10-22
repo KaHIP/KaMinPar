@@ -480,7 +480,7 @@ auto BfsExtractor::combine_fragments(tbb::concurrent_vector<GraphFragment> &frag
       first_edge_id_for_fragment.begin()
   );
 
-  growt::StaticGhostNodeMapping global_to_graph_mapping(first_node_id_for_fragment.back() + 1);
+  growt::MutableGhostNodeMapping global_to_graph_builder(first_node_id_for_fragment.back() + 1);
   tbb::parallel_for<std::size_t>(0, fragments.size(), [&](const std::size_t i) {
     for (std::size_t j = 0; j < fragments[i].node_mapping.size(); ++j) {
       const GlobalNodeID global_node = fragments[i].node_mapping[j];
@@ -490,9 +490,11 @@ auto BfsExtractor::combine_fragments(tbb::concurrent_vector<GraphFragment> &frag
       node_mapping[new_node] = global_node;
 
       // Global graph to new graph
-      global_to_graph_mapping.insert(global_node + 1, new_node);
+      global_to_graph_builder.insert(global_node + 1, new_node);
     }
   });
+
+  const auto global_to_graph_mapping = std::move(global_to_graph_builder).freeze();
 
   // Construct graph arrays
   tbb::parallel_for<std::size_t>(0, fragments.size(), [&](const std::size_t i) {
@@ -518,19 +520,18 @@ auto BfsExtractor::combine_fragments(tbb::concurrent_vector<GraphFragment> &frag
           const BlockID block = map_pseudo_node_to_block(global_v);
           edges[new_e] = real_n + block;
         } else {
-          auto it = global_to_graph_mapping.find(global_v + 1);
+          const auto it = global_to_graph_mapping.lookup(global_v + 1);
           KASSERT(
-              it != global_to_graph_mapping.end(),
+              it.has_value(),
               "Could not find a mapping for global node " << global_v << ", contained in fragment "
                                                           << i << " of " << fragments.size()
           );
-          edges[new_e] = (*it).second;
+          edges[new_e] = *it;
 
-          if (((*it).second == 1321279 && new_u == 682490) ||
-              ((*it).second == 682490 && new_u == 1321279)) {
-            DBG << "Create edge " << new_u << " = " << node_mapping[new_u] << " -> " << (*it).second
-                << " = " << global_v << " = " << node_mapping[(*it).second] << "; fragment " << i
-                << " of " << fragments.size();
+          if ((*it == 1321279 && new_u == 682490) || (*it == 682490 && new_u == 1321279)) {
+            DBG << "Create edge " << new_u << " = " << node_mapping[new_u] << " -> " << *it << " = "
+                << global_v << " = " << node_mapping[*it] << "; fragment " << i << " of "
+                << fragments.size();
           }
         }
       }
@@ -547,8 +548,9 @@ auto BfsExtractor::combine_fragments(tbb::concurrent_vector<GraphFragment> &frag
   }
 
   // Create nodes entries for pseudo-block nodes
+  const EdgeID pseudo_node_edge_begin = nodes[real_n];
   tbb::parallel_for<NodeID>(real_n, pseudo_n + 1, [&](const NodeID u) {
-    nodes[u] = nodes[real_n];
+    nodes[u] = pseudo_node_edge_begin;
   });
 
   // Construct shared-memory graph

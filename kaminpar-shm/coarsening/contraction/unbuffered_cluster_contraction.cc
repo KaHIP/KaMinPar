@@ -202,16 +202,20 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
   NextCoarseNodeInfo next_coarse_node_info = {.info = {.c_u = 0, .edge = 0}};
   const auto atomic_fetch_next_coarse_node_info = [&](const std::uint64_t nodes,
                                                       const std::uint64_t degree) {
-    NextCoarseNodeInfo expected;
+    NextCoarseNodeInfo expected = {.val = 0};
 
-    bool success;
-    do {
-      expected = next_coarse_node_info;
+    while (true) {
       const NextCoarseNodeInfo desired = {
           .info = {.c_u = expected.info.c_u + nodes, .edge = expected.info.edge + degree}
       };
-      success = __sync_bool_compare_and_swap(&next_coarse_node_info.val, expected.val, desired.val);
-    } while (!success);
+      // A failed CAS supplies the next snapshot without racing an ordinary 128-bit read.
+      const __uint128_t observed =
+          __sync_val_compare_and_swap(&next_coarse_node_info.val, expected.val, desired.val);
+      if (observed == expected.val) {
+        break;
+      }
+      expected.val = observed;
+    }
 
     return std::make_pair(expected.info.c_u, expected.info.edge);
   };

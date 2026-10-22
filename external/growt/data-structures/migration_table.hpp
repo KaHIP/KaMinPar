@@ -21,6 +21,7 @@
 #include <atomic>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <string>
 
@@ -240,6 +241,10 @@ class migration_table_handle
     size_type          erase(const key_type& k);
     iterator           find(const key_type& k);
     const_iterator     find(const key_type& k) const;
+
+    // Precondition: every table/key/value mutation has joined and stays excluded for this lookup.
+    // The existing handle protects/refreshes the table; only a copied value escapes.
+    std::optional<mapped_type> find_quiescent(const key_type& k) const;
 
     insert_return_type insert_or_assign(const key_type& k, const mapped_type& d)
     {
@@ -952,6 +957,14 @@ migration_table_handle<migration_table_data>::find(const key_type& k) const
         k);
     return make_citerator(bit, v);
 }
+
+template <class migration_table_data>
+inline std::optional<typename migration_table_handle<migration_table_data>::mapped_type>
+migration_table_handle<migration_table_data>::find_quiescent(const key_type& k) const
+{
+    return cexecute([&k](hash_ptr_reference table) { return table->find_quiescent(k); });
+}
+
 
 template <class migration_table_data>
 inline typename migration_table_handle<migration_table_data>::size_type

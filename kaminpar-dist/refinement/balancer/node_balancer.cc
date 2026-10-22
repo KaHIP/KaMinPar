@@ -7,6 +7,10 @@
  ******************************************************************************/
 #include "kaminpar-dist/refinement/balancer/node_balancer.h"
 
+#include <cstdint>
+#include <limits>
+#include <type_traits>
+
 #include "kaminpar-mpi/wrapper.h"
 
 #include "kaminpar-dist/datastructures/distributed_partitioned_graph.h"
@@ -87,9 +91,13 @@ public:
     SCOPED_TIMER("Node balancer");
 
     TIMED_SCOPE("Initialize") {
+      if (metrics::is_feasible(_p_graph, _p_ctx)) {
+        return;
+      }
+
       if (_nb_ctx.enable_parallel_balancing) {
         _buckets.initialize();
-        _tmp_gains.resize(!_nb_ctx.par_update_pq_gains * _graph.n());
+        _tmp_gains.resize(!_nb_ctx.par_update_pq_gains * _graph.n(), static_array::noinit);
       }
 
       reinit();
@@ -175,6 +183,35 @@ public:
   }
 
 private:
+  // These phases must finish before any partition labels or block weights are changed.
+  template <typename Phase> void with_read_only_gain_queries(Phase &&phase) {
+    if constexpr (std::is_same_v<GainCache, DefaultGainCache>) {
+      if (!_graph.is_node_weighted() &&
+          _p_graph.k() <= std::numeric_limits<std::uint64_t>::digits) {
+        std::uint64_t blocks = 0;
+        bool valid = true;
+        for (const BlockID block : _p_graph.blocks()) {
+          const BlockWeight weight = _p_graph.block_weight(block);
+          if (weight == std::numeric_limits<BlockWeight>::max()) {
+            valid = false;
+            break;
+          }
+          if (weight + NodeWeight{1} <= _p_ctx.max_block_weight(block)) {
+            blocks |= std::uint64_t{1} << block;
+          }
+        }
+        if (valid) {
+          phase([&](const NodeID u) {
+            return gain_cache().compute_max_gainer_for_blocks(u, blocks);
+          });
+          return;
+        }
+      }
+    }
+
+    phase([&](const NodeID u) { return gain_cache().compute_max_gainer(u, _p_ctx); });
+  }
+
   void reinit() {
     // Only initialize the balancer is the partition is actually imbalanced
     if (metrics::is_feasible(_p_graph, _p_ctx)) {
@@ -199,36 +236,38 @@ private:
 
     // Build thread-local PQs: one PQ for each thread and block, each PQ for block
     // b has at most roughly |overload[b]| weight
-    tbb::parallel_for(static_cast<NodeID>(0), _graph.n(), [&](const NodeID u) {
-      if (_graph.degree(u) > _nb_ctx.par_high_degree_insertion_threshold) {
-        return;
-      }
-
-      auto &pq = local_pq_ets.local();
-      auto &pq_weight = local_pq_weight_ets.local();
-
-      const BlockID from = _p_graph.block(u);
-      const BlockWeight overload = block_overload(from);
-
-      if (overload > 0) { // Node in overloaded block
-        const auto max_gainer = gain_cache().compute_max_gainer(u, _p_ctx);
-
-        const double rel_gain = max_gainer.relative_gain();
-        _target_blocks[u] = max_gainer.block;
-
-        const bool need_more_nodes = (pq_weight[from] < overload);
-        if (need_more_nodes || pq[from].empty() || rel_gain > pq[from].peek_key()) {
-          if (!need_more_nodes) {
-            const NodeWeight u_weight = _graph.node_weight(u);
-            const NodeWeight min_weight = _graph.node_weight(pq[from].peek_id());
-            if (pq_weight[from] + u_weight - min_weight >= overload) {
-              pq[from].pop();
-            }
-          }
-          pq[from].push(u, rel_gain);
-          _marker.set(u);
+    with_read_only_gain_queries([&](auto &&compute_max_gainer) {
+      tbb::parallel_for(static_cast<NodeID>(0), _graph.n(), [&](const NodeID u) {
+        if (_graph.degree(u) > _nb_ctx.par_high_degree_insertion_threshold) {
+          return;
         }
-      }
+
+        auto &pq = local_pq_ets.local();
+        auto &pq_weight = local_pq_weight_ets.local();
+
+        const BlockID from = _p_graph.block(u);
+        const BlockWeight overload = block_overload(from);
+
+        if (overload > 0) { // Node in overloaded block
+          const auto max_gainer = compute_max_gainer(u);
+
+          const double rel_gain = max_gainer.relative_gain();
+          _target_blocks[u] = max_gainer.block;
+
+          const bool need_more_nodes = (pq_weight[from] < overload);
+          if (need_more_nodes || pq[from].empty() || rel_gain > pq[from].peek_key()) {
+            if (!need_more_nodes) {
+              const NodeWeight u_weight = _graph.node_weight(u);
+              const NodeWeight min_weight = _graph.node_weight(pq[from].peek_id());
+              if (pq_weight[from] + u_weight - min_weight >= overload) {
+                pq[from].pop();
+              }
+            }
+            pq[from].push(u, rel_gain);
+            _marker.set(u);
+          }
+        }
+      });
     });
 
     // Build global PQ: one PQ per block, block-level parallelism
@@ -494,37 +533,39 @@ private:
     std::vector<std::tuple<BlockID, NodeID, double>> pq_updates;
 
     START_TIMER("Computing weight buckets");
-    _buckets.clear();
-    for (const BlockID from : _p_graph.blocks()) {
-      for (const auto &[node, pq_gain] : _pq.elements(from)) {
-        KASSERT(_p_graph.block(node) == from);
+    with_read_only_gain_queries([&](auto &&compute_max_gainer) {
+      _buckets.clear();
+      for (const BlockID from : _p_graph.blocks()) {
+        for (const auto &[node, pq_gain] : _pq.elements(from)) {
+          KASSERT(_p_graph.block(node) == from);
 
-        // For high-degree nodes, assume that the PQ gain is up-to-date and skip recomputation
-        if (_graph.degree(node) > _nb_ctx.par_high_degree_update_thresold &&
-            ((round + 1) % _nb_ctx.par_high_degree_update_interval) == 0) {
-          _buckets.add(from, _graph.node_weight(node), pq_gain);
-          if (!_nb_ctx.par_update_pq_gains) {
-            _tmp_gains[node] = pq_gain;
+          // For high-degree nodes, assume that the PQ gain is up-to-date and skip recomputation
+          if (_graph.degree(node) > _nb_ctx.par_high_degree_update_thresold &&
+              ((round + 1) % _nb_ctx.par_high_degree_update_interval) == 0) {
+            _buckets.add(from, _graph.node_weight(node), pq_gain);
+            if (!_nb_ctx.par_update_pq_gains) {
+              _tmp_gains[node] = pq_gain;
+            }
+            continue;
           }
-          continue;
+
+          // For low-degree nodes, recalculate gain and update PQ
+          const auto max_gainer = compute_max_gainer(node);
+
+          const double actual_gain = max_gainer.relative_gain();
+          const BlockID to = max_gainer.block;
+
+          if (_nb_ctx.par_update_pq_gains && pq_gain != actual_gain) {
+            pq_updates.emplace_back(from, node, actual_gain);
+          } else if (!_nb_ctx.par_update_pq_gains) {
+            _tmp_gains[node] = actual_gain;
+          }
+
+          _buckets.add(from, _graph.node_weight(node), actual_gain);
+          _target_blocks[node] = to;
         }
-
-        // For low-degree nodes, recalculate gain and update PQ
-        const auto max_gainer = gain_cache().compute_max_gainer(node, _p_ctx);
-
-        const double actual_gain = max_gainer.relative_gain();
-        const BlockID to = max_gainer.block;
-
-        if (_nb_ctx.par_update_pq_gains && pq_gain != actual_gain) {
-          pq_updates.emplace_back(from, node, actual_gain);
-        } else if (!_nb_ctx.par_update_pq_gains) {
-          _tmp_gains[node] = actual_gain;
-        }
-
-        _buckets.add(from, _graph.node_weight(node), actual_gain);
-        _target_blocks[node] = to;
       }
-    }
+    });
     STOP_TIMER();
     TIMER_BARRIER(_graph.communicator());
 

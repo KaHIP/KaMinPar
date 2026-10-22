@@ -263,7 +263,8 @@ template <bool kCollectActiveNodes> void ParallelPreflowPushAlgorithm::global_re
 
     const NodeID v_height = u_height + 1;
     _graph->neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight c) {
-      if (_node_status.is_terminal(v) || -_flow[e] == c || _heights[v] != max_level) {
+      if (_node_status.is_terminal(v) || -_flow[e] == c ||
+          __atomic_load_n(&_heights[v], __ATOMIC_RELAXED) != max_level) {
         return;
       }
 
@@ -377,7 +378,7 @@ void ParallelPreflowPushAlgorithm::atomic_discharge(
       continue;
     }
 
-    const EdgeWeight e_flow = _flow[e];
+    const EdgeWeight e_flow = __atomic_load_n(&_flow[e], __ATOMIC_RELAXED);
     const EdgeWeight e_capacity = _graph->edge_weight(e);
 
     const EdgeWeight residual_capacity = e_capacity - e_flow;
@@ -386,7 +387,9 @@ void ParallelPreflowPushAlgorithm::atomic_discharge(
       continue;
     }
 
-    const bool winning_edge = (u_initial_height == v_height + 1) ||
+    // Excess is fixed during this discharge phase. A zero-excess neighbor cannot write
+    // the edge pair; incoming excess is applied only after all discharges have joined.
+    const bool winning_edge = (_excess[v] == 0) || (u_initial_height == v_height + 1) ||
                               (u_initial_height < v_height - 1) ||
                               (u_initial_height == v_height && u < v);
     if (!winning_edge) {
@@ -400,8 +403,11 @@ void ParallelPreflowPushAlgorithm::atomic_discharge(
     }
 
     const EdgeID e_reverse = _reverse_edges[e];
-    _flow[e] += flow;
-    _flow[e_reverse] -= flow;
+    // The conflict rule gives this worker exclusive writes to the edge pair, while other
+    // workers can still read its residual capacity during discharge or relabeling.
+    __atomic_store_n(&_flow[e], e_flow + flow, __ATOMIC_RELAXED);
+    const EdgeWeight reverse_flow = __atomic_load_n(&_flow[e_reverse], __ATOMIC_RELAXED);
+    __atomic_store_n(&_flow[e_reverse], reverse_flow - flow, __ATOMIC_RELAXED);
 
     excess -= flow;
     __atomic_fetch_add(&_excess_delta[v], flow, __ATOMIC_RELAXED);
@@ -484,7 +490,7 @@ void ParallelPreflowPushAlgorithm::discharge(const NodeID u) {
 NodeID ParallelPreflowPushAlgorithm::relabel(const NodeID u) {
   NodeID min_neighboring_height = std::numeric_limits<NodeID>::max();
   _graph->neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight c) {
-    const bool has_residual_capacity = _flow[e] < c;
+    const bool has_residual_capacity = __atomic_load_n(&_flow[e], __ATOMIC_RELAXED) < c;
     if (has_residual_capacity) {
       min_neighboring_height = std::min(min_neighboring_height, _heights[v]);
     }

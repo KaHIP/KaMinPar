@@ -11,6 +11,7 @@
 
 #include <gtest/gtest.h>
 #include <mpi.h>
+#include <tbb/global_control.h>
 
 #include "tests/gtest_mpi_listener.h"
 
@@ -27,6 +28,8 @@ int main(int argc, char **argv) {
     throw std::runtime_error("Not initialized");
   }
 
+  tbb::task_scheduler_handle scheduler{tbb::attach{}};
+
   // Add object that will finalize MPI on exit; Google Test owns this pointer
   ::testing::AddGlobalTestEnvironment(new GTestMPIListener::MPIEnvironment);
 
@@ -42,6 +45,9 @@ int main(int argc, char **argv) {
   // Run tests, then clean up and exit. RUN_ALL_TESTS() returns 0 if all tests
   // pass and 1 if some test fails.
   int result = RUN_ALL_TESTS();
+
+  // All tests and MPIEnvironment::TearDown have completed. Join idle TBB workers before exit.
+  tbb::finalize(scheduler);
 
   return result;
 }

@@ -70,7 +70,7 @@ public:
 
   [[nodiscard]] KAMINPAR_INLINE bool
   move_cluster_weight(const NodeID from, const NodeID to, const NodeWeight delta) {
-    if (_cluster_weights[to] + delta <= _max_cluster_weight) {
+    if (cluster_weight(to) + delta <= _max_cluster_weight) {
       __atomic_fetch_add(&_cluster_weights[to], delta, __ATOMIC_RELAXED);
       __atomic_fetch_sub(&_cluster_weights[from], delta, __ATOMIC_RELAXED);
       return true;
@@ -181,7 +181,7 @@ public:
 
   [[nodiscard]] bool
   move_cluster_weight(const NodeID from, const NodeID to, const NodeWeight delta) {
-    if (_cluster_weights[to] + delta <= _max_cluster_weight) {
+    if (cluster_weight(to) + delta <= _max_cluster_weight) {
       __atomic_fetch_add(&_cluster_weights[to], delta, __ATOMIC_RELAXED);
       __atomic_fetch_sub(&_cluster_weights[from], delta, __ATOMIC_RELAXED);
       return true;

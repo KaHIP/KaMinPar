@@ -87,7 +87,9 @@ public:
   [[nodiscard]] MutType get(const MutType key) const {
     if constexpr (allow_full_map) {
       const auto slot = find(key);
-      return decode_key(slot.second) == key ? decode_value(find(key).second) : 0;
+      // Decode the same atomic observation whose key was checked. A second lookup
+      // can observe a replacement key during concurrent insertion or removal.
+      return decode_key(slot.second) == key ? decode_value(slot.second) : 0;
     } else {
       return decode_value(find(key).second);
     }

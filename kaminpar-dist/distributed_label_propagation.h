@@ -54,6 +54,9 @@ struct LabelPropagationConfig {
 
   static constexpr bool kUseActualGain = false;
 
+  // Opt in only when strictly smaller gains are rejected without RNG or other side effects.
+  static constexpr bool kSkipLosingClusterWeights = false;
+
   static constexpr bool kUseActiveSetStrategy = true;
 };
 
@@ -347,10 +350,10 @@ protected:
 
       if constexpr (Config::kUseActiveSetStrategy) {
         if (_use_active_set) {
-          _active[u] = 0;
+          __atomic_store_n(&_active[u], 0, __ATOMIC_RELAXED);
         }
         if (_use_local_active_set && !is_interface_node) {
-          _active[u] = 0;
+          __atomic_store_n(&_active[u], 0, __ATOMIC_RELAXED);
         }
       }
 
@@ -370,6 +373,12 @@ protected:
       for (const auto [cluster, rating] : map.entries()) {
         state.current_cluster = cluster;
         state.current_gain = rating - gain_delta;
+        if constexpr (Config::kSkipLosingClusterWeights) {
+          // Keep equal-gain tie-breaking and fresh weights for every potential winner.
+          if (state.current_gain < state.best_gain) {
+            continue;
+          }
+        }
         state.current_cluster_weight = derived_cluster_weight(cluster);
 
         if (store_favored_cluster && state.current_gain > state.best_gain) {
@@ -1301,7 +1310,7 @@ public:
       const ClusterWeight delta,
       const ClusterWeight max_weight
   ) {
-    if (_cluster_weights[new_cluster] + delta <= max_weight) {
+    if (cluster_weight(new_cluster) + delta <= max_weight) {
       __atomic_fetch_add(&_cluster_weights[new_cluster], delta, __ATOMIC_RELAXED);
       __atomic_fetch_sub(&_cluster_weights[old_cluster], delta, __ATOMIC_RELAXED);
       return true;

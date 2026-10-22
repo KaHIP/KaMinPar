@@ -45,6 +45,16 @@ struct IsOnTheFlyGainCache<
     OnTheFlyGainCache<Graph, iterate_nonadjacent_blocks, iterate_exact_gains, iterate_source_block>>
     : std::true_type {};
 
+template <typename GainCache, typename Lambda>
+KAMINPAR_INLINE void
+with_gain_query(const GainCache &gain_cache, const NodeID node, Lambda &&consumer) {
+  if constexpr (requires { gain_cache.with_gain_query(node, std::forward<Lambda>(consumer)); }) {
+    gain_cache.with_gain_query(node, std::forward<Lambda>(consumer));
+  } else {
+    consumer([&](const BlockID from, const BlockID to) { return gain_cache.gain(node, from, to); });
+  }
+}
+
 } // namespace
 
 MultiQueueOverloadBalancer::MultiQueueOverloadBalancer(const Context &ctx) : _ctx(ctx) {}
@@ -400,9 +410,11 @@ std::pair<BlockID, float> MultiQueueOverloadBalancer::compute_best_gain(
   if constexpr (std::remove_reference_t<decltype(gain_cache)>::kIteratesNonadjacentBlocks) {
     gain_cache.gains(node, from, consider_target);
   } else {
-    for (const BlockID to : _p_graph->blocks()) {
-      consider_target(to, [&] { return gain_cache.gain(node, from, to); });
-    }
+    with_gain_query(gain_cache, node, [&](auto &&query) {
+      for (const BlockID to : _p_graph->blocks()) {
+        consider_target(to, [&] { return query(from, to); });
+      }
+    });
   }
 
   if (best_block == kInvalidBlockID) {
@@ -428,32 +440,34 @@ std::pair<BlockID, float> MultiQueueOverloadBalancer::compute_best_gain_of_candi
   EdgeWeight best_gain = std::numeric_limits<EdgeWeight>::min();
   BlockWeight best_target_weight = _p_graph->block_weight(from) - weight;
 
-  for (std::size_t i = 0; i < candidates.size(); ++i) {
-    const BlockID to = candidates[i];
-    if (to == kInvalidBlockID || to == from) {
-      continue;
-    }
+  with_gain_query(gain_cache, node, [&](auto &&query) {
+    for (std::size_t i = 0; i < candidates.size(); ++i) {
+      const BlockID to = candidates[i];
+      if (to == kInvalidBlockID || to == from) {
+        continue;
+      }
 
-    bool duplicate = false;
-    for (std::size_t j = 0; j < i; ++j) {
-      duplicate |= candidates[j] == to;
-    }
-    if (duplicate) {
-      continue;
-    }
+      bool duplicate = false;
+      for (std::size_t j = 0; j < i; ++j) {
+        duplicate |= candidates[j] == to;
+      }
+      if (duplicate) {
+        continue;
+      }
 
-    const BlockWeight target_weight = _p_graph->block_weight(to);
-    if (target_weight + weight > _p_ctx->max_block_weight(to)) {
-      continue;
-    }
+      const BlockWeight target_weight = _p_graph->block_weight(to);
+      if (target_weight + weight > _p_ctx->max_block_weight(to)) {
+        continue;
+      }
 
-    const EdgeWeight gain = gain_cache.gain(node, from, to);
-    if (gain > best_gain || (gain == best_gain && target_weight < best_target_weight)) {
-      best_block = to;
-      best_gain = gain;
-      best_target_weight = target_weight;
+      const EdgeWeight gain = query(from, to);
+      if (gain > best_gain || (gain == best_gain && target_weight < best_target_weight)) {
+        best_block = to;
+        best_gain = gain;
+        best_target_weight = target_weight;
+      }
     }
-  }
+  });
 
   if (best_block == kInvalidBlockID) {
     return {kInvalidBlockID, std::numeric_limits<float>::lowest()};

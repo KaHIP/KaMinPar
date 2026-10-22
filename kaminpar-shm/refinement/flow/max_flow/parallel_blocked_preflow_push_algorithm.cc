@@ -261,7 +261,8 @@ template <bool kCollectActiveNodes> void ParallelBlockedPreflowPushAlgorithm::gl
 
     const NodeID v_height = u_height + 1;
     _graph->neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight c) {
-      if (_node_status.is_terminal(v) || -_flow[e] == c || _heights[v] != max_level) {
+      if (_node_status.is_terminal(v) || -_flow[e] == c ||
+          __atomic_load_n(&_heights[v], __ATOMIC_RELAXED) != max_level) {
         return;
       }
 
@@ -378,7 +379,7 @@ void ParallelBlockedPreflowPushAlgorithm::atomic_discharge(
       continue;
     }
 
-    const EdgeWeight e_flow = _flow[e];
+    const EdgeWeight e_flow = __atomic_load_n(&_flow[e], __ATOMIC_RELAXED);
     const EdgeWeight e_capacity = _graph->edge_weight(e);
 
     const EdgeWeight residual_capacity = e_capacity - e_flow;
@@ -398,8 +399,11 @@ void ParallelBlockedPreflowPushAlgorithm::atomic_discharge(
     }
 
     const EdgeID e_reverse = _reverse_edges[e];
-    _flow[e] += flow;
-    _flow[e_reverse] -= flow;
+    // The conflict rule gives this worker exclusive writes to the edge pair, while other
+    // workers can still read its residual capacity during discharge or relabeling.
+    __atomic_store_n(&_flow[e], e_flow + flow, __ATOMIC_RELAXED);
+    const EdgeWeight reverse_flow = __atomic_load_n(&_flow[e_reverse], __ATOMIC_RELAXED);
+    __atomic_store_n(&_flow[e_reverse], reverse_flow - flow, __ATOMIC_RELAXED);
 
     excess -= flow;
     __atomic_fetch_add(&_excess_delta[v], flow, __ATOMIC_RELAXED);
@@ -483,7 +487,7 @@ void ParallelBlockedPreflowPushAlgorithm::discharge(const NodeID u) {
 NodeID ParallelBlockedPreflowPushAlgorithm::relabel(const NodeID u) {
   NodeID min_neighboring_height = std::numeric_limits<NodeID>::max();
   _graph->neighbors(u, [&](const EdgeID e, const NodeID v, const EdgeWeight c) {
-    const bool has_residual_capacity = _flow[e] < c;
+    const bool has_residual_capacity = __atomic_load_n(&_flow[e], __ATOMIC_RELAXED) < c;
     if (has_residual_capacity) {
       min_neighboring_height = std::min(min_neighboring_height, _heights[v]);
     }
@@ -497,14 +501,15 @@ bool ParallelBlockedPreflowPushAlgorithm::update_active_node(
     const NodeID u, const std::uint8_t desired_state
 ) {
   std::uint8_t expected = kNotModifiedState;
-  return _active_node_state[u] == desired_state || __atomic_compare_exchange_n(
-                                                       &_active_node_state[u],
-                                                       &expected,
-                                                       desired_state,
-                                                       false,
-                                                       __ATOMIC_ACQ_REL,
-                                                       __ATOMIC_RELAXED
-                                                   );
+  return __atomic_load_n(&_active_node_state[u], __ATOMIC_RELAXED) == desired_state ||
+         __atomic_compare_exchange_n(
+             &_active_node_state[u],
+             &expected,
+             desired_state,
+             false,
+             __ATOMIC_ACQ_REL,
+             __ATOMIC_RELAXED
+         );
 }
 
 std::span<const NodeID> ParallelBlockedPreflowPushAlgorithm::excess_nodes() {

@@ -138,7 +138,8 @@ std::pair<NodeID, NodeID> PiercingHeuristic::compute_distances_parallel() {
 
     const NodeWeight v_distance = u_distance + 1;
     graph.adjacent_nodes(u, [&](const NodeID v) {
-      if (v == source || v == sink || _distance[v] != kInvalidNodeWeight) {
+      if (v == source || v == sink ||
+          __atomic_load_n(&_distance[v], __ATOMIC_RELAXED) != kInvalidNodeWeight) {
         return;
       }
 

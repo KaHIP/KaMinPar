@@ -229,8 +229,7 @@ public:
   }
 
   [[nodiscard]] inline bool contains_global_node(const GlobalNodeID global_u) const final {
-    return is_owned_global_node(global_u) ||
-           (_global_to_ghost.find(global_u + 1) != _global_to_ghost.end());
+    return is_owned_global_node(global_u) || _global_to_ghost.contains(global_u + 1);
   }
 
   [[nodiscard]] inline bool contains_local_node(const NodeID local_u) const final {
@@ -276,8 +275,7 @@ public:
     if (offset_n() <= global_u && global_u < offset_n() + n()) {
       return global_u - offset_n();
     } else {
-      KASSERT(_global_to_ghost.find(global_u + 1) != _global_to_ghost.end());
-      return (*_global_to_ghost.find(global_u + 1)).second;
+      return _global_to_ghost.at(global_u + 1);
     }
   }
 
