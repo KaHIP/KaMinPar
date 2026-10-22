@@ -151,6 +151,8 @@ TEST(JetGainCacheTest, ConcurrentGrowthDeletionAndQueriesKeepEachRowConsistent) 
 TEST(JetGainCacheTest, DoesNotPackOrTruncateEdgeWeights) {
   constexpr EdgeWeight weight = std::numeric_limits<EdgeWeight>::max() / 4;
   const auto graph = make_star_graph(2, [](NodeID, NodeID) { return weight; });
+  ASSERT_EQ(graph.csr_graph().edge_weight(0), weight);
+  ASSERT_EQ(graph.csr_graph().edge_weight(1), weight);
   auto p_graph = make_p_graph(graph, 1024, {0, 1023, 1023});
   const Context ctx = create_default_context();
   JetGainCache<CSRGraph> cache(ctx, graph.n(), p_graph.k());

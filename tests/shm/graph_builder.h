@@ -43,7 +43,7 @@ public:
     return _node_weights.back();
   }
 
-  EdgeID new_edge(const NodeID v, const EdgeID weight = 1) {
+  EdgeID new_edge(const NodeID v, const EdgeWeight weight = 1) {
     _edges.push_back(v);
     _edge_weights.push_back(weight);
     return _edges.size() - 1;
