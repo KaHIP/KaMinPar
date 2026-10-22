@@ -14,6 +14,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include <tbb/enumerable_thread_specific.h>
@@ -22,12 +23,43 @@
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/refinement/balancer/overload_balancer.h"
+#include "kaminpar-shm/refinement/gains/jet_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/on_the_fly_gain_cache.h"
+#include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
+#include "kaminpar-shm/refinement/jet/jet_balancer.h"
 
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm {
+
+// The paper balancer updates its cache directly. Also record those moves for
+// incremental cut accounting, including vertices moved repeatedly in one pass.
+template <typename GainCache, typename MoveTracker> class TrackedJetGainCache {
+public:
+  constexpr static bool kIteratesExactGains = GainCache::kIteratesExactGains;
+
+  TrackedJetGainCache(GainCache &cache, const MoveTracker &track_move)
+      : _cache(cache),
+        _track_move(track_move) {}
+
+  EdgeWeight conn(const NodeID u, const BlockID block) const {
+    return _cache.conn(u, block);
+  }
+
+  template <typename Lambda> void gains(const NodeID u, const BlockID from, Lambda &&lambda) const {
+    _cache.gains(u, from, std::forward<Lambda>(lambda));
+  }
+
+  void move(const NodeID u, const BlockID from, const BlockID to) {
+    _cache.move(u, from, to);
+    _track_move(u, from, to);
+  }
+
+private:
+  GainCache &_cache;
+  const MoveTracker &_track_move;
+};
 
 template <typename Graph> class JetRefinerImpl {
   SET_DEBUG(false);
@@ -64,15 +96,68 @@ public:
 
   bool refine(PartitionedGraph &p_graph, const Graph &graph, const PartitionContext &p_ctx) {
     SCOPED_TIMER("Jet Refiner");
-
     if (_num_rounds <= 0 || p_graph.k() < 2) {
       return false;
     }
+    switch (_ctx.refinement.jet.gain_cache_strategy) {
+    case JetGainCacheStrategy::SPARSE:
+      if (can_use_sparse_cache(graph, p_graph.k())) {
+        // Retain the legacy storage layout, but enumerate adjacent targets.
+        return refine_with_cache<SparseGainCache<Graph, GenericDeltaGainCache, false>>(
+            p_graph, graph, p_ctx
+        );
+      }
+      // Avoid n*k storage on unsorted input and packed connectivity overflow.
+      return refine_with_cache<OnTheFlyGainCache<Graph, false, false, true>>(p_graph, graph, p_ctx);
+    case JetGainCacheStrategy::JET:
+      return refine_with_cache<SynchronousJetGainCache<Graph>>(p_graph, graph, p_ctx);
+    }
+    return false;
+  }
 
+private:
+  bool can_use_sparse_cache(const Graph &graph, const BlockID k) const {
+    if (!graph.sorted()) {
+      return false;
+    }
+    const UnsignedEdgeWeight packed_limit =
+        std::numeric_limits<UnsignedEdgeWeight>::max() >> math::ceil_log2(k);
+    const EdgeID degree_threshold = std::max<EdgeID>(
+        k * _ctx.refinement.kway_fm.k_based_high_degree_threshold,
+        _ctx.refinement.kway_fm.constant_high_degree_threshold
+    );
+    // SparseGainCache assigns complete degree buckets to packed hash rows.
+    NodeID packed_nodes = 0;
+    for (std::size_t bucket = 0;
+         packed_nodes < graph.n() && graph.degree(packed_nodes) < degree_threshold;
+         ++bucket) {
+      packed_nodes += graph.bucket_size(bucket);
+    }
+    return tbb::parallel_reduce(
+        tbb::blocked_range<NodeID>(0, packed_nodes),
+        true,
+        [&](const auto &range, bool safe) {
+          for (NodeID u = range.begin(); u != range.end(); ++u) {
+            if (!safe) {
+              break;
+            }
+            UnsignedEdgeWeight weighted_degree = 0;
+            graph.adjacent_nodes(u, [&](NodeID, const EdgeWeight weight) {
+              weighted_degree += static_cast<UnsignedEdgeWeight>(weight);
+            });
+            safe = weighted_degree <= packed_limit;
+          }
+          return safe;
+        },
+        std::logical_and<>{}
+    );
+  }
+
+  template <typename GainCache>
+  bool
+  refine_with_cache(PartitionedGraph &p_graph, const Graph &graph, const PartitionContext &p_ctx) {
     START_TIMER("Allocation");
-    // Aggregate adjacent parts once per vertex. In particular, do not allocate n*k
-    // connectivity entries for unsorted graphs or probe every nonadjacent part.
-    OnTheFlyGainCache<Graph, false, false, true> gain_cache(_ctx, graph.n(), p_graph.k());
+    GainCache gain_cache(_ctx, graph.n(), p_graph.k());
     gain_cache.initialize(graph, p_graph);
 
     StaticArray<BlockID> next_partition(graph.n(), static_array::noinit);
@@ -91,9 +176,22 @@ public:
       }
     };
 
-    BlockParallelOverloadBalancer balancer(_ctx);
-    balancer.initialize(p_graph);
-    balancer.track_moves(track_move);
+    TrackedJetGainCache tracked_cache(gain_cache, track_move);
+    BlockParallelOverloadBalancer overload_balancer(_ctx);
+    JetBalancer<Graph, decltype(tracked_cache)> jet_balancer(_ctx);
+    const bool use_jet_balancer =
+        _ctx.refinement.jet.balancing_algorithm == JetBalancingAlgorithm::JET;
+    const auto initialize_balancer = [&] {
+      if (use_jet_balancer) {
+        jet_balancer.initialize(p_graph);
+      } else {
+        overload_balancer.initialize(p_graph);
+        overload_balancer.track_moves([&](const NodeID u, const BlockID from, const BlockID to) {
+          tracked_cache.move(u, from, to);
+        });
+      }
+    };
+    initialize_balancer();
 
     StaticArray<BlockID> best_partition(graph.n(), static_array::noinit);
     graph.pfor_nodes([&](const NodeID u) { best_partition[u] = p_graph.block(u); });
@@ -148,6 +246,9 @@ public:
             }
 
             EdgeWeight conn_from = 0;
+            if constexpr (!requires { GainCache::kIteratesSourceBlock; }) {
+              conn_from = gain_cache.conn(u, from);
+            }
             EdgeWeight best_conn = 0;
             BlockID best_block = from;
             gain_cache.gains(u, from, [&](const BlockID to, auto &&conn_fn) {
@@ -201,15 +302,27 @@ public:
         };
 
         TIMED_SCOPE("Execute moves") {
-          graph.pfor_nodes([&](const NodeID u) {
+          const auto execute_move = [&](const NodeID u) {
             if (lock[u]) {
               const BlockID from = p_graph.block(u);
               const BlockID to = next_partition[u];
-
+              if (p_graph.block_weight(from) - graph.node_weight(u) <
+                  p_ctx.min_block_weight(from)) {
+                lock[u] = 0;
+                return;
+              }
               p_graph.set_block(u, to);
-              track_move(u, from, to);
+              tracked_cache.move(u, from, to);
             }
-          });
+          };
+          if (p_ctx.has_min_block_weights()) {
+            // Source lower bounds require serial reservations across vertices.
+            for (const NodeID u : graph.nodes()) {
+              execute_move(u);
+            }
+          } else {
+            graph.pfor_nodes(execute_move);
+          }
         };
 
         previous_lp_moved =
@@ -218,7 +331,11 @@ public:
             });
 
         TIMED_SCOPE("Rebalance") {
-          balancer.refine(p_graph, p_ctx);
+          if (use_jet_balancer) {
+            jet_balancer.refine(p_graph, graph, p_ctx, tracked_cache);
+          } else {
+            overload_balancer.refine(p_graph, p_ctx);
+          }
         };
 
         const bool any_moves =
@@ -317,6 +434,8 @@ public:
             }
             lock[u] = 0;
           });
+          gain_cache.initialize(graph, p_graph);
+          initialize_balancer();
           current_cut = best_cut;
           last_iteration_is_best = true;
           previous_lp_moved = false;

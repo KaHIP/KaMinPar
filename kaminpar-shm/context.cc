@@ -413,6 +413,34 @@ std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies() {
   };
 }
 
+std::ostream &operator<<(std::ostream &out, const JetGainCacheStrategy strategy) {
+  switch (strategy) {
+  case JetGainCacheStrategy::SPARSE:
+    return out << "sparse";
+  case JetGainCacheStrategy::JET:
+    return out << "jet";
+  }
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, JetGainCacheStrategy> get_jet_gain_cache_strategies() {
+  return {{"sparse", JetGainCacheStrategy::SPARSE}, {"jet", JetGainCacheStrategy::JET}};
+}
+
+std::ostream &operator<<(std::ostream &out, const JetBalancingAlgorithm algorithm) {
+  switch (algorithm) {
+  case JetBalancingAlgorithm::OVERLOAD:
+    return out << "overload";
+  case JetBalancingAlgorithm::JET:
+    return out << "jet";
+  }
+  return out << "<invalid>";
+}
+
+std::unordered_map<std::string, JetBalancingAlgorithm> get_jet_balancing_algorithms() {
+  return {{"overload", JetBalancingAlgorithm::OVERLOAD}, {"jet", JetBalancingAlgorithm::JET}};
+}
+
 std::ostream &operator<<(std::ostream &out, InitialRefinementAlgorithm algorithm) {
   switch (algorithm) {
   case InitialRefinementAlgorithm::NOOP:
@@ -787,6 +815,8 @@ std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
 
   if (r_ctx.includes_algorithm(RefinementAlgorithm::JET)) {
     out << "Jet refinement:               " << RefinementAlgorithm::JET << "\n";
+    out << "  Gain cache:                 " << r_ctx.jet.gain_cache_strategy << "\n";
+    out << "  Balancer:                   " << r_ctx.jet.balancing_algorithm << "\n";
     out << "  Number of rounds:           coarse " << r_ctx.jet.num_rounds_on_coarse_level
         << ", fine " << r_ctx.jet.num_rounds_on_fine_level << "\n";
     out << "  Number of iterations:       max " << r_ctx.jet.num_iterations << ", or "
