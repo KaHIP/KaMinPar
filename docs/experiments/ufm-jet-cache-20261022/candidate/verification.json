@@ -1,0 +1,13 @@
+{
+  "build_job_id": "84425",
+  "source_commit": "8137ef90bd99550d4d6d795af7228667dd56b0ee",
+  "source_tree_sha256": "094e1e9f7fe2f6c2480aa89945a8f6fdf31f58c6cc24599e95c60b12d984fde1",
+  "binary_sha256": "14f467a6f79738303fca0df73624fc752aac156d462e7daa0624db94f7b92deb",
+  "ufm_compile_command": "/nfs/software/spack-installs/upstream/opt/spack/linux-rocky9-x86_64/gcc-14.2.0/gcc-13.3.0-akehmu65vgbtliwqsjkqj5trscvfmfmh/bin/g++ -DKAMINPAR_64BIT_EDGE_IDS -DKAMINPAR_64BIT_WEIGHTS -DKAMINPAR_COMPRESSION_HIGH_DEGREE_ENCODING -DKAMINPAR_COMPRESSION_INTERVAL_ENCODING -DKAMINPAR_ENABLE_TBB_MALLOC -DKAMINPAR_ENABLE_THP -DKAMINPAR_ENABLE_TIMERS -DKAMINPAR_ENABLE_TIMER_BARRIERS -DKAMINPAR_KASSERT_FOUND -DKASSERT_ASSERTION_LEVEL=10 -DKASSERT_EXCEPTION_MODE -I/nfs/work/seemaier/experiments/ufm-jet-cache-20261022/candidate/source -I/nfs/work/seemaier/experiments/ufm-jet-cache-20261022/candidate/source/kaminpar-shm/../include/kaminpar-shm -I/nfs/work/seemaier/experiments/dkaminpar-single-host-20261021/build/_deps/kassert-src/include -isystem /nfs/work/seemaier/experiments/dkaminpar-single-host-20261021/build/_deps/tbb-src/src/tbb/../../include -isystem /nfs/work/seemaier/experiments/dkaminpar-single-host-20261021/build/_deps/tbb-src/src/tbbmalloc/../../include -O3 -DNDEBUG -std=gnu++20 -msse4.1 -mcx16 -mtune=native -march=native -W -Wall -Wextra -Wpedantic -Wno-unused-local-typedefs -Wsuggest-override -fdiagnostics-color=always -Wcast-qual -Winit-self -Woverloaded-virtual -Wredundant-decls -Wno-psabi -o CMakeFiles/KaMinPar.dir/refinement/fm/unconstrained_fm_refiner.cc.o -c /nfs/work/seemaier/experiments/ufm-jet-cache-20261022/candidate/source/kaminpar-shm/refinement/fm/unconstrained_fm_refiner.cc",
+  "compile_commands_sha256": "4069afb6c11103acae39870008c1390efafd9c9fc9bb54be39e087646c2c7913",
+  "source_and_dependency_files_unchanged_during_build": true,
+  "release_flags_verified": true,
+  "stock_candidate_ufm_compile_options_identical": true,
+  "stock_candidate_dependency_hashes_identical": true,
+  "verified_utc": "2026-10-22T16:52:59.864914+00:00"
+}

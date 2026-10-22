@@ -1,0 +1,825 @@
+{
+  "overall": [
+    {
+      "candidate": "compact",
+      "cut_wins": 24,
+      "equal_cuts": 0,
+      "graph": null,
+      "k": null,
+      "pairs": 36,
+      "ratios": {
+        "cut": 0.9968835407291686,
+        "max_rss_kib": 1.0058509530878126,
+        "runtime_s": 1.0723971061156607,
+        "ufm_time_s": 1.2308562711533206
+      },
+      "reference": "stock",
+      "runtime_wins": 10
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 25,
+      "equal_cuts": 0,
+      "graph": null,
+      "k": null,
+      "pairs": 36,
+      "ratios": {
+        "cut": 1.0017883019977458,
+        "max_rss_kib": 1.0718194731260875,
+        "runtime_s": 1.005343572835502,
+        "ufm_time_s": 1.0078252627185327
+      },
+      "reference": "compact",
+      "runtime_wins": 17
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 23,
+      "equal_cuts": 0,
+      "graph": null,
+      "k": null,
+      "pairs": 36,
+      "ratios": {
+        "cut": 0.9986662695565746,
+        "max_rss_kib": 1.0780906385819524,
+        "runtime_s": 1.0781275381607713,
+        "ufm_time_s": 1.240488044843849
+      },
+      "reference": "stock",
+      "runtime_wins": 12
+    }
+  ],
+  "per_graph": [
+    {
+      "candidate": "compact",
+      "cut_wins": 1,
+      "equal_cuts": 0,
+      "graph": "Long_Coup_dt6",
+      "k": 16,
+      "pairs": 3,
+      "ratios": {
+        "cut": 1.0100156448374171,
+        "max_rss_kib": 0.9886797461900574,
+        "runtime_s": 0.8660053461035416,
+        "ufm_time_s": 0.9200648366217383
+      },
+      "reference": "stock",
+      "runtime_wins": 3
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 3,
+      "equal_cuts": 0,
+      "graph": "Long_Coup_dt6",
+      "k": 16,
+      "pairs": 3,
+      "ratios": {
+        "cut": 0.9935250956341554,
+        "max_rss_kib": 1.0385312898833532,
+        "runtime_s": 1.371291371259801,
+        "ufm_time_s": 1.2752515363587411
+      },
+      "reference": "compact",
+      "runtime_wins": 0
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 1,
+      "equal_cuts": 0,
+      "graph": "Long_Coup_dt6",
+      "k": 16,
+      "pairs": 3,
+      "ratios": {
+        "cut": 1.0034758901290879,
+        "max_rss_kib": 1.0267748520923066,
+        "runtime_s": 1.1875456585766442,
+        "ufm_time_s": 1.1733140964515258
+      },
+      "reference": "stock",
+      "runtime_wins": 0
+    },
+    {
+      "candidate": "compact",
+      "cut_wins": 2,
+      "equal_cuts": 0,
+      "graph": "Long_Coup_dt6",
+      "k": 1024,
+      "pairs": 3,
+      "ratios": {
+        "cut": 0.9987104326470599,
+        "max_rss_kib": 0.9976738015130868,
+        "runtime_s": 1.0196390679638392,
+        "ufm_time_s": 1.0761103955178888
+      },
+      "reference": "stock",
+      "runtime_wins": 0
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 2,
+      "equal_cuts": 0,
+      "graph": "Long_Coup_dt6",
+      "k": 1024,
+      "pairs": 3,
+      "ratios": {
+        "cut": 0.9989198093092526,
+        "max_rss_kib": 1.0211438139059965,
+        "runtime_s": 0.9448662996282303,
+        "ufm_time_s": 0.8701291281080086
+      },
+      "reference": "compact",
+      "runtime_wins": 2
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 2,
+      "equal_cuts": 0,
+      "graph": "Long_Coup_dt6",
+      "k": 1024,
+      "pairs": 3,
+      "ratios": {
+        "cut": 0.9976316349349622,
+        "max_rss_kib": 1.0187684307111675,
+        "runtime_s": 0.9634225931033702,
+        "ufm_time_s": 0.9363550001999449
+      },
+      "reference": "stock",
+      "runtime_wins": 2
+    },
+    {
+      "candidate": "compact",
+      "cut_wins": 3,
+      "equal_cuts": 0,
+      "graph": "com-lj.ungraph",
+      "k": 16,
+      "pairs": 3,
+      "ratios": {
+        "cut": 0.9899249249783258,
+        "max_rss_kib": 1.0203106471063494,
+        "runtime_s": 1.0726743897625943,
+        "ufm_time_s": 1.3715697776543987
+      },
+      "reference": "stock",
+      "runtime_wins": 1
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 1,
+      "equal_cuts": 0,
+      "graph": "com-lj.ungraph",
+      "k": 16,
+      "pairs": 3,
+      "ratios": {
+        "cut": 1.007111965951663,
+        "max_rss_kib": 1.1618731717106932,
+        "runtime_s": 0.9488861366592173,
+        "ufm_time_s": 0.953208794085342
+      },
+      "reference": "compact",
+      "runtime_wins": 1
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 1,
+      "equal_cuts": 0,
+      "graph": "com-lj.ungraph",
+      "k": 16,
+      "pairs": 3,
+      "ratios": {
+        "cut": 0.9969652373394742,
+        "max_rss_kib": 1.1854715676836443,
+        "runtime_s": 1.0178458575951117,
+        "ufm_time_s": 1.30739237376185
+      },
+      "reference": "stock",
+      "runtime_wins": 2
+    },
+    {
+      "candidate": "compact",
+      "cut_wins": 2,
+      "equal_cuts": 0,
+      "graph": "com-lj.ungraph",
+      "k": 1024,
+      "pairs": 3,
+      "ratios": {
+        "cut": 0.9989849544782247,
+        "max_rss_kib": 1.0022473015456155,
+        "runtime_s": 1.036038676055667,
+        "ufm_time_s": 1.0922307826205115
+      },
+      "reference": "stock",
+      "runtime_wins": 0
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 2,
+      "equal_cuts": 0,
+      "graph": "com-lj.ungraph",
+      "k": 1024,
+      "pairs": 3,
+      "ratios": {
+        "cut": 0.999327800080776,
+        "max_rss_kib": 1.1002130468071347,
+        "runtime_s": 0.9131163180496646,
+        "ufm_time_s": 0.868869614592619
+      },
+      "reference": "compact",
+      "runtime_wins": 3
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 3,
+      "equal_cuts": 0,
+      "graph": "com-lj.ungraph",
+      "k": 1024,
+      "pairs": 3,
+      "ratios": {
+        "cut": 0.9983134368725184,
+        "max_rss_kib": 1.1026855572877305,
+        "runtime_s": 0.9460238212369998,
+        "ufm_time_s": 0.9490061391416784
+      },
+      "reference": "stock",
+      "runtime_wins": 3
+    },
+    {
+      "candidate": "compact",
+      "cut_wins": 3,
+      "equal_cuts": 0,
+      "graph": "kron_g500-simple-logn19",
+      "k": 16,
+      "pairs": 3,
+      "ratios": {
+        "cut": 0.9992461546383347,
+        "max_rss_kib": 1.0196103266408485,
+        "runtime_s": 1.0498133541036614,
+        "ufm_time_s": 1.1312345601362215
+      },
+      "reference": "stock",
+      "runtime_wins": 0
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 2,
+      "equal_cuts": 0,
+      "graph": "kron_g500-simple-logn19",
+      "k": 16,
+      "pairs": 3,
+      "ratios": {
+        "cut": 0.999974742118151,
+        "max_rss_kib": 1.0025785040104358,
+        "runtime_s": 1.0194274925461848,
+        "ufm_time_s": 1.0722887777726824
+      },
+      "reference": "compact",
+      "runtime_wins": 1
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 3,
+      "equal_cuts": 0,
+      "graph": "kron_g500-simple-logn19",
+      "k": 16,
+      "pairs": 3,
+      "ratios": {
+        "cut": 0.9992209157970228,
+        "max_rss_kib": 1.0222393959571736,
+        "runtime_s": 1.0702085952153955,
+        "ufm_time_s": 1.2130101238626871
+      },
+      "reference": "stock",
+      "runtime_wins": 0
+    },
+    {
+      "candidate": "compact",
+      "cut_wins": 1,
+      "equal_cuts": 0,
+      "graph": "kron_g500-simple-logn19",
+      "k": 1024,
+      "pairs": 3,
+      "ratios": {
+        "cut": 1.0005362130773736,
+        "max_rss_kib": 1.033246580084976,
+        "runtime_s": 1.0808328676215524,
+        "ufm_time_s": 1.3372129087140012
+      },
+      "reference": "stock",
+      "runtime_wins": 1
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 3,
+      "equal_cuts": 0,
+      "graph": "kron_g500-simple-logn19",
+      "k": 1024,
+      "pairs": 3,
+      "ratios": {
+        "cut": 0.998955328850269,
+        "max_rss_kib": 1.0088026188692187,
+        "runtime_s": 0.9503217361822847,
+        "ufm_time_s": 0.957043620453185
+      },
+      "reference": "compact",
+      "runtime_wins": 2
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 2,
+      "equal_cuts": 0,
+      "graph": "kron_g500-simple-logn19",
+      "k": 1024,
+      "pairs": 3,
+      "ratios": {
+        "cut": 0.9994909817613106,
+        "max_rss_kib": 1.0423418559273876,
+        "runtime_s": 1.0271389672809912,
+        "ufm_time_s": 1.279771083472382
+      },
+      "reference": "stock",
+      "runtime_wins": 0
+    },
+    {
+      "candidate": "compact",
+      "cut_wins": 3,
+      "equal_cuts": 0,
+      "graph": "recomp_dna1GB_9",
+      "k": 16,
+      "pairs": 3,
+      "ratios": {
+        "cut": 0.9982648802970701,
+        "max_rss_kib": 1.0410340459633571,
+        "runtime_s": 1.0481251133609946,
+        "ufm_time_s": 1.5198787308557549
+      },
+      "reference": "stock",
+      "runtime_wins": 1
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 3,
+      "equal_cuts": 0,
+      "graph": "recomp_dna1GB_9",
+      "k": 16,
+      "pairs": 3,
+      "ratios": {
+        "cut": 0.9998527266829461,
+        "max_rss_kib": 0.9891492794364614,
+        "runtime_s": 1.055422068216353,
+        "ufm_time_s": 1.119732918997422
+      },
+      "reference": "compact",
+      "runtime_wins": 0
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 3,
+      "equal_cuts": 0,
+      "graph": "recomp_dna1GB_9",
+      "k": 16,
+      "pairs": 3,
+      "ratios": {
+        "cut": 0.9981178625168503,
+        "max_rss_kib": 1.0297380764334787,
+        "runtime_s": 1.1062143748929605,
+        "ufm_time_s": 1.7018582478232116
+      },
+      "reference": "stock",
+      "runtime_wins": 1
+    },
+    {
+      "candidate": "compact",
+      "cut_wins": 3,
+      "equal_cuts": 0,
+      "graph": "recomp_dna1GB_9",
+      "k": 1024,
+      "pairs": 3,
+      "ratios": {
+        "cut": 0.9941209080483717,
+        "max_rss_kib": 1.054853187117422,
+        "runtime_s": 1.2114533856677707,
+        "ufm_time_s": 1.411551769972408
+      },
+      "reference": "stock",
+      "runtime_wins": 0
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 3,
+      "equal_cuts": 0,
+      "graph": "recomp_dna1GB_9",
+      "k": 1024,
+      "pairs": 3,
+      "ratios": {
+        "cut": 0.99932049519708,
+        "max_rss_kib": 1.0064008166503404,
+        "runtime_s": 0.9909611809007703,
+        "ufm_time_s": 1.0142378867243063
+      },
+      "reference": "compact",
+      "runtime_wins": 2
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 3,
+      "equal_cuts": 0,
+      "graph": "recomp_dna1GB_9",
+      "k": 1024,
+      "pairs": 3,
+      "ratios": {
+        "cut": 0.9934453981166697,
+        "max_rss_kib": 1.061605108961188,
+        "runtime_s": 1.2005032776675704,
+        "ufm_time_s": 1.4316492841787691
+      },
+      "reference": "stock",
+      "runtime_wins": 0
+    },
+    {
+      "candidate": "compact",
+      "cut_wins": 2,
+      "equal_cuts": 0,
+      "graph": "recomp_sources1GB_9",
+      "k": 16,
+      "pairs": 3,
+      "ratios": {
+        "cut": 0.9760471266442984,
+        "max_rss_kib": 0.9597593470071827,
+        "runtime_s": 1.20642153938962,
+        "ufm_time_s": 1.5406735945471355
+      },
+      "reference": "stock",
+      "runtime_wins": 1
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 1,
+      "equal_cuts": 0,
+      "graph": "recomp_sources1GB_9",
+      "k": 16,
+      "pairs": 3,
+      "ratios": {
+        "cut": 1.0007792181809674,
+        "max_rss_kib": 1.1979303435165871,
+        "runtime_s": 1.0631687039617355,
+        "ufm_time_s": 1.1607811736420186
+      },
+      "reference": "compact",
+      "runtime_wins": 2
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 2,
+      "equal_cuts": 0,
+      "graph": "recomp_sources1GB_9",
+      "k": 16,
+      "pairs": 3,
+      "ratios": {
+        "cut": 0.9768076803108606,
+        "max_rss_kib": 1.1497248442535697,
+        "runtime_s": 1.2826296244643842,
+        "ufm_time_s": 1.788384903277691
+      },
+      "reference": "stock",
+      "runtime_wins": 1
+    },
+    {
+      "candidate": "compact",
+      "cut_wins": 1,
+      "equal_cuts": 0,
+      "graph": "recomp_sources1GB_9",
+      "k": 1024,
+      "pairs": 3,
+      "ratios": {
+        "cut": 1.002467229489127,
+        "max_rss_kib": 0.9893273787620525,
+        "runtime_s": 1.0194266603279625,
+        "ufm_time_s": 0.9717250411992667
+      },
+      "reference": "stock",
+      "runtime_wins": 2
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 3,
+      "equal_cuts": 0,
+      "graph": "recomp_sources1GB_9",
+      "k": 1024,
+      "pairs": 3,
+      "ratios": {
+        "cut": 0.9986755128347334,
+        "max_rss_kib": 1.1512994313598948,
+        "runtime_s": 1.0375218438243303,
+        "ufm_time_s": 1.0836734056090662
+      },
+      "reference": "compact",
+      "runtime_wins": 1
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 1,
+      "equal_cuts": 0,
+      "graph": "recomp_sources1GB_9",
+      "k": 1024,
+      "pairs": 3,
+      "ratios": {
+        "cut": 1.0011394745100684,
+        "max_rss_kib": 1.1390120485975264,
+        "runtime_s": 1.0576774282671468,
+        "ufm_time_s": 1.0530325847120197
+      },
+      "reference": "stock",
+      "runtime_wins": 1
+    },
+    {
+      "candidate": "compact",
+      "cut_wins": 1,
+      "equal_cuts": 0,
+      "graph": "soc-flickr-und",
+      "k": 16,
+      "pairs": 3,
+      "ratios": {
+        "cut": 1.0021337377493753,
+        "max_rss_kib": 0.9776700919328816,
+        "runtime_s": 1.0223637009492688,
+        "ufm_time_s": 1.1751586162921042
+      },
+      "reference": "stock",
+      "runtime_wins": 1
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 1,
+      "equal_cuts": 0,
+      "graph": "soc-flickr-und",
+      "k": 16,
+      "pairs": 3,
+      "ratios": {
+        "cut": 1.002866718157558,
+        "max_rss_kib": 1.1113217645928661,
+        "runtime_s": 1.1217698422336964,
+        "ufm_time_s": 1.1989152362429423
+      },
+      "reference": "compact",
+      "runtime_wins": 0
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 1,
+      "equal_cuts": 0,
+      "graph": "soc-flickr-und",
+      "k": 16,
+      "pairs": 3,
+      "ratios": {
+        "cut": 1.0050065727316828,
+        "max_rss_kib": 1.0865060517565197,
+        "runtime_s": 1.146856767519319,
+        "ufm_time_s": 1.408915570074777
+      },
+      "reference": "stock",
+      "runtime_wins": 0
+    },
+    {
+      "candidate": "compact",
+      "cut_wins": 2,
+      "equal_cuts": 0,
+      "graph": "soc-flickr-und",
+      "k": 1024,
+      "pairs": 3,
+      "ratios": {
+        "cut": 0.9925382651855273,
+        "max_rss_kib": 0.990061560677334,
+        "runtime_s": 1.3013847642099945,
+        "ufm_time_s": 1.4278120303876825
+      },
+      "reference": "stock",
+      "runtime_wins": 0
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 1,
+      "equal_cuts": 0,
+      "graph": "soc-flickr-und",
+      "k": 1024,
+      "pairs": 3,
+      "ratios": {
+        "cut": 1.0224320481329678,
+        "max_rss_kib": 1.0987543866430527,
+        "runtime_s": 0.757392065401383,
+        "ufm_time_s": 0.6797757262756452
+      },
+      "reference": "compact",
+      "runtime_wins": 3
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 1,
+      "equal_cuts": 0,
+      "graph": "soc-flickr-und",
+      "k": 1024,
+      "pairs": 3,
+      "ratios": {
+        "cut": 1.0148029313239812,
+        "max_rss_kib": 1.0878344828408877,
+        "runtime_s": 0.9856584944468996,
+        "ufm_time_s": 0.9705919599418904
+      },
+      "reference": "stock",
+      "runtime_wins": 2
+    }
+  ],
+  "per_k": [
+    {
+      "candidate": "compact",
+      "cut_wins": 13,
+      "equal_cuts": 0,
+      "graph": null,
+      "k": 16,
+      "pairs": 18,
+      "ratios": {
+        "cut": 0.995881163852859,
+        "max_rss_kib": 1.0007839130610716,
+        "runtime_s": 1.0393688610585559,
+        "ufm_time_s": 1.2561288155996824
+      },
+      "reference": "stock",
+      "runtime_wins": 7
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 11,
+      "equal_cuts": 0,
+      "graph": null,
+      "k": 16,
+      "pairs": 18,
+      "ratios": {
+        "cut": 1.0006768668125348,
+        "max_rss_kib": 1.0806995911299786,
+        "runtime_s": 1.0891943593797866,
+        "ufm_time_s": 1.1253600394486705
+      },
+      "reference": "compact",
+      "runtime_wins": 4
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 11,
+      "equal_cuts": 0,
+      "graph": null,
+      "k": 16,
+      "pairs": 18,
+      "ratios": {
+        "cut": 0.9965552427618994,
+        "max_rss_kib": 1.0815467656545603,
+        "runtime_s": 1.132074700779972,
+        "ufm_time_s": 1.41359717347587
+      },
+      "reference": "stock",
+      "runtime_wins": 4
+    },
+    {
+      "candidate": "compact",
+      "cut_wins": 11,
+      "equal_cuts": 0,
+      "graph": null,
+      "k": 1024,
+      "pairs": 18,
+      "ratios": {
+        "cut": 0.9978869265204359,
+        "max_rss_kib": 1.0109436478980662,
+        "runtime_s": 1.1064748967310585,
+        "ufm_time_s": 1.2060921948631396
+      },
+      "reference": "stock",
+      "runtime_wins": 3
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 14,
+      "equal_cuts": 0,
+      "graph": null,
+      "k": 1024,
+      "pairs": 18,
+      "ratios": {
+        "cut": 1.0029009716355677,
+        "max_rss_kib": 1.0630123231295967,
+        "runtime_s": 0.9279479743332295,
+        "ufm_time_s": 0.9025660451487959
+      },
+      "reference": "compact",
+      "runtime_wins": 13
+    },
+    {
+      "candidate": "jet",
+      "cut_wins": 12,
+      "equal_cuts": 0,
+      "graph": null,
+      "k": 1024,
+      "pairs": 18,
+      "ratios": {
+        "cut": 1.0007817681897755,
+        "max_rss_kib": 1.0746455557052326,
+        "runtime_s": 1.026751139072155,
+        "ufm_time_s": 1.0885778624024547
+      },
+      "reference": "stock",
+      "runtime_wins": 8
+    }
+  ],
+  "phases": {
+    "1024": {
+      "compact": {
+        "max_rss_mib": 2746.83984375,
+        "min_rss_mib": 1036.3984375,
+        "phases_s": {
+          "initialize_border_nodes": 3.2249999999999996,
+          "initialize_gain_cache": 1.286,
+          "initialize_unconstrained_fm_data": 0.5960000000000001,
+          "localized_searches,_coarse_level": 21.130999999999997,
+          "localized_searches,_fine_level": 64.552,
+          "rebalance": 29.916,
+          "rollback": 26.828999999999997
+        },
+        "runtime_s": 254.96000000000004,
+        "ufm_s": 151.19099999999997
+      },
+      "jet": {
+        "max_rss_mib": 2504.06640625,
+        "min_rss_mib": 1123.3984375,
+        "phases_s": {
+          "initialize_border_nodes": 3.4330000000000007,
+          "initialize_gain_cache": 3.2460000000000004,
+          "initialize_unconstrained_fm_data": 0.6820000000000002,
+          "localized_searches,_coarse_level": 22.025000000000002,
+          "localized_searches,_fine_level": 54.951000000000015,
+          "rebalance": 20.859,
+          "rollback": 37.622
+        },
+        "runtime_s": 244.246,
+        "ufm_s": 146.268
+      },
+      "stock": {
+        "max_rss_mib": 2475.25390625,
+        "min_rss_mib": 1033.5546875,
+        "phases_s": {
+          "initialize_border_nodes": 3.1689999999999996,
+          "initialize_gain_cache": 1.3040000000000003,
+          "initialize_unconstrained_fm_data": 0.6060000000000001,
+          "localized_searches,_coarse_level": 12.547,
+          "localized_searches,_fine_level": 47.105,
+          "rebalance": 32.897,
+          "rollback": 21.685
+        },
+        "runtime_s": 225.76899999999998,
+        "ufm_s": 122.07499999999999
+      }
+    },
+    "16": {
+      "compact": {
+        "max_rss_mib": 1974.53515625,
+        "min_rss_mib": 574.22265625,
+        "phases_s": {
+          "initialize_border_nodes": 2.098,
+          "initialize_gain_cache": 0.4510000000000001,
+          "initialize_unconstrained_fm_data": 0.3810000000000001,
+          "localized_searches,_coarse_level": 1.012,
+          "localized_searches,_fine_level": 8.757,
+          "rebalance": 7.654,
+          "rollback": 5.590000000000002
+        },
+        "runtime_s": 69.25599999999999,
+        "ufm_s": 27.248000000000005
+      },
+      "jet": {
+        "max_rss_mib": 1884.9765625,
+        "min_rss_mib": 588.921875,
+        "phases_s": {
+          "initialize_border_nodes": 2.2060000000000004,
+          "initialize_gain_cache": 1.5130000000000001,
+          "initialize_unconstrained_fm_data": 0.43800000000000006,
+          "localized_searches,_coarse_level": 1.245,
+          "localized_searches,_fine_level": 8.763,
+          "rebalance": 8.295000000000002,
+          "rollback": 6.4830000000000005
+        },
+        "runtime_s": 73.30699999999999,
+        "ufm_s": 30.157
+      },
+      "stock": {
+        "max_rss_mib": 1883.69921875,
+        "min_rss_mib": 572.4375,
+        "phases_s": {
+          "initialize_border_nodes": 1.679,
+          "initialize_gain_cache": 0.455,
+          "initialize_unconstrained_fm_data": 0.26800000000000007,
+          "localized_searches,_coarse_level": 0.7010000000000002,
+          "localized_searches,_fine_level": 6.468000000000001,
+          "rebalance": 6.0200000000000005,
+          "rollback": 4.029000000000001
+        },
+        "runtime_s": 64.732,
+        "ufm_s": 20.504999999999995
+      }
+    }
+  },
+  "runs_sha256": "198981685a7095110c593a036a6dc918471153af6279ca1965e00b3517925f1b"
+}

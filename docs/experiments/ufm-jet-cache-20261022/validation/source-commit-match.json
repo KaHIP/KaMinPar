@@ -1,0 +1,18 @@
+{
+  "runtime_commit": "8137ef90bd99550d4d6d795af7228667dd56b0ee",
+  "checked_sources": [
+    "include/kaminpar-shm/kaminpar.h",
+    "kaminpar-shm/context.cc",
+    "kaminpar-shm/refinement/balancer/multi_queue_overload_balancer.cc",
+    "kaminpar-shm/refinement/fm/fm_refiner.cc",
+    "kaminpar-shm/refinement/fm/unconstrained_fm_refiner.cc",
+    "kaminpar-shm/refinement/gains/delta_gain_caches.h",
+    "kaminpar-shm/refinement/gains/fm_jet_gain_cache.h",
+    "kaminpar-shm/refinement/gains/jet_gain_cache.h",
+    "tests/CMakeLists.txt",
+    "tests/shm/refinement/largek_delta_gain_cache_test.cc",
+    "tests/shm/refinement/unconstrained_fm_jet_cache_test.cc"
+  ],
+  "all_match": true,
+  "validation_sha256": "cd2304b30a6147376777b697f23b38456001f2c155b867d8549510dc04dd0bdb"
+}

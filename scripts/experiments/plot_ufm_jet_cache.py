@@ -18,10 +18,10 @@ import statistics
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter
+from matplotlib.ticker import FixedLocator, FuncFormatter
 
 COMPARISONS = (('compact', 'stock'), ('jet', 'compact'), ('jet', 'stock'))
-LABELS = ('Corrected compact / stock', 'Jet / corrected compact', 'Jet / stock')
+LABELS = ('Corrected compact\n/ stock', 'Jet\n/ corrected compact', 'Jet\n/ stock')
 METRICS = (
     ('runtime_s', 'Partitioning runtime'),
     ('cut', 'Edge cut'),
@@ -115,6 +115,7 @@ def main():
                               per_graph={g: geometric(ratios[g]) for g in graphs})
         if metric not in ('cut', 'max_rss_kib'):
             ax.set_yscale('log', base=2)
+            ax.yaxis.set_major_locator(FixedLocator([.5, .75, 1, 1.25, 1.5, 2, 3]))
         ax.yaxis.set_major_formatter(FuncFormatter(lambda x, _: f'{x:g}'))
         ax.set_ylabel('Candidate / reference')
         ax.set_xticks(range(len(COMPARISONS)), LABELS, fontsize=9)

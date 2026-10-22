@@ -1,0 +1,11 @@
+{
+  "build_job_id": "84423",
+  "source_commit": "183e170ba396c66bc380d20b09b6928bbb55c000",
+  "source_tree_sha256": "cdafafde03224ff1fe809f6f1c3b9a0c406948d555a7b433d9e09b242d3376b7",
+  "binary_sha256": "de0aaa7de836d6b712568a78d713320a069c313da3c0bef7c2de6b459e76ee1d",
+  "ufm_compile_command": "/nfs/software/spack-installs/upstream/opt/spack/linux-rocky9-x86_64/gcc-14.2.0/gcc-13.3.0-akehmu65vgbtliwqsjkqj5trscvfmfmh/bin/g++ -DKAMINPAR_64BIT_EDGE_IDS -DKAMINPAR_64BIT_WEIGHTS -DKAMINPAR_COMPRESSION_HIGH_DEGREE_ENCODING -DKAMINPAR_COMPRESSION_INTERVAL_ENCODING -DKAMINPAR_ENABLE_TBB_MALLOC -DKAMINPAR_ENABLE_THP -DKAMINPAR_ENABLE_TIMERS -DKAMINPAR_ENABLE_TIMER_BARRIERS -DKAMINPAR_KASSERT_FOUND -DKASSERT_ASSERTION_LEVEL=10 -DKASSERT_EXCEPTION_MODE -I/nfs/work/seemaier/experiments/ufm-jet-cache-20261022/stock/source -I/nfs/work/seemaier/experiments/ufm-jet-cache-20261022/stock/source/kaminpar-shm/../include/kaminpar-shm -I/nfs/work/seemaier/experiments/dkaminpar-single-host-20261021/build/_deps/kassert-src/include -isystem /nfs/work/seemaier/experiments/dkaminpar-single-host-20261021/build/_deps/tbb-src/src/tbb/../../include -isystem /nfs/work/seemaier/experiments/dkaminpar-single-host-20261021/build/_deps/tbb-src/src/tbbmalloc/../../include -O3 -DNDEBUG -std=gnu++20 -msse4.1 -mcx16 -mtune=native -march=native -W -Wall -Wextra -Wpedantic -Wno-unused-local-typedefs -Wsuggest-override -fdiagnostics-color=always -Wcast-qual -Winit-self -Woverloaded-virtual -Wredundant-decls -Wno-psabi -o CMakeFiles/KaMinPar.dir/refinement/fm/unconstrained_fm_refiner.cc.o -c /nfs/work/seemaier/experiments/ufm-jet-cache-20261022/stock/source/kaminpar-shm/refinement/fm/unconstrained_fm_refiner.cc",
+  "compile_commands_sha256": "df04b99a79c506c31263e56c48ab87cde355f94f8b3e218bad23061d520c4966",
+  "source_and_dependency_files_unchanged_during_build": true,
+  "release_flags_verified": true,
+  "verified_utc": "2026-10-22T16:47:06.248742+00:00"
+}

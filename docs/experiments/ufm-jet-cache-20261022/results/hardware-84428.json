@@ -1,0 +1,234 @@
+{
+  "affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31
+  ],
+  "allocation": "JobId=84428 JobName=ufm-cache-ablation\n   UserId=seemaier(1040) GroupId=i10staff(1002) MCS_label=N/A\n   Priority=1000 Nice=0 Account=(null) QOS=(null)\n   JobState=RUNNING Reason=None Dependency=(null)\n   Requeue=1 Restarts=0 BatchFlag=1 Reboot=0 ExitCode=0:0\n   RunTime=00:00:30 TimeLimit=02:00:00 TimeMin=N/A\n   SubmitTime=2026-10-22T18:53:00 EligibleTime=2026-10-22T18:53:00\n   AccrueTime=2026-10-22T18:53:00\n   StartTime=2026-10-22T18:53:00 EndTime=2026-10-22T20:53:00 Deadline=N/A\n   SuspendTime=None SecsPreSuspend=0 LastSchedEval=2026-10-22T18:53:00 Scheduler=Main\n   Partition=dijkstra AllocNode:Sid=login:1159255\n   ReqNodeList=(null) ExcNodeList=(null)\n   NodeList=dijkstra\n   BatchHost=dijkstra\n   NumNodes=1 NumCPUs=64 NumTasks=1 CPUs/Task=64 ReqB:S:C:T=0:0:*:*\n   ReqTRES=cpu=64,mem=515857M,node=1,billing=64\n   AllocTRES=cpu=64,node=1,billing=64\n   Socks/Node=* NtasksPerN:B:S:C=0:0:*:* CoreSpec=*\n   MinCPUsNode=64 MinMemoryNode=0 MinTmpDiskNode=0\n   Features=(null) DelayBoot=00:00:00\n   OverSubscribe=NO Contiguous=0 Licenses=(null) Network=(null)\n   Command=/nfs/work/seemaier/experiments/ufm-jet-cache-20261022/ufm_jet_cache_measure.sh\n   WorkDir=/nfs/home/seemaier\n   StdErr=/nfs/work/seemaier/experiments/ufm-jet-cache-20261022/measure-84428.log\n   StdIn=/dev/null\n   StdOut=/nfs/work/seemaier/experiments/ufm-jet-cache-20261022/measure-84428.log\n   TresPerTask=cpu=64\n   \n\n",
+  "cores": [
+    {
+      "core": 0,
+      "cpu": 0,
+      "numa": 0,
+      "socket": 0
+    },
+    {
+      "core": 1,
+      "cpu": 1,
+      "numa": 0,
+      "socket": 0
+    },
+    {
+      "core": 2,
+      "cpu": 2,
+      "numa": 0,
+      "socket": 0
+    },
+    {
+      "core": 3,
+      "cpu": 3,
+      "numa": 0,
+      "socket": 0
+    },
+    {
+      "core": 4,
+      "cpu": 4,
+      "numa": 0,
+      "socket": 0
+    },
+    {
+      "core": 5,
+      "cpu": 5,
+      "numa": 0,
+      "socket": 0
+    },
+    {
+      "core": 6,
+      "cpu": 6,
+      "numa": 0,
+      "socket": 0
+    },
+    {
+      "core": 7,
+      "cpu": 7,
+      "numa": 0,
+      "socket": 0
+    },
+    {
+      "core": 8,
+      "cpu": 8,
+      "numa": 0,
+      "socket": 0
+    },
+    {
+      "core": 9,
+      "cpu": 9,
+      "numa": 0,
+      "socket": 0
+    },
+    {
+      "core": 10,
+      "cpu": 10,
+      "numa": 0,
+      "socket": 0
+    },
+    {
+      "core": 11,
+      "cpu": 11,
+      "numa": 0,
+      "socket": 0
+    },
+    {
+      "core": 12,
+      "cpu": 12,
+      "numa": 0,
+      "socket": 0
+    },
+    {
+      "core": 13,
+      "cpu": 13,
+      "numa": 0,
+      "socket": 0
+    },
+    {
+      "core": 14,
+      "cpu": 14,
+      "numa": 0,
+      "socket": 0
+    },
+    {
+      "core": 15,
+      "cpu": 15,
+      "numa": 0,
+      "socket": 0
+    },
+    {
+      "core": 16,
+      "cpu": 16,
+      "numa": 1,
+      "socket": 1
+    },
+    {
+      "core": 17,
+      "cpu": 17,
+      "numa": 1,
+      "socket": 1
+    },
+    {
+      "core": 18,
+      "cpu": 18,
+      "numa": 1,
+      "socket": 1
+    },
+    {
+      "core": 19,
+      "cpu": 19,
+      "numa": 1,
+      "socket": 1
+    },
+    {
+      "core": 20,
+      "cpu": 20,
+      "numa": 1,
+      "socket": 1
+    },
+    {
+      "core": 21,
+      "cpu": 21,
+      "numa": 1,
+      "socket": 1
+    },
+    {
+      "core": 22,
+      "cpu": 22,
+      "numa": 1,
+      "socket": 1
+    },
+    {
+      "core": 23,
+      "cpu": 23,
+      "numa": 1,
+      "socket": 1
+    },
+    {
+      "core": 24,
+      "cpu": 24,
+      "numa": 1,
+      "socket": 1
+    },
+    {
+      "core": 25,
+      "cpu": 25,
+      "numa": 1,
+      "socket": 1
+    },
+    {
+      "core": 26,
+      "cpu": 26,
+      "numa": 1,
+      "socket": 1
+    },
+    {
+      "core": 27,
+      "cpu": 27,
+      "numa": 1,
+      "socket": 1
+    },
+    {
+      "core": 28,
+      "cpu": 28,
+      "numa": 1,
+      "socket": 1
+    },
+    {
+      "core": 29,
+      "cpu": 29,
+      "numa": 1,
+      "socket": 1
+    },
+    {
+      "core": 30,
+      "cpu": 30,
+      "numa": 1,
+      "socket": 1
+    },
+    {
+      "core": 31,
+      "cpu": 31,
+      "numa": 1,
+      "socket": 1
+    }
+  ],
+  "host": "dijkstra",
+  "job_id": "84428",
+  "lscpu": "Architecture:                         x86_64\nCPU op-mode(s):                       32-bit, 64-bit\nAddress sizes:                        46 bits physical, 48 bits virtual\nByte Order:                           Little Endian\nCPU(s):                               64\nOn-line CPU(s) list:                  0-63\nVendor ID:                            GenuineIntel\nModel name:                           Intel(R) Xeon(R) CPU E5-2683 v4 @ 2.10GHz\nCPU family:                           6\nModel:                                79\nThread(s) per core:                   2\nCore(s) per socket:                   16\nSocket(s):                            2\nStepping:                             1\nCPU(s) scaling MHz:                   99%\nCPU max MHz:                          2100.0000\nCPU min MHz:                          1200.0000\nBogoMIPS:                             4199.79\nFlags:                                fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid dca sse4_1 sse4_2 x2apic movbe popcnt aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault epb cat_l3 cdp_l3 pti intel_ppin tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 hle avx2 smep bmi2 erms invpcid rtm cqm rdt_a rdseed adx smap intel_pt xsaveopt cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local dtherm arat pln pts vnmi\nVirtualization:                       VT-x\nL1d cache:                            1 MiB (32 instances)\nL1i cache:                            1 MiB (32 instances)\nL2 cache:                             8 MiB (32 instances)\nL3 cache:                             80 MiB (2 instances)\nNUMA node(s):                         2\nNUMA node0 CPU(s):                    0-15,32-47\nNUMA node1 CPU(s):                    16-31,48-63\nVulnerability Gather data sampling:   Not affected\nVulnerability Itlb multihit:          KVM: Mitigation: VMX disabled\nVulnerability L1tf:                   Mitigation; PTE Inversion; VMX conditional cache flushes, SMT vulnerable\nVulnerability Mds:                    Vulnerable: Clear CPU buffers attempted, no microcode; SMT vulnerable\nVulnerability Meltdown:               Mitigation; PTI\nVulnerability Mmio stale data:        Vulnerable: Clear CPU buffers attempted, no microcode; SMT vulnerable\nVulnerability Reg file data sampling: Not affected\nVulnerability Retbleed:               Not affected\nVulnerability Spec rstack overflow:   Not affected\nVulnerability Spec store bypass:      Vulnerable\nVulnerability Spectre v1:             Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:             Mitigation; Retpolines; STIBP disabled; RSB filling; PBRSB-eIBRS Not affected; BHI Not affected\nVulnerability Srbds:                  Not affected\nVulnerability Tsx async abort:        Vulnerable: Clear CPU buffers attempted, no microcode; SMT vulnerable\n"
+}

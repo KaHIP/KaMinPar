@@ -1,0 +1,34 @@
+{
+  "jet_pr_commit": "77b20ee365b67d3aeaee6a591f3cf3fdc6141054",
+  "ufm_cherry_pick": "415fadc6",
+  "tested_branch": "codex/jet-adaptive-gain-cache",
+  "passed": 121,
+  "failed": 0,
+  "configuration": {
+    "CMAKE_BUILD_TYPE": "Release",
+    "CMAKE_CXX_COMPILER": "/usr/bin/c++",
+    "KAMINPAR_64BIT_EDGE_IDS": "OFF",
+    "KAMINPAR_64BIT_IDS": "OFF",
+    "KAMINPAR_64BIT_LOCAL_WEIGHTS": "OFF",
+    "KAMINPAR_64BIT_NODE_IDS": "OFF",
+    "KAMINPAR_64BIT_WEIGHTS": "ON",
+    "KAMINPAR_ASSERTION_LEVEL": "heavy",
+    "KAMINPAR_BUILD_WITH_ASAN": "ON",
+    "KAMINPAR_BUILD_WITH_UBSAN": "ON"
+  },
+  "logs": {
+    "jet-pr-ci-mixed-configure.log": {
+      "sha256": "6510ff47330efaee63f0637753ffc02934c9b5034bb12f94f0bbff03c57599b7",
+      "bytes": 3835
+    },
+    "jet-pr-ci-mixed-build.log": {
+      "sha256": "dea971fd39ae98b67c686bcdae2e9c26b5d0bf29f0c4967801149b925fa982ea",
+      "bytes": 11445
+    },
+    "jet-pr-ci-mixed-tests.log": {
+      "sha256": "c76a304e8b59deae0946aa186e76f293d93954194cb64e09277388f3bc0e8286",
+      "bytes": 41911
+    }
+  },
+  "note": "Test-only fix for GraphBuilder narrowing 64-bit EdgeWeight through 32-bit EdgeID. Validated on Jet PR, then cherry-picked into UFM branch; frozen UFM runtime and measured binaries unchanged."
+}

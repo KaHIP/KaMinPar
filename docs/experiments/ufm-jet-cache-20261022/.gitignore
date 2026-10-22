@@ -1,0 +1,13 @@
+# Byte-exact evidence is versioned in the adjacent archives.
+/results/raw/
+/results/blocks/
+/results/resource/
+/results/runner.lock
+/results/scheduler*.txt
+/results/slurm*.txt
+/stock/build-records/
+/stock/scheduler*.txt
+/candidate/build-records/
+/candidate/scheduler*.txt
+/smoke/
+/cleanup/

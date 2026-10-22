@@ -10,8 +10,9 @@ read shared connectivity while other workers commit moves, so Jet refinement's
 phase-separated, unlocked-query specialization is unsuitable here. Both compressed
 and CSR graphs use the same adapter. Unlike the original Jet experiment's legacy
 baseline, UFM's existing large-k compact cache already enumerates adjacent blocks.
-This comparison therefore tests adaptive storage against compact hashing, without
-removing an all-block scan from UFM.
+Both strategies therefore present only adjacent move targets to UFM. Their internal
+traversal still differs: compact hashing scans degree-bound hash rows or all `k`
+entries of a dense row, whereas Jet scans its current adaptive row capacity.
 
 The worker-local large-k delta cache is shared by both strategies. It now records
 all touched block connections, including connections initially present in the shared
@@ -28,9 +29,14 @@ observed row; it is worker-local and queries are not reentrant. Concurrent share
 moves can still change observations between reads, as elsewhere in speculative FM;
 this is not an atomic snapshot of the complete partition or cache.
 
-The [reduced cluster experiment](experiments/ufm-jet-cache-20261022/METHODS.md)
+The [completed reduced cluster experiment](experiments/ufm-jet-cache-20261022/README.md)
 uses three arms: unchanged stock UFM, corrected compact hashing, and the Jet cache
 with the same delta-cache corrections. Comparing the latter two isolates the cache
 selection; the stock arm also reveals the cost and trajectory changes introduced
 by the common corrections and scratch map. No UFM default change follows merely
 from making the prototype selectable.
+
+The measured prototype improves large-k runtime relative to corrected compact hashing,
+but increases peak process memory and regresses small-k runtime. Compared with unchanged
+stock UFM it is slower at both measured k values. Compact hashing remains the selected
+default; the report contains all three comparisons and their limitations.

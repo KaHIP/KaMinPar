@@ -1,0 +1,28 @@
+{
+  "all_member_hashes_match": true,
+  "all_plot_ratios_match_summary": true,
+  "extracted_archive_members": 375,
+  "figure_png_sha256": "80307ac1b1ac171e89dd2538b25c1ee8af2348beeb28b3ce4e74f91ebfd46107",
+  "figure_visually_checked": true,
+  "fresh_extraction_audit": {
+    "audit_script_sha256": "2b228b1d0289531a1a2484156bd8047c1208b7973a8f7ac0594fbfa5dbb2fec9",
+    "audited_invocations": 108,
+    "binary_sha256": {
+      "candidate": "14f467a6f79738303fca0df73624fc752aac156d462e7daa0624db94f7b92deb",
+      "stock": "de0aaa7de836d6b712568a78d713320a069c313da3c0bef7c2de6b459e76ee1d"
+    },
+    "complete": true,
+    "expected_invocations": 108,
+    "failed_or_invalid": [],
+    "manifest_sha256": "198981685a7095110c593a036a6dc918471153af6279ca1965e00b3517925f1b",
+    "missing_ids": [],
+    "plan_sha256": "0edce90ae313723119a8e12a1f3ccc9ef7946445a7b22ae7ea8c2a8ba889cfde",
+    "runner_sha256": "f256cf9c44fde1ded1860a6281a934de9f924cc1e718b3115c91ac4fae66a0be",
+    "source_base_commits": {
+      "candidate": "183e170ba396c66bc380d20b09b6928bbb55c000",
+      "stock": "183e170ba396c66bc380d20b09b6928bbb55c000"
+    }
+  },
+  "plot_series": 24,
+  "valid_pairs_per_series": 18
+}

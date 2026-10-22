@@ -1,0 +1,503 @@
+{
+  "review_kind": "independent raw-log, exact-balance and ratio recomputation; runner helpers not imported",
+  "manifest_sha256": "198981685a7095110c593a036a6dc918471153af6279ca1965e00b3517925f1b",
+  "plan_sha256": "0edce90ae313723119a8e12a1f3ccc9ef7946445a7b22ae7ea8c2a8ba889cfde",
+  "verified_runs": 108,
+  "all_raw_logs_block_sizes_and_resources_match": true,
+  "published_summary_ratios_and_runtime_intervals_match": true,
+  "overall": [
+    {
+      "name": "corrected_compact_vs_stock",
+      "pairs": 36,
+      "ratios": {
+        "runtime_ratio": 1.0723971061156607,
+        "cut_ratio": 0.9968835407291686,
+        "rss_ratio": 1.0058509530878126,
+        "ufm_ratio": 1.2308562711533206
+      },
+      "sum_runtime_ratio": 1.1160581202818578,
+      "faster": 10,
+      "worse_cut": 12,
+      "better_cut": 24,
+      "runtime_ratio_graph_bootstrap_95pct": [
+        1.014555477921724,
+        1.120676055670315
+      ]
+    },
+    {
+      "name": "adaptive_vs_corrected_compact",
+      "pairs": 36,
+      "ratios": {
+        "runtime_ratio": 1.005343572835502,
+        "cut_ratio": 1.0017883019977458,
+        "rss_ratio": 1.0718194731260875,
+        "ufm_ratio": 1.0078252627185327
+      },
+      "sum_runtime_ratio": 0.9794488859278999,
+      "faster": 17,
+      "worse_cut": 11,
+      "better_cut": 25,
+      "runtime_ratio_graph_bootstrap_95pct": [
+        0.9528244922665245,
+        1.067215503736975
+      ]
+    },
+    {
+      "name": "adaptive_vs_stock",
+      "pairs": 36,
+      "ratios": {
+        "runtime_ratio": 1.0781275381607713,
+        "cut_ratio": 0.9986662695565746,
+        "rss_ratio": 1.0780906385819524,
+        "ufm_ratio": 1.240488044843849
+      },
+      "sum_runtime_ratio": 1.0931218825408517,
+      "faster": 12,
+      "worse_cut": 13,
+      "better_cut": 23,
+      "runtime_ratio_graph_bootstrap_95pct": [
+        1.0313882683024143,
+        1.1269848846097106
+      ]
+    }
+  ],
+  "per_k": {
+    "16": [
+      {
+        "name": "corrected_compact_vs_stock",
+        "pairs": 18,
+        "ratios": {
+          "runtime_ratio": 1.0393688610585559,
+          "cut_ratio": 0.995881163852859,
+          "rss_ratio": 1.0007839130610716,
+          "ufm_ratio": 1.2561288155996824
+        },
+        "sum_runtime_ratio": 1.0698881542359266,
+        "faster": 7,
+        "worse_cut": 5,
+        "better_cut": 13,
+        "runtime_ratio_graph_bootstrap_95pct": [
+          0.9561304748697028,
+          1.1244680296140457
+        ]
+      },
+      {
+        "name": "adaptive_vs_corrected_compact",
+        "pairs": 18,
+        "ratios": {
+          "runtime_ratio": 1.0891943593797866,
+          "cut_ratio": 1.0006768668125348,
+          "rss_ratio": 1.0806995911299786,
+          "ufm_ratio": 1.1253600394486705
+        },
+        "sum_runtime_ratio": 1.0584931269492897,
+        "faster": 4,
+        "worse_cut": 7,
+        "better_cut": 11,
+        "runtime_ratio_graph_bootstrap_95pct": [
+          1.0069290520517666,
+          1.1975555129602231
+        ]
+      },
+      {
+        "name": "adaptive_vs_stock",
+        "pairs": 18,
+        "ratios": {
+          "runtime_ratio": 1.132074700779972,
+          "cut_ratio": 0.9965552427618994,
+          "rss_ratio": 1.0815467656545603,
+          "ufm_ratio": 1.4135971734758703
+        },
+        "sum_runtime_ratio": 1.1324692578631899,
+        "faster": 4,
+        "worse_cut": 7,
+        "better_cut": 11,
+        "runtime_ratio_graph_bootstrap_95pct": [
+          1.0708696442191803,
+          1.2053285728790446
+        ]
+      }
+    ],
+    "1024": [
+      {
+        "name": "corrected_compact_vs_stock",
+        "pairs": 18,
+        "ratios": {
+          "runtime_ratio": 1.1064748967310585,
+          "cut_ratio": 0.9978869265204359,
+          "rss_ratio": 1.0109436478980662,
+          "ufm_ratio": 1.2060921948631396
+        },
+        "sum_runtime_ratio": 1.1292958732155434,
+        "faster": 3,
+        "worse_cut": 7,
+        "better_cut": 11,
+        "runtime_ratio_graph_bootstrap_95pct": [
+          1.0322260697217502,
+          1.1970753244467494
+        ]
+      },
+      {
+        "name": "adaptive_vs_corrected_compact",
+        "pairs": 18,
+        "ratios": {
+          "runtime_ratio": 0.9279479743332295,
+          "cut_ratio": 1.0029009716355677,
+          "rss_ratio": 1.0630123231295967,
+          "ufm_ratio": 0.9025660451487959
+        },
+        "sum_runtime_ratio": 0.9579777219956069,
+        "faster": 13,
+        "worse_cut": 4,
+        "better_cut": 14,
+        "runtime_ratio_graph_bootstrap_95pct": [
+          0.8486643199071856,
+          0.9923330945884147
+        ]
+      },
+      {
+        "name": "adaptive_vs_stock",
+        "pairs": 18,
+        "ratios": {
+          "runtime_ratio": 1.026751139072155,
+          "cut_ratio": 1.0007817681897755,
+          "rss_ratio": 1.0746455557052326,
+          "ufm_ratio": 1.0885778624024547
+        },
+        "sum_runtime_ratio": 1.0818402880820661,
+        "faster": 8,
+        "worse_cut": 6,
+        "better_cut": 12,
+        "runtime_ratio_graph_bootstrap_95pct": [
+          0.9715509454932403,
+          1.09791639178766
+        ]
+      }
+    ]
+  },
+  "per_graph": [
+    {
+      "graph": "Long_Coup_dt6",
+      "k": 16,
+      "jet_over_compact": {
+        "runtime_ratio": 1.371291371259801,
+        "cut_ratio": 0.9935250956341554,
+        "rss_ratio": 1.0385312898833532,
+        "ufm_ratio": 1.2752515363587411
+      },
+      "jet_over_stock_runtime": 1.1875456585766442
+    },
+    {
+      "graph": "Long_Coup_dt6",
+      "k": 1024,
+      "jet_over_compact": {
+        "runtime_ratio": 0.9448662996282303,
+        "cut_ratio": 0.9989198093092526,
+        "rss_ratio": 1.0211438139059965,
+        "ufm_ratio": 0.8701291281080086
+      },
+      "jet_over_stock_runtime": 0.9634225931033702
+    },
+    {
+      "graph": "com-lj.ungraph",
+      "k": 16,
+      "jet_over_compact": {
+        "runtime_ratio": 0.9488861366592173,
+        "cut_ratio": 1.007111965951663,
+        "rss_ratio": 1.1618731717106932,
+        "ufm_ratio": 0.953208794085342
+      },
+      "jet_over_stock_runtime": 1.0178458575951117
+    },
+    {
+      "graph": "com-lj.ungraph",
+      "k": 1024,
+      "jet_over_compact": {
+        "runtime_ratio": 0.9131163180496645,
+        "cut_ratio": 0.999327800080776,
+        "rss_ratio": 1.1002130468071347,
+        "ufm_ratio": 0.868869614592619
+      },
+      "jet_over_stock_runtime": 0.9460238212369998
+    },
+    {
+      "graph": "kron_g500-simple-logn19",
+      "k": 16,
+      "jet_over_compact": {
+        "runtime_ratio": 1.0194274925461848,
+        "cut_ratio": 0.999974742118151,
+        "rss_ratio": 1.0025785040104358,
+        "ufm_ratio": 1.0722887777726824
+      },
+      "jet_over_stock_runtime": 1.0702085952153955
+    },
+    {
+      "graph": "kron_g500-simple-logn19",
+      "k": 1024,
+      "jet_over_compact": {
+        "runtime_ratio": 0.9503217361822847,
+        "cut_ratio": 0.998955328850269,
+        "rss_ratio": 1.0088026188692187,
+        "ufm_ratio": 0.957043620453185
+      },
+      "jet_over_stock_runtime": 1.0271389672809912
+    },
+    {
+      "graph": "recomp_dna1GB_9",
+      "k": 16,
+      "jet_over_compact": {
+        "runtime_ratio": 1.055422068216353,
+        "cut_ratio": 0.9998527266829461,
+        "rss_ratio": 0.9891492794364614,
+        "ufm_ratio": 1.119732918997422
+      },
+      "jet_over_stock_runtime": 1.1062143748929605
+    },
+    {
+      "graph": "recomp_dna1GB_9",
+      "k": 1024,
+      "jet_over_compact": {
+        "runtime_ratio": 0.9909611809007703,
+        "cut_ratio": 0.99932049519708,
+        "rss_ratio": 1.0064008166503404,
+        "ufm_ratio": 1.0142378867243063
+      },
+      "jet_over_stock_runtime": 1.2005032776675704
+    },
+    {
+      "graph": "recomp_sources1GB_9",
+      "k": 16,
+      "jet_over_compact": {
+        "runtime_ratio": 1.0631687039617355,
+        "cut_ratio": 1.0007792181809674,
+        "rss_ratio": 1.1979303435165871,
+        "ufm_ratio": 1.1607811736420186
+      },
+      "jet_over_stock_runtime": 1.2826296244643842
+    },
+    {
+      "graph": "recomp_sources1GB_9",
+      "k": 1024,
+      "jet_over_compact": {
+        "runtime_ratio": 1.0375218438243303,
+        "cut_ratio": 0.9986755128347334,
+        "rss_ratio": 1.1512994313598948,
+        "ufm_ratio": 1.0836734056090662
+      },
+      "jet_over_stock_runtime": 1.0576774282671468
+    },
+    {
+      "graph": "soc-flickr-und",
+      "k": 16,
+      "jet_over_compact": {
+        "runtime_ratio": 1.1217698422336964,
+        "cut_ratio": 1.002866718157558,
+        "rss_ratio": 1.1113217645928661,
+        "ufm_ratio": 1.1989152362429423
+      },
+      "jet_over_stock_runtime": 1.146856767519319
+    },
+    {
+      "graph": "soc-flickr-und",
+      "k": 1024,
+      "jet_over_compact": {
+        "runtime_ratio": 0.757392065401383,
+        "cut_ratio": 1.0224320481329678,
+        "rss_ratio": 1.0987543866430527,
+        "ufm_ratio": 0.6797757262756452
+      },
+      "jet_over_stock_runtime": 0.9856584944468996
+    }
+  ],
+  "phase_totals_by_k": {
+    "16": {
+      "stock": {
+        "runs": 18,
+        "runtime_s": 64.732,
+        "ufm_time_s": 20.504999999999995,
+        "phases_s": {
+          "initialize_border_nodes": 1.679,
+          "initialize_gain_cache": 0.455,
+          "initialize_unconstrained_fm_data": 0.26800000000000007,
+          "localized_searches,_coarse_level": 0.7010000000000002,
+          "localized_searches,_fine_level": 6.468000000000001,
+          "rebalance": 6.0200000000000005,
+          "rollback": 4.029000000000001
+        },
+        "phase_present_in_runs": {
+          "initialize_border_nodes": 18,
+          "initialize_gain_cache": 18,
+          "initialize_unconstrained_fm_data": 18,
+          "localized_searches,_coarse_level": 12,
+          "localized_searches,_fine_level": 18,
+          "rebalance": 15,
+          "rollback": 18
+        },
+        "initialization_subphases_s": {
+          "allocation": 0.06200000000000001,
+          "compute_gain_cache_offsets": 0.04500000000000001,
+          "reset_gain_cache": 0.2510000000000001
+        }
+      },
+      "compact": {
+        "runs": 18,
+        "runtime_s": 69.25599999999999,
+        "ufm_time_s": 27.248000000000005,
+        "phases_s": {
+          "initialize_border_nodes": 2.098,
+          "initialize_gain_cache": 0.4510000000000001,
+          "initialize_unconstrained_fm_data": 0.3810000000000001,
+          "localized_searches,_coarse_level": 1.012,
+          "localized_searches,_fine_level": 8.757,
+          "rebalance": 7.654,
+          "rollback": 5.590000000000002
+        },
+        "phase_present_in_runs": {
+          "initialize_border_nodes": 18,
+          "initialize_gain_cache": 18,
+          "initialize_unconstrained_fm_data": 18,
+          "localized_searches,_coarse_level": 12,
+          "localized_searches,_fine_level": 18,
+          "rebalance": 15,
+          "rollback": 18
+        },
+        "initialization_subphases_s": {
+          "allocation": 0.05500000000000001,
+          "compute_gain_cache_offsets": 0.04300000000000001,
+          "reset_gain_cache": 0.2550000000000001
+        }
+      },
+      "jet": {
+        "runs": 18,
+        "runtime_s": 73.30699999999999,
+        "ufm_time_s": 30.157,
+        "phases_s": {
+          "initialize_border_nodes": 2.2060000000000004,
+          "initialize_gain_cache": 1.5130000000000001,
+          "initialize_unconstrained_fm_data": 0.43800000000000006,
+          "localized_searches,_coarse_level": 1.245,
+          "localized_searches,_fine_level": 8.763,
+          "rebalance": 8.295000000000002,
+          "rollback": 6.4830000000000005
+        },
+        "phase_present_in_runs": {
+          "initialize_border_nodes": 18,
+          "initialize_gain_cache": 18,
+          "initialize_unconstrained_fm_data": 18,
+          "localized_searches,_coarse_level": 12,
+          "localized_searches,_fine_level": 18,
+          "rebalance": 15,
+          "rollback": 18
+        },
+        "initialization_subphases_s": {}
+      }
+    },
+    "1024": {
+      "stock": {
+        "runs": 18,
+        "runtime_s": 225.76899999999998,
+        "ufm_time_s": 122.07499999999999,
+        "phases_s": {
+          "initialize_border_nodes": 3.1689999999999996,
+          "initialize_gain_cache": 1.3040000000000003,
+          "initialize_unconstrained_fm_data": 0.6060000000000001,
+          "localized_searches,_coarse_level": 12.547,
+          "localized_searches,_fine_level": 47.105,
+          "rebalance": 32.897,
+          "rollback": 21.685
+        },
+        "phase_present_in_runs": {
+          "initialize_border_nodes": 18,
+          "initialize_gain_cache": 18,
+          "initialize_unconstrained_fm_data": 18,
+          "localized_searches,_coarse_level": 12,
+          "localized_searches,_fine_level": 18,
+          "rebalance": 18,
+          "rollback": 18
+        },
+        "initialization_subphases_s": {
+          "allocation": 0.20400000000000004,
+          "compute_gain_cache_offsets": 0.09300000000000001,
+          "reset_gain_cache": 0.8390000000000002
+        }
+      },
+      "compact": {
+        "runs": 18,
+        "runtime_s": 254.96000000000004,
+        "ufm_time_s": 151.19099999999997,
+        "phases_s": {
+          "initialize_border_nodes": 3.2249999999999996,
+          "initialize_gain_cache": 1.286,
+          "initialize_unconstrained_fm_data": 0.5960000000000001,
+          "localized_searches,_coarse_level": 21.130999999999997,
+          "localized_searches,_fine_level": 64.552,
+          "rebalance": 29.916,
+          "rollback": 26.828999999999997
+        },
+        "phase_present_in_runs": {
+          "initialize_border_nodes": 18,
+          "initialize_gain_cache": 18,
+          "initialize_unconstrained_fm_data": 18,
+          "localized_searches,_coarse_level": 12,
+          "localized_searches,_fine_level": 18,
+          "rebalance": 18,
+          "rollback": 18
+        },
+        "initialization_subphases_s": {
+          "allocation": 0.18600000000000005,
+          "compute_gain_cache_offsets": 0.09400000000000001,
+          "reset_gain_cache": 0.8400000000000001
+        }
+      },
+      "jet": {
+        "runs": 18,
+        "runtime_s": 244.246,
+        "ufm_time_s": 146.268,
+        "phases_s": {
+          "initialize_border_nodes": 3.4330000000000007,
+          "initialize_gain_cache": 3.2460000000000004,
+          "initialize_unconstrained_fm_data": 0.6820000000000002,
+          "localized_searches,_coarse_level": 22.025000000000002,
+          "localized_searches,_fine_level": 54.951000000000015,
+          "rebalance": 20.859,
+          "rollback": 37.622
+        },
+        "phase_present_in_runs": {
+          "initialize_border_nodes": 18,
+          "initialize_gain_cache": 18,
+          "initialize_unconstrained_fm_data": 18,
+          "localized_searches,_coarse_level": 12,
+          "localized_searches,_fine_level": 18,
+          "rebalance": 18,
+          "rollback": 18
+        },
+        "initialization_subphases_s": {}
+      }
+    }
+  },
+  "binary_sha256": {
+    "candidate": "14f467a6f79738303fca0df73624fc752aac156d462e7daa0624db94f7b92deb",
+    "stock": "de0aaa7de836d6b712568a78d713320a069c313da3c0bef7c2de6b459e76ee1d"
+  },
+  "source_runtime_commit": {
+    "candidate": "8137ef90bd99550d4d6d795af7228667dd56b0ee",
+    "stock": "183e170ba396c66bc380d20b09b6928bbb55c000"
+  },
+  "compiler_identical": true,
+  "dependency_hashes_identical": {
+    "tbb": true,
+    "kassert": true
+  },
+  "cmake_cache_identical_after_stock_candidate_path_normalization": true,
+  "interpretation": [
+    "Jet versus corrected compact is nearly neutral overall in partitioning time (+0.53%), with 7.18% higher process RSS and 0.18% higher geometric-mean cut.",
+    "At k=16 Jet takes 8.92% longer; at k=1024 it reduces partitioning time by 7.21% and UFM time by 9.74%. These per-k runtime intervals exclude equality within this selected six-graph bootstrap, not a full-corpus inference.",
+    "At k=1024 Jet is faster on five of six graph means, but the strongest gain is soc-flickr-und (24.26% less partitioning time) with a 2.24% worse cut. The other five graph means have slightly better cuts; recomp_sources1GB_9 is 3.75% slower.",
+    "Corrected compact versus stock takes 7.24% more partitioning time overall and 23.09% more UFM time. This combines the delta correctness and scratch-adapter changes with changed search effort; it is not a pure per-operation overhead measurement.",
+    "Jet versus stock remains 7.81% slower overall; its large-k partitioning ratio is 1.02675 with an interval including equality. The new cache does not demonstrate a replacement advantage over stock Eco in this study.",
+    "At k=1024, Jet versus corrected compact reduces summed fine-level search time from 64.552 to 54.951 seconds and rebalancing from 29.916 to 20.859 seconds, while cache initialization rises from 1.286 to 3.246 seconds and rollback from 26.829 to 37.622 seconds.",
+    "Both cache choices expose adjacent target blocks, but compact full rows still physically scan k entries; the treatment includes physical traversal, row capacity, synchronization, and search-trajectory effects.",
+    "Phase presence counts are identical across arms. They count runs containing a timer, not executions or moves; no per-operation conclusion follows from these totals.",
+    "The cohort is fixed and small; graph-bootstrap intervals describe its variation and should not be presented as full-corpus superiority."
+  ]
+}
