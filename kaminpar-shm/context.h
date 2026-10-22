@@ -69,6 +69,14 @@ std::ostream &operator<<(std::ostream &out, GainCacheStrategy strategy);
 
 std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies();
 
+std::ostream &operator<<(std::ostream &out, JetGainCacheStrategy strategy);
+
+std::unordered_map<std::string, JetGainCacheStrategy> get_jet_gain_cache_strategies();
+
+std::ostream &operator<<(std::ostream &out, JetBalancingAlgorithm algorithm);
+
+std::unordered_map<std::string, JetBalancingAlgorithm> get_jet_balancing_algorithms();
+
 std::ostream &operator<<(std::ostream &out, InitialRefinementAlgorithm algorithm);
 
 std::unordered_map<std::string, InitialRefinementAlgorithm> get_initial_refinement_algorithms();
