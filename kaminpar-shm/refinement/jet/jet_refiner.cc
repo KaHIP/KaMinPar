@@ -95,6 +95,7 @@ public:
   }
 
   bool refine(PartitionedGraph &p_graph, const Graph &graph, const PartitionContext &p_ctx) {
+    SCOPED_TIMER("Jet Refiner");
     if (_num_rounds <= 0 || p_graph.k() < 2) {
       return false;
     }
@@ -125,21 +126,26 @@ private:
         k * _ctx.refinement.kway_fm.k_based_high_degree_threshold,
         _ctx.refinement.kway_fm.constant_high_degree_threshold
     );
+    // SparseGainCache assigns complete degree buckets to packed hash rows.
+    NodeID packed_nodes = 0;
+    for (std::size_t bucket = 0;
+         packed_nodes < graph.n() && graph.degree(packed_nodes) < degree_threshold;
+         ++bucket) {
+      packed_nodes += graph.bucket_size(bucket);
+    }
     return tbb::parallel_reduce(
-        tbb::blocked_range<NodeID>(0, graph.n()),
+        tbb::blocked_range<NodeID>(0, packed_nodes),
         true,
         [&](const auto &range, bool safe) {
-          for (const NodeID u : range) {
+          for (NodeID u = range.begin(); u != range.end(); ++u) {
             if (!safe) {
               break;
             }
-            if (graph.degree(u) < degree_threshold) {
-              UnsignedEdgeWeight weighted_degree = 0;
-              graph.adjacent_nodes(u, [&](NodeID, const EdgeWeight weight) {
-                weighted_degree += static_cast<UnsignedEdgeWeight>(weight);
-              });
-              safe = weighted_degree <= packed_limit;
-            }
+            UnsignedEdgeWeight weighted_degree = 0;
+            graph.adjacent_nodes(u, [&](NodeID, const EdgeWeight weight) {
+              weighted_degree += static_cast<UnsignedEdgeWeight>(weight);
+            });
+            safe = weighted_degree <= packed_limit;
           }
           return safe;
         },
@@ -150,7 +156,6 @@ private:
   template <typename GainCache>
   bool
   refine_with_cache(PartitionedGraph &p_graph, const Graph &graph, const PartitionContext &p_ctx) {
-    SCOPED_TIMER("Jet Refiner");
     START_TIMER("Allocation");
     GainCache gain_cache(_ctx, graph.n(), p_graph.k());
     gain_cache.initialize(graph, p_graph);

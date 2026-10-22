@@ -34,7 +34,10 @@ The cache exposes `conn`, `gain`, `is_border_node`, `gains`, and `move`.
 `gains(u, from, callback)` visits adjacent blocks other than `from`, passing a callable
 that returns connectivity, not gain. `for_each_connection` also includes the source.
 Callbacks must not reenter the same cache row. Jet's adaptive-cache move selection scans
-these adjacent entries; the legacy-cache selection retains its all-block traversal.
+these adjacent entries. The legacy sparse layout also enumerates adjacent targets,
+although its dense rows still require scanning `k` entries. For unsorted graphs, or
+when a row's weighted degree cannot fit the legacy packed value, the sparse option
+uses on-the-fly adjacent-block aggregation to avoid `n*k` allocation or overflow.
 
 Each row uses a lock for updates. The general `JetGainCache` also locks queries; Jet uses
 `SynchronousJetGainCache`, whose queries require a quiescent cache. Jet's blocking parallel
@@ -72,9 +75,14 @@ or a capacity-indexed nonadjacent target without the deadzone or heavy-vertex re
 This fallback respects source lower and destination upper bounds. It is a packing
 heuristic, not a complete solver for indivisible weighted vertices.
 
-The enclosing Jet refiner records only feasible improvements once it has a feasible
-partition; otherwise it can accept reduced total bound violation. Rollback rebuilds the
-cache. Thus an unsuccessful weighted repair does not replace a known feasible partition.
+The enclosing Jet refiner minimizes total bound violation before cut, using an
+unsigned sum so combined over- and underload cannot overflow the signed weight range.
+At equal violation it accepts a smaller cut. Thus an unsuccessful weighted repair does
+not replace a known feasible partition. It retains upstream Jet's zero-gain candidate
+and projected-move acceptance, reuses candidate gains in filtering, and updates cut
+from the original and final blocks of moved vertices. Both balancers feed this move
+tracking. Rollback clears LP locks and rebuilds the cache. Configured source minima
+are protected by serial LP execution; the usual upper-bound-only path remains parallel.
 The balancer exposes weak-round, strong-round, and fallback-move counts through
 `statistics()`; phase timers distinguish weak, strong, and fallback work.
 
@@ -91,8 +99,8 @@ Use `-P jet` or `-P 4xjet` with the following combinations:
 
 The corresponding context fields are `refinement.jet.gain_cache_strategy` and
 `refinement.jet.balancing_algorithm`. Both default to `JET`. The legacy-component
-combination still includes the common bound-aware acceptance and rollback fixes, so a
-strict before/after comparison must additionally use an unchanged baseline executable.
+combination includes the common upstream Jet correctness fixes and safe sparse fallback,
+so a strict before/after comparison must additionally use an unchanged baseline executable.
 
 Dedicated tests cover connectivity reconstruction, collision chains, cache growth,
 concurrent moves, bucket boundaries, weak and strong passes, nonuniform bounds, source
@@ -102,7 +110,9 @@ lower bounds, weighted stalls, and Jet's component combinations. Run the registe
 ## Reduced UFM evaluation
 
 The [completed six-graph cluster experiment](experiments/jet-adaptive-20261022/README.md)
-compares all four component combinations and Eco/UFM at k=16 and k=1024. The
-rebalancer supplies the more consistent improvement; the adaptive cache helps mainly
-at large k and regresses the small-k aggregate. Raw measurements, balance audits,
-provenance, and reproducible figures are retained with the report.
+compares all four component combinations and Eco/UFM at k=16 and k=1024 at frozen
+runtime revision `4cf985f2`, before upstream Jet correctness fix #160. At that revision,
+the rebalancer supplies the more consistent improvement; the adaptive cache helps mainly
+at large k and regresses the small-k aggregate. Those measurements have not been rerun
+on the rebased implementation. Raw measurements, balance audits, provenance, and
+reproducible figures are retained with the report.

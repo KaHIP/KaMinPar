@@ -1,6 +1,20 @@
 # Jet adaptive cache and paper rebalancer: reduced UFM experiment
 
-Both new components are implemented in the separate `codex/jet-adaptive-gain-cache` worktree. The complete screening experiment contains **180/180 successful, balanced measurements** on six UFM corpus graphs, two k values, three seeds, and five configurations, using 32 physical cores on `dijkstra`. The final batch completed normally (job 84399, exit 0, no restart).
+**Historical measurements:** every number and figure below measures runtime commit
+`4cf985f27ebb6b48e8e5b5e4536d8f75e5e7fc5a`, before upstream Jet correctness fix
+[#160](https://github.com/KaHIP/KaMinPar/pull/160) (`cff02fde`). The measured history,
+including the report, is preserved at `codex/jet-measured-20261022` (`381f42ba`).
+The implementation branch has since been rebased onto `29a86564` and retains #160:
+zero-gain candidate and projected moves are accepted, candidate gains are reused,
+cut changes are tracked incrementally, bound-violation sums use the unsigned range,
+convergence and rollback locks are handled correctly, and refinement reports improvement.
+Its sparse option now enumerates adjacent targets and falls back to on-the-fly
+connectivity for unsorted input or unsafe packed weights. These changes can alter
+search trajectories and running time. The recorded comparisons are evidence about
+the frozen measured revision; they have **not** been rerun on the rebased implementation.
+Frozen source hashes, raw measurements, and validation records below are unchanged.
+
+Both new components were implemented in the separate `codex/jet-adaptive-gain-cache` worktree. The complete screening experiment contains **180/180 successful, balanced measurements** on six UFM corpus graphs, two k values, three seeds, and five configurations, using 32 physical cores on `dijkstra`. The final batch completed normally (job 84399, exit 0, no restart).
 
 Compared with the legacy Jet components, the combination is **2.48× faster at k=16 and 4.82× faster at k=1024**, with geometric-mean cut reductions of **20.98% and 6.08%**. All 36 matched combined runs are faster, although 6 have worse cuts. The rebalancer produces the more consistent improvement; the adaptive cache helps principally at large k. Eco/UFM remains faster on the aggregate, at similar aggregate cut quality.
 
@@ -69,6 +83,8 @@ With the sparse cache, replacing the rebalancer reduces summed rebalancing time 
 
 ## What was compared
 
+This section describes the frozen measured revision, including its old all-block sparse traversal.
+
 The four Jet configurations differ only in the two explicit switches below. They all use the same candidate executable. Eco is the repository's unconstrained LP + UFM preset, included as a separate runtime/quality reference.
 
 | Name | Gain cache | Rebalancer |
@@ -105,7 +121,7 @@ The tables use geometric means of matched graph/k/seed ratios. Speedup is refere
 
 ## Validation and provenance
 
-All 22 Jet tests passed in the ordinary Debug/heavy-assertion build and in separate AddressSanitizer + UndefinedBehaviorSanitizer builds with both 32-bit and 64-bit weights/edge IDs. Tests cover adaptive sizing/growth, collision-chain deletion, concurrent updates, barrier-separated reads, full-width edge weights, weak/strong rebalancing, nonuniform and minimum bounds, infeasible weighted packing, CSR/compressed graphs, all four configurations, and rollback. No sanitizer diagnostics were reported. The cluster preflight also passed ten edge-weighted smoke invocations (five configurations at k=2 and k=16); weighted vertices and minimum bounds are covered by the local tests.
+At the measured revision, all 22 Jet tests passed in the ordinary Debug/heavy-assertion build and in separate AddressSanitizer + UndefinedBehaviorSanitizer builds with both 32-bit and 64-bit weights/edge IDs. Tests cover adaptive sizing/growth, collision-chain deletion, concurrent updates, barrier-separated reads, full-width edge weights, weak/strong rebalancing, nonuniform and minimum bounds, infeasible weighted packing, CSR/compressed graphs, all four configurations, and rollback. No sanitizer diagnostics were reported. The cluster preflight also passed ten edge-weighted smoke invocations (five configurations at k=2 and k=16); weighted vertices and minimum bounds are covered by the local tests.
 
 Runtime source commit: `4cf985f27ebb6b48e8e5b5e4536d8f75e5e7fc5a`, based on `7679b10946c9d13c0daa2caf18ee78ed81321350`. All 699 checked non-documentation/non-experiment source files, including all 11 changed runtime/test files, matched both committed blobs and the frozen source snapshot. The separate worktree excludes unrelated changes in the original checkout.
 

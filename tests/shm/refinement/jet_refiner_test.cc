@@ -9,6 +9,7 @@
 #include <gmock/gmock.h>
 #include <tbb/global_control.h>
 
+#include "tests/shm/graph_factories.h"
 #include "tests/shm/graph_helpers.h"
 
 #include "kaminpar-shm/graphutils/compressed_graph_builder.h"
@@ -279,19 +280,6 @@ INSTANTIATE_TEST_SUITE_P(
 } // namespace
 } // namespace kaminpar::shm::testing
 
-/*******************************************************************************
- * Integration tests for Jet cache and rebalancer combinations.
- ******************************************************************************/
-#include <gtest/gtest.h>
-#include <tbb/global_control.h>
-
-#include "tests/shm/graph_factories.h"
-#include "tests/shm/graph_helpers.h"
-
-#include "kaminpar-shm/graphutils/compressed_graph_builder.h"
-#include "kaminpar-shm/metrics.h"
-#include "kaminpar-shm/refinement/jet/jet_refiner.h"
-
 namespace kaminpar::shm {
 namespace {
 using namespace testing;
@@ -356,7 +344,7 @@ TEST(JetComponentTest, SparseOptionSupportsFullWeightsInSortedGraph) {
     partition[u] = u / 2;
   }
   offsets[n] = n;
-  // Only one heavy edge is cut; all degrees are one, hence degree-sorted.
+  // Two heavy edges are cut; all degrees are one, hence degree-sorted.
   std::swap(partition[1], partition[2]);
   std::fill(weights.begin() + 4, weights.end(), 1);
   auto graph = make_graph(offsets, edges, {}, weights, true);
@@ -370,6 +358,34 @@ TEST(JetComponentTest, SparseOptionSupportsFullWeightsInSortedGraph) {
   refiner.refine(p_graph, ctx.partition);
   EXPECT_TRUE(metrics::is_feasible(p_graph, ctx.partition));
   EXPECT_LE(metrics::edge_cut(p_graph), initial_cut);
+}
+
+TEST(JetComponentTest, SparseOptionRefinesSortedGraphWithBothBalancers) {
+  tbb::global_control control(tbb::global_control::max_allowed_parallelism, 4);
+  constexpr BlockID k = 64;
+  constexpr NodeID n = 2 * k;
+  std::vector<EdgeID> offsets(n + 1);
+  std::vector<NodeID> edges(n);
+  std::vector<BlockID> partition(n);
+  for (NodeID u = 0; u < n; ++u) {
+    offsets[u] = u;
+    edges[u] = u ^ 1;
+    partition[u] = (u / 2 + u % 2) % k;
+  }
+  offsets[n] = n;
+  auto graph = make_graph(offsets, edges, true);
+  for (const auto balancer : {JetBalancingAlgorithm::OVERLOAD, JetBalancingAlgorithm::JET}) {
+    auto ctx = create_jet_context(2);
+    ctx.refinement.jet.gain_cache_strategy = JetGainCacheStrategy::SPARSE;
+    ctx.refinement.jet.balancing_algorithm = balancer;
+    ctx.partition.setup(graph, k, 0.03);
+    auto p_graph = make_p_graph(graph, k, partition);
+    JetRefiner refiner(ctx);
+    refiner.initialize(p_graph);
+    EXPECT_TRUE(refiner.refine(p_graph, ctx.partition));
+    EXPECT_TRUE(metrics::is_feasible(p_graph, ctx.partition));
+    EXPECT_EQ(metrics::edge_cut(p_graph), 0);
+  }
 }
 
 TEST(JetComponentTest, AllCombinationsKeepFeasibleBestOnCSR) {
