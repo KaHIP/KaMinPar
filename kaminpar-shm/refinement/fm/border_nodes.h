@@ -7,7 +7,6 @@
 
 #include <vector>
 
-#include <tbb/blocked_range.h>
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
 
@@ -27,25 +26,16 @@ public:
         _node_tracker(node_tracker) {}
 
   void init(const PartitionedGraph &p_graph) {
-    for (auto &nodes : _local_border_nodes) {
-      nodes.clear();
-    }
+    tbb::enumerable_thread_specific<std::vector<NodeID>> local_border_nodes;
 
-    tbb::parallel_for(
-        tbb::blocked_range<NodeID>(0, p_graph.graph().n()),
-        [&](const tbb::blocked_range<NodeID> &range) {
-          // Resolve thread-local storage once per range, rather than once per border node.
-          auto &nodes = _local_border_nodes.local();
-          for (NodeID u = range.begin(); u < range.end(); ++u) {
-            if (_gain_cache.is_border_node(u, p_graph.block(u))) {
-              nodes.push_back(u);
-            }
-            _node_tracker.set(u, 0);
-          }
-        }
-    );
+    tbb::parallel_for<NodeID>(0, p_graph.graph().n(), [&](const NodeID u) {
+      if (_gain_cache.is_border_node(u, p_graph.block(u))) {
+        local_border_nodes.local().push_back(u);
+      }
+      _node_tracker.set(u, 0);
+    });
 
-    assign_from_thread_locals(_local_border_nodes);
+    assign_from_thread_locals(local_border_nodes);
     _next_border_node = 0;
   }
 
@@ -60,16 +50,14 @@ public:
 
   template <typename Lambda> NodeID poll(const NodeID count, int id, Lambda &&lambda) {
     NodeID polled = 0;
-    const NodeID *nodes = _border_nodes.data();
-    const std::size_t size = _border_nodes.size();
 
-    while (polled < count && _next_border_node < size) {
+    while (polled < count && _next_border_node < _border_nodes.size()) {
       const NodeID remaining = count - polled;
       const NodeID from = _next_border_node.fetch_add(remaining);
-      const NodeID to = std::min<NodeID>(from + remaining, size);
+      const NodeID to = std::min<NodeID>(from + remaining, _border_nodes.size());
 
       for (NodeID current = from; current < to; ++current) {
-        const NodeID node = nodes[current];
+        const NodeID node = _border_nodes[current];
         if (_node_tracker.owner(node) == NodeTracker::UNLOCKED && _node_tracker.lock(node, id)) {
           lambda(node);
           ++polled;
@@ -125,11 +113,8 @@ private:
   GainCache &_gain_cache;
   NodeTracker &_node_tracker;
 
+  parallel::Atomic<NodeID> _next_border_node;
   std::vector<NodeID> _border_nodes;
-  tbb::enumerable_thread_specific<std::vector<NodeID>> _local_border_nodes;
-
-  // Pollers write this counter concurrently while reading the immutable vector metadata.
-  alignas(64) parallel::Atomic<NodeID> _next_border_node;
 };
 
 } // namespace kaminpar::shm::fm

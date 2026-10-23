@@ -58,7 +58,7 @@ TEST(FMBorderNodesTest, ReinitializationDiscardsOldNodesAndResetsOwnership) {
   ASSERT_EQ(border.size(), n);
   EXPECT_EQ(border.poll(n, 1, [](NodeID) {}), n);
 
-  // All former border nodes become internal; cached per-thread buffers must be empty.
+  // Reinitialization must discard nodes that are no longer on the border.
   for (NodeID u = 0; u < n; ++u) {
     p_graph.set_block(u, 0);
   }
