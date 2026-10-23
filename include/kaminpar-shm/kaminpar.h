@@ -339,7 +339,7 @@ struct JetRefinementContext {
   double initial_gain_temp_on_coarse_level;
   double final_gain_temp_on_coarse_level;
 
-  JetGainCacheStrategy gain_cache_strategy = JetGainCacheStrategy::JET;
+  JetGainCacheStrategy gain_cache_strategy = JetGainCacheStrategy::SPARSE;
   JetBalancingAlgorithm balancing_algorithm = JetBalancingAlgorithm::JET;
 };
 

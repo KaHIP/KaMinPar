@@ -318,10 +318,10 @@ void refine_and_check(Graph &graph, const int threads) {
   }
 }
 
-TEST(JetComponentTest, JetPresetsSelectAdaptiveCacheAndPaperBalancer) {
+TEST(JetComponentTest, JetPresetsSelectSparseCacheAndPaperBalancer) {
   for (const int rounds : {1, 4}) {
     const auto ctx = create_jet_context(rounds);
-    EXPECT_EQ(ctx.refinement.jet.gain_cache_strategy, JetGainCacheStrategy::JET);
+    EXPECT_EQ(ctx.refinement.jet.gain_cache_strategy, JetGainCacheStrategy::SPARSE);
     EXPECT_EQ(ctx.refinement.jet.balancing_algorithm, JetBalancingAlgorithm::JET);
     EXPECT_EQ(ctx.refinement.jet.num_rounds_on_fine_level, rounds);
     EXPECT_EQ(ctx.refinement.jet.num_rounds_on_coarse_level, rounds);
