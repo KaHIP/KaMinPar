@@ -1110,10 +1110,10 @@ public:
       }
 
       std::atomic<int> num_finished_workers = 0;
-      const NodeID num_seed_nodes =
-          use_unconstrained_iteration
-              ? fm_ctx.num_seed_nodes_for_ufm()
-              : kConstrainedSeedNodeMultiplier * fm_ctx.num_seed_nodes_for_ufm();
+      const NodeID num_seed_nodes = use_unconstrained_iteration
+                                        ? fm_ctx.num_seed_nodes_for_ufm(graph.n(), graph.m())
+                                        : kConstrainedSeedNodeMultiplier *
+                                              fm_ctx.num_seed_nodes_for_ufm(graph.n(), graph.m());
 
       tbb::parallel_for<int>(0, _ctx.parallel.num_threads, [&](int) {
         auto &expected_gain = expected_gain_ets.local();

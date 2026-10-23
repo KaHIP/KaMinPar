@@ -466,7 +466,7 @@ Context create_eco_context() {
   ctx.refinement.kway_fm.num_seed_nodes = 0;
   ctx.refinement.kway_fm.num_iterations = 10;
   ctx.refinement.kway_fm.unconstrained_num_iterations = 8;
-  ctx.refinement.kway_fm.unconstrained_min_improvement = 0.0;
+  ctx.refinement.kway_fm.unconstrained_min_improvement = 0.005;
   ctx.refinement.kway_fm.unconstrained_penalty_min = 0.2;
   ctx.refinement.kway_fm.unconstrained_penalty_max = 1.0;
   ctx.refinement.kway_fm.unconstrained_rebalancing_node_inclusion_threshold = 0.7;

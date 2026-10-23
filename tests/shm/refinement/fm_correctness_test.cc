@@ -306,6 +306,18 @@ TEST(FMCorrectnessTest, CompletesProductiveSearchesBeyondInitialSeedNodes) {
   check_weights(p_graph, ctx.partition);
 }
 
+TEST(FMCorrectnessTest, AutomaticSeedDefaultsPreserveBudgetAndExplicitChoices) {
+  auto fm_ctx = create_eco_context().refinement.kway_fm;
+  ASSERT_EQ(fm_ctx.num_seed_nodes, 0u);
+  EXPECT_EQ(fm_ctx.num_seed_nodes_for_fm(), 100u);
+  EXPECT_EQ(fm_ctx.num_seed_nodes_for_ufm(100, 599), 25u);
+  EXPECT_EQ(fm_ctx.num_seed_nodes_for_ufm(100, 600), 75u);
+  fm_ctx.num_seed_nodes = 3;
+  EXPECT_EQ(fm_ctx.num_seed_nodes_for_fm(), 3u);
+  EXPECT_EQ(fm_ctx.num_seed_nodes_for_ufm(100, 599), 3u);
+  EXPECT_EQ(fm_ctx.num_seed_nodes_for_ufm(100, 600), 3u);
+}
+
 TEST(FMCorrectnessTest, AutomaticSeedCountsMakeProgressInBothRefiners) {
   tbb::global_control threads(tbb::global_control::max_allowed_parallelism, 1);
   GraphBuilder builder;

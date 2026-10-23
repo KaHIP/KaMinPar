@@ -255,8 +255,10 @@ struct KwayFMRefinementContext {
     return num_seed_nodes == 0 ? 100 : num_seed_nodes;
   }
 
-  [[nodiscard]] NodeID num_seed_nodes_for_ufm() const {
-    return num_seed_nodes == 0 ? 10 : num_seed_nodes;
+  [[nodiscard]] NodeID num_seed_nodes_for_ufm(const NodeID n, const EdgeID m) const {
+    // Preserve Eco's original search budget without replacing explicit caller settings.
+    const NodeID automatic = std::uint64_t{m} < 6 * std::uint64_t{n} ? 25 : 75;
+    return num_seed_nodes == 0 ? automatic : num_seed_nodes;
   }
 };
 

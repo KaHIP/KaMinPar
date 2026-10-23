@@ -751,7 +751,7 @@ std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
     out << "  Number of seed nodes:       ";
     if (r_ctx.kway_fm.num_seed_nodes == 0) {
       out << "auto (FM: " << r_ctx.kway_fm.num_seed_nodes_for_fm()
-          << ", UFM: " << r_ctx.kway_fm.num_seed_nodes_for_ufm() << ")\n";
+          << ", UFM: 25 on sparse levels, 75 otherwise)\n";
     } else {
       out << r_ctx.kway_fm.num_seed_nodes << "\n";
     }

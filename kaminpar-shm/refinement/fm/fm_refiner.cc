@@ -172,26 +172,42 @@ public:
         // If we found a new local minimum, apply the moves to the global
         // partition
         if (current_total_gain > best_total_gain) {
-          // Cached gains guide publication. Concurrent batches can briefly overload a
-          // block; the refinement pipeline repairs these violations with the balancer.
-          _committed_moves.clear();
-          _d_graph.for_each([&](const NodeID moved_node, const BlockID moved_to) {
-            _committed_moves.push_back({moved_node, _p_graph.block(moved_node)});
-            _p_graph.set_block(moved_node, moved_to);
-          });
-          _committed_moves.push_back({node, block_from});
           _p_graph.set_block(node, block_to);
+          _shared.gain_cache.move(node, block_from, block_to);
+          _shared.node_tracker.set(node, NodeTracker::MOVED_GLOBALLY);
+          IFSTATS(stats(Statistic::NUM_COMMITTED_MOVES));
 
-          // Nodes stay owned until their cache updates finish. Each node moves globally at
-          // most once per iteration, so outgoing cache deltas cannot overdraw the original
-          // connectivity even when incoming/outgoing updates from different batches interleave.
-          for (const fm::Move &move : _committed_moves) {
-            _shared.gain_cache.move(move.node, move.from, _p_graph.block(move.node));
-            _shared.node_tracker.set(move.node, NodeTracker::MOVED_GLOBALLY);
-            IFSTATS(stats(Statistic::NUM_COMMITTED_MOVES));
+          _d_graph.for_each([&](const NodeID moved_node, const BlockID moved_to) {
+            const BlockID moved_from = _p_graph.block(moved_node);
+
+            // The order of the moves in the delta graph is not necessarily correct (depending on
+            // whether the delta graph stores the moves in a vector of a hash table).
+            // Thus, users of the _applied_moves vector may only depend on the order of moves that
+            // found an improvement.
             if (_record_applied_moves) {
-              _applied_moves.push_back({move.node, move.from, move.node == node});
+              _applied_moves.push_back(
+                  fm::AppliedMove{
+                      .node = moved_node,
+                      .from = moved_from,
+                      .improvement = false,
+                  }
+              );
             }
+
+            _shared.gain_cache.move(moved_node, moved_from, moved_to);
+            _shared.node_tracker.set(moved_node, NodeTracker::MOVED_GLOBALLY);
+            _p_graph.set_block(moved_node, moved_to);
+            IFSTATS(stats(Statistic::NUM_COMMITTED_MOVES));
+          });
+
+          if (_record_applied_moves) {
+            _applied_moves.push_back(
+                fm::AppliedMove{
+                    .node = node,
+                    .from = block_from,
+                    .improvement = true,
+                }
+            );
           }
 
           // Flush local delta
@@ -451,7 +467,6 @@ private:
   std::vector<NodeID> _touched_nodes;
   std::vector<NodeID> _seed_nodes;
   std::vector<fm::AppliedMove> _applied_moves;
-  std::vector<fm::Move> _committed_moves;
   bool _record_applied_moves = false;
 };
 
