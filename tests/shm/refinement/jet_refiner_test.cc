@@ -560,10 +560,10 @@ TEST(JetComponentTest, ReusesSparseCacheWhenPackedDegreeBucketsAndBlockCountsCha
   }
 }
 
-TEST(JetComponentTest, JetPresetsSelectOnTheFlyCacheAndPaperBalancer) {
+TEST(JetComponentTest, JetPresetsSelectSparseCacheAndPaperBalancer) {
   for (const int rounds : {1, 4}) {
     const auto ctx = create_jet_context(rounds);
-    EXPECT_EQ(ctx.refinement.jet.gain_cache_strategy, GainCacheStrategy::ON_THE_FLY);
+    EXPECT_EQ(ctx.refinement.jet.gain_cache_strategy, GainCacheStrategy::SPARSE);
     EXPECT_EQ(ctx.refinement.jet.balancing_algorithm, JetBalancingAlgorithm::JET);
     EXPECT_EQ(ctx.refinement.jet.num_rounds_on_fine_level, rounds);
     EXPECT_EQ(ctx.refinement.jet.num_rounds_on_coarse_level, rounds);
