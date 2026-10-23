@@ -1,5 +1,4 @@
 #include <gmock/gmock.h>
-#include <tbb/enumerable_thread_specific.h>
 
 #include "tests/shm/graph_factories.h"
 #include "tests/shm/graph_helpers.h"
@@ -20,8 +19,7 @@ Graph weighted_empty_graph(const std::vector<NodeWeight> &weights) {
   return make_graph(std::vector<EdgeID>(weights.size() + 1, 0), {}, weights, {});
 }
 
-template <typename GainCache>
-void verify_cache(const PartitionedGraph &p_graph, const GainCache &cache) {
+void verify_cache(const PartitionedGraph &p_graph, const Cache &cache) {
   for (const NodeID u : p_graph.graph().csr_graph().nodes()) {
     std::vector<EdgeWeight> connections(p_graph.k(), 0);
     p_graph.graph().csr_graph().adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
@@ -38,105 +36,6 @@ void verify_cache(const PartitionedGraph &p_graph, const GainCache &cache) {
   for (const BlockID b : p_graph.blocks()) {
     EXPECT_EQ(p_graph.block_weight(b), weights[b]);
   }
-}
-
-// A deferred cache makes missing batch barriers visible: candidates must only
-// query after the previous move batch has been flushed.
-class DeferredCache {
-public:
-  static constexpr bool kIteratesExactGains = Cache::kIteratesExactGains;
-
-  DeferredCache(const Context &ctx, const Graph &graph, const PartitionedGraph &p_graph)
-      : _cache(ctx, graph.n(), p_graph.k()) {
-    _cache.initialize(graph.csr_graph(), p_graph);
-  }
-
-  EdgeWeight conn(const NodeID u, const BlockID block) const {
-    EXPECT_FALSE(_batch_active);
-    return _cache.conn(u, block);
-  }
-
-  template <typename Lambda> void gains(const NodeID u, const BlockID from, Lambda &&lambda) const {
-    EXPECT_FALSE(_batch_active);
-    _cache.gains(u, from, std::forward<Lambda>(lambda));
-  }
-
-  void begin_batch() {
-    EXPECT_FALSE(_batch_active);
-    _batch_active = true;
-    ++batches;
-  }
-
-  void move(const NodeID u, const BlockID from, const BlockID to) {
-    if (_batch_active) {
-      _moves.local().push_back({u, from, to});
-    } else {
-      _cache.move(u, from, to);
-    }
-  }
-
-  void flush_batch(const PartitionedGraph &p_graph) {
-    EXPECT_TRUE(_batch_active);
-    std::vector<bool> moved(p_graph.n(), false);
-    for (auto &moves : _moves) {
-      for (const auto &[u, from, to] : moves) {
-        EXPECT_FALSE(moved[u]);
-        moved[u] = true;
-        EXPECT_EQ(p_graph.block(u), to);
-        _cache.move(u, from, to);
-      }
-      moves.clear();
-    }
-    _batch_active = false;
-    ++flushes;
-  }
-
-  std::size_t batches = 0;
-  std::size_t flushes = 0;
-
-private:
-  struct Move {
-    NodeID node;
-    BlockID from;
-    BlockID to;
-  };
-  Cache _cache;
-  bool _batch_active = false;
-  tbb::enumerable_thread_specific<std::vector<Move>> _moves;
-};
-
-TEST(JetBalancerTest, FlushesStrongBatchBeforeReadingUpdatedConnectivity) {
-  const auto graph = make_empty_graph(6);
-  auto p_graph = make_p_graph(graph, 3, {0, 0, 0, 0, 1, 2});
-  auto ctx = create_default_context();
-  ctx.partition.setup(graph, 3, 0.0);
-  DeferredCache cache(ctx, graph, p_graph);
-  JetBalancer<CSRGraph, DeferredCache> balancer(ctx);
-  EXPECT_TRUE(balancer.refine(p_graph, graph.csr_graph(), ctx.partition, cache));
-  EXPECT_EQ(cache.batches, 1);
-  EXPECT_EQ(cache.flushes, 1);
-  EXPECT_EQ(balancer.statistics().weak_rounds, 2);
-  EXPECT_EQ(balancer.statistics().strong_rounds, 1);
-  EXPECT_TRUE(metrics::is_feasible(p_graph, ctx.partition));
-  verify_cache(p_graph, cache);
-}
-
-TEST(JetBalancerTest, FlushesWeakBatchAndPreservesConnectivity) {
-  const auto graph = make_graph(
-      {0, 1, 2, 3, 4, 5, 6, 7, 8}, {7, 2, 1, 4, 3, 6, 5, 0}, {}, {8, 1, 1, 1, 1, 1, 1, 8}
-  );
-  auto p_graph = make_p_graph(graph, 2, {0, 0, 0, 0, 0, 0, 0, 1});
-  auto ctx = create_default_context();
-  ctx.partition.setup(graph, 2, 0.25);
-  DeferredCache cache(ctx, graph, p_graph);
-  JetBalancer<CSRGraph, DeferredCache> balancer(ctx);
-  ASSERT_TRUE(balancer.refine(p_graph, graph.csr_graph(), ctx.partition, cache));
-  EXPECT_EQ(cache.batches, 1);
-  EXPECT_EQ(cache.flushes, 1);
-  EXPECT_EQ(balancer.statistics().weak_rounds, 1);
-  EXPECT_EQ(p_graph.block(0), 1);
-  EXPECT_TRUE(metrics::is_feasible(p_graph, ctx.partition));
-  verify_cache(p_graph, cache);
 }
 
 TEST(JetBalancerTest, LossBucketsFollowPaperOrdering) {

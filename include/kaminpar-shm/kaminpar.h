@@ -221,7 +221,6 @@ enum class GainCacheStrategy {
   DENSE,
   DENSE_LARGE_K,
   ON_THE_FLY,
-  JET,
 };
 
 struct KwayFMRefinementContext {
@@ -322,7 +321,7 @@ struct JetRefinementContext {
   double initial_gain_temp_on_coarse_level;
   double final_gain_temp_on_coarse_level;
 
-  GainCacheStrategy gain_cache_strategy = GainCacheStrategy::JET;
+  GainCacheStrategy gain_cache_strategy = GainCacheStrategy::ON_THE_FLY;
   JetBalancingAlgorithm balancing_algorithm = JetBalancingAlgorithm::JET;
 };
 

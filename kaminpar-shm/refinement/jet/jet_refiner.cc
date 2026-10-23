@@ -14,7 +14,6 @@
 #include <functional>
 #include <limits>
 #include <memory>
-#include <span>
 #include <stdexcept>
 #include <tuple>
 #include <utility>
@@ -26,7 +25,6 @@
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/refinement/balancer/overload_balancer.h"
-#include "kaminpar-shm/refinement/gains/jet_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/on_the_fly_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/sparse_gain_cache.h"
 #include "kaminpar-shm/refinement/jet/jet_balancer.h"
@@ -38,16 +36,11 @@ namespace kaminpar::shm {
 
 // The paper balancer updates its cache directly. Also record those moves for
 // incremental cut accounting, including vertices moved repeatedly in one pass.
-template <typename GainCache, typename MoveTracker> class TrackedJetGainCache {
+template <typename GainCache, typename MoveTracker> class TrackedGainCache {
 public:
   constexpr static bool kIteratesExactGains = GainCache::kIteratesExactGains;
-  constexpr static bool kSupportsBatch = requires(
-      GainCache &cache,
-      const std::span<const JetGainCacheMove> moves,
-      const PartitionedGraph &p_graph
-  ) { cache.move_batch(moves, p_graph); };
 
-  TrackedJetGainCache(GainCache &cache, const MoveTracker &track_move)
+  TrackedGainCache(GainCache &cache, const MoveTracker &track_move)
       : _cache(cache),
         _track_move(track_move) {}
 
@@ -59,43 +52,14 @@ public:
     _cache.gains(u, from, std::forward<Lambda>(lambda));
   }
 
-  void begin_batch() {
-    KASSERT(!_batch_active);
-    _batch_active = true;
-  }
-
-  void flush_batch(const PartitionedGraph &p_graph) {
-    KASSERT(_batch_active);
-    _batch_active = false;
-    if constexpr (kSupportsBatch) {
-      _batch_moves.clear();
-      for (auto &moves : _thread_moves) {
-        _batch_moves.insert(_batch_moves.end(), moves.begin(), moves.end());
-        moves.clear();
-      }
-      _cache.move_batch(std::span(_batch_moves), p_graph);
-    }
-  }
-
   void move(const NodeID u, const BlockID from, const BlockID to) {
-    if constexpr (kSupportsBatch) {
-      if (_batch_active) {
-        _thread_moves.local().push_back({u, from, to});
-      } else {
-        _cache.move(u, from, to);
-      }
-    } else {
-      _cache.move(u, from, to);
-    }
+    _cache.move(u, from, to);
     _track_move(u, from, to);
   }
 
 private:
   GainCache &_cache;
   const MoveTracker &_track_move;
-  bool _batch_active = false;
-  tbb::enumerable_thread_specific<std::vector<JetGainCacheMove>> _thread_moves;
-  std::vector<JetGainCacheMove> _batch_moves;
 };
 
 template <typename Graph> class JetRefinerImpl {
@@ -103,7 +67,6 @@ template <typename Graph> class JetRefinerImpl {
   SET_STATISTICS_FROM_GLOBAL();
 
   using SparseCache = SparseGainCache<Graph, GenericDeltaGainCache, false>;
-  using AdaptiveCache = SynchronousJetGainCache<Graph>;
   using OnTheFlyCache = OnTheFlyGainCache<Graph, false, false, true>;
 
 public:
@@ -141,23 +104,18 @@ public:
       return false;
     }
     const auto strategy = _ctx.refinement.jet.gain_cache_strategy;
-    if (strategy != GainCacheStrategy::SPARSE && strategy != GainCacheStrategy::JET &&
-        strategy != GainCacheStrategy::ON_THE_FLY) {
-      throw std::invalid_argument("Jet supports only sparse, jet, and on-the-fly gain caches");
+    if (strategy != GainCacheStrategy::SPARSE && strategy != GainCacheStrategy::ON_THE_FLY) {
+      throw std::invalid_argument("Jet supports only sparse and on-the-fly gain caches");
     }
-    // Use the same fallback policy for stored caches. Otherwise coarse unsorted
-    // graphs compare on-the-fly computation with maintained connectivity tables.
-    if (strategy == GainCacheStrategy::ON_THE_FLY || !can_use_stored_cache(graph, p_graph.k())) {
+    // Sparse rows require degree ordering and weights that fit the packed entries.
+    if (strategy == GainCacheStrategy::ON_THE_FLY || !can_use_sparse_cache(graph, p_graph.k())) {
       return refine_with_cache<OnTheFlyCache>(p_graph, graph, p_ctx);
     }
-    if (strategy == GainCacheStrategy::SPARSE) {
-      return refine_with_cache<SparseCache>(p_graph, graph, p_ctx);
-    }
-    return refine_with_cache<AdaptiveCache>(p_graph, graph, p_ctx);
+    return refine_with_cache<SparseCache>(p_graph, graph, p_ctx);
   }
 
 private:
-  bool can_use_stored_cache(const Graph &graph, const BlockID k) const {
+  bool can_use_sparse_cache(const Graph &graph, const BlockID k) const {
     if (!graph.sorted()) {
       return false;
     }
@@ -223,7 +181,7 @@ private:
       }
     };
 
-    TrackedJetGainCache tracked_cache(gain_cache, track_move);
+    TrackedGainCache tracked_cache(gain_cache, track_move);
     BlockParallelOverloadBalancer overload_balancer(_ctx);
     JetBalancer<Graph, decltype(tracked_cache)> jet_balancer(_ctx);
     const bool use_jet_balancer =
@@ -332,7 +290,6 @@ private:
         };
 
         TIMED_SCOPE("Execute moves") {
-          tracked_cache.begin_batch();
           const auto execute_move = [&](const NodeID u) {
             if (lock[u]) {
               const BlockID from = p_graph.block(u);
@@ -354,7 +311,6 @@ private:
           } else {
             graph.pfor_nodes(execute_move);
           }
-          tracked_cache.flush_batch(p_graph);
         };
 
         previous_lp_moved =
@@ -494,11 +450,7 @@ private:
   const Context &_ctx;
   // Retain allocations across refinement calls and uncoarsening levels. Each
   // backend refreshes its graph/partition pointers when it is initialized.
-  std::tuple<
-      std::unique_ptr<SparseCache>,
-      std::unique_ptr<AdaptiveCache>,
-      std::unique_ptr<OnTheFlyCache>>
-      _gain_caches;
+  std::tuple<std::unique_ptr<SparseCache>, std::unique_ptr<OnTheFlyCache>> _gain_caches;
 
   int _num_rounds = 0;
   double _initial_gain_temp = 0.0;

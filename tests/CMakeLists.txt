@@ -100,8 +100,6 @@ kaminpar_add_shm_test(test_shm_compressed_graph shm/datastructures/compressed_gr
 
 # KaMinPar -> Refinement
 kaminpar_add_shm_test(test_shm_gain_caches shm/refinement/gain_cache_test.cc)
-kaminpar_add_shm_test(test_shm_gain_cache_strategy shm/refinement/gain_cache_strategy_test.cc)
-kaminpar_add_shm_test(test_shm_jet_gain_cache shm/refinement/jet_gain_cache_test.cc)
 kaminpar_add_shm_test(test_shm_jet_balancer shm/refinement/jet_balancer_test.cc)
 kaminpar_add_shm_test(test_shm_jet_refiner shm/refinement/jet_refiner_test.cc)
 kaminpar_add_shm_test(test_shm_compact_gain_query shm/refinement/compact_gain_query_test.cc)

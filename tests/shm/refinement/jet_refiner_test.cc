@@ -287,8 +287,7 @@ using namespace testing;
 
 void refine_and_check(Graph &graph, const int threads) {
   tbb::global_control control(tbb::global_control::max_allowed_parallelism, threads);
-  for (const auto cache :
-       {GainCacheStrategy::SPARSE, GainCacheStrategy::JET, GainCacheStrategy::ON_THE_FLY}) {
+  for (const auto cache : {GainCacheStrategy::SPARSE, GainCacheStrategy::ON_THE_FLY}) {
     for (const auto balancer : {JetBalancingAlgorithm::OVERLOAD, JetBalancingAlgorithm::JET}) {
       auto ctx = create_jet_context(2);
       ctx.parallel.num_threads = threads;
@@ -406,7 +405,7 @@ TEST(JetComponentTest, RejectsUnsupportedSharedGainCacheStrategy) {
   EXPECT_THROW(refiner.refine(p_graph, ctx.partition), std::invalid_argument);
 }
 
-TEST(JetComponentTest, StoredCachesMatchOnTheFlyAcrossTemperatureChangesOnSortedGraph) {
+TEST(JetComponentTest, SparseMatchesOnTheFlyAcrossTemperatureChangesOnSortedGraph) {
   tbb::global_control control(tbb::global_control::max_allowed_parallelism, 1);
   constexpr NodeID n = 64;
   constexpr BlockID k = 4;
@@ -428,8 +427,7 @@ TEST(JetComponentTest, StoredCachesMatchOnTheFlyAcrossTemperatureChangesOnSorted
 
   for (const auto balancer : {JetBalancingAlgorithm::JET, JetBalancingAlgorithm::OVERLOAD}) {
     std::vector<BlockID> reference;
-    for (const auto cache :
-         {GainCacheStrategy::SPARSE, GainCacheStrategy::JET, GainCacheStrategy::ON_THE_FLY}) {
+    for (const auto cache : {GainCacheStrategy::SPARSE, GainCacheStrategy::ON_THE_FLY}) {
       auto p_graph = make_p_graph(graph, k, partition);
       auto ctx = create_jet_context(4);
       ctx.refinement.jet.gain_cache_strategy = cache;
@@ -458,8 +456,7 @@ TEST(JetComponentTest, StoredCachesMatchOnTheFlyAcrossTemperatureChangesOnSorted
 TEST(JetComponentTest, ReusesCachesAcrossShrinkingAndGrowingGraphsAndBlockCounts) {
   tbb::global_control control(tbb::global_control::max_allowed_parallelism, 1);
   for (const bool compressed : {false, true}) {
-    for (const auto cache :
-         {GainCacheStrategy::SPARSE, GainCacheStrategy::JET, GainCacheStrategy::ON_THE_FLY}) {
+    for (const auto cache : {GainCacheStrategy::SPARSE, GainCacheStrategy::ON_THE_FLY}) {
       auto ctx = create_jet_context(2);
       ctx.refinement.jet.gain_cache_strategy = cache;
       ctx.refinement.jet.num_iterations = 3;
@@ -563,10 +560,10 @@ TEST(JetComponentTest, ReusesSparseCacheWhenPackedDegreeBucketsAndBlockCountsCha
   }
 }
 
-TEST(JetComponentTest, JetPresetsSelectAdaptiveCacheAndPaperBalancer) {
+TEST(JetComponentTest, JetPresetsSelectOnTheFlyCacheAndPaperBalancer) {
   for (const int rounds : {1, 4}) {
     const auto ctx = create_jet_context(rounds);
-    EXPECT_EQ(ctx.refinement.jet.gain_cache_strategy, GainCacheStrategy::JET);
+    EXPECT_EQ(ctx.refinement.jet.gain_cache_strategy, GainCacheStrategy::ON_THE_FLY);
     EXPECT_EQ(ctx.refinement.jet.balancing_algorithm, JetBalancingAlgorithm::JET);
     EXPECT_EQ(ctx.refinement.jet.num_rounds_on_fine_level, rounds);
     EXPECT_EQ(ctx.refinement.jet.num_rounds_on_coarse_level, rounds);
@@ -645,7 +642,7 @@ TEST(JetComponentTest, AllCombinationsKeepFeasibleBestOnCompressedGraph) {
   refine_and_check(graph, 4);
 }
 
-TEST(JetComponentTest, AdaptiveCachePreservesLegacyMovesWithOneThread) {
+TEST(JetComponentTest, SparseAndOnTheFlyPreserveMovesWithOneThread) {
   tbb::global_control control(tbb::global_control::max_allowed_parallelism, 1);
   auto graph = make_grid_graph(12, 12);
   std::vector<BlockID> partition(graph.n());
@@ -653,8 +650,7 @@ TEST(JetComponentTest, AdaptiveCachePreservesLegacyMovesWithOneThread) {
     partition[u] = u % 8;
   }
   std::vector<BlockID> reference;
-  for (const auto cache :
-       {GainCacheStrategy::SPARSE, GainCacheStrategy::JET, GainCacheStrategy::ON_THE_FLY}) {
+  for (const auto cache : {GainCacheStrategy::SPARSE, GainCacheStrategy::ON_THE_FLY}) {
     auto ctx = create_jet_context(2);
     ctx.refinement.jet.gain_cache_strategy = cache;
     ctx.refinement.jet.balancing_algorithm = JetBalancingAlgorithm::OVERLOAD;
