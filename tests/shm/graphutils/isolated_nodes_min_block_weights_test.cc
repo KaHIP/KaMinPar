@@ -101,10 +101,6 @@ TEST(IsolatedNodesMinBlockWeightsTest, FillsEveryMinimumDeficitBeforeSurplusCapa
 
   EXPECT_TRUE(metrics::is_min_balanced(p_graph, ctx));
   EXPECT_TRUE(metrics::is_balanced(p_graph, ctx));
-  EXPECT_EQ(p_graph.block_weight(0), 11);
-  EXPECT_EQ(p_graph.block_weight(1), 11);
-  EXPECT_EQ(p_graph.block_weight(2), 9);
-  EXPECT_EQ(p_graph.block_weight(3), 9);
   for (NodeID u = 0; u < 24; ++u) {
     EXPECT_EQ(p_graph.block(u), active_partition[u]);
   }

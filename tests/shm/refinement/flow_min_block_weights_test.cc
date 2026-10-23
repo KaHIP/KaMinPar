@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 
-#include "tests/shm/graph_builder.h"
 #include "tests/shm/graph_helpers.h"
 
 #include "kaminpar-shm/refinement/flow/flow_cutter/flow_cutter.h"
@@ -16,18 +15,7 @@ protected:
   void SetUp() override {
     // The two possible cuts of weight one leave block weights (3, 5) or (7, 1).
     // The initial cut has weight ten and block weights (5, 3).
-    GraphBuilder builder;
-    builder.new_node(3);
-    builder.new_edge(2, 1);
-    builder.new_node(1);
-    builder.new_edge(3, 1);
-    builder.new_node(2);
-    builder.new_edge(0, 1);
-    builder.new_edge(3, 10);
-    builder.new_node(2);
-    builder.new_edge(1, 1);
-    builder.new_edge(2, 10);
-    _graph = builder.build();
+    _graph = make_graph({0, 1, 2, 4, 6}, {2, 3, 0, 3, 1, 2}, {3, 1, 2, 2}, {1, 1, 1, 10, 1, 10});
 
     _p_graph = make_p_graph(_graph, 2, {0, 1, 0, 1});
     _ctx = create_default_context();

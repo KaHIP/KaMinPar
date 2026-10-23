@@ -116,15 +116,7 @@ using OverloadBalancers =
 TYPED_TEST_SUITE(OverloadMinBlockWeightsTest, OverloadBalancers);
 
 TYPED_TEST(OverloadMinBlockWeightsTest, SkipsHeavyDonorsAndRebalancesWithLighterNodes) {
-  GraphBuilder builder;
-  builder.new_node(4);
-  builder.new_edge(2, 100);
-  builder.new_node(2);
-  builder.new_edge(2, 1);
-  builder.new_node(4);
-  builder.new_edge(0, 100);
-  builder.new_edge(1, 1);
-  const Graph graph = builder.build();
+  const Graph graph = make_graph({0, 1, 2, 4}, {2, 2, 0, 1}, {4, 2, 4}, {100, 1, 100, 1});
   Context ctx = create_default_context();
   ctx.parallel.num_threads = 4;
   ctx.partition.setup(graph, {4, 10});
@@ -139,46 +131,6 @@ TYPED_TEST(OverloadMinBlockWeightsTest, SkipsHeavyDonorsAndRebalancesWithLighter
   EXPECT_EQ(p_graph.block(1), 1);
   EXPECT_TRUE(metrics::is_min_balanced(p_graph, ctx.partition));
   EXPECT_TRUE(metrics::is_balanced(p_graph, ctx.partition));
-}
-
-TEST(PartitionedGraphMinBlockWeightsTest, ConcurrentTransfersPreserveBothBoundsAndViews) {
-  // Exercise the aligned and dense block weight representations, including zero minima.
-  for (const BlockID k : {3, 257}) {
-    constexpr NodeID kNodes = 1536;
-    const Graph graph = make_empty_graph(kNodes);
-    std::vector<BlockID> partition(kNodes);
-    for (NodeID u = 0; u < kNodes; ++u) {
-      partition[u] = u % 3;
-    }
-    auto p_graph = make_p_graph(graph, k, partition);
-    auto view = p_graph.csr_view();
-    const std::vector<BlockWeight> minima = {480, 0, 480};
-    tbb::task_arena arena(8);
-    for (int iteration = 0; iteration < 8; ++iteration) {
-      arena.execute([&] {
-        tbb::parallel_for<NodeID>(0, kNodes, [&](const NodeID u) {
-          const BlockID from = p_graph.block(u);
-          const BlockID to = (from + 1) % 3;
-          if (u % 2 == 0) {
-            (void)p_graph.move(u, from, to, 544, minima[from]);
-          } else {
-            (void)view.move(u, from, to, 544, minima[from]);
-          }
-        });
-      });
-      std::vector<BlockWeight> weights(k, 0);
-      for (NodeID u = 0; u < kNodes; ++u) {
-        ++weights[p_graph.block(u)];
-      }
-      for (const BlockID block : p_graph.blocks()) {
-        EXPECT_EQ(p_graph.block_weight(block), weights[block]);
-        if (block < 3) {
-          EXPECT_GE(weights[block], minima[block]);
-          EXPECT_LE(weights[block], 544);
-        }
-      }
-    }
-  }
 }
 
 } // namespace

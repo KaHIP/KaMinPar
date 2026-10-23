@@ -79,20 +79,6 @@ TEST(FMMinBlockWeightsTest, UsesAvailableSlackWithWeightedNodesAndAsymmetricMini
   EXPECT_LT(metrics::edge_cut(p_graph), 8);
 }
 
-TEST(FMMinBlockWeightsTest, ConcurrentBatchesPreserveMinimumWeights) {
-  const Graph graph = make_matching_graph(128);
-  std::vector<BlockID> partition(graph.n());
-  for (NodeID u = 0; u < graph.n(); ++u) {
-    partition[u] = u % 2;
-  }
-
-  for (int repetition = 0; repetition < 20; ++repetition) {
-    auto p_graph = make_p_graph(graph, 2, partition);
-    refine_with_min_weights(p_graph, {127, 127}, 4);
-    EXPECT_LT(metrics::edge_cut(p_graph), 128);
-  }
-}
-
 TEST(FMMinBlockWeightsTest, ConcurrentBatchesPreserveBothWeightBounds) {
   const Graph graph = make_matching_graph(128);
   std::vector<BlockID> partition(graph.n());

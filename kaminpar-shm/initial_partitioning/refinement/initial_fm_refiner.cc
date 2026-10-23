@@ -358,9 +358,10 @@ void InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>
 
   std::iota(_chunks.begin(), _chunks.begin() + num_chunks, 0);
   std::transform(
-      _chunks.begin(), _chunks.begin() + num_chunks, _chunks.begin(), [](const NodeID i) {
-        return i * kChunkSize;
-      }
+      _chunks.begin(),
+      _chunks.begin() + num_chunks,
+      _chunks.begin(),
+      [](const NodeID i) { return i * kChunkSize; }
   );
   _rand.shuffle(_chunks.begin(), _chunks.begin() + num_chunks);
 

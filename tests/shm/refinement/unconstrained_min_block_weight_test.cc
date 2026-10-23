@@ -23,12 +23,7 @@ using UnconstrainedRefiners =
 TYPED_TEST_SUITE(UnconstrainedMinBlockWeightTest, UnconstrainedRefiners);
 
 TYPED_TEST(UnconstrainedMinBlockWeightTest, RejectsAnImprovingMoveThatWouldUnderloadItsSource) {
-  GraphBuilder builder;
-  builder.new_node(3);
-  builder.new_edge(1, 10);
-  builder.new_node(7);
-  builder.new_edge(0, 10);
-  Graph graph = builder.build();
+  const Graph graph = make_graph({0, 1, 2}, {1, 0}, {3, 7}, {10, 10});
   PartitionedGraph p_graph = make_p_graph(graph, 2, {0, 1});
 
   Context ctx = create_default_context();
@@ -46,15 +41,7 @@ TYPED_TEST(UnconstrainedMinBlockWeightTest, RejectsAnImprovingMoveThatWouldUnder
 }
 
 TYPED_TEST(UnconstrainedMinBlockWeightTest, AcceptsAnImprovingMoveDownToAnAsymmetricMinimum) {
-  GraphBuilder builder;
-  builder.new_node(3);
-  builder.new_edge(1, 1);
-  builder.new_node(2);
-  builder.new_edge(0, 1);
-  builder.new_edge(2, 10);
-  builder.new_node(5);
-  builder.new_edge(1, 10);
-  Graph graph = builder.build();
+  const Graph graph = make_graph({0, 1, 3, 4}, {1, 0, 2, 1}, {3, 2, 5}, {1, 1, 10, 10});
   PartitionedGraph p_graph = make_p_graph(graph, 2, {0, 0, 1});
 
   tbb::global_control threads(tbb::global_control::max_allowed_parallelism, 1);
