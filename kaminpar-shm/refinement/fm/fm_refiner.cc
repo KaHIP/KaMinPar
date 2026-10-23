@@ -8,6 +8,7 @@
 #include "kaminpar-shm/refinement/fm/fm_refiner.h"
 
 #include <algorithm>
+#include <mutex>
 
 #include <tbb/concurrent_vector.h>
 #include <tbb/task_arena.h>
@@ -77,6 +78,7 @@ template <typename GainCache> struct SharedData {
   GlobalStatistics stats;
 
   std::atomic<std::uint8_t> abort = 0;
+  std::mutex commit_mutex;
 };
 
 template <typename Graph, typename GainCache> class LocalizedFMRefiner {
@@ -164,14 +166,26 @@ public:
         continue;
       }
 
-      // Accept the move if the target block does not get overloaded.
+      // Accept the move if it preserves both block weight bounds.
       const NodeWeight node_weight = _graph.node_weight(node);
-      if (_d_graph.block_weight(block_to) + node_weight <= _p_ctx.max_block_weight(block_to)) {
+      if (_d_graph.block_weight(block_to) + node_weight <= _p_ctx.max_block_weight(block_to) &&
+          _d_graph.block_weight(block_from) - node_weight >= _p_ctx.min_block_weight(block_from)) {
         current_total_gain += actual_gain;
 
         // If we found a new local minimum, apply the moves to the global
         // partition
         if (current_total_gain > best_total_gain) {
+          // Local searches share the global block weights, so another batch may have used the
+          // remaining weight of a source block since this batch checked it. Validate and commit
+          // the complete delta together; its moves need not be feasible in their storage order.
+          std::unique_lock commit_lock(_shared.commit_mutex, std::defer_lock);
+          if (_p_ctx.has_min_block_weights()) {
+            commit_lock.lock();
+            if (!preserves_block_weight_bounds(block_from, block_to, node_weight)) {
+              break;
+            }
+          }
+
           _p_graph.set_block(node, block_to);
           _shared.gain_cache.move(node, block_from, block_to);
           _shared.node_tracker.set(node, NodeTracker::MOVED_GLOBALLY);
@@ -325,6 +339,25 @@ private:
                                 : _d_gain_cache.gain(node, from, targets);
   }
 
+  bool preserves_block_weight_bounds(
+      const BlockID block_from, const BlockID block_to, const NodeWeight node_weight
+  ) {
+    auto preserves_weight = [&](const BlockID block) {
+      const BlockWeight final_weight = _d_graph.block_weight(block) -
+                                       (block == block_from ? node_weight : 0) +
+                                       (block == block_to ? node_weight : 0);
+      const BlockWeight current_weight = _p_graph.block_weight(block);
+      return final_weight >= std::min(current_weight, _p_ctx.min_block_weight(block)) &&
+             final_weight <= std::max(current_weight, _p_ctx.max_block_weight(block));
+    };
+
+    bool feasible = preserves_weight(block_from) && preserves_weight(block_to);
+    _d_graph.for_each([&](const NodeID moved_node, const BlockID moved_to) {
+      feasible &= preserves_weight(_p_graph.block(moved_node)) && preserves_weight(moved_to);
+    });
+    return feasible;
+  }
+
   // Note: p_graph could be a PartitionedGraph or a DeltaPartitionedGraph. If it is a
   // PartitionedGraph, gain_cache will be of type GainCache; if it is a DeltaPartitionedGraph,
   // gain_cache will also be a DeltaGainCache.
@@ -393,6 +426,10 @@ private:
   find_best_gain(const auto &p_graph, const auto &gain_cache, const NodeID u) {
     const BlockID from = p_graph.block(u);
     const NodeWeight weight = _graph.node_weight(u);
+
+    if (p_graph.block_weight(from) - weight < _p_ctx.min_block_weight(from)) {
+      return {from, std::numeric_limits<EdgeWeight>::min()};
+    }
 
     // Since we use max heaps, it is OK to insert this value into the PQ
     EdgeWeight best_gain = std::numeric_limits<EdgeWeight>::min();
@@ -690,10 +727,6 @@ void FMRefiner::initialize(const PartitionedGraph &p_graph) {
 }
 
 bool FMRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
-  if (p_ctx.has_min_block_weights()) {
-    LOG_WARNING << "FM refinement does not support min block weights. They will be ignored.";
-  }
-
   return _core->refine(p_graph, p_ctx);
 }
 

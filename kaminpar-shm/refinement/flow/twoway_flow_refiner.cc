@@ -26,14 +26,7 @@ std::string TwowayFlowRefiner::name() const {
 
 void TwowayFlowRefiner::initialize([[maybe_unused]] const PartitionedGraph &p_graph) {}
 
-bool TwowayFlowRefiner::refine(
-    PartitionedGraph &p_graph, [[maybe_unused]] const PartitionContext &p_ctx
-) {
-  if (p_ctx.has_min_block_weights()) {
-    LOG_WARNING
-        << "Two-way flow refinement does not support min block weights. They will be ignored.";
-  }
-
+bool TwowayFlowRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
   if (!is<CSRGraph>(p_graph.graph())) {
     LOG_WARNING << "Cannot refine a compressed graph using the two-way flow refiner.";
     return false;

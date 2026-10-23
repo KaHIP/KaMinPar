@@ -74,9 +74,19 @@ void HyperFlowCutter::run_flow_cutter(
 ) {
   SCOPED_TIMER("Run HyperFlowCutter");
 
-  const NodeWeight max_block1_weight = _p_ctx.max_block_weight(border_region.block1());
-  const NodeWeight max_block2_weight = _p_ctx.max_block_weight(border_region.block2());
+  auto [max_block1_weight, max_block2_weight] =
+      max_block_weights(_p_ctx, border_region, flow_network);
+  if (!_p_ctx.has_min_block_weights()) {
+    max_block1_weight = std::max(flow_network.block1_weight, max_block1_weight);
+    max_block2_weight = std::max(flow_network.block2_weight, max_block2_weight);
+  }
   const NodeWeight total_weight = flow_network.block1_weight + flow_network.block2_weight;
+
+  if (flow_network.graph.node_weight(flow_network.source) > max_block1_weight ||
+      flow_network.graph.node_weight(flow_network.sink) > max_block2_weight ||
+      total_weight - max_block1_weight > max_block2_weight) {
+    return;
+  }
 
   DBG << "Starting refinement for block pair " << border_region.block1() << " and "
       << border_region.block2() << " with an initial cut of " << flow_network.cut_value;
@@ -110,8 +120,8 @@ void HyperFlowCutter::run_flow_cutter(
     return true;
   };
 
-  flow_cutter.cs.setMaxBlockWeight(0, std::max(flow_network.block1_weight, max_block1_weight));
-  flow_cutter.cs.setMaxBlockWeight(1, std::max(flow_network.block2_weight, max_block2_weight));
+  flow_cutter.cs.setMaxBlockWeight(0, max_block1_weight);
+  flow_cutter.cs.setMaxBlockWeight(1, max_block2_weight);
 
   flow_cutter.reset();
   flow_cutter.setFlowBound(flow_network.cut_value);

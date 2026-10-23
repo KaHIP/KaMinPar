@@ -163,7 +163,8 @@ void MultiQueueOverloadBalancer::init_pqs(const Graph &graph, GainCacheT &gain_c
 
   graph.pfor_nodes([&](const NodeID node) {
     const BlockID from = _p_graph->block(node);
-    if (!is_overloaded(from)) {
+    if (!is_overloaded(from) ||
+        _p_graph->block_weight(from) - graph.node_weight(node) < _p_ctx->min_block_weight(from)) {
       return;
     }
 
@@ -586,7 +587,9 @@ bool MultiQueueOverloadBalancer::move_node_if_possible(
   KASSERT(to < _p_graph->k());
   KASSERT(from != to);
 
-  if (_p_graph->move(node, from, to, _p_ctx->max_block_weight(to))) {
+  if (_p_graph->move(
+          node, from, to, _p_ctx->max_block_weight(to), _p_ctx->min_block_weight(from)
+      )) {
     if (_move_tracker != nullptr) {
       _move_tracker(node, from, to);
     }

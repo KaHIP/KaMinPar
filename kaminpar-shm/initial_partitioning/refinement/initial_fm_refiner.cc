@@ -134,18 +134,18 @@ struct MaxOverloadSelectionPolicy {
   }
 };
 
-//! Accept better cuts, or the first cut that is balanced in case the initial
-//! cut is not balanced.
+//! Accept better cuts that preserve the minimum block weights and do not increase overload.
 struct BalancedMinCutAcceptancePolicy {
   bool operator()(
-      const PartitionedCSRGraph &,
-      const PartitionContext &,
+      const PartitionedCSRGraph &p_graph,
+      const PartitionContext &p_ctx,
       const EdgeWeight accepted_overload,
       const EdgeWeight current_overload,
       const EdgeWeight accepted_delta,
       const EdgeWeight delta
   ) {
-    return current_overload <= accepted_overload && delta < accepted_delta;
+    return current_overload <= accepted_overload && delta < accepted_delta &&
+           metrics::is_min_balanced(p_graph, p_ctx);
   }
 };
 } // namespace fm

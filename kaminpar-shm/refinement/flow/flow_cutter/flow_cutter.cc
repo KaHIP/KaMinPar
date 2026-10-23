@@ -39,6 +39,14 @@ FlowCutter::Result FlowCutter::compute_cut(
   _run_sequentially = run_sequentially || (flow_network.graph.n() + flow_network.graph.m()) <
                                               _fc_ctx.small_flow_network_threshold;
 
+  const auto [max_source_weight, max_sink_weight] =
+      max_block_weights(_p_ctx, border_region, flow_network);
+  if (flow_network.graph.node_weight(flow_network.source) > max_source_weight ||
+      flow_network.graph.node_weight(flow_network.sink) > max_sink_weight ||
+      flow_network.graph.total_node_weight() - max_source_weight > max_sink_weight) {
+    return Result::empty();
+  }
+
   initialize(border_region, flow_network);
   run_flow_cutter(border_region, flow_network);
 
@@ -69,12 +77,10 @@ void FlowCutter::initialize(const BorderRegion &border_region, const FlowNetwork
   _sink_side_piercing_node_candidates_marker.resize(flow_network.graph.n());
 
   TIMED_SCOPE("Initialize Piercing Heuristic") {
+    const auto [max_source_weight, max_sink_weight] =
+        max_block_weights(_p_ctx, border_region, flow_network);
     _piercing_heuristic.initialize(
-        border_region,
-        flow_network,
-        _p_ctx.max_block_weight(border_region.block1()),
-        _p_ctx.max_block_weight(border_region.block2()),
-        _run_sequentially
+        border_region, flow_network, max_source_weight, max_sink_weight, _run_sequentially
     );
   };
 
@@ -95,8 +101,8 @@ void FlowCutter::run_flow_cutter(
 ) {
   MaxPreflowAlgorithm *max_flow_algorithm = max_preflow_algorithm();
 
-  const NodeWeight max_source_side_weight = _p_ctx.max_block_weight(border_region.block1());
-  const NodeWeight max_sink_side_weight = _p_ctx.max_block_weight(border_region.block2());
+  const auto [max_source_side_weight, max_sink_side_weight] =
+      max_block_weights(_p_ctx, border_region, flow_network);
   const NodeWeight total_weight = flow_network.graph.total_node_weight();
 
   NodeWeight prev_source_side_weight = flow_network.graph.node_weight(flow_network.source);
@@ -163,6 +169,10 @@ void FlowCutter::run_flow_cutter(
 
     EdgeWeight source_side_weight = prev_source_side_weight + _source_reachable_weight;
     EdgeWeight sink_side_weight = prev_sink_side_weight + _sink_reachable_weight;
+
+    if (source_side_weight > max_source_side_weight || sink_side_weight > max_sink_side_weight) {
+      break;
+    }
 
     bool is_source_cut_balanced = source_side_weight <= max_source_side_weight &&
                                   (total_weight - source_side_weight) <= max_sink_side_weight;

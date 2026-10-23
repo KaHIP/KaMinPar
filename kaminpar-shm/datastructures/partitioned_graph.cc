@@ -114,6 +114,7 @@ template <typename Graph> void GenericPartitionedGraph<Graph>::init_node_weights
 template <typename Graph>
 void GenericPartitionedGraph<Graph>::alloc_block_weights(const bool sequentially) {
   if (sequentially) {
+    _block_weight_locks.resize(_k, static_array::small, static_array::seq);
     if (_dense_block_weights.empty()) {
       _dense_block_weights.resize(_k, static_array::seq);
     }
@@ -121,6 +122,7 @@ void GenericPartitionedGraph<Graph>::alloc_block_weights(const bool sequentially
       _aligned_block_weights.resize(_k, static_array::small, static_array::seq);
     }
   } else {
+    _block_weight_locks.resize(_k);
     if (_dense_block_weights.empty()) {
       _dense_block_weights.resize(_k);
     }

@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 
 #include "kaminpar-shm/context.h"
 #include "kaminpar-shm/datastructures/graph.h"
@@ -385,15 +386,27 @@ EdgeWeight KaMinPar::compute_partition(std::span<BlockID> partition) {
     _was_rearranged = true;
   }
 
+  std::optional<PartitionContext> original_partition_context;
+
   // Cut off isolated nodes if the graph has been rearranged such that the isolated nodes are placed
   // at the end.
   if (_graph_ptr->sorted()) {
     const NodeID num_isolated_nodes = graph::count_isolated_nodes(*_graph_ptr);
+    if (num_isolated_nodes > 0 && _ctx.partition.has_min_block_weights()) {
+      original_partition_context = _ctx.partition;
+    }
     reified(*_graph_ptr, [&](auto &graph) {
       graph.remove_isolated_nodes(num_isolated_nodes);
       _ctx.partition.n = graph.n();
       _ctx.partition.total_node_weight = graph.total_node_weight();
     });
+    if (original_partition_context) {
+      const BlockWeight isolated_weight =
+          original_partition_context->total_node_weight - _ctx.partition.total_node_weight;
+      _ctx.partition.setup_min_block_weights(
+          graph::compute_nonisolated_min_block_weights(*original_partition_context, isolated_weight)
+      );
+    }
 
     cio::print_delimiter("Preprocessing");
     LOG << "Removed " << num_isolated_nodes << " isolated nodes";
@@ -420,6 +433,10 @@ EdgeWeight KaMinPar::compute_partition(std::span<BlockID> partition) {
   if (_graph_ptr->sorted()) {
     SCOPED_HEAP_PROFILER("Re-integrate isolated nodes");
     SCOPED_TIMER("Re-integrate isolated nodes");
+
+    if (original_partition_context) {
+      _ctx.partition = std::move(*original_partition_context);
+    }
 
     reified(*_graph_ptr, [&](auto &graph) {
       const NodeID num_isolated_nodes = graph.integrate_isolated_nodes();

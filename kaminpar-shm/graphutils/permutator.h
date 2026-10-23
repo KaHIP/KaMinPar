@@ -235,7 +235,17 @@ Graph rearrange_by_degree_buckets(CSRGraph &graph);
 void reorder_edges_by_compression(CSRGraph &graph);
 
 /*!
- * Assignes isolated nodes to a partition.
+ * Reserve isolated-node weight against the minimum block weights before partitioning the
+ * non-isolated graph. The reservations sum to the smaller of the isolated weight and the sum
+ * of the original minima. For feasible original bounds, the returned minima are feasible for
+ * the remaining total weight; satisfying them leaves enough isolated weight for all original
+ * minimum deficits. Individual weighted isolated nodes can still introduce packing constraints.
+ */
+std::vector<BlockWeight>
+compute_nonisolated_min_block_weights(const PartitionContext &p_ctx, BlockWeight isolated_weight);
+
+/*!
+ * Assigns isolated nodes to a partition, filling minimum deficits before surplus capacity.
  *
  * @param p_graph The partitioned graph whose isolated nodes to assign.
  * @param num_isolated_nodes the number of isolated nodes.
