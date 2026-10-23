@@ -24,6 +24,8 @@
 #include "kaminpar-dist/logger.h"
 #include "kaminpar-dist/timer.h"
 
+#include "kaminpar-shm/algorithms/label_propagation/neighborhood_ratings.h"
+
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/parallel/algorithm.h"
@@ -75,7 +77,8 @@ void ColoredLPRefiner::initialize() {
     if (graph.color_sorted()) {
       LOG << "Graph sorted by colors: using precomputed coloring";
 
-      NoinitVector<ColorID> coloring(graph.n()
+      NoinitVector<ColorID> coloring(
+          graph.n()
       ); // We do not actually need the colors for ghost nodes
 
       // @todo parallelize
@@ -115,8 +118,7 @@ void ColoredLPRefiner::initialize() {
     });
 
     if (_ctx.use_active_set) {
-      _is_active.resize(graph.total_n());
-      graph.pfor_all_nodes([&](const NodeID u) { _is_active[u] = 1; });
+      _active.reset(graph.total_n());
     }
   };
 
@@ -172,9 +174,7 @@ void ColoredLPRefiner::initialize() {
     std::vector<ColorID> sorted_by_size(num_colors);
     std::iota(sorted_by_size.begin(), sorted_by_size.end(), 0);
     std::sort(
-        sorted_by_size.begin(),
-        sorted_by_size.end(),
-        [&](const ColorID lhs, const ColorID rhs) {
+        sorted_by_size.begin(), sorted_by_size.end(), [&](const ColorID lhs, const ColorID rhs) {
           return global_color_sizes[lhs] < global_color_sizes[rhs];
         }
     );
@@ -782,9 +782,7 @@ void ColoredLPRefiner::synchronize_state(const ColorID c) {
       // Move ghost nodes
       [&](const auto recv_buffer, const PEID pe) {
         tbb::parallel_for(
-            static_cast<std::size_t>(0),
-            recv_buffer.size(),
-            [&](const std::size_t i) {
+            static_cast<std::size_t>(0), recv_buffer.size(), [&](const std::size_t i) {
               const auto [local_node_on_pe, new_block] = recv_buffer[i];
               const GlobalNodeID global_node = _p_graph.offset_n(pe) + local_node_on_pe;
               const NodeID local_node = _p_graph.global_to_local_node(global_node);
@@ -818,17 +816,22 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
     for (NodeID seq_u = r.begin(); seq_u != r.end(); ++seq_u) {
       const NodeID u = _color_sorted_nodes[seq_u];
 
-      if (_ctx.use_active_set && !_is_active[u]) {
+      if (_ctx.use_active_set && !_active.contains(u)) {
         continue;
       }
 
       auto action = [&](auto &map) {
         bool is_interface_node = false;
-        graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
-          const BlockID b = _p_graph.block(v);
-          map[b] += weight;
-          is_interface_node |= graph.is_ghost_node(v);
-        });
+        shm::lp::NeighborhoodRatings::accumulate(
+            graph,
+            u,
+            map,
+            [&](const NodeID v) { return _p_graph.block(v); },
+            [&](const NodeID v) {
+              is_interface_node |= graph.is_ghost_node(v);
+              return true;
+            }
+        );
 
         const BlockID u_block = _p_graph.block(u);
         const NodeWeight u_weight = graph.node_weight(u);
@@ -867,7 +870,7 @@ NodeID ColoredLPRefiner::find_moves(const ColorID c) {
         }
 
         if (_ctx.use_active_set && !is_interface_node) {
-          _is_active[u] = 0;
+          _active.deactivate(u);
         }
 
         map.clear();
@@ -886,7 +889,7 @@ void ColoredLPRefiner::activate_neighbors(const NodeID u) {
     return;
   }
 
-  _p_graph.adjacent_nodes(u, [&](const NodeID v) { _is_active[v] = 1; });
+  _active.activate_neighbors(_p_graph, u, [](const NodeID) { return true; });
 }
 
 void ColoredLPRefiner::GainStatistics::initialize(const ColorID c) {

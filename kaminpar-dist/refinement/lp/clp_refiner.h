@@ -13,6 +13,8 @@
 #include "kaminpar-dist/dkaminpar.h"
 #include "kaminpar-dist/refinement/refiner.h"
 
+#include "kaminpar-shm/algorithms/label_propagation/active_set.h"
+
 #include "kaminpar-common/parallel/vector_ets.h"
 
 namespace kaminpar::dist {
@@ -84,7 +86,6 @@ private:
   auto reduce_move_candidates(std::vector<MoveCandidate> &&a, std::vector<MoveCandidate> &&b)
       -> std::vector<MoveCandidate>;
 
-  void handle_node(NodeID u);
   void activate_neighbors(NodeID u);
 
   const Context &_input_ctx;
@@ -101,7 +102,7 @@ private:
   NoinitVector<EdgeWeight> _gains;
   NoinitVector<BlockID> _next_partition;
 
-  NoinitVector<std::uint8_t> _is_active;
+  shm::lp::ActiveSet _active;
 
   GainStatistics _gain_statistics;
 };

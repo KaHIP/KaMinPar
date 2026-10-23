@@ -4,6 +4,7 @@
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <tuple>
 #include <type_traits>
 #include <unordered_set>
 #include <utility>
@@ -13,21 +14,27 @@
 #include <tbb/global_control.h>
 
 #include "dist/distributed_graph_builder.h"
+#include "dist/distributed_graph_helpers.h"
 
 #include "kaminpar-mpi/wrapper.h"
 
 #include "kaminpar-dist/coarsening/clustering/lp/global_lp_clusterer.h"
+#include "kaminpar-dist/coarsening/clustering/lp/local_lp_clusterer.h"
 #include "kaminpar-dist/datastructures/distributed_graph.h"
 #include "kaminpar-dist/distributed_label_propagation.h"
+#include "kaminpar-dist/metrics.h"
+#include "kaminpar-dist/refinement/lp/clp_refiner.h"
 
 #include "kaminpar-common/random.h"
 
 namespace kaminpar::dist {
 
-class GlobalLPPhaseTest : public ::testing::TestWithParam<bool> {};
+class GlobalLPPhaseTest
+    : public ::testing::TestWithParam<std::tuple<bool, ActiveSetStrategy, int>> {};
 
 TEST_P(GlobalLPPhaseTest, WeightedMultiChunkLabelsMatchOwnersAfterEveryReuse) {
-  tbb::global_control threads(tbb::global_control::max_allowed_parallelism, 1);
+  const auto [sync_weights, active_set_strategy, num_threads] = GetParam();
+  tbb::global_control threads(tbb::global_control::max_allowed_parallelism, num_threads);
   const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
   constexpr NodeID kNodesPerRank = 16;
   const GlobalNodeID global_n = size * kNodesPerRank;
@@ -47,12 +54,13 @@ TEST_P(GlobalLPPhaseTest, WeightedMultiChunkLabelsMatchOwnersAfterEveryReuse) {
   }
   DistributedGraph graph(std::make_unique<DistributedCSRGraph>(builder.finalize()));
   Context ctx = create_default_context();
-  ctx.parallel.num_threads = 1;
+  ctx.parallel.num_threads = num_threads;
   ctx.parallel.num_mpis = size;
   ctx.coarsening.global_lp.num_iterations = 6;
   ctx.coarsening.global_lp.chunks.fixed_num_chunks = 8;
-  ctx.coarsening.global_lp.sync_cluster_weights = GetParam();
-  ctx.coarsening.global_lp.enforce_cluster_weights = GetParam();
+  ctx.coarsening.global_lp.sync_cluster_weights = sync_weights;
+  ctx.coarsening.global_lp.enforce_cluster_weights = sync_weights;
+  ctx.coarsening.global_lp.active_set_strategy = active_set_strategy;
   ctx.coarsening.global_lp.prevent_cyclic_moves = true;
   GlobalLPClusterer clusterer(ctx);
   clusterer.set_max_cluster_weight(global_n * 4);
@@ -83,8 +91,9 @@ TEST_P(GlobalLPPhaseTest, WeightedMultiChunkLabelsMatchOwnersAfterEveryReuse) {
       local_new_foreign_labels +=
           !graph.is_owned_global_node(labels[u]) && !initial_foreign_ids.contains(labels[u]);
     }
-    if (rank == 0 && std::getenv("KAMINPAR_TEST_DUMP_GLOBAL_LP") != nullptr) {
-      std::cout << "LP_LABELS sync=" << GetParam() << " seed=" << seed;
+    if (rank == 0 && active_set_strategy == ActiveSetStrategy::NONE && num_threads == 1 &&
+        std::getenv("KAMINPAR_TEST_DUMP_GLOBAL_LP") != nullptr) {
+      std::cout << "LP_LABELS sync=" << sync_weights << " seed=" << seed;
       for (const auto label : all_labels) {
         std::cout << ' ' << label;
       }
@@ -102,7 +111,111 @@ TEST_P(GlobalLPPhaseTest, WeightedMultiChunkLabelsMatchOwnersAfterEveryReuse) {
   }
 }
 
-INSTANTIATE_TEST_SUITE_P(SynchronizedAndLocal, GlobalLPPhaseTest, ::testing::Bool());
+INSTANTIATE_TEST_SUITE_P(
+    SynchronizedAndLocal,
+    GlobalLPPhaseTest,
+    ::testing::Combine(
+        ::testing::Bool(),
+        ::testing::Values(
+            ActiveSetStrategy::NONE, ActiveSetStrategy::LOCAL, ActiveSetStrategy::GLOBAL
+        ),
+        ::testing::Values(1, 4)
+    )
+);
+
+TEST(LocalLPPhaseTest, InitializesAndReusesWeightsWithEveryGhostPolicy) {
+  tbb::global_control threads(tbb::global_control::max_allowed_parallelism, 1);
+  const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
+  for (const auto [ignore_ghosts, keep_ghost_clusters] :
+       {std::pair{true, false}, std::pair{false, false}, std::pair{false, true}}) {
+    Context ctx = create_default_context();
+    ctx.coarsening.local_lp.ignore_ghost_nodes = ignore_ghosts;
+    ctx.coarsening.local_lp.keep_ghost_clusters = keep_ghost_clusters;
+    LocalLPClusterer clusterer(ctx);
+    clusterer.set_max_cluster_weight(8);
+
+    for (const NodeID n : {8, 16, 4, 0}) {
+      const GlobalNodeID global_n = size * n;
+      graph::Builder builder(MPI_COMM_WORLD);
+      builder.initialize(n);
+      for (NodeID u = 0; u < n; ++u) {
+        const GlobalNodeID global_u = rank * n + u;
+        builder.create_node(1 + global_u % 3);
+        builder.create_edge(3, (global_u + 1) % global_n);
+        builder.create_edge(3, (global_u + global_n - 1) % global_n);
+      }
+      DistributedGraph graph(std::make_unique<DistributedCSRGraph>(builder.finalize()));
+      StaticArray<BlockID> communities(graph.total_n());
+      for (const NodeID u : graph.all_nodes()) {
+        communities[u] = (graph.local_to_global_node(u) / 2) % 2;
+      }
+
+      for (const bool use_communities : {true, false}) {
+        SCOPED_TRACE(
+            ::testing::Message() << "n=" << n << " ignore_ghosts=" << ignore_ghosts
+                                 << " keep_ghost_clusters=" << keep_ghost_clusters
+                                 << " use_communities=" << use_communities
+        );
+        if (use_communities) {
+          clusterer.set_communities(communities);
+        } else {
+          clusterer.clear_communities();
+        }
+        StaticArray<GlobalNodeID> labels(graph.total_n(), static_array::noinit);
+        clusterer.cluster(labels, graph);
+        const auto *local_labels = reinterpret_cast<const NodeID *>(labels.data());
+        std::vector<NodeWeight> weights(n);
+        for (const NodeID u : graph.nodes()) {
+          ASSERT_LT(local_labels[u], n);
+          weights[local_labels[u]] += graph.node_weight(u);
+          if (use_communities) {
+            EXPECT_EQ(communities[u], communities[local_labels[u]]);
+          }
+        }
+        for (const NodeWeight weight : weights) {
+          EXPECT_LE(weight, 8);
+        }
+      }
+    }
+  }
+}
+
+TEST(ColoredLPPhaseTest, SharedActiveSetPreservesFeasiblePartitionsAndGhostLabels) {
+  tbb::global_control threads(tbb::global_control::max_allowed_parallelism, 1);
+  const auto [size, rank] = mpi::get_comm_info(MPI_COMM_WORLD);
+  constexpr NodeID n = 16;
+  const GlobalNodeID global_n = size * n;
+  graph::Builder builder(MPI_COMM_WORLD);
+  builder.initialize(n);
+  for (NodeID u = 0; u < n; ++u) {
+    const GlobalNodeID global_u = rank * n + u;
+    builder.create_node(1);
+    builder.create_edge(3, (global_u + 1) % global_n);
+    builder.create_edge(3, (global_u + global_n - 1) % global_n);
+  }
+  DistributedGraph graph(std::make_unique<DistributedCSRGraph>(builder.finalize()));
+  std::vector<BlockID> partition(n);
+  for (NodeID u = 0; u < n; ++u) {
+    partition[u] = u % 4;
+  }
+  PartitionContext p_ctx;
+  p_ctx.setup(graph, std::vector<BlockWeight>(4, global_n / 2));
+
+  for (const bool use_active_set : {false, true}) {
+    auto p_graph = testing::make_partitioned_graph(graph, 4, partition);
+    Context ctx = create_default_context();
+    ctx.parallel.num_threads = 1;
+    ctx.parallel.num_mpis = size;
+    ctx.refinement.colored_lp.use_active_set = use_active_set;
+    ColoredLPRefiner refiner(ctx, p_graph, p_ctx);
+    const GlobalEdgeWeight cut_before = metrics::edge_cut(p_graph);
+    refiner.initialize();
+    refiner.refine();
+    EXPECT_LE(metrics::edge_cut(p_graph), cut_before);
+    EXPECT_TRUE(metrics::is_feasible(p_graph, p_ctx));
+    EXPECT_TRUE(debug::validate_partition(p_graph));
+  }
+}
 
 namespace {
 
@@ -276,7 +389,7 @@ template <bool Enabled, bool ActualGain> void expect_fresh_weights_and_capacity_
   ratings.after_selection = [&] {
     __atomic_store_n(&lp.weights[2], 20, __ATOMIC_RELAXED);
   };
-  EXPECT_FALSE(lp.handle_node(0, rand, ratings).first);
+  EXPECT_FALSE(lp.handle_node(0, rand, ratings));
   EXPECT_EQ(lp.move_attempts, 1);
   EXPECT_EQ(lp.last_weight[2], 20); // Move still rechecks the now-full target.
   EXPECT_EQ(lp.label, 0u);

@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cstddef>
+#include <limits>
 #include <utility>
 
 #include "kaminpar-shm/kaminpar.h"
@@ -20,22 +21,23 @@ struct NeighborhoodRatings {
       const NodeID u,
       Map &map,
       GetCluster &&get_cluster,
-      AcceptNeighbor &&accept_neighbor
+      AcceptNeighbor &&accept_neighbor,
+      const NodeID max_num_neighbors = std::numeric_limits<NodeID>::max()
   ) {
     if constexpr (requires { map.accumulator(); }) {
       auto accumulator = map.accumulator();
-      graph.adjacent_nodes(
+      visit_neighbors(
+          graph,
           u,
-          [accumulator,
-           &get_cluster,
-           &accept_neighbor](const NodeID v, const EdgeWeight weight) mutable {
+          max_num_neighbors,
+          [accumulator, &get_cluster, &accept_neighbor](const NodeID v, const auto weight) mutable {
             if (accept_neighbor(v)) {
               accumulator.add(get_cluster(v), weight);
             }
           }
       );
     } else {
-      graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+      visit_neighbors(graph, u, max_num_neighbors, [&](const NodeID v, const auto weight) {
         if (accept_neighbor(v)) {
           map[get_cluster(v)] += weight;
         }
@@ -114,6 +116,19 @@ struct NeighborhoodRatings {
       });
     }
     return full;
+  }
+
+private:
+  template <typename Graph, typename Visitor>
+  static void visit_neighbors(
+      const Graph &graph, const NodeID u, const NodeID max_num_neighbors, Visitor &&visitor
+  ) {
+    // Avoid the limited-neighborhood decoder's overhead in the usual, unlimited case.
+    if (max_num_neighbors == std::numeric_limits<NodeID>::max()) [[likely]] {
+      graph.adjacent_nodes(u, std::forward<Visitor>(visitor));
+    } else {
+      graph.adjacent_nodes(u, max_num_neighbors, std::forward<Visitor>(visitor));
+    }
   }
 };
 

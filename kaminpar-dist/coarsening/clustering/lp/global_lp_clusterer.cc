@@ -34,17 +34,14 @@ struct GlobalLPClusteringConfig : public LabelPropagationConfig {
   using ClusterID = GlobalNodeID;
   using ClusterWeight = GlobalNodeWeight;
 
-  static constexpr bool kTrackClusterCount = false;   // NOLINT
   static constexpr bool kSkipLosingClusterWeights = true;
-  static constexpr bool kUseTwoHopClustering = false; // NOLINT
   static constexpr bool kUseActiveSetStrategy = true; // NOLINT
 };
 
 } // namespace
 
-struct GlobalLPClusteringMemoryContext : public LabelPropagationMemoryContext<
-                                             GlobalLPClusteringConfig::RatingMap,
-                                             GlobalLPClusteringConfig::ClusterID> {
+struct GlobalLPClusteringMemoryContext
+    : public LabelPropagationMemoryContext<GlobalLPClusteringConfig::RatingMap> {
   StaticArray<GlobalNodeID> changed_label;
   StaticArray<std::uint8_t> locked;
   ForeignClusterWeights cluster_weights;
@@ -53,13 +50,10 @@ struct GlobalLPClusteringMemoryContext : public LabelPropagationMemoryContext<
 };
 
 template <typename Graph>
-class GlobalLPClusteringImpl final : public ChunkRandomdLabelPropagation<
-                                         GlobalLPClusteringImpl<Graph>,
-                                         GlobalLPClusteringConfig,
-                                         Graph>,
-                                     public NonatomicClusterVectorRef<NodeID, GlobalNodeID> {
-  using Base =
-      ChunkRandomdLabelPropagation<GlobalLPClusteringImpl<Graph>, GlobalLPClusteringConfig, Graph>;
+class GlobalLPClusteringImpl final
+    : public LabelPropagation<GlobalLPClusteringImpl<Graph>, GlobalLPClusteringConfig, Graph>,
+      public NonatomicClusterVectorRef<NodeID, GlobalNodeID> {
+  using Base = LabelPropagation<GlobalLPClusteringImpl<Graph>, GlobalLPClusteringConfig, Graph>;
   using ClusterBase = NonatomicClusterVectorRef<NodeID, GlobalNodeID>;
   using WeightDeltaMap = growt::GlobalNodeIDMap<GlobalNodeWeight>;
 
@@ -96,13 +90,8 @@ public:
   GlobalLPClusteringMemoryContext release() {
     _weight_delta_handles_ets.clear();
 
-    auto [rating_map_ets, active, favored_clusters] = Base::release();
     return {
-        {
-            std::move(rating_map_ets),
-            std::move(active),
-            std::move(favored_clusters),
-        },
+        Base::release(),
         std::move(_changed_label),
         std::move(_locked),
         std::move(_cluster_weights),
@@ -327,14 +316,6 @@ public:
   /*
    * Moving nodes
    */
-
-  [[nodiscard]] bool accept_cluster(const Base::ClusterSelectionState &state) {
-    return (state.current_gain > state.best_gain ||
-            (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
-           (state.current_cluster_weight + state.u_weight <=
-                max_cluster_weight(state.current_cluster) ||
-            state.current_cluster == state.initial_cluster);
-  }
 
   [[nodiscard]] inline bool activate_neighbor(const NodeID u) {
     return _graph->is_owned_node(u);

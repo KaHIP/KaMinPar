@@ -15,28 +15,21 @@ namespace kaminpar::dist {
 struct LocalLPClusteringConfig : public LabelPropagationConfig {
   using ClusterID = NodeID;
   using ClusterWeight = NodeWeight;
-
-  static constexpr bool kTrackClusterCount = false;
-  static constexpr bool kUseTwoHopClustering = true;
 };
 
-struct LocalLPClusteringMemoryContext : public LabelPropagationMemoryContext<
-                                            LocalLPClusteringConfig::RatingMap,
-                                            LocalLPClusteringConfig::ClusterID> {
+struct LocalLPClusteringMemoryContext
+    : public LabelPropagationMemoryContext<LocalLPClusteringConfig::RatingMap> {
   OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>::ClusterWeights cluster_weights;
 };
 
 template <typename Graph>
-class LocalLPClusteringImpl final : public ChunkRandomdLabelPropagation<
-                                        LocalLPClusteringImpl<Graph>,
-                                        LocalLPClusteringConfig,
-                                        Graph>,
-                                    public NonatomicClusterVectorRef<NodeID, NodeID>,
-                                    public OwnedRelaxedClusterWeightVector<NodeID, NodeWeight> {
+class LocalLPClusteringImpl final
+    : public LabelPropagation<LocalLPClusteringImpl<Graph>, LocalLPClusteringConfig, Graph>,
+      public NonatomicClusterVectorRef<NodeID, NodeID>,
+      public OwnedRelaxedClusterWeightVector<NodeID, NodeWeight> {
   SET_DEBUG(false);
 
-  using Base =
-      ChunkRandomdLabelPropagation<LocalLPClusteringImpl<Graph>, LocalLPClusteringConfig, Graph>;
+  using Base = LabelPropagation<LocalLPClusteringImpl<Graph>, LocalLPClusteringConfig, Graph>;
   using ClusterBase = NonatomicClusterVectorRef<NodeID, NodeID>;
   using ClusterWeightBase = OwnedRelaxedClusterWeightVector<NodeID, NodeWeight>;
 
@@ -44,7 +37,7 @@ class LocalLPClusteringImpl final : public ChunkRandomdLabelPropagation<
   using ClusterID = Config::ClusterID;
 
 public:
-  LocalLPClusteringImpl(NodeID, const CoarseningContext &c_ctx)
+  LocalLPClusteringImpl(const CoarseningContext &c_ctx)
       : _ignore_ghost_nodes(c_ctx.local_lp.ignore_ghost_nodes),
         _keep_ghost_clusters(c_ctx.local_lp.keep_ghost_clusters) {
     set_max_num_iterations(c_ctx.local_lp.num_iterations);
@@ -58,13 +51,8 @@ public:
   }
 
   LocalLPClusteringMemoryContext release() {
-    auto [rating_map_ets, active, favored_clusters] = Base::release();
     return {
-        {
-            std::move(rating_map_ets),
-            std::move(active),
-            std::move(favored_clusters),
-        },
+        Base::release(),
         ClusterWeightBase::take_cluster_weights(),
     };
   }
@@ -74,9 +62,9 @@ public:
   }
 
   void initialize(const Graph &graph) {
-    Base::initialize(&graph, graph.n());
     Base::allocate();
-    ClusterWeightBase::allocate_cluster_weights(graph.n());
+    ClusterWeightBase::allocate_cluster_weights(_ignore_ghost_nodes ? graph.n() : graph.total_n());
+    Base::initialize(&graph, graph.n());
   }
 
   void set_max_cluster_weight(const GlobalNodeWeight max_cluster_weight) {
@@ -105,27 +93,25 @@ public:
     }
     DBG << "Converged / stopped after " << iteration << " iterations";
 
-    // dissolve all clusters owned by ghost nodes
+    // Choose an owned member as representative before removing ghost labels. An old
+    // cluster ID may belong to a node that has left that cluster, so reusing node IDs
+    // directly during cleanup can accidentally merge otherwise separate clusters.
     if (!_ignore_ghost_nodes) {
-      if (_keep_ghost_clusters) {
-        for (NodeID u : _graph->nodes()) {
-          const ClusterID u_cluster = cluster(u);
-          if (_graph->is_ghost_node(u_cluster)) {
-            // abuse cluster(u_cluster) to remap the whole cluster
-            if (_graph->is_ghost_node(cluster(u_cluster))) {
-              move_node(u_cluster, u);
-            }
-
-            move_node(u, cluster(u_cluster));
-          }
+      StaticArray<NodeID> representatives(graph.total_n(), kInvalidNodeID);
+      for (const NodeID u : graph.nodes()) {
+        auto &representative = representatives[cluster(u)];
+        if (representative == kInvalidNodeID) {
+          representative = u;
         }
-      } else {
-        graph.pfor_nodes([&](const NodeID u) {
-          if (_graph->is_ghost_node(cluster(u))) {
-            move_node(u, u);
-          }
-        });
       }
+      graph.pfor_nodes([&](const NodeID u) {
+        const ClusterID old_cluster = cluster(u);
+        move_node(
+            u,
+            !_keep_ghost_clusters && graph.is_ghost_node(old_cluster) ? u
+                                                                      : representatives[old_cluster]
+        );
+      });
     }
   }
 
@@ -158,14 +144,6 @@ public:
     return _max_cluster_weight;
   }
 
-  [[nodiscard]] bool accept_cluster(const Base::ClusterSelectionState &state) {
-    return (state.current_gain > state.best_gain ||
-            (state.current_gain == state.best_gain && state.local_rand.random_bool())) &&
-           (state.current_cluster_weight + state.u_weight <=
-                max_cluster_weight(state.current_cluster) ||
-            state.current_cluster == state.initial_cluster);
-  }
-
   [[nodiscard]] bool accept_neighbor(const NodeID u, const NodeID v) {
     return (_partition == nullptr || _partition[u] == _partition[v]) &&
            (_ignore_ghost_nodes == false || _graph->is_owned_node(v));
@@ -186,9 +164,7 @@ public:
 
 class LocalLPClusteringImplWrapper {
 public:
-  LocalLPClusteringImplWrapper(const NodeID max_n, const CoarseningContext &c_ctx)
-      : _max_n(max_n),
-        _c_ctx(c_ctx) {}
+  LocalLPClusteringImplWrapper(const CoarseningContext &c_ctx) : _c_ctx(c_ctx) {}
 
   void set_communities(const StaticArray<BlockID> &communities) {
     _partition = communities.data();
@@ -222,7 +198,7 @@ public:
 
 private:
   template <typename Graph> LocalLPClusteringImpl<Graph> &ensure_impl() {
-    LocalLPClusteringImpl<Graph> &impl = _impl.ensure<Graph>(_max_n, _c_ctx);
+    LocalLPClusteringImpl<Graph> &impl = _impl.ensure<Graph>(_c_ctx);
     impl._partition = _partition;
     impl.set_max_cluster_weight(_max_cluster_weight);
     return impl;
@@ -230,7 +206,6 @@ private:
 
   ReifiedGraphComponent<LocalLPClusteringImpl> _impl;
   LocalLPClusteringMemoryContext _memory_context;
-  NodeID _max_n;
   const CoarseningContext &_c_ctx;
   const BlockID *_partition = nullptr;
   GlobalNodeWeight _max_cluster_weight = std::numeric_limits<NodeWeight>::max();
@@ -241,12 +216,7 @@ private:
 //
 
 LocalLPClusterer::LocalLPClusterer(const Context &ctx)
-    : _impl(
-          std::make_unique<LocalLPClusteringImplWrapper>(
-              ctx.coarsening.local_lp.ignore_ghost_nodes ? ctx.partition.n : ctx.partition.total_n,
-              ctx.coarsening
-          )
-      ) {}
+    : _impl(std::make_unique<LocalLPClusteringImplWrapper>(ctx.coarsening)) {}
 
 LocalLPClusterer::~LocalLPClusterer() = default;
 
@@ -266,7 +236,7 @@ void LocalLPClusterer::cluster(
     StaticArray<GlobalNodeID> &global_clustering, const DistributedGraph &p_graph
 ) {
   StaticArray<NodeID> local_clustering(
-      p_graph.n(), reinterpret_cast<NodeID *>(global_clustering.data())
+      p_graph.total_n(), reinterpret_cast<NodeID *>(global_clustering.data())
   );
   return _impl->compute_clustering(local_clustering, p_graph);
 }
