@@ -88,9 +88,11 @@ private:
     EdgeWeight conn_to = 0;
 
     _graph->adjacent_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
-      if (p_graph.block(v) == from) {
+      const BlockID block = p_graph.block(v);
+      if (block == from) {
         conn_from += weight;
-      } else if (p_graph.block(v) == to) {
+      }
+      if (block == to) {
         conn_to += weight;
       }
     });
@@ -112,9 +114,11 @@ private:
 
       if (b_v == b_node) {
         conn_from += w_e;
-      } else if (b_v == targets.first) {
+      }
+      if (b_v == targets.first) {
         conns_to.first += w_e;
-      } else if (b_v == targets.second) {
+      }
+      if (b_v == targets.second) {
         conns_to.second += w_e;
       }
     });
@@ -176,10 +180,13 @@ private:
       map.clear();
     };
 
+    auto &rating_map = _rating_map_ets.local();
+    // initialize() may reuse this cache with a larger block range than its constructor.
+    rating_map.change_max_size(_k);
     if constexpr (kIteratesNonadjacentBlocks) {
-      _rating_map_ets.local().execute(_k, action);
+      rating_map.execute(_k, action);
     } else {
-      _rating_map_ets.local().execute(std::min<BlockID>(_graph->degree(node), _k), action);
+      rating_map.execute(std::min<BlockID>(_graph->degree(node), _k), action);
     }
   }
 

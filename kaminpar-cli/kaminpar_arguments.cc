@@ -487,8 +487,8 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
   fm->add_option(
         "--r-fm-num-seed-nodes",
         ctx.refinement.kway_fm.num_seed_nodes,
-        "Number of seed nodes used to initialize a single localized search (lower = stronger, but "
-        "slower)."
+        "Number of seed nodes used to initialize a single localized search; 0 chooses "
+        "algorithm-specific defaults (lower positive values = stronger, but slower)."
   )
       ->capture_default_str();
   fm->add_option(
@@ -553,7 +553,12 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
   );
 
   // Flags for gain caches
-  fm->add_option("--r-fm-gc", ctx.refinement.kway_fm.gain_cache_strategy)
+  fm->add_option(
+        "--r-fm-gc",
+        ctx.refinement.kway_fm.gain_cache_strategy,
+        "Gain cache policy. Auto uses on-the-fly gains for FM levels of average degree at most "
+        "eight, and compact hashing for denser FM levels and UFM."
+  )
       ->transform(CLI::CheckedTransformer(get_gain_cache_strategies()).description(""))
       ->capture_default_str();
   fm->add_option(
