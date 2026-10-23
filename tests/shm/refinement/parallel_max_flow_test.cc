@@ -41,8 +41,9 @@ TYPED_TEST(ParallelMaxFlowTest, FindsTheLayeredNetworkMinimumCut) {
   const CSRGraph &csr = graph.csr_graph();
   const auto reverse_edges = compute_reverse_edge_index(csr);
   auto ctx = create_default_context().refinement.twoway_flow.flow_cutter.flow;
+  kaminpar::RuntimeContext runtime;
   ctx.sequential_discharge_threshold = 0;
-  TypeParam algorithm(ctx);
+  TypeParam algorithm(ctx, runtime);
 
   tbb::task_arena arena(4);
   arena.execute([&] {
@@ -94,8 +95,9 @@ TEST(ParallelInactiveTargetTest, ConcurrentPushesToInitiallyInactiveLowerIdTarge
   const CSRGraph &csr = graph.csr_graph();
   const auto reverse_edges = compute_reverse_edge_index(csr);
   auto ctx = create_default_context().refinement.twoway_flow.flow_cutter.flow;
+  kaminpar::RuntimeContext runtime;
   ctx.sequential_discharge_threshold = 0;
-  PreflowPushAlgorithm serial(ctx);
+  PreflowPushAlgorithm serial(ctx, runtime);
   serial.initialize(csr, reverse_edges, kSource, kSink);
   const auto [expected, serial_flow] = serial.compute_max_preflow();
   ASSERT_EQ(expected, 5 * kWidth);
@@ -103,7 +105,7 @@ TEST(ParallelInactiveTargetTest, ConcurrentPushesToInitiallyInactiveLowerIdTarge
   for (const int threads : {2, 4, 8}) {
     tbb::task_arena arena(threads);
     arena.execute([&] {
-      ParallelPreflowPushAlgorithm parallel(ctx);
+      ParallelPreflowPushAlgorithm parallel(ctx, runtime);
       for (int repeat = 0; repeat < 4; ++repeat) {
         parallel.initialize(csr, reverse_edges, kSource, kSink);
         const auto [actual, flow] = parallel.compute_max_preflow();
@@ -119,6 +121,7 @@ TEST(
     ParallelInactiveTargetTest, WeightedRandomNetworksAndIncrementalTerminalsMatchSerialReference
 ) {
   auto ctx = create_default_context().refinement.twoway_flow.flow_cutter.flow;
+  kaminpar::RuntimeContext runtime;
   ctx.sequential_discharge_threshold = 0;
   for (std::uint32_t seed = 0; seed < 32; ++seed) {
     SCOPED_TRACE(::testing::Message() << "network seed=" << seed);
@@ -141,8 +144,8 @@ TEST(
     for (const int threads : {2, 4, 8}) {
       tbb::task_arena arena(threads);
       arena.execute([&] {
-        PreflowPushAlgorithm serial(ctx);
-        ParallelPreflowPushAlgorithm parallel(ctx);
+        PreflowPushAlgorithm serial(ctx, runtime);
+        ParallelPreflowPushAlgorithm parallel(ctx, runtime);
         serial.initialize(csr, reverse_edges, source, sink);
         parallel.initialize(csr, reverse_edges, source, sink);
         for (int phase = 0; phase < 3; ++phase) {

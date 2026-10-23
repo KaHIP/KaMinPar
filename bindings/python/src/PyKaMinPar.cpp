@@ -10,13 +10,12 @@
 #include <utility>
 #include <vector>
 
-#include <pybind11/cast.h>
-#include <pybind11/pybind11.h>
-#include <pybind11/stl.h>
-
 #include <kaminpar-io/kaminpar_io.h>
 #include <kaminpar-shm/datastructures/graph.h>
 #include <kaminpar-shm/kaminpar.h>
+#include <pybind11/cast.h>
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 
 #define STRINGIFY(x) #x
 #define MACRO_STRINGIFY(x) STRINGIFY(x)
@@ -40,10 +39,7 @@ PYBIND11_MODULE(kaminpar_python, m) {
   m.attr("__64bit__") = false;
 #endif
 
-  m.def("seed", &KaMinPar::get_seed, "The seed for the random number generator");
-  m.def("reseed", &KaMinPar::reseed, "Reseed the random number generator");
-
-  pybind11::class_<Context>(m, "Context");
+  pybind11::class_<Context>(m, "Context").def_readwrite("seed", &Context::seed);
   m.def("context_names", &get_preset_names, "All available context names");
   m.def(
       "context_by_name",
@@ -174,6 +170,8 @@ PYBIND11_MODULE(kaminpar_python, m) {
 
   pybind11::class_<KaMinPar>(m, "KaMinPar")
       .def(pybind11::init<int, Context>(), "num_threads"_a, "ctx"_a)
+      .def("reseed", &KaMinPar::reseed)
+      .def("seed", &KaMinPar::get_seed)
       .def(
           "compute_partition",
           [](KaMinPar &self, Graph &graph, const BlockID k, const double epsilon) {
@@ -192,7 +190,8 @@ PYBIND11_MODULE(kaminpar_python, m) {
           "Compute a partition",
           "graph"_a,
           "k"_a,
-          "eps"_a = 0.03
+          "eps"_a = 0.03,
+          pybind11::call_guard<pybind11::gil_scoped_release>()
       )
       .def(
           "compute_partition",
@@ -211,7 +210,8 @@ PYBIND11_MODULE(kaminpar_python, m) {
           },
           "Compute a partition",
           "graph"_a,
-          "max_block_weights"_a
+          "max_block_weights"_a,
+          pybind11::call_guard<pybind11::gil_scoped_release>()
       )
       .def(
           "compute_partition",
@@ -230,7 +230,8 @@ PYBIND11_MODULE(kaminpar_python, m) {
           },
           "Compute a partition",
           "graph"_a,
-          "max_block_weight_factors"_a
+          "max_block_weight_factors"_a,
+          pybind11::call_guard<pybind11::gil_scoped_release>()
       );
 }
 

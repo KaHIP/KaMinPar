@@ -17,8 +17,8 @@ namespace kaminpar::shm {
 
 class InitialGGGBipartitioner : public InitialFlatBipartitioner {
 public:
-  explicit InitialGGGBipartitioner(const InitialPoolPartitionerContext &pool_ctx)
-      : InitialFlatBipartitioner(pool_ctx) {}
+  explicit InitialGGGBipartitioner(const InitialPoolPartitionerContext &pool_ctx, Random &rand)
+      : InitialFlatBipartitioner(pool_ctx, rand) {}
 
   void init(const CSRGraph &graph, const PartitionContext &p_ctx) final;
 

@@ -70,7 +70,10 @@ class InitialFMRefiner : public InitialRefiner {
   static constexpr std::size_t kNumberOfNodePermutations = 32;
 
 public:
-  explicit InitialFMRefiner(const InitialFMRefinementContext &r_ctx) : _r_ctx(r_ctx) {}
+  explicit InitialFMRefiner(const InitialFMRefinementContext &r_ctx, Random &rand)
+      : _r_ctx(r_ctx),
+        _rand(rand),
+        _permutations(rand) {}
 
   void init(const CSRGraph &graph) final;
 
@@ -106,7 +109,7 @@ private:
 
   StoppingPolicy _stopping_policy{};
 
-  Random &_rand = Random::instance();
+  Random &_rand;
 
   RandomPermutations<NodeID, kChunkSize, kNumberOfNodePermutations> _permutations;
   std::vector<NodeID> _chunks;

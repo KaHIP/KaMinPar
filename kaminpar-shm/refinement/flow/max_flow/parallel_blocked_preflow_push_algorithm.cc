@@ -12,7 +12,7 @@
 namespace kaminpar::shm {
 
 ParallelBlockedPreflowPushAlgorithm::ParallelBlockedPreflowPushAlgorithm(
-    const PreflowPushContext &ctx
+    const PreflowPushContext &ctx, [[maybe_unused]] RuntimeContext &runtime
 )
     : _ctx(ctx) {}
 

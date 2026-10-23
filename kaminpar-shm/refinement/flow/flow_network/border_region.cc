@@ -11,14 +11,16 @@ BorderRegionConstructor::BorderRegionConstructor(
     const FlowNetworkConstructionContext &c_ctx,
     const QuotientGraph &q_graph,
     const PartitionedCSRGraph &p_graph,
-    const CSRGraph &graph
+    const CSRGraph &graph,
+    RuntimeContext &runtime
 )
-    : _p_ctx(p_ctx),
+    : _runtime(runtime),
+      _p_ctx(p_ctx),
       _c_ctx(c_ctx),
       _q_graph(q_graph),
       _p_graph(p_graph),
       _graph(graph),
-      _random(random::thread_independent_seeding) {}
+      _random(runtime.random.seed(), random::thread_independent_seeding) {}
 
 const BorderRegion &BorderRegionConstructor::construct(
     const BlockID block1,
@@ -26,7 +28,7 @@ const BorderRegion &BorderRegionConstructor::construct(
     const BlockWeight block1_weight,
     const BlockWeight block2_weight
 ) {
-  SCOPED_TIMER("Construct Border Region");
+  SCOPED_TIMER_ON(_runtime.timer, "Construct Border Region");
 
   const BlockWeight max_border_region_weight1 = std::min<BlockWeight>(
       block1_weight,
@@ -61,7 +63,7 @@ void BorderRegionConstructor::compute_border_regions(
     const BlockWeight max_border_region_weight1,
     const BlockWeight max_border_region_weight2
 ) {
-  SCOPED_TIMER("Compute Initial Border Region");
+  SCOPED_TIMER_ON(_runtime.timer, "Compute Initial Border Region");
 
   _border_region.initialize(block1, block2, max_border_region_weight1, max_border_region_weight2);
 
@@ -69,7 +71,7 @@ void BorderRegionConstructor::compute_border_regions(
   const std::size_t num_cut_edges = cut_edges.size();
 
   if (_c_ctx.deterministic) {
-    _random.reinit(Random::get_seed() + (block1 * _p_graph.k() + block2));
+    _random.reinit(_runtime.random.seed() + (block1 * _p_graph.k() + block2));
   }
   _random.shuffle(cut_edges.begin(), cut_edges.begin() + num_cut_edges);
 
@@ -110,7 +112,7 @@ void BorderRegionConstructor::compute_border_regions(
 }
 
 void BorderRegionConstructor::expand_border_regions() {
-  SCOPED_TIMER("Expand Border Region");
+  SCOPED_TIMER_ON(_runtime.timer, "Expand Border Region");
 
   const NodeID max_border_distance = _c_ctx.max_border_distance;
   if (max_border_distance == 0) {

@@ -19,7 +19,9 @@ constexpr static bool kRandomizeNodeOrder = true;
 
 }
 
-InitialCoarsener::InitialCoarsener(const InitialCoarseningContext &c_ctx) : _c_ctx(c_ctx) {}
+InitialCoarsener::InitialCoarsener(const InitialCoarseningContext &c_ctx, Random &rand)
+    : _c_ctx(c_ctx),
+      _rand(rand) {}
 
 void InitialCoarsener::init(const CSRGraph &graph) {
   _input_graph = &graph;

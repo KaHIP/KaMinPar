@@ -57,7 +57,7 @@ with_gain_query(const GainCache &gain_cache, const NodeID node, Lambda &&consume
 
 } // namespace
 
-MultiQueueOverloadBalancer::MultiQueueOverloadBalancer(const Context &ctx) : _ctx(ctx) {}
+MultiQueueOverloadBalancer::MultiQueueOverloadBalancer(const ExecutionContext &ctx) : _ctx(ctx) {}
 
 MultiQueueOverloadBalancer::~MultiQueueOverloadBalancer() = default;
 
@@ -91,7 +91,7 @@ void MultiQueueOverloadBalancer::track_moves(MoveTracker move_tracker) {
 }
 
 bool MultiQueueOverloadBalancer::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
-  SCOPED_TIMER("Multi-Queue Overload Balancer");
+  SCOPED_TIMER_ON(_ctx.runtime.timer, "Multi-Queue Overload Balancer");
   SCOPED_HEAP_PROFILER("Multi-Queue Overload Balancer");
 
   if (!begin_refinement(p_graph, p_ctx)) {

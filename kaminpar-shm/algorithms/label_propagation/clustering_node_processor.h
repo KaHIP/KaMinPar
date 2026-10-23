@@ -103,11 +103,11 @@ public:
     local.removed_clusters = 0;
   }
 
-  void process_deferred_nodes() {
+  void process_deferred_nodes(RandomStreams &randoms) {
     _parallel_ratings.ensure_capacity(_graph.n());
     auto &stats = _statistics.local();
     auto local = _rating_maps.local();
-    Random &random = Random::instance();
+    Random &random = randoms.local();
 
     for (const NodeID u : _deferred_nodes) {
       const NodeWeight u_weight = _graph.node_weight(u);
@@ -131,7 +131,7 @@ public:
             u_weight,
             store_favored_cluster,
             entries,
-            Random::instance(),
+            randoms.local(),
             scratch.ties,
             scratch.favored_ties
         );

@@ -28,12 +28,14 @@ SET_DEBUG(false);
 
 }
 
-OverlayClusterCoarsener::OverlayClusterCoarsener(const Context &ctx, const PartitionContext &p_ctx)
+OverlayClusterCoarsener::OverlayClusterCoarsener(
+    const ExecutionContext &ctx, const PartitionContext &p_ctx
+)
     : AbstractClusterCoarsener(ctx, p_ctx) {}
 
 bool OverlayClusterCoarsener::coarsen() {
   SCOPED_HEAP_PROFILER("Level", std::to_string(_hierarchy.size()));
-  SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
+  SCOPED_TIMER_ON(_ctx.runtime.timer, "Level", std::to_string(_hierarchy.size()));
 
   START_HEAP_PROFILER("Allocation");
   const int num_overlays = 1 << _c_ctx.overlay_clustering.num_levels;
@@ -56,7 +58,7 @@ bool OverlayClusterCoarsener::coarsen() {
     compute_clustering_for_current_graph(clusterings.front());
   }
 
-  TIMED_SCOPE("Overlay clusters") {
+  TIMED_SCOPE_ON(_ctx.runtime.timer, "Overlay clusters") {
     if (compute_overlays) {
       for (int level = _c_ctx.overlay_clustering.num_levels; level > 0; --level) {
         const int num_overlays_in_level = 1 << level;
@@ -89,10 +91,11 @@ OverlayClusterCoarsener::overlay(StaticArray<NodeID> a, const StaticArray<NodeID
   const NodeID n = graph.n();
 
   StaticArray<NodeID> index, buckets, leader_mapping;
-  contraction::fill_leader_mapping(graph, a, leader_mapping);
+  contraction::fill_leader_mapping(graph, a, leader_mapping, _ctx.runtime.timer);
   const NodeID c_n = leader_mapping[n - 1];
-  auto mapping = contraction::compute_mapping(graph, std::move(a), leader_mapping);
-  contraction::fill_cluster_buckets(c_n, graph, mapping, index, buckets);
+  auto mapping =
+      contraction::compute_mapping(graph, std::move(a), leader_mapping, _ctx.runtime.timer);
+  contraction::fill_cluster_buckets(c_n, graph, mapping, index, buckets, _ctx.runtime.timer);
 
   tbb::parallel_for<NodeID>(0, c_n, [&](const NodeID c_u) {
     std::sort(

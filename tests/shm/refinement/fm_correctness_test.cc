@@ -48,7 +48,9 @@ TEST(FMBorderNodesTest, ReinitializationDiscardsOldNodesAndResetsOwnership) {
     partition[u] = u % 2;
   }
   auto p_graph = make_p_graph(graph, 2, partition);
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.partition.setup(graph, 2, .03);
   NormalCompactHashingGainCache<CSRGraph> cache(ctx, n, 2);
   fm::NodeTracker tracker(n);
@@ -120,13 +122,15 @@ TEST(FMCorrectnessTest, ConcurrentFMAndBalancerProduceFeasiblePartitions) {
       partition[u] = u % k;
     }
     auto p_graph = make_p_graph(graph, k, partition);
-    Context ctx = create_default_context();
+    Context config = create_default_context();
+    kaminpar::RuntimeContext runtime;
+    ExecutionContext ctx{config, runtime};
     ctx.parallel.num_threads = 8;
     ctx.partition.setup(graph, std::vector<BlockWeight>(k, n / k + 1));
-    ctx.refinement.kway_fm.num_iterations = 3;
-    ctx.refinement.kway_fm.num_seed_nodes = 1;
-    ctx.refinement.kway_fm.minimal_parallelism = 8;
-    ctx.refinement.kway_fm.gain_cache_strategy = std::array{
+    config.refinement.kway_fm.num_iterations = 3;
+    config.refinement.kway_fm.num_seed_nodes = 1;
+    config.refinement.kway_fm.minimal_parallelism = 8;
+    config.refinement.kway_fm.gain_cache_strategy = std::array{
         GainCacheStrategy::COMPACT_HASHING,
         GainCacheStrategy::SPARSE,
         GainCacheStrategy::ON_THE_FLY,
@@ -170,16 +174,18 @@ TEST_P(FMConcurrentGainTest, AdjacentSearchesRemainConsistentWithCachedGains) {
   for (NodeID u = 0; u < graph.n(); ++u) {
     partition[u] = u % 2;
   }
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.parallel.num_threads = num_threads;
   ctx.partition.setup(graph, {1005, 1005});
-  ctx.refinement.kway_fm.num_iterations = 1;
-  ctx.refinement.kway_fm.num_seed_nodes = 1;
-  ctx.refinement.kway_fm.minimal_parallelism = 8;
+  config.refinement.kway_fm.num_iterations = 1;
+  config.refinement.kway_fm.num_seed_nodes = 1;
+  config.refinement.kway_fm.minimal_parallelism = 8;
 
   for (int repetition = 0; repetition < 1000; ++repetition) {
     SCOPED_TRACE(repetition);
-    ctx.refinement.kway_fm.gain_cache_strategy = std::array{
+    config.refinement.kway_fm.gain_cache_strategy = std::array{
         GainCacheStrategy::COMPACT_HASHING,
         GainCacheStrategy::SPARSE,
         GainCacheStrategy::ON_THE_FLY,
@@ -219,12 +225,14 @@ TEST(FMCorrectnessTest, ResetsAbortBetweenRefineCalls) {
   std::vector<BlockID> partition(graph.n(), 0);
   partition.back() = 1;
   auto p_graph = make_p_graph(graph, 2, partition);
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.parallel.num_threads = 1;
   ctx.partition.setup(graph, {128, 257});
-  ctx.refinement.kway_fm.num_iterations = 1;
-  ctx.refinement.kway_fm.num_seed_nodes = graph.n();
-  ctx.refinement.kway_fm.minimal_parallelism = 1;
+  config.refinement.kway_fm.num_iterations = 1;
+  config.refinement.kway_fm.num_seed_nodes = graph.n();
+  config.refinement.kway_fm.minimal_parallelism = 1;
   FMRefiner refiner(ctx);
   refiner.initialize(p_graph);
   for (int invocation = 0; invocation < 2; ++invocation) {
@@ -246,10 +254,12 @@ TEST(FMCorrectnessTest, CanReuseRefinerWithMoreBlocks) {
     builder.add_edge(u, (u + 1) % n, 1 + u % 3);
   }
   const Graph graph = builder.build();
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.parallel.num_threads = 4;
-  ctx.refinement.kway_fm.num_iterations = 2;
-  ctx.refinement.kway_fm.num_seed_nodes = 1;
+  config.refinement.kway_fm.num_iterations = 2;
+  config.refinement.kway_fm.num_seed_nodes = 1;
   ctx.partition.setup(graph, {9, 9});
   std::vector<BlockID> partition(n);
   for (NodeID u = 0; u < n; ++u) {
@@ -294,11 +304,13 @@ TEST(FMCorrectnessTest, CompletesProductiveSearchesBeyondInitialSeedNodes) {
   std::vector<BlockID> partition(graph.n(), 0);
   partition.back() = 1;
   auto p_graph = make_p_graph(graph, 2, partition);
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.parallel.num_threads = 1;
   ctx.partition.setup(graph, {128, 257});
-  ctx.refinement.kway_fm.num_iterations = 1;
-  ctx.refinement.kway_fm.num_seed_nodes = 1;
+  config.refinement.kway_fm.num_iterations = 1;
+  config.refinement.kway_fm.num_seed_nodes = 1;
   FMRefiner refiner(ctx);
   refiner.initialize(p_graph);
   EXPECT_TRUE(refiner.refine(p_graph, ctx.partition));
@@ -330,12 +342,14 @@ TEST(FMCorrectnessTest, AutomaticSeedCountsMakeProgressInBothRefiners) {
     builder.new_edge(u);
   }
   const Graph graph = builder.build();
-  Context ctx = create_eco_context();
+  Context config = create_eco_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.parallel.num_threads = 1;
   ctx.partition.setup(graph, {5, 5});
-  ctx.refinement.kway_fm.num_iterations = 1;
-  ctx.refinement.kway_fm.num_seed_nodes = 0;
-  ctx.refinement.kway_fm.unconstrained_upper_bound = 1.0;
+  config.refinement.kway_fm.num_iterations = 1;
+  config.refinement.kway_fm.num_seed_nodes = 0;
+  config.refinement.kway_fm.unconstrained_upper_bound = 1.0;
   for (const bool unconstrained : {false, true}) {
     auto p_graph = make_p_graph(graph, 2, {0, 0, 0, 0, 1});
     std::unique_ptr<Refiner> refiner;
@@ -366,25 +380,27 @@ TEST(FMCorrectnessTest, SparseUFMHonorsConfiguredOverloadLimit) {
     builder.new_edge(u);
   }
   const Graph graph = builder.build();
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.parallel.num_threads = 1;
   ctx.partition.setup(graph, {5, 5});
-  ctx.refinement.kway_fm.num_iterations = 1;
-  ctx.refinement.kway_fm.unconstrained_penalty_min = 0.0;
-  ctx.refinement.kway_fm.unconstrained_penalty_max = 0.0;
-  ctx.refinement.kway_fm.unconstrained_upper_bound = 1.0;
+  config.refinement.kway_fm.num_iterations = 1;
+  config.refinement.kway_fm.unconstrained_penalty_min = 0.0;
+  config.refinement.kway_fm.unconstrained_penalty_max = 0.0;
+  config.refinement.kway_fm.unconstrained_upper_bound = 1.0;
   auto p_graph = make_p_graph(graph, 2, {0, 0, 0, 0, 1});
-  Timer::global().reset();
+  runtime.timer.reset();
   UnconstrainedFMRefiner refiner(ctx);
   refiner.initialize(p_graph);
   refiner.refine(p_graph, ctx.partition);
-  const auto &root = Timer::global().tree();
+  const auto &root = runtime.timer.tree();
   const auto fm = root.children_tbl.find("FM");
   ASSERT_NE(fm, root.children_tbl.end());
   EXPECT_EQ(fm->second->children_tbl.count("Rebalance"), 0u);
   EXPECT_EQ(metrics::edge_cut(p_graph), 3);
   check_weights(p_graph, ctx.partition);
-  Timer::global().reset();
+  runtime.timer.reset();
 #endif
 }
 
@@ -403,23 +419,25 @@ TEST(FMCorrectnessTest, StalledUnconstrainedRoundStillRunsConstrainedFallback) {
     builder.new_edge(u);
   }
   const Graph graph = builder.build();
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.parallel.num_threads = 1;
   ctx.partition.setup(graph, {5, 5});
-  ctx.refinement.kway_fm.num_iterations = 4;
-  ctx.refinement.kway_fm.unconstrained_num_iterations = 3;
-  ctx.refinement.kway_fm.unconstrained_upper_bound = 1.0;
-  ctx.refinement.kway_fm.unconstrained_penalty_min = 0.0;
-  ctx.refinement.kway_fm.unconstrained_penalty_max = 0.0;
+  config.refinement.kway_fm.num_iterations = 4;
+  config.refinement.kway_fm.unconstrained_num_iterations = 3;
+  config.refinement.kway_fm.unconstrained_upper_bound = 1.0;
+  config.refinement.kway_fm.unconstrained_penalty_min = 0.0;
+  config.refinement.kway_fm.unconstrained_penalty_max = 0.0;
   for (const double threshold : {.005, 0.0, -1.0}) {
     SCOPED_TRACE(threshold);
-    ctx.refinement.kway_fm.unconstrained_min_improvement = threshold;
+    config.refinement.kway_fm.unconstrained_min_improvement = threshold;
     auto p_graph = make_p_graph(graph, 2, {0, 0, 0, 0, 1});
-    Timer::global().reset();
+    runtime.timer.reset();
     UnconstrainedFMRefiner refiner(ctx);
     refiner.initialize(p_graph);
     refiner.refine(p_graph, ctx.partition);
-    const auto &fm = Timer::global().tree().children_tbl.at("FM");
+    const auto &fm = runtime.timer.tree().children_tbl.at("FM");
     // One improving unconstrained round and one stalled round. A nonnegative
     // threshold also requests a constrained attempt; a negative value disables it.
     EXPECT_EQ(
@@ -427,7 +445,7 @@ TEST(FMCorrectnessTest, StalledUnconstrainedRoundStillRunsConstrainedFallback) {
     );
     EXPECT_EQ(metrics::edge_cut(p_graph), 3);
     check_weights(p_graph, ctx.partition);
-    Timer::global().reset();
+    runtime.timer.reset();
   }
 #endif
 }

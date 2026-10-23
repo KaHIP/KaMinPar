@@ -18,9 +18,12 @@ def test_version():
 
 
 def test_seed():
-    assert kaminpar.seed() == 0
-    kaminpar.reseed(42)
-    assert kaminpar.seed() == 42
+    first = kaminpar.KaMinPar(1, kaminpar.default_context())
+    second = kaminpar.KaMinPar(1, kaminpar.default_context())
+    assert first.seed() == 0
+    first.reseed(42)
+    assert first.seed() == 42
+    assert second.seed() == 0
 
 
 def test_context():
@@ -132,3 +135,28 @@ def test_partitioning_max_block_weight_factors_interface(filename, file_format):
     assert len(partition) == graph.n()
     assert all(0 <= block < 4 for block in partition)
     assert type(kaminpar.edge_cut(graph, partition)) is int
+
+
+def test_concurrent_instances_match_serial_seeded_runs():
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    seeds = [17, 42, 91]
+
+    def run(seed, barrier=None):
+        context = kaminpar.default_context()
+        context.seed = seed
+        instance = kaminpar.KaMinPar(1, context)
+        graph = kaminpar.load_graph("misc/rgg2d.metis", kaminpar.GraphFileFormat.METIS)
+        if barrier is not None:
+            barrier.wait(timeout=10)
+        partition = instance.compute_partition(graph, 4)
+        assert len(partition) == graph.n()
+        assert instance.seed() == seed
+        return partition, kaminpar.edge_cut(graph, partition)
+
+    expected = [run(seed) for seed in seeds]
+    barrier = Barrier(len(seeds))
+    with ThreadPoolExecutor(max_workers=len(seeds)) as executor:
+        actual = list(executor.map(lambda seed: run(seed, barrier), seeds))
+    assert actual == expected

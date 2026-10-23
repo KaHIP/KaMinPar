@@ -28,10 +28,10 @@ SET_DEBUG(false);
 }
 
 AbstractClusterCoarsener::AbstractClusterCoarsener(
-    const Context &ctx, const PartitionContext &p_ctx
+    const ExecutionContext &ctx, const PartitionContext &p_ctx
 )
     : _ctx(ctx),
-      _c_ctx(ctx.coarsening),
+      _c_ctx(ctx.config.coarsening),
       _p_ctx(p_ctx),
       _clustering_algorithm(factory::create_clusterer(ctx)) {}
 
@@ -59,7 +59,7 @@ void AbstractClusterCoarsener::use_communities(std::span<const NodeID> communiti
 
 void AbstractClusterCoarsener::release_allocated_memory() {
   SCOPED_HEAP_PROFILER("Deallocation");
-  SCOPED_TIMER("Deallocation");
+  SCOPED_TIMER_ON(_ctx.runtime.timer, "Deallocation");
 
   _clustering_algorithm.reset();
 
@@ -95,7 +95,8 @@ bool AbstractClusterCoarsener::keep_allocated_memory() const {
   return level() >= _c_ctx.clustering.max_mem_free_coarsening_level;
 }
 
-void AbstractClusterCoarsener::compute_clustering_for_current_graph(StaticArray<NodeID> &clustering
+void AbstractClusterCoarsener::compute_clustering_for_current_graph(
+    StaticArray<NodeID> &clustering
 ) {
   const bool free_allocated_memory = !keep_allocated_memory();
   const NodeWeight total_node_weight = current().total_node_weight();
@@ -104,7 +105,7 @@ void AbstractClusterCoarsener::compute_clustering_for_current_graph(StaticArray<
   DBG << "Coarsening graph with " << prev_n << " nodes";
 
   START_HEAP_PROFILER("Label Propagation");
-  START_TIMER("Label Propagation");
+  START_TIMER_ON(_ctx.runtime.timer, "Label Propagation");
 
   if (!_input_communities.empty()) {
     _clustering_algorithm->set_communities(current_communities());
@@ -141,7 +142,7 @@ void AbstractClusterCoarsener::compute_clustering_for_current_graph(StaticArray<
   }
 
   _clustering_algorithm->compute_clustering(clustering, current(), free_allocated_memory);
-  STOP_TIMER();
+  STOP_TIMER_ON(_ctx.runtime.timer);
   STOP_HEAP_PROFILER();
 }
 
@@ -153,27 +154,27 @@ PartitionedGraph AbstractClusterCoarsener::uncoarsen(PartitionedGraph &&p_graph)
   const NodeID next_n = current().n();
 
   START_HEAP_PROFILER("Allocation");
-  START_TIMER("Allocation");
+  START_TIMER_ON(_ctx.runtime.timer, "Allocation");
   StaticArray<BlockID> partition(next_n);
-  STOP_TIMER();
+  STOP_TIMER_ON(_ctx.runtime.timer);
   STOP_HEAP_PROFILER();
 
-  START_TIMER("Project partition");
+  START_TIMER_ON(_ctx.runtime.timer, "Project partition");
   coarsened->project_up(p_graph_partition, partition);
-  STOP_TIMER();
+  STOP_TIMER_ON(_ctx.runtime.timer);
 
   SCOPED_HEAP_PROFILER("Create graph");
-  SCOPED_TIMER("Create graph");
+  SCOPED_TIMER_ON(_ctx.runtime.timer, "Create graph");
   return {current(), p_graph_k, std::move(partition)};
 }
 
 void AbstractClusterCoarsener::contract_current_graph_and_push(StaticArray<NodeID> &clustering) {
   START_HEAP_PROFILER("Contract graph");
-  START_TIMER("Contract graph");
+  START_TIMER_ON(_ctx.runtime.timer, "Contract graph");
 
   _hierarchy.push_back([&] {
     auto c_graph = contract_clustering(
-        current(), std::move(clustering), _c_ctx.contraction, _contraction_m_ctx
+        current(), std::move(clustering), _c_ctx.contraction, _contraction_m_ctx, _ctx.runtime.timer
     );
     c_graph->get().set_level(level() + 1);
     return c_graph;
@@ -221,7 +222,7 @@ void AbstractClusterCoarsener::contract_current_graph_and_push(StaticArray<NodeI
     project_communities(fine_n, fine_ptr, coarse_n, coarse_ptr);
   }
 
-  STOP_TIMER();
+  STOP_TIMER_ON(_ctx.runtime.timer);
   STOP_HEAP_PROFILER();
 }
 

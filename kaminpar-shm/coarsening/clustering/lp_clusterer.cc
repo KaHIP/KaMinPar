@@ -80,13 +80,15 @@ public:
       const LabelPropagationCoarseningContext &lp_ctx,
       LPClusteringWorkspace &workspace,
       InOrderIterationOrder &in_order,
-      ChunkShuffledIterationOrder &chunk_shuffled
+      ChunkShuffledIterationOrder &chunk_shuffled,
+      RuntimeContext &runtime
   )
       : _graph(graph),
         _lp_ctx(lp_ctx),
         _workspace(workspace),
         _in_order(in_order),
-        _chunk_shuffled(chunk_shuffled) {}
+        _chunk_shuffled(chunk_shuffled),
+        _runtime(runtime) {}
 
   void run(StaticArray<NodeID> &clustering) {
     _workspace.ensure_capacity(_graph.n());
@@ -104,20 +106,22 @@ public:
     );
 
     for (std::size_t iteration = 0; iteration < _lp_ctx.num_iterations; ++iteration) {
-      SCOPED_TIMER(iteration == 0 ? "Initial iteration" : "Remaining iterations");
+      SCOPED_TIMER_ON(
+          _runtime.timer, iteration == 0 ? "Initial iteration" : "Remaining iterations"
+      );
       _workspace.begin_round();
 
       if (_lp_ctx.rating_aggregation == LabelPropagationRatingAggregation::DEFERRED_PARALLEL) {
         {
           SCOPED_HEAP_PROFILER("First phase");
-          SCOPED_TIMER("First phase");
+          SCOPED_TIMER_ON(_runtime.timer, "First phase");
           auto kernel = lp::make_first_phase_kernel(processor);
           for_each(kernel);
         }
         if (!_workspace.deferred_nodes.empty()) {
           SCOPED_HEAP_PROFILER("Second phase");
-          SCOPED_TIMER("Second phase");
-          processor.process_deferred_nodes();
+          SCOPED_TIMER_ON(_runtime.timer, "Second phase");
+          processor.process_deferred_nodes(_runtime.random);
         }
       } else {
         auto kernel = lp::make_single_phase_kernel(processor);
@@ -130,7 +134,7 @@ public:
     }
 
     SCOPED_HEAP_PROFILER("Handle two-hop nodes");
-    SCOPED_TIMER("Handle two-hop nodes");
+    SCOPED_TIMER_ON(_runtime.timer, "Handle two-hop nodes");
     lp::ClusteringPostprocessor(
         _graph, _workspace.state, _lp_ctx.two_hop_strategy, _lp_ctx.two_hop_threshold
     )
@@ -159,15 +163,19 @@ private:
   LPClusteringWorkspace &_workspace;
   InOrderIterationOrder &_in_order;
   ChunkShuffledIterationOrder &_chunk_shuffled;
+  RuntimeContext &_runtime;
 };
 
 } // namespace
 
 class LPClusteringImplWrapper {
 public:
-  explicit LPClusteringImplWrapper(const CoarseningContext &c_ctx)
-      : _lp_ctx(c_ctx.clustering.lp),
-        _chunk_shuffled(_permutations) {}
+  explicit LPClusteringImplWrapper(const CoarseningContext &c_ctx, RuntimeContext &runtime)
+      : _runtime(runtime),
+        _lp_ctx(c_ctx.clustering.lp),
+        _permutations(runtime.random.local()),
+        _in_order(runtime.random),
+        _chunk_shuffled(_permutations, runtime.random) {}
 
   void set_max_cluster_weight(const NodeWeight max_cluster_weight) {
     _max_cluster_weight = max_cluster_weight;
@@ -189,19 +197,20 @@ public:
     _workspace.state.set_communities(_communities);
 
     reified(graph, [&]<typename ConcreteGraph>(const ConcreteGraph &concrete_graph) {
-      LPClusteringRunner(concrete_graph, _lp_ctx, _workspace, _in_order, _chunk_shuffled)
+      LPClusteringRunner(concrete_graph, _lp_ctx, _workspace, _in_order, _chunk_shuffled, _runtime)
           .run(clustering);
     });
 
     if (free_memory_afterwards) {
       SCOPED_HEAP_PROFILER("Deallocation");
-      SCOPED_TIMER("Deallocation");
+      SCOPED_TIMER_ON(_runtime.timer, "Deallocation");
       _workspace.free();
       _chunk_shuffled.free();
     }
   }
 
 private:
+  RuntimeContext &_runtime;
   const LabelPropagationCoarseningContext &_lp_ctx;
   LPClusteringWorkspace _workspace;
 
@@ -214,8 +223,8 @@ private:
   std::span<const NodeID> _communities;
 };
 
-LPClustering::LPClustering(const CoarseningContext &c_ctx)
-    : _impl_wrapper(std::make_unique<LPClusteringImplWrapper>(c_ctx)) {}
+LPClustering::LPClustering(const CoarseningContext &c_ctx, RuntimeContext &runtime)
+    : _impl_wrapper(std::make_unique<LPClusteringImplWrapper>(c_ctx, runtime)) {}
 
 LPClustering::~LPClustering() = default;
 

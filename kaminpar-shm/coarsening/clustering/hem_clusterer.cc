@@ -137,9 +137,10 @@ void compute_heavy_edge_matching(
     const Graph &graph,
     const std::span<const NodeID> communities,
     const NodeWeight max_cluster_weight,
-    const NodeID desired_cluster_count
+    const NodeID desired_cluster_count,
+    [[maybe_unused]] Timer &timer
 ) {
-  SCOPED_TIMER("Heavy edge matching");
+  SCOPED_TIMER_ON(timer, "Heavy edge matching");
 
   graph.pfor_nodes([&](const NodeID u) {
     NodeID favored_neighbor = u;
@@ -206,9 +207,10 @@ void compute_two_hop_matching(
     const Graph &graph,
     const std::span<const NodeID> communities,
     const NodeWeight max_cluster_weight,
-    const NodeID desired_cluster_count
+    const NodeID desired_cluster_count,
+    [[maybe_unused]] Timer &timer
 ) {
-  SCOPED_TIMER("Two-hop matching");
+  SCOPED_TIMER_ON(timer, "Two-hop matching");
 
   graph.pfor_nodes([&](const NodeID u) { pending[u] = kInvalidNodeID; });
 
@@ -291,7 +293,10 @@ template <typename Graph>
 
 } // namespace
 
-HEMClustering::HEMClustering([[maybe_unused]] const CoarseningContext &c_ctx) {}
+HEMClustering::HEMClustering(
+    [[maybe_unused]] const CoarseningContext &c_ctx, [[maybe_unused]] Timer &timer
+)
+    : _timer(&timer) {}
 
 void HEMClustering::set_max_cluster_weight(const NodeWeight max_cluster_weight) {
   _max_cluster_weight = max_cluster_weight;
@@ -311,7 +316,7 @@ void HEMClustering::compute_clustering(
     [[maybe_unused]] const bool free_memory_afterwards
 ) {
   SCOPED_HEAP_PROFILER("Heavy Edge Matching");
-  SCOPED_TIMER("Heavy Edge Matching");
+  SCOPED_TIMER_ON(*_timer, "Heavy Edge Matching");
 
   reified(graph, [&](const auto &graph) {
     StaticArray<NodeID> favored(graph.n(), static_array::noinit);
@@ -332,7 +337,8 @@ void HEMClustering::compute_clustering(
         graph,
         _communities,
         _max_cluster_weight,
-        _desired_cluster_count
+        _desired_cluster_count,
+        *_timer
     );
     compute_two_hop_matching(
         clustering,
@@ -342,7 +348,8 @@ void HEMClustering::compute_clustering(
         graph,
         _communities,
         _max_cluster_weight,
-        _desired_cluster_count
+        _desired_cluster_count,
+        *_timer
     );
     finalize_matching(clustering, graph);
 

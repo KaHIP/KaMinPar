@@ -181,21 +181,24 @@ public:
 
 public:
   static Timer &global();
+  static Timer &null();
 
   explicit Timer(std::string_view name);
 
-  void start_timer(std::string_view name) {
-    start_timer<const char *>(name, "");
+  bool start_timer(std::string_view name) {
+    return start_timer<const char *>(name, "");
   }
 
-  void start_timer(std::string_view name, const std::string &description) {
-    start_timer<const std::string &>(name, description);
+  bool start_timer(std::string_view name, const std::string &description) {
+    return start_timer<const std::string &>(name, description);
   }
 
-  template <typename String> void start_timer(std::string_view name, String description) {
+  template <typename String> bool start_timer(std::string_view name, String description) {
+    if (_null)
+      return false;
     std::lock_guard<std::mutex> lg(_mutex);
     if (_disabled > 0) {
-      return;
+      return false;
     }
 
     // create new tree node if timer does not already exist
@@ -225,9 +228,12 @@ public:
     // update current timer
     ++_tree.current->restarts;
     start_timer_impl();
+    return true;
   }
 
   void stop_timer() {
+    if (_null)
+      return;
     std::lock_guard<std::mutex> lg{_mutex};
 
     if (_disabled > 0) {
@@ -235,13 +241,13 @@ public:
     }
 
     stop_timer_impl();
-    _tree.current = _tree.current->parent;
+    if (_tree.current->parent != nullptr)
+      _tree.current = _tree.current->parent;
   }
 
   template <typename String>
   auto start_scoped_timer(const std::string_view name, String description) {
-    start_timer(name, description);
-    return timer::ScopedTimer{this};
+    return timer::ScopedTimer{start_timer(name, description) ? this : nullptr};
   }
 
   decltype(auto) start_scoped_timer(const std::string_view name, const std::string &description) {
@@ -329,6 +335,7 @@ private:
   TimerTree _tree;
   std::mutex _mutex;
   int _disabled = 0;
+  bool _null = false;
 
   std::size_t _hr_time_col = 0;
   std::size_t _hr_max_time_len = 0;
@@ -338,7 +345,8 @@ private:
 namespace timer {
 
 ScopedTimer::~ScopedTimer() {
-  _timer->stop_timer();
+  if (_timer != nullptr)
+    _timer->stop_timer();
 }
 
 template <typename String> class TimedScope {
@@ -360,9 +368,30 @@ public:
 private:
   Timer *_timer;
   std::string_view _name;
-  String _description;
+  // A description passed through a delegating constructor may be a temporary.
+  std::decay_t<String> _description;
 };
 
 } // namespace timer
 
 } // namespace kaminpar
+
+// Instance-bound instrumentation; no lookup of ambient or process-wide timer state.
+#ifdef KAMINPAR_ENABLE_TIMERS
+#define SCOPED_TIMER_ON_IMPL2(timer, line, ...)                                                    \
+  auto scoped_timer_##line = (timer).start_scoped_timer(__VA_ARGS__)
+#define SCOPED_TIMER_ON_IMPL(timer, line, ...) SCOPED_TIMER_ON_IMPL2(timer, line, __VA_ARGS__)
+#define SCOPED_TIMER_ON(timer, ...) SCOPED_TIMER_ON_IMPL(timer, __LINE__, __VA_ARGS__)
+#define START_TIMER_ON(timer, ...) (timer).start_timer(__VA_ARGS__)
+#define STOP_TIMER_ON(timer) (timer).stop_timer()
+#define DISABLE_TIMERS_ON(timer) (timer).disable()
+#define ENABLE_TIMERS_ON(timer) (timer).enable()
+#else
+#define SCOPED_TIMER_ON(timer, ...)
+#define START_TIMER_ON(timer, ...)
+#define STOP_TIMER_ON(timer)
+#define DISABLE_TIMERS_ON(timer)
+#define ENABLE_TIMERS_ON(timer)
+#endif
+#define TIMED_SCOPE_ON(timer_ref, ...)                                                             \
+  kaminpar::timer::TimedScope<const std::string &>{&(timer_ref), __VA_ARGS__} + [&]

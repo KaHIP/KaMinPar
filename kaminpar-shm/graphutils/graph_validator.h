@@ -12,6 +12,6 @@
 
 namespace kaminpar::shm {
 
-void validate_undirected_graph(const Graph &graph);
+void validate_undirected_graph(const Graph &graph, [[maybe_unused]] Timer &timer = Timer::null());
 
 } // namespace kaminpar::shm

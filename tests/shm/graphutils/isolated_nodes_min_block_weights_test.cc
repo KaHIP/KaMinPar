@@ -191,10 +191,10 @@ TEST(IsolatedNodesMinBlockWeightsTest, PublicPartitionerRestoresOriginalBoundsAn
     for (BlockID b = 0; b < 4; ++b) {
       EXPECT_GE(weights[b], 9);
       EXPECT_LE(weights[b], 11);
-      EXPECT_EQ(partitioner.context().partition.min_block_weight(b), 9);
+      EXPECT_EQ(partitioner.partition_context().min_block_weight(b), 9);
     }
-    EXPECT_EQ(partitioner.context().partition.n, 40);
-    EXPECT_EQ(partitioner.context().partition.total_node_weight, 40);
+    EXPECT_EQ(partitioner.partition_context().n, 40);
+    EXPECT_EQ(partitioner.partition_context().total_node_weight, 40);
   }
 }
 

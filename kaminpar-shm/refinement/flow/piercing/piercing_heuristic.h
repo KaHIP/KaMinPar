@@ -35,6 +35,8 @@ private:
 };
 
 class PiercingHeuristic {
+  RuntimeContext &_runtime;
+
   static constexpr bool kUnreachableTag = true;
   static constexpr bool kReachableTag = false;
 
@@ -160,7 +162,9 @@ class PiercingHeuristic {
   };
 
 public:
-  PiercingHeuristic(const PiercingHeuristicContext &_ctx, BlockID num_blocks);
+  PiercingHeuristic(
+      const PiercingHeuristicContext &_ctx, BlockID num_blocks, RuntimeContext &runtime
+  );
 
   void initialize(
       const BorderRegion &border_region,

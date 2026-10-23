@@ -29,10 +29,10 @@ SET_DEBUG(false);
 } // namespace
 
 SparsificationClusterCoarsener::SparsificationClusterCoarsener(
-    const Context &ctx, const PartitionContext &p_ctx
+    const ExecutionContext &ctx, const PartitionContext &p_ctx
 )
     : AbstractClusterCoarsener(ctx, p_ctx),
-      _s_ctx(ctx.coarsening.sparsification_clustering) {}
+      _s_ctx(ctx.config.coarsening.sparsification_clustering) {}
 
 void SparsificationClusterCoarsener::use_communities(std::span<const NodeID>) {
   KAMINPAR_NOT_IMPLEMENTED_ERROR("This coarsener does not support V-cycles.");
@@ -49,7 +49,7 @@ EdgeID SparsificationClusterCoarsener::sparsification_target(
 
 bool SparsificationClusterCoarsener::coarsen() {
   SCOPED_HEAP_PROFILER("Level", std::to_string(_hierarchy.size()));
-  SCOPED_TIMER("Level", std::to_string(_hierarchy.size()));
+  SCOPED_TIMER_ON(_ctx.runtime.timer, "Level", std::to_string(_hierarchy.size()));
 
   KASSERT(
       current().is_csr(), "This coarsener only supports uncompressed input graphs.", assert::always
@@ -65,9 +65,9 @@ bool SparsificationClusterCoarsener::coarsen() {
   compute_clustering_for_current_graph(clustering);
 
   START_HEAP_PROFILER("Contract graph");
-  auto coarsened = TIMED_SCOPE("Contract graph") {
+  auto coarsened = TIMED_SCOPE_ON(_ctx.runtime.timer, "Contract graph") {
     return contract_clustering(
-        current(), std::move(clustering), _c_ctx.contraction, _contraction_m_ctx
+        current(), std::move(clustering), _c_ctx.contraction, _contraction_m_ctx, _ctx.runtime.timer
     );
   };
   KASSERT(coarsened->get().m() % 2 == 0u, "graph should be undirected", assert::always);
@@ -109,11 +109,16 @@ bool SparsificationClusterCoarsener::coarsen() {
       // Sorted cluster buckets might have changed due to the node remapping --> re-do
       // preprocessing for cluster contraction
       fill_cluster_buckets(
-          c_n, current(), mapping, _contraction_m_ctx.buckets_index, _contraction_m_ctx.buckets
+          c_n,
+          current(),
+          mapping,
+          _contraction_m_ctx.buckets_index,
+          _contraction_m_ctx.buckets,
+          _ctx.runtime.timer
       );
 
       auto recontracted = [&]() {
-        SCOPED_TIMER("Sparsification");
+        SCOPED_TIMER_ON(_ctx.runtime.timer, "Sparsification");
         return recontract_with_threshold_sparsification(
             c_n, c_m, std::move(c_edge_weights), std::move(mapping), target_sparsified_m
         );
@@ -170,11 +175,13 @@ SparsificationClusterCoarsener::recontract_with_threshold_sparsification(
         c_n,
         [](const NodeID, const EdgeWeight, const NodeID) { return false; },
         _c_ctx.contraction,
-        _contraction_m_ctx
+        _contraction_m_ctx,
+        _ctx.runtime.timer
     );
   }
 
-  const QuickselectResult<EdgeWeight> threshold = TIMED_SCOPE("Threshold selection") {
+  const QuickselectResult<EdgeWeight> threshold =
+      TIMED_SCOPE_ON(_ctx.runtime.timer, "Threshold selection") {
     return quickselect_k_smallest<EdgeWeight>(
         c_m - target_m + 1, c_edge_weights.begin(), c_edge_weights.end()
     );
@@ -196,7 +203,7 @@ SparsificationClusterCoarsener::recontract_with_threshold_sparsification(
   DBG << "Threshold probability: " << threshold_probability;
 
   const std::size_t seed =
-      Random::instance().random_index(0, std::numeric_limits<std::size_t>::max());
+      _ctx.runtime.random.local().random_index(0, std::numeric_limits<std::size_t>::max());
 
   auto throw_dice = [&](const NodeID u, const NodeID v) {
     std::size_t hash = ((static_cast<std::size_t>(std::max(u, v)) << 32) |
@@ -223,7 +230,8 @@ SparsificationClusterCoarsener::recontract_with_threshold_sparsification(
       c_n,
       sample_edge,
       _c_ctx.contraction,
-      _contraction_m_ctx
+      _contraction_m_ctx,
+      _ctx.runtime.timer
   );
 }
 

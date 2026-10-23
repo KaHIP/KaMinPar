@@ -65,17 +65,16 @@ protected:
     return result;
   }
 
-  Context context(const Graph &graph, const BlockID k = 2) const {
+  Context context() const {
     Context ctx = create_default_context();
     ctx.parallel.num_threads = GetParam().first;
-    ctx.partition.setup(graph, k, 0.03);
     ctx.refinement.jet.num_iterations = 1;
     ctx.refinement.jet.num_rounds_on_fine_level = 1;
     ctx.refinement.jet.num_rounds_on_coarse_level = 1;
     return ctx;
   }
 
-  static bool refine(const Context &ctx, PartitionedGraph &p_graph) {
+  static bool refine(const ExecutionContext &ctx, PartitionedGraph &p_graph) {
     JetRefiner refiner(ctx);
     refiner.initialize(p_graph);
     return refiner.refine(p_graph, ctx.partition);
@@ -90,7 +89,10 @@ TEST_P(JetRefinerTest, KeepsZeroGainCandidatesWhenRoundedThresholdIsZero) {
   auto g =
       graph(6, {{0, 1}, {0, 2}, {0, 4}, {1, 2}, {1, 4}, {2, 3}, {2, 4}, {2, 5}, {3, 4}, {3, 5}});
   auto p_graph = make_p_graph(g, 2, {1, 0, 0, 1, 1, 0});
-  Context ctx = context(g);
+  Context config = context();
+  RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
+  ctx.partition.setup(g, 2, 0.03);
   ASSERT_EQ(metrics::edge_cut(p_graph), 6);
 
   EXPECT_TRUE(refine(ctx, p_graph));
@@ -106,7 +108,10 @@ TEST_P(JetRefinerTest, KeepsZeroProjectedGainAfterburnerMoves) {
   // projected gain, but are needed for the four-vertex coordinated move.
   auto g = graph(6, {{0, 1}, {0, 3}, {0, 4}, {0, 5}, {1, 2}, {1, 3}, {1, 4}, {2, 5}, {3, 4}}, 7);
   auto p_graph = make_p_graph(g, 2, {1, 0, 1, 0, 1, 0});
-  Context ctx = context(g);
+  Context config = context();
+  RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
+  ctx.partition.setup(g, 2, 0.03);
   ASSERT_EQ(metrics::edge_cut(p_graph), 49);
 
   EXPECT_TRUE(refine(ctx, p_graph));
@@ -120,7 +125,10 @@ TEST_P(JetRefinerTest, KeepsZeroProjectedGainAfterburnerMoves) {
 TEST_P(JetRefinerTest, KeepsBalancedRepairWhenInitialInfeasiblePartitionHasSmallerCut) {
   auto g = graph(4, {{0, 1}, {0, 2}, {1, 2}});
   auto p_graph = make_p_graph(g, 2, {0, 0, 0, 1});
-  Context ctx = context(g);
+  Context config = context();
+  RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
+  ctx.partition.setup(g, 2, 0.03);
   ASSERT_EQ(metrics::edge_cut(p_graph), 0);
   ASSERT_FALSE(metrics::is_feasible(p_graph, ctx.partition));
 
@@ -137,7 +145,10 @@ TEST_P(JetRefinerTest, KeepsBalancedRepairWhenCombinedViolationExceedsBlockWeigh
   constexpr BlockWeight target_weight = 2 * weight;
   auto g = graph(6, {}, 1, std::vector<NodeWeight>(6, weight));
   auto p_graph = make_p_graph(g, 3, {0, 0, 0, 0, 0, 0});
-  Context ctx = context(g, 3);
+  Context config = context();
+  RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
+  ctx.partition.setup(g, 3, 0.03);
   ctx.partition.setup(g, std::vector<BlockWeight>(3, target_weight));
   ctx.partition.setup_min_block_weights(std::vector<BlockWeight>(3, target_weight));
   ASSERT_EQ(metrics::edge_cut(p_graph), 0);
@@ -155,7 +166,10 @@ TEST_P(JetRefinerTest, KeepsBalancedRepairWhenCombinedViolationExceedsBlockWeigh
 TEST_P(JetRefinerTest, PreservesFeasiblePartitionWhenNoImprovementExists) {
   auto g = graph(4, {{0, 1}, {2, 3}});
   auto p_graph = make_p_graph(g, 2, {0, 0, 1, 1});
-  Context ctx = context(g);
+  Context config = context();
+  RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
+  ctx.partition.setup(g, 2, 0.03);
 
   EXPECT_FALSE(refine(ctx, p_graph));
 
@@ -169,7 +183,10 @@ TEST_P(JetRefinerTest, DoesNotReplaceBalancedSnapshotWithSmallerInfeasibleCut) {
   // fits in the other block's single free slot, so greedy repair cannot finish.
   auto g = graph(4, {{0, 3}, {1, 2}}, 1, {4, 3, 2, 3});
   auto p_graph = make_p_graph(g, 2, {0, 1, 0, 1});
-  Context ctx = context(g);
+  Context config = context();
+  RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
+  ctx.partition.setup(g, 2, 0.03);
   ASSERT_TRUE(metrics::is_feasible(p_graph, ctx.partition));
 
   EXPECT_FALSE(refine(ctx, p_graph));
@@ -191,7 +208,10 @@ TEST_P(JetRefinerTest, HandlesUnsortedLowDegreeGraphWithManyParts) {
   }
   auto g = graph(n, edges);
   auto p_graph = make_p_graph(g, k, partition);
-  Context ctx = context(g, k);
+  Context config = context();
+  RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
+  ctx.partition.setup(g, k, 0.03);
   ASSERT_FALSE(g.sorted());
   ASSERT_EQ(metrics::edge_cut(p_graph), k);
 
@@ -214,7 +234,10 @@ TEST_P(JetRefinerTest, PreservesFullEdgeWeightRangeWithManyParts) {
     partition[u] = u / 2;
   }
   auto p_graph = make_p_graph(g, k, partition);
-  Context ctx = context(g, k);
+  Context config = context();
+  RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
+  ctx.partition.setup(g, k, 0.03);
   ASSERT_EQ(metrics::edge_cut(p_graph), weight);
 
   refine(ctx, p_graph);
@@ -243,11 +266,14 @@ TEST_P(JetRefinerTest, PreservesFeasibilityAndBestCutAcrossMultipleRounds) {
       partition[u] = u % k;
     }
     auto p_graph = make_p_graph(g, k, partition);
-    Context ctx = context(g, k);
-    ctx.refinement.jet.num_iterations = 8;
-    ctx.refinement.jet.num_rounds_on_fine_level = 4;
-    ctx.refinement.jet.initial_gain_temp_on_fine_level = 0.75;
-    ctx.refinement.jet.final_gain_temp_on_fine_level = 0.25;
+    Context config = context();
+    RuntimeContext runtime;
+    ExecutionContext ctx{config, runtime};
+    ctx.partition.setup(g, k, 0.03);
+    config.refinement.jet.num_iterations = 8;
+    config.refinement.jet.num_rounds_on_fine_level = 4;
+    config.refinement.jet.initial_gain_temp_on_fine_level = 0.75;
+    config.refinement.jet.final_gain_temp_on_fine_level = 0.25;
     const EdgeWeight initial_cut = metrics::edge_cut(p_graph);
 
     const bool improved = refine(ctx, p_graph);
@@ -289,12 +315,14 @@ void refine_and_check(Graph &graph, const int threads) {
   tbb::global_control control(tbb::global_control::max_allowed_parallelism, threads);
   for (const auto cache : {GainCacheStrategy::SPARSE, GainCacheStrategy::ON_THE_FLY}) {
     for (const auto balancer : {JetBalancingAlgorithm::OVERLOAD, JetBalancingAlgorithm::JET}) {
-      auto ctx = create_jet_context(2);
+      Context config = create_jet_context(2);
+      RuntimeContext runtime;
+      ExecutionContext ctx{config, runtime};
       ctx.parallel.num_threads = threads;
-      ctx.refinement.jet.gain_cache_strategy = cache;
-      ctx.refinement.jet.balancing_algorithm = balancer;
-      ctx.refinement.jet.num_iterations = 10;
-      ctx.refinement.jet.num_fruitless_iterations = 3;
+      config.refinement.jet.gain_cache_strategy = cache;
+      config.refinement.jet.balancing_algorithm = balancer;
+      config.refinement.jet.num_iterations = 10;
+      config.refinement.jet.num_fruitless_iterations = 3;
       ctx.partition.setup(graph, 8, 0.1);
       std::vector<BlockID> partition(graph.n());
       for (NodeID u = 0; u < graph.n(); ++u) {
@@ -397,8 +425,10 @@ TEST(JetDestinationCacheTest, InvalidatesMovedVerticesAndNeighborsAndClearsOnRol
 TEST(JetComponentTest, RejectsUnsupportedSharedGainCacheStrategy) {
   const auto graph = make_path_graph(4);
   auto p_graph = make_p_graph(graph, 2, {0, 0, 1, 1});
-  auto ctx = create_jet_context(1);
-  ctx.refinement.jet.gain_cache_strategy = GainCacheStrategy::DENSE;
+  Context config = create_jet_context(1);
+  RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
+  config.refinement.jet.gain_cache_strategy = GainCacheStrategy::DENSE;
   ctx.partition.setup(graph, 2, 0.03);
   JetRefiner refiner(ctx);
   refiner.initialize(p_graph);
@@ -429,14 +459,16 @@ TEST(JetComponentTest, SparseMatchesOnTheFlyAcrossTemperatureChangesOnSortedGrap
     std::vector<BlockID> reference;
     for (const auto cache : {GainCacheStrategy::SPARSE, GainCacheStrategy::ON_THE_FLY}) {
       auto p_graph = make_p_graph(graph, k, partition);
-      auto ctx = create_jet_context(4);
-      ctx.refinement.jet.gain_cache_strategy = cache;
-      ctx.refinement.jet.balancing_algorithm = balancer;
-      ctx.refinement.jet.num_iterations = 10;
-      ctx.refinement.jet.initial_gain_temp_on_fine_level = 0.1;
-      ctx.refinement.jet.final_gain_temp_on_fine_level = 0.9;
+      Context config = create_jet_context(4);
+      RuntimeContext runtime;
+      ExecutionContext ctx{config, runtime};
+      config.refinement.jet.gain_cache_strategy = cache;
+      config.refinement.jet.balancing_algorithm = balancer;
+      config.refinement.jet.num_iterations = 10;
+      config.refinement.jet.initial_gain_temp_on_fine_level = 0.1;
+      config.refinement.jet.final_gain_temp_on_fine_level = 0.9;
       ctx.partition.setup(graph, k, 0.1);
-      KaMinPar::reseed(42);
+      runtime.random.reseed(42);
       JetRefiner refiner(ctx);
       refiner.initialize(p_graph);
       refiner.refine(p_graph, ctx.partition);
@@ -457,9 +489,11 @@ TEST(JetComponentTest, ReusesCachesAcrossShrinkingAndGrowingGraphsAndBlockCounts
   tbb::global_control control(tbb::global_control::max_allowed_parallelism, 1);
   for (const bool compressed : {false, true}) {
     for (const auto cache : {GainCacheStrategy::SPARSE, GainCacheStrategy::ON_THE_FLY}) {
-      auto ctx = create_jet_context(2);
-      ctx.refinement.jet.gain_cache_strategy = cache;
-      ctx.refinement.jet.num_iterations = 3;
+      Context config = create_jet_context(2);
+      RuntimeContext runtime;
+      ExecutionContext ctx{config, runtime};
+      config.refinement.jet.gain_cache_strategy = cache;
+      config.refinement.jet.num_iterations = 3;
       JetRefiner retained(ctx);
       for (const auto &[n, k] : std::vector<std::pair<NodeID, BlockID>>{
                {32, 4}, {128, 64}, {16, 2}, {96, 48}, {64, 8}
@@ -486,13 +520,13 @@ TEST(JetComponentTest, ReusesCachesAcrossShrinkingAndGrowingGraphsAndBlockCounts
         ASSERT_TRUE(graph.sorted());
         ctx.partition.setup(graph, k, 0.1);
         auto p_graph = make_p_graph(graph, k, partition);
-        KaMinPar::reseed(42);
+        runtime.random.reseed(42);
         retained.initialize(p_graph);
         retained.refine(p_graph, ctx.partition);
 
         auto reference = make_p_graph(graph, k, partition);
         JetRefiner fresh(ctx);
-        KaMinPar::reseed(42);
+        runtime.random.reseed(42);
         fresh.initialize(reference);
         fresh.refine(reference, ctx.partition);
         EXPECT_TRUE(metrics::is_feasible(p_graph, ctx.partition));
@@ -512,11 +546,13 @@ TEST(JetComponentTest, ReusesSparseCacheWhenPackedDegreeBucketsAndBlockCountsCha
     NodeID radius;
   };
   for (const bool compressed : {false, true}) {
-    auto ctx = create_jet_context(2);
-    ctx.refinement.jet.gain_cache_strategy = GainCacheStrategy::SPARSE;
-    ctx.refinement.jet.num_iterations = 4;
-    ctx.refinement.kway_fm.k_based_high_degree_threshold = 1;
-    ctx.refinement.kway_fm.constant_high_degree_threshold = 0;
+    Context config = create_jet_context(2);
+    RuntimeContext runtime;
+    ExecutionContext ctx{config, runtime};
+    config.refinement.jet.gain_cache_strategy = GainCacheStrategy::SPARSE;
+    config.refinement.jet.num_iterations = 4;
+    config.refinement.kway_fm.k_based_high_degree_threshold = 1;
+    config.refinement.kway_fm.constant_high_degree_threshold = 0;
     JetRefiner retained(ctx);
     for (const auto &[n, k, radius] :
          std::vector<Instance>{{64, 16, 1}, {96, 24, 3}, {32, 8, 1}, {128, 32, 2}, {48, 12, 1}}) {
@@ -543,13 +579,13 @@ TEST(JetComponentTest, ReusesSparseCacheWhenPackedDegreeBucketsAndBlockCountsCha
       ASSERT_LT(2 * radius, k); // Every row uses the packed hash-table path.
       ctx.partition.setup(graph, k, 0.1);
       auto p_graph = make_p_graph(graph, k, partition);
-      KaMinPar::reseed(42);
+      runtime.random.reseed(42);
       retained.initialize(p_graph);
       retained.refine(p_graph, ctx.partition);
 
       auto reference = make_p_graph(graph, k, partition);
       JetRefiner fresh(ctx);
-      KaMinPar::reseed(42);
+      runtime.random.reseed(42);
       fresh.initialize(reference);
       fresh.refine(reference, ctx.partition);
       EXPECT_TRUE(metrics::is_feasible(p_graph, ctx.partition));
@@ -562,11 +598,11 @@ TEST(JetComponentTest, ReusesSparseCacheWhenPackedDegreeBucketsAndBlockCountsCha
 
 TEST(JetComponentTest, JetPresetsSelectSparseCacheAndPaperBalancer) {
   for (const int rounds : {1, 4}) {
-    const auto ctx = create_jet_context(rounds);
-    EXPECT_EQ(ctx.refinement.jet.gain_cache_strategy, GainCacheStrategy::SPARSE);
-    EXPECT_EQ(ctx.refinement.jet.balancing_algorithm, JetBalancingAlgorithm::JET);
-    EXPECT_EQ(ctx.refinement.jet.num_rounds_on_fine_level, rounds);
-    EXPECT_EQ(ctx.refinement.jet.num_rounds_on_coarse_level, rounds);
+    const auto config = create_jet_context(rounds);
+    EXPECT_EQ(config.refinement.jet.gain_cache_strategy, GainCacheStrategy::SPARSE);
+    EXPECT_EQ(config.refinement.jet.balancing_algorithm, JetBalancingAlgorithm::JET);
+    EXPECT_EQ(config.refinement.jet.num_rounds_on_fine_level, rounds);
+    EXPECT_EQ(config.refinement.jet.num_rounds_on_coarse_level, rounds);
   }
 }
 
@@ -590,8 +626,10 @@ TEST(JetComponentTest, SparseOptionSupportsFullWeightsInSortedGraph) {
   std::swap(partition[1], partition[2]);
   std::fill(weights.begin() + 4, weights.end(), 1);
   auto graph = make_graph(offsets, edges, {}, weights, true);
-  auto ctx = create_jet_context(2);
-  ctx.refinement.jet.gain_cache_strategy = GainCacheStrategy::SPARSE;
+  Context config = create_jet_context(2);
+  RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
+  config.refinement.jet.gain_cache_strategy = GainCacheStrategy::SPARSE;
   ctx.partition.setup(graph, k, 0.03);
   auto p_graph = make_p_graph(graph, k, partition);
   const EdgeWeight initial_cut = metrics::edge_cut(p_graph);
@@ -617,9 +655,11 @@ TEST(JetComponentTest, SparseOptionRefinesSortedGraphWithBothBalancers) {
   offsets[n] = n;
   auto graph = make_graph(offsets, edges, true);
   for (const auto balancer : {JetBalancingAlgorithm::OVERLOAD, JetBalancingAlgorithm::JET}) {
-    auto ctx = create_jet_context(2);
-    ctx.refinement.jet.gain_cache_strategy = GainCacheStrategy::SPARSE;
-    ctx.refinement.jet.balancing_algorithm = balancer;
+    Context config = create_jet_context(2);
+    RuntimeContext runtime;
+    ExecutionContext ctx{config, runtime};
+    config.refinement.jet.gain_cache_strategy = GainCacheStrategy::SPARSE;
+    config.refinement.jet.balancing_algorithm = balancer;
     ctx.partition.setup(graph, k, 0.03);
     auto p_graph = make_p_graph(graph, k, partition);
     JetRefiner refiner(ctx);
@@ -651,13 +691,15 @@ TEST(JetComponentTest, SparseAndOnTheFlyPreserveMovesWithOneThread) {
   }
   std::vector<BlockID> reference;
   for (const auto cache : {GainCacheStrategy::SPARSE, GainCacheStrategy::ON_THE_FLY}) {
-    auto ctx = create_jet_context(2);
-    ctx.refinement.jet.gain_cache_strategy = cache;
-    ctx.refinement.jet.balancing_algorithm = JetBalancingAlgorithm::OVERLOAD;
-    ctx.refinement.jet.num_iterations = 10;
+    Context config = create_jet_context(2);
+    RuntimeContext runtime;
+    ExecutionContext ctx{config, runtime};
+    config.refinement.jet.gain_cache_strategy = cache;
+    config.refinement.jet.balancing_algorithm = JetBalancingAlgorithm::OVERLOAD;
+    config.refinement.jet.num_iterations = 10;
     ctx.partition.setup(graph, 8, 0.1);
     auto p_graph = make_p_graph(graph, 8, partition);
-    KaMinPar::reseed(42);
+    runtime.random.reseed(42);
     JetRefiner refiner(ctx);
     refiner.initialize(p_graph);
     refiner.refine(p_graph, ctx.partition);
@@ -676,9 +718,11 @@ TEST(JetComponentTest, SparseAndOnTheFlyPreserveMovesWithOneThread) {
 TEST(JetComponentTest, DoesNotRollbackToInfeasibleLowerCutInput) {
   tbb::global_control control(tbb::global_control::max_allowed_parallelism, 4);
   auto graph = make_path_graph(64);
-  auto ctx = create_jet_context(1);
+  Context config = create_jet_context(1);
+  RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.partition.setup(graph, 4, 0.1);
-  ctx.refinement.jet.num_iterations = 3;
+  config.refinement.jet.num_iterations = 3;
   auto p_graph = make_p_graph(graph, 4, std::vector<BlockID>(graph.n(), 0));
   ASSERT_EQ(metrics::edge_cut(p_graph), 0);
   ASSERT_FALSE(metrics::is_balanced(p_graph, ctx.partition));
@@ -691,9 +735,11 @@ TEST(JetComponentTest, DoesNotRollbackToInfeasibleLowerCutInput) {
 TEST(JetComponentTest, RetainsBalanceProgressWhenWeightedPackingIsImpossible) {
   tbb::global_control control(tbb::global_control::max_allowed_parallelism, 1);
   auto graph = make_graph({0, 0, 0, 0}, {}, {9, 9, 9}, {});
-  auto ctx = create_jet_context(1);
+  Context config = create_jet_context(1);
+  RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.partition.setup(graph, std::vector<BlockWeight>{14, 14});
-  ctx.refinement.jet.num_iterations = 3;
+  config.refinement.jet.num_iterations = 3;
   auto p_graph = make_p_graph(graph, 2, {0, 0, 0});
   const BlockWeight initial_overload = metrics::total_overload(p_graph, ctx.partition);
   JetRefiner refiner(ctx);
@@ -706,16 +752,18 @@ TEST(JetComponentTest, RetainsBalanceProgressWhenWeightedPackingIsImpossible) {
 TEST(JetComponentTest, PreservesConfiguredMinimumWeights) {
   tbb::global_control control(tbb::global_control::max_allowed_parallelism, 4);
   auto graph = make_grid_graph(12, 12);
-  auto ctx = create_jet_context(2);
+  Context config = create_jet_context(2);
+  RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.partition.setup(graph, 8, 0.1);
   ctx.partition.setup_min_block_weights(std::vector<BlockWeight>(8, 17));
-  ctx.refinement.jet.num_iterations = 5;
+  config.refinement.jet.num_iterations = 5;
   std::vector<BlockID> partition(graph.n());
   for (NodeID u = 0; u < graph.n(); ++u) {
     partition[u] = u % 8;
   }
   for (const auto balancer : {JetBalancingAlgorithm::OVERLOAD, JetBalancingAlgorithm::JET}) {
-    ctx.refinement.jet.balancing_algorithm = balancer;
+    config.refinement.jet.balancing_algorithm = balancer;
     auto p_graph = make_p_graph(graph, 8, partition);
     JetRefiner refiner(ctx);
     refiner.initialize(p_graph);

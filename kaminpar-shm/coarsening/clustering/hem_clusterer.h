@@ -14,7 +14,9 @@ namespace kaminpar::shm {
 
 class HEMClustering : public Clusterer {
 public:
-  explicit HEMClustering(const CoarseningContext &c_ctx);
+  explicit HEMClustering(
+      const CoarseningContext &c_ctx, [[maybe_unused]] Timer &timer = Timer::null()
+  );
 
   HEMClustering(const HEMClustering &) = delete;
   HEMClustering &operator=(const HEMClustering &) = delete;
@@ -32,6 +34,7 @@ public:
   ) final;
 
 private:
+  Timer *_timer;
   NodeWeight _max_cluster_weight = kInvalidNodeWeight;
   NodeID _desired_cluster_count = 0;
 

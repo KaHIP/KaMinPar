@@ -17,7 +17,7 @@ namespace kaminpar::shm {
 
 class OverlayClusterCoarsener : public AbstractClusterCoarsener {
 public:
-  OverlayClusterCoarsener(const Context &ctx, const PartitionContext &p_ctx);
+  OverlayClusterCoarsener(const ExecutionContext &ctx, const PartitionContext &p_ctx);
 
   OverlayClusterCoarsener(const OverlayClusterCoarsener &) = delete;
   OverlayClusterCoarsener &operator=(const OverlayClusterCoarsener) = delete;

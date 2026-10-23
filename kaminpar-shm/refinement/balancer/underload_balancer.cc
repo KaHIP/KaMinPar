@@ -26,7 +26,7 @@ SET_DEBUG(false);
 
 } // namespace
 
-UnderloadBalancer::UnderloadBalancer(const Context &ctx) : _ctx(ctx) {}
+UnderloadBalancer::UnderloadBalancer(const ExecutionContext &ctx) : _ctx(ctx) {}
 
 UnderloadBalancer::~UnderloadBalancer() = default;
 
@@ -39,7 +39,7 @@ void UnderloadBalancer::initialize(const PartitionedGraph &) {
 }
 
 bool UnderloadBalancer::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
-  SCOPED_TIMER("Underload Balancer");
+  SCOPED_TIMER_ON(_ctx.runtime.timer, "Underload Balancer");
   SCOPED_HEAP_PROFILER("Underload Balancer");
 
   _p_graph = &p_graph;
@@ -111,7 +111,7 @@ bool UnderloadBalancer::refine(PartitionedGraph &p_graph, const PartitionContext
 }
 
 template <typename Graph> void UnderloadBalancer::rebalance_nonadjacent(const Graph &graph) {
-  SCOPED_TIMER("Nonadjacent Balancing");
+  SCOPED_TIMER_ON(_ctx.runtime.timer, "Nonadjacent Balancing");
 
   if (graph.max_node_weight() <= 1) {
     std::vector<BlockID> targets;

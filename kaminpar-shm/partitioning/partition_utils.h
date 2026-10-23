@@ -40,13 +40,14 @@ BlockID compute_first_sub_block(BlockID block, BlockID current_k, BlockID input_
 BlockID compute_first_invalid_sub_block(BlockID block, BlockID current_k, BlockID input_k);
 
 // Compute smallest k_prime such that it is a power of 2 and n / k_prime <= C
-BlockID compute_k_for_n(NodeID n, const Context &input_ctx);
+BlockID compute_k_for_n(NodeID n, const ExecutionContext &input_ctx);
 
-std::size_t
-compute_num_copies(const Context &input_ctx, NodeID n, bool converged, std::size_t num_threads);
+std::size_t compute_num_copies(
+    const ExecutionContext &input_ctx, NodeID n, bool converged, std::size_t num_threads
+);
 
-int compute_num_threads_for_parallel_ip(const Context &input_ctx);
+int compute_num_threads_for_parallel_ip(const ExecutionContext &input_ctx);
 
-BlockID compute_next_k(BlockID current_k, const Context &input_ctx);
+BlockID compute_next_k(BlockID current_k, const ExecutionContext &input_ctx);
 
 } // namespace kaminpar::shm::partitioning

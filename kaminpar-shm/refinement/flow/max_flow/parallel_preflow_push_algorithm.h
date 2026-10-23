@@ -20,6 +20,8 @@
 namespace kaminpar::shm {
 
 class ParallelPreflowPushAlgorithm : public MaxPreflowAlgorithm {
+  RuntimeContext &_runtime;
+
   SET_DEBUG(false);
   SET_STATISTICS(false);
 
@@ -89,7 +91,7 @@ class ParallelPreflowPushAlgorithm : public MaxPreflowAlgorithm {
   static constexpr bool kCollectActiveNodesTag = true;
 
 public:
-  ParallelPreflowPushAlgorithm(const PreflowPushContext &ctx);
+  ParallelPreflowPushAlgorithm(const PreflowPushContext &ctx, RuntimeContext &runtime);
   ~ParallelPreflowPushAlgorithm() override = default;
 
   void initialize(

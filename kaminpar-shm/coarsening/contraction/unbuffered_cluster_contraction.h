@@ -17,7 +17,8 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
     const Graph &graph,
     StaticArray<NodeID> clustering,
     const ContractionCoarseningContext &con_ctx,
-    MemoryContext &m_ctx
+    MemoryContext &m_ctx,
+    [[maybe_unused]] Timer &timer = Timer::null()
 );
 
 }

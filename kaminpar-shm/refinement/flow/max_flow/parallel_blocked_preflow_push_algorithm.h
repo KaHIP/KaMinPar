@@ -94,7 +94,9 @@ class ParallelBlockedPreflowPushAlgorithm : public MaxPreflowAlgorithm {
   static constexpr std::uint8_t kRelabeledState = 2;
 
 public:
-  ParallelBlockedPreflowPushAlgorithm(const PreflowPushContext &ctx);
+  ParallelBlockedPreflowPushAlgorithm(
+      const PreflowPushContext &ctx, [[maybe_unused]] RuntimeContext &runtime
+  );
   ~ParallelBlockedPreflowPushAlgorithm() override = default;
 
   void initialize(

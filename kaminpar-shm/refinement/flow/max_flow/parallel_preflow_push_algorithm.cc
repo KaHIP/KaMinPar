@@ -14,8 +14,11 @@
 
 namespace kaminpar::shm {
 
-ParallelPreflowPushAlgorithm::ParallelPreflowPushAlgorithm(const PreflowPushContext &ctx)
-    : _ctx(ctx) {}
+ParallelPreflowPushAlgorithm::ParallelPreflowPushAlgorithm(
+    const PreflowPushContext &ctx, RuntimeContext &runtime
+)
+    : _runtime(runtime),
+      _ctx(ctx) {}
 
 void ParallelPreflowPushAlgorithm::initialize(
     const CSRGraph &graph,
@@ -187,7 +190,7 @@ MaxPreflowAlgorithm::Result ParallelPreflowPushAlgorithm::compute_max_preflow() 
 }
 
 void ParallelPreflowPushAlgorithm::saturate_source_edges() {
-  SCOPED_TIMER("Saturate Source Edges");
+  SCOPED_TIMER_ON(_runtime.timer, "Saturate Source Edges");
 
   if (_nodes_to_desaturate.empty()) {
     return;
@@ -236,7 +239,7 @@ void ParallelPreflowPushAlgorithm::saturate_source_edges() {
 }
 
 template <bool kCollectActiveNodes> void ParallelPreflowPushAlgorithm::global_relabel() {
-  SCOPED_TIMER("Global Relabel");
+  SCOPED_TIMER_ON(_runtime.timer, "Global Relabel");
   IF_STATS _stats.num_global_relabels += 1;
 
   _grt.clear();

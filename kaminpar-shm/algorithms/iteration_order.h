@@ -56,6 +56,8 @@ using LocalKernel = decltype(std::declval<Kernel &>().make_local(std::declval<Ra
  */
 class InOrderIterationOrder {
 public:
+  explicit InOrderIterationOrder(RandomStreams &random) : _random(random) {}
+
   void initialize(
       const NodeID num_nodes,
       const NodeID from = 0,
@@ -72,7 +74,7 @@ public:
         return;
       }
 
-      Random &rand = Random::instance();
+      Random &rand = _random.local();
       iteration_order_detail::LocalKernel<Kernel> local = kernel.make_local(rand);
 
       for (NodeID u = range.begin(); u != range.end(); ++u) {
@@ -86,6 +88,7 @@ public:
   }
 
 private:
+  RandomStreams &_random;
   NodeID _from = 0;
   NodeID _to = 0;
 };
@@ -108,8 +111,9 @@ public:
 
   using Permutations = RandomPermutations<NodeID, kPermutationSize, kNumberOfNodePermutations>;
 
-  explicit ChunkShuffledIterationOrder(Permutations &permutations)
-      : _random_permutations(permutations) {}
+  explicit ChunkShuffledIterationOrder(Permutations &permutations, RandomStreams &random)
+      : _random(random),
+        _random_permutations(permutations) {}
 
   ChunkShuffledIterationOrder(const ChunkShuffledIterationOrder &) = delete;
   ChunkShuffledIterationOrder &operator=(const ChunkShuffledIterationOrder &) = delete;
@@ -159,7 +163,7 @@ public:
         return;
       }
 
-      Random &rand = Random::instance();
+      Random &rand = _random.local();
       iteration_order_detail::LocalKernel<Kernel> local = kernel.make_local(rand);
 
       const std::size_t chunk_id = next_chunk.fetch_add(1, std::memory_order_relaxed);
@@ -324,10 +328,11 @@ private:
   void shuffle_chunks() {
     tbb::parallel_for<std::size_t>(0, _buckets.size(), [&](const std::size_t i) {
       const Bucket &bucket = _buckets[i];
-      Random::instance().shuffle(_chunks.begin() + bucket.start, _chunks.begin() + bucket.end);
+      _random.local().shuffle(_chunks.begin() + bucket.start, _chunks.begin() + bucket.end);
     });
   }
 
+  RandomStreams &_random;
   Permutations &_random_permutations;
 
   tbb::enumerable_thread_specific<std::vector<NodeID>> _sub_chunk_permutation_ets;

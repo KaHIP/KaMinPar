@@ -23,7 +23,7 @@ namespace kaminpar::shm {
 
 class AbstractClusterCoarsener : public Coarsener {
 public:
-  AbstractClusterCoarsener(const Context &ctx, const PartitionContext &p_ctx);
+  AbstractClusterCoarsener(const ExecutionContext &ctx, const PartitionContext &p_ctx);
 
   void initialize(const Graph *graph) override;
 
@@ -50,7 +50,7 @@ protected:
 
   [[nodiscard]] bool keep_allocated_memory() const;
 
-  const Context &_ctx;
+  const ExecutionContext &_ctx;
   const CoarseningContext &_c_ctx;
   const PartitionContext &_p_ctx;
 

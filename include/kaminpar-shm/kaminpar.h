@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <iosfwd>
 #include <limits>
 #include <memory>
 #include <numeric>
@@ -20,8 +21,6 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-
-#include <tbb/global_control.h>
 
 #define KAMINPAR_VERSION_MAJOR 3
 #define KAMINPAR_VERSION_MINOR 7
@@ -424,7 +423,7 @@ struct PartitionContext {
   EdgeWeight total_edge_weight = kInvalidEdgeWeight;
   NodeWeight max_node_weight = kInvalidNodeWeight;
 
-  BlockID k;
+  BlockID k = 0;
 
   [[nodiscard]] BlockWeight min_block_weight(const BlockID block) const {
     return _min_block_weights.empty() ? 0 : _min_block_weights[block];
@@ -590,6 +589,10 @@ struct PartitioningContext {
 
 struct GraphCompressionContext {
   bool enabled;
+};
+
+struct GraphCompressionStatistics {
+  bool enabled = false;
 
   bool high_degree_encoding = false;
   NodeID high_degree_threshold = kInvalidNodeID;
@@ -608,18 +611,19 @@ struct GraphCompressionContext {
   void setup(const class Graph &graph);
 };
 
+// Configuration is copied at the start of a call and remains immutable during execution.
 struct Context {
   GraphCompressionContext compression;
   NodeOrdering node_ordering;
   EdgeOrdering edge_ordering;
 
   PartitioningContext partitioning;
-  PartitionContext partition;
   CoarseningContext coarsening;
   InitialPartitioningContext initial_partitioning;
   RefinementContext refinement;
   ParallelContext parallel;
   DebugContext debug;
+  int seed = 0;
 };
 
 //
@@ -847,6 +851,8 @@ private:
 
 namespace kaminpar {
 
+class RuntimeContext;
+
 enum class OutputLevel : std::uint8_t {
   QUIET,       //! Disable all output to stdout.
   PROGRESS,    //! Continuously output progress information while partitioning.
@@ -865,14 +871,19 @@ public:
   KaMinPar(const KaMinPar &) = delete;
   KaMinPar &operator=(const KaMinPar &) = delete;
 
-  KaMinPar(KaMinPar &&) noexcept = default;
-  KaMinPar &operator=(KaMinPar &&) noexcept = default;
+  KaMinPar(KaMinPar &&) noexcept;
+  KaMinPar &operator=(KaMinPar &&) noexcept;
 
   ~KaMinPar();
 
-  static void reseed(int seed);
+  // Changes this instance only; the seed is reapplied at the start of each partitioning call.
+  void reseed(int seed);
 
-  static int get_seed();
+  int get_seed() const;
+
+  // Internal services; their definition is in kaminpar-common/runtime_context.h.
+  RuntimeContext &runtime();
+  const RuntimeContext &runtime() const;
 
   /*!
    * Sets the verbosity of the partitioner.
@@ -889,6 +900,9 @@ public:
    */
   void set_max_timer_depth(int max_timer_depth);
 
+  // Inspect the completed call without enabling console output. Requires an idle instance.
+  void print_timers(std::ostream &out, int max_depth = std::numeric_limits<int>::max()) const;
+
   /*!
    * Returns a non-const reference to the context object, which can be used to configure the
    * partitioning process.
@@ -896,6 +910,9 @@ public:
    * @return Reference to the context object.
    */
   shm::Context &context();
+  const shm::Context &context() const;
+  // Resolved top-level bounds from the most recent successful call.
+  const shm::PartitionContext &partition_context() const;
 
   /*!
    * Sets the graph to be partitioned by taking temporary ownership of the given pointers. In
@@ -1027,14 +1044,16 @@ public:
 
 private:
   void validate_partition_parameters();
+  shm::EdgeWeight compute_partition_impl(std::span<shm::BlockID> partition);
 
   int _num_threads;
-  tbb::global_control _gc;
+  std::unique_ptr<RuntimeContext> _runtime;
 
   int _max_timer_depth = std::numeric_limits<int>::max();
   OutputLevel _output_level = OutputLevel::APPLICATION;
 
   shm::Context _ctx;
+  shm::PartitionContext _partition;
   std::unique_ptr<shm::Graph> _graph_ptr;
 
   shm::BlockID _k = 0;

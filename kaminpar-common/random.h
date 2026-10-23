@@ -36,7 +36,11 @@ public:
   static void reseed(int seed);
 
 public:
-  template <typename... Tags> Random(Tags...) : _bool_dist(0, 1), _real_dist(0, 1) {
+  template <typename... Tags> Random(Tags... tags) : Random(get_seed(), tags...) {}
+
+  template <typename... Tags>
+  explicit Random(int seed, Tags...) : _bool_dist(0, 1),
+                                       _real_dist(0, 1) {
     static_assert(
         tag::are_all_contained<Tags...>(random::thread_independent_seeding), "invalid tags"
     );
@@ -47,7 +51,7 @@ public:
       _thread_independent_seeding = false;
     }
 
-    _local_seed = _seed;
+    _local_seed = seed;
     reset();
   }
 

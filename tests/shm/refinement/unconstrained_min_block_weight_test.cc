@@ -26,7 +26,9 @@ TYPED_TEST(UnconstrainedMinBlockWeightTest, RejectsAnImprovingMoveThatWouldUnder
   const Graph graph = make_graph({0, 1, 2}, {1, 0}, {3, 7}, {10, 10});
   PartitionedGraph p_graph = make_p_graph(graph, 2, {0, 1});
 
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.parallel.num_threads = 1;
   ctx.partition.setup(graph, {10, 10});
   ctx.partition.setup_min_block_weights({3, 2});
@@ -45,7 +47,9 @@ TYPED_TEST(UnconstrainedMinBlockWeightTest, AcceptsAnImprovingMoveDownToAnAsymme
   PartitionedGraph p_graph = make_p_graph(graph, 2, {0, 0, 1});
 
   tbb::global_control threads(tbb::global_control::max_allowed_parallelism, 1);
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.parallel.num_threads = 1;
   ctx.partition.setup(graph, {10, 10});
   ctx.partition.setup_min_block_weights({3, 1});
@@ -75,7 +79,9 @@ TEST(UnconstrainedLPMinBlockWeightTest, PreservesMinimaWithConcurrentPositiveGai
   std::vector<BlockID> partition(graph.n(), 0);
   partition.back() = 1;
 
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.parallel.num_threads = 32;
   ctx.partition.setup(graph, {256, 256});
   ctx.partition.setup_min_block_weights({64, 1});
@@ -109,16 +115,18 @@ TEST_P(UnconstrainedFMMinBlockWeightRollbackTest, KeepsOnlyFeasiblePrefixes) {
   std::vector<BlockID> partition(n, 1);
   partition[0] = partition[1] = 0;
 
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.parallel.num_threads = 4;
   ctx.partition.setup(graph, {graph.total_node_weight(), graph.total_node_weight()});
   ctx.partition.setup_min_block_weights({3, 2});
-  ctx.refinement.kway_fm.num_iterations = 3;
-  ctx.refinement.kway_fm.unconstrained_num_iterations = 1;
+  config.refinement.kway_fm.num_iterations = 3;
+  config.refinement.kway_fm.unconstrained_num_iterations = 1;
 
   for (const auto strategy :
        {GainCacheStrategy::COMPACT_HASHING, GainCacheStrategy::SPARSE, GainCacheStrategy::AUTO}) {
-    ctx.refinement.kway_fm.gain_cache_strategy = strategy;
+    config.refinement.kway_fm.gain_cache_strategy = strategy;
     PartitionedGraph p_graph = make_p_graph(graph, 2, partition);
     const EdgeWeight initial_cut = metrics::edge_cut(p_graph);
     UnconstrainedFMRefiner refiner(ctx);

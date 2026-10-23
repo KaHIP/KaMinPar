@@ -14,7 +14,7 @@ namespace kaminpar::shm {
 
 class BasicClusterCoarsener : public AbstractClusterCoarsener {
 public:
-  BasicClusterCoarsener(const Context &ctx, const PartitionContext &p_ctx);
+  BasicClusterCoarsener(const ExecutionContext &ctx, const PartitionContext &p_ctx);
 
   BasicClusterCoarsener(const BasicClusterCoarsener &) = delete;
   BasicClusterCoarsener &operator=(const BasicClusterCoarsener) = delete;

@@ -32,10 +32,14 @@ shm::PartitionedGraph KaMinParInitialPartitioner::initial_partition(
     return {graph, p_ctx.k, StaticArray<BlockID>(graph.n())};
   }
 
-  auto shm_ctx = _ctx.initial_partitioning.kaminpar;
-  shm_ctx.refinement.lp.num_iterations = 1;
+  auto config = _ctx.initial_partitioning.kaminpar;
+  config.refinement.lp.num_iterations = 1;
+  config.seed = Random::get_seed(); // Preserve the distributed API's legacy seed.
+  RuntimeContext runtime(config.seed);
+  runtime.quiet = true;
+  runtime.timer.disable();
+  shm::ExecutionContext shm_ctx(config, runtime);
   shm_ctx.partition = p_ctx;
-  shm_ctx.compression.setup(graph);
 
   /*
   std::vector<BlockWeight> max_block_weights;
@@ -49,10 +53,7 @@ shm::PartitionedGraph KaMinParInitialPartitioner::initial_partition(
   DISABLE_TIMERS();
   START_HEAP_PROFILER("KaMinPar");
 
-  const bool was_quiet = Logger::is_quiet();
-  Logger::set_quiet_mode(true);
   auto p_graph = shm::factory::create_partitioner(graph, shm_ctx)->partition();
-  Logger::set_quiet_mode(was_quiet);
 
   STOP_HEAP_PROFILER();
   ENABLE_TIMERS();

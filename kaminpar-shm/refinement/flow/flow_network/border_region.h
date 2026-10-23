@@ -225,6 +225,8 @@ private:
 };
 
 class BorderRegionConstructor {
+  RuntimeContext &_runtime;
+
   SET_DEBUG(false);
 
   static constexpr bool kSourceTag = true;
@@ -236,7 +238,8 @@ public:
       const FlowNetworkConstructionContext &c_ctx,
       const QuotientGraph &q_graph,
       const PartitionedCSRGraph &p_graph,
-      const CSRGraph &graph
+      const CSRGraph &graph,
+      RuntimeContext &runtime
   );
 
   BorderRegionConstructor(BorderRegionConstructor &&) noexcept = default;

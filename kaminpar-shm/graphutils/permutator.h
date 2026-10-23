@@ -27,10 +27,13 @@ struct NodePermutations {
 
 template <std::integral Bucket, typename Lambda>
 NodePermutations compute_node_permutation_by_generic_buckets(
-    const NodeID n, const Bucket num_buckets, Lambda &&find_bucket
+    const NodeID n,
+    const Bucket num_buckets,
+    Lambda &&find_bucket,
+    [[maybe_unused]] Timer &timer = Timer::null()
 ) {
   static_assert(std::is_invocable_r_v<NodeID, Lambda, NodeID>);
-  SCOPED_TIMER("Sort nodes by integer buckets");
+  SCOPED_TIMER_ON(timer, "Sort nodes by integer buckets");
 
   const std::size_t cpus = std::min<std::size_t>(tbb::this_task_arena::max_concurrency(), n);
 
@@ -103,16 +106,22 @@ NodePermutations compute_node_permutation_by_generic_buckets(
  */
 template <typename Lambda>
 NodePermutations compute_node_permutation_by_degree_buckets(
-    const NodeID n, Lambda &&degrees, const bool put_deg0_at_end = true
+    const NodeID n,
+    Lambda &&degrees,
+    const bool put_deg0_at_end = true,
+    [[maybe_unused]] Timer &timer = Timer::null()
 ) {
   static_assert(std::is_invocable_r_v<NodeID, Lambda, NodeID>);
   return compute_node_permutation_by_generic_buckets(
-      n, kNumberOfDegreeBuckets<NodeID>, [&](const NodeID u) {
+      n,
+      kNumberOfDegreeBuckets<NodeID>,
+      [&](const NodeID u) {
         const NodeID deg = degrees(u);
 
         return deg == 0 ? (put_deg0_at_end ? kNumberOfDegreeBuckets<NodeID> - 1 : 0)
                         : degree_bucket(deg);
-      }
+      },
+      timer
   );
 }
 
@@ -126,7 +135,9 @@ NodePermutations compute_node_permutation_by_degree_buckets(
  * @return Bidirectional node permutation.
  */
 inline NodePermutations compute_node_permutation_by_degree_buckets(
-    const StaticArray<EdgeID> &nodes, const bool put_deg0_at_end = true
+    const StaticArray<EdgeID> &nodes,
+    const bool put_deg0_at_end = true,
+    [[maybe_unused]] Timer &timer = Timer::null()
 ) {
   return compute_node_permutation_by_degree_buckets(
       nodes.size() - 1,
@@ -134,7 +145,8 @@ inline NodePermutations compute_node_permutation_by_degree_buckets(
         const NodeID degree = nodes[u + 1] - nodes[u];
         return degree;
       },
-      put_deg0_at_end
+      put_deg0_at_end,
+      timer
   );
 }
 
@@ -212,10 +224,15 @@ NodePermutations rearrange_graph(
     StaticArray<EdgeID> &nodes,
     StaticArray<NodeID> &edges,
     StaticArray<NodeWeight> &node_weights,
-    StaticArray<EdgeWeight> &edge_weights
+    StaticArray<EdgeWeight> &edge_weights,
+    [[maybe_unused]] Timer &timer = Timer::null()
 );
 
-CSRGraph rearrange_graph(const CSRGraph &graph, const NodePermutations &permutations);
+CSRGraph rearrange_graph(
+    const CSRGraph &graph,
+    const NodePermutations &permutations,
+    [[maybe_unused]] Timer &timer = Timer::null()
+);
 
 /*!
  * Rearranges the nodes of the graph such that nodes are sorted by their exponentially spaced degree
@@ -224,7 +241,7 @@ CSRGraph rearrange_graph(const CSRGraph &graph, const NodePermutations &permutat
  * @param graph The graph to rearrange.
  * @return The rearranged graph.
  */
-Graph rearrange_by_degree_buckets(CSRGraph &graph);
+Graph rearrange_by_degree_buckets(CSRGraph &graph, [[maybe_unused]] Timer &timer = Timer::null());
 
 /*!
  * Rearrange the neighborhood of each node in a graph, so that the ordering is the same as in the
@@ -232,7 +249,7 @@ Graph rearrange_by_degree_buckets(CSRGraph &graph);
  *
  * @param graph The graph to rearrange
  */
-void reorder_edges_by_compression(CSRGraph &graph);
+void reorder_edges_by_compression(CSRGraph &graph, [[maybe_unused]] Timer &timer = Timer::null());
 
 /*!
  * Reserve isolated-node weight against the minimum block weights before partitioning the

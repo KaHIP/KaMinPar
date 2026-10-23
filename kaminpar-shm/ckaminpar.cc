@@ -74,6 +74,13 @@ void kaminpar_free(kaminpar_t *kaminpar) {
   delete kaminpar;
 }
 
+void kaminpar_reseed(kaminpar_t *kaminpar, int seed) {
+  kaminpar->kaminpar.reseed(seed);
+}
+int kaminpar_get_seed(const kaminpar_t *kaminpar) {
+  return kaminpar->kaminpar.get_seed();
+}
+
 void kaminpar_set_output_level(kaminpar_t *kaminpar, kaminpar_output_level_t output_level) {
   kaminpar::OutputLevel cpp_output_level;
 

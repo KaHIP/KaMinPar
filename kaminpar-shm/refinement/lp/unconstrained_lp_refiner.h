@@ -16,7 +16,7 @@ namespace kaminpar::shm {
 
 class UnconstrainedLabelPropagationRefiner : public Refiner {
 public:
-  UnconstrainedLabelPropagationRefiner(const Context &ctx);
+  UnconstrainedLabelPropagationRefiner(const ExecutionContext &ctx);
 
   UnconstrainedLabelPropagationRefiner(const UnconstrainedLabelPropagationRefiner &) = delete;
   UnconstrainedLabelPropagationRefiner &

@@ -15,16 +15,19 @@
 namespace kaminpar::shm::contraction {
 
 void fill_leader_mapping(
-    const Graph &graph, const StaticArray<NodeID> &clustering, StaticArray<NodeID> &leader_mapping
+    const Graph &graph,
+    const StaticArray<NodeID> &clustering,
+    StaticArray<NodeID> &leader_mapping,
+    [[maybe_unused]] Timer &timer
 ) {
   reified(graph, [&](const auto &graph) {
-    TIMED_SCOPE("Allocation") {
+    TIMED_SCOPE_ON(timer, "Allocation") {
       if (leader_mapping.size() < graph.n()) {
         leader_mapping.resize(graph.n(), static_array::noinit);
       }
     };
 
-    TIMED_SCOPE("Preprocessing") {
+    TIMED_SCOPE_ON(timer, "Preprocessing") {
       graph.pfor_nodes([&](const NodeID u) { leader_mapping[u] = 0; });
       graph.pfor_nodes([&](const NodeID u) {
         __atomic_store_n(&leader_mapping[clustering[u]], 1, __ATOMIC_RELAXED);
@@ -37,10 +40,13 @@ void fill_leader_mapping(
 }
 
 StaticArray<NodeID> compute_mapping(
-    const Graph &graph, StaticArray<NodeID> clustering, const StaticArray<NodeID> &leader_mapping
+    const Graph &graph,
+    StaticArray<NodeID> clustering,
+    const StaticArray<NodeID> &leader_mapping,
+    [[maybe_unused]] Timer &timer
 ) {
   reified(graph, [&](const auto &graph) {
-    TIMED_SCOPE("Preprocessing") {
+    TIMED_SCOPE_ON(timer, "Preprocessing") {
       graph.pfor_nodes([&](const NodeID u) {
         clustering[u] = __atomic_load_n(&leader_mapping[clustering[u]], __ATOMIC_RELAXED) - 1;
       });
@@ -50,15 +56,20 @@ StaticArray<NodeID> compute_mapping(
   return clustering;
 }
 
-std::pair<NodeID, StaticArray<NodeID>>
-compute_mapping(const Graph &graph, StaticArray<NodeID> clustering, MemoryContext &m_ctx) {
+std::pair<NodeID, StaticArray<NodeID>> compute_mapping(
+    const Graph &graph,
+    StaticArray<NodeID> clustering,
+    MemoryContext &m_ctx,
+    [[maybe_unused]] Timer &timer
+) {
   SCOPED_HEAP_PROFILER("Compute mapping");
 
-  fill_leader_mapping(graph, clustering, m_ctx.leader_mapping);
-  StaticArray<NodeID> mapping = compute_mapping(graph, std::move(clustering), m_ctx.leader_mapping);
+  fill_leader_mapping(graph, clustering, m_ctx.leader_mapping, timer);
+  StaticArray<NodeID> mapping =
+      compute_mapping(graph, std::move(clustering), m_ctx.leader_mapping, timer);
   const NodeID c_n = m_ctx.leader_mapping[graph.n() - 1];
 
-  TIMED_SCOPE("Deallocation") {
+  TIMED_SCOPE_ON(timer, "Deallocation") {
     m_ctx.leader_mapping.free();
   };
 
@@ -70,11 +81,12 @@ void fill_cluster_buckets(
     const Graph &graph,
     const StaticArray<NodeID> &mapping,
     StaticArray<NodeID> &buckets_index,
-    StaticArray<NodeID> &buckets
+    StaticArray<NodeID> &buckets,
+    [[maybe_unused]] Timer &timer
 ) {
   SCOPED_HEAP_PROFILER("Fill cluster buckets");
 
-  TIMED_SCOPE("Allocation") {
+  TIMED_SCOPE_ON(timer, "Allocation") {
     if (buckets.size() < graph.n()) {
       buckets.resize(graph.n(), static_array::noinit);
     }
@@ -84,7 +96,7 @@ void fill_cluster_buckets(
     }
   };
 
-  TIMED_SCOPE("Preprocessing") {
+  TIMED_SCOPE_ON(timer, "Preprocessing") {
     tbb::parallel_for<NodeID>(0, c_n + 1, [&](const NodeID i) { buckets_index[i] = 0; });
     reified(graph, [&](const auto &graph) {
       graph.pfor_nodes([&](const NodeID u) {

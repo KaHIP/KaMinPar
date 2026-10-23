@@ -21,7 +21,9 @@ SET_DEBUG(false);
 
 }
 
-BasicClusterCoarsener::BasicClusterCoarsener(const Context &ctx, const PartitionContext &p_ctx)
+BasicClusterCoarsener::BasicClusterCoarsener(
+    const ExecutionContext &ctx, const PartitionContext &p_ctx
+)
     : AbstractClusterCoarsener(ctx, p_ctx) {}
 
 bool BasicClusterCoarsener::coarsen() {

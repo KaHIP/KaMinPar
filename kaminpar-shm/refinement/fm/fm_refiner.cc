@@ -48,7 +48,7 @@ SET_STATISTICS_FROM_GLOBAL();
 namespace fm {
 
 template <typename GainCache> struct SharedData {
-  SharedData(const Context &ctx, const NodeID preallocate_n, const BlockID preallocate_k)
+  SharedData(const ExecutionContext &ctx, const NodeID preallocate_n, const BlockID preallocate_k)
       : node_tracker(preallocate_n),
         gain_cache(ctx, preallocate_n, preallocate_k),
         border_nodes(gain_cache, node_tracker),
@@ -514,7 +514,7 @@ class FMRefinerCore : public Refiner {
   using GainCache = GainCacheTemplate<Graph>;
 
 public:
-  FMRefinerCore(const Context &ctx) : _ctx(ctx), _fm_ctx(ctx.refinement.kway_fm) {}
+  FMRefinerCore(const ExecutionContext &ctx) : _ctx(ctx), _fm_ctx(ctx.config.refinement.kway_fm) {}
 
   void initialize([[maybe_unused]] const PartitionedGraph &p_graph) final {
     if (_uninitialized) {
@@ -527,11 +527,11 @@ public:
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final {
     SCOPED_HEAP_PROFILER("FM");
-    SCOPED_TIMER("FM");
+    SCOPED_TIMER_ON(_ctx.runtime.timer, "FM");
 
     const Graph &graph = as_concrete_graph<Graph>(p_graph.graph());
 
-    TIMED_SCOPE("Initialize gain cache") {
+    TIMED_SCOPE_ON(_ctx.runtime.timer, "Initialize gain cache") {
       _shared->gain_cache.initialize(graph, p_graph);
     };
 
@@ -565,20 +565,20 @@ public:
       tbb::enumerable_thread_specific<EdgeWeight> expected_gain_ets;
 
       // Find current border nodes
-      START_TIMER("Initialize border nodes");
+      START_TIMER_ON(_ctx.runtime.timer, "Initialize border nodes");
       _shared->border_nodes.init(p_graph); // also resets the NodeTracker
-      _shared->border_nodes.shuffle();
+      _shared->border_nodes.shuffle(_ctx.runtime.random.local());
       _shared->abort = 0;
-      STOP_TIMER();
+      STOP_TIMER_ON(_ctx.runtime.timer);
 
       DBG << "Starting FM iteration " << iteration << " with " << _shared->border_nodes.size()
           << " border nodes and " << _ctx.parallel.num_threads << " worker threads";
 
       // Start one worker per thread
       if (graph.n() == _ctx.partition.n) {
-        START_TIMER("Localized searches, fine level");
+        START_TIMER_ON(_ctx.runtime.timer, "Localized searches, fine level");
       } else {
-        START_TIMER("Localized searches, coarse level");
+        START_TIMER_ON(_ctx.runtime.timer, "Localized searches, coarse level");
       }
 
       std::atomic<int> num_finished_workers = 0;
@@ -592,7 +592,7 @@ public:
         // no more border nodes
         while (_shared->border_nodes.has_more()) {
           if (_fm_ctx.dbg_report_progress) {
-            LLOG << " " << _shared->border_nodes.remaining();
+            LLOG_ON(_ctx.runtime) << " " << _shared->border_nodes.remaining();
           }
 
           const auto expected_batch_gain = localized_refiner.run_batch();
@@ -612,7 +612,7 @@ public:
           _shared->abort = 1;
         }
       });
-      STOP_TIMER();
+      STOP_TIMER_ON(_ctx.runtime.timer);
 
       IFSTATSC(_fm_ctx.dbg_compute_batch_stats, batch_stats.next_iteration());
 
@@ -647,15 +647,15 @@ public:
   }
 
 private:
-  const Context &_ctx;
+  const ExecutionContext &_ctx;
   const KwayFMRefinementContext &_fm_ctx;
 
   bool _uninitialized = true;
   std::unique_ptr<fm::SharedData<GainCache>> _shared;
 };
 template <typename Graph>
-std::unique_ptr<Refiner> create_fm_core(const Context &ctx, const Graph &graph) {
-  switch (ctx.refinement.kway_fm.gain_cache_strategy) {
+std::unique_ptr<Refiner> create_fm_core(const ExecutionContext &ctx, const Graph &graph) {
+  switch (ctx.config.refinement.kway_fm.gain_cache_strategy) {
   case GainCacheStrategy::AUTO:
     // Sparse levels spend more time maintaining a cache than rescanning their short rows.
     // Keep the caller's explicit cache selections unchanged.
@@ -692,11 +692,14 @@ std::unique_ptr<Refiner> create_fm_core(const Context &ctx, const Graph &graph) 
 #endif // KAMINPAR_EXPERIMENTAL
 
   default:
-    LOG_WARNING << "The selected gain cache strategy '"
-                << stringify_enum(ctx.refinement.kway_fm.gain_cache_strategy)
-                << "' is not available in this build. Rebuild with experimental features enabled.";
-    LOG_WARNING << "Using the default gain cache strategy '"
-                << stringify_enum(GainCacheStrategy::COMPACT_HASHING) << "' instead.";
+    LOG_WARNING_ON(
+        ctx.runtime
+    ) << "The selected gain cache strategy '"
+      << stringify_enum(ctx.config.refinement.kway_fm.gain_cache_strategy)
+      << "' is not available in this build. Rebuild with experimental features enabled.";
+    LOG_WARNING_ON(ctx.runtime) << "Using the default gain cache strategy '"
+                                << stringify_enum(GainCacheStrategy::COMPACT_HASHING)
+                                << "' instead.";
     [[fallthrough]];
 
   case GainCacheStrategy::COMPACT_HASHING:
@@ -706,7 +709,8 @@ std::unique_ptr<Refiner> create_fm_core(const Context &ctx, const Graph &graph) 
 
 namespace fm {
 
-std::unique_ptr<Refiner> create_fm_core(const Context &ctx, const PartitionedGraph &p_graph) {
+std::unique_ptr<Refiner>
+create_fm_core(const ExecutionContext &ctx, const PartitionedGraph &p_graph) {
   return reified(p_graph, [&]<typename Graph>(Graph &graph) -> std::unique_ptr<Refiner> {
     return ::kaminpar::shm::create_fm_core<Graph>(ctx, graph);
   });
@@ -714,7 +718,7 @@ std::unique_ptr<Refiner> create_fm_core(const Context &ctx, const PartitionedGra
 
 } // namespace fm
 
-FMRefiner::FMRefiner(const Context &input_ctx) : _ctx(input_ctx) {}
+FMRefiner::FMRefiner(const ExecutionContext &input_ctx) : _ctx(input_ctx) {}
 FMRefiner::~FMRefiner() = default;
 
 std::string FMRefiner::name() const {

@@ -14,7 +14,7 @@
 namespace kaminpar::shm {
 class SparsificationClusterCoarsener : public AbstractClusterCoarsener {
 public:
-  SparsificationClusterCoarsener(const Context &ctx, const PartitionContext &p_ctx);
+  SparsificationClusterCoarsener(const ExecutionContext &ctx, const PartitionContext &p_ctx);
 
   SparsificationClusterCoarsener(const SparsificationClusterCoarsener &) = delete;
   SparsificationClusterCoarsener &operator=(const SparsificationClusterCoarsener) = delete;

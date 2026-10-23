@@ -31,7 +31,8 @@ SET_DEBUG(false);
 
 }
 
-BlockParallelOverloadBalancer::BlockParallelOverloadBalancer(const Context &ctx) : _ctx(ctx) {}
+BlockParallelOverloadBalancer::BlockParallelOverloadBalancer(const ExecutionContext &ctx)
+    : _ctx(ctx) {}
 
 BlockParallelOverloadBalancer::~BlockParallelOverloadBalancer() = default;
 
@@ -51,7 +52,7 @@ void BlockParallelOverloadBalancer::track_moves(MoveTracker move_tracker) {
 bool BlockParallelOverloadBalancer::refine(
     PartitionedGraph &p_graph, const PartitionContext &p_ctx
 ) {
-  SCOPED_TIMER("Overload Balancer");
+  SCOPED_TIMER_ON(_ctx.runtime.timer, "Overload Balancer");
   SCOPED_HEAP_PROFILER("Overload Balancer");
 
   _p_graph = &p_graph;
@@ -86,7 +87,7 @@ BlockWeight BlockParallelOverloadBalancer::perform_round(const Graph &graph) {
 
   auto &gain_cache = _gain_cache.get<Graph>();
 
-  START_TIMER("Main loop");
+  START_TIMER_ON(_ctx.runtime.timer, "Main loop");
   SCOPED_HEAP_PROFILER("Main loop");
 
   tbb::parallel_for<BlockID>(0, _p_graph->k(), [&](const BlockID from) {
@@ -161,13 +162,13 @@ BlockWeight BlockParallelOverloadBalancer::perform_round(const Graph &graph) {
     );
   });
 
-  STOP_TIMER();
+  STOP_TIMER_ON(_ctx.runtime.timer);
 
   return overload_delta.combine(std::plus{});
 }
 
 template <typename Graph> void BlockParallelOverloadBalancer::init_pq(const Graph &graph) {
-  SCOPED_TIMER("Initialize balancer PQ");
+  SCOPED_TIMER_ON(_ctx.runtime.timer, "Initialize balancer PQ");
   SCOPED_HEAP_PROFILER("Initialize balancer PQ");
 
   const BlockID k = _p_graph->k();
@@ -181,7 +182,7 @@ template <typename Graph> void BlockParallelOverloadBalancer::init_pq(const Grap
 
   // build thread-local PQs: one PQ for each thread and block, each PQ for block
   // b has at most roughly |overload[b]| weight
-  START_TIMER("Thread-local");
+  START_TIMER_ON(_ctx.runtime.timer, "Thread-local");
   tbb::parallel_for<NodeID>(0, graph.n(), [&](const NodeID u) {
     auto &pq = local_pq.local();
     auto &pq_weight = local_pq_weight.local();
@@ -206,12 +207,12 @@ template <typename Graph> void BlockParallelOverloadBalancer::init_pq(const Grap
       }
     }
   });
-  STOP_TIMER();
+  STOP_TIMER_ON(_ctx.runtime.timer);
 
   // build global PQ: one PQ per block, block-level parallelism
   _pq.clear();
 
-  START_TIMER("Merge thread-local PQs");
+  START_TIMER_ON(_ctx.runtime.timer, "Merge thread-local PQs");
   tbb::parallel_for(static_cast<BlockID>(0), k, [&](const BlockID b) {
     _pq_weight[b] = 0;
 
@@ -221,7 +222,7 @@ template <typename Graph> void BlockParallelOverloadBalancer::init_pq(const Grap
       }
     }
   });
-  STOP_TIMER();
+  STOP_TIMER_ON(_ctx.runtime.timer);
 }
 
 std::pair<BlockID, float> BlockParallelOverloadBalancer::compute_best_gain(
@@ -300,7 +301,7 @@ bool BlockParallelOverloadBalancer::move_to_random_block(const NodeID node) {
   while (!feasible_target_blocks.empty()) {
     // Get random block from feasible block list
     const std::size_t n = feasible_target_blocks.size();
-    const std::size_t i = Random::instance().random_index(0, n);
+    const std::size_t i = _ctx.runtime.random.local().random_index(0, n);
     const BlockID to = feasible_target_blocks[i];
     KASSERT(from != to);
 

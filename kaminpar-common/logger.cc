@@ -123,10 +123,15 @@ Logger::Logger() : Logger(std::cout) {}
 Logger::Logger(std::ostream &out, std::string append)
     : _buffer(),
       _out(out),
-      _append(std::move(append)) {}
+      _append(std::move(append)),
+      _quiet_for_message(is_quiet()) {}
+
+Logger::Logger(bool quiet, std::ostream &out, std::string append) : Logger(out, std::move(append)) {
+  _quiet_for_message = quiet;
+}
 
 void Logger::flush() {
-  if (_quiet) {
+  if (_quiet_for_message) {
     return;
   }
 

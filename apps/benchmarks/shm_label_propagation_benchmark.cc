@@ -28,7 +28,9 @@ using namespace kaminpar::shm;
 
 int main(int argc, char *argv[]) {
   // Create context
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
 
   // Parse CLI arguments
   std::string graph_filename;
@@ -67,29 +69,33 @@ int main(int argc, char *argv[]) {
   app.add_option("-t,--threads", ctx.parallel.num_threads, "Number of threads");
   app.add_option("-s,--seed", seed, "Seed for random number generation.")->default_val(seed);
 
-  create_lp_coarsening_options(&app, ctx);
-  create_partitioning_rearrangement_options(&app, ctx);
-  create_graph_compression_options(&app, ctx);
+  create_lp_coarsening_options(&app, config);
+  create_partitioning_rearrangement_options(&app, config);
+  create_graph_compression_options(&app, config);
   CLI11_PARSE(app, argc, argv);
 
   tbb::global_control gc(tbb::global_control::max_allowed_parallelism, ctx.parallel.num_threads);
-  Random::reseed(seed);
+  runtime.random.reseed(seed);
+  config.seed = seed;
 
-  auto graph =
-      io::read_graph(graph_filename, graph_file_format, ctx.compression.enabled, ctx.node_ordering);
+  auto graph = io::read_graph(
+      graph_filename, graph_file_format, config.compression.enabled, config.node_ordering
+  );
   if (!graph) {
     LOG_ERROR << "Failed to read the input graph";
     return EXIT_FAILURE;
   }
 
-  ctx.compression.setup(*graph);
+  GraphCompressionStatistics compression;
+  compression.enabled = config.compression.enabled;
+  compression.setup(*graph);
   ctx.partition.setup(*graph, k, epsilon);
 
-  if (ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
-    if (ctx.compression.enabled) {
+  if (config.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
+    if (config.compression.enabled) {
       LOG_WARNING << "A compressed graph cannot be rearranged by degree buckets. Disabling "
                      "degree bucket ordering!";
-      ctx.node_ordering = NodeOrdering::NATURAL;
+      config.node_ordering = NodeOrdering::NATURAL;
     } else if (!graph->sorted()) {
       graph = graph::rearrange_by_degree_buckets(graph->csr_graph());
     }
@@ -103,10 +109,10 @@ int main(int argc, char *argv[]) {
     });
   }
 
-  LPClustering lp_clustering(ctx.coarsening);
+  LPClustering lp_clustering(config.coarsening, runtime);
   lp_clustering.set_max_cluster_weight(
       compute_max_cluster_weight<NodeWeight>(
-          ctx.coarsening, ctx.partition, graph->n(), graph->total_node_weight()
+          config.coarsening, ctx.partition, graph->n(), graph->total_node_weight()
       )
   );
   lp_clustering.set_desired_cluster_count(0);
@@ -118,25 +124,25 @@ int main(int argc, char *argv[]) {
   StaticArray<NodeID> clustering(graph->n());
   STOP_HEAP_PROFILER();
   START_HEAP_PROFILER("Label Propagation");
-  TIMED_SCOPE("Label Propagation") {
+  TIMED_SCOPE_ON(runtime.timer, "Label Propagation") {
     lp_clustering.compute_clustering(clustering, *graph, false);
   };
   STOP_HEAP_PROFILER();
   DISABLE_HEAP_PROFILER();
 
-  STOP_TIMER();
+  STOP_TIMER_ON(runtime.timer);
 
   cio::print_delimiter("Input Summary", '#');
   std::cout << "Execution mode:               " << ctx.parallel.num_threads << "\n";
-  std::cout << "Seed:                         " << Random::get_seed() << "\n";
+  std::cout << "Seed:                         " << runtime.random.seed() << "\n";
   cio::print_delimiter("Graph Compression", '-');
-  std::cout << ctx.compression;
+  std::cout << compression;
   cio::print_delimiter("Coarsening", '-');
-  std::cout << ctx.coarsening;
+  std::cout << config.coarsening;
   LOG;
 
   cio::print_delimiter("Result Summary");
-  Timer::global().print_human_readable(std::cout);
+  runtime.timer.print_human_readable(std::cout);
   LOG;
 
   heap_profiler::HeapProfiler::global().set_experiment_summary_options();

@@ -39,12 +39,14 @@ BlockID compute_final_k(const BlockID block, const BlockID current_k, const Bloc
   // base + 1.
   static_assert(sizeof(BlockID) == 4);
   std::array<BlockID, 16> lut = {0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7, 15};
-  const std::int64_t reversed_block = static_cast<std::int64_t>(
+  const std::int64_t reversed_block =
+      static_cast<std::int64_t>(
           lut[(block & 0xF0'00'00'00) >> 28] | (lut[(block & 0x0F'00'00'00) >> 24] << 4) |
           (lut[(block & 0x00'F0'00'00) >> 20] << 8) | (lut[(block & 0x00'0F'00'00) >> 16] << 12) |
           (lut[(block & 0x00'00'F0'00) >> 12] << 16) | (lut[(block & 0x00'00'0F'00) >> 8] << 20) |
           (lut[(block & 0x00'00'00'F0) >> 4] << 24) | (lut[block & 0x00'00'00'0F] << 28)
-      ) >> (32 - level);
+      ) >>
+      (32 - level);
 
   return base + (reversed_block < num_plus_one_blocks);
 }
@@ -89,23 +91,26 @@ BlockID compute_first_invalid_sub_block(
          compute_final_k(block, current_k, input_k);
 }
 
-BlockID compute_k_for_n(const NodeID n, const Context &input_ctx) {
+BlockID compute_k_for_n(const NodeID n, const ExecutionContext &input_ctx) {
   // Catch special case where log is negative:
-  if (n < 2 * input_ctx.coarsening.contraction_limit) {
+  if (n < 2 * input_ctx.config.coarsening.contraction_limit) {
     return 2;
   }
 
-  const BlockID k_prime = 1 << math::ceil_log2(n / input_ctx.coarsening.contraction_limit);
+  const BlockID k_prime = 1 << math::ceil_log2(n / input_ctx.config.coarsening.contraction_limit);
   return std::clamp<BlockID>(k_prime, 2, input_ctx.partition.k);
 }
 
 std::size_t compute_num_copies(
-    const Context &input_ctx, const NodeID n, const bool converged, const std::size_t num_threads
+    const ExecutionContext &input_ctx,
+    const NodeID n,
+    const bool converged,
+    const std::size_t num_threads
 ) {
   KASSERT(num_threads > 0u);
 
   // Sequential base case;
-  const NodeID C = input_ctx.coarsening.contraction_limit;
+  const NodeID C = input_ctx.config.coarsening.contraction_limit;
   if (converged || n <= 2 * C) {
     return num_threads;
   }
@@ -122,16 +127,16 @@ std::size_t compute_num_copies(
   return num_threads / f;
 }
 
-int compute_num_threads_for_parallel_ip(const Context &input_ctx) {
+int compute_num_threads_for_parallel_ip(const ExecutionContext &input_ctx) {
   return math::floor2(
       static_cast<unsigned int>(
           1.0 * input_ctx.parallel.num_threads *
-          input_ctx.partitioning.deep_initial_partitioning_load
+          input_ctx.config.partitioning.deep_initial_partitioning_load
       )
   );
 }
 
-BlockID compute_next_k(const BlockID current_k, const Context &input_ctx) {
+BlockID compute_next_k(const BlockID current_k, const ExecutionContext &input_ctx) {
   return std::min<BlockID>(current_k * 2, input_ctx.partition.k);
 }
 

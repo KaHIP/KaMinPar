@@ -40,7 +40,7 @@ option(KAMINPAR_DOWNLOAD_GTEST "Always download GoogleTest even if it's availabl
 option(KAMINPAR_ENABLE_HEAP_PROFILING "Profile and output heap memory usage." OFF)
 option(KAMINPAR_ENABLE_PAGE_PROFILING "Profile pages allocated via mmap." OFF)
 option(KAMINPAR_ENABLE_STATISTICS "Generate and output detailed statistics." OFF)
-option(KAMINPAR_ENABLE_TIMERS "Measure running times. Must be set to 'OFF' if the library interface is used from multiple threads simulatinously." ON)
+option(KAMINPAR_ENABLE_TIMERS "Measure running times with separate timer trees for shared-memory library instances." ON)
 option(KAMINPAR_ENABLE_TIMER_BARRIERS "Add additional MPI_Barrier() instructions for more accurate time measurements." ON)
 
 option(KAMINPAR_ENABLE_TBB_MALLOC "Use tbb malloc for (some) allocations." ON)

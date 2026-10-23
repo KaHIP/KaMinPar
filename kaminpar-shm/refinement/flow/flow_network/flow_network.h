@@ -26,11 +26,14 @@ struct FlowNetwork {
 };
 
 class FlowNetworkConstructor {
+  RuntimeContext &_runtime;
+
 public:
   FlowNetworkConstructor(
       const FlowNetworkConstructionContext &c_ctx,
       const PartitionedCSRGraph &p_graph,
-      const CSRGraph &graph
+      const CSRGraph &graph,
+      RuntimeContext &runtime
   );
 
   FlowNetworkConstructor(FlowNetworkConstructor &&) noexcept = default;

@@ -15,12 +15,10 @@ namespace kaminpar::shm {
 
 class InitialRandomBipartitioner : public InitialFlatBipartitioner {
 public:
-  explicit InitialRandomBipartitioner(const InitialPoolPartitionerContext &pool_ctx);
+  explicit InitialRandomBipartitioner(const InitialPoolPartitionerContext &pool_ctx, Random &rand);
 
 protected:
   void fill_bipartition() final;
-
-  Random &_rand = Random::instance();
 };
 
 } // namespace kaminpar::shm

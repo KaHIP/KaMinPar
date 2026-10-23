@@ -17,7 +17,7 @@ namespace kaminpar::shm {
 
 class VcycleDeepMultilevelPartitioner : public Partitioner {
 public:
-  VcycleDeepMultilevelPartitioner(const Graph &input_graph, const Context &input_ctx);
+  VcycleDeepMultilevelPartitioner(const Graph &input_graph, const ExecutionContext &input_ctx);
 
   VcycleDeepMultilevelPartitioner(const VcycleDeepMultilevelPartitioner &) = delete;
   VcycleDeepMultilevelPartitioner &operator=(const VcycleDeepMultilevelPartitioner &) = delete;
@@ -29,7 +29,7 @@ public:
 
 private:
   const Graph &_input_graph;
-  const Context &_input_ctx;
+  const ExecutionContext &_input_ctx;
 };
 
 } // namespace kaminpar::shm

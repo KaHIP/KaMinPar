@@ -30,7 +30,9 @@ void expect_consistent_bounds(const PartitionedGraph &p_graph, const PartitionCo
 
 TEST(UnderloadBalancerNonadjacentTest, FillsAnEmptyBlockWithoutAdjacentDonors) {
   const Graph graph = make_complete_graph(12);
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.parallel.num_threads = 4;
   ctx.partition.setup(graph, {6, 6, 6});
   ctx.partition.setup_min_block_weights({4, 4, 4});
@@ -56,7 +58,9 @@ TEST(UnderloadBalancerNonadjacentTest, FillsDisconnectedCommunitiesFromRemoteSla
     }
   }
   const Graph graph = builder.build();
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.parallel.num_threads = 4;
   ctx.partition.setup(graph, {9, 8, 7});
   ctx.partition.setup_min_block_weights({5, 5, 5});
@@ -71,7 +75,9 @@ TEST(UnderloadBalancerNonadjacentTest, FillsDisconnectedCommunitiesFromRemoteSla
 
 TEST(UnderloadBalancerNonadjacentTest, ExplicitUnitWeightsSkipZeroWeightNodes) {
   const Graph graph = make_graph(std::vector<EdgeID>(9, 0), {}, {0, 1, 1, 1, 0, 1, 1, 1}, {});
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.parallel.num_threads = 4;
   ctx.partition.setup(graph, {3, 3, 2});
   ctx.partition.setup_min_block_weights({2, 2, 2});
@@ -87,7 +93,9 @@ TEST(UnderloadBalancerNonadjacentTest, ExplicitUnitWeightsSkipZeroWeightNodes) {
 
 TEST(UnderloadBalancerNonadjacentTest, WeightedNodesFitTargetsAndPreserveDonorMinima) {
   const Graph graph = make_graph(std::vector<EdgeID>(7, 0), {}, {3, 1, 1, 1, 1, 1}, {});
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.parallel.num_threads = 4;
   ctx.partition.setup(graph, {5, 2, 5});
   ctx.partition.setup_min_block_weights({2, 2, 4});
@@ -105,7 +113,9 @@ TEST(UnderloadBalancerNonadjacentTest, WeightedNodesFitTargetsAndPreserveDonorMi
 
 TEST(UnderloadBalancerNonadjacentTest, InsufficientSlackDoesNotUnderloadDonors) {
   const Graph graph = make_empty_graph(4);
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.parallel.num_threads = 4;
   ctx.partition.setup(graph, {4, 4});
   ctx.partition.setup_min_block_weights({3, 3});
@@ -123,7 +133,9 @@ TEST(UnderloadBalancerNonadjacentTest, InsufficientSlackDoesNotUnderloadDonors) 
 TEST(UnderloadBalancerNonadjacentTest, UnconfiguredMinimaLeaveThePartitionUnchanged) {
   const Graph graph = make_complete_graph(12);
   const std::vector<BlockID> partition(12, 0);
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.parallel.num_threads = 4;
   ctx.partition.setup(graph, {12, 12, 12});
   auto p_graph = make_p_graph(graph, 3, partition);
@@ -138,7 +150,9 @@ TEST(UnderloadBalancerNonadjacentTest, UnconfiguredMinimaLeaveThePartitionUnchan
 
 TEST(UnderloadBalancerNonadjacentTest, CompletesAfterParallelAdjacentMovesOnRepeatedRefinement) {
   const Graph graph = make_complete_graph(128);
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.parallel.num_threads = 4;
   ctx.partition.setup(graph, {128, 44, 44});
   ctx.partition.setup_min_block_weights({42, 42, 42});

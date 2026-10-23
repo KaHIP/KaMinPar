@@ -16,7 +16,7 @@ namespace kaminpar::shm {
 
 class LabelPropagationRefiner : public Refiner {
 public:
-  LabelPropagationRefiner(const Context &ctx);
+  LabelPropagationRefiner(const ExecutionContext &ctx);
 
   LabelPropagationRefiner(const LabelPropagationRefiner &) = delete;
   LabelPropagationRefiner &operator=(const LabelPropagationRefiner &) = delete;

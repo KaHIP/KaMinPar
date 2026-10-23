@@ -11,9 +11,10 @@
 
 namespace kaminpar::shm {
 
-InitialRandomBipartitioner::InitialRandomBipartitioner(const InitialPoolPartitionerContext &pool_ctx
+InitialRandomBipartitioner::InitialRandomBipartitioner(
+    const InitialPoolPartitionerContext &pool_ctx, Random &rand
 )
-    : InitialFlatBipartitioner(pool_ctx) {}
+    : InitialFlatBipartitioner(pool_ctx, rand) {}
 
 void InitialRandomBipartitioner::fill_bipartition() {
   for (const NodeID u : _graph->nodes()) {

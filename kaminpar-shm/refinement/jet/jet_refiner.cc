@@ -70,7 +70,7 @@ template <typename Graph> class JetRefinerImpl {
   using OnTheFlyCache = OnTheFlyGainCache<Graph, false, false, true>;
 
 public:
-  JetRefinerImpl(const Context &ctx) : _ctx(ctx) {}
+  JetRefinerImpl(const ExecutionContext &ctx) : _ctx(ctx) {}
 
   JetRefinerImpl(const JetRefinerImpl &) = delete;
   JetRefinerImpl &operator=(const JetRefinerImpl &) = delete;
@@ -79,19 +79,19 @@ public:
   JetRefinerImpl &operator=(JetRefinerImpl &&) = default;
 
   void initialize(const PartitionedGraph &p_graph) {
-    SCOPED_TIMER("Jet Refiner");
-    SCOPED_TIMER("Initialization");
+    SCOPED_TIMER_ON(_ctx.runtime.timer, "Jet Refiner");
+    SCOPED_TIMER_ON(_ctx.runtime.timer, "Initialization");
 
     const bool is_coarse_level = p_graph.graph().level() > 0;
 
     if (is_coarse_level) {
-      _num_rounds = _ctx.refinement.jet.num_rounds_on_coarse_level;
-      _initial_gain_temp = _ctx.refinement.jet.initial_gain_temp_on_coarse_level;
-      _final_gain_temp = _ctx.refinement.jet.final_gain_temp_on_coarse_level;
+      _num_rounds = _ctx.config.refinement.jet.num_rounds_on_coarse_level;
+      _initial_gain_temp = _ctx.config.refinement.jet.initial_gain_temp_on_coarse_level;
+      _final_gain_temp = _ctx.config.refinement.jet.final_gain_temp_on_coarse_level;
     } else {
-      _num_rounds = _ctx.refinement.jet.num_rounds_on_fine_level;
-      _initial_gain_temp = _ctx.refinement.jet.initial_gain_temp_on_fine_level;
-      _final_gain_temp = _ctx.refinement.jet.final_gain_temp_on_fine_level;
+      _num_rounds = _ctx.config.refinement.jet.num_rounds_on_fine_level;
+      _initial_gain_temp = _ctx.config.refinement.jet.initial_gain_temp_on_fine_level;
+      _final_gain_temp = _ctx.config.refinement.jet.final_gain_temp_on_fine_level;
     }
 
     DBG << "Initialized Jet refiner: " << _num_rounds << " rounds, gain temperature in range ["
@@ -99,11 +99,11 @@ public:
   }
 
   bool refine(PartitionedGraph &p_graph, const Graph &graph, const PartitionContext &p_ctx) {
-    SCOPED_TIMER("Jet Refiner");
+    SCOPED_TIMER_ON(_ctx.runtime.timer, "Jet Refiner");
     if (_num_rounds <= 0 || p_graph.k() < 2) {
       return false;
     }
-    const auto strategy = _ctx.refinement.jet.gain_cache_strategy;
+    const auto strategy = _ctx.config.refinement.jet.gain_cache_strategy;
     if (strategy != GainCacheStrategy::SPARSE && strategy != GainCacheStrategy::ON_THE_FLY) {
       throw std::invalid_argument("Jet supports only sparse and on-the-fly gain caches");
     }
@@ -122,8 +122,8 @@ private:
     const UnsignedEdgeWeight packed_limit =
         std::numeric_limits<UnsignedEdgeWeight>::max() >> math::ceil_log2(k);
     const EdgeID degree_threshold = std::max<EdgeID>(
-        k * _ctx.refinement.kway_fm.k_based_high_degree_threshold,
-        _ctx.refinement.kway_fm.constant_high_degree_threshold
+        k * _ctx.config.refinement.kway_fm.k_based_high_degree_threshold,
+        _ctx.config.refinement.kway_fm.constant_high_degree_threshold
     );
     // SparseGainCache assigns complete degree buckets to packed hash rows.
     NodeID packed_nodes = 0;
@@ -155,7 +155,7 @@ private:
   template <typename GainCache>
   bool
   refine_with_cache(PartitionedGraph &p_graph, const Graph &graph, const PartitionContext &p_ctx) {
-    START_TIMER("Allocation");
+    START_TIMER_ON(_ctx.runtime.timer, "Allocation");
     auto &stored_cache = std::get<std::unique_ptr<GainCache>>(_gain_caches);
     if (!stored_cache) {
       stored_cache = std::make_unique<GainCache>(_ctx, graph.n(), p_graph.k());
@@ -185,7 +185,7 @@ private:
     BlockParallelOverloadBalancer overload_balancer(_ctx);
     JetBalancer<Graph, decltype(tracked_cache)> jet_balancer(_ctx);
     const bool use_jet_balancer =
-        _ctx.refinement.jet.balancing_algorithm == JetBalancingAlgorithm::JET;
+        _ctx.config.refinement.jet.balancing_algorithm == JetBalancingAlgorithm::JET;
     const auto initialize_balancer = [&] {
       if (use_jet_balancer) {
         jet_balancer.initialize(p_graph);
@@ -219,14 +219,15 @@ private:
     UnsignedNodeWeight best_violation = initial_violation;
     bool last_iteration_is_best = true;
     bool previous_lp_moved = false;
-    STOP_TIMER();
+    STOP_TIMER_ON(_ctx.runtime.timer);
 
-    const int max_num_fruitless_iterations = (_ctx.refinement.jet.num_fruitless_iterations == 0)
-                                                 ? std::numeric_limits<int>::max()
-                                                 : _ctx.refinement.jet.num_fruitless_iterations;
-    const int max_num_iterations = (_ctx.refinement.jet.num_iterations == 0)
+    const int max_num_fruitless_iterations =
+        (_ctx.config.refinement.jet.num_fruitless_iterations == 0)
+            ? std::numeric_limits<int>::max()
+            : _ctx.config.refinement.jet.num_fruitless_iterations;
+    const int max_num_iterations = (_ctx.config.refinement.jet.num_iterations == 0)
                                        ? std::numeric_limits<int>::max()
-                                       : _ctx.refinement.jet.num_iterations;
+                                       : _ctx.config.refinement.jet.num_iterations;
     DBG << "Running JET refinement for at most " << max_num_iterations << " iterations and at most "
         << max_num_fruitless_iterations << " fruitless iterations";
 
@@ -240,7 +241,7 @@ private:
 
       do {
         const bool had_locked_nodes = previous_lp_moved;
-        TIMED_SCOPE("Find moves") {
+        TIMED_SCOPE_ON(_ctx.runtime.timer, "Find moves") {
           graph.pfor_nodes([&](const NodeID u) {
             const BlockID from = p_graph.block(u);
 
@@ -260,7 +261,7 @@ private:
           });
         };
 
-        TIMED_SCOPE("Filter moves") {
+        TIMED_SCOPE_ON(_ctx.runtime.timer, "Filter moves") {
           graph.pfor_nodes([&](const NodeID u) {
             lock[u] = 0;
 
@@ -291,7 +292,7 @@ private:
           });
         };
 
-        TIMED_SCOPE("Execute moves") {
+        TIMED_SCOPE_ON(_ctx.runtime.timer, "Execute moves") {
           const auto execute_move = [&](const NodeID u) {
             if (lock[u]) {
               const BlockID from = p_graph.block(u);
@@ -319,7 +320,7 @@ private:
               return !nodes.empty();
             });
 
-        TIMED_SCOPE("Rebalance") {
+        TIMED_SCOPE_ON(_ctx.runtime.timer, "Rebalance") {
           if (use_jet_balancer) {
             jet_balancer.refine(p_graph, graph, p_ctx, tracked_cache);
           } else {
@@ -331,7 +332,7 @@ private:
             std::any_of(moved_nodes.begin(), moved_nodes.end(), [](const auto &nodes) {
               return !nodes.empty();
             });
-        TIMED_SCOPE("Update cut") {
+        TIMED_SCOPE_ON(_ctx.runtime.timer, "Update cut") {
           const std::int64_t gain = tbb::parallel_reduce(
               moved_nodes.range(),
               std::int64_t{0},
@@ -379,10 +380,10 @@ private:
         const bool improved_cut = violation == best_violation && final_cut < best_cut;
         const bool significant_improvement =
             improved_balance ||
-            (improved_cut &&
-             best_cut - final_cut > (1.0 - _ctx.refinement.jet.fruitless_threshold) * best_cut);
+            (improved_cut && best_cut - final_cut >
+                                 (1.0 - _ctx.config.refinement.jet.fruitless_threshold) * best_cut);
 
-        TIMED_SCOPE("Update best partition") {
+        TIMED_SCOPE_ON(_ctx.runtime.timer, "Update best partition") {
           if (improved_balance || improved_cut) {
             graph.pfor_nodes([&](const NodeID u) { best_partition[u] = p_graph.block(u); });
             best_cut = final_cut;
@@ -399,11 +400,11 @@ private:
         if (significant_improvement) {
           DBG << "Improved cut from " << initial_cut << " to " << best_cut << " to " << final_cut
               << ": resetting number of fruitless iterations (threshold: "
-              << _ctx.refinement.jet.fruitless_threshold << ")";
+              << _ctx.config.refinement.jet.fruitless_threshold << ")";
           cur_fruitless_iteration = 0;
         } else {
           DBG << "Fruitless edge cut change from " << initial_cut << " to " << best_cut << " to "
-              << final_cut << " (threshold: " << _ctx.refinement.jet.fruitless_threshold
+              << final_cut << " (threshold: " << _ctx.config.refinement.jet.fruitless_threshold
               << "): incrementing fruitless iterations counter to " << cur_fruitless_iteration;
         }
 
@@ -415,7 +416,7 @@ private:
       } while (cur_iteration < max_num_iterations &&
                cur_fruitless_iteration < max_num_fruitless_iterations);
 
-      TIMED_SCOPE("Rollback") {
+      TIMED_SCOPE_ON(_ctx.runtime.timer, "Rollback") {
         if (!last_iteration_is_best) {
           graph.pfor_nodes([&](const NodeID u) {
             if (p_graph.block(u) != best_partition[u]) {
@@ -448,7 +449,7 @@ private:
   }
 
 private:
-  const Context &_ctx;
+  const ExecutionContext &_ctx;
   // Retain allocations across refinement calls and uncoarsening levels. Each
   // backend refreshes its graph/partition pointers when it is initialized.
   std::tuple<std::unique_ptr<SparseCache>, std::unique_ptr<OnTheFlyCache>> _gain_caches;
@@ -458,7 +459,7 @@ private:
   double _final_gain_temp = 0.0;
 };
 
-JetRefiner::JetRefiner(const Context &ctx)
+JetRefiner::JetRefiner(const ExecutionContext &ctx)
     : _ctx(ctx),
       _impl(std::make_unique<ReifiedGraphComponent<JetRefinerImpl>>()) {}
 

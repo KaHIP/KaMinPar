@@ -47,6 +47,8 @@ template <typename Graph, typename GainCache> class JetBalancer {
   static constexpr std::size_t kNumBuckets = std::numeric_limits<EdgeWeight>::digits + 2;
   static constexpr std::size_t kInvalidBucket = std::numeric_limits<std::size_t>::max();
 
+  RuntimeContext &_runtime;
+
 public:
   struct Statistics {
     std::size_t weak_rounds = 0;
@@ -54,7 +56,7 @@ public:
     std::size_t fallback_moves = 0;
   };
 
-  explicit JetBalancer(const Context &) {}
+  explicit JetBalancer(const ExecutionContext &ctx) : _runtime(ctx.runtime) {}
 
   void initialize(const PartitionedGraph &) {}
 
@@ -70,7 +72,7 @@ public:
       const PartitionContext &p_ctx,
       GainCache &gain_cache
   ) {
-    SCOPED_TIMER("Jet Balancer");
+    SCOPED_TIMER_ON(_runtime.timer, "Jet Balancer");
     BlockWeight overload = metrics::total_overload(p_graph, p_ctx);
     if (overload == 0 || p_graph.k() < 2) {
       return false;
@@ -84,14 +86,14 @@ public:
 
     // The paper combines two weak passes with strong passes until balance is restored.
     for (int round = 0; round < 2 && overload > 0; ++round) {
-      SCOPED_TIMER("Weak");
+      SCOPED_TIMER_ON(_runtime.timer, "Weak");
       ++_statistics.weak_rounds;
       changed |= perform_round(p_graph, graph, p_ctx, gain_cache, false);
       overload = metrics::total_overload(p_graph, p_ctx);
     }
 
     while (overload > 0) {
-      SCOPED_TIMER("Strong");
+      SCOPED_TIMER_ON(_runtime.timer, "Strong");
       ++_statistics.strong_rounds;
       changed |= perform_round(p_graph, graph, p_ctx, gain_cache, true);
       const BlockWeight next_overload = metrics::total_overload(p_graph, p_ctx);
@@ -104,7 +106,7 @@ public:
     // Indivisible coarse vertices may not fit in the deadzone or may be excluded by the weight
     // restriction. Finish such cases with capacity-safe moves, without the deadzone restriction.
     if (metrics::total_overload(p_graph, p_ctx) > 0) {
-      SCOPED_TIMER("Weighted fallback");
+      SCOPED_TIMER_ON(_runtime.timer, "Weighted fallback");
       changed |= finish_weighted(p_graph, graph, p_ctx, gain_cache);
     }
     return changed;
@@ -191,7 +193,7 @@ private:
       });
       if (best == kInvalidBlockID) {
         best = strong ? _targets.front()
-                      : _targets[Random::instance().random_index(0, _targets.size())];
+                      : _targets[_runtime.random.local().random_index(0, _targets.size())];
       }
       _destinations[u] = best;
       const EdgeWeight conn_to = strong && num_adjacent_targets > 0

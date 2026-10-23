@@ -23,7 +23,8 @@ SET_STATISTICS_FROM_GLOBAL();
 
 } // namespace
 
-PartitionContext create_kway_context(const Context &input_ctx, const PartitionedGraph &p_graph) {
+PartitionContext
+create_kway_context(const ExecutionContext &input_ctx, const PartitionedGraph &p_graph) {
   const BlockID input_k = input_ctx.partition.k;
   const BlockID current_k = p_graph.k();
 
@@ -61,7 +62,7 @@ PartitionContext create_kway_context(const Context &input_ctx, const Partitioned
 }
 
 PartitionContext create_twoway_context(
-    const Context &input_ctx,
+    const ExecutionContext &input_ctx,
     const BlockID current_block,
     const BlockID current_k,
     const Graph &graph
@@ -101,7 +102,7 @@ PartitionContext create_twoway_context(
 
   // @todo: how to adapt the inferred epsilon when dealing with arbitrary block weights?
   if (input_ctx.partition.has_uniform_block_weights() &&
-      input_ctx.initial_partitioning.use_adaptive_epsilon) {
+      input_ctx.config.initial_partitioning.use_adaptive_epsilon) {
     // It can be beneficial to artifically "restrict" the maximum block weights of *this*
     // bipartition, ensuring that there is enough wiggle room for further bipartitioning of the
     // sub-blocks: this is based on the "adapted epsilon" strategy of KaHyPar.
@@ -147,7 +148,7 @@ void extend_partition_recursive(
     const BlockID current_abs_block,
     const BlockID num_subblocks,
     const BlockID current_k,
-    const Context &input_ctx,
+    const ExecutionContext &input_ctx,
     const graph::SubgraphMemoryStartPosition position,
     graph::SubgraphMemory &subgraph_memory,
     graph::TemporarySubgraphMemory &tmp_extraction_mem_pool,
@@ -218,15 +219,15 @@ void extend_partition_recursive(
 }
 
 void extend_partition_lazy_extraction(
-    PartitionedGraph &p_graph, // stores current k
-    const BlockID desired_k,   // extend to this many blocks
-    const Context &input_ctx,  // stores input k
+    PartitionedGraph &p_graph,         // stores current k
+    const BlockID desired_k,           // extend to this many blocks
+    const ExecutionContext &input_ctx, // stores input k
     SubgraphMemoryEts &extraction_mem_pool_ets,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
     const int num_active_threads
 ) {
-  if (input_ctx.partitioning.min_consecutive_seq_bipartitioning_levels > 0) {
+  if (input_ctx.config.partitioning.min_consecutive_seq_bipartitioning_levels > 0) {
     // Depending on the coarsening level and the deep multilevel implementation, it can occur that
     // this function is called with more threads than blocks in the graph partition. To avoid
     // wasting threads, we only extend the partition a little at first, and then recurse until all
@@ -236,7 +237,8 @@ void extend_partition_lazy_extraction(
     // subgraphs from the partitioned graph; larger values do this less often at the cost of wasting
     // more parallel compute resources.
     // @todo change async_initial_partitioning.{cc, h} to make this obsolete ...
-    const int factor = 2 << (input_ctx.partitioning.min_consecutive_seq_bipartitioning_levels - 1);
+    const int factor =
+        2 << (input_ctx.config.partitioning.min_consecutive_seq_bipartitioning_levels - 1);
     while (desired_k > factor * p_graph.k() &&
            static_cast<BlockID>(num_active_threads) > p_graph.k()) {
       extend_partition_lazy_extraction(
@@ -251,15 +253,16 @@ void extend_partition_lazy_extraction(
     }
   }
 
-  SCOPED_TIMER("Initial partitioning");
+  SCOPED_TIMER_ON(input_ctx.runtime.timer, "Initial partitioning");
   const BlockID k = p_graph.k();
 
-  auto [mapping, block_nodes_offset, block_nodes, block_num_edges] = TIMED_SCOPE("Preprocessing") {
+  auto [mapping, block_nodes_offset, block_nodes, block_num_edges] =
+      TIMED_SCOPE_ON(input_ctx.runtime.timer, "Preprocessing") {
     SCOPED_HEAP_PROFILER("Preprocessing");
     return graph::lazy_extract_subgraphs_preprocessing(p_graph);
   };
 
-  auto subgraph_partitions = TIMED_SCOPE("Allocation") {
+  auto subgraph_partitions = TIMED_SCOPE_ON(input_ctx.runtime.timer, "Allocation") {
     SCOPED_HEAP_PROFILER("Allocation");
 
     ScalableVector<StaticArray<BlockID>> subgraph_partitions;
@@ -271,7 +274,7 @@ void extend_partition_lazy_extraction(
     return subgraph_partitions;
   };
 
-  TIMED_SCOPE("Bipartitioning") {
+  TIMED_SCOPE_ON(input_ctx.runtime.timer, "Bipartitioning") {
     SCOPED_HEAP_PROFILER("Bipartitioning");
     tbb::enumerable_thread_specific<BipartitionTimingInfo> dbg_timings_ets;
 
@@ -336,7 +339,7 @@ void extend_partition_lazy_extraction(
     });
   };
 
-  TIMED_SCOPE("Copy subgraph partitions") {
+  TIMED_SCOPE_ON(input_ctx.runtime.timer, "Copy subgraph partitions") {
     SCOPED_HEAP_PROFILER("Copy subgraph partitions");
     p_graph = graph::copy_subgraph_partitions(
         std::move(p_graph), subgraph_partitions, desired_k, input_ctx.partition.k, mapping
@@ -347,15 +350,15 @@ void extend_partition_lazy_extraction(
 }
 
 void extend_partition(
-    PartitionedGraph &p_graph, // stores current k
-    const BlockID desired_k,   // extend to this many blocks
-    const Context &input_ctx,  // stores input k
+    PartitionedGraph &p_graph,         // stores current k
+    const BlockID desired_k,           // extend to this many blocks
+    const ExecutionContext &input_ctx, // stores input k
     graph::SubgraphMemory &subgraph_memory,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
     const int num_active_threads
 ) {
-  if (input_ctx.partitioning.min_consecutive_seq_bipartitioning_levels > 0) {
+  if (input_ctx.config.partitioning.min_consecutive_seq_bipartitioning_levels > 0) {
     // Depending on the coarsening level and the deep multilevel implementation, it can occur that
     // this function is called with more threads than blocks in the graph partition. To avoid
     // wasting threads, we only extend the partition a little at first, and then recurse until all
@@ -365,7 +368,8 @@ void extend_partition(
     // subgraphs from the partitioned graph; larger values do this less often at the cost of wasting
     // more parallel compute resources.
     // @todo change async_initial_partitioning.{cc, h} to make this obsolete ...
-    const int factor = 2 << (input_ctx.partitioning.min_consecutive_seq_bipartitioning_levels - 1);
+    const int factor =
+        2 << (input_ctx.config.partitioning.min_consecutive_seq_bipartitioning_levels - 1);
     while (desired_k > factor * p_graph.k() &&
            static_cast<BlockID>(num_active_threads) > p_graph.k()) {
       extend_partition(
@@ -380,14 +384,17 @@ void extend_partition(
     }
   }
 
-  SCOPED_TIMER("Initial partitioning");
+  SCOPED_TIMER_ON(input_ctx.runtime.timer, "Initial partitioning");
 
-  const auto [subgraphs, mapping, positions] = TIMED_SCOPE("Extract subgraphs") {
+  const auto [subgraphs, mapping, positions] =
+      TIMED_SCOPE_ON(input_ctx.runtime.timer, "Extract subgraphs") {
     SCOPED_HEAP_PROFILER("Extract subgraphs");
-    return extract_subgraphs(p_graph, input_ctx.partition.k, subgraph_memory);
+    return extract_subgraphs(
+        p_graph, input_ctx.partition.k, subgraph_memory, input_ctx.runtime.timer
+    );
   };
 
-  auto subgraph_partitions = TIMED_SCOPE("Allocation") {
+  auto subgraph_partitions = TIMED_SCOPE_ON(input_ctx.runtime.timer, "Allocation") {
     SCOPED_HEAP_PROFILER("Allocation");
 
     ScalableVector<StaticArray<BlockID>> subgraph_partitions;
@@ -399,7 +406,7 @@ void extend_partition(
   };
 
   tbb::enumerable_thread_specific<BipartitionTimingInfo> timings_ets;
-  TIMED_SCOPE("Bipartitioning") {
+  TIMED_SCOPE_ON(input_ctx.runtime.timer, "Bipartitioning") {
     SCOPED_HEAP_PROFILER("Bipartitioning");
 
     tbb::parallel_for<BlockID>(0, subgraphs.size(), [&](const BlockID b) {
@@ -434,7 +441,7 @@ void extend_partition(
     });
   };
 
-  TIMED_SCOPE("Copy subgraph partitions") {
+  TIMED_SCOPE_ON(input_ctx.runtime.timer, "Copy subgraph partitions") {
     SCOPED_HEAP_PROFILER("Copy subgraph partitions");
     p_graph = graph::copy_subgraph_partitions(
         std::move(p_graph), subgraph_partitions, desired_k, input_ctx.partition.k, mapping
@@ -448,7 +455,7 @@ void extend_partition(
 void extend_partition(
     PartitionedGraph &p_graph,
     const BlockID desired_k,
-    const Context &input_ctx,
+    const ExecutionContext &input_ctx,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
     const int num_active_threads
@@ -476,12 +483,12 @@ void extend_partition(
 
 void complete_partial_extend_partition(
     PartitionedGraph &p_graph,
-    const Context &input_ctx,
+    const ExecutionContext &input_ctx,
     SubgraphMemoryEts &extraction_mem_pool_ets,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool
 ) {
-  SCOPED_TIMER("Initial partitioning");
+  SCOPED_TIMER_ON(input_ctx.runtime.timer, "Initial partitioning");
   const BlockID current_k = p_graph.k();
 
   DBG << "Complete partial extend_partition() for k=" << current_k
@@ -491,12 +498,13 @@ void complete_partial_extend_partition(
     return;
   }
 
-  auto [mapping, block_nodes_offset, block_nodes, block_num_edges] = TIMED_SCOPE("Preprocessing") {
+  auto [mapping, block_nodes_offset, block_nodes, block_num_edges] =
+      TIMED_SCOPE_ON(input_ctx.runtime.timer, "Preprocessing") {
     SCOPED_HEAP_PROFILER("Preprocessing");
     return graph::lazy_extract_subgraphs_preprocessing(p_graph);
   };
 
-  auto subgraph_partitions = TIMED_SCOPE("Allocation") {
+  auto subgraph_partitions = TIMED_SCOPE_ON(input_ctx.runtime.timer, "Allocation") {
     SCOPED_HEAP_PROFILER("Allocation");
 
     ScalableVector<StaticArray<BlockID>> subgraph_partitions;
@@ -513,7 +521,7 @@ void complete_partial_extend_partition(
   const BlockID prev_current_k = math::floor2(current_k);
   const BlockID desired_k = std::min(math::ceil2(current_k), input_ctx.partition.k);
 
-  TIMED_SCOPE("Bipartitioning") {
+  TIMED_SCOPE_ON(input_ctx.runtime.timer, "Bipartitioning") {
     SCOPED_HEAP_PROFILER("Bipartitioning");
 
     tbb::parallel_for<BlockID>(0, current_k, [&](const BlockID b) {
@@ -583,7 +591,7 @@ void complete_partial_extend_partition(
     });
   };
 
-  TIMED_SCOPE("Copy subgraph partitions") {
+  TIMED_SCOPE_ON(input_ctx.runtime.timer, "Copy subgraph partitions") {
     SCOPED_HEAP_PROFILER("Copy subgraph partitions");
     std::vector<BlockID> k0(p_graph.k() + 1, desired_k / p_graph.k());
     k0.front() = 0;

@@ -48,14 +48,18 @@ struct MemoryContext {
 } // namespace contraction
 
 std::unique_ptr<CoarseGraph> contract_clustering(
-    const Graph &graph, StaticArray<NodeID> clustering, const ContractionCoarseningContext &con_ctx
+    const Graph &graph,
+    StaticArray<NodeID> clustering,
+    const ContractionCoarseningContext &con_ctx,
+    [[maybe_unused]] Timer &timer = Timer::null()
 );
 
 std::unique_ptr<CoarseGraph> contract_clustering(
     const Graph &graph,
     StaticArray<NodeID> clustering,
     const ContractionCoarseningContext &con_ctx,
-    contraction::MemoryContext &m_ctx
+    contraction::MemoryContext &m_ctx,
+    [[maybe_unused]] Timer &timer = Timer::null()
 );
 
 } // namespace kaminpar::shm

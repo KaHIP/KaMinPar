@@ -2,9 +2,11 @@
 
 namespace kaminpar::shm {
 
-InitialTwowayFlowRefiner::InitialTwowayFlowRefiner(const TwowayFlowRefinementContext &f_ctx)
+InitialTwowayFlowRefiner::InitialTwowayFlowRefiner(
+    const TwowayFlowRefinementContext &f_ctx, RuntimeContext &runtime
+)
     : _par_ctx(1),
-      _refiner(_par_ctx, f_ctx) {
+      _refiner(_par_ctx, f_ctx, runtime) {
   KASSERT(f_ctx.run_sequentially);
   KASSERT(!f_ctx.scheduler.parallel);
 }

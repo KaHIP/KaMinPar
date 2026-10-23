@@ -21,10 +21,14 @@
 namespace kaminpar::shm {
 
 class HyperFlowCutter : public FlowCutterAlgorithm {
+  RuntimeContext &_runtime;
+
   SET_DEBUG(false);
 
 public:
-  HyperFlowCutter(const PartitionContext &p_ctx, const FlowCutterContext &fc_ctx);
+  HyperFlowCutter(
+      const PartitionContext &p_ctx, const FlowCutterContext &fc_ctx, RuntimeContext &runtime
+  );
 
   [[nodiscard]] virtual Result compute_cut(
       const BorderRegion &border_region, const FlowNetwork &flow_network, bool run_sequentially

@@ -366,7 +366,7 @@ private:
 };
 
 template <typename GainCache> struct SharedData {
-  SharedData(const Context &ctx, const NodeID preallocate_n, const BlockID preallocate_k)
+  SharedData(const ExecutionContext &ctx, const NodeID preallocate_n, const BlockID preallocate_k)
       : node_tracker(preallocate_n),
         gain_cache(ctx, preallocate_n, preallocate_k),
         border_nodes(gain_cache, node_tracker),
@@ -1007,7 +1007,9 @@ class UnconstrainedFMRefinerCore : public Refiner {
   static constexpr NodeID kConstrainedSeedNodeMultiplier = 1;
 
 public:
-  UnconstrainedFMRefinerCore(const Context &ctx) : _ctx(ctx), _fm_ctx(ctx.refinement.kway_fm) {}
+  UnconstrainedFMRefinerCore(const ExecutionContext &ctx)
+      : _ctx(ctx),
+        _fm_ctx(ctx.config.refinement.kway_fm) {}
 
   void initialize([[maybe_unused]] const PartitionedGraph &p_graph) final {
     if (_uninitialized) {
@@ -1020,12 +1022,12 @@ public:
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final {
     SCOPED_HEAP_PROFILER("FM");
-    SCOPED_TIMER("FM");
+    SCOPED_TIMER_ON(_ctx.runtime.timer, "FM");
 
     const Graph &graph = as_concrete_graph<Graph>(p_graph.graph());
     const KwayFMRefinementContext &fm_ctx = _fm_ctx;
 
-    TIMED_SCOPE("Initialize gain cache") {
+    TIMED_SCOPE_ON(_ctx.runtime.timer, "Initialize gain cache") {
       _shared->gain_cache.initialize(graph, p_graph);
     };
 
@@ -1092,7 +1094,7 @@ public:
       }
 
       if (use_unconstrained_iteration) {
-        TIMED_SCOPE("Initialize unconstrained FM data") {
+        TIMED_SCOPE_ON(_ctx.runtime.timer, "Initialize unconstrained FM data") {
           _shared->unconstrained.initialize(fm_ctx, graph, p_graph, _shared->gain_cache);
         };
       }
@@ -1101,20 +1103,20 @@ public:
       tbb::enumerable_thread_specific<EdgeWeight> expected_gain_ets;
 
       // Find current border nodes
-      START_TIMER("Initialize border nodes");
+      START_TIMER_ON(_ctx.runtime.timer, "Initialize border nodes");
       _shared->border_nodes.init(p_graph); // also resets the NodeTracker
-      _shared->border_nodes.shuffle();
+      _shared->border_nodes.shuffle(_ctx.runtime.random.local());
       _shared->abort = 0;
-      STOP_TIMER();
+      STOP_TIMER_ON(_ctx.runtime.timer);
 
       DBG << "Starting FM iteration " << iteration << " with " << _shared->border_nodes.size()
           << " border nodes and " << _ctx.parallel.num_threads << " worker threads";
 
       // Start one worker per thread
       if (graph.n() == _ctx.partition.n) {
-        START_TIMER("Localized searches, fine level");
+        START_TIMER_ON(_ctx.runtime.timer, "Localized searches, fine level");
       } else {
-        START_TIMER("Localized searches, coarse level");
+        START_TIMER_ON(_ctx.runtime.timer, "Localized searches, coarse level");
       }
 
       std::atomic<int> num_finished_workers = 0;
@@ -1139,7 +1141,7 @@ public:
         while (!_shared->abort.load(std::memory_order_relaxed) &&
                _shared->border_nodes.has_more()) {
           if (fm_ctx.dbg_report_progress) {
-            LLOG << " " << _shared->border_nodes.remaining();
+            LLOG_ON(_ctx.runtime) << " " << _shared->border_nodes.remaining();
           }
 
           const auto expected_batch_gain = localized_refiner.run_batch();
@@ -1150,7 +1152,7 @@ public:
           _shared->abort = 1;
         }
       });
-      STOP_TIMER();
+      STOP_TIMER_ON(_ctx.runtime.timer);
 
       const EdgeWeight expected_gain_of_this_iteration = expected_gain_ets.combine(std::plus{});
       total_expected_gain += expected_gain_of_this_iteration;
@@ -1158,7 +1160,7 @@ public:
       NodeWeight current_overload = 0;
       current_overload = metrics::total_overload(p_graph, p_ctx);
       if (use_unconstrained_iteration && current_overload > 0) {
-        TIMED_SCOPE("Rebalance") {
+        TIMED_SCOPE_ON(_ctx.runtime.timer, "Rebalance") {
           balancer.refine_with_gain_cache(p_graph, p_ctx, graph, _shared->gain_cache);
         };
         current_overload = metrics::total_overload(p_graph, p_ctx);
@@ -1168,7 +1170,7 @@ public:
         interleave_rebalancing_moves(graph, p_graph, p_ctx, round_start_block_weights);
       }
 
-      const EdgeWeight current_cut = TIMED_SCOPE("Rollback") {
+      const EdgeWeight current_cut = TIMED_SCOPE_ON(_ctx.runtime.timer, "Rollback") {
         if (use_snapshot_rollback) {
           return rollback_to_best_prefix_from_snapshot(
               graph, p_graph, p_ctx, round_start_partition, cut_before_current_iteration
@@ -1540,7 +1542,7 @@ private:
     return best_cut;
   }
 
-  const Context &_ctx;
+  const ExecutionContext &_ctx;
   const KwayFMRefinementContext &_fm_ctx;
 
   bool _uninitialized = true;
@@ -1548,13 +1550,13 @@ private:
 };
 
 template <typename Graph>
-std::unique_ptr<Refiner> create_unconstrained_fm_core(const Context &ctx) {
-  if (ctx.refinement.kway_fm.gain_cache_strategy == GainCacheStrategy::COMPACT_HASHING ||
-      ctx.refinement.kway_fm.gain_cache_strategy == GainCacheStrategy::AUTO) {
+std::unique_ptr<Refiner> create_unconstrained_fm_core(const ExecutionContext &ctx) {
+  if (ctx.config.refinement.kway_fm.gain_cache_strategy == GainCacheStrategy::COMPACT_HASHING ||
+      ctx.config.refinement.kway_fm.gain_cache_strategy == GainCacheStrategy::AUTO) {
     return std::make_unique<UnconstrainedFMRefinerCore<Graph, LargeKCompactHashingGainCache>>(ctx);
   }
 
-  switch (ctx.refinement.kway_fm.gain_cache_strategy) {
+  switch (ctx.config.refinement.kway_fm.gain_cache_strategy) {
   case GainCacheStrategy::SPARSE:
     return std::make_unique<UnconstrainedFMRefinerCore<Graph, NormalSparseGainCache>>(ctx);
 
@@ -1582,11 +1584,14 @@ std::unique_ptr<Refiner> create_unconstrained_fm_core(const Context &ctx) {
 #endif // KAMINPAR_EXPERIMENTAL
 
   default:
-    LOG_WARNING << "The selected gain cache strategy '"
-                << stringify_enum(ctx.refinement.kway_fm.gain_cache_strategy)
-                << "' is not available in this build. Rebuild with experimental features enabled.";
-    LOG_WARNING << "Using the default gain cache strategy '"
-                << stringify_enum(GainCacheStrategy::COMPACT_HASHING) << "' instead.";
+    LOG_WARNING_ON(
+        ctx.runtime
+    ) << "The selected gain cache strategy '"
+      << stringify_enum(ctx.config.refinement.kway_fm.gain_cache_strategy)
+      << "' is not available in this build. Rebuild with experimental features enabled.";
+    LOG_WARNING_ON(ctx.runtime) << "Using the default gain cache strategy '"
+                                << stringify_enum(GainCacheStrategy::COMPACT_HASHING)
+                                << "' instead.";
     [[fallthrough]];
 
   case GainCacheStrategy::COMPACT_HASHING:
@@ -1594,7 +1599,8 @@ std::unique_ptr<Refiner> create_unconstrained_fm_core(const Context &ctx) {
   }
 }
 
-UnconstrainedFMRefiner::UnconstrainedFMRefiner(const Context &input_ctx) : _ctx(input_ctx) {}
+UnconstrainedFMRefiner::UnconstrainedFMRefiner(const ExecutionContext &input_ctx)
+    : _ctx(input_ctx) {}
 UnconstrainedFMRefiner::~UnconstrainedFMRefiner() = default;
 
 std::string UnconstrainedFMRefiner::name() const {

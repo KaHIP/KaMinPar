@@ -146,13 +146,15 @@ SequentialSubgraphExtractionResult extract_subgraphs_sequential_generic_graph(
         subgraph_memory.edge_weights.data() +
             is_edge_weighted * (memory_position.edges_start_pos + m0)
     );
-    return shm::Graph(std::make_unique<CSRGraph>(
-        CSRGraph::seq{},
-        std::move(s_nodes),
-        std::move(s_edges),
-        std::move(s_node_weights),
-        std::move(s_edge_weights)
-    ));
+    return shm::Graph(
+        std::make_unique<CSRGraph>(
+            CSRGraph::seq{},
+            std::move(s_nodes),
+            std::move(s_edges),
+            std::move(s_node_weights),
+            std::move(s_edge_weights)
+        )
+    );
   };
 
   std::array<shm::Graph, 2> subgraphs{
@@ -296,15 +298,17 @@ shm::Graph extract_subgraph_generic_graph(
   }
   nodes[block_nodes.size()] = cur_edge;
 
-  return shm::Graph(std::make_unique<CSRGraph>(
-      CSRGraph::seq{},
-      StaticArray<EdgeID>(cur_node + 1, nodes.data()),
-      StaticArray<NodeID>(cur_edge, edges.data()),
-      has_node_weights ? StaticArray<NodeWeight>(cur_node, node_weights.data())
-                       : StaticArray<NodeWeight>(),
-      has_edge_weights ? StaticArray<EdgeWeight>(cur_edge, edge_weights.data())
-                       : StaticArray<EdgeWeight>()
-  ));
+  return shm::Graph(
+      std::make_unique<CSRGraph>(
+          CSRGraph::seq{},
+          StaticArray<EdgeID>(cur_node + 1, nodes.data()),
+          StaticArray<NodeID>(cur_edge, edges.data()),
+          has_node_weights ? StaticArray<NodeWeight>(cur_node, node_weights.data())
+                           : StaticArray<NodeWeight>(),
+          has_edge_weights ? StaticArray<EdgeWeight>(cur_edge, edge_weights.data())
+                           : StaticArray<EdgeWeight>()
+      )
+  );
 }
 
 } // namespace
@@ -336,19 +340,20 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
     const PartitionedGraph &p_graph,
     const Graph &graph,
     const BlockID input_k,
-    SubgraphMemory &subgraph_memory
+    SubgraphMemory &subgraph_memory,
+    [[maybe_unused]] Timer &timer
 ) {
   const NodeID n = p_graph.graph().n();
 
-  START_TIMER("Allocation");
+  START_TIMER_ON(timer, "Allocation");
   StaticArray<NodeID> mapping(n);
   StaticArray<SubgraphMemoryStartPosition> start_positions(p_graph.k() + 1);
   StaticArray<NodeID> bucket_index(p_graph.k());
   ScalableVector<shm::Graph> subgraphs(p_graph.k());
-  STOP_TIMER();
+  STOP_TIMER_ON(timer);
 
   // count number of nodes and edges in each block
-  START_TIMER("Count block size");
+  START_TIMER_ON(timer, "Count block size");
   tbb::enumerable_thread_specific<ScalableVector<NodeID>> tl_num_nodes_in_block{[&] {
     return ScalableVector<NodeID>(p_graph.k());
   }};
@@ -370,9 +375,9 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
       });
     }
   });
-  STOP_TIMER();
+  STOP_TIMER_ON(timer);
 
-  START_TIMER("Merge block sizes");
+  START_TIMER_ON(timer, "Merge block sizes");
   tbb::parallel_for<BlockID>(0, p_graph.k(), [&](const BlockID b) {
     NodeID num_nodes = partitioning::compute_final_k(
         b, p_graph.k(), input_k
@@ -388,10 +393,10 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
     start_positions[b + 1].edges_start_pos = num_edges;
   });
   parallel::prefix_sum(start_positions.begin(), start_positions.end(), start_positions.begin());
-  STOP_TIMER();
+  STOP_TIMER_ON(timer);
 
   // build temporary bucket array in nodes array
-  START_TIMER("Build bucket array");
+  START_TIMER_ON(timer, "Build bucket array");
   tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
     const BlockID b = p_graph.block(u);
     const NodeID pos_in_subgraph = __atomic_fetch_add(&bucket_index[b], 1, __ATOMIC_RELAXED);
@@ -399,13 +404,13 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
     subgraph_memory.nodes[pos] = u;
     mapping[u] = pos_in_subgraph; // concurrent random access write
   });
-  STOP_TIMER();
+  STOP_TIMER_ON(timer);
 
   const bool is_node_weighted = p_graph.graph().is_node_weighted();
   const bool is_edge_weighted = p_graph.graph().is_edge_weighted();
 
   // build graph
-  START_TIMER("Construct subgraphs");
+  START_TIMER_ON(timer, "Construct subgraphs");
   tbb::parallel_for<BlockID>(0, p_graph.k(), [&](const BlockID b) {
     const NodeID nodes_start_pos = start_positions[b].nodes_start_pos;
     EdgeID e = 0;                                  // edge = in subgraph
@@ -435,9 +440,9 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
 
     subgraph_memory.nodes[nodes_start_pos + bucket_index[b]] = e;
   });
-  STOP_TIMER();
+  STOP_TIMER_ON(timer);
 
-  START_TIMER("Create graph objects");
+  START_TIMER_ON(timer, "Create graph objects");
   tbb::parallel_for<BlockID>(0, p_graph.k(), [&](const BlockID b) {
     const NodeID n0 = start_positions[b].nodes_start_pos;
     const EdgeID m0 = start_positions[b].edges_start_pos;
@@ -454,11 +459,13 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
     StaticArray<EdgeWeight> edge_weights(
         is_edge_weighted * m, subgraph_memory.edge_weights.data() + is_edge_weighted * m0
     );
-    subgraphs[b] = shm::Graph(std::make_unique<CSRGraph>(
-        std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights)
-    ));
+    subgraphs[b] = shm::Graph(
+        std::make_unique<CSRGraph>(
+            std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights)
+        )
+    );
   });
-  STOP_TIMER();
+  STOP_TIMER_ON(timer);
 
   KASSERT(
       [&] {
@@ -482,10 +489,15 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
 } // namespace
 
 SubgraphExtractionResult extract_subgraphs(
-    const PartitionedGraph &p_graph, const BlockID input_k, SubgraphMemory &subgraph_memory
+    const PartitionedGraph &p_graph,
+    const BlockID input_k,
+    SubgraphMemory &subgraph_memory,
+    [[maybe_unused]] Timer &timer
 ) {
   return reified(p_graph, [&](const auto &concrete_graph) {
-    return extract_subgraphs_generic_graph(p_graph, concrete_graph, input_k, subgraph_memory);
+    return extract_subgraphs_generic_graph(
+        p_graph, concrete_graph, input_k, subgraph_memory, timer
+    );
   });
 }
 

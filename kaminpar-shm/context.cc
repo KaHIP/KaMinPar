@@ -88,7 +88,7 @@ void PartitionContext::setup_min_block_weights(std::vector<BlockWeight> min_bloc
   _uniform_min_block_weights = false;
 }
 
-void GraphCompressionContext::setup(const Graph &graph) {
+void GraphCompressionStatistics::setup(const Graph &graph) {
   high_degree_encoding = CompressedGraph::kHighDegreeEncoding;
   high_degree_threshold = CompressedGraph::kHighDegreeThreshold;
   high_degree_part_length = CompressedGraph::kHighDegreePartLength;
@@ -547,16 +547,15 @@ std::string unlimited(Int value, const char *unlimited_str = "<unlimited>") {
 
 } // namespace
 
-std::ostream &operator<<(std::ostream &out, const Context &ctx) {
-  out << "Threads:                      " << ctx.parallel.num_threads << "\n";
-  out << "Seed:                         " << Random::get_seed() << "\n";
+static std::ostream &print_context(std::ostream &out, const Context &ctx, int num_threads) {
+  out << "Threads:                      " << num_threads << "\n";
+  out << "Seed:                         " << ctx.seed << "\n";
   out << "Graph:                        " << ctx.debug.graph_name
       << " [node ordering: " << ctx.node_ordering << "] [edge ordering: " << ctx.edge_ordering
       << "]\n";
-  out << ctx.partition;
 
   cio::print_delimiter("Graph Compression", '-');
-  out << ctx.compression;
+  out << "Enabled:                      " << yn(ctx.compression.enabled) << "\n";
 
   cio::print_delimiter("Partitioning Scheme", '-');
   out << ctx.partitioning;
@@ -571,6 +570,14 @@ std::ostream &operator<<(std::ostream &out, const Context &ctx) {
   out << ctx.refinement;
 
   return out;
+}
+
+std::ostream &operator<<(std::ostream &out, const Context &ctx) {
+  return print_context(out, ctx, ctx.parallel.num_threads);
+}
+
+std::ostream &operator<<(std::ostream &out, const ExecutionContext &ctx) {
+  return print_context(out, ctx.config, ctx.parallel.num_threads) << ctx.partition;
 }
 
 std::ostream &operator<<(std::ostream &out, const PartitionContext &p_ctx) {
@@ -630,7 +637,7 @@ std::ostream &operator<<(std::ostream &out, const PartitioningContext &p_ctx) {
   return out;
 }
 
-std::ostream &operator<<(std::ostream &out, const GraphCompressionContext &c_ctx) {
+std::ostream &operator<<(std::ostream &out, const GraphCompressionStatistics &c_ctx) {
   out << "Enabled:                      " << yn(c_ctx.enabled) << "\n";
 
   if (c_ctx.enabled) {

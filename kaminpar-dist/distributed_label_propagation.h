@@ -508,8 +508,9 @@ private:
   NodeID _num_active_nodes = 0;
   ClusterID _num_clusters = 0;
   ClusterID _prev_num_clusters = 0;
-  shm::ChunkShuffledIterationOrder::Permutations _permutations;
-  shm::ChunkShuffledIterationOrder _iteration_order{_permutations};
+  RandomStreams _random{Random::get_seed()};
+  shm::ChunkShuffledIterationOrder::Permutations _permutations{_random.local()};
+  shm::ChunkShuffledIterationOrder _iteration_order{_permutations, _random};
   bool _iteration_order_initialized = false;
   bool _count_skipped_nodes = false;
   shm::lp::RoundStatistics _statistics;

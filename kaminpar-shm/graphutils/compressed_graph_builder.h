@@ -57,7 +57,7 @@ template <bool kHasEdgeWeights, typename DegreeFetcher, typename NeighborhoodFet
 
   NodeID max_degree = 0;
   NodeID max_chunk_size = 0;
-  TIMED_SCOPE("Compute chunks") {
+  TIMED_SCOPE_ON(Timer::null(), "Compute chunks") {
     NodeID cur_chunk_start = 0;
     EdgeID cur_chunk_order = 0;
 

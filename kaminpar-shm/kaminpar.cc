@@ -32,7 +32,7 @@ using namespace shm;
 namespace {
 
 void print_statistics(
-    const Context &ctx,
+    const ExecutionContext &ctx,
     const PartitionedGraph &p_graph,
     const int max_timer_depth,
     const bool parseable
@@ -42,50 +42,54 @@ void print_statistics(
   const double min_imbalance = metrics::min_imbalance(p_graph);
   const bool feasible = metrics::is_feasible(p_graph, ctx.partition);
 
-  cio::print_delimiter("Result Summary");
+  if (!ctx.runtime.quiet)
+    cio::print_delimiter("Result Summary");
 
   // Statistics output that is easy to parse
   if (parseable) {
-    LOG << "RESULT cut=" << cut << " imbalance=" << imbalance << " feasible=" << feasible
-        << " k=" << p_graph.k();
+    LOG_ON(ctx.runtime) << "RESULT cut=" << cut << " imbalance=" << imbalance
+                        << " feasible=" << feasible << " k=" << p_graph.k();
 #ifdef KAMINPAR_ENABLE_TIMERS
-    LLOG << "TIME ";
-    Timer::global().print_machine_readable(std::cout);
+    std::ostringstream timings;
+    ctx.runtime.timer.print_machine_readable(timings);
+    LLOG_ON(ctx.runtime) << "TIME " << timings.str();
 #else  // KAMINPAR_ENABLE_TIMERS
-    LOG << "TIME disabled";
+    LOG_ON(ctx.runtime) << "TIME disabled";
 #endif // KAMINPAR_ENABLE_TIMERS
 #ifdef KAMINPAR_ENABLE_HEAP_PROFILING
-    LOG << "MEMORY " << heap_profiler::HeapProfiler::global().peak_memory();
+    LOG_ON(ctx.runtime) << "MEMORY " << heap_profiler::HeapProfiler::global().peak_memory();
 #else
-    LOG << "MEMORY disabled";
+    LOG_ON(ctx.runtime) << "MEMORY disabled";
 #endif
-    LOG;
+    LOG_ON(ctx.runtime);
   }
 
 #ifdef KAMINPAR_ENABLE_TIMERS
-  Timer::global().print_human_readable(std::cout, false, max_timer_depth);
+  std::ostringstream timings;
+  ctx.runtime.timer.print_human_readable(timings, false, max_timer_depth);
+  LLOG_ON(ctx.runtime) << timings.str();
 #else  // KAMINPAR_ENABLE_TIMERS
-  LOG << "Global Timers: disabled";
+  LOG_ON(ctx.runtime) << "Global Timers: disabled";
 #endif // KAMINPAR_ENABLE_TIMERS
-  LOG;
+  LOG_ON(ctx.runtime);
   PRINT_HEAP_PROFILE(std::cout);
-  LOG << "Partition summary:";
+  LOG_ON(ctx.runtime) << "Partition summary:";
   if (p_graph.k() != ctx.partition.k) {
-    LOG << logger::RED << "  Number of blocks: " << p_graph.k();
+    LOG_ON(ctx.runtime) << logger::RED << "  Number of blocks: " << p_graph.k();
   } else {
-    LOG << "  Number of blocks: " << p_graph.k();
+    LOG_ON(ctx.runtime) << "  Number of blocks: " << p_graph.k();
   }
-  LOG << "  Edge cut:         " << cut;
-  LOG << "  Imbalance:        " << imbalance;
-  LOG << "  Imbalance (min):  " << min_imbalance;
+  LOG_ON(ctx.runtime) << "  Edge cut:         " << cut;
+  LOG_ON(ctx.runtime) << "  Imbalance:        " << imbalance;
+  LOG_ON(ctx.runtime) << "  Imbalance (min):  " << min_imbalance;
   if (feasible) {
-    LOG << "  Feasible:         yes";
+    LOG_ON(ctx.runtime) << "  Feasible:         yes";
   } else {
-    LOG << logger::RED << "  Feasible:         no";
+    LOG_ON(ctx.runtime) << logger::RED << "  Feasible:         no";
   }
 
-  LOG;
-  LOG << "Block weights:";
+  LOG_ON(ctx.runtime);
+  LOG_ON(ctx.runtime) << "Block weights:";
 
   constexpr BlockID max_displayed_weights = 128;
 
@@ -97,19 +101,19 @@ void print_statistics(
     ss << "  w(" << std::left << std::setw(block_id_width) << b
        << ") = " << std::setw(block_weight_width) << p_graph.block_weight(b);
     if (p_graph.block_weight(b) > ctx.partition.max_block_weight(b)) {
-      LLOG << logger::RED << ss.str() << " ";
+      LLOG_ON(ctx.runtime) << logger::RED << ss.str() << " ";
     } else if (p_graph.block_weight(b) < ctx.partition.min_block_weight(b)) {
-      LLOG << logger::ORANGE << ss.str() << " ";
+      LLOG_ON(ctx.runtime) << logger::ORANGE << ss.str() << " ";
     } else {
-      LLOG << ss.str() << " ";
+      LLOG_ON(ctx.runtime) << ss.str() << " ";
     }
     if ((b % 4) == 3) {
-      LOG;
+      LOG_ON(ctx.runtime);
     }
   }
   if (p_graph.k() > max_displayed_weights) {
-    LOG << "(only showing the first " << max_displayed_weights << " of " << p_graph.k()
-        << " blocks)";
+    LOG_ON(ctx.runtime) << "(only showing the first " << max_displayed_weights << " of "
+                        << p_graph.k() << " blocks)";
   }
 }
 
@@ -120,25 +124,40 @@ KaMinPar::KaMinPar()
 
 KaMinPar::KaMinPar(const int num_threads, Context ctx)
     : _num_threads(num_threads),
-      _gc(tbb::global_control::max_allowed_parallelism, num_threads),
-      _ctx(std::move(ctx)) {
-#ifdef KAMINPAR_ENABLE_TIMERS
-  GLOBAL_TIMER.reset();
-#endif // KAMINPAR_ENABLE_TIMERS
-}
+      _runtime(std::make_unique<RuntimeContext>(ctx.seed, num_threads)),
+      _ctx(std::move(ctx)) {}
 
 KaMinPar::~KaMinPar() = default;
+KaMinPar::KaMinPar(KaMinPar &&) noexcept = default;
+KaMinPar &KaMinPar::operator=(KaMinPar &&) noexcept = default;
 
 void KaMinPar::reseed(int seed) {
-  Random::reseed(seed);
+  _ctx.seed = seed;
 }
 
-int KaMinPar::get_seed() {
-  return Random::get_seed();
+int KaMinPar::get_seed() const {
+  return _ctx.seed;
+}
+
+RuntimeContext &KaMinPar::runtime() {
+  return *_runtime;
+}
+const RuntimeContext &KaMinPar::runtime() const {
+  return *_runtime;
 }
 
 void KaMinPar::set_output_level(const OutputLevel output_level) {
   _output_level = output_level;
+  _runtime->quiet = output_level == OutputLevel::QUIET;
+}
+
+void KaMinPar::print_timers(std::ostream &out, const int max_depth) const {
+#ifdef KAMINPAR_ENABLE_TIMERS
+  _runtime->timer.print_human_readable(out, false, max_depth);
+#else
+  (void)max_depth;
+  out << "Timers disabled\n";
+#endif
 }
 
 void KaMinPar::set_max_timer_depth(const int max_timer_depth) {
@@ -149,32 +168,42 @@ Context &KaMinPar::context() {
   return _ctx;
 }
 
+const Context &KaMinPar::context() const {
+  return _ctx;
+}
+const PartitionContext &KaMinPar::partition_context() const {
+  return _partition;
+}
+
 void KaMinPar::borrow_and_mutate_graph(
     std::span<EdgeID> xadj,
     std::span<NodeID> adjncy,
     std::span<NodeWeight> vwgt,
     std::span<EdgeWeight> adjwgt
 ) {
-  SCOPED_HEAP_PROFILER("Borrow and mutate graph");
-  SCOPED_TIMER("IO");
+  _runtime->begin_partition(_ctx.seed);
+  _runtime->arena.execute([&] {
+    SCOPED_HEAP_PROFILER("Borrow and mutate graph");
+    SCOPED_TIMER_ON(_runtime->timer, "IO");
 
-  const NodeID n = xadj.size() - 1;
-  const EdgeID m = xadj[n];
+    const NodeID n = xadj.size() - 1;
+    const EdgeID m = xadj[n];
 
-  StaticArray<EdgeID> nodes(n + 1, xadj.data());
-  StaticArray<NodeID> edges(m, adjncy.data());
+    StaticArray<EdgeID> nodes(n + 1, xadj.data());
+    StaticArray<NodeID> edges(m, adjncy.data());
 
-  StaticArray<NodeWeight> node_weights =
-      vwgt.empty() ? StaticArray<NodeWeight>(0) : StaticArray<NodeWeight>(n, vwgt.data());
-  StaticArray<EdgeWeight> edge_weights =
-      adjwgt.empty() ? StaticArray<EdgeWeight>(0) : StaticArray<EdgeWeight>(m, adjwgt.data());
+    StaticArray<NodeWeight> node_weights =
+        vwgt.empty() ? StaticArray<NodeWeight>(0) : StaticArray<NodeWeight>(n, vwgt.data());
+    StaticArray<EdgeWeight> edge_weights =
+        adjwgt.empty() ? StaticArray<EdgeWeight>(0) : StaticArray<EdgeWeight>(m, adjwgt.data());
 
-  auto csr_graph = std::make_unique<CSRGraph>(
-      std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), false
-  );
-  KASSERT(shm::debug::validate_graph(*csr_graph), "invalid input graph", assert::heavy);
+    auto csr_graph = std::make_unique<CSRGraph>(
+        std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), false
+    );
+    KASSERT(shm::debug::validate_graph(*csr_graph), "invalid input graph", assert::heavy);
 
-  set_graph(Graph(std::move(csr_graph)));
+    set_graph(Graph(std::move(csr_graph)));
+  });
 }
 
 void KaMinPar::copy_graph(
@@ -183,42 +212,46 @@ void KaMinPar::copy_graph(
     std::span<const NodeWeight> vwgt,
     std::span<const EdgeWeight> adjwgt
 ) {
-  SCOPED_HEAP_PROFILER("Copy graph");
-  SCOPED_TIMER("IO");
+  _runtime->begin_partition(_ctx.seed);
+  _runtime->arena.execute([&] {
+    SCOPED_HEAP_PROFILER("Copy graph");
+    SCOPED_TIMER_ON(_runtime->timer, "IO");
 
-  const NodeID n = xadj.size() - 1;
-  const EdgeID m = xadj[n];
-  const bool has_node_weights = !vwgt.empty();
-  const bool has_edge_weights = !adjwgt.empty();
+    const NodeID n = xadj.size() - 1;
+    const EdgeID m = xadj[n];
+    const bool has_node_weights = !vwgt.empty();
+    const bool has_edge_weights = !adjwgt.empty();
 
-  StaticArray<EdgeID> nodes(n + 1);
-  StaticArray<NodeID> edges(m);
-  StaticArray<NodeWeight> node_weights(has_node_weights ? n : 0);
-  StaticArray<EdgeWeight> edge_weights(has_edge_weights ? m : 0);
+    StaticArray<EdgeID> nodes(n + 1);
+    StaticArray<NodeID> edges(m);
+    StaticArray<NodeWeight> node_weights(has_node_weights ? n : 0);
+    StaticArray<EdgeWeight> edge_weights(has_edge_weights ? m : 0);
 
-  nodes[n] = xadj[n];
-  tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
-    nodes[u] = xadj[u];
-    if (has_node_weights) {
-      node_weights[u] = vwgt[u];
-    }
+    nodes[n] = xadj[n];
+    tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
+      nodes[u] = xadj[u];
+      if (has_node_weights) {
+        node_weights[u] = vwgt[u];
+      }
+    });
+    tbb::parallel_for<EdgeID>(0, m, [&](const EdgeID e) {
+      edges[e] = adjncy[e];
+      if (has_edge_weights) {
+        edge_weights[e] = adjwgt[e];
+      }
+    });
+
+    auto csr_graph = std::make_unique<CSRGraph>(
+        std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), false
+    );
+    KASSERT(shm::debug::validate_graph(*csr_graph), "invalid input graph", assert::heavy);
+
+    set_graph(Graph(std::move(csr_graph)));
   });
-  tbb::parallel_for<EdgeID>(0, m, [&](const EdgeID e) {
-    edges[e] = adjncy[e];
-    if (has_edge_weights) {
-      edge_weights[e] = adjwgt[e];
-    }
-  });
-
-  auto csr_graph = std::make_unique<CSRGraph>(
-      std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), false
-  );
-  KASSERT(shm::debug::validate_graph(*csr_graph), "invalid input graph", assert::heavy);
-
-  set_graph(Graph(std::move(csr_graph)));
 }
 
 void KaMinPar::set_graph(Graph graph) {
+  _runtime->begin_partition(_ctx.seed);
   _was_rearranged = false;
   _graph_ptr = std::make_unique<Graph>(std::move(graph));
 }
@@ -294,16 +327,33 @@ void KaMinPar::clear_min_block_weights() {
 }
 
 EdgeWeight KaMinPar::compute_partition(std::span<BlockID> partition) {
+  _runtime->quiet = _output_level == OutputLevel::QUIET;
+  return _runtime->arena.execute([&] {
+    _runtime->begin_partition(_ctx.seed);
+    try {
+      const auto cut = compute_partition_impl(partition);
+      _runtime->finish_partition();
+      return cut;
+    } catch (...) {
+      _runtime->reset_after_failure();
+      throw;
+    }
+  });
+}
+
+EdgeWeight KaMinPar::compute_partition_impl(std::span<BlockID> partition) {
+  const Context config = _ctx;
+  ExecutionContext ctx(config, *_runtime);
   validate_partition_parameters();
 
-  if (_output_level == OutputLevel::QUIET) {
-    Logger::set_quiet_mode(true);
-  }
-
-  cio::print_kaminpar_banner();
-  cio::print_build_identifier();
-  cio::print_build_datatypes<NodeID, EdgeID, NodeWeight, EdgeWeight>();
-  cio::print_delimiter("Input Summary", '#');
+  if (!ctx.runtime.quiet)
+    cio::print_kaminpar_banner();
+  if (!ctx.runtime.quiet)
+    cio::print_build_identifier();
+  if (!ctx.runtime.quiet)
+    cio::print_build_datatypes<NodeID, EdgeID, NodeWeight, EdgeWeight>();
+  if (!ctx.runtime.quiet)
+    cio::print_delimiter("Input Summary", '#');
 
   KASSERT(
       (_epsilon > 0.0) + (!_absolute_max_block_weights.empty()) +
@@ -314,9 +364,9 @@ EdgeWeight KaMinPar::compute_partition(std::span<BlockID> partition) {
   );
 
   if (_epsilon > 0.0) {
-    _ctx.partition.setup(*_graph_ptr, _k, _epsilon);
+    ctx.partition.setup(*_graph_ptr, _k, _epsilon);
   } else if (!_absolute_max_block_weights.empty()) {
-    _ctx.partition.setup(*_graph_ptr, _absolute_max_block_weights);
+    ctx.partition.setup(*_graph_ptr, _absolute_max_block_weights);
   } else {
     KASSERT(!_relative_max_block_weights.empty());
 
@@ -328,7 +378,7 @@ EdgeWeight KaMinPar::compute_partition(std::span<BlockID> partition) {
         absolute_max_block_weights.begin(),
         [total_node_weight](const double factor) { return std::ceil(factor * total_node_weight); }
     );
-    _ctx.partition.setup(*_graph_ptr, std::move(absolute_max_block_weights));
+    ctx.partition.setup(*_graph_ptr, std::move(absolute_max_block_weights));
   }
 
   KASSERT(
@@ -340,9 +390,9 @@ EdgeWeight KaMinPar::compute_partition(std::span<BlockID> partition) {
   );
 
   if (_min_epsilon > 0.0) {
-    _ctx.partition.setup_min_block_weights(_min_epsilon);
+    ctx.partition.setup_min_block_weights(_min_epsilon);
   } else if (!_absolute_min_block_weights.empty()) {
-    _ctx.partition.setup_min_block_weights(_absolute_min_block_weights);
+    ctx.partition.setup_min_block_weights(_absolute_min_block_weights);
   } else if (!_relative_min_block_weights.empty()) {
     std::vector<BlockWeight> absolute_min_block_weights(_relative_min_block_weights.size());
     const NodeWeight total_node_weight = _graph_ptr->total_node_weight();
@@ -352,35 +402,41 @@ EdgeWeight KaMinPar::compute_partition(std::span<BlockID> partition) {
         absolute_min_block_weights.begin(),
         [total_node_weight](const double factor) { return std::ceil(factor * total_node_weight); }
     );
-    _ctx.partition.setup_min_block_weights(std::move(absolute_min_block_weights));
+    ctx.partition.setup_min_block_weights(std::move(absolute_min_block_weights));
   }
 
-  _ctx.compression.setup(*_graph_ptr);
-  _ctx.parallel.num_threads = _num_threads;
+  GraphCompressionStatistics compression;
+  compression.enabled = config.compression.enabled;
+  compression.setup(*_graph_ptr);
+  ctx.parallel.num_threads = _num_threads;
 
   // Initialize console output
   if (_output_level >= OutputLevel::APPLICATION) {
-    std::cout << _ctx;
+    std::ostringstream summary;
+    summary << ctx << compression;
+    LLOG_ON(ctx.runtime) << summary.str();
   }
 
   START_HEAP_PROFILER("Partitioning");
-  START_TIMER("Partitioning");
+  START_TIMER_ON(ctx.runtime.timer, "Partitioning");
 
   if (!_was_rearranged) {
-    if (_ctx.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
-      if (_ctx.compression.enabled) {
-        LOG_WARNING << "A compressed graph cannot be rearranged by degree buckets. Disabling "
-                       "degree bucket ordering!";
-        _ctx.node_ordering = NodeOrdering::NATURAL;
+    if (ctx.config.node_ordering == NodeOrdering::DEGREE_BUCKETS) {
+      if (ctx.config.compression.enabled) {
+        LOG_WARNING_ON(ctx.runtime)
+            << "A compressed graph cannot be rearranged by degree buckets. Disabling "
+               "degree bucket ordering!";
       } else if (!_graph_ptr->sorted()) {
         CSRGraph &csr_graph = _graph_ptr->csr_graph();
-        _graph_ptr = std::make_unique<Graph>(graph::rearrange_by_degree_buckets(csr_graph));
+        _graph_ptr = std::make_unique<Graph>(
+            graph::rearrange_by_degree_buckets(csr_graph, ctx.runtime.timer)
+        );
       }
     }
 
-    if (_ctx.edge_ordering == EdgeOrdering::COMPRESSION && !_ctx.compression.enabled) {
+    if (ctx.config.edge_ordering == EdgeOrdering::COMPRESSION && !ctx.config.compression.enabled) {
       CSRGraph &csr_graph = _graph_ptr->csr_graph();
-      graph::reorder_edges_by_compression(csr_graph);
+      graph::reorder_edges_by_compression(csr_graph, ctx.runtime.timer);
     }
 
     _was_rearranged = true;
@@ -392,39 +448,40 @@ EdgeWeight KaMinPar::compute_partition(std::span<BlockID> partition) {
   // at the end.
   if (_graph_ptr->sorted()) {
     const NodeID num_isolated_nodes = graph::count_isolated_nodes(*_graph_ptr);
-    if (num_isolated_nodes > 0 && _ctx.partition.has_min_block_weights()) {
-      original_partition_context = _ctx.partition;
+    if (num_isolated_nodes > 0 && ctx.partition.has_min_block_weights()) {
+      original_partition_context = ctx.partition;
     }
     reified(*_graph_ptr, [&](auto &graph) {
       graph.remove_isolated_nodes(num_isolated_nodes);
-      _ctx.partition.n = graph.n();
-      _ctx.partition.total_node_weight = graph.total_node_weight();
+      ctx.partition.n = graph.n();
+      ctx.partition.total_node_weight = graph.total_node_weight();
     });
     if (original_partition_context) {
       const BlockWeight isolated_weight =
-          original_partition_context->total_node_weight - _ctx.partition.total_node_weight;
-      _ctx.partition.setup_min_block_weights(
+          original_partition_context->total_node_weight - ctx.partition.total_node_weight;
+      ctx.partition.setup_min_block_weights(
           graph::compute_nonisolated_min_block_weights(*original_partition_context, isolated_weight)
       );
     }
 
-    cio::print_delimiter("Preprocessing");
-    LOG << "Removed " << num_isolated_nodes << " isolated nodes";
-    LOG << "  Remaining nodes:             " << _graph_ptr->n();
-    LOG << "  Remaining total node weight: " << _graph_ptr->total_node_weight();
+    if (!ctx.runtime.quiet)
+      cio::print_delimiter("Preprocessing");
+    LOG_ON(ctx.runtime) << "Removed " << num_isolated_nodes << " isolated nodes";
+    LOG_ON(ctx.runtime) << "  Remaining nodes:             " << _graph_ptr->n();
+    LOG_ON(ctx.runtime) << "  Remaining total node weight: " << _graph_ptr->total_node_weight();
   }
 
   // Perform actual partitioning
   PartitionedGraph p_graph = [&] {
-    auto partitioner = factory::create_partitioner(*_graph_ptr, _ctx);
+    auto partitioner = factory::create_partitioner(*_graph_ptr, ctx);
     if (_output_level >= OutputLevel::DEBUG) {
       partitioner->enable_metrics_output();
     }
     PartitionedGraph p_graph = partitioner->partition();
 
-    START_TIMER("Deallocation");
+    START_TIMER_ON(ctx.runtime.timer, "Deallocation");
     partitioner.reset();
-    STOP_TIMER();
+    STOP_TIMER_ON(ctx.runtime.timer);
 
     return p_graph;
   }();
@@ -432,23 +489,22 @@ EdgeWeight KaMinPar::compute_partition(std::span<BlockID> partition) {
   // Re-integrate isolated nodes that were cut off during preprocessing
   if (_graph_ptr->sorted()) {
     SCOPED_HEAP_PROFILER("Re-integrate isolated nodes");
-    SCOPED_TIMER("Re-integrate isolated nodes");
+    SCOPED_TIMER_ON(ctx.runtime.timer, "Re-integrate isolated nodes");
 
     if (original_partition_context) {
-      _ctx.partition = std::move(*original_partition_context);
+      ctx.partition = std::move(*original_partition_context);
     }
 
     reified(*_graph_ptr, [&](auto &graph) {
       const NodeID num_isolated_nodes = graph.integrate_isolated_nodes();
-      p_graph =
-          graph::assign_isolated_nodes(std::move(p_graph), num_isolated_nodes, _ctx.partition);
+      p_graph = graph::assign_isolated_nodes(std::move(p_graph), num_isolated_nodes, ctx.partition);
     });
   }
 
-  STOP_TIMER();
+  STOP_TIMER_ON(ctx.runtime.timer);
   STOP_HEAP_PROFILER();
 
-  START_TIMER("IO");
+  START_TIMER_ON(ctx.runtime.timer, "IO");
   reified(*_graph_ptr, [&](const auto &graph) {
     if (graph.permuted()) {
       tbb::parallel_for<NodeID>(0, graph.n(), [&](const NodeID u) {
@@ -460,20 +516,21 @@ EdgeWeight KaMinPar::compute_partition(std::span<BlockID> partition) {
       });
     }
   });
-  STOP_TIMER();
+  STOP_TIMER_ON(ctx.runtime.timer);
 
   // Print some statistics
-  STOP_TIMER(); // stop root timer
+  STOP_TIMER_ON(ctx.runtime.timer); // stop root timer
   if (_output_level >= OutputLevel::APPLICATION) {
-    print_statistics(_ctx, p_graph, _max_timer_depth, _output_level >= OutputLevel::EXPERIMENT);
+    print_statistics(ctx, p_graph, _max_timer_depth, _output_level >= OutputLevel::EXPERIMENT);
   }
 
   const EdgeWeight final_cut = metrics::edge_cut(p_graph);
 
 #ifdef KAMINPAR_ENABLE_TIMERS
-  GLOBAL_TIMER.reset();
+  // Keep the completed timer tree available through runtime().timer; reset on the next call.
 #endif // KAMINPAR_ENABLE_TIMERS
 
+  _partition = ctx.partition;
   return final_cut;
 }
 

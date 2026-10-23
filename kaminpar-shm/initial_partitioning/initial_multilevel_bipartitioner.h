@@ -57,7 +57,7 @@ struct InitialPartitionerTimings {
 
 class InitialMultilevelBipartitioner {
 public:
-  explicit InitialMultilevelBipartitioner(const Context &ctx);
+  explicit InitialMultilevelBipartitioner(const ExecutionContext &ctx);
 
   /**
    * Initializes the bipartitioner for bipartitioning a block-induced subgraph.
@@ -93,10 +93,12 @@ private:
   const CSRGraph *coarsen(InitialPartitionerTimings *timings);
   PartitionedCSRGraph uncoarsen(PartitionedCSRGraph p_graph);
 
+  // Stable address: pooled workers are moved while components retain this reference.
+  std::unique_ptr<Random> _rand;
   const CSRGraph *_graph;
   PartitionContext _p_ctx;
 
-  const Context &_ctx;
+  const ExecutionContext &_ctx;
   const InitialPartitioningContext &_i_ctx;
 
   std::unique_ptr<InitialCoarsener> _coarsener;

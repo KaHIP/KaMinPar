@@ -13,12 +13,17 @@
 namespace kaminpar::shm {
 
 TwowayFlowRefiner::TwowayFlowRefiner(
-    const ParallelContext &par_ctx, const TwowayFlowRefinementContext &f_ctx
+    const ParallelContext &par_ctx,
+    const TwowayFlowRefinementContext &f_ctx,
+    RuntimeContext &runtime
 )
-    : _par_ctx(par_ctx),
+    : _runtime(runtime),
+      _par_ctx(par_ctx),
       _f_ctx(f_ctx),
-      _sequential_scheduler(std::make_unique<SequentialActiveBlockScheduler>(par_ctx, f_ctx)),
-      _parallel_scheduler(std::make_unique<ParallelActiveBlockScheduler>(f_ctx)) {}
+      _sequential_scheduler(
+          std::make_unique<SequentialActiveBlockScheduler>(par_ctx, f_ctx, _runtime)
+      ),
+      _parallel_scheduler(std::make_unique<ParallelActiveBlockScheduler>(f_ctx, _runtime)) {}
 
 std::string TwowayFlowRefiner::name() const {
   return "Two-Way Flow Refinement";
@@ -28,7 +33,7 @@ void TwowayFlowRefiner::initialize([[maybe_unused]] const PartitionedGraph &p_gr
 
 bool TwowayFlowRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
   if (!is<CSRGraph>(p_graph.graph())) {
-    LOG_WARNING << "Cannot refine a compressed graph using the two-way flow refiner.";
+    LOG_WARNING_ON(_runtime) << "Cannot refine a compressed graph using the two-way flow refiner.";
     return false;
   }
 
@@ -41,7 +46,7 @@ bool TwowayFlowRefiner::refine(PartitionedGraph &p_graph, const PartitionContext
 bool TwowayFlowRefiner::refine(
     PartitionedCSRGraph &p_graph, const CSRGraph &graph, const PartitionContext &p_ctx
 ) {
-  SCOPED_TIMER("Two-Way Flow Refinement");
+  SCOPED_TIMER_ON(_runtime.timer, "Two-Way Flow Refinement");
   SCOPED_HEAP_PROFILER("Two-Way Flow Refinement");
 
   if (_f_ctx.scheduler.parallel && _par_ctx.num_threads > 1 && p_ctx.k > 2) {

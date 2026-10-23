@@ -17,7 +17,9 @@ TEST(UnderloadBalancerConcurrencyTest, ParallelWorkersFillTheSameUnderloadedBloc
   // and observe the underloaded flag as the target reaches its minimum weight.
   constexpr NodeID kNumNodes = 128;
   const Graph graph = make_complete_graph(kNumNodes);
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.parallel.num_threads = 4;
   ctx.partition.setup(graph, {64, 64});
   ctx.partition.setup_min_block_weights({64, 64});

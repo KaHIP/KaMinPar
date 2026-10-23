@@ -16,7 +16,7 @@ namespace kaminpar::shm {
 
 class LPClustering : public Clusterer {
 public:
-  LPClustering(const CoarseningContext &c_ctx);
+  LPClustering(const CoarseningContext &c_ctx, RuntimeContext &runtime);
 
   LPClustering(const LPClustering &) = delete;
   LPClustering &operator=(const LPClustering &) = delete;

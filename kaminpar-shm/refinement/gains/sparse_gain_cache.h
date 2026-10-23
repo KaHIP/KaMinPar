@@ -102,7 +102,9 @@ public:
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
   SparseGainCache(
-      const Context &ctx, const NodeID preallocate_n, [[maybe_unused]] BlockID preallocate_k
+      const ExecutionContext &ctx,
+      const NodeID preallocate_n,
+      [[maybe_unused]] BlockID preallocate_k
   )
       : _ctx(ctx),
         // Since we do not know the size of the gain cache in advance (depends on vertex degrees),
@@ -141,8 +143,8 @@ public:
       // up to the one determined by this degree are assigned to the dense part, the other ones to
       // the sparse part.
       const EdgeID degree_threshold = std::max<EdgeID>(
-          _k * _ctx.refinement.kway_fm.k_based_high_degree_threshold, // Usually k * 1
-          _ctx.refinement.kway_fm.constant_high_degree_threshold      // Usually 0
+          _k * _ctx.config.refinement.kway_fm.k_based_high_degree_threshold, // Usually k * 1
+          _ctx.config.refinement.kway_fm.constant_high_degree_threshold      // Usually 0
       );
 
       // (i) compute size of the dense part (== hash tables) ...
@@ -178,14 +180,14 @@ public:
         << (gc_size * sizeof(UnsignedEdgeWeight) / 1024.0) << " KiB memory";
 
     if (_gain_cache.size() < gc_size) {
-      SCOPED_TIMER("Allocation");
+      SCOPED_TIMER_ON(_ctx.runtime.timer, "Allocation");
       _gain_cache.resize(gc_size);
       DBG << "Allocating gain cache: " << _gain_cache.size() * sizeof(UnsignedEdgeWeight)
           << " bytes";
     }
 
     if (_weighted_degrees.size() < _n) {
-      SCOPED_TIMER("Allocation");
+      SCOPED_TIMER_ON(_ctx.runtime.timer, "Allocation");
       _weighted_degrees.resize(_n);
     }
 
@@ -397,8 +399,8 @@ private:
     return static_cast<EdgeWeight>(create_dense_wrapper(node).get(block));
   }
 
-  [[nodiscard]] KAMINPAR_INLINE std::pair<std::size_t, std::size_t> index_dense(const NodeID node
-  ) const {
+  [[nodiscard]] KAMINPAR_INLINE std::pair<std::size_t, std::size_t>
+  index_dense(const NodeID node) const {
     const int bucket = find_bucket(node);
     const std::size_t size = lowest_degree_in_bucket<NodeID>(bucket + 1);
     KASSERT(math::is_power_of_2(size));
@@ -444,7 +446,7 @@ private:
   }
 
   void reset() {
-    SCOPED_TIMER("Reset gain cache");
+    SCOPED_TIMER_ON(_ctx.runtime.timer, "Reset gain cache");
 
     IFSTATS(_stats_ets.clear());
 
@@ -456,7 +458,7 @@ private:
   }
 
   void recompute() {
-    SCOPED_TIMER("Recompute gain cache");
+    SCOPED_TIMER_ON(_ctx.runtime.timer, "Recompute gain cache");
 
     _graph->pfor_nodes([&](const NodeID u) {
       _weighted_degrees[u] = 0;
@@ -490,7 +492,7 @@ private:
     }
   }
 
-  const Context &_ctx;
+  const ExecutionContext &_ctx;
 
   const Graph *_graph = nullptr;
   const PartitionedGraph *_p_graph = nullptr;

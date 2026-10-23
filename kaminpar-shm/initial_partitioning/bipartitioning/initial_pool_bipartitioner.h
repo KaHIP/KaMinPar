@@ -53,7 +53,9 @@ public:
     std::size_t num_imbalanced_partitions;
   };
 
-  InitialPoolBipartitioner(const InitialPoolPartitionerContext &pool_ctx);
+  InitialPoolBipartitioner(
+      const InitialPoolPartitionerContext &pool_ctx, Random &rand, RuntimeContext &runtime
+  );
 
   void set_num_repetitions(int num_repetitions);
 
@@ -65,7 +67,7 @@ public:
         _bipartitioner_names.end()
     );
 
-    _bipartitioners.push_back(std::make_unique<BipartitionerType>(_pool_ctx));
+    _bipartitioners.push_back(std::make_unique<BipartitionerType>(_pool_ctx, _rand));
     _bipartitioner_names.push_back(name);
     _running_statistics.emplace_back();
     _statistics.per_bipartitioner.emplace_back();
@@ -87,6 +89,8 @@ private:
   const CSRGraph *_graph;
   const PartitionContext *_p_ctx;
 
+  RuntimeContext &_runtime;
+  Random &_rand;
   const InitialPoolPartitionerContext &_pool_ctx;
   int _num_repetitions;
 

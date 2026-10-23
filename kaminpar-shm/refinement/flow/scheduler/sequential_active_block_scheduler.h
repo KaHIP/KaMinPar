@@ -15,6 +15,8 @@
 namespace kaminpar::shm {
 
 class SequentialActiveBlockScheduler {
+  RuntimeContext &_runtime;
+
   SET_DEBUG(false);
   SET_STATISTICS(false);
 
@@ -43,7 +45,9 @@ class SequentialActiveBlockScheduler {
 
 public:
   SequentialActiveBlockScheduler(
-      const ParallelContext &par_ctx, const TwowayFlowRefinementContext &f_ctx
+      const ParallelContext &par_ctx,
+      const TwowayFlowRefinementContext &f_ctx,
+      RuntimeContext &runtime
   );
 
   SequentialActiveBlockScheduler(SequentialActiveBlockScheduler &&) noexcept = default;
