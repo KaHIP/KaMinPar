@@ -496,11 +496,12 @@ public:
         continue;
       }
 
-      // Accept the move if the target block does not get overloaded, unless this is an
-      // unconstrained search.
+      // Unconstrained searches may overload the target. Respect the source minimum in the
+      // local view; rollback checks global feasibility after the concurrent searches finish.
       const NodeWeight node_weight = _graph.node_weight(node);
-      if (allow_overloaded_moves() ||
-          _d_graph.block_weight(block_to) + node_weight <= _p_ctx.max_block_weight(block_to)) {
+      if (_d_graph.block_weight(block_from) - node_weight >= _p_ctx.min_block_weight(block_from) &&
+          (allow_overloaded_moves() ||
+           _d_graph.block_weight(block_to) + node_weight <= _p_ctx.max_block_weight(block_to))) {
         const BlockWeight from_weight_before = _d_graph.block_weight(block_from);
         const BlockWeight to_weight_before = _d_graph.block_weight(block_to);
         const EdgeWeight next_total_gain = current_total_gain + actual_gain;
@@ -731,6 +732,10 @@ private:
     const BlockID from = p_graph.block(u);
     const NodeWeight weight = _graph.node_weight(u);
 
+    if (p_graph.block_weight(from) - weight < _p_ctx.min_block_weight(from)) {
+      return {from, std::numeric_limits<EdgeWeight>::min()};
+    }
+
     // Since we use max heaps, it is OK to insert this value into the PQ
     EdgeWeight best_gain = std::numeric_limits<EdgeWeight>::min();
     EdgeWeight best_penalty = 0;
@@ -818,6 +823,9 @@ private:
     const BlockID designated_target = _shared.target_blocks[u];
 
     CandidateGain result{.target = from};
+    if (p_graph.block_weight(from) - weight < _p_ctx.min_block_weight(from)) {
+      return result;
+    }
     BlockWeight best_target_block_weight_gap =
         _p_ctx.max_block_weight(from) - p_graph.block_weight(from);
 
@@ -1375,10 +1383,11 @@ private:
     });
 
     std::vector<BlockWeight> block_weights(p_graph.k());
-    std::size_t overloaded_blocks = 0;
+    std::size_t infeasible_blocks = 0;
     for (const BlockID block : p_graph.blocks()) {
       block_weights[block] = p_graph.block_weight(block);
-      overloaded_blocks += block_weights[block] > p_ctx.max_block_weight(block);
+      infeasible_blocks += block_weights[block] > p_ctx.max_block_weight(block) ||
+                           block_weights[block] < p_ctx.min_block_weight(block);
     }
 
     EdgeWeight current_cut = round_start_cut;
@@ -1389,12 +1398,14 @@ private:
     std::vector<std::uint8_t> applied_moves(num_moves, 0);
 
     auto update_block_weight = [&](const BlockID block, const BlockWeight new_weight) {
-      const bool was_overloaded = block_weights[block] > p_ctx.max_block_weight(block);
+      const bool was_infeasible = block_weights[block] > p_ctx.max_block_weight(block) ||
+                                  block_weights[block] < p_ctx.min_block_weight(block);
       block_weights[block] = new_weight;
-      const bool is_overloaded = block_weights[block] > p_ctx.max_block_weight(block);
+      const bool is_infeasible = block_weights[block] > p_ctx.max_block_weight(block) ||
+                                 block_weights[block] < p_ctx.min_block_weight(block);
 
-      overloaded_blocks += is_overloaded && !was_overloaded;
-      overloaded_blocks -= was_overloaded && !is_overloaded;
+      infeasible_blocks += is_infeasible && !was_infeasible;
+      infeasible_blocks -= was_infeasible && !is_infeasible;
     };
 
     for (std::size_t i = 0; i < num_moves; ++i) {
@@ -1414,7 +1425,7 @@ private:
       p_graph.set_block(move.node, move.to);
       applied_moves[i] = 1;
 
-      if (overloaded_blocks == 0) {
+      if (infeasible_blocks == 0) {
         const BlockWeight heaviest_block_weight =
             *std::max_element(block_weights.begin(), block_weights.end());
         if (current_cut < best_cut ||
@@ -1462,9 +1473,10 @@ private:
     }
 
     std::vector<BlockWeight> block_weights = round_start_block_weights;
-    std::size_t overloaded_blocks = 0;
+    std::size_t infeasible_blocks = 0;
     for (const BlockID block : p_graph.blocks()) {
-      overloaded_blocks += block_weights[block] > p_ctx.max_block_weight(block);
+      infeasible_blocks += block_weights[block] > p_ctx.max_block_weight(block) ||
+                           block_weights[block] < p_ctx.min_block_weight(block);
     }
 
     EdgeWeight current_cut = round_start_cut;
@@ -1475,12 +1487,14 @@ private:
     std::vector<std::uint8_t> applied_moves(num_moves, 0);
 
     auto update_block_weight = [&](const BlockID block, const BlockWeight new_weight) {
-      const bool was_overloaded = block_weights[block] > p_ctx.max_block_weight(block);
+      const bool was_infeasible = block_weights[block] > p_ctx.max_block_weight(block) ||
+                                  block_weights[block] < p_ctx.min_block_weight(block);
       block_weights[block] = new_weight;
-      const bool is_overloaded = block_weights[block] > p_ctx.max_block_weight(block);
+      const bool is_infeasible = block_weights[block] > p_ctx.max_block_weight(block) ||
+                                 block_weights[block] < p_ctx.min_block_weight(block);
 
-      overloaded_blocks += is_overloaded && !was_overloaded;
-      overloaded_blocks -= was_overloaded && !is_overloaded;
+      infeasible_blocks += is_infeasible && !was_infeasible;
+      infeasible_blocks -= was_infeasible && !is_infeasible;
     };
 
     for (std::size_t i = 0; i < num_moves; ++i) {
@@ -1498,7 +1512,7 @@ private:
       p_graph.set_block(move.node, move.to);
       applied_moves[i] = 1;
 
-      if (overloaded_blocks == 0) {
+      if (infeasible_blocks == 0) {
         const BlockWeight heaviest_block_weight =
             *std::max_element(block_weights.begin(), block_weights.end());
         if (current_cut < best_cut ||
@@ -1595,11 +1609,6 @@ void UnconstrainedFMRefiner::initialize(const PartitionedGraph &p_graph) {
 }
 
 bool UnconstrainedFMRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
-  if (p_ctx.has_min_block_weights()) {
-    LOG_WARNING
-        << "Unconstrained FM refinement does not support min block weights. They will be ignored.";
-  }
-
   return _core->refine(p_graph, p_ctx);
 }
 

@@ -71,7 +71,7 @@ public:
 
       clear_moved_nodes();
 
-      const NodeID num_moves = perform_round(p_graph);
+      const NodeID num_moves = perform_round(p_graph, p_ctx);
       if (num_moves == 0) {
         break;
       }
@@ -184,10 +184,11 @@ private:
     }
   }
 
-  NodeID perform_round(PartitionedGraph &p_graph) {
+  NodeID perform_round(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
     tbb::enumerable_thread_specific<NodeID> num_moves_ets(0);
-    const bool batch_block_weight_updates =
-        tbb::this_task_arena::max_concurrency() >= 32 && p_graph.k() <= 256;
+    const bool batch_block_weight_updates = !p_ctx.has_min_block_weights() &&
+                                            tbb::this_task_arena::max_concurrency() >= 32 &&
+                                            p_graph.k() <= 256;
 
     _graph->pfor_nodes([&](const NodeID u) {
       if (!_active[u]) {
@@ -202,7 +203,13 @@ private:
       }
 
       const BlockID from = p_graph.block(u);
-      if (batch_block_weight_updates) {
+      if (p_ctx.has_min_block_weights()) {
+        if (!p_graph.move(
+                u, from, to, std::numeric_limits<BlockWeight>::max(), p_ctx.min_block_weight(from)
+            )) {
+          return;
+        }
+      } else if (batch_block_weight_updates) {
         p_graph.set_block<false>(u, to);
       } else {
         p_graph.set_block(u, to);
@@ -408,11 +415,6 @@ void UnconstrainedLabelPropagationRefiner::initialize(const PartitionedGraph &p_
 bool UnconstrainedLabelPropagationRefiner::refine(
     PartitionedGraph &p_graph, const PartitionContext &p_ctx
 ) {
-  if (p_ctx.has_min_block_weights()) {
-    LOG_WARNING << "Unconstrained label propagation refinement does not support min block weights. "
-                   "They will be ignored.";
-  }
-
   return _impl_wrapper->refine(p_graph, p_ctx);
 }
 

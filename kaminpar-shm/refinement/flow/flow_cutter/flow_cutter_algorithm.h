@@ -1,9 +1,11 @@
 #pragma once
 
+#include <algorithm>
 #include <chrono>
 #include <cstddef>
 #include <limits>
 #include <span>
+#include <utility>
 
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/refinement/flow/flow_network/border_region.h"
@@ -67,6 +69,34 @@ public:
   }
 
 protected:
+  [[nodiscard]] static std::pair<BlockWeight, BlockWeight> max_block_weights(
+      const PartitionContext &p_ctx,
+      const BorderRegion &border_region,
+      const FlowNetwork &flow_network
+  ) {
+    if (!p_ctx.has_min_block_weights()) {
+      return {
+          p_ctx.max_block_weight(border_region.block1()),
+          p_ctx.max_block_weight(border_region.block2())
+      };
+    }
+
+    const BlockWeight total_weight = flow_network.block1_weight + flow_network.block2_weight;
+
+    // The weight of a block pair is fixed. An upper bound on one side therefore also
+    // enforces the lower bound on the other side, including for external flow cutters.
+    return {
+        std::min(
+            p_ctx.max_block_weight(border_region.block1()),
+            total_weight - p_ctx.min_block_weight(border_region.block2())
+        ),
+        std::min(
+            p_ctx.max_block_weight(border_region.block2()),
+            total_weight - p_ctx.min_block_weight(border_region.block1())
+        )
+    };
+  }
+
   [[nodiscard]] bool time_limit_exceeded() const {
     if (_has_time_limit) {
       using namespace std::chrono;

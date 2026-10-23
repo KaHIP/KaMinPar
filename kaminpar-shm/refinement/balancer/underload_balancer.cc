@@ -7,6 +7,8 @@
  ******************************************************************************/
 #include "kaminpar-shm/refinement/balancer/underload_balancer.h"
 
+#include <set>
+
 #include <tbb/parallel_for.h>
 #include <tbb/task_group.h>
 
@@ -72,6 +74,11 @@ bool UnderloadBalancer::refine(PartitionedGraph &p_graph, const PartitionContext
   }
   tg.wait();
 
+  // Adjacent moves cannot reach empty blocks or deficits separated from the available slack.
+  if (!metrics::is_min_balanced(*_p_graph, *_p_ctx)) {
+    reified(*_p_graph, [&](const auto &graph) { rebalance_nonadjacent(graph); });
+  }
+
   IF_DBG {
     BlockID num_underloaded_blocks = 0;
     BlockID num_overloaded_blocks = 0;
@@ -101,6 +108,79 @@ bool UnderloadBalancer::refine(PartitionedGraph &p_graph, const PartitionContext
   }
 
   return true;
+}
+
+template <typename Graph> void UnderloadBalancer::rebalance_nonadjacent(const Graph &graph) {
+  SCOPED_TIMER("Nonadjacent Balancing");
+
+  if (graph.max_node_weight() <= 1) {
+    std::vector<BlockID> targets;
+    for (const BlockID block : _p_graph->blocks()) {
+      if (_p_graph->block_weight(block) < _p_ctx->min_block_weight(block)) {
+        targets.push_back(block);
+      }
+    }
+
+    // Unit weights can fill each deficit exactly. A single scan suffices whenever the total
+    // minimum weight is feasible: every remaining deficit has enough weight in slack donors.
+    std::size_t next_target = 0;
+    for (const NodeID node : graph.nodes()) {
+      while (next_target < targets.size() && _p_graph->block_weight(targets[next_target]) >=
+                                                 _p_ctx->min_block_weight(targets[next_target])) {
+        ++next_target;
+      }
+      if (next_target == targets.size()) {
+        break;
+      }
+
+      const NodeWeight weight = graph.node_weight(node);
+      const BlockID from = _p_graph->block(node);
+      if (weight <= 0 || _p_graph->block_weight(from) - weight < _p_ctx->min_block_weight(from)) {
+        continue;
+      }
+
+      const BlockID to = targets[next_target];
+      (void)_p_graph->move(
+          node, from, to, _p_ctx->max_block_weight(to), _p_ctx->min_block_weight(from)
+      );
+    }
+  } else {
+    // Indivisible weighted nodes may not admit an exact packing. Try each donor once and
+    // choose a fitting underloaded target without scanning all blocks for every node.
+    std::set<std::pair<BlockWeight, BlockID>> targets;
+    for (const BlockID block : _p_graph->blocks()) {
+      if (_p_graph->block_weight(block) < _p_ctx->min_block_weight(block)) {
+        targets.emplace(_p_ctx->max_block_weight(block) - _p_graph->block_weight(block), block);
+      }
+    }
+
+    for (const NodeID node : graph.nodes()) {
+      if (targets.empty()) {
+        break;
+      }
+
+      const NodeWeight weight = graph.node_weight(node);
+      const BlockID from = _p_graph->block(node);
+      if (weight <= 0 || _p_graph->block_weight(from) - weight < _p_ctx->min_block_weight(from)) {
+        continue;
+      }
+
+      const auto target = targets.lower_bound({weight, 0});
+      if (target == targets.end()) {
+        continue;
+      }
+
+      const BlockID to = target->second;
+      if (_p_graph->move(
+              node, from, to, _p_ctx->max_block_weight(to), _p_ctx->min_block_weight(from)
+          )) {
+        targets.erase(target);
+        if (_p_graph->block_weight(to) < _p_ctx->min_block_weight(to)) {
+          targets.emplace(_p_ctx->max_block_weight(to) - _p_graph->block_weight(to), to);
+        }
+      }
+    }
+  }
 }
 
 template <typename Graph>

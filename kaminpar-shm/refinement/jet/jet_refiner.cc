@@ -246,7 +246,9 @@ private:
 
             next_partition[u] = from;
             candidate_gain[u] = std::numeric_limits<EdgeWeight>::min();
-            if (lock[u]) {
+            if (lock[u] || (p_ctx.has_min_block_weights() &&
+                            p_graph.block_weight(from) - graph.node_weight(u) <
+                                p_ctx.min_block_weight(from))) {
               return;
             }
 
@@ -294,23 +296,22 @@ private:
             if (lock[u]) {
               const BlockID from = p_graph.block(u);
               const BlockID to = next_partition[u];
-              if (p_graph.block_weight(from) - graph.node_weight(u) <
-                  p_ctx.min_block_weight(from)) {
+              if (!p_ctx.has_min_block_weights()) {
+                p_graph.set_block(u, to);
+              } else if (!p_graph.move(
+                             u,
+                             from,
+                             to,
+                             std::numeric_limits<BlockWeight>::max(),
+                             p_ctx.min_block_weight(from)
+                         )) {
                 lock[u] = 0;
                 return;
               }
-              p_graph.set_block(u, to);
               tracked_cache.move(u, from, to);
             }
           };
-          if (p_ctx.has_min_block_weights()) {
-            // Source lower bounds require serial reservations across vertices.
-            for (const NodeID u : graph.nodes()) {
-              execute_move(u);
-            }
-          } else {
-            graph.pfor_nodes(execute_move);
-          }
+          graph.pfor_nodes(execute_move);
         };
 
         previous_lp_moved =

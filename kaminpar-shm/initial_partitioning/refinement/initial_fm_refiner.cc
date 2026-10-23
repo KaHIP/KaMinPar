@@ -134,18 +134,18 @@ struct MaxOverloadSelectionPolicy {
   }
 };
 
-//! Accept better cuts, or the first cut that is balanced in case the initial
-//! cut is not balanced.
+//! Accept better cuts that preserve the minimum block weights and do not increase overload.
 struct BalancedMinCutAcceptancePolicy {
   bool operator()(
-      const PartitionedCSRGraph &,
-      const PartitionContext &,
+      const PartitionedCSRGraph &p_graph,
+      const PartitionContext &p_ctx,
       const EdgeWeight accepted_overload,
       const EdgeWeight current_overload,
       const EdgeWeight accepted_delta,
       const EdgeWeight delta
   ) {
-    return current_overload <= accepted_overload && delta < accepted_delta;
+    return current_overload <= accepted_overload && delta < accepted_delta &&
+           metrics::is_min_balanced(p_graph, p_ctx);
   }
 };
 } // namespace fm
@@ -358,10 +358,9 @@ void InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>
 
   std::iota(_chunks.begin(), _chunks.begin() + num_chunks, 0);
   std::transform(
-      _chunks.begin(),
-      _chunks.begin() + num_chunks,
-      _chunks.begin(),
-      [](const NodeID i) { return i * kChunkSize; }
+      _chunks.begin(), _chunks.begin() + num_chunks, _chunks.begin(), [](const NodeID i) {
+        return i * kChunkSize;
+      }
   );
   _rand.shuffle(_chunks.begin(), _chunks.begin() + num_chunks);
 

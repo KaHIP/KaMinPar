@@ -44,6 +44,8 @@ public:
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
 private:
+  template <typename Graph> void rebalance_nonadjacent(const Graph &graph);
+
   template <typename Graph> void rebalance_worker(const Graph &graph, int task_id);
 
   void init_underloaded_blocks();

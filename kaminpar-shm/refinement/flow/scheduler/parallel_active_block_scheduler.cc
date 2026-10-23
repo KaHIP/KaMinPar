@@ -326,6 +326,10 @@ ParallelActiveBlockScheduler::is_feasible_move_sequence(std::span<Move> moves) {
       balanced = false;
       max_imbalance = std::max(max_imbalance, b_weight / perfect_block_weight - 1.0);
     }
+    if (b_weight < _p_ctx->min_block_weight(b)) {
+      balanced = false;
+      max_imbalance = std::max(max_imbalance, 1.0 - b_weight / perfect_block_weight);
+    }
   }
 
   return {balanced, max_imbalance};

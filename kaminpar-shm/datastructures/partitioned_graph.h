@@ -6,6 +6,7 @@
 
 #include <functional>
 #include <span>
+#include <thread>
 #include <type_traits>
 #include <utility>
 
@@ -27,7 +28,11 @@ namespace partitioned_graph {
 
 struct alignas(64) AlignedBlockWeight {
   BlockWeight value;
+  std::uint8_t lock;
 };
+
+static_assert(sizeof(AlignedBlockWeight) == 64);
+static_assert(alignof(AlignedBlockWeight) == 64);
 
 constexpr struct seq_t {
 } seq;
@@ -149,8 +154,8 @@ public:
    * constraint, i.e., the move will fail if it would increase the weight of `to` beyond
    * `max_to_weight`, or the weight of `from` below `min_from_weight`.
    *
-   * This operation is thread-safe and guarantees that the `to` block will not be overloaded.
-   * The `to` block might become underloaded due to race conditions.
+   * This operation is thread-safe and preserves both weight bounds when concurrent moves use
+   * the same bounds. Unconditional partition updates must be synchronized separately.
    *
    * @param u Node to be moved.
    * @param from Block the node is moved from (must be the current block of `u`).
@@ -217,8 +222,11 @@ public:
    * Shift the given weight delta from block `from` to block `to`. This operation will fail if the
    * weight shift would overload block `to` or underload block `from`.
    *
-   * This operation is thread-safe. In case of failure, it is possible that block `to` becomes
-   * underloaded due to race conditions.
+   * The weight must belong to nodes still assigned to `from`; concurrent calls must move
+   * disjoint nodes. Update their block assignments only after this operation succeeds.
+   *
+   * This operation is thread-safe and preserves both weight bounds when concurrent moves use
+   * the same bounds. Unconditional partition updates must be synchronized separately.
    *
    * @param from Block to move weight from.
    * @param to Block to move weight to.
@@ -370,7 +378,8 @@ public:
           StaticArray<BlockWeight>(_dense_block_weights.size(), _dense_block_weights.data()),
           StaticArray<AlignedBlockWeight>(
               _aligned_block_weights.size(), _aligned_block_weights.data()
-          )
+          ),
+          StaticArray<std::uint8_t>(_block_weight_locks.size(), _block_weight_locks.data())
       );
     } else {
       return GenericPartitionedGraph<CSRGraph>(
@@ -380,7 +389,8 @@ public:
           StaticArray<BlockWeight>(_dense_block_weights.size(), _dense_block_weights.data()),
           StaticArray<AlignedBlockWeight>(
               _aligned_block_weights.size(), _aligned_block_weights.data()
-          )
+          ),
+          StaticArray<std::uint8_t>(_block_weight_locks.size(), _block_weight_locks.data())
       );
     }
   }
@@ -391,16 +401,19 @@ private:
       const BlockID k,
       StaticArray<BlockID> partition,
       StaticArray<BlockWeight> dense_block_weights,
-      StaticArray<AlignedBlockWeight> aligned_block_weights
+      StaticArray<AlignedBlockWeight> aligned_block_weights,
+      StaticArray<std::uint8_t> block_weight_locks
   )
       : _graph(&graph),
         _k(k),
         _partition(std::move(partition)),
         _dense_block_weights(std::move(dense_block_weights)),
-        _aligned_block_weights(std::move(aligned_block_weights)) {
+        _aligned_block_weights(std::move(aligned_block_weights)),
+        _block_weight_locks(std::move(block_weight_locks)) {
     KASSERT(partition.is_span());
     KASSERT(dense_block_weights.is_span());
     KASSERT(aligned_block_weights.is_span());
+    KASSERT(_block_weight_locks.is_span());
 
     init_node_weights();
   }
@@ -415,6 +428,32 @@ private:
       const BlockWeight max_to_weight,
       const BlockWeight min_from_weight
   ) {
+    KASSERT(from != to);
+
+    // Serialize outgoing moves from a block with a positive minimum. Incoming moves can
+    // only increase its weight, so a successful target reservation cannot subsequently fail
+    // the locked source check. In particular, no provisional target weight needs rollback.
+    // With no source minimum, the source cannot reject a move of an owned node, so retain
+    // the lock-free path used by ordinary upper-bound-only refinement.
+    if (min_from_weight > 0) {
+      // Reject obviously infeasible attempts without contending on the source lock; the
+      // checks after acquiring it and the target CAS remain authoritative.
+      if (block_weight(from) - delta < min_from_weight ||
+          block_weight(to) + delta > max_to_weight) {
+        return false;
+      }
+
+      lock_block_weight(from);
+
+      const bool movable = block_weight(from) - delta >= min_from_weight;
+      const bool moved =
+          movable &&
+          move_block_weight_impl(block_weights_vec, ptr, from, to, delta, max_to_weight, 0);
+
+      unlock_block_weight(from);
+      return moved;
+    }
+
     for (BlockWeight new_weight = block_weight(to); new_weight + delta <= max_to_weight;) {
       if (__atomic_compare_exchange_n(
               ptr(block_weights_vec[to]),
@@ -436,6 +475,28 @@ private:
     }
 
     return false;
+  }
+
+  void lock_block_weight(const BlockID block) {
+    // Reuse the cache-line padding of low-k block weights. Packing all their locks into
+    // one cache line otherwise makes independent blocks invalidate each other's locks.
+    std::uint8_t *lock = block_weight_lock(block);
+    std::uint8_t expected = 0;
+    while (!__atomic_compare_exchange_n(
+        lock, &expected, 1, false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED
+    )) {
+      expected = 0;
+      std::this_thread::yield();
+    }
+  }
+
+  void unlock_block_weight(const BlockID block) {
+    __atomic_store_n(block_weight_lock(block), 0, __ATOMIC_RELEASE);
+  }
+
+  [[nodiscard]] std::uint8_t *block_weight_lock(const BlockID block) {
+    return use_aligned_block_weights() ? &_aligned_block_weights[block].lock
+                                       : &_block_weight_locks[block];
   }
 
   [[nodiscard]] inline bool use_aligned_block_weights() const {
@@ -464,6 +525,7 @@ private:
 
   mutable StaticArray<BlockWeight> _dense_block_weights = {};
   StaticArray<AlignedBlockWeight> _aligned_block_weights = {};
+  StaticArray<std::uint8_t> _block_weight_locks = {};
 };
 
 using PartitionedGraph = GenericPartitionedGraph<Graph>;

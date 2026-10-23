@@ -87,6 +87,7 @@ kaminpar_add_shm_test(
 kaminpar_add_shm_test(test_shm_metrics shm/metrics_test.cc)
 kaminpar_add_shm_test(test_shm_subgraph_extraction shm/graphutils/subgraph_extraction_test.cc)
 kaminpar_add_shm_test(test_shm_partition_utils shm/graphutils/partition_utils_test.cc)
+kaminpar_add_shm_test(test_shm_isolated_nodes_min_block_weights shm/graphutils/isolated_nodes_min_block_weights_test.cc)
 kaminpar_add_shm_test(test_compressed_graph_builder shm/graphutils/compressed_graph_builder_test.cc)
 
 # KaMinPar -> Coarsening
@@ -104,6 +105,12 @@ kaminpar_add_shm_test(test_shm_jet_balancer shm/refinement/jet_balancer_test.cc)
 kaminpar_add_shm_test(test_shm_jet_refiner shm/refinement/jet_refiner_test.cc)
 kaminpar_add_shm_test(test_shm_compact_gain_query shm/refinement/compact_gain_query_test.cc)
 kaminpar_add_shm_test(test_shm_fm_correctness shm/refinement/fm_correctness_test.cc)
+kaminpar_add_shm_test(test_shm_refinement_min_block_weights shm/refinement/min_block_weights_test.cc)
+kaminpar_add_shm_test(test_shm_fm_min_block_weights shm/refinement/fm_min_block_weights_test.cc)
+kaminpar_add_shm_test(test_shm_flow_min_block_weights shm/refinement/flow_min_block_weights_test.cc)
+kaminpar_add_shm_test(test_shm_unconstrained_min_block_weights shm/refinement/unconstrained_min_block_weight_test.cc)
+kaminpar_add_shm_test(test_shm_underload_balancer_nonadjacent shm/refinement/underload_balancer_nonadjacent_test.cc)
+kaminpar_add_shm_test(test_shm_partitioned_graph_min_weight_transactions shm/refinement/partitioned_graph_min_weight_transactions_test.cc)
 
 if (KAMINPAR_BUILD_DISTRIBUTED)
     include(cmake/KaTestrophe.cmake)

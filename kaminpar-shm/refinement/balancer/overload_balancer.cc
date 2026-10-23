@@ -112,6 +112,10 @@ BlockWeight BlockParallelOverloadBalancer::perform_round(const Graph &graph) {
       _pq_weight[from] -= u_weight;
       KASSERT(_moved_nodes[u] == 1);
 
+      if (_p_graph->block_weight(from) - u_weight < _p_ctx->min_block_weight(from)) {
+        continue;
+      }
+
       auto [to, actual_relative_gain] = compute_best_gain(graph, gain_cache, u, from);
 
       if (expected_relative_gain <= actual_relative_gain) {
@@ -185,7 +189,8 @@ template <typename Graph> void BlockParallelOverloadBalancer::init_pq(const Grap
     const BlockID b = _p_graph->block(u);
     const BlockWeight overload = block_overload(b);
 
-    if (overload > 0) { // node in overloaded block
+    if (overload > 0 &&
+        _p_graph->block_weight(b) - graph.node_weight(u) >= _p_ctx->min_block_weight(b)) {
       const auto [max_gainer, rel_gain] = compute_best_gain(graph, gain_cache, u, b);
       const bool need_more_nodes = (pq_weight[b] < overload);
       if (need_more_nodes || pq[b].empty() || rel_gain > pq[b].peek_key()) {
@@ -275,7 +280,9 @@ bool BlockParallelOverloadBalancer::move_node_if_possible(
   KASSERT(node < _p_graph->n());
   KASSERT(to < _p_graph->k());
 
-  if (_p_graph->move(node, from, to, _p_ctx->max_block_weight(to))) {
+  if (_p_graph->move(
+          node, from, to, _p_ctx->max_block_weight(to), _p_ctx->min_block_weight(from)
+      )) {
     if (_move_tracker != nullptr) {
       _move_tracker(node, from, to);
     }

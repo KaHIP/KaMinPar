@@ -7,6 +7,7 @@
 #include "kaminpar-shm/graphutils/permutator.h"
 
 #include <algorithm>
+#include <set>
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_invoke.h>
@@ -233,6 +234,34 @@ void reorder_edges_by_compression(CSRGraph &graph) {
   });
 }
 
+std::vector<BlockWeight> compute_nonisolated_min_block_weights(
+    const PartitionContext &p_ctx, const BlockWeight isolated_weight
+) {
+  KASSERT(isolated_weight >= 0);
+
+  std::vector<BlockWeight> min_weights(p_ctx.k);
+  __uint128_t total_min_weight = 0;
+  for (BlockID b = 0; b < p_ctx.k; ++b) {
+    total_min_weight += p_ctx.min_block_weight(b);
+  }
+  if (total_min_weight == 0) {
+    return min_weights;
+  }
+
+  const __uint128_t reserved_weight =
+      std::min(total_min_weight, static_cast<__uint128_t>(isolated_weight));
+  __uint128_t prefix_min_weight = 0;
+  __uint128_t previous_reservation = 0;
+  for (BlockID b = 0; b < p_ctx.k; ++b) {
+    prefix_min_weight += p_ctx.min_block_weight(b);
+    const __uint128_t reservation = prefix_min_weight * reserved_weight / total_min_weight;
+    min_weights[b] =
+        p_ctx.min_block_weight(b) - static_cast<BlockWeight>(reservation - previous_reservation);
+    previous_reservation = reservation;
+  }
+  return min_weights;
+}
+
 PartitionedGraph assign_isolated_nodes(
     PartitionedGraph p_graph, const NodeID num_isolated_nodes, const PartitionContext &p_ctx
 ) {
@@ -250,14 +279,75 @@ PartitionedGraph assign_isolated_nodes(
   // Now append the isolated ones
   const BlockID k = p_graph.k();
   auto block_weights = p_graph.take_raw_block_weights();
+  const auto node_weights = reified(graph, [](const auto &concrete_graph) {
+    return concrete_graph.raw_node_weights().view();
+  });
+  const auto node_weight = [&](const NodeID u) {
+    return node_weights.empty() ? NodeWeight{1} : node_weights[u];
+  };
+  NodeID next_isolated_node = num_nonisolated_nodes;
+
+  if (p_ctx.has_min_block_weights() && graph.max_node_weight() > 1) {
+    // Weighted nodes may not fit the next underloaded block. Keep all feasible targets
+    // available for later, lighter nodes instead of discarding their remaining capacity.
+    using Capacity = std::pair<BlockWeight, BlockID>;
+    std::set<Capacity> capacities;
+    std::set<Capacity> underloaded_capacities;
+    for (BlockID b = 0; b < k; ++b) {
+      const Capacity entry = {p_ctx.max_block_weight(b) - block_weights[b], b};
+      capacities.insert(entry);
+      if (block_weights[b] < p_ctx.min_block_weight(b)) {
+        underloaded_capacities.insert(entry);
+      }
+    }
+
+    for (NodeID u = next_isolated_node; u < graph.n(); ++u) {
+      const NodeWeight weight = node_weight(u);
+      auto target = underloaded_capacities.lower_bound({weight, 0});
+      BlockID to;
+      if (target != underloaded_capacities.end()) {
+        to = target->second;
+      } else {
+        const auto feasible = capacities.lower_bound({weight, 0});
+        // Indivisible weighted nodes need not admit a feasible greedy packing. If none fits,
+        // choose the block with the most capacity, as a best-effort fallback.
+        to = feasible != capacities.end() ? feasible->second : capacities.rbegin()->second;
+      }
+
+      const Capacity old_entry = {p_ctx.max_block_weight(to) - block_weights[to], to};
+      capacities.erase(old_entry);
+      underloaded_capacities.erase(old_entry);
+      partition[u] = to;
+      block_weights[to] += weight;
+      const Capacity new_entry = {p_ctx.max_block_weight(to) - block_weights[to], to};
+      capacities.insert(new_entry);
+      if (block_weights[to] < p_ctx.min_block_weight(to)) {
+        underloaded_capacities.insert(new_entry);
+      }
+    }
+    return {graph, k, std::move(partition), std::move(block_weights)};
+  }
+
+  if (p_ctx.has_min_block_weights()) {
+    // Unit-weight nodes can fill every deficit exactly in linear time.
+    for (BlockID b = 0; b < k && next_isolated_node < graph.n(); ++b) {
+      while (next_isolated_node < graph.n() && block_weights[b] < p_ctx.min_block_weight(b) &&
+             block_weights[b] + node_weight(next_isolated_node) <= p_ctx.max_block_weight(b)) {
+        partition[next_isolated_node] = b;
+        block_weights[b] += node_weight(next_isolated_node);
+        ++next_isolated_node;
+      }
+    }
+  }
+
   BlockID b = 0;
 
-  for (NodeID u = num_nonisolated_nodes; u < num_nonisolated_nodes + num_isolated_nodes; ++u) {
-    while (b + 1 < k && block_weights[b] + p_graph.node_weight(u) > p_ctx.max_block_weight(b)) {
+  for (NodeID u = next_isolated_node; u < num_nonisolated_nodes + num_isolated_nodes; ++u) {
+    while (b + 1 < k && block_weights[b] + node_weight(u) > p_ctx.max_block_weight(b)) {
       ++b;
     }
     partition[u] = b;
-    block_weights[b] += p_graph.node_weight(u);
+    block_weights[b] += node_weight(u);
   }
 
   return {graph, k, std::move(partition), std::move(block_weights)};
