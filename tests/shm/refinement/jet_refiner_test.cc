@@ -374,7 +374,7 @@ TEST(JetDestinationCacheTest, InvalidatesMovedVerticesAndNeighborsAndClearsOnRol
       {{3, 2, 1}, {3, 2, 1}, {3, 2, 1}, {3, 2, 1}}, {0, 0, 0, 0}
   };
   jet::DestinationCache destinations(cache, graph.n());
-  for (const NodeID u : graph.nodes()) {
+  for (NodeID u = 0; u < graph.n(); ++u) {
     EXPECT_EQ(destinations.get(u, 0).target, 1);
     cache.connections[u][2] = 5;
   }
@@ -388,7 +388,7 @@ TEST(JetDestinationCacheTest, InvalidatesMovedVerticesAndNeighborsAndClearsOnRol
   EXPECT_EQ(cache.queries[3], 1); // Unaffected destinations remain memoized.
 
   destinations.invalidate_all(graph.csr_graph());
-  for (const NodeID u : graph.nodes()) {
+  for (NodeID u = 0; u < graph.n(); ++u) {
     cache.connections[u][1] = 7;
     EXPECT_EQ(destinations.get(u, 0).target, 1);
   }
@@ -464,7 +464,7 @@ TEST(JetComponentTest, ReusesCachesAcrossShrinkingAndGrowingGraphsAndBlockCounts
       ctx.refinement.jet.gain_cache_strategy = cache;
       ctx.refinement.jet.num_iterations = 3;
       JetRefiner retained(ctx);
-      for (const auto [n, k] : std::vector<std::pair<NodeID, BlockID>>{
+      for (const auto &[n, k] : std::vector<std::pair<NodeID, BlockID>>{
                {32, 4}, {128, 64}, {16, 2}, {96, 48}, {64, 8}
            }) {
         SCOPED_TRACE(n);
@@ -499,9 +499,65 @@ TEST(JetComponentTest, ReusesCachesAcrossShrinkingAndGrowingGraphsAndBlockCounts
         fresh.initialize(reference);
         fresh.refine(reference, ctx.partition);
         EXPECT_TRUE(metrics::is_feasible(p_graph, ctx.partition));
-        for (const NodeID u : graph.nodes()) {
+        for (NodeID u = 0; u < graph.n(); ++u) {
           EXPECT_EQ(p_graph.block(u), reference.block(u));
         }
+      }
+    }
+  }
+}
+
+TEST(JetComponentTest, ReusesSparseCacheWhenPackedDegreeBucketsAndBlockCountsChange) {
+  tbb::global_control control(tbb::global_control::max_allowed_parallelism, 1);
+  struct Instance {
+    NodeID n;
+    BlockID k;
+    NodeID radius;
+  };
+  for (const bool compressed : {false, true}) {
+    auto ctx = create_jet_context(2);
+    ctx.refinement.jet.gain_cache_strategy = GainCacheStrategy::SPARSE;
+    ctx.refinement.jet.num_iterations = 4;
+    ctx.refinement.kway_fm.k_based_high_degree_threshold = 1;
+    ctx.refinement.kway_fm.constant_high_degree_threshold = 0;
+    JetRefiner retained(ctx);
+    for (const auto &[n, k, radius] :
+         std::vector<Instance>{{64, 16, 1}, {96, 24, 3}, {32, 8, 1}, {128, 32, 2}, {48, 12, 1}}) {
+      SCOPED_TRACE(n);
+      SCOPED_TRACE(k);
+      SCOPED_TRACE(radius);
+      std::vector<EdgeID> offsets(n + 1);
+      std::vector<NodeID> edges;
+      std::vector<BlockID> partition(n);
+      for (NodeID u = 0; u < n; ++u) {
+        offsets[u] = edges.size();
+        for (NodeID delta = 1; delta <= radius; ++delta) {
+          edges.push_back((u + delta) % n);
+          edges.push_back((u + n - delta) % n);
+        }
+        partition[u] = u % k;
+      }
+      offsets[n] = edges.size();
+      auto graph = make_graph(offsets, edges, true);
+      if (compressed) {
+        graph = compress(graph.csr_graph());
+      }
+      ASSERT_TRUE(graph.sorted());
+      ASSERT_LT(2 * radius, k); // Every row uses the packed hash-table path.
+      ctx.partition.setup(graph, k, 0.1);
+      auto p_graph = make_p_graph(graph, k, partition);
+      KaMinPar::reseed(42);
+      retained.initialize(p_graph);
+      retained.refine(p_graph, ctx.partition);
+
+      auto reference = make_p_graph(graph, k, partition);
+      JetRefiner fresh(ctx);
+      KaMinPar::reseed(42);
+      fresh.initialize(reference);
+      fresh.refine(reference, ctx.partition);
+      EXPECT_TRUE(metrics::is_feasible(p_graph, ctx.partition));
+      for (NodeID u = 0; u < graph.n(); ++u) {
+        EXPECT_EQ(p_graph.block(u), reference.block(u));
       }
     }
   }
