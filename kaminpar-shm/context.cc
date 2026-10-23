@@ -394,6 +394,8 @@ std::ostream &operator<<(std::ostream &out, const GainCacheStrategy strategy) {
     return out << "dense-largek";
   case GainCacheStrategy::ON_THE_FLY:
     return out << "on-the-fly";
+  case GainCacheStrategy::AUTO:
+    return out << "auto";
   }
 
   return out << "<invalid>";
@@ -410,6 +412,7 @@ std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies() {
       {"dense", GainCacheStrategy::DENSE},
       {"dense-largek", GainCacheStrategy::DENSE_LARGE_K},
       {"on-the-fly", GainCacheStrategy::ON_THE_FLY},
+      {"auto", GainCacheStrategy::AUTO},
   };
 }
 
@@ -738,7 +741,13 @@ std::ostream &operator<<(std::ostream &out, const RefinementContext &r_ctx) {
     out << "  Number of iterations:       " << r_ctx.kway_fm.num_iterations
         << " [or improvement drops below < " << 100.0 * (1.0 - r_ctx.kway_fm.abortion_threshold)
         << "%]\n";
-    out << "  Number of seed nodes:       " << r_ctx.kway_fm.num_seed_nodes << "\n";
+    out << "  Number of seed nodes:       ";
+    if (r_ctx.kway_fm.num_seed_nodes == 0) {
+      out << "auto (FM: " << r_ctx.kway_fm.num_seed_nodes_for_fm()
+          << ", UFM: 25 on sparse levels, 75 otherwise)\n";
+    } else {
+      out << r_ctx.kway_fm.num_seed_nodes << "\n";
+    }
     out << "  Locking strategies:         seed nodes: "
         << (r_ctx.kway_fm.unlock_seed_nodes ? "unlock" : "lock") << ", locally moved nodes: "
         << (r_ctx.kway_fm.unlock_locally_moved_nodes ? "unlock" : "lock") << "\n";

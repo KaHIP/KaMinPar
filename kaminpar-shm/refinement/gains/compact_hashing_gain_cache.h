@@ -156,12 +156,18 @@ public:
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight
   gain(const NodeID node, const BlockID block_from, const BlockID block_to) const {
-    return conn(node, block_to) - conn(node, block_from);
+    EdgeWeight result = 0;
+    with_gain_query(node, [&](auto &&query) { result = query(block_from, block_to); });
+    return result;
   }
 
   [[nodiscard]] KAMINPAR_INLINE std::pair<EdgeWeight, EdgeWeight>
   gain(const NodeID node, const BlockID b_node, const std::pair<BlockID, BlockID> &targets) {
-    return {gain(node, b_node, targets.first), gain(node, b_node, targets.second)};
+    std::pair<EdgeWeight, EdgeWeight> result;
+    with_gain_query(node, [&](auto &&query) {
+      result = {query(b_node, targets.first), query(b_node, targets.second)};
+    });
+    return result;
   }
 
   [[nodiscard]] KAMINPAR_INLINE EdgeWeight conn(const NodeID node, const BlockID block) const {
@@ -233,22 +239,41 @@ public:
         });
       }
     } else {
-      const EdgeWeight conn_from = kIteratesExactGains ? conn_full_table(node, from) : 0;
-
-      for (BlockID to = 0; to < _k; ++to) {
-        if (from == to) {
-          continue;
-        }
-
-        if constexpr (kIteratesNonadjacentBlocks) {
-          lambda(to, [&] { return conn_full_table(node, to) - conn_from; });
-        } else {
-          const EdgeWeight conn_to = conn_full_table(node, to);
-          if (conn_to > 0) {
-            lambda(to, [&] { return conn_to - conn_from; });
+      // Resolve the immutable row layout once instead of once per candidate block.
+      const int width = compute_entry_width(node, false);
+      if constexpr (kIteratesNonadjacentBlocks) {
+        if (width == 0) {
+          for (BlockID to = 0; to < _k; ++to) {
+            if (to != from) {
+              lambda(to, [] { return EdgeWeight{0}; });
+            }
           }
+          return;
         }
       }
+      with_full_table_impl(node, width, [&](const auto *table) {
+        const EdgeWeight conn_from =
+            kIteratesExactGains
+                ? static_cast<EdgeWeight>(__atomic_load_n(table + from, __ATOMIC_RELAXED))
+                : 0;
+        for (BlockID to = 0; to < _k; ++to) {
+          if (from == to) {
+            continue;
+          }
+          if constexpr (kIteratesNonadjacentBlocks) {
+            lambda(to, [&] {
+              return static_cast<EdgeWeight>(__atomic_load_n(table + to, __ATOMIC_RELAXED)) -
+                     conn_from;
+            });
+          } else {
+            const EdgeWeight conn_to =
+                static_cast<EdgeWeight>(__atomic_load_n(table + to, __ATOMIC_RELAXED));
+            if (conn_to > 0) {
+              lambda(to, [&] { return conn_to - conn_from; });
+            }
+          }
+        }
+      });
     }
   }
 
@@ -443,8 +468,7 @@ private:
   template <typename Lambda>
   KAMINPAR_INLINE decltype(auto) with_hash_table(const NodeID node, Lambda &&l) const {
     return with_hash_table_impl(
-        node,
-        [&]<typename Width>(const Width *storage, const std::size_t size) {
+        node, [&]<typename Width>(const Width *storage, const std::size_t size) {
           return l(CompactHashMap<const Width, true>(storage, size, _bits_for_key));
         }
     );
@@ -486,21 +510,27 @@ private:
       break;
 
     case 2:
-      return l(reinterpret_cast<const std::uint16_t *>(
-          reinterpret_cast<const std::uint8_t *>(_gain_cache.data()) + start
-      ));
+      return l(
+          reinterpret_cast<const std::uint16_t *>(
+              reinterpret_cast<const std::uint8_t *>(_gain_cache.data()) + start
+          )
+      );
       break;
 
     case 4:
-      return l(reinterpret_cast<const std::uint32_t *>(
-          reinterpret_cast<const std::uint8_t *>(_gain_cache.data()) + start
-      ));
+      return l(
+          reinterpret_cast<const std::uint32_t *>(
+              reinterpret_cast<const std::uint8_t *>(_gain_cache.data()) + start
+          )
+      );
       break;
 
     case 8:
-      return l(reinterpret_cast<const std::uint64_t *>(
-          reinterpret_cast<const std::uint8_t *>(_gain_cache.data()) + start
-      ));
+      return l(
+          reinterpret_cast<const std::uint64_t *>(
+              reinterpret_cast<const std::uint8_t *>(_gain_cache.data()) + start
+          )
+      );
       break;
     }
 

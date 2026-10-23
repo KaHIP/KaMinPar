@@ -52,6 +52,54 @@ using GainCacheTypes = ::testing::Types<
 
 TYPED_TEST_SUITE(GainCacheTest, GainCacheTypes);
 
+TYPED_TEST(GainCacheTest, ScalarAndPairQueriesSupportAliasedBlocks) {
+  const Graph graph = make_complete_graph(8);
+  auto p_graph = make_p_graph(graph, 4, {0, 0, 1, 1, 2, 2, 3, 3});
+  this->init(p_graph);
+  auto check = [&] {
+    for (BlockID from = 0; from < 4; ++from) {
+      const EdgeWeight source = this->_gain_cache->conn(0, from);
+      for (BlockID first = 0; first < 4; ++first) {
+        const EdgeWeight expected_first = this->_gain_cache->conn(0, first) - source;
+        EXPECT_EQ(this->_gain_cache->gain(0, from, first), expected_first);
+        for (BlockID second = 0; second < 4; ++second) {
+          const auto gains = this->_gain_cache->gain(0, from, {first, second});
+          EXPECT_EQ(gains.first, expected_first);
+          EXPECT_EQ(gains.second, this->_gain_cache->conn(0, second) - source);
+        }
+      }
+    }
+  };
+  check();
+  this->move(p_graph, 1, 3);
+  check();
+}
+
+TEST(OnTheFlyGainCacheTest, ReinitializationCanGrowTheBlockRange) {
+  const Graph graph = make_complete_graph(6);
+  Context ctx = create_default_context();
+  auto small = make_p_graph(graph, 2, {0, 0, 1, 1, 0, 1});
+  ctx.partition.setup(graph, 2, .03);
+  OnTheFlyGainCache<CSRGraph> cache(ctx, graph.n(), 2);
+  cache.initialize(graph.csr_graph(), small);
+  cache.gains(0, 0, [](BlockID, auto &&) {});
+
+  constexpr BlockID k = 1024;
+  auto large = make_p_graph(graph, k, {0, 1, 2, 254, 511, 1023});
+  ctx.partition.setup(graph, k, .03);
+  cache.initialize(graph.csr_graph(), large);
+  std::vector<unsigned> visits(k);
+  cache.gains(0, 0, [&](const BlockID to, auto &&gain) {
+    ASSERT_LT(to, k);
+    EXPECT_EQ(gain(), cache.conn(0, to) - cache.conn(0, 0));
+    ++visits[to];
+  });
+  EXPECT_EQ(visits[0], 0u);
+  for (BlockID to = 1; to < k; ++to) {
+    EXPECT_EQ(visits[to], 1u);
+  }
+}
+
 TYPED_TEST(GainCacheTest, ObjectConstructionWorks) {
   this->_gain_cache = std::make_unique<TypeParam>(this->_ctx, 0, 0);
 }

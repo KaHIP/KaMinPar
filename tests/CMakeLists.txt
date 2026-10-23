@@ -103,6 +103,7 @@ kaminpar_add_shm_test(test_shm_gain_caches shm/refinement/gain_cache_test.cc)
 kaminpar_add_shm_test(test_shm_jet_balancer shm/refinement/jet_balancer_test.cc)
 kaminpar_add_shm_test(test_shm_jet_refiner shm/refinement/jet_refiner_test.cc)
 kaminpar_add_shm_test(test_shm_compact_gain_query shm/refinement/compact_gain_query_test.cc)
+kaminpar_add_shm_test(test_shm_fm_correctness shm/refinement/fm_correctness_test.cc)
 
 if (KAMINPAR_BUILD_DISTRIBUTED)
     include(cmake/KaTestrophe.cmake)
