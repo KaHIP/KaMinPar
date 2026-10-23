@@ -56,7 +56,7 @@ TEST(JetMinBlockWeightsTest, RejectsUnderloadingMovesAndUsesAvailableSlack) {
     const Graph graph = compressed ? compress(csr.csr_graph()) : make_star_graph(kLeaves);
     std::vector<BlockID> partition(graph.n(), 1);
     partition[0] = 0;
-    for (const auto cache : {JetGainCacheStrategy::SPARSE, JetGainCacheStrategy::JET}) {
+    for (const auto cache : {GainCacheStrategy::SPARSE, GainCacheStrategy::ON_THE_FLY}) {
       for (const auto balancer : {JetBalancingAlgorithm::OVERLOAD, JetBalancingAlgorithm::JET}) {
         Context ctx = create_default_context();
         ctx.parallel.num_threads = 4;
