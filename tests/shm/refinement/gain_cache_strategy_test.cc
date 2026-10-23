@@ -14,19 +14,22 @@ namespace kaminpar::shm::testing {
 namespace {
 
 TEST(GainCacheStrategyTest, SharedValuesRetainTheirNamesAcrossAlgorithmOptionMaps) {
-  const auto all = get_gain_cache_strategies();
-  for (const auto &supported : {get_fm_gain_cache_strategies(), get_jet_gain_cache_strategies()}) {
+  const auto fm = get_gain_cache_strategies();
+  const auto jet = get_jet_gain_cache_strategies();
+  for (const auto &supported : {fm, jet}) {
     for (const auto &[name, strategy] : supported) {
       std::ostringstream formatted;
       formatted << strategy;
       EXPECT_EQ(formatted.str(), name);
-      EXPECT_EQ(all.at(name), strategy);
     }
+  }
+  for (const auto *name : {"sparse", "on-the-fly"}) {
+    EXPECT_EQ(fm.at(name), jet.at(name));
   }
 }
 
 TEST(GainCacheStrategyTest, AlgorithmOptionMapsRejectUnsupportedBackends) {
-  EXPECT_FALSE(get_fm_gain_cache_strategies().contains("jet"));
+  EXPECT_FALSE(get_gain_cache_strategies().contains("jet"));
   EXPECT_FALSE(get_jet_gain_cache_strategies().contains("compact-hashing"));
   EXPECT_EQ(get_jet_gain_cache_strategies().at("jet"), GainCacheStrategy::JET);
   EXPECT_EQ(get_jet_gain_cache_strategies().at("sparse"), GainCacheStrategy::SPARSE);

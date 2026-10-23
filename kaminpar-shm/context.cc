@@ -412,15 +412,7 @@ std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies() {
       {"dense", GainCacheStrategy::DENSE},
       {"dense-largek", GainCacheStrategy::DENSE_LARGE_K},
       {"on-the-fly", GainCacheStrategy::ON_THE_FLY},
-      {"jet", GainCacheStrategy::JET},
   };
-}
-
-std::unordered_map<std::string, GainCacheStrategy> get_fm_gain_cache_strategies() {
-  auto strategies = get_gain_cache_strategies();
-  // The Jet cache uses synchronous batches and has no concurrent FM delta-cache adapter.
-  strategies.erase("jet");
-  return strategies;
 }
 
 std::unordered_map<std::string, GainCacheStrategy> get_jet_gain_cache_strategies() {

@@ -69,8 +69,6 @@ std::ostream &operator<<(std::ostream &out, GainCacheStrategy strategy);
 
 std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies();
 
-std::unordered_map<std::string, GainCacheStrategy> get_fm_gain_cache_strategies();
-
 std::unordered_map<std::string, GainCacheStrategy> get_jet_gain_cache_strategies();
 
 std::ostream &operator<<(std::ostream &out, JetBalancingAlgorithm algorithm);

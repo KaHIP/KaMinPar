@@ -554,7 +554,7 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
 
   // Flags for gain caches
   fm->add_option("--r-fm-gc", ctx.refinement.kway_fm.gain_cache_strategy)
-      ->transform(CLI::CheckedTransformer(get_fm_gain_cache_strategies()).description(""))
+      ->transform(CLI::CheckedTransformer(get_gain_cache_strategies()).description(""))
       ->capture_default_str();
   fm->add_option(
         "--r-fm-gc-const-hd-threshold",
