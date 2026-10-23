@@ -326,8 +326,14 @@ TEST(JetGainCacheTest, MixedBatchSizesRemainExactForAdjacentMovedVertices) {
 }
 
 TEST(JetGainCacheTest, SmallBatchDoesNotPackWeightsDuringExchange) {
-  constexpr EdgeWeight weight = std::numeric_limits<EdgeWeight>::max() / 4;
-  // Two heavy neighbors exchange blocks through the atomic update path.
+  constexpr EdgeWeight weight = std::numeric_limits<EdgeWeight>::max() / 8;
+  // Two heavy neighbors exchange blocks through the atomic update path. Include both edge
+  // directions and the 18 light edges when bounding the graph's total edge weight.
+  static_assert(weight <= (std::numeric_limits<EdgeWeight>::max() - 36) / 4);
+  static_assert(
+      static_cast<UnsignedEdgeWeight>(weight) >
+      (std::numeric_limits<UnsignedEdgeWeight>::max() >> 6)
+  );
   const auto graph = make_star_graph(20, [](const NodeID u, const NodeID v) {
     return std::max(u, v) <= 2 ? weight : EdgeWeight{1};
   });
