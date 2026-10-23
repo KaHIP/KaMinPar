@@ -176,10 +176,14 @@ private:
       map.clear();
     };
 
+    auto &rating_map = _rating_map_ets.local();
+    // A retained cache can be initialized for a larger k. Refresh each thread's
+    // bound, including scratch maps first created after that initialization.
+    rating_map.change_max_size(_k);
     if constexpr (kIteratesNonadjacentBlocks) {
-      _rating_map_ets.local().execute(_k, action);
+      rating_map.execute(_k, action);
     } else {
-      _rating_map_ets.local().execute(std::min<BlockID>(_graph->degree(node), _k), action);
+      rating_map.execute(std::min<BlockID>(_graph->degree(node), _k), action);
     }
   }
 

@@ -260,6 +260,9 @@ private:
     }
 
     std::size_t num_moves = 0;
+    if constexpr (requires { gain_cache.begin_batch(); }) {
+      gain_cache.begin_batch();
+    }
     graph.pfor_nodes([&](const NodeID u) {
       if (_selected[u]) {
         const BlockID from = p_graph.block(u);
@@ -269,6 +272,10 @@ private:
         __atomic_fetch_add(&num_moves, 1, __ATOMIC_RELAXED);
       }
     });
+    // The next pass reads connectivity for the updated partition.
+    if constexpr (requires { gain_cache.flush_batch(p_graph); }) {
+      gain_cache.flush_batch(p_graph);
+    }
     return num_moves > 0;
   }
 

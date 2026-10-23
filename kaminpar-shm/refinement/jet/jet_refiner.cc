@@ -14,6 +14,9 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <span>
+#include <stdexcept>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -38,6 +41,11 @@ namespace kaminpar::shm {
 template <typename GainCache, typename MoveTracker> class TrackedJetGainCache {
 public:
   constexpr static bool kIteratesExactGains = GainCache::kIteratesExactGains;
+  constexpr static bool kSupportsBatch = requires(
+      GainCache &cache,
+      const std::span<const JetGainCacheMove> moves,
+      const PartitionedGraph &p_graph
+  ) { cache.move_batch(moves, p_graph); };
 
   TrackedJetGainCache(GainCache &cache, const MoveTracker &track_move)
       : _cache(cache),
@@ -51,19 +59,52 @@ public:
     _cache.gains(u, from, std::forward<Lambda>(lambda));
   }
 
+  void begin_batch() {
+    KASSERT(!_batch_active);
+    _batch_active = true;
+  }
+
+  void flush_batch(const PartitionedGraph &p_graph) {
+    KASSERT(_batch_active);
+    _batch_active = false;
+    if constexpr (kSupportsBatch) {
+      _batch_moves.clear();
+      for (auto &moves : _thread_moves) {
+        _batch_moves.insert(_batch_moves.end(), moves.begin(), moves.end());
+        moves.clear();
+      }
+      _cache.move_batch(std::span(_batch_moves), p_graph);
+    }
+  }
+
   void move(const NodeID u, const BlockID from, const BlockID to) {
-    _cache.move(u, from, to);
+    if constexpr (kSupportsBatch) {
+      if (_batch_active) {
+        _thread_moves.local().push_back({u, from, to});
+      } else {
+        _cache.move(u, from, to);
+      }
+    } else {
+      _cache.move(u, from, to);
+    }
     _track_move(u, from, to);
   }
 
 private:
   GainCache &_cache;
   const MoveTracker &_track_move;
+  bool _batch_active = false;
+  tbb::enumerable_thread_specific<std::vector<JetGainCacheMove>> _thread_moves;
+  std::vector<JetGainCacheMove> _batch_moves;
 };
 
 template <typename Graph> class JetRefinerImpl {
   SET_DEBUG(false);
   SET_STATISTICS_FROM_GLOBAL();
+
+  using SparseCache = SparseGainCache<Graph, GenericDeltaGainCache, false>;
+  using AdaptiveCache = SynchronousJetGainCache<Graph>;
+  using OnTheFlyCache = OnTheFlyGainCache<Graph, false, false, true>;
 
 public:
   JetRefinerImpl(const Context &ctx) : _ctx(ctx) {}
@@ -99,24 +140,24 @@ public:
     if (_num_rounds <= 0 || p_graph.k() < 2) {
       return false;
     }
-    switch (_ctx.refinement.jet.gain_cache_strategy) {
-    case JetGainCacheStrategy::SPARSE:
-      if (can_use_sparse_cache(graph, p_graph.k())) {
-        // Retain the legacy storage layout, but enumerate adjacent targets.
-        return refine_with_cache<SparseGainCache<Graph, GenericDeltaGainCache, false>>(
-            p_graph, graph, p_ctx
-        );
-      }
-      // Avoid n*k storage on unsorted input and packed connectivity overflow.
-      return refine_with_cache<OnTheFlyGainCache<Graph, false, false, true>>(p_graph, graph, p_ctx);
-    case JetGainCacheStrategy::JET:
-      return refine_with_cache<SynchronousJetGainCache<Graph>>(p_graph, graph, p_ctx);
+    const auto strategy = _ctx.refinement.jet.gain_cache_strategy;
+    if (strategy != GainCacheStrategy::SPARSE && strategy != GainCacheStrategy::JET &&
+        strategy != GainCacheStrategy::ON_THE_FLY) {
+      throw std::invalid_argument("Jet supports only sparse, jet, and on-the-fly gain caches");
     }
-    return false;
+    // Use the same fallback policy for stored caches. Otherwise coarse unsorted
+    // graphs compare on-the-fly computation with maintained connectivity tables.
+    if (strategy == GainCacheStrategy::ON_THE_FLY || !can_use_stored_cache(graph, p_graph.k())) {
+      return refine_with_cache<OnTheFlyCache>(p_graph, graph, p_ctx);
+    }
+    if (strategy == GainCacheStrategy::SPARSE) {
+      return refine_with_cache<SparseCache>(p_graph, graph, p_ctx);
+    }
+    return refine_with_cache<AdaptiveCache>(p_graph, graph, p_ctx);
   }
 
 private:
-  bool can_use_sparse_cache(const Graph &graph, const BlockID k) const {
+  bool can_use_stored_cache(const Graph &graph, const BlockID k) const {
     if (!graph.sorted()) {
       return false;
     }
@@ -157,8 +198,13 @@ private:
   bool
   refine_with_cache(PartitionedGraph &p_graph, const Graph &graph, const PartitionContext &p_ctx) {
     START_TIMER("Allocation");
-    GainCache gain_cache(_ctx, graph.n(), p_graph.k());
+    auto &stored_cache = std::get<std::unique_ptr<GainCache>>(_gain_caches);
+    if (!stored_cache) {
+      stored_cache = std::make_unique<GainCache>(_ctx, graph.n(), p_graph.k());
+    }
+    GainCache &gain_cache = *stored_cache;
     gain_cache.initialize(graph, p_graph);
+    jet::DestinationCache destinations(gain_cache, graph.n());
 
     StaticArray<BlockID> next_partition(graph.n(), static_array::noinit);
     StaticArray<EdgeWeight> candidate_gain(graph.n(), static_array::noinit);
@@ -169,6 +215,7 @@ private:
     StaticArray<BlockID> old_block(graph.n(), kInvalidBlockID);
     tbb::enumerable_thread_specific<std::vector<NodeID>> moved_nodes;
     const auto track_move = [&](const NodeID u, const BlockID from, BlockID) {
+      destinations.invalidate_neighborhood(graph, u);
       // Both phases have a single owner per vertex; their barriers separate them.
       if (old_block[u] == kInvalidBlockID) {
         old_block[u] = from;
@@ -245,27 +292,10 @@ private:
               return;
             }
 
-            EdgeWeight conn_from = 0;
-            if constexpr (!requires { GainCache::kIteratesSourceBlock; }) {
-              conn_from = gain_cache.conn(u, from);
-            }
-            EdgeWeight best_conn = 0;
-            BlockID best_block = from;
-            gain_cache.gains(u, from, [&](const BlockID to, auto &&conn_fn) {
-              const EdgeWeight conn = conn_fn();
-              if (to == from) {
-                conn_from = conn;
-              } else if (conn > best_conn || (conn == best_conn && to < best_block)) {
-                best_conn = conn;
-                best_block = to;
-              }
-            });
-
-            const EdgeWeight best_gain = best_conn - conn_from;
-            if (best_conn > 0 &&
-                (best_gain >= 0 || best_gain > -std::floor(gain_temp * conn_from))) {
-              next_partition[u] = best_block;
-              candidate_gain[u] = best_gain;
+            const auto &destination = destinations.get(u, from);
+            if (destination.accepts(gain_temp)) {
+              next_partition[u] = destination.target;
+              candidate_gain[u] = destination.gain();
             }
           });
         };
@@ -302,6 +332,7 @@ private:
         };
 
         TIMED_SCOPE("Execute moves") {
+          tracked_cache.begin_batch();
           const auto execute_move = [&](const NodeID u) {
             if (lock[u]) {
               const BlockID from = p_graph.block(u);
@@ -323,6 +354,7 @@ private:
           } else {
             graph.pfor_nodes(execute_move);
           }
+          tracked_cache.flush_batch(p_graph);
         };
 
         previous_lp_moved =
@@ -435,6 +467,7 @@ private:
             lock[u] = 0;
           });
           gain_cache.initialize(graph, p_graph);
+          destinations.invalidate_all(graph);
           initialize_balancer();
           current_cut = best_cut;
           last_iteration_is_best = true;
@@ -459,6 +492,13 @@ private:
 
 private:
   const Context &_ctx;
+  // Retain allocations across refinement calls and uncoarsening levels. Each
+  // backend refreshes its graph/partition pointers when it is initialized.
+  std::tuple<
+      std::unique_ptr<SparseCache>,
+      std::unique_ptr<AdaptiveCache>,
+      std::unique_ptr<OnTheFlyCache>>
+      _gain_caches;
 
   int _num_rounds = 0;
   double _initial_gain_temp = 0.0;

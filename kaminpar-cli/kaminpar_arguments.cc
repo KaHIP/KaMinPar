@@ -554,7 +554,7 @@ CLI::Option_group *create_kway_fm_refinement_options(CLI::App *app, Context &ctx
 
   // Flags for gain caches
   fm->add_option("--r-fm-gc", ctx.refinement.kway_fm.gain_cache_strategy)
-      ->transform(CLI::CheckedTransformer(get_gain_cache_strategies()).description(""))
+      ->transform(CLI::CheckedTransformer(get_fm_gain_cache_strategies()).description(""))
       ->capture_default_str();
   fm->add_option(
         "--r-fm-gc-const-hd-threshold",
@@ -790,7 +790,8 @@ CLI::Option_group *create_jet_refinement_options(CLI::App *app, Context &ctx) {
   jet->add_option("--r-jet-gain-cache", ctx.refinement.jet.gain_cache_strategy)
       ->transform(CLI::CheckedTransformer(get_jet_gain_cache_strategies()).description(""))
       ->description(
-          "Gain cache: jet uses adaptive per-vertex hash tables; sparse uses the legacy cache."
+          "Gain cache: jet uses adaptive per-vertex hash tables; sparse uses degree-based tables; "
+          "on-the-fly recomputes connectivity. Stored caches use the same on-the-fly fallback."
       )
       ->capture_default_str();
   jet->add_option("--r-jet-balancer", ctx.refinement.jet.balancing_algorithm)

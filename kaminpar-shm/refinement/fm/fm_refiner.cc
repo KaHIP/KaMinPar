@@ -7,6 +7,8 @@
  ******************************************************************************/
 #include "kaminpar-shm/refinement/fm/fm_refiner.h"
 
+#include <stdexcept>
+
 #include <tbb/concurrent_vector.h>
 #include <tbb/task_arena.h>
 
@@ -594,6 +596,9 @@ private:
 };
 template <typename Graph> std::unique_ptr<Refiner> create_fm_core(const Context &ctx) {
   switch (ctx.refinement.kway_fm.gain_cache_strategy) {
+  case GainCacheStrategy::JET:
+    throw std::invalid_argument("The Jet gain cache is not supported by FM refinement.");
+
   case GainCacheStrategy::SPARSE:
     return std::make_unique<FMRefinerCore<Graph, NormalSparseGainCache>>(ctx);
 

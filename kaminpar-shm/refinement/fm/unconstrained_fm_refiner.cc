@@ -12,6 +12,7 @@
 #include <atomic>
 #include <cmath>
 #include <limits>
+#include <stdexcept>
 #include <unordered_map>
 #include <vector>
 
@@ -1778,6 +1779,11 @@ std::unique_ptr<Refiner> create_unconstrained_fm_core(const Context &ctx) {
   }
 
   switch (ctx.refinement.kway_fm.gain_cache_strategy) {
+  case GainCacheStrategy::JET:
+    throw std::invalid_argument(
+        "The Jet gain cache is not supported by unconstrained FM refinement."
+    );
+
   case GainCacheStrategy::SPARSE:
     return std::make_unique<UnconstrainedFMRefinerCore<Graph, NormalSparseGainCache>>(ctx);
 

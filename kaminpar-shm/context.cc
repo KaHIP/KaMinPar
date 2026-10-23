@@ -394,6 +394,8 @@ std::ostream &operator<<(std::ostream &out, const GainCacheStrategy strategy) {
     return out << "dense-largek";
   case GainCacheStrategy::ON_THE_FLY:
     return out << "on-the-fly";
+  case GainCacheStrategy::JET:
+    return out << "jet";
   }
 
   return out << "<invalid>";
@@ -410,21 +412,23 @@ std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies() {
       {"dense", GainCacheStrategy::DENSE},
       {"dense-largek", GainCacheStrategy::DENSE_LARGE_K},
       {"on-the-fly", GainCacheStrategy::ON_THE_FLY},
+      {"jet", GainCacheStrategy::JET},
   };
 }
 
-std::ostream &operator<<(std::ostream &out, const JetGainCacheStrategy strategy) {
-  switch (strategy) {
-  case JetGainCacheStrategy::SPARSE:
-    return out << "sparse";
-  case JetGainCacheStrategy::JET:
-    return out << "jet";
-  }
-  return out << "<invalid>";
+std::unordered_map<std::string, GainCacheStrategy> get_fm_gain_cache_strategies() {
+  auto strategies = get_gain_cache_strategies();
+  // The Jet cache uses synchronous batches and has no concurrent FM delta-cache adapter.
+  strategies.erase("jet");
+  return strategies;
 }
 
-std::unordered_map<std::string, JetGainCacheStrategy> get_jet_gain_cache_strategies() {
-  return {{"sparse", JetGainCacheStrategy::SPARSE}, {"jet", JetGainCacheStrategy::JET}};
+std::unordered_map<std::string, GainCacheStrategy> get_jet_gain_cache_strategies() {
+  return {
+      {"sparse", GainCacheStrategy::SPARSE},
+      {"jet", GainCacheStrategy::JET},
+      {"on-the-fly", GainCacheStrategy::ON_THE_FLY},
+  };
 }
 
 std::ostream &operator<<(std::ostream &out, const JetBalancingAlgorithm algorithm) {

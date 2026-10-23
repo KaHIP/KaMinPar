@@ -1,8 +1,8 @@
 /*******************************************************************************
  * Adaptive per-vertex connectivity tables for Jet refinement.
  *
- * Implements the small-table idea in Section 4.3 of Gilbert et al.,
- * "Jet: Multilevel Graph Partitioning on Graphics Processing Units".
+ * Implements the small-table and batch-update ideas in Section 4.3 of Gilbert
+ * et al., "Jet: Multilevel Graph Partitioning on Graphics Processing Units".
  *
  * @file:   jet_gain_cache.h
  * @author: Daniel Seemaier
@@ -14,10 +14,14 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <span>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include <tbb/enumerable_thread_specific.h>
+#include <tbb/parallel_for.h>
+#include <tbb/parallel_for_each.h>
 #include <tbb/spin_mutex.h>
 
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
@@ -29,40 +33,36 @@
 
 namespace kaminpar::shm {
 
-// The initial rows share one allocation, but are sized from the number of adjacent blocks,
-// not min(degree(u), k). Only rows that outgrow their initial slice allocate separately.
+struct JetGainCacheMove {
+  NodeID node;
+  BlockID from;
+  BlockID to;
+};
+
+// Reserve min(degree(u), k) entries per row in reusable flat arrays, but only scan a small
+// logical table determined by the number of adjacent blocks. Full k-entry rows use direct
+// indexing. Keys and values are separate so small-batch updates can claim keys and add weights
+// atomically without locking the row.
 //
-// Unlike the GPU algorithm's two update passes and third reconstruction pass, move() applies
-// both deltas while holding the affected row's lock. Growing a row rehashes its exact current
-// contents; reconstructing it from the partition here would race with concurrent moves.
-// Queries also take this lock by default, permitting concurrent queries and moves. Disabling
-// query locking requires that every query phase be separated from all move operations by a
-// barrier; sequential query-then-move use is also allowed. initialize() and free() always require
-// all users to be quiescent. Writer locks remain enabled for either specialization.
+// move() remains an immediate, row-locked operation: it supports concurrent writers and, with
+// lock_queries enabled, concurrent queries. A callback must not query the same row recursively.
+// initialize(), free(), and move_batch() require quiescent users. In particular, move_batch()
+// cannot overlap even locked queries: it updates atomic values without taking the row locks.
+// Disabling query locks requires a barrier between every query phase and all move operations.
 template <typename GraphType, bool lock_queries = true> class JetGainCache {
+  static constexpr BlockID kDeletedBlock = kInvalidBlockID - 1;
+
   struct UnlockedQueryGuard {
     explicit UnlockedQueryGuard(tbb::spin_mutex &) {}
   };
   using QueryGuard =
       std::conditional_t<lock_queries, tbb::spin_mutex::scoped_lock, UnlockedQueryGuard>;
 
-  struct Entry {
-    BlockID block = kInvalidBlockID;
-    EdgeWeight weight = 0;
-  };
-
   struct Row {
-    Entry *entries = nullptr;
+    std::size_t offset = 0;
     std::size_t capacity = 0;
     EdgeWeight weighted_degree = 0;
-    bool owns_entries = false;
     mutable tbb::spin_mutex mutex;
-
-    ~Row() {
-      if (owns_entries) {
-        delete[] entries;
-      }
-    }
   };
 
 public:
@@ -79,44 +79,41 @@ public:
     _graph = &graph;
     _k = p_graph.k();
     _n = graph.n();
-    _rows = std::make_unique<Row[]>(_n);
-
-    StaticArray<std::size_t> offsets(static_cast<std::size_t>(_n) + 1);
-    tbb::enumerable_thread_specific<FastResetArray<EdgeWeight>> buffers([&] {
-      return FastResetArray<EdgeWeight>(_k);
-    });
+    KASSERT(_k <= kDeletedBlock);
+    if (_rows_size < _n) {
+      _rows = std::make_unique<Row[]>(_n);
+      _rows_size = _n;
+    }
+    if (_offsets.size() < static_cast<std::size_t>(_n) + 1) {
+      _offsets.resize(static_cast<std::size_t>(_n) + 1, static_array::noinit);
+    }
+    _offsets[0] = 0;
+    graph.pfor_nodes([&](const NodeID u) { _offsets[u + 1] = max_capacity(u); });
+    parallel::prefix_sum(_offsets.begin(), _offsets.begin() + _n + 1, _offsets.begin());
+    const std::size_t reserved = _offsets[_n];
+    if (_keys.size() < reserved) {
+      _keys.resize(reserved, static_array::noinit);
+      _weights.resize(reserved, static_array::noinit);
+    }
+    if (_rebuild_flags.size() < _n) {
+      _rebuild_flags.resize(_n, static_array::noinit);
+    }
     graph.pfor_nodes([&](const NodeID u) {
-      auto &buffer = buffers.local();
-      graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
-        buffer[p_graph.block(v)] += weight;
-        _rows[u].weighted_degree += weight;
-      });
-      const std::size_t count = buffer.size();
-      offsets[u + 1] = count == 0 ? 0 : std::min(max_capacity(u), count + 1 + count / 4);
-      buffer.clear();
-    });
-    parallel::prefix_sum(offsets.begin(), offsets.end(), offsets.begin());
-    _initial_entries.resize(offsets.back());
-
-    graph.pfor_nodes([&](const NodeID u) {
-      Row &row = _rows[u];
-      row.capacity = offsets[u + 1] - offsets[u];
-      row.entries = row.capacity == 0 ? nullptr : _initial_entries.data() + offsets[u];
-
-      auto &buffer = buffers.local();
-      graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
-        buffer[p_graph.block(v)] += weight;
-      });
-      for (const auto [block, weight] : buffer.entries()) {
-        insert(row, static_cast<BlockID>(block), weight);
-      }
-      buffer.clear();
+      _rows[u].offset = _offsets[u];
+      _rebuild_flags[u] = 0;
+      rebuild(u, p_graph);
     });
   }
 
   void free() {
     _rows.reset();
-    _initial_entries.free();
+    _rows_size = 0;
+    _offsets.free();
+    _keys.free();
+    _weights.free();
+    _rebuild_flags.free();
+    _buffers.clear();
+    _affected.clear();
     _graph = nullptr;
     _n = 0;
     _k = 0;
@@ -148,14 +145,13 @@ public:
     return row.weighted_degree != lookup(row, from);
   }
 
-  // With query locking enabled, the callback must not reenter this cache for the same vertex.
   template <typename Lambda> void for_each_connection(const NodeID u, Lambda &&lambda) const {
     const Row &row = _rows[u];
     const QueryGuard lock(row.mutex);
     for (std::size_t i = 0; i < row.capacity; ++i) {
-      const Entry &entry = row.entries[i];
-      if (entry.block != kInvalidBlockID) {
-        lambda(entry.block, entry.weight);
+      const EdgeWeight weight = _weights[row.offset + i];
+      if (weight > 0) {
+        lambda(row.capacity == _k ? static_cast<BlockID>(i) : _keys[row.offset + i], weight);
       }
     }
   }
@@ -174,13 +170,16 @@ public:
       return;
     }
     _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+      if (weight == 0) {
+        return;
+      }
       Row &row = _rows[v];
       const tbb::spin_mutex::scoped_lock lock(row.mutex);
       const std::size_t source = find(row, from);
-      KASSERT(source < row.capacity && row.entries[source].weight >= weight);
-      row.entries[source].weight -= weight;
-      if (row.entries[source].weight == 0) {
-        erase(row, source);
+      KASSERT(source < row.capacity && _weights[row.offset + source] >= weight);
+      _weights[row.offset + source] -= weight;
+      if (row.capacity != _k && _weights[row.offset + source] == 0) {
+        _keys[row.offset + source] = kDeletedBlock;
       }
       if (!insert(row, to, weight)) {
         grow(v, row);
@@ -190,16 +189,76 @@ public:
     });
   }
 
-  // Diagnostics include abandoned initial slices when reporting allocated storage. No concurrent
-  // moves may run while collecting aggregate statistics.
-  [[nodiscard]] std::size_t allocated_entries() const {
-    std::size_t count = _initial_entries.size();
-    for (NodeID u = 0; u < _n; ++u) {
-      if (_rows[u].owns_entries) {
-        count += _rows[u].capacity;
-      }
+  // All partition labels must already reflect these moves; each vertex may appear at most
+  // once. The two blocking parallel passes freeze the hash modulus and separate deletion from
+  // insertion. If a small row overflows, only that row is rebuilt after the insertion barrier.
+  // This avoids changing the modulus while concurrent insertions are still using it.
+  void move_batch(const std::span<const JetGainCacheMove> moves, const PartitionedGraph &p_graph) {
+    if (moves.empty()) {
+      return;
     }
-    return count;
+    KASSERT(p_graph.n() == _n && p_graph.k() == _k);
+    if (moves.size() > _n / 10) {
+      tbb::parallel_for<std::size_t>(0, moves.size(), [&](const std::size_t i) {
+        const auto [u, from, to] = moves[i];
+        if (from != to) {
+          _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight) { mark_for_rebuild(v); });
+        }
+      });
+    } else {
+      tbb::parallel_for<std::size_t>(0, moves.size(), [&](const std::size_t i) {
+        const auto [u, from, to] = moves[i];
+        if (from == to) {
+          return;
+        }
+        _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+          if (weight == 0) {
+            return;
+          }
+          const Row &row = _rows[v];
+          const std::size_t source = atomic_find(row, from);
+          KASSERT(source < row.capacity);
+          const EdgeWeight previous =
+              __atomic_fetch_sub(&_weights[row.offset + source], weight, __ATOMIC_RELAXED);
+          KASSERT(previous >= weight);
+          if (row.capacity != _k && previous == weight) {
+            __atomic_store_n(&_keys[row.offset + source], kDeletedBlock, __ATOMIC_RELAXED);
+          }
+        });
+      });
+      tbb::parallel_for<std::size_t>(0, moves.size(), [&](const std::size_t i) {
+        const auto [u, from, to] = moves[i];
+        if (from == to) {
+          return;
+        }
+        _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+          Row &row = _rows[v];
+          // Once a small row overflows, its final-partition rebuild supersedes all remaining
+          // updates. Avoid repeatedly probing that full row under heavy contention.
+          if (weight == 0 ||
+              (row.capacity != _k && __atomic_load_n(&_rebuild_flags[v], __ATOMIC_RELAXED) != 0)) {
+            return;
+          }
+          if (!atomic_insert(row, to, weight)) {
+            mark_for_rebuild(v);
+          }
+        });
+      });
+    }
+    tbb::parallel_for_each(_affected, [&](auto &nodes) {
+      tbb::parallel_for<std::size_t>(0, nodes.size(), [&](const std::size_t i) {
+        const NodeID u = nodes[i];
+        rebuild(u, p_graph);
+        _rebuild_flags[u] = 0;
+      });
+      nodes.clear();
+    });
+  }
+
+  // Backing storage is reused across initialize() calls, including calls with smaller graphs.
+  // These aggregate diagnostics require quiescent users.
+  [[nodiscard]] std::size_t allocated_entries() const {
+    return _keys.size();
   }
 
   [[nodiscard]] std::size_t active_entries() const {
@@ -221,21 +280,19 @@ private:
     return std::min<std::size_t>(_graph->degree(u), _k);
   }
 
-  [[nodiscard]] static std::size_t hash(const BlockID block, const std::size_t capacity) {
-    return (static_cast<std::uint64_t>(block) * 0x9e3779b97f4a7c15ULL) % capacity;
-  }
-
   [[nodiscard]] static std::size_t next(const std::size_t i, const std::size_t capacity) {
     return i + 1 == capacity ? 0 : i + 1;
   }
 
-  [[nodiscard]] static std::size_t find(const Row &row, const BlockID block) {
-    if (row.capacity == 0) {
-      return 0;
+  template <bool atomic = false>
+  [[nodiscard]] std::size_t find(const Row &row, const BlockID block) const {
+    if (row.capacity == 0 || row.capacity == _k) {
+      return row.capacity == 0 ? 0 : block;
     }
-    std::size_t pos = hash(block, row.capacity);
+    std::size_t pos = block % row.capacity;
     for (std::size_t probes = 0; probes < row.capacity; ++probes) {
-      const BlockID key = row.entries[pos].block;
+      const BlockID key = atomic ? __atomic_load_n(&_keys[row.offset + pos], __ATOMIC_RELAXED)
+                                 : _keys[row.offset + pos];
       if (key == block) {
         return pos;
       }
@@ -247,86 +304,143 @@ private:
     return row.capacity;
   }
 
-  [[nodiscard]] static EdgeWeight lookup(const Row &row, const BlockID block) {
+  [[nodiscard]] std::size_t atomic_find(const Row &row, const BlockID block) const {
+    return find<true>(row, block);
+  }
+
+  [[nodiscard]] EdgeWeight lookup(const Row &row, const BlockID block) const {
     const std::size_t pos = find(row, block);
-    return pos == row.capacity ? 0 : row.entries[pos].weight;
+    return pos == row.capacity ? 0 : _weights[row.offset + pos];
   }
 
-  // Probes are bounded even when the row is completely full.
-  static bool insert(Row &row, const BlockID block, const EdgeWeight weight) {
+  // Search past tombstones before reusing one: the key may already occur later in its chain.
+  // During a batch insertion phase slots only change from empty/deleted to occupied, so all
+  // concurrent insertions of a new key choose the same first available slot or see that key.
+  template <bool atomic = false>
+  bool insert(Row &row, const BlockID block, const EdgeWeight weight) {
+    std::size_t pos = find<atomic>(row, block);
+    if (pos == row.capacity) {
+      if (row.capacity == 0) {
+        return false;
+      }
+      pos = block % row.capacity;
+      for (std::size_t probes = 0; probes < row.capacity; ++probes) {
+        BlockID &slot = _keys[row.offset + pos];
+        BlockID key = atomic ? __atomic_load_n(&slot, __ATOMIC_RELAXED) : slot;
+        if (key >= kDeletedBlock) {
+          if constexpr (atomic) {
+            __atomic_compare_exchange_n(
+                &slot, &key, block, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED
+            );
+          } else {
+            slot = block;
+          }
+        }
+        if (key == block || key >= kDeletedBlock) {
+          break;
+        }
+        pos = next(pos, row.capacity);
+        if (probes + 1 == row.capacity) {
+          return false;
+        }
+      }
+    }
+    if constexpr (atomic) {
+      __atomic_fetch_add(&_weights[row.offset + pos], weight, __ATOMIC_RELAXED);
+    } else {
+      _weights[row.offset + pos] += weight;
+    }
+    return true;
+  }
+
+  bool atomic_insert(Row &row, const BlockID block, const EdgeWeight weight) {
+    return insert<true>(row, block, weight);
+  }
+
+  FastResetArray<EdgeWeight> &buffer() {
+    auto &result = _buffers.local();
+    if (result.capacity() < _k) {
+      result.resize(_k);
+    }
+    return result;
+  }
+
+  void clear_row(const Row &row) {
     if (row.capacity == 0) {
-      return false;
+      return;
     }
-    std::size_t pos = hash(block, row.capacity);
-    for (std::size_t probes = 0; probes < row.capacity; ++probes) {
-      Entry &entry = row.entries[pos];
-      if (entry.block == block) {
-        entry.weight += weight;
-        return true;
-      }
-      if (entry.block == kInvalidBlockID) {
-        entry = {block, weight};
-        return true;
-      }
-      pos = next(pos, row.capacity);
-    }
-    return false;
+    std::fill_n(_keys.data() + row.offset, row.capacity, kInvalidBlockID);
+    std::fill_n(_weights.data() + row.offset, row.capacity, EdgeWeight{0});
   }
 
-  // Backward-shift deletion keeps probe chains intact without accumulating tombstones.
-  static void erase(Row &row, std::size_t hole) {
-    row.entries[hole] = {};
-    std::size_t pos = next(hole, row.capacity);
-    for (std::size_t probes = 1; probes < row.capacity; ++probes) {
-      const Entry entry = row.entries[pos];
-      if (entry.block == kInvalidBlockID) {
-        break;
+  // One adjacency traversal builds the CPU thread's reusable dense scratch array. The final
+  // compact table is then populated from its touched entries, not from a second graph scan.
+  void rebuild(const NodeID u, const PartitionedGraph &p_graph) {
+    Row &row = _rows[u];
+    auto &scratch = buffer();
+    row.weighted_degree = 0;
+    _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+      if (weight != 0) {
+        scratch[p_graph.block(v)] += weight;
+        row.weighted_degree += weight;
       }
-      const std::size_t home = hash(entry.block, row.capacity);
-      const auto distance = [&](const std::size_t index) {
-        return index >= home ? index - home : row.capacity - home + index;
-      };
-      if (distance(hole) < distance(pos)) {
-        row.entries[hole] = entry;
-        row.entries[pos] = {};
-        hole = pos;
-      }
-      pos = next(pos, row.capacity);
+    });
+    const std::size_t count = scratch.size();
+    row.capacity =
+        count == 0 ? 0 : std::min(max_capacity(u), count + std::max<std::size_t>(3, count / 4));
+    clear_row(row);
+    for (const auto [block, weight] : scratch.entries()) {
+      [[maybe_unused]] const bool inserted = insert(row, static_cast<BlockID>(block), weight);
+      KASSERT(inserted);
     }
+    scratch.clear();
   }
 
   void grow(const NodeID u, Row &row) {
-    const std::size_t capacity =
-        std::min(max_capacity(u), std::max<std::size_t>(2, 2 * row.capacity));
-    KASSERT(capacity > row.capacity);
-    auto entries = std::make_unique<Entry[]>(capacity);
-    Row replacement;
-    replacement.entries = entries.get();
-    replacement.capacity = capacity;
+    auto &scratch = buffer();
     for (std::size_t i = 0; i < row.capacity; ++i) {
-      const Entry &entry = row.entries[i];
-      if (entry.block != kInvalidBlockID) {
-        [[maybe_unused]] const bool inserted = insert(replacement, entry.block, entry.weight);
-        KASSERT(inserted);
+      if (_weights[row.offset + i] > 0) {
+        scratch[_keys[row.offset + i]] = _weights[row.offset + i];
       }
     }
-    if (row.owns_entries) {
-      delete[] row.entries;
-    }
-    row.entries = entries.release();
+    const std::size_t capacity =
+        std::min(max_capacity(u), std::max<std::size_t>(4, 2 * row.capacity));
+    KASSERT(capacity > row.capacity);
     row.capacity = capacity;
-    row.owns_entries = true;
+    clear_row(row);
+    for (const auto [block, weight] : scratch.entries()) {
+      [[maybe_unused]] const bool inserted = insert(row, static_cast<BlockID>(block), weight);
+      KASSERT(inserted);
+    }
+    scratch.clear();
+  }
+
+  void mark_for_rebuild(const NodeID u) {
+    if (__atomic_load_n(&_rebuild_flags[u], __ATOMIC_RELAXED) != 0) {
+      return;
+    }
+    std::uint8_t expected = 0;
+    if (__atomic_compare_exchange_n(
+            &_rebuild_flags[u], &expected, 1, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED
+        )) {
+      _affected.local().push_back(u);
+    }
   }
 
   const Graph *_graph = nullptr;
   NodeID _n = 0;
   BlockID _k = 0;
+  std::size_t _rows_size = 0;
   std::unique_ptr<Row[]> _rows;
-  StaticArray<Entry> _initial_entries;
+  StaticArray<std::size_t> _offsets;
+  StaticArray<BlockID> _keys;
+  StaticArray<EdgeWeight> _weights;
+  StaticArray<std::uint8_t> _rebuild_flags;
+  tbb::enumerable_thread_specific<FastResetArray<EdgeWeight>> _buffers;
+  tbb::enumerable_thread_specific<std::vector<NodeID>> _affected;
 };
 
-// Jet queries only between blocking parallel move phases. Avoiding reader locks prevents
-// otherwise read-only scans from contending on frequently queried neighbors.
+// Jet queries only between blocking parallel move phases.
 template <typename Graph> using SynchronousJetGainCache = JetGainCache<Graph, false>;
 
 } // namespace kaminpar::shm

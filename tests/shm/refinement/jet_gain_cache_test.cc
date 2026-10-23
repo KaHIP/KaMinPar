@@ -5,6 +5,7 @@
  ******************************************************************************/
 #include <atomic>
 #include <limits>
+#include <numeric>
 #include <random>
 #include <thread>
 #include <vector>
@@ -67,10 +68,10 @@ TEST(JetGainCacheTest, SizesRowsFromObservedConnectionsAndGrowsWithoutLosingUpda
   JetGainCache<CSRGraph> cache(ctx, graph.n(), p_graph.k());
   cache.initialize(graph.csr_graph(), p_graph);
 
-  EXPECT_EQ(cache.row_capacity(0), 2);
+  EXPECT_EQ(cache.row_capacity(0), 4);
   EXPECT_LT(cache.row_capacity(0), std::min<std::size_t>(graph.csr_graph().degree(0), p_graph.k()));
-  EXPECT_EQ(cache.active_entries(), 102);
-  EXPECT_EQ(cache.allocated_entries(), 102);
+  EXPECT_EQ(cache.active_entries(), 104);
+  EXPECT_EQ(cache.allocated_entries(), 200);
   expect_exact(cache, p_graph);
 
   for (NodeID u = 1; u < graph.n(); ++u) {
@@ -80,7 +81,7 @@ TEST(JetGainCacheTest, SizesRowsFromObservedConnectionsAndGrowsWithoutLosingUpda
   }
   EXPECT_EQ(cache.row_capacity(0), 100);
   EXPECT_EQ(cache.active_entries(), 200);
-  EXPECT_EQ(cache.allocated_entries(), 202); // Includes the abandoned initial two-slot row.
+  EXPECT_EQ(cache.allocated_entries(), 200); // Growth reuses the reserved row slice.
   expect_exact(cache, p_graph);
 }
 
@@ -185,6 +186,165 @@ TEST(JetGainCacheTest, UnlockedQueriesAreExactBetweenParallelMovePhases) {
   }
 }
 
+TEST(JetGainCacheTest, SmallBatchesHandleCollisionsAndOverflowWithoutDuplicateKeys) {
+  const tbb::global_control control(tbb::global_control::max_allowed_parallelism, 8);
+  const auto graph = make_star_graph(1000, [](const NodeID u, const NodeID v) {
+    return static_cast<EdgeWeight>(1 + (u + v) % 19);
+  });
+  auto p_graph = make_p_graph(graph, 127, std::vector<BlockID>(graph.n(), 0));
+  const Context ctx = create_default_context();
+  SynchronousJetGainCache<CSRGraph> cache(ctx, graph.n(), p_graph.k());
+  cache.initialize(graph.csr_graph(), p_graph);
+  ASSERT_EQ(cache.row_capacity(0), 4);
+  const std::size_t reserved = cache.allocated_entries();
+
+  for (int round = 0; round < 40; ++round) {
+    std::vector<JetGainCacheMove> moves;
+    for (NodeID u = 1; u <= 64; ++u) {
+      // Start with many distinct targets to force overflow, then alternate shared targets,
+      // zero-connectivity tombstones, and colliding new keys under heavy row contention.
+      const BlockID to = round % 3 == 0 ? u : (round % 3 == 1 ? 0 : 1 + (u % 2) * 81);
+      moves.push_back({u, p_graph.block(u), to});
+      p_graph.set_block(u, to);
+    }
+    ASSERT_LE(moves.size(), graph.n() / 10);
+    cache.move_batch(moves, p_graph);
+    EXPECT_EQ(cache.allocated_entries(), reserved);
+    expect_exact(cache, p_graph);
+  }
+  EXPECT_GT(cache.row_capacity(0), 4);
+}
+
+TEST(JetGainCacheTest, BatchInsertionFindsAnExistingKeyBehindATombstone) {
+  const auto graph = make_star_graph(100);
+  auto p_graph = make_p_graph(graph, 17, std::vector<BlockID>(graph.n(), 0));
+  const Context ctx = create_default_context();
+  SynchronousJetGainCache<CSRGraph> cache(ctx, graph.n(), p_graph.k());
+  cache.initialize(graph.csr_graph(), p_graph);
+  ASSERT_EQ(cache.row_capacity(0), 4);
+  const auto move_one = [&](const NodeID u, const BlockID to) {
+    const JetGainCacheMove move{u, p_graph.block(u), to};
+    p_graph.set_block(u, to);
+    cache.move_batch(std::span(&move, 1), p_graph);
+    expect_exact(cache, p_graph);
+  };
+  move_one(1, 4); // Keys 0, 4, 8 collide at position zero in the four-slot table.
+  move_one(2, 8);
+  move_one(1, 0); // Removing key 4 leaves a tombstone before the existing key 8.
+  move_one(3, 8);
+  EXPECT_EQ(cache.conn(0, 8), 2);
+  EXPECT_EQ(cache.row_capacity(0), 4);
+}
+
+TEST(JetGainCacheTest, LargeBatchesRebuildAndShrinkOnlyAffectedRows) {
+  const auto graph = make_star_graph(100);
+  auto p_graph = make_p_graph(graph, 128, std::vector<BlockID>(graph.n(), 0));
+  const Context ctx = create_default_context();
+  SynchronousJetGainCache<CSRGraph> cache(ctx, graph.n(), p_graph.k());
+  cache.initialize(graph.csr_graph(), p_graph);
+  const std::size_t reserved = cache.allocated_entries();
+
+  std::vector<JetGainCacheMove> moves;
+  for (NodeID u = 1; u <= 20; ++u) {
+    moves.push_back({u, 0, u});
+    p_graph.set_block(u, u);
+  }
+  ASSERT_GT(moves.size(), graph.n() / 10);
+  cache.move_batch(moves, p_graph);
+  EXPECT_EQ(cache.row_capacity(0), 26);
+  expect_exact(cache, p_graph);
+
+  for (auto &move : moves) {
+    std::swap(move.from, move.to);
+    p_graph.set_block(move.node, move.to);
+  }
+  cache.move_batch(moves, p_graph);
+  EXPECT_EQ(cache.row_capacity(0), 4);
+  EXPECT_EQ(cache.allocated_entries(), reserved);
+  expect_exact(cache, p_graph);
+
+  cache.move_batch({}, p_graph);
+  moves = {{1, 0, 0}};
+  cache.move_batch(moves, p_graph);
+  expect_exact(cache, p_graph);
+}
+
+TEST(JetGainCacheTest, DirectRowsKeepFixedKeysWhenConnectivityDisappearsAndReturns) {
+  const tbb::global_control control(tbb::global_control::max_allowed_parallelism, 8);
+  const auto graph = make_star_graph(1000, [](const NodeID u, const NodeID v) {
+    return static_cast<EdgeWeight>(1 + (u + v) % 13);
+  });
+  std::vector<BlockID> partition(graph.n(), 0);
+  for (NodeID u = 1; u <= 64; ++u) {
+    partition[u] = 1 + u % 6;
+  }
+  auto p_graph = make_p_graph(graph, 7, partition);
+  const Context ctx = create_default_context();
+  SynchronousJetGainCache<CSRGraph> cache(ctx, graph.n(), p_graph.k());
+  cache.initialize(graph.csr_graph(), p_graph);
+  ASSERT_EQ(cache.row_capacity(0), 7);
+
+  for (int round = 0; round < 30; ++round) {
+    std::vector<JetGainCacheMove> moves;
+    for (NodeID u = 1; u <= 64; ++u) {
+      const BlockID to = round % 2 == 0 ? 0 : 1 + u % 6;
+      moves.push_back({u, p_graph.block(u), to});
+      p_graph.set_block(u, to);
+    }
+    cache.move_batch(moves, p_graph);
+    EXPECT_EQ(cache.row_capacity(0), 7);
+    expect_exact(cache, p_graph);
+  }
+}
+
+TEST(JetGainCacheTest, MixedBatchSizesRemainExactForAdjacentMovedVertices) {
+  const tbb::global_control control(tbb::global_control::max_allowed_parallelism, 8);
+  const auto graph = make_complete_bipartite_graph(16, 256, [](const NodeID u, const NodeID v) {
+    return static_cast<EdgeWeight>(1 + (u + v) % 29);
+  });
+  auto p_graph = make_p_graph(graph, 17, std::vector<BlockID>(graph.n(), 0));
+  const Context ctx = create_default_context();
+  SynchronousJetGainCache<CSRGraph> cache(ctx, graph.n(), p_graph.k());
+  cache.initialize(graph.csr_graph(), p_graph);
+  std::mt19937 random(42);
+  std::vector<NodeID> nodes(graph.n());
+  std::iota(nodes.begin(), nodes.end(), 0);
+
+  for (int round = 0; round < 60; ++round) {
+    std::shuffle(nodes.begin(), nodes.end(), random);
+    const std::size_t count = round % 2 == 0 ? 20 : 100;
+    std::vector<JetGainCacheMove> moves;
+    for (std::size_t i = 0; i < count; ++i) {
+      const NodeID u = nodes[i];
+      const BlockID to = random() % p_graph.k();
+      moves.push_back({u, p_graph.block(u), to});
+      p_graph.set_block(u, to);
+    }
+    cache.move_batch(moves, p_graph);
+    expect_exact(cache, p_graph);
+  }
+}
+
+TEST(JetGainCacheTest, SmallBatchDoesNotPackWeightsDuringExchange) {
+  constexpr EdgeWeight weight = std::numeric_limits<EdgeWeight>::max() / 4;
+  // Two heavy neighbors exchange blocks through the atomic update path.
+  const auto graph = make_star_graph(20, [](const NodeID u, const NodeID v) {
+    return std::max(u, v) <= 2 ? weight : EdgeWeight{1};
+  });
+  std::vector<BlockID> partition(graph.n(), 0);
+  partition[1] = 1023;
+  partition[2] = 511;
+  auto p_graph = make_p_graph(graph, 1024, partition);
+  const Context ctx = create_default_context();
+  SynchronousJetGainCache<CSRGraph> cache(ctx, graph.n(), p_graph.k());
+  cache.initialize(graph.csr_graph(), p_graph);
+  const std::vector<JetGainCacheMove> moves = {{1, 1023, 511}, {2, 511, 1023}};
+  p_graph.set_block(1, 511);
+  p_graph.set_block(2, 1023);
+  cache.move_batch(moves, p_graph);
+  expect_exact(cache, p_graph);
+}
+
 TEST(JetGainCacheTest, ReinitializesAfterRollbackAndGraphOrBlockCountChanges) {
   const Context ctx = create_default_context();
   JetGainCache<CSRGraph> cache(ctx, 0, 0);
@@ -199,12 +359,14 @@ TEST(JetGainCacheTest, ReinitializesAfterRollbackAndGraphOrBlockCountChanges) {
     p_star.set_block(u, 0);
   }
   cache.initialize(star.csr_graph(), p_star);
-  EXPECT_EQ(cache.row_capacity(0), 2);
+  EXPECT_EQ(cache.row_capacity(0), 4);
   expect_exact(cache, p_star);
 
   const auto empty = make_empty_graph(4);
   const auto p_empty = make_p_graph(empty, 1, {0, 0, 0, 0});
+  const std::size_t reserved = cache.allocated_entries();
   cache.initialize(empty.csr_graph(), p_empty);
+  EXPECT_EQ(cache.allocated_entries(), reserved);
   EXPECT_EQ(cache.active_entries(), 0);
   expect_exact(cache, p_empty);
 
