@@ -252,7 +252,7 @@ struct KwayFMRefinementContext {
   bool dbg_report_progress;
 
   [[nodiscard]] NodeID num_seed_nodes_for_fm() const {
-    return num_seed_nodes == 0 ? 100 : num_seed_nodes;
+    return num_seed_nodes == 0 ? 75 : num_seed_nodes;
   }
 
   [[nodiscard]] NodeID num_seed_nodes_for_ufm(const NodeID n, const EdgeID m) const {

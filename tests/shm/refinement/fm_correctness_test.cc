@@ -309,7 +309,7 @@ TEST(FMCorrectnessTest, CompletesProductiveSearchesBeyondInitialSeedNodes) {
 TEST(FMCorrectnessTest, AutomaticSeedDefaultsPreserveBudgetAndExplicitChoices) {
   auto fm_ctx = create_eco_context().refinement.kway_fm;
   ASSERT_EQ(fm_ctx.num_seed_nodes, 0u);
-  EXPECT_EQ(fm_ctx.num_seed_nodes_for_fm(), 100u);
+  EXPECT_EQ(fm_ctx.num_seed_nodes_for_fm(), 75u);
   EXPECT_EQ(fm_ctx.num_seed_nodes_for_ufm(100, 599), 25u);
   EXPECT_EQ(fm_ctx.num_seed_nodes_for_ufm(100, 600), 75u);
   fm_ctx.num_seed_nodes = 3;
