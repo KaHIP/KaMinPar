@@ -39,26 +39,21 @@ struct LPRefinerConfig : public LabelPropagationConfig {
   using ClusterID = BlockID;
   using ClusterWeight = BlockWeight;
 
-  static constexpr bool kTrackClusterCount = false;
   static constexpr bool kSkipLosingClusterWeights = true;
-  static constexpr bool kUseTwoHopClustering = false;
   static constexpr bool kUseActualGain = true;
 
   static constexpr bool kUseActiveSetStrategy = false;
-  static constexpr bool kUseLocalActiveSetStrategy = true;
 };
 
-struct LPRefinerMemoryContext
-    : public LabelPropagationMemoryContext<LPRefinerConfig::RatingMap, LPRefinerConfig::ClusterID> {
+struct LPRefinerMemoryContext : public LabelPropagationMemoryContext<LPRefinerConfig::RatingMap> {
   StaticArray<BlockID> next_partition;
   StaticArray<EdgeWeight> gains;
   StaticArray<BlockWeight> block_weights;
 };
 
 template <typename Graph>
-class LPRefinerImpl final
-    : public ChunkRandomdLabelPropagation<LPRefinerImpl<Graph>, LPRefinerConfig, Graph> {
-  using Base = ChunkRandomdLabelPropagation<LPRefinerImpl<Graph>, LPRefinerConfig, Graph>;
+class LPRefinerImpl final : public LabelPropagation<LPRefinerImpl<Graph>, LPRefinerConfig, Graph> {
+  using Base = LabelPropagation<LPRefinerImpl<Graph>, LPRefinerConfig, Graph>;
   using Config = LPRefinerConfig;
 
 public:
@@ -77,13 +72,8 @@ public:
   }
 
   LPRefinerMemoryContext release() {
-    auto [rating_map_ets, active, favored_clusters] = Base::release();
     return {
-        {
-            std::move(rating_map_ets),
-            std::move(active),
-            std::move(favored_clusters),
-        },
+        Base::release(),
         std::move(_next_partition),
         std::move(_gains),
         std::move(_block_weights),

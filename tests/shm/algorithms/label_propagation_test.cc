@@ -177,6 +177,36 @@ TEST(NeighborhoodRatingsTest, AccumulatesRatingsByLabel) {
   EXPECT_EQ(ratings[7], 5);
 }
 
+TEST(NeighborhoodRatingsTest, LimitsVisitedNeighborsBeforeApplyingTheFilter) {
+  Graph graph = make_graph({0, 2, 3, 4}, {1, 2, 0, 0}, {1, 1, 1}, {2, 3, 2, 3});
+  const auto check = [&](auto &ratings) {
+    for (const NodeID limit : {0, 1, 2}) {
+      ratings.clear();
+      std::size_t visited = 0;
+      lp::NeighborhoodRatings::accumulate(
+          graph.csr_graph(),
+          0,
+          ratings,
+          [](const NodeID v) { return v; },
+          [&](const NodeID v) {
+            ++visited;
+            return v != 1;
+          },
+          limit
+      );
+      EXPECT_EQ(visited, limit);
+      EXPECT_EQ(ratings.size(), limit == 2 ? 1u : 0u);
+      if (limit == 2) {
+        EXPECT_EQ(ratings[2], 3);
+      }
+    }
+  };
+  FixedSizeSparseMap<NodeID, EdgeWeight, 128> sparse;
+  lp::FixedCapacityRatingMap<NodeID, EdgeWeight, 4> fixed;
+  check(sparse);
+  check(fixed);
+}
+
 TEST(NeighborhoodRatingsTest, StopsAtTheDistinctLabelCapacity) {
   Graph graph = make_graph({0, 2, 3, 4}, {1, 2, 0, 0}, {1, 1, 1}, {2, 3, 2, 3});
   FixedSizeSparseMap<NodeID, EdgeWeight, 128> ratings;

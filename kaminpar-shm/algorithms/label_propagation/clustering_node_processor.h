@@ -91,84 +91,11 @@ public:
   }
 
   KAMINPAR_INLINE void visit(const NodeID u, LocalWorker &local) {
-    const NodeID degree = _graph.degree(u);
-    const NodeWeight u_weight = _graph.node_weight(u);
-    const NodeID from = _state_view.cluster(u);
-    const NodeWeight from_weight = _state_view.cluster_weight(from);
-    const bool store_favored_cluster =
-        u_weight == from_weight && from_weight <= _state_view.max_cluster_weight(from) / 2;
-    const std::size_t upper_bound = std::min<NodeID>(degree, _graph.n());
-    const ClusteringSelector::Selection selection =
-        local.ratings.execute(upper_bound, [&](auto &ratings) {
-          NeighborhoodRatings::accumulate(
-              _graph,
-              u,
-              ratings,
-              [&](const NodeID v) { return _state_view.cluster(v); },
-              [](const NodeID) { return true; }
-          );
-          _state_view.deactivate(u);
-          const auto result = _selector.select(
-              from,
-              u_weight,
-              store_favored_cluster,
-              ratings,
-              local.random,
-              local.ties,
-              local.favored_ties
-          );
-          ratings.clear();
-          return result;
-        });
-
-    remember_favored_cluster(u, from, selection, store_favored_cluster);
-    record_move(_state_view.commit(_graph, u, from, selection.cluster, u_weight), local);
+    visit_impl<false>(u, local);
   }
 
   void visit_first_phase(const NodeID u, LocalWorker &local) {
-    const NodeID degree = _graph.degree(u);
-    const NodeWeight u_weight = _graph.node_weight(u);
-    const NodeID from = _state_view.cluster(u);
-    const NodeWeight from_weight = _state_view.cluster_weight(from);
-    const bool store_favored_cluster =
-        u_weight == from_weight && from_weight <= _state_view.max_cluster_weight(from) / 2;
-    const std::size_t upper_bound = std::min<std::size_t>(
-        {degree, _graph.n(), ParallelRatingMap<NodeID, EdgeWeight>::kFlushThreshold}
-    );
-
-    const auto selection = local.ratings.execute(upper_bound, [&](auto &ratings) {
-      if (NeighborhoodRatings::accumulate_with_capacity(
-              _graph,
-              u,
-              ratings,
-              upper_bound,
-              ParallelRatingMap<NodeID, EdgeWeight>::kFlushThreshold,
-              [&](const NodeID v) { return _state_view.cluster(v); },
-              [](const NodeID) { return true; }
-          )) [[unlikely]] {
-        ratings.clear();
-        _deferred_nodes.push_back(u);
-        return std::optional<ClusteringSelector::Selection>{};
-      }
-
-      _state_view.deactivate(u);
-      auto result = _selector.select(
-          from,
-          u_weight,
-          store_favored_cluster,
-          ratings,
-          local.random,
-          local.ties,
-          local.favored_ties
-      );
-      ratings.clear();
-      return std::optional<ClusteringSelector::Selection>{result};
-    });
-
-    if (selection) {
-      remember_favored_cluster(u, from, *selection, store_favored_cluster);
-      record_move(_state_view.commit(_graph, u, from, selection->cluster, u_weight), local);
-    }
+    visit_impl<true>(u, local);
   }
 
   void finish_work_unit(LocalWorker &local) {
@@ -265,6 +192,63 @@ public:
   }
 
 private:
+  template <bool kDefer> KAMINPAR_INLINE void visit_impl(const NodeID u, LocalWorker &local) {
+    const NodeID degree = _graph.degree(u);
+    const NodeWeight u_weight = _graph.node_weight(u);
+    const NodeID from = _state_view.cluster(u);
+    const NodeWeight from_weight = _state_view.cluster_weight(from);
+    const bool store_favored_cluster =
+        u_weight == from_weight && from_weight <= _state_view.max_cluster_weight(from) / 2;
+    const std::size_t upper_bound = std::min<NodeID>(degree, _graph.n());
+    const std::size_t map_bound =
+        kDefer ? std::min(upper_bound, ParallelRatingMap<NodeID, EdgeWeight>::kFlushThreshold)
+               : upper_bound;
+
+    const auto selection = local.ratings.execute(map_bound, [&](auto &ratings) {
+      if constexpr (kDefer) {
+        if (NeighborhoodRatings::accumulate_with_capacity(
+                _graph,
+                u,
+                ratings,
+                map_bound,
+                ParallelRatingMap<NodeID, EdgeWeight>::kFlushThreshold,
+                [&](const NodeID v) { return _state_view.cluster(v); },
+                [](const NodeID) { return true; }
+            )) [[unlikely]] {
+          ratings.clear();
+          _deferred_nodes.push_back(u);
+          return std::optional<ClusteringSelector::Selection>{};
+        }
+      } else {
+        NeighborhoodRatings::accumulate(
+            _graph,
+            u,
+            ratings,
+            [&](const NodeID v) { return _state_view.cluster(v); },
+            [](const NodeID) { return true; }
+        );
+      }
+
+      _state_view.deactivate(u);
+      auto result = _selector.select(
+          from,
+          u_weight,
+          store_favored_cluster,
+          ratings,
+          local.random,
+          local.ties,
+          local.favored_ties
+      );
+      ratings.clear();
+      return std::optional<ClusteringSelector::Selection>{result};
+    });
+
+    if (selection) {
+      remember_favored_cluster(u, from, *selection, store_favored_cluster);
+      record_move(_state_view.commit(_graph, u, from, selection->cluster, u_weight), local);
+    }
+  }
+
   template <typename Selection>
   void remember_favored_cluster(
       const NodeID u,
