@@ -27,6 +27,37 @@ namespace {
 
 using Cache = LargeKCompactHashingGainCache<const CSRGraph>;
 
+TEST(CompactGainIterationTest, ZeroWeightRowsStillEnumerateNonadjacentTargets) {
+  GraphBuilder builder;
+  for (NodeID u = 0; u < 4; ++u) {
+    builder.new_node();
+    for (NodeID v = 0; v < 4; ++v) {
+      if (u != v) {
+        builder.new_edge(v, 0);
+      }
+    }
+  }
+  const Graph graph = builder.build(true);
+  for (const BlockID k : {2u, 8u}) {
+    auto p_graph = make_p_graph(graph, k, {0, 0, 1, 1});
+    Context ctx = create_default_context();
+    ctx.partition.setup(graph, k, .03);
+    NormalCompactHashingGainCache<CSRGraph> cache(ctx, graph.n(), k);
+    cache.initialize(graph.csr_graph(), p_graph);
+    std::vector<unsigned> visits(k, 0);
+    cache.gains(0, 0, [&](const BlockID to, auto &&gain) {
+      ASSERT_LT(to, k);
+      EXPECT_NE(to, 0u);
+      EXPECT_EQ(gain(), 0);
+      ++visits[to];
+    });
+    EXPECT_EQ(visits[0], 0u);
+    for (BlockID to = 1; to < k; ++to) {
+      EXPECT_EQ(visits[to], 1u);
+    }
+  }
+}
+
 #ifndef KAMINPAR_TEST_C6_REFERENCE
 
 struct WidthCase {

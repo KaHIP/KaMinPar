@@ -7,6 +7,8 @@
  ******************************************************************************/
 #include "kaminpar-shm/refinement/fm/fm_refiner.h"
 
+#include <algorithm>
+
 #include <tbb/concurrent_vector.h>
 #include <tbb/task_arena.h>
 
@@ -18,17 +20,16 @@
 #include "kaminpar-shm/refinement/fm/general_stats.h"
 #include "kaminpar-shm/refinement/fm/node_tracker.h"
 #include "kaminpar-shm/refinement/fm/stopping_policies.h"
+#include "kaminpar-shm/refinement/gains/on_the_fly_gain_cache.h"
 
 #include "kaminpar-common/datastructures/shared_binary_heap.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/timer.h"
 
-// Gain cache variations: unless compiled with experimental features enabled, only the sparse gain
-// cache will be available
+// Optional gain cache variants.
 #ifdef KAMINPAR_EXPERIMENTAL
 #include "kaminpar-shm/refinement/gains/dense_gain_cache.h"
 #include "kaminpar-shm/refinement/gains/hashing_gain_cache.h"
-#include "kaminpar-shm/refinement/gains/on_the_fly_gain_cache.h"
 #endif
 
 #include "kaminpar-shm/refinement/gains/compact_hashing_gain_cache.h"
@@ -56,7 +57,7 @@ template <typename GainCache> struct SharedData {
   SharedData(const SharedData &) = delete;
   SharedData &operator=(const SharedData &) = delete;
 
-  SharedData(SharedData &&) noexcept = default;
+  SharedData(SharedData &&) noexcept = delete;
   SharedData &operator=(SharedData &&) = delete;
 
   ~SharedData() {
@@ -117,7 +118,7 @@ public:
     IFSTATS(stats(Statistic::NUM_BATCHES));
 
     // Poll seed nodes from the border node arrays
-    _shared.border_nodes.poll(_fm_ctx.num_seed_nodes, _id, [&](const NodeID seed_node) {
+    _shared.border_nodes.poll(_fm_ctx.num_seed_nodes_for_fm(), _id, [&](const NodeID seed_node) {
       insert_into_node_pq(_p_graph, _shared.gain_cache, seed_node);
       _seed_nodes.push_back(seed_node);
 
@@ -139,7 +140,7 @@ public:
       KASSERT(node < _graph.n());
 
       const EdgeWeight expected_gain = _node_pqs[block_from].peek_key();
-      const auto [block_to, actual_gain] = find_best_gain(_d_graph, _d_gain_cache, node);
+      const auto [block_to, actual_gain] = find_best_gain(node);
 
       // If the gain got worse, reject the move and try again
       if (actual_gain < expected_gain) {
@@ -163,7 +164,7 @@ public:
         continue;
       }
 
-      // Accept the move if the target block does not get overloaded
+      // Accept the move if the target block does not get overloaded.
       const NodeWeight node_weight = _graph.node_weight(node);
       if (_d_graph.block_weight(block_to) + node_weight <= _p_ctx.max_block_weight(block_to)) {
         current_total_gain += actual_gain;
@@ -171,42 +172,26 @@ public:
         // If we found a new local minimum, apply the moves to the global
         // partition
         if (current_total_gain > best_total_gain) {
-          _p_graph.set_block(node, block_to);
-          _shared.gain_cache.move(node, block_from, block_to);
-          _shared.node_tracker.set(node, NodeTracker::MOVED_GLOBALLY);
-          IFSTATS(stats(Statistic::NUM_COMMITTED_MOVES));
-
+          // Cached gains guide publication. Concurrent batches can briefly overload a
+          // block; the refinement pipeline repairs these violations with the balancer.
+          _committed_moves.clear();
           _d_graph.for_each([&](const NodeID moved_node, const BlockID moved_to) {
-            const BlockID moved_from = _p_graph.block(moved_node);
-
-            // The order of the moves in the delta graph is not necessarily correct (depending on
-            // whether the delta graph stores the moves in a vector of a hash table).
-            // Thus, users of the _applied_moves vector may only depend on the order of moves that
-            // found an improvement.
-            if (_record_applied_moves) {
-              _applied_moves.push_back(
-                  fm::AppliedMove{
-                      .node = moved_node,
-                      .from = moved_from,
-                      .improvement = false,
-                  }
-              );
-            }
-
-            _shared.gain_cache.move(moved_node, moved_from, moved_to);
-            _shared.node_tracker.set(moved_node, NodeTracker::MOVED_GLOBALLY);
+            _committed_moves.push_back({moved_node, _p_graph.block(moved_node)});
             _p_graph.set_block(moved_node, moved_to);
-            IFSTATS(stats(Statistic::NUM_COMMITTED_MOVES));
           });
+          _committed_moves.push_back({node, block_from});
+          _p_graph.set_block(node, block_to);
 
-          if (_record_applied_moves) {
-            _applied_moves.push_back(
-                fm::AppliedMove{
-                    .node = node,
-                    .from = block_from,
-                    .improvement = true,
-                }
-            );
+          // Nodes stay owned until their cache updates finish. Each node moves globally at
+          // most once per iteration, so outgoing cache deltas cannot overdraw the original
+          // connectivity even when incoming/outgoing updates from different batches interleave.
+          for (const fm::Move &move : _committed_moves) {
+            _shared.gain_cache.move(move.node, move.from, _p_graph.block(move.node));
+            _shared.node_tracker.set(move.node, NodeTracker::MOVED_GLOBALLY);
+            IFSTATS(stats(Statistic::NUM_COMMITTED_MOVES));
+            if (_record_applied_moves) {
+              _applied_moves.push_back({move.node, move.from, move.node == node});
+            }
           }
 
           // Flush local delta
@@ -233,7 +218,7 @@ public:
             IFSTATS(stats(Statistic::NUM_PQ_INSERTS));
             IFSTATS(stats(Statistic::NUM_TOUCHED_NODES));
 
-            insert_into_node_pq(_d_graph, _d_gain_cache, v);
+            insert_into_local_node_pq(v);
             _touched_nodes.push_back(v);
           }
         });
@@ -298,6 +283,32 @@ public:
   }
 
 private:
+  // A successful commit clears both delta structures. Avoid hash lookups for zero deltas
+  // along the common path, including the full target scan and neighbor priority updates.
+  std::pair<BlockID, EdgeWeight> find_best_gain(const NodeID node) {
+    return _d_graph.size() == 0 ? find_best_gain(_p_graph, _shared.gain_cache, node)
+                                : find_best_gain(_d_graph, _d_gain_cache, node);
+  }
+
+  void insert_into_local_node_pq(const NodeID node) {
+    if (_d_graph.size() == 0) {
+      insert_into_node_pq(_p_graph, _shared.gain_cache, node);
+    } else {
+      insert_into_node_pq(_d_graph, _d_gain_cache, node);
+    }
+  }
+
+  EdgeWeight current_gain(const NodeID node, const BlockID from, const BlockID to) {
+    return _d_graph.size() == 0 ? _shared.gain_cache.gain(node, from, to)
+                                : _d_gain_cache.gain(node, from, to);
+  }
+
+  std::pair<EdgeWeight, EdgeWeight>
+  current_gain(const NodeID node, const BlockID from, const std::pair<BlockID, BlockID> targets) {
+    return _d_graph.size() == 0 ? _shared.gain_cache.gain(node, from, targets)
+                                : _d_gain_cache.gain(node, from, targets);
+  }
+
   // Note: p_graph could be a PartitionedGraph or a DeltaPartitionedGraph. If it is a
   // PartitionedGraph, gain_cache will be of type GainCache; if it is a DeltaPartitionedGraph,
   // gain_cache will also be a DeltaGainCache.
@@ -326,17 +337,15 @@ private:
       // We only need to consider other blocks if old_target_block is full now
       if (_d_graph.block_weight(old_target_block) + _d_graph.node_weight(node) <=
           _p_ctx.max_block_weight(old_target_block)) {
-        _node_pqs[old_block].change_priority(
-            node, _d_gain_cache.gain(node, old_block, old_target_block)
-        );
+        _node_pqs[old_block].change_priority(node, current_gain(node, old_block, old_target_block));
       } else {
-        const auto [new_target_block, new_gain] = find_best_gain(_d_graph, _d_gain_cache, node);
+        const auto [new_target_block, new_gain] = find_best_gain(node);
         _shared.target_blocks[node] = new_target_block;
         _node_pqs[old_block].change_priority(node, new_gain);
       }
     } else if (moved_from == old_target_block) {
       // old_target_block go worse, thus have to re-consider all other blocks
-      const auto [new_target_block, new_gain] = find_best_gain(_d_graph, _d_gain_cache, node);
+      const auto [new_target_block, new_gain] = find_best_gain(node);
       _shared.target_blocks[node] = new_target_block;
       _node_pqs[old_block].change_priority(node, new_gain);
     } else if (moved_to == old_block) {
@@ -344,13 +353,11 @@ private:
 
       // Since we did not move from old_target_block, this block is still the
       // best and we can still move to that block
-      _node_pqs[old_block].change_priority(
-          node, _d_gain_cache.gain(node, old_block, old_target_block)
-      );
+      _node_pqs[old_block].change_priority(node, current_gain(node, old_block, old_target_block));
     } else {
       // old_target_block OR moved_to is best
       const auto [gain_old_target_block, gain_moved_to] =
-          _d_gain_cache.gain(node, old_block, {old_target_block, moved_to});
+          current_gain(node, old_block, {old_target_block, moved_to});
 
       if (gain_moved_to > gain_old_target_block &&
           _d_graph.block_weight(moved_to) + _d_graph.node_weight(node) <=
@@ -444,6 +451,7 @@ private:
   std::vector<NodeID> _touched_nodes;
   std::vector<NodeID> _seed_nodes;
   std::vector<fm::AppliedMove> _applied_moves;
+  std::vector<fm::Move> _committed_moves;
   bool _record_applied_moves = false;
 };
 
@@ -508,6 +516,7 @@ public:
       START_TIMER("Initialize border nodes");
       _shared->border_nodes.init(p_graph); // also resets the NodeTracker
       _shared->border_nodes.shuffle();
+      _shared->abort = 0;
       STOP_TIMER();
 
       DBG << "Starting FM iteration " << iteration << " with " << _shared->border_nodes.size()
@@ -582,7 +591,7 @@ public:
     IFSTATS(_shared->gain_cache.print_statistics());
     IFSTATSC(_fm_ctx.dbg_compute_batch_stats, batch_stats.print());
 
-    return false;
+    return total_expected_gain > 0;
   }
 
 private:
@@ -592,10 +601,22 @@ private:
   bool _uninitialized = true;
   std::unique_ptr<fm::SharedData<GainCache>> _shared;
 };
-template <typename Graph> std::unique_ptr<Refiner> create_fm_core(const Context &ctx) {
+template <typename Graph>
+std::unique_ptr<Refiner> create_fm_core(const Context &ctx, const Graph &graph) {
   switch (ctx.refinement.kway_fm.gain_cache_strategy) {
+  case GainCacheStrategy::AUTO:
+    // Sparse levels spend more time maintaining a cache than rescanning their short rows.
+    // Keep the caller's explicit cache selections unchanged.
+    if (std::uint64_t{graph.m()} <= std::uint64_t{graph.n()} * 8) {
+      return std::make_unique<FMRefinerCore<Graph, NormalOnTheFlyGainCache>>(ctx);
+    }
+    return std::make_unique<FMRefinerCore<Graph, NormalCompactHashingGainCache>>(ctx);
+
   case GainCacheStrategy::SPARSE:
     return std::make_unique<FMRefinerCore<Graph, NormalSparseGainCache>>(ctx);
+
+  case GainCacheStrategy::ON_THE_FLY:
+    return std::make_unique<FMRefinerCore<Graph, NormalOnTheFlyGainCache>>(ctx);
 
 #ifdef KAMINPAR_EXPERIMENTAL
   case GainCacheStrategy::COMPACT_HASHING_LARGE_K:
@@ -616,8 +637,6 @@ template <typename Graph> std::unique_ptr<Refiner> create_fm_core(const Context 
   case GainCacheStrategy::DENSE_LARGE_K:
     return std::make_unique<FMRefinerCore<Graph, LargeKDenseGainCache>>(ctx);
 
-  case GainCacheStrategy::ON_THE_FLY:
-    return std::make_unique<FMRefinerCore<Graph, NormalOnTheFlyGainCache>>(ctx);
 #endif // KAMINPAR_EXPERIMENTAL
 
   default:
@@ -636,8 +655,8 @@ template <typename Graph> std::unique_ptr<Refiner> create_fm_core(const Context 
 namespace fm {
 
 std::unique_ptr<Refiner> create_fm_core(const Context &ctx, const PartitionedGraph &p_graph) {
-  return reified(p_graph, [&]<typename Graph>(Graph &) -> std::unique_ptr<Refiner> {
-    return ::kaminpar::shm::create_fm_core<Graph>(ctx);
+  return reified(p_graph, [&]<typename Graph>(Graph &graph) -> std::unique_ptr<Refiner> {
+    return ::kaminpar::shm::create_fm_core<Graph>(ctx, graph);
   });
 }
 

@@ -221,9 +221,12 @@ enum class GainCacheStrategy {
   DENSE,
   DENSE_LARGE_K,
   ON_THE_FLY,
+  // Select a cache for the FM variant and the current graph level.
+  AUTO,
 };
 
 struct KwayFMRefinementContext {
+  // Zero selects algorithm-specific defaults; positive values are used verbatim.
   NodeID num_seed_nodes;
   double alpha;
   int num_iterations;
@@ -247,6 +250,14 @@ struct KwayFMRefinementContext {
 
   bool dbg_compute_batch_stats;
   bool dbg_report_progress;
+
+  [[nodiscard]] NodeID num_seed_nodes_for_fm() const {
+    return num_seed_nodes == 0 ? 100 : num_seed_nodes;
+  }
+
+  [[nodiscard]] NodeID num_seed_nodes_for_ufm() const {
+    return num_seed_nodes == 0 ? 10 : num_seed_nodes;
+  }
 };
 
 struct FlowSchedulerContext {
