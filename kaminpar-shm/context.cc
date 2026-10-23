@@ -416,18 +416,11 @@ std::unordered_map<std::string, GainCacheStrategy> get_gain_cache_strategies() {
   };
 }
 
-std::ostream &operator<<(std::ostream &out, const JetGainCacheStrategy strategy) {
-  switch (strategy) {
-  case JetGainCacheStrategy::SPARSE:
-    return out << "sparse";
-  case JetGainCacheStrategy::JET:
-    return out << "jet";
-  }
-  return out << "<invalid>";
-}
-
-std::unordered_map<std::string, JetGainCacheStrategy> get_jet_gain_cache_strategies() {
-  return {{"sparse", JetGainCacheStrategy::SPARSE}, {"jet", JetGainCacheStrategy::JET}};
+std::unordered_map<std::string, GainCacheStrategy> get_jet_gain_cache_strategies() {
+  return {
+      {"sparse", GainCacheStrategy::SPARSE},
+      {"on-the-fly", GainCacheStrategy::ON_THE_FLY},
+  };
 }
 
 std::ostream &operator<<(std::ostream &out, const JetBalancingAlgorithm algorithm) {

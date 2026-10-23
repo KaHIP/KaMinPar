@@ -2,6 +2,7 @@
 #include <limits>
 #include <memory>
 #include <random>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -286,7 +287,7 @@ using namespace testing;
 
 void refine_and_check(Graph &graph, const int threads) {
   tbb::global_control control(tbb::global_control::max_allowed_parallelism, threads);
-  for (const auto cache : {JetGainCacheStrategy::SPARSE, JetGainCacheStrategy::JET}) {
+  for (const auto cache : {GainCacheStrategy::SPARSE, GainCacheStrategy::ON_THE_FLY}) {
     for (const auto balancer : {JetBalancingAlgorithm::OVERLOAD, JetBalancingAlgorithm::JET}) {
       auto ctx = create_jet_context(2);
       ctx.parallel.num_threads = threads;
@@ -318,10 +319,251 @@ void refine_and_check(Graph &graph, const int threads) {
   }
 }
 
-TEST(JetComponentTest, JetPresetsSelectAdaptiveCacheAndPaperBalancer) {
+template <bool exact_gains, bool source_block> struct CountingConnections {
+  static constexpr bool kIteratesExactGains = exact_gains;
+  static constexpr bool kIteratesSourceBlock = source_block;
+
+  EdgeWeight conn(const NodeID u, const BlockID to) const {
+    return connections[u][to];
+  }
+
+  template <typename Lambda> void gains(const NodeID u, const BlockID from, Lambda &&lambda) {
+    ++queries[u];
+    for (BlockID to = 0; to < connections[u].size(); ++to) {
+      if (source_block || to != from) {
+        lambda(to, [&] { return connections[u][to] - (exact_gains ? conn(u, from) : 0); });
+      }
+    }
+  }
+
+  std::vector<std::vector<EdgeWeight>> connections;
+  std::vector<std::size_t> queries;
+};
+
+template <bool exact_gains, bool source_block> void check_destination_semantics() {
+  CountingConnections<exact_gains, source_block> cache{{{10, 8, 8}}, {0}};
+  jet::DestinationCache destinations(cache, 1);
+  const auto first = destinations.get(0, 0);
+  EXPECT_EQ(first.source_connectivity, 10);
+  EXPECT_EQ(first.target_connectivity, 8);
+  EXPECT_EQ(first.target, 1);
+  EXPECT_EQ(first.gain(), -2);
+  EXPECT_FALSE(first.accepts(0.1));
+  EXPECT_TRUE(destinations.get(0, 0).accepts(0.5));
+  EXPECT_EQ(cache.queries[0], 1); // Temperature changes reuse raw connectivity.
+
+  // Moving the vertex changes the source even if no neighboring vertex moved.
+  const auto moved = destinations.get(0, 1);
+  EXPECT_EQ(moved.source_connectivity, 8);
+  EXPECT_EQ(moved.target, 0);
+  EXPECT_EQ(moved.gain(), 2);
+  EXPECT_EQ(cache.queries[0], 2);
+}
+
+TEST(JetDestinationCacheTest, HandlesSourceIterationExactGainsAndTemperatureChanges) {
+  check_destination_semantics<false, false>();
+  check_destination_semantics<false, true>();
+  check_destination_semantics<true, false>();
+  check_destination_semantics<true, true>();
+}
+
+TEST(JetDestinationCacheTest, InvalidatesMovedVerticesAndNeighborsAndClearsOnRollback) {
+  const auto graph = make_graph({0, 1, 3, 4, 4}, {1, 0, 2, 1});
+  CountingConnections<false, false> cache{
+      {{3, 2, 1}, {3, 2, 1}, {3, 2, 1}, {3, 2, 1}}, {0, 0, 0, 0}
+  };
+  jet::DestinationCache destinations(cache, graph.n());
+  for (NodeID u = 0; u < graph.n(); ++u) {
+    EXPECT_EQ(destinations.get(u, 0).target, 1);
+    cache.connections[u][2] = 5;
+  }
+
+  destinations.invalidate_neighborhood(graph.csr_graph(), 1);
+  for (NodeID u = 0; u < 3; ++u) {
+    EXPECT_EQ(destinations.get(u, 0).target, 2);
+    EXPECT_EQ(cache.queries[u], 2);
+  }
+  EXPECT_EQ(destinations.get(3, 0).target, 1);
+  EXPECT_EQ(cache.queries[3], 1); // Unaffected destinations remain memoized.
+
+  destinations.invalidate_all(graph.csr_graph());
+  for (NodeID u = 0; u < graph.n(); ++u) {
+    cache.connections[u][1] = 7;
+    EXPECT_EQ(destinations.get(u, 0).target, 1);
+  }
+  EXPECT_EQ(cache.queries, (std::vector<std::size_t>{3, 3, 3, 2}));
+}
+
+TEST(JetComponentTest, RejectsUnsupportedSharedGainCacheStrategy) {
+  const auto graph = make_path_graph(4);
+  auto p_graph = make_p_graph(graph, 2, {0, 0, 1, 1});
+  auto ctx = create_jet_context(1);
+  ctx.refinement.jet.gain_cache_strategy = GainCacheStrategy::DENSE;
+  ctx.partition.setup(graph, 2, 0.03);
+  JetRefiner refiner(ctx);
+  refiner.initialize(p_graph);
+  EXPECT_THROW(refiner.refine(p_graph, ctx.partition), std::invalid_argument);
+}
+
+TEST(JetComponentTest, SparseMatchesOnTheFlyAcrossTemperatureChangesOnSortedGraph) {
+  tbb::global_control control(tbb::global_control::max_allowed_parallelism, 1);
+  constexpr NodeID n = 64;
+  constexpr BlockID k = 4;
+  std::vector<EdgeID> offsets(n + 1);
+  std::vector<NodeID> edges;
+  std::vector<BlockID> partition(n);
+  for (NodeID u = 0; u < n; ++u) {
+    offsets[u] = edges.size();
+    for (const NodeID delta : {NodeID{1}, n - 1, NodeID{8}, n - 8}) {
+      edges.push_back((u + delta) % n);
+    }
+    partition[u] = u % k;
+  }
+  offsets[n] = edges.size();
+  auto graph = make_graph(offsets, edges, true);
+  ASSERT_TRUE(graph.sorted());
+  std::mt19937 random(42);
+  std::shuffle(partition.begin(), partition.end(), random);
+
+  for (const auto balancer : {JetBalancingAlgorithm::JET, JetBalancingAlgorithm::OVERLOAD}) {
+    std::vector<BlockID> reference;
+    for (const auto cache : {GainCacheStrategy::SPARSE, GainCacheStrategy::ON_THE_FLY}) {
+      auto p_graph = make_p_graph(graph, k, partition);
+      auto ctx = create_jet_context(4);
+      ctx.refinement.jet.gain_cache_strategy = cache;
+      ctx.refinement.jet.balancing_algorithm = balancer;
+      ctx.refinement.jet.num_iterations = 10;
+      ctx.refinement.jet.initial_gain_temp_on_fine_level = 0.1;
+      ctx.refinement.jet.final_gain_temp_on_fine_level = 0.9;
+      ctx.partition.setup(graph, k, 0.1);
+      KaMinPar::reseed(42);
+      JetRefiner refiner(ctx);
+      refiner.initialize(p_graph);
+      refiner.refine(p_graph, ctx.partition);
+      EXPECT_TRUE(metrics::is_feasible(p_graph, ctx.partition));
+      const std::vector<BlockID> result(
+          p_graph.raw_partition().begin(), p_graph.raw_partition().end()
+      );
+      if (reference.empty()) {
+        reference = result;
+      } else {
+        EXPECT_EQ(result, reference);
+      }
+    }
+  }
+}
+
+TEST(JetComponentTest, ReusesCachesAcrossShrinkingAndGrowingGraphsAndBlockCounts) {
+  tbb::global_control control(tbb::global_control::max_allowed_parallelism, 1);
+  for (const bool compressed : {false, true}) {
+    for (const auto cache : {GainCacheStrategy::SPARSE, GainCacheStrategy::ON_THE_FLY}) {
+      auto ctx = create_jet_context(2);
+      ctx.refinement.jet.gain_cache_strategy = cache;
+      ctx.refinement.jet.num_iterations = 3;
+      JetRefiner retained(ctx);
+      for (const auto &[n, k] : std::vector<std::pair<NodeID, BlockID>>{
+               {32, 4}, {128, 64}, {16, 2}, {96, 48}, {64, 8}
+           }) {
+        SCOPED_TRACE(n);
+        SCOPED_TRACE(k);
+        std::vector<EdgeID> offsets(n + 1);
+        std::vector<NodeID> edges;
+        std::vector<BlockID> partition(n);
+        for (NodeID u = 0; u < n; ++u) {
+          offsets[u] = edges.size();
+          for (NodeID v = 0; v < n; ++v) {
+            if (u != v) {
+              edges.push_back(v);
+            }
+          }
+          partition[u] = u % k;
+        }
+        offsets[n] = edges.size();
+        auto graph = make_graph(offsets, edges, true);
+        if (compressed) {
+          graph = compress(graph.csr_graph());
+        }
+        ASSERT_TRUE(graph.sorted());
+        ctx.partition.setup(graph, k, 0.1);
+        auto p_graph = make_p_graph(graph, k, partition);
+        KaMinPar::reseed(42);
+        retained.initialize(p_graph);
+        retained.refine(p_graph, ctx.partition);
+
+        auto reference = make_p_graph(graph, k, partition);
+        JetRefiner fresh(ctx);
+        KaMinPar::reseed(42);
+        fresh.initialize(reference);
+        fresh.refine(reference, ctx.partition);
+        EXPECT_TRUE(metrics::is_feasible(p_graph, ctx.partition));
+        for (NodeID u = 0; u < graph.n(); ++u) {
+          EXPECT_EQ(p_graph.block(u), reference.block(u));
+        }
+      }
+    }
+  }
+}
+
+TEST(JetComponentTest, ReusesSparseCacheWhenPackedDegreeBucketsAndBlockCountsChange) {
+  tbb::global_control control(tbb::global_control::max_allowed_parallelism, 1);
+  struct Instance {
+    NodeID n;
+    BlockID k;
+    NodeID radius;
+  };
+  for (const bool compressed : {false, true}) {
+    auto ctx = create_jet_context(2);
+    ctx.refinement.jet.gain_cache_strategy = GainCacheStrategy::SPARSE;
+    ctx.refinement.jet.num_iterations = 4;
+    ctx.refinement.kway_fm.k_based_high_degree_threshold = 1;
+    ctx.refinement.kway_fm.constant_high_degree_threshold = 0;
+    JetRefiner retained(ctx);
+    for (const auto &[n, k, radius] :
+         std::vector<Instance>{{64, 16, 1}, {96, 24, 3}, {32, 8, 1}, {128, 32, 2}, {48, 12, 1}}) {
+      SCOPED_TRACE(n);
+      SCOPED_TRACE(k);
+      SCOPED_TRACE(radius);
+      std::vector<EdgeID> offsets(n + 1);
+      std::vector<NodeID> edges;
+      std::vector<BlockID> partition(n);
+      for (NodeID u = 0; u < n; ++u) {
+        offsets[u] = edges.size();
+        for (NodeID delta = 1; delta <= radius; ++delta) {
+          edges.push_back((u + delta) % n);
+          edges.push_back((u + n - delta) % n);
+        }
+        partition[u] = u % k;
+      }
+      offsets[n] = edges.size();
+      auto graph = make_graph(offsets, edges, true);
+      if (compressed) {
+        graph = compress(graph.csr_graph());
+      }
+      ASSERT_TRUE(graph.sorted());
+      ASSERT_LT(2 * radius, k); // Every row uses the packed hash-table path.
+      ctx.partition.setup(graph, k, 0.1);
+      auto p_graph = make_p_graph(graph, k, partition);
+      KaMinPar::reseed(42);
+      retained.initialize(p_graph);
+      retained.refine(p_graph, ctx.partition);
+
+      auto reference = make_p_graph(graph, k, partition);
+      JetRefiner fresh(ctx);
+      KaMinPar::reseed(42);
+      fresh.initialize(reference);
+      fresh.refine(reference, ctx.partition);
+      EXPECT_TRUE(metrics::is_feasible(p_graph, ctx.partition));
+      for (NodeID u = 0; u < graph.n(); ++u) {
+        EXPECT_EQ(p_graph.block(u), reference.block(u));
+      }
+    }
+  }
+}
+
+TEST(JetComponentTest, JetPresetsSelectSparseCacheAndPaperBalancer) {
   for (const int rounds : {1, 4}) {
     const auto ctx = create_jet_context(rounds);
-    EXPECT_EQ(ctx.refinement.jet.gain_cache_strategy, JetGainCacheStrategy::JET);
+    EXPECT_EQ(ctx.refinement.jet.gain_cache_strategy, GainCacheStrategy::SPARSE);
     EXPECT_EQ(ctx.refinement.jet.balancing_algorithm, JetBalancingAlgorithm::JET);
     EXPECT_EQ(ctx.refinement.jet.num_rounds_on_fine_level, rounds);
     EXPECT_EQ(ctx.refinement.jet.num_rounds_on_coarse_level, rounds);
@@ -349,7 +591,7 @@ TEST(JetComponentTest, SparseOptionSupportsFullWeightsInSortedGraph) {
   std::fill(weights.begin() + 4, weights.end(), 1);
   auto graph = make_graph(offsets, edges, {}, weights, true);
   auto ctx = create_jet_context(2);
-  ctx.refinement.jet.gain_cache_strategy = JetGainCacheStrategy::SPARSE;
+  ctx.refinement.jet.gain_cache_strategy = GainCacheStrategy::SPARSE;
   ctx.partition.setup(graph, k, 0.03);
   auto p_graph = make_p_graph(graph, k, partition);
   const EdgeWeight initial_cut = metrics::edge_cut(p_graph);
@@ -376,7 +618,7 @@ TEST(JetComponentTest, SparseOptionRefinesSortedGraphWithBothBalancers) {
   auto graph = make_graph(offsets, edges, true);
   for (const auto balancer : {JetBalancingAlgorithm::OVERLOAD, JetBalancingAlgorithm::JET}) {
     auto ctx = create_jet_context(2);
-    ctx.refinement.jet.gain_cache_strategy = JetGainCacheStrategy::SPARSE;
+    ctx.refinement.jet.gain_cache_strategy = GainCacheStrategy::SPARSE;
     ctx.refinement.jet.balancing_algorithm = balancer;
     ctx.partition.setup(graph, k, 0.03);
     auto p_graph = make_p_graph(graph, k, partition);
@@ -400,7 +642,7 @@ TEST(JetComponentTest, AllCombinationsKeepFeasibleBestOnCompressedGraph) {
   refine_and_check(graph, 4);
 }
 
-TEST(JetComponentTest, AdaptiveCachePreservesLegacyMovesWithOneThread) {
+TEST(JetComponentTest, SparseAndOnTheFlyPreserveMovesWithOneThread) {
   tbb::global_control control(tbb::global_control::max_allowed_parallelism, 1);
   auto graph = make_grid_graph(12, 12);
   std::vector<BlockID> partition(graph.n());
@@ -408,7 +650,7 @@ TEST(JetComponentTest, AdaptiveCachePreservesLegacyMovesWithOneThread) {
     partition[u] = u % 8;
   }
   std::vector<BlockID> reference;
-  for (const auto cache : {JetGainCacheStrategy::SPARSE, JetGainCacheStrategy::JET}) {
+  for (const auto cache : {GainCacheStrategy::SPARSE, GainCacheStrategy::ON_THE_FLY}) {
     auto ctx = create_jet_context(2);
     ctx.refinement.jet.gain_cache_strategy = cache;
     ctx.refinement.jet.balancing_algorithm = JetBalancingAlgorithm::OVERLOAD;

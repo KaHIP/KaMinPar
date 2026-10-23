@@ -318,11 +318,6 @@ struct TwowayFlowRefinementContext {
   FlowCutterContext flow_cutter;
 };
 
-enum class JetGainCacheStrategy {
-  SPARSE,
-  JET
-};
-
 enum class JetBalancingAlgorithm {
   OVERLOAD,
   JET
@@ -339,7 +334,7 @@ struct JetRefinementContext {
   double initial_gain_temp_on_coarse_level;
   double final_gain_temp_on_coarse_level;
 
-  JetGainCacheStrategy gain_cache_strategy = JetGainCacheStrategy::JET;
+  GainCacheStrategy gain_cache_strategy = GainCacheStrategy::SPARSE;
   JetBalancingAlgorithm balancing_algorithm = JetBalancingAlgorithm::JET;
 };
 
