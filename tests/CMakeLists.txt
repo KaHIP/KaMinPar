@@ -273,3 +273,33 @@ if(KAMINPAR_BUILD_DISTRIBUTED)
         FILES dist/refinement/node_balancer_lifecycle_test.cc
         CORES 1 4)
 endif()
+
+if (KAMINPAR_BUILD_DISTRIBUTED)
+    # Schedule growth between protection and epoch validation without adding a
+    # production test hook. Only this standalone target sees the copied header.
+    find_package(Threads REQUIRED)
+    set(growt_snapshot_overlay "${CMAKE_CURRENT_BINARY_DIR}/growt-snapshot")
+    set(growt_snapshot_header
+        "${growt_snapshot_overlay}/data-structures/strategies/estrat_async.hpp")
+    add_custom_command(OUTPUT "${growt_snapshot_header}"
+        COMMAND "${CMAKE_COMMAND}"
+            "-DSOURCE_HEADER=${PROJECT_SOURCE_DIR}/external/growt/data-structures/strategies/estrat_async.hpp"
+            "-DOUTPUT_HEADER=${growt_snapshot_header}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/InstrumentGrowtSnapshot.cmake"
+        DEPENDS
+            "${PROJECT_SOURCE_DIR}/external/growt/data-structures/strategies/estrat_async.hpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/cmake/InstrumentGrowtSnapshot.cmake"
+        VERBATIM)
+    add_executable(test_dist_growt_growth_snapshot
+        dist/datastructures/growt_growth_snapshot_test.cc
+        "${growt_snapshot_header}")
+    target_include_directories(test_dist_growt_growth_snapshot BEFORE PRIVATE
+        "${growt_snapshot_overlay}")
+    target_link_libraries(test_dist_growt_growth_snapshot PRIVATE growt Threads::Threads TBB::tbb)
+    foreach(mode init load)
+        add_test(NAME dist_growt_growth_snapshot.${mode}
+            COMMAND test_dist_growt_growth_snapshot "${mode}")
+        set_tests_properties(dist_growt_growth_snapshot.${mode} PROPERTIES
+            TIMEOUT 15 PROCESSORS 2 LABELS "distributed;growt")
+    endforeach()
+endif ()
