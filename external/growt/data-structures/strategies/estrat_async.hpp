@@ -197,11 +197,7 @@ class estrat_async
 template <class P>
 void estrat_async<P>::local_data_type::init()
 {
-    _table = _rec_handle.protect(_global._table);
-    while (_table->_version != _global._epoch.load(std::memory_order_relaxed))
-    { /* wait */
-    }
-    _epoch = _table->_version;
+    load();
 }
 
 template <class P>
@@ -310,12 +306,24 @@ estrat_async<P>::local_data_type::blockwise_migrate(base_table_type* source,
 template <class P>
 void estrat_async<P>::local_data_type::load()
 {
-    if (_table) _rec_handle.unprotect(_table);
-    _table = _rec_handle.protect(_global._table);
-    while (_table->_version != _global._epoch.load(std::memory_order_relaxed))
-    { /* wait */
+    if (_table) {
+        _rec_handle.unprotect(_table);
+        _table = nullptr;
     }
-    _epoch = _table->_version;
+    for (;;) {
+        _table = _rec_handle.protect(_global._table);
+        const size_t epoch = _global._epoch.load(std::memory_order_acquire);
+        if (_table->_version == epoch) {
+            _epoch = epoch;
+            return;
+        }
+        // Growth publishes the pointer before the epoch. A handle can also
+        // capture the old pointer just before the epoch advances; that old
+        // table's immutable version will never catch up. Reprotect the global
+        // pointer instead of waiting forever on a stale protected snapshot.
+        _rec_handle.unprotect(_table);
+        _table = nullptr;
+    }
 }
 
 template <class P>
