@@ -59,7 +59,9 @@ public:
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
   CompactHashingGainCache(
-      const Context &ctx, const NodeID preallocate_n, [[maybe_unused]] BlockID preallocate_k
+      const ExecutionContext &ctx,
+      const NodeID preallocate_n,
+      [[maybe_unused]] BlockID preallocate_k
   )
       : _ctx(ctx),
         // Since we do not know the size of the gain cache in advance (depends on vertex degrees),
@@ -77,17 +79,17 @@ public:
     _bits_for_key = math::ceil_log2(_k);
 
     if (_weighted_degrees.size() < _n) {
-      SCOPED_TIMER("Allocation");
+      SCOPED_TIMER_ON(_ctx.runtime.timer, "Allocation");
       _weighted_degrees.resize(_n);
     }
     recompute_weighted_degrees();
 
     if (_offsets.size() < _n + 1) {
-      SCOPED_TIMER("Allocation");
+      SCOPED_TIMER_ON(_ctx.runtime.timer, "Allocation");
       _offsets.resize(_n + 1);
     }
 
-    START_TIMER("Compute gain cache offsets");
+    START_TIMER_ON(_ctx.runtime.timer, "Compute gain cache offsets");
     const std::size_t total_nbytes =
         parallel::aligned_prefix_sum(_offsets.begin(), _offsets.begin() + _n, [&](const NodeID u) {
           const std::uint64_t deg = math::ceil2(_graph->degree(u));
@@ -95,7 +97,7 @@ public:
           const std::uint64_t nbytes = (deg < _k) ? width * deg : width * _k;
           return std::make_pair(width, nbytes);
         });
-    STOP_TIMER();
+    STOP_TIMER_ON(_ctx.runtime.timer);
 
     if (_n > 0) {
       const NodeID u = _n - 1;
@@ -134,7 +136,7 @@ public:
     const std::size_t gain_cache_size = math::div_ceil(total_nbytes, sizeof(std::uint64_t));
 
     if (_gain_cache.size() < gain_cache_size) {
-      SCOPED_TIMER("Allocation");
+      SCOPED_TIMER_ON(_ctx.runtime.timer, "Allocation");
       _gain_cache.resize(gain_cache_size);
       DBG << "Allocating gain cache: " << _gain_cache.size() * sizeof(std::uint64_t) << " bytes";
     }
@@ -310,7 +312,7 @@ private:
   //
 
   void recompute_gains() {
-    SCOPED_TIMER("Reset gain cache");
+    SCOPED_TIMER_ON(_ctx.runtime.timer, "Reset gain cache");
 
     tbb::parallel_for<std::size_t>(0, _gain_cache.size(), [&](const std::size_t i) noexcept {
       _gain_cache[i] = 0;
@@ -581,7 +583,7 @@ private:
     );
   }
 
-  const Context &_ctx;
+  const ExecutionContext &_ctx;
 
   const Graph *_graph = nullptr;
   const PartitionedGraph *_p_graph = nullptr;

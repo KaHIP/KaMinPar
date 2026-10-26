@@ -40,7 +40,9 @@ public:
   }
 
   std::unique_ptr<GainCacheType> _gain_cache = nullptr;
-  Context _ctx = create_default_context();
+  Context _config = create_default_context();
+  kaminpar::RuntimeContext _runtime;
+  ExecutionContext _ctx{_config, _runtime};
 };
 
 using GainCacheTypes = ::testing::Types<
@@ -77,7 +79,9 @@ TYPED_TEST(GainCacheTest, ScalarAndPairQueriesSupportAliasedBlocks) {
 
 TEST(OnTheFlyGainCacheTest, ReinitializationCanGrowTheBlockRange) {
   const Graph graph = make_complete_graph(6);
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   auto small = make_p_graph(graph, 2, {0, 0, 1, 1, 0, 1});
   ctx.partition.setup(graph, 2, .03);
   OnTheFlyGainCache<CSRGraph> cache(ctx, graph.n(), 2);

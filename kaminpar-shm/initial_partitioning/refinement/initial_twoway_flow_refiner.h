@@ -17,7 +17,9 @@ namespace kaminpar::shm {
 
 class InitialTwowayFlowRefiner : public InitialRefiner {
 public:
-  explicit InitialTwowayFlowRefiner(const TwowayFlowRefinementContext &f_ctx);
+  explicit InitialTwowayFlowRefiner(
+      const TwowayFlowRefinementContext &f_ctx, RuntimeContext &runtime
+  );
 
   void init(const CSRGraph &graph) final;
 

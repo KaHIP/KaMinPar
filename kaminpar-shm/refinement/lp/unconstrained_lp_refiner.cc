@@ -36,8 +36,9 @@ template <typename Graph> class UnconstrainedLPRefinerImpl {
   static constexpr std::size_t kInfiniteIterations = std::numeric_limits<std::size_t>::max();
 
 public:
-  explicit UnconstrainedLPRefinerImpl(const Context &ctx)
-      : _lp_ctx(ctx.refinement.lp),
+  explicit UnconstrainedLPRefinerImpl(const ExecutionContext &ctx)
+      : _runtime(ctx.runtime),
+        _lp_ctx(ctx.config.refinement.lp),
         _balancer(ctx) {}
 
   void initialize(const Graph *graph) {
@@ -63,7 +64,7 @@ public:
     const std::size_t max_iterations =
         _lp_ctx.num_iterations == 0 ? kInfiniteIterations : _lp_ctx.num_iterations;
     for (std::size_t iteration = 0; iteration < max_iterations; ++iteration) {
-      SCOPED_TIMER("Iteration", std::to_string(iteration));
+      SCOPED_TIMER_ON(_runtime.timer, "Iteration", std::to_string(iteration));
 
       if (active_nodes == 0) {
         break;
@@ -77,12 +78,12 @@ public:
       }
 
       if (metrics::total_overload(p_graph, p_ctx) > 0) {
-        TIMED_SCOPE("Rebalance") {
+        TIMED_SCOPE_ON(_runtime.timer, "Rebalance") {
           _balancer.refine(p_graph, p_ctx);
         };
       }
 
-      const Gain improvement = TIMED_SCOPE("Compute improvement") {
+      const Gain improvement = TIMED_SCOPE_ON(_runtime.timer, "Compute improvement") {
         return compute_round_improvement(p_graph);
       };
       if (metrics::total_overload(p_graph, p_ctx) > 0 || improvement < 0) {
@@ -254,7 +255,7 @@ private:
     );
 
     const auto selection = lp::select_best_positive_gain<Gain>(
-        from, map.entries(), Random::instance(), tie_breaking_blocks
+        from, map.entries(), _runtime.random.local(), tie_breaking_blocks
     );
     map.clear();
     return selection;
@@ -345,6 +346,7 @@ private:
     });
   }
 
+  RuntimeContext &_runtime;
   const LabelPropagationRefinementContext &_lp_ctx;
   const Graph *_graph = nullptr;
 
@@ -363,14 +365,14 @@ private:
 
 class UnconstrainedLPRefinerImplWrapper {
 public:
-  explicit UnconstrainedLPRefinerImplWrapper(const Context &ctx) : _ctx(ctx) {}
+  explicit UnconstrainedLPRefinerImplWrapper(const ExecutionContext &ctx) : _ctx(ctx) {}
 
   void initialize(const PartitionedGraph &p_graph) {
     reified(p_graph, [&]<typename Graph>(const Graph &graph) { ensure_impl(graph); });
   }
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
-    SCOPED_TIMER("Unconstrained Label Propagation");
+    SCOPED_TIMER_ON(_ctx.runtime.timer, "Unconstrained Label Propagation");
 
     return reified(p_graph, [&]<typename Graph>(const Graph &graph) {
       return ensure_impl(graph).refine(p_graph, p_ctx);
@@ -390,7 +392,7 @@ private:
     return impl;
   }
 
-  const Context &_ctx;
+  const ExecutionContext &_ctx;
   ReifiedGraphComponent<UnconstrainedLPRefinerImpl> _impl;
   std::span<const NodeID> _communities;
 };
@@ -399,7 +401,9 @@ private:
 // Exposed wrapper
 //
 
-UnconstrainedLabelPropagationRefiner::UnconstrainedLabelPropagationRefiner(const Context &ctx)
+UnconstrainedLabelPropagationRefiner::UnconstrainedLabelPropagationRefiner(
+    const ExecutionContext &ctx
+)
     : _impl_wrapper(std::make_unique<UnconstrainedLPRefinerImplWrapper>(ctx)) {}
 
 UnconstrainedLabelPropagationRefiner::~UnconstrainedLabelPropagationRefiner() = default;

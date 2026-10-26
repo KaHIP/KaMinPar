@@ -32,7 +32,7 @@ constexpr static bool kDebugBlockWeights = false;
 using namespace partitioning;
 
 DeepMultilevelPartitioner::DeepMultilevelPartitioner(
-    const Graph &input_graph, const Context &input_ctx
+    const Graph &input_graph, const ExecutionContext &input_ctx
 )
     : _input_graph(input_graph),
       _input_ctx(input_ctx),
@@ -53,7 +53,8 @@ void DeepMultilevelPartitioner::use_communities(
 }
 
 PartitionedGraph DeepMultilevelPartitioner::partition() {
-  cio::print_delimiter("Partitioning");
+  if (!_input_ctx.runtime.quiet)
+    cio::print_delimiter("Partitioning");
 
   if (_print_metrics) {
     _refiner->set_output_level(Refiner::OutputLevel::DEBUG);
@@ -68,7 +69,7 @@ PartitionedGraph DeepMultilevelPartitioner::partition() {
 
 const Graph *DeepMultilevelPartitioner::coarsen() {
   SCOPED_HEAP_PROFILER("Coarsening");
-  SCOPED_TIMER("Coarsening");
+  SCOPED_TIMER_ON(_input_ctx.runtime.timer, "Coarsening");
 
   const Graph *c_graph = &_input_graph;
   NodeID prev_c_graph_n = c_graph->n();
@@ -78,14 +79,15 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
   bool shrunk = true;
   bool search_subgraph_memory_size = true;
 
-  LOG << "Input graph:";
-  LOG << " Number of nodes: " << c_graph->n() << " | Number of edges: " << c_graph->m();
-  LOG << " Maximum node weight: " << c_graph->max_node_weight();
-  LOG;
+  LOG_ON(_input_ctx.runtime) << "Input graph:";
+  LOG_ON(_input_ctx.runtime) << " Number of nodes: " << c_graph->n()
+                             << " | Number of edges: " << c_graph->m();
+  LOG_ON(_input_ctx.runtime) << " Maximum node weight: " << c_graph->max_node_weight();
+  LOG_ON(_input_ctx.runtime);
 
   while (shrunk && c_graph->n() > initial_partitioning_threshold()) {
     SCOPED_HEAP_PROFILER("Level", std::to_string(_coarsener->level()));
-    SCOPED_TIMER(_coarsener->empty() ? "Top level" : "Coarse levels");
+    SCOPED_TIMER_ON(_input_ctx.runtime.timer, _coarsener->empty() ? "Top level" : "Coarse levels");
 
     // If requested, dump graph before each coarsening step + after coarsening
     // converged. This way, we also have a dump of the (reordered) input graph,
@@ -135,17 +137,22 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
         << _current_p_ctx.infer_epsilon(prev_c_graph_total_node_weight);
 
     const NodeWeight max_cluster_weight = compute_max_cluster_weight<NodeWeight>(
-        _input_ctx.coarsening, _input_ctx.partition, prev_c_graph_n, prev_c_graph_total_node_weight
+        _input_ctx.config.coarsening,
+        _input_ctx.partition,
+        prev_c_graph_n,
+        prev_c_graph_total_node_weight
     );
-    LOG << "Coarsening -> Level " << _coarsener->level()
-        << " [max cluster weight: " << max_cluster_weight << "]:";
+    LOG_ON(_input_ctx.runtime) << "Coarsening -> Level " << _coarsener->level()
+                               << " [max cluster weight: " << max_cluster_weight << "]:";
     if (const std::string explanation = _coarsener->explain(); !explanation.empty()) {
-      LOG << " " << explanation;
+      LOG_ON(_input_ctx.runtime) << " " << explanation;
     }
-    LOG << " Total edge weight:   " << static_cast<std::uint64_t>(c_graph->total_edge_weight());
-    LOG << " Number of nodes:     " << c_graph->n() << " | Number of edges: " << c_graph->m();
-    LOG << " Maximum node weight: " << c_graph->max_node_weight();
-    LOG;
+    LOG_ON(_input_ctx.runtime) << " Total edge weight:   "
+                               << static_cast<std::uint64_t>(c_graph->total_edge_weight());
+    LOG_ON(_input_ctx.runtime) << " Number of nodes:     " << c_graph->n()
+                               << " | Number of edges: " << c_graph->m();
+    LOG_ON(_input_ctx.runtime) << " Maximum node weight: " << c_graph->max_node_weight();
+    LOG_ON(_input_ctx.runtime);
   }
 
   if (search_subgraph_memory_size) {
@@ -156,40 +163,40 @@ const Graph *DeepMultilevelPartitioner::coarsen() {
   _coarsener->release_allocated_memory();
 
   if (shrunk) {
-    LOG << "==> Coarsening terminated with less than " << initial_partitioning_threshold()
-        << " nodes";
-    LOG;
+    LOG_ON(_input_ctx.runtime) << "==> Coarsening terminated with less than "
+                               << initial_partitioning_threshold() << " nodes";
+    LOG_ON(_input_ctx.runtime);
   } else {
-    LOG << "==> Coarsening converged";
-    LOG;
+    LOG_ON(_input_ctx.runtime) << "==> Coarsening converged";
+    LOG_ON(_input_ctx.runtime);
   }
 
   return c_graph;
 }
 
 NodeID DeepMultilevelPartitioner::initial_partitioning_threshold() {
-  const auto mode = _input_ctx.partitioning.deep_initial_partitioning_mode;
+  const auto mode = _input_ctx.config.partitioning.deep_initial_partitioning_mode;
   const bool is_parallel_mode =
       (mode == DeepInitialPartitioningMode::SYNCHRONOUS_PARALLEL ||
        mode == DeepInitialPartitioningMode::ASYNCHRONOUS_PARALLEL);
 
   if (is_parallel_mode) { // Parallel: copy for each thread once n <= p * C
-    return _input_ctx.parallel.num_threads * _input_ctx.coarsening.contraction_limit;
+    return _input_ctx.parallel.num_threads * _input_ctx.config.coarsening.contraction_limit;
   } else if (mode == DeepInitialPartitioningMode::COMMUNITIES) {
-    return _input_ctx.coarsening.contraction_limit * _community_p_ctx.k;
+    return _input_ctx.config.coarsening.contraction_limit * _community_p_ctx.k;
   } else { // Sequential: coarsen until until n <= 2 * C
-    return 2 * _input_ctx.coarsening.contraction_limit;
+    return 2 * _input_ctx.config.coarsening.contraction_limit;
   }
 }
 
 PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph) {
   SCOPED_HEAP_PROFILER("Initial partitioning");
-  SCOPED_TIMER("Initial partitioning scheme");
-  LOG << "Initial partitioning:";
+  SCOPED_TIMER_ON(_input_ctx.runtime.timer, "Initial partitioning scheme");
+  LOG_ON(_input_ctx.runtime) << "Initial partitioning:";
 
-  if (!_input_ctx.partitioning.use_lazy_subgraph_memory) {
+  if (!_input_ctx.config.partitioning.use_lazy_subgraph_memory) {
     SCOPED_HEAP_PROFILER("SubgraphMemory resize");
-    SCOPED_TIMER("Allocation");
+    SCOPED_TIMER_ON(_input_ctx.runtime.timer, "Allocation");
 
     _subgraph_memory.weighted_resize(
         _subgraph_memory_n,
@@ -210,9 +217,9 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
 
   // Since timers are not multi-threaded, we disable them during (parallel)
   // initial partitioning.
-  DISABLE_TIMERS();
+  DISABLE_TIMERS_ON(_input_ctx.runtime.timer);
   PartitionedGraph p_graph = [&] {
-    switch (_input_ctx.partitioning.deep_initial_partitioning_mode) {
+    switch (_input_ctx.config.partitioning.deep_initial_partitioning_mode) {
     case DeepInitialPartitioningMode::SEQUENTIAL:
       return _bipartitioner_pool.bipartition(graph, 0, 1, true);
 
@@ -230,9 +237,9 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
 
     __builtin_unreachable();
   }();
-  ENABLE_TIMERS();
+  ENABLE_TIMERS_ON(_input_ctx.runtime.timer);
 
-  if (_input_ctx.partitioning.deep_initial_partitioning_mode ==
+  if (_input_ctx.config.partitioning.deep_initial_partitioning_mode ==
       DeepInitialPartitioningMode::COMMUNITIES) {
     _current_p_ctx = _community_p_ctx;
   } else {
@@ -243,12 +250,13 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition(const Graph *graph
   DBGC(kDebugBlockWeights) << debug::describe_partition_state(p_graph, _current_p_ctx);
 
   // Print some metrics for the initial partition.
-  LOG << " Number of blocks: " << p_graph.k();
+  LOG_ON(_input_ctx.runtime) << " Number of blocks: " << p_graph.k();
   if (_print_metrics) {
-    SCOPED_TIMER("Partition metrics");
-    LOG << " Cut:              " << metrics::edge_cut(p_graph);
-    LOG << " Imbalance:        " << metrics::imbalance(p_graph);
-    LOG << " Feasible:         " << (metrics::is_feasible(p_graph, _current_p_ctx) ? "yes" : "no");
+    SCOPED_TIMER_ON(_input_ctx.runtime.timer, "Partition metrics");
+    LOG_ON(_input_ctx.runtime) << " Cut:              " << metrics::edge_cut(p_graph);
+    LOG_ON(_input_ctx.runtime) << " Imbalance:        " << metrics::imbalance(p_graph);
+    LOG_ON(_input_ctx.runtime) << " Feasible:         "
+                               << (metrics::is_feasible(p_graph, _current_p_ctx) ? "yes" : "no");
   }
 
   // If requested, dump the coarsest partition -- as noted above, this is not
@@ -274,21 +282,23 @@ PartitionedGraph DeepMultilevelPartitioner::initial_partition_by_communities(con
 
 PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) {
   SCOPED_HEAP_PROFILER("Uncoarsening");
-  SCOPED_TIMER("Uncoarsening");
+  SCOPED_TIMER_ON(_input_ctx.runtime.timer, "Uncoarsening");
 
   bool refined = false;
   while (!_coarsener->empty()) {
     SCOPED_HEAP_PROFILER("Level", std::to_string(_coarsener->level() - 1));
-    SCOPED_TIMER(_coarsener->level() - 1 == 0 ? "Fine level" : "Coarse levels");
+    SCOPED_TIMER_ON(
+        _input_ctx.runtime.timer, _coarsener->level() - 1 == 0 ? "Fine level" : "Coarse levels"
+    );
 
-    LOG;
-    LOG << "Uncoarsening -> Level " << (_coarsener->level() - 1);
+    LOG_ON(_input_ctx.runtime);
+    LOG_ON(_input_ctx.runtime) << "Uncoarsening -> Level " << (_coarsener->level() - 1);
 
     p_graph = _coarsener->uncoarsen(std::move(p_graph));
     _current_p_ctx = create_kway_context(_input_ctx, p_graph);
 
-    LOG << " Number of nodes: " << p_graph.graph().n()
-        << " | Number of edges: " << p_graph.graph().m();
+    LOG_ON(_input_ctx.runtime) << " Number of nodes: " << p_graph.graph().n()
+                               << " | Number of edges: " << p_graph.graph().m();
 
     refine(p_graph);
     refined = true;
@@ -298,7 +308,7 @@ PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) 
       extend_partition(p_graph, desired_k);
       refined = false;
 
-      if (_input_ctx.partitioning.refine_after_extending_partition) {
+      if (_input_ctx.config.partitioning.refine_after_extending_partition) {
         refine(p_graph);
         refined = true;
       }
@@ -310,10 +320,10 @@ PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) 
   if (!refined || p_graph.k() < _input_ctx.partition.k) {
     SCOPED_HEAP_PROFILER("Toplevel");
 
-    LOG;
-    LOG << "Toplevel:";
-    LOG << " Number of nodes: " << p_graph.graph().n()
-        << " | Number of edges: " << p_graph.graph().m();
+    LOG_ON(_input_ctx.runtime);
+    LOG_ON(_input_ctx.runtime) << "Toplevel:";
+    LOG_ON(_input_ctx.runtime) << " Number of nodes: " << p_graph.graph().n()
+                               << " | Number of edges: " << p_graph.graph().m();
 
     if (!refined) {
       refine(p_graph);
@@ -329,9 +339,9 @@ PartitionedGraph DeepMultilevelPartitioner::uncoarsen(PartitionedGraph p_graph) 
 
 void DeepMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
   SCOPED_HEAP_PROFILER("Refinement");
-  SCOPED_TIMER("Refinement");
+  SCOPED_TIMER_ON(_input_ctx.runtime.timer, "Refinement");
 
-  if (_input_ctx.partitioning.restrict_vcycle_refinement && _community_p_ctx.k > 0) {
+  if (_input_ctx.config.partitioning.restrict_vcycle_refinement && _community_p_ctx.k > 0) {
     // If we are not allowed to move nodes between communities, and we only have one block per
     // community, refinement is pointless
     if (p_graph.k() == _community_p_ctx.k) {
@@ -347,15 +357,15 @@ void DeepMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
   // If requested, dump the current partition to disk before refinement ...
   debug::dump_partition_hierarchy(p_graph, _coarsener->level(), "pre-refinement", _input_ctx);
 
-  LOG << "  Running refinement on " << p_graph.k() << " blocks";
+  LOG_ON(_input_ctx.runtime) << "  Running refinement on " << p_graph.k() << " blocks";
   _refiner->initialize(p_graph);
   _refiner->refine(p_graph, _current_p_ctx);
 
   if (_print_metrics) {
-    SCOPED_TIMER("Partition metrics");
-    LOG << "   Cut:       " << metrics::edge_cut(p_graph);
-    LOG << "   Imbalance: " << metrics::imbalance(p_graph);
-    LOG << "   Feasible:  " << metrics::is_feasible(p_graph, _current_p_ctx);
+    SCOPED_TIMER_ON(_input_ctx.runtime.timer, "Partition metrics");
+    LOG_ON(_input_ctx.runtime) << "   Cut:       " << metrics::edge_cut(p_graph);
+    LOG_ON(_input_ctx.runtime) << "   Imbalance: " << metrics::imbalance(p_graph);
+    LOG_ON(_input_ctx.runtime) << "   Feasible:  " << metrics::is_feasible(p_graph, _current_p_ctx);
   }
 
   // ... and dump it after refinement.
@@ -364,7 +374,8 @@ void DeepMultilevelPartitioner::refine(PartitionedGraph &p_graph) {
 
 void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, const BlockID k_prime) {
   SCOPED_HEAP_PROFILER("Extending partition");
-  LOG << "  Extending partition from " << p_graph.k() << " blocks to " << k_prime << " blocks";
+  LOG_ON(_input_ctx.runtime) << "  Extending partition from " << p_graph.k() << " blocks to "
+                             << k_prime << " blocks";
 
   DBG << "Partition state before extending partition from " << p_graph.k() << " to " << k_prime
       << " blocks:";
@@ -373,7 +384,7 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
   // If we are in a v-cycle, we might have a partition whose number of blocks is not a power of two
   // -- something on which the other extend_* functions rely. In this case, first "complete" the
   // current level of the recursion tree to obtain a power-of-two block count.
-  if (_input_ctx.partitioning.deep_initial_partitioning_mode ==
+  if (_input_ctx.config.partitioning.deep_initial_partitioning_mode ==
       DeepInitialPartitioningMode::COMMUNITIES) {
     [[maybe_unused]] const BlockID extended_from = p_graph.k();
     partitioning::complete_partial_extend_partition(
@@ -389,7 +400,7 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
     DBG << debug::describe_partition_state(p_graph, _current_p_ctx);
   }
 
-  if (_input_ctx.partitioning.use_lazy_subgraph_memory) {
+  if (_input_ctx.config.partitioning.use_lazy_subgraph_memory) {
     partitioning::extend_partition_lazy_extraction(
         p_graph,
         k_prime,
@@ -412,7 +423,7 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
   }
 
   if (_last_initial_partitioning_level == _coarsener->level()) {
-    SCOPED_TIMER("Deallocation");
+    SCOPED_TIMER_ON(_input_ctx.runtime.timer, "Deallocation");
     _subgraph_memory.free();
     _extraction_mem_pool_ets.clear();
     _tmp_extraction_mem_pool_ets.clear();
@@ -420,9 +431,9 @@ void DeepMultilevelPartitioner::extend_partition(PartitionedGraph &p_graph, cons
   }
 
   if (_print_metrics) {
-    SCOPED_TIMER("Partition metrics");
-    LOG << "   Cut:       " << metrics::edge_cut(p_graph);
-    LOG << "   Imbalance: " << metrics::imbalance(p_graph);
+    SCOPED_TIMER_ON(_input_ctx.runtime.timer, "Partition metrics");
+    LOG_ON(_input_ctx.runtime) << "   Cut:       " << metrics::edge_cut(p_graph);
+    LOG_ON(_input_ctx.runtime) << "   Imbalance: " << metrics::imbalance(p_graph);
   }
 
   _current_p_ctx = create_kway_context(_input_ctx, p_graph);

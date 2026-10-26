@@ -59,7 +59,8 @@ public:
       const std::span<const NodeID> communities,
       LPRefinementWorkspace &workspace,
       InOrderIterationOrder &in_order,
-      ChunkShuffledIterationOrder &chunk_shuffled
+      ChunkShuffledIterationOrder &chunk_shuffled,
+      RuntimeContext &runtime
   )
       : _graph(graph),
         _p_graph(p_graph),
@@ -68,7 +69,8 @@ public:
         _communities(communities),
         _workspace(workspace),
         _in_order(in_order),
-        _chunk_shuffled(chunk_shuffled) {}
+        _chunk_shuffled(chunk_shuffled),
+        _runtime(runtime) {}
 
   bool run() {
     _workspace.ensure_capacity(_p_ctx.k);
@@ -82,7 +84,9 @@ public:
     const std::size_t max_iterations =
         _lp_ctx.num_iterations == 0 ? kInfiniteIterations : _lp_ctx.num_iterations;
     for (std::size_t iteration = 0; iteration < max_iterations; ++iteration) {
-      SCOPED_TIMER(iteration == 0 ? "Initial iteration" : "Remaining iterations");
+      SCOPED_TIMER_ON(
+          _runtime.timer, iteration == 0 ? "Initial iteration" : "Remaining iterations"
+      );
       _workspace.begin_round();
 
       auto kernel = lp::make_single_phase_kernel(processor);
@@ -120,21 +124,25 @@ private:
   LPRefinementWorkspace &_workspace;
   InOrderIterationOrder &_in_order;
   ChunkShuffledIterationOrder &_chunk_shuffled;
+  RuntimeContext &_runtime;
 };
 
 } // namespace
 
 class LPRefinerImplWrapper {
 public:
-  explicit LPRefinerImplWrapper(const Context &ctx)
-      : _lp_ctx(ctx.refinement.lp),
-        _chunk_shuffled(_permutations) {}
+  explicit LPRefinerImplWrapper(const ExecutionContext &ctx)
+      : _runtime(ctx.runtime),
+        _lp_ctx(ctx.config.refinement.lp),
+        _permutations(ctx.runtime.random.local()),
+        _in_order(ctx.runtime.random),
+        _chunk_shuffled(_permutations, ctx.runtime.random) {}
 
   void initialize(const PartitionedGraph &) {}
 
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) {
     SCOPED_HEAP_PROFILER("Label Propagation");
-    SCOPED_TIMER("Label Propagation");
+    SCOPED_TIMER_ON(_runtime.timer, "Label Propagation");
 
     return reified(p_graph, [&]<typename ConcreteGraph>(const ConcreteGraph &graph) {
       return LPRefinementRunner<ConcreteGraph>(
@@ -145,7 +153,8 @@ public:
                  _communities,
                  _workspace,
                  _in_order,
-                 _chunk_shuffled
+                 _chunk_shuffled,
+                 _runtime
       )
           .run();
     });
@@ -156,6 +165,7 @@ public:
   }
 
 private:
+  RuntimeContext &_runtime;
   const LabelPropagationRefinementContext &_lp_ctx;
   LPRefinementWorkspace _workspace;
 
@@ -166,7 +176,7 @@ private:
   std::span<const NodeID> _communities;
 };
 
-LabelPropagationRefiner::LabelPropagationRefiner(const Context &ctx)
+LabelPropagationRefiner::LabelPropagationRefiner(const ExecutionContext &ctx)
     : _impl_wrapper(std::make_unique<LPRefinerImplWrapper>(ctx)) {}
 
 LabelPropagationRefiner::~LabelPropagationRefiner() = default;

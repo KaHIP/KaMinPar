@@ -84,8 +84,8 @@ public:
     return _border_nodes.size();
   }
 
-  void shuffle() {
-    Random::instance().shuffle(_border_nodes.begin(), _border_nodes.end());
+  void shuffle(Random &random) {
+    random.shuffle(_border_nodes.begin(), _border_nodes.end());
   }
 
 private:

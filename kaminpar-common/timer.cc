@@ -59,6 +59,13 @@ Timer &Timer::global() {
   return timer;
 }
 
+Timer &Timer::null() {
+  static Timer sink("Disabled");
+  static const bool initialized = (sink._null = true);
+  (void)initialized;
+  return sink;
+}
+
 void __attribute__((noinline)) Timer::start_timer_impl() {
   asm volatile("" ::: "memory");
   _tree.current->start = std::chrono::high_resolution_clock::now();

@@ -18,9 +18,9 @@ protected:
     _graph = make_graph({0, 1, 2, 4, 6}, {2, 3, 0, 3, 1, 2}, {3, 1, 2, 2}, {1, 1, 1, 10, 1, 10});
 
     _p_graph = make_p_graph(_graph, 2, {0, 1, 0, 1});
-    _ctx = create_default_context();
+    _config = create_default_context();
     _ctx.partition.setup(_graph, 2, 0.75);
-    _ctx.refinement.twoway_flow.flow_cutter.small_flow_network_threshold = 0;
+    _config.refinement.twoway_flow.flow_cutter.small_flow_network_threshold = 0;
 
     _border_region.initialize(0, 1, 2, 2);
     _border_region.insert_border_node_into_region1(2, 2);
@@ -34,10 +34,10 @@ protected:
 
     auto p_csr_graph = _p_graph.csr_view();
     FlowNetworkConstructor constructor(
-        _ctx.refinement.twoway_flow.construction, p_csr_graph, _graph.csr_graph()
+        _config.refinement.twoway_flow.construction, p_csr_graph, _graph.csr_graph(), _runtime
     );
     const auto network = constructor.construct_flow_network(_border_region, 5, 3, GetParam());
-    FlowCutter cutter(_ctx.partition, _ctx.refinement.twoway_flow.flow_cutter);
+    FlowCutter cutter(_ctx.partition, _config.refinement.twoway_flow.flow_cutter, _runtime);
     const auto result = cutter.compute_cut(_border_region, network, GetParam());
 
     std::vector<BlockWeight> weights = {5, 3};
@@ -51,7 +51,9 @@ protected:
 
   Graph _graph;
   PartitionedGraph _p_graph;
-  Context _ctx;
+  Context _config = create_default_context();
+  kaminpar::RuntimeContext _runtime;
+  ExecutionContext _ctx{_config, _runtime};
   BorderRegion _border_region;
 };
 

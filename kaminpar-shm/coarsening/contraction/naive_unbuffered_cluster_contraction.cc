@@ -24,17 +24,18 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered_naive(
     const NodeID c_n,
     StaticArray<NodeID> mapping,
     [[maybe_unused]] const ContractionCoarseningContext &con_ctx,
-    MemoryContext &m_ctx
+    MemoryContext &m_ctx,
+    [[maybe_unused]] Timer &timer
 ) {
   auto &buckets_index = m_ctx.buckets_index;
   auto &buckets = m_ctx.buckets;
 
-  START_TIMER("Allocation");
+  START_TIMER_ON(timer, "Allocation");
   START_HEAP_PROFILER("Coarse graph node allocation");
   StaticArray<EdgeID> c_nodes(c_n + 1);
   StaticArray<NodeWeight> c_node_weights(c_n);
   STOP_HEAP_PROFILER();
-  STOP_TIMER();
+  STOP_TIMER_ON(timer);
 
   //
   // We build the coarse graph in two steps. First, we compute the degree and node weight of each
@@ -46,7 +47,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered_naive(
   //
 
   START_HEAP_PROFILER("Construct coarse nodes");
-  START_TIMER("Construct coarse nodes");
+  START_TIMER_ON(timer, "Construct coarse nodes");
 
   tbb::enumerable_thread_specific<RatingMap<EdgeWeight, NodeID>> collector{[&] {
     return RatingMap<EdgeWeight, NodeID>(c_n);
@@ -109,21 +110,21 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered_naive(
     max_edge_weight = std::max(max_edge_weight, edge_weight);
   }
 
-  STOP_TIMER();
+  STOP_TIMER_ON(timer);
   STOP_HEAP_PROFILER();
 
   KASSERT(c_nodes[0] == 0u);
   const EdgeID c_m = c_nodes.back();
 
   START_HEAP_PROFILER("Coarse graph edges allocation");
-  START_TIMER("Allocation");
+  START_TIMER_ON(timer, "Allocation");
   StaticArray<NodeID> c_edges(c_m, static_array::noinit);
   StaticArray<EdgeWeight> c_edge_weights(c_m, static_array::noinit);
-  STOP_TIMER();
+  STOP_TIMER_ON(timer);
   STOP_HEAP_PROFILER();
 
   START_HEAP_PROFILER("Construct coarse edges");
-  START_TIMER("Construct coarse edges");
+  START_TIMER_ON(timer, "Construct coarse edges");
 
   tbb::parallel_for(tbb::blocked_range<NodeID>(0, c_n), [&](const auto &r) {
     auto &local_collector = collector.local();
@@ -162,7 +163,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered_naive(
     }
   });
 
-  STOP_TIMER();
+  STOP_TIMER_ON(timer);
   STOP_HEAP_PROFILER();
 
   return std::make_unique<CoarseGraphImpl>(
@@ -184,12 +185,15 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered_naive(
     const Graph &graph,
     StaticArray<NodeID> clustering,
     const ContractionCoarseningContext &con_ctx,
-    MemoryContext &m_ctx
+    MemoryContext &m_ctx,
+    [[maybe_unused]] Timer &timer
 ) {
-  auto [c_n, mapping] = compute_mapping(graph, std::move(clustering), m_ctx);
-  fill_cluster_buckets(c_n, graph, mapping, m_ctx.buckets_index, m_ctx.buckets);
+  auto [c_n, mapping] = compute_mapping(graph, std::move(clustering), m_ctx, timer);
+  fill_cluster_buckets(c_n, graph, mapping, m_ctx.buckets_index, m_ctx.buckets, timer);
   return reified(graph, [&](auto &graph) {
-    return contract_clustering_unbuffered_naive(graph, c_n, std::move(mapping), con_ctx, m_ctx);
+    return contract_clustering_unbuffered_naive(
+        graph, c_n, std::move(mapping), con_ctx, m_ctx, timer
+    );
   });
 }
 

@@ -83,7 +83,8 @@ TEST(IterationOrderTest, InOrderVisitsTheRequestedRangeExactlyOnce) {
   for (auto &hit : hits) {
     hit.store(0);
   }
-  InOrderIterationOrder order;
+  RandomStreams random;
+  InOrderIterationOrder order(random);
   order.initialize(kNumNodes, 17, 103);
   CoverageKernel kernel(hits);
 
@@ -101,8 +102,9 @@ TEST(IterationOrderTest, ChunkShuffledVisitsEveryNonIsolatedNodeExactlyOnce) {
   for (auto &hit : hits) {
     hit.store(0);
   }
-  ChunkShuffledIterationOrder::Permutations permutations;
-  ChunkShuffledIterationOrder order(permutations);
+  RandomStreams random;
+  ChunkShuffledIterationOrder::Permutations permutations(random.local());
+  ChunkShuffledIterationOrder order(permutations, random);
   order.initialize(graph.csr_graph());
   CoverageKernel kernel(hits);
 
@@ -119,7 +121,8 @@ TEST(IterationOrderTest, StopRequestIsCheckedBeforeStartingWorkUnits) {
   for (auto &hit : hits) {
     hit.store(0);
   }
-  InOrderIterationOrder order;
+  RandomStreams random;
+  InOrderIterationOrder order(random);
   order.initialize(hits.size());
   CoverageKernel kernel(hits, true);
 
@@ -771,7 +774,9 @@ TEST(ClusteringSelectorTest, RejectsClustersFromOtherCommunities) {
 TEST(BalancedSelectorTest, SelectsAndCommitsTheStrongestFeasibleBlock) {
   Graph graph = make_path_graph(3);
   PartitionedGraph p_graph = make_p_graph(graph, 2, {0, 1, 0});
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.partition.setup(graph, 2, 0.03);
 
   lp::BalancedState state;

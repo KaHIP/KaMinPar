@@ -69,15 +69,16 @@ std::pair<NodeID, NodeID> find_furthest_away_node(
 
 } // namespace
 
-std::pair<NodeID, NodeID> find_far_away_nodes(const CSRGraph &graph, const int num_iterations) {
+std::pair<NodeID, NodeID>
+find_far_away_nodes(const CSRGraph &graph, const int num_iterations, Random &rand) {
   Queue<NodeID> queue(graph.n());
   Marker<> marker(graph.n());
 
-  return find_far_away_nodes(graph, num_iterations, queue, marker);
+  return find_far_away_nodes(graph, num_iterations, queue, marker, rand);
 }
 
 std::pair<NodeID, NodeID> find_far_away_nodes(
-    const CSRGraph &graph, int num_iterations, Queue<NodeID> &queue, Marker<> &marker
+    const CSRGraph &graph, int num_iterations, Queue<NodeID> &queue, Marker<> &marker, Random &rand
 ) {
   queue.clear();
   marker.reset();
@@ -85,10 +86,8 @@ std::pair<NodeID, NodeID> find_far_away_nodes(
   NodeID best_distance = 0;
   std::pair<NodeID, NodeID> best_pair = {0, 0};
 
-  Random &rand = Random::instance();
-
   for (int i = 0; i < num_iterations; ++i) {
-    const NodeID u = Random::instance().random_index(0, graph.n());
+    const NodeID u = rand.random_index(0, graph.n());
     const auto [v, distance] = find_furthest_away_node(graph, u, queue, marker);
 
     if (distance > best_distance || (distance == best_distance && rand.random_bool())) {

@@ -77,6 +77,7 @@ kaminpar_add_io_test(test_shm_compressed_binary_io io/shm_compressed_binary_io_t
 
 # KaMinPar -> End-to-end
 kaminpar_add_shm_test(test_shm_endtoend endtoend/shm_endtoend_test.cc)
+kaminpar_add_shm_test(test_shm_concurrency endtoend/shm_concurrency_test.cc)
 
 # KaMinPar -> Utils
 kaminpar_add_shm_test(

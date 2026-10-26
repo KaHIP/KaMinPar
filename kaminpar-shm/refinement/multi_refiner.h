@@ -20,7 +20,8 @@ class MultiRefiner : public Refiner {
 public:
   MultiRefiner(
       std::unordered_map<RefinementAlgorithm, std::unique_ptr<Refiner>> refiners,
-      std::vector<RefinementAlgorithm> order
+      std::vector<RefinementAlgorithm> order,
+      RuntimeContext &runtime
   );
 
   MultiRefiner(const MultiRefiner &) = delete;
@@ -38,6 +39,7 @@ public:
   void set_communities(std::span<const NodeID> communities) final;
 
 private:
+  RuntimeContext &_runtime;
   std::unordered_map<RefinementAlgorithm, std::unique_ptr<Refiner>> _refiners;
   std::vector<RefinementAlgorithm> _order;
 };

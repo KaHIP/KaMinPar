@@ -10,9 +10,12 @@
 namespace kaminpar::shm {
 
 SequentialActiveBlockScheduler::SequentialActiveBlockScheduler(
-    const ParallelContext &par_ctx, const TwowayFlowRefinementContext &f_ctx
+    const ParallelContext &par_ctx,
+    const TwowayFlowRefinementContext &f_ctx,
+    RuntimeContext &runtime
 )
-    : _par_ctx(par_ctx),
+    : _runtime(runtime),
+      _par_ctx(par_ctx),
       _f_ctx(f_ctx),
       _active_block_scheduling(f_ctx.scheduler) {}
 
@@ -28,14 +31,14 @@ bool SequentialActiveBlockScheduler::refine(
   std::fill_n(_active_blocks.begin(), p_graph.k(), true);
 
   // Since the timers have a significant running time overhead, we disable them usually.
-  IF_NOT_DBG DISABLE_TIMERS();
+  IF_NOT_DBG DISABLE_TIMERS_ON(_runtime.timer);
   IF_STATS _stats.reset();
 
   const TimePoint start_time = Clock::now();
-  QuotientGraph quotient_graph(p_graph);
+  QuotientGraph quotient_graph(p_graph, _runtime);
 
   const bool run_sequentially = _f_ctx.run_sequentially || _par_ctx.num_threads == 1;
-  FlowRefiner refiner(p_ctx, _f_ctx, quotient_graph, p_graph, graph, start_time);
+  FlowRefiner refiner(p_ctx, _f_ctx, quotient_graph, p_graph, graph, start_time, _runtime);
 
   std::size_t num_round = 0;
   bool found_improvement = false;
@@ -47,7 +50,8 @@ bool SequentialActiveBlockScheduler::refine(
     num_round += 1;
     DBG << "Starting round " << num_round;
 
-    const SubroundScheduling active_block_pairs = TIMED_SCOPE("Compute Active Block Pairs") {
+    const SubroundScheduling active_block_pairs =
+        TIMED_SCOPE_ON(_runtime.timer, "Compute Active Block Pairs") {
       return _active_block_scheduling.compute_subround_scheduling(
           quotient_graph, _active_blocks, num_round
       );
@@ -62,7 +66,7 @@ bool SequentialActiveBlockScheduler::refine(
       const Result result = refiner.refine(block1, block2, run_sequentially);
 
       if (result.time_limit_exceeded) {
-        LOG_WARNING << "Time limit exceeded during flow refinement";
+        LOG_WARNING_ON(_runtime) << "Time limit exceeded during flow refinement";
         num_round = _f_ctx.max_num_rounds;
         break;
       }
@@ -117,14 +121,14 @@ bool SequentialActiveBlockScheduler::refine(
     prev_imbalance = imbalance;
   }
 
-  IF_NOT_DBG ENABLE_TIMERS();
+  IF_NOT_DBG ENABLE_TIMERS_ON(_runtime.timer);
   IF_STATS _stats.print();
 
   return found_improvement;
 }
 
 void SequentialActiveBlockScheduler::apply_moves(std::span<const Move> moves) {
-  SCOPED_TIMER("Apply Moves");
+  SCOPED_TIMER_ON(_runtime.timer, "Apply Moves");
 
   _new_cut_edges.clear();
   for (const Move &move : moves) {

@@ -42,7 +42,7 @@ class InitialBFSBipartitioner : public InitialFlatBipartitioner {
   static constexpr std::size_t kMarkAssigned = 2;
 
 public:
-  InitialBFSBipartitioner(const InitialPoolPartitionerContext &pool_ctx);
+  InitialBFSBipartitioner(const InitialPoolPartitionerContext &pool_ctx, Random &rand);
 
   void init(const CSRGraph &graph, const PartitionContext &p_ctx) final;
 

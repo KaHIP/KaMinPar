@@ -3,23 +3,8 @@ from __future__ import annotations
 import enum
 from typing import overload
 
-def seed() -> int:
-    """
-    Retrieve the current seed of the random number generator.
-
-    Returns:
-        int: The current seed value.
-    """
-
-def reseed(seed: int) -> None:
-    """
-    Reseed the random number generator.
-
-    Args:
-        seed (int): The new seed value.
-    """
-
 class Context:
+    seed: int
     """
     A context containing the settings used by KaMinPar.
     """
@@ -194,6 +179,9 @@ def load_graph(filename: str, file_format: GraphFileFormat, compress: bool = Fal
     """
 
 class KaMinPar:
+    def seed(self) -> int: ...
+    def reseed(self, seed: int) -> None: ...
+
     """
     The KaMinPar algorithm.
     """

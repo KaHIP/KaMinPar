@@ -15,8 +15,11 @@
 
 namespace kaminpar::shm {
 
-ParallelActiveBlockScheduler::ParallelActiveBlockScheduler(const TwowayFlowRefinementContext &f_ctx)
-    : _f_ctx(f_ctx) {
+ParallelActiveBlockScheduler::ParallelActiveBlockScheduler(
+    const TwowayFlowRefinementContext &f_ctx, RuntimeContext &runtime
+)
+    : _runtime(runtime),
+      _f_ctx(f_ctx) {
   if (_f_ctx.scheduler.deterministic) {
     _active_block_scheduling =
         std::make_unique<MatchingBasedActiveBlockScheduling>(f_ctx.scheduler);
@@ -41,7 +44,7 @@ bool ParallelActiveBlockScheduler::refine(
   std::fill_n(_active_blocks.begin(), p_graph.k(), true);
 
   // Since timers are not multi-threaded, we disable them during parallel refinement.
-  DISABLE_TIMERS();
+  DISABLE_TIMERS_ON(_runtime.timer);
   IF_STATS _stats.reset();
 
   const std::size_t num_threads = tbb::this_task_arena::max_concurrency();
@@ -52,10 +55,12 @@ bool ParallelActiveBlockScheduler::refine(
   );
 
   const TimePoint start_time = Clock::now();
-  QuotientGraph quotient_graph(p_graph);
+  QuotientGraph quotient_graph(p_graph, _runtime);
 
   LazyVector<FlowRefiner> refiners(
-      [&] { return FlowRefiner(p_ctx, _f_ctx, quotient_graph, p_graph, graph, start_time); },
+      [&] {
+        return FlowRefiner(p_ctx, _f_ctx, quotient_graph, p_graph, graph, start_time, _runtime);
+      },
       num_parallel_searches
   );
   LazyVector<ScalableVector<QuotientGraph::GraphEdge>> new_cut_edges_ets(num_parallel_searches);
@@ -102,7 +107,7 @@ bool ParallelActiveBlockScheduler::refine(
 
           if (flow_result.time_limit_exceeded) {
             if (!__atomic_exchange_n(&cancelled, true, __ATOMIC_ACQ_REL)) {
-              LOG_WARNING << "Time limit exceeded during flow refinement";
+              LOG_WARNING_ON(_runtime) << "Time limit exceeded during flow refinement";
               num_round = _f_ctx.max_num_rounds;
             }
 
@@ -186,7 +191,7 @@ bool ParallelActiveBlockScheduler::refine(
     prev_imbalance = imbalance;
   }
 
-  ENABLE_TIMERS();
+  ENABLE_TIMERS_ON(_runtime.timer);
   IF_STATS _stats.print();
 
   return found_improvement;

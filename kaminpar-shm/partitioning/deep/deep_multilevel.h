@@ -24,7 +24,7 @@ namespace kaminpar::shm {
 
 class DeepMultilevelPartitioner : public Partitioner {
 public:
-  DeepMultilevelPartitioner(const Graph &input_graph, const Context &input_ctx);
+  DeepMultilevelPartitioner(const Graph &input_graph, const ExecutionContext &input_ctx);
 
   DeepMultilevelPartitioner(const DeepMultilevelPartitioner &) = delete;
   DeepMultilevelPartitioner &operator=(const DeepMultilevelPartitioner &) = delete;
@@ -56,7 +56,7 @@ private:
   void print_statistics();
 
   const Graph &_input_graph;
-  const Context &_input_ctx;
+  const ExecutionContext &_input_ctx;
 
   PartitionContext _current_p_ctx;
 

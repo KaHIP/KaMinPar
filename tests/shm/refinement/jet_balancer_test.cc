@@ -57,7 +57,9 @@ TEST(JetBalancerTest, LossBucketsFollowPaperOrdering) {
 TEST(JetBalancerTest, LeavesBalancedPartitionUnchanged) {
   const auto graph = make_empty_graph(4);
   auto p_graph = make_p_graph(graph, 2, {0, 0, 1, 1});
-  auto ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.partition.setup(graph, 2, 0.03);
   Cache cache(ctx, graph.n(), 2);
   cache.initialize(graph.csr_graph(), p_graph);
@@ -71,7 +73,9 @@ TEST(JetBalancerTest, LeavesBalancedPartitionUnchanged) {
 TEST(JetBalancerTest, WeakPassRebalancesDisconnectedVertices) {
   const auto graph = make_empty_graph(8);
   auto p_graph = make_p_graph(graph, 2, {0, 0, 0, 0, 0, 0, 1, 1});
-  auto ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.partition.setup(graph, 2, 0.0);
   Cache cache(ctx, graph.n(), 2);
   cache.initialize(graph.csr_graph(), p_graph);
@@ -89,7 +93,9 @@ TEST(JetBalancerTest, WeakPassPrioritizesBeneficialMovesAndUpdatesCache) {
       {0, 1, 2, 3, 4, 5, 6, 7, 8}, {7, 2, 1, 4, 3, 6, 5, 0}, {}, {8, 1, 1, 1, 1, 1, 1, 8}
   );
   auto p_graph = make_p_graph(graph, 2, {0, 0, 0, 0, 0, 0, 0, 1});
-  auto ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.partition.setup(graph, 2, 0.25);
   Cache cache(ctx, graph.n(), 2);
   cache.initialize(graph.csr_graph(), p_graph);
@@ -104,7 +110,9 @@ TEST(JetBalancerTest, WeakPassPrioritizesBeneficialMovesAndUpdatesCache) {
 TEST(JetBalancerTest, StrongCookieCutterFillsTwoSmallDestinationsExactly) {
   const auto graph = make_empty_graph(6);
   auto p_graph = make_p_graph(graph, 3, {0, 0, 0, 0, 1, 2});
-  auto ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.partition.setup(graph, 3, 0.0);
   Cache cache(ctx, graph.n(), 3);
   cache.initialize(graph.csr_graph(), p_graph);
@@ -122,7 +130,9 @@ TEST(JetBalancerTest, StrongCookieCutterFillsTwoSmallDestinationsExactly) {
 TEST(JetBalancerTest, HandlesNonuniformBounds) {
   const auto graph = make_empty_graph(8);
   auto p_graph = make_p_graph(graph, 3, {0, 0, 0, 0, 1, 1, 1, 2});
-  auto ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.partition.setup(graph, std::vector<BlockWeight>{1, 3, 4});
   Cache cache(ctx, graph.n(), 3);
   cache.initialize(graph.csr_graph(), p_graph);
@@ -135,7 +145,9 @@ TEST(JetBalancerTest, HandlesNonuniformBounds) {
 TEST(JetBalancerTest, FallbackHandlesVerticesExcludedByPaperWeightRestriction) {
   const auto graph = weighted_empty_graph({5, 5, 6});
   auto p_graph = make_p_graph(graph, 2, {0, 0, 1});
-  auto ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.partition.setup(graph, std::vector<BlockWeight>{9, 14});
   Cache cache(ctx, graph.n(), 2);
   cache.initialize(graph.csr_graph(), p_graph);
@@ -149,7 +161,9 @@ TEST(JetBalancerTest, FallbackHandlesVerticesExcludedByPaperWeightRestriction) {
 TEST(JetBalancerTest, WeightedEvictionsRespectSourceLowerBound) {
   const auto graph = weighted_empty_graph({4, 3, 3});
   auto p_graph = make_p_graph(graph, 2, {0, 0, 1});
-  auto ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.partition.setup(graph, std::vector<BlockWeight>{6, 6});
   ctx.partition.setup_min_block_weights(std::vector<BlockWeight>{4, 0});
   Cache cache(ctx, graph.n(), 2);
@@ -165,7 +179,9 @@ TEST(JetBalancerTest, WeightedEvictionsRespectSourceLowerBound) {
 TEST(JetBalancerTest, TerminatesOnInfeasibleWeightedPacking) {
   const auto graph = weighted_empty_graph({3, 3, 2});
   auto p_graph = make_p_graph(graph, 2, {0, 0, 1});
-  auto ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.partition.setup(graph, 2, 0.0);
   Cache cache(ctx, graph.n(), 2);
   cache.initialize(graph.csr_graph(), p_graph);
@@ -179,7 +195,9 @@ TEST(JetBalancerTest, TerminatesOnInfeasibleWeightedPacking) {
 TEST(JetBalancerTest, RebalancesManyBlocksInParallel) {
   const auto graph = make_empty_graph(1024);
   auto p_graph = make_p_graph(graph, 17, std::vector<BlockID>(graph.n(), 0));
-  auto ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.partition.setup(graph, 17, 0.03);
   Cache cache(ctx, graph.n(), 17);
   cache.initialize(graph.csr_graph(), p_graph);

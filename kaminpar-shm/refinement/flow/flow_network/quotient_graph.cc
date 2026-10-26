@@ -7,8 +7,9 @@
 
 namespace kaminpar::shm {
 
-QuotientGraph::QuotientGraph(const PartitionedCSRGraph &p_graph)
-    : _p_graph(p_graph),
+QuotientGraph::QuotientGraph(const PartitionedCSRGraph &p_graph, RuntimeContext &runtime)
+    : _runtime(runtime),
+      _p_graph(p_graph),
       _edges(p_graph.k() * p_graph.k()) {
   for (Edge &edge : _edges) {
     edge.cut_weight = 0;
@@ -19,7 +20,7 @@ QuotientGraph::QuotientGraph(const PartitionedCSRGraph &p_graph)
 }
 
 void QuotientGraph::reconstruct() {
-  SCOPED_TIMER("Construct Quotient Graph");
+  SCOPED_TIMER_ON(_runtime.timer, "Construct Quotient Graph");
 
   for (Edge &edge : _edges) {
     edge.cut_edges.clear();
@@ -61,7 +62,7 @@ void QuotientGraph::add_gain(const BlockID b1, const BlockID b2, const EdgeWeigh
 }
 
 void QuotientGraph::add_cut_edges(std::span<const GraphEdge> new_cut_edges) {
-  SCOPED_TIMER("Update Quotient Graph");
+  SCOPED_TIMER_ON(_runtime.timer, "Update Quotient Graph");
 
   for (const GraphEdge &cut_edge : new_cut_edges) {
     const NodeID u = cut_edge.u;

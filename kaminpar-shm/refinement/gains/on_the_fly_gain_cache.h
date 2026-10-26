@@ -35,7 +35,9 @@ public:
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
   constexpr static bool kIteratesSourceBlock = iterate_source_block;
 
-  OnTheFlyGainCache(const Context & /* ctx */, NodeID /* max_n */, const BlockID preallocate_k)
+  OnTheFlyGainCache(
+      const ExecutionContext & /* ctx */, NodeID /* max_n */, const BlockID preallocate_k
+  )
       : _rating_map_ets([preallocate_k] {
           return RatingMap<EdgeWeight, BlockID, rm_backyard::SparseMap>(preallocate_k);
         }) {}

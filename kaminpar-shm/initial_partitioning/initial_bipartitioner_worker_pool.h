@@ -43,7 +43,7 @@ class InitialBipartitionerWorkerPool {
   SET_DEBUG(false);
 
 public:
-  explicit InitialBipartitionerWorkerPool(const Context &ctx) : _ctx(ctx) {}
+  explicit InitialBipartitionerWorkerPool(const ExecutionContext &ctx) : _ctx(ctx) {}
 
   PartitionedGraph bipartition(
       const Graph *graph,
@@ -112,7 +112,7 @@ private:
     pool.push_back(std::move(initial_partitioner));
   }
 
-  const Context &_ctx;
+  const ExecutionContext &_ctx;
   tbb::enumerable_thread_specific<std::vector<InitialMultilevelBipartitioner>> _pool_ets;
 };
 

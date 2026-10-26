@@ -27,7 +27,7 @@ class UnderloadBalancer : public Refiner {
       /*iterate_source_block=*/true>;
 
 public:
-  explicit UnderloadBalancer(const Context &ctx);
+  explicit UnderloadBalancer(const ExecutionContext &ctx);
 
   ~UnderloadBalancer() override;
 
@@ -63,7 +63,7 @@ private:
   void lock_block(BlockID block);
   void unlock_block(BlockID block);
 
-  const Context &_ctx;
+  const ExecutionContext &_ctx;
 
   const PartitionContext *_p_ctx;
   PartitionedGraph *_p_graph;

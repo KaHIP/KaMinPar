@@ -12,6 +12,8 @@
 namespace kaminpar::shm {
 
 class FlowRefiner {
+  RuntimeContext &_runtime;
+
 public:
   using Clock = std::chrono::high_resolution_clock;
   using TimePoint = std::chrono::time_point<Clock>;
@@ -26,7 +28,8 @@ public:
       const QuotientGraph &q_graph,
       const PartitionedCSRGraph &p_graph,
       const CSRGraph &graph,
-      const TimePoint &start_time
+      const TimePoint &start_time,
+      RuntimeContext &runtime
   );
 
   FlowRefiner(FlowRefiner &&) noexcept = default;

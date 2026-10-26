@@ -51,22 +51,33 @@ private:
 };
 
 void fill_leader_mapping(
-    const Graph &graph, const StaticArray<NodeID> &clustering, StaticArray<NodeID> &leader_mapping
+    const Graph &graph,
+    const StaticArray<NodeID> &clustering,
+    StaticArray<NodeID> &leader_mapping,
+    [[maybe_unused]] Timer &timer = Timer::null()
 );
 
 StaticArray<NodeID> compute_mapping(
-    const Graph &graph, StaticArray<NodeID> clustering, const StaticArray<NodeID> &leader_mapping
+    const Graph &graph,
+    StaticArray<NodeID> clustering,
+    const StaticArray<NodeID> &leader_mapping,
+    [[maybe_unused]] Timer &timer = Timer::null()
 );
 
-std::pair<NodeID, StaticArray<NodeID>>
-compute_mapping(const Graph &graph, StaticArray<NodeID> clustering, MemoryContext &m_ctx);
+std::pair<NodeID, StaticArray<NodeID>> compute_mapping(
+    const Graph &graph,
+    StaticArray<NodeID> clustering,
+    MemoryContext &m_ctx,
+    [[maybe_unused]] Timer &timer = Timer::null()
+);
 
 void fill_cluster_buckets(
     const NodeID c_n,
     const Graph &graph,
     const StaticArray<NodeID> &mapping,
     StaticArray<NodeID> &buckets_index,
-    StaticArray<NodeID> &buckets
+    StaticArray<NodeID> &buckets,
+    [[maybe_unused]] Timer &timer = Timer::null()
 );
 
 } // namespace kaminpar::shm::contraction

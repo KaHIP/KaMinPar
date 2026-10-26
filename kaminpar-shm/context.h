@@ -96,12 +96,13 @@ std::unordered_map<std::string, KwayInitialPartitioningMode> get_kway_initial_pa
 //
 
 std::ostream &operator<<(std::ostream &out, const Context &ctx);
+std::ostream &operator<<(std::ostream &out, const ExecutionContext &ctx);
 
 std::ostream &operator<<(std::ostream &out, const PartitionContext &p_ctx);
 
 std::ostream &operator<<(std::ostream &out, const PartitioningContext &p_ctx);
 
-std::ostream &operator<<(std::ostream &out, const GraphCompressionContext &c_ctx);
+std::ostream &operator<<(std::ostream &out, const GraphCompressionStatistics &c_ctx);
 
 std::ostream &operator<<(std::ostream &out, const CoarseningContext &c_ctx);
 

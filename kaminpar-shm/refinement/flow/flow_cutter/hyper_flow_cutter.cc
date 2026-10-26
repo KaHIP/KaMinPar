@@ -5,11 +5,14 @@
 
 namespace kaminpar::shm {
 
-HyperFlowCutter::HyperFlowCutter(const PartitionContext &p_ctx, const FlowCutterContext &fc_ctx)
-    : _p_ctx(p_ctx),
+HyperFlowCutter::HyperFlowCutter(
+    const PartitionContext &p_ctx, const FlowCutterContext &fc_ctx, RuntimeContext &runtime
+)
+    : _runtime(runtime),
+      _p_ctx(p_ctx),
       _fc_ctx(fc_ctx),
-      _sequential_flow_cutter(_hypergraph, Random::get_seed(), fc_ctx.piercing.deterministic),
-      _parallel_flow_cutter(_hypergraph, Random::get_seed(), fc_ctx.piercing.deterministic) {
+      _sequential_flow_cutter(_hypergraph, _runtime.random.seed(), fc_ctx.piercing.deterministic),
+      _parallel_flow_cutter(_hypergraph, _runtime.random.seed(), fc_ctx.piercing.deterministic) {
   _sequential_flow_cutter.timer.active = false;
   _sequential_flow_cutter.find_most_balanced = false;
   _sequential_flow_cutter.forceSequential(true);
@@ -24,7 +27,7 @@ HyperFlowCutter::HyperFlowCutter(const PartitionContext &p_ctx, const FlowCutter
 HyperFlowCutter::Result HyperFlowCutter::compute_cut(
     const BorderRegion &border_region, const FlowNetwork &flow_network, bool run_sequentially
 ) {
-  SCOPED_TIMER("Run WHFC");
+  SCOPED_TIMER_ON(_runtime.timer, "Run WHFC");
 
   run_sequentially = run_sequentially || (flow_network.graph.n() + flow_network.graph.m()) <
                                              _fc_ctx.small_flow_network_threshold;
@@ -44,7 +47,7 @@ HyperFlowCutter::Result HyperFlowCutter::compute_cut(
 }
 
 void HyperFlowCutter::initialize(const FlowNetwork &flow_network) {
-  TIMED_SCOPE("Construct Hypergraph") {
+  TIMED_SCOPE_ON(_runtime.timer, "Construct Hypergraph") {
     _hypergraph.reinitialize(flow_network.graph.n());
 
     const CSRGraph &graph = flow_network.graph;
@@ -72,7 +75,7 @@ template <typename FlowCutter>
 void HyperFlowCutter::run_flow_cutter(
     FlowCutter &flow_cutter, const BorderRegion &border_region, const FlowNetwork &flow_network
 ) {
-  SCOPED_TIMER("Run HyperFlowCutter");
+  SCOPED_TIMER_ON(_runtime.timer, "Run HyperFlowCutter");
 
   auto [max_block1_weight, max_block2_weight] =
       max_block_weights(_p_ctx, border_region, flow_network);

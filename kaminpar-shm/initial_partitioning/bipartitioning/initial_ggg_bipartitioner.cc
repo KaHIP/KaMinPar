@@ -38,7 +38,7 @@ void InitialGGGBipartitioner::fill_bipartition() {
   std::fill(_partition.begin(), _partition.begin() + _graph->n(), V1);
   _block_weights[V1] = _graph->total_node_weight();
 
-  Random &rand = Random::instance();
+  Random &rand = _rand;
 
   do {
     // Find random unmarked node -- if too many attempts fail, take the first

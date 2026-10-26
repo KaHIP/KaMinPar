@@ -22,7 +22,7 @@ SET_DEBUG(false);
 
 }
 
-RBMultilevelPartitioner::RBMultilevelPartitioner(const Graph &graph, const Context &ctx)
+RBMultilevelPartitioner::RBMultilevelPartitioner(const Graph &graph, const ExecutionContext &ctx)
     : _input_graph(graph),
       _input_ctx(ctx),
       _bipartitioner_pool(_input_ctx) {
@@ -32,12 +32,15 @@ RBMultilevelPartitioner::RBMultilevelPartitioner(const Graph &graph, const Conte
 }
 
 PartitionedGraph RBMultilevelPartitioner::partition() {
-  DISABLE_TIMERS();
+  DISABLE_TIMERS_ON(_input_ctx.runtime.timer);
   PartitionedGraph p_graph = [&] {
-    if (_input_ctx.partitioning.rb_switch_to_seq_factor > 0) {
-      const BlockID parallel_k = math::ceil2(static_cast<std::uint32_t>(
-          _input_ctx.partitioning.rb_switch_to_seq_factor * _input_ctx.parallel.num_threads
-      ));
+    if (_input_ctx.config.partitioning.rb_switch_to_seq_factor > 0) {
+      const BlockID parallel_k = math::ceil2(
+          static_cast<std::uint32_t>(
+              _input_ctx.config.partitioning.rb_switch_to_seq_factor *
+              _input_ctx.parallel.num_threads
+          )
+      );
 
       PartitionedGraph p_graph = partition_recursive(
           _input_graph, 0, 1, std::min<BlockID>(_input_ctx.partition.k, parallel_k)
@@ -66,10 +69,10 @@ PartitionedGraph RBMultilevelPartitioner::partition() {
       return partition_recursive(_input_graph, 0, 1, _input_ctx.partition.k);
     }
   }();
-  ENABLE_TIMERS();
+  ENABLE_TIMERS_ON(_input_ctx.runtime.timer);
 
-  if (_input_ctx.partitioning.rb_enable_kway_toplevel_refinement) {
-    SCOPED_TIMER("Toplevel Refinement");
+  if (_input_ctx.config.partitioning.rb_enable_kway_toplevel_refinement) {
+    SCOPED_TIMER_ON(_input_ctx.runtime.timer, "Toplevel Refinement");
     auto refiner = factory::create_refiner(_input_ctx);
     refiner->initialize(p_graph);
     refiner->refine(p_graph, _input_ctx.partition);
@@ -89,7 +92,8 @@ PartitionedGraph RBMultilevelPartitioner::partition_recursive(
 
   if (current_k * 2 < desired_k) {
     graph::SubgraphMemory memory(p_graph);
-    const auto extraction = extract_subgraphs(p_graph, p_graph.k(), memory);
+    const auto extraction =
+        extract_subgraphs(p_graph, p_graph.k(), memory, _input_ctx.runtime.timer);
     const auto &subgraphs = extraction.subgraphs;
     const auto &mapping = extraction.node_mapping;
 
@@ -133,7 +137,7 @@ PartitionedGraph RBMultilevelPartitioner::bipartition(
   // Coarsening
   const Graph *c_graph = &graph;
   bool shrunk = true;
-  while (shrunk && c_graph->n() > 2 * _input_ctx.coarsening.contraction_limit) {
+  while (shrunk && c_graph->n() > 2 * _input_ctx.config.coarsening.contraction_limit) {
     shrunk = coarsener->coarsen();
     c_graph = &coarsener->current();
   }

@@ -58,12 +58,14 @@ TEST(JetMinBlockWeightsTest, RejectsUnderloadingMovesAndUsesAvailableSlack) {
     partition[0] = 0;
     for (const auto cache : {GainCacheStrategy::SPARSE, GainCacheStrategy::ON_THE_FLY}) {
       for (const auto balancer : {JetBalancingAlgorithm::OVERLOAD, JetBalancingAlgorithm::JET}) {
-        Context ctx = create_default_context();
+        Context config = create_default_context();
+        kaminpar::RuntimeContext runtime;
+        ExecutionContext ctx{config, runtime};
         ctx.parallel.num_threads = 4;
-        ctx.refinement.jet.gain_cache_strategy = cache;
-        ctx.refinement.jet.balancing_algorithm = balancer;
-        ctx.refinement.jet.num_iterations = 2;
-        ctx.refinement.jet.num_rounds_on_fine_level = 2;
+        config.refinement.jet.gain_cache_strategy = cache;
+        config.refinement.jet.balancing_algorithm = balancer;
+        config.refinement.jet.num_iterations = 2;
+        config.refinement.jet.num_rounds_on_fine_level = 2;
         ctx.partition.setup(graph, {kLeaves + 1, kLeaves + 1});
 
         // All leaves want the center's block. The last-slot case makes their
@@ -117,7 +119,9 @@ TYPED_TEST_SUITE(OverloadMinBlockWeightsTest, OverloadBalancers);
 
 TYPED_TEST(OverloadMinBlockWeightsTest, SkipsHeavyDonorsAndRebalancesWithLighterNodes) {
   const Graph graph = make_graph({0, 1, 2, 4}, {2, 2, 0, 1}, {4, 2, 4}, {100, 1, 100, 1});
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.parallel.num_threads = 4;
   ctx.partition.setup(graph, {4, 10});
   ctx.partition.setup_min_block_weights({3, 1});

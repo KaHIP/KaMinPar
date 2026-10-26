@@ -491,7 +491,7 @@ int main(int argc, char *argv[]) {
 
   // Setup the KaMinPar instance
   KaMinPar partitioner(app.num_threads, ctx);
-  KaMinPar::reseed(app.seed);
+  partitioner.reseed(app.seed);
 
   if (app.verbosity < 0) {
     partitioner.set_output_level(OutputLevel::QUIET);

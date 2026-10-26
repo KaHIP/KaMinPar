@@ -18,7 +18,7 @@ namespace kaminpar::shm::partitioning {
 class AsyncInitialPartitioner {
 public:
   AsyncInitialPartitioner(
-      const Context &input_ctx,
+      const ExecutionContext &input_ctx,
       InitialBipartitionerWorkerPool &bipartitioner_pool,
       TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets
   );
@@ -37,7 +37,7 @@ private:
       std::size_t num_threads
   );
 
-  const Context &_input_ctx;
+  const ExecutionContext &_input_ctx;
 
   InitialBipartitionerWorkerPool &_bipartitioner_pool;
   TemporarySubgraphMemoryEts &_tmp_extraction_mem_pool_ets;

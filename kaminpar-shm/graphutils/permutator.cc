@@ -21,7 +21,8 @@ NodePermutations rearrange_graph(
     StaticArray<EdgeID> &nodes,
     StaticArray<NodeID> &edges,
     StaticArray<NodeWeight> &node_weights,
-    StaticArray<EdgeWeight> &edge_weights
+    StaticArray<EdgeWeight> &edge_weights,
+    [[maybe_unused]] Timer &timer
 ) {
   START_HEAP_PROFILER("Temporal nodes and edges allocation");
   StaticArray<EdgeID> tmp_nodes(nodes.size(), static_array::noinit);
@@ -34,8 +35,8 @@ NodePermutations rearrange_graph(
   // the graph data structure this way, we can just cut them off without doing
   // further work
   START_HEAP_PROFILER("Rearrange input graph");
-  NodePermutations permutations = compute_node_permutation_by_degree_buckets(nodes);
-  START_TIMER("Rearrange input graph");
+  NodePermutations permutations = compute_node_permutation_by_degree_buckets(nodes, true, timer);
+  START_TIMER_ON(timer, "Rearrange input graph");
   build_permuted_graph(
       nodes,
       edges,
@@ -51,23 +52,23 @@ NodePermutations rearrange_graph(
   std::swap(edges, tmp_edges);
   std::swap(node_weights, tmp_node_weights);
   std::swap(edge_weights, tmp_edge_weights);
-  STOP_TIMER();
+  STOP_TIMER_ON(timer);
   STOP_HEAP_PROFILER();
 
-  START_TIMER("Deallocation");
+  START_TIMER_ON(timer, "Deallocation");
   tbb::parallel_invoke(
       [&] { tmp_nodes.free(); },
       [&] { tmp_edges.free(); },
       [&] { tmp_node_weights.free(); },
       [&] { tmp_edge_weights.free(); }
   );
-  STOP_TIMER();
+  STOP_TIMER_ON(timer);
 
   return permutations;
 }
 
-Graph rearrange_by_degree_buckets(CSRGraph &old_graph) {
-  SCOPED_TIMER("Rearrange by degree-buckets");
+Graph rearrange_by_degree_buckets(CSRGraph &old_graph, [[maybe_unused]] Timer &timer) {
+  SCOPED_TIMER_ON(timer, "Rearrange by degree-buckets");
 
   [[maybe_unused]] const NodeID n = old_graph.n();
   auto nodes = old_graph.take_raw_nodes();
@@ -75,7 +76,7 @@ Graph rearrange_by_degree_buckets(CSRGraph &old_graph) {
   auto node_weights = old_graph.take_raw_node_weights();
   auto edge_weights = old_graph.take_raw_edge_weights();
 
-  auto node_permutations = graph::rearrange_graph(nodes, edges, node_weights, edge_weights);
+  auto node_permutations = graph::rearrange_graph(nodes, edges, node_weights, edge_weights, timer);
 
   KASSERT(
       debug::validate_graph(n, nodes, edges, node_weights, edge_weights),
@@ -213,9 +214,9 @@ static void sort_by_compression(
   }
 }
 
-void reorder_edges_by_compression(CSRGraph &graph) {
+void reorder_edges_by_compression(CSRGraph &graph, [[maybe_unused]] Timer &timer) {
   SCOPED_HEAP_PROFILER("Reorder edges of input graph");
-  SCOPED_TIMER("Reorder edges of input");
+  SCOPED_TIMER_ON(timer, "Reorder edges of input");
 
   StaticArray<EdgeID> &raw_nodes = graph.raw_nodes();
   StaticArray<NodeID> &raw_edges = graph.raw_edges();

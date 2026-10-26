@@ -69,6 +69,9 @@ void kaminpar_context_free(kaminpar_context_t *ctx);
 kaminpar_t *kaminpar_create(int num_threads, kaminpar_context_t *ctx);
 void kaminpar_free(kaminpar_t *kaminpar);
 
+void kaminpar_reseed(kaminpar_t *kaminpar, int seed);
+int kaminpar_get_seed(const kaminpar_t *kaminpar);
+
 void kaminpar_set_output_level(kaminpar_t *kaminpar, kaminpar_output_level_t output_level);
 void kaminpar_set_max_timer_depth(kaminpar_t *kaminpar, int max_timer_depth);
 

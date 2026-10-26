@@ -22,24 +22,36 @@ namespace bfs {
 
 /*! Always selects the inactive block, i.e., switches blocks after each step. */
 struct alternating {
-  BlockID
-  operator()(const BlockID active_block, const std::array<BlockWeight, 2> &, const PartitionContext &, const Queues &) {
+  BlockID operator()(
+      const BlockID active_block,
+      const std::array<BlockWeight, 2> &,
+      const PartitionContext &,
+      const Queues &
+  ) {
     return 1 - active_block;
   }
 };
 
 /*! Always selects the block with the smaller weight. */
 struct lighter {
-  BlockID
-  operator()(const BlockID, const std::array<BlockWeight, 2> &block_weights, const PartitionContext &, const Queues &) {
+  BlockID operator()(
+      const BlockID,
+      const std::array<BlockWeight, 2> &block_weights,
+      const PartitionContext &,
+      const Queues &
+  ) {
     return (block_weights[0] < block_weights[1]) ? 0 : 1;
   }
 };
 
 /*! Selects the first block until it has more than half weight. */
 struct sequential {
-  BlockID
-  operator()(const BlockID, const std::array<BlockWeight, 2> &block_weights, const PartitionContext &context, const Queues &) {
+  BlockID operator()(
+      const BlockID,
+      const std::array<BlockWeight, 2> &block_weights,
+      const PartitionContext &context,
+      const Queues &
+  ) {
     return (block_weights[0] < context.perfectly_balanced_block_weight(0)) ? 0 : 1;
   }
 };
@@ -72,9 +84,9 @@ struct shorter_queue {
 
 template <typename BlockSelectionStrategy>
 InitialBFSBipartitioner<BlockSelectionStrategy>::InitialBFSBipartitioner(
-    const InitialPoolPartitionerContext &pool_ctx
+    const InitialPoolPartitionerContext &pool_ctx, Random &rand
 )
-    : InitialFlatBipartitioner(pool_ctx),
+    : InitialFlatBipartitioner(pool_ctx, rand),
       _num_seed_iterations(pool_ctx.num_seed_iterations) {}
 
 template <typename BlockSelectionStrategy>
@@ -100,7 +112,7 @@ void InitialBFSBipartitioner<BlockSelectionStrategy>::init(
 template <typename BlockSelectionStrategy>
 void InitialBFSBipartitioner<BlockSelectionStrategy>::fill_bipartition() {
   const auto [start_a, start_b] =
-      find_far_away_nodes(*_graph, _num_seed_iterations, _queues[0], _bfs_init_marker);
+      find_far_away_nodes(*_graph, _num_seed_iterations, _queues[0], _bfs_init_marker, _rand);
 
   _marker.reset();
   for (const auto i : {0, 1}) {

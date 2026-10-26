@@ -58,9 +58,13 @@ void InitialPoolBipartitioner::BipartitionerStatistics::reset() {
   num_infeasible_partitions = 0;
 }
 
-InitialPoolBipartitioner::InitialPoolBipartitioner(const InitialPoolPartitionerContext &pool_ctx)
-    : _pool_ctx(pool_ctx),
-      _refiner(create_initial_refiner(pool_ctx.refinement)) {
+InitialPoolBipartitioner::InitialPoolBipartitioner(
+    const InitialPoolPartitionerContext &pool_ctx, Random &rand, RuntimeContext &runtime
+)
+    : _runtime(runtime),
+      _rand(rand),
+      _pool_ctx(pool_ctx),
+      _refiner(create_initial_refiner(pool_ctx.refinement, rand, runtime)) {
   if (pool_ctx.enable_bfs_bipartitioner) {
     register_bipartitioner<AlternatingBfsBipartitioner>("bfs_alternating");
     register_bipartitioner<LighterBlockBfsBipartitioner>("bfs_lighter_block");
@@ -181,23 +185,24 @@ void InitialPoolBipartitioner::print_statistics() {
     const std::size_t num_runs = stats.num_feasible_partitions + stats.num_infeasible_partitions;
     num_runs_total += num_runs;
 
-    LOG << logger::CYAN << "- " << _bipartitioner_names[i];
-    LOG << logger::CYAN << "  * num=" << num_runs                            //
-        << " num_feasible_partitions=" << stats.num_feasible_partitions      //
-        << " num_infeasible_partitions=" << stats.num_infeasible_partitions; //
-    LOG << logger::CYAN << "  * cut_mean=" << stats.cut_mean
-        << " cut_variance=" << stats.cut_variance
-        << " cut_std_dev=" << std::sqrt(stats.cut_variance);
+    LOG_ON(_runtime) << logger::CYAN << "- " << _bipartitioner_names[i];
+    LOG_ON(_runtime) << logger::CYAN << "  * num=" << num_runs                            //
+                     << " num_feasible_partitions=" << stats.num_feasible_partitions      //
+                     << " num_infeasible_partitions=" << stats.num_infeasible_partitions; //
+    LOG_ON(_runtime) << logger::CYAN << "  * cut_mean=" << stats.cut_mean
+                     << " cut_variance=" << stats.cut_variance
+                     << " cut_std_dev=" << std::sqrt(stats.cut_variance);
   }
 
-  LOG << logger::CYAN << "Winner: " << _bipartitioner_names[_best_bipartitioner];
-  LOG << logger::CYAN << " * cut=" << _best_cut << " imbalance=" << _best_imbalance
-      << " feasible=" << _best_feasible;
-  LOG << logger::CYAN << "# of runs: " << num_runs_total << " of "
-      << _bipartitioners.size() *
-             std::clamp(
-                 _num_repetitions, _pool_ctx.min_num_repetitions, _pool_ctx.max_num_repetitions
-             );
+  LOG_ON(_runtime) << logger::CYAN << "Winner: " << _bipartitioner_names[_best_bipartitioner];
+  LOG_ON(_runtime) << logger::CYAN << " * cut=" << _best_cut << " imbalance=" << _best_imbalance
+                   << " feasible=" << _best_feasible;
+  LOG_ON(_runtime) << logger::CYAN << "# of runs: " << num_runs_total << " of "
+                   << _bipartitioners.size() * std::clamp(
+                                                   _num_repetitions,
+                                                   _pool_ctx.min_num_repetitions,
+                                                   _pool_ctx.max_num_repetitions
+                                               );
 }
 
 void InitialPoolBipartitioner::run_bipartitioner(const std::size_t i) {

@@ -22,16 +22,18 @@ void refine_with_min_weights(
     const int num_threads,
     BlockWeight max_weight = 0
 ) {
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.parallel.num_threads = num_threads;
   if (max_weight == 0) {
     max_weight = p_graph.graph().total_node_weight();
   }
   ctx.partition.setup(p_graph.graph(), std::vector<BlockWeight>(p_graph.k(), max_weight));
   ctx.partition.setup_min_block_weights(std::move(min_weights));
-  ctx.refinement.kway_fm.num_iterations = 4;
-  ctx.refinement.kway_fm.num_seed_nodes = 1;
-  ctx.refinement.kway_fm.minimal_parallelism = num_threads;
+  config.refinement.kway_fm.num_iterations = 4;
+  config.refinement.kway_fm.num_seed_nodes = 1;
+  config.refinement.kway_fm.minimal_parallelism = num_threads;
 
   tbb::task_arena arena(num_threads);
   arena.execute([&] {
@@ -96,16 +98,18 @@ TEST(FMMinBlockWeightsTest, ConcurrentBatchesPreserveBothWeightBounds) {
 template <typename Refiner> class InitialFMMinBlockWeightsTest : public ::testing::Test {
 public:
   void refine(PartitionedGraph &p_graph, std::vector<BlockWeight> min_weights) {
-    Context ctx = create_default_context();
+    Context config = create_default_context();
+    kaminpar::RuntimeContext runtime;
+    ExecutionContext ctx{config, runtime};
     ctx.partition.setup(
         p_graph.graph(), std::vector<BlockWeight>(p_graph.k(), p_graph.graph().total_node_weight())
     );
     ctx.partition.setup_min_block_weights(std::move(min_weights));
-    auto &fm_ctx = ctx.initial_partitioning.pool.refinement.fm;
+    auto &fm_ctx = config.initial_partitioning.pool.refinement.fm;
     fm_ctx.num_iterations = 4;
 
     auto csr_view = p_graph.csr_view();
-    Refiner refiner(fm_ctx);
+    Refiner refiner(fm_ctx, runtime.random.local());
     refiner.init(csr_view.graph());
     refiner.refine(csr_view, ctx.partition);
 

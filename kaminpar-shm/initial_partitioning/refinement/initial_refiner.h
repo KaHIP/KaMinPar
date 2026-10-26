@@ -48,6 +48,8 @@ private:
   const CSRGraph *_graph;
 };
 
-std::unique_ptr<InitialRefiner> create_initial_refiner(const InitialRefinementContext &r_ctx);
+std::unique_ptr<InitialRefiner> create_initial_refiner(
+    const InitialRefinementContext &r_ctx, Random &rand, RuntimeContext &runtime
+);
 
 } // namespace kaminpar::shm

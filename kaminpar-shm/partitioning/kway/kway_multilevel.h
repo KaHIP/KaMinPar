@@ -17,7 +17,7 @@ namespace kaminpar::shm {
 
 class KWayMultilevelPartitioner : public Partitioner {
 public:
-  KWayMultilevelPartitioner(const Graph &input_graph, const Context &input_ctx);
+  KWayMultilevelPartitioner(const Graph &input_graph, const ExecutionContext &input_ctx);
 
   KWayMultilevelPartitioner(const KWayMultilevelPartitioner &) = delete;
   KWayMultilevelPartitioner &operator=(const KWayMultilevelPartitioner &) = delete;
@@ -42,7 +42,7 @@ private:
   PartitionedGraph legacy_initial_partition(const Graph *graph);
 
   const Graph &_input_graph;
-  const Context &_input_ctx;
+  const ExecutionContext &_input_ctx;
   PartitionContext _current_p_ctx;
 
   std::unique_ptr<Coarsener> _coarsener;

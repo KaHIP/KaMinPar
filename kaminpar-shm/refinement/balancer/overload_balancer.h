@@ -33,7 +33,7 @@ class BlockParallelOverloadBalancer : public Refiner {
 public:
   using MoveTracker = std::function<void(NodeID, BlockID, BlockID)>;
 
-  explicit BlockParallelOverloadBalancer(const Context &ctx);
+  explicit BlockParallelOverloadBalancer(const ExecutionContext &ctx);
 
   ~BlockParallelOverloadBalancer() override;
 
@@ -68,7 +68,7 @@ private:
 
   bool move_node_if_possible(NodeID node, BlockID from, BlockID to);
 
-  const Context &_ctx;
+  const ExecutionContext &_ctx;
 
   const PartitionContext *_p_ctx;
   PartitionedGraph *_p_graph;

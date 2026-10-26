@@ -34,7 +34,8 @@ void validate_undirected_graph(
     const StaticArray<EdgeID> &nodes,
     const StaticArray<NodeID> &edges,
     const StaticArray<NodeWeight> &,
-    const StaticArray<EdgeWeight> &edge_weights
+    const StaticArray<EdgeWeight> &edge_weights,
+    [[maybe_unused]] Timer &timer
 ) {
   const NodeID n = nodes.size() - 1;
   const EdgeID m = edges.size();
@@ -84,9 +85,9 @@ void validate_undirected_graph(
 
 } // namespace
 
-void validate_undirected_graph(const Graph &graph) {
+void validate_undirected_graph(const Graph &graph, [[maybe_unused]] Timer &timer) {
   SCOPED_HEAP_PROFILER("Validate Input Graph");
-  SCOPED_TIMER("Validate input graph");
+  SCOPED_TIMER_ON(timer, "Validate input graph");
 
   if (auto *csr_graph = dynamic_cast<const CSRGraph *>(graph.underlying_graph());
       csr_graph != nullptr) {
@@ -94,7 +95,8 @@ void validate_undirected_graph(const Graph &graph) {
         csr_graph->raw_nodes(),
         csr_graph->raw_edges(),
         csr_graph->raw_node_weights(),
-        csr_graph->raw_edge_weights()
+        csr_graph->raw_edge_weights(),
+        timer
     );
   }
 }

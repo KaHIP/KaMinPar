@@ -28,7 +28,7 @@ SET_DEBUG(true);
 }
 
 AsyncInitialPartitioner::AsyncInitialPartitioner(
-    const Context &input_ctx,
+    const ExecutionContext &input_ctx,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets
 )
@@ -60,10 +60,10 @@ PartitionedGraph AsyncInitialPartitioner::partition_recursive(
   PartitionedGraph p_graph = split_and_join(coarsener.get(), p_ctx, !shrunk, num_threads);
   p_graph = coarsener->uncoarsen(std::move(p_graph));
 
-  // The Context object is used to pre-allocate memory for the finest graph of the input hierarchy
-  // Since this refiner is never used for the finest graph, we need to adjust the context to
-  // prevent overallocation
-  Context small_ctx = _input_ctx;
+  // The ExecutionContext object is used to pre-allocate memory for the finest graph of the input
+  // hierarchy Since this refiner is never used for the finest graph, we need to adjust the context
+  // to prevent overallocation
+  ExecutionContext small_ctx = _input_ctx;
   small_ctx.partition.n = p_graph.graph().n();
   small_ctx.partition.m = p_graph.graph().m();
   small_ctx.parallel.num_threads = static_cast<int>(num_threads);

@@ -14,7 +14,7 @@ namespace kaminpar::shm {
 
 class FMRefiner : public Refiner {
 public:
-  FMRefiner(const Context &ctx);
+  FMRefiner(const ExecutionContext &ctx);
 
   // Note: requires dtor definition in the *.cc file due to the std::unique_ptr<> member.
   ~FMRefiner() override;
@@ -32,7 +32,7 @@ public:
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
 private:
-  const Context &_ctx;
+  const ExecutionContext &_ctx;
 
   std::unique_ptr<Refiner> _core;
 };

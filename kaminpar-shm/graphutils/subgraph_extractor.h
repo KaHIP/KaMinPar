@@ -174,7 +174,10 @@ Graph extract_subgraph(
 );
 
 SubgraphExtractionResult extract_subgraphs(
-    const PartitionedGraph &p_graph, BlockID input_k, SubgraphMemory &subgraph_memory
+    const PartitionedGraph &p_graph,
+    BlockID input_k,
+    SubgraphMemory &subgraph_memory,
+    [[maybe_unused]] Timer &timer = Timer::null()
 );
 
 SequentialSubgraphExtractionResult extract_subgraphs_sequential(

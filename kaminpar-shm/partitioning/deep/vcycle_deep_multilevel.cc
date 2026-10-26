@@ -64,7 +64,7 @@ std::vector<BlockWeight> compute_max_block_weights(
 } // namespace
 
 VcycleDeepMultilevelPartitioner::VcycleDeepMultilevelPartitioner(
-    const Graph &input_graph, const Context &input_ctx
+    const Graph &input_graph, const ExecutionContext &input_ctx
 )
     : _input_graph(input_graph),
       _input_ctx(input_ctx) {}
@@ -74,18 +74,22 @@ PartitionedGraph VcycleDeepMultilevelPartitioner::partition() {
   StaticArray<NodeID> communities;
   StaticArray<BlockID> partition(_input_graph.n());
 
-  std::vector<BlockID> steps = _input_ctx.partitioning.vcycles;
+  std::vector<BlockID> steps = _input_ctx.config.partitioning.vcycles;
   steps.push_back(_input_ctx.partition.k);
 
-  Context ctx = _input_ctx;
-  ctx.partitioning.mode = PartitioningMode::DEEP;
+  Context config = _input_ctx.config;
+  ExecutionContext ctx(config, _input_ctx.runtime);
+  ctx.partition = _input_ctx.partition;
+  ctx.parallel = _input_ctx.parallel;
+  config.partitioning.mode = PartitioningMode::DEEP;
 
   std::vector<std::vector<BlockWeight>> vcycle_block_weights;
 
   for (auto it = steps.rbegin(); it != steps.rend(); ++it) {
     const BlockID current_k = *it;
     if (vcycle_block_weights.empty()) {
-      vcycle_block_weights.push_back(compute_max_block_weights(current_k, _input_ctx.partition, {})
+      vcycle_block_weights.push_back(
+          compute_max_block_weights(current_k, _input_ctx.partition, {})
       );
     } else {
       auto &prev_block_weights = vcycle_block_weights.back();
@@ -109,10 +113,10 @@ PartitionedGraph VcycleDeepMultilevelPartitioner::partition() {
     }
 
     if (communities.empty()) {
-      ctx.partitioning.deep_initial_partitioning_mode =
+      config.partitioning.deep_initial_partitioning_mode =
           DeepInitialPartitioningMode::ASYNCHRONOUS_PARALLEL;
     } else {
-      ctx.partitioning.deep_initial_partitioning_mode = DeepInitialPartitioningMode::COMMUNITIES;
+      config.partitioning.deep_initial_partitioning_mode = DeepInitialPartitioningMode::COMMUNITIES;
     }
 
     DeepMultilevelPartitioner partitioner(_input_graph, ctx);
@@ -130,7 +134,7 @@ PartitionedGraph VcycleDeepMultilevelPartitioner::partition() {
 
     // Make sure that the restricted refinement option actually restricts nodes to their block
     KASSERT(
-        !ctx.partitioning.restrict_vcycle_refinement || communities.empty() ||
+        !ctx.config.partitioning.restrict_vcycle_refinement || communities.empty() ||
             [&] {
               reified(p_graph, [&](const auto &graph) {
                 for (const NodeID u : graph.nodes()) {

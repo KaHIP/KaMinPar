@@ -102,7 +102,7 @@ template <typename Graph> class JetRefinerImpl;
 
 class JetRefiner : public Refiner {
 public:
-  JetRefiner(const Context &ctx);
+  JetRefiner(const ExecutionContext &ctx);
   ~JetRefiner() override;
 
   JetRefiner(const JetRefiner &) = delete;
@@ -118,7 +118,7 @@ public:
   bool refine(PartitionedGraph &p_graph, const PartitionContext &p_ctx) final;
 
 private:
-  const Context &_ctx;
+  const ExecutionContext &_ctx;
   std::unique_ptr<ReifiedGraphComponent<JetRefinerImpl>> _impl;
 };
 

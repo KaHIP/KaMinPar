@@ -43,20 +43,23 @@ bool InitialMultiRefiner::refine(PartitionedCSRGraph &p_graph, const PartitionCo
 namespace {
 
 std::unique_ptr<InitialRefiner> create_initial_refiner(
-    const InitialRefinementContext &r_ctx, const InitialRefinementAlgorithm algorithm
+    const InitialRefinementContext &r_ctx,
+    Random &rand,
+    RuntimeContext &runtime,
+    const InitialRefinementAlgorithm algorithm
 ) {
   switch (algorithm) {
   case InitialRefinementAlgorithm::NOOP:
     return std::make_unique<InitialNoopRefiner>();
 
   case InitialRefinementAlgorithm::TWOWAY_SIMPLE_FM:
-    return std::make_unique<InitialSimple2WayFM>(r_ctx.fm);
+    return std::make_unique<InitialSimple2WayFM>(r_ctx.fm, rand);
 
   case InitialRefinementAlgorithm::TWOWAY_ADAPTIVE_FM:
-    return std::make_unique<InitialAdaptive2WayFM>(r_ctx.fm);
+    return std::make_unique<InitialAdaptive2WayFM>(r_ctx.fm, rand);
 
   case InitialRefinementAlgorithm::TWOWAY_FLOW:
-    return std::make_unique<InitialTwowayFlowRefiner>(r_ctx.twoway_flow);
+    return std::make_unique<InitialTwowayFlowRefiner>(r_ctx.twoway_flow, runtime);
   }
 
   __builtin_unreachable();
@@ -64,13 +67,15 @@ std::unique_ptr<InitialRefiner> create_initial_refiner(
 
 } // namespace
 
-std::unique_ptr<InitialRefiner> create_initial_refiner(const InitialRefinementContext &r_ctx) {
+std::unique_ptr<InitialRefiner> create_initial_refiner(
+    const InitialRefinementContext &r_ctx, Random &rand, RuntimeContext &runtime
+) {
   if (r_ctx.algorithms.empty()) {
     return std::make_unique<InitialNoopRefiner>();
   }
 
   if (r_ctx.algorithms.size() == 1) {
-    return create_initial_refiner(r_ctx, r_ctx.algorithms.front());
+    return create_initial_refiner(r_ctx, rand, runtime, r_ctx.algorithms.front());
   }
 
   std::unordered_map<InitialRefinementAlgorithm, std::unique_ptr<InitialRefiner>> refiners;
@@ -79,7 +84,7 @@ std::unique_ptr<InitialRefiner> create_initial_refiner(const InitialRefinementCo
       continue;
     }
 
-    refiners[algorithm] = create_initial_refiner(r_ctx, algorithm);
+    refiners[algorithm] = create_initial_refiner(r_ctx, rand, runtime, algorithm);
   }
 
   return std::make_unique<InitialMultiRefiner>(std::move(refiners), r_ctx.algorithms);

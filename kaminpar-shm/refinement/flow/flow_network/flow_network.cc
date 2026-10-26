@@ -19,9 +19,11 @@ namespace kaminpar::shm {
 FlowNetworkConstructor::FlowNetworkConstructor(
     const FlowNetworkConstructionContext &c_ctx,
     const PartitionedCSRGraph &p_graph,
-    const CSRGraph &graph
+    const CSRGraph &graph,
+    RuntimeContext &runtime
 )
-    : _c_ctx(c_ctx),
+    : _runtime(runtime),
+      _c_ctx(c_ctx),
       _p_graph(p_graph),
       _graph(graph) {}
 
@@ -46,7 +48,7 @@ FlowNetwork FlowNetworkConstructor::sequential_construct_flow_network(
     const BlockWeight block1_weight,
     const BlockWeight block2_weight
 ) {
-  SCOPED_TIMER("Construct Flow Network");
+  SCOPED_TIMER_ON(_runtime.timer, "Construct Flow Network");
 
   constexpr NodeID kSource = 0;
   constexpr NodeID kSink = 1;
@@ -62,7 +64,7 @@ FlowNetwork FlowNetworkConstructor::sequential_construct_flow_network(
   HashTable global_to_local_mapping(mapping_capacity);
   HashTable local_to_global_mapping(mapping_capacity);
 
-  TIMED_SCOPE("Initialize mappings") {
+  TIMED_SCOPE_ON(_runtime.timer, "Initialize mappings") {
     NodeID cur_node = kFirstNodeID;
 
     for (BlockID terminal = 0; terminal < 2; ++terminal) {
@@ -84,7 +86,7 @@ FlowNetwork FlowNetworkConstructor::sequential_construct_flow_network(
   StaticArray<EdgeWeight> source_weights(num_nodes, static_array::noinit);
   StaticArray<EdgeWeight> sink_weights(num_nodes, static_array::noinit);
 
-  TIMED_SCOPE("Compute node offsets") {
+  TIMED_SCOPE_ON(_runtime.timer, "Compute node offsets") {
     NodeID cur_node = kFirstNodeID;
 
     EdgeID num_source_edges = 0;
@@ -147,7 +149,7 @@ FlowNetwork FlowNetworkConstructor::sequential_construct_flow_network(
   StaticArray<EdgeID> reverse_edges(num_edges, static_array::noinit);
 
   EdgeWeight cut_value = 0;
-  TIMED_SCOPE("Compute edges") {
+  TIMED_SCOPE_ON(_runtime.timer, "Compute edges") {
     NodeID cur_node = kFirstNodeID;
 
     EdgeID cur_source_edge = nodes[kSource];
@@ -370,7 +372,7 @@ private:
     const BlockWeight block1_weight,
     const BlockWeight block2_weight
 ) {
-  SCOPED_TIMER("Construct Flow Network");
+  SCOPED_TIMER_ON(_runtime.timer, "Construct Flow Network");
 
   constexpr NodeID kSource = 0;
   constexpr NodeID kSink = 1;
@@ -386,7 +388,7 @@ private:
   HashTable global_to_local_mapping(mapping_capacity);
   HashTable local_to_global_mapping(mapping_capacity);
 
-  TIMED_SCOPE("Initialize mappings") {
+  TIMED_SCOPE_ON(_runtime.timer, "Initialize mappings") {
     NodeID cur_node = kFirstNodeID;
     for (BlockID terminal = 0; terminal < 2; ++terminal) {
       const std::span<const NodeID> border_region_nodes =
@@ -407,7 +409,7 @@ private:
   StaticArray<EdgeWeight> source_weights(num_nodes, static_array::seq);
   StaticArray<EdgeWeight> sink_weights(num_nodes, static_array::seq);
 
-  TIMED_SCOPE("Compute node offsets") {
+  TIMED_SCOPE_ON(_runtime.timer, "Compute node offsets") {
     tbb::enumerable_thread_specific<EdgeID> num_source_edges_ets;
     tbb::enumerable_thread_specific<EdgeID> num_sink_edges_ets;
     for (BlockID terminal = 0; terminal < 2; ++terminal) {
@@ -468,7 +470,7 @@ private:
   StaticArray<EdgeWeight> edge_weights(num_edges, static_array::noinit);
 
   tbb::enumerable_thread_specific<EdgeID> cut_value_ets;
-  TIMED_SCOPE("Compute edges") {
+  TIMED_SCOPE_ON(_runtime.timer, "Compute edges") {
     tbb::enumerable_thread_specific<NeighborhoodBuffer> source_neighborhood_buffer_ets([&] {
       return NeighborhoodBuffer(nodes, edges, reverse_edges, edge_weights);
     });

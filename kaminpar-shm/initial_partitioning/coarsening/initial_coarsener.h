@@ -58,7 +58,7 @@ public:
       sizeof(NodeWeight) != sizeof(NodeID) || sizeof(Cluster) == sizeof(NodeWeight) + sizeof(NodeID)
   );
 
-  InitialCoarsener(const InitialCoarseningContext &c_ctx);
+  InitialCoarsener(const InitialCoarseningContext &c_ctx, Random &rand);
 
   InitialCoarsener(const InitialCoarsener &) = delete;
   InitialCoarsener &operator=(const InitialCoarsener &) = delete;
@@ -138,7 +138,7 @@ private:
   NodeWeight _interleaved_max_cluster_weight = 0;
   bool _interleaved_locked = false;
 
-  Random &_rand = Random::instance();
+  Random &_rand;
   RandomPermutations<NodeID, kChunkSize, kNumberOfNodePermutations> _random_permutations{_rand};
   std::vector<NodeID> _chunks;
 

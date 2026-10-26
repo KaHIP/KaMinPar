@@ -128,7 +128,6 @@ Context create_default_context() {
               .rb_switch_to_seq_factor = 1,
               .kway_initial_partitioning_mode = KwayInitialPartitioningMode::PARALLEL,
           },
-      .partition = {},
       .coarsening =
           {
               // Context -> Coarsening

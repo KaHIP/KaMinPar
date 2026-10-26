@@ -17,7 +17,7 @@ namespace kaminpar::shm {
 
 class RBMultilevelPartitioner : public Partitioner {
 public:
-  RBMultilevelPartitioner(const Graph &graph, const Context &ctx);
+  RBMultilevelPartitioner(const Graph &graph, const ExecutionContext &ctx);
 
   RBMultilevelPartitioner(const RBMultilevelPartitioner &) = delete;
   RBMultilevelPartitioner &operator=(const RBMultilevelPartitioner &) = delete;
@@ -35,7 +35,7 @@ private:
   PartitionedGraph bipartition(const Graph &graph, BlockID current_block, BlockID current_k);
 
   const Graph &_input_graph;
-  const Context &_input_ctx;
+  const ExecutionContext &_input_ctx;
 
   InitialBipartitionerWorkerPool _bipartitioner_pool;
 };

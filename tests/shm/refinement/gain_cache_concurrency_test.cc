@@ -38,7 +38,9 @@ TYPED_TEST(ConcurrentGainCacheTest, BorderQueriesCanOverlapNeighborMoves) {
   }
   const Graph graph = builder.build(true);
   auto p_graph = make_p_graph(graph, 16, {0, 1, 1, 1, 1, 1, 1, 1});
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.partition.setup(graph, p_graph.k(), 0.03);
   TypeParam gain_cache(ctx, graph.n(), p_graph.k());
   gain_cache.initialize(graph.csr_graph(), p_graph);

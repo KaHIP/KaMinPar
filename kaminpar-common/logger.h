@@ -232,6 +232,7 @@ class Logger {
 public:
   Logger();
   explicit Logger(std::ostream &out, std::string append = "\n");
+  explicit Logger(bool quiet, std::ostream &out = std::cout, std::string append = "\n");
 
   Logger(const Logger &) = delete;
   Logger &operator=(const Logger &) = delete;
@@ -305,6 +306,7 @@ private:
   std::ostream &_out;
   std::string _append;
   bool _flushed = false;
+  bool _quiet_for_message = false;
 };
 
 // Helper function to implement ASSERT() and DBG() macros
@@ -338,3 +340,9 @@ private:
 };
 
 } // namespace kaminpar
+
+// Library instrumentation carries the instance output policy explicitly.
+#define LOG_ON(runtime) (kaminpar::Logger((runtime).quiet.load()))
+#define LLOG_ON(runtime) (kaminpar::Logger((runtime).quiet.load(), std::cout, ""))
+#define LOG_WARNING_ON(runtime) (LOG_ON(runtime) << kaminpar::logger::ORANGE << "[Warning] ")
+#define LOG_ERROR_ON(runtime) (LOG_ON(runtime) << kaminpar::logger::RED << "[Error] ")

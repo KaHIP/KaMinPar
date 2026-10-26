@@ -18,6 +18,8 @@
 namespace kaminpar::shm {
 
 class ParallelActiveBlockScheduler {
+  RuntimeContext &_runtime;
+
   SET_DEBUG(false);
   SET_STATISTICS(false);
 
@@ -89,7 +91,7 @@ class ParallelActiveBlockScheduler {
   };
 
 public:
-  ParallelActiveBlockScheduler(const TwowayFlowRefinementContext &f_ctx);
+  ParallelActiveBlockScheduler(const TwowayFlowRefinementContext &f_ctx, RuntimeContext &runtime);
 
   ParallelActiveBlockScheduler(ParallelActiveBlockScheduler &&) noexcept = delete;
   ParallelActiveBlockScheduler &operator=(ParallelActiveBlockScheduler &&) noexcept = delete;

@@ -40,10 +40,10 @@
 
 namespace kaminpar::shm::factory {
 
-std::unique_ptr<Partitioner> create_partitioner(const Graph &graph, const Context &ctx) {
+std::unique_ptr<Partitioner> create_partitioner(const Graph &graph, const ExecutionContext &ctx) {
   SCOPED_HEAP_PROFILER("Create partitioner");
 
-  switch (ctx.partitioning.mode) {
+  switch (ctx.config.partitioning.mode) {
   case PartitioningMode::DEEP:
     return std::make_unique<DeepMultilevelPartitioner>(graph, ctx);
 
@@ -60,27 +60,28 @@ std::unique_ptr<Partitioner> create_partitioner(const Graph &graph, const Contex
   __builtin_unreachable();
 }
 
-std::unique_ptr<Clusterer> create_clusterer(const Context &ctx) {
-  switch (ctx.coarsening.clustering.algorithm) {
+std::unique_ptr<Clusterer> create_clusterer(const ExecutionContext &ctx) {
+  switch (ctx.config.coarsening.clustering.algorithm) {
   case ClusteringAlgorithm::NOOP:
     return std::make_unique<NoopClusterer>();
 
   case ClusteringAlgorithm::LABEL_PROPAGATION:
-    return std::make_unique<LPClustering>(ctx.coarsening);
+    return std::make_unique<LPClustering>(ctx.config.coarsening, ctx.runtime);
 
   case ClusteringAlgorithm::HEAVY_EDGE_MATCHING:
-    return std::make_unique<HEMClustering>(ctx.coarsening);
+    return std::make_unique<HEMClustering>(ctx.config.coarsening, ctx.runtime.timer);
   }
 
   __builtin_unreachable();
 }
 
-std::unique_ptr<Coarsener> create_coarsener(const Context &ctx) {
+std::unique_ptr<Coarsener> create_coarsener(const ExecutionContext &ctx) {
   return create_coarsener(ctx, ctx.partition);
 }
 
-std::unique_ptr<Coarsener> create_coarsener(const Context &ctx, const PartitionContext &p_ctx) {
-  switch (ctx.coarsening.algorithm) {
+std::unique_ptr<Coarsener>
+create_coarsener(const ExecutionContext &ctx, const PartitionContext &p_ctx) {
+  switch (ctx.config.coarsening.algorithm) {
   case CoarseningAlgorithm::NOOP:
     return std::make_unique<NoopCoarsener>();
 
@@ -99,7 +100,8 @@ std::unique_ptr<Coarsener> create_coarsener(const Context &ctx, const PartitionC
 
 namespace {
 
-std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgorithm algorithm) {
+std::unique_ptr<Refiner>
+create_refiner(const ExecutionContext &ctx, const RefinementAlgorithm algorithm) {
   switch (algorithm) {
   case RefinementAlgorithm::NOOP:
     return std::make_unique<NoopRefiner>();
@@ -123,7 +125,9 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
     return std::make_unique<UnconstrainedFMRefiner>(ctx);
 
   case RefinementAlgorithm::TWOWAY_FLOW:
-    return std::make_unique<TwowayFlowRefiner>(ctx.parallel, ctx.refinement.twoway_flow);
+    return std::make_unique<TwowayFlowRefiner>(
+        ctx.parallel, ctx.config.refinement.twoway_flow, ctx.runtime
+    );
 
   case RefinementAlgorithm::JET:
     return std::make_unique<JetRefiner>(ctx);
@@ -134,24 +138,26 @@ std::unique_ptr<Refiner> create_refiner(const Context &ctx, const RefinementAlgo
 
 } // namespace
 
-std::unique_ptr<Refiner> create_refiner(const Context &ctx) {
+std::unique_ptr<Refiner> create_refiner(const ExecutionContext &ctx) {
   SCOPED_HEAP_PROFILER("Refiner Allocation");
 
-  if (ctx.refinement.algorithms.empty()) {
+  if (ctx.config.refinement.algorithms.empty()) {
     return std::make_unique<NoopRefiner>();
   }
-  if (ctx.refinement.algorithms.size() == 1) {
-    return create_refiner(ctx, ctx.refinement.algorithms.front());
+  if (ctx.config.refinement.algorithms.size() == 1) {
+    return create_refiner(ctx, ctx.config.refinement.algorithms.front());
   }
 
   std::unordered_map<RefinementAlgorithm, std::unique_ptr<Refiner>> refiners;
-  for (const RefinementAlgorithm algorithm : ctx.refinement.algorithms) {
+  for (const RefinementAlgorithm algorithm : ctx.config.refinement.algorithms) {
     if (refiners.find(algorithm) == refiners.end()) {
       refiners[algorithm] = create_refiner(ctx, algorithm);
     }
   }
 
-  return std::make_unique<MultiRefiner>(std::move(refiners), ctx.refinement.algorithms);
+  return std::make_unique<MultiRefiner>(
+      std::move(refiners), ctx.config.refinement.algorithms, ctx.runtime
+  );
 }
 
 } // namespace kaminpar::shm::factory

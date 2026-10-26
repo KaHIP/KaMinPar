@@ -17,7 +17,7 @@ namespace kaminpar::shm::partitioning {
 class SyncInitialPartitioner {
 public:
   SyncInitialPartitioner(
-      const Context &input_ctx,
+      const ExecutionContext &input_ctx,
       InitialBipartitionerWorkerPool &bipartitioner_pool,
       TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets
   );
@@ -27,7 +27,7 @@ public:
 private:
   std::unique_ptr<Coarsener> duplicate_coarsener(const Coarsener *coarsener);
 
-  const Context &_input_ctx;
+  const ExecutionContext &_input_ctx;
   InitialBipartitionerWorkerPool &_bipartitioner_pool;
   TemporarySubgraphMemoryEts &_tmp_extraction_mem_pool_ets;
 };

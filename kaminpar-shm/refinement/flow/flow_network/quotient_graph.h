@@ -13,6 +13,8 @@
 namespace kaminpar::shm {
 
 class QuotientGraph {
+  RuntimeContext &_runtime;
+
 public:
   struct GraphEdge {
     NodeID u;
@@ -36,7 +38,7 @@ public:
   };
 
 public:
-  QuotientGraph(const PartitionedCSRGraph &p_graph);
+  QuotientGraph(const PartitionedCSRGraph &p_graph, RuntimeContext &runtime);
 
   QuotientGraph(QuotientGraph &&) noexcept = default;
   QuotientGraph &operator=(QuotientGraph &&) noexcept = delete;

@@ -40,7 +40,9 @@ TEST(CompactGainIterationTest, ZeroWeightRowsStillEnumerateNonadjacentTargets) {
   const Graph graph = builder.build(true);
   for (const BlockID k : {2u, 8u}) {
     auto p_graph = make_p_graph(graph, k, {0, 0, 1, 1});
-    Context ctx = create_default_context();
+    Context config = create_default_context();
+    kaminpar::RuntimeContext runtime;
+    ExecutionContext ctx{config, runtime};
     ctx.partition.setup(graph, k, .03);
     NormalCompactHashingGainCache<CSRGraph> cache(ctx, graph.n(), k);
     cache.initialize(graph.csr_graph(), p_graph);
@@ -81,7 +83,9 @@ template <template <typename> typename CacheType> void check_width_case(const Wi
   }
   const Graph graph = builder.build(true);
   auto p_graph = make_p_graph(graph, item.k, {0, 0, 1});
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.partition.setup(graph, item.k, 0.03);
   CacheType<CSRGraph> cache(ctx, graph.n(), item.k);
   cache.initialize(graph.csr_graph(), p_graph);
@@ -161,7 +165,9 @@ INSTANTIATE_TEST_SUITE_P(
 TEST(CompactGainQueryConcurrencyTest, ScopedQueryCanOverlapHashTableNeighborMoves) {
   const Graph graph = make_complete_graph(8);
   auto p_graph = make_p_graph(graph, 16, {0, 1, 1, 1, 1, 1, 1, 1});
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.partition.setup(graph, p_graph.k(), 0.03);
   Cache cache(ctx, graph.n(), p_graph.k());
   cache.initialize(graph.csr_graph(), p_graph);
@@ -218,7 +224,9 @@ TYPED_TEST_SUITE(CompactUnitDegreeTest, UnitDegreeGraphTypes);
 
 template <typename GraphType, template <typename> typename CacheType>
 void check_unit_degree_lifecycle(const BlockID k) {
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   CacheType<GraphType> cache(ctx, 0, k);
   // The same cache switches representation eligibility repeatedly. Zero-weight
   // edges retain nonzero degree and must keep the weighted width-zero path.
@@ -281,7 +289,9 @@ TYPED_TEST(CompactUnitDegreeTest, UnitQueriesCanOverlapPackedHashWriterLocks) {
   const TypeParam &concrete = as_concrete_graph<TypeParam>(graph);
   ASSERT_FALSE(graph.is_edge_weighted());
   auto p_graph = make_p_graph(graph, 16, {0, 1, 1, 1, 1, 1, 1, 1});
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.partition.setup(graph, p_graph.k(), 0.03);
   LargeKCompactHashingGainCache<TypeParam> cache(ctx, graph.n(), p_graph.k());
   cache.initialize(concrete, p_graph);
@@ -330,12 +340,14 @@ TEST_P(CompactGainQueryBalancerTest, SerialRebalanceRetainsTargetsMovesAndRandom
   }
   const Graph graph = builder.build(true);
   auto p_graph = make_p_graph(graph, 16, std::vector<BlockID>(64, 0));
-  Context ctx = create_default_context();
+  Context config = create_default_context();
+  kaminpar::RuntimeContext runtime;
+  ExecutionContext ctx{config, runtime};
   ctx.parallel.num_threads = 1;
   ctx.partition.setup(graph, p_graph.k(), 0.03);
   Cache cache(ctx, graph.n(), p_graph.k());
   cache.initialize(graph.csr_graph(), p_graph);
-  Random::instance().reinit(17);
+  runtime.random.reseed(17);
 
   std::vector<std::tuple<NodeID, BlockID, BlockID>> moves;
   MultiQueueOverloadBalancer balancer(ctx);
@@ -357,7 +369,7 @@ TEST_P(CompactGainQueryBalancerTest, SerialRebalanceRetainsTargetsMovesAndRandom
   }
   std::array<bool, 32> random_bits;
   for (auto &bit : random_bits) {
-    bit = Random::instance().random_bool();
+    bit = runtime.random.local().random_bool();
   }
   if (std::getenv("KAMINPAR_TEST_DUMP_COMPACT_QUERY") != nullptr) {
     std::cout << "COMPACT_QUERY topology=" << topology << " moves=";

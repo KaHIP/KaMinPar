@@ -18,10 +18,11 @@
 
 namespace kaminpar::shm::partitioning {
 
-PartitionContext create_kway_context(const Context &input_ctx, const PartitionedGraph &p_graph);
+PartitionContext
+create_kway_context(const ExecutionContext &input_ctx, const PartitionedGraph &p_graph);
 
 PartitionContext create_twoway_context(
-    const Context &input_ctx, BlockID current_block, BlockID current_k, const Graph &graph
+    const ExecutionContext &input_ctx, BlockID current_block, BlockID current_k, const Graph &graph
 );
 
 using SubgraphMemoryEts = tbb::enumerable_thread_specific<graph::SubgraphMemory>;
@@ -47,7 +48,7 @@ using TemporarySubgraphMemoryEts = tbb::enumerable_thread_specific<graph::Tempor
 void extend_partition_lazy_extraction(
     PartitionedGraph &p_graph,
     BlockID desired_k,
-    const Context &input_ctx,
+    const ExecutionContext &input_ctx,
     SubgraphMemoryEts &extraction_mem_pool_ets,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
@@ -60,7 +61,7 @@ void extend_partition_lazy_extraction(
 void extend_partition(
     PartitionedGraph &p_graph,
     BlockID desired_k,
-    const Context &input_ctx,
+    const ExecutionContext &input_ctx,
     graph::SubgraphMemory &subgraph_memory,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
@@ -73,7 +74,7 @@ void extend_partition(
 void extend_partition(
     PartitionedGraph &p_graph,
     BlockID desired_k,
-    const Context &input_ctx,
+    const ExecutionContext &input_ctx,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool,
     int num_active_threads
@@ -86,7 +87,7 @@ void extend_partition_recursive(
     const BlockID current_abs_block,
     const BlockID num_subblocks,
     const BlockID current_k,
-    const Context &input_ctx,
+    const ExecutionContext &input_ctx,
     const graph::SubgraphMemoryStartPosition position,
     graph::SubgraphMemory &subgraph_memory,
     graph::TemporarySubgraphMemory &tmp_extraction_mem_pool,
@@ -96,7 +97,7 @@ void extend_partition_recursive(
 
 void complete_partial_extend_partition(
     PartitionedGraph &p_graph,
-    const Context &input_ctx,
+    const ExecutionContext &input_ctx,
     SubgraphMemoryEts &extraction_mem_pool_ets,
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets,
     InitialBipartitionerWorkerPool &bipartitioner_pool

@@ -31,7 +31,8 @@ namespace kaminpar::shm {
  *
  * @return Pair of hopefully far away nodes.
  */
-std::pair<NodeID, NodeID> find_far_away_nodes(const CSRGraph &graph, int num_iterations);
+std::pair<NodeID, NodeID>
+find_far_away_nodes(const CSRGraph &graph, int num_iterations, Random &rand);
 
 /*!
  * Heuristic to find "far away" nodes for BFS initialization. Starts at a random seed
@@ -47,7 +48,7 @@ std::pair<NodeID, NodeID> find_far_away_nodes(const CSRGraph &graph, int num_ite
  * @return Pair of hopefully far away nodes.
  */
 std::pair<NodeID, NodeID> find_far_away_nodes(
-    const CSRGraph &graph, int num_iterations, Queue<NodeID> &queue, Marker<> &marker
+    const CSRGraph &graph, int num_iterations, Queue<NodeID> &queue, Marker<> &marker, Random &rand
 );
 
 } // namespace kaminpar::shm

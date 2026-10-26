@@ -38,7 +38,7 @@ class MultiQueueOverloadBalancer : public Refiner {
 public:
   using MoveTracker = std::function<void(NodeID, BlockID, BlockID)>;
 
-  explicit MultiQueueOverloadBalancer(const Context &ctx);
+  explicit MultiQueueOverloadBalancer(const ExecutionContext &ctx);
 
   ~MultiQueueOverloadBalancer() override;
 
@@ -161,7 +161,7 @@ private:
 
   void clear_pqs();
 
-  const Context &_ctx;
+  const ExecutionContext &_ctx;
 
   const PartitionContext *_p_ctx = nullptr;
   PartitionedGraph *_p_graph = nullptr;

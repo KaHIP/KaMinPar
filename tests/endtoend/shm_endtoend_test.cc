@@ -89,8 +89,9 @@ TEST(ShmEndToEndTest, partitions_empty_graph_repeatedly_with_separate_partitione
     std::vector<EdgeWeight> adjwgt{};
     std::vector<BlockID> partition{};
 
-    KaMinPar::reseed(seed);
     KaMinPar shm(4, create_default_context());
+
+    shm.reseed(seed);
     shm.set_output_level(OutputLevel::QUIET);
     shm.borrow_and_mutate_graph(xadj, adjncy, vwgt, adjwgt);
     shm.set_k(16);
@@ -111,7 +112,7 @@ TEST(ShmEndToEndTest, partitions_empty_graph_repeatedly_with_one_partitioner_ins
     std::vector<EdgeWeight> adjwgt{};
     std::vector<BlockID> partition{};
 
-    KaMinPar::reseed(seed);
+    shm.reseed(seed);
     shm.borrow_and_mutate_graph(xadj, adjncy, vwgt, adjwgt);
     shm.set_k(16);
     shm.set_uniform_max_block_weights(0.03);
@@ -134,7 +135,7 @@ TEST(ShmEndToEndTest, partitions_empty_graph_repeatedly_after_borrow) {
   shm.set_uniform_max_block_weights(0.03);
 
   for (const int seed : {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}) {
-    KaMinPar::reseed(seed);
+    shm.reseed(seed);
     EXPECT_EQ(shm.compute_partition(partition), 0);
   }
 }
@@ -148,8 +149,9 @@ TEST(ShmEndToEndTest, partitions_unweighted_walshaw_data_graph) {
 
   { // Copy graph
     std::vector<BlockID> partition(n);
-    KaMinPar::reseed(0);
     KaMinPar shm(1, create_default_context()); // 1 thread: deterministic
+
+    shm.reseed(0);
     shm.set_output_level(OutputLevel::QUIET);
     shm.copy_graph(xadj, adjncy);
     shm.set_k(16);
@@ -174,8 +176,9 @@ TEST(ShmEndToEndTest, partitions_unweighted_walshaw_data_graph) {
 
   { // Take graph
     std::vector<BlockID> partition(n);
-    KaMinPar::reseed(0);
     KaMinPar shm(1, create_default_context()); // 1 thread: deterministic
+
+    shm.reseed(0);
     shm.set_output_level(OutputLevel::QUIET);
     shm.borrow_and_mutate_graph(xadj, adjncy);
     shm.set_k(16);
@@ -201,8 +204,9 @@ TEST(ShmEndToEndTest, partitions_unweighted_walshaw_data_graph_with_unconstraine
   ctx.refinement.kway_fm.num_iterations = 2;
 
   std::vector<BlockID> partition(n);
-  KaMinPar::reseed(0);
   KaMinPar shm(4, ctx);
+
+  shm.reseed(0);
   shm.set_output_level(OutputLevel::QUIET);
   shm.copy_graph(xadj, adjncy);
   shm.set_k(k);
@@ -225,7 +229,7 @@ TEST(ShmEndToEndTest, partitions_unweighted_walshaw_data_graph_with_unconstraine
 
   EXPECT_EQ(reported_cut, expected_cut / 2);
   for (BlockID b = 0; b < k; ++b) {
-    EXPECT_LE(block_weights[b], shm.context().partition.max_block_weight(b));
+    EXPECT_LE(block_weights[b], shm.partition_context().max_block_weight(b));
   }
 }
 
@@ -239,8 +243,9 @@ TEST(ShmEndToEndTest, partitions_unweighted_walshaw_data_graph_with_eco_preset) 
   ctx.refinement.kway_fm.num_iterations = 2;
 
   std::vector<BlockID> partition(n);
-  KaMinPar::reseed(0);
   KaMinPar shm(4, ctx);
+
+  shm.reseed(0);
   shm.set_output_level(OutputLevel::QUIET);
   shm.copy_graph(xadj, adjncy);
   shm.set_k(k);
@@ -263,7 +268,7 @@ TEST(ShmEndToEndTest, partitions_unweighted_walshaw_data_graph_with_eco_preset) 
 
   EXPECT_EQ(reported_cut, expected_cut / 2);
   for (BlockID b = 0; b < k; ++b) {
-    EXPECT_LE(block_weights[b], shm.context().partition.max_block_weight(b));
+    EXPECT_LE(block_weights[b], shm.partition_context().max_block_weight(b));
   }
 }
 
@@ -273,8 +278,9 @@ TEST(ShmEndToEndTest, partitions_unweighted_walshaw_graph_multiple_times_with_sa
   const NodeID n = xadj.size() - 1;
 
   std::vector<BlockID> seed0_partition(n);
-  KaMinPar::reseed(0);
   KaMinPar shm(1, create_default_context()); // 1 thread: deterministic
+
+  shm.reseed(0);
   shm.set_output_level(OutputLevel::QUIET);
   shm.copy_graph(xadj, adjncy);
   shm.set_k(16);
@@ -285,8 +291,9 @@ TEST(ShmEndToEndTest, partitions_unweighted_walshaw_graph_multiple_times_with_sa
   // Partition with the same seed multiple times: result should stay the same
   for (const int seed : {0, 0, 0}) {
     std::vector<BlockID> partition(n);
-    KaMinPar::reseed(seed);
     KaMinPar shm(1, create_default_context()); // 1 thread: deterministic
+
+    shm.reseed(seed);
     shm.set_output_level(OutputLevel::QUIET);
     shm.copy_graph(xadj, adjncy);
     shm.set_k(16);
@@ -303,8 +310,9 @@ TEST(ShmEndToEndTest, partitions_unweighted_walshaw_graph_multiple_times_with_di
   const NodeID n = xadj.size() - 1;
 
   std::vector<BlockID> seed0_partition(n);
-  KaMinPar::reseed(0);
   KaMinPar shm(1, create_default_context()); // 1 thread: deterministic
+
+  shm.reseed(0);
   shm.set_output_level(OutputLevel::QUIET);
   shm.copy_graph(xadj, adjncy);
   shm.set_k(16);
@@ -315,8 +323,9 @@ TEST(ShmEndToEndTest, partitions_unweighted_walshaw_graph_multiple_times_with_di
   // Partition with the different seeds: result should change
   for (const int seed : {1, 2, 3}) {
     std::vector<BlockID> partition(n);
-    KaMinPar::reseed(seed);
     KaMinPar shm(1, create_default_context()); // 1 thread: deterministic
+
+    shm.reseed(seed);
     shm.set_output_level(OutputLevel::QUIET);
     shm.copy_graph(xadj, adjncy);
     shm.set_k(16);

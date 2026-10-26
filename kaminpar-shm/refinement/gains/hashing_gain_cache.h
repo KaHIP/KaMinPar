@@ -56,7 +56,7 @@ public:
   // the gain consumer with the total edge weight between the node and nodes in the specific block.
   constexpr static bool kIteratesExactGains = iterate_exact_gains;
 
-  HashingGainCache(const Context &ctx, const NodeID preallocate_n, BlockID)
+  HashingGainCache(const ExecutionContext &ctx, const NodeID preallocate_n, BlockID)
       : _ctx(ctx),
         // Since we do not know the size of the gain cache in advance (depends on vertex degrees),
         // we cannot preallocate it
@@ -71,11 +71,11 @@ public:
     _k = _p_graph->k();
 
     if (_offsets.size() < _n + 1) {
-      SCOPED_TIMER("Allocation");
+      SCOPED_TIMER_ON(_ctx.runtime.timer, "Allocation");
       _offsets.resize(_n + 1);
     }
     if (_weighted_degrees.size() < _n) {
-      SCOPED_TIMER("Allocation");
+      SCOPED_TIMER_ON(_ctx.runtime.timer, "Allocation");
       _weighted_degrees.resize(_n);
     }
 
@@ -87,7 +87,7 @@ public:
     const std::size_t gain_cache_size = _offsets.back();
 
     if (_gain_cache.size() < gain_cache_size) {
-      SCOPED_TIMER("Allocation");
+      SCOPED_TIMER_ON(_ctx.runtime.timer, "Allocation");
       _gain_cache.resize(gain_cache_size);
       DBG << "Allocating gain cache: " << _gain_cache.size() * sizeof(UnsignedEdgeWeight)
           << " bytes";
@@ -299,7 +299,7 @@ private:
   //
 
   void reset() {
-    SCOPED_TIMER("Reset gain cache");
+    SCOPED_TIMER_ON(_ctx.runtime.timer, "Reset gain cache");
 
     tbb::parallel_for<std::size_t>(0, _gain_cache.size(), [&](const std::size_t i) {
       _gain_cache[i] = 0;
@@ -309,7 +309,7 @@ private:
   }
 
   void recompute() {
-    SCOPED_TIMER("Recompute gain cache");
+    SCOPED_TIMER_ON(_ctx.runtime.timer, "Recompute gain cache");
 
     _graph->pfor_nodes([&](const NodeID u) {
       _weighted_degrees[u] = 0;
@@ -332,7 +332,7 @@ private:
     });
   }
 
-  const Context &_ctx;
+  const ExecutionContext &_ctx;
 
   const Graph *_graph = nullptr;
   const PartitionedGraph *_p_graph = nullptr;

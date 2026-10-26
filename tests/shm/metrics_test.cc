@@ -68,34 +68,34 @@ TEST_F(MetricsTestFixture, imbalanced_bipartition_balance) {
   EXPECT_DOUBLE_EQ(metrics::imbalance(p_graph), 0.5);
 }
 
-inline Context create_testing_context(
+inline PartitionContext create_testing_context(
     const Graph &graph,
     const BlockID k = 2,
     const double epsilon = 0.03,
     const bool relax_block_weights = true
 ) {
-  Context context = create_default_context();
-  context.partition.setup(graph, k, epsilon, relax_block_weights);
+  PartitionContext context;
+  context.setup(graph, k, epsilon, relax_block_weights);
   return context;
 }
 
 TEST(MetricsTest, is_feasible_with_single_node) {
   const Graph graph = make_graph({0, 0}, {}, {1000}, {});
   const PartitionedGraph p_graph = make_p_graph(graph, 1, {0});
-  Context ctx = create_testing_context(graph, 1, 0.03);
+  PartitionContext ctx = create_testing_context(graph, 1, 0.03);
 
-  EXPECT_TRUE(metrics::is_feasible(p_graph, ctx.partition));
+  EXPECT_TRUE(metrics::is_feasible(p_graph, ctx));
 }
 
 TEST(MetricsTest, is_feasible_with_multiple_nodes) {
   const Graph graph = make_graph({0, 0, 0, 0, 0}, {}, {200, 100, 100, 100}, {});
   PartitionedGraph p_graph = make_p_graph(graph, 4, {0, 1, 2, 3});
-  Context ctx = create_testing_context(graph, 4, 0);
+  PartitionContext ctx = create_testing_context(graph, 4, 0);
 
-  EXPECT_TRUE(metrics::is_feasible(p_graph, ctx.partition));
+  EXPECT_TRUE(metrics::is_feasible(p_graph, ctx));
   p_graph.set_block(1, 0);
   p_graph.set_block(2, 0);
-  EXPECT_FALSE(metrics::is_feasible(p_graph, ctx.partition));
+  EXPECT_FALSE(metrics::is_feasible(p_graph, ctx));
 }
 
 } // namespace kaminpar::shm::testing

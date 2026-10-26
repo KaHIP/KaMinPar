@@ -42,12 +42,18 @@ SET_DEBUG(false);
 
 }
 
-InitialMultilevelBipartitioner::InitialMultilevelBipartitioner(const Context &ctx)
-    : _ctx(ctx),
-      _i_ctx(ctx.initial_partitioning),
-      _coarsener(std::make_unique<InitialCoarsener>(_i_ctx.coarsening)),
-      _bipartitioner(std::make_unique<InitialPoolBipartitioner>(_i_ctx.pool)),
-      _refiner(create_initial_refiner(_i_ctx.refinement)) {}
+InitialMultilevelBipartitioner::InitialMultilevelBipartitioner(const ExecutionContext &ctx)
+    : _rand(
+          std::make_unique<Random>(
+              static_cast<int>(ctx.runtime.random.local().generator()()),
+              random::thread_independent_seeding
+          )
+      ),
+      _ctx(ctx),
+      _i_ctx(ctx.config.initial_partitioning),
+      _coarsener(std::make_unique<InitialCoarsener>(_i_ctx.coarsening, *_rand)),
+      _bipartitioner(std::make_unique<InitialPoolBipartitioner>(_i_ctx.pool, *_rand, ctx.runtime)),
+      _refiner(create_initial_refiner(_i_ctx.refinement, *_rand, ctx.runtime)) {}
 
 // Note: `graph` is the `current_block`-th block-induced subgraph of some graph which is already
 // partitioned into `current_k` blocks.

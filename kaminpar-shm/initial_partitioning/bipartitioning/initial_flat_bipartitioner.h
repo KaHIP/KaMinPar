@@ -34,10 +34,13 @@ public:
   bipartition(StaticArray<BlockID> partition, StaticArray<BlockWeight> block_weights);
 
 protected:
+  Random &_rand;
   static constexpr BlockID V1 = 0;
   static constexpr BlockID V2 = 1;
 
-  InitialFlatBipartitioner(const InitialPoolPartitionerContext &pool_ctx) : _pool_ctx(pool_ctx) {}
+  InitialFlatBipartitioner(const InitialPoolPartitionerContext &pool_ctx, Random &rand)
+      : _rand(rand),
+        _pool_ctx(pool_ctx) {}
 
   virtual void fill_bipartition() = 0;
 

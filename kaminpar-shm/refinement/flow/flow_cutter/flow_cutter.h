@@ -18,6 +18,8 @@
 namespace kaminpar::shm {
 
 class FlowCutter : public FlowCutterAlgorithm {
+  RuntimeContext &_runtime;
+
   SET_DEBUG(false);
 
   static constexpr bool kSourceTag = true;
@@ -27,7 +29,9 @@ class FlowCutter : public FlowCutterAlgorithm {
   static constexpr bool kDontCollectExcessNodesTag = false;
 
 public:
-  FlowCutter(const PartitionContext &p_ctx, const FlowCutterContext &fc_ctx);
+  FlowCutter(
+      const PartitionContext &p_ctx, const FlowCutterContext &fc_ctx, RuntimeContext &runtime
+  );
 
   [[nodiscard]] Result compute_cut(
       const BorderRegion &border_region, const FlowNetwork &flow_network, bool run_sequentially

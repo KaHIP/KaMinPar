@@ -17,9 +17,11 @@ namespace kaminpar::shm {
 
 MultiRefiner::MultiRefiner(
     std::unordered_map<RefinementAlgorithm, std::unique_ptr<Refiner>> refiners,
-    std::vector<RefinementAlgorithm> order
+    std::vector<RefinementAlgorithm> order,
+    RuntimeContext &runtime
 )
-    : _refiners(std::move(refiners)),
+    : _runtime(runtime),
+      _refiners(std::move(refiners)),
       _order(std::move(order)) {}
 
 std::string MultiRefiner::name() const {
@@ -40,7 +42,7 @@ bool MultiRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_c
     const RefinementAlgorithm algorithm = _order[i];
 
     if (_output_level >= OutputLevel::INFO) {
-      LLOG << _output_prefix << i + 1 << ". " << _refiners[algorithm]->name();
+      LLOG_ON(_runtime) << _output_prefix << i + 1 << ". " << _refiners[algorithm]->name();
     }
 
     _refiners[algorithm]->initialize(p_graph);
@@ -55,19 +57,19 @@ bool MultiRefiner::refine(PartitionedGraph &p_graph, const PartitionContext &p_c
 
       const bool unchanged = cut_before == cut_after && imbalance_before == imbalance_after;
 
-      LOG << ": Cut[" << cut_before << " -> " << cut_after << "], "
-          << "Imbalance[" << imbalance_before << " -> " << imbalance_after << "], Feasible["
-          << feasible_before << " -> " << feasible_after << "] "
-          << (unchanged ? "(no effect)" : "");
+      LOG_ON(_runtime) << ": Cut[" << cut_before << " -> " << cut_after << "], "
+                       << "Imbalance[" << imbalance_before << " -> " << imbalance_after
+                       << "], Feasible[" << feasible_before << " -> " << feasible_after << "] "
+                       << (unchanged ? "(no effect)" : "");
 
       imbalance_before = imbalance_after;
       cut_before = cut_after;
       feasible_before = feasible_after;
     } else if (_output_level >= OutputLevel::INFO) {
       if (!current_refiner_found_improvement) {
-        LOG << " (no effect)";
+        LOG_ON(_runtime) << " (no effect)";
       } else {
-        LOG;
+        LOG_ON(_runtime);
       }
     }
   }

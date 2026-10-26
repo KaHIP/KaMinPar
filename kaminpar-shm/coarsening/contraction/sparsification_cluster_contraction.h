@@ -35,7 +35,8 @@ std::unique_ptr<CoarseGraph> contract_and_sparsify_clustering(
     const NodeID c_n,
     Predicate &&predicate,
     const ContractionCoarseningContext &con_ctx,
-    MemoryContext &m_ctx
+    MemoryContext &m_ctx,
+    [[maybe_unused]] Timer &timer = Timer::null()
 ) {
   SET_DEBUG(false);
 
@@ -62,7 +63,7 @@ std::unique_ptr<CoarseGraph> contract_and_sparsify_clustering(
 
   // Allocate the coarse node (weight) and edge (weight) array. We overcomit memory for the edge and
   // edge weight array as we only know the amount of edges of the coarse graph afterwards.
-  START_TIMER("Allocation");
+  START_TIMER_ON(timer, "Allocation");
   START_HEAP_PROFILER("Coarse graph node allocation");
   StaticArray<EdgeID> c_nodes(c_n + 1, static_array::noinit);
   StaticArray<NodeWeight> c_node_weights(c_n, static_array::noinit);
@@ -73,10 +74,10 @@ std::unique_ptr<CoarseGraph> contract_and_sparsify_clustering(
   auto c_edge_weights_ptr = heap_profiler::overcommit_memory<EdgeWeight>(num_fine_edges);
   NodeID *c_edges = c_edges_ptr.get();
   EdgeWeight *c_edge_weights = c_edge_weights_ptr.get();
-  STOP_TIMER();
+  STOP_TIMER_ON(timer);
 
   START_HEAP_PROFILER("Construct coarse graph");
-  START_TIMER("Construct coarse graph");
+  START_TIMER_ON(timer, "Construct coarse graph");
 
   // When writing the neighborhood of a coarse node into the coarse node array, we additionally
   // store inside a vector the coarse node ID it is remapped to. This allows us to directly write
@@ -199,7 +200,7 @@ std::unique_ptr<CoarseGraph> contract_and_sparsify_clustering(
     );
   }};
 
-  START_TIMER("Aggregate coarse edges");
+  START_TIMER_ON(timer, "Aggregate coarse edges");
   if (con_ctx.unbuffered_implementation == ContractionImplementation::TWO_PHASE) {
     using EdgeCollector = FixedSizeSparseMap<NodeID, EdgeWeight, 65536>;
     tbb::enumerable_thread_specific<EdgeCollector> edge_collector_ets;
@@ -240,7 +241,7 @@ std::unique_ptr<CoarseGraph> contract_and_sparsify_clustering(
       return c_u_weight;
     };
 
-    START_TIMER("First phase");
+    START_TIMER_ON(timer, "First phase");
     tbb::concurrent_vector<NodeID> second_phase_nodes;
     tbb::parallel_for(tbb::blocked_range<NodeID>(0, c_n), [&](const auto &r) {
       auto &local_edge_collector = edge_collector_ets.local();
@@ -262,9 +263,9 @@ std::unique_ptr<CoarseGraph> contract_and_sparsify_clustering(
         flush_edges(local_buffer);
       }
     });
-    STOP_TIMER();
+    STOP_TIMER_ON(timer);
 
-    START_TIMER("Second phase");
+    START_TIMER_ON(timer, "Second phase");
     ConcurrentFastResetArray<EdgeWeight, NodeID> edge_collector(c_n);
     tbb::enumerable_thread_specific<NodeWeight> coarse_node_weight_ets(0);
 
@@ -382,7 +383,7 @@ std::unique_ptr<CoarseGraph> contract_and_sparsify_clustering(
         }
       });
     }
-    STOP_TIMER();
+    STOP_TIMER_ON(timer);
 
     DBG << "Unbuffered Contraction:";
     DBG << " First Phase:  " << (c_n - second_phase_nodes.size()) << " clusters";
@@ -394,12 +395,12 @@ std::unique_ptr<CoarseGraph> contract_and_sparsify_clustering(
 
   const EdgeID c_m = next_coarse_node_info.info.edge;
   c_nodes[c_n] = c_m;
-  STOP_TIMER();
+  STOP_TIMER_ON(timer);
 
   // After aggregation, we have to remap the adjacent coarse nodes stored in the coarse edge array
   // as well as the mapping which is used for projection during uncoarsening, because we remapped
   // the coarse nodes during aggregation.
-  START_TIMER("Remap coarse edges and mapping");
+  START_TIMER_ON(timer, "Remap coarse edges and mapping");
   tbb::parallel_for(tbb::blocked_range<EdgeID>(0, c_m), [&](const auto &r) {
     for (EdgeID e = r.begin(); e != r.end(); ++e) {
       c_edges[e] = remapping[c_edges[e]];
@@ -411,9 +412,9 @@ std::unique_ptr<CoarseGraph> contract_and_sparsify_clustering(
       mapping.write(u, remapping[mapping[u]]);
     }
   });
-  STOP_TIMER();
+  STOP_TIMER_ON(timer);
 
-  STOP_TIMER();
+  STOP_TIMER_ON(timer);
   STOP_HEAP_PROFILER();
 
   START_HEAP_PROFILER("Coarse graph edges allocation");

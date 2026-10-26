@@ -261,9 +261,10 @@ target_link_libraries(<your-target> PUBLIC KaMinPar::dKaMinPar) # Distributed pa
 
 The shared-memory partitioner can be used as follows:
 
-> [!CAUTION]
-> Only one thread may call `KaMinPar::compute_partition()` at a time, even on different `KaMinPar` objects.
-> To compute multiple partitions in parallel, disable the performance timers by passing `-DKAMINPAR_ENABLE_TIMERS=Off` to CMake.
+Separate `KaMinPar` instances can partition graphs concurrently with performance timers enabled.
+Each instance owns its timer tree, random streams, and concurrency limit. Configure the seed through
+`ctx.seed` or `shm.reseed(seed)`. Serialize operations on the same instance, and use separate output
+and mutable graph buffers for each call. See [runtime ownership and API migration](docs/library_runtime.md).
 
 ```c++
 #include <kaminpar.h>

@@ -7,10 +7,13 @@
 
 namespace kaminpar::shm {
 
-PiercingHeuristic::PiercingHeuristic(const PiercingHeuristicContext &ctx, const BlockID num_blocks)
-    : _ph_ctx(ctx),
+PiercingHeuristic::PiercingHeuristic(
+    const PiercingHeuristicContext &ctx, const BlockID num_blocks, RuntimeContext &runtime
+)
+    : _runtime(runtime),
+      _ph_ctx(ctx),
       _num_blocks(num_blocks),
-      _random(random::thread_independent_seeding) {}
+      _random(runtime.random.seed(), random::thread_independent_seeding) {}
 
 void PiercingHeuristic::initialize(
     const BorderRegion &border_region,
@@ -24,7 +27,7 @@ void PiercingHeuristic::initialize(
 
   if (_ph_ctx.deterministic) {
     _random.reinit(
-        Random::get_seed() + (border_region.block1() * _num_blocks + border_region.block2())
+        _runtime.random.seed() + (border_region.block1() * _num_blocks + border_region.block2())
     );
   }
 
@@ -60,7 +63,7 @@ void PiercingHeuristic::initialize(
 }
 
 std::pair<NodeID, NodeID> PiercingHeuristic::compute_distances() {
-  SCOPED_TIMER("Compute Distances");
+  SCOPED_TIMER_ON(_runtime.timer, "Compute Distances");
 
   const NodeID source = _flow_network->source;
   const NodeID sink = _flow_network->sink;
@@ -108,7 +111,7 @@ std::pair<NodeID, NodeID> PiercingHeuristic::compute_distances() {
 }
 
 std::pair<NodeID, NodeID> PiercingHeuristic::compute_distances_parallel() {
-  SCOPED_TIMER("Compute Distances");
+  SCOPED_TIMER_ON(_runtime.timer, "Compute Distances");
 
   const NodeID source = _flow_network->source;
   const NodeID sink = _flow_network->sink;

@@ -20,8 +20,14 @@
 namespace kaminpar::shm {
 
 class TwowayFlowRefiner : public Refiner {
+  RuntimeContext &_runtime;
+
 public:
-  TwowayFlowRefiner(const ParallelContext &par_ctx, const TwowayFlowRefinementContext &f_ctx);
+  TwowayFlowRefiner(
+      const ParallelContext &par_ctx,
+      const TwowayFlowRefinementContext &f_ctx,
+      RuntimeContext &runtime
+  );
   ~TwowayFlowRefiner() override = default;
 
   TwowayFlowRefiner(TwowayFlowRefiner &&) noexcept = default;

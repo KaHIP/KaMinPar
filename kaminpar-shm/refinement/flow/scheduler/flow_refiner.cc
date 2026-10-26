@@ -14,23 +14,27 @@ FlowRefiner::FlowRefiner(
     const QuotientGraph &q_graph,
     const PartitionedCSRGraph &p_graph,
     const CSRGraph &graph,
-    const TimePoint &start_time
+    const TimePoint &start_time,
+    RuntimeContext &runtime
 )
-    : _p_graph(p_graph),
-      _border_region_constructor(p_ctx, f_ctx.construction, q_graph, p_graph, graph),
-      _flow_network_constructor(f_ctx.construction, p_graph, graph) {
+    : _runtime(runtime),
+      _p_graph(p_graph),
+      _border_region_constructor(p_ctx, f_ctx.construction, q_graph, p_graph, graph, _runtime),
+      _flow_network_constructor(f_ctx.construction, p_graph, graph, _runtime) {
 #ifdef KAMINPAR_WHFC_FOUND
   if (f_ctx.flow_cutter.use_whfc) {
-    _flow_cutter_algorithm = std::make_unique<HyperFlowCutter>(p_ctx, f_ctx.flow_cutter);
+    _flow_cutter_algorithm = std::make_unique<HyperFlowCutter>(p_ctx, f_ctx.flow_cutter, _runtime);
   } else {
-    _flow_cutter_algorithm = std::make_unique<FlowCutter>(p_ctx, f_ctx.flow_cutter);
+    _flow_cutter_algorithm = std::make_unique<FlowCutter>(p_ctx, f_ctx.flow_cutter, _runtime);
   }
 #else
   if (f_ctx.flow_cutter.use_whfc) {
-    LOG_WARNING << "WHFC requested but not available; using built-in FlowCutter as fallback.";
+    LOG_WARNING_ON(
+        _runtime
+    ) << "WHFC requested but not available; using built-in FlowCutter as fallback.";
   }
 
-  _flow_cutter_algorithm = std::make_unique<FlowCutter>(p_ctx, f_ctx.flow_cutter);
+  _flow_cutter_algorithm = std::make_unique<FlowCutter>(p_ctx, f_ctx.flow_cutter, _runtime);
 #endif
 
   _flow_cutter_algorithm->set_time_limit(f_ctx.time_limit, start_time);
@@ -39,7 +43,7 @@ FlowRefiner::FlowRefiner(
 FlowRefiner::Result
 FlowRefiner::refine(const BlockID block1, const BlockID block2, const bool run_sequentially) {
   KASSERT(block1 != block2, "The flow refiner can only work on distinct block pairs");
-  SCOPED_TIMER("Refine Block Pair");
+  SCOPED_TIMER_ON(_runtime.timer, "Refine Block Pair");
 
   const BlockWeight block_weight1 = _p_graph.block_weight(block1);
   const BlockWeight block_weight2 = _p_graph.block_weight(block2);
