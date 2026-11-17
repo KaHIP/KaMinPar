@@ -288,6 +288,7 @@ void KaMinPar::set_relative_min_block_weights(
 }
 
 void KaMinPar::clear_min_block_weights() {
+  _ctx.partition.clear_min_block_weights();
   _min_epsilon = 0.0;
   _absolute_min_block_weights.clear();
   _relative_min_block_weights.clear();

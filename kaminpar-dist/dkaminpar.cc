@@ -518,7 +518,7 @@ GlobalEdgeWeight dKaMinPar::compute_partition(const std::span<BlockID> partition
     KASSERT(!_relative_max_block_weights.empty());
 
     std::vector<BlockWeight> absolute_max_block_weights(_relative_max_block_weights.size());
-    const NodeWeight total_node_weight = _graph_ptr->total_node_weight();
+    const GlobalNodeWeight total_node_weight = _graph_ptr->global_total_node_weight();
     std::transform(
         _relative_max_block_weights.begin(),
         _relative_max_block_weights.end(),
