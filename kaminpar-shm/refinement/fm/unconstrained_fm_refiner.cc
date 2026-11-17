@@ -12,6 +12,7 @@
 #include <atomic>
 #include <cmath>
 #include <limits>
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -1373,8 +1374,6 @@ private:
       const StaticArray<BlockID> &round_start_partition,
       const EdgeWeight round_start_cut
   ) const {
-    const std::size_t num_moves = _shared->round_moves.size();
-
     graph.pfor_nodes([&](const NodeID u) {
       const BlockID block = round_start_partition[u];
       if (p_graph.block(u) != block) {
@@ -1383,74 +1382,20 @@ private:
     });
 
     std::vector<BlockWeight> block_weights(p_graph.k());
-    std::size_t infeasible_blocks = 0;
     for (const BlockID block : p_graph.blocks()) {
       block_weights[block] = p_graph.block_weight(block);
-      infeasible_blocks += block_weights[block] > p_ctx.max_block_weight(block) ||
-                           block_weights[block] < p_ctx.min_block_weight(block);
     }
 
-    EdgeWeight current_cut = round_start_cut;
-    EdgeWeight best_cut = round_start_cut;
-    BlockWeight best_heaviest_block_weight =
-        *std::max_element(block_weights.begin(), block_weights.end());
-    std::size_t best_prefix = 0;
-    std::vector<std::uint8_t> applied_moves(num_moves, 0);
-
-    auto update_block_weight = [&](const BlockID block, const BlockWeight new_weight) {
-      const bool was_infeasible = block_weights[block] > p_ctx.max_block_weight(block) ||
-                                  block_weights[block] < p_ctx.min_block_weight(block);
-      block_weights[block] = new_weight;
-      const bool is_infeasible = block_weights[block] > p_ctx.max_block_weight(block) ||
-                                 block_weights[block] < p_ctx.min_block_weight(block);
-
-      infeasible_blocks += is_infeasible && !was_infeasible;
-      infeasible_blocks -= was_infeasible && !is_infeasible;
-    };
-
-    for (std::size_t i = 0; i < num_moves; ++i) {
-      const GlobalMove move = _shared->round_moves[i];
-      if (!move.valid) {
-        continue;
-      }
-      if (p_graph.block(move.node) != move.from) {
-        continue;
-      }
-
-      current_cut -= compute_move_gain(graph, p_graph, move.node, move.from, move.to);
-
-      const NodeWeight weight = graph.node_weight(move.node);
-      update_block_weight(move.from, block_weights[move.from] - weight);
-      update_block_weight(move.to, block_weights[move.to] + weight);
-      p_graph.set_block(move.node, move.to);
-      applied_moves[i] = 1;
-
-      if (infeasible_blocks == 0) {
-        const BlockWeight heaviest_block_weight =
-            *std::max_element(block_weights.begin(), block_weights.end());
-        if (current_cut < best_cut ||
-            (current_cut == best_cut && heaviest_block_weight < best_heaviest_block_weight)) {
-          best_cut = current_cut;
-          best_heaviest_block_weight = heaviest_block_weight;
-          best_prefix = i + 1;
+    return replay_to_best_prefix(
+        graph,
+        p_graph,
+        p_ctx,
+        std::move(block_weights),
+        round_start_cut,
+        [&](std::size_t, const GlobalMove &move) -> std::optional<EdgeWeight> {
+          return compute_move_gain(graph, p_graph, move.node, move.from, move.to);
         }
-      }
-    }
-
-    for (std::size_t i = num_moves; i-- > best_prefix;) {
-      if (!applied_moves[i]) {
-        continue;
-      }
-
-      const GlobalMove move = _shared->round_moves[i];
-      if (p_graph.block(move.node) == move.to) {
-        _shared->gain_cache.move(move.node, move.to, move.from);
-        p_graph.set_block(move.node, move.from);
-      }
-    }
-
-    _shared->round_moves.clear();
-    return best_cut;
+    );
   }
 
   [[nodiscard]] EdgeWeight rollback_to_best_prefix(
@@ -1472,7 +1417,33 @@ private:
       }
     }
 
-    std::vector<BlockWeight> block_weights = round_start_block_weights;
+    return replay_to_best_prefix(
+        graph,
+        p_graph,
+        p_ctx,
+        round_start_block_weights,
+        round_start_cut,
+        [&](const std::size_t i, const GlobalMove &move) -> std::optional<EdgeWeight> {
+          if (!reverted_moves[i]) {
+            return std::nullopt;
+          }
+          const EdgeWeight gain = _shared->gain_cache.gain(move.node, move.from, move.to);
+          _shared->gain_cache.move(move.node, move.from, move.to);
+          return gain;
+        }
+    );
+  }
+
+  template <typename ReplayGain>
+  EdgeWeight replay_to_best_prefix(
+      const Graph &graph,
+      PartitionedGraph &p_graph,
+      const PartitionContext &p_ctx,
+      std::vector<BlockWeight> block_weights,
+      const EdgeWeight round_start_cut,
+      ReplayGain &&replay_gain
+  ) const {
+    const std::size_t num_moves = _shared->round_moves.size();
     std::size_t infeasible_blocks = 0;
     for (const BlockID block : p_graph.blocks()) {
       infeasible_blocks += block_weights[block] > p_ctx.max_block_weight(block) ||
@@ -1499,16 +1470,19 @@ private:
 
     for (std::size_t i = 0; i < num_moves; ++i) {
       const GlobalMove move = _shared->round_moves[i];
-      if (!reverted_moves[i] || p_graph.block(move.node) != move.from) {
+      if (!move.valid || p_graph.block(move.node) != move.from) {
         continue;
       }
 
-      current_cut -= _shared->gain_cache.gain(move.node, move.from, move.to);
+      const auto gain = replay_gain(i, move);
+      if (!gain.has_value()) {
+        continue;
+      }
+      current_cut -= *gain;
 
       const NodeWeight weight = graph.node_weight(move.node);
       update_block_weight(move.from, block_weights[move.from] - weight);
       update_block_weight(move.to, block_weights[move.to] + weight);
-      _shared->gain_cache.move(move.node, move.from, move.to);
       p_graph.set_block(move.node, move.to);
       applied_moves[i] = 1;
 
