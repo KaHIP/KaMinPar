@@ -8,6 +8,7 @@
 #include "kaminpar-io/dist_parhip_parser.h"
 
 #include <numeric>
+#include <tuple>
 
 #include <tbb/parallel_reduce.h>
 
@@ -326,16 +327,43 @@ std::pair<std::uint64_t, std::uint64_t> find_local_nodes(
   }
 }
 
-} // namespace
+struct LocalParhipInput {
+  ParhipHeader header;
+  const std::uint8_t *nodes;
+  const std::uint8_t *edges;
+  const std::uint8_t *node_weights;
+  const std::uint8_t *edge_weights;
+  mpi::PEID rank;
+  NodeID first_node = 0;
+  NodeID last_node = 0;
+  EdgeID num_local_edges = 0;
+  StaticArray<GlobalNodeID> node_distribution{};
+  StaticArray<GlobalEdgeID> edge_distribution{};
 
-DistributedCSRGraph csr_read(
-    const std::string &filename,
-    const GraphDistribution distribution,
-    const bool sorted,
-    const MPI_Comm comm
+  EdgeID edge_offset(const NodeID node) const {
+    return header.map_validated_edge_offset(fetch_unsigned(nodes, header.has_64_bit_edge_id, node));
+  }
+
+  NodeID adjacent_node(const EdgeID e) const {
+    return parse_edge_endpoint(fetch_unsigned(edges, header.has_64_bit_node_id, e), header);
+  }
+
+  NodeWeight node_weight(const NodeID u) const {
+    return parse_positive_weight<NodeWeight>(
+        fetch_signed(node_weights, header.has_64_bit_node_weight, u), "Invalid ParHIP node weight"
+    );
+  }
+
+  EdgeWeight edge_weight(const EdgeID e) const {
+    return parse_positive_weight<EdgeWeight>(
+        fetch_signed(edge_weights, header.has_64_bit_edge_weight, e), "Invalid ParHIP edge weight"
+    );
+  }
+};
+
+LocalParhipInput prepare_local_input(
+    const BinaryReader &reader, const GraphDistribution distribution, const MPI_Comm comm
 ) {
-  BinaryReader reader(filename);
-
   const auto version = reader.read<std::uint64_t>(0);
   raise_if((version & ~std::uint64_t{63}) != 0, "Invalid ParHIP graph file version");
   const auto num_nodes = reader.read<std::uint64_t>(sizeof(std::uint64_t));
@@ -364,31 +392,18 @@ DistributedCSRGraph csr_read(
                                      ? reader.fetch_raw(header.edge_weights_offset())
                                      : nullptr;
 
-  const auto map_edge_offset = [&](const NodeID node) {
-    return header.map_validated_edge_offset(
-        fetch_unsigned(raw_nodes, header.has_64_bit_edge_id, node)
-    );
+  LocalParhipInput input{
+      .header = header,
+      .nodes = raw_nodes,
+      .edges = raw_edges,
+      .node_weights = raw_node_weights,
+      .edge_weights = raw_edge_weights,
+      .rank = mpi::get_comm_rank(comm),
   };
-  const auto fetch_adjacent_node = [&](const EdgeID e) {
-    return parse_edge_endpoint(fetch_unsigned(raw_edges, header.has_64_bit_node_id, e), header);
-  };
-  const auto fetch_node_weight = [&](const std::uint64_t u) {
-    return parse_positive_weight<NodeWeight>(
-        fetch_signed(raw_node_weights, header.has_64_bit_node_weight, u),
-        "Invalid ParHIP node weight"
-    );
-  };
-  const auto fetch_edge_weight = [&](const EdgeID e) {
-    return parse_positive_weight<EdgeWeight>(
-        fetch_signed(raw_edge_weights, header.has_64_bit_edge_weight, e),
-        "Invalid ParHIP edge weight"
-    );
-  };
-
   const mpi::PEID size = mpi::get_comm_size(comm);
-  const mpi::PEID rank = mpi::get_comm_rank(comm);
+  const mpi::PEID rank = input.rank;
 
-  const auto [first_node, last_node] = find_local_nodes(
+  std::tie(input.first_node, input.last_node) = find_local_nodes(
       size,
       rank,
       distribution,
@@ -396,50 +411,62 @@ DistributedCSRGraph csr_read(
       m,
       header.edge_id_width(),
       header.node_id_width(),
-      map_edge_offset
+      [&](const NodeID node) { return input.edge_offset(node); }
   );
 
-  const NodeID num_local_nodes = last_node - first_node;
-  const EdgeID first_edge = map_edge_offset(first_node);
-  const EdgeID last_edge = map_edge_offset(last_node);
-  const EdgeID num_local_edges = last_edge - first_edge;
+  input.num_local_edges = input.edge_offset(input.last_node) - input.edge_offset(input.first_node);
 
-  StaticArray<GlobalNodeID> node_distribution(size + 1);
-  node_distribution[rank + 1] = last_node;
+  input.node_distribution.resize(size + 1);
+  input.node_distribution[rank + 1] = input.last_node;
   MPI_Allgather(
       MPI_IN_PLACE,
       0,
       MPI_DATATYPE_NULL,
-      node_distribution.data() + 1,
+      input.node_distribution.data() + 1,
       1,
       mpi::type::get<GlobalNodeID>(),
       comm
   );
 
-  StaticArray<GlobalEdgeID> edge_distribution(size + 1);
-  edge_distribution[rank] = num_local_edges;
+  input.edge_distribution.resize(size + 1);
+  input.edge_distribution[rank] = input.num_local_edges;
   MPI_Allgather(
       MPI_IN_PLACE,
       1,
       mpi::type::get<GlobalEdgeID>(),
-      edge_distribution.data(),
+      input.edge_distribution.data(),
       1,
       mpi::type::get<GlobalEdgeID>(),
       comm
   );
   std::exclusive_scan(
-      edge_distribution.begin(),
-      edge_distribution.end(),
-      edge_distribution.begin(),
+      input.edge_distribution.begin(),
+      input.edge_distribution.end(),
+      input.edge_distribution.begin(),
       static_cast<GlobalEdgeID>(0)
   );
 
-  graph::GhostNodeMapper mapper(rank, node_distribution);
+  return input;
+}
+
+} // namespace
+
+DistributedCSRGraph csr_read(
+    const std::string &filename,
+    const GraphDistribution distribution,
+    const bool sorted,
+    const MPI_Comm comm
+) {
+  const BinaryReader reader(filename);
+  auto input = prepare_local_input(reader, distribution, comm);
+  const NodeID num_local_nodes = input.last_node - input.first_node;
+
+  graph::GhostNodeMapper mapper(input.rank, input.node_distribution);
   StaticArray<EdgeID> nodes(static_cast<std::size_t>(num_local_nodes) + 1, static_array::noinit);
-  StaticArray<NodeID> edges(num_local_edges, static_array::noinit);
+  StaticArray<NodeID> edges(input.num_local_edges, static_array::noinit);
   StaticArray<EdgeWeight> edge_weights;
-  if (header.has_edge_weights) {
-    edge_weights.resize(num_local_edges, static_array::noinit);
+  if (input.header.has_edge_weights) {
+    edge_weights.resize(input.num_local_edges, static_array::noinit);
   }
 
   StaticArray<NodeWeight> node_weights;
@@ -447,24 +474,24 @@ DistributedCSRGraph csr_read(
   try {
     EdgeID edge = 0;
     std::uint64_t total_edge_weight = 0;
-    for (NodeID u = first_node; u < last_node; ++u) {
-      const NodeID node = u - first_node;
+    for (NodeID u = input.first_node; u < input.last_node; ++u) {
+      const NodeID node = u - input.first_node;
       nodes[node] = edge;
 
-      const EdgeID offset = map_edge_offset(u);
-      const EdgeID next_offset = map_edge_offset(u + 1);
+      const EdgeID offset = input.edge_offset(u);
+      const EdgeID next_offset = input.edge_offset(u + 1);
 
       for (EdgeID e = offset; e < next_offset; ++e) {
 
-        NodeID adjacent_node = fetch_adjacent_node(e);
-        if (adjacent_node >= first_node && adjacent_node < last_node) {
-          edges[edge] = adjacent_node - first_node;
+        NodeID adjacent_node = input.adjacent_node(e);
+        if (adjacent_node >= input.first_node && adjacent_node < input.last_node) {
+          edges[edge] = adjacent_node - input.first_node;
         } else {
           edges[edge] = mapper.new_ghost_node(adjacent_node);
         }
 
-        if (header.has_edge_weights) [[unlikely]] {
-          const EdgeWeight weight = fetch_edge_weight(e);
+        if (input.header.has_edge_weights) [[unlikely]] {
+          const EdgeWeight weight = input.edge_weight(e);
           edge_weights[edge] = weight;
           total_edge_weight = add_weight_sum<EdgeWeight>(
               total_edge_weight,
@@ -478,10 +505,12 @@ DistributedCSRGraph csr_read(
     }
     nodes[num_local_nodes] = edge;
 
-    if (header.has_node_weights) {
+    if (input.header.has_node_weights) {
       node_weights.resize(mapper.next_ghost_node(), static_array::noinit);
 
-      read_node_weights(node_weights, num_local_nodes, first_node, fetch_node_weight);
+      read_node_weights(node_weights, num_local_nodes, input.first_node, [&](const NodeID node) {
+        return input.node_weight(node);
+      });
     }
   } catch (const IOException &) {
     local_is_valid = 0;
@@ -491,8 +520,8 @@ DistributedCSRGraph csr_read(
   auto [global_to_ghost, ghost_to_global, ghost_owner] = mapper.finalize();
 
   DistributedCSRGraph graph(
-      std::move(node_distribution),
-      std::move(edge_distribution),
+      std::move(input.node_distribution),
+      std::move(input.edge_distribution),
       std::move(nodes),
       std::move(edges),
       std::move(node_weights),
@@ -505,7 +534,7 @@ DistributedCSRGraph csr_read(
   );
 
   // Fill in ghost node weights
-  if (header.has_node_weights) {
+  if (input.header.has_node_weights) {
     graph::synchronize_ghost_node_weights(graph);
   }
 
@@ -518,109 +547,13 @@ DistributedCompressedGraph compressed_read(
     const bool sorted,
     const MPI_Comm comm
 ) {
-  BinaryReader reader(filename);
+  const BinaryReader reader(filename);
+  auto input = prepare_local_input(reader, distribution, comm);
+  const NodeID num_local_nodes = input.last_node - input.first_node;
 
-  const auto version = reader.read<std::uint64_t>(0);
-  raise_if((version & ~std::uint64_t{63}) != 0, "Invalid ParHIP graph file version");
-  const auto num_nodes = reader.read<std::uint64_t>(sizeof(std::uint64_t));
-  const auto num_edges = reader.read<std::uint64_t>(sizeof(std::uint64_t) * 2);
-  const ParhipHeader header(version, num_nodes, num_edges);
-  header.validate(reader);
-  const NodeID n = static_cast<NodeID>(header.num_nodes);
-  const EdgeID m = static_cast<EdgeID>(header.num_edges);
-
-  const auto *raw_nodes = reader.fetch_raw(header.nodes_offset());
-  collectively_validate_raw_node_offsets(
-      header,
-      [&](const std::uint64_t u) {
-        return fetch_unsigned(raw_nodes, header.has_64_bit_edge_id, u);
-      },
-      comm
-  );
-
-  const auto *raw_edges = header.num_edges > 0 ? reader.fetch_raw(header.edges_offset()) : nullptr;
-
-  const auto *raw_node_weights = header.has_node_weights && header.num_nodes > 0
-                                     ? reader.fetch_raw(header.node_weights_offset())
-                                     : nullptr;
-
-  const auto *raw_edge_weights = header.has_edge_weights && header.num_edges > 0
-                                     ? reader.fetch_raw(header.edge_weights_offset())
-                                     : nullptr;
-
-  const auto map_edge_offset = [&](const NodeID node) {
-    return header.map_validated_edge_offset(
-        fetch_unsigned(raw_nodes, header.has_64_bit_edge_id, node)
-    );
-  };
-  const auto fetch_adjacent_node = [&](const EdgeID e) {
-    return parse_edge_endpoint(fetch_unsigned(raw_edges, header.has_64_bit_node_id, e), header);
-  };
-  const auto fetch_node_weight = [&](const std::uint64_t u) {
-    return parse_positive_weight<NodeWeight>(
-        fetch_signed(raw_node_weights, header.has_64_bit_node_weight, u),
-        "Invalid ParHIP node weight"
-    );
-  };
-  const auto fetch_edge_weight = [&](const EdgeID e) {
-    return parse_positive_weight<EdgeWeight>(
-        fetch_signed(raw_edge_weights, header.has_64_bit_edge_weight, e),
-        "Invalid ParHIP edge weight"
-    );
-  };
-
-  const mpi::PEID size = mpi::get_comm_size(comm);
-  const mpi::PEID rank = mpi::get_comm_rank(comm);
-
-  const auto [first_node, last_node] = find_local_nodes(
-      size,
-      rank,
-      distribution,
-      n,
-      m,
-      header.edge_id_width(),
-      header.node_id_width(),
-      map_edge_offset
-  );
-
-  const NodeID num_local_nodes = last_node - first_node;
-  const EdgeID first_edge = map_edge_offset(first_node);
-  const EdgeID last_edge = map_edge_offset(last_node);
-  const EdgeID num_local_edges = last_edge - first_edge;
-
-  StaticArray<GlobalNodeID> node_distribution(size + 1);
-  node_distribution[rank + 1] = last_node;
-  MPI_Allgather(
-      MPI_IN_PLACE,
-      0,
-      MPI_DATATYPE_NULL,
-      node_distribution.data() + 1,
-      1,
-      mpi::type::get<GlobalNodeID>(),
-      comm
-  );
-
-  StaticArray<GlobalEdgeID> edge_distribution(size + 1);
-  edge_distribution[rank] = num_local_edges;
-  MPI_Allgather(
-      MPI_IN_PLACE,
-      1,
-      mpi::type::get<GlobalEdgeID>(),
-      edge_distribution.data(),
-      1,
-      mpi::type::get<GlobalEdgeID>(),
-      comm
-  );
-  std::exclusive_scan(
-      edge_distribution.begin(),
-      edge_distribution.end(),
-      edge_distribution.begin(),
-      static_cast<GlobalEdgeID>(0)
-  );
-
-  CompactGhostNodeMappingBuilder mapper(rank, node_distribution);
+  CompactGhostNodeMappingBuilder mapper(input.rank, input.node_distribution);
   CompressedNeighborhoodsBuilder<NodeID, EdgeID, EdgeWeight> builder(
-      num_local_nodes, num_local_edges, header.has_edge_weights
+      num_local_nodes, input.num_local_edges, input.header.has_edge_weights
   );
 
   StaticArray<NodeWeight> node_weights;
@@ -628,22 +561,22 @@ DistributedCompressedGraph compressed_read(
   try {
     std::uint64_t total_edge_weight = 0;
     std::vector<std::pair<NodeID, EdgeWeight>> neighbourhood;
-    for (NodeID u = first_node; u < last_node; ++u) {
-      const EdgeID offset = map_edge_offset(u);
-      const EdgeID next_offset = map_edge_offset(u + 1);
+    for (NodeID u = input.first_node; u < input.last_node; ++u) {
+      const EdgeID offset = input.edge_offset(u);
+      const EdgeID next_offset = input.edge_offset(u + 1);
 
       for (EdgeID e = offset; e < next_offset; ++e) {
 
-        NodeID adjacent_node = fetch_adjacent_node(e);
-        if (adjacent_node >= first_node && adjacent_node < last_node) {
-          adjacent_node = adjacent_node - first_node;
+        NodeID adjacent_node = input.adjacent_node(e);
+        if (adjacent_node >= input.first_node && adjacent_node < input.last_node) {
+          adjacent_node = adjacent_node - input.first_node;
         } else {
           adjacent_node = mapper.new_ghost_node(adjacent_node);
         }
 
         EdgeWeight edge_weight;
-        if (header.has_edge_weights) [[unlikely]] {
-          edge_weight = fetch_edge_weight(e);
+        if (input.header.has_edge_weights) [[unlikely]] {
+          edge_weight = input.edge_weight(e);
           total_edge_weight = add_weight_sum<EdgeWeight>(
               total_edge_weight,
               static_cast<std::uint64_t>(edge_weight),
@@ -656,14 +589,16 @@ DistributedCompressedGraph compressed_read(
         neighbourhood.emplace_back(adjacent_node, edge_weight);
       }
 
-      builder.add(u - first_node, std::span<std::pair<NodeID, EdgeWeight>>(neighbourhood));
+      builder.add(u - input.first_node, std::span<std::pair<NodeID, EdgeWeight>>(neighbourhood));
       neighbourhood.clear();
     }
 
-    if (header.has_node_weights) {
+    if (input.header.has_node_weights) {
       node_weights.resize(mapper.next_ghost_node(), static_array::noinit);
 
-      read_node_weights(node_weights, num_local_nodes, first_node, fetch_node_weight);
+      read_node_weights(node_weights, num_local_nodes, input.first_node, [&](const NodeID node) {
+        return input.node_weight(node);
+      });
     }
   } catch (const IOException &) {
     local_is_valid = 0;
@@ -671,8 +606,8 @@ DistributedCompressedGraph compressed_read(
   collectively_require_valid(local_is_valid, "Invalid local ParHIP graph data", comm);
 
   DistributedCompressedGraph graph(
-      std::move(node_distribution),
-      std::move(edge_distribution),
+      std::move(input.node_distribution),
+      std::move(input.edge_distribution),
       builder.build(),
       std::move(node_weights),
       mapper.finalize(),
@@ -681,7 +616,7 @@ DistributedCompressedGraph compressed_read(
   );
 
   // Fill in ghost node weights
-  if (header.has_node_weights) {
+  if (input.header.has_node_weights) {
     graph::synchronize_ghost_node_weights(graph);
   }
 

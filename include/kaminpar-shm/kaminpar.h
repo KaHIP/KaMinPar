@@ -515,6 +515,11 @@ struct PartitionContext {
   void setup_min_block_weights(double min_epsilon);
   void setup_min_block_weights(std::vector<BlockWeight> min_block_weights);
 
+  void clear_min_block_weights() {
+    _min_block_weights.clear();
+    _uniform_min_block_weights = true;
+  }
+
   [[nodiscard]] bool has_uniform_min_block_weights() const {
     return _uniform_min_block_weights;
   }

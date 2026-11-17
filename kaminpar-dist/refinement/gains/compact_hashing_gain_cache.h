@@ -5,7 +5,9 @@
  ******************************************************************************/
 #pragma once
 
+#include <atomic>
 #include <limits>
+#include <type_traits>
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
@@ -27,7 +29,8 @@
 
 namespace kaminpar::dist {
 
-template <typename DistributedGraphType> class CompactHashingGainCache {
+template <typename DistributedGraphType, bool kLazyGhostUpdates = false>
+class CompactHashingGainCache {
   SET_DEBUG(false);
 
   // Abuse MSB bit in the _weighted_degrees[] array for locking
@@ -37,7 +40,7 @@ template <typename DistributedGraphType> class CompactHashingGainCache {
 
 public:
   using DistributedGraph = DistributedGraphType;
-  using Self = CompactHashingGainCache<DistributedGraphType>;
+  using Self = CompactHashingGainCache;
 
   // If set to true, gains() will iterate over all blocks, including those not adjacent to the
   // node.
@@ -63,8 +66,24 @@ public:
       _offsets.resize(_n + 1);
     }
 
-    // Make sure that the ghost graph is initialized on all PEs
-    _graph->ghost_graph();
+    if constexpr (kLazyGhostUpdates) {
+      _ghosts.epoch = 0;
+      _ghosts.consolidated_epoch = 0;
+      if (_ghosts.node_epoch.size() < graph.total_n()) {
+        _ghosts.node_epoch.resize(graph.total_n());
+      } else {
+        _ghosts.node_epoch.assign(graph.total_n(), 0);
+      }
+      if (_ghosts.previous_blocks.size() < graph.ghost_n()) {
+        _ghosts.previous_blocks.resize(graph.ghost_n(), static_array::noinit);
+      }
+      graph.pfor_ghost_nodes([&](const NodeID ghost) {
+        _ghosts.previous_blocks[ghost - _n] = p_graph.block(ghost);
+      });
+    } else {
+      // Initializing the reverse ghost adjacency is collective.
+      graph.ghost_graph();
+    }
 
     recompute_weighted_degrees();
 
@@ -128,7 +147,17 @@ public:
   }
 
   void consolidate() {
-    // Nothing to do
+    if constexpr (kLazyGhostUpdates) {
+      if (_ghosts.epoch == _ghosts.consolidated_epoch) {
+        return;
+      }
+      _ghosts.consolidated_epoch = _ghosts.epoch;
+      _graph->pfor_nodes([&](const NodeID node) { refresh_ghost_neighbors(node); });
+      _graph->pfor_ghost_nodes([&](const NodeID ghost) {
+        _ghosts.previous_blocks[ghost - _n] = _p_graph->block(ghost);
+        _ghosts.node_epoch[ghost] = _ghosts.consolidated_epoch;
+      });
+    }
   }
 
   MaxGainer compute_max_gainer(const NodeID u, const PartitionContext &p_ctx) {
@@ -157,9 +186,15 @@ public:
 
   void move(const NodeID node, const BlockID block_from, const BlockID block_to) {
     if (_graph->is_ghost_node(node)) {
-      _graph->ghost_graph().adjacent_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
-        update_affinity_values(v, weight, block_from, block_to);
-      });
+      if constexpr (kLazyGhostUpdates) {
+        KASSERT(_ghosts.previous_blocks[node - _n] == block_from);
+        _ghosts.previous_blocks[node - _n] = block_from;
+        _ghosts.node_epoch[node] = ++_ghosts.epoch;
+      } else {
+        _graph->ghost_graph().adjacent_nodes(node, [&](const NodeID v, const EdgeWeight weight) {
+          update_affinity_values(v, weight, block_from, block_to);
+        });
+      }
       return;
     }
 
@@ -219,6 +254,10 @@ private:
   KAMINPAR_INLINE void gains(const NodeID node, const BlockID from, Lambda &&lambda) {
     KASSERT(_graph->is_owned_node(node));
 
+    if constexpr (kLazyGhostUpdates) {
+      refresh_ghost_neighbors(node);
+    }
+
     if (use_hash_table(node)) {
       const EdgeWeight conn_from = kIteratesExactGains ? conn_hash_table(node, from) : 0;
 
@@ -277,24 +316,21 @@ private:
     return use_hash_table(node) ? conn_hash_table(node, block) : conn_full_table(node, block);
   }
 
-  KAMINPAR_INLINE void lazy_update_after_ghost_move(
-      const NodeID v, const EdgeWeight weight, const BlockID block_from, const BlockID block_to
-  ) {
-    KASSERT(_graph->is_owned_node(v));
-
-    if (use_hash_table(v)) {
-      lock(v);
-      with_hash_table(v, [&](auto &&hash_table) {
-        hash_table.decrease_by(block_from, weight);
-        hash_table.increase_by(block_to, weight);
-      });
-      unlock(v);
-    } else {
-      with_full_table(v, [&](auto *full_table) {
-        __atomic_fetch_sub(full_table + block_from, weight, __ATOMIC_RELAXED);
-        __atomic_fetch_add(full_table + block_to, weight, __ATOMIC_RELAXED);
-      });
+  void refresh_ghost_neighbors(const NodeID node) {
+    const int epoch = _ghosts.epoch;
+    if (_ghosts.node_epoch[node] == epoch) {
+      return;
     }
+    _graph->adjacent_ghost_nodes(node, [&](const NodeID ghost, const EdgeWeight weight) {
+      if (_ghosts.node_epoch[ghost] > _ghosts.node_epoch[node]) {
+        const BlockID from = _ghosts.previous_blocks[ghost - _n];
+        const BlockID to = _p_graph->block(ghost);
+        if (from != to) {
+          update_affinity_values(node, weight, from, to);
+        }
+      }
+    });
+    _ghosts.node_epoch[node] = epoch;
   }
 
   //
@@ -548,6 +584,16 @@ private:
         __atomic_load_n(&_weighted_degrees[node], __ATOMIC_RELAXED) & kWeightedDegreeMask
     );
   }
+
+  struct EagerGhostUpdates {};
+  struct LazyGhostUpdates {
+    std::atomic<int> epoch = 0;
+    int consolidated_epoch = 0;
+    StaticArray<int> node_epoch;
+    StaticArray<BlockID> previous_blocks;
+  };
+  [[no_unique_address]] std::conditional_t<kLazyGhostUpdates, LazyGhostUpdates, EagerGhostUpdates>
+      _ghosts;
 
   const Context &_ctx;
 

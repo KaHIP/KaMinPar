@@ -25,6 +25,42 @@ static std::vector<NodeID> adjncy = {
 
 } // namespace data
 
+TEST(ShmEndToEndTest, lists_and_constructs_preset_aliases) {
+  const auto names = get_preset_names();
+  for (const auto *alias :
+       {"flow",
+        "largek-fm",
+        "largek-flow",
+        "esa21",
+        "diss",
+        "diss-smallk",
+        "diss-largek",
+        "diss-largek-fast",
+        "diss-strong"}) {
+    EXPECT_TRUE(names.contains(alias)) << alias;
+  }
+  for (const auto &name : names) {
+    EXPECT_NO_THROW(create_context_by_preset_name(name)) << name;
+  }
+}
+
+TEST(ShmEndToEndTest, clears_minimum_block_weights_between_runs) {
+  std::vector<EdgeID> nodes{0, 1, 3, 5, 6};
+  std::vector<NodeID> edges{1, 0, 2, 1, 3, 2};
+  std::vector<BlockID> partition(4);
+  KaMinPar shm(1, create_default_context());
+  shm.set_output_level(OutputLevel::QUIET);
+  shm.copy_graph(nodes, edges);
+  shm.set_absolute_min_block_weights(std::vector<BlockWeight>{1, 1});
+  shm.compute_partition(2, partition);
+  ASSERT_TRUE(shm.context().partition.has_min_block_weights());
+
+  shm.clear_min_block_weights();
+  shm.compute_partition(2, partition);
+  EXPECT_FALSE(shm.context().partition.has_min_block_weights());
+  EXPECT_EQ(shm.context().partition.min_block_weight(0), 0);
+}
+
 TEST(ShmEndToEndTest, partitions_empty_unweighted_graph) {
   std::vector<EdgeID> xadj{0};
   std::vector<NodeID> adjncy{};

@@ -10,100 +10,68 @@
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <unordered_set>
+#include <utility>
 
 #include "kaminpar-shm/kaminpar.h"
 
 namespace kaminpar::shm {
 
+namespace {
+
+constexpr std::pair<std::string_view, Context (*)()> kPresets[] = {
+    {"default", create_default_context},
+    {"fast", create_fast_context},
+    {"eco", create_eco_context},
+    {"fm", create_eco_context},
+    {"strong", create_strong_context},
+    {"flow", create_strong_context},
+    {"largek", create_largek_context},
+    {"largek-fast", create_largek_fast_context},
+    {"largek-eco", create_largek_eco_context},
+    {"largek-fm", create_largek_eco_context},
+    {"largek-strong", create_largek_strong_context},
+    {"largek-flow", create_largek_strong_context},
+    {"terapart", create_terapart_context},
+    {"terapart-eco", create_terapart_eco_context},
+    {"terapart-largek", create_terapart_largek_context},
+    {"jet", [] { return create_jet_context(1); }},
+    {"4xjet", [] { return create_jet_context(4); }},
+    {"noref", create_noref_context},
+    {"vcycle", [] { return create_vcycle_context(false); }},
+    {"restricted-vcycle", [] { return create_vcycle_context(true); }},
+    {"esa21", create_esa21_smallk_context},
+    {"esa21-smallk", create_esa21_smallk_context},
+    {"diss", create_esa21_smallk_context},
+    {"diss-smallk", create_esa21_smallk_context},
+    {"esa21-largek", create_esa21_largek_context},
+    {"diss-largek", create_esa21_largek_context},
+    {"esa21-largek-fast", create_esa21_largek_fast_context},
+    {"diss-largek-fast", create_esa21_largek_fast_context},
+    {"esa21-strong", create_esa21_strong_context},
+    {"diss-strong", create_esa21_strong_context},
+    {"mtkahypar-kway", create_mtkahypar_kway_context},
+    {"linear-time-kway", create_linear_time_kway_context},
+};
+
+} // namespace
+
 Context create_context_by_preset_name(const std::string &name) {
-  if (name == "default") {
-    return create_default_context();
-  } else if (name == "fast") {
-    return create_fast_context();
-  } else if (name == "eco" || name == "fm") {
-    return create_eco_context();
-  } else if (name == "strong" || name == "flow") {
-    return create_strong_context();
+  for (const auto &[preset, create] : kPresets) {
+    if (preset == name) {
+      return create();
+    }
   }
-
-  if (name == "largek") {
-    return create_largek_context();
-  } else if (name == "largek-fast") {
-    return create_largek_fast_context();
-  } else if (name == "largek-eco" || name == "largek-fm") {
-    return create_largek_eco_context();
-  } else if (name == "largek-strong" || name == "largek-flow") {
-    return create_largek_strong_context();
-  }
-
-  if (name == "terapart") {
-    return create_terapart_context();
-  } else if (name == "terapart-eco") {
-    return create_terapart_eco_context();
-  } else if (name == "terapart-largek") {
-    return create_terapart_largek_context();
-  }
-
-  if (name == "jet") {
-    return create_jet_context(1);
-  } else if (name == "4xjet") {
-    return create_jet_context(4);
-  } else if (name == "noref") {
-    return create_noref_context();
-  }
-
-  if (name == "vcycle") {
-    return create_vcycle_context(false);
-  } else if (name == "restricted-vcycle") {
-    return create_vcycle_context(true);
-  }
-
-  if (name == "esa21" || name == "esa21-smallk" || name == "diss" || name == "diss-smallk") {
-    return create_esa21_smallk_context();
-  } else if (name == "esa21-largek" || name == "diss-largek") {
-    return create_esa21_largek_context();
-  } else if (name == "esa21-largek-fast" || name == "diss-largek-fast") {
-    return create_esa21_largek_fast_context();
-  } else if (name == "esa21-strong" || name == "diss-strong") {
-    return create_esa21_strong_context();
-  }
-
-  if (name == "mtkahypar-kway") {
-    return create_mtkahypar_kway_context();
-  } else if (name == "linear-time-kway") {
-    return create_linear_time_kway_context();
-  }
-
   throw std::runtime_error("invalid preset name");
 }
 
 std::unordered_set<std::string> get_preset_names() {
-  return {
-      "default",
-      "fast",
-      "eco",
-      "strong",
-      "largek",
-      "terapart",
-      "terapart-eco",
-      "terapart-largek",
-      "largek-fast",
-      "largek-eco",
-      "largek-strong",
-      "jet",
-      "4xjet",
-      "noref",
-      "fm",
-      "vcycle",
-      "restricted-vcycle",
-      "esa21-smallk",
-      "esa21-largek",
-      "esa21-largek-fast",
-      "esa21-strong",
-      "mtkahypar-kway",
-      "linear-time-kway",
-  };
+  std::unordered_set<std::string> names;
+  for (const auto &preset : kPresets) {
+    names.emplace(preset.first);
+  }
+  return names;
 }
 
 Context create_default_context() {

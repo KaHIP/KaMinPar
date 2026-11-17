@@ -61,6 +61,43 @@ std::vector<GlobalEdgeID> create_xadj() {
 
 } // namespace data
 
+TEST(DistEndToEndTest, lists_and_constructs_fast_preset) {
+  const auto names = get_preset_names();
+  EXPECT_TRUE(names.contains("fast"));
+  for (const auto &name : names) {
+    EXPECT_NO_THROW(create_context_by_preset_name(name)) << name;
+  }
+}
+
+TEST(DistEndToEndTest, resolves_relative_block_weights_from_the_global_weight) {
+  const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
+  const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
+  constexpr NodeID local_n = 4;
+  const GlobalNodeID global_n = local_n * size;
+  std::vector<GlobalNodeID> distribution(size + 1);
+  for (PEID pe = 0; pe <= size; ++pe) {
+    distribution[pe] = local_n * pe;
+  }
+
+  // Give each rank a segment of a ring and a different total node weight.
+  std::vector<GlobalEdgeID> nodes{0, 2, 4, 6, 8};
+  std::vector<GlobalNodeID> edges;
+  for (GlobalNodeID u = distribution[rank]; u < distribution[rank + 1]; ++u) {
+    edges.push_back((u + global_n - 1) % global_n);
+    edges.push_back((u + 1) % global_n);
+  }
+  std::vector<GlobalNodeWeight> weights(local_n, rank + 1);
+  std::vector<BlockID> partition(local_n);
+  dKaMinPar dist(MPI_COMM_WORLD, 1, create_default_context());
+  dist.set_output_level(OutputLevel::QUIET);
+  dist.copy_graph(distribution, nodes, edges, weights);
+  dist.compute_partition(std::vector<double>{0.5, 0.75}, partition);
+
+  const GlobalNodeWeight total = local_n * size * (size + 1) / 2;
+  EXPECT_EQ(dist.context().partition.max_block_weight(0), total / 2);
+  EXPECT_EQ(dist.context().partition.max_block_weight(1), 3 * total / 4);
+}
+
 TEST(DistEndToEndTest, partitions_empty_unweighted_graph) {
   const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
 
