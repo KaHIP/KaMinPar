@@ -25,6 +25,25 @@ static std::vector<NodeID> adjncy = {
 
 } // namespace data
 
+TEST(ShmEndToEndTest, lists_and_constructs_preset_aliases) {
+  const auto names = get_preset_names();
+  for (const auto *alias :
+       {"flow",
+        "largek-fm",
+        "largek-flow",
+        "esa21",
+        "diss",
+        "diss-smallk",
+        "diss-largek",
+        "diss-largek-fast",
+        "diss-strong"}) {
+    EXPECT_TRUE(names.contains(alias)) << alias;
+  }
+  for (const auto &name : names) {
+    EXPECT_NO_THROW(create_context_by_preset_name(name)) << name;
+  }
+}
+
 TEST(ShmEndToEndTest, clears_minimum_block_weights_between_runs) {
   std::vector<EdgeID> nodes{0, 1, 3, 5, 6};
   std::vector<NodeID> edges{1, 0, 2, 1, 3, 2};

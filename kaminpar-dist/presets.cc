@@ -8,6 +8,8 @@
 #include "kaminpar-dist/presets.h"
 
 #include <stdexcept>
+#include <string_view>
+#include <utility>
 
 #include "kaminpar-dist/dkaminpar.h"
 
@@ -15,33 +17,35 @@
 
 namespace kaminpar::dist {
 
-Context create_context_by_preset_name(const std::string &name) {
-  if (name == "default" || name == "fast") {
-    return create_default_context();
-  } else if (name == "largek") {
-    return create_largek_context();
-  } else if (name == "strong") {
-    return create_strong_context();
-  } else if (name == "xterapart") {
-    return create_xterapart_context();
-  } else if (name == "europar23-fast") {
-    return create_europar23_fast_context();
-  } else if (name == "europar23-strong") {
-    return create_europar23_strong_context();
-  }
+namespace {
 
+constexpr std::pair<std::string_view, Context (*)()> kPresets[] = {
+    {"default", create_default_context},
+    {"fast", create_default_context},
+    {"largek", create_largek_context},
+    {"strong", create_strong_context},
+    {"xterapart", create_xterapart_context},
+    {"europar23-fast", create_europar23_fast_context},
+    {"europar23-strong", create_europar23_strong_context},
+};
+
+} // namespace
+
+Context create_context_by_preset_name(const std::string &name) {
+  for (const auto &[preset, create] : kPresets) {
+    if (preset == name) {
+      return create();
+    }
+  }
   throw std::runtime_error("invalid preset name");
 }
 
 std::unordered_set<std::string> get_preset_names() {
-  return {
-      "default",
-      "largek",
-      "strong",
-      "xterapart",
-      "europar23-fast",
-      "europar23-strong",
-  };
+  std::unordered_set<std::string> names;
+  for (const auto &preset : kPresets) {
+    names.emplace(preset.first);
+  }
+  return names;
 }
 
 Context create_default_context() {

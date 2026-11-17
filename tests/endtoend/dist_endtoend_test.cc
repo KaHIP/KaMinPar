@@ -61,6 +61,14 @@ std::vector<GlobalEdgeID> create_xadj() {
 
 } // namespace data
 
+TEST(DistEndToEndTest, lists_and_constructs_fast_preset) {
+  const auto names = get_preset_names();
+  EXPECT_TRUE(names.contains("fast"));
+  for (const auto &name : names) {
+    EXPECT_NO_THROW(create_context_by_preset_name(name)) << name;
+  }
+}
+
 TEST(DistEndToEndTest, resolves_relative_block_weights_from_the_global_weight) {
   const PEID size = mpi::get_comm_size(MPI_COMM_WORLD);
   const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
