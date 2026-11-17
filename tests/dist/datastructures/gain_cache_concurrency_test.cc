@@ -73,4 +73,43 @@ TYPED_TEST(DistributedGainCacheConcurrencyTest, GainQueriesCanOverlapNeighborMov
   }
 }
 
+TYPED_TEST(DistributedGainCacheConcurrencyTest, RefreshesGhostMovesAcrossInitializations) {
+  if (mpi::get_comm_size(MPI_COMM_WORLD) != 2) {
+    GTEST_SKIP() << "Uses two neighboring ranks";
+  }
+  const PEID rank = mpi::get_comm_rank(MPI_COMM_WORLD);
+  const Context ctx = create_default_context();
+  TypeParam cache(ctx);
+
+  // Keep the number of owned nodes fixed while increasing the number of ghosts.
+  for (const NodeID ghost_count : {1u, 2u}) {
+    graph::Builder builder(MPI_COMM_WORLD);
+    builder.initialize(2);
+    for (NodeID node = 0; node < 2; ++node) {
+      builder.create_node(1);
+      builder.create_edge(1, 2 * rank + (1 - node));
+      if (node < ghost_count) {
+        builder.create_edge(7, 2 * (1 - rank) + node);
+      }
+    }
+    DistributedGraph graph(std::make_unique<DistributedCSRGraph>(builder.finalize()));
+    DistributedPartitionedGraph p_graph(&graph, 4, StaticArray<BlockID>(graph.total_n(), BlockID{0}));
+    cache.init(graph.csr_graph(), p_graph);
+
+    for (const NodeID ghost : graph.ghost_nodes()) {
+      cache.move(ghost, 0, 1);
+      p_graph.set_block<false>(ghost, 1);
+    }
+    // Query one node before consolidation and leave the rest for the bulk update.
+    EXPECT_EQ(cache.compute_max_gainer(0).ext_degree, 7);
+    cache.consolidate();
+    for (NodeID node = 0; node < ghost_count; ++node) {
+      const auto gain = cache.compute_max_gainer(node);
+      EXPECT_EQ(gain.int_degree, 1);
+      EXPECT_EQ(gain.ext_degree, 7);
+      EXPECT_EQ(gain.block, 1u);
+    }
+  }
+}
+
 } // namespace kaminpar::dist

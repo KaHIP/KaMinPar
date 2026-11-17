@@ -256,7 +256,7 @@ if (KAMINPAR_BUILD_DISTRIBUTED)
     if (KAMINPAR_BUILD_EXPERIMENTAL_FEATURES)
         kaminpar_add_dist_test(test_dist_gain_cache_concurrency
             FILES dist/datastructures/gain_cache_concurrency_test.cc
-            CORES 1)
+            CORES 1 2)
     endif ()
 endif ()
 
