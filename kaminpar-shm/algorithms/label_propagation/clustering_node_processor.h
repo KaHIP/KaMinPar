@@ -196,15 +196,12 @@ private:
     const NodeID degree = _graph.degree(u);
     const NodeWeight u_weight = _graph.node_weight(u);
     const NodeID from = _state_view.cluster(u);
-    const NodeWeight from_weight = _state_view.cluster_weight(from);
-    const bool store_favored_cluster =
-        u_weight == from_weight && from_weight <= _state_view.max_cluster_weight(from) / 2;
     const std::size_t upper_bound = std::min<NodeID>(degree, _graph.n());
     const std::size_t map_bound =
         kDefer ? std::min(upper_bound, ParallelRatingMap<NodeID, EdgeWeight>::kFlushThreshold)
                : upper_bound;
 
-    const auto selection = local.ratings.execute(map_bound, [&](auto &ratings) {
+    const auto target = local.ratings.execute(map_bound, [&](auto &ratings) -> std::optional<NodeID> {
       if constexpr (kDefer) {
         if (NeighborhoodRatings::accumulate_with_capacity(
                 _graph,
@@ -217,7 +214,7 @@ private:
             )) [[unlikely]] {
           ratings.clear();
           _deferred_nodes.push_back(u);
-          return std::optional<ClusteringSelector::Selection>{};
+          return std::nullopt;
         }
       } else {
         NeighborhoodRatings::accumulate(
@@ -230,22 +227,21 @@ private:
       }
 
       _state_view.deactivate(u);
-      auto result = _selector.select(
-          from,
-          u_weight,
-          store_favored_cluster,
-          ratings,
-          local.random,
-          local.ties,
-          local.favored_ties
-      );
+      const NodeID best = _selector.select_cluster(from, u_weight, ratings, local.random, local.ties);
+      if (best == from) {
+        const NodeWeight from_weight = _state_view.cluster_weight(from);
+        if (u_weight == from_weight && from_weight <= _state_view.max_cluster_weight(from) / 2) {
+          const NodeID favored =
+              _selector.select_favored_cluster(from, ratings, local.random, local.favored_ties);
+          _state_view.set_favored_cluster(u, favored);
+        }
+      }
       ratings.clear();
-      return std::optional<ClusteringSelector::Selection>{result};
+      return best;
     });
 
-    if (selection) {
-      remember_favored_cluster(u, from, *selection, store_favored_cluster);
-      record_move(_state_view.commit(_graph, u, from, selection->cluster, u_weight), local);
+    if (target && *target != from) {
+      record_move(_state_view.commit(_graph, u, from, *target, u_weight), local);
     }
   }
 

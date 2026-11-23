@@ -64,8 +64,17 @@ public:
     return _max_cluster_weight;
   }
 
+  [[nodiscard]] KAMINPAR_INLINE bool has_communities() const {
+    return !_communities.empty();
+  }
+
   [[nodiscard]] KAMINPAR_INLINE bool accepts_community(const NodeID from, const NodeID to) const {
     return _communities.empty() || _communities[from] == _communities[to];
+  }
+
+  [[nodiscard]] KAMINPAR_INLINE bool
+  accepts_community_unchecked(const NodeID from, const NodeID to) const {
+    return _communities[from] == _communities[to];
   }
 
   [[nodiscard]] KAMINPAR_INLINE bool
@@ -86,9 +95,13 @@ public:
       const NodeID to,
       const NodeWeight u_weight
   ) {
-    if (from == to || !move_cluster_weight(from, to, u_weight)) {
+    if (from == to || cluster_weight(to) + u_weight > _max_cluster_weight) {
       return {};
     }
+
+    __atomic_fetch_add(&_cluster_weights[to], u_weight, __ATOMIC_RELAXED);
+    const NodeWeight prev_from =
+        __atomic_fetch_sub(&_cluster_weights[from], u_weight, __ATOMIC_RELAXED);
 
     move_node(u, to);
     if constexpr (kParallelActivate) {
@@ -96,7 +109,7 @@ public:
     } else {
       _active.activate_neighbors(graph, u, [](const NodeID) { return true; });
     }
-    return {.moved = true, .emptied_cluster = cluster_weight(from) == 0};
+    return {.moved = true, .emptied_cluster = prev_from == u_weight};
   }
 
   [[nodiscard]] KAMINPAR_INLINE bool is_active(const NodeID u) const {
@@ -138,27 +151,35 @@ public:
     const NodeID n = graph.n();
     _clustering = &clustering;
     if (_cluster_weights.size() < n) {
-      _cluster_weights.resize(n);
+      _cluster_weights.resize(n, static_array::noinit);
     }
     if (_favored_clusters.size() < n) {
-      _favored_clusters.resize(n);
+      _favored_clusters.resize(n, static_array::noinit);
     }
     _active.resize(n);
 
-    tbb::parallel_invoke(
-        [&] {
-          tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
-            _active.initialize(u);
-            move_node(u, u);
-            _favored_clusters[u] = u;
-          });
-        },
-        [&] {
-          tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
-            _cluster_weights[u] = graph.node_weight(u);
-          });
+    NodeID *__restrict__ clustering_ptr = clustering.data();
+    NodeID *__restrict__ favored_ptr = _favored_clusters.data();
+    NodeWeight *__restrict__ weights_ptr = _cluster_weights.data();
+    if (graph.is_node_weighted()) {
+      tbb::parallel_for(tbb::blocked_range<NodeID>(0, n), [&](const auto &range) {
+        for (NodeID u = range.begin(); u != range.end(); ++u) {
+          _active.initialize(u);
+          clustering_ptr[u] = u;
+          favored_ptr[u] = u;
+          weights_ptr[u] = graph.node_weight(u);
         }
-    );
+      });
+    } else {
+      tbb::parallel_for(tbb::blocked_range<NodeID>(0, n), [&](const auto &range) {
+        for (NodeID u = range.begin(); u != range.end(); ++u) {
+          _active.initialize(u);
+          clustering_ptr[u] = u;
+          favored_ptr[u] = u;
+          weights_ptr[u] = 1;
+        }
+      });
+    }
 
     _current_num_clusters = n;
   }
