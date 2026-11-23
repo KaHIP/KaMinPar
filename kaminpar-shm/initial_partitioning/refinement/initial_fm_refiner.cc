@@ -249,7 +249,15 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
 
   std::size_t active = 0; // block from which we select a node for movement
 
-  EdgeWeight current_overload = metrics::total_overload(p_graph, *_p_ctx);
+  const BlockWeight max_w0 = _p_ctx->max_block_weight(0);
+  const BlockWeight max_w1 = _p_ctx->max_block_weight(1);
+  const auto fast_overload = [&]() -> EdgeWeight {
+    const BlockWeight ov0 = std::max<BlockWeight>(0, p_graph.block_weight(0) - max_w0);
+    const BlockWeight ov1 = std::max<BlockWeight>(0, p_graph.block_weight(1) - max_w1);
+    return static_cast<EdgeWeight>(ov0 + ov1);
+  };
+
+  EdgeWeight current_overload = fast_overload();
   EdgeWeight accepted_overload = current_overload;
 
   EdgeWeight current_delta = 0;
@@ -263,6 +271,11 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
 
   QueueSelectionPolicy queue_selection_policy;
   CutAcceptancePolicy cut_acceptance_policy;
+
+  const EdgeID *__restrict__ g_nodes = _graph->raw_nodes().data();
+  const NodeID *__restrict__ g_edges = _graph->raw_edges().data();
+  const bool edge_weighted = _graph->is_edge_weighted();
+  const EdgeWeight *__restrict__ g_ew = edge_weighted ? _graph->raw_edge_weights().data() : nullptr;
 
   while ((!_queues[0].empty() || !_queues[1].empty()) && !_stopping_policy.should_stop(_r_ctx)) {
     KASSERT(validate_pqs(p_graph), "inconsistent PQ state", assert::heavy);
@@ -290,14 +303,18 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
     KASSERT(initial_edge_cut + current_delta == metrics::edge_cut_seq(p_graph), "", assert::heavy);
 #endif
     _stopping_policy.update(-delta); // assumes gain, not loss
-    current_overload = metrics::total_overload(p_graph, *_p_ctx);
+    current_overload = fast_overload();
 
     // update gain of neighboring nodes
-    _graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight e_weight) {
+    const EdgeID e_begin = g_nodes[u];
+    const EdgeID e_end = g_nodes[u + 1];
+    for (EdgeID e = e_begin; e < e_end; ++e) {
+      const NodeID v = g_edges[e];
       if (_marker.get(v)) {
-        return;
+        continue;
       }
 
+      const EdgeWeight e_weight = edge_weighted ? g_ew[e] : 1;
       const BlockID v_block = p_graph.block(v);
       const EdgeWeight loss_delta = 2 * e_weight * ((to == v_block) ? 1 : -1);
 
@@ -316,7 +333,7 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
         KASSERT(is_boundary_node(p_graph, v), "", assert::heavy);
         _queues[v_block].push(v, _weighted_degrees[v] + loss_delta);
       }
-    });
+    }
 
     // accept move if it improves the best edge cut found so far
     if (cut_acceptance_policy(

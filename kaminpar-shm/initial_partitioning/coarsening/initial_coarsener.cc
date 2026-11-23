@@ -83,9 +83,19 @@ NodeID InitialCoarsener::pick_cluster(
     const NodeID u, const NodeWeight u_weight, const NodeWeight max_cluster_weight
 ) {
   KASSERT(_rating_map.empty());
-  _current_graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
-    _rating_map[_clustering[v].leader] += w;
-  });
+  const EdgeID e_begin = _current_graph->raw_nodes()[u];
+  const EdgeID e_end = _current_graph->raw_nodes()[u + 1];
+  const NodeID *__restrict__ edges = _current_graph->raw_edges().data();
+  if (_current_graph->is_edge_weighted()) {
+    const EdgeWeight *__restrict__ ew = _current_graph->raw_edge_weights().data();
+    for (EdgeID e = e_begin; e < e_end; ++e) {
+      _rating_map[_clustering[edges[e]].leader] += ew[e];
+    }
+  } else {
+    for (EdgeID e = e_begin; e < e_end; ++e) {
+      _rating_map[_clustering[edges[e]].leader] += 1;
+    }
+  }
 
   return pick_cluster_from_rating_map(u, u_weight, max_cluster_weight);
 }
