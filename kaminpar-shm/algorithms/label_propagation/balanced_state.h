@@ -61,7 +61,7 @@ public:
     }
 
     _p_graph->set_block<false>(u, to);
-    _active.activate_neighbors(graph, u, [](const NodeID) { return true; });
+    _active.activate_neighbors(graph, u, [this](const NodeID v) { return !_active.contains(v); });
     return true;
   }
 
