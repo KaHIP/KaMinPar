@@ -29,20 +29,24 @@ std::pair<NodeID, NodeID> find_furthest_away_node(
   NodeID remaining_nodes_in_level = 1;
   NodeID nodes_in_next_level = 0;
 
+  const EdgeID *__restrict__ g_nodes = graph.raw_nodes().data();
+  const NodeID *__restrict__ g_edges = graph.raw_edges().data();
+
   while (!queue.empty()) {
     const NodeID u = queue.head();
     queue.pop_head();
     last_node = u;
 
-    graph.adjacent_nodes(u, [&](const NodeID v) {
-      if (marker.get(v)) {
-        return;
+    const EdgeID e_begin = g_nodes[u];
+    const EdgeID e_end = g_nodes[u + 1];
+    for (EdgeID e = e_begin; e < e_end; ++e) {
+      const NodeID v = g_edges[e];
+      if (!marker.get(v)) {
+        queue.push_tail(v);
+        marker.set<true>(v);
+        ++nodes_in_next_level;
       }
-
-      queue.push_tail(v);
-      marker.set<true>(v);
-      ++nodes_in_next_level;
-    });
+    }
 
     // keep track of distance from start_node
     KASSERT(remaining_nodes_in_level > 0u);
@@ -88,7 +92,7 @@ std::pair<NodeID, NodeID> find_far_away_nodes(
   Random &rand = Random::instance();
 
   for (int i = 0; i < num_iterations; ++i) {
-    const NodeID u = Random::instance().random_index(0, graph.n());
+    const NodeID u = rand.random_index(0, graph.n());
     const auto [v, distance] = find_furthest_away_node(graph, u, queue, marker);
 
     if (distance > best_distance || (distance == best_distance && rand.random_bool())) {

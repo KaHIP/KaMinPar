@@ -123,8 +123,22 @@ public:
   void remove(const ID id) {
     KASSERT(contains(id));
 
-    decrease_priority(id, Comparator<Key>::kMinValue);
-    pop();
+    const std::size_t pos = _id_pos[id];
+    _id_pos[id] = kInvalidID;
+    --_size;
+    if (pos == _size) {
+      return;
+    }
+
+    const Key old_key = _heap[pos].key;
+    const HeapElement last = _heap[_size];
+    _heap[pos] = last;
+    _id_pos[last.id] = pos;
+    if (_comparator(old_key, last.key)) {
+      sift_up(pos);
+    } else if (_comparator(last.key, old_key)) {
+      sift_down(pos);
+    }
 
     KASSERT(!contains(id));
   }
@@ -140,10 +154,12 @@ public:
     KASSERT(!empty());
 
     --_size;
-    std::swap(_heap.front(), _heap[_size]);
-    _id_pos[_heap[0].id] = 0;
-    _id_pos[_heap[_size].id] = kInvalidID;
-    sift_down(0);
+    _id_pos[_heap[0].id] = kInvalidID;
+    if (_size > 0) {
+      _heap[0] = _heap[_size];
+      _id_pos[_heap[0].id] = 0;
+      sift_down(0);
+    }
   }
 
   void push(const ID id, const Key &key) {
@@ -157,6 +173,29 @@ public:
     sift_up(pos);
   }
 
+  void push_unsorted(const ID id, const Key &key) {
+    KASSERT(!contains(id));
+    KASSERT(size() < _heap.size());
+
+    const std::size_t pos = _size++;
+    _heap[pos] = {id, key};
+    _id_pos[id] = pos;
+  }
+
+  void build_heap() {
+    if (_size <= 1) {
+      return;
+    }
+    std::size_t i = (_size - 2) / kTreeArity;
+    while (true) {
+      sift_down(i);
+      if (i == 0) {
+        break;
+      }
+      --i;
+    }
+  }
+
   void push_or_change_priority(const ID id, const Key &new_key) {
     if (contains(id)) {
       change_priority(id, new_key);
@@ -166,11 +205,15 @@ public:
   }
 
   void change_priority(const ID id, const Key &new_key) {
-    const Key &old_key = key(id);
+    KASSERT(contains(id));
+    const std::size_t pos = _id_pos[id];
+    const Key old_key = _heap[pos].key;
     if (_comparator(new_key, old_key)) {
-      increase_priority(id, new_key);
+      _heap[pos].key = new_key;
+      sift_down(pos);
     } else if (_comparator(old_key, new_key)) {
-      decrease_priority(id, new_key);
+      _heap[pos].key = new_key;
+      sift_up(pos);
     }
   }
 
@@ -222,39 +265,48 @@ private:
   };
 
   void sift_up(std::size_t pos) {
+    const HeapElement elem = _heap[pos];
     while (pos != 0) {
       const std::size_t parent = (pos - 1) / kTreeArity;
-      if (_comparator(_heap[parent].key, _heap[pos].key)) {
-        std::swap(_heap[pos], _heap[parent]);
-        std::swap(_id_pos[_heap[pos].id], _id_pos[_heap[parent].id]);
+      if (!_comparator(_heap[parent].key, elem.key)) {
+        break;
       }
+      _heap[pos] = _heap[parent];
+      _id_pos[_heap[pos].id] = pos;
       pos = parent;
     }
+    _heap[pos] = elem;
+    _id_pos[elem.id] = pos;
   }
 
   void sift_down(std::size_t pos) {
+    const HeapElement elem = _heap[pos];
     while (true) {
       const std::size_t first_child = kTreeArity * pos + 1;
-      if (first_child >= _size)
-        return;
+      if (first_child >= _size) {
+        break;
+      }
 
+      const std::size_t last_child = std::min(first_child + kTreeArity, _size);
       std::size_t smallest_child = first_child;
-      for (std::size_t c = first_child + 1; c < std::min(kTreeArity * pos + kTreeArity + 1, _size);
-           ++c) {
-        if (_comparator(_heap[smallest_child].key, _heap[c].key)) {
+      Key smallest_key = _heap[first_child].key;
+      for (std::size_t c = first_child + 1; c < last_child; ++c) {
+        if (_comparator(smallest_key, _heap[c].key)) {
           smallest_child = c;
+          smallest_key = _heap[c].key;
         }
       }
 
-      if (_comparator(_heap[smallest_child].key, _heap[pos].key) ||
-          _heap[smallest_child].key == _heap[pos].key) {
-        return;
+      if (!_comparator(elem.key, smallest_key)) {
+        break;
       }
 
-      std::swap(_heap[pos], _heap[smallest_child]);
-      std::swap(_id_pos[_heap[pos].id], _id_pos[_heap[smallest_child].id]);
+      _heap[pos] = _heap[smallest_child];
+      _id_pos[_heap[pos].id] = pos;
       pos = smallest_child;
     }
+    _heap[pos] = elem;
+    _id_pos[elem.id] = pos;
   }
 
   std::vector<HeapElement> _heap;

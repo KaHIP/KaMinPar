@@ -62,7 +62,6 @@ void InitialMultilevelBipartitioner::initialize(
   _p_ctx = partitioning::create_twoway_context(_ctx, current_block, current_k, abstract_graph);
 
   _coarsener->init(graph);
-  _refiner->init(graph);
 
   const BlockID num_sub_blocks =
       partitioning::compute_final_k(current_block, current_k, _ctx.partition.k);

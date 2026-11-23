@@ -115,7 +115,11 @@ void InitialBFSBipartitioner<BlockSelectionStrategy>::fill_bipartition() {
   BlockSelectionStrategy select_next_block;
   BlockID active = 0;
 
-  while (_marker.first_unmarked_element(kMarkAssigned) < _graph->n()) {
+  const NodeID n = _graph->n();
+  const EdgeID *__restrict__ g_nodes = _graph->raw_nodes().data();
+  const NodeID *__restrict__ g_edges = _graph->raw_edges().data();
+
+  while (_marker.first_unmarked_element(kMarkAssigned) < n) {
     if (__builtin_expect(_queues[active].empty(), 0)) {
       const auto first_unassigned_node =
           static_cast<NodeID>(_marker.first_unmarked_element(kMarkAssigned));
@@ -134,19 +138,6 @@ void InitialBFSBipartitioner<BlockSelectionStrategy>::fill_bipartition() {
     // The node could have been assigned between the time it was put into the
     // queue and now, hence we must check this here
     if (__builtin_expect(!_marker.get(u, kMarkAssigned), 1)) {
-      // If the balance constraint does not allow us to put this node into the
-      // active block, we switch to the lighter block instead
-      // --------------------------------------------------
-      // This version seems to perform worse in terms of balance
-      //
-      //        const bool balanced = (_block_weights[active] +
-      //        _graph.node_weight(u) <= _p_ctx.max_block_weight(active)); if
-      //        (!balanced) {
-      //          active = _block_weights[1 - active] < _block_weights[active]
-      //          ? 1 - active : active;
-      //        }
-      //
-      // than this version:
       const NodeWeight weight = _block_weights[active];
       const bool assignment_allowed =
           (weight + _graph->node_weight(u) <= _p_ctx->max_block_weight(active));
@@ -155,14 +146,16 @@ void InitialBFSBipartitioner<BlockSelectionStrategy>::fill_bipartition() {
       set_block(u, active);
       _marker.set<true>(u, kMarkAssigned);
 
-      _graph->adjacent_nodes(u, [&](const NodeID v) {
-        if (_marker.get(v, kMarkAssigned) || _marker.get(v, active)) {
-          return;
+      auto &active_queue = _queues[active];
+      const EdgeID e_begin = g_nodes[u];
+      const EdgeID e_end = g_nodes[u + 1];
+      for (EdgeID e = e_begin; e < e_end; ++e) {
+        const NodeID v = g_edges[e];
+        if (!_marker.get(v, kMarkAssigned) && !_marker.get(v, active)) {
+          active_queue.push_tail(v);
+          _marker.set(v, active);
         }
-
-        _queues[active].push_tail(v);
-        _marker.set(v, active);
-      });
+      }
     }
 
     active = select_next_block(active, _block_weights, *_p_ctx, _queues);

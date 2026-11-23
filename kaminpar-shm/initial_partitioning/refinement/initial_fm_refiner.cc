@@ -308,30 +308,58 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
     // update gain of neighboring nodes
     const EdgeID e_begin = g_nodes[u];
     const EdgeID e_end = g_nodes[u + 1];
-    for (EdgeID e = e_begin; e < e_end; ++e) {
-      const NodeID v = g_edges[e];
-      if (_marker.get(v)) {
-        continue;
-      }
-
-      const EdgeWeight e_weight = edge_weighted ? g_ew[e] : 1;
-      const BlockID v_block = p_graph.block(v);
-      const EdgeWeight loss_delta = 2 * e_weight * ((to == v_block) ? 1 : -1);
-
-      if (_queues[v_block].contains(v)) {
-        const EdgeWeight new_loss = _queues[v_block].key(v) + loss_delta;
-        const bool still_boundary_node = new_loss < _weighted_degrees[v];
-
-        if (!still_boundary_node) { // v is no longer a boundary node
-          KASSERT(!is_boundary_node(p_graph, v), "", assert::heavy);
-          _queues[v_block].remove(v);
-        } else { // v is still a boundary node
-          KASSERT(is_boundary_node(p_graph, v), "", assert::heavy);
-          _queues[v_block].change_priority(v, new_loss);
+    const BlockID *__restrict__ part = p_graph.raw_partition().data();
+    const EdgeWeight *__restrict__ wd = _weighted_degrees.data();
+    if (edge_weighted) {
+      for (EdgeID e = e_begin; e < e_end; ++e) {
+        const NodeID v = g_edges[e];
+        if (_marker.get(v)) {
+          continue;
         }
-      } else { // since v was not a boundary node before, it must be one now
-        KASSERT(is_boundary_node(p_graph, v), "", assert::heavy);
-        _queues[v_block].push(v, _weighted_degrees[v] + loss_delta);
+
+        const EdgeWeight e_weight = g_ew[e];
+        const BlockID v_block = part[v];
+        const EdgeWeight loss_delta = 2 * e_weight * ((to == v_block) ? 1 : -1);
+        auto &v_queue = _queues[v_block];
+
+        if (v_queue.contains(v)) {
+          const EdgeWeight new_loss = v_queue.key(v) + loss_delta;
+          if (new_loss >= wd[v]) { // v is no longer a boundary node
+            KASSERT(!is_boundary_node(p_graph, v), "", assert::heavy);
+            v_queue.remove(v);
+          } else { // v is still a boundary node
+            KASSERT(is_boundary_node(p_graph, v), "", assert::heavy);
+            v_queue.change_priority(v, new_loss);
+          }
+        } else { // since v was not a boundary node before, it must be one now
+          KASSERT(is_boundary_node(p_graph, v), "", assert::heavy);
+          v_queue.push(v, wd[v] + loss_delta);
+        }
+      }
+    } else {
+      for (EdgeID e = e_begin; e < e_end; ++e) {
+        const NodeID v = g_edges[e];
+        if (_marker.get(v)) {
+          continue;
+        }
+
+        const BlockID v_block = part[v];
+        const EdgeWeight loss_delta = (to == v_block) ? 2 : -2;
+        auto &v_queue = _queues[v_block];
+
+        if (v_queue.contains(v)) {
+          const EdgeWeight new_loss = v_queue.key(v) + loss_delta;
+          if (new_loss >= wd[v]) {
+            KASSERT(!is_boundary_node(p_graph, v), "", assert::heavy);
+            v_queue.remove(v);
+          } else {
+            KASSERT(is_boundary_node(p_graph, v), "", assert::heavy);
+            v_queue.change_priority(v, new_loss);
+          }
+        } else {
+          KASSERT(is_boundary_node(p_graph, v), "", assert::heavy);
+          v_queue.push(v, wd[v] + loss_delta);
+        }
       }
     }
 
@@ -393,22 +421,77 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
   _rand.shuffle(_chunks.begin(), _chunks.begin() + num_chunks);
 
   std::int64_t total_external_weight = 0;
-  for (NodeID i = 0; i < num_chunks; ++i) {
-    const NodeID chunk = _chunks[i];
-    const auto &permutation = _permutations.get(_rand);
-    if (chunk + kChunkSize <= n) {
-      for (const NodeID offset : permutation) {
-        total_external_weight += insert_node(p_graph, chunk + offset);
+  const auto &g = *_graph;
+  const EdgeID *__restrict__ g_nodes = g.raw_nodes().data();
+  const NodeID *__restrict__ g_edges = g.raw_edges().data();
+  const BlockID *__restrict__ part = p_graph.raw_partition().data();
+  const EdgeWeight *__restrict__ wd = _weighted_degrees.data();
+
+  if (g.is_edge_weighted()) {
+    const EdgeWeight *__restrict__ g_ew = g.raw_edge_weights().data();
+    const auto process_node = [&](const NodeID u) {
+      const BlockID u_block = part[u];
+      EdgeWeight ext = 0;
+      const EdgeID e_begin = g_nodes[u];
+      const EdgeID e_end = g_nodes[u + 1];
+      for (EdgeID e = e_begin; e < e_end; ++e) {
+        ext += (part[g_edges[e]] != u_block) ? g_ew[e] : 0;
       }
-    } else {
-      for (const NodeID offset : permutation) {
-        const NodeID u = chunk + offset;
-        if (u < n) {
-          total_external_weight += insert_node(p_graph, u);
+      if (ext != 0) {
+        _queues[u_block].push_unsorted(u, wd[u] - 2 * ext);
+        total_external_weight += ext;
+      }
+    };
+    for (NodeID i = 0; i < num_chunks; ++i) {
+      const NodeID chunk = _chunks[i];
+      const auto &permutation = _permutations.get(_rand);
+      if (chunk + kChunkSize <= n) {
+        for (const NodeID offset : permutation) {
+          process_node(chunk + offset);
+        }
+      } else {
+        for (const NodeID offset : permutation) {
+          const NodeID u = chunk + offset;
+          if (u < n) {
+            process_node(u);
+          }
+        }
+      }
+    }
+  } else {
+    const auto process_node = [&](const NodeID u) {
+      const BlockID u_block = part[u];
+      EdgeWeight ext = 0;
+      const EdgeID e_begin = g_nodes[u];
+      const EdgeID e_end = g_nodes[u + 1];
+      for (EdgeID e = e_begin; e < e_end; ++e) {
+        ext += (part[g_edges[e]] != u_block);
+      }
+      if (ext != 0) {
+        _queues[u_block].push_unsorted(u, wd[u] - 2 * ext);
+        total_external_weight += ext;
+      }
+    };
+    for (NodeID i = 0; i < num_chunks; ++i) {
+      const NodeID chunk = _chunks[i];
+      const auto &permutation = _permutations.get(_rand);
+      if (chunk + kChunkSize <= n) {
+        for (const NodeID offset : permutation) {
+          process_node(chunk + offset);
+        }
+      } else {
+        for (const NodeID offset : permutation) {
+          const NodeID u = chunk + offset;
+          if (u < n) {
+            process_node(u);
+          }
         }
       }
     }
   }
+
+  _queues[0].build_heap();
+  _queues[1].build_heap();
 
   KASSERT(validate_pqs(p_graph), "inconsistent PQ state after init", assert::heavy);
   return static_cast<EdgeWeight>(total_external_weight / 2);
