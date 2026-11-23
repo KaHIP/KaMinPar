@@ -154,7 +154,7 @@ PartitionedGraph AbstractClusterCoarsener::uncoarsen(PartitionedGraph &&p_graph)
 
   START_HEAP_PROFILER("Allocation");
   START_TIMER("Allocation");
-  StaticArray<BlockID> partition(next_n);
+  StaticArray<BlockID> partition(next_n, static_array::noinit);
   STOP_TIMER();
   STOP_HEAP_PROFILER();
 

@@ -321,15 +321,19 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
     EdgeWeight *__restrict__ c_ew_ptr = c_edge_weights.data();
 
     const auto flush_cluster = [&] {
-      interleaved_handle_node(c_u, c_node_weights[c_u]);
+      const bool do_interleaved = !_interleaved_locked;
       for (const auto c_v : _edge_weight_collector.used_entry_ids()) {
         const EdgeWeight weight = _edge_weight_collector.get(c_v);
         _edge_weight_collector[c_v] = 0;
         c_edges_ptr[c_m] = c_v;
         c_ew_ptr[c_m] = weight;
         ++c_m;
+        if (do_interleaved) {
+          _rating_map[_clustering[c_v].leader] += weight;
+        }
       }
       _edge_weight_collector.used_entry_ids().clear();
+      interleaved_handle_node(c_u, c_node_weights[c_u]);
       c_nodes[++c_u] = c_m;
     };
 
@@ -343,21 +347,10 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
 
         const EdgeID e_begin = g_nodes[u];
         const EdgeID e_end = g_nodes[u + 1];
-        if (!_interleaved_locked) {
-          for (EdgeID e = e_begin; e < e_end; ++e) {
-            const NodeID c_v = mapping_ptr[g_edges[e]];
-            if (c_u != c_v) {
-              const EdgeWeight w = g_ew[e];
-              _edge_weight_collector[c_v] += w;
-              _rating_map[_clustering[c_v].leader] += w;
-            }
-          }
-        } else {
-          for (EdgeID e = e_begin; e < e_end; ++e) {
-            const NodeID c_v = mapping_ptr[g_edges[e]];
-            if (c_u != c_v) {
-              _edge_weight_collector[c_v] += g_ew[e];
-            }
+        for (EdgeID e = e_begin; e < e_end; ++e) {
+          const NodeID c_v = mapping_ptr[g_edges[e]];
+          if (c_u != c_v) {
+            _edge_weight_collector[c_v] += g_ew[e];
           }
         }
       }
@@ -371,20 +364,10 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
 
         const EdgeID e_begin = g_nodes[u];
         const EdgeID e_end = g_nodes[u + 1];
-        if (!_interleaved_locked) {
-          for (EdgeID e = e_begin; e < e_end; ++e) {
-            const NodeID c_v = mapping_ptr[g_edges[e]];
-            if (c_u != c_v) {
-              _edge_weight_collector[c_v] += 1;
-              _rating_map[_clustering[c_v].leader] += 1;
-            }
-          }
-        } else {
-          for (EdgeID e = e_begin; e < e_end; ++e) {
-            const NodeID c_v = mapping_ptr[g_edges[e]];
-            if (c_u != c_v) {
-              _edge_weight_collector[c_v] += 1;
-            }
+        for (EdgeID e = e_begin; e < e_end; ++e) {
+          const NodeID c_v = mapping_ptr[g_edges[e]];
+          if (c_u != c_v) {
+            _edge_weight_collector[c_v] += 1;
           }
         }
       }

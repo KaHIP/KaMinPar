@@ -50,12 +50,14 @@ public:
         u, std::numeric_limits<NodeID>::max(), 2000, [&](auto &&pfor_adjacent_nodes) {
           auto &used_entries = _ratings.local_used_entries();
           auto &local_map = local_maps.maps().local().prepare_hash_map(kFlushThreshold);
+          auto acc = local_map.accumulator();
 
           pfor_adjacent_nodes([&](const NodeID v, const EdgeWeight weight) {
             if (accept_neighbor(v)) {
-              local_map[get_key(v)] += weight;
-              if (local_map.size() >= kFlushThreshold) [[unlikely]] {
+              acc.add(get_key(v), weight);
+              if (acc.size() >= kFlushThreshold) [[unlikely]] {
                 flush(used_entries, local_map);
+                acc = local_map.accumulator();
               }
             }
           });
@@ -65,7 +67,9 @@ public:
     tbb::parallel_for(local_maps.maps().range(), [&](auto &maps) {
       auto &used_entries = _ratings.local_used_entries();
       for (auto &map : maps) {
-        flush(used_entries, map.hash_map());
+        if (map.hash_map().size() > 0) {
+          flush(used_entries, map.hash_map());
+        }
       }
     });
   }

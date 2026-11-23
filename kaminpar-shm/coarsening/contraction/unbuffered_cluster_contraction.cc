@@ -50,7 +50,7 @@ public:
 
   FlatContractionMap()
       : _slots(std::make_unique<Slot[]>(kMaxCapacity)),
-        _used_slots(std::make_unique<std::uint16_t[]>(kMaxCapacity)) {
+        _used_slots(new std::uint16_t[kMaxCapacity]) {
     set_capacity(kMaxCapacity);
   }
 
@@ -599,114 +599,118 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
     STOP_TIMER();
 
     START_TIMER("Second phase");
-    ConcurrentFastResetArray<EdgeWeight, NodeID> edge_collector(c_n);
-    tbb::enumerable_thread_specific<NodeWeight> coarse_node_weight_ets(0);
+    if (!second_phase_nodes.empty()) {
+      ConcurrentFastResetArray<EdgeWeight, NodeID> edge_collector(c_n);
+      tbb::enumerable_thread_specific<NodeWeight> coarse_node_weight_ets(0);
 
-    auto &cur_c_u = next_coarse_node_info.c_u;
-    auto &cur_edge = next_coarse_node_info.edge;
-    for (const NodeID c_u : second_phase_nodes) {
-      const NodeID bucket_start = buckets_index[c_u];
-      const NodeID bucket_end = buckets_index[c_u + 1];
+      auto &cur_c_u = next_coarse_node_info.c_u;
+      auto &cur_edge = next_coarse_node_info.edge;
+      for (const NodeID c_u : second_phase_nodes) {
+        const NodeID bucket_start = buckets_index[c_u];
+        const NodeID bucket_end = buckets_index[c_u + 1];
 
-      const auto flush_local_rating_map = [&](auto &local_used_entries,
-                                              auto &local_edge_collector) {
-        local_edge_collector.for_each_entry([&](const NodeID c_v, const EdgeWeight w) {
-          const EdgeWeight prev_weight =
-              __atomic_fetch_add(&edge_collector[c_v], w, __ATOMIC_RELAXED);
+        const auto flush_local_rating_map = [&](auto &local_used_entries,
+                                                auto &local_edge_collector) {
+          local_edge_collector.for_each_entry([&](const NodeID c_v, const EdgeWeight w) {
+            const EdgeWeight prev_weight =
+                __atomic_fetch_add(&edge_collector[c_v], w, __ATOMIC_RELAXED);
 
-          if (prev_weight == 0) {
-            local_used_entries.push_back(c_v);
+            if (prev_weight == 0) {
+              local_used_entries.push_back(c_v);
+            }
+          });
+
+          local_edge_collector.clear();
+        };
+
+        constexpr NodeID kParallelIterationGrainsize = 2000;
+        tbb::parallel_for(tbb::blocked_range<NodeID>(bucket_start, bucket_end), [&](const auto &r) {
+          auto &local_coarse_node_weight = coarse_node_weight_ets.local();
+          auto &local_used_entries = edge_collector.local_used_entries();
+          auto &local_edge_collector = edge_collector_ets.local();
+          if (local_edge_collector.capacity() != kMaxHashCapacity) {
+            local_edge_collector.set_capacity(kMaxHashCapacity);
+          }
+
+          const NodeID local_bucket_start = r.begin();
+          const NodeID local_bucket_end = r.end();
+          for (NodeID i = local_bucket_start; i < local_bucket_end; ++i) {
+            const NodeID u = buckets[i];
+            local_coarse_node_weight += graph.node_weight(u);
+
+            if (graph.degree(u) < kParallelIterationGrainsize * 2) {
+              graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+                const NodeID c_v = mapping_ptr[v];
+                if (c_u != c_v) {
+                  local_edge_collector.add(c_v, w);
+
+                  if (local_edge_collector.size() >= kDegreeThreshold) [[unlikely]] {
+                    flush_local_rating_map(local_used_entries, local_edge_collector);
+                  }
+                }
+              });
+
+              continue;
+            }
+
+            graph.pfor_adjacent_nodes(
+                u,
+                std::numeric_limits<NodeID>::max(),
+                kParallelIterationGrainsize,
+                [&](auto &&pfor_adjacent_nodes) {
+                  auto &local_used_entries = edge_collector.local_used_entries();
+                  auto &local_edge_collector = edge_collector_ets.local();
+                  if (local_edge_collector.capacity() != kMaxHashCapacity) {
+                    local_edge_collector.set_capacity(kMaxHashCapacity);
+                  }
+
+                  pfor_adjacent_nodes([&](const NodeID v, const EdgeWeight w) {
+                    const NodeID c_v = mapping_ptr[v];
+                    if (c_u != c_v) {
+                      local_edge_collector.add(c_v, w);
+
+                      if (local_edge_collector.size() >= kDegreeThreshold) [[unlikely]] {
+                        flush_local_rating_map(local_used_entries, local_edge_collector);
+                      }
+                    }
+                  });
+                }
+            );
           }
         });
 
-        local_edge_collector.clear();
-      };
-
-      constexpr NodeID kParallelIterationGrainsize = 2000;
-      tbb::parallel_for(tbb::blocked_range<NodeID>(bucket_start, bucket_end), [&](const auto &r) {
-        auto &local_coarse_node_weight = coarse_node_weight_ets.local();
-        auto &local_used_entries = edge_collector.local_used_entries();
-        auto &local_edge_collector = edge_collector_ets.local();
-        if (local_edge_collector.capacity() != kMaxHashCapacity) {
-          local_edge_collector.set_capacity(kMaxHashCapacity);
-        }
-
-        const NodeID local_bucket_start = r.begin();
-        const NodeID local_bucket_end = r.end();
-        for (NodeID i = local_bucket_start; i < local_bucket_end; ++i) {
-          const NodeID u = buckets[i];
-          local_coarse_node_weight += graph.node_weight(u);
-
-          if (graph.degree(u) < kParallelIterationGrainsize * 2) {
-            graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
-              const NodeID c_v = mapping_ptr[v];
-              if (c_u != c_v) {
-                local_edge_collector.add(c_v, w);
-
-                if (local_edge_collector.size() >= kDegreeThreshold) [[unlikely]] {
-                  flush_local_rating_map(local_used_entries, local_edge_collector);
-                }
-              }
-            });
-
-            continue;
+        tbb::parallel_for(edge_collector_ets.range(), [&](const auto &local_edge_collectors) {
+          auto &local_used_entries = edge_collector.local_used_entries();
+          for (auto &local_edge_collector : local_edge_collectors) {
+            if (local_edge_collector.size() > 0) {
+              flush_local_rating_map(local_used_entries, local_edge_collector);
+            }
           }
+        });
 
-          graph.pfor_adjacent_nodes(
-              u,
-              std::numeric_limits<NodeID>::max(),
-              kParallelIterationGrainsize,
-              [&](auto &&pfor_adjacent_nodes) {
-                auto &local_used_entries = edge_collector.local_used_entries();
-                auto &local_edge_collector = edge_collector_ets.local();
-                if (local_edge_collector.capacity() != kMaxHashCapacity) {
-                  local_edge_collector.set_capacity(kMaxHashCapacity);
-                }
+        remapping_ptr[c_u] = cur_c_u;
 
-                pfor_adjacent_nodes([&](const NodeID v, const EdgeWeight w) {
-                  const NodeID c_v = mapping_ptr[v];
-                  if (c_u != c_v) {
-                    local_edge_collector.add(c_v, w);
-
-                    if (local_edge_collector.size() >= kDegreeThreshold) [[unlikely]] {
-                      flush_local_rating_map(local_used_entries, local_edge_collector);
-                    }
-                  }
-                });
-              }
-          );
+        NodeWeight c_u_weight = 0;
+        for (auto &local_c_u_weight : coarse_node_weight_ets) {
+          c_u_weight += local_c_u_weight;
+          local_c_u_weight = 0;
         }
-      });
 
-      tbb::parallel_for(edge_collector_ets.range(), [&](const auto &local_edge_collectors) {
-        auto &local_used_entries = edge_collector.local_used_entries();
-        for (auto &local_edge_collector : local_edge_collectors) {
-          flush_local_rating_map(local_used_entries, local_edge_collector);
-        }
-      });
+        c_nodes[cur_c_u] = cur_edge;
+        c_node_weights[cur_c_u] = c_u_weight;
+        cur_c_u += 1;
 
-      remapping_ptr[c_u] = cur_c_u;
+        edge_collector.iterate_and_reset([&](const auto, const auto &local_neighbors) {
+          EdgeID local_cur_edge =
+              __atomic_fetch_add(&cur_edge, local_neighbors.size(), __ATOMIC_RELAXED);
 
-      NodeWeight c_u_weight = 0;
-      for (auto &local_c_u_weight : coarse_node_weight_ets) {
-        c_u_weight += local_c_u_weight;
-        local_c_u_weight = 0;
+          for (const auto [c_v, w] : local_neighbors) {
+            c_edges[local_cur_edge] = c_v;
+            c_edge_weights[local_cur_edge] = w;
+            local_cur_edge += 1;
+          }
+        });
       }
-
-      c_nodes[cur_c_u] = cur_edge;
-      c_node_weights[cur_c_u] = c_u_weight;
-      cur_c_u += 1;
-
-      edge_collector.iterate_and_reset([&](const auto, const auto &local_neighbors) {
-        EdgeID local_cur_edge =
-            __atomic_fetch_add(&cur_edge, local_neighbors.size(), __ATOMIC_RELAXED);
-
-        for (const auto [c_v, w] : local_neighbors) {
-          c_edges[local_cur_edge] = c_v;
-          c_edge_weights[local_cur_edge] = w;
-          local_cur_edge += 1;
-        }
-      });
     }
     STOP_TIMER();
 
